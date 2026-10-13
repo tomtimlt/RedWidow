@@ -24,6 +24,20 @@ export interface TaskUsage {
   durationMs: number;
 }
 
+/**
+ * Ce que l'on sait de l'authentification d'une session. Jamais d'adresse
+ * e-mail ni de jeton : ce sont des données personnelles ou des secrets.
+ */
+export interface AuthInfo {
+  /** Origine de la clé selon le moteur (`ANTHROPIC_API_KEY`, `none` = connexion OAuth/abonnement…). */
+  apiKeySource?: string;
+  /** Formule d'abonnement (`pro`, `max`…), `null` si le moteur n'en reconnaît pas. */
+  subscriptionType?: string | null;
+  tokenSource?: string;
+  /** Fournisseur d'API actif (`firstParty`, `bedrock`, `vertex`…). */
+  apiProvider?: string;
+}
+
 export type EventPayload =
   | { kind: "run.started"; prompt: string; cwd: string }
   | {
@@ -31,6 +45,18 @@ export type EventPayload =
       sessionId: string;
       model: string;
       tools: string[];
+      /** Origine des identifiants telle que l'annonce le message d'initialisation. */
+      auth?: AuthInfo;
+    }
+  | ({
+      /** Détails d'authentification obtenus après l'initialisation (abonnement, fournisseur…). */
+      kind: "auth.info";
+    } & AuthInfo)
+  | {
+      /** Progression d'une authentification en cours ; la sortie détaillée n'est pas journalisée. */
+      kind: "auth.status";
+      isAuthenticating: boolean;
+      error?: string;
     }
   | { kind: "agent.text"; text: string }
   | {
@@ -55,6 +81,14 @@ export type EventPayload =
       decision: Decision;
       source: "policy" | "user";
       reason: Reason;
+    }
+  | {
+      /** Une approbation est sollicitée auprès de l'Asker ; `approval.decided` suivra. */
+      kind: "approval.requested";
+      toolUseId: string;
+      tool: string;
+      input: Record<string, unknown>;
+      verdict: Reason;
     }
   | {
       kind: "permission.denied";
@@ -121,11 +155,21 @@ export type EventPayload =
       utilization?: number;
     }
   | {
+      /** Fin d'un tour (message `result` du moteur) ; une session multi-tours en émet plusieurs. */
+      kind: "turn.finished";
+      turns: number;
+      /** Coût cumulé de la session à ce tour. */
+      costUsd: number;
+      status: "success" | "error";
+      result: string | null;
+    }
+  | {
       kind: "run.finished";
       status: "success" | "error";
       turns: number;
       costUsd: number;
       result: string | null;
+      sessionId?: string;
       /** Messages SDK non traduits en événements, comptés par `type/subtype`. */
       unhandledMessages?: Record<string, number>;
     }
@@ -229,6 +273,13 @@ function shape(fields: Record<string, FieldType>): PayloadValidator {
   };
 }
 
+const AUTH_FIELDS = shape({
+  apiKeySource: "string?",
+  subscriptionType: "string|null?",
+  tokenSource: "string?",
+  apiProvider: "string?",
+});
+
 const USAGE_FIELDS = shape({ totalTokens: "number", toolUses: "number", durationMs: "number" });
 
 /**
@@ -237,7 +288,11 @@ const USAGE_FIELDS = shape({ totalTokens: "number", toolUses: "number", duration
  */
 export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
   "run.started": shape({ prompt: "string", cwd: "string" }),
-  "session.started": shape({ sessionId: "string", model: "string", tools: "string[]" }),
+  "session.started": (p) =>
+    shape({ sessionId: "string", model: "string", tools: "string[]", auth: "object?" })(p) ??
+    (p.auth === undefined ? null : prefix("auth", AUTH_FIELDS(p.auth as Obj))),
+  "auth.info": AUTH_FIELDS,
+  "auth.status": shape({ isAuthenticating: "boolean", error: "string?" }),
   "agent.text": shape({ text: "string" }),
   "agent.thinking": shape({ text: "string", redacted: "boolean" }),
   "tool.requested": shape({
@@ -252,6 +307,12 @@ export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
     decision: "enum:allow,deny",
     source: "enum:policy,user",
     reason: "reason",
+  }),
+  "approval.requested": shape({
+    toolUseId: "string",
+    tool: "string",
+    input: "object",
+    verdict: "reason",
   }),
   "permission.denied": shape({
     toolUseId: "string",
@@ -305,12 +366,19 @@ export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
     limitType: "string?",
     utilization: "number?",
   }),
+  "turn.finished": shape({
+    turns: "number",
+    costUsd: "number",
+    status: "enum:success,error",
+    result: "string|null",
+  }),
   "run.finished": (p) =>
     shape({
       status: "enum:success,error",
       turns: "number",
       costUsd: "number",
       result: "string|null",
+      sessionId: "string?",
       unhandledMessages: "object?",
     })(p) ?? countsError(p.unhandledMessages),
   error: shape({

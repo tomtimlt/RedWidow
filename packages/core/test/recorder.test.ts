@@ -161,3 +161,70 @@ describe("recorder", () => {
     });
   });
 });
+
+describe("recorder.stream", () => {
+  const collect = async (stream: AsyncIterable<EngineEvent>) => {
+    const out: EngineEvent[] = [];
+    for await (const e of stream) out.push(e);
+    return out;
+  };
+
+  it("rend les événements émis depuis l'appel, y compris avant le premier next(), et se termine sur close()", async () => {
+    const r = createRecorder({ runId: "r" });
+    r.emit({ kind: "agent.text", text: "avant" });
+    const stream = r.stream();
+    r.emit({ kind: "agent.text", text: "un" });
+    r.emit({ kind: "agent.text", text: "deux" });
+    const done = collect(stream);
+    r.emit({ kind: "agent.text", text: "trois" });
+    r.close();
+    const events = await done;
+    expect(events.map((e) => (e.kind === "agent.text" ? e.text : e.kind))).toEqual([
+      "un",
+      "deux",
+      "trois",
+    ]);
+  });
+
+  it("attend les événements à venir et se termine sur abort, en rendant le tampon", async () => {
+    const r = createRecorder({ runId: "r" });
+    const controller = new AbortController();
+    const done = collect(r.stream(controller.signal));
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    r.emit({ kind: "agent.text", text: "a" });
+    controller.abort();
+    r.emit({ kind: "agent.text", text: "perdu" });
+    expect((await done).map((e) => e.kind === "agent.text" && e.text)).toEqual(["a"]);
+  });
+
+  it("un signal déjà annulé ou un recorder fermé donnent un flux vide ; les sinks continuent", async () => {
+    const r = createRecorder({ runId: "r" });
+    const seen: EngineEvent[] = [];
+    r.subscribe((e) => seen.push(e));
+    const aborted = new AbortController();
+    aborted.abort();
+    expect(await collect(r.stream(aborted.signal))).toEqual([]);
+    r.close();
+    expect(await collect(r.stream())).toEqual([]);
+    r.emit({ kind: "agent.text", text: "x" });
+    expect(seen).toHaveLength(1);
+  });
+
+  it("return() détache le flux (sortie anticipée d'un for await)", async () => {
+    const r = createRecorder({ runId: "r" });
+    const stream = r.stream();
+    r.emit({ kind: "agent.text", text: "a" });
+    r.emit({ kind: "agent.text", text: "b" });
+    for await (const _ of stream) break;
+    r.close(); // ne doit rien casser
+    expect(r.emit({ kind: "agent.text", text: "c" })).toBeDefined();
+  });
+
+  it("masque les secrets comme pour les sinks", async () => {
+    const r = createRecorder({ runId: "r" });
+    const stream = r.stream();
+    r.emit({ kind: "agent.text", text: "clé sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789" });
+    r.close();
+    expect(JSON.stringify(await collect(stream))).not.toContain("abcdefghijklmnop");
+  });
+});

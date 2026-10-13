@@ -5,12 +5,15 @@ import {
   type McpSdkServerConfigWithInstance,
   type Options,
   type SDKMessage,
+  type SDKUserMessage,
   query as sdkQuery,
 } from "@anthropic-ai/claude-agent-sdk";
 import {
   type AgentRunner,
   type ApprovalOutcome,
+  type AuthInfo,
   BASH_TOOL,
+  CodedError,
   capOutput,
   DEFAULT_MAX_RESULT_BYTES,
   type EventOf,
@@ -26,7 +29,23 @@ import { ToolCallRegistry, toolUseIdFromExtra } from "./correlation.js";
 import type { ResolvedCall, Toolset } from "./toolset.js";
 
 /** Signature minimale de `query` du SDK, injectable pour les tests. */
-export type QueryFn = (params: { prompt: string; options: Options }) => AsyncIterable<SDKMessage>;
+export type QueryFn = (params: {
+  prompt: string | AsyncIterable<SDKUserMessage>;
+  options: Options;
+}) => AsyncIterable<SDKMessage>;
+
+/**
+ * Variables retirées de l'environnement du sous-processus en mode `subscription` :
+ * clés et jetons d'API, et sélecteurs de fournisseurs cloud. Restent `PATH`,
+ * `HOME` et `CLAUDE_CODE_OAUTH_TOKEN` (jeton d'abonnement de `claude setup-token`).
+ */
+export const SUBSCRIPTION_STRIPPED_ENV: readonly string[] = [
+  "ANTHROPIC_API_KEY",
+  "ANTHROPIC_AUTH_TOKEN",
+  "CLAUDE_CODE_USE_BEDROCK",
+  "CLAUDE_CODE_USE_VERTEX",
+  "CLAUDE_CODE_USE_FOUNDRY",
+];
 
 export interface SdkRunnerOptions {
   /** Serveurs MCP in-process (ex. `dockerToolset()`), construits à chaque run. */
@@ -59,7 +78,15 @@ export interface SdkRunnerOptions {
     | "strictMcpConfig"
     | "permissionPromptToolName"
     | "permissionPrompts"
+    // Pilotés par `RunInput` (ou par le mode d'authentification), jamais par ici.
+    | "env"
+    | "resume"
+    | "sessionId"
+    | "maxBudgetUsd"
+    | "systemPrompt"
   >;
+  /** Environnement hérité par le sous-processus (défaut : `process.env`). Sert aux tests. */
+  processEnv?: NodeJS.ProcessEnv;
   /** Plafond (octets UTF-8) du texte complet d'un `tool.result` (défaut : 64 Kio). */
   maxResultBytes?: number;
   query?: QueryFn;
@@ -104,6 +131,35 @@ function blocks(content: unknown): Record<string, unknown>[] {
     : [];
 }
 
+/** Copie de l'environnement sans les variables à retirer ni les valeurs indéfinies. */
+function envWithout(
+  source: NodeJS.ProcessEnv,
+  stripped: readonly string[],
+): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(source)) {
+    if (value !== undefined && !stripped.includes(key)) env[key] = value;
+  }
+  return env;
+}
+
+/** Messages utilisateur du SDK à partir d'un flux de textes (session multi-tours). */
+async function* userMessages(prompts: AsyncIterable<string>): AsyncGenerator<SDKUserMessage> {
+  for await (const text of prompts) {
+    yield {
+      type: "user",
+      message: { role: "user", content: text },
+      parent_tool_use_id: null,
+    };
+  }
+}
+
+/** Erreurs d'assistant liées à l'authentification, avec le code de raison correspondant. */
+const AUTH_ERRORS = {
+  authentication_failed: "auth.failed",
+  oauth_org_not_allowed: "auth.orgNotAllowed",
+} as const;
+
 /**
  * Adaptateur du Claude Agent SDK : pilote `query`, route chaque demande d'outil
  * vers la couche d'approbation et traduit le flux SDK en événements moteur.
@@ -119,13 +175,24 @@ async function runWithSdk(
   { recorder, gate, signal }: RunContext,
 ): Promise<RunSummary> {
   const { prompt, cwd } = input;
+  const authMode = input.auth ?? "auto";
+  const processEnv = options.processEnv ?? process.env;
+  // Échec avant tout lancement : rien n'est émis ni démarré.
+  if (authMode === "api-key" && !processEnv.ANTHROPIC_API_KEY) {
+    throw new CodedError("auth.missingApiKey");
+  }
   const query = options.query ?? (sdkQuery as QueryFn);
   const abort = new AbortController();
   const onAbort = () => abort.abort(signal?.reason);
   signal?.addEventListener("abort", onAbort, { once: true });
   if (signal?.aborted) onAbort();
 
-  const root = recorder.emit({ kind: "run.started", prompt, cwd });
+  // Un flux de messages n'a pas de texte unique à consigner : chaque tour sera visible via les événements.
+  const root = recorder.emit({
+    kind: "run.started",
+    prompt: typeof prompt === "string" ? prompt : "",
+    cwd,
+  });
   const requested = new Map<string, EventOf<"tool.requested">>();
   const registry = new ToolCallRegistry();
   const maxResultBytes = options.maxResultBytes ?? DEFAULT_MAX_RESULT_BYTES;
@@ -280,8 +347,18 @@ async function runWithSdk(
   );
   if (options.bash === true) builtinTools.push("Bash");
 
+  // Défense en profondeur : même contourné par un cast, `sdkOptions` ne peut pas poser ces options.
+  const {
+    env: _env,
+    resume: _resume,
+    sessionId: _sessionId,
+    maxBudgetUsd: _maxBudgetUsd,
+    systemPrompt: _systemPrompt,
+    ...extraOptions
+  } = (options.sdkOptions ?? {}) as Options;
+
   const sdkOptions: Options = {
-    ...options.sdkOptions,
+    ...extraOptions,
     mcpServers: { ...options.sdkOptions?.mcpServers, ...mcpServers },
     cwd,
     // Garde : tout passe par PreToolUse ; rien n'est pré-approuvé côté SDK.
@@ -305,6 +382,45 @@ async function runWithSdk(
     abortController: abort,
     ...(input.model !== undefined && { model: input.model }),
     ...(input.maxTurns !== undefined && { maxTurns: input.maxTurns }),
+    ...(input.resume !== undefined && { resume: input.resume }),
+    ...(input.sessionId !== undefined && { sessionId: input.sessionId }),
+    ...(input.maxBudgetUsd !== undefined && { maxBudgetUsd: input.maxBudgetUsd }),
+    ...(input.systemPrompt !== undefined && {
+      systemPrompt: { type: "preset", preset: "claude_code", append: input.systemPrompt },
+    }),
+    // `Options.env` REMPLACE l'environnement du sous-processus (il n'est pas fusionné) :
+    // en mode abonnement on passe donc une copie complète, PATH et HOME compris.
+    // En `auto` et `api-key`, l'environnement est hérité tel quel.
+    ...(authMode === "subscription" && { env: envWithout(processEnv, SUBSCRIPTION_STRIPPED_ENV) }),
+    // `updatedPermissions` (réponse de canUseTool) n'est volontairement pas utilisé :
+    // le hook PreToolUse fait autorité, et « toujours autoriser » vit dans la gate du
+    // moteur (`ApprovalAnswer.remember`), qui ne contourne jamais un deny ni un garde-fou.
+  };
+
+  let sessionId: string | undefined = input.sessionId ?? input.resume;
+  let stream: AsyncIterable<SDKMessage> | undefined;
+  let accountLookup: Promise<void> | undefined;
+
+  /**
+   * Détails d'authentification du vrai `Query` (`accountInfo()`), une fois la
+   * session initialisée. Jamais bloquant ni fatal ; ignoré avec un faux `QueryFn`.
+   * L'adresse e-mail et le nom de l'organisation sont écartés volontairement.
+   */
+  const lookupAccount = () => {
+    const source = stream as { accountInfo?: () => Promise<AuthInfo> } | undefined;
+    if (accountLookup || typeof source?.accountInfo !== "function") return;
+    accountLookup = source
+      .accountInfo()
+      .then((info) => {
+        const auth: AuthInfo = {
+          ...(info.apiKeySource !== undefined && { apiKeySource: info.apiKeySource }),
+          ...(info.subscriptionType !== undefined && { subscriptionType: info.subscriptionType }),
+          ...(info.tokenSource !== undefined && { tokenSource: info.tokenSource }),
+          ...(info.apiProvider !== undefined && { apiProvider: info.apiProvider }),
+        };
+        if (Object.keys(auth).length > 0) recorder.emit({ kind: "auth.info", ...auth }, root.id);
+      })
+      .catch(() => undefined);
   };
 
   let summary: RunSummary = {
@@ -325,15 +441,18 @@ async function runWithSdk(
   const translateSystem = (message: Extract<SDKMessage, { type: "system" }>) => {
     switch (message.subtype) {
       case "init":
+        sessionId = message.session_id;
         recorder.emit(
           {
             kind: "session.started",
             sessionId: message.session_id,
             model: message.model,
             tools: [...message.tools],
+            auth: { apiKeySource: message.apiKeySource },
           },
           root.id,
         );
+        lookupAccount();
         return;
       case "api_retry":
         recorder.emit(
@@ -430,11 +549,19 @@ async function runWithSdk(
   };
 
   try {
-    for await (const message of query({ prompt, options: sdkOptions })) {
+    stream = query({
+      prompt: typeof prompt === "string" ? prompt : userMessages(prompt),
+      options: sdkOptions,
+    });
+    for await (const message of stream) {
       const parentId = parentOf(message);
       const agentToolUseId = agentOf(message);
 
       if (message.type === "assistant") {
+        const authError = message.error
+          ? AUTH_ERRORS[message.error as keyof typeof AUTH_ERRORS]
+          : undefined;
+        if (authError) recorder.emit({ kind: "error", ...reason(authError) }, parentId);
         for (const block of blocks(message.message.content)) {
           if (block.type === "text" && typeof block.text === "string" && block.text.trim()) {
             recorder.emit({ kind: "agent.text", text: block.text }, parentId);
@@ -469,13 +596,35 @@ async function runWithSdk(
           );
         }
       } else if (message.type === "result") {
+        sessionId = message.session_id ?? sessionId;
         summary = {
           status: message.subtype === "success" && !message.is_error ? "success" : "error",
           turns: message.num_turns,
           costUsd: message.total_cost_usd,
           result: message.subtype === "success" ? message.result : null,
+          ...(sessionId !== undefined && { sessionId }),
           unhandledMessages: unhandled,
         };
+        recorder.emit(
+          {
+            kind: "turn.finished",
+            turns: summary.turns,
+            costUsd: summary.costUsd,
+            status: summary.status,
+            result: summary.result,
+          },
+          root.id,
+        );
+      } else if (message.type === "auth_status") {
+        // `output` (sortie du processus de connexion) n'est volontairement pas journalisée.
+        recorder.emit(
+          {
+            kind: "auth.status",
+            isAuthenticating: message.isAuthenticating,
+            ...(message.error !== undefined && { error: message.error }),
+          },
+          root.id,
+        );
       } else if (message.type === "rate_limit_event") {
         const info = message.rate_limit_info;
         recorder.emit(
@@ -501,6 +650,21 @@ async function runWithSdk(
     signal?.removeEventListener("abort", onAbort);
   }
 
+  // Laisse une courte chance à `accountInfo()` d'aboutir avant de clore le run.
+  if (accountLookup) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([
+      accountLookup,
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, 1000);
+        timer.unref?.();
+      }),
+    ]);
+    clearTimeout(timer);
+  }
+
+  if (sessionId !== undefined && summary.sessionId === undefined)
+    summary = { ...summary, sessionId };
   recorder.emit({ kind: "run.finished", ...summary }, root.id);
   return summary;
 }

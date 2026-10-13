@@ -1,4 +1,4 @@
-import type { EngineEvent } from "@john-studio/core";
+import type { AuthInfo, EngineEvent } from "@john-studio/core";
 import { DEFAULT_LOCALE, type Locale } from "./catalog.js";
 import { formatError, formatReason, MESSAGES } from "./format.js";
 
@@ -6,6 +6,25 @@ import { formatError, formatReason, MESSAGES } from "./format.js";
 export function summarizeOutput(text: string, max = 200): string {
   const flat = text.replace(/\s+/g, " ").trim();
   return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
+}
+
+/** `subscriptionType` est repris tel que le moteur le donne (`pro`, `max`…). */
+const CLOUD_PROVIDERS = new Set(["bedrock", "vertex", "foundry", "anthropicAws", "mantle"]);
+/** Valeurs de `apiKeySource` qui désignent une connexion d'abonnement (OAuth) plutôt qu'une clé. */
+const SUBSCRIPTION_SOURCES = new Set(["none", "oauth"]);
+
+/**
+ * Mode d'authentification en clair : « abonnement pro », « clé API »,
+ * « fournisseur cloud (bedrock) »… `subscriptionType: null` est ignoré.
+ */
+export function describeAuth(auth: AuthInfo, locale: Locale = DEFAULT_LOCALE): string {
+  const t = MESSAGES[locale].events;
+  if (auth.apiProvider !== undefined && CLOUD_PROVIDERS.has(auth.apiProvider)) {
+    return `${t.authCloud} (${auth.apiProvider})`;
+  }
+  if (auth.subscriptionType) return `${t.authSubscription} ${auth.subscriptionType}`;
+  if (auth.apiKeySource === undefined) return t.authUnknown;
+  return SUBSCRIPTION_SOURCES.has(auth.apiKeySource) ? t.authSubscription : t.authApiKey;
 }
 
 export interface LabelOptions {
@@ -51,7 +70,24 @@ export function eventLabel(e: EngineEvent, options: LabelOptions = {}): string {
     case "sink.error":
       return clip(e.message);
     case "session.started":
-      return clip(`${t.session} ${e.model} · ${e.tools.length} ${t.tools}`);
+      return clip(
+        `${t.session} ${e.model} · ${e.tools.length} ${t.tools}${e.auth ? ` · ${describeAuth(e.auth, locale)}` : ""}`,
+      );
+    case "auth.info":
+      return clip(`${t.authentication} : ${describeAuth(e, locale)}`);
+    case "auth.status":
+      return clip(
+        e.error !== undefined
+          ? `${t.authentication} : ${e.error}`
+          : `${t.authentication} : ${e.isAuthenticating ? t.authenticating : "ok"}`,
+      );
+    case "approval.requested": {
+      const detail =
+        typeof e.input.command === "string" ? e.input.command : JSON.stringify(e.input);
+      return clip(`${t.approvalRequested} : ${e.tool} ${detail}`);
+    }
+    case "turn.finished":
+      return `${t.turn} ${e.turns} · ${e.status} · $${e.costUsd.toFixed(4)}`;
     case "agent.thinking":
       return e.redacted ? t.thinkingMasked : clip(`${t.thinking} : ${e.text}`);
     case "permission.denied":

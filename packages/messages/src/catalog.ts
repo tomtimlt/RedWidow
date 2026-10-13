@@ -32,6 +32,14 @@ export interface EventStrings {
   journalTruncated: string;
   lostEvents: string;
   lines: string;
+  authSubscription: string;
+  authApiKey: string;
+  authCloud: string;
+  authUnknown: string;
+  authentication: string;
+  authenticating: string;
+  approvalRequested: string;
+  turn: string;
 }
 
 export interface Messages {

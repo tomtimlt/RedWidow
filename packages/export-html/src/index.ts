@@ -32,6 +32,10 @@ export const KIND_CLASS: Record<EventKind, string> = {
   "rate.limited": "k-warn",
   "sink.error": "k-error",
   "journal.truncated": "k-error",
+  "approval.requested": "k-approval",
+  "turn.finished": "k-run",
+  "auth.info": "k-run",
+  "auth.status": "k-warn",
 };
 
 export function escapeHtml(text: string): string {

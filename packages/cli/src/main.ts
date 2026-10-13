@@ -3,6 +3,7 @@ import { writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { createSdkRunner, dockerToolset } from "@john-studio/agent-sdk";
 import {
+  type AuthMode,
   buildGraph,
   createApprovalGate,
   createDockerClient,
@@ -21,10 +22,24 @@ import { renderGraphHtml } from "@john-studio/export-html";
 import { formatError, formatReason } from "@john-studio/messages";
 import { Command, InvalidArgumentError } from "commander";
 import { createTerminalAsker } from "./ask.js";
-import { colorEnabled, formatEvent, formatRunList } from "./format.js";
+import { colorEnabled, describeAuthIntent, formatEvent, formatRunList } from "./format.js";
+import { appendUserRule } from "./policy-store.js";
 
 /** Libellé de la politique intégrée (`LoadedPolicy.source` vaut `null`). */
 const BUILTIN_SOURCE = "intégrée";
+
+const parseNumberArg = (value: string) => {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) throw new InvalidArgumentError("nombre positif attendu");
+  return n;
+};
+
+const parseAuthArg = (value: string): AuthMode => {
+  if (value !== "auto" && value !== "subscription" && value !== "api-key") {
+    throw new InvalidArgumentError("auto, subscription ou api-key attendu");
+  }
+  return value;
+};
 
 const parseIntArg = (value: string) => {
   const n = Number.parseInt(value, 10);
@@ -60,6 +75,20 @@ program
     "exposer l'outil natif Bash (désactivé par défaut ; reste soumis à la politique)",
   )
   .option("--non-interactive", "refuser les cas « ask » au lieu de demander")
+  .option(
+    "--approval-timeout <s>",
+    "refuser une approbation restée sans réponse après ce délai (secondes)",
+    parseNumberArg,
+  )
+  .option(
+    "--auth <mode>",
+    "identifiants : auto (environnement tel quel), subscription (abonnement, clés API écartées) ou api-key",
+    parseAuthArg,
+    "auto",
+  )
+  .option("--resume <id>", "reprendre une session existante")
+  .option("--max-budget-usd <n>", "plafond de dépense du run, en dollars", parseNumberArg)
+  .option("--system-prompt <texte>", "texte ajouté au prompt système")
   .option("-v, --verbose", "afficher la sortie des processus")
   .action(async (words: string[], opts) => {
     const cwd = process.cwd();
@@ -74,17 +103,24 @@ program
     recorder.subscribe(printer(Boolean(opts.verbose)));
 
     const interactive = !opts.nonInteractive && process.stdin.isTTY === true;
+    const configDir = defaultConfigDir();
     const gate = createApprovalGate({
       policy,
       recorder,
       workspace: { cwd },
       ...(interactive && { ask: createTerminalAsker() }),
+      ...(opts.approvalTimeout && { timeoutMs: Math.round(opts.approvalTimeout * 1000) }),
+      persistRule: async (rule) => {
+        const path = await appendUserRule(configDir, rule, policy);
+        process.stderr.write(`règle ajoutée à la politique utilisateur : ${path}\n`);
+      },
     });
 
     const abort = new AbortController();
     const onSigint = () => abort.abort(new Error("interrompu (SIGINT)"));
     process.once("SIGINT", onSigint);
     process.stderr.write(`politique : ${source ?? BUILTIN_SOURCE} · journal : ${journalPath}\n`);
+    process.stderr.write(`authentification : ${describeAuthIntent(opts.auth)}\n`);
     if (warning) process.stderr.write(`attention : ${formatReason(warning)}\n`);
 
     try {
@@ -98,10 +134,19 @@ program
           cwd,
           ...(opts.model && { model: opts.model }),
           ...(opts.maxTurns && { maxTurns: opts.maxTurns }),
+          auth: opts.auth as AuthMode,
+          ...(opts.resume && { resume: opts.resume }),
+          ...(opts.maxBudgetUsd && { maxBudgetUsd: opts.maxBudgetUsd }),
+          ...(opts.systemPrompt && { systemPrompt: opts.systemPrompt }),
         },
         { recorder, gate, signal: abort.signal },
       );
       if (summary.result) process.stdout.write(`\n${summary.result}\n`);
+      if (summary.sessionId) {
+        process.stderr.write(
+          `session : ${summary.sessionId} (reprise : --resume ${summary.sessionId})\n`,
+        );
+      }
       process.exitCode = summary.status === "success" ? 0 : 1;
     } finally {
       process.off("SIGINT", onSigint);

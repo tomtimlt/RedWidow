@@ -21,7 +21,7 @@ describe("AgentRunner", () => {
       async run(input, ctx) {
         const root = ctx.recorder.emit({
           kind: "run.started",
-          prompt: input.prompt,
+          prompt: typeof input.prompt === "string" ? input.prompt : "",
           cwd: input.cwd,
         });
         const requested = ctx.recorder.emit(

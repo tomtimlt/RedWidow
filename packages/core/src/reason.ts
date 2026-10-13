@@ -38,7 +38,13 @@ export const REASON_CODES = [
   // Approbation et garde
   "approval.noAsker",
   "approval.interrupted",
+  "approval.timeout",
+  "approval.remembered",
   "guard.unrouted",
+  // Authentification
+  "auth.missingApiKey",
+  "auth.failed",
+  "auth.orgNotAllowed",
   // Analyse du shell
   "shell.unclosedQuote",
   "shell.trailingBackslash",

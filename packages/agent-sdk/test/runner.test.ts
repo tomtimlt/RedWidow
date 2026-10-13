@@ -184,6 +184,7 @@ describe("createSdkRunner", () => {
       "tool.requested",
       "approval.decided",
       "tool.result",
+      "turn.finished",
       "run.finished",
     ]);
 
@@ -782,7 +783,7 @@ describe("événements du SDK", () => {
       "system/compact_boundary": 1,
       stream_event: 1,
     });
-    expect(events.map((e) => e.kind)).toEqual(["run.started", "run.finished"]);
+    expect(events.map((e) => e.kind)).toEqual(["run.started", "turn.finished", "run.finished"]);
     expect(events.at(-1)).toMatchObject({
       kind: "run.finished",
       unhandledMessages: { "system/status": 2, "system/compact_boundary": 1, stream_event: 1 },

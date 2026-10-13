@@ -45,8 +45,18 @@ export const reasons: Catalog = {
 
   "approval.noAsker": (_p, c) => `${c.cause ?? "?"} (aucun approbateur interactif)`,
   "approval.interrupted": (_p, c) => `approbation interrompue : ${c.cause ?? "?"}`,
+  "approval.timeout": (p, c) =>
+    `aucune réponse en ${text(p.seconds)} s : refusé (${c.cause ?? "?"})`,
+  "approval.remembered": (_p, c) => `autorisé pour la session (${c.cause ?? "?"})`,
   "guard.unrouted": (p) =>
     `appel non routé par la garde (canUseTool appelé sans décision PreToolUse : ${text(p.tool)}, ${text(p.toolUseId)})`,
+
+  "auth.missingApiKey": () =>
+    "--auth api-key exige la variable ANTHROPIC_API_KEY, qui n'est pas définie",
+  "auth.failed": () =>
+    "authentification refusée : lancez « claude » puis /login (ou « claude setup-token » et exportez CLAUDE_CODE_OAUTH_TOKEN), ou définissez ANTHROPIC_API_KEY",
+  "auth.orgNotAllowed": () =>
+    "l'organisation du compte connecté n'est pas autorisée : reconnectez-vous avec /login (compte autorisé) ou définissez ANTHROPIC_API_KEY",
 
   "shell.unclosedQuote": (p) => `guillemet ${text(p.quote)} non fermé`,
   "shell.trailingBackslash": () => "backslash final",
@@ -99,6 +109,14 @@ export const events: EventStrings = {
   journalTruncated: "journal tronqué",
   lostEvents: "événements perdus",
   lines: "l.",
+  authSubscription: "abonnement",
+  authApiKey: "clé API",
+  authCloud: "fournisseur cloud",
+  authUnknown: "inconnue",
+  authentication: "authentification",
+  authenticating: "authentification en cours",
+  approvalRequested: "approbation demandée",
+  turn: "tour",
 };
 
 export const fr: Messages = { reasons, events };

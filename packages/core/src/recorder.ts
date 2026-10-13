@@ -9,6 +9,15 @@ export interface Recorder {
   readonly runId: string;
   emit(payload: EventPayload, parentId?: string | null): EngineEvent;
   subscribe(sink: EventSink): () => void;
+  /**
+   * Flux asynchrone des événements émis À PARTIR de cet appel (l'abonnement est
+   * immédiat, pas au premier `next()`), avec tampon non borné. Se termine,
+   * après avoir rendu les événements déjà tamponnés, sur `abort` du signal ou
+   * sur `close()`.
+   */
+  stream(signal?: AbortSignal): AsyncIterable<EngineEvent>;
+  /** Termine tous les flux (présents et futurs). N'empêche ni `emit` ni les sinks. */
+  close(): void;
 }
 
 export interface RecorderOptions {
@@ -44,6 +53,9 @@ export function createRecorder(options: RecorderOptions = {}): Recorder {
       ? (value) => value
       : (options.redact ?? createRedactor({ values: secretsFromEnv(process.env) }));
   const sinks = new Set<EventSink>();
+  /** Arrêts des flux ouverts par `stream()`. */
+  const streams = new Set<() => void>();
+  let closed = false;
   let seq = 0;
 
   const notify = (error: unknown, event: EngineEvent) => {
@@ -100,6 +112,52 @@ export function createRecorder(options: RecorderOptions = {}): Recorder {
     subscribe(sink) {
       sinks.add(sink);
       return () => sinks.delete(sink);
+    },
+    stream(signal) {
+      const buffer: EngineEvent[] = [];
+      let ended = closed || signal?.aborted === true;
+      let wake: (() => void) | null = null;
+      const sink: EventSink = (event) => {
+        buffer.push(event);
+        wake?.();
+      };
+      const end = () => {
+        ended = true;
+        sinks.delete(sink);
+        streams.delete(end);
+        signal?.removeEventListener("abort", end);
+        wake?.();
+      };
+      if (!ended) {
+        sinks.add(sink);
+        streams.add(end);
+        signal?.addEventListener("abort", end, { once: true });
+      }
+      return {
+        [Symbol.asyncIterator]: () => ({
+          async next(): Promise<IteratorResult<EngineEvent>> {
+            while (buffer.length === 0 && !ended) {
+              await new Promise<void>((resolve) => {
+                wake = resolve;
+              });
+              wake = null;
+            }
+            const event = buffer.shift();
+            return event === undefined
+              ? { done: true, value: undefined }
+              : { done: false, value: event };
+          },
+          async return(): Promise<IteratorResult<EngineEvent>> {
+            end();
+            buffer.length = 0;
+            return { done: true, value: undefined };
+          },
+        }),
+      };
+    },
+    close() {
+      closed = true;
+      for (const end of [...streams]) end();
     },
   };
 }

@@ -14,6 +14,7 @@ import {
 } from "@john-studio/core";
 import { describe, expect, it } from "vitest";
 import {
+  describeAuth,
   en,
   eventLabel,
   formatError,
@@ -173,7 +174,29 @@ describe("eventLabel", () => {
 
   const payloads: Record<EventKind, EventPayload> = {
     "run.started": { kind: "run.started", prompt: "liste les conteneurs", cwd: "/w" },
-    "session.started": { kind: "session.started", sessionId: "s", model: "m", tools: ["Read"] },
+    "session.started": {
+      kind: "session.started",
+      sessionId: "s",
+      model: "m",
+      tools: ["Read"],
+      auth: { apiKeySource: "none" },
+    },
+    "auth.info": { kind: "auth.info", apiKeySource: "none", subscriptionType: "max" },
+    "auth.status": { kind: "auth.status", isAuthenticating: false, error: "refusé" },
+    "approval.requested": {
+      kind: "approval.requested",
+      toolUseId: "t",
+      tool: "Bash",
+      input: { command: "docker stop web" },
+      verdict: { code: "bash.empty" },
+    },
+    "turn.finished": {
+      kind: "turn.finished",
+      turns: 2,
+      costUsd: 0.25,
+      status: "success",
+      result: null,
+    },
     "agent.text": { kind: "agent.text", text: "bonjour" },
     "agent.thinking": { kind: "agent.thinking", text: "hmm", redacted: false },
     "tool.requested": {
@@ -234,6 +257,18 @@ describe("eventLabel", () => {
     expect(eventLabel(emit(payloads["run.finished"]))).toBe("success · 3 tours · $0.5000");
     expect(eventLabel(emit(payloads.error))).toBe("binaire introuvable : docker");
     expect(eventLabel(emit(payloads["agent.thinking"]))).toBe("réflexion : hmm");
+  });
+
+  it("décrit le mode d'authentification", () => {
+    expect(describeAuth({ apiKeySource: "none", subscriptionType: "pro" })).toBe("abonnement pro");
+    expect(describeAuth({ apiKeySource: "none" })).toBe("abonnement");
+    expect(describeAuth({ apiKeySource: "ANTHROPIC_API_KEY" })).toBe("clé API");
+    expect(describeAuth({ apiProvider: "bedrock" })).toBe("fournisseur cloud (bedrock)");
+    expect(describeAuth({ subscriptionType: null })).toBe("inconnue");
+    expect(describeAuth({ apiKeySource: "none", subscriptionType: "max" }, "en")).toBe(
+      "subscription max",
+    );
+    expect(eventLabel(emit(payloads["auth.info"]))).toBe("authentification : abonnement max");
   });
 
   it("plafonne les libellés qui reprennent du texte libre", () => {

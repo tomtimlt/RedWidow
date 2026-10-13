@@ -9,6 +9,15 @@
  * auto-approuve), l'ordre des messages, la liste des outils natifs exposés, et
  * la présence de `_meta` / de l'identifiant d'appel dans `extra` des handlers MCP
  * (consignée dans la sortie, car elle décide si la corrélation est exacte).
+ *
+ * Scénario d'abonnement (facultatif, sans clé API) : avec une connexion `claude`
+ * (/login) ou CLAUDE_CODE_OAUTH_TOKEN,
+ *
+ *   JOHN_SDK_CONTRACT=1 JOHN_CONTRACT_SUBSCRIPTION=1 pnpm test:contract
+ *
+ * lance un run en `auth: "subscription"` et consigne `apiKeySource` et
+ * `accountInfo()` : cela vérifie empiriquement que `settingSources: []` (forcé
+ * par le moteur) n'empêche pas le chargement des identifiants d'abonnement.
  */
 import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -195,6 +204,35 @@ describe.skipIf(!enabled)("contrat Claude Agent SDK (réel)", () => {
       expect(tools).not.toContain("WebFetch");
       expect(tools).toEqual(expect.arrayContaining(["Read"]));
       noContractError(events);
+    },
+    TIMEOUT,
+  );
+});
+
+const subscription =
+  process.env.JOHN_SDK_CONTRACT === "1" && process.env.JOHN_CONTRACT_SUBSCRIPTION === "1";
+
+describe.skipIf(!subscription)("contrat Claude Agent SDK : abonnement (réel)", () => {
+  it(
+    "authentifie via l'abonnement malgré settingSources: [] et consigne apiKeySource / accountInfo",
+    async () => {
+      const cwd = mkdtempSync(join(tmpdir(), "john-contract-"));
+      const recorder = createRecorder();
+      const events: EngineEvent[] = [];
+      recorder.subscribe((e) => events.push(e));
+      const gate = createApprovalGate({ policy: DEFAULT_POLICY, recorder, workspace: { cwd } });
+      const summary = await createSdkRunner().run(
+        { prompt: "Réponds simplement « OK ».", cwd, maxTurns: 2, auth: "subscription" },
+        { recorder, gate },
+      );
+      const started = events.find((e) => e.kind === "session.started");
+      const info = events.find((e) => e.kind === "auth.info");
+      console.info(
+        `[contrat] abonnement : session.started.auth = ${JSON.stringify(started && "auth" in started ? started.auth : null)} · auth.info = ${JSON.stringify(info ?? null)} · erreurs = ${JSON.stringify(events.filter((e) => e.kind === "error"))}`,
+      );
+      // Aucune erreur d'authentification : les identifiants d'abonnement ont bien été chargés.
+      expect(events.filter((e) => e.kind === "error" && e.code.startsWith("auth."))).toEqual([]);
+      expect(summary.status).toBe("success");
     },
     TIMEOUT,
   );

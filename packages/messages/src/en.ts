@@ -16,6 +16,9 @@ export const reasons: Catalog = {
   "path.outside": (p) => `path outside the workspace: ${text(p.path)}`,
   "approval.noAsker": (_p, c) => `${c.cause ?? "?"} (no interactive approver)`,
   "approval.interrupted": (_p, c) => `approval interrupted: ${c.cause ?? "?"}`,
+  "approval.timeout": (p, c) => `no answer within ${text(p.seconds)} s: denied (${c.cause ?? "?"})`,
+  "approval.remembered": (_p, c) => `allowed for the session (${c.cause ?? "?"})`,
+  "auth.missingApiKey": () => "--auth api-key requires ANTHROPIC_API_KEY, which is not set",
   "shell.unclosedQuote": (p) => `unclosed quote ${text(p.quote)}`,
   "shell.trailingBackslash": () => "trailing backslash",
   "error.unknown": (p) => (p.message === undefined ? "unknown error" : text(p.message)),
@@ -36,6 +39,14 @@ export const events: EventStrings = {
   journalTruncated: "journal truncated",
   lostEvents: "events lost",
   lines: "l.",
+  authSubscription: "subscription",
+  authApiKey: "API key",
+  authCloud: "cloud provider",
+  authUnknown: "unknown",
+  authentication: "authentication",
+  authenticating: "authenticating",
+  approvalRequested: "approval requested",
+  turn: "turn",
 };
 
 export const en: Messages = { reasons, events };

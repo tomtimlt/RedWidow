@@ -1,5 +1,5 @@
-import type { EngineEvent } from "@john-studio/core";
-import { formatError, formatReason, summarizeOutput } from "@john-studio/messages";
+import type { AuthInfo, AuthMode, EngineEvent } from "@john-studio/core";
+import { describeAuth, formatError, formatReason, summarizeOutput } from "@john-studio/messages";
 
 export { summarizeOutput };
 
@@ -55,12 +55,26 @@ export function formatEvent(e: EngineEvent, { color, verbose }: FormatOptions): 
     case "run.finished": {
       const unhandled = Object.values(e.unhandledMessages ?? {}).reduce((n, c) => n + c, 0);
       const extra = unhandled > 0 ? paint("dim", ` · ${unhandled} messages non traduits`) : "";
-      return `${tag(e.status === "success" ? "green" : "red", e.status)} ${e.turns} tours · $${e.costUsd.toFixed(4)}${extra}`;
+      const sessionId = e.sessionId ? paint("dim", ` · session ${e.sessionId}`) : "";
+      return `${tag(e.status === "success" ? "green" : "red", e.status)} ${e.turns} tours · $${e.costUsd.toFixed(4)}${sessionId}${extra}`;
     }
     case "error":
       return `${tag("red", "error")} ${formatError(e)}`;
     case "session.started":
-      return `${tag("dim", "session")} ${e.model} ${paint("dim", `${e.sessionId} · ${e.tools.length} outils`)}`;
+      return `${tag("dim", "session")} ${e.model} ${paint("dim", `${e.sessionId} · ${e.tools.length} outils${e.auth ? ` · ${describeAuth(e.auth)}` : ""}`)}`;
+    case "auth.info":
+      return `${tag("dim", "auth")} ${describeAuth(e)}${e.tokenSource ? paint("dim", ` · jeton : ${e.tokenSource}`) : ""}`;
+    case "auth.status":
+      return `${tag(e.error === undefined ? "yellow" : "red", "auth")} ${e.error ?? (e.isAuthenticating ? "authentification en cours" : "authentifié")}`;
+    case "approval.requested": {
+      const detail =
+        typeof e.input.command === "string" ? e.input.command : JSON.stringify(e.input);
+      return `${tag("yellow", "ask")} ${e.tool} ${paint("dim", `${detail} · ${formatReason(e.verdict)}`)}`;
+    }
+    case "turn.finished":
+      return verbose
+        ? `${tag("dim", "turn")} ${paint("dim", `${e.turns} tours · $${e.costUsd.toFixed(4)} · ${e.status}`)}`
+        : null;
     case "agent.thinking":
       return e.redacted
         ? `${tag("dim", "thinking")} ${paint("dim", "(masquée)")}`
@@ -81,6 +95,27 @@ export function formatEvent(e: EngineEvent, { color, verbose }: FormatOptions): 
     case "journal.truncated":
       return `${tag("red", "journal")} tronqué à ${e.limitBytes} octets · ${e.droppedEvents} événements perdus`;
   }
+}
+
+/**
+ * Mode d'authentification attendu au lancement, d'après l'option `--auth` et
+ * l'environnement (le mode effectif est confirmé par `session.started`/`auth.info`).
+ */
+export function describeAuthIntent(mode: AuthMode, env: NodeJS.ProcessEnv = process.env): string {
+  const hasKey = Boolean(env.ANTHROPIC_API_KEY);
+  const provider = (["BEDROCK", "VERTEX", "FOUNDRY"] as const).find(
+    (name) => env[`CLAUDE_CODE_USE_${name}`],
+  );
+  const info: AuthInfo =
+    mode === "subscription"
+      ? { apiKeySource: "none" }
+      : mode === "api-key" || hasKey
+        ? { apiKeySource: "ANTHROPIC_API_KEY" }
+        : provider
+          ? { apiKeySource: "none", apiProvider: provider.toLowerCase() }
+          : { apiKeySource: "none" };
+  const label = describeAuth(info);
+  return mode === "auto" && hasKey ? `${label} (ANTHROPIC_API_KEY définie)` : label;
 }
 
 /** Une ligne par run d'un journal : identifiant, début, prompt, statut, nombre d'événements. */

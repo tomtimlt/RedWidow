@@ -13,7 +13,29 @@ import {
 /** Un exemplaire valide de chaque kind (le typage force l'exhaustivité). */
 const SAMPLES: { [K in EventKind]: Extract<EventPayload, { kind: K }> } = {
   "run.started": { kind: "run.started", prompt: "p", cwd: "/" },
-  "session.started": { kind: "session.started", sessionId: "s", model: "m", tools: ["Read"] },
+  "session.started": {
+    kind: "session.started",
+    sessionId: "s",
+    model: "m",
+    tools: ["Read"],
+    auth: { apiKeySource: "none", subscriptionType: null },
+  },
+  "auth.info": { kind: "auth.info", apiKeySource: "none", subscriptionType: "pro" },
+  "auth.status": { kind: "auth.status", isAuthenticating: true, error: "e" },
+  "approval.requested": {
+    kind: "approval.requested",
+    toolUseId: "t",
+    tool: "Bash",
+    input: { command: "ls" },
+    verdict: { code: "bash.noRule", params: { command: "ls" } },
+  },
+  "turn.finished": {
+    kind: "turn.finished",
+    turns: 1,
+    costUsd: 0.1,
+    status: "success",
+    result: "ok",
+  },
   "agent.text": { kind: "agent.text", text: "t" },
   "agent.thinking": { kind: "agent.thinking", text: "hm", redacted: false },
   "tool.requested": {
@@ -70,6 +92,7 @@ const SAMPLES: { [K in EventKind]: Extract<EventPayload, { kind: K }> } = {
     turns: 1,
     costUsd: 0,
     result: null,
+    sessionId: "s",
     unhandledMessages: { "system/status": 2 },
   },
   error: { kind: "error", code: "error.unknown", message: "m" },
