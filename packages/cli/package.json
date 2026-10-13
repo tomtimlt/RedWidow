@@ -1,0 +1,20 @@
+{
+  "name": "@john-studio/cli",
+  "version": "0.1.0",
+  "description": "CLI john-studio.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "john": "./dist/main.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@john-studio/core": "workspace:*",
+    "@john-studio/export-html": "workspace:*",
+    "commander": "^14.0.3"
+  }
+}

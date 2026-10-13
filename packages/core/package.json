@@ -1,0 +1,21 @@
+{
+  "name": "@john-studio/core",
+  "version": "0.1.0",
+  "description": "Moteur john-studio : boucle d'agent, approbation, journal JSONL, graphe d'événements. Aucune dépendance d'affichage.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.296"
+  }
+}
