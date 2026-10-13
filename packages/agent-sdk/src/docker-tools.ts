@@ -1,7 +1,7 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { createDockerClient, type DockerClient } from "@john-studio/core";
 import { z } from "zod";
-import type { AnyMcpTool, Toolset } from "./toolset.js";
+import type { AnyMcpTool, ResolvedCall, Toolset } from "./toolset.js";
 
 export const DOCKER_SERVER_NAME = "docker";
 export const DOCKER_TOOL_PREFIX = `mcp__${DOCKER_SERVER_NAME}__`;
@@ -10,11 +10,19 @@ export const DOCKER_SERVER_INSTRUCTIONS =
 
 const MAX_LINES = 200;
 
-/** Parent (id d'événement) à utiliser pour les `process.*` d'un appel. */
-export type ResolveParent = (toolName: string, args: unknown, extra?: unknown) => string | null;
+/**
+ * Parent (id d'événement) à utiliser pour les `process.*` d'un appel, ou
+ * `ResolvedCall` pour consigner aussi la fiabilité de l'appariement.
+ */
+export type ResolveParent = (
+  toolName: string,
+  args: unknown,
+  extra?: unknown,
+) => string | null | ResolvedCall;
 
 interface Ctx {
   parentId: string | null;
+  correlation: ResolvedCall["correlation"] | undefined;
   signal: AbortSignal | undefined;
 }
 
@@ -42,13 +50,18 @@ export function createDockerTools(
     async (args: A, extra: unknown) => {
       const signal = (extra as { signal?: AbortSignal } | undefined)?.signal;
       try {
-        return text(await run(args, { parentId: resolveParent(name, args, extra), signal }));
+        const resolved = resolveParent(name, args, extra);
+        const parentId = typeof resolved === "object" && resolved ? resolved.parentId : resolved;
+        const correlation =
+          typeof resolved === "object" && resolved ? resolved.correlation : undefined;
+        return text(await run(args, { parentId, correlation, signal }));
       } catch (err) {
         return text(err instanceof Error ? err.message : String(err), true);
       }
     };
   const call = (ctx: Ctx) => ({
     parentId: ctx.parentId,
+    ...(ctx.correlation && { correlation: ctx.correlation }),
     ...(ctx.signal && { signal: ctx.signal }),
   });
   const readOnly = { annotations: { readOnlyHint: true } };
@@ -186,13 +199,13 @@ export function dockerToolset(options: DockerToolsetOptions = {}): Toolset {
   return {
     name: DOCKER_SERVER_NAME,
     instructions: DOCKER_SERVER_INSTRUCTIONS,
-    create: ({ recorder, resolveParent }) =>
+    create: ({ recorder, resolveCall }) =>
       createDockerTools(
         createDockerClient({
           recorder,
           ...(options.binary && { binary: options.binary }),
         }),
-        (name, args, extra) => resolveParent(`${DOCKER_TOOL_PREFIX}${name}`, args, extra),
+        (name, args, extra) => resolveCall(`${DOCKER_TOOL_PREFIX}${name}`, args, extra),
       ),
   };
 }

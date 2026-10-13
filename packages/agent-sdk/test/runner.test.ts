@@ -162,7 +162,13 @@ describe("createSdkRunner", () => {
 
     const summary = await runAgent({ prompt: "état ?", recorder, gate, cwd: "/w", query });
 
-    expect(summary).toEqual({ status: "success", turns: 2, costUsd: 0.0123, result: "fini" });
+    expect(summary).toEqual({
+      status: "success",
+      turns: 2,
+      costUsd: 0.0123,
+      result: "fini",
+      unhandledMessages: {},
+    });
     expect(seen.decisions).toEqual(["allow", "deny"]);
     expect(seen.options).toMatchObject({
       cwd: "/w",
@@ -550,5 +556,460 @@ describe("garde PreToolUse", () => {
     expect(options.hooks?.PreToolUse).toHaveLength(2);
     expect(options.hooks?.PreToolUse?.[1]?.hooks[0]).toBe(mine);
     expect(options.hooks?.PostToolUse).toHaveLength(1);
+  });
+});
+
+// Messages `system` et autres, réduits aux champs lus par le moteur.
+const system = (subtype: string, fields: Record<string, unknown>) =>
+  ({
+    type: "system",
+    subtype,
+    session_id: "sess-1",
+    uuid: "u",
+    ...fields,
+  }) as unknown as SDKMessage;
+const startedTask = (taskId: string, toolUseId: string) =>
+  system("task_started", { task_id: taskId, tool_use_id: toolUseId, description: "inspecter" });
+
+/** Lance un run dont le faux SDK diffuse `messages` tels quels. */
+async function replay(messages: SDKMessage[]) {
+  const { recorder, events, gate } = setup();
+  const query: QueryFn = async function* () {
+    for (const m of messages) yield m;
+    yield result({});
+  };
+  const summary = await runAgent({ prompt: "x", recorder, gate, query });
+  return { events, summary };
+}
+
+describe("événements du SDK", () => {
+  it("traduit system/init en session.started", async () => {
+    const { events } = await replay([
+      system("init", { model: "m-test", tools: ["Read", "Glob"], cwd: "/w" }),
+    ]);
+    expect(events[1]).toMatchObject({
+      kind: "session.started",
+      sessionId: "sess-1",
+      model: "m-test",
+      tools: ["Read", "Glob"],
+      parentId: events[0]?.id,
+    });
+  });
+
+  it("traduit system/api_retry en api.retry", async () => {
+    const { events } = await replay([
+      system("api_retry", {
+        attempt: 2,
+        max_retries: 5,
+        retry_delay_ms: 1500,
+        error_status: 529,
+        error: "overloaded",
+      }),
+      system("api_retry", {
+        attempt: 1,
+        max_retries: 5,
+        retry_delay_ms: 10,
+        error_status: null,
+        error: "unknown",
+      }),
+    ]);
+    const retries = events.filter((e) => e.kind === "api.retry");
+    expect(retries[0]).toMatchObject({
+      attempt: 2,
+      maxRetries: 5,
+      delayMs: 1500,
+      errorStatus: 529,
+      error: "overloaded",
+    });
+    expect(retries[1]).toMatchObject({ errorStatus: null });
+  });
+
+  it("traduit system/permission_denied sous l'outil concerné", async () => {
+    const { recorder, events, gate } = setup();
+    const query: QueryFn = async function* () {
+      yield toolUse("t1", "Write", { file_path: "x" });
+      yield system("permission_denied", {
+        tool_name: "Write",
+        tool_use_id: "t1",
+        decision_reason_type: "mode",
+        message: "refusé",
+      });
+      yield system("permission_denied", {
+        tool_name: "Edit",
+        tool_use_id: "inconnu",
+        message: "m",
+      });
+      yield result({});
+    };
+    await runAgent({ prompt: "x", recorder, gate, query });
+    const requested = events.find((e) => e.kind === "tool.requested");
+    const denied = events.filter((e) => e.kind === "permission.denied");
+    expect(denied[0]).toMatchObject({
+      toolUseId: "t1",
+      tool: "Write",
+      reasonType: "mode",
+      message: "refusé",
+      parentId: requested?.id,
+    });
+    expect(denied[1]).not.toHaveProperty("reasonType");
+    expect(denied[1]?.parentId).toBe(events[0]?.id);
+  });
+
+  it("traduit les quatre messages de tâche en task.updated", async () => {
+    const { recorder, events, gate } = setup();
+    const query: QueryFn = async function* () {
+      yield toolUse("task1", "Task", { prompt: "p" });
+      yield startedTask("k1", "task1");
+      yield system("task_progress", {
+        task_id: "k1",
+        tool_use_id: "task1",
+        description: "en cours",
+        summary: "moitié",
+        usage: { total_tokens: 100, tool_uses: 2, duration_ms: 50 },
+      });
+      yield system("task_updated", {
+        task_id: "k1",
+        patch: { status: "running", description: "encore", error: "oups" },
+      });
+      yield system("task_notification", {
+        task_id: "k1",
+        tool_use_id: "task1",
+        status: "completed",
+        summary: "fini",
+        output_file: "/tmp/o",
+        usage: { total_tokens: 200, tool_uses: 3, duration_ms: 90 },
+      });
+      yield result({});
+    };
+    await runAgent({ prompt: "x", recorder, gate, query });
+    const task = events.find((e) => e.kind === "tool.requested");
+    const updates = events.filter((e) => e.kind === "task.updated");
+    expect(updates.map((e) => e.kind === "task.updated" && e.phase)).toEqual([
+      "started",
+      "progress",
+      "updated",
+      "finished",
+    ]);
+    expect(updates[0]).toMatchObject({
+      taskId: "k1",
+      toolUseId: "task1",
+      description: "inspecter",
+    });
+    expect(updates[1]).toMatchObject({
+      summary: "moitié",
+      usage: { totalTokens: 100, toolUses: 2, durationMs: 50 },
+    });
+    // task_updated n'a pas de tool_use_id : retrouvé via task_started.
+    expect(updates[2]).toMatchObject({
+      toolUseId: "task1",
+      status: "running",
+      description: "encore",
+      summary: "oups",
+    });
+    expect(updates[3]).toMatchObject({
+      status: "completed",
+      summary: "fini",
+      usage: { totalTokens: 200, toolUses: 3, durationMs: 90 },
+    });
+    expect(updates.every((e) => e.parentId === task?.id)).toBe(true);
+  });
+
+  it("rattache une tâche inconnue à la racine", async () => {
+    const { events } = await replay([startedTask("k9", "ghost")]);
+    expect(events.find((e) => e.kind === "task.updated")?.parentId).toBe(events[0]?.id);
+  });
+
+  it("traduit rate_limit_event en rate.limited", async () => {
+    const { events } = await replay([
+      {
+        type: "rate_limit_event",
+        rate_limit_info: {
+          status: "allowed_warning",
+          resetsAt: 1_900_000_000,
+          rateLimitType: "five_hour",
+          utilization: 0.92,
+        },
+      } as unknown as SDKMessage,
+      { type: "rate_limit_event", rate_limit_info: { status: "allowed" } } as unknown as SDKMessage,
+    ]);
+    const limits = events.filter((e) => e.kind === "rate.limited");
+    expect(limits[0]).toMatchObject({
+      status: "allowed_warning",
+      resetsAt: 1_900_000_000,
+      limitType: "five_hour",
+      utilization: 0.92,
+    });
+    expect(limits[1]).not.toHaveProperty("utilization");
+  });
+
+  it("traduit les blocs thinking et redacted_thinking en agent.thinking", async () => {
+    const { events } = await replay([
+      assistant([
+        { type: "thinking", thinking: "Je dois lister les conteneurs.", signature: "sig" },
+        { type: "thinking", thinking: "  ", signature: "sig" },
+        { type: "redacted_thinking", data: "chiffré" },
+        { type: "text", text: "Voici." },
+      ]),
+    ]);
+    const thoughts = events.filter((e) => e.kind === "agent.thinking");
+    expect(thoughts).toHaveLength(2);
+    expect(thoughts[0]).toMatchObject({ text: "Je dois lister les conteneurs.", redacted: false });
+    expect(thoughts[1]).toMatchObject({ text: "", redacted: true });
+    expect(JSON.stringify(events)).not.toContain("chiffré");
+  });
+
+  it("compte les messages non gérés sans émettre d'événement", async () => {
+    const { events, summary } = await replay([
+      system("status", { status: "compacting" }),
+      system("status", { status: "x" }),
+      system("compact_boundary", {}),
+      { type: "stream_event", event: {} } as unknown as SDKMessage,
+    ]);
+    expect(summary.unhandledMessages).toEqual({
+      "system/status": 2,
+      "system/compact_boundary": 1,
+      stream_event: 1,
+    });
+    expect(events.map((e) => e.kind)).toEqual(["run.started", "run.finished"]);
+    expect(events.at(-1)).toMatchObject({
+      kind: "run.finished",
+      unhandledMessages: { "system/status": 2, "system/compact_boundary": 1, stream_event: 1 },
+    });
+  });
+
+  it("n'ajoute rien à unhandledMessages pour les messages gérés", async () => {
+    const { summary } = await replay([
+      system("init", { model: "m", tools: [] }),
+      assistant([{ type: "text", text: "ok" }]),
+    ]);
+    expect(summary.unhandledMessages).toEqual({});
+  });
+});
+
+describe("tool.result : sortie complète", () => {
+  const withResult = async (content: unknown, maxResultBytes?: number) => {
+    const { recorder, events, gate } = setup();
+    const query: QueryFn = async function* () {
+      yield toolUse("t1", "Read", { file_path: "a" });
+      yield user([{ type: "tool_result", tool_use_id: "t1", is_error: false, content }]);
+      yield result({});
+    };
+    await runAgent({
+      prompt: "x",
+      recorder,
+      gate,
+      query,
+      ...(maxResultBytes !== undefined && { maxResultBytes }),
+    });
+    return events.find((e) => e.kind === "tool.result");
+  };
+
+  it("conserve le texte complet (blocs texte joints par un saut de ligne)", async () => {
+    const e = await withResult([
+      { type: "text", text: "ligne 1\n  ligne 2" },
+      { type: "image", source: {} },
+      { type: "text", text: "fin" },
+    ]);
+    expect(e).toMatchObject({
+      output: "ligne 1\n  ligne 2\nfin",
+      truncated: false,
+      bytes: Buffer.byteLength("ligne 1\n  ligne 2\nfin"),
+    });
+  });
+
+  it("plafonne à maxResultBytes avec truncated et la taille d'origine", async () => {
+    const e = await withResult("é".repeat(100), 51);
+    expect(e).toMatchObject({ truncated: true, bytes: 200 });
+    expect(e?.kind === "tool.result" && Buffer.byteLength(e.output)).toBe(50);
+  });
+
+  it("plafonne par défaut à 64 Kio", async () => {
+    const e = await withResult("z".repeat(100_000));
+    expect(e).toMatchObject({ truncated: true, bytes: 100_000 });
+    expect(e?.kind === "tool.result" && e.output.length).toBe(64 * 1024);
+  });
+
+  it("masque les secrets de la sortie via le recorder", async () => {
+    const e = await withResult("TOKEN=abcdef1234567890 et sk-ant-abcdefgh12345678");
+    expect(JSON.stringify(e)).not.toContain("abcdef1234567890");
+    expect(JSON.stringify(e)).not.toContain("abcdefgh12345678");
+  });
+});
+
+describe("corrélation MCP", () => {
+  const callWith = async (
+    meta: Record<string, unknown> | undefined,
+    plan: { approve: [string, Record<string, unknown>][]; call: Record<string, unknown> },
+  ) => {
+    const { recorder, events, gate } = setup();
+    const fake = await fakeDocker();
+    const query: QueryFn = async function* ({ options }) {
+      const canUseTool = guarded(options);
+      for (const [id, args] of plan.approve) {
+        yield toolUse(id, "mcp__docker__ps", args);
+        await canUseTool("mcp__docker__ps", args, permit(id));
+      }
+      await callMcpTool(
+        options.mcpServers?.docker as McpSdkServerConfigWithInstance,
+        "ps",
+        plan.call,
+        meta,
+      );
+      yield result({});
+    };
+    await runAgent({ prompt: "x", recorder, gate, query, docker: fake.bin });
+    const started = events.find((e) => e.kind === "process.started");
+    const parent = events.find((e) => e.id === started?.parentId);
+    return { started, parent, events };
+  };
+
+  it("exacte : l'id de _meta l'emporte sur l'inférence par arguments", async () => {
+    // Les arguments de l'appel correspondent à « b », mais _meta désigne « a ».
+    const { started, parent } = await callWith(
+      { "claudecode/toolUseId": "a" },
+      {
+        approve: [
+          ["a", {}],
+          ["b", { all: true }],
+        ],
+        call: { all: true },
+      },
+    );
+    expect(parent).toMatchObject({ kind: "tool.requested", toolUseId: "a" });
+    expect(started).toMatchObject({ correlation: "exact" });
+  });
+
+  it("exacte : accepte toute clé contenant toolUseId", async () => {
+    const { started, parent } = await callWith(
+      { "x/toolUseId": "b" },
+      {
+        approve: [
+          ["a", {}],
+          ["b", {}],
+        ],
+        call: {},
+      },
+    );
+    expect(parent).toMatchObject({ toolUseId: "b" });
+    expect(started).toMatchObject({ correlation: "exact" });
+  });
+
+  it("inférée : sans _meta, repli sur la FIFO du registre", async () => {
+    const { started, parent } = await callWith(undefined, {
+      approve: [
+        ["a", {}],
+        ["b", { all: true }],
+      ],
+      call: { all: true },
+    });
+    expect(parent).toMatchObject({ toolUseId: "b" });
+    expect(started).toMatchObject({ correlation: "inferred" });
+  });
+
+  it("inférée : un _meta sans identifiant ou inconnu ne casse pas le repli", async () => {
+    for (const meta of [{ progressToken: 3 }, { "claudecode/toolUseId": "inconnu" }]) {
+      const { started, parent } = await callWith(meta, { approve: [["a", {}]], call: {} });
+      expect(parent).toMatchObject({ toolUseId: "a" });
+      expect(started).toMatchObject({ correlation: "inferred" });
+    }
+  });
+
+  it("aucune : appel sans approbation préalable, rattaché à la racine", async () => {
+    const { started, parent, events } = await callWith(undefined, { approve: [], call: {} });
+    expect(parent).toBe(events[0]);
+    expect(started).toMatchObject({ correlation: "none" });
+  });
+
+  it("l'appariement exact consomme l'entrée : un appel suivant ne la réutilise pas", async () => {
+    const { recorder, events, gate } = setup();
+    const fake = await fakeDocker();
+    const query: QueryFn = async function* ({ options }) {
+      const canUseTool = guarded(options);
+      const server = options.mcpServers?.docker as McpSdkServerConfigWithInstance;
+      yield toolUse("a", "mcp__docker__ps", {});
+      await canUseTool("mcp__docker__ps", {}, permit("a"));
+      await callMcpTool(server, "ps", {}, { "claudecode/toolUseId": "a" });
+      await callMcpTool(server, "ps", {});
+      yield result({});
+    };
+    await runAgent({ prompt: "x", recorder, gate, query, docker: fake.bin });
+    const starts = events.filter((e) => e.kind === "process.started");
+    expect(starts.map((e) => e.kind === "process.started" && e.correlation)).toEqual([
+      "exact",
+      "none",
+    ]);
+  });
+});
+
+describe("sous-agents : hook devançant le message assistant", () => {
+  const hookInput = (toolUseId: string, tool: string, input: object, agentId?: string) =>
+    ({
+      hook_event_name: "PreToolUse",
+      tool_name: tool,
+      tool_input: input,
+      tool_use_id: toolUseId,
+      ...(agentId && { agent_id: agentId }),
+    }) as HookInput;
+
+  const allowAll: Policy = { default: "allow", rules: [] };
+  const setupAllow = () => {
+    const recorder = createRecorder({ runId: "run-1" });
+    const events: EngineEvent[] = [];
+    recorder.subscribe((e) => events.push(e));
+    return { recorder, events, gate: createApprovalGate({ policy: allowAll, recorder }) };
+  };
+
+  const run = async (messages: (SDKMessage | { hook: HookInput })[]) => {
+    const { recorder, events, gate } = setupAllow();
+    const query: QueryFn = async function* ({ options }) {
+      const hook = options.hooks?.PreToolUse?.[0]?.hooks[0];
+      for (const step of messages) {
+        if ("hook" in step) {
+          await hook?.(step.hook, (step.hook as { tool_use_id: string }).tool_use_id, {
+            signal: new AbortController().signal,
+          });
+        } else {
+          yield step;
+        }
+      }
+      yield result({});
+    };
+    await runAgent({ prompt: "x", recorder, gate, query });
+    return events;
+  };
+
+  it("rattache à l'outil Task via agent_id et task_started", async () => {
+    const events = await run([
+      toolUse("task1", "Task", {}),
+      startedTask("agent-7", "task1"),
+      { hook: hookInput("s1", "Bash", { command: "docker ps" }, "agent-7") },
+      sub(toolUse("s1", "Bash", { command: "docker ps" }), "task1"),
+    ]);
+    const task = events.find((e) => e.kind === "tool.requested" && e.toolUseId === "task1");
+    const bash = events.filter((e) => e.kind === "tool.requested" && e.toolUseId === "s1");
+    expect(bash).toHaveLength(1); // le message assistant tardif ne crée pas de doublon
+    expect(bash[0]).toMatchObject({
+      parentId: task?.id,
+      agentToolUseId: "task1",
+      agentId: "agent-7",
+    });
+    expect(events.find((e) => e.kind === "approval.decided")?.parentId).toBe(bash[0]?.id);
+  });
+
+  it("retombe sur la racine (en gardant agentId) si task_started n'est pas encore arrivé", async () => {
+    const events = await run([
+      toolUse("task1", "Task", {}),
+      { hook: hookInput("s1", "Bash", { command: "docker ps" }, "agent-7") },
+      startedTask("agent-7", "task1"),
+    ]);
+    const bash = events.find((e) => e.kind === "tool.requested" && e.toolUseId === "s1");
+    expect(bash?.parentId).toBe(events[0]?.id);
+    expect(bash).toMatchObject({ agentId: "agent-7" });
+    expect(bash).not.toHaveProperty("agentToolUseId");
+  });
+
+  it("n'ajoute pas agentId pour l'agent principal", async () => {
+    const events = await run([{ hook: hookInput("m1", "Read", { file_path: "a" }) }]);
+    expect(events.find((e) => e.kind === "tool.requested")).not.toHaveProperty("agentId");
   });
 });

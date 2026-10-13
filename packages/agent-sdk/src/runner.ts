@@ -11,13 +11,16 @@ import {
   type AgentRunner,
   type ApprovalOutcome,
   BASH_TOOL,
+  capOutput,
+  DEFAULT_MAX_RESULT_BYTES,
   type EventOf,
   type RunContext,
   type RunInput,
   type RunSummary,
+  type TaskUsage,
 } from "@john-studio/core";
-import { ToolCallRegistry } from "./correlation.js";
-import type { Toolset } from "./toolset.js";
+import { ToolCallRegistry, toolUseIdFromExtra } from "./correlation.js";
+import type { ResolvedCall, Toolset } from "./toolset.js";
 
 /** Signature minimale de `query` du SDK, injectable pour les tests. */
 export type QueryFn = (params: { prompt: string; options: Options }) => AsyncIterable<SDKMessage>;
@@ -54,6 +57,8 @@ export interface SdkRunnerOptions {
     | "permissionPromptToolName"
     | "permissionPrompts"
   >;
+  /** Plafond (octets UTF-8) du texte complet d'un `tool.result` (défaut : 64 Kio). */
+  maxResultBytes?: number;
   query?: QueryFn;
 }
 
@@ -63,26 +68,29 @@ export const DEFAULT_BUILTIN_TOOLS: readonly string[] = ["Read", "Glob", "Grep"]
 /** Une approbation interactive peut attendre longtemps : le hook ne doit pas expirer avant l'humain. */
 const HOOK_TIMEOUT_S = 24 * 60 * 60;
 
-const SUMMARY_MAX = 200;
-
-function summarize(content: unknown): string {
-  let text: string;
-  if (typeof content === "string") {
-    text = content;
-  } else if (Array.isArray(content)) {
-    text = content
-      .map((b) =>
-        typeof b === "object" && b !== null && (b as { type?: unknown }).type === "text"
-          ? String((b as { text?: unknown }).text ?? "")
-          : "",
-      )
-      .join(" ");
-  } else {
-    text = "";
-  }
-  const flat = text.replace(/\s+/g, " ").trim();
-  return flat.length > SUMMARY_MAX ? `${flat.slice(0, SUMMARY_MAX - 1)}…` : flat;
+/** Texte complet d'un contenu `tool_result` (blocs texte seulement). */
+function contentText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((b) =>
+      typeof b === "object" && b !== null && (b as { type?: unknown }).type === "text"
+        ? String((b as { text?: unknown }).text ?? "")
+        : "",
+    )
+    .filter((t) => t !== "")
+    .join("\n");
 }
+
+const toUsage = (u: {
+  total_tokens: number;
+  tool_uses: number;
+  duration_ms: number;
+}): TaskUsage => ({
+  totalTokens: u.total_tokens,
+  toolUses: u.tool_uses,
+  durationMs: u.duration_ms,
+});
 
 function blocks(content: unknown): Record<string, unknown>[] {
   return Array.isArray(content)
@@ -114,6 +122,11 @@ async function runWithSdk(
   const root = recorder.emit({ kind: "run.started", prompt, cwd });
   const requested = new Map<string, EventOf<"tool.requested">>();
   const registry = new ToolCallRegistry();
+  const maxResultBytes = options.maxResultBytes ?? DEFAULT_MAX_RESULT_BYTES;
+  /** Messages SDK non traduits, par `type/subtype`. */
+  const unhandled: Record<string, number> = {};
+  /** `agent_id` d'un sous-agent → `tool_use_id` de l'outil Task qui l'a lancé (via `task_started`). */
+  const taskToolUse = new Map<string, string>();
 
   /** Parent causal d'un message : l'outil Task du sous-agent émetteur, sinon la racine. */
   const parentOf = (message: SDKMessage): string => {
@@ -129,6 +142,7 @@ async function runWithSdk(
     input: Record<string, unknown>,
     parentId: string = root.id,
     agentToolUseId?: string,
+    agentId?: string,
   ) => {
     let event = requested.get(toolUseId);
     if (!event) {
@@ -139,6 +153,7 @@ async function runWithSdk(
           tool,
           input,
           ...(agentToolUseId && { agentToolUseId }),
+          ...(agentId && { agentId }),
         },
         parentId,
       ) as EventOf<"tool.requested">;
@@ -159,10 +174,22 @@ async function runWithSdk(
     tool: string,
     input: Record<string, unknown>,
     signal: AbortSignal,
+    agentId?: string,
   ): Promise<ApprovalOutcome> => {
     let decision = decisions.get(toolUseId);
     if (!decision) {
-      const parent = ensureRequested(toolUseId, tool, input);
+      // Le hook peut devancer le message assistant du sous-agent : on rattache
+      // à l'outil Task quand `task_started` l'a appris, sinon à la racine.
+      const taskToolUseId = agentId ? taskToolUse.get(agentId) : undefined;
+      const taskEvent = taskToolUseId ? requested.get(taskToolUseId) : undefined;
+      const parent = ensureRequested(
+        toolUseId,
+        tool,
+        input,
+        taskEvent?.id ?? root.id,
+        taskEvent ? taskToolUseId : undefined,
+        agentId,
+      );
       decision = gate.decide({ toolUseId, tool, input }, signal, parent.id).then((outcome) => {
         if (outcome.decision === "allow") {
           registry.register(tool, input, { toolUseId, eventId: parent.id });
@@ -180,7 +207,13 @@ async function runWithSdk(
       typeof input.tool_input === "object" && input.tool_input !== null
         ? (input.tool_input as Record<string, unknown>)
         : {};
-    const outcome = await decide(input.tool_use_id, input.tool_name, toolInput, signal);
+    const outcome = await decide(
+      input.tool_use_id,
+      input.tool_name,
+      toolInput,
+      signal,
+      input.agent_id,
+    );
     return {
       hookSpecificOutput: {
         hookEventName: "PreToolUse",
@@ -213,13 +246,29 @@ async function runWithSdk(
     return { behavior: "allow", updatedInput: input };
   };
 
+  /**
+   * Corrélation d'un appel MCP : exacte si le SDK transmet l'id d'appel dans
+   * `extra._meta`, sinon inférée (outil + arguments), sinon rattachée à la racine.
+   */
+  const resolveCall = (toolName: string, args: unknown, extra?: unknown): ResolvedCall => {
+    const id = toolUseIdFromExtra(extra);
+    if (id !== undefined) {
+      const exact = registry.claimById(id)?.eventId ?? requested.get(id)?.id;
+      if (exact !== undefined) return { parentId: exact, correlation: "exact" };
+    }
+    const inferred = registry.claim(toolName, args);
+    if (inferred) return { parentId: inferred.eventId, correlation: "inferred" };
+    return { parentId: root.id, correlation: "none" };
+  };
+
   const mcpServers: Record<string, McpSdkServerConfigWithInstance> = {};
   for (const set of options.toolsets ?? []) {
     mcpServers[set.name] = createSdkMcpServer({
       name: set.name,
       tools: set.create({
         recorder,
-        resolveParent: (toolName, args) => registry.claim(toolName, args)?.eventId ?? root.id,
+        resolveCall,
+        resolveParent: (toolName, args, extra) => resolveCall(toolName, args, extra).parentId,
       }),
       ...(set.instructions && { instructions: set.instructions }),
     });
@@ -257,7 +306,127 @@ async function runWithSdk(
     ...(input.maxTurns !== undefined && { maxTurns: input.maxTurns }),
   };
 
-  let summary: RunSummary = { status: "error", turns: 0, costUsd: 0, result: null };
+  let summary: RunSummary = {
+    status: "error",
+    turns: 0,
+    costUsd: 0,
+    result: null,
+    unhandledMessages: unhandled,
+  };
+
+  const countUnhandled = (message: SDKMessage) => {
+    const subtype = "subtype" in message ? `/${String(message.subtype)}` : "";
+    const key = `${message.type}${subtype}`;
+    unhandled[key] = (unhandled[key] ?? 0) + 1;
+  };
+
+  /** Traduit les messages `system/*` connus ; compte les autres. */
+  const translateSystem = (message: Extract<SDKMessage, { type: "system" }>) => {
+    switch (message.subtype) {
+      case "init":
+        recorder.emit(
+          {
+            kind: "session.started",
+            sessionId: message.session_id,
+            model: message.model,
+            tools: [...message.tools],
+          },
+          root.id,
+        );
+        return;
+      case "api_retry":
+        recorder.emit(
+          {
+            kind: "api.retry",
+            attempt: message.attempt,
+            maxRetries: message.max_retries,
+            delayMs: message.retry_delay_ms,
+            errorStatus: message.error_status,
+            error: message.error,
+          },
+          root.id,
+        );
+        return;
+      case "permission_denied":
+        recorder.emit(
+          {
+            kind: "permission.denied",
+            toolUseId: message.tool_use_id,
+            tool: message.tool_name,
+            ...(message.decision_reason_type !== undefined && {
+              reasonType: message.decision_reason_type,
+            }),
+            message: message.message,
+          },
+          requested.get(message.tool_use_id)?.id ?? root.id,
+        );
+        return;
+      case "task_started":
+        if (message.tool_use_id) taskToolUse.set(message.task_id, message.tool_use_id);
+        recorder.emit(
+          {
+            kind: "task.updated",
+            taskId: message.task_id,
+            ...(message.tool_use_id && { toolUseId: message.tool_use_id }),
+            phase: "started",
+            description: message.description,
+          },
+          (message.tool_use_id && requested.get(message.tool_use_id)?.id) || root.id,
+        );
+        return;
+      case "task_progress": {
+        const toolUseId = message.tool_use_id ?? taskToolUse.get(message.task_id);
+        recorder.emit(
+          {
+            kind: "task.updated",
+            taskId: message.task_id,
+            ...(toolUseId && { toolUseId }),
+            phase: "progress",
+            description: message.description,
+            ...(message.summary !== undefined && { summary: message.summary }),
+            usage: toUsage(message.usage),
+          },
+          (toolUseId && requested.get(toolUseId)?.id) || root.id,
+        );
+        return;
+      }
+      case "task_updated": {
+        const toolUseId = taskToolUse.get(message.task_id);
+        const { status, description, error } = message.patch;
+        recorder.emit(
+          {
+            kind: "task.updated",
+            taskId: message.task_id,
+            ...(toolUseId && { toolUseId }),
+            phase: "updated",
+            ...(status !== undefined && { status }),
+            ...(description !== undefined && { description }),
+            ...(error !== undefined && { summary: error }),
+          },
+          (toolUseId && requested.get(toolUseId)?.id) || root.id,
+        );
+        return;
+      }
+      case "task_notification": {
+        const toolUseId = message.tool_use_id ?? taskToolUse.get(message.task_id);
+        recorder.emit(
+          {
+            kind: "task.updated",
+            taskId: message.task_id,
+            ...(toolUseId && { toolUseId }),
+            phase: "finished",
+            status: message.status,
+            summary: message.summary,
+            ...(message.usage && { usage: toUsage(message.usage) }),
+          },
+          (toolUseId && requested.get(toolUseId)?.id) || root.id,
+        );
+        return;
+      }
+      default:
+        countUnhandled(message);
+    }
+  };
 
   try {
     for await (const message of query({ prompt, options: sdkOptions })) {
@@ -268,6 +437,15 @@ async function runWithSdk(
         for (const block of blocks(message.message.content)) {
           if (block.type === "text" && typeof block.text === "string" && block.text.trim()) {
             recorder.emit({ kind: "agent.text", text: block.text }, parentId);
+          } else if (block.type === "thinking" && typeof block.thinking === "string") {
+            if (block.thinking.trim()) {
+              recorder.emit(
+                { kind: "agent.thinking", text: block.thinking, redacted: false },
+                parentId,
+              );
+            }
+          } else if (block.type === "redacted_thinking") {
+            recorder.emit({ kind: "agent.thinking", text: "", redacted: true }, parentId);
           } else if (block.type === "tool_use" && typeof block.id === "string") {
             const input =
               typeof block.input === "object" && block.input !== null
@@ -284,7 +462,7 @@ async function runWithSdk(
               kind: "tool.result",
               toolUseId: block.tool_use_id,
               isError: block.is_error === true,
-              summary: summarize(block.content),
+              ...capOutput(contentText(block.content), maxResultBytes),
             },
             requested.get(block.tool_use_id)?.id ?? parentId,
           );
@@ -295,7 +473,24 @@ async function runWithSdk(
           turns: message.num_turns,
           costUsd: message.total_cost_usd,
           result: message.subtype === "success" ? message.result : null,
+          unhandledMessages: unhandled,
         };
+      } else if (message.type === "rate_limit_event") {
+        const info = message.rate_limit_info;
+        recorder.emit(
+          {
+            kind: "rate.limited",
+            status: info.status,
+            ...(info.resetsAt !== undefined && { resetsAt: info.resetsAt }),
+            ...(info.rateLimitType !== undefined && { limitType: info.rateLimitType }),
+            ...(info.utilization !== undefined && { utilization: info.utilization }),
+          },
+          root.id,
+        );
+      } else if (message.type === "system") {
+        translateSystem(message);
+      } else {
+        countUnhandled(message);
       }
     }
   } catch (err) {

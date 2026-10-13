@@ -1,8 +1,9 @@
+import { randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { mkdir, open } from "node:fs/promises";
 import { dirname } from "node:path";
 import { createInterface } from "node:readline";
-import { type EngineEvent, isEventKind } from "../events.js";
+import { type EngineEvent, EVENT_SCHEMA_VERSION, validateEvent } from "../events.js";
 import type { EventSink } from "../recorder.js";
 
 /**
@@ -15,14 +16,32 @@ export interface JournalWriter {
   close(): Promise<void>;
 }
 
-export async function openJournal(path: string): Promise<JournalWriter> {
+export interface JournalOptions {
+  /**
+   * Taille maximale du fichier (octets, tous runs confondus). À la limite, le
+   * writer écrit une dernière ligne `journal.truncated` et ignore la suite.
+   * Défaut : 100 Mio.
+   */
+  maxBytes?: number;
+}
+
+export const DEFAULT_JOURNAL_MAX_BYTES = 100 * 1024 * 1024;
+
+export async function openJournal(
+  path: string,
+  { maxBytes = DEFAULT_JOURNAL_MAX_BYTES }: JournalOptions = {},
+): Promise<JournalWriter> {
   await mkdir(dirname(path), { recursive: true });
   const handle = await open(path, "a");
   let chain: Promise<unknown> = Promise.resolve();
   let failure: unknown = null;
+  // Un journal rouvert en ajout compte déjà ce qu'il contient.
+  let written = (await handle.stat()).size;
+  let last: EngineEvent | null = null;
+  let dropped = 0;
+  let closed = false;
 
-  const sink: EventSink = (event) => {
-    const line = `${JSON.stringify(event)}\n`;
+  const write = (line: string) => {
     chain = chain
       .then(() => handle.appendFile(line, "utf8"))
       .catch((err: unknown) => {
@@ -30,16 +49,54 @@ export async function openJournal(path: string): Promise<JournalWriter> {
       });
   };
 
+  /** Ligne de fin synthétique : l'id est aléatoire, runId/seq prolongent le dernier événement. */
+  const marker = (): string => {
+    const event: EngineEvent = {
+      v: EVENT_SCHEMA_VERSION,
+      id: randomUUID(),
+      seq: (last?.seq ?? -1) + 1,
+      ts: new Date().toISOString(),
+      runId: last?.runId ?? "journal",
+      parentId: null,
+      kind: "journal.truncated",
+      limitBytes: maxBytes,
+      droppedEvents: dropped,
+    };
+    return `${JSON.stringify(event)}\n`;
+  };
+
+  const sink: EventSink = (event) => {
+    if (closed) return;
+    if (dropped > 0) {
+      dropped++;
+      return;
+    }
+    const line = `${JSON.stringify(event)}\n`;
+    // On garde la place de la ligne de fin (jusqu'à 1 Kio) avant de refuser.
+    if (written + Buffer.byteLength(line) + MARKER_RESERVE > maxBytes) {
+      dropped = 1;
+      return;
+    }
+    written += Buffer.byteLength(line);
+    last = event;
+    write(line);
+  };
+
   return {
     path,
     sink,
     async close() {
+      closed = true;
+      if (dropped > 0) write(marker());
       await chain;
       await handle.close();
       if (failure) throw failure;
     },
   };
 }
+
+/** Octets réservés pour la ligne `journal.truncated`. */
+const MARKER_RESERVE = 1024;
 
 export interface JournalIssue {
   line: number;
@@ -50,18 +107,6 @@ export interface JournalContents {
   events: EngineEvent[];
   /** Lignes ignorées (corrompues, tronquées, schéma inconnu). */
   issues: JournalIssue[];
-}
-
-function validate(value: unknown): string | null {
-  if (typeof value !== "object" || value === null) return "objet attendu";
-  const v = value as Record<string, unknown>;
-  if (!isEventKind(v.kind)) return `kind inconnu : ${String(v.kind)}`;
-  if (typeof v.id !== "string") return "id manquant";
-  if (typeof v.seq !== "number") return "seq manquant";
-  if (typeof v.ts !== "string") return "ts manquant";
-  if (typeof v.runId !== "string") return "runId manquant";
-  if (v.parentId !== null && typeof v.parentId !== "string") return "parentId invalide";
-  return null;
 }
 
 /** Parse un journal en mémoire. Tolère une dernière ligne tronquée. */
@@ -102,7 +147,29 @@ function pushLine(line: string, n: number, events: EngineEvent[], issues: Journa
     issues.push({ line: n, error: err instanceof Error ? err.message : "JSON invalide" });
     return;
   }
-  const error = validate(value);
-  if (error) issues.push({ line: n, error });
-  else events.push(value as EngineEvent);
+  value = migrate(value);
+  const error = validateEvent(value);
+  if (error) {
+    issues.push({ line: n, error });
+    return;
+  }
+  const event = value as EngineEvent;
+  // `v` absent = schéma 1 (journaux antérieurs au versionnage).
+  events.push(event.v === undefined ? { ...event, v: 1 } : event);
+}
+
+/** Anciens `tool.result` (champ `summary`) : relus comme une sortie complète non tronquée. */
+function migrate(value: unknown): unknown {
+  if (typeof value !== "object" || value === null) return value;
+  const v = value as Record<string, unknown>;
+  if (v.kind === "tool.result" && v.output === undefined && typeof v.summary === "string") {
+    const { summary, ...rest } = v;
+    return {
+      ...rest,
+      output: summary,
+      truncated: false,
+      bytes: Buffer.byteLength(summary as string),
+    };
+  }
+  return value;
 }

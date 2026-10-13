@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canonicalJson, ToolCallRegistry } from "../src/index.js";
+import { canonicalJson, ToolCallRegistry, toolUseIdFromExtra } from "../src/index.js";
 
 describe("canonicalJson", () => {
   it("ignore l'ordre des clés et les undefined", () => {
@@ -39,5 +39,44 @@ describe("ToolCallRegistry", () => {
     const r = new ToolCallRegistry();
     r.register("x", {}, call(1));
     expect(r.claim("y", {})).toBeUndefined();
+  });
+});
+
+describe("toolUseIdFromExtra", () => {
+  it("lit la clé claudecode/toolUseId de _meta", () => {
+    expect(toolUseIdFromExtra({ _meta: { "claudecode/toolUseId": "toolu_1" } })).toBe("toolu_1");
+  });
+
+  it("accepte toute clé contenant toolUseId", () => {
+    expect(toolUseIdFromExtra({ _meta: { "autre/toolUseId": "t2" } })).toBe("t2");
+    expect(toolUseIdFromExtra({ _meta: { toolUseId: "t3" } })).toBe("t3");
+  });
+
+  it("renvoie undefined sans identifiant exploitable", () => {
+    expect(toolUseIdFromExtra(undefined)).toBeUndefined();
+    expect(toolUseIdFromExtra({})).toBeUndefined();
+    expect(toolUseIdFromExtra({ _meta: null })).toBeUndefined();
+    expect(
+      toolUseIdFromExtra({ _meta: { progressToken: 1, toolUseId: 4, x: "y" } }),
+    ).toBeUndefined();
+    expect(toolUseIdFromExtra({ _meta: { "claudecode/toolUseId": "" } })).toBeUndefined();
+  });
+});
+
+describe("ToolCallRegistry.claimById", () => {
+  const call = (n: number) => ({ toolUseId: `t${n}`, eventId: `e${n}` });
+
+  it("apparie exactement, hors FIFO, et retire l'entrée", () => {
+    const r = new ToolCallRegistry();
+    r.register("t", { a: 1 }, call(1));
+    r.register("t", { a: 1 }, call(2));
+    expect(r.claimById("t2")).toEqual(call(2));
+    expect(r.claimById("t2")).toBeUndefined();
+    expect(r.claim("t", { a: 1 })?.toolUseId).toBe("t1");
+    expect(r.claim("t", { a: 1 })).toBeUndefined();
+  });
+
+  it("renvoie undefined pour un identifiant inconnu", () => {
+    expect(new ToolCallRegistry().claimById("nope")).toBeUndefined();
   });
 });

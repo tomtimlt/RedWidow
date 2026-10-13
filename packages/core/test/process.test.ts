@@ -32,6 +32,53 @@ describe("LineSplitter", () => {
   });
 });
 
+describe("LineSplitter : longueur maximale", () => {
+  const split = (max: number, ...chunks: string[]) => {
+    const lines: [string, boolean][] = [];
+    const s = new LineSplitter((l, t) => lines.push([l, t]), { maxLineLength: max });
+    for (const c of chunks) s.push(c);
+    s.end();
+    return lines;
+  };
+
+  it("coupe une ligne trop longue et signale truncated", () => {
+    expect(split(5, "abcdefghij\nok\n")).toEqual([
+      ["abcde", true],
+      ["ok", false],
+    ]);
+  });
+
+  it("jette le reste d'une ligne coupée même répartie sur plusieurs chunks", () => {
+    expect(split(4, "abcdefg", "hijkl", "mn\nfin\n")).toEqual([
+      ["abcd", true],
+      ["fin", false],
+    ]);
+  });
+
+  it("n'altère pas une ligne de longueur exactement égale au maximum", () => {
+    expect(split(4, "abcd\nabcd")).toEqual([
+      ["abcd", false],
+      ["abcd", false],
+    ]);
+  });
+
+  it("borne la mémoire : pas de ligne en attente après un flot sans saut de ligne", () => {
+    const lines: [string, boolean][] = [];
+    const s = new LineSplitter((l, t) => lines.push([l, t]), { maxLineLength: 100 });
+    for (let i = 0; i < 1000; i++) s.push("x".repeat(1000));
+    s.end();
+    expect(lines).toEqual([["x".repeat(100), true]]);
+  });
+
+  it("applique 16 384 caractères par défaut", () => {
+    const lines: [string, boolean][] = [];
+    const s = new LineSplitter((l, t) => lines.push([l, t]));
+    s.push(`${"y".repeat(20_000)}\n`);
+    expect(lines[0]?.[0]).toHaveLength(16_384);
+    expect(lines[0]?.[1]).toBe(true);
+  });
+});
+
 describe("runProcess", () => {
   const node = process.execPath;
 
@@ -53,6 +100,45 @@ describe("runProcess", () => {
       "process.output",
     ]);
     expect(events.at(-1)).toMatchObject({ kind: "process.exited", code: 3 });
+  });
+
+  it("marque truncated les lignes coupées dans process.output", async () => {
+    const { recorder, events } = collect();
+    await runProcess([node, "-e", "console.log('x'.repeat(50))"], {
+      recorder,
+      maxLineLength: 10,
+    });
+    expect(events.find((e) => e.kind === "process.output")).toMatchObject({
+      line: "x".repeat(10),
+      truncated: true,
+    });
+  });
+
+  it("plafonne les lignes journalisées et compte les autres dans droppedLines", async () => {
+    const { recorder, events } = collect();
+    const result = await runProcess(
+      [node, "-e", "for (let i=0;i<10;i++) console.log('o'+i); console.error('e')"],
+      { recorder, maxJournaledLines: 3 },
+    );
+    expect(events.filter((e) => e.kind === "process.output")).toHaveLength(3);
+    expect(events.at(-1)).toMatchObject({ kind: "process.exited", droppedLines: 8 });
+    // Le résultat en mémoire n'est pas concerné par le plafond du journal.
+    expect(result.stdout).toHaveLength(10);
+    expect(result.stderr).toEqual(["e"]);
+  });
+
+  it("n'ajoute ni droppedLines ni truncated quand rien n'est perdu", async () => {
+    const { recorder, events } = collect();
+    await runProcess([node, "-e", "console.log('a')"], { recorder });
+    expect(events.find((e) => e.kind === "process.output")).not.toHaveProperty("truncated");
+    expect(events.at(-1)).not.toHaveProperty("droppedLines");
+    expect(events[0]).not.toHaveProperty("correlation");
+  });
+
+  it("consigne la fiabilité de la corrélation dans process.started", async () => {
+    const { recorder, events } = collect();
+    await runProcess([node, "-e", ""], { recorder, correlation: "inferred" });
+    expect(events[0]).toMatchObject({ kind: "process.started", correlation: "inferred" });
   });
 
   it("n'interprète pas les arguments via un shell", async () => {

@@ -14,12 +14,13 @@ import {
   openJournal,
   REPO_POLICY_PATH,
   readJournal,
+  splitRuns,
   trustPolicy,
 } from "@john-studio/core";
 import { renderGraphHtml } from "@john-studio/export-html";
 import { Command, InvalidArgumentError } from "commander";
 import { createTerminalAsker } from "./ask.js";
-import { colorEnabled, formatEvent } from "./format.js";
+import { colorEnabled, formatEvent, formatRunList } from "./format.js";
 
 const parseIntArg = (value: string) => {
   const n = Number.parseInt(value, 10);
@@ -150,28 +151,48 @@ policyCmd
 
 program
   .command("journal")
-  .description("Relire un journal JSONL.")
+  .description("Relire un journal JSONL (liste les runs s'il y en a plusieurs).")
   .argument("<file>", "journal JSONL")
+  .option("-r, --run <id>", "afficher seulement ce run")
   .option("-v, --verbose", "afficher la sortie des processus")
   .action(async (file: string, opts) => {
     const { events, issues } = await readJournal(file);
-    events.forEach(printer(Boolean(opts.verbose)));
+    const runs = splitRuns(events);
+    if (opts.run !== undefined && !runs.has(opts.run)) {
+      throw new InvalidArgumentError(`run inconnu : ${opts.run}`);
+    }
+    if (opts.run === undefined && runs.size > 1) {
+      for (const line of formatRunList(runs)) process.stdout.write(`${line}\n`);
+      process.stderr.write(`${runs.size} runs : choisissez-en un avec --run <id>\n`);
+    } else {
+      const shown = opts.run === undefined ? events : (runs.get(opts.run) ?? []);
+      shown.forEach(printer(Boolean(opts.verbose)));
+    }
     for (const issue of issues)
       process.stderr.write(`ligne ${issue.line} ignorée : ${issue.error}\n`);
   });
 
 program
   .command("graph")
-  .description("Exporter le graphe d'événements d'un journal.")
+  .description("Exporter le graphe d'événements d'un run d'un journal (le dernier par défaut).")
   .argument("<file>", "journal JSONL")
   .option("-o, --out <file>", "fichier de sortie (stdout par défaut)")
   .option("-f, --format <format>", "html | json", "html")
+  .option("-r, --run <id>", "run à représenter (défaut : le dernier du journal)")
   .action(async (file: string, opts) => {
     if (opts.format !== "html" && opts.format !== "json") {
       throw new InvalidArgumentError(`format inconnu : ${opts.format}`);
     }
     const { events } = await readJournal(file);
-    const graph = buildGraph(events);
+    const graph = buildGraph(events, opts.run === undefined ? {} : { runId: opts.run });
+    if (opts.run !== undefined && graph.runId === null) {
+      throw new InvalidArgumentError(`run inconnu : ${opts.run}`);
+    }
+    if (opts.run === undefined && graph.runs.length > 1) {
+      process.stderr.write(
+        `${graph.runs.length} runs dans le journal : affichage du dernier (${graph.runId}), --run <id> pour un autre\n`,
+      );
+    }
     const body =
       opts.format === "json" ? `${JSON.stringify(graph, null, 2)}\n` : renderGraphHtml(graph);
     if (opts.out) {

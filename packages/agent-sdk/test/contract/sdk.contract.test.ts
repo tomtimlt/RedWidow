@@ -6,7 +6,9 @@
  *
  * Il vérifie les hypothèses que les faux `QueryFn` des autres tests ne peuvent
  * pas vérifier : le hook PreToolUse voit chaque outil (y compris ceux que le SDK
- * auto-approuve), l'ordre des messages, et la liste des outils natifs exposés.
+ * auto-approuve), l'ordre des messages, la liste des outils natifs exposés, et
+ * la présence de `_meta` / de l'identifiant d'appel dans `extra` des handlers MCP
+ * (consignée dans la sortie, car elle décide si la corrélation est exacte).
  */
 import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -19,7 +21,12 @@ import {
   type EngineEvent,
 } from "@john-studio/core";
 import { describe, expect, it } from "vitest";
-import { createSdkRunner, dockerToolset, type QueryFn } from "../../src/index.js";
+import {
+  createSdkRunner,
+  dockerToolset,
+  type QueryFn,
+  toolUseIdFromExtra,
+} from "../../src/index.js";
 import { fakeDocker } from "../helpers.js";
 
 const enabled = Boolean(process.env.ANTHROPIC_API_KEY) && process.env.JOHN_SDK_CONTRACT === "1";
@@ -35,6 +42,8 @@ async function realRun(prompt: string, cwd: string, extra: { docker?: string } =
 
   const seen: string[] = [];
   let tools: string[] = [];
+  /** Ce que le SDK passe en second argument aux handlers MCP. */
+  const extras: { tool: string; hasMeta: boolean; metaKeys: string[]; toolUseId?: string }[] = [];
   const query: QueryFn = (params) =>
     (async function* () {
       for await (const message of sdkQuery(params)) {
@@ -47,15 +56,43 @@ async function realRun(prompt: string, cwd: string, extra: { docker?: string } =
       }
     })();
 
+  const docker = extra.docker ? dockerToolset({ binary: extra.docker }) : undefined;
   const runner = createSdkRunner({
     query,
-    toolsets: extra.docker ? [dockerToolset({ binary: extra.docker })] : [],
+    toolsets: docker
+      ? [
+          {
+            ...docker,
+            create: (ctx) =>
+              docker.create({
+                ...ctx,
+                resolveCall: (name, args, handlerExtra) => {
+                  const meta = (handlerExtra as { _meta?: Record<string, unknown> } | undefined)
+                    ?._meta;
+                  const toolUseId = toolUseIdFromExtra(handlerExtra);
+                  extras.push({
+                    tool: name,
+                    hasMeta: meta !== undefined && meta !== null,
+                    metaKeys: Object.keys(meta ?? {}),
+                    ...(toolUseId !== undefined && { toolUseId }),
+                  });
+                  return ctx.resolveCall(name, args, handlerExtra);
+                },
+              }),
+          },
+        ]
+      : [],
   });
   const summary = await runner.run({ prompt, cwd, model: MODEL, maxTurns: 6 }, { recorder, gate });
   console.info(
     `[contrat] ${prompt.slice(0, 40)}… → messages SDK : ${[...new Set(seen)].join(", ")}`,
   );
-  return { events, summary, tools };
+  for (const e of extras) {
+    console.info(
+      `[contrat] extra MCP ${e.tool} : _meta ${e.hasMeta ? `présent (clés : ${e.metaKeys.join(", ") || "aucune"})` : "absent"} · toolUseId ${e.toolUseId ?? "absent"}`,
+    );
+  }
+  return { events, summary, tools, extras };
 }
 
 const noContractError = (events: EngineEvent[]) =>
@@ -67,7 +104,7 @@ describe.skipIf(!enabled)("contrat Claude Agent SDK (réel)", () => {
     async () => {
       const cwd = mkdtempSync(join(tmpdir(), "john-contract-"));
       const fake = await fakeDocker();
-      const { events } = await realRun(
+      const { events, extras } = await realRun(
         "Appelle une seule fois l'outil mcp__docker__ps (sans argument) puis réponds « OK ».",
         cwd,
         { docker: fake.bin },
@@ -85,6 +122,11 @@ describe.skipIf(!enabled)("contrat Claude Agent SDK (réel)", () => {
 
       const started = events.find((e) => e.kind === "process.started");
       expect(started?.parentId).toBe(requested?.id);
+      // Si le SDK transmet l'id d'appel, la corrélation doit être exacte ; sinon inférée.
+      expect(extras.length).toBeGreaterThan(0);
+      expect(started).toMatchObject({
+        correlation: extras[0]?.toolUseId !== undefined ? "exact" : "inferred",
+      });
       const decided = events.find((e) => e.kind === "approval.decided");
       expect(decided).toMatchObject({
         decision: "allow",

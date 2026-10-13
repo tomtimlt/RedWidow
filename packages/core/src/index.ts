@@ -6,6 +6,7 @@ export * from "./docker/client.js";
 export * from "./events.js";
 export * from "./graph/build.js";
 export * from "./journal/jsonl.js";
+export * from "./output.js";
 export * from "./process/lines.js";
 export * from "./process/run.js";
 export * from "./recorder.js";

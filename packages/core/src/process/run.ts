@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import type { Correlation } from "../events.js";
 import type { Recorder } from "../recorder.js";
 import { LineSplitter } from "./lines.js";
 
@@ -53,6 +54,12 @@ export interface RunProcessOptions {
   signal?: AbortSignal;
   /** Plafond de lignes conservées en mémoire dans le résultat (le journal reçoit tout). */
   maxCapturedLines?: number;
+  /** Plafond de lignes de sortie émises dans le journal (au-delà : comptées dans `droppedLines`). Défaut : 10 000. */
+  maxJournaledLines?: number;
+  /** Longueur maximale d'une ligne de sortie (voir `LineSplitter`). */
+  maxLineLength?: number;
+  /** Fiabilité du rattachement à l'appel d'outil parent, consignée dans `process.started`. */
+  correlation?: Correlation;
 }
 
 export interface ProcessResult {
@@ -74,7 +81,13 @@ export function runProcess(
 ): Promise<ProcessResult> {
   const [file, ...args] = argv;
   if (file === undefined) return Promise.reject(new Error("argv vide"));
-  const { recorder, parentId = null, maxCapturedLines = 10_000 } = options;
+  const {
+    recorder,
+    parentId = null,
+    maxCapturedLines = 10_000,
+    maxJournaledLines = 10_000,
+    correlation,
+  } = options;
   const started = performance.now();
 
   return new Promise((resolve, reject) => {
@@ -87,15 +100,33 @@ export function runProcess(
     });
 
     const startEvent = recorder.emit(
-      { kind: "process.started", argv: [...argv], pid: child.pid ?? null },
+      {
+        kind: "process.started",
+        argv: [...argv],
+        pid: child.pid ?? null,
+        ...(correlation && { correlation }),
+      },
       parentId,
     );
     const captured = { stdout: [] as string[], stderr: [] as string[] };
+    let journaled = 0;
+    let droppedLines = 0;
     const splitter = (stream: "stdout" | "stderr") =>
-      new LineSplitter((line) => {
-        if (captured[stream].length < maxCapturedLines) captured[stream].push(line);
-        recorder.emit({ kind: "process.output", stream, line }, startEvent.id);
-      });
+      new LineSplitter(
+        (line, truncated) => {
+          if (captured[stream].length < maxCapturedLines) captured[stream].push(line);
+          if (journaled >= maxJournaledLines) {
+            droppedLines++;
+            return;
+          }
+          journaled++;
+          recorder.emit(
+            { kind: "process.output", stream, line, ...(truncated && { truncated }) },
+            startEvent.id,
+          );
+        },
+        options.maxLineLength === undefined ? {} : { maxLineLength: options.maxLineLength },
+      );
     const out = splitter("stdout");
     const err = splitter("stderr");
     child.stdout.on("data", (chunk: Buffer) => out.push(chunk));
@@ -110,7 +141,16 @@ export function runProcess(
       out.end();
       err.end();
       const durationMs = Math.round(performance.now() - started);
-      recorder.emit({ kind: "process.exited", code, signal, durationMs }, startEvent.id);
+      recorder.emit(
+        {
+          kind: "process.exited",
+          code,
+          signal,
+          durationMs,
+          ...(droppedLines > 0 && { droppedLines }),
+        },
+        startEvent.id,
+      );
       if (spawnError && (spawnError as NodeJS.ErrnoException).code === "ENOENT") {
         reject(new Error(`binaire introuvable : ${file}`));
         return;

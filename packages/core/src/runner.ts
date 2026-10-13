@@ -21,6 +21,8 @@ export interface RunSummary {
   turns: number;
   costUsd: number;
   result: string | null;
+  /** Messages du moteur d'agent non traduits en événements, comptés par `type/subtype`. */
+  unhandledMessages?: Record<string, number>;
 }
 
 /**

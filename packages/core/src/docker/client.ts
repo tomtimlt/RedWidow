@@ -1,3 +1,4 @@
+import type { Correlation } from "../events.js";
 import { type ProcessResult, runProcess } from "../process/run.js";
 import type { Recorder } from "../recorder.js";
 
@@ -95,6 +96,8 @@ export function assertOperand(value: string, label: string): string {
 export interface CallOptions {
   parentId?: string | null;
   signal?: AbortSignal;
+  /** Fiabilité du rattachement de `parentId` à l'appel d'outil, consignée dans `process.started`. */
+  correlation?: Correlation;
 }
 
 export interface RunContainerOptions extends CallOptions {
@@ -136,11 +139,12 @@ export function createDockerClient({
   binary = "docker",
   parentId: defaultParent = null,
 }: DockerClientOptions): DockerClient {
-  const exec = (args: readonly string[], { parentId, signal }: CallOptions = {}) =>
+  const exec = (args: readonly string[], { parentId, signal, correlation }: CallOptions = {}) =>
     runProcess([binary, ...args], {
       recorder,
       parentId: parentId === undefined ? defaultParent : parentId,
       ...(signal && { signal }),
+      ...(correlation && { correlation }),
     });
 
   const checked = async (what: string, args: readonly string[], options?: CallOptions) => {

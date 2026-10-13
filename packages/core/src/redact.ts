@@ -11,6 +11,9 @@ export type Redactor = <T>(value: T) => T;
 const SENSITIVE_KEY =
   /secret|token|passw|pwd|api[-_]?key|auth|credential|private[-_]?key|access[-_]?key|cookie|session/i;
 
+/** Clés qui correspondent à l'heuristique mais ne portent pas de secret (identifiants opaques). */
+const SAFE_KEYS = new Set(["sessionId"]);
+
 /** Variable d'environnement dont la valeur est sensible (même heuristique que les clés). */
 const SENSITIVE_ENV_NAME = SENSITIVE_KEY;
 
@@ -88,7 +91,9 @@ export function createRedactor({ values = [] }: RedactorOptions = {}): Redactor 
 
   const walk = (value: unknown, key: string): unknown => {
     if (typeof value === "string") {
-      return key !== "" && SENSITIVE_KEY.test(key) ? REDACTED : redactString(value);
+      return key !== "" && SENSITIVE_KEY.test(key) && !SAFE_KEYS.has(key)
+        ? REDACTED
+        : redactString(value);
     }
     if (Array.isArray(value)) {
       if (key === "argv" || key === "command") return redactArgv(value);
