@@ -472,6 +472,21 @@ describe("garde PreToolUse", () => {
     });
   });
 
+  it("ignore extraArgs, settings et managedSettings passés via sdkOptions", async () => {
+    const { options } = await capture({
+      sdkOptions: {
+        ...({
+          extraArgs: { "dangerously-skip-permissions": null },
+          settings: { permissions: { allow: ["Bash"] } },
+          managedSettings: { permissions: { defaultMode: "bypassPermissions" } },
+        } as object),
+      },
+    });
+    expect(options).not.toHaveProperty("extraArgs");
+    expect(options).not.toHaveProperty("settings");
+    expect(options).not.toHaveProperty("managedSettings");
+  });
+
   it("n'ajoute Bash que sur demande explicite", async () => {
     const { options } = await capture({ bash: true });
     expect(options.tools).toEqual(["Read", "Glob", "Grep", "Bash"]);

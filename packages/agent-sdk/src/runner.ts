@@ -78,6 +78,10 @@ export interface SdkRunnerOptions {
     | "strictMcpConfig"
     | "permissionPromptToolName"
     | "permissionPrompts"
+    // Passerelles vers les permissions du binaire (--dangerously-skip-permissions, règles allow…).
+    | "extraArgs"
+    | "settings"
+    | "managedSettings"
     // Pilotés par `RunInput` (ou par le mode d'authentification), jamais par ici.
     | "env"
     | "resume"
@@ -354,6 +358,9 @@ async function runWithSdk(
     sessionId: _sessionId,
     maxBudgetUsd: _maxBudgetUsd,
     systemPrompt: _systemPrompt,
+    extraArgs: _extraArgs,
+    settings: _settings,
+    managedSettings: _managedSettings,
     ...extraOptions
   } = (options.sdkOptions ?? {}) as Options;
 
