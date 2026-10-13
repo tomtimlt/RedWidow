@@ -58,6 +58,27 @@ export const reasons: Catalog = {
   "auth.orgNotAllowed": () =>
     "l'organisation du compte connecté n'est pas autorisée : reconnectez-vous avec /login (compte autorisé) ou définissez ANTHROPIC_API_KEY",
 
+  "provider.authFailed": (p) =>
+    `authentification refusée par le fournisseur ${text(p.provider)} : lancez « opencode auth login » ou transmettez sa clé avec --pass-env <VARIABLE>`,
+  "provider.error": (p) =>
+    `erreur du fournisseur de modèle (${text(p.name)}) : ${text(p.message)}${p.status === undefined ? "" : ` [HTTP ${text(p.status)}]`}`,
+  "budget.exceeded": (p) =>
+    `plafond de dépense dépassé : ${text(p.spent)} $ dépensés pour ${text(p.limit)} $ autorisés`,
+
+  "opencode.unsafeConfig": (p) =>
+    `configuration OpenCode trop permissive (${text(p.setting)}) : john-studio exige « ask » ou « deny » pour tous les outils`,
+  "opencode.noModel": () =>
+    "aucun modèle : indiquez --model fournisseur/modèle (ou « model » dans la configuration OpenCode)",
+  "opencode.invalidModel": (p) =>
+    `modèle invalide : « ${text(p.value)} » (format attendu : fournisseur/modèle)`,
+  "opencode.serverFailed": (p) => `le serveur OpenCode n'a pas démarré : ${text(p.detail)}`,
+  "opencode.serverTimeout": (p) => `le serveur OpenCode n'a pas répondu en ${text(p.seconds)} s`,
+  "opencode.sessionNotFound": (p) => `session OpenCode introuvable : ${text(p.id)}`,
+  "opencode.pathUnknown": (p) =>
+    `chemin de l'outil ${text(p.tool)} introuvable : refusé faute de pouvoir appliquer les garde-fous`,
+  "opencode.replyFailed": (p) =>
+    `réponse à une permission OpenCode refusée par le serveur (HTTP ${text(p.status)}) : session interrompue`,
+
   "shell.unclosedQuote": (p) => `guillemet ${text(p.quote)} non fermé`,
   "shell.trailingBackslash": () => "backslash final",
 

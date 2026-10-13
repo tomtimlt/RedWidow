@@ -45,6 +45,19 @@ export const REASON_CODES = [
   "auth.missingApiKey",
   "auth.failed",
   "auth.orgNotAllowed",
+  // Fournisseurs de modèles et budget
+  "provider.authFailed",
+  "provider.error",
+  "budget.exceeded",
+  // Adaptateur OpenCode
+  "opencode.unsafeConfig",
+  "opencode.noModel",
+  "opencode.invalidModel",
+  "opencode.serverFailed",
+  "opencode.serverTimeout",
+  "opencode.sessionNotFound",
+  "opencode.pathUnknown",
+  "opencode.replyFailed",
   // Analyse du shell
   "shell.unclosedQuote",
   "shell.trailingBackslash",

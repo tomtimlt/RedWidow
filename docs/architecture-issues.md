@@ -36,6 +36,59 @@ Décisions retenues : paquet adaptateur séparé (`@john-studio/agent-sdk`), paq
 16. **Causalité — traité, avec réserves.** La corrélation outil MCP ↔ `tool.requested` utilise l'identifiant d'appel transmis par le SDK dans `_meta` quand il existe (`toolUseIdFromExtra`, appariement exact), sinon la FIFO par outil et arguments ; `process.started.correlation` indique `exact`, `inferred` ou `none`. Le rattachement sous-agent passe par `agent_id` du hook et `task_started`. Les erreurs de sink émettent `sink.error` vers les autres sinks (sans récursion) et appellent `onSinkError`. **Hypothèses non vérifiées sans clé API :** que le SDK place bien l'identifiant dans `_meta`, et que le `task_id` des tâches corresponde à l'`agent_id` vu par le hook ; le test de contrat consigne ces deux points.
 17. **Sorties d'outil complètes — traité.** `tool.result` porte `output` (texte complet jusqu'à `maxResultBytes`, 64 Kio par défaut), `truncated` et `bytes` (taille d'origine) ; le résumé sur une ligne est calculé par les UI. **Limite connue :** la coupe a lieu avant le masquage des secrets, donc un secret coupé pile à la limite n'est pas reconnu (seul un court fragment peut rester).
 
+## Adaptateur OpenCode (lot D, hors numérotation P0/P1)
+
+`@john-studio/agent-opencode` (`createOpencodeRunner`) implémente `AgentRunner` pour OpenCode sans toucher au cœur, sauf :
+les définitions d'outils docker deviennent neutres (`core/src/docker/tool-specs.ts`, `DockerToolSpec`, zod dans le cœur ;
+`agent-sdk` les enveloppe avec `tool()`), `ToolCallRegistry` passe dans le cœur, les chemins `~/.local/share/opencode` et
+`~/.config/opencode` (identifiants et clés) deviennent sensibles pour la politique, et de nouveaux codes de raison
+(`provider.*`, `budget.exceeded`, `opencode.*`) sont ajoutés. La garde équivaut au hook `PreToolUse` : chaque
+`permission.asked` passe par `gate.decide` (réponse `once` ou `reject`, jamais `always`), les outils MCP du moteur
+repassent par la gate dans leur handler (défense en profondeur), la configuration effective est vérifiée avant le premier
+tour. Tests : faux client injectable (`createClient`), serveur MCP HTTP, et tests de contrat réels
+(`OPENCODE_BIN=<binaire>`, sans clé API : faux fournisseur OpenAI-compatible local), ignorés sans binaire.
+
+**D0, essai du binaire réel.** `npm i opencode-ai` (1.19.0) fonctionne derrière le proxy ; `opencode serve` démarre en
+4 s, hors ligne avec `OPENCODE_DISABLE_MODELS_FETCH=1`. Les cinq points non vérifiés :
+
+1. **Nom de l'événement : `permission.asked`**, pas `permission.updated`. Propriétés (forme du binaire) :
+   `{ id, sessionID, permission, patterns[], metadata, always[], tool: { messageID, callID } }` ; `permission.replied` :
+   `{ sessionID, requestID, reply }`. Les types du SDK 1.19.0 (v1) sont en retard ; le moteur lit les deux formes.
+   Le SDK n'est utilisé que derrière un contrat étroit (`OpencodeApi`).
+2. **`"*": "ask"` est accepté et appliqué** (`config.get` le renvoie ; la règle par défaut est `allow`). Mais il ne suffit
+   pas : une clé précise de la configuration globale (`bash: "allow"`) l'emporte, et la `permission` d'un **agent**
+   (`agent.build.permission`) l'emporte sur le niveau supérieur. Le moteur force donc chaque outil connu (`ask`, ou
+   `deny` si coupé), la permission des quatre agents intégrés, et vérifie la configuration effective (`config.get`
+   expose `permission` et `agent.*.permission`). Autre piège : `tools: { x: true }` dans le corps d'un prompt crée une
+   règle `allow` qui contourne `ask` : le moteur n'envoie que des `false`. `write` et `patch` passent par la
+   permission `edit` et par l'indicateur d'outil `edit`.
+3. **Les outils MCP distants passent par la permission** : clé `<serveur>_<outil>` (ex. `docker_ps`), couverte par
+   `"*": "ask"`. OpenCode n'envoie aucun identifiant d'appel dans `_meta` (seulement `progressToken`) : la corrélation
+   `process.*` ↔ `tool.requested` est `inferred` (outil + arguments), comme pour Claude sans `_meta`.
+4. **Le `directory` du client ne confine pas** les outils fichiers : il fixe la racine des chemins relatifs. Hors de
+   ce répertoire, OpenCode émet une demande séparée `external_directory` (`metadata.filepath`) pour le même `callID` ;
+   le moteur lui applique la décision de l'appel (la politique juge déjà `path.outside` / `path.sensitive`). Les
+   `patterns` d'une permission `read` sont relatifs à la racine du projet : le chemin absolu vient de la partie `tool`.
+5. **SDK v2.** Sa route de réponse est `POST /permission/{requestID}/reply` `{ reply: once|always|reject }` ; la route
+   v1 `/session/{id}/permissions/{permissionID}` fonctionne encore en 1.19.0. Le moteur essaie la v1 puis la v2 sur
+   404/405 ; un 404 sur une réponse est toléré (OpenCode rejette d'office les demandes en attente d'une session après un
+   refus, et rien ne s'exécute sans « once »).
+
+Constats supplémentaires : (a) un `opencode.json` **du dépôt** peut déclarer un serveur MCP `local` dont la commande
+est exécutée au démarrage, avant toute permission (vérifié) : le moteur pose `OPENCODE_DISABLE_PROJECT_CONFIG=1`, plus
+`OPENCODE_PURE`, `OPENCODE_DISABLE_AUTOUPDATE`, `OPENCODE_DISABLE_SHARE` ; (b) `createOpencodeServer` du SDK hérite de
+tout `process.env` et lance `opencode` via `PATH` : le moteur lance le binaire lui-même (port libre, mot de passe
+aléatoire, environnement en liste blanche) ; (c) sans `--port` libre, OpenCode retombe sur 4096 ; (d) un refus
+interrompt le tour (pas de nouvelle réponse du modèle) ; (e) les erreurs arrivent par `session.error`
+(`APIError`, `ProviderAuthError`, `MessageAbortedError`, `UnknownError` avec pile : seule la première ligne est gardée)
+puis `session.idle` (parfois deux fois) ; les essais par `session.status` `retry` ; (f) sans modèle configuré, OpenCode
+peut choisir un modèle gratuit hébergé (fournisseur `opencode`) : le moteur exige un modèle explicite ; (g) la
+configuration globale de l'utilisateur est conservée (fournisseurs, clés) mais son `plugin` est écarté.
+
+**Réserves.** Le sandboxing de l'outil `bash` d'OpenCode n'existe pas (le garde-fou est la gate). Les fournisseurs
+réels (clés, abonnements) n'ont pas été essayés. Les jetons ne sont pas journalisés (pas de champ dans le schéma).
+En mode `--opencode-url`, la configuration imposée ne peut pas être transmise : seule la vérification s'applique.
+
 ## P2 : couche processus et Docker
 
 18. **Annulation incomplète [V].** Le signal ne déclenche qu'un SIGTERM, sans escalade SIGKILL ni arrêt du groupe de processus. Il n'y a pas de timeout par processus.

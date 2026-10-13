@@ -1,8 +1,15 @@
 #!/usr/bin/env node
+import { execFile } from "node:child_process";
 import { writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import {
+  createOpencodeRunner,
+  dockerToolset as opencodeDockerToolset,
+  resolveBinary,
+} from "@john-studio/agent-opencode";
 import { createSdkRunner, dockerToolset } from "@john-studio/agent-sdk";
 import {
+  type AgentRunner,
   type AuthMode,
   buildGraph,
   createApprovalGate,
@@ -15,6 +22,7 @@ import {
   openJournal,
   REPO_POLICY_PATH,
   readJournal,
+  safeEnv,
   splitRuns,
   trustPolicy,
 } from "@john-studio/core";
@@ -41,6 +49,22 @@ const parseAuthArg = (value: string): AuthMode => {
   return value;
 };
 
+const AGENTS = ["claude", "opencode"] as const;
+type AgentName = (typeof AGENTS)[number];
+
+const parseAgentArg = (value: string): AgentName => {
+  if (!(AGENTS as readonly string[]).includes(value)) {
+    throw new InvalidArgumentError("claude ou opencode attendu");
+  }
+  return value as AgentName;
+};
+
+const parseListArg = (value: string) =>
+  value
+    .split(",")
+    .map((name) => name.trim())
+    .filter((name) => name !== "");
+
 const parseIntArg = (value: string) => {
   const n = Number.parseInt(value, 10);
   if (!Number.isInteger(n) || n <= 0) throw new InvalidArgumentError("entier positif attendu");
@@ -57,7 +81,7 @@ function printer(verbose: boolean) {
 
 const program = new Command()
   .name("john")
-  .description("Orchestration de conteneurs Docker via le Claude Agent SDK.")
+  .description("Orchestration de conteneurs Docker via un agent (Claude Agent SDK ou OpenCode).")
   .version("0.1.0");
 
 program
@@ -66,7 +90,23 @@ program
   .argument("<prompt...>", "consigne pour l'agent")
   .option("-p, --policy <file>", "fichier de politique JSON")
   .option("-j, --journal <file>", "chemin du journal JSONL")
-  .option("-m, --model <model>", "modèle Claude")
+  .option(
+    "-a, --agent <agent>",
+    "moteur d'agent : claude (Claude Agent SDK) ou opencode",
+    parseAgentArg,
+    "claude",
+  )
+  .option("-m, --model <model>", "modèle (claude) ou fournisseur/modèle (opencode)")
+  .option("--opencode-bin <path>", "binaire opencode (défaut : opencode, cherché dans PATH)")
+  .option(
+    "--opencode-url <url>",
+    "serveur OpenCode existant (OPENCODE_SERVER_PASSWORD pour son mot de passe)",
+  )
+  .option(
+    "--pass-env <noms>",
+    "variables d'environnement transmises au serveur OpenCode lancé (clés des fournisseurs), séparées par des virgules",
+    parseListArg,
+  )
   .option("--max-turns <n>", "nombre maximal de tours", parseIntArg)
   .option("--docker <bin>", "binaire docker des outils MCP", "docker")
   .option("--no-docker-tools", "ne pas exposer les outils Docker structurés à l'agent")
@@ -120,14 +160,31 @@ program
     const onSigint = () => abort.abort(new Error("interrompu (SIGINT)"));
     process.once("SIGINT", onSigint);
     process.stderr.write(`politique : ${source ?? BUILTIN_SOURCE} · journal : ${journalPath}\n`);
-    process.stderr.write(`authentification : ${describeAuthIntent(opts.auth)}\n`);
+    process.stderr.write(
+      opts.agent === "opencode"
+        ? "authentification : gérée par OpenCode (« opencode auth login » ou variables du fournisseur, voir --pass-env)\n"
+        : `authentification : ${describeAuthIntent(opts.auth)}\n`,
+    );
     if (warning) process.stderr.write(`attention : ${formatReason(warning)}\n`);
 
     try {
-      const runner = createSdkRunner({
-        toolsets: opts.dockerTools === false ? [] : [dockerToolset({ binary: opts.docker })],
-        bash: Boolean(opts.allowBash),
-      });
+      const runner: AgentRunner =
+        opts.agent === "opencode"
+          ? createOpencodeRunner({
+              toolsets:
+                opts.dockerTools === false ? [] : [opencodeDockerToolset({ binary: opts.docker })],
+              bash: Boolean(opts.allowBash),
+              ...(opts.opencodeBin && { binary: opts.opencodeBin }),
+              ...(opts.opencodeUrl && { baseUrl: opts.opencodeUrl }),
+              ...(process.env.OPENCODE_SERVER_PASSWORD && {
+                serverPassword: process.env.OPENCODE_SERVER_PASSWORD,
+              }),
+              ...(opts.passEnv && { passEnv: opts.passEnv as string[] }),
+            })
+          : createSdkRunner({
+              toolsets: opts.dockerTools === false ? [] : [dockerToolset({ binary: opts.docker })],
+              bash: Boolean(opts.allowBash),
+            });
       const summary = await runner.run(
         {
           prompt: words.join(" "),
@@ -152,6 +209,34 @@ program
       process.off("SIGINT", onSigint);
       await journal.close();
     }
+  });
+
+/** Version d'un binaire (`--version`), ou `null` s'il ne répond pas. */
+function binaryVersion(path: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    execFile(path, ["--version"], { env: safeEnv(), timeout: 5000 }, (error, stdout) =>
+      resolve(error ? null : stdout.trim().split("\n")[0] || null),
+    );
+  });
+}
+
+program
+  .command("agents")
+  .description("Lister les moteurs d'agent disponibles (--agent) et l'état de leur binaire.")
+  .option("--opencode-bin <path>", "binaire opencode", "opencode")
+  .action(async (opts) => {
+    process.stdout.write("claude\tClaude Agent SDK (intégré, binaire fourni par le SDK)\n");
+    const found = resolveBinary(opts.opencodeBin);
+    if (found === null) {
+      process.stdout.write(
+        `opencode\tbinaire introuvable : ${opts.opencodeBin} (installez-le : https://opencode.ai/docs/ ou --opencode-bin)\n`,
+      );
+      return;
+    }
+    const version = await binaryVersion(found);
+    process.stdout.write(
+      `opencode\tbinaire trouvé : ${found}${version ? ` (version ${version})` : ""}\n`,
+    );
   });
 
 const policyCmd = program.command("policy").description("Inspecter la politique d'approbation.");

@@ -212,6 +212,9 @@ const SENSITIVE_HOME_PATHS = [
   ".git-credentials",
   ".config/gh",
   ".config/john-studio",
+  // Identifiants des fournisseurs de modèles d'OpenCode (auth.json) et sa configuration (clés en clair possibles).
+  ".local/share/opencode",
+  ".config/opencode",
   ".npmrc",
 ];
 const SENSITIVE_ABSOLUTE_PATHS = ["/etc/shadow", "/etc/gshadow", "/etc/sudoers", "/etc/sudoers.d"];

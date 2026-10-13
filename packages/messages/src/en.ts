@@ -19,6 +19,9 @@ export const reasons: Catalog = {
   "approval.timeout": (p, c) => `no answer within ${text(p.seconds)} s: denied (${c.cause ?? "?"})`,
   "approval.remembered": (_p, c) => `allowed for the session (${c.cause ?? "?"})`,
   "auth.missingApiKey": () => "--auth api-key requires ANTHROPIC_API_KEY, which is not set",
+  "budget.exceeded": (p) => `spending limit exceeded: $${text(p.spent)} spent of $${text(p.limit)}`,
+  "opencode.noModel": () =>
+    'no model: pass --model provider/model (or set "model" in the OpenCode configuration)',
   "shell.unclosedQuote": (p) => `unclosed quote ${text(p.quote)}`,
   "shell.trailingBackslash": () => "trailing backslash",
   "error.unknown": (p) => (p.message === undefined ? "unknown error" : text(p.message)),

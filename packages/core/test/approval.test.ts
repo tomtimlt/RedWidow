@@ -362,6 +362,11 @@ describe("garde des chemins (outils fichiers)", () => {
     expect(d("Read", { file_path: "~/.ssh/id_rsa" })).toBe("deny");
     expect(d("Grep", { pattern: "x", path: join(home, ".ssh") })).toBe("deny");
     expect(d("Read", { file_path: "/etc/shadow" })).toBe("deny");
+    // Identifiants et configuration des fournisseurs de modèles d'OpenCode.
+    expect(d("Read", { file_path: join(home, ".local", "share", "opencode", "auth.json") })).toBe(
+      "deny",
+    );
+    expect(d("Read", { file_path: "~/.config/opencode/opencode.json" })).toBe("deny");
     const allowAll: Policy = { default: "allow", rules: [] };
     expect(
       evaluatePolicy(allowAll, "Read", { file_path: "~/.aws/credentials" }, ctx).decision,
