@@ -1,0 +1,21 @@
+{
+  "name": "@john-studio/export-html",
+  "version": "0.1.0",
+  "description": "Export HTML autonome du graphe d'événements john-studio.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@john-studio/core": "workspace:*"
+  }
+}

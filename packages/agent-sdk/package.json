@@ -1,0 +1,25 @@
+{
+  "name": "@john-studio/agent-sdk",
+  "version": "0.1.0",
+  "description": "Adaptateur du Claude Agent SDK pour le cœur john-studio : implémente AgentRunner, outils MCP docker.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.296",
+    "@anthropic-ai/sdk": ">=0.93.0",
+    "@john-studio/core": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^4.6.7"
+  }
+}
