@@ -30,7 +30,8 @@ import {
 import { fakeDocker } from "../helpers.js";
 
 const enabled = Boolean(process.env.ANTHROPIC_API_KEY) && process.env.JOHN_SDK_CONTRACT === "1";
-const MODEL = process.env.JOHN_CONTRACT_MODEL ?? "claude-haiku-5-5";
+/** Modèle facultatif ; à défaut, celui du SDK. */
+const MODEL = process.env.JOHN_CONTRACT_MODEL;
 const TIMEOUT = 180_000;
 
 /** Lance un vrai run et collecte événements et types de messages SDK observés. */
@@ -83,7 +84,7 @@ async function realRun(prompt: string, cwd: string, extra: { docker?: string } =
         ]
       : [],
   });
-  const summary = await runner.run({ prompt, cwd, model: MODEL, maxTurns: 6 }, { recorder, gate });
+  const summary = await runner.run({ prompt, cwd, maxTurns: 6, ...(MODEL && { model: MODEL }) }, { recorder, gate });
   console.info(
     `[contrat] ${prompt.slice(0, 40)}… → messages SDK : ${[...new Set(seen)].join(", ")}`,
   );
