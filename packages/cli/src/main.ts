@@ -45,6 +45,8 @@ program
   .option("-j, --journal <file>", "chemin du journal JSONL")
   .option("-m, --model <model>", "modèle Claude")
   .option("--max-turns <n>", "nombre maximal de tours", parseIntArg)
+  .option("--docker <bin>", "binaire docker des outils MCP", "docker")
+  .option("--no-docker-tools", "ne pas exposer les outils Docker structurés à l'agent")
   .option("--non-interactive", "refuser les cas « ask » au lieu de demander")
   .option("-v, --verbose", "afficher la sortie des processus")
   .action(async (words: string[], opts) => {
@@ -78,6 +80,7 @@ program
         gate,
         cwd,
         signal: abort.signal,
+        docker: opts.dockerTools === false ? false : { binary: opts.docker },
         ...(opts.model && { model: opts.model }),
         ...(opts.maxTurns && { maxTurns: opts.maxTurns }),
       });

@@ -40,8 +40,13 @@ function labelOf(e: EngineEvent): string {
     case "agent.text":
       return clip(e.text);
     case "tool.requested": {
-      const cmd = typeof e.input.command === "string" ? ` ${e.input.command}` : "";
-      return clip(`${e.tool}${cmd}`);
+      const detail =
+        typeof e.input.command === "string"
+          ? e.input.command
+          : Object.keys(e.input).length > 0
+            ? JSON.stringify(e.input)
+            : "";
+      return clip(`${e.tool} ${detail}`);
     }
     case "approval.decided":
       return clip(`${e.decision} (${e.source}) : ${e.reason}`);

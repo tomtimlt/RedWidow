@@ -129,6 +129,14 @@ describe("evaluatePolicy", () => {
     );
   });
 
+  it("politique par défaut pour les outils MCP docker", () => {
+    const d = (tool: string) => evaluatePolicy(DEFAULT_POLICY, tool, {}).decision;
+    for (const t of ["ps", "images", "logs", "inspect"])
+      expect(d(`mcp__docker__${t}`)).toBe("allow");
+    for (const t of ["run", "start", "stop"]) expect(d(`mcp__docker__${t}`)).toBe("ask");
+    expect(d("mcp__docker__rm")).toBe("deny");
+  });
+
   it("outils non-Bash avec glob", () => {
     const p: Policy = { default: "deny", rules: [{ tool: "mcp__docker__*", decision: "allow" }] };
     expect(evaluatePolicy(p, "mcp__docker__ps", {}).decision).toBe("allow");

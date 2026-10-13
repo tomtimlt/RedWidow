@@ -29,7 +29,8 @@ export function formatEvent(e: EngineEvent, { color, verbose }: FormatOptions): 
     case "tool.requested": {
       const detail =
         typeof e.input.command === "string" ? e.input.command : JSON.stringify(e.input);
-      return `${tag("magenta", "tool")} ${e.tool} ${paint("dim", detail)}`;
+      const nested = e.agentToolUseId ? "↳ " : "";
+      return `${tag("magenta", "tool")} ${nested}${e.tool} ${paint("dim", detail)}`;
     }
     case "approval.decided":
       return `${tag(e.decision === "allow" ? "green" : "red", e.decision)} ${paint("dim", `[${e.source}] ${e.reason}`)}`;

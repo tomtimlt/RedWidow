@@ -1,15 +1,33 @@
 import {
   type CanUseTool,
+  createSdkMcpServer,
+  type McpSdkServerConfigWithInstance,
   type Options,
   type SDKMessage,
   query as sdkQuery,
 } from "@anthropic-ai/claude-agent-sdk";
 import type { ApprovalGate } from "../approval/gate.js";
+import { createDockerClient } from "../docker/client.js";
+import {
+  type AnyMcpTool,
+  createDockerTools,
+  DOCKER_SERVER_INSTRUCTIONS,
+  DOCKER_SERVER_NAME,
+  DOCKER_TOOL_PREFIX,
+} from "../docker/tools.js";
 import type { EventOf } from "../events.js";
 import type { Recorder } from "../recorder.js";
+import { ToolCallRegistry } from "./correlation.js";
 
 /** Signature minimale de `query` du SDK, injectable pour les tests. */
 export type QueryFn = (params: { prompt: string; options: Options }) => AsyncIterable<SDKMessage>;
+
+/** Serveur MCP in-process exposé à l'agent (`mcp__<name>__<outil>`). */
+export interface Toolset {
+  name: string;
+  tools: AnyMcpTool[];
+  instructions?: string;
+}
 
 export interface RunAgentOptions {
   prompt: string;
@@ -19,6 +37,10 @@ export interface RunAgentOptions {
   model?: string;
   maxTurns?: number;
   signal?: AbortSignal;
+  /** Outils MCP docker structurés (activés par défaut) ; `false` pour les désactiver. */
+  docker?: false | { binary?: string };
+  /** Serveurs MCP in-process supplémentaires. Ils reçoivent leurs `process.*` via leur propre logique. */
+  toolsets?: Toolset[];
   /** Options SDK supplémentaires ; `canUseTool` et `cwd` restent pilotés par le moteur. */
   sdkOptions?: Omit<Options, "canUseTool" | "cwd" | "abortController">;
   query?: QueryFn;
@@ -71,13 +93,34 @@ export async function runAgent(options: RunAgentOptions): Promise<RunSummary> {
 
   const root = recorder.emit({ kind: "run.started", prompt, cwd });
   const requested = new Map<string, EventOf<"tool.requested">>();
+  const registry = new ToolCallRegistry();
 
-  const ensureRequested = (toolUseId: string, tool: string, input: Record<string, unknown>) => {
+  /** Parent causal d'un message : l'outil Task du sous-agent émetteur, sinon la racine. */
+  const parentOf = (message: SDKMessage): string => {
+    const taskId = "parent_tool_use_id" in message ? message.parent_tool_use_id : null;
+    return (taskId ? requested.get(taskId)?.id : undefined) ?? root.id;
+  };
+  const agentOf = (message: SDKMessage): string | undefined =>
+    ("parent_tool_use_id" in message ? message.parent_tool_use_id : null) ?? undefined;
+
+  const ensureRequested = (
+    toolUseId: string,
+    tool: string,
+    input: Record<string, unknown>,
+    parentId: string = root.id,
+    agentToolUseId?: string,
+  ) => {
     let event = requested.get(toolUseId);
     if (!event) {
       event = recorder.emit(
-        { kind: "tool.requested", toolUseId, tool, input },
-        root.id,
+        {
+          kind: "tool.requested",
+          toolUseId,
+          tool,
+          input,
+          ...(agentToolUseId && { agentToolUseId }),
+        },
+        parentId,
       ) as EventOf<"tool.requested">;
       requested.set(toolUseId, event);
     }
@@ -87,15 +130,42 @@ export async function runAgent(options: RunAgentOptions): Promise<RunSummary> {
   const canUseTool: CanUseTool = async (tool, input, { signal, toolUseID }) => {
     const parent = ensureRequested(toolUseID, tool, input);
     const outcome = await gate.decide({ toolUseId: toolUseID, tool, input }, signal, parent.id);
-    return outcome.decision === "allow"
-      ? { behavior: "allow", updatedInput: input }
-      : { behavior: "deny", message: `Refusé par john-studio : ${outcome.reason}` };
+    if (outcome.decision !== "allow") {
+      return { behavior: "deny", message: `Refusé par john-studio : ${outcome.reason}` };
+    }
+    registry.register(tool, input, { toolUseId: toolUseID, eventId: parent.id });
+    return { behavior: "allow", updatedInput: input };
   };
+
+  const toolsets: Toolset[] = [...(options.toolsets ?? [])];
+  if (options.docker !== false) {
+    const docker = createDockerClient({
+      recorder,
+      ...(options.docker?.binary && { binary: options.docker.binary }),
+    });
+    toolsets.push({
+      name: DOCKER_SERVER_NAME,
+      instructions: DOCKER_SERVER_INSTRUCTIONS,
+      tools: createDockerTools(
+        docker,
+        (name, args) => registry.claim(`${DOCKER_TOOL_PREFIX}${name}`, args)?.eventId ?? root.id,
+      ),
+    });
+  }
+  const mcpServers: Record<string, McpSdkServerConfigWithInstance> = {};
+  for (const set of toolsets) {
+    mcpServers[set.name] = createSdkMcpServer({
+      name: set.name,
+      tools: set.tools,
+      ...(set.instructions && { instructions: set.instructions }),
+    });
+  }
 
   const sdkOptions: Options = {
     settingSources: [],
     permissionMode: "default",
     ...options.sdkOptions,
+    mcpServers: { ...options.sdkOptions?.mcpServers, ...mcpServers },
     cwd,
     canUseTool,
     abortController: abort,
@@ -107,19 +177,19 @@ export async function runAgent(options: RunAgentOptions): Promise<RunSummary> {
 
   try {
     for await (const message of query({ prompt, options: sdkOptions })) {
-      // Les messages de sous-agents (parent_tool_use_id) sont ignorés pour l'instant.
-      if ("parent_tool_use_id" in message && message.parent_tool_use_id) continue;
+      const parentId = parentOf(message);
+      const agentToolUseId = agentOf(message);
 
       if (message.type === "assistant") {
         for (const block of blocks(message.message.content)) {
           if (block.type === "text" && typeof block.text === "string" && block.text.trim()) {
-            recorder.emit({ kind: "agent.text", text: block.text }, root.id);
+            recorder.emit({ kind: "agent.text", text: block.text }, parentId);
           } else if (block.type === "tool_use" && typeof block.id === "string") {
             const input =
               typeof block.input === "object" && block.input !== null
                 ? (block.input as Record<string, unknown>)
                 : {};
-            ensureRequested(block.id, String(block.name), input);
+            ensureRequested(block.id, String(block.name), input, parentId, agentToolUseId);
           }
         }
       } else if (message.type === "user") {
@@ -132,7 +202,7 @@ export async function runAgent(options: RunAgentOptions): Promise<RunSummary> {
               isError: block.is_error === true,
               summary: summarize(block.content),
             },
-            requested.get(block.tool_use_id)?.id ?? root.id,
+            requested.get(block.tool_use_id)?.id ?? parentId,
           );
         }
       } else if (message.type === "result") {

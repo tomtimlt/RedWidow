@@ -43,6 +43,15 @@ export const DEFAULT_POLICY: Policy = {
     { tool: BASH_TOOL, command: "docker volume rm *", decision: "deny" },
     { tool: BASH_TOOL, command: "rm *", decision: "deny" },
     { tool: BASH_TOOL, command: "sudo *", decision: "deny" },
+    { tool: "mcp__docker__ps", decision: "allow" },
+    { tool: "mcp__docker__images", decision: "allow" },
+    { tool: "mcp__docker__logs", decision: "allow" },
+    { tool: "mcp__docker__inspect", decision: "allow" },
+    {
+      tool: "mcp__docker__rm",
+      decision: "deny",
+      reason: "suppression de conteneur : à faire à la main",
+    },
   ],
 };
 

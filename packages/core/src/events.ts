@@ -8,7 +8,14 @@ export type Decision = "allow" | "deny";
 export type EventPayload =
   | { kind: "run.started"; prompt: string; cwd: string }
   | { kind: "agent.text"; text: string }
-  | { kind: "tool.requested"; toolUseId: string; tool: string; input: Record<string, unknown> }
+  | {
+      kind: "tool.requested";
+      toolUseId: string;
+      tool: string;
+      input: Record<string, unknown>;
+      /** tool_use_id de l'outil Task qui a lancé le sous-agent demandeur (absent = agent principal). */
+      agentToolUseId?: string;
+    }
   | {
       kind: "approval.decided";
       toolUseId: string;

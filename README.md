@@ -12,9 +12,9 @@ packages/
     approval/      tokenizer shell, politique allow/ask/deny, gate (Asker injecté par l'UI)
     journal/       écriture/lecture JSONL
     process/       spawn sans shell, découpe de lignes robuste
-    docker/        client docker (argv), parsing `docker ps --format json`
+    docker/        client docker (argv, opérandes validés) + outils MCP in-process `mcp__docker__*`
     graph/         graphe causal à partir des parentId
-    agent/         boucle `query()` du SDK, canUseTool → gate
+    agent/         boucle `query()` du SDK, canUseTool → gate, corrélation outil MCP ↔ tool.requested, sous-agents
   export-html/   rendu HTML/SVG autonome du graphe
   cli/           commander, rendu terminal, approbateur readline
 ```
@@ -45,6 +45,17 @@ Politique : `--policy <file>`, sinon `.john-studio/policy.json`, sinon la politi
 ```
 
 Motifs : `*` final = zéro ou plusieurs arguments, `*` médian = exactement un.
+
+## Outils Docker structurés
+
+`runAgent` expose par défaut un serveur MCP in-process `docker` (`ps`, `images`, `logs`, `inspect`, `run`, `start`, `stop`, `rm`).
+Chaque appel passe d'abord par la politique (`canUseTool`), puis s'exécute via `runProcess` ; ses événements `process.*` sont
+rattachés au `tool.requested` correspondant. Les opérandes commençant par `-` sont refusés, `run` n'accepte ni volumes ni
+mode privilégié. Par défaut : lectures `allow`, `run/start/stop` `ask`, `rm` `deny`. `--no-docker-tools` les désactive.
+
+Les messages de sous-agents sont conservés : leurs événements sont enfants du `tool.requested` de l'outil `Task`
+(`agentToolUseId` renseigné). Limite : si le SDK appelle `canUseTool` avant d'émettre le message du sous-agent, le
+`tool.requested` est rattaché à la racine.
 
 ## Usage
 

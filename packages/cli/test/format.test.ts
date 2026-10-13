@@ -16,6 +16,17 @@ describe("formatEvent", () => {
     expect(formatEvent(e, opts)).toBe("tool      Bash docker ps");
   });
 
+  it("indente les outils demandés par un sous-agent", () => {
+    const e = r.emit({
+      kind: "tool.requested",
+      toolUseId: "s",
+      tool: "mcp__docker__ps",
+      input: { all: true },
+      agentToolUseId: "task1",
+    });
+    expect(formatEvent(e, opts)).toBe('tool      ↳ mcp__docker__ps {"all":true}');
+  });
+
   it("masque la sortie des processus sauf en verbose", () => {
     const e = r.emit({ kind: "process.output", stream: "stdout", line: "hello" });
     expect(formatEvent(e, opts)).toBeNull();
