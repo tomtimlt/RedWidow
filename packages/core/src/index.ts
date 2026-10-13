@@ -1,11 +1,8 @@
-export * from "./agent/correlation.js";
-export * from "./agent/loop.js";
 export * from "./approval/gate.js";
 export * from "./approval/policy.js";
 export * from "./approval/shell.js";
 export * from "./approval/source.js";
 export * from "./docker/client.js";
-export * from "./docker/tools.js";
 export * from "./events.js";
 export * from "./graph/build.js";
 export * from "./journal/jsonl.js";
@@ -13,3 +10,4 @@ export * from "./process/lines.js";
 export * from "./process/run.js";
 export * from "./recorder.js";
 export * from "./redact.js";
+export * from "./runner.js";

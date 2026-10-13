@@ -7,6 +7,7 @@ const src = (pkg: string) =>
 export default defineConfig({
   resolve: {
     alias: {
+      "@john-studio/agent-sdk": src("agent-sdk"),
       "@john-studio/core": src("core"),
       "@john-studio/export-html": src("export-html"),
     },

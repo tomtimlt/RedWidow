@@ -5,16 +5,21 @@ import type {
   PermissionResult,
   SDKMessage,
 } from "@anthropic-ai/claude-agent-sdk";
-import { describe, expect, it } from "vitest";
 import {
+  type AgentRunner,
   buildGraph,
   createApprovalGate,
   createRecorder,
   DEFAULT_POLICY,
   type EngineEvent,
   type Policy,
+} from "@john-studio/core";
+import { describe, expect, it } from "vitest";
+import {
+  createSdkRunner,
+  dockerToolset,
   type QueryFn,
-  runAgent,
+  type SdkRunnerOptions,
 } from "../src/index.js";
 import { callMcpTool, fakeDocker } from "./helpers.js";
 
@@ -108,6 +113,37 @@ function fakeQuery(calls: { id: string; tool: string; input: Record<string, unkn
   return { query, seen };
 }
 
+/** Adaptateur de test : ancienne forme d'appel `runAgent` traduite vers `createSdkRunner().run()`. */
+interface RunArgs extends SdkRunnerOptions {
+  prompt: string;
+  recorder: ReturnType<typeof createRecorder>;
+  gate: ReturnType<typeof createApprovalGate>;
+  cwd?: string;
+  model?: string;
+  maxTurns?: number;
+  signal?: AbortSignal;
+  /** Binaire docker : active le toolset docker (absent = aucun toolset docker). */
+  docker?: string;
+}
+
+const runAgent = (a: RunArgs) => {
+  const { prompt, recorder, gate, cwd = "/w", model, maxTurns, signal, docker, ...rest } = a;
+  const toolsets = [
+    ...(docker ? [dockerToolset({ binary: docker })] : []),
+    ...(rest.toolsets ?? []),
+  ];
+  const runner: AgentRunner = createSdkRunner({ ...rest, toolsets });
+  return runner.run(
+    {
+      prompt,
+      cwd,
+      ...(model !== undefined && { model }),
+      ...(maxTurns !== undefined && { maxTurns }),
+    },
+    { recorder, gate, ...(signal && { signal }) },
+  );
+};
+
 const setup = () => {
   const recorder = createRecorder({ runId: "run-1" });
   const events: EngineEvent[] = [];
@@ -116,7 +152,7 @@ const setup = () => {
   return { recorder, events, gate };
 };
 
-describe("runAgent", () => {
+describe("createSdkRunner", () => {
   it("route les outils via l'approbation et traduit le flux en événements", async () => {
     const { recorder, events, gate } = setup();
     const { query, seen } = fakeQuery([
@@ -225,7 +261,7 @@ describe("outils MCP docker", () => {
       yield result({});
     };
 
-    await runAgent({ prompt: "x", recorder, gate, query, docker: { binary: fake.bin } });
+    await runAgent({ prompt: "x", recorder, gate, query, docker: fake.bin });
 
     const requested = events.find((e) => e.kind === "tool.requested");
     const started = events.find((e) => e.kind === "process.started");
@@ -249,7 +285,7 @@ describe("outils MCP docker", () => {
       expect(decision).toMatchObject({ behavior: "deny" });
       yield result({});
     };
-    await runAgent({ prompt: "x", recorder, gate, query, docker: { binary: fake.bin } });
+    await runAgent({ prompt: "x", recorder, gate, query, docker: fake.bin });
     expect(events.some((e) => e.kind === "process.started")).toBe(false);
     expect(await fake.calls()).toEqual([]);
   });
@@ -269,7 +305,7 @@ describe("outils MCP docker", () => {
       await callMcpTool(server, "ps", {});
       yield result({});
     };
-    await runAgent({ prompt: "x", recorder, gate, query, docker: { binary: fake.bin } });
+    await runAgent({ prompt: "x", recorder, gate, query, docker: fake.bin });
 
     const ids = byId(events);
     const parents = events
@@ -291,7 +327,7 @@ describe("outils MCP docker", () => {
       await callMcpTool(options.mcpServers?.docker as McpSdkServerConfigWithInstance, "ps", {});
       yield result({});
     };
-    await runAgent({ prompt: "x", recorder, gate, query, docker: { binary: fake.bin } });
+    await runAgent({ prompt: "x", recorder, gate, query, docker: fake.bin });
     expect(events.find((e) => e.kind === "process.started")?.parentId).toBe(events[0]?.id);
   });
 
@@ -302,20 +338,33 @@ describe("outils MCP docker", () => {
       seen.push(options);
       yield result({});
     };
+    await runAgent({ prompt: "x", recorder, gate, query, docker: "docker" });
     await runAgent({ prompt: "x", recorder, gate, query });
-    await runAgent({ prompt: "x", recorder, gate, query, docker: false });
     await runAgent({
       prompt: "x",
       recorder,
       gate,
       query,
-      docker: false,
       sdkOptions: { mcpServers: { ext: { type: "stdio", command: "x" } } },
-      toolsets: [{ name: "extra", tools: [] }],
+      toolsets: [{ name: "extra", create: () => [] }],
     });
     expect(Object.keys(seen[0]?.mcpServers ?? {})).toEqual(["docker"]);
     expect(Object.keys(seen[1]?.mcpServers ?? {})).toEqual([]);
     expect(Object.keys(seen[2]?.mcpServers ?? {}).sort()).toEqual(["ext", "extra"]);
+  });
+
+  it("reconstruit les serveurs MCP à chaque run", async () => {
+    const { recorder, gate } = setup();
+    const servers: unknown[] = [];
+    const query: QueryFn = async function* ({ options }) {
+      servers.push(options.mcpServers?.docker);
+      yield result({});
+    };
+    const runner = createSdkRunner({ query, toolsets: [dockerToolset()] });
+    await runner.run({ prompt: "x", cwd: "/w" }, { recorder, gate });
+    await runner.run({ prompt: "x", cwd: "/w" }, { recorder, gate });
+    expect(servers[0]).toBeDefined();
+    expect(servers[0]).not.toBe(servers[1]);
   });
 });
 
@@ -383,7 +432,7 @@ describe("garde PreToolUse", () => {
       options = params.options;
       yield result({});
     };
-    await runAgent({ prompt: "x", recorder, gate, query, docker: false, ...extra });
+    await runAgent({ prompt: "x", recorder, gate, query, ...extra });
     return { options: options as Options, events };
   };
 
@@ -437,7 +486,7 @@ describe("garde PreToolUse", () => {
       expect(out).toMatchObject({ hookSpecificOutput: { permissionDecision: "allow" } });
       yield result({});
     };
-    await runAgent({ prompt: "x", recorder, gate, query, docker: false, cwd: process.cwd() });
+    await runAgent({ prompt: "x", recorder, gate, query });
     expect(events.filter((e) => e.kind === "approval.decided")).toHaveLength(1);
   });
 
@@ -458,7 +507,7 @@ describe("garde PreToolUse", () => {
       expect(r.behavior).toBe("deny");
       yield result({});
     };
-    await runAgent({ prompt: "x", recorder, gate, query, docker: false });
+    await runAgent({ prompt: "x", recorder, gate, query });
     expect(reachedCanUseTool).toBe(false);
     expect(events.filter((e) => e.kind === "approval.decided")).toHaveLength(1);
   });
@@ -471,7 +520,7 @@ describe("garde PreToolUse", () => {
       expect(r.behavior).toBe("allow");
       yield result({});
     };
-    await runAgent({ prompt: "x", recorder, gate, query, docker: false });
+    await runAgent({ prompt: "x", recorder, gate, query });
     expect(events.filter((e) => e.kind === "approval.decided")).toHaveLength(1);
     expect(events.some((e) => e.kind === "error")).toBe(false);
   });
@@ -487,7 +536,7 @@ describe("garde PreToolUse", () => {
       expect(r).toMatchObject({ behavior: "deny" });
       yield result({});
     };
-    await runAgent({ prompt: "x", recorder, gate, query, docker: false });
+    await runAgent({ prompt: "x", recorder, gate, query });
     expect(events.find((e) => e.kind === "error")).toMatchObject({
       message: expect.stringContaining("sans décision PreToolUse"),
     });

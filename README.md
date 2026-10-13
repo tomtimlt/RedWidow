@@ -12,9 +12,10 @@ packages/
     approval/      tokenizer shell, politique allow/ask/deny, gate (Asker injecté par l'UI)
     journal/       écriture/lecture JSONL
     process/       spawn sans shell, découpe de lignes robuste
-    docker/        client docker (argv, opérandes validés) + outils MCP in-process `mcp__docker__*`
+    docker/        client docker (argv, opérandes validés)
     graph/         graphe causal à partir des parentId
-    agent/         boucle `query()` du SDK, canUseTool → gate, corrélation outil MCP ↔ tool.requested, sous-agents
+    runner.ts      interface AgentRunner (RunInput, RunContext, RunSummary) — aucun SDK
+  agent-sdk/     adaptateur Claude Agent SDK : `createSdkRunner`, hook PreToolUse → gate, corrélation outil MCP ↔ tool.requested, sous-agents, `dockerToolset` (outils MCP `mcp__docker__*`)
   export-html/   rendu HTML/SVG autonome du graphe
   cli/           commander, rendu terminal, approbateur readline
 ```
@@ -48,7 +49,7 @@ Motifs : `*` final = zéro ou plusieurs arguments, `*` médian = exactement un.
 
 ## Outils Docker structurés
 
-`runAgent` expose par défaut un serveur MCP in-process `docker` (`ps`, `images`, `logs`, `inspect`, `run`, `start`, `stop`, `rm`).
+`dockerToolset()` (passé à `createSdkRunner({ toolsets })`, activé par la CLI sauf `--no-docker-tools`) expose un serveur MCP in-process `docker` (`ps`, `images`, `logs`, `inspect`, `run`, `start`, `stop`, `rm`).
 Chaque appel passe d'abord par la politique (`canUseTool`), puis s'exécute via `runProcess` ; ses événements `process.*` sont
 rattachés au `tool.requested` correspondant. Les opérandes commençant par `-` sont refusés, `run` n'accepte ni volumes ni
 mode privilégié. Par défaut : lectures `allow`, `run/start/stop` `ask`, `rm` `deny`. `--no-docker-tools` les désactive.

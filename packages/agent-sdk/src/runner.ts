@@ -7,41 +7,23 @@ import {
   type SDKMessage,
   query as sdkQuery,
 } from "@anthropic-ai/claude-agent-sdk";
-import type { ApprovalGate, ApprovalOutcome } from "../approval/gate.js";
-import { BASH_TOOL } from "../approval/policy.js";
-import { createDockerClient } from "../docker/client.js";
 import {
-  type AnyMcpTool,
-  createDockerTools,
-  DOCKER_SERVER_INSTRUCTIONS,
-  DOCKER_SERVER_NAME,
-  DOCKER_TOOL_PREFIX,
-} from "../docker/tools.js";
-import type { EventOf } from "../events.js";
-import type { Recorder } from "../recorder.js";
+  type AgentRunner,
+  type ApprovalOutcome,
+  BASH_TOOL,
+  type EventOf,
+  type RunContext,
+  type RunInput,
+  type RunSummary,
+} from "@john-studio/core";
 import { ToolCallRegistry } from "./correlation.js";
+import type { Toolset } from "./toolset.js";
 
 /** Signature minimale de `query` du SDK, injectable pour les tests. */
 export type QueryFn = (params: { prompt: string; options: Options }) => AsyncIterable<SDKMessage>;
 
-/** Serveur MCP in-process exposé à l'agent (`mcp__<name>__<outil>`). */
-export interface Toolset {
-  name: string;
-  tools: AnyMcpTool[];
-  instructions?: string;
-}
-
-export interface RunAgentOptions {
-  prompt: string;
-  recorder: Recorder;
-  gate: ApprovalGate;
-  cwd?: string;
-  model?: string;
-  maxTurns?: number;
-  signal?: AbortSignal;
-  /** Outils MCP docker structurés (activés par défaut) ; `false` pour les désactiver. */
-  docker?: false | { binary?: string };
-  /** Serveurs MCP in-process supplémentaires. Ils reçoivent leurs `process.*` via leur propre logique. */
+export interface SdkRunnerOptions {
+  /** Serveurs MCP in-process (ex. `dockerToolset()`), construits à chaque run. */
   toolsets?: Toolset[];
   /**
    * Outils natifs du SDK exposés à l'agent (liste blanche : `tools` du SDK).
@@ -73,13 +55,6 @@ export interface RunAgentOptions {
     | "permissionPrompts"
   >;
   query?: QueryFn;
-}
-
-export interface RunSummary {
-  status: "success" | "error";
-  turns: number;
-  costUsd: number;
-  result: string | null;
 }
 
 /** Outils natifs exposés par défaut : lecture seule. */
@@ -116,15 +91,25 @@ function blocks(content: unknown): Record<string, unknown>[] {
 }
 
 /**
- * Boucle d'agent : pilote `query` du SDK, route chaque demande d'outil vers
- * la couche d'approbation et traduit le flux SDK en événements moteur.
+ * Adaptateur du Claude Agent SDK : pilote `query`, route chaque demande d'outil
+ * vers la couche d'approbation et traduit le flux SDK en événements moteur.
+ * Registre de corrélation et serveurs MCP sont reconstruits à chaque `run()`.
  */
-export async function runAgent(options: RunAgentOptions): Promise<RunSummary> {
-  const { prompt, recorder, gate, cwd = process.cwd() } = options;
+export function createSdkRunner(options: SdkRunnerOptions = {}): AgentRunner {
+  return { run: (input, ctx) => runWithSdk(options, input, ctx) };
+}
+
+async function runWithSdk(
+  options: SdkRunnerOptions,
+  input: RunInput,
+  { recorder, gate, signal }: RunContext,
+): Promise<RunSummary> {
+  const { prompt, cwd } = input;
   const query = options.query ?? (sdkQuery as QueryFn);
   const abort = new AbortController();
-  const onAbort = () => abort.abort(options.signal?.reason);
-  options.signal?.addEventListener("abort", onAbort, { once: true });
+  const onAbort = () => abort.abort(signal?.reason);
+  signal?.addEventListener("abort", onAbort, { once: true });
+  if (signal?.aborted) onAbort();
 
   const root = recorder.emit({ kind: "run.started", prompt, cwd });
   const requested = new Map<string, EventOf<"tool.requested">>();
@@ -228,26 +213,14 @@ export async function runAgent(options: RunAgentOptions): Promise<RunSummary> {
     return { behavior: "allow", updatedInput: input };
   };
 
-  const toolsets: Toolset[] = [...(options.toolsets ?? [])];
-  if (options.docker !== false) {
-    const docker = createDockerClient({
-      recorder,
-      ...(options.docker?.binary && { binary: options.docker.binary }),
-    });
-    toolsets.push({
-      name: DOCKER_SERVER_NAME,
-      instructions: DOCKER_SERVER_INSTRUCTIONS,
-      tools: createDockerTools(
-        docker,
-        (name, args) => registry.claim(`${DOCKER_TOOL_PREFIX}${name}`, args)?.eventId ?? root.id,
-      ),
-    });
-  }
   const mcpServers: Record<string, McpSdkServerConfigWithInstance> = {};
-  for (const set of toolsets) {
+  for (const set of options.toolsets ?? []) {
     mcpServers[set.name] = createSdkMcpServer({
       name: set.name,
-      tools: set.tools,
+      tools: set.create({
+        recorder,
+        resolveParent: (toolName, args) => registry.claim(toolName, args)?.eventId ?? root.id,
+      }),
       ...(set.instructions && { instructions: set.instructions }),
     });
   }
@@ -280,8 +253,8 @@ export async function runAgent(options: RunAgentOptions): Promise<RunSummary> {
     },
     canUseTool,
     abortController: abort,
-    ...(options.model !== undefined && { model: options.model }),
-    ...(options.maxTurns !== undefined && { maxTurns: options.maxTurns }),
+    ...(input.model !== undefined && { model: input.model }),
+    ...(input.maxTurns !== undefined && { maxTurns: input.maxTurns }),
   };
 
   let summary: RunSummary = { status: "error", turns: 0, costUsd: 0, result: null };
@@ -332,7 +305,7 @@ export async function runAgent(options: RunAgentOptions): Promise<RunSummary> {
     );
     summary = { ...summary, status: "error" };
   } finally {
-    options.signal?.removeEventListener("abort", onAbort);
+    signal?.removeEventListener("abort", onAbort);
   }
 
   recorder.emit({ kind: "run.finished", ...summary }, root.id);

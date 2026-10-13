@@ -12,15 +12,14 @@ import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
-import { describe, expect, it } from "vitest";
 import {
   createApprovalGate,
   createRecorder,
   DEFAULT_POLICY,
   type EngineEvent,
-  type QueryFn,
-  runAgent,
-} from "../../src/index.js";
+} from "@john-studio/core";
+import { describe, expect, it } from "vitest";
+import { createSdkRunner, dockerToolset, type QueryFn } from "../../src/index.js";
 import { fakeDocker } from "../helpers.js";
 
 const enabled = Boolean(process.env.ANTHROPIC_API_KEY) && process.env.JOHN_SDK_CONTRACT === "1";
@@ -48,16 +47,11 @@ async function realRun(prompt: string, cwd: string, extra: { docker?: string } =
       }
     })();
 
-  const summary = await runAgent({
-    prompt,
-    recorder,
-    gate,
-    cwd,
+  const runner = createSdkRunner({
     query,
-    model: MODEL,
-    maxTurns: 6,
-    ...(extra.docker ? { docker: { binary: extra.docker } } : { docker: false }),
+    toolsets: extra.docker ? [dockerToolset({ binary: extra.docker })] : [],
   });
+  const summary = await runner.run({ prompt, cwd, model: MODEL, maxTurns: 6 }, { recorder, gate });
   console.info(
     `[contrat] ${prompt.slice(0, 40)}… → messages SDK : ${[...new Set(seen)].join(", ")}`,
   );

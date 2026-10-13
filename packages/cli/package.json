@@ -13,6 +13,7 @@
     "dist"
   ],
   "dependencies": {
+    "@john-studio/agent-sdk": "workspace:*",
     "@john-studio/core": "workspace:*",
     "@john-studio/export-html": "workspace:*",
     "commander": "^14.0.3"

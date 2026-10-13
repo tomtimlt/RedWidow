@@ -1,20 +1,17 @@
-import { type SdkMcpToolDefinition, tool } from "@anthropic-ai/claude-agent-sdk";
+import { tool } from "@anthropic-ai/claude-agent-sdk";
+import { createDockerClient, type DockerClient } from "@john-studio/core";
 import { z } from "zod";
-import type { DockerClient } from "./client.js";
+import type { AnyMcpTool, Toolset } from "./toolset.js";
 
 export const DOCKER_SERVER_NAME = "docker";
 export const DOCKER_TOOL_PREFIX = `mcp__${DOCKER_SERVER_NAME}__`;
 export const DOCKER_SERVER_INSTRUCTIONS =
   "Outils Docker structurés. Préférez-les à `Bash docker …` : leur exécution est journalisée et les cibles sont validées.";
 
-/** Définition d'outil MCP quelconque (le schéma zod varie d'un outil à l'autre). */
-// biome-ignore lint/suspicious/noExplicitAny: le SDK type `tools` avec `SdkMcpToolDefinition<any>[]`.
-export type AnyMcpTool = SdkMcpToolDefinition<any>;
-
 const MAX_LINES = 200;
 
 /** Parent (id d'événement) à utiliser pour les `process.*` d'un appel. */
-export type ResolveParent = (toolName: string, args: unknown) => string | null;
+export type ResolveParent = (toolName: string, args: unknown, extra?: unknown) => string | null;
 
 interface Ctx {
   parentId: string | null;
@@ -45,7 +42,7 @@ export function createDockerTools(
     async (args: A, extra: unknown) => {
       const signal = (extra as { signal?: AbortSignal } | undefined)?.signal;
       try {
-        return text(await run(args, { parentId: resolveParent(name, args), signal }));
+        return text(await run(args, { parentId: resolveParent(name, args, extra), signal }));
       } catch (err) {
         return text(err instanceof Error ? err.message : String(err), true);
       }
@@ -174,4 +171,28 @@ export function createDockerTools(
   ];
   // Le SDK ne sait pas typer un tableau d'outils aux schémas hétérogènes (InferShape<any>).
   return tools as unknown as AnyMcpTool[];
+}
+
+export interface DockerToolsetOptions {
+  /** Binaire docker (défaut : `docker`). */
+  binary?: string;
+}
+
+/**
+ * Toolset docker : crée son propre `DockerClient` branché sur le recorder du
+ * run, et relie chaque appel à sa demande d'outil via `resolveParent`.
+ */
+export function dockerToolset(options: DockerToolsetOptions = {}): Toolset {
+  return {
+    name: DOCKER_SERVER_NAME,
+    instructions: DOCKER_SERVER_INSTRUCTIONS,
+    create: ({ recorder, resolveParent }) =>
+      createDockerTools(
+        createDockerClient({
+          recorder,
+          ...(options.binary && { binary: options.binary }),
+        }),
+        (name, args, extra) => resolveParent(`${DOCKER_TOOL_PREFIX}${name}`, args, extra),
+      ),
+  };
 }

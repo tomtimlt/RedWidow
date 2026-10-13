@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { createSdkRunner, dockerToolset } from "@john-studio/agent-sdk";
 import {
   buildGraph,
   createApprovalGate,
@@ -13,7 +14,6 @@ import {
   openJournal,
   REPO_POLICY_PATH,
   readJournal,
-  runAgent,
   trustPolicy,
 } from "@john-studio/core";
 import { renderGraphHtml } from "@john-studio/export-html";
@@ -83,17 +83,19 @@ program
     if (warning) process.stderr.write(`attention : ${warning}\n`);
 
     try {
-      const summary = await runAgent({
-        prompt: words.join(" "),
-        recorder,
-        gate,
-        cwd,
-        signal: abort.signal,
-        docker: opts.dockerTools === false ? false : { binary: opts.docker },
+      const runner = createSdkRunner({
+        toolsets: opts.dockerTools === false ? [] : [dockerToolset({ binary: opts.docker })],
         bash: Boolean(opts.allowBash),
-        ...(opts.model && { model: opts.model }),
-        ...(opts.maxTurns && { maxTurns: opts.maxTurns }),
       });
+      const summary = await runner.run(
+        {
+          prompt: words.join(" "),
+          cwd,
+          ...(opts.model && { model: opts.model }),
+          ...(opts.maxTurns && { maxTurns: opts.maxTurns }),
+        },
+        { recorder, gate, signal: abort.signal },
+      );
       if (summary.result) process.stdout.write(`\n${summary.result}\n`);
       process.exitCode = summary.status === "success" ? 0 : 1;
     } finally {
