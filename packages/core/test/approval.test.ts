@@ -1,12 +1,17 @@
+import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   createApprovalGate,
   createRecorder,
   DEFAULT_POLICY,
+  dockerRunHazard,
   type EngineEvent,
   evaluatePolicy,
   matchCommand,
   type Policy,
+  type PolicyContext,
   parsePolicy,
   parseShell,
 } from "../src/index.js";
@@ -238,5 +243,129 @@ describe("createApprovalGate", () => {
       signal,
     );
     expect(out.decision).toBe("deny");
+  });
+});
+
+describe("garde des chemins (outils fichiers)", () => {
+  const root = mkdtempSync(join(tmpdir(), "john-ws-"));
+  const outside = mkdtempSync(join(tmpdir(), "john-out-"));
+  const home = mkdtempSync(join(tmpdir(), "john-home-"));
+  mkdirSync(join(root, "src"), { recursive: true });
+  writeFileSync(join(root, "src", "a.ts"), "x");
+  writeFileSync(join(outside, "secret.txt"), "s");
+  symlinkSync(outside, join(root, "link"));
+  mkdirSync(join(home, ".ssh"), { recursive: true });
+  writeFileSync(join(home, ".ssh", "id_rsa"), "k");
+
+  const ctx: PolicyContext = { cwd: root, home };
+  const d = (tool: string, input: Record<string, unknown>) =>
+    evaluatePolicy(DEFAULT_POLICY, tool, input, ctx).decision;
+
+  it("autorise les lectures dans l'espace de travail", () => {
+    expect(d("Read", { file_path: "src/a.ts" })).toBe("allow");
+    expect(d("Read", { file_path: join(root, "src", "a.ts") })).toBe("allow");
+    expect(d("Grep", { pattern: "x" })).toBe("allow");
+    expect(d("Glob", { pattern: "src/**/*.ts" })).toBe("allow");
+  });
+
+  it("refuse les chemins sensibles, quelles que soient les règles", () => {
+    expect(d("Read", { file_path: join(home, ".ssh", "id_rsa") })).toBe("deny");
+    expect(d("Read", { file_path: "~/.ssh/id_rsa" })).toBe("deny");
+    expect(d("Grep", { pattern: "x", path: join(home, ".ssh") })).toBe("deny");
+    expect(d("Read", { file_path: "/etc/shadow" })).toBe("deny");
+    const allowAll: Policy = { default: "allow", rules: [] };
+    expect(
+      evaluatePolicy(allowAll, "Read", { file_path: "~/.aws/credentials" }, ctx).decision,
+    ).toBe("deny");
+  });
+
+  it("rétrograde en ask tout chemin hors de l'espace de travail", () => {
+    expect(d("Read", { file_path: join(outside, "secret.txt") })).toBe("ask");
+    expect(d("Read", { file_path: "../x" })).toBe("ask");
+    expect(d("Glob", { pattern: "/home/**/*.key" })).toBe("ask");
+    expect(d("Glob", { pattern: "../../**" })).toBe("ask");
+    expect(d("Grep", { pattern: "x", path: "/" })).toBe("ask");
+    const allowAll: Policy = { default: "allow", rules: [] };
+    expect(evaluatePolicy(allowAll, "Read", { file_path: "/etc/hosts" }, ctx).decision).toBe("ask");
+  });
+
+  it("suit les liens symboliques vers l'extérieur", () => {
+    expect(d("Read", { file_path: "link/secret.txt" })).toBe("ask");
+    expect(d("Read", { file_path: "link/nouveau.txt" })).toBe("ask");
+  });
+
+  it("évalue le chemin d'un fichier qui n'existe pas encore", () => {
+    expect(d("Write", { file_path: "src/nouveau.ts" })).toBe("ask"); // règle par défaut, pas le chemin
+    expect(d("Read", { file_path: "src/absent/x.ts" })).toBe("allow");
+  });
+
+  it("un deny de règle reste un deny même hors espace de travail", () => {
+    const p: Policy = { default: "ask", rules: [{ tool: "Read", decision: "deny" }] };
+    expect(evaluatePolicy(p, "Read", { file_path: "/etc/hosts" }, ctx).decision).toBe("deny");
+  });
+});
+
+describe("durcissement de Bash", () => {
+  const bash = (command: string) => evaluatePolicy(DEFAULT_POLICY, "Bash", { command }).decision;
+
+  it.each([
+    "bash -c 'docker ps'",
+    "sh -c 'docker ps'",
+    "/bin/sh -c 'docker ps'",
+    "env FOO=1 docker ps",
+    "docker ps | xargs docker logs",
+    "find . -exec docker ps ;",
+    "find . -name x -delete",
+    "nohup docker ps",
+    "timeout 5 docker ps",
+    "eval docker ps",
+  ])("n'approuve jamais automatiquement %s", (command) => {
+    expect(parseShell(command)).toMatchObject({ ok: true });
+    expect(bash(command)).not.toBe("allow");
+    const parsed = parseShell(command);
+    if (parsed.ok) expect(parsed.value.hazards.has("indirection")).toBe(true);
+  });
+
+  it("signale $'…' et les heredocs", () => {
+    const hazards = (c: string) => {
+      const r = parseShell(c);
+      return r.ok ? r.value.hazards : new Set();
+    };
+    expect(hazards("docker $'ps'").has("expansion")).toBe(true);
+    expect(hazards("echo $'\\x72\\x6d'").has("expansion")).toBe(true);
+    expect(hazards("cat <<EOF\nx\nEOF").has("redirect")).toBe(true);
+    expect(bash("docker $'ps'")).toBe("ask");
+    expect(bash("docker logs web <<EOF\nx\nEOF")).toBe("ask");
+  });
+
+  it("garde l'allowlist stricte pour les commandes simples", () => {
+    expect(bash("docker ps")).toBe("allow");
+    expect(bash("find . -name x")).toBe("ask"); // aucune règle
+  });
+
+  it.each([
+    "docker run -v /:/host alpine",
+    "docker run -v/:/host alpine",
+    "docker run -itv /:/host alpine",
+    "docker run --volume /:/host alpine",
+    "docker run --volume=/:/host alpine",
+    "docker run --mount type=bind,src=/,dst=/h alpine",
+    "docker run --privileged alpine",
+    "docker run --pid=host alpine",
+    "docker run --network host alpine",
+    "docker run --net=host alpine",
+    "docker create --cap-add SYS_ADMIN alpine",
+    "docker run --device /dev/sda alpine",
+    "docker run --security-opt seccomp=unconfined alpine",
+    "docker container run -v /:/h alpine",
+    "podman run -v /:/h alpine",
+    "docker ps && docker run -v /:/h alpine",
+  ])("refuse %s", (command) => {
+    expect(bash(command)).toBe("deny");
+  });
+
+  it("laisse un docker run ordinaire à l'approbation", () => {
+    expect(bash("docker run -d --name web -p 8080:80 nginx")).toBe("ask");
+    expect(dockerRunHazard(["docker", "ps", "-v"])).toBeNull();
   });
 });

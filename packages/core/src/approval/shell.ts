@@ -9,7 +9,8 @@ export type ShellHazard =
   | "expansion" // $VAR, ${…}, globs et accolades non quotés, ~
   | "redirect" // >, <, >>, 2>&1…
   | "assignment" // FOO=bar cmd
-  | "background"; // cmd &
+  | "background" // cmd &
+  | "indirection"; // bash -c, env, xargs, find -exec… : exécute une autre commande
 
 export interface ParsedCommand {
   /** Commandes simples séparées par ; && || | & ou saut de ligne. */
@@ -114,6 +115,8 @@ export function parseShell(input: string): ParseResult {
         break;
       case "$":
         if (next === "(") hazards.add("substitution");
+        else if (next === "'" || next === '"')
+          hazards.add("expansion"); // $'\x72m', $"…"
         else if (next !== undefined && /[A-Za-z_{0-9@*#?$!-]/.test(next)) hazards.add("expansion");
         token += c;
         inToken = true;
@@ -147,7 +150,53 @@ export function parseShell(input: string): ParseResult {
 
   if (quote !== null) return { ok: false, error: `guillemet ${quote} non fermé` };
   pushSegment();
+  if (segments.some(runsOtherCommand)) hazards.add("indirection");
   return { ok: true, value: { segments, hazards } };
+}
+
+/** Commandes dont le rôle est d'en exécuter une autre : l'analyse statique ne voit pas la vraie. */
+const WRAPPERS = new Set([
+  "bash",
+  "sh",
+  "zsh",
+  "dash",
+  "ksh",
+  "fish",
+  "env",
+  "xargs",
+  "eval",
+  "exec",
+  "command",
+  "builtin",
+  "nohup",
+  "timeout",
+  "nice",
+  "time",
+  "watch",
+  "su",
+  "sudo",
+  "doas",
+  "setsid",
+  "stdbuf",
+  "script",
+]);
+const FIND_EXEC = new Set(["-exec", "-execdir", "-ok", "-okdir", "-delete"]);
+
+/** Nom de base d'un programme, `/usr/bin/env` → `env`. */
+export function programName(word: string | undefined): string {
+  return (
+    (word ?? "")
+      .split(/[\\/]/)
+      .pop()
+      ?.toLowerCase()
+      .replace(/\.exe$/, "") ?? ""
+  );
+}
+
+function runsOtherCommand(argv: readonly string[]): boolean {
+  const name = programName(argv[0]);
+  if (WRAPPERS.has(name)) return true;
+  return name === "find" && argv.some((a) => FIND_EXEC.has(a));
 }
 
 /**

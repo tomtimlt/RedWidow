@@ -1,7 +1,8 @@
 import type {
-  CanUseTool,
+  HookInput,
   McpSdkServerConfigWithInstance,
   Options,
+  PermissionResult,
   SDKMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import { describe, expect, it } from "vitest";
@@ -16,6 +17,47 @@ import {
   runAgent,
 } from "../src/index.js";
 import { callMcpTool, fakeDocker } from "./helpers.js";
+
+/**
+ * Simule l'enchaînement du SDK pour un appel d'outil : hook PreToolUse (un
+ * refus est définitif), puis `canUseTool` quand le hook n'a pas refusé.
+ */
+function guarded(options: Options) {
+  return async (
+    tool: string,
+    input: Record<string, unknown>,
+    { toolUseID, signal }: { toolUseID: string; signal: AbortSignal },
+  ): Promise<PermissionResult> => {
+    for (const matcher of options.hooks?.PreToolUse ?? []) {
+      for (const hook of matcher.hooks) {
+        const out = await hook(
+          {
+            hook_event_name: "PreToolUse",
+            tool_name: tool,
+            tool_input: input,
+            tool_use_id: toolUseID,
+            session_id: "s",
+            transcript_path: "",
+            cwd: "/",
+          } as HookInput,
+          toolUseID,
+          { signal },
+        );
+        const specific = "hookSpecificOutput" in out ? out.hookSpecificOutput : undefined;
+        if (specific?.hookEventName === "PreToolUse" && specific.permissionDecision === "deny") {
+          return { behavior: "deny", message: specific.permissionDecisionReason ?? "" };
+        }
+      }
+    }
+    const result = await options.canUseTool?.(tool, input, {
+      signal,
+      toolUseID,
+      requestId: `req-${toolUseID}`,
+    });
+    if (!result) throw new Error("canUseTool doit toujours trancher");
+    return result;
+  };
+}
 
 // Messages SDK réduits aux champs lus par le moteur.
 const assistant = (content: unknown[]) =>
@@ -42,16 +84,14 @@ function fakeQuery(calls: { id: string; tool: string; input: Record<string, unkn
   const seen: { options?: Options; decisions: string[] } = { decisions: [] };
   const query: QueryFn = async function* ({ options }) {
     seen.options = options;
-    const canUseTool = options.canUseTool as CanUseTool;
+    const canUseTool = guarded(options);
     yield assistant([{ type: "text", text: "Je regarde les conteneurs." }]);
     for (const c of calls) {
       yield assistant([{ type: "tool_use", id: c.id, name: c.tool, input: c.input }]);
       const r = await canUseTool(c.tool, c.input, {
         signal: new AbortController().signal,
         toolUseID: c.id,
-        requestId: `req-${c.id}`,
       });
-      if (!r) throw new Error("canUseTool doit toujours trancher");
       seen.decisions.push(r.behavior);
       yield user([
         {
@@ -159,7 +199,6 @@ describe("runAgent", () => {
 const permit = (id: string) => ({
   signal: new AbortController().signal,
   toolUseID: id,
-  requestId: `req-${id}`,
 });
 const sub = (message: SDKMessage, parent: string) =>
   ({ ...message, parent_tool_use_id: parent }) as unknown as SDKMessage;
@@ -175,7 +214,7 @@ describe("outils MCP docker", () => {
     const { recorder, events, gate } = setup();
     const fake = await fakeDocker();
     const query: QueryFn = async function* ({ options }) {
-      const canUseTool = options.canUseTool as CanUseTool;
+      const canUseTool = guarded(options);
       const server = options.mcpServers?.docker as McpSdkServerConfigWithInstance;
       yield toolUse("m1", "mcp__docker__ps", { all: true });
       const decision = await canUseTool("mcp__docker__ps", { all: true }, permit("m1"));
@@ -204,7 +243,7 @@ describe("outils MCP docker", () => {
     const { recorder, events, gate } = setup();
     const fake = await fakeDocker();
     const query: QueryFn = async function* ({ options }) {
-      const canUseTool = options.canUseTool as CanUseTool;
+      const canUseTool = guarded(options);
       yield toolUse("m1", "mcp__docker__rm", { container: "web" });
       const decision = await canUseTool("mcp__docker__rm", { container: "web" }, permit("m1"));
       expect(decision).toMatchObject({ behavior: "deny" });
@@ -219,7 +258,7 @@ describe("outils MCP docker", () => {
     const { recorder, events, gate } = setup();
     const fake = await fakeDocker();
     const query: QueryFn = async function* ({ options }) {
-      const canUseTool = options.canUseTool as CanUseTool;
+      const canUseTool = guarded(options);
       const server = options.mcpServers?.docker as McpSdkServerConfigWithInstance;
       yield toolUse("a", "mcp__docker__ps", {});
       yield toolUse("b", "mcp__docker__ps", { all: true });
@@ -292,7 +331,7 @@ describe("sous-agents", () => {
   it("imbrique les messages du sous-agent sous l'outil Task", async () => {
     const { recorder, events, gate } = setupAllow();
     const query: QueryFn = async function* ({ options }) {
-      const canUseTool = options.canUseTool as CanUseTool;
+      const canUseTool = guarded(options);
       yield toolUse("task1", "Task", { prompt: "inspecte" });
       await canUseTool("Task", { prompt: "inspecte" }, permit("task1"));
       yield sub(assistant([{ type: "text", text: "Je vérifie." }]), "task1");
@@ -322,7 +361,7 @@ describe("sous-agents", () => {
   it("rattache à la racine si canUseTool précède le message du sous-agent", async () => {
     const { recorder, events, gate } = setupAllow();
     const query: QueryFn = async function* ({ options }) {
-      const canUseTool = options.canUseTool as CanUseTool;
+      const canUseTool = guarded(options);
       yield toolUse("task1", "Task", {});
       await canUseTool("Task", {}, permit("task1"));
       await canUseTool("Bash", { command: "docker ps" }, permit("s1")); // course : avant le message
@@ -333,5 +372,134 @@ describe("sous-agents", () => {
     const bash = events.find((e) => e.kind === "tool.requested" && e.toolUseId === "s1");
     expect(bash?.parentId).toBe(events[0]?.id);
     expect(bash).not.toHaveProperty("agentToolUseId");
+  });
+});
+
+describe("garde PreToolUse", () => {
+  const capture = async (extra: Partial<Parameters<typeof runAgent>[0]> = {}) => {
+    const { recorder, events, gate } = setup();
+    let options: Options | undefined;
+    const query: QueryFn = async function* (params) {
+      options = params.options;
+      yield result({});
+    };
+    await runAgent({ prompt: "x", recorder, gate, query, docker: false, ...extra });
+    return { options: options as Options, events };
+  };
+
+  it("expose seulement les lectures natives, sans Bash, et verrouille les permissions", async () => {
+    const { options } = await capture({
+      sdkOptions: {
+        // Tentatives de contournement via l'API : ignorées par le type et par le moteur.
+        ...({
+          permissionMode: "bypassPermissions",
+          allowedTools: ["Bash"],
+          tools: ["Bash", "Write"],
+          strictMcpConfig: false,
+          settingSources: ["project"],
+        } as object),
+      },
+    });
+    expect(options.tools).toEqual(["Read", "Glob", "Grep"]);
+    expect(options.disallowedTools).toContain("Bash");
+    expect(options).toMatchObject({
+      permissionMode: "default",
+      allowedTools: [],
+      strictMcpConfig: true,
+      settingSources: [],
+    });
+  });
+
+  it("n'ajoute Bash que sur demande explicite", async () => {
+    const { options } = await capture({ bash: true });
+    expect(options.tools).toEqual(["Read", "Glob", "Grep", "Bash"]);
+    expect(options.disallowedTools ?? []).not.toContain("Bash");
+    const { options: viaBuiltin } = await capture({ builtinTools: ["Read", "Bash"] });
+    expect(viaBuiltin.tools).toEqual(["Read"]);
+  });
+
+  it("voit les outils que le SDK auto-approuverait sans appeler canUseTool", async () => {
+    const { recorder, events, gate } = setup();
+    const query: QueryFn = async function* ({ options }) {
+      yield toolUse("r1", "Read", { file_path: "notes.txt" });
+      // Le SDK n'appelle PAS canUseTool pour une lecture dans le cwd : seul le hook la voit.
+      const hook = options.hooks?.PreToolUse?.[0]?.hooks[0];
+      const out = await hook?.(
+        {
+          hook_event_name: "PreToolUse",
+          tool_name: "Read",
+          tool_input: { file_path: "notes.txt" },
+          tool_use_id: "r1",
+        } as HookInput,
+        "r1",
+        { signal: new AbortController().signal },
+      );
+      expect(out).toMatchObject({ hookSpecificOutput: { permissionDecision: "allow" } });
+      yield result({});
+    };
+    await runAgent({ prompt: "x", recorder, gate, query, docker: false, cwd: process.cwd() });
+    expect(events.filter((e) => e.kind === "approval.decided")).toHaveLength(1);
+  });
+
+  it("refuse dans le hook : canUseTool n'est jamais atteint", async () => {
+    const { recorder, events, gate } = setup();
+    let reachedCanUseTool = false;
+    const query: QueryFn = async function* ({ options }) {
+      const inner = options.canUseTool;
+      const spy = {
+        ...options,
+        canUseTool: ((...a: Parameters<NonNullable<typeof inner>>) => {
+          reachedCanUseTool = true;
+          return inner?.(...a);
+        }) as NonNullable<typeof inner>,
+      };
+      yield toolUse("t1", "Bash", { command: "rm -rf /" });
+      const r = await guarded(spy)("Bash", { command: "rm -rf /" }, permit("t1"));
+      expect(r.behavior).toBe("deny");
+      yield result({});
+    };
+    await runAgent({ prompt: "x", recorder, gate, query, docker: false });
+    expect(reachedCanUseTool).toBe(false);
+    expect(events.filter((e) => e.kind === "approval.decided")).toHaveLength(1);
+  });
+
+  it("canUseTool relaie la décision du hook sans la rejouer", async () => {
+    const { recorder, events, gate } = setup();
+    const query: QueryFn = async function* ({ options }) {
+      yield toolUse("t1", "Bash", { command: "docker ps" });
+      const r = await guarded(options)("Bash", { command: "docker ps" }, permit("t1"));
+      expect(r.behavior).toBe("allow");
+      yield result({});
+    };
+    await runAgent({ prompt: "x", recorder, gate, query, docker: false });
+    expect(events.filter((e) => e.kind === "approval.decided")).toHaveLength(1);
+    expect(events.some((e) => e.kind === "error")).toBe(false);
+  });
+
+  it("canUseTool refuse (fail-closed) un appel que le hook n'a pas vu", async () => {
+    const { recorder, events, gate } = setup();
+    const query: QueryFn = async function* ({ options }) {
+      const r = await options.canUseTool?.(
+        "Bash",
+        { command: "docker ps" },
+        { signal: new AbortController().signal, toolUseID: "orphan", requestId: "r" },
+      );
+      expect(r).toMatchObject({ behavior: "deny" });
+      yield result({});
+    };
+    await runAgent({ prompt: "x", recorder, gate, query, docker: false });
+    expect(events.find((e) => e.kind === "error")).toMatchObject({
+      message: expect.stringContaining("sans décision PreToolUse"),
+    });
+  });
+
+  it("fusionne les hooks de l'appelant après la garde", async () => {
+    const mine = async () => ({});
+    const { options } = await capture({
+      hooks: { PreToolUse: [{ hooks: [mine] }], PostToolUse: [{ hooks: [mine] }] },
+    });
+    expect(options.hooks?.PreToolUse).toHaveLength(2);
+    expect(options.hooks?.PreToolUse?.[1]?.hooks[0]).toBe(mine);
+    expect(options.hooks?.PostToolUse).toHaveLength(1);
   });
 });

@@ -9,6 +9,7 @@ import {
   LineSplitter,
   parseDockerPs,
   runProcess,
+  safeEnv,
 } from "../src/index.js";
 
 const collect = () => {
@@ -61,6 +62,39 @@ describe("runProcess", () => {
       { recorder },
     );
     expect(result.stdout).toEqual(["$(echo pwned); rm -rf /"]);
+  });
+
+  it("ne transmet pas les secrets du parent à l'enfant", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-ant-parent-secret";
+    process.env.JOHN_TEST_TOKEN = "tok-parent-secret";
+    try {
+      const { recorder } = collect();
+      const r = await runProcess(
+        [
+          node,
+          "-e",
+          "console.log(JSON.stringify({ key: process.env.ANTHROPIC_API_KEY ?? null, tok: process.env.JOHN_TEST_TOKEN ?? null, path: Boolean(process.env.PATH) }))",
+        ],
+        { recorder },
+      );
+      expect(JSON.parse(r.stdout[0] as string)).toEqual({ key: null, tok: null, path: true });
+    } finally {
+      delete process.env.ANTHROPIC_API_KEY;
+      delete process.env.JOHN_TEST_TOKEN;
+    }
+  });
+
+  it("safeEnv ne garde que la liste blanche", () => {
+    expect(
+      safeEnv({
+        PATH: "/bin",
+        LC_ALL: "C",
+        DOCKER_HOST: "tcp://x",
+        SystemRoot: "C:\\Windows",
+        ANTHROPIC_API_KEY: "k",
+        AWS_SECRET_ACCESS_KEY: "k",
+      }),
+    ).toEqual({ PATH: "/bin", LC_ALL: "C", DOCKER_HOST: "tcp://x", SystemRoot: "C:\\Windows" });
   });
 
   it("rejette si le binaire est introuvable", async () => {

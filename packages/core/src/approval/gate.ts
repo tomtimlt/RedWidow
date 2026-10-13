@@ -1,6 +1,6 @@
 import type { Decision } from "../events.js";
 import type { Recorder } from "../recorder.js";
-import { evaluatePolicy, type Policy, type PolicyVerdict } from "./policy.js";
+import { evaluatePolicy, type Policy, type PolicyContext, type PolicyVerdict } from "./policy.js";
 
 export interface ApprovalRequest {
   toolUseId: string;
@@ -42,12 +42,19 @@ export interface ApprovalGateOptions {
   recorder: Recorder;
   /** Absent → les cas « ask » sont refusés (mode non interactif). */
   ask?: Asker;
+  /** Espace de travail pour les garde-fous de chemin (défaut : `process.cwd()`). */
+  workspace?: PolicyContext;
 }
 
-export function createApprovalGate({ policy, recorder, ask }: ApprovalGateOptions): ApprovalGate {
+export function createApprovalGate({
+  policy,
+  recorder,
+  ask,
+  workspace,
+}: ApprovalGateOptions): ApprovalGate {
   return {
     async decide(request, signal, parentId = null) {
-      const verdict = evaluatePolicy(policy, request.tool, request.input);
+      const verdict = evaluatePolicy(policy, request.tool, request.input, workspace);
       let outcome: ApprovalOutcome;
 
       if (verdict.decision !== "ask") {

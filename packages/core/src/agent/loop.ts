@@ -1,12 +1,14 @@
 import {
   type CanUseTool,
   createSdkMcpServer,
+  type HookCallback,
   type McpSdkServerConfigWithInstance,
   type Options,
   type SDKMessage,
   query as sdkQuery,
 } from "@anthropic-ai/claude-agent-sdk";
-import type { ApprovalGate } from "../approval/gate.js";
+import type { ApprovalGate, ApprovalOutcome } from "../approval/gate.js";
+import { BASH_TOOL } from "../approval/policy.js";
 import { createDockerClient } from "../docker/client.js";
 import {
   type AnyMcpTool,
@@ -41,8 +43,35 @@ export interface RunAgentOptions {
   docker?: false | { binary?: string };
   /** Serveurs MCP in-process supplémentaires. Ils reçoivent leurs `process.*` via leur propre logique. */
   toolsets?: Toolset[];
-  /** Options SDK supplémentaires ; `canUseTool` et `cwd` restent pilotés par le moteur. */
-  sdkOptions?: Omit<Options, "canUseTool" | "cwd" | "abortController">;
+  /**
+   * Outils natifs du SDK exposés à l'agent (liste blanche : `tools` du SDK).
+   * Défaut : lectures seules. `Bash` s'ajoute via `bash`, pas ici.
+   */
+  builtinTools?: string[];
+  /** Expose l'outil natif `Bash` (désactivé par défaut : préférer les outils MCP docker). */
+  bash?: boolean;
+  /** Hooks SDK supplémentaires, exécutés après la garde `PreToolUse` du moteur. */
+  hooks?: Options["hooks"];
+  /**
+   * Options SDK supplémentaires. Celles qui touchent aux permissions
+   * (`canUseTool`, `permissionMode`, `allowedTools`, `tools`, `hooks`…) sont
+   * pilotées par le moteur et ne peuvent pas être surchargées.
+   */
+  sdkOptions?: Omit<
+    Options,
+    | "canUseTool"
+    | "cwd"
+    | "abortController"
+    | "permissionMode"
+    | "allowDangerouslySkipPermissions"
+    | "allowedTools"
+    | "tools"
+    | "hooks"
+    | "settingSources"
+    | "strictMcpConfig"
+    | "permissionPromptToolName"
+    | "permissionPrompts"
+  >;
   query?: QueryFn;
 }
 
@@ -52,6 +81,12 @@ export interface RunSummary {
   costUsd: number;
   result: string | null;
 }
+
+/** Outils natifs exposés par défaut : lecture seule. */
+export const DEFAULT_BUILTIN_TOOLS: readonly string[] = ["Read", "Glob", "Grep"];
+
+/** Une approbation interactive peut attendre longtemps : le hook ne doit pas expirer avant l'humain. */
+const HOOK_TIMEOUT_S = 24 * 60 * 60;
 
 const SUMMARY_MAX = 200;
 
@@ -127,13 +162,69 @@ export async function runAgent(options: RunAgentOptions): Promise<RunSummary> {
     return event;
   };
 
-  const canUseTool: CanUseTool = async (tool, input, { signal, toolUseID }) => {
-    const parent = ensureRequested(toolUseID, tool, input);
-    const outcome = await gate.decide({ toolUseId: toolUseID, tool, input }, signal, parent.id);
+  /**
+   * Décisions d'approbation par `tool_use_id`. Le hook PreToolUse fait autorité :
+   * il voit chaque appel, y compris ceux que le SDK auto-approuve sans appeler
+   * `canUseTool` (lectures dans le cwd, etc.).
+   */
+  const decisions = new Map<string, Promise<ApprovalOutcome>>();
+
+  const decide = (
+    toolUseId: string,
+    tool: string,
+    input: Record<string, unknown>,
+    signal: AbortSignal,
+  ): Promise<ApprovalOutcome> => {
+    let decision = decisions.get(toolUseId);
+    if (!decision) {
+      const parent = ensureRequested(toolUseId, tool, input);
+      decision = gate.decide({ toolUseId, tool, input }, signal, parent.id).then((outcome) => {
+        if (outcome.decision === "allow") {
+          registry.register(tool, input, { toolUseId, eventId: parent.id });
+        }
+        return outcome;
+      });
+      decisions.set(toolUseId, decision);
+    }
+    return decision;
+  };
+
+  const preToolUse: HookCallback = async (input, _toolUseId, { signal }) => {
+    if (input.hook_event_name !== "PreToolUse") return {};
+    const toolInput =
+      typeof input.tool_input === "object" && input.tool_input !== null
+        ? (input.tool_input as Record<string, unknown>)
+        : {};
+    const outcome = await decide(input.tool_use_id, input.tool_name, toolInput, signal);
+    return {
+      hookSpecificOutput: {
+        hookEventName: "PreToolUse",
+        permissionDecision: outcome.decision,
+        permissionDecisionReason:
+          outcome.decision === "allow"
+            ? outcome.reason
+            : `Refusé par john-studio : ${outcome.reason}`,
+      },
+    };
+  };
+
+  /** Filet de sécurité : ne tranche jamais seul, relaie la décision du hook. */
+  const canUseTool: CanUseTool = async (tool, input, { toolUseID }) => {
+    const decision = decisions.get(toolUseID);
+    if (!decision) {
+      recorder.emit(
+        {
+          kind: "error",
+          message: `canUseTool appelé sans décision PreToolUse (${tool}, ${toolUseID}) : refusé`,
+        },
+        root.id,
+      );
+      return { behavior: "deny", message: "Refusé par john-studio : appel non routé par la garde" };
+    }
+    const outcome = await decision;
     if (outcome.decision !== "allow") {
       return { behavior: "deny", message: `Refusé par john-studio : ${outcome.reason}` };
     }
-    registry.register(tool, input, { toolUseId: toolUseID, eventId: parent.id });
     return { behavior: "allow", updatedInput: input };
   };
 
@@ -161,12 +252,32 @@ export async function runAgent(options: RunAgentOptions): Promise<RunSummary> {
     });
   }
 
+  const builtinTools = [...new Set([...(options.builtinTools ?? DEFAULT_BUILTIN_TOOLS)])].filter(
+    (name) => name !== "Bash",
+  );
+  if (options.bash === true) builtinTools.push("Bash");
+
   const sdkOptions: Options = {
-    settingSources: [],
-    permissionMode: "default",
     ...options.sdkOptions,
     mcpServers: { ...options.sdkOptions?.mcpServers, ...mcpServers },
     cwd,
+    // Garde : tout passe par PreToolUse ; rien n'est pré-approuvé côté SDK.
+    settingSources: [],
+    strictMcpConfig: true,
+    permissionMode: "default",
+    allowedTools: [],
+    tools: builtinTools,
+    disallowedTools: [
+      ...(options.sdkOptions?.disallowedTools ?? []),
+      ...(options.bash === true ? [] : [BASH_TOOL]),
+    ],
+    hooks: {
+      ...options.hooks,
+      PreToolUse: [
+        { hooks: [preToolUse], timeout: HOOK_TIMEOUT_S },
+        ...(options.hooks?.PreToolUse ?? []),
+      ],
+    },
     canUseTool,
     abortController: abort,
     ...(options.model !== undefined && { model: options.model }),

@@ -12,7 +12,8 @@
     "test": "vitest run",
     "lint": "biome check .",
     "format": "biome format --write .",
-    "check": "biome check . && pnpm typecheck && vitest run"
+    "check": "biome check . && pnpm typecheck && vitest run",
+    "test:contract": "JOHN_SDK_CONTRACT=1 vitest run packages/core/test/contract"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",

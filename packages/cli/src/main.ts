@@ -6,17 +6,20 @@ import {
   createApprovalGate,
   createDockerClient,
   createRecorder,
+  defaultConfigDir,
   type EngineEvent,
   evaluatePolicy,
+  loadPolicy,
   openJournal,
+  REPO_POLICY_PATH,
   readJournal,
   runAgent,
+  trustPolicy,
 } from "@john-studio/core";
 import { renderGraphHtml } from "@john-studio/export-html";
 import { Command, InvalidArgumentError } from "commander";
 import { createTerminalAsker } from "./ask.js";
 import { colorEnabled, formatEvent } from "./format.js";
-import { loadPolicy } from "./policy-file.js";
 
 const parseIntArg = (value: string) => {
   const n = Number.parseInt(value, 10);
@@ -47,11 +50,15 @@ program
   .option("--max-turns <n>", "nombre maximal de tours", parseIntArg)
   .option("--docker <bin>", "binaire docker des outils MCP", "docker")
   .option("--no-docker-tools", "ne pas exposer les outils Docker structurés à l'agent")
+  .option(
+    "--allow-bash",
+    "exposer l'outil natif Bash (désactivé par défaut ; reste soumis à la politique)",
+  )
   .option("--non-interactive", "refuser les cas « ask » au lieu de demander")
   .option("-v, --verbose", "afficher la sortie des processus")
   .action(async (words: string[], opts) => {
     const cwd = process.cwd();
-    const { policy, source } = await loadPolicy(opts.policy, cwd);
+    const { policy, source, warning } = await loadPolicy({ explicit: opts.policy, cwd });
     const recorder = createRecorder();
     const journalPath = resolve(
       cwd,
@@ -65,6 +72,7 @@ program
     const gate = createApprovalGate({
       policy,
       recorder,
+      workspace: { cwd },
       ...(interactive && { ask: createTerminalAsker() }),
     });
 
@@ -72,6 +80,7 @@ program
     const onSigint = () => abort.abort(new Error("interrompu (SIGINT)"));
     process.once("SIGINT", onSigint);
     process.stderr.write(`politique : ${source} · journal : ${journalPath}\n`);
+    if (warning) process.stderr.write(`attention : ${warning}\n`);
 
     try {
       const summary = await runAgent({
@@ -81,6 +90,7 @@ program
         cwd,
         signal: abort.signal,
         docker: opts.dockerTools === false ? false : { binary: opts.docker },
+        bash: Boolean(opts.allowBash),
         ...(opts.model && { model: opts.model }),
         ...(opts.maxTurns && { maxTurns: opts.maxTurns }),
       });
@@ -101,11 +111,12 @@ policyCmd
   .option("-p, --policy <file>", "fichier de politique JSON")
   .option("-t, --tool <name>", "outil SDK", "Bash")
   .action(async (words: string[], opts) => {
-    const { policy } = await loadPolicy(opts.policy, process.cwd());
+    const cwd = process.cwd();
+    const { policy } = await loadPolicy({ explicit: opts.policy, cwd });
     const text = words.join(" ");
     const input =
       opts.tool === "Bash" ? { command: text } : (JSON.parse(text) as Record<string, unknown>);
-    const verdict = evaluatePolicy(policy, opts.tool, input);
+    const verdict = evaluatePolicy(policy, opts.tool, input, { cwd });
     process.stdout.write(`${verdict.decision}\t${verdict.reason}\n`);
     process.exitCode = verdict.decision === "allow" ? 0 : verdict.decision === "ask" ? 2 : 3;
   });
@@ -115,9 +126,24 @@ policyCmd
   .description("Afficher la politique effective.")
   .option("-p, --policy <file>", "fichier de politique JSON")
   .action(async (opts) => {
-    const { policy, source } = await loadPolicy(opts.policy, process.cwd());
+    const { policy, source, warning } = await loadPolicy({
+      explicit: opts.policy,
+      cwd: process.cwd(),
+    });
     process.stderr.write(`source : ${source}\n`);
+    if (warning) process.stderr.write(`attention : ${warning}\n`);
     process.stdout.write(`${JSON.stringify(policy, null, 2)}\n`);
+  });
+
+policyCmd
+  .command("trust")
+  .description("Approuver la politique du dépôt (son contenu actuel, identifié par son empreinte).")
+  .argument("[file]", "fichier de politique", REPO_POLICY_PATH)
+  .action(async (file: string) => {
+    const path = resolve(process.cwd(), file);
+    const { policy, digest } = await trustPolicy(path, defaultConfigDir());
+    process.stdout.write(`${JSON.stringify(policy, null, 2)}\n`);
+    process.stderr.write(`approuvée : ${path} [sha256 ${digest}]\n`);
   });
 
 program

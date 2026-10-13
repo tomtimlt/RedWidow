@@ -2,14 +2,16 @@
 
 Statut : **[V]** vérifié dans le code ou par test, **[?]** déduit, non vérifié contre le vrai SDK.
 
-## P0 : sécurité et fiabilité du contrat avec le SDK
+## P0 : sécurité et fiabilité du contrat avec le SDK — traités
 
-1. **Rien n'a tourné contre le vrai SDK [V].** Tous les tests utilisent un faux `QueryFn` écrit d'après les typings. L'ordre réel `tool_use` → `canUseTool`, les messages partiels et les types de messages non gérés sont inconnus. Il manque au moins un test de contrat avec une vraie clé API.
-2. **`canUseTool` est-il l'unique point de contrôle ? [?]** En mode `default`, le SDK peut auto-approuver certains outils (lectures dans le `cwd`) sans l'appeler. Dans ce cas la politique ne peut pas les refuser et le journal ne les voit pas. Décision : passer par un hook `PreToolUse` comme garde faisant autorité, ou restreindre `tools` / `allowedTools`.
-3. **Outils natifs non restreints [V].** `Bash`, `Write`, `WebFetch` et les autres restent actifs à côté des outils MCP docker. La politique Bash repose sur un tokenizer maison. Il ne couvre pas les heredocs, `$'…'`, `bash -c`, `env`, `xargs`, `find -exec`, ni `docker run -v /:/host` via Bash. Décision : retirer Bash par défaut, ou le mettre en `deny` hors allowlist stricte.
-4. **Politique lue dans le dépôt de travail [V].** `.john-studio/policy.json` vient du `cwd`. Un dépôt cloné peut embarquer une politique `allow` totale. Décision : source de confiance (config utilisateur, hash, ou confirmation à la première lecture).
-5. **Fuite de secrets [V].** `runProcess` hérite de tout `process.env` (y compris `ANTHROPIC_API_KEY` pour les processus enfants). Le journal et l'export HTML enregistrent les variables d'environnement de `docker run --env`, les sorties de processus et les `input` d'outils sans masquage.
-6. **`Read`, `Glob` et `Grep` sont `allow` sans restriction de chemin [V].** Un agent peut lire `~/.ssh`.
+Décisions retenues : le hook `PreToolUse` fait autorité, `Bash` est retiré par défaut, la politique vient de la config utilisateur (celle du dépôt n'est appliquée qu'après approbation de son empreinte), et le masquage des secrets se fait dans le recorder.
+
+1. **Test de contrat contre le vrai SDK — partiellement traité.** `packages/core/test/contract/sdk.contract.test.ts` vérifie l'ordre des événements, la visibilité des lectures auto-approuvées, le refus hors espace de travail et la liste des outils exposés. Il est désactivé par défaut (appels facturés) : `ANTHROPIC_API_KEY=… pnpm test:contract`. **Reste à faire :** l'exécuter une première fois avec une vraie clé ; il consigne aussi les types de messages SDK reçus, utiles pour le point 12.
+2. **Garde unique — traité.** `agent/loop.ts` installe un hook `PreToolUse` sans `matcher` qui appelle l'`ApprovalGate` pour tout outil, y compris ceux que le SDK auto-approuve sans passer par `canUseTool` (ordre documenté : hooks → deny → ask → mode → allow → `canUseTool`). `canUseTool` n'est plus qu'un filet : il relaie la décision du hook sans la rejouer et refuse (avec un événement `error`) tout appel que le hook n'a pas vu. Le moteur impose `permissionMode: "default"`, `allowedTools: []`, `strictMcpConfig: true` et `settingSources: []`, et `sdkOptions` ne peut plus les surcharger.
+3. **Outils natifs et Bash — traité.** Seuls `Read`, `Glob` et `Grep` sont exposés (`tools`, liste blanche) ; `Bash` n'apparaît qu'avec `bash: true` / `john run --allow-bash`, et reste alors soumis à la politique. L'analyseur (`approval/shell.ts`, `approval/policy.ts`) signale désormais `$'…'` et `$"…"`, les enveloppes d'exécution (`bash -c`, `env`, `xargs`, `eval`, `nohup`, `timeout`, `sudo`…, hazard `indirection`) et `find -exec/-delete`, qui ne sont jamais auto-approuvés. Un `docker|podman run|create` avec volume, `--mount`, `--privileged`, `--cap-add`, `--device`, `--security-opt` ou un espace de noms `host` est refusé (`dockerRunHazard`).
+4. **Politique de confiance — traité.** `approval/source.ts` : `--policy` explicite, puis `.john-studio/policy.json` **seulement si son SHA-256 est approuvé** (`john policy trust`, stocké dans `<config>/trusted-policies.json`), puis `<config>/policy.json` (XDG, `%APPDATA%`), puis la politique intégrée. Un fichier de dépôt non approuvé ou modifié est ignoré avec un avertissement.
+5. **Secrets — traité.** `runProcess` n'hérite plus de `process.env` mais d'une liste blanche (`safeEnv`). `redact.ts` masque motifs de clés (Anthropic, GitHub, AWS, Slack, JWT, `Bearer`, clés privées, URL avec identifiants, `clé=valeur`), valeurs de `env`, `--env`/`-e` d'un argv et valeurs sensibles de `process.env` ; le recorder l'applique avant tout sink, donc journal, CLI et export HTML reçoivent des événements déjà expurgés (`createRecorder({ redact: false })` pour désactiver, tests uniquement).
+6. **Chemins de `Read`, `Glob`, `Grep` — traité.** `evaluatePolicy(…, ctx)` extrait les chemins des outils fichiers, résout les liens symboliques (y compris pour un fichier à créer) et applique : chemin sensible (`~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.kube`, `~/.config/gh`, `/etc/shadow`…) → `deny` quelles que soient les règles ; hors de l'espace de travail → `ask` (une règle `allow` ne s'y applique pas) ; un `deny` de règle l'emporte toujours.
 
 ## P1 : frontière cœur / UI, qui conditionne l'extension VS Code
 
@@ -45,8 +47,8 @@ Statut : **[V]** vérifié dans le code ou par test, **[?]** déduit, non vérif
 
 ## Décisions à demander en priorité
 
-- **Garde unique :** `PreToolUse` ou `canUseTool` fait-il autorité ? (points 2 et 3)
-- **Bash :** le garder derrière un tokenizer maison, ou le retirer au profit des outils MCP ? (point 3)
-- **Politique :** quelle source de confiance ? (point 4)
-- **Secrets :** où se fait le masquage, dans le recorder ou à l'écriture du journal ? (point 5)
+- ~~**Garde unique** (points 2 et 3)~~ : tranché, `PreToolUse`.
+- ~~**Bash** (point 3)~~ : tranché, retiré par défaut.
+- ~~**Politique** (point 4)~~ : tranché, config utilisateur + empreinte approuvée.
+- ~~**Secrets** (point 5)~~ : tranché, dans le recorder.
 - **Découpage :** le moteur reste-t-il un paquet unique, ou se sépare-t-il de l'adaptateur SDK ? (points 7 à 10)

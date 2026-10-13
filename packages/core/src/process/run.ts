@@ -2,10 +2,53 @@ import { spawn } from "node:child_process";
 import type { Recorder } from "../recorder.js";
 import { LineSplitter } from "./lines.js";
 
+const ENV_ALLOWLIST = new Set([
+  "PATH",
+  "HOME",
+  "USER",
+  "LOGNAME",
+  "LANG",
+  "TZ",
+  "TMPDIR",
+  "TERM",
+  "XDG_RUNTIME_DIR",
+  "DOCKER_HOST",
+  "DOCKER_CONTEXT",
+  "DOCKER_CONFIG",
+  "DOCKER_CERT_PATH",
+  "DOCKER_TLS_VERIFY",
+  // Windows (comparés en majuscules)
+  "SYSTEMROOT",
+  "COMSPEC",
+  "PATHEXT",
+  "WINDIR",
+  "USERPROFILE",
+  "APPDATA",
+  "LOCALAPPDATA",
+  "TEMP",
+  "TMP",
+]);
+
+/**
+ * Environnement minimal transmis aux processus enfants : liste blanche, pour
+ * ne pas leur faire hériter `ANTHROPIC_API_KEY` ni les autres secrets du
+ * processus parent.
+ */
+export function safeEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const out: NodeJS.ProcessEnv = {};
+  for (const [name, value] of Object.entries(env)) {
+    if (value === undefined) continue;
+    const upper = name.toUpperCase();
+    if (ENV_ALLOWLIST.has(upper) || upper.startsWith("LC_")) out[name] = value;
+  }
+  return out;
+}
+
 export interface RunProcessOptions {
   recorder: Recorder;
   parentId?: string | null;
   cwd?: string;
+  /** Environnement de l'enfant. Par défaut : `safeEnv()` (liste blanche, sans secrets). */
   env?: NodeJS.ProcessEnv;
   signal?: AbortSignal;
   /** Plafond de lignes conservées en mémoire dans le résultat (le journal reçoit tout). */
@@ -37,7 +80,7 @@ export function runProcess(
   return new Promise((resolve, reject) => {
     const child = spawn(file, args, {
       cwd: options.cwd,
-      env: options.env,
+      env: options.env ?? safeEnv(),
       signal: options.signal,
       stdio: ["ignore", "pipe", "pipe"],
       shell: false,
