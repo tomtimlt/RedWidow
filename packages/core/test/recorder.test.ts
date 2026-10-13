@@ -4,7 +4,9 @@ import { createRecorder, type EngineEvent, EVENT_SCHEMA_VERSION } from "../src/i
 describe("recorder", () => {
   it("pose la version du schéma sur chaque événement", () => {
     const r = createRecorder({ runId: "r" });
-    expect(r.emit({ kind: "error", message: "x" })).toMatchObject({ v: EVENT_SCHEMA_VERSION });
+    expect(r.emit({ kind: "error", code: "error.unknown", message: "x" })).toMatchObject({
+      v: EVENT_SCHEMA_VERSION,
+    });
   });
 
   describe("erreurs de sink", () => {
@@ -50,12 +52,14 @@ describe("recorder", () => {
       r.subscribe(a);
       r.subscribe(b);
       const out: EngineEvent[] = [];
-      expect(() => out.push(r.emit({ kind: "error", message: "x" }))).not.toThrow();
+      expect(() =>
+        out.push(r.emit({ kind: "error", code: "error.unknown", message: "x" })),
+      ).not.toThrow();
       // a et b reçoivent l'événement (2) ; chacun reçoit le sink.error de l'autre (2), puis rien.
       expect(calls).toBe(4);
       expect(out[0]?.seq).toBe(0);
       // Le compteur reprend normalement derrière les sink.error.
-      expect(r.emit({ kind: "error", message: "y" }).seq).toBe(3);
+      expect(r.emit({ kind: "error", code: "error.unknown", message: "y" }).seq).toBe(3);
     });
 
     it("un sink.error ne provoque pas de sink.error en cascade", () => {
@@ -78,6 +82,47 @@ describe("recorder", () => {
       r.subscribe((e) => events.push(e));
       return { r, events };
     };
+
+    it("masque les secrets dans les params et les causes des motifs et erreurs", () => {
+      const { r, events } = collect();
+      r.emit({
+        kind: "approval.decided",
+        toolUseId: "t",
+        decision: "deny",
+        source: "policy",
+        reason: {
+          code: "approval.noAsker",
+          cause: {
+            code: "bash.noRule",
+            params: { command: `curl -H "Authorization: Bearer ${secret}" x` },
+          },
+        },
+      });
+      r.emit({
+        kind: "approval.decided",
+        toolUseId: "t",
+        decision: "deny",
+        source: "policy",
+        reason: { code: "policy.rule.custom", params: { text: `jeton ${secret}` } },
+      });
+      r.emit({
+        kind: "error",
+        code: "docker.failed",
+        params: { binary: "docker", command: "run", exitCode: 1, stderr: `token=${secret}` },
+      });
+      r.emit({ kind: "error", code: "error.unknown", message: `boum ${secret}` });
+      const text = JSON.stringify(events);
+      expect(text).not.toContain("abcdefgh12345678");
+      expect(text).toContain("[REDACTED]");
+      // Les codes et les paramètres non sensibles restent lisibles.
+      expect(events[0]).toMatchObject({
+        reason: { code: "approval.noAsker", cause: { code: "bash.noRule" } },
+      });
+      expect(events[2]).toMatchObject({
+        code: "docker.failed",
+        params: { binary: "docker", exitCode: 1 },
+      });
+    });
 
     it("masque tool.result.output, pensée et erreurs de sink", () => {
       const { r, events } = collect();
@@ -102,7 +147,7 @@ describe("recorder", () => {
       r.subscribe(() => {
         throw new Error(`échec avec ${secret}`);
       });
-      r.emit({ kind: "error", message: "x" });
+      r.emit({ kind: "error", code: "error.unknown", message: "x" });
       const text = JSON.stringify(events);
       expect(text).not.toContain("abcdefgh12345678");
       expect(text).not.toContain("hunter2hunter2");

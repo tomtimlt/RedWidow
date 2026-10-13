@@ -18,9 +18,13 @@ import {
   trustPolicy,
 } from "@john-studio/core";
 import { renderGraphHtml } from "@john-studio/export-html";
+import { formatError, formatReason } from "@john-studio/messages";
 import { Command, InvalidArgumentError } from "commander";
 import { createTerminalAsker } from "./ask.js";
 import { colorEnabled, formatEvent, formatRunList } from "./format.js";
+
+/** Libellé de la politique intégrée (`LoadedPolicy.source` vaut `null`). */
+const BUILTIN_SOURCE = "intégrée";
 
 const parseIntArg = (value: string) => {
   const n = Number.parseInt(value, 10);
@@ -80,8 +84,8 @@ program
     const abort = new AbortController();
     const onSigint = () => abort.abort(new Error("interrompu (SIGINT)"));
     process.once("SIGINT", onSigint);
-    process.stderr.write(`politique : ${source} · journal : ${journalPath}\n`);
-    if (warning) process.stderr.write(`attention : ${warning}\n`);
+    process.stderr.write(`politique : ${source ?? BUILTIN_SOURCE} · journal : ${journalPath}\n`);
+    if (warning) process.stderr.write(`attention : ${formatReason(warning)}\n`);
 
     try {
       const runner = createSdkRunner({
@@ -120,7 +124,7 @@ policyCmd
     const input =
       opts.tool === "Bash" ? { command: text } : (JSON.parse(text) as Record<string, unknown>);
     const verdict = evaluatePolicy(policy, opts.tool, input, { cwd });
-    process.stdout.write(`${verdict.decision}\t${verdict.reason}\n`);
+    process.stdout.write(`${verdict.decision}\t${formatReason(verdict.reason)}\n`);
     process.exitCode = verdict.decision === "allow" ? 0 : verdict.decision === "ask" ? 2 : 3;
   });
 
@@ -133,8 +137,8 @@ policyCmd
       explicit: opts.policy,
       cwd: process.cwd(),
     });
-    process.stderr.write(`source : ${source}\n`);
-    if (warning) process.stderr.write(`attention : ${warning}\n`);
+    process.stderr.write(`source : ${source ?? BUILTIN_SOURCE}\n`);
+    if (warning) process.stderr.write(`attention : ${formatReason(warning)}\n`);
     process.stdout.write(`${JSON.stringify(policy, null, 2)}\n`);
   });
 
@@ -169,7 +173,7 @@ program
       shown.forEach(printer(Boolean(opts.verbose)));
     }
     for (const issue of issues)
-      process.stderr.write(`ligne ${issue.line} ignorée : ${issue.error}\n`);
+      process.stderr.write(`ligne ${issue.line} ignorée : ${formatReason(issue.error)}\n`);
   });
 
 program
@@ -218,6 +222,6 @@ program
   });
 
 program.parseAsync().catch((err: unknown) => {
-  process.stderr.write(`john : ${err instanceof Error ? err.message : String(err)}\n`);
+  process.stderr.write(`john : ${formatError(err)}\n`);
   process.exitCode = 1;
 });

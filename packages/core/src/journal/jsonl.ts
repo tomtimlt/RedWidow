@@ -4,6 +4,7 @@ import { mkdir, open } from "node:fs/promises";
 import { dirname } from "node:path";
 import { createInterface } from "node:readline";
 import { type EngineEvent, EVENT_SCHEMA_VERSION, validateEvent } from "../events.js";
+import { type Reason, reason } from "../reason.js";
 import type { EventSink } from "../recorder.js";
 
 /**
@@ -100,7 +101,7 @@ const MARKER_RESERVE = 1024;
 
 export interface JournalIssue {
   line: number;
-  error: string;
+  error: Reason;
 }
 
 export interface JournalContents {
@@ -144,7 +145,12 @@ function pushLine(line: string, n: number, events: EngineEvent[], issues: Journa
   try {
     value = JSON.parse(line);
   } catch (err) {
-    issues.push({ line: n, error: err instanceof Error ? err.message : "JSON invalide" });
+    issues.push({
+      line: n,
+      error: reason("journal.invalidJson", {
+        message: err instanceof Error ? err.message : String(err),
+      }),
+    });
     return;
   }
   value = migrate(value);
@@ -158,10 +164,25 @@ function pushLine(line: string, n: number, events: EngineEvent[], issues: Journa
   events.push(event.v === undefined ? { ...event, v: 1 } : event);
 }
 
-/** Anciens `tool.result` (champ `summary`) : relus comme une sortie complète non tronquée. */
+/** Motif d'un ancien journal (texte libre) : relu sous la forme `legacy`, affiché tel quel. */
+const legacy = (text: string): Reason => reason("legacy", { text });
+
+/**
+ * Migrations à la lecture des anciens journaux :
+ * - `tool.result` avec `summary` : relu comme une sortie complète non tronquée ;
+ * - `approval.decided.reason` et `error.message` en texte : relus en motif
+ *   `{ code: "legacy", params: { text } }` que `@john-studio/messages` affiche tel quel.
+ */
 function migrate(value: unknown): unknown {
   if (typeof value !== "object" || value === null) return value;
   const v = value as Record<string, unknown>;
+  if (v.kind === "approval.decided" && typeof v.reason === "string") {
+    return { ...v, reason: legacy(v.reason) };
+  }
+  if (v.kind === "error" && v.code === undefined && typeof v.message === "string") {
+    const { message, ...rest } = v;
+    return { ...rest, ...legacy(message as string) };
+  }
   if (v.kind === "tool.result" && v.output === undefined && typeof v.summary === "string") {
     const { summary, ...rest } = v;
     return {

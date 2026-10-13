@@ -1,6 +1,22 @@
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "rootDir": "src", "outDir": "dist" },
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
   "include": ["src"],
-  "references": [{ "path": "../core" }, { "path": "../agent-sdk" }, { "path": "../export-html" }]
+  "references": [
+    {
+      "path": "../core"
+    },
+    {
+      "path": "../agent-sdk"
+    },
+    {
+      "path": "../export-html"
+    },
+    {
+      "path": "../messages"
+    }
+  ]
 }

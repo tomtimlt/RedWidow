@@ -78,7 +78,7 @@ describe("journal JSONL", () => {
     const journal = await openJournal(path);
     const recorder = createRecorder();
     recorder.subscribe(journal.sink);
-    recorder.emit({ kind: "error", message: "x" });
+    recorder.emit({ kind: "error", code: "error.unknown", message: "x" });
     await journal.close();
     const [line] = (await readFile(path, "utf8")).trim().split("\n");
     expect(JSON.parse(line as string)).toMatchObject({ v: EVENT_SCHEMA_VERSION });
@@ -122,7 +122,7 @@ describe("journal JSONL", () => {
       const j = await openJournal(first.path, { maxBytes: 2000 });
       const r = createRecorder({ runId: "r2" });
       r.subscribe(j.sink);
-      r.emit({ kind: "error", message: "trop tard" });
+      r.emit({ kind: "error", code: "error.unknown", message: "trop tard" });
       await j.close();
       const text = await readFile(first.path, "utf8");
       expect(text).not.toContain("trop tard");

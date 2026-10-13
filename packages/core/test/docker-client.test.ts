@@ -3,7 +3,9 @@ import {
   assertOperand,
   createDockerClient,
   createRecorder,
+  DockerError,
   type EngineEvent,
+  ValidationError,
 } from "../src/index.js";
 import { fakeDocker } from "./helpers.js";
 
@@ -18,10 +20,18 @@ const setup = async () => {
 
 describe("assertOperand", () => {
   it.each(["web", "nginx:1.27", "reg.io:5000/a/b@sha256:abc", "a_b-c.d"])("accepte %s", (v) => {
-    expect(assertOperand(v, "x")).toBe(v);
+    expect(assertOperand(v, "target")).toBe(v);
   });
   it.each(["", "-f", "--privileged", "a b", "a;b", "$(x)", "web\n", "-"])("refuse %j", (v) => {
-    expect(() => assertOperand(v, "x")).toThrow(/invalide/);
+    expect(() => assertOperand(v, "target")).toThrow(ValidationError);
+    try {
+      assertOperand(v, "target");
+    } catch (err) {
+      expect(err).toMatchObject({
+        code: "docker.invalidOperand",
+        params: { label: "target", value: v },
+      });
+    }
   });
 });
 
@@ -58,18 +68,38 @@ describe("DockerClient", () => {
 
   it("refuse l'injection d'options avant tout lancement", async () => {
     const { fake, docker } = await setup();
-    await expect(docker.stop("--all")).rejects.toThrow(/invalide/);
-    await expect(docker.logs("web", { since: "--follow" })).rejects.toThrow(/invalide/);
-    await expect(docker.logs("web", { tail: -1 })).rejects.toThrow(/tail/);
-    await expect(docker.run({ image: "-v/:/host" })).rejects.toThrow(/invalide/);
-    await expect(docker.run({ image: "nginx", ports: ["80; rm"] })).rejects.toThrow(/port/);
-    await expect(docker.run({ image: "nginx", env: { "A=B": "x" } })).rejects.toThrow(/variable/);
+    const invalid = (code: string, params: Record<string, string | number>) =>
+      expect.objectContaining({ name: "ValidationError", code, params });
+    await expect(docker.stop("--all")).rejects.toEqual(
+      invalid("docker.invalidOperand", { label: "container", value: "--all" }),
+    );
+    await expect(docker.logs("web", { since: "--follow" })).rejects.toEqual(
+      invalid("docker.invalidOperand", { label: "since", value: "--follow" }),
+    );
+    await expect(docker.logs("web", { tail: -1 })).rejects.toEqual(
+      invalid("docker.invalidTail", { value: -1 }),
+    );
+    await expect(docker.run({ image: "-v/:/host" })).rejects.toEqual(
+      invalid("docker.invalidOperand", { label: "image", value: "-v/:/host" }),
+    );
+    await expect(docker.run({ image: "nginx", ports: ["80; rm"] })).rejects.toEqual(
+      invalid("docker.invalidPort", { value: "80; rm" }),
+    );
+    await expect(docker.run({ image: "nginx", env: { "A=B": "x" } })).rejects.toEqual(
+      invalid("docker.invalidEnvKey", { key: "A=B" }),
+    );
     expect(await fake.calls()).toEqual([]);
   });
 
   it("lève DockerError sur code ≠ 0", async () => {
     const { docker } = await setup();
-    await expect(docker.stop("nope")).rejects.toThrow(/no such container/);
+    const err = await docker.stop("nope").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(DockerError);
+    expect(err).toMatchObject({
+      code: "docker.failed",
+      params: { command: "stop", stderr: expect.stringContaining("no such container") },
+    });
+    expect((err as DockerError).result.code).not.toBe(0);
   });
 
   it("parentId par appel prime sur celui de la factory", async () => {

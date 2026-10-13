@@ -49,7 +49,7 @@ describe("createDockerTools", () => {
 
     const bad = await handler("stop")({ container: "--all" }, {});
     expect(bad.isError).toBe(true);
-    expect((bad.content[0] as { text: string }).text).toMatch(/invalide/);
+    expect((bad.content[0] as { text: string }).text).toBe("conteneur invalide : « --all »");
     expect(seen.map(([n]) => n)).toEqual(["ps", "stop"]);
   });
 

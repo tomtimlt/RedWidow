@@ -10,6 +10,7 @@ export default defineConfig({
       "@john-studio/agent-sdk": src("agent-sdk"),
       "@john-studio/core": src("core"),
       "@john-studio/export-html": src("export-html"),
+      "@john-studio/messages": src("messages"),
     },
   },
   test: { include: ["packages/*/test/**/*.test.ts"] },

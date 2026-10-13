@@ -1,7 +1,10 @@
 import type { EventGraph, EventKind, GraphNode } from "@john-studio/core";
+import { eventLabel, type Locale } from "@john-studio/messages";
 
 export interface RenderOptions {
   title?: string;
+  /** Langue des libellés (défaut : français). */
+  locale?: Locale;
 }
 
 const ROW = 44;
@@ -40,8 +43,12 @@ export function escapeHtml(text: string): string {
     .replace(/'/g, "&#39;");
 }
 
-function tooltip(node: GraphNode): string {
-  const lines = [`#${node.seq} ${node.kind}`, node.ts, node.label];
+/** Libellé court d'un nœud, calculé à l'affichage depuis son événement source. */
+const labelOf = (node: GraphNode, locale: Locale | undefined) =>
+  eventLabel(node.event, { maxLength: 80, ...(locale && { locale }) });
+
+function tooltip(node: GraphNode, locale: Locale | undefined): string {
+  const lines = [`#${node.seq} ${node.kind}`, node.ts, labelOf(node, locale)];
   if (node.output) {
     lines.push(`stdout ${node.output.stdout} · stderr ${node.output.stderr}`, ...node.output.tail);
   }
@@ -84,10 +91,11 @@ export function renderGraphHtml(graph: EventGraph, options: RenderOptions = {}):
     .map((n) => {
       const p = pos.get(n.id) as { x: number; y: number };
       const cls = ["node", KIND_CLASS[n.kind], n.status ? `s-${n.status}` : ""].join(" ").trim();
-      const text = n.output ? `${n.label} [${n.output.stdout + n.output.stderr} l.]` : n.label;
+      const label = labelOf(n, options.locale);
+      const text = n.output ? `${label} [${n.output.stdout + n.output.stderr} l.]` : label;
       return (
         `<g class="${cls}" transform="translate(${p.x},${p.y})">` +
-        `<title>${escapeHtml(tooltip(n))}</title>` +
+        `<title>${escapeHtml(tooltip(n, options.locale))}</title>` +
         `<rect width="${NODE_W}" height="${NODE_H}" rx="6"/>` +
         `<text x="8" y="19" clip-path="url(#c)">${escapeHtml(text)}</text></g>`
       );
@@ -95,7 +103,7 @@ export function renderGraphHtml(graph: EventGraph, options: RenderOptions = {}):
     .join("");
 
   return `<!doctype html>
-<html lang="fr">
+<html lang="${options.locale ?? "fr"}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">

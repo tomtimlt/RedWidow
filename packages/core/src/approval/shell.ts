@@ -4,6 +4,8 @@
  * ne peut pas être résolu statiquement est signalé via `hazards`.
  */
 
+import { type Reason, reason } from "../reason.js";
+
 export type ShellHazard =
   | "substitution" // $(…), `…`, <(…), >(…)
   | "expansion" // $VAR, ${…}, globs et accolades non quotés, ~
@@ -18,7 +20,7 @@ export interface ParsedCommand {
   hazards: Set<ShellHazard>;
 }
 
-export type ParseResult = { ok: true; value: ParsedCommand } | { ok: false; error: string };
+export type ParseResult = { ok: true; value: ParsedCommand } | { ok: false; error: Reason };
 
 const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
 
@@ -75,7 +77,7 @@ export function parseShell(input: string): ParseResult {
         inToken = true;
         break;
       case "\\":
-        if (next === undefined) return { ok: false, error: "backslash final" };
+        if (next === undefined) return { ok: false, error: reason("shell.trailingBackslash") };
         if (next !== "\n") {
           token += next;
           inToken = true;
@@ -148,7 +150,7 @@ export function parseShell(input: string): ParseResult {
     }
   }
 
-  if (quote !== null) return { ok: false, error: `guillemet ${quote} non fermé` };
+  if (quote !== null) return { ok: false, error: reason("shell.unclosedQuote", { quote }) };
   pushSegment();
   if (segments.some(runsOtherCommand)) hazards.add("indirection");
   return { ok: true, value: { segments, hazards } };

@@ -45,7 +45,10 @@ describe("buildGraph multi-runs", () => {
     expect(g.runId).toBe("B");
     expect(g.runs).toEqual(["A", "B"]);
     expect(g.nodes).toHaveLength(3);
-    expect(g.nodes[0]?.label).toContain("deux");
+    expect(g.nodes[0]?.event).toMatchObject({
+      kind: "run.started",
+      prompt: expect.stringContaining("deux"),
+    });
     expect(g.edges).toHaveLength(2);
   });
 
@@ -54,7 +57,10 @@ describe("buildGraph multi-runs", () => {
     const g = buildGraph(shuffled, { runId: "A" });
     expect(g.runId).toBe("A");
     expect(g.nodes.map((n) => n.seq)).toEqual([0, 1, 2]);
-    expect(g.nodes[0]?.label).toContain("un");
+    expect(g.nodes[0]?.event).toMatchObject({
+      kind: "run.started",
+      prompt: expect.stringContaining("un"),
+    });
   });
 
   it("renvoie un graphe vide pour un run inconnu ou sans événement", () => {
@@ -62,7 +68,7 @@ describe("buildGraph multi-runs", () => {
     expect(buildGraph([])).toEqual({ runId: null, runs: [], nodes: [], edges: [] });
   });
 
-  it("étiquette les nouveaux kinds sans planter", () => {
+  it("porte l'événement source de chaque nœud (les libellés sont dans messages)", () => {
     const r = createRecorder({ runId: "R" });
     const out: EngineEvent[] = [];
     r.subscribe((e) => out.push(e));
@@ -83,7 +89,8 @@ describe("buildGraph multi-runs", () => {
     r.emit({ kind: "journal.truncated", limitBytes: 1, droppedEvents: 2 });
     const g = buildGraph(out);
     expect(g.nodes).toHaveLength(8);
-    expect(g.nodes.every((n) => n.label !== "")).toBe(true);
+    expect(g.nodes.every((n) => n.event.kind === n.kind && n.event.id === n.id)).toBe(true);
+    expect(g.nodes.some((n) => "label" in n)).toBe(false);
     expect(g.nodes.find((n) => n.kind === "permission.denied")?.status).toBe("denied");
   });
 });

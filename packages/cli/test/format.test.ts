@@ -34,7 +34,7 @@ describe("formatEvent", () => {
   });
 
   it("colore seulement si demandé", () => {
-    const e = r.emit({ kind: "error", message: "boom" });
+    const e = r.emit({ kind: "error", code: "error.unknown", message: "boom" });
     expect(formatEvent(e, opts)).not.toContain("\x1b[");
     expect(formatEvent(e, { ...opts, color: true })).toContain("\x1b[31m");
   });
@@ -54,6 +54,27 @@ describe("formatEvent", () => {
     expect(line).toContain("première ligne xxx");
     expect(line).toContain("…");
     expect(line).toContain("[tronqué : 70000 octets]");
+  });
+
+  it("libelle les motifs et erreurs codés, et relit les textes d'anciens journaux", () => {
+    const denied = r.emit({
+      kind: "approval.decided",
+      toolUseId: "t",
+      decision: "deny",
+      source: "policy",
+      reason: { code: "path.sensitive", params: { path: "~/.ssh/id_rsa" } },
+    });
+    expect(formatEvent(denied, opts)).toBe("deny      [policy] chemin sensible : ~/.ssh/id_rsa");
+    const old = r.emit({
+      kind: "approval.decided",
+      toolUseId: "t",
+      decision: "allow",
+      source: "user",
+      reason: { code: "legacy", params: { text: "règle #1 allow Read" } },
+    });
+    expect(formatEvent(old, opts)).toBe("allow     [user] règle #1 allow Read");
+    const err = r.emit({ kind: "error", code: "process.notFound", params: { binary: "docker" } });
+    expect(formatEvent(err, opts)).toBe("error     binaire introuvable : docker");
   });
 
   it("summarizeOutput aplatit les blancs et coupe", () => {

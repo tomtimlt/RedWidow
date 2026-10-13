@@ -29,7 +29,7 @@ const SAMPLES: { [K in EventKind]: Extract<EventPayload, { kind: K }> } = {
     toolUseId: "t",
     decision: "allow",
     source: "policy",
-    reason: "r",
+    reason: { code: "policy.rule", params: { index: 0, decision: "allow", target: "Read" } },
   },
   "permission.denied": { kind: "permission.denied", toolUseId: "t", tool: "x", message: "m" },
   "tool.result": {
@@ -72,7 +72,7 @@ const SAMPLES: { [K in EventKind]: Extract<EventPayload, { kind: K }> } = {
     result: null,
     unhandledMessages: { "system/status": 2 },
   },
-  error: { kind: "error", message: "m" },
+  error: { kind: "error", code: "error.unknown", message: "m" },
   "sink.error": { kind: "sink.error", message: "m" },
   "journal.truncated": { kind: "journal.truncated", limitBytes: 10, droppedEvents: 2 },
 };
@@ -101,6 +101,9 @@ describe("schéma d'événements", () => {
       ["agent.thinking", { redacted: "non" }],
       ["tool.requested", { input: [] }],
       ["approval.decided", { decision: "ask" }],
+      ["approval.decided", { reason: "texte brut" }],
+      ["approval.decided", { reason: { code: "x", params: { nested: { a: 1 } } } }],
+      ["approval.decided", { reason: { code: "x", cause: { params: {} } } }],
       ["permission.denied", { message: undefined }],
       ["tool.result", { output: undefined }],
       ["tool.result", { bytes: "12" }],
@@ -113,6 +116,7 @@ describe("schéma d'événements", () => {
       ["rate.limited", { status: 1 }],
       ["run.finished", { unhandledMessages: { a: "x" } }],
       ["error", { message: null }],
+      ["error", { code: undefined }],
       ["sink.error", { message: undefined }],
       ["journal.truncated", { limitBytes: "1" }],
     ];
@@ -123,23 +127,39 @@ describe("schéma d'événements", () => {
   });
 
   it("nomme le champ fautif et refuse un kind inconnu ou des métadonnées absentes", () => {
-    expect(validateEvent(event({ ...SAMPLES["tool.result"], output: undefined }))).toBe(
-      "output manquant",
-    );
-    expect(validateEvent(event({ ...SAMPLES["tool.result"], bytes: "x" }))).toBe("bytes invalide");
-    expect(validateEvent(event({ kind: "inconnu" }))).toMatch(/kind inconnu/);
-    expect(validateEvent(null)).toBe("objet attendu");
-    expect(validateEvent(event(SAMPLES.error, { runId: undefined }))).toBe("runId manquant");
+    expect(validateEvent(event({ ...SAMPLES["tool.result"], output: undefined }))).toEqual({
+      code: "event.missingField",
+      params: { field: "output" },
+    });
+    expect(validateEvent(event({ ...SAMPLES["tool.result"], bytes: "x" }))).toEqual({
+      code: "event.invalidField",
+      params: { field: "bytes" },
+    });
+    expect(
+      validateEvent(event({ ...SAMPLES["task.updated"], usage: { totalTokens: "1" } })),
+    ).toEqual({ code: "event.invalidField", params: { field: "usage.totalTokens" } });
+    expect(validateEvent(event({ kind: "inconnu" }))).toEqual({
+      code: "event.unknownKind",
+      params: { kind: "inconnu" },
+    });
+    expect(validateEvent(null)).toEqual({ code: "event.notObject" });
+    expect(validateEvent(event(SAMPLES.error, { runId: undefined }))).toEqual({
+      code: "event.missingField",
+      params: { field: "runId" },
+    });
   });
 
   it("accepte un v absent (= 1) et signale une version future", () => {
     const { v: _v, ...legacy } = event(SAMPLES.error);
     expect(validateEvent(legacy)).toBeNull();
-    expect(validateEvent(event(SAMPLES.error, { v: 0 }))).toBe("v invalide");
-    expect(validateEvent(event(SAMPLES.error, { v: "1" }))).toBe("v invalide");
-    expect(validateEvent(event(SAMPLES.error, { v: EVENT_SCHEMA_VERSION + 1 }))).toMatch(
-      /version de schéma 2 non prise en charge/,
-    );
+    expect(validateEvent(event(SAMPLES.error, { v: 0 }))).toEqual({ code: "event.invalidVersion" });
+    expect(validateEvent(event(SAMPLES.error, { v: "1" }))).toEqual({
+      code: "event.invalidVersion",
+    });
+    expect(validateEvent(event(SAMPLES.error, { v: EVENT_SCHEMA_VERSION + 1 }))).toEqual({
+      code: "event.unsupportedVersion",
+      params: { version: 2, known: EVENT_SCHEMA_VERSION },
+    });
   });
 });
 
@@ -157,8 +177,39 @@ describe("relecture du journal", () => {
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({ kind: "agent.text", v: 1 });
     expect(issues).toEqual([
-      { line: 2, error: "bytes invalide" },
-      { line: 3, error: expect.stringContaining("version de schéma 2") },
+      { line: 2, error: { code: "event.invalidField", params: { field: "bytes" } } },
+      {
+        line: 3,
+        error: { code: "event.unsupportedVersion", params: { version: 2, known: 1 } },
+      },
+    ]);
+  });
+
+  it("relit les motifs et erreurs en texte brut d'un ancien journal comme `legacy`", () => {
+    const old = [
+      event({
+        kind: "approval.decided",
+        toolUseId: "t",
+        decision: "deny",
+        source: "policy",
+        reason: "règle #3 deny Bash(rm *)",
+      }),
+      event({ kind: "error", message: "boum" }, { id: "j", seq: 1 }),
+    ];
+    const { events, issues } = parseJournal(old.map(line).join("\n"));
+    expect(issues).toEqual([]);
+    expect(events[0]).toMatchObject({
+      kind: "approval.decided",
+      reason: { code: "legacy", params: { text: "règle #3 deny Bash(rm *)" } },
+    });
+    expect(events[1]).toMatchObject({ kind: "error", code: "legacy", params: { text: "boum" } });
+    expect(events[1]).not.toHaveProperty("message");
+  });
+
+  it("signale un JSON invalide par un code", () => {
+    const { issues } = parseJournal("{ pas du json");
+    expect(issues).toEqual([
+      { line: 1, error: { code: "journal.invalidJson", params: { message: expect.any(String) } } },
     ]);
   });
 

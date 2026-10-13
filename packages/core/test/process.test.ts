@@ -185,9 +185,11 @@ describe("runProcess", () => {
 
   it("rejette si le binaire est introuvable", async () => {
     const { recorder } = collect();
-    await expect(runProcess(["john-binaire-inexistant"], { recorder })).rejects.toThrow(
-      /introuvable/,
-    );
+    await expect(runProcess(["john-binaire-inexistant"], { recorder })).rejects.toMatchObject({
+      code: "process.notFound",
+      params: { binary: "john-binaire-inexistant" },
+    });
+    await expect(runProcess([], { recorder })).rejects.toMatchObject({ code: "process.emptyArgv" });
   });
 
   it("respecte l'annulation", async () => {
@@ -244,6 +246,9 @@ fi
       kind: "process.started",
       argv: [fake, "ps", "--all", "--format", "{{json .}}"],
     });
-    await expect(docker.ps()).rejects.toThrow(/daemon down/);
+    await expect(docker.ps()).rejects.toMatchObject({
+      code: "docker.failed",
+      params: { stderr: expect.stringContaining("daemon down") },
+    });
   });
 });

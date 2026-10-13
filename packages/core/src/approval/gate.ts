@@ -1,4 +1,5 @@
 import type { Decision } from "../events.js";
+import { errorInfo, type Reason, reason } from "../reason.js";
 import type { Recorder } from "../recorder.js";
 import { evaluatePolicy, type Policy, type PolicyContext, type PolicyVerdict } from "./policy.js";
 
@@ -10,7 +11,8 @@ export interface ApprovalRequest {
 
 export interface ApprovalAnswer {
   decision: Decision;
-  reason?: string;
+  /** Motif de la réponse ; absent → celui du verdict de la politique. */
+  reason?: Reason;
 }
 
 /**
@@ -25,7 +27,7 @@ export type Asker = (
 
 export interface ApprovalOutcome {
   decision: Decision;
-  reason: string;
+  reason: Reason;
   source: "policy" | "user";
 }
 
@@ -62,7 +64,7 @@ export function createApprovalGate({
       } else if (!ask) {
         outcome = {
           decision: "deny",
-          reason: `${verdict.reason} (aucun approbateur interactif)`,
+          reason: reason("approval.noAsker", undefined, verdict.reason),
           source: "policy",
         };
       } else {
@@ -76,7 +78,7 @@ export function createApprovalGate({
         } catch (err) {
           outcome = {
             decision: "deny",
-            reason: `approbation interrompue : ${err instanceof Error ? err.message : String(err)}`,
+            reason: reason("approval.interrupted", undefined, errorInfo(err)),
             source: "user",
           };
         }

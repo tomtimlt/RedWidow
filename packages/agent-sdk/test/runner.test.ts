@@ -221,6 +221,12 @@ describe("createSdkRunner", () => {
     const summary = await runAgent({ prompt: "x", recorder, gate, query });
     expect(summary.status).toBe("error");
     expect(events.map((e) => e.kind)).toEqual(["run.started", "error", "run.finished"]);
+    // Erreur inconnue : code générique + message brut (pas de texte français dans le cœur).
+    expect(events[1]).toMatchObject({
+      kind: "error",
+      code: "error.unknown",
+      message: "API indisponible",
+    });
   });
 
   it("propage l'annulation au SDK", async () => {
@@ -511,6 +517,8 @@ describe("garde PreToolUse", () => {
       yield toolUse("t1", "Bash", { command: "rm -rf /" });
       const r = await guarded(spy)("Bash", { command: "rm -rf /" }, permit("t1"));
       expect(r.behavior).toBe("deny");
+      // Le texte renvoyé au modèle est libellé en français par @john-studio/messages.
+      expect(r).toMatchObject({ message: "Refusé par john-studio : règle #10 deny Bash(rm *)" });
       yield result({});
     };
     await runAgent({ prompt: "x", recorder, gate, query });
@@ -539,12 +547,16 @@ describe("garde PreToolUse", () => {
         { command: "docker ps" },
         { signal: new AbortController().signal, toolUseID: "orphan", requestId: "r" },
       );
-      expect(r).toMatchObject({ behavior: "deny" });
+      expect(r).toMatchObject({
+        behavior: "deny",
+        message: expect.stringContaining("Refusé par john-studio : appel non routé par la garde"),
+      });
       yield result({});
     };
     await runAgent({ prompt: "x", recorder, gate, query });
     expect(events.find((e) => e.kind === "error")).toMatchObject({
-      message: expect.stringContaining("sans décision PreToolUse"),
+      code: "guard.unrouted",
+      params: { tool: "Bash", toolUseId: "orphan" },
     });
   });
 

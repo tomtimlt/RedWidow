@@ -32,6 +32,9 @@ importers:
       '@john-studio/core':
         specifier: workspace:*
         version: link:../core
+      '@john-studio/messages':
+        specifier: workspace:*
+        version: link:../messages
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.32.1(zod@4.6.7)
@@ -50,6 +53,9 @@ importers:
       '@john-studio/export-html':
         specifier: workspace:*
         version: link:../export-html
+      '@john-studio/messages':
+        specifier: workspace:*
+        version: link:../messages
       commander:
         specifier: ^14.0.3
         version: 14.0.3
@@ -57,6 +63,15 @@ importers:
   packages/core: {}
 
   packages/export-html:
+    dependencies:
+      '@john-studio/core':
+        specifier: workspace:*
+        version: link:../core
+      '@john-studio/messages':
+        specifier: workspace:*
+        version: link:../messages
+
+  packages/messages:
     dependencies:
       '@john-studio/core':
         specifier: workspace:*

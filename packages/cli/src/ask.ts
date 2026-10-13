@@ -1,5 +1,6 @@
 import { createInterface } from "node:readline/promises";
 import type { Asker } from "@john-studio/core";
+import { formatReason } from "@john-studio/messages";
 
 /**
  * Approbateur terminal. Les demandes sont sérialisées : le SDK peut demander
@@ -21,7 +22,7 @@ export function createTerminalAsker(
             ? request.input.command
             : JSON.stringify(request.input);
         const answer = await rl.question(
-          `\n? ${request.tool} : ${detail}\n  ${verdict.reason}\n  Autoriser ? [o/N] `,
+          `\n? ${request.tool} : ${detail}\n  ${formatReason(verdict.reason)}\n  Autoriser ? [o/N] `,
           { signal },
         );
         const yes = /^(o|oui|y|yes)$/i.test(answer.trim());

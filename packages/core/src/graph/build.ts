@@ -5,8 +5,8 @@ export interface GraphNode {
   kind: EventKind;
   seq: number;
   ts: string;
-  /** Libellé court, texte brut (l'échappement est à la charge du rendu). */
-  label: string;
+  /** Événement source : les libellés se calculent à l'affichage (`@john-studio/messages`). */
+  event: EngineEvent;
   /** Profondeur dans l'arbre causal (0 = racine). */
   depth: number;
   /** Pour process.started : lignes de sortie agrégées. */
@@ -29,59 +29,6 @@ export interface EventGraph {
 }
 
 const TAIL = 5;
-const MAX_LABEL = 80;
-
-function clip(text: string): string {
-  const flat = text.replace(/\s+/g, " ").trim();
-  return flat.length > MAX_LABEL ? `${flat.slice(0, MAX_LABEL - 1)}…` : flat;
-}
-
-function labelOf(e: EngineEvent): string {
-  switch (e.kind) {
-    case "run.started":
-      return clip(`run : ${e.prompt}`);
-    case "agent.text":
-      return clip(e.text);
-    case "tool.requested": {
-      const detail =
-        typeof e.input.command === "string"
-          ? e.input.command
-          : Object.keys(e.input).length > 0
-            ? JSON.stringify(e.input)
-            : "";
-      return clip(`${e.tool} ${detail}`);
-    }
-    case "approval.decided":
-      return clip(`${e.decision} (${e.source}) : ${e.reason}`);
-    case "tool.result":
-      return clip(e.output);
-    case "process.started":
-      return clip(e.argv.join(" "));
-    case "process.output":
-      return clip(e.line);
-    case "process.exited":
-      return `exit ${e.code ?? e.signal} · ${e.durationMs} ms`;
-    case "run.finished":
-      return `${e.status} · ${e.turns} tours · $${e.costUsd.toFixed(4)}`;
-    case "error":
-    case "sink.error":
-      return clip(e.message);
-    case "session.started":
-      return clip(`session ${e.model} · ${e.tools.length} outils`);
-    case "agent.thinking":
-      return e.redacted ? "réflexion (masquée)" : clip(`réflexion : ${e.text}`);
-    case "permission.denied":
-      return clip(`refusé par le SDK : ${e.tool} · ${e.message}`);
-    case "api.retry":
-      return `nouvel essai ${e.attempt}/${e.maxRetries} · ${e.error}`;
-    case "task.updated":
-      return clip(`tâche ${e.phase} : ${e.description ?? e.summary ?? e.taskId}`);
-    case "rate.limited":
-      return clip(`limite d'usage : ${e.status}`);
-    case "journal.truncated":
-      return `journal tronqué · ${e.droppedEvents} événements perdus`;
-  }
-}
 
 function statusOf(e: EngineEvent): GraphNode["status"] {
   switch (e.kind) {
@@ -158,7 +105,7 @@ export function buildGraph(
       kind: e.kind,
       seq: e.seq,
       ts: e.ts,
-      label: labelOf(e),
+      event: e,
       depth: parent ? parent.depth + 1 : 0,
       ...(status && { status }),
       ...(e.kind === "process.started" && { output: { stdout: 0, stderr: 0, tail: [] } }),

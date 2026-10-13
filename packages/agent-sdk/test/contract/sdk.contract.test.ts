@@ -84,7 +84,10 @@ async function realRun(prompt: string, cwd: string, extra: { docker?: string } =
         ]
       : [],
   });
-  const summary = await runner.run({ prompt, cwd, maxTurns: 6, ...(MODEL && { model: MODEL }) }, { recorder, gate });
+  const summary = await runner.run(
+    { prompt, cwd, maxTurns: 6, ...(MODEL && { model: MODEL }) },
+    { recorder, gate },
+  );
   console.info(
     `[contrat] ${prompt.slice(0, 40)}… → messages SDK : ${[...new Set(seen)].join(", ")}`,
   );

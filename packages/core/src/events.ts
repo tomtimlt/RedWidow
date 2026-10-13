@@ -1,7 +1,11 @@
 /**
  * Modèle d'événements du moteur. Tout ce que le moteur produit passe par ici :
  * les UI (CLI, export HTML, extension VS Code) ne consomment que ces objets.
+ * Les motifs et erreurs sont des codes (`Reason`) : les libellés vivent dans
+ * `@john-studio/messages`.
  */
+
+import { type ErrorInfo, type Reason, reason } from "./reason.js";
 
 /** Version du schéma d'événements écrite dans chaque événement (`v`). */
 export const EVENT_SCHEMA_VERSION = 1;
@@ -50,7 +54,7 @@ export type EventPayload =
       toolUseId: string;
       decision: Decision;
       source: "policy" | "user";
-      reason: string;
+      reason: Reason;
     }
   | {
       kind: "permission.denied";
@@ -125,7 +129,7 @@ export type EventPayload =
       /** Messages SDK non traduits en événements, comptés par `type/subtype`. */
       unhandledMessages?: Record<string, number>;
     }
-  | { kind: "error"; message: string }
+  | ({ kind: "error" } & ErrorInfo)
   | {
       /** Un abonné (sink) a levé une exception ; émis vers les autres abonnés. */
       kind: "sink.error";
@@ -163,14 +167,31 @@ export type EventOf<K extends EventKind> = Extract<EngineEvent, { kind: K }>;
 // ---------------------------------------------------------------------------
 
 type Obj = Record<string, unknown>;
-/** Validateur d'une charge utile : message d'erreur, ou `null` si valide. */
-export type PayloadValidator = (payload: Obj) => string | null;
+/** Validateur d'une charge utile : motif d'invalidité, ou `null` si valide. */
+export type PayloadValidator = (payload: Obj) => Reason | null;
 
 /**
  * Descripteur de champ : `string`, `number`, `boolean`, `object`, `string[]`,
  * `enum:a,b`, avec `?` (champ optionnel) et/ou `|null` (null admis) en suffixe.
  */
 type FieldType = string;
+
+/** Un motif : `code` texte, `params` (chaînes ou nombres) et `cause` (motif) optionnels. */
+function isReason(value: unknown): boolean {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const r = value as Obj;
+  if (typeof r.code !== "string") return false;
+  if (r.params !== undefined) {
+    const p = r.params;
+    const ok =
+      typeof p === "object" &&
+      p !== null &&
+      !Array.isArray(p) &&
+      Object.values(p).every((v) => typeof v === "string" || typeof v === "number");
+    if (!ok) return false;
+  }
+  return r.cause === undefined || isReason(r.cause);
+}
 
 function matches(value: unknown, type: string): boolean {
   if (type === "string") return typeof value === "string";
@@ -179,6 +200,7 @@ function matches(value: unknown, type: string): boolean {
   if (type === "object")
     return typeof value === "object" && value !== null && !Array.isArray(value);
   if (type === "string[]") return Array.isArray(value) && value.every((i) => typeof i === "string");
+  if (type === "reason") return isReason(value);
   if (type.startsWith("enum:"))
     return type
       .slice(5)
@@ -198,10 +220,10 @@ function shape(fields: Record<string, FieldType>): PayloadValidator {
       const value = payload[name];
       if (value === undefined) {
         if (optional) continue;
-        return `${name} manquant`;
+        return reason("event.missingField", { field: name });
       }
       if (value === null && nullable) continue;
-      if (!matches(value, type)) return `${name} invalide`;
+      if (!matches(value, type)) return reason("event.invalidField", { field: name });
     }
     return null;
   };
@@ -229,7 +251,7 @@ export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
     toolUseId: "string",
     decision: "enum:allow,deny",
     source: "enum:policy,user",
-    reason: "string",
+    reason: "reason",
   }),
   "permission.denied": shape({
     toolUseId: "string",
@@ -291,19 +313,29 @@ export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
       result: "string|null",
       unhandledMessages: "object?",
     })(p) ?? countsError(p.unhandledMessages),
-  error: shape({ message: "string" }),
+  error: shape({
+    code: "string",
+    params: "object?",
+    cause: "reason?",
+    message: "string?",
+  }),
   "sink.error": shape({ message: "string" }),
   "journal.truncated": shape({ limitBytes: "number", droppedEvents: "number" }),
 };
 
-function prefix(name: string, error: string | null): string | null {
-  return error === null ? null : `${name}.${error}`;
+/** Préfixe le champ fautif d'un motif de validation par le nom de l'objet qui le contient. */
+function prefix(name: string, error: Reason | null): Reason | null {
+  if (error === null) return null;
+  const field = error.params?.field;
+  return field === undefined
+    ? error
+    : { ...error, params: { ...error.params, field: `${name}.${String(field)}` } };
 }
 
-function countsError(value: unknown): string | null {
+function countsError(value: unknown): Reason | null {
   if (value === undefined) return null;
   const ok = Object.values(value as Obj).every((n) => typeof n === "number");
-  return ok ? null : "unhandledMessages invalide";
+  return ok ? null : reason("event.invalidField", { field: "unhandledMessages" });
 }
 
 export const EVENT_KINDS: readonly EventKind[] = Object.keys(EVENT_VALIDATORS) as EventKind[];
@@ -314,23 +346,30 @@ export function isEventKind(value: unknown): value is EventKind {
 
 /**
  * Valide un événement complet (métadonnées + charge utile par `kind`).
- * Renvoie un message d'erreur, ou `null`. Un `v` absent vaut 1 ; un `v`
+ * Renvoie le motif d'invalidité, ou `null`. Un `v` absent vaut 1 ; un `v`
  * supérieur à `EVENT_SCHEMA_VERSION` est signalé (le format est inconnu).
  */
-export function validateEvent(value: unknown): string | null {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return "objet attendu";
+export function validateEvent(value: unknown): Reason | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return reason("event.notObject");
+  }
   const v = value as Obj;
-  if (!isEventKind(v.kind)) return `kind inconnu : ${String(v.kind)}`;
+  if (!isEventKind(v.kind)) return reason("event.unknownKind", { kind: String(v.kind) });
   if (v.v !== undefined) {
-    if (typeof v.v !== "number" || !Number.isInteger(v.v) || v.v < 1) return "v invalide";
+    if (typeof v.v !== "number" || !Number.isInteger(v.v) || v.v < 1) {
+      return reason("event.invalidVersion");
+    }
     if (v.v > EVENT_SCHEMA_VERSION) {
-      return `version de schéma ${v.v} non prise en charge (connue : ${EVENT_SCHEMA_VERSION})`;
+      return reason("event.unsupportedVersion", { version: v.v, known: EVENT_SCHEMA_VERSION });
     }
   }
-  if (typeof v.id !== "string") return "id manquant";
-  if (typeof v.seq !== "number") return "seq manquant";
-  if (typeof v.ts !== "string") return "ts manquant";
-  if (typeof v.runId !== "string") return "runId manquant";
-  if (v.parentId !== null && typeof v.parentId !== "string") return "parentId invalide";
+  const missing = (field: string) => reason("event.missingField", { field });
+  if (typeof v.id !== "string") return missing("id");
+  if (typeof v.seq !== "number") return missing("seq");
+  if (typeof v.ts !== "string") return missing("ts");
+  if (typeof v.runId !== "string") return missing("runId");
+  if (v.parentId !== null && typeof v.parentId !== "string") {
+    return reason("event.invalidField", { field: "parentId" });
+  }
   return EVENT_VALIDATORS[v.kind](v);
 }

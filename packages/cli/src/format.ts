@@ -1,12 +1,7 @@
 import type { EngineEvent } from "@john-studio/core";
+import { formatError, formatReason, summarizeOutput } from "@john-studio/messages";
 
-const SUMMARY_MAX = 200;
-
-/** Résumé d'une sortie d'outil sur une ligne (le journal garde le texte complet). */
-export function summarizeOutput(text: string, max = SUMMARY_MAX): string {
-  const flat = text.replace(/\s+/g, " ").trim();
-  return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
-}
+export { summarizeOutput };
 
 export interface FormatOptions {
   color: boolean;
@@ -41,7 +36,7 @@ export function formatEvent(e: EngineEvent, { color, verbose }: FormatOptions): 
       return `${tag("magenta", "tool")} ${nested}${e.tool} ${paint("dim", detail)}`;
     }
     case "approval.decided":
-      return `${tag(e.decision === "allow" ? "green" : "red", e.decision)} ${paint("dim", `[${e.source}] ${e.reason}`)}`;
+      return `${tag(e.decision === "allow" ? "green" : "red", e.decision)} ${paint("dim", `[${e.source}] ${formatReason(e.reason)}`)}`;
     case "tool.result": {
       const more = e.truncated ? paint("dim", ` [tronqué : ${e.bytes} octets]`) : "";
       return `${tag(e.isError ? "red" : "dim", "result")} ${summarizeOutput(e.output)}${more}`;
@@ -63,7 +58,7 @@ export function formatEvent(e: EngineEvent, { color, verbose }: FormatOptions): 
       return `${tag(e.status === "success" ? "green" : "red", e.status)} ${e.turns} tours · $${e.costUsd.toFixed(4)}${extra}`;
     }
     case "error":
-      return `${tag("red", "error")} ${e.message}`;
+      return `${tag("red", "error")} ${formatError(e)}`;
     case "session.started":
       return `${tag("dim", "session")} ${e.model} ${paint("dim", `${e.sessionId} · ${e.tools.length} outils`)}`;
     case "agent.thinking":

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
+import { type Reason, reason } from "../reason.js";
 import { DEFAULT_POLICY, type Policy, parsePolicy } from "./policy.js";
 
 /** Politique propre au dépôt de travail, lue seulement si son empreinte a été approuvée. */
@@ -13,11 +14,11 @@ export type PolicyOrigin = "explicit" | "repository" | "user" | "builtin";
 
 export interface LoadedPolicy {
   policy: Policy;
-  /** Fichier d'origine, ou « intégrée ». */
-  source: string;
+  /** Fichier d'origine ; `null` pour la politique intégrée (`origin: "builtin"`). */
+  source: string | null;
   origin: PolicyOrigin;
   /** Présent quand un fichier du dépôt a été ignoré faute d'approbation. */
-  warning?: string;
+  warning?: Reason;
 }
 
 /** Répertoire de configuration utilisateur : XDG, `%APPDATA%` ou `~/.config`. */
@@ -118,7 +119,7 @@ export async function loadPolicy({
     };
   }
 
-  let warning: string | undefined;
+  let warning: Reason | undefined;
   const repoPath = resolve(cwd, REPO_POLICY_PATH);
   const repoText = await readIfExists(repoPath);
   if (repoText !== null) {
@@ -127,10 +128,10 @@ export async function loadPolicy({
     if (trusted === digest) {
       return { policy: parsePolicy(JSON.parse(repoText)), source: repoPath, origin: "repository" };
     }
-    warning =
-      trusted === undefined
-        ? `politique du dépôt ignorée (non approuvée) : ${repoPath} [sha256 ${digest.slice(0, 12)}]. Après relecture : john policy trust`
-        : `politique du dépôt ignorée (modifiée depuis son approbation) : ${repoPath} [sha256 ${digest.slice(0, 12)}]. Après relecture : john policy trust`;
+    warning = reason(trusted === undefined ? "policy.repo.untrusted" : "policy.repo.modified", {
+      path: repoPath,
+      digest: digest.slice(0, 12),
+    });
   }
 
   const userPath = join(configDir, USER_POLICY_FILE);
@@ -145,7 +146,7 @@ export async function loadPolicy({
   }
   return {
     policy: DEFAULT_POLICY,
-    source: "intégrée",
+    source: null,
     origin: "builtin",
     ...(warning && { warning }),
   };

@@ -14,11 +14,14 @@ import {
   capOutput,
   DEFAULT_MAX_RESULT_BYTES,
   type EventOf,
+  errorInfo,
   type RunContext,
   type RunInput,
   type RunSummary,
+  reason,
   type TaskUsage,
 } from "@john-studio/core";
+import { formatReason } from "@john-studio/messages";
 import { ToolCallRegistry, toolUseIdFromExtra } from "./correlation.js";
 import type { ResolvedCall, Toolset } from "./toolset.js";
 
@@ -64,6 +67,9 @@ export interface SdkRunnerOptions {
 
 /** Outils natifs exposés par défaut : lecture seule. */
 export const DEFAULT_BUILTIN_TOOLS: readonly string[] = ["Read", "Glob", "Grep"];
+
+/** Préfixe des refus renvoyés au modèle ; le motif suit, libellé en français par `@john-studio/messages`. */
+const REFUSAL_PREFIX = "Refusé par john-studio : ";
 
 /** Une approbation interactive peut attendre longtemps : le hook ne doit pas expirer avant l'humain. */
 const HOOK_TIMEOUT_S = 24 * 60 * 60;
@@ -220,8 +226,8 @@ async function runWithSdk(
         permissionDecision: outcome.decision,
         permissionDecisionReason:
           outcome.decision === "allow"
-            ? outcome.reason
-            : `Refusé par john-studio : ${outcome.reason}`,
+            ? formatReason(outcome.reason)
+            : `${REFUSAL_PREFIX}${formatReason(outcome.reason)}`,
       },
     };
   };
@@ -230,18 +236,13 @@ async function runWithSdk(
   const canUseTool: CanUseTool = async (tool, input, { toolUseID }) => {
     const decision = decisions.get(toolUseID);
     if (!decision) {
-      recorder.emit(
-        {
-          kind: "error",
-          message: `canUseTool appelé sans décision PreToolUse (${tool}, ${toolUseID}) : refusé`,
-        },
-        root.id,
-      );
-      return { behavior: "deny", message: "Refusé par john-studio : appel non routé par la garde" };
+      const unrouted = reason("guard.unrouted", { tool, toolUseId: toolUseID });
+      recorder.emit({ kind: "error", ...unrouted }, root.id);
+      return { behavior: "deny", message: `${REFUSAL_PREFIX}${formatReason(unrouted)}` };
     }
     const outcome = await decision;
     if (outcome.decision !== "allow") {
-      return { behavior: "deny", message: `Refusé par john-studio : ${outcome.reason}` };
+      return { behavior: "deny", message: `${REFUSAL_PREFIX}${formatReason(outcome.reason)}` };
     }
     return { behavior: "allow", updatedInput: input };
   };
@@ -494,10 +495,7 @@ async function runWithSdk(
       }
     }
   } catch (err) {
-    recorder.emit(
-      { kind: "error", message: err instanceof Error ? err.message : String(err) },
-      root.id,
-    );
+    recorder.emit({ kind: "error", ...errorInfo(err) }, root.id);
     summary = { ...summary, status: "error" };
   } finally {
     signal?.removeEventListener("abort", onAbort);

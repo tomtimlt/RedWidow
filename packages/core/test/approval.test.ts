@@ -14,11 +14,12 @@ import {
   type PolicyContext,
   parsePolicy,
   parseShell,
+  ValidationError,
 } from "../src/index.js";
 
 const parsed = (cmd: string) => {
   const r = parseShell(cmd);
-  if (!r.ok) throw new Error(r.error);
+  if (!r.ok) throw new Error(r.error.code);
   return r.value;
 };
 
@@ -61,7 +62,17 @@ describe("parseShell", () => {
   });
 
   it("échoue sur un guillemet non fermé", () => {
-    expect(parseShell("echo 'abc").ok).toBe(false);
+    expect(parseShell("echo 'abc")).toEqual({
+      ok: false,
+      error: { code: "shell.unclosedQuote", params: { quote: "'" } },
+    });
+  });
+
+  it("échoue sur un backslash final", () => {
+    expect(parseShell("echo abc\\")).toEqual({
+      ok: false,
+      error: { code: "shell.trailingBackslash" },
+    });
   });
 });
 
@@ -126,6 +137,41 @@ describe("evaluatePolicy", () => {
     expect(bash("docker start web", p)).toBe("allow");
   });
 
+  it("expose le motif sous forme de code et de paramètres", () => {
+    const why = (tool: string, input: Record<string, unknown>, policy: Policy = DEFAULT_POLICY) =>
+      evaluatePolicy(policy, tool, input).reason;
+    expect(why("Bash", { command: "docker ps -a" })).toEqual({
+      code: "policy.rule",
+      params: { index: 3, decision: "allow", target: "Bash(docker ps *)" },
+    });
+    expect(why("mcp__docker__rm", {})).toEqual({
+      code: "policy.rule.custom",
+      params: { text: "suppression de conteneur : à faire à la main" },
+    });
+    expect(why("Write", { file_path: "x" })).toEqual({
+      code: "policy.default",
+      params: { tool: "Write" },
+    });
+    expect(why("Bash", { command: "docker run -d nginx" })).toEqual({
+      code: "bash.noRule",
+      params: { command: "docker run -d nginx" },
+    });
+    expect(why("Bash", { command: "docker ps $(id) > x" })).toEqual({
+      code: "bash.hazard",
+      params: { hazards: "substitution,redirect" },
+    });
+    expect(why("Bash", { command: "docker run -v /:/h alpine" })).toEqual({
+      code: "docker.hostAccess",
+      params: { flag: "-v" },
+    });
+    expect(why("Bash", { command: "echo 'x" })).toEqual({
+      code: "bash.unparseable",
+      cause: { code: "shell.unclosedQuote", params: { quote: "'" } },
+    });
+    expect(why("Bash", { command: "  " })).toEqual({ code: "bash.empty" });
+    expect(why("Bash", {})).toEqual({ code: "bash.missingCommand" });
+  });
+
   it("rapporte l'index de la règle dans policy.rules", () => {
     const rm = DEFAULT_POLICY.rules.findIndex((r) => r.command === "rm *");
     expect(evaluatePolicy(DEFAULT_POLICY, "Bash", { command: "rm -rf /" }).rule).toBe(rm);
@@ -172,7 +218,32 @@ describe("parsePolicy", () => {
     [{ rules: [{ tool: "Bash", decision: "yes" }] }],
     [{ rules: [{ decision: "allow" }] }],
   ])("rejette %j", (raw) => {
-    expect(() => parsePolicy(raw)).toThrow(/politique invalide/);
+    expect(() => parsePolicy(raw)).toThrow(ValidationError);
+    expect(() => parsePolicy(raw)).toThrow(/policy\.invalid\./);
+  });
+
+  it("décrit le champ fautif par un code et des paramètres", () => {
+    const codeOf = (raw: unknown) => {
+      try {
+        parsePolicy(raw);
+      } catch (err) {
+        return err instanceof ValidationError ? { code: err.code, params: err.params } : err;
+      }
+    };
+    expect(codeOf(null)).toEqual({ code: "policy.invalid.object", params: undefined });
+    expect(codeOf({ default: "maybe", rules: [] })).toEqual({
+      code: "policy.invalid.default",
+      params: { value: "maybe" },
+    });
+    expect(codeOf({ rules: "x" })).toMatchObject({ code: "policy.invalid.rules" });
+    expect(codeOf({ rules: [1] })).toEqual({
+      code: "policy.invalid.ruleObject",
+      params: { index: 0 },
+    });
+    expect(codeOf({ rules: [{ tool: "Bash", decision: "yes" }] })).toEqual({
+      code: "policy.invalid.ruleField",
+      params: { index: 0, field: "decision" },
+    });
   });
 });
 
@@ -209,6 +280,10 @@ describe("createApprovalGate", () => {
       signal,
     );
     expect(out.decision).toBe("deny");
+    expect(out.reason).toEqual({
+      code: "approval.noAsker",
+      cause: { code: "bash.noRule", params: { command: "docker run x" } },
+    });
   });
 
   it("délègue les cas ask à l'approbateur", async () => {
@@ -243,6 +318,20 @@ describe("createApprovalGate", () => {
       signal,
     );
     expect(out.decision).toBe("deny");
+    expect(out.reason).toEqual({
+      code: "approval.interrupted",
+      cause: { code: "error.unknown", message: "aborted" },
+    });
+  });
+
+  it("journalise le motif structuré dans approval.decided", async () => {
+    const { gate, events } = setup();
+    await gate.decide({ toolUseId: "t", tool: "Bash", input: { command: "sudo ls" } }, signal);
+    expect(events[0]).toMatchObject({
+      kind: "approval.decided",
+      decision: "deny",
+      reason: { code: "policy.rule", params: { decision: "deny", target: "Bash(sudo *)" } },
+    });
   });
 });
 

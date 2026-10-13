@@ -1,7 +1,8 @@
 import { realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
-import { matchCommand, parseShell, programName, type ShellHazard } from "./shell.js";
+import { type Reason, reason, ValidationError } from "../reason.js";
+import { matchCommand, parseShell, programName } from "./shell.js";
 
 export type RuleDecision = "allow" | "ask" | "deny";
 
@@ -21,7 +22,7 @@ export interface Policy {
 
 export interface PolicyVerdict {
   decision: RuleDecision;
-  reason: string;
+  reason: Reason;
   /** Index de la règle déterminante, `null` si défaut ou analyse. */
   rule: number | null;
 }
@@ -71,9 +72,10 @@ function toolMatches(rule: PolicyRule, tool: string): boolean {
   return rule.tool === tool || (rule.tool.includes("*") && globToRegExp(rule.tool).test(tool));
 }
 
-function describe(rule: PolicyRule, index: number): string {
+function describe(rule: PolicyRule, index: number): Reason {
+  if (rule.reason !== undefined) return reason("policy.rule.custom", { text: rule.reason });
   const target = rule.command ? `${rule.tool}(${rule.command})` : rule.tool;
-  return rule.reason ?? `règle #${index} ${rule.decision} ${target}`;
+  return reason("policy.rule", { index, decision: rule.decision, target });
 }
 
 /** Première règle d'une décision donnée qui correspond, par ordre de précédence. */
@@ -89,15 +91,6 @@ function firstMatch(
   }
   return null;
 }
-
-const HAZARD_LABEL: Record<ShellHazard, string> = {
-  substitution: "substitution de commande",
-  expansion: "expansion non résolue statiquement",
-  redirect: "redirection",
-  assignment: "affectation de variable en préfixe",
-  background: "exécution en arrière-plan",
-  indirection: "exécute une autre commande (bash -c, env, xargs, find -exec…)",
-};
 
 const CONTAINER_ENGINES = new Set(["docker", "podman"]);
 const RUN_SUBCOMMANDS = new Set(["run", "create"]);
@@ -147,11 +140,15 @@ function evaluateBash(policy: Policy, command: string): PolicyVerdict {
 
   const parsed = parseShell(command);
   if (!parsed.ok) {
-    return { decision: notAuto, reason: `commande non analysable : ${parsed.error}`, rule: null };
+    return {
+      decision: notAuto,
+      reason: reason("bash.unparseable", undefined, parsed.error),
+      rule: null,
+    };
   }
   const { segments, hazards } = parsed.value;
   if (segments.length === 0) {
-    return { decision: notAuto, reason: "commande vide", rule: null };
+    return { decision: notAuto, reason: reason("bash.empty"), rule: null };
   }
 
   const verdicts = segments.map(
@@ -162,7 +159,7 @@ function evaluateBash(policy: Policy, command: string): PolicyVerdict {
           toolMatches(r, BASH_TOOL) && (r.command === undefined || matchCommand(r.command, argv)),
       ) ?? {
         decision: policy.default,
-        reason: `aucune règle pour « ${argv.join(" ")} »`,
+        reason: reason("bash.noRule", { command: argv.join(" ") }),
         rule: null,
       },
   );
@@ -175,15 +172,18 @@ function evaluateBash(policy: Policy, command: string): PolicyVerdict {
     if (hazard) {
       return {
         decision: "deny",
-        reason: `conteneur avec accès à l'hôte (${hazard}) : à faire à la main`,
+        reason: reason("docker.hostAccess", { flag: hazard }),
         rule: null,
       };
     }
   }
 
   if (hazards.size > 0) {
-    const labels = [...hazards].map((h) => HAZARD_LABEL[h]).join(", ");
-    return { decision: notAuto, reason: `non approuvable automatiquement : ${labels}`, rule: null };
+    return {
+      decision: notAuto,
+      reason: reason("bash.hazard", { hazards: [...hazards].join(",") }),
+      rule: null,
+    };
   }
 
   return verdicts.reduce((acc, v) => (STRICTNESS[v.decision] > STRICTNESS[acc.decision] ? v : acc));
@@ -309,7 +309,11 @@ function checkPaths(
     const absolute = isAbsolute(expanded) ? expanded : resolve(ctx.cwd, expanded);
     for (const path of [resolve(absolute), canonical(absolute, realpath)]) {
       if (sensitive.some((s) => isInside(s, path))) {
-        return { decision: "deny", reason: `chemin sensible : ${candidate}`, rule: null };
+        return {
+          decision: "deny",
+          reason: reason("path.sensitive", { path: candidate }),
+          rule: null,
+        };
       }
     }
     if (!roots.some((root) => isInside(root, canonical(absolute, realpath)))) {
@@ -319,7 +323,7 @@ function checkPaths(
   if (outside !== null) {
     return {
       decision: stricter("ask", policy.default),
-      reason: `chemin hors de l'espace de travail : ${outside}`,
+      reason: reason("path.outside", { path: outside }),
       rule: null,
     };
   }
@@ -345,14 +349,18 @@ export function evaluatePolicy(
   if (tool === BASH_TOOL) {
     const command = input.command;
     if (typeof command !== "string") {
-      return { decision: stricter("ask", policy.default), reason: "commande absente", rule: null };
+      return {
+        decision: stricter("ask", policy.default),
+        reason: reason("bash.missingCommand"),
+        rule: null,
+      };
     }
     return evaluateBash(policy, command);
   }
   return (
     firstMatch(policy.rules, (r) => r.command === undefined && toolMatches(r, tool)) ?? {
       decision: policy.default,
-      reason: `aucune règle pour l'outil ${tool}`,
+      reason: reason("policy.default", { tool }),
       rule: null,
     }
   );
@@ -360,29 +368,33 @@ export function evaluatePolicy(
 
 const DECISIONS = new Set<string>(["allow", "ask", "deny"]);
 
-/** Valide une politique issue d'un fichier JSON. Lève une erreur explicite. */
+/** Valide une politique issue d'un fichier JSON. Lève une `ValidationError` (codes `policy.invalid.*`). */
 export function parsePolicy(raw: unknown): Policy {
-  const fail = (msg: string): never => {
-    throw new Error(`politique invalide : ${msg}`);
-  };
-  if (typeof raw !== "object" || raw === null) fail("objet attendu");
+  if (typeof raw !== "object" || raw === null) throw new ValidationError("policy.invalid.object");
   const obj = raw as Record<string, unknown>;
   const def = obj.default ?? "ask";
-  if (typeof def !== "string" || !DECISIONS.has(def)) fail(`default « ${String(def)} »`);
-  if (!Array.isArray(obj.rules)) fail("rules doit être un tableau");
+  if (typeof def !== "string" || !DECISIONS.has(def)) {
+    throw new ValidationError("policy.invalid.default", { value: String(def) });
+  }
+  if (!Array.isArray(obj.rules)) throw new ValidationError("policy.invalid.rules");
 
-  const rules = (obj.rules as unknown[]).map((r, i): PolicyRule => {
-    if (typeof r !== "object" || r === null) return fail(`rules[${i}] objet attendu`);
-    const { tool, command, decision, reason } = r as Record<string, unknown>;
-    if (typeof tool !== "string" || tool === "") fail(`rules[${i}].tool`);
-    if (typeof decision !== "string" || !DECISIONS.has(decision)) fail(`rules[${i}].decision`);
-    if (command !== undefined && typeof command !== "string") fail(`rules[${i}].command`);
-    if (reason !== undefined && typeof reason !== "string") fail(`rules[${i}].reason`);
+  const rules = (obj.rules as unknown[]).map((r, index): PolicyRule => {
+    const field = (name: string): never => {
+      throw new ValidationError("policy.invalid.ruleField", { index, field: name });
+    };
+    if (typeof r !== "object" || r === null) {
+      throw new ValidationError("policy.invalid.ruleObject", { index });
+    }
+    const { tool, command, decision, reason: text } = r as Record<string, unknown>;
+    if (typeof tool !== "string" || tool === "") field("tool");
+    if (typeof decision !== "string" || !DECISIONS.has(decision)) field("decision");
+    if (command !== undefined && typeof command !== "string") field("command");
+    if (text !== undefined && typeof text !== "string") field("reason");
     return {
       tool: tool as string,
       decision: decision as RuleDecision,
       ...(command !== undefined && { command: command as string }),
-      ...(reason !== undefined && { reason: reason as string }),
+      ...(text !== undefined && { reason: text as string }),
     };
   });
 

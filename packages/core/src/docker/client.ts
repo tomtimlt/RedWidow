@@ -1,5 +1,6 @@
 import type { Correlation } from "../events.js";
 import { type ProcessResult, runProcess } from "../process/run.js";
+import { CodedError, type ReasonParams, ValidationError } from "../reason.js";
 import type { Recorder } from "../recorder.js";
 
 export interface ContainerSummary {
@@ -11,13 +12,13 @@ export interface ContainerSummary {
   ports: string;
 }
 
-export class DockerError extends Error {
+/** Échec d'une commande docker (code de sortie ≠ 0) : code `docker.failed`, résultat complet en plus. */
+export class DockerError extends CodedError {
   constructor(
-    message: string,
+    params: ReasonParams,
     readonly result: ProcessResult,
   ) {
-    super(message);
-    this.name = "DockerError";
+    super("docker.failed", params);
   }
 }
 
@@ -83,12 +84,15 @@ const OPERAND = /^[A-Za-z0-9][A-Za-z0-9_.:@/-]*$/;
 const ENV_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const PORT = /^(?:[0-9.]+:)?\d+(?:-\d+)?:\d+(?:-\d+)?(?:\/(?:tcp|udp))?$/;
 
+/** Nature d'un opérande, clé de libellé (traduite par `@john-studio/messages`). */
+export type DockerOperandLabel = "container" | "name" | "image" | "target" | "since";
+
 /**
  * Refuse tout opérande (conteneur, image) pouvant être pris pour une option
  * docker ou contenir des espaces/caractères de contrôle.
  */
-export function assertOperand(value: string, label: string): string {
-  if (!OPERAND.test(value)) throw new RangeError(`${label} invalide : « ${value} »`);
+export function assertOperand(value: string, label: DockerOperandLabel): string {
+  if (!OPERAND.test(value)) throw new ValidationError("docker.invalidOperand", { label, value });
   return value;
 }
 
@@ -151,7 +155,12 @@ export function createDockerClient({
     const result = await exec(args, options);
     if (result.code !== 0) {
       throw new DockerError(
-        `${binary} ${what} a échoué (code ${result.code}) : ${result.stderr.join("\n")}`,
+        {
+          binary,
+          command: what,
+          exitCode: result.code ?? "null",
+          stderr: result.stderr.join("\n"),
+        },
         result,
       );
     }
@@ -175,27 +184,28 @@ export function createDockerClient({
     async logs(container, { tail, since, ...call } = {}) {
       const args = ["logs"];
       if (tail !== undefined) {
-        if (!Number.isInteger(tail) || tail < 0) throw new RangeError(`tail invalide : ${tail}`);
+        if (!Number.isInteger(tail) || tail < 0)
+          throw new ValidationError("docker.invalidTail", { value: tail });
         args.push("--tail", String(tail));
       }
       if (since !== undefined) args.push("--since", assertOperand(since, "since"));
-      args.push(assertOperand(container, "conteneur"));
+      args.push(assertOperand(container, "container"));
       const r = await checked("logs", args, call);
       return [...r.stdout, ...r.stderr];
     },
     async inspect(target, call = {}) {
-      const r = await checked("inspect", ["inspect", assertOperand(target, "cible")], call);
+      const r = await checked("inspect", ["inspect", assertOperand(target, "target")], call);
       return JSON.parse(r.stdout.join("\n")) as unknown;
     },
     async run({ image, name, ports = [], env = {}, command = [], ...call }) {
       const args = ["run", "--detach"];
-      if (name !== undefined) args.push("--name", assertOperand(name, "nom"));
+      if (name !== undefined) args.push("--name", assertOperand(name, "name"));
       for (const port of ports) {
-        if (!PORT.test(port)) throw new RangeError(`port invalide : « ${port} »`);
+        if (!PORT.test(port)) throw new ValidationError("docker.invalidPort", { value: port });
         args.push("--publish", port);
       }
       for (const [key, value] of Object.entries(env)) {
-        if (!ENV_KEY.test(key)) throw new RangeError(`variable invalide : « ${key} »`);
+        if (!ENV_KEY.test(key)) throw new ValidationError("docker.invalidEnvKey", { key });
         args.push("--env", `${key}=${value}`);
       }
       args.push(assertOperand(image, "image"), ...command);
@@ -203,15 +213,15 @@ export function createDockerClient({
       return r.stdout[0]?.trim() ?? "";
     },
     async start(container, call = {}) {
-      await checked("start", ["start", assertOperand(container, "conteneur")], call);
+      await checked("start", ["start", assertOperand(container, "container")], call);
     },
     async stop(container, call = {}) {
-      await checked("stop", ["stop", assertOperand(container, "conteneur")], call);
+      await checked("stop", ["stop", assertOperand(container, "container")], call);
     },
     async rm(container, { force = false, ...call } = {}) {
       await checked(
         "rm",
-        ["rm", ...(force ? ["--force"] : []), assertOperand(container, "conteneur")],
+        ["rm", ...(force ? ["--force"] : []), assertOperand(container, "container")],
         call,
       );
     },

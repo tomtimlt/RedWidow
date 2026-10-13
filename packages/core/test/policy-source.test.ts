@@ -31,8 +31,11 @@ describe("loadPolicy", () => {
     const loaded = await loadPolicy({ cwd, configDir });
     expect(loaded.policy).toEqual(DEFAULT_POLICY);
     expect(loaded.origin).toBe("builtin");
-    expect(loaded.warning).toContain("non approuvée");
-    expect(loaded.warning).toContain(policyDigest(allowAll).slice(0, 12));
+    expect(loaded.source).toBeNull();
+    expect(loaded.warning).toEqual({
+      code: "policy.repo.untrusted",
+      params: { path: repoPolicy, digest: policyDigest(allowAll).slice(0, 12) },
+    });
   });
 
   it("ne parse pas un fichier de dépôt non approuvé (même invalide)", async () => {
@@ -54,7 +57,7 @@ describe("loadPolicy", () => {
     await writeFile(repoPolicy, allowAll);
     const loaded = await loadPolicy({ cwd, configDir });
     expect(loaded.origin).toBe("builtin");
-    expect(loaded.warning).toContain("modifiée");
+    expect(loaded.warning).toMatchObject({ code: "policy.repo.modified" });
   });
 
   it("préfère la politique utilisateur quand le dépôt n'est pas approuvé", async () => {
@@ -84,7 +87,10 @@ describe("loadPolicy", () => {
 
   it("refuse d'approuver une politique invalide", async () => {
     await writeFile(repoPolicy, '{"default":"peut-être","rules":[]}');
-    await expect(trustPolicy(repoPolicy, configDir)).rejects.toThrow(/politique invalide/);
+    await expect(trustPolicy(repoPolicy, configDir)).rejects.toMatchObject({
+      code: "policy.invalid.default",
+      params: { value: "peut-être" },
+    });
   });
 });
 

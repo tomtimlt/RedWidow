@@ -32,6 +32,29 @@ describe("renderGraphHtml", () => {
     expect(html).not.toMatch(/https?:\/\/(?!www\.w3\.org)/);
   });
 
+  it("libelle les nœuds depuis l'événement source, en échappant le texte", () => {
+    const r = createRecorder({ runId: "r2" });
+    const out = [] as ReturnType<typeof r.emit>[];
+    r.subscribe((e) => out.push(e));
+    const root = r.emit({ kind: "run.started", prompt: "p", cwd: "/" });
+    r.emit(
+      {
+        kind: "approval.decided",
+        toolUseId: "t",
+        decision: "deny",
+        source: "policy",
+        reason: { code: "path.sensitive", params: { path: "<b>~/.ssh</b>" } },
+      },
+      root.id,
+    );
+    const html = renderGraphHtml(buildGraph(out));
+    expect(html).toContain("deny (policy) : chemin sensible : &lt;b&gt;~/.ssh&lt;/b&gt;");
+    expect(html).not.toContain("<b>");
+    expect(renderGraphHtml(buildGraph(out), { locale: "en" })).toContain(
+      "deny (policy) : sensitive path:",
+    );
+  });
+
   it("gère un graphe vide", () => {
     expect(renderGraphHtml({ runId: null, runs: [], nodes: [], edges: [] })).toContain("<svg");
   });

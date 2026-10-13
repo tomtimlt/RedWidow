@@ -1,5 +1,6 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { createDockerClient, type DockerClient } from "@john-studio/core";
+import { formatError } from "@john-studio/messages";
 import { z } from "zod";
 import type { AnyMcpTool, ResolvedCall, Toolset } from "./toolset.js";
 
@@ -56,7 +57,7 @@ export function createDockerTools(
           typeof resolved === "object" && resolved ? resolved.correlation : undefined;
         return text(await run(args, { parentId, correlation, signal }));
       } catch (err) {
-        return text(err instanceof Error ? err.message : String(err), true);
+        return text(formatError(err), true);
       }
     };
   const call = (ctx: Ctx) => ({

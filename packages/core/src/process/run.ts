@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import type { Correlation } from "../events.js";
+import { CodedError, ValidationError } from "../reason.js";
 import type { Recorder } from "../recorder.js";
 import { LineSplitter } from "./lines.js";
 
@@ -80,7 +81,7 @@ export function runProcess(
   options: RunProcessOptions,
 ): Promise<ProcessResult> {
   const [file, ...args] = argv;
-  if (file === undefined) return Promise.reject(new Error("argv vide"));
+  if (file === undefined) return Promise.reject(new ValidationError("process.emptyArgv"));
   const {
     recorder,
     parentId = null,
@@ -152,7 +153,7 @@ export function runProcess(
         startEvent.id,
       );
       if (spawnError && (spawnError as NodeJS.ErrnoException).code === "ENOENT") {
-        reject(new Error(`binaire introuvable : ${file}`));
+        reject(new CodedError("process.notFound", { binary: file }));
         return;
       }
       resolve({ code, signal, durationMs, ...captured });
