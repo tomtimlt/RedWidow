@@ -268,8 +268,9 @@ posix("runProcess : terminaison du groupe", () => {
       process.kill(pid, 0);
       try {
         return !/^\d+ \(.*\) Z/.test(readFileSync(`/proc/${pid}/stat`, "utf8"));
-      } catch {
-        return true;
+      } catch (e) {
+        // Récupéré entre `kill(pid, 0)` et la lecture : le processus n'existe plus.
+        return (e as NodeJS.ErrnoException).code !== "ENOENT";
       }
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code === "ESRCH") return false;
