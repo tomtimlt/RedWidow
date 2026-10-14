@@ -215,6 +215,17 @@ export function programName(word: string | undefined): string {
     .replace(PROGRAM_EXTENSION, "");
 }
 
+/** Interpréteurs de langage (en plus des enveloppes `WRAPPERS`) : ils exécutent du code arbitraire. */
+const INTERPRETER_PROGRAMS = /^(python[\d.]*|node|nodejs|deno|bun|perl|ruby|php|lua|busybox)$/;
+
+/**
+ * `true` si `argv[0]` est un interpréteur ou une enveloppe (`sh`, `python3`, `env`, `find -exec`…) :
+ * le motif de commande ne dit pas ce qui sera réellement exécuté. Sert au bac à sable (ADR 0003 D).
+ */
+export function isInterpreterArgv(argv: readonly string[]): boolean {
+  return runsOtherCommand(argv) || INTERPRETER_PROGRAMS.test(programName(argv[0]));
+}
+
 function runsOtherCommand(argv: readonly string[]): boolean {
   const name = programName(argv[0]);
   if (WRAPPERS.has(name)) return true;

@@ -169,6 +169,9 @@ export const reasons: Catalog = {
   "sandbox.invalidArgument": (p) =>
     `argument invalide (${text(p.field)}) : ${SANDBOX_ARGUMENT_REASONS[text(p.reason)] ?? text(p.reason)}`,
 
+  "sandbox.interpreter": (p) =>
+    `interpréteur ou enveloppe dans le bac à sable (${text(p.program)}) : la commande réelle n'est pas vérifiable, approbation requise`,
+
   "journal.invalidJson": (p) => `JSON invalide : ${text(p.message)}`,
   "event.notObject": () => "objet attendu",
   "event.unknownKind": (p) => `kind inconnu : ${text(p.kind)}`,

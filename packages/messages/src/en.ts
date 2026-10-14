@@ -14,6 +14,8 @@ export const reasons: Catalog = {
   "process.commandTooLong": (p) =>
     `command line too long for the system (${text(p.length)} characters)`,
   "sandbox.tampered": (p) => `sandbox tampered with (${text(p.field)}): execution denied`,
+  "sandbox.interpreter": (p) =>
+    `interpreter or wrapper in the sandbox (${text(p.program)}): approval required`,
   "sandbox.unavailable": () => "sandbox unavailable",
   "sandbox.unknownContainer": () => "container not in the sandbox registry: denied",
   "docker.hostAccess": (p) => `container with host access (${text(p.flag)}): do it by hand`,

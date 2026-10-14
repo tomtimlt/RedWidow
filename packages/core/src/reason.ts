@@ -92,6 +92,7 @@ export const REASON_CODES = [
   "sandbox.unknownContainer",
   "sandbox.imageUnsupported",
   "sandbox.invalidArgument",
+  "sandbox.interpreter",
   // Journal et événements
   "journal.invalidJson",
   "event.notObject",
