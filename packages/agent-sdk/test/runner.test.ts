@@ -1079,6 +1079,7 @@ describe("outil de shell inattendu à l'init", () => {
   it.each([
     [["Read", "PowerShell"], {}],
     [["Read", "PowerShell"], { bash: true }],
+    [["Read", "pwsh"], {}],
     [["Read", "Bash"], {}],
   ])("arrête le run : %j %j", async (tools, extra) => {
     const { events, after } = await runInit(tools, extra);

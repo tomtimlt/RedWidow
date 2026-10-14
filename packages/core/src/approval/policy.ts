@@ -1,6 +1,7 @@
 import { type Reason, reason, ValidationError } from "../reason.js";
 import {
   checkPathAccess,
+  defaultPlatform,
   EXTERNAL_DIRECTORY_TOOL,
   EXTERNAL_PATTERNS_FIELD,
   extractPaths,
@@ -173,7 +174,8 @@ function evaluateBash(policy: Policy, command: string): PolicyVerdict {
       firstMatch(
         policy.rules,
         (r) =>
-          toolMatches(r, BASH_TOOL) && (r.command === undefined || matchCommand(r.command, argv)),
+          toolMatches(r, BASH_TOOL) &&
+          (r.command === undefined || matchCommand(r.command, argv, r.decision === "deny")),
       ) ?? {
         decision: policy.default,
         reason: reason("bash.noRule", { command: argv.join(" ") }),
@@ -207,16 +209,14 @@ function evaluateBash(policy: Policy, command: string): PolicyVerdict {
 }
 
 /**
- * Verdict d'un shell non analysable : une règle `deny` sans motif de commande s'applique toujours
- * (casse ignorée sur le nom d'outil) ; sinon `ask` au mieux, jamais `allow` (même par une règle `*`).
+ * Verdict d'un shell non analysable : une règle `deny` visant l'outil s'applique toujours, avec ou
+ * sans motif `command:` (on ne peut pas analyser la commande : l'outil entier est refusé, au mieux) ;
+ * casse ignorée sur le nom d'outil. Sinon `ask` au mieux, jamais `allow` (même par une règle `*`).
  */
 function evaluateUnanalyzable(policy: Policy, tool: string): PolicyVerdict {
   const lower = tool.toLowerCase();
   const denied = policy.rules.findIndex(
-    (r) =>
-      r.decision === "deny" &&
-      r.command === undefined &&
-      (toolMatches(r, tool) || r.tool.toLowerCase() === lower),
+    (r) => r.decision === "deny" && (toolMatches(r, tool) || r.tool.toLowerCase() === lower),
   );
   if (denied !== -1) {
     return {
@@ -261,9 +261,10 @@ export interface PolicyContext {
   /** Saveur des chemins (défaut : dérivée de `process.platform`). Fixée par le code seulement, jamais par la politique. */
   platform?: PathPlatform;
   /**
-   * `false` quand l'outil `Bash` n'est pas confirmé POSIX (bash d'OpenCode sous win32 : son shell
-   * peut être `cmd` ou PowerShell). Il est alors traité comme un shell non analysable. Défaut : `true`
-   * (Claude : Git Bash). Fixé par le code seulement, jamais par la politique.
+   * `true` : l'outil `Bash` est confirmé POSIX (Git Bash). Sous la plateforme `win32` (celle du
+   * contexte), le défaut est fail-closed : `Bash` est un shell non analysable (bash d'OpenCode : cmd
+   * ou PowerShell) sauf déclaration explicite `true`. Hors win32, le défaut est POSIX. Fixé par le
+   * code appelant seulement, jamais par l'entrée de l'outil ni par la politique.
    */
   posixShell?: boolean;
   /** Environnement pour `HOME`, `USERPROFILE`, `APPDATA`, `LOCALAPPDATA`, `SystemRoot`, `ProgramData` (défaut : `process.env`). */
@@ -367,7 +368,7 @@ function evaluateUncapped(
   }
   if (isUnanalyzableShellTool(tool)) return evaluateUnanalyzable(policy, tool);
   if (tool === BASH_TOOL) {
-    if (ctx.posixShell === false) {
+    if (!(ctx.posixShell ?? (ctx.platform ?? defaultPlatform()) !== "win32")) {
       // Shell non confirmé POSIX : l'analyse POSIX ne vaut rien pour autoriser, seulement pour refuser.
       const command = input.command;
       const analysed = evaluatePolicyBash(policy, command);

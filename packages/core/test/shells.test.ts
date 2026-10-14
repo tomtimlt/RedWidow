@@ -24,6 +24,8 @@ describe("programName (Windows)", () => {
     ["x.com", "x"],
     ["script.ps1", "script"],
     ["cmd.exe.", "cmd"],
+    ["rm.exe::$DATA", "rm"],
+    ["CMD.EXE::$data", "cmd"],
     ["/usr/bin/env", "env"],
     ["docker", "docker"],
   ])("%s → %s", (word, name) => expect(programName(word)).toBe(name));
@@ -45,6 +47,14 @@ describe("interpréteurs Windows dans Bash", () => {
     "pwsh -c ls",
     "wsl ls",
     "start notepad",
+    "runas /user:x cmd",
+    "cscript x.vbs",
+    "WScript.exe x.vbs",
+    "mshta x.hta",
+    "rundll32 x.dll,f",
+    "forfiles /c x",
+    "conhost.exe cmd",
+    "schtasks /create",
     "echo hi && pwsh.exe -c ls",
   ])("%s est une indirection", (cmd) => expect(hazards(cmd).has("indirection")).toBe(true));
 
@@ -107,16 +117,24 @@ describe("outil PowerShell", () => {
   });
 });
 
+const DOCKER_PS: Policy = {
+  default: "ask",
+  rules: [{ tool: "Bash", command: "docker ps *", decision: "allow" }],
+};
+
 describe("Bash non confirmé POSIX (OpenCode sous win32)", () => {
   const ctx = { ...win, posixShell: false };
   it("ask / shell.unanalyzable même pour une commande autorisée par une règle", () => {
-    const v = evaluatePolicy(DEFAULT_POLICY, "Bash", { command: "docker ps" }, ctx);
+    const v = evaluatePolicy(DOCKER_PS, "Bash", { command: "docker ps" }, ctx);
     expect(v.decision).toBe("ask");
     expect(v.reason.code).toBe("shell.unanalyzable");
     expect(evaluatePolicy(ALLOW_ALL, "Bash", { command: "ls" }, ctx).decision).toBe("ask");
   });
-  it("un deny de politique reste deny", () => {
+  it("un deny de politique reste deny ; la politique par défaut (deny avec motif) refuse l'outil", () => {
     expect(evaluatePolicy(DEFAULT_POLICY, "Bash", { command: "rm -rf x" }, ctx).decision).toBe(
+      "deny",
+    );
+    expect(evaluatePolicy(DEFAULT_POLICY, "Bash", { command: "docker ps" }, ctx).decision).toBe(
       "deny",
     );
     expect(
@@ -131,14 +149,87 @@ describe("Bash non confirmé POSIX (OpenCode sous win32)", () => {
   it("commande absente : jamais allow", () => {
     expect(evaluatePolicy(ALLOW_ALL, "Bash", {}, ctx).decision).not.toBe("allow");
   });
-  it("posixShell absent ou true : comportement POSIX inchangé", () => {
-    expect(evaluatePolicy(DEFAULT_POLICY, "Bash", { command: "docker ps" }, win).decision).toBe(
+  it("win32 sans posixShell : non POSIX par défaut (fail-closed)", () => {
+    const v = evaluatePolicy(DOCKER_PS, "Bash", { command: "docker ps" }, win);
+    expect(v.decision).toBe("ask");
+    expect(v.reason.code).toBe("shell.unanalyzable");
+  });
+  it("win32 avec posixShell: true : comportement POSIX", () => {
+    expect(
+      evaluatePolicy(DOCKER_PS, "Bash", { command: "docker ps" }, { ...win, posixShell: true })
+        .decision,
+    ).toBe("allow");
+  });
+  it("hors win32, le défaut reste POSIX ; posixShell: false l'emporte", () => {
+    const posix = { cwd: "/w", platform: "posix" } as const;
+    expect(evaluatePolicy(DOCKER_PS, "Bash", { command: "docker ps" }, posix).decision).toBe(
       "allow",
     );
     expect(
-      evaluatePolicy(DEFAULT_POLICY, "Bash", { command: "docker ps" }, { ...win, posixShell: true })
+      evaluatePolicy(DOCKER_PS, "Bash", { command: "docker ps" }, { ...posix, posixShell: false })
+        .decision,
+    ).toBe("ask");
+  });
+  it("l'entrée de l'outil ne peut pas déclarer posixShell", () => {
+    expect(
+      evaluatePolicy(DOCKER_PS, "Bash", { command: "docker ps", posixShell: true }, win).decision,
+    ).toBe("ask");
+  });
+});
+
+describe("règle deny avec motif command: sur un shell non analysable", () => {
+  const deny = (tool: string): Policy => ({
+    default: "allow",
+    rules: [
+      { tool: "*", decision: "allow" },
+      { tool, command: "rm *", decision: "deny" },
+    ],
+  });
+  it.each(["PowerShell", "pwsh"])("%s : refus de l'outil entier", (tool) => {
+    expect(evaluatePolicy(deny("*"), tool, { command: "ls" }, win).decision).toBe("deny");
+  });
+  it("PowerShell nommé (casse ignorée) : refus de l'outil entier", () => {
+    expect(evaluatePolicy(deny("PowerShell"), "powershell", { command: "ls" }, win).decision).toBe(
+      "deny",
+    );
+  });
+  it("Bash non POSIX : refus de l'outil entier", () => {
+    expect(evaluatePolicy(deny("Bash"), "Bash", { command: "ls" }, win).decision).toBe("deny");
+  });
+  it("Bash POSIX : le motif reste un motif", () => {
+    expect(
+      evaluatePolicy(deny("Bash"), "Bash", { command: "ls" }, { ...win, posixShell: true })
         .decision,
     ).toBe("allow");
+  });
+});
+
+describe("deny : nom de programme normalisé ; allow : jamais", () => {
+  const posix = { cwd: "/w", platform: "posix" } as const;
+  const denyRm: Policy = {
+    default: "allow",
+    rules: [{ tool: "Bash", command: "rm *", decision: "deny" }],
+  };
+  it.each([
+    "rm.exe -rf x",
+    "/usr/bin/rm -rf x",
+    '"C:\\x\\rm.exe" -rf x',
+    "RM.EXE -rf x",
+    "rm.exe::$DATA -rf x",
+  ])("deny `rm *` attrape %s", (command) => {
+    expect(evaluatePolicy(denyRm, "Bash", { command }, posix).decision).toBe("deny");
+  });
+  it("allow `docker ps *` n'est pas élargi à ./docker.exe ni /tmp/docker", () => {
+    const allow: Policy = {
+      default: "ask",
+      rules: [{ tool: "Bash", command: "docker ps *", decision: "allow" }],
+    };
+    expect(evaluatePolicy(allow, "Bash", { command: "docker ps -a" }, posix).decision).toBe(
+      "allow",
+    );
+    for (const command of ["./docker.exe ps -a", "/tmp/docker ps -a", "docker.exe ps -a"]) {
+      expect(evaluatePolicy(allow, "Bash", { command }, posix).decision).toBe("ask");
+    }
   });
 });
 
@@ -147,6 +238,7 @@ describe("gate : jamais mémorisable", () => {
   it.each([
     ["PowerShell", {}, undefined],
     ["Bash", { command: "docker ps" }, { posixShell: false }],
+    ["Bash", { command: "docker ps" }, { platform: "win32" }],
   ] as const)(
     "%s : remember session/always ignoré, redemandé à chaque fois",
     async (tool, input, extra) => {

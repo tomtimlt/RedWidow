@@ -156,11 +156,9 @@ program
     const gate = createApprovalGate({
       policy,
       recorder,
-      // Le bash d'OpenCode sous Windows peut être cmd ou PowerShell : non analysable tant que non confirmé POSIX.
-      workspace: {
-        cwd,
-        ...(opts.agent === "opencode" && process.platform === "win32" && { posixShell: false }),
-      },
+      // Sous win32, Bash n'est analysable que si c'est réellement Git Bash : c'est le cas de Claude
+      // (qui l'exige) ; le bash d'OpenCode peut être cmd ou PowerShell, donc rien n'est déclaré.
+      workspace: { cwd, ...(opts.agent !== "opencode" && { posixShell: true }) },
       ...(interactive && { ask: createTerminalAsker() }),
       ...(opts.approvalTimeout && { timeoutMs: Math.round(opts.approvalTimeout * 1000) }),
       persistRule: async (rule) => {

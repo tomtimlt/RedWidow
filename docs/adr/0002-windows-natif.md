@@ -49,13 +49,13 @@ Sous win32, `terminateProcessTree` lance `%SystemRoot%\System32\taskkill.exe /PI
 
 - `PowerShell` rejoint `Bash` comme outil de shell : filtré de `builtinTools`, toujours placé dans `disallowedTools` (aucune option pour l'activer dans cet ADR).
 - Au message `system/init`, si la liste d'outils contient `PowerShell`, ou `Bash` sans activation explicite, le run est arrêté (nouveau code `sdk.unexpectedTool`).
-- Côté gate, tout outil de shell non analysable (`PowerShell`, bash d'OpenCode sous win32 tant que son shell n'est pas confirmé POSIX) donne au mieux `ask`, avec le code `shell.unanalyzable`, jamais mémorisable ; une règle `deny` s'applique toujours.
-- `programName` retire `.exe .cmd .bat .com .ps1` sans casse, et accepte `\` comme séparateur. `cmd`, `powershell`, `pwsh`, `wsl`, `start` sont traités comme des interpréteurs (comme `sh -c`) : jamais auto-approuvés.
+- Côté gate, tout outil de shell non analysable (`PowerShell`, bash d'OpenCode sous win32 tant que son shell n'est pas confirmé POSIX) donne au mieux `ask`, avec le code `shell.unanalyzable`, jamais mémorisable ; une règle `deny` s'applique toujours, y compris avec un motif `command:` (la commande n'étant pas analysable, l'outil entier est refusé). Le défaut est fail-closed : sous la plateforme `win32` du contexte, `Bash` est non POSIX sauf déclaration explicite `posixShell: true` par le code appelant (jamais par l'entrée de l'outil ni la politique) ; la CLI ne la pose que pour Claude (Git Bash), jamais pour OpenCode. Le refus par motif sous un shell non POSIX est « au mieux ».
+- `programName` retire `.exe .cmd .bat .com .ps1` sans casse, retire aussi le suffixe de flux NTFS `::$data`, et accepte `\` comme séparateur. Pour les règles `deny` seulement, le motif de commande est aussi comparé au nom normalisé du programme (`rm.exe`, `/usr/bin/rm` ↔ `rm *`) ; jamais pour `allow`. `cmd`, `powershell`, `pwsh`, `wsl`, `start`, `runas`, `cscript`, `wscript`, `mshta`, `rundll32`, `forfiles`, `conhost`, `schtasks` sont traités comme des interpréteurs (comme `sh -c`) : jamais auto-approuvés.
 - L'analyseur POSIX reste celui de Bash, qui sous Windows est Git Bash : l'échappement par `\` y est correct.
 
 ### F. Tests portables
 
-- Faux binaires : `process.execPath` + option `argsPrefix` (tableau de chaînes sans `\0`, au plus 16 éléments), ajoutée à `DockerClient` et au lancement d'OpenCode, alimentée par le code seulement (ni CLI ni politique). Les faux sont des scripts `.mjs`. Le faux `claude` passe par la prise en charge des `.js`/`executable` du SDK.
+- Faux binaires : `process.execPath` + option `argsPrefix` (tableau de chaînes sans `\0`, au plus 8 éléments), ajoutée à `DockerClient` et au lancement d'OpenCode, alimentée par le code seulement (ni CLI ni politique). Les faux sont des scripts `.mjs`. Le faux `claude` passe par la prise en charge des `.js`/`executable` du SDK.
 - `test:contract` via un script Node (`scripts/with-env.mjs`), sans `cross-env`.
 - Chemins de test construits avec `path` et `fs.realpathSync.native(os.tmpdir())` ; existence de processus via `process.kill(pid, 0)`, plus de `/proc`.
 - `.gitattributes` (`* text=auto eol=lf`, binaires marqués) et `formatter.lineEnding: "lf"` dans biome.

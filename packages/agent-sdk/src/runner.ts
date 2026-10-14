@@ -18,6 +18,7 @@ import {
   DEFAULT_MAX_RESULT_BYTES,
   type EventOf,
   errorInfo,
+  isUnanalyzableShellTool,
   POWERSHELL_TOOL,
   type RunContext,
   type RunInput,
@@ -467,10 +468,9 @@ async function runWithSdk(
         // Le SDK annonce un outil de shell que nous avons interdit : on n'a pas la main sur sa
         // configuration (réglages utilisateur, version du SDK) ; le run s'arrête plutôt que de continuer.
         for (const tool of message.tools) {
-          const name = tool.toLowerCase();
           if (
-            name === POWERSHELL_TOOL.toLowerCase() ||
-            (name === BASH_TOOL.toLowerCase() && options.bash !== true)
+            isUnanalyzableShellTool(tool) ||
+            (tool.toLowerCase() === BASH_TOOL.toLowerCase() && options.bash !== true)
           ) {
             const error = new CodedError("sdk.unexpectedTool", { tool });
             abort.abort(error);
