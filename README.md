@@ -134,6 +134,9 @@ Chaque appel passe d'abord par la politique (`canUseTool`), puis s'exécute via 
 rattachés au `tool.requested` correspondant. Les opérandes commençant par `-` sont refusés, `run` n'accepte ni volumes ni
 mode privilégié. Par défaut : lectures `allow`, `run/start/stop` `ask`, `rm` `deny`. `--no-docker-tools` les désactive.
 
+Docker uniquement : podman n'est pas supporté (la sortie de `ps --format` diffère et est refusée avec `docker.unexpectedOutput`).
+`DOCKER_HOST` et `DOCKER_CONTEXT` sont transmis aux commandes. `--docker` accepte un nom simple ou un chemin absolu.
+
 Les messages de sous-agents sont conservés : leurs événements sont enfants du `tool.requested` de l'outil `Task`
 (`agentToolUseId` renseigné). Limite : si le SDK appelle `canUseTool` avant d'émettre le message du sous-agent, le
 `tool.requested` est rattaché à la racine.

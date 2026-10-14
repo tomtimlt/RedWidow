@@ -75,6 +75,9 @@ export const REASON_CODES = [
   "docker.invalidTail",
   "docker.invalidPort",
   "docker.invalidEnvKey",
+  "docker.invalidArgument",
+  "docker.invalidBinary",
+  "docker.unexpectedOutput",
   "process.emptyArgv",
   "process.notFound",
   // Journal et événements

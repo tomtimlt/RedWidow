@@ -19,6 +19,15 @@ const OPERANDS: Readonly<Record<string, string>> = {
   since: "since",
 };
 
+/** Motifs de refus d'un argument docker (`docker.invalidArgument`). */
+const ARGUMENT_REASONS: Readonly<Record<string, string>> = {
+  nul: "contient un caractère NUL",
+  tooMany: "trop d'éléments (256 au plus)",
+  tooLarge: "trop volumineux (32 Kio au plus)",
+  notStrings: "tableau de chaînes attendu",
+  notString: "chaîne attendue",
+};
+
 const text = (v: string | number | undefined): string => (v === undefined ? "?" : String(v));
 
 const REPO_HINT = "Après relecture : john policy trust";
@@ -100,6 +109,12 @@ export const reasons: Catalog = {
   "docker.invalidTail": (p) => `tail invalide : ${text(p.value)}`,
   "docker.invalidPort": (p) => `port invalide : « ${text(p.value)} »`,
   "docker.invalidEnvKey": (p) => `variable invalide : « ${text(p.key)} »`,
+  "docker.invalidArgument": (p) =>
+    `argument invalide (${text(p.field)}) : ${ARGUMENT_REASONS[text(p.reason)] ?? text(p.reason)}`,
+  "docker.invalidBinary": (p) =>
+    `binaire docker invalide : « ${text(p.binary)} » (nom simple ou chemin absolu attendu)`,
+  "docker.unexpectedOutput": (p) =>
+    `sortie inattendue de docker ${text(p.command)}${p.line === undefined ? "" : ` (ligne ${text(p.line)})`} : docker uniquement, podman n'est pas supporté`,
   "process.emptyArgv": () => "argv vide",
   "process.notFound": (p) => `binaire introuvable : ${text(p.binary)}`,
 

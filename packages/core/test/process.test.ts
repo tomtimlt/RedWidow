@@ -210,8 +210,7 @@ describe("docker", () => {
   it("parse docker ps --format json", () => {
     const rows = parseDockerPs([
       '{"ID":"abc","Names":"web","Image":"nginx","State":"running","Status":"Up 2m","Ports":"80/tcp"}',
-      "WARNING: bruit",
-      "{cassé",
+      "",
     ]);
     expect(rows).toEqual([
       {
@@ -223,6 +222,12 @@ describe("docker", () => {
         ports: "80/tcp",
       },
     ]);
+  });
+
+  it("refuse les lignes non JSON au lieu de les ignorer", () => {
+    expect(() => parseDockerPs(["WARNING: bruit"])).toThrow(
+      expect.objectContaining({ code: "docker.unexpectedOutput" }),
+    );
   });
 
   it("utilise le binaire configuré et lève sur code ≠ 0", async () => {

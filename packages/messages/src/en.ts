@@ -12,6 +12,11 @@ export const reasons: Catalog = {
   "bash.missingCommand": () => "missing command",
   "bash.noRule": (p) => `no rule for "${text(p.command)}"`,
   "docker.hostAccess": (p) => `container with host access (${text(p.flag)}): do it by hand`,
+  "docker.invalidArgument": (p) => `invalid argument (${text(p.field)}): ${text(p.reason)}`,
+  "docker.invalidBinary": (p) =>
+    `invalid docker binary: "${text(p.binary)}" (bare name or absolute path expected)`,
+  "docker.unexpectedOutput": (p) =>
+    `unexpected docker ${text(p.command)} output${p.line === undefined ? "" : ` (line ${text(p.line)})`}: docker only, podman is not supported`,
   "path.sensitive": (p) => `sensitive path: ${text(p.path)}`,
   "path.outside": (p) => `path outside the workspace: ${text(p.path)}`,
   "approval.noAsker": (_p, c) => `${c.cause ?? "?"} (no interactive approver)`,
