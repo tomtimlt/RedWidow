@@ -266,6 +266,35 @@ describe("darwin et posix", () => {
       }
     },
   );
+
+  // Plateforme simulée : le résultat ne dépend pas de `process.platform`.
+  it("posix : les fichiers système sensibles absolus sont refusés", () => {
+    const c: PolicyContext = {
+      cwd: "/w",
+      platform: "posix",
+      env: {},
+      home: "/home/x",
+      realpath: fakeFs({ "/": "/", "/w": "/w" }),
+    };
+    for (const p of ["/etc/shadow", "/etc/gshadow", "/etc/sudoers", "/etc/sudoers.d/x"]) {
+      const v = verdict(c, "Read", { file_path: p }, allowAll);
+      expect(v.decision).toBe("deny");
+      expect(v.reason.code).toBe("path.sensitive");
+    }
+  });
+
+  it("win32 : la base SAM est sensible", () => {
+    const c: PolicyContext = {
+      cwd: "C:\\w",
+      platform: "win32",
+      env: WIN_ENV,
+      home: "C:\\Users\\x",
+      realpath: fakeFs({}),
+    };
+    const v = verdict(c, "Read", { file_path: "C:\\Windows\\System32\\config\\SAM" }, allowAll);
+    expect(v.decision).toBe("deny");
+    expect(v.reason.code).toBe("path.sensitive");
+  });
 });
 
 describe("external_directory (cœur)", () => {

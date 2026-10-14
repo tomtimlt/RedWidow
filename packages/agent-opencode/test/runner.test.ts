@@ -1,5 +1,5 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   type ApprovalAnswer,
@@ -205,6 +205,9 @@ describe("createOpencodeRunner (faux client)", () => {
 
   it("refuse les chemins sensibles, bash et les cas ask sans approbateur (reject)", async () => {
     const home = mkdtempSync(join(tmpdir(), "oc-home-"));
+    // Chemin sensible propre à la plateforme (le test POSIX vise /etc/shadow).
+    const sensitivePath =
+      process.platform === "win32" ? join(homedir(), ".ssh", "id_rsa") : "/etc/shadow";
     const fake = fakeOpencode([
       async (s) => {
         begin(s);
@@ -213,7 +216,7 @@ describe("createOpencodeRunner (faux client)", () => {
           await toolCall(s, {
             callID: "c1",
             tool: "read",
-            input: { filePath: "/etc/shadow" },
+            input: { filePath: sensitivePath },
             perm: "read",
             permId: "p1",
           }),

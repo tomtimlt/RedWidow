@@ -119,13 +119,14 @@ describe("environnement du serveur lancé", () => {
 
   it("trouve le binaire dans PATH, ou renvoie null", () => {
     const dir = mkdtempSync(join(realpathSync.native(tmpdir()), "oc-bin-"));
-    const bin = join(dir, "opencode");
+    const exe = process.platform === "win32" ? "opencode.exe" : "opencode";
+    const bin = join(dir, exe);
     writeFileSync(bin, "", { mode: 0o644 });
     // Le bit d'exécution n'existe pas sous Windows : ce refus est propre à POSIX.
     if (process.platform !== "win32")
       expect(resolveBinary("opencode", { env: { PATH: dir } })).toBeNull();
     const dirExec = mkdtempSync(join(realpathSync.native(tmpdir()), "oc-bin-"));
-    const binExec = join(dirExec, "opencode");
+    const binExec = join(dirExec, exe);
     writeFileSync(binExec, "", { mode: 0o755 });
     const path = [join(dir, "nulle-part"), dirExec].join(delimiter);
     expect(resolveBinary("opencode", { env: { PATH: path } })).toBe(binExec);

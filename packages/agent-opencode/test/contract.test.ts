@@ -7,7 +7,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import type { EngineEvent } from "@john-studio/core";
 import { afterAll, describe, expect, it } from "vitest";
@@ -15,6 +15,10 @@ import { createOpencodeRunner, dockerToolset } from "../src/index.js";
 import { fakeDocker, harness } from "./helpers.js";
 
 const BIN = process.env.OPENCODE_BIN;
+
+// Chemin sensible propre à la plateforme (le test POSIX vise /etc/shadow).
+const sensitivePath =
+  process.platform === "win32" ? join(homedir(), ".ssh", "id_rsa") : "/etc/shadow";
 
 interface Plan {
   name: string;
@@ -163,7 +167,7 @@ describe.skipIf(!BIN)("contrat OpenCode réel (faux fournisseur local)", () => {
   }, 90_000);
 
   it.each([
-    ["chemin sensible", [{ name: "read", args: { filePath: "/etc/shadow" } }], "path.sensitive"],
+    ["chemin sensible", [{ name: "read", args: { filePath: sensitivePath } }], "path.sensitive"],
     [
       "ask sans approbateur",
       [{ name: "write", args: { filePath: "nouveau.txt", content: "x" } }],

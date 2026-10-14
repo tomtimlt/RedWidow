@@ -2,3 +2,6 @@ node_modules/
 dist/
 *.tsbuildinfo
 .john-studio/
+
+# Secrets locaux (jetons de test) : ne jamais commiter
+.env*

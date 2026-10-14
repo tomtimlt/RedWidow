@@ -71,14 +71,6 @@ const parseIntArg = (value: string) => {
   return n;
 };
 
-/** Windows natif : best effort sans garantie (la garde des chemins sensibles est POSIX). */
-function warnIfWindows(): void {
-  if (process.platform !== "win32") return;
-  process.stderr.write(
-    "attention : Windows natif n'est pas garanti. La garde des chemins sensibles est écrite pour POSIX et reste donc incomplète ici. Utilisez WSL de préférence ; ne l'utilisez pas en production.\n",
-  );
-}
-
 function printer(verbose: boolean) {
   const color = colorEnabled(process.stdout);
   return (e: EngineEvent) => {
@@ -139,7 +131,6 @@ program
   .option("--system-prompt <texte>", "texte ajouté au prompt système")
   .option("-v, --verbose", "afficher la sortie des processus")
   .action(async (words: string[], opts) => {
-    warnIfWindows();
     const cwd = process.cwd();
     const { policy, source, warning } = await loadPolicy({ explicit: opts.policy, cwd });
     const recorder = createRecorder();
@@ -240,7 +231,6 @@ program
   .description("Lister les moteurs d'agent disponibles (--agent) et l'état de leur binaire.")
   .option("--opencode-bin <path>", "binaire opencode", "opencode")
   .action(async (opts) => {
-    warnIfWindows();
     process.stdout.write("claude\tClaude Agent SDK (intégré, binaire fourni par le SDK)\n");
     const found = resolveBinary(opts.opencodeBin);
     if (found === null) {

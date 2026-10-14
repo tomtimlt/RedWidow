@@ -106,7 +106,7 @@ Décisions : `docs/adr/0001-cycle-de-vie-des-processus-et-portabilite.md`. Windo
 25. **Dépendances — traité (lots A et L3).** Les SDK restent en `dependencies` (une bibliothèque non publiée n'a pas besoin de peers). `zod` et `@anthropic-ai/sdk` sont conservés parce que `@anthropic-ai/claude-agent-sdk` et `@modelcontextprotocol/sdk` les exigent comme peers non optionnels. Versions exactes pour les SDK instables (`@anthropic-ai/claude-agent-sdk` 0.3.299, `@opencode-ai/sdk` 1.19.0), `@anthropic-ai/sdk` en `^0.133.0`, vitest 5.0.4, commander 15, TypeScript 7.0.2.
 26. **Publication — décidé : rester privé (lot L3).** Les six paquets sont `"private": true` pour éviter une publication accidentelle. Le bit exécutable du `bin` est posé par npm/pnpm à l'installation. Voir « À faire plus tard » pour la publication.
 
-## Windows natif (ADR 0002) — lots W-L1 à W-L5b faits, validation réelle à faire
+## Windows natif (ADR 0002) — lots W-L1 à W-L6 faits, validé sur un vrai Windows
 
 Priorité n°1 (Docker Desktop sous Windows, WSL exclu). Décisions dans `docs/adr/0002-windows-natif.md`. Chaque lot touchant la sécurité a été relu par l'architecte.
 
@@ -117,8 +117,10 @@ Priorité n°1 (Docker Desktop sous Windows, WSL exclu). Décisions dans `docs/a
 | W-L3 | `process/resolve.ts` : binaire toujours en chemin absolu `.exe`, `PATH` relatif ignoré, `.cmd` refusé (sauf shim npm d'OpenCode sondé), `safeEnv` Windows, `envWithout` sans casse, empreinte par `realpathSync.native`, `rename` réessayé | fait |
 | W-L4 | `terminateProcessTree` : `taskkill /PID n /T /F` (chemin absolu, sans shell), repli `child.kill()`, filet de sortie synchrone | fait |
 | W-L5 / W-L5b | PowerShell interdit (`disallowedTools` + arrêt à `system/init` avec `sdk.unexpectedTool`), shells non analysables au mieux `ask` (`shell.unanalyzable`, jamais mémorisable), `posixShell` fail-closed sous win32, `deny` avec motif refuse l'outil entier, interpréteurs Windows | fait, relu |
-| W-L2b | Tests rendus corrects sous Windows (voir ci-dessous) | en cours |
-| W-L6 | Validation réelle sur le PC Windows (11 étapes PowerShell, ADR 0002 H), puis job CI bloquant et levée de l'avertissement « best effort » | à faire |
+| W-L2b | Tests rendus corrects sous Windows (voir ci-dessous) | fait |
+| W-L6 | Validation réelle (Windows 11, Node 24, Docker Desktop 29.7, Claude réel par abonnement, OpenCode 1.19.0 natif) : étapes 0 à 11 réussies ; job CI bloquant, avertissement « best effort » retiré | fait |
+
+**Validation W-L6 (2026-10-14).** `pnpm check` vert sous Windows (725 tests, OpenCode réel inclus). Écarts trouvés et corrigés : arbre en CRLF (biome), `with-env.mjs` cassé par un chemin à espace (`shell` inutile pour un `.exe`), liens symboliques remplacés par des jonctions dans les tests (privilège), faux binaire `opencode.exe`, `/etc/shadow` non sensible sous Windows (testé sur plateforme simulée, `ask` jamais `allow` en réel), `.env*` ajouté à `.gitignore`. Vérifiés en réel : `docker.exe` en chemin absolu (cwd piégé ignoré), formes de chemins refusées, `taskkill` (parent et petit-enfant disparus, `forced: true`), `safeEnv`, client Docker (`run`, `rm`, annulation), run Claude avec 11 outils sans `Bash` ni `PowerShell`, `policy trust`, journal, graphe HTML. **Reste :** limite de 32 767 caractères d'arguments de `docker run` (voir « À faire plus tard »).
 
 **Première exécution du job Windows (commit f6b461c).** Linux est vert, Windows échoue sur environ 40 tests, ce qui est le but du job :
 - la plupart supposent un Bash POSIX alors que `posixShell` est désormais refusé par défaut sous win32 (les tests doivent le déclarer) ;

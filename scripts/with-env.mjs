@@ -28,7 +28,7 @@ const [command, ...args] = argv.slice(sep + 1);
 const child = spawn(command, args, {
   stdio: "inherit",
   env: { ...process.env, ...extra },
-  shell: process.platform === "win32",
+  shell: process.platform === "win32" && !/\.exe$/i.test(command),
 });
 
 // Relaie les signaux reçus à l'enfant.

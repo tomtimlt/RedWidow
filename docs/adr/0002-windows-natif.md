@@ -1,6 +1,6 @@
 # 0002 — Windows natif
 
-- Statut : accepté (A à G) ; la validation réelle (H) conditionne la levée de l'avertissement « best effort »
+- Statut : accepté et validé sur Windows réel (H, lot W-L6, 2026-10-14) ; l'avertissement « best effort » est levé
 - Date : 2026-10-14
 - Remplace : la section D de l'ADR 0001
 

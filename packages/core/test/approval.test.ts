@@ -352,7 +352,8 @@ describe("garde des chemins (outils fichiers)", () => {
   mkdirSync(join(root, "src"), { recursive: true });
   writeFileSync(join(root, "src", "a.ts"), "x");
   writeFileSync(join(outside, "secret.txt"), "s");
-  symlinkSync(outside, join(root, "link"));
+  // « junction » : sans privilège sous Windows (ignoré ailleurs).
+  symlinkSync(outside, join(root, "link"), "junction");
   mkdirSync(join(home, ".ssh"), { recursive: true });
   writeFileSync(join(home, ".ssh", "id_rsa"), "k");
 
@@ -371,7 +372,8 @@ describe("garde des chemins (outils fichiers)", () => {
     expect(d("Read", { file_path: join(home, ".ssh", "id_rsa") })).toBe("deny");
     expect(d("Read", { file_path: "~/.ssh/id_rsa" })).toBe("deny");
     expect(d("Grep", { pattern: "x", path: join(home, ".ssh") })).toBe("deny");
-    expect(d("Read", { file_path: "/etc/shadow" })).toBe("deny");
+    // /etc/shadow : refus testé sur plateforme simulée (paths.test.ts) ; ici, jamais « allow ».
+    expect(d("Read", { file_path: "/etc/shadow" })).not.toBe("allow");
     // Identifiants et configuration des fournisseurs de modèles d'OpenCode.
     expect(d("Read", { file_path: join(home, ".local", "share", "opencode", "auth.json") })).toBe(
       "deny",
