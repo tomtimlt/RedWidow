@@ -7,6 +7,8 @@ import {
   DEFAULT_MAX_RESULT_BYTES,
   type EngineEvent,
   type EventOf,
+  EXTERNAL_DIRECTORY_TOOL,
+  EXTERNAL_PATTERNS_FIELD,
   errorInfo,
   type Reason,
   type RunContext,
@@ -321,11 +323,22 @@ async function runWithOpencode(
 
   // --- permissions ----------------------------------------------------------
   /** Décision unique par appel d'outil : `external_directory` et la permission de l'outil la partagent. */
-  const decideCall = (call: Call, extra: Obj): Promise<ApprovalOutcome> => {
-    const known = decisions.get(call.key);
+  const decideCall = (
+    call: Call,
+    extra: Obj,
+    externalPatterns: readonly string[] = [],
+  ): Promise<ApprovalOutcome> => {
+    // Un `external_directory` qui arrive après la décision de l'outil n'a pas été vu par elle : décision à part.
+    const memoKey =
+      externalPatterns.length > 0 && decisions.has(call.key) ? `${call.key}#ext` : call.key;
+    const known = decisions.get(memoKey);
     if (known) return known;
     const policyTool = policyToolName(call.tool, serverNames);
-    const normalized = normalizeInput(policyTool, call.input, extra);
+    const normalized = {
+      ...normalizeInput(policyTool, call.input, extra),
+      // Bases statiques des motifs `external_directory` : contrôlées comme n'importe quel chemin par le cœur.
+      ...(externalPatterns.length > 0 && { [EXTERNAL_PATTERNS_FIELD]: [...externalPatterns] }),
+    };
     const event = requestedFor(call, normalized, policyTool);
     const decision: Promise<ApprovalOutcome> = isUnevaluable(policyTool, normalized)
       ? Promise.resolve().then(() => {
@@ -361,7 +374,7 @@ async function runWithOpencode(
             }
             return outcome;
           });
-    decisions.set(call.key, decision);
+    decisions.set(memoKey, decision);
     return decision;
   };
 
@@ -406,7 +419,11 @@ async function runWithOpencode(
     try {
       const call = await callFor(request);
       if (call) {
-        const outcome = await decideCall(call, request.metadata);
+        const outcome = await decideCall(
+          call,
+          request.metadata,
+          request.permission === EXTERNAL_DIRECTORY_TOOL ? request.patterns : [],
+        );
         allow = outcome.decision === "allow";
       } else if (request.callID === undefined) {
         // Permission sans appel d'outil (ex. boucle détectée) : la gate tranche sur la clé brute.

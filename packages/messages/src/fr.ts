@@ -1,5 +1,18 @@
 import type { Catalog, EventStrings, Messages } from "./catalog.js";
 
+/** Formes de chemin Windows refusées (`path.unsupported`). */
+const PATH_FORMS: Readonly<Record<string, string>> = {
+  unc: "chemin réseau (UNC)",
+  device: "chemin de périphérique (\\\\?\\ ou \\\\.\\)",
+  ads: "flux de données alternatif (« : » dans le nom)",
+  "drive-relative": "chemin relatif à un lecteur (« C:fichier »)",
+  "trailing-dot-space": "nom se terminant par un point ou une espace",
+  "reserved-name": "nom de périphérique réservé (CON, NUL, COM1…)",
+  "env-var": "variable d'environnement non développée (%VAR%)",
+  "short-name": "nom court 8.3 (~1) non résolu",
+  unresolvable: "chemin impossible à résoudre de façon sûre",
+};
+
 /** Dangers d'une commande shell (`ShellHazard`), tels que listés dans `bash.hazard`. */
 const HAZARDS: Readonly<Record<string, string>> = {
   substitution: "substitution de commande",
@@ -51,6 +64,8 @@ export const reasons: Catalog = {
   "docker.hostAccess": (p) => `conteneur avec accès à l'hôte (${text(p.flag)}) : à faire à la main`,
   "path.sensitive": (p) => `chemin sensible : ${text(p.path)}`,
   "path.outside": (p) => `chemin hors de l'espace de travail : ${text(p.path)}`,
+  "path.unsupported": (p) =>
+    `chemin non analysable de façon sûre, refusé (${PATH_FORMS[text(p.form)] ?? text(p.form)}) : ${text(p.path)}`,
 
   "approval.noAsker": (_p, c) => `${c.cause ?? "?"} (aucun approbateur interactif)`,
   "approval.interrupted": (_p, c) => `approbation interrompue : ${c.cause ?? "?"}`,

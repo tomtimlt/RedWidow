@@ -19,6 +19,8 @@ export const reasons: Catalog = {
     `unexpected docker ${text(p.command)} output${p.line === undefined ? "" : ` (line ${text(p.line)})`}: docker only, podman is not supported`,
   "path.sensitive": (p) => `sensitive path: ${text(p.path)}`,
   "path.outside": (p) => `path outside the workspace: ${text(p.path)}`,
+  "path.unsupported": (p) =>
+    `path cannot be analysed safely, denied (${text(p.form)}): ${text(p.path)}`,
   "approval.noAsker": (_p, c) => `${c.cause ?? "?"} (no interactive approver)`,
   "approval.interrupted": (_p, c) => `approval interrupted: ${c.cause ?? "?"}`,
   "approval.timeout": (p, c) => `no answer within ${text(p.seconds)} s: denied (${c.cause ?? "?"})`,

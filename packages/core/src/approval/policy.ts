@@ -1,7 +1,10 @@
-import { realpathSync } from "node:fs";
-import { homedir } from "node:os";
-import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { type Reason, reason, ValidationError } from "../reason.js";
+import {
+  checkPathAccess,
+  EXTERNAL_DIRECTORY_TOOL,
+  extractPaths,
+  type PathPlatform,
+} from "./paths.js";
 import { matchCommand, parseShell, programName } from "./shell.js";
 
 export type RuleDecision = "allow" | "ask" | "deny";
@@ -195,98 +198,14 @@ export interface PolicyContext {
   cwd: string;
   /** Racines autorisées (défaut : `[cwd]`). Hors de ces racines, un `allow` est rétrogradé en `ask`. */
   roots?: readonly string[];
-  /** Répertoire personnel (défaut : `os.homedir()`), pour les chemins sensibles. */
+  /** Répertoire personnel (défaut : `USERPROFILE`/`HOME`, puis `os.homedir()`), pour les chemins sensibles. */
   home?: string;
-  /** Résolution des liens symboliques (défaut : `realpathSync.native`) ; lève si le chemin n'existe pas. */
+  /** Résolution des liens symboliques (défaut : `realpathSync.native`) ; lève (`ENOENT`) si le chemin n'existe pas. */
   realpath?: (path: string) => string;
-}
-
-/** Chemins qu'aucun outil ne doit lire ni écrire, relatifs au répertoire personnel. */
-const SENSITIVE_HOME_PATHS = [
-  ".ssh",
-  ".aws",
-  ".gnupg",
-  ".kube",
-  ".docker/config.json",
-  ".netrc",
-  ".git-credentials",
-  ".config/gh",
-  ".config/john-studio",
-  // Identifiants des fournisseurs de modèles d'OpenCode (auth.json) et sa configuration (clés en clair possibles).
-  ".local/share/opencode",
-  ".config/opencode",
-  ".npmrc",
-];
-const SENSITIVE_ABSOLUTE_PATHS = ["/etc/shadow", "/etc/gshadow", "/etc/sudoers", "/etc/sudoers.d"];
-
-/** Outils fichiers → champs de l'entrée qui portent un chemin. */
-const PATH_FIELDS: Record<string, readonly string[]> = {
-  Read: ["file_path"],
-  Write: ["file_path"],
-  Edit: ["file_path"],
-  MultiEdit: ["file_path"],
-  NotebookEdit: ["notebook_path"],
-  Grep: ["path"],
-  Glob: ["path"],
-};
-
-/** Résout les liens symboliques d'un chemin ; doit lever si le chemin n'existe pas. */
-function defaultRealpath(path: string): string {
-  return realpathSync.native(path);
-}
-
-/**
- * Chemin absolu sans lien symbolique. Pour un fichier qui n'existe pas encore,
- * résout le plus proche ancêtre existant puis réattache la fin du chemin.
- */
-function canonical(path: string, realpath: (p: string) => string): string {
-  const full = resolve(path);
-  const tail: string[] = [];
-  let current = full;
-  for (;;) {
-    try {
-      return join(realpath(current), ...tail);
-    } catch {
-      const parent = dirname(current);
-      if (parent === current) return full;
-      tail.unshift(basename(current));
-      current = parent;
-    }
-  }
-}
-
-function isInside(root: string, path: string): boolean {
-  const rel = relative(root, path);
-  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
-}
-
-/** Préfixe statique d'un motif glob (jusqu'au premier segment contenant un métacaractère). */
-function globBase(pattern: string): string {
-  const out: string[] = [];
-  for (const part of pattern.split(/[\\/]/)) {
-    if (/[*?[\]{}]/.test(part)) break;
-    out.push(part);
-  }
-  return out.join("/") || (pattern.startsWith("/") ? "/" : ".");
-}
-
-function extractPaths(tool: string, input: Record<string, unknown>): string[] {
-  const paths: string[] = [];
-  for (const field of PATH_FIELDS[tool] ?? []) {
-    const value = input[field];
-    if (typeof value === "string" && value !== "") paths.push(value);
-  }
-  if (tool === "Glob" && typeof input.pattern === "string") {
-    const pattern = input.pattern;
-    if (isAbsolute(pattern) || pattern.split(/[\\/]/).includes("..") || pattern.startsWith("~")) {
-      paths.push(globBase(pattern));
-    }
-  }
-  return paths;
-}
-
-function expandHome(path: string, home: string): string {
-  return path === "~" ? home : path.startsWith("~/") ? join(home, path.slice(2)) : path;
+  /** Saveur des chemins (défaut : dérivée de `process.platform`). Fixée par le code seulement, jamais par la politique. */
+  platform?: PathPlatform;
+  /** Environnement pour `HOME`, `USERPROFILE`, `APPDATA`, `LOCALAPPDATA`, `SystemRoot`, `ProgramData` (défaut : `process.env`). */
+  env?: Readonly<Record<string, string | undefined>>;
 }
 
 /** Verdict des garde-fous de chemin, ou `null` si rien à signaler. */
@@ -296,41 +215,30 @@ function checkPaths(
   input: Record<string, unknown>,
   ctx: PolicyContext,
 ): PolicyVerdict | null {
-  const candidates = extractPaths(tool, input);
+  const candidates = extractPaths(tool, input, ctx.platform);
   if (candidates.length === 0) return null;
-  const realpath = ctx.realpath ?? defaultRealpath;
-  const home = ctx.home ?? homedir();
-  const roots = (ctx.roots ?? [ctx.cwd]).map((r) => canonical(r, realpath));
-  const sensitive = [
-    ...SENSITIVE_HOME_PATHS.map((p) => join(home, p)),
-    ...SENSITIVE_ABSOLUTE_PATHS,
-  ].flatMap((p) => [resolve(p), canonical(p, realpath)]);
-
-  let outside: string | null = null;
-  for (const candidate of candidates) {
-    const expanded = expandHome(candidate, home);
-    const absolute = isAbsolute(expanded) ? expanded : resolve(ctx.cwd, expanded);
-    for (const path of [resolve(absolute), canonical(absolute, realpath)]) {
-      if (sensitive.some((s) => isInside(s, path))) {
-        return {
-          decision: "deny",
-          reason: reason("path.sensitive", { path: candidate }),
-          rule: null,
-        };
-      }
-    }
-    if (!roots.some((root) => isInside(root, canonical(absolute, realpath)))) {
-      outside ??= candidate;
-    }
+  const finding = checkPathAccess(candidates, ctx);
+  if (finding === null) return null;
+  switch (finding.kind) {
+    case "sensitive":
+      return {
+        decision: "deny",
+        reason: reason("path.sensitive", { path: finding.path }),
+        rule: null,
+      };
+    case "unsupported":
+      return {
+        decision: "deny",
+        reason: reason("path.unsupported", { path: finding.path, form: finding.form }),
+        rule: null,
+      };
+    case "outside":
+      return {
+        decision: stricter("ask", policy.default),
+        reason: reason("path.outside", { path: finding.path }),
+        rule: null,
+      };
   }
-  if (outside !== null) {
-    return {
-      decision: stricter("ask", policy.default),
-      reason: reason("path.outside", { path: outside }),
-      rule: null,
-    };
-  }
-  return null;
 }
 
 export function evaluatePolicy(
@@ -348,6 +256,16 @@ export function evaluatePolicy(
         : firstMatch(policy.rules, (r) => r.command === undefined && toolMatches(r, tool));
     if (rule?.decision === "deny") return rule;
     return pathVerdict;
+  }
+  if (tool === EXTERNAL_DIRECTORY_TOOL) {
+    // Accès hors de l'espace de travail : jamais d'`allow` automatique, quelle que soit la règle.
+    const rule = firstMatch(policy.rules, (r) => r.command === undefined && toolMatches(r, tool));
+    if (rule?.decision === "deny") return rule;
+    return {
+      decision: stricter("ask", policy.default),
+      reason: reason("policy.default", { tool }),
+      rule: null,
+    };
   }
   if (tool === BASH_TOOL) {
     const command = input.command;

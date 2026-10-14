@@ -333,6 +333,59 @@ describe("createOpencodeRunner (faux client)", () => {
     expect(fake.replies.map((r) => r.response)).toEqual(["once", "once"]);
   });
 
+  it("external_directory sans appel : base fixe des motifs, sensible refusé, normal soumis à approbation", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "oc-extp-"));
+    const other = mkdtempSync(join(tmpdir(), "oc-other-"));
+    const fake = fakeOpencode([
+      async (s) => {
+        begin(s);
+        const bare = (id: string, patterns: string[]) =>
+          permission(id, "external_directory", "c", { tool: undefined, patterns });
+        const a = await s.ask(bare("p1", [join(other, "**", "*.txt")]));
+        const b = await s.ask(bare("p2", ["~/.ssh/*"]));
+        const c = await s.ask(bare("p3", ["~/.claude/**"]));
+        s.emit("quoi", { a, b, c });
+        s.idle();
+      },
+    ]);
+    const asked: string[] = [];
+    const h = harness({
+      workspace: cwd,
+      ask: async (r) => {
+        asked.push(JSON.stringify(r.input));
+        return { decision: "allow" };
+      },
+    });
+    await h.run(createOpencodeRunner({ createClient: fake.createClient }));
+    expect(fake.replies.map((r) => r.response)).toEqual(["once", "reject", "reject"]);
+    expect(asked).toHaveLength(1); // seul le répertoire normal est soumis à l'approbation
+    const decided = of(h.events, "approval.decided");
+    expect(decided.map((d) => d.decision)).toEqual(["allow", "deny", "deny"]);
+    expect(decided[1]?.reason.code).toBe("path.sensitive");
+    expect(decided[2]?.reason.code).toBe("path.sensitive");
+  });
+
+  it("external_directory avec appel : un chemin sensible dans les motifs refuse l'appel", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "oc-extq-"));
+    const fake = fakeOpencode([
+      async (s) => {
+        begin(s);
+        s.emit("message.part.updated", {
+          part: toolPart("c1", "read", { status: "running", input: { filePath: "a.txt" } }),
+        });
+        const a = await s.ask(
+          permission("p_ext", "external_directory", "c1", { patterns: ["~/.aws/*"] }),
+        );
+        s.emit("quoi", { a });
+        s.idle();
+      },
+    ]);
+    const h = harness({ workspace: cwd, ask: async () => ({ decision: "allow" }) });
+    await h.run(createOpencodeRunner({ createClient: fake.createClient }));
+    expect(fake.replies.map((r) => r.response)).toEqual(["reject"]);
+    expect(of(h.events, "approval.decided")[0]?.reason.code).toBe("path.sensitive");
+  });
+
   it("relit l'entrée d'un appel absente du flux avant de trancher (sinon reject)", async () => {
     const fake = fakeOpencode([
       async (s) => {

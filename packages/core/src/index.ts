@@ -1,4 +1,5 @@
 export * from "./approval/gate.js";
+export * from "./approval/paths.js";
 export * from "./approval/policy.js";
 export * from "./approval/shell.js";
 export * from "./approval/source.js";

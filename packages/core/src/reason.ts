@@ -35,6 +35,7 @@ export const REASON_CODES = [
   "docker.hostAccess",
   "path.sensitive",
   "path.outside",
+  "path.unsupported",
   // Approbation et garde
   "approval.noAsker",
   "approval.interrupted",
