@@ -18,3 +18,5 @@ export * from "./reason.js";
 export * from "./recorder.js";
 export * from "./redact.js";
 export * from "./runner.js";
+export * from "./sandbox/registry.js";
+export * from "./sandbox/sandbox.js";

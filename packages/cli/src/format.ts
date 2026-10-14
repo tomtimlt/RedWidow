@@ -98,6 +98,10 @@ export function formatEvent(e: EngineEvent, { color, verbose }: FormatOptions): 
       return `${tag(e.status === "rejected" ? "red" : "yellow", "limit")} ${e.status}${e.limitType ? ` · ${e.limitType}` : ""}${e.utilization === undefined ? "" : ` · ${Math.round(e.utilization * 100)} %`}`;
     case "sink.error":
       return `${tag("red", "sink")} ${e.message}`;
+    case "sandbox.started":
+      return `${tag("cyan", "sandbox")} ${e.image} ${paint("dim", `${e.containerId.slice(0, 12)} · réseau ${e.network}`)}`;
+    case "sandbox.stopped":
+      return `${tag("cyan", "sandbox")} arrêté ${paint("dim", `${e.containerId.slice(0, 12)} · ${e.cause}`)}`;
     case "journal.truncated":
       return `${tag("red", "journal")} tronqué à ${e.limitBytes} octets · ${e.droppedEvents} événements perdus`;
   }

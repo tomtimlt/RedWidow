@@ -98,6 +98,15 @@ const SAMPLES: { [K in EventKind]: Extract<EventPayload, { kind: K }> } = {
     unhandledMessages: { "system/status": 2 },
   },
   error: { kind: "error", code: "error.unknown", message: "m" },
+  "sandbox.started": {
+    kind: "sandbox.started",
+    containerId: "c",
+    image: "alpine@sha256:abc",
+    imageDigest: null,
+    network: "none",
+    limits: { pidsLimit: 512 },
+  },
+  "sandbox.stopped": { kind: "sandbox.stopped", containerId: "c", cause: "runEnd" },
   "sink.error": { kind: "sink.error", message: "m" },
   "journal.truncated": { kind: "journal.truncated", limitBytes: 10, droppedEvents: 2 },
 };
@@ -147,6 +156,9 @@ describe("schéma d'événements", () => {
       ["error", { code: undefined }],
       ["sink.error", { message: undefined }],
       ["journal.truncated", { limitBytes: "1" }],
+      ["sandbox.started", { imageDigest: 3 }],
+      ["sandbox.started", { limits: [] }],
+      ["sandbox.stopped", { cause: "crash" }],
     ];
     for (const [kind, patch] of bad) {
       const payload = { ...SAMPLES[kind], ...patch };
