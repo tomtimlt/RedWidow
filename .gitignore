@@ -9,3 +9,4 @@ dist/
 # Spike VS Code : artefacts d'empaquetage
 packages/vscode/.vsix-stage/
 packages/vscode/*.vsix
+.claude/worktrees/
