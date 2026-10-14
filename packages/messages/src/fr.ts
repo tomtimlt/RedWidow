@@ -41,6 +41,24 @@ const ARGUMENT_REASONS: Readonly<Record<string, string>> = {
   notString: "chaîne attendue",
 };
 
+/** Motifs de `sandbox.imageUnsupported`. */
+const IMAGE_REASONS: Readonly<Record<string, string>> = {
+  missing: "aucune image fournie : --sandbox-image ou la configuration utilisateur",
+  absent: "image absente en local, le moteur ne télécharge jamais d'image",
+  noSleep: "l'image doit fournir sleep",
+  init: "l'image doit fournir mkdir et chown",
+};
+
+/** Motifs de `sandbox.invalidArgument`. */
+const SANDBOX_ARGUMENT_REASONS: Readonly<Record<string, string>> = {
+  ...ARGUMENT_REASONS,
+  empty: "vide",
+  notAbsolute: "chemin absolu attendu",
+  outside: "hors de /work ou contenant « .. »",
+  range: "hors des bornes autorisées",
+  format: "format non admis",
+};
+
 const text = (v: string | number | undefined): string => (v === undefined ? "?" : String(v));
 
 const REPO_HINT = "Après relecture : john policy trust";
@@ -142,6 +160,15 @@ export const reasons: Catalog = {
   "binary.shimUnsupported": (p) =>
     `le script ${text(p.shim)} (shim .cmd/.bat) n'est jamais exécuté : indiquez le chemin absolu de l'.exe de ${text(p.binary)}`,
 
+  "sandbox.tampered": (p) =>
+    `bac à sable altéré (${text(p.field)}) : exécution refusée, jamais mémorisée`,
+  "sandbox.unavailable": () => "bac à sable indisponible",
+  "sandbox.unknownContainer": () => "conteneur inconnu du registre des bacs à sable : refusé",
+  "sandbox.imageUnsupported": (p) =>
+    `image de bac à sable inutilisable (${IMAGE_REASONS[text(p.reason)] ?? text(p.reason)})`,
+  "sandbox.invalidArgument": (p) =>
+    `argument invalide (${text(p.field)}) : ${SANDBOX_ARGUMENT_REASONS[text(p.reason)] ?? text(p.reason)}`,
+
   "journal.invalidJson": (p) => `JSON invalide : ${text(p.message)}`,
   "event.notObject": () => "objet attendu",
   "event.unknownKind": (p) => `kind inconnu : ${text(p.kind)}`,
@@ -177,6 +204,7 @@ export const events: EventStrings = {
   authenticating: "authentification en cours",
   approvalRequested: "approbation demandée",
   turn: "tour",
+  sandbox: "bac à sable",
 };
 
 export const fr: Messages = { reasons, events };

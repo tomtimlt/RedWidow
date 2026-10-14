@@ -250,6 +250,15 @@ describe("eventLabel", () => {
       result: null,
     },
     error: { kind: "error", code: "process.notFound", params: { binary: "docker" } },
+    "sandbox.started": {
+      kind: "sandbox.started",
+      containerId: "c",
+      image: "alpine",
+      imageDigest: null,
+      network: "none",
+      limits: {},
+    },
+    "sandbox.stopped": { kind: "sandbox.stopped", containerId: "c", cause: "abort" },
     "sink.error": { kind: "sink.error", message: "m" },
     "journal.truncated": { kind: "journal.truncated", limitBytes: 1, droppedEvents: 2 },
   };

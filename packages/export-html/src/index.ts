@@ -43,6 +43,8 @@ export const KIND_CLASS: Record<EventKind, string> = {
   "turn.finished": "k-run",
   "auth.info": "k-run",
   "auth.status": "k-warn",
+  "sandbox.started": "k-process",
+  "sandbox.stopped": "k-process",
 };
 
 export function escapeHtml(text: string): string {

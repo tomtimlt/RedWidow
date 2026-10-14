@@ -127,7 +127,7 @@ const MAX_ENV_VALUE_BYTES = 32 * 1024;
  * Le binaire est un nom nu (résolu par `PATH`) ou un chemin absolu : un chemin
  * relatif (`./docker`) pourrait désigner un fichier de l'espace de travail.
  */
-function assertBinary(binary: string): void {
+export function assertBinary(binary: string): void {
   const bare = BARE_BINARY.test(binary) && binary !== "." && binary !== "..";
   if (!bare && !(isAbsolute(binary) && !binary.includes("\0")))
     throw new ValidationError("docker.invalidBinary", { binary });

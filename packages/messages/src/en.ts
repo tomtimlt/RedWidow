@@ -13,6 +13,9 @@ export const reasons: Catalog = {
   "bash.noRule": (p) => `no rule for "${text(p.command)}"`,
   "process.commandTooLong": (p) =>
     `command line too long for the system (${text(p.length)} characters)`,
+  "sandbox.tampered": (p) => `sandbox tampered with (${text(p.field)}): execution denied`,
+  "sandbox.unavailable": () => "sandbox unavailable",
+  "sandbox.unknownContainer": () => "container not in the sandbox registry: denied",
   "docker.hostAccess": (p) => `container with host access (${text(p.flag)}): do it by hand`,
   "docker.invalidArgument": (p) => `invalid argument (${text(p.field)}): ${text(p.reason)}`,
   "docker.invalidBinary": (p) =>
@@ -65,6 +68,7 @@ export const events: EventStrings = {
   authenticating: "authenticating",
   approvalRequested: "approval requested",
   turn: "turn",
+  sandbox: "sandbox",
 };
 
 export const en: Messages = { reasons, events };

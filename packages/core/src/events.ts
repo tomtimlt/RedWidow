@@ -179,6 +179,21 @@ export type EventPayload =
     }
   | ({ kind: "error" } & ErrorInfo)
   | {
+      /** Bac à sable Docker créé, vérifié et initialisé ; l'image est identifiée par son empreinte. */
+      kind: "sandbox.started";
+      containerId: string;
+      image: string;
+      /** Empreinte de l'image (`RepoDigests` sinon identifiant), `null` si Docker n'en donne pas. */
+      imageDigest: string | null;
+      network: string;
+      limits: Record<string, string | number>;
+    }
+  | {
+      kind: "sandbox.stopped";
+      containerId: string;
+      cause: "runEnd" | "abort" | "error" | "exit";
+    }
+  | {
       /** Un abonné (sink) a levé une exception ; émis vers les autres abonnés. */
       kind: "sink.error";
       message: string;
@@ -392,6 +407,17 @@ export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
     params: "object?",
     cause: "reason?",
     message: "string?",
+  }),
+  "sandbox.started": shape({
+    containerId: "string",
+    image: "string",
+    imageDigest: "string|null",
+    network: "string",
+    limits: "object",
+  }),
+  "sandbox.stopped": shape({
+    containerId: "string",
+    cause: "enum:runEnd,abort,error,exit",
   }),
   "sink.error": shape({ message: "string" }),
   "journal.truncated": shape({ limitBytes: "number", droppedEvents: "number" }),

@@ -40,6 +40,7 @@ export interface EventStrings {
   authenticating: string;
   approvalRequested: string;
   turn: string;
+  sandbox: string;
 }
 
 export interface Messages {

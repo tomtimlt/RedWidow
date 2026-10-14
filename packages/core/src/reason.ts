@@ -86,6 +86,12 @@ export const REASON_CODES = [
   "process.notFound",
   "process.commandTooLong",
   "binary.shimUnsupported",
+  // Bac à sable Docker
+  "sandbox.tampered",
+  "sandbox.unavailable",
+  "sandbox.unknownContainer",
+  "sandbox.imageUnsupported",
+  "sandbox.invalidArgument",
   // Journal et événements
   "journal.invalidJson",
   "event.notObject",
