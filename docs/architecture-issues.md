@@ -128,6 +128,7 @@ Ce qui a été volontairement repoussé ou n'a pas pu être vérifié. Rien ici 
 - **Publication npm** : décisions à prendre (publier ou non, nom du scope, licence — Apache-2.0 recommandée —, dépôt, changesets, README par paquet, CHANGELOG), puis retirer `private`.
 - **Rotation des journaux** (seul le plafond d'octets existe).
 - **Extension VS Code** : l'interface existe côté cœur (`createApprovalQueue`, `Recorder.stream`, `AgentRunner`) mais rien n'est construit ; vérifier l'empaquetage du binaire du SDK Claude dans l'extension host (Electron, Node différent, remote ou web).
+- **Modèles gratuits d'OpenCode inutilisables avec notre configuration** (constaté le 2026-10-14, binaire 1.19.0) : `opencode/big-pickle` et les modèles `opencode/*-free` répondent 403 (« free tier can only be used from within OpenCode ») dès que la configuration impose `permission` / `agent` (restrictions de sécurité du moteur), alors que `opencode run` et `opencode serve` par défaut fonctionnent. Le moteur traduit l'erreur proprement (`provider.error`). Pas de contournement : utiliser un fournisseur avec clé, un modèle local (Ollama) ou un endpoint compatible OpenAI. Reste à savoir si la cause est la suppression d'outils de la requête (hypothèse non vérifiée).
 - **SDK v2 d'OpenCode** : non étudié (l'adaptateur cible l'API v1 et tente la route v2 en repli).
 - **Durcissement** : `plugins`, `agents` et `pathToClaudeCodeExecutable` restent passables via `sdkOptions` côté Claude ; à examiner.
 
