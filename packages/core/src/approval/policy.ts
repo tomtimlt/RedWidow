@@ -36,6 +36,18 @@ const STRICTNESS: Record<RuleDecision, number> = { allow: 0, ask: 1, deny: 2 };
 const PRECEDENCE: readonly RuleDecision[] = ["deny", "ask", "allow"];
 
 export const BASH_TOOL = "Bash";
+export const POWERSHELL_TOOL = "PowerShell";
+
+/**
+ * Outils de shell dont la ligne de commande ne peut pas être analysée de façon sûre (PowerShell :
+ * grammaire trop riche, pas d'analyseur). Comparés sans casse. Au mieux `ask`, jamais mémorisable.
+ */
+const UNANALYZABLE_SHELL_TOOLS = new Set(["powershell", "pwsh"]);
+
+/** `true` pour un outil de shell sans analyseur (`PowerShell`, `pwsh`), quelle que soit la casse. */
+export function isUnanalyzableShellTool(tool: string): boolean {
+  return UNANALYZABLE_SHELL_TOOLS.has(tool.toLowerCase());
+}
 
 export const DEFAULT_POLICY: Policy = {
   default: "ask",
@@ -194,6 +206,44 @@ function evaluateBash(policy: Policy, command: string): PolicyVerdict {
   return verdicts.reduce((acc, v) => (STRICTNESS[v.decision] > STRICTNESS[acc.decision] ? v : acc));
 }
 
+/**
+ * Verdict d'un shell non analysable : une règle `deny` sans motif de commande s'applique toujours
+ * (casse ignorée sur le nom d'outil) ; sinon `ask` au mieux, jamais `allow` (même par une règle `*`).
+ */
+function evaluateUnanalyzable(policy: Policy, tool: string): PolicyVerdict {
+  const lower = tool.toLowerCase();
+  const denied = policy.rules.findIndex(
+    (r) =>
+      r.decision === "deny" &&
+      r.command === undefined &&
+      (toolMatches(r, tool) || r.tool.toLowerCase() === lower),
+  );
+  if (denied !== -1) {
+    return {
+      decision: "deny",
+      reason: describe(policy.rules[denied] as PolicyRule, denied),
+      rule: denied,
+    };
+  }
+  return {
+    decision: stricter("ask", policy.default),
+    reason: reason("shell.unanalyzable", { tool }),
+    rule: null,
+  };
+}
+
+/** Verdict POSIX d'un Bash dont la commande n'est peut-être pas une chaîne (refus pour l'analyse). */
+function evaluatePolicyBash(policy: Policy, command: unknown): PolicyVerdict {
+  if (typeof command !== "string") {
+    return {
+      decision: stricter("ask", policy.default),
+      reason: reason("bash.missingCommand"),
+      rule: null,
+    };
+  }
+  return evaluateBash(policy, command);
+}
+
 /** Contexte d'évaluation des outils qui touchent au système de fichiers. */
 export interface PolicyContext {
   /** Répertoire de travail ; sert à résoudre les chemins relatifs. */
@@ -210,6 +260,12 @@ export interface PolicyContext {
   readlink?: (path: string) => string;
   /** Saveur des chemins (défaut : dérivée de `process.platform`). Fixée par le code seulement, jamais par la politique. */
   platform?: PathPlatform;
+  /**
+   * `false` quand l'outil `Bash` n'est pas confirmé POSIX (bash d'OpenCode sous win32 : son shell
+   * peut être `cmd` ou PowerShell). Il est alors traité comme un shell non analysable. Défaut : `true`
+   * (Claude : Git Bash). Fixé par le code seulement, jamais par la politique.
+   */
+  posixShell?: boolean;
   /** Environnement pour `HOME`, `USERPROFILE`, `APPDATA`, `LOCALAPPDATA`, `SystemRoot`, `ProgramData` (défaut : `process.env`). */
   env?: Readonly<Record<string, string | undefined>>;
 }
@@ -309,7 +365,15 @@ function evaluateUncapped(
       rule: null,
     };
   }
+  if (isUnanalyzableShellTool(tool)) return evaluateUnanalyzable(policy, tool);
   if (tool === BASH_TOOL) {
+    if (ctx.posixShell === false) {
+      // Shell non confirmé POSIX : l'analyse POSIX ne vaut rien pour autoriser, seulement pour refuser.
+      const command = input.command;
+      const analysed = evaluatePolicyBash(policy, command);
+      if (analysed.decision === "deny") return analysed;
+      return evaluateUnanalyzable(policy, tool);
+    }
     const command = input.command;
     if (typeof command !== "string") {
       return {

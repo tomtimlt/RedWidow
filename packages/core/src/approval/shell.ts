@@ -181,18 +181,29 @@ const WRAPPERS = new Set([
   "setsid",
   "stdbuf",
   "script",
+  // Windows : interpréteurs et lanceurs qui exécutent une autre commande
+  "cmd",
+  "powershell",
+  "pwsh",
+  "wsl",
+  "start",
 ]);
 const FIND_EXEC = new Set(["-exec", "-execdir", "-ok", "-okdir", "-delete"]);
 
-/** Nom de base d'un programme, `/usr/bin/env` → `env`. */
+/** Extensions exécutables Windows retirées du nom d'un programme (`cmd.exe`, `x.ps1`…). */
+const PROGRAM_EXTENSION = /\.(exe|cmd|bat|com|ps1)$/;
+
+/**
+ * Nom de base d'un programme, `/usr/bin/env` → `env`, `C:\Windows\System32\CMD.EXE` → `cmd`.
+ * `/` et `\` séparent ; casse ignorée ; points et espaces finaux retirés (Windows les ignore :
+ * `cmd.exe.` lance `cmd.exe`) ; une extension exécutable Windows est retirée.
+ */
 export function programName(word: string | undefined): string {
-  return (
-    (word ?? "")
-      .split(/[\\/]/)
-      .pop()
-      ?.toLowerCase()
-      .replace(/\.exe$/, "") ?? ""
-  );
+  const base = (word ?? "").split(/[\\/]/).pop() ?? "";
+  return base
+    .toLowerCase()
+    .replace(/[. ]+$/, "")
+    .replace(PROGRAM_EXTENSION, "");
 }
 
 function runsOtherCommand(argv: readonly string[]): boolean {

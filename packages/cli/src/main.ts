@@ -156,7 +156,11 @@ program
     const gate = createApprovalGate({
       policy,
       recorder,
-      workspace: { cwd },
+      // Le bash d'OpenCode sous Windows peut être cmd ou PowerShell : non analysable tant que non confirmé POSIX.
+      workspace: {
+        cwd,
+        ...(opts.agent === "opencode" && process.platform === "win32" && { posixShell: false }),
+      },
       ...(interactive && { ask: createTerminalAsker() }),
       ...(opts.approvalTimeout && { timeoutMs: Math.round(opts.approvalTimeout * 1000) }),
       persistRule: async (rule) => {

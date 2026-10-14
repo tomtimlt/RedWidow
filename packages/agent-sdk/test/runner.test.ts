@@ -505,6 +505,14 @@ describe("garde PreToolUse", () => {
     expect(viaBuiltin.tools).toEqual(["Read"]);
   });
 
+  it("PowerShell : retiré des outils, toujours dans disallowedTools, même avec bash: true", async () => {
+    for (const extra of [{}, { bash: true }, { builtinTools: ["Read", "PowerShell"] }]) {
+      const { options } = await capture(extra);
+      expect(options.tools).not.toContain("PowerShell");
+      expect(options.disallowedTools).toContain("PowerShell");
+    }
+  });
+
   it("voit les outils que le SDK auto-approuverait sans appeler canUseTool", async () => {
     const { recorder, events, gate } = setup();
     const query: QueryFn = async function* ({ options }) {
@@ -1049,5 +1057,39 @@ describe("sous-agents : hook devançant le message assistant", () => {
   it("n'ajoute pas agentId pour l'agent principal", async () => {
     const events = await run([{ hook: hookInput("m1", "Read", { file_path: "a" }) }]);
     expect(events.find((e) => e.kind === "tool.requested")).not.toHaveProperty("agentId");
+  });
+});
+
+describe("outil de shell inattendu à l'init", () => {
+  const init = (tools: string[]) => system("init", { tools, model: "m", apiKeySource: "none" });
+  const runInit = async (tools: string[], extra: Partial<Parameters<typeof runAgent>[0]> = {}) => {
+    const { recorder, events, gate } = setup();
+    let after = false;
+    const query: QueryFn = async function* () {
+      yield init(tools);
+      after = true;
+      yield result({});
+    };
+    await runAgent({ prompt: "x", recorder, gate, query, ...extra });
+    return { events, after };
+  };
+  const unexpected = (events: EngineEvent[]) =>
+    events.find((e) => e.kind === "error" && e.code === "sdk.unexpectedTool");
+
+  it.each([
+    [["Read", "PowerShell"], {}],
+    [["Read", "PowerShell"], { bash: true }],
+    [["Read", "Bash"], {}],
+  ])("arrête le run : %j %j", async (tools, extra) => {
+    const { events, after } = await runInit(tools, extra);
+    expect(unexpected(events)).toBeDefined();
+    expect(after).toBe(false);
+  });
+
+  it("accepte Bash annoncé quand il est activé explicitement, et une liste sans shell", async () => {
+    expect(unexpected((await runInit(["Read", "Bash"], { bash: true })).events)).toBeUndefined();
+    const ok = await runInit(["Read", "Glob"]);
+    expect(unexpected(ok.events)).toBeUndefined();
+    expect(ok.after).toBe(true);
   });
 });

@@ -61,6 +61,8 @@ export const reasons: Catalog = {
       .join(", ");
     return `non approuvable automatiquement : ${labels}`;
   },
+  "shell.unanalyzable": (p) =>
+    `shell non analysable de façon sûre (${text(p.tool)}) : jamais approuvé automatiquement ni mémorisé`,
   "docker.hostAccess": (p) => `conteneur avec accès à l'hôte (${text(p.flag)}) : à faire à la main`,
   "path.sensitive": (p) => `chemin sensible : ${text(p.path)}`,
   "path.outside": (p) => `chemin hors de l'espace de travail : ${text(p.path)}`,
@@ -74,6 +76,9 @@ export const reasons: Catalog = {
   "approval.remembered": (_p, c) => `autorisé pour la session (${c.cause ?? "?"})`,
   "guard.unrouted": (p) =>
     `appel non routé par la garde (canUseTool appelé sans décision PreToolUse : ${text(p.tool)}, ${text(p.toolUseId)})`,
+
+  "sdk.unexpectedTool": (p) =>
+    `outil de shell inattendu annoncé par le SDK (${text(p.tool)}) : run arrêté`,
 
   "auth.missingApiKey": () =>
     "--auth api-key exige la variable ANTHROPIC_API_KEY, qui n'est pas définie",

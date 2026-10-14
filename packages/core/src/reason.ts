@@ -32,6 +32,7 @@ export const REASON_CODES = [
   "bash.missingCommand",
   "bash.noRule",
   "bash.hazard",
+  "shell.unanalyzable",
   "docker.hostAccess",
   "path.sensitive",
   "path.outside",
@@ -42,6 +43,8 @@ export const REASON_CODES = [
   "approval.timeout",
   "approval.remembered",
   "guard.unrouted",
+  // Outils inattendus annoncés par le SDK
+  "sdk.unexpectedTool",
   // Authentification
   "auth.missingApiKey",
   "auth.failed",

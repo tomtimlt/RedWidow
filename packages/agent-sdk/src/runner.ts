@@ -18,6 +18,7 @@ import {
   DEFAULT_MAX_RESULT_BYTES,
   type EventOf,
   errorInfo,
+  POWERSHELL_TOOL,
   type RunContext,
   type RunInput,
   type RunSummary,
@@ -347,8 +348,9 @@ async function runWithSdk(
     });
   }
 
+  // Outils de shell : retirés de la liste, `Bash` seulement sur demande explicite, `PowerShell` jamais.
   const builtinTools = [...new Set([...(options.builtinTools ?? DEFAULT_BUILTIN_TOOLS)])].filter(
-    (name) => name !== "Bash",
+    (name) => name !== BASH_TOOL && name !== POWERSHELL_TOOL,
   );
   if (options.bash === true) builtinTools.push("Bash");
 
@@ -378,6 +380,7 @@ async function runWithSdk(
     disallowedTools: [
       ...(options.sdkOptions?.disallowedTools ?? []),
       ...(options.bash === true ? [] : [BASH_TOOL]),
+      POWERSHELL_TOOL,
     ],
     hooks: {
       ...options.hooks,
@@ -461,6 +464,19 @@ async function runWithSdk(
           root.id,
         );
         lookupAccount();
+        // Le SDK annonce un outil de shell que nous avons interdit : on n'a pas la main sur sa
+        // configuration (réglages utilisateur, version du SDK) ; le run s'arrête plutôt que de continuer.
+        for (const tool of message.tools) {
+          const name = tool.toLowerCase();
+          if (
+            name === POWERSHELL_TOOL.toLowerCase() ||
+            (name === BASH_TOOL.toLowerCase() && options.bash !== true)
+          ) {
+            const error = new CodedError("sdk.unexpectedTool", { tool });
+            abort.abort(error);
+            throw error;
+          }
+        }
         return;
       case "api_retry":
         recorder.emit(

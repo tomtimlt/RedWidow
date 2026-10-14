@@ -19,6 +19,10 @@ export const reasons: Catalog = {
     `the ${text(p.shim)} script (.cmd/.bat shim) is never run: pass the absolute path of the ${text(p.binary)} .exe`,
   "docker.unexpectedOutput": (p) =>
     `unexpected docker ${text(p.command)} output${p.line === undefined ? "" : ` (line ${text(p.line)})`}: docker only, podman is not supported`,
+  "shell.unanalyzable": (p) =>
+    `shell cannot be analysed safely (${text(p.tool)}): never auto-approved nor remembered`,
+  "sdk.unexpectedTool": (p) =>
+    `unexpected shell tool announced by the SDK (${text(p.tool)}): run stopped`,
   "path.sensitive": (p) => `sensitive path: ${text(p.path)}`,
   "path.outside": (p) => `path outside the workspace: ${text(p.path)}`,
   "path.unsupported": (p) =>
