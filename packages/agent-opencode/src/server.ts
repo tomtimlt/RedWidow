@@ -1,7 +1,5 @@
 import { spawn } from "node:child_process";
-import { accessSync, constants, statSync } from "node:fs";
 import { createServer } from "node:net";
-import { delimiter, isAbsolute, join } from "node:path";
 import {
   assertArgsPrefix,
   CodedError,
@@ -79,29 +77,6 @@ export function serverEnv({
     OPENCODE_CONFIG_CONTENT: JSON.stringify(config),
     OPENCODE_SERVER_PASSWORD: password,
   };
-}
-
-/** Chemin absolu du binaire (recherche dans `PATH`), ou `null` s'il est introuvable ou non exécutable. */
-export function resolveBinary(
-  binary = "opencode",
-  env: NodeJS.ProcessEnv = process.env,
-): string | null {
-  const executable = (path: string) => {
-    try {
-      if (!statSync(path).isFile()) return false;
-      accessSync(path, constants.X_OK);
-      return true;
-    } catch {
-      return false;
-    }
-  };
-  if (binary.includes("/") || isAbsolute(binary)) return executable(binary) ? binary : null;
-  for (const dir of (env.PATH ?? "").split(delimiter)) {
-    if (dir === "") continue;
-    const candidate = join(dir, binary);
-    if (executable(candidate)) return candidate;
-  }
-  return null;
 }
 
 /** Port local libre (le serveur d'OpenCode retombe sinon sur 4096, partagé entre instances). */

@@ -1,5 +1,6 @@
 import { isAbsolute } from "node:path";
 import type { Correlation } from "../events.js";
+import { resolveBinary } from "../process/resolve.js";
 import { type ProcessResult, runProcess } from "../process/run.js";
 import { CodedError, type ReasonParams, ValidationError } from "../reason.js";
 import type { Recorder } from "../recorder.js";
@@ -238,14 +239,18 @@ export function createDockerClient({
   const exec = (
     args: readonly string[],
     { parentId, signal, correlation, timeoutMs }: CallOptions = {},
-  ) =>
-    runProcess([binary, ...prefix, ...args], {
+  ) => {
+    // Chemin absolu avant `spawn` : jamais de recherche implicite (cwd, PATH relatif, .cmd).
+    const file = resolveBinary(binary);
+    if (file === null) return Promise.reject(new CodedError("process.notFound", { binary }));
+    return runProcess([file, ...prefix, ...args], {
       recorder,
       parentId: parentId === undefined ? defaultParent : parentId,
       timeoutMs: timeoutMs ?? defaultTimeoutMs,
       ...(signal && { signal }),
       ...(correlation && { correlation }),
     });
+  };
 
   const checked = async (what: string, args: readonly string[], options?: CallOptions) => {
     const result = await exec(args, options);

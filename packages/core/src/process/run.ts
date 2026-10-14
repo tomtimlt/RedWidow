@@ -25,9 +25,22 @@ const ENV_ALLOWLIST = new Set([
   "COMSPEC",
   "PATHEXT",
   "WINDIR",
+  "SYSTEMDRIVE",
   "USERPROFILE",
+  "HOMEDRIVE",
+  "HOMEPATH",
   "APPDATA",
   "LOCALAPPDATA",
+  "PROGRAMDATA",
+  "PROGRAMFILES",
+  "PROGRAMFILES(X86)",
+  "PROGRAMW6432",
+  "COMMONPROGRAMFILES",
+  "USERNAME",
+  "COMPUTERNAME",
+  "NUMBER_OF_PROCESSORS",
+  "PROCESSOR_ARCHITECTURE",
+  "OS",
   "TEMP",
   "TMP",
 ]);
@@ -37,12 +50,22 @@ const ENV_ALLOWLIST = new Set([
  * ne pas leur faire hériter `ANTHROPIC_API_KEY` ni les autres secrets du
  * processus parent.
  */
-export function safeEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+export function safeEnv(
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+): NodeJS.ProcessEnv {
   const out: NodeJS.ProcessEnv = {};
+  // Windows : les clés sont insensibles à la casse (`Path`/`PATH`) ; une seule occurrence par clé.
+  const seen = new Set<string>();
   for (const [name, value] of Object.entries(env)) {
     if (value === undefined) continue;
     const upper = name.toUpperCase();
-    if (ENV_ALLOWLIST.has(upper) || upper.startsWith("LC_")) out[name] = value;
+    if (!(ENV_ALLOWLIST.has(upper) || upper.startsWith("LC_"))) continue;
+    if (platform === "win32") {
+      if (seen.has(upper)) continue;
+      seen.add(upper);
+    }
+    out[name] = value;
   }
   return out;
 }

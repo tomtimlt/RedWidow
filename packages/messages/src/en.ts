@@ -15,6 +15,8 @@ export const reasons: Catalog = {
   "docker.invalidArgument": (p) => `invalid argument (${text(p.field)}): ${text(p.reason)}`,
   "docker.invalidBinary": (p) =>
     `invalid docker binary: "${text(p.binary)}" (bare name or absolute path expected)`,
+  "binary.shimUnsupported": (p) =>
+    `the ${text(p.shim)} script (.cmd/.bat shim) is never run: pass the absolute path of the ${text(p.binary)} .exe`,
   "docker.unexpectedOutput": (p) =>
     `unexpected docker ${text(p.command)} output${p.line === undefined ? "" : ` (line ${text(p.line)})`}: docker only, podman is not supported`,
   "path.sensitive": (p) => `sensitive path: ${text(p.path)}`,

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
+import { realpathSync } from "node:fs";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { type Reason, reason } from "../reason.js";
@@ -52,7 +53,14 @@ async function readTrustStore(configDir: string): Promise<TrustStore> {
   }
 }
 
-const realPathOf = (path: string) => realpath(path).catch(() => resolve(path));
+/** Clé d'empreinte : `realpathSync.native` (casse canonique du disque sous Windows) ; chemin résolu si le fichier n'existe pas. */
+const realPathOf = async (path: string) => {
+  try {
+    return realpathSync.native(path);
+  } catch {
+    return resolve(path);
+  }
+};
 
 export interface TrustedPolicy {
   path: string;

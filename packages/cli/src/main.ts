@@ -5,7 +5,6 @@ import { join, resolve } from "node:path";
 import {
   createOpencodeRunner,
   dockerToolset as opencodeDockerToolset,
-  resolveBinary,
 } from "@john-studio/agent-opencode";
 import { createSdkRunner, dockerToolset } from "@john-studio/agent-sdk";
 import {
@@ -22,6 +21,7 @@ import {
   openJournal,
   REPO_POLICY_PATH,
   readJournal,
+  resolveBinary,
   safeEnv,
   splitRuns,
   trustPolicy,

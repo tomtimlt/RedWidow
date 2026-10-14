@@ -136,13 +136,14 @@ function blocks(content: unknown): Record<string, unknown>[] {
 }
 
 /** Copie de l'environnement sans les variables à retirer ni les valeurs indéfinies. */
-function envWithout(
+export function envWithout(
   source: NodeJS.ProcessEnv,
   stripped: readonly string[],
 ): Record<string, string> {
   const env: Record<string, string> = {};
+  const drop = new Set(stripped.map((name) => name.toUpperCase()));
   for (const [key, value] of Object.entries(source)) {
-    if (value !== undefined && !stripped.includes(key)) env[key] = value;
+    if (value !== undefined && !drop.has(key.toUpperCase())) env[key] = value;
   }
   return env;
 }

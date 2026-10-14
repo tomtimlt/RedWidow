@@ -15,6 +15,7 @@ import {
   type RunInput,
   type RunSummary,
   reason,
+  resolveBinary,
   ToolCallRegistry,
 } from "@john-studio/core";
 import { formatReason } from "@john-studio/messages";
@@ -27,7 +28,7 @@ import {
   normalizeInput,
   policyToolName,
 } from "./names.js";
-import { launchServer, resolveBinary, serverEnv } from "./server.js";
+import { launchServer, serverEnv } from "./server.js";
 import { startToolServer, type ToolGuard } from "./tool-server.js";
 import type { OpencodeToolset } from "./toolset.js";
 import type {
@@ -176,7 +177,7 @@ async function runWithOpencode(
   const binaryPath =
     options.createClient || options.baseUrl
       ? null
-      : resolveBinary(options.binary ?? "opencode", processEnv);
+      : resolveBinary(options.binary ?? "opencode", { env: processEnv });
   if (!options.createClient && !options.baseUrl && binaryPath === null) {
     throw new CodedError("process.notFound", { binary: options.binary ?? "opencode" });
   }

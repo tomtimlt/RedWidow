@@ -1,6 +1,31 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 import { type Policy, type PolicyRule, parsePolicy, USER_POLICY_FILE } from "@john-studio/core";
+
+/** Renommage atomique ; sous win32, 3 nouveaux essais sur EPERM/EBUSY/EACCES (antivirus, indexeur) puis échec. */
+export async function renameWithRetry(
+  from: string,
+  to: string,
+  io: {
+    platform?: NodeJS.Platform;
+    rename?: (from: string, to: string) => Promise<void>;
+    wait?: (ms: number) => Promise<void>;
+  } = {},
+): Promise<void> {
+  const { platform = process.platform, rename: doRename = rename, wait = sleep } = io;
+  const attempts = platform === "win32" ? 4 : 1;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await doRename(from, to);
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (attempt >= attempts || !(code === "EPERM" || code === "EBUSY" || code === "EACCES"))
+        throw err;
+      await wait(50 * attempt);
+    }
+  }
+}
 
 const sameTarget = (a: PolicyRule, b: PolicyRule) =>
   a.tool === b.tool && (a.command ?? null) === (b.command ?? null);
@@ -30,6 +55,6 @@ export async function appendUserRule(
   await mkdir(dirname(path), { recursive: true });
   const temp = `${path}.${process.pid}.tmp`;
   await writeFile(temp, `${JSON.stringify(next, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
-  await rename(temp, path);
+  await renameWithRetry(temp, path);
   return path;
 }

@@ -1,6 +1,7 @@
 import { mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
+import { resolveBinary } from "@john-studio/core";
 import { describe, expect, it } from "vitest";
 import {
   assertSafeConfig,
@@ -10,7 +11,6 @@ import {
   launchServer,
   normalizeInput,
   policyToolName,
-  resolveBinary,
   serverEnv,
 } from "../src/index.js";
 
@@ -122,14 +122,15 @@ describe("environnement du serveur lancé", () => {
     const bin = join(dir, "opencode");
     writeFileSync(bin, "", { mode: 0o644 });
     // Le bit d'exécution n'existe pas sous Windows : ce refus est propre à POSIX.
-    if (process.platform !== "win32") expect(resolveBinary("opencode", { PATH: dir })).toBeNull();
+    if (process.platform !== "win32")
+      expect(resolveBinary("opencode", { env: { PATH: dir } })).toBeNull();
     const dirExec = mkdtempSync(join(realpathSync.native(tmpdir()), "oc-bin-"));
     const binExec = join(dirExec, "opencode");
     writeFileSync(binExec, "", { mode: 0o755 });
     const path = [join(dir, "nulle-part"), dirExec].join(delimiter);
-    expect(resolveBinary("opencode", { PATH: path })).toBe(binExec);
-    expect(resolveBinary(binExec, {})).toBe(binExec);
-    expect(resolveBinary("absent", { PATH: dir })).toBeNull();
+    expect(resolveBinary("opencode", { env: { PATH: path } })).toBe(binExec);
+    expect(resolveBinary(binExec, { env: {} })).toBe(binExec);
+    expect(resolveBinary("absent", { env: { PATH: dir } })).toBeNull();
   });
 });
 
