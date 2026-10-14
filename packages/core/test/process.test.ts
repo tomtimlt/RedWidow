@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  commandLineLength,
   createDockerClient,
   createRecorder,
   type EngineEvent,
@@ -410,4 +411,42 @@ describe("DockerClient : timeout", () => {
     await expect(lenient.ps({ timeoutMs: 150 })).rejects.toMatchObject({ code: "docker.failed" });
     expect(events.at(-1)).toMatchObject({ kind: "process.exited", termination: "timeout" });
   });
+});
+
+describe("commandLineLength / process.commandTooLong", () => {
+  it("null hors win32 ; borne haute sous win32 (guillemets, espace, échappements)", () => {
+    expect(commandLineLength(["a", "b"], "linux")).toBeNull();
+    expect(commandLineLength(["ab", "c"], "win32")).toBe(2 + 3 + 1 + 3);
+    expect(commandLineLength(['a"\\'], "win32")).toBe(3 + 3 + 2);
+  });
+
+  it("rejette avant tout événement une ligne trop longue (win32 réel), jamais recopiée", async () => {
+    const { recorder, events } = collect();
+    const argv = [process.execPath, "-e", "0", `s3cret${"x".repeat(40_000)}`];
+    const run = runProcess(argv, { recorder });
+    if (process.platform === "win32") {
+      const err = await run.catch((e: unknown) => e);
+      expect(err).toMatchObject({ code: "process.commandTooLong" });
+      expect(JSON.stringify((err as { params: unknown }).params)).not.toContain("s3cret");
+      expect((err as Error).message).not.toContain("s3cret");
+      expect(events).toEqual([]);
+    } else {
+      // POSIX : 40 Ko passent ; l'E2BIG est éprouvé par le test suivant.
+      await expect(run).resolves.toMatchObject({ code: 0 });
+    }
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "traduit E2BIG (POSIX) en process.commandTooLong",
+    async () => {
+      const { recorder, events } = collect();
+      const big = "x".repeat(100_000);
+      const argv = [process.execPath, "-e", "0", "s3cret", ...Array(60).fill(big)];
+      const err = await runProcess(argv, { recorder }).catch((e: unknown) => e);
+      expect(err).toMatchObject({ code: "process.commandTooLong" });
+      expect(JSON.stringify((err as { params: unknown }).params)).not.toContain("s3cret");
+      expect((err as Error).message).not.toContain("s3cret");
+      expect(events).toEqual([]);
+    },
+  );
 });

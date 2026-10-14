@@ -169,10 +169,11 @@ describe("DockerClient : validation de run", () => {
   it("accepte 256 éléments et 32 Kio exactement", async () => {
     const { docker } = await setup();
     await docker.run({ image: "nginx", command: Array(256).fill("x") });
-    // Windows : CreateProcess limite la ligne de commande entière à 32767 caractères (ENAMETOOLONG) ;
-    // la borne de validation de 32 Kio y est donc éprouvée par les refus ci-dessus, pas par un spawn.
-    const size = process.platform === "win32" ? 28 * 1024 : 32 * 1024;
-    await docker.run({ image: "nginx", command: ["x".repeat(size)] });
+    const big = docker.run({ image: "nginx", command: ["x".repeat(32 * 1024)] });
+    // Windows : CreateProcess limite la ligne entière à 32767 caractères → refus codé, sans spawn.
+    if (process.platform === "win32")
+      await expect(big).rejects.toMatchObject({ code: "process.commandTooLong" });
+    else await big;
   });
   it("refuse NUL ou 32 Kio+ dans une valeur d'env, sans la recopier", async () => {
     await rejects({ image: "nginx", env: { K: "a\0b" } }, arg("env.K", "nul"));

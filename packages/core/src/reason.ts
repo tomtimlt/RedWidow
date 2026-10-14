@@ -84,6 +84,7 @@ export const REASON_CODES = [
   "docker.unexpectedOutput",
   "process.emptyArgv",
   "process.notFound",
+  "process.commandTooLong",
   "binary.shimUnsupported",
   // Journal et événements
   "journal.invalidJson",

@@ -11,6 +11,8 @@ export const reasons: Catalog = {
   "bash.empty": () => "empty command",
   "bash.missingCommand": () => "missing command",
   "bash.noRule": (p) => `no rule for "${text(p.command)}"`,
+  "process.commandTooLong": (p) =>
+    `command line too long for the system (${text(p.length)} characters)`,
   "docker.hostAccess": (p) => `container with host access (${text(p.flag)}): do it by hand`,
   "docker.invalidArgument": (p) => `invalid argument (${text(p.field)}): ${text(p.reason)}`,
   "docker.invalidBinary": (p) =>

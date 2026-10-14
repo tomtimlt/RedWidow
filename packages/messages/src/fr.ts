@@ -136,6 +136,8 @@ export const reasons: Catalog = {
   "docker.unexpectedOutput": (p) =>
     `sortie inattendue de docker ${text(p.command)}${p.line === undefined ? "" : ` (ligne ${text(p.line)})`} : docker uniquement, podman n'est pas supporté`,
   "process.emptyArgv": () => "argv vide",
+  "process.commandTooLong": (p) =>
+    `ligne de commande trop longue pour le système (${text(p.length)} caractères)`,
   "process.notFound": (p) => `binaire introuvable : ${text(p.binary)}`,
   "binary.shimUnsupported": (p) =>
     `le script ${text(p.shim)} (shim .cmd/.bat) n'est jamais exécuté : indiquez le chemin absolu de l'.exe de ${text(p.binary)}`,
