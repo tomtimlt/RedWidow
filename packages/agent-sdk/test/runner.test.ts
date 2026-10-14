@@ -506,6 +506,19 @@ describe("garde PreToolUse", () => {
     const evil = { ...({ pathToClaudeCodeExecutable: "/tmp/evil" } as object) };
     const { options: ignore } = await capture({ sdkOptions: evil });
     expect(ignore).not.toHaveProperty("pathToClaudeCodeExecutable");
+    // Les autres voies de lancement (processus, arguments, moteur d'exécution) sont aussi ignorées.
+    const { options: autres } = await capture({
+      sdkOptions: {
+        ...({
+          spawnClaudeCodeProcess: () => undefined,
+          executableArgs: ["--evil"],
+          executable: "bun",
+        } as object),
+      },
+    });
+    expect(autres).not.toHaveProperty("spawnClaudeCodeProcess");
+    expect(autres).not.toHaveProperty("executableArgs");
+    expect(autres).not.toHaveProperty("executable");
     const { options: fixe } = await capture({ executable: "/opt/claude", sdkOptions: evil });
     expect(fixe.pathToClaudeCodeExecutable).toBe("/opt/claude");
   });

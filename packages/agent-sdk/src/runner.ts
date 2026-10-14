@@ -84,6 +84,10 @@ export interface SdkRunnerOptions {
     | "extraArgs"
     // Le binaire `claude` est fixé par le code (`executable`), jamais par un appelant ni par un réglage.
     | "pathToClaudeCodeExecutable"
+    // Autres voies pour changer le binaire lancé, ses arguments ou son moteur d'exécution.
+    | "spawnClaudeCodeProcess"
+    | "executableArgs"
+    | "executable"
     | "settings"
     | "managedSettings"
     // Pilotés par `RunInput` (ou par le mode d'authentification), jamais par ici.
@@ -368,6 +372,9 @@ async function runWithSdk(
     systemPrompt: _systemPrompt,
     extraArgs: _extraArgs,
     pathToClaudeCodeExecutable: _pathToClaudeCodeExecutable,
+    spawnClaudeCodeProcess: _spawnClaudeCodeProcess,
+    executableArgs: _executableArgs,
+    executable: _runtime,
     settings: _settings,
     managedSettings: _managedSettings,
     ...extraOptions
