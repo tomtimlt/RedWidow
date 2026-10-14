@@ -1,6 +1,6 @@
 # 0001 — Cycle de vie des processus, surface Docker et portabilité
 
-- Statut : accepté
+- Statut : accepté ; la section D (Windows) est remplacée par l'ADR 0002
 - Date : 2026-10-14
 
 ## Contexte
