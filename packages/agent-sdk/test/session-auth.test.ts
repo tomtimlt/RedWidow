@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import type { Options, SDKMessage, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import {
   createApprovalGate,
@@ -33,9 +34,13 @@ const init = (extra: Record<string, unknown> = {}) =>
     ...extra,
   }) as unknown as SDKMessage;
 
+// Chemins sans hypothèse POSIX (aucune écriture : simples valeurs conservées par l'adaptateur).
+const FAKE_PATH = resolve("fake-bin");
+const FAKE_HOME = resolve("fake-home");
+
 const FAKE_ENV = {
-  PATH: "/usr/bin",
-  HOME: "/home/x",
+  PATH: FAKE_PATH,
+  HOME: FAKE_HOME,
   ANTHROPIC_API_KEY: "sk-ant-secret-key-value",
   ANTHROPIC_AUTH_TOKEN: "tok",
   CLAUDE_CODE_USE_BEDROCK: "1",
@@ -89,8 +94,8 @@ describe("authentification", () => {
   it("subscription : retire clés et fournisseurs cloud, garde PATH, HOME et le jeton OAuth", async () => {
     const { seen } = await run({ auth: "subscription" }, simple);
     expect(seen.options?.env).toEqual({
-      PATH: "/usr/bin",
-      HOME: "/home/x",
+      PATH: FAKE_PATH,
+      HOME: FAKE_HOME,
       CLAUDE_CODE_OAUTH_TOKEN: "oauth-token-value",
     });
     // L'environnement du processus courant n'est pas modifié.
@@ -117,7 +122,7 @@ describe("authentification", () => {
   });
 
   it("api-key sans clé : erreur codée avant tout lancement, sans événement", async () => {
-    const { seen, events, error } = await run({ auth: "api-key" }, simple, { PATH: "/usr/bin" });
+    const { seen, events, error } = await run({ auth: "api-key" }, simple, { PATH: FAKE_PATH });
     expect(error).toMatchObject({ code: "auth.missingApiKey" });
     expect(formatError(error)).toContain("ANTHROPIC_API_KEY");
     expect(seen.calls).toBe(0);

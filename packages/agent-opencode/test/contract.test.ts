@@ -104,7 +104,7 @@ async function playPlan(plan: Plan[], extra: { cwd?: string } = {}) {
   const h = harness({ workspace: cwd });
   const runner = createOpencodeRunner({
     binary: BIN as string,
-    toolsets: [dockerToolset({ binary: docker.bin })],
+    toolsets: [dockerToolset({ binary: docker.bin, argsPrefix: docker.argsPrefix })],
     builtinTools: ["read", "write", "glob", "grep"],
     config: {
       provider: {

@@ -106,7 +106,11 @@ describe("createRedactor", () => {
 
   it("secretsFromEnv ne retient que les variables sensibles assez longues", () => {
     expect(
-      secretsFromEnv({ ANTHROPIC_API_KEY: "sk-ant-longvalue", PATH: "/usr/bin", TOKEN: "short" }),
+      secretsFromEnv({
+        ANTHROPIC_API_KEY: "sk-ant-longvalue",
+        PATH: join("usr", "bin"),
+        TOKEN: "short",
+      }),
     ).toEqual(["sk-ant-longvalue"]);
   });
 });

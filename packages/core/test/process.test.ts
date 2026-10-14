@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
-import { chmod, mkdtemp, writeFile } from "node:fs/promises";
+import { readFileSync, realpathSync } from "node:fs";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -231,26 +231,26 @@ describe("docker", () => {
   });
 
   it("utilise le binaire configuré et lève sur code ≠ 0", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "john-docker-"));
-    const fake = join(dir, "docker");
+    const dir = await mkdtemp(join(realpathSync.native(tmpdir()), "john-docker-"));
+    const script = join(dir, "docker.mjs");
     await writeFile(
-      fake,
-      `#!/bin/sh
-if [ "$1" = "ps" ]; then
-  echo '{"ID":"1","Names":"db","Image":"postgres","State":"exited","Status":"Exited","Ports":""}'
-  [ "$2" = "--all" ] && exit 0
-  echo "daemon down" >&2; exit 1
-fi
+      script,
+      `const [, , cmd, flag] = process.argv;
+if (cmd === "ps") {
+  console.log('{"ID":"1","Names":"db","Image":"postgres","State":"exited","Status":"Exited","Ports":""}');
+  if (flag === "--all") process.exit(0);
+  console.error("daemon down");
+  process.exit(1);
+}
 `,
     );
-    await chmod(fake, 0o755);
     const { recorder, events } = collect();
-    const docker = createDockerClient({ recorder, binary: fake });
+    const docker = createDockerClient({ recorder, binary: process.execPath, argsPrefix: [script] });
 
     expect(await docker.ps({ all: true })).toMatchObject([{ name: "db", image: "postgres" }]);
     expect(events[0]).toMatchObject({
       kind: "process.started",
-      argv: [fake, "ps", "--all", "--format", "{{json .}}"],
+      argv: [process.execPath, script, "ps", "--all", "--format", "{{json .}}"],
     });
     await expect(docker.ps()).rejects.toMatchObject({
       code: "docker.failed",
@@ -259,7 +259,27 @@ fi
   });
 });
 
-const posix = process.platform === "win32" ? describe.skip : describe;
+// POSIX seulement : groupes de processus (SIGTERM/SIGKILL du groupe) et lecture de /proc pour
+// distinguer un zombie ; l'arbre de processus sous Windows relève de `taskkill` (autre lot).
+const posix = describe.skipIf(process.platform === "win32");
+
+/** Faux enfants portables : `process.execPath -e <script>`, sans shell ni `sleep`. */
+const NODE = process.execPath;
+const HOLD = "setInterval(() => {}, 1000)";
+const NODE_SLEEP = [NODE, "-e", HOLD];
+const NODE_IGNORE_TERM = [NODE, "-e", `process.on("SIGTERM", () => {}); ${HOLD}`];
+// Parent : lance un petit-enfant dans le même groupe, imprime son pid, puis attend.
+const grandchild = (child: string, parentTail: string) => [
+  NODE,
+  "-e",
+  `const { spawn } = require("node:child_process");
+const c = spawn(process.execPath, ["-e", ${JSON.stringify(child)}], { stdio: ["ignore", "inherit", "inherit"] });
+console.log(c.pid);
+${parentTail}`,
+];
+const NODE_GRANDCHILD = grandchild(HOLD, HOLD);
+// Le chef sort aussitôt ; le petit-enfant ignore TERM et garde stdout.
+const NODE_ORPHAN = grandchild(`process.on("SIGTERM", () => {}); ${HOLD}`, "process.exit(0)");
 
 posix("runProcess : terminaison du groupe", () => {
   // Vivant = signalable et pas zombie (si init ne récupère pas les orphelins, un tué reste « Z »).
@@ -286,7 +306,7 @@ posix("runProcess : terminaison du groupe", () => {
   it("tue par SIGKILL un enfant qui ignore SIGTERM, après la grâce", async () => {
     const { recorder, events } = collect();
     const ac = new AbortController();
-    const pending = runProcess(["/bin/sh", "-c", "trap '' TERM; sleep 30"], {
+    const pending = runProcess(NODE_IGNORE_TERM, {
       recorder,
       signal: ac.signal,
       killGraceMs: 200,
@@ -307,7 +327,7 @@ posix("runProcess : terminaison du groupe", () => {
   it("n'indique pas forced quand SIGTERM suffit", async () => {
     const { recorder } = collect();
     const ac = new AbortController();
-    const pending = runProcess(["/bin/sh", "-c", "sleep 30"], { recorder, signal: ac.signal });
+    const pending = runProcess(NODE_SLEEP, { recorder, signal: ac.signal });
     setTimeout(() => ac.abort(), 100);
     const result = await pending;
     expect(result).toMatchObject({ signal: "SIGTERM", termination: "abort" });
@@ -317,7 +337,7 @@ posix("runProcess : terminaison du groupe", () => {
   it("tue aussi le petit-enfant avec son groupe", async () => {
     const { recorder } = collect();
     const ac = new AbortController();
-    const pending = runProcess(["/bin/sh", "-c", "sleep 30 & echo $!; wait"], {
+    const pending = runProcess(NODE_GRANDCHILD, {
       recorder,
       signal: ac.signal,
       killGraceMs: 200,
@@ -334,7 +354,7 @@ posix("runProcess : terminaison du groupe", () => {
     const { recorder } = collect();
     const ac = new AbortController();
     // Le chef sort aussitôt ; le petit-enfant ignore TERM et garde stdout.
-    const pending = runProcess(["/bin/sh", "-c", "(trap '' TERM; sleep 30) & echo $!"], {
+    const pending = runProcess(NODE_ORPHAN, {
       recorder,
       signal: ac.signal,
       killGraceMs: 100,
@@ -348,7 +368,7 @@ posix("runProcess : terminaison du groupe", () => {
 
   it("applique timeoutMs avec termination = timeout", async () => {
     const { recorder } = collect();
-    const result = await runProcess(["/bin/sh", "-c", "sleep 30"], {
+    const result = await runProcess(NODE_SLEEP, {
       recorder,
       timeoutMs: 100,
       killGraceMs: 200,
@@ -358,7 +378,7 @@ posix("runProcess : terminaison du groupe", () => {
 
   it("termine un processus lancé avec un signal déjà annulé", async () => {
     const { recorder } = collect();
-    const result = await runProcess(["/bin/sh", "-c", "sleep 30"], {
+    const result = await runProcess(NODE_SLEEP, {
       recorder,
       signal: AbortSignal.abort(),
       killGraceMs: 200,
@@ -368,18 +388,18 @@ posix("runProcess : terminaison du groupe", () => {
   });
 });
 
-posix("DockerClient : timeout", () => {
+describe("DockerClient : timeout", () => {
   it("transmet timeoutMs (client puis appel) à runProcess", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "john-slow-docker-"));
-    const fake = join(dir, "docker");
-    await writeFile(fake, "#!/bin/sh\nsleep 30\n");
-    await chmod(fake, 0o755);
+    const dir = await mkdtemp(join(realpathSync.native(tmpdir()), "john-slow-docker-"));
+    const script = join(dir, "docker.mjs");
+    await writeFile(script, "setTimeout(() => {}, 30_000);\n");
     const { recorder, events } = collect();
-    const docker = createDockerClient({ recorder, binary: fake, timeoutMs: 150 });
+    const base = { recorder, binary: process.execPath, argsPrefix: [script] };
+    const docker = createDockerClient({ ...base, timeoutMs: 150 });
     await expect(docker.ps()).rejects.toMatchObject({ code: "docker.failed" });
     expect(events.at(-1)).toMatchObject({ kind: "process.exited", termination: "timeout" });
 
-    const lenient = createDockerClient({ recorder, binary: fake, timeoutMs: 60_000 });
+    const lenient = createDockerClient({ ...base, timeoutMs: 60_000 });
     await expect(lenient.ps({ timeoutMs: 150 })).rejects.toMatchObject({ code: "docker.failed" });
     expect(events.at(-1)).toMatchObject({ kind: "process.exited", termination: "timeout" });
   });

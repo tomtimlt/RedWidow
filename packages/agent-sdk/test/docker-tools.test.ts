@@ -8,7 +8,7 @@ const setup = async () => {
   const recorder = createRecorder({ runId: "r" });
   const events: EngineEvent[] = [];
   recorder.subscribe((e) => events.push(e));
-  const docker = createDockerClient({ recorder, binary: fake.bin });
+  const docker = createDockerClient({ recorder, binary: fake.bin, argsPrefix: fake.argsPrefix });
   return { fake, docker, events };
 };
 

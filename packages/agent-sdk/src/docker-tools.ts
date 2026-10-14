@@ -67,6 +67,8 @@ export function createDockerTools(
 export interface DockerToolsetOptions {
   /** Binaire docker (défaut : `docker`). */
   binary?: string;
+  /** Préfixe d'arguments du binaire : réservé au code (tests), voir `DockerClientOptions`. */
+  argsPrefix?: readonly string[];
 }
 
 /**
@@ -82,6 +84,7 @@ export function dockerToolset(options: DockerToolsetOptions = {}): Toolset {
         createDockerClient({
           recorder,
           ...(options.binary && { binary: options.binary }),
+          ...(options.argsPrefix && { argsPrefix: options.argsPrefix }),
         }),
         (name, args, extra) => resolveCall(`${DOCKER_TOOL_PREFIX}${name}`, args, extra),
       ),

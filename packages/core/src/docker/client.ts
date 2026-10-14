@@ -132,6 +132,28 @@ function assertBinary(binary: string): void {
     throw new ValidationError("docker.invalidBinary", { binary });
 }
 
+/** Bornes de `argsPrefix` : au plus 8 éléments de 4 Kio, sans `\0`. */
+const MAX_ARGS_PREFIX_ITEMS = 8;
+const MAX_ARGS_PREFIX_ITEM_BYTES = 4 * 1024;
+
+/**
+ * Valide un préfixe d'arguments (insérés entre le binaire et les arguments de
+ * la commande). Option réservée au CODE (tests : `process.execPath` + script
+ * `.mjs`) : jamais exposée par la CLI, la politique ni la configuration
+ * utilisateur. Renvoie une copie.
+ */
+export function assertArgsPrefix(argsPrefix: readonly string[]): string[] {
+  const invalid = (reason: string) =>
+    new ValidationError("docker.invalidArgument", { field: "argsPrefix", reason });
+  if (!Array.isArray(argsPrefix) || argsPrefix.some((a) => typeof a !== "string"))
+    throw invalid("notStrings");
+  if (argsPrefix.length > MAX_ARGS_PREFIX_ITEMS) throw invalid("tooMany");
+  if (argsPrefix.some((a) => a.includes("\0"))) throw invalid("nul");
+  if (argsPrefix.some((a) => Buffer.byteLength(a) > MAX_ARGS_PREFIX_ITEM_BYTES))
+    throw invalid("tooLarge");
+  return [...argsPrefix];
+}
+
 /** Valide `command` : au plus 256 éléments, 32 Kio au total, sans `\0` ; le contenu n'est pas filtré. */
 function assertCommand(command: readonly string[]): void {
   const invalid = (reason: string) =>
@@ -177,6 +199,12 @@ export interface DockerClientOptions {
   recorder: Recorder;
   /** Binaire docker : nom nu (résolu par `PATH`) ou chemin absolu. Podman n'est pas supporté. */
   binary?: string;
+  /**
+   * Arguments insérés entre le binaire et ceux de la commande (≤ 8 éléments de
+   * 4 Kio, sans `\0`). RÉSERVÉ AU CODE (tests : `process.execPath` + script) :
+   * ni CLI, ni politique, ni configuration utilisateur ne doivent l'alimenter.
+   */
+  argsPrefix?: readonly string[];
   parentId?: string | null;
   /** Durée maximale d'un appel (filet contre les blocages). Défaut : 30 minutes. */
   timeoutMs?: number;
@@ -201,15 +229,17 @@ export interface DockerClient {
 export function createDockerClient({
   recorder,
   binary = "docker",
+  argsPrefix = [],
   parentId: defaultParent = null,
   timeoutMs: defaultTimeoutMs = DEFAULT_TIMEOUT_MS,
 }: DockerClientOptions): DockerClient {
   assertBinary(binary);
+  const prefix = assertArgsPrefix(argsPrefix);
   const exec = (
     args: readonly string[],
     { parentId, signal, correlation, timeoutMs }: CallOptions = {},
   ) =>
-    runProcess([binary, ...args], {
+    runProcess([binary, ...prefix, ...args], {
       recorder,
       parentId: parentId === undefined ? defaultParent : parentId,
       timeoutMs: timeoutMs ?? defaultTimeoutMs,

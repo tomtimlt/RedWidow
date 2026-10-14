@@ -48,7 +48,11 @@ const MODEL = process.env.JOHN_CONTRACT_MODEL;
 const TIMEOUT = 180_000;
 
 /** Lance un vrai run et collecte événements et types de messages SDK observés. */
-async function realRun(prompt: string, cwd: string, extra: { docker?: string } = {}) {
+async function realRun(
+  prompt: string,
+  cwd: string,
+  extra: { docker?: { bin: string; argsPrefix: readonly string[] } } = {},
+) {
   const recorder = createRecorder();
   const events: EngineEvent[] = [];
   recorder.subscribe((e) => events.push(e));
@@ -70,7 +74,9 @@ async function realRun(prompt: string, cwd: string, extra: { docker?: string } =
       }
     })();
 
-  const docker = extra.docker ? dockerToolset({ binary: extra.docker }) : undefined;
+  const docker = extra.docker
+    ? dockerToolset({ binary: extra.docker.bin, argsPrefix: extra.docker.argsPrefix })
+    : undefined;
   const runner = createSdkRunner({
     query,
     toolsets: docker
@@ -130,7 +136,7 @@ describe.skipIf(!enabled)("contrat Claude Agent SDK (réel)", () => {
       const { events, extras } = await realRun(
         "Appelle une seule fois l'outil mcp__docker__ps (sans argument) puis réponds « OK ».",
         cwd,
-        { docker: fake.bin },
+        { docker: fake },
       );
 
       const kinds = events.map((e) => e.kind);

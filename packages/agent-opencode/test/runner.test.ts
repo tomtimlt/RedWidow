@@ -703,7 +703,7 @@ describe("outils docker par serveur MCP HTTP", () => {
     await h.run(
       createOpencodeRunner({
         createClient: fake.createClient,
-        toolsets: [dockerToolset({ binary: docker.bin })],
+        toolsets: [dockerToolset({ binary: docker.bin, argsPrefix: docker.argsPrefix })],
       }),
     );
     expect(of(h.events, "error")).toEqual([]);
@@ -748,7 +748,7 @@ describe("outils docker par serveur MCP HTTP", () => {
     await h.run(
       createOpencodeRunner({
         createClient: fake.createClient,
-        toolsets: [dockerToolset({ binary: docker.bin })],
+        toolsets: [dockerToolset({ binary: docker.bin, argsPrefix: docker.argsPrefix })],
       }),
     );
 

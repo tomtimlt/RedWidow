@@ -26,6 +26,8 @@ export interface OpencodeToolset {
 export interface DockerToolsetOptions {
   /** Binaire docker (défaut : `docker`). */
   binary?: string;
+  /** Préfixe d'arguments du binaire : réservé au code (tests), voir `DockerClientOptions`. */
+  argsPrefix?: readonly string[];
 }
 
 /** Toolset docker : son propre `DockerClient` branché sur le recorder du run. */
@@ -35,7 +37,11 @@ export function dockerToolset(options: DockerToolsetOptions = {}): OpencodeTools
     instructions: DOCKER_SERVER_INSTRUCTIONS,
     create: ({ recorder }) =>
       dockerToolSpecs(
-        createDockerClient({ recorder, ...(options.binary && { binary: options.binary }) }),
+        createDockerClient({
+          recorder,
+          ...(options.binary && { binary: options.binary }),
+          ...(options.argsPrefix && { argsPrefix: options.argsPrefix }),
+        }),
       ),
   };
 }

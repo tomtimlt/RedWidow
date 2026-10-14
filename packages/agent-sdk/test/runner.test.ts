@@ -1,3 +1,5 @@
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type {
   HookInput,
   McpSdkServerConfigWithInstance,
@@ -123,13 +125,13 @@ interface RunArgs extends SdkRunnerOptions {
   maxTurns?: number;
   signal?: AbortSignal;
   /** Binaire docker : active le toolset docker (absent = aucun toolset docker). */
-  docker?: string;
+  docker?: { bin: string; argsPrefix: readonly string[] };
 }
 
 const runAgent = (a: RunArgs) => {
   const { prompt, recorder, gate, cwd = "/w", model, maxTurns, signal, docker, ...rest } = a;
   const toolsets = [
-    ...(docker ? [dockerToolset({ binary: docker })] : []),
+    ...(docker ? [dockerToolset({ binary: docker.bin, argsPrefix: docker.argsPrefix })] : []),
     ...(rest.toolsets ?? []),
   ];
   const runner: AgentRunner = createSdkRunner({ ...rest, toolsets });
@@ -274,12 +276,14 @@ describe("outils MCP docker", () => {
       yield result({});
     };
 
-    await runAgent({ prompt: "x", recorder, gate, query, docker: fake.bin });
+    await runAgent({ prompt: "x", recorder, gate, query, docker: fake });
 
     const requested = events.find((e) => e.kind === "tool.requested");
     const started = events.find((e) => e.kind === "process.started");
     expect(started?.parentId).toBe(requested?.id);
-    expect(started).toMatchObject({ argv: [fake.bin, "ps", "--all", "--format", "{{json .}}"] });
+    expect(started).toMatchObject({
+      argv: [fake.bin, ...fake.argsPrefix, "ps", "--all", "--format", "{{json .}}"],
+    });
     expect(events.find((e) => e.kind === "approval.decided")?.parentId).toBe(requested?.id);
     expect(events.find((e) => e.kind === "tool.result")?.parentId).toBe(requested?.id);
     expect(events.find((e) => e.kind === "process.exited")).toMatchObject({ code: 0 });
@@ -298,7 +302,7 @@ describe("outils MCP docker", () => {
       expect(decision).toMatchObject({ behavior: "deny" });
       yield result({});
     };
-    await runAgent({ prompt: "x", recorder, gate, query, docker: fake.bin });
+    await runAgent({ prompt: "x", recorder, gate, query, docker: fake });
     expect(events.some((e) => e.kind === "process.started")).toBe(false);
     expect(await fake.calls()).toEqual([]);
   });
@@ -318,7 +322,7 @@ describe("outils MCP docker", () => {
       await callMcpTool(server, "ps", {});
       yield result({});
     };
-    await runAgent({ prompt: "x", recorder, gate, query, docker: fake.bin });
+    await runAgent({ prompt: "x", recorder, gate, query, docker: fake });
 
     const ids = byId(events);
     const parents = events
@@ -340,7 +344,7 @@ describe("outils MCP docker", () => {
       await callMcpTool(options.mcpServers?.docker as McpSdkServerConfigWithInstance, "ps", {});
       yield result({});
     };
-    await runAgent({ prompt: "x", recorder, gate, query, docker: fake.bin });
+    await runAgent({ prompt: "x", recorder, gate, query, docker: fake });
     expect(events.find((e) => e.kind === "process.started")?.parentId).toBe(events[0]?.id);
   });
 
@@ -351,7 +355,13 @@ describe("outils MCP docker", () => {
       seen.push(options);
       yield result({});
     };
-    await runAgent({ prompt: "x", recorder, gate, query, docker: "docker" });
+    await runAgent({
+      prompt: "x",
+      recorder,
+      gate,
+      query,
+      docker: { bin: "docker", argsPrefix: [] },
+    });
     await runAgent({ prompt: "x", recorder, gate, query });
     await runAgent({
       prompt: "x",
@@ -704,7 +714,7 @@ describe("événements du SDK", () => {
         tool_use_id: "task1",
         status: "completed",
         summary: "fini",
-        output_file: "/tmp/o",
+        output_file: join(tmpdir(), "o"),
         usage: { total_tokens: 200, tool_uses: 3, duration_ms: 90 },
       });
       yield result({});
@@ -885,7 +895,7 @@ describe("corrélation MCP", () => {
       );
       yield result({});
     };
-    await runAgent({ prompt: "x", recorder, gate, query, docker: fake.bin });
+    await runAgent({ prompt: "x", recorder, gate, query, docker: fake });
     const started = events.find((e) => e.kind === "process.started");
     const parent = events.find((e) => e.id === started?.parentId);
     return { started, parent, events };
@@ -960,7 +970,7 @@ describe("corrélation MCP", () => {
       await callMcpTool(server, "ps", {});
       yield result({});
     };
-    await runAgent({ prompt: "x", recorder, gate, query, docker: fake.bin });
+    await runAgent({ prompt: "x", recorder, gate, query, docker: fake });
     const starts = events.filter((e) => e.kind === "process.started");
     expect(starts.map((e) => e.kind === "process.started" && e.correlation)).toEqual([
       "exact",

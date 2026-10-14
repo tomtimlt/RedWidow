@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -20,7 +20,7 @@ const setup = async () => {
   const recorder = createRecorder({ runId: "r" });
   const events: EngineEvent[] = [];
   recorder.subscribe((e) => events.push(e));
-  const docker = createDockerClient({ recorder, binary: fake.bin });
+  const docker = createDockerClient({ recorder, binary: fake.bin, argsPrefix: fake.argsPrefix });
   return { fake, docker, events };
 };
 
@@ -113,7 +113,12 @@ describe("DockerClient", () => {
     const recorder = createRecorder();
     const events: EngineEvent[] = [];
     recorder.subscribe((e) => events.push(e));
-    const docker = createDockerClient({ recorder, binary: fake.bin, parentId: "default" });
+    const docker = createDockerClient({
+      recorder,
+      binary: fake.bin,
+      argsPrefix: fake.argsPrefix,
+      parentId: "default",
+    });
     await docker.ps();
     await docker.ps({ parentId: "call" });
     await docker.ps({ parentId: null });
@@ -232,13 +237,41 @@ describe("parsing de la sortie docker", () => {
   });
   it("inspect : JSON invalide → docker.unexpectedOutput", async () => {
     const dir = await mkdtemp(join(tmpdir(), "john-bad-docker-"));
-    const bin = join(dir, "docker");
-    await writeFile(bin, "#!/bin/sh\necho 'not json'\n");
-    await chmod(bin, 0o755);
-    const docker = createDockerClient({ recorder: createRecorder(), binary: bin });
+    const script = join(dir, "docker.mjs");
+    await writeFile(script, 'console.log("not json");\n');
+    const docker = createDockerClient({
+      recorder: createRecorder(),
+      binary: process.execPath,
+      argsPrefix: [script],
+    });
     await expect(docker.inspect("web")).rejects.toMatchObject({
       code: "docker.unexpectedOutput",
       params: { command: "inspect" },
     });
+  });
+});
+
+describe("createDockerClient : argsPrefix (réservé au code)", () => {
+  const make = (argsPrefix: readonly string[]) =>
+    createDockerClient({ recorder: createRecorder(), binary: process.execPath, argsPrefix });
+  const invalid = (reason: string) =>
+    expect.objectContaining({
+      code: "docker.invalidArgument",
+      params: { field: "argsPrefix", reason },
+    });
+
+  it("applique les bornes : 8 éléments, 4 Kio chacun, sans \\0", () => {
+    expect(() => make(Array(8).fill("x"))).not.toThrow();
+    expect(() => make(["x".repeat(4096)])).not.toThrow();
+    expect(() => make(Array(9).fill("x"))).toThrow(invalid("tooMany"));
+    expect(() => make(["x".repeat(4097)])).toThrow(invalid("tooLarge"));
+    expect(() => make(["a\0b"])).toThrow(invalid("nul"));
+    expect(() => make([1 as unknown as string])).toThrow(invalid("notStrings"));
+  });
+
+  it("conserve la validation de binary", () => {
+    expect(() =>
+      createDockerClient({ recorder: createRecorder(), binary: "./docker", argsPrefix: ["x"] }),
+    ).toThrow(expect.objectContaining({ code: "docker.invalidBinary" }));
   });
 });

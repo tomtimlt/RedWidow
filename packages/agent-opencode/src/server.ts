@@ -3,6 +3,7 @@ import { accessSync, constants, statSync } from "node:fs";
 import { createServer } from "node:net";
 import { delimiter, isAbsolute, join } from "node:path";
 import {
+  assertArgsPrefix,
   CodedError,
   safeEnv,
   spawnOptionsForTree,
@@ -119,6 +120,12 @@ export function freePort(): Promise<number> {
 export interface LaunchOptions {
   /** Chemin du binaire (déjà résolu). */
   binary: string;
+  /**
+   * Arguments insérés entre le binaire et `serve` (≤ 8 éléments de 4 Kio, sans
+   * `\0`). RÉSERVÉ AU CODE (tests : `process.execPath` + script `.mjs`) : ni CLI,
+   * ni politique, ni configuration utilisateur ne doivent l'alimenter.
+   */
+  argsPrefix?: readonly string[];
   cwd: string;
   env: NodeJS.ProcessEnv;
   signal: AbortSignal;
@@ -139,13 +146,15 @@ const LISTENING = /opencode server listening on\s+(https?:\/\/\S+)/;
  */
 export async function launchServer({
   binary,
+  argsPrefix = [],
   cwd,
   env,
   signal,
   timeoutMs = 30_000,
 }: LaunchOptions): Promise<LaunchedServer> {
+  const prefix = assertArgsPrefix(argsPrefix);
   const port = await freePort();
-  const child = spawn(binary, ["serve", "--hostname=127.0.0.1", `--port=${port}`], {
+  const child = spawn(binary, [...prefix, "serve", "--hostname=127.0.0.1", `--port=${port}`], {
     cwd,
     env,
     stdio: ["ignore", "pipe", "pipe"],

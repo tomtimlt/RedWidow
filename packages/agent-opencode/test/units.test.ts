@@ -1,12 +1,13 @@
-import { chmodSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   assertSafeConfig,
   forcedPermission,
   HARDENING_ENV,
   isUnevaluable,
+  launchServer,
   normalizeInput,
   policyToolName,
   resolveBinary,
@@ -117,13 +118,54 @@ describe("environnement du serveur lancé", () => {
   });
 
   it("trouve le binaire dans PATH, ou renvoie null", () => {
-    const dir = mkdtempSync(join(tmpdir(), "oc-bin-"));
+    const dir = mkdtempSync(join(realpathSync.native(tmpdir()), "oc-bin-"));
     const bin = join(dir, "opencode");
-    writeFileSync(bin, "#!/bin/sh\n");
-    expect(resolveBinary("opencode", { PATH: dir })).toBeNull(); // non exécutable
-    chmodSync(bin, 0o755);
-    expect(resolveBinary("opencode", { PATH: `/nulle/part:${dir}` })).toBe(bin);
-    expect(resolveBinary(bin, {})).toBe(bin);
+    writeFileSync(bin, "", { mode: 0o644 });
+    // Le bit d'exécution n'existe pas sous Windows : ce refus est propre à POSIX.
+    if (process.platform !== "win32") expect(resolveBinary("opencode", { PATH: dir })).toBeNull();
+    const dirExec = mkdtempSync(join(realpathSync.native(tmpdir()), "oc-bin-"));
+    const binExec = join(dirExec, "opencode");
+    writeFileSync(binExec, "", { mode: 0o755 });
+    const path = [join(dir, "nulle-part"), dirExec].join(delimiter);
+    expect(resolveBinary("opencode", { PATH: path })).toBe(binExec);
+    expect(resolveBinary(binExec, {})).toBe(binExec);
     expect(resolveBinary("absent", { PATH: dir })).toBeNull();
+  });
+});
+
+describe("launchServer : argsPrefix (réservé au code)", () => {
+  const launch = (argsPrefix: readonly string[]) =>
+    launchServer({
+      binary: process.execPath,
+      argsPrefix,
+      cwd: process.cwd(),
+      env: {},
+      signal: new AbortController().signal,
+      timeoutMs: 5000,
+    });
+  const invalid = (reason: string) =>
+    expect.objectContaining({
+      code: "docker.invalidArgument",
+      params: { field: "argsPrefix", reason },
+    });
+
+  it("lance le faux serveur Node (execPath + script) et le ferme", async () => {
+    const dir = mkdtempSync(join(realpathSync.native(tmpdir()), "oc-fake-"));
+    const script = join(dir, "opencode.mjs");
+    writeFileSync(
+      script,
+      `console.log("opencode server listening on http://127.0.0.1:" + process.argv[4].split("=")[1]);
+setInterval(() => {}, 1000);
+`,
+    );
+    const server = await launch([script]);
+    expect(server.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
+    await server.close();
+  });
+
+  it("applique les bornes avant tout lancement", async () => {
+    await expect(launch(Array(9).fill("x"))).rejects.toEqual(invalid("tooMany"));
+    await expect(launch(["x".repeat(4097)])).rejects.toEqual(invalid("tooLarge"));
+    await expect(launch(["a\0b"])).rejects.toEqual(invalid("nul"));
   });
 });

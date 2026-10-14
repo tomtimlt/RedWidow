@@ -24,7 +24,7 @@ Règles de délégation :
 ## Commandes
 
 - `pnpm check` : biome + `tsc -b` + `tsc -p tsconfig.test.json` + vitest. Doit être entièrement vert avant tout commit.
-- `pnpm build` ; `pnpm test:contract` (appels réels, facturés, désactivé par défaut) ; `OPENCODE_BIN=… pnpm test` active les contrats OpenCode hors ligne.
+- `pnpm build` ; `pnpm test:contract` (appels réels, facturés, désactivé par défaut) ; `OPENCODE_BIN` (chemin du binaire) active les contrats OpenCode hors ligne : `OPENCODE_BIN=… pnpm test` (POSIX) ou `$env:OPENCODE_BIN="…"; pnpm test` (PowerShell). Pour poser une variable de façon portable dans un script : `node scripts/with-env.mjs KEY=VAL -- commande` (utilisé par `test:contract`).
 - CLI : `node packages/cli/dist/main.js` (`run`, `agents`, `policy`, `journal`, `graph`).
 
 ## Architecture
