@@ -326,18 +326,20 @@ async function runWithOpencode(
   const decideCall = (
     call: Call,
     extra: Obj,
-    externalPatterns: readonly string[] = [],
+    externalPatterns?: readonly string[],
   ): Promise<ApprovalOutcome> => {
-    // Un `external_directory` qui arrive après la décision de l'outil n'a pas été vu par elle : décision à part.
+    // Un `external_directory` qui arrive après la décision de l'outil n'a pas été vu par elle : décision à part
+    // (même sans motif : le cœur plafonne alors à `ask`).
     const memoKey =
-      externalPatterns.length > 0 && decisions.has(call.key) ? `${call.key}#ext` : call.key;
+      externalPatterns !== undefined && decisions.has(call.key) ? `${call.key}#ext` : call.key;
     const known = decisions.get(memoKey);
     if (known) return known;
     const policyTool = policyToolName(call.tool, serverNames);
     const normalized = {
       ...normalizeInput(policyTool, call.input, extra),
       // Bases statiques des motifs `external_directory` : contrôlées comme n'importe quel chemin par le cœur.
-      ...(externalPatterns.length > 0 && { [EXTERNAL_PATTERNS_FIELD]: [...externalPatterns] }),
+      // Toujours transmis pour un `external_directory`, même vide : le cœur ne l'autorise jamais seul.
+      ...(externalPatterns !== undefined && { [EXTERNAL_PATTERNS_FIELD]: [...externalPatterns] }),
     };
     const event = requestedFor(call, normalized, policyTool);
     const decision: Promise<ApprovalOutcome> = isUnevaluable(policyTool, normalized)
@@ -422,7 +424,7 @@ async function runWithOpencode(
         const outcome = await decideCall(
           call,
           request.metadata,
-          request.permission === EXTERNAL_DIRECTORY_TOOL ? request.patterns : [],
+          request.permission === EXTERNAL_DIRECTORY_TOOL ? request.patterns : undefined,
         );
         allow = outcome.decision === "allow";
       } else if (request.callID === undefined) {

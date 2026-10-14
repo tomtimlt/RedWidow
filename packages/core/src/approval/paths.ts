@@ -11,7 +11,7 @@
  * qu'on ne peut pas résoudre donne un refus, jamais un accès.
  */
 
-import { realpathSync } from "node:fs";
+import { lstatSync, readlinkSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { posix, win32 } from "node:path";
 
@@ -40,6 +40,14 @@ export interface PathOptions {
   env?: Readonly<Record<string, string | undefined>> | undefined;
   /** Défaut : `realpathSync.native` ; lève avec `code: "ENOENT"` si le chemin n'existe pas. */
   realpath?: ((path: string) => string) | undefined;
+  /**
+   * Défaut : `lstatSync` ; lève (`ENOENT`) si l'entrée n'existe pas. Sert à reconnaître un lien
+   * symbolique pendant. Si `realpath` est injecté sans `lstat`, aucune entrée n'est supposée exister
+   * (les tests décrivent alors un système de fichiers entièrement fictif).
+   */
+  lstat?: ((path: string) => unknown) | undefined;
+  /** Défaut : `readlinkSync` (mêmes règles d'injection que `lstat`). */
+  readlink?: ((path: string) => string) | undefined;
 }
 
 /** Constat d'un garde-fou de chemin. */
@@ -198,6 +206,42 @@ export function globBase(pattern: string): string {
   return base || (/^[\\/]/.test(pattern) ? "/" : ".");
 }
 
+/**
+ * Motif glob dont la base statique ne reflète pas ce qu'il peut atteindre, ou `null`.
+ * Un segment à métacaractère qui contient `..` (`{..,x}`), un `..` qui suit un segment à
+ * métacaractère (étoile, barre, `..`) ou, sous Windows, `:` / `%` dans un segment à métacaractère
+ * (`C:*`, `{C:,D:}\*`) : refusé (fail-closed), la base ne protégerait rien.
+ */
+export function globHazard(pattern: string, platform: PathPlatform = defaultPlatform()): boolean {
+  let meta = false;
+  for (const seg of pattern.split(/[\\/]/)) {
+    const isMeta = /[*?[\]{}]/.test(seg);
+    if (isMeta && (seg.includes("..") || (platform === "win32" && /[:%]/.test(seg)))) return true;
+    if (meta && seg === "..") return true;
+    meta ||= isMeta;
+  }
+  return false;
+}
+
+/** Premier motif glob dangereux (`globHazard`) d'un appel d'outil, ou `null`. */
+export function findGlobHazard(
+  tool: string,
+  input: Record<string, unknown>,
+  platform: PathPlatform = defaultPlatform(),
+): string | null {
+  const patterns: unknown[] = [];
+  if (tool === "Glob") patterns.push(input.pattern);
+  const external = input[EXTERNAL_PATTERNS_FIELD];
+  if (Array.isArray(external)) patterns.push(...external);
+  if (tool === EXTERNAL_DIRECTORY_TOOL && Array.isArray(input.patterns)) {
+    patterns.push(...input.patterns);
+  }
+  for (const pattern of patterns) {
+    if (typeof pattern === "string" && globHazard(pattern, platform)) return pattern;
+  }
+  return null;
+}
+
 /** Chemins à contrôler pour un appel d'outil. */
 export function extractPaths(
   tool: string,
@@ -218,7 +262,11 @@ export function extractPaths(
       pattern.startsWith("~") ||
       (platform === "win32" && /[:%]/.test(pattern))
     ) {
-      paths.push(globBase(pattern));
+      const base = globBase(pattern);
+      // Un motif relatif se résout contre `path` (et non contre le répertoire de travail).
+      const dir = input.path;
+      const relative = !flavor.isAbsolute(base) && !base.startsWith("~");
+      paths.push(typeof dir === "string" && dir !== "" && relative ? flavor.join(dir, base) : base);
     }
   }
   const external = input[EXTERNAL_PATTERNS_FIELD];
@@ -247,6 +295,8 @@ interface Flavor {
   env: Env;
   home: string;
   realpath: (p: string) => string;
+  lstat: (p: string) => unknown;
+  readlink: (p: string) => string;
 }
 
 function makeFlavor(opts: PathOptions): Flavor {
@@ -258,10 +308,26 @@ function makeFlavor(opts: PathOptions): Flavor {
   return {
     platform,
     path: win ? win32 : posix,
+    // macOS : comparaison toujours insensible à la casse (volumes APFS/HFS+ par défaut) ; un volume
+    // sensible à la casse donne alors des faux positifs (refus ou ask), jamais un accès (best effort).
     fold: platform === "posix" ? (p) => p : (p) => p.toLowerCase(),
     env,
     home,
     realpath: opts.realpath ?? ((p) => realpathSync.native(p)),
+    lstat:
+      opts.lstat ??
+      (opts.realpath === undefined
+        ? (p) => lstatSync(p)
+        : () => {
+            throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+          }),
+    readlink:
+      opts.readlink ??
+      (opts.realpath === undefined
+        ? (p) => readlinkSync(p)
+        : () => {
+            throw Object.assign(new Error("EINVAL"), { code: "EINVAL" });
+          }),
   };
 }
 
@@ -291,14 +357,25 @@ function errorCode(err: unknown): string | undefined {
     : undefined;
 }
 
+/** Nombre maximal de liens symboliques pendants suivis pour un même chemin. */
+const MAX_DANGLING_HOPS = 16;
+
+function isMissing(err: unknown): boolean {
+  const code = errorCode(err);
+  return code === "ENOENT" || code === "ENOTDIR";
+}
+
 /**
  * Chemin absolu sans lien symbolique. Pour un fichier qui n'existe pas encore,
- * résout le plus proche ancêtre existant (seulement sur ENOENT/ENOTDIR) puis
- * réattache la fin du chemin, qui est contrôlée (Windows : formes douteuses et
- * noms courts 8.3, la partie résolue étant déjà normalisée).
+ * résout le plus proche ancêtre existant (seulement sur ENOENT/ENOTDIR, sur toutes
+ * les plateformes) puis réattache la fin du chemin, qui est contrôlée (Windows :
+ * formes douteuses et noms courts 8.3, la partie résolue étant déjà normalisée).
+ * Un composant qui existe pour `lstat` mais que `realpath` ne résout pas est un lien
+ * symbolique pendant : sa cible est lue et résolue à son tour (profondeur bornée), pour
+ * que le chemin final passe par tous les contrôles.
  * Lève `PathUnsupportedError` si le chemin ne peut pas être résolu de façon sûre.
  */
-function canonical(path: string, f: Flavor): string {
+function canonical(path: string, f: Flavor, hops = 0): string {
   const full = f.path.resolve(path);
   const tail: string[] = [];
   let current = full;
@@ -309,15 +386,13 @@ function canonical(path: string, f: Flavor): string {
       return f.path.join(resolved, ...tail);
     } catch (err) {
       if (err instanceof PathUnsupportedError) throw err;
-      const code = errorCode(err);
-      const missing = code === "ENOENT" || code === "ENOTDIR";
-      if (!missing) {
-        // Windows : toute autre erreur est fatale. Ailleurs, on garde le repli historique
-        // (ancêtre existant) sauf pour les erreurs qui disent que le chemin existe mais est inaccessible.
-        if (f.platform === "win32" || code === "ELOOP" || code === "EACCES" || code === "EPERM") {
-          throw new PathUnsupportedError("unresolvable");
-        }
-      }
+      if (!isMissing(err)) throw new PathUnsupportedError("unresolvable");
+    }
+    // `current` est introuvable pour realpath : inexistant, ou lien symbolique pendant ?
+    try {
+      f.lstat(current);
+    } catch (err) {
+      if (!isMissing(err)) throw new PathUnsupportedError("unresolvable");
       const parent = f.path.dirname(current);
       if (parent === current) {
         if (f.platform === "win32") checkTail(tail);
@@ -325,7 +400,21 @@ function canonical(path: string, f: Flavor): string {
       }
       tail.unshift(f.path.basename(current));
       current = parent;
+      continue;
     }
+    if (hops >= MAX_DANGLING_HOPS) throw new PathUnsupportedError("unresolvable");
+    let target: string;
+    try {
+      target = cleanRealpath(f.readlink(current), f);
+    } catch (err) {
+      if (err instanceof PathUnsupportedError) throw err;
+      throw new PathUnsupportedError("unresolvable");
+    }
+    return canonical(
+      f.path.join(f.path.resolve(f.path.dirname(current), target), ...tail),
+      f,
+      hops + 1,
+    );
   }
 }
 
@@ -383,7 +472,7 @@ export function checkPathAccess(
   const roots: string[] = [];
   for (const root of opts.roots ?? [opts.cwd]) {
     try {
-      roots.push(canonical(root, f));
+      roots.push(canonical(f.path.resolve(opts.cwd, root), f));
     } catch {
       // Racine non résolvable : on l'écarte (tout accès sera au moins soumis à approbation).
     }

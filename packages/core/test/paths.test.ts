@@ -328,3 +328,302 @@ describe("external_directory (cœur)", () => {
     expect(v.decision).toBe("deny");
   });
 });
+
+// ---------------------------------------------------------------------------
+// W-L1b : liens symboliques pendants, plafond external_directory, motifs Glob
+// ---------------------------------------------------------------------------
+
+/** Faux système de fichiers : entrées existantes, liens (pendants si leur cible n'existe pas), erreurs forcées. */
+function fakeLinks(
+  entries: Record<string, string>,
+  links: Record<string, string>,
+  lstatFail: Record<string, string> = {},
+) {
+  const enoent = () => Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+  return {
+    realpath: fakeFs(entries),
+    lstat: (p: string) => {
+      const code = lstatFail[p];
+      if (code !== undefined) throw Object.assign(new Error(code), { code });
+      if (p in entries || p in links) return {};
+      throw enoent();
+    },
+    readlink: (p: string) => {
+      const hit = links[p];
+      if (hit === undefined) throw Object.assign(new Error("EINVAL"), { code: "EINVAL" });
+      return hit;
+    },
+  };
+}
+
+describe.each([
+  { platform: "posix" as const, sep: "/", cwd: "/w", home: "/home/x", root: "/" },
+  { platform: "win32" as const, sep: "\\", cwd: "C:\\w", home: "C:\\Users\\x", root: "C:\\" },
+])("$platform : liens symboliques pendants", ({ platform, sep, cwd, home, root }) => {
+  const j = (...parts: string[]) => parts.join(sep);
+  const base = { [root]: root, [cwd]: cwd, [home]: home };
+  const make = (
+    links: Record<string, string>,
+    lstatFail: Record<string, string> = {},
+  ): PolicyContext => ({
+    cwd,
+    platform,
+    env: platform === "win32" ? WIN_ENV : {},
+    home,
+    ...fakeLinks(base, links, lstatFail),
+  });
+
+  it("lien pendant vers ~/.ssh : deny", () => {
+    const ctx = make({ [j(cwd, "notes.md")]: j(home, ".ssh", "authorized_keys") });
+    const v = verdict(ctx, "Read", { file_path: "notes.md" }, allowAll);
+    expect(v.decision).toBe("deny");
+    expect(v.reason.code).toBe("path.sensitive");
+  });
+
+  it("lien pendant relatif remontant vers ~/.ssh : deny", () => {
+    const rel =
+      platform === "posix" ? j("..", "home", "x", ".ssh", "k") : j("..", "Users", "x", ".ssh", "k");
+    const ctx = make({ [j(cwd, "notes.md")]: rel });
+    expect(verdict(ctx, "Read", { file_path: "notes.md" }, allowAll).decision).toBe("deny");
+  });
+
+  it("lien pendant vers l'extérieur de l'espace de travail : ask", () => {
+    const outside = j(root, "opt", "x");
+    const ctx = make({ [j(cwd, "out")]: outside });
+    expect(verdict(ctx, "Read", { file_path: "out" }, allowAll).decision).toBe("ask");
+  });
+
+  it("lien pendant vers une cible de l'espace de travail : allow", () => {
+    const ctx = make({ [j(cwd, "in")]: j(cwd, "newdir", "f.txt") });
+    expect(verdict(ctx, "Write", { file_path: "in" }, allowAll).decision).toBe("allow");
+  });
+
+  it("lien pendant au milieu du chemin", () => {
+    const ctx = make({ [j(cwd, "d")]: j(home, ".ssh", "keys") });
+    const v = verdict(ctx, "Read", { file_path: j("d", "sub", "id") }, allowAll);
+    expect(v.decision).toBe("deny");
+    expect(v.reason.code).toBe("path.sensitive");
+  });
+
+  it("chaîne de plus de 16 liens : deny (unresolvable)", () => {
+    const links: Record<string, string> = {};
+    for (let i = 0; i < 20; i++) links[j(cwd, `l${i}`)] = j(cwd, `l${i + 1}`);
+    const v = verdict(make(links), "Read", { file_path: "l0" }, allowAll);
+    expect(v.decision).toBe("deny");
+    expect(v.reason.params?.form).toBe("unresolvable");
+  });
+
+  it("chaîne courte de liens pendants dans l'espace de travail : allow", () => {
+    const links: Record<string, string> = {};
+    for (let i = 0; i < 5; i++) links[j(cwd, `l${i}`)] = j(cwd, `l${i + 1}`);
+    expect(verdict(make(links), "Read", { file_path: "l0" }, allowAll).decision).toBe("allow");
+  });
+
+  it("lstat qui échoue autrement que par ENOENT : deny", () => {
+    const ctx = make({}, { [j(cwd, "x")]: "EIO" });
+    const v = verdict(ctx, "Read", { file_path: "x" }, allowAll);
+    expect(v.decision).toBe("deny");
+    expect(v.reason.params?.form).toBe("unresolvable");
+  });
+
+  it("readlink qui échoue : deny", () => {
+    // Entrée visible pour lstat mais pas un lien lisible.
+    const ctx: PolicyContext = {
+      ...make({}),
+      lstat: () => ({}),
+      readlink: () => {
+        throw Object.assign(new Error("EINVAL"), { code: "EINVAL" });
+      },
+    };
+    expect(verdict(ctx, "Read", { file_path: "x" }, allowAll).decision).toBe("deny");
+  });
+});
+
+describe("external_directory plafonné à ask", () => {
+  const ctx: PolicyContext = {
+    cwd: "/w",
+    platform: "posix",
+    env: {},
+    home: "/home/x",
+    realpath: fakeFs({ "/": "/", "/w": "/w" }),
+  };
+
+  it.each([[["*"]], [[]], [["**"]], [["{a,b}/x"]], [[""]]])(
+    "Read avec externalDirectories %j et allowAll : ask, jamais allow",
+    (externalDirectories) => {
+      const v = verdict(ctx, "Read", { file_path: "/w/a", externalDirectories }, allowAll);
+      expect(v.decision).toBe("ask");
+    },
+  );
+
+  it("un deny de règle reste deny", () => {
+    const p: Policy = { default: "ask", rules: [{ tool: "Read", decision: "deny" }] };
+    expect(verdict(ctx, "Read", { file_path: "/w/a", externalDirectories: [] }, p).decision).toBe(
+      "deny",
+    );
+  });
+
+  it("sans le champ, Read dans l'espace de travail reste allow", () => {
+    expect(verdict(ctx, "Read", { file_path: "/w/a" }, allowAll).decision).toBe("allow");
+  });
+
+  it("une règle allow sur external_directory est ignorée", () => {
+    expect(verdict(ctx, "external_directory", { patterns: ["/w/x/*"] }, allowAll).decision).toBe(
+      "ask",
+    );
+  });
+});
+
+describe("motifs Glob", () => {
+  const ctx: PolicyContext = {
+    cwd: "/home/x/proj",
+    platform: "posix",
+    env: {},
+    home: "/home/x",
+    realpath: fakeFs({ "/": "/", "/home/x": "/home/x", "/home/x/proj": "/home/x/proj" }),
+  };
+
+  it("le motif relatif se résout contre input.path", () => {
+    expect(extractPaths("Glob", { path: "sub", pattern: "../x/*" }, "posix")).toEqual(["sub", "x"]);
+    const v = verdict(ctx, "Glob", { path: "sub", pattern: "../../.ssh/*" }, allowAll);
+    expect(v.decision).toBe("deny");
+    expect(v.reason.code).toBe("path.sensitive");
+  });
+
+  it("../.ssh/* depuis un sous-dossier atteignant ~/.ssh : refus", () => {
+    const c: PolicyContext = { ...ctx, cwd: "/home/x" };
+    expect(verdict(c, "Glob", { path: "proj", pattern: "../.ssh/*" }, allowAll).decision).toBe(
+      "deny",
+    );
+  });
+
+  it.each(["{..,x}/.ssh/*", "{..,x}/{..,x}/.ssh/*", "*/../../.ssh/*", "a/**/../b"])(
+    "motif %s : deny (unresolvable)",
+    (pattern) => {
+      const v = verdict(ctx, "Glob", { path: "sub", pattern }, allowAll);
+      expect(v.decision).toBe("deny");
+      expect(v.reason).toEqual({
+        code: "path.unsupported",
+        params: { path: pattern, form: "unresolvable" },
+      });
+    },
+  );
+
+  it("motif sans danger : toujours accepté", () => {
+    expect(verdict(ctx, "Glob", { pattern: "src/**/*.ts" }, allowAll).decision).toBe("allow");
+  });
+
+  it.each(["C:*", "{C:,D:}\\*", "%USERPROFILE%*", "{%A%,x}\\*"])(
+    "win32 : motif %s refusé",
+    (pattern) => {
+      const v = verdict(win(), "Glob", { pattern }, allowAll);
+      expect(v.decision).toBe("deny");
+    },
+  );
+
+  it("posix : `:` dans un segment à métacaractère reste permis", () => {
+    expect(verdict(ctx, "Glob", { pattern: "a:b/*" }, allowAll).decision).toBe("allow");
+  });
+
+  it("le contrôle vaut aussi pour les motifs external_directory", () => {
+    const v = verdict(
+      ctx,
+      "external_directory",
+      { patterns: ["/home/x/proj/{..,x}/.ssh"] },
+      allowAll,
+    );
+    expect(v.decision).toBe("deny");
+  });
+});
+
+describe("win32 : cas de revue", () => {
+  it.each([
+    ["C:\\w\\..\\Users\\x\\.ssh\\id_rsa", "deny"],
+    ["C:/Users/X/.SSH/id_rsa", "deny"],
+    ["//?/C:/w", "deny"],
+    ["\\\\?\\UNC\\srv\\s", "deny"],
+    ["con.", "deny"],
+    ["COM1 .txt", "deny"],
+    ["\\Users\\x\\.ssh", "deny"],
+    ["~\\..\\..\\Windows\\System32\\config\\SAM", "deny"],
+  ])("%s : %s", (path, decision) => {
+    expect(verdict(win(), "Read", { file_path: path }, allowAll).decision).toBe(decision);
+  });
+
+  it("C:\\work2 avec racine C:\\work : hors espace de travail", () => {
+    const ctx: PolicyContext = {
+      ...win(fakeFs({ "C:\\": "C:\\", "C:\\work": "C:\\work", "C:\\work2": "C:\\work2" })),
+      cwd: "C:\\work",
+    };
+    expect(verdict(ctx, "Read", { file_path: "C:\\work2\\f" }).decision).toBe("ask");
+    expect(verdict(ctx, "Read", { file_path: "C:\\work\\f" }).decision).toBe("allow");
+  });
+
+  it("C:\\ comme racine : tout le lecteur est dans l'espace de travail, sauf le sensible", () => {
+    const ctx: PolicyContext = {
+      ...win(fakeFs({ "C:\\": "C:\\" })),
+      cwd: "C:\\",
+    };
+    expect(verdict(ctx, "Read", { file_path: "C:\\data\\f" }).decision).toBe("allow");
+    expect(verdict(ctx, "Read", { file_path: "C:\\Users\\x\\.ssh\\k" }, allowAll).decision).toBe(
+      "deny",
+    );
+  });
+
+  it("realpath renvoyant \\\\?\\Volume{…}\\ : device", () => {
+    const ctx = win(
+      fakeFs({ "C:\\": "C:\\", "C:\\w": "C:\\w", "C:\\w\\mnt": "\\\\?\\Volume{1234}\\" }),
+    );
+    const v = verdict(ctx, "Read", { file_path: "mnt\\f" }, allowAll);
+    expect(v.decision).toBe("deny");
+    expect(v.reason.params?.form).toBe("device");
+  });
+
+  it("EBUSY : unresolvable", () => {
+    const ctx = win(fakeFs({ "C:\\": "C:\\", "C:\\w": "C:\\w" }, { "C:\\w\\f": "EBUSY" }));
+    const v = verdict(ctx, "Read", { file_path: "f" }, allowAll);
+    expect(v.decision).toBe("deny");
+    expect(v.reason.params?.form).toBe("unresolvable");
+  });
+});
+
+describe("posix : erreurs de résolution", () => {
+  const entries = { "/": "/", "/w": "/w" };
+  const ctxWith = (fail: Record<string, string>): PolicyContext => ({
+    cwd: "/w",
+    platform: "posix",
+    env: {},
+    home: "/home/x",
+    realpath: fakeFs(entries, fail),
+  });
+
+  it.each(["ENAMETOOLONG", "EIO", "ELOOP", "EACCES"])("%s : deny (unresolvable)", (code) => {
+    const v = verdict(ctxWith({ "/w/x": code }), "Read", { file_path: "/w/x" }, allowAll);
+    expect(v.decision).toBe("deny");
+    expect(v.reason.params?.form).toBe("unresolvable");
+  });
+
+  it("erreur sans code : deny", () => {
+    const ctx: PolicyContext = {
+      ...ctxWith({}),
+      realpath: (p) => {
+        if (p === "/w/x") throw new Error("boum");
+        return p;
+      },
+    };
+    expect(verdict(ctx, "Read", { file_path: "/w/x" }, allowAll).decision).toBe("deny");
+  });
+
+  it("racine relative résolue contre opts.cwd", () => {
+    const ctx: PolicyContext = {
+      cwd: "/w",
+      roots: ["sub"],
+      platform: "posix",
+      env: {},
+      home: "/home/x",
+      realpath: fakeFs({ "/": "/", "/w": "/w", "/w/sub": "/w/sub" }),
+    };
+    expect(verdict(ctx, "Read", { file_path: "/w/sub/f" }, allowAll).decision).toBe("allow");
+    expect(verdict(ctx, "Read", { file_path: "/w/other/f" }, allowAll).decision).toBe("ask");
+  });
+});

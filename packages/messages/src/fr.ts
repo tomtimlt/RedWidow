@@ -1,6 +1,6 @@
 import type { Catalog, EventStrings, Messages } from "./catalog.js";
 
-/** Formes de chemin Windows refusées (`path.unsupported`). */
+/** Formes de chemin refusées (`path.unsupported`) ; la plupart ne concernent que Windows. */
 const PATH_FORMS: Readonly<Record<string, string>> = {
   unc: "chemin réseau (UNC)",
   device: "chemin de périphérique (\\\\?\\ ou \\\\.\\)",

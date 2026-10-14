@@ -333,6 +333,40 @@ describe("createOpencodeRunner (faux client)", () => {
     expect(fake.replies.map((r) => r.response)).toEqual(["once", "once"]);
   });
 
+  it("external_directory sans motif après la décision de l'outil : nouvelle décision, jamais mémorisée", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "oc-extn-"));
+    const fake = fakeOpencode([
+      async (s) => {
+        begin(s);
+        s.emit("message.part.updated", {
+          part: toolPart("c1", "read", { status: "running", input: { filePath: "a.txt" } }),
+        });
+        const a = await s.ask(permission("p_read", "read", "c1"));
+        const b = await s.ask(permission("p_ext", "external_directory", "c1", { patterns: [] }));
+        const c = await s.ask(permission("p_ext2", "external_directory", "c1", { patterns: [] }));
+        s.emit("quoi", { a, b, c });
+        s.idle();
+      },
+    ]);
+    const asked: Record<string, unknown>[] = [];
+    const h = harness({
+      workspace: cwd,
+      ask: async (r) => {
+        asked.push(r.input);
+        return { decision: "allow", remember: "session" };
+      },
+    });
+    await h.run(createOpencodeRunner({ createClient: fake.createClient }));
+    // Le read dans l'espace de travail est autorisé par la politique ; l'accès externe demande l'utilisateur.
+    expect(asked).toHaveLength(1);
+    expect(asked[0]?.externalDirectories).toEqual([]);
+    const decided = of(h.events, "approval.decided");
+    expect(decided).toHaveLength(2);
+    expect(decided[0]?.source).toBe("policy");
+    expect(decided[1]?.source).toBe("user");
+    expect(fake.replies.map((r) => r.response)).toEqual(["once", "once", "once"]);
+  });
+
   it("external_directory sans appel : base fixe des motifs, sensible refusé, normal soumis à approbation", async () => {
     const cwd = mkdtempSync(join(tmpdir(), "oc-extp-"));
     const other = mkdtempSync(join(tmpdir(), "oc-other-"));

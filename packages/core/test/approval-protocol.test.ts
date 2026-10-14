@@ -174,6 +174,28 @@ describe("remember", () => {
     expect(seen).toEqual(["a", "c"]);
   });
 
+  it("external_directory et externalDirectories ne sont jamais mémorisés", async () => {
+    const { ask, seen } = asker({ decision: "allow", remember: "session" });
+    const { gate } = setup({ ask });
+    const requests = [
+      { tool: "external_directory", input: { patterns: ["/opt/x/*"] } },
+      { tool: "external_directory", input: { patterns: [] } },
+      { tool: "mcp__docker__run", input: { externalDirectories: [] } },
+      { tool: "mcp__docker__run", input: { externalDirectories: [] } },
+    ];
+    for (const [i, r] of requests.entries()) {
+      await gate.decide({ toolUseId: `e${i}`, ...r }, signal());
+    }
+    expect(seen).toEqual(["e0", "e1", "e2", "e3"]);
+    // Une autorisation de session accordée à l'outil seul ne couvre pas la variante externe.
+    await gate.decide({ toolUseId: "p", tool: "mcp__docker__run", input: {} }, signal());
+    await gate.decide(
+      { toolUseId: "q", tool: "mcp__docker__run", input: { externalDirectories: [] } },
+      signal(),
+    );
+    expect(seen).toEqual(["e0", "e1", "e2", "e3", "p", "q"]);
+  });
+
   it("une règle mémorisée ne contourne jamais un deny de la politique", async () => {
     const { ask, seen } = asker({ decision: "allow", remember: "session" });
     const policy: Policy = {

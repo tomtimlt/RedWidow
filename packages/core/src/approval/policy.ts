@@ -2,7 +2,9 @@ import { type Reason, reason, ValidationError } from "../reason.js";
 import {
   checkPathAccess,
   EXTERNAL_DIRECTORY_TOOL,
+  EXTERNAL_PATTERNS_FIELD,
   extractPaths,
+  findGlobHazard,
   type PathPlatform,
 } from "./paths.js";
 import { matchCommand, parseShell, programName } from "./shell.js";
@@ -202,6 +204,10 @@ export interface PolicyContext {
   home?: string;
   /** Résolution des liens symboliques (défaut : `realpathSync.native`) ; lève (`ENOENT`) si le chemin n'existe pas. */
   realpath?: (path: string) => string;
+  /** `lstat` (défaut : `lstatSync`) : détecte les liens symboliques pendants. Voir `PathOptions.lstat`. */
+  lstat?: (path: string) => unknown;
+  /** `readlink` (défaut : `readlinkSync`) : cible d'un lien symbolique pendant. */
+  readlink?: (path: string) => string;
   /** Saveur des chemins (défaut : dérivée de `process.platform`). Fixée par le code seulement, jamais par la politique. */
   platform?: PathPlatform;
   /** Environnement pour `HOME`, `USERPROFILE`, `APPDATA`, `LOCALAPPDATA`, `SystemRoot`, `ProgramData` (défaut : `process.env`). */
@@ -215,6 +221,15 @@ function checkPaths(
   input: Record<string, unknown>,
   ctx: PolicyContext,
 ): PolicyVerdict | null {
+  const hazard = findGlobHazard(tool, input, ctx.platform);
+  if (hazard !== null) {
+    // La base statique du motif ne dit pas ce qu'il atteint (`{..,x}`, `C:*`…) : refus, jamais mémorisable.
+    return {
+      decision: "deny",
+      reason: reason("path.unsupported", { path: hazard, form: "unresolvable" }),
+      rule: null,
+    };
+  }
   const candidates = extractPaths(tool, input, ctx.platform);
   if (candidates.length === 0) return null;
   const finding = checkPathAccess(candidates, ctx);
@@ -241,11 +256,38 @@ function checkPaths(
   }
 }
 
+/**
+ * Un appel qui porte `externalDirectories` (répertoires externes déclarés par l'adaptateur) ne
+ * peut jamais être autorisé automatiquement : on plafonne à `ask`. Un `deny` reste `deny`.
+ */
+function capExternal(
+  policy: Policy,
+  tool: string,
+  input: Record<string, unknown>,
+  verdict: PolicyVerdict,
+): PolicyVerdict {
+  if (verdict.decision !== "allow" || !(EXTERNAL_PATTERNS_FIELD in input)) return verdict;
+  return {
+    decision: stricter("ask", policy.default),
+    reason: reason("policy.default", { tool }),
+    rule: null,
+  };
+}
+
 export function evaluatePolicy(
   policy: Policy,
   tool: string,
   input: Record<string, unknown>,
   ctx: PolicyContext = { cwd: process.cwd() },
+): PolicyVerdict {
+  return capExternal(policy, tool, input, evaluateUncapped(policy, tool, input, ctx));
+}
+
+function evaluateUncapped(
+  policy: Policy,
+  tool: string,
+  input: Record<string, unknown>,
+  ctx: PolicyContext,
 ): PolicyVerdict {
   const pathVerdict = checkPaths(policy, tool, input, ctx);
   if (pathVerdict) {
@@ -289,7 +331,12 @@ export function evaluatePolicy(
 
 const DECISIONS = new Set<string>(["allow", "ask", "deny"]);
 
-/** Valide une politique issue d'un fichier JSON. Lève une `ValidationError` (codes `policy.invalid.*`). */
+/**
+ * Valide une politique issue d'un fichier JSON. Lève une `ValidationError` (codes `policy.invalid.*`).
+ * Note : une règle `allow` sur l'outil `external_directory` est valide mais sans effet (ignorée par
+ * `evaluatePolicy`, qui ne l'autorise jamais automatiquement) ; aucun mécanisme d'avertissement de
+ * chargement n'existe pour une politique valide, donc elle est acceptée silencieusement.
+ */
 export function parsePolicy(raw: unknown): Policy {
   if (typeof raw !== "object" || raw === null) throw new ValidationError("policy.invalid.object");
   const obj = raw as Record<string, unknown>;

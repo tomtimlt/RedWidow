@@ -1,6 +1,7 @@
 import type { Decision } from "../events.js";
 import { errorInfo, type Reason, reason } from "../reason.js";
 import type { Recorder } from "../recorder.js";
+import { EXTERNAL_DIRECTORY_TOOL, EXTERNAL_PATTERNS_FIELD } from "./paths.js";
 import {
   BASH_TOOL,
   evaluatePolicy,
@@ -95,6 +96,11 @@ const PERSISTABLE = new Set(["policy.default", "bash.noRule"]);
 /** Clé d'autorisation de session : le même outil et, pour Bash, la même commande exacte ; `null` si non mémorisable. */
 function sessionKey(request: ApprovalRequest, verdict: PolicyVerdict): string | null {
   if (verdict.decision !== "ask" || !REMEMBERABLE.has(verdict.reason.code)) return null;
+  // Accès à des répertoires externes (permission OpenCode ou champ déclaré par l'adaptateur) :
+  // jamais mémorisable, sinon un « toujours » sur `Read` couvrirait des lectures hors de l'espace de travail.
+  if (request.tool === EXTERNAL_DIRECTORY_TOOL || EXTERNAL_PATTERNS_FIELD in request.input) {
+    return null;
+  }
   if (request.tool !== BASH_TOOL) return JSON.stringify([request.tool]);
   const command = request.input.command;
   if (typeof command !== "string" || command.trim() === "") return null;
