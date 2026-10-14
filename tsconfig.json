@@ -8,6 +8,9 @@
       "path": "packages/agent-opencode"
     },
     {
+      "path": "packages/agent-sdk"
+    },
+    {
       "path": "packages/messages"
     },
     {

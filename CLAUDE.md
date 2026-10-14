@@ -48,6 +48,7 @@ Règles de délégation :
 
 - Style biome, TypeScript strict (`exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`). Réutiliser les utilitaires existants (`reason()`, `CodedError`, `capOutput`, `errorInfo`…) avant d'en écrire.
 - Tout nouveau code de raison : ajouter à `REASON_CODES` et aux catalogues fr (complet) et en ; un test d'exhaustivité existe. Tout nouveau `kind` d'événement : validateur, `KIND_CLASS` de l'export HTML.
-- Chaque paquet ajouté touche `tsconfig.json` (références), `tsconfig.test.json` (paths), `vitest.config.ts` (alias) et le lockfile.
+- Chaque paquet ajouté touche `tsconfig.json` (références), `tsconfig.test.json` (paths), `vitest.config.ts` (alias) et le lockfile ; `test/workspace-consistency.test.ts` garde cette cohérence (et celle des dépendances `workspace:*` avec les `references` de chaque paquet).
+- `zod` et `@anthropic-ai/sdk` restent déclarés dans `agent-sdk` / `agent-opencode` (en `dependencies`) : ce sont des peers requis des SDK (`@anthropic-ai/claude-agent-sdk` exige `@anthropic-ai/sdk`, `@modelcontextprotocol/sdk` et `zod` ; `@modelcontextprotocol/sdk` exige `zod`). Ne pas les retirer. SDK instables (0.x/1.x) en version exacte.
 - Aucun identifiant de modèle dans le code, les commits ou la documentation (sauf variable d'environnement de test). Messages de commit en français.
 - Ne pas pousser sur une autre branche que celle de la session, ne pas ouvrir de PR sans demande.

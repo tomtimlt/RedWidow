@@ -8,10 +8,11 @@
     "paths": {
       "@john-studio/agent-opencode": ["./packages/agent-opencode/src/index.ts"],
       "@john-studio/agent-sdk": ["./packages/agent-sdk/src/index.ts"],
+      "@john-studio/cli": ["./packages/cli/src/main.ts"],
       "@john-studio/core": ["./packages/core/src/index.ts"],
       "@john-studio/export-html": ["./packages/export-html/src/index.ts"],
       "@john-studio/messages": ["./packages/messages/src/index.ts"]
     }
   },
-  "include": ["packages/*/src", "packages/*/test", "vitest.config.ts"]
+  "include": ["packages/*/src", "packages/*/test", "test", "vitest.config.ts"]
 }

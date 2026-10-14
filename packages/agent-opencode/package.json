@@ -1,10 +1,11 @@
 {
   "name": "@john-studio/agent-opencode",
   "version": "0.1.0",
+  "private": true,
   "description": "Adaptateur OpenCode pour le cœur john-studio : implémente AgentRunner pour des agents non Anthropic (OpenAI, Gemini, Ollama…).",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12"
   },
   "exports": {
     ".": {

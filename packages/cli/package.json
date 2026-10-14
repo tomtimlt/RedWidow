@@ -1,10 +1,11 @@
 {
   "name": "@john-studio/cli",
   "version": "0.1.0",
+  "private": true,
   "description": "CLI john-studio.",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12"
   },
   "bin": {
     "john": "./dist/main.js"
@@ -18,6 +19,6 @@
     "@john-studio/core": "workspace:*",
     "@john-studio/export-html": "workspace:*",
     "@john-studio/messages": "workspace:*",
-    "commander": "^14.0.3"
+    "commander": "^15.0.0"
   }
 }
