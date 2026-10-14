@@ -15,7 +15,7 @@ Décisions retenues : le hook `PreToolUse` fait autorité, `Bash` est retiré pa
 
 ## P1 : frontière cœur / UI, qui conditionne l'extension VS Code
 
-Décisions retenues : paquet adaptateur séparé (`@john-studio/agent-sdk`), paquet de libellés partagé (`@john-studio/messages`), sorties d'outil complètes avec plafonds et marqueur de troncature. Plan détaillé en 4 lots, tous faits : A (points 9 et 10), B (points 12 à 17), C1 (point 7), C2 (points 8 et 11). Un lot D (adaptateur OpenCode) est en préparation, voir la section « Adaptateurs » plus bas.
+Décisions retenues : paquet adaptateur séparé (`@john-studio/agent-sdk`), paquet de libellés partagé (`@john-studio/messages`), sorties d'outil complètes avec plafonds et marqueur de troncature. Plan détaillé en 4 lots, tous faits : A (points 9 et 10), B (points 12 à 17), C1 (point 7), C2 (points 8 et 11). Le lot D (adaptateur OpenCode) est fait, voir la section dédiée plus bas.
 
 7. **Texte d'affichage dans le cœur — traité (lot C1).** Le cœur n'émet plus que des `Reason { code, params?, cause? }` (`core/src/reason.ts`, liste exhaustive `REASON_CODES`) : motifs de politique et d'approbation, erreurs de validation, `DockerError`, erreurs de processus et de journal, avertissements de politique. Les libellés vivent dans `@john-studio/messages` (`formatReason`, `formatError`, `eventLabel`, `summarizeOutput` ; catalogue `fr` complet, `en` minimal, repli sur code + paramètres), utilisé par la CLI, l'export HTML et les refus renvoyés au modèle. `graph/build.ts` ne produit plus de libellé (les nœuds portent l'événement source). Les anciens journaux restent lisibles (`legacy`). Seul texte français restant dans le cœur : le motif libre de la règle `mcp__docker__rm` de `DEFAULT_POLICY` (texte de règle, rendu tel quel). Les paramètres et causes passent par le masquage des secrets.
 8. **Protocole d'approbation — traité (lot C2).** `approval.requested` est émis avant de solliciter l'`Asker` ; `timeoutMs` donne un refus `approval.timeout` ; `ApprovalAnswer.remember` (`once` / `session` / `always`) est géré par la gate : seuls les verdicts « ask » ordinaires (`policy.rule`, `policy.rule.custom`, `policy.default`, `bash.noRule`) sont mémorisables, jamais un `deny`, un chemin sensible ou hors espace de travail, un accès hôte docker ni un danger shell (testé). `always` ne persiste dans la politique utilisateur (`persistRule`, implémenté par la CLI) que pour une commande Bash simple ; sinon il se réduit à `session`. `createApprovalQueue()` fournit `pending()`, `answer()` et `requests()` pour une UI sans terminal (extension VS Code), et `Recorder.stream(signal?)` / `close()` un `AsyncIterable<EngineEvent>`. `updatedPermissions` du SDK reste volontairement inutilisé : le hook `PreToolUse` fait autorité, donc la mémoire d'approbation vit dans la gate. CLI : réponses `o` / `s` / `t` / `N` et `--approval-timeout`.
@@ -89,21 +89,22 @@ configuration globale de l'utilisateur est conservée (fournisseurs, clés) mais
 réels (clés, abonnements) n'ont pas été essayés. Les jetons ne sont pas journalisés (pas de champ dans le schéma).
 En mode `--opencode-url`, la configuration imposée ne peut pas être transmise : seule la vérification s'applique.
 
-## P2 : couche processus et Docker
+## P2 : couche processus et Docker — traités (lots L1 et L2, ADR 0001)
 
-18. **Annulation incomplète [V].** Le signal ne déclenche qu'un SIGTERM, sans escalade SIGKILL ni arrêt du groupe de processus. Il n'y a pas de timeout par processus.
-19. **`DockerClient.exec` est public et non validé [V].** Il n'est pas exposé en MCP, mais il fait partie de l'API du cœur.
-20. **Compatibilité podman non testée [?].** Les options `--format '{{json .}}'` et les noms de champs diffèrent. Le binaire est résolu via `PATH`, sans gestion de `DOCKER_HOST` ni des contextes.
-21. **Portabilité Windows [V].** Les tests s'appuient sur `/bin/sh`, et `docker.exe` n'est pas traité.
+Décisions : `docs/adr/0001-cycle-de-vie-des-processus-et-portabilite.md`. Windows natif en « best effort » (choix de l'utilisateur, usage personnel), Node >=22.12, dépôt privé.
 
-## P2 : export graphe, outillage, livraison
+18. **Cycle de vie des processus — traité (lot L1).** `core/src/process/terminate.ts` : `terminateProcessTree` (POSIX : processus lancé `detached`, SIGTERM au groupe, SIGKILL après `graceMs` = 5 s, puis destruction des tubes si des orphelins les gardent ouverts : la promesse ne reste jamais pendante), `spawnOptionsForTree`, `trackProcessTree` (registre des groupes vivants tués par SIGKILL synchrone à la sortie du processus parent). `runProcess` gère lui-même le signal, accepte `timeoutMs` et `killGraceMs` ; `process.exited` porte `termination` (`abort` / `timeout`) et `forced`. `DockerClient` : délai par défaut de 30 min. Le serveur OpenCode lancé par nous est arrêté par le même utilitaire. CLI : un second Ctrl-C quitte immédiatement (code 130). **Limites :** un SIGKILL de la CLI docker laisse le conteneur actif ; un parent tué par SIGKILL laisse des orphelins ; sous Windows, `child.kill()` seul (descendants non arrêtés).
+19. **Surface de `DockerClient` — traité (lot L2).** `exec` n'est plus dans l'interface publique. Validations ajoutées : image non vide et ne commençant pas par `-` ; `command` ≤ 256 éléments et ≤ 32 Kio au total, sans `\0` ; valeurs d'`env` ≤ 32 Kio, sans `\0` (jamais recopiées dans les erreurs) ; `binary` = nom nu ou chemin absolu (un chemin relatif est refusé). Codes `docker.invalidArgument` et `docker.invalidBinary`.
+20. **Podman — décidé : non supporté (lot L2).** Une sortie de `ps` / `images` / `inspect` dans un autre format lève `docker.unexpectedOutput` (commande et numéro de ligne, sans le contenu) au lieu de donner un résultat vide. `DOCKER_HOST`, `DOCKER_CONTEXT`, `DOCKER_CONFIG`, `DOCKER_CERT_PATH` et `DOCKER_TLS_VERIFY` sont transmis aux commandes (`safeEnv`). Voir « À faire plus tard » pour un support de podman.
+21. **Portabilité Windows — décidé : best effort sans garantie.** `john run` n'est pas refusé sous Windows ; la CLI affiche sur stderr, au démarrage de `run` et de `agents`, un avertissement (garde des chemins sensibles POSIX donc incomplète, WSL recommandé, pas pour la production). Les tests POSIX-only sont sautés sous win32. Support complet : voir « À faire plus tard ».
 
-22. **Layout naïf [V].** Une ligne par événement (hauteur O(n)), pas de repli ni de recherche, libellés tronqués. L'arbre est mono-parent : pas de liens approbation → processus ni de retries.
-23. **Pas de CI [V].** Aucune matrice Node 20/22. commander 14 et vitest 4 ont été choisis pour Node 20, mais seul Node 22 a été utilisé pour les tests.
-24. **Résolution de modules en double [V] — aggravé par le lot A.** Chaque nouveau paquet ajoute une entrée aux trois endroits ci-dessous. Les références de projet `tsc -b`, les `paths` de `tsconfig.test.json` et les alias vitest décrivent la même chose à trois endroits.
-25. **Dépendances [V] — partiellement traité (lot A).** Les peers `@modelcontextprotocol/sdk` et `@anthropic-ai/sdk` sont désormais déclarés dans `@john-studio/agent-sdk` et plus dans le cœur. Reste : le SDK en 0.x, TypeScript 7 très récent.
-    Dépendances d'origine : `@modelcontextprotocol/sdk` et `@anthropic-ai/sdk` sont des peers du SDK. Le premier n'est déclaré qu'en devDependency de `core`, et le second n'est pas déclaré. Le SDK est en 0.x et bouge vite. TypeScript 7 est très récent.
-26. **Pas de stratégie de publication [V].** Le binaire `john` n'existe qu'après `pnpm build`, et il n'y a ni versionnage ni changelog.
+## P2 : export graphe, outillage, livraison — traités (lots L3 et L4)
+
+22. **Export HTML — partiellement traité (lot L4).** Les `process.output` d'un processus sont regroupés en un seul compteur « N lignes » (les orphelins sont fusionnés par parent) : la hauteur ne dépend plus du nombre de lignes de sortie. L'affichage est plafonné à `MAX_RENDERED_NODES` = 5000 nœuds (option `maxNodes`) avec le marqueur « N événements non affichés ». Le `<title>` porte le libellé complet (borné à 4000 caractères), le texte reste tronqué à 80. **Repoussé :** recherche, pagination, repli de sous-arbres, arêtes approbation → processus, lien des `api.retry` avec la requête fautive, lecture de `agentToolUseId` ; l'arbre reste mono-parent.
+23. **CI — traité (lot L3).** `.github/workflows/ci.yml` : Ubuntu, Node 22 et 24, `pnpm install --frozen-lockfile`, `pnpm check`, `pnpm build`, `john --help` ; permissions `contents: read`, annulation des exécutions concurrentes, actions épinglées par SHA de commit, aucun secret ni test de contrat. **Non exécuté sur GitHub** : le workflow n'a tourné que localement (YAML validé, SHA vérifiés contre les tags des dépôts d'origine). Node 20 est abandonné (`engines` >= 22.12), ce qui a permis vitest 5 et commander 15.
+24. **Résolution de modules en double — traité par un garde-fou (lot L3).** Les trois listes (références `tsc -b`, `paths` de `tsconfig.test.json`, alias vitest) restent, car un tsconfig ne se génère pas ; `test/workspace-consistency.test.ts` échoue avec un message précis si un paquet manque quelque part ou si une dépendance `workspace:*` n'a pas sa référence `tsconfig`. Deux divergences réelles ont été corrigées (`agent-sdk` absent des références racine, `cli` absent des paths et alias).
+25. **Dépendances — traité (lots A et L3).** Les SDK restent en `dependencies` (une bibliothèque non publiée n'a pas besoin de peers). `zod` et `@anthropic-ai/sdk` sont conservés parce que `@anthropic-ai/claude-agent-sdk` et `@modelcontextprotocol/sdk` les exigent comme peers non optionnels. Versions exactes pour les SDK instables (`@anthropic-ai/claude-agent-sdk` 0.3.299, `@opencode-ai/sdk` 1.19.0), `@anthropic-ai/sdk` en `^0.133.0`, vitest 5.0.4, commander 15, TypeScript 7.0.2.
+26. **Publication — décidé : rester privé (lot L3).** Les six paquets sont `"private": true` pour éviter une publication accidentelle. Le bit exécutable du `bin` est posé par npm/pnpm à l'installation. Voir « À faire plus tard » pour la publication.
 
 ## Décisions à demander en priorité
 
@@ -113,3 +114,27 @@ En mode `--opencode-url`, la configuration imposée ne peut pas être transmise 
 - ~~**Secrets** (point 5)~~ : tranché, dans le recorder.
 - ~~**Découpage** (points 7 à 10)~~ : tranché, adaptateur séparé (`@john-studio/agent-sdk`) et libellés dans `@john-studio/messages`.
 - ~~**Journal** (points 15 et 17)~~ : tranché, sorties complètes avec plafonds et marqueurs de troncature.
+- ~~**P2** (points 18 à 26)~~ : tranché (ADR 0001 et utilisateur) — Windows best effort, Node >= 22.12, podman non supporté, dépôt privé.
+
+## À faire plus tard
+
+Ce qui a été volontairement repoussé ou n'a pas pu être vérifié. Rien ici n'est bloquant pour un usage personnel sur Linux ou macOS.
+
+**Fonctionnalités**
+- **Support complet de Windows natif** (décision : best effort pour l'instant). À construire ensemble, avec un ADR : liste de chemins sensibles Windows dans la politique (`policy.ts` est POSIX), `resolveBinary` avec `PATHEXT`, `.exe` et `.cmd` (un `.cmd` exige un shell ou `cmd.exe` avec `spawn`), arrêt de l'arbre de processus (`taskkill /T`), tests portables (scripts Node au lieu des faux binaires `#!/bin/sh`), job Windows dans la CI. Tant que ce n'est pas fait : ne pas utiliser en production.
+- **Support de podman** : parsing tolérant (tableau JSON ou un objet par ligne, `Names` en tableau), option `engine`, tests dédiés.
+- **Nettoyage des conteneurs** quand le client docker est tué par SIGKILL (timeout, annulation forcée) : suivre les conteneurs créés par `run` et les supprimer (`docker rm -f`).
+- **Export HTML** : recherche, pagination, repli de sous-arbres, arêtes approbation → processus (ajouter `toolUseId` à `process.started` ou relier par le parent), lien des `api.retry`, lecture de `agentToolUseId`.
+- **Publication npm** : décisions à prendre (publier ou non, nom du scope, licence — Apache-2.0 recommandée —, dépôt, changesets, README par paquet, CHANGELOG), puis retirer `private`.
+- **Rotation des journaux** (seul le plafond d'octets existe).
+- **Extension VS Code** : l'interface existe côté cœur (`createApprovalQueue`, `Recorder.stream`, `AgentRunner`) mais rien n'est construit ; vérifier l'empaquetage du binaire du SDK Claude dans l'extension host (Electron, Node différent, remote ou web).
+- **SDK v2 d'OpenCode** : non étudié (l'adaptateur cible l'API v1 et tente la route v2 en repli).
+- **Durcissement** : `plugins`, `agents` et `pathToClaudeCodeExecutable` restent passables via `sdkOptions` côté Claude ; à examiner.
+
+**À vérifier avec une vraie clé ou une vraie connexion** (tests de contrat désactivés par défaut)
+- `pnpm test:contract` (clé API) : ordre réel des messages du SDK, identifiant d'appel dans `_meta` des outils MCP, égalité `task_id` / `agent_id` pour le rattachement des sous-agents.
+- `JOHN_CONTRACT_SUBSCRIPTION=1` (connexion `/login`) : effet de `settingSources: []` sur le chargement des identifiants d'abonnement.
+- Fournisseurs réels d'OpenCode (clés, abonnements) : seul un faux fournisseur local a été essayé.
+- La CI GitHub Actions n'a jamais tourné sur GitHub.
+
+**Réserve de politique** : la documentation du SDK indique qu'Anthropic n'autorise pas, sauf accord préalable, les développeurs tiers à proposer la connexion claude.ai ou ses limites de débit dans leurs produits ; l'usage de son propre abonnement pour un outil personnel n'y est pas traité. Pour distribuer john-studio, utiliser des clés API.
