@@ -68,7 +68,12 @@ describe("formatReason", () => {
   });
 
   it("compose les motifs imbriqués", () => {
-    const verdict = evaluatePolicy(DEFAULT_POLICY, "Bash", { command: "docker run nginx" });
+    const verdict = evaluatePolicy(
+      DEFAULT_POLICY,
+      "Bash",
+      { command: "docker run nginx" },
+      { cwd: "/ws", posixShell: true },
+    );
     expect(formatReason({ code: "approval.noAsker", cause: verdict.reason })).toBe(
       "aucune règle pour « docker run nginx » (aucun approbateur interactif)",
     );
@@ -76,7 +81,10 @@ describe("formatReason", () => {
 
   it("garde les libellés français des verdicts de la politique", () => {
     const why = (tool: string, input: Record<string, unknown>) =>
-      formatReason(evaluatePolicy(DEFAULT_POLICY, tool, input, { cwd: "/ws", home: "/h" }).reason);
+      formatReason(
+        evaluatePolicy(DEFAULT_POLICY, tool, input, { cwd: "/ws", home: "/h", posixShell: true })
+          .reason,
+      );
     expect(why("Bash", { command: "docker ps -a" })).toBe("règle #3 allow Bash(docker ps *)");
     expect(why("Bash", { command: "rm -rf /" })).toBe("règle #10 deny Bash(rm *)");
     expect(why("mcp__docker__rm", {})).toBe("suppression de conteneur : à faire à la main");

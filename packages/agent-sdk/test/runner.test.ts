@@ -150,7 +150,12 @@ const setup = () => {
   const recorder = createRecorder({ runId: "run-1" });
   const events: EngineEvent[] = [];
   recorder.subscribe((e) => events.push(e));
-  const gate = createApprovalGate({ policy: DEFAULT_POLICY, recorder });
+  // `posixShell: true` : Bash de Claude est Git Bash sous Windows ; sans cela la gate est fail-closed sous win32.
+  const gate = createApprovalGate({
+    policy: DEFAULT_POLICY,
+    recorder,
+    workspace: { cwd: "/w", posixShell: true },
+  });
   return { recorder, events, gate };
 };
 

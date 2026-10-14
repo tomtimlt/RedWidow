@@ -202,7 +202,14 @@ describe("runProcess", () => {
     });
     setTimeout(() => ac.abort(), 50);
     const result = await pending;
-    expect(result.signal).toBe("SIGTERM");
+    if (process.platform === "win32") {
+      // Pas de signaux POSIX : taskkill /F termine l'arbre, sans nom de signal ; arrêt forcé.
+      expect(result.signal).toBeNull();
+      expect(result.code).not.toBe(0);
+      expect(result.forced).toBe(true);
+    } else {
+      expect(result.signal).toBe("SIGTERM");
+    }
   });
 });
 

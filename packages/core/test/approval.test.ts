@@ -17,6 +17,9 @@ import {
   ValidationError,
 } from "../src/index.js";
 
+/** Contexte pour tester la logique POSIX de Bash : sous win32, Bash est non POSIX sauf déclaration explicite (fail-closed). */
+const POSIX_BASH: PolicyContext = { cwd: process.cwd(), posixShell: true };
+
 const parsed = (cmd: string) => {
   const r = parseShell(cmd);
   if (!r.ok) throw new Error(r.error.code);
@@ -94,7 +97,7 @@ describe("matchCommand", () => {
 
 describe("evaluatePolicy", () => {
   const bash = (command: string, policy: Policy = DEFAULT_POLICY) =>
-    evaluatePolicy(policy, "Bash", { command }).decision;
+    evaluatePolicy(policy, "Bash", { command }, POSIX_BASH).decision;
 
   it("autorise les lectures allowlistées", () => {
     expect(bash("docker ps -a")).toBe("allow");
@@ -139,7 +142,7 @@ describe("evaluatePolicy", () => {
 
   it("expose le motif sous forme de code et de paramètres", () => {
     const why = (tool: string, input: Record<string, unknown>, policy: Policy = DEFAULT_POLICY) =>
-      evaluatePolicy(policy, tool, input).reason;
+      evaluatePolicy(policy, tool, input, POSIX_BASH).reason;
     expect(why("Bash", { command: "docker ps -a" })).toEqual({
       code: "policy.rule",
       params: { index: 3, decision: "allow", target: "Bash(docker ps *)" },
@@ -174,7 +177,9 @@ describe("evaluatePolicy", () => {
 
   it("rapporte l'index de la règle dans policy.rules", () => {
     const rm = DEFAULT_POLICY.rules.findIndex((r) => r.command === "rm *");
-    expect(evaluatePolicy(DEFAULT_POLICY, "Bash", { command: "rm -rf /" }).rule).toBe(rm);
+    expect(evaluatePolicy(DEFAULT_POLICY, "Bash", { command: "rm -rf /" }, POSIX_BASH).rule).toBe(
+      rm,
+    );
     expect(evaluatePolicy(DEFAULT_POLICY, "Grep", {}).rule).toBe(
       DEFAULT_POLICY.rules.findIndex((r) => r.tool === "Grep"),
     );
@@ -252,7 +257,12 @@ describe("createApprovalGate", () => {
     const recorder = createRecorder({ runId: "r" });
     const events: EngineEvent[] = [];
     recorder.subscribe((e) => events.push(e));
-    const gate = createApprovalGate({ policy: DEFAULT_POLICY, recorder, ...(ask && { ask }) });
+    const gate = createApprovalGate({
+      policy: DEFAULT_POLICY,
+      recorder,
+      workspace: POSIX_BASH,
+      ...(ask && { ask }),
+    });
     return { gate, events };
   };
   const signal = new AbortController().signal;
@@ -346,7 +356,7 @@ describe("garde des chemins (outils fichiers)", () => {
   mkdirSync(join(home, ".ssh"), { recursive: true });
   writeFileSync(join(home, ".ssh", "id_rsa"), "k");
 
-  const ctx: PolicyContext = { cwd: root, home };
+  const ctx: PolicyContext = { cwd: root, home, posixShell: true };
   const d = (tool: string, input: Record<string, unknown>) =>
     evaluatePolicy(DEFAULT_POLICY, tool, input, ctx).decision;
 
@@ -400,7 +410,8 @@ describe("garde des chemins (outils fichiers)", () => {
 });
 
 describe("durcissement de Bash", () => {
-  const bash = (command: string) => evaluatePolicy(DEFAULT_POLICY, "Bash", { command }).decision;
+  const bash = (command: string) =>
+    evaluatePolicy(DEFAULT_POLICY, "Bash", { command }, POSIX_BASH).decision;
 
   it.each([
     "bash -c 'docker ps'",

@@ -66,7 +66,10 @@ describe("interpréteurs Windows dans Bash", () => {
   });
 
   it("POSIX inchangé : docker ps reste autorisé, docker.exe ps aussi analysé comme docker", () => {
-    expect(evaluatePolicy(DEFAULT_POLICY, "Bash", { command: "docker ps" }).decision).toBe("allow");
+    const posix = { cwd: process.cwd(), posixShell: true };
+    expect(evaluatePolicy(DEFAULT_POLICY, "Bash", { command: "docker ps" }, posix).decision).toBe(
+      "allow",
+    );
     expect(
       evaluatePolicy(DEFAULT_POLICY, "Bash", { command: "docker.exe run -v /:/h x" }, win).decision,
     ).toBe("deny");

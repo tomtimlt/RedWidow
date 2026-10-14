@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -22,6 +22,7 @@ function setup(options: {
   timeoutMs?: number;
   persistRule?: (rule: PolicyRule) => void | Promise<void>;
   cwd?: string;
+  home?: string;
 }) {
   const recorder = createRecorder({ runId: "r", redact: false });
   const events: EngineEvent[] = [];
@@ -29,7 +30,13 @@ function setup(options: {
   const gate = createApprovalGate({
     policy: options.policy ?? DEFAULT_POLICY,
     recorder,
-    workspace: { cwd: options.cwd ?? "/w", home: "/h", realpath: (p) => p },
+    // `posixShell` : ces tests visent la logique POSIX de Bash (sous win32, Bash est sinon non analysable).
+    workspace: {
+      cwd: options.cwd ?? "/w",
+      home: options.home ?? "/h",
+      realpath: (p) => p,
+      posixShell: true,
+    },
     ...(options.ask && { ask: options.ask }),
     ...(options.timeoutMs !== undefined && { timeoutMs: options.timeoutMs }),
     ...(options.persistRule && { persistRule: options.persistRule }),
@@ -226,16 +233,19 @@ describe("remember", () => {
   });
 
   it("une règle mémorisée ne contourne pas les chemins sensibles ni hors espace de travail", async () => {
-    const root = mkdtempSync(join(tmpdir(), "john-gate-"));
+    const base = realpathSync.native(tmpdir());
+    const root = mkdtempSync(join(base, "john-gate-"));
+    const home = mkdtempSync(join(base, "john-gate-home-"));
+    mkdirSync(join(home, ".ssh"), { recursive: true });
     const inside = join(root, "in.txt");
     writeFileSync(inside, "x");
-    const other = mkdtempSync(join(tmpdir(), "john-gate-out-"));
+    const other = mkdtempSync(join(base, "john-gate-out-"));
     mkdirSync(other, { recursive: true });
     const outside = join(other, "out.txt");
     writeFileSync(outside, "x");
     const policy: Policy = { default: "ask", rules: [{ tool: "Write", decision: "ask" }] };
     const { ask, seen } = asker({ decision: "allow", remember: "session" });
-    const { gate } = setup({ ask, policy, cwd: root });
+    const { gate } = setup({ ask, policy, cwd: root, home });
 
     // Mémorise « Write » pour un chemin dans l'espace de travail…
     await gate.decide({ toolUseId: "a", tool: "Write", input: { file_path: inside } }, signal());
@@ -249,7 +259,7 @@ describe("remember", () => {
       signal(),
     );
     const sensitive = await gate.decide(
-      { toolUseId: "d", tool: "Write", input: { file_path: "/h/.ssh/id_rsa" } },
+      { toolUseId: "d", tool: "Write", input: { file_path: join(home, ".ssh", "id_rsa") } },
       signal(),
     );
     expect(out.reason.code).not.toBe("approval.remembered");
@@ -324,7 +334,12 @@ describe("createApprovalQueue", () => {
   it("retire la demande quand le signal est annulé, et le gate refuse", async () => {
     const queue = createApprovalQueue();
     const recorder = createRecorder({ redact: false });
-    const gate = createApprovalGate({ policy: DEFAULT_POLICY, recorder, ask: queue });
+    const gate = createApprovalGate({
+      policy: DEFAULT_POLICY,
+      recorder,
+      ask: queue,
+      workspace: { cwd: process.cwd(), posixShell: true },
+    });
     const controller = new AbortController();
     const decision = gate.decide(bash("docker stop web"), controller.signal);
     await Promise.resolve();
@@ -340,7 +355,12 @@ describe("createApprovalQueue", () => {
   it("fonctionne de bout en bout avec la gate (session mémorisée)", async () => {
     const queue = createApprovalQueue();
     const recorder = createRecorder({ redact: false });
-    const gate = createApprovalGate({ policy: DEFAULT_POLICY, recorder, ask: queue });
+    const gate = createApprovalGate({
+      policy: DEFAULT_POLICY,
+      recorder,
+      ask: queue,
+      workspace: { cwd: process.cwd(), posixShell: true },
+    });
     const first = gate.decide(bash("docker stop web", "a"), signal());
     await Promise.resolve();
     queue.answer("a", { decision: "allow", remember: "session" });
