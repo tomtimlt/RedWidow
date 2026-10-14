@@ -12,7 +12,12 @@ const SENSITIVE_KEY =
   /secret|token|passw|pwd|api[-_]?key|auth|credential|private[-_]?key|access[-_]?key|cookie|session/i;
 
 /** Clés qui correspondent à l'heuristique mais ne portent pas de secret (identifiants opaques). */
-const SAFE_KEYS = new Set(["sessionId"]);
+/**
+ * Clés dont le nom ressemble à un secret mais dont la valeur est un simple
+ * descripteur (identifiant de session, ORIGINE du jeton ou de la clé : « none »,
+ * « CLAUDE_CODE_OAUTH_TOKEN »…), jamais le secret lui-même.
+ */
+const SAFE_KEYS = new Set(["sessionId", "apiKeySource", "tokenSource"]);
 
 /** Variable d'environnement dont la valeur est sensible (même heuristique que les clés). */
 const SENSITIVE_ENV_NAME = SENSITIVE_KEY;

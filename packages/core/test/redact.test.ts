@@ -86,6 +86,13 @@ describe("createRedactor", () => {
     expect(r("tiny")).toBe("tiny");
   });
 
+  it("ne masque pas les descripteurs d'origine du jeton (apiKeySource, tokenSource)", () => {
+    const payload = { apiKeySource: "none", tokenSource: "CLAUDE_CODE_OAUTH_TOKEN" };
+    expect(redact(payload)).toEqual(payload);
+    // Un vrai secret au même endroit reste masqué par ses motifs.
+    expect(redact({ tokenSource: "sk-ant-api03-abcdefghijklmnop" }).tokenSource).toBe(REDACTED);
+  });
+
   it("ne touche ni aux nombres, ni aux booléens, ni au texte ordinaire", () => {
     const payload = {
       kind: "process.exited",
