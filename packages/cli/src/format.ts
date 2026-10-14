@@ -50,7 +50,13 @@ export function formatEvent(e: EngineEvent, { color, verbose }: FormatOptions): 
       const dropped = e.droppedLines
         ? paint("dim", ` · ${e.droppedLines} lignes non journalisées`)
         : "";
-      return `${tag(e.code === 0 ? "yellow" : "red", "exit")} ${e.code ?? e.signal} ${paint("dim", `${e.durationMs} ms`)}${dropped}`;
+      const cause = e.termination
+        ? paint(
+            "dim",
+            ` · ${e.termination === "timeout" ? "délai dépassé" : "annulé"}${e.forced ? " (SIGKILL)" : ""}`,
+          )
+        : "";
+      return `${tag(e.code === 0 ? "yellow" : "red", "exit")} ${e.code ?? e.signal} ${paint("dim", `${e.durationMs} ms`)}${cause}${dropped}`;
     }
     case "run.finished": {
       const unhandled = Object.values(e.unhandledMessages ?? {}).reduce((n, c) => n + c, 0);

@@ -2,7 +2,13 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { accessSync, constants, statSync } from "node:fs";
 import { createServer } from "node:net";
 import { delimiter, isAbsolute, join } from "node:path";
-import { CodedError, safeEnv } from "@john-studio/core";
+import {
+  CodedError,
+  safeEnv,
+  spawnOptionsForTree,
+  terminateProcessTree,
+  trackProcessTree,
+} from "@john-studio/core";
 
 /**
  * Variables réseau transmises au serveur en plus de `safeEnv` : proxys et
@@ -127,18 +133,6 @@ export interface LaunchedServer {
 
 const LISTENING = /opencode server listening on\s+(https?:\/\/\S+)/;
 
-/** Attend la fin d'un processus, au plus `ms`. */
-function exited(child: ChildProcess, ms: number): Promise<boolean> {
-  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve(true);
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(false), ms);
-    child.once("exit", () => {
-      clearTimeout(timer);
-      resolve(true);
-    });
-  });
-}
-
 /**
  * Lance `opencode serve` lié à 127.0.0.1 sur un port libre et attend sa
  * ligne « listening ». Pas de shell, environnement fourni par l'appelant.
@@ -156,15 +150,12 @@ export async function launchServer({
     env,
     stdio: ["ignore", "pipe", "pipe"],
     shell: false,
+    ...spawnOptionsForTree(),
   });
+  trackProcessTree(child);
 
   const close = async () => {
-    if (child.exitCode !== null || child.signalCode !== null) return;
-    child.kill("SIGTERM");
-    if (!(await exited(child, 3000))) {
-      child.kill("SIGKILL");
-      await exited(child, 1000);
-    }
+    await terminateProcessTree(child, { graceMs: 3000, killWaitMs: 1000 });
   };
 
   const url = await new Promise<string>((resolve, reject) => {

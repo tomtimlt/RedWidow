@@ -80,6 +80,9 @@ export function parseDockerImages(lines: readonly string[]): ImageSummary[] {
   return out;
 }
 
+/** Délai maximal par défaut d'un appel docker : 30 minutes. */
+const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000;
+
 const OPERAND = /^[A-Za-z0-9][A-Za-z0-9_.:@/-]*$/;
 const ENV_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const PORT = /^(?:[0-9.]+:)?\d+(?:-\d+)?:\d+(?:-\d+)?(?:\/(?:tcp|udp))?$/;
@@ -100,6 +103,8 @@ export function assertOperand(value: string, label: DockerOperandLabel): string 
 export interface CallOptions {
   parentId?: string | null;
   signal?: AbortSignal;
+  /** Durée maximale de cet appel (remplace celle du client). */
+  timeoutMs?: number;
   /** Fiabilité du rattachement de `parentId` à l'appel d'outil, consignée dans `process.started`. */
   correlation?: Correlation;
 }
@@ -119,6 +124,8 @@ export interface DockerClientOptions {
   /** Binaire docker (ou compatible : podman). */
   binary?: string;
   parentId?: string | null;
+  /** Durée maximale d'un appel (filet contre les blocages). Défaut : 30 minutes. */
+  timeoutMs?: number;
 }
 
 export interface DockerClient {
@@ -142,11 +149,16 @@ export function createDockerClient({
   recorder,
   binary = "docker",
   parentId: defaultParent = null,
+  timeoutMs: defaultTimeoutMs = DEFAULT_TIMEOUT_MS,
 }: DockerClientOptions): DockerClient {
-  const exec = (args: readonly string[], { parentId, signal, correlation }: CallOptions = {}) =>
+  const exec = (
+    args: readonly string[],
+    { parentId, signal, correlation, timeoutMs }: CallOptions = {},
+  ) =>
     runProcess([binary, ...args], {
       recorder,
       parentId: parentId === undefined ? defaultParent : parentId,
+      timeoutMs: timeoutMs ?? defaultTimeoutMs,
       ...(signal && { signal }),
       ...(correlation && { correlation }),
     });

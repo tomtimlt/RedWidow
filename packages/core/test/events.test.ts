@@ -70,6 +70,8 @@ const SAMPLES: { [K in EventKind]: Extract<EventPayload, { kind: K }> } = {
     signal: "SIGTERM",
     durationMs: 1,
     droppedLines: 3,
+    termination: "timeout",
+    forced: true,
   },
   "api.retry": {
     kind: "api.retry",
@@ -133,6 +135,9 @@ describe("schéma d'événements", () => {
       ["process.started", { correlation: "magic" }],
       ["process.output", { stream: "stdin" }],
       ["process.exited", { durationMs: Number.NaN }],
+      ["process.exited", { termination: "kill" }],
+      ["process.exited", { termination: 1 }],
+      ["process.exited", { forced: "oui" }],
       ["api.retry", { errorStatus: "500" }],
       ["task.updated", { phase: "done" }],
       ["task.updated", { usage: { totalTokens: "1" } }],

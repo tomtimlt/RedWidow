@@ -3,6 +3,7 @@ import type { Correlation } from "../events.js";
 import { CodedError, ValidationError } from "../reason.js";
 import type { Recorder } from "../recorder.js";
 import { LineSplitter } from "./lines.js";
+import { spawnOptionsForTree, terminateProcessTree, trackProcessTree } from "./terminate.js";
 
 const ENV_ALLOWLIST = new Set([
   "PATH",
@@ -52,7 +53,12 @@ export interface RunProcessOptions {
   cwd?: string;
   /** Environnement de l'enfant. Par défaut : `safeEnv()` (liste blanche, sans secrets). */
   env?: NodeJS.ProcessEnv;
+  /** Annulation : termine l'enfant et ses descendants (SIGTERM, puis SIGKILL après `killGraceMs`). */
   signal?: AbortSignal;
+  /** Durée maximale d'exécution (sans défaut) ; même terminaison que l'annulation. */
+  timeoutMs?: number;
+  /** Délai entre SIGTERM et SIGKILL lors d'une annulation ou d'un timeout. Défaut : 5000 ms. */
+  killGraceMs?: number;
   /** Plafond de lignes conservées en mémoire dans le résultat (le journal reçoit tout). */
   maxCapturedLines?: number;
   /** Plafond de lignes de sortie émises dans le journal (au-delà : comptées dans `droppedLines`). Défaut : 10 000. */
@@ -69,6 +75,10 @@ export interface ProcessResult {
   stdout: string[];
   stderr: string[];
   durationMs: number;
+  /** Cause de la terminaison demandée ; absent pour une fin naturelle. */
+  termination?: "abort" | "timeout";
+  /** Vrai si un SIGKILL a été nécessaire. */
+  forced?: boolean;
 }
 
 /**
@@ -95,10 +105,12 @@ export function runProcess(
     const child = spawn(file, args, {
       cwd: options.cwd,
       env: options.env ?? safeEnv(),
-      signal: options.signal,
+      ...spawnOptionsForTree(),
       stdio: ["ignore", "pipe", "pipe"],
       shell: false,
     });
+
+    trackProcessTree(child);
 
     const startEvent = recorder.emit(
       {
@@ -138,10 +150,22 @@ export function runProcess(
       spawnError = e;
     });
 
-    child.on("close", (code, signal) => {
+    let termination: "abort" | "timeout" | undefined;
+    let terminating: Promise<{ forced: boolean }> | undefined;
+    let closeSeen = false;
+    let finished = false;
+
+    const finish = (code: number | null, signal: string | null, forced: boolean) => {
+      if (finished) return;
+      finished = true;
+      cleanup();
       out.end();
       err.end();
       const durationMs = Math.round(performance.now() - started);
+      const extra = {
+        ...(termination && { termination }),
+        ...(forced && { forced }),
+      };
       recorder.emit(
         {
           kind: "process.exited",
@@ -149,6 +173,7 @@ export function runProcess(
           signal,
           durationMs,
           ...(droppedLines > 0 && { droppedLines }),
+          ...extra,
         },
         startEvent.id,
       );
@@ -156,7 +181,38 @@ export function runProcess(
         reject(new CodedError("process.notFound", { binary: file }));
         return;
       }
-      resolve({ code, signal, durationMs, ...captured });
+      resolve({ code, signal, durationMs, ...captured, ...extra });
+    };
+
+    const terminate = (reason: "abort" | "timeout") => {
+      if (terminating) return;
+      termination = reason;
+      terminating = terminateProcessTree(child, {
+        ...(options.killGraceMs !== undefined && { graceMs: options.killGraceMs }),
+      });
+      // Filet : si la fermeture n'a jamais été signalée, on résout avec l'état connu de l'enfant.
+      void terminating.then(({ forced }) => {
+        if (!closeSeen && child.pid !== undefined) {
+          finish(child.exitCode, child.signalCode, forced);
+        }
+      });
+    };
+
+    const onAbort = () => terminate("abort");
+    const timer =
+      options.timeoutMs === undefined
+        ? undefined
+        : setTimeout(() => terminate("timeout"), options.timeoutMs);
+    function cleanup() {
+      if (timer) clearTimeout(timer);
+      options.signal?.removeEventListener("abort", onAbort);
+    }
+    if (options.signal?.aborted) onAbort();
+    else options.signal?.addEventListener("abort", onAbort, { once: true });
+
+    child.on("close", (code, signal) => {
+      closeSeen = true;
+      void Promise.resolve(terminating).then((t) => finish(code, signal, t?.forced ?? false));
     });
   });
 }

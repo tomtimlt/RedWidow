@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { chmod, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -250,5 +251,130 @@ fi
       code: "docker.failed",
       params: { stderr: expect.stringContaining("daemon down") },
     });
+  });
+});
+
+const posix = process.platform === "win32" ? describe.skip : describe;
+
+posix("runProcess : terminaison du groupe", () => {
+  // Vivant = signalable et pas zombie (si init ne récupère pas les orphelins, un tué reste « Z »).
+  const alive = (pid: number) => {
+    try {
+      process.kill(pid, 0);
+      try {
+        return !/^\d+ \(.*\) Z/.test(readFileSync(`/proc/${pid}/stat`, "utf8"));
+      } catch {
+        return true;
+      }
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === "ESRCH") return false;
+      throw e;
+    }
+  };
+
+  // Un processus tué peut rester zombie un court instant avant d'être récupéré par init.
+  const gone = async (pid: number) => {
+    for (let i = 0; i < 40 && alive(pid); i++) await new Promise((r) => setTimeout(r, 25));
+  };
+
+  it("tue par SIGKILL un enfant qui ignore SIGTERM, après la grâce", async () => {
+    const { recorder, events } = collect();
+    const ac = new AbortController();
+    const pending = runProcess(["/bin/sh", "-c", "trap '' TERM; sleep 30"], {
+      recorder,
+      signal: ac.signal,
+      killGraceMs: 200,
+    });
+    setTimeout(() => ac.abort(), 100);
+    const t0 = Date.now();
+    const result = await pending;
+    expect(Date.now() - t0).toBeLessThan(200 + 1000);
+    expect(result).toMatchObject({ signal: "SIGKILL", forced: true, termination: "abort" });
+    expect(events.at(-1)).toMatchObject({
+      kind: "process.exited",
+      signal: "SIGKILL",
+      forced: true,
+      termination: "abort",
+    });
+  });
+
+  it("n'indique pas forced quand SIGTERM suffit", async () => {
+    const { recorder } = collect();
+    const ac = new AbortController();
+    const pending = runProcess(["/bin/sh", "-c", "sleep 30"], { recorder, signal: ac.signal });
+    setTimeout(() => ac.abort(), 100);
+    const result = await pending;
+    expect(result).toMatchObject({ signal: "SIGTERM", termination: "abort" });
+    expect(result.forced).toBeUndefined();
+  });
+
+  it("tue aussi le petit-enfant avec son groupe", async () => {
+    const { recorder } = collect();
+    const ac = new AbortController();
+    const pending = runProcess(["/bin/sh", "-c", "sleep 30 & echo $!; wait"], {
+      recorder,
+      signal: ac.signal,
+      killGraceMs: 200,
+    });
+    setTimeout(() => ac.abort(), 300);
+    const result = await pending;
+    const grandchild = Number(result.stdout[0]);
+    expect(Number.isInteger(grandchild)).toBe(true);
+    await gone(grandchild);
+    expect(alive(grandchild)).toBe(false);
+  });
+
+  it("ne reste pas pendant quand un petit-enfant orphelin garde les tubes ouverts", async () => {
+    const { recorder } = collect();
+    const ac = new AbortController();
+    // Le chef sort aussitôt ; le petit-enfant ignore TERM et garde stdout.
+    const pending = runProcess(["/bin/sh", "-c", "(trap '' TERM; sleep 30) & echo $!"], {
+      recorder,
+      signal: ac.signal,
+      killGraceMs: 100,
+    });
+    setTimeout(() => ac.abort(), 100);
+    const result = await pending;
+    const grandchild = Number(result.stdout[0]);
+    await gone(grandchild);
+    expect(alive(grandchild)).toBe(false);
+  });
+
+  it("applique timeoutMs avec termination = timeout", async () => {
+    const { recorder } = collect();
+    const result = await runProcess(["/bin/sh", "-c", "sleep 30"], {
+      recorder,
+      timeoutMs: 100,
+      killGraceMs: 200,
+    });
+    expect(result).toMatchObject({ signal: "SIGTERM", termination: "timeout" });
+  });
+
+  it("termine un processus lancé avec un signal déjà annulé", async () => {
+    const { recorder } = collect();
+    const result = await runProcess(["/bin/sh", "-c", "sleep 30"], {
+      recorder,
+      signal: AbortSignal.abort(),
+      killGraceMs: 200,
+    });
+    expect(result.termination).toBe("abort");
+    expect(result.signal).not.toBeNull();
+  });
+});
+
+posix("DockerClient : timeout", () => {
+  it("transmet timeoutMs (client puis appel) à runProcess", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "john-slow-docker-"));
+    const fake = join(dir, "docker");
+    await writeFile(fake, "#!/bin/sh\nsleep 30\n");
+    await chmod(fake, 0o755);
+    const { recorder, events } = collect();
+    const docker = createDockerClient({ recorder, binary: fake, timeoutMs: 150 });
+    await expect(docker.ps()).rejects.toMatchObject({ code: "docker.failed" });
+    expect(events.at(-1)).toMatchObject({ kind: "process.exited", termination: "timeout" });
+
+    const lenient = createDockerClient({ recorder, binary: fake, timeoutMs: 60_000 });
+    await expect(lenient.ps({ timeoutMs: 150 })).rejects.toMatchObject({ code: "docker.failed" });
+    expect(events.at(-1)).toMatchObject({ kind: "process.exited", termination: "timeout" });
   });
 });

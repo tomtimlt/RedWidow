@@ -62,7 +62,7 @@ export function eventLabel(e: EngineEvent, options: LabelOptions = {}): string {
     case "process.output":
       return clip(e.line);
     case "process.exited":
-      return `exit ${e.code ?? e.signal} · ${e.durationMs} ms`;
+      return `exit ${e.code ?? e.signal} · ${e.durationMs} ms${e.termination ? ` · ${e.termination}` : ""}${e.forced ? " · SIGKILL" : ""}`;
     case "run.finished":
       return `${e.status} · ${e.turns} ${t.turns} · $${e.costUsd.toFixed(4)}`;
     case "error":

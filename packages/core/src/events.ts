@@ -128,6 +128,10 @@ export type EventPayload =
       durationMs: number;
       /** Lignes de sortie non journalisées (plafond `maxJournaledLines` dépassé). */
       droppedLines?: number;
+      /** Cause de la terminaison demandée ; absent pour une fin naturelle. */
+      termination?: "abort" | "timeout";
+      /** Vrai si un SIGKILL a été nécessaire. */
+      forced?: boolean;
     }
   | {
       kind: "api.retry";
@@ -342,6 +346,8 @@ export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
     signal: "string|null",
     durationMs: "number",
     droppedLines: "number?",
+    termination: "enum:abort,timeout?",
+    forced: "boolean?",
   }),
   "api.retry": shape({
     attempt: "number",

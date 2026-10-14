@@ -11,6 +11,7 @@ export * from "./journal/jsonl.js";
 export * from "./output.js";
 export * from "./process/lines.js";
 export * from "./process/run.js";
+export * from "./process/terminate.js";
 export * from "./reason.js";
 export * from "./recorder.js";
 export * from "./redact.js";
