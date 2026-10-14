@@ -74,8 +74,8 @@ export function terminateProcessTree(
     try {
       if (isWindows()) child.kill();
       else process.kill(-pid, signal);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ESRCH") return;
+    } catch {
+      // Pas de groupe (enfant lancé sans `detached`) ou signal refusé : on vise l'enfant seul.
       try {
         child.kill(signal);
       } catch {
