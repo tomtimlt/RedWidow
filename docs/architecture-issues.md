@@ -106,6 +106,36 @@ Décisions : `docs/adr/0001-cycle-de-vie-des-processus-et-portabilite.md`. Windo
 25. **Dépendances — traité (lots A et L3).** Les SDK restent en `dependencies` (une bibliothèque non publiée n'a pas besoin de peers). `zod` et `@anthropic-ai/sdk` sont conservés parce que `@anthropic-ai/claude-agent-sdk` et `@modelcontextprotocol/sdk` les exigent comme peers non optionnels. Versions exactes pour les SDK instables (`@anthropic-ai/claude-agent-sdk` 0.3.299, `@opencode-ai/sdk` 1.19.0), `@anthropic-ai/sdk` en `^0.133.0`, vitest 5.0.4, commander 15, TypeScript 7.0.2.
 26. **Publication — décidé : rester privé (lot L3).** Les six paquets sont `"private": true` pour éviter une publication accidentelle. Le bit exécutable du `bin` est posé par npm/pnpm à l'installation. Voir « À faire plus tard » pour la publication.
 
+## Windows natif (ADR 0002) — lots W-L1 à W-L5b faits, validation réelle à faire
+
+Priorité n°1 (Docker Desktop sous Windows, WSL exclu). Décisions dans `docs/adr/0002-windows-natif.md`. Chaque lot touchant la sécurité a été relu par l'architecte.
+
+| Lot | Contenu | État |
+|---|---|---|
+| W-L1 / W-L1b | `approval/paths.ts` : chemins multi-plateformes (UNC, `\\?\`, ADS, noms réservés, 8.3, `%VAR%`), `realpath` fail-closed, comparaison sans casse, chemins sensibles Windows et `~/.claude`, liens pendants, `external_directory` d'OpenCode plafonné à `ask` | fait, relu |
+| W-L2 | Faux binaires en scripts Node (`argsPrefix`, ≤ 8 éléments, code seulement), `scripts/with-env.mjs`, `.gitattributes`, job Windows en CI (non bloquant) | fait |
+| W-L3 | `process/resolve.ts` : binaire toujours en chemin absolu `.exe`, `PATH` relatif ignoré, `.cmd` refusé (sauf shim npm d'OpenCode sondé), `safeEnv` Windows, `envWithout` sans casse, empreinte par `realpathSync.native`, `rename` réessayé | fait |
+| W-L4 | `terminateProcessTree` : `taskkill /PID n /T /F` (chemin absolu, sans shell), repli `child.kill()`, filet de sortie synchrone | fait |
+| W-L5 / W-L5b | PowerShell interdit (`disallowedTools` + arrêt à `system/init` avec `sdk.unexpectedTool`), shells non analysables au mieux `ask` (`shell.unanalyzable`, jamais mémorisable), `posixShell` fail-closed sous win32, `deny` avec motif refuse l'outil entier, interpréteurs Windows | fait, relu |
+| W-L2b | Tests rendus corrects sous Windows (voir ci-dessous) | en cours |
+| W-L6 | Validation réelle sur le PC Windows (11 étapes PowerShell, ADR 0002 H), puis job CI bloquant et levée de l'avertissement « best effort » | à faire |
+
+**Première exécution du job Windows (commit f6b461c).** Linux est vert, Windows échoue sur environ 40 tests, ce qui est le but du job :
+- la plupart supposent un Bash POSIX alors que `posixShell` est désormais refusé par défaut sous win32 (les tests doivent le déclarer) ;
+- des chemins POSIX codés en dur (`/home/…`, `/w`) ;
+- `spawn ENAMETOOLONG` dans `docker-client.test.ts` ;
+- `process.test.ts:205` : pas de `SIGTERM` sous Windows (signal `null`).
+Ce sont les premiers retours réels d'un Windows ; ils sont traités par le lot W-L2b.
+
+**Décisions et réserves consignées**
+- Avec la politique par défaut, `Bash` d'OpenCode sous Windows est refusé entièrement (les `deny` à motif de `DEFAULT_POLICY` s'appliquent à un shell non analysable) ; Bash est de toute façon désactivé par défaut.
+- Le refus par motif sous un shell non POSIX est « au mieux » (ADR 0002 §E).
+- `external_directory` : une règle `allow` y est ignorée, tout verdict est plafonné à `ask`.
+- Hypothèse TOCTOU : l'agent ne peut pas échanger un lien symbolique entre le contrôle et l'usage dans l'espace de travail supervisé (limite acceptée).
+- `parsePolicy` n'a pas de mécanisme d'avertissement (les règles ignorées sont silencieuses).
+- La table des shims npm (`SHIM_PACKAGES`) ne contient que `opencode` ; à généraliser seulement si un autre binaire en a besoin.
+- Non vérifié sans Windows : forme réelle des retours de `realpathSync.native`, comportement de `taskkill`, outils exposés par le SDK sous Windows, shell du bash d'OpenCode.
+
 ## Décisions à demander en priorité
 
 - ~~**Garde unique** (points 2 et 3)~~ : tranché, `PreToolUse`.
@@ -121,7 +151,7 @@ Décisions : `docs/adr/0001-cycle-de-vie-des-processus-et-portabilite.md`. Windo
 Ce qui a été volontairement repoussé ou n'a pas pu être vérifié. Rien ici n'est bloquant pour un usage personnel sur Linux ou macOS.
 
 **Fonctionnalités**
-- **Support complet de Windows natif** (décision : best effort pour l'instant). À construire ensemble, avec un ADR : liste de chemins sensibles Windows dans la politique (`policy.ts` est POSIX), `resolveBinary` avec `PATHEXT`, `.exe` et `.cmd` (un `.cmd` exige un shell ou `cmd.exe` avec `spawn`), arrêt de l'arbre de processus (`taskkill /T`), tests portables (scripts Node au lieu des faux binaires `#!/bin/sh`), job Windows dans la CI. Tant que ce n'est pas fait : ne pas utiliser en production.
+- **Support de Windows natif** : voir la section « Windows natif (ADR 0002) » ci-dessous ; reste la validation sur un vrai Windows (lot W-L6).
 - **Support de podman** : parsing tolérant (tableau JSON ou un objet par ligne, `Names` en tableau), option `engine`, tests dédiés.
 - **Nettoyage des conteneurs** quand le client docker est tué par SIGKILL (timeout, annulation forcée) : suivre les conteneurs créés par `run` et les supprimer (`docker rm -f`).
 - **Export HTML** : recherche, pagination, repli de sous-arbres, arêtes approbation → processus (ajouter `toolUseId` à `process.started` ou relier par le parent), lien des `api.retry`, lecture de `agentToolUseId`.
@@ -143,6 +173,6 @@ Ce qui a été volontairement repoussé ou n'a pas pu être vérifié. Rien ici 
 - Avec une clé API (`ANTHROPIC_API_KEY`) : mode `auto`/`api-key` non essayé.
 - Connexion `/login` stockée dans `~/.claude` (seule la voie `CLAUDE_CODE_OAUTH_TOKEN` a été essayée) ; égalité `task_id` / `agent_id` pour le rattachement des sous-agents (aucun scénario avec l'outil Task).
 - Fournisseurs réels d'OpenCode (clés, abonnements) : seul un faux fournisseur local a été essayé.
-- La CI GitHub Actions n'a jamais tourné sur GitHub.
+- La CI GitHub Actions tourne (Linux Node 22/24 verts). Le job Windows, non bloquant, échoue encore (voir ci-dessous).
 
 **Réserve de politique** : la documentation du SDK indique qu'Anthropic n'autorise pas, sauf accord préalable, les développeurs tiers à proposer la connexion claude.ai ou ses limites de débit dans leurs produits ; l'usage de son propre abonnement pour un outil personnel n'y est pas traité. Pour distribuer john-studio, utiliser des clés API.
