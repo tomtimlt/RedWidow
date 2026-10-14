@@ -20,3 +20,4 @@ export * from "./redact.js";
 export * from "./runner.js";
 export * from "./sandbox/registry.js";
 export * from "./sandbox/sandbox.js";
+export * from "./sandbox/tar.js";
