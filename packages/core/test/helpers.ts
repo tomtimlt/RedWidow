@@ -77,6 +77,8 @@ export interface FakeSandboxControl {
   /** Un `exec` dont l'argv contient ce mot échoue (code 1). */
   execFailsOn?: string;
   restartFails?: boolean;
+  /** Durée du `restart` (ms) : éprouve qu'il survit à l'annulation de l'appelant. */
+  restartDelayMs?: number;
   rmFails?: boolean;
 }
 
@@ -118,6 +120,7 @@ if (a === "image" && b === "inspect") {
   if (argv.includes("hang")) setInterval(() => {}, 1000);
   else out("exec-ok");
 } else if (a === "restart") {
+  if (c.restartDelayMs) await new Promise((r) => setTimeout(r, c.restartDelayMs));
   if (c.restartFails) fail("cannot restart");
   out(argv[argv.length - 1]);
 } else if (a === "rm") {

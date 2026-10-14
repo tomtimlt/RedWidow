@@ -140,6 +140,18 @@ const isObject = (v: unknown): v is Record<string, unknown> =>
 // ---------------------------------------------------------------------------
 
 /** Argv fixe de `docker run` (ADR 0003, B) : seuls `runId` et `image`, validés, varient. */
+const containerName = (runId: string) => `john-sbx-${runId.slice(0, 12)}`;
+
+/**
+ * Appels de nettoyage (restart, rm) : jamais le signal de l'appelant. Un signal déjà annulé tuerait
+ * aussitôt le processus de nettoyage (processus de l'agent survivants, entrée encore exécutable).
+ */
+const CLEANUP_TIMEOUT_MS = 30_000;
+const cleanupCall = (call: Call): Call => {
+  const { signal: _signal, ...rest } = call;
+  return { timeoutMs: CLEANUP_TIMEOUT_MS, ...rest };
+};
+
 function runArgs(runId: string, image: string): string[] {
   return [
     "run",
@@ -150,7 +162,7 @@ function runArgs(runId: string, image: string): string[] {
     "--label",
     `${SANDBOX_LABEL}=${runId}`,
     "--name",
-    `john-sbx-${runId.slice(0, 12)}`,
+    containerName(runId),
     "--user",
     SANDBOX_USER,
     "--cap-drop",
@@ -221,7 +233,11 @@ export async function createSandbox(
     );
   }
   const id = started.stdout[0]?.trim() ?? "";
-  if (!CONTAINER_ID.test(id)) throw new CodedError("docker.unexpectedOutput", { command: "run" });
+  if (!CONTAINER_ID.test(id)) {
+    // Le conteneur existe peut-être sans être inscrit : suppression par son nom (construit par le code).
+    await docker(ctx, rmArgs(containerName(runId)), cleanupCall(call)).catch(() => {});
+    throw new CodedError("docker.unexpectedOutput", { command: "run" });
+  }
 
   const record: SandboxRecord = {
     id,
@@ -230,13 +246,15 @@ export async function createSandbox(
     removeSync: () => {
       const file = resolveBinary(ctx.binary);
       if (file === null) return;
-      spawnSync(file, [...ctx.argsPrefix, ...rmArgs(id)], {
+      const done = spawnSync(file, [...ctx.argsPrefix, ...rmArgs(id)], {
         shell: false,
         env: safeEnv(),
         stdio: "ignore",
         windowsHide: true,
         timeout: 10_000,
       });
+      // Échec : rien n'est annoncé, `john sandbox prune` rattrape le conteneur.
+      if (done.status !== 0) return;
       try {
         ctx.recorder.emit(
           { kind: "sandbox.stopped", containerId: id, cause: "exit" },
@@ -328,12 +346,9 @@ export async function inspectSandbox(
   expect(list(host, "CapAdd", "HostConfig.CapAdd").length === 0, "HostConfig.CapAdd");
   expect(list(host, "CapDrop", "HostConfig.CapDrop").includes("ALL"), "HostConfig.CapDrop");
   const security = list(host, "SecurityOpt", "HostConfig.SecurityOpt");
+  // Liste blanche stricte : toute autre entrée (seccomp, apparmor, systempaths, label…) est une altération.
   expect(
-    security.some((o) => /^no-new-privileges([:=]true)?$/.test(o)),
-    "HostConfig.SecurityOpt",
-  );
-  expect(
-    !security.some((o) => /^(seccomp|apparmor)[:=]unconfined$/.test(o)),
+    security.length > 0 && security.every((o) => /^no-new-privileges([:=]true)?$/.test(o)),
     "HostConfig.SecurityOpt",
   );
   expect(list(host, "Binds", "HostConfig.Binds").length === 0, "HostConfig.Binds");
@@ -423,7 +438,7 @@ export async function execInSandbox(
     { ...call, timeoutMs: timeoutSec * 1000 },
   );
   if (result.termination === undefined) return result;
-  const restarted = await restartSandbox(ctx, id, call).then(
+  const restarted = await restartSandbox(ctx, id, cleanupCall(call)).then(
     () => true,
     () => false,
   );
@@ -443,7 +458,7 @@ export async function restartSandbox(
   const record = requireRecord(ctx, id);
   if (record.unavailable) throw new CodedError("sandbox.unavailable");
   try {
-    await dockerChecked(ctx, "restart", ["restart", "-t", "2", id], call);
+    await dockerChecked(ctx, "restart", ["restart", "-t", "2", id], cleanupCall(call));
   } catch {
     record.unavailable = true;
     await removeSandbox(ctx, id, "error", call).catch(() => {});
@@ -460,8 +475,10 @@ export async function removeSandbox(
   cause: "runEnd" | "abort" | "error" = "runEnd",
   call: Call = {},
 ): Promise<void> {
-  requireRecord(ctx, id);
-  const result = await docker(ctx, rmArgs(id), call);
+  const record = requireRecord(ctx, id);
+  // Hors service dès maintenant : si le rm échoue, l'entrée ne reste pas exécutable.
+  record.unavailable = true;
+  const result = await docker(ctx, rmArgs(id), cleanupCall(call));
   // Déjà supprimé par ailleurs : l'objectif est atteint ; toute autre erreur laisse l'entrée au filet de sortie.
   if (result.code !== 0 && !/no such container/i.test(result.stderr.join("\n")))
     throw new DockerError(

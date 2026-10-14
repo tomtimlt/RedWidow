@@ -342,6 +342,21 @@ describe("inspectSandbox : vérification avant usage", () => {
     },
   );
 
+  it.each([
+    "systempaths=unconfined",
+    "label=disable",
+    "seccomp=/tmp/permissif.json",
+    "apparmor=unconfined",
+    "no-new-privileges:false",
+  ])("SecurityOpt en liste blanche : l'entrée %s est une altération", async (extra) => {
+    const { fake, ctx } = await setup();
+    await createSandbox(ctx, { image: IMAGE });
+    const doc = goodInspect(RUN);
+    doc.HostConfig.SecurityOpt = ["no-new-privileges", extra];
+    await fake.control({ container: [doc] });
+    await expect(inspectSandbox(ctx, ID)).rejects.toMatchObject({ code: "sandbox.tampered" });
+  });
+
   it("accepte les formes équivalentes de Docker (CapAdd [], no-new-privileges:true)", async () => {
     const { fake, ctx } = await setup();
     await createSandbox(ctx, { image: IMAGE });
@@ -464,6 +479,18 @@ describe("execInSandbox", () => {
     expect((await fake.calls()).at(-1)).toBe(`restart|-t|2|${ID}|`);
   });
 
+  it("annulation : le restart n'hérite pas du signal annulé (il dure et réussit)", async () => {
+    const { fake, ctx } = await setup();
+    await createSandbox(ctx, { image: IMAGE });
+    await fake.control({ container: [goodInspect(RUN)], restartDelayMs: 500 });
+    const abort = new AbortController();
+    setTimeout(() => abort.abort(), 300);
+    const result = await execInSandbox(ctx, ID, { argv: ["hang"] }, { signal: abort.signal });
+    expect(result.termination).toBe("abort");
+    expect(result.restarted).toBe(true);
+    expect(ctx.registry.has(ID)).toBe(true);
+  });
+
   it("redémarrage impossible : conteneur supprimé, hors service, exécutions refusées", async () => {
     const { fake, ctx } = await setup();
     await createSandbox(ctx, { image: IMAGE });
@@ -518,6 +545,26 @@ describe("restartSandbox / removeSandbox", () => {
     await fake.control({ container: [goodInspect(RUN)], rmFails: true });
     await expect(removeSandbox(ctx, ID)).rejects.toMatchObject({ code: "docker.failed" });
     expect(ctx.registry.has(ID)).toBe(true);
+  });
+
+  it("rm en échec : le bac à sable est hors service, plus exécutable", async () => {
+    const { fake, ctx } = await setup();
+    await createSandbox(ctx, { image: IMAGE });
+    await fake.control({ container: [goodInspect(RUN)], rmFails: true });
+    await expect(removeSandbox(ctx, ID)).rejects.toMatchObject({ code: "docker.failed" });
+    await expect(execInSandbox(ctx, ID, { argv: ["ls"] })).rejects.toMatchObject({
+      code: "sandbox.unavailable",
+    });
+  });
+
+  it("identifiant renvoyé par run malformé : rm par nom, rien d'inscrit", async () => {
+    const { fake, ctx } = await setup();
+    await fake.control({ container: [goodInspect(RUN)], runOutput: "pas-un-id" });
+    await expect(createSandbox(ctx, { image: IMAGE })).rejects.toMatchObject({
+      code: "docker.unexpectedOutput",
+    });
+    expect((await fake.calls()).at(-1)).toBe("rm|--force|john-sbx-run1|");
+    expect(ctx.registry.has("pas-un-id")).toBe(false);
   });
 });
 
