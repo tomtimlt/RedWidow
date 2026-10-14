@@ -1,7 +1,7 @@
 # 0003 — Bac à sable Docker : exécution de commandes par l'agent dans un conteneur géré
 
-- Statut : proposé (décisions de produit Q1 à Q5 à confirmer par l'utilisateur)
-- Date : 2026-10-14
+- Statut : accepté pour le profil durci par défaut (lots S1 à S5) ; tout autre profil réseau/privilèges est exclu de cet ADR et à rediscuter
+- Date : 2026-10-14 (acceptation : 2026-10-14)
 - S'appuie sur : ADR 0001 (processus), ADR 0002 (Windows natif)
 
 ## Contexte
@@ -32,10 +32,11 @@ Modèle de menaces (complète ADR 0001/0002) :
 
 ### B. Création durcie (argv fixe, construit par le code)
 
-`docker run -d --init --label io.john-studio.sandbox=<runId> --name john-sbx-<runId court> --user 65534:65534 --cap-drop ALL --security-opt no-new-privileges --network none --pids-limit 512 --memory 2g --memory-swap 2g --cpus 2 --restart no --stop-timeout 2 --log-driver none --workdir /work --entrypoint sleep <image> infinity`
+`docker run -d --pull never --init --label io.john-studio.sandbox=<runId> --name john-sbx-<runId court> --user 65534:65534 --cap-drop ALL --security-opt no-new-privileges --network none --pids-limit 512 --memory 2g --memory-swap 2g --cpus 2 --restart no --stop-timeout 2 --log-driver none --workdir /work --entrypoint sleep <image> infinity`
 
 - Puis initialisation par le **code** (jamais le modèle) : `docker exec -u 0 <id> mkdir -p /work` et `chown 65534:65534 /work` (argv fixes). L'image doit fournir `sleep`, `mkdir`, `chown` (busybox, debian, alpine… ; une image distroless est refusée avec `sandbox.imageUnsupported`).
-- Jamais : `-v`, `--mount`, `--volumes-from`, `--device`, `--privileged`, `--cap-add`, `--security-opt` autre que ci-dessus, espace de noms `host`, `-p`/`-P`, `--env`/`--env-file`, socket docker. Le réseau `bridge` n'est possible que sur option explicite de l'opérateur (Q1).
+- Jamais : `-v`, `--mount`, `--volumes-from`, `--device`, `--privileged`, `--cap-add`, `--security-opt` autre que ci-dessus, espace de noms `host`, `-p`/`-P`, `--env`/`--env-file`, socket docker. Le réseau est toujours `none` dans cet ADR (Q1) ; aucune option ne le change.
+- `--pull never` : le moteur ne télécharge jamais d'image ; l'opérateur la tire lui-même au préalable (image absente → `sandbox.imageUnsupported`).
 - `sandbox.started` journalise identifiant, image, **empreinte (digest) de l'image** (via `inspect`), réseau et limites ; `sandbox.stopped` la fin (`runEnd`, `abort`, `error`, `exit`).
 
 ### C. Forme de `exec` : argv direct, sans shell imposé
@@ -51,7 +52,7 @@ Modèle de menaces (complète ADR 0001/0002) :
 - `argv[0]` interpréteur ou enveloppe (`sh`, `bash`, `dash`, `ash`, `zsh`, `python*`, `node`, `perl`, `ruby`, `php`, `env`, `xargs`, `nohup`, `timeout`, `nice`, `setsid`, `su`, `sudo`, `busybox`, `find` avec `-exec`/`-delete`) : une règle `allow` à joker ne s'applique pas, verdict au mieux `ask` (`sandbox.interpreter`) ; seule une règle sans joker identique à l'argv complet peut l'autoriser.
 - Défaut : `ask` (`policy.default`). `DEFAULT_POLICY` n'ajoute aucune règle pour `mcp__sandbox__*` sauf `status` en `allow`. `put` et `get` : `ask` toujours (chemins hôte, voir F).
 - **Mémorisation** : clé de session `mcp__sandbox__exec \0 <containerId> \0 JSON(argv) \0 cwd`, c'est-à-dire **l'argv exact dans ce conteneur**. Jamais l'outil entier, jamais un préfixe. `always` se réduit à `session` (l'identifiant du conteneur est éphémère) ; une autorisation durable passe par une règle écrite par l'opérateur. `sandbox.tampered`, `sandbox.unavailable` et tout verdict lié aux chemins hôte de `put`/`get` ne sont pas mémorisables. La règle générale de `sessionKey` devient : outil non-Bash **sans** dérivation de clé spécifique → mémorisable par nom (comportement actuel inchangé pour les autres outils), outil `mcp__sandbox__*` → clé ci-dessus ou `null`.
-- Un mode « autonome » (aucune demande par exécution) n'est **pas** une mémorisation : s'il est retenu (Q3), c'est une option de lancement de l'opérateur, refusée si le réseau n'est pas `none`.
+- Un mode « autonome » (aucune demande par exécution) n'est **pas** une mémorisation et n'est pas livré par S1 à S5 (Q3, en attente de l'utilisateur). S'il est retenu, ce sera une option de lancement de l'opérateur, jamais de la politique du dépôt.
 
 ### E. Durée, annulation, sortie
 
@@ -64,6 +65,14 @@ Modèle de menaces (complète ADR 0001/0002) :
 - Par `docker cp` en **flux tar** uniquement : `docker cp - <id>:/work/…` (entrée) et `docker cp <id>:<src> -` (sortie). Le tar est **produit et lu par notre code** (module `core/src/sandbox/tar.ts`, ustar + en-têtes pax pour les noms longs, sans dépendance) : `docker cp` n'extrait jamais rien sur l'hôte, donc aucun lien symbolique ni chemin piégé n'y est créé par la CLI docker.
 - `put { hostPath, containerPath }` : `hostPath` passe par le contrôle de chemins de `Read` (sensible → `deny`, hors espace de travail → `ask` non mémorisable) ; un répertoire est parcouru, chaque entrée contrôlée, liens symboliques ignorés, seuls fichiers réguliers et répertoires ; plafonds 256 Mio et 10 000 entrées. `containerPath` sous `/work`.
 - `get { containerPath, hostPath }` : lecteur tar strict (fichiers réguliers et répertoires seulement ; lien, lien dur, périphérique, FIFO, noms absolus, `..`, `\0`, et sous win32 les formes refusées par `paths.ts` → refus de toute l'archive) ; mêmes plafonds, mesurés pendant la lecture ; écriture dans l'espace de travail seulement, chaque chemin final contrôlé comme une écriture (`Write`), destination existante → refus (pas d'écrasement), écriture via un répertoire temporaire puis `rename`. Jamais mémorisable.
+
+### G. Questions Q1 à Q5 (tranchées le 2026-10-14)
+
+- **Q1 — Réseau** (technique, tranché) : `none`, fixe. Pas d'option `--sandbox-network` ; `inspect` exige `NetworkMode=none`. Tout autre réseau ou privilège relève d'un autre ADR.
+- **Q2 — Image** (technique, tranché) : aucune image par défaut codée en dur. L'opérateur la fournit (`--sandbox-image` ou configuration utilisateur), de préférence épinglée par digest ; absence → refus de démarrer le run avec `sandbox.imageUnsupported`. Le digest est journalisé (`sandbox.started`).
+- **Q3 — Mode autonome** (produit, en attente) : hors S1 à S5. Recommandation : ne pas le livrer ; les autorisations larges passent par des règles `allow` écrites par l'opérateur (D).
+- **Q4 — Conservation du conteneur** (technique, tranché) : toujours supprimé en fin de run. Le registre en mémoire est l'autorité (A) ; un conteneur d'un run précédent ne peut pas être réadopté sans faire du label une autorité. Pas d'option `--sandbox-keep`.
+- **Q5 — Limites** (technique, tranché) : valeurs de B fixes (`pids-limit 512`, `memory 2g` sans swap, `cpus 2`) ; seul le délai d'exécution est réglable (`--sandbox-timeout`, défaut 600 s, maximum 1800 s). Options de mémoire/CPU à ajouter seulement sur besoin constaté, avec plafond.
 
 ## Alternatives écartées
 
@@ -79,15 +88,15 @@ Modèle de menaces (complète ADR 0001/0002) :
 
 - Positives : l'agent exécute du code sans Bash hôte ; chaque exécution est approuvée, journalisée, bornée ; le confinement ne dépend pas de l'analyse de la commande.
 - Négatives : une demande par commande distincte (fatigue d'approbation) ; un délai dépassé redémarre le conteneur ; images minimales (distroless) non supportées ; code tar maison à maintenir et à tester par fuzzing léger.
-- Risques résiduels : évasion par faille du noyau de la VM Docker Desktop (atténuée par non-root, aucune capability, seccomp ; Enhanced Container Isolation recommandée si disponible) ; avec réseau `bridge`, exfiltration et accès à l'hôte par `host.docker.internal` [?] (à vérifier : services de l'hôte liés à 127.0.0.1 joignables ?) ; image malveillante (journaliser le digest, recommander une image épinglée) ; remplissage disque (pas de quota portable sur overlay2).
+- Risques résiduels : évasion par faille du noyau de la VM Docker Desktop (atténuée par non-root, aucune capability, seccomp ; Enhanced Container Isolation recommandée si disponible) ; image malveillante (journaliser le digest, recommander une image épinglée) ; remplissage disque (pas de quota portable sur overlay2).
 - À vérifier sur Windows (W-L6) : longueur de ligne de commande, `docker restart` pendant un `exec` en cours, comportement de `docker cp -` sur tube nommé.
 
 ## Plan
 
-Séquentiel. Revue sécurité de l'architecte : S1, S2, S4 (et le chemin d'annulation de S3).
+Ordre : S1 et S2 en parallèle, et `sandbox/tar.ts` (première moitié de S4) en parallèle d'eux ; puis S3 ; puis le branchement `put`/`get` de S4 ; puis S5. Contrat qui rend S2 indépendant de S1 : la dérivation de clé de session reçoit l'identifiant du conteneur en paramètre (fourni par le registre au moment de l'appel), jamais depuis l'entrée de l'outil. Revue sécurité de l'architecte : S1, S2, S4 (et le chemin d'annulation de S3).
 
 - **S1 — Cycle de vie (cœur).** `core/src/sandbox/` : `createSandbox`, `inspectSandbox` (vérification A), `execInSandbox`, `restartSandbox`, `removeSandbox`, `SandboxRegistry`, filet de sortie ; `DockerClient` réutilisé par `runProcess`/`resolveBinary`, argv construits par le code ; kinds `sandbox.started`/`sandbox.stopped` (validateurs, `KIND_CLASS`) ; codes `sandbox.*` (`REASON_CODES`, fr, en). Critères : tests avec faux binaire docker vérifiant l'argv **exact** de `run`, `exec`, `restart`, `rm` ; chaque champ d'`inspect` altéré → `sandbox.tampered` ; identifiant hors registre refusé ; aucun chemin d'entrée ne permet d'ajouter une option docker.
 - **S2 — Politique et gate.** Motifs `command` sur argv pour `mcp__sandbox__exec`, interpréteurs, `deny` sur basename, clé de session D, `always` → `session`, non-mémorisables. Critères : tests « session sur `npm test` n'autorise pas `npm test x` ni un autre conteneur », « `allow sh *` ne couvre pas `sh -c …` », « `deny rm *` refuse `/bin/rm` », « clé jamais égale au nom seul », comportement des autres outils inchangé (suite existante verte).
-- **S3 — Toolset et CLI.** Spécifications neutres dans `tool-specs.ts`, enveloppes `agent-sdk` et `agent-opencode`, file sérialisée, délai/annulation → `restart`, résultat `sandbox.execTimeout`/`execAborted`, nettoyage de fin de run ; CLI `--sandbox`, `--sandbox-image`, `--sandbox-network`, `--sandbox-timeout`, `john sandbox prune`, filtrage des séquences de contrôle dans l'affichage et la question d'approbation ; libellés fr/en. Critères : tests avec faux docker (délai → `restart` appelé, sortie partielle rendue, conteneur supprimé en fin de run et sur Ctrl-C), test d'une sortie contenant `\x1b[2K` affichée neutralisée.
+- **S3 — Toolset et CLI.** Spécifications neutres dans `tool-specs.ts`, enveloppes `agent-sdk` et `agent-opencode`, file sérialisée, délai/annulation → `restart`, résultat `sandbox.execTimeout`/`execAborted`, nettoyage de fin de run ; CLI `--sandbox`, `--sandbox-image`, `--sandbox-timeout` (pas d'option réseau), `john sandbox prune`, filtrage des séquences de contrôle dans l'affichage et la question d'approbation ; libellés fr/en. Critères : tests avec faux docker (délai → `restart` appelé, sortie partielle rendue, conteneur supprimé en fin de run et sur Ctrl-C), test d'une sortie contenant `\x1b[2K` affichée neutralisée.
 - **S4 — Échange de fichiers.** `sandbox/tar.ts` (écriture et lecture strictes), `put`/`get`. Critères : archives piégées (lien symbolique, lien dur, `../`, chemin absolu, nom ADS/réservé win32, dépassement de taille déclarée et réelle, en-tête pax hostile) refusées en bloc sans rien écrire ; destination existante refusée ; entrée sensible d'un répertoire `put` refusée.
 - **S5 — Validation réelle et documentation.** Tests d'intégration avec vrai Docker, opt-in (`JOHN_DOCKER_TESTS=1`), dont l'impossibilité de lire `/run/desktop` ou un fichier hôte, `id -u` ≠ 0, `capsh`/`/proc/self/status` CapEff nul, réseau absent ; ajout aux étapes W-L6 ; README.

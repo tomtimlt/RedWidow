@@ -138,7 +138,7 @@ Ce sont les premiers retours réels d'un Windows ; ils sont traités par le lot 
 - La table des shims npm (`SHIM_PACKAGES`) ne contient que `opencode` ; à généraliser seulement si un autre binaire en a besoin.
 - Non vérifié sans Windows : forme réelle des retours de `realpathSync.native`, comportement de `taskkill`, outils exposés par le SDK sous Windows, shell du bash d'OpenCode.
 
-## Bac à sable Docker (ADR 0003) — proposé, lots S1 à S5 à faire
+## Bac à sable Docker (ADR 0003) — accepté pour le profil durci par défaut, lots S1 à S5 à faire
 
 Exécution de commandes par l'agent dans un conteneur créé par le moteur (`--sandbox`), sans Bash hôte. Décisions dans `docs/adr/0003-bac-a-sable-docker.md` : toolset `sandbox` séparé, cible = registre en mémoire (le label n'autorise rien), durcissement vérifié par `inspect` avant chaque appel (`sandbox.tampered` fail-closed), argv direct sans shell imposé, mémorisation limitée à l'argv exact dans le conteneur (jamais l'outil entier), délai/annulation par `docker restart`, échange de fichiers par flux tar lu et écrit par notre code. Décisions de produit en attente : réseau par défaut, choix de l'image, mode autonome, conservation du conteneur, limites par défaut.
 
@@ -149,6 +149,8 @@ Exécution de commandes par l'agent dans un conteneur créé par le moteur (`--s
 | S3 | Toolset, CLI, annulation, filtrage des séquences de contrôle | annulation | à faire |
 | S4 | `put`/`get` par tar strict | oui | à faire |
 | S5 | Intégration avec vrai Docker, W-L6, README | non | à faire |
+
+**Décisions de l'architecte (ADR 0003 §G).** Réseau toujours `none` (option `--sandbox-network` retirée) ; aucune image par défaut, fournie par l'opérateur, `--pull never`, absence → `sandbox.imageUnsupported` ; conteneur toujours supprimé en fin de run ; limites fixes, seul `--sandbox-timeout` réglable (600 s, max 1800 s). Tout autre profil réseau/privilèges est exclu de l'ADR et à rediscuter avec l'utilisateur. Ordre : S1 ∥ S2 ∥ `sandbox/tar.ts`, puis S3, puis `put`/`get`, puis S5. Question restante pour l'utilisateur (Q3) : mode autonome sans demande par exécution (recommandation : non).
 
 ## Décisions à demander en priorité
 
