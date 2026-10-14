@@ -13,6 +13,9 @@ export default defineConfig({
       "@john-studio/core": src("core"),
       "@john-studio/export-html": src("export-html"),
       "@john-studio/messages": src("messages"),
+      "@john-studio/vscode": fileURLToPath(
+        new URL("./packages/vscode/src/logic/integrity.ts", import.meta.url),
+      ),
     },
   },
   test: { include: ["packages/*/test/**/*.test.ts", "test/**/*.test.ts"] },

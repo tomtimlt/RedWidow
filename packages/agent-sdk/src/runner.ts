@@ -82,6 +82,8 @@ export interface SdkRunnerOptions {
     | "permissionPrompts"
     // Passerelles vers les permissions du binaire (--dangerously-skip-permissions, règles allow…).
     | "extraArgs"
+    // Le binaire `claude` est fixé par le code (`executable`), jamais par un appelant ni par un réglage.
+    | "pathToClaudeCodeExecutable"
     | "settings"
     | "managedSettings"
     // Pilotés par `RunInput` (ou par le mode d'authentification), jamais par ici.
@@ -91,6 +93,8 @@ export interface SdkRunnerOptions {
     | "maxBudgetUsd"
     | "systemPrompt"
   >;
+  /** Chemin du binaire `claude` natif, fixé par le code (extension : binaire empaqueté dont l'empreinte est vérifiée). Défaut : celui du SDK. */
+  executable?: string;
   /** Environnement hérité par le sous-processus (défaut : `process.env`). Sert aux tests. */
   processEnv?: NodeJS.ProcessEnv;
   /** Plafond (octets UTF-8) du texte complet d'un `tool.result` (défaut : 64 Kio). */
@@ -363,6 +367,7 @@ async function runWithSdk(
     maxBudgetUsd: _maxBudgetUsd,
     systemPrompt: _systemPrompt,
     extraArgs: _extraArgs,
+    pathToClaudeCodeExecutable: _pathToClaudeCodeExecutable,
     settings: _settings,
     managedSettings: _managedSettings,
     ...extraOptions
@@ -392,6 +397,7 @@ async function runWithSdk(
     },
     canUseTool,
     abortController: abort,
+    ...(options.executable !== undefined && { pathToClaudeCodeExecutable: options.executable }),
     ...(input.model !== undefined && { model: input.model }),
     ...(input.maxTurns !== undefined && { maxTurns: input.maxTurns }),
     ...(input.resume !== undefined && { resume: input.resume }),

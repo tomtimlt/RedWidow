@@ -1,6 +1,8 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
-  "files": { "includes": ["**", "!**/dist", "!**/node_modules", "!**/*.tsbuildinfo"] },
+  "files": {
+    "includes": ["**", "!**/dist", "!**/.vsix-stage", "!**/node_modules", "!**/*.tsbuildinfo"]
+  },
   "formatter": { "indentStyle": "space", "indentWidth": 2, "lineWidth": 100, "lineEnding": "lf" },
   "linter": { "rules": { "preset": "recommended" } },
   "javascript": { "formatter": { "quoteStyle": "double", "semicolons": "always" } }

@@ -502,6 +502,14 @@ describe("garde PreToolUse", () => {
     expect(options).not.toHaveProperty("managedSettings");
   });
 
+  it("pathToClaudeCodeExecutable via sdkOptions est ignoré ; `executable` le fixe", async () => {
+    const evil = { ...({ pathToClaudeCodeExecutable: "/tmp/evil" } as object) };
+    const { options: ignore } = await capture({ sdkOptions: evil });
+    expect(ignore).not.toHaveProperty("pathToClaudeCodeExecutable");
+    const { options: fixe } = await capture({ executable: "/opt/claude", sdkOptions: evil });
+    expect(fixe.pathToClaudeCodeExecutable).toBe("/opt/claude");
+  });
+
   it("n'ajoute Bash que sur demande explicite", async () => {
     const { options } = await capture({ bash: true });
     expect(options.tools).toEqual(["Read", "Glob", "Grep", "Bash"]);
