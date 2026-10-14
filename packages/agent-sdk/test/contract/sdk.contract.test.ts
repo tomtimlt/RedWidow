@@ -10,12 +10,13 @@
  * la présence de `_meta` / de l'identifiant d'appel dans `extra` des handlers MCP
  * (consignée dans la sortie, car elle décide si la corrélation est exacte).
  *
- * Scénario d'abonnement (facultatif, sans clé API) : avec une connexion `claude`
- * (/login) ou CLAUDE_CODE_OAUTH_TOKEN,
+ * Sans clé API (abonnement Pro/Max) : avec une connexion `claude` (/login) ou
+ * CLAUDE_CODE_OAUTH_TOKEN,
  *
  *   JOHN_SDK_CONTRACT=1 JOHN_CONTRACT_SUBSCRIPTION=1 pnpm test:contract
  *
- * lance un run en `auth: "subscription"` et consigne `apiKeySource` et
+ * exécute TOUS les scénarios en `auth: "subscription"` (l'environnement du
+ * binaire est alors filtré de toute clé API), puis un scénario final consigne `apiKeySource` et
  * `accountInfo()` : cela vérifie empiriquement que `settingSources: []` (forcé
  * par le moteur) n'empêche pas le chargement des identifiants d'abonnement.
  */
@@ -38,7 +39,10 @@ import {
 } from "../../src/index.js";
 import { fakeDocker } from "../helpers.js";
 
-const enabled = Boolean(process.env.ANTHROPIC_API_KEY) && process.env.JOHN_SDK_CONTRACT === "1";
+const hasApiKey = Boolean(process.env.ANTHROPIC_API_KEY);
+/** Sans clé API, les scénarios principaux tournent avec l'abonnement (connexion `claude` /login). */
+const viaSubscription = !hasApiKey && process.env.JOHN_CONTRACT_SUBSCRIPTION === "1";
+const enabled = process.env.JOHN_SDK_CONTRACT === "1" && (hasApiKey || viaSubscription);
 /** Modèle facultatif ; à défaut, celui du SDK. */
 const MODEL = process.env.JOHN_CONTRACT_MODEL;
 const TIMEOUT = 180_000;
@@ -94,7 +98,13 @@ async function realRun(prompt: string, cwd: string, extra: { docker?: string } =
       : [],
   });
   const summary = await runner.run(
-    { prompt, cwd, maxTurns: 6, ...(MODEL && { model: MODEL }) },
+    {
+      prompt,
+      cwd,
+      maxTurns: 6,
+      auth: viaSubscription ? "subscription" : "auto",
+      ...(MODEL && { model: MODEL }),
+    },
     { recorder, gate },
   );
   console.info(
