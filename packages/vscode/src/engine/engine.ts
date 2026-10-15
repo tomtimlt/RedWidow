@@ -49,6 +49,10 @@ export interface EngineOptions {
   disconnectGraceMs?: number;
   /** Arrêt de l'arbre de processus à la fin du délai de grâce (défaut : `killOwnTree`). */
   killTree?: () => void;
+  /**
+   * Binaire Docker de test (hors protocole IPC). Absent en production : le binaire reste `docker`.
+   */
+  docker?: { binary: string; argsPrefix?: readonly string[] };
 }
 
 /** Flux de consignes d'une session multi-tours : `push` alimente, `end` clôt. */
@@ -93,6 +97,7 @@ export function runEngine({
   env = process.env,
   disconnectGraceMs = 5000,
   killTree = killOwnTree,
+  docker,
 }: EngineOptions): Promise<number> {
   // Tout ce qui part vers le parent est masqué, y compris ce que le recorder ne voit pas
   // (entrée d'un outil en attente d'approbation, erreurs, résumé).
@@ -140,7 +145,14 @@ export function runEngine({
       try {
         const { policy, source, warning } = await loadPolicy({ cwd: params.cwd });
         sandboxCtx = params.sandbox
-          ? createSandboxContext({ recorder, maxTimeoutSec: params.sandbox.timeoutSec })
+          ? createSandboxContext({
+              recorder,
+              maxTimeoutSec: params.sandbox.timeoutSec,
+              ...(docker && {
+                binary: docker.binary,
+                ...(docker.argsPrefix !== undefined && { argsPrefix: docker.argsPrefix }),
+              }),
+            })
           : undefined;
         const sandbox = sandboxCtx;
         recorder.subscribe(journal.sink);

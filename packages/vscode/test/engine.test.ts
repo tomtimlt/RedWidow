@@ -1,10 +1,12 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { realpathSync } from "node:fs";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AgentRunner } from "@john-studio/core";
+import type { AgentRunner, EngineEvent } from "@john-studio/core";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { FAKE_SANDBOX_ID, goodInspect } from "../../core/test/helpers.js";
 import { type EngineChannel, runEngine } from "../src/engine/engine.js";
-import type { FromEngine } from "../src/logic/protocol.js";
+import { type FromEngine, parseToEngine } from "../src/logic/protocol.js";
 
 /** Canal factice : le test joue le rôle du parent. */
 function fakeChannel() {
@@ -49,6 +51,160 @@ afterAll(() => rm(cwd, { recursive: true, force: true }));
 
 const codes = (sent: FromEngine[]) =>
   sent.flatMap((m) => (m.type === "error" ? [m.reason.code] : []));
+
+const engineEvents = (sent: FromEngine[]) =>
+  sent.flatMap((m) => (m.type === "event" ? [m.event] : []));
+
+const sandboxLifecycle = (events: EngineEvent[]) =>
+  events.filter((e) => e.kind === "sandbox.started" || e.kind === "sandbox.stopped");
+
+/** Faux docker bac à sable : retient le runId du `run` pour le `container inspect` suivant. */
+async function fakeEngineSandboxDocker() {
+  const dir = await mkdtemp(join(realpathSync.native(tmpdir()), "john-engine-fake-docker-"));
+  const script = join(dir, "docker.mjs");
+  const log = join(dir, "calls.log");
+  const ctl = join(dir, "ctl.json");
+  await writeFile(ctl, "{}");
+  await writeFile(
+    script,
+    `import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+const [, , ...argv] = process.argv;
+appendFileSync(${JSON.stringify(log)}, argv.join("|") + "|\\n");
+const c = JSON.parse(readFileSync(${JSON.stringify(ctl)}, "utf8"));
+const out = (s) => process.stdout.write(s + "\\n");
+const fail = (s) => { process.stderr.write(s + "\\n"); process.exit(1); };
+const [a, b] = argv;
+const labelKey = "io.john-studio.sandbox";
+const readRunId = () => {
+  const i = argv.indexOf("--label");
+  if (i >= 0 && argv[i + 1] === labelKey && argv[i + 2]) return argv[i + 2];
+  const j = argv.findIndex((x) => x.startsWith(labelKey + "="));
+  if (j >= 0) return argv[j].slice(labelKey.length + 1);
+  return c.runId ?? "missing-run";
+};
+if (a === "image" && b === "inspect") {
+  out(JSON.stringify([{ Id: "sha256:img", RepoDigests: ["alpine@sha256:digest"] }]));
+} else if (a === "run") {
+  const runId = readRunId();
+  writeFileSync(${JSON.stringify(ctl)}, JSON.stringify({ ...c, runId }));
+  out(${JSON.stringify(FAKE_SANDBOX_ID)});
+} else if (a === "container" && b === "inspect") {
+  const runId = c.runId ?? readRunId();
+  out(JSON.stringify([${JSON.stringify(goodInspect("RUNID_PLACEHOLDER")).replace(
+    '"RUNID_PLACEHOLDER"',
+    "runId",
+  )}]));
+} else if (a === "exec") {
+  if (argv.includes("hang")) setInterval(() => {}, 1000);
+  else out("exec-ok");
+} else if (a === "rm") {
+  out(argv[argv.length - 1]);
+}
+`,
+  );
+  return {
+    bin: process.execPath,
+    argsPrefix: [script],
+    calls: async () => (await readFile(log, "utf8").catch(() => "")).split("\n").filter(Boolean),
+    dir,
+  };
+}
+
+const startWithSandbox = (cwd: string) => ({
+  v: 1,
+  type: "start" as const,
+  cwd,
+  sandbox: {
+    image: "alpine:3.20",
+    timeoutSec: 600,
+    network: "none" as const,
+    memory: "2g",
+    cpus: 2,
+  },
+});
+
+describe("moteur : bac à sable (session unique)", () => {
+  it("un seul run docker pour deux consignes ; dispose nettoie avec runEnd", async () => {
+    const fake = await fakeEngineSandboxDocker();
+    const t = fakeChannel();
+    const done = runEngine({
+      channel: t.channel,
+      createRunner: () => idleRunner,
+      docker: { binary: fake.bin, argsPrefix: fake.argsPrefix },
+    });
+    t.receive(startWithSandbox(cwd));
+    await vi.waitFor(() => expect(t.sent.some((m) => m.type === "started")).toBe(true));
+    t.receive({ v: 1, type: "prompt", text: "première" });
+    t.receive({ v: 1, type: "prompt", text: "deuxième" });
+    await vi.waitFor(() =>
+      expect(sandboxLifecycle(engineEvents(t.sent)).some((e) => e.kind === "sandbox.started")).toBe(
+        true,
+      ),
+    );
+    const started = sandboxLifecycle(engineEvents(t.sent)).filter(
+      (e) => e.kind === "sandbox.started",
+    );
+    expect(started).toHaveLength(1);
+    expect(started[0]).toMatchObject({ containerId: FAKE_SANDBOX_ID });
+
+    const callsBeforeEnd = await fake.calls();
+    expect(callsBeforeEnd.filter((c) => c.startsWith("run|"))).toHaveLength(1);
+
+    t.receive({ v: 1, type: "dispose" });
+    expect(await done).toBe(0);
+
+    const calls = await fake.calls();
+    expect(calls.filter((c) => c.startsWith("run|"))).toHaveLength(1);
+    const rmCall = calls.find((c) => c.startsWith("rm|"));
+    expect(rmCall).toContain("--force");
+    expect(rmCall).toContain(FAKE_SANDBOX_ID);
+    expect(sandboxLifecycle(engineEvents(t.sent))).toMatchObject([
+      { kind: "sandbox.started", containerId: FAKE_SANDBOX_ID },
+      { kind: "sandbox.stopped", cause: "runEnd" },
+    ]);
+    await rm(fake.dir, { recursive: true, force: true });
+  });
+
+  it("abort nettoie le conteneur et journalise sandbox.stopped cause abort", async () => {
+    const fake = await fakeEngineSandboxDocker();
+    const t = fakeChannel();
+    const done = runEngine({
+      channel: t.channel,
+      createRunner: () => idleRunner,
+      docker: { binary: fake.bin, argsPrefix: fake.argsPrefix },
+    });
+    t.receive(startWithSandbox(cwd));
+    await vi.waitFor(() =>
+      expect(sandboxLifecycle(engineEvents(t.sent)).some((e) => e.kind === "sandbox.started")).toBe(
+        true,
+      ),
+    );
+    t.receive({ v: 1, type: "prompt", text: "x" });
+    t.receive({ v: 1, type: "abort" });
+    expect(await done).toBeTypeOf("number");
+
+    const calls = await fake.calls();
+    const rmCall = calls.find((c) => c.startsWith("rm|"));
+    expect(rmCall).toContain("--force");
+    expect(rmCall).toContain(FAKE_SANDBOX_ID);
+    expect(sandboxLifecycle(engineEvents(t.sent))).toMatchObject([
+      { kind: "sandbox.started", containerId: FAKE_SANDBOX_ID },
+      { kind: "sandbox.stopped", cause: "abort" },
+    ]);
+    await rm(fake.dir, { recursive: true, force: true });
+  });
+
+  it("rejette docker dans le message start (hors protocole)", () => {
+    const parsed = parseToEngine({
+      v: 1,
+      type: "start",
+      cwd,
+      docker: { binary: process.execPath },
+    });
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) expect(parsed.reason.code).toBe("ipc.invalidMessage");
+  });
+});
 
 describe("moteur : validation des messages reçus", () => {
   it("signale et ignore messages inconnus, mal formés ou d'une autre version", async () => {
