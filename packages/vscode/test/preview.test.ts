@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { createChatState } from "../src/logic/chat.js";
+import { buildControls, DEFAULT_PREFS } from "../src/logic/controls.js";
 import { chatHtml } from "../src/logic/html.js";
 
 const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
@@ -24,6 +25,7 @@ describe("chat.js : balises créées", () => {
       "ol",
       "li",
       "h2",
+      "option",
     ];
     for (const m of js.matchAll(/\bel\(\s*"(\w+)"/g)) expect(allowed).toContain(m[1]);
     expect(js).not.toMatch(/createElement\(\s*["'`](script|a|img|iframe)/);
@@ -60,6 +62,22 @@ describe("page de prévisualisation", () => {
       kind: "agent.text",
       text: "# Résultat\nVoici le code :\n```ts\nexport const a = 1;\n```\n1. premier\n2. second\n<img src=x onerror=alert(1)>",
     });
+    s.setControls(
+      buildControls({
+        prefs: { ...DEFAULT_PREFS, effort: "xhigh" },
+        models: [
+          {
+            value: "modele-a",
+            displayName: "Modèle A",
+            supportedEffortLevels: ["low", "medium", "high", "xhigh"],
+          },
+          { value: "modele-b", displayName: "Modèle B" },
+        ],
+        status: "ready",
+        defaultModel: undefined,
+        busy: false,
+      }),
+    );
     s.setBusy(true);
     const view = {
       ...s.view(),

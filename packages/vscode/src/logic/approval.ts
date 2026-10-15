@@ -74,6 +74,10 @@ export type WebviewMessage =
   | { type: "stop" }
   | { type: "reset" }
   | { type: "ready" }
+  /** Valeurs non fiables : l'extension les revalide (liste de modèles, énumération des niveaux). */
+  | { type: "setModel"; model: string | null }
+  | { type: "setEffort"; effort: string }
+  | { type: "refreshModels" }
   | { type: "approve"; toolUseId: string; choice: Choice };
 
 /** Valide un message venu de la webview (non fiable) : forme exacte, sinon `null`. */
@@ -89,8 +93,18 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
         m.text.length <= MAX_WEBVIEW_TEXT
         ? { type: "send", text: m.text }
         : null;
+    case "setModel":
+      return only("type", "model") &&
+        (m.model === null || (typeof m.model === "string" && m.model.length <= 200))
+        ? { type: "setModel", model: m.model }
+        : null;
+    case "setEffort":
+      return only("type", "effort") && typeof m.effort === "string" && m.effort.length <= 20
+        ? { type: "setEffort", effort: m.effort }
+        : null;
     case "stop":
     case "reset":
+    case "refreshModels":
     case "ready":
       return only("type") ? { type: m.type } : null;
     case "approve":

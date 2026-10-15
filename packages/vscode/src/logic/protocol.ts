@@ -2,8 +2,10 @@ import { isAbsolute } from "node:path";
 import {
   type AuthMode,
   type Decision,
+  type Effort,
   type EngineEvent,
   type ErrorInfo,
+  type ModelOption,
   type PendingApproval,
   REASON_CODES,
   type Reason,
@@ -11,6 +13,8 @@ import {
   reason,
   validateEvent,
 } from "@john-studio/core";
+import { parseEffort } from "./effort.js";
+import { isModelId, parseModelOptions } from "./models.js";
 
 /**
  * Protocole IPC entre l'extension (parent) et le moteur (processus enfant), ADR 0004.
@@ -36,6 +40,7 @@ export interface SandboxParams {
 export interface StartParams {
   cwd: string;
   model?: string;
+  effort?: Effort;
   maxTurns?: number;
   auth?: AuthMode;
   resume?: string;
@@ -56,6 +61,8 @@ export interface EndedSummary {
 /** Parent → moteur. */
 export type ToEngine =
   | ({ v: 1; type: "start" } & StartParams)
+  /** Sondage (moteur éphémère, aucune consigne) : demande la liste des modèles puis le moteur sort. */
+  | { v: 1; type: "models"; cwd: string; auth?: AuthMode }
   | { v: 1; type: "prompt"; text: string }
   | { v: 1; type: "answer"; toolUseId: string; decision: Decision; remember?: RememberScope }
   | { v: 1; type: "abort" }
@@ -65,6 +72,7 @@ export type ToEngine =
 export type FromEngine =
   | { v: 1; type: "ready" }
   | { v: 1; type: "started"; runId: string; policySource: string | null; warning?: Reason }
+  | { v: 1; type: "models"; models: ModelOption[] }
   | { v: 1; type: "event"; event: EngineEvent }
   | { v: 1; type: "approval"; approval: PendingApproval }
   | { v: 1; type: "ended"; summary: EndedSummary }
@@ -112,6 +120,7 @@ const START_KEYS = [
   "type",
   "cwd",
   "model",
+  "effort",
   "maxTurns",
   "auth",
   "resume",
@@ -122,7 +131,7 @@ const START_KEYS = [
 
 /** Valide un message reçu par le moteur. */
 export function parseToEngine(raw: unknown): Parsed<ToEngine> {
-  const env = envelope(raw, ["start", "prompt", "answer", "abort", "dispose"]);
+  const env = envelope(raw, ["start", "models", "prompt", "answer", "abort", "dispose"]);
   if (!env.ok) return env;
   const { obj, type } = env.message;
   const extra = (keys: readonly string[]) => onlyKeys(obj, keys);
@@ -132,9 +141,11 @@ export function parseToEngine(raw: unknown): Parsed<ToEngine> {
       unexpected = extra(START_KEYS);
       if (unexpected) return bad(unexpected, "unexpected");
       if (!isString(obj.cwd) || obj.cwd === "" || !isAbsolute(obj.cwd)) return bad("cwd");
-      for (const key of ["model", "resume", "systemPrompt"] as const) {
+      for (const key of ["resume", "systemPrompt"] as const) {
         if (obj[key] !== undefined && !isString(obj[key])) return bad(key);
       }
+      if (obj.model !== undefined && !isModelId(obj.model)) return bad("model");
+      if (obj.effort !== undefined && parseEffort(obj.effort) === null) return bad("effort");
       if (
         obj.maxTurns !== undefined &&
         !(isFiniteNumber(obj.maxTurns) && Number.isInteger(obj.maxTurns) && obj.maxTurns > 0)
@@ -166,6 +177,17 @@ export function parseToEngine(raw: unknown): Parsed<ToEngine> {
       }
       return { ok: true, message: obj as ToEngine };
     }
+    case "models":
+      unexpected = extra(["v", "type", "cwd", "auth"]);
+      if (unexpected) return bad(unexpected, "unexpected");
+      if (!isString(obj.cwd) || obj.cwd === "" || !isAbsolute(obj.cwd)) return bad("cwd");
+      if (
+        obj.auth !== undefined &&
+        !["auto", "subscription", "api-key"].includes(String(obj.auth))
+      ) {
+        return bad("auth");
+      }
+      return { ok: true, message: obj as ToEngine };
     case "prompt":
       unexpected = extra(["v", "type", "text"]);
       if (unexpected) return bad(unexpected, "unexpected");
@@ -237,7 +259,7 @@ function validSummary(value: unknown): boolean {
 
 /** Valide un message reçu par l'extension. */
 export function parseFromEngine(raw: unknown): Parsed<FromEngine> {
-  const env = envelope(raw, ["ready", "started", "event", "approval", "ended", "error"]);
+  const env = envelope(raw, ["ready", "started", "models", "event", "approval", "ended", "error"]);
   if (!env.ok) return env;
   const { obj, type } = env.message;
   const unexpected = onlyKeys(
@@ -245,6 +267,7 @@ export function parseFromEngine(raw: unknown): Parsed<FromEngine> {
     {
       ready: ["v", "type"],
       started: ["v", "type", "runId", "policySource", "warning"],
+      models: ["v", "type", "models"],
       event: ["v", "type", "event"],
       approval: ["v", "type", "approval"],
       ended: ["v", "type", "summary"],
@@ -259,6 +282,8 @@ export function parseFromEngine(raw: unknown): Parsed<FromEngine> {
       if (obj.policySource !== null && !isString(obj.policySource)) return bad("policySource");
       if (obj.warning !== undefined && !validReason(obj.warning)) return bad("warning");
       return ok;
+    case "models":
+      return parseModelOptions(obj.models) ? ok : bad("models");
     case "event": {
       const invalid = validateEvent(obj.event);
       return invalid ? bad("event", invalid.code) : ok;

@@ -46,6 +46,12 @@ export function chatHtml({ nonce, cspSource, scriptUri, styleUri }: ChatHtmlOpti
 <main id="log" role="log" aria-live="polite" aria-label="Conversation"></main>
 <section id="approvals" aria-label="Autorisations demandées"></section>
 <div id="activity" role="status" hidden><span class="spinner" aria-hidden="true"></span>L'agent travaille…</div>
+<div id="controls" hidden>
+<label class="ctl" for="model-select"><span class="ctl-label">Modèle</span><select id="model-select" title="Modèle utilisé pour le message suivant"></select><input id="model-input" type="text" spellcheck="false" autocomplete="off" placeholder="identifiant du modèle" title="Liste indisponible : saisissez l'identifiant du modèle" hidden></label>
+<button id="models-refresh" type="button" class="ghost" title="Actualiser la liste des modèles">Actualiser</button>
+<div class="ctl effort"><label for="effort" class="ctl-label">Effort</label><input id="effort" type="range" min="0" max="4" step="1" value="2"><output id="effort-label" for="effort"></output></div>
+<div id="effort-ticks" aria-hidden="true"></div>
+</div>
 <form id="form">
 <textarea id="input" rows="1" aria-label="Votre consigne" placeholder="Votre consigne… (Entrée pour envoyer, Maj+Entrée pour une nouvelle ligne)"></textarea>
 <div id="buttons"><button id="send" type="submit" class="primary">Envoyer</button><button id="stop" type="button" class="stop">Stop</button></div>

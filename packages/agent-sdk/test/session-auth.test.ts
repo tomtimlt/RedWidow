@@ -330,3 +330,61 @@ describe("sessions", () => {
     expect(seen.options?.hooks?.PreToolUse).toHaveLength(1);
   });
 });
+
+describe("effort et liste des modèles", () => {
+  it("transmet l'effort du run (Extra = xhigh)", async () => {
+    const { seen } = await run({ effort: "xhigh" }, simple);
+    expect(seen.options).toMatchObject({ effort: "xhigh" });
+    const none = await run({}, simple);
+    expect(none.seen.options).not.toHaveProperty("effort");
+  });
+
+  it("effort passé via sdkOptions est ignoré (une seule voie)", async () => {
+    const seen: { options?: Options } = {};
+    const query: QueryFn = (p) => {
+      seen.options = p.options;
+      return simple();
+    };
+    const recorder = createRecorder({ runId: "r", redact: false });
+    const gate = createApprovalGate({ policy: DEFAULT_POLICY, recorder });
+    const runner = createSdkRunner({
+      query,
+      processEnv: FAKE_ENV,
+      sdkOptions: { ...({ effort: "max" } as object) },
+    });
+    await runner.run({ prompt: "p", cwd: "/w" }, { recorder, gate });
+    expect(seen.options).not.toHaveProperty("effort");
+  });
+
+  it("listModels : sans consigne, sans outil, traduction neutre et fermeture", async () => {
+    const seen: { options?: Options; prompt?: unknown; closed: boolean } = { closed: false };
+    const query: QueryFn = (p) => {
+      seen.options = p.options;
+      seen.prompt = p.prompt;
+      return Object.assign((async function* () {})(), {
+        supportedModels: async () => [
+          {
+            value: "m1",
+            displayName: "M1",
+            description: "d",
+            supportedEffortLevels: ["low", "inconnu", "max"],
+          },
+          { value: "m2", displayName: "M2", supportsEffort: false },
+        ],
+        close: () => {
+          seen.closed = true;
+        },
+      }) as never;
+    };
+    const runner = createSdkRunner({ query, processEnv: FAKE_ENV });
+    const models = await runner.listModels?.({ cwd: "/w" });
+    expect(models).toEqual([
+      { value: "m1", displayName: "M1", description: "d", supportedEffortLevels: ["low", "max"] },
+      { value: "m2", displayName: "M2", supportedEffortLevels: [] },
+    ]);
+    expect(typeof seen.prompt).not.toBe("string");
+    expect(seen.options).toMatchObject({ allowedTools: [], tools: [], permissionMode: "default" });
+    expect(seen.options).not.toHaveProperty("effort");
+    expect(seen.closed).toBe(true);
+  });
+});

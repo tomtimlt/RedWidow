@@ -1,4 +1,4 @@
-import type { EngineEvent, PendingApproval } from "@john-studio/core";
+import type { EngineEvent, ModelOption, PendingApproval } from "@john-studio/core";
 import { describe, expect, it, vi } from "vitest";
 import type { ChatView } from "../src/logic/chat.js";
 import type {
@@ -17,9 +17,17 @@ function fake() {
   let handlers: EngineHandlers = {};
   let options!: EngineControllerOptions;
   let started: StartParams | undefined;
+  const starts: StartParams[] = [];
+  let modelList: ModelOption[] = [];
+  let modelError = false;
   const ctl: EngineController = {
     start: async (p) => {
       started = p;
+      starts.push(p);
+    },
+    models: async () => {
+      if (modelError) throw new Error("sondage");
+      return modelList;
     },
     prompt: (t) => void calls.push(["prompt", t]),
     answer: (...a) => void calls.push(["answer", ...a]),
@@ -30,6 +38,13 @@ function fake() {
   };
   return {
     calls,
+    starts,
+    setModels: (l: ModelOption[]) => {
+      modelList = l;
+    },
+    failModels: () => {
+      modelError = true;
+    },
     create: (o: EngineControllerOptions) => {
       options = o;
       handlers = o.handlers ?? {};
@@ -47,7 +62,14 @@ function fake() {
   };
 }
 
-function setup(over: { confirm?: boolean; token?: boolean; settings?: object } = {}) {
+function setup(
+  over: {
+    confirm?: boolean;
+    token?: boolean;
+    settings?: object;
+    store?: { get(k: string): unknown; set(k: string, v: unknown): unknown };
+  } = {},
+) {
   const f = fake();
   let view!: ChatView;
   const confirmAlways = vi.fn(async () => over.confirm ?? false);
@@ -65,6 +87,8 @@ function setup(over: { confirm?: boolean; token?: boolean; settings?: object } =
       view = v;
     },
     createController: f.create,
+    sdkVersion: "1.0.0",
+    ...(over.store && { store: over.store }),
   });
   return { f, session, confirmAlways, view: () => view };
 }
@@ -87,6 +111,7 @@ describe("session de chat", () => {
     expect(t.f.started).toEqual({
       cwd: "/w",
       auth: "subscription",
+      effort: "high",
       model: "m",
       maxTurns: 3,
       sandbox: { image: "alpine:3.20", timeoutSec: 60 },
@@ -217,5 +242,79 @@ describe("session de chat", () => {
     const tool = t.view().items.find((i) => i.kind === "tool");
     expect(tool).toMatchObject({ status: "ok", truncated: true });
     expect(tool?.kind === "tool" && tool.output?.length).toBeLessThanOrEqual(2001);
+  });
+});
+
+describe("modèle et effort (F2/F3)", () => {
+  const mk = (): ModelOption => ({
+    value: "a",
+    displayName: "A",
+    supportedEffortLevels: ["low", "high"],
+  });
+  const memStore = () => {
+    const m = new Map<string, unknown>();
+    return { m, get: (k: string) => m.get(k), set: (k: string, v: unknown) => void m.set(k, v) };
+  };
+
+  it("sondage : liste exposée et mise en cache", async () => {
+    const store = memStore();
+    const { f, session, view } = setup({ store });
+    f.setModels([mk()]);
+    await session.loadModels();
+    expect(view().controls?.models?.map((m) => m.value)).toEqual(["a"]);
+    expect(store.m.get("john.models")).toMatchObject({ sdk: "1.0.0" });
+  });
+
+  it("sondage en échec : repli en saisie libre", async () => {
+    const { f, session, view } = setup();
+    f.failModels();
+    await session.loadModels();
+    expect(view().controls?.models).toBeNull();
+    expect(view().controls?.modelsStatus).toBe("unavailable");
+  });
+
+  it("choix hostile refusé, préférences inchangées", async () => {
+    const { f, session, view } = setup();
+    f.setModels([mk()]);
+    await session.loadModels();
+    session.setModel("pas-dans-la-liste");
+    expect(view().controls?.model).toBeNull();
+    expect(view().items.at(-1)).toMatchObject({ kind: "notice", level: "error" });
+    session.setEffort("ultra");
+    expect(view().controls?.effort).toBe("high");
+  });
+
+  it("effort non supporté ramené avec avis", async () => {
+    const { f, session, view } = setup();
+    f.setModels([mk()]);
+    await session.loadModels();
+    session.setModel("a");
+    session.setEffort("max");
+    expect(view().controls?.effort).toBe("high");
+    expect(view().items.at(-1)).toMatchObject({ kind: "notice" });
+  });
+
+  it("transmis au démarrage, puis reprise par resume si le choix change", async () => {
+    const { f, session } = setup();
+    f.setModels([mk()]);
+    await session.loadModels();
+    session.setModel("a");
+    session.setEffort("low");
+    await session.send("un");
+    expect(f.starts[0]).toMatchObject({ model: "a", effort: "low" });
+    f.handlers.onEvent?.(ev({ kind: "session.started", sessionId: "S1" }));
+    f.handlers.onEnded?.({ sessionId: "S1" } as never);
+    session.setEffort("high");
+    await session.send("deux");
+    expect(f.starts[1]).toMatchObject({ model: "a", effort: "high", resume: "S1" });
+  });
+
+  it("changement ignoré pendant un tour", async () => {
+    const { f, session, view } = setup();
+    f.setModels([mk()]);
+    await session.loadModels();
+    await session.send("un");
+    session.setEffort("low");
+    expect(view().controls?.effort).toBe("high");
   });
 });

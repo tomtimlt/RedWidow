@@ -2,6 +2,7 @@ import { join } from "node:path";
 import {
   type AgentRunner,
   type ApprovalGate,
+  type AuthMode,
   activeSandboxId,
   createApprovalGate,
   createApprovalQueue,
@@ -169,6 +170,7 @@ export function runEngine({
             prompt: prompts,
             cwd: params.cwd,
             ...(params.model !== undefined && { model: params.model }),
+            ...(params.effort !== undefined && { effort: params.effort }),
             ...(params.maxTurns !== undefined && { maxTurns: params.maxTurns }),
             auth: params.auth ?? "auto",
             ...(params.resume !== undefined && { resume: params.resume }),
@@ -204,6 +206,24 @@ export function runEngine({
       finish(code);
     };
 
+    /** Sondage : liste des modèles sans consigne (donc sans tour, outil ni coût d'inférence), puis sortie. */
+    const probe = async (cwd: string, auth: AuthMode | undefined) => {
+      try {
+        const runner = await createRunner(undefined);
+        const models =
+          (await runner.listModels?.({
+            cwd,
+            ...(auth !== undefined && { auth }),
+            signal: abort.signal,
+          })) ?? [];
+        send({ v: PROTOCOL_VERSION, type: "models", models });
+        finish(0);
+      } catch (error) {
+        send({ v: PROTOCOL_VERSION, type: "error", reason: errorInfo(error) });
+        finish(1);
+      }
+    };
+
     channel.onMessage((raw) => {
       const parsed = parseToEngine(raw);
       if (!parsed.ok) {
@@ -222,6 +242,11 @@ export function runEngine({
           });
           return;
         }
+        case "models":
+          if (started) return invalid("type", "state");
+          started = true;
+          void probe(message.cwd, message.auth);
+          return;
         case "prompt":
           if (!started) return invalid("type", "state");
           prompts.push(message.text);

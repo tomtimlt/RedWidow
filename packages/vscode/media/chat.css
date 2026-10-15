@@ -396,3 +396,78 @@ button:disabled {
   opacity: 0.5;
   cursor: default;
 }
+
+/* Sélecteurs de modèle et d'effort */
+#controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 6px 0 2px;
+  border-top: 1px solid var(--vscode-panel-border, transparent);
+}
+#controls[hidden] {
+  display: none;
+}
+.ctl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.ctl-label {
+  opacity: 0.8;
+  white-space: nowrap;
+}
+#model-select,
+#model-input {
+  min-width: 0;
+  max-width: 190px;
+  background: var(--vscode-dropdown-background, var(--vscode-input-background));
+  color: var(--vscode-dropdown-foreground, var(--vscode-input-foreground));
+  border: 1px solid var(--vscode-dropdown-border, var(--vscode-panel-border, transparent));
+  border-radius: 4px;
+  padding: 3px 6px;
+  font: inherit;
+}
+#model-input[hidden],
+#model-select[hidden] {
+  display: none;
+}
+.ctl.effort {
+  flex: 1 1 200px;
+}
+#effort {
+  flex: 1;
+  min-width: 90px;
+  accent-color: var(--vscode-button-background);
+}
+#effort:disabled {
+  opacity: 0.4;
+}
+#effort-label {
+  min-width: 4.5em;
+  font-weight: 600;
+}
+#effort-ticks {
+  flex: 1 0 100%;
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8em;
+  opacity: 0.8;
+  padding: 0 2px;
+}
+#effort-ticks[hidden] {
+  display: none;
+}
+#effort-ticks .off {
+  opacity: 0.35;
+  text-decoration: line-through;
+}
+#effort-ticks .on {
+  font-weight: 600;
+  opacity: 1;
+}
+#controls.locked {
+  opacity: 0.6;
+}

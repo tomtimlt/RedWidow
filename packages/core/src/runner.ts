@@ -8,6 +8,27 @@ import type { Recorder } from "./recorder.js";
  */
 export type AuthMode = "auto" | "subscription" | "api-key";
 
+/** Niveau d'effort de raisonnement (type neutre ; l'adaptateur le traduit pour son moteur). */
+export const EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
+export type Effort = (typeof EFFORTS)[number];
+
+/** Modèle proposé par un moteur d'agent (liste lue au runtime, jamais codée en dur). */
+export interface ModelOption {
+  /** Identifiant à transmettre en `RunInput.model`. */
+  value: string;
+  displayName: string;
+  description?: string;
+  /** Niveaux d'effort acceptés : absent = inconnu, vide = le modèle n'a pas d'effort réglable. */
+  supportedEffortLevels?: Effort[];
+}
+
+/** Paramètres du sondage de la liste des modèles (aucune consigne n'est envoyée). */
+export interface ListModelsInput {
+  cwd: string;
+  auth?: AuthMode;
+  signal?: AbortSignal;
+}
+
 /**
  * Entrée d'un run. `cwd` est obligatoire : le cœur ne devine jamais le
  * répertoire de travail. Aucune de ces options ne desserre les garde-fous du
@@ -18,6 +39,8 @@ export interface RunInput {
   prompt: string | AsyncIterable<string>;
   cwd: string;
   model?: string;
+  /** Effort de raisonnement ; ignoré par un moteur qui n'en a pas. */
+  effort?: Effort;
   maxTurns?: number;
   /** Origine des identifiants (défaut : `auto`). */
   auth?: AuthMode;
@@ -55,4 +78,6 @@ export interface RunSummary {
  */
 export interface AgentRunner {
   run(input: RunInput, ctx: RunContext): Promise<RunSummary>;
+  /** Modèles disponibles, obtenus sans envoyer de consigne (donc sans coût d'inférence). */
+  listModels?(input: ListModelsInput): Promise<ModelOption[]>;
 }

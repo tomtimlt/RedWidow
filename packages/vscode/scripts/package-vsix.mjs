@@ -72,6 +72,11 @@ await build({
   format: "cjs",
   target: "node22",
   external: ["vscode"],
+  define: {
+    __SDK_VERSION__: JSON.stringify(
+      JSON.parse(readFileSync(join(sdkDir, "package.json"), "utf8")).version,
+    ),
+  },
   logLevel: "warning",
 });
 

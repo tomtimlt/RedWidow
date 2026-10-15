@@ -3,6 +3,7 @@ import {
   createSdkMcpServer,
   type HookCallback,
   type McpSdkServerConfigWithInstance,
+  type ModelInfo,
   type Options,
   type SDKMessage,
   type SDKUserMessage,
@@ -16,9 +17,12 @@ import {
   CodedError,
   capOutput,
   DEFAULT_MAX_RESULT_BYTES,
+  EFFORTS,
   type EventOf,
   errorInfo,
   isUnanalyzableShellTool,
+  type ListModelsInput,
+  type ModelOption,
   POWERSHELL_TOOL,
   type RunContext,
   type RunInput,
@@ -94,6 +98,7 @@ export interface SdkRunnerOptions {
     | "env"
     | "resume"
     | "sessionId"
+    | "effort"
     | "maxBudgetUsd"
     | "systemPrompt"
   >;
@@ -181,7 +186,94 @@ const AUTH_ERRORS = {
  * Registre de corrélation et serveurs MCP sont reconstruits à chaque `run()`.
  */
 export function createSdkRunner(options: SdkRunnerOptions = {}): AgentRunner {
-  return { run: (input, ctx) => runWithSdk(options, input, ctx) };
+  return {
+    run: (input, ctx) => runWithSdk(options, input, ctx),
+    listModels: (input) => probeModels(options, input),
+  };
+}
+
+/** Traduit un `ModelInfo` du SDK en type neutre : niveaux inconnus écartés, `supportsEffort: false` = aucun niveau. */
+function toModelOption(info: ModelInfo): ModelOption {
+  const levels = info.supportedEffortLevels?.filter((l) =>
+    (EFFORTS as readonly string[]).includes(l),
+  );
+  return {
+    value: info.value,
+    displayName: info.displayName,
+    ...(info.description ? { description: info.description } : {}),
+    ...(info.supportsEffort === false
+      ? { supportedEffortLevels: [] }
+      : levels !== undefined && { supportedEffortLevels: levels }),
+  };
+}
+
+/**
+ * Liste des modèles sans envoyer de consigne : le flux d'entrée reste ouvert sans jamais produire
+ * de message, donc aucun tour (ni inférence, ni outil) n'a lieu ; seule l'initialisation du binaire
+ * est demandée. Même verrouillage que `run` (aucun outil, tout appel refusé en défense en profondeur).
+ */
+async function probeModels(
+  options: SdkRunnerOptions,
+  { cwd, auth = "auto", signal }: ListModelsInput,
+): Promise<ModelOption[]> {
+  const processEnv = options.processEnv ?? process.env;
+  if (auth === "api-key" && !processEnv.ANTHROPIC_API_KEY)
+    throw new CodedError("auth.missingApiKey");
+  const query = options.query ?? (sdkQuery as QueryFn);
+  const abort = new AbortController();
+  const onAbort = () => abort.abort(signal?.reason);
+  signal?.addEventListener("abort", onAbort, { once: true });
+  if (signal?.aborted) onAbort();
+  const deny = (): { behavior: "deny"; message: string } => ({
+    behavior: "deny",
+    message: `${REFUSAL_PREFIX}sondage sans outil`,
+  });
+  // Flux d'entrée muet : se termine à l'annulation.
+  async function* silent(): AsyncGenerator<SDKUserMessage> {
+    await new Promise<void>((resolve) => {
+      if (abort.signal.aborted) return resolve();
+      abort.signal.addEventListener("abort", () => resolve(), { once: true });
+    });
+  }
+  const stream = query({
+    prompt: silent(),
+    options: {
+      cwd,
+      settingSources: [],
+      strictMcpConfig: true,
+      permissionMode: "default",
+      allowedTools: [],
+      tools: [],
+      disallowedTools: [BASH_TOOL, POWERSHELL_TOOL],
+      hooks: {
+        PreToolUse: [
+          {
+            hooks: [
+              async () => ({
+                hookSpecificOutput: {
+                  hookEventName: "PreToolUse",
+                  permissionDecision: "deny",
+                  permissionDecisionReason: `${REFUSAL_PREFIX}sondage sans outil`,
+                },
+              }),
+            ],
+          },
+        ],
+      },
+      canUseTool: async () => deny(),
+      abortController: abort,
+      ...(options.executable !== undefined && { pathToClaudeCodeExecutable: options.executable }),
+      ...(auth === "subscription" && { env: envWithout(processEnv, SUBSCRIPTION_STRIPPED_ENV) }),
+    },
+  }) as AsyncIterable<SDKMessage> & { supportedModels?: () => Promise<ModelInfo[]> };
+  try {
+    if (typeof stream.supportedModels !== "function") return [];
+    return (await stream.supportedModels()).map(toModelOption);
+  } finally {
+    signal?.removeEventListener("abort", onAbort);
+    abort.abort(new Error("sondage terminé"));
+    (stream as { close?: () => void }).close?.();
+  }
 }
 
 async function runWithSdk(
@@ -368,6 +460,7 @@ async function runWithSdk(
     env: _env,
     resume: _resume,
     sessionId: _sessionId,
+    effort: _effort,
     maxBudgetUsd: _maxBudgetUsd,
     systemPrompt: _systemPrompt,
     extraArgs: _extraArgs,
@@ -406,6 +499,7 @@ async function runWithSdk(
     abortController: abort,
     ...(options.executable !== undefined && { pathToClaudeCodeExecutable: options.executable }),
     ...(input.model !== undefined && { model: input.model }),
+    ...(input.effort !== undefined && { effort: input.effort }),
     ...(input.maxTurns !== undefined && { maxTurns: input.maxTurns }),
     ...(input.resume !== undefined && { resume: input.resume }),
     ...(input.sessionId !== undefined && { sessionId: input.sessionId }),

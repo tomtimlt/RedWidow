@@ -1,9 +1,11 @@
 import { type ChildProcess, fork } from "node:child_process";
 import {
+  type AuthMode,
   CodedError,
   createRedactor,
   type EngineEvent,
   type ErrorInfo,
+  type ModelOption,
   type PendingApproval,
   type Reason,
   type RememberScope,
@@ -85,6 +87,11 @@ export interface EngineControllerOptions {
 export interface EngineController {
   /** Lance le moteur, attend `ready`, puis envoie `start`. Rejette si le démarrage échoue. */
   start(params: StartParams): Promise<void>;
+  /**
+   * Sondage : lance un moteur éphémère SANS consigne, lit la liste des modèles puis le termine.
+   * Rejette si le moteur échoue, répond mal ou dépasse `timeoutMs` (défaut : 30 s).
+   */
+  models(params: { cwd: string; auth?: AuthMode; timeoutMs?: number }): Promise<ModelOption[]>;
   prompt(text: string): void;
   answer(toolUseId: string, decision: "allow" | "deny", remember?: RememberScope): void;
   /** Annule le run en cours. */
@@ -103,6 +110,8 @@ export function createEngineController(options: EngineControllerOptions): Engine
   // Le jeton connu est masqué dans tout ce que l'on relaie, en plus des motifs usuels.
   const redact = createRedactor({ values: options.auth ? [options.auth.value] : [] });
   let child: ChildProcess | null = null;
+  /** Sondage en cours : la réponse `models` ou une erreur du moteur le résout. */
+  let probe: { resolve(models: ModelOption[]): void; reject(error: unknown): void } | null = null;
   let resolveExited!: () => void;
   const exited = new Promise<void>((resolve) => (resolveExited = resolve));
 
@@ -129,63 +138,94 @@ export function createEngineController(options: EngineControllerOptions): Engine
         return handlers.onApproval?.(message.approval);
       case "ended":
         return handlers.onEnded?.(message.summary);
+      case "models":
+        return probe?.resolve(message.models);
       case "error":
+        if (probe) return probe.reject(new Error(message.reason.code));
         return handlers.onError?.(message.reason);
       case "ready":
         return;
     }
   };
 
-  return {
-    exited,
-    start(params) {
-      return new Promise<void>((resolve, reject) => {
-        if (child !== null) {
-          return reject(new CodedError("ipc.invalidMessage", { field: "type", reason: "state" }));
-        }
-        let ready = false;
-        const fail = (error: unknown) => {
-          if (ready) return;
+  /** Lance l'enfant, attend `ready`, puis lui envoie le premier message (`start` ou `models`). */
+  const launch = (first: ToEngine): Promise<void> =>
+    new Promise<void>((resolve, reject) => {
+      if (child !== null) {
+        return reject(new CodedError("ipc.invalidMessage", { field: "type", reason: "state" }));
+      }
+      let ready = false;
+      const fail = (error: unknown) => {
+        if (ready) return;
+        ready = true;
+        clearTimeout(timer);
+        child?.kill();
+        reject(error);
+      };
+      const proc = fork(options.enginePath, options.args ?? [], {
+        env: buildEngineEnv(options.auth, options.baseEnv),
+        ...(options.cwd !== undefined && { cwd: options.cwd }),
+        stdio: ["ignore", "ignore", "pipe", "ipc"],
+        ...HIDDEN_WINDOW,
+        ...spawnOptionsForTree(), // POSIX : chef de groupe, pour tuer aussi les petits-enfants
+      });
+      trackProcessTree(proc);
+      child = proc;
+      const timer = setTimeout(
+        () => fail(new CodedError("ipc.startTimeout", { seconds: startTimeoutMs / 1000 })),
+        startTimeoutMs,
+      );
+      proc.stderr?.on("data", (chunk: Buffer) => handlers.onLog?.(redact(chunk.toString())));
+      proc.on("error", fail);
+      proc.on("exit", (code, signal) => {
+        fail(
+          new CodedError("ipc.engineExited", {
+            ...(signal ? { signal } : { code: code ?? -1 }),
+          }),
+        );
+        probe?.reject(new CodedError("ipc.engineExited", { code: code ?? -1 }));
+        handlers.onExit?.({ code, signal });
+        resolveExited();
+      });
+      proc.on("message", (raw) => {
+        const parsed = parseFromEngine(raw);
+        if (!parsed.ok) return handlers.onError?.(parsed.reason);
+        if (parsed.message.type === "ready" && !ready) {
           ready = true;
           clearTimeout(timer);
-          child?.kill();
-          reject(error);
-        };
-        const proc = fork(options.enginePath, options.args ?? [], {
-          env: buildEngineEnv(options.auth, options.baseEnv),
-          ...(options.cwd !== undefined && { cwd: options.cwd }),
-          stdio: ["ignore", "ignore", "pipe", "ipc"],
-          ...HIDDEN_WINDOW,
-          ...spawnOptionsForTree(), // POSIX : chef de groupe, pour tuer aussi les petits-enfants
-        });
-        trackProcessTree(proc);
-        child = proc;
+          post(first);
+          return resolve();
+        }
+        dispatch(parsed.message);
+      });
+    });
+
+  return {
+    exited,
+    start: (params) => launch({ v: PROTOCOL_VERSION, type: "start", ...params }),
+    models({ cwd, auth, timeoutMs = 30_000 }) {
+      return new Promise<ModelOption[]>((resolve, reject) => {
         const timer = setTimeout(
-          () => fail(new CodedError("ipc.startTimeout", { seconds: startTimeoutMs / 1000 })),
-          startTimeoutMs,
+          () =>
+            settle(() => reject(new CodedError("ipc.startTimeout", { seconds: timeoutMs / 1000 }))),
+          timeoutMs,
         );
-        proc.stderr?.on("data", (chunk: Buffer) => handlers.onLog?.(redact(chunk.toString())));
-        proc.on("error", fail);
-        proc.on("exit", (code, signal) => {
-          fail(
-            new CodedError("ipc.engineExited", {
-              ...(signal ? { signal } : { code: code ?? -1 }),
-            }),
-          );
-          handlers.onExit?.({ code, signal });
-          resolveExited();
-        });
-        proc.on("message", (raw) => {
-          const parsed = parseFromEngine(raw);
-          if (!parsed.ok) return handlers.onError?.(parsed.reason);
-          if (parsed.message.type === "ready" && !ready) {
-            ready = true;
-            clearTimeout(timer);
-            post({ v: PROTOCOL_VERSION, type: "start", ...params });
-            return resolve();
-          }
-          dispatch(parsed.message);
-        });
+        const settle = (done: () => void) => {
+          clearTimeout(timer);
+          probe = null;
+          done();
+          this.kill();
+        };
+        probe = {
+          resolve: (models) => settle(() => resolve(models)),
+          reject: (error) => settle(() => reject(error)),
+        };
+        launch({
+          v: PROTOCOL_VERSION,
+          type: "models",
+          cwd,
+          ...(auth !== undefined && { auth }),
+        }).catch((error) => settle(() => reject(error)));
       });
     },
     prompt: (text) => post({ v: PROTOCOL_VERSION, type: "prompt", text }),

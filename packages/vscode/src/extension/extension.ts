@@ -9,6 +9,8 @@ import { machineValue, resolveSettings } from "../logic/settings.js";
 
 const TOKEN_KEY = "john.token";
 const TOKEN_KIND_KEY = "john.tokenKind";
+// Version du SDK embarquée par le paquetage (clé du cache des modèles) ; absente en développement.
+declare const __SDK_VERSION__: string | undefined;
 type TokenKind = "subscription" | "api-key";
 
 /** Couche fine : seule autorisée à importer `vscode` (test de frontière). Toute la logique est dans `src/logic`. */
@@ -46,6 +48,11 @@ export function activate(context: vscode.ExtensionContext): void {
       engineArgs: [context.extensionPath],
       readSettings,
       getToken,
+      store: {
+        get: (key: string) => context.globalState.get(key),
+        set: (key: string, value: unknown) => context.globalState.update(key, value),
+      },
+      ...(typeof __SDK_VERSION__ === "string" && { sdkVersion: __SDK_VERSION__ }),
       confirmAlways: async (text) =>
         (await vscode.window.showWarningMessage(text, { modal: true }, "Toujours autoriser")) ===
         "Toujours autoriser",
@@ -78,7 +85,14 @@ export function activate(context: vscode.ExtensionContext): void {
           const s = getSession();
           switch (message.type) {
             case "ready":
-              return post({ type: "view", view: s.view() });
+              post({ type: "view", view: s.view() });
+              return await s.loadModels();
+            case "setModel":
+              return s.setModel(message.model);
+            case "setEffort":
+              return s.setEffort(message.effort);
+            case "refreshModels":
+              return await s.loadModels(true);
             case "send":
               return await s.send(message.text);
             case "stop":

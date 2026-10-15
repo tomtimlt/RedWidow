@@ -1,6 +1,7 @@
 import type { EngineEvent } from "@john-studio/core";
 import { formatError, formatReason } from "@john-studio/messages";
 import { type ApprovalCard, cleanText, describeInput } from "./approval.js";
+import type { ChatControls } from "./controls.js";
 import { type Block, parseMarkdown } from "./markdown.js";
 import { summarizeInput, toolLabel } from "./present.js";
 
@@ -43,6 +44,8 @@ export interface ChatView {
   busy: boolean;
   /** Image du bac à sable du run, si activé. */
   sandbox: string | null;
+  /** Sélecteurs de modèle et d'effort (absents tant que la session ne les a pas calculés). */
+  controls: ChatControls | null;
 }
 
 /** État du chat : mutable, une instance par conversation ; `view()` donne la forme envoyée à la webview. */
@@ -51,6 +54,7 @@ export function createChatState() {
   const approvals = new Map<string, ApprovalCard>();
   let busy = false;
   let sandbox: string | null = null;
+  let controls: ChatControls | null = null;
   let nextId = 1;
 
   const push = (item: NewItem) => {
@@ -71,6 +75,9 @@ export function createChatState() {
     },
     setBusy(value: boolean) {
       busy = value;
+    },
+    setControls(value: ChatControls) {
+      controls = value;
     },
     setSandbox(image: string | null) {
       sandbox = image === null ? null : cleanText(image, 300);
@@ -135,7 +142,7 @@ export function createChatState() {
       }
     },
     view(): ChatView {
-      return { items: [...items], approvals: [...approvals.values()], busy, sandbox };
+      return { items: [...items], approvals: [...approvals.values()], busy, sandbox, controls };
     },
   };
 }

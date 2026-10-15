@@ -20,6 +20,15 @@ Le `.vsix` fait environ 117 Mio (il embarque le binaire `claude` du SDK, 257 Mio
 3. **John : ouvrir le chat** (ou l'icône John de la barre d'activité). Saisir une consigne, `Ctrl+Entrée` ou « Envoyer ».
 4. Le fil affiche le texte de l'agent en Markdown sûr (paragraphes, code en ligne et en bloc avec bouton Copier, gras, italique, listes, titres ; liens et HTML restent du texte), et une ligne compacte par appel d'outil (icône d'état, nom lisible, résumé) dont les détails (entrée et sortie, plafonnés à 2000 caractères) sont repliés ; un indicateur signale que l'agent travaille. **Stop** annule le run ; le message suivant relance un moteur en reprenant la session. **Nouvelle conversation** repart de zéro.
 
+## Modèle et effort
+
+Au-dessus de la zone de saisie : un **sélecteur de modèle** et un **curseur d'effort** à 5 crans (Low, Medium, High, Extra, Max ; Extra correspond à l'effort `xhigh` du SDK). Le libellé du cran courant est affiché, l'infobulle décrit l'effet (Low : rapide et économe ; Max : réflexion la plus poussée, plus lent et plus coûteux), et les crans non pris en charge par le modèle choisi sont grisés (un niveau non pris en charge est ramené au plus proche niveau permis, avec un avis). Le curseur se pilote au clavier (flèches) et expose son libellé aux lecteurs d'écran.
+
+- La **liste des modèles** vient du SDK au runtime (aucun identifiant n'est codé en dur) : un moteur de sondage éphémère, lancé à l'ouverture du chat **sans aucune consigne** (donc sans tour, sans outil ni inférence), interroge `supportedModels()` puis s'arrête. Elle est mise en cache (`globalState`) par version du SDK ; « Actualiser » la recharge. Si elle est indisponible, le sélecteur devient une **saisie libre** (identifiant sans espace, 200 caractères maximum).
+- Les choix s'appliquent au **message suivant** (gelés pendant un tour) : le moteur inactif est remplacé par un nouveau qui reprend la même session (`resume`), sans perdre le fil. Ils sont persistés dans `globalState` (jamais dans l'espace de travail). Le modèle par défaut reste le réglage machine `john.model`.
+- L'extension **revalide** tout choix venu de la webview : identifiant de la liste (ou bien formé en saisie libre), niveau d'effort dans l'énumération.
+- Pas de cran « Ultracode » pour l'instant : un cran de plus s'ajoute dans `src/logic/effort.ts` (liste `EFFORT_LEVELS`) si le cœur l'accepte.
+
 ## Cartes d'approbation
 
 Chaque demande de la gate d'approbation devient une carte : outil, entrée (neutralisée : caractères de contrôle, séquences ESC et contrôles bidirectionnels retirés), raison de la politique. Boutons :

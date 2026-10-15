@@ -213,7 +213,75 @@
     return box;
   }
 
+  // --- Sélecteurs de modèle et d'effort : tout est revalidé par l'extension, ici on ne fait qu'afficher ---
+  const controls = $("controls");
+  const modelSelect = $("model-select");
+  const modelInput = $("model-input");
+  const effortInput = $("effort");
+  const effortLabel = $("effort-label");
+  const ticks = $("effort-ticks");
+  let levels = [];
+
+  function renderControls(c) {
+    controls.hidden = !c;
+    if (!c) return;
+    controls.classList.toggle("locked", c.locked);
+    const list = c.models !== null;
+    modelSelect.hidden = !list;
+    modelInput.hidden = list;
+    modelSelect.disabled = modelInput.disabled = c.locked;
+    $("models-refresh").disabled = c.locked || c.modelsStatus === "loading";
+    $("models-refresh").textContent = c.modelsStatus === "loading" ? "Chargement…" : "Actualiser";
+    if (list) {
+      const opts = [el("option", "", "Modèle par défaut")];
+      opts[0].value = "";
+      for (const m of c.models) {
+        const o = el("option", "", m.label);
+        o.value = m.value;
+        o.title = m.description;
+        opts.push(o);
+      }
+      modelSelect.replaceChildren(...opts);
+      modelSelect.value = c.model ?? "";
+    } else if (document.activeElement !== modelInput) {
+      modelInput.value = c.model ?? "";
+    }
+    levels = c.levels;
+    effortInput.max = String(Math.max(levels.length - 1, 0));
+    effortInput.value = String(levels.findIndex((l) => l.value === c.effort));
+    effortInput.disabled = c.locked || c.effortDisabled;
+    effortInput.title = c.effortDisabled ? "Ce modèle n'a pas d'effort réglable." : c.effortTip;
+    effortInput.setAttribute("aria-valuetext", `${c.effortLabel} : ${c.effortTip}`);
+    effortLabel.textContent = c.effortLabel;
+    ticks.replaceChildren(
+      ...levels.map((l) => {
+        const t = el("span", l.value === c.effort ? "on" : l.enabled ? "" : "off", l.label);
+        if (!l.enabled) t.title = "Non pris en charge par ce modèle";
+        return t;
+      }),
+    );
+  }
+
+  modelSelect.addEventListener("change", () =>
+    vscode.postMessage({
+      type: "setModel",
+      model: modelSelect.value === "" ? null : modelSelect.value,
+    }),
+  );
+  modelInput.addEventListener("change", () => {
+    const v = modelInput.value.trim();
+    vscode.postMessage({ type: "setModel", model: v === "" ? null : v });
+  });
+  $("models-refresh").addEventListener("click", () =>
+    vscode.postMessage({ type: "refreshModels" }),
+  );
+  effortInput.addEventListener("change", () => {
+    const level = levels[Number(effortInput.value)];
+    if (level) vscode.postMessage({ type: "setEffort", effort: level.value });
+  });
+
   function render(view) {
+    renderControls(view.controls);
     const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
     const top = log.scrollTop;
     log.replaceChildren(

@@ -127,3 +127,26 @@ describe("protocole IPC : vers l'extension", () => {
     expect(parseFromEngine(message).ok).toBe(false);
   });
 });
+
+describe("protocole IPC : effort et modèles", () => {
+  it("effort : énumération stricte", () => {
+    expect(parseToEngine({ v: 1, type: "start", cwd, effort: "xhigh" }).ok).toBe(true);
+    for (const effort of ["ultra", "", 3, null]) {
+      expect(parseToEngine({ v: 1, type: "start", cwd, effort }).ok, String(effort)).toBe(false);
+    }
+  });
+  it("modèle : identifiant bien formé seulement", () => {
+    expect(parseToEngine({ v: 1, type: "start", cwd, model: "a b" }).ok).toBe(false);
+    expect(parseToEngine({ v: 1, type: "start", cwd, model: "x".repeat(201) }).ok).toBe(false);
+  });
+  it("message models : forme exacte des deux côtés", () => {
+    expect(parseToEngine({ v: 1, type: "models", cwd }).ok).toBe(true);
+    expect(parseToEngine({ v: 1, type: "models", cwd, prompt: "x" }).ok).toBe(false);
+    expect(parseToEngine({ v: 1, type: "models", cwd: "relatif" }).ok).toBe(false);
+    expect(
+      parseFromEngine({ v: 1, type: "models", models: [{ value: "a", displayName: "A" }] }).ok,
+    ).toBe(true);
+    expect(parseFromEngine({ v: 1, type: "models", models: [{ value: "a" }] }).ok).toBe(false);
+    expect(parseFromEngine({ v: 1, type: "models", models: "x" }).ok).toBe(false);
+  });
+});
