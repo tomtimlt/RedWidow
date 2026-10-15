@@ -150,7 +150,22 @@ Exécution de commandes par l'agent dans un conteneur créé par le moteur (`--s
 | S4 | `put`/`get` par tar strict | oui | à faire |
 | S5 | Intégration avec vrai Docker, W-L6, README | non | à faire |
 
-**Décisions de l'architecte (ADR 0003 §G).** Réseau toujours `none` (option `--sandbox-network` retirée) ; aucune image par défaut, fournie par l'opérateur, `--pull never`, absence → `sandbox.imageUnsupported` ; conteneur toujours supprimé en fin de run ; limites fixes, seul `--sandbox-timeout` réglable (600 s, max 1800 s). Tout autre profil réseau/privilèges est exclu de l'ADR et à rediscuter avec l'utilisateur. Ordre : S1 ∥ S2 ∥ `sandbox/tar.ts`, puis S3, puis `put`/`get`, puis S5. Question restante pour l'utilisateur (Q3) : mode autonome sans demande par exécution (recommandation : non).
+**Décisions de l'architecte (ADR 0003 §G, révisées par H).** Réseau `none` par défaut, `bridge` sur choix explicite. Aucune image par défaut, `--pull never`. Mémoire `1g`–`8g` et CPU `1`–`8`. Question restante (Q3) : mode autonome sans demande par exécution (recommandation : non).
+
+## Profil développement, réseau sortant (ADR 0003 H) — lots N0 à N5 livrés
+
+| Lot | Contenu | État |
+|---|---|---|
+| N0 | Faits : serveur OpenCode et durée de vie du bac à sable | fait |
+| N1 | Cœur : `none`/`bridge`, `HOME=/home/john`, sonde `127.0.0.1:2375`, `inspect` | fait |
+| N2 | CLI et réglages machine ; `bridge` refusé avec OpenCode | fait |
+| N3 | Mention « réseau activé » (carte, question CLI, en-tête) | fait |
+| N4 | Un bac à sable pour les consignes successives du même moteur ; `dispose` et `abort` font `rm` | fait |
+| N5 | README (risques résiduels, Dockerfile d'exemple), test Docker opt-in | fait |
+
+**N0(a).** `opencode serve` écoute sur `127.0.0.1` avec un mot de passe HTTP basic par lancement. Le serveur MCP d'outils écoute aussi sur `127.0.0.1` (jeton Bearer). H.2 n'est pas levé : `--agent opencode` avec `bridge` reste `sandbox.networkUnsafe` (`adapterServer`), le conteneur pouvant joindre ce serveur.
+
+**N0(b).** Le moteur de l'extension garde le même conteneur pour les consignes d'un même `start`. Fermeture (`dispose`) et annulation suppriment le conteneur (`sandbox.stopped`).
 
 ## Décisions à demander en priorité
 
