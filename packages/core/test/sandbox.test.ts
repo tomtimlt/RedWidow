@@ -1,3 +1,4 @@
+import { connect, createServer } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   createRecorder,
@@ -10,22 +11,29 @@ import {
   removeSandbox,
   restartSandbox,
   SandboxRegistry,
+  setSandboxDockerApiProbeForTests,
 } from "../src/index.js";
 import { fakeSandboxDocker, goodInspect, FAKE_SANDBOX_ID as ID } from "./helpers.js";
 
 const RUN = "run1";
 const IMAGE = "alpine:3.20";
 
-const RUN_CALL = [
-  "run|-d|--pull|never|--init|--label|io.john-studio.sandbox=run1|--name|john-sbx-run1",
-  "--user|65534:65534|--cap-drop|ALL|--security-opt|no-new-privileges|--network|none",
-  "--pids-limit|512|--memory|2g|--memory-swap|2g|--cpus|2|--restart|no|--stop-timeout|2",
-  `--log-driver|none|--workdir|/work|--entrypoint|sleep|${IMAGE}|infinity|`,
-].join("|");
+const runCall = (network: "none" | "bridge", memory = "2g", cpus = 2) =>
+  [
+    "run|-d|--pull|never|--init|--label|io.john-studio.sandbox=run1|--name|john-sbx-run1",
+    `--user|65534:65534|--cap-drop|ALL|--security-opt|no-new-privileges|--network|${network}`,
+    `--env|HOME=/home/john|--pids-limit|512|--memory|${memory}|--memory-swap|${memory}|--cpus|${cpus}`,
+    "--restart|no|--stop-timeout|2",
+    `--log-driver|none|--workdir|/work|--entrypoint|sleep|${IMAGE}|infinity|`,
+  ].join("|");
+
+const RUN_CALL = runCall("none");
+const RUN_CALL_BRIDGE = runCall("bridge");
 
 const contexts: { registry: SandboxRegistry }[] = [];
 // Chaque test repart d'un filet de sortie vide (les conteneurs de test sont fictifs).
 afterEach(() => {
+  setSandboxDockerApiProbeForTests(null);
   for (const c of contexts.splice(0)) c.registry.drain();
 });
 
@@ -58,6 +66,8 @@ describe("createSandbox", () => {
       `container|inspect|${ID}|`,
       `exec|-u|0|${ID}|mkdir|-p|/work|`,
       `exec|-u|0|${ID}|chmod|1777|/work|`,
+      `exec|-u|0|${ID}|mkdir|-p|/home/john|`,
+      `exec|-u|0|${ID}|chmod|1777|/home/john|`,
     ]);
     expect(ctx.registry.has(ID)).toBe(true);
     expect(sandboxEvents(events)).toMatchObject([
@@ -131,6 +141,83 @@ describe("createSandbox", () => {
     expect((await fake.calls()).at(-1)).toBe(`rm|--force|${ID}|`);
     expect(ctx.registry.ids()).toEqual([]);
     expect(sandboxEvents(events)).toMatchObject([{ kind: "sandbox.stopped", cause: "error" }]);
+  });
+
+  it("argv exact de run en réseau bridge", async () => {
+    setSandboxDockerApiProbeForTests(async () => false);
+    const { fake, ctx, events } = await setup();
+    await fake.control({ container: [goodInspect(RUN, ID, { network: "bridge" })] });
+    expect(await createSandbox(ctx, { image: IMAGE, network: "bridge" })).toBe(ID);
+    expect((await fake.calls())[1]).toBe(RUN_CALL_BRIDGE);
+    expect(sandboxEvents(events)).toMatchObject([{ network: "bridge" }]);
+  });
+
+  it("port 2375 en écoute : sandbox.networkUnsafe, aucun run", async () => {
+    const alreadyOpen = await new Promise<boolean>((resolve) => {
+      const s = connect({ host: "127.0.0.1", port: 2375 }, () => {
+        s.destroy();
+        resolve(true);
+      });
+      s.on("error", () => resolve(false));
+      s.setTimeout(500, () => {
+        s.destroy();
+        resolve(false);
+      });
+    });
+    let server: ReturnType<typeof createServer> | undefined;
+    if (!alreadyOpen) {
+      server = createServer();
+      await new Promise<void>((resolve, reject) => {
+        server!.once("error", reject);
+        server!.listen(2375, "127.0.0.1", () => resolve());
+      });
+    }
+    try {
+      const { fake, ctx } = await setup();
+      await expect(createSandbox(ctx, { image: IMAGE, network: "bridge" })).rejects.toMatchObject({
+        code: "sandbox.networkUnsafe",
+        params: { port: 2375 },
+      });
+      expect((await fake.calls()).some((c) => c.startsWith("run|"))).toBe(false);
+    } finally {
+      if (server)
+        await new Promise<void>((resolve) => {
+          server!.close(() => resolve());
+        });
+    }
+  });
+
+  it("réseau none ne sonde pas le port 2375 (bridge seulement)", async () => {
+    const { fake, ctx } = await setup();
+    expect(await createSandbox(ctx, { image: IMAGE, network: "none" })).toBe(ID);
+    expect((await fake.calls())[1]).toBe(RUN_CALL);
+  });
+
+  it.each([
+    ["memory", { memory: "512m" }],
+    ["memory", { memory: "9g" }],
+    ["memory", { memory: "2.5g" }],
+    ["cpus", { cpus: 0 }],
+    ["cpus", { cpus: 9 }],
+    ["cpus", { cpus: 1.5 }],
+    ["network", { network: "host" }],
+  ])("option %s invalide : sandbox.invalidArgument", async (field, opts) => {
+    const { fake, ctx } = await setup();
+    await expect(createSandbox(ctx, { image: IMAGE, ...opts } as never)).rejects.toMatchObject({
+      code: "sandbox.invalidArgument",
+      params: { field },
+    });
+    expect(await fake.calls()).toEqual([]);
+  });
+
+  it("mémoire et cpus personnalisés dans les bornes", async () => {
+    const { fake, ctx, events } = await setup();
+    await fake.control({ container: [goodInspect(RUN, ID, { memoryG: 4, cpus: 3 })] });
+    expect(await createSandbox(ctx, { image: IMAGE, memory: "4g", cpus: 3 })).toBe(ID);
+    expect((await fake.calls())[1]).toBe(runCall("none", "4g", 3));
+    expect(sandboxEvents(events)).toMatchObject([
+      { limits: { pidsLimit: 512, memory: "4g", cpus: 3 } },
+    ]);
   });
 
   it("conteneur mal durci à la création : sandbox.tampered et suppression", async () => {
@@ -278,7 +365,49 @@ describe("inspectSandbox : vérification avant usage", () => {
     [
       "HostConfig.NetworkMode",
       (d) => {
-        d.HostConfig.NetworkMode = "host";
+        d.HostConfig.NetworkMode = "host" as never;
+      },
+    ],
+    [
+      "HostConfig.NetworkMode",
+      (d) => {
+        d.HostConfig.NetworkMode = "container:abc" as never;
+      },
+    ],
+    [
+      "HostConfig.NetworkMode",
+      (d) => {
+        d.HostConfig.NetworkMode = "custom_net" as never;
+      },
+    ],
+    [
+      "NetworkSettings.Networks",
+      (d) => {
+        d.NetworkSettings.Networks = { none: {}, bridge: {} };
+      },
+    ],
+    [
+      "PortBindings",
+      (d) => {
+        d.HostConfig.PortBindings = { "80/tcp": [{ HostPort: "8080" }] } as never;
+      },
+    ],
+    [
+      "PublishAllPorts",
+      (d) => {
+        d.HostConfig.PublishAllPorts = true;
+      },
+    ],
+    [
+      "ExtraHosts",
+      (d) => {
+        d.HostConfig.ExtraHosts = ["evil:1.2.3.4"] as never;
+      },
+    ],
+    [
+      "Config.Env.HOME",
+      (d) => {
+        d.Config.Env = ["HOME=/tmp"] as never;
       },
     ],
     [

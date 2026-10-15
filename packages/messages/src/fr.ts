@@ -206,6 +206,8 @@ export const reasons: Catalog = {
     `archive tar refusée (${TAR_REASONS[text(p.reason)] ?? text(p.reason)})${p.entry === undefined ? "" : ` : ${text(p.entry)}`}, rien n'a été écrit`,
   "sandbox.invalidArgument": (p) =>
     `argument invalide (${text(p.field)}) : ${SANDBOX_ARGUMENT_REASONS[text(p.reason)] ?? text(p.reason)}`,
+  "sandbox.networkUnsafe": (p) =>
+    `réseau bridge refusé : API Docker exposée sur 127.0.0.1:${text(p.port)}`,
 
   "sandbox.execTimeout": (p) =>
     `délai de ${text(p.seconds)} s dépassé : bac à sable ${p.restarted === 1 ? "redémarré" : "hors service"}. Sortie partielle :\n${text(p.output)}`,

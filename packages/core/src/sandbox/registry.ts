@@ -1,8 +1,14 @@
+export type SandboxNetwork = "none" | "bridge";
+
 /** Un bac à sable créé par ce processus : l'enregistrement est ce qui l'autorise (jamais le label Docker). */
 export interface SandboxRecord {
   /** Identifiant complet (64 hex). */
   readonly id: string;
   readonly runId: string;
+  /** Réseau et limites choisis à la création (opérateur), jamais relus depuis un outil. */
+  readonly network: SandboxNetwork;
+  readonly memory: string;
+  readonly cpus: number;
   /** Hors service (redémarrage impossible) : toute exécution est refusée. */
   unavailable: boolean;
   /** Suppression synchrone (filet de sortie) ; ne lève pas. */

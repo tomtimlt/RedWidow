@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { connect } from "node:net";
 import { posix } from "node:path";
 import { assertArgsPrefix, assertBinary, assertOperand, DockerError } from "../docker/client.js";
 import type { Correlation } from "../events.js";
@@ -6,18 +7,81 @@ import { resolveBinary } from "../process/resolve.js";
 import { type ProcessResult, runProcess, safeEnv } from "../process/run.js";
 import { CodedError, ValidationError } from "../reason.js";
 import type { Recorder } from "../recorder.js";
-import { type SandboxRecord, SandboxRegistry } from "./registry.js";
+import { type SandboxNetwork, type SandboxRecord, SandboxRegistry } from "./registry.js";
 
 /** Utilisateur du conteneur (nobody) : fixe, jamais root pour les exécutions de l'agent. */
 export const SANDBOX_USER = "65534:65534";
 /** Label de nettoyage (`john sandbox prune`) : falsifiable, il n'autorise RIEN. */
 export const SANDBOX_LABEL = "io.john-studio.sandbox";
 export const SANDBOX_WORKDIR = "/work";
-/** Limites fixes (ADR 0003, Q5). */
+export const SANDBOX_HOME = "/home/john";
+/** Limites par défaut (ADR 0003, Q5). */
 export const SANDBOX_LIMITS = { pidsLimit: 512, memory: "2g", cpus: 2 } as const;
-/** Valeurs attendues dans `docker inspect` pour les limites ci-dessus (`2g`, 2 CPU). */
-const MEMORY_BYTES = 2 * 1024 ** 3;
-const NANO_CPUS = 2 * 1e9;
+const MEMORY_G_RE = /^(\d+)g$/;
+const MIN_MEMORY_G = 1;
+const MAX_MEMORY_G = 8;
+const MIN_CPUS = 1;
+const MAX_CPUS = 8;
+const DOCKER_API_PROBE_HOST = "127.0.0.1";
+const DOCKER_API_PROBE_PORT = 2375;
+const DOCKER_API_PROBE_MS = 1000;
+
+const memoryToBytes = (memory: string): number => {
+  const m = MEMORY_G_RE.exec(memory);
+  if (m === null) return Number.NaN;
+  const g = Number(m[1]);
+  if (!(g >= MIN_MEMORY_G && g <= MAX_MEMORY_G && Number.isInteger(g))) return Number.NaN;
+  return g * 1024 ** 3;
+};
+
+const resolveSandboxOptions = (input: {
+  network?: SandboxNetwork;
+  memory?: string;
+  cpus?: number;
+}): { network: SandboxNetwork; memory: string; cpus: number } => {
+  const invalid = (field: string, reason: string) =>
+    new ValidationError("sandbox.invalidArgument", { field, reason });
+  const network = input.network ?? "none";
+  if (network !== "none" && network !== "bridge") throw invalid("network", "value");
+
+  const memory = input.memory ?? SANDBOX_LIMITS.memory;
+  if (typeof memory !== "string" || !MEMORY_G_RE.test(memory)) throw invalid("memory", "format");
+  const match = MEMORY_G_RE.exec(memory);
+  const memG = match === null ? Number.NaN : Number(match[1]);
+  if (!(memG >= MIN_MEMORY_G && memG <= MAX_MEMORY_G)) throw invalid("memory", "range");
+
+  const cpus = input.cpus ?? SANDBOX_LIMITS.cpus;
+  if (
+    typeof cpus !== "number" ||
+    !Number.isInteger(cpus) ||
+    !(cpus >= MIN_CPUS && cpus <= MAX_CPUS)
+  )
+    throw invalid("cpus", "range");
+
+  return { network, memory, cpus };
+};
+
+/** Sonde TCP : API Docker non chiffrée sur l'hôte (bridge seulement). */
+async function isDockerApiExposedOnHost(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = connect({ host: DOCKER_API_PROBE_HOST, port: DOCKER_API_PROBE_PORT }, () => {
+      socket.destroy();
+      resolve(true);
+    });
+    socket.setTimeout(DOCKER_API_PROBE_MS, () => {
+      socket.destroy();
+      resolve(false);
+    });
+    socket.on("error", () => resolve(false));
+  });
+}
+
+let dockerApiProbeOverride: (() => Promise<boolean>) | null = null;
+
+/** @internal Remplace la sonde 127.0.0.1:2375 (tests uniquement). */
+export function setSandboxDockerApiProbeForTests(override: (() => Promise<boolean>) | null): void {
+  dockerApiProbeOverride = override;
+}
 
 const DEFAULT_MAX_TIMEOUT_SEC = 600;
 const ABSOLUTE_MAX_TIMEOUT_SEC = 1800;
@@ -159,7 +223,11 @@ const cleanupCall = (call: Call): Call => {
   return { timeoutMs: CLEANUP_TIMEOUT_MS, ...rest };
 };
 
-function runArgs(runId: string, image: string): string[] {
+function runArgs(
+  runId: string,
+  image: string,
+  opts: { network: SandboxNetwork; memory: string; cpus: number },
+): string[] {
   return [
     "run",
     "-d",
@@ -177,15 +245,17 @@ function runArgs(runId: string, image: string): string[] {
     "--security-opt",
     "no-new-privileges",
     "--network",
-    "none",
+    opts.network,
+    "--env",
+    `HOME=${SANDBOX_HOME}`,
     "--pids-limit",
     String(SANDBOX_LIMITS.pidsLimit),
     "--memory",
-    SANDBOX_LIMITS.memory,
+    opts.memory,
     "--memory-swap",
-    SANDBOX_LIMITS.memory,
+    opts.memory,
     "--cpus",
-    String(SANDBOX_LIMITS.cpus),
+    String(opts.cpus),
     "--restart",
     "no",
     "--stop-timeout",
@@ -209,7 +279,18 @@ function runArgs(runId: string, image: string): string[] {
  */
 export async function createSandbox(
   ctx: SandboxContext,
-  { image, ...call }: { image: string | undefined } & Call,
+  {
+    image,
+    network: networkIn,
+    memory: memoryIn,
+    cpus: cpusIn,
+    ...call
+  }: {
+    image: string | undefined;
+    network?: SandboxNetwork;
+    memory?: string;
+    cpus?: number;
+  } & Call,
 ): Promise<string> {
   const runId = ctx.recorder.runId;
   if (!RUN_ID.test(runId))
@@ -217,6 +298,11 @@ export async function createSandbox(
   if (image === undefined || image === "")
     throw new CodedError("sandbox.imageUnsupported", { reason: "missing" });
   assertOperand(image, "image");
+  const { network, memory, cpus } = resolveSandboxOptions({
+    ...(networkIn !== undefined && { network: networkIn }),
+    ...(memoryIn !== undefined && { memory: memoryIn }),
+    ...(cpusIn !== undefined && { cpus: cpusIn }),
+  });
 
   const inspected = await docker(ctx, ["image", "inspect", image], call);
   if (inspected.code !== 0) throw new CodedError("sandbox.imageUnsupported", { reason: "absent" });
@@ -233,10 +319,14 @@ export async function createSandbox(
   // (construit par le code), sans le signal de l'appelant.
   const removeByName = () =>
     docker(ctx, rmArgs(containerName(runId)), cleanupCall(call)).catch(() => {});
-  const started = await docker(ctx, runArgs(runId, image), call).catch(async (err: unknown) => {
-    await removeByName();
-    throw err;
-  });
+  if (network === "bridge" && (await (dockerApiProbeOverride ?? isDockerApiExposedOnHost)()))
+    throw new CodedError("sandbox.networkUnsafe", { port: DOCKER_API_PROBE_PORT });
+  const started = await docker(ctx, runArgs(runId, image, { network, memory, cpus }), call).catch(
+    async (err: unknown) => {
+      await removeByName();
+      throw err;
+    },
+  );
   if (started.code !== 0) {
     await removeByName();
     const stderr = started.stderr.join("\n");
@@ -257,6 +347,9 @@ export async function createSandbox(
   const record: SandboxRecord = {
     id,
     runId,
+    network,
+    memory,
+    cpus,
     unavailable: false,
     removeSync: () => {
       const file = resolveBinary(ctx.binary);
@@ -287,6 +380,8 @@ export async function createSandbox(
     for (const step of [
       ["mkdir", "-p", SANDBOX_WORKDIR],
       ["chmod", "1777", SANDBOX_WORKDIR],
+      ["mkdir", "-p", SANDBOX_HOME],
+      ["chmod", "1777", SANDBOX_HOME],
     ]) {
       const done = await docker(ctx, ["exec", "-u", "0", id, ...step], call);
       if (done.code !== 0) throw new CodedError("sandbox.imageUnsupported", { reason: "init" });
@@ -302,8 +397,8 @@ export async function createSandbox(
       containerId: id,
       image,
       imageDigest: digest,
-      network: "none",
-      limits: { ...SANDBOX_LIMITS },
+      network,
+      limits: { pidsLimit: SANDBOX_LIMITS.pidsLimit, memory, cpus },
     },
     call.parentId === undefined ? ctx.parentId : call.parentId,
   );
@@ -349,9 +444,13 @@ export async function inspectSandbox(
     if (!ok) throw tampered(field);
   };
 
+  const memoryBytes = memoryToBytes(record.memory);
+  const nanoCpus = record.cpus * 1e9;
+
   const host = section(doc, "HostConfig");
   const config = section(doc, "Config");
   const state = section(doc, "State");
+  const netSettings = section(doc, "NetworkSettings");
   const labels = config.Labels;
 
   expect(doc.Id === id, "Id");
@@ -379,11 +478,40 @@ export async function inspectSandbox(
       (Array.isArray(host.Devices) && host.Devices.length === 0),
     "HostConfig.Devices",
   );
-  expect(host.NetworkMode === "none", "HostConfig.NetworkMode");
+  expect(host.NetworkMode === record.network, "HostConfig.NetworkMode");
+  const networks = netSettings.Networks;
+  if (!isObject(networks)) throw tampered("NetworkSettings.Networks");
+  const networkKeys = Object.keys(networks);
+  expect(networkKeys.length === 1 && networkKeys[0] === record.network, "NetworkSettings.Networks");
+  const portBindings = host.PortBindings ?? netSettings.PortBindings;
+  if (
+    portBindings !== null &&
+    portBindings !== undefined &&
+    !(isObject(portBindings) && Object.keys(portBindings).length === 0)
+  )
+    throw tampered("PortBindings");
+  const publishAll = host.PublishAllPorts ?? netSettings.PublishAllPorts;
+  expect(publishAll === false || publishAll === undefined, "PublishAllPorts");
+  if (list(host, "ExtraHosts", "ExtraHosts").length > 0) throw tampered("ExtraHosts");
+  const extraOnNet = netSettings.ExtraHosts;
+  if (extraOnNet !== null && extraOnNet !== undefined) {
+    if (!Array.isArray(extraOnNet) || !extraOnNet.every((e) => typeof e === "string"))
+      throw tampered("ExtraHosts");
+    if (extraOnNet.length > 0) throw tampered("ExtraHosts");
+  }
+  const env = config.Env;
+  if (
+    env === null ||
+    env === undefined ||
+    !Array.isArray(env) ||
+    !env.every((e) => typeof e === "string")
+  )
+    throw tampered("Config.Env.HOME");
+  expect((env as string[]).includes(`HOME=${SANDBOX_HOME}`), "Config.Env.HOME");
   expect(host.PidsLimit === SANDBOX_LIMITS.pidsLimit, "HostConfig.PidsLimit");
-  expect(host.Memory === MEMORY_BYTES, "HostConfig.Memory");
-  expect(host.MemorySwap === MEMORY_BYTES, "HostConfig.MemorySwap");
-  expect(host.NanoCpus === NANO_CPUS, "HostConfig.NanoCpus");
+  expect(host.Memory === memoryBytes, "HostConfig.Memory");
+  expect(host.MemorySwap === memoryBytes, "HostConfig.MemorySwap");
+  expect(host.NanoCpus === nanoCpus, "HostConfig.NanoCpus");
   expect(
     host.DeviceRequests === null ||
       host.DeviceRequests === undefined ||

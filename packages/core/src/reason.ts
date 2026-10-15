@@ -93,6 +93,7 @@ export const REASON_CODES = [
   "sandbox.unknownContainer",
   "sandbox.imageUnsupported",
   "sandbox.invalidArgument",
+  "sandbox.networkUnsafe",
   "sandbox.execTimeout",
   "sandbox.execAborted",
   // Extension VS Code : moteur enfant et protocole IPC (ADR 0004)

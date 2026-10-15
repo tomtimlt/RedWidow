@@ -269,10 +269,7 @@ describe("parseDockerInspect", () => {
     ["valeur de label non chaîne", inspectDoc({ Config: { Labels: { k: 1 } } })],
     ["Mounts absent", inspectDoc({ Mounts: undefined })],
     ["Mounts null", inspectDoc({ Mounts: null })],
-    [
-      "montage sans Destination",
-      inspectDoc({ Mounts: [{ Type: "bind", Source: "", RW: true }] }),
-    ],
+    ["montage sans Destination", inspectDoc({ Mounts: [{ Type: "bind", Source: "", RW: true }] })],
     [
       "montage sans RW booléen",
       inspectDoc({ Mounts: [{ Type: "bind", Source: "", Destination: "/d", RW: 1 }] }),

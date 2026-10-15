@@ -158,6 +158,7 @@ describe("schéma d'événements", () => {
       ["sink.error", { message: undefined }],
       ["journal.truncated", { limitBytes: "1" }],
       ["sandbox.started", { imageDigest: 3 }],
+      ["sandbox.started", { network: "host" }],
       ["sandbox.started", { limits: [] }],
       ["sandbox.stopped", { cause: "crash" }],
     ];

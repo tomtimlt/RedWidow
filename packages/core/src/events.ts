@@ -415,7 +415,7 @@ export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
     containerId: "string",
     image: "string",
     imageDigest: "string|null",
-    network: "string",
+    network: "enum:none,bridge",
     limits: "object",
   }),
   "sandbox.stopped": shape({

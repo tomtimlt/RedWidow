@@ -176,6 +176,9 @@ describe("registre et prune", () => {
     const record = (id: string) => ({
       id,
       runId: "r",
+      network: "none" as const,
+      memory: "2g",
+      cpus: 2,
       unavailable: false,
       removeSync: () => {
         removed.push(id);

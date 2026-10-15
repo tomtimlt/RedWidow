@@ -44,32 +44,57 @@ switch (argv[0]) {
 
 export const FAKE_SANDBOX_ID = "a".repeat(64);
 
+export interface GoodInspectOptions {
+  network?: "none" | "bridge";
+  memoryG?: number;
+  cpus?: number;
+}
+
 /** `inspect` conforme au bac à sable durci du run `runId`. */
-export const goodInspect = (runId: string, id = FAKE_SANDBOX_ID) => ({
-  Id: id,
-  State: { Running: true },
-  Config: { User: "65534:65534", Labels: { "io.john-studio.sandbox": runId } },
-  Mounts: [],
-  HostConfig: {
-    Privileged: false,
-    CapAdd: null,
-    CapDrop: ["ALL"],
-    SecurityOpt: ["no-new-privileges"],
-    Binds: null,
-    Devices: [],
-    NetworkMode: "none",
-    PidMode: "",
-    IpcMode: "private",
-    UTSMode: "",
-    UsernsMode: "",
-    CgroupnsMode: "private",
-    DeviceRequests: null,
-    PidsLimit: 512,
-    Memory: 2147483648,
-    MemorySwap: 2147483648,
-    NanoCpus: 2000000000,
-  },
-});
+export const goodInspect = (runId: string, id = FAKE_SANDBOX_ID, opts: GoodInspectOptions = {}) => {
+  const network = opts.network ?? "none";
+  const memoryG = opts.memoryG ?? 2;
+  const cpus = opts.cpus ?? 2;
+  const memBytes = memoryG * 1024 ** 3;
+  return {
+    Id: id,
+    State: { Running: true },
+    Config: {
+      User: "65534:65534",
+      Labels: { "io.john-studio.sandbox": runId },
+      Env: [`HOME=/home/john`],
+    },
+    Mounts: [],
+    NetworkSettings: {
+      Networks: { [network]: {} },
+      PortBindings: null,
+      PublishAllPorts: false,
+      ExtraHosts: null,
+    },
+    HostConfig: {
+      Privileged: false,
+      CapAdd: null,
+      CapDrop: ["ALL"],
+      SecurityOpt: ["no-new-privileges"],
+      Binds: null,
+      Devices: [],
+      NetworkMode: network,
+      PortBindings: null,
+      PublishAllPorts: false,
+      ExtraHosts: null,
+      PidMode: "",
+      IpcMode: "private",
+      UTSMode: "",
+      UsernsMode: "",
+      CgroupnsMode: "private",
+      DeviceRequests: null,
+      PidsLimit: 512,
+      Memory: memBytes,
+      MemorySwap: memBytes,
+      NanoCpus: cpus * 1e9,
+    },
+  };
+};
 
 export interface FakeSandboxControl {
   /** Résultat de `container inspect` (relu à chaque appel). */
