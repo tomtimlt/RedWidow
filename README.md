@@ -141,6 +141,57 @@ Les messages de sous-agents sont conservés : leurs événements sont enfants du
 (`agentToolUseId` renseigné). Limite : si le SDK appelle `canUseTool` avant d'émettre le message du sous-agent, le
 `tool.requested` est rattaché à la racine.
 
+## Bac à sable d'exécution (optionnel)
+
+Le moteur peut isoler les commandes du modèle dans un conteneur Docker dédié au run (outil `mcp__sandbox__exec`), en
+complément des outils docker structurés ci-dessus.
+
+- **Activation.** `--sandbox` avec une image **locale** : `--sandbox-image <référence>`. Il n'y a pas d'image par défaut ;
+  le moteur ne tire jamais l'image (`docker run --pull never`).
+- **Réseau.** `--sandbox-network none` (défaut) ou `bridge`.
+- **Limites.** `--sandbox-memory` : `1g` à `8g` (défaut `2g`) ; `--sandbox-cpus` : `1` à `8` (défaut `2`).
+- **OpenCode.** La combinaison `--agent opencode` et `--sandbox-network bridge` est refusée (serveur MCP local joignable
+  depuis le conteneur).
+
+Le conteneur tourne sous l'utilisateur numérique `65534`, avec `cap-drop ALL`, sans montage de volume, sans port
+publié vers l'hôte. Avec `bridge`, le moteur refuse de démarrer si l'API Docker de l'hôte écoute sur `127.0.0.1:2375`.
+
+### Risques résiduels (`bridge`)
+
+Avec le réseau `bridge`, une exécution **déjà approuvée** peut exfiltrer ce que le modèle a vu (par ex. `curl`, `git`,
+résolution DNS). L'hôte, le loopback via la passerelle Docker et le LAN peuvent être joignables depuis le conteneur. Le
+code téléchargé s'exécute dans le conteneur (non root), mais une règle `allow` à joker sur `npm`, `pip`, `cargo`, `git`
+ou `curl` devient une sortie réseau sans nouvelle demande d'approbation. N'activez `bridge` que pour un dépôt de
+confiance. Ne laissez pas de service sans mot de passe sur l'hôte.
+
+### Image opérateur (exemple)
+
+Construisez vous-même l'image (Debian ou équivalent) avec les outils nécessaires ; le runtime force l'utilisateur
+`65534`, pas root :
+
+```dockerfile
+FROM debian:bookworm-slim
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates curl nodejs npm \
+  && rm -rf /var/lib/apt/lists/*
+WORKDIR /work
+```
+
+```sh
+docker build -t john-sandbox:dev .
+node packages/cli/dist/main.js run --sandbox --sandbox-image john-sandbox:dev "…"
+```
+
+### Tests d'intégration Docker (opt-in)
+
+Les tests unitaires du bac à sable utilisent un faux binaire `docker`. Pour valider sur un vrai démon :
+
+```sh
+JOHN_DOCKER_TESTS=1 JOHN_SANDBOX_IMAGE=<image> pnpm exec vitest run packages/core/test/sandbox-live.test.ts
+```
+
+Sans `JOHN_DOCKER_TESTS=1`, ce fichier est ignoré par la suite (`pnpm check` ne lance pas Docker).
+
 ## Usage
 
 ```sh
