@@ -5,6 +5,7 @@ import {
   stripControl,
 } from "@john-studio/core";
 import { formatReason } from "@john-studio/messages";
+import { summarizeInput, toolLabel } from "./present.js";
 
 /** Plafond du texte d'entrée d'outil affiché dans une carte (caractères). */
 export const MAX_DETAIL_CHARS = 4000;
@@ -16,6 +17,9 @@ export type Choice = "once" | "deny" | "always";
 export interface ApprovalCard {
   toolUseId: string;
   tool: string;
+  /** Nom lisible de l'outil et résumé d'une ligne de l'action (pour la carte). */
+  label: string;
+  summary: string;
   detail: string;
   reason: string;
   /** « Toujours » est proposé seulement si le verdict est mémorisable (prédicat du cœur). */
@@ -38,6 +42,8 @@ export function toCard(pending: PendingApproval): ApprovalCard {
   return {
     toolUseId: pending.toolUseId,
     tool: cleanText(pending.tool, 200),
+    label: toolLabel(cleanText(pending.tool, 200)),
+    summary: summarizeInput(pending.input, 200),
     detail: describeInput(pending.input),
     reason: cleanText(formatReason(pending.verdict.reason), 1000),
     canRemember: pending.verdict.decision === "ask" && isRememberable(pending, pending.verdict),

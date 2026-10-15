@@ -5,6 +5,7 @@
       "**",
       "!**/dist",
       "!**/.vsix-stage",
+      "!packages/vscode/preview",
       "!**/node_modules",
       "!.claude",
       "!**/*.tsbuildinfo"

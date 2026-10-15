@@ -10,3 +10,6 @@ dist/
 packages/vscode/.vsix-stage/
 packages/vscode/*.vsix
 .claude/worktrees/
+
+# Previsualisation generee par packages/vscode/test/preview.test.ts
+packages/vscode/preview/

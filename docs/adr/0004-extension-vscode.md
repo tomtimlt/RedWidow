@@ -57,4 +57,4 @@ Revue sécurité de l'architecte : E2, E3, E4. E4 et E5 parallélisables après 
 
 - **P1 — Moteurs en v1.** Claude seul, ou Claude et OpenCode ? Recommandation : **Claude seul** ; OpenCode exige un binaire externe (réglage machine) et un second chemin à valider, à ajouter ensuite.
 - **P2 — Cibles et diffusion.** Recommandation : `.vsix` privés `win32-x64` et `linux-x64` (remote WSL/SSH), installés à la main ; Marketplace et autres plateformes plus tard (publication liée à la décision npm en attente).
-- **P3 — Rendu des réponses.** Texte brut ou Markdown ? Recommandation : **texte brut en v1** (sûr par construction) ; Markdown ensuite via un rendu produisant du DOM par notre code, sans HTML brut.
+- **P3 — Rendu des réponses.** Texte brut ou Markdown ? Recommandation : **texte brut en v1** (sûr par construction) ; Markdown ensuite via un rendu produisant du DOM par notre code, sans HTML brut. **Mis à jour : le rendu Markdown sûr (arbre abstrait puis nœuds DOM en liste blanche, liens en texte) est désormais livré.**

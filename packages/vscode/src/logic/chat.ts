@@ -1,6 +1,8 @@
 import type { EngineEvent } from "@john-studio/core";
 import { formatError, formatReason } from "@john-studio/messages";
 import { type ApprovalCard, cleanText, describeInput } from "./approval.js";
+import { type Block, parseMarkdown } from "./markdown.js";
+import { summarizeInput, toolLabel } from "./present.js";
 
 export const MAX_ITEMS = 300;
 export const MAX_OUTPUT_CHARS = 2000;
@@ -8,14 +10,20 @@ export const MAX_OUTPUT_CHARS = 2000;
 export type ToolStatus = "pending" | "ok" | "error" | "denied";
 
 export type ChatItem =
-  | { id: number; kind: "user" | "agent"; text: string }
+  | { id: number; kind: "user"; text: string }
+  | { id: number; kind: "agent"; text: string; blocks: Block[] }
   | {
       id: number;
       kind: "tool";
       toolUseId: string;
       tool: string;
+      /** Nom lisible et résumé d'une ligne de l'entrée (le détail complet reste dans `input`). */
+      label: string;
+      summary: string;
       input: string;
       status: ToolStatus;
+      /** Décision de la gate, une fois connue. */
+      decision?: "allow" | "deny";
       output?: string;
       truncated?: boolean;
     }
@@ -79,13 +87,18 @@ export function createChatState() {
     event(e: EngineEvent) {
       switch (e.kind) {
         case "agent.text":
-          if (e.text.trim() !== "") push({ kind: "agent", text: cleanText(e.text, 100_000) });
+          if (e.text.trim() !== "") {
+            const text = cleanText(e.text, 100_000);
+            push({ kind: "agent", text, blocks: parseMarkdown(text) });
+          }
           return;
         case "tool.requested":
           push({
             kind: "tool",
             toolUseId: e.toolUseId,
             tool: cleanText(e.tool, 200),
+            label: toolLabel(cleanText(e.tool, 200)),
+            summary: summarizeInput(e.input),
             input: describeInput(e.input, 1000),
             status: "pending",
           });
@@ -93,6 +106,7 @@ export function createChatState() {
         case "approval.decided": {
           approvals.delete(e.toolUseId);
           const t = findTool(e.toolUseId);
+          if (t) t.decision = e.decision === "deny" ? "deny" : "allow";
           if (t && e.decision === "deny") {
             t.status = "denied";
             t.output = cleanText(formatReason(e.reason), 1000);

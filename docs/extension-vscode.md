@@ -18,7 +18,7 @@ Le `.vsix` fait environ 117 Mio (il embarque le binaire `claude` du SDK, 257 Mio
 1. Ouvrir un **dossier approuvé** (l'extension est inerte dans un espace non approuvé ou virtuel).
 2. Palette de commandes : **John : définir le jeton**. Choisir « Jeton d'abonnement » (`claude setup-token`) ou « Clé API », puis coller le jeton (saisie masquée). Il est stocké dans le stockage sécurisé de VS Code, transmis uniquement à l'environnement du processus moteur, jamais écrit dans les réglages, un message d'erreur ou un journal. « John : effacer le jeton » le supprime. Sans jeton, le binaire utilise ses propres identifiants (mode `auto`).
 3. **John : ouvrir le chat** (ou l'icône John de la barre d'activité). Saisir une consigne, `Ctrl+Entrée` ou « Envoyer ».
-4. Le fil affiche le texte de l'agent (texte brut), les appels d'outils et leurs résultats (plafonnés à 2000 caractères). **Stop** annule le run ; le message suivant relance un moteur en reprenant la session. **Nouvelle conversation** repart de zéro.
+4. Le fil affiche le texte de l'agent en Markdown sûr (paragraphes, code en ligne et en bloc avec bouton Copier, gras, italique, listes, titres ; liens et HTML restent du texte), et une ligne compacte par appel d'outil (icône d'état, nom lisible, résumé) dont les détails (entrée et sortie, plafonnés à 2000 caractères) sont repliés ; un indicateur signale que l'agent travaille. **Stop** annule le run ; le message suivant relance un moteur en reprenant la session. **Nouvelle conversation** repart de zéro.
 
 ## Cartes d'approbation
 
@@ -55,7 +55,7 @@ Puis activer `john.sandbox.enabled`, poser `john.sandbox.image` à `alpine:3.20`
 ## Limites connues
 
 - **Non vérifié dans un VS Code réel** (voir ci-dessous) ; cible `linux-x64` non construite sur ce poste.
-- Claude seul (pas d'OpenCode) ; texte brut, pas de Markdown.
+- Claude seul (pas d'OpenCode) ; Markdown limité (pas de tableaux, liens non cliquables, pas d'images).
 - Pas de graphe en direct (E5), pas de commande d'approbation de la politique du dépôt (la politique du dépôt n'est appliquée qu'après approbation de son empreinte, comme dans la CLI ; sans approbation elle est inerte et un avertissement est affiché).
 - « Toujours » ne persiste pas sur disque (voir plus haut).
 - Une seule demande de tour à la fois ; l'historique affiché est limité aux 300 derniers éléments.

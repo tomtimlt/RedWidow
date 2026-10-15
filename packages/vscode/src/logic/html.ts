@@ -42,12 +42,13 @@ export function chatHtml({ nonce, cspSource, scriptUri, styleUri }: ChatHtmlOpti
 <title>John</title>
 </head>
 <body>
-<div id="bar"><span id="sandbox"></span><button id="reset" type="button">Nouvelle conversation</button></div>
-<div id="log" role="log" aria-live="polite"></div>
-<div id="approvals"></div>
+<header id="bar"><span id="title">John</span><span id="sandbox" class="badge" hidden></span><button id="reset" type="button" class="ghost">Nouvelle conversation</button></header>
+<main id="log" role="log" aria-live="polite" aria-label="Conversation"></main>
+<section id="approvals" aria-label="Autorisations demandées"></section>
+<div id="activity" role="status" hidden><span class="spinner" aria-hidden="true"></span>L'agent travaille…</div>
 <form id="form">
-<textarea id="input" rows="3" placeholder="Votre consigne… (Ctrl+Entrée pour envoyer)"></textarea>
-<div id="buttons"><button id="send" type="submit">Envoyer</button><button id="stop" type="button">Stop</button></div>
+<textarea id="input" rows="1" aria-label="Votre consigne" placeholder="Votre consigne… (Entrée pour envoyer, Maj+Entrée pour une nouvelle ligne)"></textarea>
+<div id="buttons"><button id="send" type="submit" class="primary">Envoyer</button><button id="stop" type="button" class="stop">Stop</button></div>
 </form>
 <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
