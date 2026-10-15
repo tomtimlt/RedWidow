@@ -45,6 +45,20 @@
           "scope": "machine",
           "markdownDescription": "Nombre maximal de tours de l'agent par conversation. 0 : pas de plafond."
         },
+        "john.ultracode.maxTurns": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "scope": "machine",
+          "markdownDescription": "Plafond de tours du préréglage **Ultracode** (effort Max + limites longues). 0 : pas de plafond de tours. Remplace `john.maxTurns` quand Ultracode est choisi."
+        },
+        "john.ultracode.maxBudgetUsd": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "scope": "machine",
+          "markdownDescription": "Plafond de dépense (USD) du préréglage **Ultracode**. 0 : pas de plafond de dépense."
+        },
         "john.sandbox.enabled": {
           "type": "boolean",
           "default": false,

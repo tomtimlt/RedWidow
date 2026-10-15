@@ -76,7 +76,12 @@ export type WebviewMessage =
   | { type: "ready" }
   /** Valeurs non fiables : l'extension les revalide (liste de modèles, énumération des niveaux). */
   | { type: "setModel"; model: string | null }
-  | { type: "setEffort"; effort: string }
+  | { type: "setEffort"; effort: string | null }
+  | { type: "historyOpen"; id: string }
+  | { type: "historyResume" }
+  | { type: "historyRename"; id: string; title: string }
+  | { type: "historyDelete"; id: string }
+  | { type: "historyClear" }
   | { type: "refreshModels" }
   | { type: "approve"; toolUseId: string; choice: Choice };
 
@@ -99,12 +104,28 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
         ? { type: "setModel", model: m.model }
         : null;
     case "setEffort":
-      return only("type", "effort") && typeof m.effort === "string" && m.effort.length <= 20
+      return only("type", "effort") &&
+        (m.effort === null || (typeof m.effort === "string" && m.effort.length <= 20))
         ? { type: "setEffort", effort: m.effort }
+        : null;
+    case "historyOpen":
+    case "historyDelete":
+      return only("type", "id") && typeof m.id === "string" && m.id.length <= 64
+        ? { type: m.type, id: m.id }
+        : null;
+    case "historyRename":
+      return only("type", "id", "title") &&
+        typeof m.id === "string" &&
+        m.id.length <= 64 &&
+        typeof m.title === "string" &&
+        m.title.length <= 1000
+        ? { type: "historyRename", id: m.id, title: m.title }
         : null;
     case "stop":
     case "reset":
     case "refreshModels":
+    case "historyResume":
+    case "historyClear":
     case "ready":
       return only("type") ? { type: m.type } : null;
     case "approve":

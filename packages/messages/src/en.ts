@@ -66,6 +66,7 @@ export const reasons: Catalog = {
 
 export const events: EventStrings = {
   run: "run",
+  user: "user",
   thinking: "thinking",
   thinkingMasked: "thinking (hidden)",
   deniedBySdk: "denied by the SDK",

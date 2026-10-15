@@ -206,6 +206,7 @@ describe("eventLabel", () => {
       result: null,
     },
     "agent.text": { kind: "agent.text", text: "bonjour" },
+    "user.message": { kind: "user.message", text: "salut" },
     "agent.thinking": { kind: "agent.thinking", text: "hmm", redacted: false },
     "tool.requested": {
       kind: "tool.requested",

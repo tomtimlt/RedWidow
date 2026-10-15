@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { formatError } from "@john-studio/messages";
 import * as vscode from "vscode";
 import { parseWebviewMessage } from "../logic/approval.js";
+import { createJournalFiles } from "../logic/historyStore.js";
 import { chatHtml, makeNonce } from "../logic/html.js";
 import { type ChatSession, createChatSession, type TokenChoice } from "../logic/session.js";
 import { machineValue, resolveSettings } from "../logic/settings.js";
@@ -51,6 +52,19 @@ export function activate(context: vscode.ExtensionContext): void {
       store: {
         get: (key: string) => context.globalState.get(key),
         set: (key: string, value: unknown) => context.globalState.update(key, value),
+      },
+      // Journaux hors du dépôt : stockage de l'extension (par espace de travail), jamais `.john-studio/runs`.
+      history: {
+        index: {
+          get: (key: string) => context.workspaceState.get(key),
+          set: (key: string, value: unknown) => context.workspaceState.update(key, value),
+        },
+        files: createJournalFiles(
+          join((context.storageUri ?? context.globalStorageUri).fsPath, "runs"),
+        ),
+        confirmDelete: async (text) =>
+          (await vscode.window.showWarningMessage(text, { modal: true }, "Supprimer")) ===
+          "Supprimer",
       },
       ...(typeof __SDK_VERSION__ === "string" && { sdkVersion: __SDK_VERSION__ }),
       confirmAlways: async (text) =>
@@ -101,6 +115,16 @@ export function activate(context: vscode.ExtensionContext): void {
               return s.reset();
             case "approve":
               return await s.approve(message.toolUseId, message.choice);
+            case "historyOpen":
+              return await s.openConversation(message.id);
+            case "historyResume":
+              return s.resumeConversation();
+            case "historyRename":
+              return s.renameConversation(message.id, message.title);
+            case "historyDelete":
+              return await s.deleteConversation(message.id);
+            case "historyClear":
+              return await s.clearHistory();
           }
         } catch (error) {
           void vscode.window.showErrorMessage(formatError(error));

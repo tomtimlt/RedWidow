@@ -471,3 +471,83 @@ button:disabled {
 #controls.locked {
   opacity: 0.6;
 }
+
+/* --- Historique et lecture seule --- */
+#history {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--vscode-panel-border, #8884);
+  max-height: 40%;
+  overflow: auto;
+}
+.hist-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+#history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.hist {
+  padding: 4px 6px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+}
+.hist.current {
+  border-color: var(--vscode-focusBorder, #08f);
+}
+.hist-open {
+  all: unset;
+  cursor: pointer;
+  font-weight: 600;
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hist-open:hover,
+.hist-open:focus-visible {
+  text-decoration: underline;
+}
+.hist-meta {
+  font-size: 0.85em;
+  opacity: 0.75;
+}
+.hist-actions {
+  display: flex;
+  gap: 10px;
+}
+.hist-rename {
+  width: 100%;
+  box-sizing: border-box;
+}
+.hist-empty {
+  opacity: 0.75;
+  font-style: italic;
+}
+#readonly {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 6px 10px;
+  background: var(--vscode-editorInfo-background, #0a84ff22);
+  border-top: 1px solid var(--vscode-panel-border, #8884);
+}
+#readonly-text {
+  flex: 1 1 auto;
+}
+#effort.auto {
+  opacity: 0.55;
+}
+#readonly[hidden],
+#history[hidden],
+#effort-auto[hidden] {
+  display: none;
+}

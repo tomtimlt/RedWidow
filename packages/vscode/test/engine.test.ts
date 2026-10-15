@@ -131,3 +131,33 @@ describe("moteur : validation des messages reçus", () => {
     expect(killTree).toHaveBeenCalledOnce();
   });
 });
+
+describe("moteur : journal de l'extension (F4)", () => {
+  it("écrit dans journalDir (hors du dépôt) et consigne chaque consigne en user.message", async () => {
+    const { readFile, readdir } = await import("node:fs/promises");
+    const journalDir = await mkdtemp(join(tmpdir(), "john-journal-"));
+    const repo = await mkdtemp(join(tmpdir(), "john-repo-"));
+    try {
+      const t = fakeChannel();
+      const done = runEngine({ channel: t.channel, createRunner: () => idleRunner });
+      t.receive({ v: 1, type: "start", cwd: repo, journalDir });
+      t.receive({ v: 1, type: "prompt", text: "bonjour" });
+      await vi.waitFor(() => expect(t.sent.some((m) => m.type === "started")).toBe(true));
+      await vi.waitFor(async () => {
+        const [name] = await readdir(journalDir);
+        expect(await readFile(join(journalDir, name ?? "x"), "utf8")).toContain("user.message");
+      });
+      t.receive({ v: 1, type: "dispose" });
+      t.receive({ v: 1, type: "abort" });
+      await done;
+      const files = await readdir(journalDir);
+      expect(files).toHaveLength(1);
+      expect(files[0]).toMatch(/^[0-9a-f-]{36}\.jsonl$/);
+      // Rien n'a été écrit dans le dépôt.
+      await expect(readdir(join(repo, ".john-studio"))).rejects.toThrow();
+    } finally {
+      await rm(journalDir, { recursive: true, force: true });
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+});

@@ -44,6 +44,8 @@ export function eventLabel(e: EngineEvent, options: LabelOptions = {}): string {
       return clip(`${t.run} : ${e.prompt}`);
     case "agent.text":
       return clip(e.text);
+    case "user.message":
+      return clip(`${t.user} : ${e.text}`);
     case "tool.requested": {
       const detail =
         typeof e.input.command === "string"

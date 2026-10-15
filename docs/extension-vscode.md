@@ -22,12 +22,20 @@ Le `.vsix` fait environ 117 Mio (il embarque le binaire `claude` du SDK, 257 Mio
 
 ## Modèle et effort
 
-Au-dessus de la zone de saisie : un **sélecteur de modèle** et un **curseur d'effort** à 5 crans (Low, Medium, High, Extra, Max ; Extra correspond à l'effort `xhigh` du SDK). Le libellé du cran courant est affiché, l'infobulle décrit l'effet (Low : rapide et économe ; Max : réflexion la plus poussée, plus lent et plus coûteux), et les crans non pris en charge par le modèle choisi sont grisés (un niveau non pris en charge est ramené au plus proche niveau permis, avec un avis). Le curseur se pilote au clavier (flèches) et expose son libellé aux lecteurs d'écran.
+Au-dessus de la zone de saisie : un **sélecteur de modèle** et un **curseur d'effort** à 6 crans (Low, Medium, High, Extra, Max, Ultracode ; Extra correspond à l'effort `xhigh` du SDK). **Par défaut le curseur est sur « Auto »** : aucun effort n'est transmis et le modèle garde son comportement par défaut, tant que vous n'avez pas touché au curseur ; le bouton « Auto » y revient. Le libellé du cran courant est affiché, l'infobulle décrit l'effet (Low : rapide et économe ; Max : réflexion la plus poussée, plus lent et plus coûteux), et les crans non pris en charge par le modèle choisi sont grisés (un niveau non pris en charge est ramené au plus proche niveau permis, avec un avis). Le curseur se pilote au clavier (flèches) et expose son libellé aux lecteurs d'écran.
 
 - La **liste des modèles** vient du SDK au runtime (aucun identifiant n'est codé en dur) : un moteur de sondage éphémère, lancé à l'ouverture du chat **sans aucune consigne** (donc sans tour, sans outil ni inférence), interroge `supportedModels()` puis s'arrête. Elle est mise en cache (`globalState`) par version du SDK ; « Actualiser » la recharge. Si elle est indisponible, le sélecteur devient une **saisie libre** (identifiant sans espace, 200 caractères maximum).
 - Les choix s'appliquent au **message suivant** (gelés pendant un tour) : le moteur inactif est remplacé par un nouveau qui reprend la même session (`resume`), sans perdre le fil. Ils sont persistés dans `globalState` (jamais dans l'espace de travail). Le modèle par défaut reste le réglage machine `john.model`.
 - L'extension **revalide** tout choix venu de la webview : identifiant de la liste (ou bien formé en saisie libre), niveau d'effort dans l'énumération.
-- Pas de cran « Ultracode » pour l'instant : un cran de plus s'ajoute dans `src/logic/effort.ts` (liste `EFFORT_LEVELS`) si le cœur l'accepte.
+- **Ultracode** (fournisseur Claude seulement, grisé si le modèle ne supporte pas `max`) est ici un **préréglage honnête** : effort `max` + plafonds de tours et de dépense issus des réglages `john.ultracode.maxTurns` et `john.ultracode.maxBudgetUsd` (0 : pas de plafond ; `john.ultracode.maxTurns` remplace `john.maxTurns` quand Ultracode est choisi). Il ne change PAS ce que raisonne le modèle (même capacité que Max) ; l'infobulle affiche les valeurs en vigueur. Le SDK connaît un vrai « ultracode » (réglage de session `ultracode` + mot-clé de prompt, qui orchestrent l'outil `Workflow` et des sous-agents) : il n'est volontairement pas branché, voir la décision en attente dans le rapport (ADR 0005, Q1).
+
+## Historique des conversations
+
+Bouton **Historique** de l'en-tête : liste des conversations (titre = première consigne tronquée, date, nombre d'outils, fournisseur et modèle). Actions : **ouvrir** (le fil est reconstruit depuis les journaux, en **lecture seule** : aucune carte d'approbation, saisie désactivée), **Reprendre** (nouveau message avec `resume` de la session, sous la politique **actuelle**), **Renommer**, **Supprimer**, **Tout effacer** (confirmation modale native).
+
+- Les journaux de l'extension sont écrits **hors du dépôt**, dans le stockage de l'extension (`storageUri/runs/<runId>.jsonl`), jamais dans `.john-studio/runs/` ; l'index léger est dans `workspaceState`. Le moteur consigne chaque consigne de l'utilisateur dans un événement `user.message`.
+- Rétention : 100 conversations ou 200 Mio ; les plus anciennes sont purgées (la conversation en cours est conservée).
+- Un journal relu est une **entrée non fiable** : nom de fichier formé seulement d'un `runId` UUID validé, 16 Mio et 50 000 lignes au plus (lignes de plus de 1 Mo ignorées), `validateEvent` sur chaque ligne (invalides ignorées et comptées dans la bannière), événements d'un autre run ignorés, texte passé par `stripControl`, rendu par les mêmes chemins sûrs que le chat.
 
 ## Cartes d'approbation
 
@@ -47,6 +55,8 @@ Tous en scope **machine** : la valeur posée dans `.vscode/settings.json` d'un d
 |---|---|
 | `john.model` | Modèle, texte libre. Vide : défaut du SDK. |
 | `john.maxTurns` | Plafond de tours (0 : aucun). |
+| `john.ultracode.maxTurns` | Plafond de tours du préréglage Ultracode (0 : aucun). |
+| `john.ultracode.maxBudgetUsd` | Plafond de dépense (USD) du préréglage Ultracode (0 : aucun). |
 | `john.sandbox.enabled` | Active le bac à sable Docker (`mcp__sandbox__exec`). |
 | `john.sandbox.image` | Image **locale** (obligatoire si activé ; jamais téléchargée). |
 | `john.sandbox.timeoutSec` | Délai par exécution, 1 à 1800 s (défaut 600). |
@@ -68,7 +78,7 @@ Puis activer `john.sandbox.enabled`, poser `john.sandbox.image` à `alpine:3.20`
 - Pas de graphe en direct (E5), pas de commande d'approbation de la politique du dépôt (la politique du dépôt n'est appliquée qu'après approbation de son empreinte, comme dans la CLI ; sans approbation elle est inerte et un avertissement est affiché).
 - « Toujours » ne persiste pas sur disque (voir plus haut).
 - Une seule demande de tour à la fois ; l'historique affiché est limité aux 300 derniers éléments.
-- Le journal du run est écrit dans `.john-studio/runs/` du dossier ouvert, comme la CLI.
+- Les journaux de l'extension sont dans le stockage de VS Code (l'historique ne survit pas à sa suppression) ; la CLI garde `.john-studio/runs/`.
 - Réglages en scope machine : comportement en remote (SSH/WSL) à valider.
 
 ## Ce qui a été vérifié

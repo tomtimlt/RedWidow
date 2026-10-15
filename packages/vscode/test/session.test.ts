@@ -111,7 +111,6 @@ describe("session de chat", () => {
     expect(t.f.started).toEqual({
       cwd: "/w",
       auth: "subscription",
-      effort: "high",
       model: "m",
       maxTurns: 3,
       sandbox: { image: "alpine:3.20", timeoutSec: 60 },
@@ -281,7 +280,7 @@ describe("modèle et effort (F2/F3)", () => {
     expect(view().controls?.model).toBeNull();
     expect(view().items.at(-1)).toMatchObject({ kind: "notice", level: "error" });
     session.setEffort("ultra");
-    expect(view().controls?.effort).toBe("high");
+    expect(view().controls?.effort).toBeNull();
   });
 
   it("effort non supporté ramené avec avis", async () => {
@@ -315,6 +314,166 @@ describe("modèle et effort (F2/F3)", () => {
     await session.loadModels();
     await session.send("un");
     session.setEffort("low");
-    expect(view().controls?.effort).toBe("high");
+    expect(view().controls?.effort).toBeNull();
+  });
+});
+
+describe("effort par défaut et Ultracode", () => {
+  it("Auto : aucun effort transmis tant que le curseur n'est pas touché", async () => {
+    const t = setup();
+    await t.session.send("un");
+    expect(t.f.started).not.toHaveProperty("effort");
+    expect(t.view().controls?.effortLabel).toBe("Auto");
+  });
+
+  it("revenir à Auto (null) retire l'effort au message suivant", async () => {
+    const { f, session } = setup();
+    session.setEffort("low");
+    await session.send("un");
+    expect(f.starts[0]).toMatchObject({ effort: "low" });
+    f.handlers.onEnded?.({ sessionId: "S1" } as never);
+    session.setEffort(null);
+    await session.send("deux");
+    expect(f.starts[1]).not.toHaveProperty("effort");
+  });
+
+  it("Ultracode : effort max + plafonds des réglages john.ultracode.* (jamais 'ultracode' transmis)", async () => {
+    const t = setup({
+      settings: { maxTurns: 5, ultracode: { maxTurns: 120, maxBudgetUsd: 7 } },
+    });
+    t.session.setEffort("ultracode");
+    await t.session.send("un");
+    expect(t.f.started).toMatchObject({ effort: "max", maxTurns: 120, maxBudgetUsd: 7 });
+    expect(JSON.stringify(t.f.started)).not.toContain("ultracode");
+    expect(t.view().controls?.effort).toBe("ultracode");
+  });
+
+  it("Ultracode refusé si le modèle ne supporte pas max", async () => {
+    const { f, session, view } = setup();
+    f.setModels([{ value: "a", displayName: "A", supportedEffortLevels: ["low", "high"] }]);
+    await session.loadModels();
+    session.setModel("a");
+    session.setEffort("ultracode");
+    expect(view().controls?.effort).toBeNull();
+    expect(view().items.at(-1)).toMatchObject({ kind: "notice", level: "error" });
+  });
+});
+
+describe("historique (F4)", () => {
+  const RUN1 = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const jline = (payload: Record<string, unknown>, n: number) =>
+    JSON.stringify({
+      v: 1,
+      id: `e${n}`,
+      seq: n,
+      ts: "2026-10-15T10:00:00.000Z",
+      runId: RUN1,
+      parentId: null,
+      ...payload,
+    });
+  function withHistory() {
+    const stored = new Map<string, unknown>();
+    const written = new Map<string, string>();
+    const removed: string[] = [];
+    const t = setup();
+    const confirmDelete = vi.fn(async () => true);
+    const f = t.f;
+    const session = createChatSession({
+      cwd: "/w",
+      enginePath: "/e.mjs",
+      engineArgs: [],
+      readSettings: () => ({}),
+      getToken: async () => undefined,
+      confirmAlways: async () => false,
+      onView: (v) => {
+        t.view = () => v;
+      },
+      createController: f.create,
+      history: {
+        index: { get: (k) => stored.get(k), set: (k, v) => stored.set(k, v) },
+        files: {
+          dir: "/h",
+          read: async (id) => written.get(id) ?? null,
+          size: async (id) => written.get(id)?.length ?? 0,
+          remove: async (ids) => void removed.push(...ids),
+          removeAll: async () => void written.clear(),
+        },
+        confirmDelete,
+      },
+    });
+    return { f, session, stored, written, removed, confirmDelete, view: () => session.view() };
+  }
+
+  it("enregistre la conversation (titre = 1re consigne), journalDir transmis, ouverture en lecture seule", async () => {
+    const h = withHistory();
+    await h.session.send("Première consigne de la conversation");
+    expect(h.f.started).toMatchObject({ journalDir: "/h" });
+    h.f.handlers.onStarted?.({ runId: RUN1, policySource: null });
+    h.f.handlers.onEvent?.(ev({ kind: "session.started", sessionId: "S1", model: "m" }));
+    h.f.handlers.onEvent?.(
+      ev({ kind: "tool.requested", toolUseId: "t", tool: "Read", input: { file_path: "a" } }),
+    );
+    h.f.handlers.onEnded?.({ sessionId: "S1" } as never);
+    const entry = h.view().history[0];
+    expect(entry).toMatchObject({
+      title: "Première consigne de la conversation",
+      tools: 1,
+      model: "m",
+    });
+
+    h.written.set(
+      RUN1,
+      [
+        jline({ kind: "user.message", text: "Première consigne" }, 0),
+        jline({ kind: "agent.text", text: "Réponse" }, 1),
+        jline(
+          {
+            kind: "approval.requested",
+            toolUseId: "t",
+            tool: "Bash",
+            input: { command: "ls" },
+            verdict: { code: "bash.noRule" },
+          },
+          2,
+        ),
+        "{corrompu",
+      ].join("\n"),
+    );
+    h.f.handlers.onExit?.({ code: 0 } as never);
+    await h.session.openConversation(entry?.id);
+    const v = h.view();
+    expect(v.readonly).toMatchObject({ invalid: 1, canResume: true });
+    expect(v.approvals).toEqual([]);
+    expect(v.items.map((i) => i.kind)).toEqual(["user", "agent"]);
+    // Lecture seule : l'envoi est ignoré.
+    const before = h.f.calls.length;
+    await h.session.send("ne part pas");
+    expect(h.f.calls).toHaveLength(before);
+    // Reprise : resume de la session, sous la politique actuelle (nouveau moteur).
+    h.session.resumeConversation();
+    expect(h.view().readonly).toBeNull();
+    await h.session.send("suite");
+    expect(h.f.starts.at(-1)).toMatchObject({ resume: "S1" });
+  });
+
+  it("identifiants hostiles ignorés ; renommer nettoie ; supprimer et tout effacer", async () => {
+    const h = withHistory();
+    await h.session.send("une");
+    h.f.handlers.onStarted?.({ runId: RUN1, policySource: null });
+    h.f.handlers.onEnded?.({ sessionId: "S1" } as never);
+    const id = h.view().history[0]?.id as string;
+    await h.session.openConversation("../etc/passwd");
+    expect(h.view().readonly).toBeNull();
+    h.session.renameConversation(id, "Nouveau‮ titre");
+    expect(h.view().history[0]?.title).toBe("Nouveau titre");
+    h.session.renameConversation(id, "   ");
+    expect(h.view().history[0]?.title).toBe("Nouveau titre");
+    await h.session.deleteConversation("pas-un-id");
+    expect(h.confirmDelete).not.toHaveBeenCalled();
+    await h.session.deleteConversation(id);
+    expect(h.removed).toEqual([RUN1]);
+    expect(h.view().history).toEqual([]);
+    await h.session.clearHistory();
+    expect(h.confirmDelete).toHaveBeenCalledTimes(2);
   });
 });

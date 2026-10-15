@@ -7,6 +7,7 @@
   const $ = (id) => document.getElementById(id);
   const log = $("log");
   const approvals = $("approvals");
+  const historyList = $("history-list");
   const input = $("input");
   const send = $("send");
   const stop = $("stop");
@@ -247,8 +248,13 @@
       modelInput.value = c.model ?? "";
     }
     levels = c.levels;
+    const auto = c.effort === null;
+    $("effort-auto").hidden = auto;
+    effortInput.classList.toggle("auto", auto);
     effortInput.max = String(Math.max(levels.length - 1, 0));
-    effortInput.value = String(levels.findIndex((l) => l.value === c.effort));
+    effortInput.value = String(
+      auto ? Math.floor(levels.length / 2) : levels.findIndex((l) => l.value === c.effort),
+    );
     effortInput.disabled = c.locked || c.effortDisabled;
     effortInput.title = c.effortDisabled ? "Ce modèle n'a pas d'effort réglable." : c.effortTip;
     effortInput.setAttribute("aria-valuetext", `${c.effortLabel} : ${c.effortTip}`);
@@ -275,13 +281,101 @@
   $("models-refresh").addEventListener("click", () =>
     vscode.postMessage({ type: "refreshModels" }),
   );
+  $("effort-auto").addEventListener("click", () =>
+    vscode.postMessage({ type: "setEffort", effort: null }),
+  );
   effortInput.addEventListener("change", () => {
     const level = levels[Number(effortInput.value)];
     if (level) vscode.postMessage({ type: "setEffort", effort: level.value });
   });
 
+  // --- Historique : liste des conversations (chaînes déjà neutralisées par l'extension) ---
+  const historyPanel = $("history");
+  const historyBtn = $("history-btn");
+  let renaming = null;
+
+  function renderHistory(entries) {
+    $("history-clear").disabled = entries.length === 0;
+    if (entries.length === 0) {
+      historyList.replaceChildren(el("li", "hist-empty", "Aucune conversation enregistrée."));
+      return;
+    }
+    historyList.replaceChildren(
+      ...entries.map((h) => {
+        const li = el("li", h.current ? "hist current" : "hist");
+        const when = new Date(h.updatedAt).toLocaleString();
+        const meta = `${when} · ${h.tools} outil${h.tools > 1 ? "s" : ""} · ${h.provider} · ${h.model}`;
+        if (renaming === h.id) {
+          const field = el("input", "hist-rename");
+          field.type = "text";
+          field.value = h.title;
+          field.maxLength = 120;
+          field.setAttribute("aria-label", "Nouveau titre");
+          const commit = () => {
+            vscode.postMessage({ type: "historyRename", id: h.id, title: field.value });
+            renaming = null;
+          };
+          field.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") commit();
+            if (e.key === "Escape") {
+              renaming = null;
+              renderHistory(entries);
+            }
+          });
+          li.append(field, el("div", "hist-meta", meta));
+          setTimeout(() => field.focus(), 0);
+          return li;
+        }
+        const open = el("button", "hist-open", h.title);
+        open.type = "button";
+        open.title = "Ouvrir en lecture seule";
+        open.addEventListener("click", () => vscode.postMessage({ type: "historyOpen", id: h.id }));
+        const actions = el("div", "hist-actions");
+        const rename = el("button", "link", "Renommer");
+        rename.type = "button";
+        rename.addEventListener("click", () => {
+          renaming = h.id;
+          renderHistory(entries);
+        });
+        const del = el("button", "link", "Supprimer");
+        del.type = "button";
+        del.addEventListener("click", () =>
+          vscode.postMessage({ type: "historyDelete", id: h.id }),
+        );
+        actions.append(rename, del);
+        li.append(open, el("div", "hist-meta", meta), actions);
+        return li;
+      }),
+    );
+  }
+
+  function renderReadonly(info) {
+    const bar = $("readonly");
+    bar.hidden = !info;
+    if (!info) return;
+    let text = `Lecture seule : ${info.title}`;
+    if (info.invalid > 0) text += ` · ${info.invalid} ligne(s) du journal ignorée(s)`;
+    if (info.truncated) text += " · journal tronqué";
+    $("readonly-text").textContent = text;
+    $("readonly-resume").textContent = info.canResume
+      ? "Reprendre"
+      : "Reprendre (nouvelle session)";
+  }
+
+  historyBtn.addEventListener("click", () => {
+    historyPanel.hidden = !historyPanel.hidden;
+    historyBtn.setAttribute("aria-expanded", String(!historyPanel.hidden));
+  });
+  $("history-clear").addEventListener("click", () => vscode.postMessage({ type: "historyClear" }));
+  $("readonly-resume").addEventListener("click", () =>
+    vscode.postMessage({ type: "historyResume" }),
+  );
+  $("readonly-close").addEventListener("click", () => vscode.postMessage({ type: "reset" }));
+
   function render(view) {
     renderControls(view.controls);
+    renderHistory(view.history);
+    renderReadonly(view.readonly);
     const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
     const top = log.scrollTop;
     log.replaceChildren(
@@ -296,7 +390,8 @@
     const sb = $("sandbox");
     sb.textContent = view.sandbox ? `Bac à sable : ${view.sandbox}` : "";
     sb.hidden = !view.sandbox;
-    send.disabled = view.busy;
+    send.disabled = view.busy || !!view.readonly;
+    input.disabled = !!view.readonly;
     stop.disabled = !view.busy;
     activity.hidden = !view.busy;
     log.setAttribute("aria-busy", view.busy ? "true" : "false");

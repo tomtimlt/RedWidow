@@ -59,6 +59,8 @@ export type EventPayload =
       error?: string;
     }
   | { kind: "agent.text"; text: string }
+  /** Consigne de l'utilisateur (un tour d'une conversation multi-tours) ; masquée par le recorder. */
+  | { kind: "user.message"; text: string }
   | {
       /** Raisonnement du modèle ; `redacted` : bloc chiffré, `text` vaut alors "". */
       kind: "agent.thinking";
@@ -313,6 +315,7 @@ export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
   "auth.info": AUTH_FIELDS,
   "auth.status": shape({ isAuthenticating: "boolean", error: "string?" }),
   "agent.text": shape({ text: "string" }),
+  "user.message": shape({ text: "string" }),
   "agent.thinking": shape({ text: "string", redacted: "boolean" }),
   "tool.requested": shape({
     toolUseId: "string",

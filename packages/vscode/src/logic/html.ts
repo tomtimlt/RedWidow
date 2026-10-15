@@ -42,14 +42,16 @@ export function chatHtml({ nonce, cspSource, scriptUri, styleUri }: ChatHtmlOpti
 <title>John</title>
 </head>
 <body>
-<header id="bar"><span id="title">John</span><span id="sandbox" class="badge" hidden></span><button id="reset" type="button" class="ghost">Nouvelle conversation</button></header>
+<header id="bar"><span id="title">John</span><span id="sandbox" class="badge" hidden></span><button id="history-btn" type="button" class="ghost" aria-expanded="false" aria-controls="history">Historique</button><button id="reset" type="button" class="ghost">Nouvelle conversation</button></header>
+<section id="history" aria-label="Historique des conversations" hidden><div class="hist-head"><strong>Historique</strong><button id="history-clear" type="button" class="ghost">Tout effacer</button></div><ul id="history-list"></ul></section>
 <main id="log" role="log" aria-live="polite" aria-label="Conversation"></main>
+<div id="readonly" role="status" hidden><span id="readonly-text"></span><button id="readonly-resume" type="button" class="primary">Reprendre</button><button id="readonly-close" type="button" class="ghost">Fermer</button></div>
 <section id="approvals" aria-label="Autorisations demandées"></section>
 <div id="activity" role="status" hidden><span class="spinner" aria-hidden="true"></span>L'agent travaille…</div>
 <div id="controls" hidden>
 <label class="ctl" for="model-select"><span class="ctl-label">Modèle</span><select id="model-select" title="Modèle utilisé pour le message suivant"></select><input id="model-input" type="text" spellcheck="false" autocomplete="off" placeholder="identifiant du modèle" title="Liste indisponible : saisissez l'identifiant du modèle" hidden></label>
 <button id="models-refresh" type="button" class="ghost" title="Actualiser la liste des modèles">Actualiser</button>
-<div class="ctl effort"><label for="effort" class="ctl-label">Effort</label><input id="effort" type="range" min="0" max="4" step="1" value="2"><output id="effort-label" for="effort"></output></div>
+<div class="ctl effort"><label for="effort" class="ctl-label">Effort</label><input id="effort" type="range" min="0" max="4" step="1" value="2"><output id="effort-label" for="effort"></output><button id="effort-auto" type="button" class="ghost" title="Revenir à Auto : le modèle garde son effort par défaut">Auto</button></div>
 <div id="effort-ticks" aria-hidden="true"></div>
 </div>
 <form id="form">

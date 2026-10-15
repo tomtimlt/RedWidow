@@ -1,7 +1,15 @@
 import type { ModelOption } from "@john-studio/core";
 import { describe, expect, it } from "vitest";
 import { buildControls, DEFAULT_PREFS, parsePrefs } from "../src/logic/controls.js";
-import { clampEffort, EFFORT_LEVELS, parseEffort } from "../src/logic/effort.js";
+import {
+  clampEffort,
+  EFFORT_LEVELS,
+  levelsFor,
+  parseEffort,
+  parseEffortChoice,
+  resolveEffort,
+  ultracodeTip,
+} from "../src/logic/effort.js";
 import {
   parseModelCache,
   parseModelOptions,
@@ -17,14 +25,27 @@ const A: ModelOption = {
 const B: ModelOption = { value: "b", displayName: "B", supportedEffortLevels: [] };
 
 describe("effort", () => {
-  it("5 crans, correspondance 1:1 (Extra = xhigh)", () => {
+  it("6 crans : 5 niveaux du SDK en 1:1 (Extra = xhigh) puis le préréglage Ultracode (Claude seul)", () => {
     expect(EFFORT_LEVELS.map((l) => [l.label, l.value])).toEqual([
       ["Low", "low"],
       ["Medium", "medium"],
       ["High", "high"],
       ["Extra", "xhigh"],
       ["Max", "max"],
+      ["Ultracode", "ultracode"],
     ]);
+    expect(levelsFor("claude").at(-1)?.providers).toEqual(["claude"]);
+    // Ultracode s'exécute en `max` et n'est jamais transmis tel quel au SDK.
+    expect(resolveEffort("ultracode", { maxTurns: 90 })).toEqual({
+      effort: "max",
+      limits: { maxTurns: 90 },
+    });
+    expect(resolveEffort("high", { maxTurns: 90 })).toEqual({ effort: "high", limits: undefined });
+    expect(parseEffort("ultracode")).toBeNull();
+    expect(parseEffortChoice("ultracode")).toBe("ultracode");
+    expect(parseEffortChoice("ultra")).toBeNull();
+    expect(ultracodeTip({ maxTurns: 90, maxBudgetUsd: 5 })).toContain("90 tours");
+    expect(ultracodeTip(undefined)).toContain("sans plafond de tours");
   });
   it("énumération stricte", () => {
     expect(parseEffort("xhigh")).toBe("xhigh");
@@ -82,17 +103,25 @@ describe("modèles", () => {
 describe("contrôles", () => {
   const base = { status: "ready" as const, defaultModel: undefined, busy: false };
   it("niveaux grisés selon le modèle", () => {
-    const c = buildControls({ ...base, prefs: { model: "a", effort: "high" }, models: [A, B] });
-    expect(c.levels.map((l) => l.enabled)).toEqual([true, true, true, false, false]);
+    const c = buildControls({
+      ...base,
+      prefs: { ...DEFAULT_PREFS, model: "a", effort: "high" },
+      models: [A, B],
+    });
+    expect(c.levels.map((l) => l.enabled)).toEqual([true, true, true, false, false, false]);
     expect(c.effortLabel).toBe("High");
   });
   it("effort affiché ramené, modèle sans effort grisé, gel pendant un tour", () => {
-    const c = buildControls({ ...base, prefs: { model: "a", effort: "max" }, models: [A] });
+    const c = buildControls({
+      ...base,
+      prefs: { ...DEFAULT_PREFS, model: "a", effort: "max" },
+      models: [A],
+    });
     expect(c.effort).toBe("high");
     const d = buildControls({
       ...base,
       busy: true,
-      prefs: { model: "b", effort: "low" },
+      prefs: { ...DEFAULT_PREFS, model: "b", effort: "low" },
       models: [B],
     });
     expect(d.effortDisabled).toBe(true);
@@ -105,6 +134,42 @@ describe("contrôles", () => {
   });
   it("préférences stockées revalidées", () => {
     expect(parsePrefs({ model: "a b", effort: "ultra" })).toEqual(DEFAULT_PREFS);
-    expect(parsePrefs({ model: "a", effort: "max" })).toEqual({ model: "a", effort: "max" });
+    expect(parsePrefs({ model: "a", effort: "max" })).toEqual({
+      ...DEFAULT_PREFS,
+      model: "a",
+      effort: "max",
+    });
+    expect(parsePrefs({ effort: "ultracode" }).effort).toBe("ultracode");
+  });
+  it("par défaut : Auto, aucun effort transmis tant que le curseur n'est pas touché", () => {
+    expect(DEFAULT_PREFS.effort).toBeNull();
+    const c = buildControls({ ...base, prefs: DEFAULT_PREFS, models: null });
+    expect(c.effort).toBeNull();
+    expect(c.effortLabel).toBe("Auto");
+    expect(c.effortTip).toContain("aucun niveau d'effort n'est transmis");
+  });
+  it("Ultracode grisé si le modèle ne supporte pas max, infobulle avec les valeurs réelles", () => {
+    const withMax: ModelOption = {
+      value: "m",
+      displayName: "M",
+      supportedEffortLevels: ["high", "max"],
+    };
+    const c = buildControls({
+      ...base,
+      prefs: { ...DEFAULT_PREFS, effort: "ultracode" },
+      models: [withMax],
+      defaultModel: "m",
+      ultracode: { maxTurns: 80 },
+    });
+    expect(c.effort).toBe("ultracode");
+    expect(c.effortTip).toContain("80 tours");
+    const d = buildControls({
+      ...base,
+      prefs: { ...DEFAULT_PREFS, effort: "ultracode" },
+      models: [A],
+      defaultModel: "a",
+    });
+    expect(d.levels.at(-1)?.enabled).toBe(false);
+    expect(d.effort).toBe("high");
   });
 });

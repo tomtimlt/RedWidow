@@ -37,6 +37,7 @@ const SAMPLES: { [K in EventKind]: Extract<EventPayload, { kind: K }> } = {
     result: "ok",
   },
   "agent.text": { kind: "agent.text", text: "t" },
+  "user.message": { kind: "user.message", text: "t" },
   "agent.thinking": { kind: "agent.thinking", text: "hm", redacted: false },
   "tool.requested": {
     kind: "tool.requested",

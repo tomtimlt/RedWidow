@@ -26,6 +26,7 @@ describe("chat.js : balises créées", () => {
       "li",
       "h2",
       "option",
+      "input",
     ];
     for (const m of js.matchAll(/\bel\(\s*"(\w+)"/g)) expect(allowed).toContain(m[1]);
     expect(js).not.toMatch(/createElement\(\s*["'`](script|a|img|iframe)/);
@@ -64,12 +65,13 @@ describe("page de prévisualisation", () => {
     });
     s.setControls(
       buildControls({
-        prefs: { ...DEFAULT_PREFS, effort: "xhigh" },
+        prefs: { ...DEFAULT_PREFS, effort: "ultracode" },
+        ultracode: { maxTurns: 100, maxBudgetUsd: 10 },
         models: [
           {
             value: "modele-a",
             displayName: "Modèle A",
-            supportedEffortLevels: ["low", "medium", "high", "xhigh"],
+            supportedEffortLevels: ["low", "medium", "high", "xhigh", "max"],
           },
           { value: "modele-b", displayName: "Modèle B" },
         ],
@@ -78,6 +80,26 @@ describe("page de prévisualisation", () => {
         busy: false,
       }),
     );
+    s.setHistory([
+      {
+        id: "11111111-1111-4111-8111-111111111111",
+        title: "Liste les fichiers du dossier src",
+        updatedAt: "2026-10-15T09:30:00.000Z",
+        tools: 3,
+        provider: "Claude",
+        model: "modele-a",
+        current: true,
+      },
+      {
+        id: "22222222-2222-4222-8222-222222222222",
+        title: "Corrige le test qui échoue dans le module d'authentification",
+        updatedAt: "2026-10-14T16:05:00.000Z",
+        tools: 12,
+        provider: "Claude",
+        model: "modele-b",
+        current: false,
+      },
+    ]);
     s.setBusy(true);
     const view = {
       ...s.view(),
@@ -104,7 +126,8 @@ describe("page de prévisualisation", () => {
       .replace('<link rel="stylesheet" href="../media/chat.css">', THEME)
       .replace(
         '<script nonce="preview" src="../media/chat.js"></script>',
-        `<script>window.acquireVsCodeApi=()=>({postMessage:(m)=>{if(m.type==="ready")setTimeout(()=>window.postMessage({type:"view",view:${data}},"*"),0);}});</script>\n<script src="../media/chat.js"></script>`,
+        `<script>window.acquireVsCodeApi=()=>({postMessage:(m)=>{if(m.type==="ready")setTimeout(()=>window.postMessage({type:"view",view:${data}},"*"),0);}});</script>\n<script src="../media/chat.js"></script>
+<script>document.getElementById("history-btn").click();</script>`,
       );
     expect(html).toContain("acquireVsCodeApi");
     expect(html).toContain("--vscode-foreground");

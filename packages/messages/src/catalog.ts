@@ -20,6 +20,7 @@ export type Catalog = Readonly<Record<string, Template>>;
 /** Textes fixes des libellés d'événements (`eventLabel`). */
 export interface EventStrings {
   run: string;
+  user: string;
   thinking: string;
   thinkingMasked: string;
   deniedBySdk: string;

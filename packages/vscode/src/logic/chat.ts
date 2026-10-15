@@ -36,6 +36,29 @@ type NewItem = ChatItem extends infer T
     : never
   : never;
 
+/** Ligne de la liste d'historique : chaînes déjà neutralisées. */
+export interface HistoryEntry {
+  id: string;
+  title: string;
+  updatedAt: string;
+  tools: number;
+  provider: string;
+  model: string;
+  /** C'est la conversation affichée en ce moment. */
+  current: boolean;
+}
+
+/** Conversation ouverte en lecture seule (relue d'un journal non fiable). */
+export interface ReadonlyInfo {
+  id: string;
+  title: string;
+  /** Lignes du journal ignorées (invalides, hors limites). */
+  invalid: number;
+  truncated: boolean;
+  /** La session peut être reprise (identifiant connu). */
+  canResume: boolean;
+}
+
 /** Ce que la webview affiche : uniquement des chaînes déjà neutralisées, jamais de HTML. */
 export interface ChatView {
   items: ChatItem[];
@@ -46,6 +69,9 @@ export interface ChatView {
   sandbox: string | null;
   /** Sélecteurs de modèle et d'effort (absents tant que la session ne les a pas calculés). */
   controls: ChatControls | null;
+  history: HistoryEntry[];
+  /** Non nul : mode lecture (aucune carte d'approbation, saisie désactivée). */
+  readonly: ReadonlyInfo | null;
 }
 
 /** État du chat : mutable, une instance par conversation ; `view()` donne la forme envoyée à la webview. */
@@ -55,6 +81,8 @@ export function createChatState() {
   let busy = false;
   let sandbox: string | null = null;
   let controls: ChatControls | null = null;
+  let history: HistoryEntry[] = [];
+  let readonly: ReadonlyInfo | null = null;
   let nextId = 1;
 
   const push = (item: NewItem) => {
@@ -79,6 +107,15 @@ export function createChatState() {
     setControls(value: ChatControls) {
       controls = value;
     },
+    setHistory(value: HistoryEntry[]) {
+      history = value;
+    },
+    setReadonly(value: ReadonlyInfo | null) {
+      readonly = value;
+    },
+    get readonly() {
+      return readonly;
+    },
     setSandbox(image: string | null) {
       sandbox = image === null ? null : cleanText(image, 300);
     },
@@ -89,6 +126,7 @@ export function createChatState() {
       items.length = 0;
       approvals.clear();
       busy = false;
+      readonly = null;
     },
     /** Traduit un événement du moteur en éléments de vue. */
     event(e: EngineEvent) {
@@ -142,7 +180,15 @@ export function createChatState() {
       }
     },
     view(): ChatView {
-      return { items: [...items], approvals: [...approvals.values()], busy, sandbox, controls };
+      return {
+        items: [...items],
+        approvals: readonly ? [] : [...approvals.values()],
+        busy,
+        sandbox,
+        controls,
+        history,
+        readonly,
+      };
     },
   };
 }

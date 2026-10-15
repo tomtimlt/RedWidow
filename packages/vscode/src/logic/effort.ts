@@ -1,10 +1,38 @@
 import { EFFORTS, type Effort } from "@john-studio/core";
 
+/** Fournisseur d'agent (seul Claude existe pour l'instant ; OpenCode viendra avec F5). */
+export type Provider = "claude";
+
+/**
+ * Cran du curseur : un `Effort` du cœur, ou « ultracode ». Ultracode n'est PAS un niveau du SDK :
+ * c'est un préréglage de l'extension (effort `max` + plafonds de tours et de dépense réglables), voir `resolveEffort`.
+ */
+export type EffortChoice = Effort | "ultracode";
+
 /** Un cran du curseur d'effort : libellé court et infobulle (effet qualitatif, jamais un chiffre). */
 export interface EffortLevel {
-  value: Effort;
+  value: EffortChoice;
   label: string;
   tip: string;
+  /** Fournisseurs pour lesquels le cran existe ; absent = tous. */
+  providers?: readonly Provider[];
+}
+
+/** Réglages du préréglage Ultracode (réglages machine `john.ultracode.*`). */
+export interface UltracodeLimits {
+  maxTurns?: number;
+  maxBudgetUsd?: number;
+}
+
+/** Infobulle d'Ultracode : dit exactement ce que le préréglage fait avec les valeurs en vigueur. */
+export function ultracodeTip(limits: UltracodeLimits | undefined): string {
+  const turns =
+    limits?.maxTurns === undefined ? "sans plafond de tours" : `${limits.maxTurns} tours au plus`;
+  const budget =
+    limits?.maxBudgetUsd === undefined
+      ? "sans plafond de dépense"
+      : `dépense plafonnée à ${limits.maxBudgetUsd} $`;
+  return `Préréglage : réflexion « Max » (mêmes capacités que Max, pas un mode distinct du modèle) avec des limites longues réglables (${turns}, ${budget}). Réglages : john.ultracode.maxTurns et john.ultracode.maxBudgetUsd.${SUFFIX}`;
 }
 
 const SUFFIX = " L'effet exact dépend du modèle.";
@@ -31,9 +59,35 @@ export const EFFORT_LEVELS: readonly EffortLevel[] = [
     label: "Max",
     tip: `Réflexion la plus poussée, la plus lente et la plus coûteuse.${SUFFIX}`,
   },
+  {
+    value: "ultracode",
+    label: "Ultracode",
+    tip: ultracodeTip(undefined),
+    providers: ["claude"],
+  },
 ];
 
-export const DEFAULT_EFFORT: Effort = "high";
+/** Niveau réellement transmis : `ultracode` s'exécute en `max`. */
+export const toEffort = (choice: EffortChoice): Effort => (choice === "ultracode" ? "max" : choice);
+
+/** Crans visibles pour un fournisseur. */
+export const levelsFor = (provider: Provider): EffortLevel[] =>
+  EFFORT_LEVELS.filter((l) => l.providers === undefined || l.providers.includes(provider));
+
+/**
+ * Paramètres de run d'un choix : effort du SDK et, pour Ultracode seulement, les plafonds du préréglage
+ * (les plafonds de base `john.maxTurns` s'appliquent sinon, côté appelant).
+ */
+export function resolveEffort(
+  choice: EffortChoice,
+  limits: UltracodeLimits | undefined,
+): { effort: Effort; limits: UltracodeLimits | undefined } {
+  return { effort: toEffort(choice), limits: choice === "ultracode" ? (limits ?? {}) : undefined };
+}
+
+export function parseEffortChoice(value: unknown): EffortChoice | null {
+  return value === "ultracode" ? "ultracode" : parseEffort(value);
+}
 
 export function parseEffort(value: unknown): Effort | null {
   return typeof value === "string" && (EFFORTS as readonly string[]).includes(value)
@@ -41,7 +95,7 @@ export function parseEffort(value: unknown): Effort | null {
     : null;
 }
 
-const rank = (e: Effort) => EFFORT_LEVELS.findIndex((l) => l.value === e);
+const rank = (e: Effort) => EFFORTS.indexOf(e);
 
 /** `supported` : niveaux du modèle ; `undefined` = inconnu (tous permis), vide = pas d'effort réglable. */
 export function isSupported(effort: Effort, supported: readonly Effort[] | undefined): boolean {
@@ -59,7 +113,7 @@ export function clampEffort(
   if (supported === undefined || supported.includes(wanted)) {
     return { effort: wanted, clamped: false };
   }
-  const known = EFFORT_LEVELS.map((l) => l.value).filter((v) => supported.includes(v));
+  const known = EFFORTS.filter((v) => supported.includes(v));
   const pick = known.filter((v) => rank(v) < rank(wanted)).at(-1) ?? known[0] ?? null;
   return { effort: pick, clamped: pick !== wanted };
 }

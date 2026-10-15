@@ -230,6 +230,7 @@ export const reasons: Catalog = {
 
 export const events: EventStrings = {
   run: "run",
+  user: "utilisateur",
   thinking: "réflexion",
   thinkingMasked: "réflexion (masquée)",
   deniedBySdk: "refusé par le SDK",

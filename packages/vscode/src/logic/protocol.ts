@@ -47,6 +47,8 @@ export interface StartParams {
   maxBudgetUsd?: number;
   systemPrompt?: string;
   sandbox?: SandboxParams;
+  /** Dossier absolu des journaux (stockage de l'extension, hors du dépôt). */
+  journalDir?: string;
 }
 
 /** Résumé de fin de run (déjà masqué côté moteur). */
@@ -127,6 +129,7 @@ const START_KEYS = [
   "maxBudgetUsd",
   "systemPrompt",
   "sandbox",
+  "journalDir",
 ] as const;
 
 /** Valide un message reçu par le moteur. */
@@ -143,6 +146,14 @@ export function parseToEngine(raw: unknown): Parsed<ToEngine> {
       if (!isString(obj.cwd) || obj.cwd === "" || !isAbsolute(obj.cwd)) return bad("cwd");
       for (const key of ["resume", "systemPrompt"] as const) {
         if (obj[key] !== undefined && !isString(obj[key])) return bad(key);
+      }
+      if (obj.journalDir !== undefined) {
+        if (
+          !isString(obj.journalDir) ||
+          !isAbsolute(obj.journalDir) ||
+          obj.journalDir.length > 1024
+        )
+          return bad("journalDir");
       }
       if (obj.model !== undefined && !isModelId(obj.model)) return bad("model");
       if (obj.effort !== undefined && parseEffort(obj.effort) === null) return bad("effort");

@@ -30,6 +30,8 @@ export function formatEvent(e: EngineEvent, { color, verbose }: FormatOptions): 
       return `${tag("dim", "run")} ${e.prompt} ${paint("dim", `(${e.cwd})`)}`;
     case "agent.text":
       return `${tag("blue", "agent")} ${e.text}`;
+    case "user.message":
+      return `${tag("green", "user")} ${stripControl(e.text)}`;
     case "tool.requested": {
       const detail = stripControl(
         typeof e.input.command === "string" ? e.input.command : JSON.stringify(e.input),

@@ -52,7 +52,7 @@ export interface EngineOptions {
 }
 
 /** Flux de consignes d'une session multi-tours : `push` alimente, `end` clôt. */
-function createPromptStream() {
+function createPromptStream(onTake: (text: string) => void) {
   const buffer: string[] = [];
   let ended = false;
   let wake: (() => void) | null = null;
@@ -72,8 +72,10 @@ function createPromptStream() {
     async *[Symbol.asyncIterator](): AsyncGenerator<string> {
       for (;;) {
         const next = buffer.shift();
-        if (next !== undefined) yield next;
-        else if (ended) return;
+        if (next !== undefined) {
+          onTake(next);
+          yield next;
+        } else if (ended) return;
         else await new Promise<void>((resolve) => (wake = resolve));
       }
     },
@@ -103,7 +105,9 @@ export function runEngine({
   };
 
   const abort = new AbortController();
-  const prompts = createPromptStream();
+  // Chaque consigne consommée par le runner est consignée (`user.message`) : le journal permet de rejouer le fil.
+  let onUserMessage: (text: string) => void = () => {};
+  const prompts = createPromptStream((text) => onUserMessage(text));
   let queue: ReturnType<typeof createApprovalQueue> | null = null;
   let started = false;
 
@@ -126,8 +130,12 @@ export function runEngine({
       let code = 0;
       let sandboxCtx: SandboxContext | undefined;
       const recorder = createRecorder({ redact });
+      onUserMessage = (text) => void recorder.emit({ kind: "user.message", text });
+      // Journal de l'extension : hors du dépôt (`journalDir` validé par le protocole), sinon celui de la CLI.
       const journal = await openJournal(
-        join(params.cwd, ".john-studio", "runs", `${recorder.runId}.jsonl`),
+        params.journalDir !== undefined
+          ? join(params.journalDir, `${recorder.runId}.jsonl`)
+          : join(params.cwd, ".john-studio", "runs", `${recorder.runId}.jsonl`),
       );
       try {
         const { policy, source, warning } = await loadPolicy({ cwd: params.cwd });

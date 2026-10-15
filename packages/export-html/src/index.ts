@@ -30,6 +30,7 @@ export const KIND_CLASS: Record<EventKind, string> = {
   "run.started": "k-run",
   "run.finished": "k-run",
   "agent.text": "k-agent",
+  "user.message": "k-agent",
   "tool.requested": "k-tool",
   "tool.result": "k-tool",
   "approval.decided": "k-approval",
