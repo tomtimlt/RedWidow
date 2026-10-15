@@ -1,0 +1,71 @@
+{
+  "name": "john-studio",
+  "displayName": "John",
+  "description": "Chat d'agent avec approbation des outils (john-studio).",
+  "version": "0.2.0",
+  "publisher": "john-studio",
+  "license": "UNLICENSED",
+  "engines": { "vscode": "^1.90.0" },
+  "main": "./extension.cjs",
+  "extensionKind": ["workspace"],
+  "activationEvents": [],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "John exécute un agent qui lit et modifie les fichiers de l'espace de travail : il est désactivé tant que le dossier n'est pas approuvé."
+    },
+    "virtualWorkspaces": false
+  },
+  "contributes": {
+    "commands": [
+      { "command": "john.openChat", "title": "John : ouvrir le chat" },
+      { "command": "john.setToken", "title": "John : définir le jeton" },
+      { "command": "john.clearToken", "title": "John : effacer le jeton" },
+      { "command": "john.diagnostic", "title": "John : diagnostic" }
+    ],
+    "viewsContainers": {
+      "activitybar": [{ "id": "john", "title": "John", "icon": "media/icon.svg" }]
+    },
+    "views": {
+      "john": [{ "type": "webview", "id": "john.chat", "name": "Chat" }]
+    },
+    "configuration": {
+      "title": "John",
+      "properties": {
+        "john.model": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "markdownDescription": "Modèle à utiliser (texte libre). Vide : défaut du SDK. Ignoré s'il est posé au niveau de l'espace de travail."
+        },
+        "john.maxTurns": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "scope": "machine",
+          "markdownDescription": "Nombre maximal de tours de l'agent par conversation. 0 : pas de plafond."
+        },
+        "john.sandbox.enabled": {
+          "type": "boolean",
+          "default": false,
+          "scope": "machine",
+          "markdownDescription": "Active le bac à sable Docker (outil `mcp__sandbox__exec` : réseau coupé, utilisateur non privilégié). Exige `john.sandbox.image`."
+        },
+        "john.sandbox.image": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "markdownDescription": "Image Docker **locale** du bac à sable (jamais téléchargée par John ; de préférence épinglée par digest). Obligatoire si le bac à sable est activé."
+        },
+        "john.sandbox.timeoutSec": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1800,
+          "default": 600,
+          "scope": "machine",
+          "markdownDescription": "Délai maximal d'une exécution dans le bac à sable, en secondes."
+        }
+      }
+    }
+  }
+}

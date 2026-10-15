@@ -1,10 +1,11 @@
-// Spike E1 (ADR 0004) : bundle esbuild du moteur et de l'extension, copie du binaire
+// Empaquetage de l'extension (ADR 0004, E1/E3/E4) : bundle esbuild du moteur et de l'extension, copie du binaire
 // natif du SDK pour UNE cible, empreinte SHA-256, puis `vsce package --target`.
-// Usage : node scripts/spike-vsix.mjs [cible]   (défaut : win32-x64). Ne publie rien.
+// Usage : node scripts/package-vsix.mjs [cible]   (défaut : win32-x64). Ne publie rien.
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   copyFileSync,
+  cpSync,
   mkdirSync,
   readFileSync,
   realpathSync,
@@ -78,29 +79,12 @@ copyFileSync(nativeExe, join(stage, "bin", exeName));
 const sha = createHash("sha256").update(readFileSync(nativeExe)).digest("hex");
 writeFileSync(join(stage, "bin", "claude.sha256"), `${sha}\n`);
 
-writeFileSync(
-  join(stage, "package.json"),
-  JSON.stringify(
-    {
-      name: "john-studio-spike",
-      displayName: "john-studio (spike)",
-      description: "Spike d'empaquetage (ADR 0004, E1).",
-      version: "0.0.1",
-      publisher: "john-studio",
-      engines: { vscode: "^1.90.0" },
-      main: "./extension.cjs",
-      extensionKind: ["workspace"],
-      activationEvents: ["onCommand:john.diagnostic"],
-      capabilities: { untrustedWorkspaces: { supported: false }, virtualWorkspaces: false },
-      contributes: { commands: [{ command: "john.diagnostic", title: "john : diagnostic" }] },
-    },
-    null,
-    2,
-  ),
-);
-writeFileSync(join(stage, "README.md"), "Spike d'empaquetage john-studio. Ne pas diffuser.\n");
+cpSync(join(pkgDir, "media"), join(stage, "media"), { recursive: true });
+const manifest = JSON.parse(readFileSync(join(pkgDir, "extension.manifest.json"), "utf8"));
+writeFileSync(join(stage, "package.json"), JSON.stringify(manifest, null, 2));
+copyFileSync(join(pkgDir, "EXTENSION_README.md"), join(stage, "README.md"));
 
-const out = join(pkgDir, `john-studio-spike-${target}.vsix`);
+const out = join(pkgDir, `john-studio-${manifest.version}-${target}.vsix`);
 const vsce = createRequire(import.meta.url).resolve("@vscode/vsce/vsce");
 execFileSync(
   process.execPath,

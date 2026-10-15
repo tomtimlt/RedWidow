@@ -1,6 +1,6 @@
 # Spike E1 : empaquetage du `.vsix` (ADR 0004)
 
-Reproduire : `pnpm build` puis `pnpm --filter @john-studio/vscode spike [cible]` (défaut `win32-x64`). Rien n'est publié ; les artefacts (`packages/vscode/.vsix-stage/`, `*.vsix`) sont ignorés par git.
+Reproduire : `pnpm build` puis `pnpm --filter @john-studio/vscode package [cible]` (défaut `win32-x64`). Rien n'est publié ; les artefacts (`packages/vscode/.vsix-stage/`, `*.vsix`) sont ignorés par git.
 
 ## Résultats (Windows 11, win32-x64, SDK 0.3.299)
 

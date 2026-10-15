@@ -1,0 +1,100 @@
+import {
+  isRememberable,
+  type PendingApproval,
+  SANDBOX_TOOL_PREFIX,
+  stripControl,
+} from "@john-studio/core";
+import { formatReason } from "@john-studio/messages";
+
+/** Plafond du texte d'entrée d'outil affiché dans une carte (caractères). */
+export const MAX_DETAIL_CHARS = 4000;
+
+/** Choix de l'utilisateur sur une carte. Pas de « tout autoriser » : il n'existe pas. */
+export type Choice = "once" | "deny" | "always";
+
+/** Carte d'approbation affichée dans la webview : tout le texte est déjà neutralisé. */
+export interface ApprovalCard {
+  toolUseId: string;
+  tool: string;
+  detail: string;
+  reason: string;
+  /** « Toujours » est proposé seulement si le verdict est mémorisable (prédicat du cœur). */
+  canRemember: boolean;
+}
+
+/** Texte non fiable destiné à l'affichage : contrôles et bidi retirés (`stripControl` du cœur), plafonné. */
+export function cleanText(text: string, max = MAX_DETAIL_CHARS): string {
+  const clean = stripControl(text);
+  return clean.length > max ? `${clean.slice(0, max)}…` : clean;
+}
+
+/** Entrée d'un outil sous forme affichable (commande Bash telle quelle, sinon JSON). */
+export function describeInput(input: Record<string, unknown>, max = MAX_DETAIL_CHARS): string {
+  const text = typeof input.command === "string" ? input.command : JSON.stringify(input);
+  return cleanText(text, max);
+}
+
+export function toCard(pending: PendingApproval): ApprovalCard {
+  return {
+    toolUseId: pending.toolUseId,
+    tool: cleanText(pending.tool, 200),
+    detail: describeInput(pending.input),
+    reason: cleanText(formatReason(pending.verdict.reason), 1000),
+    canRemember: pending.verdict.decision === "ask" && isRememberable(pending, pending.verdict),
+  };
+}
+
+/** Réponse envoyée à la gate, comme la CLI : refuser, une fois, ou « toujours » (la gate reste juge). */
+export function answerFor(choice: Choice): {
+  decision: "allow" | "deny";
+  remember?: "always";
+} {
+  if (choice === "deny") return { decision: "deny" };
+  return choice === "always" ? { decision: "allow", remember: "always" } : { decision: "allow" };
+}
+
+/** Texte de la confirmation modale native (hors webview) exigée pour « Toujours ». */
+export function alwaysConfirmText(card: ApprovalCard): string {
+  const scope = card.tool.startsWith(SANDBOX_TOOL_PREFIX)
+    ? "pour la durée de cette conversation (bac à sable éphémère)"
+    : "pour la durée de cette conversation (la persistance sur disque n'est pas encore disponible)";
+  return `Autoriser « ${card.tool} » sans redemander, ${scope} ?\n\n${card.detail.slice(0, 300)}`;
+}
+
+export const MAX_WEBVIEW_TEXT = 100_000;
+
+export type WebviewMessage =
+  | { type: "send"; text: string }
+  | { type: "stop" }
+  | { type: "reset" }
+  | { type: "ready" }
+  | { type: "approve"; toolUseId: string; choice: Choice };
+
+/** Valide un message venu de la webview (non fiable) : forme exacte, sinon `null`. */
+export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
+  const m = raw as Record<string, unknown>;
+  const only = (...allowed: string[]) => Object.keys(m).every((k) => allowed.includes(k));
+  switch (m.type) {
+    case "send":
+      return only("type", "text") &&
+        typeof m.text === "string" &&
+        m.text.trim() !== "" &&
+        m.text.length <= MAX_WEBVIEW_TEXT
+        ? { type: "send", text: m.text }
+        : null;
+    case "stop":
+    case "reset":
+    case "ready":
+      return only("type") ? { type: m.type } : null;
+    case "approve":
+      return only("type", "toolUseId", "choice") &&
+        typeof m.toolUseId === "string" &&
+        m.toolUseId !== "" &&
+        (m.choice === "once" || m.choice === "deny" || m.choice === "always")
+        ? { type: "approve", toolUseId: m.toolUseId, choice: m.choice }
+        : null;
+    default:
+      return null;
+  }
+}

@@ -1,0 +1,108 @@
+body {
+  font-family: var(--vscode-font-family);
+  color: var(--vscode-foreground);
+  padding: 0 8px;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  box-sizing: border-box;
+}
+#bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  font-size: 0.9em;
+  opacity: 0.85;
+}
+#log {
+  flex: 1;
+  overflow-y: auto;
+}
+.item {
+  margin: 6px 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.user {
+  background: var(--vscode-input-background);
+  padding: 6px 8px;
+  border-radius: 4px;
+}
+.notice {
+  opacity: 0.8;
+  font-style: italic;
+}
+.notice.error {
+  color: var(--vscode-errorForeground);
+  font-style: normal;
+}
+.tool {
+  border-left: 3px solid var(--vscode-panel-border);
+  padding-left: 8px;
+}
+.tool.ok {
+  border-color: var(--vscode-testing-iconPassed);
+}
+.tool.error,
+.tool.denied {
+  border-color: var(--vscode-errorForeground);
+}
+pre {
+  margin: 4px 0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 0.9em;
+}
+.card {
+  border: 2px solid var(--vscode-focusBorder);
+  border-radius: 4px;
+  padding: 8px;
+  margin: 6px 0;
+}
+.card-title {
+  font-weight: bold;
+}
+.card-reason {
+  opacity: 0.8;
+  font-size: 0.9em;
+}
+.card-buttons {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, transparent);
+  font-family: inherit;
+}
+button {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  border: 0;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+button.primary,
+#send {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+button.danger {
+  background: var(--vscode-inputValidation-errorBackground);
+  color: var(--vscode-foreground);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+#buttons {
+  display: flex;
+  gap: 6px;
+  margin: 6px 0;
+}

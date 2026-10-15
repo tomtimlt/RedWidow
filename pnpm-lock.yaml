@@ -110,6 +110,9 @@ importers:
       '@john-studio/core':
         specifier: workspace:*
         version: link:../core
+      '@john-studio/messages':
+        specifier: workspace:*
+        version: link:../messages
     devDependencies:
       '@types/vscode':
         specifier: 1.140.0

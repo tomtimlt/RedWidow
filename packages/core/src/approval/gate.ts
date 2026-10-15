@@ -129,6 +129,15 @@ function sessionKey(
 }
 
 /**
+ * Vrai si une réponse « session » / « toujours » peut tenir lieu de réponse à cette demande (même
+ * prédicat que la gate : une UI ne propose « toujours » que dans ce cas ; la gate reste juge).
+ */
+export function isRememberable(request: ApprovalRequest, verdict: PolicyVerdict): boolean {
+  // Identifiant fictif : pour `mcp__sandbox__exec`, la clé exige un conteneur, connu de la gate seule.
+  return sessionKey(request, verdict, "_") !== null;
+}
+
+/**
  * Règle `allow` à persister pour une requête, ou `null`. Pour Bash : la commande
  * exacte, seulement si elle tient en un segment sans joker ni espace dans ses
  * arguments (un motif de politique est découpé sur les espaces et `*` est un joker).

@@ -2,17 +2,18 @@
   "name": "@john-studio/vscode",
   "version": "0.1.0",
   "private": true,
-  "description": "Extension VS Code de john-studio (spike d'empaquetage, ADR 0004).",
+  "description": "Extension VS Code de john-studio (ADR 0004).",
   "type": "module",
   "engines": {
     "node": ">=22.12"
   },
   "scripts": {
-    "spike": "node scripts/spike-vsix.mjs"
+    "package": "node scripts/package-vsix.mjs"
   },
   "dependencies": {
     "@john-studio/agent-sdk": "workspace:*",
-    "@john-studio/core": "workspace:*"
+    "@john-studio/core": "workspace:*",
+    "@john-studio/messages": "workspace:*"
   },
   "devDependencies": {
     "@types/vscode": "1.140.0",

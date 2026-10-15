@@ -24,6 +24,15 @@ export const PROTOCOL_VERSION = 1;
 /** Plafond d'un texte de consigne (caractères). */
 export const MAX_PROMPT_CHARS = 1_000_000;
 
+/** Délai maximal d'une exécution du bac à sable (secondes), comme la CLI. */
+export const MAX_SANDBOX_TIMEOUT_SEC = 1800;
+
+/** Bac à sable Docker du run : image locale obligatoire (jamais téléchargée), délai par exécution. */
+export interface SandboxParams {
+  image: string;
+  timeoutSec: number;
+}
+
 export interface StartParams {
   cwd: string;
   model?: string;
@@ -32,6 +41,7 @@ export interface StartParams {
   resume?: string;
   maxBudgetUsd?: number;
   systemPrompt?: string;
+  sandbox?: SandboxParams;
 }
 
 /** Résumé de fin de run (déjà masqué côté moteur). */
@@ -107,6 +117,7 @@ const START_KEYS = [
   "resume",
   "maxBudgetUsd",
   "systemPrompt",
+  "sandbox",
 ] as const;
 
 /** Valide un message reçu par le moteur. */
@@ -132,6 +143,20 @@ export function parseToEngine(raw: unknown): Parsed<ToEngine> {
       }
       if (obj.maxBudgetUsd !== undefined) {
         if (!isFiniteNumber(obj.maxBudgetUsd) || obj.maxBudgetUsd <= 0) return bad("maxBudgetUsd");
+      }
+      if (obj.sandbox !== undefined) {
+        const sb = obj.sandbox;
+        if (!isObj(sb) || onlyKeys(sb, ["image", "timeoutSec"]) !== null) return bad("sandbox");
+        if (!isString(sb.image) || sb.image === "" || sb.image.length > 512)
+          return bad("sandbox.image");
+        if (
+          !isFiniteNumber(sb.timeoutSec) ||
+          !Number.isInteger(sb.timeoutSec) ||
+          sb.timeoutSec < 1 ||
+          sb.timeoutSec > MAX_SANDBOX_TIMEOUT_SEC
+        ) {
+          return bad("sandbox.timeoutSec");
+        }
       }
       if (
         obj.auth !== undefined &&
