@@ -31,10 +31,18 @@ export const MAX_PROMPT_CHARS = 1_000_000;
 /** Délai maximal d'une exécution du bac à sable (secondes), comme la CLI. */
 export const MAX_SANDBOX_TIMEOUT_SEC = 1800;
 
+export const SANDBOX_NETWORKS = ["none", "bridge"] as const;
+export type SandboxNetwork = (typeof SANDBOX_NETWORKS)[number];
+
+export const SANDBOX_MEMORY_VALUES = ["1g", "2g", "3g", "4g", "5g", "6g", "7g", "8g"] as const;
+
 /** Bac à sable Docker du run : image locale obligatoire (jamais téléchargée), délai par exécution. */
 export interface SandboxParams {
   image: string;
   timeoutSec: number;
+  network: SandboxNetwork;
+  memory: string;
+  cpus: number;
 }
 
 export interface StartParams {
@@ -168,7 +176,12 @@ export function parseToEngine(raw: unknown): Parsed<ToEngine> {
       }
       if (obj.sandbox !== undefined) {
         const sb = obj.sandbox;
-        if (!isObj(sb) || onlyKeys(sb, ["image", "timeoutSec"]) !== null) return bad("sandbox");
+        if (
+          !isObj(sb) ||
+          onlyKeys(sb, ["image", "timeoutSec", "network", "memory", "cpus"]) !== null
+        ) {
+          return bad("sandbox");
+        }
         if (!isString(sb.image) || sb.image === "" || sb.image.length > 512)
           return bad("sandbox.image");
         if (
@@ -178,6 +191,21 @@ export function parseToEngine(raw: unknown): Parsed<ToEngine> {
           sb.timeoutSec > MAX_SANDBOX_TIMEOUT_SEC
         ) {
           return bad("sandbox.timeoutSec");
+        }
+        if (
+          !isString(sb.network) ||
+          !(SANDBOX_NETWORKS as readonly string[]).includes(sb.network)
+        ) {
+          return bad("sandbox.network");
+        }
+        if (
+          !isString(sb.memory) ||
+          !(SANDBOX_MEMORY_VALUES as readonly string[]).includes(sb.memory)
+        ) {
+          return bad("sandbox.memory");
+        }
+        if (!isFiniteNumber(sb.cpus) || !Number.isInteger(sb.cpus) || sb.cpus < 1 || sb.cpus > 8) {
+          return bad("sandbox.cpus");
         }
       }
       if (

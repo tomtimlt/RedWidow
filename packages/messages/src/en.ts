@@ -20,7 +20,9 @@ export const reasons: Catalog = {
     `tar archive rejected (${text(p.reason)})${p.entry === undefined ? "" : `: ${text(p.entry)}`}, nothing written`,
   "sandbox.unavailable": () => "sandbox unavailable",
   "sandbox.networkUnsafe": (p) =>
-    `bridge network refused: Docker API exposed on 127.0.0.1:${text(p.port)}`,
+    p.reason === "adapterServer"
+      ? "bridge network refused: adapter local server reachable from the container"
+      : `bridge network refused: Docker API exposed on 127.0.0.1:${text(p.port)}`,
   "sandbox.execTimeout": (p) =>
     `timeout of ${text(p.seconds)} s exceeded: sandbox ${p.restarted === 1 ? "restarted" : "out of service"}. Partial output:\n${text(p.output)}`,
   "sandbox.execAborted": (p) =>

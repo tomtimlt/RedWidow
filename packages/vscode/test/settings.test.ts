@@ -34,12 +34,63 @@ describe("resolveSettings", () => {
           "sandbox.timeoutSec": 30,
         }),
       ),
-    ).toEqual({ model: "m", maxTurns: 5, sandbox: { image: "alpine:3.20", timeoutSec: 30 } });
+    ).toEqual({
+      model: "m",
+      maxTurns: 5,
+      sandbox: {
+        image: "alpine:3.20",
+        timeoutSec: 30,
+        network: "none",
+        memory: "2g",
+        cpus: 2,
+      },
+    });
   });
-  it("délai par défaut 600 s", () => {
+  it("défauts réseau, mémoire et CPU", () => {
     expect(
       resolveSettings(from({ "sandbox.enabled": true, "sandbox.image": "a:1" })).sandbox,
-    ).toEqual({ image: "a:1", timeoutSec: 600 });
+    ).toEqual({
+      image: "a:1",
+      timeoutSec: 600,
+      network: "none",
+      memory: "2g",
+      cpus: 2,
+    });
+    expect(
+      resolveSettings(
+        from({
+          "sandbox.enabled": true,
+          "sandbox.image": "a:1",
+          "sandbox.network": "bridge",
+          "sandbox.memory": "4g",
+          "sandbox.cpus": 3,
+        }),
+      ).sandbox,
+    ).toEqual({
+      image: "a:1",
+      timeoutSec: 600,
+      network: "bridge",
+      memory: "4g",
+      cpus: 3,
+    });
+  });
+  it("valeur d'espace de travail ignorée : machineValue ne la lit pas", () => {
+    const network = machineValue({
+      workspaceValue: "bridge",
+      defaultValue: "none",
+    });
+    expect(network).toBe("none");
+    expect(
+      resolveSettings((key) =>
+        key === "sandbox.enabled"
+          ? true
+          : key === "sandbox.image"
+            ? "a:1"
+            : key === "sandbox.network"
+              ? machineValue({ workspaceValue: "bridge", defaultValue: "none" })
+              : undefined,
+      ).sandbox?.network,
+    ).toBe("none");
   });
   it("bac à sable activé sans image : refusé", () => {
     for (const image of [undefined, "", "  ", 3]) {
@@ -53,6 +104,9 @@ describe("resolveSettings", () => {
     for (const t of [0, 1801, 1.5, "10"]) {
       expect(() => resolveSettings(from({ ...base, "sandbox.timeoutSec": t }))).toThrow();
     }
+    expect(() => resolveSettings(from({ ...base, "sandbox.network": "host" }))).toThrow();
+    expect(() => resolveSettings(from({ ...base, "sandbox.memory": "512m" }))).toThrow();
+    expect(() => resolveSettings(from({ ...base, "sandbox.cpus": 0 }))).toThrow();
     expect(() => resolveSettings(from({ maxTurns: -1 }))).toThrow();
     expect(() => resolveSettings(from({ maxTurns: 1.5 }))).toThrow();
   });

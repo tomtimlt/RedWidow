@@ -105,7 +105,17 @@ describe("session de chat", () => {
   it("démarre le moteur au premier message, transmet réglages et jeton (jamais dans start)", async () => {
     const t = setup({
       token: true,
-      settings: { model: "m", maxTurns: 3, sandbox: { image: "alpine:3.20", timeoutSec: 60 } },
+      settings: {
+        model: "m",
+        maxTurns: 3,
+        sandbox: {
+          image: "alpine:3.20",
+          timeoutSec: 60,
+          network: "none",
+          memory: "2g",
+          cpus: 2,
+        },
+      },
     });
     await t.session.send("bonjour");
     expect(t.f.started).toEqual({
@@ -113,7 +123,13 @@ describe("session de chat", () => {
       auth: "subscription",
       model: "m",
       maxTurns: 3,
-      sandbox: { image: "alpine:3.20", timeoutSec: 60 },
+      sandbox: {
+        image: "alpine:3.20",
+        timeoutSec: 60,
+        network: "none",
+        memory: "2g",
+        cpus: 2,
+      },
     });
     expect(JSON.stringify(t.f.started)).not.toContain("sk-secret");
     expect(t.f.options.auth).toEqual({ name: "CLAUDE_CODE_OAUTH_TOKEN", value: "sk-secret" });

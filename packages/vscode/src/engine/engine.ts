@@ -170,7 +170,13 @@ export function runEngine({
           ...(warning && { warning }),
         });
         if (sandbox && params.sandbox) {
-          await createSandbox(sandbox, { image: params.sandbox.image, signal: abort.signal });
+          await createSandbox(sandbox, {
+            image: params.sandbox.image,
+            network: params.sandbox.network,
+            memory: params.sandbox.memory,
+            cpus: params.sandbox.cpus,
+            signal: abort.signal,
+          });
         }
         const runner = await createRunner(sandbox);
         const summary = await runner.run(

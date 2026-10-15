@@ -78,6 +78,28 @@
           "default": 600,
           "scope": "machine",
           "markdownDescription": "Délai maximal d'une exécution dans le bac à sable, en secondes."
+        },
+        "john.sandbox.network": {
+          "type": "string",
+          "enum": ["none", "bridge"],
+          "default": "none",
+          "scope": "machine",
+          "markdownDescription": "Réseau Docker du bac à sable : `none` (isolé) ou `bridge`."
+        },
+        "john.sandbox.memory": {
+          "type": "string",
+          "enum": ["1g", "2g", "3g", "4g", "5g", "6g", "7g", "8g"],
+          "default": "2g",
+          "scope": "machine",
+          "markdownDescription": "Limite mémoire du bac à sable (gigaoctets)."
+        },
+        "john.sandbox.cpus": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8,
+          "default": 2,
+          "scope": "machine",
+          "markdownDescription": "Nombre de CPU alloués au bac à sable."
         }
       }
     }

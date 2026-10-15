@@ -20,7 +20,13 @@ describe("protocole IPC : vers le moteur", () => {
         maxTurns: 3,
         auth: "subscription",
         maxBudgetUsd: 1.5,
-        sandbox: { image: "alpine:3.20", timeoutSec: 600 },
+        sandbox: {
+          image: "alpine:3.20",
+          timeoutSec: 600,
+          network: "none",
+          memory: "2g",
+          cpus: 2,
+        },
       },
       { v: 1, type: "prompt", text: "bonjour" },
       { v: 1, type: "answer", toolUseId: "t1", decision: "allow", remember: "session" },
@@ -54,6 +60,10 @@ describe("protocole IPC : vers le moteur", () => {
     [
       "start sandbox option réseau",
       { v: 1, type: "start", cwd, sandbox: { image: "a", timeoutSec: 5, network: "host" } },
+    ],
+    [
+      "start sandbox sans réseau",
+      { v: 1, type: "start", cwd, sandbox: { image: "a", timeoutSec: 5 } },
     ],
     ["prompt vide", { v: 1, type: "prompt", text: "" }],
     ["prompt non texte", { v: 1, type: "prompt", text: 3 }],

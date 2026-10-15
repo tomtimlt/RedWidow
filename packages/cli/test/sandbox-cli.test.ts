@@ -1,9 +1,10 @@
 import { PassThrough } from "node:stream";
 import { createRecorder } from "@john-studio/core";
+import { formatReason } from "@john-studio/messages";
 import { describe, expect, it } from "vitest";
 import { createTerminalAsker } from "../src/ask.js";
 import { formatEvent } from "../src/format.js";
-import { resolveSandboxOptions } from "../src/sandbox-options.js";
+import { assertSandboxNetworkAllowed, resolveSandboxOptions } from "../src/sandbox-options.js";
 import { stripControl } from "../src/sanitize.js";
 
 /** Vrai si le texte contient ESC, retour chariot ou marque bidirectionnelle. */
@@ -95,23 +96,73 @@ describe("options du bac à sable", () => {
     );
   });
 
-  it("défaut de délai 600 s", () => {
+  it("défauts délai, réseau, mémoire et CPU", () => {
     expect(resolveSandboxOptions({ sandbox: true, sandboxImage: "alpine@sha256:x" })).toEqual({
       image: "alpine@sha256:x",
       timeoutSec: 600,
+      network: "none",
+      memory: "2g",
+      cpus: 2,
     });
     expect(
       resolveSandboxOptions({ sandbox: true, sandboxImage: "a", sandboxTimeout: 30 })?.timeoutSec,
     ).toBe(30);
   });
 
+  it("valeurs hors liste ou hors bornes", () => {
+    const base = { sandbox: true, sandboxImage: "a" };
+    expect(() => resolveSandboxOptions({ ...base, sandboxNetwork: "host" })).toThrowError(
+      expect.objectContaining({
+        code: "sandbox.invalidArgument",
+        params: { field: "sandboxNetwork", reason: "format" },
+      }),
+    );
+    expect(() => resolveSandboxOptions({ ...base, sandboxMemory: "2G" })).toThrowError(
+      expect.objectContaining({
+        code: "sandbox.invalidArgument",
+        params: { field: "sandboxMemory", reason: "format" },
+      }),
+    );
+    expect(() => resolveSandboxOptions({ ...base, sandboxCpus: 9 })).toThrowError(
+      expect.objectContaining({
+        code: "sandbox.invalidArgument",
+        params: { field: "sandboxCpus", reason: "range" },
+      }),
+    );
+  });
+
   it("sans --sandbox : désactivé, et les options du bac à sable sont refusées", () => {
     expect(resolveSandboxOptions({})).toBeUndefined();
-    expect(() => resolveSandboxOptions({ sandboxImage: "a" })).toThrowError(
-      expect.objectContaining({ code: "sandbox.invalidArgument" }),
+    for (const o of [
+      { sandboxImage: "a" },
+      { sandboxTimeout: 5 },
+      { sandboxNetwork: "bridge" },
+      { sandboxMemory: "1g" },
+      { sandboxCpus: 2 },
+    ]) {
+      expect(() => resolveSandboxOptions(o)).toThrowError(
+        expect.objectContaining({ code: "sandbox.invalidArgument" }),
+      );
+    }
+  });
+
+  it("réseau bridge : OpenCode refusé, Claude autorisé", () => {
+    expect(() => assertSandboxNetworkAllowed("opencode", "bridge")).toThrowError(
+      expect.objectContaining({
+        code: "sandbox.networkUnsafe",
+        params: { reason: "adapterServer" },
+      }),
     );
-    expect(() => resolveSandboxOptions({ sandboxTimeout: 5 })).toThrowError(
-      expect.objectContaining({ code: "sandbox.invalidArgument" }),
+    expect(() => assertSandboxNetworkAllowed("claude", "bridge")).not.toThrow();
+    expect(() => assertSandboxNetworkAllowed("opencode", "none")).not.toThrow();
+  });
+
+  it("formatReason : adaptateur et port 2375", () => {
+    expect(
+      formatReason({ code: "sandbox.networkUnsafe", params: { reason: "adapterServer" } }),
+    ).toBe("réseau bridge refusé : serveur local de l'adaptateur joignable depuis le conteneur");
+    expect(formatReason({ code: "sandbox.networkUnsafe", params: { port: 2375 } }, "en")).toContain(
+      "127.0.0.1:2375",
     );
   });
 });

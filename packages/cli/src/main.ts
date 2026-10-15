@@ -38,7 +38,11 @@ import { Command, InvalidArgumentError } from "commander";
 import { createTerminalAsker } from "./ask.js";
 import { colorEnabled, describeAuthIntent, formatEvent, formatRunList } from "./format.js";
 import { appendUserRule } from "./policy-store.js";
-import { MAX_SANDBOX_TIMEOUT_SEC, resolveSandboxOptions } from "./sandbox-options.js";
+import {
+  assertSandboxNetworkAllowed,
+  MAX_SANDBOX_TIMEOUT_SEC,
+  resolveSandboxOptions,
+} from "./sandbox-options.js";
 import { stripControl } from "./sanitize.js";
 
 /** Libellé de la politique intégrée (`LoadedPolicy.source` vaut `null`). */
@@ -71,6 +75,13 @@ const parseSandboxTimeoutArg = (value: string) => {
   const n = Number.parseInt(value, 10);
   if (!Number.isInteger(n) || n <= 0 || n > MAX_SANDBOX_TIMEOUT_SEC)
     throw new InvalidArgumentError(`entier entre 1 et ${MAX_SANDBOX_TIMEOUT_SEC} attendu`);
+  return n;
+};
+
+const parseSandboxCpusArg = (value: string) => {
+  const n = Number.parseInt(value, 10);
+  if (!Number.isInteger(n) || n < 1 || n > 8)
+    throw new InvalidArgumentError("entier entre 1 et 8 attendu");
   return n;
 };
 
@@ -131,11 +142,18 @@ program
   )
   .option(
     "--sandbox",
-    "activer le bac à sable Docker du run (outil mcp__sandbox__exec ; réseau coupé, utilisateur non privilégié)",
+    "activer le bac à sable Docker du run (outil mcp__sandbox__exec ; utilisateur non privilégié)",
   )
   .option(
     "--sandbox-image <image>",
     "image locale du bac à sable (obligatoire avec --sandbox, jamais téléchargée, de préférence épinglée par digest)",
+  )
+  .option("--sandbox-network <mode>", "réseau du bac à sable : none (défaut) ou bridge")
+  .option("--sandbox-memory <taille>", "mémoire du bac à sable : 1g à 8g (défaut 2g)")
+  .option(
+    "--sandbox-cpus <n>",
+    "CPU du bac à sable : entier de 1 à 8 (défaut 2)",
+    parseSandboxCpusArg,
   )
   .option(
     "--sandbox-timeout <s>",
@@ -221,8 +239,15 @@ program
 
     try {
       if (sandboxCtx && sandboxOpts) {
-        await createSandbox(sandboxCtx, { image: sandboxOpts.image, signal: abort.signal });
-        process.stderr.write(`bac à sable : ${sandboxOpts.image} (réseau coupé)\n`);
+        assertSandboxNetworkAllowed(opts.agent, sandboxOpts.network);
+        await createSandbox(sandboxCtx, {
+          image: sandboxOpts.image,
+          network: sandboxOpts.network,
+          memory: sandboxOpts.memory,
+          cpus: sandboxOpts.cpus,
+          signal: abort.signal,
+        });
+        process.stderr.write(`bac à sable : ${sandboxOpts.image}\n`);
       }
       const runner: AgentRunner =
         opts.agent === "opencode"
