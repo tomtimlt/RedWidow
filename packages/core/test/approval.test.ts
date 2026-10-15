@@ -252,6 +252,19 @@ describe("parsePolicy", () => {
   });
 });
 
+describe("parsePolicy : joker partiel", () => {
+  it("refuse un * qui n'est pas un jeton entier, accepte * seul", () => {
+    for (const command of ["rm -rf /work/*", "git*", "*x y"]) {
+      expect(() => parsePolicy({ rules: [{ tool: "Bash", command, decision: "allow" }] })).toThrow(
+        expect.objectContaining({ code: "policy.invalid.commandWildcard", params: { index: 0 } }),
+      );
+    }
+    expect(() =>
+      parsePolicy({ rules: [{ tool: "Bash", command: "git * --help *", decision: "allow" }] }),
+    ).not.toThrow();
+  });
+});
+
 describe("createApprovalGate", () => {
   const setup = (ask?: Parameters<typeof createApprovalGate>[0]["ask"]) => {
     const recorder = createRecorder({ runId: "r" });

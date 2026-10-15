@@ -119,7 +119,7 @@ function sessionKey(
     // Bac à sable : l'argv exact dans CE conteneur (ADR 0003 D) ; `put`/`get`/autres : jamais.
     if (request.tool !== SANDBOX_EXEC_TOOL || containerId === undefined) return null;
     const exec = sandboxExecInput(request.input);
-    if (exec === null) return null;
+    if ("field" in exec) return null;
     return [request.tool, containerId, JSON.stringify(exec.argv), exec.cwd].join("\0");
   }
   if (request.tool !== BASH_TOOL) return JSON.stringify([request.tool]);
@@ -193,9 +193,9 @@ export function createApprovalGate({
     scope: RememberScope | undefined,
     request: ApprovalRequest,
     verdict: PolicyVerdict,
+    key: string | null,
   ) => {
     if (scope !== "session" && scope !== "always") return;
-    const key = sessionKey(request, verdict, sandboxContainerId?.());
     if (key === null) return;
     session.add(key);
     const rule = persistableRule(request, verdict);
@@ -255,7 +255,7 @@ export function createApprovalGate({
               reason: answer.reason ?? verdict.reason,
               source: "user",
             };
-            if (answer.decision === "allow") await remember(answer.remember, request, verdict);
+            if (answer.decision === "allow") await remember(answer.remember, request, verdict, key);
           } catch (err) {
             outcome = {
               decision: "deny",

@@ -168,6 +168,8 @@ export const reasons: Catalog = {
   "policy.invalid.ruleObject": (p) => `politique invalide : rules[${text(p.index)}] objet attendu`,
   "policy.invalid.ruleField": (p) =>
     `politique invalide : rules[${text(p.index)}].${text(p.field)}`,
+  "policy.invalid.commandWildcard": (p) =>
+    `politique invalide : rules[${text(p.index)}].command, « * » doit être un jeton entier (pas de joker partiel)`,
   "policy.repo.untrusted": (p) =>
     `politique du dépôt ignorée (non approuvée) : ${text(p.path)} [sha256 ${text(p.digest)}]. ${REPO_HINT}`,
   "policy.repo.modified": (p) =>

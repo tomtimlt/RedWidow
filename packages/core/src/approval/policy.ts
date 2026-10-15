@@ -242,11 +242,25 @@ function evaluateUnanalyzable(policy: Policy, tool: string): PolicyVerdict {
  */
 export function sandboxExecInput(
   input: Record<string, unknown>,
-): { argv: string[]; cwd: string } | null {
+): { argv: string[]; cwd: string } | { field: string; reason: string } {
   const { argv, cwd = "/work" } = input;
-  if (!Array.isArray(argv) || argv.length < 1 || argv.length > 256) return null;
-  if (!argv.every((a) => typeof a === "string" && !a.includes("\0"))) return null;
-  if (argv[0] === "" || typeof cwd !== "string" || cwd.includes("\0")) return null;
+  if (!Array.isArray(argv)) return { field: "argv", reason: "notStrings" };
+  if (argv.length < 1 || argv.length > 256) return { field: "argv", reason: "format" };
+  if (!argv.every((a) => typeof a === "string" && !a.includes("\0"))) {
+    return { field: "argv", reason: "format" };
+  }
+  if (argv[0] === "") return { field: "argv", reason: "format" };
+  if (typeof cwd !== "string" || cwd.includes("\0")) return { field: "cwd", reason: "format" };
+  // Chemin absolu normalisé sous /work : ni « .. », ni « . », ni « // », ni barre finale.
+  if (!(cwd === "/work" || cwd.startsWith("/work/"))) return { field: "cwd", reason: "outside" };
+  if (
+    cwd
+      .slice(1)
+      .split("/")
+      .some((seg) => seg === "" || seg === "." || seg === "..")
+  ) {
+    return { field: "cwd", reason: "outside" };
+  }
   return { argv: argv as string[], cwd };
 }
 
@@ -258,12 +272,12 @@ export function sandboxExecInput(
  */
 function evaluateSandboxExec(policy: Policy, input: Record<string, unknown>): PolicyVerdict {
   const parsed = sandboxExecInput(input);
-  if (parsed === null) {
+  if ("field" in parsed) {
     return {
       decision: "deny",
       reason: reason("sandbox.invalidArgument", {
-        field: "argv",
-        reason: Array.isArray(input.argv) ? "format" : "notStrings",
+        field: parsed.field,
+        reason: parsed.reason,
       }),
       rule: null,
     };
@@ -484,6 +498,13 @@ export function parsePolicy(raw: unknown): Policy {
     if (typeof tool !== "string" || tool === "") field("tool");
     if (typeof decision !== "string" || !DECISIONS.has(decision)) field("decision");
     if (command !== undefined && typeof command !== "string") field("command");
+    // Joker : seulement `*` seul comme jeton entier (ADR 0003) ; sinon `rm -rf /work/*` serait un littéral trompeur.
+    if (
+      typeof command === "string" &&
+      command.split(/\s+/).some((t) => t.includes("*") && t !== "*")
+    ) {
+      throw new ValidationError("policy.invalid.commandWildcard", { index });
+    }
     if (text !== undefined && typeof text !== "string") field("reason");
     return {
       tool: tool as string,

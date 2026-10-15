@@ -162,6 +162,21 @@ describe("lecture stricte : archives piégées refusées, rien d'écrit", () => 
     rejected(() => unpackTar(Buffer.concat([ok, Buffer.from("zz")])), "malformed");
   });
 
+  it("bloc de fin obligatoire : archive coupée entre deux entrées refusée, rien d'écrit", () => {
+    const sans = raw(
+      [
+        { name: "root/", type: "5" },
+        { name: "root/f", data: "hello" },
+      ],
+      { end: false },
+    );
+    rejected(() => unpackTar(sans), "truncated");
+    rejected(() => unpackTar(Buffer.concat([sans, Buffer.alloc(512)])), "truncated"); // un seul bloc de zéros
+    const before = snapshot();
+    rejected(() => extractTar(sans, "out", opts()), "truncated");
+    expect(snapshot()).toEqual(before);
+  });
+
   it("taille réelle : flux borné pendant la lecture", async () => {
     async function* gen() {
       yield new Uint8Array(600);
