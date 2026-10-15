@@ -1,0 +1,28 @@
+---
+description: Routage des sous-agents et pare-feu de contexte
+alwaysApply: true
+---
+
+# Délégation
+
+Cette règle s'adresse à la session principale. Une fiche exécute son brief et ne relance personne.
+
+La session orchestre. Modèle attendu : Grok 4.7, sans variante Fast. Elle ne code pas un lot et ne tranche pas à la place d'une fiche.
+
+Pool de l'abonnement seulement : Grok 4.7 pour les décisions, Composer 2.5 pour la lecture et le code. Pas de variante Fast. Pas de modèle tiers (Claude, GPT, Gemini) : ils sortent du pool et passent en crédits.
+
+Lancer uniquement les fiches de `.claude/agents/`. Ne pas passer de modèle au lancement : l'en-tête l'épingle. Ne pas reprendre un agent pour un autre rôle. Pas de sous-agent intégré (`explore`, `generalPurpose`).
+
+| Besoin | Fiche |
+|---|---|
+| Lire | `explorer` |
+| Décision moteur (paquets, types, événements, gate, processus) | `architect` |
+| Coder ce lot moteur | `dev` |
+| Décision qui nomme l'interface, un branchement ou un rendu | `cadre` |
+| Coder ce lot | `surface` |
+
+Brief, et rien d'autre. Sections : Objectif, Fichiers, Faits, Décision, Critères, Interdits. Faits = lignes citées, pas le rapport. Décision = le paragraphe de décision, pas le raisonnement. Un échec remonté = la section « décisions requises » seulement.
+
+`architect` et `dev` ne reçoivent un brief que s'il tient sans nommer le produit autour du moteur. Sinon `cadre`, puis `surface`.
+
+Quelques lignes dans un fichier déjà connu : les faire dans la session, sans fiche.

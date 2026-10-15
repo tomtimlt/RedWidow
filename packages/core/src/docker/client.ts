@@ -98,6 +98,79 @@ export function parseDockerImages(lines: readonly string[]): ImageSummary[] {
   return out;
 }
 
+export interface ContainerInspectMount {
+  type: string;
+  source: string;
+  destination: string;
+  rw: boolean;
+}
+
+export interface ContainerInspectSummary {
+  id: string;
+  name: string;
+  running: boolean;
+  labels: Record<string, string>;
+  mounts: ContainerInspectMount[];
+}
+
+const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
+/**
+ * Projette le JSON déjà parsé de `docker inspect` (tableau d'un seul conteneur).
+ * Toute forme invalide lève `docker.unexpectedOutput` avec `{ command: "inspect" }`
+ * sans recopier le document.
+ */
+export function parseDockerInspect(raw: unknown): ContainerInspectSummary {
+  const unexpected = () => new CodedError("docker.unexpectedOutput", { command: "inspect" });
+  if (!Array.isArray(raw) || raw.length !== 1) throw unexpected();
+  const doc = raw[0];
+  if (!isPlainObject(doc)) throw unexpected();
+
+  const id = doc.Id;
+  if (typeof id !== "string" || id === "") throw unexpected();
+
+  const nameField = doc.Name;
+  if (typeof nameField !== "string" || !nameField.startsWith("/") || nameField.length < 2)
+    throw unexpected();
+  const name = nameField.slice(1);
+
+  const state = doc.State;
+  if (!isPlainObject(state) || typeof state.Running !== "boolean") throw unexpected();
+  const running = state.Running;
+
+  const config = doc.Config;
+  if (!isPlainObject(config)) throw unexpected();
+
+  let labelsRaw: unknown = config.Labels;
+  if (labelsRaw === null) labelsRaw = {};
+  if (!isPlainObject(labelsRaw)) throw unexpected();
+  const labels = Object.create(null) as Record<string, string>;
+  for (const [key, value] of Object.entries(labelsRaw)) {
+    if (typeof value !== "string") throw unexpected();
+    labels[key] = value;
+  }
+
+  const mountsRaw = doc.Mounts;
+  if (mountsRaw === null || mountsRaw === undefined || !Array.isArray(mountsRaw))
+    throw unexpected();
+  const mounts: ContainerInspectMount[] = [];
+  for (const entry of mountsRaw) {
+    if (!isPlainObject(entry)) throw unexpected();
+    const type = entry.Type;
+    const source = entry.Source;
+    const destination = entry.Destination;
+    const rw = entry.RW;
+    if (typeof type !== "string" || type === "") throw unexpected();
+    if (typeof source !== "string") throw unexpected();
+    if (typeof destination !== "string" || destination === "") throw unexpected();
+    if (typeof rw !== "boolean") throw unexpected();
+    mounts.push({ type, source, destination, rw });
+  }
+
+  return { id, name, running, labels, mounts };
+}
+
 /** Délai maximal par défaut d'un appel docker : 30 minutes. */
 const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000;
 

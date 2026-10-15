@@ -10,6 +10,7 @@ import {
   DockerError,
   type EngineEvent,
   parseDockerImages,
+  parseDockerInspect,
   parseDockerPs,
   ValidationError,
 } from "../src/index.js";
@@ -195,6 +196,89 @@ describe("createDockerClient : binary", () => {
   });
   it.each(["docker", "docker.exe", "/usr/bin/docker", "/opt/x/docker"])("accepte %s", (b) => {
     expect(() => make(b)).not.toThrow();
+  });
+});
+
+const inspectDoc = (patch: Record<string, unknown> = {}) => [
+  {
+    Id: "abc123",
+    Name: "/mycontainer",
+    State: { Running: true },
+    Config: { Labels: { app: "web" } },
+    Mounts: [
+      { Type: "bind", Source: "/host", Destination: "/data", RW: true },
+      { Type: "volume", Source: "", Destination: "/vol", RW: false },
+    ],
+    ...patch,
+  },
+];
+
+describe("parseDockerInspect", () => {
+  it("projette un document conforme", () => {
+    expect(parseDockerInspect(inspectDoc())).toEqual({
+      id: "abc123",
+      name: "mycontainer",
+      running: true,
+      labels: { app: "web" },
+      mounts: [
+        { type: "bind", source: "/host", destination: "/data", rw: true },
+        { type: "volume", source: "", destination: "/vol", rw: false },
+      ],
+    });
+    expect(Object.getPrototypeOf(parseDockerInspect(inspectDoc()).labels)).toBeNull();
+  });
+
+  it("Config.Labels null → labels vides", () => {
+    expect(
+      parseDockerInspect([
+        {
+          Id: "x",
+          Name: "/c",
+          State: { Running: false },
+          Config: { Labels: null },
+          Mounts: [],
+        },
+      ]).labels,
+    ).toEqual({});
+  });
+
+  const reject = (raw: unknown) => {
+    try {
+      parseDockerInspect(raw);
+      expect.unreachable();
+    } catch (err) {
+      expect(err).toMatchObject({
+        code: "docker.unexpectedOutput",
+        params: { command: "inspect" },
+      });
+      expect(JSON.stringify((err as { params: unknown }).params)).not.toContain("secret");
+    }
+  };
+
+  it.each([
+    ["pas un tableau", {}],
+    ["tableau vide", []],
+    ["deux éléments", [inspectDoc()[0], inspectDoc()[0]]],
+    ["élément non objet", [42]],
+    ["Id vide", inspectDoc({ Id: "" })],
+    ["Name sans barre", inspectDoc({ Name: "mycontainer" })],
+    ["State absent", inspectDoc({ State: undefined })],
+    ["Running non booléen", inspectDoc({ State: { Running: "yes" } })],
+    ["Config absent", inspectDoc({ Config: undefined })],
+    ["labels non objet", inspectDoc({ Config: { Labels: "x" } })],
+    ["valeur de label non chaîne", inspectDoc({ Config: { Labels: { k: 1 } } })],
+    ["Mounts absent", inspectDoc({ Mounts: undefined })],
+    ["Mounts null", inspectDoc({ Mounts: null })],
+    [
+      "montage sans Destination",
+      inspectDoc({ Mounts: [{ Type: "bind", Source: "", RW: true }] }),
+    ],
+    [
+      "montage sans RW booléen",
+      inspectDoc({ Mounts: [{ Type: "bind", Source: "", Destination: "/d", RW: 1 }] }),
+    ],
+  ])("refuse %s", (_label, raw) => {
+    reject(raw);
   });
 });
 

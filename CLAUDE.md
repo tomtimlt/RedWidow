@@ -4,22 +4,31 @@ Orchestration d'agents (Claude Agent SDK, OpenCode) avec journal d'événements,
 
 ## Organisation des modèles (consigne permanente)
 
-Principe : **utiliser le modèle le moins cher qui peut faire le travail correctement.** On monte d'un cran seulement si le niveau en dessous échoue ou si la décision engage l'architecture. Les sous-agents repartent sans contexte : leur donner une consigne complète, et leur demander un **rapport court**.
+La session principale orchestre. Elle ne code pas un lot et ne tranche pas une architecture. Les fiches sont dans `.claude/agents/`. Le modèle de chaque fiche est épinglé dans son en-tête : ne pas le surcharger au lancement, ne pas utiliser un sous-agent intégré à la place.
 
-| Rôle | Modèle | Agent | Fait | Ne fait pas |
-|---|---|---|---|---|
-| Éclaireur | haiku | `explorer` | Toute lecture et exploration : lire du code, grep, typings des dépendances, docs web, état du dépôt. Rapporte des faits cités (`fichier:ligne`). | Écrire des fichiers, décider, interpréter au-delà des faits. |
-| Chef de chantier | sonnet | session principale + `dev` | Orchestre, découpe en lots, code, teste, vérifie, commit et push. Les lots larges sont confiés à `dev`. | Trancher une question d'architecture ou de sécurité ouverte. |
-| Architecte | opus | `architect` | Choix d'architecture et de design, frontières entre paquets, modèle de menaces, revue de sécurité des lots sensibles, ADR. Reste architecte : il écrit des décisions et des plans, **pas de code**. | Implémenter, lire tout le dépôt (il s'appuie sur les rapports de `explorer`). |
+Modèles du pool d'abonnement uniquement. Grok 4.7 pour la session et les décisions (`architect`, `cadre`). Composer 2.5 pour la lecture et le code (`explorer`, `dev`, `surface`). Pas de variante Fast. Pas de modèle tiers.
+
+Deux voies. Voie moteur (`architect`, `dev`) : le brief se formule avec les paquets, les types, les événements, la gate, les processus. Voie produit (`cadre`, `surface`) : le brief a besoin de l'interface, d'un branchement ou d'un rendu. On ne mélange pas les voies dans un même brief.
+
+| Rôle | Agent | Fait | Ne fait pas |
+|---|---|---|---|
+| Éclaireur | `explorer` | Lecture. Faits cités (`fichier:ligne`). | Écrire, décider. |
+| Architecte moteur | `architect` | Décision, ADR, lots pour `dev`. | Coder, relire tout le dépôt. |
+| Développeur moteur | `dev` | Un lot déjà décidé. | Trancher l'architecture. |
+| Cadrage produit | `cadre` | Décision et lots pour `surface`. | Coder le lot. |
+| Réalisation produit | `surface` | Un lot déjà cadré. | Trancher l'architecture. |
+
+Pare-feu. Un sous-agent part vide. La consigne tient dans les sections Objectif, Fichiers, Faits, Décision, Critères, Interdits. On n'y colle pas le fil, ni un rapport entier : seulement les lignes utiles (faits cités, ou la décision, ou la section « décisions requises »). Rapport ≤ 400 mots. Pas de reprise d'un agent pour un autre rôle.
 
 Règles de délégation :
-1. **Lecture d'abord par `explorer`.** Avant de planifier ou de coder dans une zone inconnue, lancer `explorer` (plusieurs en parallèle si les zones sont indépendantes). Ne pas lire soi-même de gros fichiers quand un rapport suffit.
-2. **Décision ouverte → `architect`.** Dès qu'un choix a plusieurs options aux conséquences durables (nouveau paquet, API publique, sécurité, format d'événement, dépendance), lui soumettre le contexte et les options (rapports d'`explorer`), recevoir une décision courte et motivée. Si la décision est structurante, elle devient un ADR dans `docs/adr/`. Poser les questions de préférence à l'utilisateur seulement s'il s'agit d'un choix de produit.
-3. **Implémentation → `dev`, un lot à la fois.** Lots séquentiels s'ils touchent les mêmes fichiers, parallèles sinon. Chaque consigne contient : objectif, fichiers concernés, décisions de l'architecte, critères d'acceptation, commandes de validation, interdits. Pas de lot sans critère vérifiable.
-4. **Vérifier soi-même chaque lot** avant de pousser : `pnpm check`, relecture du diff, `git status` propre. Ne jamais pousser sur la foi du seul rapport d'un sous-agent.
-5. **Escalade.** `explorer` bloqué ou ambigu → reformuler plus précisément, puis sonnet lit lui-même. `dev` échoue deux fois sur le même point → remonter à `architect` avec l'échec, pas insister. Revue finale d'un lot touchant la sécurité (approbation, politique, secrets, chemins, processus) → `architect`.
-6. **Pas de sous-agent pour une petite modification** (quelques lignes, un fichier connu) : la faire directement.
-7. **Économie de tokens.** Rapports de sous-agents ≤ 400 mots hors citations utiles ; pas de relecture d'un fichier déjà lu ; pas de sous-agent lancé pour redécouvrir ce que la conversation établit déjà.
+1. **Lecture d'abord par `explorer`.** Plusieurs en parallèle si les zones sont indépendantes. Pas de gros fichier lu par l'orchestrateur quand un rapport suffit.
+2. **Décision moteur → `architect`.** Options et faits cités. Décision structurante = ADR dans `docs/adr/`. Préférence produit = question à l'utilisateur.
+3. **Lot moteur → `dev`.** Un lot à la fois sur les mêmes fichiers. Objectif, fichiers, décision, critères, commande de validation, interdits.
+4. **Décision produit → `cadre`, puis lot → `surface`.** Même forme de consigne. `cadre` ne reçoit pas un transcript ; `surface` reçoit la décision de `cadre`, pas le fil.
+5. **Vérifier soi-même chaque lot** avant de pousser : `pnpm check`, diff, `git status`. Jamais pousser sur le seul rapport.
+6. **Escalade.** `explorer` ambigu → reformuler. `dev` échoue deux fois → `architect`, avec l'échec seulement. `surface` échoue deux fois → `cadre`. Revue d'un lot qui touche la gate, la politique, les secrets, les chemins ou les processus → `architect`.
+7. **Pas de sous-agent pour quelques lignes** dans un fichier déjà connu.
+8. **Pas de relecture** d'un fichier déjà rapporté, ni de sous-agent pour redécouvrir ce que le fil établit déjà.
 
 ## Commandes
 
