@@ -1,7 +1,7 @@
 # 0003 — Bac à sable Docker : exécution de commandes par l'agent dans un conteneur géré
 
-- Statut : accepté pour le profil durci par défaut (lots S1 à S5) ; tout autre profil réseau/privilèges est exclu de cet ADR et à rediscuter
-- Date : 2026-10-14 (acceptation : 2026-10-14)
+- Statut : accepté pour le profil durci par défaut (lots S1 à S5) ; amendé le 2026-10-15 par la section H (réseau sortant optionnel `bridge`, profil « développement », lots N1 à N5) ; tout profil de privilèges (root, capacités, accès hôte) reste exclu
+- Date : 2026-10-14 (acceptation : 2026-10-14 ; amendement H : 2026-10-15)
 - S'appuie sur : ADR 0001 (processus), ADR 0002 (Windows natif)
 
 ## Contexte
@@ -69,11 +69,64 @@ Modèle de menaces (complète ADR 0001/0002) :
 
 ### G. Questions Q1 à Q5 (tranchées le 2026-10-14)
 
-- **Q1 — Réseau** (technique, tranché) : `none`, fixe. Pas d'option `--sandbox-network` ; `inspect` exige `NetworkMode=none`. Tout autre réseau ou privilège relève d'un autre ADR.
+- **Q1 — Réseau** (technique, tranché) : `none`, fixe. Pas d'option `--sandbox-network` ; `inspect` exige `NetworkMode=none`. Tout autre réseau ou privilège relève d'un autre ADR. **Révisé par H** (choix de produit de l'utilisateur, 2026-10-15) : `none` reste le défaut, `bridge` devient un choix explicite de l'opérateur ; les privilèges restent exclus.
 - **Q2 — Image** (technique, tranché) : aucune image par défaut codée en dur. L'opérateur la fournit (`--sandbox-image` ou configuration utilisateur), de préférence épinglée par digest ; absence → refus de démarrer le run avec `sandbox.imageUnsupported`. Le digest est journalisé (`sandbox.started`).
 - **Q3 — Mode autonome** (produit, en attente) : hors S1 à S5. Recommandation : ne pas le livrer ; les autorisations larges passent par des règles `allow` écrites par l'opérateur (D).
 - **Q4 — Conservation du conteneur** (technique, tranché) : toujours supprimé en fin de run. Le registre en mémoire est l'autorité (A) ; un conteneur d'un run précédent ne peut pas être réadopté sans faire du label une autorité. Pas d'option `--sandbox-keep`.
-- **Q5 — Limites** (technique, tranché) : valeurs de B fixes (`pids-limit 512`, `memory 2g` sans swap, `cpus 2`) ; seul le délai d'exécution est réglable (`--sandbox-timeout`, défaut 600 s, maximum 1800 s). Options de mémoire/CPU à ajouter seulement sur besoin constaté, avec plafond.
+- **Q5 — Limites** (technique, tranché) : valeurs de B fixes (`pids-limit 512`, `memory 2g` sans swap, `cpus 2`) ; seul le délai d'exécution est réglable (`--sandbox-timeout`, défaut 600 s, maximum 1800 s). Options de mémoire/CPU à ajouter seulement sur besoin constaté, avec plafond. **Révisé par H.4** (besoin constaté).
+
+### H. Amendement du 2026-10-15 : profil « développement » (réseau sortant)
+
+Contexte : le bac à sable, validé sur Docker Desktop réel, est inutilisable pour le développement courant (pas d'installation de dépendances, de clonage, d'appel d'API). L'utilisateur (propriétaire, usage personnel) révise Q1. **Inchangé** : utilisateur 65534, `--cap-drop ALL`, `no-new-privileges`, aucun montage, aucun périphérique, aucun espace de noms `host`, aucun port publié, `--pull never`, gate par exécution, mémorisation par argv exact. Cet amendement n'ajoute aucun privilège.
+
+#### H.1 Option réseau
+
+- CLI `--sandbox-network <none|bridge>` (refusée sans `--sandbox`, toute autre valeur → `sandbox.invalidArgument`) ; extension : réglage `john.sandbox.network` (`none` | `bridge`), **portée `machine`** : un `.vscode/settings.json` de dépôt ne peut ni l'activer ni le lire comme source. La politique du dépôt et l'entrée des outils ne le touchent jamais (A inchangé).
+- **Défaut `none`** dans les deux interfaces. `bridge` est un choix d'opérateur fait une fois (réglage machine persistant) : le coût pour l'utilisateur est un réglage, le gain est qu'un oubli ou une nouvelle machine reste fermé (fail-closed).
+- `bridge` = **réseau `bridge` par défaut de Docker**, pas de réseau dédié par run. Un réseau dédié n'isolerait que des autres conteneurs du pont par défaut, alors que l'hôte et le LAN restent joignables quoi qu'on fasse (H.2) ; il ajouterait création, suppression et `prune` de réseaux. À reconsidérer si l'opérateur fait tourner des services sensibles sur le pont par défaut.
+- Jamais `host`, `container:<…>`, ni réseau nommé : seules les deux valeurs ci-dessus existent dans le code.
+
+#### H.2 Modèle de menaces avec réseau
+
+- **Ce qui peut sortir** : pas seulement le contenu du conteneur (fichiers `put`, image, sorties). Le modèle peut placer dans un argv **tout ce qui est dans son contexte** : fichiers de l'hôte lus par `Read`, sorties d'outils, conversation. Avec `bridge`, un agent piégé par une injection de consignes (README, dépendance, page web, sortie de commande) dispose d'un canal d'exfiltration (`curl`, `git push`, DNS). Le masquage du recorder protège le journal, **pas** cette sortie. Aucune variable d'environnement de l'hôte n'entre dans le conteneur (pas de `--env` hôte, `docker exec` sans `-e`) : pas de jeton ni de clé SSH à voler sur place.
+- **Ce qui peut entrer** : code arbitraire téléchargé (`npm install` exécute des scripts `postinstall`). Il s'exécute dans la frontière inchangée (non root, sans capacité) ; le risque nouveau est l'exfiltration et le rebond réseau, pas l'évasion.
+- **Hôte et LAN** : sous Docker Desktop, `host.docker.internal` / la passerelle (`192.168.65.254`) mènent aux services de l'hôte Windows, **y compris ceux qui écoutent sur 127.0.0.1** ; le LAN et les métadonnées d'un éventuel nuage sont joignables. `--add-host host.docker.internal:…` ne neutralise que le nom, pas l'adresse : **écarté** (fausse sécurité). Le code ne peut pas filtrer le trafic sortant sans capacité réseau ni pare-feu hôte ; c'est un risque résiduel assumé, pas une mesure.
+- **Mesures retenues (vérifiables par le code)** :
+  1. **Démon Docker exposé** : avant de créer un bac à sable `bridge`, le moteur tente une connexion TCP sur `127.0.0.1:2375` (option Docker Desktop « Expose daemon on tcp://localhost:2375 without TLS ») ; connexion acceptée → refus `sandbox.networkUnsafe` (`{ port: 2375 }`), fail-closed. Un démon joignable depuis le conteneur vaudrait accès complet à l'hôte.
+  2. **Serveur local de l'adaptateur** : tout serveur HTTP local du moteur (ex. `opencode serve`) est joignable depuis le conteneur via la passerelle. S'il permet de répondre aux demandes de permission sans authentification, un processus du bac à sable pourrait **s'auto-approuver** et contourner la gate (invariant). Tant qu'il n'est pas établi que ce serveur exige un secret par run absent du conteneur, `bridge` est **refusé avec l'adaptateur OpenCode** (`sandbox.networkUnsafe`, `{ reason: "adapterServer" }`). L'adaptateur Claude (stdio) n'est pas concerné. À lever par N0.
+  3. Le conteneur ne reçoit jamais de port publié, d'`ExtraHosts`, ni de DNS imposé par une entrée non opérateur (vérifié, H.3).
+- **Risques résiduels (écrits noir sur blanc)** : (a) exfiltration de tout ce que le modèle a vu, par n'importe quelle exécution approuvée ou couverte par une règle `allow` ; (b) accès aux services de l'hôte Windows (y compris loopback) et du LAN, sans authentification propre à eux ; (c) code de dépendances non relu exécuté dans le conteneur ; (d) une règle `allow` à joker sur `npm`, `pip`, `cargo`, `git`, `curl` vaut désormais exécution de code distant **et** sortie réseau sans demande. Atténuations hors code, recommandées dans le README : n'activer `bridge` que pour un dépôt de confiance, ne pas laisser de service sans mot de passe écouter sur l'hôte, Enhanced Container Isolation si disponible.
+
+#### H.3 Vérification, journal, approbation
+
+- `inspectSandbox` reçoit la valeur choisie (registre, jamais l'entrée d'outil) et vérifie : `HostConfig.NetworkMode` égal à `none` ou `bridge` selon le choix ; `NetworkSettings.Networks` a **exactement une clé**, égale à ce choix (un `docker network connect` ultérieur ne change pas `NetworkMode` mais ajoute une clé : altération) ; `HostConfig.PortBindings` vide/nul, `PublishAllPorts` faux, `ExtraHosts` vide/nul ; `HOME` conforme à H.4. Écart → `sandbox.tampered`, comme le reste de A.
+- `sandbox.started.network` : passe du littéral `none` à `none | bridge` (validateur élargi, compatible avec les journaux existants). Pas de nouveau `kind`.
+- Approbation : la carte (extension) et la question (CLI) d'un `mcp__sandbox__exec` affichent « réseau activé » quand `bridge` ; l'en-tête de session l'affiche en permanence. **Pas de confirmation supplémentaire** à la première activation : le choix est déjà un acte explicite de l'opérateur au niveau machine, et une confirmation de plus s'ajoute à la fatigue d'approbation. La mémorisation (D) est inchangée.
+
+#### H.4 Utilisabilité sans privilège
+
+- **`HOME`** : l'utilisateur 65534 a `HOME=/nonexistent` (ou `/`) dans la plupart des images, d'où l'échec des caches `npm`, `pip`, `cargo`, `git config`. Le code passe **une seule** variable constante `--env HOME=/home/john` à `docker run` (exception unique et fixe à l'interdit `--env` de B, aucune valeur venant de l'opérateur ou du modèle) et l'initialisation crée `/home/john` comme `/work` (`mkdir -p`, `chmod 1777`). Pas sous `/work` : un `get /work` ne ramènerait pas des centaines de Mio de cache.
+- **`/tmp`** : déjà inscriptible (système de fichiers du conteneur non `--read-only`) ; pas de `tmpfs` (ajouterait un montage à vérifier sans besoin constaté).
+- **Limites** : `pids-limit 512` reste fixe (suffisant pour npm, pip, cargo). Mémoire et CPU deviennent réglables par l'opérateur : `--sandbox-memory` / `john.sandbox.memory` (défaut 2g, de 1g à 8g, swap égal à la mémoire) et `--sandbox-cpus` / `john.sandbox.cpus` (défaut 2, de 1 à 8) ; la valeur choisie est vérifiée par `inspect` et journalisée dans `limits`.
+- **Durée de vie** : si l'extension crée un run (donc un bac à sable) par message, `/work` disparaît entre deux messages, ce qui rend le développement impossible. Le bac à sable doit vivre **le temps de la session du moteur dans le même processus** (registre en mémoire toujours autorité, jamais de réadoption par label, Q4 inchangée sur ce point), supprimé à la fermeture de la conversation, à l'arrêt de l'extension et par le filet de sortie. À confirmer par N0.
+- **Image** : reste fournie par l'opérateur ; le README donne un exemple de `Dockerfile` (node, python, git, outils de compilation) à construire localement, l'utilisateur 65534 n'ayant pas besoin d'installer de paquets système.
+- **Hors périmètre** : publier un port vers l'hôte pour ouvrir un serveur de développement dans le navigateur (question de produit, H.6) ; installer des paquets système (exigerait root : exclu).
+
+#### H.5 Plan (N0 à N5)
+
+Ordre : N0 ; puis N1 et N2 en parallèle ; puis N3 ; N4 et N5 indépendants. Revue sécurité de l'architecte : **N1, N2, N3**.
+
+- **N0 — Faits (explorer).** (a) L'adaptateur OpenCode lance-t-il un serveur HTTP local ; sur quelle adresse ; avec quelle authentification ; peut-il répondre à une demande de permission ? (b) L'extension crée-t-elle un run par message ou par conversation, et quand le bac à sable est-il supprimé ? Rapport cité `fichier:ligne`.
+- **N1 — Cœur.** `sandbox.ts` : `network: "none" | "bridge"` dans les options de `createSandbox`, conservé dans `SandboxRecord` ; `runArgs` construit `--network <valeur>` et `--env HOME=/home/john` ; init crée `/home/john` ; `inspectSandbox` vérifie H.3 ; sonde `127.0.0.1:2375` avant `bridge` ; code `sandbox.networkUnsafe` (`REASON_CODES`, fr complet, en) ; validateur `sandbox.started` élargi. Critères : faux docker vérifiant l'argv **exact** de `run` pour `none` et `bridge` (aucune autre option ajoutée) ; `inspect` altéré → `sandbox.tampered` pour : `NetworkMode` `host`, `container:x`, autre nom, `bridge` quand `none` demandé ; deux clés dans `Networks` ; `PortBindings` non vide ; `PublishAllPorts` vrai ; `ExtraHosts` non vide ; `HOME` différent ; port 2375 en écoute (serveur de test) → `sandbox.networkUnsafe` et aucun `docker run` émis ; suite existante verte.
+- **N2 — CLI et extension (options).** `--sandbox-network`, `--sandbox-memory`, `--sandbox-cpus` dans `sandbox-options.ts` (refusés sans `--sandbox`, bornes de H.4) ; réglages `john.sandbox.network|memory|cpus` en portée `machine` dans le manifeste ; refus de `bridge` avec OpenCode tant que N0(a) ne l'a pas levé. Critères : tests de résolution (valeurs hors liste/bornes refusées, défauts `none`/2g/2) ; test que le manifeste déclare ces réglages en portée `machine`.
+- **N3 — Approbation et affichage.** Mention « réseau activé » sur la carte d'approbation `mcp__sandbox__exec`, la question CLI et l'en-tête de session ; libellés fr/en. Critères : test de rendu (présent si `bridge`, absent si `none`), neutralisation des séquences de contrôle inchangée.
+- **N4 — Durée de vie par conversation** (selon N0(b)). Critères : faux docker — deux messages successifs d'une même conversation utilisent le même identifiant ; fermeture de conversation et arrêt de l'extension émettent `rm -f` et `sandbox.stopped`.
+- **N5 — Documentation et validation réelle.** README (risques résiduels H.2, exemple de `Dockerfile`), tests opt-in `JOHN_DOCKER_TESTS=1` : `bridge` → `npm`/`curl` d'un site public réussit, `id -u` ≠ 0, CapEff nul ; `none` → résolution DNS impossible.
+
+#### H.6 Questions de produit (utilisateur)
+
+- **P1 — Défaut de l'extension** : `none` (recommandé : un réglage à poser une fois) ou `bridge` d'emblée ?
+- **P2 — Serveur de développement visible depuis le navigateur de l'hôte** (publication d'un port sur `127.0.0.1` uniquement) : recommandation **pas maintenant** ; l'agent peut lancer et tester le serveur dans le conteneur (`curl localhost`). À traiter dans un amendement séparé si le besoin est réel.
 
 ## Alternatives écartées
 
