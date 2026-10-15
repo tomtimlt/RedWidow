@@ -81,6 +81,66 @@ describe("politique de mcp__sandbox__exec", () => {
     expect(verdict(p, ["ls"], { cwd: "/work\0" }).decision).toBe("deny");
   });
 
+  it("cwd : absolu normalisé sous /work, sinon deny avec le bon champ", () => {
+    const p = policyOf({ tool: EXEC, decision: "allow" });
+    for (const cwd of [
+      "/",
+      "/etc",
+      "/work/../etc",
+      "/work//x",
+      "/work/",
+      "/work/./x",
+      "work",
+      "/workx",
+    ]) {
+      expect(verdict(p, ["ls"], { cwd })).toMatchObject({
+        decision: "deny",
+        reason: { code: "sandbox.invalidArgument", params: { field: "cwd" } },
+      });
+    }
+    expect(verdict(p, ["ls"], { cwd: "/work/sub/dir" }).decision).toBe("allow");
+    expect(verdict(p, "ls")).toMatchObject({ reason: { params: { field: "argv" } } });
+  });
+
+  it("deny : programme normalisé (chemin, casse, .exe)", () => {
+    const p = policyOf({ tool: EXEC, command: "rm *", decision: "deny" });
+    for (const a of ["rm", "/bin/rm", "RM", "rm.exe"])
+      expect(verdict(p, [a, "x"]).decision).toBe("deny");
+    for (const pat of ["/bin/rm *", "RM *", "rm.exe *"]) {
+      const q = policyOf({ tool: EXEC, command: pat, decision: "deny" });
+      expect(verdict(q, ["rm", "x"]).decision).toBe("deny");
+    }
+    // allow : pas de normalisation
+    const a = policyOf({ tool: EXEC, command: "/bin/ls *", decision: "allow" });
+    expect(verdict(a, ["ls", "x"]).decision).toBe("ask");
+  });
+
+  it("nouvelles enveloppes et interpréteurs", () => {
+    for (const a of [
+      "ash",
+      "awk",
+      "gawk",
+      "mawk",
+      "nawk",
+      "ionice",
+      "chroot",
+      "unshare",
+      "nsenter",
+      "flock",
+      "taskset",
+      "chrt",
+      "runuser",
+      "setpriv",
+      "strace",
+      "ltrace",
+      "gdb",
+      "expect",
+      "tclsh",
+    ]) {
+      expect(isInterpreterArgv([a, "x"])).toBe(true);
+    }
+  });
+
   it("DEFAULT_POLICY : exec demande, status n'est pas touché par S2", () => {
     expect(verdict(DEFAULT_POLICY, ["ls"]).decision).toBe("ask");
   });
@@ -99,10 +159,12 @@ describe("gate : mémorisation de mcp__sandbox__exec", () => {
     const asked: string[] = [];
     let answer: ApprovalAnswer = { decision: "allow", remember: "session" };
     const persisted: PolicyRule[] = [];
+    let hook: (() => void) | undefined;
     const gate = createApprovalGate({
       policy,
       recorder: createRecorder({ runId: "r" }),
       ask: async (r) => {
+        hook?.();
         asked.push(JSON.stringify(r.input));
         return answer;
       },
@@ -117,6 +179,9 @@ describe("gate : mémorisation de mcp__sandbox__exec", () => {
       decide,
       asked,
       persisted,
+      onAsk: (f: () => void) => {
+        hook = f;
+      },
       setAnswer: (a: ApprovalAnswer) => {
         answer = a;
       },
@@ -143,6 +208,18 @@ describe("gate : mémorisation de mcp__sandbox__exec", () => {
     id.current = B; // autre conteneur
     await s.decide({ argv: ["npm", "test"] });
     expect(s.asked).toHaveLength(4);
+  });
+
+  it("la clé de session est calculée une seule fois par decide", async () => {
+    const id = { current: A as string | undefined };
+    const s = setup(id);
+    s.onAsk(() => {
+      id.current = B; // le conteneur change pendant la question
+    });
+    await s.decide({ argv: ["ls"] });
+    id.current = A;
+    const again = await s.decide({ argv: ["ls"] });
+    expect(again.reason.code).toBe("approval.remembered");
   });
 
   it("l'identifiant du conteneur n'est jamais lu depuis l'entrée de l'outil", async () => {

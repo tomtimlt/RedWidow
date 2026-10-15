@@ -71,6 +71,7 @@ export const REASON_CODES = [
   "policy.invalid.rules",
   "policy.invalid.ruleObject",
   "policy.invalid.ruleField",
+  "policy.invalid.commandWildcard",
   "policy.repo.untrusted",
   "policy.repo.modified",
   // Docker et processus

@@ -324,6 +324,8 @@ export function unpackTar(buf: Buffer, limits?: TarLimits): TarEntry[] {
     }
   }
   if (pax !== null) return reject("pax");
+  // Bloc de fin obligatoire : deux blocs de zéros (une archive coupée entre deux entrées est refusée).
+  if (!ended || buf.length < pos + BLOCK) return reject("truncated");
   if (ended && !buf.subarray(pos).every((b) => b === 0)) return reject("malformed", "trailing");
   if (entries.length === 0) return reject("malformed", "empty");
   // Une seule racine ; aucun fichier ne sert de parent d'une autre entrée.

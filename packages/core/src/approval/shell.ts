@@ -163,6 +163,7 @@ const WRAPPERS = new Set([
   "zsh",
   "dash",
   "ksh",
+  "ash",
   "fish",
   "env",
   "xargs",
@@ -181,6 +182,24 @@ const WRAPPERS = new Set([
   "setsid",
   "stdbuf",
   "script",
+  "awk",
+  "gawk",
+  "mawk",
+  "nawk",
+  "ionice",
+  "chroot",
+  "unshare",
+  "nsenter",
+  "flock",
+  "taskset",
+  "chrt",
+  "runuser",
+  "setpriv",
+  "strace",
+  "ltrace",
+  "gdb",
+  "expect",
+  "tclsh",
   // Windows : interpréteurs et lanceurs qui exécutent une autre commande
   "cmd",
   "powershell",
@@ -257,6 +276,8 @@ export function matchCommand(
   if (trailing ? argv.length < fixed.length : argv.length !== fixed.length) return false;
   return fixed.every(
     (p, i) =>
-      p === "*" || p === argv[i] || (i === 0 && lenientProgram && p === programName(argv[0])),
+      p === "*" ||
+      p === argv[i] ||
+      (i === 0 && lenientProgram && programName(p) === programName(argv[0])),
   );
 }
