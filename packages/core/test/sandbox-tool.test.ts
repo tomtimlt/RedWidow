@@ -91,7 +91,8 @@ describe("toolset sandbox : exec", () => {
     expect(hang).toBeGreaterThan(-1);
     expect(restart).toBeGreaterThan(hang);
     expect(echo).toBeGreaterThan(restart);
-  });
+    // Plusieurs faux docker (processus Node) enchaînés : marge pour Windows sous charge.
+  }, 30_000);
 
   it("délai : restart appelé, sortie partielle rendue, sandbox.execTimeout", async () => {
     const { fake, call } = await setup();

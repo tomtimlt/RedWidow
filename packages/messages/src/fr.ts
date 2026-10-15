@@ -46,7 +46,7 @@ const IMAGE_REASONS: Readonly<Record<string, string>> = {
   missing: "aucune image fournie : --sandbox-image ou la configuration utilisateur",
   absent: "image absente en local, le moteur ne télécharge jamais d'image",
   noSleep: "l'image doit fournir sleep",
-  init: "l'image doit fournir mkdir et chown",
+  init: "l'image doit fournir mkdir et chmod",
 };
 
 /** Motifs de `sandbox.invalidArgument`. */

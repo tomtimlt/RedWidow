@@ -57,7 +57,7 @@ describe("createSandbox", () => {
       RUN_CALL,
       `container|inspect|${ID}|`,
       `exec|-u|0|${ID}|mkdir|-p|/work|`,
-      `exec|-u|0|${ID}|chown|65534:65534|/work|`,
+      `exec|-u|0|${ID}|chmod|1777|/work|`,
     ]);
     expect(ctx.registry.has(ID)).toBe(true);
     expect(sandboxEvents(events)).toMatchObject([
@@ -121,9 +121,9 @@ describe("createSandbox", () => {
     expect((await cancelled.fake.calls()).at(-1)).toBe("rm|--force|john-sbx-run1|");
   });
 
-  it("image sans chown : imageUnsupported, conteneur supprimé et désinscrit", async () => {
+  it("image sans chmod : imageUnsupported, conteneur supprimé et désinscrit", async () => {
     const { fake, ctx, events } = await setup();
-    await fake.control({ container: [goodInspect(RUN)], execFailsOn: "chown" });
+    await fake.control({ container: [goodInspect(RUN)], execFailsOn: "chmod" });
     await expect(createSandbox(ctx, { image: IMAGE })).rejects.toMatchObject({
       code: "sandbox.imageUnsupported",
       params: { reason: "init" },

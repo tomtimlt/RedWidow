@@ -286,7 +286,7 @@ export async function createSandbox(
     await inspectSandbox(ctx, id, call);
     for (const step of [
       ["mkdir", "-p", SANDBOX_WORKDIR],
-      ["chown", SANDBOX_USER, SANDBOX_WORKDIR],
+      ["chmod", "1777", SANDBOX_WORKDIR],
     ]) {
       const done = await docker(ctx, ["exec", "-u", "0", id, ...step], call);
       if (done.code !== 0) throw new CodedError("sandbox.imageUnsupported", { reason: "init" });
