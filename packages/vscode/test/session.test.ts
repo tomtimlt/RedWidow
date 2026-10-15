@@ -136,11 +136,49 @@ describe("session de chat", () => {
     expect(t.f.calls).toEqual([["prompt", "bonjour"]]);
     expect(t.view().busy).toBe(true);
     expect(t.view().sandbox).toBe("alpine:3.20");
+    expect(t.view().sandboxNetwork).toBe("none");
     // Pas de second message pendant un tour.
     await t.session.send("encore");
     expect(t.f.calls).toHaveLength(1);
     t.f.handlers.onEvent?.(ev({ kind: "turn.finished" }));
     expect(t.view().busy).toBe(false);
+  });
+
+  it("sandbox.started bridge : en-tête réseau ; autre valeur : éteint", async () => {
+    const t = setup({
+      settings: {
+        sandbox: {
+          image: "alpine:3.20",
+          timeoutSec: 60,
+          network: "none",
+          memory: "2g",
+          cpus: 2,
+        },
+      },
+    });
+    await t.session.send("go");
+    t.f.handlers.onEvent?.(
+      ev({
+        kind: "sandbox.started",
+        containerId: "c",
+        image: "alpine:3.20",
+        imageDigest: null,
+        network: "bridge",
+        limits: {},
+      }),
+    );
+    expect(t.view().sandboxNetwork).toBe("bridge");
+    t.f.handlers.onEvent?.(
+      ev({
+        kind: "sandbox.started",
+        containerId: "c",
+        image: "alpine:3.20",
+        imageDigest: null,
+        network: "host",
+        limits: {},
+      }),
+    );
+    expect(t.view().sandboxNetwork).toBe("bridge");
   });
 
   it("réglages invalides : erreur affichée, pas de moteur", async () => {

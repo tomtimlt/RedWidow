@@ -190,6 +190,7 @@
     box.setAttribute("aria-label", `Demande d'autorisation : ${card.label}`);
     const head = el("div", "card-title");
     head.append(el("span", "", `${card.label} : `), el("strong", "", card.summary || card.tool));
+    if (card.networkActive) head.append(document.createTextNode(" · réseau activé"));
     box.append(head, el("div", "card-reason", card.reason));
     const det = el("details", "card-details");
     det.append(el("summary", "", "Détails"), el("pre", "", card.detail));
@@ -399,7 +400,7 @@
     paintActive();
   }
 
-  function renderControls(c, sandbox) {
+  function renderControls(c, sandbox, sandboxNetwork) {
     ctlGroup.hidden = !c;
     ctl = c;
     if (!c) {
@@ -462,7 +463,9 @@
     );
     $("cfg-sandbox").textContent = sandbox ?? "Désactivé";
     $("cfg-sandbox").title = sandbox ?? "";
-    $("cfg-network").textContent = sandbox ? "Coupé" : "Sans objet";
+    if (!sandbox) $("cfg-network").textContent = "Sans objet";
+    else if (sandboxNetwork === "bridge") $("cfg-network").textContent = "réseau activé";
+    else $("cfg-network").textContent = "Coupé";
   }
 
   wirePop(modelPop, modelChip, {
@@ -626,7 +629,7 @@
   motion.addEventListener("change", applyBody);
 
   function render(view) {
-    renderControls(view.controls, view.sandbox);
+    renderControls(view.controls, view.sandbox, view.sandboxNetwork);
     renderHistory(view.history);
     renderReadonly(view.readonly);
     const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
@@ -641,7 +644,12 @@
     for (const c of view.approvals) seenCards.add(c.toolUseId);
     if (fresh >= 0) cards[fresh]?.focus();
     const sb = $("sandbox");
-    sb.textContent = view.sandbox ? `Bac à sable : ${view.sandbox}` : "";
+    if (view.sandbox) {
+      sb.textContent =
+        view.sandboxNetwork === "bridge"
+          ? `Bac à sable : ${view.sandbox} · réseau activé`
+          : `Bac à sable : ${view.sandbox}`;
+    } else sb.textContent = "";
     sb.hidden = !view.sandbox;
     send.disabled = view.busy || !!view.readonly;
     input.disabled = !!view.readonly;

@@ -69,6 +69,29 @@ describe("affichage neutralisé", () => {
     expect(hasControl(formatEvent(started, opts) ?? "")).toBe(false);
   });
 
+  it("question exec en bridge : littéral réseau activé ; none ou autre outil : absent", async () => {
+    const run = async (network: "none" | "bridge" | undefined, tool: string): Promise<string> => {
+      const input = new PassThrough();
+      const output = new PassThrough();
+      let shown = "";
+      output.on("data", (c) => {
+        shown += String(c);
+      });
+      const ask = createTerminalAsker(input, output, network);
+      const pending = ask(
+        { toolUseId: "t", tool, input: { command: "ls" } },
+        { decision: "ask", reason: { code: "policy.default", params: { tool } }, rule: null },
+        new AbortController().signal,
+      );
+      input.write("n\n");
+      await pending;
+      return shown;
+    };
+    expect(await run("bridge", "mcp__sandbox__exec")).toContain("réseau activé");
+    expect(await run("none", "mcp__sandbox__exec")).not.toContain("réseau activé");
+    expect(await run("bridge", "Bash")).not.toContain("réseau activé");
+  });
+
   it("la question d'approbation affiche l'argv neutralisé", async () => {
     const input = new PassThrough();
     const output = new PassThrough();

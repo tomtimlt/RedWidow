@@ -42,6 +42,20 @@ describe("toCard", () => {
         .canRemember,
     ).toBe(false);
   });
+  it("réseau bridge : networkActive seulement pour mcp__sandbox__exec", () => {
+    const exec = { argv: ["ls"], cwd: "/work" };
+    expect(
+      toCard(pending("mcp__sandbox__exec", exec, verdict("sandbox.interpreter")), true)
+        .networkActive,
+    ).toBe(true);
+    expect(
+      toCard(pending("mcp__sandbox__put", exec, verdict("policy.default")), true).networkActive,
+    ).toBeUndefined();
+    expect(
+      toCard(pending("mcp__sandbox__exec", exec, verdict("sandbox.interpreter")), false)
+        .networkActive,
+    ).toBeUndefined();
+  });
   it("bac à sable : seul exec est mémorisable (pour la session)", () => {
     const exec = { argv: ["ls"], cwd: "/work" };
     expect(

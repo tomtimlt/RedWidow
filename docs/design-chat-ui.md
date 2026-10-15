@@ -78,5 +78,5 @@ Interdits pour tous les lots : nouvelle dépendance (police, framework, codicons
 ## Questions ouvertes (réponses, 2026-10-15)
 
 - `workbench.reduceMotion` : le média `prefers-reduced-motion` honoré par la webview suffit (interrupteur CSS, plus la classe `reduce-motion` pilotée par `matchMedia`). Pas de champ `reduceMotion` dans la vue.
-- État réseau du bac à sable : absent de la vue. La colonne « Exécution » affiche l'image du bac à sable (ou « Désactivé ») et « Réseau : Coupé » si un bac à sable est actif (l'extension ne propose pas le profil bridge de l'ADR 0003 §H), « Sans objet » sinon.
+- État réseau : champ `sandboxNetwork` (`none` | `bridge` | `null`) dans la vue. Colonne « Réseau » : « réseau activé » si `bridge`, « Coupé » si bac à sable actif en `none`, « Sans objet » sans bac à sable ; l'en-tête reprend « réseau activé » seulement en `bridge`.
 - Écarts : les « points de pulsation » du thinking ne sont pas réalisés (budget de 3 animations infinies : spinner, curseur, scanline). Les popovers s'ouvrent par `popovertarget` (activation déclarative) et `beforetoggle` refuse l'ouverture quand le modèle est verrouillé.

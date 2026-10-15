@@ -1,6 +1,7 @@
 import {
   isRememberable,
   type PendingApproval,
+  SANDBOX_EXEC_TOOL,
   SANDBOX_TOOL_PREFIX,
   stripControl,
 } from "@john-studio/core";
@@ -24,6 +25,8 @@ export interface ApprovalCard {
   reason: string;
   /** « Toujours » est proposé seulement si le verdict est mémorisable (prédicat du cœur). */
   canRemember: boolean;
+  /** Littéral d'affichage : exec en réseau bridge uniquement. */
+  networkActive?: true;
 }
 
 /** Texte non fiable destiné à l'affichage : contrôles et bidi retirés (`stripControl` du cœur), plafonné. */
@@ -38,15 +41,17 @@ export function describeInput(input: Record<string, unknown>, max = MAX_DETAIL_C
   return cleanText(text, max);
 }
 
-export function toCard(pending: PendingApproval): ApprovalCard {
+export function toCard(pending: PendingApproval, sandboxNetworkBridge = false): ApprovalCard {
+  const tool = cleanText(pending.tool, 200);
   return {
     toolUseId: pending.toolUseId,
-    tool: cleanText(pending.tool, 200),
-    label: toolLabel(cleanText(pending.tool, 200)),
+    tool,
+    label: toolLabel(tool),
     summary: summarizeInput(pending.input, 200),
     detail: describeInput(pending.input),
     reason: cleanText(formatReason(pending.verdict.reason), 1000),
     canRemember: pending.verdict.decision === "ask" && isRememberable(pending, pending.verdict),
+    ...(sandboxNetworkBridge && pending.tool === SANDBOX_EXEC_TOOL && { networkActive: true }),
   };
 }
 

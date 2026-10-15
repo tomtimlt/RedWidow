@@ -67,6 +67,8 @@ export interface ChatView {
   busy: boolean;
   /** Image du bac à sable du run, si activé. */
   sandbox: string | null;
+  /** Profil réseau du bac à sable (`none` ou `bridge`), ou absent si désactivé / inconnu. */
+  sandboxNetwork: "none" | "bridge" | null;
   /** Sélecteurs de modèle et d'effort (absents tant que la session ne les a pas calculés). */
   controls: ChatControls | null;
   history: HistoryEntry[];
@@ -80,6 +82,7 @@ export function createChatState() {
   const approvals = new Map<string, ApprovalCard>();
   let busy = false;
   let sandbox: string | null = null;
+  let sandboxNetwork: "none" | "bridge" | null = null;
   let controls: ChatControls | null = null;
   let history: HistoryEntry[] = [];
   let readonly: ReadonlyInfo | null = null;
@@ -118,6 +121,13 @@ export function createChatState() {
     },
     setSandbox(image: string | null) {
       sandbox = image === null ? null : cleanText(image, 300);
+      if (image === null) sandboxNetwork = null;
+    },
+    setSandboxNetwork(network: "none" | "bridge" | null) {
+      sandboxNetwork = network;
+    },
+    get sandboxNetwork() {
+      return sandboxNetwork;
     },
     user: (text: string) => push({ kind: "user", text: cleanText(text, 100_000) }),
     notice,
@@ -127,6 +137,7 @@ export function createChatState() {
       approvals.clear();
       busy = false;
       readonly = null;
+      sandboxNetwork = null;
     },
     /** Traduit un événement du moteur en éléments de vue. */
     event(e: EngineEvent) {
@@ -173,6 +184,7 @@ export function createChatState() {
           notice(formatError(e), "error");
           return;
         case "sandbox.started":
+          if (e.network === "none" || e.network === "bridge") sandboxNetwork = e.network;
           notice(`Bac à sable prêt : ${e.image}`);
           return;
         default:
@@ -185,6 +197,7 @@ export function createChatState() {
         approvals: readonly ? [] : [...approvals.values()],
         busy,
         sandbox,
+        sandboxNetwork,
         controls,
         history,
         readonly,

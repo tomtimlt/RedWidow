@@ -21,6 +21,7 @@ export function parseAnswer(text: string): ApprovalAnswer {
 export function createTerminalAsker(
   input: NodeJS.ReadableStream = process.stdin,
   output: NodeJS.WritableStream = process.stderr,
+  network?: "none" | "bridge",
 ): Asker {
   let queue: Promise<unknown> = Promise.resolve();
 
@@ -33,8 +34,10 @@ export function createTerminalAsker(
             ? request.input.command
             : JSON.stringify(request.input),
         );
+        const networkHint =
+          network === "bridge" && request.tool === "mcp__sandbox__exec" ? " · réseau activé" : "";
         const answer = await rl.question(
-          `\n? ${request.tool} : ${detail}\n  ${stripControl(formatReason(verdict.reason))}\n  Autoriser ? [o]ui une fois / [s]ession / [t]oujours / [N]on `,
+          `\n? ${request.tool} : ${detail}${networkHint}\n  ${stripControl(formatReason(verdict.reason))}\n  Autoriser ? [o]ui une fois / [s]ession / [t]oujours / [N]on `,
           { signal },
         );
         return parseAnswer(answer);

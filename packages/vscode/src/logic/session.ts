@@ -234,6 +234,8 @@ export function createChatSession(deps: ChatSessionDeps) {
       clampNotice(picked.key, picked.clampedTo);
     const token = await deps.getToken();
     state.setSandbox(settings.sandbox?.image ?? null);
+    const cfgNet = settings.sandbox?.network;
+    state.setSandboxNetwork(cfgNet === "none" || cfgNet === "bridge" ? cfgNet : null);
     refresh();
     stopping = false;
     const ctl = make({
@@ -265,7 +267,10 @@ export function createChatSession(deps: ChatSessionDeps) {
         },
         onApproval: (pending) => {
           if (detached.has(ctl)) return;
-          state.approvals.set(pending.toolUseId, toCard(pending));
+          state.approvals.set(
+            pending.toolUseId,
+            toCard(pending, state.sandboxNetwork === "bridge"),
+          );
           refresh();
         },
         onEnded: (summary) => {
