@@ -92,6 +92,12 @@ export const REASON_CODES = [
   "sandbox.unknownContainer",
   "sandbox.imageUnsupported",
   "sandbox.invalidArgument",
+  // Extension VS Code : moteur enfant et protocole IPC (ADR 0004)
+  "extension.binaryMismatch",
+  "ipc.invalidMessage",
+  "ipc.unsupportedVersion",
+  "ipc.startTimeout",
+  "ipc.engineExited",
   "sandbox.interpreter",
   "sandbox.tarRejected",
   // Journal et événements

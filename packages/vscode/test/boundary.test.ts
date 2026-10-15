@@ -11,9 +11,25 @@ function files(dir: string): string[] {
   );
 }
 
+// Statique, dynamique (`import("vscode")`, `import( 'vscode' )`) et `require("vscode")`.
+const importVscode = /(?:from|import|require)\s*\(?\s*["'`]vscode["'`]/;
+
 describe("frontière vscode (ADR 0004)", () => {
+  it("le détecteur reconnaît les imports dynamiques et statiques", () => {
+    for (const code of [
+      'import("vscode")',
+      "import( 'vscode' )",
+      "await import(`vscode`)",
+      'require("vscode")',
+      'import * as v from "vscode"',
+      'import "vscode"',
+    ]) {
+      expect(importVscode.test(code), code).toBe(true);
+    }
+    expect(importVscode.test('import "vscode-uri"')).toBe(false);
+  });
+
   it("aucun import de `vscode` hors de src/extension", () => {
-    const importVscode = /(?:from|import|require\()\s*["']vscode["']/;
     const fautifs = files(src)
       .filter((f) => !relative(src, f).replaceAll("\\", "/").startsWith("extension/"))
       .filter((f) => importVscode.test(readFileSync(f, "utf8")))
@@ -22,7 +38,6 @@ describe("frontière vscode (ADR 0004)", () => {
   });
 
   it("l'extension, elle, importe bien vscode (le détecteur n'est pas aveugle)", () => {
-    const importVscode = /(?:from|import|require\()\s*["']vscode["']/;
     expect(importVscode.test(readFileSync(join(src, "extension", "extension.ts"), "utf8"))).toBe(
       true,
     );

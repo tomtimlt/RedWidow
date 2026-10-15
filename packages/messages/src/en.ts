@@ -44,6 +44,14 @@ export const reasons: Catalog = {
   "budget.exceeded": (p) => `spending limit exceeded: $${text(p.spent)} spent of $${text(p.limit)}`,
   "opencode.noModel": () =>
     'no model: pass --model provider/model (or set "model" in the OpenCode configuration)',
+  "extension.binaryMismatch": () =>
+    "claude binary missing or tampered with (SHA-256 mismatch): denied",
+  "ipc.invalidMessage": (p) => `invalid engine message (${text(p.field)}): ignored`,
+  "ipc.unsupportedVersion": (p) =>
+    `unsupported protocol version (${text(p.version)}, expected ${text(p.known)})`,
+  "ipc.startTimeout": (p) => `engine did not start within ${text(p.seconds)} s`,
+  "ipc.engineExited": (p) =>
+    `engine exited (${p.signal === undefined ? `code ${text(p.code)}` : `signal ${text(p.signal)}`})`,
   "shell.unclosedQuote": (p) => `unclosed quote ${text(p.quote)}`,
   "shell.trailingBackslash": () => "trailing backslash",
   "error.unknown": (p) => (p.message === undefined ? "unknown error" : text(p.message)),

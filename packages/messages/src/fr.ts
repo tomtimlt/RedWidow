@@ -139,6 +139,14 @@ export const reasons: Catalog = {
 
   "opencode.unsafeConfig": (p) =>
     `configuration OpenCode trop permissive (${text(p.setting)}) : john-studio exige « ask » ou « deny » pour tous les outils`,
+  "extension.binaryMismatch": () =>
+    "binaire claude absent ou altéré (empreinte SHA-256 différente) : refusé",
+  "ipc.invalidMessage": (p) => `message du moteur invalide (${text(p.field)}) : ignoré`,
+  "ipc.unsupportedVersion": (p) =>
+    `version de protocole non prise en charge (${text(p.version)}, attendue ${text(p.known)})`,
+  "ipc.startTimeout": (p) => `le moteur n'a pas démarré en ${text(p.seconds)} s`,
+  "ipc.engineExited": (p) =>
+    `moteur terminé (${p.signal === undefined ? `code ${text(p.code)}` : `signal ${text(p.signal)}`})`,
   "opencode.noModel": () =>
     "aucun modèle : indiquez --model fournisseur/modèle (ou « model » dans la configuration OpenCode)",
   "opencode.invalidModel": (p) =>

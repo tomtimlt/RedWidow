@@ -45,6 +45,24 @@ await build({
   },
   logLevel: "warning",
 });
+// Moteur de production (E2) : l'empreinte du binaire est embarquée par `define`, pas lue sur disque.
+await build({
+  entryPoints: [join(pkgDir, "src/engine/main.ts")],
+  outfile: join(stage, "run-engine.mjs"),
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "node22",
+  banner: {
+    js: "import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);",
+  },
+  define: {
+    __CLAUDE_SHA256__: JSON.stringify(
+      createHash("sha256").update(readFileSync(nativeExe)).digest("hex"),
+    ),
+  },
+  logLevel: "warning",
+});
 await build({
   entryPoints: [join(pkgDir, "src/extension/extension.ts")],
   outfile: join(stage, "extension.cjs"),
