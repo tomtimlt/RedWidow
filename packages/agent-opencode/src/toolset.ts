@@ -5,10 +5,6 @@ import {
   type DockerToolSpec,
   dockerToolSpecs,
   type Recorder,
-  SANDBOX_SERVER_INSTRUCTIONS,
-  SANDBOX_SERVER_NAME,
-  type SandboxContext,
-  sandboxToolSpecs,
 } from "@john-studio/core";
 
 /** Contexte fourni à un toolset à chaque run. */
@@ -47,17 +43,5 @@ export function dockerToolset(options: DockerToolsetOptions = {}): OpencodeTools
           ...(options.argsPrefix && { argsPrefix: options.argsPrefix }),
         }),
       ),
-  };
-}
-
-/**
- * Toolset `sandbox` (`mcp__sandbox__exec`) : l'identifiant du conteneur vient du registre de `context`,
- * jamais de l'entrée de l'outil ; les exécutions sont sérialisées par run.
- */
-export function sandboxToolset(options: { context: SandboxContext }): OpencodeToolset {
-  return {
-    name: SANDBOX_SERVER_NAME,
-    instructions: SANDBOX_SERVER_INSTRUCTIONS,
-    create: () => sandboxToolSpecs(options.context),
   };
 }

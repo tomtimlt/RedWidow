@@ -5,31 +5,27 @@ import { join, resolve } from "node:path";
 import {
   createOpencodeRunner,
   dockerToolset as opencodeDockerToolset,
-  sandboxToolset as opencodeSandboxToolset,
 } from "@john-studio/agent-opencode";
-import { createSdkRunner, dockerToolset, sandboxToolset } from "@john-studio/agent-sdk";
+import { createSdkRunner, dockerToolset } from "@john-studio/agent-sdk";
 import {
   type AgentRunner,
   type AuthMode,
-  activeSandboxId,
   buildGraph,
   createApprovalGate,
   createDockerClient,
   createRecorder,
-  createSandbox,
-  createSandboxContext,
   defaultConfigDir,
   type EngineEvent,
   evaluatePolicy,
+  link as linkProject,
   loadPolicy,
   openJournal,
-  pruneSandboxes,
   REPO_POLICY_PATH,
   readJournal,
-  removeAllSandboxes,
   resolveBinary,
   safeEnv,
   splitRuns,
+  status,
   trustPolicy,
 } from "@john-studio/core";
 import { renderGraphHtml } from "@john-studio/export-html";
@@ -38,12 +34,6 @@ import { Command, InvalidArgumentError } from "commander";
 import { createTerminalAsker } from "./ask.js";
 import { colorEnabled, describeAuthIntent, formatEvent, formatRunList } from "./format.js";
 import { appendUserRule } from "./policy-store.js";
-import {
-  assertSandboxNetworkAllowed,
-  MAX_SANDBOX_TIMEOUT_SEC,
-  resolveSandboxOptions,
-} from "./sandbox-options.js";
-import { stripControl } from "./sanitize.js";
 
 /** Libellé de la politique intégrée (`LoadedPolicy.source` vaut `null`). */
 const BUILTIN_SOURCE = "intégrée";
@@ -69,20 +59,6 @@ const parseAgentArg = (value: string): AgentName => {
     throw new InvalidArgumentError("claude ou opencode attendu");
   }
   return value as AgentName;
-};
-
-const parseSandboxTimeoutArg = (value: string) => {
-  const n = Number.parseInt(value, 10);
-  if (!Number.isInteger(n) || n <= 0 || n > MAX_SANDBOX_TIMEOUT_SEC)
-    throw new InvalidArgumentError(`entier entre 1 et ${MAX_SANDBOX_TIMEOUT_SEC} attendu`);
-  return n;
-};
-
-const parseSandboxCpusArg = (value: string) => {
-  const n = Number.parseInt(value, 10);
-  if (!Number.isInteger(n) || n < 1 || n > 8)
-    throw new InvalidArgumentError("entier entre 1 et 8 attendu");
-  return n;
 };
 
 const parseListArg = (value: string) =>
@@ -140,26 +116,6 @@ program
     "--allow-bash",
     "exposer l'outil natif Bash (désactivé par défaut ; reste soumis à la politique)",
   )
-  .option(
-    "--sandbox",
-    "activer le bac à sable Docker du run (outil mcp__sandbox__exec ; utilisateur non privilégié)",
-  )
-  .option(
-    "--sandbox-image <image>",
-    "image locale du bac à sable (obligatoire avec --sandbox, jamais téléchargée, de préférence épinglée par digest)",
-  )
-  .option("--sandbox-network <mode>", "réseau du bac à sable : none (défaut) ou bridge")
-  .option("--sandbox-memory <taille>", "mémoire du bac à sable : 1g à 8g (défaut 2g)")
-  .option(
-    "--sandbox-cpus <n>",
-    "CPU du bac à sable : entier de 1 à 8 (défaut 2)",
-    parseSandboxCpusArg,
-  )
-  .option(
-    "--sandbox-timeout <s>",
-    `délai maximal d'une exécution du bac à sable, en secondes (défaut 600, maximum ${MAX_SANDBOX_TIMEOUT_SEC})`,
-    parseSandboxTimeoutArg,
-  )
   .option("--non-interactive", "refuser les cas « ask » au lieu de demander")
   .option(
     "--approval-timeout <s>",
@@ -177,18 +133,9 @@ program
   .option("--system-prompt <texte>", "texte ajouté au prompt système")
   .option("-v, --verbose", "afficher la sortie des processus")
   .action(async (words: string[], opts) => {
-    // Options du bac à sable validées avant tout effet de bord (journal, politique).
-    const sandboxOpts = resolveSandboxOptions(opts);
     const cwd = process.cwd();
     const { policy, source, warning } = await loadPolicy({ explicit: opts.policy, cwd });
     const recorder = createRecorder();
-    const sandboxCtx = sandboxOpts
-      ? createSandboxContext({
-          recorder,
-          binary: opts.docker,
-          maxTimeoutSec: sandboxOpts.timeoutSec,
-        })
-      : undefined;
     const journalPath = resolve(
       cwd,
       opts.journal ?? join(".john-studio", "runs", `${recorder.runId}.jsonl`),
@@ -205,12 +152,8 @@ program
       // Sous win32, Bash n'est analysable que si c'est réellement Git Bash : c'est le cas de Claude
       // (qui l'exige) ; le bash d'OpenCode peut être cmd ou PowerShell, donc rien n'est déclaré.
       workspace: { cwd, ...(opts.agent !== "opencode" && { posixShell: true }) },
-      ...(interactive && {
-        ask: createTerminalAsker(process.stdin, process.stderr, sandboxOpts?.network),
-      }),
+      ...(interactive && { ask: createTerminalAsker(process.stdin, process.stderr) }),
       ...(opts.approvalTimeout && { timeoutMs: Math.round(opts.approvalTimeout * 1000) }),
-      // Identifiant fourni par le registre (ADR 0003 D), jamais par l'entrée d'un outil.
-      ...(sandboxCtx && { sandboxContainerId: () => activeSandboxId(sandboxCtx) }),
       persistRule: async (rule) => {
         const path = await appendUserRule(configDir, rule, policy);
         process.stderr.write(`règle ajoutée à la politique utilisateur : ${path}\n`);
@@ -240,19 +183,6 @@ program
     if (warning) process.stderr.write(`attention : ${formatReason(warning)}\n`);
 
     try {
-      if (sandboxCtx && sandboxOpts) {
-        assertSandboxNetworkAllowed(opts.agent, sandboxOpts.network);
-        await createSandbox(sandboxCtx, {
-          image: sandboxOpts.image,
-          network: sandboxOpts.network,
-          memory: sandboxOpts.memory,
-          cpus: sandboxOpts.cpus,
-          signal: abort.signal,
-        });
-        process.stderr.write(
-          `bac à sable : ${sandboxOpts.image} (${sandboxOpts.network === "bridge" ? "réseau activé" : "réseau coupé"})\n`,
-        );
-      }
       const runner: AgentRunner =
         opts.agent === "opencode"
           ? createOpencodeRunner({
@@ -260,7 +190,6 @@ program
                 ...(opts.dockerTools === false
                   ? []
                   : [opencodeDockerToolset({ binary: opts.docker })]),
-                ...(sandboxCtx ? [opencodeSandboxToolset({ context: sandboxCtx })] : []),
               ],
               bash: Boolean(opts.allowBash),
               ...(opts.opencodeBin && { binary: opts.opencodeBin }),
@@ -273,7 +202,6 @@ program
           : createSdkRunner({
               toolsets: [
                 ...(opts.dockerTools === false ? [] : [dockerToolset({ binary: opts.docker })]),
-                ...(sandboxCtx ? [sandboxToolset({ context: sandboxCtx })] : []),
               ],
               bash: Boolean(opts.allowBash),
             });
@@ -299,11 +227,7 @@ program
       process.exitCode = summary.status === "success" ? 0 : 1;
     } finally {
       cleaning = true;
-      // Conteneur supprimé en fin de run, sur Ctrl-C et sur erreur, avant la fermeture du journal
-      // (pour y consigner `sandbox.stopped`). Un second Ctrl-C passe par le filet de sortie synchrone.
       try {
-        if (sandboxCtx)
-          await removeAllSandboxes(sandboxCtx, abort.signal.aborted ? "abort" : "runEnd");
         await journal.close();
       } finally {
         process.off("SIGINT", onSigint);
@@ -440,32 +364,6 @@ program
   });
 
 program
-  .command("sandbox")
-  .description("Gérer les bacs à sable Docker.")
-  .command("prune")
-  .description(
-    "Supprimer les conteneurs portant le label des bacs à sable (orphelins d'un run interrompu).",
-  )
-  .option("--docker <bin>", "binaire docker", "docker")
-  .option("--yes", "supprimer réellement (sinon, liste seulement)")
-  .action(async (opts) => {
-    const ctx = createSandboxContext({ recorder: createRecorder(), binary: opts.docker });
-    const { found, removed, failed } = await pruneSandboxes(ctx, { remove: Boolean(opts.yes) });
-    for (const c of found) process.stdout.write(`${c.id}\t${stripControl(c.name)}\n`);
-    if (!opts.yes) {
-      process.stderr.write(
-        `${found.length} conteneur(s) à supprimer : relancer avec --yes pour les supprimer\n`,
-      );
-      return;
-    }
-    process.stderr.write(`${removed.length} conteneur(s) supprimé(s)\n`);
-    if (failed.length > 0) {
-      process.stderr.write(`échec de suppression : ${failed.join(", ")}\n`);
-      process.exitCode = 1;
-    }
-  });
-
-program
   .command("ps")
   .description("Lister les conteneurs.")
   .option("-a, --all", "inclure les conteneurs arrêtés")
@@ -477,6 +375,29 @@ program
     for (const c of containers) {
       process.stdout.write(`${c.id}\t${c.name}\t${c.image}\t${c.state}\t${c.status}\n`);
     }
+  });
+
+program
+  .command("link")
+  .description("Lier le projet actif à un conteneur Exegol déjà en cours.")
+  .argument("<nom>", "nom du conteneur")
+  .option("--docker <bin>", "binaire docker", "docker")
+  .action(async (name: string, opts) => {
+    const recorder = createRecorder();
+    const docker = createDockerClient({ recorder, binary: opts.docker });
+    await linkProject(defaultConfigDir(), name, docker);
+    process.stdout.write(`lié : ${name}\n`);
+  });
+
+program
+  .command("status")
+  .description("Afficher l'état du conteneur lié au projet actif.")
+  .option("--docker <bin>", "binaire docker", "docker")
+  .action(async (opts) => {
+    const recorder = createRecorder();
+    const docker = createDockerClient({ recorder, binary: opts.docker });
+    const s = await status(defaultConfigDir(), docker);
+    process.stdout.write(`${s.container}\t${s.state}\t${s.image ?? ""}\t${s.workspace}\n`);
   });
 
 program.parseAsync().catch((err: unknown) => {

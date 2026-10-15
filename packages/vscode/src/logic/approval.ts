@@ -1,10 +1,4 @@
-import {
-  isRememberable,
-  type PendingApproval,
-  SANDBOX_EXEC_TOOL,
-  SANDBOX_TOOL_PREFIX,
-  stripControl,
-} from "@john-studio/core";
+import { isRememberable, type PendingApproval, stripControl } from "@john-studio/core";
 import { formatReason } from "@john-studio/messages";
 import { summarizeInput, toolLabel } from "./present.js";
 
@@ -25,8 +19,6 @@ export interface ApprovalCard {
   reason: string;
   /** « Toujours » est proposé seulement si le verdict est mémorisable (prédicat du cœur). */
   canRemember: boolean;
-  /** Littéral d'affichage : exec en réseau bridge uniquement. */
-  networkActive?: true;
 }
 
 /** Texte non fiable destiné à l'affichage : contrôles et bidi retirés (`stripControl` du cœur), plafonné. */
@@ -41,7 +33,7 @@ export function describeInput(input: Record<string, unknown>, max = MAX_DETAIL_C
   return cleanText(text, max);
 }
 
-export function toCard(pending: PendingApproval, sandboxNetworkBridge = false): ApprovalCard {
+export function toCard(pending: PendingApproval): ApprovalCard {
   const tool = cleanText(pending.tool, 200);
   return {
     toolUseId: pending.toolUseId,
@@ -51,7 +43,6 @@ export function toCard(pending: PendingApproval, sandboxNetworkBridge = false): 
     detail: describeInput(pending.input),
     reason: cleanText(formatReason(pending.verdict.reason), 1000),
     canRemember: pending.verdict.decision === "ask" && isRememberable(pending, pending.verdict),
-    ...(sandboxNetworkBridge && pending.tool === SANDBOX_EXEC_TOOL && { networkActive: true }),
   };
 }
 
@@ -66,10 +57,7 @@ export function answerFor(choice: Choice): {
 
 /** Texte de la confirmation modale native (hors webview) exigée pour « Toujours ». */
 export function alwaysConfirmText(card: ApprovalCard): string {
-  const scope = card.tool.startsWith(SANDBOX_TOOL_PREFIX)
-    ? "pour la durée de cette conversation (bac à sable éphémère)"
-    : "pour la durée de cette conversation (la persistance sur disque n'est pas encore disponible)";
-  return `Autoriser « ${card.tool} » sans redemander, ${scope} ?\n\n${card.detail.slice(0, 300)}`;
+  return `Autoriser « ${card.tool} » sans redemander, pour la durée de cette conversation (la persistance sur disque n'est pas encore disponible) ?\n\n${card.detail.slice(0, 300)}`;
 }
 
 export const MAX_WEBVIEW_TEXT = 100_000;

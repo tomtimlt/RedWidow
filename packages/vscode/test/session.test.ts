@@ -108,13 +108,6 @@ describe("session de chat", () => {
       settings: {
         model: "m",
         maxTurns: 3,
-        sandbox: {
-          image: "alpine:3.20",
-          timeoutSec: 60,
-          network: "none",
-          memory: "2g",
-          cpus: 2,
-        },
       },
     });
     await t.session.send("bonjour");
@@ -123,20 +116,12 @@ describe("session de chat", () => {
       auth: "subscription",
       model: "m",
       maxTurns: 3,
-      sandbox: {
-        image: "alpine:3.20",
-        timeoutSec: 60,
-        network: "none",
-        memory: "2g",
-        cpus: 2,
-      },
     });
     expect(JSON.stringify(t.f.started)).not.toContain("sk-secret");
     expect(t.f.options.auth).toEqual({ name: "CLAUDE_CODE_OAUTH_TOKEN", value: "sk-secret" });
     expect(t.f.calls).toEqual([["prompt", "bonjour"]]);
     expect(t.view().busy).toBe(true);
-    expect(t.view().sandbox).toBe("alpine:3.20");
-    expect(t.view().sandboxNetwork).toBe("none");
+    expect(t.view().sandbox).toBeNull();
     // Pas de second message pendant un tour.
     await t.session.send("encore");
     expect(t.f.calls).toHaveLength(1);
@@ -144,18 +129,8 @@ describe("session de chat", () => {
     expect(t.view().busy).toBe(false);
   });
 
-  it("sandbox.started bridge : en-tête réseau ; autre valeur : éteint", async () => {
-    const t = setup({
-      settings: {
-        sandbox: {
-          image: "alpine:3.20",
-          timeoutSec: 60,
-          network: "none",
-          memory: "2g",
-          cpus: 2,
-        },
-      },
-    });
+  it("sandbox.started (journal) : en-tête réseau ; autre valeur : éteint", async () => {
+    const t = setup();
     await t.session.send("go");
     t.f.handlers.onEvent?.(
       ev({
@@ -189,7 +164,7 @@ describe("session de chat", () => {
       enginePath: "/e",
       engineArgs: [],
       readSettings: () => {
-        throw Object.assign(new Error("x"), { code: "sandbox.imageUnsupported" });
+        throw Object.assign(new Error("x"), { code: "sandbox.invalidArgument" });
       },
       getToken: async () => undefined,
       confirmAlways: async () => true,

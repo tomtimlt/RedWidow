@@ -42,27 +42,13 @@ describe("toCard", () => {
         .canRemember,
     ).toBe(false);
   });
-  it("réseau bridge : networkActive seulement pour mcp__sandbox__exec", () => {
+  it("outil historique mcp__sandbox__* : comme tout autre outil sans règle", () => {
     const exec = { argv: ["ls"], cwd: "/work" };
-    expect(
-      toCard(pending("mcp__sandbox__exec", exec, verdict("sandbox.interpreter")), true)
-        .networkActive,
-    ).toBe(true);
-    expect(
-      toCard(pending("mcp__sandbox__put", exec, verdict("policy.default")), true).networkActive,
-    ).toBeUndefined();
-    expect(
-      toCard(pending("mcp__sandbox__exec", exec, verdict("sandbox.interpreter")), false)
-        .networkActive,
-    ).toBeUndefined();
-  });
-  it("bac à sable : seul exec est mémorisable (pour la session)", () => {
-    const exec = { argv: ["ls"], cwd: "/work" };
-    expect(
-      toCard(pending("mcp__sandbox__exec", exec, verdict("sandbox.interpreter"))).canRemember,
-    ).toBe(true);
+    expect(toCard(pending("mcp__sandbox__exec", exec, verdict("policy.default"))).canRemember).toBe(
+      true,
+    );
     expect(toCard(pending("mcp__sandbox__put", exec, verdict("policy.default"))).canRemember).toBe(
-      false,
+      true,
     );
   });
 });
@@ -73,13 +59,10 @@ describe("answerFor / texte de confirmation", () => {
     expect(answerFor("once")).toEqual({ decision: "allow" });
     expect(answerFor("always")).toEqual({ decision: "allow", remember: "always" });
   });
-  it("la modale décrit l'outil et la portée", () => {
+  it("la modale décrit l'outil", () => {
     const card = toCard(pending("Bash", { command: "ls" }, verdict("bash.noRule")));
     expect(alwaysConfirmText(card)).toContain("Bash");
-    const sb = toCard(
-      pending("mcp__sandbox__exec", { argv: ["ls"], cwd: "/" }, verdict("sandbox.interpreter")),
-    );
-    expect(alwaysConfirmText(sb)).toContain("bac à sable");
+    expect(alwaysConfirmText(card)).not.toContain("bac à sable");
   });
 });
 

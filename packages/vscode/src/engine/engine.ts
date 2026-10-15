@@ -3,19 +3,14 @@ import {
   type AgentRunner,
   type ApprovalGate,
   type AuthMode,
-  activeSandboxId,
   createApprovalGate,
   createApprovalQueue,
   createRecorder,
   createRedactor,
-  createSandbox,
-  createSandboxContext,
   errorInfo,
   killOwnTree,
   loadPolicy,
   openJournal,
-  removeAllSandboxes,
-  type SandboxContext,
   secretsFromEnv,
 } from "@john-studio/core";
 import {
@@ -40,19 +35,15 @@ export interface EngineOptions {
   channel: EngineChannel;
   /**
    * Fabrique du runner, appelée au `start` (production : vérifie l'empreinte du binaire
-   * `claude` juste avant `createSdkRunner`) ; reçoit le contexte du bac à sable demandé au `start`, s'il y en a un. Une erreur est signalée au parent et termine le moteur.
+   * `claude` juste avant `createSdkRunner`) ; une erreur est signalée au parent et termine le moteur.
    */
-  createRunner: (sandbox: SandboxContext | undefined) => AgentRunner | Promise<AgentRunner>;
+  createRunner: () => AgentRunner | Promise<AgentRunner>;
   /** Environnement dont on tire les secrets à masquer (défaut : `process.env`). */
   env?: NodeJS.ProcessEnv;
   /** Délai laissé au run pour s'arrêter après une déconnexion avant de rendre la main (défaut : 5000 ms). */
   disconnectGraceMs?: number;
   /** Arrêt de l'arbre de processus à la fin du délai de grâce (défaut : `killOwnTree`). */
   killTree?: () => void;
-  /**
-   * Binaire Docker de test (hors protocole IPC). Absent en production : le binaire reste `docker`.
-   */
-  docker?: { binary: string; argsPrefix?: readonly string[] };
 }
 
 /** Flux de consignes d'une session multi-tours : `push` alimente, `end` clôt. */
@@ -97,7 +88,6 @@ export function runEngine({
   env = process.env,
   disconnectGraceMs = 5000,
   killTree = killOwnTree,
-  docker,
 }: EngineOptions): Promise<number> {
   // Tout ce qui part vers le parent est masqué, y compris ce que le recorder ne voit pas
   // (entrée d'un outil en attente d'approbation, erreurs, résumé).
@@ -133,7 +123,6 @@ export function runEngine({
 
     const session = async (params: StartParams) => {
       let code = 0;
-      let sandboxCtx: SandboxContext | undefined;
       const recorder = createRecorder({ redact });
       onUserMessage = (text) => void recorder.emit({ kind: "user.message", text });
       // Journal de l'extension : hors du dépôt (`journalDir` validé par le protocole), sinon celui de la CLI.
@@ -144,17 +133,6 @@ export function runEngine({
       );
       try {
         const { policy, source, warning } = await loadPolicy({ cwd: params.cwd });
-        sandboxCtx = params.sandbox
-          ? createSandboxContext({
-              recorder,
-              maxTimeoutSec: params.sandbox.timeoutSec,
-              ...(docker && {
-                binary: docker.binary,
-                ...(docker.argsPrefix !== undefined && { argsPrefix: docker.argsPrefix }),
-              }),
-            })
-          : undefined;
-        const sandbox = sandboxCtx;
         recorder.subscribe(journal.sink);
         recorder.subscribe((event) => send({ v: PROTOCOL_VERSION, type: "event", event }));
         const approvals = createApprovalQueue();
@@ -165,8 +143,6 @@ export function runEngine({
           // Claude exige Git Bash sous Windows : le shell est analysable comme POSIX (comme la CLI).
           workspace: { cwd: params.cwd, posixShell: true },
           ask: approvals,
-          // Identifiant fourni par le registre (ADR 0003 D), jamais par l'entrée d'un outil.
-          ...(sandbox && { sandboxContainerId: () => activeSandboxId(sandbox) }),
         });
         // Les demandes en attente partent vers l'UI ; la réponse revient par `answer`.
         void (async () => {
@@ -181,16 +157,7 @@ export function runEngine({
           policySource: source,
           ...(warning && { warning }),
         });
-        if (sandbox && params.sandbox) {
-          await createSandbox(sandbox, {
-            image: params.sandbox.image,
-            network: params.sandbox.network,
-            memory: params.sandbox.memory,
-            cpus: params.sandbox.cpus,
-            signal: abort.signal,
-          });
-        }
-        const runner = await createRunner(sandbox);
+        const runner = await createRunner();
         const summary = await runner.run(
           {
             prompt: prompts,
@@ -220,12 +187,6 @@ export function runEngine({
       } finally {
         // Refuse ce qui restait en attente (interrompu), ferme les flux puis le journal.
         queue?.close();
-        // Conteneur supprimé en fin de run, sur annulation et sur erreur, avant la fermeture du journal.
-        if (sandboxCtx) {
-          await removeAllSandboxes(sandboxCtx, abort.signal.aborted ? "abort" : "runEnd").catch(
-            () => undefined,
-          );
-        }
         recorder.close();
         await journal.close().catch(() => undefined);
       }
@@ -235,7 +196,7 @@ export function runEngine({
     /** Sondage : liste des modèles sans consigne (donc sans tour, outil ni coût d'inférence), puis sortie. */
     const probe = async (cwd: string, auth: AuthMode | undefined) => {
       try {
-        const runner = await createRunner(undefined);
+        const runner = await createRunner();
         const models =
           (await runner.listModels?.({
             cwd,

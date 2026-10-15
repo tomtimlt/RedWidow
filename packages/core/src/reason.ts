@@ -112,6 +112,12 @@ export const REASON_CODES = [
   "event.unsupportedVersion",
   "event.missingField",
   "event.invalidField",
+  // Projet actif (conteneur lié)
+  "project.notFound",
+  "project.notRunning",
+  "project.noWorkspace",
+  "project.invalid",
+  "project.absent",
   // Divers
   "error.unknown",
   /** Motif ou erreur d'un ancien journal, relu comme texte (`params.text`). */

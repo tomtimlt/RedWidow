@@ -1,4 +1,6 @@
-import { SANDBOX_TOOL_PREFIX, stripControl } from "@john-studio/core";
+import { stripControl } from "@john-studio/core";
+
+const SANDBOX_TOOL_PREFIX = "mcp__sandbox__";
 
 const LABELS: Record<string, string> = {
   Read: "Lecture",

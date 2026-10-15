@@ -38,6 +38,11 @@ export const reasons: Catalog = {
     `the ${text(p.shim)} script (.cmd/.bat shim) is never run: pass the absolute path of the ${text(p.binary)} .exe`,
   "docker.unexpectedOutput": (p) =>
     `unexpected docker ${text(p.command)} output${p.line === undefined ? "" : ` (line ${text(p.line)})`}: docker only, podman is not supported`,
+  "project.notFound": (p) => `container not found: ${text(p.name)}`,
+  "project.notRunning": (p) => `container not running: ${text(p.name)}`,
+  "project.noWorkspace": (p) => `container without /workspace mount: ${text(p.name)}`,
+  "project.invalid": () => "invalid project: unreadable or incomplete project.json",
+  "project.absent": () => "no linked project (project.json missing)",
   "shell.unanalyzable": (p) =>
     `shell cannot be analysed safely (${text(p.tool)}): never auto-approved nor remembered`,
   "sdk.unexpectedTool": (p) =>

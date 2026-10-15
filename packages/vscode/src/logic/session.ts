@@ -233,9 +233,6 @@ export function createChatSession(deps: ChatSessionDeps) {
     if (picked.clampedTo !== undefined && picked.key !== null)
       clampNotice(picked.key, picked.clampedTo);
     const token = await deps.getToken();
-    state.setSandbox(settings.sandbox?.image ?? null);
-    const cfgNet = settings.sandbox?.network;
-    state.setSandboxNetwork(cfgNet === "none" || cfgNet === "bridge" ? cfgNet : null);
     refresh();
     stopping = false;
     const ctl = make({
@@ -267,10 +264,7 @@ export function createChatSession(deps: ChatSessionDeps) {
         },
         onApproval: (pending) => {
           if (detached.has(ctl)) return;
-          state.approvals.set(
-            pending.toolUseId,
-            toCard(pending, state.sandboxNetwork === "bridge"),
-          );
+          state.approvals.set(pending.toolUseId, toCard(pending));
           refresh();
         },
         onEnded: (summary) => {
@@ -313,7 +307,6 @@ export function createChatSession(deps: ChatSessionDeps) {
       ...(maxTurns !== undefined && { maxTurns }),
       ...(picked.ultra?.maxBudgetUsd !== undefined && { maxBudgetUsd: picked.ultra.maxBudgetUsd }),
       ...(history && { journalDir: history.files.dir }),
-      ...(settings.sandbox !== undefined && { sandbox: settings.sandbox }),
       ...(sessionId !== undefined && { resume: sessionId }),
     });
     return ctl;

@@ -84,8 +84,7 @@ export function chatHtml({
 <p id="effort-tip" class="tip"></p></section>
 <section class="cfg-col" aria-labelledby="cfg-h-exec"><h3 id="cfg-h-exec">Exécution</h3>
 <fieldset class="provider"><legend>Fournisseur</legend><label class="radio"><input type="radio" name="provider" checked><span>Claude</span></label><label class="radio off"><input type="radio" name="provider" disabled><span>OpenCode</span><em>bientôt</em></label></fieldset>
-<dl class="facts"><div><dt>Bac à sable</dt><dd id="cfg-sandbox"></dd></div><div><dt>Réseau</dt><dd id="cfg-network"></dd></div></dl>
-<p class="tip">Lecture seule : réglages John dans Paramètres (john.sandbox.*).</p></section>
+<p class="tip">Modèle, effort et plafonds Ultracode : réglages John dans Paramètres (john.model, john.ultracode.*).</p></section>
 </div>
 </div>
 <script nonce="${nonce}" src="${uiUri}"></script>

@@ -8,7 +8,7 @@ import {
   findGlobHazard,
   type PathPlatform,
 } from "./paths.js";
-import { isInterpreterArgv, matchCommand, parseShell, programName } from "./shell.js";
+import { matchCommand, parseShell, programName } from "./shell.js";
 
 export type RuleDecision = "allow" | "ask" | "deny";
 
@@ -38,10 +38,6 @@ const PRECEDENCE: readonly RuleDecision[] = ["deny", "ask", "allow"];
 
 export const BASH_TOOL = "Bash";
 export const POWERSHELL_TOOL = "PowerShell";
-/** Outil d'exécution du bac à sable (toolset `sandbox`, ADR 0003). */
-export const SANDBOX_EXEC_TOOL = "mcp__sandbox__exec";
-/** Préfixe de tous les outils du bac à sable : jamais de mémorisation par nom seul. */
-export const SANDBOX_TOOL_PREFIX = "mcp__sandbox__";
 
 /**
  * Outils de shell dont la ligne de commande ne peut pas être analysée de façon sûre (PowerShell :
@@ -236,77 +232,6 @@ function evaluateUnanalyzable(policy: Policy, tool: string): PolicyVerdict {
   };
 }
 
-/**
- * `argv` et `cwd` validés d'un appel `mcp__sandbox__exec`, ou `null` (entrée invalide : refus).
- * `cwd` absent → `/work`. Source unique pour la politique et la clé de session de la gate.
- */
-export function sandboxExecInput(
-  input: Record<string, unknown>,
-): { argv: string[]; cwd: string } | { field: string; reason: string } {
-  const { argv, cwd = "/work" } = input;
-  if (!Array.isArray(argv)) return { field: "argv", reason: "notStrings" };
-  if (argv.length < 1 || argv.length > 256) return { field: "argv", reason: "format" };
-  if (!argv.every((a) => typeof a === "string" && !a.includes("\0"))) {
-    return { field: "argv", reason: "format" };
-  }
-  if (argv[0] === "") return { field: "argv", reason: "format" };
-  if (typeof cwd !== "string" || cwd.includes("\0")) return { field: "cwd", reason: "format" };
-  // Chemin absolu normalisé sous /work : ni « .. », ni « . », ni « // », ni barre finale.
-  if (!(cwd === "/work" || cwd.startsWith("/work/"))) return { field: "cwd", reason: "outside" };
-  if (
-    cwd
-      .slice(1)
-      .split("/")
-      .some((seg) => seg === "" || seg === "." || seg === "..")
-  ) {
-    return { field: "cwd", reason: "outside" };
-  }
-  return { argv: argv as string[], cwd };
-}
-
-/**
- * Verdict de `mcp__sandbox__exec` : les motifs `command` s'appliquent à l'argv (pas à un shell).
- * `deny` : motif comparé aussi au basename de `argv[0]`. Interpréteur ou enveloppe : un `allow` à
- * joker ne s'applique pas (seul un motif sans joker identique à l'argv complet autorise), au mieux
- * `ask` (`sandbox.interpreter`).
- */
-function evaluateSandboxExec(policy: Policy, input: Record<string, unknown>): PolicyVerdict {
-  const parsed = sandboxExecInput(input);
-  if ("field" in parsed) {
-    return {
-      decision: "deny",
-      reason: reason("sandbox.invalidArgument", {
-        field: parsed.field,
-        reason: parsed.reason,
-      }),
-      rule: null,
-    };
-  }
-  const { argv } = parsed;
-  const interpreter = isInterpreterArgv(argv);
-  const hit = firstMatch(policy.rules, (r) => {
-    if (!toolMatches(r, SANDBOX_EXEC_TOOL)) return false;
-    if (r.command === undefined) return !(interpreter && r.decision === "allow");
-    if (r.decision === "deny") return matchCommand(r.command, argv, true);
-    if (!matchCommand(r.command, argv)) return false;
-    // allow d'un interpréteur : seulement un motif exact, sans aucun joker.
-    return !(interpreter && r.decision === "allow" && r.command.includes("*"));
-  });
-  if (hit) return hit;
-  if (interpreter) {
-    return {
-      decision: stricter("ask", policy.default),
-      reason: reason("sandbox.interpreter", { program: programName(argv[0]) }),
-      rule: null,
-    };
-  }
-  return {
-    decision: policy.default,
-    reason: reason("policy.default", { tool: SANDBOX_EXEC_TOOL }),
-    rule: null,
-  };
-}
-
 /** Verdict POSIX d'un Bash dont la commande n'est peut-être pas une chaîne (refus pour l'analyse). */
 function evaluatePolicyBash(policy: Policy, command: unknown): PolicyVerdict {
   if (typeof command !== "string") {
@@ -441,7 +366,6 @@ function evaluateUncapped(
       rule: null,
     };
   }
-  if (tool === SANDBOX_EXEC_TOOL) return evaluateSandboxExec(policy, input);
   if (isUnanalyzableShellTool(tool)) return evaluateUnanalyzable(policy, tool);
   if (tool === BASH_TOOL) {
     if (!(ctx.posixShell ?? (ctx.platform ?? defaultPlatform()) !== "win32")) {

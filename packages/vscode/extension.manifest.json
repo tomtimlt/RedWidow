@@ -58,48 +58,6 @@
           "default": 0,
           "scope": "machine",
           "markdownDescription": "Plafond de dépense (USD) du préréglage **Ultracode**. 0 : pas de plafond de dépense."
-        },
-        "john.sandbox.enabled": {
-          "type": "boolean",
-          "default": false,
-          "scope": "machine",
-          "markdownDescription": "Active le bac à sable Docker (outil `mcp__sandbox__exec` : réseau coupé, utilisateur non privilégié). Exige `john.sandbox.image`."
-        },
-        "john.sandbox.image": {
-          "type": "string",
-          "default": "",
-          "scope": "machine",
-          "markdownDescription": "Image Docker **locale** du bac à sable (jamais téléchargée par John ; de préférence épinglée par digest). Obligatoire si le bac à sable est activé."
-        },
-        "john.sandbox.timeoutSec": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 1800,
-          "default": 600,
-          "scope": "machine",
-          "markdownDescription": "Délai maximal d'une exécution dans le bac à sable, en secondes."
-        },
-        "john.sandbox.network": {
-          "type": "string",
-          "enum": ["none", "bridge"],
-          "default": "none",
-          "scope": "machine",
-          "markdownDescription": "Réseau Docker du bac à sable : `none` (isolé) ou `bridge`."
-        },
-        "john.sandbox.memory": {
-          "type": "string",
-          "enum": ["1g", "2g", "3g", "4g", "5g", "6g", "7g", "8g"],
-          "default": "2g",
-          "scope": "machine",
-          "markdownDescription": "Limite mémoire du bac à sable (gigaoctets)."
-        },
-        "john.sandbox.cpus": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 8,
-          "default": 2,
-          "scope": "machine",
-          "markdownDescription": "Nombre de CPU alloués au bac à sable."
         }
       }
     }

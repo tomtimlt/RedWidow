@@ -184,6 +184,7 @@ export function createChatState() {
           notice(formatError(e), "error");
           return;
         case "sandbox.started":
+          sandbox = cleanText(e.image, 300);
           if (e.network === "none" || e.network === "bridge") sandboxNetwork = e.network;
           notice(`Bac à sable prêt : ${e.image}`);
           return;

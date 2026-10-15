@@ -1,17 +1,5 @@
 import { CodedError } from "@john-studio/core";
 import type { UltracodeLimits } from "./effort.js";
-import {
-  MAX_SANDBOX_TIMEOUT_SEC,
-  SANDBOX_MEMORY_VALUES,
-  SANDBOX_NETWORKS,
-  type SandboxNetwork,
-  type SandboxParams,
-} from "./protocol.js";
-
-export const DEFAULT_SANDBOX_TIMEOUT_SEC = 600;
-export const DEFAULT_SANDBOX_NETWORK: SandboxNetwork = "none";
-export const DEFAULT_SANDBOX_MEMORY = "2g";
-export const DEFAULT_SANDBOX_CPUS = 2;
 
 /** Forme de `WorkspaceConfiguration.inspect` : les valeurs d'espace de travail n'y sont jamais lues. */
 export interface Inspected {
@@ -32,7 +20,6 @@ export function machineValue(info: Inspected | undefined): unknown {
 export interface ChatSettings {
   model?: string;
   maxTurns?: number;
-  sandbox?: SandboxParams;
   /** Plafonds du préréglage Ultracode (absents = pas de plafond). */
   ultracode?: UltracodeLimits;
 }
@@ -71,42 +58,5 @@ export function resolveSettings(get: (key: string) => unknown): ChatSettings {
     ultra.maxBudgetUsd = uBudget;
   }
   if (Object.keys(ultra).length > 0) out.ultracode = ultra;
-  if (get("sandbox.enabled") === true) {
-    const image = get("sandbox.image");
-    if (typeof image !== "string" || image.trim() === "") {
-      throw new CodedError("sandbox.imageUnsupported", { reason: "missing" });
-    }
-    const timeout = get("sandbox.timeoutSec") ?? DEFAULT_SANDBOX_TIMEOUT_SEC;
-    if (
-      typeof timeout !== "number" ||
-      !Number.isInteger(timeout) ||
-      timeout < 1 ||
-      timeout > MAX_SANDBOX_TIMEOUT_SEC
-    ) {
-      throw new CodedError("sandbox.invalidArgument", { field: "sandboxTimeout", reason: "range" });
-    }
-    const network = get("sandbox.network") ?? DEFAULT_SANDBOX_NETWORK;
-    if (!(SANDBOX_NETWORKS as readonly string[]).includes(String(network))) {
-      throw new CodedError("sandbox.invalidArgument", {
-        field: "sandboxNetwork",
-        reason: "format",
-      });
-    }
-    const memory = get("sandbox.memory") ?? DEFAULT_SANDBOX_MEMORY;
-    if (!(SANDBOX_MEMORY_VALUES as readonly string[]).includes(String(memory))) {
-      throw new CodedError("sandbox.invalidArgument", { field: "sandboxMemory", reason: "format" });
-    }
-    const cpus = get("sandbox.cpus") ?? DEFAULT_SANDBOX_CPUS;
-    if (typeof cpus !== "number" || !Number.isInteger(cpus) || cpus < 1 || cpus > 8) {
-      throw new CodedError("sandbox.invalidArgument", { field: "sandboxCpus", reason: "range" });
-    }
-    out.sandbox = {
-      image: image.trim(),
-      timeoutSec: timeout,
-      network: network as SandboxNetwork,
-      memory: String(memory),
-      cpus,
-    };
-  }
   return out;
 }

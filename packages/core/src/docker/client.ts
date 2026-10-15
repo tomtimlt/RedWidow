@@ -113,6 +113,69 @@ export interface ContainerInspectSummary {
   mounts: ContainerInspectMount[];
 }
 
+export interface LabelPrefixContainer {
+  state: "running" | "stopped";
+  name: string;
+  image: string;
+  workspace?: string;
+}
+
+/** Format `docker inspect --format` pour `listLabelPrefix` (filtre côté démon, sans valeur de label). */
+export const DOCKER_LABEL_PREFIX_INSPECT_FORMAT = [
+  "{{$keep := false}}{{range $k, $v := .Config.Labels}}",
+  '{{if and (ge (len $k) 11) (eq (slice $k 0 11) "org.exegol.")}}{{$keep = true}}{{end}}{{end}}',
+  '{{if $keep}}{{$ws := ""}}{{range .Mounts}}',
+  '{{if and (eq $ws "") (eq .Destination "/workspace") (ne .Source "")}}{{$ws = .Source}}{{end}}{{end}}',
+  '{"state":"{{if eq .State.Status "running"}}running{{else}}stopped{{end}}"',
+  ',"name":{{json .Name}},"image":{{json .Config.Image}}',
+  '{{if ne $ws ""}},"workspace":{{json $ws}}{{end}}}{{println}}{{end}}',
+].join("");
+
+const LABEL_PREFIX_ALLOWED_KEYS = new Set(["state", "name", "image", "workspace"]);
+
+/**
+ * Parse la sortie de `docker inspect --format` de `listLabelPrefix` (un objet JSON par ligne).
+ * Seules les clés `state`, `name`, `image` et éventuellement `workspace` sont acceptées.
+ */
+export function parseDockerLabelPrefixInspect(
+  lines: readonly string[],
+  command = "inspect",
+): LabelPrefixContainer[] {
+  const out: LabelPrefixContainer[] = [];
+  lines.forEach((line, i) => {
+    const trimmed = line.trim();
+    if (trimmed === "") return;
+    const unexpected = () => new CodedError("docker.unexpectedOutput", { command, line: i + 1 });
+    let row: unknown;
+    try {
+      row = JSON.parse(trimmed);
+    } catch {
+      throw unexpected();
+    }
+    if (typeof row !== "object" || row === null || Array.isArray(row)) throw unexpected();
+    const record = row as Record<string, unknown>;
+    for (const key of Object.keys(record)) {
+      if (!LABEL_PREFIX_ALLOWED_KEYS.has(key)) throw unexpected();
+    }
+    let state: LabelPrefixContainer["state"];
+    if (record.state === "running") state = "running";
+    else if (record.state === "stopped") state = "stopped";
+    else throw unexpected();
+    if (typeof record.name !== "string" || record.name === "") throw unexpected();
+    const name = record.name.startsWith("/") ? record.name.slice(1) : record.name;
+    if (name === "") throw unexpected();
+    if (typeof record.image !== "string" || record.image === "") throw unexpected();
+    const image = record.image;
+    if ("workspace" in record) {
+      if (typeof record.workspace !== "string" || record.workspace === "") throw unexpected();
+      out.push({ state, name, image, workspace: record.workspace });
+    } else {
+      out.push({ state, name, image });
+    }
+  });
+  return out;
+}
+
 const isPlainObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 
@@ -298,6 +361,8 @@ export interface DockerClient {
   start(container: string, options?: CallOptions): Promise<void>;
   stop(container: string, options?: CallOptions): Promise<void>;
   rm(container: string, options?: CallOptions & { force?: boolean }): Promise<void>;
+  /** Conteneurs dont un label a le préfixe `org.exegol.`. Aucune valeur de label ne sort du démon. */
+  listLabelPrefix(options?: CallOptions): Promise<LabelPrefixContainer[]>;
 }
 
 export function createDockerClient({
@@ -403,6 +468,30 @@ export function createDockerClient({
         ["rm", ...(force ? ["--force"] : []), assertOperand(container, "container")],
         call,
       );
+    },
+    async listLabelPrefix(call = {}) {
+      const psResult = await checked("ps", ["ps", "--all", "--quiet"], call);
+      const ids: string[] = [];
+      psResult.stdout.forEach((line, i) => {
+        const trimmed = line.trim();
+        if (trimmed === "") return;
+        if (!OPERAND.test(trimmed)) {
+          throw new CodedError("docker.unexpectedOutput", { command: "ps", line: i + 1 });
+        }
+        ids.push(trimmed);
+      });
+      if (ids.length === 0) return [];
+      const r = await checked(
+        "inspect",
+        [
+          "inspect",
+          "--format",
+          DOCKER_LABEL_PREFIX_INSPECT_FORMAT,
+          ...ids.map((id) => assertOperand(id, "container")),
+        ],
+        call,
+      );
+      return parseDockerLabelPrefixInspect(r.stdout);
     },
   };
 }

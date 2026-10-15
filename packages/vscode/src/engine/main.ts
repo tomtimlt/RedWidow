@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { createSdkRunner, dockerToolset, sandboxToolset } from "@john-studio/agent-sdk";
+import { createSdkRunner, dockerToolset } from "@john-studio/agent-sdk";
 import { CodedError } from "@john-studio/core";
 import { matchesFingerprint } from "../logic/integrity.js";
 import { PROTOCOL_VERSION } from "../logic/protocol.js";
@@ -22,7 +22,7 @@ const channel = processChannel();
 
 const done = runEngine({
   channel,
-  createRunner: async (sandbox) => {
+  createRunner: async () => {
     // Vérification juste avant la construction du runner (fail-closed : empreinte absente = refus).
     const expected = typeof __CLAUDE_SHA256__ === "string" ? __CLAUDE_SHA256__ : "";
     if (!(await matchesFingerprint(exe, expected))) {
@@ -31,10 +31,7 @@ const done = runEngine({
     // Comme la CLI par défaut : outils Docker structurés, Bash désactivé, binaire fixé par le code.
     return createSdkRunner({
       executable: exe,
-      toolsets: [
-        dockerToolset({ binary: "docker" }),
-        ...(sandbox ? [sandboxToolset({ context: sandbox })] : []),
-      ],
+      toolsets: [dockerToolset({ binary: "docker" })],
     });
   },
 });

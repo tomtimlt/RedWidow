@@ -9,9 +9,6 @@ import {
   type PolicyContext,
   type PolicyRule,
   type PolicyVerdict,
-  SANDBOX_EXEC_TOOL,
-  SANDBOX_TOOL_PREFIX,
-  sandboxExecInput,
 } from "./policy.js";
 import { parseShell } from "./shell.js";
 
@@ -75,12 +72,6 @@ export interface ApprovalGateOptions {
    * La gate la retient aussi pour la session, même si la persistance échoue.
    */
   persistRule?: (rule: PolicyRule) => void | Promise<void>;
-  /**
-   * Identifiant du bac à sable du run, fourni par le registre (ADR 0003 D), jamais par l'entrée
-   * d'un outil. Sert à la clé de session de `mcp__sandbox__exec`. Fourni et `undefined` →
-   * `exec` refusé (`sandbox.unavailable`) ; absent → `exec` jamais mémorisé.
-   */
-  sandboxContainerId?: () => string | undefined;
 }
 
 /**
@@ -104,23 +95,12 @@ const REMEMBERABLE = new Set([
 const PERSISTABLE = new Set(["policy.default", "bash.noRule"]);
 
 /** Clé d'autorisation de session : le même outil et, pour Bash, la même commande exacte ; `null` si non mémorisable. */
-function sessionKey(
-  request: ApprovalRequest,
-  verdict: PolicyVerdict,
-  containerId?: string,
-): string | null {
+function sessionKey(request: ApprovalRequest, verdict: PolicyVerdict): string | null {
   if (verdict.decision !== "ask" || !REMEMBERABLE.has(verdict.reason.code)) return null;
   // Accès à des répertoires externes (permission OpenCode ou champ déclaré par l'adaptateur) :
   // jamais mémorisable, sinon un « toujours » sur `Read` couvrirait des lectures hors de l'espace de travail.
   if (request.tool === EXTERNAL_DIRECTORY_TOOL || EXTERNAL_PATTERNS_FIELD in request.input) {
     return null;
-  }
-  if (request.tool.startsWith(SANDBOX_TOOL_PREFIX)) {
-    // Bac à sable : l'argv exact dans CE conteneur (ADR 0003 D) ; `put`/`get`/autres : jamais.
-    if (request.tool !== SANDBOX_EXEC_TOOL || containerId === undefined) return null;
-    const exec = sandboxExecInput(request.input);
-    if ("field" in exec) return null;
-    return [request.tool, containerId, JSON.stringify(exec.argv), exec.cwd].join("\0");
   }
   if (request.tool !== BASH_TOOL) return JSON.stringify([request.tool]);
   const command = request.input.command;
@@ -133,8 +113,7 @@ function sessionKey(
  * prédicat que la gate : une UI ne propose « toujours » que dans ce cas ; la gate reste juge).
  */
 export function isRememberable(request: ApprovalRequest, verdict: PolicyVerdict): boolean {
-  // Identifiant fictif : pour `mcp__sandbox__exec`, la clé exige un conteneur, connu de la gate seule.
-  return sessionKey(request, verdict, "_") !== null;
+  return sessionKey(request, verdict) !== null;
 }
 
 /**
@@ -143,7 +122,6 @@ export function isRememberable(request: ApprovalRequest, verdict: PolicyVerdict)
  * arguments (un motif de politique est découpé sur les espaces et `*` est un joker).
  */
 function persistableRule(request: ApprovalRequest, verdict: PolicyVerdict): PolicyRule | null {
-  if (request.tool.startsWith(SANDBOX_TOOL_PREFIX)) return null; // `always` → `session` (conteneur éphémère)
   if (sessionKey(request, verdict) === null || !PERSISTABLE.has(verdict.reason.code)) return null;
   if (request.tool !== BASH_TOOL) return { tool: request.tool, decision: "allow" };
   const parsed = parseShell(String(request.input.command));
@@ -163,7 +141,6 @@ export function createApprovalGate({
   workspace,
   timeoutMs,
   persistRule,
-  sandboxContainerId,
 }: ApprovalGateOptions): ApprovalGate {
   /** Autorisations de session. Consultées seulement face à un verdict « ask » mémorisable. */
   const session = new Set<string>();
@@ -219,15 +196,7 @@ export function createApprovalGate({
 
   return {
     async decide(request, signal, parentId = null) {
-      let verdict = evaluatePolicy(policy, request.tool, request.input, workspace);
-      if (
-        request.tool === SANDBOX_EXEC_TOOL &&
-        verdict.decision !== "deny" &&
-        sandboxContainerId !== undefined &&
-        sandboxContainerId() === undefined
-      ) {
-        verdict = { decision: "deny", reason: reason("sandbox.unavailable"), rule: null };
-      }
+      const verdict = evaluatePolicy(policy, request.tool, request.input, workspace);
       let outcome: ApprovalOutcome;
 
       if (verdict.decision !== "ask") {
@@ -239,7 +208,7 @@ export function createApprovalGate({
           source: "policy",
         };
       } else {
-        const key = sessionKey(request, verdict, sandboxContainerId?.());
+        const key = sessionKey(request, verdict);
         if (key !== null && session.has(key)) {
           outcome = {
             decision: "allow",

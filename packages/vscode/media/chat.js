@@ -400,7 +400,7 @@
     paintActive();
   }
 
-  function renderControls(c, sandbox, sandboxNetwork) {
+  function renderControls(c) {
     ctlGroup.hidden = !c;
     ctl = c;
     if (!c) {
@@ -461,11 +461,6 @@
         return t;
       }),
     );
-    $("cfg-sandbox").textContent = sandbox ?? "Désactivé";
-    $("cfg-sandbox").title = sandbox ?? "";
-    if (!sandbox) $("cfg-network").textContent = "Sans objet";
-    else if (sandboxNetwork === "bridge") $("cfg-network").textContent = "réseau activé";
-    else $("cfg-network").textContent = "Coupé";
   }
 
   wirePop(modelPop, modelChip, {
@@ -629,7 +624,7 @@
   motion.addEventListener("change", applyBody);
 
   function render(view) {
-    renderControls(view.controls, view.sandbox, view.sandboxNetwork);
+    renderControls(view.controls);
     renderHistory(view.history);
     renderReadonly(view.readonly);
     const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
