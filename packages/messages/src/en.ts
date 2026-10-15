@@ -16,6 +16,8 @@ export const reasons: Catalog = {
   "sandbox.tampered": (p) => `sandbox tampered with (${text(p.field)}): execution denied`,
   "sandbox.interpreter": (p) =>
     `interpreter or wrapper in the sandbox (${text(p.program)}): approval required`,
+  "sandbox.tarRejected": (p) =>
+    `tar archive rejected (${text(p.reason)})${p.entry === undefined ? "" : `: ${text(p.entry)}`}, nothing written`,
   "sandbox.unavailable": () => "sandbox unavailable",
   "sandbox.unknownContainer": () => "container not in the sandbox registry: denied",
   "docker.hostAccess": (p) => `container with host access (${text(p.flag)}): do it by hand`,

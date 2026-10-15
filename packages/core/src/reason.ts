@@ -93,6 +93,7 @@ export const REASON_CODES = [
   "sandbox.imageUnsupported",
   "sandbox.invalidArgument",
   "sandbox.interpreter",
+  "sandbox.tarRejected",
   // Journal et événements
   "journal.invalidJson",
   "event.notObject",

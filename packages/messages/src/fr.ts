@@ -59,6 +59,31 @@ const SANDBOX_ARGUMENT_REASONS: Readonly<Record<string, string>> = {
   format: "format non admis",
 };
 
+/** Motifs de `sandbox.tarRejected`. */
+const TAR_REASONS: Readonly<Record<string, string>> = {
+  symlink: "lien symbolique",
+  hardlink: "lien dur",
+  special: "type d'entrée non admis (périphérique, FIFO…)",
+  traversal: "chemin sortant de la racine (..)",
+  absolute: "chemin absolu",
+  name: "nom d'entrée invalide",
+  nameTooLong: "nom d'entrée trop long",
+  winName: "nom réservé ou flux de données Windows",
+  tooLarge: "taille au-delà du plafond",
+  tooManyEntries: "trop d'entrées",
+  pax: "en-tête pax non admis",
+  malformed: "archive mal formée",
+  checksum: "somme de contrôle invalide",
+  truncated: "archive tronquée",
+  multiRoot: "plusieurs racines",
+  duplicate: "entrée en double",
+  conflict: "un fichier sert de répertoire parent",
+  destExists: "la destination existe déjà",
+  destDenied: "destination hors de l'espace de travail",
+  sensitive: "chemin sensible",
+  notRegular: "ni fichier régulier ni répertoire",
+};
+
 const text = (v: string | number | undefined): string => (v === undefined ? "?" : String(v));
 
 const REPO_HINT = "Après relecture : john policy trust";
@@ -166,6 +191,8 @@ export const reasons: Catalog = {
   "sandbox.unknownContainer": () => "conteneur inconnu du registre des bacs à sable : refusé",
   "sandbox.imageUnsupported": (p) =>
     `image de bac à sable inutilisable (${IMAGE_REASONS[text(p.reason)] ?? text(p.reason)})`,
+  "sandbox.tarRejected": (p) =>
+    `archive tar refusée (${TAR_REASONS[text(p.reason)] ?? text(p.reason)})${p.entry === undefined ? "" : ` : ${text(p.entry)}`}, rien n'a été écrit`,
   "sandbox.invalidArgument": (p) =>
     `argument invalide (${text(p.field)}) : ${SANDBOX_ARGUMENT_REASONS[text(p.reason)] ?? text(p.reason)}`,
 
