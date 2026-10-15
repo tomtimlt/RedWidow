@@ -1,7 +1,38 @@
 import type { ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
-import { killAllGroups, terminateProcessTree, trackProcessTree } from "../src/process/terminate.js";
+import {
+  killAllGroups,
+  killOwnTree,
+  terminateProcessTree,
+  trackProcessTree,
+} from "../src/process/terminate.js";
+
+describe("killOwnTree", () => {
+  it("Windows : taskkill /T /F sur son propre PID", () => {
+    const launch = vi.fn(() => true);
+    killOwnTree({ platform: "win32", taskkillSync: launch });
+    expect(launch).toHaveBeenCalledOnce();
+    expect((launch.mock.calls[0] as unknown[])[1]).toEqual([
+      "/PID",
+      String(process.pid),
+      "/T",
+      "/F",
+    ]);
+  });
+
+  it("POSIX : SIGKILL au groupe, sans exception si on n'en est pas le chef", () => {
+    const kill = vi.spyOn(process, "kill").mockImplementation(() => {
+      throw Object.assign(new Error("ESRCH"), { code: "ESRCH" });
+    });
+    try {
+      expect(() => killOwnTree({ platform: "linux" })).not.toThrow();
+      expect(kill).toHaveBeenCalledWith(-process.pid, "SIGKILL");
+    } finally {
+      kill.mockRestore();
+    }
+  });
+});
 
 /** Faux enfant : émetteur avec pid, codes de sortie, tubes et `kill` espionné. */
 function fakeChild(pid = 4242) {

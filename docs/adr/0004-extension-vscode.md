@@ -38,6 +38,8 @@ Modèle de menaces propre à l'extension :
 
 - Positives : logique testable sans VS Code ; secret et environnement isolés de l'host ; même assemblage que la CLI, mêmes garanties.
 - Négatives : protocole IPC à maintenir ; une construction par plateforme ; taille du `.vsix` (mesurée en E1).
+- Risque accepté : le binaire `claude` peut être remplacé entre la lecture de l'empreinte et son lancement ; le dossier de l'extension a la confiance de l'utilisateur.
+- À faire côté UI (E4) : appliquer l'équivalent de `stripControl` du cœur (bidi inclus) à l'argv et à la sortie affichés ; le texte renvoyé au modèle reste brut.
 - À surveiller : comportement de `fork` sous Electron (Windows) et en remote ; mise à jour du SDK = nouvelle empreinte ; le nonce CSP doit être aléatoire à chaque rendu.
 
 ## Plan

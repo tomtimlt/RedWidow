@@ -1,4 +1,10 @@
-import type { EventGraph, EventKind, GraphEdge, GraphNode } from "@john-studio/core";
+import {
+  type EventGraph,
+  type EventKind,
+  type GraphEdge,
+  type GraphNode,
+  stripControl,
+} from "@john-studio/core";
 import { eventLabel, type Locale } from "@john-studio/messages";
 
 export interface RenderOptions {
@@ -48,7 +54,8 @@ export const KIND_CLASS: Record<EventKind, string> = {
 };
 
 export function escapeHtml(text: string): string {
-  return text
+  // Journal non fiable : contrôles et marques bidi retirés avant l'échappement.
+  return stripControl(text)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")

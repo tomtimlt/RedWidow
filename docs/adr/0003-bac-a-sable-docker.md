@@ -37,6 +37,7 @@ Modèle de menaces (complète ADR 0001/0002) :
 - Puis initialisation par le **code** (jamais le modèle) : `docker exec -u 0 <id> mkdir -p /work` et `chown 65534:65534 /work` (argv fixes). L'image doit fournir `sleep`, `mkdir`, `chown` (busybox, debian, alpine… ; une image distroless est refusée avec `sandbox.imageUnsupported`).
 - Jamais : `-v`, `--mount`, `--volumes-from`, `--device`, `--privileged`, `--cap-add`, `--security-opt` autre que ci-dessus, espace de noms `host`, `-p`/`-P`, `--env`/`--env-file`, socket docker. Le réseau est toujours `none` dans cet ADR (Q1) ; aucune option ne le change.
 - `--pull never` : le moteur ne télécharge jamais d'image ; l'opérateur la tire lui-même au préalable (image absente → `sandbox.imageUnsupported`).
+- Ordre dans le journal : `sandbox.started` précède `run.started` ; c'est donc un événement racine (`parentId` null). `john sandbox prune` ne supprime que les conteneurs portant le label ET le nom `john-sbx-*`, liste d'abord et exige `--yes`.
 - `sandbox.started` journalise identifiant, image, **empreinte (digest) de l'image** (via `inspect`), réseau et limites ; `sandbox.stopped` la fin (`runEnd`, `abort`, `error`, `exit`).
 
 ### C. Forme de `exec` : argv direct, sans shell imposé

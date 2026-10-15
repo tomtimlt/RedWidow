@@ -190,20 +190,35 @@ describe("registre et prune", () => {
     expect(removed).toEqual(["y"]);
   });
 
-  it("prune supprime les conteneurs portant le label, sans passer par le registre", async () => {
+  const other = "d".repeat(64);
+  const PS =
+    "ps|--all|--no-trunc|--filter|label=io.john-studio.sandbox|--filter|name=^john-sbx-|--format|{{.ID}}\t{{.Names}}|";
+  const prune = async (psOut: string[], remove: boolean, extra: { rmFailsOn?: string } = {}) => {
     const fake = await fakeSandboxDocker();
-    const other = "d".repeat(64);
-    await fake.control({ psOut: [ID, other, "pas-un-id"] });
+    await fake.control({ psOut, ...extra });
     const ctx = createSandboxContext({
       recorder: createRecorder({ runId: "p" }),
       binary: fake.bin,
       argsPrefix: fake.argsPrefix,
     });
-    expect(await pruneSandboxes(ctx)).toEqual([ID, other]);
-    expect(await fake.calls()).toEqual([
-      "ps|--all|--quiet|--no-trunc|--filter|label=io.john-studio.sandbox|",
-      `rm|--force|${ID}|`,
-      `rm|--force|${other}|`,
-    ]);
+    return { fake, result: await pruneSandboxes(ctx, { remove }) };
+  };
+
+  it("prune sans confirmation : liste seulement, filtre label et nom", async () => {
+    const { fake, result } = await prune(
+      [`${ID}\tjohn-sbx-run1`, `${other}\tautre-nom`, "pas-un-id\tjohn-sbx-x"],
+      false,
+    );
+    expect(result).toEqual({ found: [{ id: ID, name: "john-sbx-run1" }], removed: [], failed: [] });
+    expect(await fake.calls()).toEqual([PS]);
+  });
+
+  it("prune confirmé : un rm en échec n'arrête pas les suivants et est signalé", async () => {
+    const { fake, result } = await prune([`${ID}\tjohn-sbx-a`, `${other}\tjohn-sbx-b`], true, {
+      rmFailsOn: ID,
+    });
+    expect(result.removed).toEqual([other]);
+    expect(result.failed).toEqual([ID]);
+    expect(await fake.calls()).toEqual([PS, `rm|--force|${ID}|`, `rm|--force|${other}|`]);
   });
 });

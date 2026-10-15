@@ -1,6 +1,6 @@
 import { fork } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -15,6 +15,15 @@ import {
 import type { EndedSummary } from "../src/logic/protocol.js";
 
 const root = fileURLToPath(new URL("../../..", import.meta.url));
+/** Vrai si le processus existe encore. */
+const alive = (pid: number) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
 const TOKEN = "oauth-token-0123456789abcdef";
 
 let dir: string; // cwd des runs et scripts temporaires
@@ -210,6 +219,28 @@ describe("contrôleur : messages rejetés, démarrage, environnement", () => {
     ctl.kill();
     await ctl.exited;
   });
+
+  it("kill : un petit-enfant long et un moteur sourd à abort sont tués (arbre entier)", async () => {
+    const pidFile = join(dir, "grandchild.pid");
+    const deaf = await script(
+      "deaf.mjs",
+      `import { spawn } from "node:child_process";
+       import { writeFileSync } from "node:fs";
+       const g = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" });
+       writeFileSync(${JSON.stringify(pidFile)}, String(g.pid));
+       process.send({ v: 1, type: "ready" });
+       process.on("message", () => {});
+       setInterval(() => {}, 1000);`,
+    );
+    const ctl = createEngineController({ enginePath: deaf, killGraceMs: 100 });
+    await ctl.start({ cwd: dir });
+    const grandchild = Number(await readFile(pidFile, "utf8"));
+    expect(alive(grandchild)).toBe(true);
+    ctl.kill();
+    await ctl.exited;
+    for (let i = 0; i < 50 && alive(grandchild); i++) await new Promise((r) => setTimeout(r, 100));
+    expect(alive(grandchild)).toBe(false);
+  }, 20_000);
 
   it("délai de démarrage : enfant tué et échec codé", async () => {
     const mute = await script("mute.mjs", "setInterval(() => {}, 1000);");

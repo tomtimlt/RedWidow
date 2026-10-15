@@ -39,6 +39,7 @@ import { createTerminalAsker } from "./ask.js";
 import { colorEnabled, describeAuthIntent, formatEvent, formatRunList } from "./format.js";
 import { appendUserRule } from "./policy-store.js";
 import { MAX_SANDBOX_TIMEOUT_SEC, resolveSandboxOptions } from "./sandbox-options.js";
+import { stripControl } from "./sanitize.js";
 
 /** Libellé de la politique intégrée (`LoadedPolicy.source` vaut `null`). */
 const BUILTIN_SOURCE = "intégrée";
@@ -198,11 +199,18 @@ program
 
     const abort = new AbortController();
     // Premier SIGINT : annulation propre ; second : sortie immédiate (le filet « exit » du cœur tue les groupes).
+    // Le gestionnaire reste en place jusqu'à la fin du nettoyage : un Ctrl-C pendant le `finally`
+    // passe aussi par `process.exit` (donc par l'événement « exit » et le filet synchrone).
+    let cleaning = false;
     const onSigint = () => {
-      if (abort.signal.aborted) process.exit(130);
+      if (abort.signal.aborted || cleaning) process.exit(130);
       abort.abort(new Error("interrompu (SIGINT)"));
     };
+    const onTerm = () => process.exit(143);
+    const onHup = () => process.exit(129);
     process.on("SIGINT", onSigint);
+    process.on("SIGTERM", onTerm);
+    process.on("SIGHUP", onHup);
     process.stderr.write(`politique : ${source ?? BUILTIN_SOURCE} · journal : ${journalPath}\n`);
     process.stderr.write(
       opts.agent === "opencode"
@@ -261,12 +269,18 @@ program
       }
       process.exitCode = summary.status === "success" ? 0 : 1;
     } finally {
-      process.off("SIGINT", onSigint);
+      cleaning = true;
       // Conteneur supprimé en fin de run, sur Ctrl-C et sur erreur, avant la fermeture du journal
       // (pour y consigner `sandbox.stopped`). Un second Ctrl-C passe par le filet de sortie synchrone.
-      if (sandboxCtx)
-        await removeAllSandboxes(sandboxCtx, abort.signal.aborted ? "abort" : "runEnd");
-      await journal.close();
+      try {
+        if (sandboxCtx)
+          await removeAllSandboxes(sandboxCtx, abort.signal.aborted ? "abort" : "runEnd");
+        await journal.close();
+      } finally {
+        process.off("SIGINT", onSigint);
+        process.off("SIGTERM", onTerm);
+        process.off("SIGHUP", onHup);
+      }
     }
   });
 
@@ -404,10 +418,22 @@ program
     "Supprimer les conteneurs portant le label des bacs à sable (orphelins d'un run interrompu).",
   )
   .option("--docker <bin>", "binaire docker", "docker")
+  .option("--yes", "supprimer réellement (sinon, liste seulement)")
   .action(async (opts) => {
     const ctx = createSandboxContext({ recorder: createRecorder(), binary: opts.docker });
-    const removed = await pruneSandboxes(ctx);
+    const { found, removed, failed } = await pruneSandboxes(ctx, { remove: Boolean(opts.yes) });
+    for (const c of found) process.stdout.write(`${c.id}\t${stripControl(c.name)}\n`);
+    if (!opts.yes) {
+      process.stderr.write(
+        `${found.length} conteneur(s) à supprimer : relancer avec --yes pour les supprimer\n`,
+      );
+      return;
+    }
     process.stderr.write(`${removed.length} conteneur(s) supprimé(s)\n`);
+    if (failed.length > 0) {
+      process.stderr.write(`échec de suppression : ${failed.join(", ")}\n`);
+      process.exitCode = 1;
+    }
   });
 
 program

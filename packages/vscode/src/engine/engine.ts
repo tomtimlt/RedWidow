@@ -7,6 +7,7 @@ import {
   createRecorder,
   createRedactor,
   errorInfo,
+  killOwnTree,
   loadPolicy,
   openJournal,
   secretsFromEnv,
@@ -40,6 +41,8 @@ export interface EngineOptions {
   env?: NodeJS.ProcessEnv;
   /** Délai laissé au run pour s'arrêter après une déconnexion avant de rendre la main (défaut : 5000 ms). */
   disconnectGraceMs?: number;
+  /** Arrêt de l'arbre de processus à la fin du délai de grâce (défaut : `killOwnTree`). */
+  killTree?: () => void;
 }
 
 /** Flux de consignes d'une session multi-tours : `push` alimente, `end` clôt. */
@@ -81,6 +84,7 @@ export function runEngine({
   createRunner,
   env = process.env,
   disconnectGraceMs = 5000,
+  killTree = killOwnTree,
 }: EngineOptions): Promise<number> {
   // Tout ce qui part vers le parent est masqué, y compris ce que le recorder ne voit pas
   // (entrée d'un outil en attente d'approbation, erreurs, résumé).
@@ -229,7 +233,11 @@ export function runEngine({
       abort.abort(new Error("IPC coupée"));
       prompts.end();
       if (!started) return finish(1);
-      const timer = setTimeout(() => finish(1), disconnectGraceMs);
+      const timer = setTimeout(() => {
+        // Run sans réponse : son binaire et ses descendants ne doivent pas survivre au moteur.
+        killTree();
+        finish(1);
+      }, disconnectGraceMs);
       timer.unref();
     });
   });

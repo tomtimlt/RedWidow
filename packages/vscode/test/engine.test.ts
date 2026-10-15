@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentRunner } from "@john-studio/core";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { type EngineChannel, runEngine } from "../src/engine/engine.js";
 import type { FromEngine } from "../src/logic/protocol.js";
 
@@ -112,5 +112,22 @@ describe("moteur : validation des messages reçus", () => {
     t.disconnect();
     // Le run s'achève (flux de consignes clos) : le moteur rend la main sans attendre le délai de grâce.
     expect(await done).toBeTypeOf("number");
+  });
+
+  it("déconnexion sans réponse du run : arbre de processus tué à la fin du délai de grâce", async () => {
+    const t = fakeChannel();
+    const killTree = vi.fn();
+    const stuck: AgentRunner = { run: () => new Promise(() => {}) };
+    const done = runEngine({
+      channel: t.channel,
+      createRunner: () => stuck,
+      disconnectGraceMs: 50,
+      killTree,
+    });
+    t.receive({ v: 1, type: "start", cwd });
+    await new Promise((r) => setTimeout(r, 200));
+    t.disconnect();
+    expect(await done).toBe(1);
+    expect(killTree).toHaveBeenCalledOnce();
   });
 });

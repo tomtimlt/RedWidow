@@ -273,3 +273,35 @@ export function terminateProcessTree(
     }, graceMs);
   });
 }
+
+/**
+ * Dernier recours d'un processus qui doit disparaître avec tous ses descendants (moteur enfant
+ * dont le parent a disparu) : arbre Windows par `taskkill /T /F`, groupe POSIX par SIGKILL si on
+ * en est le chef (sinon `ESRCH`/`EPERM` : rien n'est touché). Synchrone ; le processus se tue lui-même.
+ */
+export function killOwnTree(
+  options: {
+    platform?: NodeJS.Platform;
+    env?: NodeJS.ProcessEnv;
+    taskkillSync?: TaskkillSyncLauncher;
+  } = {},
+): void {
+  const {
+    platform = process.platform,
+    env = process.env,
+    taskkillSync = defaultTaskkillSync,
+  } = options;
+  if (isWindows(platform)) {
+    taskkillSync(
+      taskkillPath(env),
+      taskkillArgs(process.pid),
+      taskkillOptions(env, TASKKILL_EXIT_TIMEOUT_MS),
+    );
+    return;
+  }
+  try {
+    process.kill(-process.pid, "SIGKILL");
+  } catch {
+    // pas chef de groupe : on ne touche à personne d'autre.
+  }
+}

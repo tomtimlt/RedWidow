@@ -146,7 +146,8 @@ const isObject = (v: unknown): v is Record<string, unknown> =>
 // ---------------------------------------------------------------------------
 
 /** Argv fixe de `docker run` (ADR 0003, B) : seuls `runId` et `image`, validés, varient. */
-const containerName = (runId: string) => `john-sbx-${runId.slice(0, 12)}`;
+const NAME_PREFIX = "john-sbx-";
+const containerName = (runId: string) => `${NAME_PREFIX}${runId.slice(0, 12)}`;
 
 /**
  * Appels de nettoyage (restart, rm) : jamais le signal de l'appelant. Un signal déjà annulé tuerait
@@ -228,8 +229,16 @@ export async function createSandbox(
         ? info.Id
         : null;
 
-  const started = await docker(ctx, runArgs(runId, image), call);
+  // Le démon a pu créer le conteneur même si le client est tué ou échoue : suppression par nom
+  // (construit par le code), sans le signal de l'appelant.
+  const removeByName = () =>
+    docker(ctx, rmArgs(containerName(runId)), cleanupCall(call)).catch(() => {});
+  const started = await docker(ctx, runArgs(runId, image), call).catch(async (err: unknown) => {
+    await removeByName();
+    throw err;
+  });
   if (started.code !== 0) {
+    await removeByName();
     const stderr = started.stderr.join("\n");
     if (/executable file not found|no such file or directory/i.test(stderr))
       throw new CodedError("sandbox.imageUnsupported", { reason: "noSleep" });
@@ -240,8 +249,8 @@ export async function createSandbox(
   }
   const id = started.stdout[0]?.trim() ?? "";
   if (!CONTAINER_ID.test(id)) {
-    // Le conteneur existe peut-être sans être inscrit : suppression par son nom (construit par le code).
-    await docker(ctx, rmArgs(containerName(runId)), cleanupCall(call)).catch(() => {});
+    // Le conteneur existe peut-être sans être inscrit.
+    await removeByName();
     throw new CodedError("docker.unexpectedOutput", { command: "run" });
   }
 
@@ -527,20 +536,47 @@ export async function removeAllSandboxes(
   for (const id of ctx.registry.ids()) await removeSandbox(ctx, id, cause).catch(() => {});
 }
 
+export interface PruneResult {
+  /** Conteneurs candidats (label ET nom `john-sbx-`), triés comme `docker ps`. */
+  found: { id: string; name: string }[];
+  removed: string[];
+  failed: string[];
+}
+
 /**
- * `john sandbox prune` : supprime les conteneurs portant le label (orphelins d'un SIGKILL).
- * Nettoyage seulement : le label est falsifiable et n'autorise rien d'autre. Renvoie les identifiants supprimés.
+ * `john sandbox prune` : liste les conteneurs portant le label ET le préfixe de nom des bacs à sable
+ * (orphelins d'un SIGKILL) et ne les supprime que si `remove` est vrai. Un échec de `rm` n'arrête pas
+ * les suivants. Nettoyage seulement : label et nom sont falsifiables et n'autorisent rien d'autre.
  */
-export async function pruneSandboxes(ctx: SandboxContext): Promise<string[]> {
+export async function pruneSandboxes(
+  ctx: SandboxContext,
+  { remove }: { remove: boolean },
+): Promise<PruneResult> {
   const listed = await dockerChecked(ctx, "ps", [
     "ps",
     "--all",
-    "--quiet",
     "--no-trunc",
     "--filter",
     `label=${SANDBOX_LABEL}`,
+    "--filter",
+    `name=^${NAME_PREFIX}`,
+    "--format",
+    "{{.ID}}	{{.Names}}",
   ]);
-  const ids = listed.stdout.map((l) => l.trim()).filter((l) => CONTAINER_ID.test(l));
-  for (const id of ids) await dockerChecked(ctx, "rm", rmArgs(id));
-  return ids;
+  const found: PruneResult["found"] = [];
+  for (const line of listed.stdout) {
+    const [id = "", name = ""] = line.trim().split("	");
+    if (CONTAINER_ID.test(id) && name.startsWith(NAME_PREFIX)) found.push({ id, name });
+  }
+  const result: PruneResult = { found, removed: [], failed: [] };
+  if (!remove) return result;
+  for (const { id } of found) {
+    try {
+      await dockerChecked(ctx, "rm", rmArgs(id));
+      result.removed.push(id);
+    } catch {
+      result.failed.push(id);
+    }
+  }
+  return result;
 }

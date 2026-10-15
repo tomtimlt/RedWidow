@@ -43,6 +43,19 @@ describe("affichage neutralisé", () => {
     expect(line).toContain("ok? mcp__sandbox__exec : faux");
   });
 
+  it("sandbox.started : image et identifiant d'un journal non fiable neutralisés", () => {
+    const e = r.emit({
+      kind: "sandbox.started",
+      containerId: "a".repeat(64),
+      image: "x[2K‮faux",
+      network: "none",
+      digest: null,
+    } as never);
+    const line = formatEvent(e, opts) ?? "";
+    expect(hasControl(line)).toBe(false);
+    expect(line).toContain("xfaux");
+  });
+
   it("sortie de processus et argv", () => {
     const out = r.emit({ kind: "process.output", stream: "stdout", line: "a\x1b[2Kb\rc" });
     expect(formatEvent(out, opts)).toBe("stdout    abc");

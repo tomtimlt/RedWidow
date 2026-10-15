@@ -102,6 +102,25 @@ describe("createSandbox", () => {
     expect(ctx.registry.ids()).toEqual([]);
   });
 
+  it("run en échec ou annulé : rm --force par nom en dernier appel (conteneur peut-être créé)", async () => {
+    const failing = await setup();
+    await failing.fake.control({ runFails: "boom" });
+    await expect(createSandbox(failing.ctx, { image: IMAGE })).rejects.toBeDefined();
+    expect((await failing.fake.calls()).at(-1)).toBe("rm|--force|john-sbx-run1|");
+
+    const cancelled = await setup();
+    await cancelled.fake.control({ container: [goodInspect(RUN)], runHangs: true });
+    const abort = new AbortController();
+    const pending = createSandbox(cancelled.ctx, { image: IMAGE, signal: abort.signal }).catch(
+      (e) => e,
+    );
+    await new Promise((r) => setTimeout(r, 1500));
+    abort.abort(new Error("Ctrl-C"));
+    expect(await pending).toBeInstanceOf(Error);
+    // Le nettoyage n'utilise pas le signal annulé de l'appelant.
+    expect((await cancelled.fake.calls()).at(-1)).toBe("rm|--force|john-sbx-run1|");
+  });
+
   it("image sans chown : imageUnsupported, conteneur supprimé et désinscrit", async () => {
     const { fake, ctx, events } = await setup();
     await fake.control({ container: [goodInspect(RUN)], execFailsOn: "chown" });

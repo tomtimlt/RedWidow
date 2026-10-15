@@ -22,3 +22,4 @@ export * from "./sandbox/registry.js";
 export * from "./sandbox/sandbox.js";
 export * from "./sandbox/tar.js";
 export * from "./sandbox/tool-specs.js";
+export * from "./sanitize.js";

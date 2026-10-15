@@ -78,6 +78,8 @@ export interface FakeSandboxControl {
   imageMissing?: boolean;
   /** `run` échoue avec ce message sur stderr. */
   runFails?: string;
+  /** `run` ne se termine jamais (annulation en cours de création). */
+  runHangs?: boolean;
   /** Sortie de `run` (défaut : `FAKE_SANDBOX_ID`). */
   runOutput?: string;
   /** Un `exec` dont l'argv contient ce mot échoue (code 1). */
@@ -86,6 +88,8 @@ export interface FakeSandboxControl {
   /** Durée du `restart` (ms) : éprouve qu'il survit à l'annulation de l'appelant. */
   restartDelayMs?: number;
   rmFails?: boolean;
+  /** Un `rm` dont l argv contient ce mot échoue. */
+  rmFailsOn?: string;
   /** Texte écrit tel quel sur stdout par `exec` (défaut : `exec-ok`), avant un éventuel blocage. */
   execStdout?: string;
   /** Texte écrit tel quel sur stderr par `exec`. */
@@ -124,6 +128,7 @@ if (a === "image" && b === "inspect") {
   out(JSON.stringify([{ Id: "sha256:img", RepoDigests: ["alpine@sha256:digest"] }]));
 } else if (a === "run") {
   if (c.runFails) fail(c.runFails);
+  if (c.runHangs) { setInterval(() => {}, 1000); await new Promise(() => {}); }
   out(c.runOutput ?? ${JSON.stringify(FAKE_SANDBOX_ID)});
 } else if (a === "container" && b === "inspect") {
   out(JSON.stringify(c.container));
@@ -141,6 +146,7 @@ if (a === "image" && b === "inspect") {
   out(argv[argv.length - 1]);
 } else if (a === "rm") {
   if (c.rmFails) fail("cannot remove");
+  if (c.rmFailsOn && argv.includes(c.rmFailsOn)) fail("cannot remove");
   out(argv[argv.length - 1]);
 }
 `,

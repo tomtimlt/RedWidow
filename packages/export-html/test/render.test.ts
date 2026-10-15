@@ -19,6 +19,8 @@ describe("renderGraphHtml", () => {
     expect(html).not.toContain("<script>");
     expect(html).toContain("&lt;script&gt;");
     expect(escapeHtml(`"'&<>`)).toBe("&quot;&#39;&amp;&lt;&gt;");
+    // Journal non fiable : séquences de contrôle et bidi retirées.
+    expect(escapeHtml("a\x1b[2Kb\u202ec\r")).toBe("abc");
   });
 
   it("dessine un nœud par événement non agrégé et une arête par lien", () => {

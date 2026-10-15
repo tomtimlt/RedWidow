@@ -102,9 +102,9 @@ export function formatEvent(e: EngineEvent, { color, verbose }: FormatOptions): 
     case "sink.error":
       return `${tag("red", "sink")} ${e.message}`;
     case "sandbox.started":
-      return `${tag("cyan", "sandbox")} ${e.image} ${paint("dim", `${e.containerId.slice(0, 12)} · réseau ${e.network}`)}`;
+      return `${tag("cyan", "sandbox")} ${stripControl(e.image)} ${paint("dim", `${stripControl(e.containerId.slice(0, 12))} · réseau ${stripControl(e.network)}`)}`;
     case "sandbox.stopped":
-      return `${tag("cyan", "sandbox")} arrêté ${paint("dim", `${e.containerId.slice(0, 12)} · ${e.cause}`)}`;
+      return `${tag("cyan", "sandbox")} arrêté ${paint("dim", `${stripControl(e.containerId.slice(0, 12))} · ${stripControl(e.cause)}`)}`;
     case "journal.truncated":
       return `${tag("red", "journal")} tronqué à ${e.limitBytes} octets · ${e.droppedEvents} événements perdus`;
   }

@@ -8,6 +8,9 @@ import {
   type Reason,
   type RememberScope,
   safeEnv,
+  spawnOptionsForTree,
+  terminateProcessTree,
+  trackProcessTree,
 } from "@john-studio/core";
 import {
   type EndedSummary,
@@ -75,6 +78,8 @@ export interface EngineControllerOptions {
   handlers?: EngineHandlers;
   /** Dossier de travail de l'enfant. */
   cwd?: string;
+  /** Délai de grâce de `kill()` avant l'arrêt forcé de l'arbre de processus (défaut : 2 s). */
+  killGraceMs?: number;
 }
 
 export interface EngineController {
@@ -86,7 +91,7 @@ export interface EngineController {
   abort(): void;
   /** Termine la session proprement (le run s'achève puis le moteur sort). */
   dispose(): void;
-  /** Tue le processus enfant sans attendre (désactivation de l'extension). */
+  /** Désactivation de l'extension : `abort` + `dispose`, délai de grâce, puis arrêt forcé de l'arbre de processus. */
   kill(): void;
   /** Résolue à la fin du processus enfant. */
   readonly exited: Promise<void>;
@@ -94,7 +99,7 @@ export interface EngineController {
 
 /** Contrôleur côté extension : pas d'import de `vscode`, testable avec un vrai enfant. */
 export function createEngineController(options: EngineControllerOptions): EngineController {
-  const { handlers = {}, startTimeoutMs = 15_000 } = options;
+  const { handlers = {}, startTimeoutMs = 15_000, killGraceMs = 2000 } = options;
   // Le jeton connu est masqué dans tout ce que l'on relaie, en plus des motifs usuels.
   const redact = createRedactor({ values: options.auth ? [options.auth.value] : [] });
   let child: ChildProcess | null = null;
@@ -151,7 +156,9 @@ export function createEngineController(options: EngineControllerOptions): Engine
           ...(options.cwd !== undefined && { cwd: options.cwd }),
           stdio: ["ignore", "ignore", "pipe", "ipc"],
           ...HIDDEN_WINDOW,
+          ...spawnOptionsForTree(), // POSIX : chef de groupe, pour tuer aussi les petits-enfants
         });
+        trackProcessTree(proc);
         child = proc;
         const timer = setTimeout(
           () => fail(new CodedError("ipc.startTimeout", { seconds: startTimeoutMs / 1000 })),
@@ -192,6 +199,17 @@ export function createEngineController(options: EngineControllerOptions): Engine
       }),
     abort: () => post({ v: PROTOCOL_VERSION, type: "abort" }),
     dispose: () => post({ v: PROTOCOL_VERSION, type: "dispose" }),
-    kill: () => void child?.kill(),
+    kill() {
+      const proc = child;
+      if (proc === null) return;
+      post({ v: PROTOCOL_VERSION, type: "abort" });
+      post({ v: PROTOCOL_VERSION, type: "dispose" });
+      const timer = setTimeout(() => {
+        // Le moteur n'a pas fini : arbre entier (son binaire `claude` inclus), sans attendre davantage.
+        void terminateProcessTree(proc, { graceMs: 1000 });
+      }, killGraceMs);
+      timer.unref();
+      void exited.then(() => clearTimeout(timer));
+    },
   };
 }
