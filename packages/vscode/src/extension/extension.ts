@@ -89,6 +89,7 @@ export function activate(context: vscode.ExtensionContext): void {
         nonce,
         cspSource: view.webview.cspSource,
         scriptUri: view.webview.asWebviewUri(vscode.Uri.joinPath(media, "chat.js")).toString(),
+        uiUri: view.webview.asWebviewUri(vscode.Uri.joinPath(media, "ui.js")).toString(),
         styleUri: view.webview.asWebviewUri(vscode.Uri.joinPath(media, "chat.css")).toString(),
       });
       post = (message) => void view.webview.postMessage(message);

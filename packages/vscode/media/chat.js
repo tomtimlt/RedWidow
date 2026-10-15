@@ -11,7 +11,8 @@
   const input = $("input");
   const send = $("send");
   const stop = $("stop");
-  const activity = $("activity");
+  // Logique pure (media/ui.js, chargé avant) : navigation clavier, placement, classes d'état.
+  const UI = globalThis.JohnUI;
 
   const el = (tag, className, text) => {
     const node = document.createElement(tag);
@@ -26,7 +27,7 @@
     "Lis le README et propose des améliorations",
   ];
   const STATUS = { pending: "en cours", ok: "réussi", error: "erreur", denied: "refusé" };
-  const ICON = { pending: "", ok: "✓", error: "✕", denied: "⊘" };
+  const ICON = { pending: "◌", ok: "✓", error: "✕", denied: "⊘" };
   const DECISION = { allow: "Autorisé", deny: "Refusé" };
 
   // --- Markdown : arbre -> nœuds DOM (balises en liste blanche, texte par createTextNode) ---
@@ -89,6 +90,8 @@
 
   // --- Éléments du fil ---
   const openTools = new Set();
+  // Dernier état vu de chaque outil : l'icône ne « se pose » (animation unique) qu'au changement d'état.
+  const toolStatus = new Map();
 
   function renderTool(item) {
     const box = el("details", `tool ${item.status}`);
@@ -100,6 +103,9 @@
     const sum = el("summary");
     const icon = el("span", "icon", ICON[item.status] ?? "");
     icon.setAttribute("aria-hidden", "true");
+    const before = toolStatus.get(item.toolUseId);
+    if (before !== undefined && before !== item.status) icon.classList.add("settled");
+    toolStatus.set(item.toolUseId, item.status);
     sum.append(icon, el("span", "tool-name", item.label));
     if (item.summary) sum.append(el("span", "tool-summary", item.summary));
     if (item.status === "denied") sum.append(el("span", "badge", DECISION.deny));
@@ -177,8 +183,8 @@
   // --- Cartes d'approbation ---
   const seenCards = new Set();
 
-  function renderCard(card) {
-    const box = el("div", "card");
+  function renderCard(card, isNew) {
+    const box = el("div", isNew ? "card enter" : "card");
     box.tabIndex = -1;
     box.setAttribute("role", "group");
     box.setAttribute("aria-label", `Demande d'autorisation : ${card.label}`);
@@ -201,7 +207,7 @@
       row.append(b);
     };
     button("Autoriser une fois", "once", "primary");
-    button("Refuser", "deny", "");
+    button("Refuser", "deny", "secondary");
     if (card.canRemember) button("Toujours", "always", "link");
     box.append(row);
     // Échap sur la carte (pas dans un champ) : refuser.
@@ -214,69 +220,300 @@
     return box;
   }
 
-  // --- Sélecteurs de modèle et d'effort : tout est revalidé par l'extension, ici on ne fait qu'afficher ---
-  const controls = $("controls");
-  const modelSelect = $("model-select");
+  // --- Modèle, Configurer : tout est revalidé par l'extension, ici on ne fait qu'afficher ---
+  const ctlGroup = $("ctl-group");
+  const modelChip = $("model-chip");
+  const cfgBtn = $("cfg-btn");
+  const modelPop = $("model-pop");
+  const cfgPop = $("cfg-pop");
+  const modelFilter = $("model-filter");
+  const modelList = $("model-list");
   const modelInput = $("model-input");
   const effortInput = $("effort");
-  const effortLabel = $("effort-label");
   const ticks = $("effort-ticks");
+  const sweep = document.querySelector(".sweep");
+  let ctl = null;
   let levels = [];
+  let lastModel;
+  let flip = false;
+  let query = "";
+  let active = -1;
+  let visible = [];
+  let optNodes = [];
 
-  function renderControls(c) {
-    controls.hidden = !c;
-    if (!c) return;
-    controls.classList.toggle("locked", c.locked);
-    const list = c.models !== null;
-    modelSelect.hidden = !list;
-    modelInput.hidden = list;
-    modelSelect.disabled = modelInput.disabled = c.locked;
-    $("models-refresh").disabled = c.locked || c.modelsStatus === "loading";
-    $("models-refresh").textContent = c.modelsStatus === "loading" ? "Chargement…" : "Actualiser";
-    if (list) {
-      const opts = [el("option", "", "Modèle par défaut")];
-      opts[0].value = "";
-      for (const m of c.models) {
-        const o = el("option", "", m.label);
-        o.value = m.value;
-        o.title = m.description;
-        opts.push(o);
-      }
-      modelSelect.replaceChildren(...opts);
-      modelSelect.value = c.model ?? "";
-    } else if (document.activeElement !== modelInput) {
-      modelInput.value = c.model ?? "";
+  /** Rejoue les effets de changement de modèle (E2, E3) : on alterne deux classes, sans reflow forcé. */
+  function modelFx() {
+    flip = !flip;
+    for (const [node, base] of [
+      [sweep, "sweep"],
+      [modelChip, "pop"],
+    ]) {
+      node.classList.remove(`${base}-${flip ? "b" : "a"}`);
+      node.classList.add(`${base}-${flip ? "a" : "b"}`);
     }
+  }
+
+  // Placement d'un popover : mesures seulement à l'ouverture et pendant qu'il est ouvert.
+  let openPop = null;
+  const resizer = new ResizeObserver(() => {
+    if (openPop) place(openPop.pop, openPop.chip);
+  });
+
+  function place(pop, anchor) {
+    pop.style.setProperty("--jn-maxh", "9999px");
+    const r = anchor.getBoundingClientRect();
+    const p = UI.placePopover(
+      { left: r.left, top: r.top, bottom: r.bottom },
+      { width: pop.offsetWidth, height: pop.offsetHeight },
+      {
+        width: document.documentElement.clientWidth,
+        height: document.documentElement.clientHeight,
+      },
+    );
+    pop.style.setProperty("--jn-x", `${p.x}px`);
+    pop.style.setProperty("--jn-y", `${p.y}px`);
+    pop.style.setProperty("--jn-maxh", `${p.maxHeight}px`);
+    pop.classList.add("placed");
+  }
+
+  /** Popover natif (light dismiss, Échap) : ouverture refusée si la pastille est verrouillée ; focus rendu à la fermeture. */
+  function wirePop(pop, chip, { render, focus }) {
+    pop.addEventListener("beforetoggle", (e) => {
+      if (e.newState === "open" && chip.getAttribute("aria-disabled") === "true")
+        e.preventDefault();
+    });
+    pop.addEventListener("toggle", (e) => {
+      const open = e.newState === "open";
+      chip.setAttribute("aria-expanded", String(open));
+      if (open) {
+        render();
+        place(pop, chip);
+        openPop = { pop, chip };
+        resizer.observe(document.body);
+        resizer.observe(pop);
+        focus();
+        return;
+      }
+      pop.classList.remove("placed");
+      if (openPop?.pop === pop) {
+        resizer.disconnect();
+        openPop = null;
+      }
+      const a = document.activeElement;
+      if (!a || a === document.body || pop.contains(a)) chip.focus();
+    });
+    // Piège de focus : Tab et Maj+Tab cyclent dans le popover.
+    pop.addEventListener("keydown", (e) => {
+      if (e.key !== "Tab") return;
+      const items = [...pop.querySelectorAll("button, input")].filter(
+        (n) => !n.disabled && !n.hidden && !n.closest("[hidden]"),
+      );
+      const t = UI.tabTarget(items.length, items.indexOf(document.activeElement), e.shiftKey);
+      if (t >= 0) {
+        e.preventDefault();
+        items[t].focus();
+      }
+    });
+  }
+
+  // Liste des modèles : listbox ARIA avec filtre (aria-activedescendant, le focus reste dans le champ).
+  const modelEntries = () => [
+    {
+      value: null,
+      label: "Modèle par défaut",
+      description: "Réglage john.model, sinon le modèle du binaire.",
+    },
+    ...(ctl?.models ?? []),
+  ];
+
+  function paintActive() {
+    optNodes.forEach((n, i) => {
+      n.classList.toggle("active", i === active);
+    });
+    const node = optNodes[active];
+    if (node) {
+      modelFilter.setAttribute("aria-activedescendant", node.id);
+      node.scrollIntoView({ block: "nearest" });
+    } else modelFilter.removeAttribute("aria-activedescendant");
+  }
+
+  function pick(entry) {
+    if (!ctl || ctl.locked) return;
+    if (entry.value !== ctl.model) vscode.postMessage({ type: "setModel", model: entry.value });
+    modelPop.hidePopover();
+  }
+
+  function renderModelList(preferCurrent) {
+    visible = UI.filterModels(modelEntries(), query);
+    optNodes = [];
+    const nodes = [];
+    let group = null;
+    let kind = null;
+    visible.forEach((m, i) => {
+      const k = m.value === null ? "def" : "mod";
+      if (k !== kind) {
+        kind = k;
+        group = el("div", "grp");
+        group.setAttribute("role", "group");
+        const name = k === "def" ? "Par défaut" : "Modèles disponibles";
+        group.setAttribute("aria-label", name);
+        const head = el("div", "grp-head", name);
+        head.setAttribute("aria-hidden", "true");
+        group.append(head);
+        nodes.push(group);
+      }
+      const o = el("div", "opt");
+      o.id = `opt-${i}`;
+      o.setAttribute("role", "option");
+      const current = m.value === ctl.model;
+      o.setAttribute("aria-selected", String(current));
+      if (m.description) o.title = m.description;
+      o.append(el("span", "opt-label", m.label));
+      if (current) o.append(el("span", "badge", "actuel"));
+      if (m.description) o.append(el("span", "opt-desc", m.description));
+      o.addEventListener("click", () => pick(m));
+      group.append(o);
+      optNodes.push(o);
+    });
+    if (visible.length === 0) {
+      nodes.push(
+        el(
+          "div",
+          "empty",
+          ctl.modelsStatus === "loading"
+            ? "Chargement de la liste…"
+            : "Aucun modèle ne correspond.",
+        ),
+      );
+    }
+    modelList.replaceChildren(...nodes);
+    const cur = visible.findIndex((m) => m.value === ctl.model);
+    active =
+      preferCurrent && cur >= 0
+        ? cur
+        : UI.listboxKey(
+            { active: -1 },
+            "Home",
+            visible.map(() => ({ disabled: false })),
+          ).active;
+    paintActive();
+  }
+
+  function renderControls(c, sandbox) {
+    ctlGroup.hidden = !c;
+    ctl = c;
+    if (!c) {
+      for (const p of [modelPop, cfgPop]) if (p.matches(":popover-open")) p.hidePopover();
+      return;
+    }
+    modelChip.setAttribute("aria-disabled", String(c.locked));
+    const known = c.models?.find((m) => m.value === c.model);
+    const name = c.model === null ? "Modèle par défaut" : (known?.label ?? c.model);
+    $("model-chip-label").textContent = name;
+    modelChip.title = `Modèle : ${name} (utilisé pour le message suivant)`;
+    if (UI.shouldSweep(lastModel, c.model)) modelFx();
+    lastModel = c.model;
+
+    const free = c.models === null;
+    modelFilter.hidden = modelList.hidden = free;
+    modelInput.hidden = !free;
+    modelInput.disabled = c.locked;
+    $("models-refresh").disabled = c.locked || c.modelsStatus === "loading";
+    $("models-refresh").textContent =
+      c.modelsStatus === "loading" ? "Chargement…" : "Actualiser la liste";
+    if (free) {
+      if (document.activeElement !== modelInput) modelInput.value = c.model ?? "";
+    } else if (modelPop.matches(":popover-open")) renderModelList(false);
+
     levels = c.levels;
     const auto = c.effort === null;
     $("effort-auto").hidden = auto;
+    $("effort-auto").disabled = c.locked;
     effortInput.classList.toggle("auto", auto);
     effortInput.max = String(Math.max(levels.length - 1, 0));
-    effortInput.value = String(
-      auto ? Math.floor(levels.length / 2) : levels.findIndex((l) => l.value === c.effort),
-    );
+    const idx = auto
+      ? Math.floor(levels.length / 2)
+      : Math.max(
+          levels.findIndex((l) => l.value === c.effort),
+          0,
+        );
+    effortInput.value = String(idx);
+    effortInput.style.setProperty("--jn-pct", `${auto ? 0 : UI.effortPct(idx, levels.length)}%`);
     effortInput.disabled = c.locked || c.effortDisabled;
     effortInput.title = c.effortDisabled ? "Ce modèle n'a pas d'effort réglable." : c.effortTip;
     effortInput.setAttribute("aria-valuetext", `${c.effortLabel} : ${c.effortTip}`);
-    effortLabel.textContent = c.effortLabel;
+    $("effort-label").textContent = c.effortLabel;
+    $("effort-tip").textContent = c.effortDisabled
+      ? "Ce modèle n'a pas d'effort réglable."
+      : c.effortTip;
+    $("cfg-level").textContent = c.effortLabel;
+    cfgBtn.title = `Configurer : effort ${c.effortLabel}`;
     ticks.replaceChildren(
       ...levels.map((l) => {
         const t = el("span", l.value === c.effort ? "on" : l.enabled ? "" : "off", l.label);
         if (!l.enabled) t.title = "Non pris en charge par ce modèle";
+        else
+          t.addEventListener("click", () => {
+            if (ctl && !ctl.locked && !ctl.effortDisabled)
+              vscode.postMessage({ type: "setEffort", effort: l.value });
+          });
         return t;
       }),
     );
+    $("cfg-sandbox").textContent = sandbox ?? "Désactivé";
+    $("cfg-sandbox").title = sandbox ?? "";
+    $("cfg-network").textContent = sandbox ? "Coupé" : "Sans objet";
   }
 
-  modelSelect.addEventListener("change", () =>
-    vscode.postMessage({
-      type: "setModel",
-      model: modelSelect.value === "" ? null : modelSelect.value,
-    }),
-  );
-  modelInput.addEventListener("change", () => {
+  wirePop(modelPop, modelChip, {
+    render() {
+      query = "";
+      modelFilter.value = "";
+      if (ctl && ctl.models !== null) renderModelList(true);
+    },
+    focus() {
+      (ctl?.models === null ? modelInput : modelFilter).focus();
+    },
+  });
+  wirePop(cfgPop, cfgBtn, {
+    render() {},
+    focus() {
+      [...cfgPop.querySelectorAll("input, button")].find((n) => !n.disabled && !n.hidden)?.focus();
+    },
+  });
+
+  modelFilter.addEventListener("input", () => {
+    query = modelFilter.value;
+    renderModelList(false);
+    place(modelPop, modelChip);
+  });
+  modelFilter.addEventListener("keydown", (e) => {
+    if (["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) {
+      e.preventDefault();
+      active = UI.listboxKey(
+        { active },
+        e.key,
+        visible.map(() => ({ disabled: false })),
+      ).active;
+      paintActive();
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const entry = visible[active];
+      if (entry) pick(entry);
+    }
+  });
+  const commitFree = () => {
     const v = modelInput.value.trim();
-    vscode.postMessage({ type: "setModel", model: v === "" ? null : v });
+    if (ctl && v !== (ctl.model ?? ""))
+      vscode.postMessage({ type: "setModel", model: v === "" ? null : v });
+  };
+  modelInput.addEventListener("change", commitFree);
+  modelInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      commitFree();
+      modelPop.hidePopover();
+    }
   });
   $("models-refresh").addEventListener("click", () =>
     vscode.postMessage({ type: "refreshModels" }),
@@ -372,8 +609,24 @@
   );
   $("readonly-close").addEventListener("click", () => vscode.postMessage({ type: "reset" }));
 
+  // Classes de body (running, waiting, paused, readonly, reduce-motion) : les effets CSS n'en dépendent que par elles.
+  const MANAGED = ["running", "waiting", "paused", "readonly", "reduce-motion"];
+  const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  let lastView = null;
+  function applyBody() {
+    if (!lastView) return;
+    const want = UI.bodyClasses(lastView, {
+      hidden: document.hidden,
+      reducedMotion: motion.matches,
+    });
+    for (const c of MANAGED) document.body.classList.toggle(c, want.includes(c));
+  }
+  // La vue a retainContextWhenHidden : on fige les animations quand elle est cachée.
+  document.addEventListener("visibilitychange", applyBody);
+  motion.addEventListener("change", applyBody);
+
   function render(view) {
-    renderControls(view.controls);
+    renderControls(view.controls, view.sandbox);
     renderHistory(view.history);
     renderReadonly(view.readonly);
     const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
@@ -381,7 +634,7 @@
     log.replaceChildren(
       ...(view.items.length === 0 ? [welcome(view.sandbox)] : renderItems(view.items)),
     );
-    const cards = view.approvals.map(renderCard);
+    const cards = view.approvals.map((c) => renderCard(c, !seenCards.has(c.toolUseId)));
     approvals.replaceChildren(...cards);
     const fresh = view.approvals.findIndex((c) => !seenCards.has(c.toolUseId));
     seenCards.clear();
@@ -393,7 +646,10 @@
     send.disabled = view.busy || !!view.readonly;
     input.disabled = !!view.readonly;
     stop.disabled = !view.busy;
-    activity.hidden = !view.busy;
+    lastView = view;
+    applyBody();
+    if (view.busy) $("thinking-label").textContent = UI.activityLabel(view);
+    if (view.items.length === 0) toolStatus.clear();
     log.setAttribute("aria-busy", view.busy ? "true" : "false");
     log.scrollTop = atBottom ? log.scrollHeight : top;
   }
