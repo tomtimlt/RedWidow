@@ -12,7 +12,7 @@ export const DOCKER_SERVER_INSTRUCTIONS =
 export const MAX_TOOL_LINES = 200;
 
 /** Joint les lignes ; au-delà du plafond, ne garde que les dernières et signale la coupe. */
-function formatLines(lines: readonly string[]): string {
+export function formatLines(lines: readonly string[]): string {
   if (lines.length <= MAX_TOOL_LINES) return lines.join("\n");
   const kept = lines.slice(-MAX_TOOL_LINES);
   return [`… ${lines.length - MAX_TOOL_LINES} lignes tronquées`, ...kept].join("\n");

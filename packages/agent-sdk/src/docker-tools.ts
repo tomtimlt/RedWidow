@@ -5,6 +5,7 @@ import {
   DOCKER_SERVER_NAME,
   DOCKER_TOOL_PREFIX,
   type DockerClient,
+  type DockerToolSpec,
   dockerToolSpecs,
 } from "@john-studio/core";
 import { formatError } from "@john-studio/messages";
@@ -36,7 +37,15 @@ export function createDockerTools(
   docker: DockerClient,
   resolveParent: ResolveParent,
 ): AnyMcpTool[] {
-  const tools = dockerToolSpecs(docker).map((spec) =>
+  return createSpecTools(dockerToolSpecs(docker), resolveParent);
+}
+
+/** Enveloppe des spécifications neutres (docker, bac à sable) en outils MCP du SDK. */
+export function createSpecTools(
+  specs: readonly DockerToolSpec[],
+  resolveParent: ResolveParent,
+): AnyMcpTool[] {
+  const tools = specs.map((spec) =>
     tool(
       spec.name,
       spec.description,

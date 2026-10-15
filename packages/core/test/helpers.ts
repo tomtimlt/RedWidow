@@ -62,6 +62,12 @@ export const goodInspect = (runId: string, id = FAKE_SANDBOX_ID) => ({
     IpcMode: "private",
     UTSMode: "",
     UsernsMode: "",
+    CgroupnsMode: "private",
+    DeviceRequests: null,
+    PidsLimit: 512,
+    Memory: 2147483648,
+    MemorySwap: 2147483648,
+    NanoCpus: 2000000000,
   },
 });
 
@@ -80,6 +86,12 @@ export interface FakeSandboxControl {
   /** Durée du `restart` (ms) : éprouve qu'il survit à l'annulation de l'appelant. */
   restartDelayMs?: number;
   rmFails?: boolean;
+  /** Texte écrit tel quel sur stdout par `exec` (défaut : `exec-ok`), avant un éventuel blocage. */
+  execStdout?: string;
+  /** Texte écrit tel quel sur stderr par `exec`. */
+  execStderr?: string;
+  /** Sortie de `ps` (une ligne par identifiant). */
+  psOut?: string[];
 }
 
 /**
@@ -117,8 +129,12 @@ if (a === "image" && b === "inspect") {
   out(JSON.stringify(c.container));
 } else if (a === "exec") {
   if (c.execFailsOn && argv.includes(c.execFailsOn)) fail("exec failed");
+  if (c.execStdout !== undefined) process.stdout.write(c.execStdout);
+  if (c.execStderr !== undefined) process.stderr.write(c.execStderr);
   if (argv.includes("hang")) setInterval(() => {}, 1000);
-  else out("exec-ok");
+  else if (c.execStdout === undefined) out("exec-ok");
+} else if (a === "ps") {
+  for (const l of c.psOut ?? []) out(l);
 } else if (a === "restart") {
   if (c.restartDelayMs) await new Promise((r) => setTimeout(r, c.restartDelayMs));
   if (c.restartFails) fail("cannot restart");

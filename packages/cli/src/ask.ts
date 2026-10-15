@@ -1,6 +1,7 @@
 import { createInterface } from "node:readline/promises";
 import type { ApprovalAnswer, Asker, RememberScope } from "@john-studio/core";
 import { formatReason } from "@john-studio/messages";
+import { stripControl } from "./sanitize.js";
 
 /**
  * Approbateur terminal. Les demandes sont sérialisées : le SDK peut demander
@@ -27,12 +28,13 @@ export function createTerminalAsker(
     const run = async () => {
       const rl = createInterface({ input, output, terminal: false });
       try {
-        const detail =
+        const detail = stripControl(
           typeof request.input.command === "string"
             ? request.input.command
-            : JSON.stringify(request.input);
+            : JSON.stringify(request.input),
+        );
         const answer = await rl.question(
-          `\n? ${request.tool} : ${detail}\n  ${formatReason(verdict.reason)}\n  Autoriser ? [o]ui une fois / [s]ession / [t]oujours / [N]on `,
+          `\n? ${request.tool} : ${detail}\n  ${stripControl(formatReason(verdict.reason))}\n  Autoriser ? [o]ui une fois / [s]ession / [t]oujours / [N]on `,
           { signal },
         );
         return parseAnswer(answer);

@@ -1,5 +1,6 @@
 import type { AuthInfo, AuthMode, EngineEvent } from "@john-studio/core";
 import { describeAuth, formatError, formatReason, summarizeOutput } from "@john-studio/messages";
+import { stripControl } from "./sanitize.js";
 
 export { summarizeOutput };
 
@@ -30,8 +31,9 @@ export function formatEvent(e: EngineEvent, { color, verbose }: FormatOptions): 
     case "agent.text":
       return `${tag("blue", "agent")} ${e.text}`;
     case "tool.requested": {
-      const detail =
-        typeof e.input.command === "string" ? e.input.command : JSON.stringify(e.input);
+      const detail = stripControl(
+        typeof e.input.command === "string" ? e.input.command : JSON.stringify(e.input),
+      );
       const nested = e.agentToolUseId ? "↳ " : "";
       return `${tag("magenta", "tool")} ${nested}${e.tool} ${paint("dim", detail)}`;
     }
@@ -39,13 +41,13 @@ export function formatEvent(e: EngineEvent, { color, verbose }: FormatOptions): 
       return `${tag(e.decision === "allow" ? "green" : "red", e.decision)} ${paint("dim", `[${e.source}] ${formatReason(e.reason)}`)}`;
     case "tool.result": {
       const more = e.truncated ? paint("dim", ` [tronqué : ${e.bytes} octets]`) : "";
-      return `${tag(e.isError ? "red" : "dim", "result")} ${summarizeOutput(e.output)}${more}`;
+      return `${tag(e.isError ? "red" : "dim", "result")} ${summarizeOutput(stripControl(e.output))}${more}`;
     }
     case "process.started":
-      return `${tag("yellow", "exec")} ${e.argv.join(" ")}`;
+      return `${tag("yellow", "exec")} ${stripControl(e.argv.join(" "))}`;
     case "process.output":
       if (!verbose) return null;
-      return `${tag("dim", e.stream)} ${e.line}${e.truncated ? paint("dim", " […]") : ""}`;
+      return `${tag("dim", e.stream)} ${stripControl(e.line)}${e.truncated ? paint("dim", " […]") : ""}`;
     case "process.exited": {
       const dropped = e.droppedLines
         ? paint("dim", ` · ${e.droppedLines} lignes non journalisées`)
@@ -65,7 +67,7 @@ export function formatEvent(e: EngineEvent, { color, verbose }: FormatOptions): 
       return `${tag(e.status === "success" ? "green" : "red", e.status)} ${e.turns} tours · $${e.costUsd.toFixed(4)}${sessionId}${extra}`;
     }
     case "error":
-      return `${tag("red", "error")} ${formatError(e)}`;
+      return `${tag("red", "error")} ${stripControl(formatError(e))}`;
     case "session.started":
       return `${tag("dim", "session")} ${e.model} ${paint("dim", `${e.sessionId} · ${e.tools.length} outils${e.auth ? ` · ${describeAuth(e.auth)}` : ""}`)}`;
     case "auth.info":
@@ -73,8 +75,9 @@ export function formatEvent(e: EngineEvent, { color, verbose }: FormatOptions): 
     case "auth.status":
       return `${tag(e.error === undefined ? "yellow" : "red", "auth")} ${e.error ?? (e.isAuthenticating ? "authentification en cours" : "authentifié")}`;
     case "approval.requested": {
-      const detail =
-        typeof e.input.command === "string" ? e.input.command : JSON.stringify(e.input);
+      const detail = stripControl(
+        typeof e.input.command === "string" ? e.input.command : JSON.stringify(e.input),
+      );
       return `${tag("yellow", "ask")} ${e.tool} ${paint("dim", `${detail} · ${formatReason(e.verdict)}`)}`;
     }
     case "turn.finished":

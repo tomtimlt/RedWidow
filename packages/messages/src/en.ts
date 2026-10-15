@@ -19,6 +19,10 @@ export const reasons: Catalog = {
   "sandbox.tarRejected": (p) =>
     `tar archive rejected (${text(p.reason)})${p.entry === undefined ? "" : `: ${text(p.entry)}`}, nothing written`,
   "sandbox.unavailable": () => "sandbox unavailable",
+  "sandbox.execTimeout": (p) =>
+    `timeout of ${text(p.seconds)} s exceeded: sandbox ${p.restarted === 1 ? "restarted" : "out of service"}. Partial output:\n${text(p.output)}`,
+  "sandbox.execAborted": (p) =>
+    `execution cancelled: sandbox ${p.restarted === 1 ? "restarted" : "out of service"}. Partial output:\n${text(p.output)}`,
   "sandbox.unknownContainer": () => "container not in the sandbox registry: denied",
   "policy.invalid.commandWildcard": (p) =>
     `invalid policy: rules[${text(p.index)}].command, "*" must be a whole token (no partial wildcard)`,

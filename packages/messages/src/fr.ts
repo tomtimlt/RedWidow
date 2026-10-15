@@ -57,6 +57,7 @@ const SANDBOX_ARGUMENT_REASONS: Readonly<Record<string, string>> = {
   outside: "hors de /work ou contenant « .. »",
   range: "hors des bornes autorisées",
   format: "format non admis",
+  required: "option --sandbox requise",
 };
 
 /** Motifs de `sandbox.tarRejected`. */
@@ -205,6 +206,11 @@ export const reasons: Catalog = {
     `archive tar refusée (${TAR_REASONS[text(p.reason)] ?? text(p.reason)})${p.entry === undefined ? "" : ` : ${text(p.entry)}`}, rien n'a été écrit`,
   "sandbox.invalidArgument": (p) =>
     `argument invalide (${text(p.field)}) : ${SANDBOX_ARGUMENT_REASONS[text(p.reason)] ?? text(p.reason)}`,
+
+  "sandbox.execTimeout": (p) =>
+    `délai de ${text(p.seconds)} s dépassé : bac à sable ${p.restarted === 1 ? "redémarré" : "hors service"}. Sortie partielle :\n${text(p.output)}`,
+  "sandbox.execAborted": (p) =>
+    `exécution annulée : bac à sable ${p.restarted === 1 ? "redémarré" : "hors service"}. Sortie partielle :\n${text(p.output)}`,
 
   "sandbox.interpreter": (p) =>
     `interpréteur ou enveloppe dans le bac à sable (${text(p.program)}) : la commande réelle n'est pas vérifiable, approbation requise`,

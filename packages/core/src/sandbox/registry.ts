@@ -17,12 +17,10 @@ export interface SandboxRecord {
 export class SandboxRegistry {
   readonly #records = new Map<string, SandboxRecord>();
 
-  constructor() {
-    liveRegistries.add(this);
-  }
-
+  /** S'inscrit au filet de sortie à l'ajout et s'en retire une fois vide (pas de fuite de registres). */
   add(record: SandboxRecord): void {
     installExitHook();
+    liveRegistries.add(this);
     this.#records.set(record.id, record);
   }
 
@@ -36,6 +34,7 @@ export class SandboxRegistry {
 
   delete(id: string): void {
     this.#records.delete(id);
+    if (this.#records.size === 0) liveRegistries.delete(this);
   }
 
   ids(): string[] {
@@ -46,6 +45,7 @@ export class SandboxRegistry {
   drain(): SandboxRecord[] {
     const all = [...this.#records.values()];
     this.#records.clear();
+    liveRegistries.delete(this);
     return all;
   }
 }

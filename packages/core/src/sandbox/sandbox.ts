@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { posix } from "node:path";
 import { assertArgsPrefix, assertBinary, assertOperand, DockerError } from "../docker/client.js";
+import type { Correlation } from "../events.js";
 import { resolveBinary } from "../process/resolve.js";
 import { type ProcessResult, runProcess, safeEnv } from "../process/run.js";
 import { CodedError, ValidationError } from "../reason.js";
@@ -14,6 +15,9 @@ export const SANDBOX_LABEL = "io.john-studio.sandbox";
 export const SANDBOX_WORKDIR = "/work";
 /** Limites fixes (ADR 0003, Q5). */
 export const SANDBOX_LIMITS = { pidsLimit: 512, memory: "2g", cpus: 2 } as const;
+/** Valeurs attendues dans `docker inspect` pour les limites ci-dessus (`2g`, 2 CPU). */
+const MEMORY_BYTES = 2 * 1024 ** 3;
+const NANO_CPUS = 2 * 1e9;
 
 const DEFAULT_MAX_TIMEOUT_SEC = 600;
 const ABSOLUTE_MAX_TIMEOUT_SEC = 1800;
@@ -73,6 +77,7 @@ interface Call {
   parentId?: string | null;
   signal?: AbortSignal;
   timeoutMs?: number;
+  correlation?: Correlation;
 }
 
 /** Lance `docker <args>` : args construits par le code seulement (jamais d'option issue d'une entrée). */
@@ -89,6 +94,7 @@ function docker(
     parentId: call.parentId === undefined ? ctx.parentId : call.parentId,
     timeoutMs: call.timeoutMs ?? ctx.timeoutMs,
     ...(call.signal && { signal: call.signal }),
+    ...(call.correlation && { correlation: call.correlation }),
   });
 }
 
@@ -365,6 +371,17 @@ export async function inspectSandbox(
     "HostConfig.Devices",
   );
   expect(host.NetworkMode === "none", "HostConfig.NetworkMode");
+  expect(host.PidsLimit === SANDBOX_LIMITS.pidsLimit, "HostConfig.PidsLimit");
+  expect(host.Memory === MEMORY_BYTES, "HostConfig.Memory");
+  expect(host.MemorySwap === MEMORY_BYTES, "HostConfig.MemorySwap");
+  expect(host.NanoCpus === NANO_CPUS, "HostConfig.NanoCpus");
+  expect(
+    host.DeviceRequests === null ||
+      host.DeviceRequests === undefined ||
+      (Array.isArray(host.DeviceRequests) && host.DeviceRequests.length === 0),
+    "HostConfig.DeviceRequests",
+  );
+  expect(host.CgroupnsMode !== "host", "HostConfig.CgroupnsMode");
   for (const key of ["PidMode", "IpcMode", "UTSMode", "UsernsMode"])
     expect(host[key] !== "host", `HostConfig.${key}`);
   expect(config.User === SANDBOX_USER, "Config.User");
@@ -495,4 +512,35 @@ export async function removeSandbox(
     { kind: "sandbox.stopped", containerId: id, cause },
     call.parentId === undefined ? ctx.parentId : call.parentId,
   );
+}
+
+/** Identifiant du bac à sable du run (registre), ou `undefined` s'il n'y en a pas ou s'il est hors service. */
+export function activeSandboxId(ctx: SandboxContext): string | undefined {
+  return ctx.registry.ids().find((id) => ctx.registry.get(id)?.unavailable === false);
+}
+
+/** Fin de run : supprime tous les bacs à sable du registre (sans signal : même après une annulation). */
+export async function removeAllSandboxes(
+  ctx: SandboxContext,
+  cause: "runEnd" | "abort" | "error" = "runEnd",
+): Promise<void> {
+  for (const id of ctx.registry.ids()) await removeSandbox(ctx, id, cause).catch(() => {});
+}
+
+/**
+ * `john sandbox prune` : supprime les conteneurs portant le label (orphelins d'un SIGKILL).
+ * Nettoyage seulement : le label est falsifiable et n'autorise rien d'autre. Renvoie les identifiants supprimés.
+ */
+export async function pruneSandboxes(ctx: SandboxContext): Promise<string[]> {
+  const listed = await dockerChecked(ctx, "ps", [
+    "ps",
+    "--all",
+    "--quiet",
+    "--no-trunc",
+    "--filter",
+    `label=${SANDBOX_LABEL}`,
+  ]);
+  const ids = listed.stdout.map((l) => l.trim()).filter((l) => CONTAINER_ID.test(l));
+  for (const id of ids) await dockerChecked(ctx, "rm", rmArgs(id));
+  return ids;
 }

@@ -263,6 +263,42 @@ describe("inspectSandbox : vérification avant usage", () => {
       },
     ],
     [
+      "HostConfig.PidsLimit",
+      (d) => {
+        d.HostConfig.PidsLimit = 0;
+      },
+    ],
+    [
+      "HostConfig.Memory",
+      (d) => {
+        d.HostConfig.Memory = 0;
+      },
+    ],
+    [
+      "HostConfig.MemorySwap",
+      (d) => {
+        d.HostConfig.MemorySwap = -1;
+      },
+    ],
+    [
+      "HostConfig.NanoCpus",
+      (d) => {
+        d.HostConfig.NanoCpus = 0;
+      },
+    ],
+    [
+      "HostConfig.DeviceRequests",
+      (d) => {
+        d.HostConfig.DeviceRequests = [{ Driver: "nvidia" }] as never;
+      },
+    ],
+    [
+      "HostConfig.CgroupnsMode",
+      (d) => {
+        d.HostConfig.CgroupnsMode = "host";
+      },
+    ],
+    [
       "HostConfig.PidMode",
       (d) => {
         d.HostConfig.PidMode = "host";
