@@ -7,8 +7,10 @@ import {
   defaultConfigDir,
   type LabelPrefixContainer,
   link,
+  lookupContainer,
   readProject,
   resolveBinary,
+  shortContainerName,
   status,
 } from "@john-studio/core";
 import { formatError } from "@john-studio/messages";
@@ -18,7 +20,10 @@ export type CockpitMessage =
   | { type: "refresh" }
   | { type: "link"; name: string }
   | { type: "openWorkspace" }
-  | { type: "terminal" };
+  | { type: "terminal" }
+  | { type: "start"; name: string }
+  | { type: "stop"; name: string }
+  | { type: "create" };
 
 const CONTAINER_NAME_MAX = 256;
 
@@ -34,12 +39,16 @@ export function parseCockpitMessage(raw: unknown): CockpitMessage | null {
     case "terminal":
       return only("type") ? { type: m.type } : null;
     case "link":
+    case "start":
+    case "stop":
       return only("type", "name") &&
         typeof m.name === "string" &&
         m.name !== "" &&
         m.name.length <= CONTAINER_NAME_MAX
-        ? { type: "link", name: m.name }
+        ? { type: m.type, name: m.name }
         : null;
+    case "create":
+      return only("type") ? { type: "create" } : null;
     default:
       return null;
   }
@@ -93,7 +102,10 @@ export type CockpitDaemon = "reachable" | "unreachable" | "na";
 export type CockpitLinkedLine = "running" | "stopped" | "absent" | "none" | "na";
 
 export interface CockpitContainerView {
+  /** Nom Docker. */
   name: string;
+  /** Nom court affiché et cité. */
+  short: string;
   image: string;
   state: "running" | "stopped";
   workspace?: string;
@@ -104,6 +116,7 @@ export interface CockpitContainerView {
 
 export interface CockpitLinkedBanner {
   name: string;
+  short: string;
   image: string | null;
   workspace: string;
   state: "running" | "stopped" | "absent";
@@ -223,6 +236,7 @@ export async function loadCockpitView(deps: CockpitDeps = {}): Promise<CockpitVi
       linked = "absent";
       linkedBanner = {
         name: stored.container,
+        short: shortContainerName(stored.container),
         image: null,
         workspace: stored.workspace,
         state: "absent",
@@ -231,6 +245,7 @@ export async function loadCockpitView(deps: CockpitDeps = {}): Promise<CockpitVi
       linked = row.state === "running" ? "running" : "stopped";
       linkedBanner = {
         name: stored.container,
+        short: shortContainerName(stored.container),
         image: row.image,
         workspace: stored.workspace,
         state: row.state,
@@ -254,6 +269,7 @@ export async function loadCockpitView(deps: CockpitDeps = {}): Promise<CockpitVi
     }
     return {
       name: r.name,
+      short: shortContainerName(r.name),
       image: r.image,
       state: r.state,
       ...(r.workspace !== undefined && { workspace: r.workspace }),
@@ -292,6 +308,37 @@ export async function linkContainer(
   const linkProject = deps.linkProject ?? link;
   await linkProject(configDir, name, createDocker());
   return loadCockpitView(deps);
+}
+
+type DockerControl = Pick<DockerClient, "listLabelPrefix" | "start" | "stop">;
+
+/**
+ * Démarre ou arrête un conteneur déjà listé. Le nom exécuté est celui de la liste
+ * (court ou complet), jamais une chaîne construite. Absent, ambigu ou mauvais état : refus ou no-op.
+ */
+export async function controlListedContainer(
+  action: "start" | "stop",
+  name: string,
+  deps: { createDocker?: () => DockerControl } = {},
+): Promise<void> {
+  const docker =
+    deps.createDocker?.() ??
+    createDockerClient({
+      recorder: createRecorder(),
+      binary: "docker",
+      timeoutMs: 15_000,
+    });
+  const rows = await docker.listLabelPrefix();
+  const real = lookupContainer(name, rows);
+  if (real === null) throw new CodedError("exegol.containerDenied", { name });
+  const row = rows.find((r) => r.name === real);
+  if (action === "start") {
+    if (row?.state !== "stopped") return;
+    await docker.start(real);
+    return;
+  }
+  if (row?.state !== "running") return;
+  await docker.stop(real);
 }
 
 /** État du projet lié pour ouverture de dossier / terminal (relève si absent ou invalide). */

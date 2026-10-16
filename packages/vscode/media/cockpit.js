@@ -73,7 +73,7 @@
       const b = view.linkedBanner;
       const head = el("div", "cockpit-linked-head");
       const name = el("strong", "cockpit-ellipsis");
-      ellipsize(name, b.name);
+      ellipsize(name, b.short || b.name);
       head.append(name);
       const meta = el("div", "cockpit-linked-meta");
       const img = el("span", "cockpit-ellipsis");
@@ -98,6 +98,13 @@
       termBtn.addEventListener("click", () => vscode.postMessage({ type: "terminal" }));
       if (b.state !== "running" || view.projectInvalid) termBtn.disabled = true;
       actions.append(openBtn, termBtn);
+      if (b.state === "absent") {
+        const startBtn = el("button", "primary", undefined);
+        startBtn.type = "button";
+        startBtn.append(el("span", "btn-text", "Démarrer"));
+        startBtn.addEventListener("click", () => vscode.postMessage({ type: "create" }));
+        actions.append(startBtn);
+      }
       linkedSec.append(actions);
     }
     main.append(linkedSec);
@@ -116,7 +123,7 @@
       const li = el("li", "cockpit-row");
       const mainCol = el("div", "cockpit-row-main");
       const n = el("span", "cockpit-ellipsis cockpit-row-name");
-      ellipsize(n, row.name);
+      ellipsize(n, row.short || row.name);
       const im = el("span", "cockpit-ellipsis cockpit-row-image");
       ellipsize(im, row.image);
       const st = el("span", "cockpit-row-state", stateLabel(row.state));
@@ -141,6 +148,23 @@
           );
         }
         act.append(linkBtn);
+      }
+      if (row.state === "running") {
+        const stopBtn = el("button", "danger", undefined);
+        stopBtn.type = "button";
+        stopBtn.append(el("span", "btn-text", "Arrêter"));
+        stopBtn.addEventListener("click", () =>
+          vscode.postMessage({ type: "stop", name: row.name }),
+        );
+        act.append(stopBtn);
+      } else {
+        const startBtn = el("button", "primary", undefined);
+        startBtn.type = "button";
+        startBtn.append(el("span", "btn-text", "Démarrer"));
+        startBtn.addEventListener("click", () =>
+          vscode.postMessage({ type: "start", name: row.name }),
+        );
+        act.append(startBtn);
       }
       li.append(act);
       ul.append(li);

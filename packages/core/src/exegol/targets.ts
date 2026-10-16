@@ -2,6 +2,38 @@ import { CodedError } from "../reason.js";
 
 const MENTION = /(?:^|[\s(])@([A-Za-z0-9][A-Za-z0-9_.-]{0,63})/g;
 const SLASH_START = /^\/start\s+([A-Za-z0-9][A-Za-z0-9_.-]{0,63})\s*$/;
+const EXEGOL_PREFIX = "exegol-";
+
+/** Nom affiché et cité : un seul préfixe `exegol-` retiré, s'il reste quelque chose. */
+export function shortContainerName(name: string): string {
+  if (!name.startsWith(EXEGOL_PREFIX)) return name;
+  const rest = name.slice(EXEGOL_PREFIX.length);
+  return rest === "" ? name : rest;
+}
+
+export interface NamedContainer {
+  name: string;
+}
+
+/**
+ * Nom Docker de la liste courante correspondant au jeton (nom complet ou court).
+ * Absent ou ambigu : `null`. Ne construit jamais un nom.
+ */
+export function lookupContainer(
+  token: string,
+  containers: readonly NamedContainer[],
+): string | null {
+  const want = token.trim();
+  if (want === "") return null;
+  const names = [
+    ...new Set(
+      containers
+        .filter((c) => c.name === want || shortContainerName(c.name) === want)
+        .map((c) => c.name),
+    ),
+  ];
+  return names.length === 1 ? (names[0] ?? null) : null;
+}
 
 /** Noms cités par `@` dans une consigne, sans doublon, dans l'ordre d'apparition. */
 export function parseMentions(text: string): string[] {
@@ -27,19 +59,27 @@ export interface ExegolTarget {
 }
 
 /**
- * Nom autorisé pour cet appel. Avec des `@`, uniquement ceux-là.
- * Sans `@`, uniquement le conteneur dédié, et le nom demandé doit être le sien.
+ * Nom Docker autorisé pour cet appel, lu dans la liste courante.
+ * Avec des `@`, uniquement un conteneur cité (court ou complet) qui existe.
+ * Sans `@`, uniquement le dédié, et il doit exister. Jamais de nom construit.
  */
-export function resolveExegolContainer(target: ExegolTarget, requested: string): string {
+export function resolveExegolContainer(
+  target: ExegolTarget,
+  requested: string,
+  containers: readonly NamedContainer[],
+): string {
   const name = requested.trim();
+  const real = lookupContainer(name, containers);
+  if (real === null) throw new CodedError("exegol.containerDenied", { name });
   if (target.mentions.length > 0) {
-    if (!target.mentions.includes(name)) throw new CodedError("exegol.containerDenied", { name });
-    return name;
+    const cited = target.mentions.some((mention) => lookupContainer(mention, containers) === real);
+    if (!cited) throw new CodedError("exegol.containerDenied", { name });
+    return real;
   }
-  if (target.dedicated === null || name !== target.dedicated) {
+  if (target.dedicated === null || lookupContainer(target.dedicated, containers) !== real) {
     throw new CodedError("exegol.containerDenied", { name });
   }
-  return name;
+  return real;
 }
 
 /** Cible du message en cours, lue par l'outil au moment de l'appel. */

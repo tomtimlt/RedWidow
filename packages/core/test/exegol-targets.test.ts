@@ -6,9 +6,11 @@ import {
   createDockerClient,
   createExegolTargets,
   createRecorder,
+  lookupContainer,
   parseMentions,
   parseSlashStart,
   resolveExegolContainer,
+  shortContainerName,
 } from "../src/index.js";
 
 describe("cibles Exegol", () => {
@@ -27,17 +29,40 @@ describe("cibles Exegol", () => {
     expect(parseSlashStart("ping @htb1")).toBeNull();
   });
 
-  it("borne le conteneur au dédié ou aux @", () => {
-    expect(resolveExegolContainer({ dedicated: "lab", mentions: [] }, "lab")).toBe("lab");
-    expect(() => resolveExegolContainer({ dedicated: "lab", mentions: [] }, "autre")).toThrow(
-      expect.objectContaining({ code: "exegol.containerDenied" }),
+  const boxes = [{ name: "lab" }, { name: "htb1" }, { name: "htb2" }, { name: "exegol-htb1" }];
+
+  it("borne le conteneur au dédié ou aux @ présents dans la liste", () => {
+    const listed = [{ name: "lab" }, { name: "htb1" }, { name: "htb2" }];
+    expect(resolveExegolContainer({ dedicated: "lab", mentions: [] }, "lab", listed)).toBe("lab");
+    expect(() =>
+      resolveExegolContainer({ dedicated: "lab", mentions: [] }, "autre", listed),
+    ).toThrow(expect.objectContaining({ code: "exegol.containerDenied" }));
+    expect(
+      resolveExegolContainer({ dedicated: "lab", mentions: ["htb1", "htb2"] }, "htb2", listed),
+    ).toBe("htb2");
+    expect(() =>
+      resolveExegolContainer({ dedicated: "lab", mentions: ["htb1"] }, "lab", listed),
+    ).toThrow(expect.objectContaining({ code: "exegol.containerDenied" }));
+  });
+
+  it("résout le court vers le nom Docker de la liste, sans concaténer", () => {
+    expect(shortContainerName("exegol-htb1")).toBe("htb1");
+    expect(shortContainerName("htb1")).toBe("htb1");
+    expect(shortContainerName("exegol-exegol-htb1")).toBe("exegol-htb1");
+    const listed = [{ name: "exegol-htb1" }];
+    expect(lookupContainer("htb1", listed)).toBe("exegol-htb1");
+    expect(lookupContainer("htb1", [])).toBeNull();
+    expect(lookupContainer("exegol-htb1", [{ name: "htb1" }])).toBeNull();
+    expect(resolveExegolContainer({ dedicated: null, mentions: ["htb1"] }, "htb1", listed)).toBe(
+      "exegol-htb1",
     );
-    expect(resolveExegolContainer({ dedicated: "lab", mentions: ["htb1", "htb2"] }, "htb2")).toBe(
-      "htb2",
+    expect(resolveExegolContainer({ dedicated: "exegol-htb1", mentions: [] }, "htb1", listed)).toBe(
+      "exegol-htb1",
     );
-    expect(() => resolveExegolContainer({ dedicated: "lab", mentions: ["htb1"] }, "lab")).toThrow(
-      expect.objectContaining({ code: "exegol.containerDenied" }),
-    );
+    expect(() =>
+      resolveExegolContainer({ dedicated: null, mentions: ["htb1"] }, "exegol-exegol-htb1", listed),
+    ).toThrow(expect.objectContaining({ code: "exegol.containerDenied" }));
+    expect(lookupContainer("htb1", boxes)).toBeNull();
   });
 
   it("note la cible du message", () => {

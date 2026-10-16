@@ -47,13 +47,15 @@ export function exegolToolSpecs(docker: DockerClient, targets: ExegolTargets): D
       name: "exec",
       description:
         "Exécute un argv dans le conteneur Exegol autorisé pour ce message (dédié, ou cité par @). " +
+        "Le champ container est le nom court (htb1) ou le nom Docker, résolu sur la liste courante. " +
         "Pas de shell. Le conteneur doit déjà tourner.",
       input: {
         container: z.string().describe("Nom du conteneur dédié ou cité par @"),
         argv: z.array(z.string()).describe("Programme et arguments, sans shell"),
       },
       async run(args, call) {
-        const container = resolveExegolContainer(targets.current(), String(args.container));
+        const rows = await docker.listLabelPrefix(call);
+        const container = resolveExegolContainer(targets.current(), String(args.container), rows);
         const argv = args.argv as string[];
         const lines = await docker.execWorkspace(container, argv, call);
         return formatLines(lines);
