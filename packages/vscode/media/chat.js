@@ -22,9 +22,9 @@
   };
 
   const EXAMPLES = [
-    "Liste les fichiers du projet et explique son organisation",
-    "Trouve les TODO dans le code et résume-les",
-    "Lis le README et propose des améliorations",
+    "Fais un nmap peu verbeux et résume les ports ouverts",
+    "Parmi les services trouvés, lesquels valent un test en premier ?",
+    "Cherche les pages qui prennent un paramètre et sentent l'injection",
   ];
   const STATUS = { pending: "en cours", ok: "réussi", error: "erreur", denied: "refusé" };
   const ICON = { pending: "◌", ok: "✓", error: "✕", denied: "⊘" };
@@ -198,11 +198,11 @@
   function welcome(sandbox) {
     const box = el("div", "welcome");
     box.append(
-      el("h2", "", "Que puis-je faire pour vous ?"),
+      el("h2", "", "On commence par où ?"),
       el(
         "p",
         "hint",
-        "Décrivez une tâche sur votre projet. Chaque action sensible demande votre accord.",
+        "Décris la cible. Chaque action sensible demande ton accord.",
       ),
     );
     const list = el("div", "examples");
