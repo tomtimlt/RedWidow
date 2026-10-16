@@ -86,6 +86,8 @@ export function activate(context: vscode.ExtensionContext): void {
       enginePath: join(context.extensionPath, "run-engine.mjs"),
       engineArgs: [context.extensionPath],
       readSettings,
+      // Bypass (ADR 0006) : l'état est envoyé au moteur après son démarrage, et son accusé le rend actif.
+      bypass: { attach: (send) => bypass.attach(send) },
       getToken,
       store: {
         get: (key: string) => context.globalState.get(key),
@@ -653,7 +655,13 @@ export function activate(context: vscode.ExtensionContext): void {
       bypassTick = undefined;
     }
     if (!push.on) {
-      barBypass.hide();
+      // Armé (demandé, pas encore effectif) : affiché sans prétendre à « actif ».
+      if (push.armed) {
+        barBypass.text = "BYPASS · en attente";
+        barBypass.show();
+      } else {
+        barBypass.hide();
+      }
       return;
     }
     const refreshText = () => {

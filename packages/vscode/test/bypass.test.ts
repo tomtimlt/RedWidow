@@ -1,10 +1,13 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { BYPASS_DEFAULT_MS } from "@john-studio/core";
+import { BYPASS_DEFAULT_MS, type BypassState } from "@john-studio/core";
 import { describe, expect, it } from "vitest";
 import {
+  BYPASS_ACK_TIMEOUT_MS,
   type BypassClock,
+  type BypassEngineLink,
   type BypassPush,
+  type BypassSend,
   createBypassHost,
   formatRemaining,
 } from "../src/logic/bypass.js";
@@ -45,38 +48,49 @@ function fakeClock(start = 1_000_000) {
   };
 }
 
+/** Hôte branché sur un faux moteur : chaque envoi reçoit un `seq` croissant (comme le contrôleur). */
 function setup() {
   const f = fakeClock();
   const pushes: BypassPush[] = [];
+  const sent: Array<{ seq: number; state: BypassState | null }> = [];
+  let seq = 0;
   const host = createBypassHost({ clock: f.clock, onChange: (p) => pushes.push(p) });
-  return { ...f, host, pushes };
+  const engine: BypassSend = (state) => {
+    seq += 1;
+    sent.push({ seq, state });
+    return seq;
+  };
+  /** Accusé conforme au dernier envoi (ou non conforme si `state` est fourni). */
+  const ack = (link: BypassEngineLink, state?: BypassState | null) => {
+    const last = sent.at(-1);
+    if (last === undefined) throw new Error("rien envoyé");
+    link.acked(last.seq, state === undefined ? last.state : state);
+  };
+  return { ...f, host, pushes, sent, engine, ack };
 }
 
-describe("Bypass hôte : activation", () => {
-  it("activation depuis une vue visible : durée BYPASS_DEFAULT_MS, poussée « on »", () => {
+const off = { type: "bypass", on: false, armed: false, expiresAt: null };
+
+describe("Bypass hôte : armé sans moteur, actif seulement avec accusé", () => {
+  it("activation sans moteur : « armé », jamais « actif »", () => {
     const { host, pushes } = setup();
     expect(host.request(true, true)).toBe(true);
-    const snap = host.snapshot();
-    expect(snap.on).toBe(true);
-    expect(snap.expiresAt).toBe(1_000_000 + BYPASS_DEFAULT_MS);
-    expect(pushes).toEqual([
-      { type: "bypass", on: true, expiresAt: 1_000_000 + BYPASS_DEFAULT_MS },
-    ]);
+    expect(host.snapshot()).toEqual({ type: "bypass", on: false, armed: true, expiresAt: null });
+    expect(pushes).toEqual([{ type: "bypass", on: false, armed: true, expiresAt: null }]);
   });
 
   it("enabled:true refusé si la vue est cachée : rien ne change, rien n'est poussé", () => {
     const { host, pushes } = setup();
     expect(host.request(true, false)).toBe(false);
-    expect(host.snapshot()).toEqual({ type: "bypass", on: false, expiresAt: null });
+    expect(host.snapshot()).toEqual(off);
     expect(pushes).toEqual([]);
   });
 
   it("enabled:false toujours accepté, même vue cachée", () => {
-    const { host, pushes } = setup();
-    host.request(true, true);
-    expect(host.request(false, false)).toBe(true);
-    expect(host.snapshot().on).toBe(false);
-    expect(pushes.at(-1)).toEqual({ type: "bypass", on: false, expiresAt: null });
+    const s = setup();
+    s.host.request(true, true);
+    expect(s.host.request(false, false)).toBe(true);
+    expect(s.host.snapshot()).toEqual(off);
   });
 
   it("désactiver un Bypass inactif ne pousse rien", () => {
@@ -85,69 +99,180 @@ describe("Bypass hôte : activation", () => {
     expect(pushes).toEqual([]);
   });
 
-  it("une prolongation (second enabled:true) pousse la nouvelle échéance", () => {
-    const f = setup();
-    f.host.request(true, true);
-    f.advance(60_000);
-    f.host.request(true, true);
-    expect(f.pushes.at(-1)).toEqual({
+  it("attachement : l'état est envoyé au moteur tout de suite, sans effet d'affichage avant accusé", () => {
+    const s = setup();
+    s.host.request(true, true);
+    s.host.attach(s.engine);
+    expect(s.sent).toEqual([
+      {
+        seq: 1,
+        state: { since: 1_000_000, expiresAt: 1_000_000 + BYPASS_DEFAULT_MS },
+      },
+    ]);
+    expect(s.host.snapshot().on).toBe(false);
+  });
+
+  it("(t) accusé conforme au dernier seq : « actif » poussé avec l'échéance", () => {
+    const s = setup();
+    s.host.request(true, true);
+    const link = s.host.attach(s.engine);
+    s.ack(link);
+    expect(s.host.snapshot()).toEqual({
       type: "bypass",
       on: true,
-      expiresAt: 1_000_000 + 60_000 + BYPASS_DEFAULT_MS,
+      armed: false,
+      expiresAt: 1_000_000 + BYPASS_DEFAULT_MS,
     });
+    expect(s.pushes.at(-1)?.on).toBe(true);
+  });
+
+  it("(t) accusé d'un seq ancien ignoré : reste « armé »", () => {
+    const s = setup();
+    s.host.request(true, true);
+    const link = s.host.attach(s.engine);
+    link.acked(99, s.sent[0]?.state ?? null);
+    expect(s.host.snapshot().on).toBe(false);
+    expect(s.host.snapshot().armed).toBe(true);
+  });
+
+  it("(t) accusé non conforme (bornes différentes) : échec fermé, « off » et rien de réactivé", () => {
+    const s = setup();
+    s.host.request(true, true);
+    const link = s.host.attach(s.engine);
+    s.ack(link, { since: 0, expiresAt: 1 });
+    expect(s.host.snapshot()).toEqual(off);
+    expect(s.host.remainingMs()).toBeNull();
+    expect(s.sent.at(-1)?.state).toBeNull();
+  });
+
+  it("(t) sans accusé sous 5 s : « off » (échec fermé), sans nouvelle activation", () => {
+    const s = setup();
+    s.host.request(true, true);
+    s.host.attach(s.engine);
+    s.advance(BYPASS_ACK_TIMEOUT_MS - 1);
+    expect(s.host.snapshot().armed).toBe(true);
+    s.advance(1);
+    expect(s.host.snapshot()).toEqual(off);
+    expect(s.sent.at(-1)?.state).toBeNull();
+    // Pas de réactivation automatique : seul un nouvel appui de l'utilisateur réactive.
+    s.advance(BYPASS_DEFAULT_MS);
+    expect(s.host.snapshot()).toEqual(off);
+  });
+
+  it("(t) l'accusé annule le délai : pas de désactivation après 5 s", () => {
+    const s = setup();
+    s.host.request(true, true);
+    const link = s.host.attach(s.engine);
+    s.ack(link);
+    s.advance(BYPASS_ACK_TIMEOUT_MS * 10);
+    expect(s.host.snapshot().on).toBe(true);
+  });
+
+  it("sans moteur, un accusé n'existe pas : l'état reste « armé » et rien n'est actif", () => {
+    const s = setup();
+    s.host.request(true, true);
+    s.advance(BYPASS_ACK_TIMEOUT_MS * 10);
+    expect(s.host.snapshot().on).toBe(false);
+    expect(s.host.snapshot().armed).toBe(true);
+  });
+
+  it("release (moteur sorti) : repasse à « armé », sans envoi", () => {
+    const s = setup();
+    s.host.request(true, true);
+    const link = s.host.attach(s.engine);
+    s.ack(link);
+    const before = s.sent.length;
+    link.release();
+    expect(s.host.snapshot()).toEqual({
+      type: "bypass",
+      on: false,
+      armed: true,
+      expiresAt: null,
+    });
+    expect(s.sent.length).toBe(before);
+  });
+
+  it("un lien remplacé ne reçoit plus d'accusé ni de libération effective", () => {
+    const s = setup();
+    s.host.request(true, true);
+    const old = s.host.attach(s.engine);
+    const fresh = s.host.attach(s.engine);
+    s.ack(old);
+    expect(s.host.snapshot().on).toBe(false);
+    s.ack(fresh);
+    expect(s.host.snapshot().on).toBe(true);
+    old.release();
+    expect(s.host.snapshot().on).toBe(true);
   });
 });
 
-describe("Bypass hôte : retour à « off »", () => {
-  it("expiration : « off » poussé exactement à l'échéance, minuteur soldé", () => {
-    const { host, pushes, advance, pending } = setup();
-    host.request(true, true);
-    advance(BYPASS_DEFAULT_MS - 1);
-    expect(host.snapshot().on).toBe(true);
-    advance(1);
-    expect(host.snapshot().on).toBe(false);
-    expect(pushes.at(-1)).toEqual({ type: "bypass", on: false, expiresAt: null });
-    expect(pending()).toBe(0);
-    expect(host.remainingMs()).toBeNull();
+describe("Bypass hôte : envois au moteur", () => {
+  it("désactivation avec moteur attaché : « off » et état nul envoyé", () => {
+    const s = setup();
+    s.host.request(true, true);
+    const link = s.host.attach(s.engine);
+    s.ack(link);
+    s.host.request(false, true);
+    expect(s.host.snapshot()).toEqual(off);
+    expect(s.sent.at(-1)?.state).toBeNull();
   });
 
-  it("reset : « off » immédiat", () => {
-    const { host, pushes } = setup();
-    host.request(true, true);
-    host.reset();
-    expect(host.snapshot().on).toBe(false);
-    expect(pushes.at(-1)).toEqual({ type: "bypass", on: false, expiresAt: null });
+  it("une prolongation envoie les nouvelles bornes et redevient « armé » jusqu'à l'accusé", () => {
+    const s = setup();
+    s.host.request(true, true);
+    const link = s.host.attach(s.engine);
+    s.ack(link);
+    s.advance(60_000);
+    s.host.request(true, true);
+    expect(s.sent.at(-1)).toEqual({
+      seq: 2,
+      state: { since: 1_060_000, expiresAt: 1_060_000 + BYPASS_DEFAULT_MS },
+    });
+    expect(s.host.snapshot().on).toBe(false);
+    s.ack(link);
+    expect(s.host.snapshot().expiresAt).toBe(1_060_000 + BYPASS_DEFAULT_MS);
   });
 
-  it("reset sans Bypass actif : aucune poussée superflue", () => {
-    const { host, pushes } = setup();
-    host.reset();
-    expect(pushes).toEqual([]);
+  it("reset : « off » immédiat, moteur informé", () => {
+    const s = setup();
+    s.host.request(true, true);
+    const link = s.host.attach(s.engine);
+    s.ack(link);
+    s.host.reset();
+    expect(s.host.snapshot()).toEqual(off);
+    expect(s.sent.at(-1)?.state).toBeNull();
   });
 
-  it("changement de dossiers (reset) : « off » et minuteur annulé", () => {
-    const { host, pending } = setup();
-    host.request(true, true);
-    host.reset();
-    expect(pending()).toBe(0);
-    expect(host.snapshot().on).toBe(false);
+  it("expiration : « off » à l'échéance, moteur informé, minuteurs soldés", () => {
+    const s = setup();
+    s.host.request(true, true);
+    const link = s.host.attach(s.engine);
+    s.ack(link);
+    s.advance(BYPASS_DEFAULT_MS - 1);
+    expect(s.host.snapshot().on).toBe(true);
+    s.advance(1);
+    expect(s.host.snapshot()).toEqual(off);
+    expect(s.sent.at(-1)?.state).toBeNull();
+    expect(s.pending()).toBe(0);
+    expect(s.host.remainingMs()).toBeNull();
   });
 
-  it("dispose annule le minuteur d'expiration", () => {
-    const { host, pending } = setup();
-    host.request(true, true);
-    expect(pending()).toBe(1);
-    host.dispose();
-    expect(pending()).toBe(0);
+  it("dispose annule les minuteurs", () => {
+    const s = setup();
+    s.host.request(true, true);
+    s.host.attach(s.engine);
+    expect(s.pending()).toBeGreaterThan(0);
+    s.host.dispose();
+    expect(s.pending()).toBe(0);
   });
 });
 
 describe("Bypass hôte : temps restant", () => {
   it("remainingMs décroît avec l'horloge", () => {
-    const { host, advance } = setup();
-    host.request(true, true);
-    advance(30_000);
-    expect(host.remainingMs()).toBe(BYPASS_DEFAULT_MS - 30_000);
+    const s = setup();
+    s.host.request(true, true);
+    s.advance(30_000);
+    expect(s.host.remainingMs()).toBe(BYPASS_DEFAULT_MS - 30_000);
   });
 });
 

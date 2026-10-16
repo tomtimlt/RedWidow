@@ -287,3 +287,39 @@ describe("contrôleur : messages rejetés, démarrage, environnement", () => {
     expect(() => buildEngineEnv({ name: "ANTHROPIC_API_KEY", value: "" }, base)).toThrow();
   });
 });
+
+describe("Bypass : accusés et environnement du moteur (ADR 0006)", () => {
+  it("bypass : seq croissant par moteur (1, 2…) et accusé relayé avec l'état retenu", async () => {
+    const c = collect();
+    const acks: { seq: number; state: { since: number; expiresAt: number } | null }[] = [];
+    const ctl = createEngineController({
+      enginePath: engine,
+      handlers: { ...c.handlers, onBypassAck: (a) => void acks.push(a) },
+    });
+    await ctl.start({ cwd: dir });
+    const since = Date.now();
+    const state = { since, expiresAt: since + 60_000 };
+    expect(ctl.bypass(state)).toBe(1);
+    await until(() => acks.length === 1, "accusé seq 1");
+    expect(acks[0]).toEqual({ seq: 1, state });
+    expect(ctl.bypass(null)).toBe(2);
+    await until(() => acks.length === 2, "accusé seq 2");
+    expect(acks[1]).toEqual({ seq: 2, state: null });
+    ctl.kill();
+    await ctl.exited;
+    expect(c.errors).toEqual([]);
+  }, 30_000);
+
+  it("(w) buildEngineEnv et safeEnv ne transmettent jamais NODE_CHANNEL_*", () => {
+    const base = {
+      PATH: "/bin",
+      NODE_CHANNEL_FD: "3",
+      NODE_CHANNEL_SERIALIZATION_MODE: "json",
+    } as NodeJS.ProcessEnv;
+    const channelKeys = (env: NodeJS.ProcessEnv) =>
+      Object.keys(env).filter((k) => k.startsWith("NODE_CHANNEL_"));
+    expect(channelKeys(safeEnv(base, "linux"))).toEqual([]);
+    expect(channelKeys(buildEngineEnv(undefined, base))).toEqual([]);
+    expect(buildEngineEnv(undefined, base).PATH).toBe("/bin");
+  });
+});

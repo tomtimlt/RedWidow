@@ -42,8 +42,9 @@ export type QueryFn = (params: {
 
 /**
  * Variables retirées de l'environnement du sous-processus en mode `subscription` :
- * clés et jetons d'API, et sélecteurs de fournisseurs cloud. Restent `PATH`,
- * `HOME` et `CLAUDE_CODE_OAUTH_TOKEN` (jeton d'abonnement de `claude setup-token`).
+ * clés et jetons d'API, sélecteurs de fournisseurs cloud, et canal IPC du moteur
+ * (`NODE_CHANNEL_*`, ADR 0006 : un outil ne doit pas pouvoir écrire vers l'hôte).
+ * Restent `PATH`, `HOME` et `CLAUDE_CODE_OAUTH_TOKEN` (jeton d'abonnement de `claude setup-token`).
  */
 export const SUBSCRIPTION_STRIPPED_ENV: readonly string[] = [
   "ANTHROPIC_API_KEY",
@@ -51,6 +52,8 @@ export const SUBSCRIPTION_STRIPPED_ENV: readonly string[] = [
   "CLAUDE_CODE_USE_BEDROCK",
   "CLAUDE_CODE_USE_VERTEX",
   "CLAUDE_CODE_USE_FOUNDRY",
+  "NODE_CHANNEL_FD",
+  "NODE_CHANNEL_SERIALIZATION_MODE",
 ];
 
 export interface SdkRunnerOptions {

@@ -146,3 +146,55 @@ describe("protocole IPC : effort et modèles", () => {
     expect(parseFromEngine({ v: 1, type: "models", models: "x" }).ok).toBe(false);
   });
 });
+
+describe("protocole IPC : Bypass (ADR 0006, décision 6)", () => {
+  const now = 1_700_000_000_000;
+  const ok = { since: now, expiresAt: now + 60_000 };
+  const bad = (msg: unknown) => {
+    const parsed = parseToEngine(msg);
+    expect(parsed.ok, JSON.stringify(msg)).toBe(false);
+    if (!parsed.ok) expect(parsed.reason.code).toBe("ipc.invalidMessage");
+  };
+
+  it("accepte un état actif, un état nul (off) et les bornes à la durée maximale", () => {
+    for (const state of [ok, null, { since: now, expiresAt: now + 4 * 60 * 60 * 1000 }]) {
+      expect(parseToEngine({ v: 1, type: "bypass", seq: 1, state }).ok).toBe(true);
+    }
+  });
+
+  it("(p) refuse un message forgé : clé en trop, type incorrect, durée excessive, bornes inversées", () => {
+    bad({ v: 1, type: "bypass", seq: 1, state: ok, extra: true });
+    bad({ v: 1, type: "bypass", seq: 1, state: { ...ok, duration: 1 } });
+    bad({ v: 1, type: "bypass", seq: 1, state: { since: now, expiresAt: "x" } });
+    bad({
+      v: 1,
+      type: "bypass",
+      seq: 1,
+      state: { since: now, expiresAt: now + 4 * 60 * 60 * 1000 + 1 },
+    });
+    bad({ v: 1, type: "bypass", seq: 1, state: { since: now, expiresAt: now } });
+    bad({ v: 1, type: "bypass", seq: 1, state: { since: now + 1, expiresAt: now } });
+    bad({ v: 1, type: "bypass", seq: 1, state: { since: 1.5, expiresAt: now + 60_000 } });
+    bad({ v: 1, type: "bypass", seq: 1, state: undefined });
+    bad({ v: 1, type: "bypass", seq: 1, state: ["x"] });
+    bad({ v: 1, type: "bypass", state: null });
+    bad({ v: 1, type: "bypass", seq: 0, state: null });
+    bad({ v: 1, type: "bypass", seq: 1.5, state: null });
+    bad({ v: 1, type: "bypass", seq: "1", state: null });
+    bad({ v: 1, type: "bypass", seq: 1, state: null, extra: 1 });
+  });
+
+  it("accusé moteur → extension : forme exacte et état borné", () => {
+    expect(parseFromEngine({ v: 1, type: "bypassAck", seq: 2, state: ok }).ok).toBe(true);
+    expect(parseFromEngine({ v: 1, type: "bypassAck", seq: 2, state: null }).ok).toBe(true);
+    for (const m of [
+      { v: 1, type: "bypassAck", seq: 0, state: null },
+      { v: 1, type: "bypassAck", seq: 2, state: { since: now, expiresAt: now - 1 } },
+      { v: 1, type: "bypassAck", seq: 2, state: null, extra: 1 },
+      { v: 1, type: "bypassAck", state: null },
+    ]) {
+      const parsed = parseFromEngine(m);
+      expect(parsed.ok, JSON.stringify(m)).toBe(false);
+    }
+  });
+});

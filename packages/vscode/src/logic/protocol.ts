@@ -1,6 +1,8 @@
 import { isAbsolute } from "node:path";
 import {
   type AuthMode,
+  BYPASS_MAX_MS,
+  type BypassState,
   type Decision,
   type Effort,
   type EngineEvent,
@@ -58,7 +60,12 @@ export type ToEngine =
   | { v: 1; type: "prompt"; text: string }
   | { v: 1; type: "answer"; toolUseId: string; decision: Decision; remember?: RememberScope }
   | { v: 1; type: "abort" }
-  | { v: 1; type: "dispose" };
+  | { v: 1; type: "dispose" }
+  /**
+   * État du Bypass (ADR 0006, décision 6) : instants absolus, `seq` strictement croissant par moteur.
+   * `null` = inactif. Le moteur n'en garde qu'un miroir en lecture.
+   */
+  | { v: 1; type: "bypass"; seq: number; state: BypassState | null };
 
 /** Moteur → parent. */
 export type FromEngine =
@@ -68,7 +75,9 @@ export type FromEngine =
   | { v: 1; type: "event"; event: EngineEvent }
   | { v: 1; type: "approval"; approval: PendingApproval }
   | { v: 1; type: "ended"; summary: EndedSummary }
-  | { v: 1; type: "error"; reason: ErrorInfo };
+  | { v: 1; type: "error"; reason: ErrorInfo }
+  /** Accusé du miroir : `state` est l'état réellement retenu (`null` si inactif ou refusé). */
+  | { v: 1; type: "bypassAck"; seq: number; state: BypassState | null };
 
 export type Parsed<T> = { ok: true; message: T } | { ok: false; reason: Reason };
 
@@ -121,9 +130,23 @@ const START_KEYS = [
   "journalDir",
 ] as const;
 
+/** Valide un état du Bypass : `null`, ou bornes entières, ordonnées, de durée au plus `BYPASS_MAX_MS`. */
+function validBypassState(value: unknown): boolean {
+  if (value === null) return true;
+  if (!isObj(value) || onlyKeys(value, ["since", "expiresAt"]) !== null) return false;
+  const { since, expiresAt } = value;
+  if (typeof since !== "number" || typeof expiresAt !== "number") return false;
+  if (!Number.isSafeInteger(since) || !Number.isSafeInteger(expiresAt)) return false;
+  return since < expiresAt && expiresAt - since <= BYPASS_MAX_MS;
+}
+
+/** Numéro de séquence : entier sûr strictement positif. */
+const validSeq = (value: unknown): value is number =>
+  typeof value === "number" && Number.isSafeInteger(value) && value >= 1;
+
 /** Valide un message reçu par le moteur. */
 export function parseToEngine(raw: unknown): Parsed<ToEngine> {
-  const env = envelope(raw, ["start", "models", "prompt", "answer", "abort", "dispose"]);
+  const env = envelope(raw, ["start", "models", "prompt", "answer", "abort", "dispose", "bypass"]);
   if (!env.ok) return env;
   const { obj, type } = env.message;
   const extra = (keys: readonly string[]) => onlyKeys(obj, keys);
@@ -193,6 +216,12 @@ export function parseToEngine(raw: unknown): Parsed<ToEngine> {
         return bad("remember");
       }
       return { ok: true, message: obj as ToEngine };
+    case "bypass":
+      unexpected = extra(["v", "type", "seq", "state"]);
+      if (unexpected) return bad(unexpected, "unexpected");
+      if (!validSeq(obj.seq)) return bad("seq");
+      if (!validBypassState(obj.state)) return bad("state");
+      return { ok: true, message: obj as ToEngine };
     default:
       unexpected = extra(["v", "type"]);
       if (unexpected) return bad(unexpected, "unexpected");
@@ -245,7 +274,16 @@ function validSummary(value: unknown): boolean {
 
 /** Valide un message reçu par l'extension. */
 export function parseFromEngine(raw: unknown): Parsed<FromEngine> {
-  const env = envelope(raw, ["ready", "started", "models", "event", "approval", "ended", "error"]);
+  const env = envelope(raw, [
+    "ready",
+    "started",
+    "models",
+    "event",
+    "approval",
+    "ended",
+    "error",
+    "bypassAck",
+  ]);
   if (!env.ok) return env;
   const { obj, type } = env.message;
   const unexpected = onlyKeys(
@@ -258,6 +296,7 @@ export function parseFromEngine(raw: unknown): Parsed<FromEngine> {
       approval: ["v", "type", "approval"],
       ended: ["v", "type", "summary"],
       error: ["v", "type", "reason"],
+      bypassAck: ["v", "type", "seq", "state"],
     }[type] as string[],
   );
   if (unexpected) return bad(unexpected, "unexpected");
@@ -280,6 +319,9 @@ export function parseFromEngine(raw: unknown): Parsed<FromEngine> {
       return validSummary(obj.summary) ? ok : bad("summary");
     case "error":
       return validReason(obj.reason) ? ok : bad("reason");
+    case "bypassAck":
+      if (!validSeq(obj.seq)) return bad("seq");
+      return validBypassState(obj.state) ? ok : bad("state");
     default:
       return ok;
   }
