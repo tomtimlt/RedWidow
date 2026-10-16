@@ -83,3 +83,48 @@ Pour `architect` (voie moteur) :
 7. Données d'usage (contexte), statut MCP, pièces jointes, personas.
 
 Pour l'utilisateur : voir le rapport.
+
+## 6. Bypass
+
+- Statut : cadré (cadre), 2026-10-16, après les lots 2 et 2b de l'ADR 0006 (moteur et hôte prêts). **Remplace**, pour le seul Bypass : §1.4, les lignes « Configure : Bypass » et « Barre d'état : BYPASS » du §2 (la barre d'état native existe déjà côté hôte), la phrase « Le Bypass n'emprunte pas cet état » du §3 et l'interdit « câbler Bypass » de P1. Le reste du document est inchangé.
+
+### 6.1 Décision
+
+1. **Interrupteur dans Configure.** Le Bypass quitte le groupe « Bientôt » (qui garde Mode et Persona) et devient une section propre, `<section class="cfg-col" aria-labelledby="cfg-h-bypass">`, placée **juste avant** « Bientôt ». Titre « Bypass des approbations ». Contrôle : `<button id="bypass-switch" type="button" role="switch" aria-checked="false" aria-describedby="bypass-state bypass-warn">`, libellé visible « Bypass ». Sous le contrôle, `<p id="bypass-state" role="status">` (état) et `<p id="bypass-warn" class="tip">` (avertissement, 6.1.3).
+2. **Source unique de l'état.** Seul le message poussé `{type:"bypass", on, armed, expiresAt}` modifie le rendu (interrupteur, texte d'état, badge, classe du corps). Le clic n'écrit rien dans le DOM : il envoie `{type:"setBypass", enabled}` avec `enabled = !(on || armed)` du **dernier message reçu**. Avant tout message, l'état est « off ».
+3. **États affichés** (fonction pure dans `ui.js`, voir lot B1) :
+
+   | Message reçu | `aria-checked` | Texte d'état | Corps / badge |
+   |---|---|---|---|
+   | `on:false, armed:false` | `false` | vide (ou avis de retombée, ci-dessous) | rien |
+   | `on:false, armed:true` | `true` | « En attente : actif dès que l'agent le confirme. » | rien |
+   | `on:true`, `expiresAt` nombre fini | `true` | « Actif jusqu'à HH:MM (reste 1 h 58). » | `body.bypass-on`, badge visible |
+   | `on:true`, `expiresAt` absent ou invalide | traité comme « off » (échec fermé) | | rien |
+
+   « Armé sans session » et « en attente d'accusé » portent le **même** message (`armed:true`, `expiresAt:null`) : l'interface ne les distingue pas et n'invente pas la différence. Un seul texte les couvre honnêtement.
+4. **Temps restant sans minuteur.** L'heure d'expiration absolue (HH:MM, heure locale, `toLocaleTimeString` avec `hour` et `minute` en `2-digit`) est la donnée principale : elle ne vieillit pas. Le reste (« reste 1 h 58 », arrondi à la minute supérieure comme `formatRemaining` de l'hôte) est **recalculé** à chaque message `bypass` et à l'ouverture de Configure (événement `toggle` du popover, `newState === "open"`). Ni `setInterval`, ni `requestAnimationFrame`, ni `setTimeout` pour ce rendu.
+5. **Avis de retombée.** Le script garde le seul dernier message reçu et un indicateur « l'utilisateur a demandé off ou `reset` » (posé à l'envoi de `setBypass {enabled:false}` ou de `reset`, effacé au message `bypass` suivant). Sur un passage à « off » sans cet indicateur : depuis « armé », texte d'état « Bypass désactivé avant confirmation. » ; depuis « actif », « Bypass terminé. ». L'avis reste jusqu'au prochain message `bypass` ou clic sur l'interrupteur. Ces deux phrases sont vraies quelle que soit la cause (délai de 5 s, expiration, commande de la barre d'état, changement de dossiers) : aucune cause n'est affirmée.
+6. **Signal permanent quand actif.** (a) `body.bypass-on #composer` : bordure `var(--vscode-editorWarning-foreground, var(--vscode-inputValidation-warningBorder))`, sans animation. (b) Badge `<span id="bypass-badge" class="badge" hidden>` dans `#bar`, après `#sandbox` : texte « BYPASS · HH:MM », `title` « Bypass actif jusqu'à HH:MM : désactivable dans Configurer ou la barre d'état ». Sous 360 px (`@container app`), le badge n'affiche que « BYPASS » (heure dans `title` et en `.sr-only`). (c) Distinction avec « approbation en attente » : `body.awaiting #composer` garde sa bordure orange **et ajoute** un anneau `box-shadow: 0 0 0 1px` de la même couleur (double trait) ; seul, le Bypass n'a que la bordure, et c'est le badge qui le nomme. Aucune nouvelle animation, aucune `transition` sur `all`.
+7. **Cartes.** Le Bypass ne retire ni ne masque aucune carte. Une décision auto-approuvée ne produit pas d'`approval.requested` (ADR 0006, Décision 4), donc pas de carte : l'interface n'a rien à filtrer. `#approvals`, `cardsFor`, `body.awaiting` et les choix `once|deny|always` sont inchangés.
+8. **Avertissement** (`#bypass-warn`, deux lignes, deux phrases) :
+   - « Approuve d'office les demandes « ask » pendant 2 h, sans rien mémoriser. »
+   - « Restent demandés ou refusés : deny, chemins sensibles ou hors projet, accès hôte d'un conteneur, dangers shell, Bash sans règle ou commande composée. »
+
+### 6.2 Pourquoi, alternatives écartées
+
+- Heure absolue d'abord : exacte sans rafraîchissement, conforme à « pas de minuteur » ; un compte à rebours seul serait faux entre deux messages.
+- `aria-checked="true"` dès « armé » : l'interrupteur représente la **demande** (le clic suivant l'annule) ; l'état effectif est dit par le texte, la bordure et le badge, réservés à `on:true` (ADR 0006, Décision 6 : aucun affichage actif sans accusé). Écarté : `aria-checked="mixed"`, non défini pour `role="switch"`.
+- Écarté : bordure en tirets pour le Bypass (lisibilité faible en thème contrasté) ; modale (refusée par le propriétaire) ; badge cliquable (un second point de désactivation dans la webview sans besoin ; la barre d'état en a déjà un).
+
+### 6.3 Lot B1 pour `surface`
+
+- **Objectif** : câbler l'interface du Bypass selon 6.1, sur le message poussé seulement.
+- **Fichiers** : `packages/vscode/src/logic/html.ts` (`chatHtml` : section Bypass, badge, groupe « Bientôt » réduit à Mode et Persona) ; `packages/vscode/media/ui.js` (fonction pure `bypassView(push, previous, userOff, now)` → `{ checked, state: "off"|"pending"|"on"|"dropped"|"ended", text, badge, until }`, exportée comme les autres utilitaires de `ui.js`) ; `packages/vscode/media/chat.js` (réception `bypass`, clic, ouverture de Configure, indicateur `userOff`) ; `packages/vscode/media/chat.css` ; `packages/vscode/test/html.test.ts`, `packages/vscode/test/ui.test.ts`.
+- **Critères** :
+  1. HTML : `#bypass-switch` avec `role="switch"`, `aria-checked="false"`, sans `disabled` ; section avant « Bientôt » ; exactement deux `class="cfg-off"` (Mode, Persona) ; `#bypass-badge` présent et `hidden` ; les deux phrases de 6.1.8 présentes.
+  2. Source de `chat.js` : un seul `postMessage` contenant `setBypass`, de la forme `{ type: "setBypass", enabled: <booléen> }`, sans autre clé ; `aria-checked`, `hidden` du badge, `bypass-on` et le texte d'état ne sont écrits que dans la fonction de rendu appelée depuis le gestionnaire `message` (et à l'ouverture de Configure) ; le gestionnaire de clic n'écrit ni `aria-checked` ni `classList`.
+  3. `ui.test.ts` : les cinq états de `bypassView` ; `on:true` sans `expiresAt` fini → « off » ; message mal formé (champ manquant, type faux) → « off » ; reste arrondi à la minute supérieure ; « dropped » / « ended » seulement sans `userOff`.
+  4. Le test « aucune classe bypass dans la feuille ni le script » (`html.test.ts:197-200`) est **remplacé** par des tests du nouveau comportement (règle `body.bypass-on #composer` avec les deux variables, sans hex hors `var()` ; règle `body.awaiting #composer` contenant toujours les deux variables et un `box-shadow`). Le test `html.test.ts:150-165` est mis à jour pour Mode et Persona. Aucun autre test assoupli.
+  5. `css-motion.test.ts` vert sans modification ; textes en `textContent` ; aucun débordement à 280 px.
+  6. Validation : `pnpm check` vert.
+- **Interdits** : toucher `src/logic/bypass.ts`, `src/logic/approval.ts`, `src/extension/`, `src/engine/`, `packages/core`, le protocole, la gate, la politique ; tout état optimiste ; toute durée envoyée par la webview ; `setInterval`, `requestAnimationFrame`, `setTimeout` pour le Bypass ; modale ; `innerHTML`, `style=`, `.style.` hors règles en vigueur ; nouvelle animation ou `transition: all` ; identifiant de modèle ; masquage ou filtrage de cartes.
