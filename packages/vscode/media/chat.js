@@ -800,10 +800,6 @@
   const monitorRowsEl = $("monitor-rows");
   const monitorEmpty = $("monitor-empty");
 
-  const toLayout = (layout) => {
-    vscode.postMessage({ type: "setLayout", layout });
-  };
-
   function monitorLine(row) {
     const li = el("li", `mon-row tone-${row.tone}`);
     const cmd = el("div", "mon-cmd");
@@ -811,12 +807,6 @@
     cmd.append(el("span", "prompt", "$"), el("code", "mon-text", row.command));
     const meta = el("div", "mon-meta");
     meta.append(el("span", "badge", row.status));
-    if (row.pending) {
-      const reply = el("button", "link", "Répondre dans le chat");
-      reply.type = "button";
-      reply.addEventListener("click", () => toLayout("editor"));
-      meta.append(reply);
-    }
     li.append(cmd, meta);
     if (row.output !== "") li.append(el("pre", "mon-out", row.output));
     if (row.truncated) li.append(el("p", "note", "sortie tronquée"));
@@ -829,55 +819,8 @@
     monitorEmpty.hidden = rows.length > 0;
   }
 
-  // --- Surface : disposition et mode reçus de l'hôte (une seule surface rend la conversation) ---
-  const MODE_CLASSES = ["conversation", "monitor", "away"];
-  const layoutSeg = [...document.querySelectorAll("#layout-seg [data-layout]")];
-  let layout = "editor";
+  // Monitor : panneau éditeur seul. Le chat rend toujours ses propres cartes.
   let mode = "conversation";
-
-  function paintLayout() {
-    for (const btn of layoutSeg) {
-      const on = btn.dataset.layout === layout;
-      btn.setAttribute("aria-checked", String(on));
-      btn.tabIndex = on ? 0 : -1;
-    }
-  }
-
-  function applySurface(message) {
-    const previous = mode;
-    layout = UI.safeLayout(message.layout);
-    mode = UI.surfaceMode(layout, message.active === true);
-    document.body.classList.toggle("layout-chat", layout === "chat");
-    document.body.classList.toggle("layout-monitor", layout === "monitor");
-    for (const c of MODE_CLASSES) document.body.classList.toggle(`mode-${c}`, c === mode);
-    // Conversation ouverte ailleurs : la liste des sessions reste visible ici.
-    if (mode === "away") {
-      historyPanel.hidden = false;
-      historyBtn.setAttribute("aria-expanded", "true");
-    } else if (previous === "away") {
-      historyPanel.hidden = true;
-      historyBtn.setAttribute("aria-expanded", "false");
-    }
-    paintLayout();
-    if (lastView) render(lastView);
-  }
-
-  // Configurer : sélecteur Layout (radio, flèches gauche/droite).
-  layoutSeg.forEach((btn, i) => {
-    btn.addEventListener("click", () => {
-      if (btn.dataset.layout !== layout) toLayout(btn.dataset.layout);
-    });
-    btn.addEventListener("keydown", (e) => {
-      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
-      e.preventDefault();
-      const target = layoutSeg[UI.tabTarget(layoutSeg.length, i, e.key === "ArrowLeft")];
-      if (!target) return;
-      target.focus();
-      if (target.dataset.layout !== layout) toLayout(target.dataset.layout);
-    });
-  });
-  $("away-return").addEventListener("click", () => toLayout("editor"));
-  $("monitor-back").addEventListener("click", () => toLayout("editor"));
 
   // Classes de body (running, waiting, paused, readonly, reduce-motion) : les effets CSS n'en dépendent que par elles.
   const MANAGED = ["running", "waiting", "paused", "readonly", "reduce-motion"];
@@ -909,13 +852,13 @@
     historyRunning = view.busy && !view.readonly;
     renderHistory(view.history);
     renderReadonly(view.readonly);
-    renderMonitor(view);
+    if (mode === "monitor") renderMonitor(view);
     const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
     const top = log.scrollTop;
     log.replaceChildren(
       ...(view.items.length === 0 ? [welcome(view.sandbox)] : renderItems(view.items)),
     );
-    const visible = UI.cardsFor(view, mode);
+    const visible = mode === "monitor" || !Array.isArray(view.approvals) ? [] : view.approvals;
     const cards = visible.map((c) => renderCard(c, !seenCards.has(c.toolUseId)));
     approvals.replaceChildren(...cards);
     const fresh = visible.findIndex((c) => !seenCards.has(c.toolUseId));
@@ -947,8 +890,13 @@
   window.addEventListener("message", (event) => {
     const message = event.data;
     if (message && message.type === "view") render(message.view);
-    else if (message && message.type === "surface") applySurface(message);
-    else if (message && message.type === "containers") {
+    else if (message && message.type === "role" && message.role === "monitor") {
+      mode = "monitor";
+      document.body.classList.add("mode-monitor");
+      if (lastView) render(lastView);
+    } else if (message && message.type === "title" && typeof message.text === "string") {
+      $("title").textContent = message.text.slice(0, 120);
+    } else if (message && message.type === "containers") {
       containers = UI.safeContainers(message.items);
       if (mentionOpen()) renderMentions();
     } else if (message && message.type === "bypass") {

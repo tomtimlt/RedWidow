@@ -14,13 +14,7 @@ import {
 } from "@john-studio/core";
 import { formatError } from "@john-studio/messages";
 import * as vscode from "vscode";
-import {
-  LAYOUT_LABELS,
-  type Layout,
-  nextLayout,
-  parseWebviewMessage,
-  readLayout,
-} from "../logic/approval.js";
+import { parseWebviewMessage } from "../logic/approval.js";
 import { type BypassPush, createBypassHost, formatRemaining } from "../logic/bypass.js";
 import {
   containerMentions,
@@ -37,11 +31,11 @@ import { type ChatSession, createChatSession, type TokenChoice } from "../logic/
 import { machineValue, resolveSettings } from "../logic/settings.js";
 import { parseStudioMessage, type StudioPage } from "../logic/studio.js";
 import { parseTerminalMessage } from "../logic/terminal.js";
+import { parseWindows, type WindowEntry } from "../logic/windows.js";
 
 const TOKEN_KEY = "john.token";
 const TOKEN_KIND_KEY = "john.tokenKind";
-// Disposition de la fenêtre, mémorisée par espace de travail (`workspaceState`, pas un réglage).
-const LAYOUT_KEY = "john.layout";
+const WINDOWS_KEY = "john.windows";
 // Version du SDK embarquée par le paquetage (clé du cache des modèles) ; absente en développement.
 declare const __SDK_VERSION__: string | undefined;
 type TokenKind = "subscription" | "api-key";
@@ -59,18 +53,19 @@ export function activate(context: vscode.ExtensionContext): void {
   const CHAT_CAP = 4;
   const SIDEBAR_CHAT = "sidebar";
   const CHAT_ID = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;
-  const chats = new Map<string, ChatSession>();
+  interface Slot {
+    session?: ChatSession;
+    panel?: vscode.WebviewPanel;
+    terminals: vscode.WebviewPanel[];
+  }
+  const slots = new Map<string, Slot>();
   let post: (message: unknown) => void = () => {};
-  // Disposition (lot P4) : `editor` = chat dans la Side Bar ; `chat`/`monitor` = panneau `john.stage`.
-  // Une seule surface rend la conversation : en `chat`/`monitor`, la Side Bar est « ouverte dans l'éditeur ».
-  let layout: Layout = readLayout(context.workspaceState.get(LAYOUT_KEY));
-  let stagePanel: vscode.WebviewPanel | undefined;
-  type Surface = "sidebar" | "stage";
-  const surfaceMessage = (surface: Surface) => ({
-    type: "surface",
-    layout,
-    active: surface === "sidebar" ? layout === "editor" : layout !== "editor",
-  });
+  let activeId = SIDEBAR_CHAT;
+  let monitorPanel: vscode.WebviewPanel | undefined;
+  let cockpitPanel: vscode.WebviewPanel | undefined;
+  let studioPanel: vscode.WebviewPanel | undefined;
+  let seq = 1;
+  let restoring = false;
 
   const getToken = async (): Promise<TokenChoice | undefined> => {
     const value = await context.secrets.get(TOKEN_KEY);
@@ -86,11 +81,22 @@ export function activate(context: vscode.ExtensionContext): void {
     return resolveSettings((key) => machineValue(config.inspect(key)));
   };
 
+  const seats = (reserveSidebar: boolean) => {
+    let n = reserveSidebar || slots.get(SIDEBAR_CHAT)?.session ? 1 : 0;
+    for (const [id, slot] of slots) if (id !== SIDEBAR_CHAT && slot.session) n++;
+    return n;
+  };
+  const chatName = (id: string) => {
+    if (id === SIDEBAR_CHAT) return "Chat";
+    const ids = [...slots.keys()].filter((key) => key !== SIDEBAR_CHAT);
+    const n = ids.indexOf(id);
+    return `Chat ${n < 0 ? ids.length + 2 : n + 2}`;
+  };
   const getSession = (id = SIDEBAR_CHAT): ChatSession => {
-    const existing = chats.get(id);
+    const existing = slots.get(id)?.session;
     if (existing) return existing;
     if (!CHAT_ID.test(id)) throw new Error("Identifiant de chat refusé.");
-    if (chats.size >= CHAT_CAP) throw new Error("Quatre chats au maximum.");
+    if (seats(id !== SIDEBAR_CHAT) >= CHAT_CAP) throw new Error("Quatre chats au maximum.");
     if (!folder) throw new Error("Ouvrez un dossier avant de lancer John.");
     const historyKey = `john.history.${id}`;
     const runs = join((context.storageUri ?? context.globalStorageUri).fsPath, "runs");
@@ -130,21 +136,20 @@ export function activate(context: vscode.ExtensionContext): void {
         "Toujours autoriser",
       onView: (view) => {
         const message = { type: "view", view };
-        if (id === SIDEBAR_CHAT) {
-          post(message);
-          void stagePanel?.webview.postMessage(message);
-          void terminalPanel?.webview.postMessage(message);
-        } else {
-          chatPost.get(id)?.(message);
-        }
+        const slot = slots.get(id);
+        if (id === SIDEBAR_CHAT) post(message);
+        else void slot?.panel?.webview.postMessage(message);
+        for (const term of slot?.terminals ?? []) void term.webview.postMessage(message);
+        if (id === activeId) pushMonitor(view);
         updateModelStatus();
       },
       onLog: (text) => out.append(text),
     });
-    chats.set(id, session);
+    const slot = slots.get(id) ?? { terminals: [] };
+    slot.session = session;
+    slots.set(id, slot);
     return session;
   };
-  const chatPost = new Map<string, (message: unknown) => void>();
 
   /**
    * Lance `exegol start <nom>` dans un terminal VS Code (chemin de `/start`, réutilisé par le terminal
@@ -211,33 +216,32 @@ export function activate(context: vscode.ExtensionContext): void {
   ) => {
     const message = { type: "containers", items: containerMentions(containers) };
     post(message);
-    void stagePanel?.webview.postMessage(message);
+    for (const [id, slot] of slots) {
+      if (id !== SIDEBAR_CHAT) void slot.panel?.webview.postMessage(message);
+    }
   };
 
   /**
-   * Messages de la webview de chat, venue de la Side Bar ou du panneau `john.stage` : même
-   * traitement. `reply` répond à la surface émettrice (état initial au `ready`).
+   * Messages d'une webview de chat (barre latérale ou panneau). `reply` répond à cet émetteur.
    */
   const handleChatMessage = async (
     raw: unknown,
-    surface: Surface,
+    id: string,
     reply: (message: unknown) => void,
     visible: () => boolean,
   ) => {
     const message = parseWebviewMessage(raw);
     if (message === null) return;
     try {
-      // La disposition ne dépend pas de la session : traitée avant `getSession`.
-      if (message.type === "setLayout") return await setLayout(message.layout);
+      setActive(id);
       // Bypass (ADR 0006) : hôte seul, avant `getSession`. `enabled: true` refusé si la vue est cachée.
       if (message.type === "setBypass") {
         bypass.request(message.enabled, visible());
         return;
       }
-      const s = getSession();
+      const s = getSession(id);
       switch (message.type) {
         case "ready":
-          reply(surfaceMessage(surface));
           reply(bypass.snapshot());
           reply({ type: "view", view: s.view() });
           reply(await containersMessage());
@@ -333,107 +337,117 @@ export function activate(context: vscode.ExtensionContext): void {
     },
   };
 
-  const cockpitProvider: vscode.WebviewViewProvider = {
-    resolveWebviewView(view) {
-      const media = vscode.Uri.joinPath(context.extensionUri, "media");
-      view.webview.options = {
-        enableScripts: true,
-        enableCommandUris: false,
-        localResourceRoots: [media],
-      };
-      const nonce = makeNonce();
-      view.webview.html = cockpitHtml({
-        nonce,
-        cspSource: view.webview.cspSource,
-        scriptUri: view.webview.asWebviewUri(vscode.Uri.joinPath(media, "cockpit.js")).toString(),
-        styleUri: view.webview.asWebviewUri(vscode.Uri.joinPath(media, "chat.css")).toString(),
-      });
-      const postCockpit: (message: unknown) => void = (message) =>
-        void view.webview.postMessage(message);
+  const openCockpit = () => {
+    if (cockpitPanel) {
+      cockpitPanel.reveal(vscode.ViewColumn.Beside);
+      return;
+    }
+    const media = vscode.Uri.joinPath(context.extensionUri, "media");
+    const panel = vscode.window.createWebviewPanel(
+      "john.cockpit",
+      "Cockpit",
+      vscode.ViewColumn.Beside,
+      { enableScripts: true, enableCommandUris: false, localResourceRoots: [media] },
+    );
+    cockpitPanel = panel;
+    panel.onDidDispose(() => {
+      cockpitPanel = undefined;
+      void saveWindows();
+    });
+    const view = panel;
+    const nonce = makeNonce();
+    view.webview.html = cockpitHtml({
+      nonce,
+      cspSource: view.webview.cspSource,
+      scriptUri: view.webview.asWebviewUri(vscode.Uri.joinPath(media, "cockpit.js")).toString(),
+      styleUri: view.webview.asWebviewUri(vscode.Uri.joinPath(media, "chat.css")).toString(),
+    });
+    const postCockpit: (message: unknown) => void = (message) =>
+      void view.webview.postMessage(message);
 
-      const pushView = async (loading = false) => {
-        if (loading) postCockpit({ type: "view", loading: true });
-        try {
-          const payload = await loadCockpitView();
-          postCockpit(payload);
-          broadcastContainers(payload.containers);
-          void refreshContainerStatus();
-          if (payload.projectInvalid) {
-            void vscode.window.showErrorMessage(
-              "Projet invalide : fichier project.json illisible ou incomplet.",
-            );
-          }
-        } catch (error) {
-          void vscode.window.showErrorMessage(formatError(error));
+    const pushView = async (loading = false) => {
+      if (loading) postCockpit({ type: "view", loading: true });
+      try {
+        const payload = await loadCockpitView();
+        postCockpit(payload);
+        broadcastContainers(payload.containers);
+        void refreshContainerStatus();
+        if (payload.projectInvalid) {
+          void vscode.window.showErrorMessage(
+            "Projet invalide : fichier project.json illisible ou incomplet.",
+          );
         }
-      };
+      } catch (error) {
+        void vscode.window.showErrorMessage(formatError(error));
+      }
+    };
 
-      void pushView(true);
+    void pushView(true);
 
-      view.webview.onDidReceiveMessage(async (raw: unknown) => {
-        const message = parseCockpitMessage(raw);
-        if (message === null) return;
-        try {
-          switch (message.type) {
-            case "refresh":
-              return void pushView(true);
-            case "link": {
-              await pushView(true);
-              postCockpit(await linkContainer(message.name));
-              return;
-            }
-            case "openWorkspace": {
-              const st = await linkedProjectStatus();
-              if (st === null) return;
-              const uri = vscode.Uri.file(st.workspace);
-              try {
-                const stat = await vscode.workspace.fs.stat(uri);
-                if (stat.type !== vscode.FileType.Directory) {
-                  throw new Error("not-dir");
-                }
-              } catch {
-                void vscode.window.showErrorMessage(`Dossier inaccessible : ${st.workspace}`);
-                return;
-              }
-              const folders = vscode.workspace.workspaceFolders ?? [];
-              const known = folders.findIndex((f) => f.uri.fsPath === uri.fsPath);
-              if (known < 0) {
-                vscode.workspace.updateWorkspaceFolders(folders.length, 0, { uri });
-              }
-              await vscode.commands.executeCommand("revealInExplorer", uri);
-              return;
-            }
-            case "terminal": {
-              await openLinkedShell();
-              return;
-            }
-            case "start":
-              await controlListedContainer("start", message.name);
-              return void pushView(true);
-            case "stop":
-              await controlListedContainer("stop", message.name);
-              return void pushView(true);
-            case "create": {
-              const st = await linkedProjectStatus();
-              if (st === null || st.state === "running") return;
-              if (st.state === "stopped") {
-                await controlListedContainer("start", st.container);
-                return void pushView(true);
-              }
-              startContainerTerminal(shortContainerName(st.container));
-              return;
-            }
+    view.webview.onDidReceiveMessage(async (raw: unknown) => {
+      const message = parseCockpitMessage(raw);
+      if (message === null) return;
+      try {
+        switch (message.type) {
+          case "refresh":
+            return void pushView(true);
+          case "link": {
+            await pushView(true);
+            postCockpit(await linkContainer(message.name));
+            return;
           }
-        } catch (error) {
-          void vscode.window.showErrorMessage(formatError(error));
-          await pushView(true);
+          case "openWorkspace": {
+            const st = await linkedProjectStatus();
+            if (st === null) return;
+            const uri = vscode.Uri.file(st.workspace);
+            try {
+              const stat = await vscode.workspace.fs.stat(uri);
+              if (stat.type !== vscode.FileType.Directory) {
+                throw new Error("not-dir");
+              }
+            } catch {
+              void vscode.window.showErrorMessage(`Dossier inaccessible : ${st.workspace}`);
+              return;
+            }
+            const folders = vscode.workspace.workspaceFolders ?? [];
+            const known = folders.findIndex((f) => f.uri.fsPath === uri.fsPath);
+            if (known < 0) {
+              vscode.workspace.updateWorkspaceFolders(folders.length, 0, { uri });
+            }
+            await vscode.commands.executeCommand("revealInExplorer", uri);
+            return;
+          }
+          case "terminal": {
+            await openLinkedShell();
+            return;
+          }
+          case "start":
+            await controlListedContainer("start", message.name);
+            return void pushView(true);
+          case "stop":
+            await controlListedContainer("stop", message.name);
+            return void pushView(true);
+          case "create": {
+            const st = await linkedProjectStatus();
+            if (st === null || st.state === "running") return;
+            if (st.state === "stopped") {
+              await controlListedContainer("start", st.container);
+              return void pushView(true);
+            }
+            startContainerTerminal(shortContainerName(st.container));
+            return;
+          }
         }
-      });
+      } catch (error) {
+        void vscode.window.showErrorMessage(formatError(error));
+        await pushView(true);
+      }
+    });
 
-      view.onDidChangeVisibility(() => {
-        if (view.visible) void pushView(true);
-      });
-    },
+    panel.onDidChangeViewState(() => {
+      if (panel.visible) void pushView(true);
+    });
+    void saveWindows();
   };
 
   const showExecTerminal = (name: string) => {
@@ -457,72 +471,136 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   };
 
-  /** Panneau `john.stage` (chat ou Monitor, `ViewColumn.One`) : singleton, patron du panneau des réglages. */
-  const openStage = () => {
-    if (stagePanel) {
-      stagePanel.reveal(vscode.ViewColumn.One);
+  const saveWindows = async () => {
+    if (restoring) return;
+    const entries: WindowEntry[] = [];
+    for (const [id, slot] of slots) {
+      if (id === SIDEBAR_CHAT) continue;
+      if (slot.panel) entries.push({ kind: "chat", chatId: id });
+      for (const _term of slot.terminals) entries.push({ kind: "terminal", chatId: id });
+    }
+    if (monitorPanel) entries.push({ kind: "monitor" });
+    if (cockpitPanel) entries.push({ kind: "cockpit" });
+    if (studioPanel) entries.push({ kind: "settings" });
+    await context.workspaceState.update(WINDOWS_KEY, entries);
+  };
+  const pushMonitor = (view?: { items: unknown }) => {
+    const panel = monitorPanel;
+    if (!panel) return;
+    const name = chatName(activeId);
+    panel.title = `Monitor · ${name}`;
+    void panel.webview.postMessage({ type: "title", text: name });
+    const shown = view ?? slots.get(activeId)?.session?.view();
+    if (shown) void panel.webview.postMessage({ type: "view", view: shown });
+  };
+  const setActive = (id: string) => {
+    activeId = id;
+    pushMonitor();
+  };
+  const mountChatHtml = (webview: vscode.Webview) => {
+    const media = vscode.Uri.joinPath(context.extensionUri, "media");
+    const nonce = makeNonce();
+    webview.html = chatHtml({
+      nonce,
+      cspSource: webview.cspSource,
+      scriptUri: webview.asWebviewUri(vscode.Uri.joinPath(media, "chat.js")).toString(),
+      uiUri: webview.asWebviewUri(vscode.Uri.joinPath(media, "ui.js")).toString(),
+      styleUri: webview.asWebviewUri(vscode.Uri.joinPath(media, "chat.css")).toString(),
+    });
+  };
+  const nextChatId = () => {
+    let id = "";
+    do {
+      seq += 1;
+      id = `c${seq}`;
+    } while (slots.has(id));
+    return id;
+  };
+  const openEditorChat = (existing?: string) => {
+    const id = existing ?? nextChatId();
+    const current = slots.get(id);
+    if (current?.panel) {
+      current.panel.reveal(vscode.ViewColumn.Beside);
+      setActive(id);
+      return;
+    }
+    try {
+      getSession(id);
+    } catch (error) {
+      void vscode.window.showErrorMessage(formatError(error));
       return;
     }
     const media = vscode.Uri.joinPath(context.extensionUri, "media");
-    const panel = vscode.window.createWebviewPanel("john.stage", "John", vscode.ViewColumn.One, {
-      enableScripts: true,
-      enableCommandUris: false,
-      localResourceRoots: [media],
-    });
-    stagePanel = panel;
-    const nonce = makeNonce();
-    panel.webview.html = chatHtml({
-      nonce,
-      cspSource: panel.webview.cspSource,
-      scriptUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(media, "chat.js")).toString(),
-      uiUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(media, "ui.js")).toString(),
-      styleUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(media, "chat.css")).toString(),
-    });
+    const panel = vscode.window.createWebviewPanel(
+      "john.chatPanel",
+      chatName(id),
+      vscode.ViewColumn.Beside,
+      { enableScripts: true, enableCommandUris: false, localResourceRoots: [media] },
+    );
+    const slot = slots.get(id);
+    if (!slot) return;
+    slot.panel = panel;
+    panel.title = chatName(id);
+    mountChatHtml(panel.webview);
     panel.onDidDispose(() => {
-      stagePanel = undefined;
-      // Fermer le panneau ramène à `editor` : la Side Bar redevient la surface active.
-      if (layout !== "editor") void setLayout("editor");
+      for (const term of [...slot.terminals]) term.dispose();
+      slot.session?.dispose();
+      slots.delete(id);
+      if (activeId === id) activeId = SIDEBAR_CHAT;
+      pushMonitor();
+      void saveWindows();
+    });
+    panel.onDidChangeViewState((e) => {
+      if (e.webviewPanel.active) setActive(id);
     });
     panel.webview.onDidReceiveMessage((raw: unknown) =>
       handleChatMessage(
         raw,
-        "stage",
+        id,
         (message) => void panel.webview.postMessage(message),
         () => panel.visible,
       ),
     );
+    setActive(id);
+    void saveWindows();
+  };
+  const openMonitor = () => {
+    if (monitorPanel) {
+      monitorPanel.reveal(vscode.ViewColumn.Beside);
+      pushMonitor();
+      return;
+    }
+    const media = vscode.Uri.joinPath(context.extensionUri, "media");
+    const panel = vscode.window.createWebviewPanel(
+      "john.monitor",
+      "Monitor",
+      vscode.ViewColumn.Beside,
+      { enableScripts: true, enableCommandUris: false, localResourceRoots: [media] },
+    );
+    monitorPanel = panel;
+    mountChatHtml(panel.webview);
+    panel.onDidDispose(() => {
+      monitorPanel = undefined;
+      void saveWindows();
+    });
+    panel.webview.onDidReceiveMessage((raw: unknown) => {
+      const message = parseWebviewMessage(raw);
+      if (message?.type !== "ready") return;
+      void panel.webview.postMessage({ type: "role", role: "monitor" });
+      pushMonitor();
+    });
+    void saveWindows();
   };
 
-  /** Envoie à chaque surface son mode (`active` : elle seule rend la conversation). */
-  const postSurfaces = () => {
-    post(surfaceMessage("sidebar"));
-    void stagePanel?.webview.postMessage(surfaceMessage("stage"));
-  };
-
-  /** Change et mémorise la disposition ; `editor` ferme le panneau `john.stage`. */
-  const setLayout = async (next: Layout) => {
-    layout = next;
-    await context.workspaceState.update(LAYOUT_KEY, next);
-    if (next === "editor") stagePanel?.dispose();
-    else openStage();
-    postSurfaces();
-    updateLayoutStatus();
-  };
-
-  // Barre d'état : conteneur lié (nom seul, « connecté » si le cockpit l'établit), disposition
-  // (clic = disposition suivante), modèle courant. Pas de mode, de contexte ni de bypass (pas de donnée).
+  // Barre d'état : conteneur lié et modèle du chat actif.
   const barContainer = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 102);
-  const barLayout = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 101);
   const barModel = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
-  barLayout.command = "john.cycleLayout";
-  barLayout.tooltip = "Disposition de John : cliquer pour passer à la suivante";
-  context.subscriptions.push(barContainer, barLayout, barModel);
-  const updateLayoutStatus = () => {
-    barLayout.text = `John : ${LAYOUT_LABELS[layout]}`;
-    barLayout.show();
-  };
+  context.subscriptions.push(barContainer, barModel);
   const updateModelStatus = () => {
-    const c = chats.get(SIDEBAR_CHAT)?.view().controls ?? null;
+    const c =
+      slots.get(activeId)?.session?.view().controls ??
+      slots.get(SIDEBAR_CHAT)?.session?.view().controls ??
+      null;
     if (c === null) {
       barModel.hide();
       return;
@@ -550,7 +628,6 @@ export function activate(context: vscode.ExtensionContext): void {
     barContainer.show();
   };
 
-  let studioPanel: vscode.WebviewPanel | undefined;
   let studioPage: StudioPage = "project";
   const pushStudio = async () => {
     if (!studioPanel) return;
@@ -587,6 +664,7 @@ export function activate(context: vscode.ExtensionContext): void {
     });
     studioPanel.onDidDispose(() => {
       studioPanel = undefined;
+      void saveWindows();
     });
     studioPanel.webview.onDidReceiveMessage(async (raw: unknown) => {
       const message = parseStudioMessage(raw);
@@ -596,33 +674,30 @@ export function activate(context: vscode.ExtensionContext): void {
       await pushStudio();
     });
     void pushStudio();
+    void saveWindows();
   };
 
-  // Terminal latéral (panneau éditeur singleton, comme les réglages) : onglet agent = vue du chat ;
-  // onglet shell désactivé, son bouton ouvre le shell du conteneur lié (comme le cockpit).
-  let terminalPanel: vscode.WebviewPanel | undefined;
-  let terminalContainer: string | null = null;
-  const pushTerminal = async () => {
-    const panel = terminalPanel;
-    if (!panel) return;
-    await panel.webview.postMessage({ type: "context", container: terminalContainer });
-    const side = chats.get(SIDEBAR_CHAT);
-    if (side) await panel.webview.postMessage({ type: "view", view: side.view() });
-  };
-  const openTerminal = async () => {
-    if (terminalPanel) {
-      terminalPanel.reveal(vscode.ViewColumn.Beside);
-      await pushTerminal();
-      return;
+  /** Terminal d'agent lié à un chat. Le bouton shell reste le terminal VS Code du conteneur lié. */
+  const openAgentTerminal = async (chatId = activeId) => {
+    let slot = slots.get(chatId);
+    if (!slot?.session) {
+      try {
+        getSession(chatId);
+      } catch (error) {
+        void vscode.window.showErrorMessage(formatError(error));
+        return;
+      }
+      slot = slots.get(chatId);
     }
+    if (!slot) return;
     const media = vscode.Uri.joinPath(context.extensionUri, "media");
     const panel = vscode.window.createWebviewPanel(
       "john.terminal",
-      "Terminal",
+      `Terminal · ${chatName(chatId)}`,
       vscode.ViewColumn.Beside,
       { enableScripts: true, enableCommandUris: false, localResourceRoots: [media] },
     );
-    terminalPanel = panel;
+    slot.terminals.push(panel);
     const nonce = makeNonce();
     panel.webview.html = terminalHtml({
       nonce,
@@ -631,48 +706,44 @@ export function activate(context: vscode.ExtensionContext): void {
       styleUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(media, "terminal.css")).toString(),
     });
     panel.onDidDispose(() => {
-      terminalPanel = undefined;
+      slot.terminals = slot.terminals.filter((term) => term !== panel);
+      void saveWindows();
     });
     panel.webview.onDidReceiveMessage(async (raw: unknown) => {
       const message = parseTerminalMessage(raw);
       if (message === null) return;
       try {
-        // Ouverture du shell : même chemin que le bouton « Terminal » du cockpit.
         await openLinkedShell();
       } catch (error) {
         void vscode.window.showErrorMessage(formatError(error));
       }
     });
+    let container: string | null = null;
     try {
-      const st = await linkedProjectStatus();
-      terminalContainer = st?.container ?? null;
+      container = shortContainerName((await linkedProjectStatus())?.container ?? "");
+      if (container === "") container = null;
     } catch {
-      terminalContainer = null;
+      container = null;
     }
-    await pushTerminal();
+    await panel.webview.postMessage({ type: "context", container });
+    await panel.webview.postMessage({ type: "view", view: slot.session?.view() });
+    void saveWindows();
   };
 
   context.subscriptions.push(
     {
       dispose: () => {
-        for (const chat of chats.values()) chat.dispose();
+        for (const slot of slots.values()) slot.session?.dispose();
       },
     },
     vscode.window.registerWebviewViewProvider("john.chat", provider, {
       webviewOptions: { retainContextWhenHidden: true },
     }),
-    vscode.window.registerWebviewViewProvider("john.cockpit", cockpitProvider, {
-      webviewOptions: { retainContextWhenHidden: true },
-    }),
-    vscode.commands.registerCommand("john.openChat", () =>
-      vscode.commands.executeCommand("john.chat.focus"),
-    ),
-    vscode.commands.registerCommand("john.openCockpit", () =>
-      vscode.commands.executeCommand("john.cockpit.focus"),
-    ),
+    vscode.commands.registerCommand("john.openChat", () => openEditorChat()),
+    vscode.commands.registerCommand("john.openCockpit", () => openCockpit()),
     vscode.commands.registerCommand("john.openStudio", () => openStudio()),
-    vscode.commands.registerCommand("john.openTerminal", () => openTerminal()),
-    vscode.commands.registerCommand("john.cycleLayout", () => setLayout(nextLayout(layout))),
+    vscode.commands.registerCommand("john.openTerminal", () => void openAgentTerminal()),
+    vscode.commands.registerCommand("john.openMonitor", () => openMonitor()),
     vscode.commands.registerCommand("john.setToken", async () => {
       const kind = await vscode.window.showQuickPick(
         [
@@ -755,7 +826,9 @@ export function activate(context: vscode.ExtensionContext): void {
     },
     onChange: (push) => {
       post(push);
-      void stagePanel?.webview.postMessage(push);
+      for (const [id, slot] of slots) {
+        if (id !== SIDEBAR_CHAT) void slot.panel?.webview.postMessage(push);
+      }
       renderBypass(push);
     },
   });
@@ -770,11 +843,24 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("john.disableBypass", () => bypass.request(false, true)),
   );
 
-  updateLayoutStatus();
   updateModelStatus();
   void refreshContainerStatus();
-  // Disposition mémorisée (`chat`/`monitor`) : le panneau de conversation est rouvert.
-  if (layout !== "editor") openStage();
+  // Ancienne clé `john.layout` ignorée : seule `john.windows` est relue.
+  void (async () => {
+    restoring = true;
+    const pending: Promise<void>[] = [];
+    for (const entry of parseWindows(context.workspaceState.get(WINDOWS_KEY))) {
+      if (entry.kind === "chat" && entry.chatId) openEditorChat(entry.chatId);
+      else if (entry.kind === "terminal" && entry.chatId)
+        pending.push(openAgentTerminal(entry.chatId));
+      else if (entry.kind === "monitor") openMonitor();
+      else if (entry.kind === "cockpit") openCockpit();
+      else if (entry.kind === "settings") openStudio();
+    }
+    await Promise.all(pending);
+    restoring = false;
+    await saveWindows();
+  })();
 }
 
 export function deactivate(): void {}
