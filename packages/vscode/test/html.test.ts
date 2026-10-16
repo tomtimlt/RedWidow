@@ -166,26 +166,17 @@ describe("composer et Configurer (lot P1)", () => {
       expect(m, label).toContain("bientôt");
     }
   });
-  it("Layout (lot P4) : trois radios Éditeur, Chat, Monitor, en tête de Configurer", () => {
+  it("Configurer n'a plus de sélecteur de disposition", () => {
     const cfg = section('id="cfg-pop"', "<script nonce");
-    const seg = /<div id="layout-seg"[^>]*>([\s\S]*?)<\/div>/.exec(cfg)?.[1] ?? "";
-    const opts = [...seg.matchAll(/<button[^>]*role="radio"[^>]*data-layout="(\w+)"/g)].map(
-      (m) => m[1],
-    );
-    expect(opts).toEqual(["editor", "chat", "monitor"]);
-    expect(seg.match(/aria-checked="true"/g)).toHaveLength(1);
-    expect(seg).not.toMatch(/\sdisabled[\s>]/);
-    expect(cfg.indexOf("Layout")).toBeLessThan(cfg.indexOf("Raisonnement"));
+    expect(cfg).not.toContain("layout-seg");
+    expect(cfg).not.toContain("data-layout");
+    expect(cfg.indexOf("Raisonnement")).toBeGreaterThanOrEqual(0);
   });
-  it("une seule surface rend les cartes : chat.js passe par cardsFor (mode conversation)", () => {
-    expect(js).toContain("UI.cardsFor(view, mode)");
-    expect(js).not.toMatch(/view\.approvals\.(map|findIndex)/);
-    expect(js).toContain('"setLayout"');
-  });
-  it("Monitor et conversation ouverte ailleurs : sections présentes, renvois sans bouton de décision", () => {
-    expect(html).toContain('id="away-return"');
-    expect(html).toContain(">Revenir dans la barre latérale</button>");
-    expect(tag("monitor-back")).not.toBe("");
+  it("chaque chat rend ses cartes ; le Monitor est une section sans décision", () => {
+    expect(js).not.toContain("cardsFor");
+    expect(js).not.toContain("setLayout");
+    expect(js).toContain("view.approvals");
+    expect(html).not.toContain('id="away-return"');
     expect(tag("monitor-rows")).not.toBe("");
     const monitor = section('id="monitor"', 'id="approvals"');
     expect(monitor).not.toMatch(/once|deny|always|approve/);

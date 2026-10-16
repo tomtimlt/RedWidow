@@ -53,11 +53,10 @@ export function chatHtml({
 </head>
 <body>
 <header id="bar"><span id="title">John</span><span id="sandbox" class="badge" hidden></span><span id="bypass-badge" class="badge" hidden></span><button id="history-btn" type="button" class="ghost" aria-expanded="false" aria-controls="history" title="Historique des conversations"><span class="ico" aria-hidden="true">☰</span><span class="btn-text">Historique</span></button><button id="reset" type="button" class="ghost" title="Nouvelle conversation"><span class="ico" aria-hidden="true">+</span><span class="btn-text">Nouvelle<span class="btn-more"> conversation</span></span></button></header>
-<section id="away" aria-label="Conversation ouverte dans l'éditeur"><p id="away-text">Conversation ouverte dans l'éditeur.</p><button id="away-return" type="button" class="primary">Revenir dans la barre latérale</button></section>
 <section id="history" aria-label="Historique des conversations" hidden><div class="hist-head"><strong>Historique</strong><button id="history-clear" type="button" class="ghost">Tout effacer</button></div><ul id="history-list"></ul></section>
 <main id="log" role="log" aria-live="polite" aria-label="Conversation"></main>
 <div id="readonly" role="status" hidden><span id="readonly-text"></span><button id="readonly-resume" type="button" class="primary">Reprendre</button><button id="readonly-close" type="button" class="ghost">Fermer</button></div>
-<section id="monitor" aria-label="Commandes Exegol (lecture seule)"><div class="mon-head"><p class="hint">Lecture seule : les autorisations se donnent dans le chat.</p><button id="monitor-back" type="button" class="ghost">Revenir dans la barre latérale</button></div><ol id="monitor-rows"></ol><p id="monitor-empty" class="empty">Aucun appel Exegol dans cette conversation.</p></section>
+<section id="monitor" aria-label="Commandes Exegol (lecture seule)"><div class="mon-head"><p class="hint">Lecture seule : les autorisations se donnent dans le chat.</p></div><ol id="monitor-rows"></ol><p id="monitor-empty" class="empty">Aucun appel Exegol dans cette conversation.</p></section>
 <section id="approvals" aria-label="Autorisations demandées"></section>
 <div id="thinking" role="status"><span class="spin" aria-hidden="true"><span class="spin-strip">${BRAILLE}</span></span><span class="spin-static" aria-hidden="true">…</span><span id="thinking-label">Réflexion</span><span class="cursor" aria-hidden="true">▍</span></div>
 <form id="form">
@@ -85,9 +84,6 @@ export function chatHtml({
 <button id="cmd-clear" type="button" class="cmd-opt"><span class="cmd">/clear</span><span class="cmd-desc">Nouvelle conversation</span></button>
 </div>
 <div id="cfg-pop" class="pop" popover="auto" role="dialog" aria-label="Configurer">
-<section class="cfg-col" aria-labelledby="cfg-h-layout"><h3 id="cfg-h-layout">Layout</h3>
-<div id="layout-seg" class="seg" role="radiogroup" aria-labelledby="cfg-h-layout"><button type="button" role="radio" aria-checked="true" tabindex="0" data-layout="editor" class="seg-opt">Éditeur</button><button type="button" role="radio" aria-checked="false" tabindex="-1" data-layout="chat" class="seg-opt">Chat</button><button type="button" role="radio" aria-checked="false" tabindex="-1" data-layout="monitor" class="seg-opt">Monitor</button></div>
-<p class="tip">Chat et Monitor ouvrent la conversation dans l'éditeur.</p></section>
 <section class="cfg-col" aria-labelledby="cfg-h-reason"><h3 id="cfg-h-reason">Raisonnement</h3>
 <div class="effort-row"><label for="effort" class="sr-only">Niveau d'effort</label><input id="effort" type="range" min="0" max="4" step="1" value="2"><button id="effort-auto" type="button" class="ghost" title="Revenir à Auto : le modèle garde son effort par défaut">Auto</button></div>
 <div id="effort-ticks" aria-hidden="true"></div>

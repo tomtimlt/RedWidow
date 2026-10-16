@@ -203,6 +203,6 @@ describe("contribution de la commande", () => {
     const cmd = manifest.contributes.commands.find(
       (c: { command: string }) => c.command === "john.openTerminal",
     );
-    expect(cmd?.title).toBe("Exegol Studio : ouvrir le terminal");
+    expect(cmd?.title).toBe("John : ouvrir un terminal");
   });
 });

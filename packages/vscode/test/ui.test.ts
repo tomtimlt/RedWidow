@@ -3,7 +3,6 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { EXEGOL_EXEC_TOOL } from "@john-studio/core";
 import { describe, expect, it } from "vitest";
-import { LAYOUTS as CORE_LAYOUTS } from "../src/logic/approval.js";
 
 interface UiApi {
   listboxKey(s: { active: number }, key: string, o: { disabled?: boolean }[]): { active: number };
@@ -25,11 +24,7 @@ interface UiApi {
   ): string[];
   activityLabel(v: { busy: boolean; approvals: unknown[]; items: unknown[] }): string;
   shouldSweep(prev: string | null | undefined, next: string | null): boolean;
-  LAYOUTS: string[];
   EXEC_TOOL: string;
-  safeLayout(value: unknown): string;
-  surfaceMode(layout: string, active: boolean): string;
-  cardsFor<T>(view: { approvals: T[] } | null, mode: string): T[];
   historyBadge(entry: { current: boolean }, running: boolean): string | null;
   monitorRows(view: unknown): MonitorRow[];
   inputRecall(
@@ -240,38 +235,9 @@ describe("balayage de changement de modèle", () => {
   });
 });
 
-describe("disposition et surfaces (lot P4)", () => {
-  it("LAYOUTS de ui.js = LAYOUTS de approval.ts ; EXEC_TOOL = constante du cœur", () => {
-    expect(ui.LAYOUTS).toEqual([...CORE_LAYOUTS]);
+describe("historique et outil Exegol", () => {
+  it("EXEC_TOOL = constante du cœur", () => {
     expect(ui.EXEC_TOOL).toBe(EXEGOL_EXEC_TOOL);
-  });
-  it("safeLayout : valeur connue gardée, sinon editor", () => {
-    expect(ui.safeLayout("chat")).toBe("chat");
-    for (const v of ["Chat", "bypass", "", null, undefined, 3, { layout: "chat" }]) {
-      expect(ui.safeLayout(v), String(v)).toBe("editor");
-    }
-  });
-  it("surfaceMode : seule la surface active rend la conversation ou le Monitor", () => {
-    expect(ui.surfaceMode("editor", true)).toBe("conversation");
-    expect(ui.surfaceMode("chat", true)).toBe("conversation");
-    expect(ui.surfaceMode("monitor", true)).toBe("monitor");
-    // La Side Bar en Chat ou Monitor est inactive : elle n'affiche pas la conversation.
-    expect(ui.surfaceMode("chat", false)).toBe("away");
-    expect(ui.surfaceMode("monitor", false)).toBe("away");
-    expect(ui.surfaceMode("inconnu", true)).toBe("conversation");
-  });
-  it("cartes d'approbation : un seul rendu, celui de la surface en mode conversation", () => {
-    const view = { approvals: [{ toolUseId: "a" }] };
-    const sidebarEditor = ui.cardsFor(view, ui.surfaceMode("editor", true));
-    const stageChat = ui.cardsFor(view, ui.surfaceMode("chat", true));
-    const sidebarChat = ui.cardsFor(view, ui.surfaceMode("chat", false));
-    const stageMonitor = ui.cardsFor(view, ui.surfaceMode("monitor", true));
-    expect(sidebarEditor).toEqual(view.approvals);
-    expect(stageChat).toEqual(view.approvals);
-    expect(sidebarChat).toEqual([]);
-    expect(stageMonitor).toEqual([]);
-    expect(ui.cardsFor(null, "conversation")).toEqual([]);
-    expect(ui.cardsFor({ approvals: "x" as unknown as unknown[] }, "conversation")).toEqual([]);
   });
   it("badge d'historique : « en cours » seulement pour la courante qui tourne", () => {
     expect(ui.historyBadge({ current: true }, true)).toBe("en cours");

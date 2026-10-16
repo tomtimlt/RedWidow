@@ -3,35 +3,9 @@
 ((root) => {
   const enabled = (options, i) => i >= 0 && i < options.length && !options[i].disabled;
 
-  /** Dispositions connues (miroir de `LAYOUTS` de src/logic/approval.ts, vérifié par test). */
-  const LAYOUTS = ["editor", "chat", "monitor"];
   /** Nom de l'outil d'exec Exegol (miroir de `EXEGOL_EXEC_TOOL`, vérifié par test). */
   const EXEC_TOOL = "mcp__exegol__exec";
   const MONITOR_MAX_ROWS = 200;
-
-  /** Disposition reçue de l'hôte, validée ici aussi : toute autre valeur donne `editor`. */
-  function safeLayout(value) {
-    return LAYOUTS.includes(value) ? value : "editor";
-  }
-
-  /**
-   * Mode d'une surface (une seule surface rend la conversation à la fois) : `away` si la conversation
-   * est ouverte dans l'autre surface (Side Bar en Chat/Monitor), `monitor` en lecture seule, sinon
-   * `conversation`.
-   */
-  function surfaceMode(layout, active) {
-    if (!active) return "away";
-    return safeLayout(layout) === "monitor" ? "monitor" : "conversation";
-  }
-
-  /**
-   * Cartes d'approbation à rendre sur une surface : seulement en mode `conversation`, jamais en
-   * `away` ni en `monitor` (aucune carte rendue sur deux surfaces).
-   */
-  function cardsFor(view, mode) {
-    if (mode !== "conversation" || !view || !Array.isArray(view.approvals)) return [];
-    return view.approvals;
-  }
 
   /** Badge d'une ligne d'historique : « en cours » seulement pour la conversation courante si elle tourne. */
   function historyBadge(entry, running) {
@@ -349,12 +323,8 @@
   }
 
   const api = {
-    LAYOUTS,
     EXEC_TOOL,
     bypassView,
-    safeLayout,
-    surfaceMode,
-    cardsFor,
     historyBadge,
     monitorRows,
     listboxKey,

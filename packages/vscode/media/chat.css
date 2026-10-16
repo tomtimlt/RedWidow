@@ -1852,42 +1852,19 @@ body.studio .studio-dl dd {
   }
 }
 
-/* --- Surfaces (lot P4) : conversation ouverte ailleurs (away), Monitor (lecture seule), Chat plein éditeur --- */
-#away,
+/* Monitor (panneau éditeur) : lecture seule, le chat reste masqué. */
 #monitor {
   display: none;
 }
-body.mode-away #away {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--jn-s2);
-  padding: var(--jn-s3) 0;
-}
-#away-text {
-  margin: 0;
-  color: var(--jn-muted);
-}
-body.mode-away #log,
-body.mode-away #approvals,
-body.mode-away #thinking,
-body.mode-away #form,
-body.mode-away #readonly,
 body.mode-monitor #log,
 body.mode-monitor #approvals,
 body.mode-monitor #thinking,
 body.mode-monitor #form,
-body.mode-monitor #readonly {
+body.mode-monitor #readonly,
+body.mode-monitor #history,
+body.mode-monitor #history-btn,
+body.mode-monitor #reset {
   display: none;
-}
-body.mode-away #history-btn {
-  display: none;
-}
-body.mode-away #history {
-  flex: 1 1 auto;
-  min-height: 0;
-  max-height: none;
-  margin-top: 0;
 }
 body.mode-monitor #monitor {
   display: flex;
@@ -1897,17 +1874,6 @@ body.mode-monitor #monitor {
   overflow-y: auto;
   gap: var(--jn-s2);
   padding: var(--jn-s3) 0;
-}
-body.layout-chat #bar,
-body.layout-chat #away,
-body.layout-chat #log,
-body.layout-chat #approvals,
-body.layout-chat #thinking,
-body.layout-chat #form,
-body.layout-chat #history,
-body.layout-chat #readonly,
-body.layout-monitor #bar,
-body.layout-monitor #monitor {
   width: min(820px, calc(100% - 2 * var(--jn-gutter)));
   margin-inline: auto;
 }
@@ -1994,30 +1960,4 @@ body.layout-monitor #monitor {
   overflow-wrap: anywhere;
   font-family: var(--vscode-editor-font-family);
   font-size: 0.9em;
-}
-
-/* Configurer : sélecteur Layout à trois choix (radio). */
-.seg {
-  display: flex;
-  gap: 2px;
-  padding: 2px;
-  min-width: 0;
-  border: 1px solid var(--jn-line);
-  border-radius: var(--jn-r-pill);
-}
-.seg-opt {
-  flex: 1 1 0;
-  min-width: 0;
-  padding: 3px 6px;
-  border: 0;
-  border-radius: var(--jn-r-pill);
-  background: transparent;
-  color: var(--vscode-foreground);
-  font: inherit;
-  font-size: 0.9em;
-  white-space: nowrap;
-}
-.seg-opt[aria-checked="true"] {
-  background: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
 }
