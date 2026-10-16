@@ -1241,8 +1241,9 @@ body:not(.running) #stop {
 }
 
 /* --- Responsive : container queries sur body (compact < 360, standard 360-599, large >= 600) --- */
+/* « Configurer » garde son libellé à toute largeur ; seuls les autres boutons passent à l'icône. */
 @container app (max-width: 359px) {
-  :where(.btn-text, .cfg-text) {
+  :where(.btn-text) {
     position: absolute;
     width: 1px;
     height: 1px;
