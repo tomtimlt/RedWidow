@@ -8,7 +8,7 @@ Extension privée (ADR 0004, lots E3 + E4) : chat d'agent dans VS Code, avec une
 pnpm install --frozen-lockfile
 pnpm build
 pnpm --filter @john-studio/vscode package        # cible win32-x64 par défaut
-code --install-extension packages/vscode/john-studio-0.2.0-win32-x64.vsix
+code --install-extension packages/vscode/john-studio-0.3.0-win32-x64.vsix
 ```
 
 Le `.vsix` fait environ 117 Mio (il embarque le binaire `claude` du SDK, 257 Mio décompressé, vérifié par empreinte SHA-256 au démarrage du moteur). Il est ignoré par git.

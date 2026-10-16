@@ -2,7 +2,7 @@
   "name": "john-studio",
   "displayName": "John",
   "description": "Chat d'agent avec approbation des outils (john-studio).",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "john-studio",
   "license": "UNLICENSED",
   "engines": { "vscode": "^1.90.0" },
