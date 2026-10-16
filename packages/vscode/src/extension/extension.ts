@@ -19,6 +19,7 @@ import {
   parseWebviewMessage,
   readLayout,
 } from "../logic/approval.js";
+import { type BypassPush, createBypassHost, formatRemaining } from "../logic/bypass.js";
 import {
   linkContainer,
   linkedProjectStatus,
@@ -175,16 +176,23 @@ export function activate(context: vscode.ExtensionContext): void {
     raw: unknown,
     surface: Surface,
     reply: (message: unknown) => void,
+    visible: () => boolean,
   ) => {
     const message = parseWebviewMessage(raw);
     if (message === null) return;
     try {
       // La disposition ne dépend pas de la session : traitée avant `getSession`.
       if (message.type === "setLayout") return await setLayout(message.layout);
+      // Bypass (ADR 0006) : hôte seul, avant `getSession`. `enabled: true` refusé si la vue est cachée.
+      if (message.type === "setBypass") {
+        bypass.request(message.enabled, visible());
+        return;
+      }
       const s = getSession();
       switch (message.type) {
         case "ready":
           reply(surfaceMessage(surface));
+          reply(bypass.snapshot());
           reply({ type: "view", view: s.view() });
           return await s.loadModels();
         case "setModel":
@@ -220,6 +228,7 @@ export function activate(context: vscode.ExtensionContext): void {
         case "stop":
           return s.stop();
         case "reset":
+          bypass.reset();
           return s.reset();
         case "approve":
           return await s.approve(message.toolUseId, message.choice);
@@ -257,7 +266,12 @@ export function activate(context: vscode.ExtensionContext): void {
       });
       post = (message) => void view.webview.postMessage(message);
       view.webview.onDidReceiveMessage((raw: unknown) =>
-        handleChatMessage(raw, "sidebar", (message) => post(message)),
+        handleChatMessage(
+          raw,
+          "sidebar",
+          (message) => post(message),
+          () => view.visible,
+        ),
       );
       view.onDidDispose(() => {
         post = () => {};
@@ -399,7 +413,12 @@ export function activate(context: vscode.ExtensionContext): void {
       if (layout !== "editor") void setLayout("editor");
     });
     panel.webview.onDidReceiveMessage((raw: unknown) =>
-      handleChatMessage(raw, "stage", (message) => void panel.webview.postMessage(message)),
+      handleChatMessage(
+        raw,
+        "stage",
+        (message) => void panel.webview.postMessage(message),
+        () => panel.visible,
+      ),
     );
   };
 
@@ -618,6 +637,54 @@ export function activate(context: vscode.ExtensionContext): void {
       child.on("exit", (code) => out.appendLine(`moteur terminé (code ${code})`));
       out.show();
     }),
+  );
+
+  // Bypass des approbations (ADR 0006) : état en mémoire de l'hôte, jamais persisté. Un élément de
+  // barre d'état natif le signale (fond d'avertissement) ; son clic le désactive.
+  const barBypass = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 103);
+  barBypass.backgroundColor = new vscode.ThemeColor("statusBarItem.warningBackground");
+  barBypass.command = "john.disableBypass";
+  barBypass.tooltip = "Bypass des approbations actif : cliquer pour le désactiver";
+  context.subscriptions.push(barBypass);
+  let bypassTick: ReturnType<typeof setInterval> | undefined;
+  const renderBypass = (push: BypassPush) => {
+    if (bypassTick !== undefined) {
+      clearInterval(bypassTick);
+      bypassTick = undefined;
+    }
+    if (!push.on) {
+      barBypass.hide();
+      return;
+    }
+    const refreshText = () => {
+      const left = bypass.remainingMs();
+      barBypass.text = `BYPASS · ${left === null ? "" : formatRemaining(left)}`;
+      barBypass.show();
+    };
+    refreshText();
+    bypassTick = setInterval(refreshText, 30_000);
+  };
+  const bypass = createBypassHost({
+    clock: {
+      now: () => Date.now(),
+      schedule: (fn, delayMs) => setTimeout(fn, delayMs),
+      cancel: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+    },
+    onChange: (push) => {
+      post(push);
+      void stagePanel?.webview.postMessage(push);
+      renderBypass(push);
+    },
+  });
+  context.subscriptions.push(
+    {
+      dispose: () => {
+        bypass.dispose();
+        if (bypassTick !== undefined) clearInterval(bypassTick);
+      },
+    },
+    vscode.workspace.onDidChangeWorkspaceFolders(() => bypass.reset()),
+    vscode.commands.registerCommand("john.disableBypass", () => bypass.request(false, true)),
   );
 
   updateLayoutStatus();

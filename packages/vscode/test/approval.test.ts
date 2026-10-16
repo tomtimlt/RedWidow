@@ -146,3 +146,34 @@ describe("disposition : lecture, cycle, libellés", () => {
     expect(nextLayout("monitor")).toBe("editor");
   });
 });
+
+describe("parseWebviewMessage : setBypass (ADR 0006)", () => {
+  it("accepte exactement { type, enabled: boolean }", () => {
+    expect(parseWebviewMessage({ type: "setBypass", enabled: true })).toEqual({
+      type: "setBypass",
+      enabled: true,
+    });
+    expect(parseWebviewMessage({ type: "setBypass", enabled: false })).toEqual({
+      type: "setBypass",
+      enabled: false,
+    });
+  });
+  it("rejette un champ en trop, notamment une durée", () => {
+    expect(parseWebviewMessage({ type: "setBypass", enabled: true, duration: 60 })).toBeNull();
+    expect(parseWebviewMessage({ type: "setBypass", enabled: true, expiresAt: 1 })).toBeNull();
+  });
+  it("rejette un enabled non booléen ou absent", () => {
+    expect(parseWebviewMessage({ type: "setBypass", enabled: "true" })).toBeNull();
+    expect(parseWebviewMessage({ type: "setBypass", enabled: 1 })).toBeNull();
+    expect(parseWebviewMessage({ type: "setBypass", enabled: null })).toBeNull();
+    expect(parseWebviewMessage({ type: "setBypass" })).toBeNull();
+  });
+  it("aucun autre message ne se traduit en activation du Bypass", () => {
+    expect(parseWebviewMessage({ type: "enableBypass", enabled: true })).toBeNull();
+    expect(
+      parseWebviewMessage({ type: "approve", toolUseId: "t", choice: "once", bypass: true }),
+    ).toBeNull();
+    expect(parseWebviewMessage({ type: "setLayout", layout: "editor", bypass: true })).toBeNull();
+    expect(parseWebviewMessage({ type: "ready", bypass: true })).toBeNull();
+  });
+});

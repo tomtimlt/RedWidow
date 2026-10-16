@@ -100,7 +100,9 @@ export type WebviewMessage =
   | { type: "historyClear" }
   | { type: "refreshModels" }
   | { type: "approve"; toolUseId: string; choice: Choice }
-  | { type: "setLayout"; layout: Layout };
+  | { type: "setLayout"; layout: Layout }
+  /** Interrupteur du Bypass (ADR 0006) : seul champ, pas de durée (fixée par l'hôte). */
+  | { type: "setBypass"; enabled: boolean };
 
 /** Valide un message venu de la webview (non fiable) : forme exacte, sinon `null`. */
 export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
@@ -148,6 +150,10 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
     case "setLayout":
       return only("type", "layout") && isLayout(m.layout)
         ? { type: "setLayout", layout: m.layout }
+        : null;
+    case "setBypass":
+      return only("type", "enabled") && typeof m.enabled === "boolean"
+        ? { type: "setBypass", enabled: m.enabled }
         : null;
     case "approve":
       return only("type", "toolUseId", "choice") &&
