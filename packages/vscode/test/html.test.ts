@@ -136,11 +136,11 @@ describe("composer et Configurer (lot P1)", () => {
     expect(attach).toContain('aria-disabled="true"');
     expect(attach).toContain("bientôt");
   });
-  it("le menu « / » ne propose que /clear et /start, les deux autres sont absents", () => {
+  it("le menu « / » ne propose que /clear ; /start reste hors menu", () => {
     const menu = section('id="slash-pop"', 'id="cfg-pop"');
-    expect(menu.match(/class="cmd-opt"/g)).toHaveLength(2);
+    expect(menu.match(/class="cmd-opt"/g)).toHaveLength(1);
     expect(menu).toContain("/clear");
-    expect(menu).toContain("/start &lt;nom&gt;");
+    expect(menu).not.toContain("/start");
     expect(html).not.toMatch(/\bmcp\b|jauge|compact|pièce jointe active/i);
   });
   it("les boutons @ et / existent, le second ouvre le menu", () => {

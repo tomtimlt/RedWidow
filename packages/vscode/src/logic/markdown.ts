@@ -6,11 +6,18 @@ export type Inline =
   | { t: "code"; v: string }
   | { t: "b" | "i"; c: Inline[] };
 
+export type Align = "left" | "center" | "right";
+
 export type Block =
   | { t: "p"; c: Inline[] }
   | { t: "h"; level: 1 | 2 | 3; c: Inline[] }
   | { t: "code"; lang: string; text: string }
-  | { t: "ul" | "ol"; items: Inline[][] };
+  | { t: "ul" | "ol"; items: Inline[][] }
+  | { t: "table"; headers: Inline[][]; align: Align[]; rows: Inline[][][] };
+
+/** Plafonds d'un tableau : au-delà, les colonnes et les lignes en trop sont ignorées. */
+const MAX_TABLE_COLS = 16;
+const MAX_TABLE_ROWS = 50;
 
 const MAX_DEPTH = 4;
 
@@ -58,6 +65,43 @@ const FENCE = /^```\s*([\w+#.-]{0,20})\s*$/;
 const BULLET = /^\s*[-*+]\s+(.*)$/;
 const NUMBERED = /^\s*\d{1,9}[.)]\s+(.*)$/;
 const HEADING = /^(#{1,6})\s+(.*)$/;
+const ALIGN_CELL = /^:?-{3,}:?$/;
+
+/** Cellules d'une ligne de tableau (`|` échappé par `\`). `null` s'il n'y a pas de `|`. */
+function splitCells(line: string): string[] | null {
+  const trimmed = line.trim();
+  if (!trimmed.includes("|")) return null;
+  let body = trimmed;
+  if (body.startsWith("|")) body = body.slice(1);
+  if (body.endsWith("|")) body = body.slice(0, -1);
+  const cells: string[] = [];
+  let buf = "";
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i] as string;
+    if (ch === "\\" && body[i + 1] === "|") {
+      buf += "|";
+      i++;
+      continue;
+    }
+    if (ch === "|") {
+      cells.push(buf.trim());
+      buf = "";
+      continue;
+    }
+    buf += ch;
+  }
+  cells.push(buf.trim());
+  return cells.length > 0 ? cells : null;
+}
+
+function columnAlign(cell: string): Align | null {
+  if (!ALIGN_CELL.test(cell)) return null;
+  const left = cell.startsWith(":");
+  const right = cell.endsWith(":");
+  if (left && right) return "center";
+  if (right) return "right";
+  return "left";
+}
 
 export function parseMarkdown(src: string): Block[] {
   const lines = src.replace(/\r\n?/g, "\n").split("\n");
@@ -76,6 +120,36 @@ export function parseMarkdown(src: string): Block[] {
       n++;
       while (n < lines.length && !FENCE.test(lines[n] as string)) body.push(lines[n++] as string);
       blocks.push({ t: "code", lang: fence[1] ?? "", text: body.join("\n") });
+      continue;
+    }
+    const headerCells = splitCells(line);
+    const sepLine = lines[n + 1];
+    const sepCells = sepLine === undefined ? null : splitCells(sepLine);
+    if (
+      headerCells &&
+      sepCells &&
+      headerCells.length === sepCells.length &&
+      sepCells.length > 0 &&
+      sepCells.every((cell) => columnAlign(cell) !== null)
+    ) {
+      flushPara();
+      const cols = Math.min(headerCells.length, MAX_TABLE_COLS);
+      const align = sepCells.slice(0, cols).map((cell) => columnAlign(cell) ?? "left");
+      const headers = headerCells.slice(0, cols).map((cell) => parseInline(cell));
+      const rows: Inline[][][] = [];
+      n += 2;
+      while (n < lines.length) {
+        const rowLine = lines[n] as string;
+        if (rowLine.trim() === "") break;
+        const cells = splitCells(rowLine);
+        if (!cells) break;
+        if (rows.length < MAX_TABLE_ROWS) {
+          rows.push(Array.from({ length: cols }, (_, i) => parseInline(cells[i] ?? "")));
+        }
+        n++;
+      }
+      n--;
+      blocks.push({ t: "table", headers, align, rows });
       continue;
     }
     const heading = HEADING.exec(line);

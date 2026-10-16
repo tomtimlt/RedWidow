@@ -26,6 +26,12 @@ describe("chat.js : balises créées", () => {
       "li",
       "h2",
       "input",
+      "table",
+      "thead",
+      "tbody",
+      "tr",
+      "th",
+      "td",
     ];
     for (const m of js.matchAll(/\bel\(\s*"(\w+)"/g)) expect(allowed).toContain(m[1]);
     expect(js).not.toMatch(/createElement\(\s*["'`](script|a|img|iframe)/);
@@ -78,7 +84,7 @@ function buildView(state: PreviewState) {
     tool("2", "Read", { file_path: "/projet/src/a.ts" }, "export const a = 1;");
     ev({
       kind: "agent.text",
-      text: "# Résultat\nVoici le code :\n```ts\nexport const a = 1;\n```\n1. premier\n2. second\n<img src=x onerror=alert(1)>",
+      text: "# Résultat\nVoici le code :\n```ts\nexport const a = 1;\n```\n1. premier\n2. second\n\n| Fichier | Rôle |\n| --- | --- |\n| a.ts | export |\n| b.ts | test |\n\n<img src=x onerror=alert(1)>",
     });
     if (busy) {
       ev({

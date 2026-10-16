@@ -65,12 +65,12 @@ export function chatHtml({
 <textarea id="input" rows="1" aria-label="Votre consigne" placeholder="Votre consigne…" title="Entrée pour envoyer, Maj+Entrée pour une nouvelle ligne"></textarea>
 <div id="toolbar">
 <button id="attach" type="button" class="ghost tool-btn" disabled aria-disabled="true" title="Pièces jointes : bientôt" aria-label="Pièces jointes : bientôt"><span class="ico" aria-hidden="true">📎</span></button>
-<button id="mention-btn" type="button" class="ghost tool-btn" title="Insérer @ pour citer un conteneur" aria-label="Insérer @ pour citer un conteneur"><span class="ico" aria-hidden="true">@</span></button>
+<button id="mention-btn" type="button" class="ghost tool-btn" title="Citer un conteneur" aria-label="Citer un conteneur"><span class="ico" aria-hidden="true">@</span></button>
 <button id="slash-btn" type="button" class="ghost tool-btn" popovertarget="slash-pop" aria-haspopup="menu" aria-expanded="false" title="Commandes" aria-label="Commandes"><span class="ico" aria-hidden="true">/</span></button>
-<span id="ctl-group" hidden><button id="model-chip" type="button" class="chip" popovertarget="model-pop" aria-haspopup="listbox" aria-expanded="false" title="Modèle utilisé pour le message suivant"><span class="ico" aria-hidden="true">◈</span><span id="model-chip-label" class="chip-label">Modèle par défaut</span><span class="caret" aria-hidden="true">▾</span><span class="sr-only"> (choisir le modèle)</span></button><button id="cfg-btn" type="button" class="chip" popovertarget="cfg-pop" aria-haspopup="dialog" aria-expanded="false" aria-label="Configurer" title="Configurer : raisonnement et exécution"><span class="ico" aria-hidden="true">⚙</span><span class="cfg-text">Configurer</span><span id="cfg-level" class="cfg-level"></span><span class="caret" aria-hidden="true">▾</span></button></span>
+<span id="ctl-group" hidden><button id="model-chip" type="button" class="chip" popovertarget="model-pop" aria-haspopup="listbox" aria-expanded="false" title="Modèle utilisé pour le message suivant"><span id="model-chip-label" class="chip-label">Modèle par défaut</span><span class="caret" aria-hidden="true">▾</span><span class="sr-only"> (choisir le modèle)</span></button><button id="cfg-btn" type="button" class="chip" popovertarget="cfg-pop" aria-haspopup="dialog" aria-expanded="false" aria-label="Configurer" title="Configurer : raisonnement et exécution"><span class="cfg-text">Configurer</span><span id="cfg-level" class="cfg-level"></span><span class="caret" aria-hidden="true">▾</span></button></span>
 <span class="spacer"></span>
 <button id="stop" type="button" class="danger" title="Arrêter l'agent"><span class="ico" aria-hidden="true">■</span><span class="btn-text">Stop</span></button>
-<button id="send" type="submit" class="primary" title="Envoyer (Entrée)"><span class="ico" aria-hidden="true">↑</span><span class="btn-text">Envoyer</span></button>
+<button id="send" type="submit" class="primary" title="Envoyer (Entrée)" aria-label="Envoyer"><span class="ico" aria-hidden="true">↑</span></button>
 </div>
 </div>
 </form>
@@ -82,7 +82,6 @@ export function chatHtml({
 </div>
 <div id="slash-pop" class="pop" popover="auto" aria-label="Commandes">
 <button id="cmd-clear" type="button" class="cmd-opt"><span class="cmd">/clear</span><span class="cmd-desc">Nouvelle conversation</span></button>
-<button id="cmd-start" type="button" class="cmd-opt"><span class="cmd">/start &lt;nom&gt;</span><span class="cmd-desc">Ouvre un terminal qui lance le conteneur nommé</span></button>
 </div>
 <div id="cfg-pop" class="pop" popover="auto" role="dialog" aria-label="Configurer">
 <section class="cfg-col" aria-labelledby="cfg-h-layout"><h3 id="cfg-h-layout">Layout</h3>

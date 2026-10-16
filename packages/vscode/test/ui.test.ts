@@ -32,6 +32,12 @@ interface UiApi {
   cardsFor<T>(view: { approvals: T[] } | null, mode: string): T[];
   historyBadge(entry: { current: boolean }, running: boolean): string | null;
   monitorRows(view: unknown): MonitorRow[];
+  inputRecall(
+    state: { index: number; draft: string; entries: string[]; current: string },
+    key: string,
+    cursor: { line: number; lines: number },
+  ): { index: number; draft: string; value: string } | null;
+  syncRecallEntries(local: string[], viewUsers: string[]): string[];
   bypassView(
     push: unknown,
     previous: unknown,
@@ -465,6 +471,49 @@ describe("bypassView (lot B1, ADR 0006) : cinq états, échec fermé, pas de min
         text: "",
       });
     }
+  });
+  it("rappel des consignes : haut sur la première ligne, bas sur la dernière, brouillon conservé", () => {
+    const entries = ["un", "deux"];
+    const up = ui.inputRecall({ index: -1, draft: "", entries, current: "brouillon" }, "up", {
+      line: 0,
+      lines: 2,
+    });
+    expect(up).toEqual({ index: 0, draft: "brouillon", value: "deux" });
+    const older = ui.inputRecall(
+      { index: up?.index ?? -1, draft: up?.draft ?? "", entries, current: up?.value ?? "" },
+      "up",
+      { line: 0, lines: 1 },
+    );
+    expect(older).toEqual({ index: 1, draft: "brouillon", value: "un" });
+    const stuck = ui.inputRecall({ index: 1, draft: "brouillon", entries, current: "un" }, "up", {
+      line: 0,
+      lines: 1,
+    });
+    expect(stuck).toEqual({ index: 1, draft: "brouillon", value: "un" });
+    const mid = ui.inputRecall({ index: -1, draft: "", entries, current: "a\nb" }, "up", {
+      line: 1,
+      lines: 2,
+    });
+    expect(mid).toBeNull();
+    const back = ui.inputRecall(
+      { index: 0, draft: "brouillon", entries, current: "deux" },
+      "down",
+      { line: 0, lines: 1 },
+    );
+    expect(back).toEqual({ index: -1, draft: "brouillon", value: "brouillon" });
+    const stay = ui.inputRecall(
+      { index: -1, draft: "brouillon", entries, current: "brouillon" },
+      "down",
+      { line: 0, lines: 1 },
+    );
+    expect(stay).toBeNull();
+  });
+  it("syncRecallEntries garde l'écho en attente et remplace si la conversation change", () => {
+    expect(ui.syncRecallEntries(["a"], [])).toEqual([]);
+    expect(ui.syncRecallEntries(["a"], ["a"])).toEqual(["a"]);
+    expect(ui.syncRecallEntries(["a", "b"], ["a"])).toEqual(["a", "b"]);
+    expect(ui.syncRecallEntries(["a"], ["b"])).toEqual(["b"]);
+    expect(ui.syncRecallEntries(["a"], ["a", "c"])).toEqual(["a", "c"]);
   });
   it("aucun minuteur ni horloge implicite : le temps vient de l'argument now", () => {
     const src = readFileSync(fileURLToPath(new URL("../media/ui.js", import.meta.url)), "utf8");

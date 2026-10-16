@@ -66,6 +66,35 @@
       inline(h, b.c);
       return h;
     }
+    if (b.t === "table") {
+      const wrap = el("div", "md-table");
+      const table = el("table");
+      const thead = el("thead");
+      const hr = el("tr");
+      b.headers.forEach((cell, i) => {
+        const th = el("th");
+        const align = b.align[i];
+        if (align && align !== "left") th.setAttribute("data-align", align);
+        inline(th, cell);
+        hr.append(th);
+      });
+      thead.append(hr);
+      const tbody = el("tbody");
+      for (const row of b.rows) {
+        const tr = el("tr");
+        row.forEach((cell, i) => {
+          const td = el("td");
+          const align = b.align[i];
+          if (align && align !== "left") td.setAttribute("data-align", align);
+          inline(td, cell);
+          tr.append(td);
+        });
+        tbody.append(tr);
+      }
+      table.append(thead, tbody);
+      wrap.append(table);
+      return wrap;
+    }
     if (b.t === "code") {
       const box = el("div", "codeblock");
       const head = el("div", "codehead");
@@ -124,6 +153,20 @@
     return box;
   }
 
+  function copyButton(text) {
+    const btn = el("button", "msg-copy", "Copier");
+    btn.type = "button";
+    btn.title = "Copier le message";
+    btn.addEventListener("click", () => copy(text, btn));
+    return btn;
+  }
+
+  function messageShell(kind, text, body) {
+    const row = el("div", `msg-row ${kind}`);
+    row.append(body, copyButton(text));
+    return row;
+  }
+
   function renderItems(items) {
     const nodes = [];
     let group = null;
@@ -138,11 +181,11 @@
       }
       group = null;
       if (item.kind === "user") {
-        nodes.push(el("div", "msg user", item.text));
+        nodes.push(messageShell("user", item.text, el("div", "msg user", item.text)));
       } else if (item.kind === "agent") {
         const m = el("div", "msg agent");
         for (const b of item.blocks) m.append(renderBlock(b));
-        nodes.push(m);
+        nodes.push(messageShell("agent", item.text, m));
       } else {
         const n = el("div", `notice ${item.level}`, item.text);
         if (item.level === "error") n.setAttribute("role", "alert");
@@ -535,7 +578,7 @@
     },
   });
 
-  // Menu « / » : seulement /clear (message reset existant) et /start <nom> (texte inséré, envoi par l'utilisateur).
+  // Menu « / » : seulement /clear. /start reste reconnu à la saisie, absent du menu.
   const slashPop = $("slash-pop");
   const slashBtn = $("slash-btn");
   const mentionBtn = $("mention-btn");
@@ -548,13 +591,6 @@
   $("cmd-clear").addEventListener("click", () => {
     slashPop.hidePopover();
     resetConversation();
-  });
-  $("cmd-start").addEventListener("click", () => {
-    slashPop.hidePopover();
-    input.value = "/start ";
-    grow();
-    input.focus();
-    input.setSelectionRange(input.value.length, input.value.length);
   });
   // Bouton « @ » : insère le caractère à la position du curseur (la vue ne porte pas de liste de conteneurs).
   mentionBtn.addEventListener("click", () => {
@@ -797,7 +833,16 @@
   document.addEventListener("visibilitychange", applyBody);
   motion.addEventListener("change", applyBody);
 
+  // Rappel des consignes (comme un terminal) : index -1 = brouillon.
+  let recall = { index: -1, draft: "" };
+  let sent = [];
   function render(view) {
+    const users = (view.items ?? []).filter((it) => it.kind === "user").map((it) => it.text);
+    const nextSent = UI.syncRecallEntries(sent, users);
+    if (nextSent.length < sent.length || nextSent[0] !== sent[0]) {
+      recall = { index: -1, draft: "" };
+    }
+    sent = nextSent;
     renderControls(view.controls);
     historyRunning = view.busy && !view.readonly;
     renderHistory(view.history);
@@ -828,7 +873,6 @@
     send.disabled = view.busy || !!view.readonly;
     input.disabled = !!view.readonly;
     mentionBtn.disabled = input.disabled;
-    $("cmd-start").disabled = input.disabled;
     stop.disabled = !view.busy;
     lastView = view;
     applyBody();
@@ -853,9 +897,19 @@
     input.style.height = "auto";
     input.style.height = `${input.scrollHeight}px`;
   }
+  function caretLine() {
+    const value = input.value;
+    const pos = input.selectionStart ?? 0;
+    return {
+      line: value.slice(0, pos).split("\n").length - 1,
+      lines: value.split("\n").length,
+    };
+  }
   function submit() {
     const text = input.value;
     if (text.trim() === "" || send.disabled) return;
+    sent = sent.concat(text);
+    recall = { index: -1, draft: "" };
     input.value = "";
     grow();
     vscode.postMessage({ type: "send", text });
@@ -866,6 +920,28 @@
     submit();
   });
   input.addEventListener("keydown", (e) => {
+    if (
+      (e.key === "ArrowUp" || e.key === "ArrowDown") &&
+      !e.shiftKey &&
+      !e.altKey &&
+      !e.ctrlKey &&
+      !e.metaKey
+    ) {
+      const next = UI.inputRecall(
+        { index: recall.index, draft: recall.draft, entries: sent, current: input.value },
+        e.key === "ArrowUp" ? "up" : "down",
+        caretLine(),
+      );
+      if (next) {
+        e.preventDefault();
+        recall = { index: next.index, draft: next.draft };
+        input.value = next.value;
+        const pos = e.key === "ArrowUp" ? 0 : input.value.length;
+        input.setSelectionRange(pos, pos);
+        grow();
+        return;
+      }
+    }
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
       submit();

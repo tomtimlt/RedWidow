@@ -149,6 +149,65 @@ body > * {
 .msg.agent > :last-child {
   margin-bottom: 0;
 }
+.msg-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  max-width: 100%;
+  min-width: 0;
+}
+.msg-row.user {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+.msg-row.agent {
+  align-self: flex-start;
+}
+.msg-row > .msg {
+  min-width: 0;
+}
+.msg-copy {
+  flex: none;
+  margin-top: 4px;
+  padding: 0 4px;
+  min-height: 22px;
+  border: 0;
+  background: transparent;
+  color: var(--vscode-descriptionForeground, var(--jn-muted));
+  font-size: 0.75em;
+}
+.md-table {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--vscode-panel-border, var(--jn-line));
+  border-radius: var(--jn-r-sm);
+}
+.md-table table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.md-table th,
+.md-table td {
+  border: 1px solid var(--vscode-panel-border, var(--jn-line));
+  padding: 4px 8px;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.md-table th[data-align="center"],
+.md-table td[data-align="center"] {
+  text-align: center;
+}
+.md-table th[data-align="right"],
+.md-table td[data-align="right"] {
+  text-align: right;
+}
+.md-table th {
+  background: var(--vscode-editorWidget-background, transparent);
+}
+.md-table tbody tr:nth-child(even) {
+  background: var(--vscode-list-hoverBackground);
+}
 .msg p {
   margin: 0.5em 0;
   white-space: pre-wrap;
@@ -694,6 +753,10 @@ textarea:focus-visible {
   flex-wrap: nowrap;
   gap: 4px;
   min-width: 0;
+}
+#toolbar #send {
+  min-width: 32px;
+  padding: 0 8px;
 }
 #ctl-group {
   display: flex;
