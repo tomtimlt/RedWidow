@@ -8,9 +8,9 @@ body {
   --jn-s3: 12px;
   --jn-s4: 16px;
   --jn-s5: 24px;
-  --jn-r-sm: 4px;
-  --jn-r-md: 8px;
-  --jn-r-lg: 12px;
+  --jn-r-sm: 8px;
+  --jn-r-md: 12px;
+  --jn-r-lg: 18px;
   --jn-r-pill: 999px;
   --jn-d1: 120ms;
   --jn-d2: 200ms;
@@ -636,7 +636,8 @@ textarea:focus-visible {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 6px;
+  flex-wrap: nowrap;
+  gap: 4px;
   min-width: 0;
 }
 #ctl-group {
@@ -743,13 +744,44 @@ body:not(.running) #stop {
   border: 1px solid color-mix(in srgb, var(--jn-accent) 45%, var(--jn-line));
   border-radius: var(--jn-r-lg);
   box-shadow: var(--jn-shadow-pop);
-  container: pop / inline-size;
 }
 .pop:not(.placed) {
   visibility: hidden;
 }
+/* Configurer et menu « / » : 232 px, une colonne à toutes les largeurs, police compacte. */
+#cfg-pop,
+#slash-pop {
+  width: min(232px, calc(100vw - 16px));
+  font-size: 12px;
+}
 #cfg-pop {
-  width: min(560px, calc(100vw - 16px));
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s2);
+}
+.tool-btn {
+  min-width: 24px;
+  padding: 0 4px;
+  font-weight: 600;
+}
+.cmd-opt {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  min-height: 28px;
+  padding: 4px 8px;
+  background: transparent;
+  color: var(--vscode-foreground);
+}
+.cmd {
+  font-family: var(--vscode-editor-font-family);
+}
+.cmd-desc {
+  font-size: 0.9em;
+  color: var(--jn-muted);
+  white-space: normal;
+  text-align: left;
 }
 #model-filter,
 #model-input {
@@ -838,31 +870,40 @@ body:not(.running) #stop {
   border-top: 1px solid var(--jn-line);
 }
 
-/* Configurer : une colonne, deux dès 480 px de popover */
-.cfg-cols {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--jn-s3);
+/* Configurer : une seule colonne, groupes séparés par un filet ; « bientôt » en bas. */
+.cfg-col {
+  min-width: 0;
 }
-@container pop (min-width: 480px) {
-  .cfg-cols {
-    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
-  }
-  .cfg-col + .cfg-col {
-    border-left: 1px solid var(--jn-line);
-    padding-left: var(--jn-s3);
-  }
+.cfg-col + .cfg-col {
+  border-top: 1px solid var(--jn-line);
+  padding-top: var(--jn-s2);
 }
 .cfg-col h3 {
-  margin: 0 0 var(--jn-s2);
-  font-size: 0.78em;
+  margin: 0 0 var(--jn-s1);
+  font-size: 0.9em;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--jn-muted);
 }
+.cfg-off {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--jn-s2);
+  width: 100%;
+  min-height: 24px;
+  padding: 0 var(--jn-s2);
+  background: transparent;
+  color: var(--vscode-foreground);
+}
+.cfg-off em {
+  font-size: 0.9em;
+  font-style: normal;
+  color: var(--jn-muted);
+}
 .tip {
-  margin: var(--jn-s2) 0 0;
-  font-size: 0.88em;
+  margin: var(--jn-s1) 0 0;
+  font-size: 11px;
   line-height: 1.4;
   color: var(--jn-muted);
 }
@@ -1082,7 +1123,7 @@ body:not(.running) #stop {
 
 /* --- Responsive : container queries sur body (compact < 360, standard 360-599, large >= 600) --- */
 @container app (max-width: 359px) {
-  :where(.btn-text) {
+  :where(.btn-text, .cfg-text) {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -1102,13 +1143,12 @@ body:not(.running) #stop {
   .msg {
     max-width: 100%;
   }
-  .cfg-text,
   .cfg-level,
   #cfg-btn .caret {
     display: none;
   }
   #cfg-btn {
-    padding: 0 8px;
+    padding: 0 6px;
   }
   .chip-label {
     max-width: 100%;
@@ -1116,6 +1156,10 @@ body:not(.running) #stop {
   #model-chip {
     flex: 0 1 auto;
     min-width: 0;
+    padding: 0 6px;
+  }
+  #toolbar {
+    gap: 4px;
   }
   #model-chip .caret {
     display: none;
@@ -1270,6 +1314,14 @@ body.vscode-high-contrast-light .pop,
 body.vscode-high-contrast #composer,
 body.vscode-high-contrast-light #composer {
   border-color: var(--vscode-contrastBorder, currentColor);
+}
+
+/* Approbation en attente (classe posée par chat.js selon #approvals) : bordure du composer en orange. */
+body.awaiting #composer {
+  border-color: var(
+    --vscode-editorWarning-foreground,
+    var(--vscode-inputValidation-warningBorder, currentColor)
+  );
 }
 
 /* --- Cockpit (body.cockpit) --- */

@@ -480,6 +480,36 @@
     },
   });
 
+  // Menu « / » : seulement /clear (message reset existant) et /start <nom> (texte inséré, envoi par l'utilisateur).
+  const slashPop = $("slash-pop");
+  const slashBtn = $("slash-btn");
+  const mentionBtn = $("mention-btn");
+  wirePop(slashPop, slashBtn, {
+    render() {},
+    focus() {
+      slashPop.querySelector("button:not(:disabled)")?.focus();
+    },
+  });
+  $("cmd-clear").addEventListener("click", () => {
+    slashPop.hidePopover();
+    vscode.postMessage({ type: "reset" });
+  });
+  $("cmd-start").addEventListener("click", () => {
+    slashPop.hidePopover();
+    input.value = "/start ";
+    grow();
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  });
+  // Bouton « @ » : insère le caractère à la position du curseur (la vue ne porte pas de liste de conteneurs).
+  mentionBtn.addEventListener("click", () => {
+    const start = input.selectionStart ?? input.value.length;
+    const end = input.selectionEnd ?? start;
+    input.setRangeText("@", start, end, "end");
+    grow();
+    input.focus();
+  });
+
   modelFilter.addEventListener("input", () => {
     query = modelFilter.value;
     renderModelList(false);
@@ -646,8 +676,12 @@
           : `Bac à sable : ${view.sandbox}`;
     } else sb.textContent = "";
     sb.hidden = !view.sandbox;
+    // Bordure orange du composer tant qu'une demande d'autorisation attend la réponse.
+    document.body.classList.toggle("awaiting", approvals.childElementCount > 0);
     send.disabled = view.busy || !!view.readonly;
     input.disabled = !!view.readonly;
+    mentionBtn.disabled = input.disabled;
+    $("cmd-start").disabled = input.disabled;
     stop.disabled = !view.busy;
     lastView = view;
     applyBody();

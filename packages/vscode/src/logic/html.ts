@@ -62,6 +62,9 @@ export function chatHtml({
 <div id="composer"><span class="sweep" aria-hidden="true"></span>
 <textarea id="input" rows="1" aria-label="Votre consigne" placeholder="Votre consigne…" title="Entrée pour envoyer, Maj+Entrée pour une nouvelle ligne"></textarea>
 <div id="toolbar">
+<button id="attach" type="button" class="ghost tool-btn" disabled aria-disabled="true" title="Pièces jointes : bientôt" aria-label="Pièces jointes : bientôt"><span class="ico" aria-hidden="true">📎</span></button>
+<button id="mention-btn" type="button" class="ghost tool-btn" title="Insérer @ pour citer un conteneur" aria-label="Insérer @ pour citer un conteneur"><span class="ico" aria-hidden="true">@</span></button>
+<button id="slash-btn" type="button" class="ghost tool-btn" popovertarget="slash-pop" aria-haspopup="menu" aria-expanded="false" title="Commandes" aria-label="Commandes"><span class="ico" aria-hidden="true">/</span></button>
 <span id="ctl-group" hidden><button id="model-chip" type="button" class="chip" popovertarget="model-pop" aria-haspopup="listbox" aria-expanded="false" title="Modèle utilisé pour le message suivant"><span class="ico" aria-hidden="true">◈</span><span id="model-chip-label" class="chip-label">Modèle par défaut</span><span class="caret" aria-hidden="true">▾</span><span class="sr-only"> (choisir le modèle)</span></button><button id="cfg-btn" type="button" class="chip" popovertarget="cfg-pop" aria-haspopup="dialog" aria-expanded="false" aria-label="Configurer" title="Configurer : raisonnement et exécution"><span class="ico" aria-hidden="true">⚙</span><span class="cfg-text">Configurer</span><span id="cfg-level" class="cfg-level"></span><span class="caret" aria-hidden="true">▾</span></button></span>
 <span class="spacer"></span>
 <button id="stop" type="button" class="danger" title="Arrêter l'agent"><span class="ico" aria-hidden="true">■</span><span class="btn-text">Stop</span></button>
@@ -75,17 +78,24 @@ export function chatHtml({
 <div id="model-list" role="listbox" aria-label="Modèles"></div>
 <div class="pop-foot"><button id="models-refresh" type="button" class="ghost" title="Actualiser la liste des modèles">Actualiser la liste</button></div>
 </div>
+<div id="slash-pop" class="pop" popover="auto" aria-label="Commandes">
+<button id="cmd-clear" type="button" class="cmd-opt"><span class="cmd">/clear</span><span class="cmd-desc">Nouvelle conversation</span></button>
+<button id="cmd-start" type="button" class="cmd-opt"><span class="cmd">/start &lt;nom&gt;</span><span class="cmd-desc">Ouvre un terminal qui lance le conteneur nommé</span></button>
+</div>
 <div id="cfg-pop" class="pop" popover="auto" role="dialog" aria-label="Configurer">
-<div class="cfg-cols">
 <section class="cfg-col" aria-labelledby="cfg-h-reason"><h3 id="cfg-h-reason">Raisonnement</h3>
 <div class="effort-row"><label for="effort" class="sr-only">Niveau d'effort</label><input id="effort" type="range" min="0" max="4" step="1" value="2"><button id="effort-auto" type="button" class="ghost" title="Revenir à Auto : le modèle garde son effort par défaut">Auto</button></div>
 <div id="effort-ticks" aria-hidden="true"></div>
 <div class="effort-now"><output id="effort-label" for="effort"></output></div>
 <p id="effort-tip" class="tip"></p></section>
-<section class="cfg-col" aria-labelledby="cfg-h-exec"><h3 id="cfg-h-exec">Exécution</h3>
-<fieldset class="provider"><legend>Fournisseur</legend><label class="radio"><input type="radio" name="provider" checked><span>Claude</span></label><label class="radio off"><input type="radio" name="provider" disabled><span>OpenCode</span><em>bientôt</em></label></fieldset>
+<section class="cfg-col" aria-labelledby="cfg-h-prov"><h3 id="cfg-h-prov">Fournisseur</h3>
+<fieldset class="provider"><legend class="sr-only">Fournisseur</legend><label class="radio"><input type="radio" name="provider" checked><span>Claude</span></label><label class="radio off"><input type="radio" name="provider" disabled><span>OpenCode</span><em>bientôt</em></label></fieldset>
 <p class="tip">Modèle, effort et plafonds Ultracode : réglages John dans Paramètres (john.model, john.ultracode.*).</p></section>
-</div>
+<section class="cfg-col cfg-later" aria-labelledby="cfg-h-later"><h3 id="cfg-h-later">Bientôt</h3>
+<button type="button" class="cfg-off" disabled aria-disabled="true"><span>Mode (Answer, Plan, Auto)</span><em>bientôt</em></button>
+<button type="button" class="cfg-off" disabled aria-disabled="true"><span>Bypass</span><em>bientôt</em></button>
+<button type="button" class="cfg-off" disabled aria-disabled="true"><span>Persona</span><em>bientôt</em></button>
+</section>
 </div>
 <script nonce="${nonce}" src="${uiUri}"></script>
 <script nonce="${nonce}" src="${scriptUri}"></script>
