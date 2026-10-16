@@ -55,6 +55,7 @@ function harness(options: {
   bypass?: BypassSwitch;
   now?: () => number;
   withAsker?: boolean;
+  workspace?: PolicyContext;
 }) {
   const recorder = createRecorder({ runId: "r" });
   const events: EngineEvent[] = [];
@@ -63,7 +64,7 @@ function harness(options: {
   const gate = createApprovalGate({
     policy: options.policy ?? DEFAULT_POLICY,
     recorder,
-    workspace: WORKSPACE,
+    workspace: options.workspace ?? WORKSPACE,
     ...(options.withAsker !== false && {
       ask: async () => {
         asked++;
@@ -77,6 +78,9 @@ function harness(options: {
 }
 
 const kinds = (events: EngineEvent[]) => events.map((e) => e.kind);
+/** Décisions réellement auto-approuvées par le Bypass (`source`, pas le code de motif). */
+const bypassedDecisions = (events: EngineEvent[]) =>
+  events.filter((e) => e.kind === "approval.decided" && e.source === "bypass");
 const changes = (events: EngineEvent[]) =>
   events.filter(
     (e): e is Extract<EngineEvent, { kind: "bypass.changed" }> => e.kind === "bypass.changed",
@@ -154,7 +158,7 @@ describe("createBypassSwitch", () => {
 describe("isBypassable", () => {
   const verdictOf = (request: ApprovalRequest, policy: Policy = ASK_POLICY) => {
     const verdict = evaluatePolicy(policy, request.tool, request.input, WORKSPACE);
-    return isBypassable(request, verdict, policy);
+    return isBypassable(request, verdict, policy, WORKSPACE);
   };
 
   it("couvre une règle ask explicite et l'absence de règle, hors Bash", () => {
@@ -191,7 +195,7 @@ describe("Bypass dans la gate : refus et garde-fous jamais contournés", () => {
     expect(out).toMatchObject({ decision: "deny", source: "policy" });
     expect(out.reason.code).toBe("policy.rule");
     expect(h.asked()).toBe(0);
-    expect(kinds(h.events)).not.toContain("approval.bypassed");
+    expect(bypassedDecisions(h.events)).toEqual([]);
   });
 
   it("(a) un deny de règle non Bash reste un deny", async () => {
@@ -221,7 +225,7 @@ describe("Bypass dans la gate : refus et garde-fous jamais contournés", () => {
     expect(out).toMatchObject({ source: "user" });
     expect(outside.asked()).toBe(1);
     expect(kinds(outside.events)).toContain("approval.requested");
-    expect(kinds(outside.events)).not.toContain("approval.bypassed");
+    expect(bypassedDecisions(outside.events)).toEqual([]);
   });
 
   it("(c) un danger shell (substitution) ou une chaîne de plusieurs segments reste demandé", async () => {
@@ -280,7 +284,7 @@ describe("Bypass dans la gate : refus et garde-fous jamais contournés", () => {
     expect(out).toMatchObject({ source: "user", decision: "allow" });
     expect(out.reason.code).toBe("policy.default");
     expect(h.asked()).toBe(1);
-    expect(kinds(h.events)).not.toContain("approval.bypassed");
+    expect(bypassedDecisions(h.events)).toEqual([]);
   });
 });
 
@@ -386,7 +390,7 @@ describe("Bypass dans la gate : verdicts couverts", () => {
       },
       source: "policy",
     });
-    expect(kinds(h.events)).not.toContain("approval.bypassed");
+    expect(bypassedDecisions(h.events)).toEqual([]);
   });
 });
 
@@ -507,5 +511,240 @@ describe("Bypass dans la gate : transitions et état", () => {
     await h.gate.decide(mcp(), signal);
     expect(h.asked()).toBe(1);
     expect(kinds(h.events)).not.toContain("bypass.changed");
+  });
+});
+
+/** Système de fichiers fictif : `/ws` est l'espace de travail ; `/ws/link` pointe hors de lui. */
+const FAKE_FS: PolicyContext = {
+  cwd: "/ws",
+  platform: "posix",
+  home: "/home/u",
+  realpath: (p) => {
+    if (p === "/ws/link") return "/etc/passwd";
+    if (p === "/ws" || p.startsWith("/ws/")) return p;
+    throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+  },
+};
+
+/** Fichier sensible du répertoire personnel (`~/.ssh/id_rsa`), absolu. */
+const SENSITIVE = join(homedir(), ".ssh", "id_rsa");
+
+/** Règle `ask` sur `cat` : le premier mot est littéral, la commande est couverte. */
+const CAT_POLICY: Policy = {
+  default: "ask",
+  rules: [{ tool: "Bash", command: "cat *", decision: "ask" }],
+};
+
+/** Verdict de la politique puis `isBypassable`, dans le contexte donné. */
+const bypassableIn = (request: ApprovalRequest, policy: Policy, ws: PolicyContext = WORKSPACE) =>
+  isBypassable(request, evaluatePolicy(policy, request.tool, request.input, ws), policy, ws);
+
+describe("isBypassable : chemins de l'entrée (garde-fous jamais contournés)", () => {
+  it("une commande Bash sur un chemin absolu sensible ou hors espace reste non bypassable", () => {
+    expect(bypassableIn(bash(`cat ${SENSITIVE}`), CAT_POLICY)).toBe(false);
+    expect(bypassableIn(bash("cat /opt/hors/x"), CAT_POLICY)).toBe(false);
+  });
+
+  it("un argument Bash lié par `=` ou attaché à une option est contrôlé", () => {
+    expect(bypassableIn(bash(`cat --file=${SENSITIVE}`), CAT_POLICY)).toBe(false);
+    expect(bypassableIn(bash("cat -f/opt/hors/x"), CAT_POLICY)).toBe(false);
+  });
+
+  it("un lien symbolique du dépôt pointant hors de l'espace de travail reste non bypassable", () => {
+    expect(bypassableIn(bash("cat link"), CAT_POLICY, FAKE_FS)).toBe(false);
+    expect(bypassableIn(bash("cat src/a.ts"), CAT_POLICY, FAKE_FS)).toBe(true);
+  });
+
+  it("un chemin hors espace ou sensible dans une chaîne d'un outil (même imbriquée) reste non bypassable", () => {
+    const mcpWith = (input: Record<string, unknown>): ApprovalRequest => ({
+      toolUseId: "m",
+      tool: "mcp__demo__ask",
+      input,
+    });
+    expect(bypassableIn(mcpWith({ path: "/etc/passwd" }), ASK_POLICY)).toBe(false);
+    expect(bypassableIn(mcpWith({ opts: { items: [{ src: "/opt/hors/x" }] } }), ASK_POLICY)).toBe(
+      false,
+    );
+    expect(bypassableIn(mcpWith({ note: `voir ${SENSITIVE}` }), ASK_POLICY)).toBe(false);
+    expect(bypassableIn(mcpWith({ text: "$HOME/.ssh/id_rsa" }), ASK_POLICY)).toBe(false);
+    expect(bypassableIn(mcpWith({ text: "~other/secret" }), ASK_POLICY)).toBe(false);
+  });
+
+  it("une entrée trop profondément imbriquée n'est pas explorée : refus de bypass (fail-closed)", () => {
+    let deep: unknown = "x";
+    for (let i = 0; i < 70; i++) deep = { n: deep };
+    expect(
+      bypassableIn({ toolUseId: "d", tool: "mcp__demo__ask", input: { deep } }, ASK_POLICY),
+    ).toBe(false);
+  });
+
+  it("contre-exemple : un chemin DANS l'espace de travail reste bypassable", () => {
+    expect(bypassableIn(bash("cat src/a.ts"), CAT_POLICY)).toBe(true);
+    // `%` dans un argument Bash (format de `git log`) n'est pas un chemin à refuser.
+    const gitFormat: Policy = {
+      default: "ask",
+      rules: [{ tool: "Bash", command: "git log *", decision: "ask" }],
+    };
+    expect(bypassableIn(bash("git log --format=%H/%s"), gitFormat)).toBe(true);
+    const inside = {
+      toolUseId: "i",
+      tool: "mcp__demo__ask",
+      input: { path: join(process.cwd(), "src", "a.ts") },
+    };
+    expect(bypassableIn(inside, ASK_POLICY)).toBe(true);
+    expect(
+      bypassableIn(
+        { toolUseId: "r", tool: "mcp__demo__ask", input: { path: "src/a.ts" } },
+        ASK_POLICY,
+      ),
+    ).toBe(true);
+  });
+});
+
+describe("Bypass dans la gate : chemins, constats et plateformes", () => {
+  it("un danger shell (redirection) sur une règle ask reste demandé", async () => {
+    const c = clock();
+    const h = harness({ bypass: switchOn(c), now: c.now, policy: ASK_POLICY });
+    const out = await h.gate.decide(bash("echo x > f"), signal);
+    expect(out).toMatchObject({ source: "user", reason: { code: "bash.hazard" } });
+    expect(h.asked()).toBe(1);
+    expect(bypassedDecisions(h.events)).toEqual([]);
+  });
+
+  it("une chaîne de deux segments sur une règle ask reste demandée", async () => {
+    const c = clock();
+    const h = harness({ bypass: switchOn(c), now: c.now, policy: ASK_POLICY });
+    const out = await h.gate.decide(bash("echo a | echo b"), signal);
+    expect(out).toMatchObject({ source: "user" });
+    expect(h.asked()).toBe(1);
+    expect(bypassedDecisions(h.events)).toEqual([]);
+  });
+
+  it("un Read sur une règle ask hors espace de travail reste demandé", async () => {
+    const c = clock();
+    const policy: Policy = { default: "ask", rules: [{ tool: "Read", decision: "ask" }] };
+    const h = harness({ bypass: switchOn(c), now: c.now, policy });
+    const out = await h.gate.decide(
+      { toolUseId: "r", tool: "Read", input: { file_path: "/opt/hors-espace/notes.txt" } },
+      signal,
+    );
+    expect(out).toMatchObject({ source: "user", reason: { code: "path.outside" } });
+    expect(h.asked()).toBe(1);
+    expect(kinds(h.events)).toContain("approval.requested");
+    expect(bypassedDecisions(h.events)).toEqual([]);
+  });
+
+  it("un chemin non analysable (UNC sous Windows) donne path.unsupported, jamais un bypass", async () => {
+    const c = clock();
+    const win: PolicyContext = { cwd: process.cwd(), platform: "win32" };
+    const h = harness({ bypass: switchOn(c), now: c.now, policy: ASK_POLICY, workspace: win });
+    const out = await h.gate.decide(
+      { toolUseId: "u", tool: "Read", input: { file_path: "\\\\srv\\partage\\a.txt" } },
+      signal,
+    );
+    expect(out).toMatchObject({
+      decision: "deny",
+      source: "policy",
+      reason: { code: "path.unsupported" },
+    });
+    expect(h.asked()).toBe(0);
+    expect(bypassedDecisions(h.events)).toEqual([]);
+  });
+
+  it("Bash sous win32 sans posixShell n'est jamais bypassé", async () => {
+    const c = clock();
+    const win: PolicyContext = { cwd: process.cwd(), platform: "win32" };
+    const h = harness({ bypass: switchOn(c), now: c.now, policy: ASK_POLICY, workspace: win });
+    const out = await h.gate.decide(bash("git status"), signal);
+    expect(out).toMatchObject({ source: "user", reason: { code: "shell.unanalyzable" } });
+    expect(h.asked()).toBe(1);
+    expect(bypassedDecisions(h.events)).toEqual([]);
+  });
+
+  it("une commande Bash sur un chemin absolu sensible sous règle cat * est demandée", async () => {
+    const c = clock();
+    const h = harness({ bypass: switchOn(c), now: c.now, policy: CAT_POLICY });
+    const out = await h.gate.decide(bash(`cat ${SENSITIVE}`), signal);
+    expect(out).toMatchObject({ source: "user" });
+    expect(h.asked()).toBe(1);
+    expect(kinds(h.events)).toContain("approval.requested");
+    expect(bypassedDecisions(h.events)).toEqual([]);
+  });
+
+  it("un outil MCP avec un chemin hors espace ou une chaîne imbriquée hors espace est demandé", async () => {
+    const c = clock();
+    const h = harness({ bypass: switchOn(c), now: c.now, policy: ASK_POLICY });
+    await h.gate.decide(
+      { toolUseId: "a", tool: "mcp__demo__ask", input: { path: "/etc/passwd" } },
+      signal,
+    );
+    await h.gate.decide(
+      {
+        toolUseId: "b",
+        tool: "mcp__demo__ask",
+        input: { opts: { items: [{ src: "/opt/hors/x" }] } },
+      },
+      signal,
+    );
+    expect(h.asked()).toBe(2);
+    expect(kinds(h.events).filter((k) => k === "approval.requested")).toHaveLength(2);
+    expect(bypassedDecisions(h.events)).toEqual([]);
+  });
+
+  it("contre-exemple : une commande Bash dont l'argument est dans l'espace est auto-approuvée", async () => {
+    const c = clock();
+    const h = harness({ bypass: switchOn(c), now: c.now, policy: CAT_POLICY });
+    const out = await h.gate.decide(bash("cat src/a.ts"), signal);
+    expect(out).toMatchObject({
+      decision: "allow",
+      source: "bypass",
+      reason: { code: "approval.bypassed" },
+    });
+    expect(h.asked()).toBe(0);
+    expect(bypassedDecisions(h.events)).toHaveLength(1);
+  });
+});
+
+describe("Bypass dans la gate : réactivation et prolongation sans décision entre deux", () => {
+  it("une prolongation journalise un nouveau on avec les nouvelles bornes", async () => {
+    const c = clock();
+    const bypass = switchOn(c);
+    const h = harness({ bypass, now: c.now, policy: ASK_POLICY });
+    const first = c.now();
+    await h.gate.decide(mcp("a"), signal);
+    c.set(first + 1_000);
+    bypass.enable(BYPASS_DEFAULT_MS);
+    const out = await h.gate.decide(mcp("b"), signal);
+    expect(out.source).toBe("bypass");
+    expect(changes(h.events).map((e) => [e.state, e.since, e.expiresAt])).toEqual([
+      ["on", first, first + BYPASS_DEFAULT_MS],
+      ["on", first + 1_000, first + 1_000 + BYPASS_DEFAULT_MS],
+    ]);
+    expect(h.asked()).toBe(0);
+  });
+
+  it("une réactivation sans décision entre deux journalise un on avec les nouvelles bornes", async () => {
+    const c = clock();
+    const bypass = switchOn(c);
+    const h = harness({ bypass, now: c.now, policy: ASK_POLICY });
+    const first = c.now();
+    await h.gate.decide(mcp("a"), signal);
+    bypass.disable();
+    c.set(first + 5_000);
+    bypass.enable(BYPASS_DEFAULT_MS);
+    await h.gate.decide(mcp("b"), signal);
+    expect(changes(h.events).map((e) => [e.state, e.since])).toEqual([
+      ["on", first],
+      ["on", first + 5_000],
+    ]);
+    expect(h.asked()).toBe(0);
+  });
+
+  it("sans changement de bornes, une décision suivante ne réémet rien", async () => {
+    const c = clock();
+    const h = harness({ bypass: switchOn(c), now: c.now, policy: ASK_POLICY });
+    await h.gate.decide(mcp("a"), signal);
+    await h.gate.decide(mcp("b"), signal);
+    expect(changes(h.events)).toHaveLength(1);
   });
 });
