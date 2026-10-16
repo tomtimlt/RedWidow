@@ -111,8 +111,8 @@ export function chatHtml({
 </div>
 <div id="cfg-pop" class="pop" popover="auto" role="dialog" aria-label="Configurer">
 <section class="cfg-col" aria-labelledby="cfg-h-reason"><h3 id="cfg-h-reason">Raisonnement</h3>
-<div class="effort-row"><label for="effort" class="sr-only">Niveau d'effort</label><input id="effort" type="range" min="0" max="4" step="1" value="2"><button id="effort-auto" type="button" class="ghost" title="Revenir à Auto : le modèle garde son effort par défaut">Auto</button></div>
-<div id="effort-ticks" aria-hidden="true"></div>
+<div id="effort-scale"><div id="effort-dot-lane" aria-hidden="true"><span id="effort-dot"></span></div><div id="effort-ticks"></div></div>
+<div class="effort-row"><label for="effort" class="sr-only">Niveau d'effort</label><input id="effort" class="sr-only" type="range" min="0" max="4" step="1" value="2"><button id="effort-auto" type="button" class="ghost" title="Revenir à Auto : le modèle garde son effort par défaut">Auto</button></div>
 <div class="effort-now"><output id="effort-label" for="effort"></output></div>
 <p id="effort-tip" class="tip"></p></section>
 <section class="cfg-col" aria-labelledby="cfg-h-prov"><h3 id="cfg-h-prov">Fournisseur</h3>

@@ -496,7 +496,10 @@
           0,
         );
     effortInput.value = String(idx);
-    effortInput.style.setProperty("--jn-pct", `${auto ? 0 : UI.effortPct(idx, levels.length)}%`);
+    const scale = $("effort-scale");
+    scale.style.setProperty("--jn-n", String(Math.max(levels.length, 1)));
+    scale.style.setProperty("--jn-i", String(idx));
+    scale.classList.toggle("auto", auto);
     effortInput.disabled = c.locked || c.effortDisabled;
     effortInput.title = c.effortDisabled ? "Ce modèle n'a pas d'effort réglable." : c.effortTip;
     effortInput.setAttribute("aria-valuetext", `${c.effortLabel} : ${c.effortTip}`);

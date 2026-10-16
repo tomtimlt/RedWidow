@@ -1314,84 +1314,65 @@ body:not(.running) #toolbar #stop {
 }
 .effort-row {
   display: flex;
-  align-items: center;
-  gap: var(--jn-s2);
+  justify-content: flex-end;
+  margin-top: var(--jn-s1);
 }
-#effort {
-  flex: 1;
-  min-width: 0;
-  height: 22px;
-  margin: 0;
-  background: transparent;
-  cursor: pointer;
-  -webkit-appearance: none;
-  appearance: none;
-  --jn-pct: 0%;
+#effort-scale {
+  --jn-n: 1;
+  --jn-i: 0;
 }
-#effort::-webkit-slider-runnable-track {
-  height: 4px;
-  border-radius: var(--jn-r-pill);
-  background: color-mix(in srgb, var(--vscode-foreground) 20%, transparent);
+#effort-dot-lane {
+  height: 10px;
 }
-#effort:focus-visible {
-  outline: none;
-  box-shadow: none;
+#effort-dot {
+  display: block;
+  width: calc(100% / var(--jn-n));
+  height: 10px;
+  transform: translateX(calc(var(--jn-i) * 100%));
+  transition: transform var(--jn-d2) var(--jn-ease-out);
 }
-#effort:focus-visible::-webkit-slider-thumb {
-  box-shadow: 0 0 0 2px var(--jn-accent);
-}
-#effort::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 16px;
-  height: 16px;
-  margin-top: -6px;
+#effort-dot::before {
+  content: "";
+  display: block;
+  width: 7px;
+  height: 7px;
+  margin: 0 auto;
   border-radius: 50%;
-  border: 3px solid var(--jn-accent);
-  background: var(--vscode-editorWidget-background, var(--vscode-input-background));
-  box-shadow: none;
-  transition: transform var(--jn-d1) var(--jn-ease-out);
+  background: var(--jn-accent);
 }
-#effort:hover::-webkit-slider-thumb {
-  transform: scale(1.15);
-}
-#effort.auto::-webkit-slider-thumb {
-  border-style: dashed;
-  border-color: var(--jn-muted);
-  box-shadow: none;
-}
-#effort:disabled {
-  opacity: 0.4;
-  cursor: default;
+#effort-scale.auto #effort-dot {
+  opacity: 0;
 }
 #effort-ticks {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: var(--jn-s2);
+  flex-wrap: nowrap;
+  gap: 2px;
 }
 #effort-ticks > span {
-  display: inline-flex;
+  display: flex;
+  flex: 1 1 0;
   align-items: center;
+  justify-content: center;
+  min-width: 0;
   height: 22px;
-  padding: 0 9px;
-  border: 1px solid var(--jn-line);
-  border-radius: var(--jn-r-pill);
-  font-size: var(--jn-fs-xs);
+  padding: 0 1px;
+  border: 0;
+  border-radius: var(--jn-r-sm);
+  font-size: 10px;
   line-height: 1;
+  white-space: nowrap;
   cursor: pointer;
   transition:
-    color var(--jn-d1) var(--jn-ease-io),
-    background-color var(--jn-d1) var(--jn-ease-io),
-    border-color var(--jn-d1) var(--jn-ease-io);
+    color var(--jn-d2) var(--jn-ease-out),
+    opacity var(--jn-d2) var(--jn-ease-out);
 }
 #effort-ticks > span:hover {
-  background: var(--vscode-list-hoverBackground);
+  color: var(--vscode-foreground);
 }
 #effort-ticks > span.on {
   color: var(--vscode-foreground);
-  border-color: var(--jn-accent);
-  background: color-mix(in srgb, var(--jn-accent) 20%, transparent);
-  font-weight: 600;
+  background: transparent;
+  font-weight: 650;
 }
 #effort-ticks > span.off {
   opacity: 0.4;
