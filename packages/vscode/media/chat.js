@@ -592,13 +592,75 @@
     slashPop.hidePopover();
     resetConversation();
   });
-  // Bouton « @ » : insère le caractère à la position du curseur (la vue ne porte pas de liste de conteneurs).
+  // Menu « @ » : liste des conteneurs (message `containers` de l'hôte), à la place d'un @ brut.
+  const mentionPop = $("mention-pop");
+  const mentionList = $("mention-list");
+  const mentionEmpty = $("mention-empty");
+  let containers = [];
+  let mentionActive = 0;
+  let mentionShown = [];
+
+  function mentionOpen() {
+    return mentionPop.matches(":popover-open");
+  }
+  function closeMention() {
+    if (mentionOpen()) mentionPop.hidePopover();
+  }
+  mentionPop.addEventListener("toggle", (e) => {
+    mentionBtn.setAttribute("aria-expanded", String(e.newState === "open"));
+  });
+  function paintMention() {
+    const buttons = [...mentionList.querySelectorAll("button")];
+    buttons.forEach((btn, i) => {
+      const on = i === mentionActive;
+      btn.setAttribute("aria-selected", String(on));
+      if (on) btn.scrollIntoView({ block: "nearest" });
+    });
+  }
+  function renderMentions() {
+    const span = UI.mentionSpan(input.value, input.selectionStart ?? input.value.length);
+    mentionShown = span ? UI.filterContainers(containers, span.query) : [];
+    if (mentionActive >= mentionShown.length) mentionActive = 0;
+    mentionEmpty.hidden = mentionShown.length > 0;
+    mentionList.replaceChildren(
+      ...mentionShown.map((item, i) => {
+        const btn = el("button", "cmd-opt");
+        btn.type = "button";
+        btn.setAttribute("role", "option");
+        btn.append(
+          el("span", "cmd", item.name),
+          el("span", "cmd-desc", item.state === "running" ? "en cours" : "arrêté"),
+        );
+        btn.addEventListener("click", () => pickMention(item.name));
+        if (i === mentionActive) btn.setAttribute("aria-selected", "true");
+        return btn;
+      }),
+    );
+  }
+  function openMention() {
+    renderMentions();
+    if (!mentionOpen()) mentionPop.showPopover();
+    place(mentionPop, input);
+  }
+  function pickMention(name) {
+    const cursor = input.selectionStart ?? input.value.length;
+    const span = UI.mentionSpan(input.value, cursor);
+    if (!span) return;
+    const next = `${input.value.slice(0, span.start)}@${name} ${input.value.slice(cursor)}`;
+    input.value = next;
+    const pos = span.start + 1 + name.length + 1;
+    input.setSelectionRange(pos, pos);
+    closeMention();
+    grow();
+    input.focus();
+  }
   mentionBtn.addEventListener("click", () => {
     const start = input.selectionStart ?? input.value.length;
     const end = input.selectionEnd ?? start;
-    input.setRangeText("@", start, end, "end");
+    if (!UI.mentionSpan(input.value, start)) input.setRangeText("@", start, end, "end");
     grow();
     input.focus();
+    openMention();
   });
 
   modelFilter.addEventListener("input", () => {
@@ -886,7 +948,10 @@
     const message = event.data;
     if (message && message.type === "view") render(message.view);
     else if (message && message.type === "surface") applySurface(message);
-    else if (message && message.type === "bypass") {
+    else if (message && message.type === "containers") {
+      containers = UI.safeContainers(message.items);
+      if (mentionOpen()) renderMentions();
+    } else if (message && message.type === "bypass") {
       bypassCtx = { push: message, previous: bypassCtx.push, userOff: bypassUserOff };
       bypassUserOff = false;
       renderBypass();
@@ -914,12 +979,40 @@
     grow();
     vscode.postMessage({ type: "send", text });
   }
-  input.addEventListener("input", grow);
+  input.addEventListener("input", () => {
+    grow();
+    if (UI.mentionSpan(input.value, input.selectionStart ?? input.value.length)) openMention();
+    else closeMention();
+  });
   $("form").addEventListener("submit", (e) => {
     e.preventDefault();
     submit();
   });
   input.addEventListener("keydown", (e) => {
+    if (mentionOpen()) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeMention();
+        return;
+      }
+      if (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "Home" || e.key === "End") {
+        e.preventDefault();
+        mentionActive = UI.listboxKey(
+          { active: mentionActive },
+          e.key,
+          mentionShown.map(() => ({ disabled: false })),
+        ).active;
+        if (mentionActive < 0) mentionActive = 0;
+        paintMention();
+        return;
+      }
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        const item = mentionShown[mentionActive];
+        if (item) pickMention(item.name);
+        return;
+      }
+    }
     if (
       (e.key === "ArrowUp" || e.key === "ArrowDown") &&
       !e.shiftKey &&

@@ -23,6 +23,7 @@ import {
 } from "../logic/approval.js";
 import { type BypassPush, createBypassHost, formatRemaining } from "../logic/bypass.js";
 import {
+  containerMentions,
   controlListedContainer,
   linkContainer,
   linkedProjectStatus,
@@ -173,6 +174,26 @@ export function activate(context: vscode.ExtensionContext): void {
     term.show();
   };
 
+  /** Noms courts pour le menu `@`. Échec de lecture : liste vide (le menu n'invente rien). */
+  const containersMessage = async () => {
+    try {
+      const view = await loadCockpitView();
+      return { type: "containers" as const, items: containerMentions(view.containers) };
+    } catch {
+      return {
+        type: "containers" as const,
+        items: [] as { name: string; state: "running" | "stopped" }[],
+      };
+    }
+  };
+  const broadcastContainers = (
+    containers: readonly { name: string; state: "running" | "stopped" }[],
+  ) => {
+    const message = { type: "containers", items: containerMentions(containers) };
+    post(message);
+    void stagePanel?.webview.postMessage(message);
+  };
+
   /**
    * Messages de la webview de chat, venue de la Side Bar ou du panneau `john.stage` : même
    * traitement. `reply` répond à la surface émettrice (état initial au `ready`).
@@ -199,6 +220,7 @@ export function activate(context: vscode.ExtensionContext): void {
           reply(surfaceMessage(surface));
           reply(bypass.snapshot());
           reply({ type: "view", view: s.view() });
+          reply(await containersMessage());
           return await s.loadModels();
         case "setModel":
           return s.setModel(message.model);
@@ -314,6 +336,7 @@ export function activate(context: vscode.ExtensionContext): void {
         try {
           const payload = await loadCockpitView();
           postCockpit(payload);
+          broadcastContainers(payload.containers);
           void refreshContainerStatus();
           if (payload.projectInvalid) {
             void vscode.window.showErrorMessage(

@@ -4,6 +4,7 @@ import { CodedError, ValidationError } from "@john-studio/core";
 import { describe, expect, it } from "vitest";
 import { parseWebviewMessage } from "../src/logic/approval.js";
 import {
+  containerMentions,
   controlListedContainer,
   loadCockpitView,
   parseCockpitMessage,
@@ -202,6 +203,18 @@ describe("controlListedContainer", () => {
       }),
     });
     expect(stopped).toBe(false);
+  });
+});
+
+describe("containerMentions", () => {
+  it("publie le nom court et omet un court ambigu", () => {
+    expect(
+      containerMentions([
+        { name: "exegol-htb1", state: "running" },
+        { name: "exegol-lab", state: "stopped" },
+        { name: "htb1", state: "stopped" },
+      ]),
+    ).toEqual([{ name: "lab", state: "stopped" }]);
   });
 });
 

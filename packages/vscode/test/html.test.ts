@@ -144,8 +144,10 @@ describe("composer et Configurer (lot P1)", () => {
     expect(html).not.toMatch(/\bmcp\b|jauge|compact|pièce jointe active/i);
   });
   it("les boutons @ et / existent, le second ouvre le menu", () => {
-    expect(tag("mention-btn")).not.toBe("");
+    expect(tag("mention-btn")).toContain('aria-controls="mention-pop"');
     expect(tag("slash-btn")).toContain('popovertarget="slash-pop"');
+    expect(html).toContain('id="mention-pop"');
+    expect(html).toContain('id="mention-list"');
   });
   it("Configurer : ordre Raisonnement, Fournisseur, Bypass, puis « bientôt » (Mode, Persona)", () => {
     const cfg = section('id="cfg-pop"', "<script nonce");

@@ -65,7 +65,7 @@ export function chatHtml({
 <textarea id="input" rows="1" aria-label="Votre consigne" placeholder="Votre consigne…" title="Entrée pour envoyer, Maj+Entrée pour une nouvelle ligne"></textarea>
 <div id="toolbar">
 <button id="attach" type="button" class="ghost tool-btn" disabled aria-disabled="true" title="Pièces jointes : bientôt" aria-label="Pièces jointes : bientôt"><span class="ico" aria-hidden="true">📎</span></button>
-<button id="mention-btn" type="button" class="ghost tool-btn" title="Citer un conteneur" aria-label="Citer un conteneur"><span class="ico" aria-hidden="true">@</span></button>
+<button id="mention-btn" type="button" class="ghost tool-btn" title="Citer un conteneur" aria-label="Citer un conteneur" aria-haspopup="listbox" aria-expanded="false" aria-controls="mention-pop"><span class="ico" aria-hidden="true">@</span></button>
 <button id="slash-btn" type="button" class="ghost tool-btn" popovertarget="slash-pop" aria-haspopup="menu" aria-expanded="false" title="Commandes" aria-label="Commandes"><span class="ico" aria-hidden="true">/</span></button>
 <span id="ctl-group" hidden><button id="model-chip" type="button" class="chip" popovertarget="model-pop" aria-haspopup="listbox" aria-expanded="false" title="Modèle utilisé pour le message suivant"><span id="model-chip-label" class="chip-label">Modèle par défaut</span><span class="caret" aria-hidden="true">▾</span><span class="sr-only"> (choisir le modèle)</span></button><button id="cfg-btn" type="button" class="chip" popovertarget="cfg-pop" aria-haspopup="dialog" aria-expanded="false" aria-label="Configurer" title="Configurer : raisonnement et exécution"><span class="cfg-text">Configurer</span><span id="cfg-level" class="cfg-level"></span><span class="caret" aria-hidden="true">▾</span></button></span>
 <span class="spacer"></span>
@@ -80,6 +80,7 @@ export function chatHtml({
 <div id="model-list" role="listbox" aria-label="Modèles"></div>
 <div class="pop-foot"><button id="models-refresh" type="button" class="ghost" title="Actualiser la liste des modèles">Actualiser la liste</button></div>
 </div>
+<div id="mention-pop" class="pop" popover="auto" aria-label="Conteneurs"><div id="mention-list" role="listbox" aria-label="Conteneurs"></div><p id="mention-empty" class="tip" hidden>Aucun conteneur</p></div>
 <div id="slash-pop" class="pop" popover="auto" aria-label="Commandes">
 <button id="cmd-clear" type="button" class="cmd-opt"><span class="cmd">/clear</span><span class="cmd-desc">Nouvelle conversation</span></button>
 </div>
