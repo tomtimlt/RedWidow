@@ -23,15 +23,15 @@ import {
   linkedProjectStatus,
   loadCockpitView,
   parseCockpitMessage,
+  planEditorShell,
   terminalLaunch,
 } from "../logic/cockpit.js";
 import { createJournalFiles } from "../logic/historyStore.js";
-import { chatHtml, cockpitHtml, makeNonce, studioHtml, terminalHtml } from "../logic/html.js";
+import { chatHtml, cockpitHtml, makeNonce, studioHtml } from "../logic/html.js";
 import { type ChatSession, createChatSession, type TokenChoice } from "../logic/session.js";
 import { machineValue, resolveSettings } from "../logic/settings.js";
 import { parseStudioMessage, type StudioPage } from "../logic/studio.js";
-import { parseTerminalMessage } from "../logic/terminal.js";
-import { parseWindows, type WindowEntry } from "../logic/windows.js";
+import { parseWindows, WINDOW_CAP, type WindowEntry } from "../logic/windows.js";
 
 const TOKEN_KEY = "john.token";
 const TOKEN_KIND_KEY = "john.tokenKind";
@@ -56,9 +56,13 @@ export function activate(context: vscode.ExtensionContext): void {
   interface Slot {
     session?: ChatSession;
     panel?: vscode.WebviewPanel;
-    terminals: vscode.WebviewPanel[];
   }
   const slots = new Map<string, Slot>();
+  /** Terminaux d'éditeur ouverts par cet hôte, par nom Docker réel. */
+  const editorShells = new Map<string, vscode.Terminal[]>();
+  let cockpitListOk = false;
+  /** Shells mémorisés non encore réconciliés avec une liste cockpit réussie. */
+  let pendingTerminalRestore: string[] = [];
   let post: (message: unknown) => void = () => {};
   let activeId = SIDEBAR_CHAT;
   let monitorPanel: vscode.WebviewPanel | undefined;
@@ -139,13 +143,12 @@ export function activate(context: vscode.ExtensionContext): void {
         const slot = slots.get(id);
         if (id === SIDEBAR_CHAT) post(message);
         else void slot?.panel?.webview.postMessage(message);
-        for (const term of slot?.terminals ?? []) void term.webview.postMessage(message);
         if (id === activeId) pushMonitor(view);
         updateModelStatus();
       },
       onLog: (text) => out.append(text),
     });
-    const slot = slots.get(id) ?? { terminals: [] };
+    const slot = slots.get(id) ?? {};
     slot.session = session;
     slots.set(id, slot);
     return session;
@@ -177,26 +180,69 @@ export function activate(context: vscode.ExtensionContext): void {
     term.show();
   };
 
-  /**
-   * Ouvre un shell dans le conteneur lié, s'il tourne (chemin du cockpit, partagé avec le terminal
-   * latéral). Un terminal de même nom est seulement montré.
-   */
-  const openLinkedShell = async () => {
-    const st = await linkedProjectStatus();
-    if (st === null || st.state !== "running") return;
-    const { shellPath, shellArgs } = terminalLaunch(st.container);
-    const title = `John : ${st.container}`;
-    const existing = vscode.window.terminals.find((t) => t.name === title);
-    if (existing) {
-      existing.show();
-      return;
+  const openTitlesFor = (container: string): string[] =>
+    (editorShells.get(container) ?? []).map((t) => t.name);
+
+  const findTrackedShell = (title: string): vscode.Terminal | undefined => {
+    for (const terms of editorShells.values()) {
+      const found = terms.find((t) => t.name === title);
+      if (found) return found;
     }
-    const term = vscode.window.createTerminal({
-      name: title,
-      shellPath,
-      shellArgs: [...shellArgs],
-    });
-    term.show();
+    return undefined;
+  };
+
+  const dropTrackedShell = (term: vscode.Terminal) => {
+    for (const [name, list] of editorShells) {
+      const next = list.filter((t) => t !== term);
+      if (next.length !== list.length) {
+        if (next.length === 0) editorShells.delete(name);
+        else editorShells.set(name, next);
+        void saveWindows();
+        return;
+      }
+    }
+  };
+
+  /**
+   * Shell interactif Exegol dans l'éditeur (`terminalLaunch`, transient). Ne suit que les terminaux
+   * créés ici pour le nom réel résolu.
+   */
+  const openEditorShell = async (token: string): Promise<"skip" | "ok"> => {
+    let view: Awaited<ReturnType<typeof loadCockpitView>>;
+    try {
+      view = await loadCockpitView();
+      cockpitListOk = true;
+    } catch (error) {
+      void vscode.window.showErrorMessage(formatError(error));
+      return "skip";
+    }
+    const real = lookupContainer(token, view.containers);
+    const plan = planEditorShell(token, view.containers, real ? openTitlesFor(real) : []);
+    if (plan.action === "skip") return "skip";
+    if (plan.action === "reveal") {
+      const term = findTrackedShell(plan.title);
+      if (term) term.show();
+      return "ok";
+    }
+    try {
+      const { shellPath, shellArgs } = terminalLaunch(plan.name);
+      const term = vscode.window.createTerminal({
+        name: plan.title,
+        shellPath,
+        shellArgs: [...shellArgs],
+        location: vscode.TerminalLocation.Editor,
+        isTransient: true,
+      });
+      const list = editorShells.get(plan.name) ?? [];
+      list.push(term);
+      editorShells.set(plan.name, list);
+      term.show();
+      void saveWindows();
+      return "ok";
+    } catch (error) {
+      void vscode.window.showErrorMessage(formatError(error));
+      return "skip";
+    }
   };
 
   /** Noms courts pour le menu `@`. Échec de lecture : liste vide (le menu n'invente rien). */
@@ -280,7 +326,7 @@ export function activate(context: vscode.ExtensionContext): void {
               ? lookupContainer(dedicatedName, listed.containers)
               : null;
           await s.send(message.text);
-          if (real) showExecTerminal(real);
+          if (real) void openEditorShell(real);
           return;
         }
         case "stop":
@@ -418,7 +464,9 @@ export function activate(context: vscode.ExtensionContext): void {
             return;
           }
           case "terminal": {
-            await openLinkedShell();
+            const st = await linkedProjectStatus();
+            if (st === null || st.state !== "running") return;
+            await openEditorShell(st.container);
             return;
           }
           case "start":
@@ -450,34 +498,26 @@ export function activate(context: vscode.ExtensionContext): void {
     void saveWindows();
   };
 
-  const showExecTerminal = (name: string) => {
-    try {
-      const { shellPath, shellArgs } = terminalLaunch(name);
-      const title = `John : ${name}`;
-      const existing = vscode.window.terminals.find((t) => t.name === title);
-      if (existing) {
-        existing.show();
-        return;
-      }
-      const term = vscode.window.createTerminal({
-        name: title,
-        shellPath,
-        shellArgs: [...shellArgs],
-        location: vscode.TerminalLocation.Editor,
-      });
-      term.show();
-    } catch (error) {
-      void vscode.window.showErrorMessage(formatError(error));
-    }
-  };
-
   const saveWindows = async () => {
     if (restoring) return;
     const entries: WindowEntry[] = [];
     for (const [id, slot] of slots) {
       if (id === SIDEBAR_CHAT) continue;
       if (slot.panel) entries.push({ kind: "chat", chatId: id });
-      for (const _term of slot.terminals) entries.push({ kind: "terminal", chatId: id });
+    }
+    for (const [container, terms] of editorShells) {
+      for (const _term of terms) {
+        if (entries.length >= WINDOW_CAP) break;
+        entries.push({ kind: "terminal", container });
+      }
+    }
+    if (!cockpitListOk) {
+      for (const container of pendingTerminalRestore) {
+        if (entries.length >= WINDOW_CAP) break;
+        const n = entries.filter((e) => e.kind === "terminal" && e.container === container).length;
+        if (n >= 4) continue;
+        entries.push({ kind: "terminal", container });
+      }
     }
     if (monitorPanel) entries.push({ kind: "monitor" });
     if (cockpitPanel) entries.push({ kind: "cockpit" });
@@ -543,7 +583,6 @@ export function activate(context: vscode.ExtensionContext): void {
     panel.title = chatName(id);
     mountChatHtml(panel.webview);
     panel.onDidDispose(() => {
-      for (const term of [...slot.terminals]) term.dispose();
       slot.session?.dispose();
       slots.delete(id);
       if (activeId === id) activeId = SIDEBAR_CHAT;
@@ -677,60 +716,41 @@ export function activate(context: vscode.ExtensionContext): void {
     void saveWindows();
   };
 
-  /** Terminal d'agent lié à un chat. Le bouton shell reste le terminal VS Code du conteneur lié. */
-  const openAgentTerminal = async (chatId = activeId) => {
-    let slot = slots.get(chatId);
-    if (!slot?.session) {
-      try {
-        getSession(chatId);
-      } catch (error) {
-        void vscode.window.showErrorMessage(formatError(error));
-        return;
-      }
-      slot = slots.get(chatId);
-    }
-    if (!slot) return;
-    const media = vscode.Uri.joinPath(context.extensionUri, "media");
-    const panel = vscode.window.createWebviewPanel(
-      "john.terminal",
-      `Terminal · ${chatName(chatId)}`,
-      vscode.ViewColumn.Beside,
-      { enableScripts: true, enableCommandUris: false, localResourceRoots: [media] },
-    );
-    slot.terminals.push(panel);
-    const nonce = makeNonce();
-    panel.webview.html = terminalHtml({
-      nonce,
-      cspSource: panel.webview.cspSource,
-      scriptUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(media, "terminal.js")).toString(),
-      styleUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(media, "terminal.css")).toString(),
-    });
-    panel.onDidDispose(() => {
-      slot.terminals = slot.terminals.filter((term) => term !== panel);
-      void saveWindows();
-    });
-    panel.webview.onDidReceiveMessage(async (raw: unknown) => {
-      const message = parseTerminalMessage(raw);
-      if (message === null) return;
-      try {
-        await openLinkedShell();
-      } catch (error) {
-        void vscode.window.showErrorMessage(formatError(error));
-      }
-    });
-    let container: string | null = null;
+  const pickContainerTerminal = async () => {
+    let view: Awaited<ReturnType<typeof loadCockpitView>>;
     try {
-      container = shortContainerName((await linkedProjectStatus())?.container ?? "");
-      if (container === "") container = null;
-    } catch {
-      container = null;
+      view = await loadCockpitView();
+      cockpitListOk = true;
+    } catch (error) {
+      void vscode.window.showErrorMessage(formatError(error));
+      return;
     }
-    await panel.webview.postMessage({ type: "context", container });
-    await panel.webview.postMessage({ type: "view", view: slot.session?.view() });
-    void saveWindows();
+    const items = containerMentions(view.containers);
+    if (items.length === 0) {
+      void vscode.window.showInformationMessage("Aucun conteneur Exegol.");
+      return;
+    }
+    const choice = await vscode.window.showQuickPick(
+      items.map((item) => ({
+        label: item.name,
+        description: item.state === "running" ? "en cours" : "arrêté",
+        item,
+      })),
+      { title: "John : ouvrir un terminal", ignoreFocusOut: true },
+    );
+    if (!choice) return;
+    if (choice.item.state !== "running") {
+      void vscode.window.showErrorMessage(`Le conteneur ${choice.item.name} est arrêté.`);
+      return;
+    }
+    const result = await openEditorShell(choice.item.name);
+    if (result === "skip") {
+      void vscode.window.showErrorMessage("Conteneur introuvable.");
+    }
   };
 
   context.subscriptions.push(
+    vscode.window.onDidCloseTerminal((term) => dropTrackedShell(term)),
     {
       dispose: () => {
         for (const slot of slots.values()) slot.session?.dispose();
@@ -742,7 +762,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("john.openChat", () => openEditorChat()),
     vscode.commands.registerCommand("john.openCockpit", () => openCockpit()),
     vscode.commands.registerCommand("john.openStudio", () => openStudio()),
-    vscode.commands.registerCommand("john.openTerminal", () => void openAgentTerminal()),
+    vscode.commands.registerCommand("john.openTerminal", () => void pickContainerTerminal()),
     vscode.commands.registerCommand("john.openMonitor", () => openMonitor()),
     vscode.commands.registerCommand("john.setToken", async () => {
       const kind = await vscode.window.showQuickPick(
@@ -848,16 +868,27 @@ export function activate(context: vscode.ExtensionContext): void {
   // Ancienne clé `john.layout` ignorée : seule `john.windows` est relue.
   void (async () => {
     restoring = true;
-    const pending: Promise<void>[] = [];
-    for (const entry of parseWindows(context.workspaceState.get(WINDOWS_KEY))) {
+    const saved = parseWindows(context.workspaceState.get(WINDOWS_KEY));
+    pendingTerminalRestore = [];
+    for (const entry of saved) {
       if (entry.kind === "chat" && entry.chatId) openEditorChat(entry.chatId);
-      else if (entry.kind === "terminal" && entry.chatId)
-        pending.push(openAgentTerminal(entry.chatId));
+      else if (entry.kind === "terminal" && entry.container)
+        pendingTerminalRestore.push(entry.container);
       else if (entry.kind === "monitor") openMonitor();
       else if (entry.kind === "cockpit") openCockpit();
       else if (entry.kind === "settings") openStudio();
     }
-    await Promise.all(pending);
+    try {
+      const view = await loadCockpitView();
+      cockpitListOk = true;
+      for (const container of pendingTerminalRestore) {
+        const row = view.containers.find((c) => c.name === container);
+        if (row?.state === "running") await openEditorShell(container);
+      }
+      pendingTerminalRestore = [];
+    } catch {
+      cockpitListOk = false;
+    }
     restoring = false;
     await saveWindows();
   })();

@@ -6,14 +6,14 @@ describe("parseWindows", () => {
     expect(
       parseWindows([
         { kind: "chat", chatId: "c2" },
-        { kind: "terminal", chatId: "c2" },
+        { kind: "terminal", container: "exegol-htb1" },
         { kind: "monitor" },
         { kind: "cockpit" },
         { kind: "settings" },
       ]),
     ).toEqual([
       { kind: "chat", chatId: "c2" },
-      { kind: "terminal", chatId: "c2" },
+      { kind: "terminal", container: "exegol-htb1" },
       { kind: "monitor" },
       { kind: "cockpit" },
       { kind: "settings" },
@@ -21,7 +21,7 @@ describe("parseWindows", () => {
     expect(parseWindows({ kind: "editor" })).toEqual([]);
   });
 
-  it("refuse les formes invalides, le chat latéral et les singletons doublés", () => {
+  it("refuse les formes invalides, le chat latéral, terminal chatId et les singletons doublés", () => {
     expect(
       parseWindows([
         null,
@@ -34,15 +34,28 @@ describe("parseWindows", () => {
         { kind: "monitor" },
         { kind: "monitor" },
         { kind: "terminal", chatId: "c3" },
+        { kind: "terminal", container: "" },
+        { kind: "terminal", container: "bad name" },
         "chat",
       ]),
-    ).toEqual([{ kind: "monitor" }, { kind: "terminal", chatId: "c3" }]);
+    ).toEqual([{ kind: "monitor" }]);
+  });
+
+  it("accepte le nom réel du conteneur et refuse un cinquième doublon", () => {
+    const four = Array.from({ length: 4 }, () => ({
+      kind: "terminal" as const,
+      container: "my.box:tag/v1",
+    }));
+    expect(parseWindows(four)).toHaveLength(4);
+    expect(parseWindows([...four, { kind: "terminal", container: "my.box:tag/v1" }])).toHaveLength(
+      4,
+    );
   });
 
   it("plafonne la liste", () => {
     const raw = Array.from({ length: WINDOW_CAP + 5 }, (_, i) => ({
       kind: "terminal",
-      chatId: `c${i + 2}`,
+      container: `c${i}`,
     }));
     expect(parseWindows(raw)).toHaveLength(WINDOW_CAP);
   });

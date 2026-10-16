@@ -7,11 +7,11 @@
 ## 1. Décision
 
 1. Portage visuel complet (jetons, composer, Configure, cartes, Réglages) sur les données existantes ; les fonctions sans donnée sont « bientôt » ou absentes (tableau §2).
-2. Terminal latéral = **panneau webview éditeur `john.terminal` en `ViewColumn.Beside`** (singleton, comme `john.studio`). Onglet « agent » en données réelles (appels d'exec Exegol déjà présents dans la vue du chat) ; onglet « shell » interactif **non câblé** (« bientôt ») : il exige un nouveau processus, décision architecte (§5).
+2. Le journal d'agent (appels d'exec Exegol) est le panneau **Monitor** ; le shell interactif est un terminal d'éditeur VS Code (`terminalLaunch`, `isTransient`), pas une webview.
 3. Layouts : **Editor** = l'état actuel (chat dans la Side Bar). **Chat** et **Monitor** = un panneau webview éditeur `john.stage` en `ViewColumn.One`. Une seule surface de conversation active à la fois : en layout Chat, la vue `john.chat` de la Side Bar affiche « Conversation ouverte dans l'éditeur » et un bouton de retour, sans cartes d'approbation. Monitor est en lecture seule : les approbations s'y répondent par un renvoi au chat. Layout mémorisé dans `workspaceState` (pas de réglage).
 4. Bypass : **non câblé**. Interrupteur affiché désactivé « bientôt » dans Configure. Aucune classe `bypass` posée sur le corps, aucun état orange lié au Bypass.
 
-5. Décisions de l'utilisateur (2026-10-16) : (a) la bordure orange du composer signifie « approbation en attente » (`body.awaiting`), en attendant le Bypass ; (b) l'onglet « shell » du terminal latéral, désactivé « bientôt », porte un bouton de repli « Ouvrir dans le terminal VS Code » qui réutilise le chemin existant du bouton « Terminal » du cockpit (`terminalLaunch`, conteneur en marche), sans nouveau code de processus ; (c) en layout Chat, la Side Bar affiche la liste des Sessions (historique restylé) et un renvoi vers l'éditeur.
+5. Décisions de l'utilisateur (2026-10-16) : (a) la bordure orange du composer signifie « approbation en attente » (`body.awaiting`), en attendant le Bypass ; (b) le bouton « Terminal » du cockpit et la commande `john.openTerminal` ouvrent un shell d'éditeur via `terminalLaunch` sur le conteneur en marche ; (c) en layout Chat, la Side Bar affiche la liste des Sessions (historique restylé) et un renvoi vers l'éditeur.
 
 ## 2. Inventaire de la maquette
 
@@ -40,8 +40,8 @@
 | Vue Sessions (lignes, rooms, statut) | Réel partiel | = historique existant restylé. Statut « en cours » seulement pour la conversation courante si `running`. Rooms : absentes. « Nouvelle session » = `reset`. |
 | Layout Chat (plein éditeur) | Réel | Lot P4. |
 | Layout Monitor (commandes, méta, « en attente ») | Réel partiel | Commandes et statut (en attente / approuvé / refusé / erreur) depuis la vue. Durée, nombre de requêtes : seulement si la vue les porte. « live » : point statique. |
-| Terminal latéral, onglet agent | Réel | Lot P3. |
-| Terminal latéral, onglet shell, invite, « Nouveau shell » | « bientôt » | Processus nouveau : architecte. « Effacer » vide l'affichage local seulement. |
+| Journal d'exec Exegol (Monitor) | Réel | Appels d'exec de la vue du chat actif. |
+| Shell interactif Exegol | Réel | Terminal d'éditeur `terminalLaunch` + `isTransient`, au plus quatre par conteneur. |
 | Barre d'état : conteneur, layout, modèle | Réel | `StatusBarItem`. Conteneur = projet lié (cockpit) ; « connecté » seulement si l'état cockpit l'établit, sinon le nom seul. |
 | Barre d'état : Mode, Contexte, BYPASS | Masqué | Pas de donnée. |
 | Réglages : groupes Engagement / Système, icônes | Réel | Lot P5, sur les 13 pages existantes de `studio.js`. |
@@ -65,7 +65,7 @@ Commande de validation de chaque lot : `pnpm check` vert. Interdits communs : mo
 
 **P2 — Cartes d'approbation.** Fichiers : `media/chat.js` (`renderCard`), `media/chat.css`, test. Critères : carte en grille clé/valeur (outil, résumé, raison, détail repliable) ; boutons exactement `once`, `deny`, `always` (ce dernier seulement si `canRemember`, toujours sous modale native) ; Échap = refuser conservé ; aucune ligne conteneur/workdir ; aucune puce de règle. Interdits : changer le message `approve` ou ses choix.
 
-**P3 — Terminal latéral.** Fichiers : nouveaux `media/terminal.js`, `media/terminal.css` ; `src/logic/html.ts` (`terminalHtml`, même CSP) ; `src/extension/extension.ts` (panneau `john.terminal` Beside, singleton, transmission de la vue du chat existante) ; `extension.manifest.json` (commande `john.openTerminal`) ; tests (CSP de `terminalHtml` ; `css-motion` étendu à **chaque** `media/*.css`). Critères : onglet agent = appels d'exec Exegol de la vue (commande, statut, sortie si la vue la porte), texte en `textContent`, DOM borné (lignes anciennes retirées au-delà d'un plafond) ; onglet shell désactivé « bientôt » ; « Effacer » local. Interdits : `docker exec`, `createTerminal`, `child_process`, nouveau message vers le moteur.
+**P3 — Shell d'éditeur.** Le journal d'agent reste le Monitor ; le shell interactif est un terminal d'éditeur (`terminalLaunch`, `isTransient`), pas une webview `john.terminal`.
 
 **P4 — Layouts et sessions.** Fichiers : `src/extension/extension.ts` (panneau `john.stage`, message webview `setLayout` validé par liste blanche `editor|chat|monitor`, `workspaceState`, `StatusBarItem` conteneur/layout/modèle), `src/logic/html.ts`, `media/chat.js`, `media/ui.js` (`monitorRows(view)` pur, testé), `media/chat.css`, test. Critères : une seule surface de chat active (placeholder dans la Side Bar en layout Chat, aucune carte rendue en double) ; Monitor en lecture seule avec renvoi au chat ; liste Sessions = historique restylé, statut « en cours » seulement si `running`. Interdits : sessions multiples, rooms, état inventé.
 
@@ -76,7 +76,7 @@ Commande de validation de chaque lot : `pnpm check` vert. Interdits communs : mo
 Pour `architect` (voie moteur) :
 1. **Bypass des approbations** : sémantique, bornes (deny, chemins, dangers shell jamais contournés), journalisation, affichage. Rien n'est câblé avant un ADR.
 2. **Modes Answer/Plan/Auto** : correspondance avec `permissionMode`, option verrouillée.
-3. **Shell interactif du terminal maison** : `docker exec -i` lancé par l'extension (sans PTY, `safeEnv`, cycle de vie, plafonds) et protocole webview↔processus.
+3. **Shell interactif** : le shell est un terminal d'éditeur VS Code (`terminalLaunch`, `isTransient`) ; le journal d'agent est le Monitor.
 4. **Sortie des exec dans la vue** (capée, masquée) si elle n'y est pas déjà ; durée des appels.
 5. **Champs conteneur/cwd dans la demande d'approbation** (`approval.ts:12-22`).
 6. **Règles depuis une carte** (puces allow/ask/deny) : écriture de politique, empreinte.
