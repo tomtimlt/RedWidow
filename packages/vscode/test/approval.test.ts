@@ -138,5 +138,7 @@ describe("parseWebviewMessage : setBypass (ADR 0006)", () => {
     ).toBeNull();
     expect(parseWebviewMessage({ type: "setLayout", layout: "editor", bypass: true })).toBeNull();
     expect(parseWebviewMessage({ type: "ready", bypass: true })).toBeNull();
+    expect(parseWebviewMessage({ type: "refreshTerminals" })).toEqual({ type: "refreshTerminals" });
+    expect(parseWebviewMessage({ type: "refreshTerminals", token: "x" })).toBeNull();
   });
 });

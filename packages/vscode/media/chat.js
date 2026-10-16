@@ -630,8 +630,9 @@
       : hash
         ? UI.filterTerminals(terminals, span.query).map((item) => ({
             name: item.token,
-            label: item.label,
-            desc: item.hint || "sortie",
+            // Jeton exact (#htb1, #htb1-2) : deux shells du même conteneur restent distincts.
+            label: `#${item.token}`,
+            desc: item.hint ? `$ ${item.hint}` : "terminal ouvert",
           }))
         : UI.filterContainers(containers, span.query).map((item) => ({
             name: item.name,
@@ -639,7 +640,9 @@
           }));
     if (mentionActive >= mentionShown.length) mentionActive = 0;
     mentionEmpty.hidden = mentionShown.length > 0;
-    mentionEmpty.textContent = hash ? "Aucun terminal" : "Aucun conteneur";
+    mentionEmpty.textContent = hash
+      ? "Aucun terminal John ouvert. Alt+J T ou /start <conteneur> pour en ouvrir un."
+      : "Aucun conteneur";
     mentionPop.setAttribute("aria-label", hash ? "Terminaux" : "Conteneurs");
     mentionList.replaceChildren(
       ...mentionShown.map((item, i) => {
@@ -653,7 +656,14 @@
       }),
     );
   }
+  let lastTerminalsAsk = 0;
   function openMention() {
+    // Menu « # » : liste fraîche (dernière commande de chaque terminal), au plus une demande par seconde.
+    const cursor = input.selectionStart ?? input.value.length;
+    if (UI.hashSpan(input.value, cursor) && Date.now() - lastTerminalsAsk > 1000) {
+      lastTerminalsAsk = Date.now();
+      vscode.postMessage({ type: "refreshTerminals" });
+    }
     renderMentions();
     if (!mentionOpen()) mentionPop.showPopover();
     place(mentionPop, input);

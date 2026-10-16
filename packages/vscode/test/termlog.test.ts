@@ -1,30 +1,70 @@
 import { TERMINAL_CONTEXT_MARK } from "@john-studio/core";
 import { describe, expect, it } from "vitest";
+import { terminalLaunch } from "../src/logic/cockpit.js";
 import {
+  CONTAINER_LOG_DIR,
+  capturedShell,
+  containerLogPath,
   lastCommand,
   mentionToken,
   parseHashes,
   readableTerminal,
-  scriptArgs,
+  removeLogCommand,
   shellToken,
   TERMINAL_TAIL_CHARS,
+  tailCommand,
   withTerminalContext,
 } from "../src/logic/termlog.js";
 
 describe("journal de terminal", () => {
-  it("enveloppe docker exec dans script sans changer l'argv", () => {
-    expect(
-      scriptArgs("/usr/bin/docker", ["exec", "--tty", "exegol-htb1", "/bin/bash"], "/tmp/a.log"),
-    ).toEqual([
-      "-q",
-      "-f",
-      "-c",
-      "'/usr/bin/docker' 'exec' '--tty' 'exegol-htb1' '/bin/bash'",
-      "/tmp/a.log",
-    ]);
-    expect(scriptArgs("/bin/docker", ["exec", "a'b"], "/log")[3]).toBe(
-      "'/bin/docker' 'exec' 'a'\\''b'",
+  it("journal dans le conteneur : chemin validé, jamais construit à partir d'une saisie libre", () => {
+    expect(containerLogPath("htb1", "0a1b2c3d")).toBe(`${CONTAINER_LOG_DIR}/htb1-0a1b2c3d.log`);
+    expect(containerLogPath("htb1-2", "deadbeef")).toBe("/tmp/john-terminals/htb1-2-deadbeef.log");
+    expect(containerLogPath("../x", "0a1b2c3d")).toBeNull();
+    expect(containerLogPath("a/b", "0a1b2c3d")).toBeNull();
+    expect(containerLogPath("htb1", "zz")).toBeNull();
+    expect(containerLogPath("htb1", "0A1B2C3D")).toBeNull();
+  });
+
+  it("shell capturé : script constant, chemin en argument positionnel", () => {
+    const log = "/tmp/john-terminals/htb1-0a1b2c3d.log";
+    const argv = capturedShell(log);
+    expect(argv[0]).toBe("/bin/bash");
+    expect(argv[1]).toBe("-c");
+    expect(argv[2]).toContain('exec script -q -f -c /bin/bash "$1"');
+    expect(argv[2]).toContain("exec /bin/bash");
+    expect(argv[2]).not.toContain(log);
+    expect(argv.slice(3)).toEqual(["john", log]);
+    expect(() => capturedShell("/etc/passwd")).toThrow();
+    expect(() => capturedShell("/tmp/john-terminals/x-0a1b2c3d.log; rm -rf /")).toThrow();
+  });
+
+  it("lecture et suppression : argv direct, chemin validé", () => {
+    const log = "/tmp/john-terminals/htb1-0a1b2c3d.log";
+    expect(tailCommand(log)).toEqual(["tail", "-c", "65536", log]);
+    expect(removeLogCommand(log)).toEqual(["rm", "-f", log]);
+    expect(() => tailCommand("/root/.ssh/id_rsa")).toThrow();
+    expect(() => removeLogCommand("/")).toThrow();
+  });
+
+  it("docker exec : le shell capturé remplace /bin/bash, options figées", () => {
+    const log = "/tmp/john-terminals/htb1-0a1b2c3d.log";
+    const { shellPath, shellArgs } = terminalLaunch(
+      "exegol-htb1",
+      "/usr/bin/docker",
+      capturedShell(log),
     );
+    expect(shellPath).toBe("/usr/bin/docker");
+    expect(shellArgs.slice(0, 6)).toEqual([
+      "exec",
+      "--interactive",
+      "--tty",
+      "--workdir",
+      "/workspace",
+      "exegol-htb1",
+    ]);
+    expect(shellArgs.slice(6)).toEqual(capturedShell(log));
+    expect(() => terminalLaunch("exegol-htb1", "/usr/bin/docker", ["bash"])).toThrow();
   });
 
   it("nomme le premier shell par le court, le suivant avec un indice", () => {

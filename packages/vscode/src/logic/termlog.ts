@@ -40,19 +40,46 @@ function stripControls(raw: string): string {
   return out;
 }
 
-const shQuote = (value: string): string => `'${value.replaceAll("'", "'\\''")}'`;
+/** Dossier des journaux de shell, dans le conteneur (jamais sur l'hôte). */
+export const CONTAINER_LOG_DIR = "/tmp/john-terminals";
+const LOG_PATH = /^\/tmp\/john-terminals\/[A-Za-z0-9][A-Za-z0-9_.-]{0,63}-[0-9a-f]{8}\.log$/;
 
 /**
- * Arguments de `script` (util-linux) : le pty reste celui de `script`, la commande est l'argv
- * `docker exec` inchangé, le journal est le dernier argument.
+ * Chemin du journal d'un shell : jeton validé et suffixe aléatoire (deux fenêtres VS Code ne
+ * partagent jamais un fichier). `null` si le jeton ou le suffixe ne tient pas.
  */
-export function scriptArgs(
-  dockerPath: string,
-  dockerArgs: readonly string[],
-  logPath: string,
-): string[] {
-  const command = [dockerPath, ...dockerArgs].map(shQuote).join(" ");
-  return ["-q", "-f", "-c", command, logPath];
+export function containerLogPath(token: string, suffix: string): string | null {
+  const path = `${CONTAINER_LOG_DIR}/${token}-${suffix}.log`;
+  return TOKEN.test(token) && LOG_PATH.test(path) ? path : null;
+}
+
+function assertLogPath(logPath: string): string {
+  if (!LOG_PATH.test(logPath)) throw new Error("chemin de journal refusé");
+  return logPath;
+}
+
+/**
+ * Programme du shell capturé, exécuté DANS le conteneur : `script` (util-linux, présent dans les
+ * images Exegol) garde le pty et journalise la session ; sans `script`, bash nu (pas de capture).
+ * Le script est constant ; le chemin passe en argument positionnel, jamais interpolé.
+ */
+export function capturedShell(logPath: string): string[] {
+  const body = [
+    `mkdir -p ${CONTAINER_LOG_DIR} && chmod 700 ${CONTAINER_LOG_DIR}`,
+    'if command -v script >/dev/null 2>&1; then exec script -q -f -c /bin/bash "$1"; fi',
+    "exec /bin/bash",
+  ].join("; ");
+  return ["/bin/bash", "-c", body, "john", assertLogPath(logPath)];
+}
+
+/** Lecture de la fin du journal (argv de `docker exec`, sans shell). */
+export function tailCommand(logPath: string): string[] {
+  return ["tail", "-c", String(TERMINAL_TAIL_RAW), assertLogPath(logPath)];
+}
+
+/** Suppression du journal à la fermeture du terminal. */
+export function removeLogCommand(logPath: string): string[] {
+  return ["rm", "-f", assertLogPath(logPath)];
 }
 
 /** Jeton `#` : nom court, puis `nom-2` pour le deuxième shell. `null` si le jeton ne tient pas. */

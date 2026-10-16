@@ -77,23 +77,18 @@ export function assertSafeExecArgv(argv: readonly string[]): void {
 
 /**
  * Lance un shell interactif dans le conteneur lié : `docker exec -it --workdir /workspace … bash`.
- * `dockerPath` doit être un chemin absolu (résolution hors espace de travail).
+ * `dockerPath` doit être un chemin absolu (résolution hors espace de travail). `program` remplace
+ * `/bin/bash` (shell capturé de `termlog.ts`) ; il commence toujours par un chemin absolu.
  */
 export function terminalLaunch(
   container: string,
   dockerPath: string | null = resolveBinary("docker"),
+  program: readonly string[] = ["/bin/bash"],
 ): { shellPath: string; shellArgs: readonly string[] } {
   if (dockerPath === null) throw new CodedError("process.notFound", { binary: "docker" });
   const name = assertOperand(container, "container");
-  const shellArgs = [
-    "exec",
-    "--interactive",
-    "--tty",
-    "--workdir",
-    "/workspace",
-    name,
-    "/bin/bash",
-  ] as const;
+  if (!program[0]?.startsWith("/")) throw new Error("programme refusé");
+  const shellArgs = ["exec", "--interactive", "--tty", "--workdir", "/workspace", name, ...program];
   assertSafeExecArgv(shellArgs);
   return { shellPath: dockerPath, shellArgs };
 }

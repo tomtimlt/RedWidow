@@ -76,6 +76,8 @@ export type WebviewMessage =
   | { type: "historyDelete"; id: string }
   | { type: "historyClear" }
   | { type: "refreshModels" }
+  /** Menu `#` ouvert : l'hôte renvoie la liste des terminaux avec leur dernière commande. */
+  | { type: "refreshTerminals" }
   | { type: "approve"; toolUseId: string; choice: Choice }
   /** Interrupteur du Bypass (ADR 0006) : seul champ, pas de durée (fixée par l'hôte). */
   | { type: "setBypass"; enabled: boolean };
@@ -119,6 +121,7 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
     case "stop":
     case "reset":
     case "refreshModels":
+    case "refreshTerminals":
     case "historyResume":
     case "historyClear":
     case "ready":

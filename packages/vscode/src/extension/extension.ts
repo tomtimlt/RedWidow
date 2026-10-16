@@ -1,8 +1,10 @@
 import { fork } from "node:child_process";
-import { open, unlink as unlinkFile } from "node:fs/promises";
+import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 import {
   CodedError,
+  createDockerClient,
+  createRecorder,
   defaultConfigDir,
   lookupContainer,
   parseMentions,
@@ -33,13 +35,15 @@ import { type ChatSession, createChatSession, type TokenChoice } from "../logic/
 import { machineValue, resolveSettings } from "../logic/settings.js";
 import { parseStudioMessage, type StudioPage } from "../logic/studio.js";
 import {
+  capturedShell,
+  containerLogPath,
   lastCommand,
   mentionToken,
   parseHashes,
   readableTerminal,
-  scriptArgs,
+  removeLogCommand,
   shellToken,
-  TERMINAL_TAIL_RAW,
+  tailCommand,
   withTerminalContext,
 } from "../logic/termlog.js";
 import { parseWindows, WINDOW_CAP, type WindowEntry } from "../logic/windows.js";
@@ -75,10 +79,12 @@ export function activate(context: vscode.ExtensionContext): void {
     token: string | null;
     /** Nom court affiché. Deux shells du même conteneur partagent ce libellé. */
     label: string;
+    /** Nom Docker réel du conteneur qui porte le shell. */
+    container: string;
+    /** Journal de la session, DANS le conteneur (`termlog.ts`). `null` : pas de capture. */
     logPath: string | null;
   }
   const editorShells = new Map<string, TrackedShell[]>();
-  const terminalLogs = vscode.Uri.joinPath(context.globalStorageUri, "terminals");
   let cockpitListOk = false;
   /** Shells mémorisés non encore réconciliés avec une liste cockpit réussie. */
   let pendingTerminalRestore: string[] = [];
@@ -225,7 +231,7 @@ export function activate(context: vscode.ExtensionContext): void {
       for (const shell of shells) {
         if (shell.token === null) continue;
         session += 1;
-        const raw = shell.logPath === null ? null : await readLogTail(shell.logPath);
+        const raw = await readLogTail(shell);
         const hint = raw === null ? "" : lastCommand(readableTerminal(raw));
         items.push({
           token: shell.token,
@@ -245,19 +251,19 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   };
 
-  /** Fin du journal `script`. `null` : fichier absent ou illisible. */
-  const readLogTail = async (logPath: string): Promise<string | null> => {
+  /** Client Docker des journaux de shell : appels courts, rien n'est journalisé. */
+  const shellDocker = () =>
+    createDockerClient({ recorder: createRecorder(), binary: "docker", timeoutMs: 8_000 });
+
+  /**
+   * Fin du journal `script` d'un shell, lue dans son conteneur (`docker exec … tail`). Marche quel
+   * que soit l'hôte (Windows compris). `null` : pas de capture, fichier absent ou conteneur arrêté.
+   */
+  const readLogTail = async (shell: TrackedShell): Promise<string | null> => {
+    if (shell.logPath === null) return null;
     try {
-      const fh = await open(logPath, "r");
-      try {
-        const stat = await fh.stat();
-        const len = Math.min(stat.size, TERMINAL_TAIL_RAW);
-        const buf = Buffer.alloc(len);
-        await fh.read(buf, 0, len, Math.max(0, stat.size - len));
-        return buf.toString("utf8");
-      } finally {
-        await fh.close();
-      }
+      const lines = await shellDocker().execWorkspace(shell.container, tailCommand(shell.logPath));
+      return lines.join("\n");
     } catch {
       return null;
     }
@@ -270,7 +276,11 @@ export function activate(context: vscode.ExtensionContext): void {
       const next = list.filter((shell) => shell.term !== term);
       if (next.length === 0) editorShells.delete(name);
       else editorShells.set(name, next);
-      if (gone.logPath !== null) void unlinkFile(gone.logPath).catch(() => {});
+      if (gone.logPath !== null) {
+        void shellDocker()
+          .execWorkspace(gone.container, removeLogCommand(gone.logPath))
+          .catch(() => {});
+      }
       void saveWindows();
       broadcastTerminals();
       return;
@@ -299,7 +309,6 @@ export function activate(context: vscode.ExtensionContext): void {
       return "ok";
     }
     try {
-      const launched = terminalLaunch(plan.name);
       const label = shortContainerName(plan.name);
       const used = new Set(
         (editorShells.get(plan.name) ?? []).map((shell) => shell.token).filter((t) => t !== null),
@@ -315,26 +324,23 @@ export function activate(context: vscode.ExtensionContext): void {
           }
         }
       }
-      // `script` (util-linux) garde un pty et un journal. macOS n'a pas le même `-c`.
-      const scriptBin = process.platform === "linux" ? resolveBinary("script") : null;
-      let shellPath = launched.shellPath;
-      let shellArgs = [...launched.shellArgs];
-      let logPath: string | null = null;
-      if (scriptBin !== null && token !== null) {
-        await vscode.workspace.fs.createDirectory(terminalLogs);
-        logPath = join(terminalLogs.fsPath, `${token}.log`);
-        shellPath = scriptBin;
-        shellArgs = scriptArgs(launched.shellPath, launched.shellArgs, logPath);
-      }
+      // Session journalisée dans le conteneur : indépendant de l'hôte (Windows, macOS, Linux).
+      const logPath =
+        token === null ? null : containerLogPath(token, randomBytes(4).toString("hex"));
+      const { shellPath, shellArgs } = terminalLaunch(
+        plan.name,
+        undefined,
+        logPath === null ? undefined : capturedShell(logPath),
+      );
       const term = vscode.window.createTerminal({
         name: plan.title,
         shellPath,
-        shellArgs,
+        shellArgs: [...shellArgs],
         location: vscode.TerminalLocation.Editor,
         isTransient: true,
       });
       const list = editorShells.get(plan.name) ?? [];
-      list.push({ term, token, label, logPath });
+      list.push({ term, token, label, container: plan.name, logPath });
       editorShells.set(plan.name, list);
       term.show();
       void saveWindows();
@@ -400,11 +406,23 @@ export function activate(context: vscode.ExtensionContext): void {
           return s.setEffort(message.effort);
         case "refreshModels":
           return await s.loadModels(true);
+        case "refreshTerminals":
+          return reply(await terminalsMessage());
         case "send": {
           const slash = parseSlashStart(message.text);
           if (slash !== null) {
-            // Nom court : `exegol start htb1`, jamais `exegol start exegol-htb1`.
-            startContainerTerminal(shortContainerName(slash));
+            // Conteneur existant : démarré si besoin, puis shell capturé (proposé par #). Sinon
+            // `exegol start` le crée (nom court : `exegol start htb1`, jamais `exegol-htb1`).
+            const listed = await loadCockpitView();
+            const real = lookupContainer(slash, listed.containers);
+            if (real === null) {
+              startContainerTerminal(shortContainerName(slash));
+              return;
+            }
+            await controlListedContainer("start", real);
+            if ((await openEditorShell(real)) === "skip") {
+              void vscode.window.showErrorMessage(`Impossible d'ouvrir un terminal sur ${slash}.`);
+            }
             return;
           }
           const hashes = parseHashes(message.text);
@@ -424,36 +442,30 @@ export function activate(context: vscode.ExtensionContext): void {
           } catch {
             dedicatedName = null;
           }
-          if (mentions.length === 0 && dedicatedName === null) {
+          // Une consigne qui cite un terminal (#) se suffit : l'agent analyse la sortie jointe. Les
+          // outils Exegol restent bornés par les règles de cible du cœur (@ ou conteneur dédié).
+          if (mentions.length === 0 && dedicatedName === null && hashes.length === 0) {
             void vscode.window.showErrorMessage(
-              "Lance un conteneur avec /start <nom>, ou cite-le avec @nom.",
+              "Lance un conteneur avec /start <nom>, cite-le avec @nom, ou cite un terminal avec #.",
             );
             return;
           }
-          const listed = await loadCockpitView();
-          const cited = mentions[0];
-          const real = cited
-            ? lookupContainer(cited, listed.containers)
-            : dedicatedName
-              ? lookupContainer(dedicatedName, listed.containers)
-              : null;
           const sections = [];
           for (const token of hashes) {
             const shell = findShellByToken(token);
-            const raw =
-              shell?.logPath === null || shell === undefined
-                ? null
-                : await readLogTail(shell.logPath);
+            const raw = shell === undefined ? null : await readLogTail(shell);
             if (raw === null) {
-              void vscode.window.showWarningMessage(`La sortie de ${token} est illisible.`);
+              void vscode.window.showWarningMessage(
+                `La sortie de #${token} est illisible (conteneur arrêté, ou « script » absent de l'image).`,
+              );
             }
             sections.push({
               token,
               text: raw === null ? "Sortie illisible." : readableTerminal(raw),
             });
           }
+          // Aucun terminal ouvert ici : envoyer une consigne ne doit jamais créer de fenêtre.
           await s.send(message.text, withTerminalContext(message.text, sections));
-          if (real) void openEditorShell(real);
           return;
         }
         case "stop":
