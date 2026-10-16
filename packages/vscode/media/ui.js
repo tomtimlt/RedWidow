@@ -270,6 +270,52 @@
     return { checked: state === "on" || state === "pending", state, text, badge, until };
   }
 
+  /**
+   * Rappel des consignes déjà envoyées. `index` -1 = brouillon (`draft`).
+   * Haut seulement sur la première ligne, Bas seulement sur la dernière.
+   * `null` : la touche déplace le curseur, l'historique ne change pas.
+   */
+  function inputRecall(state, key, cursor) {
+    if (key !== "up" && key !== "down") return null;
+    if (!cursor || typeof cursor.line !== "number" || typeof cursor.lines !== "number") return null;
+    if (key === "up" && cursor.line !== 0) return null;
+    if (key === "down" && cursor.line !== cursor.lines - 1) return null;
+    const entries = Array.isArray(state.entries) ? state.entries : [];
+    const index = Number.isInteger(state.index) ? state.index : -1;
+    const draft = typeof state.draft === "string" ? state.draft : "";
+    const current = typeof state.current === "string" ? state.current : "";
+    const n = entries.length;
+    if (key === "up") {
+      if (n === 0) return null;
+      if (index >= n - 1) return { index, draft, value: entries[0] };
+      const next = index + 1;
+      return {
+        index: next,
+        draft: index === -1 ? current : draft,
+        value: entries[n - 1 - next],
+      };
+    }
+    if (index < 0) return null;
+    if (index === 0) return { index: -1, draft, value: draft };
+    const next = index - 1;
+    return { index: next, draft, value: entries[n - 1 - next] };
+  }
+
+  /**
+   * Aligne l'historique local sur les consignes de la vue.
+   * Garde une consigne envoyée pas encore renvoyée par la vue ; une vue vide ou différente remplace.
+   */
+  function syncRecallEntries(local, viewUsers) {
+    const mine = Array.isArray(local) ? local : [];
+    const theirs = Array.isArray(viewUsers) ? viewUsers : [];
+    if (theirs.length === 0) return [];
+    if (theirs.length >= mine.length && mine.every((text, i) => text === theirs[i]))
+      return theirs.slice();
+    if (mine.length === theirs.length + 1 && theirs.every((text, i) => text === mine[i]))
+      return mine.slice();
+    return theirs.slice();
+  }
+
   const api = {
     LAYOUTS,
     EXEC_TOOL,
@@ -287,6 +333,8 @@
     bodyClasses,
     activityLabel,
     shouldSweep,
+    inputRecall,
+    syncRecallEntries,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.JohnUI = api;

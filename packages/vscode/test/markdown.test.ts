@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { type Block, type Inline, parseMarkdown } from "../src/logic/markdown.js";
 import { summarizeInput, toolLabel } from "../src/logic/present.js";
 
-const ALLOWED = new Set(["p", "h", "code", "ul", "ol", "text", "b", "i"]);
+const ALLOWED = new Set(["p", "h", "code", "ul", "ol", "text", "b", "i", "table"]);
 /** Parcourt l'arbre : tout type de nœud doit être dans la liste blanche (pas de lien, image, HTML). */
 function types(x: unknown, out: string[] = []): string[] {
   if (Array.isArray(x)) for (const v of x) types(v, out);
@@ -43,6 +43,35 @@ describe("parseMarkdown", () => {
     const flat = JSON.stringify(tree);
     expect(flat).toContain("<img src=x onerror=alert(1)>");
     expect(flat).toContain("[clic](javascript:alert(1))");
+  });
+  it("tableau : en-têtes, alignements, lignes ; le HTML reste du texte", () => {
+    const b = parseMarkdown(
+      "| Outil | État | n |\n| --- | :---: | ---: |\n| `ls` | ok | 1 |\n| <img src=x onerror=1> | **ko** | 2 |",
+    );
+    expect(b).toHaveLength(1);
+    const table = b[0] as Extract<Block, { t: "table" }>;
+    expect(table.align).toEqual(["left", "center", "right"]);
+    expect(table.headers).toHaveLength(3);
+    expect(table.rows).toHaveLength(2);
+    expect(table.rows[0]?.[0]?.[0]).toEqual({ t: "code", v: "ls" });
+    expect(JSON.stringify(table)).toContain("<img src=x onerror=1>");
+    expect(JSON.stringify(table)).not.toContain('"t":"a"');
+  });
+  it("sans ligne de séparation, les barres verticales restent un paragraphe", () => {
+    expect(parseMarkdown("| a | b |\ntexte").map((x) => x.t)).toEqual(["p"]);
+  });
+  it("plafonne les colonnes à 16 et les lignes à 50", () => {
+    const head = Array.from({ length: 20 }, (_, i) => `c${i}`).join(" | ");
+    const sep = Array.from({ length: 20 }, () => "---").join(" | ");
+    const body = Array.from({ length: 60 }, (_, i) => `| ${i} |`).join("\n");
+    const table = parseMarkdown(`| ${head} |\n| ${sep} |\n${body}`)[0] as Extract<
+      Block,
+      { t: "table" }
+    >;
+    expect(table.headers).toHaveLength(16);
+    expect(table.align).toHaveLength(16);
+    expect(table.rows).toHaveLength(50);
+    expect(table.rows[0]).toHaveLength(16);
   });
   it("imbrication profonde bornée", () => {
     expect(() => parseMarkdown(`${"*a ".repeat(5000)}${"*".repeat(5000)}`)).not.toThrow();
