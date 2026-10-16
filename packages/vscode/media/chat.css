@@ -1198,6 +1198,15 @@ body:not(.running) #stop {
   .msg {
     max-width: 100%;
   }
+  /* Badge Bypass : sous 360 px, seul « BYPASS » reste visible ; l'heure reste dans l'arbre d'accessibilité. */
+  #bypass-badge .bp-time {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
   .cfg-level,
   #cfg-btn .caret {
     display: none;
@@ -1371,12 +1380,70 @@ body.vscode-high-contrast-light #composer {
   border-color: var(--vscode-contrastBorder, currentColor);
 }
 
-/* Approbation en attente (classe posée par chat.js selon #approvals) : bordure du composer en orange. */
+/* Approbation en attente (classe posée par chat.js selon #approvals) : bordure du composer en orange,
+   plus un anneau d'1 px pour rester distincte du Bypass (bordure seule). */
 body.awaiting #composer {
   border-color: var(
     --vscode-editorWarning-foreground,
     var(--vscode-inputValidation-warningBorder, currentColor)
   );
+  box-shadow: 0 0 0 1px
+    var(
+      --vscode-editorWarning-foreground,
+      var(--vscode-inputValidation-warningBorder, currentColor)
+    );
+}
+
+/* --- Bypass des approbations (ADR 0006) : classes et texte posés par renderBypass, seulement sur message --- */
+/* Actif : bordure du composer en orange, sans animation ; le badge « BYPASS · HH:MM » nomme le mode. */
+body.bypass-on #composer {
+  border-color: var(--vscode-editorWarning-foreground, var(--vscode-inputValidation-warningBorder));
+}
+#bypass-switch {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--jn-s2);
+  width: 100%;
+  min-height: 28px;
+  padding: 0 var(--jn-s2);
+  background: transparent;
+  color: var(--vscode-foreground);
+}
+#bypass-switch::after {
+  content: "";
+  flex: none;
+  box-sizing: border-box;
+  width: 28px;
+  height: 14px;
+  border-radius: var(--jn-r-pill);
+  border: 1px solid var(--jn-line);
+  background: var(--vscode-input-background);
+  transition: background-color var(--jn-d1) var(--jn-ease-io);
+}
+#bypass-switch[aria-checked="true"]::after {
+  background: var(
+    --vscode-editorWarning-foreground,
+    var(--vscode-inputValidation-warningBorder, currentColor)
+  );
+  border-color: transparent;
+}
+#bypass-state {
+  margin: var(--jn-s1) var(--jn-s2) 0;
+  min-height: 1.4em;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--vscode-foreground);
+}
+#bypass-warn .warn-line {
+  display: block;
+}
+#bypass-badge {
+  background: var(
+    --vscode-editorWarning-foreground,
+    var(--vscode-inputValidation-warningBorder, currentColor)
+  );
+  color: var(--vscode-editor-background, var(--vscode-foreground));
 }
 
 /* --- Cockpit (body.cockpit) --- */

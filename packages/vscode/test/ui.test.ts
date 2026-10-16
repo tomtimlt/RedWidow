@@ -1,4 +1,6 @@
+import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 import { EXEGOL_EXEC_TOOL } from "@john-studio/core";
 import { describe, expect, it } from "vitest";
 import { LAYOUTS as CORE_LAYOUTS } from "../src/logic/approval.js";
@@ -30,6 +32,18 @@ interface UiApi {
   cardsFor<T>(view: { approvals: T[] } | null, mode: string): T[];
   historyBadge(entry: { current: boolean }, running: boolean): string | null;
   monitorRows(view: unknown): MonitorRow[];
+  bypassView(
+    push: unknown,
+    previous: unknown,
+    userOff: boolean,
+    now: number,
+  ): {
+    checked: boolean;
+    state: string;
+    text: string;
+    badge: { word: string; time: string } | null;
+    until: string | null;
+  };
 }
 
 interface MonitorRow {
@@ -359,5 +373,102 @@ describe("monitorRows (lot P4) : lecture seule, une ligne par appel Exegol", () 
     expect(ui.monitorRows(null)).toEqual([]);
     expect(ui.monitorRows({})).toEqual([]);
     expect(ui.monitorRows({ items: "x", approvals: 3 })).toEqual([]);
+  });
+});
+
+describe("bypassView (lot B1, ADR 0006) : cinq états, échec fermé, pas de minuteur", () => {
+  const NOW = Date.UTC(2026, 9, 16, 9, 0, 0);
+  const off = { type: "bypass", on: false, armed: false, expiresAt: null };
+  const armed = { type: "bypass", on: false, armed: true, expiresAt: null };
+  const on = (ms: number) => ({ type: "bypass", on: true, armed: false, expiresAt: NOW + ms });
+  const hm = (t: number) =>
+    new Date(t).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+
+  it("off : aucun texte, aucun badge", () => {
+    const v = ui.bypassView(off, null, false, NOW);
+    expect(v).toEqual({ checked: false, state: "off", text: "", badge: null, until: null });
+  });
+  it("armé : texte unique, interrupteur coché, pas de badge", () => {
+    const v = ui.bypassView(armed, off, false, NOW);
+    expect(v.state).toBe("pending");
+    expect(v.checked).toBe(true);
+    expect(v.text).toBe("En attente : actif dès que l'agent le confirme.");
+    expect(v.badge).toBeNull();
+  });
+  it("actif : heure absolue, reste arrondi à la minute supérieure, badge", () => {
+    const v = ui.bypassView(on(118 * 60_000), armed, false, NOW);
+    expect(v.state).toBe("on");
+    expect(v.checked).toBe(true);
+    expect(v.until).toBe(hm(NOW + 118 * 60_000));
+    expect(v.text).toBe(`Actif jusqu'à ${hm(NOW + 118 * 60_000)} (reste 1 h 58).`);
+    expect(v.badge).toEqual({ word: "BYPASS", time: hm(NOW + 118 * 60_000) });
+  });
+  it("reste : une milliseconde au-delà de la minute compte pour la minute suivante", () => {
+    const v = ui.bypassView(on(118 * 60_000 + 1), off, false, NOW);
+    expect(v.text).toContain("(reste 1 h 59).");
+  });
+  it("reste recalculé à chaque appel, sans état : même message, autre « now »", () => {
+    const push = on(60 * 60_000);
+    expect(ui.bypassView(push, null, false, NOW).text).toContain("(reste 1 h 00).");
+    expect(ui.bypassView(push, null, false, NOW + 30 * 60_000).text).toContain("(reste 30 min).");
+  });
+  it("retombée depuis « armé » sans demande : « dropped »", () => {
+    const v = ui.bypassView(off, armed, false, NOW);
+    expect(v).toEqual({
+      checked: false,
+      state: "dropped",
+      text: "Bypass désactivé avant confirmation.",
+      badge: null,
+      until: null,
+    });
+  });
+  it("retombée depuis « actif » sans demande : « ended »", () => {
+    const v = ui.bypassView(off, on(60_000), false, NOW);
+    expect(v.state).toBe("ended");
+    expect(v.text).toBe("Bypass terminé.");
+    expect(v.checked).toBe(false);
+    expect(v.badge).toBeNull();
+  });
+  it("arrêt demandé par l'utilisateur ou reset : pas d'avis de retombée", () => {
+    expect(ui.bypassView(off, armed, true, NOW)).toMatchObject({ state: "off", text: "" });
+    expect(ui.bypassView(off, on(60_000), true, NOW)).toMatchObject({ state: "off", text: "" });
+  });
+  it("on:true sans expiresAt fini = « off » (échec fermé), y compris après un message valide", () => {
+    for (const bad of [
+      { type: "bypass", on: true, armed: false },
+      { type: "bypass", on: true, armed: false, expiresAt: null },
+      { type: "bypass", on: true, armed: false, expiresAt: Number.NaN },
+      { type: "bypass", on: true, armed: false, expiresAt: "2026-10-16" },
+      { type: "bypass", on: true, armed: true, expiresAt: Number.POSITIVE_INFINITY },
+    ]) {
+      expect(ui.bypassView(bad, null, false, NOW)).toMatchObject({ state: "off", checked: false });
+    }
+    // Un message mal formé qui succède à « actif » compte comme une retombée.
+    expect(ui.bypassView({ ...on(60_000), expiresAt: null }, on(60_000), false, NOW).state).toBe(
+      "ended",
+    );
+  });
+  it("message mal formé (champ manquant, type ou valeur fausse) = « off »", () => {
+    for (const bad of [
+      null,
+      undefined,
+      "bypass",
+      {},
+      { type: "other", on: false, armed: false, expiresAt: null },
+      { type: "bypass", on: "oui", armed: false, expiresAt: null },
+      { type: "bypass", on: false, expiresAt: null },
+      { type: "bypass", on: false, armed: 1, expiresAt: null },
+    ]) {
+      expect(ui.bypassView(bad, null, false, NOW), JSON.stringify(bad)).toMatchObject({
+        state: "off",
+        checked: false,
+        text: "",
+      });
+    }
+  });
+  it("aucun minuteur ni horloge implicite : le temps vient de l'argument now", () => {
+    const src = readFileSync(fileURLToPath(new URL("../media/ui.js", import.meta.url)), "utf8");
+    const body = src.slice(src.indexOf("function bypassEffective"), src.indexOf("const api = {"));
+    expect(body).not.toMatch(/Date\.now|setInterval|setTimeout|requestAnimationFrame/);
   });
 });

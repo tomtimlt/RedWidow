@@ -487,8 +487,49 @@
       (ctl?.models === null ? modelInput : modelFilter).focus();
     },
   });
+  // --- Bypass des approbations (ADR 0006, lot B1) : l'affichage ne reflète que le dernier message `bypass`.
+  // Aucune écriture hors de renderBypass (appelée par le gestionnaire `message` et à l'ouverture de Configurer).
+  const bypassSwitch = $("bypass-switch");
+  const bypassState = $("bypass-state");
+  const bypassBadge = $("bypass-badge");
+  /** Dernier message reçu, le précédent, et le drapeau « off ou reset demandé » qui l'a précédé. */
+  let bypassCtx = { push: null, previous: null, userOff: false };
+  /** Demande d'arrêt faite depuis la webview, consommée par le message `bypass` suivant. */
+  let bypassUserOff = false;
+
+  function renderBypass() {
+    const v = UI.bypassView(bypassCtx.push, bypassCtx.previous, bypassCtx.userOff, Date.now());
+    bypassSwitch.setAttribute("aria-checked", String(v.checked));
+    bypassState.textContent = v.text;
+    document.body.classList.toggle("bypass-on", v.state === "on");
+    bypassBadge.hidden = v.badge === null;
+    if (v.badge) {
+      bypassBadge.replaceChildren(
+        el("span", "bp-word", v.badge.word),
+        el("span", "bp-time", ` · ${v.badge.time}`),
+      );
+      bypassBadge.title = `Bypass actif jusqu'à ${v.until} : désactivable dans Configurer ou la barre d'état`;
+    } else bypassBadge.replaceChildren();
+  }
+
+  // Le clic n'écrit rien dans le DOM : il envoie le booléen calculé sur le dernier message reçu.
+  bypassSwitch.addEventListener("click", () => {
+    const last = bypassCtx.push;
+    const enabled = !(last?.on === true || last?.armed === true);
+    if (!enabled) bypassUserOff = true;
+    vscode.postMessage({ type: "setBypass", enabled });
+  });
+
+  /** Envoi de `reset` : mémorisé pour que l'avis de retombée ne prétende aucune cause. */
+  function resetConversation() {
+    bypassUserOff = true;
+    vscode.postMessage({ type: "reset" });
+  }
+
   wirePop(cfgPop, cfgBtn, {
-    render() {},
+    render() {
+      renderBypass();
+    },
     focus() {
       [...cfgPop.querySelectorAll("input, button")].find((n) => !n.disabled && !n.hidden)?.focus();
     },
@@ -506,7 +547,7 @@
   });
   $("cmd-clear").addEventListener("click", () => {
     slashPop.hidePopover();
-    vscode.postMessage({ type: "reset" });
+    resetConversation();
   });
   $("cmd-start").addEventListener("click", () => {
     slashPop.hidePopover();
@@ -655,7 +696,7 @@
   $("readonly-resume").addEventListener("click", () =>
     vscode.postMessage({ type: "historyResume" }),
   );
-  $("readonly-close").addEventListener("click", () => vscode.postMessage({ type: "reset" }));
+  $("readonly-close").addEventListener("click", () => resetConversation());
 
   // --- Monitor (lecture seule) : lignes pures de ui.js (monitorRows), texte en textContent ---
   const monitorRowsEl = $("monitor-rows");
@@ -801,6 +842,11 @@
     const message = event.data;
     if (message && message.type === "view") render(message.view);
     else if (message && message.type === "surface") applySurface(message);
+    else if (message && message.type === "bypass") {
+      bypassCtx = { push: message, previous: bypassCtx.push, userOff: bypassUserOff };
+      bypassUserOff = false;
+      renderBypass();
+    }
   });
 
   function grow() {
@@ -826,6 +872,6 @@
     }
   });
   stop.addEventListener("click", () => vscode.postMessage({ type: "stop" }));
-  $("reset").addEventListener("click", () => vscode.postMessage({ type: "reset" }));
+  $("reset").addEventListener("click", () => resetConversation());
   vscode.postMessage({ type: "ready" });
 })();

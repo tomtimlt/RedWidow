@@ -52,7 +52,7 @@ export function chatHtml({
 <title>John</title>
 </head>
 <body>
-<header id="bar"><span id="title">John</span><span id="sandbox" class="badge" hidden></span><button id="history-btn" type="button" class="ghost" aria-expanded="false" aria-controls="history" title="Historique des conversations"><span class="ico" aria-hidden="true">☰</span><span class="btn-text">Historique</span></button><button id="reset" type="button" class="ghost" title="Nouvelle conversation"><span class="ico" aria-hidden="true">+</span><span class="btn-text">Nouvelle<span class="btn-more"> conversation</span></span></button></header>
+<header id="bar"><span id="title">John</span><span id="sandbox" class="badge" hidden></span><span id="bypass-badge" class="badge" hidden></span><button id="history-btn" type="button" class="ghost" aria-expanded="false" aria-controls="history" title="Historique des conversations"><span class="ico" aria-hidden="true">☰</span><span class="btn-text">Historique</span></button><button id="reset" type="button" class="ghost" title="Nouvelle conversation"><span class="ico" aria-hidden="true">+</span><span class="btn-text">Nouvelle<span class="btn-more"> conversation</span></span></button></header>
 <section id="away" aria-label="Conversation ouverte dans l'éditeur"><p id="away-text">Conversation ouverte dans l'éditeur.</p><button id="away-return" type="button" class="primary">Revenir dans la barre latérale</button></section>
 <section id="history" aria-label="Historique des conversations" hidden><div class="hist-head"><strong>Historique</strong><button id="history-clear" type="button" class="ghost">Tout effacer</button></div><ul id="history-list"></ul></section>
 <main id="log" role="log" aria-live="polite" aria-label="Conversation"></main>
@@ -96,9 +96,12 @@ export function chatHtml({
 <section class="cfg-col" aria-labelledby="cfg-h-prov"><h3 id="cfg-h-prov">Fournisseur</h3>
 <fieldset class="provider"><legend class="sr-only">Fournisseur</legend><label class="radio"><input type="radio" name="provider" checked><span>Claude</span></label><label class="radio off"><input type="radio" name="provider" disabled><span>OpenCode</span><em>bientôt</em></label></fieldset>
 <p class="tip">Modèle, effort et plafonds Ultracode : réglages John dans Paramètres (john.model, john.ultracode.*).</p></section>
+<section class="cfg-col" aria-labelledby="cfg-h-bypass"><h3 id="cfg-h-bypass">Bypass des approbations</h3>
+<button id="bypass-switch" type="button" role="switch" aria-checked="false" aria-describedby="bypass-state bypass-warn"><span>Bypass</span></button>
+<p id="bypass-state" role="status"></p>
+<p id="bypass-warn" class="tip"><span class="warn-line">Approuve d'office les demandes « ask » pendant 2 h, sans rien mémoriser.</span> <span class="warn-line">Restent demandés ou refusés : deny, chemins sensibles ou hors projet, accès hôte d'un conteneur, dangers shell, Bash sans règle ou commande composée.</span></p></section>
 <section class="cfg-col cfg-later" aria-labelledby="cfg-h-later"><h3 id="cfg-h-later">Bientôt</h3>
 <button type="button" class="cfg-off" disabled aria-disabled="true"><span>Mode (Answer, Plan, Auto)</span><em>bientôt</em></button>
-<button type="button" class="cfg-off" disabled aria-disabled="true"><span>Bypass</span><em>bientôt</em></button>
 <button type="button" class="cfg-off" disabled aria-disabled="true"><span>Persona</span><em>bientôt</em></button>
 </section>
 </div>

@@ -216,9 +216,64 @@
     return previous !== undefined && previous !== next;
   }
 
+  const isFiniteNumber = (v) => typeof v === "number" && Number.isFinite(v);
+
+  /**
+   * État effectif d'un message `bypass` (échec fermé) : « on » seulement avec `expiresAt` fini ;
+   * « pending » si demandé mais non effectif ; « off » sinon, y compris pour un message mal formé.
+   */
+  function bypassEffective(push) {
+    if (push === null || typeof push !== "object" || push.type !== "bypass") return "off";
+    if (typeof push.on !== "boolean" || typeof push.armed !== "boolean") return "off";
+    if (push.on) return isFiniteNumber(push.expiresAt) ? "on" : "off";
+    return push.armed ? "pending" : "off";
+  }
+
+  /** Reste affiché : arrondi à la minute supérieure, comme `formatRemaining` de l'hôte. */
+  function remainingText(ms) {
+    const minutes = Math.max(0, Math.ceil(ms / 60_000));
+    const hours = Math.floor(minutes / 60);
+    const rest = minutes % 60;
+    return hours > 0 ? `${hours} h ${String(rest).padStart(2, "0")}` : `${rest} min`;
+  }
+
+  /**
+   * Vue du Bypass, fonction pure. `push` : dernier message `bypass` reçu ; `previous` : le précédent
+   * (ou null) ; `userOff` : l'utilisateur a demandé off ou `reset` depuis le message précédent ;
+   * `now` : epoch ms (aucun minuteur, le reste est recalculé à chaque appel).
+   * Passage à « off » sans `userOff` : « dropped » depuis « pending », « ended » depuis « on ».
+   */
+  function bypassView(push, previous, userOff, now) {
+    const effective = bypassEffective(push);
+    const before = bypassEffective(previous);
+    let state = effective;
+    if (effective === "off" && !userOff && before !== "off") {
+      state = before === "on" ? "ended" : "dropped";
+    }
+    let text = "";
+    let until = null;
+    let badge = null;
+    if (state === "pending") {
+      text = "En attente : actif dès que l'agent le confirme.";
+    } else if (state === "on") {
+      until = new Date(push.expiresAt).toLocaleTimeString("fr-FR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      text = `Actif jusqu'à ${until} (reste ${remainingText(push.expiresAt - now)}).`;
+      badge = { word: "BYPASS", time: until };
+    } else if (state === "dropped") {
+      text = "Bypass désactivé avant confirmation.";
+    } else if (state === "ended") {
+      text = "Bypass terminé.";
+    }
+    return { checked: state === "on" || state === "pending", state, text, badge, until };
+  }
+
   const api = {
     LAYOUTS,
     EXEC_TOOL,
+    bypassView,
     safeLayout,
     surfaceMode,
     cardsFor,
