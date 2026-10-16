@@ -135,6 +135,13 @@ describe("schéma d'événements", () => {
     expect(validateEvent(event(payload))).toBeNull();
   });
 
+  it("un bypass.changed off n'exige pas de bornes, un on les exige", () => {
+    const off = { ...SAMPLES["bypass.changed"], state: "off" };
+    expect(validateEvent(event(off, { since: undefined, expiresAt: undefined }))).toBeNull();
+    const on = { ...SAMPLES["bypass.changed"], since: undefined, expiresAt: undefined };
+    expect(validateEvent(event(on))).not.toBeNull();
+  });
+
   it("refuse une charge utile invalide, kind par kind", () => {
     const bad: [EventKind, Record<string, unknown>][] = [
       ["run.started", { cwd: 1 }],
@@ -147,6 +154,9 @@ describe("schéma d'événements", () => {
       ["bypass.changed", { state: "maybe" }],
       ["bypass.changed", { reason: "texte brut" }],
       ["bypass.changed", { since: "1" }],
+      ["bypass.changed", { state: "on", since: undefined }],
+      ["bypass.changed", { state: "on", expiresAt: undefined }],
+      ["bypass.changed", { state: "on", since: "1", expiresAt: 2 }],
       ["approval.decided", { reason: "texte brut" }],
       ["approval.decided", { reason: { code: "x", params: { nested: { a: 1 } } } }],
       ["approval.decided", { reason: { code: "x", cause: { params: {} } } }],

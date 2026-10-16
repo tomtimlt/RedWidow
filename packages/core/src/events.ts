@@ -342,12 +342,14 @@ export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
     source: "enum:policy,user,bypass",
     reason: "reason",
   }),
-  "bypass.changed": shape({
-    state: "enum:on,off",
-    reason: "reason",
-    since: "number?",
-    expiresAt: "number?",
-  }),
+  // `since` / `expiresAt` sont obligatoires pour un « on » : les bornes décident des approbations auto.
+  "bypass.changed": (p) =>
+    shape({
+      state: "enum:on,off",
+      reason: "reason",
+      since: "number?",
+      expiresAt: "number?",
+    })(p) ?? (p.state === "on" ? shape({ since: "number", expiresAt: "number" })(p) : null),
   "approval.requested": shape({
     toolUseId: "string",
     tool: "string",
