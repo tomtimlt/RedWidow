@@ -1,8 +1,38 @@
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { studioHtml } from "../src/logic/html.js";
-import { parseStudioMessage } from "../src/logic/studio.js";
+import { parseStudioMessage, STUDIO_PAGES, studioLabel } from "../src/logic/studio.js";
+
+interface NavItem {
+  id: string;
+  label: string;
+  icon: string;
+  current: boolean;
+  count?: number;
+}
+
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
+
+interface StudioApi {
+  STUDIO_GROUPS: { label: string; pages: [string, string, string][] }[];
+  killchainCount(findings: unknown): number | null;
+  navModel(current: string, findings: unknown): NavGroup[];
+}
+
+const studioJs = fileURLToPath(new URL("../media/studio.js", import.meta.url));
+const chatCss = fileURLToPath(new URL("../media/chat.css", import.meta.url));
+createRequire(import.meta.url)(studioJs);
+const studio = (globalThis as unknown as { JohnStudio: StudioApi }).JohnStudio;
+const read = (p: string) => readFileSync(p, "utf8");
+
+const FINDING = { kind: "host", state: "confirmed" };
+const findings = (n: number) =>
+  Array.from({ length: n }, (_, i) => ({ id: `f${i}`, label: `Nœud ${i}`, ...FINDING }));
 
 describe("réglages", () => {
   it("accepte open, refresh, unlink et refuse le reste", () => {
@@ -29,9 +59,121 @@ describe("réglages", () => {
   });
 
   it("studio.js n'injecte pas de HTML", () => {
-    const src = readFileSync(fileURLToPath(new URL("../media/studio.js", import.meta.url)), "utf8");
+    const src = read(studioJs);
     expect(src).not.toMatch(
       /innerHTML|outerHTML|insertAdjacentHTML|eval\(|requestAnimationFrame|setInterval/,
+    );
+    expect(src).not.toMatch(/\.style\.(?!setProperty)/);
+  });
+});
+
+describe("navigation en deux groupes", () => {
+  it("Engagement puis Système, dans cet ordre, avec le contenu exact", () => {
+    expect(studio.STUDIO_GROUPS.map((g) => g.label)).toEqual(["Engagement", "Système"]);
+    const [engagement, system] = studio.STUDIO_GROUPS;
+    expect(engagement?.pages.map((p) => p[0])).toEqual([
+      "project",
+      "containers",
+      "providers",
+      "personas",
+      "approvals",
+      "killchain",
+    ]);
+    expect(system?.pages.map((p) => p[0])).toEqual([
+      "model",
+      "harness",
+      "mcp",
+      "atlas",
+      "layout",
+      "modes",
+      "system",
+    ]);
+  });
+
+  it("chaque page existante apparaît une seule fois, avec son libellé d'origine", () => {
+    const keys = studio.STUDIO_GROUPS.flatMap((g) => g.pages.map((p) => p[0]));
+    expect([...keys].sort()).toEqual([...STUDIO_PAGES].sort());
+    for (const [key, label, icon] of studio.STUDIO_GROUPS.flatMap((g) => g.pages)) {
+      expect(label).toBe(studioLabel(key as (typeof STUDIO_PAGES)[number]));
+      expect(icon.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("navModel marque l'entrée courante seule", () => {
+    const groups = studio.navModel("atlas", []);
+    const current = groups.flatMap((g) => g.items).filter((i) => i.current);
+    expect(current.map((i) => i.id)).toEqual(["atlas"]);
+  });
+
+  it("aucune entrée Licence, aucune pastille de statut", () => {
+    const items = studio.navModel("project", findings(2)).flatMap((g) => g.items);
+    for (const item of items) {
+      expect(item.label).not.toMatch(/licen[cs]e/i);
+      expect(Object.keys(item).sort()).toEqual(
+        item.count === undefined
+          ? ["current", "icon", "id", "label"]
+          : ["count", "current", "icon", "id", "label"],
+      );
+    }
+    expect(read(studioJs)).not.toMatch(/licen[cs]e/i);
+  });
+
+  it("libellés et icônes en textContent (jamais de HTML)", () => {
+    expect(read(studioJs)).toMatch(/el\("span", "studio-ico", item\.icon\)/);
+    expect(read(studioJs)).toMatch(/el\("span", "btn-text", item\.label\)/);
+  });
+});
+
+describe("compteur Kill chain", () => {
+  it("nombre réel de trouvailles, présent avec N", () => {
+    expect(studio.killchainCount(findings(3))).toBe(3);
+    const kill = studio
+      .navModel("killchain", findings(3))
+      .flatMap((g) => g.items)
+      .find((i) => i.id === "killchain");
+    expect(kill?.count).toBe(3);
+  });
+
+  it("absent à 0, sur une liste vide ou une donnée absente", () => {
+    expect(studio.killchainCount([])).toBeNull();
+    expect(studio.killchainCount(undefined)).toBeNull();
+    expect(studio.killchainCount(null)).toBeNull();
+    for (const f of [[], undefined]) {
+      const kill = studio
+        .navModel("project", f)
+        .flatMap((g) => g.items)
+        .find((i) => i.id === "killchain");
+      expect(kill).toBeDefined();
+      expect(kill && "count" in kill).toBe(false);
+    }
+  });
+
+  it("aucun autre élément ne porte de compteur", () => {
+    const counted = studio
+      .navModel("project", findings(5))
+      .flatMap((g) => g.items)
+      .filter((i) => i.count !== undefined);
+    expect(counted.map((i) => i.id)).toEqual(["killchain"]);
+  });
+});
+
+describe("feuille des réglages", () => {
+  const css = read(chatCss);
+
+  it("groupes en petites capitales, filet d'accent sur l'entrée courante", () => {
+    expect(css).toMatch(/\.studio-group-title \{[^}]*font-variant: small-caps/);
+    expect(css).toMatch(
+      /\.studio-nav-btn\.is-current \{[^}]*--vscode-list-activeSelectionBackground[^}]*\}/,
+    );
+    expect(css).toMatch(
+      /\.studio-nav-btn\.is-current \{[^}]*border-left-color: var\(--vscode-focusBorder\)/,
+    );
+  });
+
+  it("cartes au rayon md, navigation en rangée sous 640 px", () => {
+    expect(css).toMatch(/\.studio-card \{[^}]*border-radius: var\(--jn-r-md\)/);
+    expect(css).toMatch(
+      /@media \(max-width: 640px\) \{[\s\S]*#studio-nav \{\s*flex-direction: row;/,
     );
   });
 });
