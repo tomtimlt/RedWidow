@@ -4,6 +4,7 @@ import { CodedError, ValidationError } from "@john-studio/core";
 import { describe, expect, it } from "vitest";
 import { parseWebviewMessage } from "../src/logic/approval.js";
 import {
+  controlListedContainer,
   loadCockpitView,
   parseCockpitMessage,
   sortContainers,
@@ -52,6 +53,15 @@ describe("parseCockpitMessage", () => {
     expect(parseCockpitMessage({ type: "link", name: "c1" })).toEqual({ type: "link", name: "c1" });
     expect(parseCockpitMessage({ type: "openWorkspace" })).toEqual({ type: "openWorkspace" });
     expect(parseCockpitMessage({ type: "terminal" })).toEqual({ type: "terminal" });
+    expect(parseCockpitMessage({ type: "start", name: "exegol-htb1" })).toEqual({
+      type: "start",
+      name: "exegol-htb1",
+    });
+    expect(parseCockpitMessage({ type: "stop", name: "exegol-htb1" })).toEqual({
+      type: "stop",
+      name: "exegol-htb1",
+    });
+    expect(parseCockpitMessage({ type: "create" })).toEqual({ type: "create" });
   });
 
   it("refuse clés en trop, types chat et formes invalides", () => {
@@ -59,6 +69,11 @@ describe("parseCockpitMessage", () => {
     expect(parseCockpitMessage({ type: "send", text: "x" })).toBeNull();
     expect(parseCockpitMessage({ type: "ready" })).toBeNull();
     expect(parseCockpitMessage({ type: "link", name: "" })).toBeNull();
+    expect(parseCockpitMessage({ type: "start", name: "a", extra: 1 })).toBeNull();
+    expect(parseCockpitMessage({ type: "stop" })).toBeNull();
+    expect(parseCockpitMessage({ type: "create", name: "htb1" })).toBeNull();
+    expect(parseWebviewMessage({ type: "start", name: "a" })).toBeNull();
+    expect(parseWebviewMessage({ type: "create" })).toBeNull();
     expect(parseWebviewMessage({ type: "refresh" })).toBeNull();
     expect(parseWebviewMessage({ type: "link", name: "c" })).toBeNull();
   });
@@ -116,6 +131,8 @@ describe("loadCockpitView", () => {
     expect(view.linked).toBe("running");
     expect(view.linkedBanner?.name).toBe("a");
     expect(view.containers.map((c) => c.name)).toEqual(["a", "c", "b"]);
+    expect(view.containers.map((c) => c.short)).toEqual(["a", "c", "b"]);
+    expect(view.linkedBanner?.short).toBe("a");
     const stopped = view.containers.find((c) => c.name === "b");
     expect(stopped?.canLink).toBe(false);
     expect(stopped?.linkTitle).toBe("Conteneur arrêté");
@@ -135,6 +152,56 @@ describe("loadCockpitView", () => {
     });
     expect(view.projectInvalid).toBe(true);
     expect(view.containers).toEqual([]);
+  });
+});
+
+describe("controlListedContainer", () => {
+  const row = { state: "stopped" as const, name: "exegol-htb1", image: "i" };
+
+  it("démarre le nom réel de la liste, pas un préfixe collé", async () => {
+    const calls: string[] = [];
+    await controlListedContainer("start", "htb1", {
+      createDocker: () => ({
+        listLabelPrefix: async () => [row],
+        start: async (name) => void calls.push(name),
+        stop: async () => {
+          throw new Error("stop");
+        },
+      }),
+    });
+    expect(calls).toEqual(["exegol-htb1"]);
+  });
+
+  it("refuse un nom absent et n'appelle pas docker", async () => {
+    await expect(
+      controlListedContainer("start", "htb1", {
+        createDocker: () => ({
+          listLabelPrefix: async () => [],
+          start: async () => {
+            throw new Error("start");
+          },
+          stop: async () => {
+            throw new Error("stop");
+          },
+        }),
+      }),
+    ).rejects.toMatchObject({ code: "exegol.containerDenied" });
+  });
+
+  it("n'arrête pas un conteneur déjà arrêté", async () => {
+    let stopped = false;
+    await controlListedContainer("stop", "exegol-htb1", {
+      createDocker: () => ({
+        listLabelPrefix: async () => [row],
+        start: async () => {
+          throw new Error("start");
+        },
+        stop: async () => {
+          stopped = true;
+        },
+      }),
+    });
+    expect(stopped).toBe(false);
   });
 });
 
@@ -192,5 +259,9 @@ describe("cockpit.js", () => {
       expect(js, bad).not.toContain(bad);
     }
     expect(js).toContain("textContent");
+    expect(js).toContain('type: "start"');
+    expect(js).toContain('type: "stop"');
+    expect(js).toContain('type: "create"');
+    expect(js).toContain("row.short");
   });
 });

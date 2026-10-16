@@ -3,11 +3,13 @@ import { join } from "node:path";
 import {
   CodedError,
   defaultConfigDir,
+  lookupContainer,
   parseMentions,
   parseSlashStart,
   readFindings,
   readProject,
   resolveBinary,
+  shortContainerName,
   unlink,
 } from "@john-studio/core";
 import { formatError } from "@john-studio/messages";
@@ -21,6 +23,7 @@ import {
 } from "../logic/approval.js";
 import { type BypassPush, createBypassHost, formatRemaining } from "../logic/bypass.js";
 import {
+  controlListedContainer,
   linkContainer,
   linkedProjectStatus,
   loadCockpitView,
@@ -206,7 +209,8 @@ export function activate(context: vscode.ExtensionContext): void {
         case "send": {
           const slash = parseSlashStart(message.text);
           if (slash !== null) {
-            startContainerTerminal(slash);
+            // Nom court : `exegol start htb1`, jamais `exegol start exegol-htb1`.
+            startContainerTerminal(shortContainerName(slash));
             return;
           }
           const mentions = parseMentions(message.text);
@@ -222,9 +226,15 @@ export function activate(context: vscode.ExtensionContext): void {
             );
             return;
           }
-          const workName = mentions[0] ?? dedicatedName;
+          const listed = await loadCockpitView();
+          const cited = mentions[0];
+          const real = cited
+            ? lookupContainer(cited, listed.containers)
+            : dedicatedName
+              ? lookupContainer(dedicatedName, listed.containers)
+              : null;
           await s.send(message.text);
-          if (workName) showExecTerminal(workName);
+          if (real) showExecTerminal(real);
           return;
         }
         case "stop":
@@ -354,6 +364,22 @@ export function activate(context: vscode.ExtensionContext): void {
               await openLinkedShell();
               return;
             }
+            case "start":
+              await controlListedContainer("start", message.name);
+              return void pushView(true);
+            case "stop":
+              await controlListedContainer("stop", message.name);
+              return void pushView(true);
+            case "create": {
+              const st = await linkedProjectStatus();
+              if (st === null || st.state === "running") return;
+              if (st.state === "stopped") {
+                await controlListedContainer("start", st.container);
+                return void pushView(true);
+              }
+              startContainerTerminal(shortContainerName(st.container));
+              return;
+            }
           }
         } catch (error) {
           void vscode.window.showErrorMessage(formatError(error));
@@ -474,8 +500,9 @@ export function activate(context: vscode.ExtensionContext): void {
       barContainer.hide();
       return;
     }
+    const label = shortContainerName(st.container);
     barContainer.text =
-      st.state === "running" ? `Exegol : ${st.container} · connecté` : `Exegol : ${st.container}`;
+      st.state === "running" ? `Exegol : ${label} · connecté` : `Exegol : ${label}`;
     barContainer.tooltip = `Conteneur lié : ${st.container}`;
     barContainer.show();
   };
