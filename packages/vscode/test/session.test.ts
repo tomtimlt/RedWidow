@@ -1,5 +1,6 @@
-import type { EngineEvent, ModelOption, PendingApproval } from "@john-studio/core";
+import type { BypassState, EngineEvent, ModelOption, PendingApproval } from "@john-studio/core";
 import { describe, expect, it, vi } from "vitest";
+import { createBypassHost } from "../src/logic/bypass.js";
 import type { ChatView } from "../src/logic/chat.js";
 import type {
   EngineController,
@@ -404,7 +405,7 @@ describe("historique (F4)", () => {
       parentId: null,
       ...payload,
     });
-  function withHistory() {
+  function withHistory(key = "john.history") {
     const stored = new Map<string, unknown>();
     const written = new Map<string, string>();
     const removed: string[] = [];
@@ -423,6 +424,7 @@ describe("historique (F4)", () => {
       },
       createController: f.create,
       history: {
+        key,
         index: { get: (k) => stored.get(k), set: (k, v) => stored.set(k, v) },
         files: {
           dir: "/h",
@@ -508,6 +510,13 @@ describe("historique (F4)", () => {
     expect(h.view().history).toEqual([]);
     await h.session.clearHistory();
     expect(h.confirmDelete).toHaveBeenCalledTimes(2);
+  });
+
+  it("écrit l'index sous la clé du chat", async () => {
+    const h = withHistory("john.history.c2");
+    await h.session.send("une consigne pour ce chat");
+    h.f.handlers.onStarted?.({ runId: RUN1, policySource: null });
+    expect([...h.stored.keys()]).toEqual(["john.history.c2"]);
   });
 });
 
@@ -609,5 +618,67 @@ describe("session de chat : arrêt du moteur et Bypass (lot 2c)", () => {
     session.reset();
     expect(release).toHaveBeenCalledTimes(1);
     expect(f.calls).toContainEqual(["kill"]);
+  });
+});
+
+describe("deux chats (ADR 0008)", () => {
+  it("les cartes restent dans leur session ; fermer l'un laisse le Bypass de l'autre", async () => {
+    const host = createBypassHost({
+      clock: {
+        now: () => 1_000_000,
+        schedule: (fn, ms) => setTimeout(fn, ms),
+        cancel: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+      },
+      onChange: () => {},
+    });
+    const make = (key: string) => {
+      const f = fake();
+      const stored = new Map<string, unknown>();
+      const session = createChatSession({
+        cwd: "/w",
+        enginePath: "/e.mjs",
+        engineArgs: [],
+        readSettings: () => ({}),
+        getToken: async () => undefined,
+        confirmAlways: async () => false,
+        onView: () => {},
+        createController: f.create,
+        bypass: host,
+        history: {
+          key,
+          index: { get: (k) => stored.get(k), set: (k, v) => stored.set(k, v) },
+          files: {
+            dir: `/h/${key}`,
+            read: async () => null,
+            size: async () => 0,
+            remove: async () => {},
+            removeAll: async () => {},
+          },
+          confirmDelete: async () => true,
+        },
+      });
+      return { f, session };
+    };
+    const a = make("john.history.a");
+    const b = make("john.history.b");
+    host.request(true, true);
+    await a.session.send("chat a");
+    const stateA = a.f.calls.find((c) => c[0] === "bypass")?.[1] as BypassState;
+    a.f.handlers.onBypassAck?.({ seq: 1, state: stateA });
+    await b.session.send("chat b");
+    const stateB = b.f.calls.find((c) => c[0] === "bypass")?.[1] as BypassState;
+    b.f.handlers.onBypassAck?.({ seq: 1, state: stateB });
+    expect(host.snapshot().on).toBe(true);
+    a.f.handlers.onApproval?.(approval("only-a"));
+    expect(a.session.view().approvals.map((c) => c.toolUseId)).toEqual(["only-a"]);
+    expect(b.session.view().approvals).toEqual([]);
+    a.session.dispose();
+    expect(a.f.calls).toContainEqual(["kill"]);
+    expect(b.f.calls).not.toContainEqual(["kill"]);
+    expect(host.snapshot().on).toBe(true);
+    host.reset();
+    expect(host.snapshot().on).toBe(false);
+    expect(b.f.calls.filter((c) => c[0] === "bypass").at(-1)?.[1]).toBeNull();
+    host.dispose();
   });
 });
