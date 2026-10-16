@@ -89,12 +89,20 @@ button{font:inherit;color:inherit;cursor:pointer}
 .act.exegol.on{color:var(--cyan)}
 .act.exegol.on::before{background:var(--cyan)}
 .act.badge::after{content:attr(data-badge);position:absolute;right:6px;bottom:6px;background:var(--accent);color:#fff;font-size:9px;line-height:1;padding:2px 4px;border-radius:8px;font-weight:700}
-.act .spacer{flex:1}
+.act .spacer{flex:1 1 0;min-width:0}
+.tbtn,.gauge,.send{flex:none}
+.composer{container-type:inline-size}
+#modelChip{max-width:130px}
+@container (max-width:420px){
+  #btnCfg .lbl,#btnCfg .caret,#modelChip .caret{display:none}
+  #btnCfg{padding:0 8px}
+  #modelChip{max-width:140px}
+}
 .activity .bottom{margin-top:auto;display:flex;flex-direction:column}
 
 /* ---------- Side Bar ---------- */
 .side{
-  width:340px;flex:none;background:var(--bg-side);display:flex;flex-direction:column;
+  width:400px;flex:none;background:var(--bg-side);display:flex;flex-direction:column;
   border-right:1px solid var(--line);min-width:0;
 }
 .side-head{
@@ -214,14 +222,14 @@ body.bypass .composer{border-color:#6b5218}
   font:inherit;padding:4px 4px 6px;max-height:140px;min-height:22px;line-height:1.4;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
 }
 .composer textarea::placeholder{color:#6f6f6f}
-.bar{display:flex;align-items:center;gap:4px}
+.bar{display:flex;align-items:center;gap:3px;min-width:0;flex-wrap:nowrap}
 .tbtn{width:28px;height:28px;border:0;background:none;color:#c0c0c0;border-radius:6px;display:flex;align-items:center;justify-content:center;position:relative}
 .tbtn:hover{background:var(--hover);color:#fff}
 .tbtn svg{width:17px;height:17px}
 .tbtn.on{color:var(--cyan)}
 .chip{
   display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 9px;border-radius:var(--r-pill);
-  border:1px solid #3a4a58;background:rgba(14,99,156,.16);color:#dce8f2;font-size:12px;max-width:150px;
+  border:1px solid #3a4a58;background:rgba(14,99,156,.16);color:#dce8f2;font-size:12px;max-width:150px;min-width:0;flex:0 1 auto;
 }
 .chip:hover{background:rgba(14,99,156,.3);border-color:var(--focus)}
 .chip svg{width:14px;height:14px;flex:none}
