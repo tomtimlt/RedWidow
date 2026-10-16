@@ -35,8 +35,11 @@ interface UiApi {
   syncRecallEntries(local: string[], viewUsers: string[]): string[];
   mentionSpan(value: string, cursor: number): { query: string; start: number } | null;
   hashSpan(value: string, cursor: number): { query: string; start: number } | null;
-  filterTerminals(items: { token: string }[], query: string): { token: string }[];
-  safeTerminals(items: unknown): { token: string }[];
+  filterTerminals(
+    items: { token: string; label?: string; hint?: string }[],
+    query: string,
+  ): { token: string }[];
+  safeTerminals(items: unknown): { token: string; label: string; hint: string }[];
   filterContainers(items: { name: string; state?: string }[], query: string): { name: string }[];
   safeContainers(items: unknown): { name: string; state: string }[];
   bypassView(
@@ -490,8 +493,13 @@ describe("bypassView (lot B1, ADR 0006) : cinq états, échec fermé, pas de min
     expect(
       ui.filterTerminals([{ token: "htb1" }, { token: "lab" }], "ht").map((it) => it.token),
     ).toEqual(["htb1"]);
+    const sessions = [
+      { token: "htb1", label: "htb1", hint: "nmap -sV 10.10.10.1" },
+      { token: "htb1-2", label: "htb1", hint: "curl -I http://10.10.10.1" },
+    ];
+    expect(ui.filterTerminals(sessions, "htb").map((it) => it.token)).toEqual(["htb1", "htb1-2"]);
     expect(ui.safeTerminals([{ token: "htb1" }, { token: "../x" }, { name: "lab" }])).toEqual([
-      { token: "htb1" },
+      { token: "htb1", label: "htb1", hint: "" },
     ]);
     const items = [
       { name: "htb1", state: "running" },

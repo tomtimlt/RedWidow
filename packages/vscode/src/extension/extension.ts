@@ -33,10 +33,12 @@ import { type ChatSession, createChatSession, type TokenChoice } from "../logic/
 import { machineValue, resolveSettings } from "../logic/settings.js";
 import { parseStudioMessage, type StudioPage } from "../logic/studio.js";
 import {
+  lastCommand,
   mentionToken,
   parseHashes,
   readableTerminal,
   scriptArgs,
+  shellToken,
   TERMINAL_TAIL_RAW,
   withTerminalContext,
 } from "../logic/termlog.js";
@@ -71,6 +73,8 @@ export function activate(context: vscode.ExtensionContext): void {
   interface TrackedShell {
     term: vscode.Terminal;
     token: string | null;
+    /** Nom court affiché. Deux shells du même conteneur partagent ce libellé. */
+    label: string;
     logPath: string | null;
   }
   const editorShells = new Map<string, TrackedShell[]>();
@@ -214,16 +218,27 @@ export function activate(context: vscode.ExtensionContext): void {
     return undefined;
   };
 
-  const terminalsMessage = () => ({
-    type: "terminals" as const,
-    items: [...editorShells.values()]
-      .flat()
-      .filter((shell): shell is TrackedShell & { token: string } => shell.token !== null)
-      .map((shell) => ({ token: shell.token })),
-  });
+  const terminalsMessage = async () => {
+    const items: { token: string; label: string; hint: string }[] = [];
+    for (const shells of editorShells.values()) {
+      let session = 0;
+      for (const shell of shells) {
+        if (shell.token === null) continue;
+        session += 1;
+        const raw = shell.logPath === null ? null : await readLogTail(shell.logPath);
+        const hint = raw === null ? "" : lastCommand(readableTerminal(raw));
+        items.push({
+          token: shell.token,
+          label: shell.label,
+          hint: hint || `session ${session}`,
+        });
+      }
+    }
+    return { type: "terminals" as const, items };
+  };
 
-  const broadcastTerminals = () => {
-    const message = terminalsMessage();
+  const broadcastTerminals = async () => {
+    const message = await terminalsMessage();
     post(message);
     for (const [id, slot] of slots) {
       if (id !== SIDEBAR_CHAT) void slot.panel?.webview.postMessage(message);
@@ -285,7 +300,21 @@ export function activate(context: vscode.ExtensionContext): void {
     }
     try {
       const launched = terminalLaunch(plan.name);
-      const token = mentionToken(plan.name, plan.title, shortContainerName(plan.name));
+      const label = shortContainerName(plan.name);
+      const used = new Set(
+        (editorShells.get(plan.name) ?? []).map((shell) => shell.token).filter((t) => t !== null),
+      );
+      let token = mentionToken(plan.name, plan.title, label);
+      if (token === null || used.has(token)) {
+        token = null;
+        for (let index = 1; index <= 4; index++) {
+          const next = shellToken(label, index);
+          if (next !== null && !used.has(next)) {
+            token = next;
+            break;
+          }
+        }
+      }
       // `script` (util-linux) garde un pty et un journal. macOS n'a pas le même `-c`.
       const scriptBin = process.platform === "linux" ? resolveBinary("script") : null;
       let shellPath = launched.shellPath;
@@ -305,7 +334,7 @@ export function activate(context: vscode.ExtensionContext): void {
         isTransient: true,
       });
       const list = editorShells.get(plan.name) ?? [];
-      list.push({ term, token, logPath });
+      list.push({ term, token, label, logPath });
       editorShells.set(plan.name, list);
       term.show();
       void saveWindows();
@@ -363,7 +392,7 @@ export function activate(context: vscode.ExtensionContext): void {
           reply(bypass.snapshot());
           reply({ type: "view", view: s.view() });
           reply(await containersMessage());
-          reply(terminalsMessage());
+          reply(await terminalsMessage());
           return await s.loadModels();
         case "setModel":
           return s.setModel(message.model);

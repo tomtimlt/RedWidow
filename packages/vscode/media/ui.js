@@ -322,25 +322,31 @@
     return out;
   }
 
-  /** Terminaux proposés par l'hôte. Jeton seul, le libellé est le même jeton. */
+  const TOKEN = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
+
+  /** Terminaux proposés par l'hôte. Deux shells du même conteneur restent deux lignes. */
   function safeTerminals(items) {
     if (!Array.isArray(items)) return [];
     const out = [];
     for (const it of items) {
-      if (!it || typeof it.token !== "string") continue;
-      if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(it.token)) continue;
-      out.push({ token: it.token });
+      if (!it || typeof it.token !== "string" || !TOKEN.test(it.token)) continue;
+      const label = typeof it.label === "string" && TOKEN.test(it.label) ? it.label : it.token;
+      const hint =
+        typeof it.hint === "string" ? it.hint.replace(/\s+/g, " ").trim().slice(0, 80) : "";
+      out.push({ token: it.token, label, hint });
     }
     return out;
   }
 
-  /** Terminaux dont le jeton contient la saisie, dans l'ordre reçu. */
+  /** Terminaux dont le jeton, le libellé ou la commande contient la saisie. */
   function filterTerminals(items, query) {
     const q = String(query ?? "").toLowerCase();
     if (!Array.isArray(items)) return [];
-    return items.filter(
-      (it) => it && typeof it.token === "string" && it.token.toLowerCase().includes(q),
-    );
+    return items.filter((it) => {
+      if (!it || typeof it.token !== "string") return false;
+      const blob = `${it.token} ${it.label ?? ""} ${it.hint ?? ""}`.toLowerCase();
+      return blob.includes(q);
+    });
   }
 
   /** Conteneurs dont le nom court contient la saisie, dans l'ordre reçu. */

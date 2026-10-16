@@ -630,7 +630,8 @@
       : hash
         ? UI.filterTerminals(terminals, span.query).map((item) => ({
             name: item.token,
-            desc: "sortie",
+            label: item.label,
+            desc: item.hint || "sortie",
           }))
         : UI.filterContainers(containers, span.query).map((item) => ({
             name: item.name,
@@ -645,7 +646,7 @@
         const btn = el("button", "cmd-opt");
         btn.type = "button";
         btn.setAttribute("role", "option");
-        btn.append(el("span", "cmd", item.name), el("span", "cmd-desc", item.desc));
+        btn.append(el("span", "cmd", item.label || item.name), el("span", "cmd-desc", item.desc));
         btn.addEventListener("click", () => pickMention(item.name));
         if (i === mentionActive) btn.setAttribute("aria-selected", "true");
         return btn;

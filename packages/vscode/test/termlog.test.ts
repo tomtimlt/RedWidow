@@ -1,6 +1,7 @@
 import { TERMINAL_CONTEXT_MARK } from "@john-studio/core";
 import { describe, expect, it } from "vitest";
 import {
+  lastCommand,
   mentionToken,
   parseHashes,
   readableTerminal,
@@ -43,6 +44,10 @@ describe("journal de terminal", () => {
     const raw = "Script started on 2026\n\u001B[31m80/tcp\u001B[0m open\r\n";
     expect(readableTerminal(raw)).toBe("80/tcp open");
     expect(readableTerminal("   \n")).toBe("Tampon vide.");
+    expect(lastCommand("root@box:/workspace# nmap -sV 10.10.10.1\n80/tcp open")).toBe(
+      "nmap -sV 10.10.10.1",
+    );
+    expect(lastCommand("80/tcp open http")).toBe("80/tcp open http");
     expect(readableTerminal("x".repeat(TERMINAL_TAIL_CHARS + 10))).toHaveLength(
       TERMINAL_TAIL_CHARS,
     );

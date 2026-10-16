@@ -71,6 +71,25 @@ export function mentionToken(real: string, title: string, short: string): string
   return shellToken(short, index);
 }
 
+const clipLine = (value: string): string => (value.length > 72 ? `${value.slice(0, 71)}…` : value);
+
+/** Dernière commande visible, sinon la dernière ligne, pour distinguer deux shells. */
+export function lastCommand(text: string): string {
+  const lines = text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line !== "" && line !== "Tampon vide.");
+  let fallback = "";
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i];
+    if (line === undefined) continue;
+    if (fallback === "") fallback = line;
+    const prompt = /[#%$]\s+(\S.*)$/.exec(line);
+    if (prompt?.[1]) return clipLine(prompt[1]);
+  }
+  return fallback === "" ? "" : clipLine(fallback);
+}
+
 /** Jetons `#` d'une consigne, sans doublon, dans l'ordre. */
 export function parseHashes(text: string): string[] {
   const out: string[] = [];
