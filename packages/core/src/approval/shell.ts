@@ -1,0 +1,283 @@
+/**
+ * Analyse statique minimale d'une ligne de commande POSIX, suffisante pour
+ * décider d'une approbation. Ne tente PAS d'évaluer le shell : tout ce qui
+ * ne peut pas être résolu statiquement est signalé via `hazards`.
+ */
+
+import { type Reason, reason } from "../reason.js";
+
+export type ShellHazard =
+  | "substitution" // $(…), `…`, <(…), >(…)
+  | "expansion" // $VAR, ${…}, globs et accolades non quotés, ~
+  | "redirect" // >, <, >>, 2>&1…
+  | "assignment" // FOO=bar cmd
+  | "background" // cmd &
+  | "indirection"; // bash -c, env, xargs, find -exec… : exécute une autre commande
+
+export interface ParsedCommand {
+  /** Commandes simples séparées par ; && || | & ou saut de ligne. */
+  segments: string[][];
+  hazards: Set<ShellHazard>;
+}
+
+export type ParseResult = { ok: true; value: ParsedCommand } | { ok: false; error: Reason };
+
+const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
+
+export function parseShell(input: string): ParseResult {
+  const segments: string[][] = [];
+  const hazards = new Set<ShellHazard>();
+  let segment: string[] = [];
+  let token = "";
+  let inToken = false;
+  let quote: "'" | '"' | null = null;
+
+  const pushToken = () => {
+    if (!inToken) return;
+    if (segment.length === 0 && ASSIGNMENT.test(token)) hazards.add("assignment");
+    segment.push(token);
+    token = "";
+    inToken = false;
+  };
+  const pushSegment = () => {
+    pushToken();
+    if (segment.length > 0) segments.push(segment);
+    segment = [];
+  };
+
+  for (let i = 0; i < input.length; i++) {
+    const c = input[i] as string;
+    const next = input[i + 1];
+
+    if (quote === "'") {
+      if (c === "'") quote = null;
+      else token += c;
+      continue;
+    }
+
+    if (quote === '"') {
+      if (c === '"') {
+        quote = null;
+      } else if (c === "\\" && next !== undefined && '$`"\\\n'.includes(next)) {
+        if (next !== "\n") token += next;
+        i++;
+      } else {
+        if (c === "`" || (c === "$" && next === "(")) hazards.add("substitution");
+        else if (c === "$" && next !== undefined && /[A-Za-z_{0-9@*#?$!-]/.test(next))
+          hazards.add("expansion");
+        token += c;
+      }
+      continue;
+    }
+
+    switch (c) {
+      case "'":
+      case '"':
+        quote = c;
+        inToken = true;
+        break;
+      case "\\":
+        if (next === undefined) return { ok: false, error: reason("shell.trailingBackslash") };
+        if (next !== "\n") {
+          token += next;
+          inToken = true;
+        }
+        i++;
+        break;
+      case " ":
+      case "\t":
+        pushToken();
+        break;
+      case "\n":
+      case ";":
+        pushSegment();
+        break;
+      case "|":
+        pushSegment();
+        if (next === "|") i++;
+        break;
+      case "&":
+        if (next === "&") {
+          i++;
+        } else if (input[i - 1] !== ">" && next !== ">") {
+          hazards.add("background");
+        }
+        pushSegment();
+        break;
+      case ">":
+      case "<":
+        if (next === "(") hazards.add("substitution");
+        else hazards.add("redirect");
+        pushToken();
+        break;
+      case "`":
+        hazards.add("substitution");
+        token += c;
+        inToken = true;
+        break;
+      case "$":
+        if (next === "(") hazards.add("substitution");
+        else if (next === "'" || next === '"')
+          hazards.add("expansion"); // $'\x72m', $"…"
+        else if (next !== undefined && /[A-Za-z_{0-9@*#?$!-]/.test(next)) hazards.add("expansion");
+        token += c;
+        inToken = true;
+        break;
+      case "#":
+        if (!inToken) {
+          while (i < input.length && input[i] !== "\n") i++;
+          i--;
+          break;
+        }
+        token += c;
+        break;
+      case "*":
+      case "?":
+      case "[":
+      case "{":
+        hazards.add("expansion");
+        token += c;
+        inToken = true;
+        break;
+      case "~":
+        if (!inToken) hazards.add("expansion");
+        token += c;
+        inToken = true;
+        break;
+      default:
+        token += c;
+        inToken = true;
+    }
+  }
+
+  if (quote !== null) return { ok: false, error: reason("shell.unclosedQuote", { quote }) };
+  pushSegment();
+  if (segments.some(runsOtherCommand)) hazards.add("indirection");
+  return { ok: true, value: { segments, hazards } };
+}
+
+/** Commandes dont le rôle est d'en exécuter une autre : l'analyse statique ne voit pas la vraie. */
+const WRAPPERS = new Set([
+  "bash",
+  "sh",
+  "zsh",
+  "dash",
+  "ksh",
+  "ash",
+  "fish",
+  "env",
+  "xargs",
+  "eval",
+  "exec",
+  "command",
+  "builtin",
+  "nohup",
+  "timeout",
+  "nice",
+  "time",
+  "watch",
+  "su",
+  "sudo",
+  "doas",
+  "setsid",
+  "stdbuf",
+  "script",
+  "awk",
+  "gawk",
+  "mawk",
+  "nawk",
+  "ionice",
+  "chroot",
+  "unshare",
+  "nsenter",
+  "flock",
+  "taskset",
+  "chrt",
+  "runuser",
+  "setpriv",
+  "strace",
+  "ltrace",
+  "gdb",
+  "expect",
+  "tclsh",
+  // Windows : interpréteurs et lanceurs qui exécutent une autre commande
+  "cmd",
+  "powershell",
+  "pwsh",
+  "wsl",
+  "start",
+  "runas",
+  "cscript",
+  "wscript",
+  "mshta",
+  "rundll32",
+  "forfiles",
+  "conhost",
+  "schtasks",
+]);
+const FIND_EXEC = new Set(["-exec", "-execdir", "-ok", "-okdir", "-delete"]);
+
+/** Extensions exécutables Windows retirées du nom d'un programme (`cmd.exe`, `x.ps1`…). */
+const PROGRAM_EXTENSION = /\.(exe|cmd|bat|com|ps1)$/;
+
+/**
+ * Nom de base d'un programme, `/usr/bin/env` → `env`, `C:\Windows\System32\CMD.EXE` → `cmd`.
+ * `/` et `\` séparent ; casse ignorée ; points et espaces finaux retirés (Windows les ignore :
+ * `cmd.exe.` lance `cmd.exe`) ; flux NTFS `::$data` retiré ; une extension exécutable Windows est retirée.
+ */
+export function programName(word: string | undefined): string {
+  const base = (word ?? "").split(/[\\/]/).pop() ?? "";
+  return base
+    .toLowerCase()
+    .replace(/::\$data$/, "")
+    .replace(/[. ]+$/, "")
+    .replace(PROGRAM_EXTENSION, "");
+}
+
+/** Interpréteurs de langage (en plus des enveloppes `WRAPPERS`) : ils exécutent du code arbitraire. */
+const INTERPRETER_PROGRAMS = /^(python[\d.]*|node|nodejs|deno|bun|perl|ruby|php|lua|busybox)$/;
+
+/**
+ * `true` si `argv[0]` est un interpréteur ou une enveloppe (`sh`, `python3`, `env`, `find -exec`…) :
+ * le motif de commande ne dit pas ce qui sera réellement exécuté. Sert au bac à sable (ADR 0003 D).
+ */
+export function isInterpreterArgv(argv: readonly string[]): boolean {
+  return runsOtherCommand(argv) || INTERPRETER_PROGRAMS.test(programName(argv[0]));
+}
+
+function runsOtherCommand(argv: readonly string[]): boolean {
+  const name = programName(argv[0]);
+  if (WRAPPERS.has(name)) return true;
+  return name === "find" && argv.some((a) => FIND_EXEC.has(a));
+}
+
+/**
+ * Motif de commande : jetons séparés par des espaces. `*` en milieu de motif
+ * accepte exactement un argument ; `*` final accepte zéro ou plusieurs
+ * arguments. Sans `*` final, la correspondance est exacte.
+ *
+ *   "docker ps"          → docker ps
+ *   "docker logs *"      → docker logs, docker logs -f web, …
+ *   "docker * --help"    → docker run --help, docker ps --help
+ *
+ * `lenientProgram` (règles `deny` seulement) compare aussi le nom normalisé du programme
+ * (`programName`) : `rm.exe`, `/usr/bin/rm`, `"C:\x\rm.exe"` correspondent à `rm *`. Jamais pour
+ * `allow` : un `./docker.exe` du dépôt ne doit pas hériter d'une autorisation `docker ps *`.
+ */
+export function matchCommand(
+  pattern: string,
+  argv: readonly string[],
+  lenientProgram = false,
+): boolean {
+  const parts = pattern.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return false;
+  const trailing = parts[parts.length - 1] === "*";
+  const fixed = trailing ? parts.slice(0, -1) : parts;
+  if (trailing ? argv.length < fixed.length : argv.length !== fixed.length) return false;
+  return fixed.every(
+    (p, i) =>
+      p === "*" ||
+      p === argv[i] ||
+      (i === 0 && lenientProgram && programName(p) === programName(argv[0])),
+  );
+}

@@ -1,0 +1,284 @@
+/* Terminal latéral Exegol (design-exegol-ui.md §3, lot P3). Feuille autonome : jetons, reset et
+   interrupteur global sont propres à cette page. Couleurs : variables --vscode-* seulement.
+   Aucune animation (la maquette est statique) ; une seule transition, celle des onglets. */
+
+body {
+  --jn-s1: 4px;
+  --jn-s2: 8px;
+  --jn-s3: 12px;
+  --jn-r-sm: 8px;
+  --jn-d1: 120ms;
+  --jn-gutter: 10px;
+  --jn-term-bg: var(--vscode-terminal-background, var(--vscode-editor-background));
+  --jn-term-fg: var(--vscode-terminal-foreground, var(--vscode-foreground));
+  --jn-line: var(--vscode-panel-border, currentColor);
+  --jn-muted: color-mix(in srgb, var(--jn-term-fg) 65%, transparent);
+  --jn-ok: var(--vscode-terminal-ansiGreen, var(--jn-term-fg));
+  --jn-warn: var(--vscode-terminal-ansiYellow, var(--jn-term-fg));
+  --jn-err: var(--vscode-terminal-ansiRed, var(--jn-term-fg));
+  --jn-cyan: var(--vscode-terminal-ansiCyan, var(--jn-term-fg));
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  color: var(--jn-term-fg);
+  background: var(--jn-term-bg);
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-width: 0;
+  container: app / inline-size;
+}
+:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder, currentColor);
+  outline-offset: 1px;
+}
+[hidden] {
+  display: none !important;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* --- En-tête --- */
+#bar {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+  min-width: 0;
+  padding: var(--jn-s2) var(--jn-gutter);
+  border-bottom: 1px solid var(--jn-line);
+}
+#title {
+  font-weight: 600;
+  white-space: nowrap;
+}
+#container {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--jn-cyan);
+  font-family: var(--vscode-editor-font-family, monospace);
+}
+
+/* --- Boutons (reprise sobre des règles du chat) --- */
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  white-space: nowrap;
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  border: 1px solid var(--vscode-contrastBorder, transparent);
+  border-radius: var(--jn-r-sm);
+  padding: 0 var(--jn-s3);
+  font: inherit;
+  cursor: pointer;
+}
+button:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+button.primary {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+button.primary:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: var(--vscode-button-hoverBackground);
+}
+button.ghost {
+  background: transparent;
+  color: var(--jn-term-fg);
+  border-color: transparent;
+}
+button.ghost:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: var(--vscode-toolbar-hoverBackground, transparent);
+}
+button:disabled,
+button[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: default;
+}
+#clear {
+  margin-left: auto;
+}
+
+/* --- Onglets --- */
+#tabs {
+  display: flex;
+  gap: var(--jn-s1);
+  min-width: 0;
+  border-bottom: 1px solid var(--jn-line);
+  padding: 0 var(--jn-gutter);
+}
+.tab {
+  min-height: 30px;
+  border: none;
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--jn-muted);
+  padding: 0 var(--jn-s2);
+  transition: color var(--jn-d1);
+}
+.tab:hover:not([aria-disabled="true"]) {
+  color: var(--jn-term-fg);
+  background: transparent;
+}
+.tab[aria-selected="true"] {
+  color: var(--jn-term-fg);
+  border-bottom-color: var(--vscode-focusBorder, currentColor);
+}
+.tab[aria-disabled="true"] {
+  opacity: 1;
+}
+.tab em {
+  font-style: normal;
+  font-size: 10px;
+  margin-left: var(--jn-s1);
+  color: var(--jn-muted);
+}
+
+/* --- Panneaux --- */
+#panel-agent,
+#panel-shell {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+  padding: var(--jn-s3) var(--jn-gutter);
+}
+#out {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.empty {
+  margin: 0 0 var(--jn-s2);
+  color: var(--jn-muted);
+}
+#panel-shell .empty {
+  margin-bottom: var(--jn-s3);
+}
+
+/* --- Lignes de commande --- */
+.line {
+  min-width: 0;
+  margin: 0 0 var(--jn-s3);
+  padding: 0 0 var(--jn-s2);
+  border-bottom: 1px solid var(--jn-line);
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: var(--vscode-editor-font-size, 13px);
+}
+.cmd {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--jn-s2);
+  min-width: 0;
+}
+.prompt {
+  color: var(--jn-cyan);
+  white-space: nowrap;
+}
+.cmd-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.st {
+  font-family: var(--vscode-font-family);
+  font-size: 11px;
+  border: 1px solid currentColor;
+  border-radius: var(--jn-r-sm);
+  padding: 0 var(--jn-s1);
+  white-space: nowrap;
+}
+.tone-ok .st {
+  color: var(--jn-ok);
+}
+.tone-wait .st {
+  color: var(--jn-warn);
+}
+.tone-err .st {
+  color: var(--jn-err);
+}
+.out {
+  margin: var(--jn-s1) 0 0;
+  max-height: 240px;
+  overflow: auto;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--jn-muted);
+}
+.note {
+  margin: var(--jn-s1) 0 0;
+  font-family: var(--vscode-font-family);
+  font-size: 11px;
+  color: var(--jn-muted);
+}
+
+/* --- Largeur : sous 360 px, marges réduites ; au-delà de 600 px, sortie plus haute --- */
+@container app (max-width: 359px) {
+  #bar {
+    flex-wrap: wrap;
+  }
+  #panel-agent,
+  #panel-shell {
+    padding: var(--jn-s2);
+  }
+  .tab em {
+    display: none;
+  }
+}
+@container app (min-width: 600px) {
+  .out {
+    max-height: 360px;
+  }
+}
+
+/* --- Interrupteur global des effets : mouvement réduit, contraste élevé, couleurs forcées --- */
+@media (prefers-reduced-motion: reduce) {
+  body *,
+  body ::before,
+  body ::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+@media (forced-colors: active) {
+  body *,
+  body ::before,
+  body ::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  :focus-visible {
+    outline: 2px solid Highlight;
+  }
+}
+body.vscode-high-contrast *,
+body.vscode-high-contrast ::before,
+body.vscode-high-contrast ::after,
+body.vscode-high-contrast-light *,
+body.vscode-high-contrast-light ::before,
+body.vscode-high-contrast-light ::after {
+  animation: none !important;
+  transition: none !important;
+}

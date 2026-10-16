@@ -1,0 +1,22 @@
+{
+  "name": "@john-studio/messages",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Libellés de john-studio : traduit les codes du cœur (motifs, erreurs, événements) en texte lisible.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@john-studio/core": "workspace:*"
+  }
+}

@@ -1,0 +1,1892 @@
+/* Thème : variables --vscode-* uniquement (clair, sombre, contraste élevé automatiques).
+   Spécification : docs/design-chat-ui.md. Animations : transform et opacity seulement. */
+
+/* --- Jetons de design (préfixe --jn-), dérivés du thème --- */
+body {
+  --jn-s1: 4px;
+  --jn-s2: 8px;
+  --jn-s3: 12px;
+  --jn-s4: 16px;
+  --jn-s5: 24px;
+  --jn-r-sm: 8px;
+  --jn-r-md: 12px;
+  --jn-r-lg: 18px;
+  --jn-r-pill: 999px;
+  --jn-d1: 120ms;
+  --jn-d2: 200ms;
+  --jn-d3: 600ms;
+  --jn-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --jn-ease-io: cubic-bezier(0.4, 0, 0.2, 1);
+  --jn-shadow-pop: 0 8px 24px var(--vscode-widget-shadow, #0006);
+  --jn-accent: var(--vscode-focusBorder, var(--vscode-button-background));
+  --jn-accent-2: var(--vscode-terminal-ansiMagenta, var(--jn-accent));
+  --jn-cool: var(--vscode-terminal-ansiCyan, var(--jn-accent));
+  --jn-glow-pct: 45%;
+  --jn-glow: color-mix(in srgb, var(--jn-accent) var(--jn-glow-pct), transparent);
+  --jn-line: var(--vscode-panel-border, color-mix(in srgb, currentColor 20%, transparent));
+  --jn-muted: color-mix(in srgb, var(--vscode-foreground) 72%, transparent);
+  --jn-gutter: 10px;
+  --jn-row: 28px;
+}
+body.vscode-light {
+  --jn-glow-pct: 20%;
+}
+body.vscode-high-contrast,
+body.vscode-high-contrast-light {
+  --jn-glow-pct: 0%;
+  --jn-line: var(--vscode-contrastBorder, currentColor);
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  color: var(--vscode-foreground);
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  container: app / inline-size;
+}
+body > * {
+  margin-inline: var(--jn-gutter);
+}
+:focus-visible {
+  outline: 1px solid var(--jn-accent);
+  outline-offset: 1px;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+[hidden] {
+  display: none !important;
+}
+.ico {
+  flex: none;
+  line-height: 1;
+}
+
+/* --- En-tête --- */
+#bar {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+  padding: var(--jn-s2) 0;
+  position: relative;
+}
+#bar::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--jn-line);
+  opacity: 1;
+}
+#title {
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  color: var(--vscode-foreground);
+}
+#sandbox {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#history-btn {
+  margin-left: auto;
+}
+.badge {
+  font-size: 0.85em;
+  padding: 1px 8px;
+  border-radius: var(--jn-r-pill);
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  white-space: nowrap;
+}
+
+#log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--jn-s3) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s3);
+}
+
+/* --- Messages --- */
+.msg {
+  max-width: 92%;
+  padding: 8px 12px;
+  border-radius: var(--jn-r-md);
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+.msg.user {
+  align-self: flex-end;
+  background: color-mix(in srgb, var(--jn-accent) 12%, var(--vscode-input-background));
+  border: 1px solid color-mix(in srgb, var(--jn-accent) 35%, transparent);
+  white-space: pre-wrap;
+}
+.msg.agent {
+  align-self: flex-start;
+  background: var(--vscode-editorWidget-background, transparent);
+  border: 1px solid var(--jn-line);
+}
+.msg.agent > :first-child {
+  margin-top: 0;
+}
+.msg.agent > :last-child {
+  margin-bottom: 0;
+}
+.msg p {
+  margin: 0.5em 0;
+  white-space: pre-wrap;
+}
+.msg ul,
+.msg ol {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+}
+.md-h {
+  margin: 0.7em 0 0.3em;
+  font-size: 1.05em;
+}
+code {
+  font-family: var(--vscode-editor-font-family);
+  font-size: 0.92em;
+  background: var(--vscode-textCodeBlock-background);
+  padding: 0 4px;
+  border-radius: var(--jn-r-sm);
+}
+pre {
+  margin: 4px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 0.9em;
+  max-height: 14em;
+  overflow-y: auto;
+}
+.codeblock {
+  margin: 0.6em 0;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+  overflow: hidden;
+  background: var(--vscode-textCodeBlock-background);
+}
+.codehead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2px 6px 2px 10px;
+  font-size: 0.85em;
+  color: var(--jn-muted);
+}
+.codeblock pre {
+  margin: 0;
+  padding: 6px 10px 8px;
+  overflow-x: auto;
+  max-height: none;
+}
+.codeblock pre code {
+  background: none;
+  padding: 0;
+  white-space: pre;
+}
+.notice {
+  align-self: center;
+  font-size: 0.9em;
+  opacity: 0.8;
+  text-align: center;
+}
+.notice.error {
+  color: var(--vscode-errorForeground);
+  opacity: 1;
+}
+
+/* --- Accueil --- */
+.welcome {
+  margin: auto;
+  max-width: 28em;
+  width: 100%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s2);
+}
+.welcome h2 {
+  margin: 0;
+  font-weight: 650;
+  color: var(--vscode-foreground);
+}
+.hint {
+  margin: 0;
+  color: var(--jn-muted);
+  font-size: 0.9em;
+}
+.examples {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 6px 0;
+}
+button.example {
+  justify-content: flex-start;
+  text-align: left;
+  background: var(--vscode-editorWidget-background, transparent);
+  color: var(--vscode-foreground);
+  border-color: var(--jn-line);
+  padding: 7px 12px;
+  border-radius: var(--jn-r-md);
+}
+button.example:hover:not(:disabled) {
+  background: var(--vscode-list-hoverBackground);
+  border-color: color-mix(in srgb, var(--jn-accent) 55%, transparent);
+}
+
+/* --- Appels d'outils : une ligne par appel --- */
+.tool-group {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+  overflow: hidden;
+}
+.tool {
+  border-top: 1px solid var(--jn-line);
+}
+.tool:first-child {
+  border-top: 0;
+}
+.tool > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+  padding: 3px var(--jn-s2);
+  cursor: pointer;
+  list-style: none;
+  min-width: 0;
+  transition: background-color var(--jn-d1) var(--jn-ease-io);
+}
+.tool > summary::-webkit-details-marker {
+  display: none;
+}
+.tool > summary:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+.tool .icon {
+  width: 1.2em;
+  text-align: center;
+  flex: none;
+}
+.tool.pending .icon {
+  color: var(--jn-muted);
+}
+.tool.ok .icon {
+  color: var(--vscode-testing-iconPassed);
+}
+.tool.error .icon,
+.tool.denied .icon {
+  color: var(--vscode-errorForeground);
+}
+.tool .icon.settled {
+  animation: jn-settle var(--jn-d2) var(--jn-ease-out) 1;
+}
+.tool-name {
+  font-weight: 600;
+  flex: none;
+}
+.tool-summary {
+  color: var(--jn-muted);
+  font-family: var(--vscode-editor-font-family);
+  font-size: 0.9em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+}
+.tool-body {
+  padding: 2px 10px 8px 30px;
+}
+.label {
+  font-size: 0.8em;
+  color: var(--jn-muted);
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+
+/* --- Thinking (E4) : seul foyer d'animations infinies --- */
+#thinking {
+  display: none;
+  position: relative;
+  overflow: hidden;
+  align-items: center;
+  gap: var(--jn-s2);
+  height: var(--jn-row);
+  padding: 0 var(--jn-s3);
+  margin-bottom: var(--jn-s1);
+  border-radius: var(--jn-r-md);
+  border: 1px solid var(--jn-line);
+  background: var(--vscode-editorWidget-background);
+  color: var(--vscode-foreground);
+  font-family: var(--vscode-editor-font-family);
+  font-size: 0.92em;
+}
+body.running #thinking {
+  display: flex;
+}
+#thinking-label {
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: none;
+}
+.spin {
+  flex: none;
+  width: 1.1em;
+  height: 1lh;
+  overflow: hidden;
+  line-height: 1.2;
+  text-align: center;
+}
+.spin-strip {
+  display: block;
+  will-change: transform;
+}
+.spin-strip > span {
+  display: block;
+}
+.spin-static {
+  display: none;
+}
+#thinking .spin-strip {
+  animation: jn-braille 1s steps(10) infinite;
+}
+#thinking .cursor {
+  animation: jn-blink 1.1s steps(1) infinite;
+}
+#thinking::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 1px;
+  background: var(--jn-line);
+  opacity: 0;
+  pointer-events: none;
+  animation: jn-scan 2.4s linear infinite;
+}
+body.waiting #thinking .spin-strip,
+body.waiting #thinking .cursor,
+body.waiting #thinking::after,
+body.paused #thinking .spin-strip,
+body.paused #thinking .cursor,
+body.paused #thinking::after {
+  animation-play-state: paused;
+}
+body.waiting #thinking {
+  color: var(--vscode-editorWarning-foreground, var(--jn-accent-2));
+  border-color: color-mix(in srgb, var(--jn-accent-2) 40%, transparent);
+  background: color-mix(in srgb, var(--jn-accent-2) 8%, transparent);
+}
+
+@keyframes jn-braille {
+  to {
+    transform: translateY(-100%);
+  }
+}
+@keyframes jn-blink {
+  50% {
+    opacity: 0;
+  }
+}
+@keyframes jn-scan {
+  0% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+  12%,
+  88% {
+    opacity: 0.25;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(26px);
+  }
+}
+@keyframes jn-settle {
+  from {
+    opacity: 0.4;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes jn-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* --- Cartes d'approbation (E5) --- */
+.card {
+  --jn-card-accent: var(
+    --vscode-editorWarning-foreground,
+    var(--vscode-inputValidation-warningBorder, var(--jn-accent-2))
+  );
+  border: 1px solid color-mix(in srgb, var(--jn-card-accent) 30%, transparent);
+  border-left: 3px solid var(--jn-card-accent);
+  border-radius: var(--jn-r-md);
+  padding: 10px 12px;
+  margin-block: 6px;
+  background: var(--vscode-editorWidget-background, transparent);
+  min-width: 0;
+}
+.card.enter {
+  animation: jn-card-in var(--jn-d2) var(--jn-ease-out) 1;
+}
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.card-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--jn-r-pill);
+  background: color-mix(in srgb, var(--jn-card-accent) 18%, transparent);
+  color: var(--jn-card-accent);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+.card-title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.card-grid {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 10px;
+  margin-top: 8px;
+  font-size: 0.9em;
+}
+.card-key {
+  color: var(--jn-muted);
+  white-space: nowrap;
+}
+.card-val {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.card-summary {
+  display: block;
+  max-height: 8em;
+  overflow: auto;
+  padding: 4px 6px;
+  border-radius: var(--jn-r-sm);
+  background: color-mix(
+    in srgb,
+    var(--jn-card-accent) 10%,
+    var(--vscode-textCodeBlock-background, transparent)
+  );
+  font-family: var(--vscode-editor-font-family, monospace);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.card-reason {
+  color: var(--jn-muted);
+  margin-top: 0;
+}
+.card-details {
+  margin-top: 4px;
+  font-size: 0.9em;
+}
+.card-details summary {
+  cursor: pointer;
+  color: var(--jn-muted);
+}
+.card-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--jn-s2);
+}
+
+/* --- Boutons : primary, secondary (défaut), ghost, danger --- */
+button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 28px;
+  white-space: nowrap;
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  border: 1px solid var(--vscode-contrastBorder, transparent);
+  border-radius: var(--jn-r-sm);
+  padding: 0 12px;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    color var(--jn-d1) var(--jn-ease-io),
+    background-color var(--jn-d1) var(--jn-ease-io),
+    border-color var(--jn-d1) var(--jn-ease-io),
+    opacity var(--jn-d1) var(--jn-ease-io),
+    transform var(--jn-d1) var(--jn-ease-io);
+}
+button:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+button:active:not(:disabled):not([aria-disabled="true"]) {
+  opacity: 0.86;
+}
+button:focus-visible,
+textarea:focus-visible,
+input:focus-visible {
+  outline: 1px solid var(--jn-accent);
+  outline-offset: 1px;
+}
+button.primary {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+button.primary:hover:not(:disabled) {
+  background: var(--vscode-button-hoverBackground);
+}
+button.ghost,
+button.copy,
+button.link {
+  background: transparent;
+  color: var(--vscode-foreground);
+  padding: 0 var(--jn-s2);
+}
+button.link,
+button.copy {
+  color: var(--vscode-textLink-foreground);
+  min-height: 22px;
+}
+button.ghost:hover:not(:disabled),
+button.copy:hover:not(:disabled),
+button.link:hover:not(:disabled) {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+button.danger {
+  background: color-mix(
+    in srgb,
+    var(--vscode-inputValidation-errorBorder, #be1100) 18%,
+    transparent
+  );
+  color: var(--vscode-errorForeground);
+  border-color: var(--vscode-inputValidation-errorBorder, transparent);
+}
+button.danger:hover:not(:disabled) {
+  background: color-mix(
+    in srgb,
+    var(--vscode-inputValidation-errorBorder, #be1100) 34%,
+    transparent
+  );
+}
+button:disabled,
+button[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: default;
+}
+button:disabled:active {
+  transform: none;
+}
+
+/* --- Composer (E1, E2) --- */
+#form {
+  padding: var(--jn-s1) 0 var(--jn-s3);
+}
+#composer {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--vscode-input-border, var(--jn-line));
+  border-radius: var(--jn-r-lg);
+  background: var(--vscode-input-background);
+  padding: var(--jn-s2) var(--jn-s2) var(--jn-s1);
+}
+#composer:focus-within {
+  border-color: var(--jn-accent);
+}
+.sweep {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.sweep::after {
+  content: none;
+}
+@keyframes jn-sweep-a {
+  0% {
+    opacity: 1;
+    transform: translateX(-100%);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(260%);
+  }
+}
+@keyframes jn-sweep-b {
+  0% {
+    opacity: 1;
+    transform: translateX(-100%);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(260%);
+  }
+}
+textarea {
+  width: 100%;
+  resize: none;
+  max-height: 12em;
+  overflow-y: auto;
+  padding: 4px 4px 6px;
+  background: transparent;
+  color: var(--vscode-input-foreground);
+  border: 0;
+  border-radius: var(--jn-r-sm);
+  font-family: inherit;
+  font-size: inherit;
+}
+textarea:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+#toolbar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 4px;
+  min-width: 0;
+}
+#ctl-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+.spacer {
+  flex: 1 1 0;
+  min-width: 0;
+}
+body:not(.running) #stop {
+  display: none;
+}
+
+/* Pastilles (modèle, Configurer) et pop de changement de modèle (E3) */
+.chip {
+  border-radius: var(--jn-r-pill);
+  background: color-mix(in srgb, var(--jn-accent) 10%, transparent);
+  color: var(--vscode-foreground);
+  border-color: color-mix(in srgb, var(--jn-accent) 38%, transparent);
+  padding: 0 10px;
+  min-width: 0;
+}
+.chip:hover:not([aria-disabled="true"]) {
+  background: color-mix(in srgb, var(--jn-accent) 20%, transparent);
+  border-color: color-mix(in srgb, var(--jn-accent) 65%, transparent);
+}
+.chip[aria-expanded="true"] {
+  border-color: var(--jn-accent);
+}
+.chip .ico,
+.chip .caret {
+  color: var(--vscode-foreground);
+}
+.chip-label,
+.cfg-text,
+.cfg-level {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cfg-level {
+  color: var(--jn-muted);
+  font-size: 0.9em;
+}
+.chip.pop-a,
+.chip.pop-b,
+.chip.pop-a::before,
+.chip.pop-b::before {
+  animation: none;
+}
+@keyframes jn-pop-a {
+  from {
+    transform: scale(0.96);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+@keyframes jn-pop-b {
+  from {
+    transform: scale(0.96);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+@keyframes jn-halo-a {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  35% {
+    opacity: 1;
+  }
+}
+@keyframes jn-halo-b {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  35% {
+    opacity: 1;
+  }
+}
+
+/* --- Popovers (modèle, Configurer) : placement calculé en JS --- */
+.pop {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  left: var(--jn-x, 8px);
+  top: var(--jn-y, 8px);
+  max-height: var(--jn-maxh, 70vh);
+  width: min(360px, calc(100vw - 16px));
+  overflow: auto;
+  padding: var(--jn-s2);
+  color: var(--vscode-foreground);
+  background: var(--vscode-editorWidget-background, var(--vscode-input-background));
+  border: 1px solid color-mix(in srgb, var(--jn-accent) 45%, var(--jn-line));
+  border-radius: var(--jn-r-lg);
+  box-shadow: var(--jn-shadow-pop);
+}
+.pop:not(.placed) {
+  visibility: hidden;
+}
+/* Configurer et menu « / » : 232 px, une colonne à toutes les largeurs, police compacte. */
+#cfg-pop,
+#slash-pop {
+  width: min(232px, calc(100vw - 16px));
+  font-size: 12px;
+}
+#cfg-pop {
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s2);
+}
+.tool-btn {
+  min-width: 24px;
+  padding: 0 4px;
+  font-weight: 600;
+}
+.cmd-opt {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  min-height: 28px;
+  padding: 4px 8px;
+  background: transparent;
+  color: var(--vscode-foreground);
+}
+.cmd {
+  font-family: var(--vscode-editor-font-family);
+}
+.cmd-desc {
+  font-size: 0.9em;
+  color: var(--jn-muted);
+  white-space: normal;
+  text-align: left;
+}
+#model-filter,
+#model-input {
+  width: 100%;
+  min-height: 28px;
+  padding: 0 var(--jn-s2);
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, var(--jn-line));
+  border-radius: var(--jn-r-sm);
+  font: inherit;
+}
+#model-list {
+  margin-top: var(--jn-s2);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.grp {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.grp-head {
+  padding: 6px 10px 2px;
+  font-size: 0.78em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--jn-muted);
+}
+.opt {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: var(--jn-s2);
+  padding: 6px 10px;
+  border-left: 2px solid transparent;
+  border-radius: var(--jn-r-sm);
+  cursor: pointer;
+  transition:
+    background-color var(--jn-d1) var(--jn-ease-io),
+    color var(--jn-d1) var(--jn-ease-io);
+}
+.opt:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+.opt.active {
+  background: var(--vscode-list-activeSelectionBackground, var(--vscode-list-hoverBackground));
+  color: var(--vscode-list-activeSelectionForeground, inherit);
+}
+.opt[aria-selected="true"] {
+  border-left-color: var(--jn-accent);
+}
+.opt[aria-selected="true"] .opt-label {
+  font-weight: 700;
+}
+.opt[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: default;
+}
+.opt-label,
+.opt-desc {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.opt-desc {
+  grid-column: 1 / -1;
+  font-size: 0.85em;
+  color: var(--jn-muted);
+}
+.opt.active .opt-desc {
+  color: inherit;
+  opacity: 0.8;
+}
+.empty {
+  padding: 8px 10px;
+  color: var(--jn-muted);
+  font-style: italic;
+}
+.pop-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--jn-s2);
+  padding-top: var(--jn-s2);
+  border-top: 1px solid var(--jn-line);
+}
+
+/* Configurer : une seule colonne, groupes séparés par un filet ; « bientôt » en bas. */
+.cfg-col {
+  min-width: 0;
+}
+.cfg-col + .cfg-col {
+  border-top: 1px solid var(--jn-line);
+  padding-top: var(--jn-s2);
+}
+.cfg-col h3 {
+  margin: 0 0 var(--jn-s1);
+  font-size: 0.9em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--jn-muted);
+}
+.cfg-off {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--jn-s2);
+  width: 100%;
+  min-height: 24px;
+  padding: 0 var(--jn-s2);
+  background: transparent;
+  color: var(--vscode-foreground);
+}
+.cfg-off em {
+  font-size: 0.9em;
+  font-style: normal;
+  color: var(--jn-muted);
+}
+.tip {
+  margin: var(--jn-s1) 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--jn-muted);
+}
+.effort-row {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+}
+#effort {
+  flex: 1;
+  min-width: 0;
+  height: 22px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  --jn-pct: 0%;
+}
+#effort::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: var(--jn-r-pill);
+  background: color-mix(in srgb, var(--vscode-foreground) 22%, transparent);
+}
+#effort:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+#effort:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 2px var(--jn-accent);
+}
+#effort::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -5px;
+  border-radius: 50%;
+  border: 2px solid var(--jn-accent);
+  background: var(--vscode-editorWidget-background, var(--vscode-input-background));
+  box-shadow: none;
+}
+#effort.auto::-webkit-slider-thumb {
+  border-style: dashed;
+  border-color: var(--jn-muted);
+  box-shadow: none;
+}
+#effort:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+#effort-ticks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: var(--jn-s2);
+}
+#effort-ticks > span {
+  padding: 1px 8px;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-pill);
+  font-size: 0.82em;
+  cursor: pointer;
+  transition:
+    color var(--jn-d1) var(--jn-ease-io),
+    background-color var(--jn-d1) var(--jn-ease-io),
+    border-color var(--jn-d1) var(--jn-ease-io);
+}
+#effort-ticks > span:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+#effort-ticks > span.on {
+  color: var(--vscode-foreground);
+  border-color: var(--jn-accent);
+  background: color-mix(in srgb, var(--jn-accent) 20%, transparent);
+  font-weight: 600;
+}
+#effort-ticks > span.off {
+  opacity: 0.4;
+  text-decoration: line-through;
+  cursor: default;
+}
+.effort-now {
+  margin-top: var(--jn-s2);
+  font-weight: 700;
+}
+.provider {
+  margin: 0 0 var(--jn-s2);
+  padding: 0;
+  border: 0;
+}
+.provider legend {
+  padding: 0;
+  margin-bottom: 4px;
+  color: var(--jn-muted);
+  font-size: 0.85em;
+}
+.radio {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+.radio.off {
+  opacity: 0.5;
+}
+.radio em {
+  font-size: 0.8em;
+  color: var(--jn-muted);
+}
+.radio input {
+  accent-color: var(--jn-accent);
+  margin: 0;
+}
+.facts {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.facts > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--jn-s2);
+  min-width: 0;
+}
+.facts dt {
+  color: var(--jn-muted);
+  flex: none;
+}
+.facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+
+/* --- Historique et lecture seule --- */
+#history {
+  padding: 6px 10px;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+  margin-top: 6px;
+  max-height: 40%;
+  overflow: auto;
+}
+.hist-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+#history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.hist {
+  padding: 4px 6px;
+  border-radius: var(--jn-r-sm);
+  border: 1px solid transparent;
+}
+.hist.current {
+  border-color: var(--jn-accent);
+}
+.hist-open {
+  all: unset;
+  cursor: pointer;
+  font-weight: 600;
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hist-open:hover,
+.hist-open:focus-visible {
+  text-decoration: underline;
+}
+.hist-meta {
+  font-size: 0.85em;
+  color: var(--jn-muted);
+  overflow-wrap: anywhere;
+}
+.hist-actions {
+  display: flex;
+  gap: 10px;
+}
+.hist-rename {
+  width: 100%;
+}
+.hist-empty {
+  color: var(--jn-muted);
+  font-style: italic;
+}
+#readonly {
+  display: flex;
+  gap: var(--jn-s2);
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 6px 10px;
+  border-radius: var(--jn-r-md);
+  background: var(
+    --vscode-editorInfo-background,
+    color-mix(in srgb, var(--jn-accent) 14%, transparent)
+  );
+}
+#readonly-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* --- Responsive : container queries sur body (compact < 360, standard 360-599, large >= 600) --- */
+@container app (max-width: 359px) {
+  :where(.btn-text, .cfg-text) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  button {
+    min-height: 24px;
+    min-width: 24px;
+    padding: 0 6px;
+  }
+  #bar button {
+    min-height: 28px;
+    min-width: 28px;
+  }
+  .msg {
+    max-width: 100%;
+  }
+  .cfg-level,
+  #cfg-btn .caret {
+    display: none;
+  }
+  #cfg-btn {
+    padding: 0 6px;
+  }
+  .chip-label {
+    max-width: 100%;
+  }
+  #model-chip {
+    flex: 0 1 auto;
+    min-width: 0;
+    padding: 0 6px;
+  }
+  #toolbar {
+    gap: 4px;
+  }
+  #model-chip .caret {
+    display: none;
+  }
+}
+/* Envoyer / Stop : icône seule sous 600 px (la place va aux pastilles) ; en-tête : texte court dès 360 px. */
+@container app (max-width: 599px) {
+  #toolbar :where(.btn-text) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  #toolbar #send,
+  #toolbar #stop {
+    min-width: 32px;
+    padding: 0 8px;
+  }
+}
+.btn-more {
+  display: none;
+}
+@container app (min-width: 600px) {
+  .btn-more {
+    display: inline;
+  }
+  #log,
+  #approvals,
+  #thinking,
+  #form,
+  #history,
+  #readonly {
+    width: min(820px, calc(100% - 2 * var(--jn-gutter)));
+    margin-inline: auto;
+  }
+  .msg {
+    max-width: 85%;
+  }
+}
+@container app (max-width: 599px) {
+  #model-chip {
+    max-width: 55%;
+  }
+  #cfg-btn {
+    flex: none;
+  }
+}
+@container app (max-width: 479px) {
+  .cfg-level {
+    display: none;
+  }
+}
+
+/* --- Interrupteur global des effets : mouvement réduit, contraste élevé, couleurs forcées --- */
+@media (prefers-reduced-motion: reduce) {
+  body *,
+  body ::before,
+  body ::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .spin {
+    display: none;
+  }
+  .spin-static {
+    display: inline;
+  }
+}
+@media (forced-colors: active) {
+  body *,
+  body ::before,
+  body ::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .spin {
+    display: none;
+  }
+  .spin-static {
+    display: inline;
+  }
+  button,
+  .chip,
+  #composer,
+  .pop,
+  .card,
+  #thinking {
+    border: 1px solid CanvasText;
+  }
+  #bar::after,
+  #composer::before,
+  .chip::before,
+  .sweep {
+    display: none;
+  }
+  #title,
+  .welcome h2 {
+    color: CanvasText;
+    background: none;
+  }
+  :focus-visible {
+    outline: 2px solid Highlight;
+    box-shadow: none;
+  }
+}
+body.vscode-high-contrast *,
+body.vscode-high-contrast ::before,
+body.vscode-high-contrast ::after,
+body.vscode-high-contrast-light *,
+body.vscode-high-contrast-light ::before,
+body.vscode-high-contrast-light ::after,
+body.reduce-motion *,
+body.reduce-motion ::before,
+body.reduce-motion ::after {
+  animation: none !important;
+  transition: none !important;
+}
+body.vscode-high-contrast .spin,
+body.vscode-high-contrast-light .spin,
+body.reduce-motion .spin {
+  display: none;
+}
+body.vscode-high-contrast .spin-static,
+body.vscode-high-contrast-light .spin-static,
+body.reduce-motion .spin-static {
+  display: inline;
+}
+body.vscode-high-contrast #bar::after,
+body.vscode-high-contrast-light #bar::after,
+body.vscode-high-contrast .sweep,
+body.vscode-high-contrast-light .sweep {
+  display: none;
+}
+body.vscode-high-contrast #title,
+body.vscode-high-contrast-light #title,
+body.vscode-high-contrast .welcome h2,
+body.vscode-high-contrast-light .welcome h2 {
+  background: none;
+  color: var(--vscode-foreground);
+}
+body.vscode-high-contrast :focus-visible,
+body.vscode-high-contrast-light :focus-visible {
+  outline: 2px solid var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+  box-shadow: none;
+}
+body.vscode-high-contrast .chip,
+body.vscode-high-contrast-light .chip,
+body.vscode-high-contrast .pop,
+body.vscode-high-contrast-light .pop,
+body.vscode-high-contrast #composer,
+body.vscode-high-contrast-light #composer {
+  border-color: var(--vscode-contrastBorder, currentColor);
+}
+
+/* Approbation en attente (classe posée par chat.js selon #approvals) : bordure du composer en orange. */
+body.awaiting #composer {
+  border-color: var(
+    --vscode-editorWarning-foreground,
+    var(--vscode-inputValidation-warningBorder, currentColor)
+  );
+}
+
+/* --- Cockpit (body.cockpit) --- */
+body.cockpit #bar #refresh {
+  margin-left: auto;
+}
+body.cockpit #main {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--jn-s2) 0 var(--jn-s4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s3);
+}
+body.cockpit .cockpit-status,
+body.cockpit .cockpit-linked,
+body.cockpit .cockpit-list {
+  background: var(--vscode-editor-background);
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+  padding: var(--jn-s3);
+}
+body.cockpit .cockpit-dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--jn-s2) var(--jn-s4);
+  margin: 0;
+}
+body.cockpit .cockpit-dl dt {
+  color: var(--jn-muted);
+  margin: 0;
+}
+body.cockpit .cockpit-dl dd {
+  margin: 0;
+  font-weight: 600;
+}
+body.cockpit .cockpit-muted {
+  color: var(--jn-muted);
+  margin: 0;
+}
+body.cockpit .cockpit-notice,
+body.cockpit .cockpit-error {
+  margin: 0;
+  padding: var(--jn-s2) var(--jn-s3);
+  border-radius: var(--jn-r-sm);
+  background: color-mix(in srgb, var(--vscode-editor-background) 88%, transparent);
+  border: 1px solid var(--jn-line);
+}
+body.cockpit .cockpit-error {
+  color: var(--vscode-errorForeground);
+  border-color: var(--vscode-inputValidation-errorBorder, var(--jn-line));
+}
+body.cockpit .cockpit-linked-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--jn-s2);
+  margin-bottom: var(--jn-s2);
+}
+body.cockpit .cockpit-linked-meta {
+  flex: 1 1 100%;
+  color: var(--jn-muted);
+  font-size: 0.92em;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25em;
+  min-width: 0;
+}
+body.cockpit .cockpit-badge {
+  font-size: 0.85em;
+  padding: 2px 8px;
+  border-radius: var(--jn-r-pill);
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+}
+body.cockpit .cockpit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--jn-s2);
+}
+body.cockpit .cockpit-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+body.cockpit .cockpit-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s2);
+}
+body.cockpit .cockpit-row {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+  min-height: var(--jn-row);
+  padding: var(--jn-s2);
+  border-radius: var(--jn-r-sm);
+  border: 1px solid var(--jn-line);
+  background: color-mix(in srgb, var(--vscode-editor-background) 92%, transparent);
+}
+body.cockpit .cockpit-row-main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
+  gap: var(--jn-s2);
+  align-items: center;
+}
+body.cockpit .cockpit-row-state {
+  font-weight: 600;
+  white-space: nowrap;
+}
+body.cockpit .cockpit-row-ws {
+  grid-column: 1 / -1;
+  font-size: 0.9em;
+}
+body.cockpit .cockpit-row-act {
+  flex: none;
+}
+body.cockpit .cockpit-linked-tag {
+  color: var(--jn-muted);
+  font-size: 0.9em;
+  padding: 0 var(--jn-s2);
+}
+@container app (max-width: 359px) {
+  body.cockpit .cockpit-row-main {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  body.cockpit .cockpit-row-image {
+    display: none;
+  }
+}
+
+/* --- Réglages (body.studio) : navigation en deux groupes, cartes restylées (lot P5) --- */
+body.studio {
+  height: 100vh;
+}
+.studio-shell {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+#studio-nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s3);
+  min-width: 0;
+  padding: var(--jn-s3) var(--jn-s2);
+  border-right: 1px solid var(--jn-line);
+  background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+  overflow: auto;
+}
+.studio-nav-title {
+  font-size: 0.78em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--jn-muted);
+  padding: var(--jn-s2);
+}
+.studio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.studio-group-title {
+  margin: 0;
+  padding: var(--jn-s1) var(--jn-s2);
+  font-size: 0.85em;
+  font-variant: small-caps;
+  letter-spacing: 0.08em;
+  color: var(--jn-muted);
+}
+.studio-nav-btn {
+  justify-content: flex-start;
+  width: 100%;
+  gap: var(--jn-s2);
+  min-height: 30px;
+  white-space: normal;
+  text-align: left;
+  border-left: 2px solid transparent;
+  border-radius: var(--jn-r-sm);
+}
+.studio-nav-btn.is-current {
+  background: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+  border-left-color: var(--vscode-focusBorder);
+}
+.studio-ico {
+  flex: none;
+  width: 1.2em;
+  text-align: center;
+  color: var(--jn-muted);
+}
+.studio-count {
+  margin-left: auto;
+  flex: none;
+  min-width: 1.6em;
+  padding: 0 6px;
+  border-radius: var(--jn-r-pill);
+  font-size: 0.8em;
+  line-height: 1.6;
+  text-align: center;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+}
+#studio-main {
+  min-width: 0;
+  overflow: auto;
+  padding: var(--jn-s4);
+}
+.studio-card {
+  max-width: 720px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s3);
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+  padding: var(--jn-s4);
+  background: var(--vscode-editor-background);
+  overflow-wrap: anywhere;
+}
+body.studio .studio-card h2 {
+  margin: 0;
+  font-size: 1.05em;
+  font-weight: 650;
+}
+.studio-help {
+  margin: 0;
+  color: var(--jn-muted);
+}
+.studio-kicker {
+  margin: 0;
+  font-size: 0.75em;
+  letter-spacing: 0.08em;
+  color: var(--jn-muted);
+}
+.studio-name {
+  margin: 0;
+  font-size: 1.15em;
+  font-weight: 650;
+}
+.studio-dl {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--jn-s2) var(--jn-s4);
+  margin: 0;
+}
+body.studio .studio-dl dt {
+  color: var(--jn-muted);
+  margin: 0;
+}
+body.studio .studio-dl dd {
+  margin: 0;
+  font-weight: 600;
+}
+.studio-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.studio-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--jn-s3);
+  padding: var(--jn-s2) 0;
+  border-top: 1px solid var(--jn-line);
+}
+.studio-ellipsis {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.studio-canvas {
+  height: 220px;
+  border: 1px dashed var(--jn-line);
+  border-radius: var(--jn-r-md);
+  background: var(--vscode-editor-background);
+}
+.studio-board {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--jn-s2);
+  min-height: 120px;
+}
+.studio-node {
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-pill);
+  padding: 4px 10px;
+  font-size: 0.9em;
+  overflow-wrap: anywhere;
+}
+.studio-node.is-confirmed {
+  border-color: var(--vscode-testing-iconPassed, var(--jn-accent));
+}
+.studio-node.is-hypothesis {
+  border-style: dashed;
+}
+.studio-node.is-failed {
+  color: var(--vscode-errorForeground);
+  border-color: var(--vscode-inputValidation-errorBorder, var(--jn-line));
+}
+/* Sous 640 px : la navigation passe en rangée au-dessus du contenu (groupes en ligne, sans débordement). */
+@media (max-width: 640px) {
+  .studio-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  #studio-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    border-right: 0;
+    border-bottom: 1px solid var(--jn-line);
+  }
+  .studio-nav-title,
+  .studio-group-title {
+    flex-basis: 100%;
+  }
+  .studio-group {
+    flex: 1 1 auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .studio-nav-btn {
+    width: auto;
+    border-left: 0;
+    border-bottom: 2px solid transparent;
+  }
+  .studio-nav-btn.is-current {
+    border-left-color: transparent;
+    border-bottom-color: var(--vscode-focusBorder);
+  }
+}
+
+/* --- Surfaces (lot P4) : conversation ouverte ailleurs (away), Monitor (lecture seule), Chat plein éditeur --- */
+#away,
+#monitor {
+  display: none;
+}
+body.mode-away #away {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--jn-s2);
+  padding: var(--jn-s3) 0;
+}
+#away-text {
+  margin: 0;
+  color: var(--jn-muted);
+}
+body.mode-away #log,
+body.mode-away #approvals,
+body.mode-away #thinking,
+body.mode-away #form,
+body.mode-away #readonly,
+body.mode-monitor #log,
+body.mode-monitor #approvals,
+body.mode-monitor #thinking,
+body.mode-monitor #form,
+body.mode-monitor #readonly {
+  display: none;
+}
+body.mode-away #history-btn {
+  display: none;
+}
+body.mode-away #history {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  margin-top: 0;
+}
+body.mode-monitor #monitor {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  gap: var(--jn-s2);
+  padding: var(--jn-s3) 0;
+}
+body.layout-chat #bar,
+body.layout-chat #away,
+body.layout-chat #log,
+body.layout-chat #approvals,
+body.layout-chat #thinking,
+body.layout-chat #form,
+body.layout-chat #history,
+body.layout-chat #readonly,
+body.layout-monitor #bar,
+body.layout-monitor #monitor {
+  width: min(820px, calc(100% - 2 * var(--jn-gutter)));
+  margin-inline: auto;
+}
+
+/* Sessions : une ligne par conversation, la courante et l'état « en cours » marqués. */
+.hist-line {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+  min-width: 0;
+}
+.hist-line .hist-open {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.hist-line .badge {
+  flex: none;
+}
+
+/* Monitor : une ligne par appel Exegol, sans bouton de décision. */
+.mon-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--jn-s2);
+}
+.mon-head .hint {
+  margin: 0;
+}
+#monitor-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s2);
+}
+.mon-row {
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+}
+.mon-row.tone-err {
+  border-color: var(--vscode-inputValidation-errorBorder, var(--jn-line));
+}
+.mon-cmd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 0.92em;
+}
+.mon-text {
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.mon-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--jn-s2);
+  margin-top: 4px;
+  font-size: 0.85em;
+}
+.mon-row.tone-err .mon-meta .badge {
+  color: var(--vscode-errorForeground, currentColor);
+}
+.mon-row.tone-ok .mon-meta .badge {
+  color: var(--vscode-testing-iconPassed, currentColor);
+}
+.mon-row.tone-wait .mon-meta .badge {
+  color: var(--vscode-editorWarning-foreground, currentColor);
+}
+.mon-out {
+  margin: 6px 0 0;
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 0.9em;
+}
+
+/* Configurer : sélecteur Layout à trois choix (radio). */
+.seg {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  min-width: 0;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-pill);
+}
+.seg-opt {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 3px 6px;
+  border: 0;
+  border-radius: var(--jn-r-pill);
+  background: transparent;
+  color: var(--vscode-foreground);
+  font: inherit;
+  font-size: 0.9em;
+  white-space: nowrap;
+}
+.seg-opt[aria-checked="true"] {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}

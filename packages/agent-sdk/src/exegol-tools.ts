@@ -1,0 +1,39 @@
+import {
+  createDockerClient,
+  EXEGOL_SERVER_INSTRUCTIONS,
+  EXEGOL_SERVER_NAME,
+  EXEGOL_TOOL_PREFIX,
+  type ExegolTargets,
+  exegolToolSpecs,
+} from "@john-studio/core";
+import { createSpecTools, type ResolveParent } from "./docker-tools.js";
+import type { Toolset } from "./toolset.js";
+
+export interface ExegolToolsetOptions {
+  targets: ExegolTargets;
+  binary?: string;
+  argsPrefix?: readonly string[];
+}
+
+/** Toolset Exegol : un `exec` borné à la cible du message (`targets`). */
+export function exegolToolset(options: ExegolToolsetOptions): Toolset {
+  return {
+    name: EXEGOL_SERVER_NAME,
+    instructions: EXEGOL_SERVER_INSTRUCTIONS,
+    create: ({ recorder, resolveCall }) => {
+      const resolveParent: ResolveParent = (name, args, extra) =>
+        resolveCall(`${EXEGOL_TOOL_PREFIX}${name}`, args, extra);
+      return createSpecTools(
+        exegolToolSpecs(
+          createDockerClient({
+            recorder,
+            ...(options.binary && { binary: options.binary }),
+            ...(options.argsPrefix && { argsPrefix: options.argsPrefix }),
+          }),
+          options.targets,
+        ),
+        resolveParent,
+      );
+    },
+  };
+}

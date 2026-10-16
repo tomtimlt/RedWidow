@@ -1,0 +1,72 @@
+{
+  "name": "john-studio",
+  "displayName": "John",
+  "description": "Chat d'agent avec approbation des outils (john-studio).",
+  "version": "0.2.0",
+  "publisher": "john-studio",
+  "license": "UNLICENSED",
+  "engines": { "vscode": "^1.90.0" },
+  "main": "./extension.cjs",
+  "extensionKind": ["workspace"],
+  "activationEvents": [],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "John exécute un agent qui lit et modifie les fichiers de l'espace de travail : il est désactivé tant que le dossier n'est pas approuvé."
+    },
+    "virtualWorkspaces": false
+  },
+  "contributes": {
+    "commands": [
+      { "command": "john.openChat", "title": "John : ouvrir le chat" },
+      { "command": "john.openCockpit", "title": "John : ouvrir le cockpit" },
+      { "command": "john.openStudio", "title": "John : ouvrir les réglages" },
+      { "command": "john.openTerminal", "title": "Exegol Studio : ouvrir le terminal" },
+      { "command": "john.cycleLayout", "title": "Exegol Studio : changer de disposition" },
+      { "command": "john.setToken", "title": "John : définir le jeton" },
+      { "command": "john.clearToken", "title": "John : effacer le jeton" },
+      { "command": "john.diagnostic", "title": "John : diagnostic" }
+    ],
+    "viewsContainers": {
+      "activitybar": [{ "id": "john", "title": "John", "icon": "media/icon.svg" }]
+    },
+    "views": {
+      "john": [
+        { "type": "webview", "id": "john.chat", "name": "Chat" },
+        { "type": "webview", "id": "john.cockpit", "name": "Cockpit" }
+      ]
+    },
+    "configuration": {
+      "title": "John",
+      "properties": {
+        "john.model": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "markdownDescription": "Modèle à utiliser (texte libre). Vide : défaut du SDK. Ignoré s'il est posé au niveau de l'espace de travail."
+        },
+        "john.maxTurns": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "scope": "machine",
+          "markdownDescription": "Nombre maximal de tours de l'agent par conversation. 0 : pas de plafond."
+        },
+        "john.ultracode.maxTurns": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "scope": "machine",
+          "markdownDescription": "Plafond de tours du préréglage **Ultracode** (effort Max + limites longues). 0 : pas de plafond de tours. Remplace `john.maxTurns` quand Ultracode est choisi."
+        },
+        "john.ultracode.maxBudgetUsd": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "scope": "machine",
+          "markdownDescription": "Plafond de dépense (USD) du préréglage **Ultracode**. 0 : pas de plafond de dépense."
+        }
+      }
+    }
+  }
+}
