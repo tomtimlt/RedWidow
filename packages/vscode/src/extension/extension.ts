@@ -125,6 +125,28 @@ export function activate(context: vscode.ExtensionContext): void {
     term.show();
   };
 
+  /**
+   * Ouvre un shell dans le conteneur lié, s'il tourne (chemin du cockpit, partagé avec le terminal
+   * latéral). Un terminal de même nom est seulement montré.
+   */
+  const openLinkedShell = async () => {
+    const st = await linkedProjectStatus();
+    if (st === null || st.state !== "running") return;
+    const { shellPath, shellArgs } = terminalLaunch(st.container);
+    const title = `John : ${st.container}`;
+    const existing = vscode.window.terminals.find((t) => t.name === title);
+    if (existing) {
+      existing.show();
+      return;
+    }
+    const term = vscode.window.createTerminal({
+      name: title,
+      shellPath,
+      shellArgs: [...shellArgs],
+    });
+    term.show();
+  };
+
   const provider: vscode.WebviewViewProvider = {
     resolveWebviewView(view) {
       const media = vscode.Uri.joinPath(context.extensionUri, "media");
@@ -277,21 +299,7 @@ export function activate(context: vscode.ExtensionContext): void {
               return;
             }
             case "terminal": {
-              const st = await linkedProjectStatus();
-              if (st === null || st.state !== "running") return;
-              const { shellPath, shellArgs } = terminalLaunch(st.container);
-              const title = `John : ${st.container}`;
-              const existing = vscode.window.terminals.find((t) => t.name === title);
-              if (existing) {
-                existing.show();
-                return;
-              }
-              const term = vscode.window.createTerminal({
-                name: title,
-                shellPath,
-                shellArgs: [...shellArgs],
-              });
-              term.show();
+              await openLinkedShell();
               return;
             }
           }
@@ -377,7 +385,7 @@ export function activate(context: vscode.ExtensionContext): void {
   };
 
   // Terminal latéral (panneau éditeur singleton, comme les réglages) : onglet agent = vue du chat ;
-  // onglet shell désactivé, son bouton ouvre le terminal de `/start` pour le conteneur lié.
+  // onglet shell désactivé, son bouton ouvre le shell du conteneur lié (comme le cockpit).
   let terminalPanel: vscode.WebviewPanel | undefined;
   let terminalContainer: string | null = null;
   const pushTerminal = async () => {
@@ -414,10 +422,8 @@ export function activate(context: vscode.ExtensionContext): void {
       const message = parseTerminalMessage(raw);
       if (message === null) return;
       try {
-        // Ouverture du shell : même chemin que `/start`, pour le conteneur lié (cockpit).
-        const st = await linkedProjectStatus();
-        if (st === null) return;
-        startContainerTerminal(st.container);
+        // Ouverture du shell : même chemin que le bouton « Terminal » du cockpit.
+        await openLinkedShell();
       } catch (error) {
         void vscode.window.showErrorMessage(formatError(error));
       }

@@ -11,7 +11,7 @@
 3. Layouts : **Editor** = l'état actuel (chat dans la Side Bar). **Chat** et **Monitor** = un panneau webview éditeur `john.stage` en `ViewColumn.One`. Une seule surface de conversation active à la fois : en layout Chat, la vue `john.chat` de la Side Bar affiche « Conversation ouverte dans l'éditeur » et un bouton de retour, sans cartes d'approbation. Monitor est en lecture seule : les approbations s'y répondent par un renvoi au chat. Layout mémorisé dans `workspaceState` (pas de réglage).
 4. Bypass : **non câblé**. Interrupteur affiché désactivé « bientôt » dans Configure. Aucune classe `bypass` posée sur le corps, aucun état orange lié au Bypass.
 
-5. Décisions de l'utilisateur (2026-10-16) : (a) la bordure orange du composer signifie « approbation en attente » (`body.awaiting`), en attendant le Bypass ; (b) l'onglet « shell » du terminal latéral, désactivé « bientôt », porte un bouton de repli « Ouvrir dans le terminal VS Code » qui réutilise le chemin existant de `/start` (`extension.ts:130-152`), sans nouveau code de processus ; (c) en layout Chat, la Side Bar affiche la liste des Sessions (historique restylé) et un renvoi vers l'éditeur.
+5. Décisions de l'utilisateur (2026-10-16) : (a) la bordure orange du composer signifie « approbation en attente » (`body.awaiting`), en attendant le Bypass ; (b) l'onglet « shell » du terminal latéral, désactivé « bientôt », porte un bouton de repli « Ouvrir dans le terminal VS Code » qui réutilise le chemin existant du bouton « Terminal » du cockpit (`terminalLaunch`, conteneur en marche), sans nouveau code de processus ; (c) en layout Chat, la Side Bar affiche la liste des Sessions (historique restylé) et un renvoi vers l'éditeur.
 
 ## 2. Inventaire de la maquette
 
