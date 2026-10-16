@@ -1,4 +1,4 @@
-import { type EngineEvent, parseJournal, stripControl } from "@john-studio/core";
+import { type EngineEvent, parseJournal, promptForTargets, stripControl } from "@john-studio/core";
 import type { ChatState } from "./chat.js";
 import { type EffortChoice, type Provider, parseEffortChoice } from "./effort.js";
 import { isModelId } from "./models.js";
@@ -169,9 +169,10 @@ export function parseUntrustedJournal(text: string, runId: string): ParsedJourna
 export function replayEvents(state: ChatState, events: readonly EngineEvent[]): void {
   const withUser = new Set(events.filter((e) => e.kind === "user.message").map((e) => e.runId));
   for (const e of events) {
-    if (e.kind === "user.message") state.user(e.text);
+    if (e.kind === "user.message") state.user(promptForTargets(e.text));
     else if (e.kind === "run.started") {
-      if (e.prompt !== "" && !withUser.has(e.runId)) state.user(e.prompt);
+      const shown = promptForTargets(e.prompt);
+      if (shown !== "" && !withUser.has(e.runId)) state.user(shown);
     } else state.event(e);
   }
   state.approvals.clear();

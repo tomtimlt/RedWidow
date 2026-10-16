@@ -592,13 +592,15 @@
     slashPop.hidePopover();
     resetConversation();
   });
-  // Menu « @ » : liste des conteneurs (message `containers` de l'hôte), à la place d'un @ brut.
+  // Menu « @ » (conteneurs) et « # » (terminaux ouverts). Un seul popover, le sigil au curseur décide.
   const mentionPop = $("mention-pop");
   const mentionList = $("mention-list");
   const mentionEmpty = $("mention-empty");
   let containers = [];
+  let terminals = [];
   let mentionActive = 0;
   let mentionShown = [];
+  let mentionSigil = "@";
 
   function mentionOpen() {
     return mentionPop.matches(":popover-open");
@@ -618,19 +620,32 @@
     });
   }
   function renderMentions() {
-    const span = UI.mentionSpan(input.value, input.selectionStart ?? input.value.length);
-    mentionShown = span ? UI.filterContainers(containers, span.query) : [];
+    const cursor = input.selectionStart ?? input.value.length;
+    const hash = UI.hashSpan(input.value, cursor);
+    const at = UI.mentionSpan(input.value, cursor);
+    const span = hash ?? at;
+    mentionSigil = hash ? "#" : "@";
+    mentionShown = !span
+      ? []
+      : hash
+        ? UI.filterTerminals(terminals, span.query).map((item) => ({
+            name: item.token,
+            desc: "sortie",
+          }))
+        : UI.filterContainers(containers, span.query).map((item) => ({
+            name: item.name,
+            desc: item.state === "running" ? "en cours" : "arrêté",
+          }));
     if (mentionActive >= mentionShown.length) mentionActive = 0;
     mentionEmpty.hidden = mentionShown.length > 0;
+    mentionEmpty.textContent = hash ? "Aucun terminal" : "Aucun conteneur";
+    mentionPop.setAttribute("aria-label", hash ? "Terminaux" : "Conteneurs");
     mentionList.replaceChildren(
       ...mentionShown.map((item, i) => {
         const btn = el("button", "cmd-opt");
         btn.type = "button";
         btn.setAttribute("role", "option");
-        btn.append(
-          el("span", "cmd", item.name),
-          el("span", "cmd-desc", item.state === "running" ? "en cours" : "arrêté"),
-        );
+        btn.append(el("span", "cmd", item.name), el("span", "cmd-desc", item.desc));
         btn.addEventListener("click", () => pickMention(item.name));
         if (i === mentionActive) btn.setAttribute("aria-selected", "true");
         return btn;
@@ -644,9 +659,9 @@
   }
   function pickMention(name) {
     const cursor = input.selectionStart ?? input.value.length;
-    const span = UI.mentionSpan(input.value, cursor);
+    const span = UI.hashSpan(input.value, cursor) ?? UI.mentionSpan(input.value, cursor);
     if (!span) return;
-    const next = `${input.value.slice(0, span.start)}@${name} ${input.value.slice(cursor)}`;
+    const next = `${input.value.slice(0, span.start)}${mentionSigil}${name} ${input.value.slice(cursor)}`;
     input.value = next;
     const pos = span.start + 1 + name.length + 1;
     input.setSelectionRange(pos, pos);
@@ -899,6 +914,9 @@
     } else if (message && message.type === "containers") {
       containers = UI.safeContainers(message.items);
       if (mentionOpen()) renderMentions();
+    } else if (message && message.type === "terminals") {
+      terminals = UI.safeTerminals(message.items);
+      if (mentionOpen()) renderMentions();
     } else if (message && message.type === "bypass") {
       bypassCtx = { push: message, previous: bypassCtx.push, userOff: bypassUserOff };
       bypassUserOff = false;
@@ -929,7 +947,8 @@
   }
   input.addEventListener("input", () => {
     grow();
-    if (UI.mentionSpan(input.value, input.selectionStart ?? input.value.length)) openMention();
+    const cursor = input.selectionStart ?? input.value.length;
+    if (UI.hashSpan(input.value, cursor) || UI.mentionSpan(input.value, cursor)) openMention();
     else closeMention();
   });
   $("form").addEventListener("submit", (e) => {

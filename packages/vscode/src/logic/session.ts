@@ -464,8 +464,9 @@ export function createChatSession(deps: ChatSessionDeps) {
       persist(PREFS_KEY, prefs);
       refresh();
     },
-    async send(text: string): Promise<void> {
+    async send(text: string, prompt = text): Promise<void> {
       // Mode lecture : aucune saisie tant que la conversation n'est pas reprise.
+      // `text` est la bulle. `prompt` peut y joindre la sortie d'un terminal cité.
       if (state.busy || state.readonly || text.trim() === "") return;
       ensureConversation(text);
       state.user(text);
@@ -479,7 +480,7 @@ export function createChatSession(deps: ChatSessionDeps) {
           }
         }
         const ctl = controller ?? (await startEngine());
-        ctl.prompt(text);
+        ctl.prompt(prompt);
       } catch (error) {
         stopEngine(controller);
         controller = null;

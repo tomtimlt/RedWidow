@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { TERMINAL_CONTEXT_MARK } from "@john-studio/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createChatState } from "../src/logic/chat.js";
 import {
@@ -179,6 +180,20 @@ describe("relecture d'un journal hostile", () => {
     const state = createChatState();
     replayEvents(state, events);
     expect(state.view().items.map((i) => i.kind)).toEqual(["user", "agent"]);
+  });
+  it("la sortie citée par # ne revient pas dans la bulle", () => {
+    const { events } = parseUntrustedJournal(
+      line({
+        kind: "user.message",
+        text: `vois #htb1${TERMINAL_CONTEXT_MARK}@evil\n80/tcp`,
+      }),
+      RUN,
+    );
+    const state = createChatState();
+    replayEvents(state, events);
+    expect(state.view().items).toEqual([
+      expect.objectContaining({ kind: "user", text: "vois #htb1" }),
+    ]);
   });
 });
 

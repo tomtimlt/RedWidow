@@ -1,6 +1,16 @@
 import { CodedError } from "../reason.js";
 
 const MENTION = /(?:^|[\s(])@([A-Za-z0-9][A-Za-z0-9_.-]{0,63})/g;
+
+/** Coupe la consigne de la sortie de terminal citée par `#`. Tout ce qui suit est ignoré par la cible. */
+export const TERMINAL_CONTEXT_MARK = "\n\n<<<sortie-terminal>>>\n";
+
+/** Texte qui décide des `@`. La sortie collée après le marqueur n'y entre pas. */
+export function promptForTargets(text: string): string {
+  const at = text.indexOf(TERMINAL_CONTEXT_MARK);
+  return at === -1 ? text : text.slice(0, at);
+}
+
 const SLASH_START = /^\/start\s+([A-Za-z0-9][A-Za-z0-9_.-]{0,63})\s*$/;
 const EXEGOL_PREFIX = "exegol-";
 
@@ -93,7 +103,7 @@ export function createExegolTargets(): ExegolTargets {
   return {
     current: () => target,
     note(text, dedicated) {
-      target = { dedicated, mentions: parseMentions(text) };
+      target = { dedicated, mentions: parseMentions(promptForTargets(text)) };
     },
   };
 }

@@ -9,8 +9,10 @@ import {
   lookupContainer,
   parseMentions,
   parseSlashStart,
+  promptForTargets,
   resolveExegolContainer,
   shortContainerName,
+  TERMINAL_CONTEXT_MARK,
 } from "../src/index.js";
 
 describe("cibles Exegol", () => {
@@ -68,6 +70,15 @@ describe("cibles Exegol", () => {
   it("note la cible du message", () => {
     const targets = createExegolTargets();
     targets.note("nmap @htb1", "lab");
+    expect(targets.current()).toEqual({ dedicated: "lab", mentions: ["htb1"] });
+  });
+
+  it("ignore les @ collés après la sortie d'un terminal", () => {
+    const targets = createExegolTargets();
+    const text = `scan @htb1${TERMINAL_CONTEXT_MARK}nmap @evil`;
+    expect(promptForTargets(text)).toBe("scan @htb1");
+    expect(promptForTargets("sans marqueur @htb1")).toBe("sans marqueur @htb1");
+    targets.note(text, "lab");
     expect(targets.current()).toEqual({ dedicated: "lab", mentions: ["htb1"] });
   });
 });

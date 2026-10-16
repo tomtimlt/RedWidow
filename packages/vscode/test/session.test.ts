@@ -134,6 +134,19 @@ describe("session de chat", () => {
     expect(t.view().busy).toBe(false);
   });
 
+  it("la bulle garde la consigne, le moteur reçoit la sortie citée", async () => {
+    const t = setup();
+    const cited = "vois #htb1\n\n<<<sortie-terminal>>>\n80/tcp";
+    await t.session.send("vois #htb1", cited);
+    expect(t.f.calls).toEqual([["prompt", cited]]);
+    expect(
+      t
+        .view()
+        .items.filter((item) => item.kind === "user")
+        .map((item) => item.text),
+    ).toEqual(["vois #htb1"]);
+  });
+
   it("sandbox.started (journal) : en-tête réseau ; autre valeur : éteint", async () => {
     const t = setup();
     await t.session.send("go");

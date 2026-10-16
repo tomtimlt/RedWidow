@@ -34,6 +34,9 @@ interface UiApi {
   ): { index: number; draft: string; value: string } | null;
   syncRecallEntries(local: string[], viewUsers: string[]): string[];
   mentionSpan(value: string, cursor: number): { query: string; start: number } | null;
+  hashSpan(value: string, cursor: number): { query: string; start: number } | null;
+  filterTerminals(items: { token: string }[], query: string): { token: string }[];
+  safeTerminals(items: unknown): { token: string }[];
   filterContainers(items: { name: string; state?: string }[], query: string): { name: string }[];
   safeContainers(items: unknown): { name: string; state: string }[];
   bypassView(
@@ -481,6 +484,15 @@ describe("bypassView (lot B1, ADR 0006) : cinq états, échec fermé, pas de min
     expect(ui.mentionSpan("nmap @ht", 8)).toEqual({ query: "ht", start: 5 });
     expect(ui.mentionSpan("nmap @htb1 suite", 16)).toBeNull();
     expect(ui.mentionSpan("a @", 3)).toEqual({ query: "", start: 2 });
+    expect(ui.hashSpan("vois #ht", 8)).toEqual({ query: "ht", start: 5 });
+    expect(ui.hashSpan("vois #htb1 suite", 16)).toBeNull();
+    expect(ui.hashSpan("nmap @htb1", 10)).toBeNull();
+    expect(
+      ui.filterTerminals([{ token: "htb1" }, { token: "lab" }], "ht").map((it) => it.token),
+    ).toEqual(["htb1"]);
+    expect(ui.safeTerminals([{ token: "htb1" }, { token: "../x" }, { name: "lab" }])).toEqual([
+      { token: "htb1" },
+    ]);
     const items = [
       { name: "htb1", state: "running" },
       { name: "lab", state: "stopped" },

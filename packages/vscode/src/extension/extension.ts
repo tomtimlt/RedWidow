@@ -1,4 +1,5 @@
 import { fork } from "node:child_process";
+import { open, unlink as unlinkFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   CodedError,
@@ -31,6 +32,14 @@ import { chatHtml, cockpitHtml, makeNonce, studioHtml } from "../logic/html.js";
 import { type ChatSession, createChatSession, type TokenChoice } from "../logic/session.js";
 import { machineValue, resolveSettings } from "../logic/settings.js";
 import { parseStudioMessage, type StudioPage } from "../logic/studio.js";
+import {
+  mentionToken,
+  parseHashes,
+  readableTerminal,
+  scriptArgs,
+  TERMINAL_TAIL_RAW,
+  withTerminalContext,
+} from "../logic/termlog.js";
 import { parseWindows, WINDOW_CAP, type WindowEntry } from "../logic/windows.js";
 
 const TOKEN_KEY = "john.token";
@@ -59,7 +68,13 @@ export function activate(context: vscode.ExtensionContext): void {
   }
   const slots = new Map<string, Slot>();
   /** Terminaux d'éditeur ouverts par cet hôte, par nom Docker réel. */
-  const editorShells = new Map<string, vscode.Terminal[]>();
+  interface TrackedShell {
+    term: vscode.Terminal;
+    token: string | null;
+    logPath: string | null;
+  }
+  const editorShells = new Map<string, TrackedShell[]>();
+  const terminalLogs = vscode.Uri.joinPath(context.globalStorageUri, "terminals");
   let cockpitListOk = false;
   /** Shells mémorisés non encore réconciliés avec une liste cockpit réussie. */
   let pendingTerminalRestore: string[] = [];
@@ -181,25 +196,69 @@ export function activate(context: vscode.ExtensionContext): void {
   };
 
   const openTitlesFor = (container: string): string[] =>
-    (editorShells.get(container) ?? []).map((t) => t.name);
+    (editorShells.get(container) ?? []).map((shell) => shell.term.name);
 
-  const findTrackedShell = (title: string): vscode.Terminal | undefined => {
+  const findTrackedShell = (title: string): TrackedShell | undefined => {
     for (const terms of editorShells.values()) {
-      const found = terms.find((t) => t.name === title);
+      const found = terms.find((shell) => shell.term.name === title);
       if (found) return found;
     }
     return undefined;
   };
 
+  const findShellByToken = (token: string): TrackedShell | undefined => {
+    for (const terms of editorShells.values()) {
+      const found = terms.find((shell) => shell.token === token);
+      if (found) return found;
+    }
+    return undefined;
+  };
+
+  const terminalsMessage = () => ({
+    type: "terminals" as const,
+    items: [...editorShells.values()]
+      .flat()
+      .filter((shell): shell is TrackedShell & { token: string } => shell.token !== null)
+      .map((shell) => ({ token: shell.token })),
+  });
+
+  const broadcastTerminals = () => {
+    const message = terminalsMessage();
+    post(message);
+    for (const [id, slot] of slots) {
+      if (id !== SIDEBAR_CHAT) void slot.panel?.webview.postMessage(message);
+    }
+  };
+
+  /** Fin du journal `script`. `null` : fichier absent ou illisible. */
+  const readLogTail = async (logPath: string): Promise<string | null> => {
+    try {
+      const fh = await open(logPath, "r");
+      try {
+        const stat = await fh.stat();
+        const len = Math.min(stat.size, TERMINAL_TAIL_RAW);
+        const buf = Buffer.alloc(len);
+        await fh.read(buf, 0, len, Math.max(0, stat.size - len));
+        return buf.toString("utf8");
+      } finally {
+        await fh.close();
+      }
+    } catch {
+      return null;
+    }
+  };
+
   const dropTrackedShell = (term: vscode.Terminal) => {
     for (const [name, list] of editorShells) {
-      const next = list.filter((t) => t !== term);
-      if (next.length !== list.length) {
-        if (next.length === 0) editorShells.delete(name);
-        else editorShells.set(name, next);
-        void saveWindows();
-        return;
-      }
+      const gone = list.find((shell) => shell.term === term);
+      if (!gone) continue;
+      const next = list.filter((shell) => shell.term !== term);
+      if (next.length === 0) editorShells.delete(name);
+      else editorShells.set(name, next);
+      if (gone.logPath !== null) void unlinkFile(gone.logPath).catch(() => {});
+      void saveWindows();
+      broadcastTerminals();
+      return;
     }
   };
 
@@ -220,24 +279,37 @@ export function activate(context: vscode.ExtensionContext): void {
     const plan = planEditorShell(token, view.containers, real ? openTitlesFor(real) : []);
     if (plan.action === "skip") return "skip";
     if (plan.action === "reveal") {
-      const term = findTrackedShell(plan.title);
-      if (term) term.show();
+      const shell = findTrackedShell(plan.title);
+      if (shell) shell.term.show();
       return "ok";
     }
     try {
-      const { shellPath, shellArgs } = terminalLaunch(plan.name);
+      const launched = terminalLaunch(plan.name);
+      const token = mentionToken(plan.name, plan.title, shortContainerName(plan.name));
+      // `script` (util-linux) garde un pty et un journal. macOS n'a pas le même `-c`.
+      const scriptBin = process.platform === "linux" ? resolveBinary("script") : null;
+      let shellPath = launched.shellPath;
+      let shellArgs = [...launched.shellArgs];
+      let logPath: string | null = null;
+      if (scriptBin !== null && token !== null) {
+        await vscode.workspace.fs.createDirectory(terminalLogs);
+        logPath = join(terminalLogs.fsPath, `${token}.log`);
+        shellPath = scriptBin;
+        shellArgs = scriptArgs(launched.shellPath, launched.shellArgs, logPath);
+      }
       const term = vscode.window.createTerminal({
         name: plan.title,
         shellPath,
-        shellArgs: [...shellArgs],
+        shellArgs,
         location: vscode.TerminalLocation.Editor,
         isTransient: true,
       });
       const list = editorShells.get(plan.name) ?? [];
-      list.push(term);
+      list.push({ term, token, logPath });
       editorShells.set(plan.name, list);
       term.show();
       void saveWindows();
+      broadcastTerminals();
       return "ok";
     } catch (error) {
       void vscode.window.showErrorMessage(formatError(error));
@@ -291,6 +363,7 @@ export function activate(context: vscode.ExtensionContext): void {
           reply(bypass.snapshot());
           reply({ type: "view", view: s.view() });
           reply(await containersMessage());
+          reply(terminalsMessage());
           return await s.loadModels();
         case "setModel":
           return s.setModel(message.model);
@@ -303,6 +376,16 @@ export function activate(context: vscode.ExtensionContext): void {
           if (slash !== null) {
             // Nom court : `exegol start htb1`, jamais `exegol start exegol-htb1`.
             startContainerTerminal(shortContainerName(slash));
+            return;
+          }
+          const hashes = parseHashes(message.text);
+          const missing = hashes.filter((token) => findShellByToken(token) === undefined);
+          if (missing.length > 0) {
+            void vscode.window.showErrorMessage(
+              missing.length === 1
+                ? `Terminal introuvable : ${missing[0]}.`
+                : `Terminaux introuvables : ${missing.join(", ")}.`,
+            );
             return;
           }
           const mentions = parseMentions(message.text);
@@ -325,7 +408,22 @@ export function activate(context: vscode.ExtensionContext): void {
             : dedicatedName
               ? lookupContainer(dedicatedName, listed.containers)
               : null;
-          await s.send(message.text);
+          const sections = [];
+          for (const token of hashes) {
+            const shell = findShellByToken(token);
+            const raw =
+              shell?.logPath === null || shell === undefined
+                ? null
+                : await readLogTail(shell.logPath);
+            if (raw === null) {
+              void vscode.window.showWarningMessage(`La sortie de ${token} est illisible.`);
+            }
+            sections.push({
+              token,
+              text: raw === null ? "Sortie illisible." : readableTerminal(raw),
+            });
+          }
+          await s.send(message.text, withTerminalContext(message.text, sections));
           if (real) void openEditorShell(real);
           return;
         }

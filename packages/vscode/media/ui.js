@@ -292,12 +292,21 @@
 
   /** Mention en cours de saisie : `@` collé au curseur. `null` sinon. */
   function mentionSpan(value, cursor) {
+    return sigilSpan(value, cursor, "@");
+  }
+
+  /** Citation de terminal en cours de saisie : `#` collé au curseur. `null` sinon. */
+  function hashSpan(value, cursor) {
+    return sigilSpan(value, cursor, "#");
+  }
+
+  function sigilSpan(value, cursor, sigil) {
     const text = String(value ?? "");
     const pos = Math.max(0, Math.min(text.length, Number(cursor) || 0));
     const upto = text.slice(0, pos);
-    const match = /(?:^|[\s(])@([A-Za-z0-9_.-]*)$/.exec(upto);
+    const match = new RegExp(`(?:^|[\\s(])\\${sigil}([A-Za-z0-9_.-]*)$`).exec(upto);
     if (!match) return null;
-    return { query: match[1], start: upto.lastIndexOf("@") };
+    return { query: match[1], start: upto.lastIndexOf(sigil) };
   }
 
   /** Liste hôte → entrées affichables. Nom court seulement, état connu. */
@@ -311,6 +320,27 @@
       out.push({ name: it.name, state: it.state });
     }
     return out;
+  }
+
+  /** Terminaux proposés par l'hôte. Jeton seul, le libellé est le même jeton. */
+  function safeTerminals(items) {
+    if (!Array.isArray(items)) return [];
+    const out = [];
+    for (const it of items) {
+      if (!it || typeof it.token !== "string") continue;
+      if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(it.token)) continue;
+      out.push({ token: it.token });
+    }
+    return out;
+  }
+
+  /** Terminaux dont le jeton contient la saisie, dans l'ordre reçu. */
+  function filterTerminals(items, query) {
+    const q = String(query ?? "").toLowerCase();
+    if (!Array.isArray(items)) return [];
+    return items.filter(
+      (it) => it && typeof it.token === "string" && it.token.toLowerCase().includes(q),
+    );
   }
 
   /** Conteneurs dont le nom court contient la saisie, dans l'ordre reçu. */
@@ -338,8 +368,11 @@
     inputRecall,
     syncRecallEntries,
     mentionSpan,
+    hashSpan,
     filterContainers,
     safeContainers,
+    filterTerminals,
+    safeTerminals,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.JohnUI = api;
