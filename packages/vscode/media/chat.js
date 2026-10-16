@@ -843,6 +843,8 @@
   const monitorRowsEl = $("monitor-rows");
   const monitorEmpty = $("monitor-empty");
 
+  let watchId = "";
+
   function monitorLine(row) {
     const li = el("li", `mon-row tone-${row.tone}`);
     const cmd = el("div", "mon-cmd");
@@ -853,13 +855,30 @@
     li.append(cmd, meta);
     if (row.output !== "") li.append(el("pre", "mon-out", row.output));
     if (row.truncated) li.append(el("p", "note", "sortie tronquée"));
+    if (mode === "monitor" && row.toolUseId) {
+      li.tabIndex = 0;
+      li.setAttribute("role", "button");
+      li.title = "Suivre la sortie";
+      const open = () => vscode.postMessage({ type: "watch", toolUseId: row.toolUseId });
+      li.addEventListener("click", open);
+      li.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        e.preventDefault();
+        open();
+      });
+    }
     return li;
   }
 
   function renderMonitor(view) {
-    const rows = UI.monitorRows(view);
+    let rows = UI.monitorRows(view);
+    if (mode === "watch") rows = rows.filter((row) => row.toolUseId === watchId);
     monitorRowsEl.replaceChildren(...rows.map(monitorLine));
     monitorEmpty.hidden = rows.length > 0;
+    if (mode === "watch") {
+      const box = monitorRowsEl.querySelector(".mon-out");
+      if (box) box.scrollTop = box.scrollHeight;
+    }
   }
 
   // Monitor : panneau éditeur seul. Le chat rend toujours ses propres cartes.
@@ -896,7 +915,7 @@
     historyRunning = view.busy && !view.readonly;
     renderHistory(view.history);
     renderReadonly(view.readonly);
-    if (mode === "monitor") renderMonitor(view);
+    if (mode === "monitor" || mode === "watch") renderMonitor(view);
     const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
     const top = log.scrollTop;
     const nodes = view.items.length === 0 ? [welcome(view.sandbox)] : renderItems(view.items);
@@ -942,6 +961,18 @@
     else if (message && message.type === "role" && message.role === "monitor") {
       mode = "monitor";
       document.body.classList.add("mode-monitor");
+      document.body.classList.remove("mode-watch");
+      if (lastView) render(lastView);
+    } else if (
+      message &&
+      message.type === "role" &&
+      message.role === "watch" &&
+      typeof message.toolUseId === "string"
+    ) {
+      mode = "watch";
+      watchId = message.toolUseId;
+      document.body.classList.add("mode-watch");
+      document.body.classList.remove("mode-monitor");
       if (lastView) render(lastView);
     } else if (message && message.type === "title" && typeof message.text === "string") {
       $("title").textContent = message.text.slice(0, 120);

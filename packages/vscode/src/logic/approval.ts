@@ -78,6 +78,8 @@ export type WebviewMessage =
   | { type: "refreshModels" }
   /** Menu `#` ouvert : l'hôte renvoie la liste des terminaux avec leur dernière commande. */
   | { type: "refreshTerminals" }
+  /** Ouvre la sortie d'un exec en lecture seule. `toolUseId` est celui de la vue, pas une commande. */
+  | { type: "watch"; toolUseId: string }
   | { type: "approve"; toolUseId: string; choice: Choice }
   /** Interrupteur du Bypass (ADR 0006) : seul champ, pas de durée (fixée par l'hôte). */
   | { type: "setBypass"; enabled: boolean };
@@ -129,6 +131,13 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
     case "setBypass":
       return only("type", "enabled") && typeof m.enabled === "boolean"
         ? { type: "setBypass", enabled: m.enabled }
+        : null;
+    case "watch":
+      return only("type", "toolUseId") &&
+        typeof m.toolUseId === "string" &&
+        m.toolUseId.length > 0 &&
+        m.toolUseId.length <= 200
+        ? { type: "watch", toolUseId: m.toolUseId }
         : null;
     case "approve":
       return only("type", "toolUseId", "choice") &&

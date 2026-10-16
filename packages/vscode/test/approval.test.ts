@@ -139,6 +139,12 @@ describe("parseWebviewMessage : setBypass (ADR 0006)", () => {
     expect(parseWebviewMessage({ type: "setLayout", layout: "editor", bypass: true })).toBeNull();
     expect(parseWebviewMessage({ type: "ready", bypass: true })).toBeNull();
     expect(parseWebviewMessage({ type: "refreshTerminals" })).toEqual({ type: "refreshTerminals" });
+    expect(parseWebviewMessage({ type: "watch", toolUseId: "tool-1" })).toEqual({
+      type: "watch",
+      toolUseId: "tool-1",
+    });
+    expect(parseWebviewMessage({ type: "watch" })).toBeNull();
+    expect(parseWebviewMessage({ type: "watch", toolUseId: "t", command: "nmap" })).toBeNull();
     expect(parseWebviewMessage({ type: "refreshTerminals", token: "x" })).toBeNull();
   });
 });

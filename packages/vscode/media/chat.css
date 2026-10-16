@@ -2433,10 +2433,25 @@ body.mode-monitor #form,
 body.mode-monitor #readonly,
 body.mode-monitor #history,
 body.mode-monitor #history-btn,
-body.mode-monitor #reset {
+body.mode-monitor #reset,
+body.mode-watch #log,
+body.mode-watch #approvals,
+body.mode-watch #thinking,
+body.mode-watch #form,
+body.mode-watch #readonly,
+body.mode-watch #history,
+body.mode-watch #history-btn,
+body.mode-watch #reset {
   display: none;
 }
-body.mode-monitor #monitor {
+body.mode-monitor .mon-row[role="button"] {
+  cursor: pointer;
+}
+body.mode-monitor .mon-row[role="button"]:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+body.mode-monitor #monitor,
+body.mode-watch #monitor {
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
@@ -2538,4 +2553,8 @@ body.mode-monitor #monitor {
   overflow-wrap: anywhere;
   font-family: var(--jn-mono);
   font-size: 0.9em;
+}
+body.mode-watch .mon-out {
+  max-height: none;
+  min-height: 50vh;
 }

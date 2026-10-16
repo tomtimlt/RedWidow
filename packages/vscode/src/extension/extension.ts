@@ -91,6 +91,7 @@ export function activate(context: vscode.ExtensionContext): void {
   let post: (message: unknown) => void = () => {};
   let activeId = SIDEBAR_CHAT;
   let monitorPanel: vscode.WebviewPanel | undefined;
+  const watches: { panel: vscode.WebviewPanel; chatId: string; toolUseId: string }[] = [];
   let cockpitPanel: vscode.WebviewPanel | undefined;
   let studioPanel: vscode.WebviewPanel | undefined;
   let seq = 1;
@@ -169,6 +170,9 @@ export function activate(context: vscode.ExtensionContext): void {
         if (id === SIDEBAR_CHAT) post(message);
         else void slot?.panel?.webview.postMessage(message);
         if (id === activeId) pushMonitor(view);
+        for (const watch of watches) {
+          if (watch.chatId === id) void watch.panel.webview.postMessage(message);
+        }
         updateModelStatus();
       },
       onLog: (text) => out.append(text),
@@ -485,6 +489,9 @@ export function activate(context: vscode.ExtensionContext): void {
           return await s.deleteConversation(message.id);
         case "historyClear":
           return await s.clearHistory();
+        case "watch":
+          openWatch(message.toolUseId);
+          return;
       }
     } catch (error) {
       void vscode.window.showErrorMessage(formatError(error));
@@ -742,6 +749,40 @@ export function activate(context: vscode.ExtensionContext): void {
     setActive(id);
     void saveWindows();
   };
+  const openWatch = (toolUseId: string) => {
+    const chatId = activeId;
+    const existing = watches.find(
+      (watch) => watch.chatId === chatId && watch.toolUseId === toolUseId,
+    );
+    if (existing) {
+      existing.panel.reveal(vscode.ViewColumn.Beside);
+      const view = slots.get(chatId)?.session?.view();
+      if (view) void existing.panel.webview.postMessage({ type: "view", view });
+      return;
+    }
+    const media = vscode.Uri.joinPath(context.extensionUri, "media");
+    const panel = vscode.window.createWebviewPanel(
+      "john.watch",
+      "Sortie",
+      vscode.ViewColumn.Beside,
+      { enableScripts: true, enableCommandUris: false, localResourceRoots: [media] },
+    );
+    const watch = { panel, chatId, toolUseId };
+    watches.push(watch);
+    mountChatHtml(panel.webview);
+    panel.onDidDispose(() => {
+      const at = watches.indexOf(watch);
+      if (at >= 0) watches.splice(at, 1);
+    });
+    panel.webview.onDidReceiveMessage((raw: unknown) => {
+      const message = parseWebviewMessage(raw);
+      if (message?.type !== "ready") return;
+      void panel.webview.postMessage({ type: "role", role: "watch", toolUseId });
+      const view = slots.get(chatId)?.session?.view();
+      if (view) void panel.webview.postMessage({ type: "view", view });
+    });
+  };
+
   const openMonitor = () => {
     if (monitorPanel) {
       monitorPanel.reveal(vscode.ViewColumn.Beside);
@@ -763,6 +804,10 @@ export function activate(context: vscode.ExtensionContext): void {
     });
     panel.webview.onDidReceiveMessage((raw: unknown) => {
       const message = parseWebviewMessage(raw);
+      if (message?.type === "watch") {
+        openWatch(message.toolUseId);
+        return;
+      }
       if (message?.type !== "ready") return;
       void panel.webview.postMessage({ type: "role", role: "monitor" });
       pushMonitor();

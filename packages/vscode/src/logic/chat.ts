@@ -1,4 +1,4 @@
-import type { EngineEvent } from "@john-studio/core";
+import { type EngineEvent, EXEGOL_EXEC_TOOL } from "@john-studio/core";
 import { formatError, formatReason } from "@john-studio/messages";
 import { type ApprovalCard, cleanText, describeInput } from "./approval.js";
 import type { ChatControls } from "./controls.js";
@@ -7,6 +7,8 @@ import { summarizeInput, toolLabel } from "./present.js";
 
 export const MAX_ITEMS = 300;
 export const MAX_OUTPUT_CHARS = 2000;
+/** Fenêtre de sortie montrée pendant qu'un exec tourne encore (le résultat final reste plafonné). */
+const LIVE_OUTPUT_CHARS = 12_000;
 
 export type ToolStatus = "pending" | "ok" | "error" | "denied";
 
@@ -87,6 +89,10 @@ export function createChatState() {
   let history: HistoryEntry[] = [];
   let readonly: ReadonlyInfo | null = null;
   let nextId = 1;
+  /** Événement `tool.requested` d'un exec → identifiant d'appel. */
+  const execTools = new Map<string, string>();
+  /** Événement `process.started` de cet exec → identifiant d'appel. */
+  const execProcs = new Map<string, string>();
 
   const push = (item: NewItem) => {
     items.push({ ...item, id: nextId++ } as ChatItem);
@@ -135,6 +141,8 @@ export function createChatState() {
     clear() {
       items.length = 0;
       approvals.clear();
+      execTools.clear();
+      execProcs.clear();
       busy = false;
       readonly = null;
       sandboxNetwork = null;
@@ -158,7 +166,24 @@ export function createChatState() {
             input: describeInput(e.input, 1000),
             status: "pending",
           });
+          if (e.tool === EXEGOL_EXEC_TOOL) execTools.set(e.id, e.toolUseId);
           return;
+        case "process.started": {
+          const use = e.parentId === null ? undefined : execTools.get(e.parentId);
+          if (use !== undefined) execProcs.set(e.id, use);
+          return;
+        }
+        case "process.output": {
+          const use = e.parentId === null ? undefined : execProcs.get(e.parentId);
+          if (use === undefined) return;
+          const live = findTool(use);
+          if (!live || live.status !== "pending") return;
+          const prev = live.output ?? "";
+          const next = prev === "" ? e.line : `${prev}\n${e.line}`;
+          live.output = cleanText(next, LIVE_OUTPUT_CHARS);
+          live.truncated = next.length > LIVE_OUTPUT_CHARS || e.truncated === true;
+          return;
+        }
         case "approval.decided": {
           approvals.delete(e.toolUseId);
           const t = findTool(e.toolUseId);

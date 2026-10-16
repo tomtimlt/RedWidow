@@ -67,6 +67,7 @@
         const { container, command } = execCommand(raw);
         return {
           id: it.id,
+          toolUseId: typeof it.toolUseId === "string" ? it.toolUseId : "",
           container,
           command,
           output: typeof it.output === "string" ? it.output : "",

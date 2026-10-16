@@ -58,6 +58,7 @@ interface UiApi {
 
 interface MonitorRow {
   id: number;
+  toolUseId: string;
   container: string;
   command: string;
   output: string;
