@@ -18,14 +18,74 @@
   },
   "contributes": {
     "commands": [
-      { "command": "john.openChat", "title": "John : ouvrir un chat" },
-      { "command": "john.openCockpit", "title": "John : ouvrir le cockpit" },
-      { "command": "john.openStudio", "title": "John : ouvrir les réglages" },
-      { "command": "john.openTerminal", "title": "John : ouvrir un terminal" },
-      { "command": "john.openMonitor", "title": "John : ouvrir le Monitor" },
-      { "command": "john.setToken", "title": "John : définir le jeton" },
+      { "command": "john.launcher", "title": "John : lanceur", "icon": "$(rocket)" },
+      {
+        "command": "john.openChat",
+        "title": "John : ouvrir un chat",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "john.openCockpit",
+        "title": "John : ouvrir le cockpit",
+        "icon": "$(dashboard)"
+      },
+      {
+        "command": "john.openStudio",
+        "title": "John : ouvrir les réglages",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "john.openTerminal",
+        "title": "John : ouvrir un terminal",
+        "icon": "$(terminal)"
+      },
+      { "command": "john.openMonitor", "title": "John : ouvrir le Monitor", "icon": "$(pulse)" },
+      {
+        "command": "john.focusChat",
+        "title": "John : aller au chat latéral",
+        "icon": "$(comment)"
+      },
+      { "command": "john.setToken", "title": "John : définir le jeton", "icon": "$(key)" },
       { "command": "john.clearToken", "title": "John : effacer le jeton" },
-      { "command": "john.diagnostic", "title": "John : diagnostic" }
+      { "command": "john.diagnostic", "title": "John : diagnostic", "icon": "$(pulse)" }
+    ],
+    "menus": {
+      "view/title": [
+        { "command": "john.openTerminal", "when": "view == john.chat", "group": "navigation@1" },
+        { "command": "john.openChat", "when": "view == john.chat", "group": "navigation@2" },
+        { "command": "john.openCockpit", "when": "view == john.chat", "group": "navigation@3" },
+        { "command": "john.openStudio", "when": "view == john.chat", "group": "navigation@4" },
+        { "command": "john.openMonitor", "when": "view == john.chat", "group": "outils@1" },
+        { "command": "john.setToken", "when": "view == john.chat", "group": "outils@2" },
+        { "command": "john.diagnostic", "when": "view == john.chat", "group": "outils@3" }
+      ],
+      "editor/title": [
+        {
+          "command": "john.openTerminal",
+          "when": "activeWebviewPanelId =~ /^john\\./",
+          "group": "navigation@1"
+        },
+        {
+          "command": "john.openChat",
+          "when": "activeWebviewPanelId =~ /^john\\./",
+          "group": "navigation@2"
+        },
+        {
+          "command": "john.launcher",
+          "when": "activeWebviewPanelId =~ /^john\\./",
+          "group": "navigation@3"
+        }
+      ],
+      "commandPalette": [{ "command": "john.focusChat", "when": "false" }]
+    },
+    "keybindings": [
+      { "command": "john.launcher", "key": "alt+j alt+j", "mac": "ctrl+j ctrl+j" },
+      { "command": "john.focusChat", "key": "alt+j c", "mac": "ctrl+j c" },
+      { "command": "john.openChat", "key": "alt+j n", "mac": "ctrl+j n" },
+      { "command": "john.openTerminal", "key": "alt+j t", "mac": "ctrl+j t" },
+      { "command": "john.openCockpit", "key": "alt+j k", "mac": "ctrl+j k" },
+      { "command": "john.openMonitor", "key": "alt+j m", "mac": "ctrl+j m" },
+      { "command": "john.openStudio", "key": "alt+j s", "mac": "ctrl+j s" }
     ],
     "viewsContainers": {
       "activitybar": [{ "id": "john", "title": "John", "icon": "media/icon.svg" }]

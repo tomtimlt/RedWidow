@@ -160,18 +160,16 @@ describe("compteur Kill chain", () => {
 describe("feuille des réglages", () => {
   const css = read(chatCss);
 
-  it("groupes en petites capitales, filet d'accent sur l'entrée courante", () => {
-    expect(css).toMatch(/\.studio-group-title \{[^}]*font-variant: small-caps/);
+  it("groupes en capitales, teinte et filet d'accent sur l'entrée courante", () => {
+    expect(css).toMatch(/\.studio-group-title \{[^}]*text-transform: uppercase/);
+    expect(css).toMatch(/\.studio-nav-btn\.is-current,[^{]*\{[^}]*background: var\(--jn-tint\)/);
     expect(css).toMatch(
-      /\.studio-nav-btn\.is-current \{[^}]*--vscode-list-activeSelectionBackground[^}]*\}/,
-    );
-    expect(css).toMatch(
-      /\.studio-nav-btn\.is-current \{[^}]*border-left-color: var\(--vscode-focusBorder\)/,
+      /\.studio-nav-btn\.is-current,[^{]*\{[^}]*border-left-color: var\(--jn-accent\)/,
     );
   });
 
-  it("cartes au rayon md, navigation en rangée sous 640 px", () => {
-    expect(css).toMatch(/\.studio-card \{[^}]*border-radius: var\(--jn-r-md\)/);
+  it("cartes au rayon lg, navigation en rangée sous 640 px", () => {
+    expect(css).toMatch(/\.studio-card \{[^}]*border-radius: var\(--jn-r-lg\)/);
     expect(css).toMatch(
       /@media \(max-width: 640px\) \{[\s\S]*#studio-nav \{\s*flex-direction: row;/,
     );

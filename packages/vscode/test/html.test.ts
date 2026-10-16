@@ -201,14 +201,14 @@ describe("composer et Configurer (lot P1)", () => {
     expect(rule).toContain("--vscode-inputValidation-warningBorder");
     expect(rule).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
   });
-  it("jetons de rayon du lot P1", () => {
-    expect(css).toMatch(/--jn-r-sm: 8px;/);
-    expect(css).toMatch(/--jn-r-md: 12px;/);
-    expect(css).toMatch(/--jn-r-lg: 18px;/);
+  it("jetons de rayon (refonte visuelle)", () => {
+    expect(css).toMatch(/--jn-r-sm: 6px;/);
+    expect(css).toMatch(/--jn-r-md: 10px;/);
+    expect(css).toMatch(/--jn-r-lg: 14px;/);
     expect(css).toMatch(/--jn-r-pill: 999px;/);
   });
-  it("le popover Configurer fait 232 px au plus et n'a plus de deux colonnes", () => {
-    expect(css).toContain("width: min(232px, calc(100vw - 16px));");
+  it("le popover Configurer fait 248 px au plus et n'a plus de deux colonnes", () => {
+    expect(css).toContain("width: min(248px, calc(100vw - 16px));");
     expect(css).not.toContain("cfg-cols");
     expect(css).not.toMatch(/@container pop/);
   });

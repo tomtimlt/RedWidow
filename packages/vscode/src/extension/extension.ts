@@ -732,7 +732,15 @@ export function activate(context: vscode.ExtensionContext): void {
   // Barre d'état : conteneur lié et modèle du chat actif.
   const barContainer = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 102);
   const barModel = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
-  context.subscriptions.push(barContainer, barModel);
+  // Lanceur toujours visible : un clic ouvre chat, terminaux, cockpit, réglages.
+  const barLauncher = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 104);
+  barLauncher.text = "$(rocket) John";
+  barLauncher.tooltip = "John : chat, terminaux, cockpit, réglages (Alt+J Alt+J)";
+  barLauncher.command = "john.launcher";
+  barLauncher.show();
+  barContainer.command = "john.openTerminal";
+  barModel.command = "john.focusChat";
+  context.subscriptions.push(barLauncher, barContainer, barModel);
   const updateModelStatus = () => {
     const c =
       slots.get(activeId)?.session?.view().controls ??
@@ -743,8 +751,8 @@ export function activate(context: vscode.ExtensionContext): void {
       return;
     }
     const known = c.models?.find((m) => m.value === c.model);
-    barModel.text = `Modèle : ${c.model === null ? "par défaut" : (known?.label ?? c.model)}`;
-    barModel.tooltip = "Modèle utilisé pour le message suivant";
+    barModel.text = `$(sparkle) ${c.model === null ? "Modèle par défaut" : (known?.label ?? c.model)}`;
+    barModel.tooltip = "Modèle utilisé pour le message suivant (clic : ouvrir le chat)";
     barModel.show();
   };
   const refreshContainerStatus = async () => {
@@ -760,8 +768,11 @@ export function activate(context: vscode.ExtensionContext): void {
     }
     const label = shortContainerName(st.container);
     barContainer.text =
-      st.state === "running" ? `Exegol : ${label} · connecté` : `Exegol : ${label}`;
-    barContainer.tooltip = `Conteneur lié : ${st.container}`;
+      st.state === "running" ? `$(terminal) ${label} $(circle-filled)` : `$(terminal) ${label}`;
+    barContainer.tooltip =
+      st.state === "running"
+        ? `Conteneur lié : ${st.container} (connecté). Clic : ouvrir un terminal (Alt+J T)`
+        : `Conteneur lié : ${st.container} (arrêté)`;
     barContainer.show();
   };
 
@@ -847,6 +858,64 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   };
 
+  /**
+   * Lanceur (Alt+J Alt+J, barre d'état) : toutes les fenêtres John en un seul menu, et un terminal par
+   * conteneur démarré, sans passer par la palette de commandes.
+   */
+  type LauncherItem = vscode.QuickPickItem & { run?: () => unknown };
+  const openLauncher = () => {
+    const actions: LauncherItem[] = [
+      {
+        label: "$(comment) Chat latéral",
+        description: "Alt+J C",
+        run: () => vscode.commands.executeCommand("john.chat.focus"),
+      },
+      {
+        label: "$(comment-discussion) Nouveau chat",
+        description: "Alt+J N",
+        run: () => openEditorChat(),
+      },
+      { label: "$(dashboard) Cockpit", description: "Alt+J K", run: () => openCockpit() },
+      { label: "$(pulse) Monitor", description: "Alt+J M", run: () => openMonitor() },
+      { label: "$(settings-gear) Réglages", description: "Alt+J S", run: () => openStudio() },
+    ];
+    const pick = vscode.window.createQuickPick<LauncherItem>();
+    pick.title = "John";
+    pick.placeholder = "Ouvrir une fenêtre ou un terminal…";
+    pick.matchOnDescription = true;
+    pick.items = actions;
+    pick.busy = true;
+    pick.onDidAccept(() => {
+      const chosen = pick.selectedItems[0];
+      pick.hide();
+      void chosen?.run?.();
+    });
+    pick.onDidHide(() => pick.dispose());
+    pick.show();
+    void loadCockpitView()
+      .then((view) => {
+        cockpitListOk = true;
+        const terminals: LauncherItem[] = containerMentions(view.containers).map((c) =>
+          c.state === "running"
+            ? {
+                label: `$(terminal) ${c.name}`,
+                description: "terminal · en cours",
+                run: () => openEditorShell(c.name),
+              }
+            : { label: `$(circle-slash) ${c.name}`, description: "arrêté" },
+        );
+        pick.items = [
+          ...actions,
+          { label: "Terminaux Exegol", kind: vscode.QuickPickItemKind.Separator },
+          ...(terminals.length > 0 ? terminals : [{ label: "Aucun conteneur Exegol" }]),
+        ];
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        pick.busy = false;
+      });
+  };
+
   context.subscriptions.push(
     vscode.window.onDidCloseTerminal((term) => dropTrackedShell(term)),
     {
@@ -862,6 +931,10 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("john.openStudio", () => openStudio()),
     vscode.commands.registerCommand("john.openTerminal", () => void pickContainerTerminal()),
     vscode.commands.registerCommand("john.openMonitor", () => openMonitor()),
+    vscode.commands.registerCommand("john.focusChat", () =>
+      vscode.commands.executeCommand("john.chat.focus"),
+    ),
+    vscode.commands.registerCommand("john.launcher", () => openLauncher()),
     vscode.commands.registerCommand("john.setToken", async () => {
       const kind = await vscode.window.showQuickPick(
         [

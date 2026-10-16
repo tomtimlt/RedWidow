@@ -856,6 +856,7 @@
   // Rappel des consignes (comme un terminal) : index -1 = brouillon.
   let recall = { index: -1, draft: "" };
   let sent = [];
+  let shownNodes = -1;
   function render(view) {
     const users = (view.items ?? []).filter((it) => it.kind === "user").map((it) => it.text);
     const nextSent = UI.syncRecallEntries(sent, users);
@@ -870,9 +871,14 @@
     if (mode === "monitor") renderMonitor(view);
     const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
     const top = log.scrollTop;
-    log.replaceChildren(
-      ...(view.items.length === 0 ? [welcome(view.sandbox)] : renderItems(view.items)),
-    );
+    const nodes = view.items.length === 0 ? [welcome(view.sandbox)] : renderItems(view.items);
+    // Entrée animée des seuls nœuds ajoutés depuis le rendu précédent (pas au chargement d'un historique).
+    const added = nodes.length - shownNodes;
+    if (shownNodes >= 0 && added > 0 && added <= 3) {
+      for (const n of nodes.slice(shownNodes)) n.classList.add("enter");
+    }
+    shownNodes = view.items.length === 0 ? 0 : nodes.length;
+    log.replaceChildren(...nodes);
     const visible = mode === "monitor" || !Array.isArray(view.approvals) ? [] : view.approvals;
     const cards = visible.map((c) => renderCard(c, !seenCards.has(c.toolUseId)));
     approvals.replaceChildren(...cards);

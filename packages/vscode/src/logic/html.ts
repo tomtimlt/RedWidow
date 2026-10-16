@@ -20,6 +20,29 @@ const SAFE = /^[A-Za-z0-9_\-+/=:.%~@]+$/;
 const BRAILLE = [..."⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"].map((c) => `<span>${c}</span>`).join("");
 
 /**
+ * Icônes au trait (16 px, `currentColor`), en SVG inline : rendu net et centré quel que soit la police,
+ * contrairement aux glyphes Unicode. Aucun attribut d'événement, aucune ressource externe.
+ */
+const ICONS = {
+  history: '<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 7.5V12l3 2"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  clip: '<path d="m21 11-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.9-8.9a3.7 3.7 0 0 1 5.2 5.2l-8.9 8.9a1.8 1.8 0 0 1-2.6-2.6L15.5 7"/>',
+  at: '<circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/>',
+  slash: '<path d="M15 4 9 20"/>',
+  stop: '<rect x="6" y="6" width="12" height="12" rx="2.5"/>',
+  send: '<path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/>',
+  caret: '<path d="m7 10 5 5 5-5"/>',
+  refresh: '<path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/>',
+  sparkle:
+    '<path d="M12 3.5 13.8 9a2 2 0 0 0 1.2 1.2l5.5 1.8-5.5 1.8a2 2 0 0 0-1.2 1.2L12 20.5 10.2 15A2 2 0 0 0 9 13.8L3.5 12 9 10.2A2 2 0 0 0 10.2 9z"/>',
+  sliders:
+    '<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>',
+} as const;
+
+const icon = (name: keyof typeof ICONS, cls = "ico"): string =>
+  `<svg class="${cls}" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICONS[name]}</svg>`;
+
+/**
  * Page de la webview de chat. CSP stricte : `default-src 'none'`, deux scripts (fichiers de
  * l'extension) autorisés par nonce, feuille de style de l'extension seulement ; ni script inline
  * ni `eval` ni ressource distante. Les données arrivent par `postMessage`, affichées en `textContent`.
@@ -52,7 +75,7 @@ export function chatHtml({
 <title>John</title>
 </head>
 <body>
-<header id="bar"><span id="title">John</span><span id="sandbox" class="badge" hidden></span><span id="bypass-badge" class="badge" hidden></span><button id="history-btn" type="button" class="ghost" aria-expanded="false" aria-controls="history" title="Historique des conversations"><span class="ico" aria-hidden="true">☰</span><span class="btn-text">Historique</span></button><button id="reset" type="button" class="ghost" title="Nouvelle conversation"><span class="ico" aria-hidden="true">+</span><span class="btn-text">Nouvelle<span class="btn-more"> conversation</span></span></button></header>
+<header id="bar"><span id="title">John</span><span id="sandbox" class="badge" hidden></span><span id="bypass-badge" class="badge" hidden></span><button id="history-btn" type="button" class="ghost" aria-expanded="false" aria-controls="history" title="Historique des conversations">${icon("history")}<span class="btn-text">Historique</span></button><button id="reset" type="button" class="ghost" title="Nouvelle conversation">${icon("plus")}<span class="btn-text">Nouvelle<span class="btn-more"> conversation</span></span></button></header>
 <section id="history" aria-label="Historique des conversations" hidden><div class="hist-head"><strong>Historique</strong><button id="history-clear" type="button" class="ghost">Tout effacer</button></div><ul id="history-list"></ul></section>
 <main id="log" role="log" aria-live="polite" aria-label="Conversation"></main>
 <div id="readonly" role="status" hidden><span id="readonly-text"></span><button id="readonly-resume" type="button" class="primary">Reprendre</button><button id="readonly-close" type="button" class="ghost">Fermer</button></div>
@@ -63,13 +86,13 @@ export function chatHtml({
 <div id="composer"><span class="sweep" aria-hidden="true"></span>
 <textarea id="input" rows="1" aria-label="Votre consigne" placeholder="Votre consigne…" title="Entrée pour envoyer, Maj+Entrée pour une nouvelle ligne"></textarea>
 <div id="toolbar">
-<button id="attach" type="button" class="ghost tool-btn" disabled aria-disabled="true" title="Pièces jointes : bientôt" aria-label="Pièces jointes : bientôt"><span class="ico" aria-hidden="true">📎</span></button>
-<button id="mention-btn" type="button" class="ghost tool-btn" title="Citer un conteneur" aria-label="Citer un conteneur" aria-haspopup="listbox" aria-expanded="false" aria-controls="mention-pop"><span class="ico" aria-hidden="true">@</span></button>
-<button id="slash-btn" type="button" class="ghost tool-btn" popovertarget="slash-pop" aria-haspopup="menu" aria-expanded="false" title="Commandes" aria-label="Commandes"><span class="ico" aria-hidden="true">/</span></button>
-<span id="ctl-group" hidden><button id="model-chip" type="button" class="chip" popovertarget="model-pop" aria-haspopup="listbox" aria-expanded="false" title="Modèle utilisé pour le message suivant"><span id="model-chip-label" class="chip-label">Modèle par défaut</span><span class="caret" aria-hidden="true">▾</span><span class="sr-only"> (choisir le modèle)</span></button><button id="cfg-btn" type="button" class="chip" popovertarget="cfg-pop" aria-haspopup="dialog" aria-expanded="false" aria-label="Configurer" title="Configurer : raisonnement et exécution"><span class="cfg-text">Configurer</span><span id="cfg-level" class="cfg-level"></span><span class="caret" aria-hidden="true">▾</span></button></span>
+<button id="attach" type="button" class="ghost tool-btn" disabled aria-disabled="true" title="Pièces jointes : bientôt" aria-label="Pièces jointes : bientôt">${icon("clip")}</button>
+<button id="mention-btn" type="button" class="ghost tool-btn" title="Citer un conteneur" aria-label="Citer un conteneur" aria-haspopup="listbox" aria-expanded="false" aria-controls="mention-pop">${icon("at")}</button>
+<button id="slash-btn" type="button" class="ghost tool-btn" popovertarget="slash-pop" aria-haspopup="menu" aria-expanded="false" title="Commandes" aria-label="Commandes">${icon("slash")}</button>
+<span id="ctl-group" hidden><button id="model-chip" type="button" class="chip" popovertarget="model-pop" aria-haspopup="listbox" aria-expanded="false" title="Modèle utilisé pour le message suivant">${icon("sparkle", "ico chip-ico")}<span id="model-chip-label" class="chip-label">Modèle par défaut</span>${icon("caret", "caret")}<span class="sr-only"> (choisir le modèle)</span></button><button id="cfg-btn" type="button" class="chip" popovertarget="cfg-pop" aria-haspopup="dialog" aria-expanded="false" aria-label="Configurer" title="Configurer : raisonnement et exécution">${icon("sliders", "ico chip-ico")}<span class="cfg-text">Configurer</span><span id="cfg-level" class="cfg-level"></span>${icon("caret", "caret")}</button></span>
 <span class="spacer"></span>
-<button id="stop" type="button" class="danger" title="Arrêter l'agent"><span class="ico" aria-hidden="true">■</span><span class="btn-text">Stop</span></button>
-<button id="send" type="submit" class="primary" title="Envoyer (Entrée)" aria-label="Envoyer"><span class="ico" aria-hidden="true">↑</span></button>
+<button id="stop" type="button" class="danger" title="Arrêter l'agent">${icon("stop")}<span class="btn-text">Stop</span></button>
+<button id="send" type="submit" class="primary" title="Envoyer (Entrée)" aria-label="Envoyer">${icon("send")}</button>
 </div>
 </div>
 </form>
@@ -137,7 +160,7 @@ export function cockpitHtml({ nonce, cspSource, scriptUri, styleUri }: CockpitHt
 <title>Cockpit</title>
 </head>
 <body class="cockpit">
-<header id="bar"><span id="title">Cockpit</span><button id="refresh" type="button" class="ghost" title="Actualiser"><span class="ico" aria-hidden="true">⟳</span><span class="btn-text">Actualiser</span></button></header>
+<header id="bar"><span id="title">Cockpit</span><button id="refresh" type="button" class="ghost" title="Actualiser">${icon("refresh")}<span class="btn-text">Actualiser</span></button></header>
 <main id="main" role="main" aria-live="polite"></main>
 <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>

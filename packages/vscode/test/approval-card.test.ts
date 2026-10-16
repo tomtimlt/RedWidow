@@ -80,7 +80,8 @@ describe("carte d'approbation (lot P2)", () => {
   });
 
   it("le résumé est en police monospace de l'éditeur", () => {
-    expect(rule(".card-summary")).toContain("var(--vscode-editor-font-family");
+    expect(rule(".card-summary")).toContain("var(--jn-mono)");
+    expect(css).toMatch(/--jn-mono: var\(--vscode-editor-font-family/);
   });
 
   it("la carte n'impose aucune largeur fixe (pas de débordement à 280 px)", () => {
