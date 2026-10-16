@@ -207,8 +207,10 @@ describe("composer et Configurer (lot P1)", () => {
     expect(css).toMatch(/--jn-r-lg: 14px;/);
     expect(css).toMatch(/--jn-r-pill: 999px;/);
   });
-  it("le popover Configurer fait 248 px au plus et n'a plus de deux colonnes", () => {
-    expect(css).toContain("width: min(248px, calc(100vw - 16px));");
+  it("le popover Configurer est plus court, un peu plus large, et n'a plus de deux colonnes", () => {
+    const rule = /#cfg-pop \{([^}]*)\}/.exec(css)?.[1] ?? "";
+    expect(rule).toContain("width: min(300px, calc(100vw - 16px))");
+    expect(rule).toContain("max-height: min(var(--jn-maxh, 70vh), 240px)");
     expect(css).not.toContain("cfg-cols");
     expect(css).not.toMatch(/@container pop/);
   });
