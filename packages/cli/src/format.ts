@@ -41,6 +41,8 @@ export function formatEvent(e: EngineEvent, { color, verbose }: FormatOptions): 
     }
     case "approval.decided":
       return `${tag(e.decision === "allow" ? "green" : "red", e.decision)} ${paint("dim", `[${e.source}] ${formatReason(e.reason)}`)}`;
+    case "bypass.changed":
+      return `${tag(e.state === "on" ? "yellow" : "dim", "bypass")} ${paint("dim", formatReason(e.reason))}`;
     case "tool.result": {
       const more = e.truncated ? paint("dim", ` [tronqué : ${e.bytes} octets]`) : "";
       return `${tag(e.isError ? "red" : "dim", "result")} ${summarizeOutput(stripControl(e.output))}${more}`;

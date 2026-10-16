@@ -57,6 +57,10 @@ export const reasons: Catalog = {
   "approval.interrupted": (_p, c) => `approval interrupted: ${c.cause ?? "?"}`,
   "approval.timeout": (p, c) => `no answer within ${text(p.seconds)} s: denied (${c.cause ?? "?"})`,
   "approval.remembered": (_p, c) => `allowed for the session (${c.cause ?? "?"})`,
+  "approval.bypassed": (_p, c) => `auto-approved by the bypass (${c.cause ?? "?"})`,
+  "bypass.enabled": () => "approval bypass enabled",
+  "bypass.disabled": () => "approval bypass disabled",
+  "bypass.expired": () => "approval bypass expired",
   "auth.missingApiKey": () => "--auth api-key requires ANTHROPIC_API_KEY, which is not set",
   "budget.exceeded": (p) => `spending limit exceeded: $${text(p.spent)} spent of $${text(p.limit)}`,
   "opencode.noModel": () =>
@@ -97,6 +101,7 @@ export const events: EventStrings = {
   authentication: "authentication",
   authenticating: "authenticating",
   approvalRequested: "approval requested",
+  bypass: "bypass",
   turn: "turn",
   sandbox: "sandbox",
 };

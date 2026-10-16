@@ -1,3 +1,4 @@
+export * from "./approval/bypass.js";
 export * from "./approval/gate.js";
 export * from "./approval/paths.js";
 export * from "./approval/policy.js";

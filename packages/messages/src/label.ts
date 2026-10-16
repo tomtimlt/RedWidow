@@ -88,6 +88,8 @@ export function eventLabel(e: EngineEvent, options: LabelOptions = {}): string {
         typeof e.input.command === "string" ? e.input.command : JSON.stringify(e.input);
       return clip(`${t.approvalRequested} : ${e.tool} ${detail}`);
     }
+    case "bypass.changed":
+      return clip(`${t.bypass} : ${formatReason(e.reason, locale)}`);
     case "turn.finished":
       return `${t.turn} ${e.turns} · ${e.status} · $${e.costUsd.toFixed(4)}`;
     case "agent.thinking":

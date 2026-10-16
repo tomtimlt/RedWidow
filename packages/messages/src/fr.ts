@@ -119,6 +119,10 @@ export const reasons: Catalog = {
   "approval.timeout": (p, c) =>
     `aucune réponse en ${text(p.seconds)} s : refusé (${c.cause ?? "?"})`,
   "approval.remembered": (_p, c) => `autorisé pour la session (${c.cause ?? "?"})`,
+  "approval.bypassed": (_p, c) => `auto-approuvé par le bypass (${c.cause ?? "?"})`,
+  "bypass.enabled": () => "bypass des approbations activé",
+  "bypass.disabled": () => "bypass des approbations désactivé",
+  "bypass.expired": () => "bypass des approbations expiré",
   "guard.unrouted": (p) =>
     `appel non routé par la garde (canUseTool appelé sans décision PreToolUse : ${text(p.tool)}, ${text(p.toolUseId)})`,
 
@@ -263,6 +267,7 @@ export const events: EventStrings = {
   authentication: "authentification",
   authenticating: "authentification en cours",
   approvalRequested: "approbation demandée",
+  bypass: "bypass",
   turn: "tour",
   sandbox: "bac à sable",
 };

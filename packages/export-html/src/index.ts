@@ -47,6 +47,7 @@ export const KIND_CLASS: Record<EventKind, string> = {
   "sink.error": "k-error",
   "journal.truncated": "k-error",
   "approval.requested": "k-approval",
+  "bypass.changed": "k-approval",
   "turn.finished": "k-run",
   "auth.info": "k-run",
   "auth.status": "k-warn",

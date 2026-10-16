@@ -81,8 +81,20 @@ export type EventPayload =
       kind: "approval.decided";
       toolUseId: string;
       decision: Decision;
-      source: "policy" | "user";
+      /** `bypass` : auto-approbation du Bypass (motif d'origine conservé dans `reason.cause`). */
+      source: "policy" | "user" | "bypass";
       reason: Reason;
+    }
+  | {
+      /**
+       * Transition de l'interrupteur de Bypass, observée par la gate à une décision (un seul
+       * événement par transition). `since` / `expiresAt` : bornes de l'état « on », en ms epoch.
+       */
+      kind: "bypass.changed";
+      state: "on" | "off";
+      reason: Reason;
+      since?: number;
+      expiresAt?: number;
     }
   | {
       /** Une approbation est sollicitée auprès de l'Asker ; `approval.decided` suivra. */
@@ -327,8 +339,14 @@ export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
   "approval.decided": shape({
     toolUseId: "string",
     decision: "enum:allow,deny",
-    source: "enum:policy,user",
+    source: "enum:policy,user,bypass",
     reason: "reason",
+  }),
+  "bypass.changed": shape({
+    state: "enum:on,off",
+    reason: "reason",
+    since: "number?",
+    expiresAt: "number?",
   }),
   "approval.requested": shape({
     toolUseId: "string",

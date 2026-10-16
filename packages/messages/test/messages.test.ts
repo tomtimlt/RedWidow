@@ -221,6 +221,13 @@ describe("eventLabel", () => {
       source: "policy",
       reason: { code: "bash.empty" },
     },
+    "bypass.changed": {
+      kind: "bypass.changed",
+      state: "on",
+      reason: { code: "bypass.enabled" },
+      since: 0,
+      expiresAt: 7_200_000,
+    },
     "permission.denied": { kind: "permission.denied", toolUseId: "t", tool: "x", message: "non" },
     "tool.result": {
       kind: "tool.result",
@@ -275,6 +282,12 @@ describe("eventLabel", () => {
     expect(eventLabel(emit(payloads["run.finished"]))).toBe("success · 3 tours · $0.5000");
     expect(eventLabel(emit(payloads.error))).toBe("binaire introuvable : docker");
     expect(eventLabel(emit(payloads["agent.thinking"]))).toBe("réflexion : hmm");
+    expect(eventLabel(emit(payloads["bypass.changed"]))).toBe(
+      "bypass : bypass des approbations activé",
+    );
+    expect(eventLabel(emit(payloads["bypass.changed"]), { locale: "en" })).toBe(
+      "bypass : approval bypass enabled",
+    );
   });
 
   it("décrit le mode d'authentification", () => {

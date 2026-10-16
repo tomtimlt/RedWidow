@@ -1,6 +1,7 @@
 import type { Decision } from "../events.js";
 import { errorInfo, type Reason, reason } from "../reason.js";
 import type { Recorder } from "../recorder.js";
+import { BYPASS_MAX_MS, type BypassOffReason, type BypassSwitch, isBypassable } from "./bypass.js";
 import { EXTERNAL_DIRECTORY_TOOL, EXTERNAL_PATTERNS_FIELD } from "./paths.js";
 import {
   BASH_TOOL,
@@ -47,7 +48,8 @@ export type Asker = (
 export interface ApprovalOutcome {
   decision: Decision;
   reason: Reason;
-  source: "policy" | "user";
+  /** `bypass` : auto-approbation de l'interrupteur (ADR 0006), jamais mémorisée. */
+  source: "policy" | "user" | "bypass";
 }
 
 export interface ApprovalGate {
@@ -72,6 +74,10 @@ export interface ApprovalGateOptions {
    * La gate la retient aussi pour la session, même si la persistance échoue.
    */
   persistRule?: (rule: PolicyRule) => void | Promise<void>;
+  /** Interrupteur du Bypass (ADR 0006) ; absent → aucun Bypass. Relu à chaque décision. */
+  bypass?: BypassSwitch;
+  /** Horloge des décisions, en ms epoch (défaut : `Date.now`). */
+  now?: () => number;
 }
 
 /**
@@ -141,9 +147,57 @@ export function createApprovalGate({
   workspace,
   timeoutMs,
   persistRule,
+  bypass,
+  now,
 }: ApprovalGateOptions): ApprovalGate {
   /** Autorisations de session. Consultées seulement face à un verdict « ask » mémorisable. */
   const session = new Set<string>();
+  const clock = now ?? Date.now;
+  /** État du Bypass à la décision précédente : seules les transitions sont journalisées. */
+  let bypassOn = false;
+
+  /**
+   * Relit l'interrupteur et émet `bypass.changed` si l'état a changé depuis la dernière décision.
+   * Renvoie `true` si le Bypass est effectif à cet instant. Un état incohérent (échu, borné
+   * au-delà de `BYPASS_MAX_MS`, daté dans le futur) est traité comme inactif.
+   */
+  const observeBypass = (parentId: string | null): boolean => {
+    if (!bypass) return false;
+    const at = clock();
+    const state = bypass.current(at);
+    const live =
+      state !== null &&
+      state.since <= at &&
+      at < state.expiresAt &&
+      state.expiresAt - state.since <= BYPASS_MAX_MS
+        ? state
+        : null;
+    if (live !== null) {
+      if (!bypassOn) {
+        recorder.emit(
+          {
+            kind: "bypass.changed",
+            state: "on",
+            reason: reason("bypass.enabled"),
+            since: live.since,
+            expiresAt: live.expiresAt,
+          },
+          parentId,
+        );
+      }
+      bypassOn = true;
+      return true;
+    }
+    if (bypassOn) {
+      let code: BypassOffReason;
+      if (state === null) code = bypass.lastOffReason();
+      else if (at >= state.expiresAt) code = "bypass.expired";
+      else code = "bypass.disabled";
+      recorder.emit({ kind: "bypass.changed", state: "off", reason: reason(code) }, parentId);
+      bypassOn = false;
+    }
+    return false;
+  };
 
   /** Sollicite l'Asker avec un éventuel délai ; le signal transmis s'annule aussi à l'échéance. */
   const askWithTimeout = async (
@@ -196,6 +250,7 @@ export function createApprovalGate({
 
   return {
     async decide(request, signal, parentId = null) {
+      const bypassActive = observeBypass(parentId);
       const verdict = evaluatePolicy(policy, request.tool, request.input, workspace);
       let outcome: ApprovalOutcome;
 
@@ -214,6 +269,12 @@ export function createApprovalGate({
             decision: "allow",
             reason: reason("approval.remembered", undefined, verdict.reason),
             source: "user",
+          };
+        } else if (bypassActive && isBypassable(request, verdict, policy)) {
+          outcome = {
+            decision: "allow",
+            reason: reason("approval.bypassed", undefined, verdict.reason),
+            source: "bypass",
           };
         } else {
           recorder.emit(

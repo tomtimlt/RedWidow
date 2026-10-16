@@ -42,6 +42,10 @@ export const REASON_CODES = [
   "approval.interrupted",
   "approval.timeout",
   "approval.remembered",
+  "approval.bypassed",
+  "bypass.enabled",
+  "bypass.disabled",
+  "bypass.expired",
   "guard.unrouted",
   // Outils inattendus annoncés par le SDK
   "sdk.unexpectedTool",

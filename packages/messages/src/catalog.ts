@@ -40,6 +40,7 @@ export interface EventStrings {
   authentication: string;
   authenticating: string;
   approvalRequested: string;
+  bypass: string;
   turn: string;
   sandbox: string;
 }
