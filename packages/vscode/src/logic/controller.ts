@@ -122,6 +122,8 @@ export function createEngineController(options: EngineControllerOptions): Engine
   let probe: { resolve(models: ModelOption[]): void; reject(error: unknown): void } | null = null;
   /** Dernier `seq` envoyé au moteur de ce contrôleur (un moteur par contrôleur : repart de 0). */
   let bypassSeq = 0;
+  /** Vrai dès `start` : seul un moteur de session accepte `bypass` (un sondage `models` le refuse). */
+  let sessionStarted = false;
   let resolveExited!: () => void;
   const exited = new Promise<void>((resolve) => (resolveExited = resolve));
 
@@ -132,6 +134,13 @@ export function createEngineController(options: EngineControllerOptions): Engine
     } catch {
       // Canal fermé : `exit` / `disconnect` le signalera.
     }
+  };
+
+  /** Envoie l'état du Bypass avec le `seq` suivant ; `null` éteint. */
+  const sendBypass = (state: BypassState | null): number => {
+    bypassSeq += 1;
+    post({ v: PROTOCOL_VERSION, type: "bypass", seq: bypassSeq, state });
+    return bypassSeq;
   };
 
   const dispatch = (message: FromEngine) => {
@@ -214,7 +223,10 @@ export function createEngineController(options: EngineControllerOptions): Engine
 
   return {
     exited,
-    start: (params) => launch({ v: PROTOCOL_VERSION, type: "start", ...params }),
+    start(params) {
+      sessionStarted = true;
+      return launch({ v: PROTOCOL_VERSION, type: "start", ...params });
+    },
     models({ cwd, auth, timeoutMs = 30_000 }) {
       return new Promise<ModelOption[]>((resolve, reject) => {
         const timer = setTimeout(
@@ -249,16 +261,14 @@ export function createEngineController(options: EngineControllerOptions): Engine
         decision,
         ...(remember !== undefined && { remember }),
       }),
-    bypass(state) {
-      bypassSeq += 1;
-      post({ v: PROTOCOL_VERSION, type: "bypass", seq: bypassSeq, state });
-      return bypassSeq;
-    },
+    bypass: sendBypass,
     abort: () => post({ v: PROTOCOL_VERSION, type: "abort" }),
     dispose: () => post({ v: PROTOCOL_VERSION, type: "dispose" }),
     kill() {
       const proc = child;
       if (proc === null) return;
+      // ADR 0006, lot 2c : le Bypass s'éteint D'ABORD côté moteur, avant toute annulation du run.
+      if (sessionStarted) sendBypass(null);
       post({ v: PROTOCOL_VERSION, type: "abort" });
       post({ v: PROTOCOL_VERSION, type: "dispose" });
       const timer = setTimeout(() => {

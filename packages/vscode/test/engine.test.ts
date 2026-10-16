@@ -7,6 +7,7 @@ import {
   type ApprovalOutcome,
   type ApprovalRequest,
   BYPASS_DEFAULT_MS,
+  type Policy,
 } from "@john-studio/core";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { type EngineChannel, runEngine } from "../src/engine/engine.js";
@@ -200,7 +201,11 @@ describe("moteur : Bypass (ADR 0006, pont hôte → moteur)", () => {
         tool: "Write",
         input: { file_path: "/etc/john-bypass-test", content: "x" },
       },
+      lsok: { toolUseId: "lsok", tool: "Bash", input: { command: "ls" } },
+      // Deux segments : verdict de la règle `ls`, refus par le garde multi-segments.
       hazard: { toolUseId: "hazard", tool: "Bash", input: { command: "ls; echo x" } },
+      // Danger shell : refus par le garde `bash.hazard`, évalué avant les règles.
+      shell: { toolUseId: "shell", tool: "Bash", input: { command: "ls $(echo x)" } },
       host: {
         toolUseId: "host",
         tool: "Bash",
@@ -208,6 +213,24 @@ describe("moteur : Bypass (ADR 0006, pont hôte → moteur)", () => {
       },
     };
   }
+
+  /**
+   * Politique de test : règles `ask` littérales sur `ls` et `docker`, sans règle pour les cas dangereux.
+   * Ainsi, un refus de `ls; echo x` ou de `docker run -v /:/host` vient des gardes, pas de la politique.
+   */
+  const guardedPolicy: Policy = {
+    default: "ask",
+    rules: [
+      { tool: "Bash", command: "ls", decision: "ask" },
+      { tool: "Bash", command: "docker *", decision: "ask" },
+      { tool: "Bash", command: "rm *", decision: "deny" },
+    ],
+  };
+  const guardedLoader = async () => ({
+    policy: guardedPolicy,
+    source: null,
+    origin: "builtin" as const,
+  });
 
   /** Exécution factice : chaque consigne déclenche la décision de la demande qui porte son identifiant. */
   function bypassRunner(
@@ -372,6 +395,7 @@ describe("moteur : Bypass (ADR 0006, pont hôte → moteur)", () => {
       const done = runEngine({
         channel: t.channel,
         createRunner: () => bypassRunner(requests, box),
+        policyLoader: guardedLoader,
       });
       await started(t, repo, journalDir);
       const since = Date.now();
@@ -388,8 +412,36 @@ describe("moteur : Bypass (ADR 0006, pont hôte → moteur)", () => {
       ]);
       const change = eventsOf(t.sent).find((e) => e.kind === "bypass.changed");
       expect(change).toMatchObject({ state: "on", since, expiresAt: since + BYPASS_DEFAULT_MS });
+      // Règle `ask` littérale sur `ls` : couverte par le Bypass (cause d'origine conservée).
+      await vi.waitFor(() => expect(box.outcomes.has("lsok")).toBe(true));
+      expect(box.outcomes.get("lsok")).toMatchObject({ source: "bypass" });
 
-      for (const id of ["deny", "ssh", "outside", "hazard", "host"]) {
+      // Refus venus des gardes (et non de la politique) : danger shell et accès à l'hôte.
+      for (const [id, code] of [
+        ["hazard", "policy.rule"],
+        ["shell", "bash.hazard"],
+        ["host", "docker.hostAccess"],
+      ] as const) {
+        // Demande (verdict « ask » non bypassable) ou décision directe (refus de garde) : même motif.
+        await vi.waitFor(() =>
+          expect(
+            eventsOf(t.sent).some(
+              (e) =>
+                e.toolUseId === id &&
+                (e.kind === "approval.requested" || e.kind === "approval.decided"),
+            ),
+          ).toBe(true),
+        );
+        const first = eventsOf(t.sent).find(
+          (e) =>
+            e.toolUseId === id &&
+            (e.kind === "approval.requested" || e.kind === "approval.decided"),
+        );
+        expect(first?.kind === "approval.requested" ? first.verdict : first?.reason).toMatchObject({
+          code,
+        });
+      }
+      for (const id of ["deny", "ssh", "outside", "hazard", "shell", "host"]) {
         await vi.waitFor(() =>
           expect(
             eventsOf(t.sent).some(

@@ -544,3 +544,70 @@ describe("session de chat : lien du Bypass (ADR 0006)", () => {
     expect(links[0]?.release).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("session de chat : arrêt du moteur et Bypass (lot 2c)", () => {
+  const RUN = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+
+  it("ouverture d'une conversation : Bypass hôte remis à « off », lien libéré, moteur arrêté", async () => {
+    const f = fake();
+    const stored = new Map<string, unknown>();
+    const reset = vi.fn();
+    const release = vi.fn();
+    const attach = vi.fn(() => ({ acked: vi.fn(), release }));
+    const session = createChatSession({
+      cwd: "/w",
+      enginePath: "/e.mjs",
+      engineArgs: [],
+      readSettings: () => ({}),
+      getToken: async () => undefined,
+      confirmAlways: async () => false,
+      onView: () => {},
+      createController: f.create,
+      bypass: { attach, reset },
+      history: {
+        index: { get: (k) => stored.get(k), set: (k, v) => stored.set(k, v) },
+        files: {
+          dir: "/h",
+          read: async () => null,
+          size: async () => 0,
+          remove: async () => {},
+          removeAll: async () => {},
+        },
+        confirmDelete: async () => true,
+      },
+    });
+    await session.send("une");
+    f.handlers.onStarted?.({ runId: RUN, policySource: null });
+    f.handlers.onEnded?.({ sessionId: "S1" } as never);
+    const id = session.view().history[0]?.id as string;
+    f.calls.length = 0;
+    await session.openConversation(id);
+    expect(reset).toHaveBeenCalledTimes(1);
+    expect(release).toHaveBeenCalledTimes(1);
+    // Le moteur reçoit l'état nul (kill) : l'ancien moteur ne garde aucune activation.
+    expect(f.calls).toContainEqual(["kill"]);
+    expect(reset.mock.invocationCallOrder[0] ?? 0).toBeLessThan(
+      release.mock.invocationCallOrder[0] ?? 0,
+    );
+  });
+
+  it("reset : le lien du moteur est libéré avant l'arrêt", async () => {
+    const f = fake();
+    const release = vi.fn();
+    const session = createChatSession({
+      cwd: "/w",
+      enginePath: "/e.mjs",
+      engineArgs: [],
+      readSettings: () => ({}),
+      getToken: async () => undefined,
+      confirmAlways: async () => false,
+      onView: () => {},
+      createController: f.create,
+      bypass: { attach: () => ({ acked: vi.fn(), release }) },
+    });
+    await session.send("hi");
+    session.reset();
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(f.calls).toContainEqual(["kill"]);
+  });
+});
