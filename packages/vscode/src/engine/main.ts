@@ -1,6 +1,6 @@
 import { join } from "node:path";
-import { createSdkRunner, dockerToolset } from "@john-studio/agent-sdk";
-import { CodedError } from "@john-studio/core";
+import { createSdkRunner, exegolToolset } from "@john-studio/agent-sdk";
+import { CodedError, createExegolTargets, defaultConfigDir, readProject } from "@john-studio/core";
 import { matchesFingerprint } from "../logic/integrity.js";
 import { PROTOCOL_VERSION } from "../logic/protocol.js";
 import { processChannel } from "./channel.js";
@@ -20,18 +20,29 @@ const root = process.argv[2] ?? ".";
 const exe = join(root, "bin", process.platform === "win32" ? "claude.exe" : "claude");
 const channel = processChannel();
 
+const targets = createExegolTargets();
+
 const done = runEngine({
   channel,
+  onPrompt: async (text) => {
+    let dedicated: string | null = null;
+    try {
+      dedicated = (await readProject(defaultConfigDir()))?.container ?? null;
+    } catch {
+      dedicated = null;
+    }
+    targets.note(text, dedicated);
+  },
   createRunner: async () => {
     // Vérification juste avant la construction du runner (fail-closed : empreinte absente = refus).
     const expected = typeof __CLAUDE_SHA256__ === "string" ? __CLAUDE_SHA256__ : "";
     if (!(await matchesFingerprint(exe, expected))) {
       throw new CodedError("extension.binaryMismatch");
     }
-    // Comme la CLI par défaut : outils Docker structurés, Bash désactivé, binaire fixé par le code.
+    // Aucun outil Docker : seul l'exec Exegol, borné à la cible notée pour le message.
     return createSdkRunner({
       executable: exe,
-      toolsets: [dockerToolset({ binary: "docker" })],
+      toolsets: [exegolToolset({ targets, binary: "docker" })],
     });
   },
 });

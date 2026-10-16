@@ -44,10 +44,12 @@ export interface EngineOptions {
   disconnectGraceMs?: number;
   /** Arrêt de l'arbre de processus à la fin du délai de grâce (défaut : `killOwnTree`). */
   killTree?: () => void;
+  /** Appelé quand une consigne est consommée, avant qu'elle n'atteigne le modèle. */
+  onPrompt?: (text: string) => void | Promise<void>;
 }
 
 /** Flux de consignes d'une session multi-tours : `push` alimente, `end` clôt. */
-function createPromptStream(onTake: (text: string) => void) {
+function createPromptStream(onTake: (text: string) => void | Promise<void>) {
   const buffer: string[] = [];
   let ended = false;
   let wake: (() => void) | null = null;
@@ -68,7 +70,7 @@ function createPromptStream(onTake: (text: string) => void) {
       for (;;) {
         const next = buffer.shift();
         if (next !== undefined) {
-          onTake(next);
+          await onTake(next);
           yield next;
         } else if (ended) return;
         else await new Promise<void>((resolve) => (wake = resolve));
@@ -88,6 +90,7 @@ export function runEngine({
   env = process.env,
   disconnectGraceMs = 5000,
   killTree = killOwnTree,
+  onPrompt,
 }: EngineOptions): Promise<number> {
   // Tout ce qui part vers le parent est masqué, y compris ce que le recorder ne voit pas
   // (entrée d'un outil en attente d'approbation, erreurs, résumé).
@@ -101,8 +104,11 @@ export function runEngine({
 
   const abort = new AbortController();
   // Chaque consigne consommée par le runner est consignée (`user.message`) : le journal permet de rejouer le fil.
-  let onUserMessage: (text: string) => void = () => {};
-  const prompts = createPromptStream((text) => onUserMessage(text));
+  let onUserMessage: (text: string) => void | Promise<void> = () => {};
+  const prompts = createPromptStream(async (text) => {
+    await onPrompt?.(text);
+    await onUserMessage(text);
+  });
   let queue: ReturnType<typeof createApprovalQueue> | null = null;
   let started = false;
 

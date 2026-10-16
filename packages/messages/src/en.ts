@@ -43,6 +43,8 @@ export const reasons: Catalog = {
   "project.noWorkspace": (p) => `container without /workspace mount: ${text(p.name)}`,
   "project.invalid": () => "invalid project: unreadable or incomplete project.json",
   "project.absent": () => "no linked project (project.json missing)",
+  "exegol.containerDenied": (p) =>
+    `container not allowed for this message: ${text(p.name)} (project default, or named with @)`,
   "shell.unanalyzable": (p) =>
     `shell cannot be analysed safely (${text(p.tool)}): never auto-approved nor remembered`,
   "sdk.unexpectedTool": (p) =>

@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import type { DockerClient } from "./docker/client.js";
@@ -88,6 +88,11 @@ export async function link(
   if (row.state !== "running") throw new CodedError("project.notRunning", { name });
   if (row.workspace === undefined) throw new CodedError("project.noWorkspace", { name });
   await writeProjectAtomic(configDir, { container: name, workspace: row.workspace });
+}
+
+/** Supprime `project.json`. Absent : rien. */
+export async function unlink(configDir: string): Promise<void> {
+  await rm(join(configDir, USER_PROJECT_FILE), { force: true });
 }
 
 /** Lit `project.json` ; absent → `null` ; invalide → `project.invalid`. */

@@ -118,6 +118,7 @@ export const REASON_CODES = [
   "project.noWorkspace",
   "project.invalid",
   "project.absent",
+  "exegol.containerDenied",
   // Divers
   "error.unknown",
   /** Motif ou erreur d'un ancien journal, relu comme texte (`params.text`). */

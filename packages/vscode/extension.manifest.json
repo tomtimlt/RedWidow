@@ -19,6 +19,8 @@
   "contributes": {
     "commands": [
       { "command": "john.openChat", "title": "John : ouvrir le chat" },
+      { "command": "john.openCockpit", "title": "John : ouvrir le cockpit" },
+      { "command": "john.openStudio", "title": "John : ouvrir les réglages" },
       { "command": "john.setToken", "title": "John : définir le jeton" },
       { "command": "john.clearToken", "title": "John : effacer le jeton" },
       { "command": "john.diagnostic", "title": "John : diagnostic" }
@@ -27,7 +29,10 @@
       "activitybar": [{ "id": "john", "title": "John", "icon": "media/icon.svg" }]
     },
     "views": {
-      "john": [{ "type": "webview", "id": "john.chat", "name": "Chat" }]
+      "john": [
+        { "type": "webview", "id": "john.chat", "name": "Chat" },
+        { "type": "webview", "id": "john.cockpit", "name": "Cockpit" }
+      ]
     },
     "configuration": {
       "title": "John",

@@ -1,12 +1,30 @@
 import { fork } from "node:child_process";
 import { join } from "node:path";
+import {
+  CodedError,
+  defaultConfigDir,
+  parseMentions,
+  parseSlashStart,
+  readFindings,
+  readProject,
+  resolveBinary,
+  unlink,
+} from "@john-studio/core";
 import { formatError } from "@john-studio/messages";
 import * as vscode from "vscode";
 import { parseWebviewMessage } from "../logic/approval.js";
+import {
+  linkContainer,
+  linkedProjectStatus,
+  loadCockpitView,
+  parseCockpitMessage,
+  terminalLaunch,
+} from "../logic/cockpit.js";
 import { createJournalFiles } from "../logic/historyStore.js";
-import { chatHtml, makeNonce } from "../logic/html.js";
+import { chatHtml, cockpitHtml, makeNonce, studioHtml } from "../logic/html.js";
 import { type ChatSession, createChatSession, type TokenChoice } from "../logic/session.js";
 import { machineValue, resolveSettings } from "../logic/settings.js";
+import { parseStudioMessage, type StudioPage } from "../logic/studio.js";
 
 const TOKEN_KEY = "john.token";
 const TOKEN_KIND_KEY = "john.tokenKind";
@@ -108,8 +126,48 @@ export function activate(context: vscode.ExtensionContext): void {
               return s.setEffort(message.effort);
             case "refreshModels":
               return await s.loadModels(true);
-            case "send":
-              return await s.send(message.text);
+            case "send": {
+              const slash = parseSlashStart(message.text);
+              if (slash !== null) {
+                const exegol = resolveBinary("exegol");
+                if (exegol === null) {
+                  void vscode.window.showErrorMessage(
+                    formatError(new CodedError("process.notFound", { binary: "exegol" })),
+                  );
+                  return;
+                }
+                const title = `John : start ${slash}`;
+                const existing = vscode.window.terminals.find((t) => t.name === title);
+                if (existing) {
+                  existing.show();
+                  return;
+                }
+                const term = vscode.window.createTerminal({
+                  name: title,
+                  shellPath: exegol,
+                  shellArgs: ["start", slash],
+                });
+                term.show();
+                return;
+              }
+              const mentions = parseMentions(message.text);
+              let dedicatedName: string | null = null;
+              try {
+                dedicatedName = (await readProject(defaultConfigDir()))?.container ?? null;
+              } catch {
+                dedicatedName = null;
+              }
+              if (mentions.length === 0 && dedicatedName === null) {
+                void vscode.window.showErrorMessage(
+                  "Lance un conteneur avec /start <nom>, ou cite-le avec @nom.",
+                );
+                return;
+              }
+              const workName = mentions[0] ?? dedicatedName;
+              await s.send(message.text);
+              if (workName) showExecTerminal(workName);
+              return;
+            }
             case "stop":
               return s.stop();
             case "reset":
@@ -137,14 +195,189 @@ export function activate(context: vscode.ExtensionContext): void {
     },
   };
 
+  const cockpitProvider: vscode.WebviewViewProvider = {
+    resolveWebviewView(view) {
+      const media = vscode.Uri.joinPath(context.extensionUri, "media");
+      view.webview.options = {
+        enableScripts: true,
+        enableCommandUris: false,
+        localResourceRoots: [media],
+      };
+      const nonce = makeNonce();
+      view.webview.html = cockpitHtml({
+        nonce,
+        cspSource: view.webview.cspSource,
+        scriptUri: view.webview.asWebviewUri(vscode.Uri.joinPath(media, "cockpit.js")).toString(),
+        styleUri: view.webview.asWebviewUri(vscode.Uri.joinPath(media, "chat.css")).toString(),
+      });
+      const postCockpit: (message: unknown) => void = (message) =>
+        void view.webview.postMessage(message);
+
+      const pushView = async (loading = false) => {
+        if (loading) postCockpit({ type: "view", loading: true });
+        try {
+          const payload = await loadCockpitView();
+          postCockpit(payload);
+          if (payload.projectInvalid) {
+            void vscode.window.showErrorMessage(
+              "Projet invalide : fichier project.json illisible ou incomplet.",
+            );
+          }
+        } catch (error) {
+          void vscode.window.showErrorMessage(formatError(error));
+        }
+      };
+
+      void pushView(true);
+
+      view.webview.onDidReceiveMessage(async (raw: unknown) => {
+        const message = parseCockpitMessage(raw);
+        if (message === null) return;
+        try {
+          switch (message.type) {
+            case "refresh":
+              return void pushView(true);
+            case "link": {
+              await pushView(true);
+              postCockpit(await linkContainer(message.name));
+              return;
+            }
+            case "openWorkspace": {
+              const st = await linkedProjectStatus();
+              if (st === null) return;
+              const uri = vscode.Uri.file(st.workspace);
+              try {
+                const stat = await vscode.workspace.fs.stat(uri);
+                if (stat.type !== vscode.FileType.Directory) {
+                  throw new Error("not-dir");
+                }
+              } catch {
+                void vscode.window.showErrorMessage(`Dossier inaccessible : ${st.workspace}`);
+                return;
+              }
+              const folders = vscode.workspace.workspaceFolders ?? [];
+              const known = folders.findIndex((f) => f.uri.fsPath === uri.fsPath);
+              if (known < 0) {
+                vscode.workspace.updateWorkspaceFolders(folders.length, 0, { uri });
+              }
+              await vscode.commands.executeCommand("revealInExplorer", uri);
+              return;
+            }
+            case "terminal": {
+              const st = await linkedProjectStatus();
+              if (st === null || st.state !== "running") return;
+              const { shellPath, shellArgs } = terminalLaunch(st.container);
+              const title = `John : ${st.container}`;
+              const existing = vscode.window.terminals.find((t) => t.name === title);
+              if (existing) {
+                existing.show();
+                return;
+              }
+              const term = vscode.window.createTerminal({
+                name: title,
+                shellPath,
+                shellArgs: [...shellArgs],
+              });
+              term.show();
+              return;
+            }
+          }
+        } catch (error) {
+          void vscode.window.showErrorMessage(formatError(error));
+          await pushView(true);
+        }
+      });
+
+      view.onDidChangeVisibility(() => {
+        if (view.visible) void pushView(true);
+      });
+    },
+  };
+
+  const showExecTerminal = (name: string) => {
+    try {
+      const { shellPath, shellArgs } = terminalLaunch(name);
+      const title = `John : ${name}`;
+      const existing = vscode.window.terminals.find((t) => t.name === title);
+      if (existing) {
+        existing.show();
+        return;
+      }
+      const term = vscode.window.createTerminal({
+        name: title,
+        shellPath,
+        shellArgs: [...shellArgs],
+        location: vscode.TerminalLocation.Editor,
+      });
+      term.show();
+    } catch (error) {
+      void vscode.window.showErrorMessage(formatError(error));
+    }
+  };
+
+  let studioPanel: vscode.WebviewPanel | undefined;
+  let studioPage: StudioPage = "project";
+  const pushStudio = async () => {
+    if (!studioPanel) return;
+    const cockpit = await loadCockpitView();
+    let findings: unknown[] = [];
+    try {
+      findings = await readFindings(defaultConfigDir());
+    } catch {
+      findings = [];
+    }
+    await studioPanel.webview.postMessage({ ...cockpit, page: studioPage, findings });
+  };
+  const openStudio = () => {
+    if (studioPanel) {
+      studioPanel.reveal(vscode.ViewColumn.Beside);
+      void pushStudio();
+      return;
+    }
+    const media = vscode.Uri.joinPath(context.extensionUri, "media");
+    studioPanel = vscode.window.createWebviewPanel(
+      "john.studio",
+      "Réglages",
+      vscode.ViewColumn.Beside,
+      { enableScripts: true, enableCommandUris: false, localResourceRoots: [media] },
+    );
+    const nonce = makeNonce();
+    studioPanel.webview.html = studioHtml({
+      nonce,
+      cspSource: studioPanel.webview.cspSource,
+      scriptUri: studioPanel.webview
+        .asWebviewUri(vscode.Uri.joinPath(media, "studio.js"))
+        .toString(),
+      styleUri: studioPanel.webview.asWebviewUri(vscode.Uri.joinPath(media, "chat.css")).toString(),
+    });
+    studioPanel.onDidDispose(() => {
+      studioPanel = undefined;
+    });
+    studioPanel.webview.onDidReceiveMessage(async (raw: unknown) => {
+      const message = parseStudioMessage(raw);
+      if (message === null) return;
+      if (message.type === "open") studioPage = message.page;
+      if (message.type === "unlink") await unlink(defaultConfigDir());
+      await pushStudio();
+    });
+    void pushStudio();
+  };
+
   context.subscriptions.push(
     { dispose: () => session?.dispose() },
     vscode.window.registerWebviewViewProvider("john.chat", provider, {
       webviewOptions: { retainContextWhenHidden: true },
     }),
+    vscode.window.registerWebviewViewProvider("john.cockpit", cockpitProvider, {
+      webviewOptions: { retainContextWhenHidden: true },
+    }),
     vscode.commands.registerCommand("john.openChat", () =>
       vscode.commands.executeCommand("john.chat.focus"),
     ),
+    vscode.commands.registerCommand("john.openCockpit", () =>
+      vscode.commands.executeCommand("john.cockpit.focus"),
+    ),
+    vscode.commands.registerCommand("john.openStudio", () => openStudio()),
     vscode.commands.registerCommand("john.setToken", async () => {
       const kind = await vscode.window.showQuickPick(
         [

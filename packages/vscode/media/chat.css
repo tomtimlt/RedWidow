@@ -89,16 +89,13 @@ body > * {
   right: 0;
   bottom: 0;
   height: 1px;
-  background: linear-gradient(90deg, var(--jn-accent), var(--jn-accent-2) 50%, transparent);
-  opacity: 0.55;
+  background: var(--jn-line);
+  opacity: 1;
 }
 #title {
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  background: linear-gradient(90deg, var(--jn-cool), var(--jn-accent-2));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  color: var(--vscode-foreground);
 }
 #sandbox {
   min-width: 0;
@@ -230,11 +227,8 @@ pre {
 }
 .welcome h2 {
   margin: 0;
-  font-weight: 700;
-  background: linear-gradient(90deg, var(--jn-cool), var(--jn-accent-2));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  font-weight: 650;
+  color: var(--vscode-foreground);
 }
 .hint {
   margin: 0;
@@ -345,9 +339,9 @@ button.example:hover:not(:disabled) {
   padding: 0 var(--jn-s3);
   margin-bottom: var(--jn-s1);
   border-radius: var(--jn-r-md);
-  border: 1px solid color-mix(in srgb, var(--jn-cool) 28%, transparent);
-  background: color-mix(in srgb, var(--jn-cool) 7%, transparent);
-  color: var(--jn-cool);
+  border: 1px solid var(--jn-line);
+  background: var(--vscode-editorWidget-background);
+  color: var(--vscode-foreground);
   font-family: var(--vscode-editor-font-family);
   font-size: 0.92em;
 }
@@ -360,7 +354,7 @@ body.running #thinking {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  text-shadow: 0 0 10px var(--jn-glow);
+  text-shadow: none;
 }
 .spin {
   flex: none;
@@ -393,7 +387,7 @@ body.running #thinking {
   right: 0;
   top: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--jn-cool), transparent);
+  background: var(--jn-line);
   opacity: 0;
   pointer-events: none;
   animation: jn-scan 2.4s linear infinite;
@@ -438,10 +432,10 @@ body.waiting #thinking {
 }
 @keyframes jn-settle {
   from {
-    transform: scale(1.2);
+    opacity: 0.4;
   }
   to {
-    transform: scale(1);
+    opacity: 1;
   }
 }
 @keyframes jn-card-in {
@@ -518,16 +512,13 @@ button:hover:not(:disabled):not([aria-disabled="true"]) {
   background: var(--vscode-button-secondaryHoverBackground);
 }
 button:active:not(:disabled):not([aria-disabled="true"]) {
-  transform: scale(0.97);
+  opacity: 0.86;
 }
 button:focus-visible,
 textarea:focus-visible,
 input:focus-visible {
   outline: 1px solid var(--jn-accent);
   outline-offset: 1px;
-  box-shadow:
-    0 0 0 1px var(--jn-accent),
-    0 0 8px var(--jn-glow);
 }
 button.primary {
   background: var(--vscode-button-background);
@@ -591,20 +582,8 @@ button:disabled:active {
   background: var(--vscode-input-background);
   padding: var(--jn-s2) var(--jn-s2) var(--jn-s1);
 }
-#composer::before {
-  content: "";
-  position: absolute;
-  inset: -1px;
-  border-radius: inherit;
-  box-shadow:
-    0 0 0 1px var(--jn-accent),
-    0 0 12px var(--jn-glow);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--jn-d2) var(--jn-ease-io);
-}
-#composer:focus-within::before {
-  opacity: 1;
+#composer:focus-within {
+  border-color: var(--jn-accent);
 }
 .sweep {
   position: absolute;
@@ -614,27 +593,7 @@ button:disabled:active {
   pointer-events: none;
 }
 .sweep::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 40%;
-  background: linear-gradient(
-    100deg,
-    transparent,
-    color-mix(in srgb, var(--jn-cool) 38%, transparent),
-    color-mix(in srgb, var(--jn-accent-2) 28%, transparent),
-    transparent
-  );
-  opacity: 0;
-  transform: translateX(-100%);
-}
-.sweep.sweep-a::after {
-  animation: jn-sweep-a var(--jn-d3) var(--jn-ease-out) 1;
-}
-.sweep.sweep-b::after {
-  animation: jn-sweep-b var(--jn-d3) var(--jn-ease-out) 1;
+  content: none;
 }
 @keyframes jn-sweep-a {
   0% {
@@ -713,7 +672,7 @@ body:not(.running) #stop {
 }
 .chip .ico,
 .chip .caret {
-  color: var(--jn-cool);
+  color: var(--vscode-foreground);
 }
 .chip-label,
 .cfg-text,
@@ -727,28 +686,11 @@ body:not(.running) #stop {
   color: var(--jn-muted);
   font-size: 0.9em;
 }
-.chip::before {
-  content: "";
-  position: absolute;
-  inset: -1px;
-  border-radius: inherit;
-  box-shadow:
-    0 0 0 1px var(--jn-accent),
-    0 0 10px var(--jn-glow);
-  opacity: 0;
-  pointer-events: none;
-}
-.chip.pop-a {
-  animation: jn-pop-a 300ms var(--jn-ease-out) 1;
-}
-.chip.pop-b {
-  animation: jn-pop-b 300ms var(--jn-ease-out) 1;
-}
-.chip.pop-a::before {
-  animation: jn-halo-a 300ms var(--jn-ease-io) 1;
-}
+.chip.pop-a,
+.chip.pop-b,
+.chip.pop-a::before,
 .chip.pop-b::before {
-  animation: jn-halo-b 300ms var(--jn-ease-io) 1;
+  animation: none;
 }
 @keyframes jn-pop-a {
   from {
@@ -916,7 +858,7 @@ body:not(.running) #stop {
   font-size: 0.78em;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--jn-cool);
+  color: var(--jn-muted);
 }
 .tip {
   margin: var(--jn-s2) 0 0;
@@ -943,18 +885,14 @@ body:not(.running) #stop {
 #effort::-webkit-slider-runnable-track {
   height: 6px;
   border-radius: var(--jn-r-pill);
-  background:
-    linear-gradient(90deg, var(--jn-cool), var(--jn-accent-2)) 0 0 / var(--jn-pct) 100% no-repeat,
-    color-mix(in srgb, var(--vscode-foreground) 20%, transparent);
+  background: color-mix(in srgb, var(--vscode-foreground) 22%, transparent);
 }
 #effort:focus-visible {
   outline: none;
   box-shadow: none;
 }
 #effort:focus-visible::-webkit-slider-thumb {
-  box-shadow:
-    0 0 0 2px var(--jn-accent),
-    0 0 10px var(--jn-glow);
+  box-shadow: 0 0 0 2px var(--jn-accent);
 }
 #effort::-webkit-slider-thumb {
   -webkit-appearance: none;
@@ -964,7 +902,7 @@ body:not(.running) #stop {
   border-radius: 50%;
   border: 2px solid var(--jn-accent);
   background: var(--vscode-editorWidget-background, var(--vscode-input-background));
-  box-shadow: 0 0 8px var(--jn-glow);
+  box-shadow: none;
 }
 #effort.auto::-webkit-slider-thumb {
   border-style: dashed;
@@ -1332,4 +1270,244 @@ body.vscode-high-contrast-light .pop,
 body.vscode-high-contrast #composer,
 body.vscode-high-contrast-light #composer {
   border-color: var(--vscode-contrastBorder, currentColor);
+}
+
+/* --- Cockpit (body.cockpit) --- */
+body.cockpit #bar #refresh {
+  margin-left: auto;
+}
+body.cockpit #main {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--jn-s2) 0 var(--jn-s4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s3);
+}
+body.cockpit .cockpit-status,
+body.cockpit .cockpit-linked,
+body.cockpit .cockpit-list {
+  background: var(--vscode-editor-background);
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+  padding: var(--jn-s3);
+}
+body.cockpit .cockpit-dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--jn-s2) var(--jn-s4);
+  margin: 0;
+}
+body.cockpit .cockpit-dl dt {
+  color: var(--jn-muted);
+  margin: 0;
+}
+body.cockpit .cockpit-dl dd {
+  margin: 0;
+  font-weight: 600;
+}
+body.cockpit .cockpit-muted {
+  color: var(--jn-muted);
+  margin: 0;
+}
+body.cockpit .cockpit-notice,
+body.cockpit .cockpit-error {
+  margin: 0;
+  padding: var(--jn-s2) var(--jn-s3);
+  border-radius: var(--jn-r-sm);
+  background: color-mix(in srgb, var(--vscode-editor-background) 88%, transparent);
+  border: 1px solid var(--jn-line);
+}
+body.cockpit .cockpit-error {
+  color: var(--vscode-errorForeground);
+  border-color: var(--vscode-inputValidation-errorBorder, var(--jn-line));
+}
+body.cockpit .cockpit-linked-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--jn-s2);
+  margin-bottom: var(--jn-s2);
+}
+body.cockpit .cockpit-linked-meta {
+  flex: 1 1 100%;
+  color: var(--jn-muted);
+  font-size: 0.92em;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25em;
+  min-width: 0;
+}
+body.cockpit .cockpit-badge {
+  font-size: 0.85em;
+  padding: 2px 8px;
+  border-radius: var(--jn-r-pill);
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+}
+body.cockpit .cockpit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--jn-s2);
+}
+body.cockpit .cockpit-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+body.cockpit .cockpit-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s2);
+}
+body.cockpit .cockpit-row {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+  min-height: var(--jn-row);
+  padding: var(--jn-s2);
+  border-radius: var(--jn-r-sm);
+  border: 1px solid var(--jn-line);
+  background: color-mix(in srgb, var(--vscode-editor-background) 92%, transparent);
+}
+body.cockpit .cockpit-row-main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
+  gap: var(--jn-s2);
+  align-items: center;
+}
+body.cockpit .cockpit-row-state {
+  font-weight: 600;
+  white-space: nowrap;
+}
+body.cockpit .cockpit-row-ws {
+  grid-column: 1 / -1;
+  font-size: 0.9em;
+}
+body.cockpit .cockpit-row-act {
+  flex: none;
+}
+body.cockpit .cockpit-linked-tag {
+  color: var(--jn-muted);
+  font-size: 0.9em;
+  padding: 0 var(--jn-s2);
+}
+@container app (max-width: 359px) {
+  body.cockpit .cockpit-row-main {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  body.cockpit .cockpit-row-image {
+    display: none;
+  }
+}
+
+/* --- Réglages (body.studio) --- */
+body.studio {
+  height: 100vh;
+}
+.studio-shell {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+#studio-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--jn-s3) var(--jn-s2);
+  border-right: 1px solid var(--jn-line);
+  background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+  overflow: auto;
+}
+.studio-nav-title {
+  font-size: 0.78em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--jn-muted);
+  padding: var(--jn-s2);
+}
+.studio-nav-btn {
+  justify-content: flex-start;
+  width: 100%;
+}
+.studio-nav-btn.is-current {
+  background: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+}
+#studio-main {
+  overflow: auto;
+  padding: var(--jn-s5);
+}
+.studio-card {
+  max-width: 720px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s3);
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+  padding: var(--jn-s4);
+  background: var(--vscode-editor-background);
+}
+.studio-card h2 {
+  margin: 0;
+  font-size: 1.05em;
+  font-weight: 650;
+}
+.studio-kicker {
+  margin: 0;
+  font-size: 0.75em;
+  letter-spacing: 0.08em;
+  color: var(--jn-muted);
+}
+.studio-name {
+  margin: 0;
+  font-size: 1.15em;
+  font-weight: 650;
+}
+.studio-canvas {
+  height: 220px;
+  border: 1px dashed var(--jn-line);
+  border-radius: var(--jn-r-md);
+  background: var(--vscode-editor-background);
+}
+.studio-board {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--jn-s2);
+  min-height: 120px;
+}
+.studio-node {
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-pill);
+  padding: 4px 10px;
+  font-size: 0.9em;
+}
+.studio-node.is-confirmed {
+  border-color: var(--vscode-testing-iconPassed, var(--jn-accent));
+}
+.studio-node.is-hypothesis {
+  border-style: dashed;
+}
+.studio-node.is-failed {
+  color: var(--vscode-errorForeground);
+  border-color: var(--vscode-inputValidation-errorBorder, var(--jn-line));
+}
+@media (max-width: 640px) {
+  .studio-shell {
+    grid-template-columns: 1fr;
+  }
+  #studio-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    border-right: 0;
+    border-bottom: 1px solid var(--jn-line);
+  }
 }

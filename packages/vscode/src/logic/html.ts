@@ -93,3 +93,72 @@ export function chatHtml({
 </html>
 `;
 }
+
+export interface CockpitHtmlOptions {
+  nonce: string;
+  cspSource: string;
+  scriptUri: string;
+  styleUri: string;
+}
+
+/** Page de la webview cockpit : même CSP que le chat, un seul script `cockpit.js`. */
+export function cockpitHtml({ nonce, cspSource, scriptUri, styleUri }: CockpitHtmlOptions): string {
+  for (const [name, value] of Object.entries({ nonce, cspSource, scriptUri, styleUri })) {
+    const ok = name === "cspSource" ? !/["<>]/.test(value) && value !== "" : SAFE.test(value);
+    if (!ok) throw new Error(`valeur invalide pour ${name}`);
+  }
+  const csp = [
+    "default-src 'none'",
+    `script-src 'nonce-${nonce}'`,
+    `style-src ${cspSource}`,
+    `img-src ${cspSource}`,
+  ].join("; ");
+  return `<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="${csp}">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="${styleUri}">
+<title>Cockpit</title>
+</head>
+<body class="cockpit">
+<header id="bar"><span id="title">Cockpit</span><button id="refresh" type="button" class="ghost" title="Actualiser"><span class="ico" aria-hidden="true">⟳</span><span class="btn-text">Actualiser</span></button></header>
+<main id="main" role="main" aria-live="polite"></main>
+<script nonce="${nonce}" src="${scriptUri}"></script>
+</body>
+</html>
+`;
+}
+
+/** Page des réglages : même CSP, script `studio.js`. */
+export function studioHtml({ nonce, cspSource, scriptUri, styleUri }: CockpitHtmlOptions): string {
+  for (const [name, value] of Object.entries({ nonce, cspSource, scriptUri, styleUri })) {
+    const ok = name === "cspSource" ? !/["<>]/.test(value) && value !== "" : SAFE.test(value);
+    if (!ok) throw new Error(`valeur invalide pour ${name}`);
+  }
+  const csp = [
+    "default-src 'none'",
+    `script-src 'nonce-${nonce}'`,
+    `style-src ${cspSource}`,
+    `img-src ${cspSource}`,
+  ].join("; ");
+  return `<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="${csp}">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="${styleUri}">
+<title>Réglages</title>
+</head>
+<body class="studio">
+<div class="studio-shell">
+<nav id="studio-nav" aria-label="Réglages"></nav>
+<main id="studio-main"></main>
+</div>
+<script nonce="${nonce}" src="${scriptUri}"></script>
+</body>
+</html>
+`;
+}

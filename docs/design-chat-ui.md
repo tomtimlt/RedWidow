@@ -1,4 +1,6 @@
-# Spécification de design : chat VS Code (polish « néon »)
+# Spécification de design : chat VS Code (surface plate)
+
+Les dégradés cyan/magenta, le balayage et le halo coloré sont retirés. La surface reprend les captures : filet 1 px, texte du thème, un accent pour le focus et le bouton principal. Les animations qui restent sont l'indicateur de travail et l'entrée des cartes (opacité, léger déplacement).
 
 - Statut : décidé (architecte), 2026-10-15. Cadre : ADR 0004 §C (CSP à nonce, `textContent`, aucune ressource distante), ADR 0005 (modèle, effort).
 - Cible : VS Code ≥ 1.90 (`extension.manifest.json:8`) = Chromium 122. Disponibles : container queries, `color-mix()`, `:has()`, API `popover`. **Indisponible : CSS anchor positioning** (placement calculé en JS).

@@ -363,6 +363,15 @@ export interface DockerClient {
   rm(container: string, options?: CallOptions & { force?: boolean }): Promise<void>;
   /** Conteneurs dont un label a le préfixe `org.exegol.`. Aucune valeur de label ne sort du démon. */
   listLabelPrefix(options?: CallOptions): Promise<LabelPrefixContainer[]>;
+  /**
+   * `docker exec` figé : interactif, répertoire `/workspace`, argv direct.
+   * Aucune option d'hôte (utilisateur, volume, réseau, privilèges).
+   */
+  execWorkspace(
+    container: string,
+    command: readonly string[],
+    options?: CallOptions,
+  ): Promise<string[]>;
 }
 
 export function createDockerClient({
@@ -492,6 +501,23 @@ export function createDockerClient({
         call,
       );
       return parseDockerLabelPrefixInspect(r.stdout);
+    },
+    async execWorkspace(container, command, call = {}) {
+      assertOperand(container, "container");
+      assertCommand(command);
+      const program = command[0];
+      if (program === undefined || program === "" || program.startsWith("-")) {
+        throw new ValidationError("docker.invalidArgument", {
+          field: "command",
+          reason: "program",
+        });
+      }
+      const r = await checked(
+        "exec",
+        ["exec", "--interactive", "--workdir", "/workspace", container, ...command],
+        call,
+      );
+      return [...r.stdout, ...r.stderr];
     },
   };
 }

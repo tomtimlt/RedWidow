@@ -39,6 +39,7 @@ const ARGUMENT_REASONS: Readonly<Record<string, string>> = {
   tooLarge: "trop volumineux (32 Kio au plus)",
   notStrings: "tableau de chaînes attendu",
   notString: "chaîne attendue",
+  program: "le programme ne doit pas être vide ni commencer par « - »",
 };
 
 /** Motifs de `sandbox.imageUnsupported`. */
@@ -224,6 +225,8 @@ export const reasons: Catalog = {
   "project.noWorkspace": (p) => `conteneur sans montage /workspace : ${text(p.name)}`,
   "project.invalid": () => "projet invalide : fichier project.json illisible ou incomplet",
   "project.absent": () => "aucun projet lié (project.json absent)",
+  "exegol.containerDenied": (p) =>
+    `conteneur non autorisé pour ce message : ${text(p.name)} (dédié du projet, ou cité par @)`,
 
   "journal.invalidJson": (p) => `JSON invalide : ${text(p.message)}`,
   "event.notObject": () => "objet attendu",

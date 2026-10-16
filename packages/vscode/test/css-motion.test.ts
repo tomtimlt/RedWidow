@@ -58,6 +58,10 @@ const decls = (r: Rule) =>
     });
 
 describe("chat.css : budget de performance (design-chat-ui.md §2)", () => {
+  it("aucun dégradé", () => {
+    expect(css).not.toMatch(/linear-gradient/);
+  });
+
   it("les @keyframes n'animent que transform et opacity", () => {
     expect(keyframes.size).toBeGreaterThan(5);
     for (const [name, props] of keyframes) {
