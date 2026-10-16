@@ -754,6 +754,7 @@
           field.addEventListener("keydown", (e) => {
             if (e.key === "Enter") commit();
             if (e.key === "Escape") {
+              e.preventDefault();
               renaming = null;
               renderHistory(entries);
             }
@@ -765,7 +766,10 @@
         const open = el("button", "hist-open", h.title);
         open.type = "button";
         open.title = "Ouvrir en lecture seule";
-        open.addEventListener("click", () => vscode.postMessage({ type: "historyOpen", id: h.id }));
+        open.addEventListener("click", () => {
+          vscode.postMessage({ type: "historyOpen", id: h.id });
+          setHistoryOpen(false);
+        });
         const actions = el("div", "hist-actions");
         const rename = el("button", "link", "Renommer");
         rename.type = "button";
@@ -802,9 +806,22 @@
       : "Reprendre (nouvelle session)";
   }
 
-  historyBtn.addEventListener("click", () => {
-    historyPanel.hidden = !historyPanel.hidden;
-    historyBtn.setAttribute("aria-expanded", String(!historyPanel.hidden));
+  // Historique : tiroir à gauche. Fermeture par ✕, Échap, clic sur le voile ou choix d'une conversation.
+  function setHistoryOpen(open) {
+    historyPanel.hidden = !open;
+    historyBtn.setAttribute("aria-expanded", String(open));
+    if (open) $("history-close").focus();
+    else if (historyPanel.contains(document.activeElement)) historyBtn.focus();
+  }
+  historyBtn.addEventListener("click", () => setHistoryOpen(historyPanel.hidden));
+  $("history-close").addEventListener("click", () => setHistoryOpen(false));
+  historyPanel.addEventListener("click", (e) => {
+    if (e.target === historyPanel && e.clientX > historyPanel.getBoundingClientRect().right) {
+      setHistoryOpen(false);
+    }
+  });
+  historyPanel.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !e.defaultPrevented) setHistoryOpen(false);
   });
   $("history-clear").addEventListener("click", () => vscode.postMessage({ type: "historyClear" }));
   $("readonly-resume").addEventListener("click", () =>

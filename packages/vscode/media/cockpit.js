@@ -33,6 +33,70 @@
     node.textContent = t.length > max ? `${t.slice(0, max - 1)}…` : t;
   };
 
+  // Icônes au trait (SVG construit nœud par nœud, jamais de HTML injecté).
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  const ICON_PATHS = {
+    terminal: ["m5 8 4 4-4 4", "M12 17h7"],
+    folder: ["M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"],
+    play: ["M8 5.5v13l10.5-6.5z"],
+    stop: ["M7 7h10v10H7z"],
+    link: [
+      "M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1",
+      "M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1",
+    ],
+  };
+  const icon = (name) => {
+    const svg = document.createElementNS(SVG_NS, "svg");
+    for (const [k, v] of [
+      ["class", "ico"],
+      ["viewBox", "0 0 24 24"],
+      ["width", "16"],
+      ["height", "16"],
+      ["fill", "none"],
+      ["stroke", "currentColor"],
+      ["stroke-width", "2"],
+      ["stroke-linecap", "round"],
+      ["stroke-linejoin", "round"],
+      ["aria-hidden", "true"],
+    ]) {
+      svg.setAttribute(k, v);
+    }
+    for (const d of ICON_PATHS[name] ?? []) {
+      const path = document.createElementNS(SVG_NS, "path");
+      path.setAttribute("d", d);
+      svg.append(path);
+    }
+    return svg;
+  };
+
+  const button = (cls, label, iconName, onClick) => {
+    const b = el("button", cls);
+    b.type = "button";
+    if (iconName) b.append(icon(iconName));
+    b.append(el("span", "btn-text", label));
+    if (onClick) b.addEventListener("click", onClick);
+    return b;
+  };
+
+  const heading = (text, count) => {
+    const h = el("h2", "cockpit-h", text);
+    if (count !== undefined) h.append(el("span", "cockpit-count", String(count)));
+    return h;
+  };
+
+  /** Pastille d'état colorée (ok, warn, err, off) suivie d'un libellé. */
+  const pill = (tone, text) => {
+    const p = el("span", `cockpit-pill tone-${tone}`);
+    p.append(el("span", "dot"), el("span", "", text));
+    return p;
+  };
+
+  const tile = (label, value, tone) => {
+    const t = el("div", `cockpit-tile tone-${tone}`);
+    t.append(el("span", "dot"), el("span", "cockpit-tile-label", label), el("strong", "", value));
+    return t;
+  };
+
   function render(view) {
     if (!main) return;
     while (main.firstChild) main.removeChild(main.firstChild);
@@ -42,17 +106,27 @@
       return;
     }
 
+    // 1. Santé du système : quatre tuiles colorées, lisibles d'un coup d'œil.
     const status = el("section", "cockpit-status");
     status.setAttribute("aria-label", "État système");
-    const dl = el("dl", "cockpit-dl");
-    const addRow = (term, desc) => {
-      dl.append(el("dt", "", term), el("dd", "", desc));
-    };
-    addRow("Docker", view.docker === "present" ? "présent" : "absent");
-    addRow("Démon", daemonLine(view.daemon));
-    addRow("Exegol", view.exegol === "present" ? "présent" : "absent");
-    addRow("Conteneur lié", linkedLine(view.linked));
-    status.append(dl);
+    const grid = el("div", "cockpit-tiles");
+    const linkedTone = { running: "ok", stopped: "warn", absent: "err" }[view.linked] ?? "off";
+    const daemonTone = { reachable: "ok", unreachable: "err" }[view.daemon] ?? "off";
+    grid.append(
+      tile(
+        "Docker",
+        view.docker === "present" ? "présent" : "absent",
+        view.docker === "present" ? "ok" : "err",
+      ),
+      tile("Démon", daemonLine(view.daemon), daemonTone),
+      tile(
+        "Exegol",
+        view.exegol === "present" ? "présent" : "absent",
+        view.exegol === "present" ? "ok" : "err",
+      ),
+      tile("Conteneur lié", linkedLine(view.linked), linkedTone),
+    );
+    status.append(heading("Système"), grid);
     main.append(status);
 
     if (view.error) {
@@ -65,47 +139,50 @@
       return;
     }
 
+    // 2. Conteneur lié : carte principale, actions en tête de lecture.
     const linkedSec = el("section", "cockpit-linked");
     linkedSec.setAttribute("aria-label", "Conteneur lié");
+    linkedSec.append(heading("Conteneur lié"));
     if (!view.linkedBanner) {
-      linkedSec.append(el("p", "cockpit-muted", "Aucun conteneur lié."));
+      linkedSec.append(
+        el(
+          "p",
+          "cockpit-muted",
+          "Aucun conteneur lié. Choisissez-en un dans la liste ci-dessous (Lier).",
+        ),
+      );
     } else {
       const b = view.linkedBanner;
+      const tone = { running: "ok", stopped: "warn", absent: "err" }[b.state] ?? "off";
+      const card = el("div", `cockpit-hero tone-${tone}`);
       const head = el("div", "cockpit-linked-head");
-      const name = el("strong", "cockpit-ellipsis");
+      const name = el("strong", "cockpit-ellipsis cockpit-hero-name");
       ellipsize(name, b.short || b.name);
-      head.append(name);
-      const meta = el("div", "cockpit-linked-meta");
-      const img = el("span", "cockpit-ellipsis");
-      ellipsize(img, b.image ?? "—");
-      const path = el("span", "cockpit-ellipsis");
-      ellipsize(path, b.workspace);
-      meta.append(el("span", "", "Image : "), img, el("span", "", " · Chemin hôte : "), path);
-      head.append(meta);
-      const st = el("span", "cockpit-badge");
-      if (b.state === "absent") st.textContent = "absent";
-      else st.textContent = stateLabel(b.state);
-      head.append(st);
-      linkedSec.append(head);
+      head.append(name, pill(tone, b.state === "absent" ? "absent" : stateLabel(b.state)));
+      const meta = el("dl", "cockpit-meta");
+      const img = el("dd", "cockpit-ellipsis");
+      ellipsize(img, b.image ?? "—", 64);
+      const path = el("dd", "cockpit-ellipsis");
+      ellipsize(path, b.workspace, 64);
+      meta.append(el("dt", "", "Image"), img, el("dt", "", "Dossier hôte"), path);
       const actions = el("div", "cockpit-actions");
-      const openBtn = el("button", "ghost", undefined);
-      openBtn.type = "button";
-      openBtn.append(el("span", "btn-text", "Ouvrir le dossier"));
-      openBtn.addEventListener("click", () => vscode.postMessage({ type: "openWorkspace" }));
-      const termBtn = el("button", "primary", undefined);
-      termBtn.type = "button";
-      termBtn.append(el("span", "btn-text", "Terminal"));
-      termBtn.addEventListener("click", () => vscode.postMessage({ type: "terminal" }));
+      const termBtn = button("primary", "Terminal", "terminal", () =>
+        vscode.postMessage({ type: "terminal" }),
+      );
       if (b.state !== "running" || view.projectInvalid) termBtn.disabled = true;
-      actions.append(openBtn, termBtn);
+      actions.append(termBtn);
       if (b.state === "absent") {
-        const startBtn = el("button", "primary", undefined);
-        startBtn.type = "button";
-        startBtn.append(el("span", "btn-text", "Démarrer"));
-        startBtn.addEventListener("click", () => vscode.postMessage({ type: "create" }));
-        actions.append(startBtn);
+        actions.append(
+          button("primary", "Démarrer", "play", () => vscode.postMessage({ type: "create" })),
+        );
       }
-      linkedSec.append(actions);
+      actions.append(
+        button("secondary", "Ouvrir le dossier", "folder", () =>
+          vscode.postMessage({ type: "openWorkspace" }),
+        ),
+      );
+      card.append(head, meta, actions);
+      linkedSec.append(card);
     }
     main.append(linkedSec);
 
@@ -116,29 +193,33 @@
       return;
     }
 
+    // 3. Tous les conteneurs : une carte par ligne, état coloré à gauche, actions à droite.
+    const rows = view.containers ?? [];
     const listSec = el("section", "cockpit-list");
     listSec.setAttribute("aria-label", "Conteneurs");
+    listSec.append(heading("Conteneurs", rows.length));
     const ul = el("ul", "cockpit-rows");
-    for (const row of view.containers ?? []) {
-      const li = el("li", "cockpit-row");
+    for (const row of rows) {
+      const li = el("li", `cockpit-row ${row.state === "running" ? "is-running" : "is-stopped"}`);
+      li.append(el("span", "dot"));
       const mainCol = el("div", "cockpit-row-main");
+      const top = el("div", "cockpit-row-top");
       const n = el("span", "cockpit-ellipsis cockpit-row-name");
       ellipsize(n, row.short || row.name);
+      top.append(n);
+      if (row.linked) top.append(el("span", "cockpit-linked-tag", "lié"));
+      const sub = el("div", "cockpit-row-sub");
       const im = el("span", "cockpit-ellipsis cockpit-row-image");
       ellipsize(im, row.image);
-      const st = el("span", "cockpit-row-state", stateLabel(row.state));
-      mainCol.append(n, im, st);
+      sub.append(el("span", "cockpit-row-state", stateLabel(row.state)), im);
       if (row.workspace === undefined) {
-        mainCol.append(el("span", "cockpit-muted cockpit-row-ws", "sans dossier"));
+        sub.append(el("span", "cockpit-muted cockpit-row-ws", "sans dossier"));
       }
+      mainCol.append(top, sub);
       li.append(mainCol);
       const act = el("div", "cockpit-row-act");
-      if (row.linked) {
-        act.append(el("span", "cockpit-linked-tag", "lié"));
-      } else {
-        const linkBtn = el("button", "secondary", undefined);
-        linkBtn.type = "button";
-        linkBtn.append(el("span", "btn-text", "Lier"));
+      if (!row.linked) {
+        const linkBtn = button("secondary", "Lier", "link");
         if (!row.canLink) {
           linkBtn.disabled = true;
           if (row.linkTitle) linkBtn.title = row.linkTitle;
@@ -150,21 +231,17 @@
         act.append(linkBtn);
       }
       if (row.state === "running") {
-        const stopBtn = el("button", "danger", undefined);
-        stopBtn.type = "button";
-        stopBtn.append(el("span", "btn-text", "Arrêter"));
-        stopBtn.addEventListener("click", () =>
-          vscode.postMessage({ type: "stop", name: row.name }),
+        act.append(
+          button("danger", "Arrêter", "stop", () =>
+            vscode.postMessage({ type: "stop", name: row.name }),
+          ),
         );
-        act.append(stopBtn);
       } else {
-        const startBtn = el("button", "primary", undefined);
-        startBtn.type = "button";
-        startBtn.append(el("span", "btn-text", "Démarrer"));
-        startBtn.addEventListener("click", () =>
-          vscode.postMessage({ type: "start", name: row.name }),
+        act.append(
+          button("primary", "Démarrer", "play", () =>
+            vscode.postMessage({ type: "start", name: row.name }),
+          ),
         );
-        act.append(startBtn);
       }
       li.append(act);
       ul.append(li);

@@ -33,6 +33,10 @@ body {
   --jn-warn: var(--vscode-editorWarning-foreground, var(--jn-accent-2));
   --jn-err: var(--vscode-errorForeground, var(--jn-accent-2));
   --jn-tint: color-mix(in srgb, var(--jn-accent) 12%, transparent);
+  --jn-drawer-bg: var(
+    --vscode-sideBar-background,
+    var(--vscode-editorWidget-background, var(--vscode-editor-background))
+  );
   --jn-glow-pct: 45%;
   --jn-glow: color-mix(in srgb, var(--jn-accent) var(--jn-glow-pct), transparent);
   --jn-line: var(--vscode-panel-border, color-mix(in srgb, currentColor 20%, transparent));
@@ -248,8 +252,8 @@ select {
   padding: 0 6px;
   min-height: 22px;
   border: 0;
-  background: transparent;
-  color: var(--vscode-descriptionForeground, var(--jn-muted));
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
   font-size: var(--jn-fs-xs);
   opacity: 0;
 }
@@ -421,7 +425,7 @@ button.example::after {
     transform var(--jn-d2) var(--jn-ease-out);
 }
 button.example:hover:not(:disabled) {
-  background: var(--jn-tint);
+  background: var(--vscode-button-secondaryHoverBackground);
   border-color: color-mix(in srgb, var(--jn-accent) 55%, transparent);
 }
 button.example:hover::after,
@@ -652,6 +656,22 @@ body.waiting #thinking .cursor {
     transform: translateY(0) scale(1);
   }
 }
+@keyframes jn-drawer-in {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes jn-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
 @keyframes jn-logo-in {
   from {
     opacity: 0;
@@ -812,10 +832,6 @@ input:focus-visible {
   outline: 2px solid var(--jn-accent);
   outline-offset: 2px;
 }
-.btn-text {
-  display: inline-flex;
-  align-items: center;
-}
 button.primary {
   background: var(--vscode-button-background);
   color: var(--vscode-button-foreground);
@@ -823,12 +839,13 @@ button.primary {
 button.primary:hover:not(:disabled) {
   background: var(--vscode-button-hoverBackground);
 }
+/* Boutons secondaires : toujours un fond plein (jamais transparent). */
 button.ghost,
 button.copy,
 button.link {
-  background: transparent;
-  color: var(--vscode-foreground);
-  padding: 0 var(--jn-s2);
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+  padding: 0 10px;
 }
 button.ghost .ico {
   color: var(--jn-muted);
@@ -845,18 +862,18 @@ button.copy {
 button.ghost:hover:not(:disabled),
 button.copy:hover:not(:disabled),
 button.link:hover:not(:disabled) {
-  background: var(--vscode-toolbar-hoverBackground);
+  background: var(--vscode-button-secondaryHoverBackground);
 }
 button.danger {
-  background: color-mix(in srgb, var(--jn-err) 16%, transparent);
-  color: var(--jn-err);
-  border-color: color-mix(in srgb, var(--jn-err) 55%, transparent);
+  background: var(--vscode-statusBarItem-errorBackground, var(--jn-err));
+  color: var(--vscode-statusBarItem-errorForeground, var(--vscode-button-foreground));
+  border-color: transparent;
 }
 button.danger:hover:not(:disabled) {
   background: color-mix(
     in srgb,
-    var(--vscode-inputValidation-errorBorder, #be1100) 34%,
-    transparent
+    var(--vscode-statusBarItem-errorBackground, var(--jn-err)) 82%,
+    var(--vscode-foreground)
   );
 }
 button:disabled,
@@ -988,8 +1005,8 @@ body:not(.running) #toolbar #stop {
 .chip {
   min-height: 26px;
   border-radius: var(--jn-r-pill);
-  background: transparent;
-  color: var(--vscode-foreground);
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
   border-color: var(--jn-line);
   padding: 0 10px 0 8px;
   gap: 5px;
@@ -1005,11 +1022,11 @@ body:not(.running) #toolbar #stop {
   color: var(--jn-accent-2);
 }
 .chip:hover:not([aria-disabled="true"]) {
-  background: var(--jn-tint);
+  background: var(--vscode-button-secondaryHoverBackground);
   border-color: color-mix(in srgb, var(--jn-accent) 55%, transparent);
 }
 .chip[aria-expanded="true"] {
-  background: var(--jn-tint);
+  background: var(--vscode-button-secondaryHoverBackground);
   border-color: var(--jn-accent);
 }
 .chip .caret {
@@ -1119,7 +1136,7 @@ body:not(.running) #toolbar #stop {
   min-height: 32px;
   padding: 6px 8px;
   line-height: 1.3;
-  background: transparent;
+  background: var(--vscode-button-secondaryBackground);
   color: var(--vscode-foreground);
 }
 .cmd {
@@ -1127,6 +1144,30 @@ body:not(.running) #toolbar #stop {
   color: var(--jn-accent);
 }
 .cmd-desc {
+  color: inherit;
+  opacity: 0.85;
+}
+/* Menus « / », « @ » et « # » : liste serrée, élément actif (clavier ou survol) en sélection pleine. */
+#mention-list,
+#slash-pop {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cmd-opt:hover:not(:disabled),
+.cmd-opt[aria-selected="true"] {
+  background: var(
+    --vscode-list-activeSelectionBackground,
+    var(--vscode-button-secondaryHoverBackground)
+  );
+  color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+}
+.cmd-opt:hover:not(:disabled) .cmd,
+.cmd-opt[aria-selected="true"] .cmd {
+  color: inherit;
+  font-weight: 600;
+}
+.cmd-opt[aria-selected="true"] .cmd-desc {
   font-size: 0.9em;
   color: var(--jn-muted);
   white-space: normal;
@@ -1149,7 +1190,13 @@ body:not(.running) #toolbar #stop {
   outline: none;
   border-color: var(--jn-accent);
 }
+/* Liste des modèles : panneau compact, la liste défile (le filtre reste en haut). */
+#model-pop {
+  width: min(280px, calc(100vw - 16px));
+}
 #model-list {
+  max-height: 240px;
+  overflow-y: auto;
   margin-top: var(--jn-s2);
   display: flex;
   flex-direction: column;
@@ -1250,7 +1297,7 @@ body:not(.running) #toolbar #stop {
   width: 100%;
   min-height: 24px;
   padding: 0 var(--jn-s2);
-  background: transparent;
+  background: var(--vscode-button-secondaryBackground);
   color: var(--vscode-foreground);
 }
 .cfg-off em {
@@ -1408,25 +1455,65 @@ body:not(.running) #toolbar #stop {
 }
 
 /* --- Historique et lecture seule --- */
+/* Historique : tiroir qui glisse depuis la gauche, par-dessus la conversation (voile derrière). */
 #history {
-  padding: var(--jn-s2);
-  border: 1px solid var(--jn-line);
-  border-radius: var(--jn-r-md);
-  margin-top: 6px;
-  max-height: 40%;
-  overflow: auto;
-  background: var(--vscode-editorWidget-background, transparent);
+  position: fixed;
+  z-index: 20;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: min(320px, 88vw);
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  border-right: 1px solid var(--jn-line);
+  background: var(--jn-drawer-bg);
   box-shadow: var(--jn-shadow-pop);
-  animation: jn-pop-in var(--jn-d2) var(--jn-ease-out) 1;
+  animation: jn-drawer-in var(--jn-d2) var(--jn-ease-out) 1;
+}
+#history::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: var(--vscode-widget-shadow, #0006);
+  animation: jn-fade-in var(--jn-d2) var(--jn-ease-io) 1;
+}
+#history::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--jn-drawer-bg);
 }
 .hist-head {
+  flex: none;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--jn-s1);
-  padding: 0 var(--jn-s1) var(--jn-s1);
+  gap: var(--jn-s2);
+  min-height: 44px;
+  padding: 0 var(--jn-s2) 0 var(--jn-s3);
+  border-bottom: 1px solid var(--jn-line);
+}
+.hist-head strong {
+  flex: 1;
+  font-size: var(--jn-fs-lg);
+  font-weight: 650;
 }
 #history-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--jn-s2);
+}
+.icon-btn {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+}
+#history-list:where(ul) {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -1470,7 +1557,13 @@ body:not(.running) #toolbar #stop {
 }
 .hist-actions {
   display: flex;
-  gap: 10px;
+  gap: 6px;
+  margin-top: 6px;
+}
+.hist-actions button {
+  min-height: 22px;
+  padding: 0 8px;
+  font-size: var(--jn-fs-xs);
 }
 .hist-rename {
   width: 100%;
@@ -1582,7 +1675,6 @@ body:not(.running) #toolbar #stop {
   #approvals,
   #thinking,
   #form,
-  #history,
   #readonly {
     width: min(820px, calc(100% - 2 * var(--jn-gutter)));
     margin-inline: auto;
@@ -1745,7 +1837,7 @@ body.bypass-on #composer {
   width: 100%;
   min-height: 28px;
   padding: 0 var(--jn-s2);
-  background: transparent;
+  background: var(--vscode-button-secondaryBackground);
   color: var(--vscode-foreground);
 }
 #bypass-switch::after {
@@ -1806,7 +1898,7 @@ body.bypass-on #composer {
   color: var(--vscode-editor-background, var(--vscode-foreground));
 }
 
-/* --- Cockpit (body.cockpit) --- */
+/* --- Cockpit (body.cockpit) : santé du système, conteneur lié, liste des conteneurs --- */
 body.cockpit #bar #refresh {
   margin-left: auto;
 }
@@ -1814,141 +1906,291 @@ body.cockpit #main {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: var(--jn-s2) 0 var(--jn-s4);
+  padding: var(--jn-s3) 0 var(--jn-s5);
   display: flex;
   flex-direction: column;
-  gap: var(--jn-s3);
+  gap: var(--jn-s5);
 }
-body.cockpit .cockpit-status,
-body.cockpit .cockpit-linked,
-body.cockpit .cockpit-list {
-  background: var(--vscode-editor-background);
-  border: 1px solid var(--jn-line);
-  border-radius: var(--jn-r-md);
-  padding: var(--jn-s3);
+@container app (min-width: 600px) {
+  body.cockpit #main {
+    width: min(860px, calc(100% - 2 * var(--jn-gutter)));
+    margin-inline: auto;
+  }
 }
-body.cockpit .cockpit-dl {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: var(--jn-s2) var(--jn-s4);
-  margin: 0;
+body.cockpit #main > * {
+  animation: jn-msg-in var(--jn-d2) var(--jn-ease-out) 1 both;
 }
-body.cockpit .cockpit-dl dt {
-  color: var(--jn-muted);
-  margin: 0;
+body.cockpit #main > :nth-child(2) {
+  animation-delay: 40ms;
 }
-body.cockpit .cockpit-dl dd {
-  margin: 0;
-  font-weight: 600;
+body.cockpit #main > :nth-child(3) {
+  animation-delay: 80ms;
 }
-body.cockpit .cockpit-muted {
-  color: var(--jn-muted);
-  margin: 0;
-}
-body.cockpit .cockpit-notice,
-body.cockpit .cockpit-error {
-  margin: 0;
-  padding: var(--jn-s2) var(--jn-s3);
-  border-radius: var(--jn-r-sm);
-  background: color-mix(in srgb, var(--vscode-editor-background) 88%, transparent);
-  border: 1px solid var(--jn-line);
-}
-body.cockpit .cockpit-error {
-  color: var(--vscode-errorForeground);
-  border-color: var(--vscode-inputValidation-errorBorder, var(--jn-line));
-}
-body.cockpit .cockpit-linked-head {
+body.cockpit section {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  flex-direction: column;
   gap: var(--jn-s2);
-  margin-bottom: var(--jn-s2);
-}
-body.cockpit .cockpit-linked-meta {
-  flex: 1 1 100%;
-  color: var(--jn-muted);
-  font-size: 0.92em;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25em;
   min-width: 0;
 }
-body.cockpit .cockpit-badge {
+.cockpit-h {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+  margin: 0;
   font-size: var(--jn-fs-xs);
   font-weight: 600;
-  padding: 2px 8px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--jn-muted);
+}
+.cockpit-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
   border-radius: var(--jn-r-pill);
   background: var(--vscode-badge-background);
   color: var(--vscode-badge-foreground);
+  font-size: var(--jn-fs-xs);
+  letter-spacing: 0;
 }
-body.cockpit .cockpit-actions {
+
+/* Tons partagés : pastille de couleur (.dot) selon l'état. */
+body.cockpit .dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--jn-muted);
+}
+body.cockpit .tone-ok .dot {
+  background: var(--jn-ok);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--jn-ok) 25%, transparent);
+}
+body.cockpit .tone-warn .dot {
+  background: var(--jn-warn);
+}
+body.cockpit .tone-err .dot {
+  background: var(--jn-err);
+}
+body.cockpit .cockpit-row.is-running > .dot {
+  background: var(--jn-ok);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--jn-ok) 25%, transparent);
+}
+
+/* Tuiles de santé : grille fluide, 2 à 4 colonnes selon la largeur. */
+.cockpit-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: var(--jn-s2);
+}
+.cockpit-tile {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: var(--jn-s2);
+  row-gap: 2px;
+  padding: var(--jn-s3);
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+}
+.cockpit-tile-label {
+  font-size: var(--jn-fs-xs);
+  color: var(--jn-muted);
+}
+.cockpit-tile strong {
+  grid-column: 2;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cockpit-tile.tone-err {
+  border-color: color-mix(in srgb, var(--jn-err) 50%, var(--jn-line));
+}
+
+/* Carte du conteneur lié : filet de couleur à gauche selon l'état. */
+.cockpit-hero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s3);
+  padding: var(--jn-s4);
+  border: 1px solid var(--jn-line);
+  border-left: 3px solid var(--jn-muted);
+  border-radius: var(--jn-r-lg);
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+}
+.cockpit-hero.tone-ok {
+  border-left-color: var(--jn-ok);
+}
+.cockpit-hero.tone-warn {
+  border-left-color: var(--jn-warn);
+}
+.cockpit-hero.tone-err {
+  border-left-color: var(--jn-err);
+}
+.cockpit-linked-head {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+  min-width: 0;
+}
+.cockpit-hero-name {
+  flex: 1;
+  font-size: var(--jn-fs-lg);
+  font-weight: 650;
+}
+.cockpit-pill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: var(--jn-r-pill);
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+  font-size: var(--jn-fs-xs);
+  font-weight: 600;
+}
+.cockpit-meta {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--jn-s1) var(--jn-s4);
+  margin: 0;
+  font-size: var(--jn-fs-sm);
+}
+.cockpit-meta dt {
+  color: var(--jn-muted);
+}
+.cockpit-meta dd {
+  margin: 0;
+  font-family: var(--jn-mono);
+}
+.cockpit-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--jn-s2);
 }
-body.cockpit .cockpit-ellipsis {
+.cockpit-actions button,
+.cockpit-row-act button {
+  min-height: 30px;
+}
+.cockpit-muted {
+  color: var(--jn-muted);
+  margin: 0;
+}
+.cockpit-notice,
+.cockpit-error {
+  margin: 0;
+  padding: var(--jn-s3);
+  border-radius: var(--jn-r-md);
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  border: 1px solid var(--jn-line);
+  border-left: 3px solid var(--jn-accent);
+}
+.cockpit-error {
+  color: var(--jn-err);
+  border-color: color-mix(in srgb, var(--jn-err) 50%, var(--jn-line));
+  border-left-color: var(--jn-err);
+}
+.cockpit-ellipsis {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
 }
-body.cockpit .cockpit-rows {
+
+/* Liste : une carte par conteneur (pastille, nom et image, actions). */
+.cockpit-rows {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--jn-s2);
+  gap: 6px;
 }
-body.cockpit .cockpit-row {
+.cockpit-row {
   display: flex;
   align-items: center;
-  gap: var(--jn-s2);
-  min-height: var(--jn-row);
+  gap: var(--jn-s3);
+  min-height: 52px;
   padding: var(--jn-s2) var(--jn-s3);
   border-radius: var(--jn-r-md);
   border: 1px solid var(--jn-line);
-  background: color-mix(in srgb, var(--vscode-editor-background) 92%, transparent);
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
   transition:
     background-color var(--jn-d1) var(--jn-ease-io),
     border-color var(--jn-d1) var(--jn-ease-io);
 }
-body.cockpit .cockpit-row:hover {
-  background: var(--vscode-list-hoverBackground);
-  border-color: color-mix(in srgb, var(--jn-accent) 45%, var(--jn-line));
+.cockpit-row:hover {
+  border-color: color-mix(in srgb, var(--jn-accent) 50%, var(--jn-line));
 }
-body.cockpit #main > * {
-  animation: jn-msg-in var(--jn-d2) var(--jn-ease-out) 1 both;
-}
-body.cockpit .cockpit-row-main {
+.cockpit-row-main {
   flex: 1;
   min-width: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
-  gap: var(--jn-s2);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cockpit-row-top {
+  display: flex;
   align-items: center;
+  gap: var(--jn-s2);
+  min-width: 0;
 }
-body.cockpit .cockpit-row-state {
+.cockpit-row-name {
   font-weight: 600;
-  white-space: nowrap;
 }
-body.cockpit .cockpit-row-ws {
-  grid-column: 1 / -1;
-  font-size: 0.9em;
-}
-body.cockpit .cockpit-row-act {
-  flex: none;
-}
-body.cockpit .cockpit-linked-tag {
+.cockpit-row-sub {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+  min-width: 0;
+  font-size: var(--jn-fs-xs);
   color: var(--jn-muted);
-  font-size: 0.9em;
-  padding: 0 var(--jn-s2);
+}
+.cockpit-row-image {
+  font-family: var(--jn-mono);
+}
+.cockpit-row-ws,
+.cockpit-row-state {
+  flex: none;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.cockpit-row.is-running .cockpit-row-state {
+  color: var(--jn-ok);
+}
+.cockpit-row-act {
+  flex: none;
+  display: flex;
+  gap: 6px;
+}
+.cockpit-linked-tag {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 8px;
+  border-radius: var(--jn-r-pill);
+  background: var(--jn-accent);
+  color: var(--vscode-button-foreground, var(--vscode-editor-background));
+  font-size: var(--jn-fs-xs);
+  font-weight: 600;
 }
 @container app (max-width: 359px) {
-  body.cockpit .cockpit-row-main {
-    grid-template-columns: minmax(0, 1fr) auto;
+  .cockpit-row {
+    flex-wrap: wrap;
   }
-  body.cockpit .cockpit-row-image {
+  .cockpit-row-act {
+    flex-basis: 100%;
+    justify-content: flex-end;
+  }
+  .cockpit-row-image {
     display: none;
   }
 }
@@ -1970,7 +2212,7 @@ body.studio {
   min-width: 0;
   padding: var(--jn-s3) var(--jn-s2);
   border-right: 1px solid var(--jn-line);
-  background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+  background: var(--jn-drawer-bg);
   overflow: auto;
 }
 .studio-nav-title {
