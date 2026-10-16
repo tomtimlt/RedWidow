@@ -572,6 +572,8 @@
   const historyPanel = $("history");
   const historyBtn = $("history-btn");
   let renaming = null;
+  // Vrai si la conversation courante tourne (badge « en cours » seulement dans ce cas).
+  let historyRunning = false;
 
   function renderHistory(entries) {
     $("history-clear").disabled = entries.length === 0;
@@ -622,7 +624,11 @@
           vscode.postMessage({ type: "historyDelete", id: h.id }),
         );
         actions.append(rename, del);
-        li.append(open, el("div", "hist-meta", meta), actions);
+        const line = el("div", "hist-line");
+        line.append(open);
+        const badge = UI.historyBadge(h, historyRunning);
+        if (badge) line.append(el("span", "badge", badge));
+        li.append(line, el("div", "hist-meta", meta), actions);
         return li;
       }),
     );
@@ -651,6 +657,89 @@
   );
   $("readonly-close").addEventListener("click", () => vscode.postMessage({ type: "reset" }));
 
+  // --- Monitor (lecture seule) : lignes pures de ui.js (monitorRows), texte en textContent ---
+  const monitorRowsEl = $("monitor-rows");
+  const monitorEmpty = $("monitor-empty");
+
+  const toLayout = (layout) => {
+    vscode.postMessage({ type: "setLayout", layout });
+  };
+
+  function monitorLine(row) {
+    const li = el("li", `mon-row tone-${row.tone}`);
+    const cmd = el("div", "mon-cmd");
+    if (row.container !== "") cmd.append(el("span", "prompt", row.container));
+    cmd.append(el("span", "prompt", "$"), el("code", "mon-text", row.command));
+    const meta = el("div", "mon-meta");
+    meta.append(el("span", "badge", row.status));
+    if (row.pending) {
+      const reply = el("button", "link", "Répondre dans le chat");
+      reply.type = "button";
+      reply.addEventListener("click", () => toLayout("editor"));
+      meta.append(reply);
+    }
+    li.append(cmd, meta);
+    if (row.output !== "") li.append(el("pre", "mon-out", row.output));
+    if (row.truncated) li.append(el("p", "note", "sortie tronquée"));
+    return li;
+  }
+
+  function renderMonitor(view) {
+    const rows = UI.monitorRows(view);
+    monitorRowsEl.replaceChildren(...rows.map(monitorLine));
+    monitorEmpty.hidden = rows.length > 0;
+  }
+
+  // --- Surface : disposition et mode reçus de l'hôte (une seule surface rend la conversation) ---
+  const MODE_CLASSES = ["conversation", "monitor", "away"];
+  const layoutSeg = [...document.querySelectorAll("#layout-seg [data-layout]")];
+  let layout = "editor";
+  let mode = "conversation";
+
+  function paintLayout() {
+    for (const btn of layoutSeg) {
+      const on = btn.dataset.layout === layout;
+      btn.setAttribute("aria-checked", String(on));
+      btn.tabIndex = on ? 0 : -1;
+    }
+  }
+
+  function applySurface(message) {
+    const previous = mode;
+    layout = UI.safeLayout(message.layout);
+    mode = UI.surfaceMode(layout, message.active === true);
+    document.body.classList.toggle("layout-chat", layout === "chat");
+    document.body.classList.toggle("layout-monitor", layout === "monitor");
+    for (const c of MODE_CLASSES) document.body.classList.toggle(`mode-${c}`, c === mode);
+    // Conversation ouverte ailleurs : la liste des sessions reste visible ici.
+    if (mode === "away") {
+      historyPanel.hidden = false;
+      historyBtn.setAttribute("aria-expanded", "true");
+    } else if (previous === "away") {
+      historyPanel.hidden = true;
+      historyBtn.setAttribute("aria-expanded", "false");
+    }
+    paintLayout();
+    if (lastView) render(lastView);
+  }
+
+  // Configurer : sélecteur Layout (radio, flèches gauche/droite).
+  layoutSeg.forEach((btn, i) => {
+    btn.addEventListener("click", () => {
+      if (btn.dataset.layout !== layout) toLayout(btn.dataset.layout);
+    });
+    btn.addEventListener("keydown", (e) => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      e.preventDefault();
+      const target = layoutSeg[UI.tabTarget(layoutSeg.length, i, e.key === "ArrowLeft")];
+      if (!target) return;
+      target.focus();
+      if (target.dataset.layout !== layout) toLayout(target.dataset.layout);
+    });
+  });
+  $("away-return").addEventListener("click", () => toLayout("editor"));
+  $("monitor-back").addEventListener("click", () => toLayout("editor"));
+
   // Classes de body (running, waiting, paused, readonly, reduce-motion) : les effets CSS n'en dépendent que par elles.
   const MANAGED = ["running", "waiting", "paused", "readonly", "reduce-motion"];
   const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -669,18 +758,21 @@
 
   function render(view) {
     renderControls(view.controls);
+    historyRunning = view.busy && !view.readonly;
     renderHistory(view.history);
     renderReadonly(view.readonly);
+    renderMonitor(view);
     const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
     const top = log.scrollTop;
     log.replaceChildren(
       ...(view.items.length === 0 ? [welcome(view.sandbox)] : renderItems(view.items)),
     );
-    const cards = view.approvals.map((c) => renderCard(c, !seenCards.has(c.toolUseId)));
+    const visible = UI.cardsFor(view, mode);
+    const cards = visible.map((c) => renderCard(c, !seenCards.has(c.toolUseId)));
     approvals.replaceChildren(...cards);
-    const fresh = view.approvals.findIndex((c) => !seenCards.has(c.toolUseId));
+    const fresh = visible.findIndex((c) => !seenCards.has(c.toolUseId));
     seenCards.clear();
-    for (const c of view.approvals) seenCards.add(c.toolUseId);
+    for (const c of visible) seenCards.add(c.toolUseId);
     if (fresh >= 0) cards[fresh]?.focus();
     const sb = $("sandbox");
     if (view.sandbox) {
@@ -708,6 +800,7 @@
   window.addEventListener("message", (event) => {
     const message = event.data;
     if (message && message.type === "view") render(message.view);
+    else if (message && message.type === "surface") applySurface(message);
   });
 
   function grow() {

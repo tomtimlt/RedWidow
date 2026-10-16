@@ -3,6 +3,107 @@
 ((root) => {
   const enabled = (options, i) => i >= 0 && i < options.length && !options[i].disabled;
 
+  /** Dispositions connues (miroir de `LAYOUTS` de src/logic/approval.ts, vérifié par test). */
+  const LAYOUTS = ["editor", "chat", "monitor"];
+  /** Nom de l'outil d'exec Exegol (miroir de `EXEGOL_EXEC_TOOL`, vérifié par test). */
+  const EXEC_TOOL = "mcp__exegol__exec";
+  const MONITOR_MAX_ROWS = 200;
+
+  /** Disposition reçue de l'hôte, validée ici aussi : toute autre valeur donne `editor`. */
+  function safeLayout(value) {
+    return LAYOUTS.includes(value) ? value : "editor";
+  }
+
+  /**
+   * Mode d'une surface (une seule surface rend la conversation à la fois) : `away` si la conversation
+   * est ouverte dans l'autre surface (Side Bar en Chat/Monitor), `monitor` en lecture seule, sinon
+   * `conversation`.
+   */
+  function surfaceMode(layout, active) {
+    if (!active) return "away";
+    return safeLayout(layout) === "monitor" ? "monitor" : "conversation";
+  }
+
+  /**
+   * Cartes d'approbation à rendre sur une surface : seulement en mode `conversation`, jamais en
+   * `away` ni en `monitor` (aucune carte rendue sur deux surfaces).
+   */
+  function cardsFor(view, mode) {
+    if (mode !== "conversation" || !view || !Array.isArray(view.approvals)) return [];
+    return view.approvals;
+  }
+
+  /** Badge d'une ligne d'historique : « en cours » seulement pour la conversation courante si elle tourne. */
+  function historyBadge(entry, running) {
+    if (!entry?.current) return null;
+    return running ? "en cours" : "actuelle";
+  }
+
+  /** Éléments de la vue, tolérant à une vue incomplète. */
+  const itemsOf = (view) => (view && Array.isArray(view.items) ? view.items : []);
+
+  /** Statut lisible et tonalité d'un appel d'exec, d'après ce que porte la vue. */
+  function execState(item) {
+    if (item.status === "denied" || item.decision === "deny")
+      return { status: "refusé", tone: "err" };
+    if (item.status === "error") return { status: "erreur", tone: "err" };
+    if (item.status === "ok" || item.decision === "allow")
+      return { status: "approuvé", tone: "ok" };
+    return { status: "en attente", tone: "wait" };
+  }
+
+  /** Argument de commande : tel quel, entre guillemets s'il contient un espace ou est vide. */
+  const shellArg = (arg) => (/^[^\s"']+$/.test(arg) ? arg : JSON.stringify(arg));
+
+  /** Conteneur et commande d'un appel (entrée JSON `{container, argv}`, sinon texte brut). */
+  function execCommand(raw) {
+    try {
+      const v = JSON.parse(raw);
+      if (
+        v !== null &&
+        typeof v === "object" &&
+        !Array.isArray(v) &&
+        Array.isArray(v.argv) &&
+        v.argv.every((a) => typeof a === "string")
+      ) {
+        return {
+          container: typeof v.container === "string" ? v.container : "",
+          command: v.argv.map(shellArg).join(" "),
+        };
+      }
+    } catch {
+      // Entrée tronquée par le plafond de description : affichée telle quelle.
+    }
+    return { container: "", command: raw };
+  }
+
+  /**
+   * Lignes du Monitor : un appel d'exec Exegol par ligne, les plus récents seulement. Méta limitée à
+   * ce que la vue porte (statut ; ni durée ni volumétrie). `pending` : une autorisation attend, à
+   * donner dans le chat.
+   */
+  function monitorRows(view) {
+    const pending = new Set(
+      view && Array.isArray(view.approvals) ? view.approvals.map((a) => a.toolUseId) : [],
+    );
+    const rows = itemsOf(view)
+      .filter((it) => it && it.kind === "tool" && it.tool === EXEC_TOOL)
+      .map((it) => {
+        const raw = typeof it.input === "string" ? it.input : "";
+        const { container, command } = execCommand(raw);
+        return {
+          id: it.id,
+          container,
+          command,
+          output: typeof it.output === "string" ? it.output : "",
+          truncated: it.truncated === true,
+          pending: pending.has(it.toolUseId),
+          ...execState(it),
+        };
+      });
+    return rows.slice(-MONITOR_MAX_ROWS);
+  }
+
   /**
    * Navigation clavier d'une listbox. `state.active` : indice actif (-1 = aucun) ; `options` :
    * `[{ disabled? }]`. Les options désactivées sont sautées, la navigation boucle ; liste vide ou
@@ -116,6 +217,13 @@
   }
 
   const api = {
+    LAYOUTS,
+    EXEC_TOOL,
+    safeLayout,
+    surfaceMode,
+    cardsFor,
+    historyBadge,
+    monitorRows,
     listboxKey,
     filterModels,
     placePopover,

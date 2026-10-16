@@ -1,5 +1,7 @@
 import { createRequire } from "node:module";
+import { EXEGOL_EXEC_TOOL } from "@john-studio/core";
 import { describe, expect, it } from "vitest";
+import { LAYOUTS as CORE_LAYOUTS } from "../src/logic/approval.js";
 
 interface UiApi {
   listboxKey(s: { active: number }, key: string, o: { disabled?: boolean }[]): { active: number };
@@ -21,6 +23,24 @@ interface UiApi {
   ): string[];
   activityLabel(v: { busy: boolean; approvals: unknown[]; items: unknown[] }): string;
   shouldSweep(prev: string | null | undefined, next: string | null): boolean;
+  LAYOUTS: string[];
+  EXEC_TOOL: string;
+  safeLayout(value: unknown): string;
+  surfaceMode(layout: string, active: boolean): string;
+  cardsFor<T>(view: { approvals: T[] } | null, mode: string): T[];
+  historyBadge(entry: { current: boolean }, running: boolean): string | null;
+  monitorRows(view: unknown): MonitorRow[];
+}
+
+interface MonitorRow {
+  id: number;
+  container: string;
+  command: string;
+  output: string;
+  truncated: boolean;
+  pending: boolean;
+  status: string;
+  tone: string;
 }
 // Le paquet est « type: module » : ui.js est évalué comme script sans `module`, il se publie donc sur globalThis (comme dans la webview).
 createRequire(import.meta.url)("../media/ui.js");
@@ -194,5 +214,150 @@ describe("balayage de changement de modèle", () => {
     expect(ui.shouldSweep("a", "b")).toBe(true);
     expect(ui.shouldSweep(null, "b")).toBe(true);
     expect(ui.shouldSweep("a", null)).toBe(true);
+  });
+});
+
+describe("disposition et surfaces (lot P4)", () => {
+  it("LAYOUTS de ui.js = LAYOUTS de approval.ts ; EXEC_TOOL = constante du cœur", () => {
+    expect(ui.LAYOUTS).toEqual([...CORE_LAYOUTS]);
+    expect(ui.EXEC_TOOL).toBe(EXEGOL_EXEC_TOOL);
+  });
+  it("safeLayout : valeur connue gardée, sinon editor", () => {
+    expect(ui.safeLayout("chat")).toBe("chat");
+    for (const v of ["Chat", "bypass", "", null, undefined, 3, { layout: "chat" }]) {
+      expect(ui.safeLayout(v), String(v)).toBe("editor");
+    }
+  });
+  it("surfaceMode : seule la surface active rend la conversation ou le Monitor", () => {
+    expect(ui.surfaceMode("editor", true)).toBe("conversation");
+    expect(ui.surfaceMode("chat", true)).toBe("conversation");
+    expect(ui.surfaceMode("monitor", true)).toBe("monitor");
+    // La Side Bar en Chat ou Monitor est inactive : elle n'affiche pas la conversation.
+    expect(ui.surfaceMode("chat", false)).toBe("away");
+    expect(ui.surfaceMode("monitor", false)).toBe("away");
+    expect(ui.surfaceMode("inconnu", true)).toBe("conversation");
+  });
+  it("cartes d'approbation : un seul rendu, celui de la surface en mode conversation", () => {
+    const view = { approvals: [{ toolUseId: "a" }] };
+    const sidebarEditor = ui.cardsFor(view, ui.surfaceMode("editor", true));
+    const stageChat = ui.cardsFor(view, ui.surfaceMode("chat", true));
+    const sidebarChat = ui.cardsFor(view, ui.surfaceMode("chat", false));
+    const stageMonitor = ui.cardsFor(view, ui.surfaceMode("monitor", true));
+    expect(sidebarEditor).toEqual(view.approvals);
+    expect(stageChat).toEqual(view.approvals);
+    expect(sidebarChat).toEqual([]);
+    expect(stageMonitor).toEqual([]);
+    expect(ui.cardsFor(null, "conversation")).toEqual([]);
+    expect(ui.cardsFor({ approvals: "x" as unknown as unknown[] }, "conversation")).toEqual([]);
+  });
+  it("badge d'historique : « en cours » seulement pour la courante qui tourne", () => {
+    expect(ui.historyBadge({ current: true }, true)).toBe("en cours");
+    expect(ui.historyBadge({ current: true }, false)).toBe("actuelle");
+    expect(ui.historyBadge({ current: false }, true)).toBeNull();
+    expect(ui.historyBadge({ current: false }, false)).toBeNull();
+  });
+});
+
+describe("monitorRows (lot P4) : lecture seule, une ligne par appel Exegol", () => {
+  const exec = (
+    id: number,
+    toolUseId: string,
+    argv: string[],
+    extra: Record<string, unknown> = {},
+  ) => ({
+    id,
+    kind: "tool",
+    toolUseId,
+    tool: EXEGOL_EXEC_TOOL,
+    label: "Exegol",
+    summary: "",
+    input: JSON.stringify({ container: "web", argv }),
+    status: "pending",
+    ...extra,
+  });
+
+  it("ne garde que les appels d'exec Exegol", () => {
+    const rows = ui.monitorRows({
+      items: [
+        { id: 1, kind: "tool", tool: "Bash", toolUseId: "b", input: "ls", status: "ok" },
+        { id: 2, kind: "agent", text: "bonjour" },
+        { id: 3, kind: "notice", level: "info", text: "x" },
+        exec(4, "e", ["nmap", "-sV", "10.0.0.1"]),
+      ],
+      approvals: [],
+    });
+    expect(rows.map((r) => r.id)).toEqual([4]);
+  });
+
+  it("commande et conteneur ; argument avec espace ou vide entre guillemets", () => {
+    const [row] = ui.monitorRows({
+      items: [exec(1, "e", ["echo", "deux mots", ""])],
+      approvals: [],
+    });
+    expect(row?.container).toBe("web");
+    expect(row?.command).toBe('echo "deux mots" ""');
+  });
+
+  it("entrée non JSON (tronquée) : affichée telle quelle, conteneur vide", () => {
+    const [row] = ui.monitorRows({
+      items: [exec(1, "e", ["x"], { input: '{"container":"we' })],
+      approvals: [],
+    });
+    expect(row?.container).toBe("");
+    expect(row?.command).toBe('{"container":"we');
+  });
+
+  it("statut : en attente, approuvé, refusé, erreur, d'après ce que porte la vue", () => {
+    const rows = ui.monitorRows({
+      items: [
+        exec(1, "attente", ["a"]),
+        exec(2, "lance", ["b"], { decision: "allow" }),
+        exec(3, "fini", ["c"], { status: "ok", decision: "allow" }),
+        exec(4, "refuse", ["d"], { status: "denied", decision: "deny" }),
+        exec(5, "casse", ["e"], { status: "error", decision: "allow" }),
+      ],
+      approvals: [{ toolUseId: "attente" }],
+    });
+    expect(rows.map((r) => [r.status, r.tone])).toEqual([
+      ["en attente", "wait"],
+      ["approuvé", "ok"],
+      ["approuvé", "ok"],
+      ["refusé", "err"],
+      ["erreur", "err"],
+    ]);
+  });
+
+  it("autorisation en attente : ligne signalée (renvoi au chat), sans autre décision", () => {
+    const rows = ui.monitorRows({
+      items: [exec(1, "p", ["a"]), exec(2, "q", ["b"], { status: "ok", decision: "allow" })],
+      approvals: [{ toolUseId: "p" }],
+    });
+    expect(rows.map((r) => r.pending)).toEqual([true, false]);
+  });
+
+  it("sortie et troncature reprises telles que la vue les porte ; aucune durée ni volumétrie", () => {
+    const [row] = ui.monitorRows({
+      items: [exec(1, "e", ["a"], { status: "ok", output: "ligne", truncated: true })],
+      approvals: [],
+    });
+    expect(row?.output).toBe("ligne");
+    expect(row?.truncated).toBe(true);
+    for (const key of ["duration", "durationMs", "bytes", "lines", "requests"]) {
+      expect(Object.keys(row ?? {})).not.toContain(key);
+    }
+  });
+
+  it("plafond : les 200 appels les plus récents", () => {
+    const items = Array.from({ length: 250 }, (_, i) => exec(i + 1, `t${i}`, [`c${i}`]));
+    const rows = ui.monitorRows({ items, approvals: [] });
+    expect(rows).toHaveLength(200);
+    expect(rows[0]?.id).toBe(51);
+    expect(rows.at(-1)?.id).toBe(250);
+  });
+
+  it("vue absente ou incomplète : aucune ligne, sans erreur", () => {
+    expect(ui.monitorRows(null)).toEqual([]);
+    expect(ui.monitorRows({})).toEqual([]);
+    expect(ui.monitorRows({ items: "x", approvals: 3 })).toEqual([]);
   });
 });

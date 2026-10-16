@@ -62,6 +62,29 @@ export function alwaysConfirmText(card: ApprovalCard): string {
 
 export const MAX_WEBVIEW_TEXT = 100_000;
 
+/**
+ * Dispositions de la fenêtre (lot P4) : `editor` = chat dans la Side Bar ; `chat` et `monitor` =
+ * panneau éditeur `john.stage`. Mémorisée dans `workspaceState` ; toute autre valeur donne `editor`.
+ */
+export const LAYOUTS = ["editor", "chat", "monitor"] as const;
+export type Layout = (typeof LAYOUTS)[number];
+
+export const LAYOUT_LABELS: Record<Layout, string> = {
+  editor: "Éditeur",
+  chat: "Chat",
+  monitor: "Monitor",
+};
+
+export const isLayout = (value: unknown): value is Layout =>
+  typeof value === "string" && (LAYOUTS as readonly string[]).includes(value);
+
+/** Disposition lue dans le stockage : valeur inconnue ou absente → `editor`. */
+export const readLayout = (stored: unknown): Layout => (isLayout(stored) ? stored : "editor");
+
+/** Disposition suivante, dans l'ordre de `LAYOUTS` (cycle de la barre d'état). */
+export const nextLayout = (layout: Layout): Layout =>
+  LAYOUTS[(LAYOUTS.indexOf(layout) + 1) % LAYOUTS.length] ?? "editor";
+
 export type WebviewMessage =
   | { type: "send"; text: string }
   | { type: "stop" }
@@ -76,7 +99,8 @@ export type WebviewMessage =
   | { type: "historyDelete"; id: string }
   | { type: "historyClear" }
   | { type: "refreshModels" }
-  | { type: "approve"; toolUseId: string; choice: Choice };
+  | { type: "approve"; toolUseId: string; choice: Choice }
+  | { type: "setLayout"; layout: Layout };
 
 /** Valide un message venu de la webview (non fiable) : forme exacte, sinon `null`. */
 export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
@@ -121,6 +145,10 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
     case "historyClear":
     case "ready":
       return only("type") ? { type: m.type } : null;
+    case "setLayout":
+      return only("type", "layout") && isLayout(m.layout)
+        ? { type: "setLayout", layout: m.layout }
+        : null;
     case "approve":
       return only("type", "toolUseId", "choice") &&
         typeof m.toolUseId === "string" &&

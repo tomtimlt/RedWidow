@@ -4,7 +4,11 @@ import {
   alwaysConfirmText,
   answerFor,
   cleanText,
+  LAYOUT_LABELS,
+  LAYOUTS,
+  nextLayout,
   parseWebviewMessage,
+  readLayout,
   toCard,
 } from "../src/logic/approval.js";
 
@@ -94,5 +98,51 @@ describe("parseWebviewMessage", () => {
     ]) {
       expect(parseWebviewMessage(raw), JSON.stringify(raw)).toBeNull();
     }
+  });
+});
+
+describe("setLayout : liste blanche de la disposition (lot P4)", () => {
+  it("accepte editor, chat et monitor", () => {
+    for (const layout of ["editor", "chat", "monitor"]) {
+      expect(parseWebviewMessage({ type: "setLayout", layout })).toEqual({
+        type: "setLayout",
+        layout,
+      });
+    }
+  });
+  it("rejette toute autre valeur, casse incluse, et les clés en trop", () => {
+    for (const raw of [
+      { type: "setLayout" },
+      { type: "setLayout", layout: "" },
+      { type: "setLayout", layout: "Chat" },
+      { type: "setLayout", layout: "bypass" },
+      { type: "setLayout", layout: "editor " },
+      { type: "setLayout", layout: ["chat"] },
+      { type: "setLayout", layout: { value: "chat" } },
+      { type: "setLayout", layout: null },
+      { type: "setLayout", layout: "chat", extra: 1 },
+      { type: "setLayout", layout: "chat", workspace: "x" },
+    ]) {
+      expect(parseWebviewMessage(raw), JSON.stringify(raw)).toBeNull();
+    }
+  });
+});
+
+describe("disposition : lecture, cycle, libellés", () => {
+  it("LAYOUTS et libellés couvrent les trois dispositions", () => {
+    expect(LAYOUTS).toEqual(["editor", "chat", "monitor"]);
+    expect(LAYOUT_LABELS).toEqual({ editor: "Éditeur", chat: "Chat", monitor: "Monitor" });
+  });
+  it("readLayout : valeur connue gardée, tout le reste donne editor (défaut)", () => {
+    expect(readLayout("chat")).toBe("chat");
+    expect(readLayout("monitor")).toBe("monitor");
+    for (const stored of [undefined, null, "", "Chat", "bypass", 1, { layout: "chat" }]) {
+      expect(readLayout(stored), JSON.stringify(stored)).toBe("editor");
+    }
+  });
+  it("nextLayout : cycle editor -> chat -> monitor -> editor", () => {
+    expect(nextLayout("editor")).toBe("chat");
+    expect(nextLayout("chat")).toBe("monitor");
+    expect(nextLayout("monitor")).toBe("editor");
   });
 });

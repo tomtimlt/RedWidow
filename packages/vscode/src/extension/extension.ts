@@ -12,7 +12,13 @@ import {
 } from "@john-studio/core";
 import { formatError } from "@john-studio/messages";
 import * as vscode from "vscode";
-import { parseWebviewMessage } from "../logic/approval.js";
+import {
+  LAYOUT_LABELS,
+  type Layout,
+  nextLayout,
+  parseWebviewMessage,
+  readLayout,
+} from "../logic/approval.js";
 import {
   linkContainer,
   linkedProjectStatus,
@@ -29,6 +35,8 @@ import { parseTerminalMessage } from "../logic/terminal.js";
 
 const TOKEN_KEY = "john.token";
 const TOKEN_KIND_KEY = "john.tokenKind";
+// Disposition de la fenêtre, mémorisée par espace de travail (`workspaceState`, pas un réglage).
+const LAYOUT_KEY = "john.layout";
 // Version du SDK embarquée par le paquetage (clé du cache des modèles) ; absente en développement.
 declare const __SDK_VERSION__: string | undefined;
 type TokenKind = "subscription" | "api-key";
@@ -44,6 +52,16 @@ export function activate(context: vscode.ExtensionContext): void {
   const folder = vscode.workspace.workspaceFolders?.[0];
   let session: ChatSession | undefined;
   let post: (message: unknown) => void = () => {};
+  // Disposition (lot P4) : `editor` = chat dans la Side Bar ; `chat`/`monitor` = panneau `john.stage`.
+  // Une seule surface rend la conversation : en `chat`/`monitor`, la Side Bar est « ouverte dans l'éditeur ».
+  let layout: Layout = readLayout(context.workspaceState.get(LAYOUT_KEY));
+  let stagePanel: vscode.WebviewPanel | undefined;
+  type Surface = "sidebar" | "stage";
+  const surfaceMessage = (surface: Surface) => ({
+    type: "surface",
+    layout,
+    active: surface === "sidebar" ? layout === "editor" : layout !== "editor",
+  });
 
   const getToken = async (): Promise<TokenChoice | undefined> => {
     const value = await context.secrets.get(TOKEN_KEY);
@@ -91,8 +109,10 @@ export function activate(context: vscode.ExtensionContext): void {
         "Toujours autoriser",
       onView: (view) => {
         post({ type: "view", view });
+        void stagePanel?.webview.postMessage({ type: "view", view });
         // Le terminal latéral reçoit la même vue (aucun message vers le moteur).
         void terminalPanel?.webview.postMessage({ type: "view", view });
+        updateModelStatus();
       },
       onLog: (text) => out.append(text),
     });
@@ -147,6 +167,78 @@ export function activate(context: vscode.ExtensionContext): void {
     term.show();
   };
 
+  /**
+   * Messages de la webview de chat, venue de la Side Bar ou du panneau `john.stage` : même
+   * traitement. `reply` répond à la surface émettrice (état initial au `ready`).
+   */
+  const handleChatMessage = async (
+    raw: unknown,
+    surface: Surface,
+    reply: (message: unknown) => void,
+  ) => {
+    const message = parseWebviewMessage(raw);
+    if (message === null) return;
+    try {
+      // La disposition ne dépend pas de la session : traitée avant `getSession`.
+      if (message.type === "setLayout") return await setLayout(message.layout);
+      const s = getSession();
+      switch (message.type) {
+        case "ready":
+          reply(surfaceMessage(surface));
+          reply({ type: "view", view: s.view() });
+          return await s.loadModels();
+        case "setModel":
+          return s.setModel(message.model);
+        case "setEffort":
+          return s.setEffort(message.effort);
+        case "refreshModels":
+          return await s.loadModels(true);
+        case "send": {
+          const slash = parseSlashStart(message.text);
+          if (slash !== null) {
+            startContainerTerminal(slash);
+            return;
+          }
+          const mentions = parseMentions(message.text);
+          let dedicatedName: string | null = null;
+          try {
+            dedicatedName = (await readProject(defaultConfigDir()))?.container ?? null;
+          } catch {
+            dedicatedName = null;
+          }
+          if (mentions.length === 0 && dedicatedName === null) {
+            void vscode.window.showErrorMessage(
+              "Lance un conteneur avec /start <nom>, ou cite-le avec @nom.",
+            );
+            return;
+          }
+          const workName = mentions[0] ?? dedicatedName;
+          await s.send(message.text);
+          if (workName) showExecTerminal(workName);
+          return;
+        }
+        case "stop":
+          return s.stop();
+        case "reset":
+          return s.reset();
+        case "approve":
+          return await s.approve(message.toolUseId, message.choice);
+        case "historyOpen":
+          return await s.openConversation(message.id);
+        case "historyResume":
+          return s.resumeConversation();
+        case "historyRename":
+          return s.renameConversation(message.id, message.title);
+        case "historyDelete":
+          return await s.deleteConversation(message.id);
+        case "historyClear":
+          return await s.clearHistory();
+      }
+    } catch (error) {
+      void vscode.window.showErrorMessage(formatError(error));
+    }
+  };
+
   const provider: vscode.WebviewViewProvider = {
     resolveWebviewView(view) {
       const media = vscode.Uri.joinPath(context.extensionUri, "media");
@@ -164,66 +256,9 @@ export function activate(context: vscode.ExtensionContext): void {
         styleUri: view.webview.asWebviewUri(vscode.Uri.joinPath(media, "chat.css")).toString(),
       });
       post = (message) => void view.webview.postMessage(message);
-      view.webview.onDidReceiveMessage(async (raw: unknown) => {
-        const message = parseWebviewMessage(raw);
-        if (message === null) return;
-        try {
-          const s = getSession();
-          switch (message.type) {
-            case "ready":
-              post({ type: "view", view: s.view() });
-              return await s.loadModels();
-            case "setModel":
-              return s.setModel(message.model);
-            case "setEffort":
-              return s.setEffort(message.effort);
-            case "refreshModels":
-              return await s.loadModels(true);
-            case "send": {
-              const slash = parseSlashStart(message.text);
-              if (slash !== null) {
-                startContainerTerminal(slash);
-                return;
-              }
-              const mentions = parseMentions(message.text);
-              let dedicatedName: string | null = null;
-              try {
-                dedicatedName = (await readProject(defaultConfigDir()))?.container ?? null;
-              } catch {
-                dedicatedName = null;
-              }
-              if (mentions.length === 0 && dedicatedName === null) {
-                void vscode.window.showErrorMessage(
-                  "Lance un conteneur avec /start <nom>, ou cite-le avec @nom.",
-                );
-                return;
-              }
-              const workName = mentions[0] ?? dedicatedName;
-              await s.send(message.text);
-              if (workName) showExecTerminal(workName);
-              return;
-            }
-            case "stop":
-              return s.stop();
-            case "reset":
-              return s.reset();
-            case "approve":
-              return await s.approve(message.toolUseId, message.choice);
-            case "historyOpen":
-              return await s.openConversation(message.id);
-            case "historyResume":
-              return s.resumeConversation();
-            case "historyRename":
-              return s.renameConversation(message.id, message.title);
-            case "historyDelete":
-              return await s.deleteConversation(message.id);
-            case "historyClear":
-              return await s.clearHistory();
-          }
-        } catch (error) {
-          void vscode.window.showErrorMessage(formatError(error));
-        }
-      });
+      view.webview.onDidReceiveMessage((raw: unknown) =>
+        handleChatMessage(raw, "sidebar", (message) => post(message)),
+      );
       view.onDidDispose(() => {
         post = () => {};
       });
@@ -253,6 +288,7 @@ export function activate(context: vscode.ExtensionContext): void {
         try {
           const payload = await loadCockpitView();
           postCockpit(payload);
+          void refreshContainerStatus();
           if (payload.projectInvalid) {
             void vscode.window.showErrorMessage(
               "Projet invalide : fichier project.json illisible ou incomplet.",
@@ -334,6 +370,93 @@ export function activate(context: vscode.ExtensionContext): void {
     } catch (error) {
       void vscode.window.showErrorMessage(formatError(error));
     }
+  };
+
+  /** Panneau `john.stage` (chat ou Monitor, `ViewColumn.One`) : singleton, patron du panneau des réglages. */
+  const openStage = () => {
+    if (stagePanel) {
+      stagePanel.reveal(vscode.ViewColumn.One);
+      return;
+    }
+    const media = vscode.Uri.joinPath(context.extensionUri, "media");
+    const panel = vscode.window.createWebviewPanel("john.stage", "John", vscode.ViewColumn.One, {
+      enableScripts: true,
+      enableCommandUris: false,
+      localResourceRoots: [media],
+    });
+    stagePanel = panel;
+    const nonce = makeNonce();
+    panel.webview.html = chatHtml({
+      nonce,
+      cspSource: panel.webview.cspSource,
+      scriptUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(media, "chat.js")).toString(),
+      uiUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(media, "ui.js")).toString(),
+      styleUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(media, "chat.css")).toString(),
+    });
+    panel.onDidDispose(() => {
+      stagePanel = undefined;
+      // Fermer le panneau ramène à `editor` : la Side Bar redevient la surface active.
+      if (layout !== "editor") void setLayout("editor");
+    });
+    panel.webview.onDidReceiveMessage((raw: unknown) =>
+      handleChatMessage(raw, "stage", (message) => void panel.webview.postMessage(message)),
+    );
+  };
+
+  /** Envoie à chaque surface son mode (`active` : elle seule rend la conversation). */
+  const postSurfaces = () => {
+    post(surfaceMessage("sidebar"));
+    void stagePanel?.webview.postMessage(surfaceMessage("stage"));
+  };
+
+  /** Change et mémorise la disposition ; `editor` ferme le panneau `john.stage`. */
+  const setLayout = async (next: Layout) => {
+    layout = next;
+    await context.workspaceState.update(LAYOUT_KEY, next);
+    if (next === "editor") stagePanel?.dispose();
+    else openStage();
+    postSurfaces();
+    updateLayoutStatus();
+  };
+
+  // Barre d'état : conteneur lié (nom seul, « connecté » si le cockpit l'établit), disposition
+  // (clic = disposition suivante), modèle courant. Pas de mode, de contexte ni de bypass (pas de donnée).
+  const barContainer = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 102);
+  const barLayout = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 101);
+  const barModel = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+  barLayout.command = "john.cycleLayout";
+  barLayout.tooltip = "Disposition de John : cliquer pour passer à la suivante";
+  context.subscriptions.push(barContainer, barLayout, barModel);
+  const updateLayoutStatus = () => {
+    barLayout.text = `John : ${LAYOUT_LABELS[layout]}`;
+    barLayout.show();
+  };
+  const updateModelStatus = () => {
+    const c = session?.view().controls ?? null;
+    if (c === null) {
+      barModel.hide();
+      return;
+    }
+    const known = c.models?.find((m) => m.value === c.model);
+    barModel.text = `Modèle : ${c.model === null ? "par défaut" : (known?.label ?? c.model)}`;
+    barModel.tooltip = "Modèle utilisé pour le message suivant";
+    barModel.show();
+  };
+  const refreshContainerStatus = async () => {
+    let st: Awaited<ReturnType<typeof linkedProjectStatus>> = null;
+    try {
+      st = await linkedProjectStatus();
+    } catch {
+      st = null;
+    }
+    if (st === null) {
+      barContainer.hide();
+      return;
+    }
+    barContainer.text =
+      st.state === "running" ? `Exegol : ${st.container} · connecté` : `Exegol : ${st.container}`;
+    barContainer.tooltip = `Conteneur lié : ${st.container}`;
+    barContainer.show();
   };
 
   let studioPanel: vscode.WebviewPanel | undefined;
@@ -453,6 +576,7 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
     vscode.commands.registerCommand("john.openStudio", () => openStudio()),
     vscode.commands.registerCommand("john.openTerminal", () => openTerminal()),
+    vscode.commands.registerCommand("john.cycleLayout", () => setLayout(nextLayout(layout))),
     vscode.commands.registerCommand("john.setToken", async () => {
       const kind = await vscode.window.showQuickPick(
         [
@@ -495,6 +619,12 @@ export function activate(context: vscode.ExtensionContext): void {
       out.show();
     }),
   );
+
+  updateLayoutStatus();
+  updateModelStatus();
+  void refreshContainerStatus();
+  // Disposition mémorisée (`chat`/`monitor`) : le panneau de conversation est rouvert.
+  if (layout !== "editor") openStage();
 }
 
 export function deactivate(): void {}

@@ -1618,3 +1618,173 @@ body.studio {
     border-bottom: 1px solid var(--jn-line);
   }
 }
+
+/* --- Surfaces (lot P4) : conversation ouverte ailleurs (away), Monitor (lecture seule), Chat plein éditeur --- */
+#away,
+#monitor {
+  display: none;
+}
+body.mode-away #away {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--jn-s2);
+  padding: var(--jn-s3) 0;
+}
+#away-text {
+  margin: 0;
+  color: var(--jn-muted);
+}
+body.mode-away #log,
+body.mode-away #approvals,
+body.mode-away #thinking,
+body.mode-away #form,
+body.mode-away #readonly,
+body.mode-monitor #log,
+body.mode-monitor #approvals,
+body.mode-monitor #thinking,
+body.mode-monitor #form,
+body.mode-monitor #readonly {
+  display: none;
+}
+body.mode-away #history-btn {
+  display: none;
+}
+body.mode-away #history {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  margin-top: 0;
+}
+body.mode-monitor #monitor {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  gap: var(--jn-s2);
+  padding: var(--jn-s3) 0;
+}
+body.layout-chat #bar,
+body.layout-chat #away,
+body.layout-chat #log,
+body.layout-chat #approvals,
+body.layout-chat #thinking,
+body.layout-chat #form,
+body.layout-chat #history,
+body.layout-chat #readonly,
+body.layout-monitor #bar,
+body.layout-monitor #monitor {
+  width: min(820px, calc(100% - 2 * var(--jn-gutter)));
+  margin-inline: auto;
+}
+
+/* Sessions : une ligne par conversation, la courante et l'état « en cours » marqués. */
+.hist-line {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+  min-width: 0;
+}
+.hist-line .hist-open {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.hist-line .badge {
+  flex: none;
+}
+
+/* Monitor : une ligne par appel Exegol, sans bouton de décision. */
+.mon-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--jn-s2);
+}
+.mon-head .hint {
+  margin: 0;
+}
+#monitor-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s2);
+}
+.mon-row {
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+}
+.mon-row.tone-err {
+  border-color: var(--vscode-inputValidation-errorBorder, var(--jn-line));
+}
+.mon-cmd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 0.92em;
+}
+.mon-text {
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.mon-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--jn-s2);
+  margin-top: 4px;
+  font-size: 0.85em;
+}
+.mon-row.tone-err .mon-meta .badge {
+  color: var(--vscode-errorForeground, currentColor);
+}
+.mon-row.tone-ok .mon-meta .badge {
+  color: var(--vscode-testing-iconPassed, currentColor);
+}
+.mon-row.tone-wait .mon-meta .badge {
+  color: var(--vscode-editorWarning-foreground, currentColor);
+}
+.mon-out {
+  margin: 6px 0 0;
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 0.9em;
+}
+
+/* Configurer : sélecteur Layout à trois choix (radio). */
+.seg {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  min-width: 0;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-pill);
+}
+.seg-opt {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 3px 6px;
+  border: 0;
+  border-radius: var(--jn-r-pill);
+  background: transparent;
+  color: var(--vscode-foreground);
+  font: inherit;
+  font-size: 0.9em;
+  white-space: nowrap;
+}
+.seg-opt[aria-checked="true"] {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
