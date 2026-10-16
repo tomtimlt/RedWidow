@@ -1,0 +1,851 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Exegol Studio — maquette UI</title>
+<style>
+/* ============================================================
+   Maquette fidèle de l'UI « Exegol Studio ».
+   Palette VS Code Dark+ figée (hors VS Code, donc pas de --vscode-*).
+   Accent bleu = normal, orange = Bypass / warning.
+   Animations : transform / opacity (+ typewriter contrôlé).
+   ============================================================ */
+:root{
+  --bg:#1e1e1e;            /* editor */
+  --bg-side:#181818;       /* side bar */
+  --bg-activity:#2c2c2c;   /* activity bar */
+  --bg-panel:#181818;      /* panel */
+  --bg-widget:#252526;     /* widgets, popovers */
+  --bg-input:#3c3c3c;
+  --bg-tab:#2d2d2d;
+  --bg-tab-active:#1e1e1e;
+  --fg:#cccccc;
+  --fg-strong:#ffffff;
+  --muted:#8a8a8a;
+  --line:#2b2b2b;
+  --line-2:#3a3a3a;
+  --accent:#0e639c;        /* button */
+  --accent-hover:#1177bb;
+  --focus:#007fd4;         /* focus border bleu */
+  --orange:#cc8400;        /* bypass / warning */
+  --orange-focus:#d7883b;
+  --green:#89d185;
+  --red:#f14c4c;
+  --amber:#cca700;
+  --cyan:#4fc1ff;
+  --magenta:#c586c0;
+  --hover:#2a2d2e;
+  --sel:#04395e;
+  --r-sm:4px; --r-md:6px; --r-lg:10px; --r-pill:999px;
+  --d1:120ms; --d2:200ms;
+  --ease:cubic-bezier(.2,.8,.2,1);
+  --font:-apple-system,BlinkMacSystemFont,"Segoe WPC","Segoe UI",system-ui,sans-serif;
+  --mono:"SF Mono",Menlo,Monaco,"Cascadia Code","Consolas",monospace;
+  --shadow:0 4px 16px rgba(0,0,0,.45);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;font-family:var(--font);font-size:13px;color:var(--fg);
+  background:#000;overflow:hidden;
+}
+button{font:inherit;color:inherit;cursor:pointer}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:#4e4e4e;border-radius:6px;border:2px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:#5e5e5e;background-clip:content-box}
+
+/* ---------- Fenêtre ---------- */
+.window{display:flex;flex-direction:column;height:100vh;background:var(--bg)}
+.titlebar{
+  height:30px;flex:none;display:flex;align-items:center;gap:8px;
+  background:#323233;border-bottom:1px solid #000;padding:0 8px;font-size:12px;color:#ccc;
+}
+.traffic{display:flex;gap:8px;margin-right:6px}
+.traffic i{width:12px;height:12px;border-radius:50%;display:block}
+.traffic i:nth-child(1){background:#ff5f56}
+.traffic i:nth-child(2){background:#ffbd2e}
+.traffic i:nth-child(3){background:#27c93f}
+.titlebar .ttl{flex:1;text-align:center;color:#bcbcbc}
+.titlebar .ttl b{color:#fff;font-weight:600}
+
+.shell{flex:1;min-height:0;display:flex}
+
+/* ---------- Activity Bar ---------- */
+.activity{
+  width:48px;flex:none;background:var(--bg-activity);
+  display:flex;flex-direction:column;align-items:center;padding:6px 0;
+  border-right:1px solid #000;
+}
+.act{
+  width:48px;height:48px;display:flex;align-items:center;justify-content:center;
+  color:#858585;position:relative;background:none;border:0;
+}
+.act svg{width:24px;height:24px}
+.act:hover{color:#fff}
+.act.on{color:#fff}
+.act.on::before{content:"";position:absolute;left:0;top:6px;bottom:6px;width:2px;background:#fff;border-radius:2px}
+.act.exegol.on{color:var(--cyan)}
+.act.exegol.on::before{background:var(--cyan)}
+.act.badge::after{content:attr(data-badge);position:absolute;right:6px;bottom:6px;background:var(--accent);color:#fff;font-size:9px;line-height:1;padding:2px 4px;border-radius:8px;font-weight:700}
+.act .spacer{flex:1}
+.activity .bottom{margin-top:auto;display:flex;flex-direction:column}
+
+/* ---------- Side Bar ---------- */
+.side{
+  width:340px;flex:none;background:var(--bg-side);display:flex;flex-direction:column;
+  border-right:1px solid var(--line);min-width:0;
+}
+.side-head{
+  height:35px;flex:none;display:flex;align-items:center;gap:6px;padding:0 8px 0 18px;
+  text-transform:uppercase;font-size:11px;letter-spacing:.06em;color:#bbb;
+}
+.side-head .logo{color:var(--cyan);display:flex;align-items:center}
+.side-head .logo svg{width:14px;height:14px}
+.side-head b{font-weight:600;color:#ccc;letter-spacing:.08em}
+.side-head .tools{margin-left:auto;display:flex;gap:2px}
+.icobtn{width:24px;height:24px;display:flex;align-items:center;justify-content:center;border:0;background:none;color:#c5c5c5;border-radius:5px}
+.icobtn:hover{background:var(--hover)}
+.icobtn svg{width:16px;height:16px}
+
+/* vue settings dans la side bar */
+.side-nav{display:flex;flex-direction:column;overflow:auto;flex:1;padding:4px 0}
+.nav-group{padding:6px 10px 2px;font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:#6f6f6f}
+.nav-item{
+  display:flex;align-items:center;gap:8px;padding:5px 12px 5px 18px;color:#cccccc;
+  border:0;background:none;width:100%;text-align:left;border-left:2px solid transparent;position:relative;
+}
+.nav-item svg{width:16px;height:16px;flex:none;color:#b0b0b0}
+.nav-item:hover{background:var(--hover)}
+.nav-item.on{background:var(--sel);border-left-color:var(--focus)}
+.nav-item .count{margin-left:auto;font-size:10px;color:#8a8a8a;background:#333;border-radius:8px;padding:1px 6px}
+.nav-item .dot{margin-left:auto;width:8px;height:8px;border-radius:50%}
+
+/* ---------- Chat (side-bar, layout Editor) ---------- */
+.chat{display:flex;flex-direction:column;flex:1;min-height:0}
+.thread{flex:1;min-height:0;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:12px}
+.msg{max-width:94%;line-height:1.5;overflow-wrap:anywhere}
+.msg.user{align-self:flex-end;background:#2b3a4a;border:1px solid #37536b;border-radius:var(--r-md);padding:7px 11px;white-space:pre-wrap}
+.msg.agent{align-self:stretch}
+.msg .who{font-size:11px;color:var(--muted);margin-bottom:3px;display:flex;align-items:center;gap:6px}
+.msg .who .av{width:16px;height:16px;border-radius:4px;background:linear-gradient(135deg,var(--cyan),var(--accent));display:flex;align-items:center;justify-content:center;color:#021;font-weight:800;font-size:10px}
+.md p{margin:.45em 0}
+.md p:first-child{margin-top:0}
+.md code{font-family:var(--mono);font-size:.92em;background:#2a2a2a;padding:1px 5px;border-radius:4px}
+.md strong{color:var(--fg-strong)}
+
+/* bloc de réflexion repliable */
+.thought{border:1px solid var(--line-2);border-radius:var(--r-md);overflow:hidden;background:#232323}
+.thought>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:5px 10px;color:var(--muted);font-size:12px}
+.thought>summary::-webkit-details-marker{display:none}
+.thought>summary:hover{background:var(--hover)}
+.thought .chev{transition:transform var(--d1)}
+.thought[open] .chev{transform:rotate(90deg)}
+.thought .body{padding:4px 12px 10px 28px;color:#9a9a9a;font-size:12px;line-height:1.5;border-top:1px solid var(--line)}
+
+/* appels d'outils */
+.tool{border:1px solid var(--line-2);border-radius:var(--r-md);overflow:hidden;background:#202020}
+.tool>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:5px 10px}
+.tool>summary::-webkit-details-marker{display:none}
+.tool>summary:hover{background:var(--hover)}
+.tool .ic{width:16px;text-align:center;flex:none}
+.tool.ok .ic{color:var(--green)} .tool.run .ic{color:var(--amber)} .tool.err .ic{color:var(--red)}
+.tool .nm{font-weight:600;font-family:var(--mono);font-size:12px}
+.tool .sm{color:var(--muted);font-family:var(--mono);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.tool .out{margin:0;border-top:1px solid var(--line);padding:8px 12px;font-family:var(--mono);font-size:12px;color:#b6b6b6;white-space:pre-wrap;max-height:220px;overflow:auto;background:#1a1a1a}
+.tool .out .hl{color:var(--cyan)} .tool .out .okc{color:var(--green)}
+
+.cursor{display:inline-block;width:7px;height:1.05em;vertical-align:text-bottom;background:var(--fg);margin-left:1px;animation:blink 1.1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+
+/* ---------- Cartes d'approbation ---------- */
+.approvals{padding:0 12px;display:flex;flex-direction:column;gap:8px}
+.card{
+  border:1px solid #6b5a1f;border-left:3px solid var(--amber);border-radius:var(--r-md);
+  background:#241f12;padding:10px 12px;animation:cardin var(--d2) var(--ease)
+}
+@keyframes cardin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.card .ct{display:flex;align-items:center;gap:8px;font-weight:600;color:#ffd479}
+.card .ct svg{width:15px;height:15px}
+.card .reason{color:#b9b096;font-size:12px;margin:4px 0 2px}
+.card .kv{font-family:var(--mono);font-size:12px;background:#1b170c;border:1px solid #403415;border-radius:var(--r-sm);padding:8px 10px;margin-top:8px;display:grid;grid-template-columns:auto 1fr;gap:3px 12px}
+.card .kv dt{color:#9a8e68} .card .kv dd{margin:0;color:#e3d9bd;overflow-wrap:anywhere}
+.card .kv .cmd{color:#ffcf7a;font-weight:600}
+.card .btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center}
+.btn{border:1px solid var(--line-2);background:#333;color:#eee;border-radius:var(--r-sm);padding:4px 12px;min-height:26px;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{background:#3d3d3d}
+.btn.allow{background:#2d5a2d;border-color:#3c7a3c;color:#d6f5d6}
+.btn.allow:hover{background:#357035}
+.btn.deny{background:#5a2d2d;border-color:#7a3c3c;color:#f5d6d6}
+.btn.deny:hover{background:#703535}
+.rulechips{display:none;flex-wrap:wrap;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid #403415}
+.rulechips.show{display:flex}
+.rulechips .lbl{color:#9a8e68;font-size:11px;width:100%}
+.rchip{border:1px dashed #5a5a5a;background:#262626;color:#ccc;border-radius:var(--r-pill);padding:3px 10px;font-size:12px}
+.rchip:hover{border-color:var(--focus);background:var(--hover)}
+.rchip.allow:hover{border-color:var(--green)} .rchip.deny:hover{border-color:var(--red)}
+
+/* ---------- barre thinking ---------- */
+.thinking{display:none;align-items:center;gap:8px;margin:0 12px 6px;padding:0 12px;height:28px;border:1px solid var(--line-2);border-radius:var(--r-md);background:#232323;font-family:var(--mono);font-size:12px;color:#cfcfcf}
+.thinking.show{display:flex}
+.spin{animation:spin 1s linear infinite;color:var(--cyan)}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ---------- Composer ---------- */
+.composer-wrap{flex:none;padding:8px 12px 12px}
+.attachments{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
+.attachments:empty{display:none}
+.att{display:inline-flex;align-items:center;gap:6px;background:#2b2b2b;border:1px solid var(--line-2);border-radius:var(--r-sm);padding:2px 6px 2px 8px;font-size:12px;max-width:180px}
+.att svg{width:13px;height:13px;color:var(--cyan);flex:none}
+.att .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.att .x{width:16px;height:16px;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#999;border:0;background:none}
+.att .x:hover{background:#444;color:#fff}
+
+.composer{
+  position:relative;border:1px solid var(--line-2);border-radius:var(--r-lg);background:#252526;
+  padding:8px 8px 6px;transition:border-color var(--d2),box-shadow var(--d2);
+}
+.composer.focus{border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+body.bypass .composer.focus{border-color:var(--orange-focus);box-shadow:0 0 0 1px var(--orange-focus)}
+body.bypass .composer{border-color:#6b5218}
+.composer textarea{
+  width:100%;resize:none;border:0;outline:0;background:transparent;color:var(--fg);
+  font:inherit;padding:4px 4px 6px;max-height:140px;min-height:22px;line-height:1.4;
+}
+.composer textarea::placeholder{color:#6f6f6f}
+.bar{display:flex;align-items:center;gap:4px}
+.tbtn{width:28px;height:28px;border:0;background:none;color:#c0c0c0;border-radius:6px;display:flex;align-items:center;justify-content:center;position:relative}
+.tbtn:hover{background:var(--hover);color:#fff}
+.tbtn svg{width:17px;height:17px}
+.tbtn.on{color:var(--cyan)}
+.chip{
+  display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 9px;border-radius:var(--r-pill);
+  border:1px solid #3a4a58;background:rgba(14,99,156,.16);color:#dce8f2;font-size:12px;max-width:150px;
+}
+.chip:hover{background:rgba(14,99,156,.3);border-color:var(--focus)}
+.chip svg{width:14px;height:14px;flex:none}
+.chip .lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip .caret{opacity:.7}
+.spacer{flex:1}
+
+/* bouton MCP + point statut */
+.mcp .sd{position:absolute;top:3px;right:3px;width:7px;height:7px;border-radius:50%;border:1.5px solid #252526}
+.mcp.ok .sd{background:var(--green)}
+.mcp.pending .sd{background:var(--amber);animation:pulse 1.2s ease-in-out infinite}
+.mcp.failed .sd{background:var(--red)}
+@keyframes pulse{50%{opacity:.35}}
+
+/* jauge de contexte (anneau) */
+.gauge{position:relative;width:28px;height:28px;border:0;background:none;padding:0;border-radius:6px}
+.gauge:hover{background:var(--hover)}
+.gauge svg{width:24px;height:24px;transform:rotate(-90deg);margin:2px}
+.gauge .track{fill:none;stroke:#3a3a3a;stroke-width:3}
+.gauge .fill{fill:none;stroke:var(--cyan);stroke-width:3;stroke-linecap:round;transition:stroke-dashoffset var(--d2)}
+.gauge.warn .fill{stroke:var(--amber)} .gauge.crit .fill{stroke:var(--red)}
+.gauge .pct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:8px;color:#bbb;font-variant-numeric:tabular-nums}
+
+.send{background:var(--accent);color:#fff;border:0;border-radius:6px;width:28px;height:28px;display:flex;align-items:center;justify-content:center}
+.send:hover{background:var(--accent-hover)}
+.send svg{width:16px;height:16px}
+.stop{background:#5a2d2d;color:#f5d6d6;border:1px solid #7a3c3c}
+.stop:hover{background:#703535}
+
+/* ---------- Popovers / menus ---------- */
+.pop{
+  position:absolute;z-index:50;background:var(--bg-widget);border:1px solid var(--line-2);
+  border-radius:var(--r-lg);box-shadow:var(--shadow);padding:6px;min-width:220px;display:none;
+}
+.pop.show{display:block;animation:popin var(--d1) var(--ease)}
+@keyframes popin{from{opacity:0;transform:scale(.97) translateY(4px)}to{opacity:1;transform:none}}
+.pop .ph{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:#6f6f6f;padding:6px 10px 3px}
+.pop .it{display:flex;align-items:center;gap:9px;padding:6px 10px;border-radius:6px;cursor:pointer;color:#ddd}
+.pop .it:hover{background:var(--hover)}
+.pop .it svg{width:16px;height:16px;flex:none;color:#b0b0b0}
+.pop .it .k{font-family:var(--mono);font-size:11px;color:#888;margin-left:auto}
+.pop .it .d{color:#8a8a8a;font-size:11px}
+.pop .it .col{display:flex;flex-direction:column;min-width:0}
+.pop .sep{height:1px;background:var(--line);margin:4px 0}
+
+/* quick settings (Configure) */
+#cfg{min-width:280px}
+.qs{padding:7px 10px}
+.qs .lab{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#6f6f6f;margin-bottom:6px}
+.seg{display:flex;background:#1d1d1d;border:1px solid var(--line-2);border-radius:var(--r-sm);padding:2px;gap:2px}
+.seg button{flex:1;border:0;background:none;color:#bbb;padding:4px 6px;border-radius:4px;font-size:12px;display:flex;align-items:center;justify-content:center;gap:5px}
+.seg button:hover{background:#2a2a2a}
+.seg button.on{background:var(--accent);color:#fff}
+.seg.speed button.on{background:#3a3a3a;color:var(--cyan)}
+.toggle{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;cursor:pointer}
+.toggle:hover{background:var(--hover)}
+.sw{width:34px;height:18px;border-radius:999px;background:#555;position:relative;flex:none;transition:background var(--d2)}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:transform var(--d2)}
+.toggle.on .sw{background:var(--orange)}
+.toggle.on .sw::after{transform:translateX(16px)}
+.toggle .col{min-width:0}
+.toggle .t{color:#eee}
+.toggle .d{font-size:11px;color:#8a8a8a}
+.warnline{display:flex;gap:7px;align-items:flex-start;margin:4px 10px 2px;padding:7px 9px;border-radius:6px;background:#241f12;border:1px solid #6b5a1f;color:#e8c983;font-size:11px;line-height:1.4}
+.warnline svg{width:14px;height:14px;flex:none;margin-top:1px}
+select.mini{background:#1d1d1d;border:1px solid var(--line-2);color:#ddd;border-radius:var(--r-sm);padding:4px 6px;width:100%;font:inherit}
+
+/* breakdown jauge */
+#ctxpop{min-width:250px}
+.ctxrow{display:flex;align-items:center;gap:8px;padding:4px 10px;font-size:12px}
+.ctxrow .bar2{flex:1;height:6px;border-radius:3px;background:#333;overflow:hidden}
+.ctxrow .bar2 i{display:block;height:100%}
+.ctxrow .v{color:#999;font-variant-numeric:tabular-nums;min-width:48px;text-align:right}
+
+/* ---------- Editor area ---------- */
+.main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)}
+.tabs{height:35px;flex:none;display:flex;background:#252526;border-bottom:1px solid var(--line)}
+.tab{display:flex;align-items:center;gap:7px;padding:0 12px;border-right:1px solid var(--line);color:#8a8a8a;font-size:13px;position:relative;background:#2d2d2d;max-width:200px}
+.tab .ti{width:15px;height:15px;flex:none}
+.tab .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tab.on{background:var(--bg-tab-active);color:#fff}
+.tab.on::before{content:"";position:absolute;top:0;left:0;right:0;height:1px;background:var(--cyan)}
+.tab .x{width:16px;height:16px;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#888;border:0;background:none}
+.tab .x:hover{background:#444;color:#fff}
+.tab .dot{width:8px;height:8px;border-radius:50%;background:#ccc}
+.editor-body{flex:1;min-height:0;overflow:auto;position:relative}
+
+/* vue bienvenue / fichiers (layout Editor) */
+.welcome{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#8a8a8a;text-align:center;padding:24px}
+.welcome .big{width:64px;height:64px;color:#3a4a55}
+.welcome h1{margin:0;color:#ddd;font-weight:300;font-size:26px}
+.welcome .sub{max-width:420px;line-height:1.6}
+.welcome .kbd{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.welcome .kbd div{display:flex;gap:10px;align-items:center}
+.welcome .kbd kbd{font-family:var(--mono);background:#333;border:1px solid #555;border-bottom-width:2px;border-radius:4px;padding:1px 6px;font-size:11px;color:#ddd}
+
+/* vue chat pleine largeur (layout Chat) */
+.fullchat{height:100%;display:none;flex-direction:column}
+.fullchat .thread{max-width:820px;width:100%;margin:0 auto;padding:24px}
+.fullchat .composer-wrap{max-width:820px;width:100%;margin:0 auto}
+
+/* vue Monitor (pseudo-shell) */
+.monitor{height:100%;display:none;flex-direction:column;background:#141414;font-family:var(--mono);font-size:12.5px;color:#cfcfcf}
+.monitor .mhead{flex:none;display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--line);color:#9a9a9a;background:#1a1a1a}
+.monitor .mhead .live{display:inline-flex;align-items:center;gap:6px;color:var(--green)}
+.monitor .mhead .live i{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 1.4s infinite}
+.monitor .mbody{flex:1;min-height:0;overflow:auto;padding:12px 14px}
+.mcmd{margin-bottom:14px}
+.mcmd .line{display:flex;gap:8px;align-items:baseline}
+.mcmd .prompt{color:var(--green);flex:none}
+.mcmd .cmd{color:#fff}
+.mcmd .meta{color:#6f6f6f;margin:2px 0 4px 0;font-size:11px}
+.mcmd .raw{white-space:pre-wrap;color:#b6b6b6;line-height:1.45;border-left:2px solid #2d2d2d;padding-left:10px;margin-left:2px}
+.mcmd .raw .hl{color:var(--cyan)} .mcmd .raw .okc{color:var(--green)} .mcmd .raw .wn{color:var(--amber)}
+.mcmd.pending .prompt{color:var(--amber)}
+
+/* ---------- Panel (terminal) ---------- */
+.panel{height:200px;flex:none;background:var(--bg-panel);border-top:1px solid var(--line);display:flex;flex-direction:column}
+.panel-tabs{height:32px;flex:none;display:flex;align-items:center;gap:2px;padding:0 8px;border-bottom:1px solid var(--line)}
+.ptab{padding:4px 10px;color:#9a9a9a;font-size:11px;letter-spacing:.04em;text-transform:uppercase;border:0;background:none;border-bottom:1px solid transparent}
+.ptab.on{color:#fff;border-bottom-color:var(--cyan)}
+.ptab:hover{color:#ddd}
+.panel .right{margin-left:auto;display:flex;gap:2px}
+.term{flex:1;min-height:0;overflow:auto;padding:8px 12px;font-family:var(--mono);font-size:12px;line-height:1.5;color:#cfcfcf}
+.term .g{color:var(--green)} .term .c{color:var(--cyan)} .term .m{color:var(--magenta)} .term .y{color:var(--amber)} .term .d{color:#6f6f6f}
+.term .ok{color:var(--green)} .term .step{color:#fff}
+.prog{display:inline-block;width:120px;height:8px;border-radius:4px;background:#2a2a2a;overflow:hidden;vertical-align:middle;margin:0 6px}
+.prog i{display:block;height:100%;background:var(--cyan)}
+
+/* ---------- status bar ---------- */
+.status{height:22px;flex:none;background:var(--accent);display:flex;align-items:center;gap:0;color:#fff;font-size:12px}
+body.bypass .status{background:var(--orange)}
+.status .s{display:flex;align-items:center;gap:5px;padding:0 8px;height:100%}
+.status .s:hover{background:rgba(255,255,255,.12)}
+.status .s svg{width:13px;height:13px}
+.status .sp{flex:1}
+.status .warnmode{font-weight:600}
+
+/* util layout toggles */
+body[data-layout="chat"] .welcome,body[data-layout="monitor"] .welcome{display:none}
+body[data-layout="chat"] .fullchat{display:flex}
+body[data-layout="monitor"] .monitor{display:flex}
+/* en layout Chat/Monitor la side bar montre les sessions, pas le chat */
+.sessions{display:none;flex-direction:column;flex:1;min-height:0}
+.sessions .sh{padding:10px 14px 4px;font-size:11px;color:#8a8a8a;text-transform:uppercase;letter-spacing:.06em}
+.srow{display:flex;align-items:center;gap:9px;padding:8px 14px;border-left:2px solid transparent;cursor:pointer}
+.srow:hover{background:var(--hover)}
+.srow.on{background:var(--sel);border-left-color:var(--focus)}
+.srow .st{width:8px;height:8px;border-radius:50%;flex:none}
+.srow .st.run{background:var(--amber);animation:pulse 1.3s infinite} .srow .st.idle{background:#6f6f6f} .srow .st.done{background:var(--green)}
+.srow .col{min-width:0;flex:1}
+.srow .nm{color:#eee;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.srow .mt{font-size:11px;color:#8a8a8a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.srow .rooms{font-size:10px;color:#8a8a8a;background:#333;border-radius:8px;padding:1px 6px}
+.newbtn{margin:8px 14px;display:flex;align-items:center;justify-content:center;gap:7px;padding:7px;border:1px solid var(--accent);background:rgba(14,99,156,.15);color:#dce8f2;border-radius:var(--r-md)}
+.newbtn:hover{background:rgba(14,99,156,.3)}
+body[data-sideview="sessions"] .chat{display:none}
+body[data-sideview="sessions"] .sessions{display:flex}
+body[data-sideview="settings"] .chat,body[data-sideview="settings"] .sessions{display:none}
+body[data-sideview="settings"] .side-nav-wrap{display:flex}
+.side-nav-wrap{display:none;flex:1;min-height:0;flex-direction:column}
+
+/* bandeau d'aide bas de maquette */
+.hintbar{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);z-index:80;background:#2d2d2d;border:1px solid var(--line-2);border-radius:var(--r-pill);padding:6px 14px;font-size:11px;color:#aaa;box-shadow:var(--shadow);display:flex;gap:14px;align-items:center}
+.hintbar b{color:var(--cyan)}
+.hintbar button{border:0;background:none;color:#888;padding:0 2px}
+.hintbar button:hover{color:#fff}
+</style>
+</head>
+<body data-layout="editor" data-sideview="chat">
+<div class="window">
+
+  <!-- Title bar -->
+  <div class="titlebar">
+    <div class="traffic"><i></i><i></i><i></i></div>
+    <div class="ttl"><b>engagement-acme</b> — Exegol Studio</div>
+  </div>
+
+  <div class="shell">
+
+    <!-- ACTIVITY BAR -->
+    <nav class="activity" aria-label="Activity Bar">
+      <button class="act exegol on" title="Exegol Studio" aria-label="Exegol Studio">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2 3 6v6c0 5 3.8 8.4 9 10 5.2-1.6 9-5 9-10V6l-9-4Z"/><path d="m8.5 11.5 2.5 2.5 4.5-5" stroke-width="1.6"/></svg>
+      </button>
+      <button class="act" title="Explorer"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2Z"/></svg></button>
+      <button class="act" title="Search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></button>
+      <button class="act" title="Source Control" data-badge="3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="8" r="2.5"/><path d="M6 8.5v7M18 10.5c0 4-4 3.5-8.5 5"/></svg></button>
+      <button class="act" title="Run & Debug"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="m10 8 6 4-6 4Z" fill="currentColor"/></svg></button>
+      <div class="bottom">
+        <button class="act" title="Comptes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></button>
+        <button class="act" title="Paramètres" id="actGear"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.3l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2.2-1.3L14 2h-4l-.3 2.4A7 7 0 0 0 7.5 5.7l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12c0 .4 0 .9.1 1.3l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2.2 1.3L10 22h4l.3-2.4a7 7 0 0 0 2.2-1.3l2.4 1 2-3.4-2-1.6c.1-.4.1-.9.1-1.3Z"/></svg></button>
+      </div>
+    </nav>
+
+    <!-- PRIMARY SIDE BAR -->
+    <aside class="side" aria-label="Exegol Studio">
+      <div class="side-head">
+        <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2 3 6v6c0 5 3.8 8.4 9 10 5.2-1.6 9-5 9-10V6l-9-4Z"/></svg></span>
+        <b>Exegol Studio</b>
+        <span class="tools">
+          <button class="icobtn" id="toSessions" title="Sessions / Monitor"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="7" rx="1"/><rect x="3" y="13" width="18" height="7" rx="1"/></svg></button>
+          <button class="icobtn" id="toChat" title="Conversation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v11H8l-4 3V5Z"/></svg></button>
+          <button class="icobtn" id="newConv" title="Nouvelle conversation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button>
+          <button class="icobtn" id="toSettings" title="Réglages"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 13a7.6 7.6 0 0 0 0-2l1.8-1.4-1.8-3.1-2.1.9a7.6 7.6 0 0 0-1.7-1l-.3-2.3H9.7l-.3 2.3a7.6 7.6 0 0 0-1.7 1l-2.1-.9L3.8 9.6 5.6 11a7.6 7.6 0 0 0 0 2l-1.8 1.4 1.8 3.1 2.1-.9c.5.4 1.1.7 1.7 1l.3 2.3h3.6l.3-2.3c.6-.3 1.2-.6 1.7-1l2.1.9 1.8-3.1L19.4 13Z"/></svg></button>
+        </span>
+      </div>
+
+      <!-- Vue CHAT (layout Editor) -->
+      <div class="chat">
+        <div class="thread" id="thread">
+          <div class="msg user">Scanne la cible 10.10.14.7 et liste les services exposés.</div>
+
+          <div class="msg agent">
+            <div class="who"><span class="av">E</span> Exegol Agent · <span style="color:#8a8a8a">Claude Sonnet</span></div>
+            <details class="thought" open>
+              <summary><svg class="chev" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6"/></svg> Thought for 4s</summary>
+              <div class="body">La cible est dans le périmètre de l'engagement. Un scan de ports TCP SYN rapide donnera une première carte des services avant d'enchaîner sur l'énumération ciblée.</div>
+            </details>
+            <div class="md" id="stream" style="margin-top:8px"></div>
+            <details class="tool ok" open style="margin-top:8px">
+              <summary><span class="ic">✔</span><span class="nm">exec</span><span class="sm">nmap -sS -T4 --top-ports 1000 10.10.14.7</span></summary>
+<pre class="out">Starting Nmap 7.94 ( https://nmap.org )
+Nmap scan report for 10.10.14.7
+PORT    STATE SERVICE   VERSION
+<span class="hl">22/tcp</span>  open  ssh       OpenSSH 8.9p1
+<span class="hl">80/tcp</span>  open  http      nginx 1.18.0
+<span class="hl">445/tcp</span> open  microsoft-ds
+<span class="okc">Nmap done: 1 IP address (3 open ports)</span></pre>
+            </details>
+          </div>
+        </div>
+
+        <!-- barre thinking -->
+        <div class="thinking" id="thinking"><span class="spin">⟳</span> <span id="thinkingLabel">L'agent travaille…</span></div>
+
+        <!-- Cartes d'approbation -->
+        <div class="approvals" id="approvals"></div>
+
+        <!-- COMPOSER -->
+        <div class="composer-wrap">
+          <div class="attachments" id="atts"></div>
+          <div class="composer" id="composer">
+            <textarea id="input" rows="1" placeholder="Demandez à l'agent…  @ pour mentionner · / pour une commande"></textarea>
+            <div class="bar">
+              <button class="tbtn" id="btnClip" title="Joindre un fichier / une image (hôte)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5 12 20a5 5 0 0 1-7-7l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7L9 17.3a1.6 1.6 0 0 1-2.3-2.3L15 6.7"/></svg></button>
+              <button class="tbtn" id="btnAt" title="Mentionner (@)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M16 12v1.5a2.5 2.5 0 0 0 5 0V12a9 9 0 1 0-3.5 7.1"/></svg></button>
+              <button class="tbtn" id="btnSlash" title="Commande (/)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 20 15 4"/></svg></button>
+
+              <button class="chip" id="modelChip" title="Modèle">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3 2.2 4.8L19 10l-4.8 2.2L12 17l-2.2-4.8L5 10l4.8-2.2L12 3Z"/></svg>
+                <span class="lbl">Claude Sonnet</span><span class="caret">▾</span>
+              </button>
+
+              <button class="tbtn mcp ok" id="btnMcp" title="Serveurs MCP"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="6" rx="1"/><rect x="3" y="14" width="18" height="6" rx="1"/><path d="M7 7h.01M7 17h.01"/></svg><span class="sd"></span></button>
+
+              <button class="gauge" id="btnGauge" title="Fenêtre de contexte">
+                <svg viewBox="0 0 24 24"><circle class="track" cx="12" cy="12" r="9"/><circle class="fill" id="gaugeFill" cx="12" cy="12" r="9" stroke-dasharray="56.5" stroke-dashoffset="34"/></svg>
+                <span class="pct" id="gaugePct">38%</span>
+              </button>
+
+              <span class="spacer"></span>
+              <button class="chip" id="btnCfg" title="Quick settings">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="2.6"/><path d="M19 12a7 7 0 0 0-.1-1.3l1.7-1.3-1.7-3-2 .9a7 7 0 0 0-2-1.2L14.4 3H9.6l-.5 2.1a7 7 0 0 0-2 1.2l-2-.9-1.7 3L5 10.7A7 7 0 0 0 5 13.3l-1.7 1.3 1.7 3 2-.9c.6.5 1.3.9 2 1.2l.5 2.1h4.8l.5-2.1c.7-.3 1.4-.7 2-1.2l2 .9 1.7-3L18.9 13c.1-.3.1-.6.1-1Z"/></svg>
+                <span class="lbl">Configure</span><span class="caret">▾</span>
+              </button>
+              <button class="send tbtn" id="btnSend" title="Envoyer (Entrée)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div><!-- /chat -->
+
+      <!-- Vue SESSIONS (layouts Chat / Monitor) -->
+      <div class="sessions">
+        <div class="sh">Sessions · engagement-acme</div>
+        <div class="srow on"><span class="st run"></span><div class="col"><div class="nm">Recon périmètre externe</div><div class="mt">nmap · gobuster · en cours</div></div><span class="rooms">2 rooms</span></div>
+        <div class="srow"><span class="st done"></span><div class="col"><div class="nm">AD — énumération initiale</div><div class="mt">bloodhound · terminé</div></div><span class="rooms">1 room</span></div>
+        <div class="srow"><span class="st idle"></span><div class="col"><div class="nm">Web — acme-portal</div><div class="mt">caido · en pause</div></div></div>
+        <button class="newbtn" id="newSession"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> Nouvelle session</button>
+      </div>
+
+      <!-- Vue RÉGLAGES -->
+      <div class="side-nav-wrap">
+        <div class="side-nav" id="settingsNav">
+          <div class="nav-group">Engagement</div>
+          <button class="nav-item on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h10"/></svg> Project</button>
+          <button class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg> Providers</button>
+          <button class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg> Personas</button>
+          <button class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 4 6v6c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6l-8-4Z"/></svg> Approvals <span class="dot" style="background:var(--green)"></span></button>
+          <button class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h7l2 2h7v10H4Z"/></svg> Kill chains <span class="count">3</span></button>
+          <div class="nav-group">Système</div>
+          <button class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3v4M16 3v4M4 10h16"/><rect x="4" y="5" width="16" height="16" rx="2"/></svg> Modes</button>
+          <button class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="6" rx="1"/><rect x="3" y="14" width="18" height="6" rx="1"/><path d="M7 7h.01M7 17h.01"/></svg> MCP servers <span class="dot" style="background:var(--red)"></span></button>
+          <button class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg> System check</button>
+          <button class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="12" rx="2"/><path d="M8 7V5a4 4 0 0 1 8 0v2"/></svg> License <span class="count">Pro</span></button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- EDITOR AREA -->
+    <section class="main">
+      <div class="tabs">
+        <div class="tab on"><svg class="ti" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="1.8"><path d="M12 2 3 6v6c0 5 3.8 8.4 9 10 5.2-1.6 9-5 9-10V6l-9-4Z"/></svg><span class="nm" id="tabName">Welcome</span><span class="dot"></span><button class="x">✕</button></div>
+        <div class="tab"><svg class="ti" viewBox="0 0 24 24" fill="none" stroke="#519aba" stroke-width="1.8"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h5"/></svg><span class="nm">notes.md</span><button class="x">✕</button></div>
+        <div class="tab"><svg class="ti" viewBox="0 0 24 24" fill="none" stroke="#a074c4" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M4 12h16"/></svg><span class="nm">BloodHound</span><button class="x">✕</button></div>
+      </div>
+
+      <div class="editor-body">
+        <!-- Layout Editor : welcome -->
+        <div class="welcome">
+          <svg class="big" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M12 2 3 6v6c0 5 3.8 8.4 9 10 5.2-1.6 9-5 9-10V6l-9-4Z"/><path d="m8.5 11.5 2.5 2.5 4.5-5"/></svg>
+          <h1>Exegol Studio</h1>
+          <div class="sub">Cockpit attaché au conteneur Exegol <code style="color:#4fc1ff">exegol-acme</code>. La conversation est dans la Side Bar ; passe en layout <b>Chat</b> ou <b>Monitor</b> depuis <b>Configure</b>.</div>
+          <div class="kbd">
+            <div><kbd>⌘⇧E</kbd> Explorer des fichiers</div>
+            <div><kbd>⌃`</kbd> Shell du conteneur</div>
+            <div><kbd>⌘K ⌘S</kbd> Quick settings</div>
+          </div>
+        </div>
+
+        <!-- Layout Chat : conversation pleine largeur -->
+        <div class="fullchat">
+          <div class="thread">
+            <div class="msg user">Résume ce que tu as trouvé sur 10.10.14.7 et propose la suite.</div>
+            <div class="msg agent"><div class="who"><span class="av">E</span> Exegol Agent</div><div class="md"><p>Trois services exposés : <strong>SSH (22)</strong>, <strong>HTTP nginx (80)</strong> et <strong>SMB (445)</strong>. Le vecteur le plus prometteur est SMB — je propose une énumération <code>enum4linux-ng</code> puis une vérification des partages en lecture anonyme.</p></div></div>
+          </div>
+          <div class="composer-wrap" style="padding-bottom:20px">
+            <div class="composer"><textarea rows="1" placeholder="Demandez à l'agent…"></textarea>
+              <div class="bar"><button class="tbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5 12 20a5 5 0 0 1-7-7l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7L9 17.3a1.6 1.6 0 0 1-2.3-2.3L15 6.7"/></svg></button><span class="chip"><span class="lbl">Claude Sonnet</span><span class="caret">▾</span></span><span class="spacer"></span><button class="chip"><span class="lbl">Configure</span><span class="caret">▾</span></button><button class="send tbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Layout Monitor : pseudo-shell -->
+        <div class="monitor">
+          <div class="mhead"><span>Monitor · Recon périmètre externe</span><span class="live"><i></i>live</span><span class="spacer" style="flex:1"></span><span style="color:#6f6f6f">exegol-acme · /workspace</span></div>
+          <div class="mbody" id="monBody">
+            <div class="mcmd"><div class="line"><span class="prompt">exegol-acme ❯</span><span class="cmd">nmap -sS -T4 --top-ports 1000 10.10.14.7</span></div><div class="meta">approuvé · 10.10.14.7 · 2,4 s</div><div class="raw">PORT    STATE SERVICE
+<span class="hl">22/tcp</span>  open  ssh
+<span class="hl">80/tcp</span>  open  http
+<span class="hl">445/tcp</span> open  microsoft-ds
+<span class="okc">Nmap done: 3 open ports</span></div></div>
+            <div class="mcmd"><div class="line"><span class="prompt">exegol-acme ❯</span><span class="cmd">gobuster dir -u http://10.10.14.7 -w /usr/share/wordlists/dirb/common.txt</span></div><div class="meta">approuvé · 1 203 req · 5,1 s</div><div class="raw">/index.html        (Status: 200)
+/admin             (Status: <span class="wn">301</span>)
+/backup            (Status: 200)
+<span class="okc">Finished</span></div></div>
+            <div class="mcmd pending"><div class="line"><span class="prompt">exegol-acme ❯</span><span class="cmd">enum4linux-ng -A 10.10.14.7</span><span class="cursor"></span></div><div class="meta" style="color:var(--amber)">en attente d'approbation…</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PANEL : terminal -->
+      <div class="panel">
+        <div class="panel-tabs">
+          <button class="ptab">Problems</button>
+          <button class="ptab">Output</button>
+          <button class="ptab on">Terminal</button>
+          <button class="ptab">Ports</button>
+          <span class="right"><button class="icobtn" title="Shell Exegol"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 7 5 5-5 5M12 17h7"/></svg></button><button class="icobtn" title="Fractionner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="1"/><path d="M12 4v16"/></svg></button></span>
+        </div>
+        <div class="term" id="term"></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- STATUS BAR -->
+  <div class="status">
+    <span class="s"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><path d="M6 8.5v7"/></svg> cursor/bac-sable-reseau</span>
+    <span class="s"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 3 6v6c0 5 3.8 8.4 9 10 5.2-1.6 9-5 9-10V6l-9-4Z"/></svg> exegol-acme · connecté</span>
+    <span class="s" id="stModeEditor">Layout : Editor</span>
+    <span class="sp"></span>
+    <span class="s warnmode" id="stBypass" hidden>⚠ BYPASS — approvals désactivés</span>
+    <span class="s">Claude Sonnet</span>
+    <span class="s">Answer</span>
+    <span class="s" id="stCtx">Contexte 38%</span>
+  </div>
+</div>
+
+<!-- ================= POPOVERS ================= -->
+<div class="pop" id="atMenu">
+  <div class="ph">Mentionner</div>
+  <div class="it" data-ins="@notes.md "><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h8l4 4v14H6z"/></svg><div class="col"><span>Fichiers</span><span class="d">notes.md, recon.txt…</span></div></div>
+  <div class="it" data-ins="@terminal "><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="1"/><path d="m7 9 3 3-3 3M13 15h4"/></svg><div class="col"><span>Terminals</span><span class="d">sortie d'un terminal</span></div></div>
+  <div class="it" data-ins="@url:"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1"/></svg><div class="col"><span>URL</span><span class="d">page web à charger</span></div></div>
+  <div class="it" data-ins="@brief "><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4h14v16l-7-3-7 3Z"/></svg><div class="col"><span>Briefs</span><span class="d">scope, ROE</span></div></div>
+  <div class="it" data-ins="@agent:"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><div class="col"><span>Agents</span><span class="d">recon, web, ad…</span></div></div>
+  <div class="it" data-ins="@killchain "><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h7l2 2h7v10H4Z"/></svg><div class="col"><span>Kill chain</span><span class="d">continuité de l'engagement</span></div></div>
+</div>
+
+<div class="pop" id="slashMenu">
+  <div class="ph">Commandes</div>
+  <div class="it" data-ins="/clear "><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg><span>/clear</span><span class="k">effacer le fil</span></div>
+  <div class="it" data-ins="/compact "><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9h16M4 15h16M9 4v16"/></svg><span>/compact</span><span class="k">compacter le contexte</span></div>
+  <div class="it" data-ins="/help "><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.8.4-1 .8-1 1.7M12 17h.01"/></svg><span>/help</span><span class="k">aide</span></div>
+  <div class="sep"></div>
+  <div class="ph">Skills</div>
+  <div class="it" data-ins="/recon "><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><span>/recon</span><span class="k">énumération guidée</span></div>
+  <div class="it" data-ins="/report "><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l3 3v15H6z"/></svg><span>/report</span><span class="k">rapport d'engagement</span></div>
+</div>
+
+<div class="pop" id="mcpMenu">
+  <div class="ph">Serveurs MCP</div>
+  <div class="it"><span class="sd" style="width:8px;height:8px;border-radius:50%;background:var(--green);position:static"></span><div class="col"><span>filesystem</span><span class="d">connecté · 11 outils</span></div><span class="k">on</span></div>
+  <div class="it"><span style="width:8px;height:8px;border-radius:50%;background:var(--amber);animation:pulse 1.2s infinite"></span><div class="col"><span>burp</span><span class="d">connexion en cours…</span></div><span class="k">…</span></div>
+  <div class="it"><span style="width:8px;height:8px;border-radius:50%;background:var(--red)"></span><div class="col"><span>shodan</span><span class="d" style="color:#f08a8a">échec — clé API manquante</span></div><span class="k">off</span></div>
+  <div class="sep"></div>
+  <div class="it" style="color:#8a8a8a"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> Ajouter un serveur…</div>
+</div>
+
+<div class="pop" id="modelMenu">
+  <div class="ph">Modèle · pool d'abonnement</div>
+  <div class="it" data-model="Claude Sonnet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3 2.2 4.8L19 10l-4.8 2.2L12 17l-2.2-4.8L5 10l4.8-2.2Z"/></svg><div class="col"><span>Claude Sonnet</span><span class="d">équilibré · défaut</span></div></div>
+  <div class="it" data-model="Claude Opus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3 2.2 4.8L19 10l-4.8 2.2L12 17l-2.2-4.8L5 10l4.8-2.2Z"/></svg><div class="col"><span>Claude Opus</span><span class="d">raisonnement profond</span></div></div>
+  <div class="it" data-model="Claude Haiku"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3 2.2 4.8L19 10l-4.8 2.2L12 17l-2.2-4.8L5 10l4.8-2.2Z"/></svg><div class="col"><span>Claude Haiku</span><span class="d">rapide</span></div></div>
+</div>
+
+<div class="pop" id="ctxpop">
+  <div class="ph">Fenêtre de contexte · 76k / 200k</div>
+  <div class="ctxrow"><span style="width:70px;color:#ccc">Système</span><span class="bar2"><i style="width:14%;background:var(--muted)"></i></span><span class="v">11k</span></div>
+  <div class="ctxrow"><span style="width:70px;color:#ccc">Outils</span><span class="bar2"><i style="width:22%;background:var(--magenta)"></i></span><span class="v">17k</span></div>
+  <div class="ctxrow"><span style="width:70px;color:#ccc">Fil</span><span class="bar2"><i style="width:48%;background:var(--cyan)"></i></span><span class="v">37k</span></div>
+  <div class="ctxrow"><span style="width:70px;color:#ccc">Fichiers</span><span class="bar2"><i style="width:14%;background:var(--green)"></i></span><span class="v">11k</span></div>
+  <div class="sep"></div>
+  <div class="it" data-ins=""><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9h16M4 15h16M9 4v16"/></svg><span>/compact — réduire le contexte</span></div>
+</div>
+
+<!-- QUICK SETTINGS (Configure) -->
+<div class="pop" id="cfg">
+  <div class="qs">
+    <div class="lab">Layout</div>
+    <div class="seg" id="segLayout">
+      <button data-layout="editor" class="on">Editor</button>
+      <button data-layout="chat">Chat</button>
+      <button data-layout="monitor">Monitor</button>
+    </div>
+  </div>
+  <div class="qs">
+    <div class="lab">Mode</div>
+    <div class="seg" id="segMode">
+      <button class="on">Answer</button><button>Plan</button><button>Auto</button>
+    </div>
+  </div>
+  <div class="toggle" id="tgBypass">
+    <span class="sw"></span>
+    <div class="col"><span class="t">Bypass approvals</span><span class="d">exécute sans demander — bordure orange</span></div>
+  </div>
+  <div class="warnline" id="bypassWarn" hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 4h.01M10.3 3.9 2.4 18a1.8 1.8 0 0 0 1.6 2.7h16a1.8 1.8 0 0 0 1.6-2.7L13.7 3.9a1.8 1.8 0 0 0-3.4 0Z"/></svg>
+    Les deny de politique, chemins sensibles et dangers shell restent bloqués par la gate même en Bypass.
+  </div>
+  <div class="qs">
+    <div class="lab">Persona</div>
+    <select class="mini" id="selPersona"><option>Neutral</option><option>Mentor</option><option>Candid</option><option>— custom —</option></select>
+  </div>
+  <div class="qs">
+    <div class="lab">Speed <span style="color:#8a8a8a;text-transform:none;letter-spacing:0">(peinture du texte)</span></div>
+    <div class="seg speed" id="segSpeed">
+      <button data-speed="40">Step</button>
+      <button data-speed="14" class="on">Human</button>
+      <button data-speed="2">Machine</button>
+    </div>
+  </div>
+</div>
+
+<div class="hintbar">
+  <span><b>Maquette interactive</b></span>
+  <span>Configure → change de layout / vitesse / bypass</span>
+  <button id="btnDemo">▶ rejouer le stream + approbation</button>
+  <button id="btnClose" title="masquer">✕</button>
+</div>
+
+<script>
+(function(){
+  const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+  const body=document.body;
+
+  /* ---------- popovers ---------- */
+  let open=null;
+  function place(pop,anchor,align){
+    const r=anchor.getBoundingClientRect(); pop.classList.add('show');
+    const pr=pop.getBoundingClientRect();
+    let left = align==='right' ? r.right-pr.width : r.left;
+    left=Math.max(8,Math.min(left,innerWidth-pr.width-8));
+    let top=r.top-pr.height-6; if(top<8) top=r.bottom+6;
+    pop.style.left=left+'px'; pop.style.top=top+'px';
+  }
+  function toggle(id,anchor,align){
+    const pop=$('#'+id);
+    if(open===pop){close();return;}
+    close(); place(pop,anchor,align); open=pop;
+  }
+  function close(){ if(open){open.classList.remove('show');open=null;} }
+  document.addEventListener('click',e=>{ if(open && !open.contains(e.target) && !e.target.closest('[data-anchor]')) close(); });
+
+  const bind=(btn,id,align)=>{ const b=$(btn); if(b){b.dataset.anchor='1'; b.addEventListener('click',e=>{e.stopPropagation();toggle(id,b,align);});} };
+  bind('#btnAt','atMenu'); bind('#btnSlash','slashMenu'); bind('#btnMcp','mcpMenu','right');
+  bind('#modelChip','modelMenu'); bind('#btnGauge','ctxpop','right'); bind('#btnCfg','cfg','right');
+
+  /* insertion @/ / */
+  $$('#atMenu .it,#slashMenu .it,#ctxpop .it').forEach(it=>it.addEventListener('click',()=>{
+    const ins=it.dataset.ins||''; const ta=$('#input'); if(ins){ta.value+=(ta.value&&!ta.value.endsWith(' ')?' ':'')+ins; ta.focus();} close();
+  }));
+  $$('#modelMenu .it').forEach(it=>it.addEventListener('click',()=>{ $('#modelChip .lbl').textContent=it.dataset.model; close(); }));
+
+  /* ---------- clip = attachments ---------- */
+  let n=0; const samples=['capture.png','scope.pdf','hosts.txt','creds.csv'];
+  $('#btnClip').addEventListener('click',()=>{
+    const name=samples[n++%samples.length];
+    const el=document.createElement('span'); el.className='att';
+    el.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h8l4 4v14H6z"/></svg><span class="nm"></span><button class="x">✕</button>';
+    el.querySelector('.nm').textContent=name;
+    el.querySelector('.x').addEventListener('click',()=>el.remove());
+    $('#atts').appendChild(el);
+  });
+
+  /* ---------- composer focus → bordure ---------- */
+  const comp=$('#composer'), input=$('#input');
+  input.addEventListener('focus',()=>comp.classList.add('focus'));
+  input.addEventListener('blur',()=>comp.classList.remove('focus'));
+  input.addEventListener('input',()=>{input.style.height='auto';input.style.height=Math.min(input.scrollHeight,140)+'px';});
+
+  /* ---------- Configure : layout / mode / bypass / speed ---------- */
+  function setLayout(l){
+    body.dataset.layout=l;
+    body.dataset.sideview = (l==='editor') ? 'chat' : 'sessions';
+    $('#stModeEditor').textContent='Layout : '+l[0].toUpperCase()+l.slice(1);
+    $('#tabName').textContent = l==='monitor'?'Monitor':(l==='chat'?'Conversation':'Welcome');
+    $$('#segLayout button').forEach(b=>b.classList.toggle('on',b.dataset.layout===l));
+  }
+  $$('#segLayout button').forEach(b=>b.addEventListener('click',()=>setLayout(b.dataset.layout)));
+  $('#toSessions').addEventListener('click',()=>{body.dataset.sideview='sessions';});
+  $('#toChat').addEventListener('click',()=>{body.dataset.sideview='chat';setLayout('editor');});
+  $('#toSettings').addEventListener('click',()=>{body.dataset.sideview='settings';});
+  $('#actGear').addEventListener('click',()=>{body.dataset.sideview='settings';});
+
+  $$('#segMode button').forEach(b=>b.addEventListener('click',()=>{$$('#segMode button').forEach(x=>x.classList.remove('on'));b.classList.add('on');$$('.status .s')[5].textContent=b.textContent;}));
+  $$('#settingsNav .nav-item').forEach(b=>b.addEventListener('click',()=>{$$('#settingsNav .nav-item').forEach(x=>x.classList.remove('on'));b.classList.add('on');}));
+
+  const tg=$('#tgBypass');
+  tg.addEventListener('click',()=>{
+    const on=!tg.classList.contains('on'); tg.classList.toggle('on',on);
+    body.classList.toggle('bypass',on); $('#bypassWarn').hidden=!on; $('#stBypass').hidden=!on;
+  });
+
+  let speed=14;
+  $$('#segSpeed button').forEach(b=>b.addEventListener('click',()=>{$$('#segSpeed button').forEach(x=>x.classList.remove('on'));b.classList.add('on');speed=+b.dataset.speed;}));
+
+  /* ---------- jauge de contexte ---------- */
+  function setGauge(pct){
+    const C=2*Math.PI*9; const fill=$('#gaugeFill');
+    fill.setAttribute('stroke-dasharray',C.toFixed(1));
+    fill.setAttribute('stroke-dashoffset',(C*(1-pct/100)).toFixed(1));
+    $('#gaugePct').textContent=pct+'%'; $('#stCtx').textContent='Contexte '+pct+'%';
+    const g=$('#btnGauge'); g.classList.toggle('warn',pct>=70); g.classList.toggle('crit',pct>=90);
+  }
+  setGauge(38);
+
+  /* ---------- typewriter (vitesse Speed) ---------- */
+  const TXT="Trois ports sont ouverts. **SMB (445)** est la cible la plus prometteuse : je vais énumérer les partages anonymes, puis croiser avec HTTP. SSH reste en dernier recours.";
+  let timer=null;
+  function stream(cb){
+    const el=$('#stream'); el.innerHTML=''; let i=0;
+    $('#thinking').classList.add('show'); $('#thinkingLabel').textContent="L'agent rédige…";
+    clearInterval(timer);
+    timer=setInterval(()=>{
+      i+=1;
+      let t=TXT.slice(0,i).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+      el.innerHTML='<p>'+t+'<span class="cursor"></span></p>';
+      $('#thread').scrollTop=$('#thread').scrollHeight;
+      if(i>=TXT.length){clearInterval(timer);el.innerHTML='<p>'+TXT.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')+'</p>';$('#thinking').classList.remove('show');cb&&cb();}
+    },speed);
+  }
+
+  /* ---------- carte d'approbation ---------- */
+  function approval(){
+    const a=$('#approvals'); a.innerHTML='';
+    const card=document.createElement('div'); card.className='card';
+    card.innerHTML=`
+      <div class="ct"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 4 6v6c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6l-8-4Z"/></svg> Autorisation requise</div>
+      <div class="reason">L'agent veut exécuter une commande dans le conteneur.</div>
+      <dl class="kv">
+        <dt>commande</dt><dd class="cmd">enum4linux-ng -A 10.10.14.7</dd>
+        <dt>conteneur</dt><dd>exegol-acme</dd>
+        <dt>workdir</dt><dd>/workspace/acme</dd>
+      </dl>
+      <div class="btns"><button class="btn allow">✔ Allow</button><button class="btn deny">✕ Deny</button><span style="color:#9a8e68;font-size:11px;margin-left:auto">pas de « always » silencieux</span></div>
+      <div class="rulechips"><span class="lbl">Créer une règle pour les prochaines fois :</span>
+        <button class="rchip allow">allow · enum4linux-ng *</button>
+        <button class="rchip">ask · enum4linux-ng *</button>
+        <button class="rchip deny">deny · enum4linux-ng *</button>
+      </div>`;
+    a.appendChild(card);
+    card.querySelector('.allow').addEventListener('click',()=>{ card.querySelector('.btns').style.opacity=.5; card.querySelector('.rulechips').classList.add('show'); card.querySelector('.ct').innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="#89d185" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg> Autorisé — exécution…'; });
+    card.querySelector('.deny').addEventListener('click',()=>card.remove());
+    card.querySelectorAll('.rchip').forEach(c=>c.addEventListener('click',()=>{card.remove();}));
+  }
+
+  /* ---------- terminal : logs exegol start ---------- */
+  const TERM=[
+    '<span class="d">$</span> exegol start acme nightly',
+    '<span class="c">[*]</span> Conteneur <span class="m">exegol-acme</span> introuvable — création',
+    '<span class="c">[*]</span> Image <span class="m">nightly</span> <span class="prog"><i style="width:100%"></i></span> <span class="ok">prête</span>',
+    '<span class="c">[*]</span> Déploiement <span class="y">my-resources</span> → /opt/my-resources',
+    '<span class="c">[*]</span> Montage /workspace/acme',
+    '<span class="c">[*]</span> VPN <span class="y">acme.ovpn</span> <span class="prog"><i style="width:100%"></i></span> <span class="ok">up · tun0 10.10.14.2</span>',
+    '<span class="c">[*]</span> Desktop (noVNC) sur <span class="c">:6080</span>',
+    '<span class="c">[*]</span> Ouverture du shell',
+    '<span class="step">exegol-acme ❯</span> <span class="d">conteneur prêt — Exegol Studio attaché</span>'
+  ];
+  function bootTerm(){
+    const t=$('#term'); t.innerHTML=''; let i=0;
+    (function next(){ if(i>=TERM.length)return; const l=document.createElement('div'); l.innerHTML=TERM[i++]; t.appendChild(l); t.scrollTop=t.scrollHeight; setTimeout(next,260); })();
+  }
+
+  /* ---------- démo ---------- */
+  function demo(){ setGauge(38); stream(()=>{ setGauge(46); approval(); }); }
+  $('#btnSend').addEventListener('click',demo);
+  $('#btnDemo').addEventListener('click',demo);
+  $('#newConv').addEventListener('click',()=>{$('#approvals').innerHTML='';$('#stream').innerHTML='';});
+  $('#btnClose').addEventListener('click',()=>document.querySelector('.hintbar').remove());
+  input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();demo();}});
+
+  bootTerm(); setTimeout(demo,700);
+})();
+</script>
+</body>
+</html>
