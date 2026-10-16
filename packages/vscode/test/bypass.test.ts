@@ -192,16 +192,27 @@ describe("Bypass hôte : armé sans moteur, actif seulement avec accusé", () =>
     expect(s.sent.length).toBe(before);
   });
 
-  it("un lien remplacé ne reçoit plus d'accusé ni de libération effective", () => {
+  it("deux liens : libérer l'un laisse l'autre actif, un accusé du lien libéré est ignoré", () => {
     const s = setup();
+    const otherSent: Array<BypassState | null> = [];
+    const other: BypassSend = (state) => {
+      otherSent.push(state);
+      return otherSent.length;
+    };
     s.host.request(true, true);
-    const old = s.host.attach(s.engine);
-    const fresh = s.host.attach(s.engine);
-    s.ack(old);
+    const first = s.host.attach(s.engine);
+    const second = s.host.attach(other);
+    expect(s.sent.at(-1)?.state).not.toBeNull();
+    expect(otherSent.at(-1)).not.toBeNull();
+    s.ack(first);
     expect(s.host.snapshot().on).toBe(false);
-    s.ack(fresh);
+    second.acked(otherSent.length, otherSent.at(-1) ?? null);
     expect(s.host.snapshot().on).toBe(true);
-    old.release();
+    const before = otherSent.length;
+    first.release();
+    expect(otherSent).toHaveLength(before);
+    expect(s.host.snapshot().on).toBe(true);
+    first.acked(s.sent.length, s.sent.at(-1)?.state ?? null);
     expect(s.host.snapshot().on).toBe(true);
   });
 });
@@ -355,31 +366,24 @@ describe("Bypass hôte : faux accusés et moteur détaché (lot 2c)", () => {
     expect(s.sent.at(-1)?.state).toBeNull();
   });
 
-  it("ancien moteur détaché : état nul envoyé au remplacement, son accusé ne réactive rien", () => {
+  it("reset envoie l'état nul à chaque lien ; un accusé tardif ne réactive rien", () => {
     const s = setup();
-    const oldSent: Array<BypassState | null> = [];
-    const oldSend: BypassSend = (state) => {
-      oldSent.push(state);
-      return oldSent.length;
+    const otherSent: Array<BypassState | null> = [];
+    const other: BypassSend = (state) => {
+      otherSent.push(state);
+      return otherSent.length;
     };
     s.host.request(true, true);
-    const old = s.host.attach(oldSend);
-    expect(oldSent.at(-1)).not.toBeNull();
-    old.acked(oldSent.length, oldSent.at(-1) ?? null);
+    const first = s.host.attach(s.engine);
+    const second = s.host.attach(other);
+    s.ack(first);
+    second.acked(otherSent.length, otherSent.at(-1) ?? null);
     expect(s.host.snapshot().on).toBe(true);
-
-    const fresh = s.host.attach(s.engine);
-    expect(oldSent.at(-1)).toBeNull();
-    s.ack(fresh);
-    expect(s.host.snapshot().on).toBe(true);
-
-    // Désactivation : seul le nouveau moteur est informé ; l'ancien reste sur « off ».
-    const before = oldSent.length;
-    s.host.request(false, true);
-    expect(oldSent).toHaveLength(before);
-    expect(s.sent.at(-1)?.state).toBeNull();
+    s.host.reset();
     expect(s.host.snapshot()).toEqual(off);
-    old.acked(oldSent.length, null);
+    expect(s.sent.at(-1)?.state).toBeNull();
+    expect(otherSent.at(-1)).toBeNull();
+    first.acked(s.sent.length, null);
     expect(s.host.snapshot()).toEqual(off);
   });
 });

@@ -55,7 +55,11 @@ export function activate(context: vscode.ExtensionContext): void {
   if (!vscode.workspace.isTrusted) return;
 
   const folder = vscode.workspace.workspaceFolders?.[0];
-  let session: ChatSession | undefined;
+  /** Un chat de la barre, plus des chats d'éditeur. Au plus quatre sessions (ADR 0008). */
+  const CHAT_CAP = 4;
+  const SIDEBAR_CHAT = "sidebar";
+  const CHAT_ID = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;
+  const chats = new Map<string, ChatSession>();
   let post: (message: unknown) => void = () => {};
   // Disposition (lot P4) : `editor` = chat dans la Side Bar ; `chat`/`monitor` = panneau `john.stage`.
   // Une seule surface rend la conversation : en `chat`/`monitor`, la Side Bar est « ouverte dans l'éditeur ».
@@ -82,30 +86,40 @@ export function activate(context: vscode.ExtensionContext): void {
     return resolveSettings((key) => machineValue(config.inspect(key)));
   };
 
-  const getSession = (): ChatSession => {
-    if (session) return session;
+  const getSession = (id = SIDEBAR_CHAT): ChatSession => {
+    const existing = chats.get(id);
+    if (existing) return existing;
+    if (!CHAT_ID.test(id)) throw new Error("Identifiant de chat refusé.");
+    if (chats.size >= CHAT_CAP) throw new Error("Quatre chats au maximum.");
     if (!folder) throw new Error("Ouvrez un dossier avant de lancer John.");
-    session = createChatSession({
+    const historyKey = `john.history.${id}`;
+    const runs = join((context.storageUri ?? context.globalStorageUri).fsPath, "runs");
+    const session = createChatSession({
       cwd: folder.uri.fsPath,
       enginePath: join(context.extensionPath, "run-engine.mjs"),
       engineArgs: [context.extensionPath],
       readSettings,
-      // Bypass (ADR 0006) : l'état est envoyé au moteur après son démarrage, et son accusé le rend actif.
-      bypass: { attach: (send) => bypass.attach(send) },
+      // Bypass (ADR 0006, 0008) : un lien par moteur, l'interrupteur reste celui de la fenêtre.
+      bypass: { attach: (send) => bypass.attach(send), reset: () => bypass.reset() },
       getToken,
       store: {
         get: (key: string) => context.globalState.get(key),
         set: (key: string, value: unknown) => context.globalState.update(key, value),
       },
-      // Journaux hors du dépôt : stockage de l'extension (par espace de travail), jamais `.john-studio/runs`.
+      // Journaux hors du dépôt. Le chat latéral garde `runs/` et relit l'ancienne clé.
       history: {
+        key: historyKey,
         index: {
-          get: (key: string) => context.workspaceState.get(key),
+          get: (key: string) => {
+            const value = context.workspaceState.get(key);
+            if (value === undefined && id === SIDEBAR_CHAT && key === historyKey) {
+              return context.workspaceState.get("john.history");
+            }
+            return value;
+          },
           set: (key: string, value: unknown) => context.workspaceState.update(key, value),
         },
-        files: createJournalFiles(
-          join((context.storageUri ?? context.globalStorageUri).fsPath, "runs"),
-        ),
+        files: createJournalFiles(id === SIDEBAR_CHAT ? runs : join(runs, id)),
         confirmDelete: async (text) =>
           (await vscode.window.showWarningMessage(text, { modal: true }, "Supprimer")) ===
           "Supprimer",
@@ -115,16 +129,22 @@ export function activate(context: vscode.ExtensionContext): void {
         (await vscode.window.showWarningMessage(text, { modal: true }, "Toujours autoriser")) ===
         "Toujours autoriser",
       onView: (view) => {
-        post({ type: "view", view });
-        void stagePanel?.webview.postMessage({ type: "view", view });
-        // Le terminal latéral reçoit la même vue (aucun message vers le moteur).
-        void terminalPanel?.webview.postMessage({ type: "view", view });
+        const message = { type: "view", view };
+        if (id === SIDEBAR_CHAT) {
+          post(message);
+          void stagePanel?.webview.postMessage(message);
+          void terminalPanel?.webview.postMessage(message);
+        } else {
+          chatPost.get(id)?.(message);
+        }
         updateModelStatus();
       },
       onLog: (text) => out.append(text),
     });
+    chats.set(id, session);
     return session;
   };
+  const chatPost = new Map<string, (message: unknown) => void>();
 
   /**
    * Lance `exegol start <nom>` dans un terminal VS Code (chemin de `/start`, réutilisé par le terminal
@@ -502,7 +522,7 @@ export function activate(context: vscode.ExtensionContext): void {
     barLayout.show();
   };
   const updateModelStatus = () => {
-    const c = session?.view().controls ?? null;
+    const c = chats.get(SIDEBAR_CHAT)?.view().controls ?? null;
     if (c === null) {
       barModel.hide();
       return;
@@ -586,7 +606,8 @@ export function activate(context: vscode.ExtensionContext): void {
     const panel = terminalPanel;
     if (!panel) return;
     await panel.webview.postMessage({ type: "context", container: terminalContainer });
-    if (session) await panel.webview.postMessage({ type: "view", view: session.view() });
+    const side = chats.get(SIDEBAR_CHAT);
+    if (side) await panel.webview.postMessage({ type: "view", view: side.view() });
   };
   const openTerminal = async () => {
     if (terminalPanel) {
@@ -632,7 +653,11 @@ export function activate(context: vscode.ExtensionContext): void {
   };
 
   context.subscriptions.push(
-    { dispose: () => session?.dispose() },
+    {
+      dispose: () => {
+        for (const chat of chats.values()) chat.dispose();
+      },
+    },
     vscode.window.registerWebviewViewProvider("john.chat", provider, {
       webviewOptions: { retainContextWhenHidden: true },
     }),

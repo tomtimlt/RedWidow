@@ -56,8 +56,8 @@ export interface BypassHost {
   /** Remise à « off » sans demande de l'utilisateur (`reset`, changement de dossiers). */
   reset(): void;
   /**
-   * Lie le moteur courant. L'état d'interrupteur lui est envoyé tout de suite, puis à chaque
-   * changement ; un nouveau lien remplace l'ancien.
+   * Lie un moteur. L'état lui est envoyé tout de suite, puis à chaque changement.
+   * Chaque session a son lien : en ajouter un ne retire pas les autres (ADR 0008).
    */
   attach(send: BypassSend): BypassEngineLink;
   /** État affiché, relu à l'horloge. */
@@ -90,7 +90,7 @@ function same(a: BypassState | null | undefined, b: BypassState | null | undefin
 export function createBypassHost({ clock, onChange }: BypassHostOptions): BypassHost {
   const switchState = createBypassSwitch({ now: clock.now });
   let expiryTimer: unknown = null;
-  let attached: Attachment | null = null;
+  const links = new Set<Attachment>();
   let lastPushed = JSON.stringify(offPush());
 
   const cancel = (handle: unknown) => {
@@ -103,9 +103,9 @@ export function createBypassHost({ clock, onChange }: BypassHostOptions): Bypass
   const view = (): BypassPush => {
     const state = desired();
     if (state === null) return offPush();
-    if (attached?.confirmed && same(attached.sent, state)) {
-      return { type: "bypass", on: true, armed: false, expiresAt: state.expiresAt };
-    }
+    if (links.size === 0) return { type: "bypass", on: false, armed: true, expiresAt: null };
+    const all = [...links].every((link) => link.confirmed && same(link.sent, state));
+    if (all) return { type: "bypass", on: true, armed: false, expiresAt: state.expiresAt };
     return { type: "bypass", on: false, armed: true, expiresAt: null };
   };
 
@@ -129,7 +129,9 @@ export function createBypassHost({ clock, onChange }: BypassHostOptions): Bypass
     if (state !== null) {
       expiryTimer = clock.schedule(sync, Math.max(0, state.expiresAt - clock.now()));
     }
-    if (attached !== null && !same(attached.sent, state)) sendTo(attached, state);
+    for (const link of links) {
+      if (!same(link.sent, state)) sendTo(link, state);
+    }
     const push = view();
     const key = JSON.stringify(push);
     if (key !== lastPushed) {
@@ -140,7 +142,7 @@ export function createBypassHost({ clock, onChange }: BypassHostOptions): Bypass
 
   /** Sans accusé conforme à temps : désactivation (échec fermé, aucune nouvelle activation automatique). */
   const onAckTimeout = (link: Attachment): void => {
-    if (link !== attached || link.confirmed) return;
+    if (!links.has(link) || link.confirmed) return;
     link.ackTimer = null;
     switchState.disable();
     sync();
@@ -164,20 +166,11 @@ export function createBypassHost({ clock, onChange }: BypassHostOptions): Bypass
     },
     attach(send) {
       const link: Attachment = { send, seq: 0, sent: undefined, confirmed: false, ackTimer: null };
-      if (attached !== null) {
-        // Moteur précédent encore attaché : état nul envoyé avant le remplacement (ADR 0006, lot 2c),
-        // pour qu'il ne reste pas actif hors de portée de l'interrupteur.
-        const previous = attached;
-        cancel(previous.ackTimer);
-        previous.ackTimer = null;
-        attached = null;
-        if (previous.sent !== null) previous.send(null);
-      }
-      attached = link;
+      links.add(link);
       sync();
       return {
         acked(seq, state) {
-          if (link !== attached || seq !== link.seq || link.sent === undefined) return;
+          if (!links.has(link) || seq !== link.seq || link.sent === undefined) return;
           cancel(link.ackTimer);
           link.ackTimer = null;
           if (same(state, link.sent)) {
@@ -187,15 +180,15 @@ export function createBypassHost({ clock, onChange }: BypassHostOptions): Bypass
             }
             return;
           }
-          // Accusé non conforme au dernier envoi (même après confirmation) : échec fermé.
+          // Accusé non conforme au dernier envoi (même après confirmation) : échec fermé, tous les liens.
           switchState.disable();
           sync();
         },
         release() {
-          if (link !== attached) return;
+          if (!links.has(link)) return;
           cancel(link.ackTimer);
           link.ackTimer = null;
-          attached = null;
+          links.delete(link);
           sync();
         },
       };
@@ -208,8 +201,8 @@ export function createBypassHost({ clock, onChange }: BypassHostOptions): Bypass
     dispose() {
       cancel(expiryTimer);
       expiryTimer = null;
-      if (attached !== null) cancel(attached.ackTimer);
-      attached = null;
+      for (const link of links) cancel(link.ackTimer);
+      links.clear();
     },
   };
 }

@@ -43,7 +43,7 @@ import type { ChatSettings } from "./settings.js";
 
 const PREFS_KEY = "john.prefs";
 const MODELS_KEY = "john.models";
-const INDEX_KEY = "john.history";
+const DEFAULT_HISTORY_KEY = "john.history";
 const labelOf = (e: EffortChoice) => EFFORT_LEVELS.find((l) => l.value === e)?.label ?? e;
 
 /** Jeton choisi par l'utilisateur : le mode d'authentification qui lui correspond. */
@@ -74,6 +74,8 @@ export interface ChatSessionDeps {
   sdkVersion?: string;
   /** Historique (F4) : index dans `workspaceState`, journaux hors du dépôt. Absent : pas d'historique. */
   history?: {
+    /** Clé d'index de ce chat. Défaut : `john.history` (un seul chat). */
+    key?: string;
     index: { get(key: string): unknown; set(key: string, value: unknown): unknown };
     files: JournalFiles;
     /** Confirmation modale native avant suppression. */
@@ -185,7 +187,8 @@ export function createChatSession(deps: ChatSessionDeps) {
 
   // --- Historique (F4) ---
   const history = deps.history;
-  let index: ConversationMeta[] = history ? parseIndex(history.index.get(INDEX_KEY)) : [];
+  const historyKey = history?.key ?? DEFAULT_HISTORY_KEY;
+  let index: ConversationMeta[] = history ? parseIndex(history.index.get(historyKey)) : [];
   let current: ConversationMeta | null = null;
   const historyEntries = (): HistoryEntry[] =>
     sortRecent(index)
@@ -200,7 +203,7 @@ export function createChatSession(deps: ChatSessionDeps) {
         current: c.id === current?.id,
       }));
   const saveIndex = () => {
-    if (history) void Promise.resolve(history.index.set(INDEX_KEY, index)).catch(() => undefined);
+    if (history) void Promise.resolve(history.index.set(historyKey, index)).catch(() => undefined);
   };
   /** Rétention : plus anciennes conversations purgées (journaux compris), la conversation en cours exceptée. */
   const enforceRetention = async () => {
