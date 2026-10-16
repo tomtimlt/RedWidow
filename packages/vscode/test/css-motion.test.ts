@@ -1,11 +1,11 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-const css = readFileSync(
-  fileURLToPath(new URL("../media/chat.css", import.meta.url)),
-  "utf8",
-).replace(/\/\*[\s\S]*?\*\//g, "");
+/** Toutes les feuilles de `media/` (chat, cockpit, réglages, terminal…) : chacune suit les mêmes règles. */
+const CSS_FILES = readdirSync(fileURLToPath(new URL("../media", import.meta.url)))
+  .filter((f) => f.endsWith(".css"))
+  .sort();
 
 interface Rule {
   selector: string;
@@ -46,7 +46,6 @@ function parse(src: string, within = ""): { rules: Rule[]; keyframes: Map<string
   return { rules, keyframes };
 }
 
-const { rules, keyframes } = parse(css);
 const decls = (r: Rule) =>
   r.body
     .split(";")
@@ -57,13 +56,18 @@ const decls = (r: Rule) =>
       return [d.slice(0, k).trim(), d.slice(k + 1).trim()] as const;
     });
 
-describe("chat.css : budget de performance (design-chat-ui.md §2)", () => {
+describe.each(CSS_FILES)("%s : budget de performance (design-chat-ui.md §2)", (file) => {
+  const css = readFileSync(
+    fileURLToPath(new URL(`../media/${file}`, import.meta.url)),
+    "utf8",
+  ).replace(/\/\*[\s\S]*?\*\//g, "");
+  const { rules, keyframes } = parse(css);
   it("aucun dégradé", () => {
     expect(css).not.toMatch(/linear-gradient/);
   });
 
   it("les @keyframes n'animent que transform et opacity", () => {
-    expect(keyframes.size).toBeGreaterThan(5);
+    if (file === "chat.css") expect(keyframes.size).toBeGreaterThan(5);
     for (const [name, props] of keyframes) {
       for (const p of props) expect(["transform", "opacity"], `${name}: ${p}`).toContain(p);
     }
@@ -100,7 +104,7 @@ describe("chat.css : budget de performance (design-chat-ui.md §2)", () => {
         .filter(([k, v]) => k === "animation" && /\binfinite\b/.test(v))
         .map(() => r),
     );
-    expect(infinite.length).toBeGreaterThan(0);
+    if (file === "chat.css") expect(infinite.length).toBeGreaterThan(0);
     expect(infinite.length).toBeLessThanOrEqual(3);
     for (const r of infinite) expect(r.selector.startsWith("#thinking"), r.selector).toBe(true);
   });

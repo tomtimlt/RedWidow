@@ -21,10 +21,11 @@ import {
   terminalLaunch,
 } from "../logic/cockpit.js";
 import { createJournalFiles } from "../logic/historyStore.js";
-import { chatHtml, cockpitHtml, makeNonce, studioHtml } from "../logic/html.js";
+import { chatHtml, cockpitHtml, makeNonce, studioHtml, terminalHtml } from "../logic/html.js";
 import { type ChatSession, createChatSession, type TokenChoice } from "../logic/session.js";
 import { machineValue, resolveSettings } from "../logic/settings.js";
 import { parseStudioMessage, type StudioPage } from "../logic/studio.js";
+import { parseTerminalMessage } from "../logic/terminal.js";
 
 const TOKEN_KEY = "john.token";
 const TOKEN_KIND_KEY = "john.tokenKind";
@@ -88,10 +89,40 @@ export function activate(context: vscode.ExtensionContext): void {
       confirmAlways: async (text) =>
         (await vscode.window.showWarningMessage(text, { modal: true }, "Toujours autoriser")) ===
         "Toujours autoriser",
-      onView: (view) => post({ type: "view", view }),
+      onView: (view) => {
+        post({ type: "view", view });
+        // Le terminal latéral reçoit la même vue (aucun message vers le moteur).
+        void terminalPanel?.webview.postMessage({ type: "view", view });
+      },
       onLog: (text) => out.append(text),
     });
     return session;
+  };
+
+  /**
+   * Lance `exegol start <nom>` dans un terminal VS Code (chemin de `/start`, réutilisé par le terminal
+   * latéral). Un terminal de même nom est seulement montré.
+   */
+  const startContainerTerminal = (slash: string) => {
+    const exegol = resolveBinary("exegol");
+    if (exegol === null) {
+      void vscode.window.showErrorMessage(
+        formatError(new CodedError("process.notFound", { binary: "exegol" })),
+      );
+      return;
+    }
+    const title = `John : start ${slash}`;
+    const existing = vscode.window.terminals.find((t) => t.name === title);
+    if (existing) {
+      existing.show();
+      return;
+    }
+    const term = vscode.window.createTerminal({
+      name: title,
+      shellPath: exegol,
+      shellArgs: ["start", slash],
+    });
+    term.show();
   };
 
   const provider: vscode.WebviewViewProvider = {
@@ -129,25 +160,7 @@ export function activate(context: vscode.ExtensionContext): void {
             case "send": {
               const slash = parseSlashStart(message.text);
               if (slash !== null) {
-                const exegol = resolveBinary("exegol");
-                if (exegol === null) {
-                  void vscode.window.showErrorMessage(
-                    formatError(new CodedError("process.notFound", { binary: "exegol" })),
-                  );
-                  return;
-                }
-                const title = `John : start ${slash}`;
-                const existing = vscode.window.terminals.find((t) => t.name === title);
-                if (existing) {
-                  existing.show();
-                  return;
-                }
-                const term = vscode.window.createTerminal({
-                  name: title,
-                  shellPath: exegol,
-                  shellArgs: ["start", slash],
-                });
-                term.show();
+                startContainerTerminal(slash);
                 return;
               }
               const mentions = parseMentions(message.text);
@@ -363,6 +376,61 @@ export function activate(context: vscode.ExtensionContext): void {
     void pushStudio();
   };
 
+  // Terminal latéral (panneau éditeur singleton, comme les réglages) : onglet agent = vue du chat ;
+  // onglet shell désactivé, son bouton ouvre le terminal de `/start` pour le conteneur lié.
+  let terminalPanel: vscode.WebviewPanel | undefined;
+  let terminalContainer: string | null = null;
+  const pushTerminal = async () => {
+    const panel = terminalPanel;
+    if (!panel) return;
+    await panel.webview.postMessage({ type: "context", container: terminalContainer });
+    if (session) await panel.webview.postMessage({ type: "view", view: session.view() });
+  };
+  const openTerminal = async () => {
+    if (terminalPanel) {
+      terminalPanel.reveal(vscode.ViewColumn.Beside);
+      await pushTerminal();
+      return;
+    }
+    const media = vscode.Uri.joinPath(context.extensionUri, "media");
+    const panel = vscode.window.createWebviewPanel(
+      "john.terminal",
+      "Terminal",
+      vscode.ViewColumn.Beside,
+      { enableScripts: true, enableCommandUris: false, localResourceRoots: [media] },
+    );
+    terminalPanel = panel;
+    const nonce = makeNonce();
+    panel.webview.html = terminalHtml({
+      nonce,
+      cspSource: panel.webview.cspSource,
+      scriptUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(media, "terminal.js")).toString(),
+      styleUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(media, "terminal.css")).toString(),
+    });
+    panel.onDidDispose(() => {
+      terminalPanel = undefined;
+    });
+    panel.webview.onDidReceiveMessage(async (raw: unknown) => {
+      const message = parseTerminalMessage(raw);
+      if (message === null) return;
+      try {
+        // Ouverture du shell : même chemin que `/start`, pour le conteneur lié (cockpit).
+        const st = await linkedProjectStatus();
+        if (st === null) return;
+        startContainerTerminal(st.container);
+      } catch (error) {
+        void vscode.window.showErrorMessage(formatError(error));
+      }
+    });
+    try {
+      const st = await linkedProjectStatus();
+      terminalContainer = st?.container ?? null;
+    } catch {
+      terminalContainer = null;
+    }
+    await pushTerminal();
+  };
+
   context.subscriptions.push(
     { dispose: () => session?.dispose() },
     vscode.window.registerWebviewViewProvider("john.chat", provider, {
@@ -378,6 +446,7 @@ export function activate(context: vscode.ExtensionContext): void {
       vscode.commands.executeCommand("john.cockpit.focus"),
     ),
     vscode.commands.registerCommand("john.openStudio", () => openStudio()),
+    vscode.commands.registerCommand("john.openTerminal", () => openTerminal()),
     vscode.commands.registerCommand("john.setToken", async () => {
       const kind = await vscode.window.showQuickPick(
         [
