@@ -147,14 +147,15 @@ describe("composer et Configurer (lot P1)", () => {
     expect(tag("mention-btn")).not.toBe("");
     expect(tag("slash-btn")).toContain('popovertarget="slash-pop"');
   });
-  it("Configurer : ordre Raisonnement, Fournisseur, puis « bientôt » (Mode, Bypass, Persona)", () => {
+  it("Configurer : ordre Raisonnement, Fournisseur, Bypass, puis « bientôt » (Mode, Persona)", () => {
     const cfg = section('id="cfg-pop"', "<script nonce");
     const at = (s: string) => cfg.indexOf(s);
     expect(at("Raisonnement")).toBeGreaterThanOrEqual(0);
     expect(at("Raisonnement")).toBeLessThan(at("Fournisseur"));
-    expect(at("Fournisseur")).toBeLessThan(at("Bientôt"));
-    expect(cfg.match(/class="cfg-off"/g)).toHaveLength(3);
-    for (const label of ["Mode (Answer, Plan, Auto)", "Bypass", "Persona"]) {
+    expect(at("Fournisseur")).toBeLessThan(at("Bypass des approbations"));
+    expect(at("Bypass des approbations")).toBeLessThan(at("Bientôt"));
+    expect(cfg.match(/class="cfg-off"/g)).toHaveLength(2);
+    for (const label of ["Mode (Answer, Plan, Auto)", "Persona"]) {
       const at2 = cfg.indexOf(label);
       const start = cfg.lastIndexOf("<button", at2);
       const m = cfg.slice(start, cfg.indexOf("</button>", at2));
@@ -194,14 +195,16 @@ describe("composer et Configurer (lot P1)", () => {
     }
     expect(html).toContain('class="spin-strip"');
   });
-  it("aucune classe bypass dans la feuille ni le script", () => {
-    expect(css).not.toMatch(/\.bypass\b/);
-    expect(js).not.toMatch(/["'`]bypass["'`]/);
-  });
   it("la bordure orange suit la présence d'une carte dans #approvals", () => {
     expect(js).toContain('classList.toggle("awaiting", approvals.childElementCount > 0)');
     const rule = /body\.awaiting #composer \{([^}]*)\}/.exec(css)?.[1] ?? "";
     expect(rule).toContain("--vscode-editorWarning-foreground");
+    expect(rule).toContain("--vscode-inputValidation-warningBorder");
+    expect(rule).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+  });
+  it("l'approbation en attente garde sa bordure et ajoute un anneau d'1 px (double trait)", () => {
+    const rule = /body\.awaiting #composer \{([^}]*)\}/.exec(css)?.[1] ?? "";
+    expect(rule).toMatch(/box-shadow:\s*0 0 0 1px\s+var\(\s*--vscode-editorWarning-foreground/);
     expect(rule).toContain("--vscode-inputValidation-warningBorder");
     expect(rule).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
   });
@@ -215,5 +218,104 @@ describe("composer et Configurer (lot P1)", () => {
     expect(css).toContain("width: min(232px, calc(100vw - 16px));");
     expect(css).not.toContain("cfg-cols");
     expect(css).not.toMatch(/@container pop/);
+  });
+});
+
+describe("Bypass des approbations (lot B1, ADR 0006)", () => {
+  const html = chatHtml(opts);
+  const css = read("../media/chat.css");
+  const js = read("../media/chat.js");
+  const tag = (id: string) => new RegExp(`<[^>]*\\sid="${id}"[^>]*>`).exec(html)?.[0] ?? "";
+  const cfg = html.slice(html.indexOf('id="cfg-pop"'), html.indexOf("<script nonce"));
+  /** Corps d'une fonction de chat.js, de sa déclaration à la ligne de fermeture (indentation de 2). */
+  const fnBody = (src: string, name: string) => {
+    const s = src.indexOf(`function ${name}(`);
+    const e = src.indexOf("\n  }\n", s);
+    return s < 0 || e < 0 ? "" : src.slice(s, e + 5);
+  };
+
+  it("interrupteur : role=switch, aria-checked=false, sans disabled, décrit par état et avertissement", () => {
+    const sw = tag("bypass-switch");
+    expect(sw).toContain('role="switch"');
+    expect(sw).toContain('aria-checked="false"');
+    expect(sw).not.toMatch(/\sdisabled[\s>]/);
+    expect(sw).toContain('aria-describedby="bypass-state bypass-warn"');
+  });
+  it("section propre entre Fournisseur et « Bientôt », état en role=status", () => {
+    expect(cfg).toContain('<section class="cfg-col" aria-labelledby="cfg-h-bypass">');
+    expect(tag("bypass-state")).toContain('role="status"');
+    expect(cfg.indexOf('id="bypass-switch"')).toBeLessThan(cfg.indexOf("cfg-later"));
+  });
+  it("avertissement : deux phrases exactes", () => {
+    expect(html).toContain(
+      "Approuve d'office les demandes « ask » pendant 2 h, sans rien mémoriser.",
+    );
+    expect(html).toContain(
+      "Restent demandés ou refusés : deny, chemins sensibles ou hors projet, accès hôte d'un conteneur, dangers shell, Bash sans règle ou commande composée.",
+    );
+  });
+  it("badge dans #bar après #sandbox, masqué au départ", () => {
+    const bar = html.slice(html.indexOf('<header id="bar">'), html.indexOf("</header>"));
+    expect(bar.indexOf('id="sandbox"')).toBeLessThan(bar.indexOf('id="bypass-badge"'));
+    expect(tag("bypass-badge")).toMatch(/\shidden[\s>]/);
+  });
+  it("la webview n'envoie qu'un setBypass avec une seule clé booléenne", () => {
+    const bodies = [...js.matchAll(/postMessage\(\{([^}]*)\}\)/g)]
+      .map((m) => m[1]?.trim() ?? "")
+      .filter((b) => b.includes("setBypass"));
+    expect(bodies).toEqual(['type: "setBypass", enabled']);
+  });
+  it("le clic n'écrit ni aria-checked, ni classe, ni texte", () => {
+    const start = js.indexOf('bypassSwitch.addEventListener("click"');
+    const click = js.slice(start, js.indexOf("/** Envoi de `reset`", start));
+    expect(click).toContain("const enabled = !(last?.on === true || last?.armed === true);");
+    expect(click).not.toMatch(/setAttribute|classList|textContent|\.hidden|replaceChildren/);
+  });
+  it("aria-checked, bypass-on, badge et texte d'état ne sont écrits que par renderBypass", () => {
+    const render = fnBody(js, "renderBypass");
+    expect(render).toContain('bypassSwitch.setAttribute("aria-checked"');
+    expect(render).toContain('classList.toggle("bypass-on"');
+    const outside = js.replace(render, "");
+    for (const bad of [
+      "bypassSwitch.setAttribute",
+      "bypassState.textContent",
+      "bypassBadge.hidden",
+      "bypassBadge.title",
+      "bypassBadge.replaceChildren",
+      '"bypass-on"',
+    ]) {
+      expect(outside, bad).not.toContain(bad);
+    }
+    // Rendu appelé seulement par le gestionnaire `message` et à l'ouverture de Configurer.
+    expect(outside.match(/renderBypass\(\)/g)).toHaveLength(2);
+  });
+  it("le gestionnaire message ne traite le Bypass que sur un message `bypass`", () => {
+    expect(js).toContain('else if (message && message.type === "bypass")');
+  });
+  it("le reset passe toujours par resetConversation (drapeau d'arrêt demandé)", () => {
+    expect(js.match(/type: "reset"/g)).toHaveLength(1);
+    expect(js).toContain('bypassUserOff = true;\n    vscode.postMessage({ type: "reset" });');
+  });
+  it("aucun minuteur dans le Bypass", () => {
+    const block = js.slice(
+      js.indexOf("// --- Bypass des approbations"),
+      js.indexOf("  wirePop(cfgPop"),
+    );
+    expect(block.length).toBeGreaterThan(0);
+    expect(block).not.toMatch(/setInterval|setTimeout|requestAnimationFrame/);
+  });
+  it("bordure « actif » : deux variables, sans hex, sans animation", () => {
+    const rule = /body\.bypass-on #composer \{([^}]*)\}/.exec(css)?.[1] ?? "";
+    expect(rule).toContain("--vscode-editorWarning-foreground");
+    expect(rule).toContain("--vscode-inputValidation-warningBorder");
+    expect(rule).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+    expect(rule).not.toMatch(/animation|transition/);
+    const section = css
+      .slice(css.indexOf("--- Bypass des approbations"), css.indexOf("--- Cockpit"))
+      .replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(section).not.toMatch(/animation|@keyframes/);
+  });
+  it("sous 360 px, seule l'heure du badge est masquée visuellement", () => {
+    expect(css).toMatch(/@container app \(max-width: 359px\) \{[\s\S]*?#bypass-badge \.bp-time \{/);
   });
 });
