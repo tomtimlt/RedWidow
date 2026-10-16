@@ -188,13 +188,26 @@
     box.tabIndex = -1;
     box.setAttribute("role", "group");
     box.setAttribute("aria-label", `Demande d'autorisation : ${card.label}`);
-    const head = el("div", "card-title");
-    head.append(el("span", "", `${card.label} : `), el("strong", "", card.summary || card.tool));
-    if (card.networkActive) head.append(document.createTextNode(" · réseau activé"));
-    box.append(head, el("div", "card-reason", card.reason));
+    // En-tête : icône décorative (aria-hidden) et titre fixe.
+    const head = el("div", "card-head");
+    const icon = el("span", "card-icon", "!");
+    icon.setAttribute("aria-hidden", "true");
+    head.append(icon, el("div", "card-title", "Autorisation requise"));
+    // Grille clé/valeur compacte : outil, résumé, raison. Aucune ligne d'environnement (donnée absente).
+    const grid = el("div", "card-grid");
+    const outil = el("div", "card-val", card.label);
+    if (card.networkActive) outil.append(document.createTextNode(" · réseau activé"));
+    grid.append(
+      el("span", "card-key", "Outil"),
+      outil,
+      el("span", "card-key", "Action"),
+      el("code", "card-summary", card.summary || card.tool),
+      el("span", "card-key", "Raison"),
+      el("div", "card-val card-reason", card.reason),
+    );
     const det = el("details", "card-details");
     det.append(el("summary", "", "Détails"), el("pre", "", card.detail));
-    box.append(det);
+    box.append(head, grid, det);
     const row = el("div", "card-buttons");
     const buttons = {};
     const button = (label, choice, css) => {
@@ -208,7 +221,8 @@
       row.append(b);
     };
     button("Autoriser une fois", "once", "primary");
-    button("Refuser", "deny", "secondary");
+    button("Refuser", "deny", "danger");
+    // « Toujours » seulement si mémorisable ; la modale native le confirme côté extension.
     if (card.canRemember) button("Toujours", "always", "link");
     box.append(row);
     // Échap sur la carte (pas dans un champ) : refuser.

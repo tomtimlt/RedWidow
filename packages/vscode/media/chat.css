@@ -451,23 +451,78 @@ body.waiting #thinking {
 
 /* --- Cartes d'approbation (E5) --- */
 .card {
-  border: 1px solid color-mix(in srgb, var(--jn-accent) 55%, transparent);
-  border-left: 3px solid var(--jn-accent);
+  --jn-card-accent: var(
+    --vscode-editorWarning-foreground,
+    var(--vscode-inputValidation-warningBorder, var(--jn-accent-2))
+  );
+  border: 1px solid color-mix(in srgb, var(--jn-card-accent) 30%, transparent);
+  border-left: 3px solid var(--jn-card-accent);
   border-radius: var(--jn-r-md);
   padding: 10px 12px;
   margin-block: 6px;
   background: var(--vscode-editorWidget-background, transparent);
+  min-width: 0;
 }
 .card.enter {
   animation: jn-card-in var(--jn-d2) var(--jn-ease-out) 1;
 }
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.card-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--jn-r-pill);
+  background: color-mix(in srgb, var(--jn-card-accent) 18%, transparent);
+  color: var(--jn-card-accent);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
 .card-title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.card-grid {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 10px;
+  margin-top: 8px;
+  font-size: 0.9em;
+}
+.card-key {
+  color: var(--jn-muted);
+  white-space: nowrap;
+}
+.card-val {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.card-summary {
+  display: block;
+  max-height: 8em;
+  overflow: auto;
+  padding: 4px 6px;
+  border-radius: var(--jn-r-sm);
+  background: color-mix(
+    in srgb,
+    var(--jn-card-accent) 10%,
+    var(--vscode-textCodeBlock-background, transparent)
+  );
+  font-family: var(--vscode-editor-font-family, monospace);
+  white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 .card-reason {
   color: var(--jn-muted);
-  font-size: 0.9em;
-  margin-top: 2px;
+  margin-top: 0;
 }
 .card-details {
   margin-top: 4px;
