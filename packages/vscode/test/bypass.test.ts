@@ -330,3 +330,56 @@ describe("Bypass : aucune persistance ni réglage", () => {
     expect(calls.some((l) => l.includes("request(false, true)"))).toBe(true);
   });
 });
+
+describe("Bypass hôte : faux accusés et moteur détaché (lot 2c)", () => {
+  it("faux accusé d'état nul (bon seq) : « off », l'activation n'est jamais tenue pour effective", () => {
+    const s = setup();
+    s.host.request(true, true);
+    const link = s.host.attach(s.engine);
+    s.ack(link);
+    expect(s.host.snapshot().on).toBe(true);
+    s.ack(link, null);
+    expect(s.host.snapshot()).toEqual(off);
+    expect(s.host.remainingMs()).toBeNull();
+  });
+
+  it("faux accusé de bornes différentes après confirmation : échec fermé, « off »", () => {
+    const s = setup();
+    s.host.request(true, true);
+    const link = s.host.attach(s.engine);
+    s.ack(link);
+    const last = s.sent.at(-1)?.state as BypassState;
+    link.acked(s.sent.length, { since: last.since, expiresAt: last.expiresAt + 1 });
+    expect(s.host.snapshot()).toEqual(off);
+    // Le moteur reçoit l'état nul : rien ne reste actif de son côté.
+    expect(s.sent.at(-1)?.state).toBeNull();
+  });
+
+  it("ancien moteur détaché : état nul envoyé au remplacement, son accusé ne réactive rien", () => {
+    const s = setup();
+    const oldSent: Array<BypassState | null> = [];
+    const oldSend: BypassSend = (state) => {
+      oldSent.push(state);
+      return oldSent.length;
+    };
+    s.host.request(true, true);
+    const old = s.host.attach(oldSend);
+    expect(oldSent.at(-1)).not.toBeNull();
+    old.acked(oldSent.length, oldSent.at(-1) ?? null);
+    expect(s.host.snapshot().on).toBe(true);
+
+    const fresh = s.host.attach(s.engine);
+    expect(oldSent.at(-1)).toBeNull();
+    s.ack(fresh);
+    expect(s.host.snapshot().on).toBe(true);
+
+    // Désactivation : seul le nouveau moteur est informé ; l'ancien reste sur « off ».
+    const before = oldSent.length;
+    s.host.request(false, true);
+    expect(oldSent).toHaveLength(before);
+    expect(s.sent.at(-1)?.state).toBeNull();
+    expect(s.host.snapshot()).toEqual(off);
+    old.acked(oldSent.length, null);
+    expect(s.host.snapshot()).toEqual(off);
+  });
+});

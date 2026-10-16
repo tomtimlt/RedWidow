@@ -49,6 +49,8 @@ export interface EngineOptions {
   onPrompt?: (text: string) => void | Promise<void>;
   /** Horloge du moteur, pour le miroir du Bypass et la gate (défaut : `Date.now`). */
   now?: () => number;
+  /** Chargement de la politique du run (défaut : `loadPolicy` de `core`). Tests : politique fournie. */
+  policyLoader?: (cwd: string) => ReturnType<typeof loadPolicy>;
 }
 
 /** Message dont le type est `bypass` : même rejeté par la validation, il met le miroir à « off ». */
@@ -99,6 +101,7 @@ export function runEngine({
   killTree = killOwnTree,
   onPrompt,
   now = Date.now,
+  policyLoader = (cwd) => loadPolicy({ cwd }),
 }: EngineOptions): Promise<number> {
   // Miroir en lecture du Bypass (ADR 0006, décision 6) : naît « off », jamais calculé ici.
   const mirror = createBypassMirror({ now });
@@ -150,7 +153,7 @@ export function runEngine({
           : join(params.cwd, ".john-studio", "runs", `${recorder.runId}.jsonl`),
       );
       try {
-        const { policy, source, warning } = await loadPolicy({ cwd: params.cwd });
+        const { policy, source, warning } = await policyLoader(params.cwd);
         recorder.subscribe(journal.sink);
         recorder.subscribe((event) => send({ v: PROTOCOL_VERSION, type: "event", event }));
         const approvals = createApprovalQueue();

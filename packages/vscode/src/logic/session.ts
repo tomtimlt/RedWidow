@@ -67,7 +67,7 @@ export interface ChatSessionDeps {
   onLog?(text: string): void;
   createController?(options: EngineControllerOptions): EngineController;
   /** Bypass (ADR 0006) : lien vers le moteur courant, pour pousser l'état et recevoir l'accusé. */
-  bypass?: { attach(send: BypassSend): BypassEngineLink };
+  bypass?: { attach(send: BypassSend): BypassEngineLink; reset?(): void };
   /** Stockage persistant (globalState) : préférences et cache des modèles. Défaut : mémoire. */
   store?: { get(key: string): unknown; set(key: string, value: unknown): unknown };
   /** Version du SDK embarqué : clé du cache de la liste des modèles. */
@@ -111,6 +111,16 @@ export function createChatSession(deps: ChatSessionDeps) {
   const detached = new WeakSet<EngineController>();
   /** Liens du Bypass, un par moteur démarré : libérés à la sortie du moteur. */
   const bypassLinks = new WeakMap<EngineController, BypassEngineLink>();
+  /**
+   * Arrêt d'un moteur (ADR 0006, lot 2c) : le lien du Bypass est libéré tout de suite (l'affichage ne
+   * voit plus ce moteur), puis `kill` envoie d'abord l'état nul, avant l'annulation du run.
+   */
+  const stopEngine = (ctl: EngineController | null): void => {
+    if (ctl === null) return;
+    bypassLinks.get(ctl)?.release();
+    bypassLinks.delete(ctl);
+    ctl.kill();
+  };
 
   const persist = (key: string, value: unknown) =>
     void Promise.resolve(store.set(key, value)).catch(() => undefined);
@@ -379,7 +389,7 @@ export function createChatSession(deps: ChatSessionDeps) {
     controller = null;
     stopping = true;
     state.approvals.clear();
-    old.kill();
+    stopEngine(old);
     let timer: ReturnType<typeof setTimeout> | undefined;
     await Promise.race([
       old.exited,
@@ -468,7 +478,7 @@ export function createChatSession(deps: ChatSessionDeps) {
         const ctl = controller ?? (await startEngine());
         ctl.prompt(text);
       } catch (error) {
-        controller?.kill();
+        stopEngine(controller);
         controller = null;
         state.error(error);
         state.setBusy(false);
@@ -503,7 +513,7 @@ export function createChatSession(deps: ChatSessionDeps) {
     },
     reset(): void {
       stopping = true;
-      controller?.kill();
+      stopEngine(controller);
       controller = null;
       applied = null;
       sessionId = undefined;
@@ -518,7 +528,9 @@ export function createChatSession(deps: ChatSessionDeps) {
       const meta = index.find((c) => c.id === id);
       if (!meta) return;
       stopping = true;
-      controller?.kill();
+      // Bypass hôte à « off » avant d'arrêter l'ancien moteur : aucune décision ne le garde actif (lot 2c).
+      deps.bypass?.reset?.();
+      stopEngine(controller);
       controller = null;
       applied = null;
       sessionId = undefined;
@@ -605,7 +617,7 @@ export function createChatSession(deps: ChatSessionDeps) {
     },
     dispose(): void {
       stopping = true;
-      controller?.kill();
+      stopEngine(controller);
       controller = null;
     },
   };

@@ -164,21 +164,30 @@ export function createBypassHost({ clock, onChange }: BypassHostOptions): Bypass
     },
     attach(send) {
       const link: Attachment = { send, seq: 0, sent: undefined, confirmed: false, ackTimer: null };
-      if (attached !== null) cancel(attached.ackTimer);
+      if (attached !== null) {
+        // Moteur précédent encore attaché : état nul envoyé avant le remplacement (ADR 0006, lot 2c),
+        // pour qu'il ne reste pas actif hors de portée de l'interrupteur.
+        const previous = attached;
+        cancel(previous.ackTimer);
+        previous.ackTimer = null;
+        attached = null;
+        if (previous.sent !== null) previous.send(null);
+      }
       attached = link;
       sync();
       return {
         acked(seq, state) {
-          if (link !== attached || seq !== link.seq || link.confirmed) return;
-          if (link.sent === undefined) return;
+          if (link !== attached || seq !== link.seq || link.sent === undefined) return;
           cancel(link.ackTimer);
           link.ackTimer = null;
           if (same(state, link.sent)) {
-            link.confirmed = true;
-            sync();
+            if (!link.confirmed) {
+              link.confirmed = true;
+              sync();
+            }
             return;
           }
-          // Accusé non conforme au dernier envoi : échec fermé.
+          // Accusé non conforme au dernier envoi (même après confirmation) : échec fermé.
           switchState.disable();
           sync();
         },

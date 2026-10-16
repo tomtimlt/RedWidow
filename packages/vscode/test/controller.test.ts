@@ -322,4 +322,66 @@ describe("Bypass : accusés et environnement du moteur (ADR 0006)", () => {
     expect(channelKeys(buildEngineEnv(undefined, base))).toEqual([]);
     expect(buildEngineEnv(undefined, base).PATH).toBe("/bin");
   });
+
+  it("kill : l'état nul du Bypass part avant abort, et son accusé arrive avant la sortie (lot 2c)", async () => {
+    const c = collect();
+    const order: string[] = [];
+    const ctl = createEngineController({
+      enginePath: engine,
+      handlers: {
+        ...c.handlers,
+        onBypassAck: (a) => void order.push(`ack:${a.seq}:${a.state === null ? "off" : "on"}`),
+        onExit: () => void order.push("exit"),
+      },
+    });
+    await ctl.start({ cwd: dir });
+    const since = Date.now();
+    ctl.bypass({ since, expiresAt: since + 60_000 });
+    await until(() => order.includes("ack:1:on"), "accusé seq 1");
+    ctl.kill();
+    await ctl.exited;
+    expect(order).toEqual(["ack:1:on", "ack:2:off", "exit"]);
+    expect(c.errors).toEqual([]);
+  }, 30_000);
+
+  it("(w) processus forké : pas de NODE_CHANNEL_* dans son environnement, canal IPC en FD_CLOEXEC (POSIX)", async () => {
+    const probeEngine = join(dir, "env-probe.mjs");
+    const out = join(dir, "env-probe-out.json");
+    await writeFile(probeEngine, ENV_PROBE_SOURCE);
+    const ctl = createEngineController({ enginePath: probeEngine, args: [out] });
+    await ctl.start({ cwd: dir });
+    ctl.kill();
+    await ctl.exited;
+    const seen = JSON.parse(await readFile(out, "utf8")) as {
+      channelKeys: string[];
+      fds: { link: string; cloexec: boolean | null }[];
+    };
+    expect(seen.channelKeys).toEqual([]);
+    if (process.platform !== "win32" && existsSync("/proc/self/fdinfo")) {
+      // Le canal IPC est un socket Unix : il ne doit pas survivre à un `exec` des petits-enfants.
+      const channel = seen.fds.filter((f) => f.link.startsWith("socket:"));
+      expect(channel.length).toBeGreaterThan(0);
+      expect(channel.every((f) => f.cloexec === true)).toBe(true);
+    }
+  }, 30_000);
 });
+
+/** Sonde forkée : relève les variables `NODE_CHANNEL_*` et les drapeaux des descripteurs, puis répond `ready`. */
+const ENV_PROBE_SOURCE = `import { readFileSync, readdirSync, readlinkSync, writeFileSync } from "node:fs";
+const out = process.argv[2];
+const channelKeys = Object.keys(process.env).filter((k) => k.startsWith("NODE_CHANNEL_"));
+const fds = readdirSync("/proc/self/fd")
+  .map(Number)
+  .filter((n) => n > 2)
+  .flatMap((fd) => {
+    try {
+      const flags = Number(/flags:\\s*(\\d+)/.exec(readFileSync("/proc/self/fdinfo/" + fd, "utf8"))?.[1] ?? 0);
+      return [{ link: readlinkSync("/proc/self/fd/" + fd), cloexec: (flags & 0o2000000) !== 0 }];
+    } catch {
+      return [];
+    }
+  });
+writeFileSync(out, JSON.stringify({ channelKeys, fds }));
+process.send({ v: 1, type: "ready" });
+process.on("message", () => process.exit(0));
+`;
