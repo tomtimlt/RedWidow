@@ -276,26 +276,26 @@ body.bypass .composer{border-color:#6b5218}
 .pop .sep{height:1px;background:var(--line);margin:4px 0}
 
 /* quick settings (Configure) */
-#cfg{min-width:280px}
-.qs{padding:7px 10px}
-.qs .lab{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#6f6f6f;margin-bottom:6px}
-.seg{display:flex;background:#1d1d1d;border:1px solid var(--line-2);border-radius:var(--r-sm);padding:2px;gap:2px}
-.seg button{flex:1;border:0;background:none;color:#bbb;padding:4px 6px;border-radius:4px;font-size:12px;display:flex;align-items:center;justify-content:center;gap:5px}
+#cfg{min-width:0;width:232px;padding:4px;font-size:12px;border-radius:var(--r-md)}
+.qs{padding:4px 8px}
+.qs .lab{font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:#6f6f6f;margin-bottom:3px}
+.seg{display:flex;background:#1d1d1d;border:1px solid var(--line-2);border-radius:var(--r-sm);padding:1px;gap:1px}
+.seg button{flex:1;border:0;background:none;color:#bbb;padding:2px 4px;border-radius:3px;font-size:11px;line-height:1.4;display:flex;align-items:center;justify-content:center;gap:5px}
 .seg button:hover{background:#2a2a2a}
 .seg button.on{background:var(--accent);color:#fff}
 .seg.speed button.on{background:#3a3a3a;color:var(--cyan)}
-.toggle{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;cursor:pointer}
+.toggle{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:5px;cursor:pointer}
 .toggle:hover{background:var(--hover)}
-.sw{width:34px;height:18px;border-radius:999px;background:#555;position:relative;flex:none;transition:background var(--d2)}
-.sw::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:transform var(--d2)}
+.sw{width:26px;height:14px;border-radius:999px;background:#555;position:relative;flex:none;transition:background var(--d2)}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:10px;height:10px;border-radius:50%;background:#fff;transition:transform var(--d2)}
 .toggle.on .sw{background:var(--orange)}
-.toggle.on .sw::after{transform:translateX(16px)}
-.toggle .col{min-width:0}
+.toggle.on .sw::after{transform:translateX(12px)}
+.toggle .col{min-width:0;display:flex;flex-direction:column;line-height:1.25}
 .toggle .t{color:#eee}
-.toggle .d{font-size:11px;color:#8a8a8a}
-.warnline{display:flex;gap:7px;align-items:flex-start;margin:4px 10px 2px;padding:7px 9px;border-radius:6px;background:#241f12;border:1px solid #6b5a1f;color:#e8c983;font-size:11px;line-height:1.4}
-.warnline svg{width:14px;height:14px;flex:none;margin-top:1px}
-select.mini{background:#1d1d1d;border:1px solid var(--line-2);color:#ddd;border-radius:var(--r-sm);padding:4px 6px;width:100%;font:inherit}
+.toggle .d{font-size:10px;color:#8a8a8a}
+.warnline{display:flex;gap:6px;align-items:flex-start;margin:2px 8px 3px;padding:4px 7px;border-radius:5px;background:#241f12;border:1px solid #6b5a1f;color:#e8c983;font-size:10px;line-height:1.35}
+.warnline svg{width:11px;height:11px;flex:none;margin-top:1px}
+select.mini{background:#1d1d1d;border:1px solid var(--line-2);color:#ddd;border-radius:var(--r-sm);padding:2px 5px;width:100%;font:inherit;font-size:11px}
 
 /* breakdown jauge */
 #ctxpop{min-width:250px}
@@ -693,18 +693,18 @@ PORT    STATE SERVICE   VERSION
   </div>
   <div class="toggle" id="tgBypass">
     <span class="sw"></span>
-    <div class="col"><span class="t">Bypass approvals</span><span class="d">exécute sans demander — bordure orange</span></div>
+    <div class="col"><span class="t">Bypass approvals</span><span class="d">sans demander · bordure orange</span></div>
   </div>
   <div class="warnline" id="bypassWarn" hidden>
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 4h.01M10.3 3.9 2.4 18a1.8 1.8 0 0 0 1.6 2.7h16a1.8 1.8 0 0 0 1.6-2.7L13.7 3.9a1.8 1.8 0 0 0-3.4 0Z"/></svg>
-    Les deny de politique, chemins sensibles et dangers shell restent bloqués par la gate même en Bypass.
+    Les deny, chemins sensibles et dangers shell restent bloqués par la gate.
   </div>
   <div class="qs">
     <div class="lab">Persona</div>
     <select class="mini" id="selPersona"><option>Neutral</option><option>Mentor</option><option>Candid</option><option>— custom —</option></select>
   </div>
   <div class="qs">
-    <div class="lab">Speed <span style="color:#8a8a8a;text-transform:none;letter-spacing:0">(peinture du texte)</span></div>
+    <div class="lab">Speed</div>
     <div class="seg speed" id="segSpeed">
       <button data-speed="40">Step</button>
       <button data-speed="14" class="on">Human</button>
