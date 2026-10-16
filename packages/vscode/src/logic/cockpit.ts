@@ -98,6 +98,70 @@ export function terminalLaunch(
   return { shellPath: dockerPath, shellArgs };
 }
 
+/** Plafond de shells d'éditeur par conteneur Docker réel. */
+export const EDITOR_SHELL_CAP = 4;
+
+export type EditorShellPlan =
+  | { action: "skip" }
+  | { action: "launch"; name: string; title: string }
+  | { action: "reveal"; title: string };
+
+const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const shellTitle = (name: string, index: number): string =>
+  index <= 1 ? `John : ${name}` : `John : ${name} (${index})`;
+
+/** Indice 1–4 si le titre correspond exactement à un shell de ce conteneur ; sinon `null`. */
+const parseShellIndex = (title: string, name: string): number | null => {
+  if (title === `John : ${name}`) return 1;
+  const m = new RegExp(`^John : ${escapeRegExp(name)} \\((\\d+)\\)$`).exec(title);
+  if (m === null) return null;
+  const n = Number(m[1]);
+  if (n >= 2 && n <= EDITOR_SHELL_CAP) return n;
+  return null;
+};
+
+/**
+ * Décide d'ouvrir, de révéler ou de ne rien faire pour un shell d'éditeur Exegol.
+ * `openTitles` : titres des terminaux déjà suivis pour ce nom réel, ordre de création.
+ */
+export function planEditorShell(
+  token: string,
+  containers: readonly { name: string; state: "running" | "stopped" }[],
+  openTitles: readonly string[],
+): EditorShellPlan {
+  const real = lookupContainer(token, containers);
+  if (real === null) return { action: "skip" };
+  const row = containers.find((c) => c.name === real);
+  if (row?.state !== "running") return { action: "skip" };
+
+  const used = new Set<number>();
+  let validCount = 0;
+  for (const t of openTitles) {
+    const idx = parseShellIndex(t, real);
+    if (idx !== null) {
+      used.add(idx);
+      validCount++;
+    }
+  }
+
+  if (validCount >= EDITOR_SHELL_CAP) {
+    let last: string | undefined;
+    for (const t of openTitles) {
+      if (parseShellIndex(t, real) !== null) last = t;
+    }
+    if (last !== undefined) return { action: "reveal", title: last };
+    return { action: "skip" };
+  }
+
+  for (let i = 1; i <= EDITOR_SHELL_CAP; i++) {
+    if (!used.has(i)) {
+      return { action: "launch", name: real, title: shellTitle(real, i) };
+    }
+  }
+  return { action: "skip" };
+}
+
 export type CockpitDaemon = "reachable" | "unreachable" | "na";
 export type CockpitLinkedLine = "running" | "stopped" | "absent" | "none" | "na";
 

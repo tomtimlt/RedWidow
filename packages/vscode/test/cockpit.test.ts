@@ -8,6 +8,7 @@ import {
   controlListedContainer,
   loadCockpitView,
   parseCockpitMessage,
+  planEditorShell,
   sortContainers,
   terminalLaunch,
 } from "../src/logic/cockpit.js";
@@ -21,6 +22,94 @@ const htmlOpts = {
   scriptUri: "https://x.vscode-cdn.net/media/cockpit.js",
   styleUri: "https://x.vscode-cdn.net/media/chat.css",
 };
+
+describe("planEditorShell", () => {
+  const containers = [
+    { name: "exegol-htb1", state: "running" as const },
+    { name: "exegol-lab", state: "stopped" as const },
+  ];
+
+  it("liste vide ou token inconnu : skip", () => {
+    expect(planEditorShell("htb1", [], [])).toEqual({ action: "skip" });
+    expect(planEditorShell("missing", containers, [])).toEqual({ action: "skip" });
+  });
+
+  it("court ambigu : skip", () => {
+    expect(
+      planEditorShell(
+        "htb1",
+        [
+          { name: "exegol-htb1", state: "running" },
+          { name: "htb1", state: "stopped" },
+        ],
+        [],
+      ),
+    ).toEqual({ action: "skip" });
+  });
+
+  it("arrêté : skip", () => {
+    expect(planEditorShell("lab", containers, [])).toEqual({ action: "skip" });
+  });
+
+  it("nom court résolu : premier titre sans suffixe", () => {
+    expect(planEditorShell("htb1", containers, [])).toEqual({
+      action: "launch",
+      name: "exegol-htb1",
+      title: "John : exegol-htb1",
+    });
+  });
+
+  it("deuxième shell : suffixe (2)", () => {
+    expect(planEditorShell("htb1", containers, ["John : exegol-htb1"])).toEqual({
+      action: "launch",
+      name: "exegol-htb1",
+      title: "John : exegol-htb1 (2)",
+    });
+  });
+
+  it("trou d'indice : réutilise le plus petit libre", () => {
+    expect(
+      planEditorShell("htb1", containers, ["John : exegol-htb1", "John : exegol-htb1 (3)"]),
+    ).toEqual({
+      action: "launch",
+      name: "exegol-htb1",
+      title: "John : exegol-htb1 (2)",
+    });
+  });
+
+  it("nom avec point : titre exact uniquement", () => {
+    const dotted = [{ name: "my.box", state: "running" as const }];
+    expect(planEditorShell("my.box", dotted, ["John : my.box"])).toEqual({
+      action: "launch",
+      name: "my.box",
+      title: "John : my.box (2)",
+    });
+    expect(planEditorShell("my.box", dotted, ["John : my.box (2)"])).toEqual({
+      action: "launch",
+      name: "my.box",
+      title: "John : my.box",
+    });
+  });
+
+  it("cinquième demande : reveal du dernier titre suivi", () => {
+    const open = [
+      "John : exegol-htb1",
+      "John : exegol-htb1 (2)",
+      "John : exegol-htb1 (3)",
+      "John : exegol-htb1 (4)",
+    ];
+    expect(planEditorShell("htb1", containers, open)).toEqual({
+      action: "reveal",
+      title: "John : exegol-htb1 (4)",
+    });
+    expect(
+      planEditorShell("htb1", containers, [...open, "John : autre", "John : exegol-htb1 (2)"]),
+    ).toEqual({
+      action: "reveal",
+      title: "John : exegol-htb1 (2)",
+    });
+  });
+});
 
 describe("terminalLaunch", () => {
   const docker = "/usr/bin/docker";
