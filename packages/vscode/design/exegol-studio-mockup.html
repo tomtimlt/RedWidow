@@ -211,7 +211,7 @@ body.bypass .composer.focus{border-color:var(--orange-focus);box-shadow:0 0 0 1p
 body.bypass .composer{border-color:#6b5218}
 .composer textarea{
   width:100%;resize:none;border:0;outline:0;background:transparent;color:var(--fg);
-  font:inherit;padding:4px 4px 6px;max-height:140px;min-height:22px;line-height:1.4;
+  font:inherit;padding:4px 4px 6px;max-height:140px;min-height:22px;line-height:1.4;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
 }
 .composer textarea::placeholder{color:#6f6f6f}
 .bar{display:flex;align-items:center;gap:4px}
@@ -478,7 +478,7 @@ PORT    STATE SERVICE   VERSION
         <div class="composer-wrap">
           <div class="attachments" id="atts"></div>
           <div class="composer" id="composer">
-            <textarea id="input" rows="1" placeholder="Demandez à l'agent…  @ pour mentionner · / pour une commande"></textarea>
+            <textarea id="input" rows="1" placeholder="Demandez à l'agent…  (@ · /)"></textarea>
             <div class="bar">
               <button class="tbtn" id="btnClip" title="Joindre un fichier / une image (hôte)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5 12 20a5 5 0 0 1-7-7l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7L9 17.3a1.6 1.6 0 0 1-2.3-2.3L15 6.7"/></svg></button>
               <button class="tbtn" id="btnAt" title="Mentionner (@)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M16 12v1.5a2.5 2.5 0 0 0 5 0V12a9 9 0 1 0-3.5 7.1"/></svg></button>
@@ -760,7 +760,7 @@ PORT    STATE SERVICE   VERSION
   const comp=$('#composer'), input=$('#input');
   input.addEventListener('focus',()=>comp.classList.add('focus'));
   input.addEventListener('blur',()=>comp.classList.remove('focus'));
-  input.addEventListener('input',()=>{input.style.height='auto';input.style.height=Math.min(input.scrollHeight,140)+'px';});
+  input.addEventListener('input',()=>{input.style.height='auto';input.style.height=Math.min(input.scrollHeight,140)+'px';input.style.overflowY=input.scrollHeight>140?'auto':'hidden';input.style.whiteSpace=input.value?'pre-wrap':'nowrap';});
 
   /* ---------- Configure : layout / mode / bypass / speed ---------- */
   function setLayout(l){
