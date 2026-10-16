@@ -316,6 +316,38 @@
     return theirs.slice();
   }
 
+  /** Mention en cours de saisie : `@` collé au curseur. `null` sinon. */
+  function mentionSpan(value, cursor) {
+    const text = String(value ?? "");
+    const pos = Math.max(0, Math.min(text.length, Number(cursor) || 0));
+    const upto = text.slice(0, pos);
+    const match = /(?:^|[\s(])@([A-Za-z0-9_.-]*)$/.exec(upto);
+    if (!match) return null;
+    return { query: match[1], start: upto.lastIndexOf("@") };
+  }
+
+  /** Liste hôte → entrées affichables. Nom court seulement, état connu. */
+  function safeContainers(items) {
+    if (!Array.isArray(items)) return [];
+    const out = [];
+    for (const it of items) {
+      if (!it || typeof it.name !== "string") continue;
+      if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(it.name)) continue;
+      if (it.state !== "running" && it.state !== "stopped") continue;
+      out.push({ name: it.name, state: it.state });
+    }
+    return out;
+  }
+
+  /** Conteneurs dont le nom court contient la saisie, dans l'ordre reçu. */
+  function filterContainers(items, query) {
+    const q = String(query ?? "").toLowerCase();
+    if (!Array.isArray(items)) return [];
+    return items.filter(
+      (it) => it && typeof it.name === "string" && it.name.toLowerCase().includes(q),
+    );
+  }
+
   const api = {
     LAYOUTS,
     EXEC_TOOL,
@@ -335,6 +367,9 @@
     shouldSweep,
     inputRecall,
     syncRecallEntries,
+    mentionSpan,
+    filterContainers,
+    safeContainers,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.JohnUI = api;

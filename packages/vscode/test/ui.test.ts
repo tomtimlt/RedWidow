@@ -38,6 +38,9 @@ interface UiApi {
     cursor: { line: number; lines: number },
   ): { index: number; draft: string; value: string } | null;
   syncRecallEntries(local: string[], viewUsers: string[]): string[];
+  mentionSpan(value: string, cursor: number): { query: string; start: number } | null;
+  filterContainers(items: { name: string; state?: string }[], query: string): { name: string }[];
+  safeContainers(items: unknown): { name: string; state: string }[];
   bypassView(
     push: unknown,
     previous: unknown,
@@ -507,6 +510,28 @@ describe("bypassView (lot B1, ADR 0006) : cinq états, échec fermé, pas de min
       { line: 0, lines: 1 },
     );
     expect(stay).toBeNull();
+  });
+  it("menu @ : span au curseur, filtre, noms refusés écartés", () => {
+    expect(ui.mentionSpan("nmap @ht", 8)).toEqual({ query: "ht", start: 5 });
+    expect(ui.mentionSpan("nmap @htb1 suite", 16)).toBeNull();
+    expect(ui.mentionSpan("a @", 3)).toEqual({ query: "", start: 2 });
+    const items = [
+      { name: "htb1", state: "running" },
+      { name: "lab", state: "stopped" },
+    ];
+    expect(ui.filterContainers(items, "ht").map((it) => it.name)).toEqual(["htb1"]);
+    expect(ui.filterContainers(items, "").map((it) => it.name)).toEqual(["htb1", "lab"]);
+    expect(
+      ui.safeContainers([
+        { name: "htb1", state: "running" },
+        { name: "../x", state: "running" },
+        { name: "lab", state: "nope" },
+        { name: "ok", state: "stopped", extra: 1 },
+      ]),
+    ).toEqual([
+      { name: "htb1", state: "running" },
+      { name: "ok", state: "stopped" },
+    ]);
   });
   it("syncRecallEntries garde l'écho en attente et remplace si la conversation change", () => {
     expect(ui.syncRecallEntries(["a"], [])).toEqual([]);

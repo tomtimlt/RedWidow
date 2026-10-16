@@ -56,13 +56,23 @@ const THEMES: Record<string, { cls: string; css: string }> = {
   },
 };
 
-const STATES = ["empty", "idle", "running", "approval", "model", "config", "history"] as const;
+const STATES = [
+  "empty",
+  "idle",
+  "running",
+  "approval",
+  "model",
+  "config",
+  "history",
+  "mention",
+] as const;
 type PreviewState = (typeof STATES)[number];
 /** Clic simulé après réception de la vue (ouvre le popover correspondant). */
 const CLICK: Partial<Record<PreviewState, string>> = {
   model: "model-chip",
   config: "cfg-btn",
   history: "history-btn",
+  mention: "mention-btn",
 };
 
 function buildView(state: PreviewState) {
@@ -166,7 +176,7 @@ function buildView(state: PreviewState) {
 const shim = (cls: string, data: string, click: string | undefined) => `
 const csp=[];document.addEventListener("securitypolicyviolation",(e)=>{csp.push(e.violatedDirective+" "+e.blockedURI);});
 document.body.classList.add("${cls}");
-window.acquireVsCodeApi=()=>({postMessage:(m)=>{if(m.type==="ready")setTimeout(()=>window.postMessage({type:"view",view:${data}},"*"),0);}});
+window.acquireVsCodeApi=()=>({postMessage:(m)=>{if(m.type==="ready")setTimeout(()=>{window.postMessage({type:"view",view:${data}},"*");window.postMessage({type:"containers",items:[{name:"htb1",state:"running"},{name:"lab",state:"stopped"}]},"*");},0);}});
 window.addEventListener("load",()=>setTimeout(()=>{${click ? `document.getElementById("${click}").click();` : ""}
 setTimeout(()=>{const w=document.documentElement.clientWidth;let bad="";
 if(document.documentElement.scrollWidth>w)bad="page:"+document.documentElement.scrollWidth;

@@ -161,6 +161,21 @@ export interface CockpitDeps {
 const isCoded = (e: unknown, code: string): boolean =>
   typeof e === "object" && e !== null && "code" in e && (e as { code: string }).code === code;
 
+/**
+ * Noms courts proposés dans le menu `@`. Un court ambigu (deux conteneurs) est omis.
+ * `name` est le court, pas le nom Docker.
+ */
+export function containerMentions(
+  containers: readonly { name: string; state: "running" | "stopped" }[],
+): { name: string; state: "running" | "stopped" }[] {
+  const tagged = containers.map((c) => ({ state: c.state, short: shortContainerName(c.name) }));
+  const counts = new Map<string, number>();
+  for (const c of tagged) counts.set(c.short, (counts.get(c.short) ?? 0) + 1);
+  return tagged
+    .filter((c) => counts.get(c.short) === 1)
+    .map((c) => ({ name: c.short, state: c.state }));
+}
+
 /** Sonde Docker / projet et construit la vue cockpit. */
 export async function loadCockpitView(deps: CockpitDeps = {}): Promise<CockpitViewPayload> {
   const configDir = deps.configDir ?? defaultConfigDir();
