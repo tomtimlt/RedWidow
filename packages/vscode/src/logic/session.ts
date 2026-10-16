@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { AuthMode, Effort, EngineEvent, ModelOption, Reason } from "@john-studio/core";
 import { formatReason } from "@john-studio/messages";
 import { alwaysConfirmText, answerFor, type Choice, cleanText, toCard } from "./approval.js";
+import type { BypassEngineLink, BypassSend } from "./bypass.js";
 import { type ChatState, type ChatView, createChatState, type HistoryEntry } from "./chat.js";
 import {
   createEngineController,
@@ -65,6 +66,8 @@ export interface ChatSessionDeps {
   /** Sortie d'erreur du moteur, déjà masquée. */
   onLog?(text: string): void;
   createController?(options: EngineControllerOptions): EngineController;
+  /** Bypass (ADR 0006) : lien vers le moteur courant, pour pousser l'état et recevoir l'accusé. */
+  bypass?: { attach(send: BypassSend): BypassEngineLink };
   /** Stockage persistant (globalState) : préférences et cache des modèles. Défaut : mémoire. */
   store?: { get(key: string): unknown; set(key: string, value: unknown): unknown };
   /** Version du SDK embarqué : clé du cache de la liste des modèles. */
@@ -106,6 +109,8 @@ export function createChatSession(deps: ChatSessionDeps) {
   let applied: { model: string | undefined; effort: EffortChoice | null } | null = null;
   /** Moteurs écartés (changement de modèle ou d'effort) : leurs derniers messages sont ignorés. */
   const detached = new WeakSet<EngineController>();
+  /** Liens du Bypass, un par moteur démarré : libérés à la sortie du moteur. */
+  const bypassLinks = new WeakMap<EngineController, BypassEngineLink>();
 
   const persist = (key: string, value: unknown) =>
     void Promise.resolve(store.set(key, value)).catch(() => undefined);
@@ -280,7 +285,13 @@ export function createChatSession(deps: ChatSessionDeps) {
           state.error(reason);
           refresh();
         },
+        onBypassAck: (ack) => {
+          if (detached.has(ctl)) return;
+          bypassLinks.get(ctl)?.acked(ack.seq, ack.state);
+        },
         onExit: ({ code }) => {
+          // Avant le filtre des moteurs écartés : un moteur qui sort n'a plus de Bypass (échec fermé).
+          bypassLinks.get(ctl)?.release();
           if (detached.has(ctl)) return;
           // Ancien moteur (réinitialisation puis nouveau message) : l'état n'est plus le sien.
           if (controller !== null && controller !== ctl) return;
@@ -309,6 +320,12 @@ export function createChatSession(deps: ChatSessionDeps) {
       ...(history && { journalDir: history.files.dir }),
       ...(sessionId !== undefined && { resume: sessionId }),
     });
+    if (deps.bypass) {
+      bypassLinks.set(
+        ctl,
+        deps.bypass.attach((state) => ctl.bypass(state)),
+      );
+    }
     return ctl;
   };
 

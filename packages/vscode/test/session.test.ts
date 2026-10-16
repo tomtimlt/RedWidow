@@ -34,6 +34,10 @@ function fake() {
     abort: () => void calls.push(["abort"]),
     dispose: () => void calls.push(["dispose"]),
     kill: () => void calls.push(["kill"]),
+    bypass: (state) => {
+      calls.push(["bypass", state]);
+      return calls.filter((c) => c[0] === "bypass").length;
+    },
     exited: Promise.resolve(),
   };
   return {
@@ -504,5 +508,39 @@ describe("historique (F4)", () => {
     expect(h.view().history).toEqual([]);
     await h.session.clearHistory();
     expect(h.confirmDelete).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("session de chat : lien du Bypass (ADR 0006)", () => {
+  it("après start, le lien reçoit le moteur ; l'accusé lui est routé ; la sortie le libère", async () => {
+    const f = fake();
+    const links: { acked: ReturnType<typeof vi.fn>; release: ReturnType<typeof vi.fn> }[] = [];
+    let send: ((state: null) => number) | undefined;
+    const attach = vi.fn((s: (state: null) => number) => {
+      send = s;
+      const link = { acked: vi.fn(), release: vi.fn() };
+      links.push(link);
+      return link;
+    });
+    const session = createChatSession({
+      cwd: "/w",
+      enginePath: "/e.mjs",
+      engineArgs: [],
+      readSettings: () => ({}),
+      getToken: async () => undefined,
+      confirmAlways: async () => false,
+      onView: () => {},
+      createController: f.create,
+      sdkVersion: "1.0.0",
+      bypass: { attach },
+    });
+    await session.send("hi");
+    expect(attach).toHaveBeenCalledTimes(1);
+    expect(send?.(null)).toBe(1);
+    expect(f.calls).toContainEqual(["bypass", null]);
+    f.handlers.onBypassAck?.({ seq: 1, state: null });
+    expect(links[0]?.acked).toHaveBeenCalledWith(1, null);
+    f.handlers.onExit?.({ code: 0, signal: null });
+    expect(links[0]?.release).toHaveBeenCalledTimes(1);
   });
 });

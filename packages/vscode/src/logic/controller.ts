@@ -1,6 +1,7 @@
 import { type ChildProcess, fork } from "node:child_process";
 import {
   type AuthMode,
+  type BypassState,
   CodedError,
   createRedactor,
   type EngineEvent,
@@ -61,6 +62,8 @@ export interface EngineHandlers {
   onEnded?(summary: EndedSummary): void;
   /** Erreur du moteur, ou message rejeté par la validation (le message fautif est ignoré). */
   onError?(reason: ErrorInfo): void;
+  /** Accusé du miroir du Bypass : `state` est l'état réellement retenu (ADR 0006, décision 3). */
+  onBypassAck?(ack: { seq: number; state: BypassState | null }): void;
   /** Processus enfant terminé. */
   onExit?(info: { code: number | null; signal: NodeJS.Signals | null }): void;
   /** Sortie d'erreur du moteur, masquée (jeton et motifs usuels de secrets). */
@@ -94,6 +97,11 @@ export interface EngineController {
   models(params: { cwd: string; auth?: AuthMode; timeoutMs?: number }): Promise<ModelOption[]>;
   prompt(text: string): void;
   answer(toolUseId: string, decision: "allow" | "deny", remember?: RememberScope): void;
+  /**
+   * Envoie l'état du Bypass au moteur (`null` = inactif) et renvoie le `seq` attribué. Le compteur
+   * repart de 1 à chaque moteur (nouveau contrôleur). Ne fait rien de plus : l'accusé arrive par `onBypassAck`.
+   */
+  bypass(state: BypassState | null): number;
   /** Annule le run en cours. */
   abort(): void;
   /** Termine la session proprement (le run s'achève puis le moteur sort). */
@@ -112,6 +120,8 @@ export function createEngineController(options: EngineControllerOptions): Engine
   let child: ChildProcess | null = null;
   /** Sondage en cours : la réponse `models` ou une erreur du moteur le résout. */
   let probe: { resolve(models: ModelOption[]): void; reject(error: unknown): void } | null = null;
+  /** Dernier `seq` envoyé au moteur de ce contrôleur (un moteur par contrôleur : repart de 0). */
+  let bypassSeq = 0;
   let resolveExited!: () => void;
   const exited = new Promise<void>((resolve) => (resolveExited = resolve));
 
@@ -143,6 +153,8 @@ export function createEngineController(options: EngineControllerOptions): Engine
       case "error":
         if (probe) return probe.reject(new Error(message.reason.code));
         return handlers.onError?.(message.reason);
+      case "bypassAck":
+        return handlers.onBypassAck?.({ seq: message.seq, state: message.state });
       case "ready":
         return;
     }
@@ -237,6 +249,11 @@ export function createEngineController(options: EngineControllerOptions): Engine
         decision,
         ...(remember !== undefined && { remember }),
       }),
+    bypass(state) {
+      bypassSeq += 1;
+      post({ v: PROTOCOL_VERSION, type: "bypass", seq: bypassSeq, state });
+      return bypassSeq;
+    },
     abort: () => post({ v: PROTOCOL_VERSION, type: "abort" }),
     dispose: () => post({ v: PROTOCOL_VERSION, type: "dispose" }),
     kill() {

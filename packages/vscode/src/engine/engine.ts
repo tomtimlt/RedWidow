@@ -20,6 +20,7 @@ import {
   parseToEngine,
   type StartParams,
 } from "../logic/protocol.js";
+import { createBypassMirror } from "./bypass-mirror.js";
 
 /** Canal vers le parent (IPC de Node en production, paire factice dans les tests). */
 export interface EngineChannel {
@@ -46,7 +47,13 @@ export interface EngineOptions {
   killTree?: () => void;
   /** Appelé quand une consigne est consommée, avant qu'elle n'atteigne le modèle. */
   onPrompt?: (text: string) => void | Promise<void>;
+  /** Horloge du moteur, pour le miroir du Bypass et la gate (défaut : `Date.now`). */
+  now?: () => number;
 }
+
+/** Message dont le type est `bypass` : même rejeté par la validation, il met le miroir à « off ». */
+const isBypassMessage = (raw: unknown): boolean =>
+  typeof raw === "object" && raw !== null && (raw as { type?: unknown }).type === "bypass";
 
 /** Flux de consignes d'une session multi-tours : `push` alimente, `end` clôt. */
 function createPromptStream(onTake: (text: string) => void | Promise<void>) {
@@ -91,7 +98,12 @@ export function runEngine({
   disconnectGraceMs = 5000,
   killTree = killOwnTree,
   onPrompt,
+  now = Date.now,
 }: EngineOptions): Promise<number> {
+  // Miroir en lecture du Bypass (ADR 0006, décision 6) : naît « off », jamais calculé ici.
+  const mirror = createBypassMirror({ now });
+  // Un message `bypass` n'est admis qu'après `start` (pas pendant un sondage `models`).
+  let sessionStarted = false;
   // Tout ce qui part vers le parent est masqué, y compris ce que le recorder ne voit pas
   // (entrée d'un outil en attente d'approbation, erreurs, résumé).
   const redact = createRedactor({ values: secretsFromEnv(env) });
@@ -149,6 +161,8 @@ export function runEngine({
           // Claude exige Git Bash sous Windows : le shell est analysable comme POSIX (comme la CLI).
           workspace: { cwd: params.cwd, posixShell: true },
           ask: approvals,
+          bypass: mirror,
+          now,
         });
         // Les demandes en attente partent vers l'UI ; la réponse revient par `answer`.
         void (async () => {
@@ -220,6 +234,8 @@ export function runEngine({
     channel.onMessage((raw) => {
       const parsed = parseToEngine(raw);
       if (!parsed.ok) {
+        // Échec fermé : un `bypass` rejeté met le miroir à « off ».
+        if (isBypassMessage(raw)) mirror.off();
         send({ v: PROTOCOL_VERSION, type: "error", reason: parsed.reason });
         return;
       }
@@ -228,6 +244,7 @@ export function runEngine({
         case "start": {
           if (started) return invalid("type", "state");
           started = true;
+          sessionStarted = true;
           const { v: _v, type: _type, ...params } = message;
           void session(params).catch((error) => {
             send({ v: PROTOCOL_VERSION, type: "error", reason: errorInfo(error) });
@@ -255,6 +272,21 @@ export function runEngine({
             invalid("toolUseId", "unknown");
           }
           return;
+        case "bypass": {
+          if (!sessionStarted) {
+            mirror.off();
+            return invalid("type", "state");
+          }
+          // Rejeu ou désordre (seq non croissant) : ignoré, sans accusé.
+          if (!mirror.apply(message.seq, message.state)) return;
+          send({
+            v: PROTOCOL_VERSION,
+            type: "bypassAck",
+            seq: message.seq,
+            state: mirror.current(now()),
+          });
+          return;
+        }
         case "abort":
           abort.abort(new Error("annulé par l'utilisateur"));
           prompts.end();
@@ -269,6 +301,8 @@ export function runEngine({
     // Parent disparu : annule le run (le SDK termine son binaire), puis rend la main
     // après un délai de grâce même si le run ne répond plus.
     channel.onDisconnect(() => {
+      // Échec fermé : le Bypass s'éteint avant l'annulation du run (aucune décision ultérieure ne l'utilise).
+      mirror.off();
       abort.abort(new Error("IPC coupée"));
       prompts.end();
       if (!started) return finish(1);

@@ -1,7 +1,13 @@
 import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AgentRunner } from "@john-studio/core";
+import {
+  type AgentRunner,
+  type ApprovalGate,
+  type ApprovalOutcome,
+  type ApprovalRequest,
+  BYPASS_DEFAULT_MS,
+} from "@john-studio/core";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { type EngineChannel, runEngine } from "../src/engine/engine.js";
 import type { FromEngine } from "../src/logic/protocol.js";
@@ -155,6 +161,296 @@ describe("moteur : journal de l'extension (F4)", () => {
       expect(files[0]).toMatch(/^[0-9a-f-]{36}\.jsonl$/);
       // Rien n'a été écrit dans le dépôt.
       await expect(readdir(join(repo, ".john-studio"))).rejects.toThrow();
+    } finally {
+      await rm(journalDir, { recursive: true, force: true });
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+});
+
+/** Événements du journal relayés au parent, sous forme souple (vérifications par champ). */
+const eventsOf = (sent: FromEngine[]) =>
+  sent.flatMap((m) => (m.type === "event" ? [m.event as unknown as Record<string, unknown>] : []));
+
+/** Bornes d'un état du Bypass tel que l'hôte les envoie (instants absolus). */
+const bypassMsg = (seq: number, since = Date.now(), span = BYPASS_DEFAULT_MS) => ({
+  v: 1,
+  type: "bypass",
+  seq,
+  state: { since, expiresAt: since + span },
+});
+
+describe("moteur : Bypass (ADR 0006, pont hôte → moteur)", () => {
+  /** Demandes de test : la consigne qui porte leur identifiant déclenche la décision. */
+  function requestsFor(repo: string): Record<string, ApprovalRequest> {
+    return {
+      ok: {
+        toolUseId: "ok",
+        tool: "Write",
+        input: { file_path: join(repo, "ok.txt"), content: "x" },
+      },
+      deny: { toolUseId: "deny", tool: "Bash", input: { command: "rm -rf build" } },
+      ssh: {
+        toolUseId: "ssh",
+        tool: "Write",
+        input: { file_path: join(homedir(), ".ssh", "id_rsa"), content: "x" },
+      },
+      outside: {
+        toolUseId: "outside",
+        tool: "Write",
+        input: { file_path: "/etc/john-bypass-test", content: "x" },
+      },
+      hazard: { toolUseId: "hazard", tool: "Bash", input: { command: "ls; echo x" } },
+      host: {
+        toolUseId: "host",
+        tool: "Bash",
+        input: { command: "docker run -v /:/host alpine" },
+      },
+    };
+  }
+
+  /** Exécution factice : chaque consigne déclenche la décision de la demande qui porte son identifiant. */
+  function bypassRunner(
+    requests: Record<string, ApprovalRequest>,
+    box: { gate?: ApprovalGate; outcomes: Map<string, ApprovalOutcome> },
+  ): AgentRunner {
+    return {
+      run: ({ prompt }, { gate, signal }) =>
+        new Promise((resolve) => {
+          box.gate = gate;
+          void (async () => {
+            for await (const id of prompt as AsyncIterable<string>) {
+              const request = requests[id];
+              if (request !== undefined) {
+                void gate
+                  .decide(request, signal ?? new AbortController().signal)
+                  .then((o) => box.outcomes.set(id, o));
+              }
+            }
+            resolve({ status: "success", turns: 0, costUsd: 0, result: null });
+          })();
+        }),
+    };
+  }
+
+  async function started(t: ReturnType<typeof fakeChannel>, cwd: string, journalDir: string) {
+    t.receive({ v: 1, type: "start", cwd, journalDir });
+    await vi.waitFor(() => expect(t.sent.some((m) => m.type === "started")).toBe(true));
+  }
+
+  const acks = (sent: FromEngine[]) => sent.flatMap((m) => (m.type === "bypassAck" ? [m] : []));
+
+  it("(q) accusé = état retenu ; rejeu et seq non croissant ignorés sans accusé", async () => {
+    const repo = await mkdtemp(join(tmpdir(), "john-bp-"));
+    const journalDir = await mkdtemp(join(tmpdir(), "john-bp-j-"));
+    try {
+      const t = fakeChannel();
+      const done = runEngine({ channel: t.channel, createRunner: () => idleRunner });
+      await started(t, repo, journalDir);
+      const msg = bypassMsg(1);
+      t.receive(msg);
+      await vi.waitFor(() => expect(acks(t.sent)).toHaveLength(1));
+      expect(acks(t.sent)[0]).toEqual({
+        v: 1,
+        type: "bypassAck",
+        seq: 1,
+        state: msg.state,
+      });
+      // Rejeu du même seq : ignoré, aucun second accusé.
+      t.receive(msg);
+      t.receive(bypassMsg(1, msg.state.since + 5));
+      t.receive({ v: 1, type: "dispose" });
+      await done;
+      expect(acks(t.sent)).toHaveLength(1);
+    } finally {
+      await rm(journalDir, { recursive: true, force: true });
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("(p) message forgé rejeté : erreur, et un Bypass déjà actif passe à « off »", async () => {
+    const repo = await mkdtemp(join(tmpdir(), "john-bp-"));
+    const journalDir = await mkdtemp(join(tmpdir(), "john-bp-j-"));
+    try {
+      const t = fakeChannel();
+      const box = { outcomes: new Map<string, ApprovalOutcome>() };
+      const requests = requestsFor(repo);
+      const done = runEngine({
+        channel: t.channel,
+        createRunner: () => bypassRunner(requests, box),
+      });
+      await started(t, repo, journalDir);
+      t.receive(bypassMsg(1));
+      await vi.waitFor(() => expect(acks(t.sent)).toHaveLength(1));
+      // Durée excessive, puis clé en trop : rejetés, et le miroir repasse à « off ».
+      t.receive({ ...bypassMsg(2), state: { since: 1, expiresAt: 1 + 4 * 60 * 60 * 1000 + 1 } });
+      await vi.waitFor(() => expect(codes(t.sent)).toContain("ipc.invalidMessage"));
+      t.receive({ ...bypassMsg(3), extra: true });
+      t.receive({ v: 1, type: "prompt", text: "ok" });
+      // Sans Bypass, la demande ordinaire attend la réponse de l'utilisateur (jamais auto-approuvée).
+      await vi.waitFor(() =>
+        expect(
+          eventsOf(t.sent).some((e) => e.kind === "approval.requested" && e.toolUseId === "ok"),
+        ).toBe(true),
+      );
+      expect(
+        eventsOf(t.sent).filter((e) => e.kind === "approval.decided" && e.toolUseId === "ok"),
+      ).toEqual([]);
+      expect(box.outcomes.has("ok")).toBe(false);
+      t.receive({ v: 1, type: "dispose" });
+      t.receive({ v: 1, type: "abort" });
+      await done;
+    } finally {
+      await rm(journalDir, { recursive: true, force: true });
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("(r) bypass avant start ou pendant un sondage models : refusé, sans accusé", async () => {
+    const t = fakeChannel();
+    const done = runEngine({ channel: t.channel, createRunner: () => idleRunner });
+    t.receive(bypassMsg(1));
+    expect(codes(t.sent)).toContain("ipc.invalidMessage");
+    expect(acks(t.sent)).toEqual([]);
+    t.receive({ v: 1, type: "dispose" });
+    await done;
+
+    const probe = fakeChannel();
+    const probing = runEngine({ channel: probe.channel, createRunner: () => idleRunner });
+    probe.receive({ v: 1, type: "models", cwd: tmpdir() });
+    await vi.waitFor(() => expect(probe.sent.some((m) => m.type === "models")).toBe(true));
+    probe.receive(bypassMsg(1));
+    expect(codes(probe.sent)).toContain("ipc.invalidMessage");
+    expect(acks(probe.sent)).toEqual([]);
+    await probing;
+  });
+
+  it("(s) coupure du canal : le Bypass s'éteint avant l'annulation, aucune décision « bypass » ensuite", async () => {
+    const repo = await mkdtemp(join(tmpdir(), "john-bp-"));
+    const journalDir = await mkdtemp(join(tmpdir(), "john-bp-j-"));
+    try {
+      const t = fakeChannel();
+      const box = { outcomes: new Map<string, ApprovalOutcome>() } as {
+        gate?: ApprovalGate;
+        outcomes: Map<string, ApprovalOutcome>;
+      };
+      const requests = requestsFor(repo);
+      const done = runEngine({
+        channel: t.channel,
+        createRunner: () => bypassRunner(requests, box),
+      });
+      await started(t, repo, journalDir);
+      t.receive(bypassMsg(1));
+      await vi.waitFor(() => expect(acks(t.sent)).toHaveLength(1));
+      t.disconnect();
+      const gate = box.gate;
+      expect(gate).toBeDefined();
+      const after: ApprovalRequest = { ...(requests.ok as ApprovalRequest), toolUseId: "after" };
+      void gate?.decide(after, new AbortController().signal);
+      await vi.waitFor(() =>
+        expect(
+          eventsOf(t.sent).some((e) => e.kind === "approval.requested" && e.toolUseId === "after"),
+        ).toBe(true),
+      );
+      expect(
+        eventsOf(t.sent).filter((e) => e.toolUseId === "after" && e.source === "bypass"),
+      ).toEqual([]);
+      await done;
+    } finally {
+      await rm(journalDir, { recursive: true, force: true });
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("(u) bout à bout avec la gate réelle : deny, chemins, danger shell et hôte jamais auto-approuvés ; ordinaire oui", async () => {
+    const repo = await mkdtemp(join(tmpdir(), "john-bp-"));
+    const journalDir = await mkdtemp(join(tmpdir(), "john-bp-j-"));
+    try {
+      const requests = requestsFor(repo);
+      const box = { outcomes: new Map<string, ApprovalOutcome>() };
+      const t = fakeChannel();
+      const done = runEngine({
+        channel: t.channel,
+        createRunner: () => bypassRunner(requests, box),
+      });
+      await started(t, repo, journalDir);
+      const since = Date.now();
+      t.receive(bypassMsg(1, since));
+      await vi.waitFor(() => expect(acks(t.sent)).toHaveLength(1));
+      for (const id of Object.keys(requests)) t.receive({ v: 1, type: "prompt", text: id });
+
+      await vi.waitFor(() => expect(box.outcomes.has("ok")).toBe(true));
+      const okDecided = eventsOf(t.sent).filter(
+        (e) => e.kind === "approval.decided" && e.toolUseId === "ok",
+      );
+      expect(okDecided).toMatchObject([
+        { decision: "allow", source: "bypass", reason: { code: "approval.bypassed" } },
+      ]);
+      const change = eventsOf(t.sent).find((e) => e.kind === "bypass.changed");
+      expect(change).toMatchObject({ state: "on", since, expiresAt: since + BYPASS_DEFAULT_MS });
+
+      for (const id of ["deny", "ssh", "outside", "hazard", "host"]) {
+        await vi.waitFor(() =>
+          expect(
+            eventsOf(t.sent).some(
+              (e) =>
+                e.toolUseId === id &&
+                (e.kind === "approval.requested" || e.kind === "approval.decided"),
+            ),
+          ).toBe(true),
+        );
+        const sources = eventsOf(t.sent).filter(
+          (e) => e.kind === "approval.decided" && e.toolUseId === id,
+        );
+        expect(
+          sources.map((e) => e.source),
+          id,
+        ).not.toContain("bypass");
+      }
+      t.receive({ v: 1, type: "dispose" });
+      t.receive({ v: 1, type: "abort" });
+      await done;
+    } finally {
+      await rm(journalDir, { recursive: true, force: true });
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("(v) expiration à l'horloge du moteur : plus de décision « bypass » après l'échéance, sans nouveau message", async () => {
+    const repo = await mkdtemp(join(tmpdir(), "john-bp-"));
+    const journalDir = await mkdtemp(join(tmpdir(), "john-bp-j-"));
+    try {
+      const requests = requestsFor(repo);
+      requests.ok2 = { ...requests.ok, toolUseId: "ok2" } as ApprovalRequest;
+      const box = { outcomes: new Map<string, ApprovalOutcome>() };
+      let clock = 1_700_000_000_000;
+      const t = fakeChannel();
+      const done = runEngine({
+        channel: t.channel,
+        createRunner: () => bypassRunner(requests, box),
+        now: () => clock,
+      });
+      await started(t, repo, journalDir);
+      t.receive(bypassMsg(1, clock, 60_000));
+      await vi.waitFor(() => expect(acks(t.sent)).toHaveLength(1));
+      t.receive({ v: 1, type: "prompt", text: "ok" });
+      await vi.waitFor(() => expect(box.outcomes.has("ok")).toBe(true));
+      expect(box.outcomes.get("ok")?.source).toBe("bypass");
+
+      clock += 60_000;
+      t.receive({ v: 1, type: "prompt", text: "ok2" });
+      await vi.waitFor(() =>
+        expect(
+          eventsOf(t.sent).some((e) => e.kind === "approval.requested" && e.toolUseId === "ok2"),
+        ).toBe(true),
+      );
+      const last = eventsOf(t.sent)
+        .filter((e) => e.kind === "bypass.changed")
+        .at(-1);
+      expect(last).toMatchObject({ state: "off", reason: { code: "bypass.expired" } });
+      t.receive({ v: 1, type: "dispose" });
+      t.receive({ v: 1, type: "abort" });
+      await done;
     } finally {
       await rm(journalDir, { recursive: true, force: true });
       await rm(repo, { recursive: true, force: true });
