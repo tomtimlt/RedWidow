@@ -547,6 +547,9 @@ export function activate(context: vscode.ExtensionContext): void {
     for (const panel of [cockpitPanel, monitorPanel, studioPanel]) {
       if (panel?.viewColumn !== undefined) return panel.viewColumn;
     }
+    for (const watch of watches) {
+      if (watch.panel.viewColumn !== undefined) return watch.panel.viewColumn;
+    }
     return vscode.ViewColumn.Beside;
   };
 
@@ -774,18 +777,17 @@ export function activate(context: vscode.ExtensionContext): void {
       (watch) => watch.chatId === chatId && watch.toolUseId === toolUseId,
     );
     if (existing) {
-      existing.panel.reveal(vscode.ViewColumn.Beside);
+      existing.panel.reveal();
       const view = slots.get(chatId)?.session?.view();
       if (view) void existing.panel.webview.postMessage({ type: "view", view });
       return;
     }
     const media = vscode.Uri.joinPath(context.extensionUri, "media");
-    const panel = vscode.window.createWebviewPanel(
-      "john.watch",
-      "Sortie",
-      vscode.ViewColumn.Beside,
-      { enableScripts: true, enableCommandUris: false, localResourceRoots: [media] },
-    );
+    const panel = vscode.window.createWebviewPanel("john.watch", "Sortie", johnColumn(), {
+      enableScripts: true,
+      enableCommandUris: false,
+      localResourceRoots: [media],
+    });
     const watch = { panel, chatId, toolUseId };
     watches.push(watch);
     mountChatHtml(panel.webview);
