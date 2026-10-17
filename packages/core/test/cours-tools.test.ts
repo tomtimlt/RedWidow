@@ -95,6 +95,23 @@ describe("chercher", () => {
     await expect(chercher("")).rejects.toThrow();
   });
 
+  it("plafond d'entrées : un dossier rempli de fichiers non texte", async () => {
+    const big = join(root, "bruit");
+    await mkdir(big, { recursive: true });
+    for (let i = 0; i < 30; i++) await writeFile(join(big, `f${i}.bin`), "x");
+    await writeFile(join(big, "zz.md"), "cible-unique\n");
+    const out = await chercher("cible-unique", { maxEntries: 10 });
+    expect(out).toContain("plafond atteint : entrées");
+    expect(out).not.toContain("zz.md");
+    expect(await chercher("cible-unique")).toContain("bruit/zz.md:1");
+    await rm(big, { recursive: true, force: true });
+  });
+
+  it("identité différente à l'ouverture : fichier ignoré", async () => {
+    const fake = coursToolSpecs(root, {}, { statPath: async () => ({ dev: -1, ino: -1 }) });
+    expect(await tool(fake, "chercher").run({ requete: "handshake" }, ctx)).toBe("aucun résultat");
+  });
+
   it("racine absente : erreur", async () => {
     await expect(
       tool(coursToolSpecs(join(base, "absent")), "chercher").run({ requete: "x" }, ctx),
@@ -128,6 +145,24 @@ describe("lire", () => {
     if (!canLink) return t.skip();
     await expect(lire("lien.md")).rejects.toMatchObject({ code: "path.outside" });
     await expect(lire("lien-dir/secret.md")).rejects.toMatchObject({ code: "path.outside" });
+  });
+
+  it("refuse une extension autre que .md et .txt", async () => {
+    await expect(lire("note.bin")).rejects.toMatchObject({ code: "path.unsupported" });
+    expect(await lire("net/deep/x.txt")).toContain("handshake profond");
+  });
+
+  it("refuse un lien interne .md vers une cible non texte", async (t) => {
+    if (!canLink) return t.skip();
+    await symlink(join(root, "note.bin"), join(root, "interne.md"));
+    await expect(lire("interne.md")).rejects.toMatchObject({ code: "path.unsupported" });
+  });
+
+  it("refuse un fichier dont l'identité diffère de la cible confinée", async () => {
+    const fake = coursToolSpecs(root, {}, { statPath: async () => ({ dev: -1, ino: -1 }) });
+    await expect(tool(fake, "lire").run({ chemin: "net/tcp.md" }, ctx)).rejects.toMatchObject({
+      code: "path.outside",
+    });
   });
 
   it("refuse un dossier", async () => {

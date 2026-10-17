@@ -6,6 +6,8 @@ import { CodedError } from "../reason.js";
 export interface ConfineDeps {
   realpath?: (path: string) => Promise<string>;
   platform?: NodeJS.Platform;
+  /** Identité (`dev`/`ino`) d'un chemin sans suivre de lien final ; `lstat` par défaut. */
+  statPath?: (path: string) => Promise<{ dev: number | bigint; ino: number | bigint }>;
 }
 
 /** Chemin confiné : `real` est la cible résolue, `rootReal` la racine résolue. */

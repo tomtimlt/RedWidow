@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -573,6 +573,11 @@ describe("moteur : mode apprentissage (ADR 0010)", () => {
       t.receive({ v: 1, type: "start", cwd: repo, journalDir, mode: "learning" });
       t.receive(bypassMsg(1));
       expect(await done).toBe(0);
+      // Le Bypass est réellement actif : accusé reçu avec un état non nul.
+      const ack = t.sent.flatMap((m) => (m.type === "bypassAck" ? [m] : []));
+      expect(ack).toHaveLength(1);
+      expect(ack[0]?.state).not.toBeNull();
+      expect(ack[0]?.state?.expiresAt).toBeGreaterThan(Date.now());
       expect(modes).toEqual(["learning"]);
       expect(policyLoader).not.toHaveBeenCalled();
       expect(box.input?.systemPrompt).toBe(LEARNING_SYSTEM_PROMPT);
@@ -588,6 +593,53 @@ describe("moteur : mode apprentissage (ADR 0010)", () => {
       const startedMsg = t.sent.find((m) => m.type === "started");
       expect(startedMsg).toMatchObject({ policySource: null });
       expect(startedMsg).not.toHaveProperty("warning");
+    } finally {
+      await rm(journalDir, { recursive: true, force: true });
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("(j) un second start est rejeté ; un answer remember:always ne persiste rien", async () => {
+    const { repo, journalDir } = await prep();
+    try {
+      const outcomes = new Map<string, ApprovalOutcome>();
+      let runs = 0;
+      const runner: AgentRunner = {
+        run: async ({ prompt }, { gate, signal }) => {
+          runs++;
+          outcomes.set(
+            "bash",
+            await gate.decide(tools[0] as ApprovalRequest, signal ?? new AbortController().signal),
+          );
+          for await (const _ of prompt as AsyncIterable<string>) {
+            // attend la clôture du flux
+          }
+          return { status: "success", turns: 0, costUsd: 0, result: null };
+        },
+      };
+      const t = fakeChannel();
+      const done = runEngine({ channel: t.channel, createRunner: () => runner });
+      t.receive({ v: 1, type: "start", cwd: repo, journalDir, mode: "learning" });
+      await vi.waitFor(() => expect(outcomes.has("bash")).toBe(true));
+      expect(outcomes.get("bash")).toMatchObject({ decision: "deny", source: "policy" });
+      // Second start : rejeté sans nouveau run.
+      t.receive({ v: 1, type: "start", cwd: repo, journalDir, mode: "learning" });
+      // Aucune demande n'existe en apprentissage : la réponse est signalée et sans effet.
+      t.receive({
+        v: 1,
+        type: "answer",
+        toolUseId: "bash",
+        decision: "allow",
+        remember: "always",
+      });
+      expect(codes(t.sent)).toEqual(["ipc.invalidMessage", "ipc.invalidMessage"]);
+      expect(runs).toBe(1);
+      expect(eventsOf(t.sent).some((e) => e.kind === "approval.requested")).toBe(false);
+      t.receive({ v: 1, type: "dispose" });
+      await done;
+      // Rien de persisté : dépôt vide, seul le journal existe côté extension.
+      expect(await readdir(repo)).toEqual([]);
+      expect((await readdir(journalDir)).every((f) => f.endsWith(".jsonl"))).toBe(true);
     } finally {
       await rm(journalDir, { recursive: true, force: true });
       await rm(repo, { recursive: true, force: true });

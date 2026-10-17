@@ -1,5 +1,5 @@
 import { constants } from "node:fs";
-import { type FileHandle, open, readdir } from "node:fs/promises";
+import { type FileHandle, lstat, open, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 import { defaultConfigDir } from "../approval/source.js";
@@ -22,6 +22,8 @@ export function coursRoot(): string {
 export interface CoursLimits {
   /** `chercher` : nombre de lignes renvoyées. */
   maxResults: number;
+  /** `chercher` : entrées visitées (fichiers de tout type et dossiers). */
+  maxEntries: number;
   /** `chercher` : fichiers ouverts. */
   maxFiles: number;
   /** `chercher` : profondeur de dossiers (la racine vaut 0). */
@@ -40,6 +42,7 @@ export interface CoursLimits {
 
 export const DEFAULT_COURS_LIMITS: CoursLimits = {
   maxResults: 50,
+  maxEntries: 5000,
   maxFiles: 500,
   maxDepth: 8,
   maxTotalBytes: 4 * 1024 * 1024,
@@ -53,6 +56,15 @@ const TEXT_FILE = /\.(md|txt)$/i;
 
 /** Ouverture sans blocage (FIFO) et sans suivre un lien final, quand la plateforme le permet. */
 const OPEN_FLAGS = constants.O_RDONLY | (constants.O_NONBLOCK ?? 0) | (constants.O_NOFOLLOW ?? 0);
+
+/** Refuse un descripteur ouvert qui n'est pas le fichier visé (échange de lien entre-temps). */
+async function assertSameFile(fh: FileHandle, path: string, rel: string, deps: ConfineDeps) {
+  const wanted = await (deps.statPath ?? ((p: string) => lstat(p)))(path);
+  const opened = await fh.stat();
+  if (opened.dev !== wanted.dev || opened.ino !== wanted.ino) {
+    throw new CodedError("path.outside", { path: rel });
+  }
+}
 
 /** Lit au plus `max` octets depuis le début du descripteur. */
 async function readBounded(fh: FileHandle, max: number): Promise<{ buf: Buffer; size: number }> {
@@ -68,11 +80,17 @@ async function readBounded(fh: FileHandle, max: number): Promise<{ buf: Buffer; 
 }
 
 /** Une recherche : parcours itératif, sans suivre aucun lien, sous plafonds. */
-async function search(rootReal: string, needle: string, limits: CoursLimits): Promise<string> {
+async function search(
+  rootReal: string,
+  needle: string,
+  limits: CoursLimits,
+  deps: ConfineDeps,
+): Promise<string> {
   const query = needle.toLowerCase();
   const out: string[] = [];
   const stopped: string[] = [];
   let files = 0;
+  let visited = 0;
   let total = 0;
   // Pile de dossiers (chemin relatif en segments), parcourue dans l'ordre alphabétique.
   const stack: { rel: string[]; depth: number }[] = [{ rel: [], depth: 0 }];
@@ -88,6 +106,12 @@ async function search(rootReal: string, needle: string, limits: CoursLimits): Pr
     entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
     const subdirs: { rel: string[]; depth: number }[] = [];
     for (const entry of entries) {
+      // Toute entrée compte (fichier non texte, dossier, lien) : borne la largeur du parcours.
+      if (visited >= limits.maxEntries) {
+        stopped.push("entrées");
+        break walk;
+      }
+      visited++;
       // Les liens (même vers un fichier .md) ne sont jamais suivis.
       if (entry.isSymbolicLink()) continue;
       const rel = [...dir.rel, entry.name];
@@ -108,7 +132,9 @@ async function search(rootReal: string, needle: string, limits: CoursLimits): Pr
       files++;
       let fh: FileHandle | undefined;
       try {
-        fh = await open(join(rootReal, ...rel), OPEN_FLAGS);
+        const path = join(rootReal, ...rel);
+        fh = await open(path, OPEN_FLAGS);
+        await assertSameFile(fh, path, rel.join("/"), deps);
         const st = await fh.stat();
         if (!st.isFile()) continue;
         const { buf } = await readBounded(
@@ -152,8 +178,13 @@ async function readCourse(
   deps: ConfineDeps,
 ): Promise<string> {
   const { rootReal, real } = await confinePath(root, rel, deps);
+  // Seuls les fichiers .md et .txt sont lisibles (même filtre que `chercher`), cible comprise.
+  if (!TEXT_FILE.test(rel) || !TEXT_FILE.test(real)) {
+    throw new CodedError("path.unsupported", { path: rel, form: "unresolvable" });
+  }
   const fh = await open(real, OPEN_FLAGS);
   try {
+    await assertSameFile(fh, real, rel, deps);
     const st = await fh.stat();
     if (!st.isFile()) throw new CodedError("path.unsupported", { path: rel, form: "unresolvable" });
     // Revérifie la cible après ouverture : réduit la fenêtre d'échange d'un lien.
@@ -210,7 +241,7 @@ export function coursToolSpecs(
       readOnly: true,
       async run(args) {
         const { requete } = z.object(chercherInput).parse(args);
-        return search(await resolveRoot(root, deps.realpath), requete, limits);
+        return search(await resolveRoot(root, deps.realpath), requete, limits, deps);
       },
     },
     {
