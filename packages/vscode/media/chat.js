@@ -199,11 +199,7 @@
     const box = el("div", "welcome");
     box.append(
       el("h2", "", "On commence par où ?"),
-      el(
-        "p",
-        "hint",
-        "Décris la cible. Chaque action sensible demande ton accord.",
-      ),
+      el("p", "hint", "Décris la cible. Chaque action sensible demande ton accord."),
     );
     const list = el("div", "examples");
     for (const text of EXAMPLES) {
