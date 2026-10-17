@@ -2632,3 +2632,48 @@ body.mode-watch .mon-out {
   max-height: none;
   min-height: 50vh;
 }
+
+/* --- Bascules Apprentissage / Bypass de la barre d'entrée : miroirs de celles de Configurer --- */
+.chip-switch .sw-dot {
+  flex: none;
+  box-sizing: border-box;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid var(--vscode-foreground);
+  opacity: 0.6;
+}
+.chip-switch .sw-short {
+  display: none;
+}
+.chip-switch[aria-checked="true"] {
+  border-color: var(--jn-accent);
+  color: var(--vscode-foreground);
+}
+.chip-switch[aria-checked="true"] .sw-dot {
+  background: var(--jn-accent);
+  border-color: var(--jn-accent);
+  opacity: 1;
+}
+#bar-bypass[aria-checked="true"] {
+  border-color: var(--jn-warn);
+}
+#bar-bypass[aria-checked="true"] .sw-dot {
+  background: var(--jn-warn);
+  border-color: var(--jn-warn);
+}
+.chip-switch[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: default;
+}
+@container app (max-width: 599px) {
+  .chip-switch {
+    padding: 0 6px;
+  }
+  .chip-switch .sw-full {
+    display: none;
+  }
+  .chip-switch .sw-short {
+    display: inline;
+  }
+}

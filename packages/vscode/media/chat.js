@@ -512,6 +512,8 @@
     $("learning-badge").hidden = c.learning !== true;
     learningSwitch.setAttribute("aria-checked", String(c.learning === true));
     learningSwitch.setAttribute("aria-disabled", String(c.locked));
+    barLearning.setAttribute("aria-checked", String(c.learning === true));
+    barLearning.setAttribute("aria-disabled", String(c.locked));
     renderBypass();
     ticks.replaceChildren(
       ...levels.map((l) => {
@@ -542,10 +544,15 @@
   const bypassSwitch = $("bypass-switch");
   // --- Mode Apprentissage (ADR 0010) : le clic n'écrit rien, il envoie le booléen inverse du dernier état reçu.
   const learningSwitch = $("learning-switch");
-  learningSwitch.addEventListener("click", () => {
+  // Barre d'entrée : deux bascules miroirs de celles de Configurer, même état, mêmes gestionnaires.
+  const barLearning = $("bar-learning");
+  const barBypass = $("bar-bypass");
+  function toggleLearning() {
     if (!ctl || ctl.locked) return;
     vscode.postMessage({ type: "setLearning", enabled: ctl.learning !== true });
-  });
+  }
+  learningSwitch.addEventListener("click", toggleLearning);
+  barLearning.addEventListener("click", toggleLearning);
   const bypassState = $("bypass-state");
   const bypassBadge = $("bypass-badge");
   /** Dernier message reçu, le précédent, et le drapeau « off ou reset demandé » qui l'a précédé. */
@@ -557,8 +564,10 @@
     // Apprentissage : le Bypass est inopérant pour ce chat (ADR 0010) ; l'état fenêtre-global reste intact.
     const learning = ctl?.learning === true;
     bypassSwitch.setAttribute("aria-disabled", String(learning));
+    barBypass.setAttribute("aria-disabled", String(learning));
     if (learning) {
       bypassSwitch.setAttribute("aria-checked", "false");
+      barBypass.setAttribute("aria-checked", "false");
       bypassState.textContent = "Inopérant en mode Apprentissage";
       document.body.classList.remove("bypass-on");
       bypassBadge.hidden = true;
@@ -567,6 +576,7 @@
     }
     const v = UI.bypassView(bypassCtx.push, bypassCtx.previous, bypassCtx.userOff, Date.now());
     bypassSwitch.setAttribute("aria-checked", String(v.checked));
+    barBypass.setAttribute("aria-checked", String(v.checked));
     bypassState.textContent = v.text;
     document.body.classList.toggle("bypass-on", v.state === "on");
     bypassBadge.hidden = v.badge === null;
@@ -580,13 +590,15 @@
   }
 
   // Le clic n'écrit rien dans le DOM : il envoie le booléen calculé sur le dernier message reçu.
-  bypassSwitch.addEventListener("click", () => {
+  function toggleBypass() {
     if (ctl?.learning === true) return;
     const last = bypassCtx.push;
     const enabled = !(last?.on === true || last?.armed === true);
     if (!enabled) bypassUserOff = true;
     vscode.postMessage({ type: "setBypass", enabled });
-  });
+  }
+  bypassSwitch.addEventListener("click", toggleBypass);
+  barBypass.addEventListener("click", toggleBypass);
 
   /** Envoi de `reset` : mémorisé pour que l'avis de retombée ne prétende aucune cause. */
   function resetConversation() {

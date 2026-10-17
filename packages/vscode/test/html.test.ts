@@ -261,7 +261,7 @@ describe("Bypass des approbations (lot B1, ADR 0006)", () => {
     expect(bodies).toEqual(['type: "setBypass", enabled']);
   });
   it("le clic n'écrit ni aria-checked, ni classe, ni texte", () => {
-    const start = js.indexOf('bypassSwitch.addEventListener("click"');
+    const start = js.indexOf("function toggleBypass(");
     const click = js.slice(start, js.indexOf("/** Envoi de `reset`", start));
     expect(click).toContain("const enabled = !(last?.on === true || last?.armed === true);");
     expect(click).not.toMatch(/setAttribute|classList|textContent|\.hidden|replaceChildren/);
@@ -328,6 +328,25 @@ describe("Mode apprentissage (ADR 0010)", () => {
     expect(sw).toContain('role="switch"');
     expect(sw).toContain('aria-checked="false"');
     expect(cfg.indexOf('id="learning-switch"')).toBeLessThan(cfg.indexOf('id="bypass-switch"'));
+  });
+  it("bascules de la barre d'entrée : role=switch dans la barre d'outils, hors Configurer, sans innerHTML", () => {
+    const toolbar = html.slice(html.indexOf('id="toolbar"'), html.indexOf('id="model-pop"'));
+    for (const id of ["bar-learning", "bar-bypass"]) {
+      const sw = tag(id);
+      expect(sw).toContain('role="switch"');
+      expect(sw).toContain('aria-checked="false"');
+      expect(sw).not.toMatch(/\sdisabled[\s>]/);
+      expect(toolbar).toContain(`id="${id}"`);
+      expect(cfg).not.toContain(`id="${id}"`);
+    }
+    expect(js).not.toContain("innerHTML");
+  });
+  it("les bascules de la barre utilisent les mêmes messages que Configurer, sans nouveau type", () => {
+    expect(js).toContain('barLearning.addEventListener("click", toggleLearning)');
+    expect(js).toContain('barBypass.addEventListener("click", toggleBypass)');
+    expect(js).toContain('barBypass.setAttribute("aria-disabled", String(learning))');
+    expect(js.match(/type: "setLearning"/g)?.length).toBe(1);
+    expect(js.match(/type: "setBypass"/g)?.length).toBe(1);
   });
   it("pastille dans l'en-tête, masquée au départ", () => {
     const bar = html.slice(html.indexOf('<header id="bar">'), html.indexOf("</header>"));
