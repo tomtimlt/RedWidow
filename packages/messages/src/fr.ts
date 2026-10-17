@@ -229,6 +229,7 @@ export const reasons: Catalog = {
   "project.noWorkspace": (p) => `conteneur sans montage /workspace : ${text(p.name)}`,
   "project.invalid": () => "projet invalide : fichier project.json illisible ou incomplet",
   "project.absent": () => "aucun projet lié (project.json absent)",
+  "cours.absent": () => "aucun cours installé (dossier de cours absent)",
   "exegol.containerDenied": (p) =>
     `conteneur non autorisé pour ce message : ${text(p.name)} (dédié du projet, ou cité par @)`,
 

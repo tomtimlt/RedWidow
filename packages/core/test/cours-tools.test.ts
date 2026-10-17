@@ -112,14 +112,45 @@ describe("chercher", () => {
     expect(await tool(fake, "chercher").run({ requete: "handshake" }, ctx)).toBe("aucun résultat");
   });
 
-  it("racine absente : erreur", async () => {
-    await expect(
-      tool(coursToolSpecs(join(base, "absent")), "chercher").run({ requete: "x" }, ctx),
-    ).rejects.toMatchObject({ code: "path.unsupported" });
+  it("racine absente : message « aucun cours », sans exception", async () => {
+    const out = await tool(coursToolSpecs(join(base, "absent")), "chercher").run(
+      { requete: "x" },
+      ctx,
+    );
+    expect(out).toContain("Aucun cours installé");
+  });
+
+  it("racine existante sans fiche .md/.txt : même message", async () => {
+    const vide = join(base, "vide");
+    await mkdir(join(vide, "sous"), { recursive: true });
+    await writeFile(join(vide, "note.bin"), "x");
+    const out = await tool(coursToolSpecs(vide), "chercher").run({ requete: "x" }, ctx);
+    expect(out).toContain("Aucun cours installé");
+  });
+
+  it("racine résolue en erreur autre qu'ENOENT : refus conservé", async () => {
+    const fake = coursToolSpecs(
+      root,
+      {},
+      {
+        realpath: async () => {
+          throw Object.assign(new Error("x"), { code: "EACCES" });
+        },
+      },
+    );
+    await expect(tool(fake, "chercher").run({ requete: "x" }, ctx)).rejects.toMatchObject({
+      code: "path.unsupported",
+    });
   });
 });
 
 describe("lire", () => {
+  it("racine absente : cours.absent", async () => {
+    await expect(
+      tool(coursToolSpecs(join(base, "absent")), "lire").run({ chemin: "a.md" }, ctx),
+    ).rejects.toMatchObject({ code: "cours.absent" });
+  });
+
   it("lit à partir d'une ligne, numérotée", async () => {
     expect(await lire("net/tcp.md", 2)).toBe("2: Le Handshake a trois temps.\n3: fin\n4: ");
     expect((await lire("net\\tcp.md")).startsWith("1: # TCP")).toBe(true);

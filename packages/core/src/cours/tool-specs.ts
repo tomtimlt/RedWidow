@@ -52,6 +52,10 @@ export const DEFAULT_COURS_LIMITS: CoursLimits = {
   maxOutputBytes: 64 * 1024,
 };
 
+/** Réponse de `chercher` quand le dossier de cours est absent ou sans fiche. */
+const NO_COURS =
+  "Aucun cours installé. Active le téléchargement des cours ou lance la synchronisation.";
+
 const TEXT_FILE = /\.(md|txt)$/i;
 
 /** Ouverture sans blocage (FIFO) et sans suivre un lien final, quand la plateforme le permet. */
@@ -163,6 +167,8 @@ async function search(
     for (let i = subdirs.length - 1; i >= 0; i--) stack.push(subdirs[i] as (typeof subdirs)[0]);
   }
 
+  // Aucune fiche .md/.txt rencontrée : dossier vide, rien d'installé.
+  if (files === 0 && out.length === 0 && stopped.length === 0) return NO_COURS;
   const lines = out.length > 0 ? out : ["aucun résultat"];
   if (stopped.length > 0)
     lines.push(`[recherche interrompue, plafond atteint : ${[...new Set(stopped)].join(", ")}]`);
@@ -241,7 +247,14 @@ export function coursToolSpecs(
       readOnly: true,
       async run(args) {
         const { requete } = z.object(chercherInput).parse(args);
-        return search(await resolveRoot(root, deps.realpath), requete, limits, deps);
+        let rootReal: string;
+        try {
+          rootReal = await resolveRoot(root, deps.realpath);
+        } catch (err) {
+          if (err instanceof CodedError && err.code === "cours.absent") return NO_COURS;
+          throw err;
+        }
+        return search(rootReal, requete, limits, deps);
       },
     },
     {

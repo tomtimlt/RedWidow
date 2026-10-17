@@ -73,14 +73,19 @@ export async function confinePath(
   return { rootReal, real };
 }
 
-/** Racine résolue ; absente ou illisible : erreur claire qui nomme la racine attendue. */
+/**
+ * Racine résolue. Dossier absent (`ENOENT`) : `cours.absent` (aucun cours installé, pas un
+ * échec de confinement) ; toute autre erreur reste `path.unsupported`.
+ */
 export async function resolveRoot(
   root: string,
   realpath: (path: string) => Promise<string> = fsRealpath,
 ): Promise<string> {
   try {
     return await realpath(root);
-  } catch {
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException | undefined)?.code === "ENOENT")
+      throw new CodedError("cours.absent");
     throw new CodedError("path.unsupported", { path: root, form: "unresolvable" });
   }
 }

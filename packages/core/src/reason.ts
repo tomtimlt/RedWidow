@@ -122,6 +122,7 @@ export const REASON_CODES = [
   "project.noWorkspace",
   "project.invalid",
   "project.absent",
+  "cours.absent",
   "exegol.containerDenied",
   // Divers
   "error.unknown",

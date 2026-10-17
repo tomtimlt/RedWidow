@@ -85,8 +85,8 @@ describe("confinePath", () => {
     expect(await code(confinePath(root, "../policy.json"))).toBe("path.outside");
   });
 
-  it("racine absente : erreur claire", async () => {
-    expect(await code(confinePath(join(base, "absent"), "a.md"))).toBe("path.unsupported");
+  it("racine absente : cours.absent (aucun cours installé)", async () => {
+    expect(await code(confinePath(join(base, "absent"), "a.md"))).toBe("cours.absent");
   });
 
   it("fichier absent : refusé", async () => {
