@@ -537,18 +537,30 @@ export function activate(context: vscode.ExtensionContext): void {
     },
   };
 
+  // Colonne partagée des panneaux John : celle d'un panneau déjà ouvert, sinon à côté de l'éditeur.
+  // Garde chat, cockpit, monitor et réglages groupés en onglets au lieu de scinder une fenêtre à
+  // chaque ouverture.
+  const johnColumn = (): vscode.ViewColumn => {
+    for (const slot of slots.values()) {
+      if (slot.panel?.viewColumn !== undefined) return slot.panel.viewColumn;
+    }
+    for (const panel of [cockpitPanel, monitorPanel, studioPanel]) {
+      if (panel?.viewColumn !== undefined) return panel.viewColumn;
+    }
+    return vscode.ViewColumn.Beside;
+  };
+
   const openCockpit = () => {
     if (cockpitPanel) {
-      cockpitPanel.reveal(vscode.ViewColumn.Beside);
+      cockpitPanel.reveal();
       return;
     }
     const media = vscode.Uri.joinPath(context.extensionUri, "media");
-    const panel = vscode.window.createWebviewPanel(
-      "john.cockpit",
-      "Cockpit",
-      vscode.ViewColumn.Beside,
-      { enableScripts: true, enableCommandUris: false, localResourceRoots: [media] },
-    );
+    const panel = vscode.window.createWebviewPanel("john.cockpit", "Cockpit", johnColumn(), {
+      enableScripts: true,
+      enableCommandUris: false,
+      localResourceRoots: [media],
+    });
     cockpitPanel = panel;
     panel.onDidDispose(() => {
       cockpitPanel = undefined;
@@ -714,7 +726,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const id = existing ?? nextChatId();
     const current = slots.get(id);
     if (current?.panel) {
-      current.panel.reveal(vscode.ViewColumn.Beside);
+      current.panel.reveal();
       setActive(id);
       return;
     }
@@ -725,12 +737,11 @@ export function activate(context: vscode.ExtensionContext): void {
       return;
     }
     const media = vscode.Uri.joinPath(context.extensionUri, "media");
-    const panel = vscode.window.createWebviewPanel(
-      "john.chatPanel",
-      chatName(id),
-      vscode.ViewColumn.Beside,
-      { enableScripts: true, enableCommandUris: false, localResourceRoots: [media] },
-    );
+    const panel = vscode.window.createWebviewPanel("john.chatPanel", chatName(id), johnColumn(), {
+      enableScripts: true,
+      enableCommandUris: false,
+      localResourceRoots: [media],
+    });
     const slot = slots.get(id);
     if (!slot) return;
     slot.panel = panel;
@@ -793,17 +804,16 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const openMonitor = () => {
     if (monitorPanel) {
-      monitorPanel.reveal(vscode.ViewColumn.Beside);
+      monitorPanel.reveal();
       pushMonitor();
       return;
     }
     const media = vscode.Uri.joinPath(context.extensionUri, "media");
-    const panel = vscode.window.createWebviewPanel(
-      "john.monitor",
-      "Monitor",
-      vscode.ViewColumn.Beside,
-      { enableScripts: true, enableCommandUris: false, localResourceRoots: [media] },
-    );
+    const panel = vscode.window.createWebviewPanel("john.monitor", "Monitor", johnColumn(), {
+      enableScripts: true,
+      enableCommandUris: false,
+      localResourceRoots: [media],
+    });
     monitorPanel = panel;
     mountChatHtml(panel.webview);
     panel.onDidDispose(() => {
@@ -897,17 +907,16 @@ export function activate(context: vscode.ExtensionContext): void {
   };
   const openStudio = () => {
     if (studioPanel) {
-      studioPanel.reveal(vscode.ViewColumn.Beside);
+      studioPanel.reveal();
       void pushStudio();
       return;
     }
     const media = vscode.Uri.joinPath(context.extensionUri, "media");
-    studioPanel = vscode.window.createWebviewPanel(
-      "john.studio",
-      "Réglages",
-      vscode.ViewColumn.Beside,
-      { enableScripts: true, enableCommandUris: false, localResourceRoots: [media] },
-    );
+    studioPanel = vscode.window.createWebviewPanel("john.studio", "Réglages", johnColumn(), {
+      enableScripts: true,
+      enableCommandUris: false,
+      localResourceRoots: [media],
+    });
     const nonce = makeNonce();
     studioPanel.webview.html = studioHtml({
       nonce,
