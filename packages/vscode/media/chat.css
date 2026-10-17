@@ -2347,18 +2347,47 @@ body.studio .studio-dl dd {
   border-radius: var(--jn-r-md);
   background: var(--vscode-editor-background);
 }
+.studio-kc-scroll {
+  overflow-x: auto;
+  padding-bottom: var(--jn-s2);
+}
 .studio-board {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--jn-s2);
+  position: relative;
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--jn-s5, 32px);
   min-height: 120px;
+  min-width: 100%;
+}
+.studio-kc-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s2);
+  flex: 0 0 168px;
+}
+.studio-kc-head {
+  margin: 0;
+  padding-bottom: var(--jn-s2);
+  border-bottom: 1px solid var(--jn-line);
+  font-size: var(--jn-fs-sm);
+  font-weight: 600;
+  color: var(--jn-muted);
 }
 .studio-node {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   border: 1px solid var(--jn-line);
-  border-radius: var(--jn-r-pill);
-  padding: 4px 10px;
+  border-radius: var(--jn-r-md);
+  background: var(--vscode-editor-background);
+  padding: 6px 10px;
   font-size: var(--jn-fs-sm);
   overflow-wrap: anywhere;
+  position: relative;
+}
+.studio-node-meta {
+  font-size: 0.85em;
+  color: var(--jn-muted);
 }
 .studio-node.is-confirmed {
   border-color: var(--vscode-testing-iconPassed, var(--jn-accent));
@@ -2369,6 +2398,52 @@ body.studio .studio-dl dd {
 .studio-node.is-failed {
   color: var(--vscode-errorForeground);
   border-color: var(--vscode-inputValidation-errorBorder, var(--jn-line));
+}
+.studio-kc-edges {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+.studio-kc-edge {
+  fill: none;
+  stroke: var(--jn-muted);
+  stroke-width: 1.5;
+}
+.studio-kc-tip {
+  fill: var(--jn-muted);
+}
+.studio-kc-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--jn-s3);
+  list-style: none;
+  margin: var(--jn-s3) 0 0;
+  padding: 0;
+  font-size: var(--jn-fs-sm);
+  color: var(--jn-muted);
+}
+.studio-kc-key {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--jn-s2);
+}
+.studio-kc-swatch {
+  width: 14px;
+  height: 10px;
+  border: 1px solid var(--jn-line);
+  border-radius: 3px;
+}
+.studio-kc-swatch.is-confirmed {
+  border-color: var(--vscode-testing-iconPassed, var(--jn-accent));
+}
+.studio-kc-swatch.is-hypothesis {
+  border-style: dashed;
+}
+.studio-kc-swatch.is-failed {
+  border-color: var(--vscode-inputValidation-errorBorder, var(--jn-line));
+  background: var(--vscode-inputValidation-errorBackground, transparent);
 }
 /* Sous 640 px : la navigation passe en rangée au-dessus du contenu (groupes en ligne, sans débordement). */
 @media (max-width: 640px) {

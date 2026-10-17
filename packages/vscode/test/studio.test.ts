@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import { MITRE_TACTICS as CORE_TACTICS } from "@john-studio/core";
 import { describe, expect, it } from "vitest";
 import { studioHtml } from "../src/logic/html.js";
 import { parseStudioMessage, STUDIO_PAGES, studioLabel } from "../src/logic/studio.js";
@@ -20,7 +21,12 @@ interface NavGroup {
 
 interface StudioApi {
   STUDIO_GROUPS: { label: string; pages: [string, string, string][] }[];
+  MITRE_TACTICS: [string, string][];
   killchainCount(findings: unknown): number | null;
+  killchainModel(findings: unknown): {
+    columns: { tactic: string | null; label: string; nodes: { id: string }[] }[];
+    edges: { from: string; to: string }[];
+  };
   navModel(current: string, findings: unknown): NavGroup[];
 }
 
@@ -173,5 +179,54 @@ describe("feuille des réglages", () => {
     expect(css).toMatch(
       /@media \(max-width: 640px\) \{[\s\S]*#studio-nav \{\s*flex-direction: row;/,
     );
+  });
+});
+
+describe("modèle du graphe Kill chain", () => {
+  const f = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    kind: "step",
+    label: id,
+    state: "confirmed",
+    ...extra,
+  });
+
+  it("MITRE_TACTICS de studio.js suit celui du cœur, dans l'ordre", () => {
+    expect(studio.MITRE_TACTICS.map((t) => t[0])).toEqual([...CORE_TACTICS]);
+    for (const [, name] of studio.MITRE_TACTICS) expect(name.length).toBeGreaterThan(0);
+  });
+
+  it("colonnes dans l'ordre ATT&CK, ordre d'arrivée conservé, aucune colonne vide", () => {
+    const m = studio.killchainModel([
+      f("a", { tactic: "TA0040" }),
+      f("b", { tactic: "TA0001" }),
+      f("c", { tactic: "TA0040" }),
+    ]);
+    expect(m.columns.map((c) => c.tactic)).toEqual(["TA0001", "TA0040"]);
+    expect(m.columns[1]?.nodes.map((n) => n.id)).toEqual(["a", "c"]);
+    expect(m.columns[0]?.label).toBe("Initial Access");
+  });
+
+  it("« Non classé » en dernier, seulement si nécessaire", () => {
+    const m = studio.killchainModel([
+      f("a"),
+      f("b", { tactic: "TA9999" }),
+      f("c", { tactic: "TA0001" }),
+    ]);
+    expect(m.columns.map((c) => c.tactic)).toEqual(["TA0001", null]);
+    expect(m.columns[1]?.label).toBe("Non classé");
+    expect(m.columns[1]?.nodes.map((n) => n.id)).toEqual(["a", "b"]);
+    expect(studio.killchainModel([f("c", { tactic: "TA0001" })]).columns).toHaveLength(1);
+  });
+
+  it("arêtes parent vers enfant, pendantes ignorées", () => {
+    const m = studio.killchainModel([f("a"), f("b", { from: ["a", "disparu"] })]);
+    expect(m.edges).toEqual([{ from: "a", to: "b" }]);
+  });
+
+  it("entrée invalide : rien", () => {
+    for (const bad of [undefined, null, "x", 3, {}]) {
+      expect(studio.killchainModel(bad)).toEqual({ columns: [], edges: [] });
+    }
   });
 });

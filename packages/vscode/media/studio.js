@@ -59,8 +59,58 @@ function navModel(current, findings) {
   }));
 }
 
+/**
+ * Tactiques ATT&CK dans l'ordre de la kill chain : [id, nom officiel]. Les noms restent en anglais
+ * (noms propres). Les ids sont vérifiés par test contre MITRE_TACTICS du cœur.
+ */
+const MITRE_TACTICS = [
+  ["TA0043", "Reconnaissance"],
+  ["TA0042", "Resource Development"],
+  ["TA0001", "Initial Access"],
+  ["TA0002", "Execution"],
+  ["TA0003", "Persistence"],
+  ["TA0004", "Privilege Escalation"],
+  ["TA0005", "Defense Evasion"],
+  ["TA0006", "Credential Access"],
+  ["TA0007", "Discovery"],
+  ["TA0008", "Lateral Movement"],
+  ["TA0009", "Collection"],
+  ["TA0011", "Command and Control"],
+  ["TA0010", "Exfiltration"],
+  ["TA0040", "Impact"],
+];
+
+/**
+ * Modèle du graphe de la kill chain : colonnes par tactique (ordre ATT&CK, seulement les présentes),
+ * colonne finale « Non classé » (`tactic: null`) pour les trouvailles sans tactique connue, et arêtes
+ * parent -> enfant quand les deux extrémités existent. Entrée non tableau : rien.
+ */
+function killchainModel(findings) {
+  if (!Array.isArray(findings)) return { columns: [], edges: [] };
+  const known = new Map(
+    MITRE_TACTICS.map(([id, name]) => [id, { tactic: id, label: name, nodes: [] }]),
+  );
+  const unclassified = { tactic: null, label: "Non classé", nodes: [] };
+  const ids = new Set();
+  for (const f of findings) {
+    if (!f || typeof f !== "object") continue;
+    ids.add(f.id);
+    (known.get(f.tactic) ?? unclassified).nodes.push(f);
+  }
+  const columns = [...known.values()].filter((c) => c.nodes.length > 0);
+  if (unclassified.nodes.length > 0) columns.push(unclassified);
+  const edges = [];
+  for (const f of findings) {
+    if (!f || typeof f !== "object" || !Array.isArray(f.from)) continue;
+    for (const parent of f.from) {
+      if (ids.has(parent) && ids.has(f.id)) edges.push({ from: parent, to: f.id });
+    }
+  }
+  return { columns, edges };
+}
+
 // Exposée pour les tests (même convention que ui.js : pas de module dans la webview).
-globalThis.JohnStudio = { STUDIO_GROUPS, killchainCount, navModel };
+globalThis.JohnStudio = { STUDIO_GROUPS, MITRE_TACTICS, killchainCount, killchainModel, navModel };
 
 if (typeof acquireVsCodeApi === "function") start();
 
@@ -113,6 +163,96 @@ function start() {
     const sec = el("section", "studio-card");
     sec.append(el("h2", "", title), el("p", "studio-help", text));
     return sec;
+  }
+
+  const SVG_NS = "http://www.w3.org/2000/svg";
+
+  function killchainBoard(model) {
+    const wrap = el("div", "studio-kc");
+    const scroll = el("div", "studio-kc-scroll");
+    const grid = el("div", "studio-board");
+    const nodes = new Map();
+    for (const col of model.columns) {
+      const colEl = el("div", "studio-kc-col");
+      colEl.append(
+        el("h3", "studio-kc-head", col.tactic ? `${col.tactic} · ${col.label}` : col.label),
+      );
+      for (const f of col.nodes) {
+        const node = el("div", `studio-node is-${f.state}`);
+        node.append(el("span", "studio-node-label", f.label));
+        const meta = [f.kind, f.technique].filter(Boolean).join(" · ");
+        if (meta) node.append(el("span", "studio-node-meta", meta));
+        node.title = [f.kind, f.state, f.technique].filter(Boolean).join(" · ");
+        nodes.set(f.id, node);
+        colEl.append(node);
+      }
+      grid.append(colEl);
+    }
+
+    const svg = decorative(document.createElementNS(SVG_NS, "svg"));
+    svg.setAttribute("class", "studio-kc-edges");
+    const defs = document.createElementNS(SVG_NS, "defs");
+    const marker = document.createElementNS(SVG_NS, "marker");
+    marker.setAttribute("id", "studio-kc-arrow");
+    marker.setAttribute("viewBox", "0 0 10 10");
+    marker.setAttribute("refX", "9");
+    marker.setAttribute("refY", "5");
+    marker.setAttribute("markerWidth", "7");
+    marker.setAttribute("markerHeight", "7");
+    marker.setAttribute("orient", "auto");
+    const tip = document.createElementNS(SVG_NS, "path");
+    tip.setAttribute("d", "M0 0 L10 5 L0 10 z");
+    tip.setAttribute("class", "studio-kc-tip");
+    marker.append(tip);
+    defs.append(marker);
+    svg.append(defs);
+    const paths = document.createElementNS(SVG_NS, "g");
+    svg.append(paths);
+    grid.append(svg);
+
+    // Les flèches se calculent après mise en page : repère = la grille (indépendant du défilement).
+    function drawEdges() {
+      while (paths.firstChild) paths.removeChild(paths.firstChild);
+      const box = grid.getBoundingClientRect();
+      svg.setAttribute("width", String(grid.scrollWidth));
+      svg.setAttribute("height", String(grid.scrollHeight));
+      for (const edge of model.edges) {
+        const a = nodes.get(edge.from);
+        const b = nodes.get(edge.to);
+        if (!a || !b) continue;
+        const ra = a.getBoundingClientRect();
+        const rb = b.getBoundingClientRect();
+        const x1 = ra.right - box.left;
+        const y1 = ra.top + ra.height / 2 - box.top;
+        const x2 = rb.left - box.left;
+        const y2 = rb.top + rb.height / 2 - box.top;
+        const dx = Math.max(24, Math.abs(x2 - x1) / 2);
+        const path = document.createElementNS(SVG_NS, "path");
+        path.setAttribute("d", `M${x1} ${y1} C${x1 + dx} ${y1} ${x2 - dx} ${y2} ${x2} ${y2}`);
+        path.setAttribute("class", "studio-kc-edge");
+        path.setAttribute("marker-end", "url(#studio-kc-arrow)");
+        paths.append(path);
+      }
+    }
+    if (typeof ResizeObserver === "function") new ResizeObserver(drawEdges).observe(grid);
+    scroll.addEventListener("scroll", drawEdges, { passive: true });
+    scroll.append(grid);
+    wrap.append(scroll);
+
+    const legend = el("ul", "studio-kc-legend");
+    for (const [state, text] of [
+      ["confirmed", "Confirmé"],
+      ["hypothesis", "Hypothèse"],
+      ["failed", "Échec"],
+    ]) {
+      const li = el("li", "studio-kc-key");
+      li.append(decorative(el("span", `studio-kc-swatch is-${state}`)), el("span", "", text));
+      legend.append(li);
+    }
+    wrap.append(legend);
+    // Premier calcul une fois la mise en page faite (ResizeObserver notifie à l'observation).
+    drawEdges();
+    return wrap;
   }
 
   function render(view) {
@@ -186,13 +326,8 @@ function start() {
         "Kill chain",
         "Les nœuds notés par l'agent. Rien tant qu'il n'y a pas de trouvaille.",
       );
-      const board = el("div", "studio-board");
-      for (const node of view.findings ?? []) {
-        const pill = el("span", `studio-node is-${node.state}`, node.label);
-        pill.title = `${node.kind} · ${node.state}`;
-        board.append(pill);
-      }
-      sec.append(board);
+      const model = killchainModel(view.findings);
+      if (model.columns.length > 0) sec.append(killchainBoard(model));
       main.append(sec);
       return;
     }
