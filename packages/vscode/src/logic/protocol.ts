@@ -39,6 +39,8 @@ export interface StartParams {
   resume?: string;
   maxBudgetUsd?: number;
   systemPrompt?: string;
+  /** Mode apprentissage (ADR 0010) : politique dédiée, outils de cours seuls. Absent : comportement habituel. */
+  mode?: "learning";
   /** Dossier absolu des journaux (stockage de l'extension, hors du dépôt). */
   journalDir?: string;
 }
@@ -127,6 +129,7 @@ const START_KEYS = [
   "resume",
   "maxBudgetUsd",
   "systemPrompt",
+  "mode",
   "journalDir",
 ] as const;
 
@@ -158,6 +161,10 @@ export function parseToEngine(raw: unknown): Parsed<ToEngine> {
       if (!isString(obj.cwd) || obj.cwd === "" || !isAbsolute(obj.cwd)) return bad("cwd");
       for (const key of ["resume", "systemPrompt"] as const) {
         if (obj[key] !== undefined && !isString(obj[key])) return bad(key);
+      }
+      // Mode : valeur exacte "learning" ; la consigne système ne vient alors jamais de l'UI.
+      if (obj.mode !== undefined) {
+        if (obj.mode !== "learning" || obj.systemPrompt !== undefined) return bad("mode");
       }
       if (obj.journalDir !== undefined) {
         if (

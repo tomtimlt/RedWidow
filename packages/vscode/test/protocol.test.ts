@@ -198,3 +198,31 @@ describe("protocole IPC : Bypass (ADR 0006, décision 6)", () => {
     }
   });
 });
+
+describe("protocole IPC : mode apprentissage (ADR 0010)", () => {
+  it("accepte mode learning ; l'absence reste valide", () => {
+    expect(parseToEngine({ v: 1, type: "start", cwd, mode: "learning" }).ok).toBe(true);
+    expect(parseToEngine({ v: 1, type: "start", cwd }).ok).toBe(true);
+    expect(parseToEngine({ v: 1, type: "start", cwd, systemPrompt: "x" }).ok).toBe(true);
+  });
+
+  it.each([["Learning"], [""], [null], [1], [{}], [["learning"]], [true]])(
+    "rejette mode %j",
+    (mode) => {
+      const parsed = parseToEngine({ v: 1, type: "start", cwd, mode });
+      expect(parsed.ok).toBe(false);
+      if (!parsed.ok) {
+        expect(parsed.reason).toMatchObject({
+          code: "ipc.invalidMessage",
+          params: { field: "mode" },
+        });
+      }
+    },
+  );
+
+  it("rejette mode avec systemPrompt", () => {
+    const parsed = parseToEngine({ v: 1, type: "start", cwd, mode: "learning", systemPrompt: "x" });
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) expect(parsed.reason.params).toMatchObject({ field: "mode" });
+  });
+});

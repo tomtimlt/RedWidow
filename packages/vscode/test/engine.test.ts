@@ -7,6 +7,7 @@ import {
   type ApprovalOutcome,
   type ApprovalRequest,
   BYPASS_DEFAULT_MS,
+  LEARNING_SYSTEM_PROMPT,
   type Policy,
 } from "@john-studio/core";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -507,5 +508,137 @@ describe("moteur : Bypass (ADR 0006, pont hôte → moteur)", () => {
       await rm(journalDir, { recursive: true, force: true });
       await rm(repo, { recursive: true, force: true });
     }
+  });
+});
+
+describe("moteur : mode apprentissage (ADR 0010)", () => {
+  const tools: ApprovalRequest[] = [
+    { toolUseId: "bash", tool: "Bash", input: { command: "ls" } },
+    { toolUseId: "read", tool: "Read", input: { file_path: "/etc/hostname" } },
+    { toolUseId: "exec", tool: "mcp__exegol__exec", input: { command: "id" } },
+    { toolUseId: "ps", tool: "mcp__docker__ps", input: {} },
+    { toolUseId: "chercher", tool: "mcp__cours__chercher", input: { requete: "x" } },
+    { toolUseId: "lire", tool: "mcp__cours__lire", input: { chemin: "a.md" } },
+  ];
+
+  /** Runner factice : interroge la gate pour chaque outil, consigne les entrées reçues. */
+  function recordingRunner(box: {
+    outcomes: Map<string, ApprovalOutcome>;
+    input?: { systemPrompt?: string };
+  }): AgentRunner {
+    return {
+      run: async (input, { gate, signal }) => {
+        box.input = input;
+        for (const request of tools) {
+          box.outcomes.set(
+            request.toolUseId,
+            await gate.decide(request, signal ?? new AbortController().signal),
+          );
+        }
+        return { status: "success", turns: 0, costUsd: 0, result: null };
+      },
+    };
+  }
+
+  /** Politique « ask » partout : si elle était chargée en apprentissage, le test le verrait. */
+  const askLoader = async () => ({
+    policy: { default: "ask", rules: [] } as Policy,
+    source: null,
+    origin: "builtin" as const,
+  });
+
+  const prep = async () => ({
+    repo: await mkdtemp(join(tmpdir(), "john-lr-")),
+    journalDir: await mkdtemp(join(tmpdir(), "john-lr-j-")),
+  });
+
+  it("(f)(i) Bypass actif : tout refusé par la politique sauf cours ; sans politique chargée", async () => {
+    const { repo, journalDir } = await prep();
+    try {
+      const box = { outcomes: new Map<string, ApprovalOutcome>() } as Parameters<
+        typeof recordingRunner
+      >[0];
+      const modes: unknown[] = [];
+      const policyLoader = vi.fn(askLoader);
+      const t = fakeChannel();
+      const done = runEngine({
+        channel: t.channel,
+        createRunner: (mode) => {
+          modes.push(mode);
+          return recordingRunner(box);
+        },
+        policyLoader,
+      });
+      // Bypass reçu (sessionStarted) avant le premier tour du runner : start puis bypass dans la foulée.
+      t.receive({ v: 1, type: "start", cwd: repo, journalDir, mode: "learning" });
+      t.receive(bypassMsg(1));
+      expect(await done).toBe(0);
+      expect(modes).toEqual(["learning"]);
+      expect(policyLoader).not.toHaveBeenCalled();
+      expect(box.input?.systemPrompt).toBe(LEARNING_SYSTEM_PROMPT);
+      for (const id of ["bash", "read", "exec", "ps"]) {
+        expect(box.outcomes.get(id), id).toMatchObject({ decision: "deny", source: "policy" });
+      }
+      for (const id of ["chercher", "lire"]) {
+        expect(box.outcomes.get(id), id).toMatchObject({ decision: "allow" });
+      }
+      const events = eventsOf(t.sent);
+      expect(events.filter((e) => e.kind === "approval.requested")).toEqual([]);
+      expect(events.some((e) => e.source === "bypass")).toBe(false);
+      const startedMsg = t.sent.find((m) => m.type === "started");
+      expect(startedMsg).toMatchObject({ policySource: null });
+      expect(startedMsg).not.toHaveProperty("warning");
+    } finally {
+      await rm(journalDir, { recursive: true, force: true });
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("(g) sans mode : politique chargée, systemPrompt de l'UI transmis, ask fourni", async () => {
+    const { repo, journalDir } = await prep();
+    try {
+      const box = { outcomes: new Map<string, ApprovalOutcome>() } as Parameters<
+        typeof recordingRunner
+      >[0];
+      const modes: unknown[] = [];
+      const policyLoader = vi.fn(askLoader);
+      const t = fakeChannel();
+      const done = runEngine({
+        channel: t.channel,
+        createRunner: (mode) => {
+          modes.push(mode);
+          return recordingRunner(box);
+        },
+        policyLoader,
+      });
+      t.receive({ v: 1, type: "start", cwd: repo, journalDir, systemPrompt: "consigne UI" });
+      // Verdict `ask` (aucune règle) : une demande part vers l'UI, preuve que `ask` est fourni.
+      await vi.waitFor(() =>
+        expect(eventsOf(t.sent).some((e) => e.kind === "approval.requested")).toBe(true),
+      );
+      expect(policyLoader).toHaveBeenCalledTimes(1);
+      expect(modes).toEqual([undefined]);
+      expect(box.input?.systemPrompt).toBe("consigne UI");
+      t.receive({ v: 1, type: "abort" });
+      await done;
+    } finally {
+      await rm(journalDir, { recursive: true, force: true });
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("(i) le sondage models appelle createRunner(undefined)", async () => {
+    const modes: unknown[] = [];
+    const t = fakeChannel();
+    const done = runEngine({
+      channel: t.channel,
+      createRunner: (...args) => {
+        modes.push(args[0]);
+        return { ...idleRunner, listModels: async () => [] };
+      },
+    });
+    t.receive({ v: 1, type: "models", cwd });
+    expect(await done).toBe(0);
+    expect(modes).toEqual([undefined]);
   });
 });

@@ -9,6 +9,8 @@ import {
   createRedactor,
   errorInfo,
   killOwnTree,
+  LEARNING_POLICY,
+  LEARNING_SYSTEM_PROMPT,
   loadPolicy,
   openJournal,
   secretsFromEnv,
@@ -38,7 +40,7 @@ export interface EngineOptions {
    * Fabrique du runner, appelée au `start` (production : vérifie l'empreinte du binaire
    * `claude` juste avant `createSdkRunner`) ; une erreur est signalée au parent et termine le moteur.
    */
-  createRunner: () => AgentRunner | Promise<AgentRunner>;
+  createRunner: (mode?: StartParams["mode"]) => AgentRunner | Promise<AgentRunner>;
   /** Environnement dont on tire les secrets à masquer (défaut : `process.env`). */
   env?: NodeJS.ProcessEnv;
   /** Délai laissé au run pour s'arrêter après une déconnexion avant de rendre la main (défaut : 5000 ms). */
@@ -153,7 +155,11 @@ export function runEngine({
           : join(params.cwd, ".john-studio", "runs", `${recorder.runId}.jsonl`),
       );
       try {
-        const { policy, source, warning } = await policyLoader(params.cwd);
+        // Mode apprentissage (ADR 0010) : politique dédiée figée, aucune politique lue ni approuvée.
+        const learning = params.mode === "learning";
+        const { policy, source, warning } = learning
+          ? { policy: LEARNING_POLICY, source: null, warning: undefined }
+          : await policyLoader(params.cwd);
         recorder.subscribe(journal.sink);
         recorder.subscribe((event) => send({ v: PROTOCOL_VERSION, type: "event", event }));
         const approvals = createApprovalQueue();
@@ -163,7 +169,8 @@ export function runEngine({
           recorder,
           // Claude exige Git Bash sous Windows : le shell est analysable comme POSIX (comme la CLI).
           workspace: { cwd: params.cwd, posixShell: true },
-          ask: approvals,
+          // Sans `ask` en apprentissage : un verdict `ask` imprévu est refusé (approval.noAsker).
+          ...(!learning && { ask: approvals }),
           bypass: mirror,
           now,
         });
@@ -180,7 +187,7 @@ export function runEngine({
           policySource: source,
           ...(warning && { warning }),
         });
-        const runner = await createRunner();
+        const runner = await createRunner(params.mode);
         const summary = await runner.run(
           {
             prompt: prompts,
@@ -191,7 +198,10 @@ export function runEngine({
             auth: params.auth ?? "auto",
             ...(params.resume !== undefined && { resume: params.resume }),
             ...(params.maxBudgetUsd !== undefined && { maxBudgetUsd: params.maxBudgetUsd }),
-            ...(params.systemPrompt !== undefined && { systemPrompt: params.systemPrompt }),
+            // En apprentissage, la consigne système ne vient jamais de l'UI.
+            ...(learning
+              ? { systemPrompt: LEARNING_SYSTEM_PROMPT }
+              : params.systemPrompt !== undefined && { systemPrompt: params.systemPrompt }),
           },
           { recorder, gate, signal: abort.signal },
         );
@@ -219,7 +229,7 @@ export function runEngine({
     /** Sondage : liste des modèles sans consigne (donc sans tour, outil ni coût d'inférence), puis sortie. */
     const probe = async (cwd: string, auth: AuthMode | undefined) => {
       try {
-        const runner = await createRunner();
+        const runner = await createRunner(undefined);
         const models =
           (await runner.listModels?.({
             cwd,

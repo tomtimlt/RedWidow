@@ -1,10 +1,11 @@
 import { join } from "node:path";
-import { createSdkRunner, exegolToolset } from "@john-studio/agent-sdk";
+import { createSdkRunner } from "@john-studio/agent-sdk";
 import { CodedError, createExegolTargets, defaultConfigDir, readProject } from "@john-studio/core";
 import { matchesFingerprint } from "../logic/integrity.js";
 import { PROTOCOL_VERSION } from "../logic/protocol.js";
 import { processChannel } from "./channel.js";
 import { runEngine } from "./engine.js";
+import { runnerOptions } from "./runner-options.js";
 
 /**
  * Empreinte SHA-256 du binaire `claude`, injectée à l'empaquetage par `define` d'esbuild
@@ -33,17 +34,13 @@ const done = runEngine({
     }
     targets.note(text, dedicated);
   },
-  createRunner: async () => {
+  createRunner: async (mode) => {
     // Vérification juste avant la construction du runner (fail-closed : empreinte absente = refus).
     const expected = typeof __CLAUDE_SHA256__ === "string" ? __CLAUDE_SHA256__ : "";
     if (!(await matchesFingerprint(exe, expected))) {
       throw new CodedError("extension.binaryMismatch");
     }
-    // Aucun outil Docker : seul l'exec Exegol, borné à la cible notée pour le message.
-    return createSdkRunner({
-      executable: exe,
-      toolsets: [exegolToolset({ targets, binary: "docker" })],
-    });
+    return createSdkRunner(runnerOptions(mode, exe, targets));
   },
 });
 // Les écouteurs sont posés : le parent peut envoyer `start`.
