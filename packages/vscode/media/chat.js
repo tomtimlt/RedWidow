@@ -458,6 +458,8 @@
     ctl = c;
     if (!c) {
       for (const p of [modelPop, cfgPop]) if (p.matches(":popover-open")) p.hidePopover();
+      document.body.classList.remove("learning");
+      $("learning-badge").hidden = true;
       return;
     }
     modelChip.setAttribute("aria-disabled", String(c.locked));
@@ -505,6 +507,12 @@
       : c.effortTip;
     $("cfg-level").textContent = c.effortLabel;
     cfgBtn.title = `Configurer : effort ${c.effortLabel}`;
+    // Mode Apprentissage : pastille, classe du corps, interrupteur gelé pendant un tour ; le Bypass est grisé.
+    document.body.classList.toggle("learning", c.learning === true);
+    $("learning-badge").hidden = c.learning !== true;
+    learningSwitch.setAttribute("aria-checked", String(c.learning === true));
+    learningSwitch.setAttribute("aria-disabled", String(c.locked));
+    renderBypass();
     ticks.replaceChildren(
       ...levels.map((l) => {
         const t = el("span", l.value === c.effort ? "on" : l.enabled ? "" : "off", l.label);
@@ -532,6 +540,12 @@
   // --- Bypass des approbations (ADR 0006, lot B1) : l'affichage ne reflète que le dernier message `bypass`.
   // Aucune écriture hors de renderBypass (appelée par le gestionnaire `message` et à l'ouverture de Configurer).
   const bypassSwitch = $("bypass-switch");
+  // --- Mode Apprentissage (ADR 0010) : le clic n'écrit rien, il envoie le booléen inverse du dernier état reçu.
+  const learningSwitch = $("learning-switch");
+  learningSwitch.addEventListener("click", () => {
+    if (!ctl || ctl.locked) return;
+    vscode.postMessage({ type: "setLearning", enabled: ctl.learning !== true });
+  });
   const bypassState = $("bypass-state");
   const bypassBadge = $("bypass-badge");
   /** Dernier message reçu, le précédent, et le drapeau « off ou reset demandé » qui l'a précédé. */
@@ -540,6 +554,17 @@
   let bypassUserOff = false;
 
   function renderBypass() {
+    // Apprentissage : le Bypass est inopérant pour ce chat (ADR 0010) ; l'état fenêtre-global reste intact.
+    const learning = ctl?.learning === true;
+    bypassSwitch.setAttribute("aria-disabled", String(learning));
+    if (learning) {
+      bypassSwitch.setAttribute("aria-checked", "false");
+      bypassState.textContent = "Inopérant en mode Apprentissage";
+      document.body.classList.remove("bypass-on");
+      bypassBadge.hidden = true;
+      bypassBadge.replaceChildren();
+      return;
+    }
     const v = UI.bypassView(bypassCtx.push, bypassCtx.previous, bypassCtx.userOff, Date.now());
     bypassSwitch.setAttribute("aria-checked", String(v.checked));
     bypassState.textContent = v.text;
@@ -556,6 +581,7 @@
 
   // Le clic n'écrit rien dans le DOM : il envoie le booléen calculé sur le dernier message reçu.
   bypassSwitch.addEventListener("click", () => {
+    if (ctl?.learning === true) return;
     const last = bypassCtx.push;
     const enabled = !(last?.on === true || last?.armed === true);
     if (!enabled) bypassUserOff = true;

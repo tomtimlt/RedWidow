@@ -1,8 +1,10 @@
 import { fork } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import {
   CodedError,
+  coursRoot,
   createDockerClient,
   createRecorder,
   defaultConfigDir,
@@ -33,6 +35,7 @@ import { createJournalFiles } from "../logic/historyStore.js";
 import { chatHtml, cockpitHtml, makeNonce, studioHtml } from "../logic/html.js";
 import { type ChatSession, createChatSession, type TokenChoice } from "../logic/session.js";
 import { machineValue, resolveSettings } from "../logic/settings.js";
+import { readSources } from "../logic/sources.js";
 import { parseStudioMessage, type StudioPage } from "../logic/studio.js";
 import {
   capturedShell,
@@ -129,6 +132,8 @@ export function activate(context: vscode.ExtensionContext): void {
     if (seats(id !== SIDEBAR_CHAT) >= CHAT_CAP) throw new Error("Quatre chats au maximum.");
     if (!folder) throw new Error("Ouvrez un dossier avant de lancer John.");
     const historyKey = `john.history.${id}`;
+    // Mode apprentissage (ADR 0010) : une clé par chat, séparée de `john.prefs` (partagé).
+    const learningKey = `john.learning.${id}`;
     const runs = join((context.storageUri ?? context.globalStorageUri).fsPath, "runs");
     const session = createChatSession({
       cwd: folder.uri.fsPath,
@@ -138,6 +143,7 @@ export function activate(context: vscode.ExtensionContext): void {
       // Bypass (ADR 0006, 0008) : un lien par moteur, l'interrupteur reste celui de la fenêtre.
       bypass: { attach: (send) => bypass.attach(send), reset: () => bypass.reset() },
       getToken,
+      learningKey,
       store: {
         get: (key: string) => context.globalState.get(key),
         set: (key: string, value: unknown) => context.globalState.update(key, value),
@@ -408,6 +414,8 @@ export function activate(context: vscode.ExtensionContext): void {
           return s.setModel(message.model);
         case "setEffort":
           return s.setEffort(message.effort);
+        case "setLearning":
+          return s.setLearning(message.enabled);
         case "refreshModels":
           return await s.loadModels(true);
         case "refreshTerminals":
@@ -862,6 +870,17 @@ export function activate(context: vscode.ExtensionContext): void {
     barContainer.show();
   };
 
+  /** Crée le dossier de cours s'il manque, puis le révèle dans l'explorateur système. Chemin : hôte seul. */
+  const openCoursFolder = async () => {
+    try {
+      const root = coursRoot();
+      await mkdir(root, { recursive: true });
+      await vscode.commands.executeCommand("revealFileInOS", vscode.Uri.file(root));
+    } catch (error) {
+      void vscode.window.showErrorMessage(formatError(error));
+    }
+  };
+
   let studioPage: StudioPage = "project";
   const pushStudio = async () => {
     if (!studioPanel) return;
@@ -872,7 +891,9 @@ export function activate(context: vscode.ExtensionContext): void {
     } catch {
       findings = [];
     }
-    await studioPanel.webview.postMessage({ ...cockpit, page: studioPage, findings });
+    // Sources de cours (lecture seule) : seulement pour l'Atlas, racine fixée par l'hôte.
+    const sources = studioPage === "atlas" ? await readSources(coursRoot()) : [];
+    await studioPanel.webview.postMessage({ ...cockpit, page: studioPage, findings, sources });
   };
   const openStudio = () => {
     if (studioPanel) {
@@ -905,6 +926,7 @@ export function activate(context: vscode.ExtensionContext): void {
       if (message === null) return;
       if (message.type === "open") studioPage = message.page;
       if (message.type === "unlink") await unlink(defaultConfigDir());
+      if (message.type === "openCours") await openCoursFolder();
       await pushStudio();
     });
     void pushStudio();

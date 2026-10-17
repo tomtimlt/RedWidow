@@ -127,6 +127,21 @@ describe("contrôles", () => {
     expect(d.effortDisabled).toBe(true);
     expect(d.locked).toBe(true);
   });
+  it("apprentissage : faux par défaut, vrai seulement si demandé, gelé comme le reste", () => {
+    const off = buildControls({ ...base, prefs: DEFAULT_PREFS, models: null });
+    expect(off.learning).toBe(false);
+    const on = buildControls({ ...base, prefs: DEFAULT_PREFS, models: null, learning: true });
+    expect(on.learning).toBe(true);
+    expect(on.locked).toBe(false);
+    const busy = buildControls({
+      ...base,
+      busy: true,
+      prefs: DEFAULT_PREFS,
+      models: null,
+      learning: true,
+    });
+    expect(busy).toMatchObject({ learning: true, locked: true });
+  });
   it("liste inconnue : saisie libre, tous les crans permis", () => {
     const c = buildControls({ ...base, prefs: DEFAULT_PREFS, models: null });
     expect(c.models).toBeNull();

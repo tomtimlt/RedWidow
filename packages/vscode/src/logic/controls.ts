@@ -52,6 +52,8 @@ export interface ChatControls {
   effortDisabled: boolean;
   /** Un tour est en cours : les choix sont gelés (ils s'appliquent au message suivant). */
   locked: boolean;
+  /** Mode apprentissage (ADR 0010) de ce chat : lecture des cours seule, Bypass inopérant. */
+  learning: boolean;
 }
 
 /** Modèle dont les niveaux comptent : le choix, sinon le réglage machine, sinon la première entrée de la liste. */
@@ -72,6 +74,7 @@ export function buildControls(input: {
   defaultModel: string | undefined;
   busy: boolean;
   ultracode?: UltracodeLimits;
+  learning?: boolean;
 }): ChatControls {
   const { prefs, models, status, defaultModel, busy } = input;
   const supported = effectiveModel(models, prefs.model, defaultModel)?.supportedEffortLevels;
@@ -110,5 +113,6 @@ export function buildControls(input: {
     })),
     effortDisabled: supported !== undefined && supported.length === 0,
     locked: busy,
+    learning: input.learning === true,
   };
 }

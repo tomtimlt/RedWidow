@@ -1728,7 +1728,8 @@ body:not(.running) #toolbar #stop {
   }
   #title::before,
   .welcome::before,
-  #bypass-switch::before {
+  #bypass-switch::before,
+  #learning-switch::before {
     background: CanvasText;
     box-shadow: none;
   }
@@ -1811,7 +1812,8 @@ body.awaiting #composer {
 body.bypass-on #composer {
   border-color: var(--vscode-editorWarning-foreground, var(--vscode-inputValidation-warningBorder));
 }
-#bypass-switch {
+#bypass-switch,
+#learning-switch {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1822,7 +1824,8 @@ body.bypass-on #composer {
   background: var(--vscode-button-secondaryBackground);
   color: var(--vscode-foreground);
 }
-#bypass-switch::after {
+#bypass-switch::after,
+#learning-switch::after {
   content: "";
   flex: none;
   box-sizing: border-box;
@@ -1836,7 +1839,8 @@ body.bypass-on #composer {
     border-color var(--jn-d2) var(--jn-ease-io);
 }
 /* Pastille : glisse d'un bord à l'autre (transform), avec un léger rebond. */
-#bypass-switch::before {
+#bypass-switch::before,
+#learning-switch::before {
   content: "";
   position: absolute;
   top: 50%;
@@ -1853,13 +1857,18 @@ body.bypass-on #composer {
     background-color var(--jn-d2) var(--jn-ease-io),
     opacity var(--jn-d2) var(--jn-ease-io);
 }
-#bypass-switch[aria-checked="true"]::before {
+#bypass-switch[aria-checked="true"]::before,
+#learning-switch[aria-checked="true"]::before {
   transform: translateX(14px);
   background: var(--vscode-editor-background, var(--vscode-input-background));
   opacity: 1;
 }
 #bypass-switch[aria-checked="true"]::after {
   background: var(--jn-warn);
+  border-color: transparent;
+}
+#learning-switch[aria-checked="true"]::after {
+  background: var(--jn-cool);
   border-color: transparent;
 }
 #bypass-state {
@@ -1871,6 +1880,15 @@ body.bypass-on #composer {
 }
 #bypass-warn .warn-line {
   display: block;
+}
+#learning-badge {
+  background: color-mix(in srgb, var(--jn-cool) 14%, transparent);
+  color: var(--vscode-foreground);
+  border: 1px solid color-mix(in srgb, var(--jn-cool) 40%, transparent);
+}
+/* Bypass grisé en apprentissage : pas de survol, curseur neutre. */
+#bypass-switch[aria-disabled="true"] {
+  pointer-events: none;
 }
 #bypass-badge {
   background: var(

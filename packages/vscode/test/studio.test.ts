@@ -52,6 +52,12 @@ describe("réglages", () => {
     expect(parseStudioMessage({ type: "send", text: "x" })).toBeNull();
   });
 
+  it("openCours : sans aucun champ (le chemin vient de l'hôte)", () => {
+    expect(parseStudioMessage({ type: "openCours" })).toEqual({ type: "openCours" });
+    expect(parseStudioMessage({ type: "openCours", path: "/etc" })).toBeNull();
+    expect(parseStudioMessage({ type: "openCours", enabled: true })).toBeNull();
+  });
+
   it("HTML : nonce, pas de style inline", () => {
     const html = studioHtml({
       nonce: "abc",

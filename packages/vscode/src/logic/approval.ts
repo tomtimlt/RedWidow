@@ -82,7 +82,9 @@ export type WebviewMessage =
   | { type: "watch"; toolUseId: string }
   | { type: "approve"; toolUseId: string; choice: Choice }
   /** Interrupteur du Bypass (ADR 0006) : seul champ, pas de durée (fixée par l'hôte). */
-  | { type: "setBypass"; enabled: boolean };
+  | { type: "setBypass"; enabled: boolean }
+  /** Mode apprentissage (ADR 0010) de ce chat : seul champ, appliqué au message suivant. */
+  | { type: "setLearning"; enabled: boolean };
 
 /** Valide un message venu de la webview (non fiable) : forme exacte, sinon `null`. */
 export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
@@ -131,6 +133,10 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
     case "setBypass":
       return only("type", "enabled") && typeof m.enabled === "boolean"
         ? { type: "setBypass", enabled: m.enabled }
+        : null;
+    case "setLearning":
+      return only("type", "enabled") && typeof m.enabled === "boolean"
+        ? { type: "setLearning", enabled: m.enabled }
         : null;
     case "watch":
       return only("type", "toolUseId") &&

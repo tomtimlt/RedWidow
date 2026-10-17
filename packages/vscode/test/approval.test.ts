@@ -148,3 +148,30 @@ describe("parseWebviewMessage : setBypass (ADR 0006)", () => {
     expect(parseWebviewMessage({ type: "refreshTerminals", token: "x" })).toBeNull();
   });
 });
+
+describe("parseWebviewMessage : setLearning (ADR 0010)", () => {
+  it("accepte un booléen seul", () => {
+    expect(parseWebviewMessage({ type: "setLearning", enabled: true })).toEqual({
+      type: "setLearning",
+      enabled: true,
+    });
+    expect(parseWebviewMessage({ type: "setLearning", enabled: false })).toEqual({
+      type: "setLearning",
+      enabled: false,
+    });
+  });
+  it("refuse toute clé supplémentaire", () => {
+    expect(
+      parseWebviewMessage({ type: "setLearning", enabled: true, mode: "learning" }),
+    ).toBeNull();
+    expect(
+      parseWebviewMessage({ type: "setLearning", enabled: true, systemPrompt: "x" }),
+    ).toBeNull();
+  });
+  it("refuse un non-booléen ou l'absence de champ", () => {
+    for (const enabled of ["true", 1, 0, null, {}, []]) {
+      expect(parseWebviewMessage({ type: "setLearning", enabled })).toBeNull();
+    }
+    expect(parseWebviewMessage({ type: "setLearning" })).toBeNull();
+  });
+});

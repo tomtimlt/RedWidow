@@ -341,9 +341,29 @@ function start() {
       return;
     }
     if (page === "atlas") {
-      main.append(
-        empty("Atlas", "Lecteur des Markdown d'un dossier que tu choisis. Aucun cours inclus."),
+      const sec = empty(
+        "Atlas",
+        "Dossier de cours lu par le mode Apprentissage, en lecture seule. Aucun cours inclus : dépose-y des sources libres, un sous-dossier par source.",
       );
+      const open = el("button", "primary", "Ouvrir le dossier de cours");
+      open.type = "button";
+      open.addEventListener("click", () => vscode.postMessage({ type: "openCours" }));
+      sec.append(open);
+      // Données de l'hôte, affichées en texte seulement (textContent).
+      const sources = Array.isArray(view.sources) ? view.sources : [];
+      if (sources.length === 0) {
+        sec.append(el("p", "studio-help", "Aucune source dans le dossier de cours."));
+      } else {
+        const ul = el("ul", "studio-rows");
+        for (const src of sources) {
+          if (!src || typeof src.name !== "string" || typeof src.droits !== "string") continue;
+          const li = el("li", "studio-row");
+          li.append(el("span", "studio-ellipsis", src.name), el("span", "studio-help", src.droits));
+          ul.append(li);
+        }
+        sec.append(ul);
+      }
+      main.append(sec);
       return;
     }
     if (page === "mcp") {

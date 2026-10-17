@@ -73,6 +73,7 @@ function setup(
     token?: boolean;
     settings?: object;
     store?: { get(k: string): unknown; set(k: string, v: unknown): unknown };
+    learningKey?: string;
   } = {},
 ) {
   const f = fake();
@@ -94,6 +95,7 @@ function setup(
     createController: f.create,
     sdkVersion: "1.0.0",
     ...(over.store && { store: over.store }),
+    ...(over.learningKey !== undefined && { learningKey: over.learningKey }),
   });
   return { f, session, confirmAlways, view: () => view };
 }
@@ -693,5 +695,102 @@ describe("deux chats (ADR 0008)", () => {
     expect(host.snapshot().on).toBe(false);
     expect(b.f.calls.filter((c) => c[0] === "bypass").at(-1)?.[1]).toBeNull();
     host.dispose();
+  });
+});
+
+describe("mode apprentissage (ADR 0010)", () => {
+  const memory = () => {
+    const data = new Map<string, unknown>();
+    return {
+      data,
+      store: {
+        get: (k: string) => data.get(k),
+        set: (k: string, v: unknown) => void data.set(k, v),
+      },
+    };
+  };
+
+  it("désactivé par défaut : start sans mode", async () => {
+    const t = setup({ learningKey: "john.learning.a" });
+    expect(t.session.view().controls?.learning).toBe(false);
+    await t.session.send("un");
+    expect(t.f.started).not.toHaveProperty("mode");
+  });
+
+  it("activé : start porte mode learning et jamais systemPrompt", async () => {
+    const t = setup({ learningKey: "john.learning.a" });
+    t.session.setLearning(true);
+    expect(t.view().controls?.learning).toBe(true);
+    await t.session.send("un");
+    expect(t.f.started).toMatchObject({ mode: "learning" });
+    expect(t.f.started).not.toHaveProperty("systemPrompt");
+  });
+
+  it("persisté par chat, relu en booléen strict, sans toucher john.prefs", async () => {
+    const m = memory();
+    const a = setup({ store: m.store, learningKey: "john.learning.a" });
+    a.session.setLearning(true);
+    expect(m.data.get("john.learning.a")).toBe(true);
+    expect(m.data.has("john.prefs")).toBe(false);
+    // Rechargement du même chat.
+    const again = setup({ store: m.store, learningKey: "john.learning.a" });
+    again.session.view();
+    await again.session.send("x");
+    expect(again.f.started).toMatchObject({ mode: "learning" });
+    // Autre chat : non concerné.
+    const b = setup({ store: m.store, learningKey: "john.learning.b" });
+    await b.session.send("x");
+    expect(b.f.started).not.toHaveProperty("mode");
+  });
+
+  it("valeur stockée non booléenne : mode inactif", async () => {
+    for (const bad of ["true", 1, {}, null]) {
+      const m = memory();
+      m.data.set("john.learning.a", bad);
+      const t = setup({ store: m.store, learningKey: "john.learning.a" });
+      await t.session.send("x");
+      expect(t.f.started).not.toHaveProperty("mode");
+    }
+  });
+
+  it("refuse un non-booléen venu de la webview", async () => {
+    const t = setup({ learningKey: "john.learning.a" });
+    t.session.setLearning("true");
+    t.session.setLearning(1);
+    t.session.setLearning({ enabled: true });
+    await t.session.send("x");
+    expect(t.f.started).not.toHaveProperty("mode");
+  });
+
+  it("gelé pendant un tour", async () => {
+    const t = setup({ learningKey: "john.learning.a" });
+    await t.session.send("x");
+    t.session.setLearning(true);
+    expect(t.view().controls?.learning).toBe(false);
+  });
+
+  it("bascule sur une conversation commencée : moteur remplacé, même session reprise", async () => {
+    const t = setup({ learningKey: "john.learning.a" });
+    await t.session.send("un");
+    t.f.handlers.onEvent?.(ev({ kind: "session.started", sessionId: "S1" }));
+    t.f.handlers.onEnded?.({ sessionId: "S1" } as never);
+    t.session.setLearning(true);
+    await t.session.send("deux");
+    expect(t.f.starts).toHaveLength(2);
+    expect(t.f.starts[1]).toMatchObject({ mode: "learning", resume: "S1" });
+    expect(t.f.starts[1]).not.toHaveProperty("systemPrompt");
+    expect(t.f.calls.filter((c) => c[0] === "kill")).toHaveLength(1);
+    expect(
+      t.view().items.some((i) => i.kind === "notice" && i.text.startsWith("Réglages modifiés")),
+    ).toBe(true);
+  });
+
+  it("sans bascule : le moteur est réutilisé", async () => {
+    const t = setup({ learningKey: "john.learning.a" });
+    t.session.setLearning(true);
+    await t.session.send("un");
+    t.f.handlers.onEnded?.({ sessionId: "S1" } as never);
+    await t.session.send("deux");
+    expect(t.f.starts).toHaveLength(1);
   });
 });

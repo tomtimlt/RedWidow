@@ -44,7 +44,9 @@ export function isStudioPage(value: string): value is StudioPage {
 export type StudioMessage =
   | { type: "open"; page: StudioPage }
   | { type: "refresh" }
-  | { type: "unlink" };
+  | { type: "unlink" }
+  /** Ouvre le dossier de cours : aucun champ, le chemin vient de l'hôte (`coursRoot()`). */
+  | { type: "openCours" };
 
 /** Valide un message de la webview réglages. */
 export function parseStudioMessage(raw: unknown): StudioMessage | null {
@@ -53,6 +55,7 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
   const keys = Object.keys(m);
   if (m.type === "refresh" && keys.length === 1) return { type: "refresh" };
   if (m.type === "unlink" && keys.length === 1) return { type: "unlink" };
+  if (m.type === "openCours" && keys.length === 1) return { type: "openCours" };
   if (
     m.type === "open" &&
     keys.length === 2 &&

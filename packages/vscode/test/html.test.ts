@@ -281,8 +281,9 @@ describe("Bypass des approbations (lot B1, ADR 0006)", () => {
     ]) {
       expect(outside, bad).not.toContain(bad);
     }
-    // Rendu appelé seulement par le gestionnaire `message` et à l'ouverture de Configurer.
-    expect(outside.match(/renderBypass\(\)/g)).toHaveLength(2);
+    // Rendu appelé seulement par le gestionnaire `message`, à l'ouverture de Configurer et par
+    // renderControls (le mode Apprentissage grise le Bypass, ADR 0010).
+    expect(outside.match(/renderBypass\(\)/g)).toHaveLength(3);
   });
   it("le gestionnaire message ne traite le Bypass que sur un message `bypass`", () => {
     expect(js).toContain('else if (message && message.type === "bypass")');
@@ -312,5 +313,37 @@ describe("Bypass des approbations (lot B1, ADR 0006)", () => {
   });
   it("sous 360 px, seule l'heure du badge est masquée visuellement", () => {
     expect(css).toMatch(/@container app \(max-width: 359px\) \{[\s\S]*?#bypass-badge \.bp-time \{/);
+  });
+});
+
+describe("Mode apprentissage (ADR 0010)", () => {
+  const html = chatHtml(opts);
+  const css = read("../media/chat.css");
+  const js = read("../media/chat.js");
+  const tag = (id: string) => new RegExp(`<[^>]*\\sid="${id}"[^>]*>`).exec(html)?.[0] ?? "";
+  const cfg = html.slice(html.indexOf('id="cfg-pop"'), html.indexOf("<script nonce"));
+
+  it("interrupteur role=switch dans Configurer, avant Bypass", () => {
+    const sw = tag("learning-switch");
+    expect(sw).toContain('role="switch"');
+    expect(sw).toContain('aria-checked="false"');
+    expect(cfg.indexOf('id="learning-switch"')).toBeLessThan(cfg.indexOf('id="bypass-switch"'));
+  });
+  it("pastille dans l'en-tête, masquée au départ", () => {
+    const bar = html.slice(html.indexOf('<header id="bar">'), html.indexOf("</header>"));
+    expect(bar).toContain('id="learning-badge"');
+    expect(tag("learning-badge")).toMatch(/\shidden[\s>]/);
+  });
+  it("la webview n'envoie setLearning qu'avec une clé booléenne", () => {
+    const bodies = [...js.matchAll(/postMessage\(\{([^}]*)\}\)/g)]
+      .map((m) => m[1]?.trim() ?? "")
+      .filter((b) => b.includes("setLearning"));
+    expect(bodies).toEqual(['type: "setLearning", enabled: ctl.learning !== true']);
+  });
+  it("Bypass grisé en apprentissage : texte, aria-disabled, sans badge ni bypass-on", () => {
+    expect(js).toContain("Inopérant en mode Apprentissage");
+    expect(js).toContain('bypassSwitch.setAttribute("aria-disabled", String(learning))');
+    expect(js).toContain('document.body.classList.toggle("learning"');
+    expect(css).toContain("#learning-badge");
   });
 });

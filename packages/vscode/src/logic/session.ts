@@ -68,6 +68,8 @@ export interface ChatSessionDeps {
   createController?(options: EngineControllerOptions): EngineController;
   /** Bypass (ADR 0006) : lien vers le moteur courant, pour pousser l'état et recevoir l'accusé. */
   bypass?: { attach(send: BypassSend): BypassEngineLink; reset?(): void };
+  /** Clé de stockage du mode apprentissage de ce chat (`john.learning.<id>`), distincte de `john.prefs`. Absente : mémoire. */
+  learningKey?: string;
   /** Stockage persistant (globalState) : préférences et cache des modèles. Défaut : mémoire. */
   store?: { get(key: string): unknown; set(key: string, value: unknown): unknown };
   /** Version du SDK embarqué : clé du cache de la liste des modèles. */
@@ -107,8 +109,14 @@ export function createChatSession(deps: ChatSessionDeps) {
   let models: ModelOption[] | null = parseModelCache(store.get(MODELS_KEY), sdkVersion);
   let modelsStatus: ModelsStatus = models ? "ready" : "idle";
   let probing = false;
+  /** Mode apprentissage de ce chat (ADR 0010) : relu en booléen strict, jamais depuis `john.prefs`. */
+  let learning = deps.learningKey !== undefined && store.get(deps.learningKey) === true;
   /** Choix avec lequel le moteur courant a démarré : un changement impose de reprendre la session. */
-  let applied: { model: string | undefined; effort: EffortChoice | null } | null = null;
+  let applied: {
+    model: string | undefined;
+    effort: Effort | undefined;
+    learning: boolean;
+  } | null = null;
   /** Moteurs écartés (changement de modèle ou d'effort) : leurs derniers messages sont ignorés. */
   const detached = new WeakSet<EngineController>();
   /** Liens du Bypass, un par moteur démarré : libérés à la sortie du moteur. */
@@ -151,6 +159,7 @@ export function createChatSession(deps: ChatSessionDeps) {
         status: modelsStatus,
         defaultModel: machineModel(),
         busy: state.busy,
+        learning,
         ...(ultracode && { ultracode }),
       }),
     );
@@ -321,7 +330,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       },
     });
     controller = ctl;
-    applied = { model: picked.model, effort: picked.key };
+    applied = { model: picked.model, effort: picked.effort, learning };
     const maxTurns = picked.ultra ? picked.ultra.maxTurns : settings.maxTurns;
     await ctl.start({
       cwd: deps.cwd,
@@ -332,6 +341,8 @@ export function createChatSession(deps: ChatSessionDeps) {
       ...(picked.ultra?.maxBudgetUsd !== undefined && { maxBudgetUsd: picked.ultra.maxBudgetUsd }),
       ...(history && { journalDir: history.files.dir }),
       ...(sessionId !== undefined && { resume: sessionId }),
+      // Le mode exclut `systemPrompt` (ADR 0010) : la consigne vient du moteur, jamais de l'UI.
+      ...(learning && { mode: "learning" as const }),
     });
     if (deps.bypass) {
       bypassLinks.set(
@@ -401,7 +412,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       }),
     ]);
     clearTimeout(timer);
-    state.notice("Modèle ou effort modifié : la conversation reprend avec la même session.");
+    state.notice("Réglages modifiés : nouveau moteur au prochain message, même session.");
   };
 
   return {
@@ -464,6 +475,16 @@ export function createChatSession(deps: ChatSessionDeps) {
       persist(PREFS_KEY, prefs);
       refresh();
     },
+    /** Interrupteur venu de la webview (hostile) : booléen strict, gelé pendant un tour, appliqué au message suivant. */
+    setLearning(raw: unknown): void {
+      if (state.busy || typeof raw !== "boolean") {
+        refresh();
+        return;
+      }
+      learning = raw;
+      if (deps.learningKey !== undefined) persist(deps.learningKey, raw);
+      refresh();
+    },
     async send(text: string, prompt = text): Promise<void> {
       // Mode lecture : aucune saisie tant que la conversation n'est pas reprise.
       // `text` est la bulle. `prompt` peut y joindre la sortie d'un terminal cité.
@@ -475,7 +496,11 @@ export function createChatSession(deps: ChatSessionDeps) {
       try {
         if (controller !== null && applied !== null) {
           const want = choice(deps.readSettings());
-          if (want.model !== applied.model || want.effort !== applied.effort) {
+          if (
+            want.model !== applied.model ||
+            want.effort !== applied.effort ||
+            learning !== applied.learning
+          ) {
             await retire(controller);
           }
         }
