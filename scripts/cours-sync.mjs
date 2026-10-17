@@ -34,8 +34,30 @@ function dossierConfig(env = process.env, platform = process.platform) {
   return join(env.XDG_CONFIG_HOME || join(homedir(), ".config"), "john-studio");
 }
 
-const git = (args, cwd) =>
-  execFileP("git", args, { cwd, env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } });
+// Environnement de `git` en liste blanche : chemin, profil, proxy et certificats seulement.
+const GIT_ENV_KEYS = [
+  "PATH",
+  "Path",
+  "HOME",
+  "USERPROFILE",
+  "SYSTEMROOT",
+  "TEMP",
+  "TMP",
+  "HTTPS_PROXY",
+  "https_proxy",
+  "HTTP_PROXY",
+  "http_proxy",
+  "NO_PROXY",
+  "no_proxy",
+  "SSL_CERT_FILE",
+  "GIT_SSL_CAINFO",
+];
+const gitEnv = () => {
+  const env = { GIT_TERMINAL_PROMPT: "0" };
+  for (const k of GIT_ENV_KEYS) if (process.env[k] !== undefined) env[k] = process.env[k];
+  return env;
+};
+const git = (args, cwd) => execFileP("git", args, { cwd, env: gitEnv() });
 
 // Copie récursive des .md/.txt ; ignore liens symboliques et tout ce qui n'est pas régulier.
 async function copierTextes(src, dest, base) {
