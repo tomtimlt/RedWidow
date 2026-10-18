@@ -1,84 +1,134 @@
-# Spécification de design : chat VS Code (surface plate)
+# Spécification de design : webviews VS Code (chat, cockpit, studio)
 
-Les dégradés cyan/magenta, le balayage et le halo coloré sont retirés. La surface reprend les captures : filet 1 px, texte du thème, un accent pour le focus et le bouton principal. Les animations qui restent sont l'indicateur de travail et l'entrée des cartes (opacité, léger déplacement).
+Les quatre webviews (chat, cockpit, studio, panneau éditeur) chargent la même feuille `media/chat.css` (`extension.ts:530,589,732,952`) : cette charte s'applique à toutes. Direction artistique : celle du logo Warband. Un seul accent, le jaune de marque ; un secondaire, le gris ardoise ; formes anguleuses, esprit terminal ; mouvement sobre et fonctionnel.
 
-- Statut : décidé (architecte), 2026-10-15. Cadre : ADR 0004 §C (CSP à nonce, `textContent`, aucune ressource distante), ADR 0005 (modèle, effort).
+- Statut : charte D.A. décidée (cadre), 2026-10-18, sur choix de l'utilisateur (accent jaune unique, formes anguleuses, animations sobres, logo revu). Remplace §1, §2 et la ligne « Rayons » de `design-exegol-ui.md` §3. Cadre inchangé : ADR 0004 §C (CSP à nonce, `textContent`, aucune ressource distante), ADR 0005 (modèle, effort).
+- Validé par l'utilisateur (2026-10-18) : logo redessiné selon §3 (pas de fichier source externe) ; petite taille réduite au chevron de tête et au curseur ; attente d'approbation en orange du thème (`--jn-warn`), toujours avec libellé.
 - Cible : VS Code ≥ 1.90 (`extension.manifest.json:8`) = Chromium 122. Disponibles : container queries, `color-mix()`, `:has()`, API `popover`. **Indisponible : CSS anchor positioning** (placement calculé en JS).
 
 ## 1. Système de design (`media/chat.css`, en tête, préfixe `--jn-`)
 
-- Espacements `--jn-s1..s5` = 4, 8, 12, 16, 24 px. Rayons : `--jn-r-sm` 4, `--jn-r-md` 8, `--jn-r-lg` 12 (composer), `--jn-r-pill` 999px.
-- Ombre unique `--jn-shadow-pop: 0 8px 24px var(--vscode-widget-shadow, #0006)` (popovers seulement).
-- Durées `--jn-d1` 120 ms (hover), `--jn-d2` 200 ms (entrées), `--jn-d3` 600 ms (balayage). Easings `--jn-ease-out: cubic-bezier(.2,.8,.2,1)`, `--jn-ease-io: cubic-bezier(.4,0,.2,1)`.
-- Palette **dérivée du thème**, jamais de couleur figée hors repli de `var()` :
-  - `--jn-accent: var(--vscode-focusBorder, var(--vscode-button-background))` ; `--jn-accent-2: var(--vscode-terminal-ansiMagenta, var(--jn-accent))` ; `--jn-cool: var(--vscode-terminal-ansiCyan, var(--jn-accent))`.
-  - Halo : `--jn-glow: color-mix(in srgb, var(--jn-accent) var(--jn-glow-pct), transparent)` avec `--jn-glow-pct` = 45 % (sombre), 20 % (`body.vscode-light`).
-  - Surfaces : `--vscode-input-background`, `--vscode-editorWidget-background`, `--vscode-dropdown-*`, `--vscode-list-activeSelection*`.
-- **Contraste élevé** (`body.vscode-high-contrast`, `body.vscode-high-contrast-light`, `@media (forced-colors: active)`) : `--jn-glow-pct: 0%`, aucun dégradé, bordures `--vscode-contrastBorder`, focus `--vscode-contrastActiveBorder` 2 px, **effets coupés** (interrupteur §2).
-- Icônes : glyphes Unicode (`▾ ↑ ■ ⟳ ✓`) ou SVG créé par `createElementNS`. **Pas de police codicons** (exigerait `font-src` et une dépendance).
+### 1.1 Couleurs de marque (seules valeurs figées admises)
 
-## 2. Effets et budget de performance
+| Jeton | Valeur | Usage |
+|---|---|---|
+| `--jn-brand` | `#FFD60A` | Remplissage d'accent (bouton primaire, envoi, bascule active, remplissage du curseur d'effort, curseur du logo). |
+| `--jn-brand-ink` | `#7A5C00` | Accent **en trait ou en texte** sur fond clair (focus, bordure active, lien, texte d'accent). 6,2:1 sur `#FFFFFF`. |
+| `--jn-on-brand` | `#141414` | Texte et icône posés sur `--jn-brand`. 13:1. Jamais de blanc sur jaune (1,3:1). |
+| `--jn-slate` | `#7A8899` | Ailiers du logo, filets décoratifs. **Jamais pour du texte** (4,3:1 sur une barre latérale sombre, 3,6:1 sur blanc). |
+| `--jn-slate-ink` | `#5E6B7A` | Variante de `--jn-slate` en thème clair (logo, filets). |
+
+Ces cinq déclarations sont les seuls hex hors repli de `var()` dans les feuilles ; le test `css-motion` est adapté pour les tolérer **uniquement** dans les déclarations `--jn-brand*`, `--jn-on-brand`, `--jn-slate*`.
+
+### 1.2 Jetons d'usage, par thème
+
+| Jeton | Sombre (défaut) | `body.vscode-light` | `body.vscode-high-contrast`, `-light` | `@media (forced-colors: active)` |
+|---|---|---|---|---|
+| `--jn-accent` (trait, texte, focus) | `--jn-brand` | `--jn-brand-ink` | `var(--vscode-contrastActiveBorder, var(--vscode-focusBorder))` | `Highlight` |
+| `--jn-accent-fill` (fond d'action) | `--jn-brand` | `--jn-brand` + bordure 1 px `--jn-brand-ink` | `var(--vscode-button-background)` + `--vscode-contrastBorder` | `ButtonFace` / `ButtonText` |
+| `--jn-on-accent` | `--jn-on-brand` | `--jn-on-brand` | `var(--vscode-button-foreground)` | `ButtonText` |
+| `--jn-tint` (sélection, survol actif) | accent 14 % | accent 10 % | `transparent` + bordure `--jn-accent` | `Highlight` |
+| `--jn-secondary` | `--jn-slate` | `--jn-slate-ink` | `--vscode-contrastBorder` | `CanvasText` |
+
+Justification thème clair : le jaune pur fait 1,4:1 sur blanc, inutilisable en trait ou texte ; on garde le jaune en **remplissage** (texte sombre dessus, 13:1) et on passe au jaune foncé pour tout ce qui est fin. Justification contraste élevé : l'utilisateur a choisi un thème pour ses couleurs, on lui obéit ; le jaune ne survit qu'au logo en contraste élevé sombre (14:1 sur noir), le logo passe en monochrome `currentColor` en contraste élevé clair et en couleurs forcées.
+
+**Dérivés du thème** (jamais figés) : fonds (`--vscode-editor-background`, `sideBar`, `editorWidget`, `input`, `dropdown`), texte (`--vscode-foreground`), atténué (`--jn-muted` = foreground 72 %), filets (`--jn-line` = `--vscode-panel-border`), polices, ombre (`--vscode-widget-shadow`), et les **états sémantiques** : `--jn-ok` (`testing-iconPassed`), `--jn-warn` (`editorWarning-foreground`), `--jn-err` (`errorForeground`). Leurs replis ne pointent plus vers un accent. L'attente d'approbation (`body.awaiting`, `body.waiting`) porte toujours un libellé ou un glyphe en plus de la couleur, le jaune d'accent ne signifiant jamais un état.
+
+Supprimés : `--jn-accent-2`, `--jn-cool`, `--jn-glow`, `--jn-glow-pct`, `--jn-ease-spring`, `--jn-r-pill`. Le bleu `focusBorder` n'est plus l'accent hors contraste élevé.
+
+### 1.3 Formes
+
+- Rayons : `--jn-r-sm` 2 px (étiquettes, cases, crans), `--jn-r-md` 3 px (boutons, champs, options), `--jn-r-lg` 4 px (composer, cartes, popovers). Toute valeur de `border-radius` est `0` ou un de ces trois jetons. Plus de pastille ni de cercle : radios et puces sont carrées.
+- Bordures 1 px partout (`--jn-line`) ; 2 px seulement pour le focus en contraste élevé et le liseré gauche des cartes.
+- Ombres : une seule, `--jn-shadow-pop: 0 2px 6px var(--vscode-widget-shadow, #0004)`, sur les popovers ; `none` en contraste élevé. Aucune autre `box-shadow` (sauf `inset` 1 px servant de bordure).
+- Focus : `outline: 1px solid var(--jn-accent); outline-offset: 1px` ; 2 px en contraste élevé. Plus de halo.
+- Espacements inchangés : `--jn-s1..s5` = 4, 8, 12, 16, 24 px ; cible 28 px (24 en compact).
+
+### 1.4 Typographie
+
+- Pas de police embarquée (CSP, dépendance). `--jn-font` = police d'interface du thème ; `--jn-mono` = police de l'éditeur.
+- Mono (esprit terminal) pour : code, nom d'outil, modèle, compteurs, étiquettes d'état, en-têtes de section en petites capitales (`text-transform: uppercase`, `letter-spacing: .06em`, `--jn-fs-xs`). Interface pour : prose des messages, libellés de boutons, champs.
+- Tailles `--jn-fs-xs` 11, `--jn-fs-sm` 12, `--jn-fs` thème (13), `--jn-fs-lg` 14 px. Graisses 400 et 600 seulement. Pas d'interlettrage négatif. `font-variant-numeric: tabular-nums` sur les compteurs.
+
+## 2. Mouvement et budget de performance
 
 Liste **fermée** ; tout effet absent est interdit.
 
+- Durées `--jn-d1` 120 ms (survol, états), `--jn-d2` 160 ms (entrées), `--jn-d3` 200 ms (tiroir). Aucune durée finie au-delà de 200 ms. Easings `--jn-ease-out: cubic-bezier(.2,0,0,1)`, `--jn-ease-io: cubic-bezier(.4,0,.2,1)` ; aucune ordonnée de contrôle hors [0, 1] (pas de ressort).
+
 | # | Effet | Déclencheur | Technique |
 |---|---|---|---|
-| E1 | Halo néon du composer | `:focus-within` | `::before` portant un `box-shadow` **statique** `0 0 0 1px accent, 0 0 12px glow` ; seule son `opacity` transite (`--jn-d2`). |
-| E2 | Balayage du composer au changement de modèle | `controls.model` change **dans la vue reçue** (valeur acceptée par l'extension, pas le clic) | `::after` en `linear-gradient` étroit, `transform: translateX(-100%→100%)`, `--jn-d3`, une fois. Relance sans reflow : alterner les classes `sweep-a`/`sweep-b` (deux `@keyframes` identiques). |
-| E3 | « Pop » de la pastille de modèle | même déclencheur | `transform: scale(.96→1)` + `::before` halo `opacity 0→1→0`, 300 ms, une fois. |
-| E4 | Indicateur « thinking » | `body.running` sans approbation en attente | Spinner braille `⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏` en **bande verticale** (une trame par ligne, boîte `height:1lh; overflow:hidden`), `translateY` en `steps(10)`, 1 s ; libellé en police de l'éditeur ; curseur `▍` en `opacity` `steps(2)` ; scanline = `::after` 1 px en dégradé, `translateY` sur la seule rangée, `opacity` ≤ .25. |
-| E5 | Entrée d'une carte d'approbation | ajout | `opacity 0→1` + `translateY(4px→0)`, `--jn-d2`, une fois ; liseré gauche accent statique. |
-| E6 | Survols/états des boutons, pastilles, options | hover/active | `transition` de `color`, `background-color`, `border-color`, `opacity`, `transform` seulement, `--jn-d1`. |
+| M1 | Survol et états | hover/active/checked | `transition` de `color`, `background-color`, `border-color`, `opacity` (`--jn-d1`). `transform` seulement pour `active` (`translateY(1px)`), plus de `scale`. |
+| M2 | Entrée d'un message ou d'une carte | ajout | `jn-msg-in` : `opacity 0→1` + `translateY(4px→0)`, `--jn-d2`, une fois. |
+| M3 | Ouverture d'un popover | `toggle` | `jn-pop-in` : `opacity` + `translateY(4px→0)`, `--jn-d1`, sans `scale`. |
+| M4 | Tiroir d'historique | ouverture | `jn-drawer-in` : `translateX`, `--jn-d3`. |
+| M5 | Fondu (zones remplacées) | rendu | `jn-fade-in` : `opacity`, `--jn-d1`. |
+| M6 | Spinner de travail | `body.running` sans attente | `jn-braille` inchangé (bande verticale, `steps(10)`, 1 s, infini), sous `#thinking`. |
+| M7 | Curseur du logo (seul effet de marque) | `body.running` sans `waiting` ni `paused` | `jn-blink` (`opacity`, `steps(1)`, 1,06 s, infini) sur `.brand-cursor` du logo d'en-tête. Au repos, curseur plein et immobile. |
 
-Règles fermes :
-- `@keyframes` : **uniquement `transform` et `opacity`**. `transition` : la liste de E6, jamais `all`. Interdits partout : `backdrop-filter`, `blur(`, `filter` animé, animation de `box-shadow`, `width/height/top/left/margin/padding`, `background-position`.
-- Animations infinies : **au plus 3, toutes sous `#thinking`** (E4). Le spinner par outil en attente est **supprimé** (icône statique `◌`) : un seul foyer de mouvement.
-- `#thinking` est `display:none` hors `body.running` : rien ne tourne sans run. Approbation en attente → libellé « En attente de votre accord », animations figées (aucun mouvement pendant qu'on attend l'humain).
-- `visibilitychange` (la vue a `retainContextWhenHidden`) → `body.paused` → `animation-play-state: paused`.
-- JS : **ni `requestAnimationFrame` ni `setInterval`** pour le visuel ; aucun écouteur `scroll` visuel ; mesures (`getBoundingClientRect`) seulement à l'ouverture d'un popover et dans un `ResizeObserver` actif tant qu'il est ouvert. `will-change` seulement sur la bande du spinner.
-- Interrupteur global : `@media (prefers-reduced-motion: reduce)`, contraste élevé et `forced-colors` appliquent à `body *, ::before, ::after` : `animation: none !important; transition: none !important`. Le spinner devient le texte statique « … ».
-- **CSP inchangée** : aucun `<style>`, aucun attribut `style=`, aucun `setAttribute("style")`, aucun `innerHTML`/`outerHTML`/`insertAdjacentHTML`/`document.write`. États = classes togglées par JS. Seule écriture de style admise : `el.style.setProperty("--jn-…", valeur numérique)` (CSSOM, non soumis à `style-src`) pour le placement du popover et le remplissage du curseur, plus la hauteur existante du `textarea`.
+Sort des `@keyframes` actuels : **gardés** `jn-braille`, `jn-blink` (déplacé vers M7), `jn-msg-in`, `jn-pop-in`, `jn-drawer-in`, `jn-fade-in` (paramètres ci-dessus). **Fusionnés** : `jn-card-in` → `jn-msg-in`, `jn-settle` → `jn-fade-in`. **Supprimés** : `jn-scan`, `jn-logo-in`, `jn-sweep-a/b`, `jn-pop-a/b`, `jn-halo-a/b`, ainsi que le curseur `▍` de `#thinking`, l'élément `.sweep` du composer et les classes `sweep`/`pop` posées par `chat.js`.
 
-## 3. Responsive (container queries)
+Règles fermes (inchangées sauf mention) :
+- `@keyframes` : **uniquement `transform` et `opacity`**. `transition` : liste M1, jamais `all`. Interdits : `backdrop-filter`, `blur(`, `filter`, animation de `box-shadow`, de dimensions ou de position, `linear-gradient`.
+- Animations infinies : **au plus 2** (M6 sous `#thinking`, M7 sous `body.running … .brand-cursor`). Rien ne tourne hors run ; attente d'approbation ou vue cachée (`body.paused`) → `animation-play-state: paused`.
+- Logo : **aucun SMIL** (`<animate>`) dans les SVG, ni en fichier ni en ligne : il échappe à `prefers-reduced-motion` et tourne sans fin.
+- JS : ni `requestAnimationFrame` ni `setInterval` pour le visuel ; pas d'écouteur `scroll` visuel ; `will-change` seulement sur la bande du spinner.
+- Interrupteur global : `prefers-reduced-motion: reduce`, contraste élevé et `forced-colors` → `body *, ::before, ::after { animation: none !important; transition: none !important }`. Spinner → « … », curseur du logo plein.
+- **CSP inchangée** : ni `<style>`, ni `style=`, ni `setAttribute("style")`, ni `innerHTML`/`outerHTML`/`insertAdjacentHTML`/`document.write`. États = classes. Seule écriture de style admise : `el.style.setProperty("--jn-…", valeur numérique)` et la hauteur du `textarea`.
 
-`body { container: app / inline-size }`. Points de rupture sur la largeur : **compact < 360 px**, **standard 360–599**, **large ≥ 600**.
+## 3. Logo
+
+- Conserver chevrons + curseur : deux ailiers ardoise à gauche, un chevron de tête jaune, un curseur jaune sous la pointe.
+- Grille : `viewBox="0 0 24 24"` sans décalage ; toutes les coordonnées sont des entiers ou des demi-entiers ; marge de 1 unité ; diagonales à 45° ; épaisseur de bras identique pour les trois chevrons ; ailiers et tête alignés sur un même axe horizontal de pointe ; curseur de hauteur égale à l'épaisseur d'un bras, aligné sur le bord droit de la tête ; centre optique au centre de la grille.
+- Versions : **pleine** `media/logo.svg` (couleurs de marque, accueil) ; **monochrome** `media/icon.svg` (`fill="currentColor"`, barre d'activité, contraste élevé clair, couleurs forcées) ; **petite taille** `media/logo-small.svg` (≤ 16 px : chevron de tête + curseur, ailiers retirés, épaisseur relevée pour rester ≥ 2 px rendus). Logo d'en-tête en ligne (`BRAND`, 18 px) : géométrie de la version pleine, couleurs par classes (`.brand-wing`, `.brand-lead`, `.brand-cursor`) remplies par les jetons, donc thème clair et contraste élevé gérés en CSS.
+- Aucun `<animate>`, `<script>`, attribut `on*`, ni référence externe dans aucun SVG.
+
+## 4. Responsive (container queries)
+
+`body { container: app / inline-size }`. Points de rupture : **compact < 360 px**, **standard 360–599**, **large ≥ 600** (repères `@container app (max-width: 359px)` et `(min-width: 600px)` testés).
 
 | Zone | Compact | Standard | Large |
 |---|---|---|---|
 | En-tête | boutons en icône seule (texte en `.sr-only`, `title`) ; badge bac à sable tronqué | texte court | idem |
 | Fil | messages 100 % | `max-width: 92%` | colonne centrée `max-width: 820px` |
-| Composer | barre d'outils sous le `textarea` : pastille modèle (libellé tronqué, `min-width:0`), « ⚙ » seul, envoyer/stop en icône | pastille + « Configurer ▾ » avec niveau d'effort | idem, centré 820 px |
-| Popover Configurer | une colonne | une colonne | deux colonnes (≥ 480 px de popover) |
+| Composer | barre d'outils sous le `textarea` : étiquette modèle tronquée, Configurer en icône, envoyer/stop en icône | étiquette + « Configurer ▾ » | idem, centré 820 px |
+| Popover Configurer | une colonne, `min(232px, 100vw - 16px)` | idem | idem |
 
-- Plus de barre `#controls` séparée : modèle et configuration vivent dans le composer. Aucun élément ne fixe une largeur > 100 % du conteneur ; textes longs en `ellipsis`.
-- Popover : `position: fixed` dans la couche supérieure (`popover`), largeur `min(naturelle, 100vw - 16px)`, `max-height` calculée, défilement interne. Placement par `placePopover` (§5) : au-dessus de l'ancre par défaut (composer en bas), bascule dessous si la place manque, recalage horizontal dans `[8, vw - 8 - largeur]`.
-- Cibles : 28 px de haut (24 px minimum en compact), tout atteignable au clavier, focus toujours visible.
+Aucun élément plus large que son conteneur ; textes longs en `ellipsis`. Popover en couche supérieure, placé par `placePopover` (`media/ui.js`).
 
-## 4. Composants
+## 5. Composants
 
-**(a) Sélecteur de modèle** (remplace `<select>` et `#models-refresh`). Pastille `button` `aria-haspopup="listbox"` `aria-expanded` → popover : champ de filtre `role="combobox"` (`aria-controls`, `aria-activedescendant`), liste `role="listbox"`, options `role="option"` `aria-selected`/`aria-disabled`. Chaque option : libellé, description (1 ligne, `ellipsis`, complète en `title`), badge « actuel ». Groupes : « Par défaut » (entrée `null` = défaut) puis la liste du SDK. Clavier : ↑/↓ (sautent les désactivées), Début/Fin, Entrée choisit, Échap ferme et rend le focus à la pastille, saisie = filtre (`includes` insensible à la casse, **jamais de RegExp construite depuis la saisie**). Pied : « Actualiser la liste ». Liste indisponible : le popover montre la saisie libre actuelle. Verrouillé (`locked`) : pastille `aria-disabled`, popover non ouvrable. Message posté : **`setModel` existant inchangé** ; l'extension revalide.
+- **Boutons** : `primary` = `--jn-accent-fill` / `--jn-on-accent`, bordure 1 px (`--jn-brand-ink` en clair) ; `secondary` = fond `--vscode-button-secondaryBackground`, bordure `--jn-line` ; `ghost` = transparent, survol `--jn-tint` ; `danger` = `--jn-err`. Disabled : `opacity .5`, aucun survol. Envoi = primary ; stop = `danger` en trait.
+- **Étiquettes** (remplacent les pastilles : modèle, statut, bac à sable) : rectangle `--jn-r-sm`, bordure 1 px, texte mono `--jn-fs-sm`.
+- **Composer** : bordure `--jn-line`, `--jn-accent` au `:focus-within`, `--jn-warn` sur `body.awaiting` (avec libellé d'attente).
+- **Bascules, radios, cases** : carrées ; état actif = `--jn-accent-fill` + `--jn-on-accent`. Curseur d'effort : piste `--jn-line`, partie remplie `--jn-accent-fill` (via `--jn-pct`), pouce carré.
+- **Sélection** (option de liste, page active du studio, ligne d'historique) : fond `--jn-tint` + liseré gauche 2 px `--jn-accent`.
+- **Cartes d'approbation** : liseré gauche 2 px `--jn-warn`, entrée M2 ; sémantique et boutons inchangés (`design-exegol-ui.md` P2).
+- **Thinking** : `#thinking` hors du `role="log"`, `role="status"`, spinner mono + libellé ; plus de reflet ni de curseur propre.
+- Sélecteur de modèle et Configurer : comportement et accessibilité inchangés, détaillés ci-dessous.
 
-**(b) Configurer ▾** : popover `role="dialog"` `aria-label`, piège de focus (Tab/Maj+Tab cyclent), Échap et clic extérieur ferment (`popover="auto"`), focus rendu au déclencheur. Colonne « Raisonnement » : curseur d'effort natif `input[type=range]` conservé (accessibilité native), piste en dégradé `--jn-cool → --jn-accent-2` (`::-webkit-slider-runnable-track`), remplissage via `--jn-pct`, crans cliquables sous la piste (désactivés barrés), bouton « Auto », infobulle du niveau en texte sous le curseur. Colonne « Exécution » : fournisseur en radios à coche (Claude coché ; OpenCode `disabled`, « bientôt »), bac à sable et réseau **en lecture seule** à partir des données déjà présentes dans la vue. **Aucun nouveau type de message IPC** dans ce chantier.
+**(a) Sélecteur de modèle** (remplace `<select>` et `#models-refresh`). Étiquette `button` `aria-haspopup="listbox"` `aria-expanded` → popover : champ de filtre `role="combobox"` (`aria-controls`, `aria-activedescendant`), liste `role="listbox"`, options `role="option"` `aria-selected`/`aria-disabled`. Chaque option : libellé, description (1 ligne, `ellipsis`, complète en `title`), badge « actuel ». Groupes : « Par défaut » (entrée `null` = défaut) puis la liste du SDK. Clavier : ↑/↓ (sautent les désactivées), Début/Fin, Entrée choisit, Échap ferme et rend le focus à l'étiquette, saisie = filtre (`includes` insensible à la casse, **jamais de RegExp construite depuis la saisie**). Pied : « Actualiser la liste ». Liste indisponible : le popover montre la saisie libre actuelle. Verrouillé (`locked`) : étiquette `aria-disabled`, popover non ouvrable. Message posté : **`setModel` existant inchangé** ; l'extension revalide.
 
-**(c) Boutons** : `primary` (bouton du thème + halo E1 au focus), `secondary`, `ghost`, `danger` (`--vscode-inputValidation-errorBorder`/`errorForeground`). États : hover (E6), `:focus-visible` (anneau 1 px accent + halo statique, 2 px `contrastActiveBorder` en contraste élevé), active (`scale(.97)`), disabled (`opacity .5`, aucun survol). Pastille = `ghost` en `--jn-r-pill`.
+**(b) Configurer ▾** : popover `role="dialog"` `aria-label`, piège de focus (Tab/Maj+Tab cyclent), Échap et clic extérieur ferment (`popover="auto"`), focus rendu au déclencheur. « Raisonnement » : `input[type=range]` natif conservé, crans cliquables sous la piste (désactivés barrés), bouton « Auto », niveau en texte sous le curseur. « Exécution » : fournisseur en radios (Claude coché ; OpenCode `disabled`, « bientôt »), bac à sable et réseau **en lecture seule** depuis la vue. **Aucun nouveau type de message IPC.**
 
-**(d) Cartes et outils** : carte = E5 + liseré ; boutons inchangés en sémantique (« toujours » reste sous modale native). Lignes d'outils : survol E6, icône de résultat `scale(1.2→1)` une fois ; dépliage sans animation de hauteur.
+## Annexe : plan initial et réponses (2026-10-15)
 
-**(e) Thinking** : `#thinking` (remplace `#activity`) **hors du `role="log"`**, collé au-dessus du composer, `role="status"` ; parties animées `aria-hidden`. Libellé : « Réflexion », sinon « Outil : <nom> » du dernier outil en attente, sinon « En attente de votre accord ».
+Logique pure dans **`media/ui.js`** (script classique, second `<script nonce src>`, `module.exports` si `module` existe, sinon `globalThis.WarbandUI`), testée par vitest via `createRequire`. Pas de bundler. Lots U1 (jetons, composer, responsive, boutons), U2 (sélecteur et Configurer : `listboxKey`, `filterModels`, `placePopover`, `effortPct`), U3 (`bodyClasses`, `activityLabel`), U4 (prévisualisation avec CSP, `#csp-violation`, `preview-shots.mjs` via `EDGE_BIN`, profil de performance dans VS Code : aucune entrée Layout au repos, repaint limité à `#thinking`, < 3 % CPU, 0 % vue cachée ; clavier et NVDA sur les deux popovers).
 
-## 5. Plan de lots
+- `workbench.reduceMotion` : le média `prefers-reduced-motion` suffit (interrupteur CSS, classe `reduce-motion` pilotée par `matchMedia`). Pas de champ `reduceMotion` dans la vue.
+- État réseau : champ `sandboxNetwork` (`none` | `bridge` | `null`). « réseau activé » si `bridge`, « Coupé » si bac à sable en `none`, « Sans objet » sans bac à sable ; l'en-tête reprend « réseau activé » seulement en `bridge`.
+- Popovers ouverts par `popovertarget` ; `beforetoggle` refuse l'ouverture quand le modèle est verrouillé.
 
-Logique pure dans **`media/ui.js`** (script classique, chargé par un second `<script nonce src>` ; exporte `module.exports` si `module` existe, sinon `globalThis.WarbandUI`), testée par vitest via `createRequire`. Pas de bundler ajouté.
+## 6. Lots de la refonte D.A. (pour `surface`, dans l'ordre)
 
-- **U1 — Jetons, composer, responsive, boutons.** `chat.css`, `chat.js`, `html.ts`, tests. Critères : test `test/css-motion.test.ts` qui analyse `chat.css` : propriétés des `@keyframes` ⊆ {transform, opacity} ; `transition(-property)` ⊆ liste E6, pas `all` ; aucun `backdrop-filter`/`blur(` ; règles `infinite` seulement sous `#thinking` ; présence de l'interrupteur (reduced-motion, contraste élevé, forced-colors). Test `chat.js` : aucun `innerHTML|outerHTML|insertAdjacentHTML|document.write|setAttribute("style"|requestAnimationFrame|setInterval|eval|new Function`. Test CSP de `html.ts` inchangé et étendu : chaque `<script>` a le nonce et une source de l'extension, aucun `style=`, aucun `<style>`.
-- **U2 — Sélecteur et Configurer** (revue sécurité architecte). `ui.js` : `listboxKey(state, key, options) → state` (flèches, Début/Fin, saut des désactivées, bouclage), `filterModels(models, query)`, `placePopover(anchor, size, viewport, margin) → {x, y, side, maxHeight}`, `effortPct`. Critères : tests de navigation (désactivées sautées, liste vide, toutes désactivées), placement (bascule haut/bas, recalage aux deux bords, viewport de 280 px plus étroit que le popover), filtre avec `.*(` traité littéralement ; un libellé `<img onerror>` affiché inerte (preview).
-- **U3 — Effets et thinking.** `ui.js` : `bodyClasses(view, {hidden, reducedMotion}) → string[]` et `activityLabel(view)`. Critères : tests de la correspondance (idle, running, approbation en attente, caché, lecture seule) ; changement de modèle refusé par l'extension → pas de balayage.
-- **U4 — Vérification perf et accessibilité.** `preview.test.ts` génère la page **avec la CSP** (`cspSource` = `file:`, nonce `preview` sur le shim, thème en `<link>` vers `preview/theme-{dark,light,hc}.css`), un écouteur `securitypolicyviolation` ajoute `#csp-violation`. `scripts/preview-shots.mjs` (manuel, hors `pnpm check`, binaire `EDGE_BIN` sinon chemin Edge par défaut) : `msedge --headless=new --screenshot --window-size=W,800` pour W ∈ {280, 360, 520, 900} × 3 thèmes × états (idle, running, popover ouvert), puis `--dump-dom` sans `#csp-violation`. Critères : aucun débordement horizontal (`scrollWidth ≤ clientWidth` signalé par le shim dans le DOM), captures relues ; dans VS Code (« Open Webview Developer Tools », Performance, 10 s de run sans événement) : aucune entrée Layout, repaint limité à `#thinking` (Paint flashing), processus webview < 3 % CPU, 0 % vue cachée ; navigation complète au clavier et lecteur d'écran (NVDA) sur les deux popovers.
+Validation de chaque lot : `pnpm check` vert, puis `node packages/vscode/scripts/preview-shots.mjs` (manuel) aux largeurs 280/360/520/900 × thèmes sombre/clair/contraste élevé, captures relues. Interdits communs : modifier la CSP ou le protocole (messages IPC), toucher `packages/` hors `packages/vscode`, le moteur, la gate, la politique, les secrets ; ajouter une police, une dépendance ou une ressource distante ; `innerHTML`/`style=`/`<style>`/`on*=` ; supprimer un sélecteur testé (`model-chip`, `cfg-btn`, `history-btn`, `#thinking`, `.spin-strip`, `#csp-violation`, `#overflow`) ; affaiblir un test existant autrement que par l'amendement explicitement décrit dans le lot.
 
-Interdits pour tous les lots : nouvelle dépendance (police, framework, codicons), modification de la CSP, ressource distante, nouveau message IPC, texte du modèle hors `textContent`.
+**D1 — Jetons et palette.** Fichiers : `media/chat.css` (bloc de jetons, blocs clair/contraste élevé/forced-colors, toutes les références aux jetons supprimés), `test/css-motion.test.ts`, nouveau `test/contrast.test.ts`. Critères : jetons §1.1–1.2 présents ; zéro occurrence de `--jn-accent-2`, `--jn-cool`, `--jn-glow`, `--jn-r-pill`, `999px`, `ease-spring`, `focusBorder` hors bloc contraste élevé ; amendement du test hex limité aux déclarations `--jn-brand*`, `--jn-on-brand`, `--jn-slate*` ; nouveau test : tout `border-radius` vaut `0` ou `var(--jn-r-sm|md|lg)`, jetons de rayon ≤ 4 px, au plus une `box-shadow` non `inset` ; `contrast.test.ts` calcule le ratio WCAG des paires figées contre les fonds des fixtures de `preview.test.ts` (texte ≥ 4,5, focus et bordure active ≥ 3) dans les trois thèmes.
 
-## Questions ouvertes (réponses, 2026-10-15)
+**D2 — Mouvement.** Fichiers : `media/chat.css`, `media/chat.js` (l. 288-303, classes `sweep`/`pop`), `media/ui.js` si concerné, `src/logic/html.ts` (`.sweep` l. 99, `.cursor` l. 97), `test/css-motion.test.ts`, `test/html.test.ts`. Critères : ensemble des `@keyframes` = exactement les six gardés de §2 ; toute durée finie ≤ 200 ms ; aucun `cubic-bezier` à ordonnée hors [0, 1] ; au plus 2 animations infinies, sélecteurs `#thinking…` ou `body.running…brand-cursor` ; interrupteur global conservé ; aucun `scale(` dans les `@keyframes` et transitions.
 
-- `workbench.reduceMotion` : le média `prefers-reduced-motion` honoré par la webview suffit (interrupteur CSS, plus la classe `reduce-motion` pilotée par `matchMedia`). Pas de champ `reduceMotion` dans la vue.
-- État réseau : champ `sandboxNetwork` (`none` | `bridge` | `null`) dans la vue. Colonne « Réseau » : « réseau activé » si `bridge`, « Coupé » si bac à sable actif en `none`, « Sans objet » sans bac à sable ; l'en-tête reprend « réseau activé » seulement en `bridge`.
-- Écarts : les « points de pulsation » du thinking ne sont pas réalisés (budget de 3 animations infinies : spinner, curseur, scanline). Les popovers s'ouvrent par `popovertarget` (activation déclarative) et `beforetoggle` refuse l'ouverture quand le modèle est verrouillé.
+**D3 — Logo.** Fichiers : `media/logo.svg`, `media/icon.svg`, nouveau `media/logo-small.svg`, `src/logic/html.ts` (`BRAND`), `media/chat.css` (`.brand-*`, `.welcome::before`), `src/extension/extension.ts` (`iconPath` des panneaux éditeur → `logo-small.svg`), test SVG. Critères : géométrie §3 (test : coordonnées entières ou demi-entières, `viewBox="0 0 24 24"`) ; aucun `<animate|<script|on\w+=|href=` dans les SVG ni dans `BRAND` ; `BRAND` sans attribut `fill` hex ; curseur immobile hors `body.running`.
+
+**D4 — Typographie et composants.** Fichiers : `media/chat.css` (règles chat, `.cockpit*`, `.studio*`), `media/chat.js`, `media/cockpit.js`, `media/studio.js` (classes seulement). Critères : §1.4 et §5 appliqués aux trois vues ; graisses ∈ {400, 600} ; aucun `letter-spacing` négatif ; aucun débordement horizontal à 280 px (`#overflow` absent du DOM de prévisualisation).
+
+**D5 — Vérification.** Fichiers : `test/preview.test.ts`, `scripts/preview-shots.mjs`. Critères : états capturés (accueil, run en cours, approbation en attente, popover ouvert, cockpit, studio) × 4 largeurs × 3 thèmes ; `--dump-dom` sans `#csp-violation` ni `#overflow` ; vérification manuelle dans VS Code : focus visible au clavier partout, curseur du logo figé sous « Réduire les animations ».
