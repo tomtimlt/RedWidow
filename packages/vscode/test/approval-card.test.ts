@@ -73,7 +73,7 @@ describe("carte d'approbation (lot P2)", () => {
     const body = rule(".card");
     expect(body).toContain("--vscode-editorWarning-foreground");
     expect(body).toContain("--vscode-inputValidation-warningBorder");
-    expect(body).toContain("border-left: 3px solid var(--jn-card-accent)");
+    expect(body).toContain("border-left: 2px solid var(--jn-card-accent)");
     expect(body).toContain("background: var(--vscode-editorWidget-background");
     expect(body).toContain("border-radius: var(--jn-r-md)");
     expect(body).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);

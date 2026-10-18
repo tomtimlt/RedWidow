@@ -150,3 +150,78 @@ describe("contraste WCAG des paires figées (design-chat-ui.md §1)", () => {
     });
   }
 });
+
+/** Mélange sRGB opaque (équivalent de `color-mix(in srgb, fg p%, bg)` sur un fond opaque). */
+function mix(fg: string, pct: number, bg: string): string {
+  const [a, b] = [rgb(fg), rgb(bg)];
+  const out = a.map((v, i) => Math.round((v * pct) / 100 + (b[i] as number) * (1 - pct / 100)));
+  return `#${out.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+}
+
+/** Pourcentages d'un jeton de teinte, dans l'ordre des blocs de chat.css : [sombre, clair]. */
+function tintPercents(token: string, over: string): [number, number] {
+  const re = new RegExp(
+    `${token}:\\s*color-mix\\(in srgb, var\\(--jn-accent\\) (\\d+)%, ${over}\\)`,
+    "g",
+  );
+  const found = [...chatCss.matchAll(re)].map((m) => Number(m[1]));
+  if (found.length !== 2)
+    throw new Error(`${token} : attendu un jeton sombre et un clair, trouvé ${found.length}`);
+  return [found[0] as number, found[1] as number];
+}
+
+describe("teintes d'accent calibrées (lot D4)", () => {
+  const [washDark, washLight] = tintPercents(
+    "--jn-accent-wash",
+    "var\\(--vscode-input-background\\)",
+  );
+  const [tintDark, tintLight] = tintPercents("--jn-tint", "transparent");
+
+  for (const [key, accent, wash, tint] of [
+    ["dark", BRAND, washDark, tintDark],
+    ["light", INK, washLight, tintLight],
+  ] as const) {
+    describe(`thème ${key}`, () => {
+      const f = fixture(key);
+      const fg = f.vars.get("--vscode-foreground") as string;
+      const bgs = backgrounds(key);
+
+      it("texte courant ≥ 4,5 sur la bulle utilisateur (accent-wash sur le fond du champ)", () => {
+        const input = f.vars.get("--vscode-input-background") as string;
+        expect(ratio(fg, mix(accent, wash, input))).toBeGreaterThanOrEqual(4.5);
+      });
+
+      it("texte courant ≥ 4,5 sur la teinte de sélection (tint sur chaque fond)", () => {
+        for (const [n, bg] of Object.entries(bgs)) {
+          expect(ratio(fg, mix(accent, tint, bg)), `tint / ${n} ${bg}`).toBeGreaterThanOrEqual(4.5);
+        }
+      });
+    });
+  }
+
+  for (const key of ["dark", "light", "hc"] as const) {
+    it(`texte d'accent des liens et actions secondaires ≥ 4,5 sur le fond secondaire (${key})`, () => {
+      const f = fixture(key);
+      const accent =
+        key === "dark"
+          ? BRAND
+          : key === "light"
+            ? INK
+            : (f.vars.get("--vscode-contrastActiveBorder") as string);
+      const secondary = f.vars.get("--vscode-button-secondaryBackground") as string;
+      expect(ratio(accent, secondary)).toBeGreaterThanOrEqual(4.5);
+      // « ghost » : texte d'accent posé directement sur le fond du corps
+      expect(ratio(accent, f.body)).toBeGreaterThanOrEqual(4.5);
+    });
+  }
+
+  it("danger en trait : --jn-err ≥ 4,5 sur le fond du corps (sombre, clair)", () => {
+    for (const key of ["dark", "light"] as const) {
+      const f = fixture(key);
+      expect(
+        ratio(f.vars.get("--vscode-errorForeground") as string, f.body),
+        key,
+      ).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+});

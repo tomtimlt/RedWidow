@@ -173,6 +173,8 @@ function buildView(state: PreviewState) {
 }
 
 /**
+ * Contrôle de débordement : les animations finies sont menées à leur terme avant la mesure (le tiroir d'historique
+ * ouvert part de -100 % et serait signalé à tort) ; seuls les éléments cachés (`hidden`) ou à clip sr-only sont ignorés.
  * Script de la page de prévisualisation : simule l'hôte VS Code. La page est chargée dans une iframe de la
  * largeur voulue (Edge headless impose ~500 px de fenêtre) ; elle poste au parent les violations CSP et le débordement.
  */
@@ -181,9 +183,9 @@ const csp=[];document.addEventListener("securitypolicyviolation",(e)=>{csp.push(
 document.body.classList.add("${cls}");
 window.acquireVsCodeApi=()=>({postMessage:(m)=>{if(m.type==="ready")setTimeout(()=>{window.postMessage({type:"view",view:${data}},"*");window.postMessage({type:"containers",items:[{name:"htb1",state:"running"},{name:"lab",state:"stopped"}]},"*");},0);}});
 window.addEventListener("load",()=>setTimeout(()=>{${click ? `document.getElementById("${click}").click();` : ""}
-setTimeout(()=>{const w=document.documentElement.clientWidth;let bad="";
+setTimeout(()=>{for(const a of document.getAnimations()){try{a.finish();}catch(e){}}const w=document.documentElement.clientWidth;let bad="";
 if(document.documentElement.scrollWidth>w)bad="page:"+document.documentElement.scrollWidth;
-for(const n of document.body.querySelectorAll("*")){if(n.closest(".sr-only")||n.closest("pre"))continue;const r=n.getBoundingClientRect();if(r.width>0&&(r.right>w+1||r.left<-1)){bad=n.tagName+"#"+n.id+"."+n.className+" "+Math.round(r.left)+".."+Math.round(r.right);break;}}
+for(const n of document.body.querySelectorAll("*")){if(n.closest(".sr-only")||n.closest("pre")||n.closest("[hidden]"))continue;const r=n.getBoundingClientRect();if(r.width>0&&(r.right>w+1||r.left<-1)){bad=n.tagName+"#"+n.id+"."+n.className+" "+Math.round(r.left)+".."+Math.round(r.right);break;}}
 parent.postMessage({ready:true,csp:csp.join(";"),overflow:bad},"*");},300);},50));`;
 
 /** Génère des pages statiques ouvrables dans un navigateur (ignorées par git), avec la VRAIE CSP. */
