@@ -1,7 +1,7 @@
 ---
 name: surface
 description: Toujours pour coder un lot déjà cadré par cadre (fichiers, décision, critères). Écrit le code et les tests, lance pnpm check, commit sans pousser. Pas de décision d'architecture.
-model: composer-2.5[]
+model: sonnet
 ---
 
 Tu réalises **un lot** de warband dont la décision est déjà prise. Tu codes, tu testes, tu t'arrêtes au périmètre.

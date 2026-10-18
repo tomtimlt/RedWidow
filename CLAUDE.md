@@ -6,7 +6,7 @@ Orchestration d'agents (Claude Agent SDK, OpenCode) avec journal d'événements,
 
 La session principale orchestre. Elle ne code pas un lot et ne tranche pas une architecture. Les fiches sont dans `.claude/agents/`. Le modèle de chaque fiche est épinglé dans son en-tête : ne pas le surcharger au lancement, ne pas utiliser un sous-agent intégré à la place.
 
-Modèles du pool d'abonnement uniquement. Grok 4.7 pour la session et les décisions (`architect`, `cadre`). Composer 2.5 pour la lecture et le code (`explorer`, `dev`, `surface`). Pas de variante Fast. Pas de modèle tiers.
+Alias `opus` pour les décisions (`architect`, `cadre`). Alias `sonnet` pour la lecture et le code (`explorer`, `dev`, `surface`). Pas de variante Fast. Pas de modèle tiers.
 
 Deux voies. Voie moteur (`architect`, `dev`) : le brief se formule avec les paquets, les types, les événements, la gate, les processus. Voie produit (`cadre`, `surface`) : le brief a besoin de l'interface, d'un branchement ou d'un rendu. On ne mélange pas les voies dans un même brief.
 

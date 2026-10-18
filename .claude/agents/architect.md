@@ -1,7 +1,7 @@
 ---
 name: architect
 description: Toujours pour une décision de moteur (paquets, API, événements, gate, processus) ou une revue de lot sensible. Brief moteur uniquement. Décision et ADR, pas de code.
-model: grok-4.7
+model: opus
 tools: Read, Grep, Glob, Write, Edit
 ---
 

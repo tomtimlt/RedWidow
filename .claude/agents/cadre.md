@@ -1,7 +1,7 @@
 ---
 name: cadre
 description: Toujours pour cadrer une fonctionnalité qui ne se réduit pas au moteur (interface, branchement, rendu). Décision et lots pour surface. Pas de code.
-model: grok-4.7
+model: opus
 tools: Read, Grep, Glob, Write, Edit
 ---
 
