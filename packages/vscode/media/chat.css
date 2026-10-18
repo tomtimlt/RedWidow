@@ -381,11 +381,13 @@ pre {
   align-items: center;
   gap: var(--jn-s2);
 }
+/* Logo Warband animé (media/logo.svg, curseur clignotant en SMIL) : fond d'image, donc `img-src`. */
 .welcome::before {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  box-shadow: inset -14px -14px 0 var(--jn-accent-2);
+  width: 64px;
+  height: 64px;
+  border-radius: 0;
+  background: url("logo.svg") center / contain no-repeat;
+  box-shadow: none;
   margin-bottom: var(--jn-s2);
 }
 .welcome h2 {
@@ -1733,11 +1735,14 @@ body:not(.running) #toolbar #stop {
     background: none;
   }
   #title::before,
-  .welcome::before,
   #bypass-switch::before,
   #learning-switch::before {
     background: CanvasText;
     box-shadow: none;
+  }
+  /* Logo en couleurs de marque : décoratif, masqué en contraste forcé. */
+  .welcome::before {
+    background: none;
   }
   :focus-visible {
     outline: 2px solid Highlight;
