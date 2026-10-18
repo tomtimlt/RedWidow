@@ -29,6 +29,10 @@ Ces cinq déclarations sont les seuls hex hors repli de `var()` dans les feuille
 | `--jn-on-accent` | `--jn-on-brand` | `--jn-on-brand` | `var(--vscode-button-foreground)` | `ButtonText` |
 | `--jn-tint` (sélection, survol actif) | accent 14 % | accent 10 % | `transparent` + bordure `--jn-accent` | `Highlight` |
 | `--jn-secondary` | `--jn-slate` | `--jn-slate-ink` | `--vscode-contrastBorder` | `CanvasText` |
+| `--jn-accent-wash` (fond teinté opaque : bulle de consigne, étiquette active) | accent 14 % sur `input-background` | accent 10 % sur `input-background` | `transparent` | — |
+| `--jn-accent-edge` (bordure teintée) | accent 45 % | accent 55 % | `--jn-accent` | — |
+
+Les teintes d'accent passent par ces jetons, jamais par un `color-mix` direct dans une règle ; le contraste du texte posé dessus est vérifié par `test/contrast.test.ts`.
 
 Justification thème clair : le jaune pur fait 1,4:1 sur blanc, inutilisable en trait ou texte ; on garde le jaune en **remplissage** (texte sombre dessus, 13:1) et on passe au jaune foncé pour tout ce qui est fin. Justification contraste élevé : l'utilisateur a choisi un thème pour ses couleurs, on lui obéit ; le jaune ne survit qu'au logo en contraste élevé sombre (14:1 sur noir), le logo passe en monochrome `currentColor` en contraste élevé clair et en couleurs forcées.
 
@@ -93,6 +97,8 @@ Règles fermes (inchangées sauf mention) :
 | Fil | messages 100 % | `max-width: 92%` | colonne centrée `max-width: 820px` |
 | Composer | barre d'outils sous le `textarea` : étiquette modèle tronquée, Configurer en icône, envoyer/stop en icône | étiquette + « Configurer ▾ » | idem, centré 820 px |
 | Popover Configurer | une colonne, `min(232px, 100vw - 16px)` | idem | idem |
+
+Barre d'outils du composer **sous 720 px** (`@container app (max-width: 719px)`) : rangée d'icônes (pièce jointe, @, #, /, envoi), puis une seule rangée pour modèle, Configurer, Apprentissage et Bypass (`#ctl-group` en `nowrap`). L'étiquette du modèle absorbe la place et se tronque, les autres contrôles gardent leur taille. Jamais de contrôle seul sur une ligne.
 
 Aucun élément plus large que son conteneur ; textes longs en `ellipsis`. Popover en couche supérieure, placé par `placePopover` (`media/ui.js`).
 
