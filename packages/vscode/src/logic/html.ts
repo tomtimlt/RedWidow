@@ -52,7 +52,7 @@ const icon = (name: keyof typeof ICONS, cls = "ico"): string =>
  * SMIL (ni script ni ressource, donc compatible CSP stricte). Décoratif : `aria-hidden`.
  */
 const BRAND =
-  '<svg class="brand" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><polygon points="0.6,2 3.4,2 6.6,5.2 3.4,8.4 0.6,8.4 3.8,5.2" fill="#7A8899"/><polygon points="0.6,15.6 3.4,15.6 6.6,18.8 3.4,22 0.6,22 3.8,18.8" fill="#7A8899"/><polygon points="8.8,4.6 13.6,4.6 20.6,11.6 13.6,18.6 8.8,18.6 15.8,11.6" fill="#FFD60A"/><rect x="13.6" y="20" width="7" height="2.2" fill="#FFD60A"><animate attributeName="opacity" values="1;1;0;0" keyTimes="0;.5;.5;1" dur="1.06s" repeatCount="indefinite"/></rect></svg>';
+  '<svg class="brand" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><polygon points="1,1 4,1 8,5 4,9 1,9 5,5" class="brand-wing"/><polygon points="1,15 4,15 8,19 4,23 1,23 5,19" class="brand-wing"/><polygon points="13,5 16,5 23,12 16,19 13,19 20,12" class="brand-lead"/><rect x="18" y="20" width="5" height="3" class="brand-cursor"/></svg>';
 
 /**
  * Page de la webview de chat. CSP stricte : `default-src 'none'`, deux scripts (fichiers de

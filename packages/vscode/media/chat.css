@@ -166,7 +166,29 @@ select {
   width: 18px;
   height: 18px;
 }
-/* Écran d'accueil : carré bicolore (accent du thème, coin ardoise). */
+/* Couleurs du logo en ligne par classes (aucun hex dans le SVG). Clair : jaune foncé en aplat lisible. */
+.brand-wing {
+  fill: var(--jn-slate);
+}
+.brand-lead,
+.brand-cursor {
+  fill: var(--jn-brand);
+}
+body.vscode-light .brand-wing {
+  fill: var(--jn-slate-ink);
+}
+body.vscode-light .brand-lead,
+body.vscode-light .brand-cursor {
+  fill: var(--jn-brand-ink);
+}
+/* Contraste élevé clair : monochrome. Contraste élevé sombre : le jaune survit, ailiers en couleur du thème. */
+body.vscode-high-contrast .brand-wing,
+body.vscode-high-contrast-light .brand-wing,
+body.vscode-high-contrast-light .brand-lead,
+body.vscode-high-contrast-light .brand-cursor {
+  fill: currentColor;
+}
+/* Écran d'accueil : logo en fond d'image (voir plus bas), sinon carré d'accent. */
 .welcome::before {
   content: "";
   flex: none;
@@ -396,7 +418,7 @@ pre {
   align-items: center;
   gap: var(--jn-s2);
 }
-/* Logo Warband animé (media/logo.svg, curseur clignotant en SMIL) : fond d'image, donc `img-src`. */
+/* Logo Warband (media/logo.svg, curseur plein et immobile) : fond d'image, donc `img-src`. */
 .welcome::before {
   width: 64px;
   height: 64px;
@@ -1645,9 +1667,16 @@ body.no-provider #composer {
     background: CanvasText;
     box-shadow: none;
   }
-  /* Logo en couleurs de marque : décoratif, masqué en contraste forcé. */
+  /* Logo d'accueil monochrome : icon.svg en masque, rempli de la couleur de texte du système. */
   .welcome::before {
-    background: none;
+    background: CanvasText;
+    -webkit-mask: url("icon.svg") center / contain no-repeat;
+    mask: url("icon.svg") center / contain no-repeat;
+  }
+  .brand-wing,
+  .brand-lead,
+  .brand-cursor {
+    fill: CanvasText;
   }
   :focus-visible {
     outline: 2px solid Highlight;
@@ -1685,6 +1714,12 @@ body.vscode-high-contrast-light #title::before,
 body.vscode-high-contrast .welcome::before,
 body.vscode-high-contrast-light .welcome::before {
   box-shadow: none;
+}
+/* Contraste élevé clair : logo d'accueil monochrome (icon.svg en masque, couleur du texte). */
+body.vscode-high-contrast-light .welcome::before {
+  background: currentColor;
+  -webkit-mask: url("icon.svg") center / contain no-repeat;
+  mask: url("icon.svg") center / contain no-repeat;
 }
 body.vscode-high-contrast #title,
 body.vscode-high-contrast-light #title,

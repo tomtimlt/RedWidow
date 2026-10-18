@@ -573,6 +573,7 @@ export function activate(context: vscode.ExtensionContext): void {
       enableCommandUris: false,
       localResourceRoots: [media],
     });
+    panel.iconPath = vscode.Uri.joinPath(media, "logo-small.svg");
     cockpitPanel = panel;
     let alive = true;
     panel.onDidDispose(() => {
@@ -765,6 +766,7 @@ export function activate(context: vscode.ExtensionContext): void {
         localResourceRoots: [media],
       },
     );
+    panel.iconPath = vscode.Uri.joinPath(media, "logo-small.svg");
     const slot = slots.get(id);
     if (!slot) return;
     slot.panel = panel;
@@ -808,6 +810,7 @@ export function activate(context: vscode.ExtensionContext): void {
       enableCommandUris: false,
       localResourceRoots: [media],
     });
+    panel.iconPath = vscode.Uri.joinPath(media, "logo-small.svg");
     const watch = { panel, chatId, toolUseId };
     watches.push(watch);
     mountChatHtml(panel.webview);
@@ -836,6 +839,7 @@ export function activate(context: vscode.ExtensionContext): void {
       enableCommandUris: false,
       localResourceRoots: [media],
     });
+    panel.iconPath = vscode.Uri.joinPath(media, "logo-small.svg");
     monitorPanel = panel;
     mountChatHtml(panel.webview);
     panel.onDidDispose(() => {
@@ -942,6 +946,7 @@ export function activate(context: vscode.ExtensionContext): void {
       enableCommandUris: false,
       localResourceRoots: [media],
     });
+    studioPanel.iconPath = vscode.Uri.joinPath(media, "logo-small.svg");
     const nonce = makeNonce();
     studioPanel.webview.html = studioHtml({
       nonce,
