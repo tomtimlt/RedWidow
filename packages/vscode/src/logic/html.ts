@@ -46,6 +46,14 @@ const icon = (name: keyof typeof ICONS, cls = "ico"): string =>
   `<svg class="${cls}" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICONS[name]}</svg>`;
 
 /**
+ * Marque Warband : formation de chevrons (chef jaune, deux ailiers acier) et curseur clignotant.
+ * SVG inline rempli (pas `currentColor`) pour garder les couleurs de marque ; le clignotement est en
+ * SMIL (ni script ni ressource, donc compatible CSP stricte). Décoratif : `aria-hidden`.
+ */
+const BRAND =
+  '<svg class="brand" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><polygon points="0.6,2 3.4,2 6.6,5.2 3.4,8.4 0.6,8.4 3.8,5.2" fill="#7A8899"/><polygon points="0.6,15.6 3.4,15.6 6.6,18.8 3.4,22 0.6,22 3.8,18.8" fill="#7A8899"/><polygon points="8.8,4.6 13.6,4.6 20.6,11.6 13.6,18.6 8.8,18.6 15.8,11.6" fill="#FFD60A"/><rect x="13.6" y="20" width="7" height="2.2" fill="#FFD60A"><animate attributeName="opacity" values="1;1;0;0" keyTimes="0;.5;.5;1" dur="1.06s" repeatCount="indefinite"/></rect></svg>';
+
+/**
  * Page de la webview de chat. CSP stricte : `default-src 'none'`, deux scripts (fichiers de
  * l'extension) autorisés par nonce, feuille de style de l'extension seulement ; ni script inline
  * ni `eval` ni ressource distante. Les données arrivent par `postMessage`, affichées en `textContent`.
@@ -78,7 +86,7 @@ export function chatHtml({
 <title>Warband</title>
 </head>
 <body>
-<header id="bar"><span id="title">Warband</span><span id="sandbox" class="badge" hidden></span><span id="bypass-badge" class="badge" hidden></span><span id="learning-badge" class="badge" title="Mode Apprentissage : lecture des cours seule, aucune action" hidden>Apprentissage</span><button id="history-btn" type="button" class="ghost" aria-expanded="false" aria-controls="history" title="Historique des conversations">${icon("history")}<span class="btn-text">Historique</span></button><button id="reset" type="button" class="ghost" title="Nouvelle conversation">${icon("plus")}<span class="btn-text">Nouvelle<span class="btn-more"> conversation</span></span></button></header>
+<header id="bar"><span id="title">${BRAND}<span class="brand-name">Warband</span></span><span id="sandbox" class="badge" hidden></span><span id="bypass-badge" class="badge" hidden></span><span id="learning-badge" class="badge" title="Mode Apprentissage : lecture des cours seule, aucune action" hidden>Apprentissage</span><button id="history-btn" type="button" class="ghost" aria-expanded="false" aria-controls="history" title="Historique des conversations">${icon("history")}<span class="btn-text">Historique</span></button><button id="reset" type="button" class="ghost" title="Nouvelle conversation">${icon("plus")}<span class="btn-text">Nouvelle<span class="btn-more"> conversation</span></span></button></header>
 <section id="history" aria-label="Historique des conversations" hidden><div class="hist-head"><strong>Historique</strong><button id="history-clear" type="button" class="ghost">Tout effacer</button><button id="history-close" type="button" class="ghost icon-btn" title="Fermer l'historique (Échap)" aria-label="Fermer l'historique">${icon("close")}</button></div><ul id="history-list"></ul></section>
 <main id="log" role="log" aria-live="polite" aria-label="Conversation"></main>
 <div id="readonly" role="status" hidden><span id="readonly-text"></span><button id="readonly-resume" type="button" class="primary">Reprendre</button><button id="readonly-close" type="button" class="ghost">Fermer</button></div>

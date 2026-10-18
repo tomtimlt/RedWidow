@@ -143,8 +143,14 @@ select {
   color: var(--vscode-foreground);
   white-space: nowrap;
 }
-/* Marque : carré bicolore (accent du thème, coin magenta), posé une fois à l'ouverture. */
-#title::before,
+/* Logo Warband de l'en-tête : SVG inline, posé une fois à l'ouverture (transform/opacity). */
+#title .brand {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  animation: jn-logo-in var(--jn-d3) var(--jn-ease-spring) 1 both;
+}
+/* Écran d'accueil : carré bicolore (accent du thème, coin magenta), posé une fois à l'ouverture. */
 .welcome::before {
   content: "";
   flex: none;
