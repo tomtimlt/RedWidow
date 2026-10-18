@@ -1,8 +1,8 @@
 {
-  "name": "@john-studio/agent-sdk",
+  "name": "@warband/agent-sdk",
   "version": "0.1.0",
   "private": true,
-  "description": "Adaptateur du Claude Agent SDK pour le c\u0153ur john-studio : impl\u00e9mente AgentRunner, outils MCP docker.",
+  "description": "Adaptateur du Claude Agent SDK pour le c\u0153ur warband : impl\u00e9mente AgentRunner, outils MCP docker.",
   "type": "module",
   "engines": {
     "node": ">=22.12"
@@ -19,8 +19,8 @@
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.299",
     "@anthropic-ai/sdk": "^0.133.0",
-    "@john-studio/core": "workspace:*",
-    "@john-studio/messages": "workspace:*",
+    "@warband/core": "workspace:*",
+    "@warband/messages": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "zod": "^4.6.7"
   }

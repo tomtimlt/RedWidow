@@ -4,8 +4,8 @@ import {
   type GraphEdge,
   type GraphNode,
   stripControl,
-} from "@john-studio/core";
-import { eventLabel, type Locale } from "@john-studio/messages";
+} from "@warband/core";
+import { eventLabel, type Locale } from "@warband/messages";
 
 export interface RenderOptions {
   title?: string;
@@ -141,7 +141,7 @@ function groupOrphanOutputs(graph: EventGraph): {
  * dans l'ordre `seq`, une colonne par profondeur causale, arêtes parent→enfant.
  */
 export function renderGraphHtml(graph: EventGraph, options: RenderOptions = {}): string {
-  const title = options.title ?? `john-studio · ${graph.runId ?? "run"}`;
+  const title = options.title ?? `warband · ${graph.runId ?? "run"}`;
   const runNote =
     graph.runs.length > 1
       ? `<p class="runs">run ${graph.runs.indexOf(graph.runId ?? "") + 1} sur ${graph.runs.length} : ${graph.runs.map((r) => (r === graph.runId ? `<b>${escapeHtml(r)}</b>` : escapeHtml(r))).join(" · ")}</p>\n`

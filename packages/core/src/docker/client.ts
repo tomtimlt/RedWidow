@@ -242,7 +242,7 @@ const ENV_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const BARE_BINARY = /^[A-Za-z0-9._][A-Za-z0-9._-]*$/;
 const PORT = /^(?:[0-9.]+:)?\d+(?:-\d+)?:\d+(?:-\d+)?(?:\/(?:tcp|udp))?$/;
 
-/** Nature d'un opérande, clé de libellé (traduite par `@john-studio/messages`). */
+/** Nature d'un opérande, clé de libellé (traduite par `@warband/messages`). */
 export type DockerOperandLabel = "container" | "name" | "image" | "target" | "since";
 
 /**

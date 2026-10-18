@@ -1,7 +1,7 @@
 node_modules/
 dist/
 *.tsbuildinfo
-.john-studio/
+.warband/
 
 # Secrets locaux (jetons de test) : ne jamais commiter
 .env*

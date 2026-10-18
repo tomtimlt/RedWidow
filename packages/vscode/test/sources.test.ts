@@ -11,7 +11,7 @@ import {
 
 let root: string;
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), "john-cours-"));
+  root = mkdtempSync(join(tmpdir(), "warband-cours-"));
 });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 
@@ -46,7 +46,7 @@ describe("readSources (Atlas)", () => {
   it("ignore les fichiers simples à la racine et les liens symboliques", async () => {
     source("reel", { LICENSE: "MIT" });
     writeFileSync(join(root, "notes.md"), "x");
-    const outside = mkdtempSync(join(tmpdir(), "john-hors-"));
+    const outside = mkdtempSync(join(tmpdir(), "warband-hors-"));
     try {
       writeFileSync(join(outside, "LICENSE"), "SECRET");
       try {

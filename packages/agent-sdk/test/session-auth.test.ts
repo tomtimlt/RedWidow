@@ -7,8 +7,8 @@ import {
   type EngineEvent,
   type RunInput,
   type RunSummary,
-} from "@john-studio/core";
-import { formatError } from "@john-studio/messages";
+} from "@warband/core";
+import { formatError } from "@warband/messages";
 import { describe, expect, it } from "vitest";
 import { createSdkRunner, type QueryFn } from "../src/index.js";
 

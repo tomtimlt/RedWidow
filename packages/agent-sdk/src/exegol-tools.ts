@@ -5,7 +5,7 @@ import {
   EXEGOL_TOOL_PREFIX,
   type ExegolTargets,
   exegolToolSpecs,
-} from "@john-studio/core";
+} from "@warband/core";
 import { createSpecTools, type ResolveParent } from "./docker-tools.js";
 import type { Toolset } from "./toolset.js";
 

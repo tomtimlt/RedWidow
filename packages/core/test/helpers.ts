@@ -16,7 +16,7 @@ export async function fakeDocker(): Promise<{
   argsPrefix: string[];
   calls: () => Promise<string[]>;
 }> {
-  const dir = await mkdtemp(join(realpathSync.native(tmpdir()), "john-fake-docker-"));
+  const dir = await mkdtemp(join(realpathSync.native(tmpdir()), "warband-fake-docker-"));
   const script = join(dir, "docker.mjs");
   const log = join(dir, "calls.log");
   await writeFile(

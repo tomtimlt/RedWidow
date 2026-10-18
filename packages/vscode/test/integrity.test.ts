@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { matchesFingerprint, sha256File } from "../src/logic/integrity.js";
 
-const dir = mkdtempSync(join(tmpdir(), "john-integrity-"));
+const dir = mkdtempSync(join(tmpdir(), "warband-integrity-"));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 describe("empreinte du binaire", () => {

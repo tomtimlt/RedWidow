@@ -1,4 +1,4 @@
-import { createRecorder, type EngineEvent, type EventPayload } from "@john-studio/core";
+import { createRecorder, type EngineEvent, type EventPayload } from "@warband/core";
 import { describe, expect, it } from "vitest";
 import { formatEvent, formatRunList, summarizeOutput } from "../src/format.js";
 

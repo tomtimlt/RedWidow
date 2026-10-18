@@ -154,21 +154,21 @@ describe("runProcess", () => {
 
   it("ne transmet pas les secrets du parent à l'enfant", async () => {
     process.env.ANTHROPIC_API_KEY = "sk-ant-parent-secret";
-    process.env.JOHN_TEST_TOKEN = "tok-parent-secret";
+    process.env.WARBAND_TEST_TOKEN = "tok-parent-secret";
     try {
       const { recorder } = collect();
       const r = await runProcess(
         [
           node,
           "-e",
-          "console.log(JSON.stringify({ key: process.env.ANTHROPIC_API_KEY ?? null, tok: process.env.JOHN_TEST_TOKEN ?? null, path: Boolean(process.env.PATH) }))",
+          "console.log(JSON.stringify({ key: process.env.ANTHROPIC_API_KEY ?? null, tok: process.env.WARBAND_TEST_TOKEN ?? null, path: Boolean(process.env.PATH) }))",
         ],
         { recorder },
       );
       expect(JSON.parse(r.stdout[0] as string)).toEqual({ key: null, tok: null, path: true });
     } finally {
       delete process.env.ANTHROPIC_API_KEY;
-      delete process.env.JOHN_TEST_TOKEN;
+      delete process.env.WARBAND_TEST_TOKEN;
     }
   });
 
@@ -187,9 +187,9 @@ describe("runProcess", () => {
 
   it("rejette si le binaire est introuvable", async () => {
     const { recorder } = collect();
-    await expect(runProcess(["john-binaire-inexistant"], { recorder })).rejects.toMatchObject({
+    await expect(runProcess(["warband-binaire-inexistant"], { recorder })).rejects.toMatchObject({
       code: "process.notFound",
-      params: { binary: "john-binaire-inexistant" },
+      params: { binary: "warband-binaire-inexistant" },
     });
     await expect(runProcess([], { recorder })).rejects.toMatchObject({ code: "process.emptyArgv" });
   });
@@ -239,7 +239,7 @@ describe("docker", () => {
   });
 
   it("utilise le binaire configuré et lève sur code ≠ 0", async () => {
-    const dir = await mkdtemp(join(realpathSync.native(tmpdir()), "john-docker-"));
+    const dir = await mkdtemp(join(realpathSync.native(tmpdir()), "warband-docker-"));
     const script = join(dir, "docker.mjs");
     await writeFile(
       script,
@@ -398,7 +398,7 @@ posix("runProcess : terminaison du groupe", () => {
 
 describe("DockerClient : timeout", () => {
   it("transmet timeoutMs (client puis appel) à runProcess", async () => {
-    const dir = await mkdtemp(join(realpathSync.native(tmpdir()), "john-slow-docker-"));
+    const dir = await mkdtemp(join(realpathSync.native(tmpdir()), "warband-slow-docker-"));
     const script = join(dir, "docker.mjs");
     await writeFile(script, "setTimeout(() => {}, 30_000);\n");
     const { recorder, events } = collect();

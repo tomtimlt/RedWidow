@@ -1,9 +1,9 @@
 {
-  "name": "john-studio",
-  "displayName": "John",
-  "description": "Chat d'agent avec approbation des outils (john-studio).",
+  "name": "warband",
+  "displayName": "Warband",
+  "description": "Chat d'agent avec approbation des outils (warband).",
   "version": "0.3.0",
-  "publisher": "john-studio",
+  "publisher": "warband",
   "license": "UNLICENSED",
   "engines": { "vscode": "^1.90.0" },
   "main": "./extension.cjs",
@@ -12,111 +12,127 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": false,
-      "description": "John exécute un agent qui lit et modifie les fichiers de l'espace de travail : il est désactivé tant que le dossier n'est pas approuvé."
+      "description": "Warband exécute un agent qui lit et modifie les fichiers de l'espace de travail : il est désactivé tant que le dossier n'est pas approuvé."
     },
     "virtualWorkspaces": false
   },
   "contributes": {
     "commands": [
-      { "command": "john.launcher", "title": "John : lanceur", "icon": "$(rocket)" },
+      { "command": "warband.launcher", "title": "Warband : lanceur", "icon": "$(rocket)" },
       {
-        "command": "john.openChat",
-        "title": "John : ouvrir un chat",
+        "command": "warband.openChat",
+        "title": "Warband : ouvrir un chat",
         "icon": "$(comment-discussion)"
       },
       {
-        "command": "john.openCockpit",
-        "title": "John : ouvrir le cockpit",
+        "command": "warband.openCockpit",
+        "title": "Warband : ouvrir le cockpit",
         "icon": "$(dashboard)"
       },
       {
-        "command": "john.openStudio",
-        "title": "John : ouvrir les réglages",
+        "command": "warband.openStudio",
+        "title": "Warband : ouvrir les réglages",
         "icon": "$(settings-gear)"
       },
       {
-        "command": "john.openTerminal",
-        "title": "John : ouvrir un terminal",
+        "command": "warband.openTerminal",
+        "title": "Warband : ouvrir un terminal",
         "icon": "$(terminal)"
       },
-      { "command": "john.openMonitor", "title": "John : ouvrir le Monitor", "icon": "$(pulse)" },
       {
-        "command": "john.focusChat",
-        "title": "John : aller au chat latéral",
+        "command": "warband.openMonitor",
+        "title": "Warband : ouvrir le Monitor",
+        "icon": "$(pulse)"
+      },
+      {
+        "command": "warband.focusChat",
+        "title": "Warband : aller au chat latéral",
         "icon": "$(comment)"
       },
-      { "command": "john.setToken", "title": "John : définir le jeton", "icon": "$(key)" },
-      { "command": "john.clearToken", "title": "John : effacer le jeton" },
-      { "command": "john.diagnostic", "title": "John : diagnostic", "icon": "$(pulse)" }
+      { "command": "warband.setToken", "title": "Warband : définir le jeton", "icon": "$(key)" },
+      { "command": "warband.clearToken", "title": "Warband : effacer le jeton" },
+      { "command": "warband.diagnostic", "title": "Warband : diagnostic", "icon": "$(pulse)" }
     ],
     "menus": {
       "view/title": [
-        { "command": "john.openTerminal", "when": "view == john.chat", "group": "navigation@1" },
-        { "command": "john.openChat", "when": "view == john.chat", "group": "navigation@2" },
-        { "command": "john.openCockpit", "when": "view == john.chat", "group": "navigation@3" },
-        { "command": "john.openStudio", "when": "view == john.chat", "group": "navigation@4" },
-        { "command": "john.openMonitor", "when": "view == john.chat", "group": "outils@1" },
-        { "command": "john.setToken", "when": "view == john.chat", "group": "outils@2" },
-        { "command": "john.diagnostic", "when": "view == john.chat", "group": "outils@3" }
+        {
+          "command": "warband.openTerminal",
+          "when": "view == warband.chat",
+          "group": "navigation@1"
+        },
+        { "command": "warband.openChat", "when": "view == warband.chat", "group": "navigation@2" },
+        {
+          "command": "warband.openCockpit",
+          "when": "view == warband.chat",
+          "group": "navigation@3"
+        },
+        {
+          "command": "warband.openStudio",
+          "when": "view == warband.chat",
+          "group": "navigation@4"
+        },
+        { "command": "warband.openMonitor", "when": "view == warband.chat", "group": "outils@1" },
+        { "command": "warband.setToken", "when": "view == warband.chat", "group": "outils@2" },
+        { "command": "warband.diagnostic", "when": "view == warband.chat", "group": "outils@3" }
       ],
       "editor/title": [
         {
-          "command": "john.openTerminal",
-          "when": "activeWebviewPanelId =~ /^john\\./",
+          "command": "warband.openTerminal",
+          "when": "activeWebviewPanelId =~ /^warband\\./",
           "group": "navigation@1"
         },
         {
-          "command": "john.openChat",
-          "when": "activeWebviewPanelId =~ /^john\\./",
+          "command": "warband.openChat",
+          "when": "activeWebviewPanelId =~ /^warband\\./",
           "group": "navigation@2"
         },
         {
-          "command": "john.launcher",
-          "when": "activeWebviewPanelId =~ /^john\\./",
+          "command": "warband.launcher",
+          "when": "activeWebviewPanelId =~ /^warband\\./",
           "group": "navigation@3"
         }
       ],
-      "commandPalette": [{ "command": "john.focusChat", "when": "false" }]
+      "commandPalette": [{ "command": "warband.focusChat", "when": "false" }]
     },
     "keybindings": [
-      { "command": "john.launcher", "key": "alt+j alt+j", "mac": "ctrl+j ctrl+j" },
-      { "command": "john.focusChat", "key": "alt+j c", "mac": "ctrl+j c" },
-      { "command": "john.openChat", "key": "alt+j n", "mac": "ctrl+j n" },
-      { "command": "john.openTerminal", "key": "alt+j t", "mac": "ctrl+j t" },
-      { "command": "john.openCockpit", "key": "alt+j k", "mac": "ctrl+j k" },
-      { "command": "john.openMonitor", "key": "alt+j m", "mac": "ctrl+j m" },
-      { "command": "john.openStudio", "key": "alt+j s", "mac": "ctrl+j s" }
+      { "command": "warband.launcher", "key": "alt+j alt+j", "mac": "ctrl+j ctrl+j" },
+      { "command": "warband.focusChat", "key": "alt+j c", "mac": "ctrl+j c" },
+      { "command": "warband.openChat", "key": "alt+j n", "mac": "ctrl+j n" },
+      { "command": "warband.openTerminal", "key": "alt+j t", "mac": "ctrl+j t" },
+      { "command": "warband.openCockpit", "key": "alt+j k", "mac": "ctrl+j k" },
+      { "command": "warband.openMonitor", "key": "alt+j m", "mac": "ctrl+j m" },
+      { "command": "warband.openStudio", "key": "alt+j s", "mac": "ctrl+j s" }
     ],
     "viewsContainers": {
-      "activitybar": [{ "id": "john", "title": "John", "icon": "media/icon.svg" }]
+      "activitybar": [{ "id": "warband", "title": "Warband", "icon": "media/icon.svg" }]
     },
     "views": {
-      "john": [{ "type": "webview", "id": "john.chat", "name": "Chat" }]
+      "warband": [{ "type": "webview", "id": "warband.chat", "name": "Chat" }]
     },
     "configuration": {
-      "title": "John",
+      "title": "Warband",
       "properties": {
-        "john.model": {
+        "warband.model": {
           "type": "string",
           "default": "",
           "scope": "machine",
           "markdownDescription": "Modèle à utiliser (texte libre). Vide : défaut du SDK. Ignoré s'il est posé au niveau de l'espace de travail."
         },
-        "john.maxTurns": {
+        "warband.maxTurns": {
           "type": "integer",
           "minimum": 0,
           "default": 0,
           "scope": "machine",
           "markdownDescription": "Nombre maximal de tours de l'agent par conversation. 0 : pas de plafond."
         },
-        "john.ultracode.maxTurns": {
+        "warband.ultracode.maxTurns": {
           "type": "integer",
           "minimum": 0,
           "default": 0,
           "scope": "machine",
-          "markdownDescription": "Plafond de tours du préréglage **Ultracode** (effort Max + limites longues). 0 : pas de plafond de tours. Remplace `john.maxTurns` quand Ultracode est choisi."
+          "markdownDescription": "Plafond de tours du préréglage **Ultracode** (effort Max + limites longues). 0 : pas de plafond de tours. Remplace `warband.maxTurns` quand Ultracode est choisi."
         },
-        "john.ultracode.maxBudgetUsd": {
+        "warband.ultracode.maxBudgetUsd": {
           "type": "number",
           "minimum": 0,
           "default": 0,

@@ -1,4 +1,4 @@
-import type { ReasonParams } from "@john-studio/core";
+import type { ReasonParams } from "@warband/core";
 
 export type Locale = "fr" | "en";
 

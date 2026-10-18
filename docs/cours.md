@@ -1,6 +1,6 @@
 # Sources de cours (mode apprentissage)
 
-Le mode apprentissage (ADR 0010) lit un dossier de cours en lecture seule. **Le dépôt ne contient aucun contenu de cours** : seulement le manifeste `cours/sources.json` et le script `scripts/cours-sync.mjs`. Le contenu est téléchargé à la demande dans `<dossier de configuration>/cours/<nom>/` (`$XDG_CONFIG_HOME/john-studio` ou `~/.config/john-studio` ; `%APPDATA%\john-studio` sous Windows).
+Le mode apprentissage (ADR 0010) lit un dossier de cours en lecture seule. **Le dépôt ne contient aucun contenu de cours** : seulement le manifeste `cours/sources.json` et le script `scripts/cours-sync.mjs`. Le contenu est téléchargé à la demande dans `<dossier de configuration>/cours/<nom>/` (`$XDG_CONFIG_HOME/warband` ou `~/.config/warband` ; `%APPDATA%\warband` sous Windows).
 
 ## Synchroniser
 

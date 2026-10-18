@@ -1,4 +1,4 @@
-import { CodedError } from "@john-studio/core";
+import { CodedError } from "@warband/core";
 import type { UltracodeLimits } from "./effort.js";
 
 /** Forme de `WorkspaceConfiguration.inspect` : les valeurs d'espace de travail n'y sont jamais lues. */
@@ -24,7 +24,7 @@ export interface ChatSettings {
   ultracode?: UltracodeLimits;
 }
 
-/** Lit et valide les réglages (`get` renvoie la valeur machine de `john.<clé>`). Lève `CodedError`. */
+/** Lit et valide les réglages (`get` renvoie la valeur machine de `warband.<clé>`). Lève `CodedError`. */
 export function resolveSettings(get: (key: string) => unknown): ChatSettings {
   const out: ChatSettings = {};
   const model = get("model");

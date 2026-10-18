@@ -1,8 +1,8 @@
 {
-  "name": "@john-studio/agent-opencode",
+  "name": "@warband/agent-opencode",
   "version": "0.1.0",
   "private": true,
-  "description": "Adaptateur OpenCode pour le cœur john-studio : implémente AgentRunner pour des agents non Anthropic (OpenAI, Gemini, Ollama…).",
+  "description": "Adaptateur OpenCode pour le cœur warband : implémente AgentRunner pour des agents non Anthropic (OpenAI, Gemini, Ollama…).",
   "type": "module",
   "engines": {
     "node": ">=22.12"
@@ -17,8 +17,8 @@
     "dist"
   ],
   "dependencies": {
-    "@john-studio/core": "workspace:*",
-    "@john-studio/messages": "workspace:*",
+    "@warband/core": "workspace:*",
+    "@warband/messages": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@opencode-ai/sdk": "1.19.0",
     "zod": "^4.6.7"

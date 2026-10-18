@@ -9,7 +9,7 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import type { EngineEvent } from "@john-studio/core";
+import type { EngineEvent } from "@warband/core";
 import { afterAll, describe, expect, it } from "vitest";
 import { createOpencodeRunner, dockerToolset } from "../src/index.js";
 import { fakeDocker, harness } from "./helpers.js";

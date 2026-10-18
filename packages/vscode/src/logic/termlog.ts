@@ -1,4 +1,4 @@
-import { TERMINAL_CONTEXT_MARK } from "@john-studio/core";
+import { TERMINAL_CONTEXT_MARK } from "@warband/core";
 
 /** Octets lus en fin de fichier, avant nettoyage des séquences. */
 export const TERMINAL_TAIL_RAW = 65_536;
@@ -41,8 +41,8 @@ function stripControls(raw: string): string {
 }
 
 /** Dossier des journaux de shell, dans le conteneur (jamais sur l'hôte). */
-export const CONTAINER_LOG_DIR = "/tmp/john-terminals";
-const LOG_PATH = /^\/tmp\/john-terminals\/[A-Za-z0-9][A-Za-z0-9_.-]{0,63}-[0-9a-f]{8}\.log$/;
+export const CONTAINER_LOG_DIR = "/tmp/warband-terminals";
+const LOG_PATH = /^\/tmp\/warband-terminals\/[A-Za-z0-9][A-Za-z0-9_.-]{0,63}-[0-9a-f]{8}\.log$/;
 
 /**
  * Chemin du journal d'un shell : jeton validé et suffixe aléatoire (deux fenêtres VS Code ne
@@ -69,7 +69,7 @@ export function capturedShell(logPath: string): string[] {
     'if command -v script >/dev/null 2>&1; then exec script -q -f -c /bin/bash "$1"; fi',
     "exec /bin/bash",
   ].join("; ");
-  return ["/bin/bash", "-c", body, "john", assertLogPath(logPath)];
+  return ["/bin/bash", "-c", body, "warband", assertLogPath(logPath)];
 }
 
 /** Lecture de la fin du journal (argv de `docker exec`, sans shell). */
@@ -89,10 +89,10 @@ export function shellToken(short: string, index: number): string | null {
   return TOKEN.test(token) ? token : null;
 }
 
-/** Indice porté par le titre `John : <réel>` ou `John : <réel> (n)`, puis jeton court. */
+/** Indice porté par le titre `Warband : <réel>` ou `Warband : <réel> (n)`, puis jeton court. */
 export function mentionToken(real: string, title: string, short: string): string | null {
-  if (title === `John : ${real}`) return shellToken(short, 1);
-  const prefix = `John : ${real} (`;
+  if (title === `Warband : ${real}`) return shellToken(short, 1);
+  const prefix = `Warband : ${real} (`;
   if (!title.startsWith(prefix) || !title.endsWith(")")) return null;
   const index = Number(title.slice(prefix.length, -1));
   return shellToken(short, index);

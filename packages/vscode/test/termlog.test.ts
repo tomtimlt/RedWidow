@@ -1,4 +1,4 @@
-import { TERMINAL_CONTEXT_MARK } from "@john-studio/core";
+import { TERMINAL_CONTEXT_MARK } from "@warband/core";
 import { describe, expect, it } from "vitest";
 import { terminalLaunch } from "../src/logic/cockpit.js";
 import {
@@ -19,7 +19,9 @@ import {
 describe("journal de terminal", () => {
   it("journal dans le conteneur : chemin validé, jamais construit à partir d'une saisie libre", () => {
     expect(containerLogPath("htb1", "0a1b2c3d")).toBe(`${CONTAINER_LOG_DIR}/htb1-0a1b2c3d.log`);
-    expect(containerLogPath("htb1-2", "deadbeef")).toBe("/tmp/john-terminals/htb1-2-deadbeef.log");
+    expect(containerLogPath("htb1-2", "deadbeef")).toBe(
+      "/tmp/warband-terminals/htb1-2-deadbeef.log",
+    );
     expect(containerLogPath("../x", "0a1b2c3d")).toBeNull();
     expect(containerLogPath("a/b", "0a1b2c3d")).toBeNull();
     expect(containerLogPath("htb1", "zz")).toBeNull();
@@ -27,20 +29,20 @@ describe("journal de terminal", () => {
   });
 
   it("shell capturé : script constant, chemin en argument positionnel", () => {
-    const log = "/tmp/john-terminals/htb1-0a1b2c3d.log";
+    const log = "/tmp/warband-terminals/htb1-0a1b2c3d.log";
     const argv = capturedShell(log);
     expect(argv[0]).toBe("/bin/bash");
     expect(argv[1]).toBe("-c");
     expect(argv[2]).toContain('exec script -q -f -c /bin/bash "$1"');
     expect(argv[2]).toContain("exec /bin/bash");
     expect(argv[2]).not.toContain(log);
-    expect(argv.slice(3)).toEqual(["john", log]);
+    expect(argv.slice(3)).toEqual(["warband", log]);
     expect(() => capturedShell("/etc/passwd")).toThrow();
-    expect(() => capturedShell("/tmp/john-terminals/x-0a1b2c3d.log; rm -rf /")).toThrow();
+    expect(() => capturedShell("/tmp/warband-terminals/x-0a1b2c3d.log; rm -rf /")).toThrow();
   });
 
   it("lecture et suppression : argv direct, chemin validé", () => {
-    const log = "/tmp/john-terminals/htb1-0a1b2c3d.log";
+    const log = "/tmp/warband-terminals/htb1-0a1b2c3d.log";
     expect(tailCommand(log)).toEqual(["tail", "-c", "65536", log]);
     expect(removeLogCommand(log)).toEqual(["rm", "-f", log]);
     expect(() => tailCommand("/root/.ssh/id_rsa")).toThrow();
@@ -48,7 +50,7 @@ describe("journal de terminal", () => {
   });
 
   it("docker exec : le shell capturé remplace /bin/bash, options figées", () => {
-    const log = "/tmp/john-terminals/htb1-0a1b2c3d.log";
+    const log = "/tmp/warband-terminals/htb1-0a1b2c3d.log";
     const { shellPath, shellArgs } = terminalLaunch(
       "exegol-htb1",
       "/usr/bin/docker",
@@ -72,9 +74,9 @@ describe("journal de terminal", () => {
     expect(shellToken("htb1", 2)).toBe("htb1-2");
     expect(shellToken("htb1", 5)).toBeNull();
     expect(shellToken("mauvais/nom", 1)).toBeNull();
-    expect(mentionToken("exegol-htb1", "John : exegol-htb1", "htb1")).toBe("htb1");
-    expect(mentionToken("exegol-htb1", "John : exegol-htb1 (2)", "htb1")).toBe("htb1-2");
-    expect(mentionToken("exegol-htb1", "John : autre", "htb1")).toBeNull();
+    expect(mentionToken("exegol-htb1", "Warband : exegol-htb1", "htb1")).toBe("htb1");
+    expect(mentionToken("exegol-htb1", "Warband : exegol-htb1 (2)", "htb1")).toBe("htb1-2");
+    expect(mentionToken("exegol-htb1", "Warband : autre", "htb1")).toBeNull();
   });
 
   it("extrait les # et nettoie la fin du tampon", () => {

@@ -1,7 +1,7 @@
 import { mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
-import { resolveBinary } from "@john-studio/core";
+import { resolveBinary } from "@warband/core";
 import { describe, expect, it } from "vitest";
 import {
   assertSafeConfig,

@@ -1,8 +1,8 @@
 {
-  "name": "@john-studio/export-html",
+  "name": "@warband/export-html",
   "version": "0.1.0",
   "private": true,
-  "description": "Export HTML autonome du graphe d'\u00e9v\u00e9nements john-studio.",
+  "description": "Export HTML autonome du graphe d'\u00e9v\u00e9nements warband.",
   "type": "module",
   "engines": {
     "node": ">=22.12"
@@ -17,7 +17,7 @@
     "dist"
   ],
   "dependencies": {
-    "@john-studio/core": "workspace:*",
-    "@john-studio/messages": "workspace:*"
+    "@warband/core": "workspace:*",
+    "@warband/messages": "workspace:*"
   }
 }

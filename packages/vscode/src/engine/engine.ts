@@ -14,7 +14,7 @@ import {
   loadPolicy,
   openJournal,
   secretsFromEnv,
-} from "@john-studio/core";
+} from "@warband/core";
 import {
   type EndedSummary,
   type FromEngine,
@@ -152,7 +152,7 @@ export function runEngine({
       const journal = await openJournal(
         params.journalDir !== undefined
           ? join(params.journalDir, `${recorder.runId}.jsonl`)
-          : join(params.cwd, ".john-studio", "runs", `${recorder.runId}.jsonl`),
+          : join(params.cwd, ".warband", "runs", `${recorder.runId}.jsonl`),
       );
       try {
         // Mode apprentissage (ADR 0010) : politique dédiée figée, aucune politique lue ni approuvée.

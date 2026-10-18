@@ -17,7 +17,7 @@ const setup = async () => {
   const fake = await fakeDocker();
   const recorder = createRecorder({ runId: "r" });
   const docker = createDockerClient({ recorder, binary: fake.bin, argsPrefix: fake.argsPrefix });
-  const configDir = await mkdtemp(join(tmpdir(), "john-project-"));
+  const configDir = await mkdtemp(join(tmpdir(), "warband-project-"));
   return { fake, docker, configDir };
 };
 

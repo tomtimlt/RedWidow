@@ -4,7 +4,7 @@
 
 ## Mission
 
-**Valider john-studio sur un vrai Windows** (lot W-L6), corriger ce qui échoue, puis rendre le job Windows de la CI bloquant. Branche de travail : `claude/happy-bardeen-5u5dow` (ne pas pousser ailleurs, pas de PR sans demande).
+**Valider warband sur un vrai Windows** (lot W-L6), corriger ce qui échoue, puis rendre le job Windows de la CI bloquant. Branche de travail : `claude/happy-bardeen-5u5dow` (ne pas pousser ailleurs, pas de PR sans demande).
 
 Le projet : orchestration d'agents IA (adaptateurs Claude Agent SDK et OpenCode) avec journal d'événements, graphe causal, **gate d'approbation** des outils et outils Docker. Monorepo pnpm TypeScript, texte en français. L'utilisateur travaille sous Windows avec Docker Desktop (WSL2, conteneurs Linux) ; WSL lui est impossible, donc le support **natif** est la priorité n°1. Objectif à terme : un équivalent personnel d'Exegol Studio (extension VS Code) pour s'entraîner aux CTF et certifications.
 
@@ -42,7 +42,7 @@ Noter pour chaque étape : réussi / échec + sortie utile. Corriger les échecs
 6. **Arrêt d'arbre** : lancer un processus Node qui crée un enfant de longue durée, appeler `terminateProcessTree`, vérifier avec `tasklist` que les descendants ont disparu et que `forced` vaut `true`.
 7. **Environnement** : exporter une fausse variable `ANTHROPIC_API_KEY`, lancer un enfant via `runProcess`, vérifier qu'elle n'est pas transmise alors que `PATH`/`SystemRoot` le sont.
 8. **Docker réel** : `ps` et `images` via le client du cœur ; création et suppression d'un conteneur de test (`docker run` simple, sans volume) ; vérifier le tube nommé et l'arrêt d'un `docker` tué.
-9. **Claude réel** : l'utilisateur crée un jeton avec `claude setup-token` et le place **lui-même** dans la variable d'environnement `CLAUDE_CODE_OAUTH_TOKEN` de la session (jamais dans le chat). Puis `$env:JOHN_CONTRACT_SUBSCRIPTION="1"; pnpm test:contract` (5 scénarios attendus). Vérifier au `system/init` que ni `PowerShell` ni `Bash` n'apparaissent dans la liste d'outils (sinon le run doit s'arrêter avec `sdk.unexpectedTool`).
+9. **Claude réel** : l'utilisateur crée un jeton avec `claude setup-token` et le place **lui-même** dans la variable d'environnement `CLAUDE_CODE_OAUTH_TOKEN` de la session (jamais dans le chat). Puis `$env:WARBAND_CONTRACT_SUBSCRIPTION="1"; pnpm test:contract` (5 scénarios attendus). Vérifier au `system/init` que ni `PowerShell` ni `Bash` n'apparaissent dans la liste d'outils (sinon le run doit s'arrêter avec `sdk.unexpectedTool`).
 10. **OpenCode** : installer le binaire natif `.exe`, `$env:OPENCODE_BIN="C:\chemin\opencode.exe"; pnpm test` (contrats hors ligne). Un modèle gratuit répond 403 avec notre configuration (documenté) ; un vrai fournisseur demande une clé passée par variable d'environnement.
 11. **Politique et journal** : `policy trust` sur un fichier de dépôt (empreinte via `realpathSync.native`), `run` avec un agent factice, `journal` et `graph`, ouverture de l'export HTML.
 

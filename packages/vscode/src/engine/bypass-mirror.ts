@@ -1,4 +1,4 @@
-import type { BypassOffReason, BypassState, BypassSwitch } from "@john-studio/core";
+import type { BypassOffReason, BypassState, BypassSwitch } from "@warband/core";
 
 /**
  * Miroir en lecture du Bypass dans le moteur (ADR 0006, décision 6). L'hôte possède l'état et la

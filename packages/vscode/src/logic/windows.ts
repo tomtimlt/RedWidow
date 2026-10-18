@@ -1,4 +1,4 @@
-/** Panneaux de droite mémorisés (`workspaceState`, clé `john.windows`). */
+/** Panneaux de droite mémorisés (`workspaceState`, clé `warband.windows`). */
 
 export const WINDOW_KINDS = ["chat", "terminal", "monitor", "cockpit", "settings"] as const;
 export type WindowKind = (typeof WINDOW_KINDS)[number];
@@ -18,7 +18,7 @@ const SINGLETONS = new Set<WindowKind>(["monitor", "cockpit", "settings"]);
 
 /**
  * Liste validée. Entrée inconnue, clé en trop, chatId ou container invalides, singleton doublé : ignorés.
- * `john.layout` n'est pas lu ici.
+ * `warband.layout` n'est pas lu ici.
  */
 export function parseWindows(raw: unknown): WindowEntry[] {
   if (!Array.isArray(raw)) return [];

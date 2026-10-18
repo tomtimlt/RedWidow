@@ -5,8 +5,8 @@ import { join, resolve } from "node:path";
 import {
   createOpencodeRunner,
   dockerToolset as opencodeDockerToolset,
-} from "@john-studio/agent-opencode";
-import { createSdkRunner, dockerToolset } from "@john-studio/agent-sdk";
+} from "@warband/agent-opencode";
+import { createSdkRunner, dockerToolset } from "@warband/agent-sdk";
 import {
   type AgentRunner,
   type AuthMode,
@@ -27,9 +27,9 @@ import {
   splitRuns,
   status,
   trustPolicy,
-} from "@john-studio/core";
-import { renderGraphHtml } from "@john-studio/export-html";
-import { formatError, formatReason } from "@john-studio/messages";
+} from "@warband/core";
+import { renderGraphHtml } from "@warband/export-html";
+import { formatError, formatReason } from "@warband/messages";
 import { Command, InvalidArgumentError } from "commander";
 import { createTerminalAsker } from "./ask.js";
 import { colorEnabled, describeAuthIntent, formatEvent, formatRunList } from "./format.js";
@@ -82,7 +82,7 @@ function printer(verbose: boolean) {
 }
 
 const program = new Command()
-  .name("john")
+  .name("warband")
   .description("Orchestration de conteneurs Docker via un agent (Claude Agent SDK ou OpenCode).")
   .version("0.1.0");
 
@@ -138,7 +138,7 @@ program
     const recorder = createRecorder();
     const journalPath = resolve(
       cwd,
-      opts.journal ?? join(".john-studio", "runs", `${recorder.runId}.jsonl`),
+      opts.journal ?? join(".warband", "runs", `${recorder.runId}.jsonl`),
     );
     const journal = await openJournal(journalPath);
     recorder.subscribe(journal.sink);
@@ -401,6 +401,6 @@ program
   });
 
 program.parseAsync().catch((err: unknown) => {
-  process.stderr.write(`john : ${formatError(err)}\n`);
+  process.stderr.write(`warband : ${formatError(err)}\n`);
   process.exitCode = 1;
 });

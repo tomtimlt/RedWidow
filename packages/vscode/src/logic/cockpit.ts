@@ -12,8 +12,8 @@ import {
   resolveBinary,
   shortContainerName,
   status,
-} from "@john-studio/core";
-import { formatError } from "@john-studio/messages";
+} from "@warband/core";
+import { formatError } from "@warband/messages";
 
 /** Messages acceptés depuis la webview cockpit (non fiables). */
 export type CockpitMessage =
@@ -104,12 +104,12 @@ export type EditorShellPlan =
 const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const shellTitle = (name: string, index: number): string =>
-  index <= 1 ? `John : ${name}` : `John : ${name} (${index})`;
+  index <= 1 ? `Warband : ${name}` : `Warband : ${name} (${index})`;
 
 /** Indice 1–4 si le titre correspond exactement à un shell de ce conteneur ; sinon `null`. */
 const parseShellIndex = (title: string, name: string): number | null => {
-  if (title === `John : ${name}`) return 1;
-  const m = new RegExp(`^John : ${escapeRegExp(name)} \\((\\d+)\\)$`).exec(title);
+  if (title === `Warband : ${name}`) return 1;
+  const m = new RegExp(`^Warband : ${escapeRegExp(name)} \\((\\d+)\\)$`).exec(title);
   if (m === null) return null;
   const n = Number(m[1]);
   if (n >= 2 && n <= EDITOR_SHELL_CAP) return n;

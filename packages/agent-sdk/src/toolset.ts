@@ -1,5 +1,5 @@
 import type { SdkMcpToolDefinition } from "@anthropic-ai/claude-agent-sdk";
-import type { Correlation, Recorder } from "@john-studio/core";
+import type { Correlation, Recorder } from "@warband/core";
 
 /** Définition d'outil MCP quelconque (le schéma zod varie d'un outil à l'autre). */
 // biome-ignore lint/suspicious/noExplicitAny: le SDK type `tools` avec `SdkMcpToolDefinition<any>[]`.

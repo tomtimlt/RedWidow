@@ -1,8 +1,8 @@
 {
-  "name": "@john-studio/messages",
+  "name": "@warband/messages",
   "version": "0.1.0",
   "private": true,
-  "description": "Libellés de john-studio : traduit les codes du cœur (motifs, erreurs, événements) en texte lisible.",
+  "description": "Libellés de warband : traduit les codes du cœur (motifs, erreurs, événements) en texte lisible.",
   "type": "module",
   "engines": {
     "node": ">=22.12"
@@ -17,6 +17,6 @@
     "dist"
   ],
   "dependencies": {
-    "@john-studio/core": "workspace:*"
+    "@warband/core": "workspace:*"
   }
 }

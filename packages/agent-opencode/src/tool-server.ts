@@ -1,10 +1,10 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
-import type { DockerToolContext, DockerToolSpec } from "@john-studio/core";
-import { formatError } from "@john-studio/messages";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import type { DockerToolContext, DockerToolSpec } from "@warband/core";
+import { formatError } from "@warband/messages";
 
 export interface ServedToolset {
   name: string;

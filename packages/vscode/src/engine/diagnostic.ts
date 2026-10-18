@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { createSdkRunner } from "@john-studio/agent-sdk";
+import { createSdkRunner } from "@warband/agent-sdk";
 import { matchesFingerprint } from "../logic/integrity.js";
 
 /**

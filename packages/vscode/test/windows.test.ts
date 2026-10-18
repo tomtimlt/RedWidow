@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { parseWindows, WINDOW_CAP } from "../src/logic/windows.js";
 
 describe("parseWindows", () => {
-  it("garde une liste valide et ignore john.layout", () => {
+  it("garde une liste valide et ignore warband.layout", () => {
     expect(
       parseWindows([
         { kind: "chat", chatId: "c2" },

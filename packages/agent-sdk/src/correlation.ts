@@ -4,4 +4,4 @@ export {
   type ToolCall,
   ToolCallRegistry,
   toolUseIdFromExtra,
-} from "@john-studio/core";
+} from "@warband/core";

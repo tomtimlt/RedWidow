@@ -74,7 +74,7 @@ export interface RunSummary {
 
 /**
  * Contrat d'un moteur d'agent. Le cœur ne connaît aucun SDK : un adaptateur
- * (ex. `@john-studio/agent-sdk`) l'implémente et traduit son flux en événements.
+ * (ex. `@warband/agent-sdk`) l'implémente et traduit son flux en événements.
  */
 export interface AgentRunner {
   run(input: RunInput, ctx: RunContext): Promise<RunSummary>;

@@ -8,17 +8,17 @@
 
 1. Portage visuel complet (jetons, composer, Configure, cartes, Réglages) sur les données existantes ; les fonctions sans donnée sont « bientôt » ou absentes (tableau §2).
 2. Le journal d'agent (appels d'exec Exegol) est le panneau **Monitor** ; le shell interactif est un terminal d'éditeur VS Code (`terminalLaunch`, `isTransient`), pas une webview.
-3. Layouts : **Editor** = l'état actuel (chat dans la Side Bar). **Chat** et **Monitor** = un panneau webview éditeur `john.stage` en `ViewColumn.One`. Une seule surface de conversation active à la fois : en layout Chat, la vue `john.chat` de la Side Bar affiche « Conversation ouverte dans l'éditeur » et un bouton de retour, sans cartes d'approbation. Monitor est en lecture seule : les approbations s'y répondent par un renvoi au chat. Layout mémorisé dans `workspaceState` (pas de réglage).
+3. Layouts : **Editor** = l'état actuel (chat dans la Side Bar). **Chat** et **Monitor** = un panneau webview éditeur `warband.stage` en `ViewColumn.One`. Une seule surface de conversation active à la fois : en layout Chat, la vue `warband.chat` de la Side Bar affiche « Conversation ouverte dans l'éditeur » et un bouton de retour, sans cartes d'approbation. Monitor est en lecture seule : les approbations s'y répondent par un renvoi au chat. Layout mémorisé dans `workspaceState` (pas de réglage).
 4. Bypass : **non câblé**. Interrupteur affiché désactivé « bientôt » dans Configure. Aucune classe `bypass` posée sur le corps, aucun état orange lié au Bypass.
 
-5. Décisions de l'utilisateur (2026-10-16) : (a) la bordure orange du composer signifie « approbation en attente » (`body.awaiting`), en attendant le Bypass ; (b) le bouton « Terminal » du cockpit et la commande `john.openTerminal` ouvrent un shell d'éditeur via `terminalLaunch` sur le conteneur en marche ; (c) en layout Chat, la Side Bar affiche la liste des Sessions (historique restylé) et un renvoi vers l'éditeur.
+5. Décisions de l'utilisateur (2026-10-16) : (a) la bordure orange du composer signifie « approbation en attente » (`body.awaiting`), en attendant le Bypass ; (b) le bouton « Terminal » du cockpit et la commande `warband.openTerminal` ouvrent un shell d'éditeur via `terminalLaunch` sur le conteneur en marche ; (c) en layout Chat, la Side Bar affiche la liste des Sessions (historique restylé) et un renvoi vers l'éditeur.
 
 ## 2. Inventaire de la maquette
 
 | Élément | Sort | Source / remarque |
 |---|---|---|
 | Barre de titre, Activity Bar, onglets d'éditeur, page Welcome, raccourcis `kbd` | Ne pas porter | Chrome VS Code. |
-| En-tête de la Side Bar (Sessions, Conversation, Nouvelle, Réglages) | Réel | `history-btn`, `reset`, commande `john.openStudio`. Pas de nouveau bouton sans action. |
+| En-tête de la Side Bar (Sessions, Conversation, Nouvelle, Réglages) | Réel | `history-btn`, `reset`, commande `warband.openStudio`. Pas de nouveau bouton sans action. |
 | Message utilisateur / agent, rendu markdown, lignes d'outil `details` | Réel | Existant, restylé. |
 | « Thought for Ns » | Masqué | Seulement si la vue porte déjà le raisonnement et sa durée ; sinon absent. |
 | Nom du modèle dans l'en-tête d'un message agent | Masqué | La vue ne dit pas quel modèle a produit le message. |
@@ -65,9 +65,9 @@ Commande de validation de chaque lot : `pnpm check` vert. Interdits communs : mo
 
 **P2 — Cartes d'approbation.** Fichiers : `media/chat.js` (`renderCard`), `media/chat.css`, test. Critères : carte en grille clé/valeur (outil, résumé, raison, détail repliable) ; boutons exactement `once`, `deny`, `always` (ce dernier seulement si `canRemember`, toujours sous modale native) ; Échap = refuser conservé ; aucune ligne conteneur/workdir ; aucune puce de règle. Interdits : changer le message `approve` ou ses choix.
 
-**P3 — Shell d'éditeur.** Le journal d'agent reste le Monitor ; le shell interactif est un terminal d'éditeur (`terminalLaunch`, `isTransient`), pas une webview `john.terminal`.
+**P3 — Shell d'éditeur.** Le journal d'agent reste le Monitor ; le shell interactif est un terminal d'éditeur (`terminalLaunch`, `isTransient`), pas une webview `warband.terminal`.
 
-**P4 — Layouts et sessions.** Fichiers : `src/extension/extension.ts` (panneau `john.stage`, message webview `setLayout` validé par liste blanche `editor|chat|monitor`, `workspaceState`, `StatusBarItem` conteneur/layout/modèle), `src/logic/html.ts`, `media/chat.js`, `media/ui.js` (`monitorRows(view)` pur, testé), `media/chat.css`, test. Critères : une seule surface de chat active (placeholder dans la Side Bar en layout Chat, aucune carte rendue en double) ; Monitor en lecture seule avec renvoi au chat ; liste Sessions = historique restylé, statut « en cours » seulement si `running`. Interdits : sessions multiples, rooms, état inventé.
+**P4 — Layouts et sessions.** Fichiers : `src/extension/extension.ts` (panneau `warband.stage`, message webview `setLayout` validé par liste blanche `editor|chat|monitor`, `workspaceState`, `StatusBarItem` conteneur/layout/modèle), `src/logic/html.ts`, `media/chat.js`, `media/ui.js` (`monitorRows(view)` pur, testé), `media/chat.css`, test. Critères : une seule surface de chat active (placeholder dans la Side Bar en layout Chat, aucune carte rendue en double) ; Monitor en lecture seule avec renvoi au chat ; liste Sessions = historique restylé, statut « en cours » seulement si `running`. Interdits : sessions multiples, rooms, état inventé.
 
 **P5 — Réglages.** Fichiers : `media/studio.js`, sa feuille (règles `.studio*`), `src/logic/html.ts` (`studioHtml` si besoin), test. Critères : groupes Engagement (Projet, Conteneurs, Fournisseurs, Personas, Approbations, Kill chain) et Système (Modèle, Harness, MCP, Atlas, Disposition, Modes, Contrôle système) ; compteur Kill chain réel ; pas de pastille de statut, pas de Licence. Interdits : nouvelle page à données inventées.
 

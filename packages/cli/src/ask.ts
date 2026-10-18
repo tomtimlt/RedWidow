@@ -1,6 +1,6 @@
 import { createInterface } from "node:readline/promises";
-import type { ApprovalAnswer, Asker, RememberScope } from "@john-studio/core";
-import { formatReason } from "@john-studio/messages";
+import type { ApprovalAnswer, Asker, RememberScope } from "@warband/core";
+import { formatReason } from "@warband/messages";
 import { stripControl } from "./sanitize.js";
 
 /**

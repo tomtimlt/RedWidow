@@ -1,4 +1,4 @@
-import { createDockerClient, createRecorder, type EngineEvent } from "@john-studio/core";
+import { createDockerClient, createRecorder, type EngineEvent } from "@warband/core";
 import { describe, expect, it } from "vitest";
 import { createDockerTools } from "../src/index.js";
 import { fakeDocker } from "./helpers.js";

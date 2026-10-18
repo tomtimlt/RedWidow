@@ -1,4 +1,4 @@
-# john-studio
+# warband
 
 Orchestration d'agents (Claude Agent SDK, OpenCode) avec journal d'événements, graphe causal et approbation des outils. Monorepo pnpm TypeScript. Tout le texte (commentaires, messages, docs) est en français.
 

@@ -1,4 +1,4 @@
-import type { BypassState, EngineEvent, ModelOption, PendingApproval } from "@john-studio/core";
+import type { BypassState, EngineEvent, ModelOption, PendingApproval } from "@warband/core";
 import { describe, expect, it, vi } from "vitest";
 import { createBypassHost } from "../src/logic/bypass.js";
 import type { ChatView } from "../src/logic/chat.js";
@@ -310,7 +310,7 @@ describe("modèle et effort (F2/F3)", () => {
     f.setModels([mk()]);
     await session.loadModels();
     expect(view().controls?.models?.map((m) => m.value)).toEqual(["a"]);
-    expect(store.m.get("john.models")).toMatchObject({ sdk: "1.0.0" });
+    expect(store.m.get("warband.models")).toMatchObject({ sdk: "1.0.0" });
   });
 
   it("sondage en échec : repli en saisie libre", async () => {
@@ -386,7 +386,7 @@ describe("effort par défaut et Ultracode", () => {
     expect(f.starts[1]).not.toHaveProperty("effort");
   });
 
-  it("Ultracode : effort max + plafonds des réglages john.ultracode.* (jamais 'ultracode' transmis)", async () => {
+  it("Ultracode : effort max + plafonds des réglages warband.ultracode.* (jamais 'ultracode' transmis)", async () => {
     const t = setup({
       settings: { maxTurns: 5, ultracode: { maxTurns: 120, maxBudgetUsd: 7 } },
     });
@@ -420,7 +420,7 @@ describe("historique (F4)", () => {
       parentId: null,
       ...payload,
     });
-  function withHistory(key = "john.history") {
+  function withHistory(key = "warband.history") {
     const stored = new Map<string, unknown>();
     const written = new Map<string, string>();
     const removed: string[] = [];
@@ -528,10 +528,10 @@ describe("historique (F4)", () => {
   });
 
   it("écrit l'index sous la clé du chat", async () => {
-    const h = withHistory("john.history.c2");
+    const h = withHistory("warband.history.c2");
     await h.session.send("une consigne pour ce chat");
     h.f.handlers.onStarted?.({ runId: RUN1, policySource: null });
-    expect([...h.stored.keys()]).toEqual(["john.history.c2"]);
+    expect([...h.stored.keys()]).toEqual(["warband.history.c2"]);
   });
 });
 
@@ -674,8 +674,8 @@ describe("deux chats (ADR 0008)", () => {
       });
       return { f, session };
     };
-    const a = make("john.history.a");
-    const b = make("john.history.b");
+    const a = make("warband.history.a");
+    const b = make("warband.history.b");
     host.request(true, true);
     await a.session.send("chat a");
     const stateA = a.f.calls.find((c) => c[0] === "bypass")?.[1] as BypassState;
@@ -711,14 +711,14 @@ describe("mode apprentissage (ADR 0010)", () => {
   };
 
   it("désactivé par défaut : start sans mode", async () => {
-    const t = setup({ learningKey: "john.learning.a" });
+    const t = setup({ learningKey: "warband.learning.a" });
     expect(t.session.view().controls?.learning).toBe(false);
     await t.session.send("un");
     expect(t.f.started).not.toHaveProperty("mode");
   });
 
   it("activé : start porte mode learning et jamais systemPrompt", async () => {
-    const t = setup({ learningKey: "john.learning.a" });
+    const t = setup({ learningKey: "warband.learning.a" });
     t.session.setLearning(true);
     expect(t.view().controls?.learning).toBe(true);
     await t.session.send("un");
@@ -726,19 +726,19 @@ describe("mode apprentissage (ADR 0010)", () => {
     expect(t.f.started).not.toHaveProperty("systemPrompt");
   });
 
-  it("persisté par chat, relu en booléen strict, sans toucher john.prefs", async () => {
+  it("persisté par chat, relu en booléen strict, sans toucher warband.prefs", async () => {
     const m = memory();
-    const a = setup({ store: m.store, learningKey: "john.learning.a" });
+    const a = setup({ store: m.store, learningKey: "warband.learning.a" });
     a.session.setLearning(true);
-    expect(m.data.get("john.learning.a")).toBe(true);
-    expect(m.data.has("john.prefs")).toBe(false);
+    expect(m.data.get("warband.learning.a")).toBe(true);
+    expect(m.data.has("warband.prefs")).toBe(false);
     // Rechargement du même chat.
-    const again = setup({ store: m.store, learningKey: "john.learning.a" });
+    const again = setup({ store: m.store, learningKey: "warband.learning.a" });
     again.session.view();
     await again.session.send("x");
     expect(again.f.started).toMatchObject({ mode: "learning" });
     // Autre chat : non concerné.
-    const b = setup({ store: m.store, learningKey: "john.learning.b" });
+    const b = setup({ store: m.store, learningKey: "warband.learning.b" });
     await b.session.send("x");
     expect(b.f.started).not.toHaveProperty("mode");
   });
@@ -746,15 +746,15 @@ describe("mode apprentissage (ADR 0010)", () => {
   it("valeur stockée non booléenne : mode inactif", async () => {
     for (const bad of ["true", 1, {}, null]) {
       const m = memory();
-      m.data.set("john.learning.a", bad);
-      const t = setup({ store: m.store, learningKey: "john.learning.a" });
+      m.data.set("warband.learning.a", bad);
+      const t = setup({ store: m.store, learningKey: "warband.learning.a" });
       await t.session.send("x");
       expect(t.f.started).not.toHaveProperty("mode");
     }
   });
 
   it("refuse un non-booléen venu de la webview", async () => {
-    const t = setup({ learningKey: "john.learning.a" });
+    const t = setup({ learningKey: "warband.learning.a" });
     t.session.setLearning("true");
     t.session.setLearning(1);
     t.session.setLearning({ enabled: true });
@@ -763,14 +763,14 @@ describe("mode apprentissage (ADR 0010)", () => {
   });
 
   it("gelé pendant un tour", async () => {
-    const t = setup({ learningKey: "john.learning.a" });
+    const t = setup({ learningKey: "warband.learning.a" });
     await t.session.send("x");
     t.session.setLearning(true);
     expect(t.view().controls?.learning).toBe(false);
   });
 
   it("bascule sur une conversation commencée : moteur remplacé, même session reprise", async () => {
-    const t = setup({ learningKey: "john.learning.a" });
+    const t = setup({ learningKey: "warband.learning.a" });
     await t.session.send("un");
     t.f.handlers.onEvent?.(ev({ kind: "session.started", sessionId: "S1" }));
     t.f.handlers.onEnded?.({ sessionId: "S1" } as never);
@@ -786,7 +786,7 @@ describe("mode apprentissage (ADR 0010)", () => {
   });
 
   it("sans bascule : le moteur est réutilisé", async () => {
-    const t = setup({ learningKey: "john.learning.a" });
+    const t = setup({ learningKey: "warband.learning.a" });
     t.session.setLearning(true);
     await t.session.send("un");
     t.f.handlers.onEnded?.({ sessionId: "S1" } as never);

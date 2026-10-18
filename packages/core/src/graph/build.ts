@@ -5,7 +5,7 @@ export interface GraphNode {
   kind: EventKind;
   seq: number;
   ts: string;
-  /** Événement source : les libellés se calculent à l'affichage (`@john-studio/messages`). */
+  /** Événement source : les libellés se calculent à l'affichage (`@warband/messages`). */
   event: EngineEvent;
   /** Profondeur dans l'arbre causal (0 = racine). */
   depth: number;

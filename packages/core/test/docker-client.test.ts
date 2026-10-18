@@ -321,7 +321,7 @@ describe("parsing de la sortie docker", () => {
     );
   });
   it("inspect : JSON invalide → docker.unexpectedOutput", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "john-bad-docker-"));
+    const dir = await mkdtemp(join(tmpdir(), "warband-bad-docker-"));
     const script = join(dir, "docker.mjs");
     await writeFile(script, 'console.log("not json");\n');
     const docker = createDockerClient({

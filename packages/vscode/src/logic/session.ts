@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import type { AuthMode, Effort, EngineEvent, ModelOption, Reason } from "@john-studio/core";
-import { formatReason } from "@john-studio/messages";
+import type { AuthMode, Effort, EngineEvent, ModelOption, Reason } from "@warband/core";
+import { formatReason } from "@warband/messages";
 import { alwaysConfirmText, answerFor, type Choice, cleanText, toCard } from "./approval.js";
 import type { BypassEngineLink, BypassSend } from "./bypass.js";
 import { type ChatState, type ChatView, createChatState, type HistoryEntry } from "./chat.js";
@@ -41,9 +41,9 @@ import type { JournalFiles } from "./historyStore.js";
 import { isModelId, parseModelCache, usableModels, validateModelChoice } from "./models.js";
 import type { ChatSettings } from "./settings.js";
 
-const PREFS_KEY = "john.prefs";
-const MODELS_KEY = "john.models";
-const DEFAULT_HISTORY_KEY = "john.history";
+const PREFS_KEY = "warband.prefs";
+const MODELS_KEY = "warband.models";
+const DEFAULT_HISTORY_KEY = "warband.history";
 const labelOf = (e: EffortChoice) => EFFORT_LEVELS.find((l) => l.value === e)?.label ?? e;
 
 /** Jeton choisi par l'utilisateur : le mode d'authentification qui lui correspond. */
@@ -68,7 +68,7 @@ export interface ChatSessionDeps {
   createController?(options: EngineControllerOptions): EngineController;
   /** Bypass (ADR 0006) : lien vers le moteur courant, pour pousser l'état et recevoir l'accusé. */
   bypass?: { attach(send: BypassSend): BypassEngineLink; reset?(): void };
-  /** Clé de stockage du mode apprentissage de ce chat (`john.learning.<id>`), distincte de `john.prefs`. Absente : mémoire. */
+  /** Clé de stockage du mode apprentissage de ce chat (`warband.learning.<id>`), distincte de `warband.prefs`. Absente : mémoire. */
   learningKey?: string;
   /** Stockage persistant (globalState) : préférences et cache des modèles. Défaut : mémoire. */
   store?: { get(key: string): unknown; set(key: string, value: unknown): unknown };
@@ -76,7 +76,7 @@ export interface ChatSessionDeps {
   sdkVersion?: string;
   /** Historique (F4) : index dans `workspaceState`, journaux hors du dépôt. Absent : pas d'historique. */
   history?: {
-    /** Clé d'index de ce chat. Défaut : `john.history` (un seul chat). */
+    /** Clé d'index de ce chat. Défaut : `warband.history` (un seul chat). */
     key?: string;
     index: { get(key: string): unknown; set(key: string, value: unknown): unknown };
     files: JournalFiles;
@@ -109,7 +109,7 @@ export function createChatSession(deps: ChatSessionDeps) {
   let models: ModelOption[] | null = parseModelCache(store.get(MODELS_KEY), sdkVersion);
   let modelsStatus: ModelsStatus = models ? "ready" : "idle";
   let probing = false;
-  /** Mode apprentissage de ce chat (ADR 0010) : relu en booléen strict, jamais depuis `john.prefs`. */
+  /** Mode apprentissage de ce chat (ADR 0010) : relu en booléen strict, jamais depuis `warband.prefs`. */
   let learning = deps.learningKey !== undefined && store.get(deps.learningKey) === true;
   /** Choix avec lequel le moteur courant a démarré : un changement impose de reprendre la session. */
   let applied: {

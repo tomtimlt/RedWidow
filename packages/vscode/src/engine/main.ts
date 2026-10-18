@@ -1,6 +1,6 @@
 import { join } from "node:path";
-import { createSdkRunner } from "@john-studio/agent-sdk";
-import { CodedError, createExegolTargets, defaultConfigDir, readProject } from "@john-studio/core";
+import { createSdkRunner } from "@warband/agent-sdk";
+import { CodedError, createExegolTargets, defaultConfigDir, readProject } from "@warband/core";
 import { matchesFingerprint } from "../logic/integrity.js";
 import { PROTOCOL_VERSION } from "../logic/protocol.js";
 import { processChannel } from "./channel.js";

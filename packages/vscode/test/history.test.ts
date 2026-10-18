@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { TERMINAL_CONTEXT_MARK } from "@john-studio/core";
+import { TERMINAL_CONTEXT_MARK } from "@warband/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createChatState } from "../src/logic/chat.js";
 import {
@@ -200,7 +200,7 @@ describe("relecture d'un journal hostile", () => {
 describe("accès disque aux journaux", () => {
   let dir: string;
   beforeAll(async () => {
-    dir = await mkdtemp(join(tmpdir(), "john-hist-"));
+    dir = await mkdtemp(join(tmpdir(), "warband-hist-"));
     await mkdir(join(dir, "runs"));
   });
   afterAll(() => rm(dir, { recursive: true, force: true }));

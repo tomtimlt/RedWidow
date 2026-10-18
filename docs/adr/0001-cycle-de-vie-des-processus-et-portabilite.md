@@ -60,7 +60,7 @@ Modèle de menaces : le modèle contrôle les arguments des outils docker (`imag
 
 **Décision de l'utilisateur (amende la recommandation initiale de l'architecte, qui était de refuser) : Windows natif en « best effort », sans garantie.**
 
-- `john run` n'est **pas** refusé sous `win32` ; la CLI affiche sur stderr, au démarrage de `run` et de `agents`, un avertissement : Windows natif sans garantie, la garde des chemins sensibles est POSIX donc **incomplète**, WSL recommandé, ne pas utiliser en production. Usage personnel du porteur du projet uniquement.
+- `warband run` n'est **pas** refusé sous `win32` ; la CLI affiche sur stderr, au démarrage de `run` et de `agents`, un avertissement : Windows natif sans garantie, la garde des chemins sensibles est POSIX donc **incomplète**, WSL recommandé, ne pas utiliser en production. Usage personnel du porteur du projet uniquement.
 - Risque assumé : fausse impression de sécurité sous Windows. Il est consigné dans `docs/architecture-issues.md` (section « À faire plus tard ») avec le détail du support à construire.
 - On ne touche ni à `resolveBinary` (PATHEXT, `.cmd`), ni aux tests `sh`, ni à `taskkill` ; la CI n'a pas de job Windows. Un support complet fera l'objet d'une fonctionnalité dédiée et d'un nouvel ADR (chemins sensibles Windows, recherche des binaires, arrêt de l'arbre de processus, tests portables, CI).
 
@@ -73,7 +73,7 @@ Modèle de menaces : le modèle contrôle les arguments des outils docker (`imag
 - **Garder `exec` public avec validation** : aucun appelant ne le justifie. Toute commande arbitraire serait une surface d'approbation à valider de nouveau.
 - **Filtrer le contenu de `command`** : il n'atteint que le conteneur, et un filtrage donnerait une fausse impression de sécurité.
 - **Support de podman tolérant** (tableau JSON, `Names` en tableau) : il impliquerait un support à tester (CI, versions). L'erreur explicite suffit à supprimer le résultat silencieusement faux.
-- **Refuser `john run` sous Windows** (recommandation initiale) : écarté par l'utilisateur, qui accepte le risque pour un usage personnel ; l'avertissement visible remplace le refus.
+- **Refuser `warband run` sous Windows** (recommandation initiale) : écarté par l'utilisateur, qui accepte le risque pour un usage personnel ; l'avertissement visible remplace le refus.
 
 ## Conséquences
 

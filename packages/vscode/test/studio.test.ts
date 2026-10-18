@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
-import { MITRE_TACTICS as CORE_TACTICS } from "@john-studio/core";
+import { MITRE_TACTICS as CORE_TACTICS } from "@warband/core";
 import { describe, expect, it } from "vitest";
 import { studioHtml } from "../src/logic/html.js";
 import { parseStudioMessage, STUDIO_PAGES, studioLabel } from "../src/logic/studio.js";
@@ -33,7 +33,7 @@ interface StudioApi {
 const studioJs = fileURLToPath(new URL("../media/studio.js", import.meta.url));
 const chatCss = fileURLToPath(new URL("../media/chat.css", import.meta.url));
 createRequire(import.meta.url)(studioJs);
-const studio = (globalThis as unknown as { JohnStudio: StudioApi }).JohnStudio;
+const studio = (globalThis as unknown as { WarbandStudio: StudioApi }).WarbandStudio;
 const read = (p: string) => readFileSync(p, "utf8");
 
 const FINDING = { kind: "host", state: "confirmed" };

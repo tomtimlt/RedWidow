@@ -1,4 +1,4 @@
-import { CodedError, type ErrorInfo, type Reason } from "@john-studio/core";
+import { CodedError, type ErrorInfo, type Reason } from "@warband/core";
 import { type Catalog, DEFAULT_LOCALE, type Locale, type Messages } from "./catalog.js";
 import { en } from "./en.js";
 import { fr } from "./fr.js";

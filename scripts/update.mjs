@@ -47,14 +47,14 @@ run("Récupération", "git", ["pull", "--ff-only"]);
 run("Dépendances", "pnpm", ["install", "--frozen-lockfile"]);
 run("Build", "pnpm", ["build"]);
 if (flags.has("--check")) run("Vérification", "pnpm", ["check"]);
-run("Empaquetage", "pnpm", ["--filter", "@john-studio/vscode", "package", target]);
+run("Empaquetage", "pnpm", ["--filter", "@warband/vscode", "package", target]);
 
 if (flags.has("--no-install")) {
   console.log("\n✔ Terminé (installation sautée).");
   process.exit(0);
 }
 
-const vsix = dryRun ? join(vscodeDir, `john-studio-<version>-${target}.vsix`) : newestVsix();
+const vsix = dryRun ? join(vscodeDir, `warband-<version>-${target}.vsix`) : newestVsix();
 if (vsix === null) {
   console.error(`\n✖ Aucun .vsix ${target} trouvé dans ${vscodeDir}.`);
   process.exit(1);

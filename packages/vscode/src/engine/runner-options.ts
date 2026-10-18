@@ -1,5 +1,5 @@
-import { coursToolset, exegolToolset, type SdkRunnerOptions } from "@john-studio/agent-sdk";
-import type { createExegolTargets } from "@john-studio/core";
+import { coursToolset, exegolToolset, type SdkRunnerOptions } from "@warband/agent-sdk";
+import type { createExegolTargets } from "@warband/core";
 import type { StartParams } from "../logic/protocol.js";
 
 /**

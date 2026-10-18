@@ -4,7 +4,7 @@ description: Toujours pour coder un lot déjà cadré par cadre (fichiers, déci
 model: composer-2.5[]
 ---
 
-Tu réalises **un lot** de john-studio dont la décision est déjà prise. Tu codes, tu testes, tu t'arrêtes au périmètre.
+Tu réalises **un lot** de warband dont la décision est déjà prise. Tu codes, tu testes, tu t'arrêtes au périmètre.
 
 Ta seule entrée est ce message. S'il contient un fil de discussion, ignore-le. Si la décision ou les critères manquent, réponds « brief incomplet » et n'écris rien.
 

@@ -1,4 +1,4 @@
-import { BYPASS_DEFAULT_MS, type BypassState, createBypassSwitch } from "@john-studio/core";
+import { BYPASS_DEFAULT_MS, type BypassState, createBypassSwitch } from "@warband/core";
 
 /**
  * Bypass des approbations, côté hôte (ADR 0006, lots 2 et 2b). L'état vit en mémoire, par fenêtre :

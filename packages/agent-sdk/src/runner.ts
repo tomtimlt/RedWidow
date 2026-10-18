@@ -29,8 +29,8 @@ import {
   type RunSummary,
   reason,
   type TaskUsage,
-} from "@john-studio/core";
-import { formatReason } from "@john-studio/messages";
+} from "@warband/core";
+import { formatReason } from "@warband/messages";
 import { ToolCallRegistry, toolUseIdFromExtra } from "./correlation.js";
 import type { ResolvedCall, Toolset } from "./toolset.js";
 
@@ -117,8 +117,8 @@ export interface SdkRunnerOptions {
 /** Outils natifs exposés par défaut : lecture seule. */
 export const DEFAULT_BUILTIN_TOOLS: readonly string[] = ["Read", "Glob", "Grep"];
 
-/** Préfixe des refus renvoyés au modèle ; le motif suit, libellé en français par `@john-studio/messages`. */
-const REFUSAL_PREFIX = "Refusé par john-studio : ";
+/** Préfixe des refus renvoyés au modèle ; le motif suit, libellé en français par `@warband/messages`. */
+const REFUSAL_PREFIX = "Refusé par warband : ";
 
 /** Une approbation interactive peut attendre longtemps : le hook ne doit pas expirer avant l'humain. */
 const HOOK_TIMEOUT_S = 24 * 60 * 60;

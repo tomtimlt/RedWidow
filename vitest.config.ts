@@ -7,13 +7,13 @@ const src = (pkg: string) =>
 export default defineConfig({
   resolve: {
     alias: {
-      "@john-studio/agent-opencode": src("agent-opencode"),
-      "@john-studio/agent-sdk": src("agent-sdk"),
-      "@john-studio/cli": fileURLToPath(new URL("./packages/cli/src/main.ts", import.meta.url)),
-      "@john-studio/core": src("core"),
-      "@john-studio/export-html": src("export-html"),
-      "@john-studio/messages": src("messages"),
-      "@john-studio/vscode": fileURLToPath(
+      "@warband/agent-opencode": src("agent-opencode"),
+      "@warband/agent-sdk": src("agent-sdk"),
+      "@warband/cli": fileURLToPath(new URL("./packages/cli/src/main.ts", import.meta.url)),
+      "@warband/core": src("core"),
+      "@warband/export-html": src("export-html"),
+      "@warband/messages": src("messages"),
+      "@warband/vscode": fileURLToPath(
         new URL("./packages/vscode/src/logic/integrity.ts", import.meta.url),
       ),
     },

@@ -7,7 +7,7 @@ import { type Reason, reason } from "../reason.js";
 import { DEFAULT_POLICY, type Policy, parsePolicy } from "./policy.js";
 
 /** Politique propre au dépôt de travail, lue seulement si son empreinte a été approuvée. */
-export const REPO_POLICY_PATH = join(".john-studio", "policy.json");
+export const REPO_POLICY_PATH = join(".warband", "policy.json");
 export const USER_POLICY_FILE = "policy.json";
 export const TRUST_STORE_FILE = "trusted-policies.json";
 
@@ -28,9 +28,8 @@ export function defaultConfigDir(
   platform: NodeJS.Platform = process.platform,
   home: string = homedir(),
 ): string {
-  if (platform === "win32")
-    return join(env.APPDATA || join(home, "AppData", "Roaming"), "john-studio");
-  return join(env.XDG_CONFIG_HOME || join(home, ".config"), "john-studio");
+  if (platform === "win32") return join(env.APPDATA || join(home, "AppData", "Roaming"), "warband");
+  return join(env.XDG_CONFIG_HOME || join(home, ".config"), "warband");
 }
 
 export function policyDigest(text: string): string {
@@ -107,7 +106,7 @@ async function readIfExists(path: string): Promise<string | null> {
 
 /**
  * Résolution par ordre de confiance :
- * 1. chemin explicite ; 2. `.john-studio/policy.json` du dépôt SI son empreinte
+ * 1. chemin explicite ; 2. `.warband/policy.json` du dépôt SI son empreinte
  * est approuvée ; 3. politique utilisateur ; 4. politique intégrée.
  *
  * Un dépôt cloné ne peut donc pas s'octroyer des droits : son fichier n'est

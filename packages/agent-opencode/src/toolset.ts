@@ -5,7 +5,7 @@ import {
   type DockerToolSpec,
   dockerToolSpecs,
   type Recorder,
-} from "@john-studio/core";
+} from "@warband/core";
 
 /** Contexte fourni à un toolset à chaque run. */
 export interface OpencodeToolContext {

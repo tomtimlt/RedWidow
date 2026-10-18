@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { type EngineEvent, type ErrorInfo, type PendingApproval, safeEnv } from "@john-studio/core";
+import { type EngineEvent, type ErrorInfo, type PendingApproval, safeEnv } from "@warband/core";
 import { build } from "esbuild";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
@@ -30,7 +30,7 @@ let dir: string; // cwd des runs et scripts temporaires
 let engine: string; // moteur de test empaqueté (même chaîne que l'extension : esbuild, ESM)
 
 beforeAll(async () => {
-  dir = await mkdtemp(join(tmpdir(), "john-ctl-"));
+  dir = await mkdtemp(join(tmpdir(), "warband-ctl-"));
   engine = join(dir, "engine-fake.mjs");
   await build({
     entryPoints: [fileURLToPath(new URL("./fixtures/engine-fake.ts", import.meta.url))],
@@ -44,8 +44,8 @@ beforeAll(async () => {
     },
     // Les paquets du dépôt sont résolus sur leurs sources (pas de `dist` requis).
     alias: {
-      "@john-studio/core": join(root, "packages/core/src/index.ts"),
-      "@john-studio/agent-sdk": join(root, "packages/agent-sdk/src/index.ts"),
+      "@warband/core": join(root, "packages/core/src/index.ts"),
+      "@warband/agent-sdk": join(root, "packages/agent-sdk/src/index.ts"),
     },
     logLevel: "error",
   });
@@ -107,7 +107,7 @@ describe("contrôleur + moteur enfant (processus forké, QueryFn factice)", () =
       baseEnv: {
         ...process.env,
         ANTHROPIC_API_KEY: "sk-ant-api-0123456789abcdef",
-        JOHN_TEST_AUTRE: "ne-doit-pas-passer",
+        WARBAND_TEST_AUTRE: "ne-doit-pas-passer",
       },
     });
     await ctl.start({ cwd: dir });
@@ -118,7 +118,7 @@ describe("contrôleur + moteur enfant (processus forké, QueryFn factice)", () =
     expect(keys).toContain("ELECTRON_RUN_AS_NODE");
     expect(keys).toContain("CLAUDE_CODE_OAUTH_TOKEN");
     expect(keys.map((k) => k.toUpperCase())).not.toContain("ANTHROPIC_API_KEY");
-    expect(keys).not.toContain("JOHN_TEST_AUTRE");
+    expect(keys).not.toContain("WARBAND_TEST_AUTRE");
     // Le jeton existe dans l'enfant (l'événement TOKEN le prouve) mais n'en sort jamais en clair.
     expect(hasText(c.events, "TOKEN ")).toBe(true);
     const everything = JSON.stringify([c.events, c.approvals, c.errors, c.logs, c.ended]);

@@ -171,7 +171,7 @@ const legacy = (text: string): Reason => reason("legacy", { text });
  * Migrations à la lecture des anciens journaux :
  * - `tool.result` avec `summary` : relu comme une sortie complète non tronquée ;
  * - `approval.decided.reason` et `error.message` en texte : relus en motif
- *   `{ code: "legacy", params: { text } }` que `@john-studio/messages` affiche tel quel.
+ *   `{ code: "legacy", params: { text } }` que `@warband/messages` affiche tel quel.
  */
 function migrate(value: unknown): unknown {
   if (typeof value !== "object" || value === null) return value;

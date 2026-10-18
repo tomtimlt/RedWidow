@@ -85,7 +85,7 @@ describe("cibles Exegol", () => {
 
 describe("docker execWorkspace", () => {
   it("lance un argv figé dans /workspace", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "john-exec-"));
+    const dir = await mkdtemp(join(tmpdir(), "warband-exec-"));
     const script = join(dir, "docker.mjs");
     const log = join(dir, "calls.log");
     await writeFile(

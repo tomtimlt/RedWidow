@@ -359,9 +359,9 @@ describe("createApprovalGate", () => {
 });
 
 describe("garde des chemins (outils fichiers)", () => {
-  const root = mkdtempSync(join(tmpdir(), "john-ws-"));
-  const outside = mkdtempSync(join(tmpdir(), "john-out-"));
-  const home = mkdtempSync(join(tmpdir(), "john-home-"));
+  const root = mkdtempSync(join(tmpdir(), "warband-ws-"));
+  const outside = mkdtempSync(join(tmpdir(), "warband-out-"));
+  const home = mkdtempSync(join(tmpdir(), "warband-home-"));
   mkdirSync(join(root, "src"), { recursive: true });
   writeFileSync(join(root, "src", "a.ts"), "x");
   writeFileSync(join(outside, "secret.txt"), "s");

@@ -1,4 +1,4 @@
-import { buildGraph, createRecorder, EVENT_KINDS } from "@john-studio/core";
+import { buildGraph, createRecorder, EVENT_KINDS } from "@warband/core";
 import { describe, expect, it } from "vitest";
 import { escapeHtml, KIND_CLASS, MAX_RENDERED_NODES, renderGraphHtml } from "../src/index.js";
 

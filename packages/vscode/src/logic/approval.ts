@@ -1,5 +1,5 @@
-import { isRememberable, type PendingApproval, stripControl } from "@john-studio/core";
-import { formatReason } from "@john-studio/messages";
+import { isRememberable, type PendingApproval, stripControl } from "@warband/core";
+import { formatReason } from "@warband/messages";
 import { summarizeInput, toolLabel } from "./present.js";
 
 /** Plafond du texte d'entrée d'outil affiché dans une carte (caractères). */

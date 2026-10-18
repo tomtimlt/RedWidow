@@ -35,7 +35,7 @@ const MODEL = process.env.OPENCODE_MODEL;
 const TIMEOUT = 240_000;
 
 async function realRun(prompt: string, files: Record<string, string>) {
-  const cwd = realpathSync(mkdtempSync(join(tmpdir(), "john-oc-real-")));
+  const cwd = realpathSync(mkdtempSync(join(tmpdir(), "warband-oc-real-")));
   for (const [name, content] of Object.entries(files)) {
     mkdirSync(join(cwd, name, ".."), { recursive: true });
     writeFileSync(join(cwd, name), content);
@@ -77,7 +77,7 @@ describe.skipIf(!BIN || !MODEL)("contrat OpenCode : vrai modèle", () => {
   it(
     "une lecture hors de l'espace de travail est refusée sans fuite du contenu",
     async () => {
-      const outside = realpathSync(mkdtempSync(join(tmpdir(), "john-oc-out-")));
+      const outside = realpathSync(mkdtempSync(join(tmpdir(), "warband-oc-out-")));
       const marker = "MARQUEUR-SECRET-b81c";
       writeFileSync(join(outside, "secret.txt"), marker);
       const { h } = await realRun(

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
-import { EXEGOL_EXEC_TOOL } from "@john-studio/core";
+import { EXEGOL_EXEC_TOOL } from "@warband/core";
 import { describe, expect, it } from "vitest";
 
 interface UiApi {
@@ -69,7 +69,7 @@ interface MonitorRow {
 }
 // Le paquet est « type: module » : ui.js est évalué comme script sans `module`, il se publie donc sur globalThis (comme dans la webview).
 createRequire(import.meta.url)("../media/ui.js");
-const ui = (globalThis as unknown as { JohnUI: UiApi }).JohnUI;
+const ui = (globalThis as unknown as { WarbandUI: UiApi }).WarbandUI;
 
 const opts = (...disabled: boolean[]) => disabled.map((d) => ({ disabled: d }));
 

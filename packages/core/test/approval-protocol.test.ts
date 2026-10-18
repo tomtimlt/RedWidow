@@ -234,12 +234,12 @@ describe("remember", () => {
 
   it("une règle mémorisée ne contourne pas les chemins sensibles ni hors espace de travail", async () => {
     const base = realpathSync.native(tmpdir());
-    const root = mkdtempSync(join(base, "john-gate-"));
-    const home = mkdtempSync(join(base, "john-gate-home-"));
+    const root = mkdtempSync(join(base, "warband-gate-"));
+    const home = mkdtempSync(join(base, "warband-gate-home-"));
     mkdirSync(join(home, ".ssh"), { recursive: true });
     const inside = join(root, "in.txt");
     writeFileSync(inside, "x");
-    const other = mkdtempSync(join(base, "john-gate-out-"));
+    const other = mkdtempSync(join(base, "warband-gate-out-"));
     mkdirSync(other, { recursive: true });
     const outside = join(other, "out.txt");
     writeFileSync(outside, "x");

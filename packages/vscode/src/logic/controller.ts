@@ -14,7 +14,7 @@ import {
   spawnOptionsForTree,
   terminateProcessTree,
   trackProcessTree,
-} from "@john-studio/core";
+} from "@warband/core";
 import {
   type EndedSummary,
   type FromEngine,

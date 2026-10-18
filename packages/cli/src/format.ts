@@ -1,5 +1,5 @@
-import type { AuthInfo, AuthMode, EngineEvent } from "@john-studio/core";
-import { describeAuth, formatError, formatReason, summarizeOutput } from "@john-studio/messages";
+import type { AuthInfo, AuthMode, EngineEvent } from "@warband/core";
+import { describeAuth, formatError, formatReason, summarizeOutput } from "@warband/messages";
 import { stripControl } from "./sanitize.js";
 
 export { summarizeOutput };

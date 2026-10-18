@@ -6,10 +6,10 @@ const read = (p: string) => readFileSync(fileURLToPath(new URL(p, import.meta.ur
 
 describe("contribution de la commande", () => {
   const manifest = JSON.parse(read("../extension.manifest.json"));
-  it("john.openTerminal est déclarée avec le titre prévu", () => {
+  it("warband.openTerminal est déclarée avec le titre prévu", () => {
     const cmd = manifest.contributes.commands.find(
-      (c: { command: string }) => c.command === "john.openTerminal",
+      (c: { command: string }) => c.command === "warband.openTerminal",
     );
-    expect(cmd?.title).toBe("John : ouvrir un terminal");
+    expect(cmd?.title).toBe("Warband : ouvrir un terminal");
   });
 });

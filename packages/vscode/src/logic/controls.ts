@@ -1,4 +1,4 @@
-import type { ModelOption } from "@john-studio/core";
+import type { ModelOption } from "@warband/core";
 import {
   clampEffort,
   type EffortChoice,
@@ -14,7 +14,7 @@ import { isModelId } from "./models.js";
 
 /** Préférences de la conversation (persistées côté extension, jamais dans l'espace de travail). */
 export interface Prefs {
-  /** `null` : modèle par défaut (réglage machine `john.model`, sinon celui du binaire). */
+  /** `null` : modèle par défaut (réglage machine `warband.model`, sinon celui du binaire). */
   model: string | null;
   /** `null` = « Auto » : aucun effort n'est transmis, le modèle garde son défaut (tant que le curseur n'a pas été touché). */
   effort: EffortChoice | null;

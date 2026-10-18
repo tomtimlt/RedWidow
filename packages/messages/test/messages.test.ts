@@ -11,7 +11,7 @@ import {
   parseShell,
   REASON_CODES,
   ValidationError,
-} from "@john-studio/core";
+} from "@warband/core";
 import { describe, expect, it } from "vitest";
 import {
   describeAuth,
@@ -111,7 +111,7 @@ describe("formatReason", () => {
     expect(
       formatReason({ code: "policy.repo.untrusted", params: { path: "/r/p.json", digest: "abc" } }),
     ).toBe(
-      "politique du dépôt ignorée (non approuvée) : /r/p.json [sha256 abc]. Après relecture : john policy trust",
+      "politique du dépôt ignorée (non approuvée) : /r/p.json [sha256 abc]. Après relecture : warband policy trust",
     );
   });
 
@@ -162,9 +162,10 @@ describe("formatError", () => {
   });
 
   it("libelle une erreur de chargement de politique", async () => {
-    const err = await loadPolicy({ cwd: "/nonexistent-john-dir", explicit: "absent.json" }).catch(
-      (e: unknown) => e,
-    );
+    const err = await loadPolicy({
+      cwd: "/nonexistent-warband-dir",
+      explicit: "absent.json",
+    }).catch((e: unknown) => e);
     expect(formatError(err)).toMatch(/ENOENT/);
   });
 });

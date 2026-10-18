@@ -1,4 +1,4 @@
-import { type EngineEvent, parseJournal, promptForTargets, stripControl } from "@john-studio/core";
+import { type EngineEvent, parseJournal, promptForTargets, stripControl } from "@warband/core";
 import type { ChatState } from "./chat.js";
 import { type EffortChoice, type Provider, parseEffortChoice } from "./effort.js";
 import { isModelId } from "./models.js";

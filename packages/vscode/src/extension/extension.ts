@@ -16,8 +16,8 @@ import {
   resolveBinary,
   shortContainerName,
   unlink,
-} from "@john-studio/core";
-import { formatError } from "@john-studio/messages";
+} from "@warband/core";
+import { formatError } from "@warband/messages";
 import * as vscode from "vscode";
 import { parseWebviewMessage } from "../logic/approval.js";
 import { type BypassPush, createBypassHost, formatRemaining } from "../logic/bypass.js";
@@ -51,16 +51,16 @@ import {
 } from "../logic/termlog.js";
 import { parseWindows, WINDOW_CAP, type WindowEntry } from "../logic/windows.js";
 
-const TOKEN_KEY = "john.token";
-const TOKEN_KIND_KEY = "john.tokenKind";
-const WINDOWS_KEY = "john.windows";
+const TOKEN_KEY = "warband.token";
+const TOKEN_KIND_KEY = "warband.tokenKind";
+const WINDOWS_KEY = "warband.windows";
 // Version du SDK embarquée par le paquetage (clé du cache des modèles) ; absente en développement.
 declare const __SDK_VERSION__: string | undefined;
 type TokenKind = "subscription" | "api-key";
 
 /** Couche fine : seule autorisée à importer `vscode` (test de frontière). Toute la logique est dans `src/logic`. */
 export function activate(context: vscode.ExtensionContext): void {
-  const out = vscode.window.createOutputChannel("john-studio");
+  const out = vscode.window.createOutputChannel("warband");
   context.subscriptions.push(out);
 
   // Défense en profondeur : `capabilities.untrustedWorkspaces` empêche déjà l'activation.
@@ -110,7 +110,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // Réglages sensibles : valeur utilisateur/machine ou défaut, jamais celle de l'espace de travail.
   const readSettings = () => {
-    const config = vscode.workspace.getConfiguration("john");
+    const config = vscode.workspace.getConfiguration("warband");
     return resolveSettings((key) => machineValue(config.inspect(key)));
   };
 
@@ -130,10 +130,10 @@ export function activate(context: vscode.ExtensionContext): void {
     if (existing) return existing;
     if (!CHAT_ID.test(id)) throw new Error("Identifiant de chat refusé.");
     if (seats(id !== SIDEBAR_CHAT) >= CHAT_CAP) throw new Error("Quatre chats au maximum.");
-    if (!folder) throw new Error("Ouvrez un dossier avant de lancer John.");
-    const historyKey = `john.history.${id}`;
-    // Mode apprentissage (ADR 0010) : une clé par chat, séparée de `john.prefs` (partagé).
-    const learningKey = `john.learning.${id}`;
+    if (!folder) throw new Error("Ouvrez un dossier avant de lancer Warband.");
+    const historyKey = `warband.history.${id}`;
+    // Mode apprentissage (ADR 0010) : une clé par chat, séparée de `warband.prefs` (partagé).
+    const learningKey = `warband.learning.${id}`;
     const runs = join((context.storageUri ?? context.globalStorageUri).fsPath, "runs");
     const session = createChatSession({
       cwd: folder.uri.fsPath,
@@ -155,7 +155,7 @@ export function activate(context: vscode.ExtensionContext): void {
           get: (key: string) => {
             const value = context.workspaceState.get(key);
             if (value === undefined && id === SIDEBAR_CHAT && key === historyKey) {
-              return context.workspaceState.get("john.history");
+              return context.workspaceState.get("warband.history");
             }
             return value;
           },
@@ -201,7 +201,7 @@ export function activate(context: vscode.ExtensionContext): void {
       );
       return;
     }
-    const title = `John : start ${slash}`;
+    const title = `Warband : start ${slash}`;
     const existing = vscode.window.terminals.find((t) => t.name === title);
     if (existing) {
       existing.show();
@@ -537,10 +537,10 @@ export function activate(context: vscode.ExtensionContext): void {
     },
   };
 
-  // Colonne partagée des panneaux John : celle d'un panneau déjà ouvert, sinon à côté de l'éditeur.
+  // Colonne partagée des panneaux Warband : celle d'un panneau déjà ouvert, sinon à côté de l'éditeur.
   // Garde chat, cockpit, monitor et réglages groupés en onglets au lieu de scinder une fenêtre à
   // chaque ouverture.
-  const johnColumn = (): vscode.ViewColumn => {
+  const warbandColumn = (): vscode.ViewColumn => {
     for (const slot of slots.values()) {
       if (slot.panel?.viewColumn !== undefined) return slot.panel.viewColumn;
     }
@@ -559,7 +559,7 @@ export function activate(context: vscode.ExtensionContext): void {
       return;
     }
     const media = vscode.Uri.joinPath(context.extensionUri, "media");
-    const panel = vscode.window.createWebviewPanel("john.cockpit", "Cockpit", johnColumn(), {
+    const panel = vscode.window.createWebviewPanel("warband.cockpit", "Cockpit", warbandColumn(), {
       enableScripts: true,
       enableCommandUris: false,
       localResourceRoots: [media],
@@ -740,11 +740,16 @@ export function activate(context: vscode.ExtensionContext): void {
       return;
     }
     const media = vscode.Uri.joinPath(context.extensionUri, "media");
-    const panel = vscode.window.createWebviewPanel("john.chatPanel", chatName(id), johnColumn(), {
-      enableScripts: true,
-      enableCommandUris: false,
-      localResourceRoots: [media],
-    });
+    const panel = vscode.window.createWebviewPanel(
+      "warband.chatPanel",
+      chatName(id),
+      warbandColumn(),
+      {
+        enableScripts: true,
+        enableCommandUris: false,
+        localResourceRoots: [media],
+      },
+    );
     const slot = slots.get(id);
     if (!slot) return;
     slot.panel = panel;
@@ -783,7 +788,7 @@ export function activate(context: vscode.ExtensionContext): void {
       return;
     }
     const media = vscode.Uri.joinPath(context.extensionUri, "media");
-    const panel = vscode.window.createWebviewPanel("john.watch", "Sortie", johnColumn(), {
+    const panel = vscode.window.createWebviewPanel("warband.watch", "Sortie", warbandColumn(), {
       enableScripts: true,
       enableCommandUris: false,
       localResourceRoots: [media],
@@ -811,7 +816,7 @@ export function activate(context: vscode.ExtensionContext): void {
       return;
     }
     const media = vscode.Uri.joinPath(context.extensionUri, "media");
-    const panel = vscode.window.createWebviewPanel("john.monitor", "Monitor", johnColumn(), {
+    const panel = vscode.window.createWebviewPanel("warband.monitor", "Monitor", warbandColumn(), {
       enableScripts: true,
       enableCommandUris: false,
       localResourceRoots: [media],
@@ -840,12 +845,12 @@ export function activate(context: vscode.ExtensionContext): void {
   const barModel = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
   // Lanceur toujours visible : un clic ouvre chat, terminaux, cockpit, réglages.
   const barLauncher = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 104);
-  barLauncher.text = "$(rocket) John";
-  barLauncher.tooltip = "John : chat, terminaux, cockpit, réglages (Alt+J Alt+J)";
-  barLauncher.command = "john.launcher";
+  barLauncher.text = "$(rocket) Warband";
+  barLauncher.tooltip = "Warband : chat, terminaux, cockpit, réglages (Alt+J Alt+J)";
+  barLauncher.command = "warband.launcher";
   barLauncher.show();
-  barContainer.command = "john.openTerminal";
-  barModel.command = "john.focusChat";
+  barContainer.command = "warband.openTerminal";
+  barModel.command = "warband.focusChat";
   context.subscriptions.push(barLauncher, barContainer, barModel);
   const updateModelStatus = () => {
     const c =
@@ -914,7 +919,7 @@ export function activate(context: vscode.ExtensionContext): void {
       return;
     }
     const media = vscode.Uri.joinPath(context.extensionUri, "media");
-    studioPanel = vscode.window.createWebviewPanel("john.studio", "Réglages", johnColumn(), {
+    studioPanel = vscode.window.createWebviewPanel("warband.studio", "Réglages", warbandColumn(), {
       enableScripts: true,
       enableCommandUris: false,
       localResourceRoots: [media],
@@ -964,7 +969,7 @@ export function activate(context: vscode.ExtensionContext): void {
         description: item.state === "running" ? "en cours" : "arrêté",
         item,
       })),
-      { title: "John : ouvrir un terminal", ignoreFocusOut: true },
+      { title: "Warband : ouvrir un terminal", ignoreFocusOut: true },
     );
     if (!choice) return;
     if (choice.item.state !== "running") {
@@ -978,7 +983,7 @@ export function activate(context: vscode.ExtensionContext): void {
   };
 
   /**
-   * Lanceur (Alt+J Alt+J, barre d'état) : toutes les fenêtres John en un seul menu, et un terminal par
+   * Lanceur (Alt+J Alt+J, barre d'état) : toutes les fenêtres Warband en un seul menu, et un terminal par
    * conteneur démarré, sans passer par la palette de commandes.
    */
   type LauncherItem = vscode.QuickPickItem & { run?: () => unknown };
@@ -987,7 +992,7 @@ export function activate(context: vscode.ExtensionContext): void {
       {
         label: "$(comment) Chat latéral",
         description: "Alt+J C",
-        run: () => vscode.commands.executeCommand("john.chat.focus"),
+        run: () => vscode.commands.executeCommand("warband.chat.focus"),
       },
       {
         label: "$(comment-discussion) Nouveau chat",
@@ -999,7 +1004,7 @@ export function activate(context: vscode.ExtensionContext): void {
       { label: "$(settings-gear) Réglages", description: "Alt+J S", run: () => openStudio() },
     ];
     const pick = vscode.window.createQuickPick<LauncherItem>();
-    pick.title = "John";
+    pick.title = "Warband";
     pick.placeholder = "Ouvrir une fenêtre ou un terminal…";
     pick.matchOnDescription = true;
     pick.items = actions;
@@ -1042,29 +1047,29 @@ export function activate(context: vscode.ExtensionContext): void {
         for (const slot of slots.values()) slot.session?.dispose();
       },
     },
-    vscode.window.registerWebviewViewProvider("john.chat", provider, {
+    vscode.window.registerWebviewViewProvider("warband.chat", provider, {
       webviewOptions: { retainContextWhenHidden: true },
     }),
-    vscode.commands.registerCommand("john.openChat", () => openEditorChat()),
-    vscode.commands.registerCommand("john.openCockpit", () => openCockpit()),
-    vscode.commands.registerCommand("john.openStudio", () => openStudio()),
-    vscode.commands.registerCommand("john.openTerminal", () => void pickContainerTerminal()),
-    vscode.commands.registerCommand("john.openMonitor", () => openMonitor()),
-    vscode.commands.registerCommand("john.focusChat", () =>
-      vscode.commands.executeCommand("john.chat.focus"),
+    vscode.commands.registerCommand("warband.openChat", () => openEditorChat()),
+    vscode.commands.registerCommand("warband.openCockpit", () => openCockpit()),
+    vscode.commands.registerCommand("warband.openStudio", () => openStudio()),
+    vscode.commands.registerCommand("warband.openTerminal", () => void pickContainerTerminal()),
+    vscode.commands.registerCommand("warband.openMonitor", () => openMonitor()),
+    vscode.commands.registerCommand("warband.focusChat", () =>
+      vscode.commands.executeCommand("warband.chat.focus"),
     ),
-    vscode.commands.registerCommand("john.launcher", () => openLauncher()),
-    vscode.commands.registerCommand("john.setToken", async () => {
+    vscode.commands.registerCommand("warband.launcher", () => openLauncher()),
+    vscode.commands.registerCommand("warband.setToken", async () => {
       const kind = await vscode.window.showQuickPick(
         [
           { label: "Jeton d'abonnement", description: "claude setup-token", value: "subscription" },
           { label: "Clé API", description: "ANTHROPIC_API_KEY", value: "api-key" },
         ],
-        { title: "John : type de jeton", ignoreFocusOut: true },
+        { title: "Warband : type de jeton", ignoreFocusOut: true },
       );
       if (!kind) return;
       const token = await vscode.window.showInputBox({
-        title: "John : jeton",
+        title: "Warband : jeton",
         prompt: "Le jeton est stocké dans le stockage sécurisé de VS Code.",
         password: true,
         ignoreFocusOut: true,
@@ -1077,13 +1082,13 @@ export function activate(context: vscode.ExtensionContext): void {
         "Jeton enregistré. Il sera utilisé au prochain démarrage du moteur.",
       );
     }),
-    vscode.commands.registerCommand("john.clearToken", async () => {
+    vscode.commands.registerCommand("warband.clearToken", async () => {
       await context.secrets.delete(TOKEN_KEY);
       await context.secrets.delete(TOKEN_KIND_KEY);
       void vscode.window.showInformationMessage("Jeton effacé.");
     }),
     // Spike E1 : forke le moteur de diagnostic (vérifie l'empreinte du binaire et affiche sa version).
-    vscode.commands.registerCommand("john.diagnostic", () => {
+    vscode.commands.registerCommand("warband.diagnostic", () => {
       const root = context.extensionPath;
       const child = fork(join(root, "engine.mjs"), [root], {
         env: { ELECTRON_RUN_AS_NODE: "1" },
@@ -1101,7 +1106,7 @@ export function activate(context: vscode.ExtensionContext): void {
   // barre d'état natif le signale (fond d'avertissement) ; son clic le désactive.
   const barBypass = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 103);
   barBypass.backgroundColor = new vscode.ThemeColor("statusBarItem.warningBackground");
-  barBypass.command = "john.disableBypass";
+  barBypass.command = "warband.disableBypass";
   barBypass.tooltip = "Bypass des approbations actif : cliquer pour le désactiver";
   context.subscriptions.push(barBypass);
   let bypassTick: ReturnType<typeof setInterval> | undefined;
@@ -1150,12 +1155,12 @@ export function activate(context: vscode.ExtensionContext): void {
       },
     },
     vscode.workspace.onDidChangeWorkspaceFolders(() => bypass.reset()),
-    vscode.commands.registerCommand("john.disableBypass", () => bypass.request(false, true)),
+    vscode.commands.registerCommand("warband.disableBypass", () => bypass.request(false, true)),
   );
 
   updateModelStatus();
   void refreshContainerStatus();
-  // Ancienne clé `john.layout` ignorée : seule `john.windows` est relue.
+  // Ancienne clé `warband.layout` ignorée : seule `warband.windows` est relue.
   void (async () => {
     restoring = true;
     const saved = parseWindows(context.workspaceState.get(WINDOWS_KEY));

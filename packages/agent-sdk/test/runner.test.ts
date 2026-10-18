@@ -15,7 +15,7 @@ import {
   DEFAULT_POLICY,
   type EngineEvent,
   type Policy,
-} from "@john-studio/core";
+} from "@warband/core";
 import { describe, expect, it } from "vitest";
 import {
   createSdkRunner,
@@ -577,8 +577,8 @@ describe("garde PreToolUse", () => {
       yield toolUse("t1", "Bash", { command: "rm -rf /" });
       const r = await guarded(spy)("Bash", { command: "rm -rf /" }, permit("t1"));
       expect(r.behavior).toBe("deny");
-      // Le texte renvoyé au modèle est libellé en français par @john-studio/messages.
-      expect(r).toMatchObject({ message: "Refusé par john-studio : règle #10 deny Bash(rm *)" });
+      // Le texte renvoyé au modèle est libellé en français par @warband/messages.
+      expect(r).toMatchObject({ message: "Refusé par warband : règle #10 deny Bash(rm *)" });
       yield result({});
     };
     await runAgent({ prompt: "x", recorder, gate, query });
@@ -609,7 +609,7 @@ describe("garde PreToolUse", () => {
       );
       expect(r).toMatchObject({
         behavior: "deny",
-        message: expect.stringContaining("Refusé par john-studio : appel non routé par la garde"),
+        message: expect.stringContaining("Refusé par warband : appel non routé par la garde"),
       });
       yield result({});
     };

@@ -30,8 +30,8 @@ const TEXTE = /\.(md|txt)$/i;
 // .mjs sans build, on ne dépend pas du paquet construit.
 function dossierConfig(env = process.env, platform = process.platform) {
   if (platform === "win32")
-    return join(env.APPDATA || join(homedir(), "AppData", "Roaming"), "john-studio");
-  return join(env.XDG_CONFIG_HOME || join(homedir(), ".config"), "john-studio");
+    return join(env.APPDATA || join(homedir(), "AppData", "Roaming"), "warband");
+  return join(env.XDG_CONFIG_HOME || join(homedir(), ".config"), "warband");
 }
 
 // Environnement de `git` en liste blanche : chemin, profil, proxy et certificats seulement.

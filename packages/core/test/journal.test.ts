@@ -11,7 +11,7 @@ import {
   readJournal,
 } from "../src/index.js";
 
-const tmp = () => mkdtemp(join(tmpdir(), "john-journal-"));
+const tmp = () => mkdtemp(join(tmpdir(), "warband-journal-"));
 
 describe("journal JSONL", () => {
   it("écrit puis relit les événements dans l'ordre", async () => {

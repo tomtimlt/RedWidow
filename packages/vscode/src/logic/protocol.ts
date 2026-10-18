@@ -14,7 +14,7 @@ import {
   type RememberScope,
   reason,
   validateEvent,
-} from "@john-studio/core";
+} from "@warband/core";
 import { parseEffort } from "./effort.js";
 import { isModelId, parseModelOptions } from "./models.js";
 

@@ -2,7 +2,7 @@
  * Modèle d'événements du moteur. Tout ce que le moteur produit passe par ici :
  * les UI (CLI, export HTML, extension VS Code) ne consomment que ces objets.
  * Les motifs et erreurs sont des codes (`Reason`) : les libellés vivent dans
- * `@john-studio/messages`.
+ * `@warband/messages`.
  */
 
 import { type ErrorInfo, type Reason, reason } from "./reason.js";

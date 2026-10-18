@@ -1,6 +1,6 @@
 /**
  * Motifs et erreurs du moteur, exprimés en codes. Le cœur n'émet aucun texte
- * destiné à l'utilisateur : `@john-studio/messages` associe un libellé à chaque
+ * destiné à l'utilisateur : `@warband/messages` associe un libellé à chaque
  * code (`REASON_CODES` en est la liste exhaustive, testée contre le catalogue).
  */
 

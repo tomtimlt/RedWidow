@@ -19,10 +19,10 @@ let configDir: string;
 let repoPolicy: string;
 
 beforeEach(async () => {
-  cwd = await mkdtemp(join(tmpdir(), "john-repo-"));
-  configDir = await mkdtemp(join(tmpdir(), "john-cfg-"));
+  cwd = await mkdtemp(join(tmpdir(), "warband-repo-"));
+  configDir = await mkdtemp(join(tmpdir(), "warband-cfg-"));
   repoPolicy = join(cwd, REPO_POLICY_PATH);
-  await mkdir(join(cwd, ".john-studio"), { recursive: true });
+  await mkdir(join(cwd, ".warband"), { recursive: true });
 });
 
 describe("loadPolicy", () => {
@@ -96,10 +96,8 @@ describe("loadPolicy", () => {
 
 describe("defaultConfigDir", () => {
   it("suit XDG, %APPDATA% puis ~/.config", () => {
-    expect(defaultConfigDir({ XDG_CONFIG_HOME: "/x" }, "linux", "/h")).toBe(
-      join("/x", "john-studio"),
-    );
-    expect(defaultConfigDir({}, "linux", "/h")).toBe(join("/h", ".config", "john-studio"));
-    expect(defaultConfigDir({ APPDATA: "/a" }, "win32", "/h")).toBe(join("/a", "john-studio"));
+    expect(defaultConfigDir({ XDG_CONFIG_HOME: "/x" }, "linux", "/h")).toBe(join("/x", "warband"));
+    expect(defaultConfigDir({}, "linux", "/h")).toBe(join("/h", ".config", "warband"));
+    expect(defaultConfigDir({ APPDATA: "/a" }, "win32", "/h")).toBe(join("/a", "warband"));
   });
 });

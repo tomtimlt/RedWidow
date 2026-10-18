@@ -1,5 +1,5 @@
-import { type EngineEvent, EXEGOL_EXEC_TOOL } from "@john-studio/core";
-import { formatError, formatReason } from "@john-studio/messages";
+import { type EngineEvent, EXEGOL_EXEC_TOOL } from "@warband/core";
+import { formatError, formatReason } from "@warband/messages";
 import { type ApprovalCard, cleanText, describeInput } from "./approval.js";
 import type { ChatControls } from "./controls.js";
 import { type Block, parseMarkdown } from "./markdown.js";

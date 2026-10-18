@@ -1,4 +1,4 @@
-import { stripControl } from "@john-studio/core";
+import { stripControl } from "@warband/core";
 
 const SANDBOX_TOOL_PREFIX = "mcp__sandbox__";
 

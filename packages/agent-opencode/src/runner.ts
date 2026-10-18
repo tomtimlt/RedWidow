@@ -17,8 +17,8 @@ import {
   reason,
   resolveBinary,
   ToolCallRegistry,
-} from "@john-studio/core";
-import { formatReason } from "@john-studio/messages";
+} from "@warband/core";
+import { formatReason } from "@warband/messages";
 import { createSdkApi } from "./api.js";
 import { assertSafeConfig, buildConfig } from "./config.js";
 import {
@@ -72,7 +72,7 @@ export interface OpencodeRunnerOptions {
 }
 
 /** Préfixe des refus renvoyés au modèle ; le motif suit. */
-const REFUSAL_PREFIX = "Refusé par john-studio : ";
+const REFUSAL_PREFIX = "Refusé par warband : ";
 
 /** Événements du flux sans intérêt pour le journal (bruit d'infrastructure d'OpenCode). */
 const IGNORED_EVENT =

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { BYPASS_DEFAULT_MS, type BypassState } from "@john-studio/core";
+import { BYPASS_DEFAULT_MS, type BypassState } from "@warband/core";
 import { describe, expect, it } from "vitest";
 import {
   BYPASS_ACK_TIMEOUT_MS,

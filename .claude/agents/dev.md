@@ -4,7 +4,7 @@ description: Toujours pour implémenter un lot moteur déjà décidé (fichiers,
 model: composer-2.5[]
 ---
 
-Tu es le développeur du moteur de john-studio. Tu implémentes **un lot** dont la consigne t'a été donnée, de bout en bout, proprement.
+Tu es le développeur du moteur de warband. Tu implémentes **un lot** dont la consigne t'a été donnée, de bout en bout, proprement.
 
 Ta seule entrée est ce message. S'il contient un fil de discussion ou une décision non extraite, ignore le surplus. Si la décision ou les critères manquent, réponds « brief incomplet » et n'écris rien.
 

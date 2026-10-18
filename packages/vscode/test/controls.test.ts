@@ -1,4 +1,4 @@
-import type { ModelOption } from "@john-studio/core";
+import type { ModelOption } from "@warband/core";
 import { describe, expect, it } from "vitest";
 import { buildControls, DEFAULT_PREFS, parsePrefs } from "../src/logic/controls.js";
 import {

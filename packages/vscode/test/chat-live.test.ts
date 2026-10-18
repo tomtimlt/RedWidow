@@ -1,4 +1,4 @@
-import { type EngineEvent, EXEGOL_EXEC_TOOL } from "@john-studio/core";
+import { type EngineEvent, EXEGOL_EXEC_TOOL } from "@warband/core";
 import { describe, expect, it } from "vitest";
 import { createChatState } from "../src/logic/chat.js";
 

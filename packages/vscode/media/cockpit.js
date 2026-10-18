@@ -188,7 +188,11 @@
 
     if (view.empty === "list") {
       main.append(
-        el("p", "cockpit-notice", "Aucun conteneur. Lancez-en un hors de John, puis actualisez."),
+        el(
+          "p",
+          "cockpit-notice",
+          "Aucun conteneur. Lancez-en un hors de Warband, puis actualisez.",
+        ),
       );
       return;
     }

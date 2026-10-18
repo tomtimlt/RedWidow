@@ -1,4 +1,4 @@
-import { EFFORTS, type ModelOption } from "@john-studio/core";
+import { EFFORTS, type ModelOption } from "@warband/core";
 import { cleanText } from "./approval.js";
 
 /** Plafonds du sondage (réponse venue du moteur, donc validée comme toute entrée). */

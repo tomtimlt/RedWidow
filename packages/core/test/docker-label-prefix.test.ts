@@ -49,7 +49,7 @@ describe("DockerClient.listLabelPrefix", () => {
   });
 
   it("zéro conteneur : pas d'appel inspect", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "john-fake-docker-empty-"));
+    const dir = await mkdtemp(join(tmpdir(), "warband-fake-docker-empty-"));
     const script = join(dir, "docker.mjs");
     const log = join(dir, "calls.log");
     await writeFile(
@@ -71,7 +71,7 @@ if (argv[0] === "ps" && argv.includes("--quiet")) process.exit(0);
   });
 
   it("ligne ps invalide → docker.unexpectedOutput sans le texte", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "john-fake-docker-badps-"));
+    const dir = await mkdtemp(join(tmpdir(), "warband-fake-docker-badps-"));
     const script = join(dir, "docker.mjs");
     await writeFile(
       script,
@@ -97,7 +97,7 @@ if (argv[0] === "ps") process.stdout.write("bad id\\n");
   });
 
   it("ligne inspect hors allowlist → docker.unexpectedOutput sans le corps", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "john-fake-docker-bad-insp-"));
+    const dir = await mkdtemp(join(tmpdir(), "warband-fake-docker-bad-insp-"));
     const script = join(dir, "docker.mjs");
     const leak = FAKE_EXEGOL_LABEL_LEAK;
     const desk = FAKE_EXEGOL_DESK_URL;

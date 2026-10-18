@@ -4,7 +4,7 @@ import {
   COURS_TOOL_PREFIX,
   coursRoot,
   coursToolSpecs,
-} from "@john-studio/core";
+} from "@warband/core";
 import { createSpecTools, type ResolveParent } from "./docker-tools.js";
 import type { Toolset } from "./toolset.js";
 

@@ -101,7 +101,7 @@ const SENSITIVE_HOME_PATHS = [
   ".netrc",
   ".git-credentials",
   ".config/gh",
-  ".config/john-studio",
+  ".config/warband",
   // Identifiants des fournisseurs de modèles d'OpenCode (auth.json) et sa configuration (clés en clair possibles).
   ".local/share/opencode",
   ".config/opencode",
@@ -122,7 +122,7 @@ const SENSITIVE_WIN_HOME = [
   "AppData\\Local\\Microsoft\\Vault",
   "AppData\\Roaming\\gcloud",
   "AppData\\Roaming\\GitHub CLI",
-  "AppData\\Roaming\\john-studio",
+  "AppData\\Roaming\\warband",
   "AppData\\Local\\Google\\Chrome\\User Data",
   "AppData\\Local\\Microsoft\\Edge\\User Data",
   "AppData\\Roaming\\Mozilla\\Firefox\\Profiles",
@@ -134,7 +134,7 @@ const SENSITIVE_WIN_ROAMING = [
   "Microsoft\\Crypto",
   "gcloud",
   "GitHub CLI",
-  "john-studio",
+  "warband",
   "Mozilla\\Firefox\\Profiles",
 ];
 const SENSITIVE_WIN_LOCAL = [
@@ -439,7 +439,7 @@ function sensitivePaths(f: Flavor): string[] {
   const list = SENSITIVE_HOME_PATHS.map((p) => j(f.home, p));
   if (f.platform !== "win32") {
     const xdg = envGet(f.env, "XDG_CONFIG_HOME", false);
-    if (xdg) list.push(j(xdg, "john-studio"));
+    if (xdg) list.push(j(xdg, "warband"));
     return [...list, ...SENSITIVE_POSIX_ABSOLUTE];
   }
   list.push(...SENSITIVE_WIN_HOME.map((p) => j(f.home, p)));

@@ -161,7 +161,7 @@ describe("win32 : chemins sensibles et espace de travail", () => {
   it("le dossier de configuration sous %APPDATA% est sensible", () => {
     const ctx: PolicyContext = { ...win(), home: "D:\\other" };
     expect(
-      verdict(ctx, "Read", { file_path: `${WIN_ENV.APPDATA}\\john-studio\\policy.json` }, allowAll)
+      verdict(ctx, "Read", { file_path: `${WIN_ENV.APPDATA}\\warband\\policy.json` }, allowAll)
         .decision,
     ).toBe("deny");
   });

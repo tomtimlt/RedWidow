@@ -7,8 +7,8 @@ import {
   type DockerClient,
   type DockerToolSpec,
   dockerToolSpecs,
-} from "@john-studio/core";
-import { formatError } from "@john-studio/messages";
+} from "@warband/core";
+import { formatError } from "@warband/messages";
 import type { AnyMcpTool, ResolvedCall, Toolset } from "./toolset.js";
 
 // Constantes définies dans le cœur (partagées avec l'adaptateur OpenCode), ré-exportées ici.

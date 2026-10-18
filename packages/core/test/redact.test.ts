@@ -118,7 +118,7 @@ describe("createRedactor", () => {
 describe("recorder + journal", () => {
   it("n'écrit aucun secret dans le journal ni dans les événements diffusés", async () => {
     const secret = "sk-ant-api03-ZZZZZZZZZZZZZZZZ";
-    const dir = await mkdtemp(join(tmpdir(), "john-redact-"));
+    const dir = await mkdtemp(join(tmpdir(), "warband-redact-"));
     const journal = await openJournal(join(dir, "j.jsonl"));
     const recorder = createRecorder();
     const seen: string[] = [];
@@ -153,13 +153,13 @@ describe("recorder + journal", () => {
   });
 
   it("masque les valeurs de process.env au moment de la création du recorder", () => {
-    process.env.JOHN_TEST_API_KEY = "valeur-secrete-unique-42";
+    process.env.WARBAND_TEST_API_KEY = "valeur-secrete-unique-42";
     try {
       const recorder = createRecorder();
       const e = recorder.emit({ kind: "agent.text", text: "x valeur-secrete-unique-42 y" });
       expect(e).toMatchObject({ text: `x ${REDACTED} y` });
     } finally {
-      delete process.env.JOHN_TEST_API_KEY;
+      delete process.env.WARBAND_TEST_API_KEY;
     }
   });
 

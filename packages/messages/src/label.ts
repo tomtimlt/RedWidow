@@ -1,4 +1,4 @@
-import type { AuthInfo, EngineEvent } from "@john-studio/core";
+import type { AuthInfo, EngineEvent } from "@warband/core";
 import { DEFAULT_LOCALE, type Locale } from "./catalog.js";
 import { formatError, formatReason, MESSAGES } from "./format.js";
 

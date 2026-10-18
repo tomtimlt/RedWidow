@@ -2,7 +2,7 @@
  * Test de contrat contre le VRAI Claude Agent SDK (appels API facturés).
  * Désactivé par défaut ; lancer avec :
  *
- *   ANTHROPIC_API_KEY=… JOHN_SDK_CONTRACT=1 pnpm test:contract
+ *   ANTHROPIC_API_KEY=… WARBAND_SDK_CONTRACT=1 pnpm test:contract
  *
  * Il vérifie les hypothèses que les faux `QueryFn` des autres tests ne peuvent
  * pas vérifier : le hook PreToolUse voit chaque outil (y compris ceux que le SDK
@@ -13,7 +13,7 @@
  * Sans clé API (abonnement Pro/Max) : avec une connexion `claude` (/login) ou
  * CLAUDE_CODE_OAUTH_TOKEN,
  *
- *   JOHN_SDK_CONTRACT=1 JOHN_CONTRACT_SUBSCRIPTION=1 pnpm test:contract
+ *   WARBAND_SDK_CONTRACT=1 WARBAND_CONTRACT_SUBSCRIPTION=1 pnpm test:contract
  *
  * exécute TOUS les scénarios en `auth: "subscription"` (l'environnement du
  * binaire est alors filtré de toute clé API), puis un scénario final consigne `apiKeySource` et
@@ -29,7 +29,7 @@ import {
   createRecorder,
   DEFAULT_POLICY,
   type EngineEvent,
-} from "@john-studio/core";
+} from "@warband/core";
 import { describe, expect, it } from "vitest";
 import {
   createSdkRunner,
@@ -41,10 +41,10 @@ import { fakeDocker } from "../helpers.js";
 
 const hasApiKey = Boolean(process.env.ANTHROPIC_API_KEY);
 /** Sans clé API, les scénarios principaux tournent avec l'abonnement (connexion `claude` /login). */
-const viaSubscription = !hasApiKey && process.env.JOHN_CONTRACT_SUBSCRIPTION === "1";
-const enabled = process.env.JOHN_SDK_CONTRACT === "1" && (hasApiKey || viaSubscription);
+const viaSubscription = !hasApiKey && process.env.WARBAND_CONTRACT_SUBSCRIPTION === "1";
+const enabled = process.env.WARBAND_SDK_CONTRACT === "1" && (hasApiKey || viaSubscription);
 /** Modèle facultatif ; à défaut, celui du SDK. */
-const MODEL = process.env.JOHN_CONTRACT_MODEL;
+const MODEL = process.env.WARBAND_CONTRACT_MODEL;
 const TIMEOUT = 180_000;
 
 /** Lance un vrai run et collecte événements et types de messages SDK observés. */
@@ -131,7 +131,7 @@ describe.skipIf(!enabled)("contrat Claude Agent SDK (réel)", () => {
   it(
     "outil MCP docker : tool.requested → approval.decided → process.* → tool.result",
     async () => {
-      const cwd = mkdtempSync(join(tmpdir(), "john-contract-"));
+      const cwd = mkdtempSync(join(tmpdir(), "warband-contract-"));
       const fake = await fakeDocker();
       const { events, extras } = await realRun(
         "Appelle une seule fois l'outil mcp__docker__ps (sans argument) puis réponds « OK ».",
@@ -169,7 +169,7 @@ describe.skipIf(!enabled)("contrat Claude Agent SDK (réel)", () => {
   it(
     "le hook voit une lecture que le SDK auto-approuve (dans le cwd)",
     async () => {
-      const cwd = realpathSync(mkdtempSync(join(tmpdir(), "john-contract-")));
+      const cwd = realpathSync(mkdtempSync(join(tmpdir(), "warband-contract-")));
       writeFileSync(join(cwd, "notes.txt"), "contenu-du-fichier");
       const { events } = await realRun(
         "Lis le fichier notes.txt avec l'outil Read puis réponds « OK ».",
@@ -192,8 +192,8 @@ describe.skipIf(!enabled)("contrat Claude Agent SDK (réel)", () => {
   it(
     "refuse une lecture hors de l'espace de travail, sans fuite du contenu",
     async () => {
-      const cwd = realpathSync(mkdtempSync(join(tmpdir(), "john-contract-")));
-      const other = realpathSync(mkdtempSync(join(tmpdir(), "john-contract-out-")));
+      const cwd = realpathSync(mkdtempSync(join(tmpdir(), "warband-contract-")));
+      const other = realpathSync(mkdtempSync(join(tmpdir(), "warband-contract-out-")));
       mkdirSync(other, { recursive: true });
       const marker = "MARQUEUR-SECRET-9f3a1c";
       const target = join(other, "secret.txt");
@@ -213,7 +213,7 @@ describe.skipIf(!enabled)("contrat Claude Agent SDK (réel)", () => {
   it(
     "n'expose pas Bash et ne laisse que les lectures natives",
     async () => {
-      const cwd = mkdtempSync(join(tmpdir(), "john-contract-"));
+      const cwd = mkdtempSync(join(tmpdir(), "warband-contract-"));
       const { tools, events } = await realRun("Réponds simplement « OK ».", cwd);
       expect(tools).not.toContain("Bash");
       expect(tools).not.toContain("Write");
@@ -226,13 +226,13 @@ describe.skipIf(!enabled)("contrat Claude Agent SDK (réel)", () => {
 });
 
 const subscription =
-  process.env.JOHN_SDK_CONTRACT === "1" && process.env.JOHN_CONTRACT_SUBSCRIPTION === "1";
+  process.env.WARBAND_SDK_CONTRACT === "1" && process.env.WARBAND_CONTRACT_SUBSCRIPTION === "1";
 
 describe.skipIf(!subscription)("contrat Claude Agent SDK : abonnement (réel)", () => {
   it(
     "authentifie via l'abonnement malgré settingSources: [] et consigne apiKeySource / accountInfo",
     async () => {
-      const cwd = mkdtempSync(join(tmpdir(), "john-contract-"));
+      const cwd = mkdtempSync(join(tmpdir(), "warband-contract-"));
       const recorder = createRecorder();
       const events: EngineEvent[] = [];
       recorder.subscribe((e) => events.push(e));

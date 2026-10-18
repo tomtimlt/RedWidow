@@ -1,8 +1,8 @@
 {
-  "name": "@john-studio/vscode",
+  "name": "@warband/vscode",
   "version": "0.1.0",
   "private": true,
-  "description": "Extension VS Code de john-studio (ADR 0004).",
+  "description": "Extension VS Code de warband (ADR 0004).",
   "type": "module",
   "engines": {
     "node": ">=22.12"
@@ -11,9 +11,9 @@
     "package": "node scripts/package-vsix.mjs"
   },
   "dependencies": {
-    "@john-studio/agent-sdk": "workspace:*",
-    "@john-studio/core": "workspace:*",
-    "@john-studio/messages": "workspace:*"
+    "@warband/agent-sdk": "workspace:*",
+    "@warband/core": "workspace:*",
+    "@warband/messages": "workspace:*"
   },
   "devDependencies": {
     "@types/vscode": "1.140.0",

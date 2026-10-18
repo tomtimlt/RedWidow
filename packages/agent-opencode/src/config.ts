@@ -1,4 +1,4 @@
-import { CodedError } from "@john-studio/core";
+import { CodedError } from "@warband/core";
 import { KNOWN_NATIVE_TOOLS } from "./names.js";
 
 type Obj = Record<string, unknown>;

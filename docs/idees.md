@@ -1,4 +1,4 @@
-# Idées pour john-studio
+# Idées pour warband
 
 Réserve d'idées, non triée par priorité. Rien ici n'est décidé : toute entrée
 retenue passe par `architect` (voie moteur) ou `cadre` (voie produit), et une
@@ -114,7 +114,7 @@ accord écrit.
 ## Intégration SysReptor
 
 Exegol tient déjà des trouvailles par projet (`packages/core/src/exegol/findings.ts`) ;
-SysReptor en fait un rapport de pentest. Une trouvaille john-studio (type,
+SysReptor en fait un rapport de pentest. Une trouvaille warband (type,
 libellé, état) correspond plutôt à une **note** SysReptor qu'à un *finding*
 (qui attend CVSS, description, remédiation, modèle de rapport).
 

@@ -1,1 +1,1 @@
-export { stripControl } from "@john-studio/core";
+export { stripControl } from "@warband/core";

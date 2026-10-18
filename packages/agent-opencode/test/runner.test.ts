@@ -1,14 +1,14 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import {
   type ApprovalAnswer,
   createRecorder,
   createRedactor,
   type EngineEvent,
-} from "@john-studio/core";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+} from "@warband/core";
 import { describe, expect, it } from "vitest";
 import { createOpencodeRunner, dockerToolset, parseModel, parsePermission } from "../src/index.js";
 import {
@@ -790,8 +790,8 @@ describe("outils docker par serveur MCP HTTP", () => {
     );
 
     expect(outputs[0]).toContain("web");
-    expect(outputs[1]).toMatch(/^Refusé par john-studio : /);
-    expect(outputs[2]).toMatch(/^Refusé par john-studio : /);
+    expect(outputs[1]).toMatch(/^Refusé par warband : /);
+    expect(outputs[2]).toMatch(/^Refusé par warband : /);
     expect(await docker.calls()).toEqual(["ps|--format|{{json .}}|"]);
     const requested = of(h.events, "tool.requested");
     expect(requested[0]).toMatchObject({ toolUseId: "c1", tool: "mcp__docker__ps" });

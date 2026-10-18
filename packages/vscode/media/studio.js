@@ -110,7 +110,13 @@ function killchainModel(findings) {
 }
 
 // Exposée pour les tests (même convention que ui.js : pas de module dans la webview).
-globalThis.JohnStudio = { STUDIO_GROUPS, MITRE_TACTICS, killchainCount, killchainModel, navModel };
+globalThis.WarbandStudio = {
+  STUDIO_GROUPS,
+  MITRE_TACTICS,
+  killchainCount,
+  killchainModel,
+  navModel,
+};
 
 if (typeof acquireVsCodeApi === "function") start();
 

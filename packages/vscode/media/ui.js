@@ -382,5 +382,5 @@
     safeTerminals,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  else root.JohnUI = api;
+  else root.WarbandUI = api;
 })(globalThis);

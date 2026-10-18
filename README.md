@@ -1,4 +1,4 @@
-# john-studio
+# warband
 
 CLI d'orchestration de conteneurs Docker via un agent : Claude Agent SDK, ou OpenCode pour les autres fournisseurs.
 
@@ -21,7 +21,7 @@ packages/
   cli/           commander, rendu terminal, approbateur readline
 ```
 
-Les UI dépendent de `@john-studio/core`, jamais l'inverse. Une extension VS Code
+Les UI dépendent de `@warband/core`, jamais l'inverse. Une extension VS Code
 importera `core` et fournira son propre `Asker` et ses propres sinks.
 
 ## Approbation
@@ -33,7 +33,7 @@ Chaque appel d'outil passe par `canUseTool` → `ApprovalGate` → `evaluatePoli
 - substitution, expansion (`$VAR`, glob, accolades, `~`), redirection, affectation en préfixe ou arrière-plan → jamais d'auto-approbation (`ask`, ou `deny` si `default: "deny"`) ;
 - `ask` sans approbateur interactif → `deny`.
 
-Politique : `--policy <file>`, sinon `.john-studio/policy.json`, sinon la politique intégrée.
+Politique : `--policy <file>`, sinon `.warband/policy.json`, sinon la politique intégrée.
 
 ```json
 {
@@ -73,7 +73,7 @@ texte au prompt système (preset `claude_code`). L'identifiant de session est af
 
 ## Authentification
 
-john-studio lance le binaire Claude Code via le Claude Agent SDK, qui choisit ses identifiants dans l'ordre :
+warband lance le binaire Claude Code via le Claude Agent SDK, qui choisit ses identifiants dans l'ordre :
 fournisseurs cloud, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_API_KEY` (toujours utilisée si présente en mode non
 interactif), `apiKeyHelper`, `CLAUDE_CODE_OAUTH_TOKEN`, puis la connexion d'abonnement (Pro/Max) de `/login`.
 
@@ -91,13 +91,13 @@ devient un événement `error` (`auth.failed`, `auth.orgNotAllowed`) qui indique
 > **Avertissement.** Anthropic n'autorise pas, sauf accord préalable, les développeurs tiers à proposer la connexion
 > claude.ai ou ses limites de débit dans leurs produits, y compris les agents construits sur le Claude Agent SDK ;
 > l'usage de votre propre abonnement pour un outil personnel local n'est pas explicitement traité par la documentation.
-> Pour distribuer john-studio à d'autres, utilisez des clés API (`ANTHROPIC_API_KEY`, Bedrock, Vertex…).
+> Pour distribuer warband à d'autres, utilisez des clés API (`ANTHROPIC_API_KEY`, Bedrock, Vertex…).
 
 ## Autres agents (OpenCode)
 
-`john run --agent opencode --model fournisseur/modèle "…"` pilote [OpenCode](https://opencode.ai/docs/) (OpenAI,
+`warband run --agent opencode --model fournisseur/modèle "…"` pilote [OpenCode](https://opencode.ai/docs/) (OpenAI,
 Gemini, Ollama ou tout endpoint compatible OpenAI, OpenRouter…) avec le même cœur : événements, journal, graphe et
-**la même gate d'approbation**. `john agents` liste les moteurs et indique si le binaire `opencode` est trouvé.
+**la même gate d'approbation**. `warband agents` liste les moteurs et indique si le binaire `opencode` est trouvé.
 
 - **Installation.** Le binaire s'installe à part (`npm i -g opencode-ai`, ou voir la documentation d'OpenCode) ;
   `--opencode-bin <chemin>` pour un chemin explicite, `--opencode-url <url>` pour se connecter à un serveur existant
@@ -105,7 +105,7 @@ Gemini, Ollama ou tout endpoint compatible OpenAI, OpenRouter…) avec le même 
   elle est seulement vérifiée).
 - **Modèle.** `--model fournisseur/modèle` est obligatoire (ou `model` dans la configuration OpenCode) : sans lui,
   OpenCode pourrait choisir un modèle gratuit hébergé par un tiers.
-- **Authentification.** john-studio ne touche pas à `auth.json` et n'automatise aucune connexion d'abonnement.
+- **Authentification.** warband ne touche pas à `auth.json` et n'automatise aucune connexion d'abonnement.
   Connectez-vous avec `opencode auth login`, ou transmettez la clé du fournisseur par l'environnement :
   `--pass-env OPENAI_API_KEY` (le serveur lancé n'hérite que d'une liste blanche de variables, plus les proxys et
   dossiers XDG, plus celles de `--pass-env`). Les secrets sont masqués dans le journal comme pour Claude.
@@ -178,8 +178,8 @@ WORKDIR /work
 ```
 
 ```sh
-docker build -t john-sandbox:dev .
-node packages/cli/dist/main.js run --sandbox --sandbox-image john-sandbox:dev "…"
+docker build -t warband-sandbox:dev .
+node packages/cli/dist/main.js run --sandbox --sandbox-image warband-sandbox:dev "…"
 ```
 
 ### Tests d'intégration Docker (opt-in)
@@ -187,10 +187,10 @@ node packages/cli/dist/main.js run --sandbox --sandbox-image john-sandbox:dev "�
 Les tests unitaires du bac à sable utilisent un faux binaire `docker`. Pour valider sur un vrai démon :
 
 ```sh
-JOHN_DOCKER_TESTS=1 JOHN_SANDBOX_IMAGE=<image> pnpm exec vitest run packages/core/test/sandbox-live.test.ts
+WARBAND_DOCKER_TESTS=1 WARBAND_SANDBOX_IMAGE=<image> pnpm exec vitest run packages/core/test/sandbox-live.test.ts
 ```
 
-Sans `JOHN_DOCKER_TESTS=1`, ce fichier est ignoré par la suite (`pnpm check` ne lance pas Docker).
+Sans `WARBAND_DOCKER_TESTS=1`, ce fichier est ignoré par la suite (`pnpm check` ne lance pas Docker).
 
 ## Usage
 
@@ -198,8 +198,8 @@ Sans `JOHN_DOCKER_TESTS=1`, ce fichier est ignoré par la suite (`pnpm check` ne
 pnpm install && pnpm build
 node packages/cli/dist/main.js run "liste les conteneurs arrêtés"
 node packages/cli/dist/main.js policy check "docker ps -a | grep web"   # exit 0 allow / 2 ask / 3 deny
-node packages/cli/dist/main.js journal .john-studio/runs/<run>.jsonl -v
-node packages/cli/dist/main.js graph .john-studio/runs/<run>.jsonl -o run.html
+node packages/cli/dist/main.js journal .warband/runs/<run>.jsonl -v
+node packages/cli/dist/main.js graph .warband/runs/<run>.jsonl -o run.html
 node packages/cli/dist/main.js ps -a
 node packages/cli/dist/main.js agents                                       # claude, opencode (binaire trouvé ?)
 node packages/cli/dist/main.js run --agent opencode -m fournisseur/modèle "liste les conteneurs"

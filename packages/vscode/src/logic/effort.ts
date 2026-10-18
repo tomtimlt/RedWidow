@@ -1,4 +1,4 @@
-import { EFFORTS, type Effort } from "@john-studio/core";
+import { EFFORTS, type Effort } from "@warband/core";
 
 /** Fournisseur d'agent (seul Claude existe pour l'instant ; OpenCode viendra avec F5). */
 export type Provider = "claude";
@@ -18,7 +18,7 @@ export interface EffortLevel {
   providers?: readonly Provider[];
 }
 
-/** Réglages du préréglage Ultracode (réglages machine `john.ultracode.*`). */
+/** Réglages du préréglage Ultracode (réglages machine `warband.ultracode.*`). */
 export interface UltracodeLimits {
   maxTurns?: number;
   maxBudgetUsd?: number;
@@ -32,7 +32,7 @@ export function ultracodeTip(limits: UltracodeLimits | undefined): string {
     limits?.maxBudgetUsd === undefined
       ? "sans plafond de dépense"
       : `dépense plafonnée à ${limits.maxBudgetUsd} $`;
-  return `Préréglage : réflexion « Max » (mêmes capacités que Max, pas un mode distinct du modèle) avec des limites longues réglables (${turns}, ${budget}). Réglages : john.ultracode.maxTurns et john.ultracode.maxBudgetUsd.${SUFFIX}`;
+  return `Préréglage : réflexion « Max » (mêmes capacités que Max, pas un mode distinct du modèle) avec des limites longues réglables (${turns}, ${budget}). Réglages : warband.ultracode.maxTurns et warband.ultracode.maxBudgetUsd.${SUFFIX}`;
 }
 
 const SUFFIX = " L'effet exact dépend du modèle.";
@@ -76,7 +76,7 @@ export const levelsFor = (provider: Provider): EffortLevel[] =>
 
 /**
  * Paramètres de run d'un choix : effort du SDK et, pour Ultracode seulement, les plafonds du préréglage
- * (les plafonds de base `john.maxTurns` s'appliquent sinon, côté appelant).
+ * (les plafonds de base `warband.maxTurns` s'appliquent sinon, côté appelant).
  */
 export function resolveEffort(
   choice: EffortChoice,

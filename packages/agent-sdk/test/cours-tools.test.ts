@@ -1,5 +1,5 @@
 import type { McpSdkServerConfigWithInstance, Options } from "@anthropic-ai/claude-agent-sdk";
-import { createApprovalGate, createRecorder, LEARNING_POLICY } from "@john-studio/core";
+import { createApprovalGate, createRecorder, LEARNING_POLICY } from "@warband/core";
 import { describe, expect, it } from "vitest";
 import { coursToolset, createSdkRunner, type QueryFn } from "../src/index.js";
 

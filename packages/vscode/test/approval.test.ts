@@ -1,4 +1,4 @@
-import type { PendingApproval, PolicyVerdict } from "@john-studio/core";
+import type { PendingApproval, PolicyVerdict } from "@warband/core";
 import { describe, expect, it } from "vitest";
 import {
   alwaysConfirmText,

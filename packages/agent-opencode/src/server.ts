@@ -7,7 +7,7 @@ import {
   spawnOptionsForTree,
   terminateProcessTree,
   trackProcessTree,
-} from "@john-studio/core";
+} from "@warband/core";
 
 /**
  * Variables réseau transmises au serveur en plus de `safeEnv` : proxys et

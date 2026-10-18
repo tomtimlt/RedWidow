@@ -1,7 +1,7 @@
 import { constants, type Dirent } from "node:fs";
 import { open, readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { stripControl } from "@john-studio/core";
+import { stripControl } from "@warband/core";
 
 /** Source de cours affichée par l'Atlas : sous-dossier direct de la racine et sa licence déclarée. */
 export interface CoursSource {

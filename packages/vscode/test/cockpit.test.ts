@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { CodedError, ValidationError } from "@john-studio/core";
+import { CodedError, ValidationError } from "@warband/core";
 import { describe, expect, it } from "vitest";
 import { parseWebviewMessage } from "../src/logic/approval.js";
 import {
@@ -55,58 +55,62 @@ describe("planEditorShell", () => {
     expect(planEditorShell("htb1", containers, [])).toEqual({
       action: "launch",
       name: "exegol-htb1",
-      title: "John : exegol-htb1",
+      title: "Warband : exegol-htb1",
     });
   });
 
   it("deuxième shell : suffixe (2)", () => {
-    expect(planEditorShell("htb1", containers, ["John : exegol-htb1"])).toEqual({
+    expect(planEditorShell("htb1", containers, ["Warband : exegol-htb1"])).toEqual({
       action: "launch",
       name: "exegol-htb1",
-      title: "John : exegol-htb1 (2)",
+      title: "Warband : exegol-htb1 (2)",
     });
   });
 
   it("trou d'indice : réutilise le plus petit libre", () => {
     expect(
-      planEditorShell("htb1", containers, ["John : exegol-htb1", "John : exegol-htb1 (3)"]),
+      planEditorShell("htb1", containers, ["Warband : exegol-htb1", "Warband : exegol-htb1 (3)"]),
     ).toEqual({
       action: "launch",
       name: "exegol-htb1",
-      title: "John : exegol-htb1 (2)",
+      title: "Warband : exegol-htb1 (2)",
     });
   });
 
   it("nom avec point : titre exact uniquement", () => {
     const dotted = [{ name: "my.box", state: "running" as const }];
-    expect(planEditorShell("my.box", dotted, ["John : my.box"])).toEqual({
+    expect(planEditorShell("my.box", dotted, ["Warband : my.box"])).toEqual({
       action: "launch",
       name: "my.box",
-      title: "John : my.box (2)",
+      title: "Warband : my.box (2)",
     });
-    expect(planEditorShell("my.box", dotted, ["John : my.box (2)"])).toEqual({
+    expect(planEditorShell("my.box", dotted, ["Warband : my.box (2)"])).toEqual({
       action: "launch",
       name: "my.box",
-      title: "John : my.box",
+      title: "Warband : my.box",
     });
   });
 
   it("cinquième demande : reveal du dernier titre suivi", () => {
     const open = [
-      "John : exegol-htb1",
-      "John : exegol-htb1 (2)",
-      "John : exegol-htb1 (3)",
-      "John : exegol-htb1 (4)",
+      "Warband : exegol-htb1",
+      "Warband : exegol-htb1 (2)",
+      "Warband : exegol-htb1 (3)",
+      "Warband : exegol-htb1 (4)",
     ];
     expect(planEditorShell("htb1", containers, open)).toEqual({
       action: "reveal",
-      title: "John : exegol-htb1 (4)",
+      title: "Warband : exegol-htb1 (4)",
     });
     expect(
-      planEditorShell("htb1", containers, [...open, "John : autre", "John : exegol-htb1 (2)"]),
+      planEditorShell("htb1", containers, [
+        ...open,
+        "Warband : autre",
+        "Warband : exegol-htb1 (2)",
+      ]),
     ).toEqual({
       action: "reveal",
-      title: "John : exegol-htb1 (2)",
+      title: "Warband : exegol-htb1 (2)",
     });
   });
 });

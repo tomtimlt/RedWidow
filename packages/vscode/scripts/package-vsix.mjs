@@ -89,7 +89,7 @@ const manifest = JSON.parse(readFileSync(join(pkgDir, "extension.manifest.json")
 writeFileSync(join(stage, "package.json"), JSON.stringify(manifest, null, 2));
 copyFileSync(join(pkgDir, "EXTENSION_README.md"), join(stage, "README.md"));
 
-const out = join(pkgDir, `john-studio-${manifest.version}-${target}.vsix`);
+const out = join(pkgDir, `warband-${manifest.version}-${target}.vsix`);
 const vsce = createRequire(import.meta.url).resolve("@vscode/vsce/vsce");
 execFileSync(
   process.execPath,

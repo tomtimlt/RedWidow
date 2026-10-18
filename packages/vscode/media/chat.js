@@ -12,7 +12,7 @@
   const send = $("send");
   const stop = $("stop");
   // Logique pure (media/ui.js, chargé avant) : navigation clavier, placement, classes d'état.
-  const UI = globalThis.JohnUI;
+  const UI = globalThis.WarbandUI;
 
   const el = (tag, className, text) => {
     const node = document.createElement(tag);
@@ -375,7 +375,7 @@
     {
       value: null,
       label: "Modèle par défaut",
-      description: "Réglage john.model, sinon le modèle du binaire.",
+      description: "Réglage warband.model, sinon le modèle du binaire.",
     },
     ...(ctl?.models ?? []),
   ];
@@ -678,7 +678,7 @@
     if (mentionActive >= mentionShown.length) mentionActive = 0;
     mentionEmpty.hidden = mentionShown.length > 0;
     mentionEmpty.textContent = hash
-      ? "Aucun terminal John ouvert. Alt+J T ou /start <conteneur> pour en ouvrir un."
+      ? "Aucun terminal Warband ouvert. Alt+J T ou /start <conteneur> pour en ouvrir un."
       : "Aucun conteneur";
     mentionPop.setAttribute("aria-label", hash ? "Terminaux" : "Conteneurs");
     mentionList.replaceChildren(

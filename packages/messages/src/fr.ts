@@ -88,7 +88,7 @@ const TAR_REASONS: Readonly<Record<string, string>> = {
 
 const text = (v: string | number | undefined): string => (v === undefined ? "?" : String(v));
 
-const REPO_HINT = "Après relecture : john policy trust";
+const REPO_HINT = "Après relecture : warband policy trust";
 
 /** Catalogue complet : `REASON_CODES` est testé contre lui. */
 export const reasons: Catalog = {
@@ -144,7 +144,7 @@ export const reasons: Catalog = {
     `plafond de dépense dépassé : ${text(p.spent)} $ dépensés pour ${text(p.limit)} $ autorisés`,
 
   "opencode.unsafeConfig": (p) =>
-    `configuration OpenCode trop permissive (${text(p.setting)}) : john-studio exige « ask » ou « deny » pour tous les outils`,
+    `configuration OpenCode trop permissive (${text(p.setting)}) : warband exige « ask » ou « deny » pour tous les outils`,
   "extension.binaryMismatch": () =>
     "binaire claude absent ou altéré (empreinte SHA-256 différente) : refusé",
   "ipc.invalidMessage": (p) => `message du moteur invalide (${text(p.field)}) : ignoré`,

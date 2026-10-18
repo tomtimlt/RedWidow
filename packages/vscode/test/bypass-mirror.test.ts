@@ -1,4 +1,4 @@
-import { BYPASS_DEFAULT_MS } from "@john-studio/core";
+import { BYPASS_DEFAULT_MS } from "@warband/core";
 import { describe, expect, it } from "vitest";
 import { createBypassMirror } from "../src/engine/bypass-mirror.js";
 

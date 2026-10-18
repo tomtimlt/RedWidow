@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
-import { type Policy, type PolicyRule, parsePolicy, USER_POLICY_FILE } from "@john-studio/core";
+import { type Policy, type PolicyRule, parsePolicy, USER_POLICY_FILE } from "@warband/core";
 
 /** Renommage atomique ; sous win32, 3 nouveaux essais sur EPERM/EBUSY/EACCES (antivirus, indexeur) puis échec. */
 export async function renameWithRetry(

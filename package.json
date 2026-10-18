@@ -1,5 +1,5 @@
 {
-  "name": "john-studio",
+  "name": "warband",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.28.0",
@@ -14,7 +14,7 @@
     "format": "biome format --write .",
     "check": "biome check . && pnpm typecheck && vitest run",
     "maj": "node scripts/update.mjs",
-    "test:contract": "node scripts/with-env.mjs JOHN_SDK_CONTRACT=1 -- vitest run packages/agent-sdk/test/contract"
+    "test:contract": "node scripts/with-env.mjs WARBAND_SDK_CONTRACT=1 -- vitest run packages/agent-sdk/test/contract"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",

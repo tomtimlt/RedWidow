@@ -9,7 +9,7 @@ import {
   BYPASS_DEFAULT_MS,
   LEARNING_SYSTEM_PROMPT,
   type Policy,
-} from "@john-studio/core";
+} from "@warband/core";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { type EngineChannel, runEngine } from "../src/engine/engine.js";
 import type { FromEngine } from "../src/logic/protocol.js";
@@ -51,7 +51,7 @@ const idleRunner: AgentRunner = {
 
 let cwd: string;
 beforeAll(async () => {
-  cwd = await mkdtemp(join(tmpdir(), "john-engine-"));
+  cwd = await mkdtemp(join(tmpdir(), "warband-engine-"));
 });
 afterAll(() => rm(cwd, { recursive: true, force: true }));
 
@@ -100,7 +100,7 @@ describe("moteur : validation des messages reçus", () => {
     const done = runEngine({
       channel: t.channel,
       createRunner: async () => {
-        const { CodedError } = await import("@john-studio/core");
+        const { CodedError } = await import("@warband/core");
         throw new CodedError("extension.binaryMismatch");
       },
     });
@@ -143,8 +143,8 @@ describe("moteur : validation des messages reçus", () => {
 describe("moteur : journal de l'extension (F4)", () => {
   it("écrit dans journalDir (hors du dépôt) et consigne chaque consigne en user.message", async () => {
     const { readFile, readdir } = await import("node:fs/promises");
-    const journalDir = await mkdtemp(join(tmpdir(), "john-journal-"));
-    const repo = await mkdtemp(join(tmpdir(), "john-repo-"));
+    const journalDir = await mkdtemp(join(tmpdir(), "warband-journal-"));
+    const repo = await mkdtemp(join(tmpdir(), "warband-repo-"));
     try {
       const t = fakeChannel();
       const done = runEngine({ channel: t.channel, createRunner: () => idleRunner });
@@ -162,7 +162,7 @@ describe("moteur : journal de l'extension (F4)", () => {
       expect(files).toHaveLength(1);
       expect(files[0]).toMatch(/^[0-9a-f-]{36}\.jsonl$/);
       // Rien n'a été écrit dans le dépôt.
-      await expect(readdir(join(repo, ".john-studio"))).rejects.toThrow();
+      await expect(readdir(join(repo, ".warband"))).rejects.toThrow();
     } finally {
       await rm(journalDir, { recursive: true, force: true });
       await rm(repo, { recursive: true, force: true });
@@ -200,7 +200,7 @@ describe("moteur : Bypass (ADR 0006, pont hôte → moteur)", () => {
       outside: {
         toolUseId: "outside",
         tool: "Write",
-        input: { file_path: "/etc/john-bypass-test", content: "x" },
+        input: { file_path: "/etc/warband-bypass-test", content: "x" },
       },
       lsok: { toolUseId: "lsok", tool: "Bash", input: { command: "ls" } },
       // Deux segments : verdict de la règle `ls`, refus par le garde multi-segments.
@@ -265,8 +265,8 @@ describe("moteur : Bypass (ADR 0006, pont hôte → moteur)", () => {
   const acks = (sent: FromEngine[]) => sent.flatMap((m) => (m.type === "bypassAck" ? [m] : []));
 
   it("(q) accusé = état retenu ; rejeu et seq non croissant ignorés sans accusé", async () => {
-    const repo = await mkdtemp(join(tmpdir(), "john-bp-"));
-    const journalDir = await mkdtemp(join(tmpdir(), "john-bp-j-"));
+    const repo = await mkdtemp(join(tmpdir(), "warband-bp-"));
+    const journalDir = await mkdtemp(join(tmpdir(), "warband-bp-j-"));
     try {
       const t = fakeChannel();
       const done = runEngine({ channel: t.channel, createRunner: () => idleRunner });
@@ -293,8 +293,8 @@ describe("moteur : Bypass (ADR 0006, pont hôte → moteur)", () => {
   });
 
   it("(p) message forgé rejeté : erreur, et un Bypass déjà actif passe à « off »", async () => {
-    const repo = await mkdtemp(join(tmpdir(), "john-bp-"));
-    const journalDir = await mkdtemp(join(tmpdir(), "john-bp-j-"));
+    const repo = await mkdtemp(join(tmpdir(), "warband-bp-"));
+    const journalDir = await mkdtemp(join(tmpdir(), "warband-bp-j-"));
     try {
       const t = fakeChannel();
       const box = { outcomes: new Map<string, ApprovalOutcome>() };
@@ -350,8 +350,8 @@ describe("moteur : Bypass (ADR 0006, pont hôte → moteur)", () => {
   });
 
   it("(s) coupure du canal : le Bypass s'éteint avant l'annulation, aucune décision « bypass » ensuite", async () => {
-    const repo = await mkdtemp(join(tmpdir(), "john-bp-"));
-    const journalDir = await mkdtemp(join(tmpdir(), "john-bp-j-"));
+    const repo = await mkdtemp(join(tmpdir(), "warband-bp-"));
+    const journalDir = await mkdtemp(join(tmpdir(), "warband-bp-j-"));
     try {
       const t = fakeChannel();
       const box = { outcomes: new Map<string, ApprovalOutcome>() } as {
@@ -387,8 +387,8 @@ describe("moteur : Bypass (ADR 0006, pont hôte → moteur)", () => {
   });
 
   it("(u) bout à bout avec la gate réelle : deny, chemins, danger shell et hôte jamais auto-approuvés ; ordinaire oui", async () => {
-    const repo = await mkdtemp(join(tmpdir(), "john-bp-"));
-    const journalDir = await mkdtemp(join(tmpdir(), "john-bp-j-"));
+    const repo = await mkdtemp(join(tmpdir(), "warband-bp-"));
+    const journalDir = await mkdtemp(join(tmpdir(), "warband-bp-j-"));
     try {
       const requests = requestsFor(repo);
       const box = { outcomes: new Map<string, ApprovalOutcome>() };
@@ -470,8 +470,8 @@ describe("moteur : Bypass (ADR 0006, pont hôte → moteur)", () => {
   });
 
   it("(v) expiration à l'horloge du moteur : plus de décision « bypass » après l'échéance, sans nouveau message", async () => {
-    const repo = await mkdtemp(join(tmpdir(), "john-bp-"));
-    const journalDir = await mkdtemp(join(tmpdir(), "john-bp-j-"));
+    const repo = await mkdtemp(join(tmpdir(), "warband-bp-"));
+    const journalDir = await mkdtemp(join(tmpdir(), "warband-bp-j-"));
     try {
       const requests = requestsFor(repo);
       requests.ok2 = { ...requests.ok, toolUseId: "ok2" } as ApprovalRequest;
@@ -548,8 +548,8 @@ describe("moteur : mode apprentissage (ADR 0010)", () => {
   });
 
   const prep = async () => ({
-    repo: await mkdtemp(join(tmpdir(), "john-lr-")),
-    journalDir: await mkdtemp(join(tmpdir(), "john-lr-j-")),
+    repo: await mkdtemp(join(tmpdir(), "warband-lr-")),
+    journalDir: await mkdtemp(join(tmpdir(), "warband-lr-j-")),
   });
 
   it("(f)(i) Bypass actif : tout refusé par la politique sauf cours ; sans politique chargée", async () => {

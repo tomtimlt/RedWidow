@@ -101,7 +101,7 @@ function buildView(state: PreviewState) {
         kind: "tool.requested",
         toolUseId: "3",
         tool: "Bash",
-        input: { command: "pnpm test --filter @john-studio/vscode" },
+        input: { command: "pnpm test --filter @warband/vscode" },
       });
     }
   }

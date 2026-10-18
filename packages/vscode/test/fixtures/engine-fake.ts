@@ -1,5 +1,5 @@
 import { writeFileSync } from "node:fs";
-import { createSdkRunner, type QueryFn } from "@john-studio/agent-sdk";
+import { createSdkRunner, type QueryFn } from "@warband/agent-sdk";
 import { processChannel } from "../../src/engine/channel.js";
 import { runEngine } from "../../src/engine/engine.js";
 import { PROTOCOL_VERSION } from "../../src/logic/protocol.js";

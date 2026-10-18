@@ -1,24 +1,24 @@
 {
-  "name": "@john-studio/cli",
+  "name": "@warband/cli",
   "version": "0.1.0",
   "private": true,
-  "description": "CLI john-studio.",
+  "description": "CLI warband.",
   "type": "module",
   "engines": {
     "node": ">=22.12"
   },
   "bin": {
-    "john": "./dist/main.js"
+    "warband": "./dist/main.js"
   },
   "files": [
     "dist"
   ],
   "dependencies": {
-    "@john-studio/agent-opencode": "workspace:*",
-    "@john-studio/agent-sdk": "workspace:*",
-    "@john-studio/core": "workspace:*",
-    "@john-studio/export-html": "workspace:*",
-    "@john-studio/messages": "workspace:*",
+    "@warband/agent-opencode": "workspace:*",
+    "@warband/agent-sdk": "workspace:*",
+    "@warband/core": "workspace:*",
+    "@warband/export-html": "workspace:*",
+    "@warband/messages": "workspace:*",
     "commander": "^15.0.0"
   }
 }

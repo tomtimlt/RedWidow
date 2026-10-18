@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
-import { createRecorder, DEFAULT_POLICY, loadPolicy, type Policy } from "@john-studio/core";
+import { createRecorder, DEFAULT_POLICY, loadPolicy, type Policy } from "@warband/core";
 import { describe, expect, it } from "vitest";
 import { createTerminalAsker, parseAnswer } from "../src/ask.js";
 import { describeAuthIntent, formatEvent } from "../src/format.js";
@@ -47,7 +47,7 @@ describe("appendUserRule", () => {
   const rule = { tool: "Bash", command: "docker stop web", decision: "allow" } as const;
 
   it("crée policy.json à partir de la politique effective si absent", async () => {
-    const dir = join(mkdtempSync(join(tmpdir(), "john-cli-")), "cfg");
+    const dir = join(mkdtempSync(join(tmpdir(), "warband-cli-")), "cfg");
     const path = await appendUserRule(dir, rule, DEFAULT_POLICY);
     const saved = JSON.parse(readFileSync(path, "utf8")) as Policy;
     expect(saved.default).toBe(DEFAULT_POLICY.default);
@@ -59,7 +59,7 @@ describe("appendUserRule", () => {
   });
 
   it("ajoute à un fichier existant sans dupliquer", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "john-cli-"));
+    const dir = mkdtempSync(join(tmpdir(), "warband-cli-"));
     writeFileSync(
       join(dir, "policy.json"),
       JSON.stringify({ default: "deny", rules: [{ tool: "Read", decision: "allow" }] }),
@@ -74,7 +74,7 @@ describe("appendUserRule", () => {
   });
 
   it("n'écrase pas un fichier invalide", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "john-cli-"));
+    const dir = mkdtempSync(join(tmpdir(), "warband-cli-"));
     writeFileSync(join(dir, "policy.json"), "{pas du json");
     await expect(appendUserRule(dir, rule, DEFAULT_POLICY)).rejects.toThrow();
     expect(readFileSync(join(dir, "policy.json"), "utf8")).toBe("{pas du json");

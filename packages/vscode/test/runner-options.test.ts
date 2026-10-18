@@ -1,4 +1,4 @@
-import { createExegolTargets } from "@john-studio/core";
+import { createExegolTargets } from "@warband/core";
 import { describe, expect, it } from "vitest";
 import { runnerOptions } from "../src/engine/runner-options.js";
 

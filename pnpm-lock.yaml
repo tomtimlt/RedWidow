@@ -23,18 +23,18 @@ importers:
 
   packages/agent-opencode:
     dependencies:
-      '@john-studio/core':
-        specifier: workspace:*
-        version: link:../core
-      '@john-studio/messages':
-        specifier: workspace:*
-        version: link:../messages
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.32.1(zod@4.6.7)
       '@opencode-ai/sdk':
         specifier: 1.19.0
         version: 1.19.0
+      '@warband/core':
+        specifier: workspace:*
+        version: link:../core
+      '@warband/messages':
+        specifier: workspace:*
+        version: link:../messages
       zod:
         specifier: ^4.6.7
         version: 4.6.7
@@ -47,34 +47,34 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.133.0
         version: 0.133.0(zod@4.6.7)
-      '@john-studio/core':
-        specifier: workspace:*
-        version: link:../core
-      '@john-studio/messages':
-        specifier: workspace:*
-        version: link:../messages
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.32.1(zod@4.6.7)
+      '@warband/core':
+        specifier: workspace:*
+        version: link:../core
+      '@warband/messages':
+        specifier: workspace:*
+        version: link:../messages
       zod:
         specifier: ^4.6.7
         version: 4.6.7
 
   packages/cli:
     dependencies:
-      '@john-studio/agent-opencode':
+      '@warband/agent-opencode':
         specifier: workspace:*
         version: link:../agent-opencode
-      '@john-studio/agent-sdk':
+      '@warband/agent-sdk':
         specifier: workspace:*
         version: link:../agent-sdk
-      '@john-studio/core':
+      '@warband/core':
         specifier: workspace:*
         version: link:../core
-      '@john-studio/export-html':
+      '@warband/export-html':
         specifier: workspace:*
         version: link:../export-html
-      '@john-studio/messages':
+      '@warband/messages':
         specifier: workspace:*
         version: link:../messages
       commander:
@@ -89,28 +89,28 @@ importers:
 
   packages/export-html:
     dependencies:
-      '@john-studio/core':
+      '@warband/core':
         specifier: workspace:*
         version: link:../core
-      '@john-studio/messages':
+      '@warband/messages':
         specifier: workspace:*
         version: link:../messages
 
   packages/messages:
     dependencies:
-      '@john-studio/core':
+      '@warband/core':
         specifier: workspace:*
         version: link:../core
 
   packages/vscode:
     dependencies:
-      '@john-studio/agent-sdk':
+      '@warband/agent-sdk':
         specifier: workspace:*
         version: link:../agent-sdk
-      '@john-studio/core':
+      '@warband/core':
         specifier: workspace:*
         version: link:../core
-      '@john-studio/messages':
+      '@warband/messages':
         specifier: workspace:*
         version: link:../messages
     devDependencies:
