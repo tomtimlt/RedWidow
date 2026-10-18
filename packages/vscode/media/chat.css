@@ -1719,9 +1719,19 @@ body.no-provider #composer {
   #send {
     order: 2;
   }
+  /* Une seule rangée de pastilles : l'étiquette du modèle absorbe la place, les autres ne rétrécissent pas. */
   #ctl-group {
     order: 3;
     flex: 1 1 100%;
+    flex-wrap: nowrap;
+  }
+  #ctl-group > * {
+    flex: none;
+  }
+  #ctl-group > #model-chip {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: none;
   }
 }
 @container app (max-width: 479px) {

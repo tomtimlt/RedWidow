@@ -302,6 +302,14 @@ describe("débordement à 280 px : barre d'outils du composer", () => {
     expect(has("#send", "order", "2", within)).toBe(true);
   });
 
+  it("sous 720 px, les quatre pastilles tiennent sur une rangée : le modèle absorbe la place, les autres ne rétrécissent pas", () => {
+    const within = "@container app (max-width: 719px)";
+    expect(has("#ctl-group", "flex-wrap", "nowrap", within)).toBe(true);
+    expect(has("#ctl-group > *", "flex", "none", within)).toBe(true);
+    expect(has("#ctl-group > #model-chip", "flex", "1 1 auto", within)).toBe(true);
+    expect(has("#ctl-group > #model-chip", "min-width", "0", within)).toBe(true);
+  });
+
   it("le groupe de pastilles peut passer à la ligne et ses enfants rétrécir", () => {
     expect(has("#ctl-group", "flex-wrap", "wrap")).toBe(true);
     expect(has("#ctl-group > *", "min-width", "0")).toBe(true);
