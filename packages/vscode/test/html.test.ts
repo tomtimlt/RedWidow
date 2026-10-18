@@ -143,8 +143,11 @@ describe("composer et Configurer (lot P1)", () => {
     expect(menu).not.toContain("/start");
     expect(html).not.toMatch(/\bmcp\b|jauge|compact|pièce jointe active/i);
   });
-  it("les boutons @ et / existent, le second ouvre le menu", () => {
+  it("les boutons @, # et / existent, le dernier ouvre le menu", () => {
     expect(tag("mention-btn")).toContain('aria-controls="mention-pop"');
+    expect(tag("hash-btn")).toContain('aria-controls="mention-pop"');
+    expect(html.indexOf('id="hash-btn"')).toBeGreaterThan(html.indexOf('id="mention-btn"'));
+    expect(html.indexOf('id="hash-btn"')).toBeLessThan(html.indexOf('id="slash-btn"'));
     expect(tag("slash-btn")).toContain('popovertarget="slash-pop"');
     expect(html).toContain('id="mention-pop"');
     expect(html).toContain('id="mention-list"');

@@ -619,6 +619,7 @@
   const slashPop = $("slash-pop");
   const slashBtn = $("slash-btn");
   const mentionBtn = $("mention-btn");
+  const hashBtn = $("hash-btn");
   wirePop(slashPop, slashBtn, {
     render() {},
     focus() {
@@ -646,7 +647,9 @@
     if (mentionOpen()) mentionPop.hidePopover();
   }
   mentionPop.addEventListener("toggle", (e) => {
-    mentionBtn.setAttribute("aria-expanded", String(e.newState === "open"));
+    const open = e.newState === "open";
+    mentionBtn.setAttribute("aria-expanded", String(open && mentionSigil === "@"));
+    hashBtn.setAttribute("aria-expanded", String(open && mentionSigil === "#"));
   });
   function paintMention() {
     const buttons = [...mentionList.querySelectorAll("button")];
@@ -717,14 +720,17 @@
     grow();
     input.focus();
   }
-  mentionBtn.addEventListener("click", () => {
+  // Boutons « @ » (conteneurs) et « # » (terminaux) : insèrent le signe au curseur puis ouvrent la liste.
+  function sigilClick(sigil, spanOf) {
     const start = input.selectionStart ?? input.value.length;
     const end = input.selectionEnd ?? start;
-    if (!UI.mentionSpan(input.value, start)) input.setRangeText("@", start, end, "end");
+    if (!spanOf(input.value, start)) input.setRangeText(sigil, start, end, "end");
     grow();
     input.focus();
     openMention();
-  });
+  }
+  mentionBtn.addEventListener("click", () => sigilClick("@", UI.mentionSpan));
+  hashBtn.addEventListener("click", () => sigilClick("#", UI.hashSpan));
 
   modelFilter.addEventListener("input", () => {
     query = modelFilter.value;
@@ -988,6 +994,7 @@
     send.disabled = view.busy || !!view.readonly || noProvider;
     input.disabled = !!view.readonly || noProvider;
     mentionBtn.disabled = input.disabled;
+    hashBtn.disabled = input.disabled;
     stop.disabled = !view.busy;
     lastView = view;
     applyBody();
