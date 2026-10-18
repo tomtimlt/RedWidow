@@ -815,6 +815,17 @@ body.waiting #thinking {
   margin-top: var(--jn-s3);
 }
 
+/* Largeur compacte : « Autoriser une fois » prend sa ligne, « Refuser » et « Toujours » se partagent la suivante
+   (jamais un contrôle isolé et étroit sur une ligne). */
+@container app (max-width: 359px) {
+  .card-buttons > button {
+    flex: 1 1 auto;
+  }
+  .card-buttons > button.primary {
+    flex-basis: 100%;
+  }
+}
+
 /* --- Boutons : primary, secondary (défaut), ghost, danger --- */
 button {
   position: relative;
@@ -2253,10 +2264,16 @@ body.cockpit .cockpit-row.is-running > .dot {
   align-items: center;
   gap: var(--jn-s2);
   min-width: 0;
+  overflow: hidden;
   font-size: var(--jn-fs-xs);
   color: var(--jn-muted);
 }
+/* Image et dossier cèdent la place (ellipse) : jamais de texte glissé sous les boutons d'action. */
 .cockpit-row-image {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-family: var(--jn-mono);
 }
 .cockpit-row-ws,
@@ -2265,6 +2282,12 @@ body.cockpit .cockpit-row.is-running > .dot {
   white-space: nowrap;
   font-family: var(--jn-mono);
   font-weight: 600;
+}
+.cockpit-row-ws {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .cockpit-row.is-running .cockpit-row-state {
   color: var(--jn-ok);
@@ -2580,6 +2603,7 @@ body.studio .studio-dl dd {
 }
 .studio-kc-swatch.is-hypothesis {
   border-style: dashed;
+  border-color: var(--jn-muted);
 }
 .studio-kc-swatch.is-failed {
   border-color: var(--vscode-inputValidation-errorBorder, var(--jn-line));

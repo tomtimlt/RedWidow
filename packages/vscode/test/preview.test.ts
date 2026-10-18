@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { createChatState } from "../src/logic/chat.js";
 import { buildControls, DEFAULT_PREFS } from "../src/logic/controls.js";
-import { chatHtml } from "../src/logic/html.js";
+import { chatHtml, cockpitHtml, studioHtml } from "../src/logic/html.js";
 
 const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 
@@ -173,20 +173,115 @@ function buildView(state: PreviewState) {
 }
 
 /**
- * Contrôle de débordement : les animations finies sont menées à leur terme avant la mesure (le tiroir d'historique
- * ouvert part de -100 % et serait signalé à tort) ; seuls les éléments cachés (`hidden`) ou à clip sr-only sont ignorés.
- * Script de la page de prévisualisation : simule l'hôte VS Code. La page est chargée dans une iframe de la
- * largeur voulue (Edge headless impose ~500 px de fenêtre) ; elle poste au parent les violations CSP et le débordement.
+ * Contrôle de débordement, commun à toutes les pages : les animations finies sont menées à leur terme avant la mesure
+ * (le tiroir d'historique ouvert part de -100 % et serait signalé à tort) ; sont ignorés les éléments cachés (`hidden`),
+ * à clip sr-only, les blocs `pre` et les conteneurs à défilement volontaire (graphe de la chaîne d'attaque).
  */
-const shim = (cls: string, data: string, click: string | undefined) => `
+const MEASURE = `for(const a of document.getAnimations()){try{a.finish();}catch(e){}}const w=document.documentElement.clientWidth;let bad="";
+if(document.documentElement.scrollWidth>w)bad="page:"+document.documentElement.scrollWidth;
+for(const n of document.body.querySelectorAll("*")){if(n.closest(".sr-only")||n.closest("pre")||n.closest("[hidden]")||n.closest(".kc-viewport")||n.closest(".studio-kc-scroll"))continue;const r=n.getBoundingClientRect();if(r.width>0&&(r.right>w+1||r.left<-1)){bad=n.tagName+"#"+n.id+"."+n.className+" "+Math.round(r.left)+".."+Math.round(r.right);break;}}`;
+
+/**
+ * Script de la page de prévisualisation : simule l'hôte VS Code. `trigger` est le type du message que la vue envoie à
+ * l'hôte au démarrage (`ready` pour le chat, `refresh` pour le cockpit et les réglages) ; la réponse `messages` part alors.
+ * La page est chargée dans une iframe de la largeur voulue ; elle poste au parent les violations CSP et le débordement.
+ */
+const shim = (cls: string, trigger: string, messages: unknown[], click: string | undefined) => {
+  const posts = messages
+    .map((m) => `window.postMessage(${JSON.stringify(m).replace(/</g, "\\u003c")},"*");`)
+    .join("");
+  return `
 const csp=[];document.addEventListener("securitypolicyviolation",(e)=>{csp.push(e.violatedDirective+" "+e.blockedURI);});
 document.body.classList.add("${cls}");
-window.acquireVsCodeApi=()=>({postMessage:(m)=>{if(m.type==="ready")setTimeout(()=>{window.postMessage({type:"view",view:${data}},"*");window.postMessage({type:"containers",items:[{name:"htb1",state:"running"},{name:"lab",state:"stopped"}]},"*");},0);}});
+window.acquireVsCodeApi=()=>({postMessage:(m)=>{if(m.type==="${trigger}")setTimeout(()=>{${posts}},0);}});
 window.addEventListener("load",()=>setTimeout(()=>{${click ? `document.getElementById("${click}").click();` : ""}
-setTimeout(()=>{for(const a of document.getAnimations()){try{a.finish();}catch(e){}}const w=document.documentElement.clientWidth;let bad="";
-if(document.documentElement.scrollWidth>w)bad="page:"+document.documentElement.scrollWidth;
-for(const n of document.body.querySelectorAll("*")){if(n.closest(".sr-only")||n.closest("pre")||n.closest("[hidden]"))continue;const r=n.getBoundingClientRect();if(r.width>0&&(r.right>w+1||r.left<-1)){bad=n.tagName+"#"+n.id+"."+n.className+" "+Math.round(r.left)+".."+Math.round(r.right);break;}}
+setTimeout(()=>{${MEASURE}
 parent.postMessage({ready:true,csp:csp.join(";"),overflow:bad},"*");},300);},50));`;
+};
+
+const CHAT_CONTAINERS = {
+  type: "containers",
+  items: [
+    { name: "htb1", state: "running" },
+    { name: "lab", state: "stopped" },
+  ],
+};
+
+/** Données de l'hôte pour le cockpit et les réglages (conteneurs Exegol, constats, sources). */
+const DOCKER_VIEW = {
+  docker: "present",
+  daemon: "reachable",
+  exegol: "present",
+  containers: [
+    {
+      name: "exegol-htb1",
+      short: "htb1",
+      state: "running",
+      image: "exegol:full",
+      linked: true,
+      canLink: false,
+      workspace: "/p",
+    },
+    {
+      name: "exegol-lab",
+      short: "lab",
+      state: "stopped",
+      image: "exegol:light",
+      linked: false,
+      canLink: true,
+    },
+    {
+      name: "exegol-web",
+      short: "web",
+      state: "running",
+      image: "exegol:web",
+      linked: false,
+      canLink: false,
+      linkTitle: "Déjà utilisé",
+      workspace: "/q",
+    },
+  ],
+};
+const COCKPIT_VIEW = {
+  type: "view",
+  ...DOCKER_VIEW,
+  linked: "running",
+  linkedBanner: {
+    state: "running",
+    name: "exegol-htb1",
+    short: "htb1",
+    image: "ghcr.io/nwodtuhs/exegol:full",
+    workspace: "/home/user/projets/htb/box-1/engagement",
+  },
+};
+const STUDIO_PAGES_PREVIEW = ["project", "containers", "atlas", "killchain"] as const;
+const studioView = (page: string) => ({
+  type: "view",
+  page,
+  findings: [
+    {
+      id: "a",
+      kind: "host",
+      state: "confirmed",
+      label: "10.10.11.5",
+      tactic: "TA0043",
+      technique: "T1595",
+    },
+    {
+      id: "b",
+      kind: "credential",
+      state: "hypothesis",
+      label: "admin",
+      from: ["a"],
+      tactic: "TA0006",
+      technique: "T1110",
+    },
+    { id: "c", kind: "loot", state: "failed", label: "flag.txt", from: ["b"] },
+  ],
+  ...DOCKER_VIEW,
+  linkedBanner: { name: "exegol-htb1", workspace: "/home/user/projets/htb" },
+  sources: [{ name: "owasp-top10", droits: "CC-BY" }],
+});
 
 /** Génère des pages statiques ouvrables dans un navigateur (ignorées par git), avec la VRAIE CSP. */
 describe("pages de prévisualisation", () => {
@@ -195,12 +290,13 @@ describe("pages de prévisualisation", () => {
     mkdirSync(dir, { recursive: true });
     for (const [name, t] of Object.entries(THEMES))
       writeFileSync(`${dir}/theme-${name}.css`, t.css);
+    const cspSource = "file:";
     for (const state of STATES) {
-      const data = JSON.stringify(buildView(state)).replace(/</g, "\\u003c");
+      const view = buildView(state);
       for (const [theme, t] of Object.entries(THEMES)) {
         const html = chatHtml({
           nonce: "preview",
-          cspSource: "file:",
+          cspSource,
           scriptUri: "../media/chat.js",
           uiUri: "../media/ui.js",
           styleUri: "../media/chat.css",
@@ -211,11 +307,44 @@ describe("pages de prévisualisation", () => {
           )
           .replace(
             '<script nonce="preview" src="../media/ui.js"></script>',
-            `<script nonce="preview">${shim(t.cls, data, CLICK[state])}</script>\n<script nonce="preview" src="../media/ui.js"></script>`,
+            `<script nonce="preview">${shim(t.cls, "ready", [{ type: "view", view }, CHAT_CONTAINERS], CLICK[state])}</script>\n<script nonce="preview" src="../media/ui.js"></script>`,
           );
         expect(html).toContain("Content-Security-Policy");
         expect(html).toContain(`vscode-${theme === "hc" ? "high-contrast" : theme}`);
         writeFileSync(`${dir}/${state}-${theme}.html`, html);
+      }
+    }
+    // Cockpit et réglages : mêmes pages que celles de l'extension (CSP réelle), script d'hôte simulé en plus.
+    const pages: { name: string; script: string; make: typeof cockpitHtml; view: unknown }[] = [
+      { name: "cockpit", script: "cockpit.js", make: cockpitHtml, view: COCKPIT_VIEW },
+      ...STUDIO_PAGES_PREVIEW.map((p) => ({
+        name: `studio-${p}`,
+        script: "studio.js",
+        make: studioHtml,
+        view: studioView(p),
+      })),
+    ];
+    for (const p of pages) {
+      for (const [theme, t] of Object.entries(THEMES)) {
+        const base = p.make({
+          nonce: "preview",
+          cspSource,
+          scriptUri: `../media/${p.script}`,
+          styleUri: "../media/chat.css",
+        });
+        const html = base
+          .replace(
+            '<link rel="stylesheet" href="../media/chat.css">',
+            `<link rel="stylesheet" href="theme-${theme}.css">\n<link rel="stylesheet" href="../media/chat.css">`,
+          )
+          .replace(
+            `<script nonce="preview" src="../media/${p.script}"></script>`,
+            `<script nonce="preview">${shim(t.cls, "refresh", [p.view], undefined)}</script>\n<script nonce="preview" src="../media/${p.script}"></script>`,
+          );
+        expect(html).toContain("Content-Security-Policy");
+        expect(html).toContain(`../media/${p.script}`);
+        expect(html).toContain("window.acquireVsCodeApi");
+        writeFileSync(`${dir}/${p.name}-${theme}.html`, html);
       }
     }
   });
