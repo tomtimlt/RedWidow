@@ -56,6 +56,9 @@ const decls = (r: Rule) =>
       return [d.slice(0, k).trim(), d.slice(k + 1).trim()] as const;
     });
 
+/** Les six @keyframes de la charte (design-chat-ui.md §2), tous dans chat.css. */
+const KEPT = ["jn-braille", "jn-blink", "jn-msg-in", "jn-pop-in", "jn-drawer-in", "jn-fade-in"];
+
 describe.each(CSS_FILES)("%s : budget de performance (design-chat-ui.md §2)", (file) => {
   const css = readFileSync(
     fileURLToPath(new URL(`../media/${file}`, import.meta.url)),
@@ -67,7 +70,6 @@ describe.each(CSS_FILES)("%s : budget de performance (design-chat-ui.md §2)", (
   });
 
   it("les @keyframes n'animent que transform et opacity", () => {
-    if (file === "chat.css") expect(keyframes.size).toBeGreaterThan(5);
     for (const [name, props] of keyframes) {
       for (const p of props) expect(["transform", "opacity"], `${name}: ${p}`).toContain(p);
     }
@@ -98,15 +100,76 @@ describe.each(CSS_FILES)("%s : budget de performance (design-chat-ui.md §2)", (
     }
   });
 
-  it("au plus 3 animations infinies, toutes sous #thinking", () => {
+  it("au plus 2 animations infinies : #thinking… ou body.running…brand-cursor (M6, M7)", () => {
     const infinite = rules.flatMap((r) =>
       decls(r)
         .filter(([k, v]) => k === "animation" && /\binfinite\b/.test(v))
         .map(() => r),
     );
-    if (file === "chat.css") expect(infinite.length).toBeGreaterThan(0);
-    expect(infinite.length).toBeLessThanOrEqual(3);
-    for (const r of infinite) expect(r.selector.startsWith("#thinking"), r.selector).toBe(true);
+    if (file === "chat.css") expect(infinite.length).toBe(2);
+    expect(infinite.length).toBeLessThanOrEqual(2);
+    for (const r of infinite) {
+      expect(r.selector, r.selector).toMatch(/^(#thinking\b|body\.running\b[^,]*\.brand-cursor$)/);
+    }
+  });
+
+  it("l'ensemble des @keyframes est exactement les six gardés (M2 à M7)", () => {
+    const expected = file === "chat.css" ? KEPT : [];
+    expect([...keyframes.keys()].sort()).toEqual([...expected].sort());
+  });
+
+  it("toute durée finie ≤ 200 ms (jetons, animations, transitions)", () => {
+    const ms = (v: string) =>
+      v.endsWith("ms") ? Number.parseFloat(v) : Number.parseFloat(v) * 1000;
+    for (const r of rules) {
+      for (const [k, v] of decls(r)) {
+        if (/^--jn-d\d$/.test(k)) expect(ms(v), `${k}`).toBeLessThanOrEqual(200);
+        if (k !== "animation" && k !== "transition") continue;
+        // Les tranches séparées par une virgule de premier niveau sont des animations distinctes.
+        for (const part of v.replace(/\([^)]*\)/g, "()").split(",")) {
+          if (/\binfinite\b/.test(part)) continue;
+          const t = /(?:^|\s)(\d*\.?\d+m?s)(?=\s|$)/.exec(part)?.[1];
+          if (t) expect(ms(t), `${r.selector}: ${part}`).toBeLessThanOrEqual(200);
+        }
+      }
+    }
+  });
+
+  it("aucun cubic-bezier avec une ordonnée hors [0, 1]", () => {
+    let seen = 0;
+    for (const m of css.matchAll(/cubic-bezier\(([^)]*)\)/g)) {
+      seen++;
+      const [, y1, , y2] = (m[1] as string).split(",").map((n) => Number.parseFloat(n));
+      for (const y of [y1, y2]) {
+        expect(y, m[0]).toBeGreaterThanOrEqual(0);
+        expect(y, m[0]).toBeLessThanOrEqual(1);
+      }
+    }
+    if (file === "chat.css") expect(seen).toBeGreaterThan(0);
+  });
+
+  it("aucun scale( dans les @keyframes ni les transformations de transition/animation", () => {
+    for (const [name, props] of keyframes) expect(props, name).not.toContain("scale");
+    expect(css).not.toMatch(/@keyframes[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*scale\(/);
+    for (const r of rules) {
+      if (!decls(r).some(([k]) => k === "transition")) continue;
+      for (const [k, v] of decls(r))
+        if (k === "transform") expect(v, r.selector).not.toMatch(/scale\(/);
+    }
+  });
+
+  it("le curseur du logo (M7) ne clignote que pendant un run, sans attente ni pause", () => {
+    if (file !== "chat.css") return;
+    const blink = rules.filter((r) =>
+      decls(r).some(([k, v]) => k === "animation" && v.startsWith("jn-blink")),
+    );
+    expect(blink.map((r) => r.selector)).toEqual([
+      "body.running:not(.waiting):not(.paused) .brand-cursor",
+    ]);
+  });
+
+  it("effets supprimés : sweep, curseur ▍ de #thinking, classes sweep/pop-a/pop-b", () => {
+    expect(css).not.toMatch(/\.sweep|#thinking \.cursor|#thinking::after|\.pop-[ab]|\.chip\.pop/);
   });
 
   it("will-change seulement sur la bande du spinner", () => {

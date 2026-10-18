@@ -191,6 +191,11 @@ describe("composer et Configurer (lot P1)", () => {
     }
     expect(html).toContain('class="spin-strip"');
   });
+  it("D2 : plus d'élément .sweep ni de curseur ▍ dans #thinking, plus de classes sweep/pop posées par chat.js", () => {
+    expect(html).not.toContain("sweep");
+    expect(section('id="thinking"', 'id="composer"')).not.toMatch(/cursor|▍/);
+    expect(js).not.toMatch(/\.sweep|"sweep"|"pop"|modelFx|pop-[ab]/);
+  });
   it("la bordure orange suit la présence d'une carte dans #approvals", () => {
     expect(js).toContain('classList.toggle("awaiting", approvals.childElementCount > 0)');
     const rule = /body\.awaiting #composer \{([^}]*)\}/.exec(css)?.[1] ?? "";

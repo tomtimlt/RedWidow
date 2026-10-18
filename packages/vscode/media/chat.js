@@ -285,27 +285,12 @@
   const modelInput = $("model-input");
   const effortInput = $("effort");
   const ticks = $("effort-ticks");
-  const sweep = document.querySelector(".sweep");
   let ctl = null;
   let levels = [];
-  let lastModel;
-  let flip = false;
   let query = "";
   let active = -1;
   let visible = [];
   let optNodes = [];
-
-  /** Rejoue les effets de changement de modèle (E2, E3) : on alterne deux classes, sans reflow forcé. */
-  function modelFx() {
-    flip = !flip;
-    for (const [node, base] of [
-      [sweep, "sweep"],
-      [modelChip, "pop"],
-    ]) {
-      node.classList.remove(`${base}-${flip ? "b" : "a"}`);
-      node.classList.add(`${base}-${flip ? "a" : "b"}`);
-    }
-  }
 
   // Placement d'un popover : mesures seulement à l'ouverture et pendant qu'il est ouvert.
   let openPop = null;
@@ -467,8 +452,6 @@
     const name = c.model === null ? "Modèle par défaut" : (known?.label ?? c.model);
     $("model-chip-label").textContent = name;
     modelChip.title = `Modèle : ${name} (utilisé pour le message suivant)`;
-    if (UI.shouldSweep(lastModel, c.model)) modelFx();
-    lastModel = c.model;
 
     const free = c.models === null;
     modelFilter.hidden = modelList.hidden = free;

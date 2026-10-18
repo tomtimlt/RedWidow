@@ -186,11 +186,6 @@
     return "Réflexion";
   }
 
-  /** Le balayage de changement de modèle ne se joue que si la vue reçue change la valeur acceptée. */
-  function shouldSweep(previous, next) {
-    return previous !== undefined && previous !== next;
-  }
-
   const isFiniteNumber = (v) => typeof v === "number" && Number.isFinite(v);
 
   /**
@@ -371,7 +366,6 @@
     tabTarget,
     bodyClasses,
     activityLabel,
-    shouldSweep,
     inputRecall,
     syncRecallEntries,
     mentionSpan,

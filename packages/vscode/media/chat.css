@@ -17,10 +17,10 @@ body {
   --jn-r-sm: 2px;
   --jn-r-md: 3px;
   --jn-r-lg: 4px;
-  --jn-d1: 140ms;
-  --jn-d2: 220ms;
-  --jn-d3: 600ms;
-  --jn-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --jn-d1: 120ms;
+  --jn-d2: 160ms;
+  --jn-d3: 200ms;
+  --jn-ease-out: cubic-bezier(0.2, 0, 0, 1);
   --jn-ease-io: cubic-bezier(0.4, 0, 0.2, 1);
   --jn-shadow-pop: 0 2px 6px var(--vscode-widget-shadow, #0004);
   /* Typographie : une police d'interface partout, la police de l'éditeur pour le code seulement. */
@@ -160,14 +160,13 @@ select {
   color: var(--vscode-foreground);
   white-space: nowrap;
 }
-/* Logo Warband de l'en-tête : SVG inline, posé une fois à l'ouverture (transform/opacity). */
+/* Logo Warband de l'en-tête : SVG inline, immobile (le seul mouvement de marque est .brand-cursor, M7). */
 #title .brand {
   flex: none;
   width: 18px;
   height: 18px;
-  animation: jn-logo-in var(--jn-d3) var(--jn-ease-out) 1 both;
 }
-/* Écran d'accueil : carré bicolore (accent du thème, coin ardoise), posé une fois à l'ouverture. */
+/* Écran d'accueil : carré bicolore (accent du thème, coin ardoise). */
 .welcome::before {
   content: "";
   flex: none;
@@ -176,7 +175,6 @@ select {
   border-radius: var(--jn-r-sm);
   background: var(--jn-accent);
   box-shadow: inset -5px -5px 0 var(--jn-secondary);
-  animation: jn-logo-in var(--jn-d3) var(--jn-ease-out) 1 both;
 }
 #sandbox {
   min-width: 0;
@@ -515,7 +513,7 @@ button.example:focus-visible::after {
   color: var(--vscode-errorForeground);
 }
 .tool .icon.settled {
-  animation: jn-settle var(--jn-d2) var(--jn-ease-out) 1;
+  animation: jn-fade-in var(--jn-d1) var(--jn-ease-io) 1;
 }
 .tool-name {
   font-weight: 600;
@@ -564,9 +562,6 @@ button.example:focus-visible::after {
   font-size: var(--jn-fs-sm);
   font-weight: 500;
 }
-#thinking .cursor {
-  color: var(--jn-accent);
-}
 body.running #thinking {
   display: flex;
 }
@@ -604,37 +599,18 @@ body.waiting .spin {
 #thinking .spin-strip {
   animation: jn-braille 1s steps(10) infinite;
 }
-#thinking .cursor {
-  animation: jn-blink 1.1s steps(1) infinite;
-}
-/* Reflet qui balaie la pastille pendant que l'agent travaille. */
-#thinking::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 40%;
-  background: color-mix(in srgb, var(--jn-accent) 16%, transparent);
-  opacity: 0;
-  pointer-events: none;
-  animation: jn-scan 2.2s var(--jn-ease-io) infinite;
+/* M7 : curseur du logo, seul effet de marque ; au repos ou en attente, plein et immobile. */
+body.running:not(.waiting):not(.paused) .brand-cursor {
+  animation: jn-blink 1.06s steps(1) infinite;
 }
 body.waiting #thinking .spin-strip,
-body.waiting #thinking .cursor,
-body.waiting #thinking::after,
-body.paused #thinking .spin-strip,
-body.paused #thinking .cursor,
-body.paused #thinking::after {
+body.paused #thinking .spin-strip {
   animation-play-state: paused;
 }
 body.waiting #thinking {
   color: var(--jn-warn);
   border-color: color-mix(in srgb, var(--jn-warn) 45%, transparent);
   background: color-mix(in srgb, var(--jn-warn) 10%, transparent);
-}
-body.waiting #thinking .cursor {
-  color: var(--jn-warn);
 }
 
 @keyframes jn-braille {
@@ -647,24 +623,10 @@ body.waiting #thinking .cursor {
     opacity: 0;
   }
 }
-@keyframes jn-scan {
-  0% {
-    opacity: 0;
-    transform: translateX(-100%);
-  }
-  20%,
-  80% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-    transform: translateX(250%);
-  }
-}
 @keyframes jn-msg-in {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
@@ -674,11 +636,11 @@ body.waiting #thinking .cursor {
 @keyframes jn-pop-in {
   from {
     opacity: 0;
-    transform: translateY(4px) scale(0.98);
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
   }
 }
 @keyframes jn-drawer-in {
@@ -697,34 +659,6 @@ body.waiting #thinking .cursor {
     opacity: 1;
   }
 }
-@keyframes jn-logo-in {
-  from {
-    opacity: 0;
-    transform: rotate(-90deg) scale(0.6);
-  }
-  to {
-    opacity: 1;
-    transform: rotate(0) scale(1);
-  }
-}
-@keyframes jn-settle {
-  from {
-    opacity: 0.4;
-  }
-  to {
-    opacity: 1;
-  }
-}
-@keyframes jn-card-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px) scale(0.99);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
 
 /* --- Cartes d'approbation (E5) --- */
 .card {
@@ -741,7 +675,7 @@ body.waiting #thinking .cursor {
   min-width: 0;
 }
 .card.enter {
-  animation: jn-card-in var(--jn-d2) var(--jn-ease-out) 1;
+  animation: jn-msg-in var(--jn-d2) var(--jn-ease-out) 1;
 }
 .card-head {
   display: flex;
@@ -849,7 +783,7 @@ button:hover:not(:disabled):not([aria-disabled="true"]) {
   background: var(--vscode-button-secondaryHoverBackground);
 }
 button:active:not(:disabled):not([aria-disabled="true"]) {
-  transform: scale(0.96);
+  transform: translateY(1px);
 }
 button:focus-visible,
 textarea:focus-visible,
@@ -929,36 +863,6 @@ button:disabled:active {
 #composer:focus-within {
   border-color: var(--jn-accent);
 }
-.sweep {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  border-radius: var(--jn-r-lg);
-  pointer-events: none;
-}
-.sweep::after {
-  content: none;
-}
-@keyframes jn-sweep-a {
-  0% {
-    opacity: 1;
-    transform: translateX(-100%);
-  }
-  100% {
-    opacity: 0;
-    transform: translateX(260%);
-  }
-}
-@keyframes jn-sweep-b {
-  0% {
-    opacity: 1;
-    transform: translateX(-100%);
-  }
-  100% {
-    opacity: 0;
-    transform: translateX(260%);
-  }
-}
 textarea {
   width: 100%;
   resize: none;
@@ -998,11 +902,8 @@ textarea::placeholder {
   padding: 0;
   border-radius: var(--jn-r-sm);
 }
-#toolbar #send:hover:not(:disabled) {
-  transform: scale(1.06);
-}
 #toolbar #send:active:not(:disabled) {
-  transform: scale(0.94);
+  transform: translateY(1px);
 }
 #toolbar #send:disabled {
   background: color-mix(in srgb, var(--vscode-foreground) 14%, transparent);
@@ -1065,46 +966,6 @@ body:not(.running) #toolbar #stop {
 .cfg-level {
   color: var(--jn-muted);
   font-size: 0.9em;
-}
-.chip.pop-a,
-.chip.pop-b,
-.chip.pop-a::before,
-.chip.pop-b::before {
-  animation: none;
-}
-@keyframes jn-pop-a {
-  from {
-    transform: scale(0.96);
-  }
-  to {
-    transform: scale(1);
-  }
-}
-@keyframes jn-pop-b {
-  from {
-    transform: scale(0.96);
-  }
-  to {
-    transform: scale(1);
-  }
-}
-@keyframes jn-halo-a {
-  0%,
-  100% {
-    opacity: 0;
-  }
-  35% {
-    opacity: 1;
-  }
-}
-@keyframes jn-halo-b {
-  0%,
-  100% {
-    opacity: 0;
-  }
-  35% {
-    opacity: 1;
-  }
 }
 
 /* --- Popovers (modèle, Configurer) : placement calculé en JS --- */
@@ -1770,8 +1631,7 @@ body.no-provider #composer {
   }
   #bar::after,
   #composer::before,
-  .chip::before,
-  .sweep {
+  .chip::before {
     display: none;
   }
   #title,
@@ -1817,9 +1677,7 @@ body.reduce-motion .spin-static {
   display: inline;
 }
 body.vscode-high-contrast #bar::after,
-body.vscode-high-contrast-light #bar::after,
-body.vscode-high-contrast .sweep,
-body.vscode-high-contrast-light .sweep {
+body.vscode-high-contrast-light #bar::after {
   display: none;
 }
 body.vscode-high-contrast #title::before,

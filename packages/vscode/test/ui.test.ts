@@ -23,7 +23,6 @@ interface UiApi {
     e: { hidden: boolean; reducedMotion: boolean },
   ): string[];
   activityLabel(v: { busy: boolean; approvals: unknown[]; items: unknown[] }): string;
-  shouldSweep(prev: string | null | undefined, next: string | null): boolean;
   EXEC_TOOL: string;
   historyBadge(entry: { current: boolean }, running: boolean): string | null;
   monitorRows(view: unknown): MonitorRow[];
@@ -226,19 +225,6 @@ describe("libellé du thinking", () => {
   });
   it("approbation en attente : prioritaire", () => {
     expect(ui.activityLabel({ ...base, approvals: [{}] })).toBe("En attente de votre accord");
-  });
-});
-
-describe("balayage de changement de modèle", () => {
-  it("première vue : pas de balayage", () => expect(ui.shouldSweep(undefined, null)).toBe(false));
-  it("valeur inchangée (choix refusé par l'extension) : pas de balayage", () => {
-    expect(ui.shouldSweep("a", "a")).toBe(false);
-    expect(ui.shouldSweep(null, null)).toBe(false);
-  });
-  it("valeur acceptée : balayage", () => {
-    expect(ui.shouldSweep("a", "b")).toBe(true);
-    expect(ui.shouldSweep(null, "b")).toBe(true);
-    expect(ui.shouldSweep("a", null)).toBe(true);
   });
 });
 

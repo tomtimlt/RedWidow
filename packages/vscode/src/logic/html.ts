@@ -94,9 +94,9 @@ export function chatHtml({
 <div id="readonly" role="status" hidden><span id="readonly-text"></span><button id="readonly-resume" type="button" class="primary">Reprendre</button><button id="readonly-close" type="button" class="ghost">Fermer</button></div>
 <section id="monitor" aria-label="Commandes Exegol (lecture seule)"><div class="mon-head"><p class="hint">Sortie en direct. Cliquer une ligne pour l'ouvrir en lecture seule.</p></div><ol id="monitor-rows"></ol><p id="monitor-empty" class="empty">Aucun appel Exegol dans cette conversation.</p></section>
 <section id="approvals" aria-label="Autorisations demandées"></section>
-<div id="thinking" role="status"><span class="spin" aria-hidden="true"><span class="spin-strip">${BRAILLE}</span></span><span class="spin-static" aria-hidden="true">…</span><span id="thinking-label">Réflexion</span><span class="cursor" aria-hidden="true">▍</span></div>
+<div id="thinking" role="status"><span class="spin" aria-hidden="true"><span class="spin-strip">${BRAILLE}</span></span><span class="spin-static" aria-hidden="true">…</span><span id="thinking-label">Réflexion</span></div>
 <form id="form">
-<div id="composer"><span class="sweep" aria-hidden="true"></span>
+<div id="composer">
 <textarea id="input" rows="1" aria-label="Votre consigne" placeholder="Votre consigne…" title="Entrée pour envoyer, Maj+Entrée pour une nouvelle ligne"></textarea>
 <div id="toolbar">
 <button id="attach" type="button" class="ghost tool-btn" disabled aria-disabled="true" title="Pièces jointes : bientôt" aria-label="Pièces jointes : bientôt">${icon("clip")}</button>
