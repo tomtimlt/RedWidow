@@ -109,12 +109,130 @@ function killchainModel(findings) {
   return { columns, edges };
 }
 
+/** Dimensions d'un nœud et des espaces entre couches (repère du graphe, px). */
+const KC = { nodeW: 184, nodeH: 56, gapX: 88, gapY: 26 };
+
+/**
+ * Disposition du graphe de la kill chain (DAG en couches, de gauche à droite). Pure et testée.
+ * - Couches par plus long chemin depuis une racine (Kahn + repli sur les cycles).
+ * - Arêtes seulement si les deux extrémités existent ; les arcs arrière (cycle) sont gardés mais
+ *   n'avancent pas la couche.
+ * - Ordre dans chaque couche par barycentre des parents (deux passes) pour limiter les croisements.
+ * Retour : `nodes` avec x/y/w/h, `edges` (ids validés), `width`/`height`. Entrée non tableau : vide.
+ */
+function killchainGraph(findings) {
+  const empty = { nodes: [], edges: [], width: 0, height: 0 };
+  if (!Array.isArray(findings)) return empty;
+  const byId = new Map();
+  const order = [];
+  for (const f of findings) {
+    if (!f || typeof f !== "object" || typeof f.id !== "string" || byId.has(f.id)) continue;
+    byId.set(f.id, f);
+    order.push(f.id);
+  }
+  if (order.length === 0) return empty;
+
+  const children = new Map(order.map((id) => [id, []]));
+  const parents = new Map(order.map((id) => [id, []]));
+  const edges = [];
+  const seen = new Set();
+  for (const id of order) {
+    const from = byId.get(id).from;
+    if (!Array.isArray(from)) continue;
+    for (const p of from) {
+      if (!byId.has(p) || p === id) continue;
+      const key = `${p}\u0000${id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      edges.push({ from: p, to: id });
+      children.get(p).push(id);
+      parents.get(id).push(p);
+    }
+  }
+
+  // Couches : Kahn par indegree ; le reste (cycles) traité en repli, couche = max(parent)+1.
+  const indeg = new Map(order.map((id) => [id, parents.get(id).length]));
+  const layer = new Map(order.map((id) => [id, 0]));
+  const queue = order.filter((id) => indeg.get(id) === 0);
+  const placed = new Set();
+  while (queue.length > 0) {
+    const id = queue.shift();
+    placed.add(id);
+    for (const c of children.get(id)) {
+      if (layer.get(c) < layer.get(id) + 1) layer.set(c, layer.get(id) + 1);
+      indeg.set(c, indeg.get(c) - 1);
+      if (indeg.get(c) === 0) queue.push(c);
+    }
+  }
+  for (const id of order) {
+    if (placed.has(id)) continue;
+    let max = -1;
+    for (const p of parents.get(id)) if (placed.has(p) && layer.get(p) > max) max = layer.get(p);
+    layer.set(id, max + 1);
+    placed.add(id);
+  }
+
+  // Colonnes dans l'ordre d'insertion, puis barycentre des parents (deux passes) pour l'ordre vertical.
+  const maxLayer = Math.max(...order.map((id) => layer.get(id)));
+  const cols = Array.from({ length: maxLayer + 1 }, () => []);
+  for (const id of order) cols[layer.get(id)].push(id);
+  const rowOf = new Map();
+  const reindex = () => {
+    for (const col of cols)
+      col.forEach((id, i) => {
+        rowOf.set(id, i);
+      });
+  };
+  reindex();
+  for (let pass = 0; pass < 2; pass++) {
+    for (let l = 1; l <= maxLayer; l++) {
+      cols[l].sort((a, b) => bary(a, parents, rowOf) - bary(b, parents, rowOf));
+      reindex();
+    }
+  }
+
+  const rows = Math.max(...cols.map((c) => c.length), 1);
+  const height = rows * KC.nodeH + (rows - 1) * KC.gapY;
+  const nodes = [];
+  cols.forEach((col, l) => {
+    const colH = col.length * KC.nodeH + (col.length - 1) * KC.gapY;
+    const top = (height - colH) / 2; // chaque colonne centrée verticalement
+    col.forEach((id, i) => {
+      const f = byId.get(id);
+      nodes.push({
+        id,
+        kind: f.kind,
+        state: f.state,
+        label: f.label,
+        meta: [f.kind, f.technique, f.tactic].filter(Boolean).join(" · "),
+        x: l * (KC.nodeW + KC.gapX),
+        y: top + i * (KC.nodeH + KC.gapY),
+        w: KC.nodeW,
+        h: KC.nodeH,
+      });
+    });
+  });
+  const width = (maxLayer + 1) * KC.nodeW + maxLayer * KC.gapX;
+  return { nodes, edges, width, height };
+}
+
+/** Barycentre : moyenne des rangs des parents, sinon rang courant (stabilité). */
+function bary(id, parents, rowOf) {
+  const ps = parents.get(id);
+  if (ps.length === 0) return rowOf.get(id);
+  let sum = 0;
+  for (const p of ps) sum += rowOf.get(p);
+  return sum / ps.length;
+}
+
 // Exposée pour les tests (même convention que ui.js : pas de module dans la webview).
 globalThis.WarbandStudio = {
   STUDIO_GROUPS,
   MITRE_TACTICS,
+  KC,
   killchainCount,
   killchainModel,
+  killchainGraph,
   navModel,
 };
 
@@ -173,91 +291,192 @@ function start() {
 
   const SVG_NS = "http://www.w3.org/2000/svg";
 
-  function killchainBoard(model) {
-    const wrap = el("div", "studio-kc");
-    const scroll = el("div", "studio-kc-scroll");
-    const grid = el("div", "studio-board");
-    const nodes = new Map();
-    for (const col of model.columns) {
-      const colEl = el("div", "studio-kc-col");
-      colEl.append(
-        el("h3", "studio-kc-head", col.tactic ? `${col.tactic} · ${col.label}` : col.label),
-      );
-      for (const f of col.nodes) {
-        const node = el("div", `studio-node is-${f.state}`);
-        node.append(el("span", "studio-node-label", f.label));
-        const meta = [f.kind, f.technique].filter(Boolean).join(" · ");
-        if (meta) node.append(el("span", "studio-node-meta", meta));
-        node.title = [f.kind, f.state, f.technique].filter(Boolean).join(" · ");
-        nodes.set(f.id, node);
-        colEl.append(node);
-      }
-      grid.append(colEl);
-    }
+  const KIND_ICON = {
+    host: "\u25A3",
+    site: "\uD83C\uDF10",
+    credential: "\uD83D\uDD11",
+    step: "\u276F",
+    loot: "\u2691",
+  };
+  const KIND_LABEL = {
+    host: "H\u00f4te",
+    site: "Site / URL",
+    credential: "Identifiant",
+    step: "\u00c9tape",
+    loot: "Loot",
+  };
 
+  /** Vue graphe de la kill chain : nœuds typés, arêtes courbes, zoom/pan, bouton Ajuster, légende. */
+  function killchainGraphView(graph) {
+    const wrap = el("div", "studio-kc");
+
+    const bar = el("div", "kc-bar");
+    const fit = el("button", "ghost kc-btn");
+    fit.type = "button";
+    fit.append(el("span", "btn-text", "Ajuster"));
+    const zoomOut = el("button", "ghost kc-btn kc-zoom");
+    zoomOut.type = "button";
+    zoomOut.title = "D\u00e9zoomer";
+    zoomOut.append(decorative(el("span", "", "\u2212")));
+    const zoomIn = el("button", "ghost kc-btn kc-zoom");
+    zoomIn.type = "button";
+    zoomIn.title = "Zoomer";
+    zoomIn.append(decorative(el("span", "", "+")));
+    bar.append(fit, zoomOut, zoomIn);
+
+    const viewport = el("div", "kc-viewport");
+    const canvas = el("div", "kc-canvas");
+    const pad = 28;
     const svg = decorative(document.createElementNS(SVG_NS, "svg"));
-    svg.setAttribute("class", "studio-kc-edges");
+    svg.setAttribute("class", "kc-edges");
+    svg.setAttribute("width", String(graph.width + pad * 2));
+    svg.setAttribute("height", String(graph.height + pad * 2));
     const defs = document.createElementNS(SVG_NS, "defs");
     const marker = document.createElementNS(SVG_NS, "marker");
-    marker.setAttribute("id", "studio-kc-arrow");
+    marker.setAttribute("id", "kc-arrow");
     marker.setAttribute("viewBox", "0 0 10 10");
-    marker.setAttribute("refX", "9");
+    marker.setAttribute("refX", "8");
     marker.setAttribute("refY", "5");
-    marker.setAttribute("markerWidth", "7");
-    marker.setAttribute("markerHeight", "7");
-    marker.setAttribute("orient", "auto");
+    marker.setAttribute("markerWidth", "6");
+    marker.setAttribute("markerHeight", "6");
+    marker.setAttribute("orient", "auto-start-reverse");
     const tip = document.createElementNS(SVG_NS, "path");
     tip.setAttribute("d", "M0 0 L10 5 L0 10 z");
-    tip.setAttribute("class", "studio-kc-tip");
+    tip.setAttribute("class", "kc-tip");
     marker.append(tip);
     defs.append(marker);
     svg.append(defs);
-    const paths = document.createElementNS(SVG_NS, "g");
-    svg.append(paths);
-    grid.append(svg);
 
-    // Les flèches se calculent après mise en page : repère = la grille (indépendant du défilement).
-    function drawEdges() {
-      while (paths.firstChild) paths.removeChild(paths.firstChild);
-      const box = grid.getBoundingClientRect();
-      svg.setAttribute("width", String(grid.scrollWidth));
-      svg.setAttribute("height", String(grid.scrollHeight));
-      for (const edge of model.edges) {
-        const a = nodes.get(edge.from);
-        const b = nodes.get(edge.to);
-        if (!a || !b) continue;
-        const ra = a.getBoundingClientRect();
-        const rb = b.getBoundingClientRect();
-        const x1 = ra.right - box.left;
-        const y1 = ra.top + ra.height / 2 - box.top;
-        const x2 = rb.left - box.left;
-        const y2 = rb.top + rb.height / 2 - box.top;
-        const dx = Math.max(24, Math.abs(x2 - x1) / 2);
-        const path = document.createElementNS(SVG_NS, "path");
-        path.setAttribute("d", `M${x1} ${y1} C${x1 + dx} ${y1} ${x2 - dx} ${y2} ${x2} ${y2}`);
-        path.setAttribute("class", "studio-kc-edge");
-        path.setAttribute("marker-end", "url(#studio-kc-arrow)");
-        paths.append(path);
-      }
+    const pos = new Map(graph.nodes.map((n) => [n.id, n]));
+    for (const e of graph.edges) {
+      const a = pos.get(e.from);
+      const b = pos.get(e.to);
+      if (!a || !b) continue;
+      const x1 = a.x + a.w + pad;
+      const y1 = a.y + a.h / 2 + pad;
+      const x2 = b.x + pad;
+      const y2 = b.y + b.h / 2 + pad;
+      const dx = Math.max(32, Math.abs(x2 - x1) / 2);
+      const path = document.createElementNS(SVG_NS, "path");
+      path.setAttribute("d", `M${x1} ${y1} C${x1 + dx} ${y1} ${x2 - dx} ${y2} ${x2} ${y2}`);
+      path.setAttribute("class", "kc-edge");
+      path.setAttribute("marker-end", "url(#kc-arrow)");
+      svg.append(path);
     }
-    if (typeof ResizeObserver === "function") new ResizeObserver(drawEdges).observe(grid);
-    scroll.addEventListener("scroll", drawEdges, { passive: true });
-    scroll.append(grid);
-    wrap.append(scroll);
+    canvas.append(svg);
+
+    for (const n of graph.nodes) {
+      const node = el("div", `kc-node is-${n.state} kind-${n.kind}`);
+      node.style.setProperty("left", `${n.x + pad}px`);
+      node.style.setProperty("top", `${n.y + pad}px`);
+      node.style.setProperty("width", `${n.w}px`);
+      const head = el("div", "kc-node-head");
+      head.append(decorative(el("span", "kc-node-ico", KIND_ICON[n.kind] || "\u25CF")));
+      head.append(el("span", "kc-node-label", n.label));
+      node.append(head);
+      if (n.meta) node.append(el("span", "kc-node-meta", n.meta));
+      node.title = [KIND_LABEL[n.kind] || n.kind, n.state, n.meta].filter(Boolean).join(" \u00b7 ");
+      canvas.append(node);
+    }
+    viewport.append(canvas);
+    wrap.append(bar, viewport);
+
+    // Zoom et déplacement : transformation du canevas (jamais de scroll natif).
+    let scale = 1;
+    let tx = 0;
+    let ty = 0;
+    const apply = () => {
+      canvas.style.setProperty("transform", `translate(${tx}px, ${ty}px) scale(${scale})`);
+    };
+    const setScale = (next, cx, cy) => {
+      const s = Math.min(2.5, Math.max(0.2, next));
+      const vb = viewport.getBoundingClientRect();
+      const px = cx === undefined ? vb.width / 2 : cx;
+      const py = cy === undefined ? vb.height / 2 : cy;
+      tx = px - ((px - tx) * s) / scale;
+      ty = py - ((py - ty) * s) / scale;
+      scale = s;
+      apply();
+    };
+    const fitToView = () => {
+      const vb = viewport.getBoundingClientRect();
+      const gw = graph.width + pad * 2;
+      const gh = graph.height + pad * 2;
+      if (vb.width === 0 || gw === 0) return;
+      scale = Math.min(1, vb.width / gw, vb.height / gh);
+      tx = (vb.width - gw * scale) / 2;
+      ty = (vb.height - gh * scale) / 2;
+      apply();
+    };
+    fit.addEventListener("click", fitToView);
+    zoomIn.addEventListener("click", () => setScale(scale * 1.2));
+    zoomOut.addEventListener("click", () => setScale(scale / 1.2));
+    viewport.addEventListener(
+      "wheel",
+      (ev) => {
+        ev.preventDefault();
+        const vb = viewport.getBoundingClientRect();
+        setScale(
+          scale * (ev.deltaY < 0 ? 1.1 : 1 / 1.1),
+          ev.clientX - vb.left,
+          ev.clientY - vb.top,
+        );
+      },
+      { passive: false },
+    );
+    let drag = null;
+    viewport.addEventListener("pointerdown", (ev) => {
+      if (ev.button !== 0) return;
+      drag = { x: ev.clientX - tx, y: ev.clientY - ty };
+      viewport.setPointerCapture(ev.pointerId);
+      viewport.classList.add("is-panning");
+    });
+    viewport.addEventListener("pointermove", (ev) => {
+      if (!drag) return;
+      tx = ev.clientX - drag.x;
+      ty = ev.clientY - drag.y;
+      apply();
+    });
+    const endDrag = () => {
+      drag = null;
+      viewport.classList.remove("is-panning");
+    };
+    viewport.addEventListener("pointerup", endDrag);
+    viewport.addEventListener("pointercancel", endDrag);
+
+    // Ajuste à la première mesure (ResizeObserver notifie dès l'observation), puis à chaque changement
+    // de taille du panneau tant que l'utilisateur n'a pas zoomé/déplacé lui-même.
+    let touched = false;
+    for (const b of [zoomIn, zoomOut]) b.addEventListener("click", () => (touched = true));
+    viewport.addEventListener("wheel", () => (touched = true), { passive: true });
+    viewport.addEventListener("pointerdown", () => (touched = true));
+    if (typeof ResizeObserver === "function") {
+      new ResizeObserver(() => {
+        if (!touched) fitToView();
+      }).observe(viewport);
+    } else {
+      fitToView();
+    }
 
     const legend = el("ul", "studio-kc-legend");
+    for (const kind of ["host", "credential", "site", "step", "loot"]) {
+      const li = el("li", "studio-kc-key");
+      li.append(
+        decorative(el("span", `kc-dot kind-${kind}`, KIND_ICON[kind] || "\u25CF")),
+        el("span", "", KIND_LABEL[kind]),
+      );
+      legend.append(li);
+    }
     for (const [state, text] of [
-      ["confirmed", "Confirmé"],
-      ["hypothesis", "Hypothèse"],
-      ["failed", "Échec"],
+      ["confirmed", "Confirm\u00e9"],
+      ["hypothesis", "Hypoth\u00e8se"],
+      ["failed", "\u00c9chec"],
     ]) {
       const li = el("li", "studio-kc-key");
       li.append(decorative(el("span", `studio-kc-swatch is-${state}`)), el("span", "", text));
       legend.append(li);
     }
     wrap.append(legend);
-    // Premier calcul une fois la mise en page faite (ResizeObserver notifie à l'observation).
-    drawEdges();
     return wrap;
   }
 
@@ -332,8 +551,8 @@ function start() {
         "Kill chain",
         "Les nœuds notés par l'agent. Rien tant qu'il n'y a pas de trouvaille.",
       );
-      const model = killchainModel(view.findings);
-      if (model.columns.length > 0) sec.append(killchainBoard(model));
+      const graph = killchainGraph(view.findings);
+      if (graph.nodes.length > 0) sec.append(killchainGraphView(graph));
       main.append(sec);
       return;
     }

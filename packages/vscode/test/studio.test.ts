@@ -28,6 +28,21 @@ interface StudioApi {
     edges: { from: string; to: string }[];
   };
   navModel(current: string, findings: unknown): NavGroup[];
+  killchainGraph(findings: unknown): {
+    nodes: {
+      id: string;
+      kind: string;
+      state: string;
+      label: string;
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+    }[];
+    edges: { from: string; to: string }[];
+    width: number;
+    height: number;
+  };
 }
 
 const studioJs = fileURLToPath(new URL("../media/studio.js", import.meta.url));
@@ -234,5 +249,67 @@ describe("modèle du graphe Kill chain", () => {
     for (const bad of [undefined, null, "x", 3, {}]) {
       expect(studio.killchainModel(bad)).toEqual({ columns: [], edges: [] });
     }
+  });
+});
+
+describe("killchainGraph (disposition du graphe)", () => {
+  const f = (id: string, over: Record<string, unknown> = {}) => ({
+    id,
+    kind: "step",
+    state: "confirmed",
+    label: id,
+    ...over,
+  });
+
+  it("entrée non tableau : vide", () => {
+    for (const bad of [null, undefined, 42, "x", {}]) {
+      expect(studio.killchainGraph(bad)).toEqual({ nodes: [], edges: [], width: 0, height: 0 });
+    }
+  });
+
+  it("une chaîne a -> b -> c est mise en couches de gauche à droite", () => {
+    const g = studio.killchainGraph([f("a"), f("b", { from: ["a"] }), f("c", { from: ["b"] })]);
+    const x = new Map(g.nodes.map((n) => [n.id, n.x]));
+    const at = (id: string) => x.get(id) ?? Number.NaN;
+    expect(at("a")).toBeLessThan(at("b"));
+    expect(at("b")).toBeLessThan(at("c"));
+    expect(g.edges).toEqual([
+      { from: "a", to: "b" },
+      { from: "b", to: "c" },
+    ]);
+    expect(g.width).toBeGreaterThan(0);
+    expect(g.height).toBeGreaterThan(0);
+  });
+
+  it("un enfant à deux parents est placé après les deux", () => {
+    const g = studio.killchainGraph([f("a"), f("b"), f("c", { from: ["a", "b"] })]);
+    const x = new Map(g.nodes.map((n) => [n.id, n.x]));
+    const at = (id: string) => x.get(id) ?? Number.NaN;
+    expect(at("c")).toBeGreaterThan(at("a"));
+    expect(at("c")).toBeGreaterThan(at("b"));
+  });
+
+  it("arête vers un parent inconnu ignorée, arc arrière n'empêche pas la disposition", () => {
+    const g = studio.killchainGraph([
+      f("a", { from: ["zzz"] }),
+      f("b", { from: ["a"] }),
+      f("a2", { from: ["b"], id: "a2" }),
+    ]);
+    // Parent inconnu zzz absent des arêtes.
+    expect(g.edges.some((e) => e.from === "zzz")).toBe(false);
+    expect(g.nodes).toHaveLength(3);
+    // Cycle (a -> b -> a) : ne boucle pas, tous les nœuds sont placés une fois.
+    const cyc = studio.killchainGraph([f("a", { from: ["b"] }), f("b", { from: ["a"] })]);
+    expect(cyc.nodes).toHaveLength(2);
+    expect(cyc.edges).toHaveLength(2);
+  });
+
+  it("conserve kind/state/label et ignore les doublons d'id", () => {
+    const g = studio.killchainGraph([
+      f("a", { kind: "host", state: "failed", label: "cible" }),
+      f("a", { label: "doublon" }),
+    ]);
+    expect(g.nodes).toHaveLength(1);
+    expect(g.nodes[0]).toMatchObject({ id: "a", kind: "host", state: "failed", label: "cible" });
   });
 });

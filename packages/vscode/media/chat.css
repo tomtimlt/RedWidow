@@ -2496,6 +2496,143 @@ body.studio .studio-dl dd {
   border-color: var(--vscode-inputValidation-errorBorder, var(--jn-line));
   background: var(--vscode-inputValidation-errorBackground, transparent);
 }
+
+/* --- Graphe de la kill chain (zoom/pan) --- */
+.kc-bar {
+  display: flex;
+  gap: var(--jn-s2);
+  align-items: center;
+  margin-bottom: var(--jn-s2);
+}
+.kc-zoom {
+  min-width: 28px;
+  justify-content: center;
+  font-weight: 700;
+}
+.kc-viewport {
+  position: relative;
+  overflow: hidden;
+  height: min(60vh, 460px);
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+  background: var(--vscode-editor-background);
+  cursor: grab;
+  touch-action: none;
+}
+.kc-viewport.is-panning {
+  cursor: grabbing;
+}
+.kc-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+.kc-edges {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+.kc-edge {
+  fill: none;
+  stroke: var(--jn-muted);
+  stroke-width: 1.6;
+  opacity: 0.8;
+}
+.kc-tip {
+  fill: var(--jn-muted);
+}
+.kc-node {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 7px 10px 7px 11px;
+  border: 1px solid var(--jn-line);
+  border-left: 3px solid var(--kc-accent, var(--jn-accent));
+  border-radius: var(--jn-r-md);
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  font-size: var(--jn-fs-sm);
+  transition: border-color var(--jn-d2) var(--jn-ease-io);
+}
+.kc-node.kind-host {
+  --kc-accent: var(--vscode-terminal-ansiBlue, var(--jn-accent));
+}
+.kc-node.kind-site {
+  --kc-accent: var(--vscode-terminal-ansiCyan, var(--jn-cool));
+}
+.kc-node.kind-credential {
+  --kc-accent: var(--vscode-terminal-ansiYellow, var(--jn-warn));
+}
+.kc-node.kind-step {
+  --kc-accent: var(--vscode-foreground, var(--jn-accent));
+}
+.kc-node.kind-loot {
+  --kc-accent: var(--vscode-terminal-ansiGreen, var(--jn-accent));
+}
+.kc-node.is-confirmed {
+  border-top-color: var(--vscode-testing-iconPassed, var(--jn-accent));
+  border-right-color: var(--vscode-testing-iconPassed, var(--jn-accent));
+  border-bottom-color: var(--vscode-testing-iconPassed, var(--jn-accent));
+}
+.kc-node.is-hypothesis {
+  border-top-style: dashed;
+  border-right-style: dashed;
+  border-bottom-style: dashed;
+}
+.kc-node.is-failed {
+  color: var(--vscode-errorForeground);
+  border-top-color: var(--vscode-inputValidation-errorBorder, var(--jn-line));
+  border-right-color: var(--vscode-inputValidation-errorBorder, var(--jn-line));
+  border-bottom-color: var(--vscode-inputValidation-errorBorder, var(--jn-line));
+}
+.kc-node-head {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+}
+.kc-node-ico {
+  flex: none;
+  font-size: 1.05em;
+  color: var(--kc-accent, var(--jn-accent));
+}
+.kc-node-label {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kc-node-meta {
+  color: var(--jn-muted);
+  font-size: 0.85em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kc-dot {
+  display: inline-flex;
+  width: 16px;
+  justify-content: center;
+  color: var(--kc-accent, var(--jn-accent));
+}
+.kc-dot.kind-host {
+  --kc-accent: var(--vscode-terminal-ansiBlue, var(--jn-accent));
+}
+.kc-dot.kind-site {
+  --kc-accent: var(--vscode-terminal-ansiCyan, var(--jn-cool));
+}
+.kc-dot.kind-credential {
+  --kc-accent: var(--vscode-terminal-ansiYellow, var(--jn-warn));
+}
+.kc-dot.kind-step {
+  --kc-accent: var(--vscode-foreground, var(--jn-accent));
+}
+.kc-dot.kind-loot {
+  --kc-accent: var(--vscode-terminal-ansiGreen, var(--jn-accent));
+}
 /* Sous 640 px : la navigation passe en rangée au-dessus du contenu (groupes en ligne, sans débordement). */
 @media (max-width: 640px) {
   .studio-shell {
