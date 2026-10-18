@@ -11,6 +11,8 @@ pnpm --filter @john-studio/vscode package        # cible win32-x64 par défaut
 code --install-extension packages/vscode/john-studio-0.3.0-win32-x64.vsix
 ```
 
+Raccourci : `pnpm maj` (ou `node scripts/update.mjs`). Il enchaîne `git pull --ff-only`, `pnpm install`, `pnpm build`, l'empaquetage et `code --install-extension --force`. Options : `--check` (ajoute `pnpm check`), `--no-install`, `--dry-run`, `--target=…`. Recharger ensuite la fenêtre VS Code.
+
 Le `.vsix` fait environ 117 Mio (il embarque le binaire `claude` du SDK, 257 Mio décompressé, vérifié par empreinte SHA-256 au démarrage du moteur). Il est ignoré par git.
 
 ## Premier run

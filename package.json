@@ -13,6 +13,7 @@
     "lint": "biome check .",
     "format": "biome format --write .",
     "check": "biome check . && pnpm typecheck && vitest run",
+    "maj": "node scripts/update.mjs",
     "test:contract": "node scripts/with-env.mjs JOHN_SDK_CONTRACT=1 -- vitest run packages/agent-sdk/test/contract"
   },
   "devDependencies": {
