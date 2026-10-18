@@ -136,10 +136,61 @@ describe.each(CSS_FILES)("%s : budget de performance (design-chat-ui.md §2)", (
     expect(css).toContain("@container app (min-width: 600px)");
   });
 
-  it("aucune couleur figée hors repli de var() (hors #0006 de l'ombre et mots-clés système)", () => {
-    for (const m of css.matchAll(/#[0-9a-fA-F]{3,8}\b/g)) {
-      const before = css.slice(Math.max(0, (m.index ?? 0) - 60), m.index);
+  it("aucune couleur figée hors repli de var() (hors #0004 de l'ombre, mots-clés système et jetons de marque)", () => {
+    // Seules les déclarations --jn-brand*, --jn-on-brand et --jn-slate* peuvent porter un hex (§1.1).
+    const brandDecl =
+      /(^|[;{}\s])--jn-(brand[\w-]*|on-brand|slate[\w-]*)\s*:\s*#[0-9a-fA-F]{3,8}\s*;/g;
+    const stripped = css.replace(brandDecl, "$1");
+    for (const m of stripped.matchAll(/#[0-9a-fA-F]{3,8}\b/g)) {
+      const before = stripped.slice(Math.max(0, (m.index ?? 0) - 60), m.index);
       expect(before, m[0]).toMatch(/var\(--[\w-]+,\s*$/);
     }
+  });
+
+  it("jetons de marque et d'usage présents (§1.1 et §1.2)", () => {
+    if (file !== "chat.css") return;
+    for (const t of [
+      "--jn-brand: #ffd60a",
+      "--jn-brand-ink: #7a5c00",
+      "--jn-on-brand: #141414",
+      "--jn-slate: #7a8899",
+      "--jn-slate-ink: #5e6b7a",
+      "--jn-accent:",
+      "--jn-accent-fill:",
+      "--jn-on-accent:",
+      "--jn-tint:",
+      "--jn-secondary:",
+    ]) {
+      expect(css, t).toContain(t);
+    }
+  });
+
+  it("aucun jeton supprimé ni forme arrondie (§1.2, §1.3)", () => {
+    expect(css).not.toMatch(/--jn-accent-2|--jn-cool|--jn-glow|--jn-r-pill|999px|ease-spring/);
+    // focusBorder n'est admis que dans les blocs de contraste élevé.
+    for (const r of rules) {
+      if (!r.body.includes("focusBorder")) continue;
+      expect(r.selector, "focusBorder hors contraste élevé").toMatch(/vscode-high-contrast/);
+    }
+  });
+
+  it("border-radius : 0 ou jeton ; jetons de rayon ≤ 4 px ; au plus une ombre non inset", () => {
+    let radii = 0;
+    const shadows = new Set<string>();
+    for (const r of rules) {
+      for (const [k, v] of decls(r)) {
+        if (k === "border-radius") {
+          radii++;
+          expect(v, r.selector).toMatch(/^(0|var\(--jn-r-(sm|md|lg)\))$/);
+        }
+        if (/^--jn-r-(sm|md|lg)$/.test(k)) {
+          expect(Number.parseFloat(v), `${k} (${r.selector})`).toBeLessThanOrEqual(4);
+        }
+        if (k === "box-shadow" && v !== "none" && !v.startsWith("inset")) shadows.add(v);
+      }
+    }
+    if (file === "chat.css") expect(radii).toBeGreaterThan(10);
+    expect([...shadows], "ombres non inset").toHaveLength(shadows.size > 0 ? 1 : 0);
+    for (const v of shadows) expect(v).toBe("var(--jn-shadow-pop)");
   });
 });

@@ -200,15 +200,17 @@ describe("composer et Configurer (lot P1)", () => {
   });
   it("l'approbation en attente garde sa bordure et ajoute un anneau d'1 px (double trait)", () => {
     const rule = /body\.awaiting #composer \{([^}]*)\}/.exec(css)?.[1] ?? "";
-    expect(rule).toMatch(/box-shadow:\s*0 0 0 1px\s+var\(\s*--vscode-editorWarning-foreground/);
+    expect(rule).toMatch(
+      /box-shadow:\s*inset 0 0 0 1px\s+var\(\s*--vscode-editorWarning-foreground/,
+    );
     expect(rule).toContain("--vscode-inputValidation-warningBorder");
     expect(rule).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
   });
   it("jetons de rayon (refonte visuelle)", () => {
-    expect(css).toMatch(/--jn-r-sm: 6px;/);
-    expect(css).toMatch(/--jn-r-md: 10px;/);
-    expect(css).toMatch(/--jn-r-lg: 14px;/);
-    expect(css).toMatch(/--jn-r-pill: 999px;/);
+    expect(css).toMatch(/--jn-r-sm: 2px;/);
+    expect(css).toMatch(/--jn-r-md: 3px;/);
+    expect(css).toMatch(/--jn-r-lg: 4px;/);
+    expect(css).not.toMatch(/--jn-r-pill|999px/);
   });
   it("le popover Configurer est plus court, un peu plus large, et n'a plus de deux colonnes", () => {
     const rule = /#cfg-pop \{([^}]*)\}/.exec(css)?.[1] ?? "";
