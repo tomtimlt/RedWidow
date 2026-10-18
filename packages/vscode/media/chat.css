@@ -1579,6 +1579,27 @@ body:not(.running) #toolbar #stop {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+/* Aucun fournisseur (jeton) : bandeau d'invite, conversation et saisie grisées et inertes. */
+#no-provider {
+  display: flex;
+  gap: var(--jn-s2);
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 6px 10px;
+  border-radius: var(--jn-r-md);
+  border: 1px solid var(--jn-warn);
+  background: color-mix(in srgb, var(--jn-warn) 14%, transparent);
+}
+#no-provider-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+body.no-provider #log,
+body.no-provider #composer {
+  opacity: 0.45;
+  pointer-events: none;
+}
 
 /* --- Responsive : container queries sur body (compact < 360, standard 360-599, large >= 600) --- */
 /* « Configurer » garde son libellé à toute largeur ; seuls les autres boutons passent à l'icône. */
@@ -1665,7 +1686,8 @@ body:not(.running) #toolbar #stop {
   #approvals,
   #thinking,
   #form,
-  #readonly {
+  #readonly,
+  #no-provider {
     width: min(820px, calc(100% - 2 * var(--jn-gutter)));
     margin-inline: auto;
   }
@@ -2516,6 +2538,7 @@ body.mode-monitor #approvals,
 body.mode-monitor #thinking,
 body.mode-monitor #form,
 body.mode-monitor #readonly,
+body.mode-monitor #no-provider,
 body.mode-monitor #history,
 body.mode-monitor #history-btn,
 body.mode-monitor #reset,
@@ -2524,6 +2547,7 @@ body.mode-watch #approvals,
 body.mode-watch #thinking,
 body.mode-watch #form,
 body.mode-watch #readonly,
+body.mode-watch #no-provider,
 body.mode-watch #history,
 body.mode-watch #history-btn,
 body.mode-watch #reset {

@@ -875,6 +875,7 @@
     vscode.postMessage({ type: "historyResume" }),
   );
   $("readonly-close").addEventListener("click", () => resetConversation());
+  $("no-provider-add").addEventListener("click", () => vscode.postMessage({ type: "addProvider" }));
 
   // --- Monitor (lecture seule) : lignes pures de ui.js (monitorRows), texte en textContent ---
   const monitorRowsEl = $("monitor-rows");
@@ -980,8 +981,12 @@
     sb.hidden = !view.sandbox;
     // Bordure orange du composer tant qu'une demande d'autorisation attend la réponse.
     document.body.classList.toggle("awaiting", approvals.childElementCount > 0);
-    send.disabled = view.busy || !!view.readonly;
-    input.disabled = !!view.readonly;
+    // Sans fournisseur : bandeau d'invite, saisie et envoi désactivés (le CSS grise le reste).
+    const noProvider = !!view.noProvider;
+    $("no-provider").hidden = !noProvider;
+    document.body.classList.toggle("no-provider", noProvider);
+    send.disabled = view.busy || !!view.readonly || noProvider;
+    input.disabled = !!view.readonly || noProvider;
     mentionBtn.disabled = input.disabled;
     stop.disabled = !view.busy;
     lastView = view;

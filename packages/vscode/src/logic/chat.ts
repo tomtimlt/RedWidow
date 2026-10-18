@@ -76,6 +76,8 @@ export interface ChatView {
   history: HistoryEntry[];
   /** Non nul : mode lecture (aucune carte d'approbation, saisie désactivée). */
   readonly: ReadonlyInfo | null;
+  /** Aucun fournisseur (jeton) ajouté : saisie grisée, la webview propose d'en ajouter un. */
+  noProvider: boolean;
 }
 
 /** État du chat : mutable, une instance par conversation ; `view()` donne la forme envoyée à la webview. */
@@ -88,6 +90,7 @@ export function createChatState() {
   let controls: ChatControls | null = null;
   let history: HistoryEntry[] = [];
   let readonly: ReadonlyInfo | null = null;
+  let noProvider = false;
   let nextId = 1;
   /** Événement `tool.requested` d'un exec → identifiant d'appel. */
   const execTools = new Map<string, string>();
@@ -124,6 +127,12 @@ export function createChatState() {
     },
     get readonly() {
       return readonly;
+    },
+    setNoProvider(value: boolean) {
+      noProvider = value;
+    },
+    get noProvider() {
+      return noProvider;
     },
     setSandbox(image: string | null) {
       sandbox = image === null ? null : cleanText(image, 300);
@@ -227,6 +236,7 @@ export function createChatState() {
         controls,
         history,
         readonly,
+        noProvider,
       };
     },
   };

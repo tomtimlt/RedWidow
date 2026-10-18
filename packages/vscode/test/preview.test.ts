@@ -65,6 +65,7 @@ const STATES = [
   "config",
   "history",
   "mention",
+  "noprovider",
 ] as const;
 type PreviewState = (typeof STATES)[number];
 /** Clic simulé après réception de la vue (ouvre le popover correspondant). */
@@ -79,7 +80,9 @@ function buildView(state: PreviewState) {
   const s = createChatState();
   const busy = state === "running" || state === "approval";
   s.setSandbox("node:22-slim");
-  if (state !== "empty") {
+  // Aucun jeton : chat grisé avec invite (écran d'accueil, comme au premier lancement).
+  if (state === "noprovider") s.setNoProvider(true);
+  if (state !== "empty" && state !== "noprovider") {
     s.user("Liste les fichiers du dossier src");
     const ev = (e: unknown) => s.event(e as never);
     ev({

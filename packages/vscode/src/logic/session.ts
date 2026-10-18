@@ -60,6 +60,11 @@ export interface ChatSessionDeps {
   readSettings(): ChatSettings;
   /** Jeton (SecretStorage) ; `undefined` → authentification `auto` du binaire. */
   getToken(): Promise<TokenChoice | undefined>;
+  /**
+   * Sans jeton, le chat est grisé (`noProvider`) et aucun message ne part. Absent : le binaire garde
+   * son authentification `auto` (comportement historique, et celui des tests).
+   */
+  requireProvider?: boolean;
   /** Confirmation modale native (hors webview) pour « Toujours ». */
   confirmAlways(text: string): Promise<boolean>;
   onView(view: ChatView): void;
@@ -117,6 +122,9 @@ export function createChatSession(deps: ChatSessionDeps) {
     effort: Effort | undefined;
     learning: boolean;
   } | null = null;
+  /** Révision de l'authentification : incrémentée à chaque jeton défini ou effacé ; le moteur démarré avec une autre est remplacé. */
+  let authRev = 0;
+  let appliedAuth = 0;
   /** Moteurs écartés (changement de modèle ou d'effort) : leurs derniers messages sont ignorés. */
   const detached = new WeakSet<EngineController>();
   /** Liens du Bypass, un par moteur démarré : libérés à la sortie du moteur. */
@@ -331,6 +339,7 @@ export function createChatSession(deps: ChatSessionDeps) {
     });
     controller = ctl;
     applied = { model: picked.model, effort: picked.effort, learning };
+    appliedAuth = authRev;
     const maxTurns = picked.ultra ? picked.ultra.maxTurns : settings.maxTurns;
     await ctl.start({
       cwd: deps.cwd,
@@ -398,7 +407,10 @@ export function createChatSession(deps: ChatSessionDeps) {
   };
 
   /** Remplace le moteur inactif (modèle ou effort changé) ; le suivant reprendra la même session. */
-  const retire = async (old: EngineController) => {
+  const retire = async (
+    old: EngineController,
+    notice = "Réglages modifiés : nouveau moteur au prochain message, même session.",
+  ) => {
     detached.add(old);
     controller = null;
     stopping = true;
@@ -412,8 +424,21 @@ export function createChatSession(deps: ChatSessionDeps) {
       }),
     ]);
     clearTimeout(timer);
-    state.notice("Réglages modifiés : nouveau moteur au prochain message, même session.");
+    state.notice(notice);
   };
+
+  /** Relit la présence d'un jeton (grise le chat sans fournisseur) ; sans effet si `requireProvider` est absent. */
+  const refreshProvider = async (): Promise<void> => {
+    if (!deps.requireProvider) return;
+    let has = false;
+    try {
+      has = (await deps.getToken()) !== undefined;
+    } catch {
+      has = false;
+    }
+    state.setNoProvider(!has);
+  };
+  if (deps.requireProvider) void refreshProvider().then(() => refresh());
 
   return {
     view: () => {
@@ -489,6 +514,14 @@ export function createChatSession(deps: ChatSessionDeps) {
       // Mode lecture : aucune saisie tant que la conversation n'est pas reprise.
       // `text` est la bulle. `prompt` peut y joindre la sortie d'un terminal cité.
       if (state.busy || state.readonly || text.trim() === "") return;
+      if (deps.requireProvider && state.noProvider) {
+        state.notice(
+          "Aucun fournisseur n'a été ajouté : ajoute un jeton (Warband : définir le jeton) pour utiliser le chat.",
+          "error",
+        );
+        refresh();
+        return;
+      }
       ensureConversation(text);
       state.user(text);
       state.setBusy(true);
@@ -502,6 +535,12 @@ export function createChatSession(deps: ChatSessionDeps) {
             learning !== applied.learning
           ) {
             await retire(controller);
+          } else if (appliedAuth !== authRev) {
+            // Jeton changé pendant un tour : le moteur courant garde l'ancien, le suivant relit le nouveau.
+            await retire(
+              controller,
+              "Jeton modifié : nouveau moteur démarré avec le nouveau jeton, même session.",
+            );
           }
         }
         const ctl = controller ?? (await startEngine());
@@ -513,6 +552,23 @@ export function createChatSession(deps: ChatSessionDeps) {
         state.setBusy(false);
         refresh();
       }
+    },
+    /**
+     * Jeton défini ou effacé : appliqué sans redémarrer l'extension. Le moteur inactif est remplacé
+     * (le suivant relit le jeton), la liste des modèles est sondée de nouveau, le chat se dégrise ou se grise.
+     * Pendant un tour, le moteur courant finit avec l'ancien jeton ; le message suivant relira le nouveau.
+     */
+    async authChanged(): Promise<void> {
+      authRev++;
+      await refreshProvider();
+      if (controller !== null && !state.busy) {
+        await retire(
+          controller,
+          "Jeton modifié : nouveau moteur au prochain message, même session.",
+        );
+      }
+      refresh();
+      await loadModels(true);
     },
     stop(): void {
       if (controller === null) return;

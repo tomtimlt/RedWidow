@@ -67,6 +67,8 @@ export type WebviewMessage =
   | { type: "stop" }
   | { type: "reset" }
   | { type: "ready" }
+  /** Chat grisé sans jeton : demande d'ouvrir « définir le jeton ». Aucun champ ; l'hôte seul agit. */
+  | { type: "addProvider" }
   /** Valeurs non fiables : l'extension les revalide (liste de modèles, énumération des niveaux). */
   | { type: "setModel"; model: string | null }
   | { type: "setEffort"; effort: string | null }
@@ -128,6 +130,7 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
     case "refreshTerminals":
     case "historyResume":
     case "historyClear":
+    case "addProvider":
     case "ready":
       return only("type") ? { type: m.type } : null;
     case "setBypass":

@@ -143,6 +143,8 @@ export function activate(context: vscode.ExtensionContext): void {
       // Bypass (ADR 0006, 0008) : un lien par moteur, l'interrupteur reste celui de la fenêtre.
       bypass: { attach: (send) => bypass.attach(send), reset: () => bypass.reset() },
       getToken,
+      // Sans jeton, le chat est grisé et propose d'en ajouter un.
+      requireProvider: true,
       learningKey,
       store: {
         get: (key: string) => context.globalState.get(key),
@@ -402,6 +404,11 @@ export function activate(context: vscode.ExtensionContext): void {
         bypass.request(message.enabled, visible());
         return;
       }
+      // Chat grisé sans fournisseur : ouvre la saisie du jeton (hôte seul, aucune donnée venue de la webview).
+      if (message.type === "addProvider") {
+        void vscode.commands.executeCommand("warband.setToken");
+        return;
+      }
       const s = getSession(id);
       switch (message.type) {
         case "ready":
@@ -537,20 +544,22 @@ export function activate(context: vscode.ExtensionContext): void {
     },
   };
 
-  // Colonne partagée des panneaux Warband : celle d'un panneau déjà ouvert, sinon à côté de l'éditeur.
-  // Garde chat, cockpit, monitor et réglages groupés en onglets au lieu de scinder une fenêtre à
-  // chaque ouverture.
+  // Colonne des panneaux Warband : le groupe d'éditeur qui contient déjà un onglet Warband (panneau
+  // webview ou terminal d'éditeur « Warband : … »), sinon le groupe actif. Jamais `Beside` : il créait
+  // un groupe scindé à chaque ouverture au lieu d'ajouter un onglet.
   const warbandColumn = (): vscode.ViewColumn => {
-    for (const slot of slots.values()) {
-      if (slot.panel?.viewColumn !== undefined) return slot.panel.viewColumn;
+    for (const group of vscode.window.tabGroups.all) {
+      for (const tab of group.tabs) {
+        const input = tab.input;
+        if (input instanceof vscode.TabInputWebview && input.viewType.includes("warband.")) {
+          return group.viewColumn;
+        }
+        if (input instanceof vscode.TabInputTerminal && tab.label.startsWith("Warband")) {
+          return group.viewColumn;
+        }
+      }
     }
-    for (const panel of [cockpitPanel, monitorPanel, studioPanel]) {
-      if (panel?.viewColumn !== undefined) return panel.viewColumn;
-    }
-    for (const watch of watches) {
-      if (watch.panel.viewColumn !== undefined) return watch.panel.viewColumn;
-    }
-    return vscode.ViewColumn.Beside;
+    return vscode.ViewColumn.Active;
   };
 
   const openCockpit = () => {
@@ -565,7 +574,9 @@ export function activate(context: vscode.ExtensionContext): void {
       localResourceRoots: [media],
     });
     cockpitPanel = panel;
+    let alive = true;
     panel.onDidDispose(() => {
+      alive = false;
       cockpitPanel = undefined;
       void saveWindows();
     });
@@ -577,13 +588,17 @@ export function activate(context: vscode.ExtensionContext): void {
       scriptUri: view.webview.asWebviewUri(vscode.Uri.joinPath(media, "cockpit.js")).toString(),
       styleUri: view.webview.asWebviewUri(vscode.Uri.joinPath(media, "chat.css")).toString(),
     });
-    const postCockpit: (message: unknown) => void = (message) =>
-      void view.webview.postMessage(message);
+    // `panel.webview` lève « Webview is disposed » une fois le panneau fermé : on ne le touche plus.
+    const postCockpit: (message: unknown) => void = (message) => {
+      if (alive) void view.webview.postMessage(message);
+    };
 
     const pushView = async (loading = false) => {
+      if (!alive) return;
       if (loading) postCockpit({ type: "view", loading: true });
       try {
         const payload = await loadCockpitView();
+        if (!alive) return;
         postCockpit(payload);
         broadcastContainers(payload.containers);
         void refreshContainerStatus();
@@ -593,7 +608,7 @@ export function activate(context: vscode.ExtensionContext): void {
           );
         }
       } catch (error) {
-        void vscode.window.showErrorMessage(formatError(error));
+        if (alive) void vscode.window.showErrorMessage(formatError(error));
       }
     };
 
@@ -900,7 +915,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
   let studioPage: StudioPage = "project";
   const pushStudio = async () => {
-    if (!studioPanel) return;
+    const panel = studioPanel;
+    if (!panel) return;
     const cockpit = await loadCockpitView();
     let findings: unknown[] = [];
     try {
@@ -910,7 +926,9 @@ export function activate(context: vscode.ExtensionContext): void {
     }
     // Sources de cours (lecture seule) : seulement pour l'Atlas, racine fixée par l'hôte.
     const sources = studioPage === "atlas" ? await readSources(coursRoot()) : [];
-    await studioPanel.webview.postMessage({ ...cockpit, page: studioPage, findings, sources });
+    // Fermé pendant les lectures : `panel.webview` lèverait « Webview is disposed ».
+    if (studioPanel !== panel) return;
+    await panel.webview.postMessage({ ...cockpit, page: studioPage, findings, sources });
   };
   const openStudio = () => {
     if (studioPanel) {
@@ -1040,6 +1058,15 @@ export function activate(context: vscode.ExtensionContext): void {
       });
   };
 
+  /** Jeton défini ou effacé : chaque chat remplace son moteur inactif et se grise ou se dégrise, sans redémarrage. */
+  const applyAuthChange = () => {
+    for (const slot of slots.values()) {
+      void slot.session
+        ?.authChanged()
+        .catch((error: unknown) => out.appendLine(formatError(error)));
+    }
+  };
+
   context.subscriptions.push(
     vscode.window.onDidCloseTerminal((term) => dropTrackedShell(term)),
     {
@@ -1078,14 +1105,16 @@ export function activate(context: vscode.ExtensionContext): void {
       if (token === undefined) return;
       await context.secrets.store(TOKEN_KEY, token.trim());
       await context.secrets.store(TOKEN_KIND_KEY, kind.value as TokenKind);
-      void vscode.window.showInformationMessage(
-        "Jeton enregistré. Il sera utilisé au prochain démarrage du moteur.",
-      );
+      applyAuthChange();
+      void vscode.window.showInformationMessage("Jeton enregistré et appliqué.");
     }),
     vscode.commands.registerCommand("warband.clearToken", async () => {
       await context.secrets.delete(TOKEN_KEY);
       await context.secrets.delete(TOKEN_KIND_KEY);
-      void vscode.window.showInformationMessage("Jeton effacé.");
+      applyAuthChange();
+      void vscode.window.showInformationMessage(
+        "Jeton effacé : le chat reste grisé tant qu'aucun fournisseur n'est ajouté.",
+      );
     }),
     // Spike E1 : forke le moteur de diagnostic (vérifie l'empreinte du binaire et affiche sa version).
     vscode.commands.registerCommand("warband.diagnostic", () => {
