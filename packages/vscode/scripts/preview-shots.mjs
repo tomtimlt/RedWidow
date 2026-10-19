@@ -1,6 +1,11 @@
 // Captures de la prévisualisation (manuel, hors `pnpm check`) : Edge (ou Chromium) headless.
 // Usage : node scripts/preview-shots.mjs [--out DIR] [--widths 280,360,520,900] [--themes dark,light,hc]
 //         [--states empty,running,approval,model,config,cockpit,studio-project,...|all]
+// Mode vitrine (images du README) : node scripts/preview-shots.mjs --vitrine [--out DIR] [--height 900]
+//         Produit 5 PNG (chat-sombre, chat-clair, accueil-sombre, accueil-clair, configurer-sombre) à 440 px de large,
+//         densité x2, sans bandeau : fenêtre plus grande que le contenu (largeur minimale du headless, barre de chrome) puis recadrage au contenu avec ImageMagick
+//         (`convert`, déjà présent sur la machine, aucune dépendance au dépôt) et quantification si > 200 Ko.
+//         Sortie par défaut : docs/img/ à la racine du dépôt. Les états `vitrine` et `vitrine-config` viennent de preview.test.ts.
 // Génère d'abord les pages : pnpm exec vitest run packages/vscode/test/preview.test.ts
 // Binaire : EDGE_BIN, sinon le chemin d'installation par défaut d'Edge (Windows).
 // Les pages sont servies en HTTP local (127.0.0.1, port éphémère, lecture seule, arrêté en fin de script) : les masques
@@ -8,13 +13,14 @@
 // `file:` de la prévisualisation est remplacée, à la volée, par l'origine du serveur (comme l'hôte le fait avec `cspSource`).
 // Vérifie via --dump-dom l'absence de violation CSP (#csp-violation) et de débordement horizontal (#overflow).
 import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
 import { createServer } from "node:http";
 import { extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 const run = promisify(execFile);
+const vitrine = process.argv.includes("--vitrine");
 const arg = (name, def) => {
   const i = process.argv.indexOf(`--${name}`);
   return i >= 0 ? process.argv[i + 1] : def;
@@ -24,7 +30,10 @@ const edge =
   process.env.EDGE_BIN ?? "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
 if (!existsSync(edge)) throw new Error(`Edge introuvable : ${edge} (définir EDGE_BIN)`);
 const pkg = fileURLToPath(new URL("..", import.meta.url));
-const out = arg("out", join(pkg, "preview", "shots"));
+const out = arg(
+  "out",
+  vitrine ? join(pkg, "..", "..", "docs", "img") : join(pkg, "preview", "shots"),
+);
 mkdirSync(out, { recursive: true });
 const widths = list("widths", "280,360,520,900");
 const themes = list("themes", "dark,light,hc");
@@ -43,12 +52,15 @@ const ALL = [
   "studio-containers",
   "studio-atlas",
   "studio-killchain",
+  "vitrine",
+  "vitrine-config",
+  "vitrine-accueil",
 ];
 const requested = arg(
   "states",
   "empty,running,approval,model,config,cockpit,studio-project,studio-containers,studio-atlas,studio-killchain",
 );
-const states = requested === "all" ? ALL : requested.split(",");
+const states = requested === "all" ? ALL.slice(0, -3) : requested.split(",");
 for (const s of states) if (!ALL.includes(s)) throw new Error(`état inconnu : ${s}`);
 
 const TYPES = {
@@ -59,12 +71,20 @@ const TYPES = {
 };
 const SAFE_NAME = /^[A-Za-z0-9_-]+\.(html|css|js|svg)$/;
 
+/** Recadre la capture (x2) à la taille exacte de l'iframe, puis quantifie sans perte visible si le PNG dépasse 200 Ko. */
+async function finish(file, w, h) {
+  await run("convert", [file, "-crop", `${w * 2}x${h * 2}+0+0`, "+repage", file]);
+  if (statSync(file).size > 200 * 1024)
+    await run("convert", [file, "-colors", "128", "-define", "png:compression-level=9", file]);
+}
+
 // La page est chargée dans une iframe de la largeur voulue (Edge headless impose ~500 px de fenêtre minimum) et de la
 // hauteur de la fenêtre : une iframe plus haute que la zone visible coupe le composer en bas de la capture.
 const host = (
   src,
   w,
-) => `<!doctype html><meta charset="utf-8"><body style="margin:0;background:#777"><iframe src="${src}" style="width:${w}px;height:100vh;border:0;display:block"></iframe>
+  h = 0,
+) => `<!doctype html><meta charset="utf-8"><body style="margin:0;background:#777"><iframe src="${src}" style="width:${w}px;height:${h > 0 ? `${h}px` : "100vh"};border:0;display:block"></iframe>
 <script>addEventListener("message",(e)=>{const d=e.data||{};const add=(id,t)=>{const n=document.createElement("div");n.id=id;n.textContent=t;document.body.append(n);};if(d.csp)add("csp-violation",d.csp);if(d.overflow)add("overflow",d.overflow);if(d.ready)document.body.dataset.ready="1";});</script>`;
 
 /** Serveur local en lecture seule : `/preview/*` et `/media/*` (noms simples, sans sous-dossier), plus `/host`. */
@@ -80,9 +100,18 @@ function serve() {
     if (url.pathname === "/host") {
       const src = url.searchParams.get("src") ?? "";
       const w = Number(url.searchParams.get("w"));
-      if (!SAFE_NAME.test(src) || !Number.isInteger(w) || w < 1 || w > 4000)
+      const h = Number(url.searchParams.get("h") ?? 0);
+      if (
+        !SAFE_NAME.test(src) ||
+        !Number.isInteger(w) ||
+        w < 1 ||
+        w > 4000 ||
+        !Number.isInteger(h) ||
+        h < 0 ||
+        h > 4000
+      )
         return send(400, "text/plain", "paramètres invalides");
-      return send(200, TYPES[".html"], host(`/preview/${src}`, w));
+      return send(200, TYPES[".html"], host(`/preview/${src}`, w, h));
     }
     const m = /^\/(preview|media)\/([^/]+)$/.exec(url.pathname);
     if (!m || !SAFE_NAME.test(m[2])) return send(404, "text/plain", "introuvable");
@@ -101,33 +130,47 @@ function serve() {
 const server = await serve();
 const base = `http://127.0.0.1:${server.address().port}`;
 let problems = 0;
+const jobs = [];
+if (vitrine) {
+  const h = Number(arg("height", "900"));
+  for (const [state, theme, name] of [
+    ["vitrine", "dark", "chat-sombre"],
+    ["vitrine", "light", "chat-clair"],
+    ["vitrine-accueil", "dark", "accueil-sombre"],
+    ["vitrine-accueil", "light", "accueil-clair"],
+    ["vitrine-config", "dark", "configurer-sombre"],
+  ])
+    jobs.push({ state, theme, w: 440, file: join(out, `${name}.png`), crop: { h } });
+} else {
+  for (const state of states)
+    for (const theme of themes)
+      for (const w of widths)
+        jobs.push({ state, theme, w, file: join(out, `${state}-${theme}-${w}.png`) });
+}
 try {
-  for (const state of states) {
-    for (const theme of themes) {
-      for (const w of widths) {
-        const page = `${base}/host?src=${state}-${theme}.html&w=${w}`;
-        const flags = [
-          "--headless=new",
-          "--disable-gpu",
-          "--hide-scrollbars",
-          "--virtual-time-budget=3000",
-          `--window-size=${Math.max(w, 500)},800`,
-        ];
-        const file = join(out, `${state}-${theme}-${w}.png`);
-        await run(edge, [...flags, `--screenshot=${file}`, page]);
-        const { stdout: dom } = await run(edge, [...flags, "--dump-dom", page], {
-          maxBuffer: 16 << 20,
-        });
-        const csp = /<div id="csp-violation">([^<]*)/.exec(dom);
-        const over = /<div id="overflow">([^<]*)/.exec(dom);
-        const ready = dom.includes('data-ready="1"');
-        if (csp || over || !ready) {
-          problems++;
-          console.log(
-            `${state}/${theme}/${w}: ${csp ? `CSP ${csp[1]} ` : ""}${over ? `débordement ${over[1]} ` : ""}${ready ? "" : "page non prête"}`,
-          );
-        }
-      }
+  for (const { state, theme, w, file, crop } of jobs) {
+    const page = `${base}/host?src=${state}-${theme}.html&w=${w}&h=${crop ? crop.h : 0}`;
+    const flags = [
+      "--headless=new",
+      "--disable-gpu",
+      "--hide-scrollbars",
+      "--virtual-time-budget=3000",
+      `--window-size=${Math.max(w, 500)},${crop ? crop.h + 200 : 800}`,
+      ...(crop ? ["--force-device-scale-factor=2"] : []),
+    ];
+    await run(edge, [...flags, `--screenshot=${file}`, page]);
+    if (crop) await finish(file, w, crop.h);
+    const { stdout: dom } = await run(edge, [...flags, "--dump-dom", page], {
+      maxBuffer: 16 << 20,
+    });
+    const csp = /<div id="csp-violation">([^<]*)/.exec(dom);
+    const over = /<div id="overflow">([^<]*)/.exec(dom);
+    const ready = dom.includes('data-ready="1"');
+    if (csp || over || !ready) {
+      problems++;
+      console.log(
+        `${state}/${theme}/${w}: ${csp ? `CSP ${csp[1]} ` : ""}${over ? `débordement ${over[1]} ` : ""}${ready ? "" : "page non prête"}`,
+      );
     }
   }
 } finally {

@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import type { ModelOption } from "@warband/core";
 import { describe, expect, it } from "vitest";
 import { createChatState } from "../src/logic/chat.js";
 import { buildControls, DEFAULT_PREFS } from "../src/logic/controls.js";
@@ -66,6 +67,9 @@ const STATES = [
   "history",
   "mention",
   "noprovider",
+  "vitrine",
+  "vitrine-config",
+  "vitrine-accueil",
 ] as const;
 type PreviewState = (typeof STATES)[number];
 /** Clic simulé après réception de la vue (ouvre le popover correspondant). */
@@ -74,15 +78,85 @@ const CLICK: Partial<Record<PreviewState, string>> = {
   config: "cfg-btn",
   history: "history-btn",
   mention: "mention-btn",
+  "vitrine-config": "cfg-btn",
 };
+
+/** Vitrine (README) : modèles d'exemple génériques, sans identifiant réel. */
+const VITRINE_MODELS: ModelOption[] = [
+  {
+    value: "defaut",
+    displayName: "Modèle par défaut",
+    description: "Équilibré pour la plupart des tâches",
+    supportedEffortLevels: ["low", "medium", "high", "xhigh", "max"],
+  },
+  { value: "rapide", displayName: "Modèle rapide", description: "Réponses vives, coût réduit" },
+  {
+    value: "avance",
+    displayName: "Modèle avancé",
+    description: "Raisonnement approfondi",
+    supportedEffortLevels: ["low", "medium", "high", "xhigh", "max"],
+  },
+];
+
+/** Conversation d'exemple de la vitrine : pentest réaliste, deux outils terminés, une approbation en attente. */
+function fillVitrine(s: ReturnType<typeof createChatState>) {
+  const ev = (e: unknown) => s.event(e as never);
+  s.user("Scanne 10.10.11.42 et résume les services exposés");
+  ev({
+    kind: "agent.text",
+    text: "Je commence par relire mes notes sur la cible, puis je lance un scan de versions.",
+  });
+  ev({
+    kind: "tool.requested",
+    toolUseId: "v1",
+    tool: "Read",
+    input: { file_path: "/home/user/engagements/box-42/notes.md" },
+  });
+  ev({
+    kind: "tool.result",
+    toolUseId: "v1",
+    isError: false,
+    output: "# Box 42\nPérimètre : 10.10.11.42 uniquement\nHors périmètre : déni de service",
+    truncated: false,
+  });
+  ev({
+    kind: "tool.requested",
+    toolUseId: "v2",
+    tool: "Bash",
+    input: { command: "nmap -sV --top-ports 100 10.10.11.42" },
+  });
+  ev({
+    kind: "tool.result",
+    toolUseId: "v2",
+    isError: false,
+    output:
+      "22/tcp  open  ssh    OpenSSH 8.9p1\n80/tcp  open  http   nginx 1.18.0\n443/tcp open  https  nginx 1.18.0",
+    truncated: false,
+  });
+  ev({
+    kind: "agent.text",
+    text: "Trois services sont exposés sur **10.10.11.42** :\n\n- `22/tcp` : OpenSSH 8.9p1\n- `80/tcp` : nginx 1.18.0\n- `443/tcp` : nginx 1.18.0 (TLS)\n\nJe lance un scan de scripts par défaut sur ces ports :\n\n```bash\nnmap -sC -sV -p 22,80,443 10.10.11.42\n```",
+  });
+  ev({
+    kind: "tool.requested",
+    toolUseId: "v3",
+    tool: "Bash",
+    input: { command: "nmap -sC -sV -p 22,80,443 10.10.11.42" },
+  });
+}
 
 function buildView(state: PreviewState) {
   const s = createChatState();
-  const busy = state === "running" || state === "approval";
-  s.setSandbox("node:22-slim");
+  const accueil = state === "vitrine-accueil";
+  const vitrine = state === "vitrine" || state === "vitrine-config" || accueil;
+  const busy = state === "running" || state === "approval" || (vitrine && !accueil);
+  if (!vitrine) s.setSandbox("node:22-slim");
   // Aucun jeton : chat grisé avec invite (écran d'accueil, comme au premier lancement).
   if (state === "noprovider") s.setNoProvider(true);
-  if (state !== "empty" && state !== "noprovider") {
+  if (accueil) {
+    // Écran d'accueil vide de la vitrine : aucune conversation.
+  } else if (vitrine) fillVitrine(s);
+  else if (state !== "empty" && state !== "noprovider") {
     s.user("Liste les fichiers du dossier src");
     const ev = (e: unknown) => s.event(e as never);
     ev({
@@ -110,23 +184,25 @@ function buildView(state: PreviewState) {
   }
   s.setControls(
     buildControls({
-      prefs: { ...DEFAULT_PREFS, model: "modele-a", effort: "high" },
+      prefs: { ...DEFAULT_PREFS, model: vitrine ? "defaut" : "modele-a", effort: "high" },
       ultracode: { maxTurns: 100, maxBudgetUsd: 10 },
-      models: [
-        {
-          value: "modele-a",
-          displayName: "Modèle A avec un nom particulièrement long pour tester la troncature",
-          description:
-            "Description assez longue pour déborder d'une seule ligne dans la liste des modèles.",
-          supportedEffortLevels: ["low", "medium", "high", "xhigh", "max"],
-        },
-        { value: "modele-b", displayName: "Modèle B", description: "Rapide" },
-        {
-          value: "modele-c",
-          displayName: "<img src=x onerror=alert(1)>",
-          description: "<b>inerte</b>",
-        },
-      ],
+      models: vitrine
+        ? VITRINE_MODELS
+        : [
+            {
+              value: "modele-a",
+              displayName: "Modèle A avec un nom particulièrement long pour tester la troncature",
+              description:
+                "Description assez longue pour déborder d'une seule ligne dans la liste des modèles.",
+              supportedEffortLevels: ["low", "medium", "high", "xhigh", "max"],
+            },
+            { value: "modele-b", displayName: "Modèle B", description: "Rapide" },
+            {
+              value: "modele-c",
+              displayName: "<img src=x onerror=alert(1)>",
+              description: "<b>inerte</b>",
+            },
+          ],
       status: "ready",
       defaultModel: undefined,
       busy,
@@ -156,19 +232,31 @@ function buildView(state: PreviewState) {
   return {
     ...s.view(),
     approvals:
-      state === "approval"
+      vitrine && !accueil
         ? [
             {
-              toolUseId: "3",
+              toolUseId: "v3",
               tool: "Bash",
               label: "Commande",
-              summary: "pnpm test",
-              detail: "pnpm test",
-              reason: "Cette commande demande votre accord.",
+              summary: "nmap -sC -sV -p 22,80,443 10.10.11.42",
+              detail: "nmap -sC -sV -p 22,80,443 10.10.11.42",
+              reason: "Les commandes shell demandent votre accord (politique par défaut).",
               canRemember: true,
             },
           ]
-        : [],
+        : state === "approval"
+          ? [
+              {
+                toolUseId: "3",
+                tool: "Bash",
+                label: "Commande",
+                summary: "pnpm test",
+                detail: "pnpm test",
+                reason: "Cette commande demande votre accord.",
+                canRemember: true,
+              },
+            ]
+          : [],
   };
 }
 
