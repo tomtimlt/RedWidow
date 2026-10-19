@@ -6,7 +6,7 @@
 
 **Valider warband sur un vrai Windows** (lot W-L6), corriger ce qui échoue, puis rendre le job Windows de la CI bloquant. Branche de travail : `claude/happy-bardeen-5u5dow` (ne pas pousser ailleurs, pas de PR sans demande).
 
-Le projet : orchestration d'agents IA (adaptateurs Claude Agent SDK et OpenCode) avec journal d'événements, graphe causal, **gate d'approbation** des outils et outils Docker. Monorepo pnpm TypeScript, texte en français. L'utilisateur travaille sous Windows avec Docker Desktop (WSL2, conteneurs Linux) ; WSL lui est impossible, donc le support **natif** est la priorité n°1. Objectif à terme : un équivalent personnel d'Exegol Studio (extension VS Code) pour s'entraîner aux CTF et certifications.
+Le projet : orchestration d'agents IA (adaptateurs Claude Agent SDK et OpenCode) avec journal d'événements, graphe causal, **gate d'approbation** des outils et outils Docker. Monorepo pnpm TypeScript, texte en français. L'utilisateur travaille sous Windows avec Docker Desktop (WSL2, conteneurs Linux) ; WSL lui est impossible, donc le support **natif** est la priorité n°1. Objectif à terme : une extension VS Code personnelle, compatible avec les conteneurs Exegol, pour s'entraîner aux CTF et certifications.
 
 ## État au moment de la passation
 

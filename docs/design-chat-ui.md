@@ -2,7 +2,7 @@
 
 Les quatre webviews (chat, cockpit, studio, panneau éditeur) chargent la même feuille `media/chat.css` (`extension.ts:530,589,732,952`) : cette charte s'applique à toutes. Direction artistique : celle du logo Warband. Un seul accent, le jaune de marque ; un secondaire, le gris ardoise ; formes anguleuses, esprit terminal ; mouvement sobre et fonctionnel.
 
-- Statut : charte D.A. décidée (cadre), 2026-10-18, sur choix de l'utilisateur (accent jaune unique, formes anguleuses, animations sobres, logo revu). Remplace §1, §2 et la ligne « Rayons » de `design-exegol-ui.md` §3. Cadre inchangé : ADR 0004 §C (CSP à nonce, `textContent`, aucune ressource distante), ADR 0005 (modèle, effort).
+- Statut : charte D.A. décidée (cadre), 2026-10-18, sur choix de l'utilisateur (accent jaune unique, formes anguleuses, animations sobres, logo revu). Remplace §1, §2 et la ligne « Rayons » de `design-studio-ui.md` §3. Cadre inchangé : ADR 0004 §C (CSP à nonce, `textContent`, aucune ressource distante), ADR 0005 (modèle, effort).
 - Validé par l'utilisateur (2026-10-18) : logo redessiné selon §3 (pas de fichier source externe) ; petite taille réduite au chevron de tête et au curseur ; attente d'approbation en orange du thème (`--jn-warn`), toujours avec libellé.
 - Cible : VS Code ≥ 1.90 (`extension.manifest.json:8`) = Chromium 122. Disponibles : container queries, `color-mix()`, `:has()`, API `popover`. **Indisponible : CSS anchor positioning** (placement calculé en JS).
 
@@ -109,7 +109,7 @@ Aucun élément plus large que son conteneur ; textes longs en `ellipsis`. Popov
 - **Composer** : bordure `--jn-line`, `--jn-accent` au `:focus-within`, `--jn-warn` sur `body.awaiting` (avec libellé d'attente).
 - **Bascules, radios, cases** : carrées ; état actif = `--jn-accent-fill` + `--jn-on-accent`. Curseur d'effort : piste `--jn-line`, partie remplie `--jn-accent-fill` (via `--jn-pct`), pouce carré.
 - **Sélection** (option de liste, page active du studio, ligne d'historique) : fond `--jn-tint` + liseré gauche 2 px `--jn-accent`.
-- **Cartes d'approbation** : liseré gauche 2 px `--jn-warn`, entrée M2 ; sémantique et boutons inchangés (`design-exegol-ui.md` P2).
+- **Cartes d'approbation** : liseré gauche 2 px `--jn-warn`, entrée M2 ; sémantique et boutons inchangés (`design-studio-ui.md` P2).
 - **Thinking** : `#thinking` hors du `role="log"`, `role="status"`, spinner mono + libellé ; plus de reflet ni de curseur propre.
 - Sélecteur de modèle et Configurer : comportement et accessibilité inchangés, détaillés ci-dessous.
 
