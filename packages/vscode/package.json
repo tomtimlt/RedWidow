@@ -2,6 +2,7 @@
   "name": "@warband/vscode",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "Extension VS Code de warband (ADR 0004).",
   "type": "module",
   "engines": {

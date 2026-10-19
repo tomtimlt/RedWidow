@@ -4,7 +4,7 @@
   "description": "Chat d'agent avec approbation des outils (warband).",
   "version": "0.3.0",
   "publisher": "warband",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "engines": { "vscode": "^1.90.0" },
   "main": "./extension.cjs",
   "extensionKind": ["workspace"],

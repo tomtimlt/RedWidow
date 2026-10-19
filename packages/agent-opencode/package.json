@@ -2,6 +2,7 @@
   "name": "@warband/agent-opencode",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "Adaptateur OpenCode pour le cœur warband : implémente AgentRunner pour des agents non Anthropic (OpenAI, Gemini, Ollama…).",
   "type": "module",
   "engines": {

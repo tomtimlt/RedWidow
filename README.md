@@ -214,3 +214,7 @@ node packages/cli/dist/main.js run --agent opencode -m fournisseur/modèle "list
 ```sh
 pnpm check   # biome + tsc (sources et tests) + vitest
 ```
+
+## Licence
+
+MIT, voir [LICENSE](LICENSE).
