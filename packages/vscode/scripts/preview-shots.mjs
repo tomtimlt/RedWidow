@@ -2,9 +2,12 @@
 // Usage : node scripts/preview-shots.mjs [--out DIR] [--widths 280,360,520,900] [--themes dark,light,hc]
 //         [--states empty,running,approval,model,config,cockpit,studio-project,...|all]
 // Mode vitrine (images du README) : node scripts/preview-shots.mjs --vitrine [--out DIR] [--height 900]
-//         Produit 6 PNG (chat, accueil, configurer ; en sombre et en clair ; configurer = popover ouvert sur l'accueil, plafond de hauteur levé dans la prévisualisation seulement) à 440 px de large,
-//         densité x2, sans bandeau : fenêtre plus grande que le contenu (largeur minimale du headless, barre de chrome) puis recadrage au contenu avec ImageMagick
-//         (`convert`, déjà présent sur la machine, aucune dépendance au dépôt) et quantification si > 200 Ko.
+//         Produit 9 PNG en densité x2, sans bandeau : fenêtre plus grande que le contenu (largeur minimale du headless,
+//         barre de chrome) puis recadrage au contenu avec ImageMagick (`convert`, déjà présent, aucune dépendance au dépôt),
+//         quantification si le PNG dépasse son plafond. Verticaux (440 px, <= 200 Ko) : chat, accueil et configurer, en sombre
+//         et en clair (configurer = popover ouvert sur l'accueil, plafond de hauteur levé dans la prévisualisation seulement).
+//         Paysage (1280 x 800, mise en page large, <= 300 Ko) : paysage-chat sombre et clair (état `vitrine-paysage`, conversation
+//         raccourcie pour tenir en 800 px) et paysage-configurer sombre.
 //         Sortie par défaut : docs/img/ à la racine du dépôt. Les états `vitrine*` viennent de preview.test.ts.
 // Génère d'abord les pages : pnpm exec vitest run packages/vscode/test/preview.test.ts
 // Binaire : EDGE_BIN, sinon le chemin d'installation par défaut d'Edge (Windows).
@@ -56,12 +59,13 @@ const ALL = [
   "vitrine-config",
   "vitrine-accueil",
   "vitrine-accueil-config",
+  "vitrine-paysage",
 ];
 const requested = arg(
   "states",
   "empty,running,approval,model,config,cockpit,studio-project,studio-containers,studio-atlas,studio-killchain",
 );
-const states = requested === "all" ? ALL.slice(0, -4) : requested.split(",");
+const states = requested === "all" ? ALL.slice(0, -5) : requested.split(",");
 for (const s of states) if (!ALL.includes(s)) throw new Error(`état inconnu : ${s}`);
 
 const TYPES = {
@@ -72,10 +76,10 @@ const TYPES = {
 };
 const SAFE_NAME = /^[A-Za-z0-9_-]+\.(html|css|js|svg)$/;
 
-/** Recadre la capture (x2) à la taille exacte de l'iframe, puis quantifie sans perte visible si le PNG dépasse 200 Ko. */
-async function finish(file, w, h) {
+/** Recadre la capture (x2) à la taille exacte de l'iframe, puis quantifie sans perte visible si le PNG dépasse `maxKo` Ko. */
+async function finish(file, w, h, maxKo = 200) {
   await run("convert", [file, "-crop", `${w * 2}x${h * 2}+0+0`, "+repage", file]);
-  if (statSync(file).size > 200 * 1024)
+  if (statSync(file).size > maxKo * 1024)
     await run("convert", [file, "-colors", "128", "-define", "png:compression-level=9", file]);
 }
 
@@ -143,6 +147,19 @@ if (vitrine) {
     ["vitrine-accueil-config", "light", "configurer-clair"],
   ])
     jobs.push({ state, theme, w: 440, file: join(out, `${name}.png`), crop: { h } });
+  // Paysage (format PC, mise en page large) : fenêtre 1280 x 800, même méthode, PNG <= 300 Ko.
+  for (const [state, theme, name] of [
+    ["vitrine-paysage", "dark", "paysage-chat-sombre"],
+    ["vitrine-paysage", "light", "paysage-chat-clair"],
+    ["vitrine-accueil-config", "dark", "paysage-configurer-sombre"],
+  ])
+    jobs.push({
+      state,
+      theme,
+      w: 1280,
+      file: join(out, `${name}.png`),
+      crop: { h: 800, maxKo: 300 },
+    });
 } else {
   for (const state of states)
     for (const theme of themes)
@@ -161,7 +178,7 @@ try {
       ...(crop ? ["--force-device-scale-factor=2"] : []),
     ];
     await run(edge, [...flags, `--screenshot=${file}`, page]);
-    if (crop) await finish(file, w, crop.h);
+    if (crop) await finish(file, w, crop.h, crop.maxKo);
     const { stdout: dom } = await run(edge, [...flags, "--dump-dom", page], {
       maxBuffer: 16 << 20,
     });

@@ -71,6 +71,7 @@ const STATES = [
   "vitrine-config",
   "vitrine-accueil",
   "vitrine-accueil-config",
+  "vitrine-paysage",
 ] as const;
 type PreviewState = (typeof STATES)[number];
 /** Clic simulé après réception de la vue (ouvre le popover correspondant). */
@@ -101,13 +102,15 @@ const VITRINE_MODELS: ModelOption[] = [
 ];
 
 /** Conversation d'exemple de la vitrine : pentest réaliste, deux outils terminés, une approbation en attente. */
-function fillVitrine(s: ReturnType<typeof createChatState>) {
+function fillVitrine(s: ReturnType<typeof createChatState>, court = false) {
   const ev = (e: unknown) => s.event(e as never);
   s.user("Scanne 10.10.11.42 et résume les services exposés");
-  ev({
-    kind: "agent.text",
-    text: "Je commence par relire mes notes sur la cible, puis je lance un scan de versions.",
-  });
+  // Version courte (paysage, 800 px de haut) : sans la phrase d'introduction, pour que la consigne reste visible.
+  if (!court)
+    ev({
+      kind: "agent.text",
+      text: "Je commence par relire mes notes sur la cible, puis je lance un scan de versions.",
+    });
   ev({
     kind: "tool.requested",
     toolUseId: "v1",
@@ -150,14 +153,15 @@ function fillVitrine(s: ReturnType<typeof createChatState>) {
 function buildView(state: PreviewState) {
   const s = createChatState();
   const accueil = state === "vitrine-accueil" || state === "vitrine-accueil-config";
-  const vitrine = state === "vitrine" || state === "vitrine-config" || accueil;
+  const vitrine =
+    state === "vitrine" || state === "vitrine-config" || state === "vitrine-paysage" || accueil;
   const busy = state === "running" || state === "approval" || (vitrine && !accueil);
   if (!vitrine) s.setSandbox("node:22-slim");
   // Aucun jeton : chat grisé avec invite (écran d'accueil, comme au premier lancement).
   if (state === "noprovider") s.setNoProvider(true);
   if (accueil) {
     // Écran d'accueil vide de la vitrine : aucune conversation.
-  } else if (vitrine) fillVitrine(s);
+  } else if (vitrine) fillVitrine(s, state === "vitrine-paysage");
   else if (state !== "empty" && state !== "noprovider") {
     s.user("Liste les fichiers du dossier src");
     const ev = (e: unknown) => s.event(e as never);
