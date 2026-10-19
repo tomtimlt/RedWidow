@@ -370,7 +370,13 @@ describe("Bypass : accusés et environnement du moteur (ADR 0006)", () => {
 const ENV_PROBE_SOURCE = `import { readFileSync, readdirSync, readlinkSync, writeFileSync } from "node:fs";
 const out = process.argv[2];
 const channelKeys = Object.keys(process.env).filter((k) => k.startsWith("NODE_CHANNEL_"));
-const fds = readdirSync("/proc/self/fd")
+let names = [];
+try {
+  names = readdirSync("/proc/self/fd");
+} catch {
+  // Pas de /proc (Windows, macOS) : aucun descripteur à relever.
+}
+const fds = names
   .map(Number)
   .filter((n) => n > 2)
   .flatMap((fd) => {
