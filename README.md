@@ -27,9 +27,11 @@
 
 ## Pourquoi Warband
 
-Les agents IA savent lancer des commandes, lire et écrire des fichiers, piloter des conteneurs. Le plus souvent, on leur fait confiance en bloc ou on valide au hasard. Warband part du principe inverse : **une seule autorité décide de chaque appel d'outil**, et elle est écrite en code, pas en consigne au modèle.
+Un agent IA qui lance lui-même des commandes de reconnaissance et d'exploitation dans un conteneur de pentest peut faire gagner beaucoup de temps en pentest, en CTF et en préparation de certifications, à condition de garder la main sur chaque action sensible.
 
-Chaque appel passe par une gate d'approbation. Elle applique une politique (`allow`, `ask`, `deny`), affiche une carte claire dans le chat, et journalise tout. Un refus de politique, un chemin sensible ou un danger shell ne se contournent jamais, même avec un « Toujours ».
+Warband fait ça : les appels d'outil (exécution dans le conteneur, écriture, accès réseau) passent par une **gate d'approbation écrite en code**, pas laissée au bon vouloir du modèle. Chaque trouvaille (hôte, identifiant, étape, technique MITRE ATT&CK) est notée au fil de la conversation et alimente la **Kill chain**.
+
+> **À utiliser uniquement dans un cadre autorisé** : CTF, labs de certification, engagement avec périmètre et accord écrit.
 
 ## Fonctionnalités
 
@@ -39,6 +41,12 @@ Chaque appel passe par une gate d'approbation. Elle applique une politique (`all
 - **Historique** des conversations, relu depuis les journaux, en lecture seule.
 - Mentions : `@` pour citer un conteneur, `#` pour citer un terminal ouvert, `/` pour les commandes.
 - Interface responsive de 280 px à plus de 900 px, thèmes sombre, clair et contraste élevé, mouvement réduit respecté.
+
+**Pensé pour le pentest**
+- L'agent exécute les outils de ton conteneur de pentest (`argv` sans shell, dans `/workspace`). Il ne peut agir que dans le conteneur dédié au projet ou cité avec `@`, et ne crée, n'arrête ni ne supprime aucun conteneur.
+- **Carnet de trouvailles** : hôtes, identifiants, sites, étapes, butin, avec un état (confirmé, hypothèse, échoué), la tactique et la technique **MITRE ATT&CK**, et les liens de causalité entre elles.
+- Page **Kill chain** : le graphe interactif des trouvailles, en couches, avec zoom et déplacement.
+- **Terminaux** de l'éditeur dans le conteneur ; `#` colle dans la consigne la sortie d'un terminal ouvert.
 
 **Une approbation qui a du sens**
 - Une carte par demande : outil, entrée neutralisée, raison de la politique. *Autoriser une fois*, *Refuser* ou *Toujours*, ce dernier sous confirmation native de VS Code et seulement quand c'est sûr.
