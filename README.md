@@ -16,9 +16,10 @@
 
 <br>
 
-<img src="docs/img/chat-sombre.png" alt="Chat Warband en thème sombre, avec une carte d'approbation en attente" width="380">
-&nbsp;&nbsp;
-<img src="docs/img/chat-clair.png" alt="Chat Warband en thème clair, avec une carte d'approbation en attente" width="380">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/paysage-chat-sombre.png">
+  <img src="docs/img/paysage-chat-clair.png" alt="Chat Warband sur grand écran, avec une carte d'approbation en attente" width="820">
+</picture>
 
 </div>
 
@@ -52,6 +53,23 @@ Chaque appel passe par une gate d'approbation. Elle applique une politique (`all
 
 **Windows d'abord**
 - Support natif, sans WSL. Les processus sont arrêtés proprement, arbre entier compris.
+
+## Aperçu
+
+<div align="center">
+
+| Sombre | Clair |
+| :---: | :---: |
+| <img src="docs/img/chat-sombre.png" alt="Conversation avec une carte d'approbation, thème sombre" width="380"> | <img src="docs/img/chat-clair.png" alt="Conversation avec une carte d'approbation, thème clair" width="380"> |
+| *Une carte par demande : outil, action, raison* | *Le même écran en thème clair* |
+| <img src="docs/img/accueil-sombre.png" alt="Écran d'accueil, thème sombre" width="380"> | <img src="docs/img/accueil-clair.png" alt="Écran d'accueil, thème clair" width="380"> |
+| *Accueil* | *Accueil en thème clair* |
+| <img src="docs/img/configurer-sombre.png" alt="Réglages : effort, fournisseur, Apprentissage, Bypass, thème sombre" width="380"> | <img src="docs/img/configurer-clair.png" alt="Réglages : effort, fournisseur, Apprentissage, Bypass, thème clair" width="380"> |
+| *Configurer : effort, fournisseur, Apprentissage, Bypass* | *Configurer en thème clair* |
+
+<img src="docs/img/paysage-configurer-sombre.png" alt="Popover Configurer sur grand écran" width="820">
+
+</div>
 
 ## Démarrage rapide
 
