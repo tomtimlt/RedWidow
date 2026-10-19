@@ -2,10 +2,10 @@
 // Usage : node scripts/preview-shots.mjs [--out DIR] [--widths 280,360,520,900] [--themes dark,light,hc]
 //         [--states empty,running,approval,model,config,cockpit,studio-project,...|all]
 // Mode vitrine (images du README) : node scripts/preview-shots.mjs --vitrine [--out DIR] [--height 900]
-//         Produit 5 PNG (chat-sombre, chat-clair, accueil-sombre, accueil-clair, configurer-sombre) à 440 px de large,
+//         Produit 6 PNG (chat, accueil, configurer ; en sombre et en clair ; configurer = popover ouvert sur l'accueil, plafond de hauteur levé dans la prévisualisation seulement) à 440 px de large,
 //         densité x2, sans bandeau : fenêtre plus grande que le contenu (largeur minimale du headless, barre de chrome) puis recadrage au contenu avec ImageMagick
 //         (`convert`, déjà présent sur la machine, aucune dépendance au dépôt) et quantification si > 200 Ko.
-//         Sortie par défaut : docs/img/ à la racine du dépôt. Les états `vitrine` et `vitrine-config` viennent de preview.test.ts.
+//         Sortie par défaut : docs/img/ à la racine du dépôt. Les états `vitrine*` viennent de preview.test.ts.
 // Génère d'abord les pages : pnpm exec vitest run packages/vscode/test/preview.test.ts
 // Binaire : EDGE_BIN, sinon le chemin d'installation par défaut d'Edge (Windows).
 // Les pages sont servies en HTTP local (127.0.0.1, port éphémère, lecture seule, arrêté en fin de script) : les masques
@@ -55,12 +55,13 @@ const ALL = [
   "vitrine",
   "vitrine-config",
   "vitrine-accueil",
+  "vitrine-accueil-config",
 ];
 const requested = arg(
   "states",
   "empty,running,approval,model,config,cockpit,studio-project,studio-containers,studio-atlas,studio-killchain",
 );
-const states = requested === "all" ? ALL.slice(0, -3) : requested.split(",");
+const states = requested === "all" ? ALL.slice(0, -4) : requested.split(",");
 for (const s of states) if (!ALL.includes(s)) throw new Error(`état inconnu : ${s}`);
 
 const TYPES = {
@@ -138,7 +139,8 @@ if (vitrine) {
     ["vitrine", "light", "chat-clair"],
     ["vitrine-accueil", "dark", "accueil-sombre"],
     ["vitrine-accueil", "light", "accueil-clair"],
-    ["vitrine-config", "dark", "configurer-sombre"],
+    ["vitrine-accueil-config", "dark", "configurer-sombre"],
+    ["vitrine-accueil-config", "light", "configurer-clair"],
   ])
     jobs.push({ state, theme, w: 440, file: join(out, `${name}.png`), crop: { h } });
 } else {

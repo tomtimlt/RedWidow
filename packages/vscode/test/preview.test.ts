@@ -70,6 +70,7 @@ const STATES = [
   "vitrine",
   "vitrine-config",
   "vitrine-accueil",
+  "vitrine-accueil-config",
 ] as const;
 type PreviewState = (typeof STATES)[number];
 /** Clic simulé après réception de la vue (ouvre le popover correspondant). */
@@ -79,6 +80,7 @@ const CLICK: Partial<Record<PreviewState, string>> = {
   history: "history-btn",
   mention: "mention-btn",
   "vitrine-config": "cfg-btn",
+  "vitrine-accueil-config": "cfg-btn",
 };
 
 /** Vitrine (README) : modèles d'exemple génériques, sans identifiant réel. */
@@ -147,7 +149,7 @@ function fillVitrine(s: ReturnType<typeof createChatState>) {
 
 function buildView(state: PreviewState) {
   const s = createChatState();
-  const accueil = state === "vitrine-accueil";
+  const accueil = state === "vitrine-accueil" || state === "vitrine-accueil-config";
   const vitrine = state === "vitrine" || state === "vitrine-config" || accueil;
   const busy = state === "running" || state === "approval" || (vitrine && !accueil);
   if (!vitrine) s.setSandbox("node:22-slim");
@@ -274,7 +276,13 @@ for(const n of document.body.querySelectorAll("*")){if(n.closest(".sr-only")||n.
  * l'hôte au démarrage (`ready` pour le chat, `refresh` pour le cockpit et les réglages) ; la réponse `messages` part alors.
  * La page est chargée dans une iframe de la largeur voulue ; elle poste au parent les violations CSP et le débordement.
  */
-const shim = (cls: string, trigger: string, messages: unknown[], click: string | undefined) => {
+const shim = (
+  cls: string,
+  trigger: string,
+  messages: unknown[],
+  click: string | undefined,
+  lift?: string,
+) => {
   const posts = messages
     .map((m) => `window.postMessage(${JSON.stringify(m).replace(/</g, "\\u003c")},"*");`)
     .join("");
@@ -282,7 +290,7 @@ const shim = (cls: string, trigger: string, messages: unknown[], click: string |
 const csp=[];document.addEventListener("securitypolicyviolation",(e)=>{csp.push(e.violatedDirective+" "+e.blockedURI);});
 document.body.classList.add("${cls}");
 window.acquireVsCodeApi=()=>({postMessage:(m)=>{if(m.type==="${trigger}")setTimeout(()=>{${posts}},0);}});
-window.addEventListener("load",()=>setTimeout(()=>{${click ? `document.getElementById("${click}").click();` : ""}
+window.addEventListener("load",()=>setTimeout(()=>{${click ? `document.getElementById("${click}").click();` : ""}${lift ? `setTimeout(()=>document.getElementById("${lift}").style.setProperty("max-height","none"),100);` : ""}
 setTimeout(()=>{${MEASURE}
 parent.postMessage({ready:true,csp:csp.join(";"),overflow:bad},"*");},300);},50));`;
 };
@@ -395,7 +403,7 @@ describe("pages de prévisualisation", () => {
           )
           .replace(
             '<script nonce="preview" src="../media/ui.js"></script>',
-            `<script nonce="preview">${shim(t.cls, "ready", [{ type: "view", view }, CHAT_CONTAINERS], CLICK[state])}</script>\n<script nonce="preview" src="../media/ui.js"></script>`,
+            `<script nonce="preview">${shim(t.cls, "ready", [{ type: "view", view }, CHAT_CONTAINERS], CLICK[state], state === "vitrine-accueil-config" ? "cfg-pop" : undefined)}</script>\n<script nonce="preview" src="../media/ui.js"></script>`,
           );
         expect(html).toContain("Content-Security-Policy");
         expect(html).toContain(`vscode-${theme === "hc" ? "high-contrast" : theme}`);
