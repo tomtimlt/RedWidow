@@ -2,6 +2,10 @@
 
 CLI d'orchestration de conteneurs Docker via un agent : Claude Agent SDK, ou OpenCode pour les autres fournisseurs.
 
+## Indépendance
+
+Warband est un projet indépendant. Il n'est ni affilié, ni approuvé, ni sponsorisé par les auteurs d'Exegol. « Exegol » désigne le projet et les conteneurs de ses propriétaires : Warband sait seulement piloter des conteneurs Exegol qui tournent déjà. Aucun code, texte, image ni logo d'Exegol n'est repris ici. Le nom, le logo et l'interface de Warband lui sont propres.
+
 ## Architecture
 
 ```

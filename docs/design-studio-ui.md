@@ -1,19 +1,19 @@
-# Spécification de design : portage de la maquette Exegol Studio
+# Spécification de design : cockpit, composer, Configurer, cartes et réglages
 
-- Statut : cadré (cadre), 2026-10-16. Référence visuelle : `packages/vscode/design/exegol-studio-mockup.html` (référence seulement, jamais copiée : palette figée, `innerHTML`, `style=`, animations infinies hors budget).
+- Statut : cadré (cadre), 2026-10-16. Conception propre à Warband, sans maquette externe.
 - Hérite de `docs/design-chat-ui.md` (CSP, budget d'effets, règles JS) : tout ce qui n'est pas remplacé ici reste en vigueur.
 - Règle de vérité : **aucune valeur inventée**. Donnée absente : l'élément est masqué, ou affiché désactivé avec le libellé « bientôt » et sans faux état (ni %, ni pastille verte/rouge, ni compteur).
 
 ## 1. Décision
 
-1. Portage visuel complet (jetons, composer, Configure, cartes, Réglages) sur les données existantes ; les fonctions sans donnée sont « bientôt » ou absentes (tableau §2).
+1. Refonte visuelle complète (jetons, composer, Configure, cartes, Réglages) sur les données existantes ; les fonctions sans donnée sont « bientôt » ou absentes (tableau §2).
 2. Le journal d'agent (appels d'exec Exegol) est le panneau **Monitor** ; le shell interactif est un terminal d'éditeur VS Code (`terminalLaunch`, `isTransient`), pas une webview.
 3. Layouts : **Editor** = l'état actuel (chat dans la Side Bar). **Chat** et **Monitor** = un panneau webview éditeur `warband.stage` en `ViewColumn.One`. Une seule surface de conversation active à la fois : en layout Chat, la vue `warband.chat` de la Side Bar affiche « Conversation ouverte dans l'éditeur » et un bouton de retour, sans cartes d'approbation. Monitor est en lecture seule : les approbations s'y répondent par un renvoi au chat. Layout mémorisé dans `workspaceState` (pas de réglage).
 4. Bypass : **non câblé**. Interrupteur affiché désactivé « bientôt » dans Configure. Aucune classe `bypass` posée sur le corps, aucun état orange lié au Bypass.
 
 5. Décisions de l'utilisateur (2026-10-16) : (a) la bordure orange du composer signifie « approbation en attente » (`body.awaiting`), en attendant le Bypass ; (b) le bouton « Terminal » du cockpit et la commande `warband.openTerminal` ouvrent un shell d'éditeur via `terminalLaunch` sur le conteneur en marche ; (c) en layout Chat, la Side Bar affiche la liste des Sessions (historique restylé) et un renvoi vers l'éditeur.
 
-## 2. Inventaire de la maquette
+## 2. Inventaire des éléments d'interface
 
 | Élément | Sort | Source / remarque |
 |---|---|---|
@@ -28,7 +28,7 @@
 | Pièces jointes, bouton trombone | « bientôt » | Désactivé. |
 | Bouton @ et menu Mentionner | Réel partiel | Seulement les types reconnus par `parseMentions` ; les autres absents. |
 | Bouton / et menu Commandes | Réel partiel | `/start <nom>` et `/clear` (= message `reset` existant). `/compact`, `/help`, skills : absents. |
-| Pastille modèle + menu | Réel | `model-chip` existant (liste du SDK, pas la liste figée de la maquette). |
+| Pastille modèle + menu | Réel | `model-chip` existant (liste du SDK, pas une liste figée). |
 | Bouton MCP + menu à statuts | Masqué | Aucun statut MCP. |
 | Jauge de contexte + popover | Masqué | Aucune donnée d'usage. |
 | Configure : Layout | Réel | Lot P4. |
@@ -51,11 +51,11 @@
 ## 3. Système de design (remplace `design-chat-ui.md` §1 sur ces points)
 
 - Rayons, palette, accent, mouvement : **remplacés le 2026-10-18** par la charte D.A. de `design-chat-ui.md` §1–3 (rayons 2/3/4 px, accent jaune de marque, plus de pastille). Les lignes ci-dessous valent pour le reste.
-- Palette convertie : chaque couleur de la maquette devient une variable `--vscode-*`, hex seulement en repli de `var()`. Bleu = `--vscode-focusBorder`. Orange = `--vscode-editorWarning-foreground` (repli `--vscode-inputValidation-warningBorder`). Terminal : `--vscode-terminal-background/foreground`, `--vscode-terminal-ansi*`, police `--vscode-editor-font-family`.
+- Palette convertie : chaque couleur est une variable `--vscode-*`, hex seulement en repli de `var()`. Bleu = `--vscode-focusBorder`. Orange = `--vscode-editorWarning-foreground` (repli `--vscode-inputValidation-warningBorder`). Terminal : `--vscode-terminal-background/foreground`, `--vscode-terminal-ansi*`, police `--vscode-editor-font-family`.
 - Composer : bordure bleue au `:focus-within` ; **orange quand une approbation est en attente** (`body.awaiting`, état réel). Le Bypass n'emprunte pas cet état.
 - Configure : popover de largeur 232 px (bornée par `min(232px, 100vw - 16px)`), **une colonne** à toutes les largeurs (remplace la règle « deux colonnes en large »). Ordre : Layout, Raisonnement, Fournisseur, puis les « bientôt » (Mode, Bypass, Persona) regroupés en bas.
 - Barre d'outils du composer : une seule ligne, sans retour. Sous 360 px (`@container app`, points 359/600 existants), Configure est réduit à l'icône (texte en `.sr-only`, `title`).
-- Animations de la maquette (`pulse`, curseur clignotant, point « live ») : **statiques**. Seuls restent E1 à E6.
+- Animations décoratives (`pulse`, curseur clignotant, point « live ») : **statiques**. Seuls restent E1 à E6.
 
 ## 4. Lots pour `surface` (ordre imposé)
 

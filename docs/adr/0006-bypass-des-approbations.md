@@ -5,7 +5,7 @@
 
 ## Contexte
 
-La maquette validée prévoit un interrupteur « Bypass approvals » dans Configure (affiché « bientôt », rien de câblé : `docs/design-exegol-ui.md:12`, `:36`, `:77`). Contraintes :
+Le cadrage de l'interface prévoit un interrupteur « Bypass approvals » dans Configure (affiché « bientôt », rien de câblé : `docs/design-studio-ui.md:12`, `:36`, `:77`). Contraintes :
 
 - La gate est l'unique autorité ; `canUseTool` n'est qu'un filet fail-closed (`packages/agent-sdk/src/runner.ts:263`, `:410`). Le SDK tourne en `permissionMode: "default"` (`runner.ts:244`, `:483`), option verrouillée (`runner.ts:70-78`).
 - La gate distingue déjà les verdicts « ask » mémorisables (`REMEMBERABLE`, `packages/core/src/approval/gate.ts:83-89`) et exclut les répertoires externes (`gate.ts:102`). `deny` de politique, garde-fous de chemin, accès hôte d'un conteneur et dangers shell ne sont jamais mémorisables (`gate.ts:29-33`).
