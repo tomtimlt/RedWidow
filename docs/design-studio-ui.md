@@ -1,6 +1,6 @@
 # Spécification de design : cockpit, composer, Configurer, cartes et réglages
 
-- Statut : cadré (cadre), 2026-10-16. Conception propre à Warband, sans maquette externe.
+- Statut : cadré (cadre), 2026-10-16. Conception propre à Warband.
 - Hérite de `docs/design-chat-ui.md` (CSP, budget d'effets, règles JS) : tout ce qui n'est pas remplacé ici reste en vigueur.
 - Règle de vérité : **aucune valeur inventée**. Donnée absente : l'élément est masqué, ou affiché désactivé avec le libellé « bientôt » et sans faux état (ni %, ni pastille verte/rouge, ni compteur).
 
