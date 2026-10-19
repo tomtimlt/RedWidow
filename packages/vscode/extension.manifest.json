@@ -1,0 +1,145 @@
+{
+  "name": "warband",
+  "displayName": "Warband",
+  "description": "Chat d'agent avec approbation des outils (warband).",
+  "version": "0.3.0",
+  "publisher": "warband",
+  "license": "MIT",
+  "engines": { "vscode": "^1.90.0" },
+  "main": "./extension.cjs",
+  "extensionKind": ["workspace"],
+  "activationEvents": [],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "Warband exécute un agent qui lit et modifie les fichiers de l'espace de travail : il est désactivé tant que le dossier n'est pas approuvé."
+    },
+    "virtualWorkspaces": false
+  },
+  "contributes": {
+    "commands": [
+      { "command": "warband.launcher", "title": "Warband : lanceur", "icon": "$(rocket)" },
+      {
+        "command": "warband.openChat",
+        "title": "Warband : ouvrir un chat",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "warband.openCockpit",
+        "title": "Warband : ouvrir le cockpit",
+        "icon": "$(dashboard)"
+      },
+      {
+        "command": "warband.openStudio",
+        "title": "Warband : ouvrir les réglages",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "warband.openTerminal",
+        "title": "Warband : ouvrir un terminal",
+        "icon": "$(terminal)"
+      },
+      {
+        "command": "warband.openMonitor",
+        "title": "Warband : ouvrir le Monitor",
+        "icon": "$(pulse)"
+      },
+      {
+        "command": "warband.focusChat",
+        "title": "Warband : aller au chat latéral",
+        "icon": "$(comment)"
+      },
+      { "command": "warband.setToken", "title": "Warband : définir le jeton", "icon": "$(key)" },
+      { "command": "warband.clearToken", "title": "Warband : effacer le jeton" },
+      { "command": "warband.diagnostic", "title": "Warband : diagnostic", "icon": "$(pulse)" }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "warband.openTerminal",
+          "when": "view == warband.chat",
+          "group": "navigation@1"
+        },
+        { "command": "warband.openChat", "when": "view == warband.chat", "group": "navigation@2" },
+        {
+          "command": "warband.openCockpit",
+          "when": "view == warband.chat",
+          "group": "navigation@3"
+        },
+        {
+          "command": "warband.openStudio",
+          "when": "view == warband.chat",
+          "group": "navigation@4"
+        },
+        { "command": "warband.openMonitor", "when": "view == warband.chat", "group": "outils@1" },
+        { "command": "warband.setToken", "when": "view == warband.chat", "group": "outils@2" },
+        { "command": "warband.diagnostic", "when": "view == warband.chat", "group": "outils@3" }
+      ],
+      "editor/title": [
+        {
+          "command": "warband.openTerminal",
+          "when": "activeWebviewPanelId =~ /^warband\\./",
+          "group": "navigation@1"
+        },
+        {
+          "command": "warband.openChat",
+          "when": "activeWebviewPanelId =~ /^warband\\./",
+          "group": "navigation@2"
+        },
+        {
+          "command": "warband.launcher",
+          "when": "activeWebviewPanelId =~ /^warband\\./",
+          "group": "navigation@3"
+        }
+      ],
+      "commandPalette": [{ "command": "warband.focusChat", "when": "false" }]
+    },
+    "keybindings": [
+      { "command": "warband.launcher", "key": "alt+j alt+j", "mac": "ctrl+j ctrl+j" },
+      { "command": "warband.focusChat", "key": "alt+j c", "mac": "ctrl+j c" },
+      { "command": "warband.openChat", "key": "alt+j n", "mac": "ctrl+j n" },
+      { "command": "warband.openTerminal", "key": "alt+j t", "mac": "ctrl+j t" },
+      { "command": "warband.openCockpit", "key": "alt+j k", "mac": "ctrl+j k" },
+      { "command": "warband.openMonitor", "key": "alt+j m", "mac": "ctrl+j m" },
+      { "command": "warband.openStudio", "key": "alt+j s", "mac": "ctrl+j s" }
+    ],
+    "viewsContainers": {
+      "activitybar": [{ "id": "warband", "title": "Warband", "icon": "media/icon.svg" }]
+    },
+    "views": {
+      "warband": [{ "type": "webview", "id": "warband.chat", "name": "Chat" }]
+    },
+    "configuration": {
+      "title": "Warband",
+      "properties": {
+        "warband.model": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "markdownDescription": "Modèle à utiliser (texte libre). Vide : défaut du SDK. Ignoré s'il est posé au niveau de l'espace de travail."
+        },
+        "warband.maxTurns": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "scope": "machine",
+          "markdownDescription": "Nombre maximal de tours de l'agent par conversation. 0 : pas de plafond."
+        },
+        "warband.ultracode.maxTurns": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "scope": "machine",
+          "markdownDescription": "Plafond de tours du préréglage **Ultracode** (effort Max + limites longues). 0 : pas de plafond de tours. Remplace `warband.maxTurns` quand Ultracode est choisi."
+        },
+        "warband.ultracode.maxBudgetUsd": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "scope": "machine",
+          "markdownDescription": "Plafond de dépense (USD) du préréglage **Ultracode**. 0 : pas de plafond de dépense."
+        }
+      }
+    }
+  }
+}

@@ -5,8 +5,8 @@ export interface GraphNode {
   kind: EventKind;
   seq: number;
   ts: string;
-  /** Libellé court, texte brut (l'échappement est à la charge du rendu). */
-  label: string;
+  /** Événement source : les libellés se calculent à l'affichage (`@warband/messages`). */
+  event: EngineEvent;
   /** Profondeur dans l'arbre causal (0 = racine). */
   depth: number;
   /** Pour process.started : lignes de sortie agrégées. */
@@ -20,50 +20,15 @@ export interface GraphEdge {
 }
 
 export interface EventGraph {
+  /** Run représenté par ce graphe (`null` si aucun événement). */
   runId: string | null;
+  /** Tous les runs présents dans les événements, dans l'ordre d'apparition. */
+  runs: string[];
   nodes: GraphNode[];
   edges: GraphEdge[];
 }
 
 const TAIL = 5;
-const MAX_LABEL = 80;
-
-function clip(text: string): string {
-  const flat = text.replace(/\s+/g, " ").trim();
-  return flat.length > MAX_LABEL ? `${flat.slice(0, MAX_LABEL - 1)}…` : flat;
-}
-
-function labelOf(e: EngineEvent): string {
-  switch (e.kind) {
-    case "run.started":
-      return clip(`run : ${e.prompt}`);
-    case "agent.text":
-      return clip(e.text);
-    case "tool.requested": {
-      const detail =
-        typeof e.input.command === "string"
-          ? e.input.command
-          : Object.keys(e.input).length > 0
-            ? JSON.stringify(e.input)
-            : "";
-      return clip(`${e.tool} ${detail}`);
-    }
-    case "approval.decided":
-      return clip(`${e.decision} (${e.source}) : ${e.reason}`);
-    case "tool.result":
-      return clip(e.summary);
-    case "process.started":
-      return clip(e.argv.join(" "));
-    case "process.output":
-      return clip(e.line);
-    case "process.exited":
-      return `exit ${e.code ?? e.signal} · ${e.durationMs} ms`;
-    case "run.finished":
-      return `${e.status} · ${e.turns} tours · $${e.costUsd.toFixed(4)}`;
-    case "error":
-      return clip(e.message);
-  }
-}
 
 function statusOf(e: EngineEvent): GraphNode["status"] {
   switch (e.kind) {
@@ -76,19 +41,50 @@ function statusOf(e: EngineEvent): GraphNode["status"] {
     case "run.finished":
       return e.status === "success" ? "ok" : "error";
     case "error":
+    case "sink.error":
       return "error";
+    case "permission.denied":
+      return "denied";
     default:
       return undefined;
   }
 }
 
 /**
- * Construit le graphe causal d'un run à partir des `parentId`. Les lignes
- * `process.output` sont agrégées sur leur `process.started` pour garder un
- * graphe lisible. Un parent absent du journal fait de l'événement une racine.
+ * Sépare les événements par run, en conservant l'ordre d'apparition des runs
+ * et, dans chaque run, l'ordre `seq`.
  */
-export function buildGraph(events: readonly EngineEvent[]): EventGraph {
-  const sorted = [...events].sort((a, b) => a.seq - b.seq);
+export function splitRuns(events: readonly EngineEvent[]): Map<string, EngineEvent[]> {
+  const runs = new Map<string, EngineEvent[]>();
+  for (const e of events) {
+    const list = runs.get(e.runId);
+    if (list) list.push(e);
+    else runs.set(e.runId, [e]);
+  }
+  for (const list of runs.values()) list.sort((a, b) => a.seq - b.seq);
+  return runs;
+}
+
+export interface BuildGraphOptions {
+  /** Run à représenter. Défaut : le dernier run apparu dans `events`. */
+  runId?: string;
+}
+
+/**
+ * Construit le graphe causal d'UN run à partir des `parentId`. S'il y a
+ * plusieurs runs et aucun `runId`, le dernier (ordre d'apparition) est retenu ;
+ * `graph.runs` liste tous les runs. Les lignes `process.output` sont agrégées
+ * sur leur `process.started` pour garder un graphe lisible. Un parent absent
+ * du journal fait de l'événement une racine.
+ */
+export function buildGraph(
+  events: readonly EngineEvent[],
+  options: BuildGraphOptions = {},
+): EventGraph {
+  const byRun = splitRuns(events);
+  const runs = [...byRun.keys()];
+  const runId = options.runId ?? runs.at(-1) ?? null;
+  const sorted = (runId === null ? undefined : byRun.get(runId)) ?? [];
   const nodes = new Map<string, GraphNode>();
   const edges: GraphEdge[] = [];
 
@@ -109,7 +105,7 @@ export function buildGraph(events: readonly EngineEvent[]): EventGraph {
       kind: e.kind,
       seq: e.seq,
       ts: e.ts,
-      label: labelOf(e),
+      event: e,
       depth: parent ? parent.depth + 1 : 0,
       ...(status && { status }),
       ...(e.kind === "process.started" && { output: { stdout: 0, stderr: 0, tail: [] } }),
@@ -118,5 +114,5 @@ export function buildGraph(events: readonly EngineEvent[]): EventGraph {
     if (parent) edges.push({ from: parent.id, to: e.id });
   }
 
-  return { runId: sorted[0]?.runId ?? null, nodes: [...nodes.values()], edges };
+  return { runId: sorted.length > 0 ? runId : null, runs, nodes: [...nodes.values()], edges };
 }

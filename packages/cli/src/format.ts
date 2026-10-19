@@ -1,4 +1,8 @@
-import type { EngineEvent } from "@john-studio/core";
+import type { AuthInfo, AuthMode, EngineEvent } from "@warband/core";
+import { describeAuth, formatError, formatReason, summarizeOutput } from "@warband/messages";
+import { stripControl } from "./sanitize.js";
+
+export { summarizeOutput };
 
 export interface FormatOptions {
   color: boolean;
@@ -26,26 +30,118 @@ export function formatEvent(e: EngineEvent, { color, verbose }: FormatOptions): 
       return `${tag("dim", "run")} ${e.prompt} ${paint("dim", `(${e.cwd})`)}`;
     case "agent.text":
       return `${tag("blue", "agent")} ${e.text}`;
+    case "user.message":
+      return `${tag("green", "user")} ${stripControl(e.text)}`;
     case "tool.requested": {
-      const detail =
-        typeof e.input.command === "string" ? e.input.command : JSON.stringify(e.input);
+      const detail = stripControl(
+        typeof e.input.command === "string" ? e.input.command : JSON.stringify(e.input),
+      );
       const nested = e.agentToolUseId ? "↳ " : "";
       return `${tag("magenta", "tool")} ${nested}${e.tool} ${paint("dim", detail)}`;
     }
     case "approval.decided":
-      return `${tag(e.decision === "allow" ? "green" : "red", e.decision)} ${paint("dim", `[${e.source}] ${e.reason}`)}`;
-    case "tool.result":
-      return `${tag(e.isError ? "red" : "dim", "result")} ${e.summary}`;
+      return `${tag(e.decision === "allow" ? "green" : "red", e.decision)} ${paint("dim", `[${e.source}] ${formatReason(e.reason)}`)}`;
+    case "bypass.changed":
+      return `${tag(e.state === "on" ? "yellow" : "dim", "bypass")} ${paint("dim", formatReason(e.reason))}`;
+    case "tool.result": {
+      const more = e.truncated ? paint("dim", ` [tronqué : ${e.bytes} octets]`) : "";
+      return `${tag(e.isError ? "red" : "dim", "result")} ${summarizeOutput(stripControl(e.output))}${more}`;
+    }
     case "process.started":
-      return `${tag("yellow", "exec")} ${e.argv.join(" ")}`;
+      return `${tag("yellow", "exec")} ${stripControl(e.argv.join(" "))}`;
     case "process.output":
       if (!verbose) return null;
-      return `${tag("dim", e.stream)} ${e.line}`;
-    case "process.exited":
-      return `${tag(e.code === 0 ? "yellow" : "red", "exit")} ${e.code ?? e.signal} ${paint("dim", `${e.durationMs} ms`)}`;
-    case "run.finished":
-      return `${tag(e.status === "success" ? "green" : "red", e.status)} ${e.turns} tours · $${e.costUsd.toFixed(4)}`;
+      return `${tag("dim", e.stream)} ${stripControl(e.line)}${e.truncated ? paint("dim", " […]") : ""}`;
+    case "process.exited": {
+      const dropped = e.droppedLines
+        ? paint("dim", ` · ${e.droppedLines} lignes non journalisées`)
+        : "";
+      const cause = e.termination
+        ? paint(
+            "dim",
+            ` · ${e.termination === "timeout" ? "délai dépassé" : "annulé"}${e.forced ? " (SIGKILL)" : ""}`,
+          )
+        : "";
+      return `${tag(e.code === 0 ? "yellow" : "red", "exit")} ${e.code ?? e.signal} ${paint("dim", `${e.durationMs} ms`)}${cause}${dropped}`;
+    }
+    case "run.finished": {
+      const unhandled = Object.values(e.unhandledMessages ?? {}).reduce((n, c) => n + c, 0);
+      const extra = unhandled > 0 ? paint("dim", ` · ${unhandled} messages non traduits`) : "";
+      const sessionId = e.sessionId ? paint("dim", ` · session ${e.sessionId}`) : "";
+      return `${tag(e.status === "success" ? "green" : "red", e.status)} ${e.turns} tours · $${e.costUsd.toFixed(4)}${sessionId}${extra}`;
+    }
     case "error":
-      return `${tag("red", "error")} ${e.message}`;
+      return `${tag("red", "error")} ${stripControl(formatError(e))}`;
+    case "session.started":
+      return `${tag("dim", "session")} ${e.model} ${paint("dim", `${e.sessionId} · ${e.tools.length} outils${e.auth ? ` · ${describeAuth(e.auth)}` : ""}`)}`;
+    case "auth.info":
+      return `${tag("dim", "auth")} ${describeAuth(e)}${e.tokenSource ? paint("dim", ` · jeton : ${e.tokenSource}`) : ""}`;
+    case "auth.status":
+      return `${tag(e.error === undefined ? "yellow" : "red", "auth")} ${e.error ?? (e.isAuthenticating ? "authentification en cours" : "authentifié")}`;
+    case "approval.requested": {
+      const detail = stripControl(
+        typeof e.input.command === "string" ? e.input.command : JSON.stringify(e.input),
+      );
+      return `${tag("yellow", "ask")} ${e.tool} ${paint("dim", `${detail} · ${formatReason(e.verdict)}`)}`;
+    }
+    case "turn.finished":
+      return verbose
+        ? `${tag("dim", "turn")} ${paint("dim", `${e.turns} tours · $${e.costUsd.toFixed(4)} · ${e.status}`)}`
+        : null;
+    case "agent.thinking":
+      return e.redacted
+        ? `${tag("dim", "thinking")} ${paint("dim", "(masquée)")}`
+        : `${tag("dim", "thinking")} ${paint("dim", summarizeOutput(e.text))}`;
+    case "permission.denied":
+      return `${tag("red", "sdk-deny")} ${e.tool} ${paint("dim", e.message)}`;
+    case "api.retry":
+      return `${tag("yellow", "retry")} ${e.attempt}/${e.maxRetries} dans ${e.delayMs} ms ${paint("dim", `${e.error}${e.errorStatus === null ? "" : ` (HTTP ${e.errorStatus})`}`)}`;
+    case "task.updated": {
+      const detail = e.description ?? e.summary ?? "";
+      const status = e.status ? ` [${e.status}]` : "";
+      return `${tag("cyan", "task")} ${e.phase}${status} ${paint("dim", detail)}`;
+    }
+    case "rate.limited":
+      return `${tag(e.status === "rejected" ? "red" : "yellow", "limit")} ${e.status}${e.limitType ? ` · ${e.limitType}` : ""}${e.utilization === undefined ? "" : ` · ${Math.round(e.utilization * 100)} %`}`;
+    case "sink.error":
+      return `${tag("red", "sink")} ${e.message}`;
+    case "sandbox.started":
+      return `${tag("cyan", "sandbox")} ${stripControl(e.image)} ${paint("dim", `${stripControl(e.containerId.slice(0, 12))} · réseau ${stripControl(e.network)}`)}`;
+    case "sandbox.stopped":
+      return `${tag("cyan", "sandbox")} arrêté ${paint("dim", `${stripControl(e.containerId.slice(0, 12))} · ${stripControl(e.cause)}`)}`;
+    case "journal.truncated":
+      return `${tag("red", "journal")} tronqué à ${e.limitBytes} octets · ${e.droppedEvents} événements perdus`;
   }
+}
+
+/**
+ * Mode d'authentification attendu au lancement, d'après l'option `--auth` et
+ * l'environnement (le mode effectif est confirmé par `session.started`/`auth.info`).
+ */
+export function describeAuthIntent(mode: AuthMode, env: NodeJS.ProcessEnv = process.env): string {
+  const hasKey = Boolean(env.ANTHROPIC_API_KEY);
+  const provider = (["BEDROCK", "VERTEX", "FOUNDRY"] as const).find(
+    (name) => env[`CLAUDE_CODE_USE_${name}`],
+  );
+  const info: AuthInfo =
+    mode === "subscription"
+      ? { apiKeySource: "none" }
+      : mode === "api-key" || hasKey
+        ? { apiKeySource: "ANTHROPIC_API_KEY" }
+        : provider
+          ? { apiKeySource: "none", apiProvider: provider.toLowerCase() }
+          : { apiKeySource: "none" };
+  const label = describeAuth(info);
+  return mode === "auto" && hasKey ? `${label} (ANTHROPIC_API_KEY définie)` : label;
+}
+
+/** Une ligne par run d'un journal : identifiant, début, prompt, statut, nombre d'événements. */
+export function formatRunList(runs: ReadonlyMap<string, readonly EngineEvent[]>): string[] {
+  return [...runs].map(([runId, events]) => {
+    const started = events.find((e) => e.kind === "run.started");
+    const finished = events.findLast((e) => e.kind === "run.finished");
+    const prompt = started?.kind === "run.started" ? summarizeOutput(started.prompt, 60) : "?";
+    const status = finished?.kind === "run.finished" ? finished.status : "incomplet";
+    return `${runId}\t${started?.ts ?? events[0]?.ts ?? ""}\t${status}\t${events.length} événements\t${prompt}`;
+  });
 }

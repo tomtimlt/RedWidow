@@ -1,12 +1,57 @@
 import type { ApprovalGate } from "./approval/gate.js";
 import type { Recorder } from "./recorder.js";
 
-/** Entrée d'un run. `cwd` est obligatoire : le cœur ne devine jamais le répertoire de travail. */
+/**
+ * Origine des identifiants : `auto` hérite de l'environnement tel quel ;
+ * `subscription` force la connexion d'abonnement (clés API écartées) ;
+ * `api-key` exige une clé API et échoue avant de lancer sinon.
+ */
+export type AuthMode = "auto" | "subscription" | "api-key";
+
+/** Niveau d'effort de raisonnement (type neutre ; l'adaptateur le traduit pour son moteur). */
+export const EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
+export type Effort = (typeof EFFORTS)[number];
+
+/** Modèle proposé par un moteur d'agent (liste lue au runtime, jamais codée en dur). */
+export interface ModelOption {
+  /** Identifiant à transmettre en `RunInput.model`. */
+  value: string;
+  displayName: string;
+  description?: string;
+  /** Niveaux d'effort acceptés : absent = inconnu, vide = le modèle n'a pas d'effort réglable. */
+  supportedEffortLevels?: Effort[];
+}
+
+/** Paramètres du sondage de la liste des modèles (aucune consigne n'est envoyée). */
+export interface ListModelsInput {
+  cwd: string;
+  auth?: AuthMode;
+  signal?: AbortSignal;
+}
+
+/**
+ * Entrée d'un run. `cwd` est obligatoire : le cœur ne devine jamais le
+ * répertoire de travail. Aucune de ces options ne desserre les garde-fous du
+ * moteur (politique, outils exposés, permissions) : l'adaptateur les verrouille.
+ */
 export interface RunInput {
-  prompt: string;
+  /** Consigne unique, ou flux de messages utilisateur (session multi-tours). */
+  prompt: string | AsyncIterable<string>;
   cwd: string;
   model?: string;
+  /** Effort de raisonnement ; ignoré par un moteur qui n'en a pas. */
+  effort?: Effort;
   maxTurns?: number;
+  /** Origine des identifiants (défaut : `auto`). */
+  auth?: AuthMode;
+  /** Identifiant imposé à une nouvelle session. */
+  sessionId?: string;
+  /** Identifiant d'une session à reprendre. */
+  resume?: string;
+  /** Plafond de dépense du run, en dollars. */
+  maxBudgetUsd?: number;
+  /** Texte ajouté au prompt système par défaut du moteur d'agent. */
+  systemPrompt?: string;
 }
 
 /** Services fournis par l'appelant : journal d'événements, approbation, annulation. */
@@ -21,12 +66,18 @@ export interface RunSummary {
   turns: number;
   costUsd: number;
   result: string | null;
+  /** Identifiant de la session (pour `resume`), s'il est connu. */
+  sessionId?: string;
+  /** Messages du moteur d'agent non traduits en événements, comptés par `type/subtype`. */
+  unhandledMessages?: Record<string, number>;
 }
 
 /**
  * Contrat d'un moteur d'agent. Le cœur ne connaît aucun SDK : un adaptateur
- * (ex. `@john-studio/agent-sdk`) l'implémente et traduit son flux en événements.
+ * (ex. `@warband/agent-sdk`) l'implémente et traduit son flux en événements.
  */
 export interface AgentRunner {
   run(input: RunInput, ctx: RunContext): Promise<RunSummary>;
+  /** Modèles disponibles, obtenus sans envoyer de consigne (donc sans coût d'inférence). */
+  listModels?(input: ListModelsInput): Promise<ModelOption[]>;
 }

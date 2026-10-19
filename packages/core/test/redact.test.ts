@@ -86,6 +86,13 @@ describe("createRedactor", () => {
     expect(r("tiny")).toBe("tiny");
   });
 
+  it("ne masque pas les descripteurs d'origine du jeton (apiKeySource, tokenSource)", () => {
+    const payload = { apiKeySource: "none", tokenSource: "CLAUDE_CODE_OAUTH_TOKEN" };
+    expect(redact(payload)).toEqual(payload);
+    // Un vrai secret au même endroit reste masqué par ses motifs.
+    expect(redact({ tokenSource: "sk-ant-api03-abcdefghijklmnop" }).tokenSource).toBe(REDACTED);
+  });
+
   it("ne touche ni aux nombres, ni aux booléens, ni au texte ordinaire", () => {
     const payload = {
       kind: "process.exited",
@@ -99,7 +106,11 @@ describe("createRedactor", () => {
 
   it("secretsFromEnv ne retient que les variables sensibles assez longues", () => {
     expect(
-      secretsFromEnv({ ANTHROPIC_API_KEY: "sk-ant-longvalue", PATH: "/usr/bin", TOKEN: "short" }),
+      secretsFromEnv({
+        ANTHROPIC_API_KEY: "sk-ant-longvalue",
+        PATH: join("usr", "bin"),
+        TOKEN: "short",
+      }),
     ).toEqual(["sk-ant-longvalue"]);
   });
 });
@@ -107,7 +118,7 @@ describe("createRedactor", () => {
 describe("recorder + journal", () => {
   it("n'écrit aucun secret dans le journal ni dans les événements diffusés", async () => {
     const secret = "sk-ant-api03-ZZZZZZZZZZZZZZZZ";
-    const dir = await mkdtemp(join(tmpdir(), "john-redact-"));
+    const dir = await mkdtemp(join(tmpdir(), "warband-redact-"));
     const journal = await openJournal(join(dir, "j.jsonl"));
     const recorder = createRecorder();
     const seen: string[] = [];
@@ -142,13 +153,13 @@ describe("recorder + journal", () => {
   });
 
   it("masque les valeurs de process.env au moment de la création du recorder", () => {
-    process.env.JOHN_TEST_API_KEY = "valeur-secrete-unique-42";
+    process.env.WARBAND_TEST_API_KEY = "valeur-secrete-unique-42";
     try {
       const recorder = createRecorder();
       const e = recorder.emit({ kind: "agent.text", text: "x valeur-secrete-unique-42 y" });
       expect(e).toMatchObject({ text: `x ${REDACTED} y` });
     } finally {
-      delete process.env.JOHN_TEST_API_KEY;
+      delete process.env.WARBAND_TEST_API_KEY;
     }
   });
 

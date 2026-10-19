@@ -1,10 +1,12 @@
 {
-  "name": "@john-studio/core",
+  "name": "@warband/core",
   "version": "0.1.0",
-  "description": "Moteur john-studio : boucle d'agent, approbation, journal JSONL, graphe d'événements. Aucune dépendance d'affichage.",
+  "private": true,
+  "license": "MIT",
+  "description": "Moteur warband : boucle d'agent, approbation, journal JSONL, graphe d'événements. Aucune dépendance d'affichage.",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12"
   },
   "exports": {
     ".": {
@@ -14,5 +16,8 @@
   },
   "files": [
     "dist"
-  ]
+  ],
+  "dependencies": {
+    "zod": "^4.6.7"
+  }
 }

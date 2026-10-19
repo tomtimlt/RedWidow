@@ -1,10 +1,12 @@
 {
-  "name": "@john-studio/export-html",
+  "name": "@warband/export-html",
   "version": "0.1.0",
-  "description": "Export HTML autonome du graphe d'événements john-studio.",
+  "private": true,
+  "license": "MIT",
+  "description": "Export HTML autonome du graphe d'événements warband.",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12"
   },
   "exports": {
     ".": {
@@ -16,6 +18,7 @@
     "dist"
   ],
   "dependencies": {
-    "@john-studio/core": "workspace:*"
+    "@warband/core": "workspace:*",
+    "@warband/messages": "workspace:*"
   }
 }

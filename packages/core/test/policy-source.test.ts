@@ -19,10 +19,10 @@ let configDir: string;
 let repoPolicy: string;
 
 beforeEach(async () => {
-  cwd = await mkdtemp(join(tmpdir(), "john-repo-"));
-  configDir = await mkdtemp(join(tmpdir(), "john-cfg-"));
+  cwd = await mkdtemp(join(tmpdir(), "warband-repo-"));
+  configDir = await mkdtemp(join(tmpdir(), "warband-cfg-"));
   repoPolicy = join(cwd, REPO_POLICY_PATH);
-  await mkdir(join(cwd, ".john-studio"), { recursive: true });
+  await mkdir(join(cwd, ".warband"), { recursive: true });
 });
 
 describe("loadPolicy", () => {
@@ -31,8 +31,11 @@ describe("loadPolicy", () => {
     const loaded = await loadPolicy({ cwd, configDir });
     expect(loaded.policy).toEqual(DEFAULT_POLICY);
     expect(loaded.origin).toBe("builtin");
-    expect(loaded.warning).toContain("non approuvée");
-    expect(loaded.warning).toContain(policyDigest(allowAll).slice(0, 12));
+    expect(loaded.source).toBeNull();
+    expect(loaded.warning).toEqual({
+      code: "policy.repo.untrusted",
+      params: { path: repoPolicy, digest: policyDigest(allowAll).slice(0, 12) },
+    });
   });
 
   it("ne parse pas un fichier de dépôt non approuvé (même invalide)", async () => {
@@ -54,7 +57,7 @@ describe("loadPolicy", () => {
     await writeFile(repoPolicy, allowAll);
     const loaded = await loadPolicy({ cwd, configDir });
     expect(loaded.origin).toBe("builtin");
-    expect(loaded.warning).toContain("modifiée");
+    expect(loaded.warning).toMatchObject({ code: "policy.repo.modified" });
   });
 
   it("préfère la politique utilisateur quand le dépôt n'est pas approuvé", async () => {
@@ -84,16 +87,17 @@ describe("loadPolicy", () => {
 
   it("refuse d'approuver une politique invalide", async () => {
     await writeFile(repoPolicy, '{"default":"peut-être","rules":[]}');
-    await expect(trustPolicy(repoPolicy, configDir)).rejects.toThrow(/politique invalide/);
+    await expect(trustPolicy(repoPolicy, configDir)).rejects.toMatchObject({
+      code: "policy.invalid.default",
+      params: { value: "peut-être" },
+    });
   });
 });
 
 describe("defaultConfigDir", () => {
   it("suit XDG, %APPDATA% puis ~/.config", () => {
-    expect(defaultConfigDir({ XDG_CONFIG_HOME: "/x" }, "linux", "/h")).toBe(
-      join("/x", "john-studio"),
-    );
-    expect(defaultConfigDir({}, "linux", "/h")).toBe(join("/h", ".config", "john-studio"));
-    expect(defaultConfigDir({ APPDATA: "/a" }, "win32", "/h")).toBe(join("/a", "john-studio"));
+    expect(defaultConfigDir({ XDG_CONFIG_HOME: "/x" }, "linux", "/h")).toBe(join("/x", "warband"));
+    expect(defaultConfigDir({}, "linux", "/h")).toBe(join("/h", ".config", "warband"));
+    expect(defaultConfigDir({ APPDATA: "/a" }, "win32", "/h")).toBe(join("/a", "warband"));
   });
 });

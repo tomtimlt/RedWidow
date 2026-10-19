@@ -1,0 +1,796 @@
+import type { BypassState, EngineEvent, ModelOption, PendingApproval } from "@warband/core";
+import { describe, expect, it, vi } from "vitest";
+import { createBypassHost } from "../src/logic/bypass.js";
+import type { ChatView } from "../src/logic/chat.js";
+import type {
+  EngineController,
+  EngineControllerOptions,
+  EngineHandlers,
+} from "../src/logic/controller.js";
+import type { StartParams } from "../src/logic/protocol.js";
+import { createChatSession } from "../src/logic/session.js";
+
+const ev = (e: Record<string, unknown>) => e as unknown as EngineEvent;
+
+/** Contrôleur factice : le test joue le moteur. */
+function fake() {
+  const calls: unknown[][] = [];
+  let handlers: EngineHandlers = {};
+  let options!: EngineControllerOptions;
+  let started: StartParams | undefined;
+  const starts: StartParams[] = [];
+  let modelList: ModelOption[] = [];
+  let modelError = false;
+  const ctl: EngineController = {
+    start: async (p) => {
+      started = p;
+      starts.push(p);
+    },
+    models: async () => {
+      if (modelError) throw new Error("sondage");
+      return modelList;
+    },
+    prompt: (t) => void calls.push(["prompt", t]),
+    answer: (...a) => void calls.push(["answer", ...a]),
+    abort: () => void calls.push(["abort"]),
+    dispose: () => void calls.push(["dispose"]),
+    kill: () => void calls.push(["kill"]),
+    bypass: (state) => {
+      calls.push(["bypass", state]);
+      return calls.filter((c) => c[0] === "bypass").length;
+    },
+    exited: Promise.resolve(),
+  };
+  return {
+    calls,
+    starts,
+    setModels: (l: ModelOption[]) => {
+      modelList = l;
+    },
+    failModels: () => {
+      modelError = true;
+    },
+    create: (o: EngineControllerOptions) => {
+      options = o;
+      handlers = o.handlers ?? {};
+      return ctl;
+    },
+    get handlers() {
+      return handlers;
+    },
+    get options() {
+      return options;
+    },
+    get started() {
+      return started;
+    },
+  };
+}
+
+function setup(
+  over: {
+    confirm?: boolean;
+    token?: boolean;
+    settings?: object;
+    store?: { get(k: string): unknown; set(k: string, v: unknown): unknown };
+    learningKey?: string;
+  } = {},
+) {
+  const f = fake();
+  let view!: ChatView;
+  const confirmAlways = vi.fn(async () => over.confirm ?? false);
+  const session = createChatSession({
+    cwd: "/w",
+    enginePath: "/e.mjs",
+    engineArgs: [],
+    readSettings: () => over.settings ?? {},
+    getToken: async () =>
+      over.token
+        ? { auth: { name: "CLAUDE_CODE_OAUTH_TOKEN", value: "sk-secret" }, mode: "subscription" }
+        : undefined,
+    confirmAlways,
+    onView: (v) => {
+      view = v;
+    },
+    createController: f.create,
+    sdkVersion: "1.0.0",
+    ...(over.store && { store: over.store }),
+    ...(over.learningKey !== undefined && { learningKey: over.learningKey }),
+  });
+  return { f, session, confirmAlways, view: () => view };
+}
+
+const approval = (id: string, code = "bash.noRule"): PendingApproval =>
+  ({
+    toolUseId: id,
+    tool: "Bash",
+    input: { command: "ls" },
+    verdict: { decision: "ask", reason: { code }, rule: null },
+  }) as unknown as PendingApproval;
+
+describe("session de chat", () => {
+  it("démarre le moteur au premier message, transmet réglages et jeton (jamais dans start)", async () => {
+    const t = setup({
+      token: true,
+      settings: {
+        model: "m",
+        maxTurns: 3,
+      },
+    });
+    await t.session.send("bonjour");
+    expect(t.f.started).toEqual({
+      cwd: "/w",
+      auth: "subscription",
+      model: "m",
+      maxTurns: 3,
+    });
+    expect(JSON.stringify(t.f.started)).not.toContain("sk-secret");
+    expect(t.f.options.auth).toEqual({ name: "CLAUDE_CODE_OAUTH_TOKEN", value: "sk-secret" });
+    expect(t.f.calls).toEqual([["prompt", "bonjour"]]);
+    expect(t.view().busy).toBe(true);
+    expect(t.view().sandbox).toBeNull();
+    // Pas de second message pendant un tour.
+    await t.session.send("encore");
+    expect(t.f.calls).toHaveLength(1);
+    t.f.handlers.onEvent?.(ev({ kind: "turn.finished" }));
+    expect(t.view().busy).toBe(false);
+  });
+
+  it("la bulle garde la consigne, le moteur reçoit la sortie citée", async () => {
+    const t = setup();
+    const cited = "vois #htb1\n\n<<<sortie-terminal>>>\n80/tcp";
+    await t.session.send("vois #htb1", cited);
+    expect(t.f.calls).toEqual([["prompt", cited]]);
+    expect(
+      t
+        .view()
+        .items.filter((item) => item.kind === "user")
+        .map((item) => item.text),
+    ).toEqual(["vois #htb1"]);
+  });
+
+  it("sandbox.started (journal) : en-tête réseau ; autre valeur : éteint", async () => {
+    const t = setup();
+    await t.session.send("go");
+    t.f.handlers.onEvent?.(
+      ev({
+        kind: "sandbox.started",
+        containerId: "c",
+        image: "alpine:3.20",
+        imageDigest: null,
+        network: "bridge",
+        limits: {},
+      }),
+    );
+    expect(t.view().sandboxNetwork).toBe("bridge");
+    t.f.handlers.onEvent?.(
+      ev({
+        kind: "sandbox.started",
+        containerId: "c",
+        image: "alpine:3.20",
+        imageDigest: null,
+        network: "host",
+        limits: {},
+      }),
+    );
+    expect(t.view().sandboxNetwork).toBe("bridge");
+  });
+
+  it("réglages invalides : erreur affichée, pas de moteur", async () => {
+    const f = fake();
+    let view!: ChatView;
+    const session = createChatSession({
+      cwd: "/w",
+      enginePath: "/e",
+      engineArgs: [],
+      readSettings: () => {
+        throw Object.assign(new Error("x"), { code: "sandbox.invalidArgument" });
+      },
+      getToken: async () => undefined,
+      confirmAlways: async () => true,
+      onView: (v) => {
+        view = v;
+      },
+      createController: f.create,
+    });
+    await session.send("hi");
+    expect(view.busy).toBe(false);
+    expect(view.items.at(-1)).toMatchObject({ kind: "notice", level: "error" });
+    expect(f.calls).toEqual([]);
+  });
+
+  it("carte d'approbation : une fois et refuser relayés à la gate", async () => {
+    const t = setup();
+    await t.session.send("x");
+    t.f.handlers.onApproval?.(approval("a"));
+    t.f.handlers.onApproval?.(approval("b"));
+    expect(t.view().approvals.map((c) => c.toolUseId)).toEqual(["a", "b"]);
+    await t.session.approve("a", "once");
+    await t.session.approve("b", "deny");
+    expect(t.f.calls.slice(1)).toEqual([
+      ["answer", "a", "allow", undefined],
+      ["answer", "b", "deny", undefined],
+    ]);
+    expect(t.view().approvals).toEqual([]);
+    // Réponse à une carte inconnue : sans effet.
+    await t.session.approve("zzz", "once");
+    expect(t.f.calls).toHaveLength(3);
+  });
+
+  it("« Toujours » exige la confirmation modale native", async () => {
+    const refused = setup({ confirm: false });
+    await refused.session.send("x");
+    refused.f.handlers.onApproval?.(approval("a"));
+    await refused.session.approve("a", "always");
+    expect(refused.confirmAlways).toHaveBeenCalledOnce();
+    expect(refused.f.calls.some((c) => c[0] === "answer")).toBe(false);
+    expect(refused.view().approvals).toHaveLength(1);
+
+    const accepted = setup({ confirm: true });
+    await accepted.session.send("x");
+    accepted.f.handlers.onApproval?.(approval("a"));
+    await accepted.session.approve("a", "always");
+    expect(accepted.f.calls).toContainEqual(["answer", "a", "allow", "always"]);
+  });
+
+  it("« Toujours » jamais pour un verdict non mémorisable, même demandé par la webview", async () => {
+    const t = setup({ confirm: true });
+    await t.session.send("x");
+    t.f.handlers.onApproval?.(approval("a", "path.sensitive"));
+    await t.session.approve("a", "always");
+    expect(t.confirmAlways).not.toHaveBeenCalled();
+    expect(t.f.calls.some((c) => c[0] === "answer")).toBe(false);
+  });
+
+  it("stop annule, fin du moteur libère l'état, le message suivant reprend la session", async () => {
+    const t = setup();
+    await t.session.send("x");
+    t.f.handlers.onEnded?.({
+      status: "success",
+      turns: 1,
+      costUsd: 0,
+      result: null,
+      sessionId: "S1",
+    });
+    t.session.stop();
+    expect(t.f.calls).toContainEqual(["abort"]);
+    t.f.handlers.onExit?.({ code: 0, signal: null });
+    expect(t.view().busy).toBe(false);
+    await t.session.send("suite");
+    expect(t.f.started?.resume).toBe("S1");
+  });
+
+  it("l'état du chat ne contient que du texte neutralisé", async () => {
+    const t = setup();
+    await t.session.send("x");
+    t.f.handlers.onEvent?.(
+      ev({ kind: "agent.text", text: "<img src=x onerror=alert(1)>\x1b[2K‮ok" }),
+    );
+    const last = t.view().items.at(-1);
+    expect(last).toMatchObject({ kind: "agent", text: "<img src=x onerror=alert(1)>ok" });
+    t.f.handlers.onLog?.("x");
+  });
+
+  it("outil : requête, résultat plafonné, refus affiché", async () => {
+    const t = setup();
+    await t.session.send("x");
+    t.f.handlers.onEvent?.(
+      ev({ kind: "tool.requested", toolUseId: "u", tool: "Bash", input: { command: "ls" } }),
+    );
+    t.f.handlers.onEvent?.(
+      ev({
+        kind: "tool.result",
+        toolUseId: "u",
+        isError: false,
+        output: "y".repeat(5000),
+        truncated: false,
+        bytes: 5000,
+      }),
+    );
+    const tool = t.view().items.find((i) => i.kind === "tool");
+    expect(tool).toMatchObject({ status: "ok", truncated: true });
+    expect(tool?.kind === "tool" && tool.output?.length).toBeLessThanOrEqual(2001);
+  });
+});
+
+describe("modèle et effort (F2/F3)", () => {
+  const mk = (): ModelOption => ({
+    value: "a",
+    displayName: "A",
+    supportedEffortLevels: ["low", "high"],
+  });
+  const memStore = () => {
+    const m = new Map<string, unknown>();
+    return { m, get: (k: string) => m.get(k), set: (k: string, v: unknown) => void m.set(k, v) };
+  };
+
+  it("sondage : liste exposée et mise en cache", async () => {
+    const store = memStore();
+    const { f, session, view } = setup({ store });
+    f.setModels([mk()]);
+    await session.loadModels();
+    expect(view().controls?.models?.map((m) => m.value)).toEqual(["a"]);
+    expect(store.m.get("warband.models")).toMatchObject({ sdk: "1.0.0" });
+  });
+
+  it("sondage en échec : repli en saisie libre", async () => {
+    const { f, session, view } = setup();
+    f.failModels();
+    await session.loadModels();
+    expect(view().controls?.models).toBeNull();
+    expect(view().controls?.modelsStatus).toBe("unavailable");
+  });
+
+  it("choix hostile refusé, préférences inchangées", async () => {
+    const { f, session, view } = setup();
+    f.setModels([mk()]);
+    await session.loadModels();
+    session.setModel("pas-dans-la-liste");
+    expect(view().controls?.model).toBeNull();
+    expect(view().items.at(-1)).toMatchObject({ kind: "notice", level: "error" });
+    session.setEffort("ultra");
+    expect(view().controls?.effort).toBeNull();
+  });
+
+  it("effort non supporté ramené avec avis", async () => {
+    const { f, session, view } = setup();
+    f.setModels([mk()]);
+    await session.loadModels();
+    session.setModel("a");
+    session.setEffort("max");
+    expect(view().controls?.effort).toBe("high");
+    expect(view().items.at(-1)).toMatchObject({ kind: "notice" });
+  });
+
+  it("transmis au démarrage, puis reprise par resume si le choix change", async () => {
+    const { f, session } = setup();
+    f.setModels([mk()]);
+    await session.loadModels();
+    session.setModel("a");
+    session.setEffort("low");
+    await session.send("un");
+    expect(f.starts[0]).toMatchObject({ model: "a", effort: "low" });
+    f.handlers.onEvent?.(ev({ kind: "session.started", sessionId: "S1" }));
+    f.handlers.onEnded?.({ sessionId: "S1" } as never);
+    session.setEffort("high");
+    await session.send("deux");
+    expect(f.starts[1]).toMatchObject({ model: "a", effort: "high", resume: "S1" });
+  });
+
+  it("changement ignoré pendant un tour", async () => {
+    const { f, session, view } = setup();
+    f.setModels([mk()]);
+    await session.loadModels();
+    await session.send("un");
+    session.setEffort("low");
+    expect(view().controls?.effort).toBeNull();
+  });
+});
+
+describe("effort par défaut et Ultracode", () => {
+  it("Auto : aucun effort transmis tant que le curseur n'est pas touché", async () => {
+    const t = setup();
+    await t.session.send("un");
+    expect(t.f.started).not.toHaveProperty("effort");
+    expect(t.view().controls?.effortLabel).toBe("Auto");
+  });
+
+  it("revenir à Auto (null) retire l'effort au message suivant", async () => {
+    const { f, session } = setup();
+    session.setEffort("low");
+    await session.send("un");
+    expect(f.starts[0]).toMatchObject({ effort: "low" });
+    f.handlers.onEnded?.({ sessionId: "S1" } as never);
+    session.setEffort(null);
+    await session.send("deux");
+    expect(f.starts[1]).not.toHaveProperty("effort");
+  });
+
+  it("Ultracode : effort max + plafonds des réglages warband.ultracode.* (jamais 'ultracode' transmis)", async () => {
+    const t = setup({
+      settings: { maxTurns: 5, ultracode: { maxTurns: 120, maxBudgetUsd: 7 } },
+    });
+    t.session.setEffort("ultracode");
+    await t.session.send("un");
+    expect(t.f.started).toMatchObject({ effort: "max", maxTurns: 120, maxBudgetUsd: 7 });
+    expect(JSON.stringify(t.f.started)).not.toContain("ultracode");
+    expect(t.view().controls?.effort).toBe("ultracode");
+  });
+
+  it("Ultracode refusé si le modèle ne supporte pas max", async () => {
+    const { f, session, view } = setup();
+    f.setModels([{ value: "a", displayName: "A", supportedEffortLevels: ["low", "high"] }]);
+    await session.loadModels();
+    session.setModel("a");
+    session.setEffort("ultracode");
+    expect(view().controls?.effort).toBeNull();
+    expect(view().items.at(-1)).toMatchObject({ kind: "notice", level: "error" });
+  });
+});
+
+describe("historique (F4)", () => {
+  const RUN1 = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const jline = (payload: Record<string, unknown>, n: number) =>
+    JSON.stringify({
+      v: 1,
+      id: `e${n}`,
+      seq: n,
+      ts: "2026-10-15T10:00:00.000Z",
+      runId: RUN1,
+      parentId: null,
+      ...payload,
+    });
+  function withHistory(key = "warband.history") {
+    const stored = new Map<string, unknown>();
+    const written = new Map<string, string>();
+    const removed: string[] = [];
+    const t = setup();
+    const confirmDelete = vi.fn(async () => true);
+    const f = t.f;
+    const session = createChatSession({
+      cwd: "/w",
+      enginePath: "/e.mjs",
+      engineArgs: [],
+      readSettings: () => ({}),
+      getToken: async () => undefined,
+      confirmAlways: async () => false,
+      onView: (v) => {
+        t.view = () => v;
+      },
+      createController: f.create,
+      history: {
+        key,
+        index: { get: (k) => stored.get(k), set: (k, v) => stored.set(k, v) },
+        files: {
+          dir: "/h",
+          read: async (id) => written.get(id) ?? null,
+          size: async (id) => written.get(id)?.length ?? 0,
+          remove: async (ids) => void removed.push(...ids),
+          removeAll: async () => void written.clear(),
+        },
+        confirmDelete,
+      },
+    });
+    return { f, session, stored, written, removed, confirmDelete, view: () => session.view() };
+  }
+
+  it("enregistre la conversation (titre = 1re consigne), journalDir transmis, ouverture en lecture seule", async () => {
+    const h = withHistory();
+    await h.session.send("Première consigne de la conversation");
+    expect(h.f.started).toMatchObject({ journalDir: "/h" });
+    h.f.handlers.onStarted?.({ runId: RUN1, policySource: null });
+    h.f.handlers.onEvent?.(ev({ kind: "session.started", sessionId: "S1", model: "m" }));
+    h.f.handlers.onEvent?.(
+      ev({ kind: "tool.requested", toolUseId: "t", tool: "Read", input: { file_path: "a" } }),
+    );
+    h.f.handlers.onEnded?.({ sessionId: "S1" } as never);
+    const entry = h.view().history[0];
+    expect(entry).toMatchObject({
+      title: "Première consigne de la conversation",
+      tools: 1,
+      model: "m",
+    });
+
+    h.written.set(
+      RUN1,
+      [
+        jline({ kind: "user.message", text: "Première consigne" }, 0),
+        jline({ kind: "agent.text", text: "Réponse" }, 1),
+        jline(
+          {
+            kind: "approval.requested",
+            toolUseId: "t",
+            tool: "Bash",
+            input: { command: "ls" },
+            verdict: { code: "bash.noRule" },
+          },
+          2,
+        ),
+        "{corrompu",
+      ].join("\n"),
+    );
+    h.f.handlers.onExit?.({ code: 0 } as never);
+    await h.session.openConversation(entry?.id);
+    const v = h.view();
+    expect(v.readonly).toMatchObject({ invalid: 1, canResume: true });
+    expect(v.approvals).toEqual([]);
+    expect(v.items.map((i) => i.kind)).toEqual(["user", "agent"]);
+    // Lecture seule : l'envoi est ignoré.
+    const before = h.f.calls.length;
+    await h.session.send("ne part pas");
+    expect(h.f.calls).toHaveLength(before);
+    // Reprise : resume de la session, sous la politique actuelle (nouveau moteur).
+    h.session.resumeConversation();
+    expect(h.view().readonly).toBeNull();
+    await h.session.send("suite");
+    expect(h.f.starts.at(-1)).toMatchObject({ resume: "S1" });
+  });
+
+  it("identifiants hostiles ignorés ; renommer nettoie ; supprimer et tout effacer", async () => {
+    const h = withHistory();
+    await h.session.send("une");
+    h.f.handlers.onStarted?.({ runId: RUN1, policySource: null });
+    h.f.handlers.onEnded?.({ sessionId: "S1" } as never);
+    const id = h.view().history[0]?.id as string;
+    await h.session.openConversation("../etc/passwd");
+    expect(h.view().readonly).toBeNull();
+    h.session.renameConversation(id, "Nouveau‮ titre");
+    expect(h.view().history[0]?.title).toBe("Nouveau titre");
+    h.session.renameConversation(id, "   ");
+    expect(h.view().history[0]?.title).toBe("Nouveau titre");
+    await h.session.deleteConversation("pas-un-id");
+    expect(h.confirmDelete).not.toHaveBeenCalled();
+    await h.session.deleteConversation(id);
+    expect(h.removed).toEqual([RUN1]);
+    expect(h.view().history).toEqual([]);
+    await h.session.clearHistory();
+    expect(h.confirmDelete).toHaveBeenCalledTimes(2);
+  });
+
+  it("écrit l'index sous la clé du chat", async () => {
+    const h = withHistory("warband.history.c2");
+    await h.session.send("une consigne pour ce chat");
+    h.f.handlers.onStarted?.({ runId: RUN1, policySource: null });
+    expect([...h.stored.keys()]).toEqual(["warband.history.c2"]);
+  });
+});
+
+describe("session de chat : lien du Bypass (ADR 0006)", () => {
+  it("après start, le lien reçoit le moteur ; l'accusé lui est routé ; la sortie le libère", async () => {
+    const f = fake();
+    const links: { acked: ReturnType<typeof vi.fn>; release: ReturnType<typeof vi.fn> }[] = [];
+    let send: ((state: null) => number) | undefined;
+    const attach = vi.fn((s: (state: null) => number) => {
+      send = s;
+      const link = { acked: vi.fn(), release: vi.fn() };
+      links.push(link);
+      return link;
+    });
+    const session = createChatSession({
+      cwd: "/w",
+      enginePath: "/e.mjs",
+      engineArgs: [],
+      readSettings: () => ({}),
+      getToken: async () => undefined,
+      confirmAlways: async () => false,
+      onView: () => {},
+      createController: f.create,
+      sdkVersion: "1.0.0",
+      bypass: { attach },
+    });
+    await session.send("hi");
+    expect(attach).toHaveBeenCalledTimes(1);
+    expect(send?.(null)).toBe(1);
+    expect(f.calls).toContainEqual(["bypass", null]);
+    f.handlers.onBypassAck?.({ seq: 1, state: null });
+    expect(links[0]?.acked).toHaveBeenCalledWith(1, null);
+    f.handlers.onExit?.({ code: 0, signal: null });
+    expect(links[0]?.release).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("session de chat : arrêt du moteur et Bypass (lot 2c)", () => {
+  const RUN = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+
+  it("ouverture d'une conversation : Bypass hôte remis à « off », lien libéré, moteur arrêté", async () => {
+    const f = fake();
+    const stored = new Map<string, unknown>();
+    const reset = vi.fn();
+    const release = vi.fn();
+    const attach = vi.fn(() => ({ acked: vi.fn(), release }));
+    const session = createChatSession({
+      cwd: "/w",
+      enginePath: "/e.mjs",
+      engineArgs: [],
+      readSettings: () => ({}),
+      getToken: async () => undefined,
+      confirmAlways: async () => false,
+      onView: () => {},
+      createController: f.create,
+      bypass: { attach, reset },
+      history: {
+        index: { get: (k) => stored.get(k), set: (k, v) => stored.set(k, v) },
+        files: {
+          dir: "/h",
+          read: async () => null,
+          size: async () => 0,
+          remove: async () => {},
+          removeAll: async () => {},
+        },
+        confirmDelete: async () => true,
+      },
+    });
+    await session.send("une");
+    f.handlers.onStarted?.({ runId: RUN, policySource: null });
+    f.handlers.onEnded?.({ sessionId: "S1" } as never);
+    const id = session.view().history[0]?.id as string;
+    f.calls.length = 0;
+    await session.openConversation(id);
+    expect(reset).toHaveBeenCalledTimes(1);
+    expect(release).toHaveBeenCalledTimes(1);
+    // Le moteur reçoit l'état nul (kill) : l'ancien moteur ne garde aucune activation.
+    expect(f.calls).toContainEqual(["kill"]);
+    expect(reset.mock.invocationCallOrder[0] ?? 0).toBeLessThan(
+      release.mock.invocationCallOrder[0] ?? 0,
+    );
+  });
+
+  it("reset : le lien du moteur est libéré avant l'arrêt", async () => {
+    const f = fake();
+    const release = vi.fn();
+    const session = createChatSession({
+      cwd: "/w",
+      enginePath: "/e.mjs",
+      engineArgs: [],
+      readSettings: () => ({}),
+      getToken: async () => undefined,
+      confirmAlways: async () => false,
+      onView: () => {},
+      createController: f.create,
+      bypass: { attach: () => ({ acked: vi.fn(), release }) },
+    });
+    await session.send("hi");
+    session.reset();
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(f.calls).toContainEqual(["kill"]);
+  });
+});
+
+describe("deux chats (ADR 0008)", () => {
+  it("les cartes restent dans leur session ; fermer l'un laisse le Bypass de l'autre", async () => {
+    const host = createBypassHost({
+      clock: {
+        now: () => 1_000_000,
+        schedule: (fn, ms) => setTimeout(fn, ms),
+        cancel: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+      },
+      onChange: () => {},
+    });
+    const make = (key: string) => {
+      const f = fake();
+      const stored = new Map<string, unknown>();
+      const session = createChatSession({
+        cwd: "/w",
+        enginePath: "/e.mjs",
+        engineArgs: [],
+        readSettings: () => ({}),
+        getToken: async () => undefined,
+        confirmAlways: async () => false,
+        onView: () => {},
+        createController: f.create,
+        bypass: host,
+        history: {
+          key,
+          index: { get: (k) => stored.get(k), set: (k, v) => stored.set(k, v) },
+          files: {
+            dir: `/h/${key}`,
+            read: async () => null,
+            size: async () => 0,
+            remove: async () => {},
+            removeAll: async () => {},
+          },
+          confirmDelete: async () => true,
+        },
+      });
+      return { f, session };
+    };
+    const a = make("warband.history.a");
+    const b = make("warband.history.b");
+    host.request(true, true);
+    await a.session.send("chat a");
+    const stateA = a.f.calls.find((c) => c[0] === "bypass")?.[1] as BypassState;
+    a.f.handlers.onBypassAck?.({ seq: 1, state: stateA });
+    await b.session.send("chat b");
+    const stateB = b.f.calls.find((c) => c[0] === "bypass")?.[1] as BypassState;
+    b.f.handlers.onBypassAck?.({ seq: 1, state: stateB });
+    expect(host.snapshot().on).toBe(true);
+    a.f.handlers.onApproval?.(approval("only-a"));
+    expect(a.session.view().approvals.map((c) => c.toolUseId)).toEqual(["only-a"]);
+    expect(b.session.view().approvals).toEqual([]);
+    a.session.dispose();
+    expect(a.f.calls).toContainEqual(["kill"]);
+    expect(b.f.calls).not.toContainEqual(["kill"]);
+    expect(host.snapshot().on).toBe(true);
+    host.reset();
+    expect(host.snapshot().on).toBe(false);
+    expect(b.f.calls.filter((c) => c[0] === "bypass").at(-1)?.[1]).toBeNull();
+    host.dispose();
+  });
+});
+
+describe("mode apprentissage (ADR 0010)", () => {
+  const memory = () => {
+    const data = new Map<string, unknown>();
+    return {
+      data,
+      store: {
+        get: (k: string) => data.get(k),
+        set: (k: string, v: unknown) => void data.set(k, v),
+      },
+    };
+  };
+
+  it("désactivé par défaut : start sans mode", async () => {
+    const t = setup({ learningKey: "warband.learning.a" });
+    expect(t.session.view().controls?.learning).toBe(false);
+    await t.session.send("un");
+    expect(t.f.started).not.toHaveProperty("mode");
+  });
+
+  it("activé : start porte mode learning et jamais systemPrompt", async () => {
+    const t = setup({ learningKey: "warband.learning.a" });
+    t.session.setLearning(true);
+    expect(t.view().controls?.learning).toBe(true);
+    await t.session.send("un");
+    expect(t.f.started).toMatchObject({ mode: "learning" });
+    expect(t.f.started).not.toHaveProperty("systemPrompt");
+  });
+
+  it("persisté par chat, relu en booléen strict, sans toucher warband.prefs", async () => {
+    const m = memory();
+    const a = setup({ store: m.store, learningKey: "warband.learning.a" });
+    a.session.setLearning(true);
+    expect(m.data.get("warband.learning.a")).toBe(true);
+    expect(m.data.has("warband.prefs")).toBe(false);
+    // Rechargement du même chat.
+    const again = setup({ store: m.store, learningKey: "warband.learning.a" });
+    again.session.view();
+    await again.session.send("x");
+    expect(again.f.started).toMatchObject({ mode: "learning" });
+    // Autre chat : non concerné.
+    const b = setup({ store: m.store, learningKey: "warband.learning.b" });
+    await b.session.send("x");
+    expect(b.f.started).not.toHaveProperty("mode");
+  });
+
+  it("valeur stockée non booléenne : mode inactif", async () => {
+    for (const bad of ["true", 1, {}, null]) {
+      const m = memory();
+      m.data.set("warband.learning.a", bad);
+      const t = setup({ store: m.store, learningKey: "warband.learning.a" });
+      await t.session.send("x");
+      expect(t.f.started).not.toHaveProperty("mode");
+    }
+  });
+
+  it("refuse un non-booléen venu de la webview", async () => {
+    const t = setup({ learningKey: "warband.learning.a" });
+    t.session.setLearning("true");
+    t.session.setLearning(1);
+    t.session.setLearning({ enabled: true });
+    await t.session.send("x");
+    expect(t.f.started).not.toHaveProperty("mode");
+  });
+
+  it("gelé pendant un tour", async () => {
+    const t = setup({ learningKey: "warband.learning.a" });
+    await t.session.send("x");
+    t.session.setLearning(true);
+    expect(t.view().controls?.learning).toBe(false);
+  });
+
+  it("bascule sur une conversation commencée : moteur remplacé, même session reprise", async () => {
+    const t = setup({ learningKey: "warband.learning.a" });
+    await t.session.send("un");
+    t.f.handlers.onEvent?.(ev({ kind: "session.started", sessionId: "S1" }));
+    t.f.handlers.onEnded?.({ sessionId: "S1" } as never);
+    t.session.setLearning(true);
+    await t.session.send("deux");
+    expect(t.f.starts).toHaveLength(2);
+    expect(t.f.starts[1]).toMatchObject({ mode: "learning", resume: "S1" });
+    expect(t.f.starts[1]).not.toHaveProperty("systemPrompt");
+    expect(t.f.calls.filter((c) => c[0] === "kill")).toHaveLength(1);
+    expect(
+      t.view().items.some((i) => i.kind === "notice" && i.text.startsWith("Réglages modifiés")),
+    ).toBe(true);
+  });
+
+  it("sans bascule : le moteur est réutilisé", async () => {
+    const t = setup({ learningKey: "warband.learning.a" });
+    t.session.setLearning(true);
+    await t.session.send("un");
+    t.f.handlers.onEnded?.({ sessionId: "S1" } as never);
+    await t.session.send("deux");
+    expect(t.f.starts).toHaveLength(1);
+  });
+});

@@ -1,0 +1,2973 @@
+/* Thème : variables --vscode-* uniquement (clair, sombre, contraste élevé automatiques).
+   Spécification : docs/design-chat-ui.md. Animations : transform et opacity seulement. */
+
+/* --- Jetons de design (préfixe --jn-), dérivés du thème (docs/design-chat-ui.md §1) --- */
+/* Marque : les seules valeurs figées admises (§1.1). Le jaune ne signifie jamais un état. */
+body {
+  --jn-brand: #ffd60a;
+  --jn-brand-ink: #7a5c00;
+  --jn-on-brand: #141414;
+  --jn-slate: #7a8899;
+  --jn-slate-ink: #5e6b7a;
+  --jn-s1: 4px;
+  --jn-s2: 8px;
+  --jn-s3: 12px;
+  --jn-s4: 16px;
+  --jn-s5: 24px;
+  --jn-r-sm: 2px;
+  --jn-r-md: 3px;
+  --jn-r-lg: 4px;
+  --jn-d1: 120ms;
+  --jn-d2: 160ms;
+  --jn-d3: 200ms;
+  --jn-ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --jn-ease-io: cubic-bezier(0.4, 0, 0.2, 1);
+  --jn-shadow-pop: 0 2px 6px var(--vscode-widget-shadow, #0004);
+  /* Typographie : une police d'interface partout, la police de l'éditeur pour le code seulement. */
+  --jn-font: var(--vscode-font-family, system-ui, sans-serif);
+  --jn-mono: var(--vscode-editor-font-family, ui-monospace, monospace);
+  --jn-fs-xs: 11px;
+  --jn-fs-sm: 12px;
+  --jn-fs: var(--vscode-font-size, 13px);
+  --jn-fs-lg: 14px;
+  /* Usage, thème sombre (défaut) : le jaune sert en trait comme en remplissage. */
+  --jn-accent: var(--jn-brand);
+  --jn-accent-fill: var(--jn-brand);
+  --jn-accent-fill-border: transparent;
+  --jn-on-accent: var(--jn-on-brand);
+  --jn-tint: color-mix(in srgb, var(--jn-accent) 14%, transparent);
+  /* Teintes d'accent calibrées pour le jaune : le texte courant reste ≥ 4,5:1 dessus (contrast.test). */
+  --jn-accent-wash: color-mix(in srgb, var(--jn-accent) 14%, var(--vscode-input-background));
+  --jn-accent-edge: color-mix(in srgb, var(--jn-accent) 45%, transparent);
+  --jn-secondary: var(--jn-slate);
+  /* États sémantiques dérivés du thème ; leurs replis ne pointent jamais vers un accent. */
+  --jn-ok: var(--vscode-testing-iconPassed, var(--vscode-foreground));
+  --jn-warn: var(--vscode-editorWarning-foreground, var(--vscode-foreground));
+  --jn-err: var(--vscode-errorForeground, var(--vscode-foreground));
+  --jn-drawer-bg: var(
+    --vscode-sideBar-background,
+    var(--vscode-editorWidget-background, var(--vscode-editor-background))
+  );
+  --jn-line: var(--vscode-panel-border, color-mix(in srgb, currentColor 20%, transparent));
+  --jn-muted: color-mix(in srgb, var(--vscode-foreground) 72%, transparent);
+  --jn-gutter: 10px;
+  --jn-row: 28px;
+}
+/* Thème clair : jaune pur illisible en trait (1,4:1), on passe au jaune foncé pour tout ce qui est fin. */
+body.vscode-light {
+  --jn-accent: var(--jn-brand-ink);
+  --jn-accent-fill-border: var(--jn-brand-ink);
+  --jn-tint: color-mix(in srgb, var(--jn-accent) 10%, transparent);
+  --jn-accent-wash: color-mix(in srgb, var(--jn-accent) 10%, var(--vscode-input-background));
+  --jn-accent-edge: color-mix(in srgb, var(--jn-accent) 55%, transparent);
+  --jn-secondary: var(--jn-slate-ink);
+}
+/* Contraste élevé : on obéit aux couleurs du thème choisi par l'utilisateur. */
+body.vscode-high-contrast,
+body.vscode-high-contrast-light {
+  --jn-accent: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+  --jn-accent-fill: var(--vscode-button-background);
+  --jn-accent-fill-border: var(--vscode-contrastBorder, currentColor);
+  --jn-on-accent: var(--vscode-button-foreground);
+  --jn-tint: transparent;
+  --jn-accent-wash: transparent;
+  --jn-accent-edge: var(--jn-accent);
+  --jn-secondary: var(--vscode-contrastBorder, currentColor);
+  --jn-shadow-pop: none;
+  --jn-line: var(--vscode-contrastBorder, currentColor);
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  font-family: var(--jn-font);
+  font-size: var(--jn-fs);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  color: var(--vscode-foreground);
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  container: app / inline-size;
+}
+body > * {
+  margin-inline: var(--jn-gutter);
+}
+:focus-visible {
+  outline: 1px solid var(--jn-accent);
+  outline-offset: 1px;
+}
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+  font-size: inherit;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+[hidden] {
+  display: none !important;
+}
+/* Icônes SVG au trait : boîte carrée, centrée optiquement dans les boutons. */
+.ico,
+.caret {
+  flex: none;
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+.caret {
+  width: 12px;
+  height: 12px;
+  opacity: 0.7;
+  transition: transform var(--jn-d2) var(--jn-ease-out);
+}
+[aria-expanded="true"] > .caret {
+  transform: rotate(180deg);
+}
+
+/* --- En-tête --- */
+#bar {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+  min-height: 40px;
+  padding: var(--jn-s1) 0;
+  position: relative;
+}
+#bar::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--jn-line);
+  opacity: 1;
+}
+#title {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--jn-s2);
+  font-size: var(--jn-fs-lg);
+  font-weight: 600;
+  color: var(--vscode-foreground);
+  white-space: nowrap;
+}
+/* Logo Warband de l'en-tête : SVG inline, immobile (le seul mouvement de marque est .brand-cursor, M7). */
+#title .brand {
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+/* Couleurs du logo en ligne par classes (aucun hex dans le SVG). Clair : jaune foncé en aplat lisible. */
+.brand-wing {
+  fill: var(--jn-slate);
+}
+.brand-lead,
+.brand-cursor {
+  fill: var(--jn-brand);
+}
+body.vscode-light .brand-wing {
+  fill: var(--jn-slate-ink);
+}
+body.vscode-light .brand-lead,
+body.vscode-light .brand-cursor {
+  fill: var(--jn-brand-ink);
+}
+/* Contraste élevé clair : monochrome. Contraste élevé sombre : le jaune survit, ailiers en couleur du thème. */
+body.vscode-high-contrast .brand-wing,
+body.vscode-high-contrast-light .brand-wing,
+body.vscode-high-contrast-light .brand-lead,
+body.vscode-high-contrast-light .brand-cursor {
+  fill: currentColor;
+}
+/* Écran d'accueil : logo en fond d'image (voir plus bas), sinon carré d'accent. */
+.welcome::before {
+  content: "";
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--jn-r-sm);
+  background: var(--jn-accent);
+  box-shadow: inset -5px -5px 0 var(--jn-secondary);
+}
+#sandbox {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#history-btn {
+  margin-left: auto;
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-sm);
+  font-weight: 600;
+  line-height: 1;
+  padding: 0 8px;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-sm);
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  white-space: nowrap;
+}
+/* Compteurs et étiquettes chiffrées : chiffres de même largeur (§1.4). */
+.badge,
+.cockpit-count,
+.studio-count,
+.cfg-level,
+.hist-meta,
+.mon-meta,
+.cockpit-row-state,
+.cockpit-tile strong,
+.effort-now {
+  font-variant-numeric: tabular-nums;
+}
+#sandbox {
+  display: block;
+  line-height: 18px;
+  background: color-mix(in srgb, var(--jn-secondary) 14%, transparent);
+  color: var(--vscode-foreground);
+  border: 1px solid color-mix(in srgb, var(--jn-secondary) 40%, transparent);
+}
+
+#log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--jn-s3) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s3);
+}
+#log > * {
+  flex-shrink: 0;
+}
+
+/* --- Messages --- */
+.msg {
+  max-width: 92%;
+  padding: 8px 12px;
+  border-radius: var(--jn-r-lg);
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+}
+.msg.user {
+  align-self: flex-end;
+  background: var(--jn-accent-wash);
+  border: 1px solid var(--jn-accent-edge);
+  border-bottom-right-radius: var(--jn-r-sm);
+  white-space: pre-wrap;
+}
+/* Réponse de l'agent : pas de bulle, un filet de couleur à gauche (lecture longue plus calme). */
+.msg.agent {
+  align-self: flex-start;
+  padding: 2px 4px 2px 14px;
+  border-radius: 0;
+  border-left: 2px solid color-mix(in srgb, var(--jn-secondary) 60%, transparent);
+}
+.enter {
+  animation: jn-msg-in var(--jn-d2) var(--jn-ease-out) 1 both;
+}
+.msg.agent > :first-child {
+  margin-top: 0;
+}
+.msg.agent > :last-child {
+  margin-bottom: 0;
+}
+.msg-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  max-width: 100%;
+  min-width: 0;
+}
+.msg-row.user {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+.msg-row.agent {
+  align-self: flex-start;
+}
+.msg-row > .msg {
+  min-width: 0;
+}
+/* « Copier » n'apparaît qu'au survol ou au clavier : la conversation reste lisible. */
+.msg-copy {
+  flex: none;
+  align-self: flex-end;
+  padding: 0 6px;
+  min-height: 22px;
+  border: 0;
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+  font-size: var(--jn-fs-xs);
+  opacity: 0;
+}
+.msg-row:hover > .msg-copy,
+.msg-row:focus-within > .msg-copy {
+  opacity: 1;
+}
+.md-table {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--vscode-panel-border, var(--jn-line));
+  border-radius: var(--jn-r-sm);
+}
+.md-table table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.md-table th,
+.md-table td {
+  border: 1px solid var(--vscode-panel-border, var(--jn-line));
+  padding: 4px 8px;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.md-table th[data-align="center"],
+.md-table td[data-align="center"] {
+  text-align: center;
+}
+.md-table th[data-align="right"],
+.md-table td[data-align="right"] {
+  text-align: right;
+}
+.md-table th {
+  background: var(--vscode-editorWidget-background, transparent);
+}
+.md-table tbody tr:nth-child(even) {
+  background: var(--vscode-list-hoverBackground);
+}
+.msg p {
+  margin: 0.5em 0;
+  white-space: pre-wrap;
+}
+.msg ul,
+.msg ol {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+}
+.md-h {
+  margin: 0.7em 0 0.3em;
+  font-size: 1.05em;
+}
+code {
+  font-family: var(--jn-mono);
+  font-size: 0.92em;
+  background: var(--vscode-textCodeBlock-background);
+  padding: 0 4px;
+  border-radius: var(--jn-r-sm);
+}
+pre {
+  margin: 4px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--jn-mono);
+  font-size: 0.9em;
+  max-height: 14em;
+  overflow-y: auto;
+}
+.codeblock {
+  margin: 0.6em 0;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+  overflow: hidden;
+  background: var(--vscode-textCodeBlock-background);
+}
+.codehead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 4px 0 12px;
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--jn-muted);
+  border-bottom: 1px solid var(--jn-line);
+}
+.codeblock pre {
+  margin: 0;
+  padding: 10px 12px;
+  overflow-x: auto;
+  max-height: none;
+}
+.codeblock pre code {
+  background: none;
+  padding: 0;
+  white-space: pre;
+}
+.notice {
+  align-self: center;
+  font-size: 0.9em;
+  opacity: 0.8;
+  text-align: center;
+}
+.notice.error {
+  color: var(--vscode-errorForeground);
+  opacity: 1;
+}
+
+/* --- Accueil --- */
+.welcome {
+  margin: auto;
+  max-width: 28em;
+  width: 100%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--jn-s2);
+}
+/* Logo Warband (media/logo.svg, curseur plein et immobile) : fond d'image, donc `img-src`. */
+.welcome::before {
+  width: 64px;
+  height: 64px;
+  border-radius: 0;
+  background: url("logo.svg") center / contain no-repeat;
+  box-shadow: none;
+  margin-bottom: var(--jn-s2);
+}
+/* Thème clair : le jaune pur est illisible sur fond clair. icon.svg sert de masque deux fois : le premier
+   calque (jaune foncé) porte la tête et le curseur, le second (ardoise), rogné à la zone des ailiers
+   (x < 44 % de la grille), les ailiers. Le thème sombre garde logo.svg en jaune pur. */
+body.vscode-light .welcome {
+  position: relative;
+}
+body.vscode-light .welcome::before {
+  background: var(--jn-brand-ink);
+  -webkit-mask: url("icon.svg") center / contain no-repeat;
+  mask: url("icon.svg") center / contain no-repeat;
+}
+body.vscode-light .welcome::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: calc(50% - 32px);
+  width: 64px;
+  height: 64px;
+  background: var(--jn-slate-ink);
+  -webkit-mask: url("icon.svg") center / contain no-repeat;
+  mask: url("icon.svg") center / contain no-repeat;
+  clip-path: inset(0 56% 0 0);
+}
+.welcome h2 {
+  margin: 0;
+  font-size: 1.35em;
+  font-weight: 600;
+  color: var(--vscode-foreground);
+}
+.hint {
+  margin: 0;
+  color: var(--jn-muted);
+  font-size: 0.9em;
+}
+.examples {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: var(--jn-s2) 0;
+}
+button.example {
+  justify-content: flex-start;
+  min-height: 36px;
+  text-align: left;
+  white-space: normal;
+  line-height: 1.35;
+  background: var(--vscode-editorWidget-background, transparent);
+  color: var(--vscode-foreground);
+  border-color: var(--jn-line);
+  padding: 8px 12px;
+  border-radius: var(--jn-r-md);
+}
+button.example::after {
+  content: "→";
+  margin-left: auto;
+  padding-left: var(--jn-s2);
+  color: var(--jn-accent);
+  opacity: 0;
+  transform: translateX(-4px);
+  transition:
+    opacity var(--jn-d1) var(--jn-ease-io),
+    transform var(--jn-d2) var(--jn-ease-out);
+}
+button.example:hover:not(:disabled) {
+  background: var(--vscode-button-secondaryHoverBackground);
+  border-color: var(--jn-accent-edge);
+}
+button.example:hover::after,
+button.example:focus-visible::after {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* --- Appels d'outils : une ligne par appel --- */
+.tool-group {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+  background: color-mix(
+    in srgb,
+    var(--vscode-editorWidget-background, transparent) 60%,
+    transparent
+  );
+  overflow: hidden;
+}
+.tool {
+  border-top: 1px solid var(--jn-line);
+}
+.tool:first-child {
+  border-top: 0;
+}
+.tool > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+  min-height: 30px;
+  padding: 0 var(--jn-s3) 0 var(--jn-s2);
+  cursor: pointer;
+  list-style: none;
+  min-width: 0;
+  transition: background-color var(--jn-d1) var(--jn-ease-io);
+}
+.tool > summary::-webkit-details-marker {
+  display: none;
+}
+.tool > summary:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+.tool .icon {
+  width: 1.2em;
+  text-align: center;
+  flex: none;
+}
+.tool .icon {
+  font-weight: 600;
+}
+.tool.pending .icon {
+  color: var(--jn-accent);
+}
+.tool.ok .icon {
+  color: var(--vscode-testing-iconPassed);
+}
+.tool.error .icon,
+.tool.denied .icon {
+  color: var(--vscode-errorForeground);
+}
+.tool .icon.settled {
+  animation: jn-fade-in var(--jn-d1) var(--jn-ease-io) 1;
+}
+.tool-name {
+  font-family: var(--jn-mono);
+  font-weight: 600;
+  flex: none;
+}
+.tool-summary {
+  color: var(--jn-muted);
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+}
+.tool-body {
+  padding: 2px 10px 8px 30px;
+}
+.label {
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--jn-muted);
+  text-transform: uppercase;
+  margin-top: 6px;
+}
+
+/* --- Thinking (E4) : seul foyer d'animations infinies --- */
+#thinking {
+  display: none;
+  position: relative;
+  overflow: hidden;
+  align-items: center;
+  gap: var(--jn-s2);
+  height: var(--jn-row);
+  padding: 0 var(--jn-s3);
+  margin-bottom: var(--jn-s1);
+  border-radius: var(--jn-r-md);
+  border: 1px solid var(--jn-accent-edge);
+  background: var(--jn-tint);
+  color: var(--vscode-foreground);
+  font-size: var(--jn-fs-sm);
+  font-weight: 400;
+}
+body.running #thinking {
+  display: flex;
+}
+#thinking-label {
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: none;
+}
+.spin {
+  flex: none;
+  color: var(--jn-accent);
+  font-family: var(--jn-mono);
+  width: 1.1em;
+  height: 1lh;
+  overflow: hidden;
+  line-height: 1.2;
+  text-align: center;
+}
+.spin-strip {
+  display: block;
+  will-change: transform;
+}
+.spin-strip > span {
+  display: block;
+}
+.spin-static {
+  display: none;
+}
+body.waiting .spin {
+  color: var(--jn-warn);
+}
+#thinking .spin-strip {
+  animation: jn-braille 1s steps(10) infinite;
+}
+/* M7 : curseur du logo, seul effet de marque ; au repos ou en attente, plein et immobile. */
+body.running:not(.waiting):not(.paused) .brand-cursor {
+  animation: jn-blink 1.06s steps(1) infinite;
+}
+body.waiting #thinking .spin-strip,
+body.paused #thinking .spin-strip {
+  animation-play-state: paused;
+}
+body.waiting #thinking {
+  color: var(--jn-warn);
+  border-color: color-mix(in srgb, var(--jn-warn) 45%, transparent);
+  background: color-mix(in srgb, var(--jn-warn) 10%, transparent);
+}
+
+@keyframes jn-braille {
+  to {
+    transform: translateY(-100%);
+  }
+}
+@keyframes jn-blink {
+  50% {
+    opacity: 0;
+  }
+}
+@keyframes jn-msg-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes jn-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes jn-drawer-in {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes jn-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* --- Cartes d'approbation (E5) --- */
+.card {
+  --jn-card-accent: var(
+    --vscode-editorWarning-foreground,
+    var(--vscode-inputValidation-warningBorder, var(--jn-warn))
+  );
+  border: 1px solid color-mix(in srgb, var(--jn-card-accent) 30%, transparent);
+  border-left: 2px solid var(--jn-card-accent);
+  border-radius: var(--jn-r-md);
+  padding: 12px 14px;
+  margin-block: 6px;
+  background: var(--vscode-editorWidget-background, transparent);
+  min-width: 0;
+}
+.card.enter {
+  animation: jn-msg-in var(--jn-d2) var(--jn-ease-out) 1;
+}
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.card-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--jn-r-sm);
+  background: color-mix(in srgb, var(--jn-card-accent) 20%, transparent);
+  color: var(--jn-card-accent);
+  font-size: var(--jn-fs-sm);
+  font-weight: 600;
+  line-height: 1;
+}
+.card-title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.card-grid {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 10px;
+  margin-top: 8px;
+  font-size: 0.9em;
+}
+.card-key {
+  font-family: var(--jn-mono);
+  color: var(--jn-muted);
+  white-space: nowrap;
+}
+.card-val {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.card-summary {
+  display: block;
+  max-height: 8em;
+  overflow: auto;
+  padding: 4px 6px;
+  border-radius: var(--jn-r-sm);
+  background: color-mix(
+    in srgb,
+    var(--jn-card-accent) 10%,
+    var(--vscode-textCodeBlock-background, transparent)
+  );
+  font-family: var(--jn-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.card-reason {
+  color: var(--jn-muted);
+  margin-top: 0;
+}
+.card-details {
+  margin-top: 4px;
+  font-size: 0.9em;
+}
+.card-details summary {
+  cursor: pointer;
+  color: var(--jn-muted);
+}
+.card-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--jn-s3);
+}
+
+/* Largeur compacte : « Autoriser une fois » prend sa ligne, « Refuser » et « Toujours » se partagent la suivante
+   (jamais un contrôle isolé et étroit sur une ligne). */
+@container app (max-width: 359px) {
+  .card-buttons > button {
+    flex: 1 1 auto;
+  }
+  .card-buttons > button.primary {
+    flex-basis: 100%;
+  }
+}
+
+/* --- Boutons : primary, secondary (défaut), ghost, danger --- */
+button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 28px;
+  white-space: nowrap;
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-sm);
+  padding: 0 12px;
+  font: inherit;
+  font-weight: 400;
+  line-height: 1;
+  text-align: center;
+  vertical-align: middle;
+  user-select: none;
+  cursor: pointer;
+  transition:
+    color var(--jn-d1) var(--jn-ease-io),
+    background-color var(--jn-d1) var(--jn-ease-io),
+    border-color var(--jn-d1) var(--jn-ease-io),
+    opacity var(--jn-d1) var(--jn-ease-io),
+    transform var(--jn-d1) var(--jn-ease-io);
+}
+button:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+button:active:not(:disabled):not([aria-disabled="true"]) {
+  transform: translateY(1px);
+}
+button:focus-visible,
+textarea:focus-visible,
+input:focus-visible {
+  outline: 1px solid var(--jn-accent);
+  outline-offset: 1px;
+}
+button.primary {
+  background: var(--jn-accent-fill);
+  color: var(--jn-on-accent);
+  border-color: var(--jn-accent-fill-border);
+}
+button.primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--jn-accent-fill) 88%, var(--vscode-foreground));
+}
+/* ghost : transparent, survol en teinte d'accent ; copy : ghost à texte d'accent ;
+   link : secondary à texte d'accent (jamais le bleu des liens du thème, §1.2). */
+button.ghost,
+button.copy,
+button.link {
+  padding: 0 10px;
+}
+button.ghost,
+button.copy {
+  background: transparent;
+  border-color: transparent;
+}
+button.ghost {
+  color: var(--vscode-foreground);
+}
+button.ghost .ico {
+  color: var(--jn-muted);
+  transition: color var(--jn-d1) var(--jn-ease-io);
+}
+button.ghost:hover:not(:disabled) .ico {
+  color: var(--jn-accent);
+}
+button.link,
+button.copy {
+  color: var(--jn-accent);
+  min-height: 22px;
+}
+button.ghost:hover:not(:disabled):not([aria-disabled="true"]),
+button.copy:hover:not(:disabled) {
+  background: var(--jn-tint);
+}
+body.vscode-high-contrast button.ghost:hover:not(:disabled),
+body.vscode-high-contrast-light button.ghost:hover:not(:disabled),
+body.vscode-high-contrast button.copy:hover:not(:disabled),
+body.vscode-high-contrast-light button.copy:hover:not(:disabled) {
+  border-color: var(--jn-accent);
+}
+button.link:hover:not(:disabled) {
+  border-color: var(--jn-accent-edge);
+}
+/* danger : en trait (texte et bordure --jn-err), teinte d'erreur au survol. */
+button.danger {
+  background: transparent;
+  color: var(--jn-err);
+  border-color: var(--jn-err);
+}
+button.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--jn-err) 14%, transparent);
+}
+button:disabled,
+button[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: default;
+}
+button:disabled:active {
+  transform: none;
+}
+
+/* --- Composer (E1, E2) --- */
+#form {
+  padding: var(--jn-s1) 0 var(--jn-s3);
+}
+#composer {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s1);
+  border: 1px solid var(--vscode-input-border, var(--jn-line));
+  border-radius: var(--jn-r-lg);
+  background: var(--vscode-input-background);
+  padding: var(--jn-s2) var(--jn-s2) 6px;
+  transition: border-color var(--jn-d2) var(--jn-ease-io);
+}
+#composer:focus-within {
+  border-color: var(--jn-accent);
+}
+textarea {
+  width: 100%;
+  resize: none;
+  max-height: 12em;
+  overflow-y: auto;
+  padding: 4px 6px;
+  line-height: 1.5;
+  background: transparent;
+  color: var(--vscode-input-foreground);
+  border: 0;
+  border-radius: var(--jn-r-sm);
+  font-family: inherit;
+  font-size: inherit;
+}
+textarea:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+textarea::placeholder {
+  color: var(--jn-muted);
+  opacity: 0.8;
+}
+#toolbar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 4px;
+  min-width: 0;
+}
+/* Envoyer : primary carré ; Stop : même gabarit, danger en trait. */
+#toolbar #send,
+#toolbar #stop {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: var(--jn-r-sm);
+}
+#toolbar #send:active:not(:disabled) {
+  transform: translateY(1px);
+}
+#toolbar #send:disabled {
+  background: color-mix(in srgb, var(--vscode-foreground) 14%, transparent);
+  color: var(--vscode-foreground);
+}
+#ctl-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+#ctl-group > * {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.spacer {
+  flex: 1 1 0;
+  min-width: 0;
+}
+body:not(.running) #toolbar #stop {
+  display: none;
+}
+
+/* Pastilles (modèle, Configurer) et pop de changement de modèle (E3) */
+.chip {
+  min-height: 26px;
+  border-radius: var(--jn-r-sm);
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+  border-color: var(--jn-line);
+  padding: 0 10px 0 8px;
+  gap: 5px;
+  font-size: var(--jn-fs-sm);
+  min-width: 0;
+}
+/* Étiquette du modèle et niveau d'effort : mono (§1.4). */
+.chip-label,
+.cfg-level {
+  font-family: var(--jn-mono);
+}
+.chip .chip-ico {
+  width: 14px;
+  height: 14px;
+  color: var(--jn-accent);
+}
+#cfg-btn .chip-ico {
+  color: var(--jn-secondary);
+}
+.chip:hover:not([aria-disabled="true"]) {
+  background: var(--vscode-button-secondaryHoverBackground);
+  border-color: var(--jn-accent-edge);
+}
+.chip[aria-expanded="true"] {
+  background: var(--vscode-button-secondaryHoverBackground);
+  border-color: var(--jn-accent);
+}
+.chip .caret {
+  color: var(--vscode-foreground);
+}
+.chip-label,
+.cfg-text,
+.cfg-level {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cfg-level {
+  color: var(--jn-muted);
+  font-size: 0.9em;
+}
+
+/* --- Popovers (modèle, Configurer) : placement calculé en JS --- */
+.pop {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  left: var(--jn-x, 8px);
+  top: var(--jn-y, 8px);
+  max-height: var(--jn-maxh, 70vh);
+  width: min(360px, calc(100vw - 16px));
+  overflow: auto;
+  padding: var(--jn-s2);
+  color: var(--vscode-foreground);
+  background: var(--vscode-editorWidget-background, var(--vscode-input-background));
+  border: 1px solid var(--vscode-editorWidget-border, var(--jn-line));
+  border-radius: var(--jn-r-md);
+  box-shadow: var(--jn-shadow-pop);
+  font-size: var(--jn-fs-sm);
+}
+.pop:not(.placed) {
+  visibility: hidden;
+}
+.pop.placed {
+  animation: jn-pop-in var(--jn-d1) var(--jn-ease-out) 1;
+}
+/* Menus « / » et « @ » : une colonne étroite. Configurer est plus court et un peu plus large. */
+#slash-pop,
+#mention-pop {
+  width: min(248px, calc(100vw - 16px));
+}
+#cfg-pop {
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s2);
+  width: min(300px, calc(100vw - 16px));
+  max-height: min(var(--jn-maxh, 70vh), 240px);
+}
+.tool-btn {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: var(--jn-r-sm);
+}
+.cmd-opt {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 8px;
+  line-height: 1.3;
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-foreground);
+  border-color: transparent;
+}
+.cmd {
+  font-family: var(--jn-mono);
+  color: var(--jn-accent);
+}
+.cmd-desc {
+  color: inherit;
+  opacity: 0.85;
+}
+/* Menus « / », « @ » et « # » : liste serrée, élément actif (clavier ou survol) en sélection pleine. */
+#mention-list,
+#slash-pop {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cmd-opt:hover:not(:disabled),
+.cmd-opt[aria-selected="true"] {
+  background: var(
+    --vscode-list-activeSelectionBackground,
+    var(--vscode-button-secondaryHoverBackground)
+  );
+  color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+}
+.cmd-opt:hover:not(:disabled) .cmd,
+.cmd-opt[aria-selected="true"] .cmd {
+  color: inherit;
+  font-weight: 600;
+}
+.cmd-opt[aria-selected="true"] .cmd-desc {
+  font-size: 0.9em;
+  color: var(--jn-muted);
+  white-space: normal;
+  text-align: left;
+}
+#model-filter,
+#model-input {
+  width: 100%;
+  min-height: 30px;
+  padding: 0 var(--jn-s2);
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, var(--jn-line));
+  border-radius: var(--jn-r-sm);
+  font: inherit;
+  transition: border-color var(--jn-d1) var(--jn-ease-io);
+}
+#model-filter:focus-visible,
+#model-input:focus-visible {
+  outline: none;
+  border-color: var(--jn-accent);
+}
+/* Liste des modèles : panneau compact, la liste défile (le filtre reste en haut). */
+#model-pop {
+  width: min(280px, calc(100vw - 16px));
+}
+#model-list {
+  max-height: 240px;
+  overflow-y: auto;
+  margin-top: var(--jn-s2);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.grp {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.grp-head {
+  padding: 8px 10px 2px;
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--jn-muted);
+}
+.opt-label {
+  font-family: var(--jn-mono);
+}
+.opt {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: var(--jn-s2);
+  padding: 6px 10px;
+  border-left: 2px solid transparent;
+  border-radius: var(--jn-r-sm);
+  cursor: pointer;
+  transition:
+    background-color var(--jn-d1) var(--jn-ease-io),
+    color var(--jn-d1) var(--jn-ease-io);
+}
+.opt:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+.opt.active {
+  background: var(--vscode-list-activeSelectionBackground, var(--vscode-list-hoverBackground));
+  color: var(--vscode-list-activeSelectionForeground, inherit);
+}
+.opt[aria-selected="true"] {
+  border-left-color: var(--jn-accent);
+  background: var(--jn-tint);
+}
+.opt[aria-selected="true"] .opt-label {
+  font-weight: 600;
+}
+.opt[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: default;
+}
+.opt-label,
+.opt-desc {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.opt-desc {
+  grid-column: 1 / -1;
+  font-size: var(--jn-fs-xs);
+  color: var(--jn-muted);
+}
+.opt.active .opt-desc {
+  color: inherit;
+  opacity: 0.8;
+}
+.empty {
+  padding: 8px 10px;
+  color: var(--jn-muted);
+  font-style: italic;
+}
+.pop-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--jn-s2);
+  padding-top: var(--jn-s2);
+  border-top: 1px solid var(--jn-line);
+}
+
+/* Configurer : une seule colonne, groupes séparés par un filet ; « bientôt » en bas. */
+.cfg-col {
+  min-width: 0;
+}
+.cfg-col + .cfg-col {
+  border-top: 1px solid var(--jn-line);
+  padding-top: var(--jn-s2);
+}
+.cfg-col h3 {
+  margin: 0 0 var(--jn-s2);
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--jn-muted);
+}
+.cfg-off {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--jn-s2);
+  width: 100%;
+  min-height: 24px;
+  padding: 0 var(--jn-s2);
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-foreground);
+}
+.cfg-off em {
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-xs);
+  font-style: normal;
+  color: var(--jn-muted);
+}
+.tip {
+  margin: var(--jn-s1) 0 0;
+  font-size: var(--jn-fs-xs);
+  line-height: 1.4;
+  color: var(--jn-muted);
+}
+.effort-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--jn-s1);
+}
+#effort-scale {
+  --jn-n: 1;
+  --jn-i: 0;
+}
+#effort-dot-lane {
+  position: relative;
+  height: 10px;
+}
+/* Piste en --jn-line, partie remplie en --jn-accent-fill jusqu'au cran courant (--jn-i sur #effort-scale). */
+#effort-dot-lane::before,
+#effort-dot-lane::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 4px;
+  height: 2px;
+}
+#effort-dot-lane::before {
+  right: 0;
+  background: var(--jn-line);
+}
+#effort-dot-lane::after {
+  width: calc((var(--jn-i) + 0.5) / var(--jn-n) * 100%);
+  background: var(--jn-accent-fill);
+}
+#effort-scale.auto #effort-dot-lane::after {
+  display: none;
+}
+#effort-dot {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: calc(100% / var(--jn-n));
+  height: 10px;
+  transform: translateX(calc(var(--jn-i) * 100%));
+  transition: transform var(--jn-d2) var(--jn-ease-out);
+}
+#effort-dot::before {
+  content: "";
+  display: block;
+  width: 7px;
+  height: 7px;
+  margin: 0 auto;
+  border-radius: 0;
+  background: var(--jn-accent-fill);
+  box-shadow: inset 0 0 0 1px var(--jn-accent-fill-border);
+}
+#effort-scale.auto #effort-dot {
+  opacity: 0;
+}
+#effort-ticks {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 2px;
+}
+#effort-ticks > span {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  height: 22px;
+  padding: 0 1px;
+  border: 0;
+  border-radius: var(--jn-r-sm);
+  font-size: 10px;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color var(--jn-d2) var(--jn-ease-out),
+    opacity var(--jn-d2) var(--jn-ease-out);
+}
+#effort-ticks > span:hover {
+  color: var(--vscode-foreground);
+}
+#effort-ticks > span.on {
+  color: var(--vscode-foreground);
+  background: transparent;
+  font-weight: 600;
+}
+#effort-ticks > span.off {
+  opacity: 0.4;
+  text-decoration: line-through;
+  cursor: default;
+}
+.effort-now {
+  margin-top: var(--jn-s2);
+  font-family: var(--jn-mono);
+  font-weight: 600;
+}
+.provider {
+  margin: 0 0 var(--jn-s2);
+  padding: 0;
+  border: 0;
+}
+.provider legend {
+  padding: 0;
+  margin-bottom: 4px;
+  color: var(--jn-muted);
+  font-size: 0.85em;
+}
+.radio {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+.radio.off {
+  opacity: 0.5;
+}
+.radio em {
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-xs);
+  color: var(--jn-muted);
+}
+.radio input {
+  accent-color: var(--jn-accent);
+  margin: 0;
+}
+.facts {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.facts > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--jn-s2);
+  min-width: 0;
+}
+.facts dt {
+  color: var(--jn-muted);
+  flex: none;
+}
+.facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+
+/* --- Historique et lecture seule --- */
+/* Historique : tiroir qui glisse depuis la gauche, par-dessus la conversation (voile derrière). */
+#history {
+  position: fixed;
+  z-index: 20;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: min(320px, 88vw);
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  border-right: 1px solid var(--jn-line);
+  background: var(--jn-drawer-bg);
+  box-shadow: var(--jn-shadow-pop);
+  animation: jn-drawer-in var(--jn-d2) var(--jn-ease-out) 1;
+}
+#history::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: var(--vscode-widget-shadow, #0006);
+  animation: jn-fade-in var(--jn-d2) var(--jn-ease-io) 1;
+}
+#history::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--jn-drawer-bg);
+}
+.hist-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+  min-height: 44px;
+  padding: 0 var(--jn-s2) 0 var(--jn-s3);
+  border-bottom: 1px solid var(--jn-line);
+}
+.hist-head strong {
+  flex: 1;
+  font-size: var(--jn-fs-lg);
+  font-weight: 600;
+}
+#history-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--jn-s2);
+}
+.icon-btn {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+}
+#history-list:where(ul) {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.hist {
+  padding: 6px 8px;
+  border-radius: var(--jn-r-sm);
+  border-left: 2px solid transparent;
+  transition:
+    background-color var(--jn-d1) var(--jn-ease-io),
+    border-color var(--jn-d1) var(--jn-ease-io);
+}
+.hist:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+.hist.current {
+  border-left-color: var(--jn-accent);
+  background: var(--jn-tint);
+}
+.hist-open {
+  all: unset;
+  cursor: pointer;
+  font-weight: 600;
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hist-open:hover,
+.hist-open:focus-visible {
+  text-decoration: underline;
+}
+.hist-meta {
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-xs);
+  color: var(--jn-muted);
+  overflow-wrap: anywhere;
+}
+.hist-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+.hist-actions button {
+  min-height: 22px;
+  padding: 0 8px;
+  font-size: var(--jn-fs-xs);
+}
+.hist-rename {
+  width: 100%;
+}
+.hist-empty {
+  color: var(--jn-muted);
+  font-style: italic;
+}
+#readonly {
+  display: flex;
+  gap: var(--jn-s2);
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 6px 10px;
+  border-radius: var(--jn-r-md);
+  background: var(--vscode-editorInfo-background, var(--jn-tint));
+}
+#readonly-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* Aucun fournisseur (jeton) : bandeau d'invite, conversation et saisie grisées et inertes. */
+#no-provider {
+  display: flex;
+  gap: var(--jn-s2);
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 6px 10px;
+  border-radius: var(--jn-r-md);
+  border: 1px solid var(--jn-warn);
+  background: color-mix(in srgb, var(--jn-warn) 14%, transparent);
+}
+#no-provider-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+body.no-provider #log,
+body.no-provider #composer {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* --- Responsive : container queries sur body (compact < 360, standard 360-599, large >= 600) --- */
+/* « Configurer » garde son libellé à toute largeur ; seuls les autres boutons passent à l'icône. */
+@container app (max-width: 359px) {
+  :where(.btn-text) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  button {
+    min-height: 24px;
+    min-width: 24px;
+    padding: 0 6px;
+  }
+  #bar button {
+    min-height: 28px;
+    min-width: 28px;
+  }
+  .msg {
+    max-width: 100%;
+  }
+  /* Badge Bypass : sous 360 px, seul « BYPASS » reste visible ; l'heure reste dans l'arbre d'accessibilité. */
+  #bypass-badge .bp-time {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .cfg-level,
+  #cfg-btn .caret {
+    display: none;
+  }
+  /* Configurer en icône seule (§4) : le libellé reste lu (aria-label, texte masqué visuellement). */
+  #cfg-btn .cfg-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  #cfg-btn {
+    padding: 0 6px;
+  }
+  .chip-label {
+    max-width: 100%;
+  }
+  #model-chip {
+    flex: 0 1 auto;
+    min-width: 0;
+    padding: 0 6px;
+  }
+  #toolbar {
+    gap: 4px;
+  }
+  #model-chip .caret {
+    display: none;
+  }
+}
+/* Envoyer / Stop : icône seule sous 600 px (la place va aux pastilles) ; en-tête : texte court dès 360 px. */
+@container app (max-width: 599px) {
+  #toolbar :where(.btn-text) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+/* Stop : icône seule à toute largeur (gabarit rond), le libellé reste lu par les lecteurs d'écran. */
+#stop .btn-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.btn-more {
+  display: none;
+}
+@container app (min-width: 600px) {
+  .btn-more {
+    display: inline;
+  }
+  #log,
+  #approvals,
+  #thinking,
+  #form,
+  #readonly,
+  #no-provider {
+    width: min(820px, calc(100% - 2 * var(--jn-gutter)));
+    margin-inline: auto;
+  }
+  .msg {
+    max-width: 85%;
+  }
+}
+@container app (max-width: 599px) {
+  #model-chip {
+    max-width: 55%;
+  }
+  #cfg-btn {
+    flex: none;
+  }
+}
+/* Sous 720 px la barre d'outils passe sur deux rangées (sinon les bascules sont écrasées) :
+   boutons d'insertion et envoi en haut, pastilles (modèle, Configurer, bascules) dessous. */
+@container app (max-width: 719px) {
+  #toolbar {
+    flex-wrap: wrap;
+    row-gap: var(--jn-s1);
+  }
+  .spacer {
+    order: 1;
+  }
+  #stop,
+  #send {
+    order: 2;
+  }
+  /* Une seule rangée de pastilles : l'étiquette du modèle absorbe la place, les autres ne rétrécissent pas. */
+  #ctl-group {
+    order: 3;
+    flex: 1 1 100%;
+    flex-wrap: nowrap;
+  }
+  #ctl-group > * {
+    flex: none;
+  }
+  #ctl-group > #model-chip {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: none;
+  }
+}
+@container app (max-width: 479px) {
+  .cfg-level {
+    display: none;
+  }
+}
+
+/* --- Interrupteur global des effets : mouvement réduit, contraste élevé, couleurs forcées --- */
+@media (prefers-reduced-motion: reduce) {
+  body *,
+  body ::before,
+  body ::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .spin {
+    display: none;
+  }
+  .spin-static {
+    display: inline;
+  }
+}
+@media (forced-colors: active) {
+  body {
+    --jn-accent: Highlight;
+    --jn-accent-fill: ButtonFace;
+    --jn-accent-fill-border: ButtonText;
+    --jn-on-accent: ButtonText;
+    --jn-tint: Highlight;
+    --jn-accent-wash: transparent;
+    --jn-accent-edge: Highlight;
+    --jn-secondary: CanvasText;
+    --jn-shadow-pop: none;
+  }
+  body *,
+  body ::before,
+  body ::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .spin {
+    display: none;
+  }
+  .spin-static {
+    display: inline;
+  }
+  button,
+  .chip,
+  #composer,
+  .pop,
+  .card,
+  #thinking {
+    border: 1px solid CanvasText;
+  }
+  #bar::after,
+  #composer::before,
+  .chip::before {
+    display: none;
+  }
+  #title,
+  .welcome h2 {
+    color: CanvasText;
+    background: none;
+  }
+  #title::before,
+  #bypass-switch::before,
+  #learning-switch::before {
+    background: CanvasText;
+    box-shadow: none;
+  }
+  /* Logo d'accueil monochrome : icon.svg en masque, rempli de la couleur de texte du système. */
+  .welcome::before,
+  body.vscode-light .welcome::before {
+    background: CanvasText;
+    -webkit-mask: url("icon.svg") center / contain no-repeat;
+    mask: url("icon.svg") center / contain no-repeat;
+  }
+  body.vscode-light .welcome::after {
+    display: none;
+  }
+  .brand-wing,
+  .brand-lead,
+  .brand-cursor {
+    fill: CanvasText;
+  }
+  :focus-visible {
+    outline: 2px solid Highlight;
+    box-shadow: none;
+  }
+}
+body.vscode-high-contrast *,
+body.vscode-high-contrast ::before,
+body.vscode-high-contrast ::after,
+body.vscode-high-contrast-light *,
+body.vscode-high-contrast-light ::before,
+body.vscode-high-contrast-light ::after,
+body.reduce-motion *,
+body.reduce-motion ::before,
+body.reduce-motion ::after {
+  animation: none !important;
+  transition: none !important;
+}
+body.vscode-high-contrast .spin,
+body.vscode-high-contrast-light .spin,
+body.reduce-motion .spin {
+  display: none;
+}
+body.vscode-high-contrast .spin-static,
+body.vscode-high-contrast-light .spin-static,
+body.reduce-motion .spin-static {
+  display: inline;
+}
+body.vscode-high-contrast #bar::after,
+body.vscode-high-contrast-light #bar::after {
+  display: none;
+}
+body.vscode-high-contrast #title::before,
+body.vscode-high-contrast-light #title::before,
+body.vscode-high-contrast .welcome::before,
+body.vscode-high-contrast-light .welcome::before {
+  box-shadow: none;
+}
+/* Contraste élevé clair : logo d'accueil monochrome (icon.svg en masque, couleur du texte). */
+body.vscode-high-contrast-light .welcome::before {
+  background: currentColor;
+  -webkit-mask: url("icon.svg") center / contain no-repeat;
+  mask: url("icon.svg") center / contain no-repeat;
+}
+body.vscode-high-contrast-light .welcome::after {
+  display: none;
+}
+body.vscode-high-contrast #title,
+body.vscode-high-contrast-light #title,
+body.vscode-high-contrast .welcome h2,
+body.vscode-high-contrast-light .welcome h2 {
+  background: none;
+  color: var(--vscode-foreground);
+}
+body.vscode-high-contrast :focus-visible,
+body.vscode-high-contrast-light :focus-visible {
+  outline: 2px solid var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+  outline-offset: 2px;
+  box-shadow: none;
+}
+body.vscode-high-contrast .chip,
+body.vscode-high-contrast-light .chip,
+body.vscode-high-contrast .pop,
+body.vscode-high-contrast-light .pop,
+body.vscode-high-contrast #composer,
+body.vscode-high-contrast-light #composer {
+  border-color: var(--vscode-contrastBorder, currentColor);
+}
+
+/* Approbation en attente (classe posée par chat.js selon #approvals) : bordure du composer en orange,
+   plus un anneau d'1 px pour rester distincte du Bypass (bordure seule). */
+body.awaiting #composer {
+  border-color: var(
+    --vscode-editorWarning-foreground,
+    var(--vscode-inputValidation-warningBorder, currentColor)
+  );
+  box-shadow: inset 0 0 0 1px
+    var(
+      --vscode-editorWarning-foreground,
+      var(--vscode-inputValidation-warningBorder, currentColor)
+    );
+}
+
+/* --- Bypass des approbations (ADR 0006) : classes et texte posés par renderBypass, seulement sur message --- */
+/* Actif : bordure du composer en orange, sans animation ; le badge « BYPASS · HH:MM » nomme le mode. */
+body.bypass-on #composer {
+  border-color: var(--vscode-editorWarning-foreground, var(--vscode-inputValidation-warningBorder));
+}
+#bypass-switch,
+#learning-switch {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--jn-s2);
+  width: 100%;
+  min-height: 28px;
+  padding: 0 var(--jn-s2);
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-foreground);
+}
+#bypass-switch::after,
+#learning-switch::after {
+  content: "";
+  flex: none;
+  box-sizing: border-box;
+  width: 32px;
+  height: 18px;
+  border-radius: var(--jn-r-sm);
+  border: 1px solid var(--jn-line);
+  background: color-mix(in srgb, var(--vscode-foreground) 14%, transparent);
+  transition:
+    background-color var(--jn-d2) var(--jn-ease-io),
+    border-color var(--jn-d2) var(--jn-ease-io);
+}
+/* Pouce carré : glisse d'un bord à l'autre (transform). */
+#bypass-switch::before,
+#learning-switch::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: calc(var(--jn-s2) + 17px);
+  width: 12px;
+  height: 12px;
+  margin-top: -6px;
+  border-radius: 0;
+  background: var(--vscode-foreground);
+  opacity: 0.75;
+  pointer-events: none;
+  transition:
+    transform var(--jn-d2) var(--jn-ease-out),
+    background-color var(--jn-d2) var(--jn-ease-io),
+    opacity var(--jn-d2) var(--jn-ease-io);
+}
+#bypass-switch[aria-checked="true"]::before,
+#learning-switch[aria-checked="true"]::before {
+  transform: translateX(14px);
+  background: var(--vscode-editor-background, var(--vscode-input-background));
+  opacity: 1;
+}
+#bypass-switch[aria-checked="true"]::after {
+  background: var(--jn-warn);
+  border-color: transparent;
+}
+#learning-switch[aria-checked="true"]::after {
+  background: var(--jn-accent-fill);
+  border-color: var(--jn-accent-fill-border);
+}
+#learning-switch[aria-checked="true"]::before {
+  background: var(--jn-on-accent);
+}
+#bypass-state {
+  margin: var(--jn-s1) var(--jn-s2) 0;
+  min-height: 1.4em;
+  font-size: var(--jn-fs-sm);
+  line-height: 1.4;
+  color: var(--vscode-foreground);
+}
+#bypass-warn .warn-line {
+  display: block;
+}
+#learning-badge {
+  background: color-mix(in srgb, var(--jn-secondary) 14%, transparent);
+  color: var(--vscode-foreground);
+  border: 1px solid color-mix(in srgb, var(--jn-secondary) 40%, transparent);
+}
+/* Bypass grisé en apprentissage : pas de survol, curseur neutre. */
+#bypass-switch[aria-disabled="true"] {
+  pointer-events: none;
+}
+#bypass-badge {
+  border-color: transparent;
+  background: var(
+    --vscode-editorWarning-foreground,
+    var(--vscode-inputValidation-warningBorder, currentColor)
+  );
+  color: var(--vscode-editor-background, var(--vscode-foreground));
+}
+
+/* --- Cockpit (body.cockpit) : santé du système, conteneur lié, liste des conteneurs --- */
+body.cockpit #bar #refresh {
+  margin-left: auto;
+}
+body.cockpit #main {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--jn-s3) 0 var(--jn-s5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s5);
+}
+@container app (min-width: 600px) {
+  body.cockpit #main {
+    width: min(860px, calc(100% - 2 * var(--jn-gutter)));
+    margin-inline: auto;
+  }
+}
+body.cockpit #main > * {
+  animation: jn-msg-in var(--jn-d2) var(--jn-ease-out) 1 both;
+}
+body.cockpit #main > :nth-child(2) {
+  animation-delay: 40ms;
+}
+body.cockpit #main > :nth-child(3) {
+  animation-delay: 80ms;
+}
+body.cockpit section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s2);
+  min-width: 0;
+}
+.cockpit-h {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+  margin: 0;
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--jn-muted);
+}
+.cockpit-count {
+  display: inline-flex;
+  font-family: var(--jn-mono);
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: var(--jn-r-sm);
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  font-size: var(--jn-fs-xs);
+  letter-spacing: 0;
+}
+
+/* Tons partagés : pastille de couleur (.dot) selon l'état. */
+body.cockpit .dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 0;
+  background: var(--jn-muted);
+}
+body.cockpit .tone-ok .dot {
+  background: var(--jn-ok);
+}
+body.cockpit .tone-warn .dot {
+  background: var(--jn-warn);
+}
+body.cockpit .tone-err .dot {
+  background: var(--jn-err);
+}
+body.cockpit .cockpit-row.is-running > .dot {
+  background: var(--jn-ok);
+}
+
+/* Tuiles de santé : grille fluide, 2 à 4 colonnes selon la largeur. */
+.cockpit-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: var(--jn-s2);
+}
+.cockpit-tile {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: var(--jn-s2);
+  row-gap: 2px;
+  padding: var(--jn-s3);
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+}
+.cockpit-tile-label {
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-xs);
+  color: var(--jn-muted);
+}
+.cockpit-tile strong {
+  grid-column: 2;
+  font-family: var(--jn-mono);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cockpit-tile.tone-err {
+  border-color: color-mix(in srgb, var(--jn-err) 50%, var(--jn-line));
+}
+
+/* Carte du conteneur lié : filet de couleur à gauche selon l'état. */
+.cockpit-hero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s3);
+  padding: var(--jn-s4);
+  border: 1px solid var(--jn-line);
+  border-left: 2px solid var(--jn-muted);
+  border-radius: var(--jn-r-lg);
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+}
+.cockpit-hero.tone-ok {
+  border-left-color: var(--jn-ok);
+}
+.cockpit-hero.tone-warn {
+  border-left-color: var(--jn-warn);
+}
+.cockpit-hero.tone-err {
+  border-left-color: var(--jn-err);
+}
+.cockpit-linked-head {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+  min-width: 0;
+}
+.cockpit-hero-name {
+  flex: 1;
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-lg);
+  font-weight: 600;
+}
+.cockpit-pill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 10px;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-sm);
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-sm);
+  font-weight: 600;
+}
+.cockpit-meta {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--jn-s1) var(--jn-s4);
+  margin: 0;
+  font-size: var(--jn-fs-sm);
+}
+.cockpit-meta dt {
+  color: var(--jn-muted);
+}
+.cockpit-meta dd {
+  margin: 0;
+  font-family: var(--jn-mono);
+}
+.cockpit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--jn-s2);
+}
+.cockpit-actions button,
+.cockpit-row-act button {
+  min-height: 30px;
+}
+.cockpit-muted {
+  color: var(--jn-muted);
+  margin: 0;
+}
+.cockpit-notice,
+.cockpit-error {
+  margin: 0;
+  padding: var(--jn-s3);
+  border-radius: var(--jn-r-md);
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  border: 1px solid var(--jn-line);
+  border-left: 2px solid var(--jn-accent);
+}
+.cockpit-error {
+  color: var(--jn-err);
+  border-color: color-mix(in srgb, var(--jn-err) 50%, var(--jn-line));
+  border-left-color: var(--jn-err);
+}
+.cockpit-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* Liste : une carte par conteneur (pastille, nom et image, actions). */
+.cockpit-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cockpit-row {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s3);
+  min-height: 52px;
+  padding: var(--jn-s2) var(--jn-s3);
+  border-radius: var(--jn-r-md);
+  border: 1px solid var(--jn-line);
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  transition:
+    background-color var(--jn-d1) var(--jn-ease-io),
+    border-color var(--jn-d1) var(--jn-ease-io);
+}
+.cockpit-row:hover {
+  border-color: var(--jn-accent-edge);
+}
+.cockpit-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cockpit-row-top {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+  min-width: 0;
+}
+.cockpit-row-name {
+  font-family: var(--jn-mono);
+  font-weight: 600;
+}
+.cockpit-row-sub {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--jn-fs-xs);
+  color: var(--jn-muted);
+}
+/* Image et dossier cèdent la place (ellipse) : jamais de texte glissé sous les boutons d'action. */
+.cockpit-row-image {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--jn-mono);
+}
+.cockpit-row-ws,
+.cockpit-row-state {
+  flex: none;
+  white-space: nowrap;
+  font-family: var(--jn-mono);
+  font-weight: 600;
+}
+.cockpit-row-ws {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cockpit-row.is-running .cockpit-row-state {
+  color: var(--jn-ok);
+}
+.cockpit-row-act {
+  flex: none;
+  display: flex;
+  gap: 6px;
+}
+.cockpit-linked-tag {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 8px;
+  border-radius: var(--jn-r-sm);
+  background: var(--jn-accent-fill);
+  border: 1px solid var(--jn-accent-fill-border);
+  color: var(--jn-on-accent);
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-xs);
+  font-weight: 600;
+}
+@container app (max-width: 359px) {
+  .cockpit-row {
+    flex-wrap: wrap;
+  }
+  .cockpit-row-act {
+    flex-basis: 100%;
+    justify-content: flex-end;
+  }
+  .cockpit-row-image {
+    display: none;
+  }
+}
+
+/* --- Réglages (body.studio) : navigation en deux groupes, cartes restylées (lot P5) --- */
+body.studio {
+  height: 100vh;
+}
+.studio-shell {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+#studio-nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s3);
+  min-width: 0;
+  padding: var(--jn-s3) var(--jn-s2);
+  border-right: 1px solid var(--jn-line);
+  background: var(--jn-drawer-bg);
+  overflow: auto;
+}
+.studio-nav-title {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--jn-muted);
+  padding: var(--jn-s2);
+}
+.studio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.studio-group-title {
+  margin: 0;
+  padding: var(--jn-s1) var(--jn-s2);
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--jn-muted);
+}
+.studio-nav-btn {
+  justify-content: flex-start;
+  width: 100%;
+  gap: var(--jn-s2);
+  min-height: 32px;
+  white-space: normal;
+  text-align: left;
+  background: transparent;
+  color: var(--vscode-foreground);
+  border-left: 2px solid transparent;
+  border-radius: var(--jn-r-sm);
+}
+.studio-nav-btn:hover:not(:disabled) {
+  background: var(--vscode-list-hoverBackground);
+}
+.studio-nav-btn.is-current,
+.studio-nav-btn.is-current:hover:not(:disabled) {
+  background: var(--jn-tint);
+  color: var(--vscode-foreground);
+  border-left-color: var(--jn-accent);
+  font-weight: 600;
+}
+.studio-ico {
+  flex: none;
+  width: 1.2em;
+  text-align: center;
+  color: var(--jn-muted);
+  transition: color var(--jn-d1) var(--jn-ease-io);
+}
+.studio-nav-btn.is-current .studio-ico {
+  color: var(--jn-accent);
+}
+.studio-count {
+  margin-left: auto;
+  flex: none;
+  min-width: 1.6em;
+  padding: 0 6px;
+  border-radius: var(--jn-r-sm);
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-xs);
+  line-height: 1.6;
+  text-align: center;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+}
+#studio-main {
+  min-width: 0;
+  overflow: auto;
+  padding: var(--jn-s4);
+}
+.studio-card {
+  max-width: 720px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s3);
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-lg);
+  padding: var(--jn-s5);
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  overflow-wrap: anywhere;
+  animation: jn-msg-in var(--jn-d2) var(--jn-ease-out) 1 both;
+}
+body.studio .studio-card h2 {
+  margin: 0;
+  font-size: var(--jn-fs-lg);
+  font-weight: 600;
+}
+.studio-help {
+  margin: 0;
+  color: var(--jn-muted);
+}
+.studio-kicker {
+  margin: 0;
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--jn-accent);
+}
+.studio-name {
+  margin: 0;
+  font-family: var(--jn-mono);
+  font-size: 1.15em;
+  font-weight: 600;
+}
+.studio-dl {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--jn-s2) var(--jn-s4);
+  margin: 0;
+}
+body.studio .studio-dl dt {
+  color: var(--jn-muted);
+  margin: 0;
+}
+body.studio .studio-dl dd {
+  margin: 0;
+  font-weight: 600;
+}
+.studio-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.studio-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--jn-s3);
+  padding: var(--jn-s2) 0;
+  border-top: 1px solid var(--jn-line);
+}
+.studio-ellipsis {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Noms de conteneurs et de sources, étiquettes d'état et de droits : mono. */
+.studio-row > .studio-ellipsis,
+.studio-row > .studio-help {
+  font-family: var(--jn-mono);
+}
+.studio-row > .studio-help {
+  font-size: var(--jn-fs-sm);
+}
+.studio-canvas {
+  height: 220px;
+  border: 1px dashed var(--jn-line);
+  border-radius: var(--jn-r-md);
+  background: var(--vscode-editor-background);
+}
+.studio-kc-scroll {
+  overflow-x: auto;
+  padding-bottom: var(--jn-s2);
+}
+.studio-board {
+  position: relative;
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--jn-s5, 32px);
+  min-height: 120px;
+  min-width: 100%;
+}
+.studio-kc-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s2);
+  flex: 0 0 168px;
+}
+.studio-kc-head {
+  margin: 0;
+  padding-bottom: var(--jn-s2);
+  border-bottom: 1px solid var(--jn-line);
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--jn-muted);
+}
+.studio-node {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+  background: var(--vscode-editor-background);
+  padding: 6px 10px;
+  font-size: var(--jn-fs-sm);
+  overflow-wrap: anywhere;
+  position: relative;
+}
+.studio-node-meta {
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-xs);
+  color: var(--jn-muted);
+}
+.studio-node.is-confirmed {
+  border-color: var(--vscode-testing-iconPassed, var(--jn-accent));
+}
+.studio-node.is-hypothesis {
+  border-style: dashed;
+}
+.studio-node.is-failed {
+  color: var(--vscode-errorForeground);
+  border-color: var(--vscode-inputValidation-errorBorder, var(--jn-line));
+}
+.studio-kc-edges {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+.studio-kc-edge {
+  fill: none;
+  stroke: var(--jn-muted);
+  stroke-width: 1.5;
+}
+.studio-kc-tip {
+  fill: var(--jn-muted);
+}
+.studio-kc-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--jn-s3);
+  list-style: none;
+  margin: var(--jn-s3) 0 0;
+  padding: 0;
+  font-size: var(--jn-fs-sm);
+  color: var(--jn-muted);
+}
+.studio-kc-key {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--jn-s2);
+}
+.studio-kc-swatch {
+  width: 14px;
+  height: 10px;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+}
+.studio-kc-swatch.is-confirmed {
+  border-color: var(--vscode-testing-iconPassed, var(--jn-accent));
+}
+.studio-kc-swatch.is-hypothesis {
+  border-style: dashed;
+  border-color: var(--jn-muted);
+}
+.studio-kc-swatch.is-failed {
+  border-color: var(--vscode-inputValidation-errorBorder, var(--jn-line));
+  background: var(--vscode-inputValidation-errorBackground, transparent);
+}
+
+/* --- Graphe de la kill chain (zoom/pan) --- */
+.kc-bar {
+  display: flex;
+  gap: var(--jn-s2);
+  align-items: center;
+  margin-bottom: var(--jn-s2);
+}
+.kc-zoom {
+  min-width: 28px;
+  justify-content: center;
+  font-family: var(--jn-mono);
+  font-weight: 600;
+}
+.kc-viewport {
+  position: relative;
+  overflow: hidden;
+  height: min(60vh, 460px);
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+  background: var(--vscode-editor-background);
+  cursor: grab;
+  touch-action: none;
+}
+.kc-viewport.is-panning {
+  cursor: grabbing;
+}
+.kc-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+.kc-edges {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+.kc-edge {
+  fill: none;
+  stroke: var(--jn-muted);
+  stroke-width: 1.6;
+  opacity: 0.8;
+}
+.kc-tip {
+  fill: var(--jn-muted);
+}
+.kc-node {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 7px 10px 7px 11px;
+  border: 1px solid var(--jn-line);
+  border-left: 2px solid var(--kc-accent, var(--jn-accent));
+  border-radius: var(--jn-r-md);
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  font-size: var(--jn-fs-sm);
+  transition: border-color var(--jn-d2) var(--jn-ease-io);
+}
+.kc-node.kind-host {
+  --kc-accent: var(--vscode-terminal-ansiBlue, var(--jn-accent));
+}
+.kc-node.kind-site {
+  --kc-accent: var(--vscode-terminal-ansiCyan, var(--jn-secondary));
+}
+.kc-node.kind-credential {
+  --kc-accent: var(--vscode-terminal-ansiYellow, var(--jn-warn));
+}
+.kc-node.kind-step {
+  --kc-accent: var(--vscode-foreground, var(--jn-accent));
+}
+.kc-node.kind-loot {
+  --kc-accent: var(--vscode-terminal-ansiGreen, var(--jn-accent));
+}
+.kc-node.is-confirmed {
+  border-top-color: var(--vscode-testing-iconPassed, var(--jn-accent));
+  border-right-color: var(--vscode-testing-iconPassed, var(--jn-accent));
+  border-bottom-color: var(--vscode-testing-iconPassed, var(--jn-accent));
+}
+.kc-node.is-hypothesis {
+  border-top-style: dashed;
+  border-right-style: dashed;
+  border-bottom-style: dashed;
+}
+.kc-node.is-failed {
+  color: var(--vscode-errorForeground);
+  border-top-color: var(--vscode-inputValidation-errorBorder, var(--jn-line));
+  border-right-color: var(--vscode-inputValidation-errorBorder, var(--jn-line));
+  border-bottom-color: var(--vscode-inputValidation-errorBorder, var(--jn-line));
+}
+.kc-node-head {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+}
+.kc-node-ico {
+  flex: none;
+  font-size: 1.05em;
+  color: var(--kc-accent, var(--jn-accent));
+}
+.kc-node-label {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kc-node-meta {
+  color: var(--jn-muted);
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kc-dot {
+  display: inline-flex;
+  width: 16px;
+  justify-content: center;
+  color: var(--kc-accent, var(--jn-accent));
+}
+.kc-dot.kind-host {
+  --kc-accent: var(--vscode-terminal-ansiBlue, var(--jn-accent));
+}
+.kc-dot.kind-site {
+  --kc-accent: var(--vscode-terminal-ansiCyan, var(--jn-secondary));
+}
+.kc-dot.kind-credential {
+  --kc-accent: var(--vscode-terminal-ansiYellow, var(--jn-warn));
+}
+.kc-dot.kind-step {
+  --kc-accent: var(--vscode-foreground, var(--jn-accent));
+}
+.kc-dot.kind-loot {
+  --kc-accent: var(--vscode-terminal-ansiGreen, var(--jn-accent));
+}
+/* Sous 640 px : la navigation passe en rangée au-dessus du contenu (groupes en ligne, sans débordement). */
+@media (max-width: 640px) {
+  .studio-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  #studio-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    border-right: 0;
+    border-bottom: 1px solid var(--jn-line);
+  }
+  .studio-nav-title,
+  .studio-group-title {
+    flex-basis: 100%;
+  }
+  .studio-group {
+    flex: 1 1 auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .studio-nav-btn {
+    width: auto;
+    border-left: 0;
+    border-bottom: 2px solid transparent;
+  }
+  .studio-nav-btn.is-current {
+    border-left-color: transparent;
+    border-bottom-color: var(--jn-accent);
+  }
+}
+
+/* Monitor (panneau éditeur) : lecture seule, le chat reste masqué. */
+#monitor {
+  display: none;
+}
+body.mode-monitor #log,
+body.mode-monitor #approvals,
+body.mode-monitor #thinking,
+body.mode-monitor #form,
+body.mode-monitor #readonly,
+body.mode-monitor #no-provider,
+body.mode-monitor #history,
+body.mode-monitor #history-btn,
+body.mode-monitor #reset,
+body.mode-watch #log,
+body.mode-watch #approvals,
+body.mode-watch #thinking,
+body.mode-watch #form,
+body.mode-watch #readonly,
+body.mode-watch #no-provider,
+body.mode-watch #history,
+body.mode-watch #history-btn,
+body.mode-watch #reset {
+  display: none;
+}
+body.mode-monitor .mon-row[role="button"] {
+  cursor: pointer;
+}
+body.mode-monitor .mon-row[role="button"]:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+body.mode-monitor #monitor,
+body.mode-watch #monitor {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  gap: var(--jn-s2);
+  padding: var(--jn-s3) 0;
+  width: min(820px, calc(100% - 2 * var(--jn-gutter)));
+  margin-inline: auto;
+}
+
+/* Sessions : une ligne par conversation, la courante et l'état « en cours » marqués. */
+.hist-line {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+  min-width: 0;
+}
+.hist-line .hist-open {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.hist-line .badge {
+  flex: none;
+}
+
+/* Monitor : une ligne par appel Exegol, sans bouton de décision. */
+.mon-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--jn-s2);
+}
+.mon-head .hint {
+  margin: 0;
+}
+#monitor-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s2);
+}
+.mon-row {
+  min-width: 0;
+  padding: var(--jn-s2) var(--jn-s3);
+  border: 1px solid var(--jn-line);
+  border-left-width: 2px;
+  border-radius: var(--jn-r-md);
+}
+.mon-row.tone-err {
+  border-color: var(--vscode-inputValidation-errorBorder, var(--jn-line));
+  border-left-color: var(--jn-err);
+}
+.mon-row.tone-ok {
+  border-left-color: var(--jn-ok);
+}
+.mon-row.tone-wait {
+  border-left-color: var(--jn-warn);
+}
+.mon-cmd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font-family: var(--jn-mono);
+  font-size: 0.92em;
+}
+.mon-text {
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.mon-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--jn-s2);
+  margin-top: 4px;
+  font-size: 0.85em;
+}
+.mon-row.tone-err .mon-meta .badge {
+  color: var(--vscode-errorForeground, currentColor);
+}
+.mon-row.tone-ok .mon-meta .badge {
+  color: var(--vscode-testing-iconPassed, currentColor);
+}
+.mon-row.tone-wait .mon-meta .badge {
+  color: var(--vscode-editorWarning-foreground, currentColor);
+}
+.mon-out {
+  margin: 6px 0 0;
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--jn-mono);
+  font-size: 0.9em;
+}
+body.mode-watch .mon-out {
+  max-height: none;
+  min-height: 50vh;
+}
+
+/* --- Bascules Apprentissage / Bypass de la barre d'entrée : miroirs de celles de Configurer --- */
+.chip-switch .sw-dot {
+  flex: none;
+  box-sizing: border-box;
+  width: 8px;
+  height: 8px;
+  border-radius: 0;
+  border: 1px solid var(--vscode-foreground);
+  opacity: 0.6;
+}
+.chip-switch .sw-short {
+  display: none;
+}
+.chip-switch[aria-checked="true"] {
+  background: var(--jn-accent-fill);
+  border-color: var(--jn-accent-fill-border);
+  color: var(--jn-on-accent);
+}
+.chip-switch[aria-checked="true"]:hover:not([aria-disabled="true"]) {
+  background: color-mix(in srgb, var(--jn-accent-fill) 88%, var(--vscode-foreground));
+}
+.chip-switch[aria-checked="true"] .sw-dot {
+  background: var(--jn-on-accent);
+  border-color: var(--jn-on-accent);
+  opacity: 1;
+}
+/* Bypass actif : orange d'avertissement en trait (le jaune ne signifie jamais un état), libellé conservé. */
+#bar-bypass[aria-checked="true"] {
+  background: color-mix(in srgb, var(--jn-warn) 14%, transparent);
+  border-color: var(--jn-warn);
+  color: var(--vscode-foreground);
+}
+#bar-bypass[aria-checked="true"] .sw-dot {
+  background: var(--jn-warn);
+  border-color: var(--jn-warn);
+}
+.chip-switch[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: default;
+}
+@container app (max-width: 599px) {
+  .chip-switch {
+    padding: 0 6px;
+  }
+  .chip-switch .sw-full {
+    display: none;
+  }
+  .chip-switch .sw-short {
+    display: inline;
+  }
+}

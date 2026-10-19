@@ -1,4 +1,15 @@
 node_modules/
 dist/
 *.tsbuildinfo
-.john-studio/
+.warband/
+
+# Secrets locaux (jetons de test) : ne jamais commiter
+.env*
+
+# Spike VS Code : artefacts d'empaquetage
+packages/vscode/.vsix-stage/
+packages/vscode/*.vsix
+.claude/worktrees/
+
+# Previsualisation generee par packages/vscode/test/preview.test.ts
+packages/vscode/preview/

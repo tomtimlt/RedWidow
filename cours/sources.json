@@ -1,0 +1,23 @@
+[
+  {
+    "nom": "owasp-cheatsheets",
+    "url": "https://github.com/OWASP/CheatSheetSeries.git",
+    "ref": "3e2db6bf3f5f0c807aef8a8fc84e395acce0292c",
+    "licence": "CC-BY-SA-4.0",
+    "sousDossier": "cheatsheets"
+  },
+  {
+    "nom": "owasp-wstg",
+    "url": "https://github.com/OWASP/wstg.git",
+    "ref": "v4.2",
+    "licence": "CC-BY-SA-4.0",
+    "sousDossier": "document"
+  },
+  {
+    "nom": "hacktricks",
+    "url": "https://github.com/HackTricks-wiki/hacktricks.git",
+    "ref": "fc0a66c8036594f0cd6fb2006f58b1de206b7836",
+    "licence": "CC-BY-NC-4.0",
+    "sousDossier": "src"
+  }
+]

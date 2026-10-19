@@ -14,11 +14,15 @@ import {
   type PolicyContext,
   parsePolicy,
   parseShell,
+  ValidationError,
 } from "../src/index.js";
+
+/** Contexte pour tester la logique POSIX de Bash : sous win32, Bash est non POSIX sauf déclaration explicite (fail-closed). */
+const POSIX_BASH: PolicyContext = { cwd: process.cwd(), posixShell: true };
 
 const parsed = (cmd: string) => {
   const r = parseShell(cmd);
-  if (!r.ok) throw new Error(r.error);
+  if (!r.ok) throw new Error(r.error.code);
   return r.value;
 };
 
@@ -61,7 +65,17 @@ describe("parseShell", () => {
   });
 
   it("échoue sur un guillemet non fermé", () => {
-    expect(parseShell("echo 'abc").ok).toBe(false);
+    expect(parseShell("echo 'abc")).toEqual({
+      ok: false,
+      error: { code: "shell.unclosedQuote", params: { quote: "'" } },
+    });
+  });
+
+  it("échoue sur un backslash final", () => {
+    expect(parseShell("echo abc\\")).toEqual({
+      ok: false,
+      error: { code: "shell.trailingBackslash" },
+    });
   });
 });
 
@@ -83,7 +97,7 @@ describe("matchCommand", () => {
 
 describe("evaluatePolicy", () => {
   const bash = (command: string, policy: Policy = DEFAULT_POLICY) =>
-    evaluatePolicy(policy, "Bash", { command }).decision;
+    evaluatePolicy(policy, "Bash", { command }, POSIX_BASH).decision;
 
   it("autorise les lectures allowlistées", () => {
     expect(bash("docker ps -a")).toBe("allow");
@@ -126,9 +140,46 @@ describe("evaluatePolicy", () => {
     expect(bash("docker start web", p)).toBe("allow");
   });
 
+  it("expose le motif sous forme de code et de paramètres", () => {
+    const why = (tool: string, input: Record<string, unknown>, policy: Policy = DEFAULT_POLICY) =>
+      evaluatePolicy(policy, tool, input, POSIX_BASH).reason;
+    expect(why("Bash", { command: "docker ps -a" })).toEqual({
+      code: "policy.rule",
+      params: { index: 3, decision: "allow", target: "Bash(docker ps *)" },
+    });
+    expect(why("mcp__docker__rm", {})).toEqual({
+      code: "policy.rule.custom",
+      params: { text: "suppression de conteneur : à faire à la main" },
+    });
+    expect(why("Write", { file_path: "x" })).toEqual({
+      code: "policy.default",
+      params: { tool: "Write" },
+    });
+    expect(why("Bash", { command: "docker run -d nginx" })).toEqual({
+      code: "bash.noRule",
+      params: { command: "docker run -d nginx" },
+    });
+    expect(why("Bash", { command: "docker ps $(id) > x" })).toEqual({
+      code: "bash.hazard",
+      params: { hazards: "substitution,redirect" },
+    });
+    expect(why("Bash", { command: "docker run -v /:/h alpine" })).toEqual({
+      code: "docker.hostAccess",
+      params: { flag: "-v" },
+    });
+    expect(why("Bash", { command: "echo 'x" })).toEqual({
+      code: "bash.unparseable",
+      cause: { code: "shell.unclosedQuote", params: { quote: "'" } },
+    });
+    expect(why("Bash", { command: "  " })).toEqual({ code: "bash.empty" });
+    expect(why("Bash", {})).toEqual({ code: "bash.missingCommand" });
+  });
+
   it("rapporte l'index de la règle dans policy.rules", () => {
     const rm = DEFAULT_POLICY.rules.findIndex((r) => r.command === "rm *");
-    expect(evaluatePolicy(DEFAULT_POLICY, "Bash", { command: "rm -rf /" }).rule).toBe(rm);
+    expect(evaluatePolicy(DEFAULT_POLICY, "Bash", { command: "rm -rf /" }, POSIX_BASH).rule).toBe(
+      rm,
+    );
     expect(evaluatePolicy(DEFAULT_POLICY, "Grep", {}).rule).toBe(
       DEFAULT_POLICY.rules.findIndex((r) => r.tool === "Grep"),
     );
@@ -172,7 +223,45 @@ describe("parsePolicy", () => {
     [{ rules: [{ tool: "Bash", decision: "yes" }] }],
     [{ rules: [{ decision: "allow" }] }],
   ])("rejette %j", (raw) => {
-    expect(() => parsePolicy(raw)).toThrow(/politique invalide/);
+    expect(() => parsePolicy(raw)).toThrow(ValidationError);
+    expect(() => parsePolicy(raw)).toThrow(/policy\.invalid\./);
+  });
+
+  it("décrit le champ fautif par un code et des paramètres", () => {
+    const codeOf = (raw: unknown) => {
+      try {
+        parsePolicy(raw);
+      } catch (err) {
+        return err instanceof ValidationError ? { code: err.code, params: err.params } : err;
+      }
+    };
+    expect(codeOf(null)).toEqual({ code: "policy.invalid.object", params: undefined });
+    expect(codeOf({ default: "maybe", rules: [] })).toEqual({
+      code: "policy.invalid.default",
+      params: { value: "maybe" },
+    });
+    expect(codeOf({ rules: "x" })).toMatchObject({ code: "policy.invalid.rules" });
+    expect(codeOf({ rules: [1] })).toEqual({
+      code: "policy.invalid.ruleObject",
+      params: { index: 0 },
+    });
+    expect(codeOf({ rules: [{ tool: "Bash", decision: "yes" }] })).toEqual({
+      code: "policy.invalid.ruleField",
+      params: { index: 0, field: "decision" },
+    });
+  });
+});
+
+describe("parsePolicy : joker partiel", () => {
+  it("refuse un * qui n'est pas un jeton entier, accepte * seul", () => {
+    for (const command of ["rm -rf /work/*", "git*", "*x y"]) {
+      expect(() => parsePolicy({ rules: [{ tool: "Bash", command, decision: "allow" }] })).toThrow(
+        expect.objectContaining({ code: "policy.invalid.commandWildcard", params: { index: 0 } }),
+      );
+    }
+    expect(() =>
+      parsePolicy({ rules: [{ tool: "Bash", command: "git * --help *", decision: "allow" }] }),
+    ).not.toThrow();
   });
 });
 
@@ -181,7 +270,12 @@ describe("createApprovalGate", () => {
     const recorder = createRecorder({ runId: "r" });
     const events: EngineEvent[] = [];
     recorder.subscribe((e) => events.push(e));
-    const gate = createApprovalGate({ policy: DEFAULT_POLICY, recorder, ...(ask && { ask }) });
+    const gate = createApprovalGate({
+      policy: DEFAULT_POLICY,
+      recorder,
+      workspace: POSIX_BASH,
+      ...(ask && { ask }),
+    });
     return { gate, events };
   };
   const signal = new AbortController().signal;
@@ -209,6 +303,10 @@ describe("createApprovalGate", () => {
       signal,
     );
     expect(out.decision).toBe("deny");
+    expect(out.reason).toEqual({
+      code: "approval.noAsker",
+      cause: { code: "bash.noRule", params: { command: "docker run x" } },
+    });
   });
 
   it("délègue les cas ask à l'approbateur", async () => {
@@ -243,21 +341,36 @@ describe("createApprovalGate", () => {
       signal,
     );
     expect(out.decision).toBe("deny");
+    expect(out.reason).toEqual({
+      code: "approval.interrupted",
+      cause: { code: "error.unknown", message: "aborted" },
+    });
+  });
+
+  it("journalise le motif structuré dans approval.decided", async () => {
+    const { gate, events } = setup();
+    await gate.decide({ toolUseId: "t", tool: "Bash", input: { command: "sudo ls" } }, signal);
+    expect(events[0]).toMatchObject({
+      kind: "approval.decided",
+      decision: "deny",
+      reason: { code: "policy.rule", params: { decision: "deny", target: "Bash(sudo *)" } },
+    });
   });
 });
 
 describe("garde des chemins (outils fichiers)", () => {
-  const root = mkdtempSync(join(tmpdir(), "john-ws-"));
-  const outside = mkdtempSync(join(tmpdir(), "john-out-"));
-  const home = mkdtempSync(join(tmpdir(), "john-home-"));
+  const root = mkdtempSync(join(tmpdir(), "warband-ws-"));
+  const outside = mkdtempSync(join(tmpdir(), "warband-out-"));
+  const home = mkdtempSync(join(tmpdir(), "warband-home-"));
   mkdirSync(join(root, "src"), { recursive: true });
   writeFileSync(join(root, "src", "a.ts"), "x");
   writeFileSync(join(outside, "secret.txt"), "s");
-  symlinkSync(outside, join(root, "link"));
+  // « junction » : sans privilège sous Windows (ignoré ailleurs).
+  symlinkSync(outside, join(root, "link"), "junction");
   mkdirSync(join(home, ".ssh"), { recursive: true });
   writeFileSync(join(home, ".ssh", "id_rsa"), "k");
 
-  const ctx: PolicyContext = { cwd: root, home };
+  const ctx: PolicyContext = { cwd: root, home, posixShell: true };
   const d = (tool: string, input: Record<string, unknown>) =>
     evaluatePolicy(DEFAULT_POLICY, tool, input, ctx).decision;
 
@@ -272,7 +385,13 @@ describe("garde des chemins (outils fichiers)", () => {
     expect(d("Read", { file_path: join(home, ".ssh", "id_rsa") })).toBe("deny");
     expect(d("Read", { file_path: "~/.ssh/id_rsa" })).toBe("deny");
     expect(d("Grep", { pattern: "x", path: join(home, ".ssh") })).toBe("deny");
-    expect(d("Read", { file_path: "/etc/shadow" })).toBe("deny");
+    // /etc/shadow : refus testé sur plateforme simulée (paths.test.ts) ; ici, jamais « allow ».
+    expect(d("Read", { file_path: "/etc/shadow" })).not.toBe("allow");
+    // Identifiants et configuration des fournisseurs de modèles d'OpenCode.
+    expect(d("Read", { file_path: join(home, ".local", "share", "opencode", "auth.json") })).toBe(
+      "deny",
+    );
+    expect(d("Read", { file_path: "~/.config/opencode/opencode.json" })).toBe("deny");
     const allowAll: Policy = { default: "allow", rules: [] };
     expect(
       evaluatePolicy(allowAll, "Read", { file_path: "~/.aws/credentials" }, ctx).decision,
@@ -306,7 +425,8 @@ describe("garde des chemins (outils fichiers)", () => {
 });
 
 describe("durcissement de Bash", () => {
-  const bash = (command: string) => evaluatePolicy(DEFAULT_POLICY, "Bash", { command }).decision;
+  const bash = (command: string) =>
+    evaluatePolicy(DEFAULT_POLICY, "Bash", { command }, POSIX_BASH).decision;
 
   it.each([
     "bash -c 'docker ps'",

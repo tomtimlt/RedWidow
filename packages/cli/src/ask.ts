@@ -1,11 +1,23 @@
 import { createInterface } from "node:readline/promises";
-import type { Asker } from "@john-studio/core";
+import type { ApprovalAnswer, Asker, RememberScope } from "@warband/core";
+import { formatReason } from "@warband/messages";
+import { stripControl } from "./sanitize.js";
 
 /**
  * Approbateur terminal. Les demandes sont sérialisées : le SDK peut demander
  * plusieurs outils en parallèle, mais on n'affiche qu'une question à la fois.
- * Défaut sur « non » : seule une réponse explicite o/y autorise.
+ * Défaut sur « non » : seule une réponse explicite autorise :
+ * `o` une fois, `s` pour la session, `t` toujours (règle ajoutée à la politique utilisateur).
  */
+export function parseAnswer(text: string): ApprovalAnswer {
+  const answer = text.trim().toLowerCase();
+  const allow = (remember: RememberScope): ApprovalAnswer => ({ decision: "allow", remember });
+  if (/^(o|oui|y|yes)$/.test(answer)) return allow("once");
+  if (/^(s|session)$/.test(answer)) return allow("session");
+  if (/^(t|toujours|a|always)$/.test(answer)) return allow("always");
+  return { decision: "deny" };
+}
+
 export function createTerminalAsker(
   input: NodeJS.ReadableStream = process.stdin,
   output: NodeJS.WritableStream = process.stderr,
@@ -16,16 +28,16 @@ export function createTerminalAsker(
     const run = async () => {
       const rl = createInterface({ input, output, terminal: false });
       try {
-        const detail =
+        const detail = stripControl(
           typeof request.input.command === "string"
             ? request.input.command
-            : JSON.stringify(request.input);
+            : JSON.stringify(request.input),
+        );
         const answer = await rl.question(
-          `\n? ${request.tool} : ${detail}\n  ${verdict.reason}\n  Autoriser ? [o/N] `,
+          `\n? ${request.tool} : ${detail}\n  ${stripControl(formatReason(verdict.reason))}\n  Autoriser ? [o]ui une fois / [s]ession / [t]oujours / [N]on `,
           { signal },
         );
-        const yes = /^(o|oui|y|yes)$/i.test(answer.trim());
-        return { decision: yes ? ("allow" as const) : ("deny" as const) };
+        return parseAnswer(answer);
       } finally {
         rl.close();
       }

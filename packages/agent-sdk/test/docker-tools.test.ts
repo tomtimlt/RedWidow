@@ -1,4 +1,4 @@
-import { createDockerClient, createRecorder, type EngineEvent } from "@john-studio/core";
+import { createDockerClient, createRecorder, type EngineEvent } from "@warband/core";
 import { describe, expect, it } from "vitest";
 import { createDockerTools } from "../src/index.js";
 import { fakeDocker } from "./helpers.js";
@@ -8,7 +8,7 @@ const setup = async () => {
   const recorder = createRecorder({ runId: "r" });
   const events: EngineEvent[] = [];
   recorder.subscribe((e) => events.push(e));
-  const docker = createDockerClient({ recorder, binary: fake.bin });
+  const docker = createDockerClient({ recorder, binary: fake.bin, argsPrefix: fake.argsPrefix });
   return { fake, docker, events };
 };
 
@@ -49,7 +49,7 @@ describe("createDockerTools", () => {
 
     const bad = await handler("stop")({ container: "--all" }, {});
     expect(bad.isError).toBe(true);
-    expect((bad.content[0] as { text: string }).text).toMatch(/invalide/);
+    expect((bad.content[0] as { text: string }).text).toBe("conteneur invalide : « --all »");
     expect(seen.map(([n]) => n)).toEqual(["ps", "stop"]);
   });
 

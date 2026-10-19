@@ -1,7 +1,14 @@
-import { realpathSync } from "node:fs";
-import { homedir } from "node:os";
-import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
-import { matchCommand, parseShell, programName, type ShellHazard } from "./shell.js";
+import { type Reason, reason, ValidationError } from "../reason.js";
+import {
+  checkPathAccess,
+  defaultPlatform,
+  EXTERNAL_DIRECTORY_TOOL,
+  EXTERNAL_PATTERNS_FIELD,
+  extractPaths,
+  findGlobHazard,
+  type PathPlatform,
+} from "./paths.js";
+import { matchCommand, parseShell, programName } from "./shell.js";
 
 export type RuleDecision = "allow" | "ask" | "deny";
 
@@ -21,7 +28,7 @@ export interface Policy {
 
 export interface PolicyVerdict {
   decision: RuleDecision;
-  reason: string;
+  reason: Reason;
   /** Index de la règle déterminante, `null` si défaut ou analyse. */
   rule: number | null;
 }
@@ -30,6 +37,18 @@ const STRICTNESS: Record<RuleDecision, number> = { allow: 0, ask: 1, deny: 2 };
 const PRECEDENCE: readonly RuleDecision[] = ["deny", "ask", "allow"];
 
 export const BASH_TOOL = "Bash";
+export const POWERSHELL_TOOL = "PowerShell";
+
+/**
+ * Outils de shell dont la ligne de commande ne peut pas être analysée de façon sûre (PowerShell :
+ * grammaire trop riche, pas d'analyseur). Comparés sans casse. Au mieux `ask`, jamais mémorisable.
+ */
+const UNANALYZABLE_SHELL_TOOLS = new Set(["powershell", "pwsh"]);
+
+/** `true` pour un outil de shell sans analyseur (`PowerShell`, `pwsh`), quelle que soit la casse. */
+export function isUnanalyzableShellTool(tool: string): boolean {
+  return UNANALYZABLE_SHELL_TOOLS.has(tool.toLowerCase());
+}
 
 export const DEFAULT_POLICY: Policy = {
   default: "ask",
@@ -71,9 +90,10 @@ function toolMatches(rule: PolicyRule, tool: string): boolean {
   return rule.tool === tool || (rule.tool.includes("*") && globToRegExp(rule.tool).test(tool));
 }
 
-function describe(rule: PolicyRule, index: number): string {
+function describe(rule: PolicyRule, index: number): Reason {
+  if (rule.reason !== undefined) return reason("policy.rule.custom", { text: rule.reason });
   const target = rule.command ? `${rule.tool}(${rule.command})` : rule.tool;
-  return rule.reason ?? `règle #${index} ${rule.decision} ${target}`;
+  return reason("policy.rule", { index, decision: rule.decision, target });
 }
 
 /** Première règle d'une décision donnée qui correspond, par ordre de précédence. */
@@ -89,15 +109,6 @@ function firstMatch(
   }
   return null;
 }
-
-const HAZARD_LABEL: Record<ShellHazard, string> = {
-  substitution: "substitution de commande",
-  expansion: "expansion non résolue statiquement",
-  redirect: "redirection",
-  assignment: "affectation de variable en préfixe",
-  background: "exécution en arrière-plan",
-  indirection: "exécute une autre commande (bash -c, env, xargs, find -exec…)",
-};
 
 const CONTAINER_ENGINES = new Set(["docker", "podman"]);
 const RUN_SUBCOMMANDS = new Set(["run", "create"]);
@@ -147,11 +158,15 @@ function evaluateBash(policy: Policy, command: string): PolicyVerdict {
 
   const parsed = parseShell(command);
   if (!parsed.ok) {
-    return { decision: notAuto, reason: `commande non analysable : ${parsed.error}`, rule: null };
+    return {
+      decision: notAuto,
+      reason: reason("bash.unparseable", undefined, parsed.error),
+      rule: null,
+    };
   }
   const { segments, hazards } = parsed.value;
   if (segments.length === 0) {
-    return { decision: notAuto, reason: "commande vide", rule: null };
+    return { decision: notAuto, reason: reason("bash.empty"), rule: null };
   }
 
   const verdicts = segments.map(
@@ -159,10 +174,11 @@ function evaluateBash(policy: Policy, command: string): PolicyVerdict {
       firstMatch(
         policy.rules,
         (r) =>
-          toolMatches(r, BASH_TOOL) && (r.command === undefined || matchCommand(r.command, argv)),
+          toolMatches(r, BASH_TOOL) &&
+          (r.command === undefined || matchCommand(r.command, argv, r.decision === "deny")),
       ) ?? {
         decision: policy.default,
-        reason: `aucune règle pour « ${argv.join(" ")} »`,
+        reason: reason("bash.noRule", { command: argv.join(" ") }),
         rule: null,
       },
   );
@@ -175,18 +191,57 @@ function evaluateBash(policy: Policy, command: string): PolicyVerdict {
     if (hazard) {
       return {
         decision: "deny",
-        reason: `conteneur avec accès à l'hôte (${hazard}) : à faire à la main`,
+        reason: reason("docker.hostAccess", { flag: hazard }),
         rule: null,
       };
     }
   }
 
   if (hazards.size > 0) {
-    const labels = [...hazards].map((h) => HAZARD_LABEL[h]).join(", ");
-    return { decision: notAuto, reason: `non approuvable automatiquement : ${labels}`, rule: null };
+    return {
+      decision: notAuto,
+      reason: reason("bash.hazard", { hazards: [...hazards].join(",") }),
+      rule: null,
+    };
   }
 
   return verdicts.reduce((acc, v) => (STRICTNESS[v.decision] > STRICTNESS[acc.decision] ? v : acc));
+}
+
+/**
+ * Verdict d'un shell non analysable : une règle `deny` visant l'outil s'applique toujours, avec ou
+ * sans motif `command:` (on ne peut pas analyser la commande : l'outil entier est refusé, au mieux) ;
+ * casse ignorée sur le nom d'outil. Sinon `ask` au mieux, jamais `allow` (même par une règle `*`).
+ */
+function evaluateUnanalyzable(policy: Policy, tool: string): PolicyVerdict {
+  const lower = tool.toLowerCase();
+  const denied = policy.rules.findIndex(
+    (r) => r.decision === "deny" && (toolMatches(r, tool) || r.tool.toLowerCase() === lower),
+  );
+  if (denied !== -1) {
+    return {
+      decision: "deny",
+      reason: describe(policy.rules[denied] as PolicyRule, denied),
+      rule: denied,
+    };
+  }
+  return {
+    decision: stricter("ask", policy.default),
+    reason: reason("shell.unanalyzable", { tool }),
+    rule: null,
+  };
+}
+
+/** Verdict POSIX d'un Bash dont la commande n'est peut-être pas une chaîne (refus pour l'analyse). */
+function evaluatePolicyBash(policy: Policy, command: unknown): PolicyVerdict {
+  if (typeof command !== "string") {
+    return {
+      decision: stricter("ask", policy.default),
+      reason: reason("bash.missingCommand"),
+      rule: null,
+    };
+  }
+  return evaluateBash(policy, command);
 }
 
 /** Contexte d'évaluation des outils qui touchent au système de fichiers. */
@@ -195,95 +250,25 @@ export interface PolicyContext {
   cwd: string;
   /** Racines autorisées (défaut : `[cwd]`). Hors de ces racines, un `allow` est rétrogradé en `ask`. */
   roots?: readonly string[];
-  /** Répertoire personnel (défaut : `os.homedir()`), pour les chemins sensibles. */
+  /** Répertoire personnel (défaut : `USERPROFILE`/`HOME`, puis `os.homedir()`), pour les chemins sensibles. */
   home?: string;
-  /** Résolution des liens symboliques (défaut : `realpathSync.native`) ; lève si le chemin n'existe pas. */
+  /** Résolution des liens symboliques (défaut : `realpathSync.native`) ; lève (`ENOENT`) si le chemin n'existe pas. */
   realpath?: (path: string) => string;
-}
-
-/** Chemins qu'aucun outil ne doit lire ni écrire, relatifs au répertoire personnel. */
-const SENSITIVE_HOME_PATHS = [
-  ".ssh",
-  ".aws",
-  ".gnupg",
-  ".kube",
-  ".docker/config.json",
-  ".netrc",
-  ".git-credentials",
-  ".config/gh",
-  ".config/john-studio",
-  ".npmrc",
-];
-const SENSITIVE_ABSOLUTE_PATHS = ["/etc/shadow", "/etc/gshadow", "/etc/sudoers", "/etc/sudoers.d"];
-
-/** Outils fichiers → champs de l'entrée qui portent un chemin. */
-const PATH_FIELDS: Record<string, readonly string[]> = {
-  Read: ["file_path"],
-  Write: ["file_path"],
-  Edit: ["file_path"],
-  MultiEdit: ["file_path"],
-  NotebookEdit: ["notebook_path"],
-  Grep: ["path"],
-  Glob: ["path"],
-};
-
-/** Résout les liens symboliques d'un chemin ; doit lever si le chemin n'existe pas. */
-function defaultRealpath(path: string): string {
-  return realpathSync.native(path);
-}
-
-/**
- * Chemin absolu sans lien symbolique. Pour un fichier qui n'existe pas encore,
- * résout le plus proche ancêtre existant puis réattache la fin du chemin.
- */
-function canonical(path: string, realpath: (p: string) => string): string {
-  const full = resolve(path);
-  const tail: string[] = [];
-  let current = full;
-  for (;;) {
-    try {
-      return join(realpath(current), ...tail);
-    } catch {
-      const parent = dirname(current);
-      if (parent === current) return full;
-      tail.unshift(basename(current));
-      current = parent;
-    }
-  }
-}
-
-function isInside(root: string, path: string): boolean {
-  const rel = relative(root, path);
-  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
-}
-
-/** Préfixe statique d'un motif glob (jusqu'au premier segment contenant un métacaractère). */
-function globBase(pattern: string): string {
-  const out: string[] = [];
-  for (const part of pattern.split(/[\\/]/)) {
-    if (/[*?[\]{}]/.test(part)) break;
-    out.push(part);
-  }
-  return out.join("/") || (pattern.startsWith("/") ? "/" : ".");
-}
-
-function extractPaths(tool: string, input: Record<string, unknown>): string[] {
-  const paths: string[] = [];
-  for (const field of PATH_FIELDS[tool] ?? []) {
-    const value = input[field];
-    if (typeof value === "string" && value !== "") paths.push(value);
-  }
-  if (tool === "Glob" && typeof input.pattern === "string") {
-    const pattern = input.pattern;
-    if (isAbsolute(pattern) || pattern.split(/[\\/]/).includes("..") || pattern.startsWith("~")) {
-      paths.push(globBase(pattern));
-    }
-  }
-  return paths;
-}
-
-function expandHome(path: string, home: string): string {
-  return path === "~" ? home : path.startsWith("~/") ? join(home, path.slice(2)) : path;
+  /** `lstat` (défaut : `lstatSync`) : détecte les liens symboliques pendants. Voir `PathOptions.lstat`. */
+  lstat?: (path: string) => unknown;
+  /** `readlink` (défaut : `readlinkSync`) : cible d'un lien symbolique pendant. */
+  readlink?: (path: string) => string;
+  /** Saveur des chemins (défaut : dérivée de `process.platform`). Fixée par le code seulement, jamais par la politique. */
+  platform?: PathPlatform;
+  /**
+   * `true` : l'outil `Bash` est confirmé POSIX (Git Bash). Sous la plateforme `win32` (celle du
+   * contexte), le défaut est fail-closed : `Bash` est un shell non analysable (bash d'OpenCode : cmd
+   * ou PowerShell) sauf déclaration explicite `true`. Hors win32, le défaut est POSIX. Fixé par le
+   * code appelant seulement, jamais par l'entrée de l'outil ni par la politique.
+   */
+  posixShell?: boolean;
+  /** Environnement pour `HOME`, `USERPROFILE`, `APPDATA`, `LOCALAPPDATA`, `SystemRoot`, `ProgramData` (défaut : `process.env`). */
+  env?: Readonly<Record<string, string | undefined>>;
 }
 
 /** Verdict des garde-fous de chemin, ou `null` si rien à signaler. */
@@ -293,37 +278,57 @@ function checkPaths(
   input: Record<string, unknown>,
   ctx: PolicyContext,
 ): PolicyVerdict | null {
-  const candidates = extractPaths(tool, input);
-  if (candidates.length === 0) return null;
-  const realpath = ctx.realpath ?? defaultRealpath;
-  const home = ctx.home ?? homedir();
-  const roots = (ctx.roots ?? [ctx.cwd]).map((r) => canonical(r, realpath));
-  const sensitive = [
-    ...SENSITIVE_HOME_PATHS.map((p) => join(home, p)),
-    ...SENSITIVE_ABSOLUTE_PATHS,
-  ].flatMap((p) => [resolve(p), canonical(p, realpath)]);
-
-  let outside: string | null = null;
-  for (const candidate of candidates) {
-    const expanded = expandHome(candidate, home);
-    const absolute = isAbsolute(expanded) ? expanded : resolve(ctx.cwd, expanded);
-    for (const path of [resolve(absolute), canonical(absolute, realpath)]) {
-      if (sensitive.some((s) => isInside(s, path))) {
-        return { decision: "deny", reason: `chemin sensible : ${candidate}`, rule: null };
-      }
-    }
-    if (!roots.some((root) => isInside(root, canonical(absolute, realpath)))) {
-      outside ??= candidate;
-    }
-  }
-  if (outside !== null) {
+  const hazard = findGlobHazard(tool, input, ctx.platform);
+  if (hazard !== null) {
+    // La base statique du motif ne dit pas ce qu'il atteint (`{..,x}`, `C:*`…) : refus, jamais mémorisable.
     return {
-      decision: stricter("ask", policy.default),
-      reason: `chemin hors de l'espace de travail : ${outside}`,
+      decision: "deny",
+      reason: reason("path.unsupported", { path: hazard, form: "unresolvable" }),
       rule: null,
     };
   }
-  return null;
+  const candidates = extractPaths(tool, input, ctx.platform);
+  if (candidates.length === 0) return null;
+  const finding = checkPathAccess(candidates, ctx);
+  if (finding === null) return null;
+  switch (finding.kind) {
+    case "sensitive":
+      return {
+        decision: "deny",
+        reason: reason("path.sensitive", { path: finding.path }),
+        rule: null,
+      };
+    case "unsupported":
+      return {
+        decision: "deny",
+        reason: reason("path.unsupported", { path: finding.path, form: finding.form }),
+        rule: null,
+      };
+    case "outside":
+      return {
+        decision: stricter("ask", policy.default),
+        reason: reason("path.outside", { path: finding.path }),
+        rule: null,
+      };
+  }
+}
+
+/**
+ * Un appel qui porte `externalDirectories` (répertoires externes déclarés par l'adaptateur) ne
+ * peut jamais être autorisé automatiquement : on plafonne à `ask`. Un `deny` reste `deny`.
+ */
+function capExternal(
+  policy: Policy,
+  tool: string,
+  input: Record<string, unknown>,
+  verdict: PolicyVerdict,
+): PolicyVerdict {
+  if (verdict.decision !== "allow" || !(EXTERNAL_PATTERNS_FIELD in input)) return verdict;
+  return {
+    decision: stricter("ask", policy.default),
+    reason: reason("policy.default", { tool }),
+    rule: null,
+  };
 }
 
 export function evaluatePolicy(
@@ -331,6 +336,15 @@ export function evaluatePolicy(
   tool: string,
   input: Record<string, unknown>,
   ctx: PolicyContext = { cwd: process.cwd() },
+): PolicyVerdict {
+  return capExternal(policy, tool, input, evaluateUncapped(policy, tool, input, ctx));
+}
+
+function evaluateUncapped(
+  policy: Policy,
+  tool: string,
+  input: Record<string, unknown>,
+  ctx: PolicyContext,
 ): PolicyVerdict {
   const pathVerdict = checkPaths(policy, tool, input, ctx);
   if (pathVerdict) {
@@ -342,17 +356,39 @@ export function evaluatePolicy(
     if (rule?.decision === "deny") return rule;
     return pathVerdict;
   }
+  if (tool === EXTERNAL_DIRECTORY_TOOL) {
+    // Accès hors de l'espace de travail : jamais d'`allow` automatique, quelle que soit la règle.
+    const rule = firstMatch(policy.rules, (r) => r.command === undefined && toolMatches(r, tool));
+    if (rule?.decision === "deny") return rule;
+    return {
+      decision: stricter("ask", policy.default),
+      reason: reason("policy.default", { tool }),
+      rule: null,
+    };
+  }
+  if (isUnanalyzableShellTool(tool)) return evaluateUnanalyzable(policy, tool);
   if (tool === BASH_TOOL) {
+    if (!(ctx.posixShell ?? (ctx.platform ?? defaultPlatform()) !== "win32")) {
+      // Shell non confirmé POSIX : l'analyse POSIX ne vaut rien pour autoriser, seulement pour refuser.
+      const command = input.command;
+      const analysed = evaluatePolicyBash(policy, command);
+      if (analysed.decision === "deny") return analysed;
+      return evaluateUnanalyzable(policy, tool);
+    }
     const command = input.command;
     if (typeof command !== "string") {
-      return { decision: stricter("ask", policy.default), reason: "commande absente", rule: null };
+      return {
+        decision: stricter("ask", policy.default),
+        reason: reason("bash.missingCommand"),
+        rule: null,
+      };
     }
     return evaluateBash(policy, command);
   }
   return (
     firstMatch(policy.rules, (r) => r.command === undefined && toolMatches(r, tool)) ?? {
       decision: policy.default,
-      reason: `aucune règle pour l'outil ${tool}`,
+      reason: reason("policy.default", { tool }),
       rule: null,
     }
   );
@@ -360,29 +396,45 @@ export function evaluatePolicy(
 
 const DECISIONS = new Set<string>(["allow", "ask", "deny"]);
 
-/** Valide une politique issue d'un fichier JSON. Lève une erreur explicite. */
+/**
+ * Valide une politique issue d'un fichier JSON. Lève une `ValidationError` (codes `policy.invalid.*`).
+ * Note : une règle `allow` sur l'outil `external_directory` est valide mais sans effet (ignorée par
+ * `evaluatePolicy`, qui ne l'autorise jamais automatiquement) ; aucun mécanisme d'avertissement de
+ * chargement n'existe pour une politique valide, donc elle est acceptée silencieusement.
+ */
 export function parsePolicy(raw: unknown): Policy {
-  const fail = (msg: string): never => {
-    throw new Error(`politique invalide : ${msg}`);
-  };
-  if (typeof raw !== "object" || raw === null) fail("objet attendu");
+  if (typeof raw !== "object" || raw === null) throw new ValidationError("policy.invalid.object");
   const obj = raw as Record<string, unknown>;
   const def = obj.default ?? "ask";
-  if (typeof def !== "string" || !DECISIONS.has(def)) fail(`default « ${String(def)} »`);
-  if (!Array.isArray(obj.rules)) fail("rules doit être un tableau");
+  if (typeof def !== "string" || !DECISIONS.has(def)) {
+    throw new ValidationError("policy.invalid.default", { value: String(def) });
+  }
+  if (!Array.isArray(obj.rules)) throw new ValidationError("policy.invalid.rules");
 
-  const rules = (obj.rules as unknown[]).map((r, i): PolicyRule => {
-    if (typeof r !== "object" || r === null) return fail(`rules[${i}] objet attendu`);
-    const { tool, command, decision, reason } = r as Record<string, unknown>;
-    if (typeof tool !== "string" || tool === "") fail(`rules[${i}].tool`);
-    if (typeof decision !== "string" || !DECISIONS.has(decision)) fail(`rules[${i}].decision`);
-    if (command !== undefined && typeof command !== "string") fail(`rules[${i}].command`);
-    if (reason !== undefined && typeof reason !== "string") fail(`rules[${i}].reason`);
+  const rules = (obj.rules as unknown[]).map((r, index): PolicyRule => {
+    const field = (name: string): never => {
+      throw new ValidationError("policy.invalid.ruleField", { index, field: name });
+    };
+    if (typeof r !== "object" || r === null) {
+      throw new ValidationError("policy.invalid.ruleObject", { index });
+    }
+    const { tool, command, decision, reason: text } = r as Record<string, unknown>;
+    if (typeof tool !== "string" || tool === "") field("tool");
+    if (typeof decision !== "string" || !DECISIONS.has(decision)) field("decision");
+    if (command !== undefined && typeof command !== "string") field("command");
+    // Joker : seulement `*` seul comme jeton entier (ADR 0003) ; sinon `rm -rf /work/*` serait un littéral trompeur.
+    if (
+      typeof command === "string" &&
+      command.split(/\s+/).some((t) => t.includes("*") && t !== "*")
+    ) {
+      throw new ValidationError("policy.invalid.commandWildcard", { index });
+    }
+    if (text !== undefined && typeof text !== "string") field("reason");
     return {
       tool: tool as string,
       decision: decision as RuleDecision,
       ...(command !== undefined && { command: command as string }),
-      ...(reason !== undefined && { reason: reason as string }),
+      ...(text !== undefined && { reason: text as string }),
     };
   });
 

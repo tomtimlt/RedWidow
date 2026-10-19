@@ -4,6 +4,8 @@
  * ne peut pas être résolu statiquement est signalé via `hazards`.
  */
 
+import { type Reason, reason } from "../reason.js";
+
 export type ShellHazard =
   | "substitution" // $(…), `…`, <(…), >(…)
   | "expansion" // $VAR, ${…}, globs et accolades non quotés, ~
@@ -18,7 +20,7 @@ export interface ParsedCommand {
   hazards: Set<ShellHazard>;
 }
 
-export type ParseResult = { ok: true; value: ParsedCommand } | { ok: false; error: string };
+export type ParseResult = { ok: true; value: ParsedCommand } | { ok: false; error: Reason };
 
 const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
 
@@ -75,7 +77,7 @@ export function parseShell(input: string): ParseResult {
         inToken = true;
         break;
       case "\\":
-        if (next === undefined) return { ok: false, error: "backslash final" };
+        if (next === undefined) return { ok: false, error: reason("shell.trailingBackslash") };
         if (next !== "\n") {
           token += next;
           inToken = true;
@@ -148,7 +150,7 @@ export function parseShell(input: string): ParseResult {
     }
   }
 
-  if (quote !== null) return { ok: false, error: `guillemet ${quote} non fermé` };
+  if (quote !== null) return { ok: false, error: reason("shell.unclosedQuote", { quote }) };
   pushSegment();
   if (segments.some(runsOtherCommand)) hazards.add("indirection");
   return { ok: true, value: { segments, hazards } };
@@ -161,6 +163,7 @@ const WRAPPERS = new Set([
   "zsh",
   "dash",
   "ksh",
+  "ash",
   "fish",
   "env",
   "xargs",
@@ -179,18 +182,67 @@ const WRAPPERS = new Set([
   "setsid",
   "stdbuf",
   "script",
+  "awk",
+  "gawk",
+  "mawk",
+  "nawk",
+  "ionice",
+  "chroot",
+  "unshare",
+  "nsenter",
+  "flock",
+  "taskset",
+  "chrt",
+  "runuser",
+  "setpriv",
+  "strace",
+  "ltrace",
+  "gdb",
+  "expect",
+  "tclsh",
+  // Windows : interpréteurs et lanceurs qui exécutent une autre commande
+  "cmd",
+  "powershell",
+  "pwsh",
+  "wsl",
+  "start",
+  "runas",
+  "cscript",
+  "wscript",
+  "mshta",
+  "rundll32",
+  "forfiles",
+  "conhost",
+  "schtasks",
 ]);
 const FIND_EXEC = new Set(["-exec", "-execdir", "-ok", "-okdir", "-delete"]);
 
-/** Nom de base d'un programme, `/usr/bin/env` → `env`. */
+/** Extensions exécutables Windows retirées du nom d'un programme (`cmd.exe`, `x.ps1`…). */
+const PROGRAM_EXTENSION = /\.(exe|cmd|bat|com|ps1)$/;
+
+/**
+ * Nom de base d'un programme, `/usr/bin/env` → `env`, `C:\Windows\System32\CMD.EXE` → `cmd`.
+ * `/` et `\` séparent ; casse ignorée ; points et espaces finaux retirés (Windows les ignore :
+ * `cmd.exe.` lance `cmd.exe`) ; flux NTFS `::$data` retiré ; une extension exécutable Windows est retirée.
+ */
 export function programName(word: string | undefined): string {
-  return (
-    (word ?? "")
-      .split(/[\\/]/)
-      .pop()
-      ?.toLowerCase()
-      .replace(/\.exe$/, "") ?? ""
-  );
+  const base = (word ?? "").split(/[\\/]/).pop() ?? "";
+  return base
+    .toLowerCase()
+    .replace(/::\$data$/, "")
+    .replace(/[. ]+$/, "")
+    .replace(PROGRAM_EXTENSION, "");
+}
+
+/** Interpréteurs de langage (en plus des enveloppes `WRAPPERS`) : ils exécutent du code arbitraire. */
+const INTERPRETER_PROGRAMS = /^(python[\d.]*|node|nodejs|deno|bun|perl|ruby|php|lua|busybox)$/;
+
+/**
+ * `true` si `argv[0]` est un interpréteur ou une enveloppe (`sh`, `python3`, `env`, `find -exec`…) :
+ * le motif de commande ne dit pas ce qui sera réellement exécuté. Sert au bac à sable (ADR 0003 D).
+ */
+export function isInterpreterArgv(argv: readonly string[]): boolean {
+  return runsOtherCommand(argv) || INTERPRETER_PROGRAMS.test(programName(argv[0]));
 }
 
 function runsOtherCommand(argv: readonly string[]): boolean {
@@ -207,12 +259,25 @@ function runsOtherCommand(argv: readonly string[]): boolean {
  *   "docker ps"          → docker ps
  *   "docker logs *"      → docker logs, docker logs -f web, …
  *   "docker * --help"    → docker run --help, docker ps --help
+ *
+ * `lenientProgram` (règles `deny` seulement) compare aussi le nom normalisé du programme
+ * (`programName`) : `rm.exe`, `/usr/bin/rm`, `"C:\x\rm.exe"` correspondent à `rm *`. Jamais pour
+ * `allow` : un `./docker.exe` du dépôt ne doit pas hériter d'une autorisation `docker ps *`.
  */
-export function matchCommand(pattern: string, argv: readonly string[]): boolean {
+export function matchCommand(
+  pattern: string,
+  argv: readonly string[],
+  lenientProgram = false,
+): boolean {
   const parts = pattern.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return false;
   const trailing = parts[parts.length - 1] === "*";
   const fixed = trailing ? parts.slice(0, -1) : parts;
   if (trailing ? argv.length < fixed.length : argv.length !== fixed.length) return false;
-  return fixed.every((p, i) => p === "*" || p === argv[i]);
+  return fixed.every(
+    (p, i) =>
+      p === "*" ||
+      p === argv[i] ||
+      (i === 0 && lenientProgram && programName(p) === programName(argv[0])),
+  );
 }
