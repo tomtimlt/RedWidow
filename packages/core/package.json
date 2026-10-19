@@ -2,6 +2,7 @@
   "name": "@warband/core",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "Moteur warband : boucle d'agent, approbation, journal JSONL, graphe d'événements. Aucune dépendance d'affichage.",
   "type": "module",
   "engines": {

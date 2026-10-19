@@ -2,7 +2,8 @@
   "name": "@warband/agent-sdk",
   "version": "0.1.0",
   "private": true,
-  "description": "Adaptateur du Claude Agent SDK pour le c\u0153ur warband : impl\u00e9mente AgentRunner, outils MCP docker.",
+  "license": "MIT",
+  "description": "Adaptateur du Claude Agent SDK pour le cœur warband : implémente AgentRunner, outils MCP docker.",
   "type": "module",
   "engines": {
     "node": ">=22.12"

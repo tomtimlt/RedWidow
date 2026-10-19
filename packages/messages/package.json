@@ -2,6 +2,7 @@
   "name": "@warband/messages",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "Libellés de warband : traduit les codes du cœur (motifs, erreurs, événements) en texte lisible.",
   "type": "module",
   "engines": {
