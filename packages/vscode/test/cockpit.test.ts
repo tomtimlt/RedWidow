@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { CodedError, ValidationError } from "@warband/core";
+import { formatError } from "@warband/messages";
 import { describe, expect, it } from "vitest";
 import { parseWebviewMessage } from "../src/logic/approval.js";
 import {
@@ -11,8 +12,10 @@ import {
   loadCockpitView,
   parseCockpitMessage,
   planEditorShell,
+  prepareTerminal,
   sortContainers,
   terminalLaunch,
+  type WorkspaceRun,
 } from "../src/logic/cockpit.js";
 import { chatHtml, cockpitHtml, makeNonce } from "../src/logic/html.js";
 
@@ -141,6 +144,75 @@ describe("terminalLaunch", () => {
       expect(() => terminalLaunch(name, docker)).toThrow(ValidationError);
     },
   );
+});
+
+describe("prepareTerminal", () => {
+  const docker = "/usr/bin/docker";
+  const mkdirOf = (name: string) => ["exec", "-u", "root", name, "mkdir", "-p", "/workspace"];
+
+  const recording = (
+    code = 0,
+    stderr: readonly string[] = [],
+  ): {
+    run: WorkspaceRun;
+    calls: string[][];
+  } => {
+    const calls: string[][] = [];
+    return {
+      calls,
+      run: async (argv) => {
+        calls.push([...argv]);
+        return { code, stderr };
+      },
+    };
+  };
+
+  it("crée /workspace avec le nom réel, puis le shell inchangé", async () => {
+    const { run, calls } = recording();
+    const launched = await prepareTerminal("frosty_margulis", docker, ["/bin/bash"], run);
+    expect(calls).toEqual([mkdirOf("frosty_margulis")]);
+    const argv = calls[0] ?? [];
+    expect(argv).not.toContain("--workdir");
+    expect(argv).not.toContain("--privileged");
+    expect(argv).not.toContain("--network");
+    expect(argv).not.toContain("--volume");
+    expect(argv).not.toContain("--mount");
+    expect(argv).not.toContain("-v");
+    expect(launched).toEqual(terminalLaunch("frosty_margulis", docker));
+  });
+
+  it("n'exécute pas un nom refusé", async () => {
+    const { run, calls } = recording();
+    await expect(prepareTerminal("--privileged", docker, ["/bin/bash"], run)).rejects.toThrow(
+      ValidationError,
+    );
+    expect(calls).toEqual([]);
+  });
+
+  it("mkdir en échec : docker.failed avec la sortie, pas de shell", async () => {
+    const { run } = recording(1, ["mkdir: Permission denied"]);
+    const error = await prepareTerminal("frosty_margulis", docker, ["/bin/bash"], run).then(
+      () => null,
+      (err: unknown) => err,
+    );
+    expect(error).toBeInstanceOf(CodedError);
+    if (!(error instanceof CodedError)) return;
+    expect(error.code).toBe("docker.failed");
+    expect(error.params).toMatchObject({
+      command: "exec",
+      exitCode: 1,
+      stderr: "mkdir: Permission denied",
+    });
+    expect(formatError(error)).toBe("docker exec a échoué (code 1) : mkdir: Permission denied");
+  });
+
+  it("docker absent : pas d'exec", async () => {
+    const { run, calls } = recording();
+    await expect(
+      prepareTerminal("frosty_margulis", null, ["/bin/bash"], run),
+    ).rejects.toMatchObject({ code: "process.notFound" });
+    expect(calls).toEqual([]);
+  });
 });
 
 describe("parseCockpitMessage", () => {

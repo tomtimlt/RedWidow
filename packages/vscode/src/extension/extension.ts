@@ -29,7 +29,7 @@ import {
   loadCockpitView,
   parseCockpitMessage,
   planEditorShell,
-  terminalLaunch,
+  prepareTerminal,
 } from "../logic/cockpit.js";
 import { createJournalFiles } from "../logic/historyStore.js";
 import { chatHtml, cockpitHtml, makeNonce, studioHtml } from "../logic/html.js";
@@ -300,7 +300,7 @@ export function activate(context: vscode.ExtensionContext): void {
   };
 
   /**
-   * Shell interactif Exegol dans l'éditeur (`terminalLaunch`, transient). Ne suit que les terminaux
+   * Shell interactif dans l'éditeur (`prepareTerminal`, transient). Ne suit que les terminaux
    * créés ici pour le nom réel résolu.
    */
   const openEditorShell = async (token: string): Promise<"skip" | "ok"> => {
@@ -339,7 +339,7 @@ export function activate(context: vscode.ExtensionContext): void {
       // Session journalisée dans le conteneur : indépendant de l'hôte (Windows, macOS, Linux).
       const logPath =
         token === null ? null : containerLogPath(token, randomBytes(4).toString("hex"));
-      const { shellPath, shellArgs } = terminalLaunch(
+      const { shellPath, shellArgs } = await prepareTerminal(
         plan.name,
         undefined,
         logPath === null ? undefined : capturedShell(logPath),

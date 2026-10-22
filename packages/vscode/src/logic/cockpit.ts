@@ -11,6 +11,7 @@ import {
   lookupContainer,
   readProject,
   resolveBinary,
+  runProcess,
   shortContainerName,
   status,
 } from "@warband/core";
@@ -134,6 +135,57 @@ export function terminalLaunch(
   const shellArgs = ["exec", "--interactive", "--tty", "--workdir", "/workspace", name, ...program];
   assertSafeExecArgv(shellArgs);
   return { shellPath: dockerPath, shellArgs };
+}
+
+/** Résultat d'un `docker exec` de préparation, sans lancer Docker dans les tests. */
+export type WorkspaceRun = (
+  argv: readonly string[],
+) => Promise<{ code: number | null; stderr: readonly string[] }>;
+
+/**
+ * Crée `/workspace` s'il manque, avant un exec qui s'y place.
+ * `docker exec -u root <nom> mkdir -p /workspace` : pas de `--workdir`, pas de volume,
+ * pas de `--privileged`, pas de réseau. `name` est le nom réel déjà lu dans la liste.
+ */
+function workspaceMkdirArgv(name: string): readonly string[] {
+  return ["exec", "-u", "root", name, "mkdir", "-p", "/workspace"];
+}
+
+const runWorkspaceMkdir = async (
+  dockerPath: string,
+  argv: readonly string[],
+): Promise<{ code: number | null; stderr: readonly string[] }> => {
+  const result = await runProcess([dockerPath, ...argv], {
+    recorder: createRecorder(),
+    parentId: null,
+    timeoutMs: 15_000,
+  });
+  return { code: result.code, stderr: result.stderr };
+};
+
+/**
+ * Prépare le shell : crée `/workspace` puis renvoie l'argv de `terminalLaunch`.
+ * Le nom n'est pas reconstruit. Échec de `mkdir` : `docker.failed`, avec la sortie d'erreur.
+ */
+export async function prepareTerminal(
+  container: string,
+  dockerPath: string | null = resolveBinary("docker"),
+  program: readonly string[] = ["/bin/bash"],
+  run?: WorkspaceRun,
+): Promise<{ shellPath: string; shellArgs: readonly string[] }> {
+  if (dockerPath === null) throw new CodedError("process.notFound", { binary: "docker" });
+  const name = assertOperand(container, "container");
+  const argv = workspaceMkdirArgv(name);
+  const result = await (run ?? ((args) => runWorkspaceMkdir(dockerPath, args)))(argv);
+  if (result.code !== 0) {
+    throw new CodedError("docker.failed", {
+      binary: "docker",
+      command: "exec",
+      exitCode: result.code ?? "null",
+      stderr: result.stderr.join("\n"),
+    });
+  }
+  return terminalLaunch(name, dockerPath, program);
 }
 
 /** Plafond de shells d'éditeur par conteneur Docker réel. */
