@@ -74,8 +74,8 @@ async function writeProjectAtomic(configDir: string, project: StoredProject): Pr
 }
 
 /**
- * Lie le projet au conteneur `name` (déjà listé par `listLabelPrefix`). Remplace
- * tout fichier existant.
+ * Lie le projet au conteneur Exegol `name` (déjà listé par `listLabelPrefix`).
+ * Une autre famille est refusée. Remplace tout fichier existant.
  */
 export async function link(
   configDir: string,
@@ -85,6 +85,7 @@ export async function link(
   const rows = await docker.listLabelPrefix();
   const row = rows.find((r) => r.name === name);
   if (row === undefined) throw new CodedError("project.notFound", { name });
+  if (row.family !== "exegol") throw new CodedError("project.notExegol", { name });
   if (row.state !== "running") throw new CodedError("project.notRunning", { name });
   if (row.workspace === undefined) throw new CodedError("project.noWorkspace", { name });
   await writeProjectAtomic(configDir, { container: name, workspace: row.workspace });

@@ -489,13 +489,7 @@ function start() {
       const sec = el("section", "studio-card");
       sec.append(el("h2", "", "Projet"));
       if (!view.linkedBanner) {
-        sec.append(
-          el(
-            "p",
-            "studio-help",
-            "Aucun conteneur dédié. Lance-en un avec /start <nom> dans le chat.",
-          ),
-        );
+        sec.append(el("p", "studio-help", "Aucun conteneur dédié. Créez-en un dans le cockpit."));
       } else {
         const b = view.linkedBanner;
         sec.append(el("p", "studio-kicker", "DÉDIÉ"));
@@ -540,7 +534,7 @@ function start() {
         }
         sec.append(ul);
         if ((view.containers ?? []).length === 0) {
-          sec.append(el("p", "studio-help", "Aucun conteneur. /start <nom> dans le chat."));
+          sec.append(el("p", "studio-help", "Aucun conteneur. Créez-en un dans le cockpit."));
         }
       }
       main.append(sec);

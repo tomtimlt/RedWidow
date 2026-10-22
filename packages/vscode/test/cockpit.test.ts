@@ -6,6 +6,8 @@ import { parseWebviewMessage } from "../src/logic/approval.js";
 import {
   containerMentions,
   controlListedContainer,
+  imageRefs,
+  listCockpitImages,
   loadCockpitView,
   parseCockpitMessage,
   planEditorShell,
@@ -155,7 +157,24 @@ describe("parseCockpitMessage", () => {
       type: "stop",
       name: "exegol-htb1",
     });
-    expect(parseCockpitMessage({ type: "create" })).toEqual({ type: "create" });
+    expect(parseCockpitMessage({ type: "listImages" })).toEqual({ type: "listImages" });
+    expect(parseCockpitMessage({ type: "pickSource" })).toEqual({ type: "pickSource" });
+    expect(parseCockpitMessage({ type: "createExegol", name: "htb1" })).toEqual({
+      type: "createExegol",
+      name: "htb1",
+    });
+  });
+
+  it("le message Kali parsé égale image, name et source", () => {
+    const image = "kalilinux/kali-rolling:latest";
+    const name = "lab";
+    const source = "/home/me/lab";
+    expect(parseCockpitMessage({ type: "createKali", image, name, source })).toEqual({
+      type: "createKali",
+      image,
+      name,
+      source,
+    });
   });
 
   it("refuse clés en trop, types chat et formes invalides", () => {
@@ -165,19 +184,76 @@ describe("parseCockpitMessage", () => {
     expect(parseCockpitMessage({ type: "link", name: "" })).toBeNull();
     expect(parseCockpitMessage({ type: "start", name: "a", extra: 1 })).toBeNull();
     expect(parseCockpitMessage({ type: "stop" })).toBeNull();
+    expect(parseCockpitMessage({ type: "create" })).toBeNull();
     expect(parseCockpitMessage({ type: "create", name: "htb1" })).toBeNull();
+    expect(parseCockpitMessage({ type: "listImages", extra: true })).toBeNull();
+    expect(parseCockpitMessage({ type: "pickSource", source: "/tmp" })).toBeNull();
     expect(parseWebviewMessage({ type: "start", name: "a" })).toBeNull();
     expect(parseWebviewMessage({ type: "create" })).toBeNull();
     expect(parseWebviewMessage({ type: "refresh" })).toBeNull();
     expect(parseWebviewMessage({ type: "link", name: "c" })).toBeNull();
+    expect(
+      parseWebviewMessage({
+        type: "createKali",
+        image: "kali:latest",
+        name: "lab",
+        source: "/tmp",
+      }),
+    ).toBeNull();
+  });
+
+  it("le message Exegol n'a que name", () => {
+    expect(
+      parseCockpitMessage({ type: "createExegol", name: "htb1", image: "kali:latest" }),
+    ).toBeNull();
+    expect(parseCockpitMessage({ type: "createExegol", name: "htb1", source: "/tmp" })).toBeNull();
+    expect(parseCockpitMessage({ type: "createExegol" })).toBeNull();
+    expect(parseCockpitMessage({ type: "createExegol", name: "" })).toBeNull();
+    expect(parseCockpitMessage({ type: "createExegol", name: "-bad" })).toBeNull();
+    expect(parseCockpitMessage({ type: "createExegol", name: "a".repeat(65) })).toBeNull();
+    expect(parseCockpitMessage({ type: "createExegol", name: "a".repeat(64) })).toEqual({
+      type: "createExegol",
+      name: "a".repeat(64),
+    });
+  });
+
+  it("refuse un Kali incomplet, une image hors motif ou une source illisible", () => {
+    const ok = { type: "createKali", image: "kali:latest", name: "lab", source: "/tmp/lab" };
+    expect(parseCockpitMessage({ ...ok, extra: 1 })).toBeNull();
+    expect(
+      parseCockpitMessage({ type: "createKali", image: "kali:latest", name: "lab" }),
+    ).toBeNull();
+    expect(parseCockpitMessage({ ...ok, image: "" })).toBeNull();
+    expect(parseCockpitMessage({ ...ok, name: "" })).toBeNull();
+    expect(parseCockpitMessage({ ...ok, source: "" })).toBeNull();
+    expect(parseCockpitMessage({ ...ok, image: "-kali" })).toBeNull();
+    expect(parseCockpitMessage({ ...ok, image: "a".repeat(257) })).toBeNull();
+    expect(parseCockpitMessage({ ...ok, image: "a".repeat(256) })).toEqual({
+      ...ok,
+      image: "a".repeat(256),
+    });
+    expect(parseCockpitMessage({ ...ok, source: "a\nb" })).toBeNull();
+    expect(parseCockpitMessage({ ...ok, source: "a\0b" })).toBeNull();
+    expect(parseCockpitMessage({ ...ok, source: "a\rb" })).toBeNull();
+    expect(parseCockpitMessage({ ...ok, source: "a".repeat(4096) })).toEqual({
+      ...ok,
+      source: "a".repeat(4096),
+    });
+    expect(parseCockpitMessage({ ...ok, source: "a".repeat(4097) })).toBeNull();
   });
 });
 
 describe("loadCockpitView", () => {
   const rows = [
-    { state: "stopped" as const, name: "b", image: "i:2" },
-    { state: "running" as const, name: "a", image: "i:1", workspace: "/host/ws" },
-    { state: "running" as const, name: "c", image: "i:3" },
+    { state: "stopped" as const, name: "b", image: "i:2", family: "exegol" as const },
+    {
+      state: "running" as const,
+      name: "a",
+      image: "i:1",
+      workspace: "/host/ws",
+      family: "exegol" as const,
+    },
+    { state: "running" as const, name: "c", image: "i:3", family: "exegol" as const },
   ];
 
   it("docker absent : message dédié, pas d'erreur projet", async () => {
@@ -230,11 +306,37 @@ describe("loadCockpitView", () => {
     const stopped = view.containers.find((c) => c.name === "b");
     expect(stopped?.canLink).toBe(false);
     expect(stopped?.linkTitle).toBe("Conteneur arrêté");
+    expect(stopped?.family).toBe("exegol");
     const noWs = view.containers.find((c) => c.name === "c");
     expect(noWs?.linkTitle).toBe("Sans montage /workspace");
+    expect(noWs?.canLink).toBe(false);
+    expect(noWs?.family).toBe("exegol");
     const linked = view.containers.find((c) => c.name === "a");
     expect(linked?.linked).toBe(true);
     expect(linked?.canLink).toBe(false);
+    expect(linked?.family).toBe("exegol");
+  });
+
+  it("kali en cours avec workspace : pas de lien", async () => {
+    const view = await loadCockpitView({
+      resolveBin: (n) => (n === "docker" ? "/d/docker" : null),
+      readProj: async () => null,
+      createDocker: () => ({
+        listLabelPrefix: async () => [
+          {
+            state: "running" as const,
+            name: "kali-box",
+            image: "kalilinux/kali-rolling",
+            workspace: "/host/kali",
+            family: "kali" as const,
+          },
+        ],
+      }),
+    });
+    const kali = view.containers.find((c) => c.name === "kali-box");
+    expect(kali?.family).toBe("kali");
+    expect(kali?.canLink).toBe(false);
+    expect(kali?.linkTitle).toBe("On ne lie pas un Kali");
   });
 
   it("project.invalid : indicateur sans liste", async () => {
@@ -250,7 +352,12 @@ describe("loadCockpitView", () => {
 });
 
 describe("controlListedContainer", () => {
-  const row = { state: "stopped" as const, name: "exegol-htb1", image: "i" };
+  const row = {
+    state: "stopped" as const,
+    name: "exegol-htb1",
+    image: "i",
+    family: "exegol" as const,
+  };
 
   it("démarre le nom réel de la liste, pas un préfixe collé", async () => {
     const calls: string[] = [];
@@ -264,6 +371,27 @@ describe("controlListedContainer", () => {
       }),
     });
     expect(calls).toEqual(["exegol-htb1"]);
+  });
+
+  it("démarre un Kali arrêté par le nom de la liste", async () => {
+    const calls: string[] = [];
+    await controlListedContainer("start", "kali-box", {
+      createDocker: () => ({
+        listLabelPrefix: async () => [
+          {
+            state: "stopped" as const,
+            name: "kali-box",
+            image: "kalilinux/kali-rolling",
+            family: "kali" as const,
+          },
+        ],
+        start: async (name) => void calls.push(name),
+        stop: async () => {
+          throw new Error("stop");
+        },
+      }),
+    });
+    expect(calls).toEqual(["kali-box"]);
   });
 
   it("refuse un nom absent et n'appelle pas docker", async () => {
@@ -314,9 +442,9 @@ describe("containerMentions", () => {
 describe("sortContainers", () => {
   it("en cours puis arrêté, puis nom", () => {
     const sorted = sortContainers([
-      { state: "stopped", name: "z", image: "i" },
-      { state: "running", name: "b", image: "i" },
-      { state: "running", name: "a", image: "i" },
+      { state: "stopped", name: "z", image: "i", family: "exegol" },
+      { state: "running", name: "b", image: "i", family: "kali" },
+      { state: "running", name: "a", image: "i", family: "exegol" },
     ]);
     expect(sorted.map((r) => r.name)).toEqual(["a", "b", "z"]);
   });
@@ -365,9 +493,38 @@ describe("cockpit.js", () => {
       expect(js, bad).not.toContain(bad);
     }
     expect(js).toContain("textContent");
+    expect(js).toContain("row.family");
     expect(js).toContain('type: "start"');
     expect(js).toContain('type: "stop"');
-    expect(js).toContain('type: "create"');
+    expect(js).toContain('type: "createExegol"');
+    expect(js).toContain('type: "createKali"');
+    expect(js).toContain('type: "listImages"');
+    expect(js).toContain('type: "pickSource"');
+    expect(js).not.toContain('type: "create"');
+    expect(js).toContain("Aucun conteneur.");
     expect(js).toContain("row.short");
+  });
+});
+
+describe("imageRefs", () => {
+  it("prend repository:tag, sinon l'id, dédoublonne et trie", () => {
+    expect(
+      imageRefs([
+        { id: "bbb", repository: "<none>", tag: "latest" },
+        { id: "aaa", repository: "kali", tag: "<none>" },
+        { id: "ccc", repository: "kalilinux/kali-rolling", tag: "latest" },
+        { id: "ddd", repository: "kalilinux/kali-rolling", tag: "latest" },
+        { id: "eee", repository: "alpine", tag: "3" },
+      ]),
+    ).toEqual(["aaa", "alpine:3", "bbb", "kalilinux/kali-rolling:latest"]);
+  });
+
+  it("passe par images() du client injecté", async () => {
+    const refs = await listCockpitImages({
+      createDocker: () => ({
+        images: async () => [{ id: "id1", repository: "kali", tag: "latest", size: "1" }],
+      }),
+    });
+    expect(refs).toEqual(["kali:latest"]);
   });
 });

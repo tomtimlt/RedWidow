@@ -8,7 +8,6 @@ import {
   createRecorder,
   lookupContainer,
   parseMentions,
-  parseSlashStart,
   promptForTargets,
   resolveExegolContainer,
   shortContainerName,
@@ -24,17 +23,11 @@ describe("cibles Exegol", () => {
     expect(parseMentions("rien ici")).toEqual([]);
   });
 
-  it("accepte /start nom et refuse les options", () => {
-    expect(parseSlashStart("/start htb1")).toBe("htb1");
-    expect(parseSlashStart("  /start htb-001  ")).toBe("htb-001");
-    expect(parseSlashStart("/start htb1 --desktop")).toBeNull();
-    expect(parseSlashStart("ping @htb1")).toBeNull();
-  });
-
   const boxes = [{ name: "lab" }, { name: "htb1" }, { name: "htb2" }, { name: "exegol-htb1" }];
+  const exegol = (name: string) => ({ name, family: "exegol" as const });
 
   it("borne le conteneur au dédié ou aux @ présents dans la liste", () => {
-    const listed = [{ name: "lab" }, { name: "htb1" }, { name: "htb2" }];
+    const listed = [exegol("lab"), exegol("htb1"), exegol("htb2")];
     expect(resolveExegolContainer({ dedicated: "lab", mentions: [] }, "lab", listed)).toBe("lab");
     expect(() =>
       resolveExegolContainer({ dedicated: "lab", mentions: [] }, "autre", listed),
@@ -51,7 +44,7 @@ describe("cibles Exegol", () => {
     expect(shortContainerName("exegol-htb1")).toBe("htb1");
     expect(shortContainerName("htb1")).toBe("htb1");
     expect(shortContainerName("exegol-exegol-htb1")).toBe("exegol-htb1");
-    const listed = [{ name: "exegol-htb1" }];
+    const listed = [exegol("exegol-htb1")];
     expect(lookupContainer("htb1", listed)).toBe("exegol-htb1");
     expect(lookupContainer("htb1", [])).toBeNull();
     expect(lookupContainer("exegol-htb1", [{ name: "htb1" }])).toBeNull();
@@ -65,6 +58,24 @@ describe("cibles Exegol", () => {
       resolveExegolContainer({ dedicated: null, mentions: ["htb1"] }, "exegol-exegol-htb1", listed),
     ).toThrow(expect.objectContaining({ code: "exegol.containerDenied" }));
     expect(lookupContainer("htb1", boxes)).toBeNull();
+  });
+
+  it("refuse un Kali et une entrée sans family", () => {
+    const kali = [{ name: "lab", family: "kali" as const }];
+    const bare = [{ name: "lab" }];
+    const denied = { code: "exegol.containerDenied" };
+    expect(() => resolveExegolContainer({ dedicated: "lab", mentions: [] }, "lab", kali)).toThrow(
+      expect.objectContaining(denied),
+    );
+    expect(() =>
+      resolveExegolContainer({ dedicated: null, mentions: ["lab"] }, "lab", kali),
+    ).toThrow(expect.objectContaining(denied));
+    expect(() => resolveExegolContainer({ dedicated: "lab", mentions: [] }, "lab", bare)).toThrow(
+      expect.objectContaining(denied),
+    );
+    expect(() =>
+      resolveExegolContainer({ dedicated: null, mentions: ["lab"] }, "lab", bare),
+    ).toThrow(expect.objectContaining(denied));
   });
 
   it("note la cible du message", () => {

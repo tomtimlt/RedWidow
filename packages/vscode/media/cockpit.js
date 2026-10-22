@@ -97,8 +97,137 @@
     return t;
   };
 
+  // État du formulaire, hors du DOM : un rafraîchissement reconstruit la vue sans l'effacer.
+  const form = {
+    touched: false,
+    engine: null,
+    name: "",
+    image: "",
+    source: "",
+    images: [],
+    imagesAsked: false,
+  };
+  let lastView = null;
+
+  const engineOf = (view) => {
+    if (view.exegol !== "present") return "kali";
+    if (form.touched && (form.engine === "exegol" || form.engine === "kali")) return form.engine;
+    return "exegol";
+  };
+
+  const askImages = () => {
+    if (form.imagesAsked) return;
+    form.imagesAsked = true;
+    vscode.postMessage({ type: "listImages" });
+  };
+
+  const rerender = () => {
+    if (lastView) render(lastView);
+  };
+
+  const fillSelect = (select) => {
+    while (select.firstChild) select.removeChild(select.firstChild);
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.disabled = true;
+    placeholder.textContent = "—";
+    select.append(placeholder);
+    for (const ref of form.images) {
+      const opt = document.createElement("option");
+      opt.value = ref;
+      opt.textContent = ref;
+      select.append(opt);
+    }
+    select.value = form.images.includes(form.image) ? form.image : "";
+  };
+
+  const labeled = (text, control) => {
+    const wrap = el("label", "cockpit-field");
+    wrap.append(el("span", "cockpit-field-label", text), control);
+    return wrap;
+  };
+
+  function renderCreate(view) {
+    const engine = engineOf(view);
+    const section = el("section", "cockpit-create");
+    section.setAttribute("aria-label", "Créer un conteneur");
+    section.append(heading("Créer un conteneur"));
+
+    const engines = el("div", "cockpit-actions");
+    const choices = view.exegol === "present" ? ["exegol", "kali"] : ["kali"];
+    const labels = { exegol: "Exegol", kali: "Kali" };
+    for (const choice of choices) {
+      const selected = choice === engine;
+      const b = button(selected ? "primary" : "secondary", labels[choice], undefined, () => {
+        if (choice === "kali") form.imagesAsked = false;
+        if (choice === engine && choice !== "kali") return;
+        form.touched = true;
+        form.engine = choice;
+        rerender();
+      });
+      b.setAttribute("aria-pressed", selected ? "true" : "false");
+      engines.append(b);
+    }
+
+    const fields = el("div", "cockpit-fields");
+    const nameInput = el("input");
+    nameInput.type = "text";
+    nameInput.value = form.name;
+    nameInput.spellcheck = false;
+    nameInput.setAttribute("autocomplete", "off");
+    nameInput.addEventListener("input", () => {
+      form.name = nameInput.value;
+    });
+    fields.append(labeled("Nom", nameInput));
+
+    const imageSelect = el("select");
+    imageSelect.id = "cockpit-image";
+    fillSelect(imageSelect);
+    imageSelect.addEventListener("change", () => {
+      form.image = imageSelect.value;
+    });
+    if (engine !== "kali") imageSelect.disabled = true;
+    fields.append(labeled("Image", imageSelect));
+
+    const folderRow = el("div", "cockpit-actions");
+    folderRow.id = "cockpit-folder";
+    const folderBtn = button("secondary", "Dossier", "folder", () => {
+      vscode.postMessage({ type: "pickSource" });
+    });
+    if (engine !== "kali") folderBtn.disabled = true;
+    folderRow.append(folderBtn);
+    if (form.source !== "") {
+      const src = el("span", "cockpit-ellipsis cockpit-source");
+      src.id = "cockpit-source";
+      ellipsize(src, form.source, 64);
+      folderRow.append(src);
+    }
+    fields.append(folderRow);
+
+    const actions = el("div", "cockpit-actions");
+    actions.append(
+      button("primary", "Créer", undefined, () => {
+        const name = nameInput.value;
+        if (engine === "exegol") {
+          vscode.postMessage({ type: "createExegol", name });
+          return;
+        }
+        vscode.postMessage({
+          type: "createKali",
+          image: imageSelect.value,
+          name,
+          source: form.source,
+        });
+      }),
+    );
+    section.append(engines, fields, actions);
+    if (engine === "kali") askImages();
+    return section;
+  }
+
   function render(view) {
     if (!main) return;
+    lastView = view;
     while (main.firstChild) main.removeChild(main.firstChild);
 
     if (view.loading) {
@@ -129,14 +258,13 @@
     status.append(heading("Système"), grid);
     main.append(status);
 
-    if (view.error) {
-      main.append(el("p", "cockpit-error", view.error));
+    if (view.docker === "absent" || view.empty === "docker") {
+      main.append(el("p", "cockpit-notice", "Docker est absent."));
       return;
     }
 
-    if (view.empty === "docker") {
-      main.append(el("p", "cockpit-notice", "Docker est absent."));
-      return;
+    if (view.error) {
+      main.append(el("p", "cockpit-error", view.error));
     }
 
     // 2. Conteneur lié : carte principale, actions en tête de lecture.
@@ -171,11 +299,6 @@
       );
       if (b.state !== "running" || view.projectInvalid) termBtn.disabled = true;
       actions.append(termBtn);
-      if (b.state === "absent") {
-        actions.append(
-          button("primary", "Démarrer", "play", () => vscode.postMessage({ type: "create" })),
-        );
-      }
       actions.append(
         button("secondary", "Ouvrir le dossier", "folder", () =>
           vscode.postMessage({ type: "openWorkspace" }),
@@ -185,15 +308,12 @@
       linkedSec.append(card);
     }
     main.append(linkedSec);
+    main.append(renderCreate(view));
+
+    if (view.error) return;
 
     if (view.empty === "list") {
-      main.append(
-        el(
-          "p",
-          "cockpit-notice",
-          "Aucun conteneur. Lancez-en un hors de Warband, puis actualisez.",
-        ),
-      );
+      main.append(el("p", "cockpit-notice", "Aucun conteneur."));
       return;
     }
 
@@ -215,7 +335,11 @@
       const sub = el("div", "cockpit-row-sub");
       const im = el("span", "cockpit-ellipsis cockpit-row-image");
       ellipsize(im, row.image);
-      sub.append(el("span", "cockpit-row-state", stateLabel(row.state)), im);
+      sub.append(
+        el("span", "cockpit-row-state", stateLabel(row.state)),
+        el("span", "cockpit-muted", row.family),
+        im,
+      );
       if (row.workspace === undefined) {
         sub.append(el("span", "cockpit-muted cockpit-row-ws", "sans dossier"));
       }
@@ -258,9 +382,42 @@
     vscode.postMessage({ type: "refresh" });
   });
 
+  const applyImages = (images) => {
+    form.images = images;
+    const select = document.getElementById("cockpit-image");
+    if (!select) return;
+    fillSelect(select);
+  };
+
+  const applySource = (source) => {
+    form.source = source;
+    const node = document.getElementById("cockpit-source");
+    if (node) {
+      ellipsize(node, source, 64);
+      return;
+    }
+    const row = document.getElementById("cockpit-folder");
+    if (!row) return;
+    const src = el("span", "cockpit-ellipsis cockpit-source");
+    src.id = "cockpit-source";
+    ellipsize(src, source, 64);
+    row.append(src);
+  };
+
   window.addEventListener("message", (event) => {
     const msg = event.data;
-    if (typeof msg !== "object" || msg === null || msg.type !== "view") return;
+    if (typeof msg !== "object" || msg === null) return;
+    if (msg.type === "images") {
+      if (!Array.isArray(msg.images) || msg.images.some((item) => typeof item !== "string")) return;
+      applyImages(msg.images);
+      return;
+    }
+    if (msg.type === "pickedSource") {
+      if (typeof msg.source !== "string" || msg.source === "") return;
+      applySource(msg.source);
+      return;
+    }
+    if (msg.type !== "view") return;
     const loading = msg.loading === true;
     if (refreshBtn) refreshBtn.disabled = loading;
     render(msg);

@@ -1,4 +1,7 @@
-import { isAbsolute } from "node:path";
+import { realpathSync, statSync } from "node:fs";
+import { homedir } from "node:os";
+import { isAbsolute, join, normalize, parse, relative, sep } from "node:path";
+import { mountExposesSensitive } from "../approval/paths.js";
 import type { Correlation } from "../events.js";
 import { resolveBinary } from "../process/resolve.js";
 import { type ProcessResult, runProcess } from "../process/run.js";
@@ -118,24 +121,42 @@ export interface LabelPrefixContainer {
   name: string;
   image: string;
   workspace?: string;
+  /** Famille calculée par le parseur. Jamais lue depuis la ligne. */
+  family: "exegol" | "kali";
 }
 
-/** Format `docker inspect --format` pour `listLabelPrefix` (filtre côté démon, sans valeur de label). */
+/**
+ * Format `docker inspect --format` pour `listLabelPrefix`.
+ * N'imprime qu'un candidat Exegol, runtime Kali ou image contenant `kali`.
+ * Les booléens sont des littéraux ; aucune valeur de label n'est interpolée.
+ */
 export const DOCKER_LABEL_PREFIX_INSPECT_FORMAT = [
-  "{{$keep := false}}{{range $k, $v := .Config.Labels}}",
-  '{{if and (ge (len $k) 11) (eq (slice $k 0 11) "org.exegol.")}}{{$keep = true}}{{end}}{{end}}',
-  '{{if $keep}}{{$ws := ""}}{{range .Mounts}}',
+  '{{$exegol := false}}{{$runtime := false}}{{$img := gt (len (split .Config.Image "kali")) 1}}',
+  "{{range $k, $v := .Config.Labels}}",
+  '{{if and (ge (len $k) 11) (eq (slice $k 0 11) "org.exegol.")}}{{$exegol = true}}{{end}}',
+  '{{if and (eq $k "io.warband.runtime") (eq $v "kali")}}{{$runtime = true}}{{end}}{{end}}',
+  '{{if or $exegol $runtime $img}}{{$ws := ""}}{{range .Mounts}}',
   '{{if and (eq $ws "") (eq .Destination "/workspace") (ne .Source "")}}{{$ws = .Source}}{{end}}{{end}}',
   '{"state":"{{if eq .State.Status "running"}}running{{else}}stopped{{end}}"',
   ',"name":{{json .Name}},"image":{{json .Config.Image}}',
-  '{{if ne $ws ""}},"workspace":{{json $ws}}{{end}}}{{println}}{{end}}',
+  '{{if ne $ws ""}},"workspace":{{json $ws}}{{end}}',
+  '{{if $exegol}},"exegol":true{{end}}{{if $runtime}},"runtimeKali":true{{end}}}{{println}}{{end}}',
 ].join("");
 
-const LABEL_PREFIX_ALLOWED_KEYS = new Set(["state", "name", "image", "workspace"]);
+const LABEL_PREFIX_ALLOWED_KEYS = new Set([
+  "state",
+  "name",
+  "image",
+  "workspace",
+  "exegol",
+  "runtimeKali",
+]);
 
 /**
  * Parse la sortie de `docker inspect --format` de `listLabelPrefix` (un objet JSON par ligne).
- * Seules les clés `state`, `name`, `image` et éventuellement `workspace` sont acceptées.
+ * Clés admises : `state`, `name`, `image`, `workspace`, `exegol`, `runtimeKali`.
+ * `exegol` et `runtimeKali` sont absents ou `true`, et ne sont pas recopiés.
+ * Famille : `exegol`, sinon `runtimeKali`, sinon image contenant `kali`, sinon ligne ignorée.
  */
 export function parseDockerLabelPrefixInspect(
   lines: readonly string[],
@@ -166,12 +187,22 @@ export function parseDockerLabelPrefixInspect(
     if (name === "") throw unexpected();
     if (typeof record.image !== "string" || record.image === "") throw unexpected();
     const image = record.image;
+    let workspace: string | undefined;
     if ("workspace" in record) {
       if (typeof record.workspace !== "string" || record.workspace === "") throw unexpected();
-      out.push({ state, name, image, workspace: record.workspace });
-    } else {
-      out.push({ state, name, image });
+      workspace = record.workspace;
     }
+    if ("exegol" in record && record.exegol !== true) throw unexpected();
+    if ("runtimeKali" in record && record.runtimeKali !== true) throw unexpected();
+
+    let family: LabelPrefixContainer["family"] | undefined;
+    if (record.exegol === true) family = "exegol";
+    else if (record.runtimeKali === true) family = "kali";
+    else if (image.includes("kali")) family = "kali";
+    if (family === undefined) return;
+
+    if (workspace !== undefined) out.push({ state, name, image, workspace, family });
+    else out.push({ state, name, image, family });
   });
   return out;
 }
@@ -361,7 +392,7 @@ export interface DockerClient {
   start(container: string, options?: CallOptions): Promise<void>;
   stop(container: string, options?: CallOptions): Promise<void>;
   rm(container: string, options?: CallOptions & { force?: boolean }): Promise<void>;
-  /** Conteneurs dont un label a le préfixe `org.exegol.`. Aucune valeur de label ne sort du démon. */
+  /** Conteneurs des deux familles (`exegol`, `kali`). Aucune valeur de label ne sort du démon. */
   listLabelPrefix(options?: CallOptions): Promise<LabelPrefixContainer[]>;
   /**
    * `docker exec` figé : interactif, répertoire `/workspace`, argv direct.
@@ -374,13 +405,28 @@ export interface DockerClient {
   ): Promise<string[]>;
 }
 
+/** Options de `createKaliContainer`. Le nom est obligatoire. */
+export interface CreateKaliContainerOptions extends CallOptions {
+  image: string;
+  name: string;
+  source: string;
+}
+
+/**
+ * Création d'un conteneur Kali. Volontairement absente de `DockerClient` :
+ * l'outil `run` ne doit pas pouvoir monter l'hôte.
+ */
+export interface KaliContainerClient {
+  createKaliContainer(options: CreateKaliContainerOptions): Promise<string>;
+}
+
 export function createDockerClient({
   recorder,
   binary = "docker",
   argsPrefix = [],
   parentId: defaultParent = null,
   timeoutMs: defaultTimeoutMs = DEFAULT_TIMEOUT_MS,
-}: DockerClientOptions): DockerClient {
+}: DockerClientOptions): DockerClient & KaliContainerClient {
   assertBinary(binary);
   const prefix = assertArgsPrefix(argsPrefix);
   const exec = (
@@ -519,5 +565,124 @@ export function createDockerClient({
       );
       return [...r.stdout, ...r.stderr];
     },
+    async createKaliContainer({ image, name, source, ...call }) {
+      const img = assertOperand(image, "image");
+      const containerName = assertOperand(name, "name");
+      const real = resolveKaliSource(source);
+      const exposure = mountExposesSensitive(real, { cwd: real });
+      if (exposure !== null) invalidSource(exposure);
+      try {
+        if (!statSync(real).isDirectory()) invalidSource("notDirectory");
+      } catch (err) {
+        if (err instanceof ValidationError) throw err;
+        invalidSource("unsupported");
+      }
+      // Rien après l'image : l'entrée (dont /start) reste celle de l'image.
+      const r = await checked(
+        "run",
+        [
+          "run",
+          "--detach",
+          "--pull",
+          "never",
+          "--name",
+          containerName,
+          "--label",
+          "io.warband.runtime=kali",
+          "--network",
+          "bridge",
+          "--mount",
+          `type=bind,source=${real},target=/workspace`,
+          img,
+        ],
+        call,
+      );
+      return r.stdout[0]?.trim() ?? "";
+    },
   };
+}
+
+/** Refus de la source, sans y recopier le chemin. */
+function invalidSource(reason: string): never {
+  throw new ValidationError("docker.invalidArgument", { field: "source", reason });
+}
+
+function fsCode(err: unknown): string | undefined {
+  return typeof err === "object" && err !== null && "code" in err
+    ? String((err as { code: unknown }).code)
+    : undefined;
+}
+
+/** `,`, NUL, CR ou LF casseraient le `--mount` ou l'argv. */
+function hasMountDelimiter(p: string): boolean {
+  return p.includes(",") || p.includes("\0") || p.includes("\r") || p.includes("\n");
+}
+
+/** Forme lexicale comparable : `.` et `..` réduits, sans séparateur final hors racine. */
+function lexicalPath(p: string): string {
+  const n = normalize(p);
+  const root = parse(n).root;
+  if (n === root) return n;
+  let end = n.length;
+  while (end > root.length) {
+    const ch = n[end - 1];
+    if (ch !== "/" && ch !== "\\") break;
+    end -= 1;
+  }
+  return n.slice(0, end);
+}
+
+function foldPath(p: string): string {
+  return process.platform === "win32" || process.platform === "darwin" ? p.toLowerCase() : p;
+}
+
+/** Racine de lecteur ou `/`. Contrôlée avant les sockets : elle les contient tous. */
+function isFsRoot(p: string): boolean {
+  const n = lexicalPath(p);
+  return n !== "" && n === parse(n).root;
+}
+
+function containsPath(parent: string, child: string): boolean {
+  const rel = relative(foldPath(lexicalPath(parent)), foldPath(lexicalPath(child)));
+  if (rel === "") return true;
+  return rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
+}
+
+/**
+ * Socket Docker égal au chemin, situé dessous, ou dont le chemin est un enfant.
+ * `homedir()` est lu au moment de l'appel.
+ */
+function isDockerSocket(p: string): boolean {
+  const sockets = [
+    "/var/run/docker.sock",
+    "/run/docker.sock",
+    "/private/var/run/docker.sock",
+    join(homedir(), ".docker", "run", "docker.sock"),
+    "\\\\.\\pipe\\docker_engine",
+  ];
+  return sockets.some((sock) => containsPath(p, sock) || containsPath(sock, p));
+}
+
+/**
+ * Valide la source et renvoie son chemin réel. Aucun spawn.
+ * Première erreur seule : délimiteurs, absolu, racine et socket lexicaux,
+ * `realpath`, puis les mêmes contrôles sur le réel.
+ */
+function resolveKaliSource(source: string): string {
+  if (hasMountDelimiter(source)) invalidSource("delimiter");
+  if (!isAbsolute(source)) invalidSource("relative");
+  if (isFsRoot(source)) invalidSource("root");
+  if (isDockerSocket(source)) invalidSource("socket");
+  let real: string;
+  try {
+    real = realpathSync.native(source);
+  } catch (err) {
+    const code = fsCode(err);
+    if (code === "ENOENT" || code === "ENOTDIR") invalidSource("missing");
+    invalidSource("unsupported");
+  }
+  if (isFsRoot(real)) invalidSource("root");
+  if (isDockerSocket(real)) invalidSource("socket");
+  if (hasMountDelimiter(real)) invalidSource("delimiter");
+  return real;
 }

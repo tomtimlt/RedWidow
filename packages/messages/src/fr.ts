@@ -40,6 +40,14 @@ const ARGUMENT_REASONS: Readonly<Record<string, string>> = {
   notStrings: "tableau de chaînes attendu",
   notString: "chaîne attendue",
   program: "le programme ne doit pas être vide ni commencer par « - »",
+  delimiter: "caractère interdit dans le montage",
+  relative: "chemin relatif ou non absolu",
+  root: "racine du système de fichiers",
+  socket: "socket Docker",
+  missing: "dossier introuvable",
+  unsupported: "chemin non analysable",
+  sensitive: "chemin sensible",
+  notDirectory: "dossier attendu",
 };
 
 /** Motifs de `sandbox.imageUnsupported`. */
@@ -225,6 +233,7 @@ export const reasons: Catalog = {
     `interpréteur ou enveloppe dans le bac à sable (${text(p.program)}) : la commande réelle n'est pas vérifiable, approbation requise`,
 
   "project.notFound": (p) => `conteneur introuvable : ${text(p.name)}`,
+  "project.notExegol": (p) => `conteneur non Exegol : ${text(p.name)}`,
   "project.notRunning": (p) => `conteneur arrêté : ${text(p.name)}`,
   "project.noWorkspace": (p) => `conteneur sans montage /workspace : ${text(p.name)}`,
   "project.invalid": () => "projet invalide : fichier project.json illisible ou incomplet",

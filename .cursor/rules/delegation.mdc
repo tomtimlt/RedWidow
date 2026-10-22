@@ -1,17 +1,19 @@
 ---
-description: Routage des sous-agents et pare-feu de contexte
+description: Routage des sous-agents Cursor et pare-feu de contexte
 alwaysApply: true
 ---
 
 # Délégation
 
-Cette règle s'adresse à la session principale. Une fiche exécute son brief et ne relance personne.
+Cette règle s'adresse à la session Cursor. Elle prime sur toute consigne qui enverrait vers `.claude/agents/`.
+
+Une fiche exécute son brief et ne relance personne.
 
 La session orchestre. Modèle attendu : Grok 4.7, sans variante Fast. Elle ne code pas un lot et ne tranche pas à la place d'une fiche.
 
-Pool de l'abonnement seulement : Grok 4.7 pour les décisions, Composer 2.5 pour la lecture et le code. Pas de variante Fast. Pas de modèle tiers (Claude, GPT, Gemini) : ils sortent du pool et passent en crédits.
+Pool de l'abonnement seulement : Grok 4.7 pour les décisions, Composer 2.5 standard pour la lecture et le code. Pas de variante Fast. Pas de modèle tiers (Claude, GPT, Gemini) : ils sortent du pool et passent en crédits.
 
-Lancer uniquement les fiches de `.claude/agents/`. Ne pas passer de modèle au lancement : l'en-tête l'épingle. Ne pas reprendre un agent pour un autre rôle. Pas de sous-agent intégré (`explore`, `generalPurpose`).
+Lancer uniquement les fiches de `.cursor/agents/`. Les homonymes de `.claude/agents/` sont les fiches Claude Code : ne pas les lancer, ne pas les reprendre. Cursor masque un homonyme Claude quand le fichier existe dans `.cursor/agents/`. Ne pas passer de modèle au lancement : l'en-tête l'épingle. Ne pas reprendre un agent pour un autre rôle. Pas de sous-agent intégré (`explore`, `generalPurpose`).
 
 | Besoin | Fiche |
 |---|---|

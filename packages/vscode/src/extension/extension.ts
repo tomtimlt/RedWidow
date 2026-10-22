@@ -10,7 +10,6 @@ import {
   defaultConfigDir,
   lookupContainer,
   parseMentions,
-  parseSlashStart,
   readFindings,
   readProject,
   resolveBinary,
@@ -26,6 +25,7 @@ import {
   controlListedContainer,
   linkContainer,
   linkedProjectStatus,
+  listCockpitImages,
   loadCockpitView,
   parseCockpitMessage,
   planEditorShell,
@@ -192,8 +192,8 @@ export function activate(context: vscode.ExtensionContext): void {
   };
 
   /**
-   * Lance `exegol start <nom>` dans un terminal VS Code (chemin de `/start`, réutilisé par le terminal
-   * latéral). Un terminal de même nom est seulement montré.
+   * Lance `exegol start <nom>` dans un terminal VS Code (création depuis le cockpit).
+   * Un terminal de même nom est seulement montré.
    */
   const startContainerTerminal = (slash: string) => {
     const exegol = resolveBinary("exegol");
@@ -428,22 +428,6 @@ export function activate(context: vscode.ExtensionContext): void {
         case "refreshTerminals":
           return reply(await terminalsMessage());
         case "send": {
-          const slash = parseSlashStart(message.text);
-          if (slash !== null) {
-            // Conteneur existant : démarré si besoin, puis shell capturé (proposé par #). Sinon
-            // `exegol start` le crée (nom court : `exegol start htb1`, jamais `exegol-htb1`).
-            const listed = await loadCockpitView();
-            const real = lookupContainer(slash, listed.containers);
-            if (real === null) {
-              startContainerTerminal(shortContainerName(slash));
-              return;
-            }
-            await controlListedContainer("start", real);
-            if ((await openEditorShell(real)) === "skip") {
-              void vscode.window.showErrorMessage(`Impossible d'ouvrir un terminal sur ${slash}.`);
-            }
-            return;
-          }
           const hashes = parseHashes(message.text);
           const missing = hashes.filter((token) => findShellByToken(token) === undefined);
           if (missing.length > 0) {
@@ -465,7 +449,7 @@ export function activate(context: vscode.ExtensionContext): void {
           // outils Exegol restent bornés par les règles de cible du cœur (@ ou conteneur dédié).
           if (mentions.length === 0 && dedicatedName === null && hashes.length === 0) {
             void vscode.window.showErrorMessage(
-              "Lance un conteneur avec /start <nom>, cite-le avec @nom, ou cite un terminal avec #.",
+              "Cite un conteneur avec @nom, ou un terminal avec #.",
             );
             return;
           }
@@ -660,14 +644,34 @@ export function activate(context: vscode.ExtensionContext): void {
           case "stop":
             await controlListedContainer("stop", message.name);
             return void pushView(true);
-          case "create": {
-            const st = await linkedProjectStatus();
-            if (st === null || st.state === "running") return;
-            if (st.state === "stopped") {
-              await controlListedContainer("start", st.container);
-              return void pushView(true);
-            }
-            startContainerTerminal(shortContainerName(st.container));
+          case "createExegol":
+            // Nom saisi tel quel : pas de projet lié, pas de nom court.
+            startContainerTerminal(message.name);
+            return;
+          case "createKali": {
+            // Pas de terminal ni de lien. Aucun délai imposé : le défaut du client s'applique.
+            await createDockerClient({
+              recorder: createRecorder(),
+              binary: "docker",
+            }).createKaliContainer({
+              image: message.image,
+              name: message.name,
+              source: message.source,
+            });
+            return void pushView(true);
+          }
+          case "listImages":
+            postCockpit({ type: "images", images: await listCockpitImages() });
+            return;
+          case "pickSource": {
+            const picked = await vscode.window.showOpenDialog({
+              canSelectFolders: true,
+              canSelectFiles: false,
+              canSelectMany: false,
+            });
+            const source = picked?.[0]?.fsPath;
+            if (source === undefined) return;
+            postCockpit({ type: "pickedSource", source });
             return;
           }
         }

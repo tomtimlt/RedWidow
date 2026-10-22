@@ -512,3 +512,57 @@ export function checkPathAccess(
   }
   return outside === null ? null : { kind: "outside", path: outside };
 }
+
+/**
+ * Formes d'un chemin sensible qui existe, ou pourquoi on ne peut pas s'en servir.
+ * Un chemin absent est ignoré. Un échec autre que l'absence refuse le montage.
+ */
+function existingSensitive(path: string, f: Flavor): readonly string[] | "missing" | "unsupported" {
+  try {
+    f.realpath(path);
+  } catch (err) {
+    if (!isMissing(err)) return "unsupported";
+    try {
+      f.lstat(path);
+    } catch (statErr) {
+      if (isMissing(statErr)) return "missing";
+      return "unsupported";
+    }
+  }
+  try {
+    return [f.path.resolve(path), canonical(path, f)];
+  } catch (err) {
+    if (err instanceof PathUnsupportedError) return "unsupported";
+    throw err;
+  }
+}
+
+/**
+ * Indique si monter `directory` exposerait un chemin sensible.
+ * `sensitive` si le dossier est dans un secret, ou si un secret qui existe est dans le dossier.
+ * Un secret absent est ignoré ; un secret impossible à résoudre donne `unsupported`.
+ * Pas `checkPathAccess` : un dossier hors de l'espace de travail de l'agent reste montable.
+ * Le chemin n'est pas renvoyé.
+ */
+export function mountExposesSensitive(
+  directory: string,
+  opts: PathOptions = { cwd: process.cwd() },
+): "sensitive" | "unsupported" | null {
+  const f = makeFlavor(opts);
+  let real: string;
+  try {
+    real = canonical(f.path.resolve(opts.cwd, expandHome(directory, f)), f);
+  } catch (err) {
+    if (err instanceof PathUnsupportedError) return "unsupported";
+    throw err;
+  }
+  for (const path of sensitivePaths(f)) {
+    const forms = existingSensitive(path, f);
+    if (forms === "unsupported") return "unsupported";
+    if (forms === "missing") continue;
+    for (const form of forms) {
+      if (isInside(form, real, f) || isInside(real, form, f)) return "sensitive";
+    }
+  }
+  return null;
+}

@@ -39,6 +39,7 @@ export const reasons: Catalog = {
   "docker.unexpectedOutput": (p) =>
     `unexpected docker ${text(p.command)} output${p.line === undefined ? "" : ` (line ${text(p.line)})`}: docker only, podman is not supported`,
   "project.notFound": (p) => `container not found: ${text(p.name)}`,
+  "project.notExegol": (p) => `not an Exegol container: ${text(p.name)}`,
   "project.notRunning": (p) => `container not running: ${text(p.name)}`,
   "project.noWorkspace": (p) => `container without /workspace mount: ${text(p.name)}`,
   "project.invalid": () => "invalid project: unreadable or incomplete project.json",
