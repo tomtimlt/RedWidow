@@ -188,3 +188,75 @@ Voir `docs/architecture-issues.md`.
   SIGKILL.
 - **Validation sur un vrai Windows** (lot W-L6) ; job CI Windows encore rouge.
 - **Support de podman** (parsing tolérant, option `engine`, tests).
+
+C'est une excellente question. Puisque ton architecture sépare le cœur (moteur, sécurité) des interfaces, tu as une base saine pour ajouter des fonctionnalités très fortes. 
+
+Voici des idées pratiques, classées par profil, en gardant toujours ton ADN : **contrôle, traçabilité et transparence**.
+
+---
+
+###  Pour les Pentesters Pros (Efficacité, Rigidité, Reporting)
+
+Les pros se fichent que l'IA "discute" ; ils veulent qu'elle leur fasse gagner du temps sans faire de fautes professionnelles.
+
+1. **Le "Scope Enforcement" (Garde-fou de périmètre absolu)**
+   * **L'idée :** Avant de commencer, l'utilisateur importe un fichier `scope.txt` (liste d'IP/domaines autorisés pour la mission).
+   * **En pratique :** Le moteur de Warband (la *Gate*) intercepte **toutes** les commandes. Si l'agent tape `nmap 8.8.8.8` et que ce n'est pas dans le scope, la gate refuse catégoriquement, même si l'utilisateur clique sur "Autoriser". C'est la sécurité légale ultime pour un freelance ou un cabinet.
+
+2. **L'OPSEC et le "Client-Safe Mode" (Masquage des données)**
+   * **L'idée :** Les pros ne peuvent pas envoyer les IP clients ou les mots de passe trouvés à OpenAI/Anthropic (RGPD/NDA).
+   * **En pratique :** Warband intercepte les prompts avant l'envoi au LLM et remplace les vraies IP par `[IP_CIBLE_1]` et les hashs par `[HASH_1]`. Quand la réponse revient, il remet les vraies valeurs localement.
+
+3. **L'Export de Rapport Automatique (Markdown/PDF)**
+   * **L'idée :** Tu as ton carnet de trouvailles avec MITRE ATT&CK.
+   * **En pratique :** Un bouton "Générer le rapport". Warband compile toutes les commandes exécutées, les outputs pertinents, les notes MITRE et les captures d'écran du terminal dans un beau document Markdown structuré, prêt à être collé dans Obsidian, Dradis ou Ghostwriter.
+
+4. **Le "Loot Extractor" (Extraction de butin)**
+   * **L'idée :** Quand tu lances `secretsdump.py` ou `gobuster`, l'output est énorme.
+   * **En pratique :** L'agent ne se contente pas d'afficher la sortie, il parse les résultats en temps réel. S'il voit un `NTLM hash`, il l'ajoute automatiquement à un onglet "Credentials" dans l'UI. S'il voit un répertoire `.git`, il le note dans "Web Findings".
+
+5. **Le "Terminal Shadowing" (Contexte de l'hôte)**
+   * **L'idée :** Le pentester a souvent plusieurs terminaux ouverts (un pour le pivot, un pour Responder, etc.).
+   * **En pratique :** Ton système de mention `#` est déjà génial. Pousse-le : permettre à l'agent de lire les 50 dernières lignes d'un terminal en arrière-plan pour comprendre le contexte ("Ah, je vois que ton tunnel Chisel est tombé, veux-tu le relancer ?").
+
+---
+
+###  Pour les Débutants / CTF Players (Pédagogie, Fun, Aide au blocage)
+
+Les débutants ont besoin d'être rassurés, guidés, et de ne pas casser leur machine.
+
+1. **Le "Explain Before Execute" (Mode Pédagogique)**
+   * **L'idée :** Le débutant ne comprend pas toujours la commande que l'IA propose.
+   * **En pratique :** Dans la carte d'approbation, en plus de "Autoriser" ou "Refuser", un bouton **"Expliquer"**. L'IA détaille chaque argument de la commande (`-sS` veut dire SYN Scan, `-Pn` veut dire ne pas ping, etc.) avant que l'utilisateur ne valide.
+
+2. **Le "CTF Mode" (Chasse aux Flags)**
+   * **L'idée :** En CTF, on cherche des flags (`flag{...}`, `HTB{...}`).
+   * **En pratique :** Warband surveille les sorties terminal en arrière-plan. Dès qu'une regex de flag est détectée, l'interface déclenche une notification visuelle (genre confettis ou bordure verte) et ajoute le flag dans une liste "Flags capturés" sur le côté. L'agent peut même dire : *"J'ai trouvé le user.txt, on cherche le root maintenant ?"*
+
+3. **Le "Nudge System" (Le coup de pouce sans spoiler)**
+   * **L'idée :** Quand un débutant bloque, il demande la réponse. C'est nul pour apprendre.
+   * **En pratique :** Un réglage dans l'UI : "Niveau d'aide". Si on est sur "Débutant", l'IA ne donne pas la commande finale. Elle dit : *"Regarde du côté du port 80, il y a un CMS. As-tu essayé de vérifier sa version ?"* Si on est sur "Pro", elle donne la commande brute.
+
+4. **Le "Workflow Builder" (Scénarios guidés)**
+   * **L'idée :** Proposer des "recettes" toutes faites.
+   * **En pratique :** Des boutons au démarrage du chat : "Énumération Web", "Scan Réseau basique", "PrivEsc Linux". Ça pré-remplit le prompt et lance une série d'étapes logiques (avec approbation à chaque étape).
+
+5. **La "Sandbox Visuelle" (Pour les débutants sur Windows)**
+   * Puisque tu es natif Windows sans WSL, c'est l'occasion rêvée pour les débutants Windows qui galèrent avec Docker. 
+   * Un bouton "Démarrer un environnement de test" qui lance un conteneur Docker (Kali ou Exegol) avec une cible vulnérable pré-configurée (comme *Metasploitable* ou *OWASP Juice Shop*) en local. Idéal pour s'entraîner sans rien configurer.
+
+---
+
+###  L'idée "Killer Feature" (Qui marche pour les deux)
+
+**Le "Replay" de Kill Chain (Le temps réel et le passé)**
+Puisque tu as un journal d'événements JSONL et un graphe causal :
+* **L'idée :** Une timeline interactive.
+* **En pratique :** Le pro comme le débutant peut cliquer sur une étape du graphe (ex: "Découverte du port 445"). Ça ouvre un panneau qui montre : *la commande exacte*, *l'output exact*, *le prompt de l'IA à ce moment-là*, et *la décision d'approbation* (qui a cliqué, à quelle heure). C'est la fonction "Boîte noire" de l'avion. Tu peux rejouer ton pentest étape par étape.
+
+###  Conseil d'implémentation
+Ne cherche pas à tout faire d'un coup. Ton architecture événementielle te permet de les ajouter comme des "plugins" ou des règles dans ton moteur. 
+*   **Priorité 1 pour les pros :** Le Scope Enforcement. C'est le truc qui va faire dire "Ok, cet outil est safe pour mes clients".
+*   **Priorité 2 pour les débutants :** L'explication des commandes dans la carte d'approbation. Ça coûte presque rien à coder (c'est juste un prompt) et ça transforme l'outil en professeur.
+
+Tu as une base saine. Choisis une ou deux idées qui te parlent le plus, et intègre-les à ton README. Le positionnement de Warband sera béton.
