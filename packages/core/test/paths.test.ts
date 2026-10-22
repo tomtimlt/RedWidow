@@ -4,6 +4,8 @@ import {
   evaluatePolicy,
   extractPaths,
   globBase,
+  mountExposesSensitive,
+  type PathOptions,
   type PathPlatform,
   type Policy,
   type PolicyContext,
@@ -654,5 +656,48 @@ describe("posix : erreurs de résolution", () => {
     };
     expect(verdict(ctx, "Read", { file_path: "/w/sub/f" }, allowAll).decision).toBe("allow");
     expect(verdict(ctx, "Read", { file_path: "/w/other/f" }, allowAll).decision).toBe("ask");
+  });
+});
+
+describe("mountExposesSensitive", () => {
+  const home = "/home/x";
+  const ssh = `${home}/.ssh`;
+  const keys = `${ssh}/keys`;
+  const proj = `${home}/proj`;
+  const realpath = fakeFs({
+    "/": "/",
+    [home]: home,
+    [ssh]: ssh,
+    [keys]: keys,
+    [proj]: proj,
+  });
+  const opts = (cwd: string, fs: (p: string) => string = realpath): PathOptions => ({
+    cwd,
+    platform: "posix",
+    env: {},
+    home,
+    realpath: fs,
+  });
+
+  it("un dossier dans .ssh est sensitive", () => {
+    expect(mountExposesSensitive(keys, opts(keys))).toBe("sensitive");
+  });
+
+  it("un parent qui contient .ssh est sensitive", () => {
+    expect(mountExposesSensitive(home, opts(home))).toBe("sensitive");
+  });
+
+  it("un projet frère de .ssh est null", () => {
+    expect(mountExposesSensitive(proj, opts(proj))).toBeNull();
+  });
+
+  it("ignore un secret absent", () => {
+    const bare = fakeFs({ "/": "/", [home]: home, [proj]: proj });
+    expect(mountExposesSensitive(home, opts(home, bare))).toBeNull();
+  });
+
+  it("un secret illisible est unsupported", () => {
+    const blocked = fakeFs({ "/": "/", [home]: home, [proj]: proj }, { [ssh]: "EACCES" });
+    expect(mountExposesSensitive(proj, opts(proj, blocked))).toBe("unsupported");
   });
 });

@@ -40,6 +40,14 @@ const ARGUMENT_REASONS: Readonly<Record<string, string>> = {
   notStrings: "tableau de chaînes attendu",
   notString: "chaîne attendue",
   program: "le programme ne doit pas être vide ni commencer par « - »",
+  delimiter: "caractère interdit dans le montage",
+  relative: "chemin relatif ou non absolu",
+  root: "racine du système de fichiers",
+  socket: "socket Docker",
+  missing: "dossier introuvable",
+  unsupported: "chemin non analysable",
+  sensitive: "chemin sensible",
+  notDirectory: "dossier attendu",
 };
 
 /** Motifs de `sandbox.imageUnsupported`. */

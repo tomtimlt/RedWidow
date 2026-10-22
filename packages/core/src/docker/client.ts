@@ -1,4 +1,7 @@
-import { isAbsolute } from "node:path";
+import { realpathSync, statSync } from "node:fs";
+import { homedir } from "node:os";
+import { isAbsolute, join, normalize, parse, relative, sep } from "node:path";
+import { mountExposesSensitive } from "../approval/paths.js";
 import type { Correlation } from "../events.js";
 import { resolveBinary } from "../process/resolve.js";
 import { type ProcessResult, runProcess } from "../process/run.js";
@@ -402,13 +405,28 @@ export interface DockerClient {
   ): Promise<string[]>;
 }
 
+/** Options de `createKaliContainer`. Le nom est obligatoire. */
+export interface CreateKaliContainerOptions extends CallOptions {
+  image: string;
+  name: string;
+  source: string;
+}
+
+/**
+ * Création d'un conteneur Kali. Volontairement absente de `DockerClient` :
+ * l'outil `run` ne doit pas pouvoir monter l'hôte.
+ */
+export interface KaliContainerClient {
+  createKaliContainer(options: CreateKaliContainerOptions): Promise<string>;
+}
+
 export function createDockerClient({
   recorder,
   binary = "docker",
   argsPrefix = [],
   parentId: defaultParent = null,
   timeoutMs: defaultTimeoutMs = DEFAULT_TIMEOUT_MS,
-}: DockerClientOptions): DockerClient {
+}: DockerClientOptions): DockerClient & KaliContainerClient {
   assertBinary(binary);
   const prefix = assertArgsPrefix(argsPrefix);
   const exec = (
@@ -547,5 +565,124 @@ export function createDockerClient({
       );
       return [...r.stdout, ...r.stderr];
     },
+    async createKaliContainer({ image, name, source, ...call }) {
+      const img = assertOperand(image, "image");
+      const containerName = assertOperand(name, "name");
+      const real = resolveKaliSource(source);
+      const exposure = mountExposesSensitive(real, { cwd: real });
+      if (exposure !== null) invalidSource(exposure);
+      try {
+        if (!statSync(real).isDirectory()) invalidSource("notDirectory");
+      } catch (err) {
+        if (err instanceof ValidationError) throw err;
+        invalidSource("unsupported");
+      }
+      // Rien après l'image : l'entrée (dont /start) reste celle de l'image.
+      const r = await checked(
+        "run",
+        [
+          "run",
+          "--detach",
+          "--pull",
+          "never",
+          "--name",
+          containerName,
+          "--label",
+          "io.warband.runtime=kali",
+          "--network",
+          "bridge",
+          "--mount",
+          `type=bind,source=${real},target=/workspace`,
+          img,
+        ],
+        call,
+      );
+      return r.stdout[0]?.trim() ?? "";
+    },
   };
+}
+
+/** Refus de la source, sans y recopier le chemin. */
+function invalidSource(reason: string): never {
+  throw new ValidationError("docker.invalidArgument", { field: "source", reason });
+}
+
+function fsCode(err: unknown): string | undefined {
+  return typeof err === "object" && err !== null && "code" in err
+    ? String((err as { code: unknown }).code)
+    : undefined;
+}
+
+/** `,`, NUL, CR ou LF casseraient le `--mount` ou l'argv. */
+function hasMountDelimiter(p: string): boolean {
+  return p.includes(",") || p.includes("\0") || p.includes("\r") || p.includes("\n");
+}
+
+/** Forme lexicale comparable : `.` et `..` réduits, sans séparateur final hors racine. */
+function lexicalPath(p: string): string {
+  const n = normalize(p);
+  const root = parse(n).root;
+  if (n === root) return n;
+  let end = n.length;
+  while (end > root.length) {
+    const ch = n[end - 1];
+    if (ch !== "/" && ch !== "\\") break;
+    end -= 1;
+  }
+  return n.slice(0, end);
+}
+
+function foldPath(p: string): string {
+  return process.platform === "win32" || process.platform === "darwin" ? p.toLowerCase() : p;
+}
+
+/** Racine de lecteur ou `/`. Contrôlée avant les sockets : elle les contient tous. */
+function isFsRoot(p: string): boolean {
+  const n = lexicalPath(p);
+  return n !== "" && n === parse(n).root;
+}
+
+function containsPath(parent: string, child: string): boolean {
+  const rel = relative(foldPath(lexicalPath(parent)), foldPath(lexicalPath(child)));
+  if (rel === "") return true;
+  return rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
+}
+
+/**
+ * Socket Docker égal au chemin, situé dessous, ou dont le chemin est un enfant.
+ * `homedir()` est lu au moment de l'appel.
+ */
+function isDockerSocket(p: string): boolean {
+  const sockets = [
+    "/var/run/docker.sock",
+    "/run/docker.sock",
+    "/private/var/run/docker.sock",
+    join(homedir(), ".docker", "run", "docker.sock"),
+    "\\\\.\\pipe\\docker_engine",
+  ];
+  return sockets.some((sock) => containsPath(p, sock) || containsPath(sock, p));
+}
+
+/**
+ * Valide la source et renvoie son chemin réel. Aucun spawn.
+ * Première erreur seule : délimiteurs, absolu, racine et socket lexicaux,
+ * `realpath`, puis les mêmes contrôles sur le réel.
+ */
+function resolveKaliSource(source: string): string {
+  if (hasMountDelimiter(source)) invalidSource("delimiter");
+  if (!isAbsolute(source)) invalidSource("relative");
+  if (isFsRoot(source)) invalidSource("root");
+  if (isDockerSocket(source)) invalidSource("socket");
+  let real: string;
+  try {
+    real = realpathSync.native(source);
+  } catch (err) {
+    const code = fsCode(err);
+    if (code === "ENOENT" || code === "ENOTDIR") invalidSource("missing");
+    invalidSource("unsupported");
+  }
+  if (isFsRoot(real)) invalidSource("root");
+  if (isDockerSocket(real)) invalidSource("socket");
+  if (hasMountDelimiter(real)) invalidSource("delimiter");
+  return real;
 }
