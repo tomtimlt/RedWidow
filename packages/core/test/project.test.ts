@@ -53,7 +53,7 @@ describe("link", () => {
     });
   });
 
-  it("refuse un Kali en cours avec workspace et n'écrit rien", async () => {
+  it("écrit le nom réel d'un Kali en cours avec workspace", async () => {
     const { configDir } = await setup();
     const docker = {
       listLabelPrefix: async () => [
@@ -61,19 +61,19 @@ describe("link", () => {
           state: "running" as const,
           name: "kali-box",
           image: "kalilinux/kali-rolling",
-          workspace: "/host/ws",
+          workspace: "/host/kali",
           family: "kali" as const,
         },
       ],
     };
-    await expect(link(configDir, "kali-box", docker)).rejects.toMatchObject({
-      code: "project.notExegol",
-      params: { name: "kali-box" },
+    await link(configDir, "kali-box", docker);
+    expect(await readProject(configDir)).toEqual({
+      container: "kali-box",
+      workspace: "/host/kali",
     });
-    expect(await readdir(configDir)).toEqual([]);
   });
 
-  it("refuse un Kali arrêté avant le contrôle d'état", async () => {
+  it("n'écrit pas pour un Kali arrêté", async () => {
     const { configDir } = await setup();
     const docker = {
       listLabelPrefix: async () => [
@@ -87,9 +87,49 @@ describe("link", () => {
       ],
     };
     await expect(link(configDir, "kali-box", docker)).rejects.toMatchObject({
-      code: "project.notExegol",
+      code: "project.notRunning",
       params: { name: "kali-box" },
     });
+    expect(await readdir(configDir)).toEqual([]);
+  });
+
+  it("n'écrit pas pour un Kali sans montage", async () => {
+    const { configDir } = await setup();
+    const docker = {
+      listLabelPrefix: async () => [
+        {
+          state: "running" as const,
+          name: "kali-box",
+          image: "kalilinux/kali-rolling",
+          family: "kali" as const,
+        },
+      ],
+    };
+    await expect(link(configDir, "kali-box", docker)).rejects.toMatchObject({
+      code: "project.noWorkspace",
+      params: { name: "kali-box" },
+    });
+    expect(await readdir(configDir)).toEqual([]);
+  });
+
+  it("refuse une famille qui n'est ni Exegol ni Kali et n'écrit rien", async () => {
+    const { configDir } = await setup();
+    const docker = {
+      listLabelPrefix: async () => [
+        {
+          state: "running" as const,
+          name: "other",
+          image: "debian",
+          workspace: "/host/ws",
+          family: "debian" as "exegol",
+        },
+      ],
+    };
+    await expect(link(configDir, "other", docker)).rejects.toMatchObject({
+      code: "project.notExegol",
+      params: { name: "other" },
+    });
+    expect(await readdir(configDir)).toEqual([]);
   });
 
   it("remplace un lien existant", async () => {

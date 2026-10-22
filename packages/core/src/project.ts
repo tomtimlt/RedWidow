@@ -74,8 +74,9 @@ async function writeProjectAtomic(configDir: string, project: StoredProject): Pr
 }
 
 /**
- * Lie le projet au conteneur Exegol `name` (déjà listé par `listLabelPrefix`).
- * Une autre famille est refusée. Remplace tout fichier existant.
+ * Lie le projet au conteneur `name` (déjà listé par `listLabelPrefix`).
+ * Familles acceptées : `exegol` et `kali`, en cours, avec un `/workspace`.
+ * Remplace tout fichier existant. Le nom écrit est celui de la liste.
  */
 export async function link(
   configDir: string,
@@ -85,10 +86,11 @@ export async function link(
   const rows = await docker.listLabelPrefix();
   const row = rows.find((r) => r.name === name);
   if (row === undefined) throw new CodedError("project.notFound", { name });
-  if (row.family !== "exegol") throw new CodedError("project.notExegol", { name });
+  const family: string = row.family;
+  if (family !== "exegol" && family !== "kali") throw new CodedError("project.notExegol", { name });
   if (row.state !== "running") throw new CodedError("project.notRunning", { name });
   if (row.workspace === undefined) throw new CodedError("project.noWorkspace", { name });
-  await writeProjectAtomic(configDir, { container: name, workspace: row.workspace });
+  await writeProjectAtomic(configDir, { container: row.name, workspace: row.workspace });
 }
 
 /** Supprime `project.json`. Absent : rien. */

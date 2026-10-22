@@ -61,19 +61,15 @@ export interface ExegolTarget {
   mentions: readonly string[];
 }
 
-/**
- * Nom Docker autorisé pour cet appel, lu dans la liste courante.
- * Seules les entrées `family === "exegol"` comptent ; un champ absent est ignoré.
- * Avec des `@`, uniquement un conteneur cité (court ou complet) qui existe.
- * Sans `@`, uniquement le dédié, et il doit exister. Jamais de nom construit.
- */
-export function resolveExegolContainer(
+/** Résolution commune : seules les entrées de `family` comptent. Un champ absent est ignoré. */
+function resolveListedContainer(
+  family: "exegol" | "kali",
   target: ExegolTarget,
   requested: string,
   containers: readonly NamedContainer[],
 ): string {
   const name = requested.trim();
-  const listed = containers.filter((c) => (c as { family?: unknown }).family === "exegol");
+  const listed = containers.filter((c) => (c as { family?: unknown }).family === family);
   const real = lookupContainer(name, listed);
   if (real === null) throw new CodedError("exegol.containerDenied", { name });
   if (target.mentions.length > 0) {
@@ -85,6 +81,32 @@ export function resolveExegolContainer(
     throw new CodedError("exegol.containerDenied", { name });
   }
   return real;
+}
+
+/**
+ * Nom Docker autorisé pour cet appel, lu dans la liste courante.
+ * Seules les entrées `family === "exegol"` comptent ; un champ absent est ignoré.
+ * Avec des `@`, uniquement un conteneur cité (court ou complet) qui existe.
+ * Sans `@`, uniquement le dédié, et il doit exister. Jamais de nom construit.
+ */
+export function resolveExegolContainer(
+  target: ExegolTarget,
+  requested: string,
+  containers: readonly NamedContainer[],
+): string {
+  return resolveListedContainer("exegol", target, requested, containers);
+}
+
+/**
+ * Nom Docker autorisé pour un outil Kali. Même règles que `resolveExegolContainer`,
+ * sur les seules entrées `family === "kali"`. Un dédié Exegol ne résout pas un Kali.
+ */
+export function resolveKaliContainer(
+  target: ExegolTarget,
+  requested: string,
+  containers: readonly NamedContainer[],
+): string {
+  return resolveListedContainer("kali", target, requested, containers);
 }
 
 /** Cible du message en cours, lue par l'outil au moment de l'appel. */

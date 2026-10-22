@@ -1,4 +1,4 @@
-import { type EngineEvent, EXEGOL_EXEC_TOOL } from "@warband/core";
+import { type EngineEvent, EXEGOL_EXEC_TOOL, KALI_TOOL_PREFIX } from "@warband/core";
 import { formatError, formatReason } from "@warband/messages";
 import { type ApprovalCard, cleanText, describeInput } from "./approval.js";
 import type { ChatControls } from "./controls.js";
@@ -175,7 +175,9 @@ export function createChatState() {
             input: describeInput(e.input, 1000),
             status: "pending",
           });
-          if (e.tool === EXEGOL_EXEC_TOOL) execTools.set(e.id, e.toolUseId);
+          if (e.tool === EXEGOL_EXEC_TOOL || e.tool.startsWith(KALI_TOOL_PREFIX)) {
+            execTools.set(e.id, e.toolUseId);
+          }
           return;
         case "process.started": {
           const use = e.parentId === null ? undefined : execTools.get(e.parentId);

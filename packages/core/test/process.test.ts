@@ -143,6 +143,27 @@ describe("runProcess", () => {
     expect(events[0]).toMatchObject({ kind: "process.started", correlation: "inferred" });
   });
 
+  it("écrit stdin puis le ferme ; sans stdin l'entrée reste ignorée", async () => {
+    const { recorder } = collect();
+    const read = [
+      node,
+      "-e",
+      "let s='';process.stdin.on('data',(d)=>s+=d);process.stdin.on('end',()=>process.stdout.write(s))",
+    ];
+    const piped = await runProcess(read, { recorder, stdin: "bonjour" });
+    expect(piped.code).toBe(0);
+    expect(piped.stdout).toEqual(["bonjour"]);
+    const ignored = await runProcess(
+      [
+        node,
+        "-e",
+        "process.stdin.on('data',()=>process.exit(2));process.stdin.on('end',()=>process.exit(0))",
+      ],
+      { recorder },
+    );
+    expect(ignored.code).toBe(0);
+  });
+
   it("n'interprète pas les arguments via un shell", async () => {
     const { recorder } = collect();
     const result = await runProcess(
