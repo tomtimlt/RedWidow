@@ -215,7 +215,11 @@
       const sub = el("div", "cockpit-row-sub");
       const im = el("span", "cockpit-ellipsis cockpit-row-image");
       ellipsize(im, row.image);
-      sub.append(el("span", "cockpit-row-state", stateLabel(row.state)), im);
+      sub.append(
+        el("span", "cockpit-row-state", stateLabel(row.state)),
+        el("span", "cockpit-muted", row.family),
+        im,
+      );
       if (row.workspace === undefined) {
         sub.append(el("span", "cockpit-muted cockpit-row-ws", "sans dossier"));
       }

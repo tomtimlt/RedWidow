@@ -236,11 +236,37 @@ describe("loadCockpitView", () => {
     const stopped = view.containers.find((c) => c.name === "b");
     expect(stopped?.canLink).toBe(false);
     expect(stopped?.linkTitle).toBe("Conteneur arrêté");
+    expect(stopped?.family).toBe("exegol");
     const noWs = view.containers.find((c) => c.name === "c");
     expect(noWs?.linkTitle).toBe("Sans montage /workspace");
+    expect(noWs?.canLink).toBe(false);
+    expect(noWs?.family).toBe("exegol");
     const linked = view.containers.find((c) => c.name === "a");
     expect(linked?.linked).toBe(true);
     expect(linked?.canLink).toBe(false);
+    expect(linked?.family).toBe("exegol");
+  });
+
+  it("kali en cours avec workspace : pas de lien", async () => {
+    const view = await loadCockpitView({
+      resolveBin: (n) => (n === "docker" ? "/d/docker" : null),
+      readProj: async () => null,
+      createDocker: () => ({
+        listLabelPrefix: async () => [
+          {
+            state: "running" as const,
+            name: "kali-box",
+            image: "kalilinux/kali-rolling",
+            workspace: "/host/kali",
+            family: "kali" as const,
+          },
+        ],
+      }),
+    });
+    const kali = view.containers.find((c) => c.name === "kali-box");
+    expect(kali?.family).toBe("kali");
+    expect(kali?.canLink).toBe(false);
+    expect(kali?.linkTitle).toBe("On ne lie pas un Kali");
   });
 
   it("project.invalid : indicateur sans liste", async () => {
@@ -397,6 +423,7 @@ describe("cockpit.js", () => {
       expect(js, bad).not.toContain(bad);
     }
     expect(js).toContain("textContent");
+    expect(js).toContain("row.family");
     expect(js).toContain('type: "start"');
     expect(js).toContain('type: "stop"');
     expect(js).toContain('type: "create"');

@@ -167,6 +167,8 @@ export interface CockpitContainerView {
   short: string;
   image: string;
   state: "running" | "stopped";
+  /** Famille recopiée de la ligne, sans déduction. */
+  family: "exegol" | "kali";
   workspace?: string;
   linked: boolean;
   canLink: boolean;
@@ -334,6 +336,8 @@ export async function loadCockpitView(deps: CockpitDeps = {}): Promise<CockpitVi
     let linkTitle: string | undefined;
     if (isLinked) {
       canLink = false;
+    } else if (r.family === "kali") {
+      linkTitle = "On ne lie pas un Kali";
     } else if (r.state !== "running") {
       linkTitle = "Conteneur arrêté";
     } else if (r.workspace === undefined) {
@@ -346,6 +350,7 @@ export async function loadCockpitView(deps: CockpitDeps = {}): Promise<CockpitVi
       short: shortContainerName(r.name),
       image: r.image,
       state: r.state,
+      family: r.family,
       ...(r.workspace !== undefined && { workspace: r.workspace }),
       linked: isLinked,
       canLink,
