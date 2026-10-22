@@ -56,7 +56,7 @@ Warband fait ça : les appels d'outil (exécution dans le conteneur, écriture, 
 **Un moteur traçable**
 - Journal d'événements en JSONL, **graphe causal** exportable en HTML autonome.
 - Secrets masqués avant tout enregistrement ; processus enfants lancés avec une liste blanche de variables.
-- Outils **Docker structurés** (`ps`, `logs`, `inspect`, `run`…) et **bac à sable** optionnel : conteneur dédié, utilisateur non root, sans volume, réseau coupé par défaut.
+- Outils **Docker structurés** (`ps`, `logs`, `inspect`, `run`…), chacun soumis à la politique.
 - Deux moteurs d'agent : le **Claude Agent SDK** et **OpenCode** (OpenAI, Gemini, Ollama, tout endpoint compatible…), derrière la même gate.
 
 **Windows d'abord**
@@ -81,7 +81,7 @@ Warband fait ça : les appels d'outil (exécution dans le conteneur, écriture, 
 
 ## Démarrage rapide
 
-Prérequis : Node 22 ou plus, [pnpm](https://pnpm.io), VS Code 1.90 ou plus. Docker est utile pour les outils de conteneur et le bac à sable.
+Prérequis : Node 22 ou plus, [pnpm](https://pnpm.io), VS Code 1.90 ou plus. Docker est nécessaire pour les outils de conteneur.
 
 ### L'extension VS Code
 
@@ -140,7 +140,7 @@ Le détail est dans [docs/cli.md](docs/cli.md) et dans les [décisions d'archite
 packages/
   core/            moteur : événements, journal, graphe, approbation (politique, gate, file), AgentRunner
   messages/        libellés (français complet, anglais minimal) pour les codes du moteur
-  agent-sdk/       adaptateur du Claude Agent SDK, outils Docker, bac à sable
+  agent-sdk/       adaptateur du Claude Agent SDK, outils Docker
   agent-opencode/  adaptateur OpenCode
   cli/             interface en ligne de commande
   export-html/     rendu HTML/SVG autonome du graphe
@@ -153,7 +153,7 @@ Le cœur n'a aucune dépendance à un SDK d'agent et ne contient aucun texte d'a
 
 | Document | Contenu |
 | --- | --- |
-| [docs/cli.md](docs/cli.md) | Moteur, approbation, authentification, OpenCode, Docker, bac à sable, CLI |
+| [docs/cli.md](docs/cli.md) | Moteur, approbation, authentification, OpenCode, Docker, CLI |
 | [docs/extension-vscode.md](docs/extension-vscode.md) | Installation, usage et limites de l'extension |
 | [docs/design-chat-ui.md](docs/design-chat-ui.md) | Charte visuelle : couleurs, formes, mouvement, logo |
 | [docs/adr/](docs/adr/README.md) | Décisions d'architecture |
