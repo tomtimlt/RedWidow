@@ -225,6 +225,7 @@ export const reasons: Catalog = {
     `interpréteur ou enveloppe dans le bac à sable (${text(p.program)}) : la commande réelle n'est pas vérifiable, approbation requise`,
 
   "project.notFound": (p) => `conteneur introuvable : ${text(p.name)}`,
+  "project.notExegol": (p) => `conteneur non Exegol : ${text(p.name)}`,
   "project.notRunning": (p) => `conteneur arrêté : ${text(p.name)}`,
   "project.noWorkspace": (p) => `conteneur sans montage /workspace : ${text(p.name)}`,
   "project.invalid": () => "projet invalide : fichier project.json illisible ou incomplet",

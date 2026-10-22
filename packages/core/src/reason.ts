@@ -118,6 +118,7 @@ export const REASON_CODES = [
   "event.invalidField",
   // Projet actif (conteneur lié)
   "project.notFound",
+  "project.notExegol",
   "project.notRunning",
   "project.noWorkspace",
   "project.invalid",

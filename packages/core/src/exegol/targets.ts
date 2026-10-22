@@ -70,6 +70,7 @@ export interface ExegolTarget {
 
 /**
  * Nom Docker autorisé pour cet appel, lu dans la liste courante.
+ * Seules les entrées `family === "exegol"` comptent ; un champ absent est ignoré.
  * Avec des `@`, uniquement un conteneur cité (court ou complet) qui existe.
  * Sans `@`, uniquement le dédié, et il doit exister. Jamais de nom construit.
  */
@@ -79,14 +80,15 @@ export function resolveExegolContainer(
   containers: readonly NamedContainer[],
 ): string {
   const name = requested.trim();
-  const real = lookupContainer(name, containers);
+  const listed = containers.filter((c) => (c as { family?: unknown }).family === "exegol");
+  const real = lookupContainer(name, listed);
   if (real === null) throw new CodedError("exegol.containerDenied", { name });
   if (target.mentions.length > 0) {
-    const cited = target.mentions.some((mention) => lookupContainer(mention, containers) === real);
+    const cited = target.mentions.some((mention) => lookupContainer(mention, listed) === real);
     if (!cited) throw new CodedError("exegol.containerDenied", { name });
     return real;
   }
-  if (target.dedicated === null || lookupContainer(target.dedicated, containers) !== real) {
+  if (target.dedicated === null || lookupContainer(target.dedicated, listed) !== real) {
     throw new CodedError("exegol.containerDenied", { name });
   }
   return real;

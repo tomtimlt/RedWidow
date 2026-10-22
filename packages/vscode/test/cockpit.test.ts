@@ -175,9 +175,15 @@ describe("parseCockpitMessage", () => {
 
 describe("loadCockpitView", () => {
   const rows = [
-    { state: "stopped" as const, name: "b", image: "i:2" },
-    { state: "running" as const, name: "a", image: "i:1", workspace: "/host/ws" },
-    { state: "running" as const, name: "c", image: "i:3" },
+    { state: "stopped" as const, name: "b", image: "i:2", family: "exegol" as const },
+    {
+      state: "running" as const,
+      name: "a",
+      image: "i:1",
+      workspace: "/host/ws",
+      family: "exegol" as const,
+    },
+    { state: "running" as const, name: "c", image: "i:3", family: "exegol" as const },
   ];
 
   it("docker absent : message dédié, pas d'erreur projet", async () => {
@@ -250,7 +256,12 @@ describe("loadCockpitView", () => {
 });
 
 describe("controlListedContainer", () => {
-  const row = { state: "stopped" as const, name: "exegol-htb1", image: "i" };
+  const row = {
+    state: "stopped" as const,
+    name: "exegol-htb1",
+    image: "i",
+    family: "exegol" as const,
+  };
 
   it("démarre le nom réel de la liste, pas un préfixe collé", async () => {
     const calls: string[] = [];
@@ -264,6 +275,27 @@ describe("controlListedContainer", () => {
       }),
     });
     expect(calls).toEqual(["exegol-htb1"]);
+  });
+
+  it("démarre un Kali arrêté par le nom de la liste", async () => {
+    const calls: string[] = [];
+    await controlListedContainer("start", "kali-box", {
+      createDocker: () => ({
+        listLabelPrefix: async () => [
+          {
+            state: "stopped" as const,
+            name: "kali-box",
+            image: "kalilinux/kali-rolling",
+            family: "kali" as const,
+          },
+        ],
+        start: async (name) => void calls.push(name),
+        stop: async () => {
+          throw new Error("stop");
+        },
+      }),
+    });
+    expect(calls).toEqual(["kali-box"]);
   });
 
   it("refuse un nom absent et n'appelle pas docker", async () => {
@@ -314,9 +346,9 @@ describe("containerMentions", () => {
 describe("sortContainers", () => {
   it("en cours puis arrêté, puis nom", () => {
     const sorted = sortContainers([
-      { state: "stopped", name: "z", image: "i" },
-      { state: "running", name: "b", image: "i" },
-      { state: "running", name: "a", image: "i" },
+      { state: "stopped", name: "z", image: "i", family: "exegol" },
+      { state: "running", name: "b", image: "i", family: "kali" },
+      { state: "running", name: "a", image: "i", family: "exegol" },
     ]);
     expect(sorted.map((r) => r.name)).toEqual(["a", "b", "z"]);
   });

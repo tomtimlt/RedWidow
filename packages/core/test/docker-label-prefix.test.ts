@@ -8,6 +8,7 @@ import {
   DOCKER_LABEL_PREFIX_INSPECT_FORMAT,
   type EngineEvent,
   type LabelPrefixContainer,
+  parseDockerLabelPrefixInspect,
 } from "../src/index.js";
 import { FAKE_EXEGOL_DESK_URL, FAKE_EXEGOL_LABEL_LEAK, fakeDocker } from "./helpers.js";
 
@@ -39,9 +40,15 @@ describe("DockerClient.listLabelPrefix", () => {
     const { docker, events, fake } = await setup();
     const rows = await docker.listLabelPrefix();
     expect(rows).toEqual([
-      { state: "running", name: "with-ws", image: "img:1", workspace: "/host/ws" },
-      { state: "running", name: "no-ws", image: "img:2" },
-      { state: "stopped", name: "paused", image: "img:3" },
+      {
+        state: "running",
+        name: "with-ws",
+        image: "img:1",
+        workspace: "/host/ws",
+        family: "exegol",
+      },
+      { state: "running", name: "no-ws", image: "img:2", family: "exegol" },
+      { state: "stopped", name: "paused", image: "img:3", family: "exegol" },
     ] satisfies LabelPrefixContainer[]);
     leakFree(JSON.stringify(rows));
     leakFree(JSON.stringify(await fake.calls()));
@@ -145,5 +152,101 @@ else if (argv[0] === "inspect") {
     );
     expect(r.stdout).toContain(FAKE_EXEGOL_LABEL_LEAK);
     expect(r.stdout).toContain(FAKE_EXEGOL_DESK_URL);
+  });
+});
+
+describe("format et famille de listLabelPrefix", () => {
+  const fmt = DOCKER_LABEL_PREFIX_INSPECT_FORMAT;
+
+  it("n'interpole aucune valeur de label", () => {
+    expect(fmt).toContain('gt (len (split .Config.Image "kali")) 1');
+    expect(fmt).toContain(',"exegol":true');
+    expect(fmt).toContain(',"runtimeKali":true');
+    expect(fmt).toContain('eq $v "kali"');
+    expect(fmt.match(/\$v/g)).toEqual(["$v", "$v"]);
+    expect(fmt).not.toContain("{{$v}}");
+    expect(fmt).not.toContain("{{json $v}}");
+    expect(fmt).not.toContain("json .Config.Labels");
+    expect(fmt).not.toContain(FAKE_EXEGOL_LABEL_LEAK);
+    expect(fmt).not.toContain(FAKE_EXEGOL_DESK_URL);
+  });
+
+  const row = (value: unknown) => JSON.stringify(value);
+
+  it("donne une famille à chaque ligne retenue, exegol prioritaire", () => {
+    const rows = parseDockerLabelPrefixInspect([
+      row({
+        state: "running",
+        name: "/box",
+        image: "kalilinux/kali-rolling",
+        exegol: true,
+        runtimeKali: true,
+        workspace: "/host/ws",
+      }),
+    ]);
+    expect(rows).toEqual([
+      {
+        state: "running",
+        name: "box",
+        image: "kalilinux/kali-rolling",
+        workspace: "/host/ws",
+        family: "exegol",
+      },
+    ]);
+    expect(rows[0]).not.toHaveProperty("exegol");
+    expect(rows[0]).not.toHaveProperty("runtimeKali");
+    leakFree(JSON.stringify(rows));
+  });
+
+  it("classe runtimeKali sur debian en kali", () => {
+    expect(
+      parseDockerLabelPrefixInspect([
+        row({ state: "stopped", name: "k", image: "debian", runtimeKali: true }),
+      ]),
+    ).toEqual([{ state: "stopped", name: "k", image: "debian", family: "kali" }]);
+  });
+
+  it("classe une image qui contient kali, sans booléen", () => {
+    expect(
+      parseDockerLabelPrefixInspect([
+        row({ state: "running", name: "k", image: "kalilinux/kali-rolling" }),
+      ]),
+    ).toEqual([{ state: "running", name: "k", image: "kalilinux/kali-rolling", family: "kali" }]);
+  });
+
+  it("ignore debian et Kali sans signal, sans erreur", () => {
+    expect(
+      parseDockerLabelPrefixInspect([
+        row({ state: "running", name: "d", image: "debian", workspace: "/host/ws" }),
+        row({ state: "stopped", name: "K", image: "Kali" }),
+        "",
+      ]),
+    ).toEqual([]);
+  });
+
+  it("refuse family ou un booléen autre que true, sans la sentinelle", () => {
+    const leak = FAKE_EXEGOL_LABEL_LEAK;
+    const desk = FAKE_EXEGOL_DESK_URL;
+    const cases = [
+      row({ state: "running", name: "n", image: "kali", family: leak, desk }),
+      row({ state: "running", name: "n", image: "debian", exegol: leak }),
+      row({ state: "running", name: "n", image: "debian", runtimeKali: "true", desk }),
+    ];
+    for (const line of cases) {
+      try {
+        parseDockerLabelPrefixInspect([line]);
+        expect.unreachable();
+      } catch (err) {
+        expect(err).toMatchObject({
+          code: "docker.unexpectedOutput",
+          params: { command: "inspect", line: 1 },
+        });
+        const blob = JSON.stringify(err);
+        expect(blob).not.toContain(leak);
+        expect(blob).not.toContain(desk);
+        expect((err as { message: string }).message).not.toContain(leak);
+        expect((err as { message: string }).message).not.toContain(desk);
+      }
+    }
   });
 });

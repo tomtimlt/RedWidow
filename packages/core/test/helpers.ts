@@ -38,11 +38,11 @@ if (cmd === "ps" && argv.includes("--quiet") && argv.includes("--all")) {
     for (const id of argv.slice(3)) {
       if (id === "skip-nolabel") continue;
       if (id === "keep-ws") {
-        out(JSON.stringify({ state: "running", name: "/with-ws", image: "img:1", workspace: "/host/ws" }));
+        out(JSON.stringify({ state: "running", name: "/with-ws", image: "img:1", workspace: "/host/ws", exegol: true }));
       } else if (id === "keep-nows") {
-        out(JSON.stringify({ state: "running", name: "/no-ws", image: "img:2" }));
+        out(JSON.stringify({ state: "running", name: "/no-ws", image: "img:2", exegol: true }));
       } else if (id === "keep-stopped") {
-        out(JSON.stringify({ state: "stopped", name: "/paused", image: "img:3" }));
+        out(JSON.stringify({ state: "stopped", name: "/paused", image: "img:3", exegol: true }));
       }
     }
   } else {

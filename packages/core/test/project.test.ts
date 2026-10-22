@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -50,6 +50,45 @@ describe("link", () => {
     await expect(link(configDir, "missing", docker)).rejects.toMatchObject({
       code: "project.notFound",
       params: { name: "missing" },
+    });
+  });
+
+  it("refuse un Kali en cours avec workspace et n'écrit rien", async () => {
+    const { configDir } = await setup();
+    const docker = {
+      listLabelPrefix: async () => [
+        {
+          state: "running" as const,
+          name: "kali-box",
+          image: "kalilinux/kali-rolling",
+          workspace: "/host/ws",
+          family: "kali" as const,
+        },
+      ],
+    };
+    await expect(link(configDir, "kali-box", docker)).rejects.toMatchObject({
+      code: "project.notExegol",
+      params: { name: "kali-box" },
+    });
+    expect(await readdir(configDir)).toEqual([]);
+  });
+
+  it("refuse un Kali arrêté avant le contrôle d'état", async () => {
+    const { configDir } = await setup();
+    const docker = {
+      listLabelPrefix: async () => [
+        {
+          state: "stopped" as const,
+          name: "kali-box",
+          image: "debian",
+          workspace: "/host/ws",
+          family: "kali" as const,
+        },
+      ],
+    };
+    await expect(link(configDir, "kali-box", docker)).rejects.toMatchObject({
+      code: "project.notExegol",
+      params: { name: "kali-box" },
     });
   });
 

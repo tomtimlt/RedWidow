@@ -118,24 +118,42 @@ export interface LabelPrefixContainer {
   name: string;
   image: string;
   workspace?: string;
+  /** Famille calculée par le parseur. Jamais lue depuis la ligne. */
+  family: "exegol" | "kali";
 }
 
-/** Format `docker inspect --format` pour `listLabelPrefix` (filtre côté démon, sans valeur de label). */
+/**
+ * Format `docker inspect --format` pour `listLabelPrefix`.
+ * N'imprime qu'un candidat Exegol, runtime Kali ou image contenant `kali`.
+ * Les booléens sont des littéraux ; aucune valeur de label n'est interpolée.
+ */
 export const DOCKER_LABEL_PREFIX_INSPECT_FORMAT = [
-  "{{$keep := false}}{{range $k, $v := .Config.Labels}}",
-  '{{if and (ge (len $k) 11) (eq (slice $k 0 11) "org.exegol.")}}{{$keep = true}}{{end}}{{end}}',
-  '{{if $keep}}{{$ws := ""}}{{range .Mounts}}',
+  '{{$exegol := false}}{{$runtime := false}}{{$img := gt (len (split .Config.Image "kali")) 1}}',
+  "{{range $k, $v := .Config.Labels}}",
+  '{{if and (ge (len $k) 11) (eq (slice $k 0 11) "org.exegol.")}}{{$exegol = true}}{{end}}',
+  '{{if and (eq $k "io.warband.runtime") (eq $v "kali")}}{{$runtime = true}}{{end}}{{end}}',
+  '{{if or $exegol $runtime $img}}{{$ws := ""}}{{range .Mounts}}',
   '{{if and (eq $ws "") (eq .Destination "/workspace") (ne .Source "")}}{{$ws = .Source}}{{end}}{{end}}',
   '{"state":"{{if eq .State.Status "running"}}running{{else}}stopped{{end}}"',
   ',"name":{{json .Name}},"image":{{json .Config.Image}}',
-  '{{if ne $ws ""}},"workspace":{{json $ws}}{{end}}}{{println}}{{end}}',
+  '{{if ne $ws ""}},"workspace":{{json $ws}}{{end}}',
+  '{{if $exegol}},"exegol":true{{end}}{{if $runtime}},"runtimeKali":true{{end}}}{{println}}{{end}}',
 ].join("");
 
-const LABEL_PREFIX_ALLOWED_KEYS = new Set(["state", "name", "image", "workspace"]);
+const LABEL_PREFIX_ALLOWED_KEYS = new Set([
+  "state",
+  "name",
+  "image",
+  "workspace",
+  "exegol",
+  "runtimeKali",
+]);
 
 /**
  * Parse la sortie de `docker inspect --format` de `listLabelPrefix` (un objet JSON par ligne).
- * Seules les clés `state`, `name`, `image` et éventuellement `workspace` sont acceptées.
+ * Clés admises : `state`, `name`, `image`, `workspace`, `exegol`, `runtimeKali`.
+ * `exegol` et `runtimeKali` sont absents ou `true`, et ne sont pas recopiés.
+ * Famille : `exegol`, sinon `runtimeKali`, sinon image contenant `kali`, sinon ligne ignorée.
  */
 export function parseDockerLabelPrefixInspect(
   lines: readonly string[],
@@ -166,12 +184,22 @@ export function parseDockerLabelPrefixInspect(
     if (name === "") throw unexpected();
     if (typeof record.image !== "string" || record.image === "") throw unexpected();
     const image = record.image;
+    let workspace: string | undefined;
     if ("workspace" in record) {
       if (typeof record.workspace !== "string" || record.workspace === "") throw unexpected();
-      out.push({ state, name, image, workspace: record.workspace });
-    } else {
-      out.push({ state, name, image });
+      workspace = record.workspace;
     }
+    if ("exegol" in record && record.exegol !== true) throw unexpected();
+    if ("runtimeKali" in record && record.runtimeKali !== true) throw unexpected();
+
+    let family: LabelPrefixContainer["family"] | undefined;
+    if (record.exegol === true) family = "exegol";
+    else if (record.runtimeKali === true) family = "kali";
+    else if (image.includes("kali")) family = "kali";
+    if (family === undefined) return;
+
+    if (workspace !== undefined) out.push({ state, name, image, workspace, family });
+    else out.push({ state, name, image, family });
   });
   return out;
 }
@@ -361,7 +389,7 @@ export interface DockerClient {
   start(container: string, options?: CallOptions): Promise<void>;
   stop(container: string, options?: CallOptions): Promise<void>;
   rm(container: string, options?: CallOptions & { force?: boolean }): Promise<void>;
-  /** Conteneurs dont un label a le préfixe `org.exegol.`. Aucune valeur de label ne sort du démon. */
+  /** Conteneurs des deux familles (`exegol`, `kali`). Aucune valeur de label ne sort du démon. */
   listLabelPrefix(options?: CallOptions): Promise<LabelPrefixContainer[]>;
   /**
    * `docker exec` figé : interactif, répertoire `/workspace`, argv direct.
