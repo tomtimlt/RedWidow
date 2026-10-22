@@ -3,7 +3,7 @@ import type { CallOptions, DockerClient } from "../docker/client.js";
 import type { DockerToolContext, DockerToolSpec } from "../docker/tool-specs.js";
 import { formatLines } from "../docker/tool-specs.js";
 import { type ExegolTargets, resolveKaliContainer } from "../exegol/targets.js";
-import { CodedError } from "../reason.js";
+import { CodedError, ValidationError } from "../reason.js";
 import { KALI_EXEC_TIMEOUT_MS, type KaliApi } from "./api.js";
 
 export const KALI_SERVER_NAME = "kali";
@@ -17,6 +17,11 @@ export const KALI_SERVER_INSTRUCTIONS =
 const containerField = z.string().min(1).describe("Nom du conteneur dédié ou cité par @");
 const required = (description: string) => z.string().min(1).describe(description);
 const optional = () => z.string().optional();
+/** Chaîne d'arguments. `server.py` la passe à `shlex.split` : le JSON la porte telle quelle. */
+const shlexField = () => z.string().optional().describe("Chaîne d'arguments");
+
+/** Champs découpés par le serveur. Le corps HTTP les laisse en chaînes. */
+const SHLEX_FIELDS = new Set(["scan_type", "additional_args"]);
 
 interface KaliToolDef {
   name: string;
@@ -38,9 +43,9 @@ const TOOLS: readonly KaliToolDef[] = [
     keys: ["target", "scan_type", "ports", "additional_args"],
     input: {
       target: required("Hôte ou adresse"),
-      scan_type: optional(),
+      scan_type: shlexField(),
       ports: optional(),
-      additional_args: optional(),
+      additional_args: shlexField(),
     },
   },
   {
@@ -53,7 +58,7 @@ const TOOLS: readonly KaliToolDef[] = [
       url: required("URL cible"),
       mode: optional(),
       wordlist: optional(),
-      additional_args: optional(),
+      additional_args: shlexField(),
     },
   },
   {
@@ -62,7 +67,7 @@ const TOOLS: readonly KaliToolDef[] = [
     method: "POST",
     path: "/api/tools/dirb",
     keys: ["url", "wordlist", "additional_args"],
-    input: { url: required("URL cible"), wordlist: optional(), additional_args: optional() },
+    input: { url: required("URL cible"), wordlist: optional(), additional_args: shlexField() },
   },
   {
     name: "nikto_scan",
@@ -70,7 +75,7 @@ const TOOLS: readonly KaliToolDef[] = [
     method: "POST",
     path: "/api/tools/nikto",
     keys: ["target", "additional_args"],
-    input: { target: required("Hôte, adresse ou URL"), additional_args: optional() },
+    input: { target: required("Hôte, adresse ou URL"), additional_args: shlexField() },
   },
   {
     name: "sqlmap_scan",
@@ -78,7 +83,7 @@ const TOOLS: readonly KaliToolDef[] = [
     method: "POST",
     path: "/api/tools/sqlmap",
     keys: ["url", "data", "additional_args"],
-    input: { url: required("URL cible"), data: optional(), additional_args: optional() },
+    input: { url: required("URL cible"), data: optional(), additional_args: shlexField() },
   },
   {
     name: "metasploit_run",
@@ -113,7 +118,7 @@ const TOOLS: readonly KaliToolDef[] = [
       username_file: optional(),
       password: optional(),
       password_file: optional(),
-      additional_args: optional(),
+      additional_args: shlexField(),
     },
   },
   {
@@ -127,7 +132,7 @@ const TOOLS: readonly KaliToolDef[] = [
       hash_file: required("Fichier de condensats"),
       wordlist: optional(),
       format: optional(),
-      additional_args: optional(),
+      additional_args: shlexField(),
     },
   },
   {
@@ -136,7 +141,7 @@ const TOOLS: readonly KaliToolDef[] = [
     method: "POST",
     path: "/api/tools/wpscan",
     keys: ["url", "additional_args"],
-    input: { url: required("URL cible"), additional_args: optional() },
+    input: { url: required("URL cible"), additional_args: shlexField() },
   },
   {
     name: "enum4linux_scan",
@@ -144,7 +149,7 @@ const TOOLS: readonly KaliToolDef[] = [
     method: "POST",
     path: "/api/tools/enum4linux",
     keys: ["target", "additional_args"],
-    input: { target: required("Hôte ou adresse"), additional_args: optional() },
+    input: { target: required("Hôte ou adresse"), additional_args: shlexField() },
   },
   {
     name: "server_health",
@@ -189,14 +194,24 @@ function callOf(ctx: DockerToolContext): CallOptions {
   };
 }
 
-/** Corps HTTP : clé absente ou chaîne vide omise. `container` n'est jamais envoyé. */
+/**
+ * Corps HTTP : clé absente ou chaîne vide omise. `container` n'est jamais envoyé.
+ * `scan_type` et `additional_args` restent des chaînes : le serveur les découpe.
+ */
 function httpBody(args: Record<string, unknown>, keys: readonly string[]): Record<string, unknown> {
   const body: Record<string, unknown> = {};
   for (const key of keys) {
     if (key === "container") continue;
     const value = args[key];
     if (value === undefined) continue;
-    if (typeof value === "string" && value === "") continue;
+    if (typeof value === "string") {
+      if (value === "") continue;
+      body[key] = value;
+      continue;
+    }
+    if (SHLEX_FIELDS.has(key)) {
+      throw new ValidationError("docker.invalidArgument", { field: key, reason: "notString" });
+    }
     body[key] = value;
   }
   return body;

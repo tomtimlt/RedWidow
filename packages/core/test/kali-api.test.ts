@@ -219,6 +219,91 @@ describe("appel HTTP Kali", () => {
     expect(logged.some((c) => c.argv.includes("kali-server-mcp"))).toBe(false);
   });
 
+  it("nmap envoie scan_type et additional_args en chaînes", async () => {
+    const { tool, calls } = await harness("up", rows);
+    await tool("nmap_scan").run(
+      {
+        container: "kali-box",
+        target: "10.0.0.1",
+        scan_type: "-sT -F",
+        ports: "80,443",
+        additional_args: "-T4 -Pn",
+      },
+      ctx,
+    );
+    const body = JSON.parse((await calls()).at(-1)?.stdin ?? "").body as Record<string, unknown>;
+    expect(body).toEqual({
+      target: "10.0.0.1",
+      scan_type: "-sT -F",
+      ports: "80,443",
+      additional_args: "-T4 -Pn",
+    });
+    expect(typeof body.scan_type).toBe("string");
+    expect(typeof body.additional_args).toBe("string");
+    expect(Array.isArray(body.scan_type)).toBe(false);
+    expect(Array.isArray(body.additional_args)).toBe(false);
+  });
+
+  it("un tableau pour scan_type ou additional_args ne part pas dans le JSON", async () => {
+    const { tool, calls } = await harness("up", rows);
+    await expect(
+      tool("nmap_scan").run(
+        { container: "kali-box", target: "10.0.0.1", scan_type: ["-sT", "-F"] },
+        ctx,
+      ),
+    ).rejects.toThrow();
+    await expect(
+      tool("gobuster_scan").run(
+        { container: "kali-box", url: "http://10.0.0.1", additional_args: ["-q"] },
+        ctx,
+      ),
+    ).rejects.toThrow();
+    expect(await calls()).toEqual([]);
+  });
+
+  it("additional_args reste une chaîne pour chaque outil qui le déclare", async () => {
+    const { tool, calls } = await harness("up", rows);
+    const cases: { name: string; args: Record<string, string> }[] = [
+      { name: "gobuster_scan", args: { url: "http://10.0.0.1", additional_args: "-q -t 4" } },
+      { name: "dirb_scan", args: { url: "http://10.0.0.1", additional_args: "-r -S" } },
+      { name: "nikto_scan", args: { target: "10.0.0.1", additional_args: "-Tuning 1" } },
+      {
+        name: "sqlmap_scan",
+        args: { url: "http://10.0.0.1", additional_args: "--batch --level 1" },
+      },
+      {
+        name: "hydra_attack",
+        args: {
+          target: "10.0.0.1",
+          service: "ssh",
+          username: "a",
+          password: "b",
+          additional_args: "-t 4 -f",
+        },
+      },
+      { name: "john_crack", args: { hash_file: "hashes.txt", additional_args: "--fork 2" } },
+      { name: "wpscan_analyze", args: { url: "http://10.0.0.1", additional_args: "--stealthy" } },
+      { name: "enum4linux_scan", args: { target: "10.0.0.1", additional_args: "-a -u a" } },
+    ];
+    for (const c of cases) {
+      await tool(c.name).run({ container: "kali-box", ...c.args }, ctx);
+      const body = JSON.parse((await calls()).at(-1)?.stdin ?? "").body as Record<string, unknown>;
+      expect(body.additional_args, c.name).toBe(c.args.additional_args);
+      expect(typeof body.additional_args, c.name).toBe("string");
+    }
+  });
+
+  it("execute_command envoie encore command comme une chaîne", async () => {
+    const { tool, calls } = await harness("up", rows);
+    await tool("execute_command").run(
+      { container: "kali-box", command: "nmap -sT -F 10.0.0.1" },
+      ctx,
+    );
+    const body = JSON.parse((await calls()).at(-1)?.stdin ?? "").body as Record<string, unknown>;
+    expect(body).toEqual({ command: "nmap -sT -F 10.0.0.1" });
+    expect(typeof body.command).toBe("string");
+  });
+
   it("john envoie format, pas format_type, et omet container", async () => {
     const { tool, calls } = await harness("up", rows);
     await tool("john_crack").run(
