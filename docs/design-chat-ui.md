@@ -116,7 +116,7 @@ Règles fermes (inchangées sauf mention) :
 |---|---|---|---|
 | En-tête | boutons en icône seule (texte en `.sr-only`, `title`) ; badge bac à sable tronqué | texte court | idem |
 | Fil | messages 100 % | `max-width: 92%` (bulle utilisateur 85 %, réponse agent 100 %) | colonne centrée `min(720px, …)` (§0) |
-| Composer | barre d'outils sous le `textarea` : étiquette modèle tronquée, Configurer en icône, envoyer/stop en icône | étiquette + « Configurer ▾ » | idem, centré 820 px |
+| Composer | barre d'outils sous le `textarea` : étiquette modèle tronquée, Configurer en icône, envoyer/stop en icône | étiquette + « Configurer ▾ » | idem, dans la colonne 720 px (§0) |
 | Popover Configurer | une colonne, `min(232px, 100vw - 16px)` | idem | idem |
 
 Barre d'outils du composer **sous 720 px** (`@container app (max-width: 719px)`) : rangée d'icônes (pièce jointe, @, #, /, envoi), puis une seule rangée pour modèle, Configurer, Apprentissage et Bypass (`#ctl-group` en `nowrap`). L'étiquette du modèle absorbe la place et se tronque, les autres contrôles gardent leur taille. Jamais de contrôle seul sur une ligne.
