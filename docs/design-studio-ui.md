@@ -27,7 +27,7 @@
 | Puces « créer une règle » allow/ask/deny | Ne pas porter | Écrit la politique : architecte. |
 | Pièces jointes, bouton trombone | « bientôt » | Désactivé. |
 | Bouton @ et menu Mentionner | Réel partiel | Seulement les types reconnus par `parseMentions` ; les autres absents. |
-| Bouton / et menu Commandes | Réel partiel | `/start <nom>` et `/clear` (= message `reset` existant). `/compact`, `/help`, skills : absents. |
+| Bouton / et menu Commandes | Réel partiel | `/clear` (= message `reset`). `/start` retiré : la création est dans le cockpit. `/compact`, `/help`, skills : absents. |
 | Pastille modèle + menu | Réel | `model-chip` existant (liste du SDK, pas une liste figée). |
 | Bouton MCP + menu à statuts | Masqué | Aucun statut MCP. |
 | Jauge de contexte + popover | Masqué | Aucune donnée d'usage. |
