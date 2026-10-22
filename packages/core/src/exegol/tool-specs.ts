@@ -3,6 +3,7 @@ import { defaultConfigDir } from "../approval/source.js";
 import type { CallOptions, DockerClient } from "../docker/client.js";
 import type { DockerToolContext, DockerToolSpec } from "../docker/tool-specs.js";
 import { formatLines } from "../docker/tool-specs.js";
+import { CodedError } from "../reason.js";
 import {
   appendFinding,
   FINDING_KINDS,
@@ -18,7 +19,8 @@ export const EXEGOL_TOOL_PREFIX = "mcp__exegol__";
 export const EXEGOL_EXEC_TOOL = `${EXEGOL_TOOL_PREFIX}exec`;
 export const EXEGOL_SERVER_INSTRUCTIONS =
   "Tu exécutes un argv dans un conteneur Exegol déjà lancé, répertoire /workspace. " +
-  "Le champ container est le conteneur dédié du projet, ou un nom que l'utilisateur a cité avec @. " +
+  "Le champ container est un Exegol de l'allowlist du projet. " +
+  "Sans un seul Exegol allowlisté et vivant, le message doit l'avoir cité avec @. " +
   "Tu ne crées, n'arrêtes ni ne supprimes de conteneur.";
 
 const EXEC_TIMEOUT_MS = 600_000;
@@ -53,11 +55,12 @@ export function exegolToolSpecs(docker: DockerClient, targets: ExegolTargets): D
     spec({
       name: "exec",
       description:
-        "Exécute un argv dans le conteneur Exegol autorisé pour ce message (dédié, ou cité par @). " +
-        "Le champ container est le nom court (htb1) ou le nom Docker, résolu sur la liste courante. " +
+        "Exécute un argv dans un conteneur Exegol de l'allowlist du projet. " +
+        "Sans un seul Exegol allowlisté et vivant, le message doit l'avoir cité avec @. " +
+        "Le champ container est le nom court ou le nom Docker, résolu sur la liste courante. " +
         "Pas de shell. Le conteneur doit déjà tourner.",
       input: {
-        container: z.string().describe("Nom du conteneur dédié ou cité par @"),
+        container: z.string().describe("Nom court ou nom Docker d'un Exegol de l'allowlist"),
         argv: z.array(z.string()).describe("Programme et arguments, sans shell"),
       },
       async run(args, call) {
@@ -84,7 +87,9 @@ export function exegolToolSpecs(docker: DockerClient, targets: ExegolTargets): D
         from: z.array(z.string()).max(8).optional(),
       },
       async run(args) {
-        const finding = await appendFinding(defaultConfigDir(), {
+        const projectId = targets.current().projectId;
+        if (projectId === null) throw new CodedError("project.absent");
+        const finding = await appendFinding(defaultConfigDir(), projectId, {
           kind: args.kind as (typeof FINDING_KINDS)[number],
           label: String(args.label),
           state: args.state as (typeof FINDING_STATES)[number],

@@ -1,4 +1,6 @@
+import { isAbsolute } from "node:path";
 import {
+  activeProject,
   assertOperand,
   CodedError,
   createDockerClient,
@@ -9,10 +11,10 @@ import {
   type LabelPrefixContainer,
   link,
   lookupContainer,
-  readProject,
+  type ProjectFile,
+  readProjects,
   resolveBinary,
   shortContainerName,
-  status,
 } from "@warband/core";
 import { formatError } from "@warband/messages";
 
@@ -257,9 +259,16 @@ export interface CockpitDeps {
   configDir?: string;
   resolveBin?: typeof resolveBinary;
   createDocker?: () => DockerList;
-  readProj?: typeof readProject;
+  readProj?: typeof readProjects;
   linkProject?: typeof link;
-  projectStatus?: typeof status;
+}
+
+/** Dossier du projet actif et, s'il n'y en a qu'un, le conteneur de l'allowlist. */
+export interface LinkedProjectStatus {
+  workspace: string;
+  container: string | null;
+  image: string | null;
+  state: "running" | "stopped" | "absent" | null;
 }
 
 const isCoded = (e: unknown, code: string): boolean =>
@@ -284,7 +293,7 @@ export function containerMentions(
 export async function loadCockpitView(deps: CockpitDeps = {}): Promise<CockpitViewPayload> {
   const configDir = deps.configDir ?? defaultConfigDir();
   const resolveBin = deps.resolveBin ?? resolveBinary;
-  const readProj = deps.readProj ?? readProject;
+  const readProj = deps.readProj ?? readProjects;
   const dockerPresent = resolveBin("docker") !== null;
   const exegol = resolveBin("exegol") !== null ? "present" : "absent";
 
@@ -301,7 +310,7 @@ export async function loadCockpitView(deps: CockpitDeps = {}): Promise<CockpitVi
     };
   }
 
-  let stored: Awaited<ReturnType<typeof readProject>>;
+  let stored: ProjectFile | null;
   try {
     stored = await readProj(configDir);
   } catch (err) {
@@ -338,7 +347,7 @@ export async function loadCockpitView(deps: CockpitDeps = {}): Promise<CockpitVi
       docker: "present",
       daemon: "unreachable",
       exegol,
-      linked: stored === null ? "none" : "na",
+      linked: stored === null || activeProject(stored) === null ? "none" : "na",
       linkedBanner: null,
       containers: [],
       error: formatError(err),
@@ -346,35 +355,40 @@ export async function loadCockpitView(deps: CockpitDeps = {}): Promise<CockpitVi
   }
 
   const sorted = sortContainers(rows);
-  let linked: CockpitLinkedLine = stored === null ? "none" : "absent";
+  const active = stored === null ? null : activeProject(stored);
+  const allowed = active?.containers ?? [];
+  const unique = allowed.length === 1 ? allowed[0] : undefined;
+  let linked: CockpitLinkedLine = active === null ? "none" : "absent";
   let linkedBanner: CockpitLinkedBanner | null = null;
 
-  if (stored !== null) {
-    const row = rows.find((r) => r.name === stored.container);
+  if (active !== null && unique !== undefined) {
+    const row = rows.find((r) => r.name === unique);
     if (row === undefined) {
       linked = "absent";
       linkedBanner = {
-        name: stored.container,
-        short: shortContainerName(stored.container),
+        name: unique,
+        short: shortContainerName(unique),
         image: null,
-        workspace: stored.workspace,
+        workspace: active.workspace,
         state: "absent",
       };
     } else {
       linked = row.state === "running" ? "running" : "stopped";
       linkedBanner = {
-        name: stored.container,
-        short: shortContainerName(stored.container),
+        name: unique,
+        short: shortContainerName(unique),
         image: row.image,
-        workspace: stored.workspace,
+        workspace: active.workspace,
         state: row.state,
       };
     }
+  } else if (active !== null) {
+    linked = "none";
   }
 
-  const linkedName = stored?.container;
   const containers: CockpitContainerView[] = sorted.map((r) => {
-    const isLinked = linkedName === r.name;
+    const isLinked = allowed.includes(r.name);
+    const mount = r.workspace !== undefined && isAbsolute(r.workspace);
     let canLink = false;
     let linkTitle: string | undefined;
     if (isLinked) {
@@ -383,7 +397,7 @@ export async function loadCockpitView(deps: CockpitDeps = {}): Promise<CockpitVi
       linkTitle = "On ne lie pas un Kali";
     } else if (r.state !== "running") {
       linkTitle = "Conteneur arrêté";
-    } else if (r.workspace === undefined) {
+    } else if (!mount) {
       linkTitle = "Sans montage /workspace";
     } else {
       canLink = true;
@@ -496,18 +510,29 @@ export async function controlListedContainer(
   await docker.stop(real);
 }
 
-/** État du projet lié pour ouverture de dossier / terminal (relève si absent ou invalide). */
-export async function linkedProjectStatus(deps: CockpitDeps = {}) {
+/**
+ * Projet actif pour le dossier, le terminal et la barre.
+ * Sans projet actif, ou fichier illisible : `null`.
+ * Zéro ou plusieurs noms : `container` null. Un seul nom : image et état de cette ligne.
+ */
+export async function linkedProjectStatus(
+  deps: CockpitDeps = {},
+): Promise<LinkedProjectStatus | null> {
   const configDir = deps.configDir ?? defaultConfigDir();
-  const readProj = deps.readProj ?? readProject;
-  let stored: Awaited<ReturnType<typeof readProject>>;
+  const readProj = deps.readProj ?? readProjects;
+  let stored: ProjectFile | null;
   try {
     stored = await readProj(configDir);
   } catch (err) {
     if (isCoded(err, "project.invalid")) return null;
     throw err;
   }
-  if (stored === null) return null;
+  const active = stored === null ? null : activeProject(stored);
+  if (active === null) return null;
+  const container = active.containers.length === 1 ? active.containers[0] : undefined;
+  if (container === undefined) {
+    return { workspace: active.workspace, container: null, image: null, state: null };
+  }
   const createDocker =
     deps.createDocker ??
     (() =>
@@ -516,6 +541,9 @@ export async function linkedProjectStatus(deps: CockpitDeps = {}) {
         binary: "docker",
         timeoutMs: 15_000,
       }));
-  const projectStatus = deps.projectStatus ?? status;
-  return projectStatus(configDir, createDocker());
+  const row = (await createDocker().listLabelPrefix()).find((r) => r.name === container);
+  if (row === undefined) {
+    return { workspace: active.workspace, container, image: null, state: "absent" };
+  }
+  return { workspace: active.workspace, container, image: row.image, state: row.state };
 }

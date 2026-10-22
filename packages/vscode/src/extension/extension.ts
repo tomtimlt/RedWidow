@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import {
+  activeProject,
   CodedError,
   coursRoot,
   createDockerClient,
@@ -11,7 +12,7 @@ import {
   lookupContainer,
   parseMentions,
   readFindings,
-  readProject,
+  readProjects,
   resolveBinary,
   shortContainerName,
   unlink,
@@ -439,15 +440,18 @@ export function activate(context: vscode.ExtensionContext): void {
             return;
           }
           const mentions = parseMentions(message.text);
-          let dedicatedName: string | null = null;
+          let allowedCount = 0;
           try {
-            dedicatedName = (await readProject(defaultConfigDir()))?.container ?? null;
+            const file = await readProjects(defaultConfigDir());
+            const active = file === null ? null : activeProject(file);
+            allowedCount = active?.containers.length ?? 0;
           } catch {
-            dedicatedName = null;
+            allowedCount = 0;
           }
-          // Une consigne qui cite un terminal (#) se suffit : l'agent analyse la sortie jointe. Les
-          // outils Exegol restent bornés par les règles de cible du cœur (@ ou conteneur dédié).
-          if (mentions.length === 0 && dedicatedName === null && hashes.length === 0) {
+          // Une consigne qui cite un terminal (#) se suffit : l'agent analyse la sortie jointe.
+          // Sans @ ni #, on bloque seulement sans projet actif ou si l'allowlist est vide.
+          // Un Kali dans l'allowlist n'est pas refusé ici : le cœur refuse l'exec.
+          if (mentions.length === 0 && hashes.length === 0 && allowedCount === 0) {
             void vscode.window.showErrorMessage(
               "Cite un conteneur avec @nom, ou un terminal avec #.",
             );
@@ -634,7 +638,7 @@ export function activate(context: vscode.ExtensionContext): void {
           }
           case "terminal": {
             const st = await linkedProjectStatus();
-            if (st === null || st.state !== "running") return;
+            if (st === null || st.container === null || st.state !== "running") return;
             await openEditorShell(st.container);
             return;
           }
@@ -896,7 +900,7 @@ export function activate(context: vscode.ExtensionContext): void {
     } catch {
       st = null;
     }
-    if (st === null) {
+    if (st === null || st.container === null) {
       barContainer.hide();
       return;
     }
@@ -928,7 +932,9 @@ export function activate(context: vscode.ExtensionContext): void {
     const cockpit = await loadCockpitView();
     let findings: unknown[] = [];
     try {
-      findings = await readFindings(defaultConfigDir());
+      const file = await readProjects(defaultConfigDir());
+      const active = file === null ? null : activeProject(file);
+      findings = active === null ? [] : await readFindings(defaultConfigDir(), active.id);
     } catch {
       findings = [];
     }

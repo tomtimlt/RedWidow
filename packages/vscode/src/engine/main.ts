@@ -1,6 +1,12 @@
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { createSdkRunner } from "@warband/agent-sdk";
-import { CodedError, createExegolTargets, defaultConfigDir, readProject } from "@warband/core";
+import {
+  activeProject,
+  CodedError,
+  createExegolTargets,
+  defaultConfigDir,
+  readProjects,
+} from "@warband/core";
 import { matchesFingerprint } from "../logic/integrity.js";
 import { PROTOCOL_VERSION } from "../logic/protocol.js";
 import { processChannel } from "./channel.js";
@@ -25,14 +31,30 @@ const targets = createExegolTargets();
 
 const done = runEngine({
   channel,
-  onPrompt: async (text) => {
-    let dedicated: string | null = null;
+  resolveCwd: async (cwd) => {
     try {
-      dedicated = (await readProject(defaultConfigDir()))?.container ?? null;
+      const file = await readProjects(defaultConfigDir());
+      const active = file === null ? null : activeProject(file);
+      if (active !== null && active.workspace !== "" && isAbsolute(active.workspace)) {
+        return active.workspace;
+      }
     } catch {
-      dedicated = null;
+      // Lecture invalide : cwd du start.
     }
-    targets.note(text, dedicated);
+    return cwd;
+  },
+  onPrompt: async (text) => {
+    try {
+      const file = await readProjects(defaultConfigDir());
+      const active = file === null ? null : activeProject(file);
+      if (active === null) {
+        targets.note(text, [], null);
+        return;
+      }
+      targets.note(text, active.containers, active.id);
+    } catch {
+      targets.note(text, [], null);
+    }
   },
   createRunner: async (mode) => {
     // Vérification juste avant la construction du runner (fail-closed : empreinte absente = refus).

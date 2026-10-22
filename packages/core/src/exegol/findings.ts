@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname } from "node:path";
+import { projectFindingsPath } from "../project.js";
 import { CodedError } from "../reason.js";
 
 export const USER_FINDINGS_FILE = "findings.json";
@@ -78,9 +79,9 @@ function validFrom(v: unknown): v is string[] {
   );
 }
 
-/** Lit les trouvailles du projet. Fichier absent : liste vide. */
-export async function readFindings(configDir: string): Promise<Finding[]> {
-  const path = join(configDir, USER_FINDINGS_FILE);
+/** Lit les trouvailles du projet. Id invalide : `project.invalid` avant toute lecture. Fichier absent : liste vide. */
+export async function readFindings(configDir: string, projectId: string): Promise<Finding[]> {
+  const path = projectFindingsPath(configDir, projectId);
   let text: string;
   try {
     text = await readFile(path, "utf8");
@@ -123,6 +124,7 @@ export async function readFindings(configDir: string): Promise<Finding[]> {
 /** Ajoute une trouvaille. Au-delà du plafond, la plus ancienne sort. */
 export async function appendFinding(
   configDir: string,
+  projectId: string,
   input: {
     kind: FindingKind;
     label: string;
@@ -132,6 +134,7 @@ export async function appendFinding(
     from?: string[] | undefined;
   },
 ): Promise<Finding> {
+  const path = projectFindingsPath(configDir, projectId);
   const label = input.label.trim();
   if (label === "" || label.length > MAX_LABEL || !isKind(input.kind) || !isState(input.state)) {
     throw invalid();
@@ -140,7 +143,7 @@ export async function appendFinding(
   if (input.technique !== undefined && !isTechnique(input.technique)) throw invalid();
   const from = input.from === undefined ? [] : [...new Set(input.from)];
   if (from.length > MAX_FROM) throw invalid();
-  const current = await readFindings(configDir);
+  const current = await readFindings(configDir, projectId);
   const known = new Set(current.map((f) => f.id));
   if (!from.every((id) => known.has(id))) throw invalid();
   const finding: Finding = { id: randomUUID(), kind: input.kind, label, state: input.state };
@@ -148,8 +151,7 @@ export async function appendFinding(
   if (input.technique !== undefined) finding.technique = input.technique;
   if (from.length > 0) finding.from = from;
   const next = [...current, finding].slice(-MAX_FINDINGS);
-  await mkdir(configDir, { recursive: true });
-  const path = join(configDir, USER_FINDINGS_FILE);
+  await mkdir(dirname(path), { recursive: true });
   const temp = `${path}.${process.pid}.tmp`;
   await writeFile(temp, `${JSON.stringify(next, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
   await rename(temp, path);
