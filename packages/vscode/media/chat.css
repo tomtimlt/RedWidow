@@ -603,6 +603,7 @@ button.example:focus-visible::after {
   font-family: var(--jn-mono);
   max-height: 14em;
   overflow: auto;
+  padding: 8px 10px;
   background: var(--vscode-textCodeBlock-background);
   border-radius: var(--jn-r-md);
 }
@@ -815,10 +816,11 @@ body.waiting #thinking {
 }
 .card-buttons {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   margin-top: var(--jn-s3);
+  min-width: 0;
 }
 
 /* Largeur compacte : « Autoriser une fois » prend sa ligne, « Refuser » et « Toujours » se partagent la suivante
