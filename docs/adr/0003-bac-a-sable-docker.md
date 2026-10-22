@@ -1,6 +1,6 @@
 # 0003 — Bac à sable Docker : exécution de commandes par l'agent dans un conteneur géré
 
-- Statut : accepté pour le profil durci par défaut (lots S1 à S5) ; amendé le 2026-10-15 par la section H (réseau sortant optionnel `bridge`, profil « développement », lots N1 à N5) ; tout profil de privilèges (root, capacités, accès hôte) reste exclu
+- Statut : **abandonné le 2026-10-22 (non retenu : Warband cible des environnements de pentest déjà dédiés)**, conservé comme historique. Ancien statut : accepté pour le profil durci par défaut (lots S1 à S5) ; amendé le 2026-10-15 par la section H (réseau sortant optionnel `bridge`, profil « développement », lots N1 à N5) ; tout profil de privilèges (root, capacités, accès hôte) reste exclu
 - Date : 2026-10-14 (acceptation : 2026-10-14 ; amendement H : 2026-10-15)
 - S'appuie sur : ADR 0001 (processus), ADR 0002 (Windows natif)
 

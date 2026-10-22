@@ -67,7 +67,7 @@ Tous en scope **machine** : la valeur posée dans `.vscode/settings.json` d'un d
 | `warband.maxTurns` | Plafond de tours (0 : aucun). |
 | `warband.ultracode.maxTurns` | Plafond de tours du préréglage Ultracode (0 : aucun). |
 | `warband.ultracode.maxBudgetUsd` | Plafond de dépense (USD) du préréglage Ultracode (0 : aucun). |
-| `warband.sandbox.enabled` (prévu, pas encore disponible) | Active le bac à sable Docker (`mcp__sandbox__exec`). |
+| `warband.sandbox.enabled` (non retenu) | Active le bac à sable Docker (`mcp__sandbox__exec`). |
 | `warband.sandbox.image` | Image **locale** (obligatoire si activé ; jamais téléchargée). |
 | `warband.sandbox.timeoutSec` | Délai par exécution, 1 à 1800 s (défaut 600). |
 
@@ -75,7 +75,7 @@ Les réglages sont lus au démarrage du moteur : pour les appliquer, **Nouvelle 
 
 ## Tester le bac à sable
 
-> **Pas encore intégré à cette version.** Le bac à sable est décrit dans l'ADR 0003 et son code a été écrit sur une ancienne branche, mais il n'est pas fusionné : les options `--sandbox*` et les réglages `warband.sandbox.*` ci-dessous n'existent pas encore.
+> **Non retenu (décision du 2026-10-22).** Warband vise des environnements de pentest déjà isolés ou dédiés (conteneur Exegol, conteneur Kali, Kali natif) : un bac à sable supplémentaire n'est pas nécessaire. Le texte ci-dessous est conservé comme historique (ADR 0003) ; les options `--sandbox*` et les réglages `warband.sandbox.*` n'existent pas.
 
 ```
 docker pull alpine:3.20

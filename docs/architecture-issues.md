@@ -138,17 +138,17 @@ Ce sont les premiers retours réels d'un Windows ; ils sont traités par le lot 
 - La table des shims npm (`SHIM_PACKAGES`) ne contient que `opencode` ; à généraliser seulement si un autre binaire en a besoin.
 - Non vérifié sans Windows : forme réelle des retours de `realpathSync.native`, comportement de `taskkill`, outils exposés par le SDK sous Windows, shell du bash d'OpenCode.
 
-## Bac à sable Docker (ADR 0003) — accepté pour le profil durci par défaut, lots S1 à S5 à faire
+## Bac à sable Docker (ADR 0003) — accepté pour le profil durci par défaut, non retenu (décision du 2026-10-22), lots S1 à S5 abandonnés
 
 Exécution de commandes par l'agent dans un conteneur créé par le moteur (`--sandbox`), sans Bash hôte. Décisions dans `docs/adr/0003-bac-a-sable-docker.md` : toolset `sandbox` séparé, cible = registre en mémoire (le label n'autorise rien), durcissement vérifié par `inspect` avant chaque appel (`sandbox.tampered` fail-closed), argv direct sans shell imposé, mémorisation limitée à l'argv exact dans le conteneur (jamais l'outil entier), délai/annulation par `docker restart`, échange de fichiers par flux tar lu et écrit par notre code. Décisions de produit en attente : réseau par défaut, choix de l'image, mode autonome, conservation du conteneur, limites par défaut.
 
 | Lot | Contenu | Revue sécurité | État |
 |---|---|---|---|
-| S1 | Cycle de vie, registre, vérification `inspect`, événements `sandbox.*` | oui | à faire |
-| S2 | Politique et gate pour `mcp__sandbox__exec` | oui | à faire |
-| S3 | Toolset, CLI, annulation, filtrage des séquences de contrôle | annulation | à faire |
-| S4 | `put`/`get` par tar strict | oui | à faire |
-| S5 | Intégration avec vrai Docker, W-L6, README | non | à faire |
+| S1 | Cycle de vie, registre, vérification `inspect`, événements `sandbox.*` | oui | non retenu |
+| S2 | Politique et gate pour `mcp__sandbox__exec` | oui | non retenu |
+| S3 | Toolset, CLI, annulation, filtrage des séquences de contrôle | annulation | non retenu |
+| S4 | `put`/`get` par tar strict | oui | non retenu |
+| S5 | Intégration avec vrai Docker, W-L6, README | non | non retenu |
 
 **Décisions de l'architecte (ADR 0003 §G, révisées par H).** Réseau `none` par défaut, `bridge` sur choix explicite. Aucune image par défaut, `--pull never`. Mémoire `1g`–`8g` et CPU `1`–`8`. Question restante (Q3) : mode autonome sans demande par exécution (recommandation : non).
 

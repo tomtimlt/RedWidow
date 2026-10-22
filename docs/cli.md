@@ -141,9 +141,9 @@ Les messages de sous-agents sont conservés : leurs événements sont enfants du
 (`agentToolUseId` renseigné). Limite : si le SDK appelle `canUseTool` avant d'émettre le message du sous-agent, le
 `tool.requested` est rattaché à la racine.
 
-## Bac à sable d'exécution (prévu)
+## Bac à sable d'exécution (non retenu)
 
-> **Pas encore intégré à cette version.** Le bac à sable est décrit dans l'ADR 0003 et son code a été écrit sur une ancienne branche, mais il n'est pas fusionné : les options `--sandbox*` et les réglages `warband.sandbox.*` ci-dessous n'existent pas encore.
+> **Non retenu (décision du 2026-10-22).** Warband vise des environnements de pentest déjà isolés ou dédiés (conteneur Exegol, conteneur Kali, Kali natif) : un bac à sable supplémentaire n'est pas nécessaire. Le texte ci-dessous est conservé comme historique (ADR 0003) ; les options `--sandbox*` et les réglages `warband.sandbox.*` n'existent pas.
 
 Le moteur peut isoler les commandes du modèle dans un conteneur Docker dédié au run (outil `mcp__sandbox__exec`), en
 complément des outils docker structurés ci-dessus.
