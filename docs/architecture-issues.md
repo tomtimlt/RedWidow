@@ -185,6 +185,14 @@ Fonction neuve `createKaliContainer`, hors de l'interface `DockerClient` vue par
 
 Le cockpit crée : Exegol par `exegol start <nom>`, Kali par `createKaliContainer` (image locale, dossier choisi par le dialogue). La saisie `/start` n'est plus une commande. `/clear` et les `@` restent. Les ADR 0007 et 0009 décrivent l'ancien `/start`.
 
+## Projets et allowlist d'exécution (ADR 0013) — accepté, lot P1 à faire
+
+`project.json` devient `{ activeId, projects: [{ id, name, workspace, containers }] }`. L'ancien `{ container, workspace }` migre vers un projet actif qui contient ce nom. `containers` stocke des noms présents dans `listLabelPrefix` (Kali compris). `exec` exige le nom réel dans l'allowlist du projet actif et `family === "exegol"` sur la liste courante, après résolution sur cette liste (court ambigu : refus). Sans `@`, un seul Exegol vivant dans l'intersection est accepté ; zéro ou plusieurs : refus. L'allowlist est copiée au message, pas relue dans l'outil. La politique du run est `loadPolicy` du `workspace` du projet actif, même `cwd` pour la gate, hors mode apprentissage. Trouvailles : un `findings.json` par projet, même format. Pas d'écran de choix dans ce lot. Start/stop ne sont pas filtrés par l'allowlist.
+
+| Lot | Contenu | Revue sécurité | État |
+|---|---|---|---|
+| P1 | Migration, écriture, filtre `exec`, trouvailles par projet, `cwd` de politique | oui (ce lot) | à faire |
+
 ## Décisions à demander en priorité
 
 - ~~**Garde unique** (points 2 et 3)~~ : tranché, `PreToolUse`.
