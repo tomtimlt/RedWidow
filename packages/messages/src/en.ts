@@ -47,6 +47,7 @@ export const reasons: Catalog = {
   "cours.absent": () => "no course installed (course folder missing)",
   "exegol.containerDenied": (p) =>
     `container not allowed for this message: ${text(p.name)} (project default, or named with @)`,
+  "kali.unavailable": (p) => `Kali server unavailable in the container: ${text(p.name)}`,
   "shell.unanalyzable": (p) =>
     `shell cannot be analysed safely (${text(p.tool)}): never auto-approved nor remembered`,
   "sdk.unexpectedTool": (p) =>

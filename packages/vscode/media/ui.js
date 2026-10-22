@@ -5,6 +5,7 @@
 
   /** Nom de l'outil d'exec Exegol (miroir de `EXEGOL_EXEC_TOOL`, vérifié par test). */
   const EXEC_TOOL = "mcp__exegol__exec";
+  const KALI_PREFIX = "mcp__kali__";
   const MONITOR_MAX_ROWS = 200;
 
   /** Badge d'une ligne d'historique : « en cours » seulement pour la conversation courante si elle tourne. */
@@ -29,21 +30,21 @@
   /** Argument de commande : tel quel, entre guillemets s'il contient un espace ou est vide. */
   const shellArg = (arg) => (/^[^\s"']+$/.test(arg) ? arg : JSON.stringify(arg));
 
-  /** Conteneur et commande d'un appel (entrée JSON `{container, argv}`, sinon texte brut). */
+  /**
+   * Conteneur et commande. Exec Exegol : argv joint. Autre objet : le JSON stocké sans
+   * `container`. Texte non JSON : affiché tel quel, conteneur vide.
+   */
   function execCommand(raw) {
     try {
       const v = JSON.parse(raw);
-      if (
-        v !== null &&
-        typeof v === "object" &&
-        !Array.isArray(v) &&
-        Array.isArray(v.argv) &&
-        v.argv.every((a) => typeof a === "string")
-      ) {
-        return {
-          container: typeof v.container === "string" ? v.container : "",
-          command: v.argv.map(shellArg).join(" "),
-        };
+      if (v !== null && typeof v === "object" && !Array.isArray(v)) {
+        const container = typeof v.container === "string" ? v.container : "";
+        if (Array.isArray(v.argv) && v.argv.every((a) => typeof a === "string")) {
+          return { container, command: v.argv.map(shellArg).join(" ") };
+        }
+        const rest = { ...v };
+        delete rest.container;
+        return { container, command: JSON.stringify(rest) };
       }
     } catch {
       // Entrée tronquée par le plafond de description : affichée telle quelle.
@@ -52,7 +53,7 @@
   }
 
   /**
-   * Lignes du Monitor : un appel d'exec Exegol par ligne, les plus récents seulement. Méta limitée à
+   * Lignes du Monitor : un exec Exegol ou un outil Kali par ligne, les plus récents seulement. Méta limitée à
    * ce que la vue porte (statut ; ni durée ni volumétrie). `pending` : une autorisation attend, à
    * donner dans le chat.
    */
@@ -61,7 +62,13 @@
       view && Array.isArray(view.approvals) ? view.approvals.map((a) => a.toolUseId) : [],
     );
     const rows = itemsOf(view)
-      .filter((it) => it && it.kind === "tool" && it.tool === EXEC_TOOL)
+      .filter(
+        (it) =>
+          it &&
+          it.kind === "tool" &&
+          (it.tool === EXEC_TOOL ||
+            (typeof it.tool === "string" && it.tool.startsWith(KALI_PREFIX))),
+      )
       .map((it) => {
         const raw = typeof it.input === "string" ? it.input : "";
         const { container, command } = execCommand(raw);

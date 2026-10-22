@@ -10,6 +10,7 @@ import {
   parseMentions,
   promptForTargets,
   resolveExegolContainer,
+  resolveKaliContainer,
   shortContainerName,
   TERMINAL_CONTEXT_MARK,
 } from "../src/index.js";
@@ -76,6 +77,29 @@ describe("cibles Exegol", () => {
     expect(() =>
       resolveExegolContainer({ dedicated: null, mentions: ["lab"] }, "lab", bare),
     ).toThrow(expect.objectContaining(denied));
+  });
+
+  it("refuse un Exegol, un nom hors liste, un @ non cité et un dédié qui n'est pas ce Kali", () => {
+    const kali = (name: string) => ({ name, family: "kali" as const });
+    const listed = [kali("k1"), kali("k2"), exegol("lab")];
+    const denied = { code: "exegol.containerDenied" };
+    expect(resolveKaliContainer({ dedicated: "k1", mentions: [] }, "k1", listed)).toBe("k1");
+    expect(() => resolveKaliContainer({ dedicated: "lab", mentions: [] }, "lab", listed)).toThrow(
+      expect.objectContaining(denied),
+    );
+    expect(() => resolveKaliContainer({ dedicated: "k1", mentions: [] }, "absent", listed)).toThrow(
+      expect.objectContaining(denied),
+    );
+    expect(() => resolveKaliContainer({ dedicated: "k1", mentions: ["k2"] }, "k1", listed)).toThrow(
+      expect.objectContaining(denied),
+    );
+    expect(resolveKaliContainer({ dedicated: "k1", mentions: ["k2"] }, "k2", listed)).toBe("k2");
+    expect(() => resolveKaliContainer({ dedicated: "k1", mentions: [] }, "k2", listed)).toThrow(
+      expect.objectContaining(denied),
+    );
+    expect(() => resolveKaliContainer({ dedicated: "lab", mentions: [] }, "k1", listed)).toThrow(
+      expect.objectContaining(denied),
+    );
   });
 
   it("note la cible du message", () => {

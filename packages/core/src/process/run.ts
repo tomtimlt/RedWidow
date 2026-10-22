@@ -1,5 +1,5 @@
 import { type ChildProcessByStdio, spawn } from "node:child_process";
-import type { Readable } from "node:stream";
+import type { Readable, Writable } from "node:stream";
 import type { Correlation } from "../events.js";
 import { CodedError, ValidationError } from "../reason.js";
 import type { Recorder } from "../recorder.js";
@@ -91,6 +91,11 @@ export interface RunProcessOptions {
   maxLineLength?: number;
   /** Fiabilité du rattachement à l'appel d'outil parent, consignée dans `process.started`. */
   correlation?: Correlation;
+  /**
+   * Texte écrit sur l'entrée standard, puis fermée. Absent : `stdio` vaut `ignore`,
+   * comme si l'entrée n'était pas branchée.
+   */
+  stdin?: string;
 }
 
 export interface ProcessResult {
@@ -143,19 +148,20 @@ export function runProcess(
     maxCapturedLines = 10_000,
     maxJournaledLines = 10_000,
     correlation,
+    stdin,
   } = options;
   const started = performance.now();
 
   return new Promise((resolve, reject) => {
-    let child: ChildProcessByStdio<null, Readable, Readable>;
+    let child: ChildProcessByStdio<Writable | null, Readable, Readable>;
     try {
       child = spawn(file, args, {
         cwd: options.cwd,
         env: options.env ?? safeEnv(),
         ...spawnOptionsForTree(),
-        stdio: ["ignore", "pipe", "pipe"],
+        stdio: [stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"],
         shell: false,
-      });
+      }) as ChildProcessByStdio<Writable | null, Readable, Readable>;
     } catch (e) {
       // E2BIG / ENAMETOOLONG sont levées de façon synchrone ; aucun événement n'a été émis.
       const code = (e as NodeJS.ErrnoException).code;
@@ -163,6 +169,13 @@ export function runProcess(
         reject(new ValidationError("process.commandTooLong", { length: argv.join(" ").length }));
       else reject(e);
       return;
+    }
+
+    if (stdin !== undefined && child.stdin) {
+      child.stdin.on("error", () => {
+        // EPIPE : l'enfant a fermé son entrée. Le code de sortie reste la référence.
+      });
+      child.stdin.end(stdin);
     }
 
     trackProcessTree(child);
