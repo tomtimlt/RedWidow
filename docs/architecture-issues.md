@@ -169,7 +169,7 @@ Exécution de commandes par l'agent dans un conteneur créé par le moteur (`--s
 
 ## Familles des conteneurs listés (ADR 0011) — accepté, lot F1 livré
 
-`listLabelPrefix` retient deux familles. `exegol` : une clé de label préfixée par `org.exegol.`, même si l'image contient `kali`. Sinon `kali` : label `io.warband.runtime` exactement `kali`, ou à défaut la référence d'image contient `kali` (casse respectée). Le reste est absent. Les valeurs de labels ne sont pas imprimées (la sortie est journalisée). `exec` (`resolveExegolContainer`) et `link` restent limités à `exegol` (`project.notExegol`). Start/stop exécute le nom de la liste, quelle que soit la famille. Le lot F1 ne crée pas de conteneur, ne pose pas de label et ne monte rien. Le cockpit affiche la famille et ne propose pas de lier un Kali. La création est l'ADR 0012.
+`listLabelPrefix` retient deux familles. `exegol` : une clé de label préfixée par `org.exegol.`, même si l'image contient `kali`. Sinon `kali` : label `io.warband.runtime` exactement `kali`, ou à défaut la référence d'image contient `kali` (casse respectée). Le reste est absent. Les valeurs de labels ne sont pas imprimées (la sortie est journalisée). `resolveExegolContainer` reste limité à `exegol`. Le refus de `link` sur un Kali est levé par l'ADR 0014. Start/stop exécute le nom de la liste, quelle que soit la famille. Le lot F1 ne crée pas de conteneur, ne pose pas de label et ne monte rien. La création est l'ADR 0012. L'exécution Kali est l'ADR 0014.
 
 | Lot | Contenu | Revue sécurité | État |
 |---|---|---|---|
@@ -177,7 +177,7 @@ Exécution de commandes par l'agent dans un conteneur créé par le moteur (`--s
 
 ## Conteneur Kali (ADR 0012) — accepté, lot K1 livré
 
-Fonction neuve `createKaliContainer`, hors de l'interface `DockerClient` vue par l'outil MCP. Conteneur détaché, image locale (`--pull never`), nom obligatoire, réseau `bridge` (jamais `host`), un bind en écriture : source = chemin absolu de l'appelant (dossier existant, résolu), destination fixe `/workspace`. Label `io.warband.runtime=kali`. Pas de commande, donc l'entrée de l'image (`/start` compris) reste. Refus avant tout spawn : relatif, délimiteur de montage, racine, socket Docker, dossier absent ou non répertoire, secret exposé (le montage contient un chemin sensible, ou l'inverse). `DockerClient.run` et l'outil `run` ne gagnent ni volume ni label. `link` et `resolveExegolContainer` inchangés.
+Fonction neuve `createKaliContainer`, hors de l'interface `DockerClient` vue par l'outil MCP. Conteneur détaché, image locale (`--pull never`), nom obligatoire, réseau `bridge` (jamais `host`), un bind en écriture : source = chemin absolu de l'appelant (dossier existant, résolu), destination fixe `/workspace`. Label `io.warband.runtime=kali`. Pas de commande, donc l'entrée de l'image (`/start` compris) reste. Refus avant tout spawn : relatif, délimiteur de montage, racine, socket Docker, dossier absent ou non répertoire, secret exposé (le montage contient un chemin sensible, ou l'inverse). `DockerClient.run` et l'outil `run` ne gagnent ni volume ni label. Le label n'autorise rien à lui seul. `link` et l'exécution sont l'ADR 0014.
 
 | Lot | Contenu | Revue sécurité | État |
 |---|---|---|---|
@@ -187,11 +187,19 @@ Le cockpit crée : Exegol par `exegol start <nom>`, Kali par `createKaliContaine
 
 ## Projets et allowlist d'exécution (ADR 0013) — accepté, lot P1 à faire
 
-`project.json` devient `{ activeId, projects: [{ id, name, workspace, containers }] }`. L'ancien `{ container, workspace }` migre vers un projet actif qui contient ce nom. `containers` stocke des noms présents dans `listLabelPrefix` (Kali compris). `exec` exige le nom réel dans l'allowlist du projet actif et `family === "exegol"` sur la liste courante, après résolution sur cette liste (court ambigu : refus). Sans `@`, un seul Exegol vivant dans l'intersection est accepté ; zéro ou plusieurs : refus. L'allowlist est copiée au message, pas relue dans l'outil. La politique du run est `loadPolicy` du `workspace` du projet actif, même `cwd` pour la gate, hors mode apprentissage. Trouvailles : un `findings.json` par projet, même format. Pas d'écran de choix dans ce lot. Start/stop ne sont pas filtrés par l'allowlist.
+`project.json` devient `{ activeId, projects: [{ id, name, workspace, containers }] }`. L'ancien `{ container, workspace }` migre vers un projet actif qui contient ce nom. `containers` stocke des noms présents dans `listLabelPrefix` (Kali compris). L'exec Exegol exige le nom réel dans l'allowlist du projet actif et `family === "exegol"` sur la liste courante, après résolution sur cette liste (court ambigu : refus). Sans `@`, un seul Exegol vivant dans l'intersection est accepté ; zéro ou plusieurs : refus. Un Kali de l'allowlist n'est pas résolu par cet exec : il passe par `resolveKaliContainer` (ADR 0014), même intersection, famille `kali`. `link` accepte les deux familles s'ils sont `running` et ont `/workspace`. L'allowlist est copiée au message, pas relue dans l'outil. La politique du run est `loadPolicy` du `workspace` du projet actif, même `cwd` pour la gate, hors mode apprentissage. Trouvailles : un `findings.json` par projet, même format. Pas d'écran de choix dans ce lot. Start/stop ne sont pas filtrés par l'allowlist.
 
 | Lot | Contenu | Revue sécurité | État |
 |---|---|---|---|
 | P1 | Migration, écriture, filtre `exec`, trouvailles par projet, `cwd` de politique | oui (ce lot) | à faire |
+
+## Exécution Kali par mcp-kali-server (ADR 0014) — accepté, lot K2 à faire
+
+Le serveur n'est pas dans le dépôt. Doc : API HTTP `kali-server-mcp`, défaut `127.0.0.1:5000`, dans le conteneur déjà classé `kali` par `listLabelPrefix`. Pas de port publié, pas de processus sur l'hôte. Douze outils de `client.py` (`nmap_scan`, `gobuster_scan`, `dirb_scan`, `nikto_scan`, `sqlmap_scan`, `metasploit_run`, `hydra_attack`, `john_crack`, `wpscan_analyze`, `enum4linux_scan`, `server_health`, `execute_command`), toolset `kali`, noms `mcp__kali__*`. `execute_command` est un shell non analysable : un `deny` Bash ou `docker.hostAccess` tient, le reste est `ask` non mémorisable. Les autres restent `ask`. `link` et `canLink` acceptent un Kali `running` avec `/workspace`. Le projet reste l'objet unique jusqu'au lot P1. `#` et le terminal ne sont pas reconstruits.
+
+| Lot | Contenu | Revue sécurité | État |
+|---|---|---|---|
+| K2 | Toolset, API dans le conteneur, gate de `execute_command`, `link` | oui (ce lot) | à faire |
 
 ## Décisions à demander en priorité
 

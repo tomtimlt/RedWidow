@@ -3,6 +3,7 @@
 - Statut : accepté
 - Date : 2026-10-22
 - S'appuie sur : ADR 0007 (le nom exécuté est celui de la liste courante)
+- Amendé par : ADR 0014 (`link` accepte un Kali `running` avec `/workspace` ; l'exécution Kali est mcp-kali-server ; `resolveExegolContainer` reste `exegol`)
 
 ## Contexte
 
@@ -22,7 +23,7 @@ Décision de produit déjà prise : Exegol reste reconnu seulement par le préfi
 
 1. **Une liste, un champ `family`.** `LabelPrefixContainer` gagne `family: "exegol" | "kali"`, obligatoire. Les noms `listLabelPrefix`, `parseDockerLabelPrefixInspect` et `LabelPrefixContainer` restent. Le commentaire de la méthode dit que la liste contient les deux familles.
 2. **Signaux sur la ligne, famille dans le parseur.** Le format `docker inspect --format` n'imprime une ligne que pour un candidat, et seulement avec les clés déjà admises plus deux booléens littéraux : `"exegol":true` si une clé a les 11 premiers caractères `org.exegol.` ; `"runtimeKali":true` si une clé est exactement `io.warband.runtime` et que sa valeur est exactement `kali`. La comparaison de la valeur reste dans le modèle ; la valeur n'est pas interpolée (`$v` n'apparaît que dans `eq`). L'image est déjà émise par `json .Config.Image`. Le sous-chaîne `kali` côté modèle utilise `split` et `len` (fonctions du format Docker), pas `contains`. Le parseur est le seul à calculer `family`, dans cet ordre : signal `exegol`, sinon signal `runtimeKali`, sinon `image.includes("kali")` sensible à la casse, sinon la ligne est écartée. Il n'accepte pas une clé `family` en entrée. `exegol` ou `runtimeKali` autre que le booléen `true` est `docker.unexpectedOutput`, sans recopier le corps.
-3. **Autorité inchangée hors de la liste.** `resolveExegolContainer` ignore toute entrée dont `family` n'est pas `"exegol"` (champ absent inclus). `link` refuse `family !== "exegol"` avec `project.notExegol`, après `project.notFound` et avant `project.notRunning`. `lookupContainer` et `controlListedContainer` ne filtrent pas la famille : start et stop exécutent le nom de la liste. `DockerClient.run` et l'outil MCP `run` ne changent pas.
+3. **Autorité inchangée hors de la liste.** `resolveExegolContainer` ignore toute entrée dont `family` n'est pas `"exegol"` (champ absent inclus). Ce lot refusait `link` quand `family !== "exegol"` (`project.notExegol`, après `project.notFound` et avant `project.notRunning`). L'ADR 0014 lève ce refus pour un Kali `running` avec `/workspace` et ouvre l'exécution par mcp-kali-server, pas par `resolveExegolContainer`. `lookupContainer` et `controlListedContainer` ne filtrent pas la famille : start et stop exécutent le nom de la liste. `DockerClient.run` et l'outil MCP `run` ne changent pas.
 
 ## Alternatives écartées
 
@@ -37,12 +38,12 @@ Décision de produit déjà prise : Exegol reste reconnu seulement par le préfi
 - Un conteneur `org.exegol.` reste `exegol` même si l'image contient `kali` et même si `io.warband.runtime` vaut `kali`.
 - `kali` dans la référence est sensible à la casse et non borné par des séparateurs : `kalilinux/kali-rolling` est retenu, `Kali` ne l'est pas, et une référence non liée qui contient ces quatre lettres l'est aussi.
 - Les lignes écartées par le modèle n'entrent pas au journal. Une ligne bien formée mais sans famille est absente du tableau retourné ; elle a déjà pu être journalisée si le modèle l'a imprimée. Une ligne mal formée échoue tout l'appel, comme aujourd'hui.
-- Le cockpit pourra proposer « lier » un Kali qui a `/workspace`, et `link` refusera. L'affichage et ce bouton ne font pas partie de ce lot.
-- L'`exec` dans un conteneur Kali n'est pas ouvert.
+- Le cockpit pourra proposer « lier » un Kali qui a `/workspace`. Ce lot faisait refuser `link`. L'ADR 0014 l'accepte et ouvre les outils du serveur Kali. L'exec Exegol (`mcp__exegol__exec`) ne vise toujours pas un Kali.
+- L'affichage du bouton ne faisait pas partie de ce lot.
 
 ## Plan
 
-Un seul lot. Le brief pour `dev` est la section suivante.
+Un seul lot, livré. Les critères ci-dessous sont ceux de F1. Le critère qui faisait échouer `link` sur un Kali est remplacé par l'ADR 0014. Ne pas réexécuter F1.
 
 ### Objectif
 
@@ -83,7 +84,7 @@ Reprendre les trois points de la section Décision. Détail que `dev` ne doit pa
 - Une ligne sans booléen dont l'image contient `kali` est `kali`. Une image `debian` ou `Kali` sans signal est absente, sans erreur.
 - Une valeur de label sentinelle n'apparaît ni dans le format, ni dans l'objet parsé, ni dans `docker.unexpectedOutput`.
 - `resolveExegolContainer` refuse un dédié ou un `@` dont la seule correspondance est `family: "kali"`, et refuse une entrée sans `family`.
-- `link` sur une ligne `kali` en cours, avec `workspace`, lève `project.notExegol` et n'écrit pas `project.json`.
+- Périmé (ADR 0014) : `link` sur une ligne `kali` en cours, avec `workspace`, levait `project.notExegol`. Ce n'est plus le comportement attendu.
 - `controlListedContainer("start", …)` sur une ligne `kali` arrêtée appelle `docker start` avec le nom de la liste.
 - `pnpm check` vert. Commit en français, sans pousser.
 
