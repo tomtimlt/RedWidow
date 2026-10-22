@@ -5,6 +5,7 @@ import {
   createRecorder,
   type DockerClient,
   defaultConfigDir,
+  type ImageSummary,
   type LabelPrefixContainer,
   link,
   lookupContainer,
@@ -23,9 +24,39 @@ export type CockpitMessage =
   | { type: "terminal" }
   | { type: "start"; name: string }
   | { type: "stop"; name: string }
-  | { type: "create" };
+  | { type: "createExegol"; name: string }
+  | { type: "createKali"; image: string; name: string; source: string }
+  | { type: "listImages" }
+  | { type: "pickSource" };
 
 const CONTAINER_NAME_MAX = 256;
+/** Nom saisi pour créer : une lettre ou un chiffre, puis au plus 63 caractères `.`, `_` ou `-`. */
+const CREATE_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
+const IMAGE_MAX = 256;
+const SOURCE_MAX = 4096;
+
+const isCreateName = (value: unknown): value is string =>
+  typeof value === "string" && CREATE_NAME.test(value);
+
+/** Même motif que `assertOperand`, borné à 256 caractères. */
+const isImageRef = (value: unknown): value is string => {
+  if (typeof value !== "string" || value.length === 0 || value.length > IMAGE_MAX) return false;
+  try {
+    assertOperand(value, "image");
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/** Chemin hôte non vide, sans NUL ni saut de ligne, au plus 4096 caractères. */
+const isSourcePath = (value: unknown): value is string =>
+  typeof value === "string" &&
+  value.length > 0 &&
+  value.length <= SOURCE_MAX &&
+  !value.includes("\0") &&
+  !value.includes("\n") &&
+  !value.includes("\r");
 
 /** Valide un message cockpit ; les types du chat ou formes invalides → `null`. */
 export function parseCockpitMessage(raw: unknown): CockpitMessage | null {
@@ -47,8 +78,20 @@ export function parseCockpitMessage(raw: unknown): CockpitMessage | null {
         m.name.length <= CONTAINER_NAME_MAX
         ? { type: m.type, name: m.name }
         : null;
-    case "create":
-      return only("type") ? { type: "create" } : null;
+    case "createExegol":
+      return only("type", "name") && isCreateName(m.name)
+        ? { type: "createExegol", name: m.name }
+        : null;
+    case "createKali":
+      return only("type", "image", "name", "source") &&
+        isImageRef(m.image) &&
+        isCreateName(m.name) &&
+        isSourcePath(m.source)
+        ? { type: "createKali", image: m.image, name: m.name, source: m.source }
+        : null;
+    case "listImages":
+    case "pickSource":
+      return only("type") ? { type: m.type } : null;
     default:
       return null;
   }
@@ -368,6 +411,39 @@ export async function loadCockpitView(deps: CockpitDeps = {}): Promise<CockpitVi
     containers,
     ...(containers.length === 0 && { empty: "list" }),
   };
+}
+
+const IMAGE_NONE = "<none>";
+
+/** Référence affichée : `repository:tag`, ou l'identifiant si l'un des deux vaut `<none>`. */
+export function imageRef(image: Pick<ImageSummary, "id" | "repository" | "tag">): string {
+  if (image.repository !== IMAGE_NONE && image.tag !== IMAGE_NONE) {
+    return `${image.repository}:${image.tag}`;
+  }
+  return image.id;
+}
+
+/** Références dédoublonnées et triées pour le sélecteur Kali. */
+export function imageRefs(
+  images: readonly Pick<ImageSummary, "id" | "repository" | "tag">[],
+): string[] {
+  return [...new Set(images.map((image) => imageRef(image)))].sort((a, b) => a.localeCompare(b));
+}
+
+type DockerImages = Pick<DockerClient, "images">;
+
+/** Liste les images avec le même client que `loadCockpitView` (binaire docker, 15 s). */
+export async function listCockpitImages(
+  deps: { createDocker?: () => DockerImages } = {},
+): Promise<string[]> {
+  const docker =
+    deps.createDocker?.() ??
+    createDockerClient({
+      recorder: createRecorder(),
+      binary: "docker",
+      timeoutMs: 15_000,
+    });
+  return imageRefs(await docker.images());
 }
 
 /** Lie un conteneur puis recharge la vue. */

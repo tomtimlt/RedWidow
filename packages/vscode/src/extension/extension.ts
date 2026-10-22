@@ -26,6 +26,7 @@ import {
   controlListedContainer,
   linkContainer,
   linkedProjectStatus,
+  listCockpitImages,
   loadCockpitView,
   parseCockpitMessage,
   planEditorShell,
@@ -660,14 +661,34 @@ export function activate(context: vscode.ExtensionContext): void {
           case "stop":
             await controlListedContainer("stop", message.name);
             return void pushView(true);
-          case "create": {
-            const st = await linkedProjectStatus();
-            if (st === null || st.state === "running") return;
-            if (st.state === "stopped") {
-              await controlListedContainer("start", st.container);
-              return void pushView(true);
-            }
-            startContainerTerminal(shortContainerName(st.container));
+          case "createExegol":
+            // Nom saisi tel quel : pas de projet lié, pas de nom court.
+            startContainerTerminal(message.name);
+            return;
+          case "createKali": {
+            // Pas de terminal ni de lien. Aucun délai imposé : le défaut du client s'applique.
+            await createDockerClient({
+              recorder: createRecorder(),
+              binary: "docker",
+            }).createKaliContainer({
+              image: message.image,
+              name: message.name,
+              source: message.source,
+            });
+            return void pushView(true);
+          }
+          case "listImages":
+            postCockpit({ type: "images", images: await listCockpitImages() });
+            return;
+          case "pickSource": {
+            const picked = await vscode.window.showOpenDialog({
+              canSelectFolders: true,
+              canSelectFiles: false,
+              canSelectMany: false,
+            });
+            const source = picked?.[0]?.fsPath;
+            if (source === undefined) return;
+            postCockpit({ type: "pickedSource", source });
             return;
           }
         }

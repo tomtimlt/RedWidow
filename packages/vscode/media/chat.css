@@ -2192,6 +2192,44 @@ body.cockpit .cockpit-row.is-running > .dot {
 .cockpit-row-act button {
   min-height: 30px;
 }
+.cockpit-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s2);
+}
+.cockpit-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s1);
+  min-width: 0;
+  font-size: var(--jn-fs-sm);
+}
+.cockpit-field-label {
+  color: var(--jn-muted);
+}
+.cockpit-field input,
+.cockpit-field select {
+  width: 100%;
+  font-family: var(--jn-mono);
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, var(--jn-line));
+  border-radius: var(--jn-r-sm);
+  padding: var(--jn-s1) var(--jn-s2);
+  min-height: 28px;
+  min-width: 0;
+}
+.cockpit-field input:disabled,
+.cockpit-field select:disabled {
+  opacity: 0.5;
+}
+.cockpit-create .cockpit-actions {
+  align-items: center;
+}
+.cockpit-source {
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-sm);
+}
 .cockpit-muted {
   color: var(--jn-muted);
   margin: 0;
