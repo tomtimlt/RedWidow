@@ -11,7 +11,6 @@ export function promptForTargets(text: string): string {
   return at === -1 ? text : text.slice(0, at);
 }
 
-const SLASH_START = /^\/start\s+([A-Za-z0-9][A-Za-z0-9_.-]{0,63})\s*$/;
 const EXEGOL_PREFIX = "exegol-";
 
 /** Nom affiché et cité : un seul préfixe `exegol-` retiré, s'il reste quelque chose. */
@@ -53,12 +52,6 @@ export function parseMentions(text: string): string[] {
     if (name !== undefined && !out.includes(name)) out.push(name);
   }
   return out;
-}
-
-/** Commande opérateur `/start <nom>`. Toute autre forme, y compris des options, est refusée. */
-export function parseSlashStart(text: string): string | null {
-  const match = SLASH_START.exec(text.trim());
-  return match?.[1] ?? null;
 }
 
 export interface ExegolTarget {

@@ -136,11 +136,17 @@ describe("composer et Configurer (lot P1)", () => {
     expect(attach).toContain('aria-disabled="true"');
     expect(attach).toContain("bientôt");
   });
-  it("le menu « / » ne propose que /clear ; /start reste hors menu", () => {
+  it("le menu « / » ne propose que /clear", () => {
     const menu = section('id="slash-pop"', 'id="cfg-pop"');
+    const studio = read("../media/studio.js");
     expect(menu.match(/class="cmd-opt"/g)).toHaveLength(1);
     expect(menu).toContain("/clear");
     expect(menu).not.toContain("/start");
+    expect(js).not.toContain("/start");
+    expect(studio).not.toContain("/start");
+    expect(js).toContain("Aucun terminal Warband ouvert. Alt+J T pour en ouvrir un.");
+    expect(studio).toContain("Aucun conteneur dédié. Créez-en un dans le cockpit.");
+    expect(studio).toContain("Aucun conteneur. Créez-en un dans le cockpit.");
     expect(html).not.toMatch(/\bmcp\b|jauge|compact|pièce jointe active/i);
   });
   it("les boutons @, # et / existent, le dernier ouvre le menu", () => {

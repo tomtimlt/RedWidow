@@ -598,7 +598,7 @@
     },
   });
 
-  // Menu « / » : seulement /clear. /start reste reconnu à la saisie, absent du menu.
+  // Menu « / » : seulement /clear.
   const slashPop = $("slash-pop");
   const slashBtn = $("slash-btn");
   const mentionBtn = $("mention-btn");
@@ -664,7 +664,7 @@
     if (mentionActive >= mentionShown.length) mentionActive = 0;
     mentionEmpty.hidden = mentionShown.length > 0;
     mentionEmpty.textContent = hash
-      ? "Aucun terminal Warband ouvert. Alt+J T ou /start <conteneur> pour en ouvrir un."
+      ? "Aucun terminal Warband ouvert. Alt+J T pour en ouvrir un."
       : "Aucun conteneur";
     mentionPop.setAttribute("aria-label", hash ? "Terminaux" : "Conteneurs");
     mentionList.replaceChildren(

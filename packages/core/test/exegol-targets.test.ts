@@ -8,7 +8,6 @@ import {
   createRecorder,
   lookupContainer,
   parseMentions,
-  parseSlashStart,
   promptForTargets,
   resolveExegolContainer,
   shortContainerName,
@@ -22,13 +21,6 @@ describe("cibles Exegol", () => {
       "htb2",
     ]);
     expect(parseMentions("rien ici")).toEqual([]);
-  });
-
-  it("accepte /start nom et refuse les options", () => {
-    expect(parseSlashStart("/start htb1")).toBe("htb1");
-    expect(parseSlashStart("  /start htb-001  ")).toBe("htb-001");
-    expect(parseSlashStart("/start htb1 --desktop")).toBeNull();
-    expect(parseSlashStart("ping @htb1")).toBeNull();
   });
 
   const boxes = [{ name: "lab" }, { name: "htb1" }, { name: "htb2" }, { name: "exegol-htb1" }];
