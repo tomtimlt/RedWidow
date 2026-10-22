@@ -169,11 +169,19 @@ Exécution de commandes par l'agent dans un conteneur créé par le moteur (`--s
 
 ## Familles des conteneurs listés (ADR 0011) — accepté, lot F1 livré
 
-`listLabelPrefix` retient deux familles. `exegol` : une clé de label préfixée par `org.exegol.`, même si l'image contient `kali`. Sinon `kali` : label `io.warband.runtime` exactement `kali`, ou à défaut la référence d'image contient `kali` (casse respectée). Le reste est absent. Les valeurs de labels ne sont pas imprimées (la sortie est journalisée). `exec` (`resolveExegolContainer`) et `link` restent limités à `exegol` (`project.notExegol`). Start/stop exécute le nom de la liste, quelle que soit la famille. Pas de création, pas de label posé, pas de montage, `/start` inchangé. Le cockpit affiche la famille et ne propose pas de lier un Kali.
+`listLabelPrefix` retient deux familles. `exegol` : une clé de label préfixée par `org.exegol.`, même si l'image contient `kali`. Sinon `kali` : label `io.warband.runtime` exactement `kali`, ou à défaut la référence d'image contient `kali` (casse respectée). Le reste est absent. Les valeurs de labels ne sont pas imprimées (la sortie est journalisée). `exec` (`resolveExegolContainer`) et `link` restent limités à `exegol` (`project.notExegol`). Start/stop exécute le nom de la liste, quelle que soit la famille. Le lot F1 ne crée pas de conteneur, ne pose pas de label et ne monte rien ; `/start` inchangé. Le cockpit affiche la famille et ne propose pas de lier un Kali. La création est l'ADR 0012.
 
 | Lot | Contenu | Revue sécurité | État |
 |---|---|---|---|
 | F1 | Parseur, format inspect, `family`, garde `exec` / `link` | oui (ce lot) | fait |
+
+## Conteneur Kali (ADR 0012) — accepté, lot K1 à faire
+
+Fonction neuve `createKaliContainer`, hors de l'interface `DockerClient` vue par l'outil MCP. Conteneur détaché, image locale (`--pull never`), nom obligatoire, réseau `bridge` (jamais `host`), un bind en écriture : source = chemin absolu de l'appelant (dossier existant, résolu), destination fixe `/workspace`. Label `io.warband.runtime=kali`. Pas de commande, donc l'entrée de l'image (`/start` compris) reste. Refus avant tout spawn : relatif, délimiteur de montage, racine, socket Docker, dossier absent ou non répertoire, secret exposé (le montage contient un chemin sensible, ou l'inverse). `DockerClient.run` et l'outil `run` ne gagnent ni volume ni label. `link` et `resolveExegolContainer` inchangés.
+
+| Lot | Contenu | Revue sécurité | État |
+|---|---|---|---|
+| K1 | `createKaliContainer`, argv figé, garde du montage | oui (ce lot) | à faire |
 
 ## Décisions à demander en priorité
 
