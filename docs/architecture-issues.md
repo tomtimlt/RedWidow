@@ -167,6 +167,14 @@ Exécution de commandes par l'agent dans un conteneur créé par le moteur (`--s
 
 **N0(b).** Le moteur de l'extension garde le même conteneur pour les consignes d'un même `start`. Fermeture (`dispose`) et annulation suppriment le conteneur (`sandbox.stopped`).
 
+## Familles des conteneurs listés (ADR 0011) — accepté, lot F1 livré
+
+`listLabelPrefix` retient deux familles. `exegol` : une clé de label préfixée par `org.exegol.`, même si l'image contient `kali`. Sinon `kali` : label `io.warband.runtime` exactement `kali`, ou à défaut la référence d'image contient `kali` (casse respectée). Le reste est absent. Les valeurs de labels ne sont pas imprimées (la sortie est journalisée). `exec` (`resolveExegolContainer`) et `link` restent limités à `exegol` (`project.notExegol`). Start/stop exécute le nom de la liste, quelle que soit la famille. Pas de création, pas de label posé, pas de montage, `/start` inchangé. L'affichage de la famille et le bouton lier sont un lot produit ultérieur.
+
+| Lot | Contenu | Revue sécurité | État |
+|---|---|---|---|
+| F1 | Parseur, format inspect, `family`, garde `exec` / `link` | oui (ce lot) | fait |
+
 ## Décisions à demander en priorité
 
 - ~~**Garde unique** (points 2 et 3)~~ : tranché, `PreToolUse`.
