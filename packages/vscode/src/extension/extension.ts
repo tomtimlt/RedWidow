@@ -39,6 +39,8 @@ import { readSources } from "../logic/sources.js";
 import { parseStudioMessage, type StudioPage } from "../logic/studio.js";
 import {
   capturedShell,
+  citationToastBlocks,
+  classifyMessageHashes,
   containerLogPath,
   lastCommand,
   mentionToken,
@@ -436,29 +438,48 @@ export function activate(context: vscode.ExtensionContext): void {
           } catch {
             dedicatedName = null;
           }
-          const open = hashes.filter((token) => findShellByToken(token) !== undefined);
-          const missing = hashes.filter((token) => findShellByToken(token) === undefined);
-          // Un # de terminal ouvert, un @, ou le conteneur déjà lié : le message part. Le modèle
-          // peut demander une précision. Un # n'autorise pas le conteneur (seul @ ou le dédié).
-          if (open.length === 0 && mentions.length === 0 && dedicatedName === null) {
-            const absent =
-              missing.length === 1
-                ? `Terminal introuvable : ${missing[0]}.`
-                : `Terminaux introuvables : ${missing.join(", ")}.`;
+          let listed: { name: string }[] = [];
+          if (hashes.some((token) => findShellByToken(token) === undefined)) {
+            try {
+              listed = await shellDocker().listLabelPrefix();
+            } catch {
+              listed = [];
+            }
+          }
+          const classified = classifyMessageHashes(
+            hashes,
+            (token) => findShellByToken(token) !== undefined,
+            listed,
+          );
+          // Un # de terminal ouvert ou de conteneur listé ne déclenche pas le toast de citation.
+          if (
+            citationToastBlocks({
+              mentions,
+              dedicated: dedicatedName,
+              openHashes: classified.open,
+              designatedHashes: classified.designated,
+            })
+          ) {
+            const unknown = classified.unknown;
             void vscode.window.showErrorMessage(
-              missing.length === 0 ? "Cite un conteneur avec @nom, ou un terminal avec #." : absent,
+              unknown.length === 0
+                ? "Cite un conteneur avec @nom, ou un terminal avec #."
+                : unknown.length === 1
+                  ? `Terminal introuvable : ${unknown[0]}.`
+                  : `Terminaux introuvables : ${unknown.join(", ")}.`,
             );
             return;
           }
-          if (missing.length > 0) {
+          if (classified.unknown.length > 0) {
+            const unknown = classified.unknown;
             void vscode.window.showWarningMessage(
-              missing.length === 1
-                ? `Terminal introuvable : ${missing[0]}.`
-                : `Terminaux introuvables : ${missing.join(", ")}.`,
+              unknown.length === 1
+                ? `Terminal introuvable : ${unknown[0]}.`
+                : `Terminaux introuvables : ${unknown.join(", ")}.`,
             );
           }
           const sections = [];
-          for (const token of open) {
+          for (const token of classified.open) {
             const shell = findShellByToken(token);
             const raw = shell === undefined ? null : await readLogTail(shell);
             if (raw === null) {

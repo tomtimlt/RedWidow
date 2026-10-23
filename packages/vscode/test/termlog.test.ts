@@ -1,14 +1,18 @@
 import {
   createExegolTargets,
+  KALI_SERVER_INSTRUCTIONS,
   resolveExegolContainer,
   resolveKaliContainer,
   TERMINAL_CONTEXT_MARK,
 } from "@warband/core";
+import { formatReason } from "@warband/messages";
 import { describe, expect, it } from "vitest";
 import { terminalLaunch } from "../src/logic/cockpit.js";
 import {
   CONTAINER_LOG_DIR,
   capturedShell,
+  citationToastBlocks,
+  classifyMessageHashes,
   containerLogPath,
   lastCommand,
   mentionToken,
@@ -107,8 +111,8 @@ describe("journal de terminal", () => {
     );
   });
 
-  it("un # joint la sortie et le conteneur au texte du modèle, sans autoriser ce conteneur", () => {
-    const user = "scan rapide sur la cible #frosty_margulis-2";
+  it("un # joint le ping et autorise le Kali cité, pas l'Exegol", () => {
+    const user = "fait un scan nmap rapide sur la cible #frosty_margulis-2";
     const prompt = withTerminalContext(user, [
       {
         token: "frosty_margulis-2",
@@ -120,27 +124,63 @@ describe("journal de terminal", () => {
     expect(prompt).toContain("Terminal #frosty_margulis-2, shell du conteneur frosty_margulis.");
     expect(prompt).toContain("PING google.com (142.250.185.78)");
     expect(prompt).not.toContain("@frosty_margulis");
+    expect(prompt).not.toMatch(/remplacer #/);
     const targets = createExegolTargets();
     targets.note(prompt, null);
-    expect(targets.current()).toEqual({ dedicated: null, mentions: [] });
-    const denied = { code: "exegol.containerDenied" };
+    expect(targets.current().hashes).toEqual(["frosty_margulis-2"]);
     const kali = [{ name: "frosty_margulis", family: "kali" as const }];
     const exegol = [{ name: "frosty_margulis", family: "exegol" as const }];
-    expect(() => resolveKaliContainer(targets.current(), "frosty_margulis", kali)).toThrow(
-      expect.objectContaining(denied),
+    expect(resolveKaliContainer(targets.current(), "frosty_margulis", kali)).toBe(
+      "frosty_margulis",
+    );
+    expect(resolveKaliContainer(targets.current(), "frosty_margulis-2", kali)).toBe(
+      "frosty_margulis",
     );
     expect(() => resolveExegolContainer(targets.current(), "frosty_margulis", exegol)).toThrow(
-      expect.objectContaining(denied),
+      expect.objectContaining({ code: "exegol.containerDenied" }),
     );
+    expect(KALI_SERVER_INSTRUCTIONS).not.toMatch(/remplacer #/);
+    expect(KALI_SERVER_INSTRUCTIONS).toContain("désigné par #");
+    const denied = formatReason({
+      code: "exegol.containerDenied",
+      params: { name: "frosty_margulis-2" },
+    });
+    expect(denied).toContain("désigné par #");
+    expect(denied).not.toMatch(/remplacer #/);
+  });
+
+  it("le toast de citation ne bloque pas un # de terminal ou de conteneur", () => {
+    const listed = [{ name: "frosty_margulis" }];
+    const shells = new Set(["frosty_margulis-2"]);
+    const open = classifyMessageHashes(["frosty_margulis-2"], (token) => shells.has(token), []);
+    expect(open.open).toEqual(["frosty_margulis-2"]);
     expect(
-      resolveKaliContainer({ dedicated: "frosty_margulis", mentions: [] }, "frosty_margulis", kali),
-    ).toBe("frosty_margulis");
+      citationToastBlocks({
+        mentions: [],
+        dedicated: null,
+        openHashes: open.open,
+        designatedHashes: open.designated,
+      }),
+    ).toBe(false);
+    const container = classifyMessageHashes(["frosty_margulis"], () => false, listed);
+    expect(container.designated).toEqual(["frosty_margulis"]);
+    expect(container.unknown).toEqual([]);
     expect(
-      resolveExegolContainer(
-        { dedicated: null, mentions: ["frosty_margulis"] },
-        "frosty_margulis",
-        exegol,
-      ),
-    ).toBe("frosty_margulis");
+      citationToastBlocks({
+        mentions: [],
+        dedicated: null,
+        openHashes: container.open,
+        designatedHashes: container.designated,
+      }),
+    ).toBe(false);
+    const bare = classifyMessageHashes([], () => false, listed);
+    expect(
+      citationToastBlocks({
+        mentions: [],
+        dedicated: null,
+        openHashes: bare.open,
+        designatedHashes: bare.designated,
+      }),
+    ).toBe(true);
   });
 });

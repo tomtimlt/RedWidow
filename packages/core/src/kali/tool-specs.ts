@@ -11,10 +11,14 @@ export const KALI_TOOL_PREFIX = "mcp__kali__";
 export const KALI_EXECUTE_TOOL = `${KALI_TOOL_PREFIX}execute_command`;
 export const KALI_SERVER_INSTRUCTIONS =
   "Tu appelles l'API du conteneur Kali déjà lancé, répertoire /workspace. " +
-  "Le champ container est le conteneur dédié du projet, ou un nom que l'utilisateur a cité avec @. " +
+  "Le champ container est le conteneur dédié du projet, un nom cité avec @, ou le conteneur désigné par # " +
+  "(nom complet, nom court, ou shell de ce conteneur). " +
   "Tu ne crées, n'arrêtes ni ne publies de conteneur.";
 
-const containerField = z.string().min(1).describe("Nom du conteneur dédié ou cité par @");
+const containerField = z
+  .string()
+  .min(1)
+  .describe("Nom du conteneur dédié, cité par @, ou désigné par #");
 const required = (description: string) => z.string().min(1).describe(description);
 const optional = () => z.string().optional();
 /** Chaîne d'arguments. `server.py` la passe à `shlex.split` : le JSON la porte telle quelle. */

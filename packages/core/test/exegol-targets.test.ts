@@ -106,7 +106,7 @@ describe("cibles Exegol", () => {
   it("note la cible du message", () => {
     const targets = createExegolTargets();
     targets.note("nmap @htb1", "lab");
-    expect(targets.current()).toEqual({ dedicated: "lab", mentions: ["htb1"] });
+    expect(targets.current()).toEqual({ dedicated: "lab", mentions: ["htb1"], hashes: [] });
   });
 
   it("ignore les @ collés après la sortie d'un terminal", () => {
@@ -115,7 +115,60 @@ describe("cibles Exegol", () => {
     expect(promptForTargets(text)).toBe("scan @htb1");
     expect(promptForTargets("sans marqueur @htb1")).toBe("sans marqueur @htb1");
     targets.note(text, "lab");
-    expect(targets.current()).toEqual({ dedicated: "lab", mentions: ["htb1"] });
+    expect(targets.current()).toEqual({ dedicated: "lab", mentions: ["htb1"], hashes: [] });
+  });
+
+  it("un # de shell ou de nom autorise le Kali, pas l'Exegol", () => {
+    const kali = (name: string) => ({ name, family: "kali" as const });
+    const box = kali("frosty_margulis");
+    const named = kali("frosty_margulis-2");
+    const targets = createExegolTargets();
+    const user = "fait un scan nmap rapide sur la cible #frosty_margulis-2";
+    const prompt = `${user}${TERMINAL_CONTEXT_MARK}frosty_margulis-2\nPING 10.10.11.2`;
+    targets.note(prompt, null);
+    expect(targets.current()).toEqual({
+      dedicated: null,
+      mentions: [],
+      hashes: ["frosty_margulis-2"],
+    });
+    expect(prompt).toContain("PING 10.10.11.2");
+    expect(resolveKaliContainer(targets.current(), "frosty_margulis-2", [box])).toBe(
+      "frosty_margulis",
+    );
+    expect(resolveKaliContainer(targets.current(), "frosty_margulis", [box])).toBe(
+      "frosty_margulis",
+    );
+    expect(resolveKaliContainer(targets.current(), "frosty_margulis-2", [named])).toBe(
+      "frosty_margulis-2",
+    );
+    const denied = { code: "exegol.containerDenied" };
+    const asExegol = [{ name: "frosty_margulis", family: "exegol" as const }];
+    expect(() => resolveExegolContainer(targets.current(), "frosty_margulis", asExegol)).toThrow(
+      expect.objectContaining(denied),
+    );
+    expect(() => resolveExegolContainer(targets.current(), "frosty_margulis", [box])).toThrow(
+      expect.objectContaining(denied),
+    );
+    expect(
+      resolveKaliContainer({ dedicated: null, mentions: ["frosty_margulis"] }, "frosty_margulis", [
+        box,
+      ]),
+    ).toBe("frosty_margulis");
+    expect(() =>
+      resolveKaliContainer(
+        { dedicated: "frosty_margulis", mentions: [], hashes: ["autre"] },
+        "autre",
+        [box, kali("autre-kali")],
+      ),
+    ).toThrow(expect.objectContaining(denied));
+    const both = [box, named];
+    expect(() =>
+      resolveKaliContainer(
+        { dedicated: null, mentions: [], hashes: ["frosty_margulis-2"] },
+        "frosty_margulis",
+        both,
+      ),
+    ).toThrow(expect.objectContaining(denied));
   });
 });
 

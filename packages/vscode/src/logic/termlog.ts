@@ -1,4 +1,11 @@
-import { TERMINAL_CONTEXT_MARK } from "@warband/core";
+import {
+  containerDesignatedBy,
+  type NamedContainer,
+  parseHashes,
+  TERMINAL_CONTEXT_MARK,
+} from "@warband/core";
+
+export { parseHashes };
 
 /** Octets lus en fin de fichier, avant nettoyage des séquences. */
 export const TERMINAL_TAIL_RAW = 65_536;
@@ -6,7 +13,6 @@ export const TERMINAL_TAIL_RAW = 65_536;
 export const TERMINAL_TAIL_CHARS = 16_384;
 
 const TOKEN = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
-const HASH = /(?:^|[\s(])#([A-Za-z0-9][A-Za-z0-9_.-]{0,63})/g;
 
 /** Retire retours chariot et séquences d'échappement (CSI, OSC, simple). */
 function stripControls(raw: string): string {
@@ -117,16 +123,6 @@ export function lastCommand(text: string): string {
   return fallback === "" ? "" : clipLine(fallback);
 }
 
-/** Jetons `#` d'une consigne, sans doublon, dans l'ordre. */
-export function parseHashes(text: string): string[] {
-  const out: string[] = [];
-  for (const match of text.matchAll(HASH)) {
-    const name = match[1];
-    if (name !== undefined && !out.includes(name)) out.push(name);
-  }
-  return out;
-}
-
 /** Sortie lisible : sans séquences, fin du tampon. Vide → une ligne fixe. */
 export function readableTerminal(raw: string, max = TERMINAL_TAIL_CHARS): string {
   const clean = stripControls(raw)
@@ -141,8 +137,7 @@ export function readableTerminal(raw: string, max = TERMINAL_TAIL_CHARS): string
 
 /**
  * Consigne affichée, puis le marqueur et les extraits. Sans extrait : la consigne seule.
- * Chaque extrait nomme le terminal (`#jeton`). S'il s'agit du shell d'un conteneur, le nom
- * Docker réel suit, en clair : ce n'est pas un `@`, donc pas une autorisation.
+ * Chaque extrait garde le `#jeton` et la sortie (le ping). Le nom Docker suit quand il est connu.
  */
 export function withTerminalContext(
   text: string,
@@ -160,4 +155,50 @@ export function withTerminalContext(
     })
     .join("\n\n");
   return `${text}${TERMINAL_CONTEXT_MARK}${body}`;
+}
+
+export interface ClassifiedHashes {
+  /** Jetons dont le shell est ouvert. */
+  open: string[];
+  /** Jetons qui désignent un seul conteneur de la liste. */
+  designated: string[];
+  /** Ni shell ouvert, ni conteneur unique. */
+  unknown: string[];
+}
+
+/** Classe les `#` : terminal ouvert, conteneur de la liste, ou inconnu. */
+export function classifyMessageHashes(
+  hashes: readonly string[],
+  hasShell: (token: string) => boolean,
+  containers: readonly NamedContainer[],
+): ClassifiedHashes {
+  const open: string[] = [];
+  const designated: string[] = [];
+  const unknown: string[] = [];
+  for (const token of hashes) {
+    const shell = hasShell(token);
+    const container = containerDesignatedBy(token, containers);
+    if (shell) open.push(token);
+    if (container !== null) designated.push(token);
+    if (!shell && container === null) unknown.push(token);
+  }
+  return { open, designated, unknown };
+}
+
+/**
+ * Vrai seulement si rien ne cite : pas de `@`, pas de dédié, pas de `#` de terminal
+ * ni de conteneur. Le toast « Cite un conteneur… » bloque alors l'envoi.
+ */
+export function citationToastBlocks(input: {
+  mentions: readonly string[];
+  dedicated: string | null;
+  openHashes: readonly string[];
+  designatedHashes: readonly string[];
+}): boolean {
+  return (
+    input.mentions.length === 0 &&
+    input.dedicated === null &&
+    input.openHashes.length === 0 &&
+    input.designatedHashes.length === 0
+  );
 }
