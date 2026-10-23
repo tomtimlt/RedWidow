@@ -48,9 +48,8 @@ const icon = (name: keyof typeof ICONS, cls = "ico"): string =>
   `<svg class="${cls}" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICONS[name]}</svg>`;
 
 /**
- * Marque Warband : formation de chevrons (chef jaune, deux ailiers acier) et curseur clignotant.
- * SVG inline rempli (pas `currentColor`) pour garder les couleurs de marque ; le clignotement est en
- * SMIL (ni script ni ressource, donc compatible CSP stricte). Décoratif : `aria-hidden`.
+ * Marque Warband : formation de chevrons (chef rouge, deux ailiers acier) et curseur.
+ * SVG inline avec classes CSS pour les couleurs de marque. Décoratif : `aria-hidden`.
  */
 const BRAND =
   '<svg class="brand" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><polygon points="1,1 4,1 8,5 4,9 1,9 5,5" class="brand-wing"/><polygon points="1,15 4,15 8,19 4,23 1,23 5,19" class="brand-wing"/><polygon points="13,5 16,5 23,12 16,19 13,19 20,12" class="brand-lead"/><rect x="18" y="20" width="5" height="3" class="brand-cursor"/></svg>';

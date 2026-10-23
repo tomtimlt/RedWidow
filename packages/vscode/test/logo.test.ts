@@ -78,6 +78,17 @@ describe("logo : SVG de marque", () => {
       it("ni animation, ni script, ni handler, ni référence externe", () => {
         expect(svg).not.toMatch(/<animate|<script|<set\b|\bon\w+\s*=|href\s*=|<style|url\(/i);
       });
+      if (f === "logo.svg" || f === "icon.svg") {
+        it("couleurs en dur (acier et rouge de marque)", () => {
+          expect(svg).toContain('fill="#495F73"');
+          expect(svg).toContain('fill="#CC1C40"');
+        });
+      }
+      if (f === "logo-small.svg") {
+        it("rouge #CC1C40 sur la pointe et le curseur", () => {
+          expect(svg).toContain('fill="#CC1C40"');
+        });
+      }
     });
   }
 

@@ -2,8 +2,11 @@
    Spécification : docs/design-chat-ui.md. Animations : transform et opacity seulement. */
 
 /* --- Jetons de design (préfixe --jn-), dérivés du thème (docs/design-chat-ui.md §1) --- */
-/* Marque : les seules valeurs figées admises (§1.1). Le jaune ne signifie jamais un état. */
+/* Marque : rouge du A, acier des ailes, encre blanche. Seules valeurs figées (§1.1). Le rouge ne signifie jamais un état. */
 body {
+  --jn-mark-steel: #495f73;
+  --jn-mark-lead: #cc1c40;
+  --jn-mark-lead-ink: #a01633;
   --jn-brand: #ffd60a;
   --jn-brand-ink: #7a5c00;
   --jn-on-brand: #141414;
@@ -172,20 +175,20 @@ select {
   width: 18px;
   height: 18px;
 }
-/* Couleurs du logo en ligne par classes (aucun hex dans le SVG). Clair : jaune foncé en aplat lisible. */
+/* Couleurs du logo en ligne par classes (aucun hex dans le SVG). */
 .brand-wing {
-  fill: var(--jn-slate);
+  fill: var(--jn-mark-steel);
 }
 .brand-lead,
 .brand-cursor {
-  fill: var(--jn-brand);
+  fill: var(--jn-mark-lead);
 }
 body.vscode-light .brand-wing {
-  fill: var(--jn-slate-ink);
+  fill: var(--jn-mark-steel);
 }
 body.vscode-light .brand-lead,
 body.vscode-light .brand-cursor {
-  fill: var(--jn-brand-ink);
+  fill: var(--jn-mark-lead-ink);
 }
 /* Contraste élevé clair : monochrome. Contraste élevé sombre : le jaune survit, ailiers en couleur du thème. */
 body.vscode-high-contrast .brand-wing,
