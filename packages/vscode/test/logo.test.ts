@@ -180,12 +180,12 @@ describe("logo : CSS", () => {
     expect(rules.length).toBeGreaterThan(0);
     for (const m of rules) expect(m[2]).not.toMatch(/#[0-9a-f]{3,8}\b/i);
   });
-  it("monochrome en contraste élevé clair et en forced-colors", () => {
+  it("monochrome en contraste élevé et en forced-colors", () => {
     expect(css).toMatch(
-      /body\.vscode-high-contrast-light \.brand-cursor\s*\{\s*fill:\s*currentColor/,
+      /body\.vscode-high-contrast-light \.brand \[fill\]:not\(\[fill="none"\]\)\s*\{\s*fill:\s*currentColor/,
     );
     expect(css).toMatch(
-      /@media \(forced-colors: active\)[\s\S]*\.brand-cursor\s*\{\s*fill:\s*CanvasText/,
+      /@media \(forced-colors: active\)[\s\S]*\.brand \[fill\]:not\(\[fill="none"\]\)\s*\{\s*fill:\s*CanvasText/,
     );
   });
 });

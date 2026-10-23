@@ -10,7 +10,6 @@ import {
   createRecorder,
   defaultConfigDir,
   lookupContainer,
-  parseMentions,
   readFindings,
   readProjects,
   resolveBinary,
@@ -437,24 +436,6 @@ export function activate(context: vscode.ExtensionContext): void {
               missing.length === 1
                 ? `Terminal introuvable : ${missing[0]}.`
                 : `Terminaux introuvables : ${missing.join(", ")}.`,
-            );
-            return;
-          }
-          const mentions = parseMentions(message.text);
-          let allowedCount = 0;
-          try {
-            const file = await readProjects(defaultConfigDir());
-            const active = file === null ? null : activeProject(file);
-            allowedCount = active?.containers.length ?? 0;
-          } catch {
-            allowedCount = 0;
-          }
-          // Une consigne qui cite un terminal (#) se suffit : l'agent analyse la sortie jointe.
-          // Sans @ ni #, on bloque seulement sans projet actif ou si l'allowlist est vide.
-          // Un Kali dans l'allowlist n'est pas refusé ici : le cœur refuse l'exec.
-          if (mentions.length === 0 && hashes.length === 0 && allowedCount === 0) {
-            void vscode.window.showErrorMessage(
-              "Cite un conteneur avec @nom, ou un terminal avec #.",
             );
             return;
           }

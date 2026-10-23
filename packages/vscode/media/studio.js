@@ -270,7 +270,6 @@ function start() {
         );
         b.type = "button";
         if (item.current) b.setAttribute("aria-current", "page");
-        b.append(decorative(el("span", "studio-ico", item.icon)));
         b.append(el("span", "btn-text", item.label));
         if (item.count !== undefined) {
           const count = el("span", "studio-count", String(item.count));
@@ -543,19 +542,22 @@ function start() {
     }
     if (page === "killchain") {
       if (killchainOnly) {
-        const sec = el("section", "studio-card studio-kc-page");
-        sec.append(el("h2", "", "Kill chain"));
+        const sec = el("section", "studio-kc-page");
         const graph = killchainGraph(view.findings);
         if (graph.nodes.length > 0) {
           sec.append(killchainGraphView(graph));
         } else {
-          sec.append(
+          const wrap = el("div", "studio-kc");
+          const viewport = el("div", "kc-viewport kc-empty");
+          viewport.append(
             el(
               "p",
               "studio-help",
               "Les nœuds notés par l'agent. Rien tant qu'il n'y a pas de trouvaille.",
             ),
           );
+          wrap.append(viewport);
+          sec.append(wrap);
         }
         main.append(sec);
         return;

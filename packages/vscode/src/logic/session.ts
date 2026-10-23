@@ -3,7 +3,13 @@ import type { AuthMode, Effort, EngineEvent, ModelOption, Reason } from "@warban
 import { formatReason } from "@warband/messages";
 import { alwaysConfirmText, answerFor, type Choice, cleanText, toCard } from "./approval.js";
 import type { BypassEngineLink, BypassSend } from "./bypass.js";
-import { type ChatState, type ChatView, createChatState, type HistoryEntry } from "./chat.js";
+import {
+  type ChatState,
+  type ChatView,
+  createChatState,
+  type HistoryEntry,
+  isAbortError,
+} from "./chat.js";
 import {
   createEngineController,
   type EngineAuth,
@@ -127,6 +133,11 @@ export function createChatSession(deps: ChatSessionDeps) {
   let appliedAuth = 0;
   /** Moteurs écartés (changement de modèle ou d'effort) : leurs derniers messages sont ignorés. */
   const detached = new WeakSet<EngineController>();
+  /**
+   * Moteurs annulés par l'UI (stop, reset, nouvelle conversation) : l'`AbortError` qui suit
+   * ne devient pas une bulle. Une autre erreur (réseau, exception) reste affichée.
+   */
+  const userAbort = new WeakSet<EngineController>();
   /** Liens du Bypass, un par moteur démarré : libérés à la sortie du moteur. */
   const bypassLinks = new WeakMap<EngineController, BypassEngineLink>();
   /**
@@ -135,10 +146,14 @@ export function createChatSession(deps: ChatSessionDeps) {
    */
   const stopEngine = (ctl: EngineController | null): void => {
     if (ctl === null) return;
+    userAbort.add(ctl);
     bypassLinks.get(ctl)?.release();
     bypassLinks.delete(ctl);
     ctl.kill();
   };
+  /** Abandon demandé par l'UI : pas de bulle pour ce motif, le reste du fil est inchangé. */
+  const skipAbortBubble = (ctl: EngineController, error: unknown): boolean =>
+    userAbort.has(ctl) && isAbortError(error);
 
   const persist = (key: string, value: unknown) =>
     void Promise.resolve(store.set(key, value)).catch(() => undefined);
@@ -294,6 +309,7 @@ export function createChatSession(deps: ChatSessionDeps) {
             touch();
           }
           if (event.kind === "tool.requested" && current) current.tools++;
+          if (event.kind === "error" && skipAbortBubble(ctl, event)) return;
           state.event(event);
           refresh();
         },
@@ -312,6 +328,7 @@ export function createChatSession(deps: ChatSessionDeps) {
         },
         onError: (reason) => {
           if (detached.has(ctl)) return;
+          if (skipAbortBubble(ctl, reason)) return;
           state.error(reason);
           refresh();
         },
@@ -572,6 +589,7 @@ export function createChatSession(deps: ChatSessionDeps) {
     },
     stop(): void {
       if (controller === null) return;
+      userAbort.add(controller);
       stopping = true;
       controller.abort();
       state.notice("Arrêt demandé.");

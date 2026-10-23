@@ -111,12 +111,10 @@ describe("typographie (§1.4)", () => {
       ".mon-cmd",
       ".mon-out",
       ".cmd",
-      // noms d'outils, modèle, niveau d'effort
+      // noms d'outils et identifiants (le chrome des pastilles reste en police d'interface)
       ".tool-name",
       ".tool-summary",
-      ".chip-label",
       ".opt-label",
-      ".cfg-level",
       ".effort-now",
       // compteurs
       ".badge",
@@ -137,7 +135,6 @@ describe("typographie (§1.4)", () => {
       ".studio-node-meta",
       ".studio-name",
       ".radio em",
-      ".cfg-off em",
     ];
     for (const sel of mono) {
       expect(has(sel, "font-family", "var(--jn-mono)"), `${sel} en mono`).toBe(true);
@@ -164,9 +161,19 @@ describe("typographie (§1.4)", () => {
     }
   });
 
-  it("prose et libellés de boutons restent dans la police d'interface", () => {
+  it("prose, pastilles et boutons hors code restent dans la police d'interface", () => {
     expect(has("body", "font-family", "var(--jn-font)")).toBe(true);
-    for (const sel of [".msg", ".hint", ".card-title", ".welcome h2", "button"]) {
+    for (const sel of [
+      ".msg",
+      ".hint",
+      ".card-title",
+      ".welcome h2",
+      "button",
+      ".chip-label",
+      ".cfg-level",
+      ".cfg-off em",
+      ".kc-zoom",
+    ]) {
       expect(
         valuesOf(sel, "font-family").filter((v) => v.includes("mono")),
         sel,
@@ -253,6 +260,27 @@ describe("composants (§5)", () => {
     ).toBe(true);
   });
 
+  it("pilules du chat : rayon plein ; Stop, compositeur et messages inchangés", () => {
+    for (const sel of [
+      "#toolbar #send",
+      "#bar button.ghost",
+      "#composer button.ghost",
+      ".chip",
+      ".tool-btn",
+      "#models-refresh",
+      ".cmd-opt",
+      ".chip-switch .sw-dot",
+      "#bypass-switch::before",
+      "#learning-switch::before",
+    ]) {
+      expect(has(sel, "border-radius", "999px"), sel).toBe(true);
+    }
+    expect(has("#toolbar #stop", "border-radius", "var(--jn-r-sm)")).toBe(true);
+    expect(has("#composer", "border-radius", "var(--jn-r-lg)")).toBe(true);
+    expect(has(".msg", "border-radius", "var(--jn-r-lg)")).toBe(true);
+    expect(has(".msg.user", "border-radius", "var(--jn-r-lg)")).toBe(true);
+  });
+
   it("curseur d'effort : piste --jn-line, partie remplie --jn-accent-fill, pouce carré", () => {
     expect(has("#effort-dot-lane::before", "background", "var(--jn-line)")).toBe(true);
     expect(has("#effort-dot-lane::after", "background", "var(--jn-accent-fill)")).toBe(true);
@@ -321,39 +349,68 @@ describe("débordement à 280 px : barre d'outils du composer", () => {
   });
 });
 
-describe("logo d'accueil (complément D3/D4)", () => {
-  it("sombre : logo.svg en jaune pur ; clair : icon.svg en masque, deux couleurs", () => {
+describe("logo d'accueil", () => {
+  it("sombre et clair : logo.svg en couleurs de marque, fond transparent", () => {
     expect(has(".welcome::before", "background", /url\("logo\.svg"\)/)).toBe(true);
     expect(has("body.vscode-light .welcome::before", "background", "var(--jn-brand-ink)")).toBe(
-      true,
+      false,
     );
-    expect(has("body.vscode-light .welcome::before", "mask", /^url\("icon\.svg"\)/)).toBe(true);
-    // second calque : ailiers en ardoise, rogné à la zone des ailiers (x < 44 % de la grille 24)
-    expect(has("body.vscode-light .welcome::after", "background", "var(--jn-slate-ink)")).toBe(
-      true,
-    );
-    expect(has("body.vscode-light .welcome::after", "mask", /^url\("icon\.svg"\)/)).toBe(true);
-    expect(has("body.vscode-light .welcome::after", "clip-path", "inset(0 56% 0 0)")).toBe(true);
+    expect(css).not.toMatch(/welcome::after/);
   });
 
-  it("le rognage ne garde que les ailiers de icon.svg (x ≤ 8) et jamais la tête (x ≥ 13)", () => {
-    const svg = readFileSync(here("../media/icon.svg"), "utf8");
-    const polys = [...svg.matchAll(/<polygon points="([^"]+)"/g)].map((m) =>
-      (m[1] ?? "")
-        .split(/[\s,]+/)
-        .map(Number)
-        .filter((_, i) => i % 2 === 0),
-    );
-    const [w1, w2, head] = polys as [number[], number[], number[]];
-    const cut = 24 * (1 - 0.56);
-    expect(Math.max(...w1, ...w2)).toBeLessThan(cut);
-    expect(Math.min(...head)).toBeGreaterThan(cut);
-  });
-
-  it("contraste élevé clair et couleurs forcées : monochrome, pas de second calque", () => {
-    expect(has("body.vscode-high-contrast-light .welcome::after", "display", "none")).toBe(true);
+  it("contraste élevé clair et couleurs forcées : icon.svg en masque monochrome", () => {
     expect(
-      has("body.vscode-light .welcome::after", "display", "none", "@media (forced-colors: active)"),
+      has("body.vscode-high-contrast-light .welcome::before", "mask", /^url\("icon\.svg"\)/),
     ).toBe(true);
+    expect(
+      has(
+        "body.vscode-light .welcome::before",
+        "mask",
+        /^url\("icon\.svg"\)/,
+        "@media (forced-colors: active)",
+      ),
+    ).toBe(true);
+  });
+});
+
+describe("défilement du chat", () => {
+  it("verrouille la page : html et body à 100 %, colonne flex, sans 100vh", () => {
+    expect(has("html", "height", "100%")).toBe(true);
+    expect(has("html", "overflow", "hidden")).toBe(true);
+    expect(has("body", "height", "100%")).toBe(true);
+    expect(has("body", "overflow", "hidden")).toBe(true);
+    expect(has("body", "display", "flex")).toBe(true);
+    expect(has("body", "flex-direction", "column")).toBe(true);
+    expect(css).not.toMatch(/height:\s*100vh/);
+  });
+
+  it("seul #log défile ; le compositeur reste en bas du cadre", () => {
+    expect(has("#log", "flex", "1")).toBe(true);
+    expect(has("#log", "min-height", "0")).toBe(true);
+    expect(has("#log", "overflow-y", "auto")).toBe(true);
+    expect(has("#form", "flex", "none")).toBe(true);
+  });
+
+  it("la sortie d'outil grandit dans le message, sans max-height ni overflow auto", () => {
+    expect(has(".tool-body pre", "max-height", "none")).toBe(true);
+    expect(has(".tool-body pre", "overflow", "visible")).toBe(true);
+    const rule = rules.find((r) => r.selectors.includes(".tool-body pre"));
+    expect(rule?.body).not.toMatch(/overflow:\s*auto/);
+    expect(rule?.body).not.toMatch(/max-height:\s*14em/);
+  });
+
+  it("Kill chain plein éditeur : la page et le viewport remplissent la webview", () => {
+    expect(has("body.killchain-full .studio-kc-page", "height", "100%")).toBe(true);
+    expect(has("body.killchain-full .studio-kc", "height", "100%")).toBe(true);
+    expect(has("body.killchain-full .kc-viewport", "height", "100%")).toBe(true);
+    expect(has("body.killchain-full .studio-kc-page", "max-width", "none")).toBe(true);
+  });
+
+  it("le monitor hors chat est hors flux ; sa zone ne défile qu'en monitor ou suivi", () => {
+    expect(has("#monitor", "display", "none")).toBe(true);
+    expect(has("body.mode-monitor #monitor", "overflow-y", "auto")).toBe(true);
+    expect(has("body.mode-watch #monitor", "overflow-y", "auto")).toBe(true);
+    expect(has("body.mode-monitor #monitor", "min-height", "0")).toBe(true);
+    expect(has("body.mode-watch #monitor", "min-height", "0")).toBe(true);
   });
 });

@@ -194,6 +194,11 @@ describe("composer et Configurer (lot P1)", () => {
     const studio = read("../media/studio.js");
     expect(studio).toContain('type: "openKillchain"');
     expect(studio).toContain("killchain-full");
+    expect(studio).toContain("studio-kc-page");
+    expect(studio).not.toContain("studio-card studio-kc-page");
+    expect(css).toMatch(/body\.killchain-full \.studio-kc-page\s*\{[^}]*height:\s*100%/);
+    expect(css).toMatch(/body\.killchain-full \.kc-viewport\s*\{[^}]*height:\s*100%/);
+    expect(read("../src/extension/extension.ts")).not.toContain("Cite un conteneur");
   });
   it("chaque chat rend ses cartes ; le Monitor est une section sans décision", () => {
     expect(js).not.toContain("cardsFor");
@@ -235,7 +240,8 @@ describe("composer et Configurer (lot P1)", () => {
     expect(css).toMatch(/--jn-r-sm: 6px;/);
     expect(css).toMatch(/--jn-r-md: 8px;/);
     expect(css).toMatch(/--jn-r-lg: 12px;/);
-    expect(css).not.toMatch(/--jn-r-pill|999px/);
+    expect(css).not.toMatch(/--jn-r-pill/);
+    expect(css).toMatch(/border-radius:\s*999px/);
   });
   it("le popover Configurer est plus court, un peu plus large, et n'a plus de deux colonnes", () => {
     const rule = /#cfg-pop \{([^}]*)\}/.exec(css)?.[1] ?? "";

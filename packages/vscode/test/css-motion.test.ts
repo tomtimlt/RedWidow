@@ -56,8 +56,8 @@ const decls = (r: Rule) =>
       return [d.slice(0, k).trim(), d.slice(k + 1).trim()] as const;
     });
 
-/** Les six @keyframes de la charte (design-chat-ui.md §2), tous dans chat.css. */
-const KEPT = ["jn-braille", "jn-blink", "jn-msg-in", "jn-pop-in", "jn-drawer-in", "jn-fade-in"];
+/** Les @keyframes gardées (design-chat-ui.md §2). Le curseur du logo (jn-blink) a disparu avec la marque. */
+const KEPT = ["jn-braille", "jn-msg-in", "jn-pop-in", "jn-drawer-in", "jn-fade-in"];
 
 describe.each(CSS_FILES)("%s : budget de performance (design-chat-ui.md §2)", (file) => {
   const css = readFileSync(
@@ -100,20 +100,20 @@ describe.each(CSS_FILES)("%s : budget de performance (design-chat-ui.md §2)", (
     }
   });
 
-  it("au plus 2 animations infinies : #thinking… ou body.running…brand-cursor (M6, M7)", () => {
+  it("une seule animation infinie : le spinner #thinking (M6)", () => {
     const infinite = rules.flatMap((r) =>
       decls(r)
         .filter(([k, v]) => k === "animation" && /\binfinite\b/.test(v))
         .map(() => r),
     );
-    if (file === "chat.css") expect(infinite.length).toBe(2);
-    expect(infinite.length).toBeLessThanOrEqual(2);
+    if (file === "chat.css") expect(infinite.length).toBe(1);
+    expect(infinite.length).toBeLessThanOrEqual(1);
     for (const r of infinite) {
-      expect(r.selector, r.selector).toMatch(/^(#thinking\b|body\.running\b[^,]*\.brand-cursor$)/);
+      expect(r.selector, r.selector).toMatch(/^#thinking\b/);
     }
   });
 
-  it("l'ensemble des @keyframes est exactement les six gardés (M2 à M7)", () => {
+  it("l'ensemble des @keyframes est exactement les cinq gardés (M2 à M6)", () => {
     const expected = file === "chat.css" ? KEPT : [];
     expect([...keyframes.keys()].sort()).toEqual([...expected].sort());
   });
@@ -158,14 +158,11 @@ describe.each(CSS_FILES)("%s : budget de performance (design-chat-ui.md §2)", (
     }
   });
 
-  it("le curseur du logo (M7) ne clignote que pendant un run, sans attente ni pause", () => {
+  it("la marque chevrons : classes CSS statiques, pas d'animation", () => {
     if (file !== "chat.css") return;
-    const blink = rules.filter((r) =>
-      decls(r).some(([k, v]) => k === "animation" && v.startsWith("jn-blink")),
-    );
-    expect(blink.map((r) => r.selector)).toEqual([
-      "body.running:not(.waiting):not(.paused) .brand-cursor",
-    ]);
+    expect(css).toMatch(/\.brand-wing/);
+    expect(css).toMatch(/\.brand-cursor/);
+    expect(css).not.toMatch(/jn-blink|@keyframes.*brand/);
   });
 
   it("effets supprimés : sweep, curseur ▍ de #thinking, classes sweep/pop-a/pop-b", () => {
@@ -200,9 +197,8 @@ describe.each(CSS_FILES)("%s : budget de performance (design-chat-ui.md §2)", (
   });
 
   it("aucune couleur figée hors repli de var() (hors #0004 de l'ombre, mots-clés système et jetons de marque)", () => {
-    // Seules les déclarations --jn-brand*, --jn-mark*, --jn-on-brand et --jn-slate* peuvent porter un hex (§1.1).
-    const brandDecl =
-      /(^|[;{}\s])--jn-(brand[\w-]*|mark[\w-]*|on-brand|slate[\w-]*)\s*:\s*#[0-9a-fA-F]{3,8}\s*;/g;
+    // Seuls --jn-accent, --jn-steel et --jn-ink peuvent porter un hex (marque).
+    const brandDecl = /(^|[;{}\s])--jn-(accent|steel|ink)\s*:\s*#[0-9a-fA-F]{3,8}\s*;/g;
     const stripped = css.replace(brandDecl, "$1");
     for (const m of stripped.matchAll(/#[0-9a-fA-F]{3,8}\b/g)) {
       const before = stripped.slice(Math.max(0, (m.index ?? 0) - 60), m.index);
@@ -213,14 +209,9 @@ describe.each(CSS_FILES)("%s : budget de performance (design-chat-ui.md §2)", (
   it("jetons de marque et d'usage présents (§1.1 et §1.2)", () => {
     if (file !== "chat.css") return;
     for (const t of [
-      "--jn-mark-steel: #495f73",
-      "--jn-mark-lead: #cc1c40",
-      "--jn-brand: #ffd60a",
-      "--jn-brand-ink: #7a5c00",
-      "--jn-on-brand: #141414",
-      "--jn-slate: #7a8899",
-      "--jn-slate-ink: #5e6b7a",
-      "--jn-accent:",
+      "--jn-accent: #cc1c40",
+      "--jn-steel: #495f73",
+      "--jn-ink: #ffffff",
       "--jn-accent-fill:",
       "--jn-on-accent:",
       "--jn-tint:",
@@ -230,8 +221,8 @@ describe.each(CSS_FILES)("%s : budget de performance (design-chat-ui.md §2)", (
     }
   });
 
-  it("aucun jeton supprimé ni forme arrondie (§1.2, §1.3)", () => {
-    expect(css).not.toMatch(/--jn-accent-2|--jn-cool|--jn-glow|--jn-r-pill|999px|ease-spring/);
+  it("aucun jeton supprimé (§1.2, §1.3)", () => {
+    expect(css).not.toMatch(/--jn-accent-2|--jn-cool|--jn-glow|--jn-r-pill|ease-spring/);
     // focusBorder n'est admis que dans les blocs de contraste élevé.
     for (const r of rules) {
       if (!r.body.includes("focusBorder")) continue;
@@ -239,14 +230,33 @@ describe.each(CSS_FILES)("%s : budget de performance (design-chat-ui.md §2)", (
     }
   });
 
-  it("border-radius : 0 ou jeton ; jetons de rayon ≤ 12 px ; au plus une ombre non inset", () => {
+  it("border-radius : 0, jeton ou pilule du chat ; jetons de rayon ≤ 12 px ; au plus une ombre non inset", () => {
+    const pills = new Set([
+      "#toolbar #send",
+      "#bar button.ghost",
+      "#composer button.ghost",
+      ".chip",
+      ".tool-btn",
+      "#models-refresh",
+      ".cmd-opt",
+      ".chip-switch .sw-dot",
+      "#bypass-switch::before",
+      "#learning-switch::before",
+    ]);
     let radii = 0;
     const shadows = new Set<string>();
     for (const r of rules) {
       for (const [k, v] of decls(r)) {
+        if (v.includes("999px")) expect(k, r.selector).toBe("border-radius");
         if (k === "border-radius") {
           radii++;
-          expect(v, r.selector).toMatch(/^(0|var\(--jn-r-(sm|md|lg)\))$/);
+          if (v === "999px") {
+            for (const part of r.selector.split(",")) {
+              expect(pills.has(part.trim()), r.selector).toBe(true);
+            }
+          } else {
+            expect(v, r.selector).toMatch(/^(0|var\(--jn-r-(sm|md|lg)\))$/);
+          }
         }
         if (/^--jn-r-(sm|md|lg)$/.test(k)) {
           expect(Number.parseFloat(v), `${k} (${r.selector})`).toBeLessThanOrEqual(12);
