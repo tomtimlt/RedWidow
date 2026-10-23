@@ -240,7 +240,7 @@ export const reasons: Catalog = {
   "project.absent": () => "aucun projet lié (project.json absent)",
   "cours.absent": () => "aucun cours installé (dossier de cours absent)",
   "exegol.containerDenied": (p) =>
-    `conteneur non autorisé pour ce message : ${text(p.name)} (dédié du projet, ou cité par @)`,
+    `conteneur non autorisé pour ce message : ${text(p.name)} (Exegol de l'allowlist du projet)`,
   "kali.unavailable": (p) => `serveur Kali indisponible dans le conteneur : ${text(p.name)}`,
 
   "journal.invalidJson": (p) => `JSON invalide : ${text(p.message)}`,

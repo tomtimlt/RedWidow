@@ -28,8 +28,12 @@ export function defaultConfigDir(
   platform: NodeJS.Platform = process.platform,
   home: string = homedir(),
 ): string {
-  if (platform === "win32") return join(env.APPDATA || join(home, "AppData", "Roaming"), "warband");
-  return join(env.XDG_CONFIG_HOME || join(home, ".config"), "warband");
+  const base =
+    env.XDG_CONFIG_HOME ??
+    (platform === "win32"
+      ? env.APPDATA || join(home, "AppData", "Roaming")
+      : join(home, ".config"));
+  return join(base, "warband");
 }
 
 export function policyDigest(text: string): string {

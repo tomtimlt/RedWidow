@@ -63,6 +63,7 @@ describe("réglages", () => {
     });
     expect(parseStudioMessage({ type: "refresh" })).toEqual({ type: "refresh" });
     expect(parseStudioMessage({ type: "unlink" })).toEqual({ type: "unlink" });
+    expect(parseStudioMessage({ type: "openKillchain" })).toEqual({ type: "openKillchain" });
     expect(parseStudioMessage({ type: "open", page: "nope" })).toBeNull();
     expect(parseStudioMessage({ type: "send", text: "x" })).toBeNull();
   });

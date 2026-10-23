@@ -99,5 +99,8 @@ describe("defaultConfigDir", () => {
     expect(defaultConfigDir({ XDG_CONFIG_HOME: "/x" }, "linux", "/h")).toBe(join("/x", "warband"));
     expect(defaultConfigDir({}, "linux", "/h")).toBe(join("/h", ".config", "warband"));
     expect(defaultConfigDir({ APPDATA: "/a" }, "win32", "/h")).toBe(join("/a", "warband"));
+    expect(defaultConfigDir({ XDG_CONFIG_HOME: "/x", APPDATA: "/a" }, "win32", "/h")).toBe(
+      join("/x", "warband"),
+    );
   });
 });

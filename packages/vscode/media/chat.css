@@ -2372,6 +2372,15 @@ body.studio {
   height: 100%;
   min-height: 0;
 }
+body.killchain-full .studio-shell {
+  grid-template-columns: minmax(0, 1fr);
+}
+body.killchain-full #studio-main {
+  padding: var(--jn-s4);
+}
+body.killchain-full .studio-kc {
+  min-height: calc(100vh - 2 * var(--jn-s4));
+}
 #studio-nav {
   display: flex;
   flex-direction: column;

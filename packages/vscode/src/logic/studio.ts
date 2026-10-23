@@ -46,7 +46,9 @@ export type StudioMessage =
   | { type: "refresh" }
   | { type: "unlink" }
   /** Ouvre le dossier de cours : aucun champ, le chemin vient de l'hôte (`coursRoot()`). */
-  | { type: "openCours" };
+  | { type: "openCours" }
+  /** Ouvre la Kill chain en vue plein écran (hôte seul). */
+  | { type: "openKillchain" };
 
 /** Valide un message de la webview réglages. */
 export function parseStudioMessage(raw: unknown): StudioMessage | null {
@@ -56,6 +58,7 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
   if (m.type === "refresh" && keys.length === 1) return { type: "refresh" };
   if (m.type === "unlink" && keys.length === 1) return { type: "unlink" };
   if (m.type === "openCours" && keys.length === 1) return { type: "openCours" };
+  if (m.type === "openKillchain" && keys.length === 1) return { type: "openKillchain" };
   if (
     m.type === "open" &&
     keys.length === 2 &&

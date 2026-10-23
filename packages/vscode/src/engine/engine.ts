@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import {
   type AgentRunner,
   type ApprovalGate,
@@ -53,6 +53,11 @@ export interface EngineOptions {
   now?: () => number;
   /** Chargement de la politique du run (défaut : `loadPolicy` de `core`). Tests : politique fournie. */
   policyLoader?: (cwd: string) => ReturnType<typeof loadPolicy>;
+  /**
+   * Dossier effectif du run, hors apprentissage. Reçoit le cwd du `start`.
+   * Retour non absolu, vide, ou exception : on garde le cwd du `start`.
+   */
+  resolveCwd?: (cwd: string) => Promise<string>;
 }
 
 /** Message dont le type est `bypass` : même rejeté par la validation, il met le miroir à « off ». */
@@ -104,6 +109,7 @@ export function runEngine({
   onPrompt,
   now = Date.now,
   policyLoader = (cwd) => loadPolicy({ cwd }),
+  resolveCwd,
 }: EngineOptions): Promise<number> {
   // Miroir en lecture du Bypass (ADR 0006, décision 6) : naît « off », jamais calculé ici.
   const mirror = createBypassMirror({ now });
@@ -157,9 +163,18 @@ export function runEngine({
       try {
         // Mode apprentissage (ADR 0010) : politique dédiée figée, aucune politique lue ni approuvée.
         const learning = params.mode === "learning";
+        let cwd = params.cwd;
+        if (!learning && resolveCwd !== undefined) {
+          try {
+            const next = await resolveCwd(params.cwd);
+            if (typeof next === "string" && next !== "" && isAbsolute(next)) cwd = next;
+          } catch {
+            // Résolveur en échec : cwd du start. Le run continue.
+          }
+        }
         const { policy, source, warning } = learning
           ? { policy: LEARNING_POLICY, source: null, warning: undefined }
-          : await policyLoader(params.cwd);
+          : await policyLoader(cwd);
         recorder.subscribe(journal.sink);
         recorder.subscribe((event) => send({ v: PROTOCOL_VERSION, type: "event", event }));
         const approvals = createApprovalQueue();
@@ -168,7 +183,7 @@ export function runEngine({
           policy,
           recorder,
           // Claude exige Git Bash sous Windows : le shell est analysable comme POSIX (comme la CLI).
-          workspace: { cwd: params.cwd, posixShell: true },
+          workspace: { cwd, posixShell: true },
           // Sans `ask` en apprentissage : un verdict `ask` imprévu est refusé (approval.noAsker).
           ...(!learning && { ask: approvals }),
           bypass: mirror,
@@ -191,7 +206,7 @@ export function runEngine({
         const summary = await runner.run(
           {
             prompt: prompts,
-            cwd: params.cwd,
+            cwd,
             ...(params.model !== undefined && { model: params.model }),
             ...(params.effort !== undefined && { effort: params.effort }),
             ...(params.maxTurns !== undefined && { maxTurns: params.maxTurns }),

@@ -10,6 +10,7 @@ describe("parseWindows", () => {
         { kind: "monitor" },
         { kind: "cockpit" },
         { kind: "settings" },
+        { kind: "killchain" },
       ]),
     ).toEqual([
       { kind: "chat", chatId: "c2" },
@@ -17,6 +18,7 @@ describe("parseWindows", () => {
       { kind: "monitor" },
       { kind: "cockpit" },
       { kind: "settings" },
+      { kind: "killchain" },
     ]);
     expect(parseWindows({ kind: "editor" })).toEqual([]);
   });

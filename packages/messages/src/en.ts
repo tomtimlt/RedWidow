@@ -46,7 +46,7 @@ export const reasons: Catalog = {
   "project.absent": () => "no linked project (project.json missing)",
   "cours.absent": () => "no course installed (course folder missing)",
   "exegol.containerDenied": (p) =>
-    `container not allowed for this message: ${text(p.name)} (project default, or named with @)`,
+    `container not allowed for this message: ${text(p.name)} (Exegol container on the project allowlist)`,
   "kali.unavailable": (p) => `Kali server unavailable in the container: ${text(p.name)}`,
   "shell.unanalyzable": (p) =>
     `shell cannot be analysed safely (${text(p.tool)}): never auto-approved nor remembered`,

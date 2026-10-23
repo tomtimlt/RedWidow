@@ -45,6 +45,11 @@
         "icon": "$(pulse)"
       },
       {
+        "command": "warband.openKillchain",
+        "title": "Warband : ouvrir la Kill chain",
+        "icon": "$(type-hierarchy)"
+      },
+      {
         "command": "warband.focusChat",
         "title": "Warband : aller au chat latéral",
         "icon": "$(comment)"
@@ -72,6 +77,11 @@
           "group": "navigation@4"
         },
         { "command": "warband.openMonitor", "when": "view == warband.chat", "group": "outils@1" },
+        {
+          "command": "warband.openKillchain",
+          "when": "view == warband.chat",
+          "group": "outils@1"
+        },
         { "command": "warband.setToken", "when": "view == warband.chat", "group": "outils@2" },
         { "command": "warband.diagnostic", "when": "view == warband.chat", "group": "outils@3" }
       ],
@@ -101,6 +111,7 @@
       { "command": "warband.openTerminal", "key": "alt+j t", "mac": "ctrl+j t" },
       { "command": "warband.openCockpit", "key": "alt+j k", "mac": "ctrl+j k" },
       { "command": "warband.openMonitor", "key": "alt+j m", "mac": "ctrl+j m" },
+      { "command": "warband.openKillchain", "key": "alt+j g", "mac": "ctrl+j g" },
       { "command": "warband.openStudio", "key": "alt+j s", "mac": "ctrl+j s" }
     ],
     "viewsContainers": {

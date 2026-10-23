@@ -86,7 +86,9 @@ export type WebviewMessage =
   /** Interrupteur du Bypass (ADR 0006) : seul champ, pas de durée (fixée par l'hôte). */
   | { type: "setBypass"; enabled: boolean }
   /** Mode apprentissage (ADR 0010) de ce chat : seul champ, appliqué au message suivant. */
-  | { type: "setLearning"; enabled: boolean };
+  | { type: "setLearning"; enabled: boolean }
+  /** Ouvre la Kill chain en vue plein écran. Aucun champ. */
+  | { type: "openKillchain" };
 
 /** Valide un message venu de la webview (non fiable) : forme exacte, sinon `null`. */
 export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
@@ -132,6 +134,7 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
     case "historyClear":
     case "addProvider":
     case "ready":
+    case "openKillchain":
       return only("type") ? { type: m.type } : null;
     case "setBypass":
       return only("type", "enabled") && typeof m.enabled === "boolean"

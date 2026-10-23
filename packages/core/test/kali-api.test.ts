@@ -75,7 +75,7 @@ process.exit(2);
 `,
   );
   const targets = createExegolTargets();
-  targets.note("", "kali-box");
+  targets.note("", ["kali-box"], null);
   const api = createKaliApi({
     recorder: createRecorder(),
     binary: process.execPath,
