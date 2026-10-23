@@ -237,7 +237,7 @@ describe.each(CSS_FILES)("%s : budget de performance (design-chat-ui.md §2)", (
     }
   });
 
-  it("border-radius : 0 ou jeton ; jetons de rayon ≤ 4 px ; au plus une ombre non inset", () => {
+  it("border-radius : 0 ou jeton ; jetons de rayon ≤ 12 px ; au plus une ombre non inset", () => {
     let radii = 0;
     const shadows = new Set<string>();
     for (const r of rules) {
@@ -247,7 +247,7 @@ describe.each(CSS_FILES)("%s : budget de performance (design-chat-ui.md §2)", (
           expect(v, r.selector).toMatch(/^(0|var\(--jn-r-(sm|md|lg)\))$/);
         }
         if (/^--jn-r-(sm|md|lg)$/.test(k)) {
-          expect(Number.parseFloat(v), `${k} (${r.selector})`).toBeLessThanOrEqual(4);
+          expect(Number.parseFloat(v), `${k} (${r.selector})`).toBeLessThanOrEqual(12);
         }
         if (k === "box-shadow" && v !== "none" && !v.startsWith("inset")) shadows.add(v);
       }

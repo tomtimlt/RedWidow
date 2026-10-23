@@ -1,6 +1,27 @@
 # Spécification de design : webviews VS Code (chat, cockpit, studio)
 
-Les quatre webviews (chat, cockpit, studio, panneau éditeur) chargent la même feuille `media/chat.css` (`extension.ts:530,589,732,952`) : cette charte s'applique à toutes. Direction artistique : celle du logo Warband. Un seul accent, le jaune de marque ; un secondaire, le gris ardoise ; formes anguleuses, esprit terminal ; mouvement sobre et fonctionnel.
+## 0. Amendement chat conversationnel (2026-10-23)
+
+Décision utilisateur du 2026-10-23. Cette section prime, pour la webview de chat seulement, sur « formes anguleuses » (intro) et sur §1.3 (rayons 2/3/4 px). Le chat quitte l'aspect tableau de bord : assistant conversationnel sobre, intégré au thème VS Code. Pas de glassmorphism, pas de dégradé, jaune de marque en accent rare. Mouvement, keyframes, CSP, protocole et ids : inchangés (§2, ADR 0004 §C).
+
+Jetons partagés (la feuille est unique) : `--jn-r-sm` 6 px, `--jn-r-md` 8 px, `--jn-r-lg` 12 px, `--jn-gutter` 16 px. Cockpit, studio et panneau éditeur héritent de ces quatre valeurs et de rien d'autre dans cet amendement. Leurs sélecteurs testés restent (capitales des `h3` cockpit/studio, `.studio-card` en `border-radius: var(--jn-r-lg)`). Interdit : `999px`, `--jn-r-pill`, cercle. Pouce d'effort : `border-radius: 0`. Toute autre `border-radius` vaut `0` ou un de ces trois jetons. Le moniteur (`#monitor`, 820 px) ne passe pas à 720 px.
+
+Fil du chat, en CSS seulement :
+
+- `#bar` : filet `#bar::after` retiré (`opacity: 0`). Hauteur compacte (`min-height: 36px`). Logo, `#history-btn`, `#reset`, badges conservés. Le sélecteur est partagé : le filet disparaît aussi sur l'en-tête cockpit.
+- Dès `@container app (min-width: 600px)`, colonne de lecture `width: min(720px, calc(100% - 2 * var(--jn-gutter)))` et `margin-inline: auto` pour `#log`, `#form`, `#approvals`, `#thinking`, `#no-provider`, `#readonly`. `#log` : `padding` vertical `--jn-s4`, `gap` `--jn-s5`.
+- `.msg.agent` : sélecteur conservé. `max-width: 100%`, `padding: 0`, `border: 0`, `background: transparent`, `border-radius: 0`. Prose pleine largeur, sans liseré.
+- `.msg.user` : bulle à droite, `max-width: 85%`, `padding: 10px 14px`, rayon `--jn-r-lg` (plus de coin coupé en `--jn-r-sm`). `background: var(--jn-accent-wash)` et `border: 1px solid var(--jn-accent-edge)` obligatoires. Pas d'aplat `--jn-brand`.
+- `.tool-group` : `border: 0`, `background: transparent`. `.tool` sans filet. `summary` sans boîte au repos. `.tool-body pre` : mono, `max-height: 14em`, `overflow: auto`, fond `--vscode-textCodeBlock-background`, rayon `--jn-r-md`. Statuts : `.tool.pending .icon` → `--jn-accent` ; `.tool.ok .icon` → `--jn-ok` ; `.tool.error .icon` et `.tool.denied .icon` → `--jn-err`. Icônes de `chat.js` inchangées.
+- `.codeblock` : fond `--vscode-textCodeBlock-background`, bordure `1px` en `--jn-line` à 45 % d'opacité, `pre` en `overflow-x: auto`, bouton Copier ghost inchangé. Hiérarchie CSS seule sur `.md-h` (graisse 600), listes et `.md-table`. Pas de coloration. Parseur et liste blanche inchangés (pas de lien, pas de citation).
+- `.card` : compacte. Conserver `border-left: 2px solid var(--jn-card-accent)`, `--jn-card-accent` dérivé de `editorWarning`, fond `--vscode-editorWidget-background`, titre, clés, `details.card-details`, boutons. Chrome réduit : pas de fond warning plein, `.card-icon` sans pastille (fond transparent, couleur `--jn-card-accent`), `.card-buttons` en `flex-wrap: wrap` (une ligne tant que les boutons tiennent, retour à la ligne sinon, sans débordement), et sous 360 px la règle actuelle (primaire pleine largeur) reste, grille plus serrée (`gap: 2px 8px`). Le jaune de marque ne peint pas la carte.
+- `#thinking` : `border: 0`, `background: transparent`. Une ligne de statut, sans boîte. Spinner et libellé conservés.
+- `#composer` : fond `--vscode-input-background`, bordure 1 px, rayon `--jn-r-lg`, `padding: var(--jn-s3) var(--jn-s3) var(--jn-s2)`. Focus : bordure `--jn-accent`. `body.awaiting #composer` : bordure warning et `box-shadow` inset 1 px inchangés. Barre d'outils en bas. `.chip` : fond transparent, bordure `--jn-line`. `#send` primary, `#stop` danger. Aucun contrôle retiré. `#attach` reste disabled. Sous 719 px : `#toolbar` `flex-wrap: wrap`, `#ctl-group` `flex: 1 1 100%` `order: 3` `flex-wrap: nowrap`, `#send` `order: 2`, `#model-chip` `flex: 1 1 auto`. `#cfg-pop` : `width: min(300px, calc(100vw - 16px))`, `max-height: min(var(--jn-maxh, 70vh), 240px)`.
+- `#history` : tiroir existant, fond `--jn-drawer-bg`. `.hist-head` sans filet (`border-bottom: 0`). Pas de colonne permanente.
+
+Hors de cet amendement : protocoles, `approval.ts`, `Choice`, `postMessage`, ids, keyframes, `chat.ts`, `extension.ts`, `html.ts`, `markdown.ts`, `chat.js`.
+
+Les quatre webviews (chat, cockpit, studio, panneau éditeur) chargent la même feuille `media/chat.css` (`extension.ts:530,589,732,952`) : la charte ci-dessous s'applique à toutes, sous réserve de la section 0. Direction artistique : celle du logo Warband. Un seul accent, le jaune de marque ; un secondaire, le gris ardoise ; formes anguleuses, esprit terminal ; mouvement sobre et fonctionnel.
 
 - Statut : charte D.A. décidée (cadre), 2026-10-18, sur choix de l'utilisateur (accent jaune unique, formes anguleuses, animations sobres, logo revu). Remplace §1, §2 et la ligne « Rayons » de `design-studio-ui.md` §3. Cadre inchangé : ADR 0004 §C (CSP à nonce, `textContent`, aucune ressource distante), ADR 0005 (modèle, effort).
 - Validé par l'utilisateur (2026-10-18) : logo redessiné selon §3 (pas de fichier source externe) ; petite taille réduite au chevron de tête et au curseur ; attente d'approbation en orange du thème (`--jn-warn`), toujours avec libellé.
@@ -42,7 +63,7 @@ Supprimés : `--jn-accent-2`, `--jn-cool`, `--jn-glow`, `--jn-glow-pct`, `--jn-e
 
 ### 1.3 Formes
 
-- Rayons : `--jn-r-sm` 2 px (étiquettes, cases, crans), `--jn-r-md` 3 px (boutons, champs, options), `--jn-r-lg` 4 px (composer, cartes, popovers). Toute valeur de `border-radius` est `0` ou un de ces trois jetons. Plus de pastille ni de cercle : radios et puces sont carrées.
+- Rayons : les valeurs 2/3/4 px de cette puce sont caduques. Les jetons valent ceux de la section 0 (6/8/12 px), y compris cockpit et studio. Toute valeur de `border-radius` est `0` ou un de ces trois jetons. Plus de pastille ni de cercle : radios et puces ne sont pas des disques. Le pouce d'effort reste à `0`.
 - Bordures 1 px partout (`--jn-line`) ; 2 px seulement pour le focus en contraste élevé et le liseré gauche des cartes.
 - Ombres : une seule, `--jn-shadow-pop: 0 2px 6px var(--vscode-widget-shadow, #0004)`, sur les popovers ; `none` en contraste élevé. Aucune autre `box-shadow` (sauf `inset` 1 px servant de bordure).
 - Focus : `outline: 1px solid var(--jn-accent); outline-offset: 1px` ; 2 px en contraste élevé. Plus de halo.
@@ -94,8 +115,8 @@ Règles fermes (inchangées sauf mention) :
 | Zone | Compact | Standard | Large |
 |---|---|---|---|
 | En-tête | boutons en icône seule (texte en `.sr-only`, `title`) ; badge bac à sable tronqué | texte court | idem |
-| Fil | messages 100 % | `max-width: 92%` | colonne centrée `max-width: 820px` |
-| Composer | barre d'outils sous le `textarea` : étiquette modèle tronquée, Configurer en icône, envoyer/stop en icône | étiquette + « Configurer ▾ » | idem, centré 820 px |
+| Fil | messages 100 % | `max-width: 92%` (bulle utilisateur 85 %, réponse agent 100 %) | colonne centrée `min(720px, …)` (§0) |
+| Composer | barre d'outils sous le `textarea` : étiquette modèle tronquée, Configurer en icône, envoyer/stop en icône | étiquette + « Configurer ▾ » | idem, dans la colonne 720 px (§0) |
 | Popover Configurer | une colonne, `min(232px, 100vw - 16px)` | idem | idem |
 
 Barre d'outils du composer **sous 720 px** (`@container app (max-width: 719px)`) : rangée d'icônes (pièce jointe, @, #, /, envoi), puis une seule rangée pour modèle, Configurer, Apprentissage et Bypass (`#ctl-group` en `nowrap`). L'étiquette du modèle absorbe la place et se tronque, les autres contrôles gardent leur taille. Jamais de contrôle seul sur une ligne.
