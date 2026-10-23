@@ -132,6 +132,7 @@ describe("cibles Exegol", () => {
       hashes: ["frosty_margulis-2"],
     });
     expect(prompt).toContain("PING 10.10.11.2");
+    const denied = { code: "exegol.containerDenied" };
     expect(resolveKaliContainer(targets.current(), "frosty_margulis-2", [box])).toBe(
       "frosty_margulis",
     );
@@ -141,7 +142,9 @@ describe("cibles Exegol", () => {
     expect(resolveKaliContainer(targets.current(), "frosty_margulis-2", [named])).toBe(
       "frosty_margulis-2",
     );
-    const denied = { code: "exegol.containerDenied" };
+    expect(() => resolveKaliContainer(targets.current(), "#frosty_margulis", [box])).toThrow(
+      expect.objectContaining(denied),
+    );
     const asExegol = [{ name: "frosty_margulis", family: "exegol" as const }];
     expect(() => resolveExegolContainer(targets.current(), "frosty_margulis", asExegol)).toThrow(
       expect.objectContaining(denied),

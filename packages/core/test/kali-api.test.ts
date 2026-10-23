@@ -65,7 +65,8 @@ interface Logged {
 async function harness(
   mode: "up" | "down" | "binary" | "nomkdir",
   rows: readonly LabelPrefixContainer[],
-  dedicated = "kali-box",
+  dedicated: string | null = "kali-box",
+  prompt = "",
 ) {
   const dir = await mkdtemp(join(tmpdir(), "warband-kali-"));
   const script = join(dir, "docker.mjs");
@@ -89,7 +90,7 @@ process.exit(2);
 `,
   );
   const targets = createExegolTargets();
-  targets.note("", dedicated);
+  targets.note(prompt, dedicated);
   const api = createKaliApi({
     recorder: createRecorder(),
     binary: process.execPath,
@@ -179,8 +180,8 @@ describe("appel HTTP Kali", () => {
     expect(post?.argv[7]).not.toContain("kali-box");
     expect(JSON.parse(post?.stdin ?? "")).toEqual({
       method: "POST",
-      path: "/api/tools/nmap",
-      body: { target: "10.0.0.1", scan_type: "-sV" },
+      path: "/api/command",
+      body: { command: "nmap -sV -T4 -Pn 10.0.0.1" },
     });
     for (const call of logged) {
       if (call.argv[4] === "mkdir") expect(call.argv[3]).toBe("kali-box");
@@ -201,6 +202,36 @@ describe("appel HTTP Kali", () => {
     expect(logged.map((c) => commandOf(c.argv))[0]).toBe("mkdir");
   });
 
+  it("un # en tête du champ container résout le Kali cité", async () => {
+    const { tool, calls } = await harness(
+      "up",
+      [kali("frosty_margulis", "running", "/host/kali")],
+      null,
+      "regarde #frosty_margulis",
+    );
+    await tool("server_health").run({ container: "#frosty_margulis" }, ctx);
+    const logged = await calls();
+    expect(logged[0]?.argv).toEqual(MKDIR("frosty_margulis"));
+    expect(logged.flatMap((c) => c.argv).join("\n")).not.toContain("#frosty_margulis");
+    expect(JSON.parse(logged.at(-1)?.stdin ?? "")).toEqual({ method: "GET", path: "/health" });
+  });
+
+  it("un second # en tête n'est pas retiré", async () => {
+    const { tool, calls } = await harness(
+      "up",
+      [kali("frosty_margulis", "running", "/host/kali")],
+      null,
+      "regarde #frosty_margulis",
+    );
+    await expect(
+      tool("server_health").run({ container: "##frosty_margulis" }, ctx),
+    ).rejects.toMatchObject({
+      code: "exegol.containerDenied",
+      params: { name: "#frosty_margulis" },
+    });
+    expect(await calls()).toEqual([]);
+  });
+
   it("mkdir refusé : kali.unavailable, sans démarrage", async () => {
     const { tool, calls } = await harness("nomkdir", rows);
     const error = await tool("server_health")
@@ -219,7 +250,7 @@ describe("appel HTTP Kali", () => {
     expect(logged.some((c) => c.argv.includes("kali-server-mcp"))).toBe(false);
   });
 
-  it("nmap envoie scan_type et additional_args en chaînes", async () => {
+  it("nmap envoie une commande chaîne que l'exécuteur ancien accepte", async () => {
     const { tool, calls } = await harness("up", rows);
     await tool("nmap_scan").run(
       {
@@ -231,17 +262,52 @@ describe("appel HTTP Kali", () => {
       },
       ctx,
     );
-    const body = JSON.parse((await calls()).at(-1)?.stdin ?? "").body as Record<string, unknown>;
-    expect(body).toEqual({
-      target: "10.0.0.1",
-      scan_type: "-sT -F",
-      ports: "80,443",
-      additional_args: "-T4 -Pn",
+    const sent = JSON.parse((await calls()).at(-1)?.stdin ?? "") as {
+      method: string;
+      path: string;
+      body: Record<string, unknown>;
+    };
+    expect(sent).toEqual({
+      method: "POST",
+      path: "/api/command",
+      body: { command: "nmap -sT -F -p 80,443 -T4 -Pn 10.0.0.1" },
     });
-    expect(typeof body.scan_type).toBe("string");
-    expect(typeof body.additional_args).toBe("string");
-    expect(Array.isArray(body.scan_type)).toBe(false);
-    expect(Array.isArray(body.additional_args)).toBe(false);
+    expect(typeof sent.body.command).toBe("string");
+    expect(Array.isArray(sent.body.command)).toBe(false);
+    expect(sent.body).not.toHaveProperty("scan_type");
+    expect(sent.body).not.toHaveProperty("container");
+  });
+
+  it("nmap quote la cible pour que le shell n'ajoute pas de commande", async () => {
+    const { tool, calls } = await harness("up", rows);
+    await tool("nmap_scan").run(
+      {
+        container: "kali-box",
+        target: "10.0.0.1;id",
+        scan_type: "-sV",
+        additional_args: "-T4 -Pn",
+      },
+      ctx,
+    );
+    expect(JSON.parse((await calls()).at(-1)?.stdin ?? "")).toEqual({
+      method: "POST",
+      path: "/api/command",
+      body: { command: "nmap -sV -T4 -Pn '10.0.0.1;id'" },
+    });
+  });
+
+  it("un guillemet non fermé dans scan_type ne part pas", async () => {
+    const { tool, calls } = await harness("up", rows);
+    await expect(
+      tool("nmap_scan").run(
+        { container: "kali-box", target: "10.0.0.1", scan_type: "'unterminated" },
+        ctx,
+      ),
+    ).rejects.toMatchObject({
+      code: "docker.invalidArgument",
+      params: { field: "scan_type", reason: "unclosedQuote" },
+    });
+    expect(await calls()).toEqual([]);
   });
 
   it("un tableau pour scan_type ou additional_args ne part pas dans le JSON", async () => {
@@ -261,15 +327,28 @@ describe("appel HTTP Kali", () => {
     expect(await calls()).toEqual([]);
   });
 
-  it("additional_args reste une chaîne pour chaque outil qui le déclare", async () => {
+  it("chaque outil du même exécuteur envoie une commande chaîne", async () => {
     const { tool, calls } = await harness("up", rows);
-    const cases: { name: string; args: Record<string, string> }[] = [
-      { name: "gobuster_scan", args: { url: "http://10.0.0.1", additional_args: "-q -t 4" } },
-      { name: "dirb_scan", args: { url: "http://10.0.0.1", additional_args: "-r -S" } },
-      { name: "nikto_scan", args: { target: "10.0.0.1", additional_args: "-Tuning 1" } },
+    const cases: { name: string; args: Record<string, string>; command: string }[] = [
+      {
+        name: "gobuster_scan",
+        args: { url: "http://10.0.0.1", additional_args: "-q -t 4" },
+        command: "gobuster dir -u http://10.0.0.1 -w /usr/share/wordlists/dirb/common.txt -q -t 4",
+      },
+      {
+        name: "dirb_scan",
+        args: { url: "http://10.0.0.1", additional_args: "-r -S" },
+        command: "dirb http://10.0.0.1 /usr/share/wordlists/dirb/common.txt -r -S",
+      },
+      {
+        name: "nikto_scan",
+        args: { target: "10.0.0.1", additional_args: "-Tuning 1" },
+        command: "nikto -h 10.0.0.1 -Tuning 1",
+      },
       {
         name: "sqlmap_scan",
         args: { url: "http://10.0.0.1", additional_args: "--batch --level 1" },
+        command: "sqlmap -u http://10.0.0.1 --batch --batch --level 1",
       },
       {
         name: "hydra_attack",
@@ -280,17 +359,54 @@ describe("appel HTTP Kali", () => {
           password: "b",
           additional_args: "-t 4 -f",
         },
+        command: "hydra -t 4 -l a -p b 10.0.0.1 ssh -t 4 -f",
       },
-      { name: "john_crack", args: { hash_file: "hashes.txt", additional_args: "--fork 2" } },
-      { name: "wpscan_analyze", args: { url: "http://10.0.0.1", additional_args: "--stealthy" } },
-      { name: "enum4linux_scan", args: { target: "10.0.0.1", additional_args: "-a -u a" } },
+      {
+        name: "john_crack",
+        args: { hash_file: "hashes.txt", additional_args: "--fork 2" },
+        command: "john --wordlist=/usr/share/wordlists/rockyou.txt --fork 2 hashes.txt",
+      },
+      {
+        name: "wpscan_analyze",
+        args: { url: "http://10.0.0.1", additional_args: "--stealthy" },
+        command: "wpscan --url http://10.0.0.1 --stealthy",
+      },
+      {
+        name: "enum4linux_scan",
+        args: { target: "10.0.0.1", additional_args: "-a -u a" },
+        command: "enum4linux -a -u a 10.0.0.1",
+      },
     ];
     for (const c of cases) {
       await tool(c.name).run({ container: "kali-box", ...c.args }, ctx);
-      const body = JSON.parse((await calls()).at(-1)?.stdin ?? "").body as Record<string, unknown>;
-      expect(body.additional_args, c.name).toBe(c.args.additional_args);
-      expect(typeof body.additional_args, c.name).toBe("string");
+      const sent = JSON.parse((await calls()).at(-1)?.stdin ?? "") as {
+        path: string;
+        body: { command?: unknown };
+      };
+      expect(sent.path, c.name).toBe("/api/command");
+      expect(sent.body.command, c.name).toBe(c.command);
+      expect(typeof sent.body.command, c.name).toBe("string");
     }
+  });
+
+  it("metasploit envoie le script et msfconsole dans une seule chaîne", async () => {
+    const { tool, calls } = await harness("up", rows);
+    await tool("metasploit_run").run(
+      {
+        container: "kali-box",
+        module: "auxiliary/scanner/portscan/tcp",
+        options: { RHOSTS: "10.0.0.1" },
+      },
+      ctx,
+    );
+    expect(JSON.parse((await calls()).at(-1)?.stdin ?? "")).toEqual({
+      method: "POST",
+      path: "/api/command",
+      body: {
+        command:
+          "printf %s 'use auxiliary/scanner/portscan/tcp\nset RHOSTS 10.0.0.1\nexploit\n' > /tmp/mks_msf_resource.rc && msfconsole -q -r /tmp/mks_msf_resource.rc",
+      },
+    });
   });
 
   it("execute_command envoie encore command comme une chaîne", async () => {
@@ -318,10 +434,17 @@ describe("appel HTTP Kali", () => {
       ctx,
     );
     const logged = await calls();
-    const body = JSON.parse(logged.at(-1)?.stdin ?? "").body;
-    expect(body).toEqual({ hash_file: "hashes.txt", format: "nt" });
-    expect(body).not.toHaveProperty("format_type");
-    expect(body).not.toHaveProperty("container");
+    const sent = JSON.parse(logged.at(-1)?.stdin ?? "") as {
+      path: string;
+      body: Record<string, unknown>;
+    };
+    expect(sent.path).toBe("/api/command");
+    expect(sent.body).toEqual({
+      command: "john --format=nt --wordlist=/usr/share/wordlists/rockyou.txt hashes.txt",
+    });
+    expect(sent.body).not.toHaveProperty("format_type");
+    expect(sent.body).not.toHaveProperty("container");
+    expect(JSON.stringify(sent)).not.toContain("format_type");
   });
 
   it("champ requis manquant ou vide : pas d'exec", async () => {
