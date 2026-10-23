@@ -22,6 +22,7 @@ describe("cibles Exegol", () => {
       "htb2",
     ]);
     expect(parseMentions("rien ici")).toEqual([]);
+    expect(parseMentions("scan sur #frosty_margulis-2")).toEqual([]);
   });
 
   const boxes = [{ name: "lab" }, { name: "htb1" }, { name: "htb2" }, { name: "exegol-htb1" }];

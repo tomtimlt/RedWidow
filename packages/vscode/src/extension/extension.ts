@@ -429,15 +429,6 @@ export function activate(context: vscode.ExtensionContext): void {
           return reply(await terminalsMessage());
         case "send": {
           const hashes = parseHashes(message.text);
-          const missing = hashes.filter((token) => findShellByToken(token) === undefined);
-          if (missing.length > 0) {
-            void vscode.window.showErrorMessage(
-              missing.length === 1
-                ? `Terminal introuvable : ${missing[0]}.`
-                : `Terminaux introuvables : ${missing.join(", ")}.`,
-            );
-            return;
-          }
           const mentions = parseMentions(message.text);
           let dedicatedName: string | null = null;
           try {
@@ -445,16 +436,29 @@ export function activate(context: vscode.ExtensionContext): void {
           } catch {
             dedicatedName = null;
           }
-          // Une consigne qui cite un terminal (#) se suffit : l'agent analyse la sortie jointe. Les
-          // outils Exegol restent bornés par les règles de cible du cœur (@ ou conteneur dédié).
-          if (mentions.length === 0 && dedicatedName === null && hashes.length === 0) {
+          const open = hashes.filter((token) => findShellByToken(token) !== undefined);
+          const missing = hashes.filter((token) => findShellByToken(token) === undefined);
+          // Un # de terminal ouvert, un @, ou le conteneur déjà lié : le message part. Le modèle
+          // peut demander une précision. Un # n'autorise pas le conteneur (seul @ ou le dédié).
+          if (open.length === 0 && mentions.length === 0 && dedicatedName === null) {
+            const absent =
+              missing.length === 1
+                ? `Terminal introuvable : ${missing[0]}.`
+                : `Terminaux introuvables : ${missing.join(", ")}.`;
             void vscode.window.showErrorMessage(
-              "Cite un conteneur avec @nom, ou un terminal avec #.",
+              missing.length === 0 ? "Cite un conteneur avec @nom, ou un terminal avec #." : absent,
             );
             return;
           }
+          if (missing.length > 0) {
+            void vscode.window.showWarningMessage(
+              missing.length === 1
+                ? `Terminal introuvable : ${missing[0]}.`
+                : `Terminaux introuvables : ${missing.join(", ")}.`,
+            );
+          }
           const sections = [];
-          for (const token of hashes) {
+          for (const token of open) {
             const shell = findShellByToken(token);
             const raw = shell === undefined ? null : await readLogTail(shell);
             if (raw === null) {
@@ -464,6 +468,7 @@ export function activate(context: vscode.ExtensionContext): void {
             }
             sections.push({
               token,
+              ...(shell !== undefined ? { container: shell.container } : {}),
               text: raw === null ? "Sortie illisible." : readableTerminal(raw),
             });
           }

@@ -139,12 +139,25 @@ export function readableTerminal(raw: string, max = TERMINAL_TAIL_CHARS): string
   return trimmed === "" ? "Tampon vide." : trimmed;
 }
 
-/** Consigne affichée, puis le marqueur et les extraits. Sans extrait : la consigne seule. */
+/**
+ * Consigne affichée, puis le marqueur et les extraits. Sans extrait : la consigne seule.
+ * Chaque extrait nomme le terminal (`#jeton`). S'il s'agit du shell d'un conteneur, le nom
+ * Docker réel suit, en clair : ce n'est pas un `@`, donc pas une autorisation.
+ */
 export function withTerminalContext(
   text: string,
-  sections: readonly { token: string; text: string }[],
+  sections: readonly { token: string; text: string; container?: string }[],
 ): string {
   if (sections.length === 0) return text;
-  const body = sections.map((section) => `${section.token}\n${section.text}`).join("\n\n");
+  const body = sections
+    .map((section) => {
+      const name = section.container;
+      const head =
+        name !== undefined && name !== ""
+          ? `Terminal #${section.token}, shell du conteneur ${name}.`
+          : `Terminal #${section.token}.`;
+      return `${head}\n${section.text}`;
+    })
+    .join("\n\n");
   return `${text}${TERMINAL_CONTEXT_MARK}${body}`;
 }

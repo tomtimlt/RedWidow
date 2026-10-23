@@ -1,4 +1,9 @@
-import { TERMINAL_CONTEXT_MARK } from "@warband/core";
+import {
+  createExegolTargets,
+  resolveExegolContainer,
+  resolveKaliContainer,
+  TERMINAL_CONTEXT_MARK,
+} from "@warband/core";
 import { describe, expect, it } from "vitest";
 import { terminalLaunch } from "../src/logic/cockpit.js";
 import {
@@ -98,7 +103,44 @@ describe("journal de terminal", () => {
   it("colle les extraits après le marqueur, ou rien", () => {
     expect(withTerminalContext("vois #htb1", [])).toBe("vois #htb1");
     expect(withTerminalContext("vois #htb1", [{ token: "htb1", text: "80/tcp" }])).toBe(
-      `vois #htb1${TERMINAL_CONTEXT_MARK}htb1\n80/tcp`,
+      `vois #htb1${TERMINAL_CONTEXT_MARK}Terminal #htb1.\n80/tcp`,
     );
+  });
+
+  it("un # joint la sortie et le conteneur au texte du modèle, sans autoriser ce conteneur", () => {
+    const user = "scan rapide sur la cible #frosty_margulis-2";
+    const prompt = withTerminalContext(user, [
+      {
+        token: "frosty_margulis-2",
+        container: "frosty_margulis",
+        text: "PING google.com (142.250.185.78)",
+      },
+    ]);
+    expect(prompt.startsWith(`${user}${TERMINAL_CONTEXT_MARK}`)).toBe(true);
+    expect(prompt).toContain("Terminal #frosty_margulis-2, shell du conteneur frosty_margulis.");
+    expect(prompt).toContain("PING google.com (142.250.185.78)");
+    expect(prompt).not.toContain("@frosty_margulis");
+    const targets = createExegolTargets();
+    targets.note(prompt, null);
+    expect(targets.current()).toEqual({ dedicated: null, mentions: [] });
+    const denied = { code: "exegol.containerDenied" };
+    const kali = [{ name: "frosty_margulis", family: "kali" as const }];
+    const exegol = [{ name: "frosty_margulis", family: "exegol" as const }];
+    expect(() => resolveKaliContainer(targets.current(), "frosty_margulis", kali)).toThrow(
+      expect.objectContaining(denied),
+    );
+    expect(() => resolveExegolContainer(targets.current(), "frosty_margulis", exegol)).toThrow(
+      expect.objectContaining(denied),
+    );
+    expect(
+      resolveKaliContainer({ dedicated: "frosty_margulis", mentions: [] }, "frosty_margulis", kali),
+    ).toBe("frosty_margulis");
+    expect(
+      resolveExegolContainer(
+        { dedicated: null, mentions: ["frosty_margulis"] },
+        "frosty_margulis",
+        exegol,
+      ),
+    ).toBe("frosty_margulis");
   });
 });

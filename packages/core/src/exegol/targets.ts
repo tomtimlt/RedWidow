@@ -44,7 +44,10 @@ export function lookupContainer(
   return names.length === 1 ? (names[0] ?? null) : null;
 }
 
-/** Noms cités par `@` dans une consigne, sans doublon, dans l'ordre d'apparition. */
+/**
+ * Noms cités par `@` dans une consigne, sans doublon, dans l'ordre d'apparition.
+ * Un `#` n'est pas une citation.
+ */
 export function parseMentions(text: string): string[] {
   const out: string[] = [];
   for (const match of text.matchAll(MENTION)) {
