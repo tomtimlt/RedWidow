@@ -200,9 +200,9 @@ describe.each(CSS_FILES)("%s : budget de performance (design-chat-ui.md §2)", (
   });
 
   it("aucune couleur figée hors repli de var() (hors #0004 de l'ombre, mots-clés système et jetons de marque)", () => {
-    // Seules les déclarations --jn-brand*, --jn-on-brand et --jn-slate* peuvent porter un hex (§1.1).
+    // Seules les déclarations --jn-brand*, --jn-mark*, --jn-on-brand et --jn-slate* peuvent porter un hex (§1.1).
     const brandDecl =
-      /(^|[;{}\s])--jn-(brand[\w-]*|on-brand|slate[\w-]*)\s*:\s*#[0-9a-fA-F]{3,8}\s*;/g;
+      /(^|[;{}\s])--jn-(brand[\w-]*|mark[\w-]*|on-brand|slate[\w-]*)\s*:\s*#[0-9a-fA-F]{3,8}\s*;/g;
     const stripped = css.replace(brandDecl, "$1");
     for (const m of stripped.matchAll(/#[0-9a-fA-F]{3,8}\b/g)) {
       const before = stripped.slice(Math.max(0, (m.index ?? 0) - 60), m.index);
@@ -213,6 +213,8 @@ describe.each(CSS_FILES)("%s : budget de performance (design-chat-ui.md §2)", (
   it("jetons de marque et d'usage présents (§1.1 et §1.2)", () => {
     if (file !== "chat.css") return;
     for (const t of [
+      "--jn-mark-steel: #495f73",
+      "--jn-mark-lead: #cc1c40",
       "--jn-brand: #ffd60a",
       "--jn-brand-ink: #7a5c00",
       "--jn-on-brand: #141414",
