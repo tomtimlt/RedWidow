@@ -47,9 +47,9 @@ describe("logo : chevrons", () => {
       expect(logoShapes.length).toBe(4);
     });
 
-    it("logo.svg : couleurs en dur (gris et or)", () => {
-      expect(svgs["logo.svg"]).toContain('fill="#7A8899"');
-      expect(svgs["logo.svg"]).toContain('fill="#FFD60A"');
+    it("logo.svg : couleurs en dur (acier et rouge de marque)", () => {
+      expect(svgs["logo.svg"]).toContain('fill="#495F73"');
+      expect(svgs["logo.svg"]).toContain('fill="#CC1C40"');
     });
 
     it("icon.svg : currentColor pour adaptation au thème", () => {
@@ -64,8 +64,8 @@ describe("logo : chevrons", () => {
   });
 
   describe("logo-small.svg", () => {
-    it("version simplifiée : une pointe et un curseur, or #FFD60A", () => {
-      expect(logoSmall).toContain('fill="#FFD60A"');
+    it("version simplifiée : une pointe et un curseur, rouge #CC1C40", () => {
+      expect(logoSmall).toContain('fill="#CC1C40"');
       expect(logoSmall).toContain("<polygon");
       expect(logoSmall).toContain("<rect");
       expect(logoSmall).not.toMatch(/<animate|<script/i);

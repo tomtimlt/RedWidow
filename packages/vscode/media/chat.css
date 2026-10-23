@@ -2,7 +2,7 @@
    Spécification : docs/design-chat-ui.md. Animations : transform et opacity seulement. */
 
 /* --- Jetons de design (préfixe --jn-), dérivés du thème (docs/design-chat-ui.md §1) --- */
-/* Marque : rouge du A, acier du treillis, encre blanche. Seules valeurs figées. Le rouge ne signifie jamais un état. */
+/* Marque : rouge du A, acier des ailes, encre blanche. Seules valeurs figées. Le rouge ne signifie jamais un état. */
 body {
   --jn-accent: #cc1c40;
   --jn-steel: #495f73;
