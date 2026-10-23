@@ -218,9 +218,9 @@ describe("composer et Configurer (lot P1)", () => {
     expect(rule).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
   });
   it("jetons de rayon (refonte visuelle)", () => {
-    expect(css).toMatch(/--jn-r-sm: 2px;/);
-    expect(css).toMatch(/--jn-r-md: 3px;/);
-    expect(css).toMatch(/--jn-r-lg: 4px;/);
+    expect(css).toMatch(/--jn-r-sm: 6px;/);
+    expect(css).toMatch(/--jn-r-md: 8px;/);
+    expect(css).toMatch(/--jn-r-lg: 12px;/);
     expect(css).not.toMatch(/--jn-r-pill|999px/);
   });
   it("le popover Configurer est plus court, un peu plus large, et n'a plus de deux colonnes", () => {
