@@ -13,9 +13,9 @@ describe("options du runner selon le mode (ADR 0010)", () => {
     expect(o.executable).toBe("/bin/claude");
   });
 
-  it("sans mode : Exegol seul, options par défaut pour le reste", () => {
+  it("sans mode : Exegol et Kali, options par défaut pour le reste", () => {
     const o = runnerOptions(undefined, "/bin/claude", targets);
-    expect(o.toolsets?.map((t) => t.name)).toEqual(["exegol"]);
+    expect(o.toolsets?.map((t) => t.name)).toEqual(["exegol", "kali"]);
     expect(o).not.toHaveProperty("builtinTools");
     expect(o).not.toHaveProperty("bash");
   });

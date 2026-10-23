@@ -4,6 +4,9 @@ import {
   createRecorder,
   DEFAULT_POLICY,
   evaluatePolicy,
+  isRememberable,
+  KALI_EXECUTE_TOOL,
+  KALI_TOOL_PREFIX,
   type Policy,
   parseShell,
   programName,
@@ -269,6 +272,43 @@ describe("gate : jamais mémorisable", () => {
       expect(persisted).toEqual([]);
     },
   );
+
+  it("execute_command : deny conservé, id non autorisable ni mémorisable", () => {
+    const tool = KALI_EXECUTE_TOOL;
+    const sudo = evaluatePolicy(DEFAULT_POLICY, tool, { command: "sudo id" });
+    expect(sudo.decision).toBe("deny");
+    const host = evaluatePolicy(DEFAULT_POLICY, tool, { command: "docker run -v /:/h x" });
+    expect(host.decision).toBe("deny");
+    expect(host.reason.code).toBe("docker.hostAccess");
+    const id = evaluatePolicy(ALLOW_ALL, tool, { command: "id" });
+    expect(id.decision).toBe("ask");
+    expect(id.reason.code).toBe("shell.unanalyzable");
+    expect(isRememberable({ toolUseId: "t", tool, input: { command: "id" } }, id)).toBe(false);
+    const onWin = evaluatePolicy(ALLOW_ALL, tool, { command: "id" }, win);
+    expect(onWin.decision).toBe("ask");
+    expect(onWin.reason.code).toBe("shell.unanalyzable");
+    const forced = evaluatePolicy(
+      ALLOW_ALL,
+      tool,
+      { command: "id" },
+      {
+        cwd: "/w",
+        platform: "posix",
+        posixShell: false,
+      },
+    );
+    expect(forced.decision).toBe("ask");
+    expect(forced.reason.code).toBe("shell.unanalyzable");
+  });
+
+  it("nmap_scan sans règle : ask et policy.default", () => {
+    const v = evaluatePolicy(DEFAULT_POLICY, `${KALI_TOOL_PREFIX}nmap_scan`, {
+      container: "kali-box",
+      target: "10.0.0.1",
+    });
+    expect(v.decision).toBe("ask");
+    expect(v.reason.code).toBe("policy.default");
+  });
 
   it("sans approbateur : refus", async () => {
     const gate = createApprovalGate({

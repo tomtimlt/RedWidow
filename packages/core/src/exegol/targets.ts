@@ -55,10 +55,44 @@ export function parseMentions(text: string): string[] {
 }
 
 export interface ExegolTarget {
-  /** Conteneur dédié du projet, ou `null` s'il n'y en a pas. */
-  dedicated: string | null;
-  /** Jetons `@` du message en cours. Vide : seul le dédié est admis. */
+  /** Noms réels copiés de l'allowlist du projet actif au moment du message. */
+  allowed: readonly string[];
+  /** Jetons `@` du message en cours. Vide : un seul conteneur allowlisté et listé de la famille est admis. */
   mentions: readonly string[];
+  /** Projet actif au moment du message, ou `null`. L'outil ne le reçoit pas du modèle. */
+  projectId: string | null;
+}
+
+/**
+ * Résolution commune : seules les entrées de `family` comptent. Un champ absent est ignoré.
+ * Le nom réel doit être une entrée exacte de `allowed`.
+ * Avec des `@`, il doit être l'un des `@` résolus sur cette même liste.
+ * Sans `@`, l'intersection entre `allowed` et les noms listés de la famille doit être exactement ce nom.
+ * Jamais de nom construit.
+ */
+function resolveListedContainer(
+  family: "exegol" | "kali",
+  target: ExegolTarget,
+  requested: string,
+  containers: readonly NamedContainer[],
+): string {
+  const name = requested.trim();
+  const listed = containers.filter((c) => (c as { family?: unknown }).family === family);
+  const real = lookupContainer(name, listed);
+  if (real === null || !target.allowed.includes(real)) {
+    throw new CodedError("exegol.containerDenied", { name });
+  }
+  if (target.mentions.length > 0) {
+    const cited = target.mentions.some((mention) => lookupContainer(mention, listed) === real);
+    if (!cited) throw new CodedError("exegol.containerDenied", { name });
+    return real;
+  }
+  const familyNames = new Set(listed.map((c) => c.name));
+  const intersection = [...new Set(target.allowed.filter((n) => familyNames.has(n)))];
+  if (intersection.length !== 1 || intersection[0] !== real) {
+    throw new CodedError("exegol.containerDenied", { name });
+  }
+  return real;
 }
 
 /**
@@ -72,33 +106,37 @@ export function resolveExegolContainer(
   requested: string,
   containers: readonly NamedContainer[],
 ): string {
-  const name = requested.trim();
-  const listed = containers.filter((c) => (c as { family?: unknown }).family === "exegol");
-  const real = lookupContainer(name, listed);
-  if (real === null) throw new CodedError("exegol.containerDenied", { name });
-  if (target.mentions.length > 0) {
-    const cited = target.mentions.some((mention) => lookupContainer(mention, listed) === real);
-    if (!cited) throw new CodedError("exegol.containerDenied", { name });
-    return real;
-  }
-  if (target.dedicated === null || lookupContainer(target.dedicated, listed) !== real) {
-    throw new CodedError("exegol.containerDenied", { name });
-  }
-  return real;
+  return resolveListedContainer("exegol", target, requested, containers);
+}
+
+/**
+ * Nom Docker autorisé pour un outil Kali. Même règles que `resolveExegolContainer`,
+ * sur les seules entrées `family === "kali"`. Un dédié Exegol ne résout pas un Kali.
+ */
+export function resolveKaliContainer(
+  target: ExegolTarget,
+  requested: string,
+  containers: readonly NamedContainer[],
+): string {
+  return resolveListedContainer("kali", target, requested, containers);
 }
 
 /** Cible du message en cours, lue par l'outil au moment de l'appel. */
 export interface ExegolTargets {
   current(): ExegolTarget;
-  note(text: string, dedicated: string | null): void;
+  note(text: string, allowed: readonly string[], projectId: string | null): void;
 }
 
 export function createExegolTargets(): ExegolTargets {
-  let target: ExegolTarget = { dedicated: null, mentions: [] };
+  let target: ExegolTarget = { allowed: [], mentions: [], projectId: null };
   return {
     current: () => target,
-    note(text, dedicated) {
-      target = { dedicated, mentions: parseMentions(promptForTargets(text)) };
+    note(text, allowed, projectId) {
+      target = {
+        allowed: [...allowed],
+        mentions: parseMentions(promptForTargets(text)),
+        projectId,
+      };
     },
   };
 }

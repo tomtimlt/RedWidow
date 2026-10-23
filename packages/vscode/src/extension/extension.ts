@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import {
+  activeProject,
   CodedError,
   coursRoot,
   createDockerClient,
@@ -11,7 +12,7 @@ import {
   lookupContainer,
   parseMentions,
   readFindings,
-  readProject,
+  readProjects,
   resolveBinary,
   shortContainerName,
   unlink,
@@ -32,7 +33,7 @@ import {
   terminalLaunch,
 } from "../logic/cockpit.js";
 import { createJournalFiles } from "../logic/historyStore.js";
-import { chatHtml, cockpitHtml, makeNonce, studioHtml } from "../logic/html.js";
+import { chatHtml, cockpitHtml, killchainHtml, makeNonce, studioHtml } from "../logic/html.js";
 import { type ChatSession, createChatSession, type TokenChoice } from "../logic/session.js";
 import { machineValue, resolveSettings } from "../logic/settings.js";
 import { readSources } from "../logic/sources.js";
@@ -97,6 +98,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const watches: { panel: vscode.WebviewPanel; chatId: string; toolUseId: string }[] = [];
   let cockpitPanel: vscode.WebviewPanel | undefined;
   let studioPanel: vscode.WebviewPanel | undefined;
+  let killchainPanel: vscode.WebviewPanel | undefined;
   let seq = 1;
   let restoring = false;
 
@@ -439,15 +441,18 @@ export function activate(context: vscode.ExtensionContext): void {
             return;
           }
           const mentions = parseMentions(message.text);
-          let dedicatedName: string | null = null;
+          let allowedCount = 0;
           try {
-            dedicatedName = (await readProject(defaultConfigDir()))?.container ?? null;
+            const file = await readProjects(defaultConfigDir());
+            const active = file === null ? null : activeProject(file);
+            allowedCount = active?.containers.length ?? 0;
           } catch {
-            dedicatedName = null;
+            allowedCount = 0;
           }
-          // Une consigne qui cite un terminal (#) se suffit : l'agent analyse la sortie jointe. Les
-          // outils Exegol restent bornés par les règles de cible du cœur (@ ou conteneur dédié).
-          if (mentions.length === 0 && dedicatedName === null && hashes.length === 0) {
+          // Une consigne qui cite un terminal (#) se suffit : l'agent analyse la sortie jointe.
+          // Sans @ ni #, on bloque seulement sans projet actif ou si l'allowlist est vide.
+          // Un Kali dans l'allowlist n'est pas refusé ici : le cœur refuse l'exec.
+          if (mentions.length === 0 && hashes.length === 0 && allowedCount === 0) {
             void vscode.window.showErrorMessage(
               "Cite un conteneur avec @nom, ou un terminal avec #.",
             );
@@ -490,6 +495,9 @@ export function activate(context: vscode.ExtensionContext): void {
           return await s.clearHistory();
         case "watch":
           openWatch(message.toolUseId);
+          return;
+        case "openKillchain":
+          openKillchain();
           return;
       }
     } catch (error) {
@@ -634,7 +642,7 @@ export function activate(context: vscode.ExtensionContext): void {
           }
           case "terminal": {
             const st = await linkedProjectStatus();
-            if (st === null || st.state !== "running") return;
+            if (st === null || st.container === null || st.state !== "running") return;
             await openEditorShell(st.container);
             return;
           }
@@ -711,6 +719,7 @@ export function activate(context: vscode.ExtensionContext): void {
     if (monitorPanel) entries.push({ kind: "monitor" });
     if (cockpitPanel) entries.push({ kind: "cockpit" });
     if (studioPanel) entries.push({ kind: "settings" });
+    if (killchainPanel) entries.push({ kind: "killchain" });
     await context.workspaceState.update(WINDOWS_KEY, entries);
   };
   const pushMonitor = (view?: { items: unknown }) => {
@@ -896,7 +905,7 @@ export function activate(context: vscode.ExtensionContext): void {
     } catch {
       st = null;
     }
-    if (st === null) {
+    if (st === null || st.container === null) {
       barContainer.hide();
       return;
     }
@@ -921,6 +930,61 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   };
 
+  const pushKillchain = async () => {
+    const panel = killchainPanel;
+    if (!panel) return;
+    let findings: unknown[] = [];
+    try {
+      const file = await readProjects(defaultConfigDir());
+      const active = file === null ? null : activeProject(file);
+      findings = active === null ? [] : await readFindings(defaultConfigDir(), active.id);
+    } catch {
+      findings = [];
+    }
+    if (killchainPanel !== panel) return;
+    await panel.webview.postMessage({ type: "view", page: "killchain", findings });
+  };
+  const openKillchain = () => {
+    if (killchainPanel) {
+      killchainPanel.reveal(vscode.ViewColumn.One);
+      void pushKillchain();
+      return;
+    }
+    const media = vscode.Uri.joinPath(context.extensionUri, "media");
+    killchainPanel = vscode.window.createWebviewPanel(
+      "warband.killchain",
+      "Kill chain",
+      vscode.ViewColumn.One,
+      {
+        enableScripts: true,
+        enableCommandUris: false,
+        localResourceRoots: [media],
+      },
+    );
+    killchainPanel.iconPath = vscode.Uri.joinPath(media, "logo-small.svg");
+    const nonce = makeNonce();
+    killchainPanel.webview.html = killchainHtml({
+      nonce,
+      cspSource: killchainPanel.webview.cspSource,
+      scriptUri: killchainPanel.webview
+        .asWebviewUri(vscode.Uri.joinPath(media, "studio.js"))
+        .toString(),
+      styleUri: killchainPanel.webview
+        .asWebviewUri(vscode.Uri.joinPath(media, "chat.css"))
+        .toString(),
+    });
+    killchainPanel.onDidDispose(() => {
+      killchainPanel = undefined;
+      void saveWindows();
+    });
+    killchainPanel.webview.onDidReceiveMessage(async (raw: unknown) => {
+      const message = parseStudioMessage(raw);
+      if (message?.type === "refresh") await pushKillchain();
+    });
+    void pushKillchain();
+    void saveWindows();
+  };
+
   let studioPage: StudioPage = "project";
   const pushStudio = async () => {
     const panel = studioPanel;
@@ -928,7 +992,9 @@ export function activate(context: vscode.ExtensionContext): void {
     const cockpit = await loadCockpitView();
     let findings: unknown[] = [];
     try {
-      findings = await readFindings(defaultConfigDir());
+      const file = await readProjects(defaultConfigDir());
+      const active = file === null ? null : activeProject(file);
+      findings = active === null ? [] : await readFindings(defaultConfigDir(), active.id);
     } catch {
       findings = [];
     }
@@ -968,6 +1034,10 @@ export function activate(context: vscode.ExtensionContext): void {
       const message = parseStudioMessage(raw);
       if (message === null) return;
       if (message.type === "open") studioPage = message.page;
+      if (message.type === "openKillchain") {
+        openKillchain();
+        return;
+      }
       if (message.type === "unlink") await unlink(defaultConfigDir());
       if (message.type === "openCours") await openCoursFolder();
       await pushStudio();
@@ -1028,6 +1098,11 @@ export function activate(context: vscode.ExtensionContext): void {
       },
       { label: "$(dashboard) Cockpit", description: "Alt+J K", run: () => openCockpit() },
       { label: "$(pulse) Monitor", description: "Alt+J M", run: () => openMonitor() },
+      {
+        label: "$(type-hierarchy) Kill chain",
+        description: "Alt+J G",
+        run: () => openKillchain(),
+      },
       { label: "$(settings-gear) Réglages", description: "Alt+J S", run: () => openStudio() },
     ];
     const pick = vscode.window.createQuickPick<LauncherItem>();
@@ -1091,6 +1166,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("warband.openStudio", () => openStudio()),
     vscode.commands.registerCommand("warband.openTerminal", () => void pickContainerTerminal()),
     vscode.commands.registerCommand("warband.openMonitor", () => openMonitor()),
+    vscode.commands.registerCommand("warband.openKillchain", () => openKillchain()),
     vscode.commands.registerCommand("warband.focusChat", () =>
       vscode.commands.executeCommand("warband.chat.focus"),
     ),
@@ -1210,6 +1286,7 @@ export function activate(context: vscode.ExtensionContext): void {
       else if (entry.kind === "monitor") openMonitor();
       else if (entry.kind === "cockpit") openCockpit();
       else if (entry.kind === "settings") openStudio();
+      else if (entry.kind === "killchain") openKillchain();
     }
     try {
       const view = await loadCockpitView();

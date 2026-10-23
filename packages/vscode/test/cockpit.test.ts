@@ -7,6 +7,7 @@ import {
   containerMentions,
   controlListedContainer,
   imageRefs,
+  linkedProjectStatus,
   listCockpitImages,
   loadCockpitView,
   parseCockpitMessage,
@@ -243,6 +244,11 @@ describe("parseCockpitMessage", () => {
   });
 });
 
+const projectFile = (containers: readonly string[], workspace = "/host/ws", active = true) => ({
+  activeId: active ? "p1" : null,
+  projects: [{ id: "p1", name: "a", workspace, containers }],
+});
+
 describe("loadCockpitView", () => {
   const rows = [
     { state: "stopped" as const, name: "b", image: "i:2", family: "exegol" as const },
@@ -295,7 +301,7 @@ describe("loadCockpitView", () => {
   it("conteneur lié, arrêté, sans montage et liste triée", async () => {
     const view = await loadCockpitView({
       resolveBin: (n) => (n === "docker" ? "/d/docker" : n === "exegol" ? "/d/exegol" : null),
-      readProj: async () => ({ container: "a", workspace: "/host/ws" }),
+      readProj: async () => projectFile(["a"]),
       createDocker: () => ({ listLabelPrefix: async () => rows }),
     });
     expect(view.linked).toBe("running");
@@ -317,10 +323,88 @@ describe("loadCockpitView", () => {
     expect(linked?.family).toBe("exegol");
   });
 
-  it("kali en cours avec workspace : pas de lien", async () => {
+  it("kali : lien seulement s'il tourne et a un workspace", async () => {
     const view = await loadCockpitView({
       resolveBin: (n) => (n === "docker" ? "/d/docker" : null),
       readProj: async () => null,
+      createDocker: () => ({
+        listLabelPrefix: async () => [
+          {
+            state: "running" as const,
+            name: "kali-up",
+            image: "kalilinux/kali-rolling",
+            workspace: "/host/kali",
+            family: "kali" as const,
+          },
+          {
+            state: "stopped" as const,
+            name: "kali-off",
+            image: "kalilinux/kali-rolling",
+            workspace: "/host/kali",
+            family: "kali" as const,
+          },
+          {
+            state: "running" as const,
+            name: "kali-nows",
+            image: "kalilinux/kali-rolling",
+            family: "kali" as const,
+          },
+        ],
+      }),
+    });
+    const up = view.containers.find((c) => c.name === "kali-up");
+    expect(up?.family).toBe("kali");
+    expect(up?.canLink).toBe(true);
+    expect(up?.linkTitle).toBeUndefined();
+    const off = view.containers.find((c) => c.name === "kali-off");
+    expect(off?.canLink).toBe(false);
+    expect(off?.linkTitle).toBe("Conteneur arrêté");
+    const nows = view.containers.find((c) => c.name === "kali-nows");
+    expect(nows?.canLink).toBe(false);
+    expect(nows?.linkTitle).toBe("Sans montage /workspace");
+  });
+
+  it("project.invalid : indicateur sans liste", async () => {
+    const view = await loadCockpitView({
+      resolveBin: (n) => (n === "docker" ? "/d/docker" : null),
+      readProj: async () => {
+        throw new CodedError("project.invalid", { reason: "json" });
+      },
+    });
+    expect(view.projectInvalid).toBe(true);
+    expect(view.containers).toEqual([]);
+  });
+
+  it("zéro ou plusieurs noms : pas de bannière, les noms présents sont liés", async () => {
+    const deps = {
+      resolveBin: (n: string) => (n === "docker" ? "/d/docker" : null),
+      createDocker: () => ({ listLabelPrefix: async () => rows }),
+    };
+    const none = await loadCockpitView({ ...deps, readProj: async () => projectFile([]) });
+    expect(none.linkedBanner).toBeNull();
+    expect(none.linked).toBe("none");
+    expect(none.containers.find((c) => c.name === "a")?.canLink).toBe(true);
+    const many = await loadCockpitView({
+      ...deps,
+      readProj: async () => projectFile(["a", "c"]),
+    });
+    expect(many.linkedBanner).toBeNull();
+    expect(many.linked).toBe("none");
+    expect(many.containers.find((c) => c.name === "a")).toMatchObject({
+      linked: true,
+      canLink: false,
+    });
+    expect(many.containers.find((c) => c.name === "c")).toMatchObject({
+      linked: true,
+      canLink: false,
+    });
+    expect(many.containers.find((c) => c.name === "b")?.linked).toBe(false);
+  });
+
+  it("un Kali déjà dans l'allowlist reste non liable", async () => {
+    const view = await loadCockpitView({
+      resolveBin: (n) => (n === "docker" ? "/d/docker" : null),
+      readProj: async () => projectFile(["kali-box"], "/host/proj"),
       createDocker: () => ({
         listLabelPrefix: async () => [
           {
@@ -334,20 +418,95 @@ describe("loadCockpitView", () => {
       }),
     });
     const kali = view.containers.find((c) => c.name === "kali-box");
-    expect(kali?.family).toBe("kali");
-    expect(kali?.canLink).toBe(false);
-    expect(kali?.linkTitle).toBe("On ne lie pas un Kali");
+    expect(kali).toMatchObject({ linked: true, canLink: false });
+    expect(view.linkedBanner).toMatchObject({
+      name: "kali-box",
+      workspace: "/host/proj",
+      state: "running",
+    });
   });
 
-  it("project.invalid : indicateur sans liste", async () => {
+  it("un montage relatif ne se lie pas", async () => {
     const view = await loadCockpitView({
       resolveBin: (n) => (n === "docker" ? "/d/docker" : null),
-      readProj: async () => {
-        throw new CodedError("project.invalid", { reason: "json" });
-      },
+      readProj: async () => projectFile([]),
+      createDocker: () => ({
+        listLabelPrefix: async () => [
+          {
+            state: "running" as const,
+            name: "box",
+            image: "i",
+            workspace: "rel/ws",
+            family: "exegol" as const,
+          },
+        ],
+      }),
     });
-    expect(view.projectInvalid).toBe(true);
-    expect(view.containers).toEqual([]);
+    expect(view.containers[0]).toMatchObject({
+      canLink: false,
+      linkTitle: "Sans montage /workspace",
+    });
+  });
+});
+
+describe("linkedProjectStatus", () => {
+  const row = {
+    state: "running" as const,
+    name: "a",
+    image: "i:1",
+    workspace: "/host/autre",
+    family: "exegol" as const,
+  };
+
+  it("null sans projet actif ou si le fichier est invalide", async () => {
+    expect(await linkedProjectStatus({ readProj: async () => null })).toBeNull();
+    expect(
+      await linkedProjectStatus({
+        readProj: async () => projectFile(["a"], "/host/ws", false),
+      }),
+    ).toBeNull();
+    expect(
+      await linkedProjectStatus({
+        readProj: async () => {
+          throw new CodedError("project.invalid", { reason: "json" });
+        },
+      }),
+    ).toBeNull();
+  });
+
+  it("un seul nom décrit la ligne ; zéro ou plusieurs n'en choisissent pas", async () => {
+    const one = await linkedProjectStatus({
+      readProj: async () => projectFile(["a"], "/host/ws"),
+      createDocker: () => ({ listLabelPrefix: async () => [row] }),
+    });
+    expect(one).toEqual({
+      workspace: "/host/ws",
+      container: "a",
+      image: "i:1",
+      state: "running",
+    });
+    const gone = await linkedProjectStatus({
+      readProj: async () => projectFile(["absent"]),
+      createDocker: () => ({ listLabelPrefix: async () => [] }),
+    });
+    expect(gone).toEqual({
+      workspace: "/host/ws",
+      container: "absent",
+      image: null,
+      state: "absent",
+    });
+    let called = false;
+    const many = await linkedProjectStatus({
+      readProj: async () => projectFile(["a", "b"], "/proj"),
+      createDocker: () => ({
+        listLabelPrefix: async () => {
+          called = true;
+          return [];
+        },
+      }),
+    });
+    expect(many).toEqual({ workspace: "/proj", container: null, image: null, state: null });
+    expect(called).toBe(false);
   });
 });
 

@@ -181,6 +181,20 @@ describe("composer et Configurer (lot P1)", () => {
     expect(cfg).not.toContain("data-layout");
     expect(cfg.indexOf("Raisonnement")).toBeGreaterThanOrEqual(0);
   });
+  it("Kill chain : bouton compositeur et vue plein écran dédiée", () => {
+    const toolbar = section('id="toolbar"', 'id="model-pop"');
+    expect(toolbar.indexOf('id="killchain-btn"')).toBeGreaterThan(
+      toolbar.indexOf('id="slash-btn"'),
+    );
+    expect(tag("killchain-btn")).toContain('aria-label="Kill chain"');
+    expect(js).toContain('vscode.postMessage({ type: "openKillchain" })');
+    const ext = read("../src/extension/extension.ts");
+    expect(ext).toMatch(/case "openKillchain":\s*openKillchain\(\);/);
+    expect(ext).toContain('"warband.killchain"');
+    const studio = read("../media/studio.js");
+    expect(studio).toContain('type: "openKillchain"');
+    expect(studio).toContain("killchain-full");
+  });
   it("chaque chat rend ses cartes ; le Monitor est une section sans décision", () => {
     expect(js).not.toContain("cardsFor");
     expect(js).not.toContain("setLayout");

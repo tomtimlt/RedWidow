@@ -694,3 +694,120 @@ describe("moteur : mode apprentissage (ADR 0010)", () => {
     expect(modes).toEqual([undefined]);
   });
 });
+
+describe("moteur : dossier effectif du run", () => {
+  const prep = async () => ({
+    repo: await mkdtemp(join(tmpdir(), "warband-cwd-")),
+    workspace: await mkdtemp(join(tmpdir(), "warband-ws-")),
+    journalDir: await mkdtemp(join(tmpdir(), "warband-cwd-j-")),
+  });
+
+  const policyAt = (seen: string[]) =>
+    vi.fn(async (dir: string) => {
+      seen.push(dir);
+      return {
+        policy: { default: "deny", rules: [] } as Policy,
+        source: null,
+        origin: "builtin" as const,
+      };
+    });
+
+  it("hors apprentissage, resolveCwd alimente la politique, la gate et le runner", async () => {
+    const { repo, workspace, journalDir } = await prep();
+    try {
+      let runCwd = "";
+      const seen: string[] = [];
+      const resolveCwd = vi.fn(async (dir: string) => {
+        expect(dir).toBe(repo);
+        return workspace;
+      });
+      const t = fakeChannel();
+      const done = runEngine({
+        channel: t.channel,
+        createRunner: () => ({
+          run: async (input) => {
+            runCwd = input.cwd;
+            return { status: "success", turns: 0, costUsd: 0, result: null };
+          },
+        }),
+        policyLoader: policyAt(seen),
+        resolveCwd,
+      });
+      t.receive({ v: 1, type: "start", cwd: repo, journalDir });
+      expect(await done).toBe(0);
+      expect(resolveCwd).toHaveBeenCalledTimes(1);
+      expect(seen).toEqual([workspace]);
+      expect(runCwd).toBe(workspace);
+      expect(await readdir(journalDir)).toHaveLength(1);
+      await expect(readdir(join(workspace, ".warband"))).rejects.toThrow();
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+      await rm(workspace, { recursive: true, force: true });
+      await rm(journalDir, { recursive: true, force: true });
+    }
+  });
+
+  it("retour inutilisable ou exception : on garde le cwd du start", async () => {
+    const { repo, workspace, journalDir } = await prep();
+    try {
+      const cases: Array<(cwd: string) => Promise<string>> = [
+        async () => "relatif",
+        async () => "",
+        async () => {
+          throw new Error("lecture");
+        },
+      ];
+      for (const resolveCwd of cases) {
+        const seen: string[] = [];
+        let runCwd = "";
+        const t = fakeChannel();
+        const done = runEngine({
+          channel: t.channel,
+          createRunner: () => ({
+            run: async (input) => {
+              runCwd = input.cwd;
+              return { status: "success", turns: 0, costUsd: 0, result: null };
+            },
+          }),
+          policyLoader: policyAt(seen),
+          resolveCwd,
+        });
+        t.receive({ v: 1, type: "start", cwd: repo, journalDir });
+        expect(await done).toBe(0);
+        expect(seen).toEqual([repo]);
+        expect(runCwd).toBe(repo);
+      }
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+      await rm(workspace, { recursive: true, force: true });
+      await rm(journalDir, { recursive: true, force: true });
+    }
+  });
+
+  it("le mode apprentissage n'appelle pas resolveCwd", async () => {
+    const { repo, workspace, journalDir } = await prep();
+    try {
+      const resolveCwd = vi.fn(async () => repo);
+      const policyLoader = vi.fn(async () => {
+        throw new Error("politique");
+      });
+      const t = fakeChannel();
+      const done = runEngine({
+        channel: t.channel,
+        createRunner: () => ({
+          run: async () => ({ status: "success", turns: 0, costUsd: 0, result: null }),
+        }),
+        policyLoader,
+        resolveCwd,
+      });
+      t.receive({ v: 1, type: "start", cwd: repo, journalDir, mode: "learning" });
+      expect(await done).toBe(0);
+      expect(resolveCwd).not.toHaveBeenCalled();
+      expect(policyLoader).not.toHaveBeenCalled();
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+      await rm(workspace, { recursive: true, force: true });
+      await rm(journalDir, { recursive: true, force: true });
+    }
+  });
+});

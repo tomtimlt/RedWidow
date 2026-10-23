@@ -1,17 +1,41 @@
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { randomUUID } from "node:crypto";
+import { chmod, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { isAbsolute, join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import type { DockerClient } from "./docker/client.js";
+import { lookupContainer, shortContainerName } from "./exegol/targets.js";
 import { CodedError } from "./reason.js";
 
-/** Fichier de liaison au conteneur actif, à côté de `policy.json`. */
+/** Fichier des projets, à côté de `policy.json`. */
 export const USER_PROJECT_FILE = "project.json";
 
-const PROJECT_KEYS = new Set(["container", "workspace"]);
+/** Dossier des trouvailles d'un projet : `<configDir>/projects/<id>/`. */
+const PROJECTS_DIR = "projects";
+/** Même nom que `USER_FINDINGS_FILE` (évite un import circulaire). */
+const FINDINGS_BASENAME = "findings.json";
+
+const MAX_PROJECTS = 32;
+const MAX_CONTAINERS = 32;
+const MAX_CREATE_NAME = 80;
+const MAX_CREATE_WORKSPACE = 1024;
+
+/** UUID v4 canonique, minuscules. */
+const PROJECT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+const FILE_KEYS = new Set(["activeId", "projects"]);
+const PROJECT_KEYS = new Set(["id", "name", "workspace", "containers"]);
+const LEGACY_KEYS = new Set(["container", "workspace"]);
 
 export interface StoredProject {
-  container: string;
+  id: string;
+  name: string;
   workspace: string;
+  containers: readonly string[];
+}
+
+export interface ProjectFile {
+  activeId: string | null;
+  projects: readonly StoredProject[];
 }
 
 export type ProjectLiveState = "running" | "stopped" | "absent";
@@ -25,20 +49,45 @@ export interface ProjectStatus {
 
 const invalidProject = () => new CodedError("project.invalid", { reason: "json" });
 
+type ChmodFn = (path: string, mode: number) => Promise<void>;
+
+let chmodProjectFile: ChmodFn = chmod;
+
+/** Tests uniquement : observer ou remplacer le `chmod` appliqué à `project.json`. */
+export function setChmodProjectFileForTests(fn: ChmodFn | undefined): void {
+  chmodProjectFile = fn ?? chmod;
+}
+
 const isPlainObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 
-function parseStoredProject(raw: unknown): StoredProject {
-  if (!isPlainObject(raw)) throw invalidProject();
-  const keys = Object.keys(raw);
-  if (keys.length !== PROJECT_KEYS.size || keys.some((k) => !PROJECT_KEYS.has(k))) {
-    throw invalidProject();
-  }
-  const container = raw.container;
-  const workspace = raw.workspace;
-  if (typeof container !== "string" || container === "") throw invalidProject();
-  if (typeof workspace !== "string" || workspace === "") throw invalidProject();
-  return { container, workspace };
+const exactKeys = (raw: Record<string, unknown>, keys: ReadonlySet<string>): boolean => {
+  const got = Object.keys(raw);
+  return got.length === keys.size && got.every((k) => keys.has(k));
+};
+
+const validContainerName = (name: string): boolean => name !== "" && !name.includes("\0");
+
+/** Nom relu ou migré : non vide, sans CR, LF ni NUL. La limite de 80 ne s'applique qu'à `createProject`. */
+const validStoredName = (name: string): boolean =>
+  name !== "" && !name.includes("\0") && !name.includes("\n") && !name.includes("\r");
+
+const validWorkspace = (workspace: unknown): workspace is string =>
+  typeof workspace === "string" &&
+  workspace !== "" &&
+  !workspace.includes("\0") &&
+  isAbsolute(workspace);
+
+/** Chemin des trouvailles. L'id est contrôlé avant tout `join`. */
+export function projectFindingsPath(configDir: string, projectId: string): string {
+  if (!PROJECT_ID.test(projectId)) throw invalidProject();
+  return join(configDir, PROJECTS_DIR, projectId, FINDINGS_BASENAME);
+}
+
+/** Projet dont l'id est `activeId`, ou `null` si aucun n'est actif. */
+export function activeProject(file: ProjectFile): StoredProject | null {
+  if (file.activeId === null) return null;
+  return file.projects.find((p) => p.id === file.activeId) ?? null;
 }
 
 /** Renommage atomique ; sous win32, nouveaux essais sur EPERM/EBUSY/EACCES. */
@@ -65,39 +114,110 @@ async function renameWithRetry(
   }
 }
 
-async function writeProjectAtomic(configDir: string, project: StoredProject): Promise<void> {
+async function exists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw err;
+  }
+}
+
+/** Écrit la liste validée. Pas d'écriture d'un JSON arbitraire. */
+async function writeProjectFile(configDir: string, file: ProjectFile): Promise<void> {
   const path = join(configDir, USER_PROJECT_FILE);
   await mkdir(configDir, { recursive: true });
   const temp = `${path}.${process.pid}.tmp`;
-  await writeFile(temp, `${JSON.stringify(project, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+  await writeFile(temp, `${JSON.stringify(file, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
   await renameWithRetry(temp, path);
+  await chmodProjectFile(path, 0o600);
 }
 
 /**
- * Lie le projet au conteneur Exegol `name` (déjà listé par `listLabelPrefix`).
- * Une autre famille est refusée. Remplace tout fichier existant.
+ * Déplace `findings.json` vers le projet migré, sans le relire.
+ * Destination déjà présente : le fichier global reste en place.
  */
-export async function link(
+async function moveGlobalFindings(configDir: string, projectId: string): Promise<void> {
+  const dest = projectFindingsPath(configDir, projectId);
+  const from = join(configDir, FINDINGS_BASENAME);
+  if (await exists(dest)) return;
+  if (!(await exists(from))) return;
+  await mkdir(join(configDir, PROJECTS_DIR, projectId), { recursive: true });
+  if (await exists(dest)) return;
+  try {
+    await rename(from, dest);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw err;
+  }
+}
+
+function parseContainers(raw: unknown): string[] {
+  if (!Array.isArray(raw) || raw.length > MAX_CONTAINERS) throw invalidProject();
+  const names: string[] = [];
+  for (const item of raw) {
+    if (typeof item !== "string" || !validContainerName(item)) throw invalidProject();
+    names.push(item);
+  }
+  if (new Set(names).size !== names.length) throw invalidProject();
+  return names;
+}
+
+function parseStoredProject(raw: unknown): StoredProject {
+  if (!isPlainObject(raw) || !exactKeys(raw, PROJECT_KEYS)) throw invalidProject();
+  if (typeof raw.id !== "string" || !PROJECT_ID.test(raw.id)) throw invalidProject();
+  if (typeof raw.name !== "string" || !validStoredName(raw.name)) throw invalidProject();
+  if (!validWorkspace(raw.workspace)) throw invalidProject();
+  return {
+    id: raw.id,
+    name: raw.name,
+    workspace: raw.workspace,
+    containers: parseContainers(raw.containers),
+  };
+}
+
+function parseProjectFile(raw: Record<string, unknown>): ProjectFile {
+  if (!Array.isArray(raw.projects) || raw.projects.length > MAX_PROJECTS) throw invalidProject();
+  const projects = raw.projects.map((row) => parseStoredProject(row));
+  if (new Set(projects.map((p) => p.id)).size !== projects.length) throw invalidProject();
+  const ids = new Set(projects.map((p) => p.id));
+  if (raw.activeId === null) return { activeId: null, projects };
+  if (typeof raw.activeId !== "string" || !ids.has(raw.activeId)) throw invalidProject();
+  return { activeId: raw.activeId, projects };
+}
+
+async function migrateLegacy(
   configDir: string,
-  name: string,
-  docker: Pick<DockerClient, "listLabelPrefix">,
-): Promise<void> {
-  const rows = await docker.listLabelPrefix();
-  const row = rows.find((r) => r.name === name);
-  if (row === undefined) throw new CodedError("project.notFound", { name });
-  if (row.family !== "exegol") throw new CodedError("project.notExegol", { name });
-  if (row.state !== "running") throw new CodedError("project.notRunning", { name });
-  if (row.workspace === undefined) throw new CodedError("project.noWorkspace", { name });
-  await writeProjectAtomic(configDir, { container: name, workspace: row.workspace });
+  raw: Record<string, unknown>,
+  newId: () => string,
+): Promise<ProjectFile> {
+  const container = raw.container;
+  const workspace = raw.workspace;
+  if (typeof container !== "string" || !validContainerName(container)) throw invalidProject();
+  if (!validWorkspace(workspace)) throw invalidProject();
+  const name = shortContainerName(container);
+  if (!validStoredName(name)) throw invalidProject();
+  const id = newId();
+  if (!PROJECT_ID.test(id)) throw invalidProject();
+  const file: ProjectFile = {
+    activeId: id,
+    projects: [{ id, name, workspace, containers: [container] }],
+  };
+  await writeProjectFile(configDir, file);
+  await moveGlobalFindings(configDir, id);
+  return file;
 }
 
-/** Supprime `project.json`. Absent : rien. */
-export async function unlink(configDir: string): Promise<void> {
-  await rm(join(configDir, USER_PROJECT_FILE), { force: true });
-}
-
-/** Lit `project.json` ; absent → `null` ; invalide → `project.invalid`. */
-export async function readProject(configDir: string): Promise<StoredProject | null> {
+/**
+ * Lit `project.json`. Absent → `null`. Invalide → `project.invalid`, fichier inchangé.
+ * L'objet exact `{ container, workspace }` (workspace absolu) est migré une fois.
+ * `newId` n'est appelé que pour cette migration.
+ */
+export async function readProjects(
+  configDir: string,
+  newId: () => string = randomUUID,
+): Promise<ProjectFile | null> {
   const path = join(configDir, USER_PROJECT_FILE);
   let text: string;
   try {
@@ -112,30 +232,190 @@ export async function readProject(configDir: string): Promise<StoredProject | nu
   } catch {
     throw invalidProject();
   }
-  return parseStoredProject(parsed);
+  if (!isPlainObject(parsed)) throw invalidProject();
+  if (exactKeys(parsed, LEGACY_KEYS)) return migrateLegacy(configDir, parsed, newId);
+  if (!exactKeys(parsed, FILE_KEYS)) throw invalidProject();
+  return parseProjectFile(parsed);
 }
 
-/** État du projet lié et du conteneur correspondant dans la liste actuelle. */
+function assertCreateName(name: string): void {
+  if (
+    name.length < 1 ||
+    name.length > MAX_CREATE_NAME ||
+    name.includes("\0") ||
+    name.includes("\n") ||
+    name.includes("\r")
+  ) {
+    throw invalidProject();
+  }
+}
+
+function assertCreateWorkspace(workspace: string): void {
+  if (
+    workspace.length < 1 ||
+    workspace.length > MAX_CREATE_WORKSPACE ||
+    workspace.includes("\0") ||
+    !isAbsolute(workspace)
+  ) {
+    throw invalidProject();
+  }
+}
+
+/**
+ * Crée un projet sans parler à Docker. `containers` est vide.
+ * Sans projet actif, le nouveau le devient. Sinon l'actif ne change pas.
+ */
+export async function createProject(
+  configDir: string,
+  input: { name: string; workspace: string },
+): Promise<StoredProject> {
+  assertCreateName(input.name);
+  assertCreateWorkspace(input.workspace);
+  const file = await readProjects(configDir);
+  if (file !== null && file.projects.length >= MAX_PROJECTS) throw invalidProject();
+  const id = randomUUID();
+  if (!PROJECT_ID.test(id)) throw invalidProject();
+  const project: StoredProject = {
+    id,
+    name: input.name,
+    workspace: input.workspace,
+    containers: [],
+  };
+  const activeId = file === null || activeProject(file) === null ? id : file.activeId;
+  const projects = file === null ? [project] : [...file.projects, project];
+  await writeProjectFile(configDir, { activeId, projects });
+  return project;
+}
+
+/** Active un projet existant. Id inconnu ou fichier absent : `project.absent`. */
+export async function setActiveProject(configDir: string, projectId: string): Promise<void> {
+  const file = await readProjects(configDir);
+  if (file === null || !file.projects.some((p) => p.id === projectId)) {
+    throw new CodedError("project.absent");
+  }
+  if (file.activeId === projectId) return;
+  await writeProjectFile(configDir, { activeId: projectId, projects: file.projects });
+}
+
+/**
+ * Retire le projet. S'il était actif, `activeId` passe à null sans en activer un autre.
+ * Dernier projet : le fichier est supprimé. Les trouvailles restent sur le disque.
+ */
+export async function removeProject(configDir: string, projectId: string): Promise<void> {
+  const file = await readProjects(configDir);
+  if (file === null || !file.projects.some((p) => p.id === projectId)) {
+    throw new CodedError("project.absent");
+  }
+  const projects = file.projects.filter((p) => p.id !== projectId);
+  if (projects.length === 0) {
+    await rm(join(configDir, USER_PROJECT_FILE), { force: true });
+    return;
+  }
+  const activeId = file.activeId === projectId ? null : file.activeId;
+  await writeProjectFile(configDir, { activeId, projects });
+}
+
+/** Retire le projet actif. Sans actif, ou fichier absent : rien. */
+export async function unlink(configDir: string): Promise<void> {
+  const file = await readProjects(configDir);
+  if (file === null) return;
+  const active = activeProject(file);
+  if (active === null) return;
+  await removeProject(configDir, active.id);
+}
+
+/**
+ * Ajoute le nom réel renvoyé par `lookupContainer` sur la liste (toute famille).
+ * Absent ou ambigu : `project.notFound`. Déjà présent : rien. Au-delà de 32 : `project.invalid`.
+ * Projet inconnu : `project.absent`. Le fichier n'est pas modifié en cas de refus.
+ */
+export async function associateContainer(
+  configDir: string,
+  projectId: string,
+  name: string,
+  docker: Pick<DockerClient, "listLabelPrefix">,
+): Promise<void> {
+  const file = await readProjects(configDir);
+  if (file === null) throw new CodedError("project.absent");
+  const project = file.projects.find((p) => p.id === projectId);
+  if (project === undefined) throw new CodedError("project.absent");
+  const real = lookupContainer(name, await docker.listLabelPrefix());
+  if (real === null) throw new CodedError("project.notFound", { name });
+  if (project.containers.includes(real)) return;
+  if (project.containers.length >= MAX_CONTAINERS) throw invalidProject();
+  const projects = file.projects.map((p) =>
+    p.id === projectId ? { ...p, containers: [...p.containers, real] } : p,
+  );
+  await writeProjectFile(configDir, { activeId: file.activeId, projects });
+}
+
+/** Retire un nom stocké. Projet inconnu : `project.absent`. Nom absent : rien. */
+export async function dissociateContainer(
+  configDir: string,
+  projectId: string,
+  name: string,
+): Promise<void> {
+  const file = await readProjects(configDir);
+  if (file === null) throw new CodedError("project.absent");
+  const project = file.projects.find((p) => p.id === projectId);
+  if (project === undefined) throw new CodedError("project.absent");
+  if (!project.containers.includes(name)) return;
+  const projects = file.projects.map((p) =>
+    p.id === projectId ? { ...p, containers: p.containers.filter((c) => c !== name) } : p,
+  );
+  await writeProjectFile(configDir, { activeId: file.activeId, projects });
+}
+
+/**
+ * Lie un conteneur Exegol ou Kali en cours, avec un montage `/workspace` absolu.
+ * Refus, dans l'ordre : absent, autre famille, arrêté, sans montage. Un refus n'écrit rien.
+ * Sans projet actif, en crée un (nom court Exegol ou nom réel Kali, ce montage) puis associe le nom réel.
+ * Un projet déjà actif garde son workspace et ses noms.
+ */
+export async function link(
+  configDir: string,
+  name: string,
+  docker: Pick<DockerClient, "listLabelPrefix">,
+): Promise<void> {
+  const rows = await docker.listLabelPrefix();
+  const row = rows.find((r) => r.name === name);
+  if (row === undefined) throw new CodedError("project.notFound", { name });
+  if (row.family !== "exegol" && row.family !== "kali") {
+    throw new CodedError("project.notExegol", { name });
+  }
+  if (row.state !== "running") throw new CodedError("project.notRunning", { name });
+  if (row.workspace === undefined || !isAbsolute(row.workspace)) {
+    throw new CodedError("project.noWorkspace", { name });
+  }
+  const file = await readProjects(configDir);
+  if (file === null || activeProject(file) === null) {
+    const projectName = row.family === "exegol" ? shortContainerName(row.name) : row.name;
+    await createProject(configDir, {
+      name: projectName,
+      workspace: row.workspace,
+    });
+  }
+  const current = await readProjects(configDir);
+  const active = current === null ? null : activeProject(current);
+  if (active === null) throw new CodedError("project.absent");
+  await associateContainer(configDir, active.id, row.name, docker);
+}
+
+/**
+ * État du conteneur unique de l'allowlist active.
+ * Sans projet actif, ou sans exactement un nom : `project.absent`.
+ */
 export async function status(
   configDir: string,
   docker: Pick<DockerClient, "listLabelPrefix">,
 ): Promise<ProjectStatus> {
-  const stored = await readProject(configDir);
-  if (stored === null) throw new CodedError("project.absent");
-  const rows = await docker.listLabelPrefix();
-  const row = rows.find((r) => r.name === stored.container);
+  const file = await readProjects(configDir);
+  const active = file === null ? null : activeProject(file);
+  const container = active?.containers.length === 1 ? active.containers[0] : undefined;
+  if (active === null || container === undefined) throw new CodedError("project.absent");
+  const row = (await docker.listLabelPrefix()).find((r) => r.name === container);
   if (row === undefined) {
-    return {
-      container: stored.container,
-      workspace: stored.workspace,
-      image: null,
-      state: "absent",
-    };
+    return { container, workspace: active.workspace, image: null, state: "absent" };
   }
-  return {
-    container: stored.container,
-    workspace: stored.workspace,
-    image: row.image,
-    state: row.state,
-  };
+  return { container, workspace: active.workspace, image: row.image, state: row.state };
 }

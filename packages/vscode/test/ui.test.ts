@@ -271,6 +271,38 @@ describe("monitorRows (lot P4) : lecture seule, une ligne par appel Exegol", () 
     expect(rows.map((r) => r.id)).toEqual([4]);
   });
 
+  it("garde un outil préfixé mcp__kali__ et lit le conteneur dans le JSON", () => {
+    const input = JSON.stringify({ container: "kali-box", target: "10.0.0.1", ports: "80" });
+    const rows = ui.monitorRows({
+      items: [
+        { id: 1, kind: "tool", tool: "Bash", toolUseId: "b", input: "ls", status: "ok" },
+        { id: 2, kind: "tool", tool: "mcp__kalix__nmap_scan", toolUseId: "x", input, status: "ok" },
+        {
+          id: 3,
+          kind: "tool",
+          tool: "mcp__kali__nmap_scan",
+          toolUseId: "k",
+          input,
+          status: "pending",
+        },
+        {
+          id: 4,
+          kind: "tool",
+          tool: "mcp__kali__execute_command",
+          toolUseId: "e",
+          input: "id",
+          status: "pending",
+        },
+      ],
+      approvals: [],
+    });
+    expect(rows.map((r) => r.id)).toEqual([3, 4]);
+    expect(rows[0]?.container).toBe("kali-box");
+    expect(rows[0]?.command).toBe(JSON.stringify({ target: "10.0.0.1", ports: "80" }));
+    expect(rows[1]?.container).toBe("");
+    expect(rows[1]?.command).toBe("id");
+  });
+
   it("commande et conteneur ; argument avec espace ou vide entre guillemets", () => {
     const [row] = ui.monitorRows({
       items: [exec(1, "e", ["echo", "deux mots", ""])],

@@ -1,4 +1,4 @@
-import { type EngineEvent, EXEGOL_EXEC_TOOL } from "@warband/core";
+import { type EngineEvent, EXEGOL_EXEC_TOOL, KALI_TOOL_PREFIX } from "@warband/core";
 import { describe, expect, it } from "vitest";
 import { createChatState } from "../src/logic/chat.js";
 
@@ -57,6 +57,33 @@ describe("sortie d'exec en direct", () => {
       status: "pending",
       output: "Starting Nmap\n80/tcp open",
     });
+  });
+
+  it("ajoute aussi la sortie d'un outil Kali", () => {
+    const state = createChatState();
+    state.event(
+      ev({
+        id: "req",
+        kind: "tool.requested",
+        toolUseId: "scan",
+        tool: `${KALI_TOOL_PREFIX}nmap_scan`,
+        input: { container: "kali-box", target: "10.0.0.1" },
+      }),
+    );
+    state.event(
+      ev({
+        id: "proc",
+        parentId: "req",
+        kind: "process.started",
+        argv: ["docker", "exec"],
+        pid: 1,
+      }),
+    );
+    state.event(
+      ev({ id: "out", parentId: "proc", kind: "process.output", stream: "stdout", line: "open" }),
+    );
+    const tool = state.view().items.find((item) => item.kind === "tool");
+    expect(tool).toMatchObject({ status: "pending", output: "open" });
   });
 
   it("ignore la sortie d'un processus qui n'est pas un exec Exegol", () => {
