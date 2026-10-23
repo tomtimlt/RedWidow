@@ -240,7 +240,8 @@ if (typeof acquireVsCodeApi === "function") start();
 
 function start() {
   const vscode = acquireVsCodeApi();
-  const nav = document.getElementById("studio-nav");
+  const killchainOnly = document.body.classList.contains("killchain-full");
+  const nav = killchainOnly ? null : document.getElementById("studio-nav");
   const main = document.getElementById("studio-main");
 
   const el = (tag, className, text) => {
@@ -483,8 +484,8 @@ function start() {
   function render(view) {
     if (!main) return;
     while (main.firstChild) main.removeChild(main.firstChild);
-    paintNav(view.page, view.findings);
-    const page = view.page;
+    const page = killchainOnly ? "killchain" : view.page;
+    if (!killchainOnly) paintNav(page, view.findings);
     if (page === "project") {
       const sec = el("section", "studio-card");
       sec.append(el("h2", "", "Projet"));
@@ -541,12 +542,36 @@ function start() {
       return;
     }
     if (page === "killchain") {
+      if (killchainOnly) {
+        const sec = el("section", "studio-card studio-kc-page");
+        sec.append(el("h2", "", "Kill chain"));
+        const graph = killchainGraph(view.findings);
+        if (graph.nodes.length > 0) {
+          sec.append(killchainGraphView(graph));
+        } else {
+          sec.append(
+            el(
+              "p",
+              "studio-help",
+              "Les nœuds notés par l'agent. Rien tant qu'il n'y a pas de trouvaille.",
+            ),
+          );
+        }
+        main.append(sec);
+        return;
+      }
+      const count = killchainCount(view.findings);
       const sec = empty(
         "Kill chain",
-        "Les nœuds notés par l'agent. Rien tant qu'il n'y a pas de trouvaille.",
+        count === null
+          ? "Graphe des trouvailles notées par l'agent. Ouvrez la vue plein écran pour explorer le graphe."
+          : `${count} trouvaille${count > 1 ? "s" : ""} : ouvrez la vue plein écran pour le graphe interactif.`,
       );
-      const graph = killchainGraph(view.findings);
-      if (graph.nodes.length > 0) sec.append(killchainGraphView(graph));
+      const open = el("button", "primary");
+      open.type = "button";
+      open.append(el("span", "btn-text", "Ouvrir la Kill chain"));
+      open.addEventListener("click", () => vscode.postMessage({ type: "openKillchain" }));
+      sec.append(open);
       main.append(sec);
       return;
     }

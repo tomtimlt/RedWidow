@@ -99,9 +99,9 @@ describe("logo : SVG de marque", () => {
     expect(strip(svgs["icon.svg"])).toEqual(strip(svgs["logo.svg"]));
   });
 
-  it("icon.svg est monochrome (currentColor, aucune couleur propre)", () => {
-    expect(svgs["icon.svg"]).toContain('fill="currentColor"');
-    expect(svgs["icon.svg"]).not.toMatch(/#[0-9a-f]{3,8}\b/i);
+  it("icon.svg : mêmes couleurs de marque que logo.svg (barre d'activité)", () => {
+    expect(svgs["icon.svg"]).toContain('fill="#495F73"');
+    expect(svgs["icon.svg"]).toContain('fill="#CC1C40"');
   });
 
   it("géométrie : diagonales à 45°, trois chevrons de même épaisseur, pointes alignées, curseur à bord droit de la tête", () => {

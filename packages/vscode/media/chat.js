@@ -601,6 +601,7 @@
   // Menu « / » : seulement /clear.
   const slashPop = $("slash-pop");
   const slashBtn = $("slash-btn");
+  $("killchain-btn").addEventListener("click", () => vscode.postMessage({ type: "openKillchain" }));
   const mentionBtn = $("mention-btn");
   const hashBtn = $("hash-btn");
   wirePop(slashPop, slashBtn, {

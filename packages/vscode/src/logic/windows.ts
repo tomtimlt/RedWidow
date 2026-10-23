@@ -1,6 +1,13 @@
 /** Panneaux de droite mémorisés (`workspaceState`, clé `warband.windows`). */
 
-export const WINDOW_KINDS = ["chat", "terminal", "monitor", "cockpit", "settings"] as const;
+export const WINDOW_KINDS = [
+  "chat",
+  "terminal",
+  "monitor",
+  "cockpit",
+  "settings",
+  "killchain",
+] as const;
 export type WindowKind = (typeof WINDOW_KINDS)[number];
 
 export interface WindowEntry {
@@ -14,7 +21,7 @@ const CONTAINER_NAME = /^[A-Za-z0-9][A-Za-z0-9_.:@/-]*$/;
 const CONTAINER_NAME_MAX = 256;
 /** Plafond de la liste restaurée : au-delà, le reste est ignoré. */
 export const WINDOW_CAP = 16;
-const SINGLETONS = new Set<WindowKind>(["monitor", "cockpit", "settings"]);
+const SINGLETONS = new Set<WindowKind>(["monitor", "cockpit", "settings", "killchain"]);
 
 /**
  * Liste validée. Entrée inconnue, clé en trop, chatId ou container invalides, singleton doublé : ignorés.
