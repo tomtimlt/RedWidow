@@ -242,6 +242,42 @@ describe("session de chat", () => {
     expect(t.f.calls.some((c) => c[0] === "answer")).toBe(false);
   });
 
+  it("reset ou stop volontaire : pas de « Operation aborted », une erreur réseau reste", async () => {
+    const failure = (message: string) => ev({ kind: "error", code: "error.unknown", message });
+    const texts = (items: readonly object[]) =>
+      items.flatMap((item) => ("text" in item && typeof item.text === "string" ? [item.text] : []));
+
+    const reset = setup();
+    await reset.session.send("bonjour");
+    reset.session.reset();
+    reset.f.handlers.onEvent?.(failure("Operation aborted"));
+    reset.f.handlers.onError?.({ code: "error.unknown", message: "The operation was aborted" });
+    expect(texts(reset.view().items).join("\n")).not.toMatch(/operation aborted/i);
+    expect(reset.view().items).toEqual([]);
+
+    const stopped = setup();
+    await stopped.session.send("bonjour");
+    stopped.session.stop();
+    stopped.f.handlers.onEvent?.(failure("AbortError: Operation aborted"));
+    stopped.f.handlers.onError?.({ code: "error.unknown", message: "annulé par l'utilisateur" });
+    const afterStop = texts(stopped.view().items);
+    expect(afterStop.join("\n")).not.toMatch(/operation aborted|annulé par l'utilisateur/i);
+    expect(afterStop).toContain("Arrêt demandé.");
+    stopped.f.handlers.onEvent?.(failure("ECONNRESET"));
+    expect(
+      stopped.view().items.some((item) => item.kind === "notice" && item.text === "ECONNRESET"),
+    ).toBe(true);
+
+    const live = setup();
+    await live.session.send("bonjour");
+    live.f.handlers.onEvent?.(failure("ECONNRESET"));
+    expect(
+      live.view().items.some((item) => item.kind === "notice" && item.text === "ECONNRESET"),
+    ).toBe(true);
+    live.f.handlers.onError?.({ code: "error.unknown", message: "Operation aborted" });
+    expect(texts(live.view().items).join("\n")).toContain("Operation aborted");
+  });
+
   it("stop annule, fin du moteur libère l'état, le message suivant reprend la session", async () => {
     const t = setup();
     await t.session.send("x");

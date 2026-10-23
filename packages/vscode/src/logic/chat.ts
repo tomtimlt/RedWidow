@@ -7,6 +7,45 @@ import { summarizeInput, toolLabel } from "./present.js";
 
 export const MAX_ITEMS = 300;
 export const MAX_OUTPUT_CHARS = 2000;
+
+/** Textes bruts qu'un abandon (SDK, DOMException, signal de l'UI) laisse dans `error.unknown`. */
+const ABORT_TEXTS = new Set([
+  "operation aborted",
+  "the operation was aborted",
+  "this operation was aborted",
+  "annulé par l'utilisateur",
+]);
+
+function abortText(error: unknown): string | undefined {
+  if (typeof error === "string") return error;
+  if (typeof error !== "object" || error === null) return undefined;
+  const rec = error as { message?: unknown; params?: { message?: unknown } };
+  if (typeof rec.message === "string") return rec.message;
+  if (typeof rec.params?.message === "string") return rec.params.message;
+  return undefined;
+}
+
+function matchesAbort(raw: string): boolean {
+  let text = raw.trim().toLowerCase();
+  if (text.endsWith(".")) text = text.slice(0, -1).trim();
+  if (text.startsWith("error:")) text = text.slice("error:".length).trim();
+  if (text.startsWith("aborterror:")) text = text.slice("aborterror:".length).trim();
+  return ABORT_TEXTS.has(text);
+}
+
+/** Vrai pour un `AbortError` ou le texte qu'un abandon volontaire laisse dans le fil. */
+export function isAbortError(error: unknown): boolean {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { name?: unknown }).name === "AbortError"
+  ) {
+    return true;
+  }
+  const text = abortText(error);
+  return text !== undefined && matchesAbort(text);
+}
+
 /** Fenêtre de sortie montrée pendant qu'un exec tourne encore (le résultat final reste plafonné). */
 const LIVE_OUTPUT_CHARS = 12_000;
 
