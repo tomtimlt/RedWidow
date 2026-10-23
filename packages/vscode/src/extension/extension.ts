@@ -9,9 +9,7 @@ import {
   createRecorder,
   defaultConfigDir,
   lookupContainer,
-  parseMentions,
   readFindings,
-  readProject,
   resolveBinary,
   shortContainerName,
   unlink,
@@ -39,7 +37,6 @@ import { readSources } from "../logic/sources.js";
 import { parseStudioMessage, type StudioPage } from "../logic/studio.js";
 import {
   capturedShell,
-  citationToastBlocks,
   classifyMessageHashes,
   containerLogPath,
   lastCommand,
@@ -431,13 +428,6 @@ export function activate(context: vscode.ExtensionContext): void {
           return reply(await terminalsMessage());
         case "send": {
           const hashes = parseHashes(message.text);
-          const mentions = parseMentions(message.text);
-          let dedicatedName: string | null = null;
-          try {
-            dedicatedName = (await readProject(defaultConfigDir()))?.container ?? null;
-          } catch {
-            dedicatedName = null;
-          }
           let listed: { name: string }[] = [];
           if (hashes.some((token) => findShellByToken(token) === undefined)) {
             try {
@@ -451,25 +441,6 @@ export function activate(context: vscode.ExtensionContext): void {
             (token) => findShellByToken(token) !== undefined,
             listed,
           );
-          // Un # de terminal ouvert ou de conteneur listé ne déclenche pas le toast de citation.
-          if (
-            citationToastBlocks({
-              mentions,
-              dedicated: dedicatedName,
-              openHashes: classified.open,
-              designatedHashes: classified.designated,
-            })
-          ) {
-            const unknown = classified.unknown;
-            void vscode.window.showErrorMessage(
-              unknown.length === 0
-                ? "Cite un conteneur avec @nom, ou un terminal avec #."
-                : unknown.length === 1
-                  ? `Terminal introuvable : ${unknown[0]}.`
-                  : `Terminaux introuvables : ${unknown.join(", ")}.`,
-            );
-            return;
-          }
           if (classified.unknown.length > 0) {
             const unknown = classified.unknown;
             void vscode.window.showWarningMessage(

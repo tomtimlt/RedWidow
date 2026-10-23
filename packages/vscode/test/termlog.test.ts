@@ -11,7 +11,6 @@ import { terminalLaunch } from "../src/logic/cockpit.js";
 import {
   CONTAINER_LOG_DIR,
   capturedShell,
-  citationToastBlocks,
   classifyMessageHashes,
   containerLogPath,
   lastCommand,
@@ -149,38 +148,13 @@ describe("journal de terminal", () => {
     expect(denied).not.toMatch(/remplacer #/);
   });
 
-  it("le toast de citation ne bloque pas un # de terminal ou de conteneur", () => {
+  it("classe un # de terminal ouvert et un # de conteneur listé", () => {
     const listed = [{ name: "frosty_margulis" }];
     const shells = new Set(["frosty_margulis-2"]);
     const open = classifyMessageHashes(["frosty_margulis-2"], (token) => shells.has(token), []);
     expect(open.open).toEqual(["frosty_margulis-2"]);
-    expect(
-      citationToastBlocks({
-        mentions: [],
-        dedicated: null,
-        openHashes: open.open,
-        designatedHashes: open.designated,
-      }),
-    ).toBe(false);
     const container = classifyMessageHashes(["frosty_margulis"], () => false, listed);
     expect(container.designated).toEqual(["frosty_margulis"]);
     expect(container.unknown).toEqual([]);
-    expect(
-      citationToastBlocks({
-        mentions: [],
-        dedicated: null,
-        openHashes: container.open,
-        designatedHashes: container.designated,
-      }),
-    ).toBe(false);
-    const bare = classifyMessageHashes([], () => false, listed);
-    expect(
-      citationToastBlocks({
-        mentions: [],
-        dedicated: null,
-        openHashes: bare.open,
-        designatedHashes: bare.designated,
-      }),
-    ).toBe(true);
   });
 });

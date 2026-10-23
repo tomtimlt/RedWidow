@@ -184,21 +184,3 @@ export function classifyMessageHashes(
   }
   return { open, designated, unknown };
 }
-
-/**
- * Vrai seulement si rien ne cite : pas de `@`, pas de dédié, pas de `#` de terminal
- * ni de conteneur. Le toast « Cite un conteneur… » bloque alors l'envoi.
- */
-export function citationToastBlocks(input: {
-  mentions: readonly string[];
-  dedicated: string | null;
-  openHashes: readonly string[];
-  designatedHashes: readonly string[];
-}): boolean {
-  return (
-    input.mentions.length === 0 &&
-    input.dedicated === null &&
-    input.openHashes.length === 0 &&
-    input.designatedHashes.length === 0
-  );
-}
