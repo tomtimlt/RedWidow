@@ -120,7 +120,17 @@ export function createKaliApi({
   const probe = (name: string, call: CallOptions) =>
     exec(httpArgv(name), call, JSON.stringify({ method: "GET", path: "/health" }));
 
+  /**
+   * Un conteneur créé avant le montage n'a pas `/workspace`. `mkdir -p` sans
+   * `--workdir` : le nom est celui déjà résolu, rien n'est publié ni privilégié.
+   */
+  const ensureWorkspace = async (name: string, call: CallOptions): Promise<void> => {
+    const made = await exec(["exec", "-u", "root", name, "mkdir", "-p", "/workspace"], call);
+    if (made.code !== 0) throw new CodedError("kali.unavailable", { name });
+  };
+
   const ensure = async (name: string, call: CallOptions): Promise<void> => {
+    await ensureWorkspace(name, call);
     const first = await probe(name, call);
     if (first.code === 0) return;
     const started = await exec(

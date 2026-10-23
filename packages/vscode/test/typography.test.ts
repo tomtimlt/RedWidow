@@ -404,6 +404,11 @@ describe("défilement du chat", () => {
     expect(has("body.killchain-full .studio-kc", "height", "100%")).toBe(true);
     expect(has("body.killchain-full .kc-viewport", "height", "100%")).toBe(true);
     expect(has("body.killchain-full .studio-kc-page", "max-width", "none")).toBe(true);
+    expect(has("body.killchain-full .studio-kc-page", "inset", "0")).toBe(true);
+    expect(has("body.killchain-full .kc-viewport", "inset", "0")).toBe(true);
+    expect(has("body.killchain-full .kc-empty", "inset", "0")).toBe(true);
+    expect(has("body.killchain-full .kc-viewport", "border", "0")).toBe(true);
+    expect(has("body.killchain-full .kc-viewport", "max-width", "none")).toBe(true);
   });
 
   it("le monitor hors chat est hors flux ; sa zone ne défile qu'en monitor ou suivi", () => {

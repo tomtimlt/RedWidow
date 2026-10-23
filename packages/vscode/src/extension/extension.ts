@@ -29,7 +29,7 @@ import {
   loadCockpitView,
   parseCockpitMessage,
   planEditorShell,
-  terminalLaunch,
+  prepareTerminal,
 } from "../logic/cockpit.js";
 import { createJournalFiles } from "../logic/historyStore.js";
 import { chatHtml, cockpitHtml, killchainHtml, makeNonce, studioHtml } from "../logic/html.js";
@@ -39,6 +39,7 @@ import { readSources } from "../logic/sources.js";
 import { parseStudioMessage, type StudioPage } from "../logic/studio.js";
 import {
   capturedShell,
+  classifyMessageHashes,
   containerLogPath,
   lastCommand,
   mentionToken,
@@ -301,7 +302,7 @@ export function activate(context: vscode.ExtensionContext): void {
   };
 
   /**
-   * Shell interactif Exegol dans l'éditeur (`terminalLaunch`, transient). Ne suit que les terminaux
+   * Shell interactif dans l'éditeur (`prepareTerminal`, transient). Ne suit que les terminaux
    * créés ici pour le nom réel résolu.
    */
   const openEditorShell = async (token: string): Promise<"skip" | "ok"> => {
@@ -340,7 +341,7 @@ export function activate(context: vscode.ExtensionContext): void {
       // Session journalisée dans le conteneur : indépendant de l'hôte (Windows, macOS, Linux).
       const logPath =
         token === null ? null : containerLogPath(token, randomBytes(4).toString("hex"));
-      const { shellPath, shellArgs } = terminalLaunch(
+      const { shellPath, shellArgs } = await prepareTerminal(
         plan.name,
         undefined,
         logPath === null ? undefined : capturedShell(logPath),
@@ -430,17 +431,29 @@ export function activate(context: vscode.ExtensionContext): void {
           return reply(await terminalsMessage());
         case "send": {
           const hashes = parseHashes(message.text);
-          const missing = hashes.filter((token) => findShellByToken(token) === undefined);
-          if (missing.length > 0) {
-            void vscode.window.showErrorMessage(
-              missing.length === 1
-                ? `Terminal introuvable : ${missing[0]}.`
-                : `Terminaux introuvables : ${missing.join(", ")}.`,
+          let listed: { name: string }[] = [];
+          if (hashes.some((token) => findShellByToken(token) === undefined)) {
+            try {
+              listed = await shellDocker().listLabelPrefix();
+            } catch {
+              listed = [];
+            }
+          }
+          const classified = classifyMessageHashes(
+            hashes,
+            (token) => findShellByToken(token) !== undefined,
+            listed,
+          );
+          if (classified.unknown.length > 0) {
+            const unknown = classified.unknown;
+            void vscode.window.showWarningMessage(
+              unknown.length === 1
+                ? `Terminal introuvable : ${unknown[0]}.`
+                : `Terminaux introuvables : ${unknown.join(", ")}.`,
             );
-            return;
           }
           const sections = [];
-          for (const token of hashes) {
+          for (const token of classified.open) {
             const shell = findShellByToken(token);
             const raw = shell === undefined ? null : await readLogTail(shell);
             if (raw === null) {

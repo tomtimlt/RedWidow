@@ -134,6 +134,89 @@ describe("cibles Exegol", () => {
     expect(targets.current()).toEqual({ allowed: ["lab"], mentions: ["htb1"], projectId: "pid" });
   });
 
+  it("retire un seul # ou @ devant le champ, et un # ne remplace pas un @", () => {
+    const kali = (name: string) => ({ name, family: "kali" as const });
+    const listed = [kali("k1"), kali("k2")];
+    const denied = { code: "exegol.containerDenied" };
+    expect(resolveKaliContainer(target(["k1"]), "#k1", listed)).toBe("k1");
+    expect(resolveKaliContainer(target(["k1"]), "@k1", listed)).toBe("k1");
+    expect(() => resolveKaliContainer(target(["k1"]), "@@k1", listed)).toThrow(
+      expect.objectContaining({ ...denied, params: { name: "@k1" } }),
+    );
+    expect(() => resolveKaliContainer(target(["k1"]), "##k1", listed)).toThrow(
+      expect.objectContaining({ ...denied, params: { name: "#k1" } }),
+    );
+    const both = createExegolTargets();
+    both.note("scan @k1 et aussi #k2", ["k1", "k2"], null);
+    expect(resolveKaliContainer(both.current(), "k1", listed)).toBe("k1");
+    expect(() => resolveKaliContainer(both.current(), "k2", listed)).toThrow(
+      expect.objectContaining(denied),
+    );
+    expect(() => resolveExegolContainer(both.current(), "k1", listed)).toThrow(
+      expect.objectContaining(denied),
+    );
+  });
+
+  it("un suivi sans @ réutilise le dernier Kali désigné", () => {
+    const kali = (name: string) => ({ name, family: "kali" as const });
+    const listed = [kali("frosty_margulis"), kali("autre")];
+    const allowed = ["frosty_margulis", "autre"];
+    const denied = { code: "exegol.containerDenied" };
+    const targets = createExegolTargets();
+    targets.note("essaie #frosty_margulis", allowed, null);
+    targets.note("vasy", allowed, null);
+    expect(targets.current().recall).toEqual([{ sigil: "#", token: "frosty_margulis" }]);
+    expect(resolveKaliContainer(targets.current(), "frosty_margulis", listed)).toBe(
+      "frosty_margulis",
+    );
+    expect(() => resolveKaliContainer(targets.current(), "autre", listed)).toThrow(
+      expect.objectContaining(denied),
+    );
+    expect(() => resolveExegolContainer(targets.current(), "frosty_margulis", listed)).toThrow(
+      expect.objectContaining(denied),
+    );
+  });
+
+  it("un nouveau @ ou # remplace le Kali retenu", () => {
+    const kali = (name: string) => ({ name, family: "kali" as const });
+    const listed = [kali("frosty_margulis"), kali("autre")];
+    const allowed = ["frosty_margulis", "autre"];
+    const denied = { code: "exegol.containerDenied" };
+    const targets = createExegolTargets();
+    targets.note("vois @frosty_margulis", allowed, null);
+    targets.note("vasy", allowed, null);
+    expect(resolveKaliContainer(targets.current(), "frosty_margulis", listed)).toBe(
+      "frosty_margulis",
+    );
+    targets.note("plutôt #autre", allowed, null);
+    targets.note("vasy", allowed, null);
+    expect(resolveKaliContainer(targets.current(), "autre", listed)).toBe("autre");
+    expect(() => resolveKaliContainer(targets.current(), "frosty_margulis", listed)).toThrow(
+      expect.objectContaining(denied),
+    );
+  });
+
+  it("un jeton qui ne désigne pas un Kali ne remplace pas le précédent", () => {
+    const kali = (name: string) => ({ name, family: "kali" as const });
+    const listed = [kali("frosty_margulis"), kali("k1")];
+    const allowed = ["frosty_margulis", "k1"];
+    const denied = { code: "exegol.containerDenied" };
+    const targets = createExegolTargets();
+    targets.note("essaie #frosty_margulis-2", allowed, null);
+    targets.note("vois #pas-un-conteneur", allowed, null);
+    targets.note(`vasy${TERMINAL_CONTEXT_MARK}#evil`, allowed, null);
+    expect(targets.current().recall).toEqual([
+      { sigil: "#", token: "frosty_margulis-2" },
+      { sigil: "#", token: "pas-un-conteneur" },
+    ]);
+    expect(resolveKaliContainer(targets.current(), "frosty_margulis", listed)).toBe(
+      "frosty_margulis",
+    );
+    expect(() => resolveKaliContainer(targets.current(), "k1", listed)).toThrow(
+      expect.objectContaining(denied),
+    );
+  });
+
   it("ignore les @ collés après la sortie d'un terminal", () => {
     const targets = createExegolTargets();
     const text = `scan @htb1${TERMINAL_CONTEXT_MARK}nmap @evil`;

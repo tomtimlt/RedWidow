@@ -1,4 +1,11 @@
-import { TERMINAL_CONTEXT_MARK } from "@warband/core";
+import {
+  containerDesignatedBy,
+  type NamedContainer,
+  parseHashes,
+  TERMINAL_CONTEXT_MARK,
+} from "@warband/core";
+
+export { parseHashes };
 
 /** Octets lus en fin de fichier, avant nettoyage des séquences. */
 export const TERMINAL_TAIL_RAW = 65_536;
@@ -6,7 +13,6 @@ export const TERMINAL_TAIL_RAW = 65_536;
 export const TERMINAL_TAIL_CHARS = 16_384;
 
 const TOKEN = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
-const HASH = /(?:^|[\s(])#([A-Za-z0-9][A-Za-z0-9_.-]{0,63})/g;
 
 /** Retire retours chariot et séquences d'échappement (CSI, OSC, simple). */
 function stripControls(raw: string): string {
@@ -117,14 +123,32 @@ export function lastCommand(text: string): string {
   return fallback === "" ? "" : clipLine(fallback);
 }
 
-/** Jetons `#` d'une consigne, sans doublon, dans l'ordre. */
-export function parseHashes(text: string): string[] {
-  const out: string[] = [];
-  for (const match of text.matchAll(HASH)) {
-    const name = match[1];
-    if (name !== undefined && !out.includes(name)) out.push(name);
+export interface ClassifiedHashes {
+  /** Jetons dont le shell est ouvert. */
+  open: string[];
+  /** Jetons qui désignent un seul conteneur de la liste. */
+  designated: string[];
+  /** Ni shell ouvert, ni conteneur unique. */
+  unknown: string[];
+}
+
+/** Classe les `#` : terminal ouvert, conteneur de la liste, ou inconnu. */
+export function classifyMessageHashes(
+  hashes: readonly string[],
+  hasShell: (token: string) => boolean,
+  containers: readonly NamedContainer[],
+): ClassifiedHashes {
+  const open: string[] = [];
+  const designated: string[] = [];
+  const unknown: string[] = [];
+  for (const token of hashes) {
+    const shell = hasShell(token);
+    const container = containerDesignatedBy(token, containers);
+    if (shell) open.push(token);
+    if (container !== null) designated.push(token);
+    if (!shell && container === null) unknown.push(token);
   }
-  return out;
+  return { open, designated, unknown };
 }
 
 /** Sortie lisible : sans séquences, fin du tampon. Vide → une ligne fixe. */

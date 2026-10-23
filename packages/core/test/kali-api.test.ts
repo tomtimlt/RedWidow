@@ -56,7 +56,13 @@ interface Logged {
   stdin: string;
 }
 
-async function harness(mode: "up" | "down" | "binary", rows: readonly LabelPrefixContainer[]) {
+const commandOf = (argv: readonly string[]): string =>
+  argv[4] === "mkdir" ? "mkdir" : (argv[5] ?? "");
+
+async function harness(
+  mode: "up" | "down" | "binary" | "nomkdir",
+  rows: readonly LabelPrefixContainer[],
+) {
   const dir = await mkdtemp(join(tmpdir(), "warband-kali-"));
   const script = join(dir, "docker.mjs");
   const log = join(dir, "calls.log");
@@ -68,6 +74,10 @@ try { stdin = readFileSync(0, "utf8"); } catch { stdin = ""; }
 const argv = process.argv.slice(2);
 appendFileSync(${JSON.stringify(log)}, JSON.stringify({ argv, stdin }) + "\\n");
 const mode = ${JSON.stringify(mode)};
+if (argv[4] === "mkdir") {
+  if (mode === "nomkdir") { process.stderr.write("mkdir: échec\\n"); process.exit(1); }
+  process.exit(0);
+}
 if (argv[5] === "kali-server-mcp") process.exit(mode === "binary" ? 127 : 0);
 if (mode === "up") { process.stdout.write("{\\"ok\\":true}\\n"); process.exit(0); }
 process.stderr.write("connect\\n");
@@ -145,8 +155,8 @@ describe("appel HTTP Kali", () => {
       ctx,
     );
     const logged = await calls();
-    expect(logged.map((c) => c.argv[5])).toEqual(["python3", "python3"]);
-    const post = logged[1];
+    expect(logged.map((c) => commandOf(c.argv))).toEqual(["mkdir", "python3", "python3"]);
+    const post = logged[2];
     expect(post?.argv.slice(0, 7)).toEqual([
       "exec",
       "--interactive",
@@ -166,7 +176,30 @@ describe("appel HTTP Kali", () => {
       path: "/api/tools/nmap",
       body: { target: "10.0.0.1", scan_type: "-sV" },
     });
-    for (const call of logged) expect(call.argv[4]).toBe("kali-box");
+    for (const call of logged) {
+      if (call.argv[4] === "mkdir") {
+        expect(call.argv[3]).toBe("kali-box");
+        expect(call.argv).not.toContain("--workdir");
+      } else expect(call.argv[4]).toBe("kali-box");
+    }
+  });
+
+  it("un @ ou un # en tête du champ container est retiré une seule fois", async () => {
+    const { tool, calls } = await harness("up", rows);
+    await tool("server_health").run({ container: "@kali-box" }, ctx);
+    await tool("server_health").run({ container: "#kali-box" }, ctx);
+    const logged = await calls();
+    const flat = logged.flatMap((c) => c.argv).join("\n");
+    expect(flat).not.toContain("@kali-box");
+    expect(flat).not.toContain("#kali-box");
+    expect(flat).toContain("kali-box");
+    const doubled = await harness("up", rows);
+    await expect(
+      doubled.tool("server_health").run({ container: "@@kali-box" }, ctx),
+    ).rejects.toMatchObject({
+      code: "exegol.containerDenied",
+      params: { name: "@kali-box" },
+    });
   });
 
   it("john envoie format, pas format_type, et omet container", async () => {
@@ -220,15 +253,27 @@ describe("appel HTTP Kali", () => {
       tool("nmap_scan").run({ container: "kali-box", target: "10.0.0.1" }, ctx),
     ).rejects.toMatchObject({ code: "kali.unavailable", params: { name: "kali-box" } });
     const logged = await calls();
+    expect(logged.filter((c) => c.argv[4] === "mkdir")).toHaveLength(1);
     const starts = logged.filter((c) => c.argv[5] === "kali-server-mcp");
     expect(starts).toHaveLength(1);
     expect(starts[0]?.argv).toEqual(START("kali-box"));
     for (const flag of FORBIDDEN) expect(starts[0]?.argv).not.toContain(flag);
     expect(logged.filter((c) => c.argv[5] === "python3")).toHaveLength(11);
     for (const call of logged) {
-      expect(call.argv[4]).toBe("kali-box");
+      if (call.argv[4] === "mkdir") expect(call.argv[3]).toBe("kali-box");
+      else expect(call.argv[4]).toBe("kali-box");
       expect(call.argv).not.toContain("lab");
     }
+  });
+
+  it("mkdir refusé : kali.unavailable, sans démarrage", async () => {
+    const { tool, calls } = await harness("nomkdir", rows);
+    await expect(tool("server_health").run({ container: "kali-box" }, ctx)).rejects.toMatchObject({
+      code: "kali.unavailable",
+      params: { name: "kali-box" },
+    });
+    const logged = await calls();
+    expect(logged.map((c) => commandOf(c.argv))).toEqual(["mkdir"]);
   });
 
   it("binaire refusé : kali.unavailable, sans seconde commande", async () => {
@@ -238,8 +283,8 @@ describe("appel HTTP Kali", () => {
       params: { name: "kali-box" },
     });
     const logged = await calls();
-    expect(logged.map((c) => c.argv[5])).toEqual(["python3", "kali-server-mcp"]);
-    expect(logged[1]?.argv).toEqual(START("kali-box"));
+    expect(logged.map((c) => commandOf(c.argv))).toEqual(["mkdir", "python3", "kali-server-mcp"]);
+    expect(logged[2]?.argv).toEqual(START("kali-box"));
     const flat = logged.flatMap((c) => c.argv).join("\n");
     expect(flat).not.toContain("server.py");
     expect(flat).not.toContain("apt");

@@ -4,6 +4,7 @@ import { terminalLaunch } from "../src/logic/cockpit.js";
 import {
   CONTAINER_LOG_DIR,
   capturedShell,
+  classifyMessageHashes,
   containerLogPath,
   lastCommand,
   mentionToken,
@@ -93,6 +94,22 @@ describe("journal de terminal", () => {
     expect(readableTerminal("x".repeat(TERMINAL_TAIL_CHARS + 10))).toHaveLength(
       TERMINAL_TAIL_CHARS,
     );
+  });
+
+  it("classe un # : shell ouvert, conteneur de la liste, ou inconnu", () => {
+    const listed = [{ name: "frosty_margulis" }];
+    const shells = new Set(["frosty_margulis-2"]);
+    expect(classifyMessageHashes(["frosty_margulis-2"], (token) => shells.has(token), [])).toEqual({
+      open: ["frosty_margulis-2"],
+      designated: [],
+      unknown: [],
+    });
+    expect(classifyMessageHashes(["frosty_margulis"], () => false, listed)).toEqual({
+      open: [],
+      designated: ["frosty_margulis"],
+      unknown: [],
+    });
+    expect(classifyMessageHashes(["inconnu"], () => false, listed).unknown).toEqual(["inconnu"]);
   });
 
   it("colle les extraits après le marqueur, ou rien", () => {

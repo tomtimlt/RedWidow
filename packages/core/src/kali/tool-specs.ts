@@ -11,10 +11,17 @@ export const KALI_TOOL_PREFIX = "mcp__kali__";
 export const KALI_EXECUTE_TOOL = `${KALI_TOOL_PREFIX}execute_command`;
 export const KALI_SERVER_INSTRUCTIONS =
   "Tu appelles l'API du conteneur Kali déjà lancé, répertoire /workspace. " +
-  "Le champ container est le conteneur dédié du projet, ou un nom que l'utilisateur a cité avec @. " +
+  "Le champ container est un Kali de l'allowlist, un nom cité avec @, ou le dernier Kali de ce fil " +
+  "quand le message n'a pas de @. Un seul # ou @ en tête du champ est ignoré. " +
+  "Un # du message est le contexte d'un terminal : il ne remplace pas un @. " +
   "Tu ne crées, n'arrêtes ni ne publies de conteneur.";
 
-const containerField = z.string().min(1).describe("Nom du conteneur dédié ou cité par @");
+const containerField = z
+  .string()
+  .min(1)
+  .describe(
+    "Nom du Kali allowlisté, cité par @, ou dernier Kali de ce fil. Un # ou @ en tête est ignoré.",
+  );
 const required = (description: string) => z.string().min(1).describe(description);
 const optional = () => z.string().optional();
 
@@ -215,6 +222,7 @@ export function kaliToolSpecs(
       input: { container: containerField, ...tool.input },
       async run(args, call) {
         const rows = await docker.listLabelPrefix(call);
+        // Un seul # ou @ en tête est retiré dans resolveKaliContainer. ## et @@ restent refusés.
         const container = resolveKaliContainer(targets.current(), String(args.container), rows);
         const row = rows.find((r) => r.name === container);
         if (row === undefined || row.state !== "running") {

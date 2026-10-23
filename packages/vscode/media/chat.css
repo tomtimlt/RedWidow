@@ -2390,24 +2390,32 @@ body.studio {
   height: 100%;
   min-height: 0;
 }
-/* Kill chain plein éditeur : pas de colonne de navigation, le graphe occupe la webview. */
+/* Kill chain plein éditeur : pas de colonne, pas d'encart. Le graphe et l'état vide collent à la webview. */
 body.killchain-full {
   overflow: hidden;
+}
+body.killchain-full > .studio-shell {
+  margin: 0;
+  width: 100%;
 }
 body.killchain-full .studio-shell {
   grid-template-columns: minmax(0, 1fr);
   height: 100%;
+  min-height: 0;
 }
 body.killchain-full #studio-main {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
   overflow: hidden;
   padding: 0;
+  margin: 0;
 }
 body.killchain-full .studio-kc-page {
-  flex: 1 1 auto;
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -2417,25 +2425,56 @@ body.killchain-full .studio-kc-page {
   margin: 0;
   border: 0;
   border-radius: 0;
-  padding: var(--jn-s3);
+  padding: 0;
   background: transparent;
 }
 body.killchain-full .studio-kc {
+  position: relative;
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
+  width: 100%;
+  max-width: none;
   min-height: 0;
   height: 100%;
+}
+body.killchain-full .kc-bar {
+  position: absolute;
+  top: var(--jn-s2);
+  left: var(--jn-s2);
+  z-index: 1;
+  margin: 0;
 }
 body.killchain-full .kc-viewport {
-  flex: 1 1 auto;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  max-width: none;
   height: 100%;
   min-height: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
 }
 body.killchain-full .kc-empty {
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+}
+body.killchain-full .studio-kc-legend {
+  position: absolute;
+  left: var(--jn-s3);
+  right: var(--jn-s3);
+  bottom: var(--jn-s2);
+  z-index: 1;
+  margin: 0;
 }
 #studio-nav {
   display: flex;

@@ -4,6 +4,7 @@
  * n'écrit aucune règle. Aucun texte d'affichage : des codes (`Reason`) seulement.
  */
 
+import { KALI_EXECUTE_TOOL } from "../kali/tool-specs.js";
 import type { ApprovalRequest } from "./gate.js";
 import { checkPathAccess, EXTERNAL_DIRECTORY_TOOL, EXTERNAL_PATTERNS_FIELD } from "./paths.js";
 import { BASH_TOOL, type Policy, type PolicyContext, type PolicyVerdict } from "./policy.js";
@@ -97,6 +98,9 @@ const MAX_INPUT_DEPTH = 64;
  * Un `deny`, un garde-fou de chemin, un accès à l'hôte, un danger shell ou une commande sans
  * règle restent hors d'atteinte. Un chemin sensible, hors de `workspace` ou non analysable dans
  * l'entrée (arguments Bash, chaînes imbriquées d'un outil) rend la demande non bypassable.
+ * Tout `ask` de `mcp__kali__execute_command` est couvert (ADR 0014) : redirection, chemin,
+ * plusieurs segments, danger ou commande illisible avalés dans `shell.unanalyzable`. Un `deny`
+ * ne l'est pas, et le verdict ne devient pas mémorisable.
  */
 export function isBypassable(
   request: ApprovalRequest,
@@ -104,7 +108,10 @@ export function isBypassable(
   policy: Policy,
   workspace: PolicyContext,
 ): boolean {
-  if (verdict.decision !== "ask" || !BYPASSABLE.has(verdict.reason.code)) return false;
+  if (verdict.decision !== "ask") return false;
+  // Le Bypass de ce shell passe tout l'ask. Un deny (sudo, montage hôte) est déjà exclu.
+  if (request.tool === KALI_EXECUTE_TOOL) return true;
+  if (!BYPASSABLE.has(verdict.reason.code)) return false;
   // Même test que la gate pour les répertoires externes : le motif `policy.default` seul ne suffit pas.
   if (request.tool === EXTERNAL_DIRECTORY_TOOL || EXTERNAL_PATTERNS_FIELD in request.input) {
     return false;

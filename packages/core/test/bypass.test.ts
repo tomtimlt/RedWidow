@@ -15,6 +15,8 @@ import {
   EXTERNAL_PATTERNS_FIELD,
   evaluatePolicy,
   isBypassable,
+  isRememberable,
+  KALI_EXECUTE_TOOL,
   type Policy,
   type PolicyContext,
 } from "../src/index.js";
@@ -94,6 +96,11 @@ const mcp = (toolUseId = "t"): ApprovalRequest => ({
 const bash = (command: string, toolUseId = "b"): ApprovalRequest => ({
   toolUseId,
   tool: "Bash",
+  input: { command },
+});
+const kaliExec = (command: string, toolUseId = "k"): ApprovalRequest => ({
+  toolUseId,
+  tool: KALI_EXECUTE_TOOL,
   input: { command },
 });
 
@@ -746,5 +753,65 @@ describe("Bypass dans la gate : réactivation et prolongation sans décision ent
     await h.gate.decide(mcp("a"), signal);
     await h.gate.decide(mcp("b"), signal);
     expect(changes(h.events)).toHaveLength(1);
+  });
+});
+
+describe("Bypass du shell Kali", () => {
+  it("couvre tout l'ask de execute_command, sans le mémoriser", async () => {
+    const commands = [
+      "id",
+      "go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest 2>&1",
+      "cat /etc/hostname",
+      "ls /tmp && id",
+      "echo $(id)",
+      "echo '",
+    ];
+    for (const command of commands) {
+      const c = clock();
+      const request = kaliExec(command);
+      const verdict = evaluatePolicy(DEFAULT_POLICY, request.tool, request.input, WORKSPACE);
+      expect(verdict).toMatchObject({ decision: "ask", reason: { code: "shell.unanalyzable" } });
+      expect(isBypassable(request, verdict, DEFAULT_POLICY, WORKSPACE)).toBe(true);
+      expect(isRememberable(request, verdict)).toBe(false);
+      const h = harness({ bypass: switchOn(c), now: c.now });
+      const out = await h.gate.decide(request, signal);
+      expect(out).toMatchObject({
+        decision: "allow",
+        source: "bypass",
+        reason: { code: "approval.bypassed", cause: { code: "shell.unanalyzable" } },
+      });
+      expect(h.asked()).toBe(0);
+      expect(bypassedDecisions(h.events)).toHaveLength(1);
+    }
+  });
+
+  it("ne lève pas un deny : sudo, montage hôte, danger dont le verdict est deny", async () => {
+    const c = clock();
+    const h = harness({ bypass: switchOn(c), now: c.now });
+    const sudo = kaliExec("sudo id");
+    const sudoVerdict = evaluatePolicy(DEFAULT_POLICY, sudo.tool, sudo.input, WORKSPACE);
+    expect(sudoVerdict.decision).toBe("deny");
+    expect(isBypassable(sudo, sudoVerdict, DEFAULT_POLICY, WORKSPACE)).toBe(false);
+    expect((await h.gate.decide(sudo, signal)).decision).toBe("deny");
+
+    const host = kaliExec("docker run -v /:/h x");
+    const hostVerdict = evaluatePolicy(DEFAULT_POLICY, host.tool, host.input, WORKSPACE);
+    expect(hostVerdict).toMatchObject({ decision: "deny", reason: { code: "docker.hostAccess" } });
+    expect(isBypassable(host, hostVerdict, DEFAULT_POLICY, WORKSPACE)).toBe(false);
+    expect((await h.gate.decide(host, signal)).decision).toBe("deny");
+    expect(h.asked()).toBe(0);
+    expect(bypassedDecisions(h.events)).toEqual([]);
+
+    const policy: Policy = {
+      default: "deny",
+      rules: [{ tool: "Bash", command: "echo *", decision: "ask" }],
+    };
+    const hazard = kaliExec("echo $(id)");
+    const hazardVerdict = evaluatePolicy(policy, hazard.tool, hazard.input, WORKSPACE);
+    expect(hazardVerdict).toMatchObject({ decision: "deny", reason: { code: "bash.hazard" } });
+    expect(isBypassable(hazard, hazardVerdict, policy, WORKSPACE)).toBe(false);
+    const denied = harness({ policy, bypass: switchOn(c), now: c.now });
+    expect((await denied.gate.decide(hazard, signal)).decision).toBe("deny");
+    expect(denied.asked()).toBe(0);
   });
 });
