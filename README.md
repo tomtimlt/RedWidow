@@ -62,23 +62,6 @@ Warband fait ça : les appels d'outil (exécution dans le conteneur, écriture, 
 **Windows d'abord**
 - Support natif, sans WSL. Les processus sont arrêtés proprement, arbre entier compris.
 
-## Aperçu
-
-<div align="center">
-
-| Sombre | Clair |
-| :---: | :---: |
-| <img src="docs/img/chat-sombre.png" alt="Conversation avec une carte d'approbation, thème sombre" width="380"> | <img src="docs/img/chat-clair.png" alt="Conversation avec une carte d'approbation, thème clair" width="380"> |
-| *Une carte par demande : outil, action, raison* | *Le même écran en thème clair* |
-| <img src="docs/img/accueil-sombre.png" alt="Écran d'accueil, thème sombre" width="380"> | <img src="docs/img/accueil-clair.png" alt="Écran d'accueil, thème clair" width="380"> |
-| *Accueil* | *Accueil en thème clair* |
-| <img src="docs/img/configurer-sombre.png" alt="Réglages : effort, fournisseur, Apprentissage, Bypass, thème sombre" width="380"> | <img src="docs/img/configurer-clair.png" alt="Réglages : effort, fournisseur, Apprentissage, Bypass, thème clair" width="380"> |
-| *Configurer : effort, fournisseur, Apprentissage, Bypass* | *Configurer en thème clair* |
-
-<img src="docs/img/paysage-configurer-sombre.png" alt="Popover Configurer sur grand écran" width="820">
-
-</div>
-
 ## Démarrage rapide
 
 Prérequis : Node 22 ou plus, [pnpm](https://pnpm.io), VS Code 1.90 ou plus. Docker est nécessaire pour les outils de conteneur.
