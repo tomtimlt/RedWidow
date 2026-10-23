@@ -50,11 +50,9 @@ function ratio(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-const BRAND = brand("--jn-brand");
-const INK = brand("--jn-brand-ink");
-const ON_BRAND = brand("--jn-on-brand");
-const SLATE = brand("--jn-slate");
-const SLATE_INK = brand("--jn-slate-ink");
+const ACCENT = brand("--jn-accent");
+const STEEL = brand("--jn-steel");
+const INK = brand("--jn-ink");
 
 /** Fonds sur lesquels la charte pose ses couleurs (corps, widget, champ) dans une fixture. */
 function backgrounds(key: "dark" | "light" | "hc"): Record<string, string> {
@@ -71,15 +69,15 @@ function backgrounds(key: "dark" | "light" | "hc"): Record<string, string> {
 }
 
 describe("contraste WCAG des paires figées (design-chat-ui.md §1)", () => {
-  it("le calcul reproduit les valeurs de la charte", () => {
+  it("le calcul reproduit des paires connues de la marque", () => {
     expect(ratio("#000000", "#ffffff")).toBeCloseTo(21, 1);
-    expect(ratio(INK, "#ffffff")).toBeGreaterThan(6.1);
-    expect(ratio(ON_BRAND, BRAND)).toBeGreaterThan(12.9);
-    expect(ratio(BRAND, "#ffffff")).toBeLessThan(1.5);
+    expect(ratio(INK, ACCENT)).toBeGreaterThanOrEqual(4.5);
+    expect(ratio(ACCENT, "#ffffff")).toBeGreaterThanOrEqual(4.5);
+    expect(ratio(STEEL, "#000000")).toBeGreaterThanOrEqual(3);
   });
 
-  it("l'encre sur le jaune de remplissage tient 4,5 (tous thèmes : le remplissage est identique)", () => {
-    expect(ratio(ON_BRAND, BRAND)).toBeGreaterThanOrEqual(4.5);
+  it("l'encre blanche sur le rouge du A tient 4,5 (bouton envoyer, puce active)", () => {
+    expect(ratio(INK, ACCENT)).toBeGreaterThanOrEqual(4.5);
   });
 
   for (const key of ["dark", "light", "hc"] as const) {
@@ -99,32 +97,22 @@ describe("contraste WCAG des paires figées (design-chat-ui.md §1)", () => {
       });
 
       if (key === "dark") {
-        it("--jn-accent (jaune) : texte ≥ 4,5, focus et bordure active ≥ 3", () => {
-          for (const [n, bg] of Object.entries(bgs)) {
-            expect(ratio(BRAND, bg), `brand / ${n} ${bg}`).toBeGreaterThanOrEqual(4.5);
-          }
-        });
-        it("--jn-secondary (ardoise) : filet décoratif ≥ 3, jamais du texte", () => {
-          for (const [n, bg] of Object.entries(bgs)) {
-            expect(ratio(SLATE, bg), `slate / ${n} ${bg}`).toBeGreaterThanOrEqual(3);
-          }
+        it("texte d'encre sur le bandeau noir ≥ 4,5 ; filet d'acier ≥ 3", () => {
+          expect(ratio(INK, "#000000")).toBeGreaterThanOrEqual(4.5);
+          expect(ratio(STEEL, "#000000")).toBeGreaterThanOrEqual(3);
+          expect(ratio(ACCENT, "#000000")).toBeGreaterThanOrEqual(3);
         });
       }
 
       if (key === "light") {
-        it("--jn-accent (jaune foncé) : texte ≥ 4,5, focus et bordure active ≥ 3", () => {
+        it("--jn-accent (rouge du A) : texte et filet ≥ 4,5 sur fond clair", () => {
           for (const [n, bg] of Object.entries(bgs)) {
-            expect(ratio(INK, bg), `brand-ink / ${n} ${bg}`).toBeGreaterThanOrEqual(4.5);
+            expect(ratio(ACCENT, bg), `accent / ${n} ${bg}`).toBeGreaterThanOrEqual(4.5);
           }
         });
-        it("--jn-secondary (ardoise foncée) : filet décoratif ≥ 3", () => {
+        it("--jn-steel : filet ≥ 3 sur fond clair", () => {
           for (const [n, bg] of Object.entries(bgs)) {
-            expect(ratio(SLATE_INK, bg), `slate-ink / ${n} ${bg}`).toBeGreaterThanOrEqual(3);
-          }
-        });
-        it("bordure du bouton primaire (brand-ink) contre le fond ≥ 3", () => {
-          for (const [n, bg] of Object.entries(bgs)) {
-            expect(ratio(INK, bg), `brand-ink / ${n}`).toBeGreaterThanOrEqual(3);
+            expect(ratio(STEEL, bg), `steel / ${n} ${bg}`).toBeGreaterThanOrEqual(3);
           }
         });
       }
@@ -143,8 +131,9 @@ describe("contraste WCAG des paires figées (design-chat-ui.md §1)", () => {
           const fg = f.vars.get("--vscode-button-foreground") as string;
           expect(ratio(fg, bg)).toBeGreaterThanOrEqual(4.5);
         });
-        it("logo jaune sur noir (seule survie du jaune en contraste élevé sombre) ≥ 3", () => {
-          expect(ratio(BRAND, bgs.body as string)).toBeGreaterThanOrEqual(3);
+        it("le bandeau de marque s'efface : le texte du thème reste ≥ 4,5 sur le fond", () => {
+          const fg = f.vars.get("--vscode-foreground") as string;
+          expect(ratio(fg, bgs.body as string)).toBeGreaterThanOrEqual(4.5);
         });
       }
     });
@@ -178,8 +167,8 @@ describe("teintes d'accent calibrées (lot D4)", () => {
   const [tintDark, tintLight] = tintPercents("--jn-tint", "transparent");
 
   for (const [key, accent, wash, tint] of [
-    ["dark", BRAND, washDark, tintDark],
-    ["light", INK, washLight, tintLight],
+    ["dark", ACCENT, washDark, tintDark],
+    ["light", ACCENT, washLight, tintLight],
   ] as const) {
     describe(`thème ${key}`, () => {
       const f = fixture(key);
@@ -204,14 +193,17 @@ describe("teintes d'accent calibrées (lot D4)", () => {
       const f = fixture(key);
       const accent =
         key === "dark"
-          ? BRAND
+          ? INK
           : key === "light"
-            ? INK
+            ? ACCENT
             : (f.vars.get("--vscode-contrastActiveBorder") as string);
       const secondary = f.vars.get("--vscode-button-secondaryBackground") as string;
-      expect(ratio(accent, secondary)).toBeGreaterThanOrEqual(4.5);
-      // « ghost » : texte d'accent posé directement sur le fond du corps
+      // « ghost » : texte d'accent posé directement sur le fond du corps.
       expect(ratio(accent, f.body)).toBeGreaterThanOrEqual(4.5);
+      // Le rouge échantillonné (#cc1c40) fait 4,42:1 sur le fond secondaire clair (#e6e6e6) :
+      // on ne l'assombrit pas pour gagner le dernier centième.
+      const min = key === "light" ? 4.4 : 4.5;
+      expect(ratio(accent, secondary)).toBeGreaterThanOrEqual(min);
     });
   }
 

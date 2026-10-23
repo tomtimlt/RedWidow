@@ -349,39 +349,26 @@ describe("débordement à 280 px : barre d'outils du composer", () => {
   });
 });
 
-describe("logo d'accueil (complément D3/D4)", () => {
-  it("sombre : logo.svg en jaune pur ; clair : icon.svg en masque, deux couleurs", () => {
+describe("logo d'accueil", () => {
+  it("sombre et clair : logo.svg en couleurs de marque, fond transparent", () => {
     expect(has(".welcome::before", "background", /url\("logo\.svg"\)/)).toBe(true);
     expect(has("body.vscode-light .welcome::before", "background", "var(--jn-brand-ink)")).toBe(
-      true,
+      false,
     );
-    expect(has("body.vscode-light .welcome::before", "mask", /^url\("icon\.svg"\)/)).toBe(true);
-    // second calque : ailiers en ardoise, rogné à la zone des ailiers (x < 44 % de la grille 24)
-    expect(has("body.vscode-light .welcome::after", "background", "var(--jn-slate-ink)")).toBe(
-      true,
-    );
-    expect(has("body.vscode-light .welcome::after", "mask", /^url\("icon\.svg"\)/)).toBe(true);
-    expect(has("body.vscode-light .welcome::after", "clip-path", "inset(0 56% 0 0)")).toBe(true);
+    expect(css).not.toMatch(/welcome::after/);
   });
 
-  it("le rognage ne garde que les ailiers de icon.svg (x ≤ 8) et jamais la tête (x ≥ 13)", () => {
-    const svg = readFileSync(here("../media/icon.svg"), "utf8");
-    const polys = [...svg.matchAll(/<polygon points="([^"]+)"/g)].map((m) =>
-      (m[1] ?? "")
-        .split(/[\s,]+/)
-        .map(Number)
-        .filter((_, i) => i % 2 === 0),
-    );
-    const [w1, w2, head] = polys as [number[], number[], number[]];
-    const cut = 24 * (1 - 0.56);
-    expect(Math.max(...w1, ...w2)).toBeLessThan(cut);
-    expect(Math.min(...head)).toBeGreaterThan(cut);
-  });
-
-  it("contraste élevé clair et couleurs forcées : monochrome, pas de second calque", () => {
-    expect(has("body.vscode-high-contrast-light .welcome::after", "display", "none")).toBe(true);
+  it("contraste élevé clair et couleurs forcées : icon.svg en masque monochrome", () => {
     expect(
-      has("body.vscode-light .welcome::after", "display", "none", "@media (forced-colors: active)"),
+      has("body.vscode-high-contrast-light .welcome::before", "mask", /^url\("icon\.svg"\)/),
+    ).toBe(true);
+    expect(
+      has(
+        "body.vscode-light .welcome::before",
+        "mask",
+        /^url\("icon\.svg"\)/,
+        "@media (forced-colors: active)",
+      ),
     ).toBe(true);
   });
 });

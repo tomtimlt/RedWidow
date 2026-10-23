@@ -2,13 +2,11 @@
    Spécification : docs/design-chat-ui.md. Animations : transform et opacity seulement. */
 
 /* --- Jetons de design (préfixe --jn-), dérivés du thème (docs/design-chat-ui.md §1) --- */
-/* Marque : les seules valeurs figées admises (§1.1). Le jaune ne signifie jamais un état. */
+/* Marque : rouge du A, acier du treillis, encre blanche. Seules valeurs figées. Le rouge ne signifie jamais un état. */
 body {
-  --jn-brand: #ffd60a;
-  --jn-brand-ink: #7a5c00;
-  --jn-on-brand: #141414;
-  --jn-slate: #7a8899;
-  --jn-slate-ink: #5e6b7a;
+  --jn-accent: #cc1c40;
+  --jn-steel: #495f73;
+  --jn-ink: #ffffff;
   --jn-s1: 4px;
   --jn-s2: 8px;
   --jn-s3: 12px;
@@ -30,16 +28,15 @@ body {
   --jn-fs-sm: 12px;
   --jn-fs: var(--vscode-font-size, 13px);
   --jn-fs-lg: 14px;
-  /* Usage, thème sombre (défaut) : le jaune sert en trait comme en remplissage. */
-  --jn-accent: var(--jn-brand);
-  --jn-accent-fill: var(--jn-brand);
-  --jn-accent-fill-border: transparent;
-  --jn-on-accent: var(--jn-on-brand);
+  /* Usage : le rouge sert en aplat (envoi, puce active) ; l'acier en filet. L'encre est le texte posé sur le rouge. */
+  --jn-accent-fill: var(--jn-accent);
+  --jn-accent-fill-border: var(--jn-steel);
+  --jn-on-accent: var(--jn-ink);
   --jn-tint: color-mix(in srgb, var(--jn-accent) 14%, transparent);
-  /* Teintes d'accent calibrées pour le jaune : le texte courant reste ≥ 4,5:1 dessus (contrast.test). */
+  /* Teintes d'accent : le texte courant reste ≥ 4,5:1 dessus (contrast.test). */
   --jn-accent-wash: color-mix(in srgb, var(--jn-accent) 14%, var(--vscode-input-background));
   --jn-accent-edge: color-mix(in srgb, var(--jn-accent) 45%, transparent);
-  --jn-secondary: var(--jn-slate);
+  --jn-secondary: var(--jn-steel);
   /* États sémantiques dérivés du thème ; leurs replis ne pointent jamais vers un accent. */
   --jn-ok: var(--vscode-testing-iconPassed, var(--vscode-foreground));
   --jn-warn: var(--vscode-editorWarning-foreground, var(--vscode-foreground));
@@ -53,14 +50,11 @@ body {
   --jn-gutter: 16px;
   --jn-row: 28px;
 }
-/* Thème clair : jaune pur illisible en trait (1,4:1), on passe au jaune foncé pour tout ce qui est fin. */
+/* Thème clair : le rouge du A reste lisible en trait (5,7:1 sur blanc). Même acier, teintes un peu plus légères. */
 body.vscode-light {
-  --jn-accent: var(--jn-brand-ink);
-  --jn-accent-fill-border: var(--jn-brand-ink);
   --jn-tint: color-mix(in srgb, var(--jn-accent) 10%, transparent);
   --jn-accent-wash: color-mix(in srgb, var(--jn-accent) 10%, var(--vscode-input-background));
   --jn-accent-edge: color-mix(in srgb, var(--jn-accent) 55%, transparent);
-  --jn-secondary: var(--jn-slate-ink);
 }
 /* Contraste élevé : on obéit aux couleurs du thème choisi par l'utilisateur. */
 body.vscode-high-contrast,
@@ -143,14 +137,18 @@ select {
   transform: rotate(180deg);
 }
 
-/* --- En-tête --- */
+/* --- En-tête : bandeau noir, encre blanche, filet d'acier, liseré rouge. --- */
 #bar {
   display: flex;
   align-items: center;
   gap: var(--jn-s2);
   min-height: 36px;
-  padding: var(--jn-s1) 0;
+  margin-inline: 0;
+  padding: var(--jn-s1) var(--jn-gutter);
   position: relative;
+  background: black;
+  color: var(--jn-ink);
+  box-shadow: inset 3px 0 0 var(--jn-accent);
 }
 #bar::after {
   content: "";
@@ -158,9 +156,9 @@ select {
   left: 0;
   right: 0;
   bottom: 0;
-  height: 1px;
-  background: var(--jn-line);
-  opacity: 0;
+  height: 2px;
+  background: var(--jn-steel);
+  opacity: 1;
 }
 #title {
   display: inline-flex;
@@ -169,36 +167,23 @@ select {
   gap: var(--jn-s2);
   font-size: var(--jn-fs-lg);
   font-weight: 600;
-  color: var(--vscode-foreground);
+  color: var(--jn-ink);
   white-space: nowrap;
 }
-/* Logo Warband de l'en-tête : SVG inline, immobile (le seul mouvement de marque est .brand-cursor, M7). */
+#bar button.ghost {
+  color: var(--jn-ink);
+}
+#bar button.ghost .ico {
+  color: color-mix(in srgb, var(--jn-ink) 78%, transparent);
+}
+#bar button.ghost:hover:not(:disabled) .ico {
+  color: var(--jn-accent);
+}
+/* Logo inline (18 px) : couleurs en dur dans le SVG, pas de clignotement. */
 #title .brand {
   flex: none;
   width: 18px;
   height: 18px;
-}
-/* Couleurs du logo en ligne par classes (aucun hex dans le SVG). Clair : jaune foncé en aplat lisible. */
-.brand-wing {
-  fill: var(--jn-slate);
-}
-.brand-lead,
-.brand-cursor {
-  fill: var(--jn-brand);
-}
-body.vscode-light .brand-wing {
-  fill: var(--jn-slate-ink);
-}
-body.vscode-light .brand-lead,
-body.vscode-light .brand-cursor {
-  fill: var(--jn-brand-ink);
-}
-/* Contraste élevé clair : monochrome. Contraste élevé sombre : le jaune survit, ailiers en couleur du thème. */
-body.vscode-high-contrast .brand-wing,
-body.vscode-high-contrast-light .brand-wing,
-body.vscode-high-contrast-light .brand-lead,
-body.vscode-high-contrast-light .brand-cursor {
-  fill: currentColor;
 }
 /* Écran d'accueil : logo en fond d'image (voir plus bas), sinon carré d'accent. */
 .welcome::before {
@@ -451,7 +436,7 @@ pre {
   align-items: center;
   gap: var(--jn-s2);
 }
-/* Logo Warband (media/logo.svg, curseur plein et immobile) : fond d'image, donc `img-src`. */
+/* Logo d'accueil (media/logo.svg, fond transparent) : le rouge et l'acier restent lisibles sur fond clair. */
 .welcome::before {
   width: 64px;
   height: 64px;
@@ -459,29 +444,6 @@ pre {
   background: url("logo.svg") center / contain no-repeat;
   box-shadow: none;
   margin-bottom: var(--jn-s2);
-}
-/* Thème clair : le jaune pur est illisible sur fond clair. icon.svg sert de masque deux fois : le premier
-   calque (jaune foncé) porte la tête et le curseur, le second (ardoise), rogné à la zone des ailiers
-   (x < 44 % de la grille), les ailiers. Le thème sombre garde logo.svg en jaune pur. */
-body.vscode-light .welcome {
-  position: relative;
-}
-body.vscode-light .welcome::before {
-  background: var(--jn-brand-ink);
-  -webkit-mask: url("icon.svg") center / contain no-repeat;
-  mask: url("icon.svg") center / contain no-repeat;
-}
-body.vscode-light .welcome::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: calc(50% - 32px);
-  width: 64px;
-  height: 64px;
-  background: var(--jn-slate-ink);
-  -webkit-mask: url("icon.svg") center / contain no-repeat;
-  mask: url("icon.svg") center / contain no-repeat;
-  clip-path: inset(0 56% 0 0);
 }
 .welcome h2 {
   margin: 0;
@@ -679,10 +641,6 @@ body.waiting .spin {
 #thinking .spin-strip {
   animation: jn-braille 1s steps(10) infinite;
 }
-/* M7 : curseur du logo, seul effet de marque ; au repos ou en attente, plein et immobile. */
-body.running:not(.waiting):not(.paused) .brand-cursor {
-  animation: jn-blink 1.06s steps(1) infinite;
-}
 body.waiting #thinking .spin-strip,
 body.paused #thinking .spin-strip {
   animation-play-state: paused;
@@ -694,11 +652,6 @@ body.waiting #thinking {
 @keyframes jn-braille {
   to {
     transform: translateY(-100%);
-  }
-}
-@keyframes jn-blink {
-  50% {
-    opacity: 0;
   }
 }
 @keyframes jn-msg-in {
@@ -925,6 +878,19 @@ button.copy {
   color: var(--jn-accent);
   min-height: 22px;
 }
+/* Sombre : le rouge du A ne passe pas en texte (2,9:1). Liens et libellés d'accent passent à l'encre. */
+@media not (forced-colors: active) {
+  body:not(.vscode-light):not(.vscode-high-contrast):not(.vscode-high-contrast-light) button.link,
+  body:not(.vscode-light):not(.vscode-high-contrast):not(.vscode-high-contrast-light) button.copy,
+  body:not(.vscode-light):not(.vscode-high-contrast):not(.vscode-high-contrast-light) .cmd,
+  body:not(.vscode-light):not(.vscode-high-contrast):not(.vscode-high-contrast-light)
+    .studio-kicker,
+  body:not(.vscode-light):not(.vscode-high-contrast):not(.vscode-high-contrast-light)
+    .studio-nav-btn.is-current
+    .studio-ico {
+    color: var(--jn-ink);
+  }
+}
 button.ghost:hover:not(:disabled):not([aria-disabled="true"]),
 button.copy:hover:not(:disabled) {
   background: var(--jn-tint);
@@ -966,7 +932,7 @@ button:disabled:active {
   display: flex;
   flex-direction: column;
   gap: var(--jn-s1);
-  border: 1px solid var(--vscode-input-border, var(--jn-line));
+  border: 1px solid var(--jn-steel);
   border-radius: var(--jn-r-lg);
   background: var(--vscode-input-background);
   padding: var(--jn-s3) var(--jn-s3) var(--jn-s2);
@@ -1070,9 +1036,15 @@ body:not(.running) #toolbar #stop {
   background: var(--vscode-button-secondaryHoverBackground);
   border-color: var(--jn-accent-edge);
 }
-.chip[aria-expanded="true"] {
-  background: var(--vscode-button-secondaryHoverBackground);
-  border-color: var(--jn-accent);
+.chip[aria-expanded="true"],
+.chip[aria-expanded="true"]:hover:not([aria-disabled="true"]) {
+  background: var(--jn-accent-fill);
+  color: var(--jn-on-accent);
+  border-color: var(--jn-steel);
+}
+.chip[aria-expanded="true"] .chip-ico,
+.chip[aria-expanded="true"] .caret {
+  color: var(--jn-on-accent);
 }
 .chip .caret {
   color: var(--vscode-foreground);
@@ -1828,10 +1800,14 @@ body.no-provider #composer {
   .chip::before {
     display: none;
   }
+  #bar,
   #title,
+  #bar button.ghost,
+  #bar button.ghost .ico,
   .welcome h2 {
     color: CanvasText;
-    background: none;
+    background: transparent;
+    box-shadow: none;
   }
   #title::before,
   #bypass-switch::before,
@@ -1846,13 +1822,11 @@ body.no-provider #composer {
     -webkit-mask: url("icon.svg") center / contain no-repeat;
     mask: url("icon.svg") center / contain no-repeat;
   }
-  body.vscode-light .welcome::after {
-    display: none;
-  }
-  .brand-wing,
-  .brand-lead,
-  .brand-cursor {
+  .brand [fill]:not([fill="none"]) {
     fill: CanvasText;
+  }
+  .brand [stroke] {
+    stroke: CanvasText;
   }
   :focus-visible {
     outline: 2px solid Highlight;
@@ -1881,9 +1855,31 @@ body.vscode-high-contrast-light .spin-static,
 body.reduce-motion .spin-static {
   display: inline;
 }
+body.vscode-high-contrast #bar,
+body.vscode-high-contrast-light #bar {
+  background: transparent;
+  color: var(--vscode-foreground);
+  box-shadow: none;
+}
 body.vscode-high-contrast #bar::after,
 body.vscode-high-contrast-light #bar::after {
   display: none;
+}
+body.vscode-high-contrast #bar #title,
+body.vscode-high-contrast-light #bar #title,
+body.vscode-high-contrast #bar button.ghost,
+body.vscode-high-contrast-light #bar button.ghost,
+body.vscode-high-contrast #bar button.ghost .ico,
+body.vscode-high-contrast-light #bar button.ghost .ico {
+  color: var(--vscode-foreground);
+}
+body.vscode-high-contrast .brand [fill]:not([fill="none"]),
+body.vscode-high-contrast-light .brand [fill]:not([fill="none"]) {
+  fill: currentColor;
+}
+body.vscode-high-contrast .brand [stroke],
+body.vscode-high-contrast-light .brand [stroke] {
+  stroke: currentColor;
 }
 body.vscode-high-contrast #title::before,
 body.vscode-high-contrast-light #title::before,
@@ -1896,9 +1892,6 @@ body.vscode-high-contrast-light .welcome::before {
   background: currentColor;
   -webkit-mask: url("icon.svg") center / contain no-repeat;
   mask: url("icon.svg") center / contain no-repeat;
-}
-body.vscode-high-contrast-light .welcome::after {
-  display: none;
 }
 body.vscode-high-contrast #title,
 body.vscode-high-contrast-light #title,
@@ -2998,7 +2991,7 @@ body.mode-watch .mon-out {
 }
 .chip-switch[aria-checked="true"] {
   background: var(--jn-accent-fill);
-  border-color: var(--jn-accent-fill-border);
+  border-color: var(--jn-steel);
   color: var(--jn-on-accent);
 }
 .chip-switch[aria-checked="true"]:hover:not([aria-disabled="true"]) {
@@ -3009,7 +3002,7 @@ body.mode-watch .mon-out {
   border-color: var(--jn-on-accent);
   opacity: 1;
 }
-/* Bypass actif : orange d'avertissement en trait (le jaune ne signifie jamais un état), libellé conservé. */
+/* Bypass actif : orange d'avertissement en trait (le rouge de marque ne signifie jamais un état), libellé conservé. */
 #bar-bypass[aria-checked="true"] {
   background: color-mix(in srgb, var(--jn-warn) 14%, transparent);
   border-color: var(--jn-warn);
