@@ -73,6 +73,7 @@ describe("parseWebviewMessage", () => {
       text: "salut",
     });
     expect(parseWebviewMessage({ type: "stop" })).toEqual({ type: "stop" });
+    expect(parseWebviewMessage({ type: "openMonitor" })).toEqual({ type: "openMonitor" });
     expect(parseWebviewMessage({ type: "approve", toolUseId: "a", choice: "always" })).toEqual({
       type: "approve",
       toolUseId: "a",
@@ -86,6 +87,7 @@ describe("parseWebviewMessage", () => {
       [],
       { type: "autre" },
       { type: "stop", extra: 1 },
+      { type: "openMonitor", extra: 1 },
       { type: "send", text: "  " },
       { type: "send", text: "x".repeat(100_001) },
       { type: "approve", toolUseId: "a", choice: "all" },

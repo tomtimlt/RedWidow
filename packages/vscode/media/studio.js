@@ -269,7 +269,6 @@ function start() {
         );
         b.type = "button";
         if (item.current) b.setAttribute("aria-current", "page");
-        b.append(decorative(el("span", "studio-ico", item.icon)));
         b.append(el("span", "btn-text", item.label));
         if (item.count !== undefined) {
           const count = el("span", "studio-count", String(item.count));

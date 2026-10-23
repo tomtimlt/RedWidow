@@ -488,6 +488,9 @@ export function activate(context: vscode.ExtensionContext): void {
         case "watch":
           openWatch(message.toolUseId);
           return;
+        case "openMonitor":
+          openMonitor();
+          return;
       }
     } catch (error) {
       void vscode.window.showErrorMessage(formatError(error));

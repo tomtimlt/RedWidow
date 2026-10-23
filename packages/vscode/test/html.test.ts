@@ -149,6 +149,15 @@ describe("composer et Configurer (lot P1)", () => {
     expect(studio).toContain("Aucun conteneur. Créez-en un dans le cockpit.");
     expect(html).not.toMatch(/\bmcp\b|jauge|compact|pièce jointe active/i);
   });
+  it("Monitor est une icône du compositeur, à côté de /, et ouvre le panneau", () => {
+    const toolbar = section('id="toolbar"', 'id="model-pop"');
+    expect(toolbar.indexOf('id="monitor-btn"')).toBeGreaterThan(toolbar.indexOf('id="slash-btn"'));
+    expect(tag("monitor-btn")).toContain('class="ghost tool-btn"');
+    expect(tag("monitor-btn")).toContain('aria-label="Monitor"');
+    expect(js).toContain('vscode.postMessage({ type: "openMonitor" })');
+    const ext = read("../src/extension/extension.ts");
+    expect(ext).toMatch(/case "openMonitor":\s*openMonitor\(\);/);
+  });
   it("les boutons @, # et / existent, le dernier ouvre le menu", () => {
     expect(tag("mention-btn")).toContain('aria-controls="mention-pop"');
     expect(tag("hash-btn")).toContain('aria-controls="mention-pop"');
@@ -221,7 +230,8 @@ describe("composer et Configurer (lot P1)", () => {
     expect(css).toMatch(/--jn-r-sm: 6px;/);
     expect(css).toMatch(/--jn-r-md: 8px;/);
     expect(css).toMatch(/--jn-r-lg: 12px;/);
-    expect(css).not.toMatch(/--jn-r-pill|999px/);
+    expect(css).not.toMatch(/--jn-r-pill/);
+    expect(css).toMatch(/border-radius:\s*999px/);
   });
   it("le popover Configurer est plus court, un peu plus large, et n'a plus de deux colonnes", () => {
     const rule = /#cfg-pop \{([^}]*)\}/.exec(css)?.[1] ?? "";

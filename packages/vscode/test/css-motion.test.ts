@@ -228,8 +228,8 @@ describe.each(CSS_FILES)("%s : budget de performance (design-chat-ui.md §2)", (
     }
   });
 
-  it("aucun jeton supprimé ni forme arrondie (§1.2, §1.3)", () => {
-    expect(css).not.toMatch(/--jn-accent-2|--jn-cool|--jn-glow|--jn-r-pill|999px|ease-spring/);
+  it("aucun jeton supprimé (§1.2, §1.3)", () => {
+    expect(css).not.toMatch(/--jn-accent-2|--jn-cool|--jn-glow|--jn-r-pill|ease-spring/);
     // focusBorder n'est admis que dans les blocs de contraste élevé.
     for (const r of rules) {
       if (!r.body.includes("focusBorder")) continue;
@@ -237,14 +237,33 @@ describe.each(CSS_FILES)("%s : budget de performance (design-chat-ui.md §2)", (
     }
   });
 
-  it("border-radius : 0 ou jeton ; jetons de rayon ≤ 12 px ; au plus une ombre non inset", () => {
+  it("border-radius : 0, jeton ou pilule du chat ; jetons de rayon ≤ 12 px ; au plus une ombre non inset", () => {
+    const pills = new Set([
+      "#toolbar #send",
+      "#bar button.ghost",
+      "#composer button.ghost",
+      ".chip",
+      ".tool-btn",
+      "#models-refresh",
+      ".cmd-opt",
+      ".chip-switch .sw-dot",
+      "#bypass-switch::before",
+      "#learning-switch::before",
+    ]);
     let radii = 0;
     const shadows = new Set<string>();
     for (const r of rules) {
       for (const [k, v] of decls(r)) {
+        if (v.includes("999px")) expect(k, r.selector).toBe("border-radius");
         if (k === "border-radius") {
           radii++;
-          expect(v, r.selector).toMatch(/^(0|var\(--jn-r-(sm|md|lg)\))$/);
+          if (v === "999px") {
+            for (const part of r.selector.split(",")) {
+              expect(pills.has(part.trim()), r.selector).toBe(true);
+            }
+          } else {
+            expect(v, r.selector).toMatch(/^(0|var\(--jn-r-(sm|md|lg)\))$/);
+          }
         }
         if (/^--jn-r-(sm|md|lg)$/.test(k)) {
           expect(Number.parseFloat(v), `${k} (${r.selector})`).toBeLessThanOrEqual(12);

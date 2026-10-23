@@ -908,6 +908,11 @@ button.copy {
 button.ghost {
   color: var(--vscode-foreground);
 }
+/* Ghost de la barre et du compositeur : pilule. */
+#bar button.ghost,
+#composer button.ghost {
+  border-radius: 999px;
+}
 button.ghost .ico {
   color: var(--jn-muted);
   transition: color var(--jn-d1) var(--jn-ease-io);
@@ -1000,13 +1005,18 @@ textarea::placeholder {
   gap: 4px;
   min-width: 0;
 }
-/* Envoyer : primary carré ; Stop : même gabarit, danger en trait. */
+/* Envoyer : cercle ; Stop : carré arrondi léger, danger en trait. */
 #toolbar #send,
 #toolbar #stop {
   width: 30px;
   min-width: 30px;
   height: 30px;
   padding: 0;
+}
+#toolbar #send {
+  border-radius: 999px;
+}
+#toolbar #stop {
   border-radius: var(--jn-r-sm);
 }
 #toolbar #send:active:not(:disabled) {
@@ -1039,7 +1049,7 @@ body:not(.running) #toolbar #stop {
 /* Pastilles (modèle, Configurer) et pop de changement de modèle (E3) */
 .chip {
   min-height: 26px;
-  border-radius: var(--jn-r-sm);
+  border-radius: 999px;
   background: transparent;
   color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
   border-color: var(--jn-line);
@@ -1047,11 +1057,6 @@ body:not(.running) #toolbar #stop {
   gap: 5px;
   font-size: var(--jn-fs-sm);
   min-width: 0;
-}
-/* Étiquette du modèle et niveau d'effort : mono (§1.4). */
-.chip-label,
-.cfg-level {
-  font-family: var(--jn-mono);
 }
 .chip .chip-ico {
   width: 14px;
@@ -1126,7 +1131,7 @@ body:not(.running) #toolbar #stop {
   min-width: 28px;
   height: 28px;
   padding: 0;
-  border-radius: var(--jn-r-sm);
+  border-radius: 999px;
 }
 .cmd-opt {
   display: flex;
@@ -1140,6 +1145,7 @@ body:not(.running) #toolbar #stop {
   background: var(--vscode-button-secondaryBackground);
   color: var(--vscode-foreground);
   border-color: transparent;
+  border-radius: 999px;
 }
 .cmd {
   font-family: var(--jn-mono);
@@ -1279,6 +1285,9 @@ body:not(.running) #toolbar #stop {
   padding-top: var(--jn-s2);
   border-top: 1px solid var(--jn-line);
 }
+#models-refresh {
+  border-radius: 999px;
+}
 
 /* Configurer : une seule colonne, groupes séparés par un filet ; « bientôt » en bas. */
 .cfg-col {
@@ -1309,7 +1318,6 @@ body:not(.running) #toolbar #stop {
   color: var(--vscode-foreground);
 }
 .cfg-off em {
-  font-family: var(--jn-mono);
   font-size: var(--jn-fs-xs);
   font-style: normal;
   color: var(--jn-muted);
@@ -1699,7 +1707,7 @@ body.no-provider #composer {
     white-space: nowrap;
   }
 }
-/* Stop : icône seule à toute largeur (gabarit rond), le libellé reste lu par les lecteurs d'écran. */
+/* Stop : icône seule à toute largeur (carré arrondi), le libellé reste lu par les lecteurs d'écran. */
 #stop .btn-text {
   position: absolute;
   width: 1px;
@@ -1959,7 +1967,7 @@ body.bypass-on #composer {
     background-color var(--jn-d2) var(--jn-ease-io),
     border-color var(--jn-d2) var(--jn-ease-io);
 }
-/* Pouce carré : glisse d'un bord à l'autre (transform). */
+/* Pouce rond : glisse d'un bord à l'autre (transform). */
 #bypass-switch::before,
 #learning-switch::before {
   content: "";
@@ -1969,7 +1977,7 @@ body.bypass-on #composer {
   width: 12px;
   height: 12px;
   margin-top: -6px;
-  border-radius: 0;
+  border-radius: 999px;
   background: var(--vscode-foreground);
   opacity: 0.75;
   pointer-events: none;
@@ -2675,7 +2683,6 @@ body.studio .studio-dl dd {
 .kc-zoom {
   min-width: 28px;
   justify-content: center;
-  font-family: var(--jn-mono);
   font-weight: 600;
 }
 .kc-viewport {
@@ -2982,7 +2989,7 @@ body.mode-watch .mon-out {
   box-sizing: border-box;
   width: 8px;
   height: 8px;
-  border-radius: 0;
+  border-radius: 999px;
   border: 1px solid var(--vscode-foreground);
   opacity: 0.6;
 }

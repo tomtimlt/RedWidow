@@ -111,12 +111,10 @@ describe("typographie (§1.4)", () => {
       ".mon-cmd",
       ".mon-out",
       ".cmd",
-      // noms d'outils, modèle, niveau d'effort
+      // noms d'outils et identifiants (le chrome des pastilles reste en police d'interface)
       ".tool-name",
       ".tool-summary",
-      ".chip-label",
       ".opt-label",
-      ".cfg-level",
       ".effort-now",
       // compteurs
       ".badge",
@@ -137,7 +135,6 @@ describe("typographie (§1.4)", () => {
       ".studio-node-meta",
       ".studio-name",
       ".radio em",
-      ".cfg-off em",
     ];
     for (const sel of mono) {
       expect(has(sel, "font-family", "var(--jn-mono)"), `${sel} en mono`).toBe(true);
@@ -164,9 +161,19 @@ describe("typographie (§1.4)", () => {
     }
   });
 
-  it("prose et libellés de boutons restent dans la police d'interface", () => {
+  it("prose, pastilles et boutons hors code restent dans la police d'interface", () => {
     expect(has("body", "font-family", "var(--jn-font)")).toBe(true);
-    for (const sel of [".msg", ".hint", ".card-title", ".welcome h2", "button"]) {
+    for (const sel of [
+      ".msg",
+      ".hint",
+      ".card-title",
+      ".welcome h2",
+      "button",
+      ".chip-label",
+      ".cfg-level",
+      ".cfg-off em",
+      ".kc-zoom",
+    ]) {
       expect(
         valuesOf(sel, "font-family").filter((v) => v.includes("mono")),
         sel,
@@ -251,6 +258,27 @@ describe("composants (§5)", () => {
     expect(
       has('#learning-switch[aria-checked="true"]::after', "background", "var(--jn-accent-fill)"),
     ).toBe(true);
+  });
+
+  it("pilules du chat : rayon plein ; Stop, compositeur et messages inchangés", () => {
+    for (const sel of [
+      "#toolbar #send",
+      "#bar button.ghost",
+      "#composer button.ghost",
+      ".chip",
+      ".tool-btn",
+      "#models-refresh",
+      ".cmd-opt",
+      ".chip-switch .sw-dot",
+      "#bypass-switch::before",
+      "#learning-switch::before",
+    ]) {
+      expect(has(sel, "border-radius", "999px"), sel).toBe(true);
+    }
+    expect(has("#toolbar #stop", "border-radius", "var(--jn-r-sm)")).toBe(true);
+    expect(has("#composer", "border-radius", "var(--jn-r-lg)")).toBe(true);
+    expect(has(".msg", "border-radius", "var(--jn-r-lg)")).toBe(true);
+    expect(has(".msg.user", "border-radius", "var(--jn-r-lg)")).toBe(true);
   });
 
   it("curseur d'effort : piste --jn-line, partie remplie --jn-accent-fill, pouce carré", () => {
