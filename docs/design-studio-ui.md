@@ -50,7 +50,7 @@
 
 ## 3. Système de design (remplace `design-chat-ui.md` §1 sur ces points)
 
-- Rayons, palette, accent, mouvement : **remplacés le 2026-10-18** par la charte D.A. de `design-chat-ui.md` §1–3 (rayons 2/3/4 px, accent jaune de marque, plus de pastille). Les lignes ci-dessous valent pour le reste.
+- Rayons, palette, accent, mouvement : **remplacés le 2026-10-18** par la charte D.A. de `design-chat-ui.md` §1–3, puis les rayons par l'amendement du 2026-10-23 (section 0 : 6/8/12 px, y compris le cockpit et le studio ; accent jaune de marque, plus de pastille). Les lignes ci-dessous valent pour le reste.
 - Palette convertie : chaque couleur est une variable `--vscode-*`, hex seulement en repli de `var()`. Bleu = `--vscode-focusBorder`. Orange = `--vscode-editorWarning-foreground` (repli `--vscode-inputValidation-warningBorder`). Terminal : `--vscode-terminal-background/foreground`, `--vscode-terminal-ansi*`, police `--vscode-editor-font-family`.
 - Composer : bordure bleue au `:focus-within` ; **orange quand une approbation est en attente** (`body.awaiting`, état réel). Le Bypass n'emprunte pas cet état.
 - Configure : popover de largeur 232 px (bornée par `min(232px, 100vw - 16px)`), **une colonne** à toutes les largeurs (remplace la règle « deux colonnes en large »). Ordre : Layout, Raisonnement, Fournisseur, puis les « bientôt » (Mode, Bypass, Persona) regroupés en bas.
