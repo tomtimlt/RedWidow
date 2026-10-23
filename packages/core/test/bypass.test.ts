@@ -15,6 +15,8 @@ import {
   EXTERNAL_PATTERNS_FIELD,
   evaluatePolicy,
   isBypassable,
+  isRememberable,
+  KALI_EXECUTE_TOOL,
   type Policy,
   type PolicyContext,
 } from "../src/index.js";
@@ -746,5 +748,105 @@ describe("Bypass dans la gate : réactivation et prolongation sans décision ent
     await h.gate.decide(mcp("a"), signal);
     await h.gate.decide(mcp("b"), signal);
     expect(changes(h.events)).toHaveLength(1);
+  });
+});
+
+const kaliExec = (command: string, toolUseId = "k"): ApprovalRequest => ({
+  toolUseId,
+  tool: KALI_EXECUTE_TOOL,
+  input: { command },
+});
+
+describe("Bypass et mcp__kali__execute_command", () => {
+  it("Bypass actif : id est allow sans asker, et reste non mémorisable", async () => {
+    const c = clock();
+    const h = harness({ bypass: switchOn(c), now: c.now });
+    const request = kaliExec("id");
+    const verdict = evaluatePolicy(DEFAULT_POLICY, request.tool, request.input, WORKSPACE);
+    expect(verdict).toMatchObject({ decision: "ask", reason: { code: "shell.unanalyzable" } });
+    expect(isRememberable(request, verdict)).toBe(false);
+    const out = await h.gate.decide(request, signal);
+    expect(out).toMatchObject({
+      decision: "allow",
+      source: "bypass",
+      reason: { code: "approval.bypassed", cause: { code: "shell.unanalyzable" } },
+    });
+    expect(h.asked()).toBe(0);
+    expect(kinds(h.events)).not.toContain("approval.requested");
+    expect(bypassedDecisions(h.events)).toHaveLength(1);
+  });
+
+  it("Bypass actif : sudo id et un docker run qui donne l'hôte restent deny", async () => {
+    const c = clock();
+    const sudo = harness({ bypass: switchOn(c), now: c.now });
+    const sudoOut = await sudo.gate.decide(kaliExec("sudo id"), signal);
+    expect(sudoOut).toMatchObject({ decision: "deny", source: "policy" });
+    expect(sudo.asked()).toBe(0);
+    expect(bypassedDecisions(sudo.events)).toEqual([]);
+
+    const host = harness({ bypass: switchOn(c), now: c.now });
+    const hostOut = await host.gate.decide(kaliExec("docker run -v /:/h x"), signal);
+    expect(hostOut).toMatchObject({
+      decision: "deny",
+      source: "policy",
+      reason: { code: "docker.hostAccess" },
+    });
+    expect(host.asked()).toBe(0);
+    expect(bypassedDecisions(host.events)).toEqual([]);
+  });
+
+  it("Bypass actif : un danger shell ou une commande illisible reste demandé", async () => {
+    const c = clock();
+    const hazard = harness({ bypass: switchOn(c), now: c.now });
+    const hazardOut = await hazard.gate.decide(kaliExec("echo $(id)"), signal);
+    expect(hazardOut).toMatchObject({ source: "user", reason: { code: "shell.unanalyzable" } });
+    expect(hazard.asked()).toBe(1);
+    expect(bypassedDecisions(hazard.events)).toEqual([]);
+
+    const broken = harness({ bypass: switchOn(c), now: c.now });
+    const brokenOut = await broken.gate.decide(kaliExec("echo '"), signal);
+    expect(brokenOut).toMatchObject({ source: "user", reason: { code: "shell.unanalyzable" } });
+    expect(broken.asked()).toBe(1);
+    expect(bypassedDecisions(broken.events)).toEqual([]);
+  });
+
+  it("sans Bypass, la carte ask reste et always n'écrit aucune règle", async () => {
+    const recorder = createRecorder({ runId: "r" });
+    const events: EngineEvent[] = [];
+    recorder.subscribe((e) => events.push(e));
+    const persisted: unknown[] = [];
+    let asked = 0;
+    const gate = createApprovalGate({
+      policy: DEFAULT_POLICY,
+      recorder,
+      workspace: WORKSPACE,
+      ask: async () => {
+        asked++;
+        return { decision: "allow", remember: "always" };
+      },
+      persistRule: (rule) => {
+        persisted.push(rule);
+      },
+    });
+    const request = kaliExec("id");
+    expect(
+      isRememberable(
+        request,
+        evaluatePolicy(DEFAULT_POLICY, request.tool, request.input, WORKSPACE),
+      ),
+    ).toBe(false);
+    const out = await gate.decide(request, signal);
+    expect(out).toMatchObject({
+      decision: "allow",
+      source: "user",
+      reason: { code: "shell.unanalyzable" },
+    });
+    expect(asked).toBe(1);
+    expect(kinds(events)).toContain("approval.requested");
+    expect(bypassedDecisions(events)).toEqual([]);
+    expect(persisted).toEqual([]);
+    await gate.decide(kaliExec("id", "k2"), signal);
+    expect(asked).toBe(2);
+    expect(persisted).toEqual([]);
   });
 });
