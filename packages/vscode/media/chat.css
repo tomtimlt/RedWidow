@@ -80,6 +80,11 @@ body.vscode-high-contrast-light {
 * {
   box-sizing: border-box;
 }
+/* Page verrouillée : 100vh déborde la webview et fait défiler la page en plus du fil. */
+html {
+  height: 100%;
+  overflow: hidden;
+}
 body {
   font-family: var(--jn-font);
   font-size: var(--jn-fs);
@@ -91,7 +96,8 @@ body {
   margin: 0;
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
+  overflow: hidden;
   container: app / inline-size;
 }
 body > * {
@@ -247,6 +253,7 @@ body.vscode-high-contrast-light .brand-cursor {
   border: 1px solid color-mix(in srgb, var(--jn-secondary) 40%, transparent);
 }
 
+/* Seul défilement vertical du chat : le compositeur reste en bas, hors du fil. */
 #log {
   flex: 1;
   min-height: 0;
@@ -599,10 +606,11 @@ button.example:focus-visible::after {
 .tool-body {
   padding: 2px 10px 8px 30px;
 }
+/* La sortie grandit dans le message : pas de seconde barre (ni de page, ni dans la bulle). */
 .tool-body pre {
   font-family: var(--jn-mono);
-  max-height: 14em;
-  overflow: auto;
+  max-height: none;
+  overflow: visible;
   padding: 8px 10px;
   background: var(--vscode-textCodeBlock-background);
   border-radius: var(--jn-r-md);
@@ -945,6 +953,7 @@ button:disabled:active {
 
 /* --- Composer (E1, E2) --- */
 #form {
+  flex: none;
   padding: var(--jn-s1) 0 var(--jn-s3);
 }
 #composer {
@@ -2372,7 +2381,7 @@ body.cockpit .cockpit-row.is-running > .dot {
 
 /* --- Réglages (body.studio) : navigation en deux groupes, cartes restylées (lot P5) --- */
 body.studio {
-  height: 100vh;
+  height: 100%;
 }
 .studio-shell {
   display: grid;
@@ -2827,7 +2836,8 @@ body.studio .studio-dl dd {
   }
 }
 
-/* Monitor (panneau éditeur) : lecture seule, le chat reste masqué. */
+/* Monitor (panneau éditeur) : hors du chat (display none), il n'allonge pas la page.
+   Sa zone ne défile qu'en mode monitor ou suivi. */
 #monitor {
   display: none;
 }

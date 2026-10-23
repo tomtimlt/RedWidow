@@ -357,3 +357,38 @@ describe("logo d'accueil (complément D3/D4)", () => {
     ).toBe(true);
   });
 });
+
+describe("défilement du chat", () => {
+  it("verrouille la page : html et body à 100 %, colonne flex, sans 100vh", () => {
+    expect(has("html", "height", "100%")).toBe(true);
+    expect(has("html", "overflow", "hidden")).toBe(true);
+    expect(has("body", "height", "100%")).toBe(true);
+    expect(has("body", "overflow", "hidden")).toBe(true);
+    expect(has("body", "display", "flex")).toBe(true);
+    expect(has("body", "flex-direction", "column")).toBe(true);
+    expect(css).not.toMatch(/height:\s*100vh/);
+  });
+
+  it("seul #log défile ; le compositeur reste en bas du cadre", () => {
+    expect(has("#log", "flex", "1")).toBe(true);
+    expect(has("#log", "min-height", "0")).toBe(true);
+    expect(has("#log", "overflow-y", "auto")).toBe(true);
+    expect(has("#form", "flex", "none")).toBe(true);
+  });
+
+  it("la sortie d'outil grandit dans le message, sans max-height ni overflow auto", () => {
+    expect(has(".tool-body pre", "max-height", "none")).toBe(true);
+    expect(has(".tool-body pre", "overflow", "visible")).toBe(true);
+    const rule = rules.find((r) => r.selectors.includes(".tool-body pre"));
+    expect(rule?.body).not.toMatch(/overflow:\s*auto/);
+    expect(rule?.body).not.toMatch(/max-height:\s*14em/);
+  });
+
+  it("le monitor hors chat est hors flux ; sa zone ne défile qu'en monitor ou suivi", () => {
+    expect(has("#monitor", "display", "none")).toBe(true);
+    expect(has("body.mode-monitor #monitor", "overflow-y", "auto")).toBe(true);
+    expect(has("body.mode-watch #monitor", "overflow-y", "auto")).toBe(true);
+    expect(has("body.mode-monitor #monitor", "min-height", "0")).toBe(true);
+    expect(has("body.mode-watch #monitor", "min-height", "0")).toBe(true);
+  });
+});
