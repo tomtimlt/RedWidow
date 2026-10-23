@@ -3,6 +3,7 @@
 - Statut : accepté
 - Date : 2026-10-22
 - S'appuie sur : ADR 0011 (famille `kali`, label non recopié, `link` et `exec` restent Exegol)
+- Amendé par : ADR 0014 (le label ne suffit toujours pas ; `link` et les outils Kali relisent la liste courante)
 
 ## Contexte
 
@@ -10,7 +11,7 @@
 
 Un `docker run` ou `create` avec volume n'est pas refusé dans `approval/shell.ts`. Il l'est dans `dockerRunHazard` (`packages/core/src/approval/policy.ts:116-154`, flags `--volume`, `--mount` et `-v`) appliqué par `evaluateBash` (`policy.ts:189-197`) : verdict `deny`, code `docker.hostAccess`, quelle que soit la règle. Ce lot ne touche pas cette politique.
 
-ADR 0011 : la famille `kali` est aussi le label `io.warband.runtime` dont la valeur est exactement `kali`. Aucune valeur de label n'est recopiée par `listLabelPrefix`. `link` exige `family === "exegol"`. Un Kali n'est pas liable. L'`exec` non plus.
+ADR 0011 : la famille `kali` est aussi le label `io.warband.runtime` dont la valeur est exactement `kali`. Aucune valeur de label n'est recopiée par `listLabelPrefix`. Ce lot laissait `link` et l'`exec` Exegol refuser un Kali. L'ADR 0014 les reprend : le label n'est toujours pas une autorisation, la liste courante l'est.
 
 Le montage d'un dossier de l'hôte est une décision de sécurité, pas un paramètre de plus sur `run`. L'agent ne doit pas pouvoir le demander.
 
@@ -34,7 +35,7 @@ Le montage d'un dossier de l'hôte est une décision de sécurité, pas un param
 
 4. **Secrets dans l'arbre monté.** Nouvelle fonction `mountExposesSensitive(directory, opts?)` dans `approval/paths.ts`. Elle réutilise la liste déjà privée des chemins sensibles et `canonical`. Elle retourne `"sensitive"`, `"unsupported"` ou `null`, sans le chemin. `sensitive` si le dossier est dans un chemin sensible ou si un chemin sensible (qui existe) est dans le dossier. Un sensible absent est ignoré. Un sensible impossible à résoudre refuse (`unsupported`). Ce n'est pas `checkPathAccess` : un dossier hors de l'espace de travail de l'agent reste montable. `checkPathAccess` ne change pas.
 
-5. **Hors de ce lot.** Pas de formulaire, pas de sélecteur, pas de VPN, pas de retrait de `/start`. `link` et `resolveExegolContainer` ne changent pas. Aucun événement nouveau.
+5. **Hors de ce lot.** Pas de formulaire, pas de sélecteur, pas de VPN, pas de retrait de `/start`. `link` et `resolveExegolContainer` ne changent pas ici. L'ADR 0014 change `link` et ajoute les outils Kali ; elle ne change pas cet argv. Aucun événement nouveau.
 
 ## Alternatives écartées
 
@@ -52,7 +53,7 @@ Le montage d'un dossier de l'hôte est une décision de sécurité, pas un param
 - Un lien vers `/`, vers un socket ou vers un secret est refusé parce que le chemin monté est le réel. Monter la maison, `/`, `/etc`, `/var/run` ou `~/.docker` est refusé. Monter un projet qui ne contient ni secret ni socket ne l'est pas.
 - Le chemin figure dans l'argv journalisé par `process.started` seulement si le spawn a lieu. L'erreur de validation ne le contient pas.
 - Image absente en local : échec `docker.failed`, pas de téléchargement.
-- Le label fait entrer le conteneur dans `listLabelPrefix` comme `kali` même si l'image ne contient pas ces quatre lettres. Il n'autorise ni `link` ni `exec`.
+- Le label fait entrer le conteneur dans `listLabelPrefix` comme `kali` même si l'image ne contient pas ces quatre lettres. Il n'autorise rien à lui seul. `link` et les outils Kali (ADR 0014) relisent la liste ; ils ne font pas confiance au nom stocké ni au label.
 
 ## Plan
 

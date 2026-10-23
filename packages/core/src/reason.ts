@@ -125,6 +125,7 @@ export const REASON_CODES = [
   "project.absent",
   "cours.absent",
   "exegol.containerDenied",
+  "kali.unavailable",
   // Divers
   "error.unknown",
   /** Motif ou erreur d'un ancien journal, relu comme texte (`params.text`). */

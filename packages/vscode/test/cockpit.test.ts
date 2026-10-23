@@ -323,7 +323,7 @@ describe("loadCockpitView", () => {
     expect(linked?.family).toBe("exegol");
   });
 
-  it("kali en cours avec workspace : pas de lien", async () => {
+  it("kali : lien seulement s'il tourne et a un workspace", async () => {
     const view = await loadCockpitView({
       resolveBin: (n) => (n === "docker" ? "/d/docker" : null),
       readProj: async () => null,
@@ -331,18 +331,37 @@ describe("loadCockpitView", () => {
         listLabelPrefix: async () => [
           {
             state: "running" as const,
-            name: "kali-box",
+            name: "kali-up",
             image: "kalilinux/kali-rolling",
             workspace: "/host/kali",
+            family: "kali" as const,
+          },
+          {
+            state: "stopped" as const,
+            name: "kali-off",
+            image: "kalilinux/kali-rolling",
+            workspace: "/host/kali",
+            family: "kali" as const,
+          },
+          {
+            state: "running" as const,
+            name: "kali-nows",
+            image: "kalilinux/kali-rolling",
             family: "kali" as const,
           },
         ],
       }),
     });
-    const kali = view.containers.find((c) => c.name === "kali-box");
-    expect(kali?.family).toBe("kali");
-    expect(kali?.canLink).toBe(false);
-    expect(kali?.linkTitle).toBe("On ne lie pas un Kali");
+    const up = view.containers.find((c) => c.name === "kali-up");
+    expect(up?.family).toBe("kali");
+    expect(up?.canLink).toBe(true);
+    expect(up?.linkTitle).toBeUndefined();
+    const off = view.containers.find((c) => c.name === "kali-off");
+    expect(off?.canLink).toBe(false);
+    expect(off?.linkTitle).toBe("Conteneur arrêté");
+    const nows = view.containers.find((c) => c.name === "kali-nows");
+    expect(nows?.canLink).toBe(false);
+    expect(nows?.linkTitle).toBe("Sans montage /workspace");
   });
 
   it("project.invalid : indicateur sans liste", async () => {

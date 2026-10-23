@@ -1,3 +1,4 @@
+import { KALI_EXECUTE_TOOL } from "../kali/tool-specs.js";
 import { type Reason, reason, ValidationError } from "../reason.js";
 import {
   checkPathAccess,
@@ -367,6 +368,15 @@ function evaluateUncapped(
     };
   }
   if (isUnanalyzableShellTool(tool)) return evaluateUnanalyzable(policy, tool);
+  if (tool === KALI_EXECUTE_TOOL) {
+    // Shell du conteneur : l'analyse POSIX refuse, elle n'autorise jamais, quelle que soit la plateforme.
+    const command = input.command;
+    if (typeof command === "string") {
+      const analysed = evaluateBash(policy, command);
+      if (analysed.decision === "deny") return analysed;
+    }
+    return evaluateUnanalyzable(policy, tool);
+  }
   if (tool === BASH_TOOL) {
     if (!(ctx.posixShell ?? (ctx.platform ?? defaultPlatform()) !== "win32")) {
       // Shell non confirmé POSIX : l'analyse POSIX ne vaut rien pour autoriser, seulement pour refuser.

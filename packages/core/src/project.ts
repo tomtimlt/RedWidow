@@ -357,9 +357,9 @@ export async function dissociateContainer(
 }
 
 /**
- * Lie un conteneur Exegol en cours, avec un montage `/workspace` absolu.
+ * Lie un conteneur Exegol ou Kali en cours, avec un montage `/workspace` absolu.
  * Refus, dans l'ordre : absent, autre famille, arrêté, sans montage. Un refus n'écrit rien.
- * Sans projet actif, en crée un (nom court, ce montage) puis associe le nom réel.
+ * Sans projet actif, en crée un (nom court Exegol ou nom réel Kali, ce montage) puis associe le nom réel.
  * Un projet déjà actif garde son workspace et ses noms.
  */
 export async function link(
@@ -370,15 +370,18 @@ export async function link(
   const rows = await docker.listLabelPrefix();
   const row = rows.find((r) => r.name === name);
   if (row === undefined) throw new CodedError("project.notFound", { name });
-  if (row.family !== "exegol") throw new CodedError("project.notExegol", { name });
+  if (row.family !== "exegol" && row.family !== "kali") {
+    throw new CodedError("project.notExegol", { name });
+  }
   if (row.state !== "running") throw new CodedError("project.notRunning", { name });
   if (row.workspace === undefined || !isAbsolute(row.workspace)) {
     throw new CodedError("project.noWorkspace", { name });
   }
   const file = await readProjects(configDir);
   if (file === null || activeProject(file) === null) {
+    const projectName = row.family === "exegol" ? shortContainerName(row.name) : row.name;
     await createProject(configDir, {
-      name: shortContainerName(row.name),
+      name: projectName,
       workspace: row.workspace,
     });
   }
