@@ -49,6 +49,15 @@ export interface ProjectStatus {
 
 const invalidProject = () => new CodedError("project.invalid", { reason: "json" });
 
+type ChmodFn = (path: string, mode: number) => Promise<void>;
+
+let chmodProjectFile: ChmodFn = chmod;
+
+/** Tests uniquement : observer ou remplacer le `chmod` appliqué à `project.json`. */
+export function setChmodProjectFileForTests(fn: ChmodFn | undefined): void {
+  chmodProjectFile = fn ?? chmod;
+}
+
 const isPlainObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 
@@ -122,7 +131,7 @@ async function writeProjectFile(configDir: string, file: ProjectFile): Promise<v
   const temp = `${path}.${process.pid}.tmp`;
   await writeFile(temp, `${JSON.stringify(file, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
   await renameWithRetry(temp, path);
-  await chmod(path, 0o600);
+  await chmodProjectFile(path, 0o600);
 }
 
 /**

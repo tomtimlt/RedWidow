@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -16,6 +16,7 @@ import {
   readProjects,
   removeProject,
   setActiveProject,
+  setChmodProjectFileForTests,
   status,
   USER_FINDINGS_FILE,
   USER_PROJECT_FILE,
@@ -54,17 +55,30 @@ const row = (
 describe("link", () => {
   it("écrit un projet actif pour un conteneur en cours avec workspace", async () => {
     const { docker, configDir } = await setup();
-    await link(configDir, "with-ws", docker);
-    const file = await readProjects(configDir);
-    const active = file === null ? null : activeProject(file);
-    expect(active).toMatchObject({
-      name: "with-ws",
-      workspace: "/host/ws",
-      containers: ["with-ws"],
+    const projectPath = join(configDir, USER_PROJECT_FILE);
+    const chmodCalls: Array<{ path: string; mode: number }> = [];
+    setChmodProjectFileForTests(async (path, mode) => {
+      chmodCalls.push({ path, mode });
+      await chmod(path, mode);
     });
-    expect(file?.activeId).toBe(active?.id);
-    const mode = (await stat(join(configDir, USER_PROJECT_FILE))).mode & 0o777;
-    expect(mode).toBe(0o600);
+    try {
+      await link(configDir, "with-ws", docker);
+      const file = await readProjects(configDir);
+      const active = file === null ? null : activeProject(file);
+      expect(active).toMatchObject({
+        name: "with-ws",
+        workspace: "/host/ws",
+        containers: ["with-ws"],
+      });
+      expect(file?.activeId).toBe(active?.id);
+      expect(chmodCalls.some((c) => c.path === projectPath && c.mode === 0o600)).toBe(true);
+      if (process.platform !== "win32") {
+        const mode = (await stat(projectPath)).mode & 0o777;
+        expect(mode).toBe(0o600);
+      }
+    } finally {
+      setChmodProjectFileForTests(undefined);
+    }
   });
 
   it("refuse un conteneur arrêté", async () => {
