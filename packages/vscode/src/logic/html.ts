@@ -48,11 +48,12 @@ const icon = (name: keyof typeof ICONS, cls = "ico"): string =>
   `<svg class="${cls}" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICONS[name]}</svg>`;
 
 /**
- * Marque Warband : treillis acier et flèches rouges, couleurs en dur, lisible à 18 px.
+/**
+ * Marque Warband : chevrons stylisés. Couleurs définies par CSS (brand-wing, brand-lead, brand-cursor).
  * Ni script, ni animation, ni ressource. Décoratif : `aria-hidden`.
  */
 const BRAND =
-  '<svg class="brand" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><g fill="none" stroke="#495f73" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8.6 18.6 12.1v5L12 20.7 5.4 17.1V12.1Z"/><path d="M12 8.6V13.4"/><path d="M5.4 12.1 12 15.5 18.6 12.1"/><path d="M12 15.5V20.7"/></g><g fill="#495f73"><circle cx="5.4" cy="12.1" r="1.2"/><circle cx="18.6" cy="12.1" r="1.2"/><circle cx="5.4" cy="17.1" r="1.2"/><circle cx="18.6" cy="17.1" r="1.2"/><circle cx="12" cy="20.7" r="1.2"/><circle cx="12" cy="13.4" r="1.05"/></g><g fill="#cc1c40"><polygon points="12,0.55 14.45,3.65 13.15,3.65 13.15,7.55 10.85,7.55 10.85,3.65 9.55,3.65"/><polygon points="1.15,4.15 4.55,4.72 3.74,5.45 6.08,8.05 4.52,9.46 2.18,6.86 1.36,7.6"/><polygon points="22.85,4.15 22.64,7.6 21.82,6.86 19.48,9.46 17.92,8.05 20.26,5.45 19.45,4.72"/><polygon points="12,9.15 13.7,11.3 12.85,11.3 12.85,13.75 11.15,13.75 11.15,11.3 10.3,11.3"/></g></svg>';
+  '<svg class="brand" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><polygon points="1,1 4,1 8,5 4,9 1,9 5,5" class="brand-wing"/><polygon points="1,15 4,15 8,19 4,23 1,23 5,19" class="brand-wing"/><polygon points="13,5 16,5 23,12 16,19 13,19 20,12" class="brand-lead"/><rect x="18" y="20" width="5" height="3" class="brand-cursor"/></svg>';
 
 /**
  * Page de la webview de chat. CSP stricte : `default-src 'none'`, deux scripts (fichiers de

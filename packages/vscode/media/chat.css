@@ -3027,3 +3027,12 @@ body.mode-watch .mon-out {
     display: inline;
   }
 }
+
+/* Logo chevrons : ailes acier, pointe rouge, curseur rouge. */
+.brand-wing {
+  fill: var(--jn-steel);
+}
+.brand-lead,
+.brand-cursor {
+  fill: var(--jn-accent);
+}

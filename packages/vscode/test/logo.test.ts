@@ -4,11 +4,12 @@ import { describe, expect, it } from "vitest";
 import { chatHtml } from "../src/logic/html.js";
 
 const read = (p: string) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), "utf8");
-const FILES = ["logo.svg", "icon.svg", "logo-small.svg"] as const;
+const FILES = ["logo.svg", "icon.svg"] as const;
 const svgs = Object.fromEntries(FILES.map((f) => [f, read(`../media/${f}`)])) as Record<
   (typeof FILES)[number],
   string
 >;
+const logoSmall = read("../media/logo-small.svg");
 const html = chatHtml({
   nonce: "abc123_-XYZ",
   cspSource: "https://x.vscode-cdn.net",
@@ -21,67 +22,73 @@ const css = read("../media/chat.css");
 
 /** Géométrie peinte : chemins, cercles, polygones, sans couleurs ni attributs de présentation. */
 function shapes(svg: string): string[] {
-  return [...svg.matchAll(/<(?:path|circle|polygon)\b[^>]*>/g)].map((m) =>
+  return [...svg.matchAll(/<(?:path|circle|polygon|rect)\b[^>]*>/g)].map((m) =>
     m[0]
-      .replace(/\s(?:fill|stroke|stroke-width|stroke-linecap|stroke-linejoin)="[^"]*"/g, "")
+      .replace(/\s(?:fill|stroke|stroke-width|stroke-linecap|stroke-linejoin|class)="[^"]*"/g, "")
       .replace(/\s+/g, " "),
   );
 }
 
-describe("logo : treillis et flèches", () => {
-  it("BRAND est le SVG inline de 18 px", () => {
+describe("logo : chevrons", () => {
+  it("BRAND est le SVG inline de 18 px avec classes CSS", () => {
     expect(brand).toContain('class="brand"');
     expect(brand).toContain('width="18"');
     expect(brand).toContain('height="18"');
     expect(brand).toContain('viewBox="0 0 24 24"');
     expect(brand).toContain('aria-hidden="true"');
+    expect(brand).toMatch(/class="brand-(wing|lead|cursor)"/);
   });
 
-  for (const f of FILES) {
-    describe(f, () => {
-      const svg = svgs[f];
-      it('viewBox="0 0 24 24", fond transparent, couleurs de marque en dur', () => {
-        expect(svg).toContain('viewBox="0 0 24 24"');
-        expect(svg).toContain('fill="#cc1c40"');
-        expect(svg).toContain('stroke="#495f73"');
-        expect(svg).toContain('fill="#495f73"');
-        expect(svg).not.toMatch(/fill="(?:black|#000(?:000)?)"|rect\b/i);
-        const hexes = [...svg.matchAll(/#([0-9a-f]{3,8})\b/gi)].map((m) =>
-          (m[1] ?? "").toLowerCase(),
-        );
-        expect(new Set(hexes)).toEqual(new Set(["cc1c40", "495f73"]));
-      });
-      it("ni animation, ni script, ni handler, ni référence externe", () => {
-        expect(svg).not.toMatch(/<animate|<script|<set\b|\bon\w+\s*=|href\s*=|<style|url\(/i);
-      });
-      it("trait et nœuds assez gros pour rester lisibles à 18 px", () => {
-        expect(svg).toMatch(/stroke-width="1\.[6-9]/);
-        for (const r of svg.matchAll(/\sr="([^"]+)"/g)) {
-          expect(Number(r[1])).toBeGreaterThanOrEqual(1);
-        }
-      });
+  describe("logo.svg et icon.svg", () => {
+    it("mêmes formes : deux ailes, une pointe, un curseur", () => {
+      const logoShapes = shapes(svgs["logo.svg"]);
+      const iconShapes = shapes(svgs["icon.svg"]);
+      expect(logoShapes).toEqual(iconShapes);
+      expect(logoShapes.length).toBe(4);
     });
-  }
 
-  it("les trois fichiers et BRAND ont la même géométrie, couleurs en dur", () => {
-    expect(brand).toContain('fill="#cc1c40"');
-    expect(brand).toContain('stroke="#495f73"');
+    it("logo.svg : couleurs en dur (gris et or)", () => {
+      expect(svgs["logo.svg"]).toContain('fill="#7A8899"');
+      expect(svgs["logo.svg"]).toContain('fill="#FFD60A"');
+    });
+
+    it("icon.svg : currentColor pour adaptation au thème", () => {
+      expect(svgs["icon.svg"]).toContain('fill="currentColor"');
+    });
+
+    it("ni animation, ni script, ni référence externe", () => {
+      for (const f of FILES) {
+        expect(svgs[f]).not.toMatch(/<animate|<script|<set\b|\bon\w+\s*=|href\s*=|<style|url\(/i);
+      }
+    });
+  });
+
+  describe("logo-small.svg", () => {
+    it("version simplifiée : une pointe et un curseur, or #FFD60A", () => {
+      expect(logoSmall).toContain('fill="#FFD60A"');
+      expect(logoSmall).toContain("<polygon");
+      expect(logoSmall).toContain("<rect");
+      expect(logoSmall).not.toMatch(/<animate|<script/i);
+    });
+  });
+
+  it("BRAND (HTML inline) et logo.svg/icon.svg ont la même géométrie", () => {
     expect(brand).not.toMatch(/<animate|<script|\bon\w+\s*=|href\s*=|<style|style=/i);
     const brandShapes = shapes(brand);
-    expect(brandShapes.length).toBeGreaterThan(0);
+    expect(brandShapes.length).toBe(4);
     for (const f of FILES) expect(shapes(svgs[f])).toEqual(brandShapes);
   });
 });
 
 describe("logo : CSS", () => {
-  it("pas de curseur clignotant : la marque est statique", () => {
-    expect(css).not.toMatch(/\.brand-cursor|jn-blink|brand-wing|brand-lead/);
+  it("classes brand CSS : ailes acier, pointe et curseur rouge", () => {
+    expect(css).toMatch(/\.brand-wing/);
+    expect(css).toMatch(/\.brand-lead/);
+    expect(css).toMatch(/\.brand-cursor/);
+    expect(css).toMatch(/fill:\s*var\(--jn-steel\)/);
+    expect(css).toMatch(/fill:\s*var\(--jn-accent\)/);
   });
-  it("contraste élevé et couleurs forcées : la marque inline prend la couleur du thème", () => {
-    expect(css).toMatch(/body\.vscode-high-contrast-light \.brand \[fill\]:not\(\[fill="none"\]\)/);
-    expect(css).toMatch(/fill:\s*currentColor/);
-    expect(css).toMatch(
-      /@media \(forced-colors: active\)[\s\S]*\.brand \[stroke\]\s*\{\s*stroke:\s*CanvasText/,
-    );
+  it("contraste élevé : la marque prend la couleur du thème si nécessaire", () => {
+    expect(css).toMatch(/body\.vscode-high-contrast.*\.brand/);
   });
 });

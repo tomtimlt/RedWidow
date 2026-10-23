@@ -158,9 +158,11 @@ describe.each(CSS_FILES)("%s : budget de performance (design-chat-ui.md §2)", (
     }
   });
 
-  it("la marque ne clignote pas (plus de jn-blink ni de .brand-cursor)", () => {
+  it("la marque chevrons : classes CSS statiques, pas d'animation", () => {
     if (file !== "chat.css") return;
-    expect(css).not.toMatch(/jn-blink|\.brand-cursor/);
+    expect(css).toMatch(/\.brand-wing/);
+    expect(css).toMatch(/\.brand-cursor/);
+    expect(css).not.toMatch(/jn-blink|@keyframes.*brand/);
   });
 
   it("effets supprimés : sweep, curseur ▍ de #thinking, classes sweep/pop-a/pop-b", () => {
