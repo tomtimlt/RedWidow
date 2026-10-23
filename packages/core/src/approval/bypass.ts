@@ -98,8 +98,9 @@ const MAX_INPUT_DEPTH = 64;
  * Un `deny`, un garde-fou de chemin, un accès à l'hôte, un danger shell ou une commande sans
  * règle restent hors d'atteinte. Un chemin sensible, hors de `workspace` ou non analysable dans
  * l'entrée (arguments Bash, chaînes imbriquées d'un outil) rend la demande non bypassable.
- * L'`ask` `shell.unanalyzable` de `mcp__kali__execute_command` est couvert (ADR 0014) ; un danger
- * de shell ou une commande illisible ne l'est pas, et le verdict ne devient pas mémorisable.
+ * Tout `ask` de `mcp__kali__execute_command` est couvert (ADR 0014) : redirection, chemin,
+ * plusieurs segments, danger ou commande illisible avalés dans `shell.unanalyzable`. Un `deny`
+ * ne l'est pas, et le verdict ne devient pas mémorisable.
  */
 export function isBypassable(
   request: ApprovalRequest,
@@ -108,33 +109,16 @@ export function isBypassable(
   workspace: PolicyContext,
 ): boolean {
   if (verdict.decision !== "ask") return false;
-  const kaliShellAsk = isKaliExecuteAsk(request, verdict);
-  if (!kaliShellAsk && !BYPASSABLE.has(verdict.reason.code)) return false;
+  // Le Bypass de ce shell passe tout l'ask. Un deny est déjà exclu ci-dessus.
+  if (request.tool === KALI_EXECUTE_TOOL) return true;
+  if (!BYPASSABLE.has(verdict.reason.code)) return false;
   // Même test que la gate pour les répertoires externes : le motif `policy.default` seul ne suffit pas.
   if (request.tool === EXTERNAL_DIRECTORY_TOOL || EXTERNAL_PATTERNS_FIELD in request.input) {
     return false;
   }
   if (!inputPathsFree(request, workspace)) return false;
-  if (kaliShellAsk) return kaliExecuteFreeOfHazard(request);
   if (request.tool !== BASH_TOOL) return true;
   return bashBypassable(request, verdict, policy);
-}
-
-/** L'`ask` publié pour le shell du conteneur Kali : jamais un `deny`, jamais un autre outil. */
-function isKaliExecuteAsk(request: ApprovalRequest, verdict: PolicyVerdict): boolean {
-  return request.tool === KALI_EXECUTE_TOOL && verdict.reason.code === "shell.unanalyzable";
-}
-
-/**
- * Le parseur a déjà refusé d'autoriser la commande. On ne confirme ici que l'absence de danger
- * (`bash.hazard` est avalé dans `shell.unanalyzable`). Illisible ou dangereuse : le Bypass ne couvre pas.
- */
-function kaliExecuteFreeOfHazard(request: ApprovalRequest): boolean {
-  const command = request.input.command;
-  if (typeof command !== "string") return false;
-  const parsed = parseShell(command);
-  if (!parsed.ok) return false;
-  return parsed.value.hazards.size === 0;
 }
 
 /**

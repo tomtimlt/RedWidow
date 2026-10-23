@@ -795,19 +795,72 @@ describe("Bypass et mcp__kali__execute_command", () => {
     expect(bypassedDecisions(host.events)).toEqual([]);
   });
 
-  it("Bypass actif : un danger shell ou une commande illisible reste demandé", async () => {
-    const c = clock();
-    const hazard = harness({ bypass: switchOn(c), now: c.now });
-    const hazardOut = await hazard.gate.decide(kaliExec("echo $(id)"), signal);
-    expect(hazardOut).toMatchObject({ source: "user", reason: { code: "shell.unanalyzable" } });
-    expect(hazard.asked()).toBe(1);
-    expect(bypassedDecisions(hazard.events)).toEqual([]);
+  it("Bypass actif : redirection, chemin, segments et danger avalé sont allow sans asker", async () => {
+    const commands = [
+      "go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest 2>&1",
+      "cat /etc/hostname",
+      "ls /tmp && id",
+      "echo $(id)",
+      "echo '",
+    ];
+    for (const command of commands) {
+      const c = clock();
+      const request = kaliExec(command);
+      const verdict = evaluatePolicy(DEFAULT_POLICY, request.tool, request.input, WORKSPACE);
+      expect(verdict).toMatchObject({ decision: "ask", reason: { code: "shell.unanalyzable" } });
+      expect(isBypassable(request, verdict, DEFAULT_POLICY, WORKSPACE)).toBe(true);
+      expect(isRememberable(request, verdict)).toBe(false);
+      const persisted: unknown[] = [];
+      const recorder = createRecorder({ runId: "r" });
+      const events: EngineEvent[] = [];
+      recorder.subscribe((e) => events.push(e));
+      let asked = 0;
+      const gate = createApprovalGate({
+        policy: DEFAULT_POLICY,
+        recorder,
+        workspace: WORKSPACE,
+        bypass: switchOn(c),
+        now: c.now,
+        ask: async () => {
+          asked++;
+          return { decision: "allow", remember: "always" };
+        },
+        persistRule: (rule) => {
+          persisted.push(rule);
+        },
+      });
+      const out = await gate.decide(request, signal);
+      expect(out).toMatchObject({
+        decision: "allow",
+        source: "bypass",
+        reason: { code: "approval.bypassed", cause: { code: "shell.unanalyzable" } },
+      });
+      expect(asked).toBe(0);
+      expect(kinds(events)).not.toContain("approval.requested");
+      expect(bypassedDecisions(events)).toHaveLength(1);
+      expect(persisted).toEqual([]);
+    }
+  });
 
-    const broken = harness({ bypass: switchOn(c), now: c.now });
-    const brokenOut = await broken.gate.decide(kaliExec("echo '"), signal);
-    expect(brokenOut).toMatchObject({ source: "user", reason: { code: "shell.unanalyzable" } });
-    expect(broken.asked()).toBe(1);
-    expect(bypassedDecisions(broken.events)).toEqual([]);
+  it("Bypass actif : un danger dont le verdict est deny n'est pas levé", async () => {
+    const policy: Policy = {
+      default: "deny",
+      rules: [{ tool: "Bash", command: "echo *", decision: "ask" }],
+    };
+    const c = clock();
+    const h = harness({ policy, bypass: switchOn(c), now: c.now });
+    const request = kaliExec("echo $(id)");
+    const verdict = evaluatePolicy(policy, request.tool, request.input, WORKSPACE);
+    expect(verdict).toMatchObject({ decision: "deny", reason: { code: "bash.hazard" } });
+    expect(isBypassable(request, verdict, policy, WORKSPACE)).toBe(false);
+    const out = await h.gate.decide(request, signal);
+    expect(out).toMatchObject({
+      decision: "deny",
+      source: "policy",
+      reason: { code: "bash.hazard" },
+    });
+    expect(h.asked()).toBe(0);
+    expect(bypassedDecisions(h.events)).toEqual([]);
   });
 
   it("sans Bypass, la carte ask reste et always n'écrit aucune règle", async () => {
@@ -828,7 +881,9 @@ describe("Bypass et mcp__kali__execute_command", () => {
         persisted.push(rule);
       },
     });
-    const request = kaliExec("id");
+    const request = kaliExec(
+      "go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest 2>&1",
+    );
     expect(
       isRememberable(
         request,
