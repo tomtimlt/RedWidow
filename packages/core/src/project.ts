@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import type { DockerClient } from "./docker/client.js";
@@ -122,6 +122,7 @@ async function writeProjectFile(configDir: string, file: ProjectFile): Promise<v
   const temp = `${path}.${process.pid}.tmp`;
   await writeFile(temp, `${JSON.stringify(file, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
   await renameWithRetry(temp, path);
+  await chmod(path, 0o600);
 }
 
 /**

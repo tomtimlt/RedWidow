@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { projectFindingsPath } from "../project.js";
 import { CodedError } from "../reason.js";
@@ -155,5 +155,6 @@ export async function appendFinding(
   const temp = `${path}.${process.pid}.tmp`;
   await writeFile(temp, `${JSON.stringify(next, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
   await rename(temp, path);
+  await chmod(path, 0o600);
   return finding;
 }
