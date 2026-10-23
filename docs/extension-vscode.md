@@ -8,7 +8,7 @@ Extension privée (ADR 0004, lots E3 + E4) : chat d'agent dans VS Code, avec une
 pnpm install --frozen-lockfile
 pnpm build
 pnpm --filter @warband/vscode package        # cible win32-x64 par défaut
-code --install-extension packages/vscode/warband-0.3.8-win32-x64.vsix
+code --install-extension packages/vscode/warband-0.3.10-win32-x64.vsix
 ```
 
 Raccourci : `pnpm maj` (ou `node scripts/update.mjs`). Il enchaîne `git pull --ff-only`, `pnpm install`, `pnpm build`, l'empaquetage et `code --install-extension --force`. Options : `--check` (ajoute `pnpm check`), `--no-install`, `--dry-run`, `--target=…`. Recharger ensuite la fenêtre VS Code.

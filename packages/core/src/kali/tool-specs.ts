@@ -51,12 +51,13 @@ interface KaliToolDef {
 }
 
 /**
- * Un seul `#` en tête, après le trim que la résolution refera.
+ * Un seul `#` ou `@` en tête, après le trim que la résolution refera.
+ * `##` et `@@` n'en perdent qu'un : le reste est refusé.
  * Le texte du chat et `resolveExegolContainer` ne passent pas ici.
  */
 function containerToken(value: string): string {
   const name = value.trim();
-  return name.startsWith("#") ? name.slice(1) : name;
+  return name.startsWith("#") || name.startsWith("@") ? name.slice(1) : name;
 }
 
 function textField(args: Record<string, unknown>, key: string): string | undefined {

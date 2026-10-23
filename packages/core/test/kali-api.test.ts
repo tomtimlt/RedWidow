@@ -232,6 +232,49 @@ describe("appel HTTP Kali", () => {
     expect(await calls()).toEqual([]);
   });
 
+  it("un @ en tête du champ container résout le Kali cité", async () => {
+    const { tool, calls } = await harness(
+      "up",
+      [kali("frosty_margulis", "running", "/host/kali")],
+      null,
+      "regarde @frosty_margulis",
+    );
+    await tool("server_health").run({ container: "@frosty_margulis" }, ctx);
+    const logged = await calls();
+    expect(logged[0]?.argv).toEqual(MKDIR("frosty_margulis"));
+    expect(logged.flatMap((c) => c.argv).join("\n")).not.toContain("@frosty_margulis");
+    expect(JSON.parse(logged.at(-1)?.stdin ?? "")).toEqual({ method: "GET", path: "/health" });
+  });
+
+  it("un @ en tête résout le Kali désigné par #", async () => {
+    const { tool, calls } = await harness(
+      "up",
+      [kali("frosty_margulis", "running", "/host/kali")],
+      null,
+      "regarde #frosty_margulis",
+    );
+    await tool("server_health").run({ container: "@frosty_margulis" }, ctx);
+    const logged = await calls();
+    expect(logged[0]?.argv).toEqual(MKDIR("frosty_margulis"));
+    expect(logged.flatMap((c) => c.argv).join("\n")).not.toContain("@frosty_margulis");
+  });
+
+  it("un second @ en tête n'est pas retiré", async () => {
+    const { tool, calls } = await harness(
+      "up",
+      [kali("frosty_margulis", "running", "/host/kali")],
+      null,
+      "regarde @frosty_margulis",
+    );
+    await expect(
+      tool("server_health").run({ container: "@@frosty_margulis" }, ctx),
+    ).rejects.toMatchObject({
+      code: "exegol.containerDenied",
+      params: { name: "@frosty_margulis" },
+    });
+    expect(await calls()).toEqual([]);
+  });
+
   it("mkdir refusé : kali.unavailable, sans démarrage", async () => {
     const { tool, calls } = await harness("nomkdir", rows);
     const error = await tool("server_health")

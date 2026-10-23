@@ -80,6 +80,37 @@ describe("cibles Exegol", () => {
     ).toThrow(expect.objectContaining(denied));
   });
 
+  it("refuse un Kali même quand le nom demandé est le bon", () => {
+    const kali = [{ name: "frosty_margulis", family: "kali" as const }];
+    const denied = { code: "exegol.containerDenied", params: { name: "frosty_margulis" } };
+    expect(() =>
+      resolveExegolContainer(
+        { dedicated: "frosty_margulis", mentions: [] },
+        "frosty_margulis",
+        kali,
+      ),
+    ).toThrow(expect.objectContaining(denied));
+    expect(() =>
+      resolveExegolContainer(
+        { dedicated: null, mentions: ["frosty_margulis"], hashes: ["frosty_margulis"] },
+        "frosty_margulis",
+        kali,
+      ),
+    ).toThrow(expect.objectContaining(denied));
+    expect(() =>
+      resolveExegolContainer(
+        { dedicated: "frosty_margulis", mentions: ["frosty_margulis"] },
+        "@frosty_margulis",
+        kali,
+      ),
+    ).toThrow(
+      expect.objectContaining({
+        code: "exegol.containerDenied",
+        params: { name: "@frosty_margulis" },
+      }),
+    );
+  });
+
   it("refuse un Exegol, un nom hors liste, un @ non cité et un dédié qui n'est pas ce Kali", () => {
     const kali = (name: string) => ({ name, family: "kali" as const });
     const listed = [kali("k1"), kali("k2"), exegol("lab")];
