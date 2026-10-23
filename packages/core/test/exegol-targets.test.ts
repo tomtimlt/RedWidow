@@ -204,6 +204,105 @@ describe("cibles Exegol", () => {
       ),
     ).toThrow(expect.objectContaining(denied));
   });
+
+  it("un suivi sans @ ni # réutilise le dernier Kali désigné", () => {
+    const box = { name: "frosty_margulis", family: "kali" as const };
+    const targets = createExegolTargets();
+    targets.note("essaie #frosty_margulis", null);
+    targets.note("vasy", null);
+    expect(targets.current()).toEqual({
+      dedicated: null,
+      mentions: [],
+      hashes: [],
+      recall: [{ sigil: "#", token: "frosty_margulis" }],
+    });
+    expect(resolveKaliContainer(targets.current(), "frosty_margulis", [box])).toBe(
+      "frosty_margulis",
+    );
+    const denied = { code: "exegol.containerDenied" };
+    expect(() => resolveExegolContainer(targets.current(), "frosty_margulis", [box])).toThrow(
+      expect.objectContaining(denied),
+    );
+    const asExegol = [{ name: "frosty_margulis", family: "exegol" as const }];
+    expect(() => resolveExegolContainer(targets.current(), "frosty_margulis", asExegol)).toThrow(
+      expect.objectContaining(denied),
+    );
+  });
+
+  it("un nouveau @ ou # remplace le Kali retenu et tient lieu du dédié", () => {
+    const kali = (name: string) => ({ name, family: "kali" as const });
+    const listed = [kali("frosty_margulis"), kali("autre")];
+    const denied = { code: "exegol.containerDenied" };
+    const targets = createExegolTargets();
+    targets.note("vois @frosty_margulis", "frosty_margulis");
+    targets.note("vasy", "frosty_margulis");
+    expect(resolveKaliContainer(targets.current(), "frosty_margulis", listed)).toBe(
+      "frosty_margulis",
+    );
+    targets.note("plutôt #autre", "frosty_margulis");
+    targets.note("vasy", "frosty_margulis");
+    expect(resolveKaliContainer(targets.current(), "autre", listed)).toBe("autre");
+    expect(() => resolveKaliContainer(targets.current(), "frosty_margulis", listed)).toThrow(
+      expect.objectContaining(denied),
+    );
+    const order = createExegolTargets();
+    order.note("d'abord #frosty_margulis puis #autre", null);
+    order.note("vasy", null);
+    expect(resolveKaliContainer(order.current(), "autre", listed)).toBe("autre");
+    expect(() => resolveKaliContainer(order.current(), "frosty_margulis", listed)).toThrow(
+      expect.objectContaining(denied),
+    );
+    const exegol = createExegolTargets();
+    exegol.note("scan @lab", null);
+    exegol.note("vasy", null);
+    const lab = [{ name: "lab", family: "exegol" as const }];
+    expect(() => resolveExegolContainer(exegol.current(), "lab", lab)).toThrow(
+      expect.objectContaining(denied),
+    );
+  });
+
+  it("sans désignation, le suivi reste le dédié ; la sortie collée ne change pas le rappel", () => {
+    const kali = (name: string) => ({ name, family: "kali" as const });
+    const plain = createExegolTargets();
+    plain.note("bonjour", "k1");
+    plain.note("vasy", "k1");
+    expect(plain.current().recall).toBeUndefined();
+    expect(resolveKaliContainer(plain.current(), "k1", [kali("k1"), kali("k2")])).toBe("k1");
+    expect(() => resolveKaliContainer(plain.current(), "k2", [kali("k1"), kali("k2")])).toThrow(
+      expect.objectContaining({ code: "exegol.containerDenied" }),
+    );
+    const targets = createExegolTargets();
+    targets.note("essaie #frosty_margulis-2", null);
+    targets.note(`vasy${TERMINAL_CONTEXT_MARK}#evil`, null);
+    expect(targets.current().recall).toEqual([{ sigil: "#", token: "frosty_margulis-2" }]);
+    expect(
+      resolveKaliContainer(targets.current(), "frosty_margulis", [kali("frosty_margulis")]),
+    ).toBe("frosty_margulis");
+  });
+
+  it("un jeton qui ne désigne pas un Kali ne remplace pas le précédent", () => {
+    const kali = (name: string) => ({ name, family: "kali" as const });
+    const listed = [kali("frosty_margulis"), kali("k1")];
+    const denied = { code: "exegol.containerDenied" };
+    const targets = createExegolTargets();
+    targets.note("essaie #frosty_margulis", "k1");
+    targets.note("vois #pas-un-conteneur", "k1");
+    targets.note("vasy", "k1");
+    expect(resolveKaliContainer(targets.current(), "frosty_margulis", listed)).toBe(
+      "frosty_margulis",
+    );
+    expect(() => resolveKaliContainer(targets.current(), "k1", listed)).toThrow(
+      expect.objectContaining(denied),
+    );
+    const only = createExegolTargets();
+    only.note("scan @lab", "k1");
+    only.note("vasy", "k1");
+    const mixed = [kali("k1"), { name: "lab", family: "exegol" as const }];
+    expect(resolveKaliContainer(only.current(), "k1", mixed)).toBe("k1");
+    expect(() => resolveExegolContainer(only.current(), "lab", mixed)).toThrow(
+      expect.objectContaining(denied),
+    );
+  });
 });
 
 describe("docker execWorkspace", () => {

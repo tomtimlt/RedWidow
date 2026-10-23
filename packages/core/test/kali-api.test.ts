@@ -67,6 +67,7 @@ async function harness(
   rows: readonly LabelPrefixContainer[],
   dedicated: string | null = "kali-box",
   prompt = "",
+  follow?: string,
 ) {
   const dir = await mkdtemp(join(tmpdir(), "warband-kali-"));
   const script = join(dir, "docker.mjs");
@@ -91,6 +92,7 @@ process.exit(2);
   );
   const targets = createExegolTargets();
   targets.note(prompt, dedicated);
+  if (follow !== undefined) targets.note(follow, dedicated);
   const api = createKaliApi({
     recorder: createRecorder(),
     binary: process.execPath,
@@ -273,6 +275,26 @@ describe("appel HTTP Kali", () => {
       params: { name: "@frosty_margulis" },
     });
     expect(await calls()).toEqual([]);
+  });
+
+  it("un suivi « vasy » réutilise le Kali désigné par #", async () => {
+    const { tool, calls } = await harness(
+      "up",
+      [kali("frosty_margulis", "running", "/host/kali"), kali("autre", "running", "/host/autre")],
+      "autre",
+      "essaie #frosty_margulis",
+      "vasy",
+    );
+    await tool("server_health").run({ container: "frosty_margulis" }, ctx);
+    const logged = await calls();
+    expect(logged[0]?.argv).toEqual(MKDIR("frosty_margulis"));
+    expect(logged.flatMap((c) => c.argv).join("\n")).not.toContain("#frosty_margulis");
+    await expect(
+      tool("execute_command").run({ container: "autre", command: "true" }, ctx),
+    ).rejects.toMatchObject({
+      code: "exegol.containerDenied",
+      params: { name: "autre" },
+    });
   });
 
   it("mkdir refusé : kali.unavailable, sans démarrage", async () => {

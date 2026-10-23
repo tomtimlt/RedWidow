@@ -2,6 +2,8 @@ import { CodedError } from "../reason.js";
 
 const MENTION = /(?:^|[\s(])@([A-Za-z0-9][A-Za-z0-9_.-]{0,63})/g;
 const HASH = /(?:^|[\s(])#([A-Za-z0-9][A-Za-z0-9_.-]{0,63})/g;
+/** `@` et `#` du texte, dans l'ordre. Même jeton que `MENTION` et `HASH`. */
+const KALI_TOKEN = /(?:^|[\s(])([@#])([A-Za-z0-9][A-Za-z0-9_.-]{0,63})/g;
 /** Shell au-delà du premier : `#court-2` … `#court-4`. L'indice 1 est le nom court. */
 const SHELL_SUFFIX = /-([2-4])$/;
 
@@ -66,6 +68,23 @@ function collectTokens(text: string, pattern: RegExp): string[] {
   return out;
 }
 
+/** Jeton `@` ou `#` du fil. `@` nomme, `#` désigne (nom, court nom ou shell). */
+export interface KaliRecall {
+  sigil: "@" | "#";
+  token: string;
+}
+
+/** `@` et `#` du texte, dans l'ordre d'apparition. */
+function kaliTokens(text: string): KaliRecall[] {
+  const out: KaliRecall[] = [];
+  for (const match of text.matchAll(KALI_TOKEN)) {
+    const sigil = match[1];
+    const token = match[2];
+    if ((sigil === "@" || sigil === "#") && token !== undefined) out.push({ sigil, token });
+  }
+  return out;
+}
+
 /**
  * Conteneur unique désigné par un jeton : nom complet, nom court, ou shell
  * (`court-2` … `court-4`). Toute la liste compte. Absent ou ambigu : `null`.
@@ -100,6 +119,12 @@ export interface ExegolTarget {
    * sur le conteneur unique qu'ils désignent. `resolveExegolContainer` les ignore.
    */
   hashes?: readonly string[];
+  /**
+   * `@` et `#` du fil, du plus ancien au plus récent, seulement quand ce message
+   * n'en a aucun. Le plus récent qui désigne un Kali tient lieu du dédié.
+   * `resolveExegolContainer` l'ignore.
+   */
+  recall?: readonly KaliRecall[];
 }
 
 /** Résolution commune : seules les entrées de `family` comptent. Un champ absent est ignoré. */
@@ -139,10 +164,27 @@ export function resolveExegolContainer(
 }
 
 /**
+ * Kali de la liste désigné par ce jeton, ou `null`.
+ * Un `@` ne compte que sur la liste Kali. Un `#` compte le shell, puis seulement si c'est un Kali.
+ */
+function designatedKali(
+  recall: KaliRecall,
+  listed: readonly NamedContainer[],
+  containers: readonly NamedContainer[],
+): string | null {
+  if (recall.sigil === "@") return lookupContainer(recall.token, listed);
+  const name = containerDesignatedBy(recall.token, containers);
+  if (name === null || !listed.some((c) => c.name === name)) return null;
+  return name;
+}
+
+/**
  * Nom Docker autorisé pour un outil Kali. Même règles que `resolveExegolContainer`
  * pour `@` et le dédié, sur les seules entrées `family === "kali"`.
  * Un `#` qui désigne un seul conteneur de la liste (nom complet, court, ou shell)
  * autorise ce conteneur, sans `@`. Un dédié Exegol ne résout pas un Kali.
+ * Sans `@` ni `#` dans le message, le `@` ou `#` le plus récent du fil qui désigne
+ * un Kali tient lieu du dédié. Un jeton qui n'en désigne pas ne le remplace pas.
  */
 export function resolveKaliContainer(
   target: ExegolTarget,
@@ -156,10 +198,25 @@ export function resolveKaliContainer(
     lookupContainer(name, listed) ??
     (fromShell !== null && listed.some((c) => c.name === fromShell) ? fromShell : null);
   if (real === null) throw new CodedError("exegol.containerDenied", { name });
+  const hashes = target.hashes ?? [];
+  const stack = target.recall;
+  if (
+    target.mentions.length === 0 &&
+    hashes.length === 0 &&
+    stack !== undefined &&
+    stack.length > 0
+  ) {
+    for (let i = stack.length - 1; i >= 0; i--) {
+      const item = stack[i];
+      if (item === undefined) continue;
+      const designated = designatedKali(item, listed, containers);
+      if (designated === null) continue;
+      if (designated !== real) throw new CodedError("exegol.containerDenied", { name });
+      return real;
+    }
+  }
   const citedAt = target.mentions.some((mention) => lookupContainer(mention, listed) === real);
-  const citedHash = (target.hashes ?? []).some(
-    (hash) => containerDesignatedBy(hash, containers) === real,
-  );
+  const citedHash = hashes.some((hash) => containerDesignatedBy(hash, containers) === real);
   if (citedAt || citedHash) return real;
   if (target.mentions.length > 0) throw new CodedError("exegol.containerDenied", { name });
   if (target.dedicated === null || lookupContainer(target.dedicated, listed) !== real) {
@@ -176,15 +233,19 @@ export interface ExegolTargets {
 
 export function createExegolTargets(): ExegolTargets {
   let target: ExegolTarget = { dedicated: null, mentions: [], hashes: [] };
+  const recall: KaliRecall[] = [];
   return {
     current: () => target,
     note(text, dedicated) {
       const prompt = promptForTargets(text);
-      target = {
-        dedicated,
-        mentions: parseMentions(prompt),
-        hashes: parseHashes(prompt),
-      };
+      const mentions = parseMentions(prompt);
+      const hashes = parseHashes(prompt);
+      const named = kaliTokens(prompt);
+      if (named.length > 0) recall.push(...named);
+      target = { dedicated, mentions, hashes };
+      if (mentions.length === 0 && hashes.length === 0 && recall.length > 0) {
+        target = { ...target, recall: recall.slice() };
+      }
     },
   };
 }
