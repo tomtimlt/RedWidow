@@ -15,7 +15,6 @@ import {
   EXTERNAL_DIRECTORY_TOOL,
   EXTERNAL_PATTERNS_FIELD,
   evaluatePolicy,
-  isBypassable,
   isRememberable,
   KALI_EXECUTE_TOOL,
   KALI_TOOL_PREFIX,
@@ -172,37 +171,6 @@ describe("createBypassSwitch", () => {
       expect(sw.lastOffReason()).toBe("bypass.disabled");
     },
   );
-});
-
-describe("isBypassable", () => {
-  const verdictOf = (request: ApprovalRequest, policy: Policy = ASK_POLICY) => {
-    const verdict = evaluatePolicy(policy, request.tool, request.input, WORKSPACE);
-    return isBypassable(request, verdict, policy, WORKSPACE);
-  };
-
-  it("couvre une règle ask explicite et l'absence de règle, hors Bash", () => {
-    expect(verdictOf(mcp())).toBe(true);
-    expect(verdictOf({ toolUseId: "x", tool: "mcp__other__y", input: {} })).toBe(true);
-  });
-
-  it("ne couvre jamais un deny ni un verdict d'un autre motif", () => {
-    expect(verdictOf({ toolUseId: "x", tool: "mcp__demo__deny", input: {} })).toBe(false);
-    expect(verdictOf(bash("sudo ls"), DEFAULT_POLICY)).toBe(false);
-  });
-
-  it("couvre une commande Bash simple dont la règle a un premier mot littéral", () => {
-    expect(verdictOf(bash("git status"))).toBe(true);
-  });
-
-  it("ne couvre pas une règle Bash sans command ni un premier mot en joker", () => {
-    const noCommand: Policy = { default: "ask", rules: [{ tool: "Bash", decision: "ask" }] };
-    expect(verdictOf(bash("git status"), noCommand)).toBe(false);
-    const wildcard: Policy = {
-      default: "ask",
-      rules: [{ tool: "Bash", command: "* status", decision: "ask" }],
-    };
-    expect(verdictOf(bash("git status"), wildcard)).toBe(false);
-  });
 });
 
 describe("Bypass dans la gate : refus durs levés par l'override (ADR 0017)", () => {
@@ -568,18 +536,6 @@ describe("Bypass dans la gate : transitions et état", () => {
   });
 });
 
-/** Système de fichiers fictif : `/ws` est l'espace de travail ; `/ws/link` pointe hors de lui. */
-const FAKE_FS: PolicyContext = {
-  cwd: "/ws",
-  platform: "posix",
-  home: "/home/u",
-  realpath: (p) => {
-    if (p === "/ws/link") return "/etc/passwd";
-    if (p === "/ws" || p.startsWith("/ws/")) return p;
-    throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
-  },
-};
-
 /** Fichier sensible du répertoire personnel (`~/.ssh/id_rsa`), absolu. */
 const SENSITIVE = join(homedir(), ".ssh", "id_rsa");
 
@@ -588,72 +544,6 @@ const CAT_POLICY: Policy = {
   default: "ask",
   rules: [{ tool: "Bash", command: "cat *", decision: "ask" }],
 };
-
-/** Verdict de la politique puis `isBypassable`, dans le contexte donné. */
-const bypassableIn = (request: ApprovalRequest, policy: Policy, ws: PolicyContext = WORKSPACE) =>
-  isBypassable(request, evaluatePolicy(policy, request.tool, request.input, ws), policy, ws);
-
-describe("isBypassable : chemins de l'entrée (garde-fous jamais contournés)", () => {
-  it("une commande Bash sur un chemin absolu sensible ou hors espace reste non bypassable", () => {
-    expect(bypassableIn(bash(`cat ${SENSITIVE}`), CAT_POLICY)).toBe(false);
-    expect(bypassableIn(bash("cat /opt/hors/x"), CAT_POLICY)).toBe(false);
-  });
-
-  it("un argument Bash lié par `=` ou attaché à une option est contrôlé", () => {
-    expect(bypassableIn(bash(`cat --file=${SENSITIVE}`), CAT_POLICY)).toBe(false);
-    expect(bypassableIn(bash("cat -f/opt/hors/x"), CAT_POLICY)).toBe(false);
-  });
-
-  it("un lien symbolique du dépôt pointant hors de l'espace de travail reste non bypassable", () => {
-    expect(bypassableIn(bash("cat link"), CAT_POLICY, FAKE_FS)).toBe(false);
-    expect(bypassableIn(bash("cat src/a.ts"), CAT_POLICY, FAKE_FS)).toBe(true);
-  });
-
-  it("un chemin hors espace ou sensible dans une chaîne d'un outil (même imbriquée) reste non bypassable", () => {
-    const mcpWith = (input: Record<string, unknown>): ApprovalRequest => ({
-      toolUseId: "m",
-      tool: "mcp__demo__ask",
-      input,
-    });
-    expect(bypassableIn(mcpWith({ path: "/etc/passwd" }), ASK_POLICY)).toBe(false);
-    expect(bypassableIn(mcpWith({ opts: { items: [{ src: "/opt/hors/x" }] } }), ASK_POLICY)).toBe(
-      false,
-    );
-    expect(bypassableIn(mcpWith({ note: `voir ${SENSITIVE}` }), ASK_POLICY)).toBe(false);
-    expect(bypassableIn(mcpWith({ text: "$HOME/.ssh/id_rsa" }), ASK_POLICY)).toBe(false);
-    expect(bypassableIn(mcpWith({ text: "~other/secret" }), ASK_POLICY)).toBe(false);
-  });
-
-  it("une entrée trop profondément imbriquée n'est pas explorée : refus de bypass (fail-closed)", () => {
-    let deep: unknown = "x";
-    for (let i = 0; i < 70; i++) deep = { n: deep };
-    expect(
-      bypassableIn({ toolUseId: "d", tool: "mcp__demo__ask", input: { deep } }, ASK_POLICY),
-    ).toBe(false);
-  });
-
-  it("contre-exemple : un chemin DANS l'espace de travail reste bypassable", () => {
-    expect(bypassableIn(bash("cat src/a.ts"), CAT_POLICY)).toBe(true);
-    // `%` dans un argument Bash (format de `git log`) n'est pas un chemin à refuser.
-    const gitFormat: Policy = {
-      default: "ask",
-      rules: [{ tool: "Bash", command: "git log *", decision: "ask" }],
-    };
-    expect(bypassableIn(bash("git log --format=%H/%s"), gitFormat)).toBe(true);
-    const inside = {
-      toolUseId: "i",
-      tool: "mcp__demo__ask",
-      input: { path: join(process.cwd(), "src", "a.ts") },
-    };
-    expect(bypassableIn(inside, ASK_POLICY)).toBe(true);
-    expect(
-      bypassableIn(
-        { toolUseId: "r", tool: "mcp__demo__ask", input: { path: "src/a.ts" } },
-        ASK_POLICY,
-      ),
-    ).toBe(true);
-  });
-});
 
 describe("Bypass dans la gate : chemins, constats et plateformes", () => {
   it("un danger shell (redirection) sur une règle ask est levé par l'override", async () => {
@@ -871,7 +761,6 @@ describe("Bypass et mcp__kali__execute_command", () => {
       const request = kaliExec(command);
       const verdict = evaluatePolicy(DEFAULT_POLICY, request.tool, request.input, WORKSPACE);
       expect(verdict).toMatchObject({ decision: "ask", reason: { code: "shell.unanalyzable" } });
-      expect(isBypassable(request, verdict, DEFAULT_POLICY, WORKSPACE)).toBe(true);
       expect(isRememberable(request, verdict)).toBe(false);
       const persisted: unknown[] = [];
       const recorder = createRecorder({ runId: "r" });
@@ -905,7 +794,7 @@ describe("Bypass et mcp__kali__execute_command", () => {
     }
   });
 
-  it("Bypass actif : un danger dont le verdict est deny est aussi levé par l'override (isBypassable, lui, reste faux)", async () => {
+  it("Bypass actif : un danger dont le verdict est deny est aussi levé par l'override", async () => {
     const policy: Policy = {
       default: "deny",
       rules: [{ tool: "Bash", command: "echo *", decision: "ask" }],
@@ -915,7 +804,6 @@ describe("Bypass et mcp__kali__execute_command", () => {
     const request = kaliExec("echo $(id)");
     const verdict = evaluatePolicy(policy, request.tool, request.input, WORKSPACE);
     expect(verdict).toMatchObject({ decision: "deny", reason: { code: "bash.hazard" } });
-    expect(isBypassable(request, verdict, policy, WORKSPACE)).toBe(false);
     const out = await h.gate.decide(request, signal);
     expect(out).toMatchObject({
       decision: "allow",
@@ -967,62 +855,9 @@ describe("Bypass et mcp__kali__execute_command", () => {
     expect(asked).toBe(2);
     expect(persisted).toEqual([]);
   });
-
-  it("isBypassable est faux pour un deny : sudo et montage hôte", () => {
-    const sudo = kaliExec("sudo id");
-    const sudoVerdict = evaluatePolicy(DEFAULT_POLICY, sudo.tool, sudo.input, WORKSPACE);
-    expect(sudoVerdict.decision).toBe("deny");
-    expect(isBypassable(sudo, sudoVerdict, DEFAULT_POLICY, WORKSPACE)).toBe(false);
-    const host = kaliExec("docker run -v /:/h x");
-    const hostVerdict = evaluatePolicy(DEFAULT_POLICY, host.tool, host.input, WORKSPACE);
-    expect(hostVerdict).toMatchObject({ decision: "deny", reason: { code: "docker.hostAccess" } });
-    expect(isBypassable(host, hostVerdict, DEFAULT_POLICY, WORKSPACE)).toBe(false);
-  });
 });
 
-describe("Bypass et les onze outils Kali structurés", () => {
-  /** Une entrée par outil, avec un jeton « chemin » qui ferait échouer `inputPathsFree`. */
-  const cases: Array<[string, Record<string, unknown>]> = [
-    ["nmap_scan", { target: "http://exemple.test", additional_args: "-oN /tmp/scan.txt" }],
-    [
-      "gobuster_scan",
-      { url: "http://exemple.test", wordlist: "/usr/share/wordlists/dirb/common.txt" },
-    ],
-    ["dirb_scan", { url: "http://exemple.test", wordlist: "/usr/share/wordlists/dirb/common.txt" }],
-    ["nikto_scan", { target: "http://exemple.test" }],
-    ["sqlmap_scan", { url: "http://exemple.test/?id=1" }],
-    [
-      "metasploit_run",
-      { module: "exploit/multi/handler", options: { LHOST: "http://exemple.test" } },
-    ],
-    [
-      "hydra_attack",
-      { target: "exemple.test", service: "ssh", password_file: "/usr/share/wordlists/rockyou.txt" },
-    ],
-    ["john_crack", { hash_file: "/tmp/hashes.txt", wordlist: "/usr/share/wordlists/rockyou.txt" }],
-    ["wpscan_analyze", { url: "http://exemple.test" }],
-    ["enum4linux_scan", { target: "http://exemple.test" }],
-    ["server_health", {}],
-  ];
-
-  it.each(cases)("%s : ask avec un chemin/URL est bypassable", (name, input) => {
-    const request = kaliTool(name, input);
-    const verdict = evaluatePolicy(DEFAULT_POLICY, request.tool, request.input, WORKSPACE);
-    expect(verdict.decision).toBe("ask");
-    expect(isBypassable(request, verdict, DEFAULT_POLICY, WORKSPACE)).toBe(true);
-  });
-
-  it("un deny de règle sur un outil Kali structuré n'est jamais bypassable", () => {
-    const policy: Policy = {
-      default: "ask",
-      rules: [{ tool: `${KALI_TOOL_PREFIX}nmap_scan`, decision: "deny" }],
-    };
-    const request = kaliTool("nmap_scan", { target: "http://exemple.test" });
-    const verdict = evaluatePolicy(policy, request.tool, request.input, WORKSPACE);
-    expect(verdict.decision).toBe("deny");
-    expect(isBypassable(request, verdict, policy, WORKSPACE)).toBe(false);
-  });
-
+describe("Bypass et les outils Kali structurés", () => {
   it("un deny de règle sur un outil Kali structuré est aussi levé par l'override, Bypass actif", async () => {
     const policy: Policy = {
       default: "ask",
@@ -1069,64 +904,22 @@ describe("Bypass et les onze outils Kali structurés", () => {
     expect(bypassedDecisions(h.events)).toHaveLength(1);
   });
 
-  it("ne capte pas un nom qui ne commence pas exactement par mcp__kali__", () => {
-    const other = { toolUseId: "o", tool: "mcp__kali_autre__x", input: {} };
-    const otherVerdict = evaluatePolicy(DEFAULT_POLICY, other.tool, other.input, WORKSPACE);
-    // Sans règle dédiée : ask par défaut, et non capté par le préfixe exact -> dépend du chemin générique.
-    expect(otherVerdict.decision).toBe("ask");
-    expect(isBypassable(other, otherVerdict, DEFAULT_POLICY, WORKSPACE)).toBe(true); // policy.default, pas de chemin dans l'entrée
-    const otherWithPath = {
-      toolUseId: "o2",
-      tool: "mcp__kalix__y",
-      input: { file: "/tmp/x" },
-    };
-    const otherWithPathVerdict = evaluatePolicy(
-      DEFAULT_POLICY,
-      otherWithPath.tool,
-      otherWithPath.input,
-      WORKSPACE,
-    );
-    expect(otherWithPathVerdict.decision).toBe("ask");
-    // Chemin hors espace de travail : non bypassable, car ce nom n'est pas mcp__kali__*.
-    expect(isBypassable(otherWithPath, otherWithPathVerdict, DEFAULT_POLICY, WORKSPACE)).toBe(
-      false,
-    );
-  });
-
-  const exegolCases: Array<[string, Record<string, unknown>]> = [
-    ["exec", { container: "c", argv: ["curl", "http://exemple.test", "-o", "/tmp/x"] }],
-    ["exec", { container: "c", argv: ["cat", "/etc/hosts"] }],
-    ["note", { label: "voir http://exemple.test et /tmp/x" }],
-    ["remember", { text: "cible http://exemple.test, notes dans /etc/hosts" }],
-  ];
-
-  it.each(exegolCases)(
-    "mcp__exegol__%s : ask avec URL/chemin hors espace est bypassable",
-    (name, input) => {
-      const request = { toolUseId: "e", tool: `${EXEGOL_TOOL_PREFIX}${name}`, input };
-      const verdict = evaluatePolicy(DEFAULT_POLICY, request.tool, request.input, WORKSPACE);
-      expect(verdict.decision).toBe("ask");
-      expect(isBypassable(request, verdict, DEFAULT_POLICY, WORKSPACE)).toBe(true);
-    },
-  );
-
-  it("un deny sur un outil Exegol n'est jamais bypassable", () => {
+  // La gate n'a plus de traitement particulier par préfixe d'outil (ADR 0017) : un outil Exegol
+  // suit exactement le même chemin que n'importe quel autre, via l'override universel.
+  it("un deny sur un outil Exegol est lui aussi levé par l'override, Bypass actif", async () => {
     const policy: Policy = {
       default: "ask",
       rules: [{ tool: `${EXEGOL_TOOL_PREFIX}exec`, decision: "deny" }],
     };
+    const c = clock();
+    const h = harness({ policy, bypass: switchOn(c), now: c.now });
     const request = { toolUseId: "e", tool: `${EXEGOL_TOOL_PREFIX}exec`, input: { argv: ["id"] } };
-    const verdict = evaluatePolicy(policy, request.tool, request.input, WORKSPACE);
-    expect(verdict.decision).toBe("deny");
-    expect(isBypassable(request, verdict, policy, WORKSPACE)).toBe(false);
-  });
-
-  it("ne capte pas un nom qui ne commence pas exactement par mcp__exegol__", () => {
-    for (const tool of ["mcp__exegolx__y", "mcp__exegol_autre__z"]) {
-      const request = { toolUseId: "e", tool, input: { file: "/tmp/x" } };
-      const verdict = evaluatePolicy(DEFAULT_POLICY, request.tool, request.input, WORKSPACE);
-      expect(verdict.decision).toBe("ask");
-      expect(isBypassable(request, verdict, DEFAULT_POLICY, WORKSPACE)).toBe(false);
-    }
+    const out = await h.gate.decide(request, signal);
+    expect(out).toMatchObject({
+      decision: "allow",
+      source: "bypass",
+      reason: { code: "approval.override" },
+    });
+    expect(bypassedDecisions(h.events)).toHaveLength(1);
   });
 });
