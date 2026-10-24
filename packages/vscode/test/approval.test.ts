@@ -73,6 +73,7 @@ describe("parseWebviewMessage", () => {
       text: "salut",
     });
     expect(parseWebviewMessage({ type: "stop" })).toEqual({ type: "stop" });
+    expect(parseWebviewMessage({ type: "openMonitor" })).toEqual({ type: "openMonitor" });
     expect(parseWebviewMessage({ type: "openKillchain" })).toEqual({ type: "openKillchain" });
     expect(parseWebviewMessage({ type: "approve", toolUseId: "a", choice: "always" })).toEqual({
       type: "approve",
@@ -87,6 +88,7 @@ describe("parseWebviewMessage", () => {
       [],
       { type: "autre" },
       { type: "stop", extra: 1 },
+      { type: "openMonitor", extra: 1 },
       { type: "openKillchain", extra: 1 },
       { type: "send", text: "  " },
       { type: "send", text: "x".repeat(100_001) },

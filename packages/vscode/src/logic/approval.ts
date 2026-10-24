@@ -88,7 +88,9 @@ export type WebviewMessage =
   /** Mode apprentissage (ADR 0010) de ce chat : seul champ, appliqué au message suivant. */
   | { type: "setLearning"; enabled: boolean }
   /** Ouvre la Kill chain en vue plein écran. Aucun champ. */
-  | { type: "openKillchain" };
+  | { type: "openKillchain" }
+  /** Ouvre le panneau Monitor. Aucun champ : l'hôte seul choisit la colonne. */
+  | { type: "openMonitor" };
 
 /** Valide un message venu de la webview (non fiable) : forme exacte, sinon `null`. */
 export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
@@ -135,6 +137,7 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
     case "addProvider":
     case "ready":
     case "openKillchain":
+    case "openMonitor":
       return only("type") ? { type: m.type } : null;
     case "setBypass":
       return only("type", "enabled") && typeof m.enabled === "boolean"

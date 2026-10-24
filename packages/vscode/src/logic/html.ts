@@ -33,6 +33,7 @@ const ICONS = {
   at: '<circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/>',
   hash: '<path d="M5 9h14M5 15h14M10 4 8 20M16 4l-2 16"/>',
   slash: '<path d="M15 4 9 20"/>',
+  pulse: '<path d="M3 12h4l2.5-6 5 12L17 12h4"/>',
   killchain: '<path d="M4 5h5v5H4zM15 3h5v7h-5zM7 15h13v6H7z"/><path d="M9 8h1M17 6h1M10 18h8"/>',
   stop: '<rect x="6" y="6" width="12" height="12" rx="2.5"/>',
   send: '<path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/>',
@@ -103,6 +104,7 @@ export function chatHtml({
 <button id="mention-btn" type="button" class="ghost tool-btn" title="Citer un conteneur" aria-label="Citer un conteneur" aria-haspopup="listbox" aria-expanded="false" aria-controls="mention-pop">${icon("at")}</button>
 <button id="hash-btn" type="button" class="ghost tool-btn" title="Citer un terminal" aria-label="Citer un terminal" aria-haspopup="listbox" aria-expanded="false" aria-controls="mention-pop">${icon("hash")}</button>
 <button id="slash-btn" type="button" class="ghost tool-btn" popovertarget="slash-pop" aria-haspopup="menu" aria-expanded="false" title="Commandes" aria-label="Commandes">${icon("slash")}</button>
+<button id="monitor-btn" type="button" class="ghost tool-btn" title="Monitor" aria-label="Monitor">${icon("pulse")}</button>
 <button id="killchain-btn" type="button" class="ghost tool-btn" title="Kill chain" aria-label="Kill chain">${icon("killchain")}</button>
 <span id="ctl-group" hidden><button id="model-chip" type="button" class="chip" popovertarget="model-pop" aria-haspopup="listbox" aria-expanded="false" title="Modèle utilisé pour le message suivant">${icon("sparkle", "ico chip-ico")}<span id="model-chip-label" class="chip-label">Modèle par défaut</span>${icon("caret", "caret")}<span class="sr-only"> (choisir le modèle)</span></button><button id="cfg-btn" type="button" class="chip" popovertarget="cfg-pop" aria-haspopup="dialog" aria-expanded="false" aria-label="Configurer" title="Configurer : raisonnement et exécution">${icon("sliders", "ico chip-ico")}<span class="cfg-text">Configurer</span><span id="cfg-level" class="cfg-level"></span>${icon("caret", "caret")}</button><button id="bar-learning" type="button" role="switch" class="chip chip-switch" aria-checked="false" aria-label="Apprentissage" title="Mode Apprentissage : lecture des cours seule, aucune action"><span class="sw-dot" aria-hidden="true"></span><span class="sw-full" aria-hidden="true">Apprentissage</span><span class="sw-short" aria-hidden="true">Appr.</span></button><button id="bar-bypass" type="button" role="switch" class="chip chip-switch" aria-checked="false" aria-label="Bypass" title="Bypass des approbations"><span class="sw-dot" aria-hidden="true"></span><span class="sw-full" aria-hidden="true">Bypass</span><span class="sw-short" aria-hidden="true">Byp.</span></button></span>
 <span class="spacer"></span>

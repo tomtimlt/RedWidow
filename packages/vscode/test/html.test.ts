@@ -149,6 +149,15 @@ describe("composer et Configurer (lot P1)", () => {
     expect(studio).toContain("Aucun conteneur. Créez-en un dans le cockpit.");
     expect(html).not.toMatch(/\bmcp\b|jauge|compact|pièce jointe active/i);
   });
+  it("Monitor est une icône du compositeur, à côté de /, et ouvre le panneau", () => {
+    const toolbar = section('id="toolbar"', 'id="model-pop"');
+    expect(toolbar.indexOf('id="monitor-btn"')).toBeGreaterThan(toolbar.indexOf('id="slash-btn"'));
+    expect(tag("monitor-btn")).toContain('class="ghost tool-btn"');
+    expect(tag("monitor-btn")).toContain('aria-label="Monitor"');
+    expect(js).toContain('vscode.postMessage({ type: "openMonitor" })');
+    const ext = read("../src/extension/extension.ts");
+    expect(ext).toMatch(/case "openMonitor":\s*openMonitor\(\);/);
+  });
   it("les boutons @, # et / existent, le dernier ouvre le menu", () => {
     expect(tag("mention-btn")).toContain('aria-controls="mention-pop"');
     expect(tag("hash-btn")).toContain('aria-controls="mention-pop"');

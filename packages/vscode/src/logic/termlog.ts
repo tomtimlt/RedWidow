@@ -123,6 +123,40 @@ export function lastCommand(text: string): string {
   return fallback === "" ? "" : clipLine(fallback);
 }
 
+/** Sortie lisible : sans séquences, fin du tampon. Vide → une ligne fixe. */
+export function readableTerminal(raw: string, max = TERMINAL_TAIL_CHARS): string {
+  const clean = stripControls(raw)
+    .split("\n")
+    .filter((line) => !line.startsWith("Script started on ") && !line.startsWith("Script done on "))
+    .join("\n")
+    .replaceAll(TERMINAL_CONTEXT_MARK, "");
+  const tail = clean.length > max ? clean.slice(-max) : clean;
+  const trimmed = tail.trim();
+  return trimmed === "" ? "Tampon vide." : trimmed;
+}
+
+/**
+ * Consigne affichée, puis le marqueur et les extraits. Sans extrait : la consigne seule.
+ * Chaque extrait garde le `#jeton` et la sortie (le ping). Le nom Docker suit quand il est connu.
+ */
+export function withTerminalContext(
+  text: string,
+  sections: readonly { token: string; text: string; container?: string }[],
+): string {
+  if (sections.length === 0) return text;
+  const body = sections
+    .map((section) => {
+      const name = section.container;
+      const head =
+        name !== undefined && name !== ""
+          ? `Terminal #${section.token}, shell du conteneur ${name}.`
+          : `Terminal #${section.token}.`;
+      return `${head}\n${section.text}`;
+    })
+    .join("\n\n");
+  return `${text}${TERMINAL_CONTEXT_MARK}${body}`;
+}
+
 export interface ClassifiedHashes {
   /** Jetons dont le shell est ouvert. */
   open: string[];
@@ -149,26 +183,4 @@ export function classifyMessageHashes(
     if (!shell && container === null) unknown.push(token);
   }
   return { open, designated, unknown };
-}
-
-/** Sortie lisible : sans séquences, fin du tampon. Vide → une ligne fixe. */
-export function readableTerminal(raw: string, max = TERMINAL_TAIL_CHARS): string {
-  const clean = stripControls(raw)
-    .split("\n")
-    .filter((line) => !line.startsWith("Script started on ") && !line.startsWith("Script done on "))
-    .join("\n")
-    .replaceAll(TERMINAL_CONTEXT_MARK, "");
-  const tail = clean.length > max ? clean.slice(-max) : clean;
-  const trimmed = tail.trim();
-  return trimmed === "" ? "Tampon vide." : trimmed;
-}
-
-/** Consigne affichée, puis le marqueur et les extraits. Sans extrait : la consigne seule. */
-export function withTerminalContext(
-  text: string,
-  sections: readonly { token: string; text: string }[],
-): string {
-  if (sections.length === 0) return text;
-  const body = sections.map((section) => `${section.token}\n${section.text}`).join("\n\n");
-  return `${text}${TERMINAL_CONTEXT_MARK}${body}`;
 }
