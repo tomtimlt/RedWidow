@@ -15,6 +15,10 @@ Raccourci : `pnpm maj` (ou `node scripts/update.mjs`). Il enchaîne `git pull --
 
 Le `.vsix` fait environ 117 Mio (il embarque le binaire `claude` du SDK, 257 Mio décompressé, vérifié par empreinte SHA-256 au démarrage du moteur). Il est ignoré par git.
 
+## Publier une release
+
+Pousser un tag `vX.Y.Z` égal à la version de `packages/vscode/extension.manifest.json` déclenche `.github/workflows/release.yml` : `pnpm check`, `pnpm build`, empaquetage `linux-x64` puis `win32-x64`, empreintes SHA-256, puis création de la release GitHub avec les deux `.vsix`. Un tag qui ne correspond pas à la version du manifeste fait échouer le workflow avant toute publication. Relancer le workflow sur un tag déjà publié remplace les fichiers de la release (`--clobber`). Le job demande `contents: write` ; le dépôt est extrait sans identifiants persistants et le jeton n'est lu que par l'étape de publication.
+
 ## Premier run
 
 1. Ouvrir un **dossier approuvé** (l'extension est inerte dans un espace non approuvé ou virtuel).
