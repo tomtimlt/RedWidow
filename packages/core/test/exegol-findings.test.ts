@@ -127,4 +127,19 @@ describe("trouvailles Exegol", () => {
       else process.env.XDG_CONFIG_HOME = prev;
     }
   });
+
+  it("l'outil note choisit le code de raison selon le drapeau de la cible (ADR 0015)", async () => {
+    const run = (blocked?: "invalid" | "readFailed") => {
+      const targets = createExegolTargets();
+      targets.note("essaie", [], null, blocked);
+      const note = exegolToolSpecs({} as DockerClient, targets).find((s) => s.name === "note");
+      return note?.run(
+        { kind: "host", label: "h", state: "confirmed" },
+        { parentId: null, correlation: undefined, signal: undefined },
+      );
+    };
+    await expect(run(undefined)).rejects.toMatchObject({ code: "project.absent" });
+    await expect(run("invalid")).rejects.toMatchObject({ code: "project.invalid" });
+    await expect(run("readFailed")).rejects.toMatchObject({ code: "project.readFailed" });
+  });
 });

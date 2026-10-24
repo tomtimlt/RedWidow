@@ -237,7 +237,8 @@ export const reasons: Catalog = {
   "project.notRunning": (p) => `conteneur arrêté : ${text(p.name)}`,
   "project.noWorkspace": (p) => `conteneur sans montage /workspace : ${text(p.name)}`,
   "project.invalid": () => "projet invalide : fichier project.json illisible ou incomplet",
-  "project.absent": () => "aucun projet lié (project.json absent)",
+  "project.absent": () => "aucun projet actif",
+  "project.readFailed": () => "lecture du projet impossible ce tour-ci",
   "cours.absent": () => "aucun cours installé (dossier de cours absent)",
   "exegol.containerDenied": (p) =>
     `conteneur non autorisé pour ce message : ${text(p.name)} (allowlist du projet, cité par @, ou désigné par #)`,

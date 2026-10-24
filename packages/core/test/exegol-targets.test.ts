@@ -3,12 +3,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  CodedError,
   createDockerClient,
   createExegolTargets,
   createRecorder,
   lookupContainer,
   parseMentions,
   promptForTargets,
+  readActiveProjectForPrompt,
   resolveExegolContainer,
   resolveKaliContainer,
   shortContainerName,
@@ -338,6 +340,29 @@ describe("cibles Exegol", () => {
     );
   });
 
+  it("note porte le drapeau blocked sans toucher allowed ni projectId par ailleurs", () => {
+    const targets = createExegolTargets();
+    targets.note("essaie", ["lab"], null, "invalid");
+    expect(targets.current()).toEqual({
+      allowed: ["lab"],
+      mentions: [],
+      projectId: null,
+      hashes: [],
+      blocked: "invalid",
+    });
+    targets.note("vasy", [], null, "readFailed");
+    expect(targets.current()).toEqual({
+      allowed: [],
+      mentions: [],
+      projectId: null,
+      hashes: [],
+      blocked: "readFailed",
+    });
+    // Sans drapeau, le champ n'apparaît pas (comportement d'avant ce lot).
+    targets.note("normal", ["lab"], "pid");
+    expect(targets.current()).not.toHaveProperty("blocked");
+  });
+
   it("ignore les @ collés après la sortie d'un terminal", () => {
     const targets = createExegolTargets();
     const text = `scan @htb1${TERMINAL_CONTEXT_MARK}nmap @evil`;
@@ -350,6 +375,70 @@ describe("cibles Exegol", () => {
       projectId: null,
       hashes: [],
     });
+  });
+});
+
+type FakeFile = { activeId: string | null };
+type FakeProject = { id: string; containers: readonly string[] };
+const getActive = (file: FakeFile): FakeProject | null =>
+  file.activeId === null ? null : { id: file.activeId, containers: ["lab"] };
+
+describe("readActiveProjectForPrompt (ADR 0015, onPrompt)", () => {
+  it("fichier absent (null) : aucun projet actif, sans drapeau", async () => {
+    const outcome = await readActiveProjectForPrompt<FakeFile, FakeProject>(
+      async () => null,
+      getActive,
+    );
+    expect(outcome).toEqual({ containers: [], projectId: null });
+  });
+
+  it("activeId nul : aucun projet actif, sans drapeau", async () => {
+    const outcome = await readActiveProjectForPrompt<FakeFile, FakeProject>(
+      async () => ({ activeId: null }),
+      getActive,
+    );
+    expect(outcome).toEqual({ containers: [], projectId: null });
+  });
+
+  it("projet actif : containers et projectId copiés, pas de relecture", async () => {
+    let calls = 0;
+    const outcome = await readActiveProjectForPrompt<FakeFile, FakeProject>(async () => {
+      calls++;
+      return { activeId: "pid" };
+    }, getActive);
+    expect(outcome).toEqual({ containers: ["lab"], projectId: "pid" });
+    expect(calls).toBe(1);
+  });
+
+  it("project.invalid : pas de nouvelle tentative, allowlist vide, projectId nul, drapeau invalid", async () => {
+    let calls = 0;
+    const outcome = await readActiveProjectForPrompt<FakeFile, FakeProject>(async () => {
+      calls++;
+      throw new CodedError("project.invalid", { reason: "json" });
+    }, getActive);
+    expect(outcome).toEqual({ containers: [], projectId: null, blocked: "invalid" });
+    expect(calls).toBe(1);
+  });
+
+  it("erreur transitoire puis relecture réussie : résultat normal, sans drapeau", async () => {
+    let calls = 0;
+    const outcome = await readActiveProjectForPrompt<FakeFile, FakeProject>(async () => {
+      calls++;
+      if (calls === 1) throw new Error("ENOENT transitoire");
+      return { activeId: "pid" };
+    }, getActive);
+    expect(outcome).toEqual({ containers: ["lab"], projectId: "pid" });
+    expect(calls).toBe(2);
+  });
+
+  it("erreur transitoire puis relecture ratée : allowlist vide, projectId nul, drapeau readFailed", async () => {
+    let calls = 0;
+    const outcome = await readActiveProjectForPrompt<FakeFile, FakeProject>(async () => {
+      calls++;
+      throw new Error("FS en vrac");
+    }, getActive);
+    expect(outcome).toEqual({ containers: [], projectId: null, blocked: "readFailed" });
+    expect(calls).toBe(2);
   });
 });
 
