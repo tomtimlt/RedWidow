@@ -3,11 +3,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { TERMINAL_CONTEXT_MARK } from "@warband/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { parseWebviewMessage } from "../src/logic/approval.js";
 import { createChatState } from "../src/logic/chat.js";
 import {
   applyRetention,
   type ConversationMeta,
   cleanTitle,
+  groupHistoryByProject,
+  historyProject,
   isRunId,
   MAX_JOURNAL_LINES,
   MAX_LINE_CHARS,
@@ -228,5 +231,25 @@ describe("protocole : journalDir", () => {
     expect(parseToEngine({ ...base, journalDir: join(process.cwd(), "j") }).ok).toBe(true);
     expect(parseToEngine({ ...base, journalDir: "relatif/j" }).ok).toBe(false);
     expect(parseToEngine({ ...base, journalDir: 3 }).ok).toBe(false);
+  });
+});
+
+describe("classement par projet (affichage seulement)", () => {
+  it("préserve les anciennes conversations et élimine les ids invalides à la lecture", () => {
+    expect(parseIndex([meta({ projectId: RUN })])[0]?.projectId).toBe(RUN);
+    expect(parseIndex([meta({ projectId: "../x" })])[0]?.projectId).toBeUndefined();
+    expect(historyProject(meta({}), [])).toEqual({ key: "none", label: "Sans projet" });
+  });
+  it("résout les renommages sans migration et conserve les groupes orphelins", () => {
+    const conversation = meta({ projectId: RUN });
+    expect(historyProject(conversation, [{ id: RUN, name: "Renommé" }]).label).toBe("Renommé");
+    const groups = groupHistoryByProject([conversation, meta({ id: RUN })], []);
+    expect(groups.map((g) => g.label)).toEqual(["Projet inconnu", "Sans projet"]);
+    expect(groups[0]?.conversations[0]?.projectId).toBe(RUN);
+  });
+  it("rafraîchissement historique : message sans données, aucun id de projet transmis au moteur", () => {
+    expect(parseWebviewMessage({ type: "historyRefresh" })).toEqual({ type: "historyRefresh" });
+    expect(parseWebviewMessage({ type: "historyRefresh", projectId: RUN })).toBeNull();
+    expect(parseToEngine({ v: 1, type: "historyRefresh" })).toMatchObject({ ok: false });
   });
 });

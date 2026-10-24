@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import { runInNewContext } from "node:vm";
 import { MITRE_TACTICS as CORE_TACTICS } from "@warband/core";
 import { describe, expect, it } from "vitest";
 import { studioHtml } from "../src/logic/html.js";
@@ -99,6 +100,37 @@ describe("réglages", () => {
     expect(parseStudioMessage({ type: "openCours", enabled: true })).toBeNull();
   });
 
+  it("résumé : id canonique, taille UTF-8 bornée et aucun champ supplémentaire", () => {
+    const projectId = "11111111-1111-4111-8111-111111111111";
+    const message = { type: "saveSummary", projectId, text: "é".repeat(4096) };
+    expect(parseStudioMessage(message)).toEqual(message);
+    expect(parseStudioMessage({ ...message, text: "é".repeat(4097) })).toBeNull();
+    expect(parseStudioMessage({ ...message, text: "" })).toEqual({ ...message, text: "" });
+    expect(parseStudioMessage({ ...message, projectId: "../autre" })).toBeNull();
+    expect(parseStudioMessage({ ...message, path: "/tmp" })).toBeNull();
+    expect(parseStudioMessage({ ...message, text: null })).toBeNull();
+  });
+
+  it("projets : nom borné et id canonique, aucun chemin accepté de la webview", () => {
+    const projectId = "11111111-1111-4111-8111-111111111111";
+    expect(parseStudioMessage({ type: "activateProject", projectId })).toEqual({
+      type: "activateProject",
+      projectId,
+    });
+    expect(parseStudioMessage({ type: "activateProject", projectId: "../autre" })).toBeNull();
+    expect(parseStudioMessage({ type: "activateProject", projectId, extra: true })).toBeNull();
+    expect(parseStudioMessage({ type: "createProject", name: " Mission " })).toEqual({
+      type: "createProject",
+      name: "Mission",
+    });
+    for (const name of ["", "  ", "x".repeat(81), "a\nb", "a\0b"]) {
+      expect(parseStudioMessage({ type: "createProject", name })).toBeNull();
+    }
+    expect(
+      parseStudioMessage({ type: "createProject", name: "Mission", workspace: "/etc" }),
+    ).toBeNull();
+  });
+
   it("HTML : nonce, pas de style inline", () => {
     const html = studioHtml({
       nonce: "abc",
@@ -124,23 +156,8 @@ describe("navigation en deux groupes", () => {
   it("Engagement puis Système, dans cet ordre, avec le contenu exact", () => {
     expect(studio.STUDIO_GROUPS.map((g) => g.label)).toEqual(["Engagement", "Système"]);
     const [engagement, system] = studio.STUDIO_GROUPS;
-    expect(engagement?.pages.map((p) => p[0])).toEqual([
-      "project",
-      "containers",
-      "providers",
-      "personas",
-      "approvals",
-      "killchain",
-    ]);
-    expect(system?.pages.map((p) => p[0])).toEqual([
-      "model",
-      "harness",
-      "mcp",
-      "atlas",
-      "layout",
-      "modes",
-      "system",
-    ]);
+    expect(engagement?.pages.map((p) => p[0])).toEqual(["project", "containers", "killchain"]);
+    expect(system?.pages.map((p) => p[0])).toEqual(["atlas", "system"]);
   });
 
   it("chaque page existante apparaît une seule fois, avec son libellé d'origine", () => {
@@ -227,6 +244,20 @@ describe("feuille des réglages", () => {
     expect(css).toMatch(
       /@media \(max-width: 640px\) \{[\s\S]*#studio-nav \{\s*flex-direction: row;/,
     );
+  });
+
+  it("les libellés des réglages restent visibles sous 360 px malgré le mode compact du chat", () => {
+    const body = /\.studio-shell \.btn-text\s*\{([^}]*)\}/.exec(css)?.[1];
+    expect(body).toBeDefined();
+    for (const declaration of [
+      "position: static",
+      "width: auto",
+      "height: auto",
+      "overflow: visible",
+      "clip-path: none",
+      "white-space: normal",
+    ])
+      expect(body).toContain(declaration);
   });
 });
 
@@ -471,4 +502,174 @@ describe("killchainLegend (panneau légende, deux groupes avec compteurs)", () =
     const states = Object.fromEntries(groups[1]?.entries.map((e) => [e.state, e.count]) ?? []);
     expect(states.failed).toBe(1);
   });
+});
+
+// DOM minimal : exerce le vrai script, les saisies et le protocole sans dépendance de navigateur.
+class StudioNode {
+  children: StudioNode[] = [];
+  listeners = new Map<string, () => void>();
+  id = "";
+  textContent = "";
+  value = "";
+  disabled = false;
+  classList = { contains: () => false };
+  constructor(readonly tag: string) {}
+  get firstChild() {
+    return this.children[0];
+  }
+  append(...nodes: StudioNode[]) {
+    this.children.push(...nodes);
+  }
+  removeChild(node: StudioNode) {
+    this.children = this.children.filter((n) => n !== node);
+  }
+  setAttribute() {}
+  addEventListener(type: string, listener: () => void) {
+    this.listeners.set(type, listener);
+  }
+  fire(type: string) {
+    this.listeners.get(type)?.();
+  }
+  find(predicate: (node: StudioNode) => boolean): StudioNode | undefined {
+    if (predicate(this)) return this;
+    for (const child of this.children) {
+      const found = child.find(predicate);
+      if (found) return found;
+    }
+    return undefined;
+  }
+}
+
+it("mémoire : saisie, plafond multioctet, conservation du brouillon et accusé de sauvegarde", () => {
+  const main = new StudioNode("main");
+  const sent: unknown[] = [];
+  let receive: (event: { data: unknown }) => void = () => {};
+  runInNewContext(read(studioJs), {
+    TextEncoder,
+    acquireVsCodeApi: () => ({ postMessage: (message: unknown) => sent.push(message) }),
+    document: {
+      body: new StudioNode("body"),
+      getElementById: (id: string) => (id === "studio-main" ? main : null),
+      createElement: (tag: string) => new StudioNode(tag),
+    },
+    window: {
+      addEventListener: (_type: string, listener: typeof receive) => {
+        receive = listener;
+      },
+    },
+  });
+  const projectId = "11111111-1111-4111-8111-111111111111";
+  const view = { type: "view", page: "project", projectSummary: { projectId, text: "ancien" } };
+  const find = (predicate: (node: StudioNode) => boolean) => {
+    const node = main.find(predicate);
+    if (!node) throw new Error("Élément du résumé introuvable");
+    return node;
+  };
+  const input = () => find((n) => n.id === "project-summary");
+  const save = () => find((n) => n.textContent === "Enregistrer le résumé");
+  receive({ data: view });
+  expect(input().value).toBe("ancien");
+  input().value = "é".repeat(4097);
+  input().fire("input");
+  expect(save().disabled).toBe(true);
+  save().fire("click");
+  expect(sent).toEqual([{ type: "refresh" }]);
+  input().value = "<texte non interprété>";
+  input().fire("input");
+  receive({ data: view });
+  expect(input().value).toBe("<texte non interprété>");
+  save().fire("click");
+  expect(sent.at(-1)).toEqual({ type: "saveSummary", projectId, text: "<texte non interprété>" });
+  receive({ data: { ...view, page: "atlas", summarySaved: projectId } });
+  receive({ data: { ...view, projectSummary: { projectId, text: "masqué" } } });
+  expect(input().value).toBe("masqué");
+  expect(input().disabled).toBe(false);
+  input().value = "brouillon à conserver";
+  input().fire("input");
+  save().fire("click");
+  const other = "22222222-2222-4222-8222-222222222222";
+  receive({
+    data: {
+      ...view,
+      projectSummary: { projectId: other, text: "autre" },
+      summaryFailed: projectId,
+      summaryError: "Projet changé",
+    },
+  });
+  receive({ data: view });
+  expect(input().value).toBe("brouillon à conserver");
+  expect(input().disabled).toBe(false);
+  expect(save().disabled).toBe(false);
+});
+
+it("projets : choisir un projet réel et créer avec le nom seul, dossier laissé à l'hôte", () => {
+  const main = new StudioNode("main");
+  const sent: unknown[] = [];
+  let receive: (event: { data: unknown }) => void = () => {};
+  runInNewContext(read(studioJs), {
+    TextEncoder,
+    acquireVsCodeApi: () => ({ postMessage: (message: unknown) => sent.push(message) }),
+    document: {
+      body: new StudioNode("body"),
+      getElementById: (id: string) => (id === "studio-main" ? main : null),
+      createElement: (tag: string) => new StudioNode(tag),
+    },
+    window: {
+      addEventListener: (_type: string, listener: typeof receive) => {
+        receive = listener;
+      },
+    },
+  });
+  const first = "11111111-1111-4111-8111-111111111111";
+  const second = "22222222-2222-4222-8222-222222222222";
+  receive({
+    data: {
+      type: "view",
+      page: "project",
+      projectChoices: {
+        activeId: first,
+        projects: [
+          { id: first, name: "Premier", workspace: "/mission" },
+          { id: second, name: "Second", workspace: "/autre" },
+        ],
+      },
+    },
+  });
+  const find = (predicate: (node: StudioNode) => boolean) => {
+    const node = main.find(predicate);
+    if (!node) throw new Error("Contrôle projet introuvable");
+    return node;
+  };
+  const choose = find((n) => n.id === "project-choice");
+  const activate = find((n) => n.textContent === "Activer le projet");
+  expect(activate.disabled).toBe(true);
+  choose.value = second;
+  choose.fire("change");
+  expect(activate.disabled).toBe(false);
+  activate.fire("click");
+  expect(sent.at(-1)).toEqual({ type: "activateProject", projectId: second });
+  const create = find((n) => n.textContent === "Créer un projet et choisir son dossier…");
+  expect(create.disabled).toBe(true);
+  const name = find((n) => n.id === "project-name");
+  name.value = " Nouvelle mission ";
+  name.fire("input");
+  create.fire("click");
+  expect(sent.at(-1)).toEqual({ type: "createProject", name: "Nouvelle mission" });
+  receive({
+    data: {
+      type: "view",
+      page: "project",
+      projectBusy: true,
+      projectChoices: {
+        activeId: first,
+        projects: [{ id: first, name: "Premier", workspace: "/mission" }],
+      },
+    },
+  });
+  expect(find((n) => n.id === "project-choice").disabled).toBe(true);
+  expect(find((n) => n.id === "project-name").disabled).toBe(true);
+  expect(find((n) => n.textContent === "Activer le projet").disabled).toBe(true);
+  expect(find((n) => n.textContent === "Créer un projet et choisir son dossier…").disabled).toBe(
+    true,
+  );
 });

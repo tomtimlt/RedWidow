@@ -27,6 +27,8 @@ describe("chat.js : balises créées", () => {
       "li",
       "h2",
       "input",
+      "select",
+      "option",
       "table",
       "thead",
       "tbody",
@@ -361,6 +363,21 @@ const STUDIO_PAGES_PREVIEW = ["project", "containers", "atlas", "killchain"] as 
 const studioView = (page: string) => ({
   type: "view",
   page,
+  projectChoices: {
+    activeId: "11111111-1111-4111-8111-111111111111",
+    projects: [
+      {
+        id: "11111111-1111-4111-8111-111111111111",
+        name: "Laboratoire",
+        workspace: "C:\\Missions\\Laboratoire",
+      },
+    ],
+  },
+  projectSummary: {
+    projectId: "11111111-1111-4111-8111-111111111111",
+    projectName: "Laboratoire",
+    text: "État de la session : vérification de l'environnement terminée. Prochaine étape : examiner les résultats avec l'utilisateur.",
+  },
   findings: [
     {
       id: "a",

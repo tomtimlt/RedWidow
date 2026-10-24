@@ -35,6 +35,8 @@ export interface ConversationMeta {
   sessionId: string | null;
   runIds: string[];
   tools: number;
+  /** Affichage seulement : jamais utilisé par le moteur, exec, politique ou gate. */
+  projectId?: string;
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> =>
@@ -67,6 +69,7 @@ export function parseIndex(raw: unknown): ConversationMeta[] {
     seen.add(item.id);
     out.push({
       id: item.id,
+      ...(isRunId(item.projectId) && { projectId: item.projectId }),
       title,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
@@ -88,6 +91,42 @@ export function parseIndex(raw: unknown): ConversationMeta[] {
 /** Plus récentes d'abord. */
 export const sortRecent = (list: readonly ConversationMeta[]): ConversationMeta[] =>
   [...list].sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+
+/** Métadonnées de projet destinées seulement au rangement des conversations. */
+export interface HistoryProjects {
+  activeId: string | null;
+  projects: readonly { id: string; name: string }[];
+}
+
+/** Les ids orphelins restent distincts pour ne pas perdre leur association. */
+export function historyProject(
+  conversation: Pick<ConversationMeta, "projectId">,
+  projects: HistoryProjects["projects"],
+): { key: string; label: string } {
+  if (!conversation.projectId) return { key: "none", label: "Sans projet" };
+  const project = projects.find((p) => p.id === conversation.projectId);
+  return {
+    key: conversation.projectId,
+    label: project ? (cleanTitle(project.name) ?? "Projet") : "Projet inconnu",
+  };
+}
+
+export function groupHistoryByProject(
+  conversations: readonly ConversationMeta[],
+  projects: HistoryProjects["projects"],
+): { key: string; label: string; conversations: ConversationMeta[] }[] {
+  const groups = new Map<
+    string,
+    { key: string; label: string; conversations: ConversationMeta[] }
+  >();
+  for (const conversation of sortRecent(conversations)) {
+    const project = historyProject(conversation, projects);
+    const group = groups.get(project.key) ?? { ...project, conversations: [] };
+    group.conversations.push(conversation);
+    groups.set(project.key, group);
+  }
+  return [...groups.values()];
+}
 
 export interface RetentionOptions {
   maxCount?: number;

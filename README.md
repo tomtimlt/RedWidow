@@ -7,7 +7,7 @@
 
 # Warband
 
-**Un chat d'agent IA pour VS Code où chaque action sensible demande ton accord.**
+**Un assistant IA dans VS Code pour travailler dans tes conteneurs, avec approbation des actions et traces de mission.**
 
 [![CI](https://github.com/tomtimlt/warband/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/tomtimlt/warband/actions/workflows/ci.yml)
 [![Licence MIT](https://img.shields.io/badge/licence-MIT-CC1C40.svg)](LICENSE)
@@ -33,31 +33,46 @@ Warband fait ça : les appels d'outil (exécution dans le conteneur, écriture, 
 
 > **À utiliser uniquement dans un cadre autorisé** : CTF, labs de certification, engagement avec périmètre et accord écrit.
 
+## Le parcours
+
+**Choisir un projet → associer ses conteneurs → travailler avec l’agent → approuver les actions nécessaires → consulter les résultats et les traces.**
+
+Le **cockpit** prépare les conteneurs et leurs associations ; le **chat** pilote
+le travail et les approbations ; le **Monitor** suit les exécutions ; la **Kill
+chain** rassemble les trouvailles. Le mode **Apprentissage** lit les cours sans
+agir. Le Bypass est un choix explicite qui suspend les demandes d’approbation
+pendant sa durée (voir Sécurité).
+
+Pour distinguer ce qui existe et ce qui reste à terminer :
+[état du projet](docs/etat-du-projet.md). Les ADR expliquent les décisions ;
+ils ne constituent pas le guide d’utilisation.
+
 ## Fonctionnalités
 
 **Un chat dans VS Code**
 - Chat latéral ou dans l'éditeur, jusqu'à **quatre conversations** en parallèle.
 - Sélecteur de **modèle** (liste fournie par le SDK au runtime) et curseur d'**effort** à six crans.
-- **Historique** des conversations, relu depuis les journaux, en lecture seule.
+- **Historique** filtré par projet, relu depuis les journaux ; lecture seule ou reprise sous le même projet.
 - Mentions : `@` pour citer un conteneur, `#` pour citer un terminal ouvert, `/` pour les commandes.
 - Interface responsive de 280 px à plus de 900 px, thèmes sombre, clair et contraste élevé, mouvement réduit respecté.
 
 **Pensé pour le pentest**
-- L'agent exécute les outils de ton conteneur de pentest (`argv` sans shell, dans `/workspace`). Il ne peut agir que dans le conteneur dédié au projet ou cité avec `@`, et ne crée, n'arrête ni ne supprime aucun conteneur.
+- L'agent exécute les outils de ton conteneur de pentest (`argv` sans shell, dans `/workspace`). La cible doit appartenir aux conteneurs autorisés du projet ; `@` permet de la préciser. Dans le chat, l’agent ne crée, n’arrête ni ne supprime aucun conteneur.
+- **Résumé du projet** consultable et modifiable dans Réglages → Projet, réutilisé au début des nouvelles conversations.
 - **Carnet de trouvailles** : hôtes, identifiants, sites, étapes, butin, avec un état (confirmé, hypothèse, échoué), la tactique et la technique **MITRE ATT&CK**, et les liens de causalité entre elles.
 - Page **Kill chain** : le graphe interactif des trouvailles, en couches, avec zoom et déplacement.
 - **Terminaux** de l'éditeur dans le conteneur ; `#` colle dans la consigne la sortie d'un terminal ouvert.
 
 **Une approbation qui a du sens**
 - Une carte par demande : outil, entrée neutralisée, raison de la politique. *Autoriser une fois*, *Refuser* ou *Toujours*, ce dernier sous confirmation native de VS Code et seulement quand c'est sûr.
-- **Bypass** borné : pendant 2 h (4 h au plafond), approuve tout — y compris un `deny`, un chemin sensible ou un danger shell — sans jamais rien mémoriser ; l'utilisateur en devient responsable (ADR 0017).
+- **Bypass** borné : pendant 2 h (4 h au plafond), approuve tout — y compris un `deny`, un chemin sensible ou un danger shell — sans jamais rien mémoriser, si un canal de réponse humain est fourni ; l’apprentissage et la CLI non interactive restent exclus (ADR 0017).
 - **Mode Apprentissage** : l'agent lit des cours en lecture seule, explique et cite ses sources, et n'agit jamais.
 
 **Un moteur traçable**
 - Journal d'événements en JSONL, **graphe causal** exportable en HTML autonome.
 - Secrets masqués avant tout enregistrement ; processus enfants lancés avec une liste blanche de variables.
 - Outils **Docker structurés** (`ps`, `logs`, `inspect`, `run`…), chacun soumis à la politique.
-- Deux moteurs d'agent : le **Claude Agent SDK** et **OpenCode** (OpenAI, Gemini, Ollama, tout endpoint compatible…), derrière la même gate.
+- **Claude Agent SDK dans le chat VS Code**. La CLI propose aussi **OpenCode** (OpenAI, Gemini, Ollama, endpoints compatibles), derrière la même gate ; OpenCode n’est pas encore disponible dans le chat.
 
 **Windows d'abord**
 - Support natif, sans WSL. Les processus sont arrêtés proprement, arbre entier compris.
@@ -72,7 +87,7 @@ Prérequis : Node 22 ou plus, [pnpm](https://pnpm.io), VS Code 1.90 ou plus. Doc
 pnpm install --frozen-lockfile
 pnpm build
 pnpm --filter @warband/vscode package        # cible win32-x64 par défaut
-code --install-extension packages/vscode/warband-0.3.13-win32-x64.vsix
+code --install-extension packages/vscode/warband-0.3.20-win32-x64.vsix
 ```
 
 Raccourci : `pnpm maj` enchaîne mise à jour, build, empaquetage et installation.
@@ -81,7 +96,9 @@ Puis, dans VS Code, ouvre un dossier de confiance et :
 
 1. **Warband : définir le jeton** (palette de commandes) : jeton d'abonnement (`claude setup-token`) ou clé API, stocké dans le stockage sécurisé de VS Code.
 2. **Warband : ouvrir un chat** ou clique sur l'icône Warband de la barre d'activité.
-3. Écris ta consigne. Chaque action sensible t'est demandée.
+3. Dans **Réglages → Projet**, active un projet ou crée-le (nom et dossier). Associe ensuite les conteneurs de travail dans le cockpit.
+4. Écris ta consigne dans le chat. Hors Bypass, la politique décide des autorisations, demandes et refus.
+5. Consulte les exécutions dans le Monitor et les trouvailles dans la Kill chain.
 
 | Raccourci | Action |
 | --- | --- |
@@ -136,6 +153,7 @@ Le cœur n'a aucune dépendance à un SDK d'agent et ne contient aucun texte d'a
 
 | Document | Contenu |
 | --- | --- |
+| [docs/etat-du-projet.md](docs/etat-du-projet.md) | Parcours central, état des fonctionnalités et travaux restants |
 | [docs/cli.md](docs/cli.md) | Moteur, approbation, authentification, OpenCode, Docker, CLI |
 | [docs/extension-vscode.md](docs/extension-vscode.md) | Installation, usage et limites de l'extension |
 | [docs/design-chat-ui.md](docs/design-chat-ui.md) | Charte visuelle : couleurs, formes, mouvement, logo |
@@ -154,7 +172,7 @@ Le CI exécute `pnpm check` et `pnpm build` sur Linux (Node 22 et 24) et sous Wi
 
 ## Statut
 
-Projet personnel en développement actif. L'extension se distribue sous forme de `.vsix` à installer à la main (cible construite et testée : `win32-x64`), pas encore sur le Marketplace. Elle n'a pas encore été éprouvée dans toutes les configurations de VS Code (remote, web) : voir les [limites connues](docs/extension-vscode.md#limites-connues).
+Projet personnel en développement actif. L'extension se distribue sous forme de `.vsix` à installer à la main (artefacts de release : `win32-x64` et `linux-x64`), pas encore sur le Marketplace. Elle n'a pas encore été éprouvée dans toutes les configurations de VS Code (remote, web) : voir les [limites connues](docs/extension-vscode.md#limites-connues).
 
 ## Licence
 

@@ -767,9 +767,35 @@
   let renaming = null;
   // Vrai si la conversation courante tourne (badge « en cours » seulement dans ce cas).
   let historyRunning = false;
+  let historyEntries = [];
+  const projectFilter = el("select", "hist-project-filter");
+  projectFilter.setAttribute("aria-label", "Filtrer les conversations par projet");
+  historyList.before(projectFilter);
+  projectFilter.addEventListener("change", () => renderHistory(historyEntries));
 
   function renderHistory(entries) {
-    $("history-clear").disabled = entries.length === 0;
+    historyEntries = entries;
+    const selected = projectFilter.value || "all";
+    const projects = new Map(
+      entries.map((h) => [h.projectKey || "none", h.projectLabel || "Sans projet"]),
+    );
+    const option = (value, label) => {
+      const node = el("option", "", label);
+      node.value = value;
+      return node;
+    };
+    projectFilter.replaceChildren(
+      option("all", "Tous les projets"),
+      ...[...projects].map(([key, label]) => option(key, label)),
+    );
+    projectFilter.value = selected === "all" || projects.has(selected) ? selected : "all";
+    const allEntries = entries;
+    entries = entries.filter(
+      (h) => projectFilter.value === "all" || (h.projectKey || "none") === projectFilter.value,
+    );
+    $("history-clear").title =
+      "Supprimer toutes les conversations de ce chat, tous projets compris";
+    $("history-clear").disabled = allEntries.length === 0;
     if (entries.length === 0) {
       historyList.replaceChildren(el("li", "hist-empty", "Aucune conversation enregistrée."));
       return;
@@ -778,7 +804,7 @@
       ...entries.map((h) => {
         const li = el("li", h.current ? "hist current" : "hist");
         const when = new Date(h.updatedAt).toLocaleString();
-        const meta = `${when} · ${h.tools} outil${h.tools > 1 ? "s" : ""} · ${h.provider} · ${h.model}`;
+        const meta = `${h.projectLabel || "Sans projet"} · ${when} · ${h.tools} outil${h.tools > 1 ? "s" : ""} · ${h.provider} · ${h.model}`;
         if (renaming === h.id) {
           const field = el("input", "hist-rename");
           field.type = "text";
@@ -794,7 +820,7 @@
             if (e.key === "Escape") {
               e.preventDefault();
               renaming = null;
-              renderHistory(entries);
+              renderHistory(historyEntries);
             }
           });
           li.append(field, el("div", "hist-meta", meta));
@@ -813,7 +839,7 @@
         rename.type = "button";
         rename.addEventListener("click", () => {
           renaming = h.id;
-          renderHistory(entries);
+          renderHistory(historyEntries);
         });
         const del = el("button", "link", "Supprimer");
         del.type = "button";
@@ -848,8 +874,10 @@
   function setHistoryOpen(open) {
     historyPanel.hidden = !open;
     historyBtn.setAttribute("aria-expanded", String(open));
-    if (open) $("history-close").focus();
-    else if (historyPanel.contains(document.activeElement)) historyBtn.focus();
+    if (open) {
+      vscode.postMessage({ type: "historyRefresh" });
+      $("history-close").focus();
+    } else if (historyPanel.contains(document.activeElement)) historyBtn.focus();
   }
   historyBtn.addEventListener("click", () => setHistoryOpen(historyPanel.hidden));
   $("history-close").addEventListener("click", () => setHistoryOpen(false));

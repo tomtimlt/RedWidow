@@ -1,4 +1,10 @@
-# Points à trancher pour l'architecte
+# Suivi technique et décisions
+
+Pour le parcours utilisateur et les prochaines étapes, commencer par
+[l’état du projet](etat-du-projet.md). Ce fichier conserve aussi des analyses
+historiques : une difficulté décrite dans le contexte d’une décision n’est pas
+nécessairement un défaut encore présent. Un lot « code présent » ne constitue
+pas une validation dans un VS Code réel.
 
 Statut : **[V]** vérifié dans le code ou par test, **[?]** déduit, non vérifié contre le vrai SDK.
 
@@ -152,7 +158,7 @@ Exécution de commandes par l'agent dans un conteneur créé par le moteur (`--s
 
 **Décisions de l'architecte (ADR 0003 §G, révisées par H).** Réseau `none` par défaut, `bridge` sur choix explicite. Aucune image par défaut, `--pull never`. Mémoire `1g`–`8g` et CPU `1`–`8`. Question restante (Q3) : mode autonome sans demande par exécution (recommandation : non).
 
-## Profil développement, réseau sortant (ADR 0003 H) — lots N0 à N5 livrés
+## Historique abandonné : profil développement, réseau sortant (ADR 0003 H)
 
 | Lot | Contenu | État |
 |---|---|---|
@@ -185,7 +191,7 @@ Fonction neuve `createKaliContainer`, hors de l'interface `DockerClient` vue par
 
 Le cockpit crée : Exegol par `exegol start <nom>`, Kali par `createKaliContainer` (image locale, dossier choisi par le dialogue). La saisie `/start` n'est plus une commande. `/clear` et les `@` restent. Les ADR 0007 et 0009 décrivent l'ancien `/start`.
 
-## Projets et allowlist d'exécution (ADR 0013) — accepté, lot P1 à faire
+## Projets et allowlist d'exécution (ADR 0013) — lot P1 livré
 
 `project.json` devient `{ activeId, projects: [{ id, name, workspace, containers }] }`. L'ancien `{ container, workspace }` migre vers un projet actif qui contient ce nom. `containers` stocke des noms présents dans `listLabelPrefix` (Kali compris). L'exec Exegol exige le nom réel dans l'allowlist du projet actif et `family === "exegol"` sur la liste courante, après résolution sur cette liste (court ambigu : refus). Sans `@`, un seul Exegol vivant dans l'intersection est accepté ; zéro ou plusieurs : refus. Un Kali de l'allowlist n'est pas résolu par cet exec : il passe par `resolveKaliContainer` (ADR 0014), même intersection, famille `kali`. `link` accepte les deux familles s'ils sont `running` et ont `/workspace`. L'allowlist est copiée au message, pas relue dans l'outil. La politique du run est `loadPolicy` du `workspace` du projet actif, même `cwd` pour la gate, hors mode apprentissage. Trouvailles : un `findings.json` par projet, même format. Pas d'écran de choix dans ce lot. Start/stop ne sont pas filtrés par l'allowlist.
 
@@ -193,37 +199,42 @@ Le cockpit crée : Exegol par `exegol start <nom>`, Kali par `createKaliContaine
 |---|---|---|---|
 | P1 | Migration, écriture, filtre `exec`, trouvailles par projet, `cwd` de politique | oui (ce lot) | livré (code présent : `StoredProject.containers`, `activeProject`, `associateContainer`, trouvailles par id) |
 
-## Projet multi-conteneurs, conteneur affiché, lecture robuste (ADR 0015) — accepté, lots M1 à M3 à faire
+## Projet multi-conteneurs, conteneur affiché, lecture robuste (ADR 0015) — code présent
 
-Trois défauts de l'après-P1. (1) `status()` lève `project.absent` dès qu'un projet a ≥2 conteneurs (`project.ts:414-415`), alors que `linkedProjectStatus` gère déjà le cas. (2) `onPrompt` confond un échec de lecture transitoire ou un fichier invalide avec « aucun projet actif » (`main.ts:46-58`), fige une allowlist vide pour tout le tour, et `note()` lève `project.absent` au libellé trompeur « project.json absent ». (3) Pas de champ pour le conteneur « PRIMARY » affiché par l'UI. Décision : pas de résolution d'exécution implicite par un champ mémorisé (on ne ressuscite pas `dedicated`) ; `status()` s'aligne sur `linkedProjectStatus` (plusieurs conteneurs → `container: null`, pas d'exception) ; `onPrompt` distingue fichier absent / invalide / transitoire (une relecture), ne propage jamais (sinon abort du run entier), et porte un drapeau à la cible pour que `note()` choisisse `project.absent` / `project.invalid` / `project.readFailed` (code neuf) ; champ optionnel `primary?: string` **d'affichage seulement** (jamais lu par l'exec, la politique ni la gate), posé par `setPrimaryContainer` (pas un outil MCP). `project.absent` reformulé. Capacité UI (branchement par `cadre`) : `containers` + `primary` lisibles, `setPrimaryContainer` pour la bascule.
-
-| Lot | Contenu | Revue sécurité | État |
-|---|---|---|---|
-| M1 | `status()` sans exception sur plusieurs conteneurs ; CLI tolérante | non (pas de gate touchée) | à faire |
-| M2 | Lecture robuste `onPrompt`, drapeau de cible, `project.readFailed`, libellés | oui (touche le code de raison et le fail-closed de l'allowlist) | à faire |
-| M3 | Champ d'affichage `primary`, `setPrimaryContainer` (après confirmation produit) | oui (vérifier que `primary` n'autorise aucune exécution) | à faire |
-
-## Exécution Kali par mcp-kali-server (ADR 0014) — accepté, lot K2 à faire
-
-Le serveur n'est pas dans le dépôt. Doc : API HTTP `kali-server-mcp`, défaut `127.0.0.1:5000`, dans le conteneur déjà classé `kali` par `listLabelPrefix`. Pas de port publié, pas de processus sur l'hôte. Douze outils de `client.py` (`nmap_scan`, `gobuster_scan`, `dirb_scan`, `nikto_scan`, `sqlmap_scan`, `metasploit_run`, `hydra_attack`, `john_crack`, `wpscan_analyze`, `enum4linux_scan`, `server_health`, `execute_command`), toolset `kali`, noms `mcp__kali__*`. `execute_command` est un shell non analysable : un `deny` Bash ou `docker.hostAccess` tient, le reste est `ask` non mémorisable. Les autres restent `ask`. `link` et `canLink` acceptent un Kali `running` avec `/workspace`. Le projet reste l'objet unique jusqu'au lot P1. `#` et le terminal ne sont pas reconstruits.
+Contexte historique avant les corrections M1–M3 : trois défauts de l’après-P1. (1) `status()` lève `project.absent` dès qu'un projet a ≥2 conteneurs (`project.ts:414-415`), alors que `linkedProjectStatus` gère déjà le cas. (2) `onPrompt` confond un échec de lecture transitoire ou un fichier invalide avec « aucun projet actif » (`main.ts:46-58`), fige une allowlist vide pour tout le tour, et `note()` lève `project.absent` au libellé trompeur « project.json absent ». (3) Pas de champ pour le conteneur « PRIMARY » affiché par l'UI. Décision : pas de résolution d'exécution implicite par un champ mémorisé (on ne ressuscite pas `dedicated`) ; `status()` s'aligne sur `linkedProjectStatus` (plusieurs conteneurs → `container: null`, pas d'exception) ; `onPrompt` distingue fichier absent / invalide / transitoire (une relecture), ne propage jamais (sinon abort du run entier), et porte un drapeau à la cible pour que `note()` choisisse `project.absent` / `project.invalid` / `project.readFailed` (code neuf) ; champ optionnel `primary?: string` **d'affichage seulement** (jamais lu par l'exec, la politique ni la gate), posé par `setPrimaryContainer` (pas un outil MCP). `project.absent` reformulé. Capacité UI (branchement par `cadre`) : `containers` + `primary` lisibles, `setPrimaryContainer` pour la bascule.
 
 | Lot | Contenu | Revue sécurité | État |
 |---|---|---|---|
-| K2 | Toolset, API dans le conteneur, gate de `execute_command`, `link` | oui (ce lot) | à faire |
+| M1 | `status()` sans exception sur plusieurs conteneurs ; CLI tolérante | non (pas de gate touchée) | code présent ; validation Windows de cette version à refaire |
+| M2 | Lecture robuste `onPrompt`, drapeau de cible, `project.readFailed`, libellés | oui (touche le code de raison et le fail-closed de l'allowlist) | code présent ; validation Windows de cette version à refaire |
+| M3 | Champ d'affichage `primary`, `setPrimaryContainer` (après confirmation produit) | oui (vérifier que `primary` n'autorise aucune exécution) | code présent ; validation Windows de cette version à refaire |
 
-## Historique par projet, résumé de session par projet (ADR 0016) — accepté, lots à faire
+## Exécution Kali par mcp-kali-server (ADR 0014) — code présent, intégration réelle à vérifier
 
-(A) `ConversationMeta` gagne `projectId?: string` écrit une fois à la création (= `activeId` du moment), jamais réécrit (reprise comprise), **d'affichage seulement** (jamais lu par moteur/exec/politique/gate, comme `primary?` d'ADR 0015) : ne contredit pas ADR 0013:60 (la reprise applique toujours le projet actif courant). Filtre d'historique groupé par `projectId`, nom résolu via `projects` courants ; absent → « sans projet », orphelin → « projet inconnu ». (B) Résumé par projet dans `<configDir>/projects/<id>/summary.txt`, contrôle UUID avant `join`, atomique `0o600`, plafond 8 Kio (`capOutput`), **masqué par `createRedactor` avant écriture**. Écrit par un outil MCP `remember(text)` scopé au `projectId` de la cible notée (jamais un id/chemin du modèle ; null → `project.absent`). Injecté au **start d'une nouvelle conversation seulement** (pas à la reprise) dans un bloc délimité étiqueté « données non fiables », côté moteur. Jamais parsé pour dériver conteneur/chemin/règle. Pas de nouveau code de raison ni de nouveau `kind`.
+Le serveur n'est pas dans le dépôt. Doc : API HTTP `kali-server-mcp`, défaut `127.0.0.1:5000`, dans le conteneur déjà classé `kali` par `listLabelPrefix`. Pas de port publié, pas de processus sur l'hôte. Douze outils de `client.py` (`nmap_scan`, `gobuster_scan`, `dirb_scan`, `nikto_scan`, `sqlmap_scan`, `metasploit_run`, `hydra_attack`, `john_crack`, `wpscan_analyze`, `enum4linux_scan`, `server_health`, `execute_command`), toolset `kali`, noms `mcp__kali__*`. `execute_command` est un shell non analysable : hors Bypass, un `deny` Bash ou `docker.hostAccess` tient, le reste est `ask` non mémorisable (périmètre du Bypass amendé par ADR 0017). Les autres restent `ask`. `link` et `canLink` acceptent un Kali `running` avec `/workspace`. Le projet reste l'objet unique jusqu'au lot P1. `#` et le terminal ne sont pas reconstruits.
 
 | Lot | Contenu | Revue sécurité | État |
 |---|---|---|---|
-| S1 | Stockage du résumé (chemin, UUID, atomique `0o600`, cap 8 Kio, masquage à l'écriture) | oui (chemins, secrets) | à faire |
-| S2 | Outil `remember`, injection fencée au start d'une conversation neuve | oui (injection de prompt, non-élargissement, apprentissage) | à faire |
-| H1 | `projectId` d'affichage sur `ConversationMeta`, filtre/groupage (logique, sans rendu) | non (vérifier que `projectId` n'est lu par aucun code moteur/exec/gate) | à faire |
+| K2 | Toolset, API dans le conteneur, gate de `execute_command`, `link` | oui (ce lot) | code présent (`kali/api.ts`, `kali/tool-specs.ts`, `kaliToolset`) ; serveur externe et validation réelle à vérifier |
 
-Rendu du filtre et édition du résumé par l'utilisateur : voie produit (`cadre`/`surface`), hors de ces lots.
+## Historique par projet, résumé de session par projet (ADR 0016) — S1/S2 livrés en 0.3.19, H1 et interface réalisés pour 0.3.20
 
-## Décisions à demander en priorité
+(A) `ConversationMeta` gagne `projectId?: string` écrit une fois à la création (= `activeId` du moment), jamais réécrit (reprise comprise), **sans effet de sélection de cible** (jamais lu par moteur/exec/politique/gate). L’amendement ADR 0016 autorise la session d’extension à bloquer envoi/reprise si le projet actif diffère ; elle n’active jamais automatiquement le projet de la conversation. Filtre d'historique groupé par `projectId`, nom résolu via `projects` courants ; absent → « sans projet », orphelin → « projet inconnu ». (B) Résumé par projet dans `<configDir>/projects/<id>/summary.txt`, contrôle UUID avant `join`, atomique `0o600`, plafond 8 Kio (`capOutput`), **masqué par `createRedactor` avant écriture**. Écrit par un outil MCP `remember(text)` scopé au `projectId` de la cible notée (jamais un id/chemin du modèle ; null → `project.absent`). Injecté au **start d'une nouvelle conversation seulement** (pas à la reprise) dans un bloc délimité étiqueté « données non fiables », côté moteur. Jamais parsé pour dériver conteneur/chemin/règle. Pas de nouveau code de raison ni de nouveau `kind`.
+
+| Lot | Contenu | Revue sécurité | État |
+|---|---|---|---|
+| S1 | Stockage du résumé (chemin, UUID, atomique `0o600`, cap 8 Kio, masquage à l'écriture) | oui (chemins, secrets) | livré en 0.3.19 |
+| S2 | Outil `remember`, injection fencée au start d'une conversation neuve | oui (injection de prompt, non-élargissement, apprentissage) | livré en 0.3.19 |
+| H1 | `projectId` immuable sur `ConversationMeta`, filtre/groupage et garde de contexte dans la session | contrôle extension, aucun changement de gate/exec | réalisé pour 0.3.20 ; validation globale en cours |
+
+Rendu du filtre et édition du résumé réalisés pour 0.3.20 ; navigation des
+réglages réduite à cinq pages. La page Projet permet activation et création
+avec dialogue natif de dossier. Le changement de projet est bloqué pendant
+un tour actif. Smoke Chromium passé (édition, brouillon, retours de sauvegarde
+et d’erreur, filtre) ; validation globale en cours, Windows réel non exécuté.
+Ces gardes UI ne transactionnent pas les écritures externes pendant un tour.
+
+## Ancien récapitulatif des décisions initiales
 
 - ~~**Garde unique** (points 2 et 3)~~ : tranché, `PreToolUse`.
 - ~~**Bash** (point 3)~~ : tranché, retiré par défaut.
@@ -231,20 +242,20 @@ Rendu du filtre et édition du résumé par l'utilisateur : voie produit (`cadre
 - ~~**Secrets** (point 5)~~ : tranché, dans le recorder.
 - ~~**Découpage** (points 7 à 10)~~ : tranché, adaptateur séparé (`@warband/agent-sdk`) et libellés dans `@warband/messages`.
 - ~~**Journal** (points 15 et 17)~~ : tranché, sorties complètes avec plafonds et marqueurs de troncature.
-- ~~**P2** (points 18 à 26)~~ : tranché (ADR 0001 et utilisateur) — Windows best effort, Node >= 22.12, podman non supporté, dépôt privé.
+- ~~**P2** (points 18 à 26)~~ : tranché (ADR 0001 et utilisateur) — décision initiale Windows best effort remplacée par ADR 0002/W-L6 ; Node >= 22.12, podman non supporté, dépôt privé.
 
 ## À faire plus tard
 
 Ce qui a été volontairement repoussé ou n'a pas pu être vérifié. Rien ici n'est bloquant pour un usage personnel sur Linux ou macOS.
 
 **Fonctionnalités**
-- **Support de Windows natif** : voir la section « Windows natif (ADR 0002) » ci-dessous ; reste la validation sur un vrai Windows (lot W-L6).
+- **Windows natif** : W-L6 a été validé historiquement (voir section Windows). Les ajouts récents doivent être essayés séparément dans VS Code/Windows.
 - **Support de podman** : parsing tolérant (tableau JSON ou un objet par ligne, `Names` en tableau), option `engine`, tests dédiés.
 - **Nettoyage des conteneurs** quand le client docker est tué par SIGKILL (timeout, annulation forcée) : suivre les conteneurs créés par `run` et les supprimer (`docker rm -f`).
 - **Export HTML** : recherche, pagination, repli de sous-arbres, arêtes approbation → processus (ajouter `toolUseId` à `process.started` ou relier par le parent), lien des `api.retry`, lecture de `agentToolUseId`.
 - **Publication npm** : décisions à prendre (publier ou non, nom du scope, licence — Apache-2.0 recommandée —, dépôt, changesets, README par paquet, CHANGELOG), puis retirer `private`.
 - **Rotation des journaux** (seul le plafond d'octets existe).
-- **Extension VS Code** : l'interface existe côté cœur (`createApprovalQueue`, `Recorder.stream`, `AgentRunner`) mais rien n'est construit ; vérifier l'empaquetage du binaire du SDK Claude dans l'extension host (Electron, Node différent, remote ou web).
+- **Extension VS Code** : construite (chat, cockpit, Monitor, réglages, Kill chain). Restent les validations des ajouts récents dans l’hôte réel et du comportement remote ; ne pas confondre existence du code et validation fonctionnelle.
 - **Modèles gratuits d'OpenCode inutilisables avec notre configuration** (constaté le 2026-10-14, binaire 1.19.0) : `opencode/big-pickle` et les modèles `opencode/*-free` répondent 403 (« free tier can only be used from within OpenCode ») dès que la configuration impose `permission` / `agent` (restrictions de sécurité du moteur), alors que `opencode run` et `opencode serve` par défaut fonctionnent. Le moteur traduit l'erreur proprement (`provider.error`). Pas de contournement : utiliser un fournisseur avec clé, un modèle local (Ollama) ou un endpoint compatible OpenAI. Reste à savoir si la cause est la suppression d'outils de la requête (hypothèse non vérifiée).
 - **SDK v2 d'OpenCode** : non étudié (l'adaptateur cible l'API v1 et tente la route v2 en repli).
 - **Durcissement** : `plugins`, `agents` et `pathToClaudeCodeExecutable` restent passables via `sdkOptions` côté Claude ; à examiner.
@@ -260,6 +271,6 @@ Ce qui a été volontairement repoussé ou n'a pas pu être vérifié. Rien ici 
 - Avec une clé API (`ANTHROPIC_API_KEY`) : mode `auto`/`api-key` non essayé.
 - Connexion `/login` stockée dans `~/.claude` (seule la voie `CLAUDE_CODE_OAUTH_TOKEN` a été essayée) ; égalité `task_id` / `agent_id` pour le rattachement des sous-agents (aucun scénario avec l'outil Task).
 - Fournisseurs réels d'OpenCode (clés, abonnements) : seul un faux fournisseur local a été essayé.
-- La CI GitHub Actions tourne (Linux Node 22/24 verts). Le job Windows, non bloquant, échoue encore (voir ci-dessous).
+- Note historique antérieure à W-L6 : la CI Windows avait échoué. Le workflow actuel inclut un job Windows bloquant ; vérifier les exécutions de la révision courante plutôt que reprendre cet ancien résultat.
 
 **Réserve de politique** : la documentation du SDK indique qu'Anthropic n'autorise pas, sauf accord préalable, les développeurs tiers à proposer la connexion claude.ai ou ses limites de débit dans leurs produits ; l'usage de son propre abonnement pour un outil personnel n'y est pas traité. Pour distribuer warband, utiliser des clés API.

@@ -87,6 +87,8 @@ export interface HistoryEntry {
   model: string;
   /** C'est la conversation affichée en ce moment. */
   current: boolean;
+  projectKey?: string;
+  projectLabel?: string;
 }
 
 /** Conversation ouverte en lecture seule (relue d'un journal non fiable). */

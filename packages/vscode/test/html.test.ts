@@ -145,7 +145,7 @@ describe("composer et Configurer (lot P1)", () => {
     expect(js).not.toContain("/start");
     expect(studio).not.toContain("/start");
     expect(js).toContain("Aucun terminal Warband ouvert. Alt+J T pour en ouvrir un.");
-    expect(studio).toContain("Aucun conteneur dédié. Créez-en un dans le cockpit.");
+    expect(studio).toContain("Aucun conteneur affiché. Gérez les associations dans le cockpit.");
     expect(studio).toContain("Aucun conteneur. Créez-en un dans le cockpit.");
     expect(html).not.toMatch(/\bmcp\b|jauge|compact|pièce jointe active/i);
   });

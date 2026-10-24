@@ -35,6 +35,12 @@ import {
 } from "../logic/cockpit.js";
 import { createJournalFiles } from "../logic/historyStore.js";
 import { chatHtml, cockpitHtml, killchainHtml, makeNonce, studioHtml } from "../logic/html.js";
+import {
+  activateSelectedProject,
+  createSelectedProject,
+  readProjectChoices,
+} from "../logic/project-controls.js";
+import { readProjectSummary, saveProjectSummary } from "../logic/project-summary.js";
 import { type ChatSession, createChatSession, type TokenChoice } from "../logic/session.js";
 import { machineValue, resolveSettings } from "../logic/settings.js";
 import { readSources } from "../logic/sources.js";
@@ -153,6 +159,10 @@ export function activate(context: vscode.ExtensionContext): void {
       store: {
         get: (key: string) => context.globalState.get(key),
         set: (key: string, value: unknown) => context.globalState.update(key, value),
+      },
+      readHistoryProjects: async () => {
+        const file = await readProjects(defaultConfigDir());
+        return file ?? { activeId: null, projects: [] };
       },
       // Journaux hors du dépôt. Le chat latéral garde `runs/` et relit l'ancienne clé.
       history: {
@@ -432,6 +442,12 @@ export function activate(context: vscode.ExtensionContext): void {
         case "refreshTerminals":
           return reply(await terminalsMessage());
         case "send": {
+          if (projectChanging) {
+            void vscode.window.showWarningMessage(
+              "Changement de projet en cours, réessayez ensuite.",
+            );
+            return;
+          }
           const hashes = parseHashes(message.text);
           let listed: { name: string }[] = [];
           if (hashes.some((token) => findShellByToken(token) === undefined)) {
@@ -470,6 +486,7 @@ export function activate(context: vscode.ExtensionContext): void {
             });
           }
           // Aucun terminal ouvert ici : envoyer une consigne ne doit jamais créer de fenêtre.
+          if (projectChanging) return;
           await s.send(message.text, withTerminalContext(message.text, sections));
           return;
         }
@@ -480,9 +497,12 @@ export function activate(context: vscode.ExtensionContext): void {
           return s.reset();
         case "approve":
           return await s.approve(message.toolUseId, message.choice);
+        case "historyRefresh":
+          return await s.refreshHistoryProjects();
         case "historyOpen":
           return await s.openConversation(message.id);
         case "historyResume":
+          if (projectChanging) return;
           return s.resumeConversation();
         case "historyRename":
           return s.renameConversation(message.id, message.title);
@@ -1011,11 +1031,42 @@ export function activate(context: vscode.ExtensionContext): void {
   };
 
   let studioPage: StudioPage = "project";
-  const pushStudio = async () => {
+  let projectChanging = false;
+  const pushStudio = async (
+    feedback: {
+      summarySaved?: string;
+      summaryFailed?: string;
+      summaryError?: string;
+      projectError?: string;
+      projectCreated?: string;
+    } = {},
+  ) => {
     const panel = studioPanel;
     if (!panel) return;
-    const cockpit = await loadCockpitView();
+    // Une sonde de conteneurs en échec ne doit pas perdre l'accusé d'écriture du résumé.
+    const cockpit = await loadCockpitView().catch((error: unknown) => ({
+      type: "view" as const,
+      containers: [],
+      error: formatError(error),
+    }));
     let findings: unknown[] = [];
+    let projectChoices: Awaited<ReturnType<typeof readProjectChoices>> = {
+      activeId: null,
+      projects: [],
+    };
+    let projectError = feedback.projectError;
+    try {
+      projectChoices = await readProjectChoices(defaultConfigDir());
+    } catch (error) {
+      projectError = `Projets indisponibles : ${formatError(error)}`;
+    }
+    let projectSummary: Awaited<ReturnType<typeof readProjectSummary>> = null;
+    let summaryError = feedback.summaryError;
+    try {
+      projectSummary = await readProjectSummary(defaultConfigDir());
+    } catch (error) {
+      summaryError = `Résumé indisponible : ${formatError(error)}`;
+    }
     try {
       const file = await readProjects(defaultConfigDir());
       const active = file === null ? null : activeProject(file);
@@ -1027,7 +1078,18 @@ export function activate(context: vscode.ExtensionContext): void {
     const sources = studioPage === "atlas" ? await readSources(coursRoot()) : [];
     // Fermé pendant les lectures : `panel.webview` lèverait « Webview is disposed ».
     if (studioPanel !== panel) return;
-    await panel.webview.postMessage({ ...cockpit, page: studioPage, findings, sources });
+    await panel.webview.postMessage({
+      ...cockpit,
+      page: studioPage,
+      findings,
+      sources,
+      projectSummary,
+      projectChoices,
+      projectBusy: projectChanging || [...slots.values()].some((slot) => slot.session?.view().busy),
+      ...feedback,
+      ...(summaryError !== undefined && { summaryError }),
+      ...(projectError !== undefined && { projectError }),
+    });
   };
   const openStudio = () => {
     if (studioPanel) {
@@ -1061,6 +1123,69 @@ export function activate(context: vscode.ExtensionContext): void {
       if (message.type === "open") studioPage = message.page;
       if (message.type === "openKillchain") {
         openKillchain();
+        return;
+      }
+      if (message.type === "activateProject" || message.type === "createProject") {
+        const chatsBusy = () => [...slots.values()].some((slot) => slot.session?.view().busy);
+        if (projectChanging || chatsBusy()) {
+          await pushStudio({
+            projectError: "Arrêtez les tours en cours avant de changer de projet.",
+          });
+          return;
+        }
+        projectChanging = true;
+        let projectCreated: string | undefined;
+        let projectError: string | undefined;
+        try {
+          if (message.type === "activateProject") {
+            await activateSelectedProject(defaultConfigDir(), message.projectId);
+          } else {
+            const chosen = await vscode.window.showOpenDialog({
+              canSelectFiles: false,
+              canSelectFolders: true,
+              canSelectMany: false,
+              openLabel: "Choisir le dossier du projet",
+              ...(folder !== undefined && { defaultUri: folder.uri }),
+            });
+            if (chosen?.[0] !== undefined) {
+              if (chatsBusy())
+                throw new Error("Arrêtez les tours en cours avant de créer le projet.");
+              projectCreated = await createSelectedProject(
+                defaultConfigDir(),
+                message.name,
+                chosen[0].fsPath,
+              );
+            }
+          }
+        } catch (error) {
+          projectError = formatError(error);
+        } finally {
+          projectChanging = false;
+        }
+        await pushStudio({
+          ...(projectCreated !== undefined && { projectCreated }),
+          ...(projectError !== undefined && { projectError }),
+        });
+        await Promise.all(
+          [...slots.values()].map((slot) => slot.session?.refreshHistoryProjects()),
+        );
+        if (cockpitPanel !== undefined) {
+          const view = await loadCockpitView();
+          await cockpitPanel.webview.postMessage(view);
+          broadcastContainers(view.containers);
+        }
+        return;
+      }
+      if (message.type === "saveSummary") {
+        try {
+          await saveProjectSummary(defaultConfigDir(), message.projectId, message.text);
+          await pushStudio({ summarySaved: message.projectId });
+        } catch (error) {
+          await pushStudio({
+            summaryFailed: message.projectId,
+            summaryError: `Résumé non enregistré : ${formatError(error)}`,
+          });
+        }
         return;
       }
       if (message.type === "unlink") await unlink(defaultConfigDir());

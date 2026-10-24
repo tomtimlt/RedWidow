@@ -456,7 +456,10 @@ describe("historique (F4)", () => {
       parentId: null,
       ...payload,
     });
-  function withHistory(key = "warband.history") {
+  function withHistory(
+    key = "warband.history",
+    readHistoryProjects?: () => Promise<import("../src/logic/history.js").HistoryProjects>,
+  ) {
     const stored = new Map<string, unknown>();
     const written = new Map<string, string>();
     const removed: string[] = [];
@@ -467,6 +470,7 @@ describe("historique (F4)", () => {
       cwd: "/w",
       enginePath: "/e.mjs",
       engineArgs: [],
+      ...(readHistoryProjects && { readHistoryProjects }),
       readSettings: () => ({}),
       getToken: async () => undefined,
       confirmAlways: async () => false,
@@ -489,6 +493,125 @@ describe("historique (F4)", () => {
     });
     return { f, session, stored, written, removed, confirmDelete, view: () => session.view() };
   }
+
+  it.each(["reset", "stop", "dispose"] as const)(
+    "%s invalide un envoi en attente de lecture des projets",
+    async (action) => {
+      let resolve!: (value: import("../src/logic/history.js").HistoryProjects) => void;
+      const projects = new Promise<import("../src/logic/history.js").HistoryProjects>((done) => {
+        resolve = done;
+      });
+      const h = withHistory("warband.history", () => projects);
+      const sending = h.session.send("ne doit pas partir");
+      h.session[action]();
+      resolve({ activeId: null, projects: [] });
+      await sending;
+      expect(h.f.starts).toEqual([]);
+      expect(h.f.calls).toEqual([]);
+      expect(h.view().history).toEqual([]);
+      expect(h.view().items).toEqual([]);
+    },
+  );
+
+  it("reset invalide une ouverture et une reprise en attente sans restaurer la conversation", async () => {
+    type Projects = import("../src/logic/history.js").HistoryProjects;
+    let pending: Promise<Projects> | undefined;
+    const h = withHistory(
+      "warband.history",
+      () => pending ?? Promise.resolve({ activeId: null, projects: [] }),
+    );
+    await h.session.send("conversation");
+    h.f.handlers.onStarted?.({ runId: RUN1, policySource: null });
+    h.f.handlers.onEnded?.({ sessionId: "S1" } as never);
+    const id = h.view().history[0]?.id;
+    let resolve!: (value: Projects) => void;
+    pending = new Promise<Projects>((done) => {
+      resolve = done;
+    });
+    const opening = h.session.openConversation(id);
+    h.session.reset();
+    resolve({ activeId: null, projects: [] });
+    await opening;
+    expect(h.view().readonly).toBeNull();
+    expect(h.view().items).toEqual([]);
+    pending = undefined;
+    await h.session.openConversation(id);
+    expect(h.view().readonly).not.toBeNull();
+    pending = new Promise<Projects>((done) => {
+      resolve = done;
+    });
+    const resuming = h.session.resumeConversation();
+    h.session.reset();
+    resolve({ activeId: null, projects: [] });
+    await resuming;
+    expect(h.view().readonly).toBeNull();
+    expect(h.view().items).toEqual([]);
+    const starts = h.f.starts.length;
+    pending = undefined;
+    await h.session.send("conversation neuve");
+    expect(h.f.starts.length).toBe(starts + 1);
+    expect(h.f.started?.resume).toBeUndefined();
+  });
+
+  it("classe une fois par projet et bloque les changements de cible entre tours et à la reprise", async () => {
+    const a = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const b = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    let activeId = a;
+    let name = "Alpha";
+    const h = withHistory("warband.history", async () => ({
+      activeId,
+      projects: [
+        { id: a, name },
+        { id: b, name: "Beta" },
+      ],
+    }));
+    await h.session.send("première");
+    h.f.handlers.onStarted?.({ runId: RUN1, policySource: null });
+    h.f.handlers.onEnded?.({ sessionId: "S1" } as never);
+    const id = h.view().history[0]?.id;
+    expect(h.stored.get("warband.history")).toMatchObject([{ projectId: a }]);
+    activeId = b;
+    const calls = h.f.calls.length;
+    await h.session.send("ne doit pas partir");
+    expect(h.f.calls).toHaveLength(calls);
+    expect(h.view().busy).toBe(false);
+    expect(h.stored.get("warband.history")).toMatchObject([{ projectId: a }]);
+    await h.session.openConversation(id);
+    await h.session.resumeConversation();
+    expect(h.view().readonly).not.toBeNull();
+    activeId = a;
+    name = "Alpha renommé";
+    await h.session.refreshHistoryProjects();
+    expect(h.view().history[0]?.projectLabel).toBe(name);
+    await h.session.resumeConversation();
+    expect(h.view().readonly).toBeNull();
+    expect(h.stored.get("warband.history")).toMatchObject([{ projectId: a }]);
+  });
+
+  it("sans projet puis projet actif : refuse de réattribuer la conversation ; lecture en erreur bloque aussi", async () => {
+    let activeId: string | null = null;
+    let broken = false;
+    const h = withHistory("warband.history", async () => {
+      if (broken) throw new Error("lecture");
+      return { activeId, projects: [] };
+    });
+    await h.session.send("sans projet");
+    h.f.handlers.onStarted?.({ runId: RUN1, policySource: null });
+    h.f.handlers.onEnded?.({ sessionId: "S1" } as never);
+    const calls = h.f.calls.length;
+    activeId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    await h.session.send("bloqué");
+    expect(h.f.calls).toHaveLength(calls);
+    activeId = null;
+    broken = true;
+    await h.session.send("lecture ratée");
+    expect(h.f.calls).toHaveLength(calls);
+    expect(h.view().busy).toBe(false);
+    expect(h.stored.get("warband.history")).toMatchObject([{ title: "sans projet" }]);
+    expect(
+      (h.stored.get("warband.history") as { projectId?: string }[])[0]?.projectId,
+    ).toBeUndefined();
+  });
 
   it("enregistre la conversation (titre = 1re consigne), journalDir transmis, ouverture en lecture seule", async () => {
     const h = withHistory();
@@ -536,7 +659,7 @@ describe("historique (F4)", () => {
     await h.session.send("ne part pas");
     expect(h.f.calls).toHaveLength(before);
     // Reprise : resume de la session, sous la politique actuelle (nouveau moteur).
-    h.session.resumeConversation();
+    await h.session.resumeConversation();
     expect(h.view().readonly).toBeNull();
     await h.session.send("suite");
     expect(h.f.starts.at(-1)).toMatchObject({ resume: "S1" });

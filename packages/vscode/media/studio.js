@@ -12,21 +12,13 @@ const STUDIO_GROUPS = [
     pages: [
       ["project", "Projet", "◆"],
       ["containers", "Conteneurs", "▣"],
-      ["providers", "Fournisseurs", "⇄"],
-      ["personas", "Personas", "◉"],
-      ["approvals", "Approbations", "✓"],
       ["killchain", "Kill chain", "⚑"],
     ],
   },
   {
     label: "Système",
     pages: [
-      ["model", "Modèle", "◈"],
-      ["harness", "Harness", "▤"],
-      ["mcp", "MCP", "⬡"],
       ["atlas", "Atlas", "▦"],
-      ["layout", "Disposition", "▭"],
-      ["modes", "Modes", "◐"],
       ["system", "Contrôle système", "⏻"],
     ],
   },
@@ -377,6 +369,10 @@ function start() {
   // État de repli du panneau légende : variable de module, survit aux render() successifs.
   // `null` tant qu'il n'a pas été initialisé (calcul différé à la première ouverture du graphe).
   let legendCollapsed = null;
+  // Les rafraîchissements du panneau ne doivent pas écraser une saisie en cours.
+  const summaryDrafts = new Map();
+  const summarySaving = new Set();
+  let projectNameDraft = "";
 
   const el = (tag, className, text) => {
     const node = document.createElement(tag);
@@ -753,6 +749,12 @@ function start() {
   }
 
   function render(view) {
+    // Les accusés concernent une requête, même si l'utilisateur a changé de page/projet.
+    if (typeof view.summarySaved === "string") {
+      summaryDrafts.delete(view.summarySaved);
+      summarySaving.delete(view.summarySaved);
+    }
+    if (typeof view.summaryFailed === "string") summarySaving.delete(view.summaryFailed);
     if (!main) return;
     while (main.firstChild) main.removeChild(main.firstChild);
     const page = killchainOnly ? "killchain" : view.page;
@@ -760,11 +762,97 @@ function start() {
     if (page === "project") {
       const sec = el("section", "studio-card");
       sec.append(el("h2", "", "Projet"));
+      const choices = view.projectChoices;
+      if (choices && Array.isArray(choices.projects)) {
+        const projectBusy = view.projectBusy === true;
+        if (projectBusy)
+          sec.append(
+            el("p", "studio-help", "Attendez la fin du travail en cours pour changer de projet."),
+          );
+        if (typeof view.projectCreated === "string") projectNameDraft = "";
+        const current = choices.projects.find((p) => p.id === choices.activeId);
+        sec.append(
+          el(
+            "p",
+            "studio-help",
+            current ? `Projet actif : ${current.name}` : "Aucun projet actif.",
+          ),
+        );
+        if (current) sec.append(el("p", "studio-help", current.workspace));
+        if (choices.projects.length > 0) {
+          const label = el("label", "studio-help", "Choisir un projet");
+          label.htmlFor = "project-choice";
+          const select = el("select", "studio-project-control");
+          select.id = "project-choice";
+          select.disabled = projectBusy;
+          const placeholder = el("option", "", "Choisir un projet…");
+          placeholder.value = "";
+          placeholder.disabled = true;
+          select.append(placeholder);
+          for (const project of choices.projects) {
+            const option = el("option", "", project.name);
+            option.value = project.id;
+            select.append(option);
+          }
+          select.value = choices.activeId ?? "";
+          const activate = el("button", "primary", "Activer le projet");
+          activate.type = "button";
+          const update = () => {
+            activate.disabled = projectBusy || !select.value || select.value === choices.activeId;
+          };
+          select.addEventListener("change", update);
+          activate.addEventListener("click", () => {
+            if (activate.disabled) return;
+            activate.disabled = true;
+            vscode.postMessage({ type: "activateProject", projectId: select.value });
+          });
+          update();
+          sec.append(label, select, activate);
+        }
+        const label = el("label", "studio-help", "Nom du nouveau projet");
+        label.htmlFor = "project-name";
+        const name = el("input", "studio-project-control");
+        name.id = "project-name";
+        name.type = "text";
+        name.maxLength = 80;
+        name.value = projectNameDraft;
+        name.disabled = projectBusy;
+        const create = el("button", "ghost", "Créer un projet et choisir son dossier…");
+        create.type = "button";
+        const update = () => {
+          create.disabled = projectBusy || !name.value.trim();
+        };
+        name.addEventListener("input", () => {
+          projectNameDraft = name.value;
+          update();
+        });
+        create.addEventListener("click", () => {
+          if (create.disabled) return;
+          create.disabled = true;
+          vscode.postMessage({ type: "createProject", name: name.value.trim() });
+        });
+        update();
+        sec.append(label, name, create);
+      }
+      if (typeof view.projectError === "string") {
+        const error = el("p", "studio-help", view.projectError);
+        error.setAttribute("role", "status");
+        sec.append(error);
+      }
+      if (!choices && typeof view.projectSummary?.projectName === "string") {
+        sec.append(el("p", "studio-name", view.projectSummary.projectName));
+      }
       if (!view.linkedBanner) {
-        sec.append(el("p", "studio-help", "Aucun conteneur dédié. Créez-en un dans le cockpit."));
+        sec.append(
+          el(
+            "p",
+            "studio-help",
+            "Aucun conteneur affiché. Gérez les associations dans le cockpit.",
+          ),
+        );
       } else {
         const b = view.linkedBanner;
-        sec.append(el("p", "studio-kicker", "DÉDIÉ"));
+        sec.append(el("p", "studio-kicker", "CONTENEUR AFFICHÉ"));
         sec.append(el("p", "studio-name", b.name));
         sec.append(el("p", "studio-help", b.workspace));
         const del = el("button", "ghost");
@@ -772,6 +860,61 @@ function start() {
         del.append(el("span", "btn-text", "Retirer le projet"));
         del.addEventListener("click", () => vscode.postMessage({ type: "unlink" }));
         sec.append(del);
+      }
+      const summary = view.projectSummary;
+      if (summary && typeof summary.projectId === "string" && typeof summary.text === "string") {
+        const id = summary.projectId;
+        sec.append(el("h2", "", "Mémoire du projet"));
+        sec.append(
+          el(
+            "p",
+            "studio-help",
+            "Ce résumé est partagé avec l'agent au démarrage des nouvelles conversations. Il ne remplace pas l'historique.",
+          ),
+        );
+        const label = el("label", "studio-help", "Résumé de session");
+        label.htmlFor = "project-summary";
+        const input = el("textarea", "studio-summary");
+        input.id = "project-summary";
+        input.rows = 10;
+        input.maxLength = 8192;
+        input.value = summaryDrafts.get(id) ?? summary.text;
+        input.disabled = summarySaving.has(id);
+        input.setAttribute("aria-describedby", "summary-status");
+        const status = el("p", "studio-help");
+        status.id = "summary-status";
+        status.setAttribute("role", "status");
+        const save = el("button", "primary", "Enregistrer le résumé");
+        save.type = "button";
+        const update = () => {
+          const bytes = new TextEncoder().encode(input.value).length;
+          save.disabled = bytes > 8192 || summarySaving.has(id);
+          status.textContent =
+            bytes > 8192
+              ? "Résumé trop long : 8 Kio maximum."
+              : `${bytes} / 8192 octets · Les secrets reconnus sont masqués à l'enregistrement.`;
+        };
+        input.addEventListener("input", () => {
+          summaryDrafts.set(id, input.value);
+          update();
+        });
+        save.addEventListener("click", () => {
+          if (save.disabled) return;
+          summaryDrafts.set(id, input.value);
+          summarySaving.add(id);
+          input.disabled = true;
+          save.disabled = true;
+          status.textContent = "Enregistrement…";
+          vscode.postMessage({ type: "saveSummary", projectId: id, text: input.value });
+        });
+        update();
+        if (view.summarySaved === id) status.textContent = "Résumé enregistré.";
+        if (typeof view.summaryError === "string") status.textContent = view.summaryError;
+        sec.append(label, input, status, save);
+      } else if (typeof view.summaryError === "string") {
+        const error = el("p", "studio-help", view.summaryError);
+        error.setAttribute("role", "status");
+        sec.append(error);
       }
       main.append(sec);
       return;
@@ -849,15 +992,6 @@ function start() {
       main.append(sec);
       return;
     }
-    if (page === "harness") {
-      main.append(
-        empty(
-          "Harness",
-          "Skills, agents, rules, hooks, briefs : tu déposes les fiches. Rien n'est rédigé ici.",
-        ),
-      );
-      return;
-    }
     if (page === "atlas") {
       const sec = empty(
         "Atlas",
@@ -884,17 +1018,7 @@ function start() {
       main.append(sec);
       return;
     }
-    if (page === "mcp") {
-      main.append(
-        empty(
-          "MCP",
-          "Nom, endroit, interrupteur. Les appels passent par la gate. Aucun serveur n'est copié ici.",
-        ),
-      );
-      return;
-    }
-    const label = STUDIO_GROUPS.flatMap((g) => g.pages).find((p) => p[0] === page)?.[1] ?? page;
-    main.append(empty(label, "Cette page reste vide : pas d'interrupteur ajouté."));
+    main.append(empty("Réglages", "Choisissez une rubrique dans la navigation."));
   }
 
   window.addEventListener("message", (event) => {

@@ -20,7 +20,7 @@ Menace. Le résumé est **injecté dans un prompt** : c'est une donnée **non fi
 ### A — Lien conversation↔projet : champ d'affichage sur `ConversationMeta`
 
 1. `ConversationMeta` gagne `projectId?: string` (UUID). Il est **écrit une fois, à la création** de la conversation = `activeId` du moment (ou absent s'il n'y a pas de projet actif). Il n'est **jamais réécrit** ensuite, y compris à la reprise.
-2. **Invariant** : `projectId` est **d'affichage seulement**, lu uniquement par le filtre d'historique. Il n'est **jamais** lu par le moteur, l'exec, la politique ni la gate — exactement comme `primary?` (ADR 0015:198). Ceci ne contredit pas ADR 0013:60 : l'ADR 0013 interdit un champ qui **réattacherait le projet à l'exécution** au moment de la reprise ; ici la reprise continue d'appliquer le projet actif courant (ADR 0013:60), le champ ne sert qu'à ranger la conversation.
+2. **Décision initiale, amendée ci-dessous** : `projectId` est **d'affichage seulement**, lu uniquement par le filtre d'historique. Il n'est **jamais** lu par le moteur, l'exec, la politique ni la gate — exactement comme `primary?` (ADR 0015:198). Ceci ne contredit pas ADR 0013:60 : l'ADR 0013 interdit un champ qui **réattacherait le projet à l'exécution** au moment de la reprise ; ici la reprise continue d'appliquer le projet actif courant (ADR 0013:60), le champ ne sert qu'à ranger la conversation.
 3. Filtre : l'extension groupe les conversations par `projectId` et résout le **nom** via la liste `projects` courante au rendu.
    - Conversation ancienne sans `projectId` : rangée sous « sans projet ».
    - Projet supprimé : `projectId` ne correspond à aucun projet → rangée sous « projet inconnu » (on ne purge pas la conversation, on ne réécrit pas le champ).
@@ -42,6 +42,28 @@ Menace. Le résumé est **injecté dans un prompt** : c'est une donnée **non fi
    L'injection est faite côté moteur (source moteur, pas UI) : elle est donc permise même en apprentissage (ADR 0010 interdit la consigne **venant de l'UI**, pas une donnée moteur). Résumé absent ou projet actif absent : aucun bloc. Le bloc ne porte aucun nom de conteneur, chemin ou règle interprété : c'est du texte opaque.
 
 8. **Invariant de non-élargissement** : le résumé n'est que du texte de prompt. Il n'est jamais parsé pour dériver un conteneur, un chemin, une politique ou une entrée d'allowlist. L'allowlist, le `cwd`, la politique et la gate restent ceux d'ADR 0013 (figés au start, allowlist relue au message).
+
+## Amendement du 24 octobre 2026 — cohérence du projet au lancement
+
+Le point A.2 et les critères H1 sont amendés pour éviter de poursuivre une
+conversation du projet A sur les conteneurs du projet B par simple changement
+du projet actif. `projectId` reste immuable et ne sélectionne aucune cible.
+L’extension peut désormais le lire pour **bloquer l’envoi et la reprise** si le
+projet actif diffère de celui de la conversation. L’absence de projet est une
+valeur à comparer : une ancienne conversation sans projet ne repart pas sous
+un projet actif sans création d’une nouvelle conversation.
+
+L’extension n’active jamais automatiquement l’ancien projet et ne réécrit pas
+le champ. Elle explique qu’il faut sélectionner le projet correspondant ou
+ouvrir une nouvelle conversation. Une erreur de lecture des projets bloque
+le lancement au lieu d’être assimilée à « sans projet ». La lecture de
+l’historique reste possible, y compris pour un projet supprimé.
+
+Ce contrôle reste dans la session d’extension : le moteur, l’exec, la politique
+et la gate ne lisent pas `ConversationMeta.projectId`. Leur contexte continue
+à provenir du projet actif. Critères supplémentaires : tester envoi et reprise
+avec projet identique, différent, sans projet et erreur de lecture ; vérifier
+que ni le projet actif ni le `projectId` enregistré ne sont modifiés.
 
 ## Alternatives écartées
 

@@ -35,6 +35,8 @@ import {
   applyRetention,
   type ConversationMeta,
   cleanTitle,
+  type HistoryProjects,
+  historyProject,
   isConversationId,
   isRunId,
   parseIndex,
@@ -86,6 +88,7 @@ export interface ChatSessionDeps {
   /** Version du SDK embarqué : clé du cache de la liste des modèles. */
   sdkVersion?: string;
   /** Historique (F4) : index dans `workspaceState`, journaux hors du dépôt. Absent : pas d'historique. */
+  readHistoryProjects?(): Promise<HistoryProjects>;
   history?: {
     /** Clé d'index de ce chat. Défaut : `warband.history` (un seul chat). */
     key?: string;
@@ -222,6 +225,25 @@ export function createChatSession(deps: ChatSessionDeps) {
   const historyKey = history?.key ?? DEFAULT_HISTORY_KEY;
   let index: ConversationMeta[] = history ? parseIndex(history.index.get(historyKey)) : [];
   let current: ConversationMeta | null = null;
+  // Invalide les lectures de projet/navigation en attente après arrêt ou nouvelle action.
+  let navigationRev = 0;
+  let historyProjects: HistoryProjects = { activeId: null, projects: [] };
+  const reloadHistoryProjects = async (revision = navigationRev) => {
+    try {
+      const projects = (await deps.readHistoryProjects?.()) ?? { activeId: null, projects: [] };
+      if (revision !== navigationRev) return false;
+      historyProjects = projects;
+      return true;
+    } catch {
+      if (revision !== navigationRev) return false;
+      historyProjects = { activeId: null, projects: [] };
+      state.notice(
+        "Liste des projets indisponible : envoi suspendu, réessayez après vérification du projet actif.",
+        "error",
+      );
+      return false;
+    }
+  };
   const historyEntries = (): HistoryEntry[] =>
     sortRecent(index)
       .filter((c) => c.runIds.length > 0 || c.id === current?.id)
@@ -233,6 +255,8 @@ export function createChatSession(deps: ChatSessionDeps) {
         provider: "Claude",
         model: c.model ?? "défaut",
         current: c.id === current?.id,
+        projectKey: historyProject(c, historyProjects.projects).key,
+        projectLabel: historyProject(c, historyProjects.projects).label,
       }));
   const saveIndex = () => {
     if (history) void Promise.resolve(history.index.set(historyKey, index)).catch(() => undefined);
@@ -258,6 +282,7 @@ export function createChatSession(deps: ChatSessionDeps) {
     const now = new Date().toISOString();
     current = {
       id: randomUUID(),
+      ...(isRunId(historyProjects.activeId) && { projectId: historyProjects.activeId }),
       title: titleFrom(firstPrompt),
       createdAt: now,
       updatedAt: now,
@@ -539,9 +564,25 @@ export function createChatSession(deps: ChatSessionDeps) {
         refresh();
         return;
       }
+      state.setBusy(true);
+      const revision = ++navigationRev;
+      const projectsReady = await reloadHistoryProjects(revision);
+      if (revision !== navigationRev) return;
+      if (
+        !projectsReady ||
+        (current !== null && (current.projectId ?? null) !== historyProjects.activeId)
+      ) {
+        state.setBusy(false);
+        if (projectsReady)
+          state.notice(
+            "Le projet actif a changé. Revenez au projet de cette conversation ou créez une nouvelle conversation dans le projet actif.",
+            "error",
+          );
+        refresh();
+        return;
+      }
       ensureConversation(text);
       state.user(text);
-      state.setBusy(true);
       refresh();
       try {
         if (controller !== null && applied !== null) {
@@ -588,7 +629,12 @@ export function createChatSession(deps: ChatSessionDeps) {
       await loadModels(true);
     },
     stop(): void {
-      if (controller === null) return;
+      navigationRev++;
+      if (controller === null) {
+        state.setBusy(false);
+        refresh();
+        return;
+      }
       userAbort.add(controller);
       stopping = true;
       controller.abort();
@@ -615,6 +661,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       refresh();
     },
     reset(): void {
+      navigationRev++;
       stopping = true;
       stopEngine(controller);
       controller = null;
@@ -624,12 +671,20 @@ export function createChatSession(deps: ChatSessionDeps) {
       state.clear();
       refresh();
     },
+    async refreshHistoryProjects(): Promise<void> {
+      const revision = navigationRev;
+      await reloadHistoryProjects(revision);
+      if (revision === navigationRev) refresh();
+    },
     /** Ouvre une conversation en lecture seule : le fil est reconstruit depuis ses journaux (entrée non fiable). */
     async openConversation(id: unknown): Promise<void> {
       if (!history || state.busy || !isConversationId(id)) return;
       // L'identifiant ne sert qu'à retrouver une entrée de l'index ; les chemins viennent des `runId` validés.
       const meta = index.find((c) => c.id === id);
       if (!meta) return;
+      const revision = ++navigationRev;
+      await reloadHistoryProjects(revision);
+      if (revision !== navigationRev) return;
       stopping = true;
       // Bypass hôte à « off » avant d'arrêter l'ancien moteur : aucune décision ne le garde actif (lot 2c).
       deps.bypass?.reset?.();
@@ -645,6 +700,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       let missing = 0;
       for (const runId of meta.runIds) {
         const text = await history.files.read(runId);
+        if (revision !== navigationRev) return;
         if (text === null) {
           missing++;
           continue;
@@ -666,17 +722,33 @@ export function createChatSession(deps: ChatSessionDeps) {
       refresh();
     },
     /** Reprend la conversation ouverte : nouveau message avec `resume`, sous la politique ACTUELLE. */
-    resumeConversation(): void {
+    async resumeConversation(): Promise<void> {
+      if (state.busy) return;
       const info = state.readonly;
       const meta = info ? index.find((c) => c.id === info.id) : undefined;
       if (!meta) return;
+      const revision = ++navigationRev;
+      const projectsReady = await reloadHistoryProjects(revision);
+      if (revision !== navigationRev) return;
+      if (!projectsReady) {
+        refresh();
+        return;
+      }
+      if ((meta.projectId ?? null) !== historyProjects.activeId) {
+        state.notice(
+          "Cette conversation appartient à un autre projet. Revenez à son projet ou créez une nouvelle conversation dans le projet actif.",
+          "error",
+        );
+        refresh();
+        return;
+      }
       current = meta;
       sessionId = meta.sessionId ?? undefined;
       state.setReadonly(null);
       state.notice(
         meta.sessionId === null
           ? "Session introuvable : le prochain message démarre une nouvelle session."
-          : "Conversation reprise : la politique actuelle s'applique.",
+          : "Conversation reprise dans son projet : la politique actuelle s'applique.",
       );
       refresh();
     },
@@ -719,6 +791,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       refresh();
     },
     dispose(): void {
+      navigationRev++;
       stopping = true;
       stopEngine(controller);
       controller = null;

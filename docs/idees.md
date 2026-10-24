@@ -174,7 +174,14 @@ Forme cible : une notion de **profil de bac à sable** (Exegol, Kali-Docker,
 Kali-WSL) décrivant comment lister, démarrer et exécuter. Le cœur ne change
 presque pas pour le cas Docker ; le cas WSL ajoute un adaptateur.
 
-## Chantiers déjà planifiés à relancer
+## Ancien inventaire de chantiers — historique à recouper
+
+Cette liste précède plusieurs livraisons. Elle ne sert plus de liste de tâches :
+Windows W-L6 est indiqué comme validé dans le suivi, le bac à sable ADR 0003
+est abandonné, et plusieurs fonctions de graphe/cours/Kali existent déjà.
+Voir [l’état du projet](etat-du-projet.md) avant de reprendre un élément.
+
+### Liste conservée pour mémoire
 
 Voir `docs/architecture-issues.md`.
 

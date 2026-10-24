@@ -77,6 +77,7 @@ export type WebviewMessage =
   | { type: "historyRename"; id: string; title: string }
   | { type: "historyDelete"; id: string }
   | { type: "historyClear" }
+  | { type: "historyRefresh" }
   | { type: "refreshModels" }
   /** Menu `#` ouvert : l'hôte renvoie la liste des terminaux avec leur dernière commande. */
   | { type: "refreshTerminals" }
@@ -134,6 +135,7 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
     case "refreshTerminals":
     case "historyResume":
     case "historyClear":
+    case "historyRefresh":
     case "addProvider":
     case "ready":
     case "openKillchain":

@@ -1,6 +1,6 @@
 # Extension VS Code : installation et usage
 
-Extension privée (ADR 0004, lots E3 + E4) : chat d'agent dans VS Code, avec une carte d'approbation pour chaque outil demandé. Pas de Marketplace : le `.vsix` s'installe à la main. Cible construite et testée à la construction : `win32-x64`.
+Extension privée (ADR 0004, lots E3 + E4) : chat d'agent dans VS Code, avec une politique d’approbation et des cartes pour les demandes qui nécessitent une réponse. Le Bypass suspend ces demandes pendant sa durée. Pas de Marketplace : le `.vsix` s'installe à la main. Le workflow de release construit les cibles `win32-x64` et `linux-x64`.
 
 ## Construire et installer
 
@@ -8,7 +8,7 @@ Extension privée (ADR 0004, lots E3 + E4) : chat d'agent dans VS Code, avec une
 pnpm install --frozen-lockfile
 pnpm build
 pnpm --filter @warband/vscode package        # cible win32-x64 par défaut
-code --install-extension packages/vscode/warband-0.3.13-win32-x64.vsix
+code --install-extension packages/vscode/warband-0.3.20-win32-x64.vsix
 ```
 
 Raccourci : `pnpm maj` (ou `node scripts/update.mjs`). Il enchaîne `git pull --ff-only`, `pnpm install`, `pnpm build`, l'empaquetage et `code --install-extension --force`. Options : `--check` (ajoute `pnpm check`), `--no-install`, `--dry-run`, `--target=…`. Recharger ensuite la fenêtre VS Code.
@@ -18,6 +18,28 @@ Le `.vsix` fait environ 117 Mio (il embarque le binaire `claude` du SDK, 257 Mio
 ## Publier une release
 
 Pousser un tag `vX.Y.Z` égal à la version de `packages/vscode/extension.manifest.json` déclenche `.github/workflows/release.yml` : `pnpm check`, `pnpm build`, empaquetage `linux-x64` puis `win32-x64`, empreintes SHA-256, puis création de la release GitHub avec les deux `.vsix`. Un tag qui ne correspond pas à la version du manifeste fait échouer le workflow avant toute publication. Relancer le workflow sur un tag déjà publié remplace les fichiers de la release (`--clobber`). Le job demande `contents: write` ; le dépôt est extrait sans identifiants persistants et le jeton n'est lu que par l'étape de publication.
+
+## Parcours de travail
+
+**Choisir un projet → associer ses conteneurs → travailler avec l’agent → approuver les actions nécessaires → consulter les résultats et les traces.**
+
+Le cockpit gère les conteneurs et leurs associations. La page Projet des réglages permet de choisir un projet existant avec
+**Activer**, ou de le créer en donnant un nom puis un dossier via le dialogue
+natif. Le changement de projet est bloqué pendant un tour actif. Le chat
+conduit les échanges. Monitor affiche
+les exécutions et Kill chain les trouvailles. Le conteneur principal affiché
+ne remplace pas la sélection de cible autorisée par le moteur.
+
+Les réglages proposent cinq pages : **Projet**, **Conteneurs**, **Kill chain**,
+**Atlas** et **Contrôle système**. Les rubriques sans fonction disponible ont
+été retirées de la navigation.
+
+La page **Projet** affiche aussi le résumé réel du projet actif. On peut le
+modifier puis choisir **Enregistrer le résumé** ; la saisie est limitée à
+8 Kio, le brouillon est conservé pendant la navigation, et la page signale la
+réussite ou l’erreur d’écriture. Le contenu est masqué à l’écriture par les
+helpers du cœur. Le résumé sert aux nouvelles conversations ; il ne remplace
+pas l’historique et n’est pas réinjecté à une reprise.
 
 ## Premier run
 
@@ -29,7 +51,7 @@ Pousser un tag `vX.Y.Z` égal à la version de `packages/vscode/extension.manife
 ## Interface du chat (design « néon », docs/design-chat-ui.md)
 
 - **Responsive** : la mise en page suit la largeur de la vue (container queries sur `body`) : compact < 360 px (boutons en icône, pastille de modèle tronquée), standard 360-599 px, large ≥ 600 px (colonne de lecture centrée, 720 px). Aucun élément ne déborde.
-- **Composer** : la zone de saisie porte une barre d'outils avec la **pastille de modèle** (liste ARIA avec filtre, ↑/↓/Début/Fin/Entrée/Échap, « Actualiser la liste » en pied), le bouton **Configurer** (curseur d'effort à crans cliquables, bouton Auto, fournisseur, bac à sable et réseau en lecture seule) et Envoyer/Stop. Les popovers se placent en JavaScript (au-dessus de l'ancre, dessous si la place manque, jamais hors de l'écran) ; piège de focus, Échap et clic extérieur ferment.
+- **Composer** : la zone de saisie porte une barre d'outils avec la **pastille de modèle** (liste ARIA avec filtre, ↑/↓/Début/Fin/Entrée/Échap, « Actualiser la liste » en pied), le bouton **Configurer** (curseur d'effort à crans cliquables, bouton Auto, fournisseur et configuration du chat) et Envoyer/Stop. Les popovers se placent en JavaScript (au-dessus de l'ancre, dessous si la place manque, jamais hors de l'écran) ; piège de focus, Échap et clic extérieur ferment.
 - **Effets** (tous en `transform`/`opacity`, liste fermée) : halo au focus du composer, balayage lumineux et « pop » de la pastille quand le modèle accepté change, indicateur « thinking » (spinner braille, curseur clignotant, scanline discrète) pendant un run, entrée des cartes d'approbation. Rien ne tourne sans run actif ; tout est figé quand la vue est cachée ou pendant l'attente d'une approbation.
 - **Mouvement réduit, contraste élevé, couleurs forcées** : tous les effets sont coupés (le spinner devient « … »). `workbench.reduceMotion` : le média `prefers-reduced-motion` honoré par la webview suffit, l'extension ne lit pas ce réglage (aucun champ ajouté à la vue).
 - **Prévisualiser** : `pnpm exec vitest run packages/vscode/test/preview.test.ts` génère dans `packages/vscode/preview/` (ignoré par git) les pages du chat (9 états), du cockpit et de quatre pages des réglages (`studio-project`, `studio-containers`, `studio-atlas`, `studio-killchain`), en 3 thèmes, avec le HTML, le CSS, le JS et la CSP réels. Puis `node packages/vscode/scripts/preview-shots.mjs` (Edge ; `EDGE_BIN` pour un autre Chromium, par exemple `EDGE_BIN="C:\\...\\msedge.exe"` ou un binaire lancé avec `--no-sandbox` en conteneur) prend les captures dans `preview/shots/` : par défaut accueil (`empty`), `running`, `approval`, `model` et `config` (popovers ouverts), `cockpit` et les quatre pages `studio-*`, à 280, 360, 520 et 900 px, en sombre, clair et contraste élevé (`--states all`, `--widths`, `--themes`, `--out` pour changer). Il signale toute violation CSP et tout débordement horizontal (code de sortie 1). Les pages sont servies par un petit serveur HTTP local (127.0.0.1, port éphémère, lecture seule, arrêté en fin de script) : les masques de `icon.svg` (logo) ne se chargent pas en `file://` (CORS). Seule la source `file:` de la CSP de prévisualisation est remplacée à la volée par l'origine du serveur ; la CSP des pages de l'extension n'est pas modifiée. Ouvertes directement en `file://`, les pages s'affichent sans le logo d'accueil. L'iframe prend la hauteur de la fenêtre pour que le composer soit entier. Durée : environ 6 minutes pour la série par défaut.
@@ -45,9 +67,15 @@ Dans la barre d'outils du composer : une **pastille de modèle** et, sous « Con
 
 ## Historique des conversations
 
-Bouton **Historique** de l'en-tête : liste des conversations (titre = première consigne tronquée, date, nombre d'outils, fournisseur et modèle). Actions : **ouvrir** (le fil est reconstruit depuis les journaux, en **lecture seule** : aucune carte d'approbation, saisie désactivée), **Reprendre** (nouveau message avec `resume` de la session, sous la politique **actuelle**), **Renommer**, **Supprimer**, **Tout effacer** (confirmation modale native).
+Bouton **Historique** de l’en-tête : filtre par projet (dont « Tous les projets » et conversations sans projet), puis liste des conversations (titre = première consigne tronquée, date, nombre d'outils, fournisseur et modèle). Actions : **ouvrir** (le fil est reconstruit depuis les journaux, en **lecture seule** : aucune carte d'approbation, saisie désactivée), **Reprendre** (nouveau message avec `resume` de la session, sous la politique **actuelle**), **Renommer**, **Supprimer**, **Tout effacer** (confirmation modale native).
 
 - Les journaux de l'extension sont écrits **hors du dépôt**, dans le stockage de l'extension (`storageUri/runs/<runId>.jsonl`), jamais dans `.warband/runs/` ; l'index léger est dans `workspaceState`. Le moteur consigne chaque consigne de l'utilisateur dans un événement `user.message`.
+- Le lien au projet est fixé à la création. L’envoi et la reprise sont bloqués si
+  le projet actif diffère, y compris entre « sans projet » et un projet actif.
+  La lecture reste possible. Aucun projet n’est activé automatiquement ; une
+  erreur de lecture des projets bloque le lancement plutôt que de changer le contexte.
+  Pour reprendre une conversation ancienne, revenir d’abord à son projet ;
+  son lien enregistré n’est pas réécrit.
 - Rétention : 100 conversations ou 200 Mio ; les plus anciennes sont purgées (la conversation en cours est conservée).
 - Un journal relu est une **entrée non fiable** : nom de fichier formé seulement d'un `runId` UUID validé, 16 Mio et 50 000 lignes au plus (lignes de plus de 1 Mo ignorées), `validateEvent` sur chaque ligne (invalides ignorées et comptées dans la bannière), événements d'un autre run ignorés, texte passé par `stripControl`, rendu par les mêmes chemins sûrs que le chat.
 
@@ -57,9 +85,15 @@ Chaque demande de la gate d'approbation devient une carte : outil, entrée (neut
 
 - **Autoriser une fois** ;
 - **Refuser** ;
-- **Toujours** : proposé seulement si le verdict est mémorisable (prédicat `isRememberable` du cœur : jamais pour un `deny`, un chemin sensible ou hors espace de travail, un accès hôte ou un danger shell). Exige une **confirmation modale native** de VS Code, hors webview. Effet actuel : autorisation **pour la durée de la conversation** (pour le bac à sable, c'est la sémantique voulue : conteneur éphémère). La persistance dans la politique utilisateur sur disque, comme `warband run` le fait, n'est pas encore branchée.
+- **Toujours** : proposé seulement si le verdict est mémorisable (prédicat `isRememberable` du cœur : jamais pour un `deny`, un chemin sensible ou hors espace de travail, un accès hôte ou un danger shell). Exige une **confirmation modale native** de VS Code, hors webview. Effet actuel : autorisation **pour la durée de la conversation**. La persistance dans la politique utilisateur sur disque, comme `warband run` le fait, n'est pas encore branchée.
 
-Il n'y a ni « tout autoriser » ni mode autonome. La gate reste l'unique juge : la webview ne fait que relayer le choix.
+Hors Bypass, la gate applique la politique et la webview relaie les réponses.
+Le **Bypass** (ADR 0017) autorise temporairement les verdicts `ask` et `deny`,
+y compris les refus durs, sans demande ni mémorisation. Sa durée par défaut
+est de 2 h, plafonnée à 4 h. Le verdict initial reste dans le journal. Il
+exige un Asker et reste sans effet en apprentissage ou en CLI non interactive.
+Il ne crée pas d’outils supplémentaires et ne supprime pas les validations
+qui existent hors de la gate.
 
 ## Réglages (`Fichier > Préférences > Paramètres`, section Warband)
 
@@ -71,34 +105,31 @@ Tous en scope **machine** : la valeur posée dans `.vscode/settings.json` d'un d
 | `warband.maxTurns` | Plafond de tours (0 : aucun). |
 | `warband.ultracode.maxTurns` | Plafond de tours du préréglage Ultracode (0 : aucun). |
 | `warband.ultracode.maxBudgetUsd` | Plafond de dépense (USD) du préréglage Ultracode (0 : aucun). |
-| `warband.sandbox.enabled` (non retenu) | Active le bac à sable Docker (`mcp__sandbox__exec`). |
-| `warband.sandbox.image` | Image **locale** (obligatoire si activé ; jamais téléchargée). |
-| `warband.sandbox.timeoutSec` | Délai par exécution, 1 à 1800 s (défaut 600). |
 
 Les réglages sont lus au démarrage du moteur : pour les appliquer, **Nouvelle conversation**.
 
-## Tester le bac à sable
+## Ancien bac à sable
 
-> **Non retenu (décision du 2026-10-22).** Warband vise des environnements de pentest déjà isolés ou dédiés (conteneur Exegol, conteneur Kali, Kali natif) : un bac à sable supplémentaire n'est pas nécessaire. Le texte ci-dessous est conservé comme historique (ADR 0003) ; les options `--sandbox*` et les réglages `warband.sandbox.*` n'existent pas.
-
-```
-docker pull alpine:3.20
-```
-
-Puis activer `warband.sandbox.enabled`, poser `warband.sandbox.image` à `alpine:3.20`, ouvrir une nouvelle conversation et demander par exemple « exécute `uname -a` dans le bac à sable ». Une carte `mcp__sandbox__exec` apparaît. Le conteneur (réseau coupé, utilisateur non privilégié) est créé au démarrage du run et supprimé à la fin, à l'annulation et sur erreur. Docker Desktop doit être démarré.
+Le bac à sable supplémentaire a été abandonné le 22 octobre 2026 (ADR 0003).
+Les options `--sandbox*` et réglages `warband.sandbox.*` n’existent plus.
+Les conteneurs Exegol/Kali associés au projet constituent le cadre de travail.
+L’ADR conserve la décision historique ; ses anciennes commandes ne sont pas
+une procédure d’installation actuelle.
 
 ## Limites connues
 
-- **Non vérifié dans un VS Code réel** (voir ci-dessous) : le rendu est contrôlé dans Edge headless ; ni profilage (Performance, Paint flashing), ni lecteur d'écran, ni navigation clavier complète n'ont été faits ; cible `linux-x64` non construite sur ce poste.
+- La validation Windows historique du moteur (W-L6) ne valide pas automatiquement les ajouts récents de l’extension. Un essai complet de cette version dans VS Code reste à distinguer des tests automatisés et prévisualisations headless ; remote, lecteur d’écran et profilage restent à vérifier.
 - Claude seul (pas d'OpenCode) ; Markdown limité (pas de tableaux, liens non cliquables, pas d'images).
-- Pas de graphe en direct (E5), pas de commande d'approbation de la politique du dépôt (la politique du dépôt n'est appliquée qu'après approbation de son empreinte, comme dans la CLI ; sans approbation elle est inerte et un avertissement est affiché).
+- Kill chain affiche le graphe des trouvailles, avec minimap ; ce graphe est distinct du graphe causal des événements exporté par la CLI. Pas de commande d’approbation de la politique du dépôt (la politique du dépôt n'est appliquée qu'après approbation de son empreinte, comme dans la CLI ; sans approbation elle est inerte et un avertissement est affiché).
 - « Toujours » ne persiste pas sur disque (voir plus haut).
 - Une seule demande de tour à la fois ; l'historique affiché est limité aux 300 derniers éléments.
 - Les journaux de l'extension sont dans le stockage de VS Code (l'historique ne survit pas à sa suppression) ; la CLI garde `.warband/runs/`.
 - Réglages en scope machine : comportement en remote (SSH/WSL) à valider.
+- Les gardes de changement de projet protègent le parcours UI, sans verrouiller
+  les écritures externes dans les fichiers de projet pendant un tour.
 
 ## Ce qui a été vérifié
 
-Tests vitest : logique (cartes, mapping des réponses, validation des messages de la webview, réglages, état du chat, session avec contrôleur factice), HTML généré (CSP stricte, nonce, aucun script inline), script de la webview (aucun `innerHTML`/`eval`), manifeste (scope machine, espace non approuvé). Le `.vsix` se construit ; le moteur empaqueté démarre sous Node et atteint la création du bac à sable.
+Tests vitest : logique (cartes, mapping des réponses, validation des messages de la webview, réglages, état du chat, session avec contrôleur factice), HTML généré (CSP stricte, nonce, aucun script inline), script de la webview (aucun `innerHTML`/`eval`), manifeste (scope machine, espace non approuvé). Ces tests ne démontrent pas à eux seuls le parcours complet dans l’hôte VS Code. Pour les résultats de la version en cours, voir [l’état du projet](etat-du-projet.md).
 
-Non vérifié en vrai : installation `code --install-extension`, rendu de la webview, saisie masquée du jeton, `fork` sous Electron (`ELECTRON_RUN_AS_NODE`), run Claude complet depuis l'extension, bac à sable avec un démon Docker actif, comportement en espace non approuvé.
+Non vérifié en vrai : installation `code --install-extension`, rendu de la webview, saisie masquée du jeton, `fork` sous Electron (`ELECTRON_RUN_AS_NODE`), run Claude complet depuis l'extension, parcours Exegol/Kali avec Docker actif, comportement en espace non approuvé.
