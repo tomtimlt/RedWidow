@@ -11,6 +11,7 @@ import {
   createRecorder,
   DEFAULT_POLICY,
   type EngineEvent,
+  EXEGOL_TOOL_PREFIX,
   EXTERNAL_DIRECTORY_TOOL,
   EXTERNAL_PATTERNS_FIELD,
   evaluatePolicy,
@@ -1023,15 +1024,40 @@ describe("Bypass et les onze outils Kali structurés", () => {
     );
   });
 
-  it("mcp__exegol__* n'est pas capté par le préfixe Kali", () => {
-    const request = {
-      toolUseId: "e",
-      tool: "mcp__exegol__exec",
-      input: { command: "cat /tmp/x" },
+  const exegolCases: Array<[string, Record<string, unknown>]> = [
+    ["exec", { container: "c", argv: ["curl", "http://exemple.test", "-o", "/tmp/x"] }],
+    ["exec", { container: "c", argv: ["cat", "/etc/hosts"] }],
+    ["note", { label: "voir http://exemple.test et /tmp/x" }],
+    ["remember", { text: "cible http://exemple.test, notes dans /etc/hosts" }],
+  ];
+
+  it.each(exegolCases)(
+    "mcp__exegol__%s : ask avec URL/chemin hors espace est bypassable",
+    (name, input) => {
+      const request = { toolUseId: "e", tool: `${EXEGOL_TOOL_PREFIX}${name}`, input };
+      const verdict = evaluatePolicy(DEFAULT_POLICY, request.tool, request.input, WORKSPACE);
+      expect(verdict.decision).toBe("ask");
+      expect(isBypassable(request, verdict, DEFAULT_POLICY, WORKSPACE)).toBe(true);
+    },
+  );
+
+  it("un deny sur un outil Exegol n'est jamais bypassable", () => {
+    const policy: Policy = {
+      default: "ask",
+      rules: [{ tool: `${EXEGOL_TOOL_PREFIX}exec`, decision: "deny" }],
     };
-    const verdict = evaluatePolicy(DEFAULT_POLICY, request.tool, request.input, WORKSPACE);
-    expect(verdict.decision).toBe("ask");
-    // Chemin hors espace de travail dans l'entrée : non bypassable, comportement inchangé.
-    expect(isBypassable(request, verdict, DEFAULT_POLICY, WORKSPACE)).toBe(false);
+    const request = { toolUseId: "e", tool: `${EXEGOL_TOOL_PREFIX}exec`, input: { argv: ["id"] } };
+    const verdict = evaluatePolicy(policy, request.tool, request.input, WORKSPACE);
+    expect(verdict.decision).toBe("deny");
+    expect(isBypassable(request, verdict, policy, WORKSPACE)).toBe(false);
+  });
+
+  it("ne capte pas un nom qui ne commence pas exactement par mcp__exegol__", () => {
+    for (const tool of ["mcp__exegolx__y", "mcp__exegol_autre__z"]) {
+      const request = { toolUseId: "e", tool, input: { file: "/tmp/x" } };
+      const verdict = evaluatePolicy(DEFAULT_POLICY, request.tool, request.input, WORKSPACE);
+      expect(verdict.decision).toBe("ask");
+      expect(isBypassable(request, verdict, DEFAULT_POLICY, WORKSPACE)).toBe(false);
+    }
   });
 });
