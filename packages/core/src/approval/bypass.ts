@@ -4,7 +4,7 @@
  * n'écrit aucune règle. Aucun texte d'affichage : des codes (`Reason`) seulement.
  */
 
-import { KALI_EXECUTE_TOOL } from "../kali/tool-specs.js";
+import { KALI_TOOL_PREFIX } from "../kali/tool-specs.js";
 import type { ApprovalRequest } from "./gate.js";
 import { checkPathAccess, EXTERNAL_DIRECTORY_TOOL, EXTERNAL_PATTERNS_FIELD } from "./paths.js";
 import { BASH_TOOL, type Policy, type PolicyContext, type PolicyVerdict } from "./policy.js";
@@ -98,9 +98,11 @@ const MAX_INPUT_DEPTH = 64;
  * Un `deny`, un garde-fou de chemin, un accès à l'hôte, un danger shell ou une commande sans
  * règle restent hors d'atteinte. Un chemin sensible, hors de `workspace` ou non analysable dans
  * l'entrée (arguments Bash, chaînes imbriquées d'un outil) rend la demande non bypassable.
- * Tout `ask` de `mcp__kali__execute_command` est couvert (ADR 0014) : redirection, chemin,
- * plusieurs segments, danger ou commande illisible avalés dans `shell.unanalyzable`. Un `deny`
- * ne l'est pas, et le verdict ne devient pas mémorisable.
+ * Tout `ask` d'un outil `mcp__kali__*` est couvert (ADR 0014) : redirection, chemin, plusieurs
+ * segments, danger ou commande illisible avalés dans `shell.unanalyzable` pour `execute_command`,
+ * et tout verdict `ask` des autres outils Kali structurés (y compris un jeton qui ressemble à un
+ * chemin dans leurs paramètres : URL, wordlist, fichier de sortie). Un `deny` ne l'est pas, et le
+ * verdict ne devient pas mémorisable.
  */
 export function isBypassable(
   request: ApprovalRequest,
@@ -109,8 +111,9 @@ export function isBypassable(
   workspace: PolicyContext,
 ): boolean {
   if (verdict.decision !== "ask") return false;
-  // Le Bypass de ce shell passe tout l'ask. Un deny est déjà exclu ci-dessus.
-  if (request.tool === KALI_EXECUTE_TOOL) return true;
+  // Tout ask d'un outil Kali est couvert. Un deny est déjà exclu ci-dessus (règle, danger, chemin,
+  // montage hôte) : ce préfixe ne lève jamais un deny, seulement l'obligation de demander.
+  if (request.tool.startsWith(KALI_TOOL_PREFIX)) return true;
   if (!BYPASSABLE.has(verdict.reason.code)) return false;
   // Même test que la gate pour les répertoires externes : le motif `policy.default` seul ne suffit pas.
   if (request.tool === EXTERNAL_DIRECTORY_TOOL || EXTERNAL_PATTERNS_FIELD in request.input) {
