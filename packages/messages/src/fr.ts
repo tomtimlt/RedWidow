@@ -244,7 +244,16 @@ export const reasons: Catalog = {
   "cours.absent": () => "aucun cours installé (dossier de cours absent)",
   "exegol.containerDenied": (p) =>
     `conteneur non autorisé pour ce message : ${text(p.name)} (allowlist du projet, cité par @, ou désigné par #)`,
-  "kali.unavailable": (p) => `serveur Kali indisponible dans le conteneur : ${text(p.name)}`,
+  "kali.unavailable": (p) => {
+    const name = text(p.name);
+    if (p.reason === "unsupportedImage")
+      return `préparation impossible dans ${name} : une image Kali avec APT est nécessaire pour installer le serveur manquant`;
+    if (p.stage === "installing")
+      return `installation du serveur Kali échouée dans ${name} : consultez la sortie Warband`;
+    if (p.stage === "checking")
+      return `vérification des prérequis Kali échouée dans ${name} : consultez la sortie Warband`;
+    return `serveur Kali indisponible dans le conteneur : ${name}`;
+  },
 
   "journal.invalidJson": (p) => `JSON invalide : ${text(p.message)}`,
   "event.notObject": () => "objet attendu",

@@ -18,6 +18,7 @@ export * from "./exegol/tool-specs.js";
 export * from "./graph/build.js";
 export * from "./journal/jsonl.js";
 export * from "./kali/api.js";
+export * from "./kali/setup.js";
 export * from "./kali/tool-specs.js";
 export * from "./output.js";
 export * from "./process/lines.js";

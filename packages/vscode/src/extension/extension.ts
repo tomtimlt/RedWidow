@@ -10,6 +10,7 @@ import {
   createRecorder,
   defaultConfigDir,
   lookupContainer,
+  prepareKaliContainer,
   readFindings,
   readProjects,
   resolveBinary,
@@ -109,6 +110,42 @@ export function activate(context: vscode.ExtensionContext): void {
   let killchainPanel: vscode.WebviewPanel | undefined;
   let seq = 1;
   let restoring = false;
+  const kaliPreparations = new Map<string, Promise<void>>();
+  const prepareIfKali = async (name: string): Promise<void> => {
+    const existing = kaliPreparations.get(name);
+    if (existing !== undefined) return existing;
+    const job = (async () => {
+      const recorder = createRecorder();
+      const rows = await createDockerClient({ recorder }).listLabelPrefix();
+      if (rows.find((row) => row.name === name)?.family !== "kali") return;
+      recorder.subscribe((event) => out.appendLine(JSON.stringify(event)));
+      const messages = {
+        checking: "Vérification du serveur Kali…",
+        installing: "Installation du serveur Kali et de ses dépendances…",
+        starting: "Démarrage et vérification du serveur Kali…",
+        ready: "Serveur Kali prêt.",
+      };
+      try {
+        await vscode.window.withProgress(
+          { location: vscode.ProgressLocation.Notification, title: `Préparation de ${name}` },
+          async (progress) =>
+            prepareKaliContainer(name, {
+              recorder,
+              onStage: (stage) => progress.report({ message: messages[stage] }),
+            }),
+        );
+      } catch (error) {
+        out.show(true);
+        throw error;
+      }
+    })();
+    kaliPreparations.set(name, job);
+    try {
+      await job;
+    } finally {
+      kaliPreparations.delete(name);
+    }
+  };
 
   const getToken = async (): Promise<TokenChoice | undefined> => {
     const value = await context.secrets.get(TOKEN_KEY);
@@ -636,6 +673,7 @@ export function activate(context: vscode.ExtensionContext): void {
             return void pushView(true);
           case "link": {
             await pushView(true);
+            await prepareIfKali(message.name);
             postCockpit(await linkContainer(message.name));
             return;
           }
@@ -693,6 +731,7 @@ export function activate(context: vscode.ExtensionContext): void {
           }
           case "start":
             await controlListedContainer("start", message.name);
+            await prepareIfKali(message.name);
             return void pushView(true);
           case "stop":
             await controlListedContainer("stop", message.name);
@@ -711,6 +750,7 @@ export function activate(context: vscode.ExtensionContext): void {
               name: message.name,
               source: message.source,
             });
+            await prepareIfKali(message.name);
             return void pushView(true);
           }
           case "listImages":

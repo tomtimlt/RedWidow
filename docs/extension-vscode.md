@@ -8,7 +8,7 @@ Extension privée (ADR 0004, lots E3 + E4) : chat d'agent dans VS Code, avec une
 pnpm install --frozen-lockfile
 pnpm build
 pnpm --filter @warband/vscode package        # cible win32-x64 par défaut
-code --install-extension packages/vscode/warband-0.3.22-win32-x64.vsix
+code --install-extension packages/vscode/warband-0.3.23-win32-x64.vsix
 ```
 
 Raccourci : `pnpm maj` (ou `node scripts/update.mjs`). Il enchaîne `git pull --ff-only`, `pnpm install`, `pnpm build`, l'empaquetage et `code --install-extension --force`. Options : `--check` (ajoute `pnpm check`), `--no-install`, `--dry-run`, `--target=…`. Recharger ensuite la fenêtre VS Code.
@@ -133,3 +133,27 @@ une procédure d’installation actuelle.
 Tests vitest : logique (cartes, mapping des réponses, validation des messages de la webview, réglages, état du chat, session avec contrôleur factice), HTML généré (CSP stricte, nonce, aucun script inline), script de la webview (aucun `innerHTML`/`eval`), manifeste (scope machine, espace non approuvé). Ces tests ne démontrent pas à eux seuls le parcours complet dans l’hôte VS Code. Pour les résultats de la version en cours, voir [l’état du projet](etat-du-projet.md).
 
 Non vérifié en vrai : installation `code --install-extension`, rendu de la webview, saisie masquée du jeton, `fork` sous Electron (`ELECTRON_RUN_AS_NODE`), run Claude complet depuis l'extension, parcours Exegol/Kali avec Docker actif, comportement en espace non approuvé.
+
+## Préparation automatique des conteneurs Kali (0.3.23)
+
+Les actions **Créer**, **Démarrer** et **Lier** du cockpit vérifient maintenant
+`python3`, `kali-server-mcp` et la santé du serveur. Les dépendances manquantes
+sont installées dans le conteneur s’il s’agit d’une image Kali avec APT.
+Une notification indique la progression ; l’installation initiale nécessite
+l’accès aux dépôts configurés dans l’image et peut prendre plusieurs minutes.
+Aucune mise à jour APT ni réinstallation n’est lancée si les binaires sont déjà
+présents. Les dépendances restent installées après arrêt/redémarrage du même
+conteneur. Chaque nouveau conteneur est préparé séparément.
+
+En cas d’échec, le conteneur est conservé et les détails sont dans la sortie
+**Warband**. Corriger l’accès aux dépôts ou l’image, puis utiliser Démarrer ou
+Lier pour retenter. Le démarrage depuis Docker Desktop seul n’exécute pas cette
+préparation du cockpit. Les appels de l’agent n’installent aucun paquet.
+Le serveur reste dans le conteneur, sur `127.0.0.1:5000`, sans port publié.
+Les commandes sont exécutées depuis `/workspace`, même si le lanceur du paquet
+se place initialement dans `/usr/share/mcp-kali-server`.
+
+L’installation automatique utilise `--no-install-recommends` : elle prépare
+le serveur et ses dépendances nécessaires, sans ajouter toute la suite
+d’outils Kali recommandée par le paquet. Les outils de mission disponibles
+restent ceux installés dans l’image choisie.

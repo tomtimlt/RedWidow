@@ -169,10 +169,22 @@ export function createKaliApi({
         throw new ValidationError("docker.invalidArgument", { field: "path", reason: "unknown" });
       }
       await ensure(name, call);
+      // Le lanceur du paquet Kali peut se placer dans /usr/share/mcp-kali-server.
+      // Fixer le cwd de la commande exécutée, pas seulement celui du client HTTP.
+      // Le shell interne reçoit une unique chaîne quotée : commentaires et retours
+      // à la ligne ne peuvent pas absorber ou fermer une enveloppe syntaxique.
+      const command = request.body?.command;
+      const body =
+        request.path === "/api/command" && typeof command === "string"
+          ? {
+              ...request.body,
+              command: `cd /workspace && exec /bin/sh -c '${command.replace(/'/g, "'\\''")}'`,
+            }
+          : request.body;
       const stdin = JSON.stringify({
         method: request.method,
         path: request.path,
-        ...(request.body !== undefined && { body: request.body }),
+        ...(body !== undefined && { body }),
       });
       const result = await exec(httpArgv(name), call, stdin);
       if (result.code !== 0) throw new CodedError("kali.unavailable", { name });

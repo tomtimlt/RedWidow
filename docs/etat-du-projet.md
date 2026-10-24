@@ -187,3 +187,22 @@ Validation : 1 639 tests réussis, 12 ignorés. Essai Docker réel avec Alpine
 à shell : ancien mode arrêté code 0 ; création via le client Warband corrigé
 active, dossier monté lisible, arrêt/redémarrage réussi. Cet essai ne valide
 pas les services spécifiques à l’image Kali du propriétaire.
+
+## Préparation Kali automatique — 0.3.23
+
+Créer, Démarrer et Lier depuis le cockpit préparent désormais le serveur Kali :
+vérification des binaires, installation conditionnelle sur Kali/APT, puis
+contrôle de santé. Une progression est affichée ; l’échec conserve le conteneur
+et ouvre la sortie Warband. Aucun paquet n’est installé depuis un outil agent.
+L’installation ne prend pas les paquets recommandés et ne se répète pas si les
+prérequis existent. Les commandes de l’API s’exécutent depuis `/workspace`.
+Décision : ADR 0018.
+
+Validation : 1 651 tests réussis et 12 ignorés ; compilation et VSIX Windows
+construits. Essai avec Docker réel et image officielle Kali rolling :
+installation effective du paquet `mcp-kali-server` et de Python, santé valide,
+seconde préparation sans réinstallation ; `pwd; whoami` renvoie `/workspace`
+et `root`. L’essai utilise le miroir officiel HTTPS `kali.download` et le
+certificat du proxy cloud dans le seul conteneur de test, en conservant les
+vérifications TLS et les signatures APT. Les outils de scan et le parcours
+VS Code Windows ne sont pas validés par cet essai.

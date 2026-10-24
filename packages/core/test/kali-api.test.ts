@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -17,6 +18,10 @@ import {
   KALI_TOOL_PREFIX,
   kaliToolSpecs,
 } from "../src/index.js";
+
+/** Commande attendue au transport ; les paramètres des outils restent inchangés. */
+const inWorkspace = (command: string) =>
+  `cd /workspace && exec /bin/sh -c '${command.replace(/'/g, "'\\''")}'`;
 
 const START = (name: string) => [
   "exec",
@@ -149,6 +154,48 @@ describe("outils Kali", () => {
 describe("appel HTTP Kali", () => {
   const rows = [kali("kali-box", "running", "/host/kali"), lab];
 
+  it.skipIf(process.platform === "win32")(
+    "le shell exécute depuis le dossier prévu, avec quotes, commentaires, redirections et code de sortie intacts",
+    async () => {
+      const { tool, calls } = await harness("up", rows);
+      const dir = await mkdtemp(join(tmpdir(), "warband-kali-cwd-"));
+      const commands = [
+        {
+          command: "pwd; printf '%s\\n' \"l'ami\" # commentaire",
+          stdout: `${dir}\nl'ami\n`,
+          code: 0,
+        },
+        {
+          command: "printf '%s' 'premier' > resultat.txt\ncat resultat.txt\nexit 7",
+          stdout: "premier",
+          code: 7,
+        },
+        { command: "# fin sans nouvelle ligne", stdout: "", code: 0 },
+      ];
+      for (const { command, stdout, code } of commands) {
+        await tool("execute_command").run({ container: "kali-box", command }, ctx);
+        const sent = JSON.parse((await calls()).at(-1)?.stdin ?? "") as {
+          body: { command: string };
+        };
+        expect(sent.body.command).toBe(inWorkspace(command));
+        // Le chemin de production reste fixe ; le test utilise un dossier temporaire
+        // pour fonctionner sans créer /workspace sur les machines des contributeurs.
+        const testCommand = sent.body.command.replace(
+          "cd /workspace",
+          `cd '${dir.replace(/'/g, "'\\''")}'`,
+        );
+        const result = spawnSync("/bin/sh", ["-c", testCommand], {
+          cwd: tmpdir(),
+          encoding: "utf8",
+        });
+        expect(result.status).toBe(code);
+        expect(result.stdout).toBe(stdout);
+        expect(result.stderr).toBe("");
+      }
+      expect(await readFile(join(dir, "resultat.txt"), "utf8")).toBe("premier");
+    },
+  );
+
   it("santé déjà là : pas de démarrage, corps sans chaîne vide ni container", async () => {
     const { tool, calls } = await harness("up", rows);
     await tool("nmap_scan").run(
@@ -183,7 +230,7 @@ describe("appel HTTP Kali", () => {
     expect(JSON.parse(post?.stdin ?? "")).toEqual({
       method: "POST",
       path: "/api/command",
-      body: { command: "nmap -sV -T4 -Pn 10.0.0.1" },
+      body: { command: inWorkspace("nmap -sV -T4 -Pn 10.0.0.1") },
     });
     for (const call of logged) {
       if (call.argv[4] === "mkdir") expect(call.argv[3]).toBe("kali-box");
@@ -335,7 +382,7 @@ describe("appel HTTP Kali", () => {
     expect(sent).toEqual({
       method: "POST",
       path: "/api/command",
-      body: { command: "nmap -sT -F -p 80,443 -T4 -Pn 10.0.0.1" },
+      body: { command: inWorkspace("nmap -sT -F -p 80,443 -T4 -Pn 10.0.0.1") },
     });
     expect(typeof sent.body.command).toBe("string");
     expect(Array.isArray(sent.body.command)).toBe(false);
@@ -357,7 +404,7 @@ describe("appel HTTP Kali", () => {
     expect(JSON.parse((await calls()).at(-1)?.stdin ?? "")).toEqual({
       method: "POST",
       path: "/api/command",
-      body: { command: "nmap -sV -T4 -Pn '10.0.0.1;id'" },
+      body: { command: inWorkspace("nmap -sV -T4 -Pn '10.0.0.1;id'") },
     });
   });
 
@@ -449,7 +496,7 @@ describe("appel HTTP Kali", () => {
         body: { command?: unknown };
       };
       expect(sent.path, c.name).toBe("/api/command");
-      expect(sent.body.command, c.name).toBe(c.command);
+      expect(sent.body.command, c.name).toBe(inWorkspace(c.command));
       expect(typeof sent.body.command, c.name).toBe("string");
     }
   });
@@ -468,8 +515,9 @@ describe("appel HTTP Kali", () => {
       method: "POST",
       path: "/api/command",
       body: {
-        command:
+        command: inWorkspace(
           "printf %s 'use auxiliary/scanner/portscan/tcp\nset RHOSTS 10.0.0.1\nexploit\n' > /tmp/mks_msf_resource.rc && msfconsole -q -r /tmp/mks_msf_resource.rc",
+        ),
       },
     });
   });
@@ -481,7 +529,7 @@ describe("appel HTTP Kali", () => {
       ctx,
     );
     const body = JSON.parse((await calls()).at(-1)?.stdin ?? "").body as Record<string, unknown>;
-    expect(body).toEqual({ command: "nmap -sT -F 10.0.0.1" });
+    expect(body).toEqual({ command: inWorkspace("nmap -sT -F 10.0.0.1") });
     expect(typeof body.command).toBe("string");
   });
 
@@ -505,7 +553,9 @@ describe("appel HTTP Kali", () => {
     };
     expect(sent.path).toBe("/api/command");
     expect(sent.body).toEqual({
-      command: "john --format=nt --wordlist=/usr/share/wordlists/rockyou.txt hashes.txt",
+      command: inWorkspace(
+        "john --format=nt --wordlist=/usr/share/wordlists/rockyou.txt hashes.txt",
+      ),
     });
     expect(sent.body).not.toHaveProperty("format_type");
     expect(sent.body).not.toHaveProperty("container");

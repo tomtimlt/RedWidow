@@ -48,7 +48,16 @@ export const reasons: Catalog = {
   "cours.absent": () => "no course installed (course folder missing)",
   "exegol.containerDenied": (p) =>
     `container not allowed for this message: ${text(p.name)} (project allowlist, named with @, or designated by #)`,
-  "kali.unavailable": (p) => `Kali server unavailable in the container: ${text(p.name)}`,
+  "kali.unavailable": (p) => {
+    const name = text(p.name);
+    if (p.reason === "unsupportedImage")
+      return `Cannot prepare ${name}: a Kali image with APT is required to install the missing server`;
+    if (p.stage === "installing")
+      return `Kali server installation failed in ${name}: see Warband output`;
+    if (p.stage === "checking")
+      return `Kali prerequisite check failed in ${name}: see Warband output`;
+    return `Kali server unavailable in the container: ${name}`;
+  },
   "shell.unanalyzable": (p) =>
     `shell cannot be analysed safely (${text(p.tool)}): never auto-approved nor remembered`,
   "sdk.unexpectedTool": (p) =>

@@ -128,3 +128,10 @@ Reprendre les cinq points. Détail que `dev` ne doit pas réinventer :
 ### Interdits
 
 Pas de VPN. Pas de volume ni de label sur `DockerClient.run`. Pas de `--privileged`, pas de réseau `host`, pas de socket Docker. Ne pas affaiblir la gate, `dockerRunHazard`, ni la mémorisation de `execute_command`. Ne pas exécuter un conteneur absent de `listLabelPrefix`. Ne pas rouvrir `/start`. Ne pas modifier `terminalLaunch`, `planEditorShell`, `termlog`, ni le parseur `#`. Pas de libellé d'écran nouveau. Ne pas réaliser le format multi-projets de l'ADR 0013. Ne pas installer le paquet. Ne pas brancher `client.py` au SDK.
+
+## Amendement — préparation pilotée par le cockpit
+
+L’ADR 0018 autorise la préparation des prérequis lors des actions humaines
+Créer, Démarrer et Lier. L’interdiction d’installer depuis un appel de
+l’agent reste applicable. Les commandes de l’API sont exécutées depuis
+`/workspace`, indépendamment du dossier du lanceur du paquet Kali.
