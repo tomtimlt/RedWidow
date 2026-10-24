@@ -311,6 +311,17 @@ describe("Bypass dans la gate : refus durs levés par l'override (ADR 0017)", ()
 });
 
 describe("Bypass dans la gate : verdicts couverts", () => {
+  it("(b) un allow de politique reste source policy sous Bypass, aucun événement bypass", async () => {
+    const c = clock();
+    const bypass = switchOn(c);
+    const h = harness({ bypass, now: c.now, policy: ASK_POLICY });
+    const out = await h.gate.decide({ toolUseId: "r1", tool: "Read", input: {} }, signal, "parent");
+    expect(out.source).toBe("policy");
+    expect(out.decision).toBe("allow");
+    expect(h.asked()).toBe(0);
+    expect(bypassedDecisions(h.events)).toHaveLength(0);
+  });
+
   it("(f) une règle ask explicite non Bash est auto-approuvée, sans demande ni mémorisation", async () => {
     const c = clock();
     const bypass = switchOn(c);

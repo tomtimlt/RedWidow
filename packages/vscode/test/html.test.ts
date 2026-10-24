@@ -286,13 +286,11 @@ describe("Bypass des approbations (lot B1, ADR 0006)", () => {
     expect(tag("bypass-state")).toContain('role="status"');
     expect(cfg.indexOf('id="bypass-switch"')).toBeLessThan(cfg.indexOf("cfg-later"));
   });
-  it("avertissement : deux phrases exactes", () => {
+  it("avertissement (ADR 0017) : deux phrases exactes, tout est levé", () => {
     expect(html).toContain(
-      "Approuve d'office les demandes « ask » pendant 2 h, sans rien mémoriser.",
+      "Approuve tout pendant 2 h, deny compris : chemins sensibles ou hors projet, accès hôte d'un conteneur, dangers shell, sans rien mémoriser.",
     );
-    expect(html).toContain(
-      "Restent demandés ou refusés : deny, chemins sensibles ou hors projet, accès hôte d'un conteneur, dangers shell, Bash sans règle ou commande composée.",
-    );
+    expect(html).toContain("Vous en devenez responsable.");
   });
   it("badge dans #bar après #sandbox, masqué au départ", () => {
     const bar = html.slice(html.indexOf('<header id="bar">'), html.indexOf("</header>"));

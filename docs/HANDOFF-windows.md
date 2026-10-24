@@ -19,7 +19,7 @@ Le projet : orchestration d'agents IA (adaptateurs Claude Agent SDK et OpenCode)
 
 Détail dans `CLAUDE.md`. Les points qui comptent le plus sous Windows :
 
-- Gate d'approbation = seule autorité ; un `deny`, un chemin sensible ou hors espace de travail, un `docker run` donnant accès à l'hôte ne sont jamais contournables ni mémorisables.
+- Gate d'approbation = seule autorité ; un `deny`, un chemin sensible ou hors espace de travail, un `docker run` donnant accès à l'hôte ne sont jamais mémorisables, et contournables uniquement pendant un Bypass actif (ADR 0017).
 - **Sous win32, `Bash` est non POSIX par défaut** (fail-closed) ; seul le code appelant peut déclarer `posixShell: true`. L'outil PowerShell de l'agent est toujours interdit.
 - Binaires toujours résolus en chemin absolu `.exe` (jamais `.cmd`, jamais cmd.exe, jamais le répertoire courant). Processus enfants avec `safeEnv` (liste blanche). Arrêt d'arbre par `taskkill /PID n /T /F`.
 - Formes de chemin refusées : UNC, `\\?\`, `\\.\`, flux ADS (`:`), noms réservés (CON, NUL…), fin par point ou espace, `%VAR%`, noms 8.3 non résolus.

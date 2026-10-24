@@ -47,7 +47,7 @@ Règles de délégation :
 ## Invariants de sécurité (ne jamais affaiblir)
 
 - La **gate d'approbation est l'unique autorité** (hook `PreToolUse` côté Claude, événement de permission côté OpenCode). `canUseTool` n'est qu'un filet fail-closed.
-- Un `deny` de politique, un chemin sensible ou hors espace de travail, un `docker run` donnant accès à l'hôte et les dangers shell ne sont **jamais** contournables ni mémorisables.
+- Un `deny` de politique, un chemin sensible ou hors espace de travail, un `docker run` donnant accès à l'hôte et les dangers shell ne sont **jamais mémorisables**. Ils sont **contournables uniquement pendant un Bypass actif** (2 h, 4 h au plafond, éteint à l'arrêt du moteur, effet seulement si un humain répond aux demandes) : l'utilisateur en devient alors responsable (ADR 0017).
 - Options verrouillées côté SDK : `permissionMode`, `allowedTools`, `tools`, `hooks`, `settingSources`, `strictMcpConfig`, `extraArgs`, `settings`, `managedSettings`, `env`, etc. ne sont pas surchargeables.
 - Secrets : masqués dans le recorder ; processus enfants avec `safeEnv` (liste blanche) ; l'e-mail du compte n'est jamais journalisé.
 - La politique du dépôt n'est appliquée qu'après approbation de son empreinte.
