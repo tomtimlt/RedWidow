@@ -138,7 +138,7 @@ export function chatHtml({
 <section class="cfg-col" aria-labelledby="cfg-h-bypass"><h3 id="cfg-h-bypass">Bypass des approbations</h3>
 <button id="bypass-switch" type="button" role="switch" aria-checked="false" aria-describedby="bypass-state bypass-warn"><span>Bypass</span></button>
 <p id="bypass-state" role="status"></p>
-<p id="bypass-warn" class="tip"><span class="warn-line">Approuve d'office les demandes « ask » pendant 2 h, sans rien mémoriser.</span> <span class="warn-line">Restent demandés ou refusés : deny, chemins sensibles ou hors projet, accès hôte d'un conteneur, dangers shell, Bash sans règle ou commande composée.</span></p></section>
+<p id="bypass-warn" class="tip"><span class="warn-line">Approuve tout pendant 2 h, deny compris : chemins sensibles ou hors projet, accès hôte d'un conteneur, dangers shell, sans rien mémoriser.</span> <span class="warn-line">Vous en devenez responsable.</span></p></section>
 <section class="cfg-col cfg-later" aria-labelledby="cfg-h-later"><h3 id="cfg-h-later">Bientôt</h3>
 <button type="button" class="cfg-off" disabled aria-disabled="true"><span>Mode (Answer, Plan, Auto)</span><em>bientôt</em></button>
 <button type="button" class="cfg-off" disabled aria-disabled="true"><span>Persona</span><em>bientôt</em></button>
