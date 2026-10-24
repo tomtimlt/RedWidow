@@ -43,6 +43,27 @@ interface StudioApi {
     width: number;
     height: number;
   };
+  KC_PAD: number;
+  KC_MINIMAP: { maxW: number; maxH: number; minViewportW: number };
+  killchainMinimap(
+    graph: { nodes: unknown[]; width: number; height: number },
+    viewport: { width: number; height: number },
+    view: { scale: number; tx: number; ty: number },
+  ): {
+    visible: boolean;
+    width: number;
+    height: number;
+    ratio: number;
+    rects: { id: string; state: string; x: number; y: number; w: number; h: number }[];
+    zone: { x: number; y: number; w: number; h: number } | null;
+  };
+  killchainMinimapRecenter(
+    minimap: unknown,
+    viewport: { width: number; height: number },
+    view: { scale: number; tx: number; ty: number },
+    px: number,
+    py: number,
+  ): { tx: number; ty: number };
   killchainLegend(findings: unknown): {
     label: string;
     entries: { kind?: string; state?: string; label: string; count: number }[];
@@ -317,6 +338,84 @@ describe("killchainGraph (disposition du graphe)", () => {
     ]);
     expect(g.nodes).toHaveLength(1);
     expect(g.nodes[0]).toMatchObject({ id: "a", kind: "host", state: "failed", label: "cible" });
+  });
+});
+
+describe("killchainMinimap (géométrie pure)", () => {
+  const f = (id: string, over: Record<string, unknown> = {}) => ({
+    id,
+    kind: "step",
+    state: "confirmed",
+    label: id,
+    ...over,
+  });
+  const graph = () =>
+    studio.killchainGraph([f("a"), f("b", { from: ["a"] }), f("c", { from: ["b"] })]);
+  const gw = () => graph().width + studio.KC_PAD * 2;
+  const gh = () => graph().height + studio.KC_PAD * 2;
+
+  it("masquée si le graphe tient entièrement dans le viewport", () => {
+    const m = studio.killchainMinimap(
+      graph(),
+      { width: 1200, height: 800 },
+      { scale: 1, tx: 0, ty: 0 },
+    );
+    expect(m.visible).toBe(false);
+    expect(m.rects).toEqual([]);
+  });
+
+  it("masquée si le viewport fait moins de 640 px de large, ou si le graphe est vide", () => {
+    const view = { scale: 2, tx: 0, ty: 0 };
+    expect(studio.killchainMinimap(graph(), { width: 639, height: 300 }, view).visible).toBe(false);
+    expect(studio.killchainMinimap(graph(), { width: 640, height: 300 }, view).visible).toBe(true);
+    const empty = studio.killchainGraph([]);
+    expect(studio.killchainMinimap(empty, { width: 900, height: 600 }, view).visible).toBe(false);
+  });
+
+  it("un rectangle par nœud avec son état, dans le gabarit maximal", () => {
+    const m = studio.killchainMinimap(
+      graph(),
+      { width: 700, height: 200 },
+      { scale: 1, tx: 0, ty: 0 },
+    );
+    expect(m.visible).toBe(true);
+    expect(m.rects.map((r) => r.id)).toEqual(graph().nodes.map((n) => n.id));
+    expect(m.rects[0]?.state).toBe("confirmed");
+    expect(m.width).toBeLessThanOrEqual(studio.KC_MINIMAP.maxW + 1e-9);
+    expect(m.height).toBeLessThanOrEqual(studio.KC_MINIMAP.maxH + 1e-9);
+  });
+
+  it("la zone visible suit le zoom et le déplacement", () => {
+    const vp = { width: 700, height: 200 };
+    const base = studio.killchainMinimap(graph(), vp, { scale: 1, tx: 0, ty: 0 });
+    const zoomed = studio.killchainMinimap(graph(), vp, { scale: 2, tx: 0, ty: 0 });
+    expect(zoomed.zone?.w).toBeLessThan(base.zone?.w ?? 0);
+    // Déplacé vers la droite (tx négatif) : la zone avance, bornée au canevas.
+    const panned = studio.killchainMinimap(graph(), vp, { scale: 2, tx: -400, ty: 0 });
+    expect(panned.zone?.x).toBeGreaterThan(zoomed.zone?.x ?? 0);
+    const far = studio.killchainMinimap(graph(), vp, { scale: 2, tx: -1e6, ty: 0 });
+    expect(far.zone?.w).toBe(0);
+    expect((panned.zone?.x ?? 0) + (panned.zone?.w ?? 0)).toBeLessThanOrEqual(
+      gw() * panned.ratio + 1e-9,
+    );
+    expect(gh()).toBeGreaterThan(0);
+  });
+
+  it("clic : recentre le viewport sur le point, borné à la minimap", () => {
+    const vp = { width: 700, height: 200 };
+    const view = { scale: 2, tx: 0, ty: 0 };
+    const m = studio.killchainMinimap(graph(), vp, view);
+    // Milieu de la minimap : le centre du viewport tombe au milieu du canevas.
+    const mid = studio.killchainMinimapRecenter(m, vp, view, m.width / 2, m.height / 2);
+    expect(mid.tx).toBeCloseTo(vp.width / 2 - (gw() / 2) * view.scale);
+    expect(mid.ty).toBeCloseTo(vp.height / 2 - (gh() / 2) * view.scale);
+    // Hors minimap : borné au bord, jamais plus loin que le canevas.
+    const out = studio.killchainMinimapRecenter(m, vp, view, 1e6, -1e6);
+    expect(out.tx).toBeCloseTo(vp.width / 2 - gw() * view.scale);
+    expect(out.ty).toBeCloseTo(vp.height / 2);
+    // Minimap masquée : translation inchangée.
+    const hidden = studio.killchainMinimap(graph(), { width: 100, height: 100 }, view);
+    expect(studio.killchainMinimapRecenter(hidden, vp, view, 5, 5)).toEqual({ tx: 0, ty: 0 });
   });
 });
 

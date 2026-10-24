@@ -283,11 +283,82 @@ function killchainLegend(findings) {
   ];
 }
 
+/** Marge autour du graphe dans le canevas (px) et gabarit maximal de la minimap. */
+const KC_PAD = 28;
+const KC_MINIMAP = { maxW: 160, maxH: 100, minViewportW: 640 };
+
+/**
+ * Géométrie de la minimap du graphe (pure, testée). Entrées : `graph` (killchainGraph), `viewport`
+ * ({ width, height } en px), `view` ({ scale, tx, ty } : transformation actuelle du canevas).
+ * Retour : `visible` (false si viewport < 640 px de large, graphe vide, ou graphe entièrement à
+ * l'écran), `width`/`height`/`ratio` de la minimap, `rects` (un par nœud, avec son état) et `zone`
+ * (portion du canevas visible dans le viewport, bornée au canevas), le tout en px de minimap.
+ */
+function killchainMinimap(graph, viewport, view) {
+  const hidden = { visible: false, width: 0, height: 0, ratio: 0, rects: [], zone: null };
+  if (!graph || !Array.isArray(graph.nodes) || graph.nodes.length === 0) return hidden;
+  const gw = graph.width + KC_PAD * 2;
+  const gh = graph.height + KC_PAD * 2;
+  const { scale, tx, ty } = view;
+  if (!(scale > 0) || !(viewport.width > 0) || !(viewport.height > 0)) return hidden;
+  // Zone visible en coordonnées du canevas.
+  const vx = -tx / scale;
+  const vy = -ty / scale;
+  const vw = viewport.width / scale;
+  const vh = viewport.height / scale;
+  const fits = vx <= 0 && vy <= 0 && vx + vw >= gw && vy + vh >= gh;
+  if (viewport.width < KC_MINIMAP.minViewportW || fits) return hidden;
+  const ratio = Math.min(KC_MINIMAP.maxW / gw, KC_MINIMAP.maxH / gh);
+  const x0 = Math.min(gw, Math.max(0, vx));
+  const y0 = Math.min(gh, Math.max(0, vy));
+  const x1 = Math.min(gw, vx + vw);
+  const y1 = Math.min(gh, vy + vh);
+  return {
+    visible: true,
+    width: gw * ratio,
+    height: gh * ratio,
+    ratio,
+    rects: graph.nodes.map((n) => ({
+      id: n.id,
+      state: n.state,
+      x: (n.x + KC_PAD) * ratio,
+      y: (n.y + KC_PAD) * ratio,
+      w: n.w * ratio,
+      h: n.h * ratio,
+    })),
+    zone: {
+      x: x0 * ratio,
+      y: y0 * ratio,
+      w: Math.max(0, x1 - x0) * ratio,
+      h: Math.max(0, y1 - y0) * ratio,
+    },
+  };
+}
+
+/**
+ * Recentrage par clic/glissement sur la minimap (pure, testée) : le point (px, py) de la minimap
+ * (borné à ses dimensions) devient le centre du viewport. Retour : nouvelle translation { tx, ty }
+ * du canevas, à l'échelle courante. Minimap invalide (ratio nul) : translation inchangée.
+ */
+function killchainMinimapRecenter(minimap, viewport, view, px, py) {
+  if (!minimap || !(minimap.ratio > 0)) return { tx: view.tx, ty: view.ty };
+  const cx = Math.min(minimap.width, Math.max(0, px)) / minimap.ratio;
+  const cy = Math.min(minimap.height, Math.max(0, py)) / minimap.ratio;
+  return {
+    tx: viewport.width / 2 - cx * view.scale,
+    ty: viewport.height / 2 - cy * view.scale,
+  };
+}
+
 // Exposée pour les tests (même convention que ui.js : pas de module dans la webview).
 globalThis.WarbandStudio = {
   STUDIO_GROUPS,
   MITRE_TACTICS,
   KC,
+  KC_PAD,
+  KC_MINIMAP,
+  killchainMinimap,
+  killchainMinimapRecenter,
   killchainCount,
   killchainModel,
   killchainGraph,
@@ -421,7 +492,7 @@ function start() {
 
     const viewport = el("div", "kc-viewport");
     const canvas = el("div", "kc-canvas");
-    const pad = 28;
+    const pad = KC_PAD;
     const svg = decorative(document.createElementNS(SVG_NS, "svg"));
     svg.setAttribute("class", "kc-edges");
     svg.setAttribute("width", String(graph.width + pad * 2));
@@ -534,9 +605,79 @@ function start() {
     let scale = 1;
     let tx = 0;
     let ty = 0;
+    // Minimap : un rectangle par nœud + zone visible ; clic/glisser recentre le viewport.
+    const mini = el("div", "kc-minimap");
+    mini.setAttribute("role", "img");
+    mini.setAttribute("aria-label", "Minimap du graphe : zone actuellement visible");
+    const miniSvg = document.createElementNS(SVG_NS, "svg");
+    miniSvg.setAttribute("class", "kc-minimap-svg");
+    mini.append(miniSvg);
+    viewport.append(mini);
+    let miniGeom = null;
+    const viewSize = () => {
+      const vb = viewport.getBoundingClientRect();
+      return { width: vb.width, height: vb.height };
+    };
+    const paintMinimap = () => {
+      miniGeom = killchainMinimap(graph, viewSize(), { scale, tx, ty });
+      mini.hidden = !miniGeom.visible;
+      if (!miniGeom.visible) return;
+      while (miniSvg.firstChild) miniSvg.removeChild(miniSvg.firstChild);
+      miniSvg.setAttribute("width", String(miniGeom.width));
+      miniSvg.setAttribute("height", String(miniGeom.height));
+      for (const r of miniGeom.rects) {
+        const rect = document.createElementNS(SVG_NS, "rect");
+        rect.setAttribute("class", `kc-minimap-node is-${r.state}`);
+        rect.setAttribute("x", String(r.x));
+        rect.setAttribute("y", String(r.y));
+        rect.setAttribute("width", String(Math.max(1, r.w)));
+        rect.setAttribute("height", String(Math.max(1, r.h)));
+        miniSvg.append(rect);
+      }
+      const zone = document.createElementNS(SVG_NS, "rect");
+      zone.setAttribute("class", "kc-minimap-zone");
+      zone.setAttribute("x", String(miniGeom.zone.x));
+      zone.setAttribute("y", String(miniGeom.zone.y));
+      zone.setAttribute("width", String(miniGeom.zone.w));
+      zone.setAttribute("height", String(miniGeom.zone.h));
+      miniSvg.append(zone);
+    };
     const apply = () => {
       canvas.style.setProperty("transform", `translate(${tx}px, ${ty}px) scale(${scale})`);
+      paintMinimap();
     };
+    const recenterFrom = (ev) => {
+      if (!miniGeom || !miniGeom.visible) return;
+      const mb = miniSvg.getBoundingClientRect();
+      const next = killchainMinimapRecenter(
+        miniGeom,
+        viewSize(),
+        { scale, tx, ty },
+        ev.clientX - mb.left,
+        ev.clientY - mb.top,
+      );
+      tx = next.tx;
+      ty = next.ty;
+      apply();
+    };
+    let miniDrag = false;
+    mini.addEventListener("pointerdown", (ev) => {
+      if (ev.button !== 0) return;
+      ev.stopPropagation(); // ne déclenche pas le pan du viewport
+      touched = true;
+      miniDrag = true;
+      mini.setPointerCapture(ev.pointerId);
+      recenterFrom(ev);
+    });
+    mini.addEventListener("pointermove", (ev) => {
+      if (miniDrag) recenterFrom(ev);
+    });
+    const endMiniDrag = () => {
+      miniDrag = false;
+    };
+    mini.addEventListener("pointerup", endMiniDrag);
+    mini.addEventListener("pointercancel", endMiniDrag);
+    mini.addEventListener("wheel", (ev) => ev.stopPropagation(), { passive: true });
     const setScale = (next, cx, cy) => {
       const s = Math.min(2.5, Math.max(0.2, next));
       const vb = viewport.getBoundingClientRect();
@@ -602,6 +743,7 @@ function start() {
     if (typeof ResizeObserver === "function") {
       new ResizeObserver(() => {
         if (!touched) fitToView();
+        else paintMinimap();
       }).observe(viewport);
     } else {
       fitToView();
