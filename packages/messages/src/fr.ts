@@ -128,6 +128,8 @@ export const reasons: Catalog = {
     `aucune réponse en ${text(p.seconds)} s : refusé (${c.cause ?? "?"})`,
   "approval.remembered": (_p, c) => `autorisé pour la session (${c.cause ?? "?"})`,
   "approval.bypassed": (_p, c) => `auto-approuvé par le bypass (${c.cause ?? "?"})`,
+  "approval.override": (_p, c) =>
+    `refus levé par le bypass, sous la responsabilité de l'utilisateur (${c.cause ?? "?"})`,
   "bypass.enabled": () => "bypass des approbations activé",
   "bypass.disabled": () => "bypass des approbations désactivé",
   "bypass.expired": () => "bypass des approbations expiré",

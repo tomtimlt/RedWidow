@@ -223,6 +223,18 @@ Le serveur n'est pas dans le dépôt. Doc : API HTTP `kali-server-mcp`, défaut 
 
 Rendu du filtre et édition du résumé par l'utilisateur : voie produit (`cadre`/`surface`), hors de ces lots.
 
+## Bypass universel (ADR 0017) — accepté, lots B1 à B3 à faire
+
+Décision du propriétaire : un Bypass actif lève **tout** refus, refus durs compris (`sudo *`/`rm *`, `docker.hostAccess`, chemins sensibles et hors espace, règles `deny`, dangers shell). Amende les ADR 0006 et 0014 et l'invariant « jamais contournables » de `CLAUDE.md`/README (devient « jamais mémorisables ; contournables seulement pendant un Bypass actif »). Mécanisme : une seule branche dans la gate, avant le traitement du verdict, sous deux conditions — Bypass effectif **et** Asker présent (la présence d'un Asker est l'unique garde ; elle préserve l'apprentissage et la CLI non interactive sans drapeau dédié). Tout verdict non-`allow` → `allow`, `source: "bypass"`, jamais mémorisé, aucune règle écrite. Traçabilité : verdict d'origine conservé en `cause` ; nouveau code de raison `approval.override` pour un refus dur levé (`approval.bypassed` reste pour `ask`). Pas de nouveau `kind` ni de nouveau champ. `isBypassable` et ses auxiliaires sont retirés (code restrictif mort). Apprentissage (verrou de mode) et empreinte de politique : non amendés. Avertissement visible à l'activation listant ce qui est levé : voie produit (`cadre`/`surface`).
+
+| Lot | Contenu | Revue sécurité | État |
+|---|---|---|---|
+| B1 | Code de raison `approval.override` (REASON_CODES + fr/en) | oui (touche la gate en aval) | à faire |
+| B2 | Branche override universelle dans `gate.ts` (Bypass + Asker) | oui (gate) | à faire |
+| B3 | Retrait de `isBypassable` et auxiliaires morts de `bypass.ts` | oui (gate) | à faire |
+
+Textes à corriger hors lots (orchestrateur) : `CLAUDE.md`, `README.md:53` et `:111`, `docs/HANDOFF-windows.md:22`, `docs/design-studio-ui.md:77`, et les renvois des ADR 0006/0010:17/0014:208.
+
 ## Décisions à demander en priorité
 
 - ~~**Garde unique** (points 2 et 3)~~ : tranché, `PreToolUse`.
