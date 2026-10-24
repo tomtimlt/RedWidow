@@ -17,6 +17,7 @@ import {
   isBypassable,
   isRememberable,
   KALI_EXECUTE_TOOL,
+  KALI_TOOL_PREFIX,
   type Policy,
   type PolicyContext,
 } from "../src/index.js";
@@ -102,6 +103,16 @@ const kaliExec = (command: string, toolUseId = "k"): ApprovalRequest => ({
   toolUseId,
   tool: KALI_EXECUTE_TOOL,
   input: { command },
+});
+/** Un des onze outils Kali structurés (pas `execute_command`), avec une entrée donnée. */
+const kaliTool = (
+  name: string,
+  input: Record<string, unknown>,
+  toolUseId = "kt",
+): ApprovalRequest => ({
+  toolUseId,
+  tool: `${KALI_TOOL_PREFIX}${name}`,
+  input,
 });
 
 describe("createBypassSwitch", () => {
@@ -913,5 +924,114 @@ describe("Bypass et mcp__kali__execute_command", () => {
     const hostVerdict = evaluatePolicy(DEFAULT_POLICY, host.tool, host.input, WORKSPACE);
     expect(hostVerdict).toMatchObject({ decision: "deny", reason: { code: "docker.hostAccess" } });
     expect(isBypassable(host, hostVerdict, DEFAULT_POLICY, WORKSPACE)).toBe(false);
+  });
+});
+
+describe("Bypass et les onze outils Kali structurés", () => {
+  /** Une entrée par outil, avec un jeton « chemin » qui ferait échouer `inputPathsFree`. */
+  const cases: Array<[string, Record<string, unknown>]> = [
+    ["nmap_scan", { target: "http://exemple.test", additional_args: "-oN /tmp/scan.txt" }],
+    [
+      "gobuster_scan",
+      { url: "http://exemple.test", wordlist: "/usr/share/wordlists/dirb/common.txt" },
+    ],
+    ["dirb_scan", { url: "http://exemple.test", wordlist: "/usr/share/wordlists/dirb/common.txt" }],
+    ["nikto_scan", { target: "http://exemple.test" }],
+    ["sqlmap_scan", { url: "http://exemple.test/?id=1" }],
+    [
+      "metasploit_run",
+      { module: "exploit/multi/handler", options: { LHOST: "http://exemple.test" } },
+    ],
+    [
+      "hydra_attack",
+      { target: "exemple.test", service: "ssh", password_file: "/usr/share/wordlists/rockyou.txt" },
+    ],
+    ["john_crack", { hash_file: "/tmp/hashes.txt", wordlist: "/usr/share/wordlists/rockyou.txt" }],
+    ["wpscan_analyze", { url: "http://exemple.test" }],
+    ["enum4linux_scan", { target: "http://exemple.test" }],
+    ["server_health", {}],
+  ];
+
+  it.each(cases)("%s : ask avec un chemin/URL est bypassable", (name, input) => {
+    const request = kaliTool(name, input);
+    const verdict = evaluatePolicy(DEFAULT_POLICY, request.tool, request.input, WORKSPACE);
+    expect(verdict.decision).toBe("ask");
+    expect(isBypassable(request, verdict, DEFAULT_POLICY, WORKSPACE)).toBe(true);
+  });
+
+  it("un deny de règle sur un outil Kali structuré n'est jamais bypassable", () => {
+    const policy: Policy = {
+      default: "ask",
+      rules: [{ tool: `${KALI_TOOL_PREFIX}nmap_scan`, decision: "deny" }],
+    };
+    const request = kaliTool("nmap_scan", { target: "http://exemple.test" });
+    const verdict = evaluatePolicy(policy, request.tool, request.input, WORKSPACE);
+    expect(verdict.decision).toBe("deny");
+    expect(isBypassable(request, verdict, policy, WORKSPACE)).toBe(false);
+  });
+
+  it("un deny de règle sur un outil Kali structuré reste refusé, Bypass actif", async () => {
+    const policy: Policy = {
+      default: "ask",
+      rules: [{ tool: `${KALI_TOOL_PREFIX}john_crack`, decision: "deny" }],
+    };
+    const c = clock();
+    const h = harness({ policy, bypass: switchOn(c), now: c.now });
+    const request = kaliTool("john_crack", { hash_file: "/tmp/hashes.txt" });
+    const out = await h.gate.decide(request, signal);
+    expect(out).toMatchObject({ decision: "deny", source: "policy" });
+    expect(h.asked()).toBe(0);
+    expect(bypassedDecisions(h.events)).toEqual([]);
+  });
+
+  it("Bypass actif : ask d'un outil Kali structuré est allow sans asker (mémorisable comme l'outil, arguments compris non stockés)", async () => {
+    const c = clock();
+    const h = harness({ bypass: switchOn(c), now: c.now });
+    const request = kaliTool("gobuster_scan", {
+      url: "http://exemple.test",
+      wordlist: "/usr/share/wordlists/dirb/common.txt",
+    });
+    const verdict = evaluatePolicy(DEFAULT_POLICY, request.tool, request.input, WORKSPACE);
+    expect(verdict.decision).toBe("ask");
+    const out = await h.gate.decide(request, signal);
+    expect(out).toMatchObject({ decision: "allow", source: "bypass" });
+    expect(h.asked()).toBe(0);
+    expect(bypassedDecisions(h.events)).toHaveLength(1);
+  });
+
+  it("ne capte pas un nom qui ne commence pas exactement par mcp__kali__", () => {
+    const other = { toolUseId: "o", tool: "mcp__kali_autre__x", input: {} };
+    const otherVerdict = evaluatePolicy(DEFAULT_POLICY, other.tool, other.input, WORKSPACE);
+    // Sans règle dédiée : ask par défaut, et non capté par le préfixe exact -> dépend du chemin générique.
+    expect(otherVerdict.decision).toBe("ask");
+    expect(isBypassable(other, otherVerdict, DEFAULT_POLICY, WORKSPACE)).toBe(true); // policy.default, pas de chemin dans l'entrée
+    const otherWithPath = {
+      toolUseId: "o2",
+      tool: "mcp__kalix__y",
+      input: { file: "/tmp/x" },
+    };
+    const otherWithPathVerdict = evaluatePolicy(
+      DEFAULT_POLICY,
+      otherWithPath.tool,
+      otherWithPath.input,
+      WORKSPACE,
+    );
+    expect(otherWithPathVerdict.decision).toBe("ask");
+    // Chemin hors espace de travail : non bypassable, car ce nom n'est pas mcp__kali__*.
+    expect(isBypassable(otherWithPath, otherWithPathVerdict, DEFAULT_POLICY, WORKSPACE)).toBe(
+      false,
+    );
+  });
+
+  it("mcp__exegol__* n'est pas capté par le préfixe Kali", () => {
+    const request = {
+      toolUseId: "e",
+      tool: "mcp__exegol__exec",
+      input: { command: "cat /tmp/x" },
+    };
+    const verdict = evaluatePolicy(DEFAULT_POLICY, request.tool, request.input, WORKSPACE);
+    expect(verdict.decision).toBe("ask");
+    // Chemin hors espace de travail dans l'entrée : non bypassable, comportement inchangé.
+    expect(isBypassable(request, verdict, DEFAULT_POLICY, WORKSPACE)).toBe(false);
   });
 });
