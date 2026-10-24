@@ -158,3 +158,19 @@ la version, garder les journaux utiles et noter chaque résultat.
 | Consulter une ancienne conversation sans projet sous B | Lecture possible ; reprise bloquée tant que le contexte ne correspond pas |
 | Noter une trouvaille et ouvrir Kill chain/minimap | Trouvaille du bon projet, navigation du graphe et de la minimap utilisable |
 | Stopper une exécution puis fermer/recharger VS Code | Processus arrêtés ; historique et résumé persistants |
+
+## Retour Windows et correctif 0.3.21
+
+Le choix/création du projet a été validé par le propriétaire sur son PC Windows.
+La création de Kali avec un dossier local a échoué avec `source : chemin non
+analysable`. La validation pouvait refuser un dossier de travail distinct dès
+que Windows empêchait la résolution d'un dossier sensible protégé. Le correctif
+utilise ses métadonnées et son parent réel lorsque cela suffit à établir sa
+position sans ouvrir son contenu ; les liens non résolvables, les métadonnées
+inaccessibles et la source inaccessible restent refusés.
+
+Le scénario est couvert sous Windows simulé ; le nouvel essai sur le PC du
+propriétaire reste nécessaire pour confirmer la cause du retour initial.
+
+Validation du correctif : `pnpm check` réussi, **1 639 tests réussis et
+12 ignorés** ; compilation réussie. Revue des garde-fous effectuée.

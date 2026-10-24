@@ -521,6 +521,27 @@ function existingSensitive(path: string, f: Flavor): readonly string[] | "missin
   try {
     f.realpath(path);
   } catch (err) {
+    // Windows peut refuser realpath sur un secret protégé alors que ses
+    // métadonnées et son parent restent accessibles. Sa position suffit au
+    // contrôle du montage ; aucune lecture du contenu n'est nécessaire.
+    if (f.platform === "win32" && ["EACCES", "EPERM"].includes(errorCode(err) ?? "")) {
+      try {
+        const stat = f.lstat(path);
+        if (
+          typeof stat !== "object" ||
+          stat === null ||
+          !("isSymbolicLink" in stat) ||
+          typeof stat.isSymbolicLink !== "function" ||
+          stat.isSymbolicLink() !== false
+        )
+          return "unsupported";
+        const parent = f.path.dirname(path);
+        if (parent === path) return "unsupported";
+        return [f.path.resolve(path), f.path.join(canonical(parent, f), f.path.basename(path))];
+      } catch {
+        return "unsupported";
+      }
+    }
     if (!isMissing(err)) return "unsupported";
     try {
       f.lstat(path);

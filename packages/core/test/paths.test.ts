@@ -660,6 +660,75 @@ describe("posix : erreurs de résolution", () => {
 });
 
 describe("mountExposesSensitive", () => {
+  const directory = "C:\\Me\\Kali\\Kali-1";
+  const protectedPath = "C:\\Windows\\System32\\config";
+  const windowsMount = (
+    code: string,
+    metadata: () => unknown = () => ({ isSymbolicLink: () => false }),
+    parent = "C:\\Windows\\System32",
+  ): PathOptions => ({
+    ...win(
+      fakeFs(
+        {
+          "C:\\": "C:\\",
+          [directory]: directory,
+          "C:\\Windows\\System32": parent,
+        },
+        { [protectedPath]: code },
+      ),
+    ),
+    cwd: directory,
+    lstat: (p) => {
+      if (p === protectedPath) return metadata();
+      throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    },
+  });
+
+  it.each(["EACCES", "EPERM"])(
+    "Windows : secret protégé (%s) disjoint du dossier monté",
+    (code) => {
+      expect(mountExposesSensitive(directory, windowsMount(code))).toBeNull();
+    },
+  );
+
+  it("Windows : le parent réel du secret reste contrôlé", () => {
+    expect(mountExposesSensitive(directory, windowsMount("EACCES", undefined, directory))).toBe(
+      "sensitive",
+    );
+  });
+
+  it("Windows : refuse un lien, une métadonnée inconnue ou inaccessible", () => {
+    for (const metadata of [
+      () => ({ isSymbolicLink: () => true }),
+      () => ({}),
+      () => {
+        throw Object.assign(new Error("EACCES"), { code: "EACCES" });
+      },
+    ]) {
+      expect(mountExposesSensitive(directory, windowsMount("EACCES", metadata))).toBe(
+        "unsupported",
+      );
+    }
+    expect(mountExposesSensitive(directory, windowsMount("EIO"))).toBe("unsupported");
+  });
+
+  it("Windows : refuse la source inaccessible et un parent non résolvable", () => {
+    const opts = windowsMount("EACCES");
+    expect(mountExposesSensitive(protectedPath, opts)).toBe("unsupported");
+    expect(
+      mountExposesSensitive(directory, {
+        ...opts,
+        realpath: fakeFs(
+          { [directory]: directory },
+          {
+            [protectedPath]: "EACCES",
+            "C:\\Windows\\System32": "EACCES",
+          },
+        ),
+      }),
+    ).toBe("unsupported");
+  });
+
   const home = "/home/x";
   const ssh = `${home}/.ssh`;
   const keys = `${ssh}/keys`;
