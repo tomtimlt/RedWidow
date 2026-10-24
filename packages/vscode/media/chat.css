@@ -2912,6 +2912,46 @@ body.studio .studio-dl dd {
   --kc-accent: var(--vscode-terminal-ansiGreen, var(--jn-accent));
 }
 
+/* --- Minimap de la kill chain (bas gauche du viewport, la légende est à droite) --- */
+.kc-minimap {
+  position: absolute;
+  left: var(--jn-s2);
+  bottom: var(--jn-s2);
+  z-index: 1;
+  line-height: 0;
+  cursor: pointer;
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+  touch-action: none;
+}
+.kc-minimap[hidden] {
+  display: none;
+}
+.kc-minimap-svg {
+  display: block;
+}
+.kc-minimap-node {
+  fill: var(--jn-muted);
+  opacity: 0.8;
+}
+.kc-minimap-node.is-confirmed {
+  fill: var(--vscode-testing-iconPassed, var(--jn-accent));
+}
+.kc-minimap-node.is-hypothesis {
+  fill: var(--jn-muted);
+  opacity: 0.45;
+}
+.kc-minimap-node.is-failed {
+  fill: var(--vscode-inputValidation-errorBorder, var(--jn-line));
+}
+.kc-minimap-zone {
+  fill: var(--jn-accent);
+  fill-opacity: 0.12;
+  stroke: var(--jn-accent);
+  stroke-width: 1;
+}
+
 /* --- Panneau légende de la kill chain (repliable, à droite du viewport) --- */
 .kc-legend {
   flex: none;
