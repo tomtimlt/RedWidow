@@ -41,10 +41,10 @@ export interface ProjectFile {
 export type ProjectLiveState = "running" | "stopped" | "absent";
 
 export interface ProjectStatus {
-  container: string;
+  container: string | null;
   workspace: string;
   image: string | null;
-  state: ProjectLiveState;
+  state: ProjectLiveState | null;
 }
 
 const invalidProject = () => new CodedError("project.invalid", { reason: "json" });
@@ -402,8 +402,9 @@ export async function link(
 }
 
 /**
- * État du conteneur unique de l'allowlist active.
- * Sans projet actif, ou sans exactement un nom : `project.absent`.
+ * État du projet actif. Sans projet actif : `project.absent`.
+ * Zéro ou plusieurs conteneurs liés : `container`, `image` et `state` sont `null`.
+ * Un seul conteneur : image et état de cette ligne (`state: "absent"` si le nom n'existe plus).
  */
 export async function status(
   configDir: string,
@@ -411,8 +412,11 @@ export async function status(
 ): Promise<ProjectStatus> {
   const file = await readProjects(configDir);
   const active = file === null ? null : activeProject(file);
-  const container = active?.containers.length === 1 ? active.containers[0] : undefined;
-  if (active === null || container === undefined) throw new CodedError("project.absent");
+  if (active === null) throw new CodedError("project.absent");
+  const container = active.containers.length === 1 ? active.containers[0] : undefined;
+  if (container === undefined) {
+    return { container: null, workspace: active.workspace, image: null, state: null };
+  }
   const row = (await docker.listLabelPrefix()).find((r) => r.name === container);
   if (row === undefined) {
     return { container, workspace: active.workspace, image: null, state: "absent" };

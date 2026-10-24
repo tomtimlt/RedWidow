@@ -397,7 +397,9 @@ program
     const recorder = createRecorder();
     const docker = createDockerClient({ recorder, binary: opts.docker });
     const s = await status(defaultConfigDir(), docker);
-    process.stdout.write(`${s.container}\t${s.state}\t${s.image ?? ""}\t${s.workspace}\n`);
+    const container = s.container ?? "(aucun conteneur unique)";
+    const state = s.state ?? "";
+    process.stdout.write(`${container}\t${state}\t${s.image ?? ""}\t${s.workspace}\n`);
   });
 
 program.parseAsync().catch((err: unknown) => {

@@ -491,10 +491,28 @@ describe("status", () => {
     });
   });
 
-  it("refuse s'il n'y a pas exactement un nom", async () => {
+  it("ne lève pas sans aucun conteneur : container null", async () => {
     const { docker, configDir } = await setup();
     await createProject(configDir, { name: "p", workspace: "/host/ws" });
-    await expect(status(configDir, docker)).rejects.toMatchObject({ code: "project.absent" });
+    expect(await status(configDir, docker)).toEqual({
+      container: null,
+      workspace: "/host/ws",
+      image: null,
+      state: null,
+    });
+  });
+
+  it("ne lève pas avec plusieurs conteneurs liés : container null", async () => {
+    const { docker, configDir } = await setup();
+    const project = await createProject(configDir, { name: "p", workspace: "/host/ws" });
+    await associateContainer(configDir, project.id, "paused", docker);
+    await associateContainer(configDir, project.id, "with-ws", docker);
+    expect(await status(configDir, docker)).toEqual({
+      container: null,
+      workspace: "/host/ws",
+      image: null,
+      state: null,
+    });
   });
 });
 
