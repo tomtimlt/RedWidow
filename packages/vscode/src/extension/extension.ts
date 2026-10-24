@@ -25,11 +25,13 @@ import {
   controlListedContainer,
   linkContainer,
   linkedProjectStatus,
+  linkedTerminalChoices,
   listCockpitImages,
   loadCockpitView,
   parseCockpitMessage,
   planEditorShell,
   prepareTerminal,
+  setPrimary,
 } from "../logic/cockpit.js";
 import { createJournalFiles } from "../logic/historyStore.js";
 import { chatHtml, cockpitHtml, killchainHtml, makeNonce, studioHtml } from "../logic/html.js";
@@ -617,6 +619,12 @@ export function activate(context: vscode.ExtensionContext): void {
             postCockpit(await linkContainer(message.name));
             return;
           }
+          case "setPrimary": {
+            await pushView(true);
+            postCockpit(await setPrimary(message.name));
+            void refreshContainerStatus();
+            return;
+          }
           case "openWorkspace": {
             const st = await linkedProjectStatus();
             if (st === null) return;
@@ -639,9 +647,28 @@ export function activate(context: vscode.ExtensionContext): void {
             return;
           }
           case "terminal": {
-            const st = await linkedProjectStatus();
-            if (st === null || st.container === null || st.state !== "running") return;
-            await openEditorShell(st.container);
+            // Candidats = conteneurs liés au projet actif ET en cours ; jamais mémorisé.
+            const view = await loadCockpitView();
+            const choices = linkedTerminalChoices(view.containers);
+            if (choices.length === 0) return;
+            const only = choices.length === 1 ? choices[0] : undefined;
+            if (only !== undefined) {
+              await openEditorShell(only.name);
+              return;
+            }
+            const choice = await vscode.window.showQuickPick(
+              choices.map((item) => ({
+                label: item.short,
+                description: item.primary ? "primary" : "",
+                item,
+              })),
+              { title: "Warband : terminal du projet", ignoreFocusOut: true },
+            );
+            if (!choice) return;
+            const result = await openEditorShell(choice.item.name);
+            if (result === "skip") {
+              void vscode.window.showErrorMessage("Conteneur introuvable.");
+            }
             return;
           }
           case "start":

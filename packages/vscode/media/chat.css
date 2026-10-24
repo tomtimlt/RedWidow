@@ -2370,6 +2370,9 @@ body.cockpit .cockpit-row.is-running > .dot {
   font-size: var(--jn-fs-xs);
   font-weight: 600;
 }
+.cockpit-linked-tag.is-primary {
+  border-color: var(--jn-accent);
+}
 @container app (max-width: 359px) {
   .cockpit-row {
     flex-wrap: wrap;

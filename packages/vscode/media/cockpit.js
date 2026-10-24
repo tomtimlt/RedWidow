@@ -297,7 +297,10 @@
       const termBtn = button("primary", "Terminal", "terminal", () =>
         vscode.postMessage({ type: "terminal" }),
       );
-      if (b.state !== "running" || view.projectInvalid) termBtn.disabled = true;
+      const hasRunningLinked = (view.containers ?? []).some(
+        (c) => c.linked && c.state === "running",
+      );
+      if (!hasRunningLinked || view.projectInvalid) termBtn.disabled = true;
       actions.append(termBtn);
       actions.append(
         button("secondary", "Ouvrir le dossier", "folder", () =>
@@ -322,6 +325,7 @@
     const listSec = el("section", "cockpit-list");
     listSec.setAttribute("aria-label", "Conteneurs");
     listSec.append(heading("Conteneurs", rows.length));
+    const linkedCount = rows.filter((r) => r.linked).length;
     const ul = el("ul", "cockpit-rows");
     for (const row of rows) {
       const li = el("li", `cockpit-row ${row.state === "running" ? "is-running" : "is-stopped"}`);
@@ -331,7 +335,13 @@
       const n = el("span", "cockpit-ellipsis cockpit-row-name");
       ellipsize(n, row.short || row.name);
       top.append(n);
-      if (row.linked) top.append(el("span", "cockpit-linked-tag", "lié"));
+      if (row.linked) {
+        top.append(
+          row.primary
+            ? el("span", "cockpit-linked-tag is-primary", "PRIMARY")
+            : el("span", "cockpit-linked-tag", "lié"),
+        );
+      }
       const sub = el("div", "cockpit-row-sub");
       const im = el("span", "cockpit-ellipsis cockpit-row-image");
       ellipsize(im, row.image);
@@ -346,6 +356,13 @@
       mainCol.append(top, sub);
       li.append(mainCol);
       const act = el("div", "cockpit-row-act");
+      if (row.linked && !row.primary && linkedCount >= 2) {
+        const primaryBtn = button("secondary", "Principal", "link", () =>
+          vscode.postMessage({ type: "setPrimary", name: row.name }),
+        );
+        primaryBtn.title = "Définir comme conteneur principal (affichage seulement)";
+        act.append(primaryBtn);
+      }
       if (!row.linked) {
         const linkBtn = button("secondary", "Lier", "link");
         if (!row.canLink) {
