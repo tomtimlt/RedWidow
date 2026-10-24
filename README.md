@@ -50,7 +50,7 @@ Warband fait ça : les appels d'outil (exécution dans le conteneur, écriture, 
 
 **Une approbation qui a du sens**
 - Une carte par demande : outil, entrée neutralisée, raison de la politique. *Autoriser une fois*, *Refuser* ou *Toujours*, ce dernier sous confirmation native de VS Code et seulement quand c'est sûr.
-- **Bypass** borné : approuve d'office les demandes « ask » pendant 2 h, sans rien mémoriser, et ne lève jamais un `deny`, un chemin sensible ou un danger shell.
+- **Bypass** borné : pendant 2 h (4 h au plafond), approuve tout — y compris un `deny`, un chemin sensible ou un danger shell — sans jamais rien mémoriser ; l'utilisateur en devient responsable (ADR 0017).
 - **Mode Apprentissage** : l'agent lit des cours en lecture seule, explique et cite ses sources, et n'agit jamais.
 
 **Un moteur traçable**
@@ -108,7 +108,7 @@ Le guide complet de la CLI est dans [docs/cli.md](docs/cli.md).
 Ces règles ne s'affaiblissent pas :
 
 - La **gate d'approbation est l'unique autorité**. Le hook `PreToolUse` du SDK décide ; le reste n'est qu'un filet qui refuse par défaut.
-- Un `deny` de politique, un chemin sensible ou hors de l'espace de travail, un conteneur donnant accès à l'hôte et les dangers shell ne sont **jamais** contournables ni mémorisables.
+- Un `deny` de politique, un chemin sensible ou hors de l'espace de travail, un conteneur donnant accès à l'hôte et les dangers shell ne sont **jamais mémorisables**. Ils sont **contournables uniquement pendant un Bypass actif** (ADR 0017), sous la responsabilité de l'utilisateur.
 - Les options du SDK qui touchent à la sécurité (mode de permission, outils, hooks, environnement…) sont **verrouillées** : un appelant ne peut pas les surcharger.
 - Les secrets sont masqués avant d'atteindre un journal ; l'adresse e-mail du compte n'est jamais journalisée.
 - **Bash est désactivé par défaut.**

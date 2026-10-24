@@ -43,6 +43,7 @@ export const REASON_CODES = [
   "approval.timeout",
   "approval.remembered",
   "approval.bypassed",
+  "approval.override",
   "bypass.enabled",
   "bypass.disabled",
   "bypass.expired",
