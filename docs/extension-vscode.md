@@ -8,7 +8,7 @@ Extension privée (ADR 0004, lots E3 + E4) : chat d'agent dans VS Code, avec une
 pnpm install --frozen-lockfile
 pnpm build
 pnpm --filter @warband/vscode package        # cible win32-x64 par défaut
-code --install-extension packages/vscode/warband-0.3.23-win32-x64.vsix
+code --install-extension packages/vscode/warband-0.3.24-win32-x64.vsix
 ```
 
 Raccourci : `pnpm maj` (ou `node scripts/update.mjs`). Il enchaîne `git pull --ff-only`, `pnpm install`, `pnpm build`, l'empaquetage et `code --install-extension --force`. Options : `--check` (ajoute `pnpm check`), `--no-install`, `--dry-run`, `--target=…`. Recharger ensuite la fenêtre VS Code.
@@ -157,3 +157,25 @@ L’installation automatique utilise `--no-install-recommends` : elle prépare
 le serveur et ses dépendances nécessaires, sans ajouter toute la suite
 d’outils Kali recommandée par le paquet. Les outils de mission disponibles
 restent ceux installés dans l’image choisie.
+
+## Graphe et sorties Kali (0.3.24)
+
+La Kill chain utilise des nœuds circulaires avec une icône par type, un statut,
+un libellé sur deux lignes et des métadonnées secondaires. Le libellé complet
+reste accessible au survol et au clavier. Les arêtes représentent uniquement
+les relations enregistrées entre trouvailles.
+
+Le panneau ouvert s’actualise lorsque les trouvailles ou le projet actif
+changent. Une mise à jour du même projet conserve le zoom et le déplacement ;
+changer de projet réinitialise la caméra. La minimap et le bouton Ajuster
+restent disponibles. Une erreur de lecture affiche un message et conserve
+le dernier graphe au lieu de l’effacer.
+
+Les résultats de commande Kali sont décodés avant leur affichage : sortie
+standard lisible, sortie d’erreur séparée, code d’échec, dépassement de délai
+et résultats partiels signalés. Les séquences de terminal sont neutralisées.
+Le chat, le Monitor et la relecture de l’historique partagent cette présentation.
+Le plafond d’affichage Kali est de 12 000 caractères, avec indicateur de
+troncature ; le journal conserve l’événement brut. Si le transport contient
+déjà un JSON incomplet, l’interface affiche ce texte incomplet sans inventer
+la partie manquante.

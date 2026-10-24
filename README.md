@@ -87,7 +87,7 @@ Prérequis : Node 22 ou plus, [pnpm](https://pnpm.io), VS Code 1.90 ou plus. Doc
 pnpm install --frozen-lockfile
 pnpm build
 pnpm --filter @warband/vscode package        # cible win32-x64 par défaut
-code --install-extension packages/vscode/warband-0.3.23-win32-x64.vsix
+code --install-extension packages/vscode/warband-0.3.24-win32-x64.vsix
 ```
 
 Raccourci : `pnpm maj` enchaîne mise à jour, build, empaquetage et installation.

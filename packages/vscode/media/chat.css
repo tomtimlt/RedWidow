@@ -2811,14 +2811,10 @@ body.studio .studio-dl dd {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  padding: 7px 10px 7px 11px;
-  border: 1px solid var(--jn-line);
-  border-left: 2px solid var(--kc-accent, var(--jn-accent));
-  border-radius: var(--jn-r-md);
-  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  align-items: center;
+  gap: 7px;
   font-size: var(--jn-fs-sm);
-  transition: border-color var(--jn-d2) var(--jn-ease-io);
+  text-align: center;
 }
 .kc-node.kind-host {
   --kc-accent: var(--vscode-terminal-ansiBlue, var(--jn-accent));
@@ -2835,30 +2831,46 @@ body.studio .studio-dl dd {
 .kc-node.kind-loot {
   --kc-accent: var(--vscode-terminal-ansiGreen, var(--jn-accent));
 }
-.kc-node.is-confirmed {
-  border-top-color: var(--vscode-testing-iconPassed, var(--jn-accent));
-  border-right-color: var(--vscode-testing-iconPassed, var(--jn-accent));
-  border-bottom-color: var(--vscode-testing-iconPassed, var(--jn-accent));
+.kc-live-status {
+  position: absolute;
+  top: calc(var(--jn-s2) + 40px);
+  left: var(--jn-s2);
+  right: var(--jn-s2);
+  z-index: 2;
+  margin: 0;
+  padding: var(--jn-s2);
+  border: 1px solid var(--vscode-editorWarning-foreground, var(--jn-warn));
+  border-radius: var(--jn-r-sm);
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  color: var(--vscode-foreground);
 }
-.kc-node.is-hypothesis {
-  border-top-style: dashed;
-  border-right-style: dashed;
-  border-bottom-style: dashed;
-}
-.kc-node.is-failed {
-  border-top-color: var(--vscode-inputValidation-errorBorder, var(--jn-line));
-  border-right-color: var(--vscode-inputValidation-errorBorder, var(--jn-line));
-  border-bottom-color: var(--vscode-inputValidation-errorBorder, var(--jn-line));
+.kc-node:focus-visible .kc-node-head {
+  outline: 2px solid var(--jn-accent);
+  outline-offset: 3px;
 }
 .kc-node-head {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: var(--jn-s2);
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  box-sizing: border-box;
+  flex: none;
+  border: 1.5px solid var(--kc-accent, var(--jn-accent));
+  border-radius: 50%;
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+}
+.kc-node.is-hypothesis .kc-node-head {
+  border-style: dashed;
+}
+.kc-node.is-failed .kc-node-head {
+  border-color: var(--vscode-errorForeground);
 }
 .kc-node-ico {
   display: inline-flex;
   flex: none;
-  font-size: 1.05em;
+  font-size: 22px;
   color: var(--kc-accent, var(--jn-accent));
 }
 .kc-ico-svg {
@@ -2871,7 +2883,16 @@ body.studio .studio-dl dd {
   stroke-linejoin: round;
 }
 .kc-node-badge {
-  flex: none;
+  position: absolute;
+  right: -3px;
+  bottom: -2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--vscode-editor-background);
   font-weight: 600;
   font-size: var(--jn-fs-xs);
   line-height: 1;
@@ -2886,12 +2907,18 @@ body.studio .studio-dl dd {
   color: var(--vscode-errorForeground);
 }
 .kc-node-label {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  width: 100%;
+  max-height: 2.8em;
+  line-height: 1.4;
   font-weight: 600;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .kc-node-meta {
+  width: 100%;
   color: var(--jn-muted);
   font-family: var(--jn-mono);
   font-size: var(--jn-fs-xs);

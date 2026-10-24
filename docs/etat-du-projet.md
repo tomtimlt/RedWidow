@@ -206,3 +206,23 @@ et `root`. L’essai utilise le miroir officiel HTTPS `kali.download` et le
 certificat du proxy cloud dans le seul conteneur de test, en conservant les
 vérifications TLS et les signatures APT. Les outils de scan et le parcours
 VS Code Windows ne sont pas validés par cet essai.
+
+## Graphe et sorties Kali — 0.3.24
+
+Graphe circulaire inspiré de la référence du propriétaire, libellés sous les
+icônes, caméra conservée lors des mises à jour du même projet. Actualisation
+par surveillance des fichiers de trouvailles et du projet actif, regroupement
+des événements et déduplication des vues identiques. Une lecture plus ancienne
+ne peut pas remplacer une nouvelle ; erreurs visibles sans effacer le graphe.
+
+Sorties Kali normalisées avant troncature pour le chat, le Monitor et
+l’historique : stdout/stderr lisibles, ANSI neutralisé, erreurs/timeout/code
+et résultats partiels conservés. Les journaux et paramètres d’outils restent
+bruts. Vérification sur des données fictives, sans requête vers les domaines
+d’exemple fournis par le propriétaire.
+
+Validation : 1 658 tests réussis, 12 ignorés, compilation réussie. Chromium
+vérifie ajout de nœuds/caméra, changement de projet, erreur sur graphe vide,
+les trois thèmes, absence de débordement à 280 px et sortie Kali décodée.
+La surveillance des fichiers utilise l’API native de VS Code ; son comportement
+sur le poste du propriétaire reste à confirmer.

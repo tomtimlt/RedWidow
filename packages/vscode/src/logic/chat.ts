@@ -4,6 +4,7 @@ import { type ApprovalCard, cleanText, describeInput } from "./approval.js";
 import type { ChatControls } from "./controls.js";
 import { type Block, parseMarkdown } from "./markdown.js";
 import { summarizeInput, toolLabel } from "./present.js";
+import { displayToolOutput } from "./tool-output.js";
 
 export const MAX_ITEMS = 300;
 export const MAX_OUTPUT_CHARS = 2000;
@@ -229,11 +230,13 @@ export function createChatState() {
           const use = e.parentId === null ? undefined : execProcs.get(e.parentId);
           if (use === undefined) return;
           const live = findTool(use);
-          if (!live || live.status !== "pending") return;
+          if (live?.status !== "pending") return;
           const prev = live.output ?? "";
-          const next = prev === "" ? e.line : `${prev}\n${e.line}`;
+          const line = displayToolOutput(live.tool, e.line, LIVE_OUTPUT_CHARS, e.truncated);
+          const next = prev === "" ? line.output : `${prev}\n${line.output}`;
           live.output = cleanText(next, LIVE_OUTPUT_CHARS);
-          live.truncated = next.length > LIVE_OUTPUT_CHARS || e.truncated === true;
+          live.truncated =
+            live.truncated === true || next.length > LIVE_OUTPUT_CHARS || line.truncated;
           return;
         }
         case "approval.decided": {
@@ -249,9 +252,15 @@ export function createChatState() {
         case "tool.result": {
           const t = findTool(e.toolUseId);
           if (!t) return;
-          if (t.status !== "denied") t.status = e.isError ? "error" : "ok";
-          t.output = cleanText(e.output, MAX_OUTPUT_CHARS);
-          t.truncated = e.truncated || e.output.length > MAX_OUTPUT_CHARS;
+          const display = displayToolOutput(
+            t.tool,
+            e.output,
+            t.tool.startsWith(KALI_TOOL_PREFIX) ? LIVE_OUTPUT_CHARS : MAX_OUTPUT_CHARS,
+            e.truncated,
+          );
+          if (t.status !== "denied") t.status = e.isError || display.failed ? "error" : "ok";
+          t.output = display.output;
+          t.truncated = display.truncated;
           return;
         }
         case "turn.finished":

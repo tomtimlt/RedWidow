@@ -512,7 +512,15 @@ class StudioNode {
   textContent = "";
   value = "";
   disabled = false;
-  classList = { contains: () => false };
+  hidden = false;
+  title = "";
+  className = "";
+  styles = new Map<string, string>();
+  style = { setProperty: (key: string, value: string) => this.styles.set(key, value) };
+  classList = { contains: () => false, toggle: () => {}, add: () => {}, remove: () => {} };
+  getBoundingClientRect() {
+    return { width: 900, height: 600, left: 0, top: 0 };
+  }
   constructor(readonly tag: string) {}
   get firstChild() {
     return this.children[0];
@@ -525,7 +533,11 @@ class StudioNode {
   }
   setAttribute() {}
   addEventListener(type: string, listener: () => void) {
-    this.listeners.set(type, listener);
+    const previous = this.listeners.get(type);
+    this.listeners.set(type, () => {
+      previous?.();
+      listener();
+    });
   }
   fire(type: string) {
     this.listeners.get(type)?.();
@@ -672,4 +684,83 @@ it("projets : choisir un projet réel et créer avec le nom seul, dossier laiss�
   expect(find((n) => n.textContent === "Créer un projet et choisir son dossier…").disabled).toBe(
     true,
   );
+});
+
+it("graphe : conserve la caméra, libère les observateurs et signale une erreur sans vider les trouvailles", () => {
+  const main = new StudioNode("main");
+  const body = new StudioNode("body");
+  body.classList.contains = () => true;
+  const observers: { callback: () => void; disconnected: boolean }[] = [];
+  let receive: (event: { data: unknown }) => void = () => {};
+  runInNewContext(read(studioJs), {
+    TextEncoder,
+    acquireVsCodeApi: () => ({ postMessage: () => {} }),
+    matchMedia: () => ({ matches: false }),
+    ResizeObserver: class {
+      entry: { callback: () => void; disconnected: boolean };
+      constructor(callback: () => void) {
+        this.entry = { callback, disconnected: false };
+        observers.push(this.entry);
+      }
+      observe() {
+        this.entry.callback();
+      }
+      disconnect() {
+        this.entry.disconnected = true;
+      }
+    },
+    document: {
+      body,
+      getElementById: (id: string) => (id === "studio-main" ? main : null),
+      createElement: (tag: string) => new StudioNode(tag),
+      createElementNS: (_ns: string, tag: string) => new StudioNode(tag),
+    },
+    window: {
+      addEventListener: (_type: string, listener: typeof receive) => {
+        receive = listener;
+      },
+    },
+  });
+  const a = {
+    id: "a",
+    kind: "step",
+    state: "confirmed",
+    label: "Une étiquette complète et consultable",
+  };
+  const view = { type: "view", projectId: "projet-a", findings: [a] };
+  const find = (cls: string) => {
+    const node = main.find((n) => n.className.split(" ").includes(cls));
+    if (!node) throw Error(`Élément absent : ${cls}`);
+    return node;
+  };
+  receive({ data: { type: "findingsError", message: "Première lecture impossible" } });
+  expect(find("kc-live-status").textContent).toBe("Première lecture impossible");
+  receive({ data: { ...view, findings: [] } });
+  receive({ data: { type: "findingsError", message: "Erreur sur graphe vide" } });
+  expect(find("kc-live-status").textContent).toBe("Erreur sur graphe vide");
+  receive({ data: view });
+  const initial = find("kc-canvas");
+  const zoom = main.find((n) => n.title === "Zoomer");
+  zoom?.fire("click");
+  const pose = initial.styles.get("transform");
+  const added = {
+    ...view,
+    findings: [a, { id: "b", kind: "site", state: "hypothesis", label: "Deuxième", from: ["a"] }],
+  };
+  receive({ data: added });
+  expect(find("kc-canvas").styles.get("transform")).toBe(pose);
+  expect(observers[0]?.disconnected).toBe(true);
+  const current = find("kc-canvas");
+  receive({ data: added });
+  expect(find("kc-canvas")).toBe(current);
+  receive({
+    data: { type: "findingsError", projectId: "projet-a", message: "Lecture impossible" },
+  });
+  expect(find("kc-live-status").textContent).toBe("Lecture impossible");
+  expect(find("kc-canvas")).toBe(current);
+  receive({ data: added });
+  expect(find("kc-live-status").hidden).toBe(true);
+  receive({ data: { ...view, projectId: "projet-b" } });
+  expect(find("kc-canvas").styles.get("transform")).not.toBe(pose);
+  expect(observers[1]?.disconnected).toBe(true);
 });

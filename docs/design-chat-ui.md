@@ -155,3 +155,12 @@ Validation de chaque lot : `pnpm check` vert, puis `node packages/vscode/scripts
 **D4 — Typographie et composants.** Fichiers : `media/chat.css` (règles chat, `.cockpit*`, `.studio*`), `media/chat.js`, `media/cockpit.js`, `media/studio.js` (classes seulement). Critères : §1.4 et §5 appliqués aux trois vues ; graisses ∈ {400, 600} ; aucun `letter-spacing` négatif ; aucun débordement horizontal à 280 px (`#overflow` absent du DOM de prévisualisation).
 
 **D5 — Vérification.** Fichiers : `test/preview.test.ts`, `scripts/preview-shots.mjs`. Critères : états capturés (accueil, run en cours, approbation en attente, popover ouvert, cockpit, studio) × 4 largeurs × 3 thèmes ; `--dump-dom` sans `#csp-violation` ni `#overflow` ; vérification manuelle dans VS Code : focus visible au clavier partout, curseur du logo figé sous « Réduire les animations ».
+
+## Amendement — graphe de trouvailles circulaire
+
+À la demande du propriétaire, les nœuds de la Kill chain et leurs badges de
+statut peuvent être circulaires. Cette exception est limitée aux sélecteurs
+`.kc-node-head` et `.kc-node-badge` ; les autres composants gardent les rayons
+prescrits. Les libellés restent sous les cercles, les métadonnées secondaires,
+et les relations suivent les liens réellement enregistrés. Une actualisation
+des données du même projet conserve le zoom et le déplacement du graphe.

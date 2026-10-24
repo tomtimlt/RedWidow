@@ -102,7 +102,7 @@ function killchainModel(findings) {
 }
 
 /** Dimensions d'un nœud et des espaces entre couches (repère du graphe, px). */
-const KC = { nodeW: 184, nodeH: 56, gapX: 88, gapY: 26 };
+const KC = { nodeW: 190, nodeH: 118, gapX: 100, gapY: 36, diameter: 52 };
 
 /**
  * Disposition du graphe de la kill chain (DAG en couches, de gauche à droite). Pure et testée.
@@ -369,6 +369,21 @@ function start() {
   // État de repli du panneau légende : variable de module, survit aux render() successifs.
   // `null` tant qu'il n'a pas été initialisé (calcul différé à la première ouverture du graphe).
   let legendCollapsed = null;
+  let graphPose = null;
+  let graphProject;
+  let graphFingerprint = null;
+  let graphCleanup = () => {};
+  let graphStatus = null;
+  const showGraphError = (message) => {
+    if (graphStatus === null) {
+      if (message === "" || main === null) return;
+      graphStatus = el("p", "kc-live-status");
+      graphStatus.setAttribute("role", "status");
+      main.append(graphStatus);
+    }
+    graphStatus.textContent = message;
+    graphStatus.hidden = message === "";
+  };
   // Les rafraîchissements du panneau ne doivent pas écraser une saisie en cours.
   const summaryDrafts = new Map();
   const summarySaving = new Set();
@@ -514,10 +529,10 @@ function start() {
       const a = pos.get(e.from);
       const b = pos.get(e.to);
       if (!a || !b) continue;
-      const x1 = a.x + a.w + pad;
-      const y1 = a.y + a.h / 2 + pad;
-      const x2 = b.x + pad;
-      const y2 = b.y + b.h / 2 + pad;
+      const x1 = a.x + a.w / 2 + KC.diameter / 2 + pad;
+      const y1 = a.y + KC.diameter / 2 + pad;
+      const x2 = b.x + b.w / 2 - KC.diameter / 2 + pad;
+      const y2 = b.y + KC.diameter / 2 + pad;
       const dx = Math.max(32, Math.abs(x2 - x1) / 2);
       const path = document.createElementNS(SVG_NS, "path");
       path.setAttribute("d", `M${x1} ${y1} C${x1 + dx} ${y1} ${x2 - dx} ${y2} ${x2} ${y2}`);
@@ -541,12 +556,17 @@ function start() {
       badge.setAttribute("role", "img");
       badge.setAttribute("aria-label", stateLabel);
       head.append(badge);
-      head.append(el("span", "kc-node-label", n.label));
       node.append(head);
+      node.append(el("span", "kc-node-label", n.label));
       if (n.meta) node.append(el("span", "kc-node-meta", n.meta));
-      node.title = [KIND_LABEL[n.kind] || n.kind, stateLabel, n.meta]
+      node.title = [n.label, KIND_LABEL[n.kind] || n.kind, stateLabel, n.meta]
         .filter(Boolean)
         .join(" \u00b7 ");
+      node.tabIndex = 0;
+      node.setAttribute(
+        "aria-label",
+        [n.label, KIND_LABEL[n.kind] || n.kind, stateLabel, n.meta].filter(Boolean).join(" · "),
+      );
       canvas.append(node);
     }
     viewport.append(canvas);
@@ -598,9 +618,9 @@ function start() {
     wrap.append(bar, viewport, aside);
 
     // Zoom et déplacement : transformation du canevas (jamais de scroll natif).
-    let scale = 1;
-    let tx = 0;
-    let ty = 0;
+    let scale = graphPose?.scale ?? 1;
+    let tx = graphPose?.tx ?? 0;
+    let ty = graphPose?.ty ?? 0;
     // Minimap : un rectangle par nœud + zone visible ; clic/glisser recentre le viewport.
     const mini = el("div", "kc-minimap");
     mini.setAttribute("role", "img");
@@ -639,6 +659,7 @@ function start() {
       miniSvg.append(zone);
     };
     const apply = () => {
+      graphPose = { scale, tx, ty };
       canvas.style.setProperty("transform", `translate(${tx}px, ${ty}px) scale(${scale})`);
       paintMinimap();
     };
@@ -732,18 +753,26 @@ function start() {
 
     // Ajuste à la première mesure (ResizeObserver notifie dès l'observation), puis à chaque changement
     // de taille du panneau tant que l'utilisateur n'a pas zoomé/déplacé lui-même.
-    let touched = false;
+    let touched = graphPose !== null;
     for (const b of [zoomIn, zoomOut]) b.addEventListener("click", () => (touched = true));
     viewport.addEventListener("wheel", () => (touched = true), { passive: true });
     viewport.addEventListener("pointerdown", () => (touched = true));
     if (typeof ResizeObserver === "function") {
-      new ResizeObserver(() => {
+      let disposed = false;
+      const observer = new ResizeObserver(() => {
+        if (disposed) return;
         if (!touched) fitToView();
         else paintMinimap();
-      }).observe(viewport);
-    } else {
+      });
+      observer.observe(viewport);
+      graphCleanup = () => {
+        disposed = true;
+        observer.disconnect();
+      };
+    } else if (!touched) {
       fitToView();
     }
+    if (touched) apply();
 
     return wrap;
   }
@@ -756,8 +785,22 @@ function start() {
     }
     if (typeof view.summaryFailed === "string") summarySaving.delete(view.summaryFailed);
     if (!main) return;
-    while (main.firstChild) main.removeChild(main.firstChild);
     const page = killchainOnly ? "killchain" : view.page;
+    const project = typeof view.projectId === "string" ? view.projectId : null;
+    if (project !== graphProject) {
+      graphProject = project;
+      graphPose = null;
+      graphFingerprint = null;
+    }
+    const fingerprint = page === "killchain" ? JSON.stringify(view.findings ?? []) : null;
+    showGraphError("");
+    // Une notification sans nouvelle trouvaille ne remplace pas le graphe ni son focus.
+    if (fingerprint !== null && fingerprint === graphFingerprint) return;
+    graphFingerprint = fingerprint;
+    graphCleanup();
+    graphCleanup = () => {};
+    graphStatus = null;
+    while (main.firstChild) main.removeChild(main.firstChild);
     if (!killchainOnly) paintNav(page, view.findings);
     if (page === "project") {
       const sec = el("section", "studio-card");
@@ -1023,6 +1066,13 @@ function start() {
 
   window.addEventListener("message", (event) => {
     const msg = event.data;
+    if (msg?.type === "findingsError") {
+      if (msg.projectId !== undefined && msg.projectId !== graphProject) return;
+      showGraphError(
+        typeof msg.message === "string" ? msg.message : "Actualisation du graphe indisponible.",
+      );
+      return;
+    }
     if (msg?.type !== "view") return;
     render(msg);
   });

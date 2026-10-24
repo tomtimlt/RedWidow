@@ -4,7 +4,7 @@ import type { ModelOption } from "@warband/core";
 import { describe, expect, it } from "vitest";
 import { createChatState } from "../src/logic/chat.js";
 import { buildControls, DEFAULT_PREFS } from "../src/logic/controls.js";
-import { chatHtml, cockpitHtml, studioHtml } from "../src/logic/html.js";
+import { chatHtml, cockpitHtml, killchainHtml, studioHtml } from "../src/logic/html.js";
 
 const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 
@@ -437,6 +437,83 @@ describe("pages de prévisualisation", () => {
     // Cockpit et réglages : mêmes pages que celles de l'extension (CSP réelle), script d'hôte simulé en plus.
     const pages: { name: string; script: string; make: typeof cockpitHtml; view: unknown }[] = [
       { name: "cockpit", script: "cockpit.js", make: cockpitHtml, view: COCKPIT_VIEW },
+      {
+        name: "killchain",
+        script: "studio.js",
+        make: killchainHtml,
+        view: {
+          type: "view",
+          page: "killchain",
+          projectId: "11111111-1111-4111-8111-111111111111",
+          findings: [
+            {
+              id: "network",
+              kind: "host",
+              state: "confirmed",
+              label: "Réseau du laboratoire",
+              tactic: "TA0043",
+              technique: "T1595",
+            },
+            {
+              id: "portal",
+              kind: "site",
+              state: "confirmed",
+              label: "Portail du laboratoire",
+              from: ["network"],
+              tactic: "TA0043",
+              technique: "T1595.002",
+            },
+            {
+              id: "directory",
+              kind: "site",
+              state: "hypothesis",
+              label: "Annuaire de test",
+              from: ["network"],
+              tactic: "TA0007",
+            },
+            {
+              id: "access",
+              kind: "step",
+              state: "confirmed",
+              label: "Accès initial confirmé",
+              from: ["portal"],
+              tactic: "TA0001",
+            },
+            {
+              id: "credential",
+              kind: "credential",
+              state: "confirmed",
+              label: "Identifiant de démonstration",
+              from: ["access"],
+              tactic: "TA0006",
+            },
+            {
+              id: "attempt",
+              kind: "step",
+              state: "failed",
+              label: "Tentative de test refusée",
+              from: ["directory"],
+              tactic: "TA0006",
+            },
+            {
+              id: "session",
+              kind: "step",
+              state: "hypothesis",
+              label: "Session du compte de test",
+              from: ["credential", "directory"],
+              tactic: "TA0008",
+            },
+            {
+              id: "proof",
+              kind: "loot",
+              state: "confirmed",
+              label: "Preuve conservée",
+              from: ["session"],
+              tactic: "TA0009",
+            },
+          ],
+        },
+      },
       ...STUDIO_PAGES_PREVIEW.map((p) => ({
         name: `studio-${p}`,
         script: "studio.js",

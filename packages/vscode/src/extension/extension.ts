@@ -108,6 +108,22 @@ export function activate(context: vscode.ExtensionContext): void {
   let cockpitPanel: vscode.WebviewPanel | undefined;
   let studioPanel: vscode.WebviewPanel | undefined;
   let killchainPanel: vscode.WebviewPanel | undefined;
+  let killchainRevision = 0;
+  let killchainPayload = "";
+  let findingsTimer: ReturnType<typeof setTimeout> | undefined;
+  const scheduleFindingsRefresh = () => {
+    if (killchainPanel === undefined || findingsTimer !== undefined) return;
+    findingsTimer = setTimeout(() => {
+      findingsTimer = undefined;
+      void pushKillchain();
+    }, 150);
+  };
+  context.subscriptions.push({
+    dispose: () => {
+      if (findingsTimer !== undefined) clearTimeout(findingsTimer);
+      killchainRevision++;
+    },
+  });
   let seq = 1;
   let restoring = false;
   const kaliPreparations = new Map<string, Promise<void>>();
@@ -233,6 +249,7 @@ export function activate(context: vscode.ExtensionContext): void {
           if (watch.chatId === id) void watch.panel.webview.postMessage(message);
         }
         updateModelStatus();
+        scheduleFindingsRefresh();
       },
       onLog: (text) => out.append(text),
     });
@@ -1018,17 +1035,43 @@ export function activate(context: vscode.ExtensionContext): void {
   const pushKillchain = async () => {
     const panel = killchainPanel;
     if (!panel) return;
+    const revision = ++killchainRevision;
     let findings: unknown[] = [];
+    let projectId: string | null = null;
     try {
       const file = await readProjects(defaultConfigDir());
       const active = file === null ? null : activeProject(file);
+      projectId = active?.id ?? null;
       findings = active === null ? [] : await readFindings(defaultConfigDir(), active.id);
-    } catch {
-      findings = [];
+    } catch (error) {
+      if (killchainPanel === panel && revision === killchainRevision) {
+        killchainPayload = "";
+        await panel.webview.postMessage({
+          type: "findingsError",
+          message: `Actualisation du graphe impossible : ${formatError(error)}`,
+        });
+      }
+      return;
     }
-    if (killchainPanel !== panel) return;
-    await panel.webview.postMessage({ type: "view", page: "killchain", findings });
+    if (killchainPanel !== panel || revision !== killchainRevision) return;
+    const payload = { type: "view", page: "killchain", projectId, findings };
+    const fingerprint = JSON.stringify(payload);
+    if (killchainPayload === fingerprint) return;
+    killchainPayload = fingerprint;
+    await panel.webview.postMessage(payload);
   };
+  const findingsWatcher = vscode.workspace.createFileSystemWatcher(
+    new vscode.RelativePattern(
+      vscode.Uri.file(defaultConfigDir()),
+      "{project.json,projects/*/findings.json}",
+    ),
+  );
+  context.subscriptions.push(
+    findingsWatcher,
+    findingsWatcher.onDidChange(scheduleFindingsRefresh),
+    findingsWatcher.onDidCreate(scheduleFindingsRefresh),
+    findingsWatcher.onDidDelete(scheduleFindingsRefresh),
+  );
   const openKillchain = () => {
     if (killchainPanel) {
       killchainPanel.reveal(vscode.ViewColumn.One);
@@ -1036,6 +1079,7 @@ export function activate(context: vscode.ExtensionContext): void {
       return;
     }
     const media = vscode.Uri.joinPath(context.extensionUri, "media");
+    killchainPayload = "";
     killchainPanel = vscode.window.createWebviewPanel(
       "warband.killchain",
       "Kill chain",
@@ -1060,11 +1104,16 @@ export function activate(context: vscode.ExtensionContext): void {
     });
     killchainPanel.onDidDispose(() => {
       killchainPanel = undefined;
+      killchainRevision++;
+      killchainPayload = "";
       void saveWindows();
     });
     killchainPanel.webview.onDidReceiveMessage(async (raw: unknown) => {
       const message = parseStudioMessage(raw);
-      if (message?.type === "refresh") await pushKillchain();
+      if (message?.type === "refresh") {
+        killchainPayload = "";
+        await pushKillchain();
+      }
     });
     void pushKillchain();
     void saveWindows();

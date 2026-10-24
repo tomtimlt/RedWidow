@@ -254,6 +254,9 @@ describe.each(CSS_FILES)("%s : budget de performance (design-chat-ui.md §2)", (
             for (const part of r.selector.split(",")) {
               expect(pills.has(part.trim()), r.selector).toBe(true);
             }
+          } else if (v === "50%") {
+            // Les nœuds du graphe et leurs badges sont circulaires (demande produit).
+            expect([".kc-node-head", ".kc-node-badge"]).toContain(r.selector);
           } else {
             expect(v, r.selector).toMatch(/^(0|var\(--jn-r-(sm|md|lg)\))$/);
           }
