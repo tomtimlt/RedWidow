@@ -191,7 +191,17 @@ Le cockpit crée : Exegol par `exegol start <nom>`, Kali par `createKaliContaine
 
 | Lot | Contenu | Revue sécurité | État |
 |---|---|---|---|
-| P1 | Migration, écriture, filtre `exec`, trouvailles par projet, `cwd` de politique | oui (ce lot) | à faire |
+| P1 | Migration, écriture, filtre `exec`, trouvailles par projet, `cwd` de politique | oui (ce lot) | livré (code présent : `StoredProject.containers`, `activeProject`, `associateContainer`, trouvailles par id) |
+
+## Projet multi-conteneurs, conteneur affiché, lecture robuste (ADR 0015) — accepté, lots M1 à M3 à faire
+
+Trois défauts de l'après-P1. (1) `status()` lève `project.absent` dès qu'un projet a ≥2 conteneurs (`project.ts:414-415`), alors que `linkedProjectStatus` gère déjà le cas. (2) `onPrompt` confond un échec de lecture transitoire ou un fichier invalide avec « aucun projet actif » (`main.ts:46-58`), fige une allowlist vide pour tout le tour, et `note()` lève `project.absent` au libellé trompeur « project.json absent ». (3) Pas de champ pour le conteneur « PRIMARY » affiché par l'UI. Décision : pas de résolution d'exécution implicite par un champ mémorisé (on ne ressuscite pas `dedicated`) ; `status()` s'aligne sur `linkedProjectStatus` (plusieurs conteneurs → `container: null`, pas d'exception) ; `onPrompt` distingue fichier absent / invalide / transitoire (une relecture), ne propage jamais (sinon abort du run entier), et porte un drapeau à la cible pour que `note()` choisisse `project.absent` / `project.invalid` / `project.readFailed` (code neuf) ; champ optionnel `primary?: string` **d'affichage seulement** (jamais lu par l'exec, la politique ni la gate), posé par `setPrimaryContainer` (pas un outil MCP). `project.absent` reformulé. Capacité UI (branchement par `cadre`) : `containers` + `primary` lisibles, `setPrimaryContainer` pour la bascule.
+
+| Lot | Contenu | Revue sécurité | État |
+|---|---|---|---|
+| M1 | `status()` sans exception sur plusieurs conteneurs ; CLI tolérante | non (pas de gate touchée) | à faire |
+| M2 | Lecture robuste `onPrompt`, drapeau de cible, `project.readFailed`, libellés | oui (touche le code de raison et le fail-closed de l'allowlist) | à faire |
+| M3 | Champ d'affichage `primary`, `setPrimaryContainer` (après confirmation produit) | oui (vérifier que `primary` n'autorise aucune exécution) | à faire |
 
 ## Exécution Kali par mcp-kali-server (ADR 0014) — accepté, lot K2 à faire
 
