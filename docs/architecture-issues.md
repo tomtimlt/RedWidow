@@ -211,6 +211,18 @@ Le serveur n'est pas dans le dépôt. Doc : API HTTP `kali-server-mcp`, défaut 
 |---|---|---|---|
 | K2 | Toolset, API dans le conteneur, gate de `execute_command`, `link` | oui (ce lot) | à faire |
 
+## Bypass universel (ADR 0017) — accepté, lots B1 à B3 livrés
+
+Décision du propriétaire : un Bypass actif lève **tout** refus, refus durs compris (`sudo *`/`rm *`, `docker.hostAccess`, chemins sensibles et hors espace, règles `deny`, dangers shell). Amende les ADR 0006 et 0014 et l'invariant « jamais contournables » de `CLAUDE.md`/README (devient « jamais mémorisables ; contournables seulement pendant un Bypass actif »). Mécanisme : une seule branche dans la gate, avant le traitement du verdict, sous deux conditions — Bypass effectif **et** Asker présent (la présence d'un Asker est l'unique garde ; elle préserve l'apprentissage et la CLI non interactive sans drapeau dédié). Tout verdict non-`allow` → `allow`, `source: "bypass"`, jamais mémorisé, aucune règle écrite. Traçabilité : verdict d'origine conservé en `cause` ; nouveau code de raison `approval.override` pour un refus dur levé (`approval.bypassed` reste pour `ask`). Pas de nouveau `kind` ni de nouveau champ. `isBypassable` et ses auxiliaires sont retirés (code restrictif mort). Apprentissage (verrou de mode) et empreinte de politique : non amendés. Avertissement visible à l'activation listant ce qui est levé : voie produit (`cadre`/`surface`).
+
+| Lot | Contenu | Revue sécurité | État |
+|---|---|---|---|
+| B1 | Code de raison `approval.override` (REASON_CODES + fr/en) | oui (touche la gate en aval) | livré |
+| B2 | Branche override universelle dans `gate.ts` (Bypass + Asker) | oui (gate) | livré |
+| B3 | Retrait de `isBypassable` et auxiliaires morts de `bypass.ts` | oui (gate) | livré |
+
+Textes corrigés hors lots : `CLAUDE.md`, `README.md`, `docs/HANDOFF-windows.md`, avertissement d'activation du Bypass (`html.ts`).
+
 ## Décisions à demander en priorité
 
 - ~~**Garde unique** (points 2 et 3)~~ : tranché, `PreToolUse`.

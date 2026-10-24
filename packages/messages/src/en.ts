@@ -62,6 +62,7 @@ export const reasons: Catalog = {
   "approval.timeout": (p, c) => `no answer within ${text(p.seconds)} s: denied (${c.cause ?? "?"})`,
   "approval.remembered": (_p, c) => `allowed for the session (${c.cause ?? "?"})`,
   "approval.bypassed": (_p, c) => `auto-approved by the bypass (${c.cause ?? "?"})`,
+  "approval.override": (_p, c) => `refusal overridden by the bypass (${c.cause ?? "?"})`,
   "bypass.enabled": () => "approval bypass enabled",
   "bypass.disabled": () => "approval bypass disabled",
   "bypass.expired": () => "approval bypass expired",
