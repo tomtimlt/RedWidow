@@ -1,4 +1,11 @@
-import { TERMINAL_CONTEXT_MARK } from "@warband/core";
+import {
+  createExegolTargets,
+  KALI_SERVER_INSTRUCTIONS,
+  resolveExegolContainer,
+  resolveKaliContainer,
+  TERMINAL_CONTEXT_MARK,
+} from "@warband/core";
+import { formatReason } from "@warband/messages";
 import { describe, expect, it } from "vitest";
 import { terminalLaunch } from "../src/logic/cockpit.js";
 import {
@@ -115,7 +122,58 @@ describe("journal de terminal", () => {
   it("colle les extraits après le marqueur, ou rien", () => {
     expect(withTerminalContext("vois #htb1", [])).toBe("vois #htb1");
     expect(withTerminalContext("vois #htb1", [{ token: "htb1", text: "80/tcp" }])).toBe(
-      `vois #htb1${TERMINAL_CONTEXT_MARK}htb1\n80/tcp`,
+      `vois #htb1${TERMINAL_CONTEXT_MARK}Terminal #htb1.\n80/tcp`,
     );
+  });
+
+  it("un # joint le ping et autorise le Kali cité, pas l'Exegol", () => {
+    const user = "fait un scan nmap rapide sur la cible #frosty_margulis-2";
+    const prompt = withTerminalContext(user, [
+      {
+        token: "frosty_margulis-2",
+        container: "frosty_margulis",
+        text: "PING google.com (142.250.185.78)",
+      },
+    ]);
+    expect(prompt.startsWith(`${user}${TERMINAL_CONTEXT_MARK}`)).toBe(true);
+    expect(prompt).toContain("Terminal #frosty_margulis-2, shell du conteneur frosty_margulis.");
+    expect(prompt).toContain("PING google.com (142.250.185.78)");
+    expect(prompt).not.toContain("@frosty_margulis");
+    expect(prompt).not.toMatch(/remplacer #/);
+    const targets = createExegolTargets();
+    // L'allowlist du projet reste l'autorité : le # désigne, il n'autorise pas seul.
+    targets.note(prompt, ["frosty_margulis"], null);
+    expect(targets.current().hashes).toEqual(["frosty_margulis-2"]);
+    const kali = [{ name: "frosty_margulis", family: "kali" as const }];
+    const exegol = [{ name: "frosty_margulis", family: "exegol" as const }];
+    expect(resolveKaliContainer(targets.current(), "frosty_margulis", kali)).toBe(
+      "frosty_margulis",
+    );
+    expect(resolveKaliContainer(targets.current(), "frosty_margulis-2", kali)).toBe(
+      "frosty_margulis",
+    );
+    const sansAllowlist = createExegolTargets();
+    sansAllowlist.note(prompt, [], null);
+    expect(() =>
+      resolveExegolContainer(sansAllowlist.current(), "frosty_margulis", exegol),
+    ).toThrow(expect.objectContaining({ code: "exegol.containerDenied" }));
+    expect(KALI_SERVER_INSTRUCTIONS).not.toMatch(/remplacer #/);
+    expect(KALI_SERVER_INSTRUCTIONS).toContain("désigné par #");
+    const denied = formatReason({
+      code: "exegol.containerDenied",
+      params: { name: "frosty_margulis-2" },
+    });
+    expect(denied).toContain("désigné par #");
+    expect(denied).not.toMatch(/remplacer #/);
+  });
+
+  it("classe un # de terminal ouvert et un # de conteneur listé", () => {
+    const listed = [{ name: "frosty_margulis" }];
+    const shells = new Set(["frosty_margulis-2"]);
+    const open = classifyMessageHashes(["frosty_margulis-2"], (token) => shells.has(token), []);
+    expect(open.open).toEqual(["frosty_margulis-2"]);
+    const container = classifyMessageHashes(["frosty_margulis"], () => false, listed);
+    expect(container.designated).toEqual(["frosty_margulis"]);
+    expect(container.unknown).toEqual([]);
   });
 });

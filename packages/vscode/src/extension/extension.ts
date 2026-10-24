@@ -463,6 +463,7 @@ export function activate(context: vscode.ExtensionContext): void {
             }
             sections.push({
               token,
+              ...(shell !== undefined ? { container: shell.container } : {}),
               text: raw === null ? "Sortie illisible." : readableTerminal(raw),
             });
           }
@@ -492,6 +493,9 @@ export function activate(context: vscode.ExtensionContext): void {
           return;
         case "openKillchain":
           openKillchain();
+          return;
+        case "openMonitor":
+          openMonitor();
           return;
       }
     } catch (error) {

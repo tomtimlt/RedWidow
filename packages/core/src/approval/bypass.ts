@@ -109,7 +109,7 @@ export function isBypassable(
   workspace: PolicyContext,
 ): boolean {
   if (verdict.decision !== "ask") return false;
-  // Le Bypass de ce shell passe tout l'ask. Un deny (sudo, montage hôte) est déjà exclu.
+  // Le Bypass de ce shell passe tout l'ask. Un deny est déjà exclu ci-dessus.
   if (request.tool === KALI_EXECUTE_TOOL) return true;
   if (!BYPASSABLE.has(verdict.reason.code)) return false;
   // Même test que la gate pour les répertoires externes : le motif `policy.default` seul ne suffit pas.

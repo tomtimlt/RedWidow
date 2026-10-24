@@ -10,9 +10,9 @@
 **Un chat d'agent IA pour VS Code où chaque action sensible demande ton accord.**
 
 [![CI](https://github.com/tomtimlt/warband/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/tomtimlt/warband/actions/workflows/ci.yml)
-[![Licence MIT](https://img.shields.io/badge/licence-MIT-FFD60A.svg)](LICENSE)
-![Node 22+](https://img.shields.io/badge/node-22%2B-5E6B7A.svg)
-![TypeScript strict](https://img.shields.io/badge/TypeScript-strict-5E6B7A.svg)
+[![Licence MIT](https://img.shields.io/badge/licence-MIT-CC1C40.svg)](LICENSE)
+![Node 22+](https://img.shields.io/badge/node-22%2B-495F73.svg)
+![TypeScript strict](https://img.shields.io/badge/TypeScript-strict-495F73.svg)
 
 <br>
 
@@ -72,7 +72,7 @@ Prérequis : Node 22 ou plus, [pnpm](https://pnpm.io), VS Code 1.90 ou plus. Doc
 pnpm install --frozen-lockfile
 pnpm build
 pnpm --filter @warband/vscode package        # cible win32-x64 par défaut
-code --install-extension packages/vscode/warband-0.3.0-win32-x64.vsix
+code --install-extension packages/vscode/warband-0.3.13-win32-x64.vsix
 ```
 
 Raccourci : `pnpm maj` enchaîne mise à jour, build, empaquetage et installation.

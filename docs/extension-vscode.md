@@ -8,7 +8,7 @@ Extension privée (ADR 0004, lots E3 + E4) : chat d'agent dans VS Code, avec une
 pnpm install --frozen-lockfile
 pnpm build
 pnpm --filter @warband/vscode package        # cible win32-x64 par défaut
-code --install-extension packages/vscode/warband-0.3.0-win32-x64.vsix
+code --install-extension packages/vscode/warband-0.3.13-win32-x64.vsix
 ```
 
 Raccourci : `pnpm maj` (ou `node scripts/update.mjs`). Il enchaîne `git pull --ff-only`, `pnpm install`, `pnpm build`, l'empaquetage et `code --install-extension --force`. Options : `--check` (ajoute `pnpm check`), `--no-install`, `--dry-run`, `--target=…`. Recharger ensuite la fenêtre VS Code.
@@ -24,7 +24,7 @@ Le `.vsix` fait environ 117 Mio (il embarque le binaire `claude` du SDK, 257 Mio
 
 ## Interface du chat (design « néon », docs/design-chat-ui.md)
 
-- **Responsive** : la mise en page suit la largeur de la vue (container queries sur `body`) : compact < 360 px (boutons en icône, pastille de modèle tronquée), standard 360-599 px, large ≥ 600 px (colonne centrée de 820 px). Aucun élément ne déborde.
+- **Responsive** : la mise en page suit la largeur de la vue (container queries sur `body`) : compact < 360 px (boutons en icône, pastille de modèle tronquée), standard 360-599 px, large ≥ 600 px (colonne de lecture centrée, 720 px). Aucun élément ne déborde.
 - **Composer** : la zone de saisie porte une barre d'outils avec la **pastille de modèle** (liste ARIA avec filtre, ↑/↓/Début/Fin/Entrée/Échap, « Actualiser la liste » en pied), le bouton **Configurer** (curseur d'effort à crans cliquables, bouton Auto, fournisseur, bac à sable et réseau en lecture seule) et Envoyer/Stop. Les popovers se placent en JavaScript (au-dessus de l'ancre, dessous si la place manque, jamais hors de l'écran) ; piège de focus, Échap et clic extérieur ferment.
 - **Effets** (tous en `transform`/`opacity`, liste fermée) : halo au focus du composer, balayage lumineux et « pop » de la pastille quand le modèle accepté change, indicateur « thinking » (spinner braille, curseur clignotant, scanline discrète) pendant un run, entrée des cartes d'approbation. Rien ne tourne sans run actif ; tout est figé quand la vue est cachée ou pendant l'attente d'une approbation.
 - **Mouvement réduit, contraste élevé, couleurs forcées** : tous les effets sont coupés (le spinner devient « … »). `workbench.reduceMotion` : le média `prefers-reduced-motion` honoré par la webview suffit, l'extension ne lit pas ce réglage (aucun champ ajouté à la vue).

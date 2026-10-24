@@ -154,7 +154,10 @@ describe("prepareTerminal", () => {
   const recording = (
     code = 0,
     stderr: readonly string[] = [],
-  ): { run: WorkspaceRun; calls: string[][] } => {
+  ): {
+    run: WorkspaceRun;
+    calls: string[][];
+  } => {
     const calls: string[][] = [];
     return {
       calls,

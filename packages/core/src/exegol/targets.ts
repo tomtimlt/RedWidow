@@ -68,7 +68,7 @@ function collectTokens(text: string, pattern: RegExp): string[] {
   return out;
 }
 
-/** Jeton `@` ou `#` du fil. `@` nomme la cible ; `#` désigne un contexte (terminal ou shell). */
+/** Jeton `@` ou `#` du fil. `@` nomme, `#` désigne (nom, court nom ou shell). */
 export interface KaliRecall {
   sigil: "@" | "#";
   token: string;
@@ -83,16 +83,6 @@ function kaliTokens(text: string): KaliRecall[] {
     if ((sigil === "@" || sigil === "#") && token !== undefined) out.push({ sigil, token });
   }
   return out;
-}
-
-/**
- * Un seul `#` ou `@` en tête, après trim.
- * `##` et `@@` n'en perdent qu'un : le reste est refusé par la résolution.
- * Le texte du chat et `resolveExegolContainer` ne passent pas ici.
- */
-export function stripContainerSigil(value: string): string {
-  const name = value.trim();
-  return name.startsWith("#") || name.startsWith("@") ? name.slice(1) : name;
 }
 
 /**
@@ -127,8 +117,9 @@ export interface ExegolTarget {
   /** Projet actif au moment du message, ou `null`. L'outil ne le reçoit pas du modèle. */
   projectId: string | null;
   /**
-   * Jetons `#` du message, hors sortie de terminal. Contexte (terminal, shell) :
-   * ils ne remplacent pas un `@`. Sans `@`, ils peuvent désigner le Kali du tour.
+   * Jetons `#` du message, hors sortie de terminal. Sans `@`, ils autorisent les outils Kali
+   * sur le conteneur unique qu'ils désignent ; un `#` ne remplace pas un `@`.
+   * `resolveExegolContainer` les ignore.
    */
   hashes?: readonly string[];
   /**
@@ -201,19 +192,21 @@ function designatedKali(
 }
 
 /**
- * Nom Docker autorisé pour un outil Kali, sur les seules entrées `family === "kali"`
- * qui sont dans l'allowlist. Un `@` est la cible d'exécution : un `#` du même message
- * ne le remplace pas. Sans `@`, un `#` qui désigne un seul conteneur (nom, court nom
- * ou shell) autorise ce Kali. Sans `@` ni `#`, le jeton le plus récent du fil qui
- * désigne un Kali allowlisté tient lieu du dédié. `resolveExegolContainer` ignore
- * ces jetons et refuse toujours un Kali. Un seul `#` ou `@` en tête du champ est retiré.
+ * Nom Docker autorisé pour un outil Kali. Même règles que `resolveExegolContainer`
+ * pour `@` et l'allowlist, sur les seules entrées `family === "kali"`.
+ * Un `#` qui désigne un seul conteneur de la liste (nom complet, court, ou shell)
+ * autorise ce conteneur allowlisté, sans `@`. Un `@` est la cible d'exécution : un `#`
+ * du même message ne le remplace pas. Un Exegol allowlisté ne résout pas un Kali.
+ * Sans `@` ni `#` dans le message, le `@` ou `#` le plus récent du fil qui désigne
+ * un Kali allowlisté tient lieu du dédié. Un jeton qui n'en désigne pas ne le remplace pas.
+ * Le `#` ou `@` en tête du champ est retiré par l'appelant (`containerToken`).
  */
 export function resolveKaliContainer(
   target: ExegolTarget,
   requested: string,
   containers: readonly NamedContainer[],
 ): string {
-  const name = stripContainerSigil(requested);
+  const name = requested.trim();
   const listed = containers.filter((c) => (c as { family?: unknown }).family === "kali");
   const fromShell = containerDesignatedBy(name, containers);
   const real =
@@ -260,7 +253,7 @@ export interface ExegolTargets {
 }
 
 export function createExegolTargets(): ExegolTargets {
-  let target: ExegolTarget = { allowed: [], mentions: [], projectId: null };
+  let target: ExegolTarget = { allowed: [], mentions: [], projectId: null, hashes: [] };
   const recall: KaliRecall[] = [];
   return {
     current: () => target,
@@ -270,8 +263,7 @@ export function createExegolTargets(): ExegolTargets {
       const hashes = parseHashes(prompt);
       const named = kaliTokens(prompt);
       if (named.length > 0) recall.push(...named);
-      target = { allowed: [...allowed], mentions, projectId };
-      if (hashes.length > 0) target = { ...target, hashes };
+      target = { allowed: [...allowed], mentions, projectId, hashes };
       if (mentions.length === 0 && hashes.length === 0 && recall.length > 0) {
         target = { ...target, recall: recall.slice() };
       }

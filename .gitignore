@@ -13,3 +13,6 @@ packages/vscode/*.vsix
 
 # Previsualisation generee par packages/vscode/test/preview.test.ts
 packages/vscode/preview/
+
+# VSIX compilés (trop gros pour git)
+release/

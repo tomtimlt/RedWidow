@@ -146,9 +146,10 @@ describe("navigation en deux groupes", () => {
     expect(read(studioJs)).not.toMatch(/licen[cs]e/i);
   });
 
-  it("libellés en textContent (jamais de HTML), sans icône de navigation", () => {
+  it("libellés en textContent (jamais de HTML), sans icône dans la nav", () => {
     expect(read(studioJs)).not.toMatch(/studio-ico/);
     expect(read(studioJs)).toMatch(/el\("span", "btn-text", item\.label\)/);
+    expect(read(studioJs)).toMatch(/el\("span", "kc-node-ico"/);
   });
 });
 

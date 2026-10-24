@@ -33,31 +33,29 @@ Les quatre webviews (chat, cockpit, studio, panneau éditeur) chargent la même 
 
 | Jeton | Valeur | Usage |
 |---|---|---|
-| `--jn-brand` | `#FFD60A` | Remplissage d'accent (bouton primaire, envoi, bascule active, remplissage du curseur d'effort, curseur du logo). |
-| `--jn-brand-ink` | `#7A5C00` | Accent **en trait ou en texte** sur fond clair (focus, bordure active, lien, texte d'accent). 6,2:1 sur `#FFFFFF`. |
-| `--jn-on-brand` | `#141414` | Texte et icône posés sur `--jn-brand`. 13:1. Jamais de blanc sur jaune (1,3:1). |
-| `--jn-slate` | `#7A8899` | Ailiers du logo, filets décoratifs. **Jamais pour du texte** (4,3:1 sur une barre latérale sombre, 3,6:1 sur blanc). |
-| `--jn-slate-ink` | `#5E6B7A` | Variante de `--jn-slate` en thème clair (logo, filets). |
+| `--jn-accent` | `#CC1C40` | Rouge du A du wordmark. Aplat (envoi, puce active) et filet. 5,7:1 sur blanc, 5,4:1 pour le blanc posé dessus. Trop sombre pour du texte sur fond sombre (2,9:1) : le texte y est `--jn-ink`. |
+| `--jn-steel` | `#495F73` | Acier du treillis. Filet du bandeau et bord du compositeur. ≥ 3:1 sur noir et sur blanc. |
+| `--jn-ink` | `#FFFFFF` | Encre du wordmark. Texte sur le bandeau noir et sur le rouge. |
 
-Ces cinq déclarations sont les seuls hex hors repli de `var()` dans les feuilles ; le test `css-motion` est adapté pour les tolérer **uniquement** dans les déclarations `--jn-brand*`, `--jn-on-brand`, `--jn-slate*`.
+Ces trois déclarations sont les seuls hex hors repli de `var()` dans les feuilles ; le test `css-motion` ne les tolère que là.
 
 ### 1.2 Jetons d'usage, par thème
 
 | Jeton | Sombre (défaut) | `body.vscode-light` | `body.vscode-high-contrast`, `-light` | `@media (forced-colors: active)` |
 |---|---|---|---|---|
-| `--jn-accent` (trait, texte, focus) | `--jn-brand` | `--jn-brand-ink` | `var(--vscode-contrastActiveBorder, var(--vscode-focusBorder))` | `Highlight` |
-| `--jn-accent-fill` (fond d'action) | `--jn-brand` | `--jn-brand` + bordure 1 px `--jn-brand-ink` | `var(--vscode-button-background)` + `--vscode-contrastBorder` | `ButtonFace` / `ButtonText` |
-| `--jn-on-accent` | `--jn-on-brand` | `--jn-on-brand` | `var(--vscode-button-foreground)` | `ButtonText` |
+| `--jn-accent` (trait, focus, aplat) | `#CC1C40` | `#CC1C40` | `var(--vscode-contrastActiveBorder, var(--vscode-focusBorder))` | `Highlight` |
+| `--jn-accent-fill` (fond d'action) | `--jn-accent` | `--jn-accent` + bordure 1 px `--jn-steel` | `var(--vscode-button-background)` + `--vscode-contrastBorder` | `ButtonFace` / `ButtonText` |
+| `--jn-on-accent` | `--jn-ink` | `--jn-ink` | `var(--vscode-button-foreground)` | `ButtonText` |
 | `--jn-tint` (sélection, survol actif) | accent 14 % | accent 10 % | `transparent` + bordure `--jn-accent` | `Highlight` |
-| `--jn-secondary` | `--jn-slate` | `--jn-slate-ink` | `--vscode-contrastBorder` | `CanvasText` |
+| `--jn-secondary` | `--jn-steel` | `--jn-steel` | `--vscode-contrastBorder` | `CanvasText` |
 | `--jn-accent-wash` (fond teinté opaque : bulle de consigne, étiquette active) | accent 14 % sur `input-background` | accent 10 % sur `input-background` | `transparent` | — |
 | `--jn-accent-edge` (bordure teintée) | accent 45 % | accent 55 % | `--jn-accent` | — |
 
 Les teintes d'accent passent par ces jetons, jamais par un `color-mix` direct dans une règle ; le contraste du texte posé dessus est vérifié par `test/contrast.test.ts`.
 
-Justification thème clair : le jaune pur fait 1,4:1 sur blanc, inutilisable en trait ou texte ; on garde le jaune en **remplissage** (texte sombre dessus, 13:1) et on passe au jaune foncé pour tout ce qui est fin. Justification contraste élevé : l'utilisateur a choisi un thème pour ses couleurs, on lui obéit ; le jaune ne survit qu'au logo en contraste élevé sombre (14:1 sur noir), le logo passe en monochrome `currentColor` en contraste élevé clair et en couleurs forcées.
+Justification thème clair : le rouge du A tient en trait sur blanc (5,7:1) et le blanc tient sur le rouge (5,4:1). Justification contraste élevé : l'utilisateur a choisi un thème pour ses couleurs, on lui obéit ; la marque repasse en monochrome `currentColor` (couleurs forcées : `CanvasText`).
 
-**Dérivés du thème** (jamais figés) : fonds (`--vscode-editor-background`, `sideBar`, `editorWidget`, `input`, `dropdown`), texte (`--vscode-foreground`), atténué (`--jn-muted` = foreground 72 %), filets (`--jn-line` = `--vscode-panel-border`), polices, ombre (`--vscode-widget-shadow`), et les **états sémantiques** : `--jn-ok` (`testing-iconPassed`), `--jn-warn` (`editorWarning-foreground`), `--jn-err` (`errorForeground`). Leurs replis ne pointent plus vers un accent. L'attente d'approbation (`body.awaiting`, `body.waiting`) porte toujours un libellé ou un glyphe en plus de la couleur, le jaune d'accent ne signifiant jamais un état.
+**Dérivés du thème** (jamais figés) : fonds (`--vscode-editor-background`, `sideBar`, `editorWidget`, `input`, `dropdown`), texte (`--vscode-foreground`), atténué (`--jn-muted` = foreground 72 %), filets (`--jn-line` = `--vscode-panel-border`), polices, ombre (`--vscode-widget-shadow`), et les **états sémantiques** : `--jn-ok` (`testing-iconPassed`), `--jn-warn` (`editorWarning-foreground`), `--jn-err` (`errorForeground`). Leurs replis ne pointent plus vers un accent. L'attente d'approbation (`body.awaiting`, `body.waiting`) porte toujours un libellé ou un glyphe en plus de la couleur, le rouge de marque ne signifiant jamais un état.
 
 Supprimés : `--jn-accent-2`, `--jn-cool`, `--jn-glow`, `--jn-glow-pct`, `--jn-ease-spring`, `--jn-r-pill`. Le bleu `focusBorder` n'est plus l'accent hors contraste élevé.
 
@@ -89,24 +87,22 @@ Liste **fermée** ; tout effet absent est interdit.
 | M4 | Tiroir d'historique | ouverture | `jn-drawer-in` : `translateX`, `--jn-d3`. |
 | M5 | Fondu (zones remplacées) | rendu | `jn-fade-in` : `opacity`, `--jn-d1`. |
 | M6 | Spinner de travail | `body.running` sans attente | `jn-braille` inchangé (bande verticale, `steps(10)`, 1 s, infini), sous `#thinking`. |
-| M7 | Curseur du logo (seul effet de marque) | `body.running` sans `waiting` ni `paused` | `jn-blink` (`opacity`, `steps(1)`, 1,06 s, infini) sur `.brand-cursor` du logo d'en-tête. Au repos, curseur plein et immobile. |
 
-Sort des `@keyframes` actuels : **gardés** `jn-braille`, `jn-blink` (déplacé vers M7), `jn-msg-in`, `jn-pop-in`, `jn-drawer-in`, `jn-fade-in` (paramètres ci-dessus). **Fusionnés** : `jn-card-in` → `jn-msg-in`, `jn-settle` → `jn-fade-in`. **Supprimés** : `jn-scan`, `jn-logo-in`, `jn-sweep-a/b`, `jn-pop-a/b`, `jn-halo-a/b`, ainsi que le curseur `▍` de `#thinking`, l'élément `.sweep` du composer et les classes `sweep`/`pop` posées par `chat.js`.
+Sort des `@keyframes` actuels : **gardés** `jn-braille`, `jn-msg-in`, `jn-pop-in`, `jn-drawer-in`, `jn-fade-in`. **Retiré** avec la marque treillis : `jn-blink` (plus de curseur). **Fusionnés** : `jn-card-in` → `jn-msg-in`, `jn-settle` → `jn-fade-in`. **Supprimés** : `jn-scan`, `jn-logo-in`, `jn-sweep-a/b`, `jn-pop-a/b`, `jn-halo-a/b`, ainsi que le curseur `▍` de `#thinking`, l'élément `.sweep` du composer et les classes `sweep`/`pop` posées par `chat.js`.
 
 Règles fermes (inchangées sauf mention) :
 - `@keyframes` : **uniquement `transform` et `opacity`**. `transition` : liste M1, jamais `all`. Interdits : `backdrop-filter`, `blur(`, `filter`, animation de `box-shadow`, de dimensions ou de position, `linear-gradient`.
-- Animations infinies : **au plus 2** (M6 sous `#thinking`, M7 sous `body.running … .brand-cursor`). Rien ne tourne hors run ; attente d'approbation ou vue cachée (`body.paused`) → `animation-play-state: paused`.
+- Animations infinies : **une seule** (M6 sous `#thinking`). Rien ne tourne hors run ; attente d'approbation ou vue cachée (`body.paused`) → `animation-play-state: paused`. La marque ne clignote pas.
 - Logo : **aucun SMIL** (`<animate>`) dans les SVG, ni en fichier ni en ligne : il échappe à `prefers-reduced-motion` et tourne sans fin.
 - JS : ni `requestAnimationFrame` ni `setInterval` pour le visuel ; pas d'écouteur `scroll` visuel ; `will-change` seulement sur la bande du spinner.
-- Interrupteur global : `prefers-reduced-motion: reduce`, contraste élevé et `forced-colors` → `body *, ::before, ::after { animation: none !important; transition: none !important }`. Spinner → « … », curseur du logo plein.
+- Interrupteur global : `prefers-reduced-motion: reduce`, contraste élevé et `forced-colors` → `body *, ::before, ::after { animation: none !important; transition: none !important }`. Spinner → « … ». La marque ne bouge pas.
 - **CSP inchangée** : ni `<style>`, ni `style=`, ni `setAttribute("style")`, ni `innerHTML`/`outerHTML`/`insertAdjacentHTML`/`document.write`. États = classes. Seule écriture de style admise : `el.style.setProperty("--jn-…", valeur numérique)` et la hauteur du `textarea`.
 
 ## 3. Logo
 
-- Conserver chevrons + curseur : deux ailiers ardoise à gauche, un chevron de tête jaune, un curseur jaune sous la pointe.
-- Grille : `viewBox="0 0 24 24"` sans décalage ; toutes les coordonnées sont des entiers ou des demi-entiers ; marge de 1 unité ; diagonales à 45° ; épaisseur de bras identique pour les trois chevrons ; ailiers et tête alignés sur un même axe horizontal de pointe ; curseur de hauteur égale à l'épaisseur d'un bras, aligné sur le bord droit de la tête ; centre optique au centre de la grille.
-- Versions : **pleine** `media/logo.svg` (couleurs de marque, accueil) ; **monochrome** `media/icon.svg` (`fill="currentColor"`, barre d'activité, contraste élevé clair, couleurs forcées) ; **petite taille** `media/logo-small.svg` (≤ 16 px : chevron de tête + curseur, ailiers retirés, épaisseur relevée pour rester ≥ 2 px rendus). Logo d'en-tête en ligne (`BRAND`, 18 px) : géométrie de la version pleine, couleurs par classes (`.brand-wing`, `.brand-lead`, `.brand-cursor`) remplies par les jetons, donc thème clair et contraste élevé gérés en CSS.
-- Aucun `<animate>`, `<script>`, attribut `on*`, ni référence externe dans aucun SVG.
+- Marque : treillis acier (`#495F73`) et flèches rouges (`#CC1C40`), fond transparent. Même géométrie dans `media/logo.svg`, `media/icon.svg`, `media/logo-small.svg` et le SVG inline `BRAND` (18 px). Couleurs en dur. Lisible à 18 px (trait ≥ 1,6 unité de la grille 24, nœuds ≥ 1).
+- Contraste élevé et couleurs forcées : la marque inline reprend `currentColor` / `CanvasText`. L'accueil masque `icon.svg` avec la couleur du thème.
+- Aucun `<animate>`, `<script>`, attribut `on*`, ni référence externe dans aucun SVG. Pas de clignotement.
 
 ## 4. Responsive (container queries)
 
