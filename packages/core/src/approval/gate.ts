@@ -6,7 +6,6 @@ import {
   type BypassOffReason,
   type BypassState,
   type BypassSwitch,
-  isBypassable,
 } from "./bypass.js";
 import { EXTERNAL_DIRECTORY_TOOL, EXTERNAL_PATTERNS_FIELD } from "./paths.js";
 import {
@@ -267,7 +266,21 @@ export function createApprovalGate({
       const verdict = evaluatePolicy(policy, request.tool, request.input, ctx);
       let outcome: ApprovalOutcome;
 
-      if (verdict.decision !== "ask") {
+      // Bypass universel (ADR 0017) : sous Bypass actif et avec un Asker, tout verdict non-`allow`
+      // (refus dur compris) est auto-approuvé une fois, jamais mémorisé. L'absence d'Asker (apprentissage,
+      // CLI non interactive) est l'unique garde qui préserve ces modes sans drapeau spécial.
+      const override = bypassActive && ask !== undefined && verdict.decision !== "allow";
+      if (override) {
+        outcome = {
+          decision: "allow",
+          reason: reason(
+            verdict.decision === "deny" ? "approval.override" : "approval.bypassed",
+            undefined,
+            verdict.reason, // verdict d'origine conservé en cause
+          ),
+          source: "bypass",
+        };
+      } else if (verdict.decision !== "ask") {
         outcome = { decision: verdict.decision, reason: verdict.reason, source: "policy" };
       } else if (!ask) {
         outcome = {
@@ -282,12 +295,6 @@ export function createApprovalGate({
             decision: "allow",
             reason: reason("approval.remembered", undefined, verdict.reason),
             source: "user",
-          };
-        } else if (bypassActive && isBypassable(request, verdict, policy, ctx)) {
-          outcome = {
-            decision: "allow",
-            reason: reason("approval.bypassed", undefined, verdict.reason),
-            source: "bypass",
           };
         } else {
           recorder.emit(
