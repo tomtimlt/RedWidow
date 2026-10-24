@@ -399,16 +399,17 @@ describe("défilement du chat", () => {
     expect(rule?.body).not.toMatch(/max-height:\s*14em/);
   });
 
-  it("Kill chain plein éditeur : la page et le viewport remplissent la webview", () => {
+  it("Kill chain plein éditeur : la page remplit la webview, le viewport partage la rangée avec le panneau légende", () => {
     expect(has("body.killchain-full .studio-kc-page", "height", "100%")).toBe(true);
     expect(has("body.killchain-full .studio-kc", "height", "100%")).toBe(true);
+    expect(has("body.killchain-full .studio-kc", "flex-direction", "row")).toBe(true);
     expect(has("body.killchain-full .kc-viewport", "height", "100%")).toBe(true);
+    expect(has("body.killchain-full .kc-viewport", "flex", "1 1 auto")).toBe(true);
+    expect(has("body.killchain-full .kc-viewport", "min-width", "0")).toBe(true);
     expect(has("body.killchain-full .studio-kc-page", "max-width", "none")).toBe(true);
     expect(has("body.killchain-full .studio-kc-page", "inset", "0")).toBe(true);
-    expect(has("body.killchain-full .kc-viewport", "inset", "0")).toBe(true);
     expect(has("body.killchain-full .kc-empty", "inset", "0")).toBe(true);
     expect(has("body.killchain-full .kc-viewport", "border", "0")).toBe(true);
-    expect(has("body.killchain-full .kc-viewport", "max-width", "none")).toBe(true);
   });
 
   it("le monitor hors chat est hors flux ; sa zone ne défile qu'en monitor ou suivi", () => {

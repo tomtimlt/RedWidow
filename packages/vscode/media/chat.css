@@ -2435,7 +2435,8 @@ body.killchain-full .studio-kc {
   position: relative;
   flex: 1 1 auto;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  gap: var(--jn-s3);
   width: 100%;
   max-width: none;
   min-height: 0;
@@ -2449,10 +2450,9 @@ body.killchain-full .kc-bar {
   margin: 0;
 }
 body.killchain-full .kc-viewport {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  max-width: none;
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
   height: 100%;
   min-height: 0;
   margin: 0;
@@ -2470,14 +2470,6 @@ body.killchain-full .kc-empty {
   height: 100%;
   border: 0;
   border-radius: 0;
-}
-body.killchain-full .studio-kc-legend {
-  position: absolute;
-  left: var(--jn-s3);
-  right: var(--jn-s3);
-  bottom: var(--jn-s2);
-  z-index: 1;
-  margin: 0;
 }
 #studio-nav {
   display: flex;
@@ -2915,6 +2907,74 @@ body.studio .studio-dl dd {
 }
 .kc-dot.kind-loot {
   --kc-accent: var(--vscode-terminal-ansiGreen, var(--jn-accent));
+}
+
+/* --- Panneau légende de la kill chain (repliable, à droite du viewport) --- */
+.kc-legend {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 100%;
+  overflow: auto;
+  margin: 0;
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-lg);
+  font-family: var(--jn-font);
+}
+.kc-legend-head {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--jn-s2);
+}
+.kc-legend-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s4);
+  padding: 0 var(--jn-s4) var(--jn-s4);
+  overflow: auto;
+}
+.kc-legend-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s2);
+}
+.kc-legend-title {
+  margin: 0;
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--jn-muted);
+}
+.kc-legend-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s2);
+}
+.kc-legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+  font-size: var(--jn-fs-sm);
+  white-space: nowrap;
+}
+.kc-legend-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kc-legend-count {
+  margin-left: auto;
+  flex: none;
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-xs);
+  color: var(--jn-muted);
 }
 /* Sous 640 px : la navigation passe en rangée au-dessus du contenu (groupes en ligne, sans débordement). */
 @media (max-width: 640px) {

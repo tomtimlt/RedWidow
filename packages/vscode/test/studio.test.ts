@@ -43,6 +43,10 @@ interface StudioApi {
     width: number;
     height: number;
   };
+  killchainLegend(findings: unknown): {
+    label: string;
+    entries: { kind?: string; state?: string; label: string; count: number }[];
+  }[];
 }
 
 const studioJs = fileURLToPath(new URL("../media/studio.js", import.meta.url));
@@ -313,5 +317,59 @@ describe("killchainGraph (disposition du graphe)", () => {
     ]);
     expect(g.nodes).toHaveLength(1);
     expect(g.nodes[0]).toMatchObject({ id: "a", kind: "host", state: "failed", label: "cible" });
+  });
+});
+
+describe("killchainLegend (panneau légende, deux groupes avec compteurs)", () => {
+  it("deux groupes, Type puis État, dans l'ordre attendu", () => {
+    const groups = studio.killchainLegend([]);
+    expect(groups.map((g) => g.label)).toEqual(["Type", "État"]);
+    expect(groups[0]?.entries.map((e) => e.kind)).toEqual([
+      "host",
+      "credential",
+      "site",
+      "step",
+      "loot",
+    ]);
+    expect(groups[1]?.entries.map((e) => e.state)).toEqual(["confirmed", "hypothesis", "failed"]);
+  });
+
+  it("compte exactement par entrée, sur les deux groupes", () => {
+    const groups = studio.killchainLegend([
+      { kind: "host", state: "confirmed" },
+      { kind: "host", state: "confirmed" },
+      { kind: "site", state: "hypothesis" },
+      { kind: "loot", state: "failed" },
+    ]);
+    const kinds = Object.fromEntries(groups[0]?.entries.map((e) => [e.kind, e.count]) ?? []);
+    expect(kinds).toEqual({ host: 2, credential: 0, site: 1, step: 0, loot: 1 });
+    const states = Object.fromEntries(groups[1]?.entries.map((e) => [e.state, e.count]) ?? []);
+    expect(states).toEqual({ confirmed: 2, hypothesis: 1, failed: 1 });
+  });
+
+  it("entrée non tableau : tous les compteurs à zéro", () => {
+    for (const bad of [undefined, null, "x", 3, {}]) {
+      const groups = studio.killchainLegend(bad);
+      for (const g of groups) for (const e of g.entries) expect(e.count).toBe(0);
+    }
+  });
+
+  it("kind/state inconnu : ignoré, ne fausse aucun autre compteur", () => {
+    const groups = studio.killchainLegend([
+      { kind: "inconnu", state: "aussi-inconnu" },
+      { kind: "host", state: "confirmed" },
+    ]);
+    const kinds = Object.fromEntries(groups[0]?.entries.map((e) => [e.kind, e.count]) ?? []);
+    expect(kinds).toEqual({ host: 1, credential: 0, site: 0, step: 0, loot: 0 });
+    const states = Object.fromEntries(groups[1]?.entries.map((e) => [e.state, e.count]) ?? []);
+    expect(states).toEqual({ confirmed: 1, hypothesis: 0, failed: 0 });
+  });
+
+  it("entrée non objet dans la liste : ignorée sans faire échouer le calcul", () => {
+    const groups = studio.killchainLegend([null, "x", 3, { kind: "step", state: "failed" }]);
+    const kinds = Object.fromEntries(groups[0]?.entries.map((e) => [e.kind, e.count]) ?? []);
+    expect(kinds.step).toBe(1);
+    const states = Object.fromEntries(groups[1]?.entries.map((e) => [e.state, e.count]) ?? []);
+    expect(states.failed).toBe(1);
   });
 });
