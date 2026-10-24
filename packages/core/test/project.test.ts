@@ -674,6 +674,15 @@ describe("résumé de session", () => {
     expect(text.endsWith("[… résumé tronqué]")).toBe(true);
   });
 
+  it("renommage en échec : le temporaire est supprimé et l'erreur relancée", async () => {
+    const configDir = await dirOf();
+    const projectDir = join(configDir, "projects", FIXED);
+    // Un dossier à la place du fichier cible fait échouer le renommage.
+    await mkdir(join(projectDir, "summary.txt", "occupé"), { recursive: true });
+    await expect(writeSummary(configDir, FIXED, "texte")).rejects.toThrow();
+    expect((await readdir(projectDir)).filter((n) => n.endsWith(".tmp"))).toEqual([]);
+  });
+
   it("deux projets ne partagent pas le fichier", async () => {
     const configDir = await dirOf();
     await writeSummary(configDir, FIXED, "A");

@@ -7,6 +7,7 @@ import {
   defaultConfigDir,
   readActiveProjectForPrompt,
   readProjects,
+  readSummary,
 } from "@warband/core";
 import { matchesFingerprint } from "../logic/integrity.js";
 import { PROTOCOL_VERSION } from "../logic/protocol.js";
@@ -43,6 +44,12 @@ const done = runEngine({
       // Lecture invalide : cwd du start.
     }
     return cwd;
+  },
+  // Résumé du projet actif (source moteur) ; lecture seule, id issu de `project.json`.
+  resolveSummary: async () => {
+    const file = await readProjects(defaultConfigDir());
+    const active = file === null ? null : activeProject(file);
+    return active === null ? "" : readSummary(defaultConfigDir(), active.id);
   },
   onPrompt: async (text) => {
     // Lecture robuste (ADR 0015 point 3) : fichier absent/pas de projet actif, project.invalid

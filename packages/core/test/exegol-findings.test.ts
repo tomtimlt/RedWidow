@@ -8,6 +8,7 @@ import {
   type DockerClient,
   exegolToolSpecs,
   readFindings,
+  readSummary,
   USER_FINDINGS_FILE,
 } from "../src/index.js";
 
@@ -122,6 +123,34 @@ describe("trouvailles Exegol", () => {
       );
       expect(await readFindings(join(root, "warband"), ID)).toHaveLength(1);
       expect(await readFindings(join(root, "warband"), OTHER)).toEqual([]);
+    } finally {
+      if (prev === undefined) delete process.env.XDG_CONFIG_HOME;
+      else process.env.XDG_CONFIG_HOME = prev;
+    }
+  });
+
+  it("l'outil remember écrit le résumé du projet de la cible, jamais un id fourni", async () => {
+    const root = await dir();
+    const prev = process.env.XDG_CONFIG_HOME;
+    process.env.XDG_CONFIG_HOME = root;
+    try {
+      const targets = createExegolTargets();
+      const remember = exegolToolSpecs({} as DockerClient, targets).find(
+        (s) => s.name === "remember",
+      );
+      expect(remember).toBeDefined();
+      const ctx = { parentId: null, correlation: undefined, signal: undefined };
+      expect(Object.keys(remember?.input ?? {})).toEqual(["text"]);
+      // Sans projet actif : project.absent, aucun fichier.
+      await expect(remember?.run({ text: "x", projectId: ID }, ctx)).rejects.toMatchObject({
+        code: "project.absent",
+      });
+      expect(await readdir(root)).toEqual([]);
+      targets.note("observé", [], ID);
+      await remember?.run({ text: "premier", projectId: OTHER, path: "/etc" }, ctx);
+      await remember?.run({ text: "second", projectId: OTHER }, ctx);
+      expect(await readSummary(join(root, "warband"), ID)).toBe("second");
+      expect(await readSummary(join(root, "warband"), OTHER)).toBe("");
     } finally {
       if (prev === undefined) delete process.env.XDG_CONFIG_HOME;
       else process.env.XDG_CONFIG_HOME = prev;

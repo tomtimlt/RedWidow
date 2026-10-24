@@ -140,9 +140,15 @@ export async function writeSummary(
     ? `${capOutput(redacted, MAX_SUMMARY_BYTES - Buffer.byteLength(SUMMARY_TRUNCATED)).output}${SUMMARY_TRUNCATED}`
     : capped.output;
   await mkdir(join(configDir, PROJECTS_DIR, projectId), { recursive: true });
-  const temp = `${path}.${process.pid}.tmp`;
-  await writeFile(temp, content, { encoding: "utf8", mode: 0o600 });
-  await renameWithRetry(temp, path);
+  // Temporaire à nom aléatoire, créé en exclusif (`wx`) ; nettoyé si l'écriture ou le renommage échoue.
+  const temp = `${path}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(temp, content, { encoding: "utf8", mode: 0o600, flag: "wx" });
+    await renameWithRetry(temp, path);
+  } catch (err) {
+    await rm(temp, { force: true }).catch(() => undefined);
+    throw err;
+  }
   await chmod(path, 0o600);
 }
 
