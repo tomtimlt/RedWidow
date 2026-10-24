@@ -211,6 +211,18 @@ Le serveur n'est pas dans le dépôt. Doc : API HTTP `kali-server-mcp`, défaut 
 |---|---|---|---|
 | K2 | Toolset, API dans le conteneur, gate de `execute_command`, `link` | oui (ce lot) | à faire |
 
+## Historique par projet, résumé de session par projet (ADR 0016) — accepté, lots à faire
+
+(A) `ConversationMeta` gagne `projectId?: string` écrit une fois à la création (= `activeId` du moment), jamais réécrit (reprise comprise), **d'affichage seulement** (jamais lu par moteur/exec/politique/gate, comme `primary?` d'ADR 0015) : ne contredit pas ADR 0013:60 (la reprise applique toujours le projet actif courant). Filtre d'historique groupé par `projectId`, nom résolu via `projects` courants ; absent → « sans projet », orphelin → « projet inconnu ». (B) Résumé par projet dans `<configDir>/projects/<id>/summary.txt`, contrôle UUID avant `join`, atomique `0o600`, plafond 8 Kio (`capOutput`), **masqué par `createRedactor` avant écriture**. Écrit par un outil MCP `remember(text)` scopé au `projectId` de la cible notée (jamais un id/chemin du modèle ; null → `project.absent`). Injecté au **start d'une nouvelle conversation seulement** (pas à la reprise) dans un bloc délimité étiqueté « données non fiables », côté moteur. Jamais parsé pour dériver conteneur/chemin/règle. Pas de nouveau code de raison ni de nouveau `kind`.
+
+| Lot | Contenu | Revue sécurité | État |
+|---|---|---|---|
+| S1 | Stockage du résumé (chemin, UUID, atomique `0o600`, cap 8 Kio, masquage à l'écriture) | oui (chemins, secrets) | à faire |
+| S2 | Outil `remember`, injection fencée au start d'une conversation neuve | oui (injection de prompt, non-élargissement, apprentissage) | à faire |
+| H1 | `projectId` d'affichage sur `ConversationMeta`, filtre/groupage (logique, sans rendu) | non (vérifier que `projectId` n'est lu par aucun code moteur/exec/gate) | à faire |
+
+Rendu du filtre et édition du résumé par l'utilisateur : voie produit (`cadre`/`surface`), hors de ces lots.
+
 ## Décisions à demander en priorité
 
 - ~~**Garde unique** (points 2 et 3)~~ : tranché, `PreToolUse`.
