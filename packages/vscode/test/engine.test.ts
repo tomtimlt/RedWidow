@@ -386,7 +386,7 @@ describe("moteur : Bypass (ADR 0006, pont hôte → moteur)", () => {
     }
   });
 
-  it("(u) bout à bout avec la gate réelle : deny, chemins, danger shell et hôte jamais auto-approuvés ; ordinaire oui", async () => {
+  it("(u) bout à bout avec la gate réelle : le Bypass universel lève aussi les refus durs (ADR 0017)", async () => {
     const repo = await mkdtemp(join(tmpdir(), "warband-bp-"));
     const journalDir = await mkdtemp(join(tmpdir(), "warband-bp-j-"));
     try {
@@ -417,48 +417,30 @@ describe("moteur : Bypass (ADR 0006, pont hôte → moteur)", () => {
       await vi.waitFor(() => expect(box.outcomes.has("lsok")).toBe(true));
       expect(box.outcomes.get("lsok")).toMatchObject({ source: "bypass" });
 
-      // Refus venus des gardes (et non de la politique) : danger shell et accès à l'hôte.
-      for (const [id, code] of [
-        ["hazard", "policy.rule"],
-        ["shell", "bash.hazard"],
-        ["host", "docker.hostAccess"],
+      // Refus durs (politique, chemin sensible/hors espace, danger shell, accès à l'hôte) : tous
+      // levés une fois par l'override, jamais mémorisés ; la cause d'origine est conservée.
+      for (const [id, code, origDecision] of [
+        ["deny", "policy.rule", "deny"],
+        ["ssh", "path.sensitive", "deny"],
+        ["outside", "path.outside", "ask"],
+        ["hazard", "policy.rule", "ask"],
+        ["shell", "bash.hazard", "ask"],
+        ["host", "docker.hostAccess", "deny"],
       ] as const) {
-        // Demande (verdict « ask » non bypassable) ou décision directe (refus de garde) : même motif.
-        await vi.waitFor(() =>
-          expect(
-            eventsOf(t.sent).some(
-              (e) =>
-                e.toolUseId === id &&
-                (e.kind === "approval.requested" || e.kind === "approval.decided"),
-            ),
-          ).toBe(true),
-        );
-        const first = eventsOf(t.sent).find(
-          (e) =>
-            e.toolUseId === id &&
-            (e.kind === "approval.requested" || e.kind === "approval.decided"),
-        );
-        expect(first?.kind === "approval.requested" ? first.verdict : first?.reason).toMatchObject({
-          code,
+        await vi.waitFor(() => expect(box.outcomes.has(id)).toBe(true));
+        const outcome = box.outcomes.get(id);
+        expect(outcome, id).toMatchObject({
+          decision: "allow",
+          source: "bypass",
+          reason: {
+            code: origDecision === "deny" ? "approval.override" : "approval.bypassed",
+            cause: { code },
+          },
         });
-      }
-      for (const id of ["deny", "ssh", "outside", "hazard", "shell", "host"]) {
-        await vi.waitFor(() =>
-          expect(
-            eventsOf(t.sent).some(
-              (e) =>
-                e.toolUseId === id &&
-                (e.kind === "approval.requested" || e.kind === "approval.decided"),
-            ),
-          ).toBe(true),
-        );
-        const sources = eventsOf(t.sent).filter(
-          (e) => e.kind === "approval.decided" && e.toolUseId === id,
-        );
+        // Jamais via approval.requested : l'override intervient avant toute question à l'Asker.
         expect(
-          sources.map((e) => e.source),
-          id,
-        ).not.toContain("bypass");
+          eventsOf(t.sent).some((e) => e.kind === "approval.requested" && e.toolUseId === id),
+        ).toBe(false);
       }
       t.receive({ v: 1, type: "dispose" });
       t.receive({ v: 1, type: "abort" });

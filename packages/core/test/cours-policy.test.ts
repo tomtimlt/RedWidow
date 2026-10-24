@@ -85,20 +85,29 @@ describe("gate sous LEARNING_POLICY", () => {
     return { events, asked: () => asked, outcomes: [first, second, exec] };
   }
 
-  it.each([true, false])(
-    "refuse sous Bypass, sans mémorisation (Asker : %s)",
-    async (withAsker) => {
-      const { events, asked, outcomes } = await run(withAsker);
-      for (const o of outcomes) {
-        expect(o.decision).toBe("deny");
-        expect(o.source).toBe("policy");
-      }
-      expect(asked()).toBe(0);
-      expect(events.some((e) => e.kind === "approval.requested")).toBe(false);
-      expect(events.some((e) => e.kind === "approval.decided" && e.source === "bypass")).toBe(
-        false,
-      );
-      expect(outcomes[0]?.reason).toEqual(outcomes[1]?.reason);
-    },
-  );
+  it("refuse sous Bypass, sans Asker : l'apprentissage reste un verrou de mode (ADR 0010, 0017)", async () => {
+    const { events, asked, outcomes } = await run(false);
+    for (const o of outcomes) {
+      expect(o.decision).toBe("deny");
+      expect(o.source).toBe("policy");
+    }
+    expect(asked()).toBe(0);
+    expect(events.some((e) => e.kind === "approval.requested")).toBe(false);
+    expect(events.some((e) => e.kind === "approval.decided" && e.source === "bypass")).toBe(false);
+    expect(outcomes[0]?.reason).toEqual(outcomes[1]?.reason);
+  });
+
+  // L'apprentissage n'est pas un garde-fou lu par la gate : c'est l'absence d'Asker (ci-dessus) qui le
+  // protège (ADR 0017). Si un Asker était malgré tout branché pendant l'apprentissage — ce que le moteur
+  // ne fait jamais (ADR 0010) —, le Bypass universel s'appliquerait comme à tout autre refus dur.
+  it("avec un Asker malgré tout fourni, le Bypass lève aussi les refus de LEARNING_POLICY (cas hors moteur)", async () => {
+    const { events, asked, outcomes } = await run(true);
+    for (const o of outcomes) {
+      expect(o.decision).toBe("allow");
+      expect(o.source).toBe("bypass");
+      expect(o.reason.code).toBe("approval.override");
+    }
+    expect(asked()).toBe(0);
+    expect(events.some((e) => e.kind === "approval.requested")).toBe(false);
+  });
 });

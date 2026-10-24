@@ -205,35 +205,45 @@ describe("isBypassable", () => {
   });
 });
 
-describe("Bypass dans la gate : refus et garde-fous jamais contournés", () => {
-  it("(a) un deny de règle reste un deny, sans demander", async () => {
+describe("Bypass dans la gate : refus durs levés par l'override (ADR 0017)", () => {
+  it("(a) un deny de règle est auto-approuvé une fois, motif approval.override, sans demander", async () => {
     const c = clock();
     const bypass = switchOn(c);
     const h = harness({ bypass, now: c.now });
     const out = await h.gate.decide(bash("sudo ls"), signal);
-    expect(out).toMatchObject({ decision: "deny", source: "policy" });
-    expect(out.reason.code).toBe("policy.rule");
+    expect(out).toMatchObject({
+      decision: "allow",
+      source: "bypass",
+      reason: { code: "approval.override", cause: { code: "policy.rule" } },
+    });
     expect(h.asked()).toBe(0);
-    expect(bypassedDecisions(h.events)).toEqual([]);
+    expect(bypassedDecisions(h.events)).toHaveLength(1);
   });
 
-  it("(a) un deny de règle non Bash reste un deny", async () => {
+  it("(a) un deny de règle non Bash est de même auto-approuvé", async () => {
     const c = clock();
     const h = harness({ bypass: switchOn(c), now: c.now, policy: ASK_POLICY });
     const out = await h.gate.decide({ toolUseId: "d", tool: "mcp__demo__deny", input: {} }, signal);
-    expect(out).toMatchObject({ decision: "deny", source: "policy" });
+    expect(out).toMatchObject({
+      decision: "allow",
+      source: "bypass",
+      reason: { code: "approval.override", cause: { code: "policy.rule" } },
+    });
     expect(h.asked()).toBe(0);
   });
 
-  it("(b) un fichier sensible et un chemin hors espace de travail restent demandés ou refusés", async () => {
+  it("(b) un fichier sensible et un chemin hors espace de travail sont levés par l'override", async () => {
     const c = clock();
     const sensitive = harness({ bypass: switchOn(c), now: c.now });
     const denied = await sensitive.gate.decide(
       { toolUseId: "s", tool: "Read", input: { file_path: join(homedir(), ".ssh", "id_rsa") } },
       signal,
     );
-    expect(denied).toMatchObject({ decision: "deny", source: "policy" });
-    expect(denied.reason.code).toBe("path.sensitive");
+    expect(denied).toMatchObject({
+      decision: "allow",
+      source: "bypass",
+      reason: { code: "approval.override", cause: { code: "path.sensitive" } },
+    });
     expect(sensitive.asked()).toBe(0);
 
     const outside = harness({ bypass: switchOn(c), now: c.now, policy: ASK_POLICY });
@@ -241,35 +251,41 @@ describe("Bypass dans la gate : refus et garde-fous jamais contournés", () => {
       { toolUseId: "o", tool: "Read", input: { file_path: "/opt/hors-espace/notes.txt" } },
       signal,
     );
-    expect(out).toMatchObject({ source: "user" });
-    expect(outside.asked()).toBe(1);
-    expect(kinds(outside.events)).toContain("approval.requested");
-    expect(bypassedDecisions(outside.events)).toEqual([]);
+    expect(out).toMatchObject({ source: "bypass", reason: { code: "approval.bypassed" } });
+    expect(outside.asked()).toBe(0);
+    expect(kinds(outside.events)).not.toContain("approval.requested");
   });
 
-  it("(c) un danger shell (substitution) ou une chaîne de plusieurs segments reste demandé", async () => {
+  it("(c) un danger shell (substitution) ou une chaîne de plusieurs segments est levé par l'override", async () => {
     const c = clock();
     const hazard = harness({ bypass: switchOn(c), now: c.now, policy: ASK_POLICY });
     const out = await hazard.gate.decide(bash("echo $(id)"), signal);
-    expect(out).toMatchObject({ source: "user", reason: { code: "bash.hazard" } });
-    expect(hazard.asked()).toBe(1);
+    expect(out).toMatchObject({
+      source: "bypass",
+      reason: { code: "approval.bypassed", cause: { code: "bash.hazard" } },
+    });
+    expect(hazard.asked()).toBe(0);
 
     const chained = harness({ bypass: switchOn(c), now: c.now, policy: ASK_POLICY });
-    await chained.gate.decide(bash("ls; ls"), signal);
-    expect(chained.asked()).toBe(1);
-    expect(kinds(chained.events)).toContain("approval.requested");
+    const chainedOut = await chained.gate.decide(bash("ls; ls"), signal);
+    expect(chainedOut).toMatchObject({ source: "bypass" });
+    expect(chained.asked()).toBe(0);
+    expect(kinds(chained.events)).not.toContain("approval.requested");
   });
 
-  it("(d) docker run avec accès à l'hôte est refusé sans demander", async () => {
+  it("(d) docker run avec accès à l'hôte est levé par l'override, motif approval.override", async () => {
     const c = clock();
     const h = harness({ bypass: switchOn(c), now: c.now });
     const out = await h.gate.decide(bash("docker run -v /:/host alpine"), signal);
-    expect(out).toMatchObject({ decision: "deny", source: "policy" });
-    expect(out.reason.code).toBe("docker.hostAccess");
+    expect(out).toMatchObject({
+      decision: "allow",
+      source: "bypass",
+      reason: { code: "approval.override", cause: { code: "docker.hostAccess" } },
+    });
     expect(h.asked()).toBe(0);
   });
 
-  it("(e) un accès hors espace de travail (outil externe) n'est jamais auto-approuvé", async () => {
+  it("(e) un accès hors espace de travail (outil externe) est levé par l'override", async () => {
     const c = clock();
     const external = harness({
       bypass: switchOn(c),
@@ -280,12 +296,11 @@ describe("Bypass dans la gate : refus et garde-fous jamais contournés", () => {
       { toolUseId: "e", tool: EXTERNAL_DIRECTORY_TOOL, input: { patterns: ["/opt/*"] } },
       signal,
     );
-    expect(out.source).toBe("user");
-    expect(out.source).not.toBe("bypass");
-    expect(external.asked()).toBe(1);
+    expect(out.source).toBe("bypass");
+    expect(external.asked()).toBe(0);
   });
 
-  it("(e) une entrée portant externalDirectories n'est jamais auto-approuvée (motif policy.default)", async () => {
+  it("(e) une entrée portant externalDirectories est levée par l'override (motif policy.default)", async () => {
     const c = clock();
     const h = harness({
       bypass: switchOn(c),
@@ -300,10 +315,30 @@ describe("Bypass dans la gate : refus et garde-fous jamais contournés", () => {
       },
       signal,
     );
-    expect(out).toMatchObject({ source: "user", decision: "allow" });
-    expect(out.reason.code).toBe("policy.default");
-    expect(h.asked()).toBe(1);
-    expect(bypassedDecisions(h.events)).toEqual([]);
+    expect(out).toMatchObject({ source: "bypass", decision: "allow" });
+    expect(out.reason).toMatchObject({
+      code: "approval.bypassed",
+      cause: { code: "policy.default" },
+    });
+    expect(h.asked()).toBe(0);
+    expect(bypassedDecisions(h.events)).toHaveLength(1);
+  });
+
+  it("rien n'est mémorisé par l'override : une fois le Bypass coupé, le refus redevient refus", async () => {
+    const c = clock();
+    const bypass = switchOn(c);
+    const h = harness({ bypass, now: c.now, withAsker: false });
+    // Avec asker, sous Bypass : auto-approuvé par l'override.
+    const withAsker = harness({ bypass, now: c.now });
+    const first = await withAsker.gate.decide(bash("sudo ls", "s1"), signal);
+    expect(first).toMatchObject({ decision: "allow", source: "bypass" });
+    // Bypass coupé : la même demande redevient un deny, rien n'a été mémorisé.
+    bypass.disable();
+    const second = await withAsker.gate.decide(bash("sudo ls", "s2"), signal);
+    expect(second).toMatchObject({ decision: "deny", source: "policy" });
+    // Sans Asker (apprentissage/CLI non interactive), le Bypass est sans effet dès le départ.
+    const noAsker = await h.gate.decide(bash("sudo ls", "s3"), signal);
+    expect(noAsker).toMatchObject({ decision: "deny", source: "policy" });
   });
 });
 
@@ -366,32 +401,32 @@ describe("Bypass dans la gate : verdicts couverts", () => {
     });
   });
 
-  it("(g) une commande Bash sans règle (bash.noRule) reste demandée", async () => {
+  it("(g) une commande Bash sans règle (bash.noRule) est aussi levée par l'override", async () => {
     const c = clock();
     const h = harness({ bypass: switchOn(c), now: c.now });
     const out = await h.gate.decide(bash("docker run alpine"), signal);
-    expect(out).toMatchObject({ source: "user" });
-    expect(h.asked()).toBe(1);
-    expect(kinds(h.events)).toContain("approval.requested");
+    expect(out).toMatchObject({ source: "bypass", reason: { code: "approval.bypassed" } });
+    expect(h.asked()).toBe(0);
+    expect(kinds(h.events)).not.toContain("approval.requested");
   });
 
-  it("(g) ls && rm x avec une règle ask sur ls seulement reste demandée", async () => {
+  it("(g) ls && rm x avec une règle ask sur ls seulement est aussi levée par l'override", async () => {
     const c = clock();
     const h = harness({ bypass: switchOn(c), now: c.now, policy: ASK_POLICY });
     const out = await h.gate.decide(bash("ls && rm x"), signal);
-    expect(out).toMatchObject({ source: "user" });
-    expect(h.asked()).toBe(1);
-    expect(kinds(h.events)).toContain("approval.requested");
+    expect(out).toMatchObject({ source: "bypass" });
+    expect(h.asked()).toBe(0);
+    expect(kinds(h.events)).not.toContain("approval.requested");
   });
 
-  it("(g) une règle Bash ask sans command ne couvre pas la commande", async () => {
+  it("(g) une règle Bash ask sans command est aussi levée par l'override", async () => {
     const c = clock();
     const policy: Policy = { default: "ask", rules: [{ tool: "Bash", decision: "ask" }] };
     const h = harness({ bypass: switchOn(c), now: c.now, policy });
     const out = await h.gate.decide(bash("git status"), signal);
-    expect(out).toMatchObject({ source: "user" });
-    expect(h.asked()).toBe(1);
-    expect(kinds(h.events)).toContain("approval.requested");
+    expect(out).toMatchObject({ source: "bypass" });
+    expect(h.asked()).toBe(0);
+    expect(kinds(h.events)).not.toContain("approval.requested");
   });
 
   it("(h) sans approbateur, le refus approval.noAsker reste, même Bypass actif", async () => {
@@ -621,25 +656,28 @@ describe("isBypassable : chemins de l'entrée (garde-fous jamais contournés)", 
 });
 
 describe("Bypass dans la gate : chemins, constats et plateformes", () => {
-  it("un danger shell (redirection) sur une règle ask reste demandé", async () => {
+  it("un danger shell (redirection) sur une règle ask est levé par l'override", async () => {
     const c = clock();
     const h = harness({ bypass: switchOn(c), now: c.now, policy: ASK_POLICY });
     const out = await h.gate.decide(bash("echo x > f"), signal);
-    expect(out).toMatchObject({ source: "user", reason: { code: "bash.hazard" } });
-    expect(h.asked()).toBe(1);
-    expect(bypassedDecisions(h.events)).toEqual([]);
+    expect(out).toMatchObject({
+      source: "bypass",
+      reason: { code: "approval.bypassed", cause: { code: "bash.hazard" } },
+    });
+    expect(h.asked()).toBe(0);
+    expect(bypassedDecisions(h.events)).toHaveLength(1);
   });
 
-  it("une chaîne de deux segments sur une règle ask reste demandée", async () => {
+  it("une chaîne de deux segments sur une règle ask est levée par l'override", async () => {
     const c = clock();
     const h = harness({ bypass: switchOn(c), now: c.now, policy: ASK_POLICY });
     const out = await h.gate.decide(bash("echo a | echo b"), signal);
-    expect(out).toMatchObject({ source: "user" });
-    expect(h.asked()).toBe(1);
-    expect(bypassedDecisions(h.events)).toEqual([]);
+    expect(out).toMatchObject({ source: "bypass" });
+    expect(h.asked()).toBe(0);
+    expect(bypassedDecisions(h.events)).toHaveLength(1);
   });
 
-  it("un Read sur une règle ask hors espace de travail reste demandé", async () => {
+  it("un Read sur une règle ask hors espace de travail est levé par l'override", async () => {
     const c = clock();
     const policy: Policy = { default: "ask", rules: [{ tool: "Read", decision: "ask" }] };
     const h = harness({ bypass: switchOn(c), now: c.now, policy });
@@ -647,13 +685,15 @@ describe("Bypass dans la gate : chemins, constats et plateformes", () => {
       { toolUseId: "r", tool: "Read", input: { file_path: "/opt/hors-espace/notes.txt" } },
       signal,
     );
-    expect(out).toMatchObject({ source: "user", reason: { code: "path.outside" } });
-    expect(h.asked()).toBe(1);
-    expect(kinds(h.events)).toContain("approval.requested");
-    expect(bypassedDecisions(h.events)).toEqual([]);
+    expect(out).toMatchObject({
+      source: "bypass",
+      reason: { code: "approval.bypassed", cause: { code: "path.outside" } },
+    });
+    expect(h.asked()).toBe(0);
+    expect(kinds(h.events)).not.toContain("approval.requested");
   });
 
-  it("un chemin non analysable (UNC sous Windows) donne path.unsupported, jamais un bypass", async () => {
+  it("un chemin non analysable (UNC sous Windows, deny) est aussi levé par l'override", async () => {
     const c = clock();
     const win: PolicyContext = { cwd: process.cwd(), platform: "win32" };
     const h = harness({ bypass: switchOn(c), now: c.now, policy: ASK_POLICY, workspace: win });
@@ -662,35 +702,35 @@ describe("Bypass dans la gate : chemins, constats et plateformes", () => {
       signal,
     );
     expect(out).toMatchObject({
-      decision: "deny",
-      source: "policy",
-      reason: { code: "path.unsupported" },
+      decision: "allow",
+      source: "bypass",
+      reason: { code: "approval.override", cause: { code: "path.unsupported" } },
     });
     expect(h.asked()).toBe(0);
-    expect(bypassedDecisions(h.events)).toEqual([]);
   });
 
-  it("Bash sous win32 sans posixShell n'est jamais bypassé", async () => {
+  it("Bash sous win32 sans posixShell est aussi levé par l'override", async () => {
     const c = clock();
     const win: PolicyContext = { cwd: process.cwd(), platform: "win32" };
     const h = harness({ bypass: switchOn(c), now: c.now, policy: ASK_POLICY, workspace: win });
     const out = await h.gate.decide(bash("git status"), signal);
-    expect(out).toMatchObject({ source: "user", reason: { code: "shell.unanalyzable" } });
-    expect(h.asked()).toBe(1);
-    expect(bypassedDecisions(h.events)).toEqual([]);
+    expect(out).toMatchObject({
+      source: "bypass",
+      reason: { code: "approval.bypassed", cause: { code: "shell.unanalyzable" } },
+    });
+    expect(h.asked()).toBe(0);
   });
 
-  it("une commande Bash sur un chemin absolu sensible sous règle cat * est demandée", async () => {
+  it("une commande Bash sur un chemin absolu sensible sous règle cat * est levée par l'override", async () => {
     const c = clock();
     const h = harness({ bypass: switchOn(c), now: c.now, policy: CAT_POLICY });
     const out = await h.gate.decide(bash(`cat ${SENSITIVE}`), signal);
-    expect(out).toMatchObject({ source: "user" });
-    expect(h.asked()).toBe(1);
-    expect(kinds(h.events)).toContain("approval.requested");
-    expect(bypassedDecisions(h.events)).toEqual([]);
+    expect(out).toMatchObject({ source: "bypass" });
+    expect(h.asked()).toBe(0);
+    expect(kinds(h.events)).not.toContain("approval.requested");
   });
 
-  it("un outil MCP avec un chemin hors espace ou une chaîne imbriquée hors espace est demandé", async () => {
+  it("un outil MCP avec un chemin hors espace ou une chaîne imbriquée hors espace est levé par l'override", async () => {
     const c = clock();
     const h = harness({ bypass: switchOn(c), now: c.now, policy: ASK_POLICY });
     await h.gate.decide(
@@ -705,9 +745,9 @@ describe("Bypass dans la gate : chemins, constats et plateformes", () => {
       },
       signal,
     );
-    expect(h.asked()).toBe(2);
-    expect(kinds(h.events).filter((k) => k === "approval.requested")).toHaveLength(2);
-    expect(bypassedDecisions(h.events)).toEqual([]);
+    expect(h.asked()).toBe(0);
+    expect(kinds(h.events).filter((k) => k === "approval.requested")).toHaveLength(0);
+    expect(bypassedDecisions(h.events)).toHaveLength(2);
   });
 
   it("contre-exemple : une commande Bash dont l'argument est dans l'espace est auto-approuvée", async () => {
@@ -787,23 +827,35 @@ describe("Bypass et mcp__kali__execute_command", () => {
     expect(bypassedDecisions(h.events)).toHaveLength(1);
   });
 
-  it("Bypass actif : sudo id et un docker run qui donne l'hôte restent deny", async () => {
+  it("Bypass actif : sudo id et un docker run qui donne l'hôte sont aussi levés par l'override", async () => {
     const c = clock();
     const sudo = harness({ bypass: switchOn(c), now: c.now });
     const sudoOut = await sudo.gate.decide(kaliExec("sudo id"), signal);
-    expect(sudoOut).toMatchObject({ decision: "deny", source: "policy" });
+    expect(sudoOut).toMatchObject({
+      decision: "allow",
+      source: "bypass",
+      reason: { code: "approval.override" },
+    });
     expect(sudo.asked()).toBe(0);
-    expect(bypassedDecisions(sudo.events)).toEqual([]);
+    expect(bypassedDecisions(sudo.events)).toHaveLength(1);
 
     const host = harness({ bypass: switchOn(c), now: c.now });
     const hostOut = await host.gate.decide(kaliExec("docker run -v /:/h x"), signal);
     expect(hostOut).toMatchObject({
-      decision: "deny",
-      source: "policy",
-      reason: { code: "docker.hostAccess" },
+      decision: "allow",
+      source: "bypass",
+      reason: { code: "approval.override", cause: { code: "docker.hostAccess" } },
     });
     expect(host.asked()).toBe(0);
-    expect(bypassedDecisions(host.events)).toEqual([]);
+    expect(bypassedDecisions(host.events)).toHaveLength(1);
+  });
+
+  it("sans Asker (apprentissage/CLI non interactive), sudo et l'accès hôte restent deny malgré le Bypass", async () => {
+    const c = clock();
+    const sudo = harness({ bypass: switchOn(c), now: c.now, withAsker: false });
+    const sudoOut = await sudo.gate.decide(kaliExec("sudo id"), signal);
+    expect(sudoOut).toMatchObject({ decision: "deny", source: "policy" });
+    expect(bypassedDecisions(sudo.events)).toEqual([]);
   });
 
   it("Bypass actif : redirection, chemin, segments et danger avalé sont allow sans asker", async () => {
@@ -853,7 +905,7 @@ describe("Bypass et mcp__kali__execute_command", () => {
     }
   });
 
-  it("Bypass actif : un danger dont le verdict est deny n'est pas levé", async () => {
+  it("Bypass actif : un danger dont le verdict est deny est aussi levé par l'override (isBypassable, lui, reste faux)", async () => {
     const policy: Policy = {
       default: "deny",
       rules: [{ tool: "Bash", command: "echo *", decision: "ask" }],
@@ -866,12 +918,12 @@ describe("Bypass et mcp__kali__execute_command", () => {
     expect(isBypassable(request, verdict, policy, WORKSPACE)).toBe(false);
     const out = await h.gate.decide(request, signal);
     expect(out).toMatchObject({
-      decision: "deny",
-      source: "policy",
-      reason: { code: "bash.hazard" },
+      decision: "allow",
+      source: "bypass",
+      reason: { code: "approval.override", cause: { code: "bash.hazard" } },
     });
     expect(h.asked()).toBe(0);
-    expect(bypassedDecisions(h.events)).toEqual([]);
+    expect(bypassedDecisions(h.events)).toHaveLength(1);
   });
 
   it("sans Bypass, la carte ask reste et always n'écrit aucune règle", async () => {
@@ -971,7 +1023,7 @@ describe("Bypass et les onze outils Kali structurés", () => {
     expect(isBypassable(request, verdict, policy, WORKSPACE)).toBe(false);
   });
 
-  it("un deny de règle sur un outil Kali structuré reste refusé, Bypass actif", async () => {
+  it("un deny de règle sur un outil Kali structuré est aussi levé par l'override, Bypass actif", async () => {
     const policy: Policy = {
       default: "ask",
       rules: [{ tool: `${KALI_TOOL_PREFIX}john_crack`, decision: "deny" }],
@@ -980,8 +1032,25 @@ describe("Bypass et les onze outils Kali structurés", () => {
     const h = harness({ policy, bypass: switchOn(c), now: c.now });
     const request = kaliTool("john_crack", { hash_file: "/tmp/hashes.txt" });
     const out = await h.gate.decide(request, signal);
-    expect(out).toMatchObject({ decision: "deny", source: "policy" });
+    expect(out).toMatchObject({
+      decision: "allow",
+      source: "bypass",
+      reason: { code: "approval.override" },
+    });
     expect(h.asked()).toBe(0);
+    expect(bypassedDecisions(h.events)).toHaveLength(1);
+  });
+
+  it("sans Asker, un deny de règle sur un outil Kali structuré reste refusé malgré le Bypass", async () => {
+    const policy: Policy = {
+      default: "ask",
+      rules: [{ tool: `${KALI_TOOL_PREFIX}john_crack`, decision: "deny" }],
+    };
+    const c = clock();
+    const h = harness({ policy, bypass: switchOn(c), now: c.now, withAsker: false });
+    const request = kaliTool("john_crack", { hash_file: "/tmp/hashes.txt" });
+    const out = await h.gate.decide(request, signal);
+    expect(out).toMatchObject({ decision: "deny", source: "policy" });
     expect(bypassedDecisions(h.events)).toEqual([]);
   });
 
