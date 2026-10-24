@@ -291,19 +291,61 @@ function start() {
 
   const SVG_NS = "http://www.w3.org/2000/svg";
 
-  const KIND_ICON = {
-    host: "\u25A3",
-    site: "\uD83C\uDF10",
-    credential: "\uD83D\uDD11",
-    step: "\u276F",
-    loot: "\u2691",
+  /**
+   * Glyphes des types de n\u0153ud, en trac\u00E9s SVG (trait `currentColor`, pas de remplissage) : rep\u00E8re
+   * [tag, attributs] par forme. Rendus par `kindIcon`, jamais de texte ou d'emoji.
+   */
+  const KIND_ICON_SHAPES = {
+    host: [
+      ["rect", { x: "2.5", y: "3.5", width: "11", height: "7", rx: "1" }],
+      ["line", { x1: "5", y1: "12.5", x2: "11", y2: "12.5" }],
+    ],
+    site: [
+      ["circle", { cx: "8", cy: "8", r: "5.5" }],
+      ["path", { d: "M8 2.5C5.7 2.5 5.7 13.5 8 13.5C10.3 13.5 10.3 2.5 8 2.5Z" }],
+      ["line", { x1: "2.5", y1: "8", x2: "13.5", y2: "8" }],
+    ],
+    credential: [
+      ["circle", { cx: "5", cy: "8", r: "2.5" }],
+      ["line", { x1: "7.4", y1: "8", x2: "13", y2: "8" }],
+      ["line", { x1: "13", y1: "8", x2: "13", y2: "10.5" }],
+      ["line", { x1: "10.6", y1: "8", x2: "10.6", y2: "10" }],
+    ],
+    step: [["path", { d: "M5 3L11 8L5 13" }]],
+    loot: [
+      ["line", { x1: "4", y1: "2.5", x2: "4", y2: "13.5" }],
+      ["path", { d: "M4 3L12 5.5L4 8" }],
+    ],
   };
+  function kindIcon(kind) {
+    const svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("viewBox", "0 0 16 16");
+    svg.setAttribute("class", "kc-ico-svg");
+    for (const [tag, attrs] of KIND_ICON_SHAPES[kind] || []) {
+      const shape = document.createElementNS(SVG_NS, tag);
+      for (const [k, v] of Object.entries(attrs)) shape.setAttribute(k, v);
+      svg.append(shape);
+    }
+    return svg;
+  }
   const KIND_LABEL = {
     host: "H\u00f4te",
     site: "Site / URL",
     credential: "Identifiant",
     step: "\u00c9tape",
     loot: "Loot",
+  };
+  /** Libell\u00E9s fr des \u00E9tats de trouvaille, repris de la l\u00E9gende existante (aucun nouveau texte invent\u00E9). */
+  const STATE_LABEL = {
+    confirmed: "Confirm\u00E9",
+    hypothesis: "Hypoth\u00E8se",
+    failed: "\u00c9chec",
+  };
+  /** Glyphe du badge d'\u00E9tat, dans l'en-t\u00EAte du n\u0153ud (en plus de la bordure). */
+  const STATE_BADGE = {
+    confirmed: "\u2713",
+    hypothesis: "?",
+    failed: "\u2715",
   };
 
   /** Vue graphe de la kill chain : nœuds typés, arêtes courbes, zoom/pan, bouton Ajuster, légende. */
@@ -371,11 +413,20 @@ function start() {
       node.style.setProperty("top", `${n.y + pad}px`);
       node.style.setProperty("width", `${n.w}px`);
       const head = el("div", "kc-node-head");
-      head.append(decorative(el("span", "kc-node-ico", KIND_ICON[n.kind] || "\u25CF")));
+      const ico = el("span", "kc-node-ico");
+      ico.append(decorative(kindIcon(n.kind)));
+      head.append(ico);
+      const stateLabel = STATE_LABEL[n.state] || n.state;
+      const badge = el("span", `kc-node-badge is-${n.state}`, STATE_BADGE[n.state] || "");
+      badge.setAttribute("role", "img");
+      badge.setAttribute("aria-label", stateLabel);
+      head.append(badge);
       head.append(el("span", "kc-node-label", n.label));
       node.append(head);
       if (n.meta) node.append(el("span", "kc-node-meta", n.meta));
-      node.title = [KIND_LABEL[n.kind] || n.kind, n.state, n.meta].filter(Boolean).join(" \u00b7 ");
+      node.title = [KIND_LABEL[n.kind] || n.kind, stateLabel, n.meta]
+        .filter(Boolean)
+        .join(" \u00b7 ");
       canvas.append(node);
     }
     viewport.append(canvas);
@@ -461,17 +512,12 @@ function start() {
     const legend = el("ul", "studio-kc-legend");
     for (const kind of ["host", "credential", "site", "step", "loot"]) {
       const li = el("li", "studio-kc-key");
-      li.append(
-        decorative(el("span", `kc-dot kind-${kind}`, KIND_ICON[kind] || "\u25CF")),
-        el("span", "", KIND_LABEL[kind]),
-      );
+      const dot = el("span", `kc-dot kind-${kind}`);
+      dot.append(decorative(kindIcon(kind)));
+      li.append(dot, el("span", "", KIND_LABEL[kind]));
       legend.append(li);
     }
-    for (const [state, text] of [
-      ["confirmed", "Confirm\u00e9"],
-      ["hypothesis", "Hypoth\u00e8se"],
-      ["failed", "\u00c9chec"],
-    ]) {
+    for (const [state, text] of Object.entries(STATE_LABEL)) {
       const li = el("li", "studio-kc-key");
       li.append(decorative(el("span", `studio-kc-swatch is-${state}`)), el("span", "", text));
       legend.append(li);

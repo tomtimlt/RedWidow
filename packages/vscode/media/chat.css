@@ -1828,6 +1828,9 @@ body.no-provider #composer {
   .brand [stroke] {
     stroke: CanvasText;
   }
+  .kc-ico-svg {
+    stroke: CanvasText;
+  }
   :focus-visible {
     outline: 2px solid Highlight;
     box-shadow: none;
@@ -2839,7 +2842,6 @@ body.studio .studio-dl dd {
   border-bottom-style: dashed;
 }
 .kc-node.is-failed {
-  color: var(--vscode-errorForeground);
   border-top-color: var(--vscode-inputValidation-errorBorder, var(--jn-line));
   border-right-color: var(--vscode-inputValidation-errorBorder, var(--jn-line));
   border-bottom-color: var(--vscode-inputValidation-errorBorder, var(--jn-line));
@@ -2850,9 +2852,34 @@ body.studio .studio-dl dd {
   gap: var(--jn-s2);
 }
 .kc-node-ico {
+  display: inline-flex;
   flex: none;
   font-size: 1.05em;
   color: var(--kc-accent, var(--jn-accent));
+}
+.kc-ico-svg {
+  width: 1em;
+  height: 1em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.kc-node-badge {
+  flex: none;
+  font-weight: 600;
+  font-size: var(--jn-fs-xs);
+  line-height: 1;
+}
+.kc-node-badge.is-confirmed {
+  color: var(--vscode-testing-iconPassed, var(--jn-accent));
+}
+.kc-node-badge.is-hypothesis {
+  color: var(--vscode-editorWarning-foreground, var(--jn-warn));
+}
+.kc-node-badge.is-failed {
+  color: var(--vscode-errorForeground);
 }
 .kc-node-label {
   font-weight: 600;
