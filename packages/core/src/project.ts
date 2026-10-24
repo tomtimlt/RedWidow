@@ -23,7 +23,8 @@ const MAX_CREATE_WORKSPACE = 1024;
 const PROJECT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 const FILE_KEYS = new Set(["activeId", "projects"]);
-const PROJECT_KEYS = new Set(["id", "name", "workspace", "containers"]);
+const REQUIRED_PROJECT_KEYS = new Set(["id", "name", "workspace", "containers"]);
+const OPTIONAL_PROJECT_KEYS = new Set(["primary"]);
 const LEGACY_KEYS = new Set(["container", "workspace"]);
 
 export interface StoredProject {
@@ -31,6 +32,8 @@ export interface StoredProject {
   name: string;
   workspace: string;
   containers: readonly string[];
+  /** Conteneur affiché (cockpit/CLI). Purement informatif : jamais lu à l'exécution. */
+  primary?: string;
 }
 
 export interface ProjectFile {
@@ -41,10 +44,10 @@ export interface ProjectFile {
 export type ProjectLiveState = "running" | "stopped" | "absent";
 
 export interface ProjectStatus {
-  container: string;
+  container: string | null;
   workspace: string;
   image: string | null;
-  state: ProjectLiveState;
+  state: ProjectLiveState | null;
 }
 
 const invalidProject = () => new CodedError("project.invalid", { reason: "json" });
@@ -64,6 +67,18 @@ const isPlainObject = (v: unknown): v is Record<string, unknown> =>
 const exactKeys = (raw: Record<string, unknown>, keys: ReadonlySet<string>): boolean => {
   const got = Object.keys(raw);
   return got.length === keys.size && got.every((k) => keys.has(k));
+};
+
+/** Clés requises toutes présentes, aucune clé en trop (requise ou optionnelle). */
+const validKeys = (
+  raw: Record<string, unknown>,
+  required: ReadonlySet<string>,
+  optional: ReadonlySet<string>,
+): boolean => {
+  const got = Object.keys(raw);
+  return (
+    got.every((k) => required.has(k) || optional.has(k)) && [...required].every((k) => k in raw)
+  );
 };
 
 const validContainerName = (name: string): boolean => name !== "" && !name.includes("\0");
@@ -165,15 +180,25 @@ function parseContainers(raw: unknown): string[] {
 }
 
 function parseStoredProject(raw: unknown): StoredProject {
-  if (!isPlainObject(raw) || !exactKeys(raw, PROJECT_KEYS)) throw invalidProject();
+  if (!isPlainObject(raw) || !validKeys(raw, REQUIRED_PROJECT_KEYS, OPTIONAL_PROJECT_KEYS))
+    throw invalidProject();
   if (typeof raw.id !== "string" || !PROJECT_ID.test(raw.id)) throw invalidProject();
   if (typeof raw.name !== "string" || !validStoredName(raw.name)) throw invalidProject();
   if (!validWorkspace(raw.workspace)) throw invalidProject();
+  const containers = parseContainers(raw.containers);
+  let primary: string | undefined;
+  if ("primary" in raw) {
+    if (typeof raw.primary !== "string" || !containers.includes(raw.primary)) {
+      throw invalidProject();
+    }
+    primary = raw.primary;
+  }
   return {
     id: raw.id,
     name: raw.name,
     workspace: raw.workspace,
-    containers: parseContainers(raw.containers),
+    containers,
+    ...(primary !== undefined && { primary }),
   };
 }
 
@@ -349,7 +374,10 @@ export async function associateContainer(
   await writeProjectFile(configDir, { activeId: file.activeId, projects });
 }
 
-/** Retire un nom stocké. Projet inconnu : `project.absent`. Nom absent : rien. */
+/**
+ * Retire un nom stocké. Projet inconnu : `project.absent`. Nom absent : rien.
+ * Si le nom retiré était `primary`, ce champ est nettoyé dans la même écriture.
+ */
 export async function dissociateContainer(
   configDir: string,
   projectId: string,
@@ -360,9 +388,37 @@ export async function dissociateContainer(
   const project = file.projects.find((p) => p.id === projectId);
   if (project === undefined) throw new CodedError("project.absent");
   if (!project.containers.includes(name)) return;
-  const projects = file.projects.map((p) =>
-    p.id === projectId ? { ...p, containers: p.containers.filter((c) => c !== name) } : p,
-  );
+  const projects = file.projects.map((p) => {
+    if (p.id !== projectId) return p;
+    const containers = p.containers.filter((c) => c !== name);
+    const { primary, ...rest } = p;
+    return { ...rest, containers, ...(primary !== undefined && primary !== name && { primary }) };
+  });
+  await writeProjectFile(configDir, { activeId: file.activeId, projects });
+}
+
+/**
+ * Fixe ou retire le conteneur affiché (`primary`), purement informatif.
+ * `name` doit appartenir à `containers` du projet, sinon `project.notFound` (fichier inchangé).
+ * `null` efface le champ. Projet inconnu : `project.absent`.
+ */
+export async function setPrimaryContainer(
+  configDir: string,
+  projectId: string,
+  name: string | null,
+): Promise<void> {
+  const file = await readProjects(configDir);
+  if (file === null) throw new CodedError("project.absent");
+  const project = file.projects.find((p) => p.id === projectId);
+  if (project === undefined) throw new CodedError("project.absent");
+  if (name !== null && !project.containers.includes(name)) {
+    throw new CodedError("project.notFound", { name });
+  }
+  const projects = file.projects.map((p) => {
+    if (p.id !== projectId) return p;
+    const { primary, ...rest } = p;
+    return { ...rest, ...(name !== null && { primary: name }) };
+  });
   await writeProjectFile(configDir, { activeId: file.activeId, projects });
 }
 
@@ -402,8 +458,10 @@ export async function link(
 }
 
 /**
- * État du conteneur unique de l'allowlist active.
- * Sans projet actif, ou sans exactement un nom : `project.absent`.
+ * État du projet actif. Sans projet actif : `project.absent`.
+ * Conteneur affiché, dans l'ordre : `primary` s'il est posé, sinon l'unique conteneur lié,
+ * sinon `null` (ainsi que `image`/`state`). `primary` n'influence aucune résolution d'exécution.
+ * Un seul conteneur : image et état de cette ligne (`state: "absent"` si le nom n'existe plus).
  */
 export async function status(
   configDir: string,
@@ -411,8 +469,12 @@ export async function status(
 ): Promise<ProjectStatus> {
   const file = await readProjects(configDir);
   const active = file === null ? null : activeProject(file);
-  const container = active?.containers.length === 1 ? active.containers[0] : undefined;
-  if (active === null || container === undefined) throw new CodedError("project.absent");
+  if (active === null) throw new CodedError("project.absent");
+  const container =
+    active.primary ?? (active.containers.length === 1 ? active.containers[0] : undefined);
+  if (container === undefined) {
+    return { container: null, workspace: active.workspace, image: null, state: null };
+  }
   const row = (await docker.listLabelPrefix()).find((r) => r.name === container);
   if (row === undefined) {
     return { container, workspace: active.workspace, image: null, state: "absent" };

@@ -17,6 +17,7 @@ import {
   removeProject,
   setActiveProject,
   setChmodProjectFileForTests,
+  setPrimaryContainer,
   status,
   USER_FINDINGS_FILE,
   USER_PROJECT_FILE,
@@ -303,6 +304,15 @@ describe("readProjects", () => {
       }),
       "clé en trop",
     ],
+    [
+      JSON.stringify({
+        activeId: FIXED,
+        projects: [
+          { id: FIXED, name: "n", workspace: "/w", containers: ["a"], primary: "hors-liste" },
+        ],
+      }),
+      "primary hors containers",
+    ],
   ])("project.invalid sans réécriture (%s)", async (body) => {
     const { configDir } = await setup();
     await writeFile(join(configDir, USER_PROJECT_FILE), body, "utf8");
@@ -438,6 +448,78 @@ describe("écriture des projets", () => {
       code: "project.absent",
     });
   });
+
+  it("dissociateContainer nettoie primary quand le conteneur retiré était désigné", async () => {
+    const { configDir } = await setup();
+    const project = await createProject(configDir, { name: "p", workspace: "/host/p" });
+    const docker = {
+      listLabelPrefix: async () => [row("box-a"), row("box-b")],
+    };
+    await associateContainer(configDir, project.id, "box-a", docker);
+    await associateContainer(configDir, project.id, "box-b", docker);
+    await setPrimaryContainer(configDir, project.id, "box-a");
+    await dissociateContainer(configDir, project.id, "box-a");
+    const file = await readProjects(configDir);
+    expect(file?.projects[0]).toMatchObject({ containers: ["box-b"] });
+    expect(file?.projects[0]?.primary).toBeUndefined();
+  });
+
+  it("dissociateContainer garde primary s'il désigne un autre conteneur", async () => {
+    const { configDir } = await setup();
+    const project = await createProject(configDir, { name: "p", workspace: "/host/p" });
+    const docker = {
+      listLabelPrefix: async () => [row("box-a"), row("box-b")],
+    };
+    await associateContainer(configDir, project.id, "box-a", docker);
+    await associateContainer(configDir, project.id, "box-b", docker);
+    await setPrimaryContainer(configDir, project.id, "box-b");
+    await dissociateContainer(configDir, project.id, "box-a");
+    const file = await readProjects(configDir);
+    expect(file?.projects[0]?.primary).toBe("box-b");
+  });
+});
+
+describe("setPrimaryContainer", () => {
+  it("fixe primary sur un membre de containers", async () => {
+    const { configDir } = await setup();
+    const project = await createProject(configDir, { name: "p", workspace: "/host/p" });
+    const docker = { listLabelPrefix: async () => [row("box-a"), row("box-b")] };
+    await associateContainer(configDir, project.id, "box-a", docker);
+    await associateContainer(configDir, project.id, "box-b", docker);
+    await setPrimaryContainer(configDir, project.id, "box-b");
+    expect((await readProjects(configDir))?.projects[0]?.primary).toBe("box-b");
+  });
+
+  it("retire primary avec null", async () => {
+    const { configDir } = await setup();
+    const project = await createProject(configDir, { name: "p", workspace: "/host/p" });
+    const docker = { listLabelPrefix: async () => [row("box-a")] };
+    await associateContainer(configDir, project.id, "box-a", docker);
+    await setPrimaryContainer(configDir, project.id, "box-a");
+    await setPrimaryContainer(configDir, project.id, null);
+    expect((await readProjects(configDir))?.projects[0]?.primary).toBeUndefined();
+  });
+
+  it("refuse un nom hors containers sans modifier le fichier", async () => {
+    const { configDir } = await setup();
+    const project = await createProject(configDir, { name: "p", workspace: "/host/p" });
+    const docker = { listLabelPrefix: async () => [row("box-a")] };
+    await associateContainer(configDir, project.id, "box-a", docker);
+    const before = await textOf(configDir);
+    await expect(setPrimaryContainer(configDir, project.id, "inconnu")).rejects.toMatchObject({
+      code: "project.notFound",
+      params: { name: "inconnu" },
+    });
+    expect(await textOf(configDir)).toBe(before);
+  });
+
+  it("refuse un projet inconnu", async () => {
+    const { configDir } = await setup();
+    await createProject(configDir, { name: "p", workspace: "/host/p" });
+    await expect(setPrimaryContainer(configDir, OTHER, null)).rejects.toMatchObject({
+      code: "project.absent",
+    });
+  });
 });
 
 describe("status", () => {
@@ -491,10 +573,42 @@ describe("status", () => {
     });
   });
 
-  it("refuse s'il n'y a pas exactement un nom", async () => {
+  it("ne lève pas sans aucun conteneur : container null", async () => {
     const { docker, configDir } = await setup();
     await createProject(configDir, { name: "p", workspace: "/host/ws" });
-    await expect(status(configDir, docker)).rejects.toMatchObject({ code: "project.absent" });
+    expect(await status(configDir, docker)).toEqual({
+      container: null,
+      workspace: "/host/ws",
+      image: null,
+      state: null,
+    });
+  });
+
+  it("ne lève pas avec plusieurs conteneurs liés : container null", async () => {
+    const { docker, configDir } = await setup();
+    const project = await createProject(configDir, { name: "p", workspace: "/host/ws" });
+    await associateContainer(configDir, project.id, "paused", docker);
+    await associateContainer(configDir, project.id, "with-ws", docker);
+    expect(await status(configDir, docker)).toEqual({
+      container: null,
+      workspace: "/host/ws",
+      image: null,
+      state: null,
+    });
+  });
+
+  it("préfère primary sur un projet à plusieurs conteneurs", async () => {
+    const { docker, configDir } = await setup();
+    const project = await createProject(configDir, { name: "p", workspace: "/host/ws" });
+    await associateContainer(configDir, project.id, "paused", docker);
+    await associateContainer(configDir, project.id, "with-ws", docker);
+    await setPrimaryContainer(configDir, project.id, "paused");
+    expect(await status(configDir, docker)).toEqual({
+      container: "paused",
+      workspace: "/host/ws",
+      image: "img:3",
+      state: "stopped",
+    });
   });
 });
 

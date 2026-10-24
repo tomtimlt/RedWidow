@@ -43,7 +43,8 @@ export const reasons: Catalog = {
   "project.notRunning": (p) => `container not running: ${text(p.name)}`,
   "project.noWorkspace": (p) => `container without /workspace mount: ${text(p.name)}`,
   "project.invalid": () => "invalid project: unreadable or incomplete project.json",
-  "project.absent": () => "no linked project (project.json missing)",
+  "project.absent": () => "no active project",
+  "project.readFailed": () => "could not read the active project this turn",
   "cours.absent": () => "no course installed (course folder missing)",
   "exegol.containerDenied": (p) =>
     `container not allowed for this message: ${text(p.name)} (project allowlist, named with @, or designated by #)`,

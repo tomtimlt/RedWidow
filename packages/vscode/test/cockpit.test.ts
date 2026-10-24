@@ -5,15 +5,18 @@ import { formatError } from "@warband/messages";
 import { describe, expect, it } from "vitest";
 import { parseWebviewMessage } from "../src/logic/approval.js";
 import {
+  type CockpitContainerView,
   containerMentions,
   controlListedContainer,
   imageRefs,
   linkedProjectStatus,
+  linkedTerminalChoices,
   listCockpitImages,
   loadCockpitView,
   parseCockpitMessage,
   planEditorShell,
   prepareTerminal,
+  setPrimary,
   sortContainers,
   terminalLaunch,
   type WorkspaceRun,
@@ -222,6 +225,10 @@ describe("parseCockpitMessage", () => {
     expect(parseCockpitMessage({ type: "link", name: "c1" })).toEqual({ type: "link", name: "c1" });
     expect(parseCockpitMessage({ type: "openWorkspace" })).toEqual({ type: "openWorkspace" });
     expect(parseCockpitMessage({ type: "terminal" })).toEqual({ type: "terminal" });
+    expect(parseCockpitMessage({ type: "setPrimary", name: "exegol-htb1" })).toEqual({
+      type: "setPrimary",
+      name: "exegol-htb1",
+    });
     expect(parseCockpitMessage({ type: "start", name: "exegol-htb1" })).toEqual({
       type: "start",
       name: "exegol-htb1",
@@ -261,6 +268,15 @@ describe("parseCockpitMessage", () => {
     expect(parseCockpitMessage({ type: "create", name: "htb1" })).toBeNull();
     expect(parseCockpitMessage({ type: "listImages", extra: true })).toBeNull();
     expect(parseCockpitMessage({ type: "pickSource", source: "/tmp" })).toBeNull();
+    expect(parseCockpitMessage({ type: "setPrimary", name: "a", extra: 1 })).toBeNull();
+    expect(parseCockpitMessage({ type: "setPrimary", name: "" })).toBeNull();
+    expect(parseCockpitMessage({ type: "setPrimary", name: "a".repeat(257) })).toBeNull();
+    expect(parseCockpitMessage({ type: "setPrimary", name: "a".repeat(256) })).toEqual({
+      type: "setPrimary",
+      name: "a".repeat(256),
+    });
+    // Le choix du terminal vient toujours de l'extension, jamais de la webview.
+    expect(parseCockpitMessage({ type: "terminal", name: "a" })).toBeNull();
     expect(parseWebviewMessage({ type: "start", name: "a" })).toBeNull();
     expect(parseWebviewMessage({ type: "create" })).toBeNull();
     expect(parseWebviewMessage({ type: "refresh" })).toBeNull();
@@ -316,9 +332,16 @@ describe("parseCockpitMessage", () => {
   });
 });
 
-const projectFile = (containers: readonly string[], workspace = "/host/ws", active = true) => ({
+const projectFile = (
+  containers: readonly string[],
+  workspace = "/host/ws",
+  active = true,
+  primary?: string,
+) => ({
   activeId: active ? "p1" : null,
-  projects: [{ id: "p1", name: "a", workspace, containers }],
+  projects: [
+    { id: "p1", name: "a", workspace, containers, ...(primary !== undefined && { primary }) },
+  ],
 });
 
 describe("loadCockpitView", () => {
@@ -519,6 +542,29 @@ describe("loadCockpitView", () => {
       linkTitle: "Sans montage /workspace",
     });
   });
+
+  it("un seul conteneur lié : jamais de primary même si posé", async () => {
+    const view = await loadCockpitView({
+      resolveBin: (n) => (n === "docker" ? "/d/docker" : null),
+      readProj: async () => projectFile(["a"], "/host/ws", true, "a"),
+      createDocker: () => ({ listLabelPrefix: async () => rows }),
+    });
+    expect(view.containers.find((c) => c.name === "a")?.primary).toBe(false);
+  });
+
+  it("deux conteneurs liés et un primary posé : la ligne primary seule l'indique, et la bannière le suit (corrige le bug)", async () => {
+    const view = await loadCockpitView({
+      resolveBin: (n) => (n === "docker" ? "/d/docker" : null),
+      readProj: async () => projectFile(["a", "c"], "/host/ws", true, "c"),
+      createDocker: () => ({ listLabelPrefix: async () => rows }),
+    });
+    expect(view.containers.find((c) => c.name === "a")?.primary).toBe(false);
+    expect(view.containers.find((c) => c.name === "c")?.primary).toBe(true);
+    expect(view.containers.find((c) => c.name === "b")?.primary).toBe(false);
+    // Avant le correctif, `linkedBanner` restait `null` ici (il ne regardait que l'unique).
+    expect(view.linkedBanner).toMatchObject({ name: "c", state: "running" });
+    expect(view.linked).toBe("running");
+  });
 });
 
 describe("linkedProjectStatus", () => {
@@ -579,6 +625,108 @@ describe("linkedProjectStatus", () => {
     });
     expect(many).toEqual({ workspace: "/proj", container: null, image: null, state: null });
     expect(called).toBe(false);
+  });
+
+  it("primary choisit le conteneur affiché sur un projet à plusieurs conteneurs", async () => {
+    const other = { ...row, name: "b", image: "i:2", state: "stopped" as const };
+    const chosen = await linkedProjectStatus({
+      readProj: async () => projectFile(["a", "b"], "/proj", true, "b"),
+      createDocker: () => ({ listLabelPrefix: async () => [row, other] }),
+    });
+    expect(chosen).toEqual({
+      workspace: "/proj",
+      container: "b",
+      image: "i:2",
+      state: "stopped",
+    });
+  });
+});
+
+describe("setPrimary", () => {
+  it("lit le projet actif puis délègue à setPrimaryContainer avant de recharger la vue", async () => {
+    const calls: [string, string, string | null][] = [];
+    const view = await setPrimary("b", {
+      resolveBin: (n) => (n === "docker" ? "/d/docker" : null),
+      readProj: async () => projectFile(["a", "b"], "/host/ws", true, "a"),
+      createDocker: () => ({ listLabelPrefix: async () => [] }),
+      setPrimaryContainerFn: async (configDir, projectId, name) => {
+        calls.push([configDir, projectId, name]);
+      },
+    });
+    expect(calls).toEqual([[expect.any(String), "p1", "b"]]);
+    expect(view.type).toBe("view");
+  });
+
+  it("aucun projet actif : project.absent, pas d'appel", async () => {
+    const calls: unknown[] = [];
+    await expect(
+      setPrimary("b", {
+        readProj: async () => projectFile(["a", "b"], "/host/ws", false),
+        setPrimaryContainerFn: async () => {
+          calls.push(1);
+        },
+      }),
+    ).rejects.toMatchObject({ code: "project.absent" });
+    expect(calls).toEqual([]);
+  });
+});
+
+describe("linkedTerminalChoices", () => {
+  const row = (
+    name: string,
+    linked: boolean,
+    state: "running" | "stopped",
+    primary = false,
+  ): CockpitContainerView => ({
+    name,
+    short: name,
+    image: "i",
+    state,
+    family: "exegol",
+    linked,
+    primary,
+    canLink: false,
+  });
+
+  it("exclut les lignes non liées ou arrêtées", () => {
+    expect(
+      linkedTerminalChoices([
+        row("a", false, "running"),
+        row("b", true, "stopped"),
+        row("c", false, "stopped"),
+      ]),
+    ).toEqual([]);
+  });
+
+  it("un seul conteneur lié et en cours : une entrée", () => {
+    expect(linkedTerminalChoices([row("a", false, "running"), row("b", true, "running")])).toEqual([
+      { name: "b", short: "b", primary: false },
+    ]);
+  });
+
+  it("le primary passe en tête", () => {
+    expect(
+      linkedTerminalChoices([
+        row("a", true, "running"),
+        row("b", true, "running", true),
+        row("c", true, "running"),
+      ]),
+    ).toEqual([
+      { name: "b", short: "b", primary: true },
+      { name: "a", short: "a", primary: false },
+      { name: "c", short: "c", primary: false },
+    ]);
+  });
+
+  it("sans primary : l'ordre de sortContainers (déjà appliqué) est conservé", () => {
+    expect(linkedTerminalChoices([row("a", true, "running"), row("c", true, "running")])).toEqual([
+      { name: "a", short: "a", primary: false },
+      { name: "c", short: "c", primary: false },
+    ]);
+  });
+
+  it("aucun conteneur lié en cours : liste vide", () => {
+    expect(linkedTerminalChoices([row("a", true, "stopped")])).toEqual([]);
   });
 });
 
@@ -734,6 +882,20 @@ describe("cockpit.js", () => {
     expect(js).not.toContain('type: "create"');
     expect(js).toContain("Aucun conteneur.");
     expect(js).toContain("row.short");
+  });
+
+  it("bouton Principal : message setPrimary, jamais mémorisé côté webview", () => {
+    expect(js).toContain('type: "setPrimary"');
+    expect(js).toContain("row.primary");
+    expect(js).toContain("PRIMARY");
+    expect(js).not.toContain("globalState");
+  });
+});
+
+describe("extension.ts : choix du terminal", () => {
+  it("n'appelle jamais setPrimaryContainer (import absent du fichier)", () => {
+    const src = read("../src/extension/extension.ts");
+    expect(src).not.toContain("setPrimaryContainer");
   });
 });
 

@@ -117,6 +117,14 @@ export interface ExegolTarget {
   /** Projet actif au moment du message, ou `null`. L'outil ne le reçoit pas du modèle. */
   projectId: string | null;
   /**
+   * Cause d'un `projectId` nul par échec de lecture (jamais posé pour « aucun projet actif »).
+   * `"invalid"` : `project.json` invalide, pas de nouvelle tentative ce tour-ci.
+   * `"readFailed"` : erreur transitoire, une relecture déjà tentée a échoué aussi.
+   * N'influence que le code de raison choisi par l'outil `note` : jamais l'allowlist ni la résolution
+   * de conteneur, qui restent fail-closed (ADR 0015).
+   */
+  blocked?: "invalid" | "readFailed";
+  /**
    * Jetons `#` du message, hors sortie de terminal. Sans `@`, ils autorisent les outils Kali
    * sur le conteneur unique qu'ils désignent ; un `#` ne remplace pas un `@`.
    * `resolveExegolContainer` les ignore.
@@ -249,7 +257,12 @@ export function resolveKaliContainer(
 /** Cible du message en cours, lue par l'outil au moment de l'appel. */
 export interface ExegolTargets {
   current(): ExegolTarget;
-  note(text: string, allowed: readonly string[], projectId: string | null): void;
+  note(
+    text: string,
+    allowed: readonly string[],
+    projectId: string | null,
+    blocked?: "invalid" | "readFailed",
+  ): void;
 }
 
 export function createExegolTargets(): ExegolTargets {
@@ -257,16 +270,65 @@ export function createExegolTargets(): ExegolTargets {
   const recall: KaliRecall[] = [];
   return {
     current: () => target,
-    note(text, allowed, projectId) {
+    note(text, allowed, projectId, blocked) {
       const prompt = promptForTargets(text);
       const mentions = parseMentions(prompt);
       const hashes = parseHashes(prompt);
       const named = kaliTokens(prompt);
       if (named.length > 0) recall.push(...named);
-      target = { allowed: [...allowed], mentions, projectId, hashes };
+      target = {
+        allowed: [...allowed],
+        mentions,
+        projectId,
+        hashes,
+        ...(blocked !== undefined && { blocked }),
+      };
       if (mentions.length === 0 && hashes.length === 0 && recall.length > 0) {
         target = { ...target, recall: recall.slice() };
       }
     },
   };
+}
+
+/** Résultat d'une lecture du projet actif pour un tour (`onPrompt`, ADR 0015 point 3). */
+export interface ProjectReadOutcome {
+  /** Allowlist à copier dans la cible : vide dès que `projectId` est nul. */
+  containers: readonly string[];
+  /** Projet actif, ou `null` (aucun projet actif, ou lecture en échec : fail-closed). */
+  projectId: string | null;
+  /** Cause d'un `projectId` nul par échec de lecture ; absent pour « aucun projet actif ». */
+  blocked?: "invalid" | "readFailed";
+}
+
+/**
+ * Lecture robuste du projet actif pour un tour : ne relance jamais l'exception à l'appelant.
+ * - `read` renvoie `null`, ou `getActive` renvoie `null` : aucun projet actif, résultat normal.
+ * - `read`/`getActive` lève `project.invalid` : pas de nouvelle tentative, drapeau `"invalid"`.
+ * - toute autre exception : une seule relecture ; si elle échoue aussi (quelle qu'en soit la cause),
+ *   drapeau `"readFailed"`.
+ * Isolée ici (plutôt que recopiée dans `onPrompt`) pour rester testable sans canal IPC.
+ */
+export async function readActiveProjectForPrompt<
+  F,
+  A extends { id: string; containers: readonly string[] },
+>(read: () => Promise<F | null>, getActive: (file: F) => A | null): Promise<ProjectReadOutcome> {
+  const attempt = async (): Promise<ProjectReadOutcome> => {
+    const file = await read();
+    const active = file === null ? null : getActive(file);
+    return active === null
+      ? { containers: [], projectId: null }
+      : { containers: active.containers, projectId: active.id };
+  };
+  try {
+    return await attempt();
+  } catch (err) {
+    if (err instanceof CodedError && err.code === "project.invalid") {
+      return { containers: [], projectId: null, blocked: "invalid" };
+    }
+    try {
+      return await attempt();
+    } catch {
+      return { containers: [], projectId: null, blocked: "readFailed" };
+    }
+  }
 }

@@ -225,6 +225,64 @@ function bary(id, parents, rowOf) {
   return sum / ps.length;
 }
 
+/** Libellés fr des types de nœud (ordre du groupe « Type » du panneau légende). */
+const KIND_LABEL = {
+  host: "Hôte",
+  site: "Site / URL",
+  credential: "Identifiant",
+  step: "Étape",
+  loot: "Loot",
+};
+/** Ordre d'affichage des types dans le panneau légende. */
+const LEGEND_KINDS = ["host", "credential", "site", "step", "loot"];
+/** Libellés fr des états de trouvaille (ordre du groupe « État » du panneau légende). */
+const STATE_LABEL = {
+  confirmed: "Confirmé",
+  hypothesis: "Hypothèse",
+  failed: "Échec",
+};
+/** Ordre d'affichage des états dans le panneau légende. */
+const LEGEND_STATES = ["confirmed", "hypothesis", "failed"];
+
+/**
+ * Modèle du panneau légende de la kill chain : deux groupes (Type, État), chacun avec un compteur
+ * réel par entrée, calculé sur les trouvailles passées. Entrée non tableau : tous les compteurs à
+ * zéro. `kind`/`state` inconnu dans une trouvaille : ignoré (ne compte dans aucune entrée).
+ */
+function killchainLegend(findings) {
+  const kindCounts = new Map();
+  const stateCounts = new Map();
+  if (Array.isArray(findings)) {
+    for (const f of findings) {
+      if (!f || typeof f !== "object") continue;
+      if (typeof f.kind === "string" && KIND_LABEL[f.kind] !== undefined) {
+        kindCounts.set(f.kind, (kindCounts.get(f.kind) ?? 0) + 1);
+      }
+      if (typeof f.state === "string" && STATE_LABEL[f.state] !== undefined) {
+        stateCounts.set(f.state, (stateCounts.get(f.state) ?? 0) + 1);
+      }
+    }
+  }
+  return [
+    {
+      label: "Type",
+      entries: LEGEND_KINDS.map((kind) => ({
+        kind,
+        label: KIND_LABEL[kind],
+        count: kindCounts.get(kind) ?? 0,
+      })),
+    },
+    {
+      label: "État",
+      entries: LEGEND_STATES.map((state) => ({
+        state,
+        label: STATE_LABEL[state],
+        count: stateCounts.get(state) ?? 0,
+      })),
+    },
+  ];
+}
+
 // Exposée pour les tests (même convention que ui.js : pas de module dans la webview).
 globalThis.WarbandStudio = {
   STUDIO_GROUPS,
@@ -233,6 +291,7 @@ globalThis.WarbandStudio = {
   killchainCount,
   killchainModel,
   killchainGraph,
+  killchainLegend,
   navModel,
 };
 
@@ -243,6 +302,10 @@ function start() {
   const killchainOnly = document.body.classList.contains("killchain-full");
   const nav = killchainOnly ? null : document.getElementById("studio-nav");
   const main = document.getElementById("studio-main");
+
+  // État de repli du panneau légende : variable de module, survit aux render() successifs.
+  // `null` tant qu'il n'a pas été initialisé (calcul différé à la première ouverture du graphe).
+  let legendCollapsed = null;
 
   const el = (tag, className, text) => {
     const node = document.createElement(tag);
@@ -291,23 +354,55 @@ function start() {
 
   const SVG_NS = "http://www.w3.org/2000/svg";
 
-  const KIND_ICON = {
-    host: "\u25A3",
-    site: "\uD83C\uDF10",
-    credential: "\uD83D\uDD11",
-    step: "\u276F",
-    loot: "\u2691",
+  /**
+   * Glyphes des types de n\u0153ud, en trac\u00E9s SVG (trait `currentColor`, pas de remplissage) : rep\u00E8re
+   * [tag, attributs] par forme. Rendus par `kindIcon`, jamais de texte ou d'emoji.
+   */
+  const KIND_ICON_SHAPES = {
+    host: [
+      ["rect", { x: "2.5", y: "3.5", width: "11", height: "7", rx: "1" }],
+      ["line", { x1: "5", y1: "12.5", x2: "11", y2: "12.5" }],
+    ],
+    site: [
+      ["circle", { cx: "8", cy: "8", r: "5.5" }],
+      ["path", { d: "M8 2.5C5.7 2.5 5.7 13.5 8 13.5C10.3 13.5 10.3 2.5 8 2.5Z" }],
+      ["line", { x1: "2.5", y1: "8", x2: "13.5", y2: "8" }],
+    ],
+    credential: [
+      ["circle", { cx: "5", cy: "8", r: "2.5" }],
+      ["line", { x1: "7.4", y1: "8", x2: "13", y2: "8" }],
+      ["line", { x1: "13", y1: "8", x2: "13", y2: "10.5" }],
+      ["line", { x1: "10.6", y1: "8", x2: "10.6", y2: "10" }],
+    ],
+    step: [["path", { d: "M5 3L11 8L5 13" }]],
+    loot: [
+      ["line", { x1: "4", y1: "2.5", x2: "4", y2: "13.5" }],
+      ["path", { d: "M4 3L12 5.5L4 8" }],
+    ],
   };
-  const KIND_LABEL = {
-    host: "H\u00f4te",
-    site: "Site / URL",
-    credential: "Identifiant",
-    step: "\u00c9tape",
-    loot: "Loot",
+  function kindIcon(kind) {
+    const svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("viewBox", "0 0 16 16");
+    svg.setAttribute("class", "kc-ico-svg");
+    for (const [tag, attrs] of KIND_ICON_SHAPES[kind] || []) {
+      const shape = document.createElementNS(SVG_NS, tag);
+      for (const [k, v] of Object.entries(attrs)) shape.setAttribute(k, v);
+      svg.append(shape);
+    }
+    return svg;
+  }
+  /** Glyphe du badge d'\u00E9tat, dans l'en-t\u00EAte du n\u0153ud (en plus de la bordure). */
+  const STATE_BADGE = {
+    confirmed: "\u2713",
+    hypothesis: "?",
+    failed: "\u2715",
   };
 
-  /** Vue graphe de la kill chain : nœuds typés, arêtes courbes, zoom/pan, bouton Ajuster, légende. */
-  function killchainGraphView(graph) {
+  /**
+   * Vue graphe de la kill chain : nœuds typés, arêtes courbes, zoom/pan, bouton Ajuster, et le panneau
+   * légende (repliable, à droite). `findings` alimente uniquement les compteurs du panneau.
+   */
+  function killchainGraphView(graph, findings) {
     const wrap = el("div", "studio-kc");
 
     const bar = el("div", "kc-bar");
@@ -371,15 +466,69 @@ function start() {
       node.style.setProperty("top", `${n.y + pad}px`);
       node.style.setProperty("width", `${n.w}px`);
       const head = el("div", "kc-node-head");
-      head.append(decorative(el("span", "kc-node-ico", KIND_ICON[n.kind] || "\u25CF")));
+      const ico = el("span", "kc-node-ico");
+      ico.append(decorative(kindIcon(n.kind)));
+      head.append(ico);
+      const stateLabel = STATE_LABEL[n.state] || n.state;
+      const badge = el("span", `kc-node-badge is-${n.state}`, STATE_BADGE[n.state] || "");
+      badge.setAttribute("role", "img");
+      badge.setAttribute("aria-label", stateLabel);
+      head.append(badge);
       head.append(el("span", "kc-node-label", n.label));
       node.append(head);
       if (n.meta) node.append(el("span", "kc-node-meta", n.meta));
-      node.title = [KIND_LABEL[n.kind] || n.kind, n.state, n.meta].filter(Boolean).join(" \u00b7 ");
+      node.title = [KIND_LABEL[n.kind] || n.kind, stateLabel, n.meta]
+        .filter(Boolean)
+        .join(" \u00b7 ");
       canvas.append(node);
     }
     viewport.append(canvas);
-    wrap.append(bar, viewport);
+
+    // Panneau légende : frère du viewport (colonne propre, pas de superposition), repliable.
+    const aside = el("aside", "kc-legend");
+    const legendHead = el("div", "kc-legend-head");
+    const legendToggle = el("button", "ghost kc-legend-toggle");
+    legendToggle.type = "button";
+    legendToggle.setAttribute("aria-controls", "kc-legend-body");
+    legendToggle.append(el("span", "btn-text", "Légende"));
+    legendHead.append(legendToggle);
+    const legendBody = el("div", "kc-legend-body");
+    legendBody.id = "kc-legend-body";
+    for (const group of killchainLegend(findings)) {
+      const sec = el("div", "kc-legend-group");
+      sec.append(el("p", "kc-legend-title", group.label));
+      const ul = el("ul", "kc-legend-list");
+      for (const entry of group.entries) {
+        const li = el("li", "kc-legend-item");
+        if (entry.kind !== undefined) {
+          const dot = el("span", `kc-dot kind-${entry.kind}`);
+          dot.append(decorative(kindIcon(entry.kind)));
+          li.append(dot);
+        } else {
+          li.append(decorative(el("span", `studio-kc-swatch is-${entry.state}`)));
+        }
+        li.append(el("span", "kc-legend-label", entry.label));
+        li.append(el("span", "kc-legend-count", String(entry.count)));
+        ul.append(li);
+      }
+      sec.append(ul);
+      legendBody.append(sec);
+    }
+    aside.append(legendHead, legendBody);
+    const setLegendCollapsed = (collapsed) => {
+      legendCollapsed = collapsed;
+      aside.classList.toggle("is-collapsed", collapsed);
+      legendToggle.setAttribute("aria-expanded", String(!collapsed));
+      legendBody.hidden = collapsed;
+    };
+    legendToggle.addEventListener("click", () => setLegendCollapsed(!legendCollapsed));
+    if (legendCollapsed === null) {
+      legendCollapsed =
+        typeof matchMedia === "function" && matchMedia("(max-width: 640px)").matches;
+    }
+    setLegendCollapsed(legendCollapsed);
+
+    wrap.append(bar, viewport, aside);
 
     // Zoom et déplacement : transformation du canevas (jamais de scroll natif).
     let scale = 1;
@@ -458,25 +607,6 @@ function start() {
       fitToView();
     }
 
-    const legend = el("ul", "studio-kc-legend");
-    for (const kind of ["host", "credential", "site", "step", "loot"]) {
-      const li = el("li", "studio-kc-key");
-      li.append(
-        decorative(el("span", `kc-dot kind-${kind}`, KIND_ICON[kind] || "\u25CF")),
-        el("span", "", KIND_LABEL[kind]),
-      );
-      legend.append(li);
-    }
-    for (const [state, text] of [
-      ["confirmed", "Confirm\u00e9"],
-      ["hypothesis", "Hypoth\u00e8se"],
-      ["failed", "\u00c9chec"],
-    ]) {
-      const li = el("li", "studio-kc-key");
-      li.append(decorative(el("span", `studio-kc-swatch is-${state}`)), el("span", "", text));
-      legend.append(li);
-    }
-    wrap.append(legend);
     return wrap;
   }
 
@@ -545,7 +675,7 @@ function start() {
         const sec = el("section", "studio-kc-page");
         const graph = killchainGraph(view.findings);
         if (graph.nodes.length > 0) {
-          sec.append(killchainGraphView(graph));
+          sec.append(killchainGraphView(graph, view.findings));
         } else {
           const wrap = el("div", "studio-kc");
           const viewport = el("div", "kc-viewport kc-empty");

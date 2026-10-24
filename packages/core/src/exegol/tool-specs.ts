@@ -87,8 +87,13 @@ export function exegolToolSpecs(docker: DockerClient, targets: ExegolTargets): D
         from: z.array(z.string()).max(8).optional(),
       },
       async run(args) {
-        const projectId = targets.current().projectId;
-        if (projectId === null) throw new CodedError("project.absent");
+        const current = targets.current();
+        const projectId = current.projectId;
+        if (projectId === null) {
+          if (current.blocked === "invalid") throw new CodedError("project.invalid");
+          if (current.blocked === "readFailed") throw new CodedError("project.readFailed");
+          throw new CodedError("project.absent");
+        }
         const finding = await appendFinding(defaultConfigDir(), projectId, {
           kind: args.kind as (typeof FINDING_KINDS)[number],
           label: String(args.label),

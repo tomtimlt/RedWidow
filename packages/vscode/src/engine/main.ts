@@ -5,6 +5,7 @@ import {
   CodedError,
   createExegolTargets,
   defaultConfigDir,
+  readActiveProjectForPrompt,
   readProjects,
 } from "@warband/core";
 import { matchesFingerprint } from "../logic/integrity.js";
@@ -44,17 +45,14 @@ const done = runEngine({
     return cwd;
   },
   onPrompt: async (text) => {
-    try {
-      const file = await readProjects(defaultConfigDir());
-      const active = file === null ? null : activeProject(file);
-      if (active === null) {
-        targets.note(text, [], null);
-        return;
-      }
-      targets.note(text, active.containers, active.id);
-    } catch {
-      targets.note(text, [], null);
-    }
+    // Lecture robuste (ADR 0015 point 3) : fichier absent/pas de projet actif, project.invalid
+    // (pas de nouvelle tentative) et erreur transitoire (une relecture) sont distingués. Jamais
+    // d'exception relancée ici : elle aborterait tout le run, pas seulement le tour.
+    const outcome = await readActiveProjectForPrompt(
+      () => readProjects(defaultConfigDir()),
+      activeProject,
+    );
+    targets.note(text, outcome.containers, outcome.projectId, outcome.blocked);
   },
   createRunner: async (mode) => {
     // Vérification juste avant la construction du runner (fail-closed : empreinte absente = refus).

@@ -123,6 +123,7 @@ export const REASON_CODES = [
   "project.noWorkspace",
   "project.invalid",
   "project.absent",
+  "project.readFailed",
   "cours.absent",
   "exegol.containerDenied",
   "kali.unavailable",
