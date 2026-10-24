@@ -23,6 +23,7 @@ import {
   type StartParams,
 } from "../logic/protocol.js";
 import { createBypassMirror } from "./bypass-mirror.js";
+import { summaryBlock } from "./summary-block.js";
 
 /** Canal vers le parent (IPC de Node en production, paire factice dans les tests). */
 export interface EngineChannel {
@@ -58,6 +59,11 @@ export interface EngineOptions {
    * Retour non absolu, vide, ou exception : on garde le cwd du `start`.
    */
   resolveCwd?: (cwd: string) => Promise<string>;
+  /**
+   * Résumé de session du projet actif, lu par le moteur (jamais par l'UI). Appelé seulement pour
+   * une conversation neuve (pas de `resume`). Exception : aucun bloc.
+   */
+  resolveSummary?: () => Promise<string>;
 }
 
 /** Message dont le type est `bypass` : même rejeté par la validation, il met le miroir à « off ». */
@@ -110,6 +116,7 @@ export function runEngine({
   now = Date.now,
   policyLoader = (cwd) => loadPolicy({ cwd }),
   resolveCwd,
+  resolveSummary,
 }: EngineOptions): Promise<number> {
   // Miroir en lecture du Bypass (ADR 0006, décision 6) : naît « off », jamais calculé ici.
   const mirror = createBypassMirror({ now });
@@ -202,6 +209,22 @@ export function runEngine({
           policySource: source,
           ...(warning && { warning }),
         });
+        // Résumé du projet : seulement à une conversation neuve, source moteur (même en apprentissage).
+        let block = "";
+        if (params.resume === undefined && resolveSummary !== undefined) {
+          try {
+            block = summaryBlock(await resolveSummary());
+          } catch {
+            // Lecture impossible : pas de bloc.
+          }
+        }
+        const baseSystemPrompt = learning ? LEARNING_SYSTEM_PROMPT : params.systemPrompt;
+        const systemPrompt =
+          block === ""
+            ? baseSystemPrompt
+            : baseSystemPrompt === undefined
+              ? block
+              : `${baseSystemPrompt}\n\n${block}`;
         const runner = await createRunner(params.mode);
         const summary = await runner.run(
           {
@@ -214,9 +237,7 @@ export function runEngine({
             ...(params.resume !== undefined && { resume: params.resume }),
             ...(params.maxBudgetUsd !== undefined && { maxBudgetUsd: params.maxBudgetUsd }),
             // En apprentissage, la consigne système ne vient jamais de l'UI.
-            ...(learning
-              ? { systemPrompt: LEARNING_SYSTEM_PROMPT }
-              : params.systemPrompt !== undefined && { systemPrompt: params.systemPrompt }),
+            ...(systemPrompt !== undefined && { systemPrompt }),
           },
           { recorder, gate, signal: abort.signal },
         );

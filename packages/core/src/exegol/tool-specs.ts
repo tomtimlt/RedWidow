@@ -3,6 +3,7 @@ import { defaultConfigDir } from "../approval/source.js";
 import type { CallOptions, DockerClient } from "../docker/client.js";
 import type { DockerToolContext, DockerToolSpec } from "../docker/tool-specs.js";
 import { formatLines } from "../docker/tool-specs.js";
+import { writeSummary } from "../project.js";
 import { CodedError } from "../reason.js";
 import {
   appendFinding,
@@ -49,7 +50,16 @@ function callOf(ctx: DockerToolContext): CallOptions {
   };
 }
 
-/** Un seul outil : `exec`. Le conteneur est validé contre la cible du message, pas choisi librement. */
+/** Projet de la cible notée (jamais fourni par le modèle) ; sinon erreur typée selon la cause. */
+function activeProjectId(targets: ExegolTargets): string {
+  const current = targets.current();
+  if (current.projectId !== null) return current.projectId;
+  if (current.blocked === "invalid") throw new CodedError("project.invalid");
+  if (current.blocked === "readFailed") throw new CodedError("project.readFailed");
+  throw new CodedError("project.absent");
+}
+
+/** Outils : `exec`, `note`, `remember`. Le conteneur est validé contre la cible du message, pas choisi librement. */
 export function exegolToolSpecs(docker: DockerClient, targets: ExegolTargets): DockerToolSpec[] {
   return [
     spec({
@@ -87,13 +97,7 @@ export function exegolToolSpecs(docker: DockerClient, targets: ExegolTargets): D
         from: z.array(z.string()).max(8).optional(),
       },
       async run(args) {
-        const current = targets.current();
-        const projectId = current.projectId;
-        if (projectId === null) {
-          if (current.blocked === "invalid") throw new CodedError("project.invalid");
-          if (current.blocked === "readFailed") throw new CodedError("project.readFailed");
-          throw new CodedError("project.absent");
-        }
+        const projectId = activeProjectId(targets);
         const finding = await appendFinding(defaultConfigDir(), projectId, {
           kind: args.kind as (typeof FINDING_KINDS)[number],
           label: String(args.label),
@@ -104,6 +108,20 @@ export function exegolToolSpecs(docker: DockerClient, targets: ExegolTargets): D
         });
         const tail = `${finding.tactic ? ` ${finding.tactic}` : ""}${finding.technique ? ` ${finding.technique}` : ""}`;
         return `${finding.id} ${finding.kind} ${finding.state} ${finding.label}${tail}`;
+      },
+    }),
+    spec({
+      name: "remember",
+      description:
+        "Écrit le résumé de session du projet actif : ce qu'il faut retenir pour la prochaine conversation (état, pistes, prochaines étapes). " +
+        "Remplace le résumé précédent, il n'y a pas d'ajout : reprends l'essentiel de l'ancien si besoin. Pas de secret. Texte plafonné à 8 Kio.",
+      input: {
+        text: z.string().describe("Nouveau résumé complet du projet"),
+      },
+      async run(args) {
+        const projectId = activeProjectId(targets);
+        await writeSummary(defaultConfigDir(), projectId, String(args.text));
+        return "Résumé du projet enregistré.";
       },
     }),
   ];

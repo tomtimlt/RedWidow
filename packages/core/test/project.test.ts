@@ -14,6 +14,7 @@ import {
   link,
   readFindings,
   readProjects,
+  readSummary,
   removeProject,
   setActiveProject,
   setChmodProjectFileForTests,
@@ -22,6 +23,7 @@ import {
   USER_FINDINGS_FILE,
   USER_PROJECT_FILE,
   unlink,
+  writeSummary,
 } from "../src/index.js";
 import { fakeDocker } from "./helpers.js";
 
@@ -621,5 +623,71 @@ describe("link erreurs typées", () => {
     } catch (err) {
       expect(err).toBeInstanceOf(CodedError);
     }
+  });
+});
+
+describe("résumé de session", () => {
+  const dirOf = async () => mkdtemp(join(tmpdir(), "warband-summary-"));
+
+  it("fichier absent → chaîne vide", async () => {
+    const configDir = await dirOf();
+    expect(await readSummary(configDir, FIXED)).toBe("");
+  });
+
+  it("écrit, relit et remplace (sans ajout), en 0o600", async () => {
+    const configDir = await dirOf();
+    await writeSummary(configDir, FIXED, "premier");
+    await writeSummary(configDir, FIXED, "second");
+    expect(await readSummary(configDir, FIXED)).toBe("second");
+    if (process.platform !== "win32") {
+      const mode = (await stat(join(configDir, "projects", FIXED, "summary.txt"))).mode & 0o777;
+      expect(mode).toBe(0o600);
+    }
+  });
+
+  it("refuse un id non UUID avant toute E/S", async () => {
+    const configDir = await dirOf();
+    for (const bad of ["../x", "", "pas-un-uuid", "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA"]) {
+      await expect(writeSummary(configDir, bad, "t")).rejects.toMatchObject({
+        code: "project.invalid",
+      });
+      await expect(readSummary(configDir, bad)).rejects.toBeInstanceOf(CodedError);
+    }
+    expect(await readdir(configDir)).toEqual([]);
+  });
+
+  it("masque un secret connu avant l'écriture", async () => {
+    const configDir = await dirOf();
+    const secret = "sk-ant-abcdefghijklmnop";
+    await writeSummary(configDir, FIXED, `clé ${secret} fin`);
+    const raw = await readFile(join(configDir, "projects", FIXED, "summary.txt"), "utf8");
+    expect(raw).not.toContain(secret);
+    expect(raw).toContain("[REDACTED]");
+    expect(await readSummary(configDir, FIXED)).toBe(raw);
+  });
+
+  it("tronque au-delà de 8 Kio avec un marqueur", async () => {
+    const configDir = await dirOf();
+    await writeSummary(configDir, FIXED, "é".repeat(20000));
+    const text = await readSummary(configDir, FIXED);
+    expect(Buffer.byteLength(text)).toBeLessThanOrEqual(8192);
+    expect(text.endsWith("[… résumé tronqué]")).toBe(true);
+  });
+
+  it("renommage en échec : le temporaire est supprimé et l'erreur relancée", async () => {
+    const configDir = await dirOf();
+    const projectDir = join(configDir, "projects", FIXED);
+    // Un dossier à la place du fichier cible fait échouer le renommage.
+    await mkdir(join(projectDir, "summary.txt", "occupé"), { recursive: true });
+    await expect(writeSummary(configDir, FIXED, "texte")).rejects.toThrow();
+    expect((await readdir(projectDir)).filter((n) => n.endsWith(".tmp"))).toEqual([]);
+  });
+
+  it("deux projets ne partagent pas le fichier", async () => {
+    const configDir = await dirOf();
+    await writeSummary(configDir, FIXED, "A");
+    await writeSummary(configDir, OTHER, "B");
+    expect(await readSummary(configDir, FIXED)).toBe("A");
+    expect(await readSummary(configDir, OTHER)).toBe("B");
   });
 });
