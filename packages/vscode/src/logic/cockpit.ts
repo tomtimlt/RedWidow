@@ -315,7 +315,7 @@ export interface CockpitDeps {
   linkProject?: typeof link;
 }
 
-/** Dossier du projet actif et, s'il n'y en a qu'un, le conteneur de l'allowlist. */
+/** Dossier du projet actif et le conteneur affiché (`primary`, sinon l'unique conteneur lié). */
 export interface LinkedProjectStatus {
   workspace: string;
   container: string | null;
@@ -563,7 +563,8 @@ export async function controlListedContainer(
 /**
  * Projet actif pour le dossier, le terminal et la barre.
  * Sans projet actif, ou fichier illisible : `null`.
- * Zéro ou plusieurs noms : `container` null. Un seul nom : image et état de cette ligne.
+ * Conteneur affiché, dans l'ordre : `primary` s'il est posé, sinon l'unique nom lié, sinon `null`.
+ * `primary` est purement informatif : il n'autorise aucune exécution.
  */
 export async function linkedProjectStatus(
   deps: CockpitDeps = {},
@@ -579,7 +580,8 @@ export async function linkedProjectStatus(
   }
   const active = stored === null ? null : activeProject(stored);
   if (active === null) return null;
-  const container = active.containers.length === 1 ? active.containers[0] : undefined;
+  const container =
+    active.primary ?? (active.containers.length === 1 ? active.containers[0] : undefined);
   if (container === undefined) {
     return { workspace: active.workspace, container: null, image: null, state: null };
   }

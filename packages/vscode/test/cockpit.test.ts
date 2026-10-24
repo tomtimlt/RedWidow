@@ -316,9 +316,16 @@ describe("parseCockpitMessage", () => {
   });
 });
 
-const projectFile = (containers: readonly string[], workspace = "/host/ws", active = true) => ({
+const projectFile = (
+  containers: readonly string[],
+  workspace = "/host/ws",
+  active = true,
+  primary?: string,
+) => ({
   activeId: active ? "p1" : null,
-  projects: [{ id: "p1", name: "a", workspace, containers }],
+  projects: [
+    { id: "p1", name: "a", workspace, containers, ...(primary !== undefined && { primary }) },
+  ],
 });
 
 describe("loadCockpitView", () => {
@@ -579,6 +586,20 @@ describe("linkedProjectStatus", () => {
     });
     expect(many).toEqual({ workspace: "/proj", container: null, image: null, state: null });
     expect(called).toBe(false);
+  });
+
+  it("primary choisit le conteneur affiché sur un projet à plusieurs conteneurs", async () => {
+    const other = { ...row, name: "b", image: "i:2", state: "stopped" as const };
+    const chosen = await linkedProjectStatus({
+      readProj: async () => projectFile(["a", "b"], "/proj", true, "b"),
+      createDocker: () => ({ listLabelPrefix: async () => [row, other] }),
+    });
+    expect(chosen).toEqual({
+      workspace: "/proj",
+      container: "b",
+      image: "i:2",
+      state: "stopped",
+    });
   });
 });
 
