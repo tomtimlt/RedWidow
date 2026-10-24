@@ -174,3 +174,16 @@ propriétaire reste nécessaire pour confirmer la cause du retour initial.
 
 Validation du correctif : `pnpm check` réussi, **1 639 tests réussis et
 12 ignorés** ; compilation réussie. Revue des garde-fous effectuée.
+
+## Retour Kali et correctif 0.3.22
+
+Le conteneur créé avec une image à shell affichait une invite puis sortait
+avec le code 0. La création détachée Kali ouvre désormais stdin et un
+pseudo-terminal, sans remplacer la commande de l’image. Les conteneurs
+existants ne sont pas reconfigurés : créer un nouveau nom avec le même dossier
+permet de conserver l’ancien conteneur pendant la vérification.
+
+Validation : 1 639 tests réussis, 12 ignorés. Essai Docker réel avec Alpine
+à shell : ancien mode arrêté code 0 ; création via le client Warband corrigé
+active, dossier monté lisible, arrêt/redémarrage réussi. Cet essai ne valide
+pas les services spécifiques à l’image Kali du propriétaire.

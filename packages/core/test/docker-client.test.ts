@@ -395,6 +395,8 @@ describe("createKaliContainer", () => {
       `${[
         "run",
         "--detach",
+        "--interactive",
+        "--tty",
         "--pull",
         "never",
         "--name",

@@ -21,7 +21,7 @@ Le montage d'un dossier de l'hôte est une décision de sécurité, pas un param
 
 2. **Argv figé**, rien après l'image (l'entrée de l'image, `/start` compris, n'est pas remplacée) :
 
-   `run --detach --pull never --name <nom> --label io.warband.runtime=kali --network bridge --mount type=bind,source=<réel>,target=/workspace <image>`
+   `run --detach --interactive --tty --pull never --name <nom> --label io.warband.runtime=kali --network bridge --mount type=bind,source=<réel>,target=/workspace <image>`
 
    Image locale : `--pull never`. Réseau explicite `bridge`, jamais `host` et jamais le défaut du démon. Un seul montage, en écriture (pas de clé `readonly`). Destination littérale `/workspace`. Label constant, pas un paramètre. Pas de `--privileged`, `--volume`, `-v`, port, `--env`, `--entrypoint`, socket, capacité, périphérique, ni commande.
 
@@ -79,7 +79,7 @@ Reprendre les cinq points de la section Décision. Détail que `dev` ne doit pas
 
 - `export interface CreateKaliContainerOptions extends CallOptions { image: string; name: string; source: string }`. `export interface KaliContainerClient { createKaliContainer(options: CreateKaliContainerOptions): Promise<string> }`. Retour de `createDockerClient` : `DockerClient & KaliContainerClient`. `DockerClient` ne déclare pas la méthode. Le paramètre de `dockerToolSpecs` reste `DockerClient`.
 - Ordre de validation : image (`assertOperand`, libellé `image`) ; nom (`assertOperand`, libellé `name`) ; délimiteurs de la source ; absolu ; racine et socket sur la forme normalisée ; `realpath` ; racine, socket et délimiteur sur le réel ; `mountExposesSensitive(réel)` ; répertoire. Aucun `spawn` avant la fin de cette chaîne. `checked("run", argv, call)` comme les autres méthodes. Identifiant : première ligne de stdout, trim, ou `""`.
-- Argv, éléments séparés, dans cet ordre : `run`, `--detach`, `--pull`, `never`, `--name`, nom, `--label`, `io.warband.runtime=kali`, `--network`, `bridge`, `--mount`, `type=bind,source=<réel>,target=/workspace`, image. Rien d'autre.
+- Argv, éléments séparés, dans cet ordre : `run`, `--detach`, `--interactive`, `--tty`, `--pull`, `never`, `--name`, nom, `--label`, `io.warband.runtime=kali`, `--network`, `bridge`, `--mount`, `type=bind,source=<réel>,target=/workspace`, image. Rien d'autre.
 - `mountExposesSensitive` prend les mêmes options injectables que `checkPathAccess` (`cwd` inclus). Le client l'appelle avec le réel pour `cwd`, sans `roots`. Les tests de la fonction injectent le système de fichiers, ils ne créent rien sous le vrai `~/.ssh`.
 - Motifs français dans `ARGUMENT_REASONS` : `delimiter` « caractère interdit dans le montage », `relative` « chemin relatif ou non absolu », `root` « racine du système de fichiers », `socket` « socket Docker », `missing` « dossier introuvable », `unsupported` « chemin non analysable », `sensitive` « chemin sensible », `notDirectory` « dossier attendu ». Pas de code de raison nouveau. `en.ts` a déjà le modèle qui affiche le motif.
 
@@ -98,3 +98,10 @@ Reprendre les cinq points de la section Décision. Détail que `dev` ne doit pas
 ### Interdits
 
 Pas d'interface, pas de formulaire, pas de VPN. Ne pas élargir l'outil agent. Ne pas ajouter de volume ni de label à `DockerClient.run`. Ne pas affaiblir `dockerRunHazard` ni la gate. Ne pas modifier `link` ni `resolveExegolContainer`. Ne pas passer `--entrypoint`, une commande, `--network host`, `--privileged`, un port ou un env. Ne pas retirer `/start`. Ne pas recopier le chemin dans l'erreur.
+
+## Correctif 0.3.22 — shell interactif
+
+Les créations Kali conservent stdin ouvert et allouent un pseudo-terminal
+(`--interactive --tty`) en mode détaché. Une image dont l’entrée est un shell
+ne quitte ainsi plus simplement sur EOF. La commande et l’entrée de l’image
+restent inchangées. Les conteneurs déjà créés gardent leur ancienne configuration.

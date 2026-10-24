@@ -578,11 +578,15 @@ export function createDockerClient({
         invalidSource("unsupported");
       }
       // Rien après l'image : l'entrée (dont /start) reste celle de l'image.
+      // Les images dont l'entrée est un shell doivent conserver stdin et un TTY,
+      // sinon elles sortent immédiatement en mode détaché.
       const r = await checked(
         "run",
         [
           "run",
           "--detach",
+          "--interactive",
+          "--tty",
           "--pull",
           "never",
           "--name",
