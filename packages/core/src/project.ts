@@ -4,7 +4,9 @@ import { isAbsolute, join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import type { DockerClient } from "./docker/client.js";
 import { lookupContainer, shortContainerName } from "./exegol/targets.js";
+import { capOutput } from "./output.js";
 import { CodedError } from "./reason.js";
+import { createRedactor } from "./redact.js";
 
 /** Fichier des projets, à côté de `policy.json`. */
 export const USER_PROJECT_FILE = "project.json";
@@ -13,6 +15,11 @@ export const USER_PROJECT_FILE = "project.json";
 const PROJECTS_DIR = "projects";
 /** Même nom que `USER_FINDINGS_FILE` (évite un import circulaire). */
 const FINDINGS_BASENAME = "findings.json";
+
+const SUMMARY_BASENAME = "summary.txt";
+/** Plafond du résumé de session (octets UTF-8, marqueur compris). */
+const MAX_SUMMARY_BYTES = 8192;
+const SUMMARY_TRUNCATED = "\n[… résumé tronqué]";
 
 const MAX_PROJECTS = 32;
 const MAX_CONTAINERS = 32;
@@ -97,6 +104,46 @@ const validWorkspace = (workspace: unknown): workspace is string =>
 export function projectFindingsPath(configDir: string, projectId: string): string {
   if (!PROJECT_ID.test(projectId)) throw invalidProject();
   return join(configDir, PROJECTS_DIR, projectId, FINDINGS_BASENAME);
+}
+
+/** Chemin du résumé de session. L'id est contrôlé avant tout `join`. */
+export function projectSummaryPath(configDir: string, projectId: string): string {
+  if (!PROJECT_ID.test(projectId)) throw invalidProject();
+  return join(configDir, PROJECTS_DIR, projectId, SUMMARY_BASENAME);
+}
+
+/** Résumé de session du projet. Fichier absent → `""`. Id non UUID → `project.invalid`. */
+export async function readSummary(configDir: string, projectId: string): Promise<string> {
+  const path = projectSummaryPath(configDir, projectId);
+  try {
+    return await readFile(path, "utf8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return "";
+    throw err;
+  }
+}
+
+/**
+ * Remplace le résumé de session du projet (pas d'ajout). Le texte est masqué
+ * (le fichier est un sink) puis plafonné à 8 Kio avec un marqueur de troncature.
+ * Écriture atomique, mode 0o600. Id non UUID → `project.invalid`, sans aucune E/S.
+ */
+export async function writeSummary(
+  configDir: string,
+  projectId: string,
+  text: string,
+): Promise<void> {
+  const path = projectSummaryPath(configDir, projectId);
+  const redacted = createRedactor({})(text);
+  const capped = capOutput(redacted, MAX_SUMMARY_BYTES);
+  const content = capped.truncated
+    ? `${capOutput(redacted, MAX_SUMMARY_BYTES - Buffer.byteLength(SUMMARY_TRUNCATED)).output}${SUMMARY_TRUNCATED}`
+    : capped.output;
+  await mkdir(join(configDir, PROJECTS_DIR, projectId), { recursive: true });
+  const temp = `${path}.${process.pid}.tmp`;
+  await writeFile(temp, content, { encoding: "utf8", mode: 0o600 });
+  await renameWithRetry(temp, path);
+  await chmod(path, 0o600);
 }
 
 /** Projet dont l'id est `activeId`, ou `null` si aucun n'est actif. */
