@@ -27,8 +27,8 @@
     "Cherche les pages qui prennent un paramètre et sentent l'injection",
   ];
   const STATUS = { pending: "en cours", ok: "réussi", error: "erreur", denied: "refusé" };
-  const ICON = { pending: "◌", ok: "✓", error: "✕", denied: "⊘" };
-  const DECISION = { allow: "Autorisé", deny: "Refusé" };
+  const ICON = { pending: "clock", ok: "check", error: "close", denied: "ban" };
+  const svg = (name, className) => globalThis.WarbandIcons.create(name, className);
 
   // --- Markdown : arbre -> nœuds DOM (balises en liste blanche, texte par createTextNode) ---
   function inline(parent, nodes) {
@@ -130,16 +130,17 @@
       else openTools.delete(item.toolUseId);
     });
     const sum = el("summary");
-    const icon = el("span", "icon", ICON[item.status] ?? "");
-    icon.setAttribute("aria-hidden", "true");
+    const icon = svg(ICON[item.status] ?? "tool", "ico icon");
     const before = toolStatus.get(item.toolUseId);
     if (before !== undefined && before !== item.status) icon.classList.add("settled");
     toolStatus.set(item.toolUseId, item.status);
-    sum.append(icon, el("span", "tool-name", item.label));
+    sum.append(
+      svg("chevronRight", "ico tool-chevron"),
+      svg(UI.toolIcon(item.tool), "ico tool-family"),
+      el("span", "tool-name", item.label),
+    );
     if (item.summary) sum.append(el("span", "tool-summary", item.summary));
-    if (item.status === "denied") sum.append(el("span", "badge", DECISION.deny));
-    else if (item.decision === "allow") sum.append(el("span", "badge", DECISION.allow));
-    sum.append(el("span", "sr-only", ` (${STATUS[item.status] ?? item.status})`));
+    sum.append(icon, el("span", "tool-state", STATUS[item.status] ?? item.status));
     box.append(sum);
     const body = el("div", "tool-body");
     body.append(el("div", "label", "Entrée"), el("pre", "", item.input));
@@ -229,7 +230,7 @@
     box.setAttribute("aria-label", `Demande d'autorisation : ${card.label}`);
     // En-tête : icône décorative (aria-hidden) et titre fixe.
     const head = el("div", "card-head");
-    const icon = el("span", "card-icon", "!");
+    const icon = svg("shield", "ico card-icon");
     icon.setAttribute("aria-hidden", "true");
     head.append(icon, el("div", "card-title", "Autorisation requise"));
     // Grille clé/valeur compacte : outil, résumé, raison. Aucune ligne d'environnement (donnée absente).
@@ -495,12 +496,13 @@
     $("learning-badge").hidden = c.learning !== true;
     learningSwitch.setAttribute("aria-checked", String(c.learning === true));
     learningSwitch.setAttribute("aria-disabled", String(c.locked));
-    barLearning.setAttribute("aria-checked", String(c.learning === true));
-    barLearning.setAttribute("aria-disabled", String(c.locked));
     renderBypass();
     ticks.replaceChildren(
       ...levels.map((l) => {
-        const t = el("span", l.value === c.effort ? "on" : l.enabled ? "" : "off", l.label);
+        const t = el("button", l.value === c.effort ? "on" : l.enabled ? "" : "off", l.label);
+        t.type = "button";
+        t.disabled = !l.enabled || c.locked || c.effortDisabled;
+        t.setAttribute("aria-pressed", String(l.value === c.effort));
         if (!l.enabled) t.title = "Non pris en charge par ce modèle";
         else
           t.addEventListener("click", () => {
@@ -527,15 +529,11 @@
   const bypassSwitch = $("bypass-switch");
   // --- Mode Apprentissage (ADR 0010) : le clic n'écrit rien, il envoie le booléen inverse du dernier état reçu.
   const learningSwitch = $("learning-switch");
-  // Barre d'entrée : deux bascules miroirs de celles de Configurer, même état, mêmes gestionnaires.
-  const barLearning = $("bar-learning");
-  const barBypass = $("bar-bypass");
   function toggleLearning() {
     if (!ctl || ctl.locked) return;
     vscode.postMessage({ type: "setLearning", enabled: ctl.learning !== true });
   }
   learningSwitch.addEventListener("click", toggleLearning);
-  barLearning.addEventListener("click", toggleLearning);
   const bypassState = $("bypass-state");
   const bypassBadge = $("bypass-badge");
   /** Dernier message reçu, le précédent, et le drapeau « off ou reset demandé » qui l'a précédé. */
@@ -547,10 +545,8 @@
     // Apprentissage : le Bypass est inopérant pour ce chat (ADR 0010) ; l'état fenêtre-global reste intact.
     const learning = ctl?.learning === true;
     bypassSwitch.setAttribute("aria-disabled", String(learning));
-    barBypass.setAttribute("aria-disabled", String(learning));
     if (learning) {
       bypassSwitch.setAttribute("aria-checked", "false");
-      barBypass.setAttribute("aria-checked", "false");
       bypassState.textContent = "Inopérant en mode Apprentissage";
       document.body.classList.remove("bypass-on");
       bypassBadge.hidden = true;
@@ -559,7 +555,6 @@
     }
     const v = UI.bypassView(bypassCtx.push, bypassCtx.previous, bypassCtx.userOff, Date.now());
     bypassSwitch.setAttribute("aria-checked", String(v.checked));
-    barBypass.setAttribute("aria-checked", String(v.checked));
     bypassState.textContent = v.text;
     document.body.classList.toggle("bypass-on", v.state === "on");
     bypassBadge.hidden = v.badge === null;
@@ -581,7 +576,6 @@
     vscode.postMessage({ type: "setBypass", enabled });
   }
   bypassSwitch.addEventListener("click", toggleBypass);
-  barBypass.addEventListener("click", toggleBypass);
 
   /** Envoi de `reset` : mémorisé pour que l'avis de retombée ne prétende aucune cause. */
   function resetConversation() {

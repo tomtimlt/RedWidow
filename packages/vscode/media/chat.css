@@ -2,9 +2,10 @@
    Spécification : docs/design-chat-ui.md. Animations : transform et opacity seulement. */
 
 /* --- Jetons de design (préfixe --jn-), dérivés du thème (docs/design-chat-ui.md §1) --- */
-/* Marque : rouge du A, acier des ailes, encre blanche. Seules valeurs figées. Le rouge ne signifie jamais un état. */
+/* Marque réservée au logo ; actions et états suivent le thème VS Code. */
 body {
-  --jn-accent: #cc1c40;
+  --jn-brand: #cc1c40;
+  --jn-accent: var(--vscode-textLink-foreground, var(--vscode-button-background));
   --jn-steel: #495f73;
   --jn-ink: #ffffff;
   --jn-s1: 4px;
@@ -28,13 +29,13 @@ body {
   --jn-fs-sm: 12px;
   --jn-fs: var(--vscode-font-size, 13px);
   --jn-fs-lg: 14px;
-  /* Usage : le rouge sert en aplat (envoi, puce active) ; l'acier en filet. L'encre est le texte posé sur le rouge. */
-  --jn-accent-fill: var(--jn-accent);
-  --jn-accent-fill-border: var(--jn-steel);
-  --jn-on-accent: var(--jn-ink);
-  --jn-tint: color-mix(in srgb, var(--jn-accent) 14%, transparent);
+  /* Accent fonctionnel fourni par le thème. */
+  --jn-accent-fill: var(--vscode-button-background);
+  --jn-accent-fill-border: transparent;
+  --jn-on-accent: var(--vscode-button-foreground);
+  --jn-tint: color-mix(in srgb, var(--jn-accent) 12%, transparent);
   /* Teintes d'accent : le texte courant reste ≥ 4,5:1 dessus (contrast.test). */
-  --jn-accent-wash: color-mix(in srgb, var(--jn-accent) 14%, var(--vscode-input-background));
+  --jn-accent-wash: color-mix(in srgb, var(--jn-accent) 12%, var(--vscode-input-background));
   --jn-accent-edge: color-mix(in srgb, var(--jn-accent) 45%, transparent);
   --jn-secondary: var(--jn-steel);
   /* États sémantiques dérivés du thème ; leurs replis ne pointent jamais vers un accent. */
@@ -47,10 +48,10 @@ body {
   );
   --jn-line: var(--vscode-panel-border, color-mix(in srgb, currentColor 20%, transparent));
   --jn-muted: color-mix(in srgb, var(--vscode-foreground) 72%, transparent);
-  --jn-gutter: 16px;
+  --jn-gutter: 20px;
   --jn-row: 28px;
 }
-/* Thème clair : le rouge du A reste lisible en trait (5,7:1 sur blanc). Même acier, teintes un peu plus légères. */
+/* Teintes légères pour le thème clair. */
 body.vscode-light {
   --jn-tint: color-mix(in srgb, var(--jn-accent) 10%, transparent);
   --jn-accent-wash: color-mix(in srgb, var(--jn-accent) 10%, var(--vscode-input-background));
@@ -137,44 +138,37 @@ select {
   transform: rotate(180deg);
 }
 
-/* --- En-tête : bandeau noir, encre blanche, filet d'acier, liseré rouge. --- */
+/* --- En-tête intégré au thème. --- */
 #bar {
   display: flex;
   align-items: center;
   gap: var(--jn-s2);
-  min-height: 36px;
+  min-height: 44px;
   margin-inline: 0;
-  padding: var(--jn-s1) var(--jn-gutter);
+  padding: 6px var(--jn-gutter);
   position: relative;
-  background: black;
-  color: var(--jn-ink);
-  box-shadow: inset 3px 0 0 var(--jn-accent);
+  background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+  color: var(--vscode-foreground);
+  border-bottom: 1px solid var(--jn-line);
 }
 #bar::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 2px;
-  background: var(--jn-steel);
-  opacity: 1;
+  content: none;
 }
 #title {
   display: inline-flex;
   flex: none;
   align-items: center;
   gap: var(--jn-s2);
-  font-size: var(--jn-fs-lg);
+  font-size: var(--jn-fs);
   font-weight: 600;
-  color: var(--jn-ink);
+  color: var(--vscode-foreground);
   white-space: nowrap;
 }
 #bar button.ghost {
-  color: var(--jn-ink);
+  color: var(--jn-muted);
 }
 #bar button.ghost .ico {
-  color: color-mix(in srgb, var(--jn-ink) 78%, transparent);
+  color: currentColor;
 }
 #bar button.ghost:hover:not(:disabled) .ico {
   color: var(--jn-accent);
@@ -246,7 +240,7 @@ select {
   padding: var(--jn-s4) 0;
   display: flex;
   flex-direction: column;
-  gap: var(--jn-s5);
+  gap: 18px;
 }
 #log > * {
   flex-shrink: 0;
@@ -261,19 +255,19 @@ select {
   line-height: 1.55;
 }
 .msg.user {
-  align-self: flex-end;
-  max-width: 85%;
-  padding: 10px 14px;
+  align-self: stretch;
+  max-width: 100%;
+  padding: 12px 14px;
   background: var(--jn-accent-wash);
   border: 1px solid var(--jn-accent-edge);
-  border-radius: var(--jn-r-lg);
+  border-radius: var(--jn-r-md);
   white-space: pre-wrap;
 }
 /* Réponse de l'agent : prose pleine largeur, sans bulle ni liseré. */
 .msg.agent {
   align-self: flex-start;
   max-width: 100%;
-  padding: 0;
+  padding: 0 2px;
   border: 0;
   background: transparent;
   border-radius: 0;
@@ -296,7 +290,7 @@ select {
 }
 .msg-row.user {
   align-self: stretch;
-  flex-direction: row-reverse;
+  flex-direction: row;
 }
 .msg-row.agent {
   align-self: stretch;
@@ -501,22 +495,26 @@ button.example:focus-visible::after {
   align-self: stretch;
   display: flex;
   flex-direction: column;
+  gap: 5px;
   border: 0;
   border-radius: var(--jn-r-md);
   background: transparent;
   overflow: hidden;
 }
 .tool {
-  border-top: 0;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-sm);
+  background: transparent;
+  overflow: hidden;
 }
 .tool:first-child {
-  border-top: 0;
+  border-top: 1px solid var(--jn-line);
 }
 .tool > summary {
   display: flex;
   align-items: center;
   gap: var(--jn-s2);
-  min-height: 30px;
+  min-height: 34px;
   padding: 0 var(--jn-s3) 0 var(--jn-s2);
   cursor: pointer;
   list-style: none;
@@ -534,8 +532,31 @@ button.example:focus-visible::after {
   text-align: center;
   flex: none;
 }
-.tool .icon {
-  font-weight: 600;
+.tool .tool-chevron {
+  width: 12px;
+  height: 12px;
+  color: var(--jn-muted);
+}
+.tool[open] .tool-chevron {
+  transform: rotate(90deg);
+}
+.tool-family {
+  color: var(--jn-muted);
+}
+.tool-state {
+  font-size: var(--jn-fs-xs);
+  color: var(--jn-muted);
+  flex: none;
+}
+@container app (max-width: 419px) {
+  .tool-state {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
 .tool.pending .icon {
   color: var(--jn-accent);
@@ -551,8 +572,9 @@ button.example:focus-visible::after {
   animation: jn-fade-in var(--jn-d1) var(--jn-ease-io) 1;
 }
 .tool-name {
-  font-family: var(--jn-mono);
-  font-weight: 600;
+  font-family: var(--jn-font);
+  font-size: var(--jn-fs-sm);
+  font-weight: 500;
   flex: none;
 }
 .tool-summary {
@@ -566,19 +588,22 @@ button.example:focus-visible::after {
   flex: 1;
 }
 .tool-body {
-  padding: 2px 10px 8px 30px;
+  padding: 8px 12px 12px;
+  border-top: 1px solid var(--jn-line);
 }
-/* La sortie grandit dans le message : pas de seconde barre (ni de page, ni dans la bulle). */
+/* Résultats courts intégrés, sorties longues bornées pour garder le fil navigable. */
 .tool-body pre {
   font-family: var(--jn-mono);
-  max-height: none;
-  overflow: visible;
-  padding: 8px 10px;
+  max-height: 420px;
+  overflow: auto;
+  padding: 10px 12px;
+  font-size: var(--jn-fs-sm);
+  line-height: 1.6;
   background: var(--vscode-textCodeBlock-background);
   border-radius: var(--jn-r-md);
 }
 .label {
-  font-family: var(--jn-mono);
+  font-family: var(--jn-font);
   font-size: var(--jn-fs-xs);
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -615,45 +640,13 @@ body.running #thinking {
   white-space: nowrap;
   text-shadow: none;
 }
-.spin {
-  flex: none;
-  color: var(--jn-accent);
-  font-family: var(--jn-mono);
-  width: 1.1em;
-  height: 1lh;
-  overflow: hidden;
-  line-height: 1.2;
-  text-align: center;
-}
-.spin-strip {
-  display: block;
-  will-change: transform;
-}
-.spin-strip > span {
-  display: block;
-}
-.spin-static {
-  display: none;
-}
-body.waiting .spin {
-  color: var(--jn-warn);
-}
-#thinking .spin-strip {
-  animation: jn-braille 1s steps(10) infinite;
-}
-body.waiting #thinking .spin-strip,
-body.paused #thinking .spin-strip {
-  animation-play-state: paused;
+#thinking .activity-icon {
+  color: var(--jn-muted);
 }
 body.waiting #thinking {
   color: var(--jn-warn);
 }
 
-@keyframes jn-braille {
-  to {
-    transform: translateY(-100%);
-  }
-}
 @keyframes jn-msg-in {
   from {
     opacity: 0;
@@ -864,7 +857,7 @@ button.ghost {
 /* Ghost de la barre et du compositeur : pilule. */
 #bar button.ghost,
 #composer button.ghost {
-  border-radius: 999px;
+  border-radius: var(--jn-r-sm);
 }
 button.ghost .ico {
   color: var(--jn-muted);
@@ -877,19 +870,6 @@ button.link,
 button.copy {
   color: var(--jn-accent);
   min-height: 22px;
-}
-/* Sombre : le rouge du A ne passe pas en texte (2,9:1). Liens et libellés d'accent passent à l'encre. */
-@media not (forced-colors: active) {
-  body:not(.vscode-light):not(.vscode-high-contrast):not(.vscode-high-contrast-light) button.link,
-  body:not(.vscode-light):not(.vscode-high-contrast):not(.vscode-high-contrast-light) button.copy,
-  body:not(.vscode-light):not(.vscode-high-contrast):not(.vscode-high-contrast-light) .cmd,
-  body:not(.vscode-light):not(.vscode-high-contrast):not(.vscode-high-contrast-light)
-    .studio-kicker,
-  body:not(.vscode-light):not(.vscode-high-contrast):not(.vscode-high-contrast-light)
-    .studio-nav-btn.is-current
-    .studio-ico {
-    color: var(--jn-ink);
-  }
 }
 button.ghost:hover:not(:disabled):not([aria-disabled="true"]),
 button.copy:hover:not(:disabled) {
@@ -925,17 +905,17 @@ button:disabled:active {
 /* --- Composer (E1, E2) --- */
 #form {
   flex: none;
-  padding: var(--jn-s1) 0 var(--jn-s3);
+  padding: var(--jn-s2) 0 var(--jn-s4);
 }
 #composer {
   position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--jn-s1);
-  border: 1px solid var(--jn-steel);
+  border: 1px solid var(--vscode-input-border, var(--jn-line));
   border-radius: var(--jn-r-lg);
-  background: var(--vscode-input-background);
-  padding: var(--jn-s3) var(--jn-s3) var(--jn-s2);
+  background: var(--vscode-editorWidget-background, var(--vscode-input-background));
+  padding: 10px 10px 8px;
   transition: border-color var(--jn-d2) var(--jn-ease-io);
 }
 #composer:focus-within {
@@ -967,8 +947,8 @@ textarea::placeholder {
   position: relative;
   display: flex;
   align-items: center;
-  flex-wrap: nowrap;
-  gap: 4px;
+  flex-wrap: wrap;
+  gap: 6px;
   min-width: 0;
 }
 /* Envoyer : cercle ; Stop : carré arrondi léger, danger en trait. */
@@ -980,7 +960,7 @@ textarea::placeholder {
   padding: 0;
 }
 #toolbar #send {
-  border-radius: 999px;
+  border-radius: var(--jn-r-sm);
 }
 #toolbar #stop {
   border-radius: var(--jn-r-sm);
@@ -992,13 +972,23 @@ textarea::placeholder {
   background: color-mix(in srgb, var(--vscode-foreground) 14%, transparent);
   color: var(--vscode-foreground);
 }
+.composer-tools {
+  display: flex;
+  align-items: center;
+  flex: 1 1 100%;
+  gap: 2px;
+}
 #ctl-group {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
-  flex: 0 1 auto;
+  flex: 1 1 100px;
+  max-width: 220px;
+}
+#model-chip {
+  max-width: 100%;
 }
 #ctl-group > * {
   flex: 0 1 auto;
@@ -1092,18 +1082,20 @@ body:not(.running) #toolbar #stop {
   width: min(248px, calc(100vw - 16px));
 }
 #cfg-pop {
-  display: flex;
-  flex-direction: column;
-  gap: var(--jn-s2);
-  width: min(300px, calc(100vw - 16px));
-  max-height: min(var(--jn-maxh, 70vh), 240px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 14px 16px;
+  width: min(440px, calc(100vw - 24px));
+  max-height: var(--jn-maxh, 70vh);
+  padding: 16px;
 }
 .tool-btn {
   width: 28px;
   min-width: 28px;
   height: 28px;
   padding: 0;
-  border-radius: 999px;
+  border-radius: var(--jn-r-sm);
 }
 .cmd-opt {
   display: flex;
@@ -1261,37 +1253,51 @@ body:not(.running) #toolbar #stop {
   border-radius: 999px;
 }
 
-/* Configurer : une seule colonne, groupes séparés par un filet ; « bientôt » en bas. */
+/* Configurer : raisonnement et exécution regroupés dans un menu adaptatif. */
 .cfg-col {
   min-width: 0;
 }
 .cfg-col + .cfg-col {
-  border-top: 1px solid var(--jn-line);
-  padding-top: var(--jn-s2);
+  border-left: 1px solid var(--jn-line);
+  padding-left: 16px;
 }
-.cfg-col h3 {
-  margin: 0 0 var(--jn-s2);
-  font-family: var(--jn-mono);
-  font-size: var(--jn-fs-xs);
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+.cfg-provider,
+.cfg-switch-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cfg-provider {
+  margin: 12px 0 20px;
+  font-size: var(--jn-fs-sm);
   color: var(--jn-muted);
 }
-.cfg-off {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--jn-s2);
-  width: 100%;
-  min-height: 24px;
-  padding: 0 var(--jn-s2);
-  background: var(--vscode-button-secondaryBackground);
-  color: var(--vscode-foreground);
+.cfg-control + .cfg-control {
+  margin-top: 16px;
 }
-.cfg-off em {
+@container app (max-width: 419px) {
+  #cfg-pop {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    padding: 12px;
+  }
+  .cfg-col + .cfg-col {
+    border-left: 0;
+    border-top: 1px solid var(--jn-line);
+    padding-left: 0;
+    padding-top: 16px;
+  }
+}
+.cfg-col h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 var(--jn-s2);
+  font-family: var(--jn-font);
   font-size: var(--jn-fs-xs);
-  font-style: normal;
+  font-weight: 600;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
   color: var(--jn-muted);
 }
 .tip {
@@ -1356,11 +1362,12 @@ body:not(.running) #toolbar #stop {
   opacity: 0;
 }
 #effort-ticks {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 2px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  margin-top: 8px;
 }
-#effort-ticks > span {
+#effort-ticks > button {
   display: flex;
   flex: 1 1 0;
   align-items: center;
@@ -1370,23 +1377,24 @@ body:not(.running) #toolbar #stop {
   padding: 0 1px;
   border: 0;
   border-radius: var(--jn-r-sm);
-  font-size: 10px;
-  line-height: 1;
+  font-size: var(--jn-fs-xs);
+  background: transparent;
+  line-height: 1.3;
   white-space: nowrap;
   cursor: pointer;
   transition:
     color var(--jn-d2) var(--jn-ease-out),
     opacity var(--jn-d2) var(--jn-ease-out);
 }
-#effort-ticks > span:hover {
+#effort-ticks > button:hover {
   color: var(--vscode-foreground);
 }
-#effort-ticks > span.on {
+#effort-ticks > button.on {
   color: var(--vscode-foreground);
-  background: transparent;
+  background: var(--jn-tint);
   font-weight: 600;
 }
-#effort-ticks > span.off {
+#effort-ticks > button.off {
   opacity: 0.4;
   text-decoration: line-through;
   cursor: default;
@@ -1395,35 +1403,6 @@ body:not(.running) #toolbar #stop {
   margin-top: var(--jn-s2);
   font-family: var(--jn-mono);
   font-weight: 600;
-}
-.provider {
-  margin: 0 0 var(--jn-s2);
-  padding: 0;
-  border: 0;
-}
-.provider legend {
-  padding: 0;
-  margin-bottom: 4px;
-  color: var(--jn-muted);
-  font-size: 0.85em;
-}
-.radio {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 0;
-}
-.radio.off {
-  opacity: 0.5;
-}
-.radio em {
-  font-family: var(--jn-mono);
-  font-size: var(--jn-fs-xs);
-  color: var(--jn-muted);
-}
-.radio input {
-  accent-color: var(--jn-accent);
-  margin: 0;
 }
 .facts {
   margin: 0;
@@ -1458,7 +1437,7 @@ body:not(.running) #toolbar #stop {
   top: 0;
   bottom: 0;
   left: 0;
-  width: min(320px, 88vw);
+  width: min(340px, 90vw);
   margin: 0;
   display: flex;
   flex-direction: column;
@@ -1707,42 +1686,14 @@ body.no-provider #composer {
 }
 @container app (max-width: 599px) {
   #model-chip {
-    max-width: 55%;
+    max-width: 100%;
   }
   #cfg-btn {
     flex: none;
   }
 }
-/* Sous 720 px la barre d'outils passe sur deux rangées (sinon les bascules sont écrasées) :
-   boutons d'insertion et envoi en haut, pastilles (modèle, Configurer, bascules) dessous. */
+/* Les outils secondaires ont leur rangée ; modèle et envoi restent lisibles. */
 @container app (max-width: 719px) {
-  #toolbar {
-    flex-wrap: wrap;
-    row-gap: var(--jn-s1);
-  }
-  .spacer {
-    order: 1;
-  }
-  #stop,
-  #send {
-    order: 2;
-  }
-  /* Une seule rangée de pastilles : l'étiquette du modèle absorbe la place, les autres ne rétrécissent pas. */
-  #ctl-group {
-    order: 3;
-    flex: 1 1 100%;
-    flex-wrap: nowrap;
-  }
-  #ctl-group > * {
-    flex: none;
-  }
-  #ctl-group > #model-chip {
-    flex: 1 1 auto;
-    min-width: 0;
-    max-width: none;
-  }
-}
-@container app (max-width: 479px) {
   .cfg-level {
     display: none;
   }
@@ -1755,12 +1706,6 @@ body.no-provider #composer {
   body ::after {
     animation: none !important;
     transition: none !important;
-  }
-  .spin {
-    display: none;
-  }
-  .spin-static {
-    display: inline;
   }
 }
 @media (forced-colors: active) {
@@ -1780,12 +1725,6 @@ body.no-provider #composer {
   body ::after {
     animation: none !important;
     transition: none !important;
-  }
-  .spin {
-    display: none;
-  }
-  .spin-static {
-    display: inline;
   }
   button,
   .chip,
@@ -1847,16 +1786,6 @@ body.reduce-motion ::before,
 body.reduce-motion ::after {
   animation: none !important;
   transition: none !important;
-}
-body.vscode-high-contrast .spin,
-body.vscode-high-contrast-light .spin,
-body.reduce-motion .spin {
-  display: none;
-}
-body.vscode-high-contrast .spin-static,
-body.vscode-high-contrast-light .spin-static,
-body.reduce-motion .spin-static {
-  display: inline;
 }
 body.vscode-high-contrast #bar,
 body.vscode-high-contrast-light #bar {
@@ -1946,7 +1875,8 @@ body.bypass-on #composer {
   width: 100%;
   min-height: 28px;
   padding: 0 var(--jn-s2);
-  background: var(--vscode-button-secondaryBackground);
+  background: transparent;
+  border: 0;
   color: var(--vscode-foreground);
 }
 #bypass-switch::after,
@@ -2038,7 +1968,7 @@ body.cockpit #main {
   padding: var(--jn-s3) 0 var(--jn-s5);
   display: flex;
   flex-direction: column;
-  gap: var(--jn-s5);
+  gap: 28px;
 }
 @container app (min-width: 600px) {
   body.cockpit #main {
@@ -2066,11 +1996,11 @@ body.cockpit section {
   align-items: center;
   gap: var(--jn-s2);
   margin: 0;
-  font-family: var(--jn-mono);
+  font-family: var(--jn-font);
   font-size: var(--jn-fs-xs);
   font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--jn-muted);
 }
 .cockpit-count {
@@ -2109,35 +2039,80 @@ body.cockpit .cockpit-row.is-running > .dot {
   background: var(--jn-ok);
 }
 
-/* Tuiles de santé : grille fluide, 2 à 4 colonnes selon la largeur. */
+/* Santé : petits indicateurs lisibles, sans quatre grandes cartes. */
 .cockpit-tiles {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: var(--jn-s2);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
 }
 .cockpit-tile {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  display: flex;
   align-items: center;
-  column-gap: var(--jn-s2);
-  row-gap: 2px;
-  padding: var(--jn-s3);
-  border: 1px solid var(--jn-line);
-  border-radius: var(--jn-r-md);
-  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  gap: 6px;
+  font-size: var(--jn-fs-sm);
 }
 .cockpit-tile-label {
-  font-family: var(--jn-mono);
-  font-size: var(--jn-fs-xs);
   color: var(--jn-muted);
 }
 .cockpit-tile strong {
-  grid-column: 2;
-  font-family: var(--jn-mono);
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font: inherit;
+}
+.cockpit-context {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+}
+.cockpit-context-details > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: var(--jn-muted);
+  list-style: none;
+}
+.cockpit-context-details > summary::-webkit-details-marker {
+  display: none;
+}
+.cockpit-context-details[open] .ico {
+  transform: rotate(90deg);
+}
+.cockpit-context-details .cockpit-meta {
+  margin-top: 12px;
+}
+.cockpit-create-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.cockpit-row-toggle {
+  flex: none;
+  padding: 0;
+  min-width: 24px;
+  min-height: 24px;
+  background: transparent;
+  color: var(--jn-muted);
+}
+.cockpit-row-toggle[aria-expanded="true"] .ico {
+  transform: rotate(90deg);
+}
+.cockpit-row-details {
+  flex: 1 0 100%;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  padding: 8px 0 4px 32px;
+  border-top: 1px solid var(--jn-line);
+  color: var(--jn-muted);
+  font-size: var(--jn-fs-sm);
+  overflow-wrap: anywhere;
+}
+.cockpit-row-workspace {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .cockpit-tile.tone-err {
   border-color: color-mix(in srgb, var(--jn-err) 50%, var(--jn-line));
@@ -2150,18 +2125,18 @@ body.cockpit .cockpit-row.is-running > .dot {
   gap: var(--jn-s3);
   padding: var(--jn-s4);
   border: 1px solid var(--jn-line);
-  border-left: 2px solid var(--jn-muted);
+  border-left: 1px solid var(--jn-line);
   border-radius: var(--jn-r-lg);
   background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
 }
 .cockpit-hero.tone-ok {
-  border-left-color: var(--jn-ok);
+  border-left-color: var(--jn-line);
 }
 .cockpit-hero.tone-warn {
-  border-left-color: var(--jn-warn);
+  border-left-color: var(--jn-line);
 }
 .cockpit-hero.tone-err {
-  border-left-color: var(--jn-err);
+  border-left-color: var(--jn-line);
 }
 .cockpit-linked-head {
   display: flex;
@@ -2171,7 +2146,7 @@ body.cockpit .cockpit-row.is-running > .dot {
 }
 .cockpit-hero-name {
   flex: 1;
-  font-family: var(--jn-mono);
+  font-family: var(--jn-font);
   font-size: var(--jn-fs-lg);
   font-weight: 600;
 }
@@ -2184,9 +2159,9 @@ body.cockpit .cockpit-row.is-running > .dot {
   padding: 0 10px;
   border: 1px solid var(--jn-line);
   border-radius: var(--jn-r-sm);
-  background: var(--vscode-button-secondaryBackground);
+  background: transparent;
   color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
-  font-family: var(--jn-mono);
+  font-family: var(--jn-font);
   font-size: var(--jn-fs-sm);
   font-weight: 600;
 }
@@ -2244,6 +2219,12 @@ body.cockpit .cockpit-row.is-running > .dot {
 .cockpit-field select:disabled {
   opacity: 0.5;
 }
+.cockpit-create {
+  padding: 16px;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+  background: var(--vscode-editorWidget-background, transparent);
+}
 .cockpit-create .cockpit-actions {
   align-items: center;
 }
@@ -2287,13 +2268,14 @@ body.cockpit .cockpit-row.is-running > .dot {
 }
 .cockpit-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--jn-s3);
-  min-height: 52px;
+  min-height: 48px;
   padding: var(--jn-s2) var(--jn-s3);
   border-radius: var(--jn-r-md);
   border: 1px solid var(--jn-line);
-  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  background: transparent;
   transition:
     background-color var(--jn-d1) var(--jn-ease-io),
     border-color var(--jn-d1) var(--jn-ease-io);
@@ -2315,7 +2297,7 @@ body.cockpit .cockpit-row.is-running > .dot {
   min-width: 0;
 }
 .cockpit-row-name {
-  font-family: var(--jn-mono);
+  font-family: var(--jn-font);
   font-weight: 600;
 }
 .cockpit-row-sub {
@@ -2363,12 +2345,12 @@ body.cockpit .cockpit-row.is-running > .dot {
   height: 18px;
   padding: 0 8px;
   border-radius: var(--jn-r-sm);
-  background: var(--jn-accent-fill);
+  background: var(--jn-tint);
   border: 1px solid var(--jn-accent-fill-border);
-  color: var(--jn-on-accent);
-  font-family: var(--jn-mono);
+  color: var(--vscode-foreground);
+  font-family: var(--jn-font);
   font-size: var(--jn-fs-xs);
-  font-weight: 600;
+  font-weight: 500;
 }
 .cockpit-linked-tag.is-primary {
   border-color: var(--jn-accent);
@@ -2392,7 +2374,7 @@ body.studio {
 }
 .studio-shell {
   display: grid;
-  grid-template-columns: 200px minmax(0, 1fr);
+  grid-template-columns: 204px minmax(0, 1fr);
   height: 100%;
   min-height: 0;
 }
@@ -2497,11 +2479,11 @@ body.killchain-full .kc-empty {
   display: flex;
   align-items: center;
   gap: var(--jn-s2);
-  font-family: var(--jn-mono);
+  font-family: var(--jn-font);
   font-size: var(--jn-fs-xs);
   font-weight: 600;
   letter-spacing: 0.06em;
-  text-transform: uppercase;
+  text-transform: none;
   color: var(--jn-muted);
   padding: var(--jn-s2);
 }
@@ -2513,11 +2495,11 @@ body.killchain-full .kc-empty {
 .studio-group-title {
   margin: 0;
   padding: var(--jn-s1) var(--jn-s2);
-  font-family: var(--jn-mono);
+  font-family: var(--jn-font);
   font-size: var(--jn-fs-xs);
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.035em;
   color: var(--jn-muted);
 }
 .studio-nav-btn {
@@ -2529,7 +2511,7 @@ body.killchain-full .kc-empty {
   text-align: left;
   background: transparent;
   color: var(--vscode-foreground);
-  border-left: 2px solid transparent;
+  border-left: 1px solid transparent;
   border-radius: var(--jn-r-sm);
 }
 .studio-nav-btn:hover:not(:disabled) {
@@ -2537,10 +2519,10 @@ body.killchain-full .kc-empty {
 }
 .studio-nav-btn.is-current,
 .studio-nav-btn.is-current:hover:not(:disabled) {
-  background: var(--jn-tint);
-  color: var(--vscode-foreground);
+  background: var(--vscode-list-activeSelectionBackground, var(--jn-tint));
+  color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
   border-left-color: var(--jn-accent);
-  font-weight: 600;
+  font-weight: 500;
 }
 .studio-ico {
   flex: none;
@@ -2568,18 +2550,18 @@ body.killchain-full .kc-empty {
 #studio-main {
   min-width: 0;
   overflow: auto;
-  padding: var(--jn-s4);
+  padding: 28px 32px;
 }
 .studio-card {
-  max-width: 720px;
+  max-width: 880px;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--jn-s3);
-  border: 1px solid var(--jn-line);
+  gap: 16px;
+  border: 0;
   border-radius: var(--jn-r-lg);
-  padding: var(--jn-s5);
-  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  padding: 0;
+  background: transparent;
   overflow-wrap: anywhere;
   animation: jn-msg-in var(--jn-d2) var(--jn-ease-out) 1 both;
 }
@@ -2594,7 +2576,7 @@ body.studio .studio-card h2 {
 }
 .studio-kicker {
   margin: 0;
-  font-family: var(--jn-mono);
+  font-family: var(--jn-font);
   font-size: var(--jn-fs-xs);
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -2603,7 +2585,7 @@ body.studio .studio-card h2 {
 }
 .studio-name {
   margin: 0;
-  font-family: var(--jn-mono);
+  font-family: var(--jn-font);
   font-size: 1.15em;
   font-weight: 600;
 }
@@ -2620,6 +2602,19 @@ body.studio .studio-dl dt {
 body.studio .studio-dl dd {
   margin: 0;
   font-weight: 600;
+}
+.studio-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.studio-section-head h2 {
+  margin: 0;
+}
+.studio-row .dot.is-running {
+  background: var(--jn-ok);
 }
 .studio-rows {
   list-style: none;
@@ -3060,6 +3055,9 @@ body.studio .studio-dl dd {
   .studio-shell {
     grid-template-columns: minmax(0, 1fr);
   }
+  #studio-main {
+    padding: 20px 16px;
+  }
   #studio-nav {
     flex-direction: row;
     flex-wrap: wrap;
@@ -3286,7 +3284,7 @@ body.mode-watch .mon-out {
 }
 .brand-lead,
 .brand-cursor {
-  fill: var(--jn-accent);
+  fill: var(--jn-brand);
 }
 
 /* Résumé de projet : champ de saisie visible et repère clavier dans les réglages. */

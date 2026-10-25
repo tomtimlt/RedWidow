@@ -1,4 +1,4 @@
-// Webview cockpit : état système et conteneurs Exegol. DOM sûr (textContent), pas de réseau.
+// Webview cockpit : état système et conteneurs. DOM sûr (textContent), pas de réseau.
 (() => {
   const vscode = acquireVsCodeApi();
   const main = document.getElementById("main");
@@ -33,45 +33,13 @@
     node.textContent = t.length > max ? `${t.slice(0, max - 1)}…` : t;
   };
 
-  // Icônes au trait (SVG construit nœud par nœud, jamais de HTML injecté).
-  const SVG_NS = "http://www.w3.org/2000/svg";
-  const ICON_PATHS = {
-    terminal: ["m5 8 4 4-4 4", "M12 17h7"],
-    folder: ["M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"],
-    play: ["M8 5.5v13l10.5-6.5z"],
-    stop: ["M7 7h10v10H7z"],
-    link: [
-      "M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1",
-      "M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1",
-    ],
-  };
-  const icon = (name) => {
-    const svg = document.createElementNS(SVG_NS, "svg");
-    for (const [k, v] of [
-      ["class", "ico"],
-      ["viewBox", "0 0 24 24"],
-      ["width", "16"],
-      ["height", "16"],
-      ["fill", "none"],
-      ["stroke", "currentColor"],
-      ["stroke-width", "2"],
-      ["stroke-linecap", "round"],
-      ["stroke-linejoin", "round"],
-      ["aria-hidden", "true"],
-    ]) {
-      svg.setAttribute(k, v);
-    }
-    for (const d of ICON_PATHS[name] ?? []) {
-      const path = document.createElementNS(SVG_NS, "path");
-      path.setAttribute("d", d);
-      svg.append(path);
-    }
-    return svg;
-  };
+  const icon = (name) => window.WarbandIcons.create(name, { className: "ico" });
 
   const button = (cls, label, iconName, onClick) => {
     const b = el("button", cls);
     b.type = "button";
+    b.setAttribute("aria-label", label);
+    b.title = label;
     if (iconName) b.append(icon(iconName));
     b.append(el("span", "btn-text", label));
     if (onClick) b.addEventListener("click", onClick);
@@ -99,6 +67,7 @@
 
   // État du formulaire, hors du DOM : un rafraîchissement reconstruit la vue sans l'effacer.
   const form = {
+    open: false,
     touched: false,
     engine: null,
     name: "",
@@ -108,6 +77,7 @@
     imagesAsked: false,
   };
   let lastView = null;
+  const expandedRows = new Set();
 
   const engineOf = (view) => {
     if (view.exegol !== "present") return "kali";
@@ -150,6 +120,7 @@
   function renderCreate(view) {
     const engine = engineOf(view);
     const section = el("section", "cockpit-create");
+    section.id = "cockpit-create";
     section.setAttribute("aria-label", "Créer un conteneur");
     section.append(heading("Créer un conteneur"));
 
@@ -171,6 +142,7 @@
 
     const fields = el("div", "cockpit-fields");
     const nameInput = el("input");
+    nameInput.id = "cockpit-name";
     nameInput.type = "text";
     nameInput.value = form.name;
     nameInput.spellcheck = false;
@@ -235,7 +207,7 @@
       return;
     }
 
-    // 1. Santé du système : quatre tuiles colorées, lisibles d'un coup d'œil.
+    // État compact du système et de la liaison au projet.
     const status = el("section", "cockpit-status");
     status.setAttribute("aria-label", "État système");
     const grid = el("div", "cockpit-tiles");
@@ -251,7 +223,7 @@
       tile(
         "Exegol",
         view.exegol === "present" ? "présent" : "absent",
-        view.exegol === "present" ? "ok" : "err",
+        view.exegol === "present" ? "ok" : "off",
       ),
       tile("Conteneur lié", linkedLine(view.linked), linkedTone),
     );
@@ -267,7 +239,7 @@
       main.append(el("p", "cockpit-error", view.error));
     }
 
-    // 2. Conteneur lié : carte principale, actions en tête de lecture.
+    // Contexte du projet et commandes du conteneur affiché.
     const linkedSec = el("section", "cockpit-linked");
     linkedSec.setAttribute("aria-label", "Conteneur lié");
     linkedSec.append(heading("Conteneur lié"));
@@ -282,7 +254,7 @@
     } else {
       const b = view.linkedBanner;
       const tone = { running: "ok", stopped: "warn", absent: "err" }[b.state] ?? "off";
-      const card = el("div", `cockpit-hero tone-${tone}`);
+      const card = el("div", `cockpit-context tone-${tone}`);
       const head = el("div", "cockpit-linked-head");
       const name = el("strong", "cockpit-ellipsis cockpit-hero-name");
       ellipsize(name, b.short || b.name);
@@ -300,18 +272,35 @@
       const hasRunningLinked = (view.containers ?? []).some(
         (c) => c.linked && c.state === "running",
       );
-      if (!hasRunningLinked || view.projectInvalid) termBtn.disabled = true;
+      if (!hasRunningLinked || view.projectInvalid) {
+        termBtn.disabled = true;
+        termBtn.title = view.projectInvalid ? "Projet invalide" : "Aucun conteneur lié en cours";
+      }
       actions.append(termBtn);
       actions.append(
         button("secondary", "Ouvrir le dossier", "folder", () =>
           vscode.postMessage({ type: "openWorkspace" }),
         ),
       );
-      card.append(head, meta, actions);
+      const details = el("details", "cockpit-context-details");
+      const summary = el("summary", "", "Dossier et image");
+      details.append(summary, meta);
+      card.append(head, actions, details);
       linkedSec.append(card);
     }
     main.append(linkedSec);
-    main.append(renderCreate(view));
+    const createBar = el("div", "cockpit-create-bar");
+    const createToggle = button("secondary", "Nouveau conteneur", "plus", () => {
+      form.open = !form.open;
+      rerender();
+      document.getElementById(form.open ? "cockpit-name" : "cockpit-create-toggle")?.focus();
+    });
+    createToggle.id = "cockpit-create-toggle";
+    createToggle.setAttribute("aria-expanded", String(form.open));
+    createToggle.setAttribute("aria-controls", "cockpit-create");
+    createBar.append(createToggle);
+    main.append(createBar);
+    if (form.open) main.append(renderCreate(view));
 
     if (view.error) return;
 
@@ -320,7 +309,7 @@
       return;
     }
 
-    // 3. Tous les conteneurs : une carte par ligne, état coloré à gauche, actions à droite.
+    // Lignes compactes et détails repliables conservés entre actualisations.
     const rows = view.containers ?? [];
     const listSec = el("section", "cockpit-list");
     listSec.setAttribute("aria-label", "Conteneurs");
@@ -329,7 +318,24 @@
     const ul = el("ul", "cockpit-rows");
     for (const row of rows) {
       const li = el("li", `cockpit-row ${row.state === "running" ? "is-running" : "is-stopped"}`);
-      li.append(el("span", "dot"));
+      const details = el("div", "cockpit-row-details");
+      details.id = `cockpit-details-${ul.children.length}`;
+      details.hidden = !expandedRows.has(row.name);
+      const toggle = button(
+        "ghost cockpit-row-toggle",
+        `Détails de ${row.short || row.name}`,
+        "chevronRight",
+        () => {
+          details.hidden = !details.hidden;
+          if (details.hidden) expandedRows.delete(row.name);
+          else expandedRows.add(row.name);
+          toggle.setAttribute("aria-expanded", String(!details.hidden));
+        },
+      );
+      toggle.setAttribute("aria-controls", details.id);
+      toggle.setAttribute("aria-expanded", String(!details.hidden));
+      toggle.querySelector(".btn-text")?.remove();
+      li.append(toggle, el("span", "dot"));
       const mainCol = el("div", "cockpit-row-main");
       const top = el("div", "cockpit-row-top");
       const n = el("span", "cockpit-ellipsis cockpit-row-name");
@@ -338,7 +344,7 @@
       if (row.linked) {
         top.append(
           row.primary
-            ? el("span", "cockpit-linked-tag is-primary", "PRIMARY")
+            ? el("span", "cockpit-linked-tag is-primary", "Principal")
             : el("span", "cockpit-linked-tag", "lié"),
         );
       }
@@ -367,7 +373,7 @@
         const linkBtn = button("secondary", "Lier", "link");
         if (!row.canLink) {
           linkBtn.disabled = true;
-          if (row.linkTitle) linkBtn.title = row.linkTitle;
+          linkBtn.title = row.linkTitle || "Association indisponible";
         } else {
           linkBtn.addEventListener("click", () =>
             vscode.postMessage({ type: "link", name: row.name }),
@@ -388,7 +394,14 @@
           ),
         );
       }
-      li.append(act);
+      const workspace = el("span", "cockpit-row-workspace");
+      workspace.textContent = row.workspace ?? "Sans dossier hôte";
+      details.append(
+        el("span", "cockpit-muted", row.name),
+        el("span", "cockpit-row-image", row.image),
+        workspace,
+      );
+      li.append(act, details);
       ul.append(li);
     }
     listSec.append(ul);

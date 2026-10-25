@@ -94,6 +94,11 @@ describe("réglages", () => {
     expect(parseStudioMessage({ type: "send", text: "x" })).toBeNull();
   });
 
+  it("openCockpit ouvre la vue de gestion sans accepter de commande arbitraire", () => {
+    expect(parseStudioMessage({ type: "openCockpit" })).toEqual({ type: "openCockpit" });
+    expect(parseStudioMessage({ type: "openCockpit", command: "docker stop" })).toBeNull();
+  });
+
   it("openCours : sans aucun champ (le chemin vient de l'hôte)", () => {
     expect(parseStudioMessage({ type: "openCours" })).toEqual({ type: "openCours" });
     expect(parseStudioMessage({ type: "openCours", path: "/etc" })).toBeNull();
@@ -165,7 +170,7 @@ describe("navigation en deux groupes", () => {
     expect([...keys].sort()).toEqual([...STUDIO_PAGES].sort());
     for (const [key, label, icon] of studio.STUDIO_GROUPS.flatMap((g) => g.pages)) {
       expect(label).toBe(studioLabel(key as (typeof STUDIO_PAGES)[number]));
-      expect(icon.length).toBeGreaterThan(0);
+      expect(["project", "container", "graph", "book", "server"]).toContain(icon);
     }
   });
 
@@ -231,9 +236,14 @@ describe("compteur Kill chain", () => {
 describe("feuille des réglages", () => {
   const css = read(chatCss);
 
-  it("groupes en capitales, teinte et filet d'accent sur l'entrée courante", () => {
+  it("groupes en capitales, sélection neutre et indicateur d’entrée courante", () => {
     expect(css).toMatch(/\.studio-group-title \{[^}]*text-transform: uppercase/);
-    expect(css).toMatch(/\.studio-nav-btn\.is-current,[^{]*\{[^}]*background: var\(--jn-tint\)/);
+    expect(css).toMatch(
+      /\.studio-nav-btn\.is-current,[^{]*\{[^}]*background: var\(--vscode-list-activeSelectionBackground/,
+    );
+    expect(css).toMatch(
+      /\.studio-nav-btn\.is-current,[^{]*\{[^}]*color: var\(--vscode-list-activeSelectionForeground/,
+    );
     expect(css).toMatch(
       /\.studio-nav-btn\.is-current,[^{]*\{[^}]*border-left-color: var\(--jn-accent\)/,
     );

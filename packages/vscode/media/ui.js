@@ -8,6 +8,15 @@
   const KALI_PREFIX = "mcp__kali__";
   const MONITOR_MAX_ROWS = 200;
 
+  /** Famille visuelle d'un outil, sans interpréter son entrée ni sa sortie. */
+  function toolIcon(tool) {
+    if (typeof tool !== "string") return "tool";
+    if (tool === EXEC_TOOL || tool === "Bash" || tool.startsWith(KALI_PREFIX)) return "terminal";
+    if (["Grep", "Glob", "WebSearch"].includes(tool)) return "search";
+    if (["Read", "Write", "Edit", "MultiEdit"].includes(tool)) return "file";
+    return "tool";
+  }
+
   /** Badge d'une ligne d'historique : « en cours » seulement pour la conversation courante si elle tourne. */
   function historyBadge(entry, running) {
     if (!entry?.current) return null;
@@ -363,6 +372,7 @@
 
   const api = {
     EXEC_TOOL,
+    toolIcon,
     bypassView,
     historyBadge,
     monitorRows,

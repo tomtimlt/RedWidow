@@ -24,6 +24,7 @@ interface UiApi {
   ): string[];
   activityLabel(v: { busy: boolean; approvals: unknown[]; items: unknown[] }): string;
   EXEC_TOOL: string;
+  toolIcon(tool: unknown): string;
   historyBadge(entry: { current: boolean }, running: boolean): string | null;
   monitorRows(view: unknown): MonitorRow[];
   inputRecall(
@@ -549,5 +550,16 @@ describe("bypassView (lot B1, ADR 0006) : cinq états, échec fermé, pas de min
     const src = readFileSync(fileURLToPath(new URL("../media/ui.js", import.meta.url)), "utf8");
     const body = src.slice(src.indexOf("function bypassEffective"), src.indexOf("const api = {"));
     expect(body).not.toMatch(/Date\.now|setInterval|setTimeout|requestAnimationFrame/);
+  });
+});
+
+describe("icônes des familles d’outils", () => {
+  it("utilise des familles connues et une icône neutre pour les outils inconnus", () => {
+    expect(ui.toolIcon(EXEGOL_EXEC_TOOL)).toBe("terminal");
+    expect(ui.toolIcon("mcp__kali__nmap_scan")).toBe("terminal");
+    expect(ui.toolIcon("Grep")).toBe("search");
+    expect(ui.toolIcon("Read")).toBe("file");
+    expect(ui.toolIcon("inconnu")).toBe("tool");
+    expect(ui.toolIcon(null)).toBe("tool");
   });
 });

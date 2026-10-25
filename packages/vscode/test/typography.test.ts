@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 /**
- * Typographie et composants (design-chat-ui.md §1.4 et §5, lot D4) : règles vérifiables de `media/chat.css`,
+ * Typographie et composants (docs/design-interface-2026.md) : règles vérifiables de `media/chat.css`,
  * partagée par le chat, le cockpit et les réglages.
  */
 const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
@@ -77,13 +77,13 @@ describe("typographie (§1.4)", () => {
     expect(css).toMatch(/--jn-mono: var\(--vscode-editor-font-family/);
   });
 
-  it("graisses : 400 et 600 seulement", () => {
+  it("graisses lisibles : 400, 500 et 600", () => {
     let seen = 0;
     for (const r of rules) {
       for (const [k, v] of decls(r)) {
         if (k !== "font-weight") continue;
         seen++;
-        expect(["400", "600"], `${r.selectors.join(", ")} : ${v}`).toContain(v);
+        expect(["400", "500", "600"], `${r.selectors.join(", ")} : ${v}`).toContain(v);
       }
     }
     expect(seen).toBeGreaterThan(10);
@@ -102,7 +102,7 @@ describe("typographie (§1.4)", () => {
     expect(seen).toBeGreaterThan(0);
   });
 
-  it("mono pour le code, les noms d'outils, le modèle, les compteurs et les étiquettes", () => {
+  it("mono pour le code, les commandes, les identifiants et les compteurs", () => {
     const mono = [
       // code
       "code",
@@ -112,7 +112,6 @@ describe("typographie (§1.4)", () => {
       ".mon-out",
       ".cmd",
       // noms d'outils et identifiants (le chrome des pastilles reste en police d'interface)
-      ".tool-name",
       ".tool-summary",
       ".opt-label",
       ".effort-now",
@@ -123,44 +122,39 @@ describe("typographie (§1.4)", () => {
       ".hist-meta",
       // étiquettes d'état et clés
       ".card-key",
-      ".cockpit-pill",
-      ".cockpit-linked-tag",
-      ".cockpit-tile-label",
-      ".cockpit-tile strong",
       ".cockpit-row-state",
-      ".cockpit-row-name",
-      ".cockpit-hero-name",
       ".cockpit-row-image",
       ".kc-node-meta",
       ".studio-node-meta",
-      ".studio-name",
-      ".radio em",
     ];
     for (const sel of mono) {
       expect(has(sel, "font-family", "var(--jn-mono)"), `${sel} en mono`).toBe(true);
     }
   });
 
-  it("en-têtes de section : mono, petites capitales, xs, interlettrage .06em", () => {
-    const heads = [
-      ".codehead",
+  it("titres et noms d’interface utilisent la police du thème", () => {
+    for (const sel of [
+      ".tool-name",
       ".label",
-      ".grp-head",
       ".cfg-col h3",
       ".cockpit-h",
       ".studio-nav-title",
       ".studio-group-title",
       ".studio-kicker",
-      ".studio-kc-head",
-    ];
-    for (const sel of heads) {
-      expect(has(sel, "font-family", "var(--jn-mono)"), `${sel} mono`).toBe(true);
-      expect(has(sel, "text-transform", "uppercase"), `${sel} capitales`).toBe(true);
-      expect(has(sel, "font-size", "var(--jn-fs-xs)"), `${sel} xs`).toBe(true);
-      expect(has(sel, "letter-spacing", "0.06em"), `${sel} interlettrage`).toBe(true);
+      ".studio-name",
+      ".cockpit-row-name",
+      ".cockpit-hero-name",
+      ".cockpit-pill",
+      ".cockpit-linked-tag",
+    ]) {
+      expect(has(sel, "font-family", "var(--jn-font)"), sel).toBe(true);
     }
+    for (const sel of [".label", ".cfg-col h3", ".studio-kicker"]) {
+      expect(has(sel, "font-size", "var(--jn-fs-xs)"), sel).toBe(true);
+      expect(has(sel, "text-transform", "uppercase"), sel).toBe(true);
+    }
+    expect(has(".cockpit-h", "text-transform", "none")).toBe(true);
   });
-
   it("prose, pastilles et boutons hors code restent dans la police d'interface", () => {
     expect(has("body", "font-family", "var(--jn-font)")).toBe(true);
     for (const sel of [
@@ -193,8 +187,10 @@ describe("typographie (§1.4)", () => {
 });
 
 describe("composants (§5)", () => {
-  it("aucun usage du bleu des liens du thème (textLink)", () => {
-    expect(css).not.toContain("textLink");
+  it("accent courant dérivé des liens du thème", () => {
+    expect(css).toContain(
+      "--jn-accent: var(--vscode-textLink-foreground, var(--vscode-button-background))",
+    );
   });
 
   it("liens et actions secondaires : texte d'accent, jamais de fond bleu", () => {
@@ -260,27 +256,19 @@ describe("composants (§5)", () => {
     ).toBe(true);
   });
 
-  it("pilules du chat : rayon plein ; Stop, compositeur et messages inchangés", () => {
+  it("contrôles compacts à rayon sm et compositeur à rayon lg", () => {
     for (const sel of [
       "#toolbar #send",
+      "#toolbar #stop",
       "#bar button.ghost",
       "#composer button.ghost",
-      ".chip",
       ".tool-btn",
-      "#models-refresh",
-      ".cmd-opt",
-      ".chip-switch .sw-dot",
-      "#bypass-switch::before",
-      "#learning-switch::before",
     ]) {
-      expect(has(sel, "border-radius", "999px"), sel).toBe(true);
+      expect(has(sel, "border-radius", "var(--jn-r-sm)"), sel).toBe(true);
     }
-    expect(has("#toolbar #stop", "border-radius", "var(--jn-r-sm)")).toBe(true);
     expect(has("#composer", "border-radius", "var(--jn-r-lg)")).toBe(true);
-    expect(has(".msg", "border-radius", "var(--jn-r-lg)")).toBe(true);
-    expect(has(".msg.user", "border-radius", "var(--jn-r-lg)")).toBe(true);
+    expect(has(".msg.user", "border-radius", "var(--jn-r-md)")).toBe(true);
   });
-
   it("curseur d'effort : piste --jn-line, partie remplie --jn-accent-fill, pouce carré", () => {
     expect(has("#effort-dot-lane::before", "background", "var(--jn-line)")).toBe(true);
     expect(has("#effort-dot-lane::after", "background", "var(--jn-accent-fill)")).toBe(true);
@@ -322,20 +310,16 @@ describe("composants (§5)", () => {
 });
 
 describe("débordement à 280 px : barre d'outils du composer", () => {
-  it("sous 720 px, la barre d'outils passe sur deux rangées et le groupe de pastilles prend toute la ligne", () => {
-    const within = "@container app (max-width: 719px)";
-    expect(has("#toolbar", "flex-wrap", "wrap", within)).toBe(true);
-    expect(has("#ctl-group", "flex", "1 1 100%", within)).toBe(true);
-    expect(has("#ctl-group", "order", "3", within)).toBe(true);
-    expect(has("#send", "order", "2", within)).toBe(true);
+  it("les outils secondaires ont leur rangée, le modèle et les actions restent groupés", () => {
+    expect(has("#toolbar", "flex-wrap", "wrap")).toBe(true);
+    expect(has(".composer-tools", "flex", "1 1 100%")).toBe(true);
+    expect(has("#ctl-group", "flex", "1 1 100px")).toBe(true);
   });
 
-  it("sous 720 px, les quatre pastilles tiennent sur une rangée : le modèle absorbe la place, les autres ne rétrécissent pas", () => {
-    const within = "@container app (max-width: 719px)";
-    expect(has("#ctl-group", "flex-wrap", "nowrap", within)).toBe(true);
-    expect(has("#ctl-group > *", "flex", "none", within)).toBe(true);
-    expect(has("#ctl-group > #model-chip", "flex", "1 1 auto", within)).toBe(true);
-    expect(has("#ctl-group > #model-chip", "min-width", "0", within)).toBe(true);
+  it("le modèle peut rétrécir et reste borné à la largeur disponible", () => {
+    expect(has("#ctl-group", "min-width", "0")).toBe(true);
+    expect(has("#model-chip", "max-width", "100%")).toBe(true);
+    expect(has("#ctl-group > *", "min-width", "0")).toBe(true);
   });
 
   it("le groupe de pastilles peut passer à la ligne et ses enfants rétrécir", () => {
@@ -391,14 +375,10 @@ describe("défilement du chat", () => {
     expect(has("#form", "flex", "none")).toBe(true);
   });
 
-  it("la sortie d'outil grandit dans le message, sans max-height ni overflow auto", () => {
-    expect(has(".tool-body pre", "max-height", "none")).toBe(true);
-    expect(has(".tool-body pre", "overflow", "visible")).toBe(true);
-    const rule = rules.find((r) => r.selectors.includes(".tool-body pre"));
-    expect(rule?.body).not.toMatch(/overflow:\s*auto/);
-    expect(rule?.body).not.toMatch(/max-height:\s*14em/);
+  it("les longues sorties d’outil défilent dans une zone bornée", () => {
+    expect(has(".tool-body pre", "max-height", "420px")).toBe(true);
+    expect(has(".tool-body pre", "overflow", "auto")).toBe(true);
   });
-
   it("Kill chain plein éditeur : la page remplit la webview, le viewport partage la rangée avec le panneau légende", () => {
     expect(has("body.killchain-full .studio-kc-page", "height", "100%")).toBe(true);
     expect(has("body.killchain-full .studio-kc", "height", "100%")).toBe(true);

@@ -8,6 +8,7 @@ const opts = {
   nonce: "abc123_-XYZ",
   cspSource: "https://x.vscode-cdn.net",
   scriptUri: "https://x.vscode-cdn.net/media/chat.js",
+  iconsUri: "https://x.vscode-cdn.net/media/icons.js",
   uiUri: "https://x.vscode-cdn.net/media/ui.js",
   styleUri: "https://x.vscode-cdn.net/media/chat.css",
 };
@@ -22,10 +23,11 @@ describe("HTML du chat : CSP stricte", () => {
     );
     expect(csp).not.toMatch(/unsafe|\*|http:|data:/);
   });
-  it("deux scripts (ui.js puis chat.js), chacun avec nonce et source de l'extension ; aucun script ou style inline, aucun handler", () => {
+  it("trois scripts (icons.js, ui.js puis chat.js), chacun avec nonce et source de l'extension ; aucun script ou style inline, aucun handler", () => {
     const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)];
-    expect(scripts).toHaveLength(2);
+    expect(scripts).toHaveLength(3);
     expect(scripts.map((m) => /src="([^"]+)"/.exec(m[1] ?? "")?.[1])).toEqual([
+      opts.iconsUri,
       opts.uiUri,
       opts.scriptUri,
     ]);
@@ -42,6 +44,7 @@ describe("HTML du chat : CSP stricte", () => {
   it("refuse une valeur capable de sortir d'un attribut", () => {
     expect(() => chatHtml({ ...opts, nonce: 'a"onload="x' })).toThrow();
     expect(() => chatHtml({ ...opts, scriptUri: 'x" onerror="y' })).toThrow();
+    expect(() => chatHtml({ ...opts, iconsUri: 'x" onerror="y' })).toThrow();
     expect(() => chatHtml({ ...opts, uiUri: 'x" onerror="y' })).toThrow();
     expect(() => chatHtml({ ...opts, cspSource: 'a"><script>' })).toThrow();
   });
@@ -130,11 +133,9 @@ describe("composer et Configurer (lot P1)", () => {
   const section = (from: string, to: string) =>
     html.slice(html.indexOf(from), html.indexOf(to, html.indexOf(from)));
 
-  it("le trombone est désactivé, libellé « bientôt »", () => {
-    const attach = tag("attach");
-    expect(attach).toMatch(/\sdisabled[\s>]/);
-    expect(attach).toContain('aria-disabled="true"');
-    expect(attach).toContain("bientôt");
+  it("le compositeur ne présente pas de fonction future", () => {
+    expect(tag("attach")).toBe("");
+    expect(html).not.toContain("bientôt");
   });
   it("le menu « / » ne propose que /clear", () => {
     const menu = section('id="slash-pop"', 'id="cfg-pop"');
@@ -167,28 +168,19 @@ describe("composer et Configurer (lot P1)", () => {
     expect(html).toContain('id="mention-pop"');
     expect(html).toContain('id="mention-list"');
   });
-  it("Configurer : ordre Raisonnement, Fournisseur, Bypass, puis « bientôt » (Mode, Persona)", () => {
+  it("Configurer regroupe les fonctions disponibles en deux sections", () => {
     const cfg = section('id="cfg-pop"', "<script nonce");
-    const at = (s: string) => cfg.indexOf(s);
-    expect(at("Raisonnement")).toBeGreaterThanOrEqual(0);
-    expect(at("Raisonnement")).toBeLessThan(at("Fournisseur"));
-    expect(at("Fournisseur")).toBeLessThan(at("Bypass des approbations"));
-    expect(at("Bypass des approbations")).toBeLessThan(at("Bientôt"));
-    expect(cfg.match(/class="cfg-off"/g)).toHaveLength(2);
-    for (const label of ["Mode (Answer, Plan, Auto)", "Persona"]) {
-      const at2 = cfg.indexOf(label);
-      const start = cfg.lastIndexOf("<button", at2);
-      const m = cfg.slice(start, cfg.indexOf("</button>", at2));
-      expect(m, label).toMatch(/\sdisabled[\s>]/);
-      expect(m, label).toContain('aria-disabled="true"');
-      expect(m, label).toContain("bientôt");
-    }
+    expect(cfg).toContain('class="cfg-col cfg-model"');
+    expect(cfg).toContain('class="cfg-col cfg-execution"');
+    expect(cfg).toContain("Modèle et raisonnement");
+    expect(cfg).toContain("Claude Agent SDK");
+    expect(cfg).not.toMatch(/cfg-off|cfg-later|Bientôt|Persona|Answer, Plan/);
   });
   it("Configurer n'a plus de sélecteur de disposition", () => {
     const cfg = section('id="cfg-pop"', "<script nonce");
     expect(cfg).not.toContain("layout-seg");
     expect(cfg).not.toContain("data-layout");
-    expect(cfg.indexOf("Raisonnement")).toBeGreaterThanOrEqual(0);
+    expect(cfg.indexOf("raisonnement")).toBeGreaterThanOrEqual(0);
   });
   it("Kill chain : bouton compositeur et vue plein écran dédiée", () => {
     const toolbar = section('id="toolbar"', 'id="model-pop"');
@@ -223,7 +215,7 @@ describe("composer et Configurer (lot P1)", () => {
     for (const id of ["model-chip", "cfg-btn", "history-btn", "thinking", "send", "stop"]) {
       expect(tag(id), id).not.toBe("");
     }
-    expect(html).toContain('class="spin-strip"');
+    expect(html).toContain('class="ico activity-icon"');
   });
   it("D2 : plus d'élément .sweep ni de curseur ▍ dans #thinking, plus de classes sweep/pop posées par chat.js", () => {
     expect(html).not.toContain("sweep");
@@ -252,12 +244,10 @@ describe("composer et Configurer (lot P1)", () => {
     expect(css).not.toMatch(/--jn-r-pill/);
     expect(css).toMatch(/border-radius:\s*999px/);
   });
-  it("le popover Configurer est plus court, un peu plus large, et n'a plus de deux colonnes", () => {
-    const rule = /#cfg-pop \{([^}]*)\}/.exec(css)?.[1] ?? "";
-    expect(rule).toContain("width: min(300px, calc(100vw - 16px))");
-    expect(rule).toContain("max-height: min(var(--jn-maxh, 70vh), 240px)");
-    expect(css).not.toContain("cfg-cols");
-    expect(css).not.toMatch(/@container pop/);
+  it("Configurer garde ses deux sections sans options factices", () => {
+    expect(tag("cfg-pop")).toContain('role="dialog"');
+    expect(html).toContain('class="cfg-col cfg-model"');
+    expect(html).toContain('class="cfg-col cfg-execution"');
   });
 });
 
@@ -281,10 +271,12 @@ describe("Bypass des approbations (lot B1, ADR 0006)", () => {
     expect(sw).not.toMatch(/\sdisabled[\s>]/);
     expect(sw).toContain('aria-describedby="bypass-state bypass-warn"');
   });
-  it("section propre entre Fournisseur et « Bientôt », état en role=status", () => {
-    expect(cfg).toContain('<section class="cfg-col" aria-labelledby="cfg-h-bypass">');
+  it("Bypass dans la section Exécution, état en role=status", () => {
+    expect(cfg).toContain(
+      '<section class="cfg-col cfg-execution" aria-labelledby="cfg-h-execution">',
+    );
     expect(tag("bypass-state")).toContain('role="status"');
-    expect(cfg.indexOf('id="bypass-switch"')).toBeLessThan(cfg.indexOf("cfg-later"));
+    expect(cfg).not.toContain("cfg-later");
   });
   it("avertissement (ADR 0017) : deux phrases exactes, tout est levé", () => {
     expect(html).toContain(
@@ -372,24 +364,18 @@ describe("Mode apprentissage (ADR 0010)", () => {
     expect(sw).toContain('aria-checked="false"');
     expect(cfg.indexOf('id="learning-switch"')).toBeLessThan(cfg.indexOf('id="bypass-switch"'));
   });
-  it("bascules de la barre d'entrée : role=switch dans la barre d'outils, hors Configurer, sans innerHTML", () => {
-    const toolbar = html.slice(html.indexOf('id="toolbar"'), html.indexOf('id="model-pop"'));
-    for (const id of ["bar-learning", "bar-bypass"]) {
-      const sw = tag(id);
-      expect(sw).toContain('role="switch"');
-      expect(sw).toContain('aria-checked="false"');
-      expect(sw).not.toMatch(/\sdisabled[\s>]/);
-      expect(toolbar).toContain(`id="${id}"`);
-      expect(cfg).not.toContain(`id="${id}"`);
-    }
+  it("les bascules sont regroupées dans Configurer", () => {
+    for (const id of ["bar-learning", "bar-bypass"]) expect(tag(id)).toBe("");
+    expect(cfg).toContain('id="learning-switch"');
+    expect(cfg).toContain('id="bypass-switch"');
     expect(js).not.toContain("innerHTML");
   });
-  it("les bascules de la barre utilisent les mêmes messages que Configurer, sans nouveau type", () => {
-    expect(js).toContain('barLearning.addEventListener("click", toggleLearning)');
-    expect(js).toContain('barBypass.addEventListener("click", toggleBypass)');
-    expect(js).toContain('barBypass.setAttribute("aria-disabled", String(learning))');
+  it("les bascules Configurer conservent les messages existants", () => {
+    expect(js).toContain('learningSwitch.addEventListener("click", toggleLearning)');
+    expect(js).toContain('bypassSwitch.addEventListener("click", toggleBypass)');
     expect(js.match(/type: "setLearning"/g)?.length).toBe(1);
     expect(js.match(/type: "setBypass"/g)?.length).toBe(1);
+    expect(js).not.toMatch(/barLearning|barBypass/);
   });
   it("pastille dans l'en-tête, masquée au départ", () => {
     const bar = html.slice(html.indexOf('<header id="bar">'), html.indexOf("</header>"));

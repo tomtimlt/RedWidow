@@ -226,3 +226,25 @@ vérifie ajout de nœuds/caméra, changement de projet, erreur sur graphe vide,
 les trois thèmes, absence de débordement à 280 px et sortie Kali décodée.
 La surveillance des fichiers utilise l’API native de VS Code ; son comportement
 sur le poste du propriétaire reste à confirmer.
+
+## Refonte de l’interface — 0.3.25
+
+Charte révisée dans `docs/design-interface-2026.md` selon les captures du
+propriétaire : surfaces intégrées au thème, accent fonctionnel du thème,
+icônes SVG locales cohérentes. Chat, outils, composer, Configurer, historique,
+Monitor et réglages partagent les mêmes contrôles et espacements.
+Les niveaux d’effort sont des boutons utilisables au clavier. Les bascules
+Apprentissage/Bypass sont regroupées dans Configurer ; les fonctions futures
+non disponibles sont retirées. Aucun changement de contrat d’approbation.
+
+Conteneurs : état système compact, création repliée avec brouillon conservé,
+détails des lignes dépliables et persistants aux actualisations. Accès direct
+à la gestion depuis les réglages. Les nœuds, la minimap, l’actualisation et la
+caméra du graphe sont conservés.
+
+Validation : 1 661 tests passés, 12 ignorés ; typage et compilation réussis.
+Contrôles Chromium sur le chat, Configurer, approbations, historique, projet
+et conteneurs à 280/360/520/900 px, en sombre/clair/contraste élevé ; outils et
+création dépliés, aucune erreur JavaScript ni débordement horizontal.
+La validation visuelle dans VS Code sur le poste Windows du propriétaire reste
+à effectuer avec le VSIX de cette version.

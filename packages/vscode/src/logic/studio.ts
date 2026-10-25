@@ -22,6 +22,7 @@ export function isStudioPage(value: string): value is StudioPage {
 export type StudioMessage =
   | { type: "open"; page: StudioPage }
   | { type: "refresh" }
+  | { type: "openCockpit" }
   | { type: "unlink" }
   | { type: "activateProject"; projectId: string }
   /** Le dossier est choisi dans un dialogue natif ; aucun chemin accepté ici. */
@@ -38,6 +39,7 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
   const m = raw as Record<string, unknown>;
   const keys = Object.keys(m);
+  if (m.type === "openCockpit" && keys.length === 1) return { type: "openCockpit" };
   if (m.type === "refresh" && keys.length === 1) return { type: "refresh" };
   if (m.type === "unlink" && keys.length === 1) return { type: "unlink" };
   if (m.type === "openCours" && keys.length === 1) return { type: "openCours" };

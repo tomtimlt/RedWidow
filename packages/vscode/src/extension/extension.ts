@@ -1210,6 +1210,10 @@ export function activate(context: vscode.ExtensionContext): void {
       const message = parseStudioMessage(raw);
       if (message === null) return;
       if (message.type === "open") studioPage = message.page;
+      if (message.type === "openCockpit") {
+        openCockpit();
+        return;
+      }
       if (message.type === "openKillchain") {
         openKillchain();
         return;

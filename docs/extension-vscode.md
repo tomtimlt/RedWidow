@@ -8,7 +8,7 @@ Extension privée (ADR 0004, lots E3 + E4) : chat d'agent dans VS Code, avec une
 pnpm install --frozen-lockfile
 pnpm build
 pnpm --filter @warband/vscode package        # cible win32-x64 par défaut
-code --install-extension packages/vscode/warband-0.3.24-win32-x64.vsix
+code --install-extension packages/vscode/warband-0.3.25-win32-x64.vsix
 ```
 
 Raccourci : `pnpm maj` (ou `node scripts/update.mjs`). Il enchaîne `git pull --ff-only`, `pnpm install`, `pnpm build`, l'empaquetage et `code --install-extension --force`. Options : `--check` (ajoute `pnpm check`), `--no-install`, `--dry-run`, `--target=…`. Recharger ensuite la fenêtre VS Code.
@@ -46,14 +46,15 @@ pas l’historique et n’est pas réinjecté à une reprise.
 1. Ouvrir un **dossier approuvé** (l'extension est inerte dans un espace non approuvé ou virtuel).
 2. Palette de commandes : **Warband : définir le jeton**. Choisir « Jeton d'abonnement » (`claude setup-token`) ou « Clé API », puis coller le jeton (saisie masquée). Il est stocké dans le stockage sécurisé de VS Code, transmis uniquement à l'environnement du processus moteur, jamais écrit dans les réglages, un message d'erreur ou un journal. « Warband : effacer le jeton » le supprime. Le jeton est appliqué tout de suite, sans redémarrer VS Code : le moteur inactif est remplacé (la conversation reprend la même session), et pendant un tour le nouveau jeton sert au message suivant. **Sans jeton, le chat est grisé** (« Aucun fournisseur n'a été ajouté ») avec un bouton « Ajouter un fournisseur » qui ouvre la saisie du jeton ; aucun message ne part tant qu'aucun jeton n'est défini.
 3. **Warband : ouvrir le chat** (ou l'icône Warband de la barre d'activité). Saisir une consigne, `Ctrl+Entrée` ou « Envoyer ».
-4. Le fil affiche le texte de l'agent en Markdown sûr (paragraphes, code en ligne et en bloc avec bouton Copier, gras, italique, listes, titres ; liens et HTML restent du texte), et une ligne compacte par appel d'outil (icône d'état, nom lisible, résumé) dont les détails (entrée et sortie, plafonnés à 2000 caractères) sont repliés ; un indicateur signale que l'agent travaille. **Stop** annule le run ; le message suivant relance un moteur en reprenant la session. **Nouvelle conversation** repart de zéro.
+4. Le fil affiche le texte de l'agent en Markdown sûr (paragraphes, code en ligne et en bloc avec bouton Copier, gras, italique, listes, titres ; liens et HTML restent du texte), et une ligne compacte par appel d'outil (icône d'état, nom lisible, résumé) dont les détails (entrée et sortie, plafonds selon l’outil ; sorties Kali normalisées jusqu’à 12 000 caractères) sont repliés ; un indicateur signale que l'agent travaille. **Stop** annule le run ; le message suivant relance un moteur en reprenant la session. **Nouvelle conversation** repart de zéro.
 
-## Interface du chat (design « néon », docs/design-chat-ui.md)
+## Interface du chat (refonte 0.3.25, docs/design-interface-2026.md)
 
 - **Responsive** : la mise en page suit la largeur de la vue (container queries sur `body`) : compact < 360 px (boutons en icône, pastille de modèle tronquée), standard 360-599 px, large ≥ 600 px (colonne de lecture centrée, 720 px). Aucun élément ne déborde.
 - **Composer** : la zone de saisie porte une barre d'outils avec la **pastille de modèle** (liste ARIA avec filtre, ↑/↓/Début/Fin/Entrée/Échap, « Actualiser la liste » en pied), le bouton **Configurer** (curseur d'effort à crans cliquables, bouton Auto, fournisseur et configuration du chat) et Envoyer/Stop. Les popovers se placent en JavaScript (au-dessus de l'ancre, dessous si la place manque, jamais hors de l'écran) ; piège de focus, Échap et clic extérieur ferment.
-- **Effets** (tous en `transform`/`opacity`, liste fermée) : halo au focus du composer, balayage lumineux et « pop » de la pastille quand le modèle accepté change, indicateur « thinking » (spinner braille, curseur clignotant, scanline discrète) pendant un run, entrée des cartes d'approbation. Rien ne tourne sans run actif ; tout est figé quand la vue est cachée ou pendant l'attente d'une approbation.
-- **Mouvement réduit, contraste élevé, couleurs forcées** : tous les effets sont coupés (le spinner devient « … »). `workbench.reduceMotion` : le média `prefers-reduced-motion` honoré par la webview suffit, l'extension ne lit pas ce réglage (aucun champ ajouté à la vue).
+- **Présentation** : surfaces du thème VS Code, message utilisateur légèrement teinté, prose de l’agent intégrée au fil et appels d’outils repliables avec petites icônes SVG locales. Les longues sorties dépliées défilent dans une zone bornée.
+- **Configurer** : deux colonnes à partir de 420 px, une en dessous ; niveaux d’effort accessibles au clavier, Apprentissage et Bypass regroupés. Les fonctions futures ne sont plus affichées comme des réglages disponibles. L’avertissement et la confirmation native du Bypass sont conservés.
+- **Mouvement réduit, contraste élevé, couleurs forcées** : transitions courtes et désactivées dans ces modes ; indicateur d’activité SVG statique, sans animation permanente.
 - **Prévisualiser** : `pnpm exec vitest run packages/vscode/test/preview.test.ts` génère dans `packages/vscode/preview/` (ignoré par git) les pages du chat (9 états), du cockpit et de quatre pages des réglages (`studio-project`, `studio-containers`, `studio-atlas`, `studio-killchain`), en 3 thèmes, avec le HTML, le CSS, le JS et la CSP réels. Puis `node packages/vscode/scripts/preview-shots.mjs` (Edge ; `EDGE_BIN` pour un autre Chromium, par exemple `EDGE_BIN="C:\\...\\msedge.exe"` ou un binaire lancé avec `--no-sandbox` en conteneur) prend les captures dans `preview/shots/` : par défaut accueil (`empty`), `running`, `approval`, `model` et `config` (popovers ouverts), `cockpit` et les quatre pages `studio-*`, à 280, 360, 520 et 900 px, en sombre, clair et contraste élevé (`--states all`, `--widths`, `--themes`, `--out` pour changer). Il signale toute violation CSP et tout débordement horizontal (code de sortie 1). Les pages sont servies par un petit serveur HTTP local (127.0.0.1, port éphémère, lecture seule, arrêté en fin de script) : les masques de `icon.svg` (logo) ne se chargent pas en `file://` (CORS). Seule la source `file:` de la CSP de prévisualisation est remplacée à la volée par l'origine du serveur ; la CSP des pages de l'extension n'est pas modifiée. Ouvertes directement en `file://`, les pages s'affichent sans le logo d'accueil. L'iframe prend la hauteur de la fenêtre pour que le composer soit entier. Durée : environ 6 minutes pour la série par défaut.
 
 ## Modèle et effort
@@ -119,7 +120,7 @@ une procédure d’installation actuelle.
 ## Limites connues
 
 - La validation Windows historique du moteur (W-L6) ne valide pas automatiquement les ajouts récents de l’extension. Un essai complet de cette version dans VS Code reste à distinguer des tests automatisés et prévisualisations headless ; remote, lecteur d’écran et profilage restent à vérifier.
-- Claude seul (pas d'OpenCode) ; Markdown limité (pas de tableaux, liens non cliquables, pas d'images).
+- Claude seul (pas d'OpenCode) ; Markdown limité (tableaux pris en charge, liens non cliquables, pas d’images).
 - Kill chain affiche le graphe des trouvailles, avec minimap ; ce graphe est distinct du graphe causal des événements exporté par la CLI. Pas de commande d’approbation de la politique du dépôt (la politique du dépôt n'est appliquée qu'après approbation de son empreinte, comme dans la CLI ; sans approbation elle est inerte et un avertissement est affiché).
 - « Toujours » ne persiste pas sur disque (voir plus haut).
 - Une seule demande de tour à la fois ; l'historique affiché est limité aux 300 derniers éléments.
@@ -179,3 +180,14 @@ Le plafond d’affichage Kali est de 12 000 caractères, avec indicateur de
 troncature ; le journal conserve l’événement brut. Si le transport contient
 déjà un JSON incomplet, l’interface affiche ce texte incomplet sans inventer
 la partie manquante.
+
+## Conteneurs et réglages — 0.3.25
+
+La gestion des conteneurs affiche une synthèse système compacte, le contexte
+lié et des lignes à détails dépliables. **Nouveau conteneur** ouvre le
+formulaire ; le refermer ou actualiser conserve son brouillon. L’absence
+d’Exegol est neutre pour un environnement Kali. Les commandes existantes
+Démarrer, Arrêter, Lier et Terminal gardent leurs validations natives.
+La page Conteneurs des réglages propose **Gérer les conteneurs** pour ouvrir
+cette vue. Les cinq rubriques des réglages utilisent les mêmes icônes SVG,
+contrôles et couleurs que le chat.

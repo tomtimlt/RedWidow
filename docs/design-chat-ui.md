@@ -1,5 +1,21 @@
 # Spécification de design : webviews VS Code (chat, cockpit, studio)
 
+## Décision visuelle actuelle — refonte du 24 octobre 2026
+
+La demande du propriétaire de revoir toute l’interface à partir de ses trois
+captures est cadrée dans [design-interface-2026.md](design-interface-2026.md).
+Ce document prime sur les prescriptions visuelles historiques ci-dessous :
+accent courant dérivé des boutons/liens VS Code, marque discrète, surfaces
+neutres, réponses intégrées, lignes d’outils compactes, Configurer sur deux
+colonnes lorsque la place le permet, conteneurs en liste et création à la
+demande. Les icônes de l’interface sont des SVG locaux cohérents ; les anciens
+glyphes décoratifs sont remplacés.
+
+Les obligations de CSP, rendu sûr, vérité des données, accessibilité et respect
+du mouvement réduit restent applicables. Les anciens choix de couleur de marque
+sur les boutons courants, de bandeau noir forcé ou de menu toujours à une colonne
+ne doivent pas empêcher la réalisation de la refonte demandée.
+
 ## 0. Amendement chat conversationnel (2026-10-23)
 
 Décision utilisateur du 2026-10-23. Cette section prime, pour la webview de chat seulement, sur « formes anguleuses » (intro) et sur §1.3 (rayons 2/3/4 px). Le chat quitte l'aspect tableau de bord : assistant conversationnel sobre, intégré au thème VS Code. Pas de glassmorphism, pas de dégradé, jaune de marque en accent rare. Mouvement, keyframes, CSP, protocole et ids : inchangés (§2, ADR 0004 §C).

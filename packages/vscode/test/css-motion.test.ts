@@ -57,7 +57,7 @@ const decls = (r: Rule) =>
     });
 
 /** Les @keyframes gardées (design-chat-ui.md §2). Le curseur du logo (jn-blink) a disparu avec la marque. */
-const KEPT = ["jn-braille", "jn-msg-in", "jn-pop-in", "jn-drawer-in", "jn-fade-in"];
+const KEPT = ["jn-msg-in", "jn-pop-in", "jn-drawer-in", "jn-fade-in"];
 
 describe.each(CSS_FILES)("%s : budget de performance (design-chat-ui.md §2)", (file) => {
   const css = readFileSync(
@@ -106,14 +106,14 @@ describe.each(CSS_FILES)("%s : budget de performance (design-chat-ui.md §2)", (
         .filter(([k, v]) => k === "animation" && /\binfinite\b/.test(v))
         .map(() => r),
     );
-    if (file === "chat.css") expect(infinite.length).toBe(1);
+    if (file === "chat.css") expect(infinite.length).toBe(0);
     expect(infinite.length).toBeLessThanOrEqual(1);
     for (const r of infinite) {
       expect(r.selector, r.selector).toMatch(/^#thinking\b/);
     }
   });
 
-  it("l'ensemble des @keyframes est exactement les cinq gardés (M2 à M6)", () => {
+  it("l'ensemble des @keyframes est exactement les quatre gardés (M2 à M6)", () => {
     const expected = file === "chat.css" ? KEPT : [];
     expect([...keyframes.keys()].sort()).toEqual([...expected].sort());
   });
@@ -198,7 +198,7 @@ describe.each(CSS_FILES)("%s : budget de performance (design-chat-ui.md §2)", (
 
   it("aucune couleur figée hors repli de var() (hors #0004 de l'ombre, mots-clés système et jetons de marque)", () => {
     // Seuls --jn-accent, --jn-steel et --jn-ink peuvent porter un hex (marque).
-    const brandDecl = /(^|[;{}\s])--jn-(accent|steel|ink)\s*:\s*#[0-9a-fA-F]{3,8}\s*;/g;
+    const brandDecl = /(^|[;{}\s])--jn-(brand|steel|ink)\s*:\s*#[0-9a-fA-F]{3,8}\s*;/g;
     const stripped = css.replace(brandDecl, "$1");
     for (const m of stripped.matchAll(/#[0-9a-fA-F]{3,8}\b/g)) {
       const before = stripped.slice(Math.max(0, (m.index ?? 0) - 60), m.index);
@@ -209,7 +209,8 @@ describe.each(CSS_FILES)("%s : budget de performance (design-chat-ui.md §2)", (
   it("jetons de marque et d'usage présents (§1.1 et §1.2)", () => {
     if (file !== "chat.css") return;
     for (const t of [
-      "--jn-accent: #cc1c40",
+      "--jn-brand: #cc1c40",
+      "--jn-accent: var(--vscode-textLink-foreground",
       "--jn-steel: #495f73",
       "--jn-ink: #ffffff",
       "--jn-accent-fill:",

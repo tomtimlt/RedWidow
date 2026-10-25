@@ -11,19 +11,23 @@ export interface ChatHtmlOptions {
   scriptUri: string;
   uiUri: string;
   styleUri: string;
+  /** Catalogue SVG local, chargé avant les scripts de rendu. */
+  iconsUri?: string;
 }
 
 /** Valeurs insérées dans des attributs : jamais de guillemet, chevron ni espace. */
 const SAFE = /^[A-Za-z0-9_\-+/=:.%~@]+$/;
-
-/** Trames du spinner braille : une par ligne d'une bande verticale, déplacée par `transform` (CSS). */
-const BRAILLE = [..."⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"].map((c) => `<span>${c}</span>`).join("");
 
 /**
  * Icônes au trait (16 px, `currentColor`), en SVG inline : rendu net et centré quel que soit la police,
  * contrairement aux glyphes Unicode. Aucun attribut d'événement, aucune ressource externe.
  */
 const ICONS = {
+  container: '<path d="m12 3 8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9"/>',
+  brain:
+    '<path d="M12 5v14M8 4a3 3 0 0 0-3 3 3 3 0 0 0-1 5 3 3 0 0 0 2 5 3 3 0 0 0 6 2M16 4a3 3 0 0 1 3 3 3 3 0 0 1 1 5 3 3 0 0 1-2 5 3 3 0 0 1-6 2"/>',
+  book: '<path d="M12 6c-3-2-6-2-9-1v14c3-1 6-1 9 1 3-2 6-2 9-1V5c-3-1-6-1-9 1zM12 6v14"/>',
+  shield: '<path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6z"/>',
   history: '<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 7.5V12l3 2"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   close: '<path d="M6 6l12 12M18 6 6 18"/>',
@@ -46,7 +50,7 @@ const ICONS = {
 } as const;
 
 const icon = (name: keyof typeof ICONS, cls = "ico"): string =>
-  `<svg class="${cls}" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICONS[name]}</svg>`;
+  `<svg class="${cls}" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICONS[name]}</svg>`;
 
 /**
  * Marque Warband : formation de chevrons (chef rouge, deux ailiers acier) et curseur.
@@ -56,7 +60,7 @@ const BRAND =
   '<svg class="brand" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><polygon points="1,1 4,1 8,5 4,9 1,9 5,5" class="brand-wing"/><polygon points="1,15 4,15 8,19 4,23 1,23 5,19" class="brand-wing"/><polygon points="13,5 16,5 23,12 16,19 13,19 20,12" class="brand-lead"/><rect x="18" y="20" width="5" height="3" class="brand-cursor"/></svg>';
 
 /**
- * Page de la webview de chat. CSP stricte : `default-src 'none'`, deux scripts (fichiers de
+ * Page de la webview de chat. CSP stricte : `default-src 'none'`, trois scripts (fichiers de
  * l'extension) autorisés par nonce, feuille de style de l'extension seulement ; ni script inline
  * ni `eval` ni ressource distante. Les données arrivent par `postMessage`, affichées en `textContent`.
  */
@@ -66,8 +70,16 @@ export function chatHtml({
   scriptUri,
   uiUri,
   styleUri,
+  iconsUri = scriptUri.replace(/[^/]+$/, "icons.js"),
 }: ChatHtmlOptions): string {
-  for (const [name, value] of Object.entries({ nonce, cspSource, scriptUri, uiUri, styleUri })) {
+  for (const [name, value] of Object.entries({
+    nonce,
+    cspSource,
+    scriptUri,
+    uiUri,
+    styleUri,
+    iconsUri,
+  })) {
     // `cspSource` peut contenir des espaces ou `'self'` selon l'hôte : on en retire seulement les caractères dangereux.
     const ok = name === "cspSource" ? !/["<>]/.test(value) && value !== "" : SAFE.test(value);
     if (!ok) throw new Error(`valeur invalide pour ${name}`);
@@ -95,19 +107,21 @@ export function chatHtml({
 <div id="readonly" role="status" hidden><span id="readonly-text"></span><button id="readonly-resume" type="button" class="primary">Reprendre</button><button id="readonly-close" type="button" class="ghost">Fermer</button></div>
 <section id="monitor" aria-label="Commandes Exegol (lecture seule)"><div class="mon-head"><p class="hint">Sortie en direct. Cliquer une ligne pour l'ouvrir en lecture seule.</p></div><ol id="monitor-rows"></ol><p id="monitor-empty" class="empty">Aucun appel Exegol dans cette conversation.</p></section>
 <section id="approvals" aria-label="Autorisations demandées"></section>
-<div id="thinking" role="status"><span class="spin" aria-hidden="true"><span class="spin-strip">${BRAILLE}</span></span><span class="spin-static" aria-hidden="true">…</span><span id="thinking-label">Réflexion</span></div>
+<div id="thinking" role="status">${icon("brain", "ico activity-icon")}<span id="thinking-label">Réflexion</span></div>
 <form id="form">
 <div id="composer">
 <textarea id="input" rows="1" aria-label="Votre consigne" placeholder="Votre consigne…" title="Entrée pour envoyer, Maj+Entrée pour une nouvelle ligne"></textarea>
 <div id="toolbar">
-<button id="attach" type="button" class="ghost tool-btn" disabled aria-disabled="true" title="Pièces jointes : bientôt" aria-label="Pièces jointes : bientôt">${icon("clip")}</button>
-<button id="mention-btn" type="button" class="ghost tool-btn" title="Citer un conteneur" aria-label="Citer un conteneur" aria-haspopup="listbox" aria-expanded="false" aria-controls="mention-pop">${icon("at")}</button>
+
+<span class="composer-tools"><button id="mention-btn" type="button" class="ghost tool-btn" title="Citer un conteneur" aria-label="Citer un conteneur" aria-haspopup="listbox" aria-expanded="false" aria-controls="mention-pop">${icon("at")}</button>
 <button id="hash-btn" type="button" class="ghost tool-btn" title="Citer un terminal" aria-label="Citer un terminal" aria-haspopup="listbox" aria-expanded="false" aria-controls="mention-pop">${icon("hash")}</button>
 <button id="slash-btn" type="button" class="ghost tool-btn" popovertarget="slash-pop" aria-haspopup="menu" aria-expanded="false" title="Commandes" aria-label="Commandes">${icon("slash")}</button>
 <button id="monitor-btn" type="button" class="ghost tool-btn" title="Monitor" aria-label="Monitor">${icon("pulse")}</button>
 <button id="killchain-btn" type="button" class="ghost tool-btn" title="Kill chain" aria-label="Kill chain">${icon("killchain")}</button>
-<span id="ctl-group" hidden><button id="model-chip" type="button" class="chip" popovertarget="model-pop" aria-haspopup="listbox" aria-expanded="false" title="Modèle utilisé pour le message suivant">${icon("sparkle", "ico chip-ico")}<span id="model-chip-label" class="chip-label">Modèle par défaut</span>${icon("caret", "caret")}<span class="sr-only"> (choisir le modèle)</span></button><button id="cfg-btn" type="button" class="chip" popovertarget="cfg-pop" aria-haspopup="dialog" aria-expanded="false" aria-label="Configurer" title="Configurer : raisonnement et exécution">${icon("sliders", "ico chip-ico")}<span class="cfg-text">Configurer</span><span id="cfg-level" class="cfg-level"></span>${icon("caret", "caret")}</button><button id="bar-learning" type="button" role="switch" class="chip chip-switch" aria-checked="false" aria-label="Apprentissage" title="Mode Apprentissage : lecture des cours seule, aucune action"><span class="sw-dot" aria-hidden="true"></span><span class="sw-full" aria-hidden="true">Apprentissage</span><span class="sw-short" aria-hidden="true">Appr.</span></button><button id="bar-bypass" type="button" role="switch" class="chip chip-switch" aria-checked="false" aria-label="Bypass" title="Bypass des approbations"><span class="sw-dot" aria-hidden="true"></span><span class="sw-full" aria-hidden="true">Bypass</span><span class="sw-short" aria-hidden="true">Byp.</span></button></span>
-<span class="spacer"></span>
+</span>
+<span id="ctl-group" hidden><button id="model-chip" type="button" class="chip" popovertarget="model-pop" aria-haspopup="listbox" aria-expanded="false" title="Modèle utilisé pour le message suivant">${icon("sparkle", "ico chip-ico")}<span id="model-chip-label" class="chip-label">Modèle par défaut</span>${icon("caret", "caret")}<span class="sr-only"> (choisir le modèle)</span></button></span>
+
+<span class="spacer"></span><button id="cfg-btn" type="button" class="chip" popovertarget="cfg-pop" aria-haspopup="dialog" aria-expanded="false" aria-label="Configurer" title="Configurer : raisonnement et exécution">${icon("sliders", "ico chip-ico")}<span class="cfg-text">Configurer</span><span id="cfg-level" class="cfg-level"></span>${icon("caret", "caret")}</button>
 <button id="stop" type="button" class="danger" title="Arrêter l'agent">${icon("stop")}<span class="btn-text">Stop</span></button>
 <button id="send" type="submit" class="primary" title="Envoyer (Entrée)" aria-label="Envoyer">${icon("send")}</button>
 </div>
@@ -124,26 +138,20 @@ export function chatHtml({
 <button id="cmd-clear" type="button" class="cmd-opt"><span class="cmd">/clear</span><span class="cmd-desc">Nouvelle conversation</span></button>
 </div>
 <div id="cfg-pop" class="pop" popover="auto" role="dialog" aria-label="Configurer">
-<section class="cfg-col" aria-labelledby="cfg-h-reason"><h3 id="cfg-h-reason">Raisonnement</h3>
+<section class="cfg-col cfg-model" aria-labelledby="cfg-h-reason"><h3 id="cfg-h-reason">${icon("brain")}Modèle et raisonnement</h3>
+<div class="cfg-provider">${icon("sparkle")}<span>Claude Agent SDK</span></div>
 <div id="effort-scale"><div id="effort-dot-lane" aria-hidden="true"><span id="effort-dot"></span></div><div id="effort-ticks"></div></div>
 <div class="effort-row"><label for="effort" class="sr-only">Niveau d'effort</label><input id="effort" class="sr-only" type="range" min="0" max="4" step="1" value="2"><button id="effort-auto" type="button" class="ghost" title="Revenir à Auto : le modèle garde son effort par défaut">Auto</button></div>
 <div class="effort-now"><output id="effort-label" for="effort"></output></div>
 <p id="effort-tip" class="tip"></p></section>
-<section class="cfg-col" aria-labelledby="cfg-h-prov"><h3 id="cfg-h-prov">Fournisseur</h3>
-<fieldset class="provider"><legend class="sr-only">Fournisseur</legend><label class="radio"><input type="radio" name="provider" checked><span>Claude</span></label><label class="radio off"><input type="radio" name="provider" disabled><span>OpenCode</span><em>bientôt</em></label></fieldset>
-<p class="tip">Modèle, effort et plafonds Ultracode : réglages Warband dans Paramètres (warband.model, warband.ultracode.*).</p></section>
-<section class="cfg-col" aria-labelledby="cfg-h-learn"><h3 id="cfg-h-learn">Apprentissage</h3>
-<button id="learning-switch" type="button" role="switch" aria-checked="false" aria-describedby="learning-help"><span>Apprentissage</span></button>
-<p id="learning-help" class="tip">L'agent lit votre dossier de cours et explique, sans rien exécuter ni écrire. S'applique au message suivant, même conversation.</p></section>
-<section class="cfg-col" aria-labelledby="cfg-h-bypass"><h3 id="cfg-h-bypass">Bypass des approbations</h3>
-<button id="bypass-switch" type="button" role="switch" aria-checked="false" aria-describedby="bypass-state bypass-warn"><span>Bypass</span></button>
+<section class="cfg-col cfg-execution" aria-labelledby="cfg-h-execution"><h3 id="cfg-h-execution">${icon("sliders")}Exécution</h3>
+<div class="cfg-control"><button id="learning-switch" type="button" role="switch" aria-checked="false" aria-describedby="learning-help"><span class="cfg-switch-label">${icon("book")}Apprentissage</span></button>
+<p id="learning-help" class="tip">Lecture des cours et explications, sans exécution ni écriture. S'applique au message suivant.</p></div>
+<div class="cfg-control"><button id="bypass-switch" type="button" role="switch" aria-checked="false" aria-describedby="bypass-state bypass-warn"><span class="cfg-switch-label">${icon("shield")}Bypass</span></button>
 <p id="bypass-state" role="status"></p>
-<p id="bypass-warn" class="tip"><span class="warn-line">Approuve tout pendant 2 h, deny compris : chemins sensibles ou hors projet, accès hôte d'un conteneur, dangers shell, sans rien mémoriser.</span> <span class="warn-line">Vous en devenez responsable.</span></p></section>
-<section class="cfg-col cfg-later" aria-labelledby="cfg-h-later"><h3 id="cfg-h-later">Bientôt</h3>
-<button type="button" class="cfg-off" disabled aria-disabled="true"><span>Mode (Answer, Plan, Auto)</span><em>bientôt</em></button>
-<button type="button" class="cfg-off" disabled aria-disabled="true"><span>Persona</span><em>bientôt</em></button>
-</section>
+<p id="bypass-warn" class="tip"><span class="warn-line">Approuve tout pendant 2 h, deny compris : chemins sensibles ou hors projet, accès hôte d'un conteneur, dangers shell, sans rien mémoriser.</span> <span class="warn-line">Vous en devenez responsable.</span></p></div></section>
 </div>
+<script nonce="${nonce}" src="${iconsUri}"></script>
 <script nonce="${nonce}" src="${uiUri}"></script>
 <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
@@ -152,6 +160,7 @@ export function chatHtml({
 }
 
 export interface CockpitHtmlOptions {
+  iconsUri?: string;
   nonce: string;
   cspSource: string;
   scriptUri: string;
@@ -159,8 +168,14 @@ export interface CockpitHtmlOptions {
 }
 
 /** Page de la webview cockpit : même CSP que le chat, un seul script `cockpit.js`. */
-export function cockpitHtml({ nonce, cspSource, scriptUri, styleUri }: CockpitHtmlOptions): string {
-  for (const [name, value] of Object.entries({ nonce, cspSource, scriptUri, styleUri })) {
+export function cockpitHtml({
+  nonce,
+  cspSource,
+  scriptUri,
+  styleUri,
+  iconsUri = scriptUri.replace(/[^/]+$/, "icons.js"),
+}: CockpitHtmlOptions): string {
+  for (const [name, value] of Object.entries({ nonce, cspSource, scriptUri, styleUri, iconsUri })) {
     const ok = name === "cspSource" ? !/["<>]/.test(value) && value !== "" : SAFE.test(value);
     if (!ok) throw new Error(`valeur invalide pour ${name}`);
   }
@@ -177,11 +192,12 @@ export function cockpitHtml({ nonce, cspSource, scriptUri, styleUri }: CockpitHt
 <meta http-equiv="Content-Security-Policy" content="${csp}">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="${styleUri}">
-<title>Cockpit</title>
+<title>Conteneurs</title>
 </head>
 <body class="cockpit">
-<header id="bar"><span id="title">Cockpit</span><button id="refresh" type="button" class="ghost" title="Actualiser">${icon("refresh")}<span class="btn-text">Actualiser</span></button></header>
+<header id="bar"><span id="title">${icon("container")}Conteneurs</span><button id="refresh" type="button" class="ghost" title="Actualiser">${icon("refresh")}<span class="btn-text">Actualiser</span></button></header>
 <main id="main" role="main" aria-live="polite"></main>
+<script nonce="${nonce}" src="${iconsUri}"></script>
 <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>
@@ -189,8 +205,14 @@ export function cockpitHtml({ nonce, cspSource, scriptUri, styleUri }: CockpitHt
 }
 
 /** Page des réglages : même CSP, script `studio.js`. */
-export function studioHtml({ nonce, cspSource, scriptUri, styleUri }: CockpitHtmlOptions): string {
-  for (const [name, value] of Object.entries({ nonce, cspSource, scriptUri, styleUri })) {
+export function studioHtml({
+  nonce,
+  cspSource,
+  scriptUri,
+  styleUri,
+  iconsUri = scriptUri.replace(/[^/]+$/, "icons.js"),
+}: CockpitHtmlOptions): string {
+  for (const [name, value] of Object.entries({ nonce, cspSource, scriptUri, styleUri, iconsUri })) {
     const ok = name === "cspSource" ? !/["<>]/.test(value) && value !== "" : SAFE.test(value);
     if (!ok) throw new Error(`valeur invalide pour ${name}`);
   }
@@ -214,6 +236,7 @@ export function studioHtml({ nonce, cspSource, scriptUri, styleUri }: CockpitHtm
 <nav id="studio-nav" aria-label="Réglages"></nav>
 <main id="studio-main"></main>
 </div>
+<script nonce="${nonce}" src="${iconsUri}"></script>
 <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>
@@ -226,8 +249,9 @@ export function killchainHtml({
   cspSource,
   scriptUri,
   styleUri,
+  iconsUri = scriptUri.replace(/[^/]+$/, "icons.js"),
 }: CockpitHtmlOptions): string {
-  for (const [name, value] of Object.entries({ nonce, cspSource, scriptUri, styleUri })) {
+  for (const [name, value] of Object.entries({ nonce, cspSource, scriptUri, styleUri, iconsUri })) {
     const ok = name === "cspSource" ? !/["<>]/.test(value) && value !== "" : SAFE.test(value);
     if (!ok) throw new Error(`valeur invalide pour ${name}`);
   }
@@ -250,6 +274,7 @@ export function killchainHtml({
 <div class="studio-shell">
 <main id="studio-main"></main>
 </div>
+<script nonce="${nonce}" src="${iconsUri}"></script>
 <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>

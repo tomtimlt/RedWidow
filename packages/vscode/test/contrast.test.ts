@@ -50,7 +50,7 @@ function ratio(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-const ACCENT = brand("--jn-accent");
+const BRAND = brand("--jn-brand");
 const STEEL = brand("--jn-steel");
 const INK = brand("--jn-ink");
 
@@ -71,13 +71,23 @@ function backgrounds(key: "dark" | "light" | "hc"): Record<string, string> {
 describe("contraste WCAG des paires figées (design-chat-ui.md §1)", () => {
   it("le calcul reproduit des paires connues de la marque", () => {
     expect(ratio("#000000", "#ffffff")).toBeCloseTo(21, 1);
-    expect(ratio(INK, ACCENT)).toBeGreaterThanOrEqual(4.5);
-    expect(ratio(ACCENT, "#ffffff")).toBeGreaterThanOrEqual(4.5);
+    expect(ratio(INK, BRAND)).toBeGreaterThanOrEqual(4.5);
+    expect(ratio(BRAND, "#ffffff")).toBeGreaterThanOrEqual(4.5);
     expect(ratio(STEEL, "#000000")).toBeGreaterThanOrEqual(3);
   });
 
-  it("l'encre blanche sur le rouge du A tient 4,5 (bouton envoyer, puce active)", () => {
-    expect(ratio(INK, ACCENT)).toBeGreaterThanOrEqual(4.5);
+  it("les actions suivent les couleurs du thème, indépendamment de la marque", () => {
+    expect(chatCss).toContain("--jn-accent-fill: var(--vscode-button-background)");
+    expect(chatCss).toContain("--jn-on-accent: var(--vscode-button-foreground)");
+    for (const key of ["dark", "light", "hc"] as const) {
+      const { vars } = fixture(key);
+      expect(
+        ratio(
+          vars.get("--vscode-button-foreground") as string,
+          vars.get("--vscode-button-background") as string,
+        ),
+      ).toBeGreaterThanOrEqual(4.5);
+    }
   });
 
   for (const key of ["dark", "light", "hc"] as const) {
@@ -96,26 +106,10 @@ describe("contraste WCAG des paires figées (design-chat-ui.md §1)", () => {
         }
       });
 
-      if (key === "dark") {
-        it("texte d'encre sur le bandeau noir ≥ 4,5 ; filet d'acier ≥ 3", () => {
-          expect(ratio(INK, "#000000")).toBeGreaterThanOrEqual(4.5);
-          expect(ratio(STEEL, "#000000")).toBeGreaterThanOrEqual(3);
-          expect(ratio(ACCENT, "#000000")).toBeGreaterThanOrEqual(3);
-        });
-      }
-
-      if (key === "light") {
-        it("--jn-accent (rouge du A) : texte et filet ≥ 4,5 sur fond clair", () => {
-          for (const [n, bg] of Object.entries(bgs)) {
-            expect(ratio(ACCENT, bg), `accent / ${n} ${bg}`).toBeGreaterThanOrEqual(4.5);
-          }
-        });
-        it("--jn-steel : filet ≥ 3 sur fond clair", () => {
-          for (const [n, bg] of Object.entries(bgs)) {
-            expect(ratio(STEEL, bg), `steel / ${n} ${bg}`).toBeGreaterThanOrEqual(3);
-          }
-        });
-      }
+      it("liens et accent fonctionnel ≥ 4,5 sur le fond de lecture", () => {
+        const accent = f.vars.get("--vscode-textLink-foreground") as string;
+        expect(ratio(accent, f.body)).toBeGreaterThanOrEqual(4.5);
+      });
 
       if (key === "hc") {
         it("accent = contrastActiveBorder du thème : focus et bordure active ≥ 3", () => {
@@ -167,8 +161,18 @@ describe("teintes d'accent calibrées (lot D4)", () => {
   const [tintDark, tintLight] = tintPercents("--jn-tint", "transparent");
 
   for (const [key, accent, wash, tint] of [
-    ["dark", ACCENT, washDark, tintDark],
-    ["light", ACCENT, washLight, tintLight],
+    [
+      "dark",
+      fixture("dark").vars.get("--vscode-textLink-foreground") as string,
+      washDark,
+      tintDark,
+    ],
+    [
+      "light",
+      fixture("light").vars.get("--vscode-textLink-foreground") as string,
+      washLight,
+      tintLight,
+    ],
   ] as const) {
     describe(`thème ${key}`, () => {
       const f = fixture(key);
@@ -192,18 +196,13 @@ describe("teintes d'accent calibrées (lot D4)", () => {
     it(`texte d'accent des liens et actions secondaires ≥ 4,5 sur le fond secondaire (${key})`, () => {
       const f = fixture(key);
       const accent =
-        key === "dark"
-          ? INK
-          : key === "light"
-            ? ACCENT
-            : (f.vars.get("--vscode-contrastActiveBorder") as string);
+        key === "hc"
+          ? (f.vars.get("--vscode-contrastActiveBorder") as string)
+          : (f.vars.get("--vscode-textLink-foreground") as string);
       const secondary = f.vars.get("--vscode-button-secondaryBackground") as string;
       // « ghost » : texte d'accent posé directement sur le fond du corps.
       expect(ratio(accent, f.body)).toBeGreaterThanOrEqual(4.5);
-      // Le rouge échantillonné (#cc1c40) fait 4,42:1 sur le fond secondaire clair (#e6e6e6) :
-      // on ne l'assombrit pas pour gagner le dernier centième.
-      const min = key === "light" ? 4.4 : 4.5;
-      expect(ratio(accent, secondary)).toBeGreaterThanOrEqual(min);
+      expect(ratio(accent, secondary)).toBeGreaterThanOrEqual(4.5);
     });
   }
 

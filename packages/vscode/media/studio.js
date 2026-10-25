@@ -3,23 +3,23 @@
 // Hors webview (pas d'acquireVsCodeApi), seule la logique est exposée.
 
 /**
- * Groupes de la navigation : clé, libellé et pictogramme (texte Unicode) de chaque page existante.
+ * Groupes de la navigation : clé, libellé et nom d’icône SVG de chaque page existante.
  * Miroir de STUDIO_PAGES et LABELS (src/logic/studio.ts), vérifié par test.
  */
 const STUDIO_GROUPS = [
   {
     label: "Engagement",
     pages: [
-      ["project", "Projet", "◆"],
-      ["containers", "Conteneurs", "▣"],
-      ["killchain", "Kill chain", "⚑"],
+      ["project", "Projet", "project"],
+      ["containers", "Conteneurs", "container"],
+      ["killchain", "Kill chain", "graph"],
     ],
   },
   {
     label: "Système",
     pages: [
-      ["atlas", "Atlas", "▦"],
-      ["system", "Contrôle système", "⏻"],
+      ["atlas", "Atlas", "book"],
+      ["system", "Contrôle système", "server"],
     ],
   },
 ];
@@ -415,7 +415,10 @@ function start() {
         );
         b.type = "button";
         if (item.current) b.setAttribute("aria-current", "page");
-        b.append(el("span", "btn-text", item.label));
+        b.append(
+          window.WarbandIcons.create(item.icon, { className: "ico" }),
+          el("span", "btn-text", item.label),
+        );
         if (item.count !== undefined) {
           const count = el("span", "studio-count", String(item.count));
           count.title = `${item.count} trouvaille${item.count > 1 ? "s" : ""}`;
@@ -895,7 +898,7 @@ function start() {
         );
       } else {
         const b = view.linkedBanner;
-        sec.append(el("p", "studio-kicker", "CONTENEUR AFFICHÉ"));
+        sec.append(el("p", "studio-kicker", "Conteneur affiché"));
         sec.append(el("p", "studio-name", b.name));
         sec.append(el("p", "studio-help", b.workspace));
         const del = el("button", "ghost");
@@ -964,7 +967,19 @@ function start() {
     }
     if (page === "containers" || page === "system") {
       const sec = el("section", "studio-card");
-      sec.append(el("h2", "", page === "system" ? "Contrôle système" : "Conteneurs"));
+      const header = el("div", "studio-section-head");
+      header.append(el("h2", "", page === "system" ? "Contrôle système" : "Conteneurs"));
+      if (page === "containers") {
+        const manage = el("button", "secondary");
+        manage.type = "button";
+        manage.append(
+          window.WarbandIcons.create("sliders"),
+          el("span", "btn-text", "Gérer les conteneurs"),
+        );
+        manage.addEventListener("click", () => vscode.postMessage({ type: "openCockpit" }));
+        header.append(manage);
+      }
+      sec.append(header);
       const dl = el("dl", "studio-dl");
       const row = (k, v) => {
         dl.append(el("dt", "", k), el("dd", "", v));
@@ -985,6 +1000,8 @@ function start() {
         for (const c of view.containers ?? []) {
           const li = el("li", "studio-row");
           li.append(
+            window.WarbandIcons.create("container"),
+            el("span", `dot ${c.state === "running" ? "is-running" : "is-stopped"}`),
             el("span", "studio-ellipsis", c.name),
             el("span", "studio-help", c.state === "running" ? "en cours" : "arrêté"),
           );

@@ -833,13 +833,14 @@ describe("cockpitHtml : CSP", () => {
   const html = cockpitHtml(htmlOpts);
   const csp = /Content-Security-Policy" content="([^"]+)"/.exec(html)?.[1] ?? "";
 
-  it("politique identique au chat (un script)", () => {
+  it("politique identique au chat, icônes et application sous nonce", () => {
     expect(csp).toBe(
       "default-src 'none'; script-src 'nonce-abc123_-XYZ'; style-src https://x.vscode-cdn.net; img-src https://x.vscode-cdn.net",
     );
     const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)];
-    expect(scripts).toHaveLength(1);
-    expect(scripts[0]?.[1]).toContain('nonce="abc123_-XYZ"');
+    expect(scripts).toHaveLength(2);
+    expect(scripts[0]?.[1]).toContain("media/icons.js");
+    for (const script of scripts) expect(script[1]).toContain('nonce="abc123_-XYZ"');
     expect(html).not.toMatch(/<style\b|\sstyle=|\son[a-z]+=|javascript:/i);
   });
 
@@ -847,13 +848,14 @@ describe("cockpitHtml : CSP", () => {
     expect(makeNonce()).not.toBe(makeNonce());
   });
 
-  it("chatHtml inchangé (deux scripts)", () => {
+  it("chatHtml charge les icônes avant ses deux scripts", () => {
     const chat = chatHtml({
       ...htmlOpts,
       uiUri: "https://x.vscode-cdn.net/media/ui.js",
       scriptUri: "https://x.vscode-cdn.net/media/chat.js",
     });
-    expect([...chat.matchAll(/<script/g)]).toHaveLength(2);
+    expect([...chat.matchAll(/<script/g)]).toHaveLength(3);
+    expect(chat.indexOf("media/icons.js")).toBeLessThan(chat.indexOf("media/ui.js"));
   });
 });
 
@@ -887,7 +889,7 @@ describe("cockpit.js", () => {
   it("bouton Principal : message setPrimary, jamais mémorisé côté webview", () => {
     expect(js).toContain('type: "setPrimary"');
     expect(js).toContain("row.primary");
-    expect(js).toContain("PRIMARY");
+    expect(js).toContain("Principal");
     expect(js).not.toContain("globalState");
   });
 });
