@@ -447,6 +447,9 @@
       $("learning-badge").hidden = true;
       return;
     }
+    $("provider").value = c.provider;
+    $("provider").disabled = c.locked;
+    $("provider-connect").disabled = c.locked;
     modelChip.setAttribute("aria-disabled", String(c.locked));
     const known = c.models?.find((m) => m.value === c.model);
     const name = c.model === null ? "Modèle par défaut" : (known?.label ?? c.model);
@@ -467,7 +470,7 @@
     levels = c.levels.filter((level) => level.enabled);
     const auto = c.effort === null;
     $("effort-auto").hidden = auto;
-    $("effort-auto").disabled = c.locked;
+    $("effort-auto").disabled = c.locked || c.effortDisabled;
     effortInput.classList.toggle("auto", auto);
     effortInput.max = String(Math.max(levels.length - 1, 0));
     const idx = auto
@@ -481,12 +484,14 @@
     scale.style.setProperty("--jn-progress", String(idx / Math.max(levels.length - 1, 1)));
     scale.classList.toggle("auto", auto);
     effortInput.disabled = c.locked || c.effortDisabled;
-    effortInput.title = c.effortDisabled ? "Ce modèle n'a pas d'effort réglable." : c.effortTip;
+    const disabledTip =
+      c.provider === "claude"
+        ? "Ce modèle n'a pas d'effort réglable."
+        : "Le réglage de l'effort n'est pas disponible pour ce fournisseur.";
+    effortInput.title = c.effortDisabled ? disabledTip : c.effortTip;
     effortInput.setAttribute("aria-valuetext", `${c.effortLabel} : ${c.effortTip}`);
     $("effort-label").textContent = c.effortLabel;
-    $("effort-tip").textContent = c.effortDisabled
-      ? "Ce modèle n'a pas d'effort réglable."
-      : c.effortTip;
+    $("effort-tip").textContent = c.effortDisabled ? disabledTip : c.effortTip;
     $("cfg-level").textContent = c.effortLabel;
     cfgBtn.title = `Configurer : effort ${c.effortLabel}`;
     // Mode Apprentissage : pastille, classe du corps, interrupteur gelé pendant un tour ; le Bypass est grisé.
@@ -883,6 +888,12 @@
     vscode.postMessage({ type: "historyResume" }),
   );
   $("readonly-close").addEventListener("click", () => resetConversation());
+  $("provider-connect").addEventListener("click", () => {
+    if (!ctl?.locked) vscode.postMessage({ type: "addProvider" });
+  });
+  $("provider").addEventListener("change", (event) => {
+    if (!ctl?.locked) vscode.postMessage({ type: "setProvider", provider: event.target.value });
+  });
   $("no-provider-add").addEventListener("click", () => vscode.postMessage({ type: "addProvider" }));
 
   // --- Monitor (lecture seule) : lignes pures de ui.js (monitorRows), texte en textContent ---
@@ -992,6 +1003,7 @@
     // Sans fournisseur : bandeau d'invite, saisie et envoi désactivés (le CSS grise le reste).
     const noProvider = !!view.noProvider;
     $("no-provider").hidden = !noProvider;
+    ctlGroup.hidden = !view.controls || noProvider;
     document.body.classList.toggle("no-provider", noProvider);
     send.disabled = view.busy || !!view.readonly || noProvider;
     input.disabled = !!view.readonly || noProvider;

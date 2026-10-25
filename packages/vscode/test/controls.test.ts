@@ -188,3 +188,32 @@ describe("contrôles", () => {
     expect(d.effort).toBe("high");
   });
 });
+
+describe("fournisseur de la conversation", () => {
+  it("persiste seulement les identifiants de fournisseur autorisés", () => {
+    for (const provider of ["claude", "openai", "opencode"]) {
+      expect(parsePrefs({ provider }).provider).toBe(provider);
+    }
+    for (const provider of ["OpenAI", "<script>", "claude\n", null, {}, 42]) {
+      expect(parsePrefs({ provider }).provider).toBe("claude");
+    }
+  });
+  it("conserve les modèles découverts et ne propose pas un effort sans backend", () => {
+    for (const provider of ["openai", "opencode"] as const) {
+      const controls = buildControls({
+        prefs: { ...DEFAULT_PREFS, provider, effort: "ultracode" },
+        models: [A],
+        status: "ready",
+        defaultModel: undefined,
+        busy: true,
+      });
+      expect(controls.provider).toBe(provider);
+      expect(controls.models?.map((model) => model.value)).toEqual(["a"]);
+      expect(controls.locked).toBe(true);
+      expect(controls.effort).toBeNull();
+      expect(controls.effortDisabled).toBe(true);
+      expect(controls.levels).toEqual([]);
+      expect(levelsFor(provider)).toEqual([]);
+    }
+  });
+});

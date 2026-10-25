@@ -295,7 +295,11 @@ describe("parseCockpitMessage", () => {
     expect(
       parseCockpitMessage({ type: "createExegol", name: "htb1", image: "kali:latest" }),
     ).toBeNull();
-    expect(parseCockpitMessage({ type: "createExegol", name: "htb1", source: "/tmp" })).toBeNull();
+    expect(parseCockpitMessage({ type: "createExegol", name: "htb1", source: "/tmp" })).toEqual({
+      type: "createExegol",
+      name: "htb1",
+      source: "/tmp",
+    });
     expect(parseCockpitMessage({ type: "createExegol" })).toBeNull();
     expect(parseCockpitMessage({ type: "createExegol", name: "" })).toBeNull();
     expect(parseCockpitMessage({ type: "createExegol", name: "-bad" })).toBeNull();
@@ -920,6 +924,46 @@ describe("imageRefs", () => {
         images: async () => [{ id: "id1", repository: "kali", tag: "latest", size: "1" }],
       }),
     });
-    expect(refs).toEqual(["kali:latest"]);
+    expect(refs).toEqual([
+      "warband/kali:complete-1",
+      "kalilinux/kali-rolling:latest",
+      "kali:latest",
+    ]);
   });
+});
+
+it("création Exegol : options fermées, aucun chemin VPN provenant de la webview", () => {
+  const options = {
+    type: "createExegol",
+    name: "lab",
+    image: "free",
+    source: "/workspace/lab",
+    vpn: true,
+    desktop: true,
+    desktopPort: 6080,
+    network: "nat",
+    shareResources: true,
+    shareMyResources: false,
+  };
+  expect(parseCockpitMessage(options)).toEqual(options);
+  for (const extra of [
+    { vpnPath: "/secret" },
+    { desktopPort: 0 },
+    { desktopPort: 65536 },
+    { desktopPort: 1.5 },
+    { vpn: "true" },
+    { network: "--privileged" },
+    { image: "--force" },
+    { image: "a;b" },
+    { shareResources: 1 },
+  ])
+    expect(parseCockpitMessage({ ...options, ...extra })).toBeNull();
+  expect(parseCockpitMessage({ type: "pickVpn" })).toEqual({ type: "pickVpn" });
+  expect(parseCockpitMessage({ type: "pickVpn", path: "/etc" })).toBeNull();
+  expect(parseCockpitMessage({ type: "cancelOperation" })).toEqual({ type: "cancelOperation" });
+  expect(parseCockpitMessage({ type: "remove", name: "exegol-lab" })).toEqual({
+    type: "remove",
+    name: "exegol-lab",
+  });
+  expect(parseCockpitMessage({ type: "remove", name: "exegol-lab", force: true })).toBeNull();
 });

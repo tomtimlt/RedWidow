@@ -10,6 +10,7 @@ export * from "./cours/instructions.js";
 export * from "./cours/policy.js";
 export * from "./cours/tool-specs.js";
 export * from "./docker/client.js";
+export * from "./docker/image-progress.js";
 export * from "./docker/tool-specs.js";
 export * from "./events.js";
 export * from "./exegol/findings.js";

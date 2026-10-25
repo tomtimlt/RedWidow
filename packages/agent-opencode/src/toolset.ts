@@ -1,9 +1,21 @@
 import {
+  COURS_SERVER_INSTRUCTIONS,
+  COURS_SERVER_NAME,
+  coursRoot,
+  coursToolSpecs,
   createDockerClient,
+  createKaliApi,
   DOCKER_SERVER_INSTRUCTIONS,
   DOCKER_SERVER_NAME,
   type DockerToolSpec,
   dockerToolSpecs,
+  EXEGOL_SERVER_INSTRUCTIONS,
+  EXEGOL_SERVER_NAME,
+  type ExegolTargets,
+  exegolToolSpecs,
+  KALI_SERVER_INSTRUCTIONS,
+  KALI_SERVER_NAME,
+  kaliToolSpecs,
   type Recorder,
 } from "@warband/core";
 
@@ -43,5 +55,50 @@ export function dockerToolset(options: DockerToolsetOptions = {}): OpencodeTools
           ...(options.argsPrefix && { argsPrefix: options.argsPrefix }),
         }),
       ),
+  };
+}
+
+export interface ExegolToolsetOptions extends DockerToolsetOptions {
+  targets: ExegolTargets;
+  /** Expose `remember` (défaut : true). */
+  includeMemory?: boolean;
+}
+
+/** Outils Exegol neutres ; leur exécution passe par le ToolGuard du serveur MCP. */
+export function exegolToolset(options: ExegolToolsetOptions): OpencodeToolset {
+  return {
+    name: EXEGOL_SERVER_NAME,
+    instructions: EXEGOL_SERVER_INSTRUCTIONS,
+    create: ({ recorder }) =>
+      exegolToolSpecs(createDockerClient({ ...options, recorder }), options.targets).filter(
+        (spec) => options.includeMemory !== false || spec.name !== "remember",
+      ),
+  };
+}
+
+export type KaliToolsetOptions = ExegolToolsetOptions;
+
+/** Outils Kali bornés aux cibles du message. */
+export function kaliToolset(options: KaliToolsetOptions): OpencodeToolset {
+  return {
+    name: KALI_SERVER_NAME,
+    instructions: KALI_SERVER_INSTRUCTIONS,
+    create: ({ recorder }) => {
+      const client = { ...options, recorder };
+      return kaliToolSpecs(
+        createDockerClient(client),
+        createKaliApi(client),
+        options.targets,
+      ).filter((spec) => options.includeMemory !== false || spec.name !== "remember");
+    },
+  };
+}
+
+/** Cours en lecture seule, sous la racine contrôlée par le cœur. */
+export function coursToolset(): OpencodeToolset {
+  return {
+    name: COURS_SERVER_NAME,
+    instructions: COURS_SERVER_INSTRUCTIONS,
+    create: () => coursToolSpecs(coursRoot()),
   };
 }

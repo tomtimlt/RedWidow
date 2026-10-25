@@ -121,6 +121,7 @@ describe("session de chat", () => {
     expect(t.f.started).toEqual({
       cwd: "/w",
       auth: "subscription",
+      provider: "claude",
       model: "m",
       maxTurns: 3,
     });
@@ -665,6 +666,28 @@ describe("historique (F4)", () => {
     expect(h.f.starts.at(-1)).toMatchObject({ resume: "S1" });
   });
 
+  it("reprend avec le fournisseur et le modèle de la conversation", async () => {
+    const h = withHistory();
+    await h.session.setProvider("openai");
+    h.session.setModel("modele-openai");
+    await h.session.send("première");
+    h.f.handlers.onStarted?.({ runId: RUN1, policySource: null });
+    h.f.handlers.onEvent?.(ev({ kind: "session.started", sessionId: "OPENAI-S" }));
+    h.f.handlers.onEnded?.({ sessionId: "OPENAI-S" } as never);
+    const id = h.view().history[0]?.id;
+    expect(h.view().history[0]?.provider).toBe("OpenAI");
+    await h.session.setProvider("claude");
+    await h.session.openConversation(id);
+    await h.session.resumeConversation();
+    expect(h.session.getProvider()).toBe("openai");
+    await h.session.send("suite");
+    expect(h.f.started).toMatchObject({
+      provider: "openai",
+      model: "modele-openai",
+      resume: "OPENAI-S",
+    });
+  });
+
   it("identifiants hostiles ignorés ; renommer nettoie ; supprimer et tout effacer", async () => {
     const h = withHistory();
     await h.session.send("une");
@@ -1019,4 +1042,120 @@ it("nouvelle conversation pendant la lecture du jeton : l’ancienne consigne n�
   await sending;
   expect(create).not.toHaveBeenCalled();
   expect(engine.calls).not.toContainEqual(["prompt", "à abandonner"]);
+});
+
+describe("sélection du fournisseur", () => {
+  it("ne démarre pas en auth auto si les identifiants disparaissent après le sondage", async () => {
+    const f = fake();
+    let connected = true;
+    const session = createChatSession({
+      cwd: "/w",
+      enginePath: "/e",
+      engineArgs: [],
+      readSettings: () => ({}),
+      requireProvider: true,
+      getToken: async () =>
+        connected
+          ? {
+              mode: "api-key" as const,
+              auth: { name: "OPENAI_API_KEY" as const, value: "secret-test" },
+            }
+          : undefined,
+      store: {
+        get: (key) => (key === "warband.prefs" ? { provider: "openai" } : undefined),
+        set: () => {},
+      },
+      confirmAlways: async () => false,
+      onView: () => {},
+      createController: f.create,
+    });
+    await session.authChanged();
+    connected = false;
+    await session.send("à ne pas envoyer avec le cache OAuth");
+    expect(f.starts).toEqual([]);
+    expect(f.calls.some((call) => call[0] === "prompt")).toBe(false);
+    expect(session.view().noProvider).toBe(true);
+    expect(session.view().busy).toBe(false);
+  });
+  it("refuse un changement pendant un tour et isole les événements tardifs après changement", async () => {
+    const t = setup({ settings: { model: "ancien-claude" } });
+    await t.session.send("premier");
+    const old = t.f.handlers;
+    old.onEvent?.(ev({ kind: "session.started", sessionId: "CLAUDE-S" }));
+    await t.session.setProvider("openai");
+    expect(t.session.getProvider()).toBe("claude");
+    old.onEnded?.({ sessionId: "CLAUDE-S" } as never);
+    await t.session.setProvider("openai");
+    old.onEvent?.(ev({ kind: "session.started", sessionId: "LATE" }));
+    t.session.setEffort("high");
+    await t.session.send("nouveau");
+    expect(t.f.started).toMatchObject({ provider: "openai" });
+    expect(t.f.started).not.toHaveProperty("resume");
+    expect(t.f.started).not.toHaveProperty("model");
+    expect(t.f.started).not.toHaveProperty("effort");
+  });
+
+  it("sépare les caches et refuse les fournisseurs inconnus", async () => {
+    const values = new Map<string, unknown>([
+      ["warband.prefs", { provider: "openai" }],
+      [
+        "warband.models",
+        { sdk: "1.0.0", models: [{ value: "claude-cache", displayName: "Claude" }] },
+      ],
+    ]);
+    const t = setup({
+      store: { get: (key) => values.get(key), set: (key, value) => values.set(key, value) },
+    });
+    expect(t.session.view().controls?.models).toBeNull();
+    await t.session.setProvider("inconnu");
+    expect(t.session.getProvider()).toBe("openai");
+    t.f.setModels([{ value: "openai-cache", displayName: "OpenAI" }]);
+    await t.session.loadModels();
+    expect(values.get("warband.models.openai")).toMatchObject({
+      models: [{ value: "openai-cache" }],
+    });
+    expect(values.get("warband.models")).toMatchObject({ models: [{ value: "claude-cache" }] });
+  });
+
+  it("ignore un sondage ancien et transmet fournisseur et auth sans secret", async () => {
+    const f = fake();
+    let resolve!: (models: ModelOption[]) => void;
+    const pending = new Promise<ModelOption[]>((done) => {
+      resolve = done;
+    });
+    const probes: unknown[] = [];
+    const getToken = vi.fn(async () => ({ mode: "subscription" as const }));
+    const session = createChatSession({
+      cwd: "/w",
+      enginePath: "/e",
+      engineArgs: [],
+      readSettings: () => ({}),
+      getToken,
+      confirmAlways: async () => false,
+      onView: () => {},
+      createController: (options) => {
+        const ctl = f.create(options);
+        return {
+          ...ctl,
+          models: async (params) => {
+            probes.push(params);
+            return params.provider === "claude"
+              ? pending
+              : [{ value: "nouveau", displayName: "Nouveau" }];
+          },
+        };
+      },
+    });
+    const first = session.loadModels();
+    await Promise.resolve();
+    await session.setProvider("openai");
+    resolve([{ value: "ancien", displayName: "Ancien" }]);
+    await first;
+    expect(session.view().controls?.models).toMatchObject([{ value: "nouveau" }]);
+    expect(probes).toContainEqual({ cwd: "/w", auth: "subscription", provider: "openai" });
+    expect(getToken).toHaveBeenCalledWith("openai");
+    expect(f.options).not.toHaveProperty("auth");
+    await session.authChanged();
+    expect(probes).toHaveLength(3);
+  });
 });

@@ -15,7 +15,7 @@ import {
   reason,
   validateEvent,
 } from "@warband/core";
-import { parseEffort } from "./effort.js";
+import { isProvider, type Provider, parseEffort } from "./effort.js";
 import { isModelId, parseModelOptions } from "./models.js";
 
 /**
@@ -32,6 +32,7 @@ export const MAX_PROMPT_CHARS = 1_000_000;
 
 export interface StartParams {
   cwd: string;
+  provider?: Provider;
   model?: string;
   effort?: Effort;
   maxTurns?: number;
@@ -58,7 +59,7 @@ export interface EndedSummary {
 export type ToEngine =
   | ({ v: 1; type: "start" } & StartParams)
   /** Sondage (moteur éphémère, aucune consigne) : demande la liste des modèles puis le moteur sort. */
-  | { v: 1; type: "models"; cwd: string; auth?: AuthMode }
+  | { v: 1; type: "models"; cwd: string; auth?: AuthMode; provider?: Provider }
   | { v: 1; type: "prompt"; text: string }
   | { v: 1; type: "answer"; toolUseId: string; decision: Decision; remember?: RememberScope }
   | { v: 1; type: "abort" }
@@ -123,6 +124,7 @@ const START_KEYS = [
   "type",
   "cwd",
   "model",
+  "provider",
   "effort",
   "maxTurns",
   "auth",
@@ -154,6 +156,7 @@ export function parseToEngine(raw: unknown): Parsed<ToEngine> {
   const { obj, type } = env.message;
   const extra = (keys: readonly string[]) => onlyKeys(obj, keys);
   let unexpected: string | null;
+  if (obj.provider !== undefined && !isProvider(obj.provider)) return bad("provider");
   switch (type) {
     case "start": {
       unexpected = extra(START_KEYS);
@@ -194,7 +197,7 @@ export function parseToEngine(raw: unknown): Parsed<ToEngine> {
       return { ok: true, message: obj as ToEngine };
     }
     case "models":
-      unexpected = extra(["v", "type", "cwd", "auth"]);
+      unexpected = extra(["v", "type", "cwd", "auth", "provider"]);
       if (unexpected) return bad(unexpected, "unexpected");
       if (!isString(obj.cwd) || obj.cwd === "" || !isAbsolute(obj.cwd)) return bad("cwd");
       if (

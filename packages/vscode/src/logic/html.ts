@@ -141,7 +141,9 @@ export function chatHtml({
 </div>
 <div id="cfg-pop" class="pop" popover="auto" role="dialog" aria-label="Configurer">
 <section class="cfg-col cfg-model" aria-labelledby="cfg-h-reason"><h3 id="cfg-h-reason">${icon("brain")}Modèle et raisonnement</h3>
-<div class="cfg-provider">${icon("sparkle")}<span>Claude Agent SDK</span></div>
+<div class="cfg-provider"><label for="provider">Fournisseur</label><select id="provider" aria-describedby="provider-help"><option value="claude">Claude</option><option value="openai">OpenAI (ChatGPT / API)</option><option value="opencode">OpenCode</option></select></div>
+<button id="provider-connect" type="button" class="ghost">Configurer la connexion</button>
+<p id="provider-help" class="tip">OpenAI : ChatGPT utilise l'authentification Codex via OpenCode. Une clé API utilise le mode hôte natif. Le CLI codex n'est pas utilisé.</p>
 <div class="effort-now">Effort : <output id="effort-label" for="effort"></output></div>
 <label for="effort" class="sr-only">Niveau d'effort</label>
 <div id="effort-scale"><input id="effort" type="range" min="0" max="4" step="1" value="2" aria-describedby="effort-tip"></div>

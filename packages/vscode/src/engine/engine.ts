@@ -23,6 +23,7 @@ import {
   type StartParams,
 } from "../logic/protocol.js";
 import { createBypassMirror } from "./bypass-mirror.js";
+import { SCAN_OUTPUT_GUIDANCE } from "./scan-guidance.js";
 
 /** Canal vers le parent (IPC de Node en production, paire factice dans les tests). */
 export interface EngineChannel {
@@ -40,7 +41,10 @@ export interface EngineOptions {
    * Fabrique du runner, appelée au `start` (production : vérifie l'empreinte du binaire
    * `claude` juste avant `createSdkRunner`) ; une erreur est signalée au parent et termine le moteur.
    */
-  createRunner: (mode?: StartParams["mode"]) => AgentRunner | Promise<AgentRunner>;
+  createRunner: (
+    mode?: StartParams["mode"],
+    provider?: StartParams["provider"],
+  ) => AgentRunner | Promise<AgentRunner>;
   /** Environnement dont on tire les secrets à masquer (défaut : `process.env`). */
   env?: NodeJS.ProcessEnv;
   /** Délai laissé au run pour s'arrêter après une déconnexion avant de rendre la main (défaut : 5000 ms). */
@@ -205,8 +209,10 @@ export function runEngine({
           policySource: source,
           ...(warning && { warning }),
         });
-        const systemPrompt = learning ? LEARNING_SYSTEM_PROMPT : params.systemPrompt;
-        const runner = await createRunner(params.mode);
+        const systemPrompt = learning
+          ? LEARNING_SYSTEM_PROMPT
+          : [SCAN_OUTPUT_GUIDANCE, params.systemPrompt].filter(Boolean).join("\n\n");
+        const runner = await createRunner(params.mode, params.provider);
         const summary = await runner.run(
           {
             prompt: prompts,
@@ -244,9 +250,13 @@ export function runEngine({
     };
 
     /** Sondage : liste des modèles sans consigne (donc sans tour, outil ni coût d'inférence), puis sortie. */
-    const probe = async (cwd: string, auth: AuthMode | undefined) => {
+    const probe = async (
+      cwd: string,
+      auth: AuthMode | undefined,
+      provider?: StartParams["provider"],
+    ) => {
       try {
-        const runner = await createRunner(undefined);
+        const runner = await createRunner(undefined, provider);
         const models =
           (await runner.listModels?.({
             cwd,
@@ -285,7 +295,7 @@ export function runEngine({
         case "models":
           if (started) return invalid("type", "state");
           started = true;
-          void probe(message.cwd, message.auth);
+          void probe(message.cwd, message.auth, message.provider);
           return;
         case "prompt":
           if (!started) return invalid("type", "state");

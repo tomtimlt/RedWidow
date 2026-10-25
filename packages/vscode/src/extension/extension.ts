@@ -1,7 +1,7 @@
 import { fork } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { mkdir } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import {
   activeProject,
   CodedError,
@@ -9,13 +9,16 @@ import {
   createDockerClient,
   createRecorder,
   defaultConfigDir,
+  ensureWarbandKaliImage,
   lookupContainer,
   prepareKaliContainer,
+  pullDockerImage,
   readFindings,
   readProjects,
   resolveBinary,
   shortContainerName,
   unlink,
+  WARBAND_KALI_IMAGE,
 } from "@warband/core";
 import { formatError } from "@warband/messages";
 import * as vscode from "vscode";
@@ -34,14 +37,19 @@ import {
   prepareTerminal,
   setPrimary,
 } from "../logic/cockpit.js";
+import { removeListedContainer } from "../logic/container-remove.js";
+import type { Provider } from "../logic/effort.js";
+import { type ExegolCreateOptions, prepareExegolCreate } from "../logic/exegol-create.js";
 import { createJournalFiles } from "../logic/historyStore.js";
 import { chatHtml, cockpitHtml, killchainHtml, makeNonce, studioHtml } from "../logic/html.js";
+import { matchesFingerprint } from "../logic/integrity.js";
 import {
   activateSelectedProject,
   createSelectedProject,
   readProjectChoices,
 } from "../logic/project-controls.js";
 import { readProjectSummary, saveProjectSummary } from "../logic/project-summary.js";
+import { openAiSubscriptionReady } from "../logic/provider-auth.js";
 import { type ChatSession, createChatSession, type TokenChoice } from "../logic/session.js";
 import { machineValue, resolveSettings } from "../logic/settings.js";
 import { readSources } from "../logic/sources.js";
@@ -63,9 +71,13 @@ import { parseWindows, WINDOW_CAP, type WindowEntry } from "../logic/windows.js"
 
 const TOKEN_KEY = "warband.token";
 const TOKEN_KIND_KEY = "warband.tokenKind";
+const OPENAI_TOKEN_KEY = "warband.openai.apiKey";
+const OPENAI_AUTH_MODE_KEY = "warband.openai.authMode";
 const WINDOWS_KEY = "warband.windows";
 // Version du SDK embarquée par le paquetage (clé du cache des modèles) ; absente en développement.
 declare const __SDK_VERSION__: string | undefined;
+declare const __OPENCODE_SHA256__: string | undefined;
+declare const __OPENCODE_VERSION__: string | undefined;
 type TokenKind = "subscription" | "api-key";
 
 /** Couche fine : seule autorisée à importer `vscode` (test de frontière). Toute la logique est dans `src/logic`. */
@@ -163,7 +175,34 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   };
 
-  const getToken = async (): Promise<TokenChoice | undefined> => {
+  const openCodeBinary = async () => {
+    const binary = join(
+      context.extensionPath,
+      "bin",
+      process.platform === "win32" ? "opencode.exe" : "opencode",
+    );
+    const expected = typeof __OPENCODE_SHA256__ === "string" ? __OPENCODE_SHA256__ : "";
+    if (!(await matchesFingerprint(binary, expected)))
+      throw new CodedError("extension.binaryMismatch");
+    return binary;
+  };
+  const getToken = async (provider: Provider = "claude"): Promise<TokenChoice | undefined> => {
+    if (provider !== "claude") {
+      try {
+        await openCodeBinary();
+      } catch {
+        return undefined;
+      }
+      if (provider === "opencode") return { mode: "auto" };
+      const kind = context.globalState.get<string>(OPENAI_AUTH_MODE_KEY);
+      if (kind === "subscription")
+        return (await openAiSubscriptionReady()) ? { mode: "subscription" } : undefined;
+      if (kind === "api-key") {
+        const value = await context.secrets.get(OPENAI_TOKEN_KEY);
+        return value ? { auth: { name: "OPENAI_API_KEY", value }, mode: "api-key" } : undefined;
+      }
+      return undefined;
+    }
     const value = await context.secrets.get(TOKEN_KEY);
     if (!value) return undefined;
     return (await context.secrets.get(TOKEN_KIND_KEY)) === "api-key"
@@ -235,7 +274,9 @@ export function activate(context: vscode.ExtensionContext): void {
           (await vscode.window.showWarningMessage(text, { modal: true }, "Supprimer")) ===
           "Supprimer",
       },
-      ...(typeof __SDK_VERSION__ === "string" && { sdkVersion: __SDK_VERSION__ }),
+      ...(typeof __SDK_VERSION__ === "string" && {
+        sdkVersion: `${__SDK_VERSION__}/${typeof __OPENCODE_VERSION__ === "string" ? __OPENCODE_VERSION__ : "unknown"}`,
+      }),
       confirmAlways: async (text) =>
         (await vscode.window.showWarningMessage(text, { modal: true }, "Toujours autoriser")) ===
         "Toujours autoriser",
@@ -259,30 +300,17 @@ export function activate(context: vscode.ExtensionContext): void {
     return session;
   };
 
-  /**
-   * Lance `exegol start <nom>` dans un terminal VS Code (création depuis le cockpit).
-   * Un terminal de même nom est seulement montré.
-   */
-  const startContainerTerminal = (slash: string) => {
-    const exegol = resolveBinary("exegol");
-    if (exegol === null) {
-      void vscode.window.showErrorMessage(
-        formatError(new CodedError("process.notFound", { binary: "exegol" })),
-      );
-      return;
-    }
-    const title = `Warband : start ${slash}`;
-    const existing = vscode.window.terminals.find((t) => t.name === title);
-    if (existing) {
-      existing.show();
-      return;
-    }
+  /** La CLI Exegol reste interactive pour sa licence, le VPN et le shell. */
+  const startContainerTerminal = async (options: ExegolCreateOptions, signal: AbortSignal) => {
+    const launch = await prepareExegolCreate(options);
+    signal.throwIfAborted();
     const term = vscode.window.createTerminal({
-      name: title,
-      shellPath: exegol,
-      shellArgs: ["start", slash],
+      name: `Warband : création ${options.name}`,
+      shellPath: launch.shellPath,
+      shellArgs: [...launch.shellArgs],
     });
     term.show();
+    return term;
   };
 
   const openTitlesFor = (container: string): string[] =>
@@ -485,6 +513,8 @@ export function activate(context: vscode.ExtensionContext): void {
           reply(await containersMessage());
           reply(await terminalsMessage());
           return await s.loadModels();
+        case "setProvider":
+          return await s.setProvider(message.provider);
         case "setModel":
           return s.setModel(message.model);
         case "setEffort":
@@ -492,7 +522,7 @@ export function activate(context: vscode.ExtensionContext): void {
         case "setLearning":
           return s.setLearning(message.enabled);
         case "refreshModels":
-          return await s.loadModels(true);
+          return await s.authChanged();
         case "refreshTerminals":
           return reply(await terminalsMessage());
         case "send": {
@@ -642,7 +672,10 @@ export function activate(context: vscode.ExtensionContext): void {
     panel.iconPath = vscode.Uri.joinPath(media, "logo-small.svg");
     cockpitPanel = panel;
     let alive = true;
+    let operationAbort: AbortController | null = null;
+    let selectedVpn: string | undefined;
     panel.onDidDispose(() => {
+      operationAbort?.abort();
       alive = false;
       cockpitPanel = undefined;
       void saveWindows();
@@ -679,11 +712,61 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     };
 
+    const runOperation = async (
+      stage: string,
+      work: (signal: AbortSignal, report: (message: unknown) => void) => Promise<void | string>,
+    ) => {
+      if (operationAbort) return;
+      const controller = new AbortController();
+      operationAbort = controller;
+      let lastReportAt = 0;
+      let lastStage: unknown;
+      const report = (fields: unknown) => {
+        const data = fields as { stage?: unknown };
+        const now = Date.now();
+        if (data.stage === lastStage && now - lastReportAt < 120) return;
+        lastStage = data.stage;
+        lastReportAt = now;
+        postCockpit({ type: "operation", busy: true, ...(fields as object) });
+      };
+      report({ stage });
+      try {
+        const completedStage = await work(controller.signal, report);
+        postCockpit({ type: "operation", busy: false, stage: completedStage ?? "Terminé" });
+      } catch (error) {
+        const cancelled = controller.signal.aborted;
+        postCockpit({
+          type: "operation",
+          busy: false,
+          stage: cancelled ? "Opération annulée" : "Échec de l’opération",
+          ...(!cancelled && { error: formatError(error) }),
+        });
+        if (!cancelled) void vscode.window.showErrorMessage(formatError(error));
+      } finally {
+        if (operationAbort === controller) operationAbort = null;
+        await pushView();
+      }
+    };
+
     void pushView(true);
 
     view.webview.onDidReceiveMessage(async (raw: unknown) => {
       const message = parseCockpitMessage(raw);
-      if (message === null) return;
+      if (message === null) {
+        postCockpit({
+          type: "operation",
+          busy: false,
+          stage: "Paramètres invalides",
+          error: "Vérifiez le nom, l’image, le dossier et les options de création.",
+        });
+        return;
+      }
+      if (message.type === "cancelOperation") {
+        operationAbort?.abort();
+        return;
+      }
+      if (operationAbort && message.type !== "refresh") return;
+
       try {
         switch (message.type) {
           case "refresh":
@@ -747,28 +830,173 @@ export function activate(context: vscode.ExtensionContext): void {
             return;
           }
           case "start":
-            await controlListedContainer("start", message.name);
-            await prepareIfKali(message.name);
-            return void pushView(true);
-          case "stop":
-            await controlListedContainer("stop", message.name);
-            return void pushView(true);
-          case "createExegol":
-            // Nom saisi tel quel : pas de projet lié, pas de nom court.
-            startContainerTerminal(message.name);
-            return;
-          case "createKali": {
-            // Pas de terminal ni de lien. Aucun délai imposé : le défaut du client s'applique.
-            await createDockerClient({
-              recorder: createRecorder(),
-              binary: "docker",
-            }).createKaliContainer({
-              image: message.image,
-              name: message.name,
-              source: message.source,
+            return await runOperation("Démarrage du conteneur…", async (signal) => {
+              signal.throwIfAborted();
+              await controlListedContainer("start", message.name);
+              signal.throwIfAborted();
+              await prepareIfKali(message.name);
             });
-            await prepareIfKali(message.name);
-            return void pushView(true);
+          case "stop":
+            return await runOperation("Arrêt du conteneur…", async (signal) => {
+              signal.throwIfAborted();
+              await controlListedContainer("stop", message.name);
+            });
+          case "createExegol":
+            return await runOperation("Préparation Exegol…", async (signal) => {
+              if (message.vpn && !selectedVpn)
+                throw new Error("Choisissez une configuration VPN avec le bouton VPN.");
+              if (
+                (message.desktop || message.vpn) &&
+                message.network !== undefined &&
+                message.network !== "nat"
+              )
+                throw new Error("Le VPN et le bureau web nécessitent le réseau NAT.");
+              const existing = await loadCockpitView();
+              if (
+                existing.containers.some(
+                  (item) => item.name === message.name || item.short === message.name,
+                )
+              )
+                throw new Error("Ce conteneur existe déjà. Utilisez Démarrer dans la liste.");
+              if (
+                vscode.window.terminals.some(
+                  (terminal) => terminal.name === `Warband : création ${message.name}`,
+                )
+              )
+                throw new Error("Une création de ce nom est déjà ouverte dans un terminal.");
+              signal.throwIfAborted();
+              await startContainerTerminal(
+                {
+                  name: message.name,
+                  ...(message.image && { image: message.image }),
+                  ...(message.source && { workspacePath: message.source }),
+                  ...(message.vpn && selectedVpn && { vpnPath: selectedVpn }),
+                  ...(message.desktop !== undefined && { desktop: message.desktop }),
+                  ...(message.desktopPort !== undefined && { desktopPort: message.desktopPort }),
+                  network: message.network ?? "nat",
+                  gui: false,
+                  exegolResources: message.shareResources ?? true,
+                  myResources: message.shareMyResources ?? true,
+                },
+                signal,
+              );
+              signal.throwIfAborted();
+              void vscode.window.showInformationMessage(
+                "Terminez la création Exegol dans le terminal, puis actualisez les conteneurs.",
+              );
+              return "Création Exegol lancée — progression dans le terminal";
+            });
+          case "createKali":
+            return await runOperation("Préparation de l’image Kali…", async (signal, report) => {
+              const recorder = createRecorder();
+              let lastReport = 0;
+              const unsubscribe = recorder.subscribe((event) => {
+                if (event.kind === "process.output" && Date.now() - lastReport > 250) {
+                  lastReport = Date.now();
+                  report({
+                    stage: "Préparation de l’image Kali…",
+                    message: event.line.slice(-512),
+                  });
+                }
+              });
+              try {
+                const options = {
+                  recorder,
+                  signal,
+                  onProgress: (progress: import("@warband/core").DockerImageProgress) =>
+                    report({
+                      stage:
+                        progress.stage === "build"
+                          ? "Installation des outils Kali…"
+                          : "Téléchargement de l’image…",
+                      message: progress.status,
+                      layers: progress.layers,
+                    }),
+                };
+                const image =
+                  message.image === WARBAND_KALI_IMAGE
+                    ? await ensureWarbandKaliImage(options)
+                    : message.image;
+                if (message.image !== WARBAND_KALI_IMAGE) {
+                  const images = await listCockpitImages();
+                  // Les deux références proposées ne prouvent pas leur présence locale.
+                  const local = await createDockerClient({ recorder, binary: "docker" }).images();
+                  if (
+                    !local.some(
+                      (item) => `${item.repository}:${item.tag}` === image || item.id === image,
+                    )
+                  ) {
+                    if (!images.includes(image))
+                      throw new Error("Image Kali absente de la sélection courante.");
+                    await pullDockerImage(image, options);
+                  }
+                }
+                signal.throwIfAborted();
+                report({ stage: "Création et démarrage du conteneur…", layers: [] });
+                await createDockerClient({ recorder, binary: "docker" }).createKaliContainer({
+                  image,
+                  name: message.name,
+                  source: message.source,
+                  signal,
+                });
+                signal.throwIfAborted();
+                report({ stage: "Vérification du serveur MCP Kali…", layers: [] });
+                await prepareKaliContainer(message.name, {
+                  recorder,
+                  signal,
+                  onStage: (stage) => report({ stage: `Serveur MCP Kali : ${stage}` }),
+                });
+              } finally {
+                unsubscribe();
+                recorder.close();
+              }
+            });
+          case "remove":
+            return await runOperation("Suppression du conteneur…", async (signal) => {
+              const result = await removeListedContainer(message.name, {
+                signal,
+                confirm: async (info) => {
+                  const action = "Supprimer le conteneur";
+                  const projects = info.projects.map((p) => p.name).join(", ") || "aucun";
+                  const choice = await vscode.window.showWarningMessage(
+                    `Supprimer ${info.name} (${info.family}) ?${info.force ? " Il est en cours et sera arrêté de force." : ""} Les fichiers internes non montés seront perdus. Les images, volumes et dossiers hôtes sont conservés. Projets associés : ${projects}.`,
+                    { modal: true },
+                    action,
+                  );
+                  return choice === action && !signal.aborted;
+                },
+              });
+              if (result.status === "cancelled") {
+                signal.throwIfAborted();
+                return;
+              }
+              for (const shell of editorShells.get(message.name) ?? []) shell.term.dispose();
+              editorShells.delete(message.name);
+              if (result.status === "partial")
+                throw new Error(
+                  `Le conteneur est supprimé, mais ses associations restent à nettoyer : ${formatError(result.error)}`,
+                );
+              await pushStudio();
+              await refreshContainerStatus();
+            });
+          case "pickVpn": {
+            const kind = await vscode.window.showQuickPick(
+              ["Fichier OpenVPN / WireGuard", "Dossier OpenVPN (certificats séparés)"],
+              { title: "Configuration VPN Exegol" },
+            );
+            if (!kind) return;
+            const directory = kind.startsWith("Dossier");
+            const picked = await vscode.window.showOpenDialog({
+              canSelectFiles: !directory,
+              canSelectFolders: directory,
+              canSelectMany: false,
+              ...(!directory && { filters: { VPN: ["ovpn", "conf"] } }),
+              openLabel: "Choisir le VPN",
+            });
+            if (!picked?.[0]) return;
+            selectedVpn = picked[0].fsPath;
+            postCockpit({ type: "pickedVpn", label: basename(selectedVpn) });
+            return;
           }
           case "listImages":
             postCockpit({ type: "images", images: await listCockpitImages() });
@@ -1415,6 +1643,74 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
     vscode.commands.registerCommand("warband.launcher", () => openLauncher()),
     vscode.commands.registerCommand("warband.setToken", async () => {
+      const provider = slots.get(activeId)?.session?.getProvider() ?? "claude";
+      if (provider !== "claude") {
+        let kind: "subscription" | "api-key" | "auto" = "auto";
+        if (provider === "openai") {
+          const picked = await vscode.window.showQuickPick(
+            [
+              {
+                label: "Abonnement ChatGPT",
+                description: "Connexion OAuth Codex via OpenCode",
+                value: "subscription" as const,
+              },
+              {
+                label: "Clé API OpenAI",
+                description: "Stockage sécurisé de VS Code",
+                value: "api-key" as const,
+              },
+            ],
+            { title: "Connexion OpenAI", ignoreFocusOut: true },
+          );
+          if (!picked) return;
+          kind = picked.value;
+          if (kind === "api-key") {
+            const value = await vscode.window.showInputBox({
+              title: "Clé API OpenAI",
+              password: true,
+              ignoreFocusOut: true,
+              validateInput: (text) => (text.trim() ? undefined : "La clé est vide."),
+            });
+            if (value === undefined) return;
+            await context.secrets.store(OPENAI_TOKEN_KEY, value.trim());
+            await context.globalState.update(OPENAI_AUTH_MODE_KEY, kind);
+            applyAuthChange();
+            return;
+          }
+          await context.globalState.update(OPENAI_AUTH_MODE_KEY, kind);
+        }
+        const binary = await openCodeBinary();
+        const term = vscode.window.createTerminal({
+          name:
+            provider === "openai" ? "Warband : connexion ChatGPT" : "Warband : connexion OpenCode",
+          shellPath: binary,
+          shellArgs: ["auth", "login", ...(provider === "openai" ? ["--provider", "openai"] : [])],
+          env: {
+            OPENCODE_DISABLE_PROJECT_CONFIG: "1",
+            OPENCODE_PURE: "1",
+            OPENCODE_DISABLE_AUTOUPDATE: "1",
+            OPENCODE_DISABLE_SHARE: "1",
+            OPENCODE_CONFIG_CONTENT: JSON.stringify({ plugin: [], share: "disabled" }),
+            OPENCODE_CONFIG: null,
+            OPENCODE_CONFIG_DIR: null,
+            OPENCODE_AUTH_CONTENT: null,
+            OPENAI_API_KEY: null,
+          },
+        });
+        const subscription = vscode.window.onDidCloseTerminal((closed) => {
+          if (closed !== term) return;
+          subscription.dispose();
+          applyAuthChange();
+        });
+        context.subscriptions.push(subscription);
+        term.show();
+        applyAuthChange();
+        void vscode.window.showInformationMessage(
+          "Terminez la connexion dans le terminal, puis fermez-le ou actualisez la liste des modèles.",
+        );
+        return;
+      }
+
       const kind = await vscode.window.showQuickPick(
         [
           { label: "Jeton d'abonnement", description: "claude setup-token", value: "subscription" },
@@ -1437,6 +1733,23 @@ export function activate(context: vscode.ExtensionContext): void {
       void vscode.window.showInformationMessage("Jeton enregistré et appliqué.");
     }),
     vscode.commands.registerCommand("warband.clearToken", async () => {
+      const provider = slots.get(activeId)?.session?.getProvider() ?? "claude";
+      if (provider === "openai") {
+        await context.secrets.delete(OPENAI_TOKEN_KEY);
+        await context.globalState.update(OPENAI_AUTH_MODE_KEY, undefined);
+        applyAuthChange();
+        void vscode.window.showInformationMessage(
+          "Connexion OpenAI désactivée dans Warband. Le cache OAuth d’OpenCode est conservé.",
+        );
+        return;
+      }
+      if (provider === "opencode") {
+        void vscode.window.showInformationMessage(
+          "La connexion OpenCode se gère dans son terminal avec opencode auth logout.",
+        );
+        return;
+      }
+
       await context.secrets.delete(TOKEN_KEY);
       await context.secrets.delete(TOKEN_KIND_KEY);
       applyAuthChange();

@@ -179,3 +179,21 @@ describe("parseWebviewMessage : setLearning (ADR 0010)", () => {
     expect(parseWebviewMessage({ type: "setLearning" })).toBeNull();
   });
 });
+
+describe("sélection du fournisseur depuis la webview", () => {
+  it("accepte les trois fournisseurs et aucun champ supplémentaire", () => {
+    for (const provider of ["claude", "openai", "opencode"]) {
+      expect(parseWebviewMessage({ type: "setProvider", provider })).toEqual({
+        type: "setProvider",
+        provider,
+      });
+      expect(parseWebviewMessage({ type: "setProvider", provider, token: "secret" })).toBeNull();
+    }
+    for (const provider of ["OPENAI", "<script>", null, {}, 1]) {
+      expect(parseWebviewMessage({ type: "setProvider", provider })).toBeNull();
+    }
+    expect(parseWebviewMessage({ type: "setProvider" })).toBeNull();
+    expect(parseWebviewMessage({ type: "addProvider" })).toEqual({ type: "addProvider" });
+    expect(parseWebviewMessage({ type: "addProvider", provider: "openai" })).toBeNull();
+  });
+});

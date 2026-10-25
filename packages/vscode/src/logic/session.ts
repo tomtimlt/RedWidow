@@ -27,6 +27,8 @@ import {
   clampEffort,
   EFFORT_LEVELS,
   type EffortChoice,
+  isProvider,
+  type Provider,
   parseEffortChoice,
   resolveEffort,
   type UltracodeLimits,
@@ -56,7 +58,7 @@ const labelOf = (e: EffortChoice) => EFFORT_LEVELS.find((l) => l.value === e)?.l
 
 /** Jeton choisi par l'utilisateur : le mode d'authentification qui lui correspond. */
 export interface TokenChoice {
-  auth: EngineAuth;
+  auth?: EngineAuth;
   mode: AuthMode;
 }
 
@@ -67,7 +69,7 @@ export interface ChatSessionDeps {
   /** Réglages machine validés (lève `CodedError`). */
   readSettings(): ChatSettings;
   /** Jeton (SecretStorage) ; `undefined` → authentification `auto` du binaire. */
-  getToken(): Promise<TokenChoice | undefined>;
+  getToken(provider?: Provider): Promise<TokenChoice | undefined>;
   /**
    * Sans jeton, le chat est grisé (`noProvider`) et aucun message ne part. Absent : le binaire garde
    * son authentification `auto` (comportement historique, et celui des tests).
@@ -120,7 +122,10 @@ export function createChatSession(deps: ChatSessionDeps) {
     set: (key: string, value: unknown) => memory.set(key, value),
   };
   let prefs: Prefs = parsePrefs(store.get(PREFS_KEY));
-  let models: ModelOption[] | null = parseModelCache(store.get(MODELS_KEY), sdkVersion);
+  const modelsKey = () =>
+    prefs.provider === "claude" ? MODELS_KEY : `${MODELS_KEY}.${prefs.provider}`;
+  let models: ModelOption[] | null = parseModelCache(store.get(modelsKey()), sdkVersion);
+  let modelsRev = 0;
   let modelsStatus: ModelsStatus = models ? "ready" : "idle";
   let probing = false;
   /** Mode apprentissage de ce chat (ADR 0010) : relu en booléen strict, jamais depuis `warband.prefs`. */
@@ -162,7 +167,7 @@ export function createChatSession(deps: ChatSessionDeps) {
     void Promise.resolve(store.set(key, value)).catch(() => undefined);
   const machineModel = (): string | undefined => {
     try {
-      return deps.readSettings().model;
+      return prefs.provider === "claude" ? deps.readSettings().model : undefined;
     } catch {
       return undefined;
     }
@@ -203,9 +208,9 @@ export function createChatSession(deps: ChatSessionDeps) {
 
   /** Modèle et effort du prochain message : préférence, sinon réglage machine ; effort ramené s'il n'est pas permis. */
   const choice = (settings: ChatSettings) => {
-    const model = prefs.model ?? settings.model;
+    const model = prefs.model ?? (prefs.provider === "claude" ? settings.model : undefined);
     // « Auto » : aucun effort transmis, le modèle garde son défaut.
-    if (prefs.effort === null) {
+    if (prefs.provider !== "claude" || prefs.effort === null) {
       return { model, effort: undefined, key: null, clampedTo: undefined, ultra: undefined };
     }
     const r = resolveEffort(prefs.effort, settings.ultracode);
@@ -252,7 +257,7 @@ export function createChatSession(deps: ChatSessionDeps) {
         title: c.title,
         updatedAt: c.updatedAt,
         tools: c.tools,
-        provider: "Claude",
+        provider: { claude: "Claude", openai: "OpenAI", opencode: "OpenCode" }[c.provider],
         model: c.model ?? "défaut",
         current: c.id === current?.id,
         projectKey: historyProject(c, historyProjects.projects).key,
@@ -286,7 +291,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       title: titleFrom(firstPrompt),
       createdAt: now,
       updatedAt: now,
-      provider: "claude",
+      provider: prefs.provider,
       model: prefs.model,
       effort: prefs.effort,
       sessionId: sessionId ?? null,
@@ -307,15 +312,25 @@ export function createChatSession(deps: ChatSessionDeps) {
     const picked = choice(settings);
     if (picked.clampedTo !== undefined && picked.key !== null)
       clampNotice(picked.key, picked.clampedTo);
-    const token = await deps.getToken();
+    const token = await deps.getToken(prefs.provider);
     if (revision !== navigationRev) return null;
+    if (deps.requireProvider && token === undefined) {
+      state.setNoProvider(true);
+      state.setBusy(false);
+      state.notice(
+        "La connexion au fournisseur n’est plus disponible. Reconnectez-le avant de continuer.",
+        "error",
+      );
+      refresh();
+      return null;
+    }
     refresh();
     stopping = false;
     const ctl = make({
       enginePath: deps.enginePath,
       args: deps.engineArgs,
       cwd: deps.cwd,
-      ...(token && { auth: token.auth }),
+      ...(token?.auth && { auth: token.auth }),
       handlers: {
         onStarted: ({ runId, warning }) => {
           if (detached.has(ctl)) return;
@@ -387,6 +402,7 @@ export function createChatSession(deps: ChatSessionDeps) {
     await ctl.start({
       cwd: deps.cwd,
       auth: token?.mode ?? "auto",
+      provider: prefs.provider,
       ...(picked.model !== undefined && { model: picked.model }),
       ...(picked.effort !== undefined && { effort: picked.effort }),
       ...(maxTurns !== undefined && { maxTurns }),
@@ -409,34 +425,51 @@ export function createChatSession(deps: ChatSessionDeps) {
   /** Sondage de la liste des modèles (moteur éphémère sans consigne) ; sans effet si déjà connue, sauf `force`. */
   const loadModels = async (force = false): Promise<void> => {
     if (probing || (models !== null && !force)) return;
+    const revision = modelsRev;
+    const provider = prefs.provider;
+    const cacheKey = modelsKey();
     probing = true;
     modelsStatus = "loading";
     refresh();
     try {
-      const token = await deps.getToken();
+      const token = await deps.getToken(prefs.provider);
+      if (revision !== modelsRev) return;
+      if (deps.requireProvider && !token) {
+        state.setNoProvider(true);
+        models = null;
+        modelsStatus = "unavailable";
+        return;
+      }
+      if (deps.requireProvider) state.setNoProvider(false);
       const probe = make({
         enginePath: deps.enginePath,
         args: deps.engineArgs,
         cwd: deps.cwd,
-        ...(token && { auth: token.auth }),
+        ...(token?.auth && { auth: token.auth }),
         handlers: { onLog: (text) => deps.onLog?.(text) },
       });
-      const list = usableModels(await probe.models({ cwd: deps.cwd, auth: token?.mode ?? "auto" }));
+      const list = usableModels(
+        await probe.models({ cwd: deps.cwd, auth: token?.mode ?? "auto", provider }),
+      );
+      if (revision !== modelsRev) return;
       if (list.length === 0) throw new Error("liste vide");
       models = list;
       modelsStatus = "ready";
-      persist(MODELS_KEY, { sdk: sdkVersion, models: list });
+      persist(cacheKey, { sdk: sdkVersion, models: list });
       if (prefs.model !== null && !list.some((m) => m.value === prefs.model)) {
         prefs = { ...prefs, model: null };
         persist(PREFS_KEY, prefs);
         state.notice("Le modèle choisi n'est plus proposé : retour au modèle par défaut.");
       }
     } catch {
+      if (revision !== modelsRev) return;
       // Repli : saisie libre (ou liste en cache). Aucune erreur affichée, rien n'a été perdu.
       modelsStatus = models ? "ready" : "unavailable";
     } finally {
-      probing = false;
-      refresh();
+      if (revision === modelsRev) {
+        probing = false;
+        refresh();
+      }
     }
   };
 
@@ -474,13 +507,14 @@ export function createChatSession(deps: ChatSessionDeps) {
   /** Relit la présence d'un jeton (grise le chat sans fournisseur) ; sans effet si `requireProvider` est absent. */
   const refreshProvider = async (): Promise<void> => {
     if (!deps.requireProvider) return;
+    const provider = prefs.provider;
     let has = false;
     try {
-      has = (await deps.getToken()) !== undefined;
+      has = (await deps.getToken(prefs.provider)) !== undefined;
     } catch {
       has = false;
     }
-    state.setNoProvider(!has);
+    if (provider === prefs.provider) state.setNoProvider(!has);
   };
   if (deps.requireProvider) void refreshProvider().then(() => refresh());
 
@@ -490,6 +524,23 @@ export function createChatSession(deps: ChatSessionDeps) {
       return state.view();
     },
     loadModels,
+    getProvider: () => prefs.provider,
+    async setProvider(raw: unknown): Promise<void> {
+      if (state.busy || !isProvider(raw) || raw === prefs.provider) {
+        refresh();
+        return;
+      }
+      this.reset();
+      prefs = { model: null, effort: null, provider: raw };
+      persist(PREFS_KEY, prefs);
+      modelsRev++;
+      probing = false;
+      models = null;
+      modelsStatus = "idle";
+      await refreshProvider();
+      refresh();
+      await loadModels();
+    },
     /** Choix venu de la webview (hostile) : revalidé ; gelé pendant un tour, appliqué au message suivant. */
     setModel(raw: unknown): void {
       if (state.busy) {
@@ -508,7 +559,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       refresh();
     },
     setEffort(raw: unknown): void {
-      if (state.busy) {
+      if (state.busy || prefs.provider !== "claude") {
         refresh();
         return;
       }
@@ -623,6 +674,11 @@ export function createChatSession(deps: ChatSessionDeps) {
      */
     async authChanged(): Promise<void> {
       authRev++;
+      modelsRev++;
+      probing = false;
+      models = null;
+      modelsStatus = "idle";
+      persist(modelsKey(), undefined);
       await refreshProvider();
       if (controller !== null && !state.busy) {
         await retire(
@@ -749,6 +805,17 @@ export function createChatSession(deps: ChatSessionDeps) {
         refresh();
         return;
       }
+      const providerChanged = prefs.provider !== meta.provider;
+      prefs = { provider: meta.provider, model: meta.model, effort: meta.effort };
+      persist(PREFS_KEY, prefs);
+      if (providerChanged) {
+        modelsRev++;
+        probing = false;
+        models = null;
+        modelsStatus = "idle";
+        await refreshProvider();
+        if (revision !== navigationRev) return;
+      }
       current = meta;
       sessionId = meta.sessionId ?? undefined;
       state.setReadonly(null);
@@ -758,6 +825,7 @@ export function createChatSession(deps: ChatSessionDeps) {
           : "Conversation reprise dans son projet : la politique actuelle s'applique.",
       );
       refresh();
+      if (providerChanged) await loadModels();
     },
     renameConversation(id: unknown, raw: unknown): void {
       const meta = isConversationId(id) ? index.find((c) => c.id === id) : undefined;

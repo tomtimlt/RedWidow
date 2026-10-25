@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
+import { updateFinding } from "../src/exegol/findings.js";
 import {
   appendFinding,
   createExegolTargets,
@@ -211,4 +212,100 @@ it("note : titre borné dans le schéma, erreur dédiée et réessai sans perte"
     if (root === undefined) delete process.env.XDG_CONFIG_HOME;
     else process.env.XDG_CONFIG_HOME = root;
   }
+});
+
+describe("modification des trouvailles", () => {
+  it("conserve id et champs omis, modifie les parents et efface les métadonnées", async () => {
+    const d = await dir();
+    const a = await appendFinding(d, ID, { kind: "host", label: "h", state: "confirmed" });
+    const b = await appendFinding(d, ID, {
+      kind: "step",
+      label: "b",
+      state: "hypothesis",
+      tactic: "TA0006",
+      technique: "T1110",
+      from: [a.id],
+    });
+    expect(await updateFinding(d, ID, b.id, { label: " nouveau " })).toEqual({
+      ...b,
+      label: "nouveau",
+    });
+    const saved = await updateFinding(d, ID, b.id, { tactic: null, technique: null, from: [] });
+    expect(saved).toEqual({ id: b.id, kind: "step", label: "nouveau", state: "hypothesis" });
+    expect((await updateFinding(d, ID, b.id, { from: [a.id] })).from).toEqual([a.id]);
+    expect(await readFindings(d, ID)).toEqual([a, { ...saved, from: [a.id] }]);
+    expect(
+      (await readdir(join(d, "projects", ID))).filter((file) => file.endsWith(".tmp")),
+    ).toEqual([]);
+  });
+
+  it("refuse références inconnues, soi-même et cycles, puis réessaie sans perte", async () => {
+    const d = await dir();
+    const a = await appendFinding(d, ID, { kind: "host", label: "a", state: "confirmed" });
+    const b = await appendFinding(d, ID, {
+      kind: "step",
+      label: "b",
+      state: "confirmed",
+      from: [a.id],
+    });
+    const before = await readFindings(d, ID);
+    for (const from of [["absent"], [a.id], [b.id]]) {
+      await expect(updateFinding(d, ID, a.id, { from })).rejects.toMatchObject({
+        code: "finding.invalidLinks",
+      });
+    }
+    await expect(updateFinding(d, ID, a.id, { label: "a".repeat(201) })).rejects.toMatchObject({
+      code: "finding.labelInvalid",
+    });
+    await expect(updateFinding(d, OTHER, a.id, { label: "forgé" })).rejects.toMatchObject({
+      code: "finding.notFound",
+    });
+    expect(await readFindings(d, ID)).toEqual(before);
+    expect(await updateFinding(d, ID, a.id, { label: "corrigé" })).toEqual({
+      ...a,
+      label: "corrigé",
+    });
+    await expect(updateFinding(d, "../", a.id, {})).rejects.toMatchObject({
+      code: "project.invalid",
+    });
+  });
+
+  it("les outils lisent et modifient uniquement le projet actif malgré un projectId forgé", async () => {
+    const root = await dir();
+    const prev = process.env.XDG_CONFIG_HOME;
+    process.env.XDG_CONFIG_HOME = root;
+    try {
+      const d = join(root, "warband");
+      const a = await appendFinding(d, ID, { kind: "host", label: "a", state: "confirmed" });
+      const foreign = await appendFinding(d, OTHER, {
+        kind: "host",
+        label: "secret",
+        state: "confirmed",
+      });
+      const targets = createExegolTargets();
+      const specs = exegolToolSpecs({} as DockerClient, targets);
+      const list = specs.find((spec) => spec.name === "list_notes");
+      const update = specs.find((spec) => spec.name === "update_note");
+      if (!list || !update) throw new Error("outils de trouvailles absents");
+      const ctx = { parentId: null, correlation: undefined, signal: undefined };
+      expect(list.readOnly).toBe(true);
+      await expect(list.run({ projectId: OTHER }, ctx)).rejects.toMatchObject({
+        code: "project.absent",
+      });
+      targets.note("observé", [], ID);
+      expect(JSON.parse(await list.run({ projectId: OTHER }, ctx))).toEqual([a]);
+      await expect(
+        update.run({ id: foreign.id, patch: { label: "forgé" }, projectId: OTHER }, ctx),
+      ).rejects.toMatchObject({ code: "finding.notFound" });
+      await expect(
+        update.run({ id: a.id, patch: { label: "a".repeat(201) } }, ctx),
+      ).rejects.toMatchObject({ code: "finding.labelInvalid" });
+      await update.run({ id: a.id, patch: { label: "corrigé" }, projectId: OTHER }, ctx);
+      expect((await readFindings(d, ID))[0]?.label).toBe("corrigé");
+      expect(await readFindings(d, OTHER)).toEqual([foreign]);
+    } finally {
+      if (prev === undefined) delete process.env.XDG_CONFIG_HOME;
+      else process.env.XDG_CONFIG_HOME = prev;
+    }
+  });
 });

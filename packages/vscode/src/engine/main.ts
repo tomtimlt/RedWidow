@@ -1,4 +1,10 @@
 import { isAbsolute, join } from "node:path";
+import {
+  createOpencodeRunner,
+  coursToolset as openCodeCours,
+  exegolToolset as openCodeExegol,
+  kaliToolset as openCodeKali,
+} from "@warband/agent-opencode";
 import { createSdkRunner } from "@warband/agent-sdk";
 import {
   activeProject,
@@ -22,6 +28,7 @@ import { runnerOptions } from "./runner-options.js";
  * (pas de fichier à lire : un fichier voisin du binaire serait modifiable avec lui).
  */
 declare const __CLAUDE_SHA256__: string | undefined;
+declare const __OPENCODE_SHA256__: string | undefined;
 
 /**
  * Point d'entrée du moteur (processus enfant forké par l'extension).
@@ -59,7 +66,25 @@ const done = runEngine({
     targets.note(text, outcome.containers, outcome.projectId, outcome.blocked);
     return enrichContainerPrompt(text, outcome.containers, () => docker.listLabelPrefix());
   },
-  createRunner: async (mode) => {
+  createRunner: async (mode, provider = "claude") => {
+    if (provider !== "claude") {
+      const binary = join(root, "bin", process.platform === "win32" ? "opencode.exe" : "opencode");
+      const hash = typeof __OPENCODE_SHA256__ === "string" ? __OPENCODE_SHA256__ : "";
+      if (!(await matchesFingerprint(binary, hash)))
+        throw new CodedError("extension.binaryMismatch");
+      return createOpencodeRunner({
+        binary,
+        ...(provider === "openai" && { provider: "openai" }),
+        ...(mode === "learning"
+          ? { toolsets: [openCodeCours()], builtinTools: [] }
+          : {
+              toolsets: [
+                openCodeExegol({ targets, binary: "docker", includeMemory: false }),
+                openCodeKali({ targets, binary: "docker", includeMemory: false }),
+              ],
+            }),
+      });
+    }
     // Vérification juste avant la construction du runner (fail-closed : empreinte absente = refus).
     const expected = typeof __CLAUDE_SHA256__ === "string" ? __CLAUDE_SHA256__ : "";
     if (!(await matchesFingerprint(exe, expected))) {

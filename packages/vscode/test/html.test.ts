@@ -173,7 +173,16 @@ describe("composer et Configurer (lot P1)", () => {
     expect(cfg).toContain('class="cfg-col cfg-model"');
     expect(cfg).toContain('class="cfg-col cfg-execution"');
     expect(cfg).toContain("Modèle et raisonnement");
-    expect(cfg).toContain("Claude Agent SDK");
+    expect(cfg).toContain('<select id="provider"');
+    expect(cfg).toContain('value="claude">Claude');
+    expect(cfg).toContain('value="openai">OpenAI (ChatGPT / API)');
+    expect(cfg).toContain('value="opencode">OpenCode');
+    expect(cfg).toContain("Configurer la connexion");
+    expect(cfg).toContain("authentification Codex via OpenCode");
+    expect(js).toContain('type: "setProvider", provider: event.target.value');
+    expect(js).toContain('$("provider").disabled = c.locked');
+    expect(js).toContain('$("provider-connect").addEventListener');
+    expect(js).toContain("ctlGroup.hidden = !view.controls || noProvider");
     expect(cfg).not.toMatch(/cfg-off|cfg-later|Bientôt|Persona|Answer, Plan/);
   });
   it("Configurer n'a plus de sélecteur de disposition", () => {

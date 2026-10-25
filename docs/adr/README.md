@@ -1,6 +1,6 @@
 # Décisions d'architecture (ADR)
 
-Un ADR consigne une décision structurante : pourquoi ce choix, quelles alternatives, quelles conséquences. Rédigés par l'agent `architect` (voir `CLAUDE.md`), numérotés dans l'ordre : `NNNN-titre-court.md`.
+Un ADR consigne une décision structurante : pourquoi ce choix, quelles alternatives, quelles conséquences. Rédigés par l'agent `architect` (voir `AGENTS.md`), numérotés dans l'ordre : `NNNN-titre-court.md`.
 
 **Quand en écrire un** : nouveau paquet ou frontière entre paquets, API publique du cœur, format d'événement ou de journal, politique de sécurité et d'approbation, ajout d'une dépendance majeure, abandon d'une option déjà discutée.
 **Quand s'en passer** : détail d'implémentation local, correction de bug, choix réversible sans conséquence.
@@ -30,3 +30,12 @@ Positives, négatives, risques, ce qu'il faudra surveiller ou vérifier.
 ## Plan
 Lots pour `dev` : objectif, fichiers, critères d'acceptation vérifiables.
 ```
+
+## Décisions récentes
+
+- [0019 — Conversations sans mémoire implicite](0019-conversations-sans-memoire-implicite.md) : remplace l’injection du résumé de l’ADR 0016 dans l’extension.
+- [0020 — Fournisseurs OpenAI et OpenCode](0020-fournisseurs-openai-opencode.md) : authentification isolée, catalogue runtime et frontière des conversations.
+- [0021 — Création et suppression des conteneurs](0021-creation-et-suppression-conteneurs.md) : Exegol interactif, image Kali locale complète et suppression confirmée par ID.
+
+Le statut accepté décrit la décision ; les preuves d’exécution et les limites
+figurent dans [l’état du projet](../etat-du-projet.md).

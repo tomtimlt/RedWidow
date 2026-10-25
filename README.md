@@ -58,7 +58,7 @@ ils ne constituent pas le guide d’utilisation.
 
 **Pensé pour le pentest**
 - L'agent exécute les outils de ton conteneur de pentest (`argv` sans shell, dans `/workspace`). La cible doit appartenir aux conteneurs autorisés du projet ; `@` permet de la préciser. Dans le chat, l’agent ne crée, n’arrête ni ne supprime aucun conteneur.
-- **Résumé du projet** consultable et modifiable dans Réglages → Projet, réutilisé au début des nouvelles conversations.
+- **Résumé du projet** consultable et modifiable dans Réglages → Projet, conservé comme note personnelle sans injection automatique dans les nouvelles conversations.
 - **Carnet de trouvailles** : hôtes, identifiants, sites, étapes, butin, avec un état (confirmé, hypothèse, échoué), la tactique et la technique **MITRE ATT&CK**, et les liens de causalité entre elles.
 - Page **Kill chain** : le graphe interactif des trouvailles, en couches, avec zoom et déplacement.
 - **Terminaux** de l'éditeur dans le conteneur ; `#` colle dans la consigne la sortie d'un terminal ouvert.
@@ -72,7 +72,7 @@ ils ne constituent pas le guide d’utilisation.
 - Journal d'événements en JSONL, **graphe causal** exportable en HTML autonome.
 - Secrets masqués avant tout enregistrement ; processus enfants lancés avec une liste blanche de variables.
 - Outils **Docker structurés** (`ps`, `logs`, `inspect`, `run`…), chacun soumis à la politique.
-- **Claude Agent SDK dans le chat VS Code**. La CLI propose aussi **OpenCode** (OpenAI, Gemini, Ollama, endpoints compatibles), derrière la même gate ; OpenCode n’est pas encore disponible dans le chat.
+- **Claude, OpenAI et OpenCode dans le chat VS Code** : Claude Agent SDK ou OpenCode 1.19.0 embarqué, derrière la même gate. OpenAI propose l’abonnement ChatGPT par OAuth Codex et une clé API isolée du cache OAuth. Les modèles sont découverts au runtime ; changer de fournisseur ouvre une nouvelle conversation. La CLI propose aussi OpenCode (OpenAI, Gemini, Ollama, endpoints compatibles). Voir [le guide de l’extension](docs/extension-vscode.md) et les limites de validation dans [l’état du projet](docs/etat-du-projet.md).
 
 **Windows d'abord**
 - Support natif, sans WSL. Les processus sont arrêtés proprement, arbre entier compris.

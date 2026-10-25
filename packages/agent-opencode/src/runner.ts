@@ -1,7 +1,11 @@
 import { randomBytes, randomUUID } from "node:crypto";
+import { mkdtemp, open, rm } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   type AgentRunner,
   type ApprovalOutcome,
+  type AuthMode,
   CodedError,
   capOutput,
   DEFAULT_MAX_RESULT_BYTES,
@@ -10,6 +14,8 @@ import {
   EXTERNAL_DIRECTORY_TOOL,
   EXTERNAL_PATTERNS_FIELD,
   errorInfo,
+  type ListModelsInput,
+  type ModelOption,
   type Reason,
   type RunContext,
   type RunInput,
@@ -20,7 +26,7 @@ import {
 } from "@warband/core";
 import { formatReason } from "@warband/messages";
 import { createSdkApi } from "./api.js";
-import { assertSafeConfig, buildConfig } from "./config.js";
+import { assertOfficialOpenaiConfig, assertSafeConfig, buildConfig } from "./config.js";
 import {
   DEFAULT_NATIVE_TOOLS,
   isUnevaluable,
@@ -109,6 +115,27 @@ export function parseModel(
   throw new CodedError("opencode.invalidModel", { value });
 }
 
+/** Résout uniquement les défauts annoncés pour les fournisseurs connectés du catalogue. */
+async function runtimeDefaultModel(api: OpencodeApi, provider?: string) {
+  if (!api.listProviders) throw new CodedError("opencode.noModel");
+  const catalog = obj(await api.listProviders());
+  const providers = Array.isArray(catalog.all) ? catalog.all.map(obj) : [];
+  const connected = Array.isArray(catalog.connected) ? catalog.connected : [];
+  const defaults = obj(catalog.default);
+  for (const id of connected) {
+    if (typeof id !== "string" || (provider !== undefined && id !== provider)) continue;
+    const modelID = str(defaults[id]);
+    if (!modelID) continue;
+    const entry = providers.find((candidate) => candidate.id === id);
+    const present = Object.entries(obj(entry?.models)).some(
+      ([key, raw]) => (str(obj(raw).id) ?? key) === modelID,
+    );
+    if (!present) continue;
+    return parseModel(`${id}/${modelID}`);
+  }
+  throw new CodedError("opencode.noModel");
+}
+
 /** Demande de permission normalisée (formes `permission.asked` du binaire et `permission.updated` du SDK). */
 export interface PermissionRequest {
   id: string;
@@ -156,7 +183,157 @@ interface Call {
 }
 
 export function createOpencodeRunner(options: OpencodeRunnerOptions = {}): AgentRunner {
-  return { run: (input, ctx) => runWithOpencode(options, input, ctx) };
+  return {
+    run: (input, ctx) => runWithOpencode(options, input, ctx),
+    listModels: (input) => probeModels(options, input),
+  };
+}
+
+/** Catalogue runtime : aucune session, aucun prompt et aucun serveur d'outils. */
+async function probeModels(
+  options: OpencodeRunnerOptions,
+  { cwd, auth, signal }: ListModelsInput,
+): Promise<ModelOption[]> {
+  const processEnv = options.processEnv ?? process.env;
+  const credentials = await authEnvironment(options, auth);
+  const abort = new AbortController();
+  const onAbort = () => abort.abort(signal?.reason);
+  signal?.addEventListener("abort", onAbort, { once: true });
+  if (signal?.aborted) onAbort();
+  let api: OpencodeApi | undefined;
+  let stopServer: (() => Promise<void>) | undefined;
+  let isolatedConfig: string | undefined;
+  try {
+    abort.signal.throwIfAborted();
+    const config = buildConfig({
+      user: options.config,
+      enabledTools: new Set(),
+      mcp: {},
+      maxTurns: undefined,
+      ...(options.provider !== undefined && { provider: options.provider }),
+    });
+    if (options.createClient) {
+      api = await options.createClient({ directory: cwd, config, signal: abort.signal });
+    } else if (options.baseUrl) {
+      api = createSdkApi({
+        baseUrl: options.baseUrl,
+        directory: cwd,
+        ...(options.serverPassword !== undefined && { password: options.serverPassword }),
+      });
+    } else {
+      const binary = resolveBinary(options.binary ?? "opencode", { env: processEnv });
+      if (binary === null)
+        throw new CodedError("process.notFound", { binary: options.binary ?? "opencode" });
+      if (options.provider === "openai") {
+        isolatedConfig = await mkdtemp(join(tmpdir(), "warband-openai-config-"));
+        credentials.env.XDG_CONFIG_HOME = isolatedConfig;
+      }
+      const password = randomBytes(24).toString("hex");
+      const server = await launchServer({
+        binary,
+        cwd,
+        env: serverEnv({ processEnv, config, password, ...credentials }),
+        signal: abort.signal,
+        ...(options.startTimeoutMs !== undefined && { timeoutMs: options.startTimeoutMs }),
+      });
+      stopServer = server.close;
+      api = createSdkApi({ baseUrl: server.url, directory: cwd, password });
+    }
+    const effective = await api.getConfig();
+    assertSafeConfig(effective);
+    if (options.provider === "openai") assertOfficialOpenaiConfig(effective);
+    abort.signal.throwIfAborted();
+    if (!api.listProviders) throw new Error("OpenCode : catalogue des fournisseurs indisponible");
+    const catalog = obj(await api.listProviders());
+    abort.signal.throwIfAborted();
+    const providers = Array.isArray(catalog.all) ? catalog.all : [];
+    const connected = new Set(Array.isArray(catalog.connected) ? catalog.connected : []);
+    const models: ModelOption[] = [];
+    for (const raw of providers) {
+      const provider = obj(raw);
+      const id = str(provider.id);
+      if (!id || !connected.has(id) || (options.provider && id !== options.provider)) continue;
+      for (const [key, rawModel] of Object.entries(obj(provider.models))) {
+        const model = obj(rawModel);
+        const modelId = str(model.id) ?? key;
+        if (!modelId) continue;
+        models.push({ value: `${id}/${modelId}`, displayName: str(model.name) ?? modelId });
+      }
+    }
+    return models;
+  } finally {
+    signal?.removeEventListener("abort", onAbort);
+    abort.abort();
+    try {
+      await api?.close?.();
+    } finally {
+      try {
+        await stopServer?.();
+      } finally {
+        if (isolatedConfig) await rm(isolatedConfig, { recursive: true, force: true });
+      }
+    }
+  }
+}
+
+/** Le mode abonnement écarte la clé API ; le mode API exige une clé explicite. */
+async function authEnvironment(options: OpencodeRunnerOptions, auth?: AuthMode) {
+  const env = { ...options.env };
+  let passEnv = options.passEnv ?? [];
+  if (options.provider === "openai") {
+    if (options.baseUrl !== undefined) {
+      throw new Error(
+        "Le mode OpenAI officiel nécessite un serveur local isolé lancé par Warband.",
+      );
+    }
+    delete env.OPENCODE_CONFIG;
+    delete env.OPENCODE_CONFIG_DIR;
+    passEnv = passEnv.filter(
+      (name) => !["OPENCODE_CONFIG", "OPENCODE_CONFIG_DIR"].includes(name.toUpperCase()),
+    );
+    const key = env.OPENAI_API_KEY ?? (options.processEnv ?? process.env).OPENAI_API_KEY;
+    if (auth === "api-key" && !key) throw new CodedError("auth.missingApiKey");
+    if (auth === "api-key") env.OPENCODE_AUTH_CONTENT = "{}";
+    if (auth === "subscription") {
+      const source = { ...(options.processEnv ?? process.env), ...options.env };
+      if (!(await hasOpenaiOAuth(source))) {
+        throw new Error(
+          "Connexion ChatGPT requise : connectez OpenAI avec OpenCode avant de continuer.",
+        );
+      }
+      delete env.OPENCODE_AUTH_CONTENT;
+      delete env.OPENAI_API_KEY;
+      passEnv = passEnv.filter(
+        (name) => !["OPENAI_API_KEY", "OPENCODE_AUTH_CONTENT"].includes(name.toUpperCase()),
+      );
+    } else if (key) {
+      env.OPENAI_API_KEY = key;
+    }
+  }
+  return { env, passEnv };
+}
+
+/** Lecture bornée : aucun identifiant du cache ne sort de cette fonction. */
+async function hasOpenaiOAuth(env: NodeJS.ProcessEnv): Promise<boolean> {
+  const data = env.XDG_DATA_HOME || join(env.HOME || homedir(), ".local", "share");
+  let file: Awaited<ReturnType<typeof open>> | undefined;
+  try {
+    file = await open(join(data, "opencode", "auth.json"), "r");
+    const maxBytes = 1024 * 1024;
+    const buffer = Buffer.alloc(maxBytes + 1);
+    let length = 0;
+    while (length < buffer.length) {
+      const { bytesRead } = await file.read(buffer, length, buffer.length - length, null);
+      if (bytesRead === 0) break;
+      length += bytesRead;
+    }
+    if (length > maxBytes) return false;
+    return obj(obj(JSON.parse(buffer.toString("utf8", 0, length))).openai).type === "oauth";
+  } catch {
+    return false;
+  } finally {
+    await file?.close().catch(() => undefined);
+  }
 }
 
 async function* promptTexts(prompt: string | AsyncIterable<string>): AsyncGenerator<string> {
@@ -170,6 +347,7 @@ async function runWithOpencode(
   { recorder, gate, signal }: RunContext,
 ): Promise<RunSummary> {
   const { cwd } = input;
+  const credentials = await authEnvironment(options, input.auth);
   const processEnv = options.processEnv ?? process.env;
   // Échecs avant tout lancement : rien n'est émis ni démarré.
   const requestedModel =
@@ -228,6 +406,7 @@ async function runWithOpencode(
 
   let api: OpencodeApi | undefined;
   let stopServer: (() => Promise<void>) | undefined;
+  let isolatedConfig: string | undefined;
   let toolServer: Awaited<ReturnType<typeof startToolServer>> | undefined;
   let sessionId: string | undefined;
   let ownsServer = true;
@@ -686,6 +865,7 @@ async function runWithOpencode(
       enabledTools,
       mcp,
       maxTurns: input.maxTurns,
+      ...(options.provider !== undefined && { provider: options.provider }),
     });
 
     if (options.createClient) {
@@ -698,6 +878,10 @@ async function runWithOpencode(
         ...(options.serverPassword !== undefined && { password: options.serverPassword }),
       });
     } else {
+      if (options.provider === "openai") {
+        isolatedConfig = await mkdtemp(join(tmpdir(), "warband-openai-config-"));
+        credentials.env.XDG_CONFIG_HOME = isolatedConfig;
+      }
       const password = randomBytes(24).toString("hex");
       const server = await launchServer({
         binary: binaryPath as string,
@@ -706,8 +890,7 @@ async function runWithOpencode(
           processEnv,
           config,
           password,
-          ...(options.passEnv && { passEnv: options.passEnv }),
-          ...(options.env && { env: options.env }),
+          ...credentials,
         }),
         signal: abort.signal,
         ...(options.startTimeoutMs !== undefined && { timeoutMs: options.startTimeoutMs }),
@@ -718,11 +901,13 @@ async function runWithOpencode(
 
     const effective = await api.getConfig();
     assertSafeConfig(effective);
+    if (options.provider === "openai") assertOfficialOpenaiConfig(effective);
     const defaultModel = str(effective.model);
-    if (requestedModel === undefined && defaultModel === undefined) {
-      throw new CodedError("opencode.noModel");
-    }
-    const model = requestedModel ?? parseModel(defaultModel as string, options.provider);
+    const model =
+      requestedModel ??
+      (defaultModel !== undefined
+        ? parseModel(defaultModel, options.provider)
+        : await runtimeDefaultModel(api, options.provider));
 
     const events = await api.subscribe(abort.signal);
     let streamEnded: () => void = () => undefined;
@@ -825,9 +1010,19 @@ async function runWithOpencode(
     await Promise.allSettled([...inflight]);
     if (sessionId && api && !ownsServer) await api.abort(sessionId).catch(() => undefined);
     await pump?.catch(() => undefined);
-    await api?.close?.();
-    await stopServer?.();
-    await toolServer?.close();
+    try {
+      await api?.close?.();
+    } finally {
+      try {
+        await stopServer?.();
+      } finally {
+        try {
+          await toolServer?.close();
+        } finally {
+          if (isolatedConfig) await rm(isolatedConfig, { recursive: true, force: true });
+        }
+      }
+    }
   }
 
   if (sessionId !== undefined && summary.sessionId === undefined)

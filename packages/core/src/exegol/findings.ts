@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { projectFindingsPath } from "../project.js";
 import { CodedError } from "../reason.js";
@@ -152,10 +152,97 @@ export async function appendFinding(
   if (input.technique !== undefined) finding.technique = input.technique;
   if (from.length > 0) finding.from = from;
   const next = [...current, finding].slice(-MAX_FINDINGS);
+  await persistFindings(path, next);
+  return finding;
+}
+
+/** Champs modifiables ; null efface les métadonnées MITRE, [] efface les parents. */
+export interface FindingPatch {
+  kind?: FindingKind;
+  label?: string;
+  state?: FindingState;
+  tactic?: MitreTactic | null;
+  technique?: string | null;
+  from?: string[];
+}
+
+/** Remplace atomiquement le fichier, avec un temporaire exclusif propre à cet appel. */
+async function persistFindings(path: string, findings: Finding[]): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
-  const temp = `${path}.${process.pid}.tmp`;
-  await writeFile(temp, `${JSON.stringify(next, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
-  await rename(temp, path);
-  await chmod(path, 0o600);
+  const temp = `${path}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(temp, `${JSON.stringify(findings, null, 2)}\n`, {
+      encoding: "utf8",
+      mode: 0o600,
+      flag: "wx",
+    });
+    await rename(temp, path);
+    await chmod(path, 0o600);
+  } finally {
+    await unlink(temp).catch((error: NodeJS.ErrnoException) => {
+      if (error.code !== "ENOENT") throw error;
+    });
+  }
+}
+
+/** Modifie une trouvaille du seul projet désigné, sans changer son id. */
+export async function updateFinding(
+  configDir: string,
+  projectId: string,
+  id: string,
+  patch: FindingPatch,
+): Promise<Finding> {
+  const path = projectFindingsPath(configDir, projectId);
+  const current = await readFindings(configDir, projectId);
+  const index = current.findIndex((finding) => finding.id === id);
+  const existing = current[index];
+  if (!existing) throw new CodedError("finding.notFound");
+  const finding: Finding = { ...existing };
+  if (patch.label !== undefined) {
+    if (
+      typeof patch.label !== "string" ||
+      patch.label.trim() === "" ||
+      patch.label.trim().length > FINDING_MAX_LABEL
+    )
+      throw new CodedError("finding.labelInvalid", { max: FINDING_MAX_LABEL });
+    finding.label = patch.label.trim();
+  }
+  if (patch.kind !== undefined) {
+    if (!isKind(patch.kind)) throw invalid();
+    finding.kind = patch.kind;
+  }
+  if (patch.state !== undefined) {
+    if (!isState(patch.state)) throw invalid();
+    finding.state = patch.state;
+  }
+  if (patch.tactic === null) delete finding.tactic;
+  else if (patch.tactic !== undefined) {
+    if (!isTactic(patch.tactic)) throw invalid();
+    finding.tactic = patch.tactic;
+  }
+  if (patch.technique === null) delete finding.technique;
+  else if (patch.technique !== undefined) {
+    if (!isTechnique(patch.technique)) throw invalid();
+    finding.technique = patch.technique;
+  }
+  if (patch.from !== undefined) {
+    const fail = () => new CodedError("finding.invalidLinks");
+    if (!Array.isArray(patch.from)) throw fail();
+    const from = [...new Set(patch.from)];
+    const known = new Map(current.map((row) => [row.id, row]));
+    if (from.length > MAX_FROM || from.some((parent) => !known.has(parent))) throw fail();
+    // Un parent ne peut pas être la trouvaille ni l'un de ses descendants.
+    const reaches = (start: string, visited: Set<string>): boolean => {
+      if (start === id) return true;
+      if (visited.has(start)) return false;
+      visited.add(start);
+      return (known.get(start)?.from ?? []).some((parent) => reaches(parent, visited));
+    };
+    if (from.some((parent) => reaches(parent, new Set()))) throw fail();
+    if (from.length) finding.from = from;
+    else delete finding.from;
+  }
+  current[index] = finding;
+  await persistFindings(path, current);
   return finding;
 }

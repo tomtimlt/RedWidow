@@ -270,19 +270,29 @@ describe("contrôleur : messages rejetés, démarrage, environnement", () => {
 
   it("buildEngineEnv : liste blanche exacte + ELECTRON_RUN_AS_NODE + une seule variable d'auth", () => {
     const base = {
-      ...process.env,
+      PATH: "/bin",
+      HOME: "/home/test",
+      XDG_DATA_HOME: "/data/opencode",
+      HTTPS_PROXY: "http://proxy.example:8080",
+      OPENAI_API_KEY: "sk-openai-0123456789abcdef0123456789",
       ANTHROPIC_API_KEY: "sk-ant-api-0123456789abcdef",
       CLAUDE_CODE_OAUTH_TOKEN: "autre-jeton-0123456789",
       GITHUB_TOKEN: "ghp_0123456789abcdef0123456789",
     };
     expect(buildEngineEnv(undefined, base)).toEqual({
       ...safeEnv(base),
+      XDG_DATA_HOME: "/data/opencode",
+      HTTPS_PROXY: "http://proxy.example:8080",
       ELECTRON_RUN_AS_NODE: "1",
     });
     const withAuth = buildEngineEnv({ name: "CLAUDE_CODE_OAUTH_TOKEN", value: TOKEN }, base);
     expect(withAuth.CLAUDE_CODE_OAUTH_TOKEN).toBe(TOKEN);
     expect(withAuth.ANTHROPIC_API_KEY).toBeUndefined();
     expect(withAuth.GITHUB_TOKEN).toBeUndefined();
+    expect(withAuth.OPENAI_API_KEY).toBeUndefined();
+    expect(buildEngineEnv({ name: "OPENAI_API_KEY", value: TOKEN }, base).OPENAI_API_KEY).toBe(
+      TOKEN,
+    );
     expect(() => buildEngineEnv({ name: "PATH" as never, value: "x" }, base)).toThrow();
     expect(() => buildEngineEnv({ name: "ANTHROPIC_API_KEY", value: "" }, base)).toThrow();
   });

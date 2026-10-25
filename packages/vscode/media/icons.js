@@ -1,6 +1,7 @@
 // Icônes locales au trait : DOM SVG exclusivement, sans ressource externe.
 (() => {
   const paths = {
+    trash: ["M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"],
     ban: ["M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18", "m6 6 12 12"],
     search: ["M10 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14", "m15 15 6 6"],
     file: ["M5 3h9l5 5v13H5z", "M14 3v6h5"],

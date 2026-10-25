@@ -1,5 +1,6 @@
 import { isRememberable, type PendingApproval, stripControl } from "@warband/core";
 import { formatReason } from "@warband/messages";
+import { isProvider, type Provider } from "./effort.js";
 import { summarizeInput, toolLabel } from "./present.js";
 
 /** Plafond du texte d'entrée d'outil affiché dans une carte (caractères). */
@@ -69,6 +70,7 @@ export type WebviewMessage =
   | { type: "ready" }
   /** Chat grisé sans jeton : demande d'ouvrir « définir le jeton ». Aucun champ ; l'hôte seul agit. */
   | { type: "addProvider" }
+  | { type: "setProvider"; provider: Provider }
   /** Valeurs non fiables : l'extension les revalide (liste de modèles, énumération des niveaux). */
   | { type: "setModel"; model: string | null }
   | { type: "setEffort"; effort: string | null }
@@ -105,6 +107,10 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
         m.text.trim() !== "" &&
         m.text.length <= MAX_WEBVIEW_TEXT
         ? { type: "send", text: m.text }
+        : null;
+    case "setProvider":
+      return only("type", "provider") && isProvider(m.provider)
+        ? { type: "setProvider", provider: m.provider }
         : null;
     case "setModel":
       return only("type", "model") &&

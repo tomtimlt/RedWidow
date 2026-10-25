@@ -29,7 +29,21 @@ export type CockpitMessage =
   | { type: "terminal" }
   | { type: "start"; name: string }
   | { type: "stop"; name: string }
-  | { type: "createExegol"; name: string }
+  | {
+      type: "createExegol";
+      name: string;
+      image?: string;
+      source?: string;
+      vpn?: boolean;
+      desktop?: boolean;
+      desktopPort?: number;
+      network?: "nat" | "host" | "disabled";
+      shareResources?: boolean;
+      shareMyResources?: boolean;
+    }
+  | { type: "remove"; name: string }
+  | { type: "pickVpn" }
+  | { type: "cancelOperation" }
   | { type: "createKali"; image: string; name: string; source: string }
   | { type: "listImages" }
   | { type: "pickSource" };
@@ -78,16 +92,46 @@ export function parseCockpitMessage(raw: unknown): CockpitMessage | null {
     case "setPrimary":
     case "start":
     case "stop":
+    case "remove":
       return only("type", "name") &&
         typeof m.name === "string" &&
         m.name !== "" &&
         m.name.length <= CONTAINER_NAME_MAX
         ? { type: m.type, name: m.name }
         : null;
-    case "createExegol":
-      return only("type", "name") && isCreateName(m.name)
-        ? { type: "createExegol", name: m.name }
-        : null;
+    case "createExegol": {
+      if (
+        !only(
+          "type",
+          "name",
+          "image",
+          "source",
+          "vpn",
+          "desktop",
+          "desktopPort",
+          "network",
+          "shareResources",
+          "shareMyResources",
+        ) ||
+        !isCreateName(m.name)
+      )
+        return null;
+      if (m.image !== undefined && (typeof m.image !== "string" || !CREATE_NAME.test(m.image)))
+        return null;
+      if (m.source !== undefined && m.source !== "" && !isSourcePath(m.source)) return null;
+      for (const key of ["vpn", "desktop", "shareResources", "shareMyResources"])
+        if (m[key] !== undefined && typeof m[key] !== "boolean") return null;
+      if (
+        m.desktopPort !== undefined &&
+        (!Number.isInteger(m.desktopPort) ||
+          Number(m.desktopPort) < 1 ||
+          Number(m.desktopPort) > 65535)
+      )
+        return null;
+      if (m.network !== undefined && !["nat", "host", "disabled"].includes(String(m.network)))
+        return null;
+      return { ...m } as Extract<CockpitMessage, { type: "createExegol" }>;
+    }
     case "createKali":
       return only("type", "image", "name", "source") &&
         isImageRef(m.image) &&
@@ -97,6 +141,8 @@ export function parseCockpitMessage(raw: unknown): CockpitMessage | null {
         : null;
     case "listImages":
     case "pickSource":
+    case "pickVpn":
+    case "cancelOperation":
       return only("type") ? { type: m.type } : null;
     default:
       return null;
@@ -517,7 +563,13 @@ export async function listCockpitImages(
       binary: "docker",
       timeoutMs: 15_000,
     });
-  return imageRefs(await docker.images());
+  return [
+    ...new Set([
+      "warband/kali:complete-1",
+      "kalilinux/kali-rolling:latest",
+      ...imageRefs(await docker.images()),
+    ]),
+  ];
 }
 
 /** Lie un conteneur puis recharge la vue. */

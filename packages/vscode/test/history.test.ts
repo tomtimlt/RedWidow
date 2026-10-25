@@ -68,6 +68,15 @@ describe("identifiants et titres", () => {
 });
 
 describe("index stocké (non fiable)", () => {
+  it("migre l’ancien index Claude mais écarte un fournisseur explicitement invalide", () => {
+    const { provider: _provider, ...legacy } = meta({});
+    expect(parseIndex([legacy])[0]?.provider).toBe("claude");
+    expect(parseIndex([{ ...legacy, provider: "inconnu" }])).toEqual([]);
+    expect(parseIndex([{ ...legacy, provider: null }])).toEqual([]);
+  });
+  it.each(["claude", "openai", "opencode"] as const)("conserve le fournisseur %s", (provider) => {
+    expect(parseIndex([meta({ provider })])[0]?.provider).toBe(provider);
+  });
   it("écarte les entrées mal formées, revalide les champs", () => {
     const ok = meta({ runIds: [RUN, "../evil", 3 as never], model: "bad model", tools: -1 });
     const list = parseIndex([

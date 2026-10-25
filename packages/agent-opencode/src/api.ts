@@ -38,6 +38,11 @@ export function createSdkApi({
       if (result.error !== undefined || !result.data) throw failed(result, "config");
       return asObj(result.data);
     },
+    async listProviders() {
+      const result = await client.provider.list();
+      if (result.error !== undefined || !result.data) throw failed(result, "provider.list");
+      return result.data;
+    },
     async subscribe(signal) {
       const sub = await client.event.subscribe({ signal });
       const stream = sub.stream as AsyncIterable<unknown>;

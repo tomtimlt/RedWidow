@@ -8,12 +8,12 @@ Extension privée (ADR 0004, lots E3 + E4) : chat d'agent dans VS Code, avec une
 pnpm install --frozen-lockfile
 pnpm build
 pnpm --filter @warband/vscode package        # cible win32-x64 par défaut
-code --install-extension packages/vscode/warband-0.3.29-win32-x64.vsix
+code --install-extension packages/vscode/warband-0.3.30-win32-x64.vsix
 ```
 
 Raccourci : `pnpm maj` (ou `node scripts/update.mjs`). Il enchaîne `git pull --ff-only`, `pnpm install`, `pnpm build`, l'empaquetage et `code --install-extension --force`. Options : `--check` (ajoute `pnpm check`), `--no-install`, `--dry-run`, `--target=…`. Recharger ensuite la fenêtre VS Code.
 
-Le `.vsix` fait environ 117 Mio (il embarque le binaire `claude` du SDK, 257 Mio décompressé, vérifié par empreinte SHA-256 au démarrage du moteur). Il est ignoré par git.
+Le `.vsix` embarque les binaires Claude du SDK et OpenCode 1.19.0 pour sa cible. Leurs empreintes SHA-256 sont vérifiées avant lancement. Sa taille dépend de la cible et des versions embarquées ; il est ignoré par git.
 
 ## Publier une release
 
@@ -44,7 +44,7 @@ pas l’historique.
 ## Premier run
 
 1. Ouvrir un **dossier approuvé** (l'extension est inerte dans un espace non approuvé ou virtuel).
-2. Palette de commandes : **Warband : définir le jeton**. Choisir « Jeton d'abonnement » (`claude setup-token`) ou « Clé API », puis coller le jeton (saisie masquée). Il est stocké dans le stockage sécurisé de VS Code, transmis uniquement à l'environnement du processus moteur, jamais écrit dans les réglages, un message d'erreur ou un journal. « Warband : effacer le jeton » le supprime. Le jeton est appliqué tout de suite, sans redémarrer VS Code : le moteur inactif est remplacé (la conversation reprend la même session), et pendant un tour le nouveau jeton sert au message suivant. **Sans jeton, le chat est grisé** (« Aucun fournisseur n'a été ajouté ») avec un bouton « Ajouter un fournisseur » qui ouvre la saisie du jeton ; aucun message ne part tant qu'aucun jeton n'est défini.
+2. Dans **Configurer**, choisir **Claude**, **OpenAI** ou **OpenCode**, puis **Ajouter un fournisseur** ou la commande **Warband : définir le jeton**. Pour Claude, choisir le jeton d'abonnement (`claude setup-token`) ou la clé API. Pour OpenAI, choisir **Abonnement ChatGPT** (connexion OAuth Codex dans le terminal OpenCode embarqué) ou **Clé API OpenAI** (saisie masquée, stockage `SecretStorage` de VS Code). Terminer la connexion OAuth dans le terminal puis le fermer, ou actualiser les modèles. Le mode abonnement écarte la clé API ; le mode API isole le cache OAuth pour éviter une utilisation involontaire de l'abonnement. Le fournisseur OpenCode utilise sa connexion gérée par `auth login`. Aucun message ne part quand la connexion requise manque. **Warband : effacer le jeton** désactive la connexion OpenAI dans Warband et supprime sa clé ; son cache OAuth reste géré par OpenCode (`auth logout`).
 3. **Warband : ouvrir le chat** (ou l'icône Warband de la barre d'activité). Saisir une consigne, `Ctrl+Entrée` ou « Envoyer ».
 4. Le fil affiche le texte de l'agent en Markdown sûr (paragraphes, code en ligne et en bloc avec bouton Copier, gras, italique, listes, titres ; liens et HTML restent du texte), et une ligne compacte par appel d'outil (icône d'état, nom lisible, résumé) dont les détails (entrée et sortie, plafonds selon l’outil ; sorties Kali normalisées jusqu’à 12 000 caractères) sont repliés ; un indicateur signale que l'agent travaille. **Stop** annule le run ; le message suivant relance un moteur en reprenant la session. **Nouvelle conversation** repart de zéro.
 
@@ -61,8 +61,10 @@ pas l’historique.
 
 Dans la barre d'outils du composer : une **pastille de modèle** et, sous « Configurer », un **curseur d'effort** à 6 crans (Low, Medium, High, Extra, Max, Ultracode ; Extra correspond à l'effort `xhigh` du SDK). **Par défaut le curseur est sur « Auto »** : aucun effort n'est transmis et le modèle garde son comportement par défaut, tant que vous n'avez pas touché au curseur ; le bouton « Auto » y revient. Le libellé du cran courant est affiché, l'infobulle décrit l'effet (Low : rapide et économe ; Max : réflexion la plus poussée, plus lent et plus coûteux), et les crans non pris en charge par le modèle choisi sont grisés (un niveau non pris en charge est ramené au plus proche niveau permis, avec un avis). Le curseur se pilote au clavier (flèches) et expose son libellé aux lecteurs d'écran.
 
-- La **liste des modèles** vient du SDK au runtime (aucun identifiant n'est codé en dur) : un moteur de sondage éphémère, lancé à l'ouverture du chat **sans aucune consigne** (donc sans tour, sans outil ni inférence), interroge `supportedModels()` puis s'arrête. Elle est mise en cache (`globalState`) par version du SDK ; « Actualiser la liste » la recharge. Si elle est indisponible, le popover propose une **saisie libre** (identifiant sans espace, 200 caractères maximum).
-- Les choix s'appliquent au **message suivant** (gelés pendant un tour) : le moteur inactif est remplacé par un nouveau qui reprend la même session (`resume`), sans perdre le fil. Ils sont persistés dans `globalState` (jamais dans l'espace de travail). Le modèle par défaut reste le réglage machine `warband.model`.
+- La **liste des modèles Claude** vient du SDK au runtime (aucun identifiant n'est codé en dur) : un moteur de sondage éphémère, lancé à l'ouverture du chat **sans aucune consigne** (donc sans tour, sans outil ni inférence), interroge `supportedModels()` puis s'arrête. Elle est mise en cache (`globalState`) par version du SDK ; « Actualiser la liste » la recharge. Si elle est indisponible, le popover propose une **saisie libre** (identifiant sans espace, 200 caractères maximum).
+- Les catalogues **OpenAI/OpenCode** sont interrogés au runtime auprès du serveur local OpenCode, sans consigne ni inférence. Aucun catalogue statique de secours n’est embarqué. Le réglage d’effort est désactivé pour ces fournisseurs.
+- Changer de **fournisseur** ouvre une nouvelle conversation ; aucun identifiant de session n’est transféré entre moteurs. Changer de modèle chez le même fournisseur conserve la conversation.
+- Les choix de modèle et d’effort s'appliquent au **message suivant** (gelés pendant un tour) : le moteur inactif est remplacé par un nouveau qui reprend la même session (`resume`), sans perdre le fil. Ils sont persistés dans `globalState` (jamais dans l'espace de travail). Le modèle par défaut reste le réglage machine `warband.model`.
 - L'extension **revalide** tout choix venu de la webview : identifiant de la liste (ou bien formé en saisie libre), niveau d'effort dans l'énumération.
 - **Ultracode** (fournisseur Claude seulement, grisé si le modèle ne supporte pas `max`) est ici un **préréglage honnête** : effort `max` + plafonds de tours et de dépense issus des réglages `warband.ultracode.maxTurns` et `warband.ultracode.maxBudgetUsd` (0 : pas de plafond ; `warband.ultracode.maxTurns` remplace `warband.maxTurns` quand Ultracode est choisi). Il ne change PAS ce que raisonne le modèle (même capacité que Max) ; l'infobulle affiche les valeurs en vigueur. Le SDK connaît un vrai « ultracode » (réglage de session `ultracode` + mot-clé de prompt, qui orchestrent l'outil `Workflow` et des sous-agents) : il n'est volontairement pas branché, voir la décision en attente dans le rapport (ADR 0005, Q1).
 
@@ -120,7 +122,7 @@ une procédure d’installation actuelle.
 ## Limites connues
 
 - La validation Windows historique du moteur (W-L6) ne valide pas automatiquement les ajouts récents de l’extension. Un essai complet de cette version dans VS Code reste à distinguer des tests automatisés et prévisualisations headless ; remote, lecteur d’écran et profilage restent à vérifier.
-- Claude seul (pas d'OpenCode) ; Markdown limité (tableaux pris en charge, liens non cliquables, pas d’images).
+- Claude, OpenAI et OpenCode sont proposés ; l’effort est disponible uniquement pour Claude. Markdown limité (tableaux pris en charge, liens non cliquables, pas d’images).
 - Kill chain affiche le graphe des trouvailles, avec minimap ; ce graphe est distinct du graphe causal des événements exporté par la CLI. Pas de commande d’approbation de la politique du dépôt (la politique du dépôt n'est appliquée qu'après approbation de son empreinte, comme dans la CLI ; sans approbation elle est inerte et un avertissement est affiché).
 - « Toujours » ne persiste pas sur disque (voir plus haut).
 - Une seule demande de tour à la fois ; l'historique affiché est limité aux 300 derniers éléments.
@@ -135,9 +137,9 @@ Tests vitest : logique (cartes, mapping des réponses, validation des messages d
 
 Non vérifié en vrai : installation `code --install-extension`, rendu de la webview, saisie masquée du jeton, `fork` sous Electron (`ELECTRON_RUN_AS_NODE`), run Claude complet depuis l'extension, parcours Exegol/Kali avec Docker actif, comportement en espace non approuvé.
 
-## Préparation automatique des conteneurs Kali (0.3.23)
+## Préparation automatique des conteneurs Kali (depuis 0.3.23)
 
-Les actions **Créer**, **Démarrer** et **Lier** du cockpit vérifient maintenant
+La création complète décrite ci-dessous prépare désormais une image dédiée. Les actions **Démarrer** et **Lier**, ainsi que la création à partir d’une autre image Kali, vérifient
 `python3`, `kali-server-mcp` et la santé du serveur. Les dépendances manquantes
 sont installées dans le conteneur s’il s’agit d’une image Kali avec APT.
 Une notification indique la progression ; l’installation initiale nécessite
@@ -231,3 +233,53 @@ modèle. Un titre trop long ou vide produit une erreur dédiée proposant de
 réessayer avec un titre court ; il ne signale plus un project.json invalide.
 Aucune troncature silencieuse : les détails restent dans leur fichier de
 résultats, référencé depuis le titre. Un rejet n’altère aucune trouvaille.
+
+
+## Création et suppression des conteneurs — 0.3.30
+
+**Exegol** : le formulaire ouvre un terminal interactif pour laisser les
+questions et diagnostics de la CLI visibles. Exegol doit être installé sur
+l’hôte ; les options sont vérifiées dans son aide avant lancement. Le dossier
+de travail et le VPN se choisissent dans un dialogue natif. Le VPN accepte
+un fichier OpenVPN `.ovpn`, WireGuard `.conf` ou un dossier ; son contenu
+n’est pas lu par la webview. Le VPN exige le réseau **NAT**, proposé par
+défaut. Le bureau web est optionnel, lié à `127.0.0.1:6080` par défaut
+(port réglable). Le partage des ressources Exegol, des ressources personnelles
+et de l’affichage se règle explicitement. La journalisation est activée par
+défaut avec `--log`, et la méthode `script` quand la CLI la propose.
+Une option indisponible produit une erreur explicite.
+
+**Kali complet** : Warband construit localement `warband/kali:complete-1`
+sur `kalilinux/kali-rolling:latest`, avec `kali-linux-headless`, Python,
+`mcp-kali-server`, `subfinder`, `httpx-toolkit` et `nuclei`, sans paquets
+recommandés. Ce nom désigne une image locale construite, pas une image
+publiée à télécharger. Le pull de base affiche les couches, les octets et la
+vitesse quand le démon local les fournit ; la construction affiche son
+état. L’opération est annulable. Les contextes Docker distants utilisent la
+CLI et peuvent fournir une progression moins détaillée. Prévoir la place
+pour l’image et les couches temporaires de construction. Chaque nouveau
+Kali utilise le journal Docker `json-file`, limité à 3 fichiers de 10 Mio ;
+les conteneurs existants ne sont pas reconfigurés.
+
+**Supprimer** demande une confirmation native présentant le nom, la famille,
+l’état et les projets associés. Un conteneur actif est supprimé de force
+après cet avertissement. L’identité Docker est revérifiée puis la suppression
+vise son ID ; un changement de conteneur ou d’état oblige à recommencer.
+Les fichiers internes non montés sont perdus. Images, volumes et dossiers
+hôtes sont conservés. Les associations et le conteneur principal des projets
+sont nettoyés après réussite ; un échec de nettoyage est signalé séparément.
+
+## Résultats et correction des trouvailles — 0.3.30
+
+Chaque session reçoit une consigne opérationnelle : enregistrer chaque scan
+autorisé sous `/workspace/outputs`, avec un nom unique, les formats natifs
+utiles, stderr et le code de retour ; signaler tout échec et citer seulement
+les fichiers effectivement créés. Cette consigne n’est pas une garantie
+qu’un outil ou un modèle a écrit les fichiers : contrôler les chemins
+annoncés. Les journaux techniques ne remplacent pas ces résultats.
+
+L’outil `list_notes` lit les trouvailles du projet actif et leurs identifiants,
+sans lire l’historique des conversations. `update_note` corrige une trouvaille
+par ID : les champs omis sont conservés, `null` efface la tactique ou la
+technique et `[]` efface les parents. Les parents doivent exister et ne pas
+former de cycle ; le titre reste limité à 200 caractères.

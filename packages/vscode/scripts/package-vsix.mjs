@@ -4,8 +4,10 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  chmodSync,
   copyFileSync,
   cpSync,
+  existsSync,
   mkdirSync,
   readFileSync,
   realpathSync,
@@ -21,6 +23,26 @@ import { build } from "esbuild";
 const target = process.argv[2] ?? "win32-x64";
 const pkgDir = fileURLToPath(new URL("..", import.meta.url));
 const stage = join(pkgDir, ".vsix-stage");
+if (!["linux-x64", "win32-x64"].includes(target)) {
+  throw new Error(`Cible non prise en charge : ${target}`);
+}
+const opencodeVersion = "1.19.0";
+const opencodeExeName = target === "win32-x64" ? "opencode.exe" : "opencode";
+const opencodePackage = `opencode-${target === "win32-x64" ? "windows" : "linux"}-x64-baseline`;
+const opencodeDir = dirname(
+  createRequire(import.meta.url).resolve(`${opencodePackage}/package.json`),
+);
+const opencodeExe = join(opencodeDir, "bin", opencodeExeName);
+if (
+  JSON.parse(readFileSync(join(opencodeDir, "package.json"), "utf8")).version !== opencodeVersion
+) {
+  throw new Error(`Version inattendue du paquet ${opencodePackage}`);
+}
+const opencodeSha = createHash("sha256").update(readFileSync(opencodeExe)).digest("hex");
+const opencodeDefines = {
+  __OPENCODE_SHA256__: JSON.stringify(opencodeSha),
+  __OPENCODE_VERSION__: JSON.stringify(opencodeVersion),
+};
 const exeName = target.startsWith("win32") ? "claude.exe" : "claude";
 
 // Binaire natif : paquet optionnel de la cible, résolu depuis le paquet agent-sdk.
@@ -58,6 +80,7 @@ await build({
     js: "import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);",
   },
   define: {
+    ...opencodeDefines,
     __CLAUDE_SHA256__: JSON.stringify(
       createHash("sha256").update(readFileSync(nativeExe)).digest("hex"),
     ),
@@ -73,6 +96,7 @@ await build({
   target: "node22",
   external: ["vscode"],
   define: {
+    ...opencodeDefines,
     __SDK_VERSION__: JSON.stringify(
       JSON.parse(readFileSync(join(sdkDir, "package.json"), "utf8")).version,
     ),
@@ -81,6 +105,22 @@ await build({
 });
 
 copyFileSync(nativeExe, join(stage, "bin", exeName));
+copyFileSync(opencodeExe, join(stage, "bin", opencodeExeName));
+if (target === "linux-x64") chmodSync(join(stage, "bin", opencodeExeName), 0o755);
+writeFileSync(join(stage, "bin", "opencode.sha256"), `${opencodeSha}\n`);
+mkdirSync(join(stage, "third-party"), { recursive: true });
+copyFileSync(
+  join(pkgDir, "third-party", "opencode-LICENSE"),
+  join(stage, "third-party", "opencode-LICENSE"),
+);
+// Les distributions natives peuvent fournir leur licence à côté du manifeste.
+for (const license of ["LICENSE", "LICENSE.md", "LICENSE.txt"]) {
+  if (existsSync(join(opencodeDir, license))) {
+    mkdirSync(join(stage, "third-party"), { recursive: true });
+    copyFileSync(join(opencodeDir, license), join(stage, "third-party", `opencode-${license}`));
+    break;
+  }
+}
 const sha = createHash("sha256").update(readFileSync(nativeExe)).digest("hex");
 writeFileSync(join(stage, "bin", "claude.sha256"), `${sha}\n`);
 
@@ -109,4 +149,7 @@ execFileSync(
 
 const mib = (n) => (n / 1048576).toFixed(1);
 console.log(`cible ${target} ; binaire ${mib(statSync(nativeExe).size)} Mio ; sha256 ${sha}`);
+console.log(
+  `OpenCode ${opencodeVersion} ; binaire ${mib(statSync(opencodeExe).size)} Mio ; sha256 ${opencodeSha}`,
+);
 console.log(`vsix ${out} : ${mib(statSync(out).size)} Mio`);

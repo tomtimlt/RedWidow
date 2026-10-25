@@ -1570,10 +1570,29 @@ body:not(.running) #toolbar #stop {
   min-width: 0;
   overflow-wrap: anywhere;
 }
-body.no-provider #log,
-body.no-provider #composer {
+body.no-provider #log {
   opacity: 0.45;
-  pointer-events: none;
+}
+body.no-provider #input,
+body.no-provider #send {
+  opacity: 0.45;
+}
+.cfg-provider {
+  flex-wrap: wrap;
+}
+#provider {
+  max-width: 100%;
+  min-width: 0;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-sm);
+  padding: 4px;
+}
+.provider-help {
+  margin: 0;
+  font-size: var(--jn-fs-xs);
+  color: var(--jn-muted);
 }
 
 /* --- Responsive : container queries sur body (compact < 360, standard 360-599, large >= 600) --- */
@@ -2358,6 +2377,45 @@ body.cockpit .cockpit-row.is-running > .dot {
   .cockpit-row-image {
     display: none;
   }
+}
+
+.cockpit-checkbox {
+  flex-direction: row-reverse;
+  justify-content: flex-end;
+  align-items: center;
+}
+.cockpit-checkbox input {
+  width: auto;
+  min-height: auto;
+}
+.cockpit-help {
+  margin: 0;
+  font-size: var(--jn-fs-sm);
+  color: var(--jn-muted);
+  overflow-wrap: anywhere;
+}
+.cockpit-progress {
+  padding: var(--jn-s3);
+  border: 1px solid var(--vscode-contrastBorder, var(--jn-line));
+  border-radius: var(--jn-r-md);
+}
+.cockpit-layer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s1);
+  margin-block: var(--jn-s2);
+  overflow-wrap: anywhere;
+}
+.cockpit-layer progress {
+  width: 100%;
+  accent-color: var(--jn-accent);
+}
+.cockpit-row-act {
+  flex-wrap: wrap;
+}
+.cockpit-create button {
+  max-width: 100%;
+  white-space: normal;
 }
 
 /* --- Réglages (body.studio) : navigation en deux groupes, cartes restylées (lot P5) --- */

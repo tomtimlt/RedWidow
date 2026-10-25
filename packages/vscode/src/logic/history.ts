@@ -1,6 +1,6 @@
 import { type EngineEvent, parseJournal, promptForTargets, stripControl } from "@warband/core";
 import type { ChatState } from "./chat.js";
-import { type EffortChoice, type Provider, parseEffortChoice } from "./effort.js";
+import { type EffortChoice, isProvider, type Provider, parseEffortChoice } from "./effort.js";
 import { isModelId } from "./models.js";
 
 /**
@@ -63,6 +63,7 @@ export function parseIndex(raw: unknown): ConversationMeta[] {
   const out: ConversationMeta[] = [];
   for (const item of raw.slice(0, MAX_CONVERSATIONS * 2)) {
     if (!isObj(item) || !isConversationId(item.id) || seen.has(item.id)) continue;
+    if (item.provider !== undefined && !isProvider(item.provider)) continue;
     const title = cleanTitle(item.title);
     if (title === null || !isIso(item.createdAt) || !isIso(item.updatedAt)) continue;
     if (!Array.isArray(item.runIds)) continue;
@@ -73,7 +74,7 @@ export function parseIndex(raw: unknown): ConversationMeta[] {
       title,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
-      provider: "claude",
+      provider: isProvider(item.provider) ? item.provider : "claude",
       model: isModelId(item.model) ? item.model : null,
       effort: parseEffortChoice(item.effort),
       sessionId:

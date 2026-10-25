@@ -2,6 +2,7 @@ import type { ModelOption } from "@warband/core";
 import {
   clampEffort,
   type EffortChoice,
+  isProvider,
   isSupported,
   levelsFor,
   type Provider,
@@ -29,7 +30,7 @@ export function parsePrefs(raw: unknown): Prefs {
   return {
     model: isModelId(r.model) ? r.model : null,
     effort: parseEffortChoice(r.effort),
-    provider: "claude",
+    provider: isProvider(r.provider) ? r.provider : "claude",
   };
 }
 
@@ -79,7 +80,7 @@ export function buildControls(input: {
   const { prefs, models, status, defaultModel, busy } = input;
   const supported = effectiveModel(models, prefs.model, defaultModel)?.supportedEffortLevels;
   const effort =
-    prefs.effort === null
+    prefs.provider !== "claude" || prefs.effort === null
       ? null
       : prefs.effort === "ultracode"
         ? clampEffort("max", supported).clamped
@@ -111,7 +112,8 @@ export function buildControls(input: {
       tip: tip(l),
       enabled: isSupported(toEffort(l.value), supported),
     })),
-    effortDisabled: supported !== undefined && supported.length === 0,
+    effortDisabled:
+      prefs.provider !== "claude" || (supported !== undefined && supported.length === 0),
     locked: busy,
     learning: input.learning === true,
   };

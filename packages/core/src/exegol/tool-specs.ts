@@ -10,9 +10,12 @@ import {
   FINDING_KINDS,
   FINDING_MAX_LABEL,
   FINDING_STATES,
+  type FindingPatch,
   MITRE_TACTICS,
   type MitreTactic,
+  readFindings,
   TECHNIQUE_PATTERN,
+  updateFinding,
 } from "./findings.js";
 import { type ExegolTargets, resolveExegolContainer } from "./targets.js";
 
@@ -31,6 +34,7 @@ function spec(def: {
   name: string;
   description: string;
   input: z.ZodRawShape;
+  readOnly?: boolean;
   run(args: Record<string, unknown>, call: CallOptions): Promise<string>;
 }): DockerToolSpec {
   const schema = z.object(def.input);
@@ -38,10 +42,14 @@ function spec(def: {
     name: def.name,
     description: def.description,
     input: def.input,
+    ...(def.readOnly && { readOnly: true }),
     run: async (args, ctx) => {
       const parsed = schema.safeParse(args);
       if (!parsed.success) {
-        if (def.name === "note" && parsed.error.issues.some((issue) => issue.path[0] === "label"))
+        if (
+          (def.name === "note" || def.name === "update_note") &&
+          parsed.error.issues.some((issue) => issue.path.includes("label"))
+        )
           throw new CodedError("finding.labelInvalid", { max: FINDING_MAX_LABEL });
         throw parsed.error;
       }
@@ -68,7 +76,7 @@ function activeProjectId(targets: ExegolTargets): string {
   throw new CodedError("project.absent");
 }
 
-/** Outils : `exec`, `note`, `remember`. Le conteneur est validé contre la cible du message, pas choisi librement. */
+/** Outils : `exec`, `note`, `list_notes`, `update_note`, `remember`. Le conteneur est validé contre la cible du message, pas choisi librement. */
 export function exegolToolSpecs(docker: DockerClient, targets: ExegolTargets): DockerToolSpec[] {
   return [
     spec({
@@ -124,6 +132,42 @@ export function exegolToolSpecs(docker: DockerClient, targets: ExegolTargets): D
         });
         const tail = `${finding.tactic ? ` ${finding.tactic}` : ""}${finding.technique ? ` ${finding.technique}` : ""}`;
         return `${finding.id} ${finding.kind} ${finding.state} ${finding.label}${tail}`;
+      },
+    }),
+    spec({
+      name: "list_notes",
+      description:
+        "Lit les trouvailles du projet actif avec leurs ids et parents from, pour retrouver les ids avant update_note. Ne lit ni historique ni résumé de conversation.",
+      readOnly: true,
+      input: {},
+      async run() {
+        return JSON.stringify(await readFindings(defaultConfigDir(), activeProjectId(targets)));
+      },
+    }),
+    spec({
+      name: "update_note",
+      description:
+        "Modifie une trouvaille du projet actif par son id (voir list_notes). Les champs omis sont conservés ; null efface tactic/technique, [] efface from. Les parents doivent être des ids connus sans cycle causal.",
+      input: {
+        id: z.string().min(1),
+        patch: z.object({
+          label: z.string().trim().min(1).max(FINDING_MAX_LABEL).optional(),
+          kind: z.enum(FINDING_KINDS).optional(),
+          state: z.enum(FINDING_STATES).optional(),
+          tactic: z.enum(MITRE_TACTICS).nullable().optional(),
+          technique: z.string().regex(TECHNIQUE_PATTERN).nullable().optional(),
+          from: z.array(z.string().min(1)).max(8).optional(),
+        }),
+      },
+      async run(args) {
+        return JSON.stringify(
+          await updateFinding(
+            defaultConfigDir(),
+            activeProjectId(targets),
+            String(args.id),
+            args.patch as FindingPatch,
+          ),
+        );
       },
     }),
     spec({

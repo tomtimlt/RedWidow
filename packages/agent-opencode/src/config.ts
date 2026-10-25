@@ -33,6 +33,7 @@ export interface ForcedConfigInput {
   /** Serveurs MCP du moteur (distants, jeton Bearer). */
   mcp: Record<string, unknown>;
   maxTurns: number | undefined;
+  provider?: string;
 }
 
 /**
@@ -40,7 +41,13 @@ export interface ForcedConfigInput {
  * de sécurité écrasent ceux de l'utilisateur ; ses `plugin` et `permission`
  * sont écartés, ses serveurs MCP et agents conservés (permissions d'agent forcées).
  */
-export function buildConfig({ user, enabledTools, mcp, maxTurns }: ForcedConfigInput): Obj {
+export function buildConfig({
+  user,
+  enabledTools,
+  mcp,
+  maxTurns,
+  provider,
+}: ForcedConfigInput): Obj {
   const permission = forcedPermission(enabledTools);
   const { plugin: _plugin, permission: _permission, ...rest } = user ?? {};
   const userAgents = isObj(rest.agent) ? rest.agent : {};
@@ -55,6 +62,10 @@ export function buildConfig({ user, enabledTools, mcp, maxTurns }: ForcedConfigI
   }
   return {
     ...rest,
+    ...(provider !== undefined && { enabled_providers: [provider] }),
+    ...(provider === "openai" && {
+      provider: { ...(isObj(rest.provider) ? rest.provider : {}), openai: {} },
+    }),
     share: "disabled",
     autoupdate: false,
     snapshot: false,
@@ -102,4 +113,29 @@ export function assertSafeConfig(effective: Obj): void {
   if (Array.isArray(effective.plugin) && effective.plugin.length > 0) unsafe("plugin");
   const hooks = isObj(effective.experimental) ? effective.experimental.hook : undefined;
   if (isObj(hooks) && Object.keys(hooks).length > 0) unsafe("experimental.hook");
+}
+
+/** Liste fermée des seuls réglages admis pour le fournisseur officiel. */
+export function assertOfficialOpenaiConfig(effective: Obj): void {
+  const reject: () => never = () => {
+    throw new Error(
+      "Configuration OpenAI personnalisée incompatible avec ce mode ; utilisez OpenCode ou retirez les surcharges.",
+    );
+  };
+  if (effective.provider === undefined) return;
+  if (!isObj(effective.provider)) reject();
+  const provider = (effective.provider as Obj).openai;
+  if (provider === undefined) return;
+  if (!isObj(provider)) reject();
+  if (Object.keys(provider).some((key) => !["name", "npm", "options"].includes(key))) reject();
+  if (provider.name !== undefined && typeof provider.name !== "string") reject();
+  if (provider.npm !== undefined && provider.npm !== "@ai-sdk/openai") reject();
+  if (provider.options === undefined) return;
+  if (!isObj(provider.options)) reject();
+  if (Object.keys(provider.options).some((key) => key !== "baseURL")) reject();
+  if (
+    provider.options.baseURL !== undefined &&
+    provider.options.baseURL !== "https://api.openai.com/v1"
+  )
+    reject();
 }

@@ -24,8 +24,12 @@ import {
   type ToEngine,
 } from "./protocol.js";
 
-/** Les deux seules variables d'authentification que l'on transmet au moteur (une à la fois). */
-export const AUTH_ENV_NAMES = ["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"] as const;
+/** Variables d'authentification admises vers le moteur (une à la fois). */
+export const AUTH_ENV_NAMES = [
+  "ANTHROPIC_API_KEY",
+  "CLAUDE_CODE_OAUTH_TOKEN",
+  "OPENAI_API_KEY",
+] as const;
 export type AuthEnvName = (typeof AUTH_ENV_NAMES)[number];
 
 export interface EngineAuth {
@@ -43,6 +47,22 @@ export function buildEngineEnv(
   base: NodeJS.ProcessEnv = process.env,
 ): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...safeEnv(base), ELECTRON_RUN_AS_NODE: "1" };
+  // Dossiers d’authentification OpenCode et réseau de l’hôte ; aucune clé héritée.
+  for (const key of [
+    "XDG_CONFIG_HOME",
+    "XDG_DATA_HOME",
+    "XDG_CACHE_HOME",
+    "XDG_STATE_HOME",
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "ALL_PROXY",
+    "NO_PROXY",
+    "SSL_CERT_FILE",
+    "SSL_CERT_DIR",
+    "NODE_EXTRA_CA_CERTS",
+  ]) {
+    if (base[key]) env[key] = base[key];
+  }
   if (auth !== undefined) {
     if (!(AUTH_ENV_NAMES as readonly string[]).includes(auth.name) || auth.value === "") {
       throw new CodedError("ipc.invalidMessage", { field: "auth", reason: "invalid" });
@@ -94,7 +114,12 @@ export interface EngineController {
    * Sondage : lance un moteur éphémère SANS consigne, lit la liste des modèles puis le termine.
    * Rejette si le moteur échoue, répond mal ou dépasse `timeoutMs` (défaut : 30 s).
    */
-  models(params: { cwd: string; auth?: AuthMode; timeoutMs?: number }): Promise<ModelOption[]>;
+  models(params: {
+    cwd: string;
+    auth?: AuthMode;
+    provider?: StartParams["provider"];
+    timeoutMs?: number;
+  }): Promise<ModelOption[]>;
   prompt(text: string): void;
   answer(toolUseId: string, decision: "allow" | "deny", remember?: RememberScope): void;
   /**
@@ -227,7 +252,7 @@ export function createEngineController(options: EngineControllerOptions): Engine
       sessionStarted = true;
       return launch({ v: PROTOCOL_VERSION, type: "start", ...params });
     },
-    models({ cwd, auth, timeoutMs = 30_000 }) {
+    models({ cwd, auth, provider, timeoutMs = 30_000 }) {
       return new Promise<ModelOption[]>((resolve, reject) => {
         const timer = setTimeout(
           () =>
@@ -249,6 +274,7 @@ export function createEngineController(options: EngineControllerOptions): Engine
           type: "models",
           cwd,
           ...(auth !== undefined && { auth }),
+          ...(provider !== undefined && { provider }),
         }).catch((error) => settle(() => reject(error)));
       });
     },

@@ -1,6 +1,6 @@
 # Warband — parcours, état actuel et reprise
 
-État inspecté le 24 octobre 2026. Ce document sert de point d'entrée produit ;
+État inspecté le 25 octobre 2026 pour le lot de travail 0.3.30. Ce document sert de point d'entrée produit ;
 les ADR expliquent les décisions, les idées restent une réserve.
 
 ## Le parcours de référence
@@ -15,11 +15,65 @@ parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
 
-Base intégrée inspectée : `main` à `8682ea2`, après fusion des PR #14
-(Bypass) et #15 (résumé de projet). Le tag `v0.3.19` pointe sur ce commit.
-Cela confirme l’intégration et l’existence du tag, pas à lui seul le succès
-du workflow ni la disponibilité des VSIX. Les résultats de validation et la
-publication du lot suivant seront consignés après exécution.
+La version du manifeste est **0.3.30**. Les paragraphes
+0.3.19 à 0.3.29 ci-dessous sont des relevés historiques, pas les preuves de
+validation de ce lot. Les artefacts publiés sont accessibles dans les
+[releases GitHub](https://github.com/tomtimlt/warband/releases).
+
+## Lot 0.3.30 — code présent et limites
+
+- **Fournisseurs (ADR 0020)** : Claude, OpenAI et OpenCode dans le chat ;
+  OpenCode 1.19.0 embarqué et vérifié. Abonnement ChatGPT par OAuth Codex,
+  ou clé API OpenAI dans `SecretStorage`, avec isolation des deux modes.
+  Changement de fournisseur : nouvelle conversation. Catalogues runtime,
+  sans inférence ; effort désactivé hors Claude.
+- **Création et suppression (ADR 0021)** : Exegol dans un terminal interactif,
+  choix natif du VPN OpenVPN/WireGuard/dossier et du workspace, NAT, bureau
+  web loopback 6080, ressources et `--log`/`script`. Suppression humaine par
+  ID Docker après confirmation et revérification ; volumes, images et
+  dossiers hôtes conservés, associations de projets nettoyées.
+- **Kali complet** : image locale `warband/kali:complete-1`, construite depuis
+  Kali rolling avec `kali-linux-headless`, MCP et subfinder/httpx/nuclei.
+  Pull avec progression par couche, vitesse et annulation ; rotation des
+  logs des nouveaux Kali : `json-file`, 10 Mio × 3.
+- **Résultats** : consigne par session de conserver les scans sous
+  `/workspace/outputs`, stderr et code de retour compris. `list_notes` et
+  `update_note` permettent la lecture/correction des trouvailles du projet
+  sans réinjecter d’historique de conversation.
+
+Preuves réelles rapportées pour ce lot : construction complète de l’image
+réussie ; pull Alpine via l’API Docker réussi ; catalogue OpenCode de
+11 modèles obtenu sans inférence. **Le démarrage de l’image complète n’est
+pas validé** : le stockage cloud de 32 Go et le pilote Docker `vfs` n’ont pas
+permis de conserver les couches nécessaires à cet essai. La réussite de la
+construction ne prouve donc pas le démarrage du conteneur ni ses scans.
+
+Validation locale finale : **1 777 tests réussis, 12 ignorés**, lint, typage
+et compilation réussis ; VSIX Linux et Windows construits. Vérification Chromium
+des fournisseurs, options Exegol, suppression, progression et annulation sur
+quatre largeurs et trois thèmes ; graphe et sorties Kali également contrôlés.
+Le moteur Linux empaqueté obtient 11 modèles sans inférence et refuse le mode
+API sans clé. Les deux binaires et leurs empreintes sont contrôlés dans les
+VSIX. Revue architecte des frontières d’authentification et de la suppression
+effectuée ; annulation vérifiée immédiatement avant la suppression Docker.
+
+OAuth et clé API avec des comptes réels, parcours
+VS Code Windows, VPN et bureau Exegol ne sont pas validés. Aucun appel
+d’inférence réel n’est attesté par la lecture du catalogue.
+
+### Recette restante pour la 0.3.30
+
+| Essai | Résultat attendu |
+|---|---|
+| Installer les VSIX de cette version | Binaires embarqués vérifiés ; chat et cockpit utilisables |
+| Connecter ChatGPT puis tester la clé API séparément | Chaque mode utilise sa propre authentification, sans repli sur l’autre |
+| Passer de Claude à OpenAI/OpenCode | Nouvelle conversation ; aucun ancien identifiant de session repris |
+| Actualiser les modèles | Catalogue runtime ; effort indisponible hors Claude |
+| Créer un Exegol avec VPN et bureau | Dialogue natif, terminal interactif, NAT et bureau loopback ; logs présents |
+| Construire puis démarrer Kali complet avec assez de disque | Image locale, conteneur actif, santé MCP et outils attendus |
+| Annuler un pull, puis reprendre | Annulation visible ; aucune création présentée comme réussie |
+| Supprimer un conteneur lié à plusieurs projets | Confirmation, suppression du bon ID, associations nettoyées, volumes et dossiers préservés |
+| Exécuter un scan autorisé et corriger sa trouvaille | Fichiers réels dans outputs avec stderr/code ; update_note conserve les autres champs |
 
 ## Lot 0.3.20 — état et validation
 
@@ -55,7 +109,7 @@ résultats ne constituent pas une validation dans VS Code/Windows.
 |---|---|---|
 | Choisir un projet | Page Projet : liste réelle, activation, création avec nom et dossier choisi par dialogue natif ; stockage et associations | Changement de projet bloqué pendant un tour actif ; vérifier le parcours dans VS Code réel |
 | Associer ses conteneurs | Cockpit, Exegol/Kali, création et cycle de vie pilotés par l'humain, association, choix du conteneur affiché | Distinguer conteneurs autorisés et conteneur affiché ; ne pas présenter les dossiers hôtes supplémentaires comme livrés |
-| Travailler avec l'agent | Chat, plusieurs conversations, mentions, choix de modèle/effort, outils Exegol/Kali, apprentissage | L'extension construit le runner Claude ; OpenCode existe dans la CLI mais reste désactivé dans le sélecteur du chat |
+| Travailler avec l'agent | Chat, plusieurs conversations, mentions, choix de modèle/effort, outils Exegol/Kali, apprentissage | Claude, OpenAI et OpenCode branchés dans l’extension ; comptes réels à valider |
 | Approuver | Gate, cartes de réponse, Bypass borné | Le Bypass universel de la 0.3.19 est décrit ci-dessous |
 | Consulter les résultats | Trouvailles par projet, Kill chain avec minimap, Monitor, historique, journaux et export HTML CLI | Historique filtré par projet et édition du résumé réalisés ; rapport d’engagement encore à concevoir |
 
@@ -114,9 +168,9 @@ non validées.
    publication ; vérifier le workflow et les deux VSIX distants avant
    d’annoncer la disponibilité sur GitHub.
 
-Travaux à garder séparés de cette stabilisation : dossiers hôtes supplémentaires,
-rapport d'engagement, intégration Kali complète de l'ADR 0014, OpenCode dans
-l'extension. Pour Kali, le toolset est déjà branché sur main : comparer aux
+Suites identifiées lors de la 0.3.20 : dossiers hôtes supplémentaires et
+rapport d'engagement. L’intégration Kali et OpenCode a évolué depuis ; se
+référer au lot 0.3.30 en tête de document. Pour Kali, le toolset est déjà branché sur main : comparer aux
 critères exacts de K2 avant de reprendre « à faire » comme absence totale.
 Leur priorité n'est pas encore décidée ; aucune nouvelle implémentation n'est
 engagée par ce document.
@@ -139,9 +193,11 @@ artefacts avant d'annoncer que la version est téléchargeable.
 - Suivi d'architecture : lots techniques et preuves de livraison.
 - Idées : possibilités non engagées, à recouper avec le code avant cadrage.
 
-## Recette manuelle Windows / VS Code — version 0.3.20
+## Recette historique Windows / VS Code — version 0.3.20
 
-Cette recette reste à exécuter sur Windows ; les tests automatisés Linux et
+Cette recette décrit le contrat historique de la 0.3.20 ; l’injection du
+résumé a été retirée depuis la 0.3.27. Pour la version actuelle, utiliser la
+recette 0.3.30 en tête de document. Les tests automatisés Linux et
 les captures Chromium ne la remplacent pas. Utiliser les VSIX issus du tag de
 la version, garder les journaux utiles et noter chaque résultat.
 

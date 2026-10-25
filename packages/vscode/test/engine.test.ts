@@ -12,6 +12,7 @@ import {
 } from "@warband/core";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { type EngineChannel, runEngine } from "../src/engine/engine.js";
+import { SCAN_OUTPUT_GUIDANCE } from "../src/engine/scan-guidance.js";
 import type { FromEngine } from "../src/logic/protocol.js";
 
 /** Canal factice : le test joue le rôle du parent. */
@@ -684,7 +685,7 @@ describe("moteur : mode apprentissage (ADR 0010)", () => {
       );
       expect(policyLoader).toHaveBeenCalledTimes(1);
       expect(modes).toEqual([undefined]);
-      expect(box.input?.systemPrompt).toBe("consigne UI");
+      expect(box.input?.systemPrompt).toBe(`${SCAN_OUTPUT_GUIDANCE}\n\nconsigne UI`);
       t.receive({ v: 1, type: "abort" });
       await done;
     } finally {
@@ -861,9 +862,9 @@ describe("moteur : conversations sans injection de mémoire du projet", () => {
     "conversation neuve ou reprise (%s) : consigne inchangée",
     async (resume) => {
       expect(await run({ ...(resume && { resume }), systemPrompt: "consigne UI" })).toBe(
-        "consigne UI",
+        `${SCAN_OUTPUT_GUIDANCE}\n\nconsigne UI`,
       );
-      expect(await run({ ...(resume && { resume }) })).toBeUndefined();
+      expect(await run({ ...(resume && { resume }) })).toBe(SCAN_OUTPUT_GUIDANCE);
     },
   );
 

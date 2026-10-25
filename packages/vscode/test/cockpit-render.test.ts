@@ -12,6 +12,7 @@ class CockpitNode {
   value = "";
   hidden = false;
   disabled = false;
+  checked = false;
   title = "";
   constructor(readonly tag: string) {}
   get firstChild() {
@@ -113,4 +114,175 @@ it("création repliée, brouillon préservé et détails indépendants des actio
   expect(sent).toContainEqual({ type: "stop", name: "kali-lab" });
   find((n) => n.attributes.get("aria-label") === "Lier").click();
   expect(sent).toContainEqual({ type: "link", name: "kali-lab" });
+});
+
+const cockpit = (exegol = "present") => {
+  const main = new CockpitNode("main");
+  const sent: unknown[] = [];
+  let receive: (event: { data: unknown }) => void = () => {};
+  runInNewContext(readFileSync(new URL("../media/cockpit.js", import.meta.url), "utf8"), {
+    acquireVsCodeApi: () => ({ postMessage: (message: unknown) => sent.push(message) }),
+    document: {
+      getElementById: (id: string) => (id === "main" ? main : main.find((n) => n.id === id)),
+      createElement: (tag: string) => new CockpitNode(tag),
+    },
+    window: {
+      WarbandIcons: { create: () => new CockpitNode("svg") },
+      addEventListener: (_type: string, listener: typeof receive) => {
+        receive = listener;
+      },
+    },
+  });
+  const send = (data: unknown) => receive({ data });
+  const view = {
+    type: "view",
+    docker: "present",
+    exegol,
+    daemon: "reachable",
+    linked: "none",
+    containers: [{ name: "lab", family: "kali", image: "kali", state: "stopped", canLink: true }],
+  };
+  send(view);
+  const find = (predicate: (node: CockpitNode) => boolean) => {
+    const node = main.find(predicate);
+    if (!node) throw new Error("Élément attendu absent");
+    return node;
+  };
+  const field = (id: string) => find((node) => node.id === id);
+  const button = (label: string) => find((node) => node.attributes.get("aria-label") === label);
+  return { main, sent, send, view, field, button, find };
+};
+
+it("transmet les options Exegol et conserve le brouillon pendant la progression", () => {
+  const ui = cockpit();
+  ui.field("cockpit-create-toggle").click();
+  const name = ui.field("cockpit-name");
+  name.value = "mission";
+  name.listeners.get("input")?.();
+  ui.send({ type: "pickedVpn", label: "mission.ovpn" });
+  expect(ui.main.find((node) => node.textContent === "mission.ovpn")).toBeDefined();
+  ui.button("Créer").click();
+  ui.button("Créer").click();
+  expect(
+    ui.sent.filter((message) => (message as { type: string }).type === "createExegol"),
+  ).toEqual([
+    {
+      type: "createExegol",
+      name: "mission",
+      image: "free",
+      vpn: false,
+      desktop: false,
+      desktopPort: 6080,
+      network: "nat",
+      shareResources: true,
+      shareMyResources: true,
+    },
+  ]);
+  ui.send({
+    type: "operation",
+    busy: true,
+    stage: "Téléchargement",
+    layers: [
+      {
+        id: "abc",
+        status: "Téléchargement",
+        current: 25,
+        total: 100,
+        speedBytesPerSecond: 2097152,
+      },
+      { id: "def", status: "Extraction" },
+    ],
+  });
+  expect(ui.field("cockpit-name").value).toBe("mission");
+  expect(ui.button("Supprimer").disabled).toBe(true);
+  const bar = ui.find((node) => node.tag === "progress");
+  expect(bar.value).toBe(25);
+  expect(bar.attributes.get("aria-label")).toContain("2.0 Mio/s");
+  const cancel = ui.button("Annuler");
+  const draft = ui.field("cockpit-name");
+  ui.send({
+    type: "operation",
+    busy: true,
+    stage: "Extraction",
+    layers: [{ id: "abc", status: "Pull complete" }],
+  });
+  expect(ui.button("Annuler")).toBe(cancel);
+  expect(ui.field("cockpit-name")).toBe(draft);
+  expect(ui.find((node) => node.tag === "progress").value).toBe(1);
+  cancel.click();
+  expect(ui.sent).toContainEqual({ type: "cancelOperation" });
+  ui.send({ type: "operation", busy: false, stage: "Annulé" });
+  expect(ui.button("Créer").disabled).toBe(false);
+});
+
+it("propose Kali Warband sans attendre les images locales et transmet la suppression", () => {
+  const ui = cockpit("absent");
+  ui.field("cockpit-create-toggle").click();
+  expect(ui.field("cockpit-image").value).toBe("warband/kali:complete-1");
+  ui.send({ type: "images", images: ["local/kali:latest"] });
+  expect(ui.field("cockpit-image").children.map((node) => node.value)).toEqual([
+    "warband/kali:complete-1",
+    "kalilinux/kali-rolling:latest",
+    "local/kali:latest",
+  ]);
+  ui.button("Supprimer").click();
+  expect(ui.sent).toContainEqual({ type: "remove", name: "lab" });
+  expect(ui.button("Démarrer").disabled).toBe(true);
+});
+
+it("garde les choix Exegol et bloque le bureau hors NAT", () => {
+  const ui = cockpit();
+  ui.field("cockpit-create-toggle").click();
+  ui.field("cockpit-name").value = "mission";
+  ui.field("cockpit-name").listeners.get("input")?.();
+  for (const id of ["vpn", "desktop"]) {
+    const input = ui.field(`cockpit-${id}`);
+    input.checked = true;
+    input.listeners.get("change")?.();
+  }
+  ui.button("Choisir une configuration VPN").click();
+  expect(ui.sent).toContainEqual({ type: "pickVpn" });
+  const network = ui.field("cockpit-network");
+  network.value = "host";
+  network.listeners.get("change")?.();
+  expect(ui.button("Créer").disabled).toBe(true);
+  const nat = ui.field("cockpit-network");
+  nat.value = "nat";
+  nat.listeners.get("change")?.();
+  const resources = ui.field("cockpit-shareResources");
+  resources.checked = false;
+  resources.listeners.get("change")?.();
+  ui.button("Créer").click();
+  expect(ui.sent).toContainEqual({
+    type: "createExegol",
+    name: "mission",
+    image: "free",
+    vpn: true,
+    desktop: true,
+    desktopPort: 6080,
+    network: "nat",
+    shareResources: false,
+    shareMyResources: true,
+  });
+});
+
+it("refuse les brouillons invalides et réactive la création Kali après choix du dossier", () => {
+  const ui = cockpit("absent");
+  ui.field("cockpit-create-toggle").click();
+  expect(ui.button("Créer").disabled).toBe(true);
+  const name = ui.field("cockpit-name");
+  name.value = "nom avec espaces";
+  name.listeners.get("input")?.();
+  ui.send({ type: "pickedSource", source: "/tmp/mission" });
+  expect(ui.button("Créer").disabled).toBe(true);
+  name.value = "mission";
+  name.listeners.get("input")?.();
+  expect(ui.button("Créer").disabled).toBe(false);
+  ui.button("Créer").click();
+  expect(ui.sent).toContainEqual({
+    type: "createKali",
+    name: "mission",
+    image: "warband/kali:complete-1",
+    source: "/tmp/mission",
+  });
 });

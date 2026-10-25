@@ -1,7 +1,10 @@
 import { EFFORTS, type Effort } from "@warband/core";
 
-/** Fournisseur d'agent (seul Claude existe pour l'instant ; OpenCode viendra avec F5). */
-export type Provider = "claude";
+/** Fournisseur sélectionné pour la conversation. */
+export type Provider = "claude" | "openai" | "opencode";
+
+export const isProvider = (value: unknown): value is Provider =>
+  value === "claude" || value === "openai" || value === "opencode";
 
 /**
  * Cran du curseur : un `Effort` du cœur, ou « ultracode ». Ultracode n'est PAS un niveau du SDK :
@@ -14,7 +17,7 @@ export interface EffortLevel {
   value: EffortChoice;
   label: string;
   tip: string;
-  /** Fournisseurs pour lesquels le cran existe ; absent = tous. */
+  /** Fournisseurs pour lesquels le cran existe ; absent = Claude. */
   providers?: readonly Provider[];
 }
 
@@ -72,7 +75,7 @@ export const toEffort = (choice: EffortChoice): Effort => (choice === "ultracode
 
 /** Crans visibles pour un fournisseur. */
 export const levelsFor = (provider: Provider): EffortLevel[] =>
-  EFFORT_LEVELS.filter((l) => l.providers === undefined || l.providers.includes(provider));
+  EFFORT_LEVELS.filter((l) => (l.providers ?? ["claude"]).includes(provider));
 
 /**
  * Paramètres de run d'un choix : effort du SDK et, pour Ultracode seulement, les plafonds du préréglage

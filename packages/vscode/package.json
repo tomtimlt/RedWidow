@@ -12,6 +12,7 @@
     "package": "node scripts/package-vsix.mjs"
   },
   "dependencies": {
+    "@warband/agent-opencode": "workspace:*",
     "@warband/agent-sdk": "workspace:*",
     "@warband/core": "workspace:*",
     "@warband/messages": "workspace:*"
@@ -20,5 +21,9 @@
     "@types/vscode": "1.140.0",
     "@vscode/vsce": "4.0.0",
     "esbuild": "0.28.2"
+  },
+  "optionalDependencies": {
+    "opencode-linux-x64-baseline": "1.19.0",
+    "opencode-windows-x64-baseline": "1.19.0"
   }
 }

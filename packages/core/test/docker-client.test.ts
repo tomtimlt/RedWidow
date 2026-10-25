@@ -380,7 +380,7 @@ describe("createKaliContainer", () => {
     params: { field: "source", reason },
   });
 
-  it("monte le réel sur /workspace et renvoie l'identifiant", async () => {
+  it("monte le réel sur /workspace, borne les journaux Docker et renvoie l'identifiant", async () => {
     const { fake, docker } = await setup();
     const dir = await mkdtemp(join(tmpdir(), "warband-kali-"));
     const real = realpathSync.native(dir);
@@ -403,6 +403,12 @@ describe("createKaliContainer", () => {
         "lab",
         "--label",
         "io.warband.runtime=kali",
+        "--log-driver",
+        "json-file",
+        "--log-opt",
+        "max-size=10m",
+        "--log-opt",
+        "max-file=3",
         "--network",
         "bridge",
         "--mount",

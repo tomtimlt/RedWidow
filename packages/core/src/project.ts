@@ -450,6 +450,22 @@ export async function dissociateContainer(
   await writeProjectFile(configDir, { activeId: file.activeId, projects });
 }
 
+/** Nettoie toutes les associations après suppression Docker ; nouvel essai sans effet supplémentaire. */
+export async function removeContainerAssociations(configDir: string, name: string): Promise<void> {
+  const file = await readProjects(configDir);
+  if (file === null || !file.projects.some((p) => p.containers.includes(name))) return;
+  const projects = file.projects.map((p) => {
+    if (!p.containers.includes(name)) return p;
+    const { primary, ...rest } = p;
+    return {
+      ...rest,
+      containers: p.containers.filter((container) => container !== name),
+      ...(primary !== undefined && primary !== name && { primary }),
+    };
+  });
+  await writeProjectFile(configDir, { activeId: file.activeId, projects });
+}
+
 /**
  * Fixe ou retire le conteneur affiché (`primary`), purement informatif.
  * `name` doit appartenir à `containers` du projet, sinon `project.notFound` (fichier inchangé).
