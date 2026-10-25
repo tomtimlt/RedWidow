@@ -1,12 +1,14 @@
-import { access, chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createOpencodeRunner } from "../src/index.js";
+import * as server from "../src/server.js";
 import { fakeOpencode, harness } from "./helpers.js";
 
 const roots: string[] = [];
 afterEach(async () => {
+  vi.restoreAllMocks();
   await Promise.all(roots.splice(0).map((path) => rm(path, { recursive: true, force: true })));
 });
 
@@ -100,7 +102,7 @@ describe("isolation de la configuration OpenAI", () => {
     "isole la configuration puis retire le dossier, erreur catalogue=%s",
     async (fail) => {
       const root = await cache();
-      const script = join(root, "opencode-test");
+      const script = join(root, "opencode-test.mjs");
       const log = join(root, "env.json");
       await writeFile(
         script,
@@ -117,10 +119,15 @@ const server = createServer((req, res) => {
 server.listen(0, "127.0.0.1", () => console.log("opencode server listening on http://127.0.0.1:" + server.address().port));
 `,
       );
-      await chmod(script, 0o700);
+      // Le faux serveur est du JavaScript : Node le lance aussi sous Windows,
+      // sans shim shell ni dépendance à la prise en charge POSIX du shebang.
+      const launch = server.launchServer;
+      vi.spyOn(server, "launchServer").mockImplementation((options) =>
+        launch({ ...options, binary: process.execPath, argsPrefix: [script] }),
+      );
       const runner = createOpencodeRunner({
         provider: "openai",
-        binary: script,
+        binary: process.execPath,
         processEnv: { XDG_CONFIG_HOME: root, XDG_DATA_HOME: root },
         env: { OPENAI_API_KEY: "secret-test" },
       });

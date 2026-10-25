@@ -15,7 +15,7 @@ parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
 
-La version du manifeste est **0.3.30**. Les paragraphes
+La version du manifeste est **0.3.31**. Les paragraphes
 0.3.19 à 0.3.29 ci-dessous sont des relevés historiques, pas les preuves de
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
@@ -60,6 +60,15 @@ effectuée ; annulation vérifiée immédiatement avant la suppression Docker.
 OAuth et clé API avec des comptes réels, parcours
 VS Code Windows, VPN et bureau Exegol ne sont pas validés. Aucun appel
 d’inférence réel n’est attesté par la lecture du catalogue.
+
+### Portabilité des tests — 0.3.31
+
+La CI Windows de la 0.3.30 a révélé trois échecs dans les nouveaux tests :
+un faux serveur dépendait d’un shebang POSIX et deux chemins attendus
+utilisaient des séparateurs Linux. Le faux serveur passe désormais par Node
+avec des arguments structurés et les chemins de test suivent la plateforme.
+Les assertions d’isolation restent identiques ; le code fonctionnel est inchangé.
+Les 17 tests ciblés passent localement.
 
 ### Recette restante pour la 0.3.30
 

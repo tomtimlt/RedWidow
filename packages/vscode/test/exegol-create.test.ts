@@ -21,13 +21,15 @@ afterEach(async () => {
 
 describe("création Exegol", () => {
   it("construit les options modernes avec VPN NAT et bureau localhost", () => {
+    const workspace = join(tmpdir(), "a b;$x");
+    const vpn = join(tmpdir(), "vpn.ovpn");
     expect(
       buildExegolCreateArgv(
         {
           name: "audit",
           image: "full",
-          workspacePath: "/tmp/a b;$x",
-          vpnPath: "/tmp/vpn.ovpn",
+          workspacePath: workspace,
+          vpnPath: vpn,
           desktop: true,
           gui: false,
           exegolResources: false,
@@ -40,11 +42,11 @@ describe("création Exegol", () => {
       "audit",
       "full",
       "--workspace",
-      "/tmp/a b;$x",
+      workspace,
       "--network",
       "nat",
       "--vpn",
-      "/tmp/vpn.ovpn",
+      vpn,
       "--desktop",
       "--desktop-config",
       "http:127.0.0.1:6080",
