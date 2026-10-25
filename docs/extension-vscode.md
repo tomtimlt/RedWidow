@@ -8,7 +8,7 @@ Extension privée (ADR 0004, lots E3 + E4) : chat d'agent dans VS Code, avec une
 pnpm install --frozen-lockfile
 pnpm build
 pnpm --filter @warband/vscode package        # cible win32-x64 par défaut
-code --install-extension packages/vscode/warband-0.3.30-win32-x64.vsix
+code --install-extension packages/vscode/warband-0.3.32-win32-x64.vsix
 ```
 
 Raccourci : `pnpm maj` (ou `node scripts/update.mjs`). Il enchaîne `git pull --ff-only`, `pnpm install`, `pnpm build`, l'empaquetage et `code --install-extension --force`. Options : `--check` (ajoute `pnpm check`), `--no-install`, `--dry-run`, `--target=…`. Recharger ensuite la fenêtre VS Code.
@@ -59,14 +59,20 @@ pas l’historique.
 
 ## Modèle et effort
 
-Dans la barre d'outils du composer : une **pastille de modèle** et, sous « Configurer », un **curseur d'effort** à 6 crans (Low, Medium, High, Extra, Max, Ultracode ; Extra correspond à l'effort `xhigh` du SDK). **Par défaut le curseur est sur « Auto »** : aucun effort n'est transmis et le modèle garde son comportement par défaut, tant que vous n'avez pas touché au curseur ; le bouton « Auto » y revient. Le libellé du cran courant est affiché, l'infobulle décrit l'effet (Low : rapide et économe ; Max : réflexion la plus poussée, plus lent et plus coûteux), et les crans non pris en charge par le modèle choisi sont grisés (un niveau non pris en charge est ramené au plus proche niveau permis, avec un avis). Le curseur se pilote au clavier (flèches) et expose son libellé aux lecteurs d'écran.
+Dans la barre d'outils du composer : une **pastille de modèle** et, sous « Configurer », le réglage d'effort. Pour **Claude**, c'est un **curseur** à 6 crans (Low, Medium, High, Extra, Max, Ultracode ; Extra correspond à l'effort `xhigh` du SDK). **Par défaut le curseur est sur « Auto »** : aucun effort n'est transmis et le modèle garde son comportement par défaut, tant que vous n'avez pas touché au curseur ; le bouton « Auto » y revient. Le libellé du cran courant est affiché, l'infobulle décrit l'effet (Low : rapide et économe ; Max : réflexion la plus poussée, plus lent et plus coûteux), et les crans non pris en charge par le modèle choisi sont grisés (un niveau non pris en charge est ramené au plus proche niveau permis, avec un avis). Le curseur se pilote au clavier (flèches) et expose son libellé aux lecteurs d'écran.
 
 - La **liste des modèles Claude** vient du SDK au runtime (aucun identifiant n'est codé en dur) : un moteur de sondage éphémère, lancé à l'ouverture du chat **sans aucune consigne** (donc sans tour, sans outil ni inférence), interroge `supportedModels()` puis s'arrête. Elle est mise en cache (`globalState`) par version du SDK ; « Actualiser la liste » la recharge. Si elle est indisponible, le popover propose une **saisie libre** (identifiant sans espace, 200 caractères maximum).
-- Les catalogues **OpenAI/OpenCode** sont interrogés au runtime auprès du serveur local OpenCode, sans consigne ni inférence. Aucun catalogue statique de secours n’est embarqué. Le réglage d’effort est désactivé pour ces fournisseurs.
-- Changer de **fournisseur** ouvre une nouvelle conversation ; aucun identifiant de session n’est transféré entre moteurs. Changer de modèle chez le même fournisseur conserve la conversation.
+- Les catalogues **OpenAI/OpenCode** sont interrogés au runtime auprès du serveur local OpenCode, sans consigne ni inférence. Aucun catalogue statique de secours n’est embarqué. Le chargement est borné à **45 secondes**, lecture de la connexion comprise. Un nouvel essai annule le sondage précédent, y compris sa requête HTTP. Les échecs de connexion, dépassements de délai et listes vides affichent un message fixe avec une action pour réessayer ; le popover de modèle propose aussi **Configurer la connexion**.
+- Pour **OpenAI/OpenCode**, le réglage d’effort propose uniquement les **variantes exactes annoncées au runtime par le modèle réellement choisi**. Aucun alias de niveau Claude ni préréglage Ultracode n’est envoyé. **Auto** omet la variante ; sans variante annoncée, aucun effort explicite n’est transmis. Le moteur vérifie à nouveau la variante avant le tour.
+- Changer de **fournisseur** conserve la **même conversation**, son projet, son fil et ses identifiants de run. Chaque changement crée une **nouvelle session SDK**, y compris un retour A → B → A. Seuls les messages utilisateur/assistant du fil courant sont transférés, après masquage des secrets : au plus **80 messages**, **80 000 caractères** au total et **8 000 caractères par message**. Un contexte partiel est signalé au modèle. Les appels d’outils, résultats et verdicts ne sont pas rejoués ; les mentions anciennes ne peuvent pas autoriser une cible. **Nouvelle conversation** conserve son sens : repartir de zéro, sans les autres fils.
 - Les choix de modèle et d’effort s'appliquent au **message suivant** (gelés pendant un tour) : le moteur inactif est remplacé par un nouveau qui reprend la même session (`resume`), sans perdre le fil. Ils sont persistés dans `globalState` (jamais dans l'espace de travail). Le modèle par défaut reste le réglage machine `warband.model`.
-- L'extension **revalide** tout choix venu de la webview : identifiant de la liste (ou bien formé en saisie libre), niveau d'effort dans l'énumération.
+- L'extension **revalide** tout choix venu de la webview : identifiant de la liste (ou bien formé en saisie libre), niveau d'effort Claude dans l'énumération, ou variante exacte du modèle OpenAI/OpenCode.
 - **Ultracode** (fournisseur Claude seulement, grisé si le modèle ne supporte pas `max`) est ici un **préréglage honnête** : effort `max` + plafonds de tours et de dépense issus des réglages `warband.ultracode.maxTurns` et `warband.ultracode.maxBudgetUsd` (0 : pas de plafond ; `warband.ultracode.maxTurns` remplace `warband.maxTurns` quand Ultracode est choisi). Il ne change PAS ce que raisonne le modèle (même capacité que Max) ; l'infobulle affiche les valeurs en vigueur. Le SDK connaît un vrai « ultracode » (réglage de session `ultracode` + mot-clé de prompt, qui orchestrent l'outil `Workflow` et des sous-agents) : il n'est volontairement pas branché, voir la décision en attente dans le rapport (ADR 0005, Q1).
+
+Le transfert du fil constitue une donnée de contexte, pas une nouvelle consigne :
+`onPrompt`, la résolution des mentions et l’événement `user.message` du journal
+reçoivent uniquement la **nouvelle consigne utilisateur**. La gate reste
+responsable de chaque nouvelle action, sous la politique actuelle.
 
 ## Historique des conversations
 
@@ -122,7 +128,7 @@ une procédure d’installation actuelle.
 ## Limites connues
 
 - La validation Windows historique du moteur (W-L6) ne valide pas automatiquement les ajouts récents de l’extension. Un essai complet de cette version dans VS Code reste à distinguer des tests automatisés et prévisualisations headless ; remote, lecteur d’écran et profilage restent à vérifier.
-- Claude, OpenAI et OpenCode sont proposés ; l’effort est disponible uniquement pour Claude. Markdown limité (tableaux pris en charge, liens non cliquables, pas d’images).
+- Claude, OpenAI et OpenCode sont proposés ; les variantes d’effort OpenAI/OpenCode dépendent du catalogue runtime du modèle. Markdown limité (tableaux pris en charge, liens non cliquables, pas d’images).
 - Kill chain affiche le graphe des trouvailles, avec minimap ; ce graphe est distinct du graphe causal des événements exporté par la CLI. Pas de commande d’approbation de la politique du dépôt (la politique du dépôt n'est appliquée qu'après approbation de son empreinte, comme dans la CLI ; sans approbation elle est inerte et un avertissement est affiché).
 - « Toujours » ne persiste pas sur disque (voir plus haut).
 - Une seule demande de tour à la fois ; l'historique affiché est limité aux 300 derniers éléments.

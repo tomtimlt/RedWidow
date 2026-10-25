@@ -457,26 +457,43 @@
     modelChip.title = `Modèle : ${name} (utilisé pour le message suivant)`;
 
     const free = c.models === null;
+    const loading = c.modelsStatus === "loading";
+    const message =
+      c.modelsMessage ||
+      (loading
+        ? "Récupération des modèles… Vous pouvez relancer si le chargement ne répond pas."
+        : c.modelsStatus === "unavailable"
+          ? "Liste indisponible. Vérifiez la connexion au fournisseur, puis réessayez."
+          : "");
+    $("models-status").textContent = message;
+    $("models-status").hidden = !message;
+    $("models-connect").hidden = loading || !message;
+    $("models-connect").disabled = c.locked;
     modelFilter.hidden = modelList.hidden = free;
-    modelInput.hidden = !free;
+    modelInput.hidden = !free || loading;
     modelInput.disabled = c.locked;
-    $("models-refresh").disabled = c.locked || c.modelsStatus === "loading";
-    $("models-refresh").textContent =
-      c.modelsStatus === "loading" ? "Chargement…" : "Actualiser la liste";
+    $("models-refresh").disabled = c.locked;
+    $("models-refresh").textContent = loading ? "Relancer le chargement" : "Actualiser la liste";
     if (free) {
       if (document.activeElement !== modelInput) modelInput.value = c.model ?? "";
     } else if (modelPop.matches(":popover-open")) renderModelList(false);
 
-    levels = c.levels.filter((level) => level.enabled);
-    const auto = c.effort === null;
+    levels =
+      c.provider === "claude"
+        ? c.levels.filter((level) => level.enabled)
+        : [{ value: null, label: "Auto" }, ...c.reasoningVariants];
+    const choice = c.provider === "claude" ? c.effort : c.variant;
+    const auto = choice === null;
     $("effort-auto").hidden = auto;
     $("effort-auto").disabled = c.locked || c.effortDisabled;
     effortInput.classList.toggle("auto", auto);
     effortInput.max = String(Math.max(levels.length - 1, 0));
     const idx = auto
-      ? Math.floor(levels.length / 2)
+      ? c.provider === "claude"
+        ? Math.floor(levels.length / 2)
+        : 0
       : Math.max(
-          levels.findIndex((l) => l.value === c.effort),
+          levels.findIndex((l) => l.value === choice),
           0,
         );
     effortInput.value = String(idx);
@@ -487,7 +504,7 @@
     const disabledTip =
       c.provider === "claude"
         ? "Ce modèle n'a pas d'effort réglable."
-        : "Le réglage de l'effort n'est pas disponible pour ce fournisseur.";
+        : "Aucune variante de raisonnement connue pour ce modèle. Actualisez la liste des modèles.";
     effortInput.title = c.effortDisabled ? disabledTip : c.effortTip;
     effortInput.setAttribute("aria-valuetext", `${c.effortLabel} : ${c.effortTip}`);
     $("effort-label").textContent = c.effortLabel;
@@ -735,9 +752,18 @@
   $("models-refresh").addEventListener("click", () =>
     vscode.postMessage({ type: "refreshModels" }),
   );
-  $("effort-auto").addEventListener("click", () =>
-    vscode.postMessage({ type: "setEffort", effort: null }),
-  );
+  $("models-connect").addEventListener("click", () => {
+    if (!ctl?.locked) vscode.postMessage({ type: "addProvider" });
+  });
+  function postReasoningChoice(value) {
+    if (!ctl || ctl.locked || ctl.effortDisabled) return;
+    vscode.postMessage(
+      ctl.provider === "claude"
+        ? { type: "setEffort", effort: value }
+        : { type: "setVariant", variant: value },
+    );
+  }
+  $("effort-auto").addEventListener("click", () => postReasoningChoice(null));
   effortInput.addEventListener("input", () => {
     const index = Number(effortInput.value);
     const level = levels[index];
@@ -751,8 +777,7 @@
   });
   effortInput.addEventListener("change", () => {
     const level = levels[Number(effortInput.value)];
-    if (level && ctl && !ctl.locked && !ctl.effortDisabled)
-      vscode.postMessage({ type: "setEffort", effort: level.value });
+    if (level) postReasoningChoice(level.value);
   });
 
   // --- Historique : liste des conversations (chaînes déjà neutralisées par l'extension) ---

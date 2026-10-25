@@ -33,13 +33,13 @@ export function createSdkApi({
     new Error(`OpenCode ${what} : HTTP ${result.response?.status ?? "?"}`);
 
   return {
-    async getConfig() {
-      const result = await client.config.get();
+    async getConfig(signal) {
+      const result = await client.config.get(signal === undefined ? {} : { signal });
       if (result.error !== undefined || !result.data) throw failed(result, "config");
       return asObj(result.data);
     },
-    async listProviders() {
-      const result = await client.provider.list();
+    async listProviders(signal) {
+      const result = await client.provider.list(signal === undefined ? {} : { signal });
       if (result.error !== undefined || !result.data) throw failed(result, "provider.list");
       return result.data;
     },
@@ -66,14 +66,17 @@ export function createSdkApi({
       return result.response?.status === 200 && asObj(result.data).id === id;
     },
     async prompt(sessionId, body) {
+      // Le serveur accepte `variant`, encore absent des types du SDK v1.
+      const promptBody = {
+        parts: [{ type: "text" as const, text: body.text }],
+        ...(body.model && { model: body.model }),
+        ...(body.variant !== undefined && { variant: body.variant }),
+        ...(body.system !== undefined && { system: body.system }),
+        tools: body.tools,
+      };
       const result = await client.session.promptAsync({
         path: { id: sessionId },
-        body: {
-          parts: [{ type: "text", text: body.text }],
-          ...(body.model && { model: body.model }),
-          ...(body.system !== undefined && { system: body.system }),
-          tools: body.tools,
-        },
+        body: promptBody,
       });
       if (result.error !== undefined) throw failed(result, "prompt");
     },

@@ -11,7 +11,7 @@ import {
   type UltracodeLimits,
   ultracodeTip,
 } from "./effort.js";
-import { isModelId } from "./models.js";
+import { isModelId, isReasoningVariant } from "./models.js";
 
 /** Préférences de la conversation (persistées côté extension, jamais dans l'espace de travail). */
 export interface Prefs {
@@ -19,10 +19,17 @@ export interface Prefs {
   model: string | null;
   /** `null` = « Auto » : aucun effort n'est transmis, le modèle garde son défaut (tant que le curseur n'a pas été touché). */
   effort: EffortChoice | null;
+  /** Variante OpenCode exacte ; `null` laisse le moteur choisir. */
+  variant: string | null;
   provider: Provider;
 }
 
-export const DEFAULT_PREFS: Prefs = { model: null, effort: null, provider: "claude" };
+export const DEFAULT_PREFS: Prefs = {
+  model: null,
+  effort: null,
+  variant: null,
+  provider: "claude",
+};
 
 /** Relit des préférences stockées en les revalidant (le stockage n'est pas une source de confiance). */
 export function parsePrefs(raw: unknown): Prefs {
@@ -30,6 +37,7 @@ export function parsePrefs(raw: unknown): Prefs {
   return {
     model: isModelId(r.model) ? r.model : null,
     effort: parseEffortChoice(r.effort),
+    variant: isReasoningVariant(r.variant) ? r.variant : null,
     provider: isProvider(r.provider) ? r.provider : "claude",
   };
 }
@@ -43,8 +51,11 @@ export interface ChatControls {
   /** `null` : liste inconnue, la webview propose la saisie libre. */
   models: { value: string; label: string; description: string }[] | null;
   modelsStatus: ModelsStatus;
+  modelsMessage: string | null;
   /** `null` : Auto (aucun niveau transmis). */
   effort: EffortChoice | null;
+  variant: string | null;
+  reasoningVariants: { value: string; label: string }[];
   provider: Provider;
   effortLabel: string;
   effortTip: string;
@@ -72,13 +83,22 @@ export function buildControls(input: {
   prefs: Prefs;
   models: readonly ModelOption[] | null;
   status: ModelsStatus;
+  modelsMessage?: string | null;
   defaultModel: string | undefined;
   busy: boolean;
   ultracode?: UltracodeLimits;
   learning?: boolean;
 }): ChatControls {
   const { prefs, models, status, defaultModel, busy } = input;
-  const supported = effectiveModel(models, prefs.model, defaultModel)?.supportedEffortLevels;
+  const model = effectiveModel(models, prefs.model, defaultModel);
+  const supported = model?.supportedEffortLevels;
+  const reasoningVariants =
+    prefs.provider === "claude"
+      ? []
+      : (model?.reasoningVariants ?? []).map((value) => ({ value, label: value }));
+  const variant = reasoningVariants.some((entry) => entry.value === prefs.variant)
+    ? prefs.variant
+    : null;
   const effort =
     prefs.provider !== "claude" || prefs.effort === null
       ? null
@@ -100,12 +120,18 @@ export function buildControls(input: {
         description: m.description ?? "",
       })) ?? null,
     modelsStatus: status,
+    modelsMessage: input.modelsMessage ?? null,
     effort,
+    variant,
+    reasoningVariants,
     provider: prefs.provider,
-    effortLabel: current?.label ?? "Auto",
-    effortTip: current
-      ? tip(current)
-      : "Auto : aucun niveau d'effort n'est transmis, le modèle garde son comportement par défaut. Touchez le curseur pour en choisir un.",
+    effortLabel: variant ?? current?.label ?? "Auto",
+    effortTip:
+      variant !== null
+        ? `Variante de raisonnement du modèle : ${variant}.`
+        : current
+          ? tip(current)
+          : "Auto : aucun niveau d'effort n'est transmis, le modèle garde son comportement par défaut. Touchez le curseur pour en choisir un.",
     levels: levels.map((l) => ({
       value: l.value,
       label: l.label,
@@ -113,7 +139,9 @@ export function buildControls(input: {
       enabled: isSupported(toEffort(l.value), supported),
     })),
     effortDisabled:
-      prefs.provider !== "claude" || (supported !== undefined && supported.length === 0),
+      prefs.provider === "claude"
+        ? supported !== undefined && supported.length === 0
+        : reasoningVariants.length === 0,
     locked: busy,
     learning: input.learning === true,
   };

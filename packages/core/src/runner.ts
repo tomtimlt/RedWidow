@@ -20,6 +20,8 @@ export interface ModelOption {
   description?: string;
   /** Niveaux d'effort acceptés : absent = inconnu, vide = le modèle n'a pas d'effort réglable. */
   supportedEffortLevels?: Effort[];
+  /** Variantes de raisonnement annoncées par OpenCode ; distinctes des efforts Claude. */
+  reasoningVariants?: string[];
 }
 
 /** Paramètres du sondage de la liste des modèles (aucune consigne n'est envoyée). */
@@ -39,8 +41,10 @@ export interface RunInput {
   prompt: string | AsyncIterable<string>;
   cwd: string;
   model?: string;
-  /** Effort de raisonnement ; ignoré par un moteur qui n'en a pas. */
+  /** Effort de raisonnement Claude ; OpenCode utilise `variant` et refuse ce champ. */
   effort?: Effort;
+  /** Variante OpenCode exacte ; absente = réglage automatique du moteur. */
+  variant?: string;
   maxTurns?: number;
   /** Origine des identifiants (défaut : `auto`). */
   auth?: AuthMode;

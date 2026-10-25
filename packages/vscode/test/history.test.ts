@@ -77,6 +77,14 @@ describe("index stocké (non fiable)", () => {
   it.each(["claude", "openai", "opencode"] as const)("conserve le fournisseur %s", (provider) => {
     expect(parseIndex([meta({ provider })])[0]?.provider).toBe(provider);
   });
+  it("revalide les variantes sans les confondre avec les niveaux d’effort", () => {
+    expect(parseIndex([meta({ variant: "deep-custom", effort: null })])[0]).toMatchObject({
+      variant: "deep-custom",
+      effort: null,
+    });
+    expect(parseIndex([meta({ variant: "invalide avec espaces" })])[0]?.variant).toBeNull();
+    expect(parseIndex([meta({})])[0]?.variant).toBeNull();
+  });
   it("écarte les entrées mal formées, revalide les champs", () => {
     const ok = meta({ runIds: [RUN, "../evil", 3 as never], model: "bad model", tools: -1 });
     const list = parseIndex([

@@ -11,10 +11,20 @@ const MODEL_ID = /^[A-Za-z0-9._:/@[\]-]+$/;
 export const isModelId = (value: unknown): value is string =>
   typeof value === "string" && value.length <= MAX_FIELD && MODEL_ID.test(value);
 
+/** Variante opaque du moteur : identifiant borné, sans contrôle ni texte d'affichage. */
+export const isReasoningVariant = (value: unknown): value is string =>
+  typeof value === "string" && /^[A-Za-z0-9_.-]{1,64}$/.test(value);
+
 const isObj = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 
-const OPTION_KEYS = ["value", "displayName", "description", "supportedEffortLevels"];
+const OPTION_KEYS = [
+  "value",
+  "displayName",
+  "description",
+  "supportedEffortLevels",
+  "reasoningVariants",
+];
 
 /** Valide strictement la liste reçue du moteur : forme exacte, bornes ; `null` si mal formée. */
 export function parseModelOptions(raw: unknown): ModelOption[] | null {
@@ -22,12 +32,21 @@ export function parseModelOptions(raw: unknown): ModelOption[] | null {
   const out: ModelOption[] = [];
   for (const item of raw) {
     if (!isObj(item) || Object.keys(item).some((k) => !OPTION_KEYS.includes(k))) return null;
-    const { value, displayName, description, supportedEffortLevels } = item;
+    const { value, displayName, description, supportedEffortLevels, reasoningVariants } = item;
     if (typeof value !== "string" || value === "" || value.length > MAX_FIELD) return null;
     if (typeof displayName !== "string" || displayName.length > MAX_FIELD) return null;
     if (
       description !== undefined &&
       (typeof description !== "string" || description.length > MAX_DESCRIPTION)
+    ) {
+      return null;
+    }
+    if (
+      reasoningVariants !== undefined &&
+      (!Array.isArray(reasoningVariants) ||
+        reasoningVariants.length > 64 ||
+        reasoningVariants.some((variant) => !isReasoningVariant(variant)) ||
+        new Set(reasoningVariants).size !== reasoningVariants.length)
     ) {
       return null;
     }

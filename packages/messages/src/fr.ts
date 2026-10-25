@@ -167,6 +167,10 @@ export const reasons: Catalog = {
     "aucun modèle : indiquez --model fournisseur/modèle (ou « model » dans la configuration OpenCode)",
   "opencode.invalidModel": (p) =>
     `modèle invalide : « ${text(p.value)} » (format attendu : fournisseur/modèle)`,
+  "opencode.invalidVariant": () =>
+    "variante de raisonnement indisponible pour le modèle OpenCode choisi : sélectionnez Auto ou actualisez le catalogue",
+  "opencode.unsupportedEffort": () =>
+    "les niveaux d'effort Claude ne sont pas pris en charge par OpenCode : choisissez une variante du catalogue",
   "opencode.serverFailed": (p) => `le serveur OpenCode n'a pas démarré : ${text(p.detail)}`,
   "opencode.serverTimeout": (p) => `le serveur OpenCode n'a pas répondu en ${text(p.seconds)} s`,
   "opencode.sessionNotFound": (p) => `session OpenCode introuvable : ${text(p.id)}`,

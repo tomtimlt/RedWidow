@@ -15,6 +15,7 @@ import {
   reason,
   validateEvent,
 } from "@warband/core";
+import { type ConversationContext, isConversationContext } from "./conversation-context.js";
 import { isProvider, type Provider, parseEffort } from "./effort.js";
 import { isModelId, parseModelOptions } from "./models.js";
 
@@ -35,6 +36,8 @@ export interface StartParams {
   provider?: Provider;
   model?: string;
   effort?: Effort;
+  variant?: string;
+  conversationContext?: ConversationContext;
   maxTurns?: number;
   auth?: AuthMode;
   resume?: string;
@@ -126,6 +129,8 @@ const START_KEYS = [
   "model",
   "provider",
   "effort",
+  "variant",
+  "conversationContext",
   "maxTurns",
   "auth",
   "resume",
@@ -179,6 +184,20 @@ export function parseToEngine(raw: unknown): Parsed<ToEngine> {
       }
       if (obj.model !== undefined && !isModelId(obj.model)) return bad("model");
       if (obj.effort !== undefined && parseEffort(obj.effort) === null) return bad("effort");
+      if (
+        obj.variant !== undefined &&
+        (typeof obj.variant !== "string" ||
+          !/^[A-Za-z0-9_.-]{1,64}$/.test(obj.variant) ||
+          obj.effort !== undefined ||
+          obj.provider === "claude" ||
+          obj.provider === undefined)
+      )
+        return bad("variant");
+      if (
+        obj.conversationContext !== undefined &&
+        (!isConversationContext(obj.conversationContext) || obj.resume !== undefined)
+      )
+        return bad("conversationContext");
       if (
         obj.maxTurns !== undefined &&
         !(isFiniteNumber(obj.maxTurns) && Number.isInteger(obj.maxTurns) && obj.maxTurns > 0)

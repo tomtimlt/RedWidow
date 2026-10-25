@@ -67,6 +67,18 @@ describe("answerFor / texte de confirmation", () => {
 });
 
 describe("parseWebviewMessage", () => {
+  it("variante exacte ou Auto : champs supplémentaires, types et identifiants hostiles refusés", () => {
+    for (const variant of [null, "low", "custom.full-2", "x".repeat(64)]) {
+      expect(parseWebviewMessage({ type: "setVariant", variant })).toEqual({
+        type: "setVariant",
+        variant,
+      });
+    }
+    for (const variant of [undefined, "", "high\n", "a b", "x".repeat(65), 1, {}]) {
+      expect(parseWebviewMessage({ type: "setVariant", variant })).toBeNull();
+    }
+    expect(parseWebviewMessage({ type: "setVariant", variant: "high", effort: "max" })).toBeNull();
+  });
   it("accepte les messages exacts", () => {
     expect(parseWebviewMessage({ type: "send", text: "salut" })).toEqual({
       type: "send",

@@ -142,6 +142,51 @@ describe("moteur : validation des messages reçus", () => {
 });
 
 describe("moteur : journal de l'extension (F4)", () => {
+  it("transfère le fil après résolution des cibles et journalise seulement la nouvelle consigne", async () => {
+    const t = fakeChannel();
+    const received: string[] = [];
+    const seen: string[] = [];
+    const runner: AgentRunner = {
+      run: async ({ prompt }) => {
+        for await (const text of prompt as AsyncIterable<string>) received.push(text);
+        return { status: "success", turns: 0, costUsd: 0, result: null };
+      },
+    };
+    const done = runEngine({
+      channel: t.channel,
+      createRunner: () => runner,
+      onPrompt: (text) => {
+        seen.push(text);
+        return `${text} contexte des cibles vérifié`;
+      },
+    });
+    t.receive({
+      v: 1,
+      type: "start",
+      cwd,
+      provider: "openai",
+      conversationContext: {
+        messages: [
+          { role: "user", text: "Ancienne mention @autre-conteneur" },
+          { role: "assistant", text: "Ancienne réponse" },
+        ],
+        truncated: false,
+      },
+    });
+    t.receive({ v: 1, type: "prompt", text: "nouvelle consigne" });
+    t.receive({ v: 1, type: "prompt", text: "suite" });
+    t.receive({ v: 1, type: "dispose" });
+    expect(await done).toBe(0);
+    expect(seen).toEqual(["nouvelle consigne", "suite"]);
+    expect(received[0]).toContain("Ancienne mention @autre-conteneur");
+    expect(received[0]).toContain("nouvelle consigne contexte des cibles vérifié");
+    expect(received[1]).toBe("suite contexte des cibles vérifié");
+    expect(
+      eventsOf(t.sent)
+        .filter((event) => event.kind === "user.message")
+        .map((event) => event.text),
+    ).toEqual(seen);
+  });
   it("enrichit chaque consigne pour le modèle et conserve uniquement l'original dans le journal", async () => {
     const t = fakeChannel();
     const received: string[] = [];

@@ -74,6 +74,7 @@ export type WebviewMessage =
   /** Valeurs non fiables : l'extension les revalide (liste de modèles, énumération des niveaux). */
   | { type: "setModel"; model: string | null }
   | { type: "setEffort"; effort: string | null }
+  | { type: "setVariant"; variant: string | null }
   | { type: "historyOpen"; id: string }
   | { type: "historyResume" }
   | { type: "historyRename"; id: string; title: string }
@@ -121,6 +122,12 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
       return only("type", "effort") &&
         (m.effort === null || (typeof m.effort === "string" && m.effort.length <= 20))
         ? { type: "setEffort", effort: m.effort }
+        : null;
+    case "setVariant":
+      return only("type", "variant") &&
+        (m.variant === null ||
+          (typeof m.variant === "string" && /^[A-Za-z0-9_.-]{1,64}$/.test(m.variant)))
+        ? { type: "setVariant", variant: m.variant }
         : null;
     case "historyOpen":
     case "historyDelete":

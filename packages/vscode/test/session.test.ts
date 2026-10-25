@@ -8,7 +8,7 @@ import type {
   EngineHandlers,
 } from "../src/logic/controller.js";
 import type { StartParams } from "../src/logic/protocol.js";
-import { createChatSession } from "../src/logic/session.js";
+import { createChatSession, MODEL_LOAD_TIMEOUT_MS } from "../src/logic/session.js";
 
 const ev = (e: Record<string, unknown>) => e as unknown as EngineEvent;
 
@@ -53,7 +53,7 @@ function fake() {
     create: (o: EngineControllerOptions) => {
       options = o;
       handlers = o.handlers ?? {};
-      return ctl;
+      return { ...ctl };
     },
     get handlers() {
       return handlers;
@@ -404,6 +404,36 @@ describe("modèle et effort (F2/F3)", () => {
   });
 });
 
+describe("variantes de raisonnement", () => {
+  it("utilise uniquement les variantes runtime, les réinitialise avec le modèle et les omet en Auto", async () => {
+    const t = setup();
+    t.f.setModels([
+      { value: "a", displayName: "A", reasoningVariants: ["deep-custom", "fast-custom"] },
+      { value: "b", displayName: "B", reasoningVariants: ["other"] },
+    ]);
+    await t.session.setProvider("opencode");
+    t.session.setModel("a");
+    t.session.setVariant("high");
+    expect(t.session.view().controls?.variant).toBeNull();
+    t.session.setVariant("deep-custom");
+    await t.session.send("premier");
+    expect(t.f.started).toMatchObject({ variant: "deep-custom" });
+    expect(t.f.started).not.toHaveProperty("effort");
+    t.session.setVariant("fast-custom");
+    expect(t.session.view().controls?.variant).toBe("deep-custom");
+    t.f.handlers.onEnded?.({} as never);
+    t.session.setModel("b");
+    expect(t.session.view().controls?.variant).toBeNull();
+    await t.session.send("autre modèle");
+    expect(t.f.started).not.toHaveProperty("variant");
+    t.f.handlers.onEnded?.({} as never);
+    t.session.setVariant("other");
+    t.session.setVariant(null);
+    await t.session.send("auto");
+    expect(t.f.started).not.toHaveProperty("variant");
+  });
+});
+
 describe("effort par défaut et Ultracode", () => {
   it("Auto : aucun effort transmis tant que le curseur n'est pas touché", async () => {
     const t = setup();
@@ -676,6 +706,7 @@ describe("historique (F4)", () => {
     h.f.handlers.onEnded?.({ sessionId: "OPENAI-S" } as never);
     const id = h.view().history[0]?.id;
     expect(h.view().history[0]?.provider).toBe("OpenAI");
+    h.session.reset();
     await h.session.setProvider("claude");
     await h.session.openConversation(id);
     await h.session.resumeConversation();
@@ -686,6 +717,172 @@ describe("historique (F4)", () => {
       model: "modele-openai",
       resume: "OPENAI-S",
     });
+  });
+
+  it("conserve conversation, projet et contexte lors d’un aller-retour entre fournisseurs", async () => {
+    const projectId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const h = withHistory("warband.history", async () => ({
+      activeId: projectId,
+      projects: [{ id: projectId, name: "Courant" }],
+    }));
+    await h.session.send("question initiale");
+    h.f.handlers.onStarted?.({ runId: RUN1, policySource: null });
+    h.f.handlers.onEvent?.(ev({ kind: "session.started", sessionId: "CLAUDE-S" }));
+    h.f.handlers.onEvent?.(ev({ kind: "agent.text", text: "réponse Claude" }));
+    h.f.handlers.onEnded?.({ sessionId: "CLAUDE-S" } as never);
+    const id = h.view().history[0]?.id;
+    const old = h.f.handlers;
+    await h.session.setProvider("openai");
+    old.onEvent?.(ev({ kind: "session.started", sessionId: "TARDIF" }));
+    expect(h.stored.get("warband.history")).toMatchObject([
+      { id, projectId, provider: "openai", sessionId: null, runIds: [RUN1] },
+    ]);
+    expect(
+      h.view().items.some((item) => item.kind === "agent" && item.text === "réponse Claude"),
+    ).toBe(true);
+    await h.session.send("question OpenAI");
+    expect(h.f.started).toMatchObject({
+      provider: "openai",
+      conversationContext: {
+        messages: [
+          { role: "user", text: "question initiale" },
+          { role: "assistant", text: "réponse Claude" },
+        ],
+      },
+    });
+    expect(h.f.started).not.toHaveProperty("resume");
+    h.f.handlers.onEvent?.(ev({ kind: "session.started", sessionId: "OPENAI-S" }));
+    h.f.handlers.onEvent?.(ev({ kind: "agent.text", text: "réponse OpenAI" }));
+    h.f.handlers.onEnded?.({ sessionId: "OPENAI-S" } as never);
+    await h.session.setProvider("claude");
+    await h.session.send("retour Claude");
+    expect(h.f.started).not.toHaveProperty("resume");
+    expect(h.f.started?.conversationContext?.messages.map((message) => message.text)).toEqual([
+      "question initiale",
+      "réponse Claude",
+      "question OpenAI",
+      "réponse OpenAI",
+    ]);
+    expect(h.view().history).toHaveLength(1);
+    expect(h.view().history[0]?.id).toBe(id);
+    expect(h.stored.get("warband.history")).toMatchObject([{ projectId, provider: "claude" }]);
+  });
+
+  it.each(["error", "event-error", "exit", "sdk-error", "ended-error"] as const)(
+    "conserve le transfert après un échec %s et recommence sans session SDK partielle",
+    async (failure) => {
+      const h = withHistory();
+      await h.session.send("contexte Claude");
+      h.f.handlers.onStarted?.({ runId: RUN1, policySource: null });
+      h.f.handlers.onEvent?.(ev({ kind: "session.started", sessionId: "CLAUDE-S" }));
+      h.f.handlers.onEnded?.({ status: "success", sessionId: "CLAUDE-S" } as never);
+      await h.session.setProvider("openai");
+      await h.session.send("premier essai OpenAI");
+      const failed = h.f.handlers;
+      if (failure === "sdk-error" || failure === "ended-error") {
+        failed.onEvent?.(ev({ kind: "session.started", sessionId: "PARTIEL" }));
+        expect(h.stored.get("warband.history")).toMatchObject([{ sessionId: null }]);
+      }
+      if (failure === "exit") failed.onExit?.({ code: 1, signal: null });
+      else if (failure === "event-error")
+        failed.onEvent?.(ev({ kind: "error", code: "error.unknown", message: "échec" }));
+      else if (failure === "ended-error")
+        failed.onEnded?.({ status: "error", sessionId: "PARTIEL" } as never);
+      else failed.onError?.({ code: "error.unknown" } as never);
+      expect(h.stored.get("warband.history")).toMatchObject([{ sessionId: null }]);
+      failed.onEvent?.(ev({ kind: "session.started", sessionId: "TARDIF" }));
+      await h.session.send("réessai OpenAI");
+      expect(h.f.starts).toHaveLength(3);
+      expect(h.f.started).not.toHaveProperty("resume");
+      expect(h.f.started?.conversationContext?.messages.map((message) => message.text)).toEqual([
+        "contexte Claude",
+        "premier essai OpenAI",
+      ]);
+    },
+  );
+
+  it("confirme le transfert dès le premier tour réussi et conserve cette confirmation après un échec ultérieur", async () => {
+    const h = withHistory();
+    await h.session.send("contexte Claude");
+    h.f.handlers.onStarted?.({ runId: RUN1, policySource: null });
+    h.f.handlers.onEvent?.(ev({ kind: "turn.finished", status: "success" }));
+    await h.session.setProvider("openai");
+    await h.session.send("premier OpenAI");
+    h.f.handlers.onEvent?.(ev({ kind: "session.started", sessionId: "OPENAI-S" }));
+    expect(h.stored.get("warband.history")).toMatchObject([{ sessionId: null }]);
+    h.f.handlers.onEvent?.(ev({ kind: "turn.finished", status: "success" }));
+    expect(h.stored.get("warband.history")).toMatchObject([{ sessionId: "OPENAI-S" }]);
+    await h.session.send("deuxième OpenAI");
+    expect(h.f.starts).toHaveLength(2);
+    expect(h.f.calls.filter((call) => call[0] === "prompt")).toEqual([
+      ["prompt", "contexte Claude"],
+      ["prompt", "premier OpenAI"],
+      ["prompt", "deuxième OpenAI"],
+    ]);
+    h.f.handlers.onError?.({ code: "error.unknown" } as never);
+    h.f.handlers.onExit?.({ code: 1, signal: null });
+    expect(h.stored.get("warband.history")).toMatchObject([{ sessionId: "OPENAI-S" }]);
+    await h.session.send("troisième OpenAI");
+    expect(h.f.started).toMatchObject({ resume: "OPENAI-S" });
+    expect(h.f.started).not.toHaveProperty("conversationContext");
+  });
+
+  it("confirme le transfert seulement après un run réussi puis reprend sans retransmettre le contexte", async () => {
+    const h = withHistory();
+    await h.session.send("contexte Claude");
+    h.f.handlers.onEnded?.({ status: "success", sessionId: "CLAUDE-S" } as never);
+    await h.session.setProvider("openai");
+    await h.session.send("premier OpenAI");
+    h.f.handlers.onEvent?.(ev({ kind: "session.started", sessionId: "OPENAI-S" }));
+    h.f.handlers.onEnded?.({ status: "success", sessionId: "OPENAI-S" } as never);
+    h.f.handlers.onExit?.({ code: 0, signal: null });
+    await h.session.send("suite OpenAI");
+    expect(h.f.started).toMatchObject({ resume: "OPENAI-S" });
+    expect(h.f.started).not.toHaveProperty("conversationContext");
+  });
+
+  it("reprend après un changement sans run sans réutiliser la session SDK de l’ancien fournisseur", async () => {
+    const h = withHistory();
+    await h.session.send("contexte conservé");
+    h.f.handlers.onStarted?.({ runId: RUN1, policySource: null });
+    h.f.handlers.onEvent?.(ev({ kind: "session.started", sessionId: "CLAUDE-S" }));
+    h.f.handlers.onEnded?.({ sessionId: "CLAUDE-S" } as never);
+    h.written.set(
+      RUN1,
+      [
+        jline({ kind: "user.message", text: "contexte conservé" }, 0),
+        jline({ kind: "session.started", sessionId: "CLAUDE-S", model: "m", auth: "auto" }, 1),
+      ].join("\n"),
+    );
+    const id = h.view().history[0]?.id;
+    await h.session.setProvider("openai");
+    await h.session.openConversation(id);
+    await h.session.resumeConversation();
+    await h.session.send("suite OpenAI");
+    expect(h.f.started).toMatchObject({
+      provider: "openai",
+      conversationContext: { messages: [{ role: "user", text: "contexte conservé" }] },
+    });
+    expect(h.f.started).not.toHaveProperty("resume");
+  });
+
+  it("reset isole le contexte de la conversation suivante", async () => {
+    const h = withHistory();
+    await h.session.send("ancienne conversation");
+    h.f.handlers.onEnded?.({} as never);
+    await h.session.setProvider("openai");
+    h.session.reset();
+    await h.session.send("nouvelle conversation");
+    expect(h.f.started).not.toHaveProperty("conversationContext");
+    expect(
+      h.view().items.some((item) => item.kind === "user" && item.text === "ancienne conversation"),
+    ).toBe(false);
+    h.f.handlers.onEnded?.({} as never);
+    await h.session.setProvider("claude");
+    await h.session.send("suite de la nouvelle conversation");
+    expect(h.f.started?.conversationContext?.messages).toEqual([
+      { role: "user", text: "nouvelle conversation" },
+    ]);
   });
 
   it("identifiants hostiles ignorés ; renommer nettoie ; supprimer et tout effacer", async () => {
@@ -1147,8 +1344,9 @@ describe("sélection du fournisseur", () => {
       },
     });
     const first = session.loadModels();
-    await Promise.resolve();
+    await vi.waitFor(() => expect(probes).toHaveLength(1));
     await session.setProvider("openai");
+    expect(f.calls).toContainEqual(["kill"]);
     resolve([{ value: "ancien", displayName: "Ancien" }]);
     await first;
     expect(session.view().controls?.models).toMatchObject([{ value: "nouveau" }]);
@@ -1157,5 +1355,197 @@ describe("sélection du fournisseur", () => {
     expect(f.options).not.toHaveProperty("auth");
     await session.authChanged();
     expect(probes).toHaveLength(3);
+  });
+});
+
+describe("cycle de chargement des modèles", () => {
+  const flush = async () => {
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+  };
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((done) => {
+      resolve = done;
+    });
+    return { promise, resolve };
+  }
+  function lifecycle(
+    getToken = async () => undefined as import("../src/logic/session.js").TokenChoice | undefined,
+    requireProvider = false,
+  ) {
+    const probes: {
+      result: ReturnType<typeof deferred<ModelOption[]>>;
+      kill: ReturnType<typeof vi.fn>;
+      handlers: EngineHandlers;
+    }[] = [];
+    const logs = vi.fn();
+    const values = new Map<string, unknown>();
+    const create = vi.fn((options: EngineControllerOptions) => {
+      const result = deferred<ModelOption[]>();
+      const kill = vi.fn();
+      probes.push({ result, kill, handlers: options.handlers ?? {} });
+      return { ...fake().create(options), models: () => result.promise, kill };
+    });
+    const onView = vi.fn();
+    const session = createChatSession({
+      cwd: "/w",
+      enginePath: "/e",
+      engineArgs: [],
+      readSettings: () => ({}),
+      getToken,
+      requireProvider,
+      confirmAlways: async () => false,
+      onView,
+      onLog: logs,
+      createController: create,
+      store: { get: (key) => values.get(key), set: (key, value) => values.set(key, value) },
+    });
+    return { session, probes, create, values, onView, logs };
+  }
+
+  it("borne la lecture du jeton sans créer de moteur après son expiration", async () => {
+    vi.useFakeTimers();
+    try {
+      const token = deferred<undefined>();
+      const t = lifecycle(() => token.promise);
+      const loading = t.session.loadModels();
+      await vi.advanceTimersByTimeAsync(MODEL_LOAD_TIMEOUT_MS);
+      await loading;
+      expect(t.session.view().controls).toMatchObject({
+        modelsStatus: "unavailable",
+        modelsMessage: expect.stringContaining("45 secondes"),
+      });
+      token.resolve(undefined);
+      await flush();
+      expect(t.create).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("borne aussi la reconnexion native et ignore sa réponse après dispose", async () => {
+    vi.useFakeTimers();
+    try {
+      const token = deferred<undefined>();
+      const t = lifecycle(() => token.promise, true);
+      const loading = t.session.authChanged();
+      expect(t.session.view().controls?.modelsStatus).toBe("loading");
+      await vi.advanceTimersByTimeAsync(MODEL_LOAD_TIMEOUT_MS);
+      await loading;
+      expect(t.session.view().controls?.modelsMessage).toContain("45 secondes");
+      t.session.dispose();
+      const count = t.onView.mock.calls.length;
+      token.resolve(undefined);
+      await flush();
+      expect(t.create).not.toHaveBeenCalled();
+      expect(t.onView).toHaveBeenCalledTimes(count);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("termine un moteur sans réponse puis permet de réessayer", async () => {
+    vi.useFakeTimers();
+    try {
+      const t = lifecycle();
+      const loading = t.session.loadModels();
+      await vi.advanceTimersByTimeAsync(MODEL_LOAD_TIMEOUT_MS);
+      await loading;
+      expect(t.probes[0]?.kill).toHaveBeenCalledOnce();
+      const retry = t.session.loadModels(true);
+      await flush();
+      t.probes[1]?.result.resolve([{ value: "nouveau", displayName: "Nouveau" }]);
+      await retry;
+      t.probes[0]?.result.resolve([{ value: "ancien", displayName: "Ancien" }]);
+      await flush();
+      expect(t.session.view().controls).toMatchObject({
+        modelsStatus: "ready",
+        models: [{ value: "nouveau" }],
+      });
+      expect(t.session.view().controls?.modelsMessage).toBeNull();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("un retry forcé remplace immédiatement le sondage et ignore ses résultats et logs tardifs", async () => {
+    const t = lifecycle();
+    const old = t.session.loadModels();
+    await flush();
+    const retry = t.session.loadModels(true);
+    await old;
+    expect(t.probes[0]?.kill).toHaveBeenCalledOnce();
+    t.probes[1]?.result.resolve([{ value: "nouveau", displayName: "Nouveau" }]);
+    await retry;
+    t.probes[0]?.handlers.onLog?.("ancien log");
+    t.probes[0]?.result.resolve([{ value: "ancien", displayName: "Ancien" }]);
+    await flush();
+    expect(t.logs).not.toHaveBeenCalled();
+    expect(t.session.view().controls?.models).toMatchObject([{ value: "nouveau" }]);
+    expect(t.values.get("warband.models")).toMatchObject({ models: [{ value: "nouveau" }] });
+  });
+
+  it("un changement d’authentification tue le sondage actif avant de relancer la découverte", async () => {
+    const t = lifecycle();
+    const old = t.session.loadModels();
+    await flush();
+    const loading = t.session.authChanged();
+    await old;
+    await flush();
+    expect(t.probes[0]?.kill).toHaveBeenCalledOnce();
+    t.probes[1]?.result.resolve([{ value: "reconnecte", displayName: "Reconnecté" }]);
+    await loading;
+    t.probes[0]?.result.resolve([{ value: "ancien", displayName: "Ancien" }]);
+    await flush();
+    expect(t.session.view().controls?.models).toMatchObject([{ value: "reconnecte" }]);
+  });
+
+  it("une connexion absente fournit une explication sans démarrer de moteur", async () => {
+    const t = lifecycle(async () => undefined, true);
+    await t.session.loadModels();
+    expect(t.session.view().controls).toMatchObject({
+      modelsStatus: "unavailable",
+      modelsMessage: expect.stringContaining("Connexion au fournisseur indisponible"),
+    });
+    expect(t.session.view().noProvider).toBe(true);
+    expect(t.create).not.toHaveBeenCalled();
+  });
+
+  it("dispose annule le chargement et nettoie le moteur et le délai", async () => {
+    vi.useFakeTimers();
+    try {
+      const t = lifecycle();
+      const loading = t.session.loadModels();
+      await flush();
+      t.session.dispose();
+      const count = t.onView.mock.calls.length;
+      await loading;
+      expect(t.probes[0]?.kill).toHaveBeenCalledOnce();
+      t.probes[0]?.result.resolve([{ value: "tardif", displayName: "Tardif" }]);
+      await vi.advanceTimersByTimeAsync(MODEL_LOAD_TIMEOUT_MS);
+      await t.session.loadModels(true);
+      expect(t.onView).toHaveBeenCalledTimes(count);
+      expect(t.create).toHaveBeenCalledOnce();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("explique une liste vide et un échec sans exposer le message brut ni multiplier les avis", async () => {
+    const t = setup();
+    await t.session.loadModels();
+    expect(t.session.view().controls?.modelsMessage).toContain("aucun modèle utilisable");
+    const fail = lifecycle(async () => {
+      throw new Error("secret-test https://login.example/token?secret=secret-test");
+    });
+    await fail.session.loadModels();
+    await fail.session.loadModels(true);
+    expect(fail.session.view().controls?.modelsMessage).toContain("Impossible de charger");
+    expect(fail.session.view().items.filter((item) => item.kind === "notice")).toHaveLength(1);
+    expect(JSON.stringify(fail.session.view())).not.toMatch(/secret-test|login.example/);
   });
 });

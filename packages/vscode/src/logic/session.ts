@@ -23,6 +23,7 @@ import {
   type Prefs,
   parsePrefs,
 } from "./controls.js";
+import { buildConversationContext } from "./conversation-context.js";
 import {
   clampEffort,
   EFFORT_LEVELS,
@@ -54,6 +55,8 @@ import type { ChatSettings } from "./settings.js";
 const PREFS_KEY = "warband.prefs";
 const MODELS_KEY = "warband.models";
 const DEFAULT_HISTORY_KEY = "warband.history";
+/** Budget global : lecture de la connexion et sondage du moteur compris. */
+export const MODEL_LOAD_TIMEOUT_MS = 45_000;
 const labelOf = (e: EffortChoice) => EFFORT_LEVELS.find((l) => l.value === e)?.label ?? e;
 
 /** Jeton choisi par l'utilisateur : le mode d'authentification qui lui correspond. */
@@ -112,6 +115,7 @@ export function createChatSession(deps: ChatSessionDeps) {
   const state: ChatState = createChatState();
   let controller: EngineController | null = null;
   let sessionId: string | undefined;
+  let transferContext = false;
   let confirming = false;
   let stopping = false;
 
@@ -127,13 +131,19 @@ export function createChatSession(deps: ChatSessionDeps) {
   let models: ModelOption[] | null = parseModelCache(store.get(modelsKey()), sdkVersion);
   let modelsRev = 0;
   let modelsStatus: ModelsStatus = models ? "ready" : "idle";
-  let probing = false;
+  let modelsMessage: string | undefined;
+  let lastModelsNotice: string | undefined;
+  let disposed = false;
+  let modelLoad: {
+    cancel(): void;
+  } | null = null;
   /** Mode apprentissage de ce chat (ADR 0010) : relu en booléen strict, jamais depuis `warband.prefs`. */
   let learning = deps.learningKey !== undefined && store.get(deps.learningKey) === true;
   /** Choix avec lequel le moteur courant a démarré : un changement impose de reprendre la session. */
   let applied: {
     model: string | undefined;
     effort: Effort | undefined;
+    variant: string | undefined;
     learning: boolean;
   } | null = null;
   /** Révision de l'authentification : incrémentée à chaque jeton défini ou effacé ; le moteur démarré avec une autre est remplacé. */
@@ -188,6 +198,7 @@ export function createChatSession(deps: ChatSessionDeps) {
         prefs,
         models,
         status: modelsStatus,
+        ...(modelsMessage && { modelsMessage }),
         defaultModel: machineModel(),
         busy: state.busy,
         learning,
@@ -206,17 +217,38 @@ export function createChatSession(deps: ChatSessionDeps) {
       `Niveau d'effort ramené à « ${labelOf(got)} » : « ${labelOf(wanted)} » n'est pas pris en charge par ce modèle.`,
     );
 
+  /** Une variante ne vaut que pour le modèle courant et son catalogue runtime. */
+  const validVariant = (): string | undefined => {
+    if (prefs.provider === "claude" || prefs.variant === null) return undefined;
+    const selected = effectiveModel(models, prefs.model, machineModel());
+    return selected?.reasoningVariants?.includes(prefs.variant) ? prefs.variant : undefined;
+  };
+  const clampVariant = () => {
+    if (prefs.variant !== null && validVariant() === undefined) {
+      prefs = { ...prefs, variant: null };
+      persist(PREFS_KEY, prefs);
+    }
+  };
+
   /** Modèle et effort du prochain message : préférence, sinon réglage machine ; effort ramené s'il n'est pas permis. */
   const choice = (settings: ChatSettings) => {
     const model = prefs.model ?? (prefs.provider === "claude" ? settings.model : undefined);
     // « Auto » : aucun effort transmis, le modèle garde son défaut.
     if (prefs.provider !== "claude" || prefs.effort === null) {
-      return { model, effort: undefined, key: null, clampedTo: undefined, ultra: undefined };
+      return {
+        model,
+        effort: undefined,
+        variant: prefs.provider === "claude" ? undefined : validVariant(),
+        key: null,
+        clampedTo: undefined,
+        ultra: undefined,
+      };
     }
     const r = resolveEffort(prefs.effort, settings.ultracode);
     const c = clampEffort(r.effort, supportedNow(settings.model));
     return {
       model,
+      variant: undefined,
       effort: c.effort ?? undefined,
       key: prefs.effort,
       clampedTo: c.clamped && c.effort !== null ? c.effort : undefined,
@@ -294,6 +326,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       provider: prefs.provider,
       model: prefs.model,
       effort: prefs.effort,
+      variant: prefs.variant,
       sessionId: sessionId ?? null,
       runIds: [],
       tools: 0,
@@ -303,11 +336,15 @@ export function createChatSession(deps: ChatSessionDeps) {
   const touch = () => {
     if (!current) return;
     current.updatedAt = new Date().toISOString();
-    if (sessionId !== undefined) current.sessionId = sessionId;
+    // Une session SDK partielle ne devient reprenable qu’après confirmation du transfert.
+    if (sessionId !== undefined && !transferContext) current.sessionId = sessionId;
     saveIndex();
   };
 
-  const startEngine = async (revision: number): Promise<EngineController | null> => {
+  const startEngine = async (
+    revision: number,
+    conversationContext?: ReturnType<typeof buildConversationContext>,
+  ): Promise<EngineController | null> => {
     const settings = deps.readSettings();
     const picked = choice(settings);
     if (picked.clampedTo !== undefined && picked.key !== null)
@@ -326,6 +363,19 @@ export function createChatSession(deps: ChatSessionDeps) {
     }
     refresh();
     stopping = false;
+    const transferring = conversationContext !== undefined;
+    const invalidateTransfer = () => {
+      if (!transferring || !transferContext) return;
+      sessionId = undefined;
+      if (current) current.sessionId = null;
+      detached.add(ctl);
+      if (controller === ctl) controller = null;
+      applied = null;
+      state.approvals.clear();
+      state.setBusy(false);
+      stopEngine(ctl);
+      touch();
+    };
     const ctl = make({
       enginePath: deps.enginePath,
       args: deps.engineArgs,
@@ -350,7 +400,18 @@ export function createChatSession(deps: ChatSessionDeps) {
             touch();
           }
           if (event.kind === "tool.requested" && current) current.tools++;
-          if (event.kind === "error" && skipAbortBubble(ctl, event)) return;
+          if (transferring && transferContext && event.kind === "turn.finished") {
+            if (event.status === "success") {
+              transferContext = false;
+              touch();
+            } else if (event.status === "error") {
+              invalidateTransfer();
+            }
+          }
+          if (event.kind === "error") {
+            invalidateTransfer();
+            if (skipAbortBubble(ctl, event)) return;
+          }
           state.event(event);
           refresh();
         },
@@ -361,7 +422,12 @@ export function createChatSession(deps: ChatSessionDeps) {
         },
         onEnded: (summary) => {
           if (detached.has(ctl)) return;
-          if (summary.sessionId !== undefined) sessionId = summary.sessionId;
+          if (transferring && transferContext && summary.status === "error") {
+            invalidateTransfer();
+          } else {
+            if (summary.sessionId !== undefined) sessionId = summary.sessionId;
+            if (transferring && summary.status === "success") transferContext = false;
+          }
           touch();
           void enforceRetention();
           state.setBusy(false);
@@ -369,6 +435,7 @@ export function createChatSession(deps: ChatSessionDeps) {
         },
         onError: (reason) => {
           if (detached.has(ctl)) return;
+          invalidateTransfer();
           if (skipAbortBubble(ctl, reason)) return;
           state.error(reason);
           refresh();
@@ -383,6 +450,7 @@ export function createChatSession(deps: ChatSessionDeps) {
           if (detached.has(ctl)) return;
           // Ancien moteur (réinitialisation puis nouveau message) : l'état n'est plus le sien.
           if (controller !== null && controller !== ctl) return;
+          invalidateTransfer();
           controller = null;
           touch();
           state.approvals.clear();
@@ -396,7 +464,14 @@ export function createChatSession(deps: ChatSessionDeps) {
       },
     });
     controller = ctl;
-    applied = { model: picked.model, effort: picked.effort, learning };
+    applied = { model: picked.model, effort: picked.effort, variant: picked.variant, learning };
+    if (current) {
+      current.provider = prefs.provider;
+      current.model = picked.model ?? null;
+      current.variant = picked.variant ?? null;
+      current.effort = prefs.effort;
+      touch();
+    }
     appliedAuth = authRev;
     const maxTurns = picked.ultra ? picked.ultra.maxTurns : settings.maxTurns;
     await ctl.start({
@@ -405,14 +480,16 @@ export function createChatSession(deps: ChatSessionDeps) {
       provider: prefs.provider,
       ...(picked.model !== undefined && { model: picked.model }),
       ...(picked.effort !== undefined && { effort: picked.effort }),
+      ...(picked.variant !== undefined && { variant: picked.variant }),
+      ...(conversationContext !== undefined && { conversationContext }),
       ...(maxTurns !== undefined && { maxTurns }),
       ...(picked.ultra?.maxBudgetUsd !== undefined && { maxBudgetUsd: picked.ultra.maxBudgetUsd }),
       ...(history && { journalDir: history.files.dir }),
-      ...(sessionId !== undefined && { resume: sessionId }),
+      ...(!transferring && sessionId !== undefined && { resume: sessionId }),
       // Le mode exclut `systemPrompt` (ADR 0010) : la consigne vient du moteur, jamais de l'UI.
       ...(learning && { mode: "learning" as const }),
     });
-    if (revision !== navigationRev) return null;
+    if (revision !== navigationRev || detached.has(ctl)) return null;
     if (deps.bypass) {
       bypassLinks.set(
         ctl,
@@ -422,52 +499,115 @@ export function createChatSession(deps: ChatSessionDeps) {
     return ctl;
   };
 
-  /** Sondage de la liste des modèles (moteur éphémère sans consigne) ; sans effet si déjà connue, sauf `force`. */
+  /** Invalide aussi les lectures de connexion en attente, qui ne savent pas s'annuler. */
+  const cancelModelLoad = () => {
+    modelsRev++;
+    modelLoad?.cancel();
+    modelLoad = null;
+  };
+
+  /** Sondage borné dès la lecture de la connexion ; `force` remplace aussi un sondage en attente. */
   const loadModels = async (force = false): Promise<void> => {
-    if (probing || (models !== null && !force)) return;
+    if (disposed || (modelLoad && !force) || (models !== null && !force)) return;
+    cancelModelLoad();
     const revision = modelsRev;
     const provider = prefs.provider;
     const cacheKey = modelsKey();
-    probing = true;
+    const cancelled = Symbol("cancelled");
+    const timedOut = Symbol("timedOut");
+    let probe: EngineController | null = null;
+    let acceptingLogs = true;
+    let rejectWait!: (error: unknown) => void;
+    const interrupted = new Promise<never>((_, reject) => {
+      rejectWait = reject;
+    });
+    const killProbe = () => {
+      acceptingLogs = false;
+      const currentProbe = probe;
+      probe = null;
+      currentProbe?.kill();
+    };
+    const timer = setTimeout(() => {
+      rejectWait(timedOut);
+      killProbe();
+    }, MODEL_LOAD_TIMEOUT_MS);
+    modelLoad = {
+      cancel: () => {
+        clearTimeout(timer);
+        rejectWait(cancelled);
+        killProbe();
+      },
+    };
+    const active = () => !disposed && revision === modelsRev;
     modelsStatus = "loading";
+    modelsMessage = undefined;
     refresh();
+    const failed = (message: string) => {
+      modelsStatus = models ? "ready" : "unavailable";
+      modelsMessage = message;
+      if (lastModelsNotice !== message) {
+        state.notice(message, "error");
+        lastModelsNotice = message;
+      }
+    };
     try {
-      const token = await deps.getToken(prefs.provider);
-      if (revision !== modelsRev) return;
+      const token = await Promise.race([deps.getToken(provider), interrupted]);
+      if (!active()) return;
       if (deps.requireProvider && !token) {
         state.setNoProvider(true);
         models = null;
-        modelsStatus = "unavailable";
+        failed("Connexion au fournisseur indisponible. Reconnectez-le puis réessayez.");
         return;
       }
       if (deps.requireProvider) state.setNoProvider(false);
-      const probe = make({
+      probe = make({
         enginePath: deps.enginePath,
         args: deps.engineArgs,
         cwd: deps.cwd,
         ...(token?.auth && { auth: token.auth }),
-        handlers: { onLog: (text) => deps.onLog?.(text) },
+        handlers: {
+          onLog: (text) => {
+            if (active() && acceptingLogs) deps.onLog?.(text);
+          },
+        },
       });
       const list = usableModels(
-        await probe.models({ cwd: deps.cwd, auth: token?.mode ?? "auto", provider }),
+        await Promise.race([
+          probe.models({ cwd: deps.cwd, auth: token?.mode ?? "auto", provider }),
+          interrupted,
+        ]),
       );
-      if (revision !== modelsRev) return;
-      if (list.length === 0) throw new Error("liste vide");
+      if (!active()) return;
+      if (list.length === 0) {
+        failed(
+          "Le fournisseur n’a renvoyé aucun modèle utilisable. Réessayez ou vérifiez sa connexion.",
+        );
+        return;
+      }
       models = list;
       modelsStatus = "ready";
+      modelsMessage = undefined;
+      lastModelsNotice = undefined;
       persist(cacheKey, { sdk: sdkVersion, models: list });
       if (prefs.model !== null && !list.some((m) => m.value === prefs.model)) {
         prefs = { ...prefs, model: null };
         persist(PREFS_KEY, prefs);
         state.notice("Le modèle choisi n'est plus proposé : retour au modèle par défaut.");
       }
-    } catch {
-      if (revision !== modelsRev) return;
-      // Repli : saisie libre (ou liste en cache). Aucune erreur affichée, rien n'a été perdu.
-      modelsStatus = models ? "ready" : "unavailable";
+      clampVariant();
+    } catch (error) {
+      if (!active() || error === cancelled) return;
+      killProbe();
+      failed(
+        error === timedOut
+          ? "Chargement des modèles interrompu après 45 secondes. Réessayez ou vérifiez la connexion au fournisseur."
+          : "Impossible de charger les modèles. Réessayez ou vérifiez la connexion au fournisseur.",
+      );
     } finally {
-      if (revision === modelsRev) {
-        probing = false;
+      acceptingLogs = false;
+      clearTimeout(timer);
+      if (active()) {
+        modelLoad = null;
         refresh();
       }
     }
@@ -508,15 +648,19 @@ export function createChatSession(deps: ChatSessionDeps) {
   const refreshProvider = async (): Promise<void> => {
     if (!deps.requireProvider) return;
     const provider = prefs.provider;
+    const revision = authRev;
     let has = false;
     try {
       has = (await deps.getToken(prefs.provider)) !== undefined;
     } catch {
       has = false;
     }
-    if (provider === prefs.provider) state.setNoProvider(!has);
+    if (!disposed && revision === authRev && provider === prefs.provider) state.setNoProvider(!has);
   };
-  if (deps.requireProvider) void refreshProvider().then(() => refresh());
+  if (deps.requireProvider)
+    void refreshProvider().then(() => {
+      if (!disposed) refresh();
+    });
 
   return {
     view: () => {
@@ -530,14 +674,31 @@ export function createChatSession(deps: ChatSessionDeps) {
         refresh();
         return;
       }
-      this.reset();
-      prefs = { model: null, effort: null, provider: raw };
+      navigationRev++;
+      const previous = controller;
+      if (previous !== null) detached.add(previous);
+      controller = null;
+      applied = null;
+      state.approvals.clear();
+      sessionId = undefined;
+      transferContext = state
+        .view()
+        .items.some((item) => item.kind === "user" || item.kind === "agent");
+      stopEngine(previous);
+      prefs = { model: null, effort: null, variant: null, provider: raw };
+      if (current) {
+        current.provider = raw;
+        current.model = null;
+        current.effort = null;
+        current.variant = null;
+        current.sessionId = null;
+        touch();
+      }
       persist(PREFS_KEY, prefs);
-      modelsRev++;
-      probing = false;
+      cancelModelLoad();
       models = null;
       modelsStatus = "idle";
-      await refreshProvider();
+      modelsMessage = undefined;
       refresh();
       await loadModels();
     },
@@ -554,7 +715,26 @@ export function createChatSession(deps: ChatSessionDeps) {
         return;
       }
       prefs = { ...prefs, model: v.model };
+      clampVariant();
       reclamp();
+      persist(PREFS_KEY, prefs);
+      refresh();
+    },
+    setVariant(raw: unknown): void {
+      if (state.busy || prefs.provider === "claude") {
+        refresh();
+        return;
+      }
+      const selected = effectiveModel(models, prefs.model, machineModel());
+      if (
+        raw !== null &&
+        (typeof raw !== "string" || !selected?.reasoningVariants?.includes(raw))
+      ) {
+        state.notice("Variante refusée : absente du catalogue du modèle courant.", "error");
+        refresh();
+        return;
+      }
+      prefs = { ...prefs, variant: raw };
       persist(PREFS_KEY, prefs);
       refresh();
     },
@@ -635,6 +815,9 @@ export function createChatSession(deps: ChatSessionDeps) {
         return;
       }
       ensureConversation(text);
+      const conversationContext = transferContext
+        ? buildConversationContext(state.view().items)
+        : undefined;
       state.user(text);
       refresh();
       try {
@@ -643,6 +826,7 @@ export function createChatSession(deps: ChatSessionDeps) {
           if (
             want.model !== applied.model ||
             want.effort !== applied.effort ||
+            want.variant !== applied.variant ||
             learning !== applied.learning
           ) {
             await retire(controller);
@@ -655,11 +839,17 @@ export function createChatSession(deps: ChatSessionDeps) {
           }
         }
         if (revision !== navigationRev) return;
-        const ctl = controller ?? (await startEngine(revision));
+        const ctl = controller ?? (await startEngine(revision, conversationContext));
         if (revision !== navigationRev || ctl === null) return;
         ctl.prompt(prompt);
       } catch (error) {
         if (revision !== navigationRev) return;
+        if (transferContext) {
+          sessionId = undefined;
+          if (current) current.sessionId = null;
+          if (controller !== null) detached.add(controller);
+          touch();
+        }
         stopEngine(controller);
         controller = null;
         state.error(error);
@@ -674,12 +864,12 @@ export function createChatSession(deps: ChatSessionDeps) {
      */
     async authChanged(): Promise<void> {
       authRev++;
-      modelsRev++;
-      probing = false;
+      cancelModelLoad();
       models = null;
       modelsStatus = "idle";
+      modelsMessage = undefined;
       persist(modelsKey(), undefined);
-      await refreshProvider();
+      const loading = loadModels(true);
       if (controller !== null && !state.busy) {
         await retire(
           controller,
@@ -687,7 +877,7 @@ export function createChatSession(deps: ChatSessionDeps) {
         );
       }
       refresh();
-      await loadModels(true);
+      await loading;
     },
     stop(): void {
       navigationRev++;
@@ -729,6 +919,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       controller = null;
       applied = null;
       sessionId = undefined;
+      transferContext = false;
       current = null;
       state.clear();
       refresh();
@@ -755,6 +946,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       controller = null;
       applied = null;
       sessionId = undefined;
+      transferContext = false;
       current = null;
       state.clear();
       const events: EngineEvent[] = [];
@@ -780,7 +972,9 @@ export function createChatSession(deps: ChatSessionDeps) {
         title: meta.title,
         invalid,
         truncated,
-        canResume: meta.sessionId !== null,
+        canResume:
+          meta.sessionId !== null ||
+          state.view().items.some((item) => item.kind === "user" || item.kind === "agent"),
       });
       refresh();
     },
@@ -806,18 +1000,22 @@ export function createChatSession(deps: ChatSessionDeps) {
         return;
       }
       const providerChanged = prefs.provider !== meta.provider;
-      prefs = { provider: meta.provider, model: meta.model, effort: meta.effort };
+      prefs = {
+        provider: meta.provider,
+        model: meta.model,
+        effort: meta.effort,
+        variant: meta.variant ?? null,
+      };
       persist(PREFS_KEY, prefs);
       if (providerChanged) {
-        modelsRev++;
-        probing = false;
+        cancelModelLoad();
         models = null;
         modelsStatus = "idle";
-        await refreshProvider();
-        if (revision !== navigationRev) return;
+        modelsMessage = undefined;
       }
       current = meta;
       sessionId = meta.sessionId ?? undefined;
+      transferContext = meta.sessionId === null;
       state.setReadonly(null);
       state.notice(
         meta.sessionId === null
@@ -866,6 +1064,8 @@ export function createChatSession(deps: ChatSessionDeps) {
       refresh();
     },
     dispose(): void {
+      disposed = true;
+      cancelModelLoad();
       navigationRev++;
       stopping = true;
       if (controller !== null) detached.add(controller);

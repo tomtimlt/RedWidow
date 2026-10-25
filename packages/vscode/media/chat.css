@@ -1191,6 +1191,10 @@ body:not(.running) #toolbar #stop {
 #model-pop {
   width: min(280px, calc(100vw - 16px));
 }
+#models-status {
+  margin: 0 0 var(--jn-s2);
+  overflow-wrap: anywhere;
+}
 #model-list {
   max-height: 240px;
   overflow-y: auto;
@@ -1269,6 +1273,8 @@ body:not(.running) #toolbar #stop {
 }
 .pop-foot {
   display: flex;
+  flex-wrap: wrap;
+  gap: var(--jn-s1);
   justify-content: flex-end;
   margin-top: var(--jn-s2);
   padding-top: var(--jn-s2);

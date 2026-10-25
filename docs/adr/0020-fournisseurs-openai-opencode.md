@@ -1,6 +1,7 @@
 # ADR 0020 — Fournisseurs OpenAI et OpenCode dans l’extension
 
-- Statut : accepté pour le lot 0.3.30
+- Statut : accepté pour le lot 0.3.30, amendé pour la préparation 0.3.32
+- Amendement : continuité du fil lors du changement de fournisseur, décision explicitement acceptée par le propriétaire
 - Date : 2026-10-25
 - Complète les ADR 0005 et 0019.
 
@@ -9,7 +10,9 @@
 Le chat proposait uniquement Claude alors que l’adaptateur OpenCode existait.
 L’abonnement ChatGPT et la clé API OpenAI utilisent des mécanismes distincts ;
 un cache OAuth présent ne doit pas détourner un appel demandé avec une clé.
-Une session de conversation ne se transporte pas entre fournisseurs.
+Un identifiant de session SDK ne se transporte pas entre fournisseurs.
+L’amendement 0.3.32 distingue cette session technique du fil utilisateur, qui
+doit rester ouvert lors d’un changement de fournisseur.
 
 Repères : `packages/vscode/src/extension/extension.ts` (connexion et stockage),
 `packages/agent-opencode/src/runner.ts` (environnement d’authentification et
@@ -30,10 +33,28 @@ catalogue), `packages/agent-opencode/src/config.ts` (configuration imposée),
   les secrets ni les identifiants de compte.
 - Conserver une entrée OpenCode utilisant ses fournisseurs configurés, sous
   les permissions traduites vers la gate Warband.
-- Découvrir les modèles au runtime sans inférence. Désactiver le réglage
-  d’effort hors Claude tant que son contrat n’est pas implémenté.
-- Ouvrir une nouvelle conversation lors d’un changement de fournisseur ;
-  conserver le contexte lors d’un simple changement de modèle du même moteur.
+- Découvrir les modèles au runtime sans inférence. Borner le chargement
+  global à 45 secondes, lecture de connexion comprise, annuler les requêtes
+  HTTP abandonnées et permettre de réessayer. Utiliser des messages fixes
+  pour la connexion manquante, le délai dépassé et une liste vide.
+- Pour OpenAI/OpenCode, transmettre seulement une variante exacte annoncée
+  par le catalogue runtime du modèle réellement utilisé, revalidée dans le
+  runner. Auto omet `variant` ; aucun alias d’effort Claude ni préréglage
+  Ultracode n’est transmis à ces moteurs.
+- Conserver la même conversation, son projet, son fil et ses `runIds` lors
+  d’un changement de fournisseur. Chaque changement invalide l’ancienne
+  session SDK, y compris A → B → A ; aucune session précédente n’est reprise.
+- Transférer uniquement les messages utilisateur/assistant du fil courant,
+  masqués et neutralisés : 80 messages au plus, 80 000 caractères au total,
+  8 000 caractères par message. Signaler le contexte partiel au modèle.
+  Ne pas rejouer les outils, leurs résultats ou les verdicts ; ne pas lire
+  les autres conversations ni injecter le résumé de projet.
+- Résoudre les mentions et les cibles sur la nouvelle consigne seulement.
+  Le contexte transféré n’est pas une autorisation ; `onPrompt` et
+  `user.message` reçoivent seulement cette nouvelle consigne. La gate et
+  la politique actuelle contrôlent les nouvelles actions.
+- Un changement de modèle dans le même moteur conserve son contexte.
+  Une nouvelle conversation repart de zéro, conformément à l’ADR 0019.
 
 ## Alternatives écartées
 
@@ -49,7 +70,9 @@ Deux binaires doivent être empaquetés et vérifiés ; les comptes OAuth resten
 gérés dans leur stockage OpenCode. Effacer la connexion OpenAI Warband conserve
 ce cache ; la déconnexion complète passe par `auth logout`.
 
-Le catalogue réel de 11 modèles a été lu sans inférence. Cela ne valide ni
+Pour le lot 0.3.30, le catalogue réel de 11 modèles avait été lu sans inférence.
+En préparation 0.3.32, le binaire Linux réel renvoie actuellement 9 modèles,
+sans inférence. Ce nombre décrit une observation, pas un catalogue figé. Cela ne valide ni
 un tour d’agent, ni une connexion OAuth ou API réelle, ni l’hôte VS Code sous
 Windows. Les contrôles automatisés finaux sont consignés dans l’état du projet
 après exécution ; les tests de contrats facturés ne sont pas automatiques.

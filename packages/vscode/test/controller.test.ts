@@ -84,6 +84,18 @@ const hasText = (events: EngineEvent[], text: string) =>
   events.some((e) => JSON.stringify(e).includes(text));
 
 describe("contrôleur + moteur enfant (processus forké, QueryFn factice)", () => {
+  it("arrête un moteur qui ne répond pas à la demande de modèles", async () => {
+    const hanging = join(dir, "catalogue-suspendu.mjs");
+    await writeFile(
+      hanging,
+      'process.on("message", () => {}); process.send({v:1,type:"ready"}); setInterval(() => {}, 1000);',
+    );
+    const ctl = createEngineController({ enginePath: hanging });
+    await expect(
+      ctl.models({ cwd: dir, provider: "opencode", timeoutMs: 300 }),
+    ).rejects.toMatchObject({ code: "ipc.startTimeout" });
+    await ctl.exited;
+  }, 15_000);
   it("run complet de bout en bout via l'IPC", async () => {
     const c = collect();
     const ctl = createEngineController({ enginePath: engine, handlers: c.handlers });

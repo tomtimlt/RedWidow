@@ -16,6 +16,10 @@ import {
   secretsFromEnv,
 } from "@warband/core";
 import {
+  type ConversationContext,
+  formatConversationContext,
+} from "../logic/conversation-context.js";
+import {
   type EndedSummary,
   type FromEngine,
   PROTOCOL_VERSION,
@@ -134,10 +138,13 @@ export function runEngine({
   const abort = new AbortController();
   // Chaque consigne consommée par le runner est consignée (`user.message`) : le journal permet de rejouer le fil.
   let onUserMessage: (text: string) => void | Promise<void> = () => {};
+  let conversationContext: ConversationContext | undefined;
   const prompts = createPromptStream(async (text) => {
     const enriched = await onPrompt?.(text);
     await onUserMessage(text);
-    return enriched;
+    const context = conversationContext;
+    conversationContext = undefined;
+    return context ? formatConversationContext(redact(context)) + (enriched ?? text) : enriched;
   });
   let queue: ReturnType<typeof createApprovalQueue> | null = null;
   let started = false;
@@ -158,6 +165,7 @@ export function runEngine({
       });
 
     const session = async (params: StartParams) => {
+      conversationContext = params.conversationContext;
       let code = 0;
       const recorder = createRecorder({ redact });
       onUserMessage = (text) => void recorder.emit({ kind: "user.message", text });
@@ -219,6 +227,7 @@ export function runEngine({
             cwd,
             ...(params.model !== undefined && { model: params.model }),
             ...(params.effort !== undefined && { effort: params.effort }),
+            ...(params.variant !== undefined && { variant: params.variant }),
             ...(params.maxTurns !== undefined && { maxTurns: params.maxTurns }),
             auth: params.auth ?? "auto",
             ...(params.resume !== undefined && { resume: params.resume }),

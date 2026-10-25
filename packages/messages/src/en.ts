@@ -83,6 +83,10 @@ export const reasons: Catalog = {
   "budget.exceeded": (p) => `spending limit exceeded: $${text(p.spent)} spent of $${text(p.limit)}`,
   "opencode.noModel": () =>
     'no model: pass --model provider/model (or set "model" in the OpenCode configuration)',
+  "opencode.invalidVariant": () =>
+    "reasoning variant unavailable for the selected OpenCode model: select Auto or refresh the catalog",
+  "opencode.unsupportedEffort": () =>
+    "Claude effort levels are not supported by OpenCode: select a catalog variant",
   "extension.binaryMismatch": () =>
     "claude binary missing or tampered with (SHA-256 mismatch): denied",
   "ipc.invalidMessage": (p) => `invalid engine message (${text(p.field)}): ignored`,

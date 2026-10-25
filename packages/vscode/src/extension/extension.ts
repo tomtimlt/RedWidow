@@ -275,7 +275,7 @@ export function activate(context: vscode.ExtensionContext): void {
           "Supprimer",
       },
       ...(typeof __SDK_VERSION__ === "string" && {
-        sdkVersion: `${__SDK_VERSION__}/${typeof __OPENCODE_VERSION__ === "string" ? __OPENCODE_VERSION__ : "unknown"}`,
+        sdkVersion: `${__SDK_VERSION__}/${typeof __OPENCODE_VERSION__ === "string" ? __OPENCODE_VERSION__ : "unknown"}/catalog-v2`,
       }),
       confirmAlways: async (text) =>
         (await vscode.window.showWarningMessage(text, { modal: true }, "Toujours autoriser")) ===
@@ -519,6 +519,8 @@ export function activate(context: vscode.ExtensionContext): void {
           return s.setModel(message.model);
         case "setEffort":
           return s.setEffort(message.effort);
+        case "setVariant":
+          return s.setVariant(message.variant);
         case "setLearning":
           return s.setLearning(message.enabled);
         case "refreshModels":

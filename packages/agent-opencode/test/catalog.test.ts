@@ -35,7 +35,7 @@ describe("catalogue OpenCode", () => {
     const client = catalogClient();
     const runner = createOpencodeRunner({ createClient: client.createClient, provider: "openai" });
     expect(await runner.listModels?.({ cwd: process.cwd() })).toEqual([
-      { value: "openai/runtime", displayName: "Modèle runtime" },
+      { value: "openai/runtime", displayName: "Modèle runtime", reasoningVariants: [] },
     ]);
     expect(client.fake.init().config.enabled_providers).toEqual(["openai"]);
     expect(client.fake.prompts).toEqual([]);
@@ -56,6 +56,68 @@ describe("catalogue OpenCode", () => {
     expect(client.fake.closed()).toBe(true);
   });
 
+  it.each([
+    {
+      provider: undefined,
+      connected: ["openai", "other"],
+      defaults: { openai: "preferred", other: "m" },
+      expected: ["openai/preferred", "openai/first", "other/m"],
+    },
+    {
+      provider: undefined,
+      connected: ["other", "openai"],
+      defaults: { openai: "preferred", other: "m" },
+      expected: ["other/m", "openai/first", "openai/preferred"],
+    },
+    {
+      provider: "openai",
+      connected: ["other", "openai"],
+      defaults: { openai: "preferred", other: "m" },
+      expected: ["openai/preferred", "openai/first"],
+    },
+    {
+      provider: undefined,
+      connected: ["other", "openai"],
+      defaults: { openai: "absent", other: "absent" },
+      expected: ["openai/first", "openai/preferred", "other/m"],
+    },
+    {
+      provider: undefined,
+      connected: ["openai", "other"],
+      defaults: {},
+      expected: ["openai/first", "openai/preferred", "other/m"],
+    },
+    {
+      provider: "openai",
+      connected: ["other", "openai"],
+      defaults: { other: "m" },
+      expected: ["openai/first", "openai/preferred"],
+    },
+  ])(
+    "place le défaut Auto réel en premier sans réordonner les autres : %j",
+    async ({ provider, connected, defaults, expected }) => {
+      const client = catalogClient({
+        listProviders: async () => ({
+          all: [
+            { id: "openai", models: { first: { id: "first" }, preferred: { id: "preferred" } } },
+            { id: "other", models: { m: { id: "m" } } },
+          ],
+          connected,
+          default: defaults,
+        }),
+      });
+      const runner = createOpencodeRunner({
+        createClient: client.createClient,
+        ...(provider !== undefined && { provider }),
+      });
+      expect(
+        (await runner.listModels?.({ cwd: process.cwd() }))?.map((model) => model.value),
+      ).toEqual(expected);
+      expect(client.fake.prompts).toEqual([]);
+      expect(client.fake.closed()).toBe(true);
+    },
+  );
+
   it("refuse la configuration dangereuse avant de lire le catalogue", async () => {
     const client = catalogClient({ getConfig: async () => ({ permission: { "*": "allow" } }) });
     await expect(
@@ -66,6 +128,56 @@ describe("catalogue OpenCode", () => {
     expect(client.listProviders).not.toHaveBeenCalled();
     expect(client.fake.closed()).toBe(true);
   });
+
+  it.each([
+    { provider: undefined, configured: "openai/m2", expected: "openai/m2", variants: ["second"] },
+    { provider: "openai", configured: "m2", expected: "openai/m2", variants: ["second"] },
+    { provider: "openai", configured: "other/m", expected: "openai/m1", variants: ["first"] },
+    { provider: undefined, configured: "offline/m", expected: "openai/m1", variants: ["first"] },
+    {
+      provider: undefined,
+      configured: "openai/absent",
+      expected: "openai/m1",
+      variants: ["first"],
+    },
+    { provider: undefined, configured: "invalide", expected: "openai/m1", variants: ["first"] },
+  ])(
+    "Auto expose les variantes du modèle effectif valide avant le défaut : %j",
+    async ({ provider, configured, expected, variants }) => {
+      const fake = fakeOpencode([], {
+        effective: (config) => ({ ...config, model: configured }),
+      });
+      const runner = createOpencodeRunner({
+        ...(provider !== undefined && { provider }),
+        createClient: (init) => ({
+          ...fake.createClient(init),
+          listProviders: async () => ({
+            all: [
+              {
+                id: "openai",
+                models: {
+                  m1: { id: "m1", variants: { first: {} } },
+                  m2: { id: "m2", variants: { second: {} } },
+                },
+              },
+              { id: "other", models: { m: { id: "m" } } },
+              { id: "offline", models: { m: { id: "m" } } },
+            ],
+            connected: ["openai", "other"],
+            default: { openai: "m1", other: "m" },
+          }),
+        }),
+      });
+      const models = await runner.listModels?.({ cwd: process.cwd() });
+      expect(models?.[0]).toMatchObject({ value: expected, reasoningVariants: variants });
+      if (configured === "openai/m2")
+        expect(models?.map((model) => model.value)).toEqual(["openai/m2", "openai/m1", "other/m"]);
+      if (provider === "openai")
+        expect(models?.every((model) => model.value.startsWith("openai/"))).toBe(true);
+      expect(fake.prompts).toEqual([]);
+      expect(fake.closed()).toBe(true);
+    },
+  );
 
   it.each([
     { options: { apiKey: "secret-non-journalisable" } },

@@ -1,7 +1,7 @@
 import { type EngineEvent, parseJournal, promptForTargets, stripControl } from "@warband/core";
 import type { ChatState } from "./chat.js";
 import { type EffortChoice, isProvider, type Provider, parseEffortChoice } from "./effort.js";
-import { isModelId } from "./models.js";
+import { isModelId, isReasoningVariant } from "./models.js";
 
 /**
  * Historique des conversations (ADR 0005, F4). Logique pure : un journal relu est une entrée NON FIABLE
@@ -32,6 +32,7 @@ export interface ConversationMeta {
   provider: Provider;
   model: string | null;
   effort: EffortChoice | null;
+  variant?: string | null;
   sessionId: string | null;
   runIds: string[];
   tools: number;
@@ -77,6 +78,7 @@ export function parseIndex(raw: unknown): ConversationMeta[] {
       provider: isProvider(item.provider) ? item.provider : "claude",
       model: isModelId(item.model) ? item.model : null,
       effort: parseEffortChoice(item.effort),
+      variant: isReasoningVariant(item.variant) ? item.variant : null,
       sessionId:
         typeof item.sessionId === "string" && item.sessionId.length <= 200 ? item.sessionId : null,
       runIds: item.runIds.filter(isRunId).slice(0, MAX_RUNS_PER_CONVERSATION),

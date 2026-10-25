@@ -15,6 +15,7 @@ export interface OpencodeEvent {
 export interface PromptBody {
   text: string;
   model?: { providerID: string; modelID: string };
+  variant?: string;
   system?: string;
   tools: Record<string, false>;
 }
@@ -24,9 +25,9 @@ export type PermissionResponse = "once" | "reject";
 
 export interface OpencodeApi {
   /** Configuration effective (`GET /config`), après fusion de toutes les sources. */
-  getConfig(): Promise<Record<string, unknown>>;
+  getConfig(signal?: AbortSignal): Promise<Record<string, unknown>>;
   /** Catalogue fourni par OpenCode, sans inférence. */
-  listProviders?(): Promise<unknown>;
+  listProviders?(signal?: AbortSignal): Promise<unknown>;
   /** Flux d'événements ; s'abonne immédiatement. */
   subscribe(signal: AbortSignal): Promise<AsyncIterable<OpencodeEvent>>;
   createSession(): Promise<string>;

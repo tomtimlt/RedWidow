@@ -130,10 +130,11 @@ export function chatHtml({
 </div>
 </form>
 <div id="model-pop" class="pop" popover="auto" aria-label="Choisir le modèle">
+<p id="models-status" class="tip" role="status" aria-live="polite" hidden></p>
 <input id="model-filter" type="text" role="combobox" aria-controls="model-list" aria-expanded="true" aria-autocomplete="list" aria-label="Filtrer les modèles" placeholder="Filtrer les modèles…" spellcheck="false" autocomplete="off">
 <input id="model-input" type="text" aria-label="Identifiant du modèle" placeholder="identifiant du modèle" title="Liste indisponible : saisissez l'identifiant du modèle" spellcheck="false" autocomplete="off" hidden>
 <div id="model-list" role="listbox" aria-label="Modèles"></div>
-<div class="pop-foot"><button id="models-refresh" type="button" class="ghost" title="Actualiser la liste des modèles">Actualiser la liste</button></div>
+<div class="pop-foot"><button id="models-connect" type="button" class="ghost" hidden>Configurer la connexion</button><button id="models-refresh" type="button" class="ghost" title="Actualiser la liste des modèles">Actualiser la liste</button></div>
 </div>
 <div id="mention-pop" class="pop" popover="auto" aria-label="Conteneurs"><div id="mention-list" role="listbox" aria-label="Conteneurs"></div><p id="mention-empty" class="tip" hidden>Aucun conteneur</p></div>
 <div id="slash-pop" class="pop" popover="auto" aria-label="Commandes">

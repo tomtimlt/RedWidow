@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { runInNewContext } from "node:vm";
 import type { ModelOption } from "@warband/core";
 import { describe, expect, it } from "vitest";
 import { buildControls, DEFAULT_PREFS, parsePrefs } from "../src/logic/controls.js";
@@ -97,6 +99,23 @@ describe("modèles", () => {
     expect(parseModelCache(raw, "2")).toBeNull();
     expect(parseModelCache({ sdk: "1", models: [] }, "1")).toBeNull();
     expect(parseModelCache("poison", "1")).toBeNull();
+  });
+  it("variantes strictes : noms réels conservés, doublons et entrées hostiles refusés", () => {
+    const model = { ...A, reasoningVariants: ["low", "vendor.custom-2", "HIGH"] };
+    expect(parseModelOptions([model])).toEqual([model]);
+    for (const reasoningVariants of [
+      ["low", "low"],
+      [""],
+      ["a b"],
+      ["high\n"],
+      ["a\u202e"],
+      ["x".repeat(65)],
+      [42],
+      "high",
+      Array.from({ length: 65 }, (_, i) => String(i)),
+    ]) {
+      expect(parseModelOptions([{ ...A, reasoningVariants }])).toBeNull();
+    }
   });
 });
 
@@ -215,5 +234,173 @@ describe("fournisseur de la conversation", () => {
       expect(controls.levels).toEqual([]);
       expect(levelsFor(provider)).toEqual([]);
     }
+  });
+  it("variantes du modèle sélectionné : aucun alias ni niveau inventé entre deux modèles", () => {
+    const models: ModelOption[] = [
+      { value: "one", displayName: "Un", reasoningVariants: ["low", "custom.full"] },
+      { value: "two", displayName: "Deux", reasoningVariants: ["minimal", "max"] },
+    ];
+    for (const provider of ["openai", "opencode"] as const) {
+      const prefs = { ...DEFAULT_PREFS, provider, model: "one", variant: "custom.full" };
+      const input = {
+        prefs,
+        models,
+        status: "ready" as const,
+        defaultModel: undefined,
+        busy: false,
+      };
+      const first = buildControls(input);
+      expect(first.reasoningVariants).toEqual([
+        { value: "low", label: "low" },
+        { value: "custom.full", label: "custom.full" },
+      ]);
+      expect(first).toMatchObject({
+        variant: "custom.full",
+        effort: null,
+        effortLabel: "custom.full",
+        effortDisabled: false,
+        levels: [],
+      });
+      const second = buildControls({ ...input, prefs: { ...prefs, model: "two" } });
+      expect(second.reasoningVariants.map((v) => v.value)).toEqual(["minimal", "max"]);
+      expect(second).toMatchObject({ variant: null, effortLabel: "Auto", effortDisabled: false });
+      for (const model of ["missing", null]) {
+        const unknown = buildControls({
+          ...input,
+          models: model === null ? null : models,
+          prefs: { ...prefs, model },
+        });
+        expect(unknown).toMatchObject({
+          variant: null,
+          reasoningVariants: [],
+          effortDisabled: true,
+        });
+      }
+    }
+  });
+  it("ancien cache sans variantes : Auto hors Claude, sans migration de l'effort", () => {
+    const models = parseModelCache({ sdk: "legacy", models: [A] }, "legacy");
+    const controls = buildControls({
+      prefs: parsePrefs({ provider: "openai", model: "a", effort: "high" }),
+      models,
+      status: "ready",
+      defaultModel: undefined,
+      busy: false,
+    });
+    expect(controls).toMatchObject({
+      variant: null,
+      effort: null,
+      reasoningVariants: [],
+      effortLabel: "Auto",
+      effortDisabled: true,
+    });
+  });
+  it("préférences : variante opaque bornée et indépendante de l'effort Claude", () => {
+    expect(parsePrefs({ effort: "ultracode", variant: "custom.high" })).toMatchObject({
+      effort: "ultracode",
+      variant: "custom.high",
+    });
+    for (const variant of ["", "a b", "high\n", "x".repeat(65), {}, 1, null]) {
+      expect(parsePrefs({ variant }).variant).toBeNull();
+    }
+  });
+});
+
+describe("curseur de raisonnement de la webview", () => {
+  it("reconfigure les crans et envoie leur valeur exacte, Auto, clavier et gel compris", () => {
+    const js = readFileSync(new URL("../media/chat.js", import.meta.url), "utf8");
+    const renderStart = js.indexOf("  function renderControls(c) {");
+    const render = js.slice(renderStart, js.indexOf("\n  }", renderStart) + 4);
+    const handlers = js.slice(
+      js.indexOf("  function postReasoningChoice(value) {"),
+      js.indexOf("\n  // --- Historique"),
+    );
+    const nodes = new Map<string, ReturnType<typeof node>>();
+    function node() {
+      return {
+        value: "",
+        textContent: "",
+        disabled: false,
+        hidden: false,
+        max: "",
+        title: "",
+        events: new Map<string, () => void>(),
+        attrs: new Map<string, string>(),
+        addEventListener(type: string, handler: () => void) {
+          this.events.set(type, handler);
+        },
+        setAttribute(name: string, value: string) {
+          this.attrs.set(name, value);
+        },
+        matches: () => false,
+        classList: { toggle() {}, remove() {} },
+        style: { setProperty() {} },
+      };
+    }
+    const $ = (id: string) => {
+      let found = nodes.get(id);
+      if (!found) {
+        found = node();
+        nodes.set(id, found);
+      }
+      return found;
+    };
+    const sent: unknown[] = [];
+    const context = {
+      $,
+      ctl: null,
+      levels: [],
+      ctlGroup: $("ctl-group"),
+      modelChip: $("model-chip"),
+      cfgBtn: $("cfg-btn"),
+      modelPop: $("model-pop"),
+      cfgPop: $("cfg-pop"),
+      modelFilter: $("model-filter"),
+      modelList: $("model-list"),
+      modelInput: $("model-input"),
+      effortInput: $("effort"),
+      learningSwitch: $("learning-switch"),
+      document: { body: { classList: { toggle() {}, remove() {} } } },
+      renderBypass() {},
+      vscode: { postMessage: (message: unknown) => sent.push(message) },
+    };
+    const renderControls = runInNewContext(`${render}\n${handlers}\nrenderControls`, context) as (
+      controls: ReturnType<typeof buildControls>,
+    ) => void;
+    const input = {
+      prefs: { ...DEFAULT_PREFS, provider: "openai" as const, model: "a" },
+      models: [{ ...A, reasoningVariants: ["low", "custom.full", "high"] }],
+      status: "ready" as const,
+      defaultModel: undefined,
+      busy: false,
+    };
+    renderControls(buildControls(input));
+    expect($("effort").max).toBe("3");
+    expect($("effort").disabled).toBe(false);
+    // Les flèches, Home et End natifs du range déclenchent input puis change.
+    $("effort").value = "3";
+    $("effort").events.get("input")?.();
+    expect($("effort").attrs.get("aria-valuetext")).toBe("high");
+    $("effort").events.get("change")?.();
+    expect(sent.pop()).toEqual({ type: "setVariant", variant: "high" });
+    $("effort-auto").events.get("click")?.();
+    expect(sent.pop()).toEqual({ type: "setVariant", variant: null });
+    $("effort").value = "0";
+    $("effort").events.get("change")?.();
+    expect(sent.pop()).toEqual({ type: "setVariant", variant: null });
+    renderControls(
+      buildControls({ ...input, models: [{ ...A, reasoningVariants: ["other.exact"] }] }),
+    );
+    expect($("effort").max).toBe("1");
+    $("effort").value = "1";
+    $("effort").events.get("change")?.();
+    expect(sent.pop()).toEqual({ type: "setVariant", variant: "other.exact" });
+    renderControls(buildControls({ ...input, busy: true }));
+    $("effort-auto").events.get("click")?.();
+    $("effort").events.get("change")?.();
+    expect(sent).toEqual([]);
+    renderControls(buildControls({ ...input, prefs: { ...DEFAULT_PREFS, effort: "low" } }));
+    $("effort-auto").events.get("click")?.();
+    expect(sent.pop()).toEqual({ type: "setEffort", effort: null });
   });
 });

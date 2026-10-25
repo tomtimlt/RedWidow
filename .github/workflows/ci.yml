@@ -28,6 +28,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
       - run: pnpm build
+      - run: node packages/vscode/scripts/check-opencode.mjs
       - run: node packages/cli/dist/main.js --help
 
   # Windows natif (ADR 0002) : bloquant depuis la validation réelle W-L6.
@@ -46,5 +47,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
       - run: pnpm build
+      - run: node packages/vscode/scripts/check-opencode.mjs
       - run: node packages/cli/dist/main.js --help
 

@@ -115,10 +115,29 @@ export function parseModel(
   throw new CodedError("opencode.invalidModel", { value });
 }
 
-/** Résout uniquement les défauts annoncés pour les fournisseurs connectés du catalogue. */
-async function runtimeDefaultModel(api: OpencodeApi, provider?: string) {
+async function runtimeCatalog(api: OpencodeApi, signal?: AbortSignal): Promise<Obj> {
   if (!api.listProviders) throw new CodedError("opencode.noModel");
-  const catalog = obj(await api.listProviders());
+  return obj(await api.listProviders(signal));
+}
+
+/** Variantes effectives : aucun niveau déduit du nom du modèle ni alias d'effort Claude. */
+function reasoningVariants(model: Obj): string[] {
+  if (obj(model.capabilities).reasoning === false || model.reasoning === false) return [];
+  return Object.entries(obj(model.variants))
+    .slice(0, 64)
+    .filter(
+      ([key, value]) =>
+        /^[A-Za-z0-9_.-]{1,64}$/.test(key) &&
+        typeof value === "object" &&
+        value !== null &&
+        !Array.isArray(value) &&
+        obj(value).disabled !== true,
+    )
+    .map(([key]) => key);
+}
+
+/** Résout uniquement les défauts annoncés pour les fournisseurs connectés du catalogue. */
+function findRuntimeDefaultModel(catalog: Obj, provider?: string) {
   const providers = Array.isArray(catalog.all) ? catalog.all.map(obj) : [];
   const connected = Array.isArray(catalog.connected) ? catalog.connected : [];
   const defaults = obj(catalog.default);
@@ -133,7 +152,13 @@ async function runtimeDefaultModel(api: OpencodeApi, provider?: string) {
     if (!present) continue;
     return parseModel(`${id}/${modelID}`);
   }
-  throw new CodedError("opencode.noModel");
+  return undefined;
+}
+
+function runtimeDefaultModel(catalog: Obj, provider?: string) {
+  const model = findRuntimeDefaultModel(catalog, provider);
+  if (model === undefined) throw new CodedError("opencode.noModel");
+  return model;
 }
 
 /** Demande de permission normalisée (formes `permission.asked` du binaire et `permission.updated` du SDK). */
@@ -239,12 +264,12 @@ async function probeModels(
       stopServer = server.close;
       api = createSdkApi({ baseUrl: server.url, directory: cwd, password });
     }
-    const effective = await api.getConfig();
+    const effective = await api.getConfig(abort.signal);
     assertSafeConfig(effective);
     if (options.provider === "openai") assertOfficialOpenaiConfig(effective);
     abort.signal.throwIfAborted();
     if (!api.listProviders) throw new Error("OpenCode : catalogue des fournisseurs indisponible");
-    const catalog = obj(await api.listProviders());
+    const catalog = obj(await api.listProviders(abort.signal));
     abort.signal.throwIfAborted();
     const providers = Array.isArray(catalog.all) ? catalog.all : [];
     const connected = new Set(Array.isArray(catalog.connected) ? catalog.connected : []);
@@ -257,8 +282,37 @@ async function probeModels(
         const model = obj(rawModel);
         const modelId = str(model.id) ?? key;
         if (!modelId) continue;
-        models.push({ value: `${id}/${modelId}`, displayName: str(model.name) ?? modelId });
+        models.push({
+          value: `${id}/${modelId}`,
+          displayName: str(model.name) ?? modelId,
+          reasoningVariants: reasoningVariants(model),
+        });
       }
+    }
+    const defaultModel = findRuntimeDefaultModel(catalog, options.provider);
+    let configuredIndex = -1;
+    const configuredValue = str(effective.model);
+    if (configuredValue !== undefined) {
+      try {
+        const configured = parseModel(configuredValue, options.provider);
+        configuredIndex = models.findIndex(
+          (model) => model.value === `${configured.providerID}/${configured.modelID}`,
+        );
+      } catch (error) {
+        if (!(error instanceof CodedError) || error.code !== "opencode.invalidModel") throw error;
+      }
+    }
+    const defaultIndex =
+      configuredIndex >= 0
+        ? configuredIndex
+        : defaultModel
+          ? models.findIndex(
+              (model) => model.value === `${defaultModel.providerID}/${defaultModel.modelID}`,
+            )
+          : -1;
+    if (defaultIndex > 0) {
+      const [preferred] = models.splice(defaultIndex, 1);
+      if (preferred) models.unshift(preferred);
     }
     return models;
   } finally {
@@ -841,6 +895,7 @@ async function runWithOpencode(
   // --- exécution ------------------------------------------------------------
   let pump: Promise<void> | undefined;
   try {
+    if (input.effort !== undefined) throw new CodedError("opencode.unsupportedEffort");
     // Outils du moteur, servis en MCP HTTP local.
     const mcp: Obj = {};
     const specs = (options.toolsets ?? []).map((set) => ({
@@ -899,15 +954,34 @@ async function runWithOpencode(
       api = createSdkApi({ baseUrl: server.url, directory: cwd, password });
     }
 
-    const effective = await api.getConfig();
+    const effective = await api.getConfig(abort.signal);
     assertSafeConfig(effective);
     if (options.provider === "openai") assertOfficialOpenaiConfig(effective);
     const defaultModel = str(effective.model);
+    const catalog =
+      input.variant !== undefined || (requestedModel === undefined && defaultModel === undefined)
+        ? await runtimeCatalog(api, abort.signal)
+        : undefined;
     const model =
       requestedModel ??
       (defaultModel !== undefined
         ? parseModel(defaultModel, options.provider)
-        : await runtimeDefaultModel(api, options.provider));
+        : runtimeDefaultModel(catalog ?? {}, options.provider));
+    if (input.variant !== undefined) {
+      const providers = Array.isArray(catalog?.all) ? catalog.all.map(obj) : [];
+      const connected = Array.isArray(catalog?.connected) ? catalog.connected : [];
+      const provider = providers.find((entry) => entry.id === model.providerID);
+      const entry = Object.entries(obj(provider?.models)).find(
+        ([key, raw]) => (str(obj(raw).id) ?? key) === model.modelID,
+      );
+      if (
+        !connected.includes(model.providerID) ||
+        !entry ||
+        !reasoningVariants(obj(entry[1])).includes(input.variant)
+      ) {
+        throw new CodedError("opencode.invalidVariant");
+      }
+    }
 
     const events = await api.subscribe(abort.signal);
     let streamEnded: () => void = () => undefined;
@@ -958,6 +1032,7 @@ async function runWithOpencode(
       const body: PromptBody = {
         text,
         model,
+        ...(input.variant !== undefined && { variant: input.variant }),
         tools: toolsOff,
         ...(input.systemPrompt !== undefined && { system: input.systemPrompt }),
       };

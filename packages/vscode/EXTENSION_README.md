@@ -23,8 +23,14 @@ Jeton : « Warband : définir le jeton ».
 Dans **Configurer**, choisir Claude, **OpenAI (ChatGPT / API)** ou OpenCode,
 puis **Configurer la connexion**. OpenAI accepte l’abonnement ChatGPT par
 OAuth Codex via OpenCode ou une clé API stockée dans le coffre de VS Code.
-Changer de fournisseur ouvre une nouvelle conversation. Les modèles sont
-découverts à la connexion ; le curseur d’effort reste réservé à Claude.
+Changer de fournisseur conserve la conversation et son projet : une nouvelle
+session SDK reçoit les messages utilisateur/assistant du fil courant, masqués
+et bornés, sans rejouer les outils ni leurs approbations.
+Les modèles sont découverts à la connexion ; après 45 secondes au plus,
+un échec permet de réessayer ou de configurer la connexion dans le popover
+de modèle. OpenAI/OpenCode proposent uniquement les variantes de raisonnement
+annoncées par le modèle au runtime ; **Auto** laisse son choix par défaut.
+Les six crans Claude et le préréglage Ultracode restent propres à Claude.
 
 Le cockpit propose VPN et bureau web pour Exegol, une image Kali complète
 construite localement, la progression des téléchargements et la suppression

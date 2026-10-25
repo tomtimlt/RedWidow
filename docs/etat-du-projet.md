@@ -1,6 +1,6 @@
 # Warband — parcours, état actuel et reprise
 
-État inspecté le 25 octobre 2026 pour le lot de travail 0.3.30. Ce document sert de point d'entrée produit ;
+État inspecté le 26 octobre 2026 pour la version 0.3.32. Ce document sert de point d'entrée produit ;
 les ADR expliquent les décisions, les idées restent une réserve.
 
 ## Le parcours de référence
@@ -15,18 +15,49 @@ parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
 
-La version du manifeste est **0.3.31**. Les paragraphes
+La version du manifeste est **0.3.32**. Les paragraphes
 0.3.19 à 0.3.29 ci-dessous sont des relevés historiques, pas les preuves de
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
+
+## Lot 0.3.32 — changements et limites
+
+- **Catalogue** : chargement global borné à 45 secondes, lecture de connexion
+  comprise ; annulation du sondage HTTP, nouvel essai possible et messages fixes
+  pour connexion indisponible, délai dépassé ou liste vide. Configuration de
+  la connexion accessible dans le popover de modèle.
+- **Effort OpenAI/OpenCode** : variantes exactes du modèle réellement utilisé,
+  annoncées au runtime et revalidées ; Auto omet `variant`. Les alias Claude
+  et le préréglage Ultracode restent propres à Claude.
+- **Continuité du fil (ADR 0020 amendé)** : même conversation, projet, fil et
+  `runIds` lors d’un changement de fournisseur, avec une nouvelle session SDK
+  à chaque changement, même A → B → A. Transfert des seuls messages
+  utilisateur/assistant du fil courant, masqués : 80 messages, 80 000 caractères
+  au total, 8 000 par message. Le contexte partiel est signalé au modèle.
+- **Frontière de sécurité** : aucun rejeu d’outil ou de verdict. Les mentions
+  anciennes n’autorisent aucune cible ; `onPrompt` et le journal `user.message`
+  ne reçoivent que la nouvelle consigne. La gate reste inchangée.
+
+Validation locale : **1 846 tests réussis, 12 ignorés**, lint, typage et
+compilation réussis. Les contrôles Chromium couvrent le curseur de variantes
+(Auto, singleton et clavier), le chargement relançable et les messages/connexion
+dans quatre largeurs et trois thèmes. Les tests vérifient le transfert A → B → A,
+les échecs avant confirmation du premier tour, la reprise, l’isolation des autres
+conversations et l’absence d’effet des anciennes mentions sur les cibles.
+Le **binaire Linux réel a renvoyé 9 modèles sans inférence** ; cette lecture
+ne valide pas un tour d’agent. La cause exacte de l’incident sur le PC utilisateur
+reste à démontrer. Aucun compte OAuth ou API réel n’a été validé pour ce lot ;
+la vérification du catalogue par le vrai binaire Windows est ajoutée à la CI ;
+le parcours dans VS Code sur le poste utilisateur reste à effectuer.
 
 ## Lot 0.3.30 — code présent et limites
 
 - **Fournisseurs (ADR 0020)** : Claude, OpenAI et OpenCode dans le chat ;
   OpenCode 1.19.0 embarqué et vérifié. Abonnement ChatGPT par OAuth Codex,
   ou clé API OpenAI dans `SecretStorage`, avec isolation des deux modes.
-  Changement de fournisseur : nouvelle conversation. Catalogues runtime,
-  sans inférence ; effort désactivé hors Claude.
+  À l’origine de ce lot, changement de fournisseur : nouvelle conversation
+  et effort désactivé hors Claude ; ces deux règles sont remplacées en
+  préparation 0.3.32. Catalogues runtime sans inférence.
 - **Création et suppression (ADR 0021)** : Exegol dans un terminal interactif,
   choix natif du VPN OpenVPN/WireGuard/dossier et du workspace, NAT, bureau
   web loopback 6080, ressources et `--log`/`script`. Suppression humaine par
@@ -70,14 +101,14 @@ avec des arguments structurés et les chemins de test suivent la plateforme.
 Les assertions d’isolation restent identiques ; le code fonctionnel est inchangé.
 Les 17 tests ciblés passent localement.
 
-### Recette restante pour la 0.3.30
+### Recette restante — à reprendre pour la 0.3.32
 
 | Essai | Résultat attendu |
 |---|---|
 | Installer les VSIX de cette version | Binaires embarqués vérifiés ; chat et cockpit utilisables |
 | Connecter ChatGPT puis tester la clé API séparément | Chaque mode utilise sa propre authentification, sans repli sur l’autre |
-| Passer de Claude à OpenAI/OpenCode | Nouvelle conversation ; aucun ancien identifiant de session repris |
-| Actualiser les modèles | Catalogue runtime ; effort indisponible hors Claude |
+| Passer de Claude à OpenAI/OpenCode | Même conversation et projet ; nouvelle session SDK, y compris au retour au fournisseur initial |
+| Actualiser les modèles | Catalogue runtime borné ; variantes exactes OpenAI/OpenCode, Auto omet la variante |
 | Créer un Exegol avec VPN et bureau | Dialogue natif, terminal interactif, NAT et bureau loopback ; logs présents |
 | Construire puis démarrer Kali complet avec assez de disque | Image locale, conteneur actif, santé MCP et outils attendus |
 | Annuler un pull, puis reprendre | Annulation visible ; aucune création présentée comme réussie |

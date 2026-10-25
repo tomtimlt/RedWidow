@@ -62,6 +62,8 @@ export const REASON_CODES = [
   "opencode.unsafeConfig",
   "opencode.noModel",
   "opencode.invalidModel",
+  "opencode.invalidVariant",
+  "opencode.unsupportedEffort",
   "opencode.serverFailed",
   "opencode.serverTimeout",
   "opencode.sessionNotFound",
