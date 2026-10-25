@@ -243,6 +243,8 @@ async function probeModels(
     options: {
       cwd,
       settingSources: [],
+      // Aucune mémoire automatique partagée entre les conversations.
+      settings: { autoMemoryEnabled: false },
       strictMcpConfig: true,
       permissionMode: "default",
       allowedTools: [],
@@ -482,6 +484,8 @@ async function runWithSdk(
     cwd,
     // Garde : tout passe par PreToolUse ; rien n'est pré-approuvé côté SDK.
     settingSources: [],
+    // Aucune mémoire automatique partagée entre les conversations.
+    settings: { autoMemoryEnabled: false },
     strictMcpConfig: true,
     permissionMode: "default",
     allowedTools: [],

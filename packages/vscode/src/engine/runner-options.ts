@@ -23,8 +23,8 @@ export function runnerOptions(
   return {
     executable,
     toolsets: [
-      exegolToolset({ targets, binary: "docker" }),
-      kaliToolset({ targets, binary: "docker" }),
+      exegolToolset({ targets, binary: "docker", includeMemory: false }),
+      kaliToolset({ targets, binary: "docker", includeMemory: false }),
     ],
   };
 }

@@ -953,3 +953,70 @@ describe("mode apprentissage (ADR 0010)", () => {
     expect(t.f.starts).toHaveLength(1);
   });
 });
+
+it("nouvelle conversation : les événements tardifs de l’ancien moteur ne restaurent pas sa session", async () => {
+  const first = fake();
+  const second = fake();
+  const queue = [first, second];
+  const session = createChatSession({
+    cwd: "/w",
+    enginePath: "/e",
+    engineArgs: [],
+    readSettings: () => ({}),
+    getToken: async () => undefined,
+    confirmAlways: async () => false,
+    onView: () => {},
+    createController: (options) => {
+      const engine = queue.shift();
+      if (!engine) throw new Error("moteur inattendu");
+      return engine.create(options);
+    },
+  });
+  await session.send("ancienne conversation");
+  session.reset();
+  first.handlers.onEvent?.(
+    ev({ kind: "session.started", sessionId: "ancienne-session", model: "modele" }),
+  );
+  first.handlers.onEnded?.({
+    status: "success",
+    turns: 1,
+    costUsd: 0,
+    result: null,
+    sessionId: "ancienne-session",
+  });
+  await session.send("nouvelle conversation");
+  expect(second.started).not.toHaveProperty("resume");
+  expect(second.calls).toContainEqual(["prompt", "nouvelle conversation"]);
+  session.dispose();
+});
+
+it("nouvelle conversation pendant la lecture du jeton : l’ancienne consigne n’est jamais envoyée", async () => {
+  let release!: () => void;
+  const waiting = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let tokenRequested = false;
+  const engine = fake();
+  const create = vi.fn(engine.create);
+  const session = createChatSession({
+    cwd: "/w",
+    enginePath: "/e",
+    engineArgs: [],
+    readSettings: () => ({}),
+    getToken: async () => {
+      tokenRequested = true;
+      await waiting;
+      return undefined;
+    },
+    confirmAlways: async () => false,
+    onView: () => {},
+    createController: create,
+  });
+  const sending = session.send("à abandonner");
+  await vi.waitFor(() => expect(tokenRequested).toBe(true));
+  session.reset();
+  release();
+  await sending;
+  expect(create).not.toHaveBeenCalled();
+  expect(engine.calls).not.toContainEqual(["prompt", "à abandonner"]);
+});

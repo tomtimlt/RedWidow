@@ -1,3 +1,6 @@
+> Depuis l’ADR 0019, l’extension ne réinjecte plus le résumé de projet et
+> n’expose plus remember. Le texte ci-dessous conserve la décision historique.
+
 # 0016 — Historique filtré par projet, résumé de session par projet
 
 - Statut : accepté

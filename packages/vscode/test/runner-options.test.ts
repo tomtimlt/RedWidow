@@ -1,4 +1,4 @@
-import { createExegolTargets } from "@warband/core";
+import { createExegolTargets, createRecorder } from "@warband/core";
 import { describe, expect, it } from "vitest";
 import { runnerOptions } from "../src/engine/runner-options.js";
 
@@ -16,6 +16,16 @@ describe("options du runner selon le mode (ADR 0010)", () => {
   it("sans mode : Exegol et Kali, options par défaut pour le reste", () => {
     const o = runnerOptions(undefined, "/bin/claude", targets);
     expect(o.toolsets?.map((t) => t.name)).toEqual(["exegol", "kali"]);
+    const context = {
+      recorder: createRecorder({ runId: "test" }),
+      resolveParent: () => null,
+      resolveCall: () => ({ parentId: null, correlation: "none" as const }),
+    };
+    for (const toolset of o.toolsets ?? []) {
+      const names = toolset.create(context).map((tool) => tool.name);
+      expect(names).toContain(toolset.name === "exegol" ? "exec" : "nmap_scan");
+      expect(names).not.toContain("remember");
+    }
     expect(o).not.toHaveProperty("builtinTools");
     expect(o).not.toHaveProperty("bash");
   });

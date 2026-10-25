@@ -12,6 +12,8 @@ import type { Toolset } from "./toolset.js";
 
 export interface KaliToolsetOptions {
   targets: ExegolTargets;
+  /** Expose `remember` (défaut : true). */
+  includeMemory?: boolean;
   binary?: string;
   argsPrefix?: readonly string[];
 }
@@ -30,7 +32,9 @@ export function kaliToolset(options: KaliToolsetOptions): Toolset {
         ...(options.argsPrefix && { argsPrefix: options.argsPrefix }),
       };
       return createSpecTools(
-        kaliToolSpecs(createDockerClient(client), createKaliApi(client), options.targets),
+        kaliToolSpecs(createDockerClient(client), createKaliApi(client), options.targets).filter(
+          (spec) => options.includeMemory !== false || spec.name !== "remember",
+        ),
         resolveParent,
       );
     },

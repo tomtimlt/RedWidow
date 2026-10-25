@@ -302,12 +302,13 @@ export function createChatSession(deps: ChatSessionDeps) {
     saveIndex();
   };
 
-  const startEngine = async (): Promise<EngineController> => {
+  const startEngine = async (revision: number): Promise<EngineController | null> => {
     const settings = deps.readSettings();
     const picked = choice(settings);
     if (picked.clampedTo !== undefined && picked.key !== null)
       clampNotice(picked.key, picked.clampedTo);
     const token = await deps.getToken();
+    if (revision !== navigationRev) return null;
     refresh();
     stopping = false;
     const ctl = make({
@@ -395,6 +396,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       // Le mode exclut `systemPrompt` (ADR 0010) : la consigne vient du moteur, jamais de l'UI.
       ...(learning && { mode: "learning" as const }),
     });
+    if (revision !== navigationRev) return null;
     if (deps.bypass) {
       bypassLinks.set(
         ctl,
@@ -601,9 +603,12 @@ export function createChatSession(deps: ChatSessionDeps) {
             );
           }
         }
-        const ctl = controller ?? (await startEngine());
+        if (revision !== navigationRev) return;
+        const ctl = controller ?? (await startEngine(revision));
+        if (revision !== navigationRev || ctl === null) return;
         ctl.prompt(prompt);
       } catch (error) {
+        if (revision !== navigationRev) return;
         stopEngine(controller);
         controller = null;
         state.error(error);
@@ -663,6 +668,7 @@ export function createChatSession(deps: ChatSessionDeps) {
     reset(): void {
       navigationRev++;
       stopping = true;
+      if (controller !== null) detached.add(controller);
       stopEngine(controller);
       controller = null;
       applied = null;
@@ -688,6 +694,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       stopping = true;
       // Bypass hôte à « off » avant d'arrêter l'ancien moteur : aucune décision ne le garde actif (lot 2c).
       deps.bypass?.reset?.();
+      if (controller !== null) detached.add(controller);
       stopEngine(controller);
       controller = null;
       applied = null;
@@ -793,6 +800,7 @@ export function createChatSession(deps: ChatSessionDeps) {
     dispose(): void {
       navigationRev++;
       stopping = true;
+      if (controller !== null) detached.add(controller);
       stopEngine(controller);
       controller = null;
     },

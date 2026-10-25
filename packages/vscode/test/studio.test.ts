@@ -594,6 +594,13 @@ it("mémoire : saisie, plafond multioctet, conservation du brouillon et accusé 
   const save = () => find((n) => n.textContent === "Enregistrer le résumé");
   receive({ data: view });
   expect(input().value).toBe("ancien");
+  expect(
+    find(
+      (n) =>
+        n.textContent ===
+        "Notes privées du projet. Non transmises automatiquement aux conversations.",
+    ),
+  ).toBeDefined();
   input().value = "é".repeat(4097);
   input().fire("input");
   expect(save().disabled).toBe(true);

@@ -11,6 +11,8 @@ import type { Toolset } from "./toolset.js";
 
 export interface ExegolToolsetOptions {
   targets: ExegolTargets;
+  /** Expose `remember` (défaut : true). */
+  includeMemory?: boolean;
   binary?: string;
   argsPrefix?: readonly string[];
 }
@@ -31,7 +33,7 @@ export function exegolToolset(options: ExegolToolsetOptions): Toolset {
             ...(options.argsPrefix && { argsPrefix: options.argsPrefix }),
           }),
           options.targets,
-        ),
+        ).filter((spec) => options.includeMemory !== false || spec.name !== "remember"),
         resolveParent,
       );
     },

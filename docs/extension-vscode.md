@@ -8,7 +8,7 @@ Extension privée (ADR 0004, lots E3 + E4) : chat d'agent dans VS Code, avec une
 pnpm install --frozen-lockfile
 pnpm build
 pnpm --filter @warband/vscode package        # cible win32-x64 par défaut
-code --install-extension packages/vscode/warband-0.3.26-win32-x64.vsix
+code --install-extension packages/vscode/warband-0.3.27-win32-x64.vsix
 ```
 
 Raccourci : `pnpm maj` (ou `node scripts/update.mjs`). Il enchaîne `git pull --ff-only`, `pnpm install`, `pnpm build`, l'empaquetage et `code --install-extension --force`. Options : `--check` (ajoute `pnpm check`), `--no-install`, `--dry-run`, `--target=…`. Recharger ensuite la fenêtre VS Code.
@@ -38,8 +38,8 @@ La page **Projet** affiche aussi le résumé réel du projet actif. On peut le
 modifier puis choisir **Enregistrer le résumé** ; la saisie est limitée à
 8 Kio, le brouillon est conservé pendant la navigation, et la page signale la
 réussite ou l’erreur d’écriture. Le contenu est masqué à l’écriture par les
-helpers du cœur. Le résumé sert aux nouvelles conversations ; il ne remplace
-pas l’historique et n’est pas réinjecté à une reprise.
+helpers du cœur. Les notes ne sont plus injectées automatiquement dans les conversations ; elles ne remplacent
+pas l’historique.
 
 ## Premier run
 
@@ -197,3 +197,14 @@ slider d’effort natif. La page Projet distingue le projet actif, le choix d’
 projet existant et la création dans deux panneaux séparés ; le brouillon est
 conservé quand on change de panneau. Le projet actif reste indiqué dans la
 navigation des réglages.
+
+## Isolation des conversations — 0.3.27
+
+Une nouvelle conversation ne reçoit plus le résumé du projet. L’outil remember
+n’est plus exposé dans l’extension, et la mémoire automatique du SDK est
+verrouillée à désactivée. Les événements tardifs d’un moteur abandonné ne
+peuvent pas rétablir son identifiant de session après Nouvelle conversation.
+Les notes et l’historique existants sont conservés. Reprendre explicitement
+une conversation ou changer de modèle dans cette conversation conserve son
+contexte. Citer un terminal avec # partage sa sortie dans la conversation
+courante ; les fichiers de projet restent accessibles selon les permissions.

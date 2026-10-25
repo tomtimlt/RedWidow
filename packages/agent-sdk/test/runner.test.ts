@@ -492,13 +492,13 @@ describe("garde PreToolUse", () => {
       sdkOptions: {
         ...({
           extraArgs: { "dangerously-skip-permissions": null },
-          settings: { permissions: { allow: ["Bash"] } },
+          settings: { autoMemoryEnabled: true, permissions: { allow: ["Bash"] } },
           managedSettings: { permissions: { defaultMode: "bypassPermissions" } },
         } as object),
       },
     });
     expect(options).not.toHaveProperty("extraArgs");
-    expect(options).not.toHaveProperty("settings");
+    expect(options.settings).toEqual({ autoMemoryEnabled: false });
     expect(options).not.toHaveProperty("managedSettings");
   });
 

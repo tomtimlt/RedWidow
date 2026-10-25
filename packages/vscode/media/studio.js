@@ -975,7 +975,7 @@ function start() {
           el(
             "p",
             "studio-help",
-            "Ce résumé est partagé avec l'agent au démarrage des nouvelles conversations. Il ne remplace pas l'historique.",
+            "Notes privées du projet. Non transmises automatiquement aux conversations.",
           ),
         );
         const label = el("label", "studio-help", "Résumé de session");

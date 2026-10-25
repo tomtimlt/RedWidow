@@ -258,3 +258,18 @@ dans la navigation, brouillon conservé et commandes natives inchangées.
 Validation : 1 661 tests passés, 12 ignorés. Chromium vérifie la police locale,
 le slider souris/clavier et les panneaux/création/brouillon dans trois thèmes
 à 280/360/520/900 px. Essai dans VS Code Windows à confirmer par le propriétaire.
+
+## Isolation des conversations — 0.3.27
+
+L’ADR 0019 remplace le partage implicite du résumé de l’ADR 0016 dans
+l’extension : aucune réinjection, aucun outil remember exposé, mémoire SDK
+automatique désactivée. Nouvelle conversation isole aussi les événements et
+démarrages tardifs d’un ancien moteur. Notes et historique conservés ;
+reprise explicite et changement de modèle dans le même échange inchangés.
+Les sources explicitement jointes (#terminal) et les fichiers de projet ne
+sont pas assimilés à l’historique des conversations.
+
+Validation de la 0.3.27 : 1 663 tests passés, 12 ignorés, typage et compilation
+réussis. Régressions sur l’absence d’injection, les outils exposés, les
+événements tardifs et l’annulation pendant la lecture du jeton. Revue
+architecte du correctif effectuée ; aucun appel facturé à un modèle.
