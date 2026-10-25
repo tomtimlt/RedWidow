@@ -273,3 +273,19 @@ Validation de la 0.3.27 : 1 663 tests passés, 12 ignorés, typage et compilatio
 réussis. Régressions sur l’absence d’injection, les outils exposés, les
 événements tardifs et l’annulation pendant la lecture du jeton. Revue
 architecte du correctif effectuée ; aucun appel facturé à un modèle.
+
+## Activité et contexte conteneur — 0.3.28
+
+Anneau de réflexion animé, rangée non rétractable pour éviter l’icône coupée ;
+pause approbation/vue masquée et mouvement réduit respectés. Vérification
+Chromium à 280/520/900 px, hauteurs 360/900 px, pause et mouvement réduit.
+
+Chaque tour reçoit les noms, familles et états des seuls conteneurs allowlistés
+vérifiés, afin d’éviter de choisir les outils Kali pour un Exegol lié. Contexte
+courant uniquement ; aucun historique ou résumé injecté. Texte original
+conservé pour targets.note et user.message ; gate/résolution inchangées.
+Inventaire absent distingué d’une liste vide ; délai Docker borné par commande.
+
+Validation : 1 670 tests réussis, 12 ignorés, typage et compilation réussis.
+Régressions Exegol/Kali/mixte, inventaire indisponible, filtrage des métadonnées
+et conservation du journal original. Revue architecte du branchement effectuée.

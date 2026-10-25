@@ -141,6 +141,38 @@ describe("moteur : validation des messages reçus", () => {
 });
 
 describe("moteur : journal de l'extension (F4)", () => {
+  it("enrichit chaque consigne pour le modèle et conserve uniquement l'original dans le journal", async () => {
+    const t = fakeChannel();
+    const received: string[] = [];
+    const seen: string[] = [];
+    const runner: AgentRunner = {
+      run: async ({ prompt }) => {
+        for await (const text of prompt as AsyncIterable<string>) received.push(text);
+        return { status: "success", turns: 0, costUsd: 0, result: null };
+      },
+    };
+    const done = runEngine({
+      channel: t.channel,
+      createRunner: () => runner,
+      onPrompt: (text) => {
+        seen.push(text);
+        return `${text} contexte vérifié`;
+      },
+    });
+    t.receive({ v: 1, type: "start", cwd });
+    t.receive({ v: 1, type: "prompt", text: "premier" });
+    t.receive({ v: 1, type: "prompt", text: "second" });
+    t.receive({ v: 1, type: "dispose" });
+    expect(await done).toBe(0);
+    expect(seen).toEqual(["premier", "second"]);
+    expect(received).toEqual(["premier contexte vérifié", "second contexte vérifié"]);
+    expect(
+      eventsOf(t.sent)
+        .filter((event) => event.kind === "user.message")
+        .map((event) => event.text),
+    ).toEqual(seen);
+  });
+
   it("écrit dans journalDir (hors du dépôt) et consigne chaque consigne en user.message", async () => {
     const { readFile, readdir } = await import("node:fs/promises");
     const journalDir = await mkdtemp(join(tmpdir(), "warband-journal-"));

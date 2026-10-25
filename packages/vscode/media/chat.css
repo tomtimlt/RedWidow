@@ -623,8 +623,10 @@ button.example:focus-visible::after {
 /* --- Thinking (E4) : seul foyer d'animations infinies --- */
 #thinking {
   display: none;
+  flex: none;
+  min-height: var(--jn-row);
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   align-items: center;
   gap: var(--jn-s2);
   height: var(--jn-row);
@@ -649,7 +651,22 @@ body.running #thinking {
   text-shadow: none;
 }
 #thinking .activity-icon {
-  color: var(--jn-muted);
+  flex: none;
+  color: var(--jn-accent);
+  transform-origin: center;
+  animation: jn-thinking-turn 1s linear infinite;
+}
+body.waiting #thinking .activity-icon,
+body.paused #thinking .activity-icon {
+  animation-play-state: paused;
+}
+body.waiting #thinking .activity-icon {
+  color: var(--jn-warn);
+}
+@keyframes jn-thinking-turn {
+  to {
+    transform: rotate(360deg);
+  }
 }
 body.waiting #thinking {
   color: var(--jn-warn);

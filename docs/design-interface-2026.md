@@ -127,3 +127,10 @@ séparé. La police Inter variable est embarquée avec sa licence OFL, chargée
 localement sous la CSP (font-src limité à l’origine de la webview).
 La page Projet garde un bandeau actif nom/dossier, puis sépare le choix et
 la création par deux panneaux. Le contexte actif reste dans la navigation.
+
+## Indicateur d’activité — 0.3.28
+
+La réflexion utilise un anneau SVG animé par rotation, suspendu en attente
+d’approbation ou lorsque la vue est masquée. La rangée ne peut plus rétrécir
+sous la hauteur de son icône. Mouvement réduit et contraste élevé coupent
+l’animation ; le libellé de statut reste lisible.

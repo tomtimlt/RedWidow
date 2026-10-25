@@ -3,7 +3,9 @@ import { createSdkRunner } from "@warband/agent-sdk";
 import {
   activeProject,
   CodedError,
+  createDockerClient,
   createExegolTargets,
+  createRecorder,
   defaultConfigDir,
   readActiveProjectForPrompt,
   readProjects,
@@ -11,6 +13,7 @@ import {
 import { matchesFingerprint } from "../logic/integrity.js";
 import { PROTOCOL_VERSION } from "../logic/protocol.js";
 import { processChannel } from "./channel.js";
+import { enrichContainerPrompt } from "./container-prompt.js";
 import { runEngine } from "./engine.js";
 import { runnerOptions } from "./runner-options.js";
 
@@ -29,6 +32,7 @@ const exe = join(root, "bin", process.platform === "win32" ? "claude.exe" : "cla
 const channel = processChannel();
 
 const targets = createExegolTargets();
+const docker = createDockerClient({ recorder: createRecorder(), timeoutMs: 8_000 });
 
 const done = runEngine({
   channel,
@@ -53,6 +57,7 @@ const done = runEngine({
       activeProject,
     );
     targets.note(text, outcome.containers, outcome.projectId, outcome.blocked);
+    return enrichContainerPrompt(text, outcome.containers, () => docker.listLabelPrefix());
   },
   createRunner: async (mode) => {
     // Vérification juste avant la construction du runner (fail-closed : empreinte absente = refus).

@@ -23,6 +23,7 @@ const SAFE = /^[A-Za-z0-9_\-+/=:.%~@]+$/;
  * contrairement aux glyphes Unicode. Aucun attribut d'événement, aucune ressource externe.
  */
 const ICONS = {
+  loader: '<path d="M20 12a8 8 0 1 1-8-8"/>',
   container: '<path d="m12 3 8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9"/>',
   brain:
     '<path d="M12 5v14M8 4a3 3 0 0 0-3 3 3 3 0 0 0-1 5 3 3 0 0 0 2 5 3 3 0 0 0 6 2M16 4a3 3 0 0 1 3 3 3 3 0 0 1 1 5 3 3 0 0 1-2 5 3 3 0 0 1-6 2"/>',
@@ -108,7 +109,7 @@ export function chatHtml({
 <div id="readonly" role="status" hidden><span id="readonly-text"></span><button id="readonly-resume" type="button" class="primary">Reprendre</button><button id="readonly-close" type="button" class="ghost">Fermer</button></div>
 <section id="monitor" aria-label="Commandes Exegol (lecture seule)"><div class="mon-head"><p class="hint">Sortie en direct. Cliquer une ligne pour l'ouvrir en lecture seule.</p></div><ol id="monitor-rows"></ol><p id="monitor-empty" class="empty">Aucun appel Exegol dans cette conversation.</p></section>
 <section id="approvals" aria-label="Autorisations demandées"></section>
-<div id="thinking" role="status">${icon("brain", "ico activity-icon")}<span id="thinking-label">Réflexion</span></div>
+<div id="thinking" role="status">${icon("loader", "ico activity-icon")}<span id="thinking-label">Réflexion</span></div>
 <form id="form">
 <div id="composer">
 <textarea id="input" rows="1" aria-label="Votre consigne" placeholder="Votre consigne…" title="Entrée pour envoyer, Maj+Entrée pour une nouvelle ligne"></textarea>

@@ -8,7 +8,7 @@ Extension privée (ADR 0004, lots E3 + E4) : chat d'agent dans VS Code, avec une
 pnpm install --frozen-lockfile
 pnpm build
 pnpm --filter @warband/vscode package        # cible win32-x64 par défaut
-code --install-extension packages/vscode/warband-0.3.27-win32-x64.vsix
+code --install-extension packages/vscode/warband-0.3.28-win32-x64.vsix
 ```
 
 Raccourci : `pnpm maj` (ou `node scripts/update.mjs`). Il enchaîne `git pull --ff-only`, `pnpm install`, `pnpm build`, l'empaquetage et `code --install-extension --force`. Options : `--check` (ajoute `pnpm check`), `--no-install`, `--dry-run`, `--target=…`. Recharger ensuite la fenêtre VS Code.
@@ -54,7 +54,7 @@ pas l’historique.
 - **Composer** : la zone de saisie porte une barre d'outils avec la **pastille de modèle** (liste ARIA avec filtre, ↑/↓/Début/Fin/Entrée/Échap, « Actualiser la liste » en pied), le bouton **Configurer** (curseur d'effort à crans cliquables, bouton Auto, fournisseur et configuration du chat) et Envoyer/Stop. Les popovers se placent en JavaScript (au-dessus de l'ancre, dessous si la place manque, jamais hors de l'écran) ; piège de focus, Échap et clic extérieur ferment.
 - **Présentation** : surfaces du thème VS Code, message utilisateur légèrement teinté, prose de l’agent intégrée au fil et appels d’outils repliables avec petites icônes SVG locales. Les longues sorties dépliées défilent dans une zone bornée.
 - **Configurer** : deux colonnes à partir de 420 px, une en dessous ; slider d’effort glissable et accessible au clavier, Apprentissage et Bypass regroupés. Les fonctions futures ne sont plus affichées comme des réglages disponibles. L’avertissement et la confirmation native du Bypass sont conservés.
-- **Mouvement réduit, contraste élevé, couleurs forcées** : transitions courtes et désactivées dans ces modes ; indicateur d’activité SVG statique, sans animation permanente.
+- **Mouvement réduit, contraste élevé, couleurs forcées** : transitions courtes et désactivées dans ces modes ; indicateur d’activité SVG animé pendant le travail, statique dans ces modes.
 - **Prévisualiser** : `pnpm exec vitest run packages/vscode/test/preview.test.ts` génère dans `packages/vscode/preview/` (ignoré par git) les pages du chat (9 états), du cockpit et de quatre pages des réglages (`studio-project`, `studio-containers`, `studio-atlas`, `studio-killchain`), en 3 thèmes, avec le HTML, le CSS, le JS et la CSP réels. Puis `node packages/vscode/scripts/preview-shots.mjs` (Edge ; `EDGE_BIN` pour un autre Chromium, par exemple `EDGE_BIN="C:\\...\\msedge.exe"` ou un binaire lancé avec `--no-sandbox` en conteneur) prend les captures dans `preview/shots/` : par défaut accueil (`empty`), `running`, `approval`, `model` et `config` (popovers ouverts), `cockpit` et les quatre pages `studio-*`, à 280, 360, 520 et 900 px, en sombre, clair et contraste élevé (`--states all`, `--widths`, `--themes`, `--out` pour changer). Il signale toute violation CSP et tout débordement horizontal (code de sortie 1). Les pages sont servies par un petit serveur HTTP local (127.0.0.1, port éphémère, lecture seule, arrêté en fin de script) : les masques de `icon.svg` (logo) ne se chargent pas en `file://` (CORS). Seule la source `file:` de la CSP de prévisualisation est remplacée à la volée par l'origine du serveur ; la CSP des pages de l'extension n'est pas modifiée. Ouvertes directement en `file://`, les pages s'affichent sans le logo d'accueil. L'iframe prend la hauteur de la fenêtre pour que le composer soit entier. Durée : environ 6 minutes pour la série par défaut.
 
 ## Modèle et effort
@@ -208,3 +208,17 @@ Les notes et l’historique existants sont conservés. Reprendre explicitement
 une conversation ou changer de modèle dans cette conversation conserve son
 contexte. Citer un terminal avec # partage sa sortie dans la conversation
 courante ; les fichiers de projet restent accessibles selon les permissions.
+
+## Activité et famille de conteneur — 0.3.28
+
+L’indicateur de réflexion utilise un anneau animé ; sa rangée ne peut plus
+rétrécir au point de couper l’icône. Animation suspendue pendant une approbation
+ou quand la vue est masquée ; mouvement réduit et contraste élevé respectés.
+
+À chaque consigne, le moteur joint au modèle les noms réels, familles et états
+des conteneurs liés vérifiés dans Docker. Exegol se pilote avec mcp__exegol__exec,
+Kali avec mcp__kali__*. Une liste indisponible est signalée explicitement.
+Ce contexte courant n’inclut aucune ancienne conversation. L’annotation ne
+modifie pas les @/# utilisés pour autoriser la cible et n’est pas ajoutée aux
+messages utilisateur du journal. Les contrôles au moment de l’appel restent
+décisifs si l’état du conteneur change.

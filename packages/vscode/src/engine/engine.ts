@@ -47,8 +47,9 @@ export interface EngineOptions {
   disconnectGraceMs?: number;
   /** Arrêt de l'arbre de processus à la fin du délai de grâce (défaut : `killOwnTree`). */
   killTree?: () => void;
-  /** Appelé quand une consigne est consommée, avant qu'elle n'atteigne le modèle. */
-  onPrompt?: (text: string) => void | Promise<void>;
+  /** Consigne originale consommée ; le retour optionnel enrichit seulement le texte envoyé au modèle. */
+  // biome-ignore lint/suspicious/noConfusingVoidType: préserve les callbacks existants retournant Promise<void>.
+  onPrompt?: (text: string) => string | void | Promise<string | void>;
   /** Horloge du moteur, pour le miroir du Bypass et la gate (défaut : `Date.now`). */
   now?: () => number;
   /** Chargement de la politique du run (défaut : `loadPolicy` de `core`). Tests : politique fournie. */
@@ -65,7 +66,8 @@ const isBypassMessage = (raw: unknown): boolean =>
   typeof raw === "object" && raw !== null && (raw as { type?: unknown }).type === "bypass";
 
 /** Flux de consignes d'une session multi-tours : `push` alimente, `end` clôt. */
-function createPromptStream(onTake: (text: string) => void | Promise<void>) {
+// biome-ignore lint/suspicious/noConfusingVoidType: accepte aussi les callbacks sans enrichissement.
+function createPromptStream(onTake: (text: string) => string | void | Promise<string | void>) {
   const buffer: string[] = [];
   let ended = false;
   let wake: (() => void) | null = null;
@@ -86,8 +88,8 @@ function createPromptStream(onTake: (text: string) => void | Promise<void>) {
       for (;;) {
         const next = buffer.shift();
         if (next !== undefined) {
-          await onTake(next);
-          yield next;
+          const enriched = await onTake(next);
+          yield enriched ?? next;
         } else if (ended) return;
         else await new Promise<void>((resolve) => (wake = resolve));
       }
@@ -129,8 +131,9 @@ export function runEngine({
   // Chaque consigne consommée par le runner est consignée (`user.message`) : le journal permet de rejouer le fil.
   let onUserMessage: (text: string) => void | Promise<void> = () => {};
   const prompts = createPromptStream(async (text) => {
-    await onPrompt?.(text);
+    const enriched = await onPrompt?.(text);
     await onUserMessage(text);
+    return enriched;
   });
   let queue: ReturnType<typeof createApprovalQueue> | null = null;
   let started = false;

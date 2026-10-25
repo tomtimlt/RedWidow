@@ -57,7 +57,7 @@ const decls = (r: Rule) =>
     });
 
 /** Les @keyframes gardées (design-chat-ui.md §2). Le curseur du logo (jn-blink) a disparu avec la marque. */
-const KEPT = ["jn-msg-in", "jn-pop-in", "jn-drawer-in", "jn-fade-in"];
+const KEPT = ["jn-thinking-turn", "jn-msg-in", "jn-pop-in", "jn-drawer-in", "jn-fade-in"];
 
 describe.each(CSS_FILES)("%s : budget de performance (design-chat-ui.md §2)", (file) => {
   const css = readFileSync(
@@ -106,14 +106,14 @@ describe.each(CSS_FILES)("%s : budget de performance (design-chat-ui.md §2)", (
         .filter(([k, v]) => k === "animation" && /\binfinite\b/.test(v))
         .map(() => r),
     );
-    if (file === "chat.css") expect(infinite.length).toBe(0);
+    if (file === "chat.css") expect(infinite.length).toBe(1);
     expect(infinite.length).toBeLessThanOrEqual(1);
     for (const r of infinite) {
       expect(r.selector, r.selector).toMatch(/^#thinking\b/);
     }
   });
 
-  it("l'ensemble des @keyframes est exactement les quatre gardés (M2 à M6)", () => {
+  it("l'ensemble des @keyframes est exactement les cinq gardés (M2 à M6)", () => {
     const expected = file === "chat.css" ? KEPT : [];
     expect([...keyframes.keys()].sort()).toEqual([...expected].sort());
   });
