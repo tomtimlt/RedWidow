@@ -388,6 +388,7 @@ function start() {
   const summaryDrafts = new Map();
   const summarySaving = new Set();
   let projectNameDraft = "";
+  let projectPanel = null;
 
   const el = (tag, className, text) => {
     const node = document.createElement(tag);
@@ -401,10 +402,22 @@ function start() {
     return node;
   };
 
-  function paintNav(current, findings) {
+  function paintNav(current, findings, view) {
     if (!nav) return;
     while (nav.firstChild) nav.removeChild(nav.firstChild);
     nav.append(el("div", "studio-nav-title", "Réglages"));
+    const active = view.projectChoices?.projects?.find(
+      (project) => project.id === view.projectChoices.activeId,
+    );
+    const activeName = active?.name ?? view.projectSummary?.projectName;
+    if (typeof activeName === "string") {
+      const context = el("div", "studio-nav-project");
+      context.append(
+        el("span", "studio-kicker", "Projet actif"),
+        el("strong", "studio-nav-project-name", activeName),
+      );
+      nav.append(context);
+    }
     for (const group of navModel(current, findings)) {
       const section = el("div", "studio-group");
       section.append(el("p", "studio-group-title", group.label));
@@ -804,7 +817,7 @@ function start() {
     graphCleanup = () => {};
     graphStatus = null;
     while (main.firstChild) main.removeChild(main.firstChild);
-    if (!killchainOnly) paintNav(page, view.findings);
+    if (!killchainOnly) paintNav(page, view.findings, view);
     if (page === "project") {
       const sec = el("section", "studio-card");
       sec.append(el("h2", "", "Projet"));
@@ -815,16 +828,58 @@ function start() {
           sec.append(
             el("p", "studio-help", "Attendez la fin du travail en cours pour changer de projet."),
           );
-        if (typeof view.projectCreated === "string") projectNameDraft = "";
+        if (typeof view.projectCreated === "string") {
+          projectNameDraft = "";
+          projectPanel = "choose";
+        }
         const current = choices.projects.find((p) => p.id === choices.activeId);
-        sec.append(
-          el(
-            "p",
-            "studio-help",
-            current ? `Projet actif : ${current.name}` : "Aucun projet actif.",
-          ),
-        );
-        if (current) sec.append(el("p", "studio-help", current.workspace));
+        const active = el("div", "studio-project-active");
+        active.append(el("p", "studio-kicker", "Projet actif"));
+        active.append(el("p", "studio-project-active-name", current?.name ?? "Aucun projet actif"));
+        if (current) active.append(el("p", "studio-project-path", current.workspace));
+        sec.append(active);
+
+        if (choices.projects.length === 0) projectPanel = "create";
+        else if (projectPanel === null) projectPanel = "choose";
+        const tabs = el("div", "studio-project-tabs");
+        tabs.setAttribute("role", "group");
+        tabs.setAttribute("aria-label", "Gestion des projets");
+        const chooseTab = el("button", "", "Choisir un projet");
+        chooseTab.type = "button";
+        chooseTab.id = "project-choose-tab";
+        chooseTab.disabled = choices.projects.length === 0;
+        const createTab = el("button", "", "Nouveau projet");
+        createTab.type = "button";
+        createTab.id = "project-create-tab";
+        const choosePanel = el("div", "studio-project-panel");
+        choosePanel.id = "project-choose-panel";
+        choosePanel.setAttribute("role", "region");
+        choosePanel.setAttribute("aria-labelledby", chooseTab.id);
+        const createPanel = el("div", "studio-project-panel");
+        createPanel.id = "project-create-panel";
+        createPanel.setAttribute("role", "region");
+        createPanel.setAttribute("aria-labelledby", createTab.id);
+        chooseTab.setAttribute("aria-controls", choosePanel.id);
+        createTab.setAttribute("aria-controls", createPanel.id);
+        const showPanel = (next) => {
+          projectPanel = next;
+          choosePanel.hidden = next !== "choose";
+          createPanel.hidden = next !== "create";
+          for (const [button, id] of [
+            [chooseTab, "choose"],
+            [createTab, "create"],
+          ]) {
+            button.className = `ghost studio-project-tab${next === id ? " is-current" : ""}`;
+            button.setAttribute("aria-pressed", String(next === id));
+          }
+        };
+        chooseTab.addEventListener("click", () => {
+          if (!chooseTab.disabled) showPanel("choose");
+        });
+        createTab.addEventListener("click", () => showPanel("create"));
+        showPanel(projectPanel);
+        tabs.append(chooseTab, createTab);
+        sec.append(tabs, choosePanel, createPanel);
         if (choices.projects.length > 0) {
           const label = el("label", "studio-help", "Choisir un projet");
           label.htmlFor = "project-choice";
@@ -853,7 +908,7 @@ function start() {
             vscode.postMessage({ type: "activateProject", projectId: select.value });
           });
           update();
-          sec.append(label, select, activate);
+          choosePanel.append(label, select, activate);
         }
         const label = el("label", "studio-help", "Nom du nouveau projet");
         label.htmlFor = "project-name";
@@ -863,7 +918,7 @@ function start() {
         name.maxLength = 80;
         name.value = projectNameDraft;
         name.disabled = projectBusy;
-        const create = el("button", "ghost", "Créer un projet et choisir son dossier…");
+        const create = el("button", "primary", "Créer un projet et choisir son dossier…");
         create.type = "button";
         const update = () => {
           create.disabled = projectBusy || !name.value.trim();
@@ -878,7 +933,12 @@ function start() {
           vscode.postMessage({ type: "createProject", name: name.value.trim() });
         });
         update();
-        sec.append(label, name, create);
+        createPanel.append(
+          el("p", "studio-help", "Donnez un nom au projet, puis choisissez son dossier."),
+          label,
+          name,
+          create,
+        );
       }
       if (typeof view.projectError === "string") {
         const error = el("p", "studio-help", view.projectError);
@@ -903,7 +963,7 @@ function start() {
         sec.append(el("p", "studio-help", b.workspace));
         const del = el("button", "ghost");
         del.type = "button";
-        del.append(el("span", "btn-text", "Retirer le projet"));
+        del.append(el("span", "btn-text", "Délier le conteneur affiché"));
         del.addEventListener("click", () => vscode.postMessage({ type: "unlink" }));
         sec.append(del);
       }

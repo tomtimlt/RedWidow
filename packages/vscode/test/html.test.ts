@@ -19,7 +19,7 @@ describe("HTML du chat : CSP stricte", () => {
 
   it("politique exacte, sans unsafe-* ni source distante", () => {
     expect(csp).toBe(
-      "default-src 'none'; script-src 'nonce-abc123_-XYZ'; style-src https://x.vscode-cdn.net; img-src https://x.vscode-cdn.net",
+      "default-src 'none'; script-src 'nonce-abc123_-XYZ'; style-src https://x.vscode-cdn.net; img-src https://x.vscode-cdn.net; font-src https://x.vscode-cdn.net",
     );
     expect(csp).not.toMatch(/unsafe|\*|http:|data:/);
   });

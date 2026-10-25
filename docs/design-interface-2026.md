@@ -117,3 +117,13 @@ largeurs ci-dessus, les trois thèmes et la navigation clavier. Les actions,
 états et messages doivent rester ceux du moteur ; CSP et rendu en texte sûr
 restent en vigueur. Les modifications sont évaluées sur les captures réelles
 de la nouvelle interface, en plus des contrôles automatisés.
+
+## Ajustements demandés pour la 0.3.26
+
+Envoyer et les voyants d’état sont circulaires. Le réglage d’effort est un
+véritable slider natif avec piste remplie, pouce rond, souris et clavier ;
+seuls les niveaux compatibles avec le modèle sont proposés, Auto reste
+séparé. La police Inter variable est embarquée avec sa licence OFL, chargée
+localement sous la CSP (font-src limité à l’origine de la webview).
+La page Projet garde un bandeau actif nom/dossier, puis sépare le choix et
+la création par deux panneaux. Le contexte actif reste dans la navigation.

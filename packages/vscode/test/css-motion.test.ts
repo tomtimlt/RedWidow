@@ -234,6 +234,7 @@ describe.each(CSS_FILES)("%s : budget de performance (design-chat-ui.md §2)", (
   it("border-radius : 0, jeton ou pilule du chat ; jetons de rayon ≤ 12 px ; au plus une ombre non inset", () => {
     const pills = new Set([
       "#toolbar #send",
+      "#effort-scale",
       "#bar button.ghost",
       "#composer button.ghost",
       ".chip",
@@ -257,7 +258,13 @@ describe.each(CSS_FILES)("%s : budget de performance (design-chat-ui.md §2)", (
             }
           } else if (v === "50%") {
             // Les nœuds du graphe et leurs badges sont circulaires (demande produit).
-            expect([".kc-node-head", ".kc-node-badge"]).toContain(r.selector);
+            expect([
+              ".kc-node-head",
+              ".kc-node-badge",
+              "#toolbar #send",
+              ".dot",
+              "#effort::-webkit-slider-thumb",
+            ]).toContain(r.selector);
           } else {
             expect(v, r.selector).toMatch(/^(0|var\(--jn-r-(sm|md|lg)\))$/);
           }

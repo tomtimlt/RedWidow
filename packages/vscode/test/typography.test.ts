@@ -73,7 +73,7 @@ describe("typographie (§1.4)", () => {
     expect(css).toMatch(/--jn-fs-xs: 11px;/);
     expect(css).toMatch(/--jn-fs-sm: 12px;/);
     expect(css).toMatch(/--jn-fs-lg: 14px;/);
-    expect(css).toMatch(/--jn-font: var\(--vscode-font-family/);
+    expect(css).toMatch(/--jn-font: "Warband Inter", var\(--vscode-font-family/);
     expect(css).toMatch(/--jn-mono: var\(--vscode-editor-font-family/);
   });
 
@@ -114,7 +114,6 @@ describe("typographie (§1.4)", () => {
       // noms d'outils et identifiants (le chrome des pastilles reste en police d'interface)
       ".tool-summary",
       ".opt-label",
-      ".effort-now",
       // compteurs
       ".badge",
       ".cockpit-count",
@@ -258,7 +257,6 @@ describe("composants (§5)", () => {
 
   it("contrôles compacts à rayon sm et compositeur à rayon lg", () => {
     for (const sel of [
-      "#toolbar #send",
       "#toolbar #stop",
       "#bar button.ghost",
       "#composer button.ghost",
@@ -266,13 +264,16 @@ describe("composants (§5)", () => {
     ]) {
       expect(has(sel, "border-radius", "var(--jn-r-sm)"), sel).toBe(true);
     }
+    expect(has("#toolbar #send", "border-radius", "50%")).toBe(true);
+    expect(has(".dot", "border-radius", "50%")).toBe(true);
     expect(has("#composer", "border-radius", "var(--jn-r-lg)")).toBe(true);
     expect(has(".msg.user", "border-radius", "var(--jn-r-md)")).toBe(true);
   });
-  it("curseur d'effort : piste --jn-line, partie remplie --jn-accent-fill, pouce carré", () => {
-    expect(has("#effort-dot-lane::before", "background", "var(--jn-line)")).toBe(true);
-    expect(has("#effort-dot-lane::after", "background", "var(--jn-accent-fill)")).toBe(true);
-    expect(has("#effort-dot::before", "border-radius", "0")).toBe(true);
+  it("slider natif : piste remplie et pouce rond, focus clavier visible", () => {
+    expect(has("#effort", "appearance", "none")).toBe(true);
+    expect(has("#effort-scale::before", "background", "var(--jn-accent-fill)")).toBe(true);
+    expect(has("#effort::-webkit-slider-thumb", "border-radius", "50%")).toBe(true);
+    expect(has("#effort:focus-visible", "outline-offset", "-2px")).toBe(true);
   });
 
   it("liseré gauche : 2 px au plus, carte d'approbation en --jn-warn", () => {

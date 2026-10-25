@@ -248,3 +248,13 @@ et conteneurs à 280/360/520/900 px, en sombre/clair/contraste élevé ; outils 
 création dépliés, aucune erreur JavaScript ni débordement horizontal.
 La validation visuelle dans VS Code sur le poste Windows du propriétaire reste
 à effectuer avec le VSIX de cette version.
+
+## Lisibilité et réglage d’effort — 0.3.26
+
+Envoyer et les voyants sont ronds ; police Inter variable embarquée sous OFL.
+Slider natif souris/clavier, borné aux efforts compatibles, retour Auto
+conservé. Projet actif distinct des panneaux Choisir/Nouveau, contexte rappelé
+dans la navigation, brouillon conservé et commandes natives inchangées.
+Validation : 1 661 tests passés, 12 ignorés. Chromium vérifie la police locale,
+le slider souris/clavier et les panneaux/création/brouillon dans trois thèmes
+à 280/360/520/900 px. Essai dans VS Code Windows à confirmer par le propriétaire.

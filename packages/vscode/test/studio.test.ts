@@ -541,7 +541,10 @@ class StudioNode {
   removeChild(node: StudioNode) {
     this.children = this.children.filter((n) => n !== node);
   }
-  setAttribute() {}
+  attributes = new Map<string, string>();
+  setAttribute(key: string, value: string) {
+    this.attributes.set(key, value);
+  }
   addEventListener(type: string, listener: () => void) {
     const previous = this.listeners.get(type);
     this.listeners.set(type, () => {
@@ -626,6 +629,7 @@ it("mémoire : saisie, plafond multioctet, conservation du brouillon et accusé 
 
 it("projets : choisir un projet réel et créer avec le nom seul, dossier laissé à l'hôte", () => {
   const main = new StudioNode("main");
+  const nav = new StudioNode("nav");
   const sent: unknown[] = [];
   let receive: (event: { data: unknown }) => void = () => {};
   runInNewContext(read(studioJs), {
@@ -633,10 +637,12 @@ it("projets : choisir un projet réel et créer avec le nom seul, dossier laiss�
     acquireVsCodeApi: () => ({ postMessage: (message: unknown) => sent.push(message) }),
     document: {
       body: new StudioNode("body"),
-      getElementById: (id: string) => (id === "studio-main" ? main : null),
+      getElementById: (id: string) =>
+        id === "studio-main" ? main : id === "studio-nav" ? nav : null,
       createElement: (tag: string) => new StudioNode(tag),
     },
     window: {
+      WarbandIcons: { create: () => new StudioNode("svg") },
       addEventListener: (_type: string, listener: typeof receive) => {
         receive = listener;
       },
@@ -662,6 +668,15 @@ it("projets : choisir un projet réel et créer avec le nom seul, dossier laiss�
     if (!node) throw new Error("Contrôle projet introuvable");
     return node;
   };
+  expect(nav.find((n) => n.className === "studio-nav-project-name")?.textContent).toBe("Premier");
+  const choosePanel = find((n) => n.id === "project-choose-panel");
+  const createPanel = find((n) => n.id === "project-create-panel");
+  const chooseTab = find((n) => n.id === "project-choose-tab");
+  const createTab = find((n) => n.id === "project-create-tab");
+  expect(choosePanel.hidden).toBe(false);
+  expect(createPanel.hidden).toBe(true);
+  expect(chooseTab.attributes.get("aria-pressed")).toBe("true");
+  expect(find((n) => n.className === "studio-project-active-name").textContent).toBe("Premier");
   const choose = find((n) => n.id === "project-choice");
   const activate = find((n) => n.textContent === "Activer le projet");
   expect(activate.disabled).toBe(true);
@@ -670,11 +685,18 @@ it("projets : choisir un projet réel et créer avec le nom seul, dossier laiss�
   expect(activate.disabled).toBe(false);
   activate.fire("click");
   expect(sent.at(-1)).toEqual({ type: "activateProject", projectId: second });
+  createTab.fire("click");
+  expect(choosePanel.hidden).toBe(true);
+  expect(createPanel.hidden).toBe(false);
+  expect(createTab.attributes.get("aria-pressed")).toBe("true");
   const create = find((n) => n.textContent === "Créer un projet et choisir son dossier…");
   expect(create.disabled).toBe(true);
   const name = find((n) => n.id === "project-name");
   name.value = " Nouvelle mission ";
   name.fire("input");
+  chooseTab.fire("click");
+  createTab.fire("click");
+  expect(name.value).toBe(" Nouvelle mission ");
   create.fire("click");
   expect(sent.at(-1)).toEqual({ type: "createProject", name: "Nouvelle mission" });
   receive({
@@ -688,12 +710,44 @@ it("projets : choisir un projet réel et créer avec le nom seul, dossier laiss�
       },
     },
   });
+  expect(find((n) => n.id === "project-name").value).toBe(" Nouvelle mission ");
+  expect(find((n) => n.id === "project-create-panel").hidden).toBe(false);
   expect(find((n) => n.id === "project-choice").disabled).toBe(true);
   expect(find((n) => n.id === "project-name").disabled).toBe(true);
   expect(find((n) => n.textContent === "Activer le projet").disabled).toBe(true);
   expect(find((n) => n.textContent === "Créer un projet et choisir son dossier…").disabled).toBe(
     true,
   );
+  const before = sent.length;
+  find((n) => n.textContent === "Activer le projet").fire("click");
+  find((n) => n.textContent === "Créer un projet et choisir son dossier…").fire("click");
+  expect(sent).toHaveLength(before);
+  receive({
+    data: { type: "view", page: "project", projectChoices: { activeId: null, projects: [] } },
+  });
+  expect(find((n) => n.id === "project-create-panel").hidden).toBe(false);
+  expect(find((n) => n.id === "project-choose-tab").disabled).toBe(true);
+  receive({
+    data: {
+      type: "view",
+      page: "project",
+      projectCreated: first,
+      projectChoices: {
+        activeId: first,
+        projects: [{ id: first, name: "Premier", workspace: "/mission" }],
+      },
+      linkedBanner: { name: "exegol-lab", workspace: "/mission" },
+    },
+  });
+  expect(find((n) => n.id === "project-create-panel").hidden).toBe(true);
+  expect(find((n) => n.id === "project-name").value).toBe("");
+  const unlink = find(
+    (n) =>
+      n.tag === "button" &&
+      n.children.some((child) => child.textContent === "Délier le conteneur affiché"),
+  );
+  unlink.fire("click");
+  expect(sent.at(-1)).toEqual({ type: "unlink" });
 });
 
 it("graphe : conserve la caméra, libère les observateurs et signale une erreur sans vider les trouvailles", () => {

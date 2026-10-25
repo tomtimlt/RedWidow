@@ -285,7 +285,6 @@
   const modelList = $("model-list");
   const modelInput = $("model-input");
   const effortInput = $("effort");
-  const ticks = $("effort-ticks");
   let ctl = null;
   let levels = [];
   let query = "";
@@ -465,7 +464,7 @@
       if (document.activeElement !== modelInput) modelInput.value = c.model ?? "";
     } else if (modelPop.matches(":popover-open")) renderModelList(false);
 
-    levels = c.levels;
+    levels = c.levels.filter((level) => level.enabled);
     const auto = c.effort === null;
     $("effort-auto").hidden = auto;
     $("effort-auto").disabled = c.locked;
@@ -479,8 +478,7 @@
         );
     effortInput.value = String(idx);
     const scale = $("effort-scale");
-    scale.style.setProperty("--jn-n", String(Math.max(levels.length, 1)));
-    scale.style.setProperty("--jn-i", String(idx));
+    scale.style.setProperty("--jn-progress", String(idx / Math.max(levels.length - 1, 1)));
     scale.classList.toggle("auto", auto);
     effortInput.disabled = c.locked || c.effortDisabled;
     effortInput.title = c.effortDisabled ? "Ce modèle n'a pas d'effort réglable." : c.effortTip;
@@ -497,21 +495,6 @@
     learningSwitch.setAttribute("aria-checked", String(c.learning === true));
     learningSwitch.setAttribute("aria-disabled", String(c.locked));
     renderBypass();
-    ticks.replaceChildren(
-      ...levels.map((l) => {
-        const t = el("button", l.value === c.effort ? "on" : l.enabled ? "" : "off", l.label);
-        t.type = "button";
-        t.disabled = !l.enabled || c.locked || c.effortDisabled;
-        t.setAttribute("aria-pressed", String(l.value === c.effort));
-        if (!l.enabled) t.title = "Non pris en charge par ce modèle";
-        else
-          t.addEventListener("click", () => {
-            if (ctl && !ctl.locked && !ctl.effortDisabled)
-              vscode.postMessage({ type: "setEffort", effort: l.value });
-          });
-        return t;
-      }),
-    );
   }
 
   wirePop(modelPop, modelChip, {
@@ -750,9 +733,21 @@
   $("effort-auto").addEventListener("click", () =>
     vscode.postMessage({ type: "setEffort", effort: null }),
   );
+  effortInput.addEventListener("input", () => {
+    const index = Number(effortInput.value);
+    const level = levels[index];
+    if (!level || !ctl || ctl.locked || ctl.effortDisabled) return;
+    $("effort-scale").style.setProperty(
+      "--jn-progress",
+      String(index / Math.max(levels.length - 1, 1)),
+    );
+    $("effort-label").textContent = level.label;
+    effortInput.setAttribute("aria-valuetext", level.label);
+  });
   effortInput.addEventListener("change", () => {
     const level = levels[Number(effortInput.value)];
-    if (level) vscode.postMessage({ type: "setEffort", effort: level.value });
+    if (level && ctl && !ctl.locked && !ctl.effortDisabled)
+      vscode.postMessage({ type: "setEffort", effort: level.value });
   });
 
   // --- Historique : liste des conversations (chaînes déjà neutralisées par l'extension) ---

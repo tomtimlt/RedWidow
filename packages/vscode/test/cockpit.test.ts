@@ -835,7 +835,7 @@ describe("cockpitHtml : CSP", () => {
 
   it("politique identique au chat, icônes et application sous nonce", () => {
     expect(csp).toBe(
-      "default-src 'none'; script-src 'nonce-abc123_-XYZ'; style-src https://x.vscode-cdn.net; img-src https://x.vscode-cdn.net",
+      "default-src 'none'; script-src 'nonce-abc123_-XYZ'; style-src https://x.vscode-cdn.net; img-src https://x.vscode-cdn.net; font-src https://x.vscode-cdn.net",
     );
     const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)];
     expect(scripts).toHaveLength(2);

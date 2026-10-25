@@ -118,6 +118,13 @@ function serve() {
         return send(400, "text/plain", "paramètres invalides");
       return send(200, TYPES[".html"], host(`/preview/${src}`, w, h));
     }
+    if (url.pathname === "/media/fonts/inter-latin.woff2") {
+      return send(
+        200,
+        "font/woff2",
+        readFileSync(join(pkg, "media", "fonts", "inter-latin.woff2")),
+      );
+    }
     const m = /^\/(preview|media)\/([^/]+)$/.exec(url.pathname);
     if (!m || !SAFE_NAME.test(m[2])) return send(404, "text/plain", "introuvable");
     const file = join(pkg, m[1], m[2]);
@@ -126,7 +133,10 @@ function serve() {
     if (m[1] === "preview" && m[2].endsWith(".html"))
       body = body
         .toString("utf8")
-        .replace("style-src file:; img-src file:", `style-src ${origin}; img-src ${origin}`);
+        .replace(
+          "style-src file:; img-src file:; font-src file:",
+          `style-src ${origin}; img-src ${origin}; font-src ${origin}`,
+        );
     send(200, TYPES[extname(m[2])], body);
   });
   return new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve(server)));
