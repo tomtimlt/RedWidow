@@ -45,7 +45,7 @@ export interface Finding {
 
 const MAX_FROM = 8;
 
-const MAX_LABEL = 200;
+export const FINDING_MAX_LABEL = 200;
 const MAX_FINDINGS = 200;
 
 function invalid() {
@@ -101,7 +101,7 @@ export async function readFindings(configDir: string, projectId: string): Promis
     const rec = row as Record<string, unknown>;
     if (typeof rec.id !== "string" || rec.id === "") throw invalid();
     if (!isKind(rec.kind) || !isState(rec.state)) throw invalid();
-    if (typeof rec.label !== "string" || rec.label === "" || rec.label.length > MAX_LABEL) {
+    if (typeof rec.label !== "string" || rec.label === "" || rec.label.length > FINDING_MAX_LABEL) {
       throw invalid();
     }
     const finding: Finding = { id: rec.id, kind: rec.kind, label: rec.label, state: rec.state };
@@ -136,9 +136,10 @@ export async function appendFinding(
 ): Promise<Finding> {
   const path = projectFindingsPath(configDir, projectId);
   const label = input.label.trim();
-  if (label === "" || label.length > MAX_LABEL || !isKind(input.kind) || !isState(input.state)) {
-    throw invalid();
+  if (label === "" || label.length > FINDING_MAX_LABEL) {
+    throw new CodedError("finding.labelInvalid", { max: FINDING_MAX_LABEL });
   }
+  if (!isKind(input.kind) || !isState(input.state)) throw invalid();
   if (input.tactic !== undefined && !isTactic(input.tactic)) throw invalid();
   if (input.technique !== undefined && !isTechnique(input.technique)) throw invalid();
   const from = input.from === undefined ? [] : [...new Set(input.from)];

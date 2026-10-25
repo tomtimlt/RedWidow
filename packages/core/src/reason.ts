@@ -123,6 +123,7 @@ export const REASON_CODES = [
   "project.notRunning",
   "project.noWorkspace",
   "project.invalid",
+  "finding.labelInvalid",
   "project.absent",
   "project.readFailed",
   "cours.absent",

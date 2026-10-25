@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import {
   appendFinding,
   createExegolTargets,
@@ -171,4 +172,43 @@ describe("trouvailles Exegol", () => {
     await expect(run("invalid")).rejects.toMatchObject({ code: "project.invalid" });
     await expect(run("readFailed")).rejects.toMatchObject({ code: "project.readFailed" });
   });
+});
+
+it("note : titre borné dans le schéma, erreur dédiée et réessai sans perte", async () => {
+  const d = await dir();
+  const root = process.env.XDG_CONFIG_HOME;
+  process.env.XDG_CONFIG_HOME = d;
+  try {
+    const targets = createExegolTargets();
+    targets.note("observation", [], ID);
+    const note = exegolToolSpecs({} as DockerClient, targets).find((spec) => spec.name === "note");
+    if (!note) throw new Error("outil note absent");
+    const ctx = { parentId: null, correlation: undefined, signal: undefined };
+    const input = { kind: "step", label: "a".repeat(201), state: "confirmed" };
+    expect(z.object(note.input).safeParse(input).success).toBe(false);
+    await expect(note.run(input, ctx)).rejects.toMatchObject({
+      code: "finding.labelInvalid",
+      params: { max: 200 },
+    });
+    expect(await readdir(d)).toEqual([]);
+    await note.run({ ...input, label: "a".repeat(200) }, ctx);
+    const saved = await readFindings(join(d, "warband"), ID);
+    expect(saved).toHaveLength(1);
+    await expect(
+      appendFinding(join(d, "warband"), ID, {
+        kind: "step",
+        label: "b".repeat(201),
+        state: "confirmed",
+      }),
+    ).rejects.toMatchObject({ code: "finding.labelInvalid" });
+    expect(await readFindings(join(d, "warband"), ID)).toEqual(saved);
+    await note.run(
+      { ...input, label: "Sous-domaines — résultats dans /workspace/subfinder_cesi.fr.txt" },
+      ctx,
+    );
+    expect(await readFindings(join(d, "warband"), ID)).toHaveLength(2);
+  } finally {
+    if (root === undefined) delete process.env.XDG_CONFIG_HOME;
+    else process.env.XDG_CONFIG_HOME = root;
+  }
 });

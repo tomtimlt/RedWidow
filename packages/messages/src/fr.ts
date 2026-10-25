@@ -238,6 +238,8 @@ export const reasons: Catalog = {
   "project.notExegol": (p) => `conteneur non Exegol : ${text(p.name)}`,
   "project.notRunning": (p) => `conteneur arrêté : ${text(p.name)}`,
   "project.noWorkspace": (p) => `conteneur sans montage /workspace : ${text(p.name)}`,
+  "finding.labelInvalid": (p) =>
+    `libellé de trouvaille invalide : utiliser un titre de 1 à ${text(p.max)} caractères ; conserver les détails dans le fichier de résultats, puis réessayer note avec un titre court.`,
   "project.invalid": () => "projet invalide : fichier project.json illisible ou incomplet",
   "project.absent": () => "aucun projet actif",
   "project.readFailed": () => "lecture du projet impossible ce tour-ci",

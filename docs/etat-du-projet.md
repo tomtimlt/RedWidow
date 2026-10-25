@@ -289,3 +289,14 @@ Inventaire absent distingué d’une liste vide ; délai Docker borné par comma
 Validation : 1 670 tests réussis, 12 ignorés, typage et compilation réussis.
 Régressions Exegol/Kali/mixte, inventaire indisponible, filtrage des métadonnées
 et conservation du journal original. Revue architecte du branchement effectuée.
+
+## Erreur de libellé de trouvaille — 0.3.29
+
+Un label note dépassant 200 caractères renvoyait à tort project.invalid, alors
+que le projet pouvait être valide. Limite documentée et exposée dans le schéma,
+erreur finding.labelInvalid traduite en français/anglais, refus sans écriture
+ni troncature puis réessai possible avec un titre court. La limite du graphe
+et les validations du projet restent inchangées.
+Validation : 1 672 tests réussis, 12 ignorés, typage/compilation et VSIX Windows
+réussis. Régression sur la borne 200/201, le schéma exposé, l’absence d’écriture
+en cas de rejet, la conservation des trouvailles et le réessai valide.

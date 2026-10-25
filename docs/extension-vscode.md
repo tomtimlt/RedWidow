@@ -8,7 +8,7 @@ Extension privée (ADR 0004, lots E3 + E4) : chat d'agent dans VS Code, avec une
 pnpm install --frozen-lockfile
 pnpm build
 pnpm --filter @warband/vscode package        # cible win32-x64 par défaut
-code --install-extension packages/vscode/warband-0.3.28-win32-x64.vsix
+code --install-extension packages/vscode/warband-0.3.29-win32-x64.vsix
 ```
 
 Raccourci : `pnpm maj` (ou `node scripts/update.mjs`). Il enchaîne `git pull --ff-only`, `pnpm install`, `pnpm build`, l'empaquetage et `code --install-extension --force`. Options : `--check` (ajoute `pnpm check`), `--no-install`, `--dry-run`, `--target=…`. Recharger ensuite la fenêtre VS Code.
@@ -222,3 +222,12 @@ Ce contexte courant n’inclut aucune ancienne conversation. L’annotation ne
 modifie pas les @/# utilisés pour autoriser la cible et n’est pas ajoutée aux
 messages utilisateur du journal. Les contrôles au moment de l’appel restent
 décisifs si l’état du conteneur change.
+
+## Titres des trouvailles — 0.3.29
+
+Le champ label de note est un titre court, limité à 200 caractères après
+suppression des espaces de bord. La limite figure dans le schéma transmis au
+modèle. Un titre trop long ou vide produit une erreur dédiée proposant de
+réessayer avec un titre court ; il ne signale plus un project.json invalide.
+Aucune troncature silencieuse : les détails restent dans leur fichier de
+résultats, référencé depuis le titre. Un rejet n’altère aucune trouvaille.

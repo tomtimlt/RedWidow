@@ -42,6 +42,8 @@ export const reasons: Catalog = {
   "project.notExegol": (p) => `not an Exegol container: ${text(p.name)}`,
   "project.notRunning": (p) => `container not running: ${text(p.name)}`,
   "project.noWorkspace": (p) => `container without /workspace mount: ${text(p.name)}`,
+  "finding.labelInvalid": (p) =>
+    `invalid finding label: use a title of 1 to ${text(p.max)} characters; keep details in the results file and retry note with a short title.`,
   "project.invalid": () => "invalid project: unreadable or incomplete project.json",
   "project.absent": () => "no active project",
   "project.readFailed": () => "could not read the active project this turn",

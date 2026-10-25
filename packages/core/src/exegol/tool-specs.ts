@@ -8,6 +8,7 @@ import { CodedError } from "../reason.js";
 import {
   appendFinding,
   FINDING_KINDS,
+  FINDING_MAX_LABEL,
   FINDING_STATES,
   MITRE_TACTICS,
   type MitreTactic,
@@ -37,7 +38,15 @@ function spec(def: {
     name: def.name,
     description: def.description,
     input: def.input,
-    run: async (args, ctx) => def.run(schema.parse(args) as Record<string, unknown>, callOf(ctx)),
+    run: async (args, ctx) => {
+      const parsed = schema.safeParse(args);
+      if (!parsed.success) {
+        if (def.name === "note" && parsed.error.issues.some((issue) => issue.path[0] === "label"))
+          throw new CodedError("finding.labelInvalid", { max: FINDING_MAX_LABEL });
+        throw parsed.error;
+      }
+      return def.run(parsed.data as Record<string, unknown>, callOf(ctx));
+    },
   };
 }
 
@@ -84,13 +93,20 @@ export function exegolToolSpecs(docker: DockerClient, targets: ExegolTargets): D
     spec({
       name: "note",
       description:
-        "Note une trouvaille (hôte, identifiant, site, étape, butin) avec un état confirmé, hypothèse ou échoué. Pas d'exemple, seulement ce qui a été observé. " +
+        "Note une trouvaille (hôte, identifiant, site, étape, butin) avec un état confirmé, hypothèse ou échoué. Le label est un titre court de 200 caractères maximum, pas un rapport : garder les détails dans le fichier de résultats. Pas d'exemple, seulement ce qui a été observé. " +
         "tactic : tactique MITRE ATT&CK, TA0043 Reconnaissance, TA0042 Resource Development, TA0001 Initial Access, TA0002 Execution, TA0003 Persistence, TA0004 Privilege Escalation, TA0005 Defense Evasion, TA0006 Credential Access, TA0007 Discovery, TA0008 Lateral Movement, TA0009 Collection, TA0011 Command and Control, TA0010 Exfiltration, TA0040 Impact. " +
         "technique : identifiant de technique (Txxxx ou Txxxx.xxx), seulement si elle est certaine. " +
         "from : ids des trouvailles qui ont mené à celle-ci. Le retour commence par l'id de la trouvaille.",
       input: {
         kind: z.enum(FINDING_KINDS),
-        label: z.string(),
+        label: z
+          .string()
+          .trim()
+          .min(1)
+          .max(FINDING_MAX_LABEL)
+          .describe(
+            "Titre court (200 caractères maximum). Les résultats détaillés restent dans leur fichier.",
+          ),
         state: z.enum(FINDING_STATES),
         tactic: z.enum(MITRE_TACTICS).optional(),
         technique: z.string().regex(TECHNIQUE_PATTERN).optional(),
