@@ -1,6 +1,6 @@
 # Warband — parcours, état actuel et reprise
 
-État inspecté le 26 octobre 2026 pour la version 0.3.44. Ce document sert de point d'entrée produit ;
+État inspecté le 26 octobre 2026 pour la version 0.3.45. Ce document sert de point d'entrée produit ;
 les ADR expliquent les décisions, les idées restent une réserve.
 
 ## Le parcours de référence
@@ -15,10 +15,27 @@ parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
 
-La version du manifeste est **0.3.44**. Les paragraphes
+La version du manifeste est **0.3.45**. Les paragraphes
 0.3.19 à 0.3.29 ci-dessous sont des relevés historiques, pas les preuves de
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
+
+## Lot 0.3.45 — scans longs supervisés (publication en préparation)
+
+Un scan Nmap complet demandé par `nmap_scan` est refusé avant tout lancement
+avec le code `kali.taskRequired`, traduit en français et en anglais. L'agent
+doit choisir `task_start` explicitement, avec ses approbations habituelles.
+Les vérifications Nmap courtes restent disponibles. Les commandes longues
+arbitraires ne sont pas automatiquement converties ni reprises.
+
+Les consignes Kali et du moteur expliquent le cycle `task_list`, `task_start`,
+`task_status`, `task_cancel`, les processus synchrones absents de `task_list`,
+le shell POSIX sans expansion des accolades et le respect du dossier demandé
+par l'utilisateur pour les résultats. Les journaux techniques des tâches
+restent dans leur dossier interne annoncé. Six tests vérifient le refus sans
+appel à l'API Kali de différentes formes du scan complet ; 68 tests ciblés
+des outils Kali, des tâches et du moteur réussissent.
+Validation complète : **1 978 tests réussis, 12 ignorés**, typage et build réussis.
 
 ## Lot 0.3.44 — compatibilité des proxys HTTP (publié)
 

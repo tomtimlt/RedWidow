@@ -15,7 +15,11 @@ export const KALI_SERVER_INSTRUCTIONS =
   "(nom complet, nom court, ou shell de ce conteneur). " +
   "Un message qui n'en nomme aucun réutilise le dernier conteneur Kali de ce fil. " +
   "Un # ne remplace pas un @ du même message. Un seul # ou @ en tête du champ est ignoré. " +
-  "Tu ne crées, n'arrêtes ni ne publies de conteneur.";
+  "Tu ne crées, n'arrêtes ni ne publies de conteneur. " +
+  "Pour tout scan long ou de durée incertaine, utilise task_start avec argv, puis task_status ; task_list sert à retrouver les tâches, pas à les lancer. " +
+  "nmap_scan est synchrone : un scan complet des ports doit passer par task_start. " +
+  "task_list ne recense pas les processus lancés par nmap_scan ou execute_command : une liste vide ne prouve pas leur arrêt. " +
+  "Le shell de execute_command est POSIX : pas d'expansion Bash des accolades. Crée les dossiers avec des chemins explicites, puis vérifie leur existence avant de lancer un outil qui y écrit.";
 
 const containerField = z
   .string()
@@ -174,6 +178,15 @@ function nmapCommand(args: Record<string, unknown>): string {
   const argv = ["nmap", ...splitShlex(scan, "scan_type")];
   if (ports !== undefined) argv.push("-p", ports);
   argv.push(...splitShlex(extra, "additional_args"), target);
+  // Ne lance aucun processus avant que l'agent choisisse explicitement une tâche supervisée.
+  if (
+    argv.some(
+      (part, index) =>
+        /^-p(?:-|(?:[A-Z]:)?(?:0|1)-65535)$/.test(part) ||
+        (argv[index - 1] === "-p" && /^(?:-|(?:[A-Z]:)?(?:0|1)-65535)$/.test(part)),
+    )
+  )
+    throw new CodedError("kali.taskRequired");
   return shellJoin(argv);
 }
 
@@ -304,7 +317,7 @@ const TOOLS: readonly KaliToolDef[] = [
   {
     name: "nmap_scan",
     description:
-      "Scan nmap. target est requis ; scan_type, ports et additional_args sont optionnels.",
+      "Scan nmap synchrone, réservé aux vérifications courtes. Pour -p- ou un scan long, utiliser task_start avec argv nmap, puis task_status. Un timeout MCP ne garantit pas l'arrêt du processus. target est requis ; scan_type, ports et additional_args sont optionnels.",
     method: "POST",
     path: "/api/tools/nmap",
     keys: ["target", "scan_type", "ports", "additional_args"],
@@ -439,7 +452,7 @@ const TOOLS: readonly KaliToolDef[] = [
   {
     name: "execute_command",
     description:
-      "Commande shell dans le conteneur Kali. La gate la traite comme un shell non analysable.",
+      "Commande shell POSIX courte dans le conteneur Kali, sans expansion Bash des accolades. Pour mkdir, fournir chaque chemin explicitement puis vérifier les dossiers. Pour les scans et commandes longues, utiliser task_start. La gate la traite comme un shell non analysable.",
     method: "POST",
     path: "/api/command",
     keys: ["command"],

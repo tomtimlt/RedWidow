@@ -357,6 +357,18 @@ nmap --version
 
 ## Tâches longues dans Kali et Exegol
 
+Les scans complets Nmap (`-p-`, ports `1-65535` ou `0-65535`) sont refusés dans
+`nmap_scan` avant tout lancement, avec une indication d'utiliser `task_start`.
+Les vérifications Nmap courtes restent synchrones. Ce refus ne lance aucune
+tâche automatiquement et ne remplace pas les approbations de `task_start`.
+
+Commencer par `task_list`, lancer par `task_start`, retenir son `task_id`,
+puis consulter `task_status` jusqu'à un état final. `task_list` n'est pas une
+liste générale des processus : un ancien scan synchrone qui a dépassé le délai
+MCP peut tourner sans y apparaître. Vérifier les processus avant toute relance.
+Le shell Kali est POSIX : créer les dossiers avec des chemins explicites,
+sans expansion `{a,b}`, et vérifier leur existence avant d'y écrire les sorties.
+
 Les agents Claude, OpenAI et OpenCode disposent de `task_start`, `task_list`,
 `task_status` et `task_cancel`. Pour un scan ou une commande dont la durée est
 incertaine, le lancement rend un identifiant sans attendre la fin du programme.

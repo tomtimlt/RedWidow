@@ -4,6 +4,8 @@ const text = (v: string | number | undefined): string => (v === undefined ? "?" 
 
 /** Catalogue minimal : les codes absents se replient sur le français, puis sur `code + params`. */
 export const reasons: Catalog = {
+  "kali.taskRequired": () =>
+    "Full-port scan not started: use mcp__kali__task_start with nmap argv, then task_status. Synchronous scans are not tracked by task_list and may keep running after an MCP timeout.",
   "task.invalidResponse": () => "invalid task response; check existing tasks before starting again",
   "policy.rule": (p) => `rule #${text(p.index)} ${text(p.decision)} ${text(p.target)}`,
   "policy.rule.custom": (p) => text(p.text),

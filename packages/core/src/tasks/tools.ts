@@ -135,7 +135,7 @@ export function taskToolSpecs(
       name: "task_list",
       operation: "list",
       description:
-        "Liste les tâches récentes du projet courant dans le conteneur autorisé, sans relancer de commande ni lire les anciennes conversations.",
+        "Liste les tâches créées par task_start pour le projet courant dans le conteneur autorisé, sans relancer de commande ni lire les anciennes conversations. Ne recense pas les processus de nmap_scan ou execute_command ; une liste vide ne prouve pas leur arrêt après un timeout.",
       input: { container },
       readOnly: true,
     },

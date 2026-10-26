@@ -100,6 +100,8 @@ const REPO_HINT = "Après relecture : warband policy trust";
 
 /** Catalogue complet : `REASON_CODES` est testé contre lui. */
 export const reasons: Catalog = {
+  "kali.taskRequired": () =>
+    "Scan complet non lancé : utilisez mcp__kali__task_start avec un argv nmap, puis task_status. nmap_scan est synchrone et peut expirer en laissant le processus actif. Consultez task_list avant de relancer une tâche ; les anciens scans synchrones n'y figurent pas.",
   "policy.rule": (p) => `règle #${text(p.index)} ${text(p.decision)} ${text(p.target)}`,
   "policy.rule.custom": (p) => text(p.text),
   "policy.default": (p) => `aucune règle pour l'outil ${text(p.tool)}`,

@@ -152,6 +152,20 @@ describe("outils Kali", () => {
 });
 
 describe("appel HTTP Kali", () => {
+  it.each([
+    { scan_type: "-sS -Pn -p-" },
+    { additional_args: "-p- -T3" },
+    { ports: "1-65535" },
+    { ports: "-" },
+    { scan_type: "-p 0-65535" },
+    { additional_args: "-pT:1-65535" },
+  ])("ne lance pas de scan complet synchrone : %j", async (options) => {
+    const { tool, calls } = await harness("up", rows);
+    await expect(
+      tool("nmap_scan").run({ container: "kali-box", target: "10.0.0.1", ...options }, ctx),
+    ).rejects.toMatchObject({ code: "kali.taskRequired" });
+    expect(await calls()).toEqual([]);
+  });
   const rows = [kali("kali-box", "running", "/host/kali"), lab];
 
   it.skipIf(process.platform === "win32")(
