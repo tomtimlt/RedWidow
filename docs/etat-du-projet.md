@@ -1,6 +1,6 @@
 # Warband — parcours, état actuel et reprise
 
-État inspecté le 26 octobre 2026 pour la version 0.3.39. Ce document sert de point d'entrée produit ;
+État inspecté le 26 octobre 2026 pour la version 0.3.40. Ce document sert de point d'entrée produit ;
 les ADR expliquent les décisions, les idées restent une réserve.
 
 ## Le parcours de référence
@@ -15,10 +15,28 @@ parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
 
-La version du manifeste est **0.3.39**. Les paragraphes
+La version du manifeste est **0.3.40**. Les paragraphes
 0.3.19 à 0.3.29 ci-dessous sont des relevés historiques, pas les preuves de
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
+
+## Lot 0.3.40 — recherche proactive dans le contexte des agents
+
+Une consigne commune est injectée dans le contexte système de Claude et dans
+chaque tour OpenCode/OpenAI lorsque `search_web` et `read_url` sont exposés.
+Elle demande de vérifier une information inconnue, incertaine ou récente,
+et la documentation des technologies/versions nouvellement découvertes,
+avant de recommander une suite. Sources officielles, dates et versions
+concernées sont privilégiées ; une CVE ne prouve pas à elle seule une vulnérabilité.
+
+La consigne distingue l’échec du service de l’absence d’information, évite
+les recherches répétitives et conserve les contraintes hors ligne,
+confidentialité et approbations. Elle complète la consigne existante sans
+la remplacer. Sans outils web — notamment en Apprentissage — le contexte
+reste inchangé. Tests avec moteurs factices, sans inférence ni recherche réelle.
+
+Validation locale : **1 959 tests réussis, 12 ignorés**, typage et compilation
+réussis.
 
 ## Lot 0.3.39 — erreurs de recherche et lecture web
 

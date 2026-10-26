@@ -54,3 +54,12 @@ non lus fermés après une erreur, une redirection ou un refus de contenu ont
 un gestionnaire d’erreur explicite ; leur destruction ne doit pas terminer
 le moteur par un événement `AbortError` non géré. Les erreurs de lecture
 restent observables par l’itérateur. Les limites réseau et TLS ne changent pas.
+
+
+### Consigne proactive — 0.3.40
+
+Les deux adaptateurs ajoutent la même consigne système lorsque les deux outils
+web sont effectivement exposés, dans l’extension comme dans la CLI. OpenCode
+et la connexion OpenAI la transmettent à chaque tour ; Claude la reçoit dans
+le complément du préréglage système. Les consignes de l’appelant sont
+conservées. Aucun contexte web n’est ajouté aux configurations sans ces outils.

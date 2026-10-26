@@ -388,3 +388,19 @@ Un quota exige d’attendre ; un problème de certificat demande de vérifier la
 chaîne de confiance du poste/proxy, sans désactiver TLS. Les autres statuts
 HTTP restent affichés. Un HTTP 405 en lisant l’adresse MCP Exa confirme une
 réponse HTTP mais indique que cette route attend une autre méthode.
+
+
+### Vérification proactive des informations
+
+Quand les outils web sont disponibles, Claude, OpenAI et OpenCode reçoivent
+une consigne système commune : rechercher avant d’affirmer ignorer un outil
+ou une technologie, vérifier les informations incertaines ou susceptibles
+d’avoir changé, et lire les sources officielles pertinentes pour les
+technologies/versions découvertes pendant le travail. Les réponses doivent
+citer les sources et distinguer faits vérifiés et hypothèses.
+
+Les sources déjà vérifiées dans le fil sont réutilisées pour éviter les
+requêtes inutiles. Un échec de recherche est signalé comme tel, sans conclure
+à l’inexistence de l’information. Les consignes hors ligne et les approbations
+restent applicables ; aucune installation ni exécution n’est autorisée par
+une recherche. Le mode Apprentissage conserve ses outils de cours locaux.

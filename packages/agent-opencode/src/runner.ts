@@ -23,6 +23,7 @@ import {
   reason,
   resolveBinary,
   ToolCallRegistry,
+  withWebResearchGuidance,
 } from "@warband/core";
 import { formatReason } from "@warband/messages";
 import { createSdkApi } from "./api.js";
@@ -903,6 +904,12 @@ async function runWithOpencode(
       ...(set.instructions && { instructions: set.instructions }),
       tools: set.create({ recorder }),
     }));
+    const webAvailable = specs.some(
+      (set) =>
+        set.name === "web" &&
+        ["search_web", "read_url"].every((name) => set.tools.some((tool) => tool.name === name)),
+    );
+    const systemPrompt = withWebResearchGuidance(input.systemPrompt, webAvailable);
     if (specs.length > 0) {
       const token = randomBytes(32).toString("hex");
       toolServer = await startToolServer({ toolsets: specs, token, guard });
@@ -1034,7 +1041,7 @@ async function runWithOpencode(
         model,
         ...(input.variant !== undefined && { variant: input.variant }),
         tools: toolsOff,
-        ...(input.systemPrompt !== undefined && { system: input.systemPrompt }),
+        ...(systemPrompt !== undefined && { system: systemPrompt }),
       };
       await api.prompt(sessionId, body);
       const aborted = new Promise<void>((resolve) => {

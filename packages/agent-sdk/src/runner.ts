@@ -29,6 +29,7 @@ import {
   type RunSummary,
   reason,
   type TaskUsage,
+  withWebResearchGuidance,
 } from "@warband/core";
 import { formatReason } from "@warband/messages";
 import { ToolCallRegistry, toolUseIdFromExtra } from "./correlation.js";
@@ -442,17 +443,25 @@ async function runWithSdk(
   };
 
   const mcpServers: Record<string, McpSdkServerConfigWithInstance> = {};
+  let webAvailable = false;
   for (const set of options.toolsets ?? []) {
+    const tools = set.create({
+      recorder,
+      resolveCall,
+      resolveParent: (toolName, args, extra) => resolveCall(toolName, args, extra).parentId,
+    });
+    if (
+      set.name === "web" &&
+      ["search_web", "read_url"].every((name) => tools.some((tool) => tool.name === name))
+    )
+      webAvailable = true;
     mcpServers[set.name] = createSdkMcpServer({
       name: set.name,
-      tools: set.create({
-        recorder,
-        resolveCall,
-        resolveParent: (toolName, args, extra) => resolveCall(toolName, args, extra).parentId,
-      }),
+      tools,
       ...(set.instructions && { instructions: set.instructions }),
     });
   }
+  const systemPrompt = withWebResearchGuidance(input.systemPrompt, webAvailable);
 
   // Outils de shell : retirés de la liste, `Bash` seulement sur demande explicite, `PowerShell` jamais.
   const builtinTools = [...new Set([...(options.builtinTools ?? DEFAULT_BUILTIN_TOOLS)])].filter(
@@ -511,8 +520,8 @@ async function runWithSdk(
     ...(input.resume !== undefined && { resume: input.resume }),
     ...(input.sessionId !== undefined && { sessionId: input.sessionId }),
     ...(input.maxBudgetUsd !== undefined && { maxBudgetUsd: input.maxBudgetUsd }),
-    ...(input.systemPrompt !== undefined && {
-      systemPrompt: { type: "preset", preset: "claude_code", append: input.systemPrompt },
+    ...(systemPrompt !== undefined && {
+      systemPrompt: { type: "preset", preset: "claude_code", append: systemPrompt },
     }),
     // `Options.env` REMPLACE l'environnement du sous-processus (il n'est pas fusionné) :
     // en mode abonnement on passe donc une copie complète, PATH et HOME compris.
