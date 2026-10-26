@@ -20,7 +20,7 @@ La version du manifeste est **0.3.43**. Les paragraphes
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
 
-## Lot 0.3.43 — suivi du bas dans le Monitor (publication en préparation)
+## Lot 0.3.43 — suivi du bas dans le Monitor (publié)
 
 Le bouton **Suivi du bas** du Monitor et du suivi de commande permet de forcer
 le défilement vers les dernières sorties ou de conserver la position de lecture.
@@ -33,6 +33,12 @@ largeurs, la lecture stable pendant les mises à jour et la bascule au clavier.
 Le volet web, HTTPS strict et la restauration du dossier actif sont conservés.
 L'essai de `search_web` et `read_url` avec les certificats système sur le poste
 Windows reste ouvert, de même que l'essai natif de restauration du dossier.
+
+Publication vérifiée : commit **f33d904** attribué à `tomtimlt`, tag **v0.3.43**,
+[workflow 40406107262](https://github.com/tomtimlt/warband/actions/runs/40406107262)
+réussi et [release 0.3.43](https://github.com/tomtimlt/warband/releases/tag/v0.3.43)
+disponible. Les VSIX Linux et Windows et leurs SHA-256 ont été téléchargés :
+empreintes conformes, archives intègres, version 0.3.43 et bouton présents.
 
 ## Lot 0.3.41 — autorités HTTPS du système (publié)
 
