@@ -55,7 +55,7 @@ contient les VSIX **linux-x64** et **win32-x64** et leurs deux fichiers SHA-256.
 Les quatre fichiers publiés ont été téléchargés : les deux empreintes sont
 conformes, les archives ZIP sont intègres et leurs manifestes portent 0.3.41.
 
-## Lot 0.3.42 — ouverture du dossier actif (publication en préparation)
+## Lot 0.3.42 — ouverture du dossier actif (publié)
 
 L'extension ouvre automatiquement le dossier du projet actif au démarrage
 d'une fenêtre sans dossier. La création et l'activation d'un projet ouvrent
@@ -68,13 +68,26 @@ réessayer. Une fenêtre déjà occupée n'est pas remplacée au démarrage.
 L'ancienne fenêtre conserve ses conversations et ses brouillons. L'envoi et
 la reprise sont refusés si son dossier ne correspond plus au projet actif,
 en complément des contrôles existants du projet de chaque conversation.
-Ce correctif est destiné aux VSIX 0.3.42 ; il n'est pas inclus dans la 0.3.41.
-Le parcours natif
-de sauvegarde et de confiance reste à essayer dans VS Code sur le poste utilisateur.
+Ce correctif est publié dans les VSIX 0.3.42 ; il n'est pas inclus dans la 0.3.41.
+Le parcours natif de sauvegarde et de confiance reste à essayer dans VS Code
+sur le poste utilisateur.
 Validation locale : **1 969 tests réussis, 12 ignorés**, typage et compilation
 réussis. Les tests couvrent la restauration, la sélection et la création,
 les documents modifiés, les erreurs de lecture et d'ouverture, l'absence de
 boucle et le refus d'exécution depuis le dossier d'un autre projet.
+
+Le commit **188c114** a été poussé sur `main`, puis le tag **v0.3.42** a déclenché
+[Release 40404551736](https://github.com/tomtimlt/warband/actions/runs/40404551736),
+terminé avec succès. La
+[release 0.3.42](https://github.com/tomtimlt/warband/releases/tag/v0.3.42)
+contient les deux VSIX **linux-x64** et **win32-x64** et leurs fichiers SHA-256.
+Les quatre fichiers ont été téléchargés et comparés aux empreintes GitHub ;
+les empreintes des deux VSIX correspondent aussi aux fichiers SHA-256 publiés.
+Les archives ZIP sont intègres, les manifestes portent 0.3.42 et les bundles
+contiennent la restauration du dossier, `search_web`, `read_url` et la fusion
+des autorités système avec vérification TLS. Cette inspection du contenu ne
+valide pas le fonctionnement HTTPS sur le poste Windows : l'essai réel indiqué
+dans le lot 0.3.41 reste ouvert.
 
 ## Lot 0.3.40 — recherche proactive dans le contexte des agents
 
