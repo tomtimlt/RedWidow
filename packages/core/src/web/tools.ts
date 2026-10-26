@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { DockerToolSpec } from "../docker/tool-specs.js";
 import { CodedError } from "../reason.js";
 import { stripControl } from "../sanitize.js";
+import { webNetworkError } from "./errors.js";
 import { requestWeb, type WebDependencies, webUrl } from "./network.js";
 
 export const WEB_SERVER_NAME = "web";
@@ -132,7 +133,7 @@ export function webToolSpecs(deps: WebDependencies = {}): DockerToolSpec[] {
     } catch (error) {
       if (signal?.aborted) throw signal.reason;
       if (error instanceof CodedError) throw error;
-      throw new CodedError("web.unavailable");
+      throw webNetworkError(error, bounded.aborted);
     }
   };
   return [

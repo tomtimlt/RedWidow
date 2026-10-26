@@ -46,6 +46,14 @@ export const reasons: Catalog = {
   "finding.busy": () => "Project findings are busy. Retry after the current operation completes.",
   "web.invalidUrl": () => "Web tools require a public HTTP(S) URL without credentials.",
   "web.unavailable": () => "The web request failed. Retry or check the connection.",
+  "web.timeout": (p) => `The web request exceeded ${text(p.seconds)} seconds.`,
+  "web.dnsFailed": (p) =>
+    `Web DNS resolution failed (${text(p.code)}). Check the network or proxy.`,
+  "web.tlsFailed": (p) =>
+    `HTTPS certificate verification failed (${text(p.code)}). Check trusted certificates and the proxy.`,
+  "web.connectionFailed": (p) =>
+    `Web connection failed (${text(p.code)}). Check the network or proxy.`,
+  "web.rateLimited": () => "The web service is rate limited (HTTP 429). Retry later.",
   "web.tooLarge": () => "The page exceeds the 1 MiB read limit.",
   "web.unsupportedType": () => "This web content type is not supported.",
   "web.searchFailed": () => "The search service returned no usable response.",

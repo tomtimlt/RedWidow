@@ -44,3 +44,13 @@ Recherche Exa et lecture de README/page GitHub vérifiées réellement dans le
 cloud, sans inférence. Vérification de la lecture après bundling. Les limites
 du service public peuvent affecter la disponibilité ; aucun résultat n’est
 inventé en cas d’erreur. Bilan global dans l’état du projet.
+
+
+### Diagnostic — 0.3.39
+
+Les erreurs réseau structurées sont classées sans exposer leur message brut.
+DNS, TLS, connexion, dépassement de délai et quota se distinguent. Les corps
+non lus fermés après une erreur, une redirection ou un refus de contenu ont
+un gestionnaire d’erreur explicite ; leur destruction ne doit pas terminer
+le moteur par un événement `AbortError` non géré. Les erreurs de lecture
+restent observables par l’itérateur. Les limites réseau et TLS ne changent pas.

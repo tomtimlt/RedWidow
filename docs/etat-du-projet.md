@@ -1,6 +1,6 @@
 # Warband — parcours, état actuel et reprise
 
-État inspecté le 26 octobre 2026 pour la version 0.3.38. Ce document sert de point d'entrée produit ;
+État inspecté le 26 octobre 2026 pour la version 0.3.39. Ce document sert de point d'entrée produit ;
 les ADR expliquent les décisions, les idées restent une réserve.
 
 ## Le parcours de référence
@@ -15,10 +15,28 @@ parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
 
-La version du manifeste est **0.3.38**. Les paragraphes
+La version du manifeste est **0.3.39**. Les paragraphes
 0.3.19 à 0.3.29 ci-dessous sont des relevés historiques, pas les preuves de
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
+
+## Lot 0.3.39 — erreurs de recherche et lecture web
+
+Les échecs DNS, TLS, connexion, délai de 25 secondes et quota HTTP 429 ont
+maintenant des diagnostics distincts. Seuls des codes réseau connus sont
+exposés : aucun message brut contenant une URL de proxy ou des identifiants.
+Une erreur non gérée reproduite à la fermeture d’un corps HTTP non lu est
+corrigée (erreurs HTTP, redirections et contenus refusés). Les erreurs de
+lecture continuent d’être propagées ; la vérification TLS reste active.
+
+La recherche exacte « PHP2shell » fonctionne depuis le cloud, ainsi qu’une
+requête témoin. Le propriétaire confirme `read_url` fonctionnel pour
+`https://example.com` sur son poste. La cause précise de l’échec de recherche
+sur ce poste n’est pas établie : ce lot corrige le traitement des erreurs et
+permet de distinguer les causes, sans prétendre avoir rétabli Exa sur Windows.
+
+Validation locale : **1 952 tests réussis, 12 ignorés**, typage et compilation
+réussis ; cas HTTP réels locaux et recherche Exa réelle vérifiés.
 
 ## Lot 0.3.38 — tâches longues dans les conteneurs
 

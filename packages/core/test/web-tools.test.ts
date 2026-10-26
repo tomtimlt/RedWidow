@@ -1,9 +1,14 @@
+import { once } from "node:events";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { describe, expect, it, vi } from "vitest";
+import { webNetworkError } from "../src/web/errors.js";
 import {
   isPublicAddress,
   requestWeb,
   type WebDependencies,
   type WebResponse,
+  webTransport,
   webUrl,
 } from "../src/web/network.js";
 import { pageContent, searchContent, webToolSpecs } from "../src/web/tools.js";
@@ -25,6 +30,53 @@ function response(
 const lookup = async () => [{ address: "8.8.8.8", family: 4 }];
 
 describe("destinations des outils web", () => {
+  it("ferme les vrais corps HTTP non lus sans erreur non gérée et conserve le diagnostic", async () => {
+    vi.stubEnv("NO_PROXY", "*");
+    const server = createServer((request, response) => {
+      if (request.url === "/redirect") {
+        response.writeHead(302, { location: "/ok", "content-type": "text/plain" });
+        response.end("redirection");
+      } else if (request.url === "/limited") {
+        response.writeHead(429, { "content-type": "text/plain" });
+        response.end("quota");
+      } else if (request.url === "/binary") {
+        response.writeHead(200, { "content-type": "application/octet-stream" });
+        response.end("binary");
+      } else {
+        response.writeHead(200, { "content-type": "text/plain" });
+        response.end("ok");
+      }
+    });
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const root = `http://public.example:${(server.address() as AddressInfo).port}`;
+    // La résolution publique reste contrôlée dans requestWeb ; seul le
+    // transport de ce test route le serveur local, sans accès réseau extérieur.
+    const deps: WebDependencies = {
+      lookup,
+      transport: (url, _address, init) => webTransport(url, "127.0.0.1", init),
+    };
+    try {
+      for (const [path, code] of [
+        ["/limited", "web.rateLimited"],
+        ["/binary", "web.unsupportedType"],
+      ])
+        await expect(
+          requestWeb(root + path, { method: "GET", signal: AbortSignal.timeout(2000) }, deps),
+        ).rejects.toMatchObject({ code });
+      expect(
+        await requestWeb(
+          root + "/redirect",
+          { method: "GET", signal: AbortSignal.timeout(2000) },
+          deps,
+        ),
+      ).toMatchObject({ text: "ok" });
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      vi.unstubAllEnvs();
+    }
+  });
   it.each([
     "127.0.0.1",
     "0.0.0.0",
@@ -131,7 +183,7 @@ describe("destinations des outils web", () => {
     for (const [reply, code] of [
       [response("x".repeat(1024 * 1024 + 1)), "web.tooLarge"],
       [response("bin", 200, { "content-type": "application/octet-stream" }), "web.unsupportedType"],
-      [response("", 429), "web.unavailable"],
+      [response("", 429), "web.rateLimited"],
     ] as const) {
       const close = vi.fn(async () => {});
       await expect(
@@ -147,6 +199,54 @@ describe("destinations des outils web", () => {
 });
 
 describe("lecture et recherche communes aux moteurs", () => {
+  it.each([
+    ["ENOTFOUND", "web.dnsFailed"],
+    ["EAI_AGAIN", "web.dnsFailed"],
+    ["SELF_SIGNED_CERT_IN_CHAIN", "web.tlsFailed"],
+    ["ERR_TLS_CERT_ALTNAME_INVALID", "web.tlsFailed"],
+    ["UND_ERR_CONNECT_TIMEOUT", "web.timeout"],
+    ["ECONNRESET", "web.connectionFailed"],
+    ["ENETUNREACH", "web.connectionFailed"],
+  ])("rend un diagnostic réseau sûr pour %s", async (code, expected) => {
+    const raw = Object.assign(new Error("proxy https://login:secret@proxy.invalid?token=private"), {
+      code,
+    });
+    const tool = webToolSpecs({
+      lookup,
+      transport: async () => {
+        throw new TypeError("fetch failed", { cause: raw });
+      },
+    })[0];
+    const error = await tool?.run({ query: "test" }, context).catch((error: unknown) => error);
+    expect(error).toMatchObject({ code: expected });
+    expect(JSON.stringify(error)).not.toMatch(/login|secret|private|proxy.invalid/);
+  });
+
+  it("reconnaît les erreurs agrégées, borne les cycles et ne déduit rien d’un message brut", () => {
+    expect(
+      webNetworkError(
+        new AggregateError([Object.assign(new Error("secret"), { code: "ECONNREFUSED" })]),
+      ).code,
+    ).toBe("web.connectionFailed");
+    const cyclic: { cause?: unknown } = {};
+    cyclic.cause = cyclic;
+    expect(webNetworkError(cyclic).code).toBe("web.unavailable");
+    expect(webNetworkError(new Error("ENOTFOUND token=secret")).code).toBe("web.unavailable");
+    expect(webNetworkError(new Error("secret"), true)).toMatchObject({
+      code: "web.timeout",
+      params: { seconds: 25 },
+    });
+  });
+
+  it("préserve l’annulation demandée par l’utilisateur", async () => {
+    const abort = new AbortController();
+    const stop = new Error("arrêt demandé");
+    abort.abort(stop);
+    const tool = webToolSpecs({ lookup, transport: vi.fn() })[0];
+    await expect(tool?.run({ query: "test" }, { ...context, signal: abort.signal })).rejects.toBe(
+      stop,
+    );
+  });
   it("extrait le contenu, les entités et les liens sans script ni navigation", () => {
     const html =
       '<html><head><title>Doc &amp; outils</title></head><body><nav>MENU</nav><article><h1>Outil</h1><p>Version &lt;2&gt;</p><script>secret()</script><a href="/release">Release</a><a href="javascript:bad()">non</a><a href="/release">doublon</a></article></body></html>';

@@ -250,6 +250,16 @@ export const reasons: Catalog = {
     "Nmap ne peut pas s’exécuter dans ce conteneur. Vérifiez ses capacités Linux et les restrictions Docker.",
   "web.unavailable": (p) =>
     `La requête web a échoué${p.status ? ` (HTTP ${p.status})` : ""}. Réessayez ou vérifiez la connexion.`,
+  "web.timeout": (p) =>
+    `La requête web a dépassé le délai de ${text(p.seconds)} secondes. Le service ou la connexion ne répond pas assez vite.`,
+  "web.dnsFailed": (p) =>
+    `Impossible de résoudre l’adresse du service web (DNS : ${text(p.code)}). Vérifiez le réseau, le VPN ou le proxy du poste.`,
+  "web.tlsFailed": (p) =>
+    `Le certificat HTTPS du service web ou du proxy n’est pas validé (${text(p.code)}). Vérifiez les certificats et le proxy du poste ; la vérification TLS reste active.`,
+  "web.connectionFailed": (p) =>
+    `Connexion au service web impossible ou interrompue (${text(p.code)}). Vérifiez l’accès réseau, le VPN, le proxy ou le pare-feu du poste.`,
+  "web.rateLimited": () =>
+    "Le service web limite temporairement les requêtes (HTTP 429). Réessayez plus tard ; répéter immédiatement la même recherche n’aide pas.",
   "web.tooLarge": () =>
     "La page dépasse la limite de lecture de 1 Mio. Utilisez une page plus courte ou le fichier brut.",
   "web.unsupportedType": () =>

@@ -373,3 +373,18 @@ avec un état explicite. La consultation affiche au plus 8 Kio par flux.
 Les fichiers écrits directement par le programme ne sont pas soumis à ce plafond.
 Un programme qui détache lui-même ses descendants peut échapper à l’arrêt du
 groupe : voir [ADR 0024](adr/0024-taches-longues-conteneurs.md).
+
+
+### Diagnostic de la recherche web
+
+La recherche passe par le service public Exa ; la lecture d’une page n’en
+dépend pas. Une lecture réussie ne prouve donc pas que le service de recherche
+est joignable depuis le même poste. Les erreurs distinguent désormais DNS,
+certificat HTTPS, connexion interrompue/refusée, délai de 25 secondes et quota
+HTTP 429. Les codes DNS/TLS/connexion peuvent être copiés pour le diagnostic ;
+aucune URL de proxy ni valeur d’authentification n’est affichée.
+
+Un quota exige d’attendre ; un problème de certificat demande de vérifier la
+chaîne de confiance du poste/proxy, sans désactiver TLS. Les autres statuts
+HTTP restent affichés. Un HTTP 405 en lisant l’adresse MCP Exa confirme une
+réponse HTTP mais indique que cette route attend une autre méthode.

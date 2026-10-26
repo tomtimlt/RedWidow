@@ -91,7 +91,11 @@ function proxyFor(url: URL): string | undefined {
 }
 
 /** CONNECT vers l’IP validée ; Host et SNI conservent le domaine, même derrière un proxy. */
-async function transport(url: URL, address: string, init: WebRequest): Promise<WebResponse> {
+export async function webTransport(
+  url: URL,
+  address: string,
+  init: WebRequest,
+): Promise<WebResponse> {
   const hostname = url.hostname.replace(/^\[|\]$/g, "");
   const pinned = new URL(url);
   pinned.hostname = isIP(address) === 6 ? `[${address}]` : address;
@@ -117,6 +121,10 @@ async function transport(url: URL, address: string, init: WebRequest): Promise<W
       },
       ...(init.body !== undefined && { body: init.body }),
     });
+    // Fermer un corps non lu (erreur HTTP, redirection ou type refusé) émet
+    // AbortError. L’itérateur continue de propager les erreurs de lecture,
+    // mais une fermeture précoce ne doit pas tuer le moteur par un événement non géré.
+    response.body.on("error", () => undefined);
     const headers: WebResponse["headers"] = {};
     for (const [key, value] of Object.entries(response.headers))
       if (typeof value === "string") headers[key.toLowerCase()] = value;
@@ -172,7 +180,7 @@ export async function requestWeb(
       throw new CodedError("web.invalidUrl");
     const address = addresses.find((row) => isIP(row.address) === 4) ?? addresses[0];
     if (!address) throw new CodedError("web.invalidUrl");
-    const response = await (deps.transport ?? transport)(url, address.address, current);
+    const response = await (deps.transport ?? webTransport)(url, address.address, current);
     try {
       if ([301, 302, 303, 307, 308].includes(response.status)) {
         const location = response.headers.location;
@@ -185,6 +193,7 @@ export async function requestWeb(
         url = next;
         continue;
       }
+      if (response.status === 429) throw new CodedError("web.rateLimited");
       if (response.status < 200 || response.status >= 300)
         throw new CodedError("web.unavailable", { status: response.status });
       const encoding = response.headers["content-encoding"];
