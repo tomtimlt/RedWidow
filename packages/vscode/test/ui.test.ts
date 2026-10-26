@@ -5,6 +5,10 @@ import { EXEGOL_EXEC_TOOL } from "@warband/core";
 import { describe, expect, it } from "vitest";
 
 interface UiApi {
+  groupModels<T extends { label: string; value: string | null; description: string }>(
+    models: T[],
+    provider: string,
+  ): (T & { group: string; providerLabel: string; free: boolean })[];
   listboxKey(s: { active: number }, key: string, o: { disabled?: boolean }[]): { active: number };
   filterModels<T extends { label: string; value: string | null; description: string }>(
     m: T[],
@@ -102,6 +106,44 @@ describe("listboxKey : navigation clavier", () => {
 });
 
 describe("filterModels", () => {
+  it("regroupe par origine runtime, conserve les choix et repère seulement Free explicite", () => {
+    const entry = (value: string | null, label: string) => ({ value, label, description: "" });
+    const models = [
+      entry(null, "Modèle par défaut"),
+      entry("opencode/gpt-example", "GPT exemple"),
+      entry("openai/gpt-example", "GPT exemple"),
+      entry("opencode/example-free", "Exemple Free"),
+      entry("openrouter/example:free", "Exemple"),
+      entry("custom/freedom", "Freedom"),
+    ];
+    const grouped = ui.groupModels(models, "opencode");
+    expect(grouped.map((m) => m.value)).toEqual([
+      null,
+      "opencode/gpt-example",
+      "opencode/example-free",
+      "openai/gpt-example",
+      "openrouter/example:free",
+      "custom/freedom",
+    ]);
+    expect(grouped.map((m) => m.providerLabel)).toEqual([
+      "Par défaut",
+      "OpenCode",
+      "OpenCode",
+      "OpenAI",
+      "OpenRouter",
+      "custom",
+    ]);
+    expect(grouped.filter((m) => m.free).map((m) => m.value)).toEqual([
+      "opencode/example-free",
+      "openrouter/example:free",
+    ]);
+    expect(ui.filterModels(grouped, "gratuit")).toHaveLength(2);
+    expect(ui.filterModels(grouped, "OpenAI").map((m) => m.value)).toEqual(["openai/gpt-example"]);
+    expect(ui.groupModels([entry("opaque", "Sans préfixe")], "claude")[0]?.providerLabel).toBe(
+      "Claude",
+    );
+    expect(models[1]).not.toHaveProperty("providerLabel");
+  });
   const models = [
     { value: "modele-a", label: "Modèle A", description: "Rapide" },
     { value: "autre", label: "Autre", description: "Pensif .*(" },

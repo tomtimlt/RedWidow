@@ -1,6 +1,6 @@
 # Warband — parcours, état actuel et reprise
 
-État inspecté le 26 octobre 2026 pour la version 0.3.36. Ce document sert de point d'entrée produit ;
+État inspecté le 26 octobre 2026 pour la version 0.3.37. Ce document sert de point d'entrée produit ;
 les ADR expliquent les décisions, les idées restent une réserve.
 
 ## Le parcours de référence
@@ -15,10 +15,20 @@ parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
 
-La version du manifeste est **0.3.36**. Les paragraphes
+La version du manifeste est **0.3.37**. Les paragraphes
 0.3.19 à 0.3.29 ci-dessous sont des relevés historiques, pas les preuves de
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
+
+## Lot 0.3.37 — catalogue de modèles lisible
+
+Le sélecteur regroupe les modèles par fournisseur runtime, affiche leur identifiant
+complet et conserve l’ordre des modèles de chaque fournisseur. Le choix par défaut
+et les valeurs envoyées au moteur restent identiques. Le badge « Gratuit » reprend
+uniquement « Free » dans le nom ou le suffixe `:free` de l’identifiant ; aucun prix
+n’est déduit pour les autres modèles. Le filtre recherche aussi le fournisseur et
+le mot « gratuit ». Vérification Chromium des groupes, de la recherche, du choix
+au clavier et du rendu sûr sur quatre largeurs et trois thèmes.
 
 ## Lot 0.3.36 — exécution Nmap dans Kali
 

@@ -1189,7 +1189,7 @@ body:not(.running) #toolbar #stop {
 }
 /* Liste des modèles : panneau compact, la liste défile (le filtre reste en haut). */
 #model-pop {
-  width: min(280px, calc(100vw - 16px));
+  width: min(360px, calc(100vw - 16px));
 }
 #models-status {
   margin: 0 0 var(--jn-s2);
@@ -1218,6 +1218,17 @@ body:not(.running) #toolbar #stop {
   color: var(--jn-muted);
 }
 .opt-label {
+  font-family: var(--jn-mono);
+}
+.model-badges {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s1);
+}
+.model-free {
+  color: var(--jn-ok);
+}
+.model-source {
   font-family: var(--jn-mono);
 }
 .opt {

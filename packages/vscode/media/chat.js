@@ -383,18 +383,18 @@
   }
 
   function renderModelList(preferCurrent) {
-    visible = UI.filterModels(modelEntries(), query);
+    visible = UI.filterModels(UI.groupModels(modelEntries(), ctl.provider), query);
     optNodes = [];
     const nodes = [];
     let group = null;
     let kind = null;
     visible.forEach((m, i) => {
-      const k = m.value === null ? "def" : "mod";
+      const k = m.group;
       if (k !== kind) {
         kind = k;
         group = el("div", "grp");
         group.setAttribute("role", "group");
-        const name = k === "def" ? "Par défaut" : "Modèles disponibles";
+        const name = m.providerLabel;
         group.setAttribute("aria-label", name);
         const head = el("div", "grp-head", name);
         head.setAttribute("aria-hidden", "true");
@@ -406,9 +406,17 @@
       o.setAttribute("role", "option");
       const current = m.value === ctl.model;
       o.setAttribute("aria-selected", String(current));
-      if (m.description) o.title = m.description;
+      o.title = [m.value, m.description].filter(Boolean).join(" — ");
       o.append(el("span", "opt-label", m.label));
-      if (current) o.append(el("span", "badge", "actuel"));
+      const badges = el("span", "model-badges");
+      if (m.free) {
+        const badge = el("span", "badge model-free", "Gratuit");
+        badge.title = "Modèle annoncé « Free » par le fournisseur.";
+        badges.append(badge);
+      }
+      if (current) badges.append(el("span", "badge", "actuel"));
+      o.append(badges);
+      if (m.value !== null) o.append(el("span", "opt-desc model-source", m.value));
       if (m.description) o.append(el("span", "opt-desc", m.description));
       o.addEventListener("click", () => pick(m));
       group.append(o);

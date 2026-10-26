@@ -130,10 +130,38 @@
       .toLowerCase();
     if (q === "") return models.slice();
     return models.filter((m) =>
-      [m.label, m.value, m.description].some(
+      [m.label, m.value, m.description, m.providerLabel, m.free ? "gratuit free" : ""].some(
         (s) => typeof s === "string" && s.toLowerCase().includes(q),
       ),
     );
+  }
+
+  /** Origine = préfixe runtime de l’identifiant, jamais déduite du nom commercial. */
+  function groupModels(models, fallbackProvider) {
+    const names = new Map([
+      ["openai", "OpenAI"],
+      ["opencode", "OpenCode"],
+      ["anthropic", "Anthropic"],
+      ["claude", "Claude"],
+      ["google", "Google"],
+      ["openrouter", "OpenRouter"],
+    ]);
+    const groups = new Map();
+    for (const model of models) {
+      const source = model.value === null ? "" : model.value.split("/")[0];
+      const provider = model.value?.includes("/") ? source : fallbackProvider;
+      const key = model.value === null ? "" : provider;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push({
+        ...model,
+        group: key,
+        providerLabel: model.value === null ? "Par défaut" : (names.get(provider) ?? provider),
+        // Ce badge reprend uniquement une indication explicite du catalogue.
+        free:
+          model.value !== null && (/\bfree\s*$/i.test(model.label) || /:free$/i.test(model.value)),
+      });
+    }
+    return [...groups.values()].flat();
   }
 
   const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
@@ -378,6 +406,7 @@
     monitorRows,
     listboxKey,
     filterModels,
+    groupModels,
     placePopover,
     effortPct,
     tabTarget,
