@@ -20,7 +20,7 @@ La version du manifeste est **0.3.45**. Les paragraphes
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
 
-## Lot 0.3.45 — scans longs supervisés (publication en préparation)
+## Lot 0.3.45 — scans longs supervisés (publié)
 
 Un scan Nmap complet demandé par `nmap_scan` est refusé avant tout lancement
 avec le code `kali.taskRequired`, traduit en français et en anglais. L'agent
@@ -36,6 +36,14 @@ restent dans leur dossier interne annoncé. Six tests vérifient le refus sans
 appel à l'API Kali de différentes formes du scan complet ; 68 tests ciblés
 des outils Kali, des tâches et du moteur réussissent.
 Validation complète : **1 978 tests réussis, 12 ignorés**, typage et build réussis.
+
+Publication vérifiée : commit **3c01c54** attribué à `tomtimlt`, tag **v0.3.45**,
+[workflow 40411696951](https://github.com/tomtimlt/warband/actions/runs/40411696951)
+réussi. Les deux VSIX et leurs SHA-256 de la
+[release 0.3.45](https://github.com/tomtimlt/warband/releases/tag/v0.3.45)
+ont été téléchargés : empreintes conformes, archives intègres, version et
+garde-fou présents dans les bundles. Le changement de chat ne tue pas les
+anciens processus synchrones ni les tâches supervisées encore actives.
 
 ## Lot 0.3.44 — compatibilité des proxys HTTP (publié)
 
