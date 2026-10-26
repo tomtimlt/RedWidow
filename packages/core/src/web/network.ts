@@ -91,7 +91,7 @@ function proxyFor(url: URL): string | undefined {
   );
 }
 
-/** CONNECT vers l’IP validée ; Host et SNI conservent le domaine, même derrière un proxy. */
+/** IP validée épinglée ; HTTP par proxy utilise la forme absolue, HTTPS conserve CONNECT et SNI. */
 export async function webTransport(
   url: URL,
   address: string,
@@ -105,7 +105,7 @@ export async function webTransport(
   const tls = { ...trust, ...(!isIP(hostname) && { servername: hostname }) };
   const proxy = proxyFor(url);
   const dispatcher = proxy
-    ? new ProxyAgent({ uri: proxy, requestTls: tls, proxyTls: trust })
+    ? new ProxyAgent({ uri: proxy, proxyTunnel: false, requestTls: tls, proxyTls: trust })
     : new Agent({ connect: tls });
   try {
     const response = await request(pinned, {

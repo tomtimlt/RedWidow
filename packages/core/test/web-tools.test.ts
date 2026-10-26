@@ -30,6 +30,56 @@ function response(
 const lookup = async () => [{ address: "8.8.8.8", family: 4 }];
 
 describe("destinations des outils web", () => {
+  it.each(["GET", "POST"] as const)(
+    "transmet %s par un proxy HTTP sans CONNECT en gardant l'IP épinglée et le Host d'origine",
+    async (method) => {
+      const received: { url: string | undefined; host: string | undefined; body: string }[] = [];
+      let tunnels = 0;
+      const proxy = createServer(async (request, response) => {
+        let body = "";
+        for await (const chunk of request) body += chunk.toString();
+        received.push({ url: request.url, host: request.headers.host, body });
+        if (request.url?.endsWith("/private")) {
+          response.writeHead(302, { location: "http://127.0.0.1/secret" });
+        } else response.writeHead(200, { "content-type": "text/plain" });
+        response.end("ok");
+      });
+      proxy.on("connect", (_request, socket) => {
+        tunnels++;
+        socket.end("HTTP/1.1 405 Method Not Allowed\r\n\r\n");
+      });
+      proxy.listen(0, "127.0.0.1");
+      await once(proxy, "listening");
+      vi.stubEnv("HTTP_PROXY", `http://127.0.0.1:${(proxy.address() as AddressInfo).port}`);
+      vi.stubEnv("NO_PROXY", "");
+      const init = {
+        method,
+        signal: AbortSignal.timeout(3000),
+        ...(method === "POST" && { body: '{"query":"test"}' }),
+      };
+      try {
+        expect(
+          await requestWeb("http://public.invalid:8080/page?q=test", init, { lookup }),
+        ).toMatchObject({ text: "ok" });
+        expect(received).toEqual([
+          {
+            url: "http://8.8.8.8:8080/page?q=test",
+            host: "public.invalid:8080",
+            body: method === "POST" ? '{"query":"test"}' : "",
+          },
+        ]);
+        await expect(
+          requestWeb("http://public.invalid/private", init, { lookup }),
+        ).rejects.toMatchObject({ code: "web.invalidUrl" });
+        expect(received).toHaveLength(2);
+        expect(tunnels).toBe(0);
+      } finally {
+        proxy.closeAllConnections();
+        await new Promise<void>((resolve) => proxy.close(() => resolve()));
+        vi.unstubAllEnvs();
+      }
+    },
+  );
   it("ferme les vrais corps HTTP non lus sans erreur non gérée et conserve le diagnostic", async () => {
     vi.stubEnv("NO_PROXY", "*");
     const server = createServer((request, response) => {

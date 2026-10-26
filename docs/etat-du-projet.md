@@ -1,6 +1,6 @@
 # Warband — parcours, état actuel et reprise
 
-État inspecté le 26 octobre 2026 pour la version 0.3.43. Ce document sert de point d'entrée produit ;
+État inspecté le 26 octobre 2026 pour la version 0.3.44. Ce document sert de point d'entrée produit ;
 les ADR expliquent les décisions, les idées restent une réserve.
 
 ## Le parcours de référence
@@ -15,10 +15,27 @@ parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
 
-La version du manifeste est **0.3.43**. Les paragraphes
+La version du manifeste est **0.3.44**. Les paragraphes
 0.3.19 à 0.3.29 ci-dessous sont des relevés historiques, pas les preuves de
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
+
+## Lot 0.3.44 — compatibilité des proxys HTTP (publication en préparation)
+
+Les URL HTTP derrière un proxy HTTP sont transmises sans tunnel CONNECT,
+avec l'IP validée dans l'URL et le Host d'origine. Les URL HTTPS conservent
+CONNECT, SNI, les autorités système/Node et la vérification TLS stricte.
+Les tests GET et POST vérifient la forme absolue, l'IP épinglée, le Host,
+le corps et le refus des redirections vers une adresse privée.
+
+Essais cloud avec les vrais outils : deux recherches Exa et six lectures HTTPS
+(Bing, GitHub, README brut, Node.js, Microsoft Learn, example.com) réussies.
+L'essai HTTP example.com passe d'une fermeture de tunnel à une réponse 403 :
+le transport compatible est implémenté, mais cette lecture reste refusée dans
+le cloud. Aucun contournement des contrôles IP/DNS n'est ajouté.
+La validation TLS avec les autorités internes sur le poste Windows reste ouverte.
+Le bouton Monitor et la restauration du dossier de projet sont conservés.
+Validation locale : **1 971 tests réussis, 12 ignorés**, typage et build réussis.
 
 ## Lot 0.3.43 — suivi du bas dans le Monitor (publié)
 

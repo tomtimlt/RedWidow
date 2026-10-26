@@ -73,3 +73,13 @@ configurés au lancement sont conservés. Aucun certificat téléchargé depuis
 un site ou joint par un utilisateur n’est installé ni promu en autorité.
 Le site cible et le proxy HTTPS éventuel restent vérifiés avec leurs noms.
 Les contrôles DNS, IP épinglées, redirections et plafonds sont inchangés.
+
+### Proxy HTTP — 0.3.44
+
+Pour une URL HTTP derrière un proxy HTTP, le transport transmet une requête
+en forme absolue au lieu d'imposer CONNECT, que certains proxys ferment sur
+le port 80. L'URL transmise contient toujours l'IP publique préalablement
+validée et l'en-tête Host garde le domaine d'origine. Aucune nouvelle résolution
+du domaine cible n'est confiée au proxy. Les destinations HTTPS conservent
+CONNECT, le SNI et la vérification TLS stricte ; un proxy HTTPS conserve aussi
+la vérification de son certificat et son transport en tunnel.
