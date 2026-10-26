@@ -206,6 +206,7 @@ describe("lecture et recherche communes aux moteurs", () => {
     ["ERR_TLS_CERT_ALTNAME_INVALID", "web.tlsFailed"],
     ["UND_ERR_CONNECT_TIMEOUT", "web.timeout"],
     ["ECONNRESET", "web.connectionFailed"],
+    ["UND_ERR_ABORTED", "web.connectionFailed"],
     ["ENETUNREACH", "web.connectionFailed"],
   ])("rend un diagnostic réseau sûr pour %s", async (code, expected) => {
     const raw = Object.assign(new Error("proxy https://login:secret@proxy.invalid?token=private"), {

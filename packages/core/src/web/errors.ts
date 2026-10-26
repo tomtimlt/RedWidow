@@ -25,6 +25,7 @@ const CONNECTION = new Set([
   "EACCES",
   "EPERM",
   "UND_ERR_SOCKET",
+  "UND_ERR_ABORTED",
   "UND_ERR_PRX_TLS",
 ]);
 

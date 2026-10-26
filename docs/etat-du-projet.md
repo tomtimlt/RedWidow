@@ -35,7 +35,7 @@ requête témoin. Le propriétaire confirme `read_url` fonctionnel pour
 sur ce poste n’est pas établie : ce lot corrige le traitement des erreurs et
 permet de distinguer les causes, sans prétendre avoir rétabli Exa sur Windows.
 
-Validation locale : **1 952 tests réussis, 12 ignorés**, typage et compilation
+Validation locale : **1 953 tests réussis, 12 ignorés**, typage et compilation
 réussis ; cas HTTP réels locaux et recherche Exa réelle vérifiés.
 
 ## Lot 0.3.38 — tâches longues dans les conteneurs
