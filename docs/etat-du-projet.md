@@ -1,6 +1,6 @@
 # Warband — parcours, état actuel et reprise
 
-État inspecté le 26 octobre 2026 pour la version 0.3.40. Ce document sert de point d'entrée produit ;
+État inspecté le 26 octobre 2026 pour la version 0.3.41. Ce document sert de point d'entrée produit ;
 les ADR expliquent les décisions, les idées restent une réserve.
 
 ## Le parcours de référence
@@ -15,10 +15,34 @@ parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
 
-La version du manifeste est **0.3.40**. Les paragraphes
+La version du manifeste est **0.3.41**. Les paragraphes
 0.3.19 à 0.3.29 ci-dessous sont des relevés historiques, pas les preuves de
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
+
+## Lot 0.3.41 — autorités HTTPS du système (préparé localement)
+
+Les outils web fusionnent les autorités par défaut de Node (certificats
+supplémentaires compris) avec celles du système, lorsque l’API Node 22.15+
+est disponible. La confiance est locale aux connexions web : aucune autorité
+n’est installée ni ajoutée globalement. La connexion directe et les deux
+couches d’un proxy HTTPS conservent `rejectUnauthorized: true` et la
+vérification du nom du serveur. Si l’API manque ou échoue, Node garde ses
+réglages stricts par défaut ; aucune désactivation de TLS.
+
+Diagnostic du poste : certificat HTTPS signé par une autorité interne,
+reconnue par le navigateur mais pas par le moteur web. Aucun certificat du
+propriétaire n’est versionné ni approuvé automatiquement. Le correctif doit
+encore être essayé dans VS Code sur son poste.
+
+Validation locale : **1 963 tests réussis, 12 ignorés**, typage et compilation
+réussis. HTTPS réel local avec une CA éphémère : connexion reconnue, refus
+sans cette CA, refus du mauvais nom et proxy HTTPS vérifiés. Aucun certificat
+installé sur l’hôte ; les tests cryptographiques OpenSSL ciblent Linux, les
+tests de fusion et de repli restent multiplateformes.
+
+Les deux VSIX sont construits localement. Publication GitHub en attente :
+l’authentification du cloud a expiré ; aucun tag de release 0.3.41 n’est poussé.
 
 ## Lot 0.3.40 — recherche proactive dans le contexte des agents
 

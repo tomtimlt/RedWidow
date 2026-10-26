@@ -2,6 +2,7 @@ import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { Agent, ProxyAgent, request } from "undici";
 import { CodedError } from "../reason.js";
+import { webCertificateAuthorities } from "./certificates.js";
 
 const MAX_BYTES = 1024 * 1024;
 export interface WebResponse {
@@ -95,14 +96,16 @@ export async function webTransport(
   url: URL,
   address: string,
   init: WebRequest,
+  certificates = webCertificateAuthorities(),
 ): Promise<WebResponse> {
   const hostname = url.hostname.replace(/^\[|\]$/g, "");
   const pinned = new URL(url);
   pinned.hostname = isIP(address) === 6 ? `[${address}]` : address;
-  const tls = isIP(hostname) ? {} : { servername: hostname };
+  const trust = { rejectUnauthorized: true, ...(certificates && { ca: certificates }) };
+  const tls = { ...trust, ...(!isIP(hostname) && { servername: hostname }) };
   const proxy = proxyFor(url);
   const dispatcher = proxy
-    ? new ProxyAgent({ uri: proxy, requestTls: tls })
+    ? new ProxyAgent({ uri: proxy, requestTls: tls, proxyTls: trust })
     : new Agent({ connect: tls });
   try {
     const response = await request(pinned, {

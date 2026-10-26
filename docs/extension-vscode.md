@@ -404,3 +404,20 @@ requêtes inutiles. Un échec de recherche est signalé comme tel, sans conclure
 à l’inexistence de l’information. Les consignes hors ligne et les approbations
 restent applicables ; aucune installation ni exécution n’est autorisée par
 une recherche. Le mode Apprentissage conserve ses outils de cours locaux.
+
+
+### Autorités HTTPS du poste
+
+Les outils web utilisent les autorités de confiance de Node et du système
+(en particulier le magasin Windows), si le moteur embarqué par VS Code dispose
+de `tls.getCACertificates` (Node 22.15+). Cela permet de reconnaître une
+inspection HTTPS déjà approuvée sur le poste, sans désactiver la vérification
+du certificat ou du nom du site. Le proxy HTTPS éventuel est vérifié aussi.
+Aucun certificat joint dans une conversation n’est automatiquement approuvé.
+
+Si l’API n’existe pas, les autorités Node habituelles restent utilisées.
+Mettre VS Code à jour est alors recommandé. Une chaîne incomplète ou une
+racine absente peut encore nécessiter l’intervention de l’administrateur du
+poste. `NODE_EXTRA_CA_CERTS` reste pris en charge pour un bundle PEM approuvé,
+chargé au lancement : fermer complètement puis relancer VS Code après une
+modification de cette variable. Ne pas utiliser `NODE_TLS_REJECT_UNAUTHORIZED=0`.

@@ -63,3 +63,13 @@ web sont effectivement exposés, dans l’extension comme dans la CLI. OpenCode
 et la connexion OpenAI la transmettent à chaque tour ; Claude la reçoit dans
 le complément du préréglage système. Les consignes de l’appelant sont
 conservées. Aucun contexte web n’est ajouté aux configurations sans ces outils.
+
+
+### Confiance système — 0.3.41
+
+Les autorités par défaut et système sont fusionnées localement pour le
+client web lorsque l’API Node est disponible. Les certificats supplémentaires
+configurés au lancement sont conservés. Aucun certificat téléchargé depuis
+un site ou joint par un utilisateur n’est installé ni promu en autorité.
+Le site cible et le proxy HTTPS éventuel restent vérifiés avec leurs noms.
+Les contrôles DNS, IP épinglées, redirections et plafonds sont inchangés.
