@@ -22,7 +22,7 @@ import {
 } from "@warband/core";
 import { formatError } from "@warband/messages";
 import * as vscode from "vscode";
-import { parseWebviewMessage } from "../logic/approval.js";
+import { cleanText, parseWebviewMessage } from "../logic/approval.js";
 import { type BypassPush, createBypassHost, formatRemaining } from "../logic/bypass.js";
 import {
   containerMentions,
@@ -40,6 +40,7 @@ import {
 import { removeListedContainer } from "../logic/container-remove.js";
 import type { Provider } from "../logic/effort.js";
 import { type ExegolCreateOptions, prepareExegolCreate } from "../logic/exegol-create.js";
+import { deleteSelectedFinding } from "../logic/finding-delete.js";
 import { createJournalFiles } from "../logic/historyStore.js";
 import { chatHtml, cockpitHtml, killchainHtml, makeNonce, studioHtml } from "../logic/html.js";
 import { matchesFingerprint } from "../logic/integrity.js";
@@ -53,7 +54,7 @@ import { openAiSubscriptionReady } from "../logic/provider-auth.js";
 import { type ChatSession, createChatSession, type TokenChoice } from "../logic/session.js";
 import { machineValue, resolveSettings } from "../logic/settings.js";
 import { readSources } from "../logic/sources.js";
-import { parseStudioMessage, type StudioPage } from "../logic/studio.js";
+import { parseStudioMessage, type StudioMessage, type StudioPage } from "../logic/studio.js";
 import {
   capturedShell,
   classifyMessageHashes,
@@ -122,6 +123,19 @@ export function activate(context: vscode.ExtensionContext): void {
   let killchainPanel: vscode.WebviewPanel | undefined;
   let killchainRevision = 0;
   let killchainPayload = "";
+  let findingProjectGeneration = 0;
+  const findingDeletions = new Map<
+    vscode.WebviewPanel,
+    {
+      abort: AbortController;
+      projectId: string;
+      id: string;
+    }
+  >();
+  const cancelFindingDeletions = () => {
+    findingProjectGeneration++;
+    for (const pending of findingDeletions.values()) pending.abort.abort();
+  };
   let findingsTimer: ReturnType<typeof setTimeout> | undefined;
   const scheduleFindingsRefresh = () => {
     if (killchainPanel === undefined || findingsTimer !== undefined) return;
@@ -132,6 +146,7 @@ export function activate(context: vscode.ExtensionContext): void {
   };
   context.subscriptions.push({
     dispose: () => {
+      cancelFindingDeletions();
       if (findingsTimer !== undefined) clearTimeout(findingsTimer);
       killchainRevision++;
     },
@@ -1296,11 +1311,15 @@ export function activate(context: vscode.ExtensionContext): void {
       "{project.json,projects/*/findings.json}",
     ),
   );
+  const onFindingsChanged = (uri: vscode.Uri) => {
+    if (basename(uri.fsPath) === "project.json") cancelFindingDeletions();
+    scheduleFindingsRefresh();
+  };
   context.subscriptions.push(
     findingsWatcher,
-    findingsWatcher.onDidChange(scheduleFindingsRefresh),
-    findingsWatcher.onDidCreate(scheduleFindingsRefresh),
-    findingsWatcher.onDidDelete(scheduleFindingsRefresh),
+    findingsWatcher.onDidChange(onFindingsChanged),
+    findingsWatcher.onDidCreate(onFindingsChanged),
+    findingsWatcher.onDidDelete(onFindingsChanged),
   );
   const openKillchain = () => {
     if (killchainPanel) {
@@ -1332,7 +1351,9 @@ export function activate(context: vscode.ExtensionContext): void {
         .asWebviewUri(vscode.Uri.joinPath(media, "chat.css"))
         .toString(),
     });
+    const panel = killchainPanel;
     killchainPanel.onDidDispose(() => {
+      findingDeletions.get(panel)?.abort.abort();
       killchainPanel = undefined;
       killchainRevision++;
       killchainPayload = "";
@@ -1340,6 +1361,10 @@ export function activate(context: vscode.ExtensionContext): void {
     });
     killchainPanel.webview.onDidReceiveMessage(async (raw: unknown) => {
       const message = parseStudioMessage(raw);
+      if (message?.type === "deleteFinding") {
+        await deleteFindingFromPanel(panel, message);
+        return;
+      }
       if (message?.type === "refresh") {
         killchainPayload = "";
         await pushKillchain();
@@ -1410,6 +1435,70 @@ export function activate(context: vscode.ExtensionContext): void {
       ...(projectError !== undefined && { projectError }),
     });
   };
+  const deleteFindingFromPanel = async (
+    panel: vscode.WebviewPanel,
+    message: Extract<StudioMessage, { type: "deleteFinding" }>,
+  ) => {
+    const abort = new AbortController();
+    const generation = findingProjectGeneration;
+    const alive = () => panel === killchainPanel || panel === studioPanel;
+    const post = async (busy: boolean, error?: string) => {
+      if (!alive()) return;
+      await panel.webview.postMessage({
+        type: "findingDeleteState",
+        projectId: message.projectId,
+        id: message.id,
+        busy,
+        ...(error !== undefined && { error }),
+      });
+    };
+    const existing = findingDeletions.get(panel);
+    if (existing) {
+      const same = existing.projectId === message.projectId && existing.id === message.id;
+      await post(same, same ? undefined : "Une suppression est déjà en cours. Réessayez ensuite.");
+      return;
+    }
+    if (projectChanging) {
+      await post(false, "Un changement de projet est en cours. Réessayez ensuite.");
+      return;
+    }
+    findingDeletions.set(panel, { abort, projectId: message.projectId, id: message.id });
+    let failure: string | undefined;
+    try {
+      await post(true);
+      const result = await deleteSelectedFinding(
+        defaultConfigDir(),
+        message.projectId,
+        message.id,
+        {
+          signal: abort.signal,
+          isCurrent: () => alive() && !projectChanging && findingProjectGeneration === generation,
+          confirm: async ({ projectName, finding, dependentCount }) => {
+            const label = cleanText(finding.label, 200);
+            const links =
+              dependentCount > 0
+                ? ` Les liens vers cet élément seront retirés de ${dependentCount} autre(s) élément(s).`
+                : "";
+            const choice = await vscode.window.showWarningMessage(
+              `Supprimer « ${label} » de la Kill chain du projet « ${cleanText(projectName, 80)} » ?${links} Les autres éléments sont conservés.`,
+              { modal: true },
+              "Supprimer",
+            );
+            return choice === "Supprimer";
+          },
+        },
+      );
+      if (result.status === "deleted") {
+        await pushKillchain();
+        await pushStudio();
+      }
+    } catch (error) {
+      failure = cleanText(formatError(error), 1000);
+    } finally {
+      findingDeletions.delete(panel);
+      await post(false, failure);
+    }
+  };
   const openStudio = () => {
     if (studioPanel) {
       studioPanel.reveal();
@@ -1432,13 +1521,19 @@ export function activate(context: vscode.ExtensionContext): void {
         .toString(),
       styleUri: studioPanel.webview.asWebviewUri(vscode.Uri.joinPath(media, "chat.css")).toString(),
     });
+    const panel = studioPanel;
     studioPanel.onDidDispose(() => {
+      findingDeletions.get(panel)?.abort.abort();
       studioPanel = undefined;
       void saveWindows();
     });
     studioPanel.webview.onDidReceiveMessage(async (raw: unknown) => {
       const message = parseStudioMessage(raw);
       if (message === null) return;
+      if (message.type === "deleteFinding") {
+        await deleteFindingFromPanel(panel, message);
+        return;
+      }
       if (message.type === "open") studioPage = message.page;
       if (message.type === "openCockpit") {
         openCockpit();
@@ -1456,6 +1551,7 @@ export function activate(context: vscode.ExtensionContext): void {
           });
           return;
         }
+        cancelFindingDeletions();
         projectChanging = true;
         let projectCreated: string | undefined;
         let projectError: string | undefined;

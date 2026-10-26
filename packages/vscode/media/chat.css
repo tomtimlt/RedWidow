@@ -2816,6 +2816,33 @@ body.studio .studio-dl dd {
   gap: var(--jn-s2);
   align-items: center;
   margin-bottom: var(--jn-s2);
+  max-width: calc(100% - var(--jn-s2) * 2);
+  flex-wrap: wrap;
+}
+.kc-selection {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+  min-width: 0;
+  max-width: 100%;
+  padding: var(--jn-s1) var(--jn-s2);
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-sm);
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+}
+.kc-selection[hidden] {
+  display: none;
+}
+.kc-selection-label {
+  max-width: 200px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kc-delete {
+  flex: none;
+  color: var(--vscode-errorForeground);
 }
 .kc-zoom {
   min-width: 28px;
@@ -2866,6 +2893,7 @@ body.studio .studio-dl dd {
   gap: 7px;
   font-size: var(--jn-fs-sm);
   text-align: center;
+  cursor: pointer;
 }
 .kc-node.kind-host {
   --kc-accent: var(--vscode-terminal-ansiBlue, var(--jn-accent));
@@ -2883,10 +2911,10 @@ body.studio .studio-dl dd {
   --kc-accent: var(--vscode-terminal-ansiGreen, var(--jn-accent));
 }
 .kc-live-status {
-  position: absolute;
-  top: calc(var(--jn-s2) + 40px);
-  left: var(--jn-s2);
-  right: var(--jn-s2);
+  position: relative;
+  flex: 1 0 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
   z-index: 2;
   margin: 0;
   padding: var(--jn-s2);
@@ -2898,6 +2926,10 @@ body.studio .studio-dl dd {
 .kc-node:focus-visible .kc-node-head {
   outline: 2px solid var(--jn-accent);
   outline-offset: 3px;
+}
+.kc-node.is-selected .kc-node-head {
+  outline: 2px solid var(--jn-accent);
+  outline-offset: 4px;
 }
 .kc-node-head {
   position: relative;

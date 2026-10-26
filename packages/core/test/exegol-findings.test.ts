@@ -1,9 +1,9 @@
-import { mkdir, mkdtemp, readdir, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { updateFinding } from "../src/exegol/findings.js";
+import { deleteFinding, updateFinding } from "../src/exegol/findings.js";
 import {
   appendFinding,
   createExegolTargets,
@@ -309,3 +309,203 @@ describe("modification des trouvailles", () => {
     }
   });
 });
+
+describe("suppression des trouvailles", () => {
+  it("retire un nœud et ses liens directs, conserve les autres parents et l’ordre", async () => {
+    const d = await dir();
+    const a = { ...base, id: "a" };
+    const b = { ...base, id: "b", from: ["a"] };
+    const c = { ...base, id: "c", from: ["a", "b"] };
+    const e = { ...base, id: "e", from: ["b"] };
+    const f = { ...base, id: "f", from: ["e"] };
+    await write(d, [a, b, c, e, f]);
+    expect(await deleteFinding(d, ID, "b")).toEqual({ removed: b, detachedFrom: ["c", "e"] });
+    expect(await readFindings(d, ID)).toEqual([a, { ...c, from: ["a"] }, baseWithId("e"), f]);
+    for (const id of ["a", "c", "e", "f"]) await deleteFinding(d, ID, id);
+    expect(await readFindings(d, ID)).toEqual([]);
+    expect(await readdir(join(d, "projects", ID))).toEqual([USER_FINDINGS_FILE]);
+  });
+
+  it("refuse un id absent, ambigu, étranger ou un fichier invalide sans l’altérer", async () => {
+    const d = await dir();
+    await write(d, [base], OTHER);
+    await expect(deleteFinding(d, ID, base.id)).rejects.toMatchObject({ code: "finding.notFound" });
+    expect(await readFindings(d, OTHER)).toEqual([base]);
+    for (const rows of [[base], [base, base], { invalide: true }]) {
+      await write(d, rows);
+      const path = join(d, "projects", ID, USER_FINDINGS_FILE);
+      const before = await readFile(path, "utf8");
+      await expect(
+        deleteFinding(d, ID, Array.isArray(rows) && rows.length === 1 ? "../a" : "a"),
+      ).rejects.toMatchObject({
+        code: Array.isArray(rows) && rows.length === 1 ? "finding.notFound" : "project.invalid",
+      });
+      expect(await readFile(path, "utf8")).toBe(before);
+      expect(await readdir(join(d, "projects", ID))).toEqual([USER_FINDINGS_FILE]);
+    }
+    await expect(deleteFinding(d, "../", "a")).rejects.toMatchObject({ code: "project.invalid" });
+  });
+
+  it("respecte un verrou existant, attend au plus trois secondes et ne le vole pas", async () => {
+    const d = await dir();
+    await write(d, [base]);
+    const lock = join(d, "projects", ID, `${USER_FINDINGS_FILE}.lock`);
+    await writeFile(lock, "verrou détenu ailleurs");
+    const start = Date.now();
+    await expect(deleteFinding(d, ID, "a")).rejects.toMatchObject({ code: "finding.busy" });
+    expect(Date.now() - start).toBeLessThan(4_000);
+    expect(await readFile(lock, "utf8")).toBe("verrou détenu ailleurs");
+    expect(await readFindings(d, ID)).toEqual([base]);
+    await unlink(lock);
+    await deleteFinding(d, ID, "a");
+    expect(await readdir(join(d, "projects", ID))).toEqual([USER_FINDINGS_FILE]);
+  });
+
+  it("annule l’attente et la revalidation sans écrire et libère son propre verrou", async () => {
+    const d = await dir();
+    await write(d, [base]);
+    const lock = join(d, "projects", ID, `${USER_FINDINGS_FILE}.lock`);
+    await writeFile(lock, "ailleurs");
+    const controller = new AbortController();
+    const pending = deleteFinding(d, ID, "a", { signal: controller.signal });
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    expect(await readFile(lock, "utf8")).toBe("ailleurs");
+    await unlink(lock);
+    await expect(
+      deleteFinding(d, ID, "a", {
+        beforeCommit: () => {
+          throw new Error("contexte changé");
+        },
+      }),
+    ).rejects.toThrow("contexte changé");
+    const aborted = new AbortController();
+    await expect(
+      deleteFinding(d, ID, "a", {
+        signal: aborted.signal,
+        beforeCommit: async () => {
+          expect(
+            (await readdir(join(d, "projects", ID))).some((file) => file.endsWith(".tmp")),
+          ).toBe(true);
+          aborted.abort();
+        },
+      }),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(await readFindings(d, ID)).toEqual([base]);
+    expect(await readdir(join(d, "projects", ID))).toEqual([USER_FINDINGS_FILE]);
+  });
+
+  it("delete_note revalide le projet après l’attente et ne suit jamais une nouvelle cible", async () => {
+    const root = await dir();
+    const prev = process.env.XDG_CONFIG_HOME;
+    process.env.XDG_CONFIG_HOME = root;
+    try {
+      const d = join(root, "warband");
+      await write(d, [base]);
+      await write(d, [base], OTHER);
+      const targets = createExegolTargets();
+      const remove = exegolToolSpecs({} as DockerClient, targets).find(
+        (spec) => spec.name === "delete_note",
+      );
+      if (!remove) throw new Error("outil delete_note absent");
+      const lock = join(d, "projects", ID, `${USER_FINDINGS_FILE}.lock`);
+      for (const [project, blocked, code] of [
+        [OTHER, undefined, "project.invalid"],
+        [null, undefined, "project.absent"],
+        [null, "invalid", "project.invalid"],
+        [null, "readFailed", "project.readFailed"],
+      ] as const) {
+        targets.note("observé", [], ID);
+        await writeFile(lock, "ailleurs");
+        const pending = remove.run(
+          { id: "a" },
+          { parentId: null, correlation: undefined, signal: undefined },
+        );
+        targets.note("changé", [], project, blocked);
+        await unlink(lock);
+        await expect(pending).rejects.toMatchObject({ code });
+        expect(await readFindings(d, ID)).toEqual([base]);
+        expect(await readFindings(d, OTHER)).toEqual([base]);
+      }
+    } finally {
+      if (prev === undefined) delete process.env.XDG_CONFIG_HOME;
+      else process.env.XDG_CONFIG_HOME = prev;
+    }
+  });
+
+  it("propage l’annulation aux trois mutations MCP avant toute écriture", async () => {
+    const root = await dir();
+    const prev = process.env.XDG_CONFIG_HOME;
+    process.env.XDG_CONFIG_HOME = root;
+    try {
+      const d = join(root, "warband");
+      await write(d, [base]);
+      const targets = createExegolTargets();
+      targets.note("observé", [], ID);
+      const specs = exegolToolSpecs({} as DockerClient, targets);
+      const controller = new AbortController();
+      controller.abort();
+      for (const [name, args] of [
+        ["note", { kind: "host", label: "nouveau", state: "confirmed" }],
+        ["update_note", { id: "a", patch: { label: "modifié" } }],
+        ["delete_note", { id: "a" }],
+      ] as const) {
+        const spec = specs.find((spec) => spec.name === name);
+        if (!spec) throw new Error(`outil ${name} absent`);
+        await expect(
+          spec.run(args, { parentId: null, correlation: undefined, signal: controller.signal }),
+        ).rejects.toMatchObject({ name: "AbortError" });
+      }
+      expect(await readFindings(d, ID)).toEqual([base]);
+      expect(await readdir(join(d, "projects", ID))).toEqual([USER_FINDINGS_FILE]);
+    } finally {
+      if (prev === undefined) delete process.env.XDG_CONFIG_HOME;
+      else process.env.XDG_CONFIG_HOME = prev;
+    }
+  });
+
+  it("delete_note n’accepte que l’id et reste borné au projet actif", async () => {
+    const root = await dir();
+    const prev = process.env.XDG_CONFIG_HOME;
+    process.env.XDG_CONFIG_HOME = root;
+    try {
+      const d = join(root, "warband");
+      await write(d, [base]);
+      await write(d, [base], OTHER);
+      const targets = createExegolTargets();
+      const remove = exegolToolSpecs({} as DockerClient, targets).find(
+        (spec) => spec.name === "delete_note",
+      );
+      if (!remove) throw new Error("outil delete_note absent");
+      expect(Object.keys(remove.input)).toEqual(["id"]);
+      expect(remove.readOnly).not.toBe(true);
+      const ctx = { parentId: null, correlation: undefined, signal: undefined };
+      for (const [blocked, code] of [
+        [undefined, "project.absent"],
+        ["invalid", "project.invalid"],
+        ["readFailed", "project.readFailed"],
+      ] as const) {
+        targets.note("observé", [], null, blocked);
+        await expect(remove.run({ id: "a", projectId: OTHER }, ctx)).rejects.toMatchObject({
+          code,
+        });
+      }
+      targets.note("observé", [], ID);
+      expect(
+        JSON.parse(await remove.run({ id: "a", projectId: OTHER, path: "/tmp/forgé" }, ctx)),
+      ).toEqual({ removed: base, detachedFrom: [] });
+      expect(await readFindings(d, ID)).toEqual([]);
+      expect(await readFindings(d, OTHER)).toEqual([base]);
+      await expect(remove.run({ id: "a" }, ctx)).rejects.toMatchObject({
+        code: "finding.notFound",
+      });
+    } finally {
+      if (prev === undefined) delete process.env.XDG_CONFIG_HOME;
+      else process.env.XDG_CONFIG_HOME = prev;
+    }
+  });
+});
+
+function baseWithId(id: string) {
+  return { ...base, id };
+}

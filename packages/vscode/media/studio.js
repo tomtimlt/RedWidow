@@ -374,12 +374,16 @@ function start() {
   let graphFingerprint = null;
   let graphCleanup = () => {};
   let graphStatus = null;
+  let graphBar = null;
+  let selectedFinding = null;
+  let pendingFindingDelete = null;
+  let paintFindingSelection = () => {};
   const showGraphError = (message) => {
     if (graphStatus === null) {
       if (message === "" || main === null) return;
       graphStatus = el("p", "kc-live-status");
       graphStatus.setAttribute("role", "status");
-      main.append(graphStatus);
+      (graphBar ?? main).append(graphStatus);
     }
     graphStatus.textContent = message;
     graphStatus.hidden = message === "";
@@ -500,10 +504,11 @@ function start() {
    * Vue graphe de la kill chain : nœuds typés, arêtes courbes, zoom/pan, bouton Ajuster, et le panneau
    * légende (repliable, à droite). `findings` alimente uniquement les compteurs du panneau.
    */
-  function killchainGraphView(graph, findings) {
+  function killchainGraphView(graph, findings, projectId) {
     const wrap = el("div", "studio-kc");
 
     const bar = el("div", "kc-bar");
+    graphBar = bar;
     const fit = el("button", "ghost kc-btn");
     fit.type = "button";
     fit.append(el("span", "btn-text", "Ajuster"));
@@ -516,6 +521,45 @@ function start() {
     zoomIn.title = "Zoomer";
     zoomIn.append(decorative(el("span", "", "+")));
     bar.append(fit, zoomOut, zoomIn);
+    const selection = el("div", "kc-selection");
+    const selectedLabel = el("span", "kc-selection-label");
+    const remove = el("button", "ghost kc-btn kc-delete");
+    remove.type = "button";
+    remove.title = "Supprimer la trouvaille sélectionnée";
+    const trash = document.createElementNS(SVG_NS, "svg");
+    trash.setAttribute("viewBox", "0 0 16 16");
+    trash.setAttribute("class", "kc-ico-svg");
+    const trashPath = document.createElementNS(SVG_NS, "path");
+    trashPath.setAttribute("d", "M2.5 4.5h11M6 4.5V2.5h4v2M4 4.5l.5 9h7l.5-9M6.5 7v4M9.5 7v4");
+    trash.append(trashPath);
+    remove.append(decorative(trash), el("span", "btn-text", "Supprimer"));
+    selection.append(selectedLabel, remove);
+    bar.append(selection);
+    const nodeButtons = new Map();
+    paintFindingSelection = () => {
+      const selected = graph.nodes.find((node) => node.id === selectedFinding);
+      selection.hidden = !selected;
+      selectedLabel.textContent = selected?.label ?? "";
+      selectedLabel.title = selected?.label ?? "";
+      remove.disabled =
+        !selected ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
+          projectId ?? "",
+        ) ||
+        pendingFindingDelete !== null;
+      remove.setAttribute("aria-busy", String(pendingFindingDelete !== null));
+      for (const [id, node] of nodeButtons) {
+        node.setAttribute("aria-pressed", String(id === selectedFinding));
+        node.classList.toggle("is-selected", id === selectedFinding);
+      }
+    };
+    remove.addEventListener("click", () => {
+      if (remove.disabled || selectedFinding === null) return;
+      pendingFindingDelete = { projectId, id: selectedFinding };
+      showGraphError("");
+      paintFindingSelection();
+      vscode.postMessage({ type: "deleteFinding", projectId, id: selectedFinding });
+    });
 
     const viewport = el("div", "kc-viewport");
     const canvas = el("div", "kc-canvas");
@@ -579,12 +623,26 @@ function start() {
         .filter(Boolean)
         .join(" \u00b7 ");
       node.tabIndex = 0;
+      node.setAttribute("role", "button");
       node.setAttribute(
         "aria-label",
         [n.label, KIND_LABEL[n.kind] || n.kind, stateLabel, n.meta].filter(Boolean).join(" · "),
       );
+      const select = () => {
+        selectedFinding = n.id;
+        paintFindingSelection();
+      };
+      node.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+      node.addEventListener("click", select);
+      node.addEventListener("keydown", (ev) => {
+        if (ev.key !== "Enter" && ev.key !== " ") return;
+        ev.preventDefault();
+        select();
+      });
+      nodeButtons.set(n.id, node);
       canvas.append(node);
     }
+    paintFindingSelection();
     viewport.append(canvas);
 
     // Panneau légende : frère du viewport (colonne propre, pas de superposition), repliable.
@@ -807,6 +865,14 @@ function start() {
       graphProject = project;
       graphPose = null;
       graphFingerprint = null;
+      selectedFinding = null;
+      pendingFindingDelete = null;
+    }
+    const findingExists = (id) =>
+      Array.isArray(view.findings) && view.findings.some((finding) => finding?.id === id);
+    if (selectedFinding !== null && !findingExists(selectedFinding)) selectedFinding = null;
+    if (pendingFindingDelete !== null && !findingExists(pendingFindingDelete.id)) {
+      pendingFindingDelete = null;
     }
     const fingerprint = page === "killchain" ? JSON.stringify(view.findings ?? []) : null;
     showGraphError("");
@@ -815,7 +881,9 @@ function start() {
     graphFingerprint = fingerprint;
     graphCleanup();
     graphCleanup = () => {};
+    paintFindingSelection = () => {};
     graphStatus = null;
+    graphBar = null;
     while (main.firstChild) main.removeChild(main.firstChild);
     if (!killchainOnly) paintNav(page, view.findings, view);
     if (page === "project") {
@@ -1080,7 +1148,7 @@ function start() {
         const sec = el("section", "studio-kc-page");
         const graph = killchainGraph(view.findings);
         if (graph.nodes.length > 0) {
-          sec.append(killchainGraphView(graph, view.findings));
+          sec.append(killchainGraphView(graph, view.findings, project));
         } else {
           const wrap = el("div", "studio-kc");
           const viewport = el("div", "kc-viewport kc-empty");
@@ -1143,6 +1211,20 @@ function start() {
 
   window.addEventListener("message", (event) => {
     const msg = event.data;
+    if (msg?.type === "findingDeleteState") {
+      if (
+        pendingFindingDelete === null ||
+        msg.projectId !== pendingFindingDelete.projectId ||
+        msg.id !== pendingFindingDelete.id ||
+        typeof msg.busy !== "boolean"
+      ) {
+        return;
+      }
+      if (!msg.busy) pendingFindingDelete = null;
+      paintFindingSelection();
+      if (typeof msg.error === "string") showGraphError(msg.error);
+      return;
+    }
     if (msg?.type === "findingsError") {
       if (msg.projectId !== undefined && msg.projectId !== graphProject) return;
       showGraphError(

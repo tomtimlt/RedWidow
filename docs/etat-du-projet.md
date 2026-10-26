@@ -1,6 +1,6 @@
 # Warband — parcours, état actuel et reprise
 
-État inspecté le 26 octobre 2026 pour la version 0.3.33. Ce document sert de point d'entrée produit ;
+État inspecté le 26 octobre 2026 pour la version 0.3.34. Ce document sert de point d'entrée produit ;
 les ADR expliquent les décisions, les idées restent une réserve.
 
 ## Le parcours de référence
@@ -15,10 +15,27 @@ parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
 
-La version du manifeste est **0.3.33**. Les paragraphes
+La version du manifeste est **0.3.34**. Les paragraphes
 0.3.19 à 0.3.29 ci-dessous sont des relevés historiques, pas les preuves de
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
+
+## Lot 0.3.34 — suppression dans la Kill chain
+
+Sélection d’un nœud puis Supprimer, avec confirmation native et actualisation
+du graphe. `delete_note` est disponible pour l’agent sous la gate existante.
+Une suppression conserve les autres éléments et retire les liens pointant
+vers le nœud supprimé ; aucun effacement en cascade. Projet et cible sont
+revérifiés juste avant le commit. Les mutations sont coordonnées entre le
+moteur et l’interface pour éviter pertes et résurrections concurrentes.
+Voir [ADR 0022](adr/0022-suppression-des-trouvailles.md), notamment la récupération
+d’un verrou laissé après un arrêt brutal.
+
+Validation locale : **1 879 tests réussis, 12 ignorés**, lint, typage et
+compilation réussis. Tests entre véritables processus pour les écritures
+concurrentes ; contrôles Chromium de la sélection, suppression, annulation,
+erreurs et caméra dans quatre largeurs et trois thèmes. Revue architecte
+du commit atomique, des changements de projet et de la gate effectuée.
 
 ## Lot 0.3.33 — catalogue OpenCode dépassant 100 modèles
 

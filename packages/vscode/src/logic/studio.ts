@@ -29,6 +29,8 @@ export type StudioMessage =
   | { type: "createProject"; name: string }
   /** Résumé du projet affiché : l'hôte revalide le projet actif avant l'écriture. */
   | { type: "saveSummary"; projectId: string; text: string }
+  /** La cible est relue et confirmée par l'hôte avant toute suppression. */
+  | { type: "deleteFinding"; projectId: string; id: string }
   /** Ouvre le dossier de cours : aucun champ, le chemin vient de l'hôte (`coursRoot()`). */
   | { type: "openCours" }
   /** Ouvre la Kill chain en vue plein écran (hôte seul). */
@@ -61,6 +63,19 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
     !/[\0\r\n]/.test(m.name)
   ) {
     return { type: "createProject", name: m.name.trim() };
+  }
+  if (
+    m.type === "deleteFinding" &&
+    keys.length === 3 &&
+    keys.every((key) => key === "type" || key === "projectId" || key === "id") &&
+    typeof m.projectId === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(m.projectId) &&
+    typeof m.id === "string" &&
+    m.id.trim().length > 0 &&
+    m.id.length <= 200 &&
+    !/\p{Cc}/u.test(m.id)
+  ) {
+    return { type: "deleteFinding", projectId: m.projectId, id: m.id };
   }
   if (
     m.type === "saveSummary" &&

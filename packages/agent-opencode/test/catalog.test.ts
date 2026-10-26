@@ -396,6 +396,7 @@ describe("toolsets OpenCode", () => {
       if (factory === exegolToolset) {
         expect(names).toContain("list_notes");
         expect(names).toContain("update_note");
+        expect(names).toContain("delete_note");
       }
       expect(names).not.toContain("remember");
     },

@@ -37,5 +37,7 @@ Lots pour `dev` : objectif, fichiers, critères d'acceptation vérifiables.
 - [0020 — Fournisseurs OpenAI et OpenCode](0020-fournisseurs-openai-opencode.md) : authentification isolée, catalogue runtime, variantes et continuité du fil avec nouvelle session SDK (amendement 0.3.32).
 - [0021 — Création et suppression des conteneurs](0021-creation-et-suppression-conteneurs.md) : Exegol interactif, image Kali locale complète et suppression confirmée par ID.
 
+- [0022 — Suppression des trouvailles](0022-suppression-des-trouvailles.md) : suppression unique, détachement des liens et écritures coordonnées.
+
 Le statut accepté décrit la décision ; les preuves d’exécution et les limites
 figurent dans [l’état du projet](../etat-du-projet.md).

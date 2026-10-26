@@ -20,8 +20,10 @@ describe.each([
       .map((tool) => tool.name);
 
   it("conserve remember par défaut et sur activation explicite pour la CLI", () => {
-    if (name === "Exegol") expect(names()).toContain("remember");
-    else expect(names()).not.toContain("remember");
+    if (name === "Exegol") {
+      expect(names()).toContain("remember");
+      expect(names()).toContain("delete_note");
+    } else expect(names()).not.toContain("remember");
     expect(names(true)).toEqual(names());
   });
 

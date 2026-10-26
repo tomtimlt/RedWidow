@@ -242,6 +242,8 @@ export const reasons: Catalog = {
   "project.notExegol": (p) => `conteneur non Exegol : ${text(p.name)}`,
   "project.notRunning": (p) => `conteneur arrêté : ${text(p.name)}`,
   "project.noWorkspace": (p) => `conteneur sans montage /workspace : ${text(p.name)}`,
+  "finding.busy": () =>
+    "Les trouvailles du projet sont occupées. Réessayer après la fin de l’opération en cours.",
   "finding.notFound": () => "Trouvaille introuvable dans le projet actif.",
   "finding.invalidLinks": () =>
     "Liens de trouvaille invalides : référence inconnue ou cycle causal.",

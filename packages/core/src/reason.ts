@@ -127,6 +127,7 @@ export const REASON_CODES = [
   "project.invalid",
   "finding.labelInvalid",
   "finding.notFound",
+  "finding.busy",
   "finding.invalidLinks",
   "project.absent",
   "project.readFailed",

@@ -42,6 +42,7 @@ export const reasons: Catalog = {
   "project.notExegol": (p) => `not an Exegol container: ${text(p.name)}`,
   "project.notRunning": (p) => `container not running: ${text(p.name)}`,
   "project.noWorkspace": (p) => `container without /workspace mount: ${text(p.name)}`,
+  "finding.busy": () => "Project findings are busy. Retry after the current operation completes.",
   "finding.notFound": () => "Finding not found in the active project.",
   "finding.invalidLinks": () => "Invalid finding links: unknown reference or causal cycle.",
   "finding.labelInvalid": (p) =>

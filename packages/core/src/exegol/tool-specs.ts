@@ -7,6 +7,7 @@ import { writeSummary } from "../project.js";
 import { CodedError } from "../reason.js";
 import {
   appendFinding,
+  deleteFinding,
   FINDING_KINDS,
   FINDING_MAX_LABEL,
   FINDING_STATES,
@@ -76,7 +77,7 @@ function activeProjectId(targets: ExegolTargets): string {
   throw new CodedError("project.absent");
 }
 
-/** Outils : `exec`, `note`, `list_notes`, `update_note`, `remember`. Le conteneur est validé contre la cible du message, pas choisi librement. */
+/** Outils : `exec`, `note`, `list_notes`, `update_note`, `delete_note`, `remember`. Le conteneur est validé contre la cible du message, pas choisi librement. */
 export function exegolToolSpecs(docker: DockerClient, targets: ExegolTargets): DockerToolSpec[] {
   return [
     spec({
@@ -120,16 +121,21 @@ export function exegolToolSpecs(docker: DockerClient, targets: ExegolTargets): D
         technique: z.string().regex(TECHNIQUE_PATTERN).optional(),
         from: z.array(z.string()).max(8).optional(),
       },
-      async run(args) {
+      async run(args, call) {
         const projectId = activeProjectId(targets);
-        const finding = await appendFinding(defaultConfigDir(), projectId, {
-          kind: args.kind as (typeof FINDING_KINDS)[number],
-          label: String(args.label),
-          state: args.state as (typeof FINDING_STATES)[number],
-          ...(args.tactic !== undefined && { tactic: args.tactic as MitreTactic }),
-          ...(args.technique !== undefined && { technique: String(args.technique) }),
-          ...(args.from !== undefined && { from: args.from as string[] }),
-        });
+        const finding = await appendFinding(
+          defaultConfigDir(),
+          projectId,
+          {
+            kind: args.kind as (typeof FINDING_KINDS)[number],
+            label: String(args.label),
+            state: args.state as (typeof FINDING_STATES)[number],
+            ...(args.tactic !== undefined && { tactic: args.tactic as MitreTactic }),
+            ...(args.technique !== undefined && { technique: String(args.technique) }),
+            ...(args.from !== undefined && { from: args.from as string[] }),
+          },
+          { ...(call.signal && { signal: call.signal }) },
+        );
         const tail = `${finding.tactic ? ` ${finding.tactic}` : ""}${finding.technique ? ` ${finding.technique}` : ""}`;
         return `${finding.id} ${finding.kind} ${finding.state} ${finding.label}${tail}`;
       },
@@ -137,7 +143,7 @@ export function exegolToolSpecs(docker: DockerClient, targets: ExegolTargets): D
     spec({
       name: "list_notes",
       description:
-        "Lit les trouvailles du projet actif avec leurs ids et parents from, pour retrouver les ids avant update_note. Ne lit ni historique ni résumé de conversation.",
+        "Lit les trouvailles du projet actif avec leurs ids et parents from, pour retrouver les ids avant update_note ou delete_note. Ne lit ni historique ni résumé de conversation.",
       readOnly: true,
       input: {},
       async run() {
@@ -159,14 +165,32 @@ export function exegolToolSpecs(docker: DockerClient, targets: ExegolTargets): D
           from: z.array(z.string().min(1)).max(8).optional(),
         }),
       },
-      async run(args) {
+      async run(args, call) {
         return JSON.stringify(
           await updateFinding(
             defaultConfigDir(),
             activeProjectId(targets),
             String(args.id),
             args.patch as FindingPatch,
+            { ...(call.signal && { signal: call.signal }) },
           ),
+        );
+      },
+    }),
+    spec({
+      name: "delete_note",
+      description:
+        "Supprime une trouvaille du projet actif par son id (voir list_notes). Retire cet id des parents from de ses enfants directs, sans supprimer les enfants ni reconnecter leurs parents. Retourne la trouvaille supprimée et les ids des enfants détachés.",
+      input: { id: z.string().min(1) },
+      async run(args, call) {
+        const projectId = activeProjectId(targets);
+        return JSON.stringify(
+          await deleteFinding(defaultConfigDir(), projectId, String(args.id), {
+            ...(call.signal && { signal: call.signal }),
+            beforeCommit: () => {
+              if (activeProjectId(targets) !== projectId) throw new CodedError("project.invalid");
+            },
+          }),
         );
       },
     }),

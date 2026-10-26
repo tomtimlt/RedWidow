@@ -517,7 +517,7 @@ describe("killchainLegend (panneau légende, deux groupes avec compteurs)", () =
 // DOM minimal : exerce le vrai script, les saisies et le protocole sans dépendance de navigateur.
 class StudioNode {
   children: StudioNode[] = [];
-  listeners = new Map<string, () => void>();
+  listeners = new Map<string, (event: Record<string, unknown>) => void>();
   id = "";
   textContent = "";
   value = "";
@@ -545,15 +545,15 @@ class StudioNode {
   setAttribute(key: string, value: string) {
     this.attributes.set(key, value);
   }
-  addEventListener(type: string, listener: () => void) {
+  addEventListener(type: string, listener: (event: Record<string, unknown>) => void) {
     const previous = this.listeners.get(type);
-    this.listeners.set(type, () => {
-      previous?.();
-      listener();
+    this.listeners.set(type, (event) => {
+      previous?.(event);
+      listener(event);
     });
   }
-  fire(type: string) {
-    this.listeners.get(type)?.();
+  fire(type: string, event: Record<string, unknown> = {}) {
+    this.listeners.get(type)?.(event);
   }
   find(predicate: (node: StudioNode) => boolean): StudioNode | undefined {
     if (predicate(this)) return this;
@@ -834,4 +834,165 @@ it("graphe : conserve la caméra, libère les observateurs et signale une erreur
   receive({ data: { ...view, projectId: "projet-b" } });
   expect(find("kc-canvas").styles.get("transform")).not.toBe(pose);
   expect(observers[1]?.disconnected).toBe(true);
+});
+
+function killchainDom() {
+  const main = new StudioNode("main");
+  const body = new StudioNode("body");
+  body.classList.contains = () => true;
+  const sent: unknown[] = [];
+  let receive: (event: { data: unknown }) => void = () => {};
+  runInNewContext(read(studioJs), {
+    TextEncoder,
+    acquireVsCodeApi: () => ({ postMessage: (message: unknown) => sent.push(message) }),
+    document: {
+      body,
+      getElementById: (id: string) => (id === "studio-main" ? main : null),
+      createElement: (tag: string) => new StudioNode(tag),
+      createElementNS: (_ns: string, tag: string) => new StudioNode(tag),
+    },
+    window: {
+      addEventListener: (_type: string, listener: typeof receive) => {
+        receive = listener;
+      },
+    },
+  });
+  return {
+    main,
+    sent,
+    receive: (data: unknown) => receive({ data }),
+    find: (className: string) => {
+      const node = main.find((n) => n.className.split(" ").includes(className));
+      if (!node) throw Error(`Élément absent : ${className}`);
+      return node;
+    },
+  };
+}
+
+const deleteProject = "11111111-1111-4111-8111-111111111111";
+const deleteOtherProject = "22222222-2222-4222-8222-222222222222";
+const deleteFindingView = {
+  type: "view",
+  projectId: deleteProject,
+  findings: [{ id: "trouvaille-a", kind: "host", state: "confirmed", label: "<Serveur>" }],
+};
+
+it("suppression : sélection accessible, action unique et cible du projet affiché", () => {
+  const { find, sent, receive } = killchainDom();
+  receive(deleteFindingView);
+  const node = find("kc-node");
+  const selection = find("kc-selection");
+  const remove = find("kc-delete");
+  expect(selection.hidden).toBe(true);
+  expect(remove.disabled).toBe(true);
+  expect(node.attributes.get("role")).toBe("button");
+  expect(node.attributes.get("aria-pressed")).toBe("false");
+  let stopped = false;
+  node.fire("pointerdown", {
+    stopPropagation: () => {
+      stopped = true;
+    },
+  });
+  expect(stopped).toBe(true);
+  expect(selection.hidden).toBe(true);
+  node.fire("click");
+  expect(selection.hidden).toBe(false);
+  expect(find("kc-selection-label").textContent).toBe("<Serveur>");
+  expect(node.attributes.get("aria-pressed")).toBe("true");
+  expect(remove.disabled).toBe(false);
+  expect(remove.children[0]?.tag).toBe("svg");
+  expect(node.find((n) => n.className.split(" ").includes("kc-delete"))).toBeUndefined();
+  remove.fire("click");
+  expect(sent.at(-1)).toEqual({
+    type: "deleteFinding",
+    projectId: deleteProject,
+    id: "trouvaille-a",
+  });
+  expect(remove.disabled).toBe(true);
+  const count = sent.length;
+  remove.fire("click");
+  expect(sent).toHaveLength(count);
+});
+
+it("suppression : Entrée et Espace sélectionnent, les projets inconnus désactivent l’action", () => {
+  for (const key of ["Enter", " "]) {
+    const { find, receive, sent } = killchainDom();
+    receive({ ...deleteFindingView, projectId: "projet-inconnu" });
+    let prevented = false;
+    find("kc-node").fire("keydown", {
+      key,
+      preventDefault: () => {
+        prevented = true;
+      },
+    });
+    expect(prevented).toBe(true);
+    expect(find("kc-node").attributes.get("aria-pressed")).toBe("true");
+    expect(find("kc-delete").disabled).toBe(true);
+    find("kc-delete").fire("click");
+    expect(sent).toEqual([{ type: "refresh" }]);
+  }
+});
+
+it("suppression : attente sans doublon, annulation, erreur visible et accusés filtrés", () => {
+  const { find, sent, receive } = killchainDom();
+  receive(deleteFindingView);
+  find("kc-node").fire("click");
+  const remove = find("kc-delete");
+  const state = { type: "findingDeleteState", projectId: deleteProject, id: "trouvaille-a" };
+  remove.fire("click");
+  receive({ ...state, busy: true });
+  receive({ ...state, projectId: deleteOtherProject, busy: false });
+  receive({ ...state, id: "autre", busy: false });
+  expect(remove.disabled).toBe(true);
+  remove.fire("click");
+  expect(
+    sent.filter((message) => (message as { type: string }).type === "deleteFinding"),
+  ).toHaveLength(1);
+  receive({ ...state, busy: false });
+  expect(remove.disabled).toBe(false);
+  expect(find("kc-node").attributes.get("aria-pressed")).toBe("true");
+  remove.fire("click");
+  receive({ ...state, busy: false, error: "Suppression impossible" });
+  expect(find("kc-live-status").textContent).toBe("Suppression impossible");
+  expect(find("kc-live-status").hidden).toBe(false);
+  expect(remove.disabled).toBe(false);
+  remove.fire("click");
+  expect(find("kc-live-status").hidden).toBe(true);
+  expect(remove.disabled).toBe(true);
+});
+
+it("suppression : sélection conservée au rafraîchissement puis effacée après disparition ou changement de projet", () => {
+  const { find, receive, sent } = killchainDom();
+  receive(deleteFindingView);
+  find("kc-node").fire("click");
+  receive({
+    ...deleteFindingView,
+    findings: [{ ...deleteFindingView.findings[0], label: "Renommé" }],
+  });
+  expect(find("kc-node").attributes.get("aria-pressed")).toBe("true");
+  expect(find("kc-selection-label").textContent).toBe("Renommé");
+  find("kc-delete").fire("click");
+  receive({ ...deleteFindingView, findings: [] });
+  expect(find("kc-empty")).toBeDefined();
+  receive(deleteFindingView);
+  expect(find("kc-selection").hidden).toBe(true);
+  expect(find("kc-node").attributes.get("aria-pressed")).toBe("false");
+  find("kc-node").fire("click");
+  receive({ ...deleteFindingView, projectId: deleteOtherProject });
+  expect(find("kc-selection").hidden).toBe(true);
+  find("kc-node").fire("click");
+  find("kc-delete").fire("click");
+  expect(sent.at(-1)).toEqual({
+    type: "deleteFinding",
+    projectId: deleteOtherProject,
+    id: "trouvaille-a",
+  });
+  receive({
+    type: "findingDeleteState",
+    projectId: deleteProject,
+    id: "trouvaille-a",
+    busy: false,
+    error: "Ancien projet",
+  });
+  expect(find("kc-delete").disabled).toBe(true);
 });

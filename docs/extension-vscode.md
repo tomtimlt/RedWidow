@@ -289,3 +289,15 @@ sans lire l’historique des conversations. `update_note` corrige une trouvaille
 par ID : les champs omis sont conservés, `null` efface la tactique ou la
 technique et `[]` efface les parents. Les parents doivent exister et ne pas
 former de cycle ; le titre reste limité à 200 caractères.
+
+## Supprimer une trouvaille — 0.3.34
+
+Dans la **Kill chain**, cliquer sur un nœud (ou le sélectionner avec Tab puis
+Entrée/Espace), puis choisir **Supprimer** dans la barre du graphe. Une
+confirmation native précise l’élément et les liens concernés. Les autres
+nœuds sont conservés ; seuls les liens vers l’élément supprimé sont retirés.
+Le graphe s’actualise après suppression.
+
+L’agent peut aussi utiliser **`delete_note`**, après `list_notes` pour retrouver
+l’identifiant. Cette action passe par les approbations habituelles. Un projet
+ou un contenu modifié pendant la confirmation impose de recommencer.
