@@ -25,7 +25,16 @@ Pousser un tag `vX.Y.Z` égal à la version de `packages/vscode/extension.manife
 
 Le cockpit gère les conteneurs et leurs associations. La page Projet des réglages permet de choisir un projet existant avec
 **Activer**, ou de le créer en donnant un nom puis un dossier via le dialogue
-natif. Le changement de projet est bloqué pendant un tour actif. Le chat
+natif. L'activation et la création ouvrent aussi le dossier du projet dans VS Code.
+Au démarrage, une fenêtre sans dossier restaure celui du projet actif ; une
+fenêtre qui contient déjà un dossier est conservée. Si un document n'est pas
+enregistré, le dossier cible s'ouvre dans une nouvelle fenêtre. L'ouverture
+native conserve les contrôles de confiance de VS Code. Une tentative automatique
+refusée ou échouée n'est pas répétée en boucle : **Activer** permet de réessayer.
+Dans une ancienne fenêtre conservée pour ses brouillons, l'envoi et la reprise
+restent bloqués si son dossier ne correspond plus au projet actif ; l'historique
+reste consultable et les conversations gardent leur projet d'origine.
+Le changement de projet est bloqué pendant un tour actif. Le chat
 conduit les échanges. Monitor affiche
 les exécutions et Kill chain les trouvailles. Le conteneur principal affiché
 ne remplace pas la sélection de cible autorisée par le moteur.

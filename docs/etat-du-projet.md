@@ -1,6 +1,6 @@
 # Warband — parcours, état actuel et reprise
 
-État inspecté le 26 octobre 2026 pour la version 0.3.41. Ce document sert de point d'entrée produit ;
+État inspecté le 26 octobre 2026 pour la version 0.3.42. Ce document sert de point d'entrée produit ;
 les ADR expliquent les décisions, les idées restent une réserve.
 
 ## Le parcours de référence
@@ -15,12 +15,12 @@ parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
 
-La version du manifeste est **0.3.41**. Les paragraphes
+La version du manifeste est **0.3.42**. Les paragraphes
 0.3.19 à 0.3.29 ci-dessous sont des relevés historiques, pas les preuves de
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
 
-## Lot 0.3.41 — autorités HTTPS du système (préparé localement)
+## Lot 0.3.41 — autorités HTTPS du système (publié)
 
 Les outils web fusionnent les autorités par défaut de Node (certificats
 supplémentaires compris) avec celles du système, lorsque l’API Node 22.15+
@@ -33,7 +33,12 @@ réglages stricts par défaut ; aucune désactivation de TLS.
 Diagnostic du poste : certificat HTTPS signé par une autorité interne,
 reconnue par le navigateur mais pas par le moteur web. Aucun certificat du
 propriétaire n’est versionné ni approuvé automatiquement. Le correctif doit
-encore être essayé dans VS Code sur son poste.
+encore être essayé dans VS Code sur son poste Windows : vérifier séparément
+`search_web` et `read_url` avec les certificats système. **Ce problème reste
+ouvert tant que cet essai réel n'est pas confirmé** ; les tests automatisés,
+la construction du VSIX Windows et sa publication ne constituent pas cette
+confirmation. Le volet web déjà intégré et ce correctif HTTPS sont conservés
+dans la 0.3.42, sans modification de la vérification TLS.
 
 Validation locale : **1 963 tests réussis, 12 ignorés**, typage et compilation
 réussis. HTTPS réel local avec une CA éphémère : connexion reconnue, refus
@@ -41,8 +46,35 @@ sans cette CA, refus du mauvais nom et proxy HTTPS vérifiés. Aucun certificat
 installé sur l’hôte ; les tests cryptographiques OpenSSL ciblent Linux, les
 tests de fusion et de repli restent multiplateformes.
 
-Les deux VSIX sont construits localement. Publication GitHub en attente :
-l’authentification du cloud a expiré ; aucun tag de release 0.3.41 n’est poussé.
+L'authentification GitHub fonctionne. Le tag distant **v0.3.41**, absent lors de
+la reprise, a été créé sur **5fabef5**. Le workflow
+[Release 40398961001](https://github.com/tomtimlt/warband/actions/runs/40398961001)
+a réussi le 26 octobre 2026. La
+[release 0.3.41](https://github.com/tomtimlt/warband/releases/tag/v0.3.41)
+contient les VSIX **linux-x64** et **win32-x64** et leurs deux fichiers SHA-256.
+Les quatre fichiers publiés ont été téléchargés : les deux empreintes sont
+conformes, les archives ZIP sont intègres et leurs manifestes portent 0.3.41.
+
+## Lot 0.3.42 — ouverture du dossier actif (publication en préparation)
+
+L'extension ouvre automatiquement le dossier du projet actif au démarrage
+d'une fenêtre sans dossier. La création et l'activation d'un projet ouvrent
+aussi son dossier. Les documents modifiés, y compris les onglets d'éditeurs
+spécialisés, entraînent une ouverture dans une nouvelle fenêtre ; les contrôles
+de confiance restent ceux de VS Code. Une tentative automatique est mémorisée
+avant l'ouverture pour éviter les boucles. Une sélection explicite permet de
+réessayer. Une fenêtre déjà occupée n'est pas remplacée au démarrage.
+
+L'ancienne fenêtre conserve ses conversations et ses brouillons. L'envoi et
+la reprise sont refusés si son dossier ne correspond plus au projet actif,
+en complément des contrôles existants du projet de chaque conversation.
+Ce correctif est destiné aux VSIX 0.3.42 ; il n'est pas inclus dans la 0.3.41.
+Le parcours natif
+de sauvegarde et de confiance reste à essayer dans VS Code sur le poste utilisateur.
+Validation locale : **1 969 tests réussis, 12 ignorés**, typage et compilation
+réussis. Les tests couvrent la restauration, la sélection et la création,
+les documents modifiés, les erreurs de lecture et d'ouverture, l'absence de
+boucle et le refus d'exécution depuis le dossier d'un autre projet.
 
 ## Lot 0.3.40 — recherche proactive dans le contexte des agents
 

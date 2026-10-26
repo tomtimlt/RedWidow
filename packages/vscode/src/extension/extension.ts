@@ -50,6 +50,10 @@ import {
   readProjectChoices,
 } from "../logic/project-controls.js";
 import { readProjectSummary, saveProjectSummary } from "../logic/project-summary.js";
+import {
+  matchesActiveProjectWorkspace,
+  openActiveProjectWorkspace,
+} from "../logic/project-workspace.js";
 import { openAiSubscriptionReady } from "../logic/provider-auth.js";
 import { type ChatSession, createChatSession, type TokenChoice } from "../logic/session.js";
 import { machineValue, resolveSettings } from "../logic/settings.js";
@@ -82,14 +86,53 @@ declare const __OPENCODE_VERSION__: string | undefined;
 type TokenKind = "subscription" | "api-key";
 
 /** Couche fine : seule autorisée à importer `vscode` (test de frontière). Toute la logique est dans `src/logic`. */
-export function activate(context: vscode.ExtensionContext): void {
+export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const out = vscode.window.createOutputChannel("warband");
   context.subscriptions.push(out);
 
   // Défense en profondeur : `capabilities.untrustedWorkspaces` empêche déjà l'activation.
   if (!vscode.workspace.isTrusted) return;
 
+  const projectWorkspaceHost = {
+    folders: () => vscode.workspace.workspaceFolders?.map((entry) => entry.uri.fsPath) ?? [],
+    hasUnsavedDocuments: () =>
+      vscode.workspace.textDocuments.some((document) => document.isDirty) ||
+      vscode.window.tabGroups.all.some((group) => group.tabs.some((tab) => tab.isDirty)),
+    attempted: () => context.globalState.get<string>("warband.workspaceOpenAttempt"),
+    rememberAttempt: (path: string | undefined) =>
+      context.globalState.update("warband.workspaceOpenAttempt", path),
+    openFolder: async (path: string, newWindow: boolean) => {
+      await vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.file(path), {
+        forceNewWindow: newWindow,
+        forceReuseWindow: !newWindow,
+      });
+    },
+  };
+  try {
+    if (vscode.workspace.workspaceFolders?.length) {
+      await projectWorkspaceHost.rememberAttempt(undefined);
+    } else {
+      await openActiveProjectWorkspace(defaultConfigDir(), projectWorkspaceHost, "startup");
+    }
+  } catch (error) {
+    out.appendLine(`Ouverture du dossier du projet : ${formatError(error)}`);
+    void vscode.window.showWarningMessage(
+      `Impossible d'ouvrir le dossier du projet Warband : ${formatError(error)}. Sélectionnez le projet pour réessayer.`,
+    );
+  }
+
   const folder = vscode.workspace.workspaceFolders?.[0];
+  const projectWorkspaceReady = async () => {
+    if (
+      folder !== undefined &&
+      (await matchesActiveProjectWorkspace(defaultConfigDir(), folder.uri.fsPath))
+    )
+      return true;
+    void vscode.window.showWarningMessage(
+      "Le dossier de cette fenêtre ne correspond pas au projet actif. Utilisez la fenêtre du projet ou activez le projet correspondant dans les réglages.",
+    );
+    return false;
+  };
   /** Un chat de la barre, plus des chats d'éditeur. Au plus quatre sessions (ADR 0008). */
   const CHAT_CAP = 4;
   const SIDEBAR_CHAT = "sidebar";
@@ -587,7 +630,7 @@ export function activate(context: vscode.ExtensionContext): void {
             });
           }
           // Aucun terminal ouvert ici : envoyer une consigne ne doit jamais créer de fenêtre.
-          if (projectChanging) return;
+          if (!(await projectWorkspaceReady()) || projectChanging) return;
           await s.send(message.text, withTerminalContext(message.text, sections));
           return;
         }
@@ -604,6 +647,7 @@ export function activate(context: vscode.ExtensionContext): void {
           return await s.openConversation(message.id);
         case "historyResume":
           if (projectChanging) return;
+          if (!(await projectWorkspaceReady()) || projectChanging) return;
           return s.resumeConversation();
         case "historyRename":
           return s.renameConversation(message.id, message.title);
@@ -1555,9 +1599,11 @@ export function activate(context: vscode.ExtensionContext): void {
         projectChanging = true;
         let projectCreated: string | undefined;
         let projectError: string | undefined;
+        let projectSelected = false;
         try {
           if (message.type === "activateProject") {
             await activateSelectedProject(defaultConfigDir(), message.projectId);
+            projectSelected = true;
           } else {
             const chosen = await vscode.window.showOpenDialog({
               canSelectFiles: false,
@@ -1574,7 +1620,14 @@ export function activate(context: vscode.ExtensionContext): void {
                 message.name,
                 chosen[0].fsPath,
               );
+              projectSelected = true;
             }
+          }
+          if (projectSelected) {
+            await Promise.all(
+              [...slots.values()].map((slot) => slot.session?.refreshHistoryProjects()),
+            );
+            await openActiveProjectWorkspace(defaultConfigDir(), projectWorkspaceHost, "selection");
           }
         } catch (error) {
           projectError = formatError(error);
@@ -1585,9 +1638,6 @@ export function activate(context: vscode.ExtensionContext): void {
           ...(projectCreated !== undefined && { projectCreated }),
           ...(projectError !== undefined && { projectError }),
         });
-        await Promise.all(
-          [...slots.values()].map((slot) => slot.session?.refreshHistoryProjects()),
-        );
         if (cockpitPanel !== undefined) {
           const view = await loadCockpitView();
           await cockpitPanel.webview.postMessage(view);

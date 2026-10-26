@@ -2,13 +2,13 @@
   "name": "warband",
   "displayName": "Warband",
   "description": "Chat d'agent avec approbation des outils (warband).",
-  "version": "0.3.41",
+  "version": "0.3.42",
   "publisher": "warband",
   "license": "MIT",
   "engines": { "vscode": "^1.90.0" },
   "main": "./extension.cjs",
   "extensionKind": ["workspace"],
-  "activationEvents": [],
+  "activationEvents": ["onStartupFinished"],
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": false,
