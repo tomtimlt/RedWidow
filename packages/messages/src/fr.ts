@@ -244,6 +244,8 @@ export const reasons: Catalog = {
   "project.noWorkspace": (p) => `conteneur sans montage /workspace : ${text(p.name)}`,
   "web.invalidUrl": () =>
     "Les outils web acceptent uniquement des URL HTTP(S) publiques, sans identifiants.",
+  "kali.nmapUnavailable": () =>
+    "Nmap ne peut pas s’exécuter dans ce conteneur. Vérifiez ses capacités Linux et les restrictions Docker.",
   "web.unavailable": (p) =>
     `La requête web a échoué${p.status ? ` (HTTP ${p.status})` : ""}. Réessayez ou vérifiez la connexion.`,
   "web.tooLarge": () =>

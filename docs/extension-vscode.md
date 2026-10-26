@@ -315,3 +315,25 @@ par le service public Exa, soumis à ses limites. Les approbations habituelles
 restent applicables. L’installation ou l’exécution d’un outil trouvé est une
 action distincte dans le conteneur. La lecture concerne les pages publiques
 textuelles ; elle ne fait pas tourner de navigateur JavaScript.
+
+## Nmap et capacités Docker — 0.3.36
+
+Certains paquets Kali placent `cap_net_bind_service,cap_net_admin,cap_net_raw=eip`
+sur `/usr/lib/nmap/nmap`. Docker peut refuser son exécution (code 126,
+« Operation not permitted ») si `NET_ADMIN` est absente du jeu de capacités
+maximal du conteneur, même pour `nmap --version`.
+
+La préparation humaine Kali vérifie désormais le lancement de Nmap lorsqu’il
+est installé. Si ce cas est rencontré, elle retire uniquement les capacités
+Nmap connues absentes du conteneur, puis vérifie de nouveau `--version`.
+Aucune capacité Docker n’est ajoutée. Le contrôle est rejoué à la liaison et
+au démarrage via le cockpit. Un échec persistant est signalé explicitement.
+Les nouvelles constructions de l’image complète incluent aussi la correction.
+
+Pour le cas standard Docker (NET_RAW et NET_BIND_SERVICE présentes), une
+correction manuelle dans le terminal root du conteneur est :
+
+```sh
+setcap cap_net_bind_service,cap_net_raw=eip /usr/lib/nmap/nmap
+nmap --version
+```

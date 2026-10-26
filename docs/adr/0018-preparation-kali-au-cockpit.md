@@ -100,3 +100,12 @@ L’installation automatique utilise `--no-install-recommends` : elle prépare
 le serveur et ses dépendances nécessaires, sans ajouter toute la suite
 d’outils Kali recommandée par le paquet. Les outils de mission disponibles
 restent ceux installés dans l’image choisie.
+
+## Compatibilité Nmap — 0.3.36
+
+La préparation vérifie également `nmap --version` si Nmap est présent. Un
+binaire du paquet Kali peut demander une capacité absente de `CapBnd`, ce qui
+fait échouer `exec` avant même le démarrage de l’outil. La préparation retire
+uniquement les capacités réseau connues incompatibles du binaire, sans modifier
+les capacités du conteneur. Les attributs personnalisés inconnus ne sont pas
+réécrits. Le contrôle est idempotent et ne lance aucun scan.

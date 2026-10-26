@@ -21,7 +21,8 @@ async function fixture(
     | "slow-start"
     | "install-fail"
     | "verify-fail"
-    | "invalid-health",
+    | "invalid-health"
+    | "nmap-fail",
 ) {
   const dir = await mkdtemp(join(tmpdir(), "warband-kali-setup-"));
   dirs.push(dir);
@@ -41,9 +42,10 @@ if(args[0]==='exec'&&args[1]==='-u'){
  const command=args.slice(4);
  if(command[0]==='sh'){
   if(command[2].includes('/etc/os-release'))process.exit(mode==='not-kali'?1:0);
-  process.exit(mode==='present'||mode==='bad-health'||mode==='slow-start'||mode==='invalid-health'||(mode!=='verify-fail'&&existsSync(marker))?0:42);
+  process.exit(mode==='present'||mode==='nmap-fail'||mode==='bad-health'||mode==='slow-start'||mode==='invalid-health'||(mode!=='verify-fail'&&existsSync(marker))?0:42);
  }
  if(command.includes('update'))process.exit(mode==='apt-fail'?100:0);
+ if(command[0]==='python3'&&mode==='nmap-fail')process.exit(46);
  if(command.includes('install')){if(mode==='install-fail')process.exit(100);writeFileSync(marker,'yes');process.exit(0);}
 }
 if(mode==='slow-start'&&args[0]==='exec'&&args[1]==='--interactive'){
@@ -76,6 +78,14 @@ it("ne réinstalle pas les binaires déjà présents et vérifie la santé", asy
   const calls = await f.calls();
   expect(calls.some((a) => a.includes("apt-get"))).toBe(false);
   expect(calls.some((a) => a.includes("python3"))).toBe(true);
+});
+
+it("vérifie Nmap avant d’annoncer Kali prêt et signale un échec d’exécution", async () => {
+  const f = await fixture("nmap-fail");
+  await expect(f.run()).rejects.toMatchObject({ code: "kali.nmapUnavailable" });
+  const calls = await f.calls();
+  expect(calls.some((args) => args.includes("apt-get"))).toBe(false);
+  expect(calls.some((args) => args.includes("--interactive"))).toBe(false);
 });
 
 it("attend un serveur déjà installé qui met du temps à démarrer", async () => {

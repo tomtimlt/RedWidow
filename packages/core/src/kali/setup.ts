@@ -9,6 +9,7 @@ import { runProcess } from "../process/run.js";
 import { CodedError } from "../reason.js";
 import type { Recorder } from "../recorder.js";
 import { createKaliApi } from "./api.js";
+import { KALI_NMAP_COMPATIBILITY_SCRIPT } from "./nmap-compat.js";
 
 export type KaliPreparationStage = "checking" | "installing" | "starting" | "ready";
 
@@ -91,6 +92,8 @@ export async function prepareKaliContainer(
     if (verified.code !== 0) throw fail("prereqCheck");
   }
   await listedKali();
+  const nmap = await exec(["python3", "-c", KALI_NMAP_COMPATIBILITY_SCRIPT]);
+  if (nmap.code !== 0) throw new CodedError("kali.nmapUnavailable", { name });
   setStage("starting");
   // Le premier lancement du paquet fraîchement installé peut être plus lent
   // qu'un appel normal : laisser au serveur le temps d'initialiser ses modules.

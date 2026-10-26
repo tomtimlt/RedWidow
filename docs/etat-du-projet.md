@@ -1,6 +1,6 @@
 # Warband — parcours, état actuel et reprise
 
-État inspecté le 26 octobre 2026 pour la version 0.3.35. Ce document sert de point d'entrée produit ;
+État inspecté le 26 octobre 2026 pour la version 0.3.36. Ce document sert de point d'entrée produit ;
 les ADR expliquent les décisions, les idées restent une réserve.
 
 ## Le parcours de référence
@@ -15,10 +15,25 @@ parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
 
-La version du manifeste est **0.3.35**. Les paragraphes
+La version du manifeste est **0.3.36**. Les paragraphes
 0.3.19 à 0.3.29 ci-dessous sont des relevés historiques, pas les preuves de
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
+
+## Lot 0.3.36 — exécution Nmap dans Kali
+
+Erreur 126 reproduite avec le paquet Kali Nmap 7.991 : le binaire demande
+NET_ADMIN alors que Docker ne la fournit pas. La préparation adapte les
+capacités réseau connues du binaire au jeu autorisé, puis vérifie son lancement.
+Aucun privilège Docker ajouté et aucun scan déclenché. La recette Kali complète
+inclut libcap2-bin et les capacités Nmap compatibles ; les images déjà en cache
+bénéficient du contrôle au prochain démarrage/liaison par le cockpit.
+
+Validation locale : **1 922 tests réussis, 12 ignorés**, typage et compilation
+réussis. Essai réel sur un Kali minimal : version bloquée avant correction,
+version 7.991 fonctionnelle après, puis seconde préparation idempotente.
+La reconstruction de l’image Kali complète n’a pas été relancée pour ce lot ;
+l’essai concerne le paquet réel dans un conteneur Docker aux capacités standard.
 
 ## Lot 0.3.35 — recherche et lecture web
 

@@ -133,6 +133,7 @@ export const REASON_CODES = [
   "web.tooLarge",
   "web.unsupportedType",
   "web.searchFailed",
+  "kali.nmapUnavailable",
   "finding.invalidLinks",
   "project.absent",
   "project.readFailed",

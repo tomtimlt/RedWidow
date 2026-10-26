@@ -48,6 +48,8 @@ export const reasons: Catalog = {
   "web.tooLarge": () => "The page exceeds the 1 MiB read limit.",
   "web.unsupportedType": () => "This web content type is not supported.",
   "web.searchFailed": () => "The search service returned no usable response.",
+  "kali.nmapUnavailable": () =>
+    "Nmap cannot execute in this container. Check its Linux capabilities and Docker restrictions.",
   "finding.notFound": () => "Finding not found in the active project.",
   "finding.invalidLinks": () => "Invalid finding links: unknown reference or causal cycle.",
   "finding.labelInvalid": (p) =>
