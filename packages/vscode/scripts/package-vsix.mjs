@@ -113,6 +113,34 @@ copyFileSync(
   join(pkgDir, "third-party", "opencode-LICENSE"),
   join(stage, "third-party", "opencode-LICENSE"),
 );
+// Licences des dépendances du lecteur web et de leurs dépendances embarquées.
+const webLicenses = new Set();
+function copyWebLicenses(name, fromRequire) {
+  let directory = dirname(fromRequire.resolve(name));
+  while (
+    !existsSync(join(directory, "package.json")) ||
+    JSON.parse(readFileSync(join(directory, "package.json"), "utf8")).name !== name
+  ) {
+    const parent = dirname(directory);
+    if (parent === directory) throw new Error(`Manifeste introuvable pour ${name}`);
+    directory = parent;
+  }
+  const metadata = JSON.parse(readFileSync(join(directory, "package.json"), "utf8"));
+  const key = `${metadata.name}-${metadata.version}`.replaceAll("/", "-");
+  if (webLicenses.has(key)) return;
+  webLicenses.add(key);
+  const license = ["LICENSE", "LICENSE.md", "LICENSE.txt"].find((file) =>
+    existsSync(join(directory, file)),
+  );
+  if (!license) throw new Error(`Licence introuvable pour ${name}`);
+  copyFileSync(join(directory, license), join(stage, "third-party", `${key}-LICENSE`));
+  const childRequire = createRequire(join(directory, "package.json"));
+  for (const child of Object.keys(metadata.dependencies ?? {}))
+    copyWebLicenses(child, childRequire);
+}
+const coreRequire = createRequire(join(pkgDir, "..", "core", "package.json"));
+copyWebLicenses("htmlparser2", coreRequire);
+copyWebLicenses("undici", coreRequire);
 // Les distributions natives peuvent fournir leur licence à côté du manifeste.
 for (const license of ["LICENSE", "LICENSE.md", "LICENSE.txt"]) {
   if (existsSync(join(opencodeDir, license))) {

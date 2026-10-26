@@ -4,6 +4,7 @@ import {
   coursToolset as openCodeCours,
   exegolToolset as openCodeExegol,
   kaliToolset as openCodeKali,
+  webToolset as openCodeWeb,
 } from "@warband/agent-opencode";
 import { createSdkRunner } from "@warband/agent-sdk";
 import {
@@ -81,6 +82,7 @@ const done = runEngine({
               toolsets: [
                 openCodeExegol({ targets, binary: "docker", includeMemory: false }),
                 openCodeKali({ targets, binary: "docker", includeMemory: false }),
+                openCodeWeb(),
               ],
             }),
       });

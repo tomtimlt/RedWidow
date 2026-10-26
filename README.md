@@ -56,6 +56,9 @@ ils ne constituent pas le guide d’utilisation.
 - Mentions : `@` pour citer un conteneur, `#` pour citer un terminal ouvert, `/` pour les commandes.
 - Interface responsive de 280 px à plus de 900 px, thèmes sombre, clair et contraste élevé, mouvement réduit respecté.
 
+**Recherche web**
+- Recherche et lecture de pages publiques communes à Claude, OpenAI et OpenCode, avec URL sources et date de consultation. Recherche Exa sans clé, soumise aux limites du service ; documentation, README et releases GitHub consultables.
+
 **Pensé pour le pentest**
 - L'agent exécute les outils de ton conteneur de pentest (`argv` sans shell, dans `/workspace`). La cible doit appartenir aux conteneurs autorisés du projet ; `@` permet de la préciser. Dans le chat, l’agent ne crée, n’arrête ni ne supprime aucun conteneur.
 - **Résumé du projet** consultable et modifiable dans Réglages → Projet, conservé comme note personnelle sans injection automatique dans les nouvelles conversations.

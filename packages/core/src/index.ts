@@ -32,3 +32,4 @@ export * from "./recorder.js";
 export * from "./redact.js";
 export * from "./runner.js";
 export * from "./sanitize.js";
+export * from "./web/tools.js";

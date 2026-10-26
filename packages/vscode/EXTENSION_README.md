@@ -38,3 +38,7 @@ des conteneurs avec confirmation. Les dossiers hôtes et volumes sont conservés
 
 OpenCode 1.19.0 est embarqué sous licence MIT ; sa licence figure dans
 `third-party/opencode-LICENSE` du paquet.
+
+Recherche web : les agents disposent de `search_web` et `read_url` pour consulter
+les informations récentes et GitHub, avec sources et date de consultation.
+Recherche Exa publique sans clé ; lecture textuelle de pages publiques.

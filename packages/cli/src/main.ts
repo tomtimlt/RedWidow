@@ -5,8 +5,9 @@ import { join, resolve } from "node:path";
 import {
   createOpencodeRunner,
   dockerToolset as opencodeDockerToolset,
+  webToolset as opencodeWebToolset,
 } from "@warband/agent-opencode";
-import { createSdkRunner, dockerToolset } from "@warband/agent-sdk";
+import { createSdkRunner, dockerToolset, webToolset } from "@warband/agent-sdk";
 import {
   type AgentRunner,
   type AuthMode,
@@ -187,6 +188,7 @@ program
         opts.agent === "opencode"
           ? createOpencodeRunner({
               toolsets: [
+                opencodeWebToolset(),
                 ...(opts.dockerTools === false
                   ? []
                   : [opencodeDockerToolset({ binary: opts.docker })]),
@@ -201,6 +203,7 @@ program
             })
           : createSdkRunner({
               toolsets: [
+                webToolset(),
                 ...(opts.dockerTools === false ? [] : [dockerToolset({ binary: opts.docker })]),
               ],
               bash: Boolean(opts.allowBash),

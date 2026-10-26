@@ -15,7 +15,7 @@ describe("options du runner selon le mode (ADR 0010)", () => {
 
   it("sans mode : Exegol et Kali, options par défaut pour le reste", () => {
     const o = runnerOptions(undefined, "/bin/claude", targets);
-    expect(o.toolsets?.map((t) => t.name)).toEqual(["exegol", "kali"]);
+    expect(o.toolsets?.map((t) => t.name)).toEqual(["exegol", "kali", "web"]);
     const context = {
       recorder: createRecorder({ runId: "test" }),
       resolveParent: () => null,
@@ -23,7 +23,9 @@ describe("options du runner selon le mode (ADR 0010)", () => {
     };
     for (const toolset of o.toolsets ?? []) {
       const names = toolset.create(context).map((tool) => tool.name);
-      expect(names).toContain(toolset.name === "exegol" ? "exec" : "nmap_scan");
+      expect(names).toContain(
+        toolset.name === "exegol" ? "exec" : toolset.name === "web" ? "search_web" : "nmap_scan",
+      );
       expect(names).not.toContain("remember");
     }
     expect(o).not.toHaveProperty("builtinTools");

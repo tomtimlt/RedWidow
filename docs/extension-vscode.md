@@ -301,3 +301,17 @@ Le graphe s’actualise après suppression.
 L’agent peut aussi utiliser **`delete_note`**, après `list_notes` pour retrouver
 l’identifiant. Cette action passe par les approbations habituelles. Un projet
 ou un contenu modifié pendant la confirmation impose de recommencer.
+
+## Recherche web — 0.3.35
+
+Les agents Claude, OpenAI et OpenCode peuvent utiliser **`search_web`** pour
+chercher une information récente ou un outil GitHub, puis **`read_url`** pour
+lire une documentation, un README ou une release. Les résultats indiquent les
+sources et la date de consultation. Exemple : « Cherche la documentation
+actuelle de cet outil sur GitHub et résume son installation sans l’exécuter. »
+
+Aucune clé de recherche à renseigner pour cette version : la recherche passe
+par le service public Exa, soumis à ses limites. Les approbations habituelles
+restent applicables. L’installation ou l’exécution d’un outil trouvé est une
+action distincte dans le conteneur. La lecture concerne les pages publiques
+textuelles ; elle ne fait pas tourner de navigateur JavaScript.

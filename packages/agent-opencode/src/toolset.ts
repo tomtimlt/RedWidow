@@ -17,6 +17,9 @@ import {
   KALI_SERVER_NAME,
   kaliToolSpecs,
   type Recorder,
+  WEB_SERVER_INSTRUCTIONS,
+  WEB_SERVER_NAME,
+  webToolSpecs,
 } from "@warband/core";
 
 /** Contexte fourni à un toolset à chaque run. */
@@ -33,6 +36,14 @@ export interface OpencodeToolset {
   name: string;
   instructions?: string;
   create(ctx: OpencodeToolContext): DockerToolSpec[];
+}
+
+export function webToolset(): OpencodeToolset {
+  return {
+    name: WEB_SERVER_NAME,
+    instructions: WEB_SERVER_INSTRUCTIONS,
+    create: () => webToolSpecs(),
+  };
 }
 
 export interface DockerToolsetOptions {

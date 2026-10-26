@@ -1,6 +1,6 @@
 # Warband — parcours, état actuel et reprise
 
-État inspecté le 26 octobre 2026 pour la version 0.3.34. Ce document sert de point d'entrée produit ;
+État inspecté le 26 octobre 2026 pour la version 0.3.35. Ce document sert de point d'entrée produit ;
 les ADR expliquent les décisions, les idées restent une réserve.
 
 ## Le parcours de référence
@@ -15,10 +15,25 @@ parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
 
-La version du manifeste est **0.3.34**. Les paragraphes
+La version du manifeste est **0.3.35**. Les paragraphes
 0.3.19 à 0.3.29 ci-dessous sont des relevés historiques, pas les preuves de
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
+
+## Lot 0.3.35 — recherche et lecture web
+
+`search_web` et `read_url` sont disponibles avec Claude, OpenAI et OpenCode,
+sans module CVE spécifique. Recherche Exa publique sans clé, puis lecture de
+pages, documentation et GitHub en texte. Sources et date de consultation sont
+retournées ; le service public applique ses limites. Installation et exécution
+restent des actions distinctes des conteneurs, sous leurs approbations.
+
+Lecture publique bornée, contrôle DNS/redirections et épinglage d’IP ; aucun
+JavaScript exécuté. Mode Apprentissage local conservé. Voir [ADR 0023](adr/0023-recherche-et-lecture-web.md).
+Recherche Exa et lecture de README/page GitHub ont été vérifiées dans le cloud,
+y compris après bundling, sans inférence. Validation locale : **1 920 tests
+réussis, 12 ignorés**, types et compilation réussis ; garde MCP, annulation,
+redirections, types de contenus et plafonds couverts.
 
 ## Lot 0.3.34 — suppression dans la Kill chain
 

@@ -14,6 +14,8 @@ const LABELS: Record<string, string> = {
   Bash: "Commande",
   WebFetch: "Page web",
   WebSearch: "Recherche web",
+  mcp__web__search_web: "Recherche web",
+  mcp__web__read_url: "Lire une page web",
   Task: "Sous-agent",
   Agent: "Sous-agent",
   TodoWrite: "Liste de tâches",

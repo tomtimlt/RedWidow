@@ -3,6 +3,7 @@ import {
   exegolToolset,
   kaliToolset,
   type SdkRunnerOptions,
+  webToolset,
 } from "@warband/agent-sdk";
 import type { createExegolTargets } from "@warband/core";
 import type { StartParams } from "../logic/protocol.js";
@@ -25,6 +26,7 @@ export function runnerOptions(
     toolsets: [
       exegolToolset({ targets, binary: "docker", includeMemory: false }),
       kaliToolset({ targets, binary: "docker", includeMemory: false }),
+      webToolset(),
     ],
   };
 }

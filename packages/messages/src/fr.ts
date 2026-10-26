@@ -242,6 +242,16 @@ export const reasons: Catalog = {
   "project.notExegol": (p) => `conteneur non Exegol : ${text(p.name)}`,
   "project.notRunning": (p) => `conteneur arrêté : ${text(p.name)}`,
   "project.noWorkspace": (p) => `conteneur sans montage /workspace : ${text(p.name)}`,
+  "web.invalidUrl": () =>
+    "Les outils web acceptent uniquement des URL HTTP(S) publiques, sans identifiants.",
+  "web.unavailable": (p) =>
+    `La requête web a échoué${p.status ? ` (HTTP ${p.status})` : ""}. Réessayez ou vérifiez la connexion.`,
+  "web.tooLarge": () =>
+    "La page dépasse la limite de lecture de 1 Mio. Utilisez une page plus courte ou le fichier brut.",
+  "web.unsupportedType": () =>
+    "Ce contenu web n’est pas un texte pris en charge (page HTML, Markdown, JSON ou texte brut).",
+  "web.searchFailed": () =>
+    "Le service de recherche n’a pas renvoyé de réponse exploitable. Réessayez plus tard.",
   "finding.busy": () =>
     "Les trouvailles du projet sont occupées. Réessayer après la fin de l’opération en cours.",
   "finding.notFound": () => "Trouvaille introuvable dans le projet actif.",

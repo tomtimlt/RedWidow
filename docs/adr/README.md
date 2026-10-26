@@ -39,5 +39,7 @@ Lots pour `dev` : objectif, fichiers, critères d'acceptation vérifiables.
 
 - [0022 — Suppression des trouvailles](0022-suppression-des-trouvailles.md) : suppression unique, détachement des liens et écritures coordonnées.
 
+- [0023 — Recherche et lecture web](0023-recherche-et-lecture-web.md) : outils partagés, sources publiques et approbations conservées.
+
 Le statut accepté décrit la décision ; les preuves d’exécution et les limites
 figurent dans [l’état du projet](../etat-du-projet.md).
