@@ -1,6 +1,6 @@
 # Warband — parcours, état actuel et reprise
 
-État inspecté le 26 octobre 2026 pour la version 0.3.32. Ce document sert de point d'entrée produit ;
+État inspecté le 26 octobre 2026 pour la version 0.3.33. Ce document sert de point d'entrée produit ;
 les ADR expliquent les décisions, les idées restent une réserve.
 
 ## Le parcours de référence
@@ -15,10 +15,24 @@ parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
 
-La version du manifeste est **0.3.32**. Les paragraphes
+La version du manifeste est **0.3.33**. Les paragraphes
 0.3.19 à 0.3.29 ci-dessous sont des relevés historiques, pas les preuves de
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
+
+## Lot 0.3.33 — catalogue OpenCode dépassant 100 modèles
+
+Reproduction avec une clé OpenCode fournie au cloud comme secret : le moteur
+retourne 112 modèles, mais la validation IPC de l’extension en acceptait au
+plus 100. Le catalogue était donc rejeté avant son affichage.
+
+Le plafond passe à 1 000, sans troncature ni assouplissement des validations
+individuelles. Après correction, les 112 entrées passent la validation et le
+cache. Tests de régression du catalogue, de son dernier modèle et du protocole.
+Validation locale : **1 848 tests réussis, 12 ignorés**, lint, types et compilation
+réussis. Aucun appel d’inférence effectué, aucune clé enregistrée dans le dépôt
+ou les journaux. La lecture du catalogue local ne valide pas un appel facturé
+au fournisseur ; un essai HTTPS distant de métadonnées a répondu 403.
 
 ## Lot 0.3.32 — changements et limites
 

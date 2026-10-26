@@ -13,6 +13,7 @@ import {
   ultracodeTip,
 } from "../src/logic/effort.js";
 import {
+  MAX_MODELS,
   parseModelCache,
   parseModelOptions,
   usableModels,
@@ -83,7 +84,21 @@ describe("modèles", () => {
     expect(parseModelOptions([{ value: "a" }])).toBeNull();
     expect(parseModelOptions([{ ...A, extra: 1 }])).toBeNull();
     expect(parseModelOptions([{ ...A, supportedEffortLevels: ["ultra"] }])).toBeNull();
-    expect(parseModelOptions(Array.from({ length: 101 }, () => A))).toBeNull();
+    expect(parseModelOptions(Array.from({ length: MAX_MODELS + 1 }, () => A))).toBeNull();
+  });
+  it("conserve un catalogue OpenCode de 112 modèles et son cache sans troncature", () => {
+    const models = Array.from({ length: 112 }, (_, index) => ({
+      value: `opencode/model-${index}`,
+      displayName: `Modèle ${index}`,
+      reasoningVariants: ["low", "high"],
+    }));
+    expect(parseModelOptions(models)).toEqual(models);
+    expect(parseModelCache({ sdk: "opencode", models }, "opencode")).toEqual(models);
+    expect(validateModelChoice("opencode/model-111", models)).toEqual({
+      ok: true,
+      model: "opencode/model-111",
+    });
+    expect(parseModelOptions([...models.slice(0, -1), { ...models[111], extra: true }])).toBeNull();
   });
   it("entrées inutilisables écartées, textes neutralisés", () => {
     const list = usableModels([

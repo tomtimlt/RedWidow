@@ -145,6 +145,15 @@ describe("protocole IPC : effort et modèles", () => {
     expect(parseFromEngine({ v: 1, type: "models", models: [{ value: "a" }] }).ok).toBe(false);
     expect(parseFromEngine({ v: 1, type: "models", models: "x" }).ok).toBe(false);
   });
+  it("reçoit les 112 modèles OpenCode au travers de l’IPC", () => {
+    const models = Array.from({ length: 112 }, (_, index) => ({
+      value: `opencode/model-${index}`,
+      displayName: `Modèle ${index}`,
+    }));
+    const result = parseFromEngine({ v: 1, type: "models", models });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.message).toEqual({ v: 1, type: "models", models });
+  });
 });
 
 describe("protocole IPC : Bypass (ADR 0006, décision 6)", () => {

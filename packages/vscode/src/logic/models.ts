@@ -2,7 +2,7 @@ import { EFFORTS, type ModelOption } from "@warband/core";
 import { cleanText } from "./approval.js";
 
 /** Plafonds du sondage (réponse venue du moteur, donc validée comme toute entrée). */
-export const MAX_MODELS = 100;
+export const MAX_MODELS = 1000;
 const MAX_FIELD = 200;
 const MAX_DESCRIPTION = 500;
 
