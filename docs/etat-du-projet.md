@@ -20,7 +20,7 @@ La version du manifeste est **0.3.44**. Les paragraphes
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
 
-## Lot 0.3.44 — compatibilité des proxys HTTP (publication en préparation)
+## Lot 0.3.44 — compatibilité des proxys HTTP (publié)
 
 Les URL HTTP derrière un proxy HTTP sont transmises sans tunnel CONNECT,
 avec l'IP validée dans l'URL et le Host d'origine. Les URL HTTPS conservent
@@ -36,6 +36,15 @@ le cloud. Aucun contournement des contrôles IP/DNS n'est ajouté.
 La validation TLS avec les autorités internes sur le poste Windows reste ouverte.
 Le bouton Monitor et la restauration du dossier de projet sont conservés.
 Validation locale : **1 971 tests réussis, 12 ignorés**, typage et build réussis.
+
+Le commit **6b791da**, attribué à `tomtimlt`, est poussé sur `main` et marqué
+**v0.3.44**. Le
+[workflow 40407538702](https://github.com/tomtimlt/warband/actions/runs/40407538702)
+a réussi. Les deux VSIX et leurs SHA-256 de la
+[release 0.3.44](https://github.com/tomtimlt/warband/releases/tag/v0.3.44)
+ont été téléchargés : empreintes conformes, archives intègres, version et
+présence du correctif HTTP vérifiées. TLS strict, autorités système, bouton
+Monitor et restauration du dossier sont également présents dans les bundles.
 
 ## Lot 0.3.43 — suivi du bas dans le Monitor (publié)
 
