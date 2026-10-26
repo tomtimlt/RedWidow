@@ -143,6 +143,12 @@ de worktree sauf demande explicite.
 
 ## Livraison
 
+Préférence utilisateur : après chaque modification terminée et validée,
+committer et pousser avec l'identité Git `tomtimlt`, puis publier une nouvelle
+version via le workflow de release et vérifier les deux VSIX et leurs SHA-256.
+Cette autorisation de publication reste valable pour les prochaines demandes
+sur ce projet, sauf instruction contraire de l'utilisateur.
+
 Pour une release de l'extension, suivre `.github/workflows/release.yml` :
 le tag `vX.Y.Z` doit correspondre à `packages/vscode/extension.manifest.json`.
 Le workflow lance les contrôles, construit les VSIX `linux-x64` et `win32-x64`,

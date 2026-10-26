@@ -107,7 +107,7 @@ export function chatHtml({
 <main id="log" role="log" aria-live="polite" aria-label="Conversation"></main>
 <div id="no-provider" role="status" hidden><span id="no-provider-text">Aucun fournisseur n'a été ajouté. Ajoute un jeton pour utiliser le chat.</span><button id="no-provider-add" type="button" class="primary">Ajouter un fournisseur</button></div>
 <div id="readonly" role="status" hidden><span id="readonly-text"></span><button id="readonly-resume" type="button" class="primary">Reprendre</button><button id="readonly-close" type="button" class="ghost">Fermer</button></div>
-<section id="monitor" aria-label="Commandes Exegol (lecture seule)"><div class="mon-head"><p class="hint">Sortie en direct. Cliquer une ligne pour l'ouvrir en lecture seule.</p></div><ol id="monitor-rows"></ol><p id="monitor-empty" class="empty">Aucun appel Exegol dans cette conversation.</p></section>
+<section id="monitor" aria-label="Commandes Exegol (lecture seule)"><div class="mon-head"><p class="hint">Sortie en direct. Cliquer une ligne pour l'ouvrir en lecture seule.</p><button id="monitor-follow" type="button" class="ghost" aria-pressed="true" title="Désactiver le suivi du bas pour défiler librement">Suivi du bas : activé</button></div><ol id="monitor-rows"></ol><p id="monitor-empty" class="empty">Aucun appel Exegol dans cette conversation.</p></section>
 <section id="approvals" aria-label="Autorisations demandées"></section>
 <div id="thinking" role="status">${icon("loader", "ico activity-icon")}<span id="thinking-label">Réflexion</span></div>
 <form id="form">

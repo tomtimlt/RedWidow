@@ -3246,6 +3246,11 @@ body.mode-watch #monitor {
 
 /* Monitor : une ligne par appel Exegol, sans bouton de décision. */
 .mon-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  flex-shrink: 0;
+  background: var(--vscode-editor-background);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -3254,6 +3259,12 @@ body.mode-watch #monitor {
 }
 .mon-head .hint {
   margin: 0;
+}
+#monitor-follow {
+  flex-shrink: 0;
+}
+#monitor-follow[aria-pressed="true"] {
+  border-color: var(--jn-accent);
 }
 #monitor-rows {
   list-style: none;

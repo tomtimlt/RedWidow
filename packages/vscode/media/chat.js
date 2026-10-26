@@ -932,11 +932,30 @@
   // --- Monitor (lecture seule) : lignes pures de ui.js (monitorRows), texte en textContent ---
   const monitorRowsEl = $("monitor-rows");
   const monitorEmpty = $("monitor-empty");
+  const monitor = $("monitor");
+  const monitorFollowBtn = $("monitor-follow");
+  let monitorFollow = true;
+
+  function followMonitorBottom() {
+    for (const box of monitorRowsEl.querySelectorAll(".mon-out")) box.scrollTop = box.scrollHeight;
+    monitor.scrollTop = monitor.scrollHeight;
+  }
+
+  monitorFollowBtn.addEventListener("click", () => {
+    monitorFollow = !monitorFollow;
+    monitorFollowBtn.setAttribute("aria-pressed", String(monitorFollow));
+    monitorFollowBtn.textContent = `Suivi du bas : ${monitorFollow ? "activé" : "désactivé"}`;
+    monitorFollowBtn.title = monitorFollow
+      ? "Désactiver le suivi du bas pour défiler librement"
+      : "Activer le suivi et revenir en bas";
+    if (monitorFollow) followMonitorBottom();
+  });
 
   let watchId = "";
 
   function monitorLine(row) {
     const li = el("li", `mon-row tone-${row.tone}`);
+    li.dataset.monitorId = row.id;
     const cmd = el("div", "mon-cmd");
     if (row.container !== "") cmd.append(el("span", "prompt", row.container));
     cmd.append(el("span", "prompt", "$"), el("code", "mon-text", row.command));
@@ -961,14 +980,28 @@
   }
 
   function renderMonitor(view) {
+    // Le rendu remplace les lignes : conserver aussi le défilement de chaque sortie.
+    const top = monitor.scrollTop;
+    const positions = new Map(
+      [...monitorRowsEl.children].map((line) => {
+        const box = line.querySelector(".mon-out");
+        return [line.dataset.monitorId, { top: box?.scrollTop ?? 0, left: box?.scrollLeft ?? 0 }];
+      }),
+    );
     let rows = UI.monitorRows(view);
     if (mode === "watch") rows = rows.filter((row) => row.toolUseId === watchId);
     monitorRowsEl.replaceChildren(...rows.map(monitorLine));
     monitorEmpty.hidden = rows.length > 0;
-    if (mode === "watch") {
-      const box = monitorRowsEl.querySelector(".mon-out");
-      if (box) box.scrollTop = box.scrollHeight;
+    for (const line of monitorRowsEl.children) {
+      const box = line.querySelector(".mon-out");
+      const previous = positions.get(line.dataset.monitorId);
+      if (box && previous) {
+        box.scrollTop = previous.top;
+        box.scrollLeft = previous.left;
+      }
     }
+    if (monitorFollow) followMonitorBottom();
+    else monitor.scrollTop = top;
   }
 
   // Monitor : panneau éditeur seul. Le chat rend toujours ses propres cartes.

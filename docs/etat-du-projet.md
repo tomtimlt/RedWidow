@@ -1,6 +1,6 @@
 # Warband — parcours, état actuel et reprise
 
-État inspecté le 26 octobre 2026 pour la version 0.3.42. Ce document sert de point d'entrée produit ;
+État inspecté le 26 octobre 2026 pour la version 0.3.43. Ce document sert de point d'entrée produit ;
 les ADR expliquent les décisions, les idées restent une réserve.
 
 ## Le parcours de référence
@@ -15,10 +15,24 @@ parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
 
-La version du manifeste est **0.3.42**. Les paragraphes
+La version du manifeste est **0.3.43**. Les paragraphes
 0.3.19 à 0.3.29 ci-dessous sont des relevés historiques, pas les preuves de
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
+
+## Lot 0.3.43 — suivi du bas dans le Monitor (publication en préparation)
+
+Le bouton **Suivi du bas** du Monitor et du suivi de commande permet de forcer
+le défilement vers les dernières sorties ou de conserver la position de lecture.
+Il est activé par défaut dans chaque panneau ; le réactiver revient immédiatement
+en bas. Le bouton reste accessible en haut pendant le défilement.
+
+Validation : **1 969 tests réussis, 12 ignorés**, typage et build réussis.
+Les 18 scénarios Chromium couvrent les deux panneaux, trois thèmes, trois
+largeurs, la lecture stable pendant les mises à jour et la bascule au clavier.
+Le volet web, HTTPS strict et la restauration du dossier actif sont conservés.
+L'essai de `search_web` et `read_url` avec les certificats système sur le poste
+Windows reste ouvert, de même que l'essai natif de restauration du dossier.
 
 ## Lot 0.3.41 — autorités HTTPS du système (publié)
 
