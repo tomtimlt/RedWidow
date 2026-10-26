@@ -11,7 +11,13 @@
   /** Famille visuelle d'un outil, sans interpréter son entrée ni sa sortie. */
   function toolIcon(tool) {
     if (typeof tool !== "string") return "tool";
-    if (tool === EXEC_TOOL || tool === "Bash" || tool.startsWith(KALI_PREFIX)) return "terminal";
+    if (
+      tool === EXEC_TOOL ||
+      tool === "Bash" ||
+      tool.startsWith(KALI_PREFIX) ||
+      /^mcp__exegol__task_/.test(tool)
+    )
+      return "terminal";
     if (["Grep", "Glob", "WebSearch"].includes(tool)) return "search";
     if (["Read", "Write", "Edit", "MultiEdit"].includes(tool)) return "file";
     return "tool";

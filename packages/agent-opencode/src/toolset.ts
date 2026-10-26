@@ -17,6 +17,7 @@ import {
   KALI_SERVER_NAME,
   kaliToolSpecs,
   type Recorder,
+  taskToolSpecs,
   WEB_SERVER_INSTRUCTIONS,
   WEB_SERVER_NAME,
   webToolSpecs,
@@ -80,10 +81,13 @@ export function exegolToolset(options: ExegolToolsetOptions): OpencodeToolset {
   return {
     name: EXEGOL_SERVER_NAME,
     instructions: EXEGOL_SERVER_INSTRUCTIONS,
-    create: ({ recorder }) =>
-      exegolToolSpecs(createDockerClient({ ...options, recorder }), options.targets).filter(
-        (spec) => options.includeMemory !== false || spec.name !== "remember",
-      ),
+    create: ({ recorder }) => {
+      const docker = createDockerClient({ ...options, recorder });
+      return [
+        ...exegolToolSpecs(docker, options.targets),
+        ...taskToolSpecs("exegol", docker, options.targets),
+      ].filter((spec) => options.includeMemory !== false || spec.name !== "remember");
+    },
   };
 }
 
@@ -96,11 +100,11 @@ export function kaliToolset(options: KaliToolsetOptions): OpencodeToolset {
     instructions: KALI_SERVER_INSTRUCTIONS,
     create: ({ recorder }) => {
       const client = { ...options, recorder };
-      return kaliToolSpecs(
-        createDockerClient(client),
-        createKaliApi(client),
-        options.targets,
-      ).filter((spec) => options.includeMemory !== false || spec.name !== "remember");
+      const docker = createDockerClient(client);
+      return [
+        ...kaliToolSpecs(docker, createKaliApi(client), options.targets),
+        ...taskToolSpecs("kali", docker, options.targets),
+      ].filter((spec) => options.includeMemory !== false || spec.name !== "remember");
     },
   };
 }

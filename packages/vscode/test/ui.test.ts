@@ -599,6 +599,7 @@ describe("icônes des familles d’outils", () => {
   it("utilise des familles connues et une icône neutre pour les outils inconnus", () => {
     expect(ui.toolIcon(EXEGOL_EXEC_TOOL)).toBe("terminal");
     expect(ui.toolIcon("mcp__kali__nmap_scan")).toBe("terminal");
+    expect(ui.toolIcon("mcp__exegol__task_start")).toBe("terminal");
     expect(ui.toolIcon("Grep")).toBe("search");
     expect(ui.toolIcon("Read")).toBe("file");
     expect(ui.toolIcon("inconnu")).toBe("tool");

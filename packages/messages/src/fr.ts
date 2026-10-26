@@ -171,6 +171,8 @@ export const reasons: Catalog = {
     "variante de raisonnement indisponible pour le modèle OpenCode choisi : sélectionnez Auto ou actualisez le catalogue",
   "opencode.unsupportedEffort": () =>
     "les niveaux d'effort Claude ne sont pas pris en charge par OpenCode : choisissez une variante du catalogue",
+  "task.invalidResponse": () =>
+    "réponse de suivi de tâche invalide ; ne pas relancer sans vérifier les tâches existantes",
   "opencode.serverFailed": (p) => `le serveur OpenCode n'a pas démarré : ${text(p.detail)}`,
   "opencode.serverTimeout": (p) => `le serveur OpenCode n'a pas répondu en ${text(p.seconds)} s`,
   "opencode.sessionNotFound": (p) => `session OpenCode introuvable : ${text(p.id)}`,

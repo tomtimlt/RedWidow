@@ -4,6 +4,7 @@ const text = (v: string | number | undefined): string => (v === undefined ? "?" 
 
 /** Catalogue minimal : les codes absents se replient sur le français, puis sur `code + params`. */
 export const reasons: Catalog = {
+  "task.invalidResponse": () => "invalid task response; check existing tasks before starting again",
   "policy.rule": (p) => `rule #${text(p.index)} ${text(p.decision)} ${text(p.target)}`,
   "policy.rule.custom": (p) => text(p.text),
   "policy.default": (p) => `no rule for tool ${text(p.tool)}`,

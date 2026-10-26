@@ -5,6 +5,7 @@ import {
   EXEGOL_TOOL_PREFIX,
   type ExegolTargets,
   exegolToolSpecs,
+  taskToolSpecs,
 } from "@warband/core";
 import { createSpecTools, type ResolveParent } from "./docker-tools.js";
 import type { Toolset } from "./toolset.js";
@@ -25,15 +26,16 @@ export function exegolToolset(options: ExegolToolsetOptions): Toolset {
     create: ({ recorder, resolveCall }) => {
       const resolveParent: ResolveParent = (name, args, extra) =>
         resolveCall(`${EXEGOL_TOOL_PREFIX}${name}`, args, extra);
+      const docker = createDockerClient({
+        recorder,
+        ...(options.binary && { binary: options.binary }),
+        ...(options.argsPrefix && { argsPrefix: options.argsPrefix }),
+      });
       return createSpecTools(
-        exegolToolSpecs(
-          createDockerClient({
-            recorder,
-            ...(options.binary && { binary: options.binary }),
-            ...(options.argsPrefix && { argsPrefix: options.argsPrefix }),
-          }),
-          options.targets,
-        ).filter((spec) => options.includeMemory !== false || spec.name !== "remember"),
+        [
+          ...exegolToolSpecs(docker, options.targets),
+          ...taskToolSpecs("exegol", docker, options.targets),
+        ].filter((spec) => options.includeMemory !== false || spec.name !== "remember"),
         resolveParent,
       );
     },

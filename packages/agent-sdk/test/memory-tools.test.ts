@@ -30,5 +30,7 @@ describe.each([
   it("retire uniquement remember quand la mémoire est désactivée", () => {
     expect(names(false)).toEqual(names().filter((name) => name !== "remember"));
     expect(names(false)).toContain(name === "Exegol" ? "exec" : "nmap_scan");
+    for (const task of ["task_start", "task_list", "task_status", "task_cancel"])
+      expect(names(false)).toContain(task);
   });
 });

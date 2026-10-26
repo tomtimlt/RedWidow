@@ -1,5 +1,6 @@
 import { KALI_EXECUTE_TOOL } from "../kali/tool-specs.js";
 import { type Reason, reason, ValidationError } from "../reason.js";
+import { TASK_START_TOOLS } from "../tasks/tools.js";
 import {
   checkPathAccess,
   defaultPlatform,
@@ -368,6 +369,16 @@ function evaluateUncapped(
     };
   }
   if (isUnanalyzableShellTool(tool)) return evaluateUnanalyzable(policy, tool);
+  if (TASK_START_TOOLS.has(tool)) {
+    const argv = Array.isArray(input.argv) ? input.argv : [];
+    const command = argv.map((arg) => `'${String(arg).replace(/'/g, "'\\''")}'`).join(" ");
+    const legacy = tool.startsWith("mcp__kali__") ? KALI_EXECUTE_TOOL : "mcp__exegol__exec";
+    const inherited = evaluateUncapped(policy, legacy, { ...input, command }, ctx);
+    if (inherited.decision === "deny") return inherited;
+    const analysed = evaluateBash(policy, command);
+    if (analysed.decision === "deny") return analysed;
+    return evaluateUnanalyzable(policy, tool);
+  }
   if (tool === KALI_EXECUTE_TOOL) {
     // Shell du conteneur : l'analyse POSIX refuse, elle n'autorise jamais, quelle que soit la plateforme.
     const command = input.command;

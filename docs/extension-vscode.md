@@ -338,3 +338,38 @@ correction manuelle dans le terminal root du conteneur est :
 setcap cap_net_bind_service,cap_net_raw=eip /usr/lib/nmap/nmap
 nmap --version
 ```
+
+
+## Tâches longues dans Kali et Exegol
+
+Les agents Claude, OpenAI et OpenCode disposent de `task_start`, `task_list`,
+`task_status` et `task_cancel`. Pour un scan ou une commande dont la durée est
+incertaine, le lancement rend un identifiant sans attendre la fin du programme.
+Les consultations affichent l’état réel, le temps écoulé, le code de sortie
+final et les dernières sorties. L’attente de consultation est bornée à dix
+secondes (deux par défaut), sans garder un appel MCP ouvert pendant tout le scan.
+
+Exemples de demandes : « Lance cette commande en tâche longue », « Liste les
+tâches de ce projet dans @kali-1 », « Donne l’état de la tâche … », « Annule
+la tâche … puis confirme son arrêt ». Le lancement reçoit un tableau `argv`,
+sans shell implicite, et s’exécute depuis `/workspace`. Les approbations et
+l’allowlist restent applicables ; le mode Apprentissage ne reçoit pas ces outils.
+
+Chaque tâche conserve `stdout.txt`, `stderr.txt` et, en fin normale du
+superviseur, `result.json` sous `/workspace/outputs/warband-task-<identifiant>`.
+Sur Linux, les nouveaux fichiers de résultats reprennent le propriétaire du
+dossier monté lorsque le superviseur est root. Le suivi est séparé par projet
+et par conteneur ; aucune ancienne conversation n’est injectée.
+
+**Fermer le chat ou arrêter le tour n’annule pas une tâche déjà lancée.**
+Utiliser `task_cancel`, puis vérifier l’état. Un redémarrage du conteneur
+interrompt le travail ; aucune reprise automatique n’a lieu. Après un timeout
+au lancement, consulter la liste avant toute relance pour éviter les doublons.
+
+Limites : une heure par défaut, 24 heures maximum ; huit tâches actives et
+500 tâches conservées par projet/conteneur ; liste des 50 plus récentes.
+Les flux capturés sont plafonnés à 32 Mio cumulés, puis la commande est arrêtée
+avec un état explicite. La consultation affiche au plus 8 Kio par flux.
+Les fichiers écrits directement par le programme ne sont pas soumis à ce plafond.
+Un programme qui détache lui-même ses descendants peut échapper à l’arrêt du
+groupe : voir [ADR 0024](adr/0024-taches-longues-conteneurs.md).

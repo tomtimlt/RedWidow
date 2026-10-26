@@ -6,6 +6,7 @@ import {
   KALI_SERVER_NAME,
   KALI_TOOL_PREFIX,
   kaliToolSpecs,
+  taskToolSpecs,
 } from "@warband/core";
 import { createSpecTools, type ResolveParent } from "./docker-tools.js";
 import type { Toolset } from "./toolset.js";
@@ -31,10 +32,12 @@ export function kaliToolset(options: KaliToolsetOptions): Toolset {
         ...(options.binary && { binary: options.binary }),
         ...(options.argsPrefix && { argsPrefix: options.argsPrefix }),
       };
+      const docker = createDockerClient(client);
       return createSpecTools(
-        kaliToolSpecs(createDockerClient(client), createKaliApi(client), options.targets).filter(
-          (spec) => options.includeMemory !== false || spec.name !== "remember",
-        ),
+        [
+          ...kaliToolSpecs(docker, createKaliApi(client), options.targets),
+          ...taskToolSpecs("kali", docker, options.targets),
+        ].filter((spec) => options.includeMemory !== false || spec.name !== "remember"),
         resolveParent,
       );
     },

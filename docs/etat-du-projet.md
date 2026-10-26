@@ -1,6 +1,6 @@
 # Warband — parcours, état actuel et reprise
 
-État inspecté le 26 octobre 2026 pour la version 0.3.37. Ce document sert de point d'entrée produit ;
+État inspecté le 26 octobre 2026 pour la version 0.3.38. Ce document sert de point d'entrée produit ;
 les ADR expliquent les décisions, les idées restent une réserve.
 
 ## Le parcours de référence
@@ -15,10 +15,29 @@ parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
 
-La version du manifeste est **0.3.37**. Les paragraphes
+La version du manifeste est **0.3.38**. Les paragraphes
 0.3.19 à 0.3.29 ci-dessous sont des relevés historiques, pas les preuves de
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
+
+## Lot 0.3.38 — tâches longues dans les conteneurs
+
+Quatre outils communs aux trois fournisseurs et aux familles Kali/Exegol :
+lancer, lister, consulter, annuler. Supervision dans le conteneur, état privé
+par projet, fichiers persistés dans `outputs`, durée et volume de sortie
+bornés. Un lancement reste sous la gate et hérite des refus de l’outil
+synchrone ; hors Bypass, son autorisation n’est pas mémorisable.
+
+Essais Docker réels sur une image Python Linux portant les labels de chaque
+famille : lancement court, résultat/code final, lecture des fichiers depuis
+l’hôte non root, annulation, interruption au redémarrage et isolation des
+projets. Aucun scan ni appel d’inférence effectué. Ces essais valident la
+mécanique commune, pas les services MCP ni tous les outils de l’image Kali
+complète ou d’une image Exegol. Voir [ADR 0024](adr/0024-taches-longues-conteneurs.md)
+et le guide pour les limites de cycle de vie.
+
+Validation locale : **1 937 tests réussis, 12 ignorés**, typage et compilation
+réussis ; VSIX Windows et Linux construits.
 
 ## Lot 0.3.37 — catalogue de modèles lisible
 

@@ -41,5 +41,7 @@ Lots pour `dev` : objectif, fichiers, critères d'acceptation vérifiables.
 
 - [0023 — Recherche et lecture web](0023-recherche-et-lecture-web.md) : outils partagés, sources publiques et approbations conservées.
 
+- [0024 — Tâches longues dans les conteneurs](0024-taches-longues-conteneurs.md) : supervision, résultats persistés et annulation.
+
 Le statut accepté décrit la décision ; les preuves d’exécution et les limites
 figurent dans [l’état du projet](../etat-du-projet.md).
