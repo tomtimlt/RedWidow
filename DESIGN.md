@@ -10,6 +10,30 @@ Améliorer la cohérence des espacements, la lisibilité, les hiérarchies visue
 le rendu des états vides et des longues sorties, et le confort en fenêtre étroite.
 Le graphe doit rester agréable à parcourir au clavier, à la souris et au zoom.
 
+## Direction artistique : « Acier et braise »
+
+- **Acier** : surfaces neutres tirées du thème (voiles `--jn-raise` et
+  `--jn-raise-2` mélangés au premier plan), filets fins `--jn-line`, ombres
+  réservées aux menus et panneaux flottants.
+- **Liseré** : un trait vertical de 2 px (`--jn-rail`) signale l’état ou la
+  sélection : message envoyé, validation, entrée du Monitor, rubrique courante,
+  filtre actif, conversation ouverte.
+- **Braise** : le cramoisi de la marque (`--jn-brand`) reste rare : logo, trait
+  sous la marque, fil d’activité de l’agent. L’interaction suit l’accent
+  (`--jn-accent`) et le focus (`--jn-focus`) du thème.
+- **Typographie** : Inter pour l’interface, police de l’éditeur pour les
+  données ; étiquettes en capitales mono espacées (`--jn-fs-2xs`,
+  `--jn-track`) comme repère commun ; chiffres tabulaires.
+- **Géométrie** : grille de 4 px, rangées de 28 à 32 px, rayons serrés
+  (`--jn-r-xs` 3 px à `--jn-r-lg` 10 px).
+- **Graphe** : canevas tramé, barre d’outils à pictogrammes (libellés masqués
+  sous 640 px), légende en panneau latéral ou flottant, déplacement au clavier
+  (flèches, Maj pour un grand pas, + / − pour zoomer, 0 pour ajuster).
+
+Les jetons sont définis en tête de `media/chat.css` et redéfinis pour les
+thèmes clair et contraste élevé ; les composants n’utilisent pas de couleur fixe
+hors marque et repli du chemin retenu.
+
 ## Conventions
 
 - Variables `--vscode-*` pour intégrer les thèmes de l’éditeur.
