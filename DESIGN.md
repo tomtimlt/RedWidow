@@ -37,12 +37,20 @@ Le graphe doit rester agréable à parcourir au clavier, à la souris et au zoom
 
 ## Logo
 
-Un bouclier (sécurité) garde un noyau d’orchestration entouré d’une orbite en
-pointillés, relié à trois agents de l’escouade (agentique). Pendant l’activité,
-l’orbite tourne et le noyau respire. Dans l’interface, le logo est un SVG en
-ligne coloré par la palette (`.brand-wing`, `.brand-ring`, `.brand-lead`,
-`.brand-node`, `.brand-cursor`) ; `media/logo.svg`, `logo-small.svg` et
-`icon.svg` (barre d’activité, monochrome) en sont les versions fixes.
+Un bouclier plein (sécurité) porte en réserve une étincelle à quatre branches
+(l’agent) et un petit satellite. Le bouclier prend la couleur de signature ;
+l’étincelle et le satellite prennent la couleur du fond (`--jn-brand-cut`).
+Pendant la réflexion, l’étincelle pulse en pivotant et le satellite orbite,
+dans l’en-tête comme dans l’indicateur de réflexion du chat. Classes
+`.brand-wing`, `.brand-core`, `.brand-lead`, `.brand-orbit`, `.brand-node` ;
+`media/logo.svg`, `logo-small.svg` et `icon.svg` (barre d’activité, découpe
+monochrome) en sont les versions fixes.
+
+## Réflexion dans le chat
+
+Logo animé, libellé balayé de lumière, trois points qui sautent et liseré
+lumineux qui parcourt le haut du compositeur. En attente d’accord : tout passe
+en couleur d’alerte et s’immobilise.
 
 ## Curseur d’effort
 

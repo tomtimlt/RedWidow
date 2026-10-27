@@ -15,9 +15,9 @@ const icon = (name, cls = "ico") => {
   if (!ICONS.has(name)) throw new Error(`pictogramme inconnu : ${name}`);
   return `<svg class="${cls}" data-icon="${name}" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"></svg>`;
 };
-// Logo : bouclier (sécurité) gardant un noyau d'orchestration en orbite, relié à
-// trois agents de l'escouade. L'orbite tourne pendant que l'agent travaille.
-export const BRAND_SHAPES = '<path class="brand-wing" d="M12 2.2 20 5.2v6.1c0 5.1-3.4 9-8 10.5-4.6-1.5-8-5.4-8-10.5V5.2z"/><path class="brand-lead" d="M12 12.2 7.7 8.1M12 12.2l4.3-4.1M12 12.2v5.3"/><circle class="brand-ring" cx="12" cy="12.2" r="3.5"/><circle class="brand-node" cx="7.7" cy="8.1" r="1.5"/><circle class="brand-node" cx="16.3" cy="8.1" r="1.5"/><circle class="brand-node" cx="12" cy="17.5" r="1.5"/><circle class="brand-cursor" cx="12" cy="12.2" r="1.9"/>';
+// Logo : bouclier plein (sécurité) portant en réserve une étincelle (l'agent) et
+// un satellite. Pendant la réflexion, l'étincelle pulse et le satellite orbite.
+export const BRAND_SHAPES = '<path class="brand-wing" d="M12 2.5c2.6 1.4 5.3 2.2 8 2.4v6.3c0 5-3.4 8.9-8 10.4-4.6-1.5-8-5.4-8-10.4V4.9c2.7-.2 5.4-1 8-2.4z"/><g class="brand-core"><path class="brand-lead" d="M12 6.6c.55 2.75 2 4.2 4.75 4.75-2.75.55-4.2 2-4.75 4.75-.55-2.75-2-4.2-4.75-4.75 2.75-.55 4.2-2 4.75-4.75z"/></g><g class="brand-orbit"><circle class="brand-node" cx="16.7" cy="7.2" r="1.15"/></g>';
 const BRAND = `<svg class="brand" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">${BRAND_SHAPES}</svg>`;
 export function chatHtml({ nonce, cspSource, scriptUri, uiUri, styleUri, iconsUri = scriptUri.replace(/[^/]+$/, "icons.js"), palette }) {
   for (const [name, value] of Object.entries({
@@ -57,7 +57,7 @@ export function chatHtml({ nonce, cspSource, scriptUri, uiUri, styleUri, iconsUr
 <div id="readonly" role="status" hidden><span id="readonly-text"></span><button id="readonly-resume" type="button" class="primary">Reprendre</button><button id="readonly-close" type="button" class="ghost">Fermer</button></div>
 <section id="monitor" aria-label="Commandes Atelier (lecture seule)"><div class="mon-head"><div class="mon-title"><span class="mon-live" aria-hidden="true"></span><strong>Monitor</strong><span id="monitor-count" class="mon-count"></span></div><p class="hint">Sortie en direct. Cliquer une entrée pour la suivre en lecture seule.</p><button id="monitor-follow" type="button" class="ghost" aria-label="Suivi du bas" aria-pressed="true" title="Désactiver le suivi du bas pour défiler librement">${icon("down")}<span class="btn-text">Suivi</span></button></div><ol id="monitor-rows"></ol><div id="monitor-empty" class="empty"><span class="mon-empty-ico">${icon("pulse")}</span><span>Aucun appel Atelier dans cette conversation.</span><span class="mon-empty-sub">Les commandes lancées par l’agent apparaîtront ici en direct.</span></div></section>
 <section id="approvals" aria-label="Autorisations demandées"></section>
-<div id="thinking" role="status">${icon("loader", "ico activity-icon")}<span id="thinking-label">Réflexion</span></div>
+<div id="thinking" role="status"><svg class="brand thinking-mark" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">${BRAND_SHAPES}</svg><span id="thinking-label">Réflexion</span><span class="thinking-dots" aria-hidden="true"><i></i><i></i><i></i></span></div>
 <form id="form">
 <div id="composer">
 <textarea id="input" rows="1" aria-label="Votre consigne" placeholder="Votre consigne…" title="Entrée pour envoyer, Maj+Entrée pour une nouvelle ligne"></textarea>
