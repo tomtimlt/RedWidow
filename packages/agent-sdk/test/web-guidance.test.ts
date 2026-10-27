@@ -1,5 +1,6 @@
 import type { Options, SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import {
+  AGENT_METHODOLOGY,
   createApprovalGate,
   createRecorder,
   DEFAULT_POLICY,
@@ -38,7 +39,11 @@ it.each([true, false])(
     expect(seen?.systemPrompt).toEqual({
       type: "preset",
       preset: "claude_code",
-      append: enabled ? `${WEB_RESEARCH_GUIDANCE}\n\nConsigne du projet.` : "Consigne du projet.",
+      append: [
+        AGENT_METHODOLOGY,
+        ...(enabled ? [WEB_RESEARCH_GUIDANCE] : []),
+        "Consigne du projet.",
+      ].join("\n\n"),
     });
   },
 );

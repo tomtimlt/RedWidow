@@ -1,8 +1,9 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { mkdtemp, open, rm } from "node:fs/promises";
+import { mkdtemp, open, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  AGENT_METHODOLOGY,
   type AgentRunner,
   type ApprovalOutcome,
   type AuthMode,
@@ -23,6 +24,7 @@ import {
   reason,
   resolveBinary,
   ToolCallRegistry,
+  withAgentMethodology,
   withWebResearchGuidance,
 } from "@warband/core";
 import { formatReason } from "@warband/messages";
@@ -463,6 +465,7 @@ async function runWithOpencode(
   let stopServer: (() => Promise<void>) | undefined;
   let isolatedConfig: string | undefined;
   let toolServer: Awaited<ReturnType<typeof startToolServer>> | undefined;
+  let methodologyDir: string | undefined;
   let sessionId: string | undefined;
   let ownsServer = true;
   const family = new Set<string>();
@@ -909,7 +912,11 @@ async function runWithOpencode(
         set.name === "web" &&
         ["search_web", "read_url"].every((name) => set.tools.some((tool) => tool.name === name)),
     );
-    const systemPrompt = withWebResearchGuidance(input.systemPrompt, webAvailable);
+    const managedInstructions = options.createClient !== undefined || !options.baseUrl;
+    const extraPrompt = withWebResearchGuidance(input.systemPrompt, webAvailable);
+    // Le serveur géré inclut le skill à chaque tour via `instructions`.
+    // Un serveur externe reçoit la méthode dans le seul prompt de notre session.
+    const systemPrompt = managedInstructions ? extraPrompt : withAgentMethodology(extraPrompt);
     if (specs.length > 0) {
       const token = randomBytes(32).toString("hex");
       toolServer = await startToolServer({ toolsets: specs, token, guard });
@@ -922,10 +929,20 @@ async function runWithOpencode(
         };
       }
     }
+    // Les sessions filles OpenCode n'héritent pas du champ `system` du parent.
+    // Une instruction globale constante les couvre sans remplacer leurs rôles.
+    // Aucun état de mission ni contenu utilisateur dans ce fichier temporaire.
+    let methodologyPath: string | undefined;
+    if (managedInstructions) {
+      methodologyDir = await mkdtemp(join(tmpdir(), "warband-methodology-"));
+      methodologyPath = join(methodologyDir, "SKILL.md");
+      await writeFile(methodologyPath, AGENT_METHODOLOGY, { encoding: "utf8", mode: 0o600 });
+    }
     const config = buildConfig({
       user: options.config,
       enabledTools,
       mcp,
+      ...(methodologyPath !== undefined && { methodologyPath }),
       maxTurns: input.maxTurns,
       ...(options.provider !== undefined && { provider: options.provider }),
     });
@@ -1101,7 +1118,11 @@ async function runWithOpencode(
         try {
           await toolServer?.close();
         } finally {
-          if (isolatedConfig) await rm(isolatedConfig, { recursive: true, force: true });
+          try {
+            if (isolatedConfig) await rm(isolatedConfig, { recursive: true, force: true });
+          } finally {
+            if (methodologyDir) await rm(methodologyDir, { recursive: true, force: true });
+          }
         }
       }
     }

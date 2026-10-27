@@ -9,7 +9,7 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import type { EngineEvent } from "@warband/core";
+import { AGENT_METHODOLOGY, type EngineEvent } from "@warband/core";
 import { afterAll, describe, expect, it } from "vitest";
 import { createOpencodeRunner, dockerToolset } from "../src/index.js";
 import { fakeDocker, harness } from "./helpers.js";
@@ -28,6 +28,7 @@ interface Plan {
 /** Faux fournisseur : 1re réponse = appels d'outils du plan, ensuite texte final. */
 function fakeProvider(plan: Plan[]): Promise<{ server: Server; port: number; bodies: unknown[] }> {
   const bodies: unknown[] = [];
+  let planIssued = false;
   const server = createServer((req, res) => {
     let raw = "";
     req.on("data", (c) => {
@@ -40,7 +41,8 @@ function fakeProvider(plan: Plan[]): Promise<{ server: Server; port: number; bod
       const base = { id: "c1", object: "chat.completion.chunk", created: 1, model: "m" };
       res.writeHead(200, { "content-type": "text/event-stream" });
       const toolsAnswered = (body.messages ?? []).some((m) => m.role === "tool");
-      if ((body.tools?.length ?? 0) > 0 && !toolsAnswered && plan.length > 0) {
+      if ((body.tools?.length ?? 0) > 0 && !toolsAnswered && plan.length > 0 && !planIssued) {
+        planIssued = true;
         send({
           ...base,
           choices: [
@@ -95,7 +97,7 @@ afterAll(() => {
 });
 
 /** Joue un plan d'appels d'outils contre le vrai binaire et renvoie le journal. */
-async function playPlan(plan: Plan[], extra: { cwd?: string } = {}) {
+async function playPlan(plan: Plan[], extra: { cwd?: string; delegate?: boolean } = {}) {
   const cwd = extra.cwd ?? mkdtempSync(join(tmpdir(), "oc-contract-"));
   writeFileSync(join(cwd, "a.txt"), "bonjour");
   const home = mkdtempSync(join(tmpdir(), "oc-contract-home-"));
@@ -105,11 +107,14 @@ async function playPlan(plan: Plan[], extra: { cwd?: string } = {}) {
   const docker = await fakeDocker();
   const provider = await fakeProvider(plan);
   servers.push(provider.server);
-  const h = harness({ workspace: cwd });
+  const h = harness({
+    workspace: cwd,
+    ...(extra.delegate && { ask: async () => ({ decision: "allow" as const }) }),
+  });
   const runner = createOpencodeRunner({
     binary: BIN as string,
     toolsets: [dockerToolset({ binary: docker.bin, argsPrefix: docker.argsPrefix })],
-    builtinTools: ["read", "write", "glob", "grep"],
+    builtinTools: ["read", "write", "glob", "grep", ...(extra.delegate ? ["task"] : [])],
     config: {
       provider: {
         fake: {
@@ -136,6 +141,46 @@ async function playPlan(plan: Plan[], extra: { cwd?: string } = {}) {
 }
 
 describe.skipIf(!BIN)("contrat OpenCode réel (faux fournisseur local)", () => {
+  it("transmet le skill complet une seule fois au parent et au sous-agent natif", async () => {
+    const childPrompt = "Contrôle local de la méthode : réponds terminé.";
+    const r = await playPlan(
+      [
+        {
+          name: "task",
+          args: {
+            description: "Vérifier le contexte",
+            prompt: childPrompt,
+            subagent_type: "general",
+          },
+        },
+      ],
+      { delegate: true },
+    );
+    expect(r.summary.status).toBe("success");
+    expect(r.ev("tool.requested").some((e) => e.tool === "Task")).toBe(true);
+    const bodies = r.provider.bodies as {
+      messages: { role: string; content: unknown }[];
+      tools?: unknown[];
+    }[];
+    // OpenCode génère aussi des titres : ces appels sans outils ne sont pas des agents de mission.
+    const agentBodies = bodies.filter((body) => (body.tools?.length ?? 0) > 0);
+    const child = agentBodies.find((body) =>
+      body.messages.some(
+        (m) => m.role === "user" && JSON.stringify(m.content).includes(childPrompt),
+      ),
+    );
+    expect(child).toBeDefined();
+    for (const body of [agentBodies[0], child]) {
+      const system =
+        body?.messages
+          .filter((m) => m.role === "system")
+          .map((m) => (typeof m.content === "string" ? m.content : JSON.stringify(m.content)))
+          .join("\n") ?? "";
+      expect(system).toContain(AGENT_METHODOLOGY);
+      expect(system.split(AGENT_METHODOLOGY)).toHaveLength(2);
+    }
+  }, 90_000);
+
   it("autorise les appels permis par la politique (natif + MCP) et corrèle les processus", async () => {
     const r = await playPlan([
       { name: "read", args: { filePath: "a.txt" } },

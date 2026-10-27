@@ -43,5 +43,7 @@ Lots pour `dev` : objectif, fichiers, critères d'acceptation vérifiables.
 
 - [0024 — Tâches longues dans les conteneurs](0024-taches-longues-conteneurs.md) : supervision, résultats persistés et annulation.
 
+- [0025 — Méthode commune aux agents](0025-methode-commune-agents.md) : skill permanent, état vérifié, preuves et réévaluation des branches.
+
 Le statut accepté décrit la décision ; les preuves d’exécution et les limites
 figurent dans [l’état du projet](../etat-du-projet.md).

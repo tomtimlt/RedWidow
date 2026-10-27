@@ -10,6 +10,7 @@ import {
   query as sdkQuery,
 } from "@anthropic-ai/claude-agent-sdk";
 import {
+  AGENT_METHODOLOGY,
   type AgentRunner,
   type ApprovalOutcome,
   type AuthInfo,
@@ -29,6 +30,7 @@ import {
   type RunSummary,
   reason,
   type TaskUsage,
+  withAgentMethodology,
   withWebResearchGuidance,
 } from "@warband/core";
 import { formatReason } from "@warband/messages";
@@ -461,7 +463,9 @@ async function runWithSdk(
       ...(set.instructions && { instructions: set.instructions }),
     });
   }
-  const systemPrompt = withWebResearchGuidance(input.systemPrompt, webAvailable);
+  const systemPrompt = withAgentMethodology(
+    withWebResearchGuidance(input.systemPrompt, webAvailable),
+  );
 
   // Outils de shell : retirés de la liste, `Bash` seulement sur demande explicite, `PowerShell` jamais.
   const builtinTools = [...new Set([...(options.builtinTools ?? DEFAULT_BUILTIN_TOOLS)])].filter(
@@ -509,6 +513,19 @@ async function runWithSdk(
       PreToolUse: [
         { hooks: [preToolUse], timeout: HOOK_TIMEOUT_S },
         ...(options.hooks?.PreToolUse ?? []),
+      ],
+      SubagentStart: [
+        {
+          hooks: [
+            async () => ({
+              hookSpecificOutput: {
+                hookEventName: "SubagentStart",
+                additionalContext: AGENT_METHODOLOGY,
+              },
+            }),
+          ],
+        },
+        ...(options.hooks?.SubagentStart ?? []),
       ],
     },
     canUseTool,

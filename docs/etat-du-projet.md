@@ -1,6 +1,6 @@
 # Warband — parcours, état actuel et reprise
 
-État inspecté le 27 octobre 2026 pour la version 0.3.46. Ce document sert de point d'entrée produit ;
+État inspecté le 27 octobre 2026 pour la version 0.3.47. Ce document sert de point d'entrée produit ;
 les ADR expliquent les décisions, les idées restent une réserve.
 
 ## Le parcours de référence
@@ -15,10 +15,33 @@ parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
 
-La version du manifeste est **0.3.46**. Les paragraphes
+La version du manifeste est **0.3.47**. Les paragraphes
 0.3.19 à 0.3.29 ci-dessous sont des relevés historiques, pas les preuves de
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
+
+## Lot 0.3.47 — méthode commune des agents (en préparation)
+
+Le skill [Conduite vérifiable d'une mission](methodologie-agent.md) est embarqué
+dans les deux adaptateurs, pour tous les modèles, dans la CLI et l'extension.
+Il distingue faits/hypothèses, impose une vérification des préconditions utiles,
+un registre propre à la mission et un diagnostic après deux échecs sur une
+branche ou 25 minutes sans fait nouveau. La créativité est structurée par des
+explications concurrentes, des tests discriminants et un raisonnement à rebours
+depuis l'objectif ; aucune technique d'exploitation n'est ajoutée.
+
+Les reprises et les sous-agents des serveurs gérés reçoivent aussi la méthode.
+Les rôles, la gate et le mode Apprentissage restent préservés. Le seuil est une
+consigne au modèle, pas un minuteur automatique ; le benchmark HTB difficile
+devra être rejoué pour évaluer l'effet réel. Les validations Windows du catalogue
+OpenCode Zen et des certificats système restent ouvertes.
+
+Validation locale : **1 994 tests réussis, 13 ignorés**, typage et build réussis.
+Les **6 tests de contrat OpenCode avec fournisseur simulé local**, désactivés
+dans la suite standard, ont aussi été exécutés et réussissent. Le nouveau
+contrat vérifie le texte complet envoyé au parent et au sous-agent natif,
+une seule fois chacun. Aucun appel d'inférence facturé ni benchmark HTB n'a
+été lancé. Diff relu ; publication encore en préparation.
 
 ## Lot 0.3.46 — chargement et diagnostic du catalogue (publié)
 

@@ -67,6 +67,9 @@ volontairement pas utilisé : le hook `PreToolUse` fait autorité.
 
 ## Sessions
 
+La [méthode commune des agents](methodologie-agent.md) est injectée automatiquement
+par les deux adaptateurs, y compris à la reprise et sans consigne personnalisée.
+
 `run --resume <id>` reprend une session, `--max-budget-usd <n>` plafonne la dépense, `--system-prompt <texte>` ajoute du
 texte au prompt système (preset `claude_code`). L'identifiant de session est affiché en fin de run. Côté bibliothèque,
 `RunInput.prompt` accepte un `AsyncIterable<string>` (session multi-tours) ; chaque tour émet `turn.finished`.

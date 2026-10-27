@@ -318,6 +318,16 @@ L’agent peut aussi utiliser **`delete_note`**, après `list_notes` pour retrou
 l’identifiant. Cette action passe par les approbations habituelles. Un projet
 ou un contenu modifié pendant la confirmation impose de recommencer.
 
+## Méthode commune — 0.3.47
+
+Tous les modèles des fournisseurs Claude, OpenAI et OpenCode reçoivent le
+[skill de conduite vérifiable](methodologie-agent.md), dès le lancement et
+à la reprise. Il encadre la vérification d'état, les hypothèses, les preuves,
+la réévaluation d'une branche bloquée et la recherche de pistes alternatives.
+Il ne faut pas le recopier dans chaque prompt. L'apprentissage reste en lecture
+seule ; la méthode ne donne aucun droit supplémentaire et ne garantit pas la
+réussite d'un challenge.
+
 ## Recherche web — 0.3.35
 
 Les agents Claude, OpenAI et OpenCode peuvent utiliser **`search_web`** pour

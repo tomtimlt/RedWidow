@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import type { Options, SDKMessage, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import {
+  AGENT_METHODOLOGY,
   createApprovalGate,
   createRecorder,
   DEFAULT_POLICY,
@@ -302,16 +303,25 @@ describe("sessions", () => {
       resume: "old-session",
       sessionId: "new-id",
       maxBudgetUsd: 1.5,
-      systemPrompt: { type: "preset", preset: "claude_code", append: "Sois bref." },
+      systemPrompt: {
+        type: "preset",
+        preset: "claude_code",
+        append: `${AGENT_METHODOLOGY}\n\nSois bref.`,
+      },
     });
     expect(summary?.sessionId).toBe("new-id");
   });
 
-  it("sans option de session, rien n'est posé", async () => {
+  it("sans option de session, seule la méthode commune est ajoutée", async () => {
     const { seen } = await run({}, simple);
-    for (const key of ["resume", "sessionId", "maxBudgetUsd", "systemPrompt"]) {
+    for (const key of ["resume", "sessionId", "maxBudgetUsd"]) {
       expect(seen.options).not.toHaveProperty(key);
     }
+    expect(seen.options?.systemPrompt).toEqual({
+      type: "preset",
+      preset: "claude_code",
+      append: AGENT_METHODOLOGY,
+    });
   });
 
   it("les options de session ne desserrent pas les options verrouillées", async () => {

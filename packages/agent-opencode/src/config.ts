@@ -34,6 +34,8 @@ export interface ForcedConfigInput {
   mcp: Record<string, unknown>;
   maxTurns: number | undefined;
   provider?: string;
+  /** Skill constant local lu par toutes les sessions du serveur géré, sous-agents compris. */
+  methodologyPath?: string;
 }
 
 /**
@@ -47,6 +49,7 @@ export function buildConfig({
   mcp,
   maxTurns,
   provider,
+  methodologyPath,
 }: ForcedConfigInput): Obj {
   const permission = forcedPermission(enabledTools);
   const { plugin: _plugin, permission: _permission, ...rest } = user ?? {};
@@ -62,6 +65,12 @@ export function buildConfig({
   }
   return {
     ...rest,
+    ...(methodologyPath !== undefined && {
+      instructions: [
+        ...(Array.isArray(rest.instructions) ? rest.instructions : []),
+        methodologyPath,
+      ],
+    }),
     ...(provider !== undefined && { enabled_providers: [provider] }),
     ...(provider === "openai" && {
       provider: { ...(isObj(rest.provider) ? rest.provider : {}), openai: {} },
