@@ -124,3 +124,19 @@ test("le pont VS Code ouvre les vues et transmet les interactions de la simulati
   assert.equal(sidebar.messages.filter((m) => m.type === "view").at(-1).view.busy, false);
   for (const item of context.subscriptions) item.dispose();
 });
+test("les pictogrammes viennent d'une source unique et la palette est validée", async () => {
+  const source = await readFile(new URL("../media/icons.js", import.meta.url), "utf8");
+  const names = new Set();
+  const fakeWindow = {};
+  new Function("window", "document", source)(fakeWindow, { querySelectorAll: () => [] });
+  for (const name of fakeWindow.WarbandIcons.names) names.add(name);
+  const options = { nonce: "testNonce123", cspSource: "https://local.invalid", scriptUri: "https://local.invalid/media/chat.js", uiUri: "https://local.invalid/media/ui.js", styleUri: "https://local.invalid/media/chat.css" };
+  for (const view of [chatHtml, graphHtml, studioHtml]) {
+    const html = view({ ...options, palette: "\"><script>" });
+    for (const [, name] of html.matchAll(/data-icon="([^"]+)"/g)) assert.ok(names.has(name), name);
+    assert.match(html, /data-palette="sentinelle"/);
+    assert.match(view({ ...options, palette: "spectre" }), /data-palette="spectre"/);
+  }
+  const studio = await readFile(new URL("../media/studio.js", import.meta.url), "utf8");
+  for (const [, name] of studio.matchAll(/WarbandIcons\.create\("([a-zA-Z]+)"/g)) assert.ok(names.has(name), name);
+});

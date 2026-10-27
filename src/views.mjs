@@ -1,34 +1,24 @@
 import { randomBytes } from "node:crypto";
+export const PALETTES = [
+  ["sentinelle", "Sentinelle", "Sarcelle et ardoise : veille, terminal, sécurité"],
+  ["braise", "Braise", "Cramoisi et acier : la marque d'origine, plus offensive"],
+  ["bastion", "Bastion", "Cuivre et graphite : chaleur d'atelier, alerte maîtrisée"],
+  ["spectre", "Spectre", "Violet et glace : agents, recherche, nuit"],
+  ["editeur", "Éditeur", "Accent du thème VS Code : intégration maximale"]
+];
+const paletteOf = (value) => PALETTES.some(([key]) => key === value) ? value : PALETTES[0][0];
 export const makeNonce = () => randomBytes(18).toString("base64url");
 const SAFE = /^[A-Za-z0-9_\-+/=:.%~@]+$/;
-const ICONS = {
-  loader: '<path d="M20 12a8 8 0 1 1-8-8"/>',
-  space: '<path d="m12 3 8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9"/>',
-  brain: '<path d="M12 5v14M8 4a3 3 0 0 0-3 3 3 3 0 0 0-1 5 3 3 0 0 0 2 5 3 3 0 0 0 6 2M16 4a3 3 0 0 1 3 3 3 3 0 0 1 1 5 3 3 0 0 1-2 5 3 3 0 0 1-6 2"/>',
-  book: '<path d="M12 6c-3-2-6-2-9-1v14c3-1 6-1 9 1 3-2 6-2 9-1V5c-3-1-6-1-9 1zM12 6v14"/>',
-  shield: '<path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6z"/>',
-  history: '<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 7.5V12l3 2"/>',
-  plus: '<path d="M12 5v14M5 12h14"/>',
-  close: '<path d="M6 6l12 12M18 6 6 18"/>',
-  terminal: '<path d="m5 8 4 4-4 4"/><path d="M12 17h7"/>',
-  folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
-  clip: '<path d="m21 11-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.9-8.9a3.7 3.7 0 0 1 5.2 5.2l-8.9 8.9a1.8 1.8 0 0 1-2.6-2.6L15.5 7"/>',
-  at: '<circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/>',
-  hash: '<path d="M5 9h14M5 15h14M10 4 8 20M16 4l-2 16"/>',
-  slash: '<path d="M15 4 9 20"/>',
-  pulse: '<path d="M3 12h4l2.5-6 5 12L17 12h4"/>',
-  graph: '<path d="M4 5h5v5H4zM15 3h5v7h-5zM7 15h13v6H7z"/><path d="M9 8h1M17 6h1M10 18h8"/>',
-  stop: '<rect x="6" y="6" width="12" height="12" rx="2.5"/>',
-  send: '<path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/>',
-  down: '<path d="M12 5v14M5.5 12.5 12 19l6.5-6.5"/>',
-  caret: '<path d="m7 10 5 5 5-5"/>',
-  refresh: '<path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/>',
-  sparkle: '<path d="M12 3.5 13.8 9a2 2 0 0 0 1.2 1.2l5.5 1.8-5.5 1.8a2 2 0 0 0-1.2 1.2L12 20.5 10.2 15A2 2 0 0 0 9 13.8L3.5 12 9 10.2A2 2 0 0 0 10.2 9z"/>',
-  sliders: '<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>'
+// Pictogrammes : emplacements remplis par media/icons.js, source unique des tracés.
+const ICONS = new Set(["loader", "space", "brain", "book", "shield", "history", "plus", "close", "terminal", "folder", "clip", "at", "hash", "slash", "pulse", "graph", "stop", "send", "down", "caret", "refresh", "sparkle", "sliders", "search", "check", "bolt"]);
+const icon = (name, cls = "ico") => {
+  if (!ICONS.has(name)) throw new Error(`pictogramme inconnu : ${name}`);
+  return `<svg class="${cls}" data-icon="${name}" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"></svg>`;
 };
-const icon = (name, cls = "ico") => `<svg class="${cls}" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICONS[name]}</svg>`;
-const BRAND = '<svg class="brand" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><polygon points="1,1 4,1 8,5 4,9 1,9 5,5" class="brand-wing"/><polygon points="1,15 4,15 8,19 4,23 1,23 5,19" class="brand-wing"/><polygon points="13,5 16,5 23,12 16,19 13,19 20,12" class="brand-lead"/><rect x="18" y="20" width="5" height="3" class="brand-cursor"/></svg>';
-export function chatHtml({ nonce, cspSource, scriptUri, uiUri, styleUri, iconsUri = scriptUri.replace(/[^/]+$/, "icons.js") }) {
+// Logo : bouclier (sécurité) portant un W de cinq agents reliés ; le nœud central mène.
+export const BRAND_SHAPES = '<path class="brand-wing" d="M12 2.2 20 5.2v6.1c0 5.1-3.4 9-8 10.5-4.6-1.5-8-5.4-8-10.5V5.2z"/><path class="brand-lead" d="M7.6 8.4 9.8 15.6 12 10.6l2.2 5 2.2-7.2"/><circle class="brand-node" cx="7.6" cy="8.4" r="1.25"/><circle class="brand-node" cx="9.8" cy="15.6" r="1.25"/><circle class="brand-node" cx="14.2" cy="15.6" r="1.25"/><circle class="brand-node" cx="16.4" cy="8.4" r="1.25"/><circle class="brand-cursor" cx="12" cy="10.6" r="1.9"/>';
+const BRAND = `<svg class="brand" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">${BRAND_SHAPES}</svg>`;
+export function chatHtml({ nonce, cspSource, scriptUri, uiUri, styleUri, iconsUri = scriptUri.replace(/[^/]+$/, "icons.js"), palette }) {
   for (const [name, value] of Object.entries({
     nonce,
     cspSource,
@@ -57,7 +47,7 @@ export function chatHtml({ nonce, cspSource, scriptUri, uiUri, styleUri, iconsUr
 <link rel="stylesheet" href="${styleUri}">
 <title>Warband</title>
 </head>
-<body>
+<body data-palette="${paletteOf(palette)}">
 <header id="bar"><span id="title">${BRAND}<span class="brand-name">Warband</span></span><span id="sandbox" class="badge" hidden></span><span id="automatic-badge" class="badge" hidden></span><span id="learning-badge" class="badge" title="Mode Apprentissage : lecture des cours seule, aucune action" hidden>Apprentissage</span><button id="history-btn" type="button" class="ghost" aria-expanded="false" aria-controls="history" title="Historique des conversations">${icon("history")}<span class="btn-text">Historique</span></button><button id="reset" type="button" class="ghost" title="Nouvelle conversation">${icon("plus")}<span class="btn-text">Nouvelle<span class="btn-more"> conversation</span></span></button></header>
 <section id="history" aria-label="Historique des conversations" hidden><div class="hist-head"><strong>Historique</strong><button id="history-clear" type="button" class="ghost">Tout effacer</button><button id="history-close" type="button" class="ghost icon-btn" title="Fermer l'historique (Échap)" aria-label="Fermer l'historique">${icon("close")}</button></div><ul id="history-list"></ul></section>
 <nav id="timeline" aria-label="Navigation dans les messages" hidden><button id="timeline-older" type="button" class="ghost">Précédents</button><button id="timeline-newer" type="button" class="ghost">Suivants</button><button id="timeline-latest" type="button" class="ghost">Revenir au direct</button><span id="timeline-status" role="status"></span></nav>
@@ -86,31 +76,32 @@ export function chatHtml({ nonce, cspSource, scriptUri, uiUri, styleUri, iconsUr
 </div>
 </div>
 </form>
-<div id="model-pop" class="pop" popover="auto" aria-label="Choisir le modèle">
+<div id="model-pop" class="pop" popover="auto" aria-labelledby="model-pop-title">
+<div class="pop-head"><span id="model-pop-title" class="pop-title">${icon("sparkle", "ico pop-title-ico")}Modèle</span><span class="pop-sub">Pour le message suivant</span></div>
 <p id="models-status" class="tip" role="status" aria-live="polite" hidden></p>
-<input id="model-filter" type="text" role="combobox" aria-controls="model-list" aria-expanded="true" aria-autocomplete="list" aria-label="Filtrer les modèles" placeholder="Filtrer les modèles…" spellcheck="false" autocomplete="off">
+<div class="pop-search">${icon("search", "ico pop-search-ico")}<input id="model-filter" type="text" role="combobox" aria-controls="model-list" aria-expanded="true" aria-autocomplete="list" aria-label="Filtrer les modèles" placeholder="Filtrer les modèles…" spellcheck="false" autocomplete="off"></div>
 <input id="model-input" type="text" aria-label="Référence du modèle" placeholder="identifiant du modèle" title="Liste indisponible : saisissez l'identifiant du modèle" spellcheck="false" autocomplete="off" hidden>
 <div id="model-list" role="listbox" aria-label="Modèles"></div>
-<div class="pop-foot"><button id="models-connect" type="button" class="ghost" hidden>Configurer la connexion</button><button id="models-refresh" type="button" class="ghost" title="Actualiser la liste des modèles">Actualiser la liste</button></div>
+<div class="pop-foot"><button id="models-connect" type="button" class="ghost" hidden>Configurer la connexion</button><button id="models-refresh" type="button" class="ghost" title="Actualiser la liste des modèles">${icon("refresh")}<span id="models-refresh-label">Actualiser la liste</span></button></div>
 </div>
 <div id="mention-pop" class="pop" popover="auto" aria-label="Espaces"><div id="mention-list" role="listbox" aria-label="Espaces"></div><p id="mention-empty" class="tip" hidden>Aucun espace</p></div>
 <div id="slash-pop" class="pop" popover="auto" aria-label="Commandes">
 <button id="cmd-clear" type="button" class="cmd-opt"><span class="cmd">/clear</span><span class="cmd-desc">Nouvelle conversation</span></button>
 </div>
-<div id="cfg-pop" class="pop" popover="auto" role="dialog" aria-label="Configurer">
+<div id="cfg-pop" class="pop" popover="auto" role="dialog" aria-labelledby="cfg-pop-title">
+<div class="pop-head"><span id="cfg-pop-title" class="pop-title">${icon("sliders", "ico pop-title-ico")}Configurer</span><span class="pop-sub">S'applique au message suivant</span></div>
 <section class="cfg-col cfg-model" aria-labelledby="cfg-h-reason"><h3 id="cfg-h-reason">${icon("brain")}Modèle et raisonnement</h3>
-<div class="cfg-provider"><label for="provider">Fournisseur</label><select id="provider" aria-describedby="provider-help"><option value="demo">Démo</option><option value="local">Local (ChatGPT / API)</option><option value="atelier">Atelier</option></select></div>
-<button id="provider-connect" type="button" class="ghost">Configurer la connexion</button>
+<div class="cfg-provider"><label for="provider">Fournisseur</label><select id="provider" aria-describedby="provider-help"><option value="demo">Démo</option><option value="local">Local (ChatGPT / API)</option><option value="atelier">Atelier</option></select><button id="provider-connect" type="button" class="link">Connexion</button></div>
 <p id="provider-help" class="tip">Catalogue fictif : les options servent uniquement à explorer les états visuels.</p>
-<div class="effort-now">Effort : <output id="effort-label" for="effort"></output></div>
+<div class="effort-head"><div class="effort-now">Effort <output id="effort-label" for="effort"></output></div><div class="effort-row"><button id="effort-auto" type="button" class="ghost" title="Revenir à Auto : le modèle garde son effort par défaut">${icon("refresh")}Auto</button></div></div>
 <label for="effort" class="sr-only">Niveau d'effort</label>
 <div id="effort-scale"><input id="effort" type="range" min="0" max="4" step="1" value="2" aria-describedby="effort-tip"></div>
-<div class="effort-row"><button id="effort-auto" type="button" class="ghost" title="Revenir à Auto : le modèle garde son effort par défaut">Auto</button></div>
+<div id="effort-ticks" aria-hidden="true"></div>
 <p id="effort-tip" class="tip"></p></section>
-<section class="cfg-col cfg-execution" aria-labelledby="cfg-h-execution"><h3 id="cfg-h-execution">${icon("sliders")}Exécution</h3>
-<div class="cfg-control"><button id="learning-switch" type="button" role="switch" aria-checked="false" aria-describedby="learning-help"><span class="cfg-switch-label">${icon("book")}Apprentissage</span></button>
-<p id="learning-help" class="tip">Lecture des cours et explications, sans exécution ni écriture. S'applique au message suivant.</p></div>
-<div class="cfg-control"><button id="automatic-switch" type="button" role="switch" aria-checked="false" aria-describedby="automatic-state automatic-warn"><span class="cfg-switch-label">${icon("shield")}Automatique</span></button>
+<section class="cfg-col cfg-execution" aria-labelledby="cfg-h-execution"><h3 id="cfg-h-execution">${icon("shield")}Exécution</h3>
+<div class="cfg-control"><button id="learning-switch" type="button" role="switch" aria-checked="false" aria-describedby="learning-help"><span class="cfg-switch-label"><span class="cfg-switch-ico">${icon("book")}</span>Apprentissage</span></button>
+<p id="learning-help" class="tip">Lecture des cours et explications, sans exécution ni écriture.</p></div>
+<div class="cfg-control cfg-automatic"><button id="automatic-switch" type="button" role="switch" aria-checked="false" aria-describedby="automatic-state automatic-warn"><span class="cfg-switch-label"><span class="cfg-switch-ico">${icon("bolt")}</span>Automatique</span></button>
 <p id="automatic-state" role="status"></p>
 <p id="automatic-warn" class="tip"><span class="warn-line">Ce réglage modifie uniquement les indicateurs de la démonstration.</span></p></div></section>
 </div>
@@ -121,7 +112,7 @@ export function chatHtml({ nonce, cspSource, scriptUri, uiUri, styleUri, iconsUr
 </html>
 `;
 }
-export function studioHtml({ nonce, cspSource, scriptUri, styleUri, iconsUri = scriptUri.replace(/[^/]+$/, "icons.js") }) {
+export function studioHtml({ nonce, cspSource, scriptUri, styleUri, iconsUri = scriptUri.replace(/[^/]+$/, "icons.js"), palette }) {
   for (const [name, value] of Object.entries({ nonce, cspSource, scriptUri, styleUri, iconsUri })) {
     const ok = name === "cspSource" ? !/["<>]/.test(value) && value !== "" : SAFE.test(value);
     if (!ok)
@@ -143,7 +134,7 @@ export function studioHtml({ nonce, cspSource, scriptUri, styleUri, iconsUri = s
 <link rel="stylesheet" href="${styleUri}">
 <title>Réglages</title>
 </head>
-<body class="studio">
+<body class="studio" data-palette="${paletteOf(palette)}">
 <div class="studio-shell">
 <nav id="studio-nav" aria-label="Réglages"></nav>
 <main id="studio-main"></main>
@@ -154,7 +145,7 @@ export function studioHtml({ nonce, cspSource, scriptUri, styleUri, iconsUri = s
 </html>
 `;
 }
-export function graphHtml({ nonce, cspSource, scriptUri, styleUri, iconsUri = scriptUri.replace(/[^/]+$/, "icons.js") }) {
+export function graphHtml({ nonce, cspSource, scriptUri, styleUri, iconsUri = scriptUri.replace(/[^/]+$/, "icons.js"), palette }) {
   for (const [name, value] of Object.entries({ nonce, cspSource, scriptUri, styleUri, iconsUri })) {
     const ok = name === "cspSource" ? !/["<>]/.test(value) && value !== "" : SAFE.test(value);
     if (!ok)
@@ -176,7 +167,7 @@ export function graphHtml({ nonce, cspSource, scriptUri, styleUri, iconsUri = sc
 <link rel="stylesheet" href="${styleUri}">
 <title>Graphe</title>
 </head>
-<body class="studio graph-full">
+<body class="studio graph-full" data-palette="${paletteOf(palette)}">
 <div class="studio-shell">
 <main id="studio-main"></main>
 </div>

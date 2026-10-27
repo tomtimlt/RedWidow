@@ -210,6 +210,13 @@
   }
   function welcome(sandbox) {
     const box = el("div", "welcome");
+    const mark = document.querySelector("#title .brand")?.cloneNode(true);
+    if (mark) {
+      mark.setAttribute("class", "brand welcome-mark");
+      mark.removeAttribute("width");
+      mark.removeAttribute("height");
+      box.append(mark);
+    }
     box.append(
       el("h2", "", "On commence par où ?"),
       el("p", "hint", "Décris la cible. Chaque action sensible demande ton accord.")
@@ -399,14 +406,15 @@
       const current = m.value === ctl.model;
       o.setAttribute("aria-selected", String(current));
       o.title = [m.value, m.description].filter(Boolean).join(" — ");
-      o.append(el("span", "opt-label", m.label));
+      const mark = svg("check", "ico opt-check");
+      o.append(mark, el("span", "opt-label", m.label));
       const badges = el("span", "model-badges");
       if (m.free) {
         const badge = el("span", "badge model-free", "Gratuit");
         badge.title = "Modèle annoncé « Free » par le fournisseur.";
         badges.append(badge);
       }
-      if (current) badges.append(el("span", "badge", "actuel"));
+      if (current) badges.append(el("span", "sr-only", "actuel"));
       o.append(badges);
       if (m.value !== null) o.append(el("span", "opt-desc model-source", m.value));
       if (m.description) o.append(el("span", "opt-desc", m.description));
@@ -460,7 +468,7 @@
     modelInput.hidden = !free || loading;
     modelInput.disabled = c.locked;
     $("models-refresh").disabled = c.locked;
-    $("models-refresh").textContent = loading ? "Relancer le chargement" : "Actualiser la liste";
+    $("models-refresh-label").textContent = loading ? "Relancer le chargement" : "Actualiser la liste";
     if (free) {
       if (document.activeElement !== modelInput) modelInput.value = c.model ?? "";
     } else if (modelPop.matches(":popover-open")) renderModelList(false);
@@ -482,10 +490,12 @@
     effortInput.disabled = c.locked || c.effortDisabled;
     const disabledTip = c.provider === "demo" ? "Ce modèle n'a pas d'effort réglable." : "Aucune variante de raisonnement connue pour ce modèle. Actualisez la liste des modèles.";
     effortInput.title = c.effortDisabled ? disabledTip : c.effortTip;
-    effortInput.setAttribute("aria-valuetext", `${c.effortLabel} : ${c.effortTip}`);
-    $("effort-label").textContent = c.effortLabel;
+    effortInput.setAttribute("aria-valuetext", `${auto ? "Auto" : levels[idx]?.label ?? c.effortLabel} : ${c.effortTip}`);
+    const shown = auto ? "Auto" : levels[idx]?.label ?? c.effortLabel;
+    $("effort-label").textContent = shown;
     $("effort-tip").textContent = c.effortDisabled ? disabledTip : c.effortTip;
-    $("cfg-level").textContent = c.effortLabel;
+    $("cfg-level").textContent = shown;
+    paintTicks(idx, auto, effortInput.disabled);
     cfgBtn.title = `Configurer : effort ${c.effortLabel}`;
     document.body.classList.toggle("learning", c.learning === true);
     $("learning-badge").hidden = c.learning !== true;
@@ -713,6 +723,20 @@
     );
   }
   $("effort-auto").addEventListener("click", () => postReasoningChoice(null));
+  // Graduations nommées : raccourci à la souris, le curseur reste la commande clavier.
+  function paintTicks(index, auto, disabled) {
+    const ticks = $("effort-ticks");
+    ticks.replaceChildren(
+      ...levels.map((level, i) => {
+        const tick = el("span", "effort-tick", level.label);
+        tick.style.setProperty("--jn-at", String(i / Math.max(levels.length - 1, 1)));
+        tick.classList.toggle("is-current", !auto && i === index);
+        if (!disabled) tick.addEventListener("click", () => postReasoningChoice(level.value));
+        return tick;
+      })
+    );
+    ticks.classList.toggle("is-disabled", disabled);
+  }
   effortInput.addEventListener("input", () => {
     const index = Number(effortInput.value);
     const level = levels[index];
@@ -723,6 +747,7 @@
     );
     $("effort-label").textContent = level.label;
     effortInput.setAttribute("aria-valuetext", level.label);
+    $("effort-ticks").querySelectorAll(".effort-tick").forEach((tick, i) => tick.classList.toggle("is-current", i === index));
   });
   effortInput.addEventListener("change", () => {
     const level = levels[Number(effortInput.value)];

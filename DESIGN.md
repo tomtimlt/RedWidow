@@ -10,18 +10,19 @@ Améliorer la cohérence des espacements, la lisibilité, les hiérarchies visue
 le rendu des états vides et des longues sorties, et le confort en fenêtre étroite.
 Le graphe doit rester agréable à parcourir au clavier, à la souris et au zoom.
 
-## Direction artistique : « Acier et braise »
+## Direction artistique : « Acier et signature »
 
 - **Acier** : surfaces neutres tirées du thème (voiles `--jn-raise` et
   `--jn-raise-2` mélangés au premier plan), filets fins `--jn-line`, ombres
   réservées aux menus et panneaux flottants.
+- **Signature** : `--jn-sig`, couleur de la palette choisie, marque le logo,
+  les liserés, les sélections, l’effort et l’activité de l’agent. Les boutons
+  principaux, les liens et le focus restent ceux du thème VS Code ; en
+  contraste élevé, la signature devient la bordure active du thème.
 - **Liseré** : un trait vertical de 2 px (`--jn-rail`) signale l’état des
   blocs : message envoyé, validation, entrée du Monitor, bandeaux, projet actif.
   Les éléments en pilule (rubrique, filtre, option) marquent la sélection par
   un fond teinté.
-- **Braise** : le cramoisi de la marque (`--jn-brand`) reste rare : logo, trait
-  sous la marque, fil d’activité de l’agent. L’interaction suit l’accent
-  (`--jn-accent`) et le focus (`--jn-focus`) du thème.
 - **Typographie** : Inter pour l’interface, police de l’éditeur pour les
   données ; étiquettes en capitales mono espacées (`--jn-fs-2xs`,
   `--jn-track`) comme repère commun ; chiffres tabulaires.
@@ -34,9 +35,37 @@ Le graphe doit rester agréable à parcourir au clavier, à la souris et au zoom
   sous 640 px), légende en panneau latéral ou flottant, déplacement au clavier
   (flèches, Maj pour un grand pas, + / − pour zoomer, 0 pour ajuster).
 
-Les jetons sont définis en tête de `media/chat.css` et redéfinis pour les
-thèmes clair et contraste élevé ; les composants n’utilisent pas de couleur fixe
-hors marque et repli du chemin retenu.
+## Logo
+
+Un bouclier (sécurité) porte un W formé de cinq agents reliés (agentique) ; le
+nœud central, plus gros, est l’agent meneur. Dans l’interface, le logo est un
+SVG en ligne coloré par la palette (`.brand-wing`, `.brand-lead`,
+`.brand-node`, `.brand-cursor`) ; `media/logo.svg`, `logo-small.svg` et
+`icon.svg` (barre d’activité, monochrome) en sont les versions fixes.
+
+## Palettes
+
+Réglage `warbandDesign.palette` ou commande **Warband UI : choisir une
+palette** ; sélecteur « Palette » dans l’aperçu navigateur. Chaque palette a un
+ton pour les thèmes sombres et un ton plus foncé pour les thèmes clairs.
+
+| Palette | Sombre | Clair | Intention |
+| --- | --- | --- | --- |
+| Sentinelle (défaut) | `#3cc7c0` | `#0b7a82` | sarcelle et ardoise : veille, terminal, sécurité |
+| Braise | `#f0506e` | `#c41a3d` | cramoisi et acier, marque d’origine ; proche du rouge d’erreur |
+| Bastion | `#f28c4b` | `#b04f12` | cuivre et graphite, chaleur d’atelier |
+| Spectre | `#a990ff` | `#6741d9` | violet et glace, distinct de toutes les couleurs d’état |
+| Éditeur | accent du thème | accent du thème | intégration maximale avec n’importe quel thème |
+
+## Pictogrammes et mouvement
+
+`media/icons.js` est la source unique des tracés : les pages HTML ne contiennent
+que des emplacements `<svg data-icon="…">`, remplis au chargement, et un test
+vérifie que chaque nom existe. Les micro-interactions (flèche d’envoi qui
+décolle, historique qui remonte, nouvelle conversation qui pivote, nœud meneur
+qui respire pendant l’activité, logo qui se trace à l’accueil) sont regroupées
+en fin de `media/chat.css` et désactivées en mouvement réduit et en contraste
+élevé.
 
 ## Conventions
 
