@@ -40,6 +40,9 @@ body[data-theme="light"] {
  --vscode-list-hoverBackground: #eee; --vscode-textCodeBlock-background: #eee;
  --vscode-badge-background: #ccc; --vscode-badge-foreground: #3b3b3b;
  --vscode-testing-iconPassed: #388a34; --vscode-editorWarning-foreground: #bf8803;
+ --vscode-list-activeSelectionBackground: #e8e8e8; --vscode-list-activeSelectionForeground: #000;
+ --vscode-button-secondaryBackground: #e5e5e5; --vscode-button-secondaryForeground: #3b3b3b;
+ --vscode-textLink-foreground: #005fb8; --vscode-errorForeground: #e51400;
 }
 body[data-theme="hc"] {
  --vscode-foreground: #fff; --vscode-input-background: #000; --vscode-input-border: #6fc3df;
