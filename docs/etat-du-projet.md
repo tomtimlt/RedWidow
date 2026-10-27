@@ -20,7 +20,7 @@ La version du manifeste est **0.3.46**. Les paragraphes
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
 
-## Lot 0.3.46 — chargement et diagnostic du catalogue (publication en préparation)
+## Lot 0.3.46 — chargement et diagnostic du catalogue (publié)
 
 Le sondage du catalogue reçoit désormais le même délai de 45 secondes que
 l'interface, au lieu du délai implicite de 30 secondes du contrôleur. Les
@@ -39,6 +39,14 @@ après installation de la version avec diagnostic détaillé.
 Validation locale : **1 986 tests réussis, 12 ignorés**, typage et build réussis.
 Les tests couvrent le diagnostic IPC réel, les refus HTTP locaux, le code de
 sortie Windows, le délai transmis et l'absence de secrets dans la vue et les logs.
+
+Le commit **298cf70**, sous `tomtimlt`, est poussé et marqué **v0.3.46**.
+Le [workflow 40469595071](https://github.com/tomtimlt/warband/actions/runs/40469595071)
+a réussi. Les deux VSIX et leurs SHA-256 de la
+[release 0.3.46](https://github.com/tomtimlt/warband/releases/tag/v0.3.46)
+ont été téléchargés : empreintes conformes, ZIP intègres, version, délai et
+diagnostic vérifiés dans les bundles. L'essai sur le PC personnel de
+l'utilisateur reste attendu ; la publication ne clôt pas ce signalement.
 
 ## Lot 0.3.45 — scans longs supervisés (publié)
 
