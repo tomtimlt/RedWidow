@@ -419,17 +419,21 @@ function start() {
     graphBar = bar;
     const fit = el("button", "ghost kc-btn");
     fit.type = "button";
-    fit.append(el("span", "btn-text", "Ajuster"));
+    fit.title = "Ajuster le graphe à la fenêtre (0)";
+    fit.append(window.WarbandIcons.create("fit"), el("span", "btn-text", "Ajuster"));
     const zoomOut = el("button", "ghost kc-btn kc-zoom");
     zoomOut.type = "button";
-    zoomOut.title = "Dézoomer";
-    zoomOut.append(decorative(el("span", "", "−")));
+    zoomOut.title = "Dézoomer (−)";
+    zoomOut.setAttribute("aria-label", "Dézoomer");
+    zoomOut.append(window.WarbandIcons.create("minus"));
     const zoomIn = el("button", "ghost kc-btn kc-zoom");
     zoomIn.type = "button";
-    zoomIn.title = "Zoomer";
-    zoomIn.append(decorative(el("span", "", "+")));
+    zoomIn.title = "Zoomer (+)";
+    zoomIn.setAttribute("aria-label", "Zoomer");
+    zoomIn.append(window.WarbandIcons.create("plus"));
     bar.append(fit, zoomOut, zoomIn);
-    const report = el("button", "ghost kc-btn kc-report", "Exporter le brouillon");
+    const report = el("button", "ghost kc-btn kc-report");
+    report.append(window.WarbandIcons.create("file"), el("span", "btn-text", "Exporter le brouillon"));
     report.type = "button";
     report.title = "Rapport Markdown du projet, identifiants et result exclus";
     report.disabled = typeof projectId !== "string";
@@ -437,7 +441,8 @@ function start() {
       if (!report.disabled) vscode.postMessage({ type: "exportReport", projectId });
     });
     bar.append(report);
-    const image = el("button", "ghost kc-btn kc-image", "Exporter l’image");
+    const image = el("button", "ghost kc-btn kc-image");
+    image.append(window.WarbandIcons.create("image"), el("span", "btn-text", "Exporter l’image"));
     image.type = "button";
     image.title = "Image SVG de tous les éléments, noms complets et liens (sans filtre ni cadrage)";
     image.disabled = typeof projectId !== "string";
@@ -449,7 +454,7 @@ function start() {
     const selectedLabel = el("span", "kc-selection-label");
     const remove = el("button", "ghost kc-btn kc-delete");
     remove.type = "button";
-    remove.title = "Supprimer la élément sélectionnée";
+    remove.title = "Supprimer l’élément sélectionné";
     const trash = document.createElementNS(SVG_NS, "svg");
     trash.setAttribute("viewBox", "0 0 16 16");
     trash.setAttribute("class", "kc-ico-svg");
@@ -527,7 +532,7 @@ function start() {
     const pad = KC_PAD;
     const svg = document.createElementNS(SVG_NS, "svg");
     svg.setAttribute("class", "kc-edges");
-    svg.setAttribute("aria-label", "Liens de la Graphe");
+    svg.setAttribute("aria-label", "Liens du graphe");
     svg.setAttribute("width", String(graph.width + pad * 2));
     svg.setAttribute("height", String(graph.height + pad * 2));
     const defs = document.createElementNS(SVG_NS, "defs");
@@ -651,7 +656,7 @@ function start() {
     const legendToggle = el("button", "ghost kc-legend-toggle");
     legendToggle.type = "button";
     legendToggle.setAttribute("aria-controls", "kc-legend-body");
-    legendToggle.append(el("span", "btn-text", "Légende"));
+    legendToggle.append(el("span", "btn-text", "Légende"), window.WarbandIcons.create("caret", "caret"));
     legendHead.append(legendToggle);
     const legendBody = el("div", "kc-legend-body");
     legendBody.id = "kc-legend-body";
@@ -731,7 +736,6 @@ function start() {
       legendToggle.setAttribute("aria-expanded", String(!collapsed));
       legendBody.hidden = collapsed;
       legendToggle.title = collapsed ? "Déplier la légende" : "Replier la légende";
-      legendToggle.firstChild.textContent = collapsed ? "Légende ▸" : "Légende ▾";
     };
     legendToggle.addEventListener("click", () => setLegendCollapsed(!legendCollapsed));
     if (legendCollapsed === null) {
@@ -838,6 +842,27 @@ function start() {
     fit.addEventListener("click", fitToView);
     zoomIn.addEventListener("click", () => setScale(scale * 1.2));
     zoomOut.addEventListener("click", () => setScale(scale / 1.2));
+    viewport.tabIndex = 0;
+    viewport.setAttribute("role", "group");
+    viewport.setAttribute(
+      "aria-label",
+      "Graphe : flèches pour se déplacer, + et − pour zoomer, 0 pour ajuster, Échap pour désélectionner"
+    );
+    viewport.addEventListener("keydown", (ev) => {
+      if (ev.altKey || ev.ctrlKey || ev.metaKey) return;
+      const step = ev.shiftKey ? 160 : 48;
+      const moves = { ArrowLeft: [step, 0], ArrowRight: [-step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] };
+      if (moves[ev.key]) {
+        tx += moves[ev.key][0];
+        ty += moves[ev.key][1];
+        apply();
+      } else if (ev.key === "+" || ev.key === "=") setScale(scale * 1.2);
+      else if (ev.key === "-" || ev.key === "−") setScale(scale / 1.2);
+      else if (ev.key === "0") fitToView();
+      else return;
+      touched = true;
+      ev.preventDefault();
+    });
     viewport.addEventListener(
       "wheel",
       (ev) => {
@@ -1083,7 +1108,7 @@ function start() {
         sec.append(el("p", "studio-help", b.workspace));
         const del = el("button", "ghost");
         del.type = "button";
-        del.append(el("span", "btn-text", "Délier le espace affiché"));
+        del.append(el("span", "btn-text", "Délier l’espace affiché"));
         del.addEventListener("click", () => vscode.postMessage({ type: "unlink" }));
         sec.append(del);
       }
@@ -1201,7 +1226,7 @@ function start() {
             el(
               "p",
               "studio-help",
-              "Les nœuds notés par l'agent. Rien tant qu'il n'y a pas de élément."
+              "Le graphe est vide : les éléments notés par l’agent apparaîtront ici."
             )
           );
           wrap.append(viewport);
@@ -1213,11 +1238,11 @@ function start() {
       const count = graphCount(view.entries);
       const sec = empty(
         "Graphe",
-        count === null ? "Graphe des éléments notées par l'agent. Ouvrez la vue plein écran pour explorer le graphe." : `${count} élément${count > 1 ? "s" : ""} : ouvrez la vue plein écran pour le graphe interactif.`
+        count === null ? "Graphe des éléments notés par l’agent. Ouvrez la vue plein écran pour explorer le graphe." : `${count} élément${count > 1 ? "s" : ""} : ouvrez la vue plein écran pour le graphe interactif.`
       );
       const open = el("button", "primary");
       open.type = "button";
-      open.append(el("span", "btn-text", "Ouvrir la Graphe"));
+      open.append(el("span", "btn-text", "Ouvrir le graphe"));
       open.addEventListener("click", () => vscode.postMessage({ type: "openGraph" }));
       sec.append(open);
       main.append(sec);
