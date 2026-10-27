@@ -47,6 +47,22 @@ Classes `.brand-wing` (crochets), `.brand-core`, `.brand-lead`, `.brand-orbit`,
 `.brand-node` ; `media/logo.svg`, `logo-small.svg` et `icon.svg` (barre
 d’activité, monochrome) en sont les versions fixes.
 
+## Verrouillage, règles d’engagement et validation armée
+
+- **Verrouillage** : les crochets du logo se referment sur ce qui est ciblé —
+  nœud sélectionné du graphe, validation en attente (crochets d’alerte qui
+  pulsent, verts une fois autorisée), conversation ouverte, projet actif. Le
+  contour de focus clavier reste affiché en plus.
+- **Règles d’engagement** : jauge à trois crans dans l’en-tête (Apprentissage,
+  Supervisé, Automatique), tirée des réglages existants ; un clic ouvre
+  Configurer. Sous 420 px, seule la jauge reste visible.
+- **Validation armée** : niveau de risque et pastilles (Exécution, Réseau,
+  Mémorisable) tirés de la demande ; « Autoriser » et « Toujours » se valident
+  par appui maintenu (souris ou Espace / Entrée), avec une jauge qui se remplit
+  et un message d’état. Relâcher trop tôt annule. L’interrupteur « Appui
+  maintenu » de Configurer revient au clic simple ; le choix est mémorisé par
+  la vue.
+
 ## Réflexion dans le chat
 
 Chaque réponse de l’agent est signée du logo (`.msg-avatar`, clone de

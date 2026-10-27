@@ -2125,7 +2125,8 @@ body.vscode-high-contrast-light .effort-knob {
   height: 14px;
   color: inherit;
 }
-#learning-switch[aria-checked="true"] .cfg-switch-ico {
+#learning-switch[aria-checked="true"] .cfg-switch-ico,
+#hold-switch[aria-checked="true"] .cfg-switch-ico {
   background: var(--jn-sig-tint);
   color: var(--jn-sig);
 }
@@ -2134,7 +2135,8 @@ body.vscode-high-contrast-light .effort-knob {
   color: var(--jn-warn);
 }
 #automatic-switch,
-#learning-switch {
+#learning-switch,
+#hold-switch {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -2149,11 +2151,13 @@ body.vscode-high-contrast-light .effort-knob {
   font-size: var(--jn-fs);
 }
 #automatic-switch:hover:not([aria-disabled="true"]),
-#learning-switch:hover:not([aria-disabled="true"]) {
+#learning-switch:hover:not([aria-disabled="true"]),
+#hold-switch:hover:not([aria-disabled="true"]) {
   background: transparent;
 }
 #automatic-switch::after,
-#learning-switch::after {
+#learning-switch::after,
+#hold-switch::after {
   content: "";
   flex: none;
   box-sizing: border-box;
@@ -2167,7 +2171,8 @@ body.vscode-high-contrast-light .effort-knob {
     border-color var(--jn-d2) var(--jn-ease-io);
 }
 #automatic-switch::before,
-#learning-switch::before {
+#learning-switch::before,
+#hold-switch::before {
   content: "";
   position: absolute;
   top: 50%;
@@ -2186,11 +2191,13 @@ body.vscode-high-contrast-light .effort-knob {
     opacity var(--jn-d2) var(--jn-ease-io);
 }
 #automatic-switch:hover:not([aria-disabled="true"])::after,
-#learning-switch:hover:not([aria-disabled="true"])::after {
+#learning-switch:hover:not([aria-disabled="true"])::after,
+#hold-switch:hover:not([aria-disabled="true"])::after {
   border-color: var(--jn-sig-edge);
 }
 #automatic-switch[aria-checked="true"]::before,
-#learning-switch[aria-checked="true"]::before {
+#learning-switch[aria-checked="true"]::before,
+#hold-switch[aria-checked="true"]::before {
   transform: translateX(14px);
   background: var(--vscode-editor-background, var(--vscode-input-background));
   opacity: 1;
@@ -2199,7 +2206,8 @@ body.vscode-high-contrast-light .effort-knob {
   background: var(--jn-warn);
   border-color: transparent;
 }
-#learning-switch[aria-checked="true"]::after {
+#learning-switch[aria-checked="true"]::after,
+#hold-switch[aria-checked="true"]::after {
   background: var(--jn-sig);
   border-color: transparent;
 }
@@ -2695,7 +2703,8 @@ body.automatic-on #composer {
   }
   #title::before,
   #automatic-switch::before,
-  #learning-switch::before {
+  #learning-switch::before,
+  #hold-switch::before {
     background: CanvasText;
     box-shadow: none;
   }
@@ -5064,6 +5073,238 @@ body.vscode-high-contrast-light .kc-viewport {
   background: var(--vscode-editor-background);
 }
 
+/* ───────────────────────────── Verrouillage ─────────────────────────────
+ * Les crochets du logo marquent ce qui est ciblé : nœud sélectionné,
+ * validation en attente, conversation ouverte, projet actif. Le contour de
+ * focus clavier reste affiché en plus.
+ */
+.kc-node.is-selected .kc-node-head::after,
+#approvals .card:not(.is-locked, .is-denied)::after,
+.hist.current::after,
+.studio-project-active::after,
+.card.is-locked::after {
+  --jn-lock-c: var(--jn-sig);
+  --jn-lock-l: 10px;
+  --jn-lock-w: 2px;
+  content: "";
+  position: absolute;
+  inset: var(--jn-lock-inset, -5px);
+  pointer-events: none;
+  background:
+    linear-gradient(var(--jn-lock-c) 0 0) top left / var(--jn-lock-l) var(--jn-lock-w),
+    linear-gradient(var(--jn-lock-c) 0 0) top left / var(--jn-lock-w) var(--jn-lock-l),
+    linear-gradient(var(--jn-lock-c) 0 0) top right / var(--jn-lock-l) var(--jn-lock-w),
+    linear-gradient(var(--jn-lock-c) 0 0) top right / var(--jn-lock-w) var(--jn-lock-l),
+    linear-gradient(var(--jn-lock-c) 0 0) bottom left / var(--jn-lock-l) var(--jn-lock-w),
+    linear-gradient(var(--jn-lock-c) 0 0) bottom left / var(--jn-lock-w) var(--jn-lock-l),
+    linear-gradient(var(--jn-lock-c) 0 0) bottom right / var(--jn-lock-l) var(--jn-lock-w),
+    linear-gradient(var(--jn-lock-c) 0 0) bottom right / var(--jn-lock-w) var(--jn-lock-l);
+  background-repeat: no-repeat;
+}
+.kc-node.is-selected .kc-node-head::after {
+  --jn-lock-inset: -9px;
+  --jn-lock-l: 9px;
+  border-radius: 0;
+}
+.kc-node.is-selected .kc-node-head {
+  outline: none;
+}
+#approvals .card:not(.is-locked, .is-denied)::after {
+  --jn-lock-c: var(--card-lock, var(--jn-warn));
+  --jn-lock-inset: -4px;
+  --jn-lock-l: 14px;
+}
+.card.is-locked::after {
+  --jn-lock-c: var(--jn-ok);
+  --jn-lock-inset: -4px;
+  --jn-lock-l: 14px;
+}
+.hist.current::after {
+  --jn-lock-inset: 0;
+  --jn-lock-l: 8px;
+  --jn-lock-w: 1.5px;
+}
+.studio-project-active::after {
+  --jn-lock-inset: -4px;
+  --jn-lock-l: 12px;
+}
+.hist,
+.studio-project-active,
+.card {
+  position: relative;
+}
+
+/* ───────────────────────────── Règles d'engagement ───────────────────────────── */
+
+#learning-badge {
+  display: none !important;
+}
+.roe {
+  flex: none;
+  gap: 8px;
+  min-height: 26px;
+  margin-left: 4px;
+  padding: 0 10px 0 8px;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-pill);
+  background: transparent;
+  color: var(--vscode-foreground);
+  font-size: var(--jn-fs-xs);
+}
+.roe:hover:not(:disabled) {
+  border-color: var(--jn-sig-edge);
+  background: var(--jn-sig-tint);
+}
+.roe-gauge {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 12px;
+}
+.roe-gauge i {
+  display: block;
+  width: 4px;
+  border-radius: 1px;
+  background: var(--jn-line-strong);
+  transition: background-color var(--jn-d2) var(--jn-ease-io);
+}
+.roe-gauge i:nth-child(1) {
+  height: 5px;
+}
+.roe-gauge i:nth-child(2) {
+  height: 8px;
+}
+.roe-gauge i:nth-child(3) {
+  height: 12px;
+}
+.roe[data-level="1"] .roe-gauge i:nth-child(-n + 1),
+.roe[data-level="2"] .roe-gauge i:nth-child(-n + 2) {
+  background: var(--jn-sig);
+}
+.roe[data-level="3"] .roe-gauge i {
+  background: var(--jn-warn);
+}
+.roe[data-level="3"] {
+  border-color: color-mix(in srgb, var(--jn-warn) 55%, transparent);
+}
+.roe-text {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.roe-kicker {
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-2xs);
+  font-weight: 700;
+  letter-spacing: var(--jn-track);
+  color: var(--jn-muted);
+}
+#roe-label {
+  font-weight: 600;
+}
+body.mode-monitor #roe,
+body.mode-watch #roe {
+  display: none;
+}
+@container app (max-width: 419px) {
+  .roe .roe-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .roe {
+    padding: 0 8px;
+  }
+}
+
+/* ───────────────────────────── Validation armée ───────────────────────────── */
+
+.card[data-risk="high"] {
+  --jn-card-accent: var(--jn-err);
+  --card-lock: var(--jn-err);
+}
+.card-level {
+  margin-left: auto;
+  flex: none;
+  padding: 2px 9px;
+  border-radius: var(--jn-r-pill);
+  background: color-mix(in srgb, var(--jn-card-accent) 14%, transparent);
+  color: var(--jn-card-accent);
+  font-size: var(--jn-fs-2xs);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.card-risks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.card-risk {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 9px 0 7px;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-pill);
+  background: var(--jn-raise);
+  font-size: var(--jn-fs-xs);
+  font-weight: 550;
+}
+.card-risk .ico {
+  width: 12px;
+  height: 12px;
+  color: var(--jn-card-accent);
+}
+/* Bouton armable : la jauge se remplit pendant l'appui maintenu. */
+button.arm {
+  --jn-arm: 0;
+  overflow: hidden;
+  isolation: isolate;
+}
+button.arm::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--jn-on-accent, #fff) 30%, transparent);
+  transform: scaleX(var(--jn-arm));
+  transform-origin: left center;
+  pointer-events: none;
+}
+button.link.arm::before {
+  background: var(--jn-sig-tint);
+}
+button.arm.is-arming {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--jn-card-accent, var(--jn-warn)) 30%, transparent);
+}
+.card-hint {
+  margin: 8px 0 0;
+  min-height: 1.4em;
+  font-size: var(--jn-fs-xs);
+  color: var(--jn-muted);
+}
+.card-hint:empty {
+  min-height: 0;
+  margin: 0;
+}
+.card.is-locked {
+  --jn-card-accent: var(--jn-ok);
+}
+.card.is-denied {
+  --jn-card-accent: var(--jn-faint);
+  opacity: 0.8;
+}
+body.vscode-high-contrast .card-level,
+body.vscode-high-contrast-light .card-level {
+  border: 1px solid currentColor;
+}
+
 /* ───────────────────────────── Micro-interactions ─────────────────────────────
  * Réactions discrètes au survol et à l'appui. Absentes en mouvement réduit,
  * en contraste élevé et avec la classe reduce-motion.
@@ -5155,6 +5396,18 @@ body.vscode-high-contrast-light .kc-viewport {
       transform: scale(1.12);
     }
 
+    /* Verrouillage : les crochets se referment sur la cible. */
+    & .kc-node.is-selected .kc-node-head::after,
+    & .hist.current::after,
+    & .studio-project-active::after,
+    & .card.is-locked::after {
+      animation: jn-lock-on 0.32s var(--jn-ease-out) both;
+    }
+    & #approvals .card:not(.is-locked, .is-denied)::after {
+      animation:
+        jn-lock-on 0.32s var(--jn-ease-out) both,
+        jn-lock-pulse 2s var(--jn-ease-io) 0.4s infinite;
+    }
     /* Voyants en direct : le Monitor et les espaces actifs pulsent. */
     & .mon-live,
     & .tone-wait .mon-dot,
@@ -5303,6 +5556,25 @@ body.vscode-high-contrast-light .kc-viewport {
   }
   50% {
     transform: scale(0.95);
+  }
+}
+@keyframes jn-lock-on {
+  from {
+    opacity: 0;
+    transform: scale(1.25);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes jn-lock-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
   }
 }
 @keyframes jn-lock {
