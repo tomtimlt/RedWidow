@@ -1,6 +1,6 @@
 # Warband — parcours, état actuel et reprise
 
-État inspecté le 27 octobre 2026 pour la version 0.3.47. Ce document sert de point d'entrée produit ;
+État inspecté le 27 octobre 2026 pour la version 0.3.48. Ce document sert de point d'entrée produit ;
 les ADR expliquent les décisions, les idées restent une réserve.
 
 ## Le parcours de référence
@@ -15,10 +15,29 @@ parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
 
-La version du manifeste est **0.3.47**. Les paragraphes
+La version du manifeste est **0.3.48**. Les paragraphes
 0.3.19 à 0.3.29 ci-dessous sont des relevés historiques, pas les preuves de
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
+
+## Lot 0.3.48 — configuration OpenCode isolée (en préparation)
+
+Le serveur de l'extension charge une configuration temporaire isolée pour le
+catalogue et les conversations, comme le faisait déjà le mode OpenAI. Les
+plugins/hooks et agents globaux personnels ne sont pas importés. Les fichiers
+personnels restent intacts et le magasin d'authentification Zen reste au même
+emplacement. Les fournisseurs personnalisés déclarés uniquement dans la
+configuration globale ne sont plus importés par l'extension.
+La validation `opencode.unsafeConfig`, TLS et la gate restent strictes.
+Le réglage précis du PC personnel reste inconnu ; l'isolation est testée sur
+une configuration locale contenant un plugin qui échouerait à son chargement
+et un agent personnel autorisant Bash. Confirmation sur Windows attendue.
+
+Validation : **1 996 tests réussis, 14 ignorés**, typage et build réussis.
+Les 19 tests ciblés réussissent, dont les 7 contrats avec le vrai binaire
+OpenCode et un fournisseur simulé local. Catalogue, conversation, isolation
+des plugins/agents personnels et fichiers auth/config inchangés sont vérifiés.
+Diff relu ; publication en préparation.
 
 ## Lot 0.3.47 — méthode commune des agents (publié)
 

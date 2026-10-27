@@ -458,3 +458,12 @@ racine absente peut encore nécessiter l’intervention de l’administrateur du
 poste. `NODE_EXTRA_CA_CERTS` reste pris en charge pour un bundle PEM approuvé,
 chargé au lancement : fermer complètement puis relancer VS Code après une
 modification de cette variable. Ne pas utiliser `NODE_TLS_REJECT_UNAUTHORIZED=0`.
+
+## Configuration OpenCode isolée — 0.3.48
+
+Le serveur OpenCode de l'extension utilise une configuration temporaire séparée
+pour le catalogue et les conversations. Les plugins, hooks, agents et fournisseurs
+personnalisés de la configuration globale ne sont pas importés. Les connexions du
+magasin d'authentification (dont Zen) restent accessibles ; aucun fichier personnel
+n'est modifié. Les permissions imposées par Warband restent vérifiées. Les
+fournisseurs intégrés connectés restent découverts au runtime.

@@ -76,3 +76,18 @@ sans inférence. Ce nombre décrit une observation, pas un catalogue figé. Cela
 un tour d’agent, ni une connexion OAuth ou API réelle, ni l’hôte VS Code sous
 Windows. Les contrôles automatisés finaux sont consignés dans l’état du projet
 après exécution ; les tests de contrats facturés ne sont pas automatiques.
+
+## Amendement 0.3.48 — isolation de la configuration du serveur embarqué
+
+À la demande du propriétaire, l'extension active `isolateConfig` sur son runner
+OpenCode, pour le catalogue comme pour les conversations et l'apprentissage.
+Un `XDG_CONFIG_HOME` temporaire empêche les plugins, hooks et permissions des
+agents globaux d'interférer avec la configuration imposée. Les sélecteurs
+`OPENCODE_CONFIG` et `OPENCODE_CONFIG_DIR` supplémentaires sont écartés.
+Le magasin d'authentification, les dossiers de données, le proxy et les autorités
+TLS restent accessibles. Les fichiers personnels ne sont ni modifiés ni effacés.
+Les fournisseurs/agents personnalisés déclarés seulement dans la configuration
+globale ne sont donc plus importés par l'extension. La bibliothèque/CLI conserve
+son comportement existant sans cette option ; le mode OpenAI reste isolé.
+Les permissions effectives restent validées en mode fermé : aucun refus n'est
+ignoré. Un serveur externe ne peut pas demander cette isolation locale.

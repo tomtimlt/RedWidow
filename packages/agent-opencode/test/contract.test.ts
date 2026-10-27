@@ -97,12 +97,31 @@ afterAll(() => {
 });
 
 /** Joue un plan d'appels d'outils contre le vrai binaire et renvoie le journal. */
-async function playPlan(plan: Plan[], extra: { cwd?: string; delegate?: boolean } = {}) {
+async function playPlan(
+  plan: Plan[],
+  extra: { cwd?: string; delegate?: boolean; isolate?: boolean } = {},
+) {
   const cwd = extra.cwd ?? mkdtempSync(join(tmpdir(), "oc-contract-"));
   writeFileSync(join(cwd, "a.txt"), "bonjour");
   const home = mkdtempSync(join(tmpdir(), "oc-contract-home-"));
   for (const d of [".config", ".local/share", ".cache", ".local/state"]) {
     mkdirSync(join(home, d), { recursive: true });
+  }
+  const personal = join(home, ".config", "opencode", "opencode.json");
+  const auth = join(home, ".local/share/opencode/auth.json");
+  const globalConfig = JSON.stringify({
+    agent: { personnel: { permission: { bash: "allow" } } },
+    plugin: ["./plugin-personnel.mjs"],
+  });
+  if (extra.isolate) {
+    mkdirSync(join(home, ".config", "opencode"), { recursive: true });
+    mkdirSync(join(home, ".local/share/opencode"), { recursive: true });
+    writeFileSync(personal, globalConfig);
+    writeFileSync(auth, '{"opencode":{"type":"api","key":"test-only"}}');
+    writeFileSync(
+      join(home, ".config/opencode/plugin-personnel.mjs"),
+      `throw new Error("Le plugin personnel ne doit pas être chargé");`,
+    );
   }
   const docker = await fakeDocker();
   const provider = await fakeProvider(plan);
@@ -113,6 +132,7 @@ async function playPlan(plan: Plan[], extra: { cwd?: string; delegate?: boolean 
   });
   const runner = createOpencodeRunner({
     binary: BIN as string,
+    ...(extra.isolate && { isolateConfig: true }),
     toolsets: [dockerToolset({ binary: docker.bin, argsPrefix: docker.argsPrefix })],
     builtinTools: ["read", "write", "glob", "grep", ...(extra.delegate ? ["task"] : [])],
     config: {
@@ -134,13 +154,25 @@ async function playPlan(plan: Plan[], extra: { cwd?: string; delegate?: boolean 
       OPENCODE_DISABLE_MODELS_FETCH: "1",
     },
   });
+  if (extra.isolate) {
+    const models = await runner.listModels?.({ cwd });
+    expect(models?.some((model) => model.value === "fake/m")).toBe(true);
+  }
   const summary = await h.run(runner, { cwd, model: "fake/m" });
+  if (extra.isolate) {
+    expect(readFileSync(personal, "utf8")).toBe(globalConfig);
+    expect(readFileSync(auth, "utf8")).toBe('{"opencode":{"type":"api","key":"test-only"}}');
+  }
   const ev = <K extends EngineEvent["kind"]>(kind: K) =>
     h.events.filter((e): e is Extract<EngineEvent, { kind: K }> => e.kind === kind);
   return { summary, ev, cwd, docker, provider, events: h.events };
 }
 
 describe.skipIf(!BIN)("contrat OpenCode réel (faux fournisseur local)", () => {
+  it("isole le catalogue et la conversation des plugins et agents globaux sans modifier auth", async () => {
+    const r = await playPlan([], { isolate: true });
+    expect(r.summary).toMatchObject({ status: "success", result: "terminé" });
+  }, 90_000);
   it("transmet le skill complet une seule fois au parent et au sous-agent natif", async () => {
     const childPrompt = "Contrôle local de la méthode : réponds terminé.";
     const r = await playPlan(

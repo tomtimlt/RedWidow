@@ -97,10 +97,15 @@ describe("identification abonnement OpenAI", () => {
   });
 });
 
-describe("isolation de la configuration OpenAI", () => {
-  it.each([false, true])(
-    "isole la configuration puis retire le dossier, erreur catalogue=%s",
-    async (fail) => {
+describe("isolation de la configuration", () => {
+  it.each([
+    { fail: false, official: true },
+    { fail: true, official: true },
+    { fail: false, official: false },
+    { fail: true, official: false },
+  ])(
+    "isole la configuration puis retire le dossier, erreur catalogue=$fail, OpenAI=$official",
+    async ({ fail, official }) => {
       const root = await cache();
       const script = join(root, "opencode-test.mjs");
       const log = join(root, "env.json");
@@ -126,7 +131,7 @@ server.listen(0, "127.0.0.1", () => console.log("opencode server listening on ht
         launch({ ...options, binary: process.execPath, argsPrefix: [script] }),
       );
       const runner = createOpencodeRunner({
-        provider: "openai",
+        ...(official ? { provider: "openai" } : { isolateConfig: true }),
         binary: process.execPath,
         processEnv: { XDG_CONFIG_HOME: root, XDG_DATA_HOME: root },
         env: { OPENAI_API_KEY: "secret-test" },
@@ -137,7 +142,7 @@ server.listen(0, "127.0.0.1", () => console.log("opencode server listening on ht
       const captured = JSON.parse(await readFile(log, "utf8"));
       expect(captured.config).not.toBe(root);
       expect(captured.data).toBe(root);
-      expect(captured.auth).toBe("{}");
+      expect(captured.auth).toBe(official ? "{}" : undefined);
       expect(captured.key).toBe("secret-test");
       await expect(access(captured.config)).rejects.toThrow();
       await access(root);

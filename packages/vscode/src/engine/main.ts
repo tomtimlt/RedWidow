@@ -75,6 +75,7 @@ const done = runEngine({
         throw new CodedError("extension.binaryMismatch");
       return createOpencodeRunner({
         binary,
+        isolateConfig: true,
         ...(provider === "openai" && { provider: "openai" }),
         ...(mode === "learning"
           ? { toolsets: [openCodeCours()], builtinTools: [] }

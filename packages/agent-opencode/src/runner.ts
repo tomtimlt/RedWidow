@@ -58,6 +58,8 @@ export interface OpencodeRunnerOptions {
   serverPassword?: string;
   /** Configuration OpenCode de l'utilisateur, fusionnée AU-DESSOUS des réglages de sécurité du moteur. */
   config?: Obj;
+  /** Ignore la configuration globale du disque pour le serveur géré, sans changer le magasin auth. */
+  isolateConfig?: boolean;
   /** Serveurs MCP du moteur (ex. `dockerToolset()`), construits à chaque run. */
   toolsets?: OpencodeToolset[];
   /** Expose l'outil natif `bash` (désactivé par défaut). Reste soumis à la politique. */
@@ -252,8 +254,8 @@ async function probeModels(
       const binary = resolveBinary(options.binary ?? "opencode", { env: processEnv });
       if (binary === null)
         throw new CodedError("process.notFound", { binary: options.binary ?? "opencode" });
-      if (options.provider === "openai") {
-        isolatedConfig = await mkdtemp(join(tmpdir(), "warband-openai-config-"));
+      if (options.provider === "openai" || options.isolateConfig) {
+        isolatedConfig = await mkdtemp(join(tmpdir(), "warband-opencode-config-"));
         credentials.env.XDG_CONFIG_HOME = isolatedConfig;
       }
       const password = randomBytes(24).toString("hex");
@@ -337,6 +339,15 @@ async function probeModels(
 async function authEnvironment(options: OpencodeRunnerOptions, auth?: AuthMode) {
   const env = { ...options.env };
   let passEnv = options.passEnv ?? [];
+  if (options.isolateConfig) {
+    if (options.baseUrl !== undefined)
+      throw new Error("L’isolation de configuration nécessite un serveur local lancé par Warband.");
+    for (const name of Object.keys(env))
+      if (["OPENCODE_CONFIG", "OPENCODE_CONFIG_DIR"].includes(name.toUpperCase())) delete env[name];
+    passEnv = passEnv.filter(
+      (name) => !["OPENCODE_CONFIG", "OPENCODE_CONFIG_DIR"].includes(name.toUpperCase()),
+    );
+  }
   if (options.provider === "openai") {
     if (options.baseUrl !== undefined) {
       throw new Error(
@@ -957,8 +968,8 @@ async function runWithOpencode(
         ...(options.serverPassword !== undefined && { password: options.serverPassword }),
       });
     } else {
-      if (options.provider === "openai") {
-        isolatedConfig = await mkdtemp(join(tmpdir(), "warband-openai-config-"));
+      if (options.provider === "openai" || options.isolateConfig) {
+        isolatedConfig = await mkdtemp(join(tmpdir(), "warband-opencode-config-"));
         credentials.env.XDG_CONFIG_HOME = isolatedConfig;
       }
       const password = randomBytes(24).toString("hex");
