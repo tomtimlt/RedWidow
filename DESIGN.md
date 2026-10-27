@@ -15,17 +15,21 @@ Le graphe doit rester agréable à parcourir au clavier, à la souris et au zoom
 - **Acier** : surfaces neutres tirées du thème (voiles `--jn-raise` et
   `--jn-raise-2` mélangés au premier plan), filets fins `--jn-line`, ombres
   réservées aux menus et panneaux flottants.
-- **Liseré** : un trait vertical de 2 px (`--jn-rail`) signale l’état ou la
-  sélection : message envoyé, validation, entrée du Monitor, rubrique courante,
-  filtre actif, conversation ouverte.
+- **Liseré** : un trait vertical de 2 px (`--jn-rail`) signale l’état des
+  blocs : message envoyé, validation, entrée du Monitor, bandeaux, projet actif.
+  Les éléments en pilule (rubrique, filtre, option) marquent la sélection par
+  un fond teinté.
 - **Braise** : le cramoisi de la marque (`--jn-brand`) reste rare : logo, trait
   sous la marque, fil d’activité de l’agent. L’interaction suit l’accent
   (`--jn-accent`) et le focus (`--jn-focus`) du thème.
 - **Typographie** : Inter pour l’interface, police de l’éditeur pour les
   données ; étiquettes en capitales mono espacées (`--jn-fs-2xs`,
   `--jn-track`) comme repère commun ; chiffres tabulaires.
-- **Géométrie** : grille de 4 px, rangées de 28 à 32 px, rayons serrés
-  (`--jn-r-xs` 3 px à `--jn-r-lg` 10 px).
+- **Géométrie** : formes arrondies plutôt que carrées. Boutons, puces,
+  badges, onglets, champs d’une ligne et rubriques en pilule
+  (`--jn-r-pill`) ; blocs et panneaux en `--jn-r-sm` 8 px, `--jn-r-md` 12 px
+  et `--jn-r-lg` 18 px pour le compositeur. Grille de 4 px, rangées de 28 à
+  32 px.
 - **Graphe** : canevas tramé, barre d’outils à pictogrammes (libellés masqués
   sous 640 px), légende en panneau latéral ou flottant, déplacement au clavier
   (flèches, Maj pour un grand pas, + / − pour zoomer, 0 pour ajuster).
