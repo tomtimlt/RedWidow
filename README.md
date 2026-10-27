@@ -1,0 +1,51 @@
+# Warband UI — atelier de design VS Code
+
+Prototype autonome pour travailler la présentation : conversation, Monitor,
+graphe interactif et réglages. Les projets, modèles, messages et activités sont
+fictifs. Les interactions modifient uniquement l’état de démonstration en mémoire.
+
+## Lancer dans VS Code
+
+1. Ouvrir ce dossier dans VS Code.
+2. Appuyer sur **F5**, configuration **Warband UI · Démonstration**.
+3. Dans la fenêtre de développement, ouvrir **Warband UI** dans la barre d’activité
+   ou utiliser la palette : **Warband UI : ouvrir le chat / le graphe / le Monitor / les réglages**.
+4. Utiliser **Warband UI : choisir un scénario** pour passer entre accueil,
+   conversation, activité, validation, indisponibilité et historique long.
+
+Aucune installation de dépendance n’est nécessaire. La démonstration ne demande
+aucune clé et ne contacte aucun fournisseur. Les activités affichées sont des
+textes d’exemple : aucun terminal ni processus n’est lancé. Les boutons d’export
+présentent un message de simulation et ne créent aucun fichier.
+
+## Aperçu dans le navigateur
+
+Avec Node 22 ou plus récent :
+
+```sh
+npm run preview
+```
+
+Ouvrir `http://127.0.0.1:4173`. La barre d’aperçu propose la vue, le scénario et
+le thème. Le rendu natif de référence reste celui de la fenêtre VS Code lancée
+avec F5. `PORT=4174 npm run preview` permet de choisir un autre port.
+
+## Modifier et vérifier
+
+- `media/chat.css` : couleurs, espacements, typographie, composants et graphe.
+- `media/chat.js` : interactions et rendu de la conversation et du Monitor.
+- `media/studio.js` : disposition du graphe, sélection, zoom, filtres et réglages.
+- `media/icons.js` : pictogrammes SVG locaux.
+- `src/views.mjs` : structure HTML des webviews et CSP.
+- `src/demo.mjs` : fixtures et simulation des messages d’interface.
+- `extension.cjs` : ouverture des vues et pont de démonstration VS Code.
+
+```sh
+npm run check
+```
+
+Le prototype possède un manifeste distinct (`warband-ui-design`, version 0.0.1).
+Ses changements sont destinés à une revue graphique avant réintégration dans
+l’application. Les instructions de design sont dans [DESIGN.md](DESIGN.md).
+
+Licence MIT ; la licence de la police Inter est conservée dans `media/fonts/OFL.txt`.

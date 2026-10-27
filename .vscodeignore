@@ -1,0 +1,8 @@
+.vscode/**
+test/**
+scripts/**
+node_modules/**
+.gitignore
+AGENTS.md
+DESIGN.md
+CLAUDE.md

@@ -1,0 +1,70 @@
+{
+  "name": "warband-ui-design",
+  "displayName": "Warband UI · Design",
+  "description": "Atelier de design VS Code avec chat, activités, graphe et données de démonstration.",
+  "version": "0.0.1",
+  "publisher": "warband",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0",
+    "node": ">=22"
+  },
+  "main": "./extension.cjs",
+  "scripts": {
+    "check": "node scripts/check.mjs",
+    "test": "node test/demo.test.mjs",
+    "preview": "node scripts/preview.mjs"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": true
+  },
+  "activationEvents": [
+    "onView:warbandDesign.chat"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "warbandDesign.chat",
+        "title": "Warband UI : ouvrir le chat"
+      },
+      {
+        "command": "warbandDesign.graph",
+        "title": "Warband UI : ouvrir le graphe"
+      },
+      {
+        "command": "warbandDesign.monitor",
+        "title": "Warband UI : ouvrir le Monitor"
+      },
+      {
+        "command": "warbandDesign.settings",
+        "title": "Warband UI : ouvrir les réglages"
+      },
+      {
+        "command": "warbandDesign.scenario",
+        "title": "Warband UI : choisir un scénario"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "warbandDesign",
+          "title": "Warband UI",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "warbandDesign": [
+        {
+          "type": "webview",
+          "id": "warbandDesign.chat",
+          "name": "Chat · Démonstration"
+        }
+      ]
+    }
+  }
+}

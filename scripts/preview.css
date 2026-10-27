@@ -1,0 +1,51 @@
+:root {
+ --vscode-font-family: "Segoe UI", system-ui, sans-serif;
+ --vscode-font-size: 13px;
+ --vscode-editor-font-family: Consolas, monospace;
+ --vscode-foreground: #ccc;
+ --vscode-input-background: #313131;
+ --vscode-input-border: #3c3c3c;
+ --vscode-input-foreground: #ccc;
+ --vscode-editorWidget-background: #202020;
+ --vscode-editor-background: #181818;
+ --vscode-panel-border: #2b2b2b;
+ --vscode-focusBorder: #0078d4;
+ --vscode-button-background: #0078d4;
+ --vscode-button-foreground: #fff;
+ --vscode-button-hoverBackground: #026ec1;
+ --vscode-button-secondaryBackground: #313131;
+ --vscode-button-secondaryForeground: #ccc;
+ --vscode-badge-background: #616161;
+ --vscode-badge-foreground: #f8f8f8;
+ --vscode-textCodeBlock-background: #2b2b2b;
+ --vscode-testing-iconPassed: #73c991;
+ --vscode-errorForeground: #f85149;
+ --vscode-textLink-foreground: #4daafc;
+ --vscode-list-hoverBackground: #2a2d2e;
+ --vscode-list-activeSelectionBackground: #04395e;
+ --vscode-list-activeSelectionForeground: #fff;
+ --vscode-toolbar-hoverBackground: #5a5d5e50;
+ --vscode-terminal-ansiMagenta: #bc3fbc;
+ --vscode-terminal-ansiCyan: #11a8cd;
+ --vscode-terminal-ansiGreen: #73c991;
+ --vscode-widget-shadow: #0000005c;
+ --vscode-editorWarning-foreground: #cca700;
+}
+body { background: var(--vscode-editor-background); }
+body[data-theme="light"] {
+ --vscode-foreground: #3b3b3b; --vscode-input-background: #fff; --vscode-input-border: #cecece;
+ --vscode-input-foreground: #3b3b3b; --vscode-editorWidget-background: #f8f8f8;
+ --vscode-editor-background: #f8f8f8; --vscode-panel-border: #e5e5e5;
+ --vscode-focusBorder: #005fb8; --vscode-button-background: #005fb8; --vscode-button-hoverBackground: #0258a8;
+ --vscode-list-hoverBackground: #eee; --vscode-textCodeBlock-background: #eee;
+ --vscode-badge-background: #ccc; --vscode-badge-foreground: #3b3b3b;
+ --vscode-testing-iconPassed: #388a34; --vscode-editorWarning-foreground: #bf8803;
+}
+body[data-theme="hc"] {
+ --vscode-foreground: #fff; --vscode-input-background: #000; --vscode-input-border: #6fc3df;
+ --vscode-editor-background: #000; --vscode-editorWidget-background: #0c141f;
+ --vscode-focusBorder: #f38518; --vscode-contrastBorder: #6fc3df;
+ --vscode-button-background: #000; --vscode-panel-border: #6fc3df;
+}
+.demo-toolbar { display:flex; flex:none; flex-wrap:wrap; gap:4px; padding-block:6px; border-bottom:1px solid var(--vscode-panel-border); }
+.demo-toolbar select { min-width:0; max-width:100%; font-size:11px; }
