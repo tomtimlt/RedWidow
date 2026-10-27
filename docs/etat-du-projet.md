@@ -20,7 +20,7 @@ La version du manifeste est **0.3.50**. Les paragraphes
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
 
-## Lot 0.3.50 — Kill Chain, chemin retenu et préparation des rapports (en préparation)
+## Lot 0.3.50 — Kill Chain, chemin retenu et préparation des rapports (publié)
 
 Les liens peuvent être marqués en vert par l'agent (`mark_path`) et corrigés
 par l'utilisateur. Le champ `pathFrom` reste un sous-ensemble de `from` ; les
@@ -49,7 +49,19 @@ le typage et le build repassent. **9 parcours Chromium** passent (280, 360 et
 900 px, thèmes sombre, clair et contraste élevé), avec sélection, filtres,
 repli, clavier, liens, export et absence de débordement. Captures inspectées.
 Le jeton GitHub du terminal fonctionne à nouveau sous `tomtimlt` au contrôle
-préalable. Diff relu ; publication encore en préparation.
+préalable. Diff relu.
+
+Le commit **669dec0**, sous `tomtimlt`, est poussé et marqué **v0.3.50**.
+Le [workflow 40511870286](https://github.com/tomtimlt/warband/actions/runs/40511870286)
+a réussi avec **2 014 tests réussis, 14 ignorés** dans sa suite complète.
+Les deux VSIX et leurs SHA-256 de la
+[release 0.3.50](https://github.com/tomtimlt/warband/releases/tag/v0.3.50)
+ont été téléchargés : quatre assets publiés, empreintes conformes aux fichiers
+SHA et digests GitHub, ZIP intègres, version, outil autonome, données de chemin,
+filtres, repli de légende et export vérifiés dans les bundles. Aucun binaire,
+certificat utilisateur, secret ou artefact de l'essai Burp n'est ajouté au dépôt.
+Le dialogue d'export et les intégrations avec de vraies instances Windows
+restent à confirmer sur le poste de l'utilisateur.
 
 ## Lot 0.3.49 — refus de quota et attente fournisseur visibles (publié)
 
