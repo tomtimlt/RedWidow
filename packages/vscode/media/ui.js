@@ -6,7 +6,7 @@
   /** Nom de l'outil d'exec Exegol (miroir de `EXEGOL_EXEC_TOOL`, vérifié par test). */
   const EXEC_TOOL = "mcp__exegol__exec";
   const KALI_PREFIX = "mcp__kali__";
-  const MONITOR_MAX_ROWS = 200;
+  const MONITOR_MAX_ROWS = 300; // Même fenêtre que ChatState : aucune commande masquée dans une page.
 
   /** Famille visuelle d'un outil, sans interpréter son entrée ni sa sortie. */
   function toolIcon(tool) {

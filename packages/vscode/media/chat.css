@@ -3255,7 +3255,7 @@ body.mode-watch #monitor {
   top: 0;
   z-index: 1;
   flex-shrink: 0;
-  background: var(--vscode-editor-background);
+  background: var(--vscode-editor-background, var(--vscode-input-background));
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -3563,4 +3563,21 @@ body.killchain-full .studio-kc.legend-collapsed {
 }
 .studio-kc.legend-collapsed .kc-bar {
   max-width: calc(100% - 116px);
+}
+
+/* Pages de journaux : la fenêtre affichée reste bornée, les archives sont relues à la demande. */
+#timeline {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--jn-s1);
+  padding-block: var(--jn-s1);
+}
+#timeline button {
+  font-size: var(--jn-fs-sm);
+}
+#timeline-status {
+  font-size: var(--jn-fs-sm);
+  overflow-wrap: anywhere;
 }

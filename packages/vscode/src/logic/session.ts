@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { AuthMode, Effort, EngineEvent, ModelOption, Reason } from "@warband/core";
+import type { AuthMode, Effort, ModelOption, Reason } from "@warband/core";
 import { formatReason } from "@warband/messages";
 import { alwaysConfirmText, answerFor, type Choice, cleanText, toCard } from "./approval.js";
 import type { BypassEngineLink, BypassSend } from "./bypass.js";
@@ -43,8 +43,6 @@ import {
   isConversationId,
   isRunId,
   parseIndex,
-  parseUntrustedJournal,
-  replayEvents,
   sortRecent,
   titleFrom,
 } from "./history.js";
@@ -52,6 +50,7 @@ import type { JournalFiles } from "./historyStore.js";
 import { modelLoadFailure } from "./model-load-error.js";
 import { isModelId, parseModelCache, usableModels, validateModelChoice } from "./models.js";
 import type { ChatSettings } from "./settings.js";
+import { readConversationPage } from "./timeline.js";
 
 const PREFS_KEY = "warband.prefs";
 const MODELS_KEY = "warband.models";
@@ -113,7 +112,7 @@ export interface ChatSessionDeps {
  */
 export function createChatSession(deps: ChatSessionDeps) {
   const make = deps.createController ?? createEngineController;
-  const state: ChatState = createChatState();
+  let state: ChatState = createChatState();
   let controller: EngineController | null = null;
   let sessionId: string | undefined;
   let transferContext = false;
@@ -208,9 +207,43 @@ export function createChatSession(deps: ChatSessionDeps) {
     );
     state.setHistory(historyEntries());
   };
+  let conversationGeneration = 0;
+  let outputTimer: ReturnType<typeof setTimeout> | undefined;
+  let archive: ChatState | null = null;
+  let pageBefore: string[] = [];
+  let pageLoading = false;
+  let pageError: string | undefined;
+  let pageRevision = 0;
+  const latestPage = () => {
+    pageRevision++;
+    archive = null;
+    pageBefore = [];
+    pageLoading = false;
+    pageError = undefined;
+  };
+  const view = (): ChatView => {
+    const live = state.view();
+    const shown = archive ?? state;
+    return {
+      ...live,
+      conversation: current?.id ?? state.readonly?.id ?? `new:${conversationGeneration}`,
+      items: shown.view().items,
+      ...(history && {
+        paging: {
+          earlier: shown.dropped > 0,
+          archived: archive !== null,
+          before: pageBefore.at(-1) ?? null,
+          loading: pageLoading,
+          ...(pageError && { error: pageError }),
+        },
+      }),
+    };
+  };
   const refresh = () => {
+    clearTimeout(outputTimer);
+    outputTimer = undefined;
     sync();
-    deps.onView(state.view());
+    deps.onView(view());
   };
   const warn = (reason: Reason) => state.notice(formatReason(reason), "error");
   const clampNotice = (wanted: EffortChoice, got: Effort) =>
@@ -414,7 +447,9 @@ export function createChatSession(deps: ChatSessionDeps) {
             if (skipAbortBubble(ctl, event)) return;
           }
           state.event(event);
-          refresh();
+          if (event.kind === "process.output" || event.kind === "agent.thinking") {
+            outputTimer ??= setTimeout(refresh, 100);
+          } else refresh();
         },
         onApproval: (pending) => {
           if (detached.has(ctl)) return;
@@ -672,7 +707,61 @@ export function createChatSession(deps: ChatSessionDeps) {
   return {
     view: () => {
       sync();
-      return state.view();
+      return view();
+    },
+    async timelinePage(direction: "older" | "newer" | "latest"): Promise<void> {
+      if (!history) return;
+      if (direction === "latest") {
+        latestPage();
+        refresh();
+        return;
+      }
+      if (pageLoading) return;
+      const meta = current ?? index.find((entry) => entry.id === state.readonly?.id);
+      if (!meta) return;
+      const shown = archive ?? state;
+      const next = [...pageBefore];
+      if (direction === "older") {
+        if (shown.dropped === 0) return;
+        const first = shown.view().items.find((item) => item.source)?.source;
+        if (!first) return;
+        next.push(first);
+      } else {
+        next.pop();
+        if (next.length === 0) {
+          latestPage();
+          refresh();
+          return;
+        }
+      }
+      const revision = navigationRev;
+      const request = ++pageRevision;
+      const active = () => !disposed && revision === navigationRev && request === pageRevision;
+      pageLoading = true;
+      pageError = undefined;
+      refresh();
+      try {
+        const result = await readConversationPage(history.files, meta.runIds, next.at(-1), active);
+        if (!result || !active()) return;
+        if (!result.state.reached) {
+          pageError = "Journal indisponible ou pas encore écrit. Réessayez dans un instant.";
+        } else {
+          archive = result.state;
+          pageBefore = next;
+          const warnings = [
+            ...(result.invalid ? [`${result.invalid} ligne(s) invalide(s) ignorée(s).`] : []),
+            ...(result.missing ? [`${result.missing} journal(aux) introuvable(s).`] : []),
+          ];
+          if (warnings.length) pageError = warnings.join(" ");
+        }
+      } catch {
+        if (active()) pageError = "Lecture des messages précédents impossible. Réessayez.";
+      } finally {
+        if (active()) {
+          pageLoading = false;
+          refresh();
+        }
+      }
     },
     loadModels,
     getProvider: () => prefs.provider,
@@ -681,6 +770,7 @@ export function createChatSession(deps: ChatSessionDeps) {
         refresh();
         return;
       }
+      latestPage();
       navigationRev++;
       const previous = controller;
       if (previous !== null) detached.add(previous);
@@ -804,6 +894,7 @@ export function createChatSession(deps: ChatSessionDeps) {
         refresh();
         return;
       }
+      latestPage();
       state.setBusy(true);
       const revision = ++navigationRev;
       const projectsReady = await reloadHistoryProjects(revision);
@@ -887,6 +978,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       await loading;
     },
     stop(): void {
+      latestPage();
       navigationRev++;
       if (controller === null) {
         state.setBusy(false);
@@ -919,6 +1011,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       refresh();
     },
     reset(): void {
+      conversationGeneration++;
       navigationRev++;
       stopping = true;
       if (controller !== null) detached.add(controller);
@@ -928,6 +1021,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       sessionId = undefined;
       transferContext = false;
       current = null;
+      latestPage();
       state.clear();
       refresh();
     },
@@ -956,23 +1050,16 @@ export function createChatSession(deps: ChatSessionDeps) {
       transferContext = false;
       current = null;
       state.clear();
-      const events: EngineEvent[] = [];
-      let invalid = 0;
-      let truncated = false;
-      let missing = 0;
-      for (const runId of meta.runIds) {
-        const text = await history.files.read(runId);
-        if (revision !== navigationRev) return;
-        if (text === null) {
-          missing++;
-          continue;
-        }
-        const parsed = parseUntrustedJournal(text, runId);
-        events.push(...parsed.events);
-        invalid += parsed.invalid;
-        truncated ||= parsed.truncated;
-      }
-      replayEvents(state, events);
+      latestPage();
+      const result = await readConversationPage(
+        history.files,
+        meta.runIds,
+        undefined,
+        () => !disposed && revision === navigationRev,
+      );
+      if (!result || revision !== navigationRev) return;
+      state = result.state;
+      const { invalid, truncated, missing } = result;
       if (missing > 0) state.notice(`${missing} journal(aux) introuvable(s).`);
       state.setReadonly({
         id: meta.id,
@@ -988,6 +1075,7 @@ export function createChatSession(deps: ChatSessionDeps) {
     /** Reprend la conversation ouverte : nouveau message avec `resume`, sous la politique ACTUELLE. */
     async resumeConversation(): Promise<void> {
       if (state.busy) return;
+      latestPage();
       const info = state.readonly;
       const meta = info ? index.find((c) => c.id === info.id) : undefined;
       if (!meta) return;
@@ -1072,6 +1160,9 @@ export function createChatSession(deps: ChatSessionDeps) {
     },
     dispose(): void {
       disposed = true;
+      clearTimeout(outputTimer);
+      outputTimer = undefined;
+      latestPage();
       cancelModelLoad();
       navigationRev++;
       stopping = true;

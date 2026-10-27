@@ -24,6 +24,7 @@ import { formatError } from "@warband/messages";
 import * as vscode from "vscode";
 import { cleanText, parseWebviewMessage } from "../logic/approval.js";
 import { type BypassPush, createBypassHost, formatRemaining } from "../logic/bypass.js";
+import { type ChatView, monitorChatView } from "../logic/chat.js";
 import {
   containerMentions,
   controlListedContainer,
@@ -44,6 +45,7 @@ import { deleteSelectedFinding } from "../logic/finding-delete.js";
 import { createJournalFiles } from "../logic/historyStore.js";
 import { chatHtml, cockpitHtml, killchainHtml, makeNonce, studioHtml } from "../logic/html.js";
 import { matchesFingerprint } from "../logic/integrity.js";
+import { killchainImage } from "../logic/killchain-image.js";
 import { setSelectedPathEdge } from "../logic/killchain-path.js";
 import { missionReport } from "../logic/mission-report.js";
 import {
@@ -341,13 +343,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         (await vscode.window.showWarningMessage(text, { modal: true }, "Toujours autoriser")) ===
         "Toujours autoriser",
       onView: (view) => {
-        const message = { type: "view", view };
+        const message = { type: "view", view, chatId: id };
         const slot = slots.get(id);
         if (id === SIDEBAR_CHAT) post(message);
         else void slot?.panel?.webview.postMessage(message);
         if (id === activeId) pushMonitor(view);
         for (const watch of watches) {
-          if (watch.chatId === id) void watch.panel.webview.postMessage(message);
+          if (watch.chatId === id)
+            void watch.panel.webview.postMessage({
+              ...message,
+              view: monitorChatView(view, watch.toolUseId),
+            });
         }
         updateModelStatus();
         scheduleFindingsRefresh();
@@ -569,7 +575,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       switch (message.type) {
         case "ready":
           reply(bypass.snapshot());
-          reply({ type: "view", view: s.view() });
+          reply({ type: "view", view: s.view(), chatId: id });
           reply(await containersMessage());
           reply(await terminalsMessage());
           return await s.loadModels();
@@ -643,6 +649,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           return s.reset();
         case "approve":
           return await s.approve(message.toolUseId, message.choice);
+        case "timelinePage":
+          return await s.timelinePage(message.direction);
         case "historyRefresh":
           return await s.refreshHistoryProjects();
         case "historyOpen":
@@ -1115,14 +1123,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (killchainPanel) entries.push({ kind: "killchain" });
     await context.workspaceState.update(WINDOWS_KEY, entries);
   };
-  const pushMonitor = (view?: { items: unknown }) => {
+  const pushMonitor = (view?: ChatView) => {
     const panel = monitorPanel;
     if (!panel) return;
     const name = chatName(activeId);
     panel.title = `Monitor · ${name}`;
     void panel.webview.postMessage({ type: "title", text: name });
     const shown = view ?? slots.get(activeId)?.session?.view();
-    if (shown) void panel.webview.postMessage({ type: "view", view: shown });
+    if (shown)
+      void panel.webview.postMessage({
+        type: "view",
+        chatId: activeId,
+        view: monitorChatView(shown),
+      });
   };
   const setActive = (id: string) => {
     activeId = id;
@@ -1207,7 +1220,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (existing) {
       existing.panel.reveal();
       const view = slots.get(chatId)?.session?.view();
-      if (view) void existing.panel.webview.postMessage({ type: "view", view });
+      if (view)
+        void existing.panel.webview.postMessage({
+          type: "view",
+          view: monitorChatView(view, toolUseId),
+          chatId,
+        });
       return;
     }
     const media = vscode.Uri.joinPath(context.extensionUri, "media");
@@ -1229,7 +1247,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       if (message?.type !== "ready") return;
       void panel.webview.postMessage({ type: "role", role: "watch", toolUseId });
       const view = slots.get(chatId)?.session?.view();
-      if (view) void panel.webview.postMessage({ type: "view", view });
+      if (view)
+        void panel.webview.postMessage({
+          type: "view",
+          view: monitorChatView(view, toolUseId),
+          chatId,
+        });
     });
   };
 
@@ -1254,6 +1277,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     });
     panel.webview.onDidReceiveMessage((raw: unknown) => {
       const message = parseWebviewMessage(raw);
+      if (message?.type === "timelinePage") {
+        return slots.get(activeId)?.session?.timelinePage(message.direction);
+      }
       if (message?.type === "watch") {
         openWatch(message.toolUseId);
         return;
@@ -1407,6 +1433,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     });
     killchainPanel.webview.onDidReceiveMessage(async (raw: unknown) => {
       const message = parseStudioMessage(raw);
+      if (message?.type === "exportKillchain") {
+        await exportMissionReport(message.projectId, true);
+        return;
+      }
       if (message?.type === "exportReport") {
         await exportMissionReport(message.projectId);
         return;
@@ -1489,7 +1519,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       ...(projectError !== undefined && { projectError }),
     });
   };
-  const exportMissionReport = async (expectedProjectId?: string) => {
+  const exportMissionReport = async (expectedProjectId?: string, image = false) => {
     try {
       const file = await readProjects(defaultConfigDir());
       const project = file === null ? null : activeProject(file);
@@ -1497,9 +1527,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         throw new CodedError("project.absent");
       const generation = findingProjectGeneration;
       const destination = await vscode.window.showSaveDialog({
-        title: "Exporter un brouillon de rapport (identifiants et loot exclus)",
-        defaultUri: vscode.Uri.file(join(project.workspace, "rapport-warband.md")),
-        filters: { Markdown: ["md"] },
+        title: image
+          ? "Exporter la Kill Chain complète en image SVG"
+          : "Exporter un brouillon de rapport (identifiants et loot exclus)",
+        defaultUri: vscode.Uri.file(
+          join(project.workspace, image ? "killchain-warband.svg" : "rapport-warband.md"),
+        ),
+        filters: image ? { "Image SVG": ["svg"] } : { Markdown: ["md"] },
       });
       if (!destination) return;
       const current = await readProjects(defaultConfigDir());
@@ -1510,6 +1544,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       )
         throw new CodedError("project.absent");
       const findings = await readFindings(defaultConfigDir(), project.id);
+      if (generation !== findingProjectGeneration || projectChanging)
+        throw new CodedError("project.absent");
       if (
         vscode.workspace.textDocuments.some(
           (document) => document.isDirty && document.uri.toString() === destination.toString(),
@@ -1521,9 +1557,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
       await vscode.workspace.fs.writeFile(
         destination,
-        Buffer.from(missionReport(project, findings, new Date()), "utf8"),
+        Buffer.from(
+          image ? killchainImage(project, findings) : missionReport(project, findings, new Date()),
+          "utf8",
+        ),
       );
-      await vscode.window.showTextDocument(destination);
+      if (image) await vscode.commands.executeCommand("vscode.open", destination);
+      else await vscode.window.showTextDocument(destination);
     } catch (error) {
       void vscode.window.showErrorMessage(formatError(error));
     }
@@ -1654,6 +1694,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     studioPanel.webview.onDidReceiveMessage(async (raw: unknown) => {
       const message = parseStudioMessage(raw);
       if (message === null) return;
+      if (message.type === "exportKillchain") {
+        await exportMissionReport(message.projectId, true);
+        return;
+      }
       if (message.type === "exportReport") {
         await exportMissionReport(message.projectId);
         return;
@@ -1874,6 +1918,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand("warband.openTerminal", () => void pickContainerTerminal()),
     vscode.commands.registerCommand("warband.openMonitor", () => openMonitor()),
     vscode.commands.registerCommand("warband.openKillchain", () => openKillchain()),
+    vscode.commands.registerCommand("warband.exportKillchain", () =>
+      exportMissionReport(undefined, true),
+    ),
     vscode.commands.registerCommand("warband.exportReport", () => exportMissionReport()),
     vscode.commands.registerCommand("warband.focusChat", () =>
       vscode.commands.executeCommand("warband.chat.focus"),

@@ -551,6 +551,14 @@ function start() {
       if (!report.disabled) vscode.postMessage({ type: "exportReport", projectId });
     });
     bar.append(report);
+    const image = el("button", "ghost kc-btn kc-image", "Exporter l’image");
+    image.type = "button";
+    image.title = "Image SVG de tous les éléments, noms complets et liens (sans filtre ni cadrage)";
+    image.disabled = typeof projectId !== "string";
+    image.addEventListener("click", () => {
+      if (!image.disabled) vscode.postMessage({ type: "exportKillchain", projectId });
+    });
+    bar.append(image);
     const selection = el("div", "kc-selection");
     const selectedLabel = el("span", "kc-selection-label");
     const remove = el("button", "ghost kc-btn kc-delete");

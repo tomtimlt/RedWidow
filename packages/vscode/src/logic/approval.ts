@@ -75,6 +75,7 @@ export type WebviewMessage =
   | { type: "setModel"; model: string | null }
   | { type: "setEffort"; effort: string | null }
   | { type: "setVariant"; variant: string | null }
+  | { type: "timelinePage"; direction: "older" | "newer" | "latest" }
   | { type: "historyOpen"; id: string }
   | { type: "historyResume" }
   | { type: "historyRename"; id: string; title: string }
@@ -128,6 +129,11 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
         (m.variant === null ||
           (typeof m.variant === "string" && /^[A-Za-z0-9_.-]{1,64}$/.test(m.variant)))
         ? { type: "setVariant", variant: m.variant }
+        : null;
+    case "timelinePage":
+      return only("type", "direction") &&
+        ["older", "newer", "latest"].includes(m.direction as string)
+        ? { type: "timelinePage", direction: m.direction as "older" | "newer" | "latest" }
         : null;
     case "historyOpen":
     case "historyDelete":

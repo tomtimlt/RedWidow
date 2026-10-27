@@ -1,6 +1,8 @@
-import { open, readdir, rm, stat } from "node:fs/promises";
+import { type FileHandle, open, readdir, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { isRunId, MAX_JOURNAL_BYTES } from "./history.js";
+import { StringDecoder } from "node:string_decoder";
+import { type EngineEvent, validateEvent } from "@warband/core";
+import { isRunId, MAX_JOURNAL_BYTES, MAX_LINE_CHARS } from "./history.js";
 
 /** Accès disque aux journaux : les noms de fichier ne viennent que d'un `runId` validé (UUID). */
 export interface JournalFiles {
@@ -8,6 +10,11 @@ export interface JournalFiles {
   dir: string;
   /** Texte du journal (au plus `MAX_JOURNAL_BYTES` octets), ou `null` s'il est absent ou invalide. */
   read(runId: string): Promise<string | null>;
+  /** Lecture complète par blocs, sans conserver le journal en mémoire. false interrompt la lecture. */
+  scan?(
+    runId: string,
+    visit: (event: EngineEvent) => boolean,
+  ): Promise<{ invalid: number; missing: boolean }>;
   size(runId: string): Promise<number>;
   remove(runIds: readonly string[]): Promise<void>;
   /** Supprime tous les journaux `<uuid>.jsonl` du dossier (orphelins compris). */
@@ -39,6 +46,67 @@ export function createJournalFiles(dir: string): JournalFiles {
         }
       } catch {
         return null;
+      }
+    },
+    async scan(runId, visit) {
+      if (!isRunId(runId)) return { invalid: 0, missing: true };
+      let handle: FileHandle;
+      try {
+        handle = await open(fileOf(dir, runId), "r");
+      } catch {
+        return { invalid: 0, missing: true };
+      }
+      let invalid = 0;
+      try {
+        // Instantané de taille : un journal vivant ne prolonge jamais cette lecture indéfiniment.
+        const { size } = await handle.stat();
+        if (size === 0) return { invalid, missing: false };
+        const stream = handle.createReadStream({
+          autoClose: false,
+          highWaterMark: 64 * 1024,
+          end: size - 1,
+        });
+        const decoder = new StringDecoder("utf8");
+        let pending = "";
+        let oversized = false;
+        const consume = (line: string): boolean => {
+          if (!line.trim()) return true;
+          let event: unknown;
+          try {
+            event = JSON.parse(line);
+          } catch {
+            invalid++;
+            return true;
+          }
+          if (validateEvent(event) || (event as EngineEvent).runId !== runId) {
+            invalid++;
+            return true;
+          }
+          return visit(event as EngineEvent);
+        };
+        for await (const chunk of stream) {
+          const parts = decoder.write(chunk as Buffer).split("\n");
+          for (let i = 0; i < parts.length; i++) {
+            const part = parts[i] ?? "";
+            if (!oversized) {
+              if (pending.length + part.length > MAX_LINE_CHARS) {
+                oversized = true;
+                pending = "";
+                invalid++;
+              } else pending += part;
+            }
+            if (i < parts.length - 1) {
+              if (!oversized && !consume(pending)) return { invalid, missing: false };
+              pending = "";
+              oversized = false;
+            }
+          }
+        }
+        pending += decoder.end();
+        if (!oversized && pending) consume(pending);
+        return { invalid, missing: false };
+      } finally {
+        await handle.close();
       }
     },
     async size(runId) {

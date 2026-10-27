@@ -122,12 +122,13 @@
   // Dernier état vu de chaque outil : l'icône ne « se pose » (animation unique) qu'au changement d'état.
   const toolStatus = new Map();
 
-  function renderTool(item) {
+  function renderTool(item, reference) {
+    const toolUseId = item.toolUseId;
     const box = el("details", `tool ${item.status}`);
     box.open = openTools.has(item.toolUseId);
     box.addEventListener("toggle", () => {
-      if (box.open) openTools.add(item.toolUseId);
-      else openTools.delete(item.toolUseId);
+      if (box.open) openTools.add(toolUseId);
+      else openTools.delete(toolUseId);
     });
     const sum = el("summary");
     const icon = svg(ICON[item.status] ?? "tool", "ico icon");
@@ -142,15 +143,27 @@
     if (item.summary) sum.append(el("span", "tool-summary", item.summary));
     sum.append(icon, el("span", "tool-state", STATUS[item.status] ?? item.status));
     box.append(sum);
-    const body = el("div", "tool-body");
-    body.append(el("div", "label", "Entrée"), el("pre", "", item.input));
-    if (item.output) {
-      body.append(
-        el("div", "label", "Sortie"),
-        el("pre", "", item.truncated ? `${item.output}\n[…tronqué]` : item.output),
-      );
-    }
-    box.append(body);
+    // Les sorties repliées ne créent aucun DOM de détail (souvent la majorité du Monitor).
+    let body;
+    const paintBody = () => {
+      if (!box.open) {
+        body?.remove();
+        body = undefined;
+        return;
+      }
+      if (body) return;
+      const current = reference.item;
+      body = el("div", "tool-body");
+      body.append(el("div", "label", "Entrée"), el("pre", "", current.input));
+      if (current.output)
+        body.append(
+          el("div", "label", "Sortie"),
+          el("pre", "", current.truncated ? `${current.output}\n[…tronqué]` : current.output),
+        );
+      box.append(body);
+    };
+    box.addEventListener("toggle", paintBody);
+    paintBody();
     return box;
   }
 
@@ -168,6 +181,35 @@
     return row;
   }
 
+  const itemNodes = new Map();
+  // Comparer les champs de vue sans dupliquer les longues sorties en signatures JSON.
+  const sameDisplay = (a, b) =>
+    a &&
+    Object.keys(a).length === Object.keys(b).length &&
+    Object.keys(b).every((key) => key === "blocks" || a[key] === b[key]);
+  function renderItem(item) {
+    const cached = itemNodes.get(item.id);
+    if (sameDisplay(cached?.item, item)) {
+      cached.item = item;
+      return cached.node;
+    }
+    const reference = { item, node: null };
+    let node;
+    if (item.kind === "tool") node = renderTool(item, reference);
+    else if (item.kind === "user")
+      node = messageShell("user", item.text, el("div", "msg user", item.text));
+    else if (item.kind === "agent") {
+      const message = el("div", "msg agent");
+      for (const block of item.blocks) message.append(renderBlock(block));
+      node = messageShell("agent", item.text, message);
+    } else {
+      node = el("div", `notice ${item.level}`, item.text);
+      if (item.level === "error") node.setAttribute("role", "alert");
+    }
+    reference.node = node;
+    itemNodes.set(item.id, reference);
+    return node;
+  }
   function renderItems(items) {
     const nodes = [];
     let group = null;
@@ -177,22 +219,19 @@
           group = el("div", "tool-group");
           nodes.push(group);
         }
-        group.append(renderTool(item));
+        group.append(renderItem(item));
         continue;
       }
       group = null;
-      if (item.kind === "user") {
-        nodes.push(messageShell("user", item.text, el("div", "msg user", item.text)));
-      } else if (item.kind === "agent") {
-        const m = el("div", "msg agent");
-        for (const b of item.blocks) m.append(renderBlock(b));
-        nodes.push(messageShell("agent", item.text, m));
-      } else {
-        const n = el("div", `notice ${item.level}`, item.text);
-        if (item.level === "error") n.setAttribute("role", "alert");
-        nodes.push(n);
-      }
+      nodes.push(renderItem(item));
     }
+    const ids = new Set(items.map((item) => item.id));
+    for (const id of itemNodes.keys()) if (!ids.has(id)) itemNodes.delete(id);
+    const tools = new Set(
+      items.filter((item) => item.kind === "tool").map((item) => item.toolUseId),
+    );
+    for (const id of toolStatus.keys()) if (!tools.has(id)) toolStatus.delete(id);
+    for (const id of openTools) if (!tools.has(id)) openTools.delete(id);
     return nodes;
   }
 
@@ -967,7 +1006,8 @@
       li.tabIndex = 0;
       li.setAttribute("role", "button");
       li.title = "Suivre la sortie";
-      const open = () => vscode.postMessage({ type: "watch", toolUseId: row.toolUseId });
+      const toolUseId = row.toolUseId;
+      const open = () => vscode.postMessage({ type: "watch", toolUseId });
       li.addEventListener("click", open);
       li.addEventListener("keydown", (e) => {
         if (e.key !== "Enter" && e.key !== " ") return;
@@ -978,6 +1018,7 @@
     return li;
   }
 
+  const monitorNodes = new Map();
   function renderMonitor(view) {
     // Le rendu remplace les lignes : conserver aussi le défilement de chaque sortie.
     const top = monitor.scrollTop;
@@ -988,8 +1029,22 @@
       }),
     );
     let rows = UI.monitorRows(view);
-    if (mode === "watch") rows = rows.filter((row) => row.toolUseId === watchId);
-    monitorRowsEl.replaceChildren(...rows.map(monitorLine));
+    if (mode === "watch") {
+      rows = rows.filter((row) => row.toolUseId === watchId);
+      if (!rows.length && monitorNodes.size) return;
+    }
+    const ids = new Set(rows.map((row) => row.id));
+    for (const id of monitorNodes.keys()) if (!ids.has(id)) monitorNodes.delete(id);
+    monitorRowsEl.replaceChildren(
+      ...rows.map((row) => {
+        let cached = monitorNodes.get(row.id);
+        if (!sameDisplay(cached?.row, row)) {
+          cached = { row, node: monitorLine(row) };
+          monitorNodes.set(row.id, cached);
+        } else cached.row = row;
+        return cached.node;
+      }),
+    );
     monitorEmpty.hidden = rows.length > 0;
     for (const line of monitorRowsEl.children) {
       const box = line.querySelector(".mon-out");
@@ -1026,7 +1081,52 @@
   let recall = { index: -1, draft: "" };
   let sent = [];
   let shownNodes = -1;
+  const timeline = $("timeline");
+  for (const direction of ["older", "newer", "latest"]) {
+    $(`timeline-${direction}`).addEventListener("click", () => {
+      if (direction === "latest") {
+        monitorFollow = true;
+        monitorFollowBtn.setAttribute("aria-pressed", "true");
+        monitorFollowBtn.title = "Désactiver le suivi du bas pour défiler librement";
+      } else {
+        monitorFollow = false;
+        monitorFollowBtn.setAttribute("aria-pressed", "false");
+        monitorFollowBtn.title = "Activer le suivi du bas";
+      }
+      vscode.postMessage({ type: "timelinePage", direction });
+    });
+  }
+  function renderPaging(paging) {
+    timeline.hidden =
+      mode === "watch" || !paging || (!paging.earlier && !paging.archived && !paging.error);
+    $("timeline-older").disabled = !paging?.earlier || paging.loading;
+    $("timeline-newer").hidden = !paging?.archived;
+    $("timeline-newer").disabled = !!paging?.loading;
+    $("timeline-latest").hidden = !paging?.archived;
+    $("timeline-status").textContent = paging?.loading
+      ? "Chargement…"
+      : (paging?.error ?? (paging?.archived ? "Messages précédents" : ""));
+  }
+  let pageBefore = null;
   function render(view) {
+    const nextBefore = view.paging?.before ?? null;
+    const pageChanged = nextBefore !== pageBefore;
+    pageBefore = nextBefore;
+    if (pageChanged) {
+      log.scrollTop = 0;
+      monitor.scrollTop = 0;
+    }
+    renderPaging(view.paging);
+    if (mode === "monitor" || mode === "watch") {
+      renderMonitor(view);
+      // Ne pas construire un deuxième chat invisible, ni recopier son catalogue de modèles.
+      log.replaceChildren();
+      itemNodes.clear();
+      approvals.replaceChildren();
+      lastView = view;
+      applyBody();
+      return;
+    }
     const users = (view.items ?? []).filter((it) => it.kind === "user").map((it) => it.text);
     const nextSent = UI.syncRecallEntries(sent, users);
     if (nextSent.length < sent.length || nextSent[0] !== sent[0]) {
@@ -1037,8 +1137,9 @@
     historyRunning = view.busy && !view.readonly;
     renderHistory(view.history);
     renderReadonly(view.readonly);
-    if (mode === "monitor" || mode === "watch") renderMonitor(view);
-    const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+    const atBottom = pageChanged
+      ? nextBefore === null
+      : log.scrollHeight - log.scrollTop - log.clientHeight < 40;
     const top = log.scrollTop;
     const nodes = view.items.length === 0 ? [welcome(view.sandbox)] : renderItems(view.items);
     // Entrée animée des seuls nœuds ajoutés depuis le rendu précédent (pas au chargement d'un historique).
@@ -1083,10 +1184,28 @@
     log.scrollTop = atBottom ? log.scrollHeight : top;
   }
 
+  let chatId;
   window.addEventListener("message", (event) => {
     const message = event.data;
-    if (message && message.type === "view") render(message.view);
-    else if (message && message.type === "role" && message.role === "monitor") {
+    if (message && message.type === "view") {
+      if (
+        (message.chatId !== undefined && message.chatId !== chatId) ||
+        message.view.conversation !== lastView?.conversation
+      ) {
+        chatId = message.chatId;
+        sent = [];
+        recall = { index: -1, draft: "" };
+        shownNodes = -1;
+        pageBefore = null;
+        itemNodes.clear();
+        monitorNodes.clear();
+        openTools.clear();
+        toolStatus.clear();
+        log.replaceChildren();
+        monitorRowsEl.replaceChildren();
+      }
+      render(message.view);
+    } else if (message && message.type === "role" && message.role === "monitor") {
       mode = "monitor";
       document.body.classList.add("mode-monitor");
       document.body.classList.remove("mode-watch");

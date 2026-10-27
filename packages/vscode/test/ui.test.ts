@@ -409,12 +409,12 @@ describe("monitorRows (lot P4) : lecture seule, une ligne par appel Exegol", () 
     }
   });
 
-  it("plafond : les 200 appels les plus récents", () => {
-    const items = Array.from({ length: 250 }, (_, i) => exec(i + 1, `t${i}`, [`c${i}`]));
+  it("plafond : les 300 appels de la page restent tous accessibles", () => {
+    const items = Array.from({ length: 350 }, (_, i) => exec(i + 1, `t${i}`, [`c${i}`]));
     const rows = ui.monitorRows({ items, approvals: [] });
-    expect(rows).toHaveLength(200);
+    expect(rows).toHaveLength(300);
     expect(rows[0]?.id).toBe(51);
-    expect(rows.at(-1)?.id).toBe(250);
+    expect(rows.at(-1)?.id).toBe(350);
   });
 
   it("vue absente ou incomplète : aucune ligne, sans erreur", () => {

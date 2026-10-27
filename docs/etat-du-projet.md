@@ -1,6 +1,6 @@
 # Warband — parcours, état actuel et reprise
 
-État inspecté le 27 octobre 2026 pour la version 0.3.51. Ce document sert de point d'entrée produit ;
+État inspecté le 27 octobre 2026 pour la version 0.3.52. Ce document sert de point d'entrée produit ;
 les ADR expliquent les décisions, les idées restent une réserve.
 
 ## Le parcours de référence
@@ -15,10 +15,55 @@ parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
 
-La version du manifeste est **0.3.51**. Les paragraphes
+La version du manifeste est **0.3.52**. Les paragraphes
 0.3.19 à 0.3.29 ci-dessous sont des relevés historiques, pas les preuves de
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
+
+## Lot 0.3.52 — image complète et archives par pages (préparation)
+
+**Exporter l’image** et la commande `warband.exportKillchain` produisent un SVG
+complet, avec noms entiers sur plusieurs lignes, tous les types et états et le
+chemin vert persisté. Ni le cadrage ni les filtres ne retranchent d’élément.
+L’hôte génère le XML échappé depuis les trouvailles du projet actif ; aucun SVG
+ni chemin n’est accepté de la webview. Le dialogue natif et les contrôles de
+projet et de documents non enregistrés précèdent l’écriture.
+
+Le chat et le Monitor proposent **Précédents / Suivants / Revenir au direct**.
+Chaque page reste limitée à 300 éléments ; les archives sont relues par blocs
+depuis les journaux validés de cette conversation, y compris au-delà de 16 Mio,
+sans accumuler tous les événements en mémoire. Le moteur et ses approbations
+restent actifs pendant la lecture. Les lectures périmées et caches sont invalidés
+au changement de conversation. Les lignes invalides et journaux absents sont
+signalés. La rétention et les limites des sorties restent inchangées.
+
+Le Monitor ne masque plus les commandes 201 à 300 de la page et ne construit
+plus le chat invisible. Les cartes repliées créent leurs détails à l’ouverture ;
+les nœuds inchangés sont réutilisés sans dupliquer les longues sorties. Les
+corrélations de processus sont nettoyées et le flux est regroupé toutes les
+100 ms, sans retarder les approbations, résultats, erreurs ni fins de tour.
+
+Sur 300 commandes simulées et 20 actualisations, le DOM du chat passe de
+5 276 à 3 776 éléments, celui du Monitor de 6 876 à 2 573. Le tas JavaScript
+après GC est respectivement d’environ 4,25 → 4,23 Mo et 4,36 → 4,21 Mo dans
+ce scénario Chromium. Ces mesures locales ne représentent pas la RAM totale
+de VS Code Windows, des agents ou de Docker ; aucun plafond n’est promis.
+Le chantier n’inclut pas une refonte des runtimes ni des optimisations demandant
+une recherche approfondie. Voir l’[ADR 0027](adr/0027-pages-de-journal-et-export-image.md).
+
+Validation locale : **2 023 tests réussis, 14 ignorés**, typage et build réussis.
+Les tests couvrent 905 éléments sans trou ni doublon, résultats tardifs, lecture
+au-delà de 16 Mio, journal invalide et lecture annulée après changement de
+conversation. Les 27 parcours Chromium, puis neuf rejoués après le dernier
+ajustement du cache, couvrent chat/Monitor/suivi, trois thèmes, fenêtres étroites,
+détails à la demande et isolation des conversations. Neuf parcours Kill Chain
+vérifient le bouton d’export ; le SVG est relu dans Chromium (six nœuds de démo,
+tous les liens et aucun texte hors cadre). Diff relu. Un test de processus a
+échoué sous concurrence Chromium avant réception du PID attendu (NaN) ; la
+suite complète exécutée seule passe sans modification de ses assertions.
+
+Publication en cours. Les confirmations Windows déjà ouvertes (autorités HTTPS
+et restauration du dossier) restent distinctes.
 
 ## Lot 0.3.51 — icône de suivi du bas (publié)
 

@@ -495,3 +495,28 @@ local, également disponible dans la palette de commandes. Identifiants et loot
 sont exclus ; les preuves, la gravité et la remédiation restent à compléter.
 Voir [rapports, SysReptor et MCP](rapports-et-mcp.md) pour la portée de cet export,
 les alternatives et les 97 tests du MCP officiel Burp effectués avec API simulée.
+
+## Image du graphe et longues conversations — 0.3.52
+
+**Exporter l’image**, dans la Kill Chain, et la commande **Warband : Exporter la
+Kill Chain en image SVG** enregistrent le graphe entier. Le SVG reste net au
+zoom : noms complets sur plusieurs lignes, types, états et chemin vert sont
+inclus, indépendamment des filtres et du cadrage. Tous les éléments sont présents,
+identifiants et loot compris : relire leurs libellés avant de diffuser l’image.
+Le fichier ne contient ni sortie de commande ni valeur de secret séparée.
+
+Dans le chat et le Monitor, **Précédents** permet de relire les messages et
+commandes conservés dans les journaux ; **Suivants** et **Revenir au direct**
+reviennent aux messages récents. Les pages contiennent au maximum 300 éléments,
+y compris après réouverture de l’historique et pour un journal de plus de 16 Mio.
+Le tour continue pendant la lecture et ses approbations restent disponibles dans
+le chat. Le Monitor désactive le suivi du bas lors de la navigation dans les
+archives ; sa flèche permet toujours de basculer ce suivi. Une fenêtre de sortie
+individuelle garde sa dernière commande visible si elle sort de la page.
+
+Les limites de taille des sorties et la rétention de l’historique restent en
+place : les journaux supprimés ou sorties déjà tronquées ne sont pas récupérables.
+Le chargement par pages, les détails créés à l’ouverture des cartes, la
+réutilisation des nœuds et le regroupement du flux réduisent les allocations de
+l’interface. Le Monitor ne construit plus un deuxième chat invisible. Cela ne
+constitue pas une garantie de plafond mémoire pour VS Code et ses agents.

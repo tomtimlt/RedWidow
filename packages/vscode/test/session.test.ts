@@ -110,6 +110,45 @@ const approval = (id: string, code = "bash.noRule"): PendingApproval =>
   }) as unknown as PendingApproval;
 
 describe("session de chat", () => {
+  it("regroupe le flux de sortie mais affiche immédiatement une approbation ou un résultat", async () => {
+    vi.useFakeTimers();
+    try {
+      const t = setup();
+      await t.session.send("test");
+      t.f.handlers.onEvent?.(
+        ev({
+          id: "req",
+          kind: "tool.requested",
+          toolUseId: "t",
+          tool: "mcp__exegol__exec",
+          input: {},
+        }),
+      );
+      t.f.handlers.onEvent?.(
+        ev({ id: "proc", parentId: "req", kind: "process.started", argv: [], pid: 1 }),
+      );
+      const initial = t.view();
+      for (let i = 0; i < 30; i++)
+        t.f.handlers.onEvent?.(
+          ev({ kind: "process.output", parentId: "proc", stream: "stdout", line: `ligne ${i}` }),
+        );
+      expect(t.view()).toBe(initial);
+      await vi.advanceTimersByTimeAsync(100);
+      expect(t.view()).not.toBe(initial);
+      expect(t.view().items.at(-1)).toMatchObject({ output: expect.stringContaining("ligne 29") });
+      t.f.handlers.onApproval?.(approval("a"));
+      expect(t.view().approvals).toHaveLength(1);
+      t.f.handlers.onEvent?.(
+        ev({ kind: "tool.result", toolUseId: "t", output: "terminé", isError: false }),
+      );
+      expect(t.view().items.at(-1)).toMatchObject({ output: "terminé", status: "ok" });
+      t.session.dispose();
+      await vi.advanceTimersByTimeAsync(100);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("démarre le moteur au premier message, transmet réglages et jeton (jamais dans start)", async () => {
     const t = setup({
       token: true,
@@ -494,6 +533,7 @@ describe("historique (F4)", () => {
   ) {
     const stored = new Map<string, unknown>();
     const written = new Map<string, string>();
+    let readBarrier: Promise<void> | undefined;
     const removed: string[] = [];
     const t = setup();
     const confirmDelete = vi.fn(async () => true);
@@ -515,7 +555,10 @@ describe("historique (F4)", () => {
         index: { get: (k) => stored.get(k), set: (k, v) => stored.set(k, v) },
         files: {
           dir: "/h",
-          read: async (id) => written.get(id) ?? null,
+          read: async (id) => {
+            await readBarrier;
+            return written.get(id) ?? null;
+          },
           size: async (id) => written.get(id)?.length ?? 0,
           remove: async (ids) => void removed.push(...ids),
           removeAll: async () => void written.clear(),
@@ -523,7 +566,18 @@ describe("historique (F4)", () => {
         confirmDelete,
       },
     });
-    return { f, session, stored, written, removed, confirmDelete, view: () => session.view() };
+    return {
+      f,
+      session,
+      stored,
+      written,
+      removed,
+      confirmDelete,
+      holdReads: (barrier: Promise<void>) => {
+        readBarrier = barrier;
+      },
+      view: () => session.view(),
+    };
   }
 
   it.each(["reset", "stop", "dispose"] as const)(
@@ -884,6 +938,76 @@ describe("historique (F4)", () => {
     expect(h.f.started?.conversationContext?.messages).toEqual([
       { role: "user", text: "nouvelle conversation" },
     ]);
+  });
+
+  it("parcourt les archives pendant un tour sans arrêter le moteur ni perdre les approbations", async () => {
+    const h = withHistory();
+    await h.session.send("début");
+    h.f.handlers.onStarted?.({ runId: RUN1, policySource: null });
+    const raw = [jline({ kind: "user.message", text: "début" }, 0)];
+    for (let i = 1; i <= 700; i++) raw.push(jline({ kind: "agent.text", text: `message ${i}` }, i));
+    h.written.set(RUN1, raw.join("\n"));
+    for (const line of raw) h.f.handlers.onEvent?.(JSON.parse(line));
+    expect(h.view().items).toHaveLength(300);
+    expect(h.view().paging).toMatchObject({ earlier: true, archived: false });
+    const calls = h.f.calls.length;
+    await Promise.all([h.session.timelinePage("older"), h.session.timelinePage("older")]);
+    expect(h.view().paging).toMatchObject({ earlier: true, archived: true, loading: false });
+    expect(h.view().items[0]).toMatchObject({ text: "message 101" });
+    const previous = h.view().items;
+    h.f.handlers.onApproval?.(approval("toujours-active"));
+    h.f.handlers.onEvent?.(JSON.parse(jline({ kind: "agent.text", text: "en direct" }, 701)));
+    expect(h.view().busy).toBe(true);
+    expect(h.view().approvals).toHaveLength(1);
+    expect(h.view().items).toEqual(previous);
+    expect(h.f.calls).toHaveLength(calls);
+    await h.session.timelinePage("older");
+    expect(h.view().items[0]).toMatchObject({ kind: "user", text: "début" });
+    expect(h.view().paging?.earlier).toBe(false);
+    await h.session.timelinePage("newer");
+    expect(h.view().items).toEqual(previous);
+    await h.session.timelinePage("latest");
+    expect(h.view().paging?.archived).toBe(false);
+    expect(h.view().items.at(-1)).toMatchObject({ text: "en direct" });
+    h.f.handlers.onEnded?.({ sessionId: "S" } as never);
+    const id = h.view().history[0]?.id;
+    h.session.reset();
+    await h.session.openConversation(id);
+    expect(h.view().readonly).not.toBeNull();
+    await h.session.timelinePage("older");
+    await h.session.timelinePage("older");
+    expect(h.view().items[0]).toMatchObject({ text: "début" });
+    expect(h.view().approvals).toEqual([]);
+    h.session.reset();
+    await h.session.timelinePage("older");
+    expect(h.view().items).toEqual([]);
+    expect(h.view().paging).toMatchObject({ archived: false, loading: false });
+  });
+
+  it("une lecture tardive ne remplit jamais une nouvelle conversation", async () => {
+    const h = withHistory();
+    await h.session.send("ancienne");
+    h.f.handlers.onStarted?.({ runId: RUN1, policySource: null });
+    const raw = [jline({ kind: "user.message", text: "ancienne" }, 0)];
+    for (let i = 1; i <= 301; i++) raw.push(jline({ kind: "agent.text", text: `ancien ${i}` }, i));
+    h.written.set(RUN1, raw.join("\n"));
+    for (const line of raw) h.f.handlers.onEvent?.(JSON.parse(line));
+    let release!: () => void;
+    h.holdReads(
+      new Promise<void>((resolve) => {
+        release = resolve;
+      }),
+    );
+    const pending = h.session.timelinePage("older");
+    expect(h.view().paging?.loading).toBe(true);
+    const oldKey = h.view().conversation;
+    h.session.reset();
+    await h.session.send("nouvelle");
+    expect(h.view().conversation).not.toBe(oldKey);
+    release();
+    await pending;
+    expect(h.view().items).toMatchObject([{ kind: "user", text: "nouvelle" }]);
+    expect(h.view().paging).toMatchObject({ archived: false, loading: false });
   });
 
   it("identifiants hostiles ignorés ; renommer nettoie ; supprimer et tout effacer", async () => {
