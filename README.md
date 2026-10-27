@@ -51,4 +51,5 @@ Le prototype possède un manifeste distinct (`warband-ui-design`, version 0.0.1)
 Ses changements sont destinés à une revue graphique avant réintégration dans
 l’application. Les instructions de design sont dans [DESIGN.md](DESIGN.md).
 
-Licence MIT ; la licence de la police Inter est conservée dans `media/fonts/OFL.txt`.
+Licence MIT ; les polices Geist et Geist Mono (SIL Open Font License 1.1) sont
+livrées localement avec leur licence dans `media/fonts/OFL-Geist.txt`.

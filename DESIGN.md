@@ -23,9 +23,11 @@ Le graphe doit rester agréable à parcourir au clavier, à la souris et au zoom
   blocs : message envoyé, validation, entrée du Monitor, bandeaux, projet actif.
   Les éléments en pilule (rubrique, filtre, option) marquent la sélection par
   un fond teinté.
-- **Typographie** : Inter pour l’interface, police de l’éditeur pour les
-  données ; étiquettes en capitales mono espacées (`--jn-fs-2xs`,
-  `--jn-track`) comme repère commun ; chiffres tabulaires.
+- **Typographie** : Geist pour l’interface, Geist Mono pour les repères
+  techniques (étiquettes en capitales espacées `--jn-fs-2xs` / `--jn-track`,
+  compteurs, horloges, mot-symbole « WARBAND ») ; la police de l’éditeur
+  (`--jn-code`) pour le code, les commandes et les sorties ; chiffres
+  tabulaires. Polices locales sous licence OFL (`media/fonts/`).
 - **Géométrie** : formes arrondies plutôt que carrées. Boutons, puces,
   badges, onglets, champs d’une ligne et rubriques en pilule
   (`--jn-r-pill`) ; blocs et panneaux en `--jn-r-sm` 8 px, `--jn-r-md` 12 px
