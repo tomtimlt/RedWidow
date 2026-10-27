@@ -447,6 +447,13 @@ select {
   align-self: stretch;
   gap: 10px;
 }
+/* Retrait des réponses : largeur de l'avatar plus l'écart, repris par les tâches. */
+body {
+  --jn-indent: 30px;
+}
+#log > .tool-group {
+  margin-left: var(--jn-indent);
+}
 /* Avatar de l'agent : le logo, aligné sur la première ligne de la réponse. */
 .msg-avatar {
   flex: none;
@@ -455,6 +462,9 @@ select {
   margin-top: 2px;
 }
 @container app (max-width: 359px) {
+  body > * {
+    --jn-indent: 22px;
+  }
   .msg-row.agent {
     gap: 6px;
   }
@@ -2490,7 +2500,7 @@ body.automatic-on #composer {
     clip-path: inset(50%);
     white-space: nowrap;
   }
-  body {
+  body > * {
     --jn-gutter: 10px;
   }
   button {
@@ -2613,7 +2623,7 @@ body.automatic-on #composer {
     width: min(760px, calc(100% - 2 * var(--jn-gutter)));
     margin-inline: auto;
   }
-  body {
+  body > * {
     --jn-gutter: 20px;
   }
 }
