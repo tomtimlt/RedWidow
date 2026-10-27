@@ -1182,32 +1182,48 @@ function start() {
         header.append(manage);
       }
       sec.append(header);
-      const dl = el("dl", "studio-dl");
-      const row = (k, v) => {
-        dl.append(el("dt", "", k), el("dd", "", v));
+      // Tuiles d'état : pictogramme, libellé, valeur et pastille de ton.
+      const dl = el("dl", "studio-dl studio-tiles");
+      const row = (k, v, tone, icon) => {
+        const tile = el("div", `studio-tile tone-${tone}`);
+        const head = el("dt", "studio-tile-label");
+        head.append(window.WarbandIcons.create(icon, "ico studio-tile-ico"), el("span", "", k));
+        const value = el("dd", "studio-tile-value");
+        value.append(decorative(el("span", "dot")), el("span", "", v));
+        tile.append(head, value);
+        dl.append(tile);
       };
-      row("Affichage", view.docker === "present" ? "présent" : "absent");
+      row("Affichage", view.docker === "present" ? "présent" : "absent", view.docker === "present" ? "ok" : "warn", "image");
       row(
         "Aperçu",
-        view.daemon === "reachable" ? "joignable" : view.daemon === "unreachable" ? "injoignable" : "—"
+        view.daemon === "reachable" ? "joignable" : view.daemon === "unreachable" ? "injoignable" : "—",
+        view.daemon === "reachable" ? "ok" : view.daemon === "unreachable" ? "err" : "idle",
+        "pulse"
       );
-      row("Atelier", view.workbench === "present" ? "présent" : "absent");
+      row("Atelier", view.workbench === "present" ? "présent" : "absent", view.workbench === "present" ? "ok" : "warn", "server");
       sec.append(dl);
       if (page === "spaces") {
+        const running = (view.spaces ?? []).filter((c) => c.state === "running").length;
+        const listHead = el("div", "studio-list-head");
+        listHead.append(
+          el("p", "studio-kicker", "Espaces"),
+          el("span", "studio-count", `${running}/${(view.spaces ?? []).length} actifs`)
+        );
+        if ((view.spaces ?? []).length > 0) sec.append(listHead);
         const ul = el("ul", "studio-rows");
         for (const c of view.spaces ?? []) {
-          const li = el("li", "studio-row");
+          const li = el("li", `studio-row studio-space ${c.state === "running" ? "is-running" : "is-stopped"}`);
           li.append(
-            window.WarbandIcons.create("space"),
-            el("span", `dot ${c.state === "running" ? "is-running" : "is-stopped"}`),
+            window.WarbandIcons.create("space", "ico studio-space-ico"),
             el("span", "studio-ellipsis", c.name),
-            el("span", "studio-help", c.state === "running" ? "en cours" : "arrêté")
+            el("span", "studio-state", c.state === "running" ? "en cours" : "arrêté")
           );
+          li.querySelector(".studio-state").prepend(decorative(el("span", `dot ${c.state === "running" ? "is-running" : "is-stopped"}`)));
           ul.append(li);
         }
-        sec.append(ul);
+        if ((view.spaces ?? []).length > 0) sec.append(ul);
         if ((view.spaces ?? []).length === 0) {
-          sec.append(el("p", "studio-help", "Aucun espace. Créez-en un dans le cockpit."));
+          sec.append(el("p", "studio-help", "Aucun espace pour l’instant. Créez-en un depuis « Gérer les espaces »."));
         }
       }
       main.append(sec);

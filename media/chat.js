@@ -953,10 +953,13 @@
     const li = el("li", `mon-row tone-${row.tone}`);
     li.dataset.monitorId = row.id;
     const cmd = el("div", "mon-cmd");
-    if (row.space !== "") cmd.append(el("span", "prompt", row.space));
+    const dot = el("span", "mon-dot");
+    dot.setAttribute("aria-hidden", "true");
+    cmd.append(dot);
+    if (row.space !== "") cmd.append(el("span", "prompt mon-space", row.space));
     cmd.append(el("span", "prompt", "$"), el("code", "mon-text", row.command));
     const meta = el("div", "mon-meta");
-    meta.append(el("span", "badge", row.status));
+    meta.append(el("span", "badge mon-state", row.status));
     li.append(cmd, meta);
     if (row.output !== "") li.append(el("pre", "mon-out", row.output));
     if (row.truncated) li.append(el("p", "note", "sortie tronquée"));
@@ -1002,6 +1005,14 @@
       })
     );
     monitorEmpty.hidden = rows.length > 0;
+    const waiting = rows.filter((r) => r.tone === "wait").length;
+    const failed = rows.filter((r) => r.tone === "err").length;
+    $("monitor-count").textContent = rows.length === 0 ? "" : [
+      `${rows.length} commande${rows.length > 1 ? "s" : ""}`,
+      waiting ? `${waiting} en attente` : "",
+      failed ? `${failed} en erreur` : ""
+    ].filter(Boolean).join(" · ");
+    document.body.classList.toggle("monitor-live", waiting > 0);
     for (const line of monitorRowsEl.children) {
       const box = line.querySelector(".mon-out");
       const previous = positions.get(line.dataset.monitorId);
@@ -1150,7 +1161,9 @@
       document.body.classList.remove("mode-monitor");
       if (lastView) render(lastView);
     } else if (message && message.type === "title" && typeof message.text === "string") {
-      $("title").textContent = message.text.slice(0, 120);
+      const brandName = document.querySelector("#title .brand-name");
+      if (brandName) brandName.textContent = message.text.slice(0, 120);
+      else $("title").textContent = message.text.slice(0, 120);
     } else if (message && message.type === "spaces") {
       spaces = UI.safeSpaces(message.items);
       if (mentionOpen()) renderMentions();

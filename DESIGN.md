@@ -66,6 +66,18 @@ ton pour les thèmes sombres et un ton plus foncé pour les thèmes clairs.
 | Spectre | `#a990ff` | `#6741d9` | violet et glace, distinct de toutes les couleurs d’état |
 | Éditeur | accent du thème | accent du thème | intégration maximale avec n’importe quel thème |
 
+## Monitor et cockpit
+
+- **Monitor** : en-tête collant avec voyant en direct (orange s’il reste une
+  commande en attente), compteur de commandes, bouton « Suivi » du bas. Chaque
+  entrée est une carte terminal : pastille d’état, espace en pilule, commande,
+  état en pilule colorée, sortie dans un volet encastré ; au survol, « Suivre › »
+  invite à ouvrir la lecture seule. État vide expliqué, pastille et texte.
+- **Cockpit** (Réglages › Espaces et Contrôle système) : tuiles d’état
+  (pictogramme, libellé, valeur, voyant ok / alerte / erreur), compteur d’espaces
+  actifs, lignes d’espace avec pastille et état en pilule. Sous 640 px, les
+  tuiles deviennent des lignes compactes.
+
 ## Pictogrammes et mouvement
 
 `media/icons.js` est la source unique des tracés : les pages HTML ne contiennent
