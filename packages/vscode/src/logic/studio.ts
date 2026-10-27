@@ -20,6 +20,7 @@ export function isStudioPage(value: string): value is StudioPage {
 }
 
 export type StudioMessage =
+  | { type: "exportReport"; projectId: string }
   | { type: "open"; page: StudioPage }
   | { type: "refresh" }
   | { type: "openCockpit" }
@@ -31,6 +32,8 @@ export type StudioMessage =
   | { type: "saveSummary"; projectId: string; text: string }
   /** La cible est relue et confirmée par l'hôte avant toute suppression. */
   | { type: "deleteFinding"; projectId: string; id: string }
+  /** Annotation visuelle d'un lien existant ; aucun état de trouvaille n'est modifié. */
+  | { type: "setPathEdge"; projectId: string; from: string; to: string; retained: boolean }
   /** Ouvre le dossier de cours : aucun champ, le chemin vient de l'hôte (`coursRoot()`). */
   | { type: "openCours" }
   /** Ouvre la Kill chain en vue plein écran (hôte seul). */
@@ -41,6 +44,34 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
   const m = raw as Record<string, unknown>;
   const keys = Object.keys(m);
+  if (
+    m.type === "exportReport" &&
+    keys.length === 2 &&
+    keys.every((key) => key === "type" || key === "projectId") &&
+    typeof m.projectId === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(m.projectId)
+  )
+    return { type: "exportReport", projectId: m.projectId };
+  if (
+    m.type === "setPathEdge" &&
+    keys.length === 5 &&
+    keys.every((key) => ["type", "projectId", "from", "to", "retained"].includes(key)) &&
+    typeof m.projectId === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(m.projectId) &&
+    [m.from, m.to].every(
+      (id) =>
+        typeof id === "string" && id.trim().length > 0 && id.length <= 200 && !/\p{Cc}/u.test(id),
+    ) &&
+    m.from !== m.to &&
+    typeof m.retained === "boolean"
+  )
+    return {
+      type: "setPathEdge",
+      projectId: m.projectId,
+      from: m.from as string,
+      to: m.to as string,
+      retained: m.retained,
+    };
   if (m.type === "openCockpit" && keys.length === 1) return { type: "openCockpit" };
   if (m.type === "refresh" && keys.length === 1) return { type: "refresh" };
   if (m.type === "unlink" && keys.length === 1) return { type: "unlink" };

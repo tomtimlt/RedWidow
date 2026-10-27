@@ -42,6 +42,8 @@ export interface Finding {
   tactic?: MitreTactic;
   technique?: string;
   from?: string[];
+  /** Parents appartenant au chemin retenu ; annotation, pas une preuve de réussite. */
+  pathFrom?: string[];
 }
 
 const MAX_FROM = 8;
@@ -117,6 +119,11 @@ export async function readFindings(configDir: string, projectId: string): Promis
     if (rec.from !== undefined) {
       if (!validFrom(rec.from)) throw invalid();
       finding.from = [...rec.from];
+    }
+    if (rec.pathFrom !== undefined) {
+      if (!validFrom(rec.pathFrom) || !rec.pathFrom.every((id) => finding.from?.includes(id)))
+        throw invalid();
+      finding.pathFrom = [...rec.pathFrom];
     }
     return finding;
   });
@@ -226,6 +233,7 @@ export interface FindingPatch {
   tactic?: MitreTactic | null;
   technique?: string | null;
   from?: string[];
+  pathFrom?: string[];
 }
 
 /** Remplace atomiquement le fichier, avec un temporaire exclusif propre à cet appel. */
@@ -312,6 +320,24 @@ export async function updateFinding(
       if (from.length) finding.from = from;
       else delete finding.from;
     }
+    if (patch.pathFrom !== undefined) {
+      if (!Array.isArray(patch.pathFrom)) throw invalid();
+      const pathFrom = [...new Set(patch.pathFrom)];
+      if (
+        pathFrom.length > MAX_FROM ||
+        pathFrom.some(
+          (parent) =>
+            !finding.from?.includes(parent) || !current.some((node) => node.id === parent),
+        )
+      )
+        throw invalid();
+      if (pathFrom.length) finding.pathFrom = pathFrom;
+      else delete finding.pathFrom;
+    } else if (finding.pathFrom) {
+      const pathFrom = finding.pathFrom.filter((parent) => finding.from?.includes(parent));
+      if (pathFrom.length) finding.pathFrom = pathFrom;
+      else delete finding.pathFrom;
+    }
     current[index] = finding;
     await commitFindings(path, current, options);
     return finding;
@@ -322,6 +348,38 @@ export interface DeleteFindingResult {
   removed: Finding;
   /** Ids des enfants directs dont la liste de parents a changé. */
   detachedFrom: string[];
+}
+
+/** Marquage visuel d'un seul lien, fusionné sous le même verrou que les notes de l'agent. */
+export async function setFindingPathEdge(
+  configDir: string,
+  projectId: string,
+  from: string,
+  to: string,
+  retained: boolean,
+  options: FindingMutationOptions = {},
+): Promise<void> {
+  const path = projectFindingsPath(configDir, projectId);
+  if (
+    typeof retained !== "boolean" ||
+    typeof from !== "string" ||
+    typeof to !== "string" ||
+    from === to
+  )
+    throw invalid();
+  await withFindingsLock(path, options, async () => {
+    const findings = await readFindings(configDir, projectId);
+    const index = uniqueFindingIndex(findings, to);
+    const child = findings[index];
+    if (!child?.from?.includes(from) || !findings.some((node) => node.id === from))
+      throw new CodedError("finding.notFound");
+    const selected = new Set(child.pathFrom ?? []);
+    if (retained) selected.add(from);
+    else selected.delete(from);
+    if (selected.size) child.pathFrom = [...selected];
+    else delete child.pathFrom;
+    await commitFindings(path, findings, options);
+  });
 }
 
 /** Supprime un seul nœud et ses références chez les enfants directs, sans cascade ni reconnexion. */
@@ -345,6 +403,11 @@ export async function deleteFinding(
         detachedFrom.push(finding.id);
         const child = { ...finding };
         const from = finding.from.filter((parent) => parent !== id);
+        if (child.pathFrom) {
+          const pathFrom = child.pathFrom.filter((parent) => parent !== id);
+          if (pathFrom.length) child.pathFrom = pathFrom;
+          else delete child.pathFrom;
+        }
         if (from.length) child.from = from;
         else delete child.from;
         return child;

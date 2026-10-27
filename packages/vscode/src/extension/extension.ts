@@ -44,6 +44,8 @@ import { deleteSelectedFinding } from "../logic/finding-delete.js";
 import { createJournalFiles } from "../logic/historyStore.js";
 import { chatHtml, cockpitHtml, killchainHtml, makeNonce, studioHtml } from "../logic/html.js";
 import { matchesFingerprint } from "../logic/integrity.js";
+import { setSelectedPathEdge } from "../logic/killchain-path.js";
+import { missionReport } from "../logic/mission-report.js";
 import {
   activateSelectedProject,
   createSelectedProject,
@@ -1405,6 +1407,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     });
     killchainPanel.webview.onDidReceiveMessage(async (raw: unknown) => {
       const message = parseStudioMessage(raw);
+      if (message?.type === "exportReport") {
+        await exportMissionReport(message.projectId);
+        return;
+      }
+      if (message?.type === "setPathEdge") {
+        await setPathFromPanel(panel, message);
+        return;
+      }
       if (message?.type === "deleteFinding") {
         await deleteFindingFromPanel(panel, message);
         return;
@@ -1478,6 +1488,76 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       ...(summaryError !== undefined && { summaryError }),
       ...(projectError !== undefined && { projectError }),
     });
+  };
+  const exportMissionReport = async (expectedProjectId?: string) => {
+    try {
+      const file = await readProjects(defaultConfigDir());
+      const project = file === null ? null : activeProject(file);
+      if (!project || (expectedProjectId !== undefined && expectedProjectId !== project.id))
+        throw new CodedError("project.absent");
+      const generation = findingProjectGeneration;
+      const destination = await vscode.window.showSaveDialog({
+        title: "Exporter un brouillon de rapport (identifiants et loot exclus)",
+        defaultUri: vscode.Uri.file(join(project.workspace, "rapport-warband.md")),
+        filters: { Markdown: ["md"] },
+      });
+      if (!destination) return;
+      const current = await readProjects(defaultConfigDir());
+      if (
+        generation !== findingProjectGeneration ||
+        current === null ||
+        activeProject(current)?.id !== project.id
+      )
+        throw new CodedError("project.absent");
+      const findings = await readFindings(defaultConfigDir(), project.id);
+      if (
+        vscode.workspace.textDocuments.some(
+          (document) => document.isDirty && document.uri.toString() === destination.toString(),
+        )
+      ) {
+        throw new Error(
+          "Ce fichier contient des modifications non enregistrées. Choisissez un autre nom de rapport.",
+        );
+      }
+      await vscode.workspace.fs.writeFile(
+        destination,
+        Buffer.from(missionReport(project, findings, new Date()), "utf8"),
+      );
+      await vscode.window.showTextDocument(destination);
+    } catch (error) {
+      void vscode.window.showErrorMessage(formatError(error));
+    }
+  };
+  const setPathFromPanel = async (
+    panel: vscode.WebviewPanel,
+    message: Extract<StudioMessage, { type: "setPathEdge" }>,
+  ) => {
+    const generation = findingProjectGeneration;
+    const alive = () => panel === killchainPanel || panel === studioPanel;
+    let error: string | undefined;
+    try {
+      await setSelectedPathEdge(
+        defaultConfigDir(),
+        message.projectId,
+        message.from,
+        message.to,
+        message.retained,
+        () => alive() && !projectChanging && generation === findingProjectGeneration,
+      );
+      await pushKillchain();
+      await pushStudio();
+    } catch (cause) {
+      error = cleanText(formatError(cause), 1000);
+    } finally {
+      if (alive())
+        await panel.webview.postMessage({
+          type: "pathEdgeState",
+          projectId: message.projectId,
+          from: message.from,
+          to: message.to,
+          ...(error !== undefined && { error }),
+        });
+    }
   };
   const deleteFindingFromPanel = async (
     panel: vscode.WebviewPanel,
@@ -1574,6 +1654,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     studioPanel.webview.onDidReceiveMessage(async (raw: unknown) => {
       const message = parseStudioMessage(raw);
       if (message === null) return;
+      if (message.type === "exportReport") {
+        await exportMissionReport(message.projectId);
+        return;
+      }
+      if (message.type === "setPathEdge") {
+        await setPathFromPanel(panel, message);
+        return;
+      }
       if (message.type === "deleteFinding") {
         await deleteFindingFromPanel(panel, message);
         return;
@@ -1786,6 +1874,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand("warband.openTerminal", () => void pickContainerTerminal()),
     vscode.commands.registerCommand("warband.openMonitor", () => openMonitor()),
     vscode.commands.registerCommand("warband.openKillchain", () => openKillchain()),
+    vscode.commands.registerCommand("warband.exportReport", () => exportMissionReport()),
     vscode.commands.registerCommand("warband.focusChat", () =>
       vscode.commands.executeCommand("warband.chat.focus"),
     ),

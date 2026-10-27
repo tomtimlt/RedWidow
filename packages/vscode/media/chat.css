@@ -2495,8 +2495,9 @@ body.killchain-full .studio-kc-page {
 body.killchain-full .studio-kc {
   position: relative;
   flex: 1 1 auto;
-  display: flex;
-  flex-direction: row;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: var(--jn-s3);
   width: 100%;
   max-width: none;
@@ -2504,9 +2505,10 @@ body.killchain-full .studio-kc {
   height: 100%;
 }
 body.killchain-full .kc-bar {
-  position: absolute;
-  top: var(--jn-s2);
-  left: var(--jn-s2);
+  position: relative;
+  grid-column: 1 / -1;
+  max-width: 100%;
+  padding: var(--jn-s2);
   z-index: 1;
   margin: 0;
 }
@@ -2832,6 +2834,7 @@ body.studio .studio-dl dd {
 }
 .kc-selection {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--jn-s2);
   min-width: 0;
@@ -3085,6 +3088,8 @@ body.studio .studio-dl dd {
 /* --- Panneau légende de la kill chain (repliable, à droite du viewport) --- */
 .kc-legend {
   flex: none;
+  min-width: 0;
+  max-width: min(260px, 46vw);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -3490,4 +3495,66 @@ body.mode-watch .mon-out {
 .studio-project-active p,
 .studio-nav-project p {
   margin: 0;
+}
+
+/* Le chemin retenu est une annotation explicite, distincte de l'état des nœuds. */
+.kc-edge.is-path {
+  stroke: var(--vscode-terminal-ansiGreen, var(--vscode-testing-iconPassed, #388a34));
+  stroke-width: 3;
+  opacity: 1;
+}
+.kc-tip.is-path {
+  fill: var(--vscode-terminal-ansiGreen, var(--vscode-testing-iconPassed, #388a34));
+}
+.kc-edge-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 16;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+.kc-edge-hit:focus,
+.kc-edge-hit[aria-pressed="true"] {
+  stroke: var(--jn-accent);
+  stroke-width: 5;
+  stroke-opacity: 0.5;
+  outline: none;
+}
+.kc-node.is-dimmed,
+.kc-edge.is-dimmed {
+  opacity: 0.22;
+}
+.kc-legend-body[hidden] {
+  display: none;
+}
+.kc-legend-item {
+  width: 100%;
+  text-align: left;
+  border: 1px solid transparent;
+  padding: var(--jn-s2);
+}
+.kc-legend-item[aria-pressed="true"] {
+  border-color: var(--jn-accent);
+  background: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+}
+.kc-filter-reset {
+  align-self: flex-start;
+}
+.kc-path-help {
+  max-width: 220px;
+  white-space: normal;
+}
+/* Replier libère la colonne du graphe ; seul le bouton reste dans la barre. */
+body.killchain-full .studio-kc.legend-collapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+.studio-kc.legend-collapsed .kc-legend {
+  position: absolute;
+  top: var(--jn-s2);
+  right: var(--jn-s2);
+  z-index: 2;
+}
+.studio-kc.legend-collapsed .kc-bar {
+  max-width: calc(100% - 116px);
 }

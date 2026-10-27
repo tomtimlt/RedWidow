@@ -76,6 +76,8 @@ export const DEFAULT_POLICY: Policy = {
       decision: "deny",
       reason: "suppression de conteneur : à faire à la main",
     },
+    // Annotation réversible de liens déjà existants, bornée au projet par le toolset.
+    { tool: "mcp__exegol__mark_path", decision: "allow" },
   ],
 };
 

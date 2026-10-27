@@ -376,8 +376,30 @@ function start() {
   let graphStatus = null;
   let graphBar = null;
   let selectedFinding = null;
+  let selectedEdge = null;
+  let pendingPathEdge = null;
+  let legendFilter = { kind: null, state: null };
+  let ignoreGraphClick = false;
   let pendingFindingDelete = null;
   let paintFindingSelection = () => {};
+  const clearSelection = () => {
+    selectedFinding = null;
+    selectedEdge = null;
+    paintFindingSelection();
+  };
+  main?.addEventListener("click", () => {
+    if (ignoreGraphClick) {
+      ignoreGraphClick = false;
+      return;
+    }
+    clearSelection();
+  });
+  main?.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      clearSelection();
+      event.preventDefault();
+    }
+  });
   const showGraphError = (message) => {
     if (graphStatus === null) {
       if (message === "" || main === null) return;
@@ -521,6 +543,14 @@ function start() {
     zoomIn.title = "Zoomer";
     zoomIn.append(decorative(el("span", "", "+")));
     bar.append(fit, zoomOut, zoomIn);
+    const report = el("button", "ghost kc-btn kc-report", "Exporter le brouillon");
+    report.type = "button";
+    report.title = "Rapport Markdown du projet, identifiants et loot exclus";
+    report.disabled = typeof projectId !== "string";
+    report.addEventListener("click", () => {
+      if (!report.disabled) vscode.postMessage({ type: "exportReport", projectId });
+    });
+    bar.append(report);
     const selection = el("div", "kc-selection");
     const selectedLabel = el("span", "kc-selection-label");
     const remove = el("button", "ghost kc-btn kc-delete");
@@ -534,7 +564,23 @@ function start() {
     trash.append(trashPath);
     remove.append(decorative(trash), el("span", "btn-text", "Supprimer"));
     selection.append(selectedLabel, remove);
+    selection.addEventListener("click", (event) => event.stopPropagation());
     bar.append(selection);
+    const edgeSelection = el("div", "kc-selection kc-edge-selection");
+    const edgeLabel = el("span", "kc-selection-label");
+    const mark = el("button", "ghost kc-btn kc-mark-path", "Chemin retenu");
+    mark.type = "button";
+    mark.setAttribute("aria-pressed", "false");
+    edgeSelection.append(edgeLabel, mark);
+    edgeSelection.addEventListener("click", (event) => event.stopPropagation());
+    bar.append(edgeSelection);
+    const retainedEdges = new Set();
+    for (const finding of findings ?? []) {
+      for (const parent of finding?.pathFrom ?? [])
+        retainedEdges.add(JSON.stringify([parent, finding.id]));
+    }
+    const edgeKey = (edge) => JSON.stringify([edge.from, edge.to]);
+    const edgeElements = [];
     const nodeButtons = new Map();
     paintFindingSelection = () => {
       const selected = graph.nodes.find((node) => node.id === selectedFinding);
@@ -548,11 +594,38 @@ function start() {
         ) ||
         pendingFindingDelete !== null;
       remove.setAttribute("aria-busy", String(pendingFindingDelete !== null));
+      const edge = graph.edges.find(
+        (row) => selectedEdge && row.from === selectedEdge.from && row.to === selectedEdge.to,
+      );
+      edgeSelection.hidden = !edge;
+      edgeLabel.textContent = edge
+        ? `${graph.nodes.find((n) => n.id === edge.from)?.label} → ${graph.nodes.find((n) => n.id === edge.to)?.label}`
+        : "";
+      edgeLabel.title = edgeLabel.textContent;
+      const retained = edge && retainedEdges.has(edgeKey(edge));
+      mark.textContent = retained ? "Retirer du chemin" : "Marquer le chemin";
+      mark.setAttribute("aria-pressed", String(!!retained));
+      mark.disabled = !edge || pendingPathEdge !== null || !/^[0-9a-f-]{36}$/.test(projectId ?? "");
+      mark.setAttribute("aria-busy", String(pendingPathEdge !== null));
+      for (const { edge: row, hit } of edgeElements) {
+        hit.setAttribute("aria-pressed", String(!!edge && edgeKey(row) === edgeKey(edge)));
+      }
       for (const [id, node] of nodeButtons) {
         node.setAttribute("aria-pressed", String(id === selectedFinding));
         node.classList.toggle("is-selected", id === selectedFinding);
       }
     };
+    mark.addEventListener("click", () => {
+      if (mark.disabled || !selectedEdge) return;
+      pendingPathEdge = { projectId, ...selectedEdge };
+      showGraphError("");
+      paintFindingSelection();
+      vscode.postMessage({
+        type: "setPathEdge",
+        ...pendingPathEdge,
+        retained: !retainedEdges.has(edgeKey(selectedEdge)),
+      });
+    });
     remove.addEventListener("click", () => {
       if (remove.disabled || selectedFinding === null) return;
       pendingFindingDelete = { projectId, id: selectedFinding };
@@ -564,8 +637,9 @@ function start() {
     const viewport = el("div", "kc-viewport");
     const canvas = el("div", "kc-canvas");
     const pad = KC_PAD;
-    const svg = decorative(document.createElementNS(SVG_NS, "svg"));
+    const svg = document.createElementNS(SVG_NS, "svg");
     svg.setAttribute("class", "kc-edges");
+    svg.setAttribute("aria-label", "Liens de la Kill Chain");
     svg.setAttribute("width", String(graph.width + pad * 2));
     svg.setAttribute("height", String(graph.height + pad * 2));
     const defs = document.createElementNS(SVG_NS, "defs");
@@ -582,6 +656,22 @@ function start() {
     tip.setAttribute("class", "kc-tip");
     marker.append(tip);
     defs.append(marker);
+    const retainedMarker = document.createElementNS(SVG_NS, "marker");
+    for (const [name, value] of Object.entries({
+      id: "kc-arrow-path",
+      viewBox: "0 0 10 10",
+      refX: "8",
+      refY: "5",
+      markerWidth: "6",
+      markerHeight: "6",
+      orient: "auto-start-reverse",
+    }))
+      retainedMarker.setAttribute(name, value);
+    const retainedTip = document.createElementNS(SVG_NS, "path");
+    retainedTip.setAttribute("d", "M0 0 L10 5 L0 10 z");
+    retainedTip.setAttribute("class", "kc-tip is-path");
+    retainedMarker.append(retainedTip);
+    defs.append(retainedMarker);
     svg.append(defs);
 
     const pos = new Map(graph.nodes.map((n) => [n.id, n]));
@@ -596,9 +686,35 @@ function start() {
       const dx = Math.max(32, Math.abs(x2 - x1) / 2);
       const path = document.createElementNS(SVG_NS, "path");
       path.setAttribute("d", `M${x1} ${y1} C${x1 + dx} ${y1} ${x2 - dx} ${y2} ${x2} ${y2}`);
-      path.setAttribute("class", "kc-edge");
-      path.setAttribute("marker-end", "url(#kc-arrow)");
-      svg.append(path);
+      const retained = retainedEdges.has(edgeKey(e));
+      path.setAttribute("class", `kc-edge${retained ? " is-path" : ""}`);
+      path.setAttribute("marker-end", retained ? "url(#kc-arrow-path)" : "url(#kc-arrow)");
+      path.setAttribute("aria-hidden", "true");
+      const hit = document.createElementNS(SVG_NS, "path");
+      hit.setAttribute("d", `M${x1} ${y1} C${x1 + dx} ${y1} ${x2 - dx} ${y2} ${x2} ${y2}`);
+      hit.setAttribute("class", "kc-edge-hit");
+      hit.setAttribute("role", "button");
+      hit.setAttribute("tabindex", "0");
+      hit.setAttribute(
+        "aria-label",
+        `Lien ${a.label} vers ${b.label}${retained ? ", chemin retenu" : ""}`,
+      );
+      const selectEdge = (event) => {
+        event?.stopPropagation?.();
+        selectedFinding = null;
+        selectedEdge = { from: e.from, to: e.to };
+        paintFindingSelection();
+      };
+      hit.addEventListener("pointerdown", (event) => event.stopPropagation());
+      hit.addEventListener("click", selectEdge);
+      hit.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          selectEdge(event);
+        }
+      });
+      edgeElements.push({ edge: e, path, hit });
+      svg.append(path, hit);
     }
     canvas.append(svg);
 
@@ -628,7 +744,9 @@ function start() {
         "aria-label",
         [n.label, KIND_LABEL[n.kind] || n.kind, stateLabel, n.meta].filter(Boolean).join(" · "),
       );
-      const select = () => {
+      const select = (event) => {
+        event?.stopPropagation?.();
+        selectedEdge = null;
         selectedFinding = n.id;
         paintFindingSelection();
       };
@@ -655,32 +773,87 @@ function start() {
     legendHead.append(legendToggle);
     const legendBody = el("div", "kc-legend-body");
     legendBody.id = "kc-legend-body";
+    const filterButtons = [];
+    const resetFilter = el("button", "ghost kc-filter-reset", "Tout afficher");
+    resetFilter.type = "button";
+    const paintFilter = () => {
+      const matching = new Set(
+        graph.nodes
+          .filter(
+            (node) =>
+              (!legendFilter.kind || node.kind === legendFilter.kind) &&
+              (!legendFilter.state || node.state === legendFilter.state),
+          )
+          .map((node) => node.id),
+      );
+      for (const [id, node] of nodeButtons) node.classList.toggle("is-dimmed", !matching.has(id));
+      for (const { edge, path, hit } of edgeElements) {
+        path.classList.toggle("is-dimmed", !matching.has(edge.from) || !matching.has(edge.to));
+        hit.classList.toggle("is-dimmed", !matching.has(edge.from) || !matching.has(edge.to));
+      }
+      for (const button of filterButtons)
+        button.setAttribute(
+          "aria-pressed",
+          String(legendFilter[button.dataset.filterField] === button.dataset.filterValue),
+        );
+      resetFilter.disabled = !legendFilter.kind && !legendFilter.state;
+    };
+    resetFilter.addEventListener("click", () => {
+      legendFilter = { kind: null, state: null };
+      paintFilter();
+    });
+    legendBody.append(resetFilter);
     for (const group of killchainLegend(findings)) {
       const sec = el("div", "kc-legend-group");
       sec.append(el("p", "kc-legend-title", group.label));
       const ul = el("ul", "kc-legend-list");
       for (const entry of group.entries) {
-        const li = el("li", "kc-legend-item");
+        const li = el("li", "");
+        const button = el("button", "ghost kc-legend-item");
+        button.type = "button";
+        const field = entry.kind !== undefined ? "kind" : "state";
+        const value = entry.kind ?? entry.state;
+        button.setAttribute("aria-pressed", String(legendFilter[field] === value));
+        button.title = `Mettre en évidence : ${entry.label}`;
+        button.addEventListener("click", () => {
+          legendFilter[field] = legendFilter[field] === value ? null : value;
+          clearSelection();
+          paintFilter();
+        });
         if (entry.kind !== undefined) {
           const dot = el("span", `kc-dot kind-${entry.kind}`);
           dot.append(decorative(kindIcon(entry.kind)));
-          li.append(dot);
+          button.append(dot);
         } else {
-          li.append(decorative(el("span", `studio-kc-swatch is-${entry.state}`)));
+          button.append(decorative(el("span", `studio-kc-swatch is-${entry.state}`)));
         }
-        li.append(el("span", "kc-legend-label", entry.label));
-        li.append(el("span", "kc-legend-count", String(entry.count)));
+        button.append(el("span", "kc-legend-label", entry.label));
+        button.append(el("span", "kc-legend-count", String(entry.count)));
+        button.dataset.filterField = field;
+        button.dataset.filterValue = value;
+        filterButtons.push(button);
+        li.append(button);
         ul.append(li);
       }
       sec.append(ul);
       legendBody.append(sec);
     }
+    const pathHelp = el(
+      "p",
+      "studio-help kc-path-help",
+      "Chemin retenu : liens verts marqués par l’agent ou par vous. Sélectionnez un lien pour le modifier.",
+    );
+    legendBody.append(pathHelp);
+    paintFilter();
     aside.append(legendHead, legendBody);
     const setLegendCollapsed = (collapsed) => {
       legendCollapsed = collapsed;
       aside.classList.toggle("is-collapsed", collapsed);
+      wrap.classList.toggle("legend-collapsed", collapsed);
       legendToggle.setAttribute("aria-expanded", String(!collapsed));
       legendBody.hidden = collapsed;
+      legendToggle.title = collapsed ? "Déplier la légende" : "Replier la légende";
+      legendToggle.firstChild.textContent = collapsed ? "Légende ▸" : "Légende ▾";
     };
     legendToggle.addEventListener("click", () => setLegendCollapsed(!legendCollapsed));
     if (legendCollapsed === null) {
@@ -808,12 +981,15 @@ function start() {
     let drag = null;
     viewport.addEventListener("pointerdown", (ev) => {
       if (ev.button !== 0) return;
-      drag = { x: ev.clientX - tx, y: ev.clientY - ty };
+      ignoreGraphClick = false;
+      drag = { x: ev.clientX - tx, y: ev.clientY - ty, startX: ev.clientX, startY: ev.clientY };
       viewport.setPointerCapture(ev.pointerId);
       viewport.classList.add("is-panning");
     });
     viewport.addEventListener("pointermove", (ev) => {
       if (!drag) return;
+      if (Math.abs(ev.clientX - drag.startX) + Math.abs(ev.clientY - drag.startY) > 4)
+        ignoreGraphClick = true;
       tx = ev.clientX - drag.x;
       ty = ev.clientY - drag.y;
       apply();
@@ -823,7 +999,10 @@ function start() {
       viewport.classList.remove("is-panning");
     };
     viewport.addEventListener("pointerup", endDrag);
-    viewport.addEventListener("pointercancel", endDrag);
+    viewport.addEventListener("pointercancel", () => {
+      endDrag();
+      ignoreGraphClick = false;
+    });
 
     // Ajuste à la première mesure (ResizeObserver notifie dès l'observation), puis à chaque changement
     // de taille du panneau tant que l'utilisateur n'a pas zoomé/déplacé lui-même.
@@ -866,11 +1045,21 @@ function start() {
       graphPose = null;
       graphFingerprint = null;
       selectedFinding = null;
+      selectedEdge = null;
+      pendingPathEdge = null;
+      legendFilter = { kind: null, state: null };
       pendingFindingDelete = null;
     }
     const findingExists = (id) =>
       Array.isArray(view.findings) && view.findings.some((finding) => finding?.id === id);
     if (selectedFinding !== null && !findingExists(selectedFinding)) selectedFinding = null;
+    if (
+      selectedEdge &&
+      !view.findings?.some(
+        (node) => node?.id === selectedEdge.to && node.from?.includes(selectedEdge.from),
+      )
+    )
+      selectedEdge = null;
     if (pendingFindingDelete !== null && !findingExists(pendingFindingDelete.id)) {
       pendingFindingDelete = null;
     }
@@ -1211,6 +1400,19 @@ function start() {
 
   window.addEventListener("message", (event) => {
     const msg = event.data;
+    if (msg?.type === "pathEdgeState") {
+      if (
+        !pendingPathEdge ||
+        msg.projectId !== pendingPathEdge.projectId ||
+        msg.from !== pendingPathEdge.from ||
+        msg.to !== pendingPathEdge.to
+      )
+        return;
+      pendingPathEdge = null;
+      paintFindingSelection();
+      if (typeof msg.error === "string") showGraphError(msg.error);
+      return;
+    }
     if (msg?.type === "findingDeleteState") {
       if (
         pendingFindingDelete === null ||

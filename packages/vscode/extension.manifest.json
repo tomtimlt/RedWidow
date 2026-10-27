@@ -2,7 +2,7 @@
   "name": "warband",
   "displayName": "Warband",
   "description": "Chat d'agent avec approbation des outils (warband).",
-  "version": "0.3.49",
+  "version": "0.3.50",
   "publisher": "warband",
   "license": "MIT",
   "engines": { "vscode": "^1.90.0" },
@@ -18,6 +18,10 @@
   },
   "contributes": {
     "commands": [
+      {
+        "command": "warband.exportReport",
+        "title": "Warband : Exporter un brouillon de rapport Markdown"
+      },
       { "command": "warband.launcher", "title": "Warband : lanceur", "icon": "$(rocket)" },
       {
         "command": "warband.openChat",

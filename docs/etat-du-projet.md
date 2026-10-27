@@ -1,6 +1,6 @@
 # Warband — parcours, état actuel et reprise
 
-État inspecté le 27 octobre 2026 pour la version 0.3.49. Ce document sert de point d'entrée produit ;
+État inspecté le 27 octobre 2026 pour la version 0.3.50. Ce document sert de point d'entrée produit ;
 les ADR expliquent les décisions, les idées restent une réserve.
 
 ## Le parcours de référence
@@ -15,10 +15,41 @@ parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
 
-La version du manifeste est **0.3.49**. Les paragraphes
+La version du manifeste est **0.3.50**. Les paragraphes
 0.3.19 à 0.3.29 ci-dessous sont des relevés historiques, pas les preuves de
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
+
+## Lot 0.3.50 — Kill Chain, chemin retenu et préparation des rapports (en préparation)
+
+Les liens peuvent être marqués en vert par l'agent (`mark_path`) et corrigés
+par l'utilisateur. Le champ `pathFrom` reste un sous-ensemble de `from` ; les
+états et les preuves ne sont pas changés. Le marquage persiste par projet,
+les écritures sont sérialisées avec les notes et la gate garde les refus
+explicites. Voir [ADR 0026](adr/0026-chemin-retenu-killchain.md).
+
+Clic dans le vide et Échap désélectionnent. La légende se replie et ses boutons
+Type/État atténuent les autres nœuds, avec critères combinables et remise à zéro.
+La barre d'actions a sa propre rangée pour ne plus couvrir la légende en petit
+écran. Le bouton et la commande d'export créent un brouillon Markdown local,
+sans identifiants ni loot, à reprendre dans SysReptor ou un autre rédacteur.
+Ce n'est ni un PDF final ni une archive d'import SysReptor ; aucune instance
+n'est encore installée. Les fichiers non enregistrés ne sont pas écrasés.
+
+[Étude des rapports et MCP](rapports-et-mcp.md) : SysReptor dispose de `reptor mcp`,
+Ghostwriter est une alternative DOCX. Le MCP officiel Burp 1.3.0 a été compilé
+et ses **97 tests ont réussi**, dont initialisation/listage MCP sur serveur
+réel avec API Montoya simulée. Un vrai Burp Windows et un raccordement de ses
+outils à la gate Warband restent à tester. La modularité MCP/harnais reste dans
+la feuille de route ; aucun serveur MCP arbitraire n'est branché dans ce lot.
+
+Validation : suite complète **2 013 tests réussis, 14 ignorés**, typage et build
+réussis ; après le dernier durcissement du parseur d'export, **58 tests ciblés**,
+le typage et le build repassent. **9 parcours Chromium** passent (280, 360 et
+900 px, thèmes sombre, clair et contraste élevé), avec sélection, filtres,
+repli, clavier, liens, export et absence de débordement. Captures inspectées.
+Le jeton GitHub du terminal fonctionne à nouveau sous `tomtimlt` au contrôle
+préalable. Diff relu ; publication encore en préparation.
 
 ## Lot 0.3.49 — refus de quota et attente fournisseur visibles (publié)
 

@@ -151,6 +151,23 @@ export function exegolToolSpecs(docker: DockerClient, targets: ExegolTargets): D
       },
     }),
     spec({
+      name: "mark_path",
+      description:
+        "Marque de façon autonome les liens entrants du chemin retenu dans la Kill Chain. Après list_notes, fournis l’id de la trouvaille et pathFrom : sous-ensemble de ses parents from réellement parcourus ; [] retire le marquage. Corrige ce chemin au fil des observations et en fin de mission. Annotation verte seulement : ne change ni état, ni lien, ni preuve, ni fichier de résultats. Aucun conteneur requis.",
+      input: { id: z.string().min(1), pathFrom: z.array(z.string().min(1)).max(8) },
+      async run(args, call) {
+        return JSON.stringify(
+          await updateFinding(
+            defaultConfigDir(),
+            activeProjectId(targets),
+            String(args.id),
+            { pathFrom: args.pathFrom as string[] },
+            { ...(call.signal && { signal: call.signal }) },
+          ),
+        );
+      },
+    }),
+    spec({
       name: "update_note",
       description:
         "Modifie une trouvaille du projet actif par son id (voir list_notes). Les champs omis sont conservés ; null efface tactic/technique, [] efface from. Les parents doivent être des ids connus sans cycle causal.",

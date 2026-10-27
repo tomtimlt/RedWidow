@@ -45,5 +45,7 @@ Lots pour `dev` : objectif, fichiers, critères d'acceptation vérifiables.
 
 - [0025 — Méthode commune aux agents](0025-methode-commune-agents.md) : skill permanent, état vérifié, preuves et réévaluation des branches.
 
+- [0026 — Chemin retenu de la Kill Chain](0026-chemin-retenu-killchain.md) : annotation autonome des liens existants, distincte des preuves.
+
 Le statut accepté décrit la décision ; les preuves d’exécution et les limites
 figurent dans [l’état du projet](../etat-du-projet.md).

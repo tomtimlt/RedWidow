@@ -525,9 +525,25 @@ class StudioNode {
   hidden = false;
   title = "";
   className = "";
+  dataset: Record<string, string> = {};
   styles = new Map<string, string>();
   style = { setProperty: (key: string, value: string) => this.styles.set(key, value) };
-  classList = { contains: () => false, toggle: () => {}, add: () => {}, remove: () => {} };
+  classList = {
+    contains: (name: string) => this.className.split(" ").includes(name),
+    toggle: (name: string, on?: boolean) => {
+      const set = new Set(this.className.split(" ").filter(Boolean));
+      const next = on ?? !set.has(name);
+      if (next) set.add(name);
+      else set.delete(name);
+      this.className = [...set].join(" ");
+    },
+    add: (name: string) => {
+      this.classList.toggle(name, true);
+    },
+    remove: (name: string) => {
+      this.classList.toggle(name, false);
+    },
+  };
   getBoundingClientRect() {
     return { width: 900, height: 600, left: 0, top: 0 };
   }
@@ -544,6 +560,7 @@ class StudioNode {
   attributes = new Map<string, string>();
   setAttribute(key: string, value: string) {
     this.attributes.set(key, value);
+    if (key === "class") this.className = value;
   }
   addEventListener(type: string, listener: (event: Record<string, unknown>) => void) {
     const previous = this.listeners.get(type);
@@ -995,4 +1012,75 @@ it("suppression : sélection conservée au rafraîchissement puis effacée aprè
     error: "Ancien projet",
   });
   expect(find("kc-delete").disabled).toBe(true);
+});
+
+it("graphe : clic dans le vide et Échap désélectionnent sans supprimer", () => {
+  const { main, find, receive, sent } = killchainDom();
+  receive(deleteFindingView);
+  find("kc-node").fire("click");
+  expect(find("kc-selection").hidden).toBe(false);
+  main.fire("click");
+  expect(find("kc-selection").hidden).toBe(true);
+  find("kc-node").fire("click");
+  main.fire("keydown", { key: "Escape", preventDefault: () => {} });
+  expect(find("kc-selection").hidden).toBe(true);
+  expect(sent).toEqual([{ type: "refresh" }]);
+});
+it("légende : repli réel, filtres combinés, reset et conservation au rafraîchissement", () => {
+  const { main, find, receive } = killchainDom();
+  const findings = [
+    { id: "a", kind: "host", state: "confirmed", label: "Serveur" },
+    { id: "b", kind: "loot", state: "hypothesis", label: "Butin", from: ["a"] },
+  ];
+  receive({ ...deleteFindingView, findings });
+  find("kc-legend-toggle").fire("click");
+  expect(find("kc-legend-body").hidden).toBe(true);
+  const loot = main.find((n) => n.dataset.filterValue === "loot")!;
+  loot.fire("click");
+  expect(loot.attributes.get("aria-pressed")).toBe("true");
+  expect(
+    main.find((n) => n.className.includes("kc-node") && n.className.includes("kind-host"))
+      ?.className,
+  ).toContain("is-dimmed");
+  const failed = main.find((n) => n.dataset.filterValue === "failed")!;
+  failed.fire("click");
+  expect(failed.attributes.get("aria-pressed")).toBe("true");
+  receive({
+    ...deleteFindingView,
+    findings: [...findings, { id: "c", kind: "site", state: "confirmed", label: "Site" }],
+  });
+  expect(find("kc-legend-body").hidden).toBe(true);
+  expect(main.find((n) => n.dataset.filterValue === "loot")?.attributes.get("aria-pressed")).toBe(
+    "true",
+  );
+  find("kc-filter-reset").fire("click");
+  expect(find("kc-filter-reset").disabled).toBe(true);
+});
+it("liens : sélection clavier, annotation sans optimisme, acquittement et export ciblé", () => {
+  const { find, receive, sent } = killchainDom();
+  const findings = [
+    { id: "a", kind: "host", state: "confirmed", label: "Serveur" },
+    { id: "b", kind: "step", state: "confirmed", label: "Accès", from: ["a"] },
+  ];
+  receive({ ...deleteFindingView, findings });
+  find("kc-edge-hit").fire("keydown", { key: "Enter", preventDefault: () => {} });
+  expect(find("kc-edge-selection").hidden).toBe(false);
+  find("kc-mark-path").fire("click");
+  expect(sent.at(-1)).toEqual({
+    type: "setPathEdge",
+    projectId: deleteProject,
+    from: "a",
+    to: "b",
+    retained: true,
+  });
+  expect(find("kc-mark-path").disabled).toBe(true);
+  expect(find("kc-edge").className).not.toContain("is-path");
+  receive({ ...deleteFindingView, findings: [findings[0], { ...findings[1], pathFrom: ["a"] }] });
+  receive({ type: "pathEdgeState", projectId: deleteProject, from: "a", to: "b" });
+  expect(find("kc-edge").className).toContain("is-path");
+  expect(find("kc-mark-path").disabled).toBe(false);
+  find("kc-mark-path").fire("click");
+  expect(sent.at(-1)).toMatchObject({ retained: false });
+  find("kc-report").fire("click");
+  expect(sent.at(-1)).toEqual({ type: "exportReport", projectId: deleteProject });
 });

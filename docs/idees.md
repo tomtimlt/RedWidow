@@ -113,6 +113,12 @@ accord écrit.
 
 ## Intégration SysReptor
 
+Mise à jour du 27 octobre 2026 : [étude vérifiée et essai Burp](rapports-et-mcp.md).
+La 0.3.50 fournit un brouillon Markdown local ; aucune instance SysReptor n'est
+encore configurée. `reptor mcp` propose désormais un mode lecture seule et
+plusieurs transports : les réserves historiques ci-dessous ne remplacent pas
+cette vérification actuelle. Le raccordement réseau reste à réaliser.
+
 Exegol tient déjà des trouvailles par projet (`packages/core/src/exegol/findings.ts`) ;
 SysReptor en fait un rapport de pentest. Une trouvaille warband (type,
 libellé, état) correspond plutôt à une **note** SysReptor qu'à un *finding*

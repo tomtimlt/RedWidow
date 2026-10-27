@@ -476,3 +476,22 @@ le tour avec un diagnostic ; une attente annoncée de plus d'une minute avant
 une nouvelle tentative termine aussi le tour. Il reste possible de choisir un
 autre modèle ou de réessayer ultérieurement. Les tâches longues, les approbations
 et les réponses en cours ne sont pas plafonnées par ce seuil.
+
+## Kill Chain et brouillon de rapport — 0.3.50
+
+L'agent peut marquer de façon autonome les liens du chemin retenu avec
+`list_notes`, puis `mark_path`. Les liens sont verts et persistés dans les
+trouvailles du projet ; ils ne changent pas l'état confirmé/hypothèse/échec.
+Cliquer un lien ou le sélectionner au clavier permet aussi de l'ajouter ou de
+le retirer du chemin. Un clic dans le vide ou Échap efface la sélection.
+
+La légende est repliable. Ses boutons Type et État atténuent les éléments qui
+ne correspondent pas ; les deux critères se combinent, un second clic retire
+le critère et **Tout afficher** rétablit la vue. Aucun nœud n'est supprimé.
+La barre d'actions dispose d'une rangée séparée sur les petites fenêtres.
+
+**Exporter le brouillon** ouvre un dialogue natif pour un rapport Markdown
+local, également disponible dans la palette de commandes. Identifiants et loot
+sont exclus ; les preuves, la gravité et la remédiation restent à compléter.
+Voir [rapports, SysReptor et MCP](rapports-et-mcp.md) pour la portée de cet export,
+les alternatives et les 97 tests du MCP officiel Burp effectués avec API simulée.
