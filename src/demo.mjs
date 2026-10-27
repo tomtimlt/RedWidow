@@ -19,6 +19,30 @@ const task = (id, status = "ok", count = 8) => ({
   decision: "allow",
   output: Array.from({ length: count }, (_, i) => `Étape ${i + 1} · aperçu du composant ${id}`).join("\n")
 });
+// Progression fictive de la mission, par scénario : faite, en cours, en attente ou à venir.
+const PHASES = [["recon", "Repérage"], ["analyse", "Analyse"], ["action", "Action"], ["rapport", "Rapport"]];
+const missionFor = (scenario) => {
+  const states = {
+    conversation: ["done", "done", "done", "current"],
+    running: ["done", "done", "current", "todo"],
+    approval: ["done", "done", "wait", "todo"],
+    long: ["done", "done", "done", "done"]
+  }[scenario];
+  return states ? { phases: PHASES.map(([id, label], i) => ({ id, label, state: states[i] })) } : null;
+};
+// Rapport fictif de relecture de l'interface, constats classés par gravité.
+const report = (id) => ({
+  id,
+  kind: "report",
+  title: "Rapport de relecture",
+  text: "Rapport de relecture de l'interface (données fictives).",
+  findings: [
+    { severity: "high", label: "Contraste insuffisant des libellés secondaires", detail: "Thème clair · étiquettes des tableaux" },
+    { severity: "medium", label: "Focus peu visible sur les liens du tableau", detail: "Navigation au clavier" },
+    { severity: "low", label: "Espacement irrégulier entre les cartes", detail: "Historique long" },
+    { severity: "info", label: "Palette Sentinelle lisible dans les trois thèmes", detail: "Clair, sombre, contraste élevé" }
+  ]
+});
 const agent = (id, text) => ({ id, kind: "agent", text, blocks: [{ t: "p", c: [{ t: "text", v: text }] }] });
 const graphEntries = () => [
   { id: "brief", kind: "resource", state: "complete", label: "Brief du projet", phase: "P01" },
@@ -88,6 +112,7 @@ export function createDemo({ onChange = () => {
         { t: "table", headers: [[{ t: "text", v: "Composant" }], [{ t: "text", v: "État" }]], align: ["left", "left"], rows: [[[{ t: "text", v: "Navigation" }], [{ t: "text", v: "Prête" }]], [[{ t: "text", v: "Graphe" }], [{ t: "text", v: "À relire" }]]] }
       ] }
     ];
+    if (value === "conversation") items.push(report(7));
     if (value === "running" || value === "approval") items.push(task(6, "pending", 24));
     if (value === "approval") approvals = [{ toolUseId: "task-6", tool: "demo__workbench__exec", label: "Préparer la présentation", summary: "Afficher une variante du composant", detail: "Validation simulée pour présenter la carte et ses boutons.", reason: "Scénario de démonstration : validation attendue.", canRemember: true }];
     onChange();
@@ -97,6 +122,7 @@ export function createDemo({ onChange = () => {
     return {
       conversation: `demo-${activeId}-${scenario}`,
       items: shown,
+      mission: missionFor(scenario),
       approvals,
       busy,
       sandbox: null,
