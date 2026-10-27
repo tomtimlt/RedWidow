@@ -893,6 +893,10 @@ body.waiting #thinking-label {
   color: var(--jn-warn);
 }
 body.waiting .thinking-mark .brand-wing {
+  stroke: var(--jn-warn);
+}
+body.waiting .thinking-mark .brand-lead,
+body.waiting .thinking-mark .brand-node {
   fill: var(--jn-warn);
 }
 body.waiting .thinking-dots,
@@ -2669,11 +2673,11 @@ body.automatic-on #composer {
     box-shadow: none;
   }
   .brand-wing {
-    fill: CanvasText;
+    stroke: CanvasText;
   }
   .brand-lead,
   .brand-node {
-    fill: Canvas;
+    fill: CanvasText;
   }
   .kc-ico-svg {
     stroke: CanvasText;
@@ -2719,6 +2723,12 @@ body.vscode-high-contrast-light #bar button.ghost .ico {
 }
 body.vscode-high-contrast .brand-wing,
 body.vscode-high-contrast-light .brand-wing {
+  stroke: var(--vscode-foreground);
+}
+body.vscode-high-contrast .brand-lead,
+body.vscode-high-contrast-light .brand-lead,
+body.vscode-high-contrast .brand-node,
+body.vscode-high-contrast-light .brand-node {
   fill: var(--vscode-foreground);
 }
 body.vscode-high-contrast #title,
@@ -4999,28 +5009,28 @@ body.mode-watch .mon-head .hint::before {
 
 /* ───────────────────────────── Marque ───────────────────────────── */
 
-/* Bouclier plein en couleur de signature ; étincelle et satellite en réserve,
- * de la couleur du fond qui les porte (--jn-brand-cut). */
+/* Crochets de visée en gris de marque ; étincelle et satellite en signature. */
 .brand {
-  --jn-brand-cut: var(--vscode-sideBar-background, var(--vscode-editor-background));
   overflow: visible;
 }
-.welcome-mark,
-.thinking-mark {
-  --jn-brand-cut: var(--vscode-editor-background);
-}
 .brand-wing {
-  fill: var(--jn-sig);
+  fill: none;
+  stroke: var(--jn-steel);
+  stroke-width: 2;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  transform-origin: 12px 12px;
 }
 .brand-lead,
 .brand-node {
-  fill: var(--jn-brand-cut);
+  fill: var(--jn-sig);
 }
-.brand-core {
-  transform-origin: 12px 11.35px;
-}
+.brand-core,
 .brand-orbit {
-  transform-origin: 12px 11.35px;
+  transform-origin: 12px 12px;
+}
+.welcome-mark .brand-wing {
+  stroke-width: 1.6;
 }
 body.vscode-high-contrast .kc-viewport,
 body.vscode-high-contrast-light .kc-viewport {
@@ -5140,16 +5150,21 @@ body.vscode-high-contrast-light .kc-viewport {
     &.running:not(.waiting, .paused) .brand-orbit {
       animation: jn-orbit 2.4s linear infinite;
     }
+    &.running:not(.waiting, .paused) .brand-wing {
+      animation: jn-lock 1.6s var(--jn-ease-io) infinite;
+    }
+    & #title:hover .brand-wing {
+      animation: jn-lock 0.9s var(--jn-ease-io) 1;
+    }
     & #title:hover .brand-core {
       animation: jn-spark 0.9s var(--jn-ease-io) 1;
     }
     & #title:hover .brand-orbit {
       animation: jn-orbit 0.9s var(--jn-ease-out) 1;
     }
-    /* Accueil : le bouclier apparaît, l'étincelle s'allume, le satellite se place. */
+    /* Accueil : les crochets se verrouillent, l'étincelle s'allume, le satellite se place. */
     & .welcome-mark .brand-wing {
-      transform-origin: 12px 12px;
-      animation: jn-node-in 0.45s var(--jn-ease-out) both;
+      animation: jn-lock-in 0.55s var(--jn-ease-out) both;
     }
     & .welcome-mark .brand-core {
       animation: jn-spark-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.25s both;
@@ -5215,6 +5230,25 @@ body.vscode-high-contrast-light .kc-viewport {
   }
   50% {
     opacity: 0.45;
+  }
+}
+@keyframes jn-lock {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.88);
+  }
+}
+@keyframes jn-lock-in {
+  from {
+    opacity: 0;
+    transform: scale(1.45);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }
 @keyframes jn-spark {

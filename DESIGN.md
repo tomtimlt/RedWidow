@@ -37,14 +37,15 @@ Le graphe doit rester agréable à parcourir au clavier, à la souris et au zoom
 
 ## Logo
 
-Un bouclier plein (sécurité) porte en réserve une étincelle à quatre branches
-(l’agent) et un petit satellite. Le bouclier prend la couleur de signature ;
-l’étincelle et le satellite prennent la couleur du fond (`--jn-brand-cut`).
-Pendant la réflexion, l’étincelle pulse en pivotant et le satellite orbite,
-dans l’en-tête comme dans l’indicateur de réflexion du chat. Classes
-`.brand-wing`, `.brand-core`, `.brand-lead`, `.brand-orbit`, `.brand-node` ;
-`media/logo.svg`, `logo-small.svg` et `icon.svg` (barre d’activité, découpe
-monochrome) en sont les versions fixes.
+Quatre crochets de visée anguleux (offensif, verrouillage de cible) encadrent
+une étincelle à quatre branches (l’IA) ; un satellite figure l’agent. Les
+crochets prennent le gris de marque, l’étincelle et le satellite la couleur de
+signature. Pendant la réflexion, les crochets se resserrent, l’étincelle pulse
+en pivotant et le satellite orbite, dans l’en-tête comme dans l’indicateur du
+chat ; à l’accueil, les crochets se verrouillent puis l’étincelle s’allume.
+Classes `.brand-wing` (crochets), `.brand-core`, `.brand-lead`, `.brand-orbit`,
+`.brand-node` ; `media/logo.svg`, `logo-small.svg` et `icon.svg` (barre
+d’activité, monochrome) en sont les versions fixes.
 
 ## Réflexion dans le chat
 

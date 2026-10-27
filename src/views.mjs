@@ -15,9 +15,9 @@ const icon = (name, cls = "ico") => {
   if (!ICONS.has(name)) throw new Error(`pictogramme inconnu : ${name}`);
   return `<svg class="${cls}" data-icon="${name}" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"></svg>`;
 };
-// Logo : bouclier plein (sécurité) portant en réserve une étincelle (l'agent) et
-// un satellite. Pendant la réflexion, l'étincelle pulse et le satellite orbite.
-export const BRAND_SHAPES = '<path class="brand-wing" d="M12 2.5c2.6 1.4 5.3 2.2 8 2.4v6.3c0 5-3.4 8.9-8 10.4-4.6-1.5-8-5.4-8-10.4V4.9c2.7-.2 5.4-1 8-2.4z"/><g class="brand-core"><path class="brand-lead" d="M12 6.6c.55 2.75 2 4.2 4.75 4.75-2.75.55-4.2 2-4.75 4.75-.55-2.75-2-4.2-4.75-4.75 2.75-.55 4.2-2 4.75-4.75z"/></g><g class="brand-orbit"><circle class="brand-node" cx="16.7" cy="7.2" r="1.15"/></g>';
+// Logo : crochets de visée (offensif) verrouillés sur une étincelle (l'IA), avec un
+// satellite (l'agent). Pendant la réflexion : verrouillage, pulsation, orbite.
+export const BRAND_SHAPES = '<path class="brand-wing" d="M3 8.5V3h5.5M15.5 3H21v5.5M21 15.5V21h-5.5M8.5 21H3v-5.5"/><g class="brand-core"><path class="brand-lead" d="M12 5c.8 3.9 3.1 6.2 7 7-3.9.8-6.2 3.1-7 7-.8-3.9-3.1-6.2-7-7 3.9-.8 6.2-3.1 7-7z"/></g><g class="brand-orbit"><circle class="brand-node" cx="17.4" cy="6.6" r="1.3"/></g>';
 const BRAND = `<svg class="brand" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">${BRAND_SHAPES}</svg>`;
 export function chatHtml({ nonce, cspSource, scriptUri, uiUri, styleUri, iconsUri = scriptUri.replace(/[^/]+$/, "icons.js"), palette }) {
   for (const [name, value] of Object.entries({
