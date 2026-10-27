@@ -26,7 +26,12 @@ interface UiApi {
     v: { busy: boolean; approvals: unknown[]; readonly: unknown },
     e: { hidden: boolean; reducedMotion: boolean },
   ): string[];
-  activityLabel(v: { busy: boolean; approvals: unknown[]; items: unknown[] }): string;
+  activityLabel(v: {
+    busy: boolean;
+    approvals: unknown[];
+    items: unknown[];
+    retry?: { attempt: number; delayMs: number };
+  }): string;
   EXEC_TOOL: string;
   toolIcon(tool: unknown): string;
   historyBadge(entry: { current: boolean }, running: boolean): string | null;
@@ -605,4 +610,15 @@ describe("icônes des familles d’outils", () => {
     expect(ui.toolIcon("inconnu")).toBe("tool");
     expect(ui.toolIcon(null)).toBe("tool");
   });
+});
+
+it("distingue l’attente du fournisseur de la réflexion", () => {
+  expect(
+    ui.activityLabel({
+      busy: true,
+      approvals: [],
+      items: [],
+      retry: { attempt: 1, delayMs: 5000 },
+    }),
+  ).toContain("Fournisseur indisponible");
 });

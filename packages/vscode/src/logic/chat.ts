@@ -105,6 +105,8 @@ export interface ReadonlyInfo {
 
 /** Ce que la webview affiche : uniquement des chaînes déjà neutralisées, jamais de HTML. */
 export interface ChatView {
+  /** Attente annoncée par le fournisseur, distincte de la réflexion du modèle. */
+  retry?: { attempt: number; delayMs: number };
   items: ChatItem[];
   approvals: ApprovalCard[];
   /** Un tour est en cours (saisie bloquée, bouton Stop actif). */
@@ -127,6 +129,7 @@ export function createChatState() {
   const items: ChatItem[] = [];
   const approvals = new Map<string, ApprovalCard>();
   let busy = false;
+  let retry: { attempt: number; delayMs: number } | undefined;
   let sandbox: string | null = null;
   let sandboxNetwork: "none" | "bridge" | null = null;
   let controls: ChatControls | null = null;
@@ -157,6 +160,7 @@ export function createChatState() {
     },
     setBusy(value: boolean) {
       busy = value;
+      retry = undefined;
     },
     setControls(value: ChatControls) {
       controls = value;
@@ -190,6 +194,7 @@ export function createChatState() {
     notice,
     error: (error: unknown) => notice(formatError(error), "error"),
     clear() {
+      retry = undefined;
       items.length = 0;
       approvals.clear();
       execTools.clear();
@@ -201,13 +206,24 @@ export function createChatState() {
     /** Traduit un événement du moteur en éléments de vue. */
     event(e: EngineEvent) {
       switch (e.kind) {
+        case "api.retry":
+          retry = { attempt: e.attempt, delayMs: e.delayMs };
+          notice(
+            `Fournisseur temporairement indisponible${e.errorStatus === null ? "" : ` (HTTP ${e.errorStatus})`}. Nouvelle tentative dans ${Math.ceil(e.delayMs / 1000)} s.`,
+          );
+          return;
+        case "agent.thinking":
+          retry = undefined;
+          return;
         case "agent.text":
+          retry = undefined;
           if (e.text.trim() !== "") {
             const text = cleanText(e.text, 100_000);
             push({ kind: "agent", text, blocks: parseMarkdown(text) });
           }
           return;
         case "tool.requested":
+          retry = undefined;
           push({
             kind: "tool",
             toolUseId: e.toolUseId,
@@ -263,10 +279,13 @@ export function createChatState() {
           t.truncated = display.truncated;
           return;
         }
+        case "run.finished":
         case "turn.finished":
+          retry = undefined;
           busy = false;
           return;
         case "error":
+          retry = undefined;
           notice(formatError(e), "error");
           return;
         case "sandbox.started":
@@ -281,6 +300,7 @@ export function createChatState() {
     view(): ChatView {
       return {
         items: [...items],
+        ...(retry && { retry }),
         approvals: readonly ? [] : [...approvals.values()],
         busy,
         sandbox,

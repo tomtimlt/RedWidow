@@ -811,3 +811,34 @@ describe("outils docker par serveur MCP HTTP", () => {
     ]);
   });
 });
+
+it.each([
+  { message: "Free usage exceeded, subscribe to Go", delayMs: 0, name: "QuotaExceeded" },
+  { message: "Free usage exceeded, subscribe to Go", delayMs: 43_000_000, name: "QuotaExceeded" },
+  { message: "surcharge", delayMs: 120_000, name: "RetryDelayed" },
+])(
+  "termine sans attendre idle un retry terminal : $name, $delayMs",
+  async ({ message, delayMs, name }) => {
+    const fake = fakeOpencode([
+      (s) => {
+        begin(s);
+        // Même tentative d'abord annoncée sans délai, puis précisée par session.status.
+        s.emit("session.status", {
+          sessionID: SESSION,
+          status: { type: "retry", attempt: 1, message: "surcharge", next: Date.now() },
+        });
+        s.emit("session.status", {
+          sessionID: SESSION,
+          status: { type: "retry", attempt: 1, message, next: Date.now() + delayMs },
+        });
+        // Aucun session.idle : l'adaptateur doit débloquer le tour lui-même.
+      },
+    ]);
+    const h = harness();
+    const summary = await h.run(createOpencodeRunner({ createClient: fake.createClient }));
+    expect(summary).toMatchObject({ status: "error", turns: 1 });
+    expect(of(h.events, "error")).toMatchObject([{ code: "provider.error", params: { name } }]);
+    expect(of(h.events, "turn.finished")).toHaveLength(1);
+    expect(fake.closed()).toBe(true);
+  },
+);

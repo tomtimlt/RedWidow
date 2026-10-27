@@ -1,6 +1,6 @@
 # Warband — parcours, état actuel et reprise
 
-État inspecté le 27 octobre 2026 pour la version 0.3.48. Ce document sert de point d'entrée produit ;
+État inspecté le 27 octobre 2026 pour la version 0.3.49. Ce document sert de point d'entrée produit ;
 les ADR expliquent les décisions, les idées restent une réserve.
 
 ## Le parcours de référence
@@ -15,10 +15,39 @@ parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
 
-La version du manifeste est **0.3.48**. Les paragraphes
+La version du manifeste est **0.3.49**. Les paragraphes
 0.3.19 à 0.3.29 ci-dessous sont des relevés historiques, pas les preuves de
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
+
+## Lot 0.3.49 — refus de quota et attente fournisseur visibles (en préparation)
+
+Test réel autorisé avec la clé de l'environnement cloud, le binaire embarqué,
+l'isolation activée et le modèle gratuit découvert au runtime
+`opencode/deepseek-v4.1-flash-free`. Sur « hey », Zen renvoie « Free usage
+exceeded, subscribe to Go » après environ 3 secondes ; OpenCode annonce une
+nouvelle tentative dans 42 994 999 ms (environ 12 heures). Le chat ignorait
+`api.retry` et continuait à afficher « Réflexion ». Le test initial a été
+interrompu par son signal à 90 secondes, sans réponse et sans coût annoncé.
+
+Le refus de quota connu termine maintenant le tour avec un diagnostic français.
+Un retry annoncé à plus de 60 secondes termine aussi le tour en erreur explicite.
+Ce seuil vise seulement le délai d'une nouvelle tentative, pas la durée d'une
+réponse en cours, d'une tâche ou d'une approbation. Les retries courts restent
+possibles et le chat affiche leur diagnostic avec un indicateur fournisseur,
+effacé à la reprise de la réponse ou à la fin du tour.
+
+Un second essai réel obtient le même refus et termine en **4,3 secondes**,
+avec `QuotaExceeded`, sans nouvelle tentative ni réponse inventée. Le quota du
+PC Windows n'est pas directement observé : cette cause cloud doit être confirmée
+sur ce poste par le nouveau diagnostic. Aucun appel payant ni changement de clé,
+de permissions ou de TLS. Aucun secret ajouté aux fichiers ou au dépôt.
+Validation : **2 001 tests réussis, 14 ignorés**, typage et build réussis.
+Après sécurisation du libellé des retries courts (statut et délai uniquement,
+sans message brut fournisseur), les 78 tests ciblés, le typage et le build
+repassent. Le jeton GitHub du terminal répond 401 ; les connexions GitHub de
+l'application et Composio sont confirmées sous `tomtimlt` pour la livraison.
+Diff relu ; publication en préparation.
 
 ## Lot 0.3.48 — configuration OpenCode isolée (publié)
 

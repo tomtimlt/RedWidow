@@ -793,6 +793,27 @@ async function runWithOpencode(
   };
 
   const onRetry = (attempt: number, message: string, delayMs: number, status?: unknown) => {
+    // Un refus de quota connu n'est pas une réflexion. Ne pas attendre des heures
+    // un retry annoncé, ni interrompre un modèle qui produit encore sa réponse.
+    const quota = /^Free usage exceeded(?:, subscribe to Go)?[.!]?$/i.test(message.trim());
+    if (turn && (quota || delayMs > 60_000)) {
+      const key = "terminal-provider-retry";
+      if (!reportedErrors.has(key)) {
+        reportedErrors.add(key);
+        fail(
+          reason("provider.error", {
+            name: quota ? "QuotaExceeded" : "RetryDelayed",
+            message: quota
+              ? "Le quota gratuit OpenCode Zen est épuisé. Choisissez un autre modèle disponible ou réessayez après le renouvellement du quota."
+              : `Le fournisseur annonce une nouvelle tentative dans ${Math.ceil(delayMs / 1000)} secondes. L’attente automatique est arrêtée ; réessayez plus tard ou choisissez un autre modèle.`,
+          }),
+        );
+      }
+      turn.started = true;
+      turn.failed = true;
+      turn.done();
+      return;
+    }
     if (retries.has(attempt)) return;
     retries.add(attempt);
     recorder.emit(
@@ -1064,6 +1085,7 @@ async function runWithOpencode(
       });
       turn = { started: false, failed: false, text: null, done: finish };
       retries.clear();
+      reportedErrors.delete("terminal-provider-retry");
       const body: PromptBody = {
         text,
         model,

@@ -467,3 +467,12 @@ personnalisés de la configuration globale ne sont pas importés. Les connexions
 magasin d'authentification (dont Zen) restent accessibles ; aucun fichier personnel
 n'est modifié. Les permissions imposées par Warband restent vérifiées. Les
 fournisseurs intégrés connectés restent découverts au runtime.
+
+## Attente fournisseur — 0.3.49
+
+Une nouvelle tentative annoncée par le fournisseur est affichée dans le chat,
+avec un indicateur distinct de « Réflexion ». Un quota gratuit Zen épuisé termine
+le tour avec un diagnostic ; une attente annoncée de plus d'une minute avant
+une nouvelle tentative termine aussi le tour. Il reste possible de choisir un
+autre modèle ou de réessayer ultérieurement. Les tâches longues, les approbations
+et les réponses en cours ne sont pas plafonnées par ce seuil.

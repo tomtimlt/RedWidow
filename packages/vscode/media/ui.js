@@ -229,6 +229,7 @@
   function activityLabel(view) {
     if (!view.busy) return "";
     if (view.approvals.length > 0) return "En attente de votre accord";
+    if (view.retry) return "Fournisseur indisponible · nouvelle tentative en attente";
     for (let i = view.items.length - 1; i >= 0; i--) {
       const it = view.items[i];
       if (it.kind === "tool" && it.status === "pending") return `Outil : ${it.label}`;

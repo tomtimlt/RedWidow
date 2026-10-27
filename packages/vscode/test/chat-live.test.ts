@@ -107,3 +107,39 @@ describe("sortie d'exec en direct", () => {
     expect(tool?.kind === "tool" ? tool.output : "nope").toBeUndefined();
   });
 });
+
+it("affiche l'attente fournisseur puis l'efface quand la réponse reprend", () => {
+  const state = createChatState();
+  state.setBusy(true);
+  state.event(
+    ev({
+      kind: "api.retry",
+      attempt: 2,
+      maxRetries: 0,
+      delayMs: 5000,
+      errorStatus: 429,
+      error: "oc_sk_test-secret",
+    }),
+  );
+  expect(state.view().retry).toEqual({ attempt: 2, delayMs: 5000 });
+  expect(JSON.stringify(state.view())).not.toContain("oc_sk_test-secret");
+  expect(state.view().items.at(-1)).toMatchObject({
+    kind: "notice",
+    text: expect.stringContaining("5 s"),
+  });
+  state.event(ev({ kind: "agent.text", text: "Bonjour" }));
+  expect(state.view().retry).toBeUndefined();
+  state.event(
+    ev({
+      kind: "api.retry",
+      attempt: 3,
+      maxRetries: 0,
+      delayMs: 5000,
+      errorStatus: null,
+      error: "surcharge",
+    }),
+  );
+  state.event(ev({ kind: "run.finished", status: "error", turns: 0, costUsd: 0, result: null }));
+  expect(state.view().retry).toBeUndefined();
+  expect(state.view().busy).toBe(false);
+});
