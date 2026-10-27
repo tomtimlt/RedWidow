@@ -170,8 +170,69 @@
     row.append(body, copyButton(text));
     return row;
   }
+  // Rapport : constats classés par gravité, avec une barre de répartition.
+  const SEVERITY = [
+    ["critical", "Critique"],
+    ["high", "Élevée"],
+    ["medium", "Moyenne"],
+    ["low", "Faible"],
+    ["info", "Info"]
+  ];
+  function renderReport(item) {
+    const findings = Array.isArray(item.findings) ? item.findings : [];
+    const box = el("section", "report");
+    box.setAttribute("aria-label", item.title || "Rapport");
+    const head = el("div", "report-head");
+    head.append(svg("file", "ico report-ico"), el("h3", "report-title", item.title || "Rapport"));
+    head.append(el("span", "report-count", `${findings.length} constat${findings.length > 1 ? "s" : ""}`));
+    const bar = el("div", "report-bar");
+    bar.setAttribute("aria-hidden", "true");
+    const summary = el("p", "report-summary");
+    const parts = [];
+    for (const [key, label] of SEVERITY) {
+      const count = findings.filter((f) => f.severity === key).length;
+      if (!count) continue;
+      const seg = el("span", `report-seg sev-${key}`);
+      seg.style.setProperty("flex-grow", String(count));
+      bar.append(seg);
+      parts.push(`${count} ${label.toLowerCase()}`);
+    }
+    summary.textContent = parts.join(" · ");
+    const list = el("ul", "report-list");
+    for (const f of findings) {
+      const known = SEVERITY.find(([key]) => key === f.severity) ?? SEVERITY[4];
+      const li = el("li", `report-item sev-${known[0]}`);
+      li.append(el("span", "report-sev", known[1]));
+      const body = el("div", "report-body");
+      body.append(el("span", "report-label", f.label ?? ""));
+      if (f.detail) body.append(el("span", "report-detail", f.detail));
+      li.append(body);
+      list.append(li);
+    }
+    box.append(head, bar, summary, list);
+    return box;
+  }
+  // Progression de la mission : rail de phases sous l'en-tête.
+  function paintMission(mission) {
+    const nav = $("mission");
+    const phases = Array.isArray(mission?.phases) ? mission.phases : [];
+    nav.hidden = phases.length === 0;
+    const STATE = { done: "terminée", current: "en cours", wait: "en attente d'accord", todo: "à venir" };
+    $("mission-steps").replaceChildren(
+      ...phases.map((phase, i) => {
+        const li = el("li", `mission-step is-${phase.state}`);
+        if (phase.state === "current" || phase.state === "wait") li.setAttribute("aria-current", "step");
+        const mark = el("span", "mission-mark");
+        mark.setAttribute("aria-hidden", "true");
+        if (phase.state === "done") mark.append(svg("check", "ico"));
+        else mark.textContent = String(i + 1);
+        li.append(mark, el("span", "mission-label", phase.label), el("span", "sr-only", ` : ${STATE[phase.state] ?? phase.state}`));
+        return li;
+      })
+    );
+  }
   const itemNodes = /* @__PURE__ */ new Map();
-  const sameDisplay = (a, b) => a && Object.keys(a).length === Object.keys(b).length && Object.keys(b).every((key) => key === "blocks" || a[key] === b[key]);
+  const sameDisplay = (a, b) => a && Object.keys(a).length === Object.keys(b).length && Object.keys(b).every((key) => key === "blocks" || key === "findings" || a[key] === b[key]);
   function renderItem(item) {
     const cached = itemNodes.get(item.id);
     if (sameDisplay(cached?.item, item)) {
@@ -181,6 +242,7 @@
     const reference = { item, node: null };
     let node;
     if (item.kind === "tool") node = renderTool(item, reference);
+    else if (item.kind === "report") node = renderReport(item);
     else if (item.kind === "user")
       node = messageShell("user", item.text, el("div", "msg user", item.text));
     else if (item.kind === "agent") {
@@ -1258,6 +1320,7 @@
   }
   let pageBefore = null;
   function render(view) {
+    paintMission(view.mission);
     const nextBefore = view.paging?.before ?? null;
     const pageChanged = nextBefore !== pageBefore;
     pageBefore = nextBefore;

@@ -124,6 +124,19 @@ ton pour les thèmes sombres et un ton plus foncé pour les thèmes clairs.
   liens allumés, reste du graphe atténué, étape annoncée), « Arrêter »
   l’interrompt.
 
+## Progression de la mission et rapport
+
+- **Rail de progression** sous l’en-tête du chat : Repérage, Analyse, Action,
+  Rapport. Phase faite cochée en signature, phase en cours teintée (orange en
+  attente d’accord), `aria-current="step"` et état écrit pour les lecteurs
+  d’écran. Sous 420 px, seules les marques restent, sauf la phase en cours.
+- **Rapport** : carte alignée sur les réponses, barre de répartition, résumé
+  chiffré et constats avec pastille de gravité écrite.
+- **Gravité** : échelle `--jn-sev-critical` à `--jn-sev-info` construite sur
+  les couleurs d’état du thème ; le libellé porte toujours le sens.
+
+Données de démonstration : `mission` et l’élément `report` dans `src/demo.mjs`.
+
 ## Pictogrammes et mouvement
 
 `media/icons.js` est la source unique des tracés : les pages HTML ne contiennent

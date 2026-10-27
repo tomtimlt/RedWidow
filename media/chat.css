@@ -5364,6 +5364,257 @@ body.vscode-high-contrast-light .mon-tick {
   }
 }
 
+/* ───────────────────────────── Gravité ─────────────────────────────
+ * Échelle à cinq niveaux, construite sur les couleurs d'état du thème. Le
+ * libellé écrit porte toujours le sens ; la couleur ne fait que le renforcer.
+ */
+body {
+  --jn-sev-critical: var(--jn-err);
+  --jn-sev-high: color-mix(in srgb, var(--jn-err) 55%, var(--jn-warn));
+  --jn-sev-medium: var(--jn-warn);
+  --jn-sev-low: var(--vscode-editorInfo-foreground, var(--jn-accent));
+  --jn-sev-info: var(--jn-faint);
+}
+.sev-critical { --jn-sev: var(--jn-sev-critical); }
+.sev-high { --jn-sev: var(--jn-sev-high); }
+.sev-medium { --jn-sev: var(--jn-sev-medium); }
+.sev-low { --jn-sev: var(--jn-sev-low); }
+.sev-info { --jn-sev: var(--jn-sev-info); }
+
+/* ───────────────────────────── Progression de la mission ───────────────────────────── */
+
+#mission {
+  flex: none;
+  margin-top: var(--jn-s2);
+}
+#mission-steps {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-pill);
+  background: var(--jn-raise);
+  overflow-x: auto;
+}
+.mission-step {
+  position: relative;
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: var(--jn-r-pill);
+  color: var(--jn-muted);
+  font-size: var(--jn-fs-xs);
+  font-weight: 550;
+  white-space: nowrap;
+}
+.mission-step + .mission-step::before {
+  content: "";
+  position: absolute;
+  left: -6px;
+  width: 12px;
+  height: 1px;
+  background: var(--jn-line-strong);
+}
+.mission-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--jn-line-strong);
+  border-radius: 50%;
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-2xs);
+  font-weight: 700;
+}
+.mission-mark .ico {
+  width: 11px;
+  height: 11px;
+}
+.mission-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mission-step.is-done {
+  color: var(--vscode-foreground);
+}
+.mission-step.is-done .mission-mark {
+  border-color: transparent;
+  background: var(--jn-sig);
+  color: var(--vscode-editor-background);
+}
+.mission-step.is-current,
+.mission-step.is-wait {
+  background: var(--jn-sig-tint);
+  color: var(--vscode-foreground);
+  font-weight: 650;
+}
+.mission-step.is-current .mission-mark {
+  border-color: var(--jn-sig);
+  color: var(--jn-sig);
+}
+.mission-step.is-wait {
+  background: color-mix(in srgb, var(--jn-warn) 14%, transparent);
+}
+.mission-step.is-wait .mission-mark {
+  border-color: var(--jn-warn);
+  color: var(--jn-warn);
+}
+body.mode-monitor #mission,
+body.mode-watch #mission {
+  display: none;
+}
+@container app (max-width: 419px) {
+  .mission-step:not(.is-current, .is-wait) .mission-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .mission-step {
+    flex: 0 1 auto;
+    padding: 0 6px;
+  }
+  .mission-step.is-current,
+  .mission-step.is-wait {
+    flex: 1 1 auto;
+  }
+}
+@container app (min-width: 600px) {
+  #mission {
+    width: min(760px, calc(100% - 2 * var(--jn-gutter)));
+    margin-inline: auto;
+  }
+}
+
+/* ───────────────────────────── Rapport ───────────────────────────── */
+
+#log > .report {
+  margin-left: var(--jn-indent);
+}
+.report {
+  padding: 14px 16px 12px;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+  background: var(--jn-widget);
+}
+.report-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.report-ico {
+  color: var(--jn-sig);
+}
+.report-title {
+  margin: 0;
+  font-size: var(--jn-fs);
+  font-weight: 650;
+}
+.report-count {
+  margin-left: auto;
+  padding: 2px 9px;
+  border-radius: var(--jn-r-pill);
+  background: var(--jn-raise-2);
+  color: var(--jn-muted);
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-2xs);
+}
+.report-bar {
+  display: flex;
+  gap: 2px;
+  height: 6px;
+  margin-top: 12px;
+  overflow: hidden;
+  border-radius: var(--jn-r-pill);
+}
+.report-seg {
+  flex: 1 1 0;
+  min-width: 6px;
+  background: var(--jn-sev);
+}
+.report-summary {
+  margin: 6px 0 10px;
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-2xs);
+  color: var(--jn-muted);
+}
+.report-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--jn-line);
+}
+.report-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--jn-line);
+}
+.report-item:last-child {
+  border-bottom: 0;
+}
+.report-sev {
+  flex: none;
+  min-width: 64px;
+  padding: 2px 8px;
+  border-radius: var(--jn-r-pill);
+  background: color-mix(in srgb, var(--jn-sev) 16%, transparent);
+  color: var(--jn-sev);
+  font-size: var(--jn-fs-2xs);
+  font-weight: 700;
+  text-align: center;
+}
+.sev-info .report-sev {
+  color: var(--jn-muted);
+}
+.report-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.report-label {
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+.report-detail {
+  font-size: var(--jn-fs-xs);
+  color: var(--jn-muted);
+}
+body.vscode-high-contrast .report-sev,
+body.vscode-high-contrast-light .report-sev {
+  border: 1px solid currentColor;
+  color: var(--vscode-foreground);
+}
+body.vscode-high-contrast .report-seg,
+body.vscode-high-contrast-light .report-seg {
+  background: var(--vscode-foreground);
+}
+@container app (max-width: 359px) {
+  .report {
+    padding: 12px;
+  }
+  .report-item {
+    flex-direction: column;
+    gap: 4px;
+  }
+}
+
 /* ───────────────────────────── Validation armée ───────────────────────────── */
 
 .card[data-risk="high"] {
@@ -5549,6 +5800,13 @@ body.vscode-high-contrast-light .card-level {
       stroke-dasharray: none;
       animation: none;
     }
+    & .mission-step.is-current .mission-mark {
+      animation: jn-live 1.8s var(--jn-ease-io) infinite;
+    }
+    & .report-seg {
+      transform-origin: left center;
+      animation: jn-grow 0.6s var(--jn-ease-out) both;
+    }
     & .mon-row.is-flash {
       animation: jn-flash 1s var(--jn-ease-out) 1;
     }
@@ -5713,6 +5971,14 @@ body.vscode-high-contrast-light .card-level {
   }
   50% {
     transform: scale(0.95);
+  }
+}
+@keyframes jn-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: none;
   }
 }
 @keyframes jn-march {
