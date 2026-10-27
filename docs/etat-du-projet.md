@@ -20,7 +20,7 @@ La version du manifeste est **0.3.52**. Les paragraphes
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
 
-## Lot 0.3.52 — image complète et archives par pages (préparation)
+## Lot 0.3.52 — image complète et archives par pages (publié)
 
 **Exporter l’image** et la commande `warband.exportKillchain` produisent un SVG
 complet, avec noms entiers sur plusieurs lignes, tous les types et états et le
@@ -62,8 +62,14 @@ tous les liens et aucun texte hors cadre). Diff relu. Un test de processus a
 échoué sous concurrence Chromium avant réception du PID attendu (NaN) ; la
 suite complète exécutée seule passe sans modification de ses assertions.
 
-Publication en cours. Les confirmations Windows déjà ouvertes (autorités HTTPS
-et restauration du dossier) restent distinctes.
+Le commit **b1abd63**, sous `tomtimlt`, est poussé sur `main` et marqué
+**v0.3.52**. Le [workflow 40552923476](https://github.com/tomtimlt/warband/actions/runs/40552923476)
+a réussi : contrôles, build et packaging Linux/Windows. Les quatre assets de la
+[release 0.3.52](https://github.com/tomtimlt/warband/releases/tag/v0.3.52) ont été
+téléchargés et vérifiés : deux VSIX et leurs fichiers SHA-256, empreintes
+conformes aux digests GitHub, ZIP intègres, manifeste 0.3.52 et présence du
+lecteur paginé, de l’export SVG et des scripts finaux. Les confirmations Windows
+déjà ouvertes (autorités HTTPS et restauration du dossier) restent distinctes.
 
 ## Lot 0.3.51 — icône de suivi du bas (publié)
 
