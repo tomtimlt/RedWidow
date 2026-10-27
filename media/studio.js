@@ -479,6 +479,16 @@ function start() {
         retainedEdges.add(JSON.stringify([parent, entry.id]));
     }
     const edgeKey = (edge) => JSON.stringify([edge.from, edge.to]);
+    // Rejouer : parcourt le chemin retenu nœud par nœud, crochets verrouillés.
+    const replay = el("button", "ghost kc-btn kc-replay");
+    replay.type = "button";
+    replay.title = "Rejouer le chemin retenu, étape par étape";
+    replay.setAttribute("aria-pressed", "false");
+    replay.append(window.WarbandIcons.create("play"), el("span", "btn-text", "Rejouer"));
+    image.after(replay);
+    const replayStatus = el("span", "kc-replay-status");
+    replayStatus.setAttribute("role", "status");
+    replay.after(replayStatus);
     const edgeElements = [];
     const nodeButtons = /* @__PURE__ */ new Map();
     paintEntrySelection = () => {
@@ -650,6 +660,56 @@ function start() {
       canvas.append(node);
     }
     paintEntrySelection();
+    const replayOrder = [...new Set([...retainedEdges].flatMap((key) => JSON.parse(key)))]
+      .map((id) => graph.nodes.find((node) => node.id === id))
+      .filter(Boolean)
+      .sort((a, b) => a.x - b.x || a.y - b.y);
+    replay.disabled = replayOrder.length === 0;
+    let replayTimer = 0;
+    const stopReplay = () => {
+      clearTimeout(replayTimer);
+      replayTimer = 0;
+      for (const node of nodeButtons.values()) node.classList.remove("is-replay", "is-visited");
+      for (const { path } of edgeElements) path.classList.remove("is-lit");
+      viewport.classList.remove("is-replaying");
+      replay.setAttribute("aria-pressed", "false");
+      replay.firstChild.replaceWith(window.WarbandIcons.create("play"));
+      replay.lastChild.textContent = "Rejouer";
+    };
+    const replayStep = (index) => {
+      if (!replay.isConnected) return stopReplay();
+      if (index >= replayOrder.length) {
+        replayStatus.textContent = "Chemin rejoué.";
+        replayTimer = setTimeout(() => {
+          stopReplay();
+          replayStatus.textContent = "";
+        }, 1400);
+        return;
+      }
+      const current = replayOrder[index];
+      for (const node of nodeButtons.values()) node.classList.remove("is-replay");
+      nodeButtons.get(current.id)?.classList.add("is-replay", "is-visited");
+      const visited = new Set(replayOrder.slice(0, index + 1).map((node) => node.id));
+      for (const { edge, path } of edgeElements)
+        path.classList.toggle("is-lit", retainedEdges.has(edgeKey(edge)) && visited.has(edge.from) && visited.has(edge.to));
+      replayStatus.textContent = `Étape ${index + 1}/${replayOrder.length} : ${current.label}`;
+      replayTimer = setTimeout(() => replayStep(index + 1), 700);
+    };
+    replay.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (replayTimer) {
+        stopReplay();
+        replayStatus.textContent = "Rejeu interrompu.";
+        return;
+      }
+      stopReplay();
+      clearSelection();
+      viewport.classList.add("is-replaying");
+      replay.setAttribute("aria-pressed", "true");
+      replay.firstChild.replaceWith(window.WarbandIcons.create("stop"));
+      replay.lastChild.textContent = "Arrêter";
+      replayStep(0);
+    });
     viewport.append(canvas);
     const aside = el("aside", "kc-legend");
     const legendHead = el("div", "kc-legend-head");

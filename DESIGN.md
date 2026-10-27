@@ -108,6 +108,20 @@ ton pour les thèmes sombres et un ton plus foncé pour les thèmes clairs.
   actifs, lignes d’espace avec pastille et état en pilule. Sous 640 px, les
   tuiles deviennent des lignes compactes.
 
+## Monitor tactique et chemin d’attaque
+
+- **Frise** sous l’en-tête du Monitor : un trait par commande, coloré par son
+  état ; un clic amène l’entrée juste sous l’en-tête et la fait briller.
+- **Horloge de mission** (T+mm:ss) pendant l’activité, dans le Monitor et dans
+  l’indicateur de réflexion (masquée aux lecteurs d’écran pour ne pas
+  annoncer chaque seconde).
+- **Sorties numérotées** : une ligne par élément texte, numéros non
+  sélectionnables, retrait suspendu pour les lignes longues.
+- **Chemin d’attaque** : les liens du chemin retenu défilent en pointillés vers
+  la cible ; « Rejouer » parcourt le chemin nœud par nœud (crochets verrouillés,
+  liens allumés, reste du graphe atténué, étape annoncée), « Arrêter »
+  l’interrompt.
+
 ## Pictogrammes et mouvement
 
 `media/icons.js` est la source unique des tracés : les pages HTML ne contiennent

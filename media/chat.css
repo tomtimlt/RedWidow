@@ -5079,6 +5079,7 @@ body.vscode-high-contrast-light .kc-viewport {
  * focus clavier reste affiché en plus.
  */
 .kc-node.is-selected .kc-node-head::after,
+.kc-node.is-replay .kc-node-head::after,
 #approvals .card:not(.is-locked, .is-denied)::after,
 .hist.current::after,
 .studio-project-active::after,
@@ -5101,7 +5102,8 @@ body.vscode-high-contrast-light .kc-viewport {
     linear-gradient(var(--jn-lock-c) 0 0) bottom right / var(--jn-lock-w) var(--jn-lock-l);
   background-repeat: no-repeat;
 }
-.kc-node.is-selected .kc-node-head::after {
+.kc-node.is-selected .kc-node-head::after,
+.kc-node.is-replay .kc-node-head::after {
   --jn-lock-inset: -9px;
   --jn-lock-l: 9px;
   border-radius: 0;
@@ -5217,6 +5219,143 @@ body.mode-watch #roe {
   }
   .roe {
     padding: 0 8px;
+  }
+}
+
+/* ───────────────────────────── Monitor tactique ───────────────────────────── */
+
+.mon-clock {
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--jn-sig);
+}
+.mon-clock:empty,
+.thinking-clock:empty {
+  display: none;
+}
+/* Frise : un trait par commande, état en couleur */
+.mon-strip {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  min-height: 22px;
+  margin-top: 8px;
+  padding: 4px 6px;
+  overflow-x: auto;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-pill);
+  background: var(--jn-raise);
+}
+.mon-tick {
+  flex: 0 0 auto;
+  width: 6px;
+  min-width: 6px;
+  height: 12px;
+  min-height: 12px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--jn-r-pill);
+  background: var(--jn-faint);
+  transition:
+    height var(--jn-d2) var(--jn-ease-out),
+    background-color var(--jn-d1) var(--jn-ease-io);
+}
+.mon-tick.tone-ok {
+  background: var(--jn-ok);
+}
+.mon-tick.tone-wait {
+  background: var(--jn-warn);
+}
+.mon-tick.tone-err {
+  background: var(--jn-err);
+  height: 14px;
+}
+.mon-tick:hover,
+.mon-tick:focus-visible {
+  height: 16px;
+}
+.mon-tick:focus-visible {
+  outline-offset: 2px;
+}
+body.vscode-high-contrast .mon-tick,
+body.vscode-high-contrast-light .mon-tick {
+  border: 1px solid var(--vscode-contrastBorder, currentColor);
+}
+/* Sortie numérotée */
+.mon-out {
+  counter-reset: jn-line;
+}
+.mon-line {
+  display: block;
+  min-height: 1.6em;
+  padding-left: 3.2em;
+  text-indent: -3.2em;
+}
+.mon-line::before {
+  counter-increment: jn-line;
+  content: counter(jn-line);
+  display: inline-block;
+  width: 2.4em;
+  margin-right: 0.8em;
+  text-align: right;
+  text-indent: 0;
+  color: var(--jn-faint);
+  user-select: none;
+}
+.mon-row.is-flash {
+  border-color: var(--jn-sig-edge);
+}
+/* Horloge dans l'indicateur de réflexion */
+.thinking-clock {
+  padding: 1px 8px;
+  border-radius: var(--jn-r-pill);
+  background: var(--jn-raise-2);
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-2xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--jn-muted);
+}
+
+/* ───────────────────────────── Chemin d'attaque ───────────────────────────── */
+
+.kc-replay[aria-pressed="true"] {
+  color: var(--jn-sig);
+}
+.kc-replay-status {
+  min-width: 0;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-xs);
+  color: var(--jn-sig);
+}
+.kc-replay-status:empty {
+  display: none;
+}
+.kc-edge.is-lit {
+  stroke: var(--jn-sig);
+  stroke-width: 3;
+  opacity: 1;
+}
+.kc-viewport.is-replaying .kc-node:not(.is-visited) {
+  opacity: 0.35;
+}
+.kc-viewport.is-replaying .kc-edge:not(.is-lit) {
+  opacity: 0.3;
+}
+.kc-node.is-visited .kc-node-head {
+  box-shadow: 0 0 0 4px var(--jn-sig-tint);
+}
+@media (max-width: 640px) {
+  .kc-replay-status {
+    flex: 1 0 100%;
+    max-width: none;
+    order: 10;
   }
 }
 
@@ -5396,7 +5535,20 @@ body.vscode-high-contrast-light .card-level {
       transform: scale(1.12);
     }
 
+    /* Chemin retenu : les pointillés avancent vers la cible. */
+    & .kc-edge.is-path {
+      stroke-dasharray: 7 5;
+      animation: jn-march 0.9s linear infinite;
+    }
+    & .kc-edge.is-lit {
+      stroke-dasharray: none;
+      animation: none;
+    }
+    & .mon-row.is-flash {
+      animation: jn-flash 1s var(--jn-ease-out) 1;
+    }
     /* Verrouillage : les crochets se referment sur la cible. */
+    & .kc-node.is-replay .kc-node-head::after,
     & .kc-node.is-selected .kc-node-head::after,
     & .hist.current::after,
     & .studio-project-active::after,
@@ -5556,6 +5708,19 @@ body.vscode-high-contrast-light .card-level {
   }
   50% {
     transform: scale(0.95);
+  }
+}
+@keyframes jn-march {
+  to {
+    stroke-dashoffset: -12;
+  }
+}
+@keyframes jn-flash {
+  0% {
+    box-shadow: 0 0 0 4px var(--jn-sig-tint);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
   }
 }
 @keyframes jn-lock-on {

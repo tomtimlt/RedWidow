@@ -1085,7 +1085,13 @@
     const meta = el("div", "mon-meta");
     meta.append(el("span", "badge mon-state", row.status));
     li.append(cmd, meta);
-    if (row.output !== "") li.append(el("pre", "mon-out", row.output));
+    if (row.output !== "") {
+      // Sortie numérotée : une ligne par élément, toujours insérée comme texte.
+      const out = el("pre", "mon-out");
+      const lines = row.output.replace(/\n$/, "").split("\n");
+      out.append(...lines.map((line) => el("span", "mon-line", line)));
+      li.append(out);
+    }
     if (row.truncated) li.append(el("p", "note", "sortie tronquée"));
     if (mode === "monitor" && row.toolUseId) {
       li.tabIndex = 0;
@@ -1103,6 +1109,42 @@
     return li;
   }
   const monitorNodes = /* @__PURE__ */ new Map();
+  // Frise : un trait par commande, coloré par son état ; un clic amène à l'entrée.
+  const stripTicks = /* @__PURE__ */ new Map();
+  function paintStrip(rows) {
+    const strip = $("monitor-strip");
+    strip.hidden = rows.length === 0 || mode === "watch";
+    const ids = new Set(rows.map((row) => row.id));
+    for (const id of stripTicks.keys()) if (!ids.has(id)) stripTicks.delete(id);
+    const ticks = rows.map((row, i) => {
+      let tick = stripTicks.get(row.id);
+      if (!tick) {
+        tick = el("button", "mon-tick");
+        tick.type = "button";
+        tick.addEventListener("click", () => {
+          const line = [...monitorRowsEl.children].find((n) => n.dataset.monitorId === tick.dataset.rowId);
+          if (!line) return;
+          monitorFollow = false;
+          monitorFollowBtn.setAttribute("aria-pressed", "false");
+          const head = monitor.querySelector(".mon-head").getBoundingClientRect();
+          const offset = line.getBoundingClientRect().top - head.bottom - 8;
+          monitor.scrollTo({ top: monitor.scrollTop + offset, behavior: motion.matches ? "auto" : "smooth" });
+          line.classList.remove("is-flash");
+          void line.offsetWidth;
+          line.classList.add("is-flash");
+        });
+        stripTicks.set(row.id, tick);
+      }
+      tick.dataset.rowId = row.id;
+      tick.className = `mon-tick tone-${row.tone}`;
+      tick.setAttribute("aria-label", `Commande ${i + 1} : ${row.command}, ${row.status}`);
+      tick.title = `${row.command} · ${row.status}`;
+      return tick;
+    });
+    const same = ticks.length === strip.children.length && ticks.every((tick, i) => strip.children[i] === tick);
+    if (!same) strip.replaceChildren(...ticks);
+  }
+
   function renderMonitor(view) {
     const top = monitor.scrollTop;
     const positions = new Map(
@@ -1137,6 +1179,7 @@
       failed ? `${failed} en erreur` : ""
     ].filter(Boolean).join(" · ");
     document.body.classList.toggle("monitor-live", waiting > 0);
+    paintStrip(rows);
     for (const line of monitorRowsEl.children) {
       const box = line.querySelector(".mon-out");
       const previous = positions.get(line.dataset.monitorId);
@@ -1159,6 +1202,31 @@
       reducedMotion: motion.matches
     });
     for (const c of MANAGED) document.body.classList.toggle(c, want.includes(c));
+    paintClock();
+  }
+  // Horloge de mission : temps écoulé depuis le début de l'activité (T+mm:ss).
+  let missionStart = null;
+  let missionTimer = 0;
+  const pad2 = (n) => String(n).padStart(2, "0");
+  function tickClock() {
+    let text = "";
+    if (missionStart !== null) {
+      const total = Math.floor((Date.now() - missionStart) / 1e3);
+      const h = Math.floor(total / 3600);
+      text = `T+${h ? `${h}:` : ""}${pad2(Math.floor(total / 60) % 60)}:${pad2(total % 60)}`;
+    }
+    $("mission-clock").textContent = text;
+    $("thinking-clock").textContent = text;
+  }
+  function paintClock() {
+    const running = document.body.classList.contains("running");
+    if (running && missionStart === null) missionStart = Date.now();
+    if (!running) {
+      missionStart = null;
+      clearInterval(missionTimer);
+      missionTimer = 0;
+    } else if (!missionTimer) missionTimer = setInterval(tickClock, 1e3);
+    tickClock();
   }
   document.addEventListener("visibilitychange", applyBody);
   motion.addEventListener("change", applyBody);
