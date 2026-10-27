@@ -20,7 +20,7 @@ La version du manifeste est **0.3.51**. Les paragraphes
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
 
-## Lot 0.3.51 — icône de suivi du bas (en préparation)
+## Lot 0.3.51 — icône de suivi du bas (publié)
 
 Le bouton du Monitor et du suivi de commande affiche uniquement une flèche
 vers le bas. Le nom accessible, l'infobulle d'action et `aria-pressed` conservent
@@ -29,7 +29,14 @@ Le comportement de suivi et de lecture libre est conservé.
 Validation : **2 014 tests réussis, 14 ignorés**, typage et build réussis.
 Les 18 parcours Chromium (Monitor/suivi, trois thèmes et trois largeurs)
 vérifient le suivi, le clavier, l'absence de texte visible et la conservation
-de l'icône après bascule. Diff relu ; publication en préparation.
+de l'icône après bascule. Diff relu.
+Le commit **18e88a0**, sous `tomtimlt`, est poussé et marqué **v0.3.51**.
+Le [workflow 40518939581](https://github.com/tomtimlt/warband/actions/runs/40518939581)
+a réussi. Les deux VSIX et leurs SHA-256 de la
+[release 0.3.51](https://github.com/tomtimlt/warband/releases/tag/v0.3.51)
+ont été téléchargés : empreintes conformes aux fichiers SHA et digests GitHub,
+ZIP intègres, version et flèche vérifiées. Le script embarqué conserve l'icône
+lors des bascules du suivi.
 
 ## Lot 0.3.50 — Kill Chain, chemin retenu et préparation des rapports (publié)
 
