@@ -7,6 +7,28 @@ import { createOpencodeRunner } from "../src/index.js";
 import { harness } from "./helpers.js";
 
 describe("annulation HTTP du catalogue OpenCode", () => {
+  it("transmet le statut d'un refus HTTP sans exposer le corps de réponse", async () => {
+    const server = createServer((_request, response) => {
+      response.writeHead(403, { "content-type": "application/json" });
+      response.end(JSON.stringify({ message: "oc_sk_test-secret" }));
+    });
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const api = createSdkApi({
+      baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+      directory: process.cwd(),
+    });
+    try {
+      await expect(api.listProviders?.()).rejects.toMatchObject({
+        code: "opencode.httpFailed",
+        params: { operation: "provider.list", status: 403 },
+      });
+      await expect(api.getConfig()).rejects.toThrow(/opencode.httpFailed/);
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
   it.each([
     { operation: "catalogue", blocked: "/config" },
     { operation: "catalogue", blocked: "/provider" },

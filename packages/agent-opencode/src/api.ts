@@ -1,4 +1,5 @@
 import { createOpencodeClient } from "@opencode-ai/sdk";
+import { CodedError } from "@warband/core";
 import type { OpencodeApi, OpencodeEvent } from "./types.js";
 
 type Obj = Record<string, unknown>;
@@ -30,7 +31,10 @@ export function createSdkApi({
   const client = createOpencodeClient({ baseUrl, directory, headers });
 
   const failed = (result: { error?: unknown; response?: Response }, what: string) =>
-    new Error(`OpenCode ${what} : HTTP ${result.response?.status ?? "?"}`);
+    new CodedError("opencode.httpFailed", {
+      operation: what,
+      status: result.response?.status ?? 0,
+    });
 
   return {
     async getConfig(signal) {

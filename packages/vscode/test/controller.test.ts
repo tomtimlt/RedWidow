@@ -84,6 +84,19 @@ const hasText = (events: EngineEvent[], text: string) =>
   events.some((e) => JSON.stringify(e).includes(text));
 
 describe("contrôleur + moteur enfant (processus forké, QueryFn factice)", () => {
+  it("conserve le diagnostic structuré d'un sondage de modèles sans utiliser son message brut", async () => {
+    const failing = join(dir, "catalogue-erreur.mjs");
+    await writeFile(
+      failing,
+      'process.on("message", () => {process.send({v:1,type:"error",reason:{code:"opencode.serverFailed",params:{detail:"code 7"}}});}); process.send({v:1,type:"ready"});',
+    );
+    const ctl = createEngineController({ enginePath: failing, killGraceMs: 50 });
+    await expect(ctl.models({ cwd: dir })).rejects.toMatchObject({
+      message: "opencode.serverFailed",
+      reason: { code: "opencode.serverFailed", params: { detail: "code 7" } },
+    });
+    await ctl.exited;
+  }, 15_000);
   it("arrête un moteur qui ne répond pas à la demande de modèles", async () => {
     const hanging = join(dir, "catalogue-suspendu.mjs");
     await writeFile(

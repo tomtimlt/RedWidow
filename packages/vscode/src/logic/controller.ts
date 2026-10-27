@@ -15,6 +15,7 @@ import {
   terminateProcessTree,
   trackProcessTree,
 } from "@warband/core";
+import { ModelProbeError } from "./model-load-error.js";
 import {
   type EndedSummary,
   type FromEngine,
@@ -185,7 +186,7 @@ export function createEngineController(options: EngineControllerOptions): Engine
       case "models":
         return probe?.resolve(message.models);
       case "error":
-        if (probe) return probe.reject(new Error(message.reason.code));
+        if (probe) return probe.reject(new ModelProbeError(message.reason));
         return handlers.onError?.(message.reason);
       case "bypassAck":
         return handlers.onBypassAck?.({ seq: message.seq, state: message.state });

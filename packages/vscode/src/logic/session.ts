@@ -49,6 +49,7 @@ import {
   titleFrom,
 } from "./history.js";
 import type { JournalFiles } from "./historyStore.js";
+import { modelLoadFailure } from "./model-load-error.js";
 import { isModelId, parseModelCache, usableModels, validateModelChoice } from "./models.js";
 import type { ChatSettings } from "./settings.js";
 
@@ -573,7 +574,12 @@ export function createChatSession(deps: ChatSessionDeps) {
       });
       const list = usableModels(
         await Promise.race([
-          probe.models({ cwd: deps.cwd, auth: token?.mode ?? "auto", provider }),
+          probe.models({
+            cwd: deps.cwd,
+            auth: token?.mode ?? "auto",
+            provider,
+            timeoutMs: MODEL_LOAD_TIMEOUT_MS,
+          }),
           interrupted,
         ]),
       );
@@ -598,11 +604,12 @@ export function createChatSession(deps: ChatSessionDeps) {
     } catch (error) {
       if (!active() || error === cancelled) return;
       killProbe();
-      failed(
+      const message =
         error === timedOut
           ? "Chargement des modèles interrompu après 45 secondes. Réessayez ou vérifiez la connexion au fournisseur."
-          : "Impossible de charger les modèles. Réessayez ou vérifiez la connexion au fournisseur.",
-      );
+          : modelLoadFailure(error);
+      deps.onLog?.(`Catalogue des modèles : ${message}\n`);
+      failed(message);
     } finally {
       acceptingLogs = false;
       clearTimeout(timer);

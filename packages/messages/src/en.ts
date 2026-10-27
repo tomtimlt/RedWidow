@@ -4,6 +4,8 @@ const text = (v: string | number | undefined): string => (v === undefined ? "?" 
 
 /** Catalogue minimal : les codes absents se replient sur le français, puis sur `code + params`. */
 export const reasons: Catalog = {
+  "opencode.httpFailed": (p) =>
+    `OpenCode request failed: ${text(p.operation)} (HTTP ${text(p.status)})`,
   "kali.taskRequired": () =>
     "Full-port scan not started: use mcp__kali__task_start with nmap argv, then task_status. Synchronous scans are not tracked by task_list and may keep running after an MCP timeout.",
   "task.invalidResponse": () => "invalid task response; check existing tasks before starting again",

@@ -1,6 +1,6 @@
 # Warband — parcours, état actuel et reprise
 
-État inspecté le 26 octobre 2026 pour la version 0.3.45. Ce document sert de point d'entrée produit ;
+État inspecté le 27 octobre 2026 pour la version 0.3.46. Ce document sert de point d'entrée produit ;
 les ADR expliquent les décisions, les idées restent une réserve.
 
 ## Le parcours de référence
@@ -15,10 +15,30 @@ parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
 
-La version du manifeste est **0.3.45**. Les paragraphes
+La version du manifeste est **0.3.46**. Les paragraphes
 0.3.19 à 0.3.29 ci-dessous sont des relevés historiques, pas les preuves de
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
+
+## Lot 0.3.46 — chargement et diagnostic du catalogue (publication en préparation)
+
+Le sondage du catalogue reçoit désormais le même délai de 45 secondes que
+l'interface, au lieu du délai implicite de 30 secondes du contrôleur. Les
+erreurs structurées du moteur ne sont plus réduites à une exception générique.
+Le bandeau et Sortie → warband distinguent démarrage OpenCode, code de sortie,
+intégrité du binaire, refus de configuration, statut HTTP et dépassement de délai.
+Une liste fermée de diagnostics exclut les messages bruts, sorties du serveur,
+corps HTTP, URL et identifiants secrets. Les erreurs inconnues restent génériques.
+
+Signalement utilisateur : impossible de charger les modèles OpenCode Zen sur
+un PC Windows personnel avec une nouvelle clé. La cause sur ce poste n'est
+pas encore identifiée : le message de la 0.3.45 effaçait le diagnostic. Aucun
+effacement de connexion, relâchement TLS ou contournement des contrôles de
+configuration n'est ajouté. Le fonctionnement sur ce PC devra être confirmé
+après installation de la version avec diagnostic détaillé.
+Validation locale : **1 986 tests réussis, 12 ignorés**, typage et build réussis.
+Les tests couvrent le diagnostic IPC réel, les refus HTTP locaux, le code de
+sortie Windows, le délai transmis et l'absence de secrets dans la vue et les logs.
 
 ## Lot 0.3.45 — scans longs supervisés (publié)
 

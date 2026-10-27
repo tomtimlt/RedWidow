@@ -7,6 +7,7 @@ import type {
   EngineControllerOptions,
   EngineHandlers,
 } from "../src/logic/controller.js";
+import { ModelProbeError } from "../src/logic/model-load-error.js";
 import type { StartParams } from "../src/logic/protocol.js";
 import { createChatSession, MODEL_LOAD_TIMEOUT_MS } from "../src/logic/session.js";
 
@@ -1350,7 +1351,12 @@ describe("sélection du fournisseur", () => {
     resolve([{ value: "ancien", displayName: "Ancien" }]);
     await first;
     expect(session.view().controls?.models).toMatchObject([{ value: "nouveau" }]);
-    expect(probes).toContainEqual({ cwd: "/w", auth: "subscription", provider: "openai" });
+    expect(probes).toContainEqual({
+      cwd: "/w",
+      auth: "subscription",
+      provider: "openai",
+      timeoutMs: MODEL_LOAD_TIMEOUT_MS,
+    });
     expect(getToken).toHaveBeenCalledWith("openai");
     expect(f.options).not.toHaveProperty("auth");
     await session.authChanged();
@@ -1364,10 +1370,12 @@ describe("cycle de chargement des modèles", () => {
   };
   function deferred<T>() {
     let resolve!: (value: T) => void;
-    const promise = new Promise<T>((done) => {
+    let reject!: (reason: unknown) => void;
+    const promise = new Promise<T>((done, fail) => {
       resolve = done;
+      reject = fail;
     });
-    return { promise, resolve };
+    return { promise, resolve, reject };
   }
   function lifecycle(
     getToken = async () => undefined as import("../src/logic/session.js").TokenChoice | undefined,
@@ -1402,6 +1410,24 @@ describe("cycle de chargement des modèles", () => {
     });
     return { session, probes, create, values, onView, logs };
   }
+
+  it("affiche et journalise le diagnostic d'un sondage sans exposer sa sortie brute", async () => {
+    const t = lifecycle();
+    const loading = t.session.loadModels();
+    await flush();
+    t.probes[0]?.result.reject(
+      new ModelProbeError({
+        code: "opencode.serverFailed",
+        params: { detail: "code 7 oc_sk_test-secret" },
+      }),
+    );
+    await loading;
+    expect(t.session.view().controls?.modelsMessage).toContain("code de sortie 7");
+    expect(t.logs).toHaveBeenCalledWith(expect.stringContaining("opencode.serverFailed"));
+    expect(JSON.stringify([t.session.view(), t.logs.mock.calls])).not.toContain(
+      "oc_sk_test-secret",
+    );
+  });
 
   it("borne la lecture du jeton sans créer de moteur après son expiration", async () => {
     vi.useFakeTimers();
