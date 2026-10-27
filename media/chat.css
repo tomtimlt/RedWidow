@@ -1756,84 +1756,129 @@ body.vscode-high-contrast-light .opt.active {
   color: var(--jn-muted);
 }
 
-/* Effort : piste fine, curseur rond, graduations nommées */
-.effort-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: 28px;
+/* Effort : carte compacte, niveau centré, piste épaisse et grosse pastille */
+.effort-card {
   margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid var(--jn-line);
+  padding: 10px 12px 14px;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-lg);
+  background: var(--jn-raise-2);
 }
-.effort-now {
-  margin: 0;
-  font-family: var(--jn-font);
-  font-size: var(--jn-fs-sm);
-  font-weight: 500;
+.effort-head {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.effort-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
   color: var(--jn-muted);
 }
-#effort-label {
-  margin-left: 4px;
-  padding: 2px 9px;
-  border-radius: var(--jn-r-pill);
-  background: var(--jn-sig-tint);
-  color: var(--vscode-foreground);
-  font-weight: 650;
-}
-.effort-row {
+.effort-now {
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  min-width: 0;
   margin: 0;
+  text-align: center;
 }
-.effort-row button {
-  min-height: 24px;
-  padding: 0 10px;
-  font-size: var(--jn-fs-xs);
+#effort-label {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--jn-fs-lg);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  color: var(--jn-sig);
+  transition: color var(--jn-d2) var(--jn-ease-io);
 }
-.effort-row .ico {
+.effort-card:has(#effort-scale.auto) #effort-label {
+  color: var(--vscode-foreground);
+}
+.effort-model {
+  gap: 2px;
+  max-width: 100%;
+  min-height: 20px;
+  padding: 0 4px 0 8px;
+  background: transparent;
+  color: var(--jn-muted);
+  border: 0;
+  font-size: var(--jn-fs-sm);
+  font-weight: 500;
+}
+.effort-model > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.effort-model:hover:not(:disabled) {
+  color: var(--vscode-foreground);
+  background: transparent;
+}
+.effort-model-ico {
   width: 12px;
   height: 12px;
 }
+.effort-row {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0;
+}
+.effort-row #effort-auto[hidden] {
+  display: inline-flex !important;
+  visibility: hidden;
+}
+#effort-auto .ico {
+  width: 15px;
+  height: 15px;
+}
+
 #effort-scale {
   --jn-progress: 0.5;
-  --jn-thumb: 18px;
-  --jn-settle: 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  --jn-thumb: 30px;
+  --jn-settle: 340ms cubic-bezier(0.34, 1.56, 0.64, 1);
   --jn-pos: calc(var(--jn-thumb) / 2 + (100% - var(--jn-thumb)) * var(--jn-progress));
   position: relative;
-  height: 28px;
-  margin-top: 6px;
+  height: var(--jn-thumb);
 }
-/* Piste et remplissage */
+/* Piste et remplissage, de la hauteur presque entière de la pastille */
 #effort-scale::before,
 #effort-scale::after {
   content: "";
   position: absolute;
   top: 50%;
-  height: 6px;
-  margin-top: -3px;
+  height: 24px;
+  margin-top: -12px;
   border-radius: var(--jn-r-pill);
   pointer-events: none;
 }
 #effort-scale::after {
-  left: calc(var(--jn-thumb) / 2);
-  right: calc(var(--jn-thumb) / 2);
-  background: var(--jn-raise-2);
-  box-shadow: inset 0 0 0 1px var(--jn-line);
+  left: 0;
+  right: 0;
+  background: color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
 }
 #effort-scale::before {
-  left: calc(var(--jn-thumb) / 2);
-  width: calc((100% - var(--jn-thumb)) * var(--jn-progress));
+  left: 0;
+  width: calc(var(--jn-pos) + var(--jn-thumb) / 2);
   z-index: 1;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--jn-sig) 55%, transparent), var(--jn-sig));
+  background: var(--jn-sig);
   transition:
     width var(--jn-settle),
     opacity var(--jn-d2) var(--jn-ease-io);
 }
 #effort-scale.auto::before {
-  opacity: 0.35;
+  opacity: 0.4;
 }
-/* Encoches : une par niveau, allumées sous le remplissage */
+/* Points : un par niveau, clairs dans le remplissage, discrets ailleurs */
 .effort-notches {
   position: absolute;
   inset: 0 calc(var(--jn-thumb) / 2);
@@ -1844,9 +1889,9 @@ body.vscode-high-contrast-light .opt.active {
   position: absolute;
   top: 50%;
   left: calc(var(--jn-at) * 100%);
-  width: 4px;
-  height: 4px;
-  margin: -2px 0 0 -2px;
+  width: 5px;
+  height: 5px;
+  margin: -2.5px 0 0 -2.5px;
   border-radius: 50%;
   background: var(--jn-faint);
   transition:
@@ -1854,20 +1899,16 @@ body.vscode-high-contrast-light .opt.active {
     transform var(--jn-d2) var(--jn-ease-out);
 }
 .effort-notch.is-on {
-  background: var(--vscode-editor-background, #fff);
-  transform: scale(0.85);
+  background: color-mix(in srgb, var(--vscode-button-foreground, #fff) 60%, transparent);
 }
-#effort-scale.auto .effort-notch.is-on {
-  background: var(--jn-faint);
-}
-/* Commande native : transparente, elle garde le glisser, le clavier et l'accessibilité. */
+/* Commande native transparente : glisser, clavier et accessibilité */
 #effort {
   appearance: none;
   position: relative;
   z-index: 3;
   display: block;
   width: 100%;
-  height: 28px;
+  height: var(--jn-thumb);
   margin: 0;
   padding: 0;
   background: transparent;
@@ -1877,23 +1918,23 @@ body.vscode-high-contrast-light .opt.active {
   cursor: grabbing;
 }
 #effort::-webkit-slider-runnable-track {
-  height: 28px;
+  height: var(--jn-thumb);
   background: transparent;
 }
 #effort::-moz-range-track {
-  height: 28px;
+  height: 30px;
   background: transparent;
 }
 #effort::-webkit-slider-thumb {
   appearance: none;
-  width: var(--jn-thumb, 18px);
-  height: 28px;
+  width: var(--jn-thumb);
+  height: var(--jn-thumb);
   border: 0;
   background: transparent;
 }
 #effort::-moz-range-thumb {
-  width: 18px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border: 0;
   background: transparent;
 }
@@ -1903,7 +1944,7 @@ body.vscode-high-contrast-light .opt.active {
 #effort:disabled {
   cursor: default;
 }
-/* Pastille visible : suit le pointeur, rebondit au calage */
+/* Pastille : grand disque clair, suit le pointeur et rebondit au calage */
 .effort-knob {
   position: absolute;
   top: 50%;
@@ -1912,109 +1953,91 @@ body.vscode-high-contrast-light .opt.active {
   width: var(--jn-thumb);
   height: var(--jn-thumb);
   margin: calc(var(--jn-thumb) / -2) 0 0 calc(var(--jn-thumb) / -2);
-  border: 2px solid var(--jn-sig);
   border-radius: 50%;
-  background: var(--vscode-editor-background, #fff);
+  background: var(--vscode-button-foreground, #fff);
   box-shadow:
-    0 1px 3px var(--vscode-widget-shadow, #0004),
+    0 1px 2px var(--vscode-widget-shadow, #0003),
+    0 3px 8px var(--vscode-widget-shadow, #0003),
     0 0 0 0 var(--jn-sig-tint);
   pointer-events: none;
   transition:
     left var(--jn-settle),
     transform var(--jn-d2) var(--jn-ease-out),
-    box-shadow var(--jn-d2) var(--jn-ease-out),
-    background-color var(--jn-d2) var(--jn-ease-io);
+    box-shadow var(--jn-d2) var(--jn-ease-out);
 }
-.effort-knob::after {
-  content: "";
-  position: absolute;
-  inset: 3px;
-  border-radius: 50%;
-  background: var(--jn-sig);
-  transform: scale(0);
-  transition: transform var(--jn-d2) var(--jn-ease-out);
-}
-#effort-scale:not(.auto) .effort-knob::after,
-#effort-scale.is-dragging .effort-knob::after {
-  transform: scale(1);
+body.vscode-light .effort-knob {
+  box-shadow:
+    0 0 0 1px var(--jn-line),
+    0 2px 6px var(--vscode-widget-shadow, #0002);
 }
 #effort-scale.auto.is-dragging::before {
   opacity: 1;
-}
-#effort-scale.auto.is-dragging .effort-notch.is-on {
-  background: var(--vscode-editor-background, #fff);
 }
 #effort-scale.is-dragging::before,
 #effort-scale.is-dragging .effort-knob {
   transition: none;
 }
 #effort:hover:not(:disabled) ~ .effort-knob {
-  transform: scale(1.12);
+  transform: scale(1.06);
   box-shadow:
-    0 1px 3px var(--vscode-widget-shadow, #0004),
+    0 1px 2px var(--vscode-widget-shadow, #0003),
+    0 3px 8px var(--vscode-widget-shadow, #0003),
     0 0 0 5px var(--jn-sig-tint);
 }
 #effort-scale.is-pressed .effort-knob {
-  transform: scale(1.22);
+  transform: scale(1.12);
   box-shadow:
-    0 2px 6px var(--vscode-widget-shadow, #0005),
-    0 0 0 7px var(--jn-sig-tint);
+    0 2px 4px var(--vscode-widget-shadow, #0004),
+    0 6px 14px var(--vscode-widget-shadow, #0004),
+    0 0 0 8px var(--jn-sig-tint);
 }
 #effort:focus-visible ~ .effort-knob {
   outline: 2px solid var(--jn-focus);
   outline-offset: 2px;
 }
+body.vscode-high-contrast .effort-knob,
+body.vscode-high-contrast-light .effort-knob {
+  border: 2px solid var(--jn-sig);
+  background: var(--vscode-editor-background);
+}
 #effort-scale.is-disabled {
   opacity: 0.5;
 }
-/* Le niveau affiché saute légèrement quand il change */
-#effort-label {
-  display: inline-block;
-}
 #effort-label.bump {
-  animation: jn-bump 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: jn-bump 280ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 @keyframes jn-bump {
   0% {
-    transform: scale(0.86);
+    transform: scale(0.84);
   }
   100% {
     transform: none;
   }
 }
-#effort-ticks {
-  position: relative;
-  height: 18px;
-  margin: 2px calc(var(--jn-thumb, 18px) / 2) 0;
-  font-size: var(--jn-fs-2xs);
-  color: var(--jn-muted);
-}
-.effort-tick {
-  position: absolute;
-  left: calc(var(--jn-at) * 100%);
-  transform: translateX(-50%);
-  white-space: nowrap;
-  cursor: pointer;
-  transition: color var(--jn-d1) var(--jn-ease-io);
-}
-.effort-tick:first-child {
-  transform: translateX(calc(-1 * var(--jn-thumb, 18px) / 2));
-}
-.effort-tick:last-child {
-  transform: translateX(calc(-100% + var(--jn-thumb, 18px) / 2));
-}
-.effort-tick:hover {
-  color: var(--vscode-foreground);
-}
-.effort-tick.is-current {
-  color: var(--jn-sig);
-  font-weight: 650;
-}
-#effort-ticks.is-disabled .effort-tick {
-  cursor: default;
+@container app (max-width: 359px) {
+  #cfg-pop {
+    padding: 6px;
+  }
+  .cfg-col {
+    padding: 10px 10px 12px;
+  }
+  .effort-card {
+    padding: 8px 8px 10px;
+  }
+  #effort-scale {
+    --jn-thumb: 26px;
+  }
+  #effort-scale::before,
+  #effort-scale::after {
+    height: 20px;
+    margin-top: -10px;
+  }
+  #effort-label {
+    font-size: var(--jn-fs);
+  }
 }
 #effort-tip {
-  margin-top: 6px;
+  margin-top: 8px;
 }
 
 .facts {
@@ -2653,6 +2676,7 @@ body.automatic-on #composer {
     box-shadow: none;
   }
   .brand-wing,
+  .brand-ring,
   .brand-lead {
     stroke: CanvasText;
   }
@@ -2704,6 +2728,8 @@ body.vscode-high-contrast-light #bar button.ghost .ico {
 }
 body.vscode-high-contrast .brand-wing,
 body.vscode-high-contrast-light .brand-wing,
+body.vscode-high-contrast .brand-ring,
+body.vscode-high-contrast-light .brand-ring,
 body.vscode-high-contrast .brand-lead,
 body.vscode-high-contrast-light .brand-lead {
   stroke: var(--vscode-foreground);
@@ -4726,9 +4752,20 @@ body.mode-watch .mon-out {
 .brand-lead {
   fill: none;
   stroke: var(--jn-sig);
-  stroke-width: 1.6;
+  stroke-width: 1.3;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+/* Orbite du noyau : pointillés qui tournent pendant l'activité */
+.brand-ring {
+  fill: var(--vscode-sideBar-background, var(--vscode-editor-background));
+  stroke: var(--jn-sig);
+  stroke-width: 1;
+  stroke-dasharray: 2.2 1.5;
+  transform-origin: 12px 12.2px;
+}
+.welcome-mark .brand-ring {
+  fill: var(--vscode-editor-background);
 }
 .brand-node {
   fill: var(--jn-sig);
@@ -4737,11 +4774,13 @@ body.mode-watch .mon-out {
   fill: var(--jn-sig);
   stroke: var(--vscode-sideBar-background, var(--vscode-editor-background));
   stroke-width: 0.8;
-  transform-origin: 12px 10.6px;
+  transform-origin: 12px 12.2px;
 }
-.welcome-mark .brand-wing,
-.welcome-mark .brand-lead {
+.welcome-mark .brand-wing {
   stroke-width: 1.2;
+}
+.welcome-mark .brand-lead {
+  stroke-width: 1;
 }
 .welcome-mark .brand-cursor {
   stroke: var(--vscode-editor-background);
@@ -4846,6 +4885,12 @@ body.vscode-high-contrast-light .kc-viewport {
     &.running #title .brand-cursor {
       animation: jn-lead 1.6s var(--jn-ease-io) infinite;
     }
+    &.running #title .brand-ring {
+      animation: jn-orbit 3s linear infinite;
+    }
+    & #title:hover .brand-ring {
+      animation: jn-orbit 1.2s var(--jn-ease-out) 1;
+    }
     & #title:hover .brand-cursor {
       animation: jn-lead 0.9s var(--jn-ease-io) 1;
     }
@@ -4869,6 +4914,11 @@ body.vscode-high-contrast-light .kc-viewport {
     & .welcome-mark .brand-node:nth-of-type(3) { animation-delay: 0.65s; }
     & .welcome-mark .brand-node:nth-of-type(4) { animation-delay: 0.75s; }
     & .welcome-mark .brand-cursor { animation-delay: 0.9s; }
+    & .welcome-mark .brand-ring {
+      animation:
+        jn-node-in 0.4s var(--jn-ease-out) 0.85s both,
+        jn-orbit 8s linear 1.3s infinite;
+    }
   }
 }
 @keyframes jn-lead {
@@ -4878,6 +4928,11 @@ body.vscode-high-contrast-light .kc-viewport {
   }
   50% {
     transform: scale(1.35);
+  }
+}
+@keyframes jn-orbit {
+  to {
+    transform: rotate(360deg);
   }
 }
 @keyframes jn-draw {

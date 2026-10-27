@@ -497,7 +497,8 @@
     $("effort-label").textContent = shown;
     $("effort-tip").textContent = c.effortDisabled ? disabledTip : c.effortTip;
     $("cfg-level").textContent = shown;
-    paintTicks(idx, auto, effortInput.disabled);
+    $("effort-model-label").textContent = name;
+    $("effort-model").disabled = c.locked;
     paintNotches(idx);
     scale.classList.toggle("is-disabled", effortInput.disabled);
     cfgBtn.title = `Configurer : effort ${c.effortLabel}`;
@@ -727,20 +728,11 @@
     );
   }
   $("effort-auto").addEventListener("click", () => postReasoningChoice(null));
-  // Graduations nommées : raccourci à la souris, le curseur reste la commande clavier.
-  function paintTicks(index, auto, disabled) {
-    const ticks = $("effort-ticks");
-    ticks.replaceChildren(
-      ...levels.map((level, i) => {
-        const tick = el("span", "effort-tick", level.label);
-        tick.style.setProperty("--jn-at", String(i / Math.max(levels.length - 1, 1)));
-        tick.classList.toggle("is-current", !auto && i === index);
-        if (!disabled) tick.addEventListener("click", () => postReasoningChoice(level.value));
-        return tick;
-      })
-    );
-    ticks.classList.toggle("is-disabled", disabled);
-  }
+  $("effort-model").addEventListener("click", () => {
+    if (!ctl || ctl.locked) return;
+    cfgPop.hidePopover();
+    modelPop.showPopover();
+  });
   // Curseur d'effort : suit le pointeur en continu, puis se cale sur le niveau
   // le plus proche au relâchement. Le clavier passe d'un niveau à l'autre.
   const effortScale = $("effort-scale");
@@ -764,7 +756,6 @@
     if (!level) return;
     $("effort-label").textContent = level.label;
     effortInput.setAttribute("aria-valuetext", level.label);
-    $("effort-ticks").querySelectorAll(".effort-tick").forEach((tick, i) => tick.classList.toggle("is-current", i === index));
     if (index !== shownLevel) {
       const label = $("effort-label");
       label.classList.remove("bump");

@@ -37,11 +37,20 @@ Le graphe doit rester agréable à parcourir au clavier, à la souris et au zoom
 
 ## Logo
 
-Un bouclier (sécurité) porte un W formé de cinq agents reliés (agentique) ; le
-nœud central, plus gros, est l’agent meneur. Dans l’interface, le logo est un
-SVG en ligne coloré par la palette (`.brand-wing`, `.brand-lead`,
+Un bouclier (sécurité) garde un noyau d’orchestration entouré d’une orbite en
+pointillés, relié à trois agents de l’escouade (agentique). Pendant l’activité,
+l’orbite tourne et le noyau respire. Dans l’interface, le logo est un SVG en
+ligne coloré par la palette (`.brand-wing`, `.brand-ring`, `.brand-lead`,
 `.brand-node`, `.brand-cursor`) ; `media/logo.svg`, `logo-small.svg` et
 `icon.svg` (barre d’activité, monochrome) en sont les versions fixes.
+
+## Curseur d’effort
+
+Carte compacte : pictogramme à gauche, niveau centré en couleur de signature
+avec le modèle en dessous (ouvre le menu Modèle), retour à Auto à droite.
+Piste épaisse en pilule, remplissage de signature, un point par niveau et
+grande pastille claire. Le glisser est continu, le relâchement se cale sur le
+niveau le plus proche avec un rebond ; le clavier passe de niveau en niveau.
 
 ## Palettes
 
@@ -62,8 +71,8 @@ ton pour les thèmes sombres et un ton plus foncé pour les thèmes clairs.
 `media/icons.js` est la source unique des tracés : les pages HTML ne contiennent
 que des emplacements `<svg data-icon="…">`, remplis au chargement, et un test
 vérifie que chaque nom existe. Les micro-interactions (flèche d’envoi qui
-décolle, historique qui remonte, nouvelle conversation qui pivote, nœud meneur
-qui respire pendant l’activité, logo qui se trace à l’accueil) sont regroupées
+décolle, historique qui remonte, nouvelle conversation qui pivote, noyau qui
+respire et orbite qui tourne pendant l’activité, logo qui se trace à l’accueil) sont regroupées
 en fin de `media/chat.css` et désactivées en mouvement réduit et en contraste
 élevé.
 

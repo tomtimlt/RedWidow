@@ -10,13 +10,14 @@ const paletteOf = (value) => PALETTES.some(([key]) => key === value) ? value : P
 export const makeNonce = () => randomBytes(18).toString("base64url");
 const SAFE = /^[A-Za-z0-9_\-+/=:.%~@]+$/;
 // Pictogrammes : emplacements remplis par media/icons.js, source unique des tracés.
-const ICONS = new Set(["loader", "space", "brain", "book", "shield", "history", "plus", "close", "terminal", "folder", "clip", "at", "hash", "slash", "pulse", "graph", "stop", "send", "down", "caret", "refresh", "sparkle", "sliders", "search", "check", "bolt"]);
+const ICONS = new Set(["loader", "space", "brain", "book", "shield", "history", "plus", "close", "terminal", "folder", "clip", "at", "hash", "slash", "pulse", "graph", "stop", "send", "down", "caret", "refresh", "sparkle", "sliders", "search", "check", "bolt", "play", "chevronRight"]);
 const icon = (name, cls = "ico") => {
   if (!ICONS.has(name)) throw new Error(`pictogramme inconnu : ${name}`);
   return `<svg class="${cls}" data-icon="${name}" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"></svg>`;
 };
-// Logo : bouclier (sécurité) portant un W de cinq agents reliés ; le nœud central mène.
-export const BRAND_SHAPES = '<path class="brand-wing" d="M12 2.2 20 5.2v6.1c0 5.1-3.4 9-8 10.5-4.6-1.5-8-5.4-8-10.5V5.2z"/><path class="brand-lead" d="M7.6 8.4 9.8 15.6 12 10.6l2.2 5 2.2-7.2"/><circle class="brand-node" cx="7.6" cy="8.4" r="1.25"/><circle class="brand-node" cx="9.8" cy="15.6" r="1.25"/><circle class="brand-node" cx="14.2" cy="15.6" r="1.25"/><circle class="brand-node" cx="16.4" cy="8.4" r="1.25"/><circle class="brand-cursor" cx="12" cy="10.6" r="1.9"/>';
+// Logo : bouclier (sécurité) gardant un noyau d'orchestration en orbite, relié à
+// trois agents de l'escouade. L'orbite tourne pendant que l'agent travaille.
+export const BRAND_SHAPES = '<path class="brand-wing" d="M12 2.2 20 5.2v6.1c0 5.1-3.4 9-8 10.5-4.6-1.5-8-5.4-8-10.5V5.2z"/><path class="brand-lead" d="M12 12.2 7.7 8.1M12 12.2l4.3-4.1M12 12.2v5.3"/><circle class="brand-ring" cx="12" cy="12.2" r="3.5"/><circle class="brand-node" cx="7.7" cy="8.1" r="1.5"/><circle class="brand-node" cx="16.3" cy="8.1" r="1.5"/><circle class="brand-node" cx="12" cy="17.5" r="1.5"/><circle class="brand-cursor" cx="12" cy="12.2" r="1.9"/>';
 const BRAND = `<svg class="brand" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">${BRAND_SHAPES}</svg>`;
 export function chatHtml({ nonce, cspSource, scriptUri, uiUri, styleUri, iconsUri = scriptUri.replace(/[^/]+$/, "icons.js"), palette }) {
   for (const [name, value] of Object.entries({
@@ -93,15 +94,16 @@ export function chatHtml({ nonce, cspSource, scriptUri, uiUri, styleUri, iconsUr
 <section class="cfg-col cfg-model" aria-labelledby="cfg-h-reason"><h3 id="cfg-h-reason">${icon("brain")}Modèle et raisonnement</h3>
 <div class="cfg-provider"><label for="provider">Fournisseur</label><select id="provider" aria-describedby="provider-help"><option value="demo">Démo</option><option value="local">Local (ChatGPT / API)</option><option value="atelier">Atelier</option></select><button id="provider-connect" type="button" class="link">Connexion</button></div>
 <p id="provider-help" class="tip">Catalogue fictif : les options servent uniquement à explorer les états visuels.</p>
-<div class="effort-head"><div class="effort-now">Effort <output id="effort-label" for="effort"></output></div><div class="effort-row"><button id="effort-auto" type="button" class="ghost" title="Revenir à Auto : le modèle garde son effort par défaut">${icon("refresh")}Auto</button></div></div>
+<div class="effort-card">
+<div class="effort-head"><span class="effort-ico">${icon("bolt")}</span><div class="effort-now"><output id="effort-label" for="effort"></output><button id="effort-model" type="button" class="effort-model" title="Changer de modèle"><span id="effort-model-label"></span>${icon("chevronRight", "ico effort-model-ico")}</button></div><div class="effort-row"><button id="effort-auto" type="button" class="ghost icon-btn" title="Revenir à Auto : le modèle garde son effort par défaut" aria-label="Revenir à Auto">${icon("refresh")}</button></div></div>
 <label for="effort" class="sr-only">Niveau d'effort</label>
 <div id="effort-scale"><div class="effort-notches" aria-hidden="true"></div><input id="effort" type="range" min="0" max="4" step="any" value="2" aria-describedby="effort-tip"><span class="effort-knob" aria-hidden="true"></span></div>
-<div id="effort-ticks" aria-hidden="true"></div>
+</div>
 <p id="effort-tip" class="tip"></p></section>
 <section class="cfg-col cfg-execution" aria-labelledby="cfg-h-execution"><h3 id="cfg-h-execution">${icon("shield")}Exécution</h3>
 <div class="cfg-control"><button id="learning-switch" type="button" role="switch" aria-checked="false" aria-describedby="learning-help"><span class="cfg-switch-label"><span class="cfg-switch-ico">${icon("book")}</span>Apprentissage</span></button>
 <p id="learning-help" class="tip">Lecture des cours et explications, sans exécution ni écriture.</p></div>
-<div class="cfg-control cfg-automatic"><button id="automatic-switch" type="button" role="switch" aria-checked="false" aria-describedby="automatic-state automatic-warn"><span class="cfg-switch-label"><span class="cfg-switch-ico">${icon("bolt")}</span>Automatique</span></button>
+<div class="cfg-control cfg-automatic"><button id="automatic-switch" type="button" role="switch" aria-checked="false" aria-describedby="automatic-state automatic-warn"><span class="cfg-switch-label"><span class="cfg-switch-ico">${icon("play")}</span>Automatique</span></button>
 <p id="automatic-state" role="status"></p>
 <p id="automatic-warn" class="tip"><span class="warn-line">Ce réglage modifie uniquement les indicateurs de la démonstration.</span></p></div></section>
 </div>
