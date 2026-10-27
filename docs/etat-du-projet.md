@@ -20,7 +20,7 @@ La version du manifeste est **0.3.47**. Les paragraphes
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
 
-## Lot 0.3.47 — méthode commune des agents (en préparation)
+## Lot 0.3.47 — méthode commune des agents (publié)
 
 Le skill [Conduite vérifiable d'une mission](methodologie-agent.md) est embarqué
 dans les deux adaptateurs, pour tous les modèles, dans la CLI et l'extension.
@@ -41,7 +41,20 @@ Les **6 tests de contrat OpenCode avec fournisseur simulé local**, désactivés
 dans la suite standard, ont aussi été exécutés et réussissent. Le nouveau
 contrat vérifie le texte complet envoyé au parent et au sous-agent natif,
 une seule fois chacun. Aucun appel d'inférence facturé ni benchmark HTB n'a
-été lancé. Diff relu ; publication encore en préparation.
+été lancé. Diff relu.
+
+Le commit **9b48e67**, sous `tomtimlt`, est poussé et marqué **v0.3.47**.
+Le [workflow 40480457214](https://github.com/tomtimlt/warband/actions/runs/40480457214)
+a réussi. Les deux VSIX et leurs SHA-256 de la
+[release 0.3.47](https://github.com/tomtimlt/warband/releases/tag/v0.3.47)
+ont été téléchargés et vérifiés : quatre assets publiés, empreintes des fichiers
+et digests GitHub conformes, ZIP intègres, version et injections du skill
+présentes dans les bundles.
+
+Nouveau retour du PC personnel : le catalogue échoue désormais avec
+`opencode.unsafeConfig`, alors que le PC professionnel fonctionne. Cela localise
+le refus à la validation de configuration effective ; le réglage exact n'est
+pas encore connu. Aucun contrôle de configuration n'est relâché.
 
 ## Lot 0.3.46 — chargement et diagnostic du catalogue (publié)
 
