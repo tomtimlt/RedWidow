@@ -1,6 +1,6 @@
 # Warband — parcours, état actuel et reprise
 
-État inspecté le 27 octobre 2026 pour la version 0.3.50. Ce document sert de point d'entrée produit ;
+État inspecté le 27 octobre 2026 pour la version 0.3.51. Ce document sert de point d'entrée produit ;
 les ADR expliquent les décisions, les idées restent une réserve.
 
 ## Le parcours de référence
@@ -15,10 +15,21 @@ parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
 
-La version du manifeste est **0.3.50**. Les paragraphes
+La version du manifeste est **0.3.51**. Les paragraphes
 0.3.19 à 0.3.29 ci-dessous sont des relevés historiques, pas les preuves de
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
+
+## Lot 0.3.51 — icône de suivi du bas (en préparation)
+
+Le bouton du Monitor et du suivi de commande affiche uniquement une flèche
+vers le bas. Le nom accessible, l'infobulle d'action et `aria-pressed` conservent
+le sens et l'état du suivi. Cliquer ne remplace plus l'icône par du texte.
+Le comportement de suivi et de lecture libre est conservé.
+Validation : **2 014 tests réussis, 14 ignorés**, typage et build réussis.
+Les 18 parcours Chromium (Monitor/suivi, trois thèmes et trois largeurs)
+vérifient le suivi, le clavier, l'absence de texte visible et la conservation
+de l'icône après bascule. Diff relu ; publication en préparation.
 
 ## Lot 0.3.50 — Kill Chain, chemin retenu et préparation des rapports (publié)
 

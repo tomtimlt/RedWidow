@@ -944,7 +944,6 @@
   monitorFollowBtn.addEventListener("click", () => {
     monitorFollow = !monitorFollow;
     monitorFollowBtn.setAttribute("aria-pressed", String(monitorFollow));
-    monitorFollowBtn.textContent = `Suivi du bas : ${monitorFollow ? "activé" : "désactivé"}`;
     monitorFollowBtn.title = monitorFollow
       ? "Désactiver le suivi du bas pour défiler librement"
       : "Activer le suivi et revenir en bas";

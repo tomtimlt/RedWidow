@@ -39,7 +39,7 @@ conduit les échanges. Monitor affiche
 les exécutions et Kill chain les trouvailles. Le conteneur principal affiché
 ne remplace pas la sélection de cible autorisée par le moteur.
 
-Dans le Monitor et le panneau de suivi d'une commande, **Suivi du bas** active
+Dans le Monitor et le panneau de suivi d'une commande, le bouton **flèche vers le bas** active
 ou désactive le défilement automatique. Activé par défaut, il suit les nouvelles
 sorties ; désactivé, il conserve la position de lecture, y compris dans les
 sorties défilantes. Le réactiver revient immédiatement en bas. Ce réglage reste

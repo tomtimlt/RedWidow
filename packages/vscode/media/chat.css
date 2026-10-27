@@ -3266,6 +3266,12 @@ body.mode-watch #monitor {
   margin: 0;
 }
 #monitor-follow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
   flex-shrink: 0;
 }
 #monitor-follow[aria-pressed="true"] {
