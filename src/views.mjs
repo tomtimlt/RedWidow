@@ -95,7 +95,7 @@ export function chatHtml({ nonce, cspSource, scriptUri, uiUri, styleUri, iconsUr
 <p id="provider-help" class="tip">Catalogue fictif : les options servent uniquement à explorer les états visuels.</p>
 <div class="effort-head"><div class="effort-now">Effort <output id="effort-label" for="effort"></output></div><div class="effort-row"><button id="effort-auto" type="button" class="ghost" title="Revenir à Auto : le modèle garde son effort par défaut">${icon("refresh")}Auto</button></div></div>
 <label for="effort" class="sr-only">Niveau d'effort</label>
-<div id="effort-scale"><input id="effort" type="range" min="0" max="4" step="1" value="2" aria-describedby="effort-tip"></div>
+<div id="effort-scale"><div class="effort-notches" aria-hidden="true"></div><input id="effort" type="range" min="0" max="4" step="any" value="2" aria-describedby="effort-tip"><span class="effort-knob" aria-hidden="true"></span></div>
 <div id="effort-ticks" aria-hidden="true"></div>
 <p id="effort-tip" class="tip"></p></section>
 <section class="cfg-col cfg-execution" aria-labelledby="cfg-h-execution"><h3 id="cfg-h-execution">${icon("shield")}Exécution</h3>

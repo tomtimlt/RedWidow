@@ -1798,10 +1798,13 @@ body.vscode-high-contrast-light .opt.active {
 #effort-scale {
   --jn-progress: 0.5;
   --jn-thumb: 18px;
+  --jn-settle: 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  --jn-pos: calc(var(--jn-thumb) / 2 + (100% - var(--jn-thumb)) * var(--jn-progress));
   position: relative;
-  height: 26px;
+  height: 28px;
   margin-top: 6px;
 }
+/* Piste et remplissage */
 #effort-scale::before,
 #effort-scale::after {
   content: "";
@@ -1812,71 +1815,172 @@ body.vscode-high-contrast-light .opt.active {
   border-radius: var(--jn-r-pill);
   pointer-events: none;
 }
-#effort-scale::before {
-  left: calc(var(--jn-thumb) / 2);
-  width: calc((100% - var(--jn-thumb)) * var(--jn-progress));
-  z-index: 1;
-  background: var(--jn-sig);
-  transition: width var(--jn-d2) var(--jn-ease-out);
-}
 #effort-scale::after {
   left: calc(var(--jn-thumb) / 2);
   right: calc(var(--jn-thumb) / 2);
   background: var(--jn-raise-2);
   box-shadow: inset 0 0 0 1px var(--jn-line);
 }
-#effort-scale.auto::before {
-  opacity: 0.4;
+#effort-scale::before {
+  left: calc(var(--jn-thumb) / 2);
+  width: calc((100% - var(--jn-thumb)) * var(--jn-progress));
+  z-index: 1;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--jn-sig) 55%, transparent), var(--jn-sig));
+  transition:
+    width var(--jn-settle),
+    opacity var(--jn-d2) var(--jn-ease-io);
 }
+#effort-scale.auto::before {
+  opacity: 0.35;
+}
+/* Encoches : une par niveau, allumées sous le remplissage */
+.effort-notches {
+  position: absolute;
+  inset: 0 calc(var(--jn-thumb) / 2);
+  z-index: 1;
+  pointer-events: none;
+}
+.effort-notch {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--jn-at) * 100%);
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  border-radius: 50%;
+  background: var(--jn-faint);
+  transition:
+    background-color var(--jn-d2) var(--jn-ease-io),
+    transform var(--jn-d2) var(--jn-ease-out);
+}
+.effort-notch.is-on {
+  background: var(--vscode-editor-background, #fff);
+  transform: scale(0.85);
+}
+#effort-scale.auto .effort-notch.is-on {
+  background: var(--jn-faint);
+}
+/* Commande native : transparente, elle garde le glisser, le clavier et l'accessibilité. */
 #effort {
   appearance: none;
   position: relative;
-  z-index: 2;
+  z-index: 3;
   display: block;
   width: 100%;
-  height: 26px;
+  height: 28px;
   margin: 0;
   padding: 0;
   background: transparent;
-  cursor: pointer;
-  accent-color: var(--jn-sig);
+  cursor: grab;
+}
+#effort-scale.is-pressed #effort {
+  cursor: grabbing;
 }
 #effort::-webkit-slider-runnable-track {
-  height: 26px;
+  height: 28px;
   background: transparent;
 }
 #effort::-moz-range-track {
-  height: 26px;
+  height: 28px;
   background: transparent;
 }
 #effort::-webkit-slider-thumb {
   appearance: none;
   width: var(--jn-thumb, 18px);
-  height: var(--jn-thumb, 18px);
-  margin-top: 4px;
-  border: 2px solid var(--jn-sig);
-  border-radius: 50%;
-  background: var(--vscode-editor-background, #fff);
-  box-shadow: 0 1px 3px var(--vscode-widget-shadow, #0004);
-  transition: transform var(--jn-d1) var(--jn-ease-out);
+  height: 28px;
+  border: 0;
+  background: transparent;
 }
 #effort::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  border: 2px solid var(--jn-sig);
-  border-radius: 50%;
-  background: var(--vscode-editor-background, #fff);
-}
-#effort:hover:not(:disabled)::-webkit-slider-thumb {
-  transform: scale(1.12);
+  width: 18px;
+  height: 28px;
+  border: 0;
+  background: transparent;
 }
 #effort:focus-visible {
-  outline-offset: 2px;
-  border-radius: var(--jn-r-pill);
+  outline: none;
 }
 #effort:disabled {
   cursor: default;
+}
+/* Pastille visible : suit le pointeur, rebondit au calage */
+.effort-knob {
+  position: absolute;
+  top: 50%;
+  left: var(--jn-pos);
+  z-index: 2;
+  width: var(--jn-thumb);
+  height: var(--jn-thumb);
+  margin: calc(var(--jn-thumb) / -2) 0 0 calc(var(--jn-thumb) / -2);
+  border: 2px solid var(--jn-sig);
+  border-radius: 50%;
+  background: var(--vscode-editor-background, #fff);
+  box-shadow:
+    0 1px 3px var(--vscode-widget-shadow, #0004),
+    0 0 0 0 var(--jn-sig-tint);
+  pointer-events: none;
+  transition:
+    left var(--jn-settle),
+    transform var(--jn-d2) var(--jn-ease-out),
+    box-shadow var(--jn-d2) var(--jn-ease-out),
+    background-color var(--jn-d2) var(--jn-ease-io);
+}
+.effort-knob::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--jn-sig);
+  transform: scale(0);
+  transition: transform var(--jn-d2) var(--jn-ease-out);
+}
+#effort-scale:not(.auto) .effort-knob::after,
+#effort-scale.is-dragging .effort-knob::after {
+  transform: scale(1);
+}
+#effort-scale.auto.is-dragging::before {
+  opacity: 1;
+}
+#effort-scale.auto.is-dragging .effort-notch.is-on {
+  background: var(--vscode-editor-background, #fff);
+}
+#effort-scale.is-dragging::before,
+#effort-scale.is-dragging .effort-knob {
+  transition: none;
+}
+#effort:hover:not(:disabled) ~ .effort-knob {
+  transform: scale(1.12);
+  box-shadow:
+    0 1px 3px var(--vscode-widget-shadow, #0004),
+    0 0 0 5px var(--jn-sig-tint);
+}
+#effort-scale.is-pressed .effort-knob {
+  transform: scale(1.22);
+  box-shadow:
+    0 2px 6px var(--vscode-widget-shadow, #0005),
+    0 0 0 7px var(--jn-sig-tint);
+}
+#effort:focus-visible ~ .effort-knob {
+  outline: 2px solid var(--jn-focus);
+  outline-offset: 2px;
+}
+#effort-scale.is-disabled {
   opacity: 0.5;
+}
+/* Le niveau affiché saute légèrement quand il change */
+#effort-label {
+  display: inline-block;
+}
+#effort-label.bump {
+  animation: jn-bump 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes jn-bump {
+  0% {
+    transform: scale(0.86);
+  }
+  100% {
+    transform: none;
+  }
 }
 #effort-ticks {
   position: relative;
@@ -1903,7 +2007,7 @@ body.vscode-high-contrast-light .opt.active {
   color: var(--vscode-foreground);
 }
 .effort-tick.is-current {
-  color: var(--vscode-foreground);
+  color: var(--jn-sig);
   font-weight: 650;
 }
 #effort-ticks.is-disabled .effort-tick {

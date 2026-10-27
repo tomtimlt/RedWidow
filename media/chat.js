@@ -485,8 +485,10 @@
     );
     effortInput.value = String(idx);
     const scale = $("effort-scale");
+    scale.classList.remove("is-dragging");
     scale.style.setProperty("--jn-progress", String(idx / Math.max(levels.length - 1, 1)));
     scale.classList.toggle("auto", auto);
+    shownLevel = auto ? -1 : idx;
     effortInput.disabled = c.locked || c.effortDisabled;
     const disabledTip = c.provider === "demo" ? "Ce modèle n'a pas d'effort réglable." : "Aucune variante de raisonnement connue pour ce modèle. Actualisez la liste des modèles.";
     effortInput.title = c.effortDisabled ? disabledTip : c.effortTip;
@@ -496,6 +498,8 @@
     $("effort-tip").textContent = c.effortDisabled ? disabledTip : c.effortTip;
     $("cfg-level").textContent = shown;
     paintTicks(idx, auto, effortInput.disabled);
+    paintNotches(idx);
+    scale.classList.toggle("is-disabled", effortInput.disabled);
     cfgBtn.title = `Configurer : effort ${c.effortLabel}`;
     document.body.classList.toggle("learning", c.learning === true);
     $("learning-badge").hidden = c.learning !== true;
@@ -737,21 +741,73 @@
     );
     ticks.classList.toggle("is-disabled", disabled);
   }
-  effortInput.addEventListener("input", () => {
-    const index = Number(effortInput.value);
+  // Curseur d'effort : suit le pointeur en continu, puis se cale sur le niveau
+  // le plus proche au relâchement. Le clavier passe d'un niveau à l'autre.
+  const effortScale = $("effort-scale");
+  let shownLevel = -1;
+  const lastLevel = () => Math.max(levels.length - 1, 1);
+  function paintNotches(position) {
+    const box = effortScale.querySelector(".effort-notches");
+    if (box.childElementCount !== levels.length) {
+      box.replaceChildren(
+        ...levels.map((_, i) => {
+          const notch = el("span", "effort-notch");
+          notch.style.setProperty("--jn-at", String(i / lastLevel()));
+          return notch;
+        })
+      );
+    }
+    [...box.children].forEach((notch, i) => notch.classList.toggle("is-on", i <= position + 0.001));
+  }
+  function showLevel(index) {
     const level = levels[index];
-    if (!level || !ctl || ctl.locked || ctl.effortDisabled) return;
-    $("effort-scale").style.setProperty(
-      "--jn-progress",
-      String(index / Math.max(levels.length - 1, 1))
-    );
+    if (!level) return;
     $("effort-label").textContent = level.label;
     effortInput.setAttribute("aria-valuetext", level.label);
     $("effort-ticks").querySelectorAll(".effort-tick").forEach((tick, i) => tick.classList.toggle("is-current", i === index));
+    if (index !== shownLevel) {
+      const label = $("effort-label");
+      label.classList.remove("bump");
+      void label.offsetWidth;
+      label.classList.add("bump");
+      shownLevel = index;
+    }
+  }
+  const effortLocked = () => !ctl || ctl.locked || ctl.effortDisabled || levels.length === 0;
+  function settleEffort(index, post) {
+    const target = Math.min(Math.max(Math.round(index), 0), levels.length - 1);
+    effortScale.classList.remove("is-dragging");
+    effortInput.value = String(target);
+    effortScale.style.setProperty("--jn-progress", String(target / lastLevel()));
+    paintNotches(target);
+    showLevel(target);
+    if (post) postReasoningChoice(levels[target].value);
+  }
+  effortInput.addEventListener("pointerdown", () => {
+    if (!effortLocked()) effortScale.classList.add("is-dragging", "is-pressed");
+  });
+  const release = () => effortScale.classList.remove("is-pressed");
+  effortInput.addEventListener("pointerup", release);
+  effortInput.addEventListener("pointercancel", release);
+  effortInput.addEventListener("input", () => {
+    if (effortLocked()) return;
+    const raw = Number(effortInput.value);
+    effortScale.classList.add("is-dragging");
+    effortScale.style.setProperty("--jn-progress", String(raw / lastLevel()));
+    paintNotches(raw);
+    showLevel(Math.round(raw));
   });
   effortInput.addEventListener("change", () => {
-    const level = levels[Number(effortInput.value)];
-    if (level) postReasoningChoice(level.value);
+    if (!effortLocked()) settleEffort(Number(effortInput.value), true);
+  });
+  effortInput.addEventListener("keydown", (event) => {
+    if (effortLocked()) return;
+    const current = Math.round(Number(effortInput.value));
+    const next = { ArrowLeft: current - 1, ArrowDown: current - 1, ArrowRight: current + 1, ArrowUp: current + 1, PageDown: current - 1, PageUp: current + 1, Home: 0, End: levels.length - 1 }[event.key];
+    if (next === undefined) return;
+    event.preventDefault();
+    const target = Math.min(Math.max(next, 0), levels.length - 1);
+    if (target !== current || effortScale.classList.contains("auto")) settleEffort(target, true);
   });
   const historyPanel = $("history");
   const historyBtn = $("history-btn");
