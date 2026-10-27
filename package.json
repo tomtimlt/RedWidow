@@ -46,6 +46,10 @@
       {
         "command": "warbandDesign.scenario",
         "title": "Warband UI : choisir un scénario"
+      },
+      {
+        "command": "warbandDesign.palette",
+        "title": "Warband UI : choisir une palette"
       }
     ],
     "viewsContainers": {
@@ -65,6 +69,30 @@
           "name": "Chat · Démonstration"
         }
       ]
+    },
+    "configuration": {
+      "title": "Warband UI",
+      "properties": {
+        "warbandDesign.palette": {
+          "type": "string",
+          "default": "sentinelle",
+          "enum": [
+            "sentinelle",
+            "braise",
+            "bastion",
+            "spectre",
+            "editeur"
+          ],
+          "enumDescriptions": [
+            "Sarcelle et ardoise : veille, terminal, sécurité",
+            "Cramoisi et acier : la marque d'origine",
+            "Cuivre et graphite : chaleur d'atelier",
+            "Violet et glace : agents, recherche, nuit",
+            "Accent du thème VS Code : intégration maximale"
+          ],
+          "description": "Palette de signature de Warband. Les couleurs s'adaptent aux thèmes clair, sombre et contraste élevé."
+        }
+      }
     }
   }
 }

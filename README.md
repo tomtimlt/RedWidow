@@ -12,6 +12,9 @@ fictifs. Les interactions modifient uniquement l’état de démonstration en m�
    ou utiliser la palette : **Warband UI : ouvrir le chat / le graphe / le Monitor / les réglages**.
 4. Utiliser **Warband UI : choisir un scénario** pour passer entre accueil,
    conversation, activité, validation, indisponibilité et historique long.
+5. **Warband UI : choisir une palette** (ou le réglage `warbandDesign.palette`)
+   change la couleur de signature : Sentinelle, Braise, Bastion, Spectre ou
+   Éditeur.
 
 Aucune installation de dépendance n’est nécessaire. La démonstration ne demande
 aucune clé et ne contacte aucun fournisseur. Les activités affichées sont des
@@ -26,8 +29,8 @@ Avec Node 22 ou plus récent :
 npm run preview
 ```
 
-Ouvrir `http://127.0.0.1:4173`. La barre d’aperçu propose la vue, le scénario et
-le thème. Le rendu natif de référence reste celui de la fenêtre VS Code lancée
+Ouvrir `http://127.0.0.1:4173`. La barre d’aperçu propose la vue, le scénario,
+le thème et la palette. Le rendu natif de référence reste celui de la fenêtre VS Code lancée
 avec F5. `PORT=4174 npm run preview` permet de choisir un autre port.
 
 ## Modifier et vérifier
@@ -35,7 +38,7 @@ avec F5. `PORT=4174 npm run preview` permet de choisir un autre port.
 - `media/chat.css` : couleurs, espacements, typographie, composants et graphe.
 - `media/chat.js` : interactions et rendu de la conversation et du Monitor.
 - `media/studio.js` : disposition du graphe, sélection, zoom, filtres et réglages.
-- `media/icons.js` : pictogrammes SVG locaux.
+- `media/icons.js` : pictogrammes SVG locaux, source unique pour toutes les vues.
 - `src/views.mjs` : structure HTML des webviews et CSP.
 - `src/demo.mjs` : fixtures et simulation des messages d’interface.
 - `extension.cjs` : ouverture des vues et pont de démonstration VS Code.

@@ -36,6 +36,14 @@ function applyTheme(value) {
 }
 select("Thème", [["dark", "Sombre"], ["light", "Clair"], ["hc", "Contraste élevé"]], query.get("theme") ?? "dark", applyTheme);
 applyTheme(query.get("theme") ?? "dark");
+const PALETTES = [["sentinelle", "Sentinelle"], ["braise", "Braise"], ["bastion", "Bastion"], ["spectre", "Spectre"], ["editeur", "Éditeur"]];
+const applyPalette = (value) => {
+  document.body.dataset.palette = value;
+  query.set("palette", value);
+  history.replaceState(null, "", "?" + query.toString());
+};
+select("Palette", PALETTES, query.get("palette") ?? "sentinelle", applyPalette);
+applyPalette(query.get("palette") ?? "sentinelle");
 document.body.prepend(toolbar);
 demo = createDemo({ onChange: draw, onOpen: (view, page) => {
   if (view === "settings" && page) section = page;
