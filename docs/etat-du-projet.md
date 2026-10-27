@@ -20,7 +20,7 @@ La version du manifeste est **0.3.48**. Les paragraphes
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
 
-## Lot 0.3.48 — configuration OpenCode isolée (en préparation)
+## Lot 0.3.48 — configuration OpenCode isolée (publié)
 
 Le serveur de l'extension charge une configuration temporaire isolée pour le
 catalogue et les conversations, comme le faisait déjà le mode OpenAI. Les
@@ -37,7 +37,13 @@ Validation : **1 996 tests réussis, 14 ignorés**, typage et build réussis.
 Les 19 tests ciblés réussissent, dont les 7 contrats avec le vrai binaire
 OpenCode et un fournisseur simulé local. Catalogue, conversation, isolation
 des plugins/agents personnels et fichiers auth/config inchangés sont vérifiés.
-Diff relu ; publication en préparation.
+Diff relu. Le commit **a41dc5b**, sous `tomtimlt`, est poussé et marqué
+**v0.3.48**. Le [workflow 40499184539](https://github.com/tomtimlt/warband/actions/runs/40499184539)
+a réussi. Les deux VSIX et leurs SHA-256 de la
+[release 0.3.48](https://github.com/tomtimlt/warband/releases/tag/v0.3.48)
+ont été téléchargés et vérifiés : quatre assets publiés, empreintes conformes
+aux fichiers SHA et digests GitHub, ZIP intègres, version et activation de
+l'isolation présentes dans les bundles. Confirmation sur le PC personnel attendue.
 
 ## Lot 0.3.47 — méthode commune des agents (publié)
 
