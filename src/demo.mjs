@@ -196,6 +196,7 @@ export function createDemo({ onChange = () => {
         onChange();
         break;
       case "setAutomatic":
+      case "setAutomatique":
         automatic = message.enabled === true;
         reply(auxiliary().at(-1));
         break;
