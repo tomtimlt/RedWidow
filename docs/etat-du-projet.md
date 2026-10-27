@@ -20,7 +20,7 @@ La version du manifeste est **0.3.49**. Les paragraphes
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
 
-## Lot 0.3.49 — refus de quota et attente fournisseur visibles (en préparation)
+## Lot 0.3.49 — refus de quota et attente fournisseur visibles (publié)
 
 Test réel autorisé avec la clé de l'environnement cloud, le binaire embarqué,
 l'isolation activée et le modèle gratuit découvert au runtime
@@ -47,7 +47,16 @@ Après sécurisation du libellé des retries courts (statut et délai uniquement
 sans message brut fournisseur), les 78 tests ciblés, le typage et le build
 repassent. Le jeton GitHub du terminal répond 401 ; les connexions GitHub de
 l'application et Composio sont confirmées sous `tomtimlt` pour la livraison.
-Diff relu ; publication en préparation.
+Diff relu. Le commit **a1729eb** a été transféré à l'identique par API (arbre,
+auteur et empreinte identiques au commit local) et marqué **v0.3.49** sous
+`tomtimlt`. Le [workflow 40502029090](https://github.com/tomtimlt/warband/actions/runs/40502029090)
+a réussi. Les deux VSIX et leurs SHA-256 de la
+[release 0.3.49](https://github.com/tomtimlt/warband/releases/tag/v0.3.49)
+ont été téléchargés par l'API authentifiée du dépôt privé : empreintes conformes
+aux fichiers SHA et digests GitHub, ZIP intègres, version, gestion des quotas,
+attentes longues et libellé du fournisseur vérifiés. Aucun jeton GitHub n'a
+été copié dans le dépôt ; celui du terminal reste invalide. Confirmation du
+diagnostic sur le PC personnel attendue.
 
 ## Lot 0.3.48 — configuration OpenCode isolée (publié)
 
