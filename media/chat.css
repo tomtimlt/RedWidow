@@ -445,6 +445,23 @@ select {
 }
 .msg-row.agent {
   align-self: stretch;
+  gap: 10px;
+}
+/* Avatar de l'agent : le logo, aligné sur la première ligne de la réponse. */
+.msg-avatar {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+}
+@container app (max-width: 359px) {
+  .msg-row.agent {
+    gap: 6px;
+  }
+  .msg-avatar {
+    width: 16px;
+    height: 16px;
+  }
 }
 .msg-row > .msg {
   min-width: 0;
@@ -5144,33 +5161,61 @@ body.vscode-high-contrast-light .kc-viewport {
       transform: translateY(-1px);
     }
     /* Marque : pendant la réflexion, l'étincelle pulse et le satellite orbite. */
-    &.running:not(.waiting, .paused) .brand-core {
+    &.running:not(.waiting, .paused) :is(#title, #thinking) .brand-core {
       animation: jn-spark 1.6s var(--jn-ease-io) infinite;
     }
-    &.running:not(.waiting, .paused) .brand-orbit {
+    &.running:not(.waiting, .paused) :is(#title, #thinking) .brand-orbit {
       animation: jn-orbit 2.4s linear infinite;
     }
-    &.running:not(.waiting, .paused) .brand-wing {
+    &.running:not(.waiting, .paused) :is(#title, #thinking) .brand-wing {
       animation: jn-lock 1.6s var(--jn-ease-io) infinite;
     }
     & #title:hover .brand-wing {
       animation: jn-lock 0.9s var(--jn-ease-io) 1;
+    }
+    /* Au repos : le satellite fait lentement le tour, l'étincelle respire. */
+    & #title .brand-orbit {
+      animation: jn-orbit 14s linear infinite;
+    }
+    /* Accueil : verrouillage, allumage, mise en orbite, puis respiration lente. */
+    & .welcome-mark .brand-core {
+      animation:
+        jn-spark-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.25s both,
+        jn-breathe 4s var(--jn-ease-io) 1.2s infinite;
+    }
+    & .welcome-mark .brand-wing {
+      animation:
+        jn-lock-in 0.55s var(--jn-ease-out) both,
+        jn-breathe-lock 4s var(--jn-ease-io) 1.2s infinite;
+    }
+    & .welcome-mark .brand-orbit {
+      animation:
+        jn-orbit-in 0.9s var(--jn-ease-out) 0.45s both,
+        jn-orbit 10s linear 1.35s infinite;
+    }
+    /* Avatar de la dernière réponse : il s'anime tant que l'agent travaille. */
+    &.running:not(.waiting, .paused) #log .msg-row.agent:not(:has(~ .msg-row.agent)) .msg-avatar .brand-core {
+      animation: jn-spark 1.6s var(--jn-ease-io) infinite;
+    }
+    &.running:not(.waiting, .paused) #log .msg-row.agent:not(:has(~ .msg-row.agent)) .msg-avatar .brand-orbit {
+      animation: jn-orbit 2.4s linear infinite;
+    }
+    &.running:not(.waiting, .paused) #log .msg-row.agent:not(:has(~ .msg-row.agent)) .msg-avatar .brand-wing {
+      animation: jn-lock 1.6s var(--jn-ease-io) infinite;
+    }
+    /* Une nouvelle réponse : l'avatar se verrouille à son arrivée. */
+    & #log .msg-row.agent.enter .msg-avatar .brand-wing,
+    & #log .enter .msg-row.agent .msg-avatar .brand-wing {
+      animation: jn-lock-in 0.5s var(--jn-ease-out) both;
+    }
+    & .msg-row.agent:hover .msg-avatar .brand-orbit {
+      animation: jn-orbit 1.2s var(--jn-ease-out) 1;
     }
     & #title:hover .brand-core {
       animation: jn-spark 0.9s var(--jn-ease-io) 1;
     }
     & #title:hover .brand-orbit {
       animation: jn-orbit 0.9s var(--jn-ease-out) 1;
-    }
-    /* Accueil : les crochets se verrouillent, l'étincelle s'allume, le satellite se place. */
-    & .welcome-mark .brand-wing {
-      animation: jn-lock-in 0.55s var(--jn-ease-out) both;
-    }
-    & .welcome-mark .brand-core {
-      animation: jn-spark-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.25s both;
-    }
-    & .welcome-mark .brand-orbit {
-      animation: jn-orbit-in 0.9s var(--jn-ease-out) 0.45s both;
     }
     /* Indicateur de réflexion : libellé balayé de lumière, points qui sautent. */
     &.running:not(.waiting, .paused) #thinking-label {
@@ -5230,6 +5275,24 @@ body.vscode-high-contrast-light .kc-viewport {
   }
   50% {
     opacity: 0.45;
+  }
+}
+@keyframes jn-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.9);
+  }
+}
+@keyframes jn-breathe-lock {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.95);
   }
 }
 @keyframes jn-lock {

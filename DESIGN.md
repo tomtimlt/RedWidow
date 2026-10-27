@@ -49,6 +49,11 @@ d’activité, monochrome) en sont les versions fixes.
 
 ## Réflexion dans le chat
 
+Chaque réponse de l’agent est signée du logo (`.msg-avatar`, clone de
+l’en-tête) ; celui de la dernière réponse s’anime pendant l’activité et se
+verrouille à l’arrivée d’une réponse. Au repos, le satellite de l’en-tête fait
+lentement le tour et le logo d’accueil respire.
+
 Logo animé, libellé balayé de lumière, trois points qui sautent et liseré
 lumineux qui parcourt le haut du compositeur. En attente d’accord : tout passe
 en couleur d’alerte et s’immobilise.

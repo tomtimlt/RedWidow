@@ -154,8 +154,19 @@
     btn.addEventListener("click", () => copy(text, btn));
     return btn;
   }
+  // Les réponses de l'agent sont signées du logo, repris de l'en-tête.
+  function agentMark() {
+    const mark = document.querySelector("#title .brand")?.cloneNode(true);
+    if (!mark) return null;
+    mark.setAttribute("class", "brand msg-avatar");
+    mark.setAttribute("width", "20");
+    mark.setAttribute("height", "20");
+    return mark;
+  }
   function messageShell(kind, text, body) {
     const row = el("div", `msg-row ${kind}`);
+    const mark = kind === "agent" ? agentMark() : null;
+    if (mark) row.append(mark);
     row.append(body, copyButton(text));
     return row;
   }
