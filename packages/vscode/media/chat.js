@@ -349,26 +349,23 @@
   }
   const seenCards = /* @__PURE__ */ new Set();
   const approvalNodes = new Map();
-  function cardRisks(card) {
+  function cardTraits(card) {
     const risks = [];
     if (UI.toolIcon(card.tool) === "terminal") risks.push(["terminal", "Exécution"]);
     if (card.networkActive) risks.push(["link", "Réseau"]);
     if (card.canRemember) risks.push(["history", "Mémorisable"]);
-    return { risks, level: "review" };
+    return risks;
   }
   function renderCard(card, isNew) {
     const box = el("div", isNew ? "card enter" : "card");
     box.tabIndex = -1;
     box.setAttribute("role", "group");
     box.setAttribute("aria-label", `Demande d'autorisation : ${card.label}`);
-    const { risks, level } = cardRisks(card);
-    box.dataset.risk = level;
+    const risks = cardTraits(card);
     const head = el("div", "card-head");
     const icon = svg("shield", "ico card-icon");
     icon.setAttribute("aria-hidden", "true");
     head.append(icon, el("div", "card-title", "Autorisation requise"));
-    const levelChip = el("span", "card-level", "À vérifier");
-    head.append(levelChip);
     const chips = el("div", "card-risks");
     for (const [name, label] of risks) {
       const chip = el("span", "card-risk");
@@ -393,12 +390,19 @@
     box.append(grid, det);
     const row = el("div", "card-buttons");
     const buttons = {};
+    const pendingText = "Confirmation native en cours…";
     const decide = (choice) => {
-      box.classList.add(choice === "deny" ? "is-denied" : "is-locked");
-      if (box.dataset.decided) return;
+      if (box.dataset.decided || card.confirming) return;
       box.dataset.decided = "true";
+      if (choice !== "always") box.classList.add(choice === "deny" ? "is-denied" : "is-locked");
       for (const button of row.querySelectorAll("button")) button.disabled = true;
-      row.replaceChildren(el("span", "badge", choice === "deny" ? "Refusé" : "Autorisé"));
+      row.replaceChildren(
+        el(
+          "span",
+          "badge",
+          choice === "always" ? pendingText : choice === "deny" ? "Refusé" : "Autorisé",
+        ),
+      );
       vscode.postMessage({ type: "approve", toolUseId: card.toolUseId, choice });
     };
     const button = (label, choice, css) => {
@@ -411,6 +415,11 @@
     button("Autoriser une fois", "once", "primary");
     button("Refuser", "deny", "danger");
     if (card.canRemember) button("Toujours", "always", "link");
+    if (card.confirming) {
+      box.dataset.decided = "true";
+      for (const button of row.querySelectorAll("button")) button.disabled = true;
+      row.replaceChildren(el("span", "badge", pendingText));
+    }
     box.append(row);
     box.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && e.target === box) {
@@ -483,9 +492,9 @@
     });
     pop.addEventListener("keydown", (e) => {
       if (e.key !== "Tab") return;
-      const items = [...pop.querySelectorAll("button, input")].filter(
-        (n) => !n.disabled && !n.hidden && !n.closest("[hidden]"),
-      );
+      const items = [
+        ...pop.querySelectorAll('button, input, select, [role="button"][tabindex="0"]'),
+      ].filter((n) => !n.disabled && !n.hidden && !n.closest("[hidden]"));
       const t = UI.tabTarget(items.length, items.indexOf(document.activeElement), e.shiftKey);
       if (t >= 0) {
         e.preventDefault();
@@ -658,6 +667,7 @@
     const shown = auto ? "Auto" : (levels[idx]?.label ?? c.effortLabel);
     $("effort-label").textContent = shown;
     $("effort-tip").textContent = c.effortDisabled ? disabledTip : c.effortTip;
+    $("effort-tip").title = $("effort-tip").textContent;
     $("cfg-level").textContent = shown;
     $("effort-model-label").textContent = name;
     $("effort-model").disabled = c.locked;
@@ -738,6 +748,19 @@
     );
     if (!document.hidden) bypassTimer = setTimeout(renderBypass, Math.min(15000, ms));
   }
+  // Le texte complet reste disponible sans changer le fournisseur sélectionné.
+  const providerHelp = $("provider-help");
+  const toggleProviderHelp = () => {
+    const open = providerHelp.getAttribute("aria-expanded") !== "true";
+    providerHelp.setAttribute("aria-expanded", String(open));
+    providerHelp.title = open ? "Réduire le texte" : "Afficher tout le texte";
+  };
+  providerHelp.addEventListener("click", toggleProviderHelp);
+  providerHelp.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    toggleProviderHelp();
+  });
   function renderBypass() {
     paintRoe();
     const learning = ctl?.learning === true;
@@ -745,6 +768,7 @@
     if (learning) {
       bypassSwitch.setAttribute("aria-checked", "false");
       bypassState.textContent = "Inopérant en mode Apprentissage";
+      bypassState.title = bypassState.textContent;
       document.body.classList.remove("bypass-on", "bypass-pending");
       bypassBadge.hidden = true;
       bypassBadge.replaceChildren();
@@ -755,6 +779,7 @@
     const v = UI.bypassView(bypassCtx.push, bypassCtx.previous, bypassCtx.userOff, Date.now());
     bypassSwitch.setAttribute("aria-checked", String(v.checked));
     bypassState.textContent = v.text;
+    bypassState.title = v.text;
     document.body.classList.toggle("bypass-on", v.state === "on");
     document.body.classList.toggle("bypass-pending", v.state === "pending");
     paintRoe();
@@ -785,7 +810,9 @@
       renderBypass();
     },
     focus() {
-      [...cfgPop.querySelectorAll("input, button")].find((n) => !n.disabled && !n.hidden)?.focus();
+      [...cfgPop.querySelectorAll('input, button, select, [role="button"][tabindex="0"]')]
+        .find((n) => !n.disabled && !n.hidden)
+        ?.focus();
     },
   });
   const slashPop = $("slash-pop");

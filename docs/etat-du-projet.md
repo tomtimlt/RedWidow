@@ -1,6 +1,6 @@
 # Warband — parcours, état actuel et reprise
 
-État inspecté le 28 octobre 2026 pour la version 0.3.55. Ce document sert de point d'entrée produit ;
+État inspecté le 28 octobre 2026 pour la version 0.3.56. Ce document sert de point d'entrée produit ;
 les ADR expliquent les décisions, les idées restent une réserve.
 
 ## Le parcours de référence
@@ -15,10 +15,34 @@ parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
 
-La version du manifeste est **0.3.55**. Les paragraphes
+La version du manifeste est **0.3.56**. Les paragraphes
 0.3.19 à 0.3.29 ci-dessous sont des relevés historiques, pas les preuves de
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
+
+## Lot 0.3.56 — menu compact et cartes d’autorisation (préparé)
+
+Les deux nouveaux commits `122139c` et `6281a6b` de `design/ui-vscode` sont
+adaptés : Configurer plus compact, texte fournisseur dépliable au clic et au
+clavier, descriptions complètes accessibles, interrupteurs resserrés et retrait
+du badge « À vérifier » des cartes. La navigation Tab inclut le sélecteur et le
+texte dépliable. L’avertissement complet du Bypass demeure visible ; le masquage
+proposé dans la maquette n’est pas repris. Les fonctions réelles, les réponses
+uniques des cartes et les corrections du compteur sont conservées. Le maintien
+reste supprimé. La carte est aussi restaurée après annulation ou erreur de la
+confirmation native « Toujours » ; aucune autorisation n’est déduite de l’attente
+et une confirmation périmée ne peut répondre à une nouvelle carte. Voir les
+[retours au designer](retour-refonte-interface.md).
+
+Validation locale : **1 979 tests réussis, 14 ignorés**, typage et build réussis
+sous le reaper prescrit. Les tests de session couvrent annulation et erreur de
+confirmation, reprise sans mémorisation et réponse périmée après changement de
+conversation. Les **18 parcours Chromium** couvrent trois thèmes, largeurs
+280/360/1 000 px et hauteurs 480/800 px : menu de 414–416 px dans ces cas, texte
+repliable au clavier, Tab, avertissement intégral visible, 54 réponses initiales
+sans doublon et 18 reprises de carte après annulation simulée. Captures et diff
+relus ; aucun appel payant lancé. Publication en cours. La recette native
+Windows reste à confirmer.
 
 ## Lot 0.3.55 — seconde passe graphique (publié)
 

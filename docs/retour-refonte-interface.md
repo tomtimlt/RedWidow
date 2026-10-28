@@ -2,6 +2,34 @@
 
 Source initiale : `design/ui-vscode`, commit `4565ce6` (0.3.53).
 Seconde passe : commits `11543e8` à `d72f0e0` (0.3.55), intégrés sur `main`.
+Troisième passe : commits `122139c` et `6281a6b` (0.3.56).
+
+## Troisième passe — 0.3.56
+
+Repris : menu Configurer compact, titres conservés pour les lecteurs d’écran,
+texte fournisseur dépliable au clic / Entrée / Espace, descriptions d’effort
+complètes en infobulle, interrupteurs resserrés et retrait du badge « À vérifier »
+des cartes. Les pastilles décrivent seulement les caractéristiques de la demande.
+
+Adaptations :
+
+- L’avertissement complet du Bypass reste visible. Le masquage dans une infobulle
+  proposé sur la branche n’est pas repris. Le menu conserve le défilement interne
+  lorsque la fenêtre ou le zoom l’exige ; sa hauteur n’est pas supposée fixe.
+- La navigation Tab inclut désormais le sélecteur de fournisseur et le nouveau
+  texte dépliable. Ces éléments étaient absents du parcours de focus du prototype.
+- L’état du Bypass, abrégé visuellement sur une ligne, conserve son texte complet
+  dans `role=status` et son infobulle dynamique. Le compteur, l’échéance et l’aura
+  corrigés en 0.3.55 restent en place.
+- La protection contre les doubles réponses d’une carte et le cache DOM de
+  production sont conservés. Le prototype n’intègre pas tous ces garde-fous ;
+  ses fonctions d’autorisation ne sont donc pas recopiées intégralement.
+- La revue a révélé une carte figée après annulation de « Toujours ». Elle affiche
+  maintenant « Confirmation native en cours… », sans prétendre à une autorisation,
+  puis redevient utilisable si le dialogue est annulé ou échoue. Une confirmation
+  périmée ne peut pas répondre à une nouvelle carte, même de même identifiant.
+- Les suppressions de l’appui maintenu déjà réalisées en 0.3.54 ne sont pas un
+  nouveau chantier ; l’option reste absente.
 
 ## Seconde passe — 0.3.55
 

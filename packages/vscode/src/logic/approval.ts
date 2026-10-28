@@ -20,6 +20,8 @@ export interface ApprovalCard {
   reason: string;
   /** « Toujours » est proposé seulement si le verdict est mémorisable (prédicat du cœur). */
   canRemember: boolean;
+  /** Confirmation native en cours ; aucune autorisation n’est encore accordée. */
+  confirming?: boolean;
 }
 
 /** Texte non fiable destiné à l'affichage : contrôles et bidi retirés (`stripControl` du cœur), plafonné. */

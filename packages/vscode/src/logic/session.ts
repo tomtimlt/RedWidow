@@ -998,12 +998,23 @@ export function createChatSession(deps: ChatSessionDeps) {
         // « Toujours » : jamais pour un verdict non mémorisable ; confirmation native hors webview.
         if (!card.canRemember) return;
         confirming = true;
+        const approver = controller;
+        const pending = { ...card, confirming: true };
+        state.approvals.set(toolUseId, pending);
+        refresh();
+        let accepted = false;
         try {
-          if (!(await deps.confirmAlways(alwaysConfirmText(card)))) return;
+          accepted = await deps.confirmAlways(alwaysConfirmText(card));
         } finally {
           confirming = false;
+          // Annulation ou erreur : la carte redevient utilisable, sans répondre au moteur.
+          if (!accepted && state.approvals.get(toolUseId) === pending) {
+            state.approvals.set(toolUseId, { ...card, confirming: false });
+            refresh();
+          }
         }
-        if (!state.approvals.has(toolUseId) || controller === null) return;
+        if (!accepted || state.approvals.get(toolUseId) !== pending || controller !== approver)
+          return;
       }
       const { decision, remember } = answerFor(choice);
       controller.answer(toolUseId, decision, remember);

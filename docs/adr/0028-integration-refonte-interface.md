@@ -26,6 +26,24 @@ contraste élevé et masquage. Le compteur conserve le texte du thème pour la
 lisibilité. La barre d’état native garde son fond d’avertissement. La gate,
 les protocoles d’approbation et les adaptateurs restent inchangés.
 
+## Amendement 0.3.56
+
+Le menu compact et le nettoyage des cartes des commits `122139c` et `6281a6b`
+sont repris. Les titres restent accessibles aux lecteurs d’écran et le texte
+fournisseur se déplie au clic ou au clavier. Le parcours Tab comprend le
+sélecteur et le texte dépliable ; les descriptions complètes et le scroll interne
+restent disponibles. L’avertissement complet du Bypass demeure visible : son
+masquage proposé dans la maquette est écarté. Les cartes ne portent plus de
+badge « À vérifier » ni d’attribut de risque. Leurs caractéristiques descriptives,
+le clic simple, l’unicité de la réponse et la confirmation native sont conservés.
+La session expose un indicateur d’affichage `confirming` pendant « Toujours ».
+La carte ne prétend pas encore être autorisée et bloque les réponses concurrentes.
+Annulation ou erreur restaurent la carte sans réponse au moteur ; l’identité de
+la carte et du contrôleur est revalidée avant une réponse positive. Une ancienne
+confirmation ne peut donc pas agir sur une nouvelle conversation. Les décisions
+et la mémorisation de la gate ne changent pas.
+Les corrections du compteur et des ressources de la 0.3.55 restent applicables.
+
 ## Contexte
 
 La branche autonome `design/ui-vscode`, inspectée au commit `4565ce6`, propose

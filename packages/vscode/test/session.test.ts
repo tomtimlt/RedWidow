@@ -274,6 +274,60 @@ describe("session de chat", () => {
     expect(accepted.f.calls).toContainEqual(["answer", "a", "allow", "always"]);
   });
 
+  it.each(["annulée", "en erreur"])(
+    "confirmation native %s : carte restaurée sans autorisation",
+    async (outcome) => {
+      const t = setup();
+      let finish!: (value: boolean) => void;
+      let fail!: (error: Error) => void;
+      const modal = new Promise<boolean>((resolve, reject) => {
+        finish = resolve;
+        fail = reject;
+      });
+      t.confirmAlways.mockReturnValueOnce(modal);
+      await t.session.send("x");
+      t.f.handlers.onApproval?.(approval("a"));
+      const pending = t.session.approve("a", "always");
+      expect(t.view().approvals[0]?.confirming).toBe(true);
+      await t.session.approve("a", "once");
+      expect(t.f.calls.some((c) => c[0] === "answer")).toBe(false);
+      if (outcome === "annulée") {
+        finish(false);
+        await pending;
+      } else {
+        fail(new Error("dialogue indisponible"));
+        await expect(pending).rejects.toThrow("dialogue indisponible");
+      }
+      expect(t.view().approvals[0]?.confirming).toBe(false);
+      expect(t.f.calls.some((c) => c[0] === "answer")).toBe(false);
+      await t.session.approve("a", "once");
+      expect(t.f.calls.filter((c) => c[0] === "answer")).toEqual([
+        ["answer", "a", "allow", undefined],
+      ]);
+    },
+  );
+
+  it("une confirmation périmée ne répond pas à une nouvelle carte de même identifiant", async () => {
+    const t = setup();
+    let finish!: (value: boolean) => void;
+    t.confirmAlways.mockReturnValueOnce(
+      new Promise<boolean>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    await t.session.send("ancienne");
+    t.f.handlers.onApproval?.(approval("a"));
+    const pending = t.session.approve("a", "always");
+    t.session.reset();
+    await t.session.send("nouvelle");
+    t.f.handlers.onApproval?.(approval("a"));
+    finish(true);
+    await pending;
+    expect(t.f.calls.some((c) => c[0] === "answer")).toBe(false);
+    expect(t.view().approvals).toHaveLength(1);
+    expect(t.view().approvals[0]?.confirming).toBeUndefined();
+  });
+
   it("« Toujours » jamais pour un verdict non mémorisable, même demandé par la webview", async () => {
     const t = setup({ confirm: true });
     await t.session.send("x");

@@ -5745,23 +5745,8 @@ body.mode-watch::after {
   inset: 0;
 }
 
-/* ───────────────────────────── Validation armée ───────────────────────────── */
+/* ───────────────────────────── Caractéristiques de la demande ───────────────────────────── */
 
-.card[data-risk="high"] {
-  --jn-card-accent: var(--jn-err);
-  --card-lock: var(--jn-err);
-}
-.card-level {
-  margin-left: auto;
-  flex: none;
-  padding: 2px 9px;
-  border-radius: var(--jn-r-pill);
-  background: color-mix(in srgb, var(--jn-card-accent) 14%, transparent);
-  color: var(--jn-card-accent);
-  font-size: var(--jn-fs-2xs);
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
 .card-risks {
   display: flex;
   flex-wrap: wrap;
@@ -5791,10 +5776,6 @@ body.mode-watch::after {
 .card.is-denied {
   --jn-card-accent: var(--jn-faint);
   opacity: 0.8;
-}
-body.vscode-high-contrast .card-level,
-body.vscode-high-contrast-light .card-level {
-  border: 1px solid currentColor;
 }
 
 /* ───────────────────────────── Micro-interactions ─────────────────────────────
@@ -6329,4 +6310,132 @@ body.vscode-high-contrast::after,
 body.vscode-high-contrast-light::after {
   animation: none !important;
   transition: none !important;
+}
+
+/* ───────────────────────────── Configurer compact ─────────────────────────────
+ * Le menu tient sans défilement : pas de sous-titre ni de titres de section,
+ * descriptions en infobulle (toujours lues par les lecteurs d'écran), lignes
+ * d'interrupteurs et curseur resserrés. Le texte du fournisseur se déplie.
+ */
+#cfg-pop {
+  align-items: stretch;
+  gap: 4px;
+  width: min(340px, calc(100vw - 16px));
+  padding: 6px;
+}
+#cfg-pop .pop-head {
+  flex-direction: row;
+  align-items: center;
+  padding: 4px 6px 2px;
+}
+#cfg-pop .cfg-col {
+  padding: 8px 10px 10px;
+  border-radius: var(--jn-r-md);
+}
+#cfg-pop .cfg-provider {
+  gap: 4px 8px;
+}
+#cfg-pop #provider {
+  min-height: 26px;
+}
+#cfg-pop #provider-help {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  margin-top: 4px;
+  cursor: pointer;
+}
+#cfg-pop #provider-help[aria-expanded="true"] {
+  -webkit-line-clamp: unset;
+}
+#cfg-pop #provider-help:focus-visible {
+  outline-offset: 2px;
+  border-radius: var(--jn-r-xs);
+}
+/* Effort */
+#cfg-pop .effort-card {
+  margin-top: 8px;
+  padding: 6px 10px 8px;
+  border-radius: var(--jn-r-md);
+}
+#cfg-pop .effort-head {
+  min-height: 24px;
+  margin-bottom: 4px;
+}
+#cfg-pop #effort-label {
+  font-size: var(--jn-fs);
+}
+#cfg-pop .effort-model {
+  min-height: 16px;
+  font-size: var(--jn-fs-xs);
+}
+#cfg-pop #effort-scale {
+  --jn-thumb: 22px;
+}
+#cfg-pop #effort-scale::before,
+#cfg-pop #effort-scale::after {
+  height: 16px;
+  margin-top: -8px;
+}
+#cfg-pop #effort-tip {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  overflow: hidden;
+  margin-top: 4px;
+}
+/* Interrupteurs : une ligne chacun, description en infobulle */
+#cfg-pop .cfg-control + .cfg-control {
+  margin-top: 2px;
+  padding-top: 2px;
+  border-top: 0;
+}
+#cfg-pop #bypass-switch,
+#cfg-pop #learning-switch {
+  min-height: 30px;
+}
+#cfg-pop .cfg-switch-ico {
+  width: 22px;
+  height: 22px;
+}
+#cfg-pop .cfg-switch-ico .ico {
+  width: 12px;
+  height: 12px;
+}
+#cfg-pop .cfg-switch-label {
+  gap: 8px;
+}
+#cfg-pop #learning-help {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* État sur une ligne ; l'avertissement complet du Bypass reste visible. */
+#cfg-pop .cfg-control > #bypass-state {
+  margin: 0 0 4px 30px;
+  min-height: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--jn-fs-xs);
+  color: var(--jn-muted);
+}
+#cfg-pop .cfg-control > #bypass-state:empty {
+  display: none;
+}
+@container app (max-width: 359px) {
+  #cfg-pop {
+    padding: 4px;
+  }
+  #cfg-pop .cfg-col {
+    padding: 6px 8px 8px;
+  }
+  #cfg-pop #effort-scale {
+    --jn-thumb: 20px;
+  }
 }

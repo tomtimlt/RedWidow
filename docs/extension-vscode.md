@@ -40,6 +40,16 @@ La barre d’état VS Code conserve son avertissement natif. Le formulaire
 **Nouveau conteneur** possède un bouton **Replier le formulaire** : les champs
 saisis restent disponibles après réouverture.
 
+Depuis la 0.3.56, le menu **Configurer** est plus compact. Le texte du fournisseur
+se déplie au clic, avec Entrée ou Espace ; il reste dans le parcours Tab avec le
+sélecteur. Le détail complet de l’effort est conservé en infobulle et dans la
+description accessible du curseur. L’avertissement complet du Bypass reste
+visible et le menu garde son défilement interne pour les petites fenêtres.
+Les cartes d’autorisation conservent leurs trois boutons au clic simple et leurs
+caractéristiques descriptives, sans badge de niveau de risque. « Toujours »
+affiche l’attente de confirmation native ; en cas d’annulation ou d’erreur du
+dialogue, les boutons redeviennent disponibles sans autoriser l’action.
+
 Le rail du chat affiche des compteurs de la page courante, pas un pourcentage
 ou une progression de mission. L’horloge indique la durée du tour actif. Le
 Monitor ajoute une frise cliquable et numérote les petites sorties ; les longues
