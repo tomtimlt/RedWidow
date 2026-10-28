@@ -221,6 +221,15 @@ body > * {
   outline: 2px solid var(--jn-focus);
   outline-offset: 1px;
 }
+/* VS Code injecte un contour :focus dans ses webviews : il apparaît au clic
+ * souris. On ne garde que le contour clavier (:focus-visible). */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+#effort:focus,
+#effort:focus-visible {
+  outline: none;
+}
 button,
 input,
 textarea,
