@@ -80,3 +80,27 @@ describe("contrats de la refonte", () => {
     });
   });
 });
+
+it("le message de palette accepte seulement les valeurs prévues et aucun champ supplémentaire", () => {
+  for (const [palette] of PALETTES)
+    expect(parseStudioMessage({ type: "setPalette", palette })).toEqual({
+      type: "setPalette",
+      palette,
+    });
+  for (const palette of ["bastion", "inconnue", 'multi" onclick="x', null, {}, []])
+    expect(parseStudioMessage({ type: "setPalette", palette })).toBeNull();
+  expect(parseStudioMessage({ type: "setPalette", palette: "multi", path: "/tmp" })).toBeNull();
+  expect(paletteOf("bastion")).toBe("sentinelle");
+});
+
+it("l’hôte, le manifeste et les cartes proposent les mêmes jeux de couleurs", () => {
+  const js = readFileSync(new URL("../media/studio.js", import.meta.url), "utf8");
+  const declaration = /const PALETTES = \[[\s\S]*?\n\];/.exec(js)?.[0];
+  expect(declaration).toBeTruthy();
+  const ids = PALETTES.map(([id]) => id);
+  expect(runInNewContext(`${declaration}; PALETTES.map(([id]) => id)`)).toEqual(ids);
+  const manifest = JSON.parse(
+    readFileSync(new URL("../extension.manifest.json", import.meta.url), "utf8"),
+  );
+  expect(manifest.contributes.configuration.properties["warband.palette"].enum).toEqual(ids);
+});

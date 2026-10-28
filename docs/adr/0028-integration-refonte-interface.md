@@ -44,6 +44,17 @@ confirmation ne peut donc pas agir sur une nouvelle conversation. Les décisions
 et la mémorisation de la gate ne changent pas.
 Les corrections du compteur et des ressources de la 0.3.55 restent applicables.
 
+## Amendement 0.3.58
+
+Les commits jusqu’à `834cff1` ajoutent Apparence et Multicolore. Le choix utilise
+une liste blanche partagée côté hôte, le vrai réglage et une confirmation avant
+l’application dans la page. Les vues ouvertes reçoivent la préférence sans
+rechargement ; erreur et reprise sont explicites, sans perte de focus. Bastion
+retombe désormais sur Sentinelle, sans migration destructive du fichier de
+réglages. Le contraste et la cascade des aperçus sont adaptés aux thèmes réels.
+Les informations d’état restent distinctes des teintes décoratives. Le crédit
+du SVG externe demeure incomplet ; le pictogramme original est conservé.
+
 ## Contexte
 
 La branche autonome `design/ui-vscode`, inspectée au commit `4565ce6`, propose

@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { PALETTES } from "../src/logic/palette.js";
 
 const css = readFileSync(new URL("../media/chat.css", import.meta.url), "utf8");
 describe("Acier et signature — typographie et composants", () => {
@@ -26,8 +27,7 @@ describe("Acier et signature — typographie et composants", () => {
     expect(css).toContain("--vscode-contrastActiveBorder");
   });
   it("prend en charge les cinq palettes, les pilules et les grands panneaux", () => {
-    for (const key of ["sentinelle", "braise", "bastion", "spectre", "editeur"])
-      expect(css).toContain(`data-palette="${key}"`);
+    for (const [key] of PALETTES) expect(css).toContain(`data-palette="${key}"`);
     expect(css).toMatch(/--jn-r-pill:\s*999px/);
     expect(css).toMatch(/--jn-r-lg:\s*18px/);
     for (const marker of [".tool", ".card", ".mon-row", ".kc-node", ".studio-kc", ".report"])

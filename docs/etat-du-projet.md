@@ -1,6 +1,6 @@
 # Warband — parcours, état actuel et reprise
 
-État inspecté le 28 octobre 2026 pour la version 0.3.57. Ce document sert de point d'entrée produit ;
+État inspecté le 28 octobre 2026 pour la version 0.3.58. Ce document sert de point d'entrée produit ;
 les ADR expliquent les décisions, les idées restent une réserve.
 
 ## Le parcours de référence
@@ -15,10 +15,29 @@ parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
 
-La version du manifeste est **0.3.57**. Les paragraphes
+La version du manifeste est **0.3.58**. Les paragraphes
 0.3.19 à 0.3.29 ci-dessous sont des relevés historiques, pas les preuves de
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
+
+## Lot 0.3.58 — Apparence et Multicolore (préparé)
+
+Les trois commits jusqu’à `834cff1` de `design/ui-vscode` sont examinés. Apparence
+est raccordée au vrai réglage `warband.palette` : cinq cartes, clavier, aperçus
+indépendants, validation stricte, enregistrement confirmé et propagation sans
+rechargement. Multicolore répartit huit teintes ; Bastion se replie sur Sentinelle.
+La cascade et les contrastes du prototype sont corrigés ; états et contraste
+élevé sont préservés. Le crédit du cerveau externe reste incomplet et ce SVG
+n’est pas repris. Les confirmations natives et les consignes de mission restent
+conservées. Voir les [retours d’intégration](retour-refonte-interface.md).
+
+Validation locale : **1 981 tests réussis, 14 ignorés**, typage et build réussis.
+Les tests vérifient les messages de palette, le rejet des champs/valeurs inconnus,
+la cohérence des listes et les contrastes. Les neuf parcours Chromium couvrent
+Apparence, chat et Monitor sur trois thèmes et trois largeurs : confirmation,
+erreur/reprise, clavier, brouillon conservé et états préservés. Trois essais
+complémentaires valident le cycle des liserés sur les conteneurs réels du chat.
+Captures et diff relus ; aucun appel payant lancé. Publication en cours.
 
 ## Lot 0.3.57 — contrat explicite de tenue de mission (publié)
 

@@ -22,7 +22,7 @@ Pousser un tag `vX.Y.Z` égal à la version de `packages/vscode/extension.manife
 ## Interface et palettes (0.3.53)
 
 La commande **Warband : choisir une palette** (`warband.choosePalette`) propose
-Sentinelle, Braise, Bastion, Spectre et Éditeur. Le réglage `warband.palette`
+Sentinelle, Braise, Spectre, Éditeur et Multicolore. Le réglage `warband.palette`
 s’applique aux vues ouvertes sans rechargement. Les polices sont locales ; le
 code conserve la police de l’éditeur. Les thèmes clair, sombre et contrasté et
 le mouvement réduit sont respectés.
@@ -54,6 +54,14 @@ Le rail du chat affiche des compteurs de la page courante, pas un pourcentage
 ou une progression de mission. L’horloge indique la durée du tour actif. Le
 Monitor ajoute une frise cliquable et numérote les petites sorties ; les longues
 sorties restent du texte. La flèche vers le bas active ou suspend le suivi.
+
+Depuis la 0.3.58, **Réglages → Apparence** propose les cinq jeux, avec un aperçu
+sur chaque carte. Flèches, Début et Fin changent le choix ; Entrée, Espace et
+clic permettent aussi de le sélectionner. Le choix est enregistré avant son
+application, sans recharger les vues ouvertes. En cas d’erreur, réessayez depuis
+la même page. Les anciennes valeurs Bastion se replient sur Sentinelle.
+Multicolore répartit huit teintes décoratives dans l’interface ; le contraste
+élevé garde les couleurs natives et les couleurs d’état restent distinctes.
 
 Dans la Kill Chain, **Rejouer** visualise les liens verts sans exécuter de
 commande. Échap arrête le rejeu et désélectionne. Les flèches déplacent la vue,

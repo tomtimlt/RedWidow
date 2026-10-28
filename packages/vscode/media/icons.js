@@ -92,12 +92,49 @@
       "m21 11-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.9-8.9a3.7 3.7 0 0 1 5.2 5.2l-8.9 8.9a1.8 1.8 0 0 1-2.6-2.6L15.5 7",
     ],
     pulse: ["M3 12h4l2.5-6 5 12L17 12h4"],
+    // Palette de peintre : contour arrondi, encoche du pouce et trois pastilles.
+    palette: [
+      "M12 3a9 9 0 1 0 0 18c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.4-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.4A3.6 3.6 0 0 0 21 8.7C21 5.5 17 3 12 3z",
+      "M7.5 11.5h.01",
+      "M9.5 7.5h.01",
+      "M14.5 7.5h.01",
+    ],
     sparkle: [
       "M12 3.5 13.8 9a2 2 0 0 0 1.2 1.2l5.5 1.8-5.5 1.8a2 2 0 0 0-1.2 1.2L12 20.5 10.2 15A2 2 0 0 0 9 13.8L3.5 12 9 10.2A2 2 0 0 0 10.2 9z",
     ],
   };
   paths.killchain = paths.graph;
   const SVG_NS = "http://www.w3.org/2000/svg";
+  // Logo (mêmes tracés que BRAND_SHAPES dans src/logic/html.ts, contrôlés par test).
+  const BRAND = {
+    wing: "M3 8.5V3h5.5M15.5 3H21v5.5M21 15.5V21h-5.5M8.5 21H3v-5.5",
+    star: "M12 5c.8 3.9 3.1 6.2 7 7-3.9.8-6.2 3.1-7 7-.8-3.9-3.1-6.2-7-7 3.9-.8 6.2-3.1 7-7z",
+    node: { cx: "17.4", cy: "6.6", r: "1.3" },
+  };
+  const createBrand = (className) => {
+    const svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("class", className || "brand");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    const wing = document.createElementNS(SVG_NS, "path");
+    wing.setAttribute("class", "brand-wing");
+    wing.setAttribute("d", BRAND.wing);
+    const core = document.createElementNS(SVG_NS, "g");
+    core.setAttribute("class", "brand-core");
+    const star = document.createElementNS(SVG_NS, "path");
+    star.setAttribute("class", "brand-lead");
+    star.setAttribute("d", BRAND.star);
+    core.append(star);
+    const orbit = document.createElementNS(SVG_NS, "g");
+    orbit.setAttribute("class", "brand-orbit");
+    const node = document.createElementNS(SVG_NS, "circle");
+    node.setAttribute("class", "brand-node");
+    for (const [key, value] of Object.entries(BRAND.node)) node.setAttribute(key, value);
+    orbit.append(node);
+    svg.append(wing, core, orbit);
+    return svg;
+  };
   const ATTRS = {
     viewBox: "0 0 24 24",
     width: "16",
@@ -131,10 +168,14 @@
   const markHidden = () => document.body.classList.toggle("page-hidden", document.hidden);
   document.addEventListener("visibilitychange", markHidden);
   markHidden();
-  const PALETTES = new Set(["sentinelle", "braise", "bastion", "spectre", "editeur"]);
+  const PALETTES = new Set(["sentinelle", "braise", "spectre", "editeur", "multi"]);
   window.addEventListener("message", (event) => {
     if (event.data?.type === "palette" && PALETTES.has(event.data.value))
       document.body.dataset.palette = event.data.value;
   });
-  window.WarbandIcons = Object.freeze({ create, names: Object.freeze(Object.keys(paths)) });
+  window.WarbandIcons = Object.freeze({
+    create,
+    createBrand,
+    names: Object.freeze(Object.keys(paths)),
+  });
 })();

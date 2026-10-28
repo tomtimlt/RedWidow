@@ -66,10 +66,20 @@ function mix(fg: string, pct: number, bg: string): string {
 function signature(palette: string, theme: "dark" | "light"): string {
   if (palette === "editeur")
     return fixture(theme).vars.get("--vscode-textLink-foreground") as string;
+  if (palette === "multi") {
+    const start = chatCss.indexOf(
+      theme === "light"
+        ? "body.vscode-light,\nbody.vscode-light [data-palette]"
+        : "body,\n[data-palette] {\n  --jn-rb-1",
+    );
+    const token = /--jn-rb-5:\s*(#[0-9a-fA-F]{6})/.exec(chatCss.slice(start))?.[1];
+    if (!token) throw new Error("teinte Multicolore absente");
+    return token;
+  }
   const selector =
     theme === "light"
       ? `body.vscode-light[data-palette="${palette}"]`
-      : `body[data-palette="${palette}"]`;
+      : `[data-palette="${palette}"]`;
   const start = chatCss.indexOf(selector);
   const block = chatCss.slice(start, chatCss.indexOf("}", start));
   const hex = /--jn-brand:\s*(#[0-9a-fA-F]{6})/.exec(block)?.[1];
@@ -112,7 +122,7 @@ describe("contraste de la refonte", () => {
     });
   }
   for (const theme of ["dark", "light"] as const)
-    for (const palette of ["sentinelle", "braise", "bastion", "spectre", "editeur"]) {
+    for (const palette of ["sentinelle", "braise", "spectre", "editeur", "multi"]) {
       it(`signature lisible sur les surfaces de ${palette}/${theme}`, () => {
         for (const [name, bg] of Object.entries(backgrounds(theme)))
           expect(ratio(signature(palette, theme), bg), name).toBeGreaterThanOrEqual(4.5);

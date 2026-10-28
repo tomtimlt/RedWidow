@@ -3,6 +3,41 @@
 Source initiale : `design/ui-vscode`, commit `4565ce6` (0.3.53).
 Seconde passe : commits `11543e8` à `d72f0e0` (0.3.55), intégrés sur `main`.
 Troisième passe : commits `122139c` et `6281a6b` (0.3.56).
+Quatrième passe : commits `4957feb`, `432778e` et `834cff1` (0.3.58).
+
+## Quatrième passe — 0.3.58
+
+Repris : page Apparence, cartes avec aperçus de chaque jeu, choix au clavier,
+Multicolore et ses huit teintes réparties dans les vues. La palette Bastion est
+retirée comme dans la maquette ; une ancienne valeur retombe sur Sentinelle,
+sans effacer ni réécrire automatiquement le réglage utilisateur.
+
+Adaptations :
+
+- Les messages utilisent le protocole réel : demande `setPalette` validée par
+  liste blanche et sans champ supplémentaire ; confirmation `palette` avec
+  `value`. L’enregistrement passe par `warband.palette`, au même niveau global
+  ou workspace que la commande native. Aucun rechargement de webview.
+- La carte n’annonce pas un choix enregistré avant confirmation de l’hôte.
+  Les demandes concurrentes sont ignorées pendant l’attente ; une erreur
+  rétablit le réglage réel et permet de réessayer. Le focus clavier est conservé.
+- Les aperçus ont leurs propres variables de palette. La cascade du thème clair
+  est corrigée pour Éditeur et Multicolore. Les corrections de contraste de
+  Braise et de l’accent Éditeur précédemment livrées sont conservées ; le cyan
+  clair de Multicolore est légèrement assombri. Les libellés de conteneur restent
+  dans la couleur du texte, avec un fond teinté stable pour la lisibilité.
+- Le contraste élevé utilise les couleurs natives, y compris dans les aperçus.
+  Les états du Monitor, des erreurs et du Bypass gardent leurs couleurs. Les
+  repères du rail correspondent aux compteurs réels, pas à des phases inventées.
+- Les sélecteurs de démonstration `spaces` / `graph` sont adaptés à `containers`
+  / `killchain`. Un doublon de couleur de navigation est supprimé.
+- Le crédit du cerveau externe ajouté dans `4957feb` est encore incomplet :
+  auteur, URL d’origine et version de licence restent « à compléter/confirmer ».
+  Ce SVG et l’affirmation d’attribution finalisée ne sont pas distribués ; le
+  dessin original reste en place. Compléter ces trois références avant reprise.
+- Les exemples et le harnais de démonstration restent sur leur branche. Les
+  confirmations natives corrigées et les consignes communes de la 0.3.57 sont
+  conservées.
 
 ## Troisième passe — 0.3.56
 

@@ -1,5 +1,14 @@
+import { isPalette, type Palette } from "./palette.js";
+
 /** Pages des réglages, dans l'ordre de la barre des captures. */
-export const STUDIO_PAGES = ["project", "containers", "killchain", "atlas", "system"] as const;
+export const STUDIO_PAGES = [
+  "project",
+  "containers",
+  "killchain",
+  "atlas",
+  "system",
+  "appearance",
+] as const;
 
 export type StudioPage = (typeof STUDIO_PAGES)[number];
 
@@ -9,6 +18,7 @@ const LABELS: Record<StudioPage, string> = {
   atlas: "Atlas",
   killchain: "Kill chain",
   system: "Contrôle système",
+  appearance: "Apparence",
 };
 
 export function studioLabel(page: StudioPage): string {
@@ -20,6 +30,7 @@ export function isStudioPage(value: string): value is StudioPage {
 }
 
 export type StudioMessage =
+  | { type: "setPalette"; palette: Palette }
   | { type: "openReport"; projectId: string }
   | { type: "exportKillchain"; projectId: string }
   | { type: "exportReport"; projectId: string }
@@ -46,6 +57,13 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
   const m = raw as Record<string, unknown>;
   const keys = Object.keys(m);
+  if (
+    m.type === "setPalette" &&
+    keys.length === 2 &&
+    keys.every((key) => key === "type" || key === "palette") &&
+    isPalette(m.palette)
+  )
+    return { type: "setPalette", palette: m.palette };
   if (
     (m.type === "exportReport" || m.type === "exportKillchain" || m.type === "openReport") &&
     keys.length === 2 &&

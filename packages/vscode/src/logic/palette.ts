@@ -2,10 +2,11 @@
 export const PALETTES = [
   ["sentinelle", "Sentinelle", "Sarcelle et ardoise"],
   ["braise", "Braise", "Cramoisi et acier"],
-  ["bastion", "Bastion", "Cuivre et graphite"],
   ["spectre", "Spectre", "Violet et glace"],
   ["editeur", "Éditeur", "Accent du thème VS Code"],
+  ["multi", "Multicolore", "Huit teintes réparties dans l’interface"],
 ] as const;
 export type Palette = (typeof PALETTES)[number][0];
-export const paletteOf = (value: unknown): Palette =>
-  PALETTES.find(([key]) => key === value)?.[0] ?? "sentinelle";
+export const isPalette = (value: unknown): value is Palette =>
+  PALETTES.some(([key]) => key === value);
+export const paletteOf = (value: unknown): Palette => (isPalette(value) ? value : "sentinelle");

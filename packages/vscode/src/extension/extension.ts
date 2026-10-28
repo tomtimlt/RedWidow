@@ -48,7 +48,7 @@ import { matchesFingerprint } from "../logic/integrity.js";
 import { killchainImage } from "../logic/killchain-image.js";
 import { setSelectedPathEdge } from "../logic/killchain-path.js";
 import { missionReport, missionReportPreview } from "../logic/mission-report.js";
-import { PALETTES, paletteOf } from "../logic/palette.js";
+import { PALETTES, type Palette, paletteOf } from "../logic/palette.js";
 import {
   activateSelectedProject,
   createSelectedProject,
@@ -203,6 +203,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   });
   const currentPalette = () =>
     paletteOf(vscode.workspace.getConfiguration("warband").get("palette"));
+  const updatePalette = async (value: Palette) => {
+    const config = vscode.workspace.getConfiguration("warband");
+    const target =
+      config.inspect("palette")?.workspaceValue !== undefined
+        ? vscode.ConfigurationTarget.Workspace
+        : vscode.ConfigurationTarget.Global;
+    await config.update("palette", value, target);
+  };
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (!event.affectsConfiguration("warband.palette")) return;
@@ -1779,6 +1787,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     studioPanel.webview.onDidReceiveMessage(async (raw: unknown) => {
       const message = parseStudioMessage(raw);
       if (message === null) return;
+      if (message.type === "setPalette") {
+        try {
+          await updatePalette(message.palette);
+          await panel.webview.postMessage({ type: "palette", value: currentPalette() });
+        } catch {
+          await panel.webview.postMessage({ type: "palette", value: currentPalette() });
+          await panel.webview.postMessage({ type: "paletteError" });
+        }
+        return;
+      }
       if (message.type === "openReport") {
         await openReport(message.projectId);
         return;
@@ -2012,14 +2030,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         PALETTES.map(([value, label, detail]) => ({ value, label, detail })),
         { title: "Palette Warband" },
       );
-      if (selected) {
-        const config = vscode.workspace.getConfiguration("warband");
-        const target =
-          config.inspect("palette")?.workspaceValue !== undefined
-            ? vscode.ConfigurationTarget.Workspace
-            : vscode.ConfigurationTarget.Global;
-        await config.update("palette", selected.value, target);
-      }
+      if (selected) await updatePalette(selected.value);
     }),
     vscode.commands.registerCommand("warband.exportKillchain", () =>
       exportMissionReport(undefined, true),

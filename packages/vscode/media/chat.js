@@ -1218,7 +1218,13 @@
     const dot = el("span", "mon-dot");
     dot.setAttribute("aria-hidden", "true");
     cmd.append(dot);
-    if (row.container !== "") cmd.append(el("span", "prompt mon-space", row.container));
+    if (row.container !== "") {
+      const tag = el("span", "prompt mon-space", row.container);
+      tag.dataset.hue = String(
+        ([...row.container].reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % 8) + 1,
+      );
+      cmd.append(tag);
+    }
     cmd.append(el("span", "prompt", "$"), el("code", "mon-text", row.command));
     const meta = el("div", "mon-meta");
     meta.append(el("span", "badge mon-state", row.status));
