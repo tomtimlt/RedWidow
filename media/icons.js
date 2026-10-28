@@ -70,7 +70,8 @@
     sparkle: ["M12 3.5 13.8 9a2 2 0 0 0 1.2 1.2l5.5 1.8-5.5 1.8a2 2 0 0 0-1.2 1.2L12 20.5 10.2 15A2 2 0 0 0 9 13.8L3.5 12 9 10.2A2 2 0 0 0 10.2 9z"]
   };
   // Pictogrammes pleins (grille 256) : contours en couleur du texte, accent en
-  // couleur de signature. Cerveau « idée » fourni pour le raisonnement.
+  // couleur de signature. Cerveau « idée » fourni pour le raisonnement (CC BY,
+  // crédits dans media/ATTRIBUTIONS.md).
   const filled = {
     brain: {
       viewBox: "0 0 256 256",

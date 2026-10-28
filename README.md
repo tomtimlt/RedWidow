@@ -53,3 +53,5 @@ l’application. Les instructions de design sont dans [DESIGN.md](DESIGN.md).
 
 Licence MIT ; les polices Geist et Geist Mono (SIL Open Font License 1.1) sont
 livrées localement avec leur licence dans `media/fonts/OFL-Geist.txt`.
+Le pictogramme du raisonnement est sous licence CC Attribution ; ses crédits et
+modifications figurent dans `media/ATTRIBUTIONS.md`.
