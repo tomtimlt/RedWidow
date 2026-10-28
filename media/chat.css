@@ -6128,22 +6128,28 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
 }
 
 /* Effort au maximum : le remplissage passe en dégradé multicolore (cyan, bleu,
- * violet, rose), quelle que soit la palette. Le jeu Multicolore l'affiche déjà
- * en continu ; le contraste élevé garde la couleur du thème. */
+ * violet, rose) qui ondule en boucle, quelle que soit la palette. Le jeu
+ * Multicolore y met ses six teintes. Contraste élevé : couleur du thème ;
+ * mouvement réduit : dégradé fixe. */
 body:where(:not(.vscode-high-contrast, .vscode-high-contrast-light)) #effort-scale.is-max:not(.auto)::before {
-  background: linear-gradient(90deg, var(--jn-rb-3), var(--jn-rb-4), var(--jn-rb-5), var(--jn-rb-6));
+  background: linear-gradient(90deg, var(--jn-rb-3), var(--jn-rb-4), var(--jn-rb-5), var(--jn-rb-6), var(--jn-rb-5), var(--jn-rb-4), var(--jn-rb-3));
+  background-size: 200% 100%;
+}
+body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contrast-light)) #effort-scale.is-max:not(.auto)::before {
+  background: linear-gradient(90deg, var(--jn-rb-1), var(--jn-rb-2), var(--jn-rb-3), var(--jn-rb-4), var(--jn-rb-5), var(--jn-rb-6), var(--jn-rb-1));
+  background-size: 200% 100%;
 }
 @media (prefers-reduced-motion: no-preference) {
   body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light) #effort-scale.is-max:not(.auto)::before {
-    animation: effort-max-in 420ms var(--jn-ease-io) both;
+    animation: effort-wave 2.4s linear infinite;
   }
 }
-@keyframes effort-max-in {
+@keyframes effort-wave {
   from {
-    filter: saturate(0.2) brightness(1.3);
+    background-position: 0% 0;
   }
   to {
-    filter: none;
+    background-position: -200% 0;
   }
 }
 

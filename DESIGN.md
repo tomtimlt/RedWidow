@@ -92,7 +92,7 @@ en couleur d’alerte et s’immobilise.
 Carte compacte : pictogramme à gauche, niveau centré en couleur de signature
 avec le modèle en dessous (ouvre le menu Modèle), retour à Auto à droite.
 Piste épaisse en pilule, remplissage de signature, un point par niveau et
-grande pastille claire. Au maximum, le remplissage passe en dégradé multicolore (cyan, bleu, violet, rose) quelle que soit la palette (classe `.is-max`, hors contraste élevé). Le glisser est continu, le relâchement se cale sur le
+grande pastille claire. Au maximum, le remplissage passe en dégradé multicolore (cyan, bleu, violet, rose) qui ondule en boucle, quelle que soit la palette (classe `.is-max`, hors contraste élevé). Le glisser est continu, le relâchement se cale sur le
 niveau le plus proche avec un rebond ; le clavier passe de niveau en niveau.
 
 ## Palettes et page Apparence
