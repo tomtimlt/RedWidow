@@ -882,23 +882,23 @@ export function createChatSession(deps: ChatSessionDeps) {
       if (deps.learningKey !== undefined) persist(deps.learningKey, raw);
       refresh();
     },
-    async send(text: string, prompt = text): Promise<void> {
+    async send(text: string, prompt = text): Promise<boolean> {
       // Mode lecture : aucune saisie tant que la conversation n'est pas reprise.
       // `text` est la bulle. `prompt` peut y joindre la sortie d'un terminal cité.
-      if (state.busy || state.readonly || text.trim() === "") return;
+      if (state.busy || state.readonly || text.trim() === "") return false;
       if (deps.requireProvider && state.noProvider) {
         state.notice(
           "Aucun fournisseur n'a été ajouté : ajoute un jeton (Warband : définir le jeton) pour utiliser le chat.",
           "error",
         );
         refresh();
-        return;
+        return false;
       }
       latestPage();
       state.setBusy(true);
       const revision = ++navigationRev;
       const projectsReady = await reloadHistoryProjects(revision);
-      if (revision !== navigationRev) return;
+      if (revision !== navigationRev) return false;
       if (
         !projectsReady ||
         (current !== null && (current.projectId ?? null) !== historyProjects.activeId)
@@ -910,7 +910,7 @@ export function createChatSession(deps: ChatSessionDeps) {
             "error",
           );
         refresh();
-        return;
+        return false;
       }
       ensureConversation(text);
       const conversationContext = transferContext
@@ -936,12 +936,13 @@ export function createChatSession(deps: ChatSessionDeps) {
             );
           }
         }
-        if (revision !== navigationRev) return;
+        if (revision !== navigationRev) return false;
         const ctl = controller ?? (await startEngine(revision, conversationContext));
-        if (revision !== navigationRev || ctl === null) return;
+        if (revision !== navigationRev || ctl === null) return false;
         ctl.prompt(prompt);
+        return true;
       } catch (error) {
-        if (revision !== navigationRev) return;
+        if (revision !== navigationRev) return false;
         if (transferContext) {
           sessionId = undefined;
           if (current) current.sessionId = null;
@@ -954,6 +955,7 @@ export function createChatSession(deps: ChatSessionDeps) {
         state.setBusy(false);
         refresh();
       }
+      return false;
     },
     /**
      * Jeton défini ou effacé : appliqué sans redémarrer l'extension. Le moteur inactif est remplacé

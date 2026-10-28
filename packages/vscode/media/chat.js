@@ -1515,6 +1515,7 @@
     hashBtn.disabled = input.disabled;
     stop.disabled = !view.busy;
     lastView = view;
+    paintAttachments();
     applyBody();
     if (view.busy) $("thinking-label").textContent = UI.activityLabel(view);
     if (view.items.length === 0) toolStatus.clear();
@@ -1529,6 +1530,19 @@
         (message.chatId !== void 0 && message.chatId !== chatId) ||
         message.view.conversation !== lastView?.conversation
       ) {
+        const initialSend =
+          pendingFiles &&
+          lastView?.conversation?.startsWith("new:") &&
+          message.chatId === chatId &&
+          message.view.busy &&
+          message.view.items.some(
+            (item) =>
+              item.kind === "user" &&
+              (item.text === pendingFiles.display ||
+                (pendingFiles.display.length > 100_000 &&
+                  item.text === `${pendingFiles.display.slice(0, 100_000)}…`)),
+          );
+        if (!initialSend) resetAttachments();
         chatId = message.chatId;
         sent = [];
         recall = { index: -1, draft: "" };
@@ -1544,6 +1558,20 @@
         monitorRowsEl.replaceChildren();
       }
       render(message.view);
+    } else if (message && message.type === "attachmentResult") {
+      if (!pendingFiles || message.requestId !== pendingFiles.requestId) return;
+      const pending = pendingFiles;
+      pendingFiles = null;
+      if (message.accepted === true) {
+        draftFiles = draftFiles.filter((file) => !pending.ids.includes(file.id));
+        if (input.value === pending.text) {
+          input.value = "";
+          grow();
+        }
+        attachmentStatus("");
+      } else
+        attachmentStatus("Envoi refusé ou interrompu. Les fichiers restent dans le brouillon.");
+      paintAttachments();
     } else if (message && message.type === "role" && message.role === "monitor") {
       mode = "monitor";
       document.body.classList.add("mode-monitor");
@@ -1592,9 +1620,148 @@
       lines: value.split("\n").length,
     };
   }
+  const fileInput = $("attachment-input");
+  const attachBtn = $("attach-btn");
+  let draftFiles = [];
+  let pendingFiles = null;
+  let fileEpoch = 0;
+  let readingFiles = false;
+  let fileSerial = 0;
+  function attachmentStatus(text) {
+    $("attachment-status").textContent = text;
+    $("attachment-status").hidden = !text;
+  }
+  function resetAttachments() {
+    fileEpoch++;
+    readingFiles = false;
+    draftFiles = [];
+    pendingFiles = null;
+    fileInput.value = "";
+    attachmentStatus("");
+    paintAttachments();
+  }
+  function paintAttachments() {
+    const blocked =
+      !lastView ||
+      lastView.busy ||
+      lastView.readonly ||
+      lastView.noProvider ||
+      !!pendingFiles ||
+      readingFiles;
+    attachBtn.disabled = !!blocked;
+    fileInput.disabled = !!blocked;
+    const list = $("attachment-list");
+    list.replaceChildren(
+      ...draftFiles.map((file) => {
+        const li = document.createElement("li");
+        const label = document.createElement("span");
+        label.textContent = `${file.name} · ${Math.ceil(file.bytes / 1024)} Kio`;
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "ghost";
+        remove.textContent = "×";
+        remove.setAttribute("aria-label", `Retirer ${file.name}`);
+        remove.disabled = !!pendingFiles || readingFiles;
+        remove.addEventListener("click", () => {
+          draftFiles = draftFiles.filter((f) => f.id !== file.id);
+          paintAttachments();
+        });
+        li.append(label, remove);
+        return li;
+      }),
+    );
+    list.hidden = draftFiles.length === 0;
+    send.disabled =
+      !lastView ||
+      lastView.busy ||
+      !!lastView.readonly ||
+      !!lastView.noProvider ||
+      !!pendingFiles ||
+      readingFiles;
+  }
+  async function addFiles(files) {
+    if (!lastView || attachBtn.disabled) return;
+    const epoch = fileEpoch;
+    readingFiles = true;
+    paintAttachments();
+    const added = [];
+    try {
+      if (draftFiles.length + files.length > Number(fileInput.dataset.count))
+        throw Error("Maximum 5 fichiers joints.");
+      let total = draftFiles.reduce((sum, f) => sum + f.bytes, 0);
+      for (const file of files) {
+        total += file.size;
+        if (file.size > Number(fileInput.dataset.bytes) || total > Number(fileInput.dataset.total))
+          throw Error("Limite : 64 Kio par fichier et 256 Kio au total.");
+        if (!file.name.trim() || file.name.length > 180 || /[\\/\p{Cc}\p{Cf}]/u.test(file.name))
+          throw Error("Nom de fichier invalide.");
+        if (
+          /\.(?:pdf|png|jpe?g|gif|webp|zip|gz|7z|exe|dll|so|bin|docx|xlsx|pptx)$/i.test(file.name)
+        )
+          throw Error(
+            "Seuls les textes, logs et fichiers de code UTF-8 sont pris en charge. Images et PDF exclus.",
+          );
+        let text;
+        try {
+          text = new TextDecoder("utf-8", { fatal: true }).decode(await file.arrayBuffer());
+        } catch {
+          throw Error("Impossible de lire ce fichier : un texte UTF-8 valide est requis.");
+        }
+        if (text.includes("\0") || text.startsWith("%PDF-"))
+          throw Error("Ce fichier n’est pas un texte UTF-8 pris en charge.");
+        added.push({ id: ++fileSerial, name: file.name, text, bytes: file.size });
+      }
+      if (epoch !== fileEpoch) return;
+      draftFiles.push(...added);
+      attachmentStatus(
+        "Ces fichiers seront transmis au fournisseur et conservés dans le journal de conversation. N’ajoutez pas de secrets.",
+      );
+    } catch (error) {
+      if (epoch === fileEpoch)
+        attachmentStatus(error.message || "Impossible de lire ces fichiers en UTF-8.");
+    } finally {
+      if (epoch === fileEpoch) {
+        readingFiles = false;
+        fileInput.value = "";
+        paintAttachments();
+      }
+    }
+  }
+  attachBtn.addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", () => addFiles(Array.from(fileInput.files || [])));
+  $("composer").addEventListener("dragover", (event) => {
+    if (event.dataTransfer?.types.includes("Files")) event.preventDefault();
+  });
+  $("composer").addEventListener("drop", (event) => {
+    if (!event.dataTransfer?.types.includes("Files")) return;
+    event.preventDefault();
+    addFiles(Array.from(event.dataTransfer.files));
+  });
   function submit() {
     const text = input.value;
-    if (text.trim() === "" || send.disabled) return;
+    if ((!text.trim() && !draftFiles.length) || send.disabled) return;
+    if (text.length > 100_000) {
+      attachmentStatus("La consigne dépasse la limite de 100 000 caractères.");
+      return;
+    }
+    if (draftFiles.length) {
+      const requestId = `files-${Date.now()}-${++fileSerial}`;
+      pendingFiles = {
+        requestId,
+        ids: draftFiles.map((file) => file.id),
+        text,
+        display: `${text.trim() ? text : "Analyse les fichiers joints."}\n\nPièces jointes :\n${draftFiles.map((file) => `• ${file.name}`).join("\n")}`,
+      };
+      paintAttachments();
+      vscode.postMessage({
+        type: "send",
+        text,
+        attachments: draftFiles.map(({ name, text }) => ({ name, text })),
+        requestId,
+        conversation: lastView.conversation,
+      });
+      return;
+    }
     sent = sent.concat(text);
     recall = { index: -1, draft: "" };
     input.value = "";

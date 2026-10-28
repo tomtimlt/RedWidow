@@ -1,5 +1,6 @@
 import { isRememberable, type PendingApproval, stripControl } from "@warband/core";
 import { formatReason } from "@warband/messages";
+import { parseAttachments, type TextAttachment } from "./attachments.js";
 import { isProvider, type Provider } from "./effort.js";
 import { summarizeInput, toolLabel } from "./present.js";
 
@@ -66,7 +67,13 @@ export function alwaysConfirmText(card: ApprovalCard): string {
 export const MAX_WEBVIEW_TEXT = 100_000;
 
 export type WebviewMessage =
-  | { type: "send"; text: string }
+  | {
+      type: "send";
+      text: string;
+      attachments?: TextAttachment[];
+      requestId?: string;
+      conversation?: string;
+    }
   | { type: "stop" }
   | { type: "reset" }
   | { type: "ready" }
@@ -105,13 +112,26 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
   const m = raw as Record<string, unknown>;
   const only = (...allowed: string[]) => Object.keys(m).every((k) => allowed.includes(k));
   switch (m.type) {
-    case "send":
-      return only("type", "text") &&
-        typeof m.text === "string" &&
-        m.text.trim() !== "" &&
-        m.text.length <= MAX_WEBVIEW_TEXT
-        ? { type: "send", text: m.text }
+    case "send": {
+      if (typeof m.text !== "string" || m.text.length > MAX_WEBVIEW_TEXT) return null;
+      if (m.attachments === undefined)
+        return only("type", "text") && m.text.trim() !== "" ? { type: "send", text: m.text } : null;
+      const attachments = parseAttachments(m.attachments);
+      return only("type", "text", "attachments", "requestId", "conversation") &&
+        attachments !== null &&
+        typeof m.requestId === "string" &&
+        /^[a-zA-Z0-9-]{1,80}$/.test(m.requestId) &&
+        typeof m.conversation === "string" &&
+        /^(?:new:[0-9]{1,12}|[0-9a-f-]{36})$/.test(m.conversation)
+        ? {
+            type: "send",
+            text: m.text,
+            attachments,
+            requestId: m.requestId,
+            conversation: m.conversation,
+          }
         : null;
+    }
     case "setProvider":
       return only("type", "provider") && isProvider(m.provider)
         ? { type: "setProvider", provider: m.provider }

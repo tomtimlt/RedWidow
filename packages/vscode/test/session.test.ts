@@ -177,6 +177,23 @@ describe("session de chat", () => {
     expect(t.view().busy).toBe(false);
   });
 
+  it("acquitte uniquement un prompt transmis et garde les fichiers hors de la bulle", async () => {
+    const t = setup();
+    expect(await t.session.send(" ")).toBe(false);
+    const display = "Analyse les fichiers joints.\n\nPièces jointes :\n• preuve.log";
+    const prompt = `${display}\nContenu de preuve.log : état confirmé`;
+    expect(await t.session.send(display, prompt)).toBe(true);
+    expect(t.f.calls).toEqual([["prompt", prompt]]);
+    expect(
+      t
+        .view()
+        .items.filter((item) => item.kind === "user")
+        .map((item) => item.text),
+    ).toEqual([display]);
+    expect(await t.session.send(display, prompt)).toBe(false);
+    t.session.stop();
+  });
+
   it("la bulle garde la consigne, le moteur reçoit la sortie citée", async () => {
     const t = setup();
     const cited = "vois #htb1\n\n<<<sortie-terminal>>>\n80/tcp";

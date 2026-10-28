@@ -1,6 +1,6 @@
 # Warband — parcours, état actuel et reprise
 
-État inspecté le 28 octobre 2026 pour la version 0.3.59. Ce document sert de point d'entrée produit ;
+État inspecté le 28 octobre 2026 pour la version 0.3.60. Ce document sert de point d'entrée produit ;
 les ADR expliquent les décisions, les idées restent une réserve.
 
 ## Le parcours de référence
@@ -15,10 +15,35 @@ parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
 
-La version du manifeste est **0.3.59**. Les paragraphes
+La version du manifeste est **0.3.60**. Les paragraphes
 0.3.19 à 0.3.29 ci-dessous sont des relevés historiques, pas les preuves de
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
+
+## Lot 0.3.60 — fichiers joints au chat (préparé)
+
+Le trombone et le glisser-déposer dans la zone de saisie ajoutent des textes,
+logs et fichiers de code UTF-8. Les noms et boutons de retrait restent visibles
+avant envoi : 5 fichiers au maximum, 64 Kio chacun, 256 Kio cumulés. Les images,
+PDF et autres formats binaires ne sont pas interprétés par cette version.
+Les contenus sont transmis comme données au fournisseur, sans chemin local et
+sans copie automatique dans le conteneur. Le journal du moteur conserve le prompt
+avec les protections de masquage existantes ; éviter de joindre des secrets.
+
+L’extension revalide tailles, forme, confiance, conversation et projet. Les
+mentions de terminal contenues dans un fichier ne déclenchent pas de lecture.
+Un refus conserve le brouillon ; un changement de conversation retire les pièces
+jointes et invalide les lectures en cours. Aucun contenu de fichier n’est stocké
+dans l’état persistant de la webview. Gate, CSP et TLS strict restent inchangés.
+
+Validation locale : **2 003 tests réussis, 14 ignorés**, typage et build réussis.
+Trois parcours Chromium couvrent les thèmes sombre, clair et contraste élevé :
+sélection, dépôt, retrait, formats et tailles refusés, acquittement, brouillon
+conservé après refus, réponses périmées et lecture retardée après changement de
+chat. Le premier essai de la suite complète a été interrompu en bac à sable
+restreint ; l’exécution avec processus et serveurs locaux autorisés a réussi.
+Aucun appel payant effectué. Publication en cours ; voir ADR 0029. La validation du correctif
+HTTPS sur le poste Windows de l’utilisateur reste nécessaire.
 
 ## Lot 0.3.59 — six teintes et effet d’effort maximal (publié)
 

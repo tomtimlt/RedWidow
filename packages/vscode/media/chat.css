@@ -6914,3 +6914,37 @@ body.vscode-high-contrast-light [data-palette] {
     animation: none !important;
   }
 }
+
+/* Pièces jointes : noms lisibles, contenus conservés uniquement en mémoire. */
+#attachment-list {
+  list-style: none;
+  margin: 8px 10px 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+#attachment-list[hidden] {
+  display: none;
+}
+#attachment-list li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  border: 1px solid var(--vscode-widget-border, var(--vscode-input-border));
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+#attachment-list span {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+#attachment-list button {
+  flex-shrink: 0;
+  padding: 2px 6px;
+}
+#attachment-status {
+  margin: 6px 12px;
+  overflow-wrap: anywhere;
+}

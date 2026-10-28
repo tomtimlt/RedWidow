@@ -23,6 +23,7 @@ import {
 import { formatError } from "@warband/messages";
 import * as vscode from "vscode";
 import { cleanText, parseWebviewMessage } from "../logic/approval.js";
+import { attachmentMessage, withAttachments } from "../logic/attachments.js";
 import { type BypassPush, createBypassHost, formatRemaining } from "../logic/bypass.js";
 import { type ChatView, monitorChatView } from "../logic/chat.js";
 import {
@@ -618,52 +619,86 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         case "refreshTerminals":
           return reply(await terminalsMessage());
         case "send": {
-          if (projectChanging) {
-            void vscode.window.showWarningMessage(
-              "Changement de projet en cours, réessayez ensuite.",
-            );
+          const hasFiles = message.attachments !== undefined;
+          const generation = findingProjectGeneration;
+          const validContext = () =>
+            !hasFiles ||
+            (vscode.workspace.isTrusted &&
+              visible() &&
+              !s.view().busy &&
+              !s.view().readonly &&
+              !s.view().noProvider &&
+              message.conversation === s.view().conversation &&
+              generation === findingProjectGeneration);
+          const result = (accepted: boolean) => {
+            if (hasFiles)
+              reply({ type: "attachmentResult", requestId: message.requestId, accepted });
+          };
+          if (!validContext()) {
+            result(false);
             return;
           }
-          const hashes = parseHashes(message.text);
-          let listed: { name: string }[] = [];
-          if (hashes.some((token) => findShellByToken(token) === undefined)) {
-            try {
-              listed = await shellDocker().listLabelPrefix();
-            } catch {
-              listed = [];
-            }
-          }
-          const classified = classifyMessageHashes(
-            hashes,
-            (token) => findShellByToken(token) !== undefined,
-            listed,
-          );
-          if (classified.unknown.length > 0) {
-            const unknown = classified.unknown;
-            void vscode.window.showWarningMessage(
-              unknown.length === 1
-                ? `Terminal introuvable : ${unknown[0]}.`
-                : `Terminaux introuvables : ${unknown.join(", ")}.`,
-            );
-          }
-          const sections = [];
-          for (const token of classified.open) {
-            const shell = findShellByToken(token);
-            const raw = shell === undefined ? null : await readLogTail(shell);
-            if (raw === null) {
+          try {
+            if (projectChanging) {
               void vscode.window.showWarningMessage(
-                `La sortie de #${token} est illisible (conteneur arrêté, ou « script » absent de l'image).`,
+                "Changement de projet en cours, réessayez ensuite.",
+              );
+              result(false);
+              return;
+            }
+            const hashes = parseHashes(message.text);
+            let listed: { name: string }[] = [];
+            if (hashes.some((token) => findShellByToken(token) === undefined)) {
+              try {
+                listed = await shellDocker().listLabelPrefix();
+              } catch {
+                listed = [];
+              }
+            }
+            const classified = classifyMessageHashes(
+              hashes,
+              (token) => findShellByToken(token) !== undefined,
+              listed,
+            );
+            if (classified.unknown.length > 0) {
+              const unknown = classified.unknown;
+              void vscode.window.showWarningMessage(
+                unknown.length === 1
+                  ? `Terminal introuvable : ${unknown[0]}.`
+                  : `Terminaux introuvables : ${unknown.join(", ")}.`,
               );
             }
-            sections.push({
-              token,
-              ...(shell !== undefined ? { container: shell.container } : {}),
-              text: raw === null ? "Sortie illisible." : readableTerminal(raw),
-            });
+            const sections = [];
+            for (const token of classified.open) {
+              const shell = findShellByToken(token);
+              const raw = shell === undefined ? null : await readLogTail(shell);
+              if (raw === null) {
+                void vscode.window.showWarningMessage(
+                  `La sortie de #${token} est illisible (conteneur arrêté, ou « script » absent de l'image).`,
+                );
+              }
+              sections.push({
+                token,
+                ...(shell !== undefined ? { container: shell.container } : {}),
+                text: raw === null ? "Sortie illisible." : readableTerminal(raw),
+              });
+            }
+            // Aucun terminal ouvert ici : envoyer une consigne ne doit jamais créer de fenêtre.
+            if (!(await projectWorkspaceReady()) || projectChanging || !validContext()) {
+              result(false);
+              return;
+            }
+            const raw = message.text.trim() ? message.text : "Analyse les fichiers joints.";
+            const context = withTerminalContext(raw, sections);
+            const accepted = await s.send(
+              hasFiles ? attachmentMessage(message.text, message.attachments ?? []) : message.text,
+              hasFiles ? withAttachments(context, message.attachments ?? []) : context,
+            );
+            result(accepted);
+          } catch (error) {
+            result(false);
+            throw error;
           }
-          // Aucun terminal ouvert ici : envoyer une consigne ne doit jamais créer de fenêtre.
-          if (!(await projectWorkspaceReady()) || projectChanging) return;
-          await s.send(message.text, withTerminalContext(message.text, sections));
           return;
         }
         case "stop":
