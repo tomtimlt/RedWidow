@@ -312,85 +312,25 @@
     return box;
   }
   const seenCards = /* @__PURE__ */ new Set();
-  // Validation « armement » : pastilles de risque tirées de la demande et, par
-  // défaut, appui maintenu jusqu'au verrouillage pour autoriser.
-  const HOLD_MS = 900;
-  let holdToConfirm = !(typeof vscode.getState === "function" && vscode.getState()?.hold === false);
-  let hintCount = 0;
-  function cardRisks(card) {
-    const risks = [];
-    if (UI.toolIcon(card.tool) === "terminal") risks.push(["terminal", "Exécution"]);
-    if (card.networkActive) risks.push(["link", "Réseau"]);
-    if (card.canRemember) risks.push(["history", "Mémorisable"]);
-    const level = (UI.toolIcon(card.tool) === "terminal" ? 1 : 0) + (card.networkActive ? 1 : 0);
-    return { risks, level: level >= 2 ? "high" : level === 1 ? "medium" : "low" };
-  }
-  function armButton(b, hint, confirm) {
-    let start = 0;
-    let frame = 0;
-    const idle = "Maintenez le bouton jusqu'au verrouillage pour autoriser.";
-    const reset = () => {
-      cancelAnimationFrame(frame);
-      frame = 0;
-      b.classList.remove("is-arming");
-      b.style.setProperty("--jn-arm", "0");
-    };
-    const tick = (time) => {
-      if (!start) start = time;
-      const progress = Math.min((time - start) / HOLD_MS, 1);
-      b.style.setProperty("--jn-arm", String(progress));
-      if (progress >= 1) {
-        reset();
-        confirm();
-        return;
-      }
-      frame = requestAnimationFrame(tick);
-    };
-    const begin = () => {
-      if (!holdToConfirm || frame || b.disabled) return;
-      start = 0;
-      b.classList.add("is-arming");
-      hint.textContent = "Armement…";
-      frame = requestAnimationFrame(tick);
-    };
-    const end = () => {
-      if (!frame) return;
-      reset();
-      hint.textContent = idle;
-    };
-    const isKey = (e) => e.key === " " || e.key === "Enter";
-    b.addEventListener("pointerdown", (e) => {
-      if (e.button === 0) begin();
-    });
-    for (const type of ["pointerup", "pointerleave", "pointercancel", "blur"]) b.addEventListener(type, end);
-    b.addEventListener("keydown", (e) => {
-      if (!holdToConfirm || !isKey(e)) return;
-      e.preventDefault();
-      if (!e.repeat) begin();
-    });
-    b.addEventListener("keyup", (e) => {
-      if (!holdToConfirm || !isKey(e)) return;
-      e.preventDefault();
-      end();
-    });
-    b.addEventListener("click", () => {
-      if (!holdToConfirm) confirm();
-      else if (!frame) hint.textContent = idle;
-    });
+  // Caractéristiques de la demande (pas une estimation de sécurité) : ce que
+  // l'outil fait, d'après les champs de la demande elle-même.
+  function cardTraits(card) {
+    const traits = [];
+    if (UI.toolIcon(card.tool) === "terminal") traits.push(["terminal", "Exécution"]);
+    if (card.networkActive) traits.push(["link", "Réseau"]);
+    if (card.canRemember) traits.push(["history", "Mémorisable"]);
+    return traits;
   }
   function renderCard(card, isNew) {
     const box = el("div", isNew ? "card enter" : "card");
     box.tabIndex = -1;
     box.setAttribute("role", "group");
     box.setAttribute("aria-label", `Demande d'autorisation : ${card.label}`);
-    const { risks, level } = cardRisks(card);
-    box.dataset.risk = level;
+    const risks = cardTraits(card);
     const head = el("div", "card-head");
     const icon = svg("shield", "ico card-icon");
     icon.setAttribute("aria-hidden", "true");
     head.append(icon, el("div", "card-title", "Autorisation requise"));
-    const levelChip = el("span", "card-level", level === "high" ? "Risque élevé" : level === "medium" ? "Risque modéré" : "Risque faible");
-    head.append(levelChip);
     const chips = el("div", "card-risks");
     for (const [name, label] of risks) {
       const chip = el("span", "card-risk");
@@ -414,33 +354,23 @@
     if (risks.length) box.append(chips);
     box.append(grid, det);
     const row = el("div", "card-buttons");
-    const hint = el("p", "card-hint");
-    hint.id = `card-hint-${++hintCount}`;
-    hint.setAttribute("role", "status");
-    hint.textContent = holdToConfirm ? "Maintenez le bouton jusqu'au verrouillage pour autoriser." : "";
     const buttons = {};
     const decide = (choice) => {
       box.classList.add(choice === "deny" ? "is-denied" : "is-locked");
-      hint.textContent = "";
       row.replaceChildren(el("span", "badge", choice === "deny" ? "Refusé" : "Autorisé"));
       vscode.postMessage({ type: "approve", toolUseId: card.toolUseId, choice });
     };
     const button = (label, choice, css) => {
       const b = el("button", css, label);
       b.type = "button";
-      if (choice === "deny") b.addEventListener("click", () => decide(choice));
-      else {
-        b.classList.add("arm");
-        b.setAttribute("aria-describedby", hint.id);
-        armButton(b, hint, () => decide(choice));
-      }
+      b.addEventListener("click", () => decide(choice));
       buttons[choice] = b;
       row.append(b);
     };
     button("Autoriser une fois", "once", "primary");
     button("Refuser", "deny", "danger");
     if (card.canRemember) button("Toujours", "always", "link");
-    box.append(row, hint);
+    box.append(row);
     box.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && e.target === box) {
         e.preventDefault();
@@ -747,15 +677,6 @@
     if (e.key !== "Enter" && e.key !== " ") return;
     e.preventDefault();
     toggleProviderHelp();
-  });
-  const holdSwitch = $("hold-switch");
-  holdSwitch.setAttribute("aria-checked", String(holdToConfirm));
-  holdSwitch.addEventListener("click", () => {
-    holdToConfirm = !holdToConfirm;
-    holdSwitch.setAttribute("aria-checked", String(holdToConfirm));
-    if (typeof vscode.setState === "function") vscode.setState({ ...(vscode.getState?.() ?? {}), hold: holdToConfirm });
-    for (const hint of document.querySelectorAll(".card-hint"))
-      hint.textContent = holdToConfirm ? "Maintenez le bouton jusqu'au verrouillage pour autoriser." : "";
   });
   function renderAutomatique() {
     paintRoe();

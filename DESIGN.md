@@ -49,7 +49,7 @@ Classes `.brand-wing` (crochets), `.brand-core`, `.brand-lead`, `.brand-orbit`,
 `.brand-node` ; `media/logo.svg`, `logo-small.svg` et `icon.svg` (barre
 d’activité, monochrome) en sont les versions fixes.
 
-## Verrouillage, règles d’engagement et validation armée
+## Verrouillage, règles d’engagement et carte d’autorisation
 
 - **Verrouillage** : les crochets du logo se referment sur ce qui est ciblé —
   nœud sélectionné du graphe, validation en attente (crochets d’alerte qui
@@ -58,33 +58,13 @@ d’activité, monochrome) en sont les versions fixes.
 - **Règles d’engagement** : jauge à trois crans dans l’en-tête (Apprentissage,
   Supervisé, Automatique), tirée des réglages existants ; un clic ouvre
   Configurer. Sous 420 px, seule la jauge reste visible.
-- **Validation armée** : niveau de risque et pastilles (Exécution, Réseau,
-  Mémorisable) tirés de la demande ; « Autoriser » et « Toujours » se valident
-  par appui maintenu (souris ou Espace / Entrée), avec une jauge qui se remplit
-  et un message d’état. Relâcher trop tôt annule. L’interrupteur « Appui
-  maintenu » de Configurer revient au clic simple ; le choix est mémorisé par
-  la vue.
-
-## Bypass des approbations
-
-- **Couleur** : `--jn-bypass`, le magenta du terminal du thème
-  (`--vscode-terminal-ansiMagenta`), distinct des couleurs d’état et de la
-  signature de la palette. En contraste élevé, c’est la bordure active du
-  thème, avec des pointillés pour l’état « en attente ».
-- **Aura** : tant que le bypass est actif, un contour et une lueur magenta
-  entourent toute la vue (`body.automatic-on::after`), ainsi que la zone de
-  saisie, la jauge des règles d’engagement (trois barres), le badge d’en-tête
-  et l’interrupteur. Avant confirmation de l’agent (`body.bypass-pending`),
-  l’aura et la bordure de saisie sont en pointillés et pulsent.
-- **Compte à rebours** : l’échéance est celle que l’outil envoie
-  (`expiresAt`) ; l’interface n’invente aucune durée. La jauge d’en-tête se
-  vide jusqu’à l’échéance (2 h au maximum d’affichage) et indique le temps
-  restant (« 1 h 12 ») ; dans les dix dernières minutes, l’aura et la jauge
-  pulsent plus vite (`body.bypass-ending`).
-
-À reprendre côté production : la couleur de l’élément « BYPASS · en attente »
-de la barre d’état de VS Code (extension sur `main`) peut utiliser
-`terminal.ansiMagenta` via un `ThemeColor`, pour rester accordée à l’aura.
+- **Carte d’autorisation** : pastilles « Exécution », « Réseau » et
+  « Mémorisable » qui décrivent la demande elle-même ; aucune estimation de
+  risque ni de sécurité n’est affichée. « Autoriser une fois », « Refuser » et
+  « Toujours » se valident au clic simple ; les crochets de verrouillage passent
+  au vert une fois la demande autorisée.
+- **Ne pas réintroduire l’appui maintenu** : option et comportement supprimés
+  à la demande du propriétaire (0.3.54).
 
 ## Menu Configurer compact
 

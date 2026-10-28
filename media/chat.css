@@ -2157,8 +2157,7 @@ body.vscode-high-contrast-light .effort-knob {
   height: 14px;
   color: inherit;
 }
-#learning-switch[aria-checked="true"] .cfg-switch-ico,
-#hold-switch[aria-checked="true"] .cfg-switch-ico {
+#learning-switch[aria-checked="true"] .cfg-switch-ico {
   background: var(--jn-sig-tint);
   color: var(--jn-sig);
 }
@@ -2167,8 +2166,7 @@ body.vscode-high-contrast-light .effort-knob {
   color: var(--jn-bypass);
 }
 #automatic-switch,
-#learning-switch,
-#hold-switch {
+#learning-switch {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -2183,13 +2181,11 @@ body.vscode-high-contrast-light .effort-knob {
   font-size: var(--jn-fs);
 }
 #automatic-switch:hover:not([aria-disabled="true"]),
-#learning-switch:hover:not([aria-disabled="true"]),
-#hold-switch:hover:not([aria-disabled="true"]) {
+#learning-switch:hover:not([aria-disabled="true"]) {
   background: transparent;
 }
 #automatic-switch::after,
-#learning-switch::after,
-#hold-switch::after {
+#learning-switch::after {
   content: "";
   flex: none;
   box-sizing: border-box;
@@ -2203,8 +2199,7 @@ body.vscode-high-contrast-light .effort-knob {
     border-color var(--jn-d2) var(--jn-ease-io);
 }
 #automatic-switch::before,
-#learning-switch::before,
-#hold-switch::before {
+#learning-switch::before {
   content: "";
   position: absolute;
   top: 50%;
@@ -2223,13 +2218,11 @@ body.vscode-high-contrast-light .effort-knob {
     opacity var(--jn-d2) var(--jn-ease-io);
 }
 #automatic-switch:hover:not([aria-disabled="true"])::after,
-#learning-switch:hover:not([aria-disabled="true"])::after,
-#hold-switch:hover:not([aria-disabled="true"])::after {
+#learning-switch:hover:not([aria-disabled="true"])::after {
   border-color: var(--jn-sig-edge);
 }
 #automatic-switch[aria-checked="true"]::before,
-#learning-switch[aria-checked="true"]::before,
-#hold-switch[aria-checked="true"]::before {
+#learning-switch[aria-checked="true"]::before {
   transform: translateX(14px);
   background: var(--vscode-editor-background, var(--vscode-input-background));
   opacity: 1;
@@ -2238,8 +2231,7 @@ body.vscode-high-contrast-light .effort-knob {
   background: var(--jn-bypass);
   border-color: transparent;
 }
-#learning-switch[aria-checked="true"]::after,
-#hold-switch[aria-checked="true"]::after {
+#learning-switch[aria-checked="true"]::after {
   background: var(--jn-sig);
   border-color: transparent;
 }
@@ -2739,8 +2731,7 @@ body.bypass-pending #composer {
   }
   #title::before,
   #automatic-switch::before,
-  #learning-switch::before,
-  #hold-switch::before {
+  #learning-switch::before {
     background: CanvasText;
     box-shadow: none;
   }
@@ -5755,21 +5746,6 @@ body.mode-watch::after {
 
 /* ───────────────────────────── Validation armée ───────────────────────────── */
 
-.card[data-risk="high"] {
-  --jn-card-accent: var(--jn-err);
-  --card-lock: var(--jn-err);
-}
-.card-level {
-  margin-left: auto;
-  flex: none;
-  padding: 2px 9px;
-  border-radius: var(--jn-r-pill);
-  background: color-mix(in srgb, var(--jn-card-accent) 14%, transparent);
-  color: var(--jn-card-accent);
-  font-size: var(--jn-fs-2xs);
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
 .card-risks {
   display: flex;
   flex-wrap: wrap;
@@ -5794,48 +5770,12 @@ body.mode-watch::after {
   color: var(--jn-card-accent);
 }
 /* Bouton armable : la jauge se remplit pendant l'appui maintenu. */
-button.arm {
-  --jn-arm: 0;
-  overflow: hidden;
-  isolation: isolate;
-}
-button.arm::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  background: color-mix(in srgb, var(--jn-on-accent, #fff) 30%, transparent);
-  transform: scaleX(var(--jn-arm));
-  transform-origin: left center;
-  pointer-events: none;
-}
-button.link.arm::before {
-  background: var(--jn-sig-tint);
-}
-button.arm.is-arming {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--jn-card-accent, var(--jn-warn)) 30%, transparent);
-}
-.card-hint {
-  margin: 8px 0 0;
-  min-height: 1.4em;
-  font-size: var(--jn-fs-xs);
-  color: var(--jn-muted);
-}
-.card-hint:empty {
-  min-height: 0;
-  margin: 0;
-}
 .card.is-locked {
   --jn-card-accent: var(--jn-ok);
 }
 .card.is-denied {
   --jn-card-accent: var(--jn-faint);
   opacity: 0.8;
-}
-body.vscode-high-contrast .card-level,
-body.vscode-high-contrast-light .card-level {
-  border: 1px solid currentColor;
 }
 
 /* ───────────────────────────── Micro-interactions ─────────────────────────────
@@ -6370,8 +6310,7 @@ body.vscode-high-contrast-light .card-level {
   border-top: 0;
 }
 #cfg-pop #automatic-switch,
-#cfg-pop #learning-switch,
-#cfg-pop #hold-switch {
+#cfg-pop #learning-switch {
   min-height: 30px;
 }
 #cfg-pop .cfg-switch-ico {
@@ -6386,7 +6325,6 @@ body.vscode-high-contrast-light .card-level {
   gap: 8px;
 }
 #cfg-pop #learning-help,
-#cfg-pop #hold-help,
 #cfg-pop #automatic-warn {
   position: absolute;
   width: 1px;
