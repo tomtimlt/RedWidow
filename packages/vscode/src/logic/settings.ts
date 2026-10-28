@@ -1,4 +1,4 @@
-import { CodedError } from "@warband/core";
+import { type BurpConfig, CodedError, isBurpConfig } from "@warband/core";
 import type { UltracodeLimits } from "./effort.js";
 
 /** Forme de `WorkspaceConfiguration.inspect` : les valeurs d'espace de travail n'y sont jamais lues. */
@@ -18,6 +18,7 @@ export function machineValue(info: Inspected | undefined): unknown {
 }
 
 export interface ChatSettings {
+  burp?: BurpConfig;
   model?: string;
   maxTurns?: number;
   /** Plafonds du préréglage Ultracode (absents = pas de plafond). */
@@ -27,6 +28,11 @@ export interface ChatSettings {
 /** Lit et valide les réglages (`get` renvoie la valeur machine de `warband.<clé>`). Lève `CodedError`. */
 export function resolveSettings(get: (key: string) => unknown): ChatSettings {
   const out: ChatSettings = {};
+  if (get("burp.enabled") === true) {
+    const config = { port: get("burp.port") ?? 9876, transport: get("burp.transport") ?? "sse" };
+    if (!isBurpConfig(config)) throw new CodedError("burp.invalidConfig");
+    out.burp = config;
+  }
   const model = get("model");
   if (typeof model === "string" && model.trim() !== "") out.model = model.trim();
   const maxTurns = get("maxTurns");

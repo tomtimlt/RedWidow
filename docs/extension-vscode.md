@@ -600,3 +600,53 @@ Un refus d’envoi garde les fichiers dans le brouillon. Un changement de
 conversation, de chat ou un rechargement de la webview retire les pièces jointes
 non envoyées : elles ne sont pas enregistrées dans l’état persistant de VS Code.
 Aucun fichier du disque n’est modifié. La confiance du dossier reste obligatoire.
+
+## Renommer et supprimer un projet — 0.3.61
+
+Dans **Réglages → Projet → Choisir un projet**, sélectionner une fiche, puis
+**Renommer…** ou **Supprimer…**. Il n’est pas nécessaire d’activer son dossier.
+Le renommage change le nom affiché et garde les données et les conversations.
+La suppression demande une confirmation et retire uniquement la fiche Warband :
+dossier, conteneurs, notes, trouvailles et journaux restent sur disque. Supprimer
+le projet actif n’en active aucun autre et ne ferme pas le dossier VS Code.
+Les conversations conservées ne sont pas transférées à un autre projet.
+Terminer ou arrêter les tours en cours avant ces modifications.
+
+## Burp Suite MCP — 0.3.61
+
+1. Installer l’[extension MCP officielle PortSwigger](https://github.com/PortSwigger/mcp-server)
+   dans Burp Suite et activer son serveur dans l’onglet **MCP**. Warband ne fournit
+   ni Burp ni sa licence, et ne lance aucun proxy Java.
+2. Ouvrir **Réglages → Contrôle système → Burp Suite MCP → Configurer…**, ou la
+   commande **Warband : configurer Burp Suite MCP**. Choisir le port affiché par
+   Burp (9876 par défaut) et le transport : SSE `/sse` pour le serveur officiel,
+   HTTP `/mcp` si le serveur installé le propose. Seul `127.0.0.1` est pris en charge.
+3. Cliquer **Tester la connexion**, ou lancer **Warband : tester la connexion MCP
+   Burp Suite**. Le test lit le catalogue sans exécuter d’outil Burp ni appeler de
+   modèle. Envoyer ensuite une nouvelle consigne à l’agent.
+
+La connexion fonctionne avec les fournisseurs Claude et OpenCode. L’agent découvre
+les outils avec `mcp__burp__list_tools`, puis utilise `mcp__burp__call_tool` avec le
+nom et les arguments exacts du catalogue. Les appels sont soumis à la gate et ne
+proposent pas « Toujours » ; le Bypass garde son fonctionnement habituel. Le mode
+Apprentissage n’expose pas Burp. Vérifier séparément le projet et les cibles
+ouverts dans Burp : Warband n’effectue pas cette association automatiquement.
+
+Désactivée par défaut, la connexion n’utilise que les réglages utilisateur machine
+`warband.burp.enabled`, `warband.burp.port` et `warband.burp.transport`. Les réglages
+du dépôt sont ignorés. Désactiver la connexion arrête un tour actif ; les consignes
+suivantes utilisent un moteur sans Burp. Les autres changements s’appliquent au
+prochain tour. Les réponses textuelles sont bornées à 32 Kio et leur troncature
+est signalée ; privilégier la pagination Burp. Après un timeout, consulter Burp
+avant de retenter : l’action peut avoir continué. Les résultats et les arguments
+rejoignent le journal et son masquage existants : ne pas y exposer de secrets.
+
+Les deux transports ont été testés avec des serveurs MCP locaux factices. Le
+fonctionnement sur une instance Burp réelle reste à confirmer sur votre poste.
+
+## Limites des pièces jointes — 0.3.61
+
+Le nombre maximal passe à **10 fichiers**. Les bornes de **64 Kio par fichier** et
+**256 Kio au total** restent en place. La demande de 40 Mo par fichier et 400 Mo
+au total nécessite une lecture progressive distincte du prompt ; elle n’est pas
+annoncée comme implémentée dans cette version. Images et PDF restent exclus.

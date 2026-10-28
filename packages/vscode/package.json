@@ -15,12 +15,14 @@
     "@warband/agent-opencode": "workspace:*",
     "@warband/agent-sdk": "workspace:*",
     "@warband/core": "workspace:*",
-    "@warband/messages": "workspace:*"
+    "@warband/messages": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0"
   },
   "devDependencies": {
     "@types/vscode": "1.140.0",
     "@vscode/vsce": "4.0.0",
-    "esbuild": "0.28.2"
+    "esbuild": "0.28.2",
+    "zod": "^4.6.7"
   },
   "optionalDependencies": {
     "opencode-linux-x64-baseline": "1.19.0",

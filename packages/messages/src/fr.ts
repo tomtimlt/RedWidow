@@ -100,6 +100,13 @@ const REPO_HINT = "Après relecture : warband policy trust";
 
 /** Catalogue complet : `REASON_CODES` est testé contre lui. */
 export const reasons: Catalog = {
+  "burp.invalidConfig": () =>
+    "Configuration MCP Burp invalide : port local et transport SSE ou HTTP requis.",
+  "burp.invalidResponse": () => "Réponse MCP Burp refusée : origine, format ou taille invalide.",
+  "burp.unavailable": () =>
+    "Connexion MCP Burp impossible ou interrompue. Vérifiez Burp et son extension MCP locale. Une action peut avoir continué : vérifiez son état avant de retenter.",
+  "burp.timeout": () =>
+    "Le serveur MCP Burp ne répond plus. Une action peut avoir continué : vérifiez son état dans Burp avant de retenter.",
   "opencode.httpFailed": (p) =>
     `requête OpenCode refusée : ${text(p.operation)} (HTTP ${text(p.status)})`,
   "kali.taskRequired": () =>

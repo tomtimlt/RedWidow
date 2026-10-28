@@ -2,7 +2,7 @@
   "name": "warband",
   "displayName": "Warband",
   "description": "Chat d'agent avec approbation des outils (warband).",
-  "version": "0.3.60",
+  "version": "0.3.61",
   "publisher": "warband",
   "license": "MIT",
   "engines": { "vscode": "^1.90.0" },
@@ -65,6 +65,8 @@
       { "command": "warband.setToken", "title": "Warband : définir le jeton", "icon": "$(key)" },
       { "command": "warband.clearToken", "title": "Warband : effacer le jeton" },
       { "command": "warband.diagnostic", "title": "Warband : diagnostic", "icon": "$(pulse)" },
+      { "command": "warband.configureBurp", "title": "Warband : configurer Burp Suite MCP" },
+      { "command": "warband.testBurp", "title": "Warband : tester la connexion MCP Burp Suite" },
       { "command": "warband.choosePalette", "title": "Warband : choisir une palette" },
       {
         "command": "warband.previewReport",
@@ -136,6 +138,29 @@
     "configuration": {
       "title": "Warband",
       "properties": {
+        "warband.burp.enabled": {
+          "type": "boolean",
+          "default": false,
+          "scope": "machine",
+          "description": "Expose le MCP Burp Suite local aux agents. Ignoré dans les réglages du dossier. Les tours suivants utilisent les nouveaux réglages."
+        },
+        "warband.burp.port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "default": 9876,
+          "scope": "machine",
+          "description": "Port du serveur MCP Burp sur 127.0.0.1. Aucun serveur distant ni commande Java lancé par Warband."
+        },
+        "warband.burp.transport": {
+          "type": "string",
+          "enum": ["sse", "http"],
+          "default": "sse",
+          "scope": "machine",
+          "enumDescriptions": ["SSE officiel sur /sse", "Streamable HTTP sur /mcp"],
+          "description": "Transport du serveur MCP installé dans Burp Suite."
+        },
+
         "warband.palette": {
           "type": "string",
           "enum": ["sentinelle", "braise", "spectre", "editeur", "multi"],

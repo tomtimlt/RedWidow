@@ -48,6 +48,7 @@ export interface EngineOptions {
   createRunner: (
     mode?: StartParams["mode"],
     provider?: StartParams["provider"],
+    burp?: StartParams["burp"],
   ) => AgentRunner | Promise<AgentRunner>;
   /** Environnement dont on tire les secrets à masquer (défaut : `process.env`). */
   env?: NodeJS.ProcessEnv;
@@ -220,7 +221,7 @@ export function runEngine({
         const systemPrompt = learning
           ? LEARNING_SYSTEM_PROMPT
           : [SCAN_OUTPUT_GUIDANCE, params.systemPrompt].filter(Boolean).join("\n\n");
-        const runner = await createRunner(params.mode, params.provider);
+        const runner = await createRunner(params.mode, params.provider, params.burp);
         const summary = await runner.run(
           {
             prompt: prompts,

@@ -194,6 +194,25 @@ describe("session de chat", () => {
     t.session.stop();
   });
 
+  it("reconstruit le moteur quand la connexion Burp change, sans changer la conversation", async () => {
+    const settings: { burp?: { port: number; transport: "sse" } } = {};
+    const t = setup({ settings });
+    await t.session.send("premier");
+    const conversation = t.view().conversation;
+    expect(t.f.started).not.toHaveProperty("burp");
+    t.f.handlers.onEvent?.(ev({ kind: "turn.finished" }));
+    settings.burp = { port: 9876, transport: "sse" };
+    await t.session.send("deuxième");
+    expect(t.f.started?.burp).toEqual(settings.burp);
+    expect(t.view().conversation).toBe(conversation);
+    t.f.handlers.onEvent?.(ev({ kind: "turn.finished" }));
+    delete settings.burp;
+    await t.session.send("troisième");
+    expect(t.f.started).not.toHaveProperty("burp");
+    expect(t.view().conversation).toBe(conversation);
+    t.session.stop();
+  });
+
   it("la bulle garde la consigne, le moteur reçoit la sortie citée", async () => {
     const t = setup();
     const cited = "vois #htb1\n\n<<<sortie-terminal>>>\n80/tcp";

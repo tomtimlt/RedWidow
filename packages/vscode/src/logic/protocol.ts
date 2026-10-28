@@ -1,12 +1,14 @@
 import { isAbsolute } from "node:path";
 import {
   type AuthMode,
+  type BurpConfig,
   BYPASS_MAX_MS,
   type BypassState,
   type Decision,
   type Effort,
   type EngineEvent,
   type ErrorInfo,
+  isBurpConfig,
   type ModelOption,
   type PendingApproval,
   REASON_CODES,
@@ -32,6 +34,7 @@ export const PROTOCOL_VERSION = 1;
 export const MAX_PROMPT_CHARS = 1_000_000;
 
 export interface StartParams {
+  burp?: BurpConfig;
   cwd: string;
   provider?: Provider;
   model?: string;
@@ -138,6 +141,7 @@ const START_KEYS = [
   "systemPrompt",
   "mode",
   "journalDir",
+  "burp",
 ] as const;
 
 /** Valide un état du Bypass : `null`, ou bornes entières, ordonnées, de durée au plus `BYPASS_MAX_MS`. */
@@ -174,6 +178,8 @@ export function parseToEngine(raw: unknown): Parsed<ToEngine> {
       if (obj.mode !== undefined) {
         if (obj.mode !== "learning" || obj.systemPrompt !== undefined) return bad("mode");
       }
+      if (obj.burp !== undefined && (!isBurpConfig(obj.burp) || obj.mode === "learning"))
+        return bad("burp");
       if (obj.journalDir !== undefined) {
         if (
           !isString(obj.journalDir) ||

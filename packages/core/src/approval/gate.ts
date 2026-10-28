@@ -107,6 +107,8 @@ const PERSISTABLE = new Set(["policy.default", "bash.noRule"]);
 
 /** Clé d'autorisation de session : le même outil et, pour Bash, la même commande exacte ; `null` si non mémorisable. */
 function sessionKey(request: ApprovalRequest, verdict: PolicyVerdict): string | null {
+  // Un outil multiplexé peut appeler des actions Burp différentes : jamais de mémorisation globale.
+  if (request.tool === "mcp__burp__call_tool") return null;
   if (verdict.decision !== "ask" || !REMEMBERABLE.has(verdict.reason.code)) return null;
   // Accès à des répertoires externes (permission OpenCode ou champ déclaré par l'adaptateur) :
   // jamais mémorisable, sinon un « toujours » sur `Read` couvrirait des lectures hors de l'espace de travail.

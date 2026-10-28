@@ -235,3 +235,17 @@ describe("protocole IPC : mode apprentissage (ADR 0010)", () => {
     if (!parsed.ok) expect(parsed.reason.params).toMatchObject({ field: "mode" });
   });
 });
+
+describe("configuration Burp du moteur", () => {
+  const start = { v: 1, type: "start", cwd };
+  it("valide uniquement port et transport, hors apprentissage", () => {
+    expect(parseToEngine({ ...start, burp: { port: 9876, transport: "sse" } }).ok).toBe(true);
+    for (const patch of [
+      { burp: { port: 0, transport: "sse" } },
+      { burp: { port: 9876, transport: "stdio" } },
+      { burp: { port: 9876, transport: "sse", command: "java" } },
+      { mode: "learning", burp: { port: 9876, transport: "sse" } },
+    ])
+      expect(parseToEngine({ ...start, ...patch }).ok).toBe(false);
+  });
+});

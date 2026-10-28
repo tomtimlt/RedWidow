@@ -1,4 +1,8 @@
 import {
+  BURP_INSTRUCTIONS,
+  type BurpBackend,
+  type BurpConfig,
+  burpToolSpecs,
   COURS_SERVER_INSTRUCTIONS,
   COURS_SERVER_NAME,
   coursRoot,
@@ -115,5 +119,13 @@ export function coursToolset(): OpencodeToolset {
     name: COURS_SERVER_NAME,
     instructions: COURS_SERVER_INSTRUCTIONS,
     create: () => coursToolSpecs(coursRoot()),
+  };
+}
+
+export function burpToolset(config: BurpConfig, backend: BurpBackend): OpencodeToolset {
+  return {
+    name: "burp",
+    instructions: BURP_INSTRUCTIONS,
+    create: () => burpToolSpecs(config, backend),
   };
 }

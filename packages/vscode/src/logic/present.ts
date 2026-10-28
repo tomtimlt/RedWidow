@@ -16,6 +16,8 @@ const LABELS: Record<string, string> = {
   WebSearch: "Recherche web",
   mcp__web__search_web: "Recherche web",
   mcp__web__read_url: "Lire une page web",
+  mcp__burp__list_tools: "Burp · catalogue des outils",
+  mcp__burp__call_tool: "Burp · appel d’outil",
   Task: "Sous-agent",
   Agent: "Sous-agent",
   TodoWrite: "Liste de tâches",
@@ -29,7 +31,17 @@ export function toolLabel(tool: string): string {
   return LABELS[tool] ?? tool;
 }
 
-const KEYS = ["file_path", "path", "notebook_path", "pattern", "command", "url", "query", "prompt"];
+const KEYS = [
+  "file_path",
+  "path",
+  "notebook_path",
+  "pattern",
+  "command",
+  "url",
+  "query",
+  "prompt",
+  "name",
+];
 
 /** Résumé court sur une ligne de l'entrée d'un outil : chemin, motif, commande… (jamais de JSON). */
 export function summarizeInput(input: Record<string, unknown>, max = 120): string {

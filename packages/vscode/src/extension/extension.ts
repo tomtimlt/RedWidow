@@ -4,6 +4,7 @@ import { mkdir } from "node:fs/promises";
 import { basename, join } from "node:path";
 import {
   activeProject,
+  burpToolSpecs,
   CodedError,
   coursRoot,
   createDockerClient,
@@ -17,11 +18,11 @@ import {
   readProjects,
   resolveBinary,
   shortContainerName,
-  unlink,
   WARBAND_KALI_IMAGE,
 } from "@warband/core";
 import { formatError } from "@warband/messages";
 import * as vscode from "vscode";
+import { createBurpBackend } from "../engine/burp-client.js";
 import { cleanText, parseWebviewMessage } from "../logic/approval.js";
 import { attachmentMessage, withAttachments } from "../logic/attachments.js";
 import { type BypassPush, createBypassHost, formatRemaining } from "../logic/bypass.js";
@@ -53,6 +54,7 @@ import { PALETTES, type Palette, paletteOf } from "../logic/palette.js";
 import {
   activateSelectedProject,
   createSelectedProject,
+  manageSelectedProject,
   readProjectChoices,
 } from "../logic/project-controls.js";
 import { readProjectSummary, saveProjectSummary } from "../logic/project-summary.js";
@@ -1527,6 +1529,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   let studioPage: StudioPage = "project";
   let projectChanging = false;
+  let burpStatus = "";
   const pushStudio = async (
     feedback: {
       summarySaved?: string;
@@ -1580,6 +1583,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       sources,
       projectSummary,
       projectChoices,
+      burpEnabled:
+        machineValue(vscode.workspace.getConfiguration("warband").inspect("burp.enabled")) === true,
+      burpStatus,
       projectBusy: projectChanging || [...slots.values()].some((slot) => slot.session?.view().busy),
       ...feedback,
       ...(summaryError !== undefined && { summaryError }),
@@ -1822,6 +1828,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     studioPanel.webview.onDidReceiveMessage(async (raw: unknown) => {
       const message = parseStudioMessage(raw);
       if (message === null) return;
+      if (message.type === "configureBurp" || message.type === "testBurp") {
+        await vscode.commands.executeCommand(
+          message.type === "configureBurp" ? "warband.configureBurp" : "warband.testBurp",
+        );
+        return;
+      }
       if (message.type === "setPalette") {
         try {
           await updatePalette(message.palette);
@@ -1859,6 +1871,78 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
       if (message.type === "openKillchain") {
         openKillchain();
+        return;
+      }
+      if (
+        message.type === "renameProject" ||
+        message.type === "deleteProject" ||
+        message.type === "unlink"
+      ) {
+        const chatsBusy = () => [...slots.values()].some((slot) => slot.session?.view().busy);
+        if (projectChanging || chatsBusy()) {
+          await pushStudio({
+            projectError: "Arrêtez les tours en cours avant de modifier un projet.",
+          });
+          return;
+        }
+        projectChanging = true;
+        let projectError: string | undefined;
+        const generation = findingProjectGeneration;
+        try {
+          const projectId =
+            message.type === "unlink"
+              ? (await readProjectChoices(defaultConfigDir())).activeId
+              : message.projectId;
+          if (projectId) {
+            const changed = await manageSelectedProject(
+              defaultConfigDir(),
+              projectId,
+              message.type === "renameProject" ? "rename" : "remove",
+              {
+                busy: chatsBusy,
+                isCurrent: () =>
+                  studioPanel === panel &&
+                  panel.visible &&
+                  generation === findingProjectGeneration &&
+                  vscode.workspace.isTrusted,
+                rename: async (name) =>
+                  vscode.window.showInputBox({
+                    title: "Renommer le projet Warband",
+                    value: name,
+                    prompt:
+                      "Le dossier, les conversations et les conteneurs gardent leur identité.",
+                    validateInput: (value) =>
+                      !value.trim() || value.trim().length > 80 || /[\p{Cc}\p{Cf}]/u.test(value)
+                        ? "Saisissez un nom de 1 à 80 caractères, sans caractères de contrôle."
+                        : undefined,
+                  }),
+                confirmRemove: async (name) =>
+                  (await vscode.window.showWarningMessage(
+                    `Retirer le projet « ${cleanText(name, 80)} » de Warband ?`,
+                    {
+                      modal: true,
+                      detail:
+                        "Le dossier, les conteneurs, les journaux, les trouvailles et les notes restent sur le disque. Aucun autre projet ne sera activé automatiquement.",
+                    },
+                    "Retirer le projet",
+                  )) === "Retirer le projet",
+              },
+            );
+            if (changed) {
+              cancelFindingDeletions();
+              await Promise.all(
+                [...slots.values()].map((slot) => slot.session?.refreshHistoryProjects()),
+              );
+              scheduleFindingsRefresh();
+            }
+          }
+        } catch (error) {
+          projectError = formatError(error);
+        } finally {
+          projectChanging = false;
+        }
+        await pushStudio({ ...(projectError !== undefined ? { projectError } : {}) });
+        if (cockpitPanel) await cockpitPanel.webview.postMessage(await loadCockpitView());
         return;
       }
       if (message.type === "activateProject" || message.type === "createProject") {
@@ -1931,7 +2015,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
         return;
       }
-      if (message.type === "unlink") await unlink(defaultConfigDir());
+
       if (message.type === "openCours") await openCoursFolder();
       await pushStudio();
     });
@@ -2060,6 +2144,124 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand("warband.openTerminal", () => void pickContainerTerminal()),
     vscode.commands.registerCommand("warband.openMonitor", () => openMonitor()),
     vscode.commands.registerCommand("warband.openKillchain", () => openKillchain()),
+    vscode.commands.registerCommand("warband.configureBurp", async () => {
+      if ([...slots.values()].some((slot) => slot.session?.view().busy)) {
+        await vscode.window.showWarningMessage(
+          "Arrêtez les tours en cours avant de configurer Burp.",
+        );
+        return;
+      }
+      const config = vscode.workspace.getConfiguration("warband");
+      const enabled = machineValue(config.inspect("burp.enabled")) === true;
+      const choice = await vscode.window.showQuickPick(
+        [
+          {
+            label: "Activer ou configurer la connexion locale",
+            value: "enable",
+            description: "Extension MCP officielle requise dans Burp Suite",
+          },
+          {
+            label: "Désactiver la connexion",
+            value: "disable",
+            description: enabled ? "Connexion actuellement activée" : "Connexion déjà désactivée",
+          },
+        ],
+        { title: "Burp Suite MCP" },
+      );
+      if (!choice) return;
+      try {
+        if (choice.value === "disable") {
+          await config.update("burp.enabled", false, vscode.ConfigurationTarget.Global);
+          burpStatus = "Connexion Burp désactivée.";
+        } else {
+          const port = await vscode.window.showInputBox({
+            title: "Port MCP Burp sur 127.0.0.1",
+            value: String(machineValue(config.inspect("burp.port")) ?? 9876),
+            prompt: "Port affiché dans l’onglet MCP de Burp. Warband ne lance pas Burp ni Java.",
+            validateInput: (value) =>
+              !/^[0-9]{1,5}$/.test(value) || Number(value) < 1 || Number(value) > 65535
+                ? "Port entier entre 1 et 65535 requis."
+                : undefined,
+          });
+          if (port === undefined) return;
+          const transport = await vscode.window.showQuickPick(
+            [
+              { label: "SSE — serveur officiel", value: "sse", description: "/sse" },
+              {
+                label: "Streamable HTTP",
+                value: "http",
+                description: "/mcp, si proposé par votre serveur",
+              },
+            ],
+            { title: "Transport MCP Burp" },
+          );
+          if (!transport) return;
+          if ([...slots.values()].some((slot) => slot.session?.view().busy))
+            throw new Error("Un tour a démarré. Arrêtez-le avant de modifier cette connexion.");
+          await config.update("burp.enabled", false, vscode.ConfigurationTarget.Global);
+          await config.update("burp.port", Number(port), vscode.ConfigurationTarget.Global);
+          await config.update("burp.transport", transport.value, vscode.ConfigurationTarget.Global);
+          await config.update("burp.enabled", true, vscode.ConfigurationTarget.Global);
+          burpStatus =
+            "Connexion configurée. Testez-la, puis envoyez une nouvelle consigne. Les tours suivants utilisent ces réglages.";
+        }
+      } catch (error) {
+        burpStatus = formatError(error);
+        await vscode.window.showErrorMessage(burpStatus);
+      }
+      if (!studioPanel && burpStatus) await vscode.window.showInformationMessage(burpStatus);
+      await pushStudio();
+    }),
+    vscode.commands.registerCommand("warband.testBurp", async () => {
+      try {
+        const config = readSettings().burp;
+        if (!config) {
+          burpStatus = "Connexion Burp désactivée : configurez-la avant le test.";
+          await vscode.window.showInformationMessage(burpStatus);
+        } else {
+          await vscode.window.withProgress(
+            {
+              location: vscode.ProgressLocation.Notification,
+              title: "Connexion au MCP Burp local…",
+              cancellable: true,
+            },
+            async (_, token) => {
+              const abort = new AbortController();
+              const subscription = token.onCancellationRequested(() => abort.abort());
+              try {
+                const list = burpToolSpecs(config, createBurpBackend(config)).find(
+                  (tool) => tool.name === "list_tools",
+                );
+                if (!list) return;
+                const result = JSON.parse(
+                  await list.run(
+                    {},
+                    { parentId: null, correlation: undefined, signal: abort.signal },
+                  ),
+                );
+                burpStatus = `MCP Burp joignable : ${result.tools.length} outils dans cette page de catalogue. Aucun outil Burp exécuté, aucun appel au modèle.`;
+                await vscode.window.showInformationMessage(burpStatus);
+              } finally {
+                subscription.dispose();
+              }
+            },
+          );
+        }
+      } catch (error) {
+        burpStatus = formatError(error);
+        await vscode.window.showErrorMessage(burpStatus);
+      }
+      await pushStudio();
+    }),
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      if (!event.affectsConfiguration("warband.burp")) return;
+      if (
+        machineValue(vscode.workspace.getConfiguration("warband").inspect("burp.enabled")) !== true
+      )
+        for (const slot of slots.values()) if (slot.session?.view().busy) slot.session.stop();
+      burpStatus = "Réglages modifiés. Les tours suivants utilisent la nouvelle connexion.";
+      void pushStudio();
+    }),
     vscode.commands.registerCommand("warband.choosePalette", async () => {
       const selected = await vscode.window.showQuickPick(
         PALETTES.map(([value, label, detail]) => ({ value, label, detail })),

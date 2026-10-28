@@ -1294,7 +1294,27 @@ function start() {
             vscode.postMessage({ type: "activateProject", projectId: select.value });
           });
           update2();
-          choosePanel.append(label2, select, activate);
+          const rename = el("button", "ghost", "Renommer…");
+          const remove = el("button", "ghost", "Supprimer…");
+          rename.type = remove.type = "button";
+          rename.id = "project-rename";
+          remove.id = "project-delete";
+          const managementState = () => {
+            rename.disabled = remove.disabled = projectBusy || !select.value;
+          };
+          select.addEventListener("change", managementState);
+          for (const [button, type] of [
+            [rename, "renameProject"],
+            [remove, "deleteProject"],
+          ]) {
+            button.addEventListener("click", () => {
+              if (button.disabled) return;
+              rename.disabled = remove.disabled = true;
+              vscode.postMessage({ type, projectId: select.value });
+            });
+          }
+          managementState();
+          choosePanel.append(label2, select, activate, rename, remove);
         }
         const label = el("label", "studio-help", "Nom du nouveau projet");
         label.htmlFor = "project-name";
@@ -1347,11 +1367,6 @@ function start() {
         sec.append(el("p", "studio-kicker", "Espace affiché"));
         sec.append(el("p", "studio-name", b.name));
         sec.append(el("p", "studio-help", b.workspace));
-        const del = el("button", "ghost");
-        del.type = "button";
-        del.append(el("span", "btn-text", "Délier le conteneur affiché"));
-        del.addEventListener("click", () => vscode.postMessage({ type: "unlink" }));
-        sec.append(del);
       }
       const summary = view.projectSummary;
       if (summary && typeof summary.projectId === "string" && typeof summary.text === "string") {
@@ -1460,6 +1475,31 @@ function start() {
         "server",
       );
       sec.append(dl);
+      if (page === "system") {
+        sec.append(el("h2", "", "Burp Suite MCP"));
+        sec.append(
+          el(
+            "p",
+            "studio-help",
+            view.burpEnabled
+              ? "Connexion locale activée. Les appels aux outils restent soumis à la gate Warband."
+              : "Connexion désactivée. Installez l’extension MCP officielle dans Burp Suite pour la connecter.",
+          ),
+        );
+        const configure = el("button", "ghost", "Configurer Burp Suite MCP…");
+        const test = el("button", "ghost", "Tester la connexion");
+        configure.type = test.type = "button";
+        configure.id = "burp-configure";
+        test.id = "burp-test";
+        configure.addEventListener("click", () => vscode.postMessage({ type: "configureBurp" }));
+        test.addEventListener("click", () => vscode.postMessage({ type: "testBurp" }));
+        sec.append(configure, test);
+        if (view.burpStatus) {
+          const status = el("p", "studio-help", view.burpStatus);
+          status.setAttribute("role", "status");
+          sec.append(status);
+        }
+      }
       if (page === "containers") {
         const running = (view.containers ?? []).filter((c) => c.state === "running").length;
         const listHead = el("div", "studio-list-head");

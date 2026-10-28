@@ -1,6 +1,6 @@
 # Warband — parcours, état actuel et reprise
 
-État inspecté le 28 octobre 2026 pour la version 0.3.60. Ce document sert de point d'entrée produit ;
+État inspecté le 28 octobre 2026 pour la version 0.3.61. Ce document sert de point d'entrée produit ;
 les ADR expliquent les décisions, les idées restent une réserve.
 
 ## Le parcours de référence
@@ -15,10 +15,40 @@ parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
 
-La version du manifeste est **0.3.60**. Les paragraphes
+La version du manifeste est **0.3.61**. Les paragraphes
 0.3.19 à 0.3.29 ci-dessous sont des relevés historiques, pas les preuves de
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
+
+## Lot 0.3.61 — projets et MCP Burp Suite (préparé)
+
+La page Projet permet de renommer et retirer une fiche active ou inactive, avec
+saisie/confirmation natives et revalidation après dialogue. Le dossier VS Code,
+les conteneurs, les notes, les trouvailles et les journaux ne sont pas supprimés.
+Un projet actif retiré n’en active aucun autre ; ses conversations restent isolées.
+L’ancienne action ambiguë « Délier le conteneur affiché » passe aussi par le
+parcours confirmé ; son bouton est remplacé par la gestion explicite des projets.
+
+Le MCP Burp officiel est connecté en option, désactivé par défaut, sur le poste
+local seulement : port utilisateur machine, SSE ou HTTP. Claude et OpenCode
+utilisent le même transport dans l’extension et les définitions d’outils neutres du cœur. La gate
+plafonne les appels à ask et refuse leur mémorisation globale ; le Bypass conserve
+son contrat. L’Apprentissage reste limité aux cours. Une commande et des boutons
+Contrôle système configurent et testent la connexion sans appel au modèle.
+Aucune commande Java ou configuration MCP arbitraire n’est exécutée. Voir ADR 0030.
+
+Le maximum de pièces jointes passe à **10 fichiers**, avec les limites actuelles
+64 Kio/fichier et 256 Kio cumulés. **40 Mo/fichier et 400 Mo cumulés ne sont pas
+implémentés** : la stratégie de consultation des gros fichiers reste à préciser.
+
+Validation locale : **2 030 tests réussis, 14 ignorés**, typage et build réussis.
+Les trois parcours Chromium couvrent les projets actifs/inactifs, les boutons,
+le brouillon de notes, les tours en cours et les états de connexion Burp dans les
+thèmes sombre, clair et contraste élevé. Le test d’architecture du cœur reste
+inchangé et passe : aucun SDK MCP ou agent dans ses dépendances. Les essais du
+transport MCP utilisent des serveurs factices SSE/HTTP, sans appel au modèle.
+Publication en cours ; la connexion à Burp réel et les certificats HTTPS Windows
+restent à confirmer sur le poste utilisateur.
 
 ## Lot 0.3.60 — fichiers joints au chat (publié)
 

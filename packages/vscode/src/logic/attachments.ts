@@ -1,6 +1,6 @@
 import { MAX_PROMPT_CHARS } from "./protocol.js";
 
-export const MAX_ATTACHMENTS = 5;
+export const MAX_ATTACHMENTS = 10;
 export const MAX_ATTACHMENT_BYTES = 64 * 1024;
 export const MAX_ATTACHMENT_TOTAL_BYTES = 256 * 1024;
 export interface TextAttachment {

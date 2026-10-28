@@ -41,3 +41,23 @@ describe("resolveSettings", () => {
     expect(() => resolveSettings(from({ maxTurns: 1.5 }))).toThrow();
   });
 });
+
+describe("réglages MCP Burp", () => {
+  it("désactivé par défaut et lit uniquement la configuration explicite", () => {
+    expect(resolveSettings(from({ "burp.port": 1234 })).burp).toBeUndefined();
+    expect(resolveSettings(from({ "burp.enabled": true })).burp).toEqual({
+      port: 9876,
+      transport: "sse",
+    });
+    expect(
+      resolveSettings(from({ "burp.enabled": true, "burp.port": 1234, "burp.transport": "http" }))
+        .burp,
+    ).toEqual({ port: 1234, transport: "http" });
+    expect(
+      resolveSettings((key) =>
+        machineValue({ workspaceValue: key === "burp.enabled" ? true : 1234 }),
+      ).burp,
+    ).toBeUndefined();
+    expect(() => resolveSettings(from({ "burp.enabled": true, "burp.port": 70000 }))).toThrow();
+  });
+});

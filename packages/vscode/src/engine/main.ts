@@ -1,12 +1,13 @@
 import { isAbsolute, join } from "node:path";
 import {
   createOpencodeRunner,
+  burpToolset as openCodeBurp,
   coursToolset as openCodeCours,
   exegolToolset as openCodeExegol,
   kaliToolset as openCodeKali,
   webToolset as openCodeWeb,
 } from "@warband/agent-opencode";
-import { createSdkRunner } from "@warband/agent-sdk";
+import { burpToolset as claudeBurp, createSdkRunner } from "@warband/agent-sdk";
 import {
   activeProject,
   CodedError,
@@ -19,6 +20,7 @@ import {
 } from "@warband/core";
 import { matchesFingerprint } from "../logic/integrity.js";
 import { PROTOCOL_VERSION } from "../logic/protocol.js";
+import { createBurpBackend } from "./burp-client.js";
 import { processChannel } from "./channel.js";
 import { enrichContainerPrompt } from "./container-prompt.js";
 import { runEngine } from "./engine.js";
@@ -67,7 +69,7 @@ const done = runEngine({
     targets.note(text, outcome.containers, outcome.projectId, outcome.blocked);
     return enrichContainerPrompt(text, outcome.containers, () => docker.listLabelPrefix());
   },
-  createRunner: async (mode, provider = "claude") => {
+  createRunner: async (mode, provider = "claude", burp) => {
     if (provider !== "claude") {
       const binary = join(root, "bin", process.platform === "win32" ? "opencode.exe" : "opencode");
       const hash = typeof __OPENCODE_SHA256__ === "string" ? __OPENCODE_SHA256__ : "";
@@ -84,6 +86,7 @@ const done = runEngine({
                 openCodeExegol({ targets, binary: "docker", includeMemory: false }),
                 openCodeKali({ targets, binary: "docker", includeMemory: false }),
                 openCodeWeb(),
+                ...(burp ? [openCodeBurp(burp, createBurpBackend(burp))] : []),
               ],
             }),
       });
@@ -93,7 +96,10 @@ const done = runEngine({
     if (!(await matchesFingerprint(exe, expected))) {
       throw new CodedError("extension.binaryMismatch");
     }
-    return createSdkRunner(runnerOptions(mode, exe, targets));
+    const options = runnerOptions(mode, exe, targets);
+    if (mode !== "learning" && burp)
+      options.toolsets?.push(claudeBurp(burp, createBurpBackend(burp)));
+    return createSdkRunner(options);
   },
 });
 // Les écouteurs sont posés : le parent peut envoyer `start`.

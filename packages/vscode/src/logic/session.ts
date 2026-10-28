@@ -148,6 +148,7 @@ export function createChatSession(deps: ChatSessionDeps) {
   } | null = null;
   /** Révision de l'authentification : incrémentée à chaque jeton défini ou effacé ; le moteur démarré avec une autre est remplacé. */
   let authRev = 0;
+  let appliedBurp = "";
   let appliedAuth = 0;
   /** Moteurs écartés (changement de modèle ou d'effort) : leurs derniers messages sont ignorés. */
   const detached = new WeakSet<EngineController>();
@@ -509,6 +510,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       touch();
     }
     appliedAuth = authRev;
+    appliedBurp = JSON.stringify(settings.burp ?? null);
     const maxTurns = picked.ultra ? picked.ultra.maxTurns : settings.maxTurns;
     await ctl.start({
       cwd: deps.cwd,
@@ -521,6 +523,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       ...(maxTurns !== undefined && { maxTurns }),
       ...(picked.ultra?.maxBudgetUsd !== undefined && { maxBudgetUsd: picked.ultra.maxBudgetUsd }),
       ...(history && { journalDir: history.files.dir }),
+      ...(!learning && settings.burp && { burp: settings.burp }),
       ...(!transferring && sessionId !== undefined && { resume: sessionId }),
       // Le mode exclut `systemPrompt` (ADR 0010) : la consigne vient du moteur, jamais de l'UI.
       ...(learning && { mode: "learning" as const }),
@@ -925,7 +928,8 @@ export function createChatSession(deps: ChatSessionDeps) {
             want.model !== applied.model ||
             want.effort !== applied.effort ||
             want.variant !== applied.variant ||
-            learning !== applied.learning
+            learning !== applied.learning ||
+            appliedBurp !== JSON.stringify(deps.readSettings().burp ?? null)
           ) {
             await retire(controller);
           } else if (appliedAuth !== authRev) {

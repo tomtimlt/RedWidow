@@ -365,6 +365,25 @@ export async function createProject(
   return project;
 }
 
+/** Renomme la fiche sans changer son identité, son dossier ou ses associations. */
+export async function renameProject(
+  configDir: string,
+  projectId: string,
+  name: string,
+): Promise<void> {
+  assertCreateName(name);
+  if (!name.trim()) throw invalidProject();
+  const file = await readProjects(configDir);
+  if (file === null || !file.projects.some((project) => project.id === projectId))
+    throw new CodedError("project.absent");
+  await writeProjectFile(configDir, {
+    activeId: file.activeId,
+    projects: file.projects.map((project) =>
+      project.id === projectId ? { ...project, name } : project,
+    ),
+  });
+}
+
 /** Active un projet existant. Id inconnu ou fichier absent : `project.absent`. */
 export async function setActiveProject(configDir: string, projectId: string): Promise<void> {
   const file = await readProjects(configDir);

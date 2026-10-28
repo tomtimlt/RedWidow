@@ -47,5 +47,7 @@ Lots pour `dev` : objectif, fichiers, critères d'acceptation vérifiables.
 
 - [0026 — Chemin retenu de la Kill Chain](0026-chemin-retenu-killchain.md) : annotation autonome des liens existants, distincte des preuves.
 
+- [0030 — Gestion des projets et MCP Burp](0030-gestion-projets-et-mcp-burp.md) : fiches réversibles, connexion locale optionnelle et gate conservée.
+
 Le statut accepté décrit la décision ; les preuves d’exécution et les limites
 figurent dans [l’état du projet](../etat-du-projet.md).

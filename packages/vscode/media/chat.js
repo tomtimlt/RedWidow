@@ -1687,7 +1687,7 @@
     const added = [];
     try {
       if (draftFiles.length + files.length > Number(fileInput.dataset.count))
-        throw Error("Maximum 5 fichiers joints.");
+        throw Error("Maximum 10 fichiers joints.");
       let total = draftFiles.reduce((sum, f) => sum + f.bytes, 0);
       for (const file of files) {
         total += file.size;

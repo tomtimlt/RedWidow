@@ -4,6 +4,7 @@ export * from "./approval/paths.js";
 export * from "./approval/policy.js";
 export * from "./approval/shell.js";
 export * from "./approval/source.js";
+export * from "./burp/tools.js";
 export * from "./correlation.js";
 export * from "./cours/confine.js";
 export * from "./cours/instructions.js";

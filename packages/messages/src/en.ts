@@ -4,6 +4,13 @@ const text = (v: string | number | undefined): string => (v === undefined ? "?" 
 
 /** Catalogue minimal : les codes absents se replient sur le français, puis sur `code + params`. */
 export const reasons: Catalog = {
+  "burp.invalidConfig": () =>
+    "Invalid Burp MCP configuration: local port and SSE or HTTP transport required.",
+  "burp.invalidResponse": () => "Burp MCP response rejected: invalid origin, format or size.",
+  "burp.unavailable": () =>
+    "Burp MCP connection failed or was interrupted. Check Burp and its local MCP extension. An action may still be running; check its state before retrying.",
+  "burp.timeout": () =>
+    "Burp MCP timed out. An action may still be running; check its state in Burp before retrying.",
   "opencode.httpFailed": (p) =>
     `OpenCode request failed: ${text(p.operation)} (HTTP ${text(p.status)})`,
   "kali.taskRequired": () =>

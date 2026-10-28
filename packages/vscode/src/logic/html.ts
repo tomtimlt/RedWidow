@@ -134,7 +134,7 @@ export function chatHtml({
 <textarea id="input" rows="1" aria-label="Votre consigne" placeholder="Votre consigne…" title="Entrée pour envoyer, Maj+Entrée pour une nouvelle ligne"></textarea>
 <div id="toolbar">
 
-<span class="composer-tools"><button id="attach-btn" type="button" disabled class="ghost tool-btn" title="Joindre des fichiers texte (5 fichiers, 64 Kio chacun)" aria-label="Joindre des fichiers texte">${icon("clip")}</button><button id="mention-btn" type="button" class="ghost tool-btn" title="Citer un conteneur" aria-label="Citer un conteneur" aria-haspopup="listbox" aria-expanded="false" aria-controls="mention-pop">${icon("at")}</button>
+<span class="composer-tools"><button id="attach-btn" type="button" disabled class="ghost tool-btn" title="Joindre des fichiers texte (10 fichiers, 64 Kio chacun)" aria-label="Joindre des fichiers texte">${icon("clip")}</button><button id="mention-btn" type="button" class="ghost tool-btn" title="Citer un conteneur" aria-label="Citer un conteneur" aria-haspopup="listbox" aria-expanded="false" aria-controls="mention-pop">${icon("at")}</button>
 <button id="hash-btn" type="button" class="ghost tool-btn" title="Citer un terminal" aria-label="Citer un terminal" aria-haspopup="listbox" aria-expanded="false" aria-controls="mention-pop">${icon("hash")}</button>
 <button id="slash-btn" type="button" class="ghost tool-btn" popovertarget="slash-pop" aria-haspopup="menu" aria-expanded="false" title="Commandes" aria-label="Commandes">${icon("slash")}</button>
 <button id="monitor-btn" type="button" class="ghost tool-btn" title="Monitor" aria-label="Monitor">${icon("pulse")}</button>

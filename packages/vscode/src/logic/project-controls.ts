@@ -1,4 +1,10 @@
-import { createProject, readProjects, setActiveProject } from "@warband/core";
+import {
+  createProject,
+  readProjects,
+  removeProject,
+  renameProject,
+  setActiveProject,
+} from "@warband/core";
 
 export interface ProjectChoices {
   activeId: string | null;
@@ -28,4 +34,39 @@ export async function createSelectedProject(
   const project = await createProject(configDir, { name, workspace });
   await setActiveProject(configDir, project.id);
   return project.id;
+}
+
+export interface ProjectManagementHost {
+  isCurrent(): boolean;
+  busy(): boolean;
+  rename(name: string): Promise<string | undefined>;
+  confirmRemove(name: string): Promise<boolean>;
+}
+
+/** Relecture après dialogue : une action périmée ne modifie jamais un autre projet. */
+export async function manageSelectedProject(
+  configDir: string,
+  projectId: string,
+  action: "rename" | "remove",
+  host: ProjectManagementHost,
+): Promise<boolean> {
+  const file = await readProjects(configDir);
+  const selected = file?.projects.find((project) => project.id === projectId);
+  if (!selected) throw new Error("Ce projet n’existe plus.");
+  if (host.busy() || !host.isCurrent()) return false;
+  const name = action === "rename" ? await host.rename(selected.name) : undefined;
+  if (action === "rename" && name === undefined) return false;
+  if (action === "remove" && !(await host.confirmRemove(selected.name))) return false;
+  const fresh = await readProjects(configDir);
+  if (
+    host.busy() ||
+    !host.isCurrent() ||
+    fresh?.activeId !== file?.activeId ||
+    JSON.stringify(fresh?.projects.find((project) => project.id === projectId)) !==
+      JSON.stringify(selected)
+  )
+    throw new Error("Le projet ou le travail en cours a changé. Recommencez l’action.");
+  if (action === "rename") await renameProject(configDir, projectId, name?.trim() ?? "");
+  else await removeProject(configDir, projectId);
+  return true;
 }

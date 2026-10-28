@@ -811,13 +811,24 @@ it("projets : choisir un projet réel et créer avec le nom seul, dossier laiss�
   });
   expect(find((n) => n.id === "project-create-panel").hidden).toBe(true);
   expect(find((n) => n.id === "project-name").value).toBe("");
-  const unlink = find(
-    (n) =>
-      n.tag === "button" &&
-      n.children.some((child) => child.textContent === "Délier le conteneur affiché"),
-  );
-  unlink.fire("click");
-  expect(sent.at(-1)).toEqual({ type: "unlink" });
+  const rename = find((n) => n.id === "project-rename");
+  rename.fire("click");
+  expect(sent.at(-1)).toEqual({ type: "renameProject", projectId: first });
+  // Une nouvelle vue réactive les contrôles après le dialogue natif.
+  receive({
+    data: {
+      type: "view",
+      page: "project",
+      projectChoices: {
+        activeId: first,
+        projects: [{ id: first, name: "Premier", workspace: "/mission" }],
+      },
+    },
+  });
+  const remove = find((n) => n.id === "project-delete");
+  remove.fire("click");
+  expect(sent.at(-1)).toEqual({ type: "deleteProject", projectId: first });
+  expect(main.find((n) => n.textContent === "Délier le conteneur affiché")).toBeUndefined();
 });
 
 it("graphe : conserve la caméra, libère les observateurs et signale une erreur sans vider les trouvailles", () => {
@@ -1137,4 +1148,22 @@ it("liens : sélection clavier, annotation sans optimisme, acquittement et expor
   expect(sent.at(-1)).toMatchObject({ retained: false });
   find("kc-report").fire("click");
   expect(sent.at(-1)).toEqual({ type: "exportReport", projectId: deleteProject });
+});
+
+describe("actions de projet et connexion Burp", () => {
+  const projectId = "11111111-1111-4111-8111-111111111111";
+  it.each(["renameProject", "deleteProject"])(
+    "valide %s sans accepter un nom ou un chemin fournis par la webview",
+    (type) => {
+      expect(parseStudioMessage({ type, projectId })).toEqual({ type, projectId });
+      expect(parseStudioMessage({ type, projectId, path: "/tmp/projet" })).toBeNull();
+      expect(parseStudioMessage({ type, projectId: "../projet" })).toBeNull();
+      expect(parseStudioMessage({ type, projectId, name: "Nom hostile" })).toBeNull();
+    },
+  );
+  it.each(["configureBurp", "testBurp"])("valide %s sans argument exécutable ni URL", (type) => {
+    expect(parseStudioMessage({ type })).toEqual({ type });
+    expect(parseStudioMessage({ type, url: "http://evil" })).toBeNull();
+    expect(parseStudioMessage({ type, command: "java" })).toBeNull();
+  });
 });

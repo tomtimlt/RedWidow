@@ -38,7 +38,11 @@ export type StudioMessage =
   | { type: "refresh" }
   | { type: "openCockpit" }
   | { type: "unlink" }
+  | { type: "configureBurp" }
+  | { type: "testBurp" }
   | { type: "activateProject"; projectId: string }
+  | { type: "renameProject"; projectId: string }
+  | { type: "deleteProject"; projectId: string }
   /** Le dossier est choisi dans un dialogue natif ; aucun chemin accepté ici. */
   | { type: "createProject"; name: string }
   /** Résumé du projet affiché : l'hôte revalide le projet actif avant l'écriture. */
@@ -94,16 +98,19 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
     };
   if (m.type === "openCockpit" && keys.length === 1) return { type: "openCockpit" };
   if (m.type === "refresh" && keys.length === 1) return { type: "refresh" };
+  if ((m.type === "configureBurp" || m.type === "testBurp") && keys.length === 1)
+    return { type: m.type };
   if (m.type === "unlink" && keys.length === 1) return { type: "unlink" };
   if (m.type === "openCours" && keys.length === 1) return { type: "openCours" };
   if (m.type === "openKillchain" && keys.length === 1) return { type: "openKillchain" };
   if (
-    m.type === "activateProject" &&
+    (m.type === "activateProject" || m.type === "renameProject" || m.type === "deleteProject") &&
+    keys.every((key) => key === "type" || key === "projectId") &&
     keys.length === 2 &&
     typeof m.projectId === "string" &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(m.projectId)
   ) {
-    return { type: "activateProject", projectId: m.projectId };
+    return { type: m.type, projectId: m.projectId };
   }
   if (
     m.type === "createProject" &&

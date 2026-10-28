@@ -28,7 +28,7 @@ describe("pièces jointes texte", () => {
   it.each(
     [
       [],
-      Array(6).fill(file),
+      Array(11).fill(file),
       [{ ...file, path: "C:\\secret" }],
       [{ ...file, name: "../secret" }],
       [{ ...file, name: "C:\\secret" }],
@@ -42,6 +42,9 @@ describe("pièces jointes texte", () => {
     ].map((files) => [files]),
   )("refuse formats, chemins ou limites invalides (%#)", (files) => {
     expect(parseAttachments(files)).toBeNull();
+  });
+  it("accepte dix fichiers lorsque le cumul reste borné", () => {
+    expect(parseAttachments(Array(10).fill(file))).toHaveLength(10);
   });
   it("accepte exactement les bornes en octets UTF-8", () => {
     expect(
