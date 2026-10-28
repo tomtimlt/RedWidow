@@ -20,7 +20,7 @@ La version du manifeste est **0.3.61**. Les paragraphes
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
 
-## Lot 0.3.61 — projets et MCP Burp Suite (préparé)
+## Lot 0.3.61 — projets et MCP Burp Suite (publié)
 
 La page Projet permet de renommer et retirer une fiche active ou inactive, avec
 saisie/confirmation natives et revalidation après dialogue. Le dossier VS Code,
@@ -47,8 +47,15 @@ le brouillon de notes, les tours en cours et les états de connexion Burp dans l
 thèmes sombre, clair et contraste élevé. Le test d’architecture du cœur reste
 inchangé et passe : aucun SDK MCP ou agent dans ses dépendances. Les essais du
 transport MCP utilisent des serveurs factices SSE/HTTP, sans appel au modèle.
-Publication en cours ; la connexion à Burp réel et les certificats HTTPS Windows
-restent à confirmer sur le poste utilisateur.
+Le packaging Linux local a réussi. Le commit **93bb465**, poussé sous `tomtimlt`,
+est marqué **v0.3.61**. Le [workflow 40770806950](https://github.com/tomtimlt/warband/actions/runs/40770806950)
+a réussi dès sa première exécution. Les quatre assets de la
+[release 0.3.61](https://github.com/tomtimlt/warband/releases/tag/v0.3.61) ont été
+téléchargés et vérifiés : SHA-256 GitHub et fichiers conformes, ZIP intègres,
+manifeste 0.3.61, binaires natifs et empreintes embarquées conformes, code de
+gestion des projets et client MCP présents, médias identiques aux sources.
+La connexion à Burp réel et les certificats HTTPS Windows restent à confirmer
+sur le poste utilisateur ; les tests cloud ne prouvent pas cette recette.
 
 ## Lot 0.3.60 — fichiers joints au chat (publié)
 
