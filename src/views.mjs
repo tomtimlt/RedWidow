@@ -4,7 +4,7 @@ export const PALETTES = [
   ["braise", "Braise", "Cramoisi et acier : la marque d'origine, plus offensive"],
   ["spectre", "Spectre", "Violet et glace : agents, recherche, nuit"],
   ["editeur", "Éditeur", "Accent du thème VS Code : intégration maximale"],
-  ["multi", "Multicolore", "Huit teintes, une par rôle : de corail à rose en passant par vert, cyan et violet"]
+  ["multi", "Multicolore", "Six teintes, une par rôle : corail, vert, cyan, bleu, violet et rose"]
 ];
 const paletteOf = (value) => PALETTES.some(([key]) => key === value) ? value : PALETTES[0][0];
 export const makeNonce = () => randomBytes(18).toString("base64url");

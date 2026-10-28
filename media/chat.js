@@ -1113,8 +1113,8 @@
     cmd.append(dot);
     if (row.space !== "") {
       const tag = el("span", "prompt mon-space", row.space);
-      // Une teinte stable par espace (jeu Multicolore) : somme des caractères modulo 8.
-      tag.dataset.hue = String([...row.space].reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % 8 + 1);
+      // Une teinte stable par espace (jeu Multicolore) : somme des caractères modulo 6.
+      tag.dataset.hue = String([...row.space].reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % 6 + 1);
       cmd.append(tag);
     }
     cmd.append(el("span", "prompt", "$"), el("code", "mon-text", row.command));

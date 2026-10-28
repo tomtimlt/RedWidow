@@ -110,7 +110,7 @@ les thèmes clairs.
 | Braise | `#f0506e` | `#c41a3d` | cramoisi et acier, marque d’origine ; proche du rouge d’erreur |
 | Spectre | `#a990ff` | `#6741d9` | violet et glace, distinct de toutes les couleurs d’état |
 | Éditeur | accent du thème | accent du thème | intégration maximale avec n’importe quel thème |
-| Multicolore | `#ff6b81` `#ff9f4a` `#ffd166` `#5fd68a` `#35c4d8` `#6ea0ff` `#a98bff` `#ff7eb6` | `#d6334f` `#b85400` `#9a6b00` `#17803f` `#0a7f95` `#2a5fd0` `#6a3fd0` `#c2306f` | huit teintes (`--jn-rb-1` à `--jn-rb-8`), une par rôle, jamais en contraste élevé |
+| Multicolore | `#ff6b81` `#5fd68a` `#35c4d8` `#6ea0ff` `#a98bff` `#ff7eb6` | `#d6334f` `#17803f` `#0a7f95` `#2a5fd0` `#6a3fd0` `#c2306f` | six teintes (`--jn-rb-1` à `--jn-rb-6`), sans jaune ni orange (réservés aux alertes), une par rôle, jamais en contraste élevé |
 
 Bastion (cuivre) est retiré : trop proche de l’orange des alertes. Une valeur
 inconnue, y compris « bastion » dans les réglages existants, retombe sur
@@ -122,12 +122,12 @@ Sentinelle.
   les variables de palette s’appliquent à tout élément `data-palette`. La carte
   choisie porte les crochets de verrouillage et une coche. En contraste élevé,
   une note rappelle que les couleurs du thème prennent le relais.
-- **Multicolore** : huit teintes (corail, orange, jaune, vert, cyan, bleu,
-  violet, rose) réparties dans toute l’interface. Dégradé continu pour le
-  soulignement de marque et le curseur d’effort ; logo (étincelle jaune,
+- **Multicolore** : six teintes (corail, vert, cyan, bleu, violet, rose ; ni jaune
+  ni orange, réservés aux alertes) réparties dans toute l’interface. Dégradé continu pour le
+  soulignement de marque et le curseur d’effort ; logo (étincelle bleue,
   satellite rose) ; liserés des messages envoyés qui parcourent le spectre ;
   une teinte par page de Réglages (pictogramme de navigation), par phase de la
-  mission, par espace du Monitor (somme des caractères du nom modulo 8, attribut
+  mission, par espace du Monitor (somme des caractères du nom modulo 6, attribut
   `data-hue`) ; flèches des exemples ; compteurs et barres des règles
   d’engagement. Les états (ok, alerte,
   erreur), la gravité et le bypass gardent leurs couleurs ; la couleur n’est
