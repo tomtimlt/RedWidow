@@ -1,6 +1,6 @@
 # Warband — parcours, état actuel et reprise
 
-État inspecté le 28 octobre 2026 pour la version 0.3.58. Ce document sert de point d'entrée produit ;
+État inspecté le 28 octobre 2026 pour la version 0.3.59. Ce document sert de point d'entrée produit ;
 les ADR expliquent les décisions, les idées restent une réserve.
 
 ## Le parcours de référence
@@ -15,10 +15,25 @@ parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
 
-La version du manifeste est **0.3.58**. Les paragraphes
+La version du manifeste est **0.3.59**. Les paragraphes
 0.3.19 à 0.3.29 ci-dessous sont des relevés historiques, pas les preuves de
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
+
+## Lot 0.3.59 — six teintes et effet d’effort maximal (préparé)
+
+Les commits jusqu’à `7749b8f` sont adaptés : six teintes Multicolore sans jaune
+ni orange décoratifs, et dégradé animé au dernier niveau d’effort disponible.
+Le calcul suit les niveaux et variantes réellement exposés ; Auto n’anime pas
+le curseur. Mouvement réduit, contraste élevé, couleurs forcées et vues masquées
+sont respectés. Les corrections de contraste, l’enregistrement des palettes,
+les confirmations natives et les consignes agents restent conservés. Voir les
+[retours d’intégration](retour-refonte-interface.md).
+
+Validation locale : **1 981 tests réussis, 14 ignorés**, typage et build réussis.
+Les 15 parcours Chromium couvrent les cinq palettes et les trois thèmes : Auto,
+minimum/maximum, variantes OpenCode, mouvement réduit, couleurs forcées, vue
+masquée et six pastilles. Diff relu ; aucun appel payant lancé. Publication en cours.
 
 ## Lot 0.3.58 — Apparence et Multicolore (publié)
 

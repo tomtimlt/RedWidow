@@ -5,6 +5,23 @@ Seconde passe : commits `11543e8` à `d72f0e0` (0.3.55), intégrés sur `main`.
 Troisième passe : commits `122139c` et `6281a6b` (0.3.56).
 Quatrième passe : commits `4957feb`, `432778e` et `834cff1` (0.3.58).
 
+## Cinquième passe — 0.3.59
+
+Source : commits `062363a`, `9a7d062` et `7749b8f` de `design/ui-vscode`.
+Multicolore passe à six teintes (corail, vert, cyan, bleu, violet et rose) : le
+jaune et l’orange sont retirés des décorations de ce jeu. Le curseur reçoit
+un dégradé animé à son dernier niveau disponible, dans toutes les palettes.
+
+Adaptations conservées : vrai conteneur des messages pour le cycle des liserés,
+ids de navigation de production, texte du Monitor lisible, cyan clair corrigé,
+compteurs réels et choix de palette confirmé par l’hôte. Le dégradé reste fixe
+en mouvement réduit, revient à la couleur du thème en contraste élevé/couleurs
+forcées et se suspend dans une vue masquée. Auto ne lance pas l’animation. Le
+niveau est calculé depuis le catalogue et les variantes disponibles, sans
+changer la sélection envoyée au moteur ni inventer un niveau supplémentaire.
+Les consignes agents, confirmations natives et fonctions précédentes restent
+conservées.
+
 ## Quatrième passe — 0.3.58
 
 Repris : page Apparence, cartes avec aperçus de chaque jeu, choix au clavier,

@@ -55,6 +55,15 @@ réglages. Le contraste et la cascade des aperçus sont adaptés aux thèmes ré
 Les informations d’état restent distinctes des teintes décoratives. Le crédit
 du SVG externe demeure incomplet ; le pictogramme original est conservé.
 
+## Amendement 0.3.59
+
+Les commits jusqu’à `7749b8f` réduisent Multicolore à six teintes, sans jaune
+ni orange décoratifs, et animent le dégradé du curseur à son dernier niveau
+réellement disponible. Le calcul conserve les niveaux et variantes du catalogue ;
+aucun paramètre de modèle n’est ajouté. Auto reste sans effet animé. Mouvement
+réduit, couleurs forcées, contraste élevé et page masquée désactivent ou figent
+l’animation. Les corrections de contraste et d’intégration précédentes demeurent.
+
 ## Contexte
 
 La branche autonome `design/ui-vscode`, inspectée au commit `4565ce6`, propose

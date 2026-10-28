@@ -2,7 +2,7 @@
   "name": "warband",
   "displayName": "Warband",
   "description": "Chat d'agent avec approbation des outils (warband).",
-  "version": "0.3.58",
+  "version": "0.3.59",
   "publisher": "warband",
   "license": "MIT",
   "engines": { "vscode": "^1.90.0" },
@@ -144,7 +144,7 @@
             "Cramoisi et acier",
             "Violet et glace",
             "Accent du thème VS Code",
-            "Huit teintes réparties dans l’interface"
+            "Six teintes réparties dans l’interface"
           ],
           "default": "sentinelle",
           "scope": "window",

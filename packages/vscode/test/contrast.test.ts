@@ -72,7 +72,7 @@ function signature(palette: string, theme: "dark" | "light"): string {
         ? "body.vscode-light,\nbody.vscode-light [data-palette]"
         : "body,\n[data-palette] {\n  --jn-rb-1",
     );
-    const token = /--jn-rb-5:\s*(#[0-9a-fA-F]{6})/.exec(chatCss.slice(start))?.[1];
+    const token = /--jn-rb-3:\s*(#[0-9a-fA-F]{6})/.exec(chatCss.slice(start))?.[1];
     if (!token) throw new Error("teinte Multicolore absente");
     return token;
   }

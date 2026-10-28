@@ -182,19 +182,17 @@ body.vscode-light[data-palette="editeur"],
   --jn-brand: var(--jn-accent);
   --jn-steel: color-mix(in srgb, var(--vscode-foreground) 55%, transparent);
 }
-/* Spectre du jeu Multicolore : huit teintes, définies partout pour que le
- * dégradé SVG partagé et les aperçus les trouvent. Corail, orange, jaune, vert,
- * cyan, bleu, violet, rose. Décoratives : le sens passe toujours par un texte. */
+/* Spectre du jeu Multicolore : six teintes, définies partout pour que le
+ * dégradé SVG partagé et les aperçus les trouvent. Corail, vert, cyan, bleu,
+ * violet, rose. Décoratives : le sens passe toujours par un texte. */
 body,
 [data-palette] {
   --jn-rb-1: #ff6b81;
-  --jn-rb-2: #ff9f4a;
-  --jn-rb-3: #ffd166;
-  --jn-rb-4: #5fd68a;
-  --jn-rb-5: #35c4d8;
-  --jn-rb-6: #6ea0ff;
-  --jn-rb-7: #a98bff;
-  --jn-rb-8: #ff7eb6;
+  --jn-rb-2: #5fd68a;
+  --jn-rb-3: #35c4d8;
+  --jn-rb-4: #6ea0ff;
+  --jn-rb-5: #a98bff;
+  --jn-rb-6: #ff7eb6;
   --jn-rainbow: linear-gradient(
     90deg,
     var(--jn-rb-1),
@@ -202,21 +200,17 @@ body,
     var(--jn-rb-3),
     var(--jn-rb-4),
     var(--jn-rb-5),
-    var(--jn-rb-6),
-    var(--jn-rb-7),
-    var(--jn-rb-8)
+    var(--jn-rb-6)
   );
 }
 body.vscode-light,
 body.vscode-light [data-palette] {
   --jn-rb-1: #d6334f;
-  --jn-rb-2: #b85400;
-  --jn-rb-3: #9a6b00;
-  --jn-rb-4: #17803f;
-  --jn-rb-5: #0a7488;
-  --jn-rb-6: #2a5fd0;
-  --jn-rb-7: #6a3fd0;
-  --jn-rb-8: #c2306f;
+  --jn-rb-2: #17803f;
+  --jn-rb-3: #0a7488;
+  --jn-rb-4: #2a5fd0;
+  --jn-rb-5: #6a3fd0;
+  --jn-rb-6: #c2306f;
 }
 /* Pastilles et remplissage d'aperçu : propres à chaque jeu, jamais hérités. */
 body,
@@ -230,7 +224,7 @@ body,
 /* Multicolore : la signature est le cyan ; chaque rôle prend sa teinte. */
 body[data-palette="multi"],
 [data-palette="multi"] {
-  --jn-brand: var(--jn-rb-5);
+  --jn-brand: var(--jn-rb-3);
   --jn-steel: #8396aa;
   --jn-sw-1: var(--jn-rb-1);
   --jn-sw-2: var(--jn-rb-2);
@@ -238,8 +232,6 @@ body[data-palette="multi"],
   --jn-sw-4: var(--jn-rb-4);
   --jn-sw-5: var(--jn-rb-5);
   --jn-sw-6: var(--jn-rb-6);
-  --jn-sw-7: var(--jn-rb-7);
-  --jn-sw-8: var(--jn-rb-8);
   --jn-pal-fill: var(--jn-rainbow);
 }
 body.vscode-light[data-palette="multi"],
@@ -5960,12 +5952,6 @@ body.mode-watch::after {
 .pal-sw i:nth-child(6) {
   background: var(--jn-sw-6, transparent);
 }
-.pal-sw i:nth-child(7) {
-  background: var(--jn-sw-7, transparent);
-}
-.pal-sw i:nth-child(8) {
-  background: var(--jn-sw-8, transparent);
-}
 /* Mini curseur d'effort : le remplissage est découpé dans une piste pleine. */
 .pal-bar {
   position: relative;
@@ -6036,10 +6022,10 @@ body.vscode-high-contrast-light .pal-card[aria-checked="true"] {
 }
 /* Aperçu du multicolore dans sa carte : étincelle et satellite de teintes différentes. */
 [data-palette="multi"] .pal-logo .brand-lead {
-  fill: var(--jn-rb-3);
+  fill: var(--jn-rb-4);
 }
 [data-palette="multi"] .pal-logo .brand-node {
-  fill: var(--jn-rb-8);
+  fill: var(--jn-rb-6);
 }
 /* Dans une carte, le logo suit la palette de la carte, pas celle de la page. */
 .pal-card:not([data-palette="multi"]) .pal-logo .brand-lead,
@@ -6054,7 +6040,7 @@ body.vscode-high-contrast-light [data-palette="multi"] .pal-logo .brand-node {
 }
 
 /* ───────────────────────────── Palette multicolore ─────────────────────────────
- * Huit teintes (--jn-rb-1 à --jn-rb-8) réparties dans toute l'interface : dégradé
+ * Six teintes (--jn-rb-1 à --jn-rb-6) réparties dans toute l'interface : dégradé
  * continu pour les soulignements, le logo et le curseur d'effort, une teinte par
  * page de réglages, par compteur d’activité, par conteneur du Monitor, et un cycle de
  * liserés dans la conversation. Jamais en contraste élevé, où la bordure active
@@ -6069,17 +6055,17 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
   }
   /* Logo : étincelle et satellite sur les bouts du spectre, crochets en gris. */
   & .brand-lead {
-    fill: var(--jn-rb-3);
+    fill: var(--jn-rb-4);
   }
   & .brand-core {
-    fill: var(--jn-rb-5);
+    fill: var(--jn-rb-3);
   }
   & .brand-node {
-    fill: var(--jn-rb-8);
+    fill: var(--jn-rb-6);
   }
   /* Conversation : le liseré des messages envoyés parcourt le spectre. */
   & .msg.user {
-    box-shadow: inset var(--jn-rail) 0 0 var(--jn-rb-6);
+    box-shadow: inset var(--jn-rail) 0 0 var(--jn-rb-4);
   }
   & #log > :nth-child(8n + 1) .msg.user,
   & #log > .msg.user:nth-child(8n + 1) {
@@ -6087,48 +6073,48 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
   }
   & #log > :nth-child(8n + 3) .msg.user,
   & #log > .msg.user:nth-child(8n + 3) {
-    box-shadow: inset var(--jn-rail) 0 0 var(--jn-rb-2);
+    box-shadow: inset var(--jn-rail) 0 0 var(--jn-rb-3);
   }
   & #log > :nth-child(8n + 5) .msg.user,
   & #log > .msg.user:nth-child(8n + 5) {
-    box-shadow: inset var(--jn-rail) 0 0 var(--jn-rb-4);
+    box-shadow: inset var(--jn-rail) 0 0 var(--jn-rb-2);
   }
   & #log > :nth-child(8n + 7) .msg.user,
   & #log > .msg.user:nth-child(8n + 7) {
-    box-shadow: inset var(--jn-rail) 0 0 var(--jn-rb-7);
+    box-shadow: inset var(--jn-rail) 0 0 var(--jn-rb-5);
   }
   & .chip .chip-ico {
-    color: var(--jn-rb-7);
+    color: var(--jn-rb-5);
   }
   & button.example:nth-child(4n + 1)::after {
     color: var(--jn-rb-1);
   }
   & button.example:nth-child(4n + 2)::after {
-    color: var(--jn-rb-3);
+    color: var(--jn-rb-5);
   }
   & button.example:nth-child(4n + 3)::after {
-    color: var(--jn-rb-4);
+    color: var(--jn-rb-2);
   }
   & button.example:nth-child(4n + 4)::after {
-    color: var(--jn-rb-6);
+    color: var(--jn-rb-4);
   }
   /* Règles d'engagement : un cran par teinte chaude. */
   & .roe[data-level="1"] .roe-gauge i:nth-child(1),
   & .roe[data-level="2"] .roe-gauge i:nth-child(1) {
-    background: var(--jn-rb-4);
+    background: var(--jn-rb-2);
   }
   & .roe[data-level="2"] .roe-gauge i:nth-child(2) {
-    background: var(--jn-rb-3);
+    background: var(--jn-rb-4);
   }
-  /* Activité observée : une teinte par compteur. */
+  /* Activité observée : trois compteurs. */
   & .mission-step:nth-child(1) {
-    --jn-step: var(--jn-rb-5);
+    --jn-step: var(--jn-rb-3);
   }
   & .mission-step:nth-child(2) {
-    --jn-step: var(--jn-rb-6);
+    --jn-step: var(--jn-rb-4);
   }
   & .mission-step:nth-child(3) {
-    --jn-step: var(--jn-rb-7);
+    --jn-step: var(--jn-rb-5);
   }
   & .mission-step.is-done .mission-mark {
     background: var(--jn-step);
@@ -6142,22 +6128,22 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
   }
   /* Réglages : une teinte par page, sur le pictogramme de navigation. */
   & .studio-nav-btn[data-page="project"] .ico {
-    color: var(--jn-rb-5);
+    color: var(--jn-rb-3);
   }
   & .studio-nav-btn[data-page="containers"] .ico {
-    color: var(--jn-rb-6);
+    color: var(--jn-rb-4);
   }
   & .studio-nav-btn[data-page="system"] .ico {
     color: var(--jn-rb-1);
   }
   & .studio-nav-btn[data-page="atlas"] .ico {
-    color: var(--jn-rb-7);
+    color: var(--jn-rb-5);
   }
   & .studio-nav-btn[data-page="killchain"] .ico {
     color: var(--jn-rb-2);
   }
   & .studio-nav-btn[data-page="appearance"] .ico {
-    color: var(--jn-rb-8);
+    color: var(--jn-rb-6);
   }
   /* Monitor : une teinte stable par espace (data-hue calculé dans chat.js). */
   & .mon-space[data-hue="1"] {
@@ -6178,12 +6164,6 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
   & .mon-space[data-hue="6"] {
     --jn-hue: var(--jn-rb-6);
   }
-  & .mon-space[data-hue="7"] {
-    --jn-hue: var(--jn-rb-7);
-  }
-  & .mon-space[data-hue="8"] {
-    --jn-hue: var(--jn-rb-8);
-  }
   & .mon-space[data-hue] {
     color: var(--vscode-foreground);
     background: color-mix(in srgb, var(--jn-hue) 14%, transparent);
@@ -6203,7 +6183,54 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
     transition: none;
   }
   & #effort-label {
-    color: var(--jn-rb-6);
+    color: var(--jn-rb-4);
+  }
+}
+
+/* Effort au maximum : le remplissage passe en dégradé multicolore (cyan, bleu,
+ * violet, rose) qui ondule en boucle, quelle que soit la palette. Le jeu
+ * Multicolore y met ses six teintes. Contraste élevé : couleur du thème ;
+ * mouvement réduit : dégradé fixe. */
+body:where(:not(.vscode-high-contrast, .vscode-high-contrast-light))
+#effort-scale.is-max:not(.auto)::before {
+  background: linear-gradient(
+    90deg,
+    var(--jn-rb-3),
+    var(--jn-rb-4),
+    var(--jn-rb-5),
+    var(--jn-rb-6),
+    var(--jn-rb-5),
+    var(--jn-rb-4),
+    var(--jn-rb-3)
+  );
+  background-size: 200% 100%;
+}
+body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contrast-light))
+  #effort-scale.is-max:not(.auto)::before {
+  background: linear-gradient(
+    90deg,
+    var(--jn-rb-1),
+    var(--jn-rb-2),
+    var(--jn-rb-3),
+    var(--jn-rb-4),
+    var(--jn-rb-5),
+    var(--jn-rb-6),
+    var(--jn-rb-1)
+  );
+  background-size: 200% 100%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light)
+    #effort-scale.is-max:not(.auto)::before {
+    animation: effort-wave 2.4s linear infinite;
+  }
+}
+@keyframes effort-wave {
+  from {
+    background-position: 0% 0;
+  }
+  to {
+    background-position: -200% 0;
   }
 }
 
@@ -6879,6 +6906,11 @@ body.vscode-high-contrast-light [data-palette] {
   --jn-sw-4: var(--vscode-foreground);
   --jn-sw-5: var(--vscode-foreground);
   --jn-sw-6: var(--vscode-foreground);
-  --jn-sw-7: var(--vscode-foreground);
-  --jn-sw-8: var(--vscode-foreground);
+}
+
+@media (forced-colors: active) {
+  #effort-scale.is-max::before {
+    background: var(--jn-sig) !important;
+    animation: none !important;
+  }
 }

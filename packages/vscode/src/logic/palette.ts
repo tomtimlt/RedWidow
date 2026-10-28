@@ -4,7 +4,7 @@ export const PALETTES = [
   ["braise", "Braise", "Cramoisi et acier"],
   ["spectre", "Spectre", "Violet et glace"],
   ["editeur", "Éditeur", "Accent du thème VS Code"],
-  ["multi", "Multicolore", "Huit teintes réparties dans l’interface"],
+  ["multi", "Multicolore", "Six teintes réparties dans l’interface"],
 ] as const;
 export type Palette = (typeof PALETTES)[number][0];
 export const isPalette = (value: unknown): value is Palette =>

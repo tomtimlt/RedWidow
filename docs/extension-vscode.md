@@ -60,8 +60,14 @@ sur chaque carte. Flèches, Début et Fin changent le choix ; Entrée, Espace et
 clic permettent aussi de le sélectionner. Le choix est enregistré avant son
 application, sans recharger les vues ouvertes. En cas d’erreur, réessayez depuis
 la même page. Les anciennes valeurs Bastion se replient sur Sentinelle.
-Multicolore répartit huit teintes décoratives dans l’interface ; le contraste
+Multicolore répartit six teintes décoratives depuis la 0.3.59 dans l’interface ; le contraste
 élevé garde les couleurs natives et les couleurs d’état restent distinctes.
+
+Depuis la 0.3.59, le curseur d’effort affiche un dégradé animé à son dernier
+niveau disponible, quelle que soit la palette. L’effet est décoratif : il ne
+change pas le niveau envoyé au modèle. Il reste fixe avec le mouvement réduit,
+s’arrête en vue masquée et respecte le contraste élevé et les couleurs forcées.
+Auto ne lance pas cet effet. Multicolore exclut désormais le jaune et l’orange.
 
 Dans la Kill Chain, **Rejouer** visualise les liens verts sans exécuter de
 commande. Échap arrête le rejeu et désélectionne. Les flèches déplacent la vue,

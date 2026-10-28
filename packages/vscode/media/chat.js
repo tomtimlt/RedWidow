@@ -997,6 +997,7 @@
         }),
       );
     }
+    effortScale.classList.toggle("is-max", levels.length > 1 && position >= lastLevel() - 0.02);
     [...box.children].forEach((notch, i) => {
       notch.classList.toggle("is-on", i <= position + 0.001);
     });
@@ -1221,7 +1222,7 @@
     if (row.container !== "") {
       const tag = el("span", "prompt mon-space", row.container);
       tag.dataset.hue = String(
-        ([...row.container].reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % 8) + 1,
+        ([...row.container].reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % 6) + 1,
       );
       cmd.append(tag);
     }
