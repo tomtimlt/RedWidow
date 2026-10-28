@@ -20,7 +20,7 @@ La version du manifeste est **0.3.62**. Les paragraphes
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
 
-## Lot 0.3.62 — atelier de mission et bureau agent (préparé)
+## Lot 0.3.62 — atelier de mission et bureau agent (poussé, publication bloquée)
 
 Commandes d’ouverture/restauration du layout, préparation des dossiers sans
 écrasement, montage réel ajouté au contexte et lecture paginée de fichiers sous
@@ -43,7 +43,24 @@ Validation locale : **2 043 tests réussis, 14 ignorés**, typage et build réus
 Neuf parcours Chromium couvrent trois thèmes et deux largeurs, la sélection
 persistante du Monitor, le catalogue et les boutons de mission. Le transport
 générique est testé avec des serveurs MCP factices SSE/HTTP et les limites de
-chemin, configuration et droits sont vérifiées. Publication en cours.
+chemin, configuration et droits sont vérifiées. Les packagings locaux Linux et
+Windows ont réussi ; leurs VSIX, manifestes, médias, binaires et fichiers SHA-256
+ont été vérifiés. Les quatre fichiers sont conservés dans le dossier local de
+livraison `/workspace/work/warband-release-0.3.62`, sans ajout au dépôt.
+
+Le commit **fe29abe** et le tag **v0.3.62** sont poussés sous `tomtimlt`.
+Le [workflow 40780315709](https://github.com/tomtimlt/warband/actions/runs/40780315709)
+a été bloqué avant toute étape : GitHub signale des paiements récents échoués
+ou un plafond de dépenses à augmenter dans « Billing & plans ». Aucune release
+0.3.62 ni aucun asset public n’ont été publiés par ce workflow. La dernière
+release publiée et vérifiée reste **0.3.61**. Aucun réglage de facturation n’a
+été modifié et aucune publication manuelle n’a contourné ce blocage.
+
+Après résolution de la facturation par le titulaire du compte, relancer le
+même workflow avec `gh run rerun 40780315709 --repo tomtimlt/warband`, sans
+déplacer le tag. Suivre son exécution, puis télécharger et vérifier les deux
+VSIX distants et leurs fichiers SHA-256 avant d’annoncer la release disponible.
+
 Les logiciels tiers, la disposition native Windows et le correctif HTTPS sur
 le poste utilisateur ne sont pas présentés comme validés par les tests cloud.
 Aucun appel payant exécuté.
