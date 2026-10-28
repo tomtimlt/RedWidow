@@ -3,6 +3,13 @@
 Source inspectée : `design/ui-vscode`, commit `4565ce6`.
 Intégration de production : 0.3.53, sur `main`.
 
+## Correction demandée après intégration — 0.3.54
+
+L’option « Appui maintenu » et son comportement sont supprimés à la demande du
+propriétaire. Les autorisations reviennent au clic simple. Ne pas réintroduire
+ce réglage lors d’une prochaine passe graphique. Les mentions ci-dessous
+retracent l’intégration initiale de la 0.3.53.
+
 ## Éléments repris
 
 La direction « Acier et signature », les polices Geist et Geist Mono et leurs

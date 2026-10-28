@@ -169,8 +169,7 @@ export function chatHtml({
 <div class="cfg-control cfg-bypass"><button id="bypass-switch" type="button" role="switch" aria-checked="false" aria-describedby="bypass-state bypass-warn"><span class="cfg-switch-label"><span class="cfg-switch-ico">${icon("play")}</span>Bypass des approbations</span></button>
 <p id="bypass-state" role="status"></p>
 <p id="bypass-warn" class="tip"><span class="warn-line">Approuve tout pendant 2 h, deny compris : chemins sensibles ou hors projet, accès hôte d'un conteneur, dangers shell, sans rien mémoriser.</span> <span class="warn-line">Vous en devenez responsable.</span></p></div>
-<div class="cfg-control"><button id="hold-switch" type="button" role="switch" aria-checked="true" aria-describedby="hold-help"><span class="cfg-switch-label"><span class="cfg-switch-ico">${icon("shield")}</span>Appui maintenu</span></button>
-<p id="hold-help" class="tip">Maintenir « Autoriser » jusqu'au verrouillage avant d'exécuter. Désactivé : un clic suffit.</p></div></section>
+</section>
 </div>
 <script nonce="${nonce}" src="${iconsUri}"></script>
 <script nonce="${nonce}" src="${uiUri}"></script>

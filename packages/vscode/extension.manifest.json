@@ -2,7 +2,7 @@
   "name": "warband",
   "displayName": "Warband",
   "description": "Chat d'agent avec approbation des outils (warband).",
-  "version": "0.3.53",
+  "version": "0.3.54",
   "publisher": "warband",
   "license": "MIT",
   "engines": { "vscode": "^1.90.0" },

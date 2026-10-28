@@ -27,10 +27,10 @@ s’applique aux vues ouvertes sans rechargement. Les polices sont locales ; le
 code conserve la police de l’éditeur. Les thèmes clair, sombre et contrasté et
 le mouvement réduit sont respectés.
 
-Dans **Configurer → Exécution**, l’appui maintenu peut être désactivé pour revenir au
-clic simple. Par défaut, maintenir 900 ms autorise une demande ; relâcher,
-changer de conversation ou masquer la vue annule l’attente. **Refuser** reste
-immédiat et **Toujours** conserve sa confirmation native.
+Les boutons **Autoriser une fois**, **Refuser** et **Toujours** répondent au clic
+simple ou au clavier. L’option « Appui maintenu » de la 0.3.53 est retirée en
+0.3.54. **Toujours** conserve sa confirmation native ; les contrôles de la gate
+restent applicables.
 
 Le rail du chat affiche des compteurs de la page courante, pas un pourcentage
 ou une progression de mission. L’horloge indique la durée du tour actif. Le

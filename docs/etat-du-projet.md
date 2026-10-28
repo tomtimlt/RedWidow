@@ -1,6 +1,6 @@
 # Warband — parcours, état actuel et reprise
 
-État inspecté le 28 octobre 2026 pour la version 0.3.53. Ce document sert de point d'entrée produit ;
+État inspecté le 28 octobre 2026 pour la version 0.3.54. Ce document sert de point d'entrée produit ;
 les ADR expliquent les décisions, les idées restent une réserve.
 
 ## Le parcours de référence
@@ -15,10 +15,26 @@ parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
 
-La version du manifeste est **0.3.53**. Les paragraphes
+La version du manifeste est **0.3.54**. Les paragraphes
 0.3.19 à 0.3.29 ci-dessous sont des relevés historiques, pas les preuves de
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
+
+## Lot 0.3.54 — retrait de l’appui maintenu (préparé)
+
+À la demande du propriétaire, le réglage « Appui maintenu », son délai de 900 ms,
+son état local et sa jauge sont retirés. **Autoriser une fois**, **Refuser** et
+**Toujours** répondent au clic simple ou au clavier. Une carte ne transmet
+qu’une seule réponse ; la confirmation native « Toujours » et les contrôles
+de la gate restent en place. Le reste de la refonte 0.3.53 est conservé.
+
+Validation locale : **1 973 tests réussis, 14 ignorés**, typage et build réussis.
+Le test spécifique au maintien retiré n’a plus lieu d’être. Les **18 validations
+Chromium** couvrent les trois choix au clic ou au clavier, sur trois thèmes,
+avec l’ancien réglage actif ou inactif : aucune attente et une seule réponse
+par carte. Le réglage n’apparaît plus. Diff relu ; aucun appel payant lancé.
+Publication en cours. Les passages de la 0.3.53 ci-dessous concernant le maintien
+sont historiques et remplacés par cette correction.
 
 ## Lot 0.3.53 — intégration de la refonte (publié)
 

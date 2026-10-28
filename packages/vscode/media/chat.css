@@ -2127,8 +2127,7 @@ body.vscode-high-contrast-light .effort-knob {
   height: 14px;
   color: inherit;
 }
-#learning-switch[aria-checked="true"] .cfg-switch-ico,
-#hold-switch[aria-checked="true"] .cfg-switch-ico {
+#learning-switch[aria-checked="true"] .cfg-switch-ico {
   background: var(--jn-sig-tint);
   color: var(--jn-sig);
 }
@@ -2137,8 +2136,7 @@ body.vscode-high-contrast-light .effort-knob {
   color: var(--jn-warn);
 }
 #bypass-switch,
-#learning-switch,
-#hold-switch {
+#learning-switch {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -2153,13 +2151,11 @@ body.vscode-high-contrast-light .effort-knob {
   font-size: var(--jn-fs);
 }
 #bypass-switch:hover:not([aria-disabled="true"]),
-#learning-switch:hover:not([aria-disabled="true"]),
-#hold-switch:hover:not([aria-disabled="true"]) {
+#learning-switch:hover:not([aria-disabled="true"]) {
   background: transparent;
 }
 #bypass-switch::after,
-#learning-switch::after,
-#hold-switch::after {
+#learning-switch::after {
   content: "";
   flex: none;
   box-sizing: border-box;
@@ -2173,8 +2169,7 @@ body.vscode-high-contrast-light .effort-knob {
     border-color var(--jn-d2) var(--jn-ease-io);
 }
 #bypass-switch::before,
-#learning-switch::before,
-#hold-switch::before {
+#learning-switch::before {
   content: "";
   position: absolute;
   top: 50%;
@@ -2193,13 +2188,11 @@ body.vscode-high-contrast-light .effort-knob {
     opacity var(--jn-d2) var(--jn-ease-io);
 }
 #bypass-switch:hover:not([aria-disabled="true"])::after,
-#learning-switch:hover:not([aria-disabled="true"])::after,
-#hold-switch:hover:not([aria-disabled="true"])::after {
+#learning-switch:hover:not([aria-disabled="true"])::after {
   border-color: var(--jn-sig-edge);
 }
 #bypass-switch[aria-checked="true"]::before,
-#learning-switch[aria-checked="true"]::before,
-#hold-switch[aria-checked="true"]::before {
+#learning-switch[aria-checked="true"]::before {
   transform: translateX(14px);
   background: var(--vscode-editor-background, var(--vscode-input-background));
   opacity: 1;
@@ -2208,8 +2201,7 @@ body.vscode-high-contrast-light .effort-knob {
   background: var(--jn-warn);
   border-color: transparent;
 }
-#learning-switch[aria-checked="true"]::after,
-#hold-switch[aria-checked="true"]::after {
+#learning-switch[aria-checked="true"]::after {
   background: var(--jn-sig);
   border-color: transparent;
 }
@@ -2704,8 +2696,7 @@ body.bypass-on #composer {
   }
   #title::before,
   #bypass-switch::before,
-  #learning-switch::before,
-  #hold-switch::before {
+  #learning-switch::before {
     background: CanvasText;
     box-shadow: none;
   }
@@ -5659,39 +5650,6 @@ body.vscode-high-contrast-light .report-seg {
   width: 12px;
   height: 12px;
   color: var(--jn-card-accent);
-}
-/* Bouton armable : la jauge se remplit pendant l'appui maintenu. */
-button.arm {
-  --jn-arm: 0;
-  overflow: hidden;
-  isolation: isolate;
-}
-button.arm::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  background: color-mix(in srgb, var(--jn-on-accent, #fff) 30%, transparent);
-  transform: scaleX(var(--jn-arm));
-  transform-origin: left center;
-  pointer-events: none;
-}
-button.link.arm::before {
-  background: var(--jn-sig-tint);
-}
-button.arm.is-arming {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--jn-card-accent, var(--jn-warn)) 30%, transparent);
-}
-.card-hint {
-  margin: 8px 0 0;
-  min-height: 1.4em;
-  font-size: var(--jn-fs-xs);
-  color: var(--jn-muted);
-}
-.card-hint:empty {
-  min-height: 0;
-  margin: 0;
 }
 .card.is-locked {
   --jn-card-accent: var(--jn-ok);

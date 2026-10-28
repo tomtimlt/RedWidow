@@ -348,79 +348,13 @@
     return box;
   }
   const seenCards = /* @__PURE__ */ new Set();
-  // Validation « armement » : repères descriptifs de la demande et, par
-  // défaut, appui maintenu jusqu'au verrouillage pour autoriser.
-  const HOLD_MS = 900;
-  let holdToConfirm = !(typeof vscode.getState === "function" && vscode.getState()?.hold === false);
-  let hintCount = 0;
   const approvalNodes = new Map();
-  const cancelHolds = new Set();
   function cardRisks(card) {
     const risks = [];
     if (UI.toolIcon(card.tool) === "terminal") risks.push(["terminal", "Exécution"]);
     if (card.networkActive) risks.push(["link", "Réseau"]);
     if (card.canRemember) risks.push(["history", "Mémorisable"]);
     return { risks, level: "review" };
-  }
-  function armButton(b, hint, confirm) {
-    let start = 0;
-    let frame = 0;
-    const idle = "Maintenez le bouton jusqu'au verrouillage pour autoriser.";
-    const reset = () => {
-      cancelAnimationFrame(frame);
-      frame = 0;
-      b.classList.remove("is-arming");
-      b.style.setProperty("--jn-arm", "0");
-    };
-    const tick = (time) => {
-      if (!b.isConnected || document.hidden || !holdToConfirm) {
-        end();
-        return;
-      }
-      if (!start) start = time;
-      const progress = Math.min((time - start) / HOLD_MS, 1);
-      b.style.setProperty("--jn-arm", String(progress));
-      if (progress >= 1) {
-        reset();
-        confirm();
-        return;
-      }
-      frame = requestAnimationFrame(tick);
-    };
-    const begin = () => {
-      if (!holdToConfirm || frame || b.disabled) return;
-      start = 0;
-      b.classList.add("is-arming");
-      hint.textContent = "Armement…";
-      frame = requestAnimationFrame(tick);
-    };
-    const end = () => {
-      if (!frame) return;
-      reset();
-      hint.textContent = idle;
-    };
-    end.detached = () => !b.isConnected;
-    cancelHolds.add(end);
-    const isKey = (e) => e.key === " " || e.key === "Enter";
-    b.addEventListener("pointerdown", (e) => {
-      if (e.button === 0) begin();
-    });
-    for (const type of ["pointerup", "pointerleave", "pointercancel", "blur"])
-      b.addEventListener(type, end);
-    b.addEventListener("keydown", (e) => {
-      if (!holdToConfirm || !isKey(e)) return;
-      e.preventDefault();
-      if (!e.repeat) begin();
-    });
-    b.addEventListener("keyup", (e) => {
-      if (!holdToConfirm || !isKey(e)) return;
-      e.preventDefault();
-      end();
-    });
-    b.addEventListener("click", () => {
-      if (!holdToConfirm) confirm();
-      else if (!frame) hint.textContent = idle;
-    });
   }
   function renderCard(card, isNew) {
     const box = el("div", isNew ? "card enter" : "card");
@@ -458,39 +392,26 @@
     if (risks.length) box.append(chips);
     box.append(grid, det);
     const row = el("div", "card-buttons");
-    const hint = el("p", "card-hint");
-    hint.id = `card-hint-${++hintCount}`;
-    hint.setAttribute("role", "status");
-    hint.textContent = holdToConfirm
-      ? "Maintenez le bouton jusqu'au verrouillage pour autoriser."
-      : "";
     const buttons = {};
     const decide = (choice) => {
       box.classList.add(choice === "deny" ? "is-denied" : "is-locked");
-      hint.textContent = "";
       if (box.dataset.decided) return;
       box.dataset.decided = "true";
       for (const button of row.querySelectorAll("button")) button.disabled = true;
-      for (const cancel of cancelHolds) cancel();
       row.replaceChildren(el("span", "badge", choice === "deny" ? "Refusé" : "Autorisé"));
       vscode.postMessage({ type: "approve", toolUseId: card.toolUseId, choice });
     };
     const button = (label, choice, css) => {
       const b = el("button", css, label);
       b.type = "button";
-      if (choice === "deny") b.addEventListener("click", () => decide(choice));
-      else {
-        b.classList.add("arm");
-        b.setAttribute("aria-describedby", hint.id);
-        armButton(b, hint, () => decide(choice));
-      }
+      b.addEventListener("click", () => decide(choice));
       buttons[choice] = b;
       row.append(b);
     };
     button("Autoriser une fois", "once", "primary");
     button("Refuser", "deny", "danger");
     if (card.canRemember) button("Toujours", "always", "link");
-    box.append(row, hint);
+    box.append(row);
     box.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && e.target === box) {
         e.preventDefault();
@@ -783,19 +704,6 @@
     $("roe-label").textContent = label;
     roe.setAttribute("aria-label", `Mode de supervision : ${label}. Ouvrir Configurer`);
   }
-  const holdSwitch = $("hold-switch");
-  holdSwitch.setAttribute("aria-checked", String(holdToConfirm));
-  holdSwitch.addEventListener("click", () => {
-    for (const cancel of cancelHolds) cancel();
-    holdToConfirm = !holdToConfirm;
-    holdSwitch.setAttribute("aria-checked", String(holdToConfirm));
-    if (typeof vscode.setState === "function")
-      vscode.setState({ ...(vscode.getState?.() ?? {}), hold: holdToConfirm });
-    for (const hint of document.querySelectorAll(".card-hint"))
-      hint.textContent = holdToConfirm
-        ? "Maintenez le bouton jusqu'au verrouillage pour autoriser."
-        : "";
-  });
   function renderBypass() {
     paintRoe();
     const learning = ctl?.learning === true;
@@ -1416,16 +1324,8 @@
     } else if (!missionTimer) missionTimer = setInterval(tickClock, 1000);
     tickClock();
   }
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden) for (const cancel of cancelHolds) cancel();
-  });
-  window.addEventListener("blur", () => {
-    for (const cancel of cancelHolds) cancel();
-  });
   window.addEventListener("pagehide", () => {
     clearInterval(missionTimer);
-    for (const cancel of cancelHolds) cancel();
-    cancelHolds.clear();
     approvalNodes.clear();
   });
   document.addEventListener("visibilitychange", applyBody);
@@ -1519,12 +1419,6 @@
       cards.some((card, index) => approvals.children[index] !== card)
     )
       approvals.replaceChildren(...cards);
-    // Les cartes retirées ne peuvent plus envoyer une validation différée.
-    for (const cancel of cancelHolds)
-      if (cancel.detached?.()) {
-        cancel();
-        cancelHolds.delete(cancel);
-      }
     const fresh = visible2.findIndex((c) => !seenCards.has(c.toolUseId));
     seenCards.clear();
     for (const c of visible2) seenCards.add(c.toolUseId);
@@ -1567,8 +1461,6 @@
         recall = { index: -1, draft: "" };
         shownNodes = -1;
         pageBefore = null;
-        for (const cancel of cancelHolds) cancel();
-        cancelHolds.clear();
         approvalNodes.clear();
         stripTicks.clear();
         itemNodes.clear();

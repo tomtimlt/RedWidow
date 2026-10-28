@@ -3,6 +3,13 @@
 Statut : accepté et implémenté pour la 0.3.53. Lecture, décision, intégration
 et revue dans la session principale, sans sous-agents à la demande du propriétaire.
 
+## Amendement 0.3.54
+
+À la demande du propriétaire, l’appui maintenu est supprimé, ainsi que son
+réglage, son état local et ses animations. Les trois boutons répondent au clic
+simple et au clavier ; « Toujours » conserve sa confirmation native et la gate
+ses contrôles. Les mentions du maintien ci-dessous décrivent la 0.3.53.
+
 ## Contexte
 
 La branche autonome `design/ui-vscode`, inspectée au commit `4565ce6`, propose
