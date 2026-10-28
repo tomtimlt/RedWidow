@@ -166,7 +166,11 @@ protocole ni donnée ne change.
 
 `media/icons.js` est la source unique des tracés : les pages HTML ne contiennent
 que des emplacements `<svg data-icon="…">`, remplis au chargement, et un test
-vérifie que chaque nom existe. Les micro-interactions (flèche d’envoi qui
+vérifie que chaque nom existe. Le cerveau du raisonnement est un pictogramme plein (grille 256) repris
+d’un fichier fourni (« brain generator idea », SVG Repo, licence à confirmer
+avant diffusion) : contours et rayons en couleur du texte, fonds retirés,
+éclair en couleur de signature (`.ico-accent`, couleur du texte en contraste
+élevé). Les micro-interactions (flèche d’envoi qui
 décolle, historique qui remonte, nouvelle conversation qui pivote, noyau qui
 respire et orbite qui tourne pendant l’activité, logo qui se trace à l’accueil) sont regroupées
 en fin de `media/chat.css` et désactivées en mouvement réduit et en contraste

@@ -256,6 +256,14 @@ select {
   display: none !important;
 }
 
+/* Accent des pictogrammes pleins (éclair du cerveau) : couleur de signature. */
+.ico-accent {
+  fill: var(--jn-sig);
+}
+body.vscode-high-contrast .ico-accent,
+body.vscode-high-contrast-light .ico-accent {
+  fill: currentColor;
+}
 .ico,
 .caret {
   flex: none;
