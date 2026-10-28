@@ -191,12 +191,12 @@
         hour: "2-digit",
         minute: "2-digit"
       });
-      text = `Actif jusqu'à ${until} (reste ${remainingText(push.expiresAt - now)}).`;
-      badge = { word: "AUTO", time: until };
+      text = `Actif jusqu'à ${until} (reste ${remainingText(push.expiresAt - now)}) : l'échéance est fixée par l'outil.`;
+      badge = { word: "BYPASS", time: until };
     } else if (state === "dropped") {
-      text = "Automatique désactivé avant confirmation.";
+      text = "Bypass désactivé avant confirmation.";
     } else if (state === "ended") {
-      text = "Automatique terminé.";
+      text = "Bypass terminé.";
     }
     return { checked: state === "on" || state === "pending", state, text, badge, until };
   }

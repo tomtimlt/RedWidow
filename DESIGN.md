@@ -65,6 +65,27 @@ d’activité, monochrome) en sont les versions fixes.
   maintenu » de Configurer revient au clic simple ; le choix est mémorisé par
   la vue.
 
+## Bypass des approbations
+
+- **Couleur** : `--jn-bypass`, le magenta du terminal du thème
+  (`--vscode-terminal-ansiMagenta`), distinct des couleurs d’état et de la
+  signature de la palette. En contraste élevé, c’est la bordure active du
+  thème, avec des pointillés pour l’état « en attente ».
+- **Aura** : tant que le bypass est actif, un contour et une lueur magenta
+  entourent toute la vue (`body.automatic-on::after`), ainsi que la zone de
+  saisie, la jauge des règles d’engagement (trois barres), le badge d’en-tête
+  et l’interrupteur. Avant confirmation de l’agent (`body.bypass-pending`),
+  l’aura et la bordure de saisie sont en pointillés et pulsent.
+- **Compte à rebours** : l’échéance est celle que l’outil envoie
+  (`expiresAt`) ; l’interface n’invente aucune durée. La jauge d’en-tête se
+  vide jusqu’à l’échéance (2 h au maximum d’affichage) et indique le temps
+  restant (« 1 h 12 ») ; dans les dix dernières minutes, l’aura et la jauge
+  pulsent plus vite (`body.bypass-ending`).
+
+À reprendre côté production : la couleur de l’élément « BYPASS · en attente »
+de la barre d’état de VS Code (extension sur `main`) peut utiliser
+`terminal.ansiMagenta` via un `ThemeColor`, pour rester accordée à l’aura.
+
 ## Réflexion dans le chat
 
 Chaque réponse de l’agent est signée du logo (`.msg-avatar`, clone de

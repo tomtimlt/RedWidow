@@ -698,10 +698,41 @@
   function paintRoe() {
     const roe = $("roe");
     const level = document.body.classList.contains("learning") ? 1 : document.body.classList.contains("automatic-on") ? 3 : 2;
-    const label = ["Apprentissage", "Supervisé", "Automatique"][level - 1];
-    roe.dataset.level = String(level);
+    const pending = document.body.classList.contains("bypass-pending");
+    const label = level === 3 ? "Bypass" : level === 1 ? "Apprentissage" : pending ? "Bypass · en attente" : "Supervisé";
+    roe.dataset.level = String(level === 2 && pending ? 3 : level);
+    roe.classList.toggle("is-pending", level === 2 && pending);
     $("roe-label").textContent = label;
     roe.setAttribute("aria-label", `Règles d'engagement : ${label}. Ouvrir Configurer`);
+  }
+  // Compte à rebours du bypass : l'échéance vient de l'outil (expiresAt) ; la
+  // jauge se vide sur 2 h au plus et pulse dans les 10 dernières minutes.
+  const BYPASS_MAX_MS = 72e5;
+  const BYPASS_ENDING_MS = 6e5;
+  let bypassTimer = 0;
+  function leftText(ms) {
+    const minutes = Math.ceil(ms / 6e4);
+    if (minutes <= 0) return "0 min";
+    const h = Math.floor(minutes / 60);
+    return h > 0 ? `${h} h ${String(minutes % 60).padStart(2, "0")}` : `${minutes} min`;
+  }
+  function paintBypassClock() {
+    const push = automaticCtx.push;
+    const on = document.body.classList.contains("automatic-on") && Number.isFinite(push?.expiresAt);
+    const roe = $("roe");
+    if (!on) {
+      clearInterval(bypassTimer);
+      bypassTimer = 0;
+      document.body.classList.remove("bypass-ending");
+      roe.style.removeProperty("--jn-left");
+      $("roe-left").textContent = "";
+      return;
+    }
+    const ms = Math.max(0, push.expiresAt - Date.now());
+    roe.style.setProperty("--jn-left", String(Math.min(1, ms / BYPASS_MAX_MS)));
+    $("roe-left").textContent = leftText(ms);
+    document.body.classList.toggle("bypass-ending", ms <= BYPASS_ENDING_MS);
+    if (!bypassTimer) bypassTimer = setInterval(paintBypassClock, 15e3);
   }
   const holdSwitch = $("hold-switch");
   holdSwitch.setAttribute("aria-checked", String(holdToConfirm));
@@ -719,24 +750,27 @@
     if (learning) {
       automaticSwitch.setAttribute("aria-checked", "false");
       automaticState.textContent = "Inopérant en mode Apprentissage";
-      document.body.classList.remove("automatic-on");
+      document.body.classList.remove("automatic-on", "bypass-pending");
       automaticBadge.hidden = true;
       automaticBadge.replaceChildren();
       paintRoe();
+      paintBypassClock();
       return;
     }
     const v = UI.automaticView(automaticCtx.push, automaticCtx.previous, automaticCtx.userOff, Date.now());
     automaticSwitch.setAttribute("aria-checked", String(v.checked));
     automaticState.textContent = v.text;
     document.body.classList.toggle("automatic-on", v.state === "on");
+    document.body.classList.toggle("bypass-pending", v.state === "pending");
     paintRoe();
+    paintBypassClock();
     automaticBadge.hidden = v.badge === null;
     if (v.badge) {
       automaticBadge.replaceChildren(
         el("span", "bp-word", v.badge.word),
         el("span", "bp-time", ` · ${v.badge.time}`)
       );
-      automaticBadge.title = `Automatique actif jusqu'à ${v.until} : désactivable dans Configurer ou la barre d'état`;
+      automaticBadge.title = `Bypass actif jusqu'à ${v.until} : désactivable dans Configurer ou la barre d'état`;
     } else automaticBadge.replaceChildren();
   }
   function toggleAutomatique() {
