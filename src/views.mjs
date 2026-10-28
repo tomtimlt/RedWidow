@@ -91,23 +91,23 @@ export function chatHtml({ nonce, cspSource, scriptUri, uiUri, styleUri, iconsUr
 <button id="cmd-clear" type="button" class="cmd-opt"><span class="cmd">/clear</span><span class="cmd-desc">Nouvelle conversation</span></button>
 </div>
 <div id="cfg-pop" class="pop" popover="auto" role="dialog" aria-labelledby="cfg-pop-title">
-<div class="pop-head"><span id="cfg-pop-title" class="pop-title">${icon("sliders", "ico pop-title-ico")}Configurer</span><span class="pop-sub">S'applique au message suivant</span></div>
-<section class="cfg-col cfg-model" aria-labelledby="cfg-h-reason"><h3 id="cfg-h-reason">${icon("brain")}Modèle et raisonnement</h3>
+<div class="pop-head"><span id="cfg-pop-title" class="pop-title">${icon("sliders", "ico pop-title-ico")}Configurer</span><span class="pop-sub sr-only">S'applique au message suivant</span></div>
+<section class="cfg-col cfg-model" aria-labelledby="cfg-h-reason"><h3 id="cfg-h-reason" class="sr-only">Modèle et raisonnement</h3>
 <div class="cfg-provider"><label for="provider">Fournisseur</label><select id="provider" aria-describedby="provider-help"><option value="demo">Démo</option><option value="local">Local (ChatGPT / API)</option><option value="atelier">Atelier</option></select><button id="provider-connect" type="button" class="link">Connexion</button></div>
-<p id="provider-help" class="tip">Catalogue fictif : les options servent uniquement à explorer les états visuels.</p>
+<p id="provider-help" class="tip" tabindex="0" role="button" aria-expanded="false" title="Afficher tout le texte">Catalogue fictif : les options servent uniquement à explorer les états visuels.</p>
 <div class="effort-card">
 <div class="effort-head"><div class="effort-now"><output id="effort-label" for="effort"></output><button id="effort-model" type="button" class="effort-model" title="Changer de modèle"><span id="effort-model-label"></span>${icon("chevronRight", "ico effort-model-ico")}</button></div><div class="effort-row"><button id="effort-auto" type="button" class="ghost icon-btn" title="Revenir à Auto : le modèle garde son effort par défaut" aria-label="Revenir à Auto">${icon("refresh")}</button></div></div>
 <label for="effort" class="sr-only">Niveau d'effort</label>
 <div id="effort-scale"><div class="effort-notches" aria-hidden="true"></div><input id="effort" type="range" min="0" max="4" step="any" value="2" aria-describedby="effort-tip"><span class="effort-knob" aria-hidden="true"></span></div>
 </div>
 <p id="effort-tip" class="tip"></p></section>
-<section class="cfg-col cfg-execution" aria-labelledby="cfg-h-execution"><h3 id="cfg-h-execution">${icon("shield")}Exécution</h3>
-<div class="cfg-control"><button id="learning-switch" type="button" role="switch" aria-checked="false" aria-describedby="learning-help"><span class="cfg-switch-label"><span class="cfg-switch-ico">${icon("book")}</span>Apprentissage</span></button>
+<section class="cfg-col cfg-execution" aria-labelledby="cfg-h-execution"><h3 id="cfg-h-execution" class="sr-only">Exécution</h3>
+<div class="cfg-control"><button id="learning-switch" type="button" role="switch" title="Lecture des cours et explications, sans exécution ni écriture." aria-checked="false" aria-describedby="learning-help"><span class="cfg-switch-label"><span class="cfg-switch-ico">${icon("book")}</span>Apprentissage</span></button>
 <p id="learning-help" class="tip">Lecture des cours et explications, sans exécution ni écriture.</p></div>
-<div class="cfg-control cfg-automatic"><button id="automatic-switch" type="button" role="switch" aria-checked="false" aria-describedby="automatic-state automatic-warn"><span class="cfg-switch-label"><span class="cfg-switch-ico">${icon("play")}</span>Bypass des approbations</span></button>
+<div class="cfg-control cfg-automatic"><button id="automatic-switch" type="button" role="switch" title="Approuve tout pendant 2 h au maximum, échéance fixée par l'outil au lancement." aria-checked="false" aria-describedby="automatic-state automatic-warn"><span class="cfg-switch-label"><span class="cfg-switch-ico">${icon("play")}</span>Bypass des approbations</span></button>
 <p id="automatic-state" role="status"></p>
 <p id="automatic-warn" class="tip"><span class="warn-line">Approuve tout pendant 2 h au maximum, échéance fixée par l'outil au lancement. Ce réglage modifie uniquement les indicateurs de la démonstration.</span></p></div>
-<div class="cfg-control"><button id="hold-switch" type="button" role="switch" aria-checked="true" aria-describedby="hold-help"><span class="cfg-switch-label"><span class="cfg-switch-ico">${icon("shield")}</span>Appui maintenu</span></button>
+<div class="cfg-control"><button id="hold-switch" type="button" role="switch" title="Maintenir « Autoriser » jusqu'au verrouillage avant d'exécuter. Désactivé : un clic suffit." aria-checked="true" aria-describedby="hold-help"><span class="cfg-switch-label"><span class="cfg-switch-ico">${icon("shield")}</span>Appui maintenu</span></button>
 <p id="hold-help" class="tip">Maintenir « Autoriser » jusqu'au verrouillage avant d'exécuter. Désactivé : un clic suffit.</p></div></section>
 </div>
 <script nonce="${nonce}" src="${iconsUri}"><\/script>

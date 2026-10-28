@@ -86,6 +86,16 @@ d’activité, monochrome) en sont les versions fixes.
 de la barre d’état de VS Code (extension sur `main`) peut utiliser
 `terminal.ansiMagenta` via un `ThemeColor`, pour rester accordée à l’aura.
 
+## Menu Configurer compact
+
+Le menu tient sans défilement (environ 370 px au lieu de 680) : pas de
+sous-titre ni de titres de section visibles (conservés pour les lecteurs
+d’écran), descriptions en infobulle et toujours liées par `aria-describedby`,
+interrupteurs sur une ligne, curseur resserré. Seule la ligne d’état du bypass
+reste visible ; le texte du fournisseur est limité à deux lignes et se déplie
+au clic ou au clavier. En production, le texte réel du fournisseur et ses
+infobulles dynamiques passent par les mêmes identifiants.
+
 ## Réflexion dans le chat
 
 Chaque réponse de l’agent est signée du logo (`.msg-avatar`, clone de

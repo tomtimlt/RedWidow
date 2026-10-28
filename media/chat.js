@@ -661,6 +661,7 @@
     const shown = auto ? "Auto" : levels[idx]?.label ?? c.effortLabel;
     $("effort-label").textContent = shown;
     $("effort-tip").textContent = c.effortDisabled ? disabledTip : c.effortTip;
+    $("effort-tip").title = $("effort-tip").textContent;
     $("cfg-level").textContent = shown;
     $("effort-model-label").textContent = name;
     $("effort-model").disabled = c.locked;
@@ -734,6 +735,19 @@
     document.body.classList.toggle("bypass-ending", ms <= BYPASS_ENDING_MS);
     if (!bypassTimer) bypassTimer = setInterval(paintBypassClock, 15e3);
   }
+  // Texte du fournisseur : deux lignes, dépliable au clic ou au clavier.
+  const providerHelp = $("provider-help");
+  const toggleProviderHelp = () => {
+    const open = providerHelp.getAttribute("aria-expanded") !== "true";
+    providerHelp.setAttribute("aria-expanded", String(open));
+    providerHelp.title = open ? "Réduire le texte" : "Afficher tout le texte";
+  };
+  providerHelp.addEventListener("click", toggleProviderHelp);
+  providerHelp.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault();
+    toggleProviderHelp();
+  });
   const holdSwitch = $("hold-switch");
   holdSwitch.setAttribute("aria-checked", String(holdToConfirm));
   holdSwitch.addEventListener("click", () => {

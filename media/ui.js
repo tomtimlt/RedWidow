@@ -191,7 +191,7 @@
         hour: "2-digit",
         minute: "2-digit"
       });
-      text = `Actif jusqu'à ${until} (reste ${remainingText(push.expiresAt - now)}) : l'échéance est fixée par l'outil.`;
+      text = `Actif jusqu'à ${until} (reste ${remainingText(push.expiresAt - now)}).`;
       badge = { word: "BYPASS", time: until };
     } else if (state === "dropped") {
       text = "Bypass désactivé avant confirmation.";
