@@ -177,6 +177,32 @@ body.vscode-light [data-palette="spectre"] {
   --jn-brand: var(--vscode-focusBorder, var(--jn-accent));
   --jn-steel: color-mix(in srgb, var(--vscode-foreground) 55%, transparent);
 }
+/* Spectre du jeu Multicolore : huit teintes, définies partout pour que le
+ * dégradé SVG partagé et les aperçus les trouvent. Corail, orange, jaune, vert,
+ * cyan, bleu, violet, rose. Décoratives : le sens passe toujours par un texte. */
+body,
+[data-palette] {
+  --jn-rb-1: #ff6b81;
+  --jn-rb-2: #ff9f4a;
+  --jn-rb-3: #ffd166;
+  --jn-rb-4: #5fd68a;
+  --jn-rb-5: #35c4d8;
+  --jn-rb-6: #6ea0ff;
+  --jn-rb-7: #a98bff;
+  --jn-rb-8: #ff7eb6;
+  --jn-rainbow: linear-gradient(90deg, var(--jn-rb-1), var(--jn-rb-2), var(--jn-rb-3), var(--jn-rb-4), var(--jn-rb-5), var(--jn-rb-6), var(--jn-rb-7), var(--jn-rb-8));
+}
+body.vscode-light,
+body.vscode-light [data-palette] {
+  --jn-rb-1: #d6334f;
+  --jn-rb-2: #b85400;
+  --jn-rb-3: #9a6b00;
+  --jn-rb-4: #17803f;
+  --jn-rb-5: #0a7f95;
+  --jn-rb-6: #2a5fd0;
+  --jn-rb-7: #6a3fd0;
+  --jn-rb-8: #c2306f;
+}
 /* Pastilles et remplissage d'aperçu : propres à chaque jeu, jamais hérités. */
 body,
 [data-palette] {
@@ -186,28 +212,23 @@ body,
   --jn-sw-4: color-mix(in srgb, var(--jn-brand) 30%, var(--vscode-editor-background));
   --jn-pal-fill: var(--jn-brand);
 }
-/* Multicolore : quatre teintes (cyan, bleu, violet, rose) réparties par rôle. */
+/* Multicolore : la signature est le cyan ; chaque rôle prend sa teinte. */
 [data-palette="multi"] {
-  --jn-brand: #35c4d8;
+  --jn-brand: var(--jn-rb-5);
   --jn-steel: #8396aa;
-  --jn-mc-1: #35c4d8;
-  --jn-mc-2: #6ea0ff;
-  --jn-mc-3: #a98bff;
-  --jn-mc-4: #ff7eb6;
-  --jn-sw-1: var(--jn-mc-1);
-  --jn-sw-2: var(--jn-mc-2);
-  --jn-sw-3: var(--jn-mc-3);
-  --jn-sw-4: var(--jn-mc-4);
-  --jn-pal-fill: linear-gradient(90deg, var(--jn-mc-1), var(--jn-mc-2), var(--jn-mc-3), var(--jn-mc-4));
+  --jn-sw-1: var(--jn-rb-1);
+  --jn-sw-2: var(--jn-rb-2);
+  --jn-sw-3: var(--jn-rb-3);
+  --jn-sw-4: var(--jn-rb-4);
+  --jn-sw-5: var(--jn-rb-5);
+  --jn-sw-6: var(--jn-rb-6);
+  --jn-sw-7: var(--jn-rb-7);
+  --jn-sw-8: var(--jn-rb-8);
+  --jn-pal-fill: var(--jn-rainbow);
 }
 body.vscode-light[data-palette="multi"],
 body.vscode-light [data-palette="multi"] {
-  --jn-brand: #0a7f95;
   --jn-steel: #55687c;
-  --jn-mc-1: #0a7f95;
-  --jn-mc-2: #2a5fd0;
-  --jn-mc-3: #6a3fd0;
-  --jn-mc-4: #c2306f;
 }
 /* Jetons dérivés, recalculés sur chaque élément portant une palette. */
 body,
@@ -5896,6 +5917,17 @@ body.mode-watch::after {
   height: 12px;
   border-radius: 50%;
 }
+.pal-sw i:nth-child(n + 5) {
+  display: none;
+}
+.pal-card[data-palette="multi"] .pal-sw {
+  gap: 3px;
+}
+.pal-card[data-palette="multi"] .pal-sw i {
+  display: block;
+  width: 10px;
+  height: 10px;
+}
 .pal-sw i:nth-child(1) {
   background: var(--jn-sw-1);
 }
@@ -5907,6 +5939,18 @@ body.mode-watch::after {
 }
 .pal-sw i:nth-child(4) {
   background: var(--jn-sw-4);
+}
+.pal-sw i:nth-child(5) {
+  background: var(--jn-sw-5, transparent);
+}
+.pal-sw i:nth-child(6) {
+  background: var(--jn-sw-6, transparent);
+}
+.pal-sw i:nth-child(7) {
+  background: var(--jn-sw-7, transparent);
+}
+.pal-sw i:nth-child(8) {
+  background: var(--jn-sw-8, transparent);
 }
 /* Mini curseur d'effort : le remplissage est découpé dans une piste pleine. */
 .pal-bar {
@@ -5978,10 +6022,10 @@ body.vscode-high-contrast-light .pal-card[aria-checked="true"] {
 }
 /* Aperçu du multicolore dans sa carte : étincelle et satellite de teintes différentes. */
 [data-palette="multi"] .pal-logo .brand-lead {
-  fill: var(--jn-mc-1);
+  fill: var(--jn-rb-3);
 }
 [data-palette="multi"] .pal-logo .brand-node {
-  fill: var(--jn-mc-3);
+  fill: var(--jn-rb-8);
 }
 /* Dans une carte, le logo suit la palette de la carte, pas celle de la page. */
 .pal-card:not([data-palette="multi"]) .pal-logo .brand-lead,
@@ -5996,48 +6040,58 @@ body.vscode-high-contrast-light [data-palette="multi"] .pal-logo .brand-node {
 }
 
 /* ───────────────────────────── Palette multicolore ─────────────────────────────
- * Une teinte par rôle : cyan pour l'agent, bleu pour l'utilisateur, violet pour
- * le satellite et les modèles, rose pour la fin de course. Jamais en contraste
- * élevé, où la bordure active du thème prend le relais. Les états (ok, alerte,
- * erreur) et le bypass gardent leurs couleurs.
+ * Huit teintes (--jn-rb-1 à --jn-rb-8) réparties dans toute l'interface : dégradé
+ * continu pour les soulignements, le logo et le curseur d'effort, une teinte par
+ * page de réglages, par phase de mission, par espace du Monitor, et un cycle de
+ * liserés dans la conversation. Jamais en contraste élevé, où la bordure active
+ * du thème prend le relais. Les états (ok, alerte, erreur), la gravité et le
+ * bypass gardent leurs couleurs ; le sens passe toujours par le texte.
  */
 body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contrast-light)) {
   & #bar::after,
   & .studio-nav-title::after {
-    width: 40px;
-    background: linear-gradient(90deg, var(--jn-mc-1), var(--jn-mc-2), var(--jn-mc-3), var(--jn-mc-4));
+    width: 56px;
+    background: var(--jn-rainbow);
   }
-  & .msg.user {
-    box-shadow: inset var(--jn-rail) 0 0 var(--jn-mc-2);
-  }
+  /* Logo : étincelle et satellite sur les bouts du spectre, crochets en gris. */
   & .brand-lead {
-    fill: var(--jn-mc-1);
+    fill: var(--jn-rb-3);
+  }
+  & .brand-core {
+    fill: var(--jn-rb-5);
   }
   & .brand-node {
-    fill: var(--jn-mc-3);
+    fill: var(--jn-rb-8);
   }
+  /* Conversation : le liseré des messages envoyés parcourt le spectre. */
+  & .msg.user {
+    box-shadow: inset var(--jn-rail) 0 0 var(--jn-rb-6);
+  }
+  & #log > :nth-child(8n + 1) .msg.user,
+  & #log > .msg.user:nth-child(8n + 1) { box-shadow: inset var(--jn-rail) 0 0 var(--jn-rb-1); }
+  & #log > .msg.user:nth-child(8n + 3) { box-shadow: inset var(--jn-rail) 0 0 var(--jn-rb-2); }
+  & #log > .msg.user:nth-child(8n + 5) { box-shadow: inset var(--jn-rail) 0 0 var(--jn-rb-4); }
+  & #log > .msg.user:nth-child(8n + 7) { box-shadow: inset var(--jn-rail) 0 0 var(--jn-rb-7); }
   & .chip .chip-ico {
-    color: var(--jn-mc-3);
+    color: var(--jn-rb-7);
   }
+  & button.example:nth-child(4n + 1)::after { color: var(--jn-rb-1); }
+  & button.example:nth-child(4n + 2)::after { color: var(--jn-rb-3); }
+  & button.example:nth-child(4n + 3)::after { color: var(--jn-rb-4); }
+  & button.example:nth-child(4n + 4)::after { color: var(--jn-rb-6); }
+  /* Règles d'engagement : un cran par teinte chaude. */
   & .roe[data-level="1"] .roe-gauge i:nth-child(1),
   & .roe[data-level="2"] .roe-gauge i:nth-child(1) {
-    background: var(--jn-mc-1);
+    background: var(--jn-rb-4);
   }
   & .roe[data-level="2"] .roe-gauge i:nth-child(2) {
-    background: var(--jn-mc-2);
+    background: var(--jn-rb-3);
   }
-  & .mission-step:nth-child(1) {
-    --jn-step: var(--jn-mc-1);
-  }
-  & .mission-step:nth-child(2) {
-    --jn-step: var(--jn-mc-2);
-  }
-  & .mission-step:nth-child(3) {
-    --jn-step: var(--jn-mc-3);
-  }
-  & .mission-step:nth-child(4) {
-    --jn-step: var(--jn-mc-4);
-  }
+  /* Mission : quatre phases, quatre teintes. */
+  & .mission-step:nth-child(1) { --jn-step: var(--jn-rb-5); }
+  & .mission-step:nth-child(2) { --jn-step: var(--jn-rb-6); }
+  & .mission-step:nth-child(3) { --jn-step: var(--jn-rb-7); }
+  & .mission-step:nth-child(4) { --jn-step: var(--jn-rb-8); }
   & .mission-step.is-done .mission-mark {
     background: var(--jn-step);
   }
@@ -6048,12 +6102,33 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
   & .mission-step.is-current {
     background: color-mix(in srgb, var(--jn-step) 14%, transparent);
   }
+  /* Réglages : une teinte par page, sur le pictogramme de navigation. */
+  & .studio-nav-btn[data-page="project"] .ico { color: var(--jn-rb-5); }
+  & .studio-nav-btn[data-page="spaces"] .ico { color: var(--jn-rb-6); }
+  & .studio-nav-btn[data-page="system"] .ico { color: var(--jn-rb-1); }
+  & .studio-nav-btn[data-page="atlas"] .ico { color: var(--jn-rb-7); }
+  & .studio-nav-btn[data-page="graph"] .ico { color: var(--jn-rb-4); }
+  & .studio-nav-btn[data-page="graph"] .ico { color: var(--jn-rb-2); }
+  & .studio-nav-btn[data-page="appearance"] .ico { color: var(--jn-rb-8); }
+  /* Monitor : une teinte stable par espace (data-hue calculé dans chat.js). */
+  & .mon-space[data-hue="1"] { --jn-hue: var(--jn-rb-1); }
+  & .mon-space[data-hue="2"] { --jn-hue: var(--jn-rb-2); }
+  & .mon-space[data-hue="3"] { --jn-hue: var(--jn-rb-3); }
+  & .mon-space[data-hue="4"] { --jn-hue: var(--jn-rb-4); }
+  & .mon-space[data-hue="5"] { --jn-hue: var(--jn-rb-5); }
+  & .mon-space[data-hue="6"] { --jn-hue: var(--jn-rb-6); }
+  & .mon-space[data-hue="7"] { --jn-hue: var(--jn-rb-7); }
+  & .mon-space[data-hue="8"] { --jn-hue: var(--jn-rb-8); }
+  & .mon-space[data-hue] {
+    color: var(--jn-hue);
+    background: color-mix(in srgb, var(--jn-hue) 14%, transparent);
+  }
   /* Effort : dégradé fixe sur toute la piste, découpé jusqu'à la pastille. */
   & #effort-scale::before {
     left: 0;
     right: 0;
     width: auto;
-    background: linear-gradient(90deg, var(--jn-mc-1), var(--jn-mc-2), var(--jn-mc-3), var(--jn-mc-4));
+    background: var(--jn-rainbow);
     clip-path: inset(0 calc(100% - (var(--jn-pos) + var(--jn-thumb) / 2)) 0 0 round 99px);
     transition:
       clip-path var(--jn-settle),
@@ -6063,7 +6138,7 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
     transition: none;
   }
   & #effort-label {
-    color: var(--jn-mc-2);
+    color: var(--jn-rb-6);
   }
 }
 

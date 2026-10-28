@@ -1111,7 +1111,12 @@
     const dot = el("span", "mon-dot");
     dot.setAttribute("aria-hidden", "true");
     cmd.append(dot);
-    if (row.space !== "") cmd.append(el("span", "prompt mon-space", row.space));
+    if (row.space !== "") {
+      const tag = el("span", "prompt mon-space", row.space);
+      // Une teinte stable par espace (jeu Multicolore) : somme des caractères modulo 8.
+      tag.dataset.hue = String([...row.space].reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % 8 + 1);
+      cmd.append(tag);
+    }
     cmd.append(el("span", "prompt", "$"), el("code", "mon-text", row.command));
     const meta = el("div", "mon-meta");
     meta.append(el("span", "badge mon-state", row.status));

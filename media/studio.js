@@ -25,7 +25,7 @@ const PALETTES = [
   ["braise", "Braise", "Cramoisi et acier : la marque d’origine, plus offensive"],
   ["spectre", "Spectre", "Violet et glace : agents, recherche, nuit"],
   ["editeur", "Éditeur", "Accent du thème VS Code : intégration maximale"],
-  ["multi", "Multicolore", "Une teinte par rôle : cyan, bleu, violet et rose"]
+  ["multi", "Multicolore", "Huit teintes, une par rôle : de corail à rose en passant par vert, cyan et violet"]
 ];
 function graphCount(entries) {
   if (!Array.isArray(entries) || entries.length === 0) return null;
@@ -366,6 +366,7 @@ function start() {
         );
         b.type = "button";
         if (item.current) b.setAttribute("aria-current", "page");
+        b.dataset.page = item.id;
         b.append(
           window.WarbandIcons.create(item.icon, { className: "ico" }),
           el("span", "btn-text", item.label)
@@ -419,7 +420,7 @@ function start() {
       const logo = window.WarbandIcons.createBrand("brand pal-logo");
       const swatches = el("span", "pal-sw");
       swatches.setAttribute("aria-hidden", "true");
-      for (let i = 0; i < 4; i++) swatches.append(el("i"));
+      for (let i = 0; i < 8; i++) swatches.append(el("i"));
       const bar = el("span", "pal-bar");
       bar.setAttribute("aria-hidden", "true");
       bar.append(el("span", "pal-bar-fill"), el("span", "pal-bar-knob"));
