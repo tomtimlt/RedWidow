@@ -293,7 +293,7 @@ select {
   padding: 4px calc(var(--jn-gutter) - 6px) 4px var(--jn-gutter);
   position: relative;
   flex: none;
-  background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+  background: transparent;
   color: var(--vscode-foreground);
   border-bottom: 1px solid var(--jn-line);
 }
@@ -4694,7 +4694,7 @@ body.mode-watch #monitor {
   row-gap: 2px;
   padding: var(--jn-s3) 0 var(--jn-s3);
   border-bottom: 1px solid var(--jn-line);
-  background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+  background: var(--vscode-editor-background, var(--vscode-sideBar-background));
 }
 .mon-title {
   display: flex;
