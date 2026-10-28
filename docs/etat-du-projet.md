@@ -20,7 +20,7 @@ La version du manifeste est **0.3.57**. Les paragraphes
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
 
-## Lot 0.3.57 — contrat explicite de tenue de mission (préparé)
+## Lot 0.3.57 — contrat explicite de tenue de mission (publié)
 
 Les instructions communes imposent désormais la tenue de la Kill Chain à chaque
 étape significative, sans rappel utilisateur : notes et états vérifiés, parents
@@ -35,7 +35,14 @@ contrat structuré de rapport pour l’interface. Aucun test d’obéissance fac
 n’est lancé. Validation locale : **1 979 tests réussis, 14 ignorés**, typage et
 build réussis. Les tests des adaptateurs vérifient l’injection de la constante
 commune, les reprises, l’apprentissage et le hook des sous-agents Claude.
-Diff relu ; publication en cours.
+Diff relu. Le commit **52f0b14**, poussé sous `tomtimlt`, est marqué **v0.3.57**.
+Le [workflow 40667425123](https://github.com/tomtimlt/warband/actions/runs/40667425123)
+a réussi. Les quatre assets de la [release 0.3.57](https://github.com/tomtimlt/warband/releases/tag/v0.3.57)
+ont été téléchargés et vérifiés : deux VSIX et leurs SHA-256, digests GitHub
+conformes, ZIP intègres, manifeste 0.3.57, binaires natifs conformes à leurs
+empreintes et présence des deux contrats obligatoires dans le moteur distribué.
+Les médias et protections précédents sont conservés. La vérification native
+Windows des certificats système reste ouverte.
 
 ## Lot 0.3.56 — menu compact et cartes d’autorisation (publié)
 
