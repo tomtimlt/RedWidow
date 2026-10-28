@@ -1,6 +1,6 @@
 # Warband — parcours, état actuel et reprise
 
-État inspecté le 28 octobre 2026 pour la version 0.3.56. Ce document sert de point d'entrée produit ;
+État inspecté le 28 octobre 2026 pour la version 0.3.57. Ce document sert de point d'entrée produit ;
 les ADR expliquent les décisions, les idées restent une réserve.
 
 ## Le parcours de référence
@@ -15,10 +15,27 @@ parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
 
-La version du manifeste est **0.3.56**. Les paragraphes
+La version du manifeste est **0.3.57**. Les paragraphes
 0.3.19 à 0.3.29 ci-dessous sont des relevés historiques, pas les preuves de
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
+
+## Lot 0.3.57 — contrat explicite de tenue de mission (préparé)
+
+Les instructions communes imposent désormais la tenue de la Kill Chain à chaque
+étape significative, sans rappel utilisateur : notes et états vérifiés, parents
+réels, chemin retenu corrigé et écritures contrôlées. Le rapport final est requis
+même si la mission est incomplète ; son contenu, son dossier et les limites de
+l’aperçu actuel sont précisés. Animations et rejeu ne sont pas des outils à
+inventer. Lecture seule, outils absents, arrêt immédiat et isolation des contextes
+restent respectés. Voir le [contrat des agents](methodologie-agent.md).
+
+Il s’agit de consignes injectées, pas d’un verrou du moteur ni d’un nouveau
+contrat structuré de rapport pour l’interface. Aucun test d’obéissance facturé
+n’est lancé. Validation locale : **1 979 tests réussis, 14 ignorés**, typage et
+build réussis. Les tests des adaptateurs vérifient l’injection de la constante
+commune, les reprises, l’apprentissage et le hook des sous-agents Claude.
+Diff relu ; publication en cours.
 
 ## Lot 0.3.56 — menu compact et cartes d’autorisation (publié)
 

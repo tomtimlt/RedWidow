@@ -2,6 +2,16 @@
 
 Statut : accepté, 27 octobre 2026, demande du propriétaire.
 
+## Amendement 0.3.57
+
+Le propriétaire demande une tenue obligatoire de la Kill Chain sans rappel.
+La méthode précise les outils réels, types, états, liens, vérifications et
+moments de mise à jour ainsi que le rapport final systématique. Elle décrit
+les limites des animations et de l’aperçu de rapport. Les exceptions lecture
+seule, outils indisponibles et arrêt immédiat restent explicites. Voir le
+[contrat détaillé](../methodologie-agent.md). Aucun nouvel outil, verrou du
+moteur ou mécanisme d’autorisation n’est introduit.
+
 ## Contexte
 
 Le benchmark utilisateur rapporte des échecs de vérification d'état et de
