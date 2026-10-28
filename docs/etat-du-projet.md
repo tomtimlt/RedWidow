@@ -20,7 +20,7 @@ La version du manifeste est **0.3.54**. Les paragraphes
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
 
-## Lot 0.3.54 — retrait de l’appui maintenu (préparé)
+## Lot 0.3.54 — retrait de l’appui maintenu (publié)
 
 À la demande du propriétaire, le réglage « Appui maintenu », son délai de 900 ms,
 son état local et sa jauge sont retirés. **Autoriser une fois**, **Refuser** et
@@ -33,8 +33,14 @@ Le test spécifique au maintien retiré n’a plus lieu d’être. Les **18 vali
 Chromium** couvrent les trois choix au clic ou au clavier, sur trois thèmes,
 avec l’ancien réglage actif ou inactif : aucune attente et une seule réponse
 par carte. Le réglage n’apparaît plus. Diff relu ; aucun appel payant lancé.
-Publication en cours. Les passages de la 0.3.53 ci-dessous concernant le maintien
-sont historiques et remplacés par cette correction.
+Le commit **5ad13af**, poussé sous `tomtimlt`, est marqué **v0.3.54**. Le
+[workflow 40647064593](https://github.com/tomtimlt/warband/actions/runs/40647064593)
+a réussi. Les quatre assets de la [release 0.3.54](https://github.com/tomtimlt/warband/releases/tag/v0.3.54)
+ont été téléchargés : deux VSIX et leurs SHA-256 conformes aux digests GitHub,
+ZIP intègres, manifeste 0.3.54 et binaires natifs conformes à leurs empreintes.
+Les médias sont identiques au commit validé ; réglage, code et styles du
+maintien sont absents des paquets. Les passages de la 0.3.53 ci-dessous
+concernant le maintien sont historiques et remplacés par cette correction.
 
 ## Lot 0.3.53 — intégration de la refonte (publié)
 
