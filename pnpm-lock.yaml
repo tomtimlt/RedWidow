@@ -110,6 +110,9 @@ importers:
 
   packages/vscode:
     dependencies:
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.32.1(zod@4.6.7)
@@ -126,9 +129,6 @@ importers:
         specifier: workspace:*
         version: link:../messages
     devDependencies:
-      zod:
-        specifier: ^4.6.7
-        version: 4.6.7
       '@types/vscode':
         specifier: 1.140.0
         version: 1.140.0

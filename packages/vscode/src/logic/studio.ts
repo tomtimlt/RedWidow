@@ -38,6 +38,10 @@ export type StudioMessage =
   | { type: "refresh" }
   | { type: "openCockpit" }
   | { type: "unlink" }
+  | { type: "openWorkspace" }
+  | { type: "prepareMission" }
+  | { type: "openCatalog" }
+  | { type: "chooseProfile" }
   | { type: "configureBurp" }
   | { type: "testBurp" }
   | { type: "activateProject"; projectId: string }
@@ -61,6 +65,14 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
   const m = raw as Record<string, unknown>;
   const keys = Object.keys(m);
+  if (
+    (m.type === "openCatalog" ||
+      m.type === "chooseProfile" ||
+      m.type === "openWorkspace" ||
+      m.type === "prepareMission") &&
+    keys.length === 1
+  )
+    return { type: m.type };
   if (
     m.type === "setPalette" &&
     keys.length === 2 &&

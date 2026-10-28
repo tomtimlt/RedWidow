@@ -10,13 +10,14 @@ import {
   createRecorder,
   DEFAULT_POLICY,
   evaluatePolicy,
+  integrationToolSpecs,
   isBurpConfig,
   isRememberable,
 } from "@warband/core";
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
-
 import { createBurpBackend } from "../src/engine/burp-client.js";
+import { createIntegrationBackend } from "../src/engine/integration-client.js";
 
 const specsFor = (config: BurpConfig) => burpToolSpecs(config, createBurpBackend(config));
 
@@ -25,7 +26,7 @@ afterEach(async () => {
   for (const close of cleanup.splice(0).reverse()) await close();
 });
 const ctx = { parentId: null, correlation: undefined, signal: undefined };
-async function fixture(transport: BurpConfig["transport"]) {
+async function fixture(transport: BurpConfig["transport"], generic = false) {
   const calls: unknown[] = [];
   const sessions = new Map<string, SSEServerTransport>();
   const servers: McpServer[] = [];
@@ -75,7 +76,19 @@ async function fixture(transport: BurpConfig["transport"]) {
     http.closeAllConnections();
     await new Promise<void>((resolve) => http.close(() => resolve()));
   });
-  return { calls, specs: specsFor({ port: (http.address() as AddressInfo).port, transport }) };
+  const port = (http.address() as AddressInfo).port;
+  const config = {
+    id: "playwright" as const,
+    port,
+    transport,
+    path: transport === "sse" ? "/sse" : "/mcp",
+  };
+  return {
+    calls,
+    specs: generic
+      ? integrationToolSpecs(config, createIntegrationBackend(config))
+      : specsFor({ port, transport }),
+  };
 }
 
 describe("MCP Burp local", () => {
@@ -204,3 +217,18 @@ it("un allow global ne court-circuite pas un appel Burp et toujours ne mémorise
   expect(asks).toBe(2);
   expect(persisted).toBe(0);
 });
+
+it.each(["sse", "http"] as const)(
+  "le catalogue générique appelle effectivement le MCP via %s",
+  async (transport) => {
+    const { specs, calls } = await fixture(transport, true);
+    const catalog = JSON.parse(await specs[0]!.run({}, ctx));
+    expect(catalog.tools.some((t: { name: string }) => t.name === "read_history")).toBe(true);
+    expect(calls).toHaveLength(0);
+    const reply = JSON.parse(
+      await specs[1]!.run({ name: "read_history", arguments: { offset: 3 } }, ctx),
+    );
+    expect(reply.text).toBe("page 3");
+    expect(calls).toEqual([{ offset: 3 }]);
+  },
+);

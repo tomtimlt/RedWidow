@@ -650,3 +650,10 @@ Le nombre maximal passe à **10 fichiers**. Les bornes de **64 Kio par fichier**
 **256 Kio au total** restent en place. La demande de 40 Mo par fichier et 400 Mo
 au total nécessite une lecture progressive distincte du prompt ; elle n’est pas
 annoncée comme implémentée dans cette version. Images et PDF restent exclus.
+
+## Atelier de mission — 0.3.62
+
+Voir le [guide de l’atelier](atelier-agent.md) : disposition, dossier partagé,
+lecture de gros fichiers par extraits, catalogue MCP par projet et cinq skills
+méthodologiques avec sources et licences. Les applications externes ne sont pas
+installées automatiquement et les pièces jointes du chat gardent leurs limites.

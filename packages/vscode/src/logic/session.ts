@@ -510,7 +510,11 @@ export function createChatSession(deps: ChatSessionDeps) {
       touch();
     }
     appliedAuth = authRev;
-    appliedBurp = JSON.stringify(settings.burp ?? null);
+    appliedBurp = JSON.stringify([
+      settings.burp ?? null,
+      settings.integrations ?? [],
+      settings.profile ?? null,
+    ]);
     const maxTurns = picked.ultra ? picked.ultra.maxTurns : settings.maxTurns;
     await ctl.start({
       cwd: deps.cwd,
@@ -524,6 +528,8 @@ export function createChatSession(deps: ChatSessionDeps) {
       ...(picked.ultra?.maxBudgetUsd !== undefined && { maxBudgetUsd: picked.ultra.maxBudgetUsd }),
       ...(history && { journalDir: history.files.dir }),
       ...(!learning && settings.burp && { burp: settings.burp }),
+      ...(!learning && settings.integrations && { integrations: settings.integrations }),
+      ...(!learning && settings.profile && { profile: settings.profile }),
       ...(!transferring && sessionId !== undefined && { resume: sessionId }),
       // Le mode exclut `systemPrompt` (ADR 0010) : la consigne vient du moteur, jamais de l'UI.
       ...(learning && { mode: "learning" as const }),
@@ -929,7 +935,12 @@ export function createChatSession(deps: ChatSessionDeps) {
             want.effort !== applied.effort ||
             want.variant !== applied.variant ||
             learning !== applied.learning ||
-            appliedBurp !== JSON.stringify(deps.readSettings().burp ?? null)
+            appliedBurp !==
+              JSON.stringify([
+                deps.readSettings().burp ?? null,
+                deps.readSettings().integrations ?? [],
+                deps.readSettings().profile ?? null,
+              ])
           ) {
             await retire(controller);
           } else if (appliedAuth !== authRev) {

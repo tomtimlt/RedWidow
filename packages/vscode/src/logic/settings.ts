@@ -1,4 +1,10 @@
-import { type BurpConfig, CodedError, isBurpConfig } from "@warband/core";
+import {
+  type BurpConfig,
+  CodedError,
+  type IntegrationConfig,
+  isBurpConfig,
+  parseIntegrations,
+} from "@warband/core";
 import type { UltracodeLimits } from "./effort.js";
 
 /** Forme de `WorkspaceConfiguration.inspect` : les valeurs d'espace de travail n'y sont jamais lues. */
@@ -19,6 +25,8 @@ export function machineValue(info: Inspected | undefined): unknown {
 
 export interface ChatSettings {
   burp?: BurpConfig;
+  integrations?: IntegrationConfig[];
+  profile?: string;
   model?: string;
   maxTurns?: number;
   /** Plafonds du préréglage Ultracode (absents = pas de plafond). */
@@ -33,6 +41,18 @@ export function resolveSettings(get: (key: string) => unknown): ChatSettings {
     if (!isBurpConfig(config)) throw new CodedError("burp.invalidConfig");
     out.burp = config;
   }
+  const integrations = get("integrations");
+  if (integrations !== undefined) {
+    const parsed = parseIntegrations(integrations);
+    if (!parsed) throw new CodedError("integration.invalidConfig");
+    if (parsed.length) out.integrations = parsed;
+  }
+  const profile = get("profile");
+  if (
+    typeof profile === "string" &&
+    ["mentor", "bug-bounty", "out-of-box", "red-team", "htb"].includes(profile)
+  )
+    out.profile = profile;
   const model = get("model");
   if (typeof model === "string" && model.trim() !== "") out.model = model.trim();
   const maxTurns = get("maxTurns");

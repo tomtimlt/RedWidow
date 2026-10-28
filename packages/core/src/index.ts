@@ -1,3 +1,4 @@
+export * from "./agent-desk.js";
 export * from "./approval/bypass.js";
 export * from "./approval/gate.js";
 export * from "./approval/paths.js";
@@ -18,6 +19,7 @@ export * from "./exegol/findings.js";
 export * from "./exegol/targets.js";
 export * from "./exegol/tool-specs.js";
 export * from "./graph/build.js";
+export * from "./integrations.js";
 export * from "./journal/jsonl.js";
 export * from "./kali/api.js";
 export * from "./kali/setup.js";

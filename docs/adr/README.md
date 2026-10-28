@@ -49,5 +49,7 @@ Lots pour `dev` : objectif, fichiers, critères d'acceptation vérifiables.
 
 - [0030 — Gestion des projets et MCP Burp](0030-gestion-projets-et-mcp-burp.md) : fiches réversibles, connexion locale optionnelle et gate conservée.
 
+- [0031 — Atelier agent et catalogue](0031-atelier-agent-et-catalogue.md) : dossier partagé, connecteurs isolés et skills à la demande.
+
 Le statut accepté décrit la décision ; les preuves d’exécution et les limites
 figurent dans [l’état du projet](../etat-du-projet.md).

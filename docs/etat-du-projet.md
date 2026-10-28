@@ -1,6 +1,6 @@
 # Warband — parcours, état actuel et reprise
 
-État inspecté le 28 octobre 2026 pour la version 0.3.61. Ce document sert de point d'entrée produit ;
+État inspecté le 28 octobre 2026 pour la version 0.3.62. Ce document sert de point d'entrée produit ;
 les ADR expliquent les décisions, les idées restent une réserve.
 
 ## Le parcours de référence
@@ -15,10 +15,38 @@ parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
 
-La version du manifeste est **0.3.61**. Les paragraphes
+La version du manifeste est **0.3.62**. Les paragraphes
 0.3.19 à 0.3.29 ci-dessous sont des relevés historiques, pas les preuves de
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
+
+## Lot 0.3.62 — atelier de mission et bureau agent (préparé)
+
+Commandes d’ouverture/restauration du layout, préparation des dossiers sans
+écrasement, montage réel ajouté au contexte et lecture paginée de fichiers sous
+la racine approuvée. Le Monitor présente une frise latérale indépendante avec
+sélection persistante ; Terminal, Chat et Monitor sont accessibles directement.
+
+Catalogue fermé de dix connecteurs MCP locaux, configuration utilisateur machine
+par UUID et maximum quatre services par projet. Les deux adaptateurs utilisent
+les outils neutres et le transport de l’extension, sans SDK MCP dans core. Gate,
+Bypass, TLS et mode Apprentissage sont conservés. Les serveurs tiers restent à
+installer/configurer ; cette version ne lance pas de commande stdio arbitraire.
+
+Cinq profils méthodologiques et SKILL.md (mentor, bug bounty, out of the box,
+red team, HTB), sources Superpowers et Trail of Bits épinglées, attribution et
+licences embarquées. Résumé initial court, textes complets consultables par outil
+à la demande. Voir [atelier-agent.md](atelier-agent.md) et ADR 0031 pour la phase
+finale de réflexion sur le contexte du modèle et les limites exactes du lot.
+
+Validation locale : **2 043 tests réussis, 14 ignorés**, typage et build réussis.
+Neuf parcours Chromium couvrent trois thèmes et deux largeurs, la sélection
+persistante du Monitor, le catalogue et les boutons de mission. Le transport
+générique est testé avec des serveurs MCP factices SSE/HTTP et les limites de
+chemin, configuration et droits sont vérifiées. Publication en cours.
+Les logiciels tiers, la disposition native Windows et le correctif HTTPS sur
+le poste utilisateur ne sont pas présentés comme validés par les tests cloud.
+Aucun appel payant exécuté.
 
 ## Lot 0.3.61 — projets et MCP Burp Suite (publié)
 

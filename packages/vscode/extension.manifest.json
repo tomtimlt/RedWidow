@@ -2,7 +2,7 @@
   "name": "warband",
   "displayName": "Warband",
   "description": "Chat d'agent avec approbation des outils (warband).",
-  "version": "0.3.61",
+  "version": "0.3.62",
   "publisher": "warband",
   "license": "MIT",
   "engines": { "vscode": "^1.90.0" },
@@ -25,6 +25,19 @@
       {
         "command": "warband.exportReport",
         "title": "Warband : Exporter un brouillon de rapport Markdown"
+      },
+      {
+        "command": "warband.openWorkspace",
+        "title": "Warband : ouvrir ou restaurer l’espace Warband"
+      },
+      {
+        "command": "warband.prepareMission",
+        "title": "Warband : préparer et vérifier le dossier de mission"
+      },
+      { "command": "warband.chooseProfile", "title": "Warband : choisir un skill / profil agent" },
+      {
+        "command": "warband.configureIntegrations",
+        "title": "Warband : catalogue des intégrations MCP"
       },
       { "command": "warband.launcher", "title": "Warband : lanceur", "icon": "$(rocket)" },
       {
@@ -80,25 +93,16 @@
           "when": "view == warband.chat",
           "group": "navigation@1"
         },
-        { "command": "warband.openChat", "when": "view == warband.chat", "group": "navigation@2" },
         {
-          "command": "warband.openCockpit",
+          "command": "warband.openChat",
+          "when": "view == warband.chat",
+          "group": "navigation@2"
+        },
+        {
+          "command": "warband.openMonitor",
           "when": "view == warband.chat",
           "group": "navigation@3"
-        },
-        {
-          "command": "warband.openStudio",
-          "when": "view == warband.chat",
-          "group": "navigation@4"
-        },
-        { "command": "warband.openMonitor", "when": "view == warband.chat", "group": "outils@1" },
-        {
-          "command": "warband.openKillchain",
-          "when": "view == warband.chat",
-          "group": "outils@1"
-        },
-        { "command": "warband.setToken", "when": "view == warband.chat", "group": "outils@2" },
-        { "command": "warband.diagnostic", "when": "view == warband.chat", "group": "outils@3" }
+        }
       ],
       "editor/title": [
         {
@@ -112,7 +116,7 @@
           "group": "navigation@2"
         },
         {
-          "command": "warband.launcher",
+          "command": "warband.openMonitor",
           "when": "activeWebviewPanelId =~ /^warband\\./",
           "group": "navigation@3"
         }
@@ -138,6 +142,20 @@
     "configuration": {
       "title": "Warband",
       "properties": {
+        "warband.profile": {
+          "type": "string",
+          "enum": ["", "mentor", "bug-bounty", "out-of-box", "red-team", "htb"],
+          "default": "",
+          "scope": "machine",
+          "description": "Profil méthodologique court, appliqué au prochain tour. Les sources sont chargées sur demande."
+        },
+        "warband.integrationsByProject": {
+          "type": "object",
+          "default": {},
+          "maxProperties": 32,
+          "scope": "machine",
+          "description": "Services MCP locaux explicitement configurés. Ignoré dans le dépôt ; utiliser le catalogue Warband."
+        },
         "warband.burp.enabled": {
           "type": "boolean",
           "default": false,

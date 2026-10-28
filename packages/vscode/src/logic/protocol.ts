@@ -8,9 +8,11 @@ import {
   type Effort,
   type EngineEvent,
   type ErrorInfo,
+  type IntegrationConfig,
   isBurpConfig,
   type ModelOption,
   type PendingApproval,
+  parseIntegrations,
   REASON_CODES,
   type Reason,
   type RememberScope,
@@ -34,6 +36,8 @@ export const PROTOCOL_VERSION = 1;
 export const MAX_PROMPT_CHARS = 1_000_000;
 
 export interface StartParams {
+  integrations?: IntegrationConfig[];
+  profile?: string;
   burp?: BurpConfig;
   cwd: string;
   provider?: Provider;
@@ -142,6 +146,8 @@ const START_KEYS = [
   "mode",
   "journalDir",
   "burp",
+  "integrations",
+  "profile",
 ] as const;
 
 /** Valide un état du Bypass : `null`, ou bornes entières, ordonnées, de durée au plus `BYPASS_MAX_MS`. */
@@ -178,6 +184,17 @@ export function parseToEngine(raw: unknown): Parsed<ToEngine> {
       if (obj.mode !== undefined) {
         if (obj.mode !== "learning" || obj.systemPrompt !== undefined) return bad("mode");
       }
+      if (
+        obj.integrations !== undefined &&
+        (!parseIntegrations(obj.integrations) || obj.mode === "learning")
+      )
+        return bad("integrations");
+      if (
+        obj.profile !== undefined &&
+        (typeof obj.profile !== "string" ||
+          !["mentor", "bug-bounty", "out-of-box", "red-team", "htb"].includes(obj.profile))
+      )
+        return bad("profile");
       if (obj.burp !== undefined && (!isBurpConfig(obj.burp) || obj.mode === "learning"))
         return bad("burp");
       if (obj.journalDir !== undefined) {

@@ -30,7 +30,12 @@ describe("contexte conteneurs de la consigne", () => {
         async () => rows,
       );
       expect(data(result).containers).toEqual(
-        rows.map(({ name, family, state }) => ({ name, family, state })),
+        rows.map(({ name, family, state }) => ({
+          name,
+          family,
+          state,
+          workspaceStatus: "unverified",
+        })),
       );
       expect(result).toContain("mcp__exegol__exec");
       expect(result).toContain("mcp__kali__*");
@@ -52,7 +57,9 @@ describe("contexte conteneurs de la consigne", () => {
     );
     expect(data(result)).toEqual({
       status: "available",
-      containers: [{ name: exegol.name, family: "exegol", state: "running" }],
+      containers: [
+        { name: exegol.name, family: "exegol", state: "running", workspaceStatus: "unverified" },
+      ],
       designated: [exegol.name],
     });
   });
@@ -90,5 +97,15 @@ describe("contexte conteneurs de la consigne", () => {
     await enrichContainerPrompt("suite", [exegol.name], list);
     expect(calls).toBe(2);
     expect(data(result).designated).toEqual([]);
+  });
+});
+
+it("donne le montage réel sans exposer de labels ou inventer un montage", async () => {
+  const out = await enrichContainerPrompt("inventaire", [kali.name], async () => [
+    { ...kali, workspace: "/mission" },
+  ]);
+  expect(data(out).containers[0]).toMatchObject({
+    hostWorkspace: "/mission",
+    containerWorkspace: "/workspace",
   });
 });

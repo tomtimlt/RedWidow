@@ -100,6 +100,13 @@ const REPO_HINT = "Après relecture : warband policy trust";
 
 /** Catalogue complet : `REASON_CODES` est testé contre lui. */
 export const reasons: Catalog = {
+  "integration.invalidConfig": () => "Configuration MCP locale invalide.",
+  "integration.invalidResponse": () =>
+    "Réponse MCP locale refusée : origine, taille ou format invalide.",
+  "integration.unavailable": () =>
+    "Service MCP local indisponible. Vérifier son état avant de retenter une action.",
+  "integration.timeout": () =>
+    "Délai MCP dépassé ; une action peut continuer. Vérifier son état avant toute relance.",
   "burp.invalidConfig": () =>
     "Configuration MCP Burp invalide : port local et transport SSE ou HTTP requis.",
   "burp.invalidResponse": () => "Réponse MCP Burp refusée : origine, format ou taille invalide.",

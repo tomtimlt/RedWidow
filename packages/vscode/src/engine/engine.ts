@@ -7,7 +7,9 @@ import {
   createApprovalQueue,
   createRecorder,
   createRedactor,
+  deskInstructions,
   errorInfo,
+  INTEGRATION_GUIDANCE,
   killOwnTree,
   LEARNING_POLICY,
   LEARNING_SYSTEM_PROMPT,
@@ -49,6 +51,7 @@ export interface EngineOptions {
     mode?: StartParams["mode"],
     provider?: StartParams["provider"],
     burp?: StartParams["burp"],
+    integrations?: StartParams["integrations"],
   ) => AgentRunner | Promise<AgentRunner>;
   /** Environnement dont on tire les secrets à masquer (défaut : `process.env`). */
   env?: NodeJS.ProcessEnv;
@@ -220,8 +223,21 @@ export function runEngine({
         });
         const systemPrompt = learning
           ? LEARNING_SYSTEM_PROMPT
-          : [SCAN_OUTPUT_GUIDANCE, params.systemPrompt].filter(Boolean).join("\n\n");
-        const runner = await createRunner(params.mode, params.provider, params.burp);
+          : [
+              SCAN_OUTPUT_GUIDANCE,
+              ...(params.profile || params.integrations?.length
+                ? [deskInstructions(params.profile), INTEGRATION_GUIDANCE]
+                : []),
+              params.systemPrompt,
+            ]
+              .filter(Boolean)
+              .join("\n\n");
+        const runner = await createRunner(
+          params.mode,
+          params.provider,
+          params.burp,
+          params.integrations,
+        );
         const summary = await runner.run(
           {
             prompt: prompts,

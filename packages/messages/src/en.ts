@@ -4,6 +4,13 @@ const text = (v: string | number | undefined): string => (v === undefined ? "?" 
 
 /** Catalogue minimal : les codes absents se replient sur le français, puis sur `code + params`. */
 export const reasons: Catalog = {
+  "integration.invalidConfig": () => "Configuration MCP locale invalide.",
+  "integration.invalidResponse": () =>
+    "Réponse MCP locale refusée : origine, taille ou format invalide.",
+  "integration.unavailable": () =>
+    "Service MCP local indisponible. Vérifier son état avant de retenter une action.",
+  "integration.timeout": () =>
+    "Délai MCP dépassé ; une action peut continuer. Vérifier son état avant toute relance.",
   "burp.invalidConfig": () =>
     "Invalid Burp MCP configuration: local port and SSE or HTTP transport required.",
   "burp.invalidResponse": () => "Burp MCP response rejected: invalid origin, format or size.",

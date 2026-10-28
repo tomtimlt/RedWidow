@@ -1259,6 +1259,7 @@
   }
   const monitorNodes = /* @__PURE__ */ new Map();
   // Frise : un trait par commande, coloré par son état ; un clic amène à l'entrée.
+  let selectedMonitorRow = null;
   const stripTicks = /* @__PURE__ */ new Map();
   function paintStrip(rows) {
     const strip = $("monitor-strip");
@@ -1275,6 +1276,11 @@
             (n) => n.dataset.monitorId === tick.dataset.rowId,
           );
           if (!line) return;
+          selectedMonitorRow = tick.dataset.rowId;
+          for (const [id, button] of stripTicks) {
+            button.classList.toggle("is-selected", String(id) === selectedMonitorRow);
+            button.setAttribute("aria-pressed", String(String(id) === selectedMonitorRow));
+          }
           monitorFollow = false;
           monitorFollowBtn.setAttribute("aria-pressed", "false");
           const head = monitor.querySelector(".mon-head").getBoundingClientRect();
@@ -1290,7 +1296,8 @@
         stripTicks.set(row.id, tick);
       }
       tick.dataset.rowId = row.id;
-      tick.className = `mon-tick tone-${row.tone}`;
+      tick.className = `mon-tick tone-${row.tone}${String(row.id) === selectedMonitorRow ? " is-selected" : ""}`;
+      tick.setAttribute("aria-pressed", String(String(row.id) === selectedMonitorRow));
       tick.setAttribute("aria-label", `Commande ${i + 1} : ${row.command}, ${row.status}`);
       tick.title = `${row.command} · ${row.status}`;
       return tick;
@@ -1550,6 +1557,7 @@
         pageBefore = null;
         approvalNodes.clear();
         stripTicks.clear();
+        selectedMonitorRow = null;
         itemNodes.clear();
         monitorNodes.clear();
         openTools.clear();

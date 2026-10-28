@@ -12,11 +12,15 @@ import {
   DOCKER_SERVER_INSTRUCTIONS,
   DOCKER_SERVER_NAME,
   type DockerToolSpec,
+  deskToolSpecs,
   dockerToolSpecs,
   EXEGOL_SERVER_INSTRUCTIONS,
   EXEGOL_SERVER_NAME,
   type ExegolTargets,
   exegolToolSpecs,
+  INTEGRATION_GUIDANCE,
+  type IntegrationConfig,
+  integrationToolSpecs,
   KALI_SERVER_INSTRUCTIONS,
   KALI_SERVER_NAME,
   kaliToolSpecs,
@@ -128,4 +132,19 @@ export function burpToolset(config: BurpConfig, backend: BurpBackend): OpencodeT
     instructions: BURP_INSTRUCTIONS,
     create: () => burpToolSpecs(config, backend),
   };
+}
+
+export function integrationToolset(
+  config: IntegrationConfig,
+  backend: BurpBackend,
+): OpencodeToolset {
+  return {
+    name: config.id,
+    instructions: INTEGRATION_GUIDANCE,
+    create: () => integrationToolSpecs(config, backend),
+  };
+}
+
+export function deskToolset(): OpencodeToolset {
+  return { name: "desk", create: () => deskToolSpecs() };
 }

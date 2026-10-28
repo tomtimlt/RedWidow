@@ -1208,6 +1208,15 @@ function start() {
     if (page === "project") {
       const sec = el("section", "studio-card");
       sec.append(el("h2", "", "Projet"));
+      for (const [label, type] of [
+        ["Ouvrir l’espace Warband", "openWorkspace"],
+        ["Préparer et vérifier les fichiers de mission", "prepareMission"],
+      ]) {
+        const button = el("button", "ghost", label);
+        button.type = "button";
+        button.addEventListener("click", () => vscode.postMessage({ type }));
+        sec.append(button);
+      }
       const choices = view.projectChoices;
       if (choices && Array.isArray(choices.projects)) {
         const projectBusy = view.projectBusy === true;
@@ -1476,6 +1485,33 @@ function start() {
       );
       sec.append(dl);
       if (page === "system") {
+        sec.append(el("h2", "", "Bureau agent et catalogue MCP"));
+        sec.append(
+          el(
+            "p",
+            "studio-help",
+            "Services externes activés à la demande, quatre maximum. Aucun programme téléchargé automatiquement. Profil : " +
+              (view.agentProfile || "général"),
+          ),
+        );
+        for (const [label, type] of [
+          ["Catalogue MCP…", "openCatalog"],
+          ["Choisir un skill / profil…", "chooseProfile"],
+        ]) {
+          const button = el("button", "ghost", label);
+          button.type = "button";
+          button.addEventListener("click", () => vscode.postMessage({ type }));
+          sec.append(button);
+        }
+        for (const entry of view.mcpCatalog ?? []) {
+          sec.append(
+            el(
+              "p",
+              "studio-help",
+              `${entry.label} · ${entry.profile} · ${(view.mcpConfigured ?? []).some((c) => c.id === entry.id) ? "configuré (test requis)" : "non configuré"}`,
+            ),
+          );
+        }
         sec.append(el("h2", "", "Burp Suite MCP"));
         sec.append(
           el(

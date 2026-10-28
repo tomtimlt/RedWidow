@@ -67,6 +67,7 @@ export const DEFAULT_POLICY: Policy = {
     { tool: BASH_TOOL, command: "docker volume rm *", decision: "deny" },
     { tool: BASH_TOOL, command: "rm *", decision: "deny" },
     { tool: BASH_TOOL, command: "sudo *", decision: "deny" },
+    { tool: "mcp__desk__load_skill", decision: "allow" },
     { tool: "mcp__burp__list_tools", decision: "allow" },
     { tool: "mcp__docker__ps", decision: "allow" },
     { tool: "mcp__docker__images", decision: "allow" },
@@ -371,7 +372,11 @@ function evaluateUncapped(
       rule: null,
     };
   }
-  if (tool === "mcp__burp__call_tool") {
+  if (
+    /^mcp__(?:burp|playwright|filesystem|markitdown|reptor|serena|semgrep|trivy|bloodhound|ghidra|wiremcp)__call_tool$/.test(
+      tool,
+    )
+  ) {
     // Le schéma Burp n’est pas analysé par la politique : une règle globale allow ne suffit pas.
     const denied = policy.rules.findIndex(
       (rule) => rule.decision === "deny" && toolMatches(rule, tool),

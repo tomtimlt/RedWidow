@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { basename, join } from "node:path";
 import {
+  AGENT_PROFILES,
   activeProject,
   burpToolSpecs,
   CodedError,
@@ -12,6 +13,8 @@ import {
   defaultConfigDir,
   ensureWarbandKaliImage,
   lookupContainer,
+  MCP_CATALOG,
+  parseIntegrations,
   prepareKaliContainer,
   pullDockerImage,
   readFindings,
@@ -23,6 +26,7 @@ import {
 import { formatError } from "@warband/messages";
 import * as vscode from "vscode";
 import { createBurpBackend } from "../engine/burp-client.js";
+import { createIntegrationBackend } from "../engine/integration-client.js";
 import { cleanText, parseWebviewMessage } from "../logic/approval.js";
 import { attachmentMessage, withAttachments } from "../logic/attachments.js";
 import { type BypassPush, createBypassHost, formatRemaining } from "../logic/bypass.js";
@@ -49,6 +53,7 @@ import { chatHtml, cockpitHtml, killchainHtml, makeNonce, studioHtml } from "../
 import { matchesFingerprint } from "../logic/integrity.js";
 import { killchainImage } from "../logic/killchain-image.js";
 import { setSelectedPathEdge } from "../logic/killchain-path.js";
+import { prepareMissionFolder } from "../logic/mission-folder.js";
 import { missionReport, missionReportPreview } from "../logic/mission-report.js";
 import { PALETTES, type Palette, paletteOf } from "../logic/palette.js";
 import {
@@ -57,6 +62,7 @@ import {
   manageSelectedProject,
   readProjectChoices,
 } from "../logic/project-controls.js";
+import { integrationMap, projectIntegrations } from "../logic/project-integrations.js";
 import { readProjectSummary, saveProjectSummary } from "../logic/project-summary.js";
 import {
   matchesActiveProjectWorkspace,
@@ -101,6 +107,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Défense en profondeur : `capabilities.untrustedWorkspaces` empêche déjà l'activation.
   if (!vscode.workspace.isTrusted) return;
 
+  let integrationProjectId =
+    (await readProjectChoices(defaultConfigDir()).catch(() => null))?.activeId ?? null;
   const projectWorkspaceHost = {
     folders: () => vscode.workspace.workspaceFolders?.map((entry) => entry.uri.fsPath) ?? [],
     hasUnsavedDocuments: () =>
@@ -131,6 +139,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const folder = vscode.workspace.workspaceFolders?.[0];
   const projectWorkspaceReady = async () => {
+    integrationProjectId = (await readProjectChoices(defaultConfigDir())).activeId;
     if (
       folder !== undefined &&
       (await matchesActiveProjectWorkspace(defaultConfigDir(), folder.uri.fsPath))
@@ -302,7 +311,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Réglages sensibles : valeur utilisateur/machine ou défaut, jamais celle de l'espace de travail.
   const readSettings = () => {
     const config = vscode.workspace.getConfiguration("warband");
-    return resolveSettings((key) => machineValue(config.inspect(key)));
+    return resolveSettings((key) =>
+      key === "integrations"
+        ? projectIntegrations(
+            machineValue(config.inspect("integrationsByProject")) ?? {},
+            integrationProjectId,
+          )
+        : machineValue(config.inspect(key)),
+    );
   };
 
   const seats = (reserveSidebar: boolean) => {
@@ -759,6 +775,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         styleUri: view.webview.asWebviewUri(vscode.Uri.joinPath(media, "chat.css")).toString(),
       });
       post = (message) => void view.webview.postMessage(message);
+      if (
+        !context.workspaceState.get("warband.layoutOpened") &&
+        vscode.window.tabGroups.all.every((group) => group.tabs.length === 0)
+      ) {
+        setTimeout(() => {
+          if (view.visible)
+            void vscode.commands
+              .executeCommand("warband.openWorkspace")
+              .then(undefined, (error) => out.appendLine(formatError(error)));
+        }, 300);
+      }
       view.webview.onDidReceiveMessage((raw: unknown) =>
         handleChatMessage(
           raw,
@@ -1320,18 +1347,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     });
   };
 
-  const openMonitor = () => {
+  const openMonitor = (column?: vscode.ViewColumn) => {
     if (monitorPanel) {
-      monitorPanel.reveal();
+      monitorPanel.reveal(column);
       pushMonitor();
       return;
     }
     const media = vscode.Uri.joinPath(context.extensionUri, "media");
-    const panel = vscode.window.createWebviewPanel("warband.monitor", "Monitor", warbandColumn(), {
-      enableScripts: true,
-      enableCommandUris: false,
-      localResourceRoots: [media],
-    });
+    const panel = vscode.window.createWebviewPanel(
+      "warband.monitor",
+      "Monitor",
+      column ?? warbandColumn(),
+      {
+        enableScripts: true,
+        enableCommandUris: false,
+        localResourceRoots: [media],
+      },
+    );
     panel.iconPath = vscode.Uri.joinPath(media, "logo-small.svg");
     monitorPanel = panel;
     mountChatHtml(panel.webview);
@@ -1583,6 +1615,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       sources,
       projectSummary,
       projectChoices,
+      mcpCatalog: MCP_CATALOG,
+      mcpConfigured: projectIntegrations(
+        machineValue(
+          vscode.workspace.getConfiguration("warband").inspect("integrationsByProject"),
+        ) ?? {},
+        projectChoices.activeId,
+      ),
+      agentProfile:
+        machineValue(vscode.workspace.getConfiguration("warband").inspect("profile")) ?? "",
       burpEnabled:
         machineValue(vscode.workspace.getConfiguration("warband").inspect("burp.enabled")) === true,
       burpStatus,
@@ -1828,6 +1869,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     studioPanel.webview.onDidReceiveMessage(async (raw: unknown) => {
       const message = parseStudioMessage(raw);
       if (message === null) return;
+      if (message.type === "openWorkspace" || message.type === "prepareMission") {
+        await vscode.commands.executeCommand(
+          message.type === "openWorkspace" ? "warband.openWorkspace" : "warband.prepareMission",
+        );
+        return;
+      }
+      if (message.type === "openCatalog") {
+        await vscode.commands.executeCommand("warband.configureIntegrations");
+        return;
+      }
+      if (message.type === "chooseProfile") {
+        await vscode.commands.executeCommand("warband.chooseProfile");
+        return;
+      }
       if (message.type === "configureBurp" || message.type === "testBurp") {
         await vscode.commands.executeCommand(
           message.type === "configureBurp" ? "warband.configureBurp" : "warband.testBurp",
@@ -1978,6 +2033,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 message.name,
                 chosen[0].fsPath,
               );
+              await prepareMissionFolder(chosen[0].fsPath);
               projectSelected = true;
             }
           }
@@ -2140,6 +2196,163 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }),
     vscode.commands.registerCommand("warband.openChat", () => openEditorChat()),
     vscode.commands.registerCommand("warband.openCockpit", () => openCockpit()),
+    vscode.commands.registerCommand("warband.openWorkspace", async () => {
+      if (await openActiveProjectWorkspace(defaultConfigDir(), projectWorkspaceHost, "selection"))
+        return;
+      await vscode.commands.executeCommand("vscode.setEditorLayout", {
+        orientation: 1,
+        groups: [{ size: 0.58 }, { size: 0.42 }],
+      });
+      openKillchain();
+      openMonitor(vscode.ViewColumn.Two);
+      await vscode.commands.executeCommand("warband.chat.focus");
+      await context.workspaceState.update("warband.layoutOpened", true);
+    }),
+    vscode.commands.registerCommand("warband.prepareMission", async () => {
+      try {
+        if (!(await projectWorkspaceReady())) return;
+        const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        if (!root) return;
+        await prepareMissionFolder(root);
+        const choices = await readProjectChoices(defaultConfigDir());
+        const current = choices.projects.find((p) => p.id === choices.activeId);
+        const rows = await shellDocker().listLabelPrefix();
+        const linked =
+          (await readProjects(defaultConfigDir()))?.projects.find((p) => p.id === current?.id)
+            ?.containers ?? [];
+        const mappings = rows
+          .filter((row) => linked.includes(row.name))
+          .map((row) => `${row.name} : ${row.workspace ?? "montage absent"} → /workspace`);
+        await vscode.window.showInformationMessage(
+          `Dossier de mission : ${root}. ${mappings.join(" ; ") || "Aucun montage lié vérifié : créez ou associez un conteneur avant de travailler."}`,
+        );
+        await vscode.commands.executeCommand("workbench.files.action.focusFilesExplorer");
+      } catch (error) {
+        await vscode.window.showErrorMessage(formatError(error));
+      }
+    }),
+    vscode.commands.registerCommand("warband.chooseProfile", async () => {
+      const entries = [
+        { label: "Général — méthode commune", id: "" },
+        ...Object.entries(AGENT_PROFILES).map(([id, p]) => ({ label: p.label, id })),
+      ];
+      const choice = await vscode.window.showQuickPick(entries, {
+        title: "Profil de travail de l’agent",
+      });
+      if (!choice) return;
+      await vscode.workspace
+        .getConfiguration("warband")
+        .update("profile", choice.id, vscode.ConfigurationTarget.Global);
+      await pushStudio();
+    }),
+    vscode.commands.registerCommand("warband.configureIntegrations", async () => {
+      const config = vscode.workspace.getConfiguration("warband");
+      const projectId = (await readProjectChoices(defaultConfigDir())).activeId;
+      if (!projectId) {
+        await vscode.window.showWarningMessage(
+          "Choisissez un projet avant de configurer ses services MCP.",
+        );
+        return;
+      }
+      const readMap = () =>
+        integrationMap(machineValue(config.inspect("integrationsByProject")) ?? {});
+      let parsed: ReturnType<typeof integrationMap>[string] = [];
+      try {
+        parsed = readMap()[projectId] ?? [];
+      } catch (error) {
+        await vscode.window.showErrorMessage(formatError(error));
+        return;
+      }
+      const save = async (next: unknown) => {
+        if ((await readProjectChoices(defaultConfigDir())).activeId !== projectId)
+          throw Error("Le projet a changé pendant la configuration.");
+        await config.update(
+          "integrationsByProject",
+          { ...readMap(), [projectId]: next },
+          vscode.ConfigurationTarget.Global,
+        );
+      };
+      if (!parsed) {
+        await vscode.window.showErrorMessage(
+          "Configuration des intégrations invalide. Corrigez le réglage utilisateur warband.integrationsByProject.",
+        );
+        return;
+      }
+      const chosen = await vscode.window.showQuickPick(
+        MCP_CATALOG.map((e) => ({
+          label: e.label,
+          description: `${e.profile} · ${parsed.some((p) => p.id === e.id) ? "configuré" : "non configuré"}`,
+          detail: e.description,
+          id: e.id,
+        })),
+        { title: "Catalogue MCP — services externes locaux" },
+      );
+      if (!chosen) return;
+      const entry = MCP_CATALOG.find((e) => e.id === chosen.id);
+      if (!entry) return;
+      const action = await vscode.window.showQuickPick(
+        [
+          "Configurer le service local",
+          "Tester le catalogue réel",
+          "Désactiver ce connecteur",
+          "Voir le dépôt source",
+        ],
+        { title: entry.label },
+      );
+      if (!action) return;
+      if (action === "Voir le dépôt source") {
+        await vscode.env.openExternal(vscode.Uri.parse(entry.source));
+        return;
+      }
+      try {
+        const existing = parsed.find((e) => e.id === entry.id);
+        if (action === "Désactiver ce connecteur") {
+          await save(parsed.filter((e) => e.id !== entry.id));
+        } else if (action === "Tester le catalogue réel") {
+          if (!existing)
+            throw Error(
+              "Configurer le service avant le test. Warband n’installe ni ne démarre automatiquement le programme externe.",
+            );
+          const result = await createIntegrationBackend(existing).list({});
+          const count = (result as { tools?: unknown[] }).tools?.length ?? 0;
+          await vscode.window.showInformationMessage(
+            `${entry.label} : ${count} outils annoncés. Aucun outil distant exécuté.`,
+          );
+        } else {
+          const port = await vscode.window.showInputBox({
+            title: `${entry.label} — port local 127.0.0.1`,
+            value: String(existing?.port ?? 9877),
+            validateInput: (v) =>
+              !/^\d{1,5}$/.test(v) || Number(v) < 1 || Number(v) > 65535
+                ? "Port entre 1 et 65535"
+                : undefined,
+          });
+          if (port === undefined) return;
+          const transport = await vscode.window.showQuickPick(["http", "sse"], {
+            title: "Transport du service déjà démarré",
+          });
+          if (!transport) return;
+          const path = await vscode.window.showInputBox({
+            title: "Chemin MCP local",
+            value: existing?.path ?? (transport === "http" ? "/mcp" : "/sse"),
+            validateInput: (v) =>
+              !/^\/[a-zA-Z0-9_/-]{0,120}$/.test(v) || v.includes("..") || v.startsWith("//")
+                ? "Chemin local simple requis, sans URL ni paramètre"
+                : undefined,
+          });
+          if (path === undefined) return;
+          const next = parseIntegrations([
+            ...parsed.filter((e) => e.id !== entry.id),
+            { id: entry.id, port: Number(port), transport, path },
+          ]);
+          if (!next) throw Error("Maximum quatre services actifs, sur des ports distincts.");
+          await save(next);
+        }
+      } catch (error) {
+        await vscode.window.showErrorMessage(formatError(error));
+      }
+      await pushStudio();
+    }),
     vscode.commands.registerCommand("warband.openStudio", () => openStudio()),
     vscode.commands.registerCommand("warband.openTerminal", () => void pickContainerTerminal()),
     vscode.commands.registerCommand("warband.openMonitor", () => openMonitor()),
@@ -2254,6 +2467,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await pushStudio();
     }),
     vscode.workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration("warband.integrationsByProject")) {
+        for (const slot of slots.values()) if (slot.session?.view().busy) slot.session.stop();
+        void pushStudio();
+      }
       if (!event.affectsConfiguration("warband.burp")) return;
       if (
         machineValue(vscode.workspace.getConfiguration("warband").inspect("burp.enabled")) !== true
