@@ -20,7 +20,7 @@ La version du manifeste est **0.3.55**. Les paragraphes
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
 
-## Lot 0.3.55 — seconde passe graphique (préparé)
+## Lot 0.3.55 — seconde passe graphique (publié)
 
 Les nouveaux commits de `design/ui-vscode`, de `11543e8` à `d72f0e0`, sont
 adaptés aux composants réels : en-tête et Monitor, focus clavier conservé sans
@@ -43,7 +43,17 @@ Bypass et les contrastes du badge et du compteur. Les **18 parcours Chromium**
 couvrent trois thèmes et trois largeurs : états réels, échéance, un seul
 minuteur, masquage, apprentissage, mouvement réduit, focus clavier et repli sans
 perte du brouillon. Captures relues et diff vérifié. Aucun appel payant lancé.
-Publication en cours ; la recette native Windows reste à confirmer.
+Le commit **4445a94**, poussé sous `tomtimlt`, est marqué **v0.3.55**. Le
+[workflow 40649885839](https://github.com/tomtimlt/warband/actions/runs/40649885839)
+a réussi. Les quatre assets de la [release 0.3.55](https://github.com/tomtimlt/warband/releases/tag/v0.3.55)
+ont été téléchargés et vérifiés : deux VSIX et leurs SHA-256, digests GitHub
+conformes, ZIP intègres, manifeste 0.3.55, binaires natifs des deux cibles
+conformes à leurs empreintes embarquées. Les médias distribués sont identiques
+au commit validé ; compteur, aura, repli et cerveau original sont présents,
+et le maintien et le SVG externe sont absents. Archives, exports, méthodologie
+et transport HTTPS strict restent présents. La recette native Windows reste
+à confirmer ; la publication ne clôture pas la vérification des certificats
+système sur le poste utilisateur.
 
 ## Lot 0.3.54 — retrait de l’appui maintenu (publié)
 
