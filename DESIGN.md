@@ -137,6 +137,31 @@ ton pour les thèmes sombres et un ton plus foncé pour les thèmes clairs.
 
 Données de démonstration : `mission` et l’élément `report` dans `src/demo.mjs`.
 
+## À reprendre dans le cockpit (production)
+
+Le formulaire « Nouveau conteneur » vit dans `packages/vscode/media/cockpit.js`
+(branche `main`), hors de cet atelier. Les styles sont prêts dans
+`media/chat.css` (`.cockpit-create-head`, `.cockpit-create-close`, état ouvert
+de `#cockpit-create-toggle`). Ajout proposé dans `renderCreate`, à la place de
+`section.append(heading("Créer un conteneur"))` :
+
+```js
+const head = el("div", "cockpit-create-head");
+const close = button("ghost cockpit-create-close", "Replier le formulaire", "caret", () => {
+  form.open = false;
+  rerender();
+  document.getElementById("cockpit-create-toggle")?.focus();
+});
+close.setAttribute("aria-controls", "cockpit-create");
+close.querySelector(".btn-text")?.remove();
+head.append(heading("Créer un conteneur"), close);
+section.append(head);
+```
+
+Le bouton n’existe que quand le formulaire est ouvert, garde son nom
+accessible (`aria-label`) et rend le focus à « Nouveau conteneur ». Aucun
+protocole ni donnée ne change.
+
 ## Pictogrammes et mouvement
 
 `media/icons.js` est la source unique des tracés : les pages HTML ne contiennent

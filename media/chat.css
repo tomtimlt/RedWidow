@@ -1818,6 +1818,7 @@ body.vscode-high-contrast-light .opt.active {
   color: var(--jn-muted);
 }
 .effort-now {
+  grid-column: 2;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -3081,6 +3082,46 @@ body.cockpit .cockpit-row.is-running > .dot {
   border: 1px solid var(--jn-line);
   border-radius: var(--jn-r-md);
   background: var(--vscode-editorWidget-background, transparent);
+}
+/* Formulaire de création : en-tête avec bouton de repli (flèche vers le haut),
+ * présent uniquement quand le formulaire est ouvert. */
+.cockpit-create-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.cockpit-create-head .cockpit-h {
+  margin: 0;
+}
+.cockpit-create-close {
+  flex: none;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--jn-line);
+  border-radius: 50%;
+}
+.cockpit-create-close .ico {
+  width: 14px;
+  height: 14px;
+  transform: rotate(180deg);
+}
+.cockpit-create-close:hover:not(:disabled) {
+  border-color: var(--jn-sig-edge);
+  background: var(--jn-sig-tint);
+}
+.cockpit-create-close:hover:not(:disabled) .ico {
+  color: var(--jn-sig);
+}
+#cockpit-create-toggle[aria-expanded="true"] {
+  border-color: var(--jn-sig-edge);
+  background: var(--jn-sig-tint);
+}
+.cockpit-create {
+  animation: jn-pop-in var(--jn-d2) var(--jn-ease-out) 1;
 }
 .cockpit-create .cockpit-actions {
   align-items: center;
@@ -5772,6 +5813,9 @@ body.vscode-high-contrast-light .card-level {
     }
     & #cfg-btn:hover .chip-ico {
       transform: scaleX(-1);
+    }
+    & .cockpit-create-close:hover:not(:disabled) .ico {
+      transform: rotate(180deg) translateY(2px);
     }
     & #models-refresh:hover:not(:disabled) .ico,
     & #effort-auto:hover:not(:disabled) .ico {
