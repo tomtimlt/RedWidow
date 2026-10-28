@@ -20,7 +20,7 @@ La version du manifeste est **0.3.59**. Les paragraphes
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
 
-## Lot 0.3.59 — six teintes et effet d’effort maximal (préparé)
+## Lot 0.3.59 — six teintes et effet d’effort maximal (publié)
 
 Les commits jusqu’à `7749b8f` sont adaptés : six teintes Multicolore sans jaune
 ni orange décoratifs, et dégradé animé au dernier niveau d’effort disponible.
@@ -33,7 +33,20 @@ les confirmations natives et les consignes agents restent conservés. Voir les
 Validation locale : **1 981 tests réussis, 14 ignorés**, typage et build réussis.
 Les 15 parcours Chromium couvrent les cinq palettes et les trois thèmes : Auto,
 minimum/maximum, variantes OpenCode, mouvement réduit, couleurs forcées, vue
-masquée et six pastilles. Diff relu ; aucun appel payant lancé. Publication en cours.
+masquée et six pastilles. Diff relu ; aucun appel payant lancé.
+
+Le commit **264d46b**, poussé sous `tomtimlt`, est marqué **v0.3.59**. Le
+[workflow 40691312127](https://github.com/tomtimlt/warband/actions/runs/40691312127)
+a réussi après relance identique. La première tentative s’était arrêtée sur le
+test Linux de huit tâches concurrentes : état encore `starting` au contrôle au
+lieu de `running`. Aucun code de superviseur ni assertion n’a été modifié ; la
+suite complète passe à la relance, suivie du build et des deux packagings.
+Les quatre assets de la [release 0.3.59](https://github.com/tomtimlt/warband/releases/tag/v0.3.59)
+ont été téléchargés et vérifiés : deux VSIX et leurs SHA-256, digests GitHub
+conformes, ZIP intègres, manifeste 0.3.59, binaires natifs conformes à leurs
+empreintes et médias identiques au commit validé. Six teintes, six pastilles et
+effet maximal sont présents ; protections et consignes agents sont conservées.
+La vérification native Windows des certificats système reste ouverte.
 
 ## Lot 0.3.58 — Apparence et Multicolore (publié)
 
