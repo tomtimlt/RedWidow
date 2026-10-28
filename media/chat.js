@@ -905,6 +905,7 @@
       );
     }
     [...box.children].forEach((notch, i) => notch.classList.toggle("is-on", i <= position + 0.001));
+    effortScale.classList.toggle("is-max", levels.length > 1 && position >= lastLevel() - 0.02);
   }
   function showLevel(index) {
     const level = levels[index];
