@@ -267,7 +267,7 @@
   function bypassView(push, previous, userOff, now) {
     const effective = bypassEffective(push);
     const before = bypassEffective(previous);
-    let state = effective;
+    let state = effective === "on" && push.expiresAt <= now ? "ended" : effective;
     if (effective === "off" && !userOff && before !== "off") {
       state = before === "on" ? "ended" : "dropped";
     }
@@ -281,7 +281,7 @@
         hour: "2-digit",
         minute: "2-digit",
       });
-      text = `Actif jusqu'à ${until} (reste ${remainingText(push.expiresAt - now)}).`;
+      text = `Actif jusqu'à ${until} (reste ${remainingText(push.expiresAt - now)}). Échéance fixée par le moteur.`;
       badge = { word: "BYPASS", time: until };
     } else if (state === "dropped") {
       text = "Bypass désactivé avant confirmation.";

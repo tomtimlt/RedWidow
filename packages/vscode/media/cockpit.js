@@ -168,7 +168,16 @@
     const section = el("section", "cockpit-create");
     section.id = "cockpit-create";
     section.setAttribute("aria-label", "Créer un conteneur");
-    section.append(heading("Créer un conteneur"));
+    const head = el("div", "cockpit-create-head");
+    const close = button("ghost cockpit-create-close", "Replier le formulaire", "caret", () => {
+      form.open = false;
+      rerender();
+      document.getElementById("cockpit-create-toggle")?.focus();
+    });
+    close.setAttribute("aria-controls", "cockpit-create");
+    close.querySelector(".btn-text")?.remove();
+    head.append(heading("Créer un conteneur"), close);
+    section.append(head);
 
     const engines = el("div", "cockpit-actions");
     const choices = view.exegol === "present" ? ["exegol", "kali"] : ["kali"];

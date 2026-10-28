@@ -32,6 +32,14 @@ simple ou au clavier. L’option « Appui maintenu » de la 0.3.53 est retirée 
 0.3.54. **Toujours** conserve sa confirmation native ; les contrôles de la gate
 restent applicables.
 
+Depuis la 0.3.55, le Bypass est signalé en magenta dans la vue : contour en
+pointillés en attente de confirmation, plein lorsqu’il est actif. Le compteur
+reprend l’échéance fournie par le moteur ; il disparaît à expiration et sa mise
+à jour est suspendue dans les vues masquées. Il ne modifie aucune autorisation.
+La barre d’état VS Code conserve son avertissement natif. Le formulaire
+**Nouveau conteneur** possède un bouton **Replier le formulaire** : les champs
+saisis restent disponibles après réouverture.
+
 Le rail du chat affiche des compteurs de la page courante, pas un pourcentage
 ou une progression de mission. L’horloge indique la durée du tour actif. Le
 Monitor ajoute une frise cliquable et numérote les petites sorties ; les longues

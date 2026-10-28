@@ -1,6 +1,6 @@
 # Warband — parcours, état actuel et reprise
 
-État inspecté le 28 octobre 2026 pour la version 0.3.54. Ce document sert de point d'entrée produit ;
+État inspecté le 28 octobre 2026 pour la version 0.3.55. Ce document sert de point d'entrée produit ;
 les ADR expliquent les décisions, les idées restent une réserve.
 
 ## Le parcours de référence
@@ -15,10 +15,35 @@ parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
 
-La version du manifeste est **0.3.54**. Les paragraphes
+La version du manifeste est **0.3.55**. Les paragraphes
 0.3.19 à 0.3.29 ci-dessous sont des relevés historiques, pas les preuves de
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
+
+## Lot 0.3.55 — seconde passe graphique (préparé)
+
+Les nouveaux commits de `design/ui-vscode`, de `11543e8` à `d72f0e0`, sont
+adaptés aux composants réels : en-tête et Monitor, focus clavier conservé sans
+contour au clic souris, curseur d’effort sans éclair, cerveau original et repli
+du formulaire de conteneur. Ce repli conserve le brouillon et rend le focus au
+bouton d’ouverture.
+
+Le Bypass utilise une aura magenta et un compteur fondé sur l’échéance réelle,
+sans changer les permissions. Attente de confirmation, mode actif, expiration
+et apprentissage sont distincts. Un seul minuteur de rendu est conservé ; il
+s’arrête au masquage et à la fermeture. Le mouvement réduit et le contraste
+élevé sont respectés, y compris sur l’aura de page. Le SVG externe dont la
+licence reste à confirmer est écarté au profit du dessin original de `c874a10`.
+L’appui maintenu reste supprimé. Voir les [retours au designer](retour-refonte-interface.md)
+et l’amendement de l’[ADR 0028](adr/0028-integration-refonte-interface.md).
+
+Validation locale : **1 976 tests réussis, 14 ignorés**, typage et build réussis
+sous le reaper prescrit. Les tests ajoutés couvrent l’expiration de l’indication
+Bypass et les contrastes du badge et du compteur. Les **18 parcours Chromium**
+couvrent trois thèmes et trois largeurs : états réels, échéance, un seul
+minuteur, masquage, apprentissage, mouvement réduit, focus clavier et repli sans
+perte du brouillon. Captures relues et diff vérifié. Aucun appel payant lancé.
+Publication en cours ; la recette native Windows reste à confirmer.
 
 ## Lot 0.3.54 — retrait de l’appui maintenu (publié)
 

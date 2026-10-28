@@ -1,7 +1,42 @@
 # Retour d’intégration — refonte de l’interface
 
-Source inspectée : `design/ui-vscode`, commit `4565ce6`.
-Intégration de production : 0.3.53, sur `main`.
+Source initiale : `design/ui-vscode`, commit `4565ce6` (0.3.53).
+Seconde passe : commits `11543e8` à `d72f0e0` (0.3.55), intégrés sur `main`.
+
+## Seconde passe — 0.3.55
+
+Repris : en-tête transparent et surface du Monitor, suppression du contour au
+clic souris avec conservation des indicateurs clavier, retrait de l’éclair du
+curseur d’effort, nouveau cerveau original, bouton de repli du formulaire de
+conteneur, Bypass magenta avec aura et compte à rebours.
+
+Adaptations et éléments écartés :
+
+- Les identifiants de démonstration `automatic` sont raccordés au vrai Bypass.
+  Le clic ne change pas l’état actif par anticipation. L’attente de confirmation
+  est distincte du mode actif ; l’apprentissage annule tous ces indicateurs.
+- Le compte à rebours utilise seulement `expiresAt` transmis par le moteur.
+  Il ne crée ni ne prolonge une autorisation. Une seule échéance de rendu est
+  conservée, au plus toutes les 15 secondes et exactement à expiration. Le
+  minuteur s’arrête au masquage et à la fermeture de la vue.
+- À l’échéance, l’interface retire l’indication active même si le prochain
+  message de l’hôte n’est pas encore reçu. La gate reste seule responsable des
+  autorisations. La durée n’est jamais inventée dans l’interface.
+- Le magenta est mélangé au premier plan du thème pour préserver le contraste
+  du badge. Le compteur utilise le texte du thème pour rester lisible sur la
+  jauge. Le contraste élevé, les vues masquées et le mouvement réduit arrêtent
+  aussi l’animation portée par le pseudo-élément de la page.
+- Le SVG externe « brain generator idea » du dernier commit n’est pas distribué :
+  `DESIGN.md` indique que sa licence reste à confirmer. Le dessin original de
+  `c874a10` est repris à sa place ; les branches du catalogue et styles réservés
+  à ce SVG externe sont écartés. Pour le reprendre ultérieurement, fournir son
+  URL d’origine et la licence exacte autorisant la redistribution.
+- La recommandation de colorer la barre d’état native n’est pas reprise : son
+  fond d’avertissement natif est conservé. Les webviews utilisent l’aura magenta.
+- Le repli du formulaire ne crée aucune ressource, conserve les champs saisis
+  et rend le focus à « Nouveau conteneur ».
+- L’appui maintenu reste supprimé conformément à la demande pour la 0.3.54.
+  Le harnais et les données fictives restent sur la branche de design.
 
 ## Correction demandée après intégration — 0.3.54
 
@@ -54,7 +89,7 @@ Aucune question ne bloque cette intégration.
    préservant tous les noms, liens et éléments, indépendamment du cadrage et des
    filtres de la vue. L’export complet existant est conservé dans cette version.
 4. Une recette sur VS Code Windows natif reste utile pour les polices, les
-   couleurs de thème, le clavier et l’appui maintenu avec les aides d’accessibilité.
+   couleurs de thème et le clavier avec les aides d’accessibilité.
 
 Pour toute reprise graphique : rester sur `design/ui-vscode`, ne pas fusionner
 `main`, ne pas modifier les protocoles ou simuler de nouvelles données de

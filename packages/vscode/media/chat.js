@@ -694,15 +694,49 @@
   // Mode de supervision : jauge à trois crans dans l'en-tête.
   function paintRoe() {
     const roe = $("roe");
-    const level = document.body.classList.contains("learning")
-      ? 1
-      : document.body.classList.contains("bypass-on")
-        ? 3
-        : 2;
-    const label = ["Apprentissage", "Supervisé", "Bypass"][level - 1];
+    const learning = document.body.classList.contains("learning");
+    const pending = !learning && document.body.classList.contains("bypass-pending");
+    const level = learning ? 1 : document.body.classList.contains("bypass-on") || pending ? 3 : 2;
+    const label = learning
+      ? "Apprentissage"
+      : pending
+        ? "Bypass · en attente"
+        : level === 3
+          ? "Bypass"
+          : "Supervisé";
     roe.dataset.level = String(level);
+    roe.classList.toggle("is-pending", pending);
     $("roe-label").textContent = label;
     roe.setAttribute("aria-label", `Mode de supervision : ${label}. Ouvrir Configurer`);
+  }
+  // Affichage seulement : l’échéance et la décision restent celles du moteur.
+  const BYPASS_MAX_MS = 2 * 60 * 60 * 1000;
+  const BYPASS_ENDING_MS = 10 * 60 * 1000;
+  let bypassTimer = 0;
+  function paintBypassClock() {
+    clearTimeout(bypassTimer);
+    bypassTimer = 0;
+    const roe = $("roe");
+    const expiresAt = bypassCtx.push?.expiresAt;
+    const on = document.body.classList.contains("bypass-on") && Number.isFinite(expiresAt);
+    const ms = on ? Math.max(0, expiresAt - Date.now()) : 0;
+    document.body.classList.toggle("bypass-ending", on && ms > 0 && ms <= BYPASS_ENDING_MS);
+    if (!on || ms === 0) {
+      roe.style.removeProperty("--jn-left");
+      $("roe-left").textContent = "";
+      return;
+    }
+    const minutes = Math.ceil(ms / 60000);
+    const hours = Math.floor(minutes / 60);
+    const left =
+      hours > 0 ? `${hours} h ${String(minutes % 60).padStart(2, "0")}` : `${minutes} min`;
+    roe.style.setProperty("--jn-left", String(Math.min(1, ms / BYPASS_MAX_MS)));
+    $("roe-left").textContent = left;
+    roe.setAttribute(
+      "aria-label",
+      `Mode de supervision : Bypass, reste ${left}. Ouvrir Configurer`,
+    );
+    if (!document.hidden) bypassTimer = setTimeout(renderBypass, Math.min(15000, ms));
   }
   function renderBypass() {
     paintRoe();
@@ -711,17 +745,20 @@
     if (learning) {
       bypassSwitch.setAttribute("aria-checked", "false");
       bypassState.textContent = "Inopérant en mode Apprentissage";
-      document.body.classList.remove("bypass-on");
+      document.body.classList.remove("bypass-on", "bypass-pending");
       bypassBadge.hidden = true;
       bypassBadge.replaceChildren();
       paintRoe();
+      paintBypassClock();
       return;
     }
     const v = UI.bypassView(bypassCtx.push, bypassCtx.previous, bypassCtx.userOff, Date.now());
     bypassSwitch.setAttribute("aria-checked", String(v.checked));
     bypassState.textContent = v.text;
     document.body.classList.toggle("bypass-on", v.state === "on");
+    document.body.classList.toggle("bypass-pending", v.state === "pending");
     paintRoe();
+    paintBypassClock();
     bypassBadge.hidden = v.badge === null;
     if (v.badge) {
       bypassBadge.replaceChildren(
@@ -1326,9 +1363,11 @@
   }
   window.addEventListener("pagehide", () => {
     clearInterval(missionTimer);
+    clearTimeout(bypassTimer);
     approvalNodes.clear();
   });
   document.addEventListener("visibilitychange", applyBody);
+  document.addEventListener("visibilitychange", renderBypass);
   motion.addEventListener("change", applyBody);
   let recall = { index: -1, draft: "" };
   let sent = [];

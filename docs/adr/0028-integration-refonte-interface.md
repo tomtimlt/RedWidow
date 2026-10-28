@@ -10,6 +10,22 @@ réglage, son état local et ses animations. Les trois boutons répondent au cli
 simple et au clavier ; « Toujours » conserve sa confirmation native et la gate
 ses contrôles. Les mentions du maintien ci-dessous décrivent la 0.3.53.
 
+## Amendement 0.3.55
+
+Les cinq commits suivants de la branche, jusqu’à `d72f0e0`, sont adaptés :
+surfaces du Monitor, focus au clavier, curseur d’effort sans éclair, cerveau
+original de `c874a10`, repli du formulaire et affichage du Bypass magenta.
+Le SVG externe du dernier commit est écarté, sa licence restant à confirmer.
+
+Le compteur est visuel : `expiresAt` vient du moteur, une échéance de rendu au
+plus est conservée, suspendue en page masquée et annulée à la fermeture. À
+expiration, l’interface retire les indicateurs actifs ; elle n’accorde ni ne
+prolonge une permission. L’attente de confirmation et l’apprentissage restent
+explicites. L’aura ne capte pas les clics et respecte mouvement réduit,
+contraste élevé et masquage. Le compteur conserve le texte du thème pour la
+lisibilité. La barre d’état native garde son fond d’avertissement. La gate,
+les protocoles d’approbation et les adaptateurs restent inchangés.
+
 ## Contexte
 
 La branche autonome `design/ui-vscode`, inspectée au commit `4565ce6`, propose

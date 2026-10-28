@@ -448,7 +448,9 @@ describe("bypassView (lot B1, ADR 0006) : cinq états, échec fermé, pas de min
     expect(v.state).toBe("on");
     expect(v.checked).toBe(true);
     expect(v.until).toBe(hm(NOW + 118 * 60_000));
-    expect(v.text).toBe(`Actif jusqu'à ${hm(NOW + 118 * 60_000)} (reste 1 h 58).`);
+    expect(v.text).toBe(
+      `Actif jusqu'à ${hm(NOW + 118 * 60_000)} (reste 1 h 58). Échéance fixée par le moteur.`,
+    );
     expect(v.badge).toEqual({ word: "BYPASS", time: hm(NOW + 118 * 60_000) });
   });
   it("reste : une milliseconde au-delà de la minute compte pour la minute suivante", () => {
@@ -480,6 +482,18 @@ describe("bypassView (lot B1, ADR 0006) : cinq états, échec fermé, pas de min
   it("arrêt demandé par l'utilisateur ou reset : pas d'avis de retombée", () => {
     expect(ui.bypassView(off, armed, true, NOW)).toMatchObject({ state: "off", text: "" });
     expect(ui.bypassView(off, on(60_000), true, NOW)).toMatchObject({ state: "off", text: "" });
+  });
+  it("retire l’indication active dès l’échéance, sans inventer de nouvelle durée", () => {
+    for (const ms of [0, -1, -60000]) {
+      expect(ui.bypassView(on(ms), armed, false, NOW)).toMatchObject({
+        state: "ended",
+        checked: false,
+        badge: null,
+        until: null,
+        text: "Bypass terminé.",
+      });
+    }
+    expect(ui.bypassView(on(1), armed, false, NOW).state).toBe("on");
   });
   it("on:true sans expiresAt fini = « off » (échec fermé), y compris après un message valide", () => {
     for (const bad of [

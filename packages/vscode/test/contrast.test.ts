@@ -91,6 +91,26 @@ describe("contraste de la refonte", () => {
     expect(chatCss).toContain("--jn-accent-fill: var(--vscode-button-background)");
     expect(chatCss).toContain("--jn-on-accent: var(--vscode-button-foreground)");
   });
+  for (const theme of ["dark", "light"] as const) {
+    it(`le badge Bypass et son compteur restent lisibles en ${theme}`, () => {
+      const { vars, body } = fixture(theme);
+      const fg = vars.get("--vscode-foreground") as string;
+      const editor = vars.get("--vscode-editor-background") as string;
+      const magenta = vars.get("--vscode-terminal-ansiMagenta") as string;
+      const pct = Number(
+        /var\(--vscode-terminal-ansiMagenta, #[a-f0-9]+\) ([0-9.]+)%/.exec(chatCss)?.[1],
+      );
+      expect(pct).toBeGreaterThan(0);
+      const bypass = mix(magenta, pct, fg);
+      expect(ratio(editor, bypass)).toBeGreaterThanOrEqual(4.5);
+      const clock = /\.roe-left \{([^}]*)\}/.exec(chatCss)?.[1] ?? "";
+      expect(clock).toContain("color: var(--vscode-foreground)");
+      for (const bg of [body, editor]) {
+        expect(ratio(fg, bg)).toBeGreaterThanOrEqual(4.5);
+        expect(ratio(fg, mix(bypass, 16, bg))).toBeGreaterThanOrEqual(4.5);
+      }
+    });
+  }
   for (const theme of ["dark", "light"] as const)
     for (const palette of ["sentinelle", "braise", "bastion", "spectre", "editeur"]) {
       it(`signature lisible sur les surfaces de ${palette}/${theme}`, () => {

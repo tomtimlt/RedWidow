@@ -77,8 +77,8 @@ describe("scripts de la webview", () => {
   });
   it("seules écritures de style : propriétés --jn-* et hauteur du champ", () => {
     for (const m of js.matchAll(/\.style\.(\w+)/g))
-      expect(["setProperty", "height"]).toContain(m[1]);
-    for (const m of js.matchAll(/style\.setProperty\(\s*("[^"]*")/g)) {
+      expect(["setProperty", "removeProperty", "height"]).toContain(m[1]);
+    for (const m of js.matchAll(/style\.(?:setProperty|removeProperty)\(\s*("[^"]*")/g)) {
       expect(m[1]).toMatch(/^("--jn-[a-z]+"|"flex-grow")$/);
     }
   });
@@ -327,15 +327,14 @@ describe("Bypass des approbations (lot B1, ADR 0006)", () => {
     expect(js.match(/type: "reset"/g)).toHaveLength(1);
     expect(js).toContain('bypassUserOff = true;\n    vscode.postMessage({ type: "reset" });');
   });
-  it("aucun minuteur dans le Bypass", () => {
+  it("le clic et le rendu de verdict ne créent pas eux-mêmes de minuteur", () => {
     const block = fnBody(js, "renderBypass") + fnBody(js, "toggleBypass");
     expect(block.length).toBeGreaterThan(0);
     expect(block).not.toMatch(/setInterval|setTimeout|requestAnimationFrame/);
   });
-  it("bordure « actif » : deux variables, sans hex, sans animation", () => {
+  it("bordure active magenta, sans hex ni animation de la bordure", () => {
     const rule = /body\.bypass-on #composer \{([^}]*)\}/.exec(css)?.[1] ?? "";
-    expect(rule).toContain("--vscode-editorWarning-foreground");
-    expect(rule).toContain("--vscode-inputValidation-warningBorder");
+    expect(rule).toContain("var(--jn-bypass)");
     expect(rule).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
     expect(rule).not.toMatch(/animation|transition/);
     const section = css

@@ -61,6 +61,16 @@ body {
   --jn-warn: var(--vscode-editorWarning-foreground, var(--vscode-foreground));
   --jn-err: var(--vscode-errorForeground, var(--vscode-foreground));
   --jn-rail: 2px;
+
+  /* Bypass des approbations : magenta du terminal du thème, distinct des états
+   * ok / alerte / erreur et de la couleur de signature. */
+  --jn-bypass: color-mix(
+    in srgb,
+    var(--vscode-terminal-ansiMagenta, #bc3fbc) 60%,
+    var(--vscode-foreground) 40%
+  );
+  --jn-bypass-tint: color-mix(in srgb, var(--jn-bypass) 16%, transparent);
+  --jn-bypass-edge: color-mix(in srgb, var(--jn-bypass) 60%, transparent);
   /* Espacements (grille de 4 px) */
   --jn-s1: 4px;
   --jn-s2: 8px;
@@ -181,6 +191,9 @@ body.vscode-light[data-palette="editeur"] {
 }
 body.vscode-high-contrast,
 body.vscode-high-contrast-light {
+  --jn-bypass: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+  --jn-bypass-tint: transparent;
+  --jn-bypass-edge: var(--jn-bypass);
   --jn-sig: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
   --jn-sig-tint: transparent;
   --jn-sig-edge: var(--jn-sig);
@@ -218,6 +231,15 @@ body > * {
 :focus-visible {
   outline: 2px solid var(--jn-focus);
   outline-offset: 1px;
+}
+/* VS Code injecte un contour :focus dans ses webviews : il apparaît au clic
+ * souris. On ne garde que le contour clavier (:focus-visible). */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+#effort:focus,
+#effort:focus-visible {
+  outline: none;
 }
 button,
 input,
@@ -291,7 +313,7 @@ select {
   padding: 4px calc(var(--jn-gutter) - 6px) 4px var(--jn-gutter);
   position: relative;
   flex: none;
-  background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+  background: transparent;
   color: var(--vscode-foreground);
   border-bottom: 1px solid var(--jn-line);
 }
@@ -1806,6 +1828,7 @@ body.vscode-high-contrast-light .opt.active {
   color: var(--jn-muted);
 }
 .effort-now {
+  grid-column: 2;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2132,8 +2155,8 @@ body.vscode-high-contrast-light .effort-knob {
   color: var(--jn-sig);
 }
 #bypass-switch[aria-checked="true"] .cfg-switch-ico {
-  background: color-mix(in srgb, var(--jn-warn) 16%, transparent);
-  color: var(--jn-warn);
+  background: var(--jn-bypass-tint);
+  color: var(--jn-bypass);
 }
 #bypass-switch,
 #learning-switch {
@@ -2198,7 +2221,7 @@ body.vscode-high-contrast-light .effort-knob {
   opacity: 1;
 }
 #bypass-switch[aria-checked="true"]::after {
-  background: var(--jn-warn);
+  background: var(--jn-bypass);
   border-color: transparent;
 }
 #learning-switch[aria-checked="true"]::after {
@@ -2466,10 +2489,7 @@ body.no-provider #send {
 }
 #bypass-badge {
   border-color: transparent;
-  background: var(
-    --vscode-editorWarning-foreground,
-    var(--vscode-inputValidation-warningBorder, currentColor)
-  );
+  background: var(--jn-bypass);
   color: var(--vscode-editor-background, var(--vscode-foreground));
   font-family: var(--jn-font);
   font-weight: 650;
@@ -2487,7 +2507,14 @@ body.awaiting #composer {
     );
 }
 body.bypass-on #composer {
-  border-color: var(--vscode-editorWarning-foreground, var(--vscode-inputValidation-warningBorder));
+  border-color: var(--jn-bypass);
+  box-shadow:
+    0 0 0 1px var(--jn-bypass),
+    0 0 18px color-mix(in srgb, var(--jn-bypass) 28%, transparent);
+}
+body.bypass-pending #composer {
+  border-color: var(--jn-bypass-edge);
+  border-style: dashed;
 }
 
 /* ───────────────────────────── Formats ───────────────────────────── */
@@ -3058,6 +3085,46 @@ body.cockpit .cockpit-row.is-running > .dot {
   border: 1px solid var(--jn-line);
   border-radius: var(--jn-r-md);
   background: var(--vscode-editorWidget-background, transparent);
+}
+/* Formulaire de création : en-tête avec bouton de repli (flèche vers le haut),
+ * présent uniquement quand le formulaire est ouvert. */
+.cockpit-create-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.cockpit-create-head .cockpit-h {
+  margin: 0;
+}
+.cockpit-create-close {
+  flex: none;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--jn-line);
+  border-radius: 50%;
+}
+.cockpit-create-close .ico {
+  width: 14px;
+  height: 14px;
+  transform: rotate(180deg);
+}
+.cockpit-create-close:hover:not(:disabled) {
+  border-color: var(--jn-sig-edge);
+  background: var(--jn-sig-tint);
+}
+.cockpit-create-close:hover:not(:disabled) .ico {
+  color: var(--jn-sig);
+}
+#cockpit-create-toggle[aria-expanded="true"] {
+  border-color: var(--jn-sig-edge);
+  background: var(--jn-sig-tint);
+}
+.cockpit-create {
+  animation: jn-pop-in var(--jn-d2) var(--jn-ease-out) 1;
 }
 .cockpit-create .cockpit-actions {
   align-items: center;
@@ -4680,7 +4747,7 @@ body.mode-watch #monitor {
   row-gap: 2px;
   padding: var(--jn-s3) 0 var(--jn-s3);
   border-bottom: 1px solid var(--jn-line);
-  background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+  background: var(--vscode-editor-background, var(--vscode-sideBar-background));
 }
 .mon-title {
   display: flex;
@@ -5010,13 +5077,13 @@ body.mode-watch .mon-head .hint::before {
   opacity: 1;
 }
 #bar-bypass[aria-checked="true"] {
-  background: color-mix(in srgb, var(--jn-warn) 14%, transparent);
-  border-color: var(--jn-warn);
+  background: var(--jn-bypass-tint);
+  border-color: var(--jn-bypass);
   color: var(--vscode-foreground);
 }
 #bar-bypass[aria-checked="true"] .sw-dot {
-  background: var(--jn-warn);
-  border-color: var(--jn-warn);
+  background: var(--jn-bypass);
+  border-color: var(--jn-bypass);
 }
 .chip-switch[aria-disabled="true"] {
   opacity: 0.5;
@@ -5134,6 +5201,9 @@ body.vscode-high-contrast-light .kc-viewport {
 }
 .roe {
   flex: none;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
   gap: 8px;
   min-height: 26px;
   margin-left: 4px;
@@ -5147,6 +5217,28 @@ body.vscode-high-contrast-light .kc-viewport {
 .roe:hover:not(:disabled) {
   border-color: var(--jn-sig-edge);
   background: var(--jn-sig-tint);
+}
+/* Jauge de temps : le fond se vide de droite à gauche jusqu'à l'échéance. */
+.roe::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--jn-bypass-tint);
+  transform: scaleX(var(--jn-left, 0));
+  transform-origin: left center;
+  transition: transform 1s linear;
+  pointer-events: none;
+}
+.roe-left {
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-2xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--vscode-foreground);
+}
+.roe-left:empty {
+  display: none;
 }
 .roe-gauge {
   display: inline-flex;
@@ -5175,10 +5267,19 @@ body.vscode-high-contrast-light .kc-viewport {
   background: var(--jn-sig);
 }
 .roe[data-level="3"] .roe-gauge i {
-  background: var(--jn-warn);
+  background: var(--jn-bypass);
 }
 .roe[data-level="3"] {
-  border-color: color-mix(in srgb, var(--jn-warn) 55%, transparent);
+  border-color: var(--jn-bypass-edge);
+}
+.roe[data-level="3"] #roe-label {
+  color: var(--vscode-foreground);
+}
+.roe.is-pending {
+  border-style: dashed;
+}
+.roe.is-pending .roe-gauge i {
+  opacity: 0.55;
 }
 .roe-text {
   display: inline-flex;
@@ -5611,6 +5712,39 @@ body.vscode-high-contrast-light .report-seg {
   }
 }
 
+/* ───────────────────────────── Aura du bypass ─────────────────────────────
+ * Contour et lueur de la vue entière tant que le bypass est actif ; en
+ * pointillés quand il attend la confirmation de l'agent. */
+
+body.bypass-on::after,
+body.bypass-pending::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+  border: 2px solid var(--jn-bypass);
+  box-shadow:
+    inset 0 0 22px color-mix(in srgb, var(--jn-bypass) 34%, transparent),
+    inset 0 0 70px color-mix(in srgb, var(--jn-bypass) 12%, transparent);
+}
+body.bypass-pending::after {
+  border-style: dashed;
+  border-color: var(--jn-bypass-edge);
+}
+body.vscode-high-contrast.bypass-on::after,
+body.vscode-high-contrast-light.bypass-on::after {
+  box-shadow: none;
+  border-width: 3px;
+}
+body.vscode-high-contrast.bypass-pending::after,
+body.vscode-high-contrast-light.bypass-pending::after {
+  box-shadow: none;
+}
+body.mode-watch::after {
+  inset: 0;
+}
+
 /* ───────────────────────────── Validation armée ───────────────────────────── */
 
 .card[data-risk="high"] {
@@ -5727,6 +5861,9 @@ body.vscode-high-contrast-light .card-level {
     & #cfg-btn:hover .chip-ico {
       transform: scaleX(-1);
     }
+    & .cockpit-create-close:hover:not(:disabled) .ico {
+      transform: rotate(180deg) translateY(2px);
+    }
     & #models-refresh:hover:not(:disabled) .ico,
     & #effort-auto:hover:not(:disabled) .ico {
       transform: rotate(120deg);
@@ -5772,6 +5909,17 @@ body.vscode-high-contrast-light .card-level {
     }
     & .mon-row.is-flash {
       animation: jn-flash 1s var(--jn-ease-out) 1;
+    }
+    /* Bypass : respiration de l'aura, plus vive dans les 10 dernières minutes. */
+    &.bypass-on::after {
+      animation: jn-aura 4s var(--jn-ease-io) infinite;
+    }
+    &.bypass-pending::after {
+      animation: jn-aura 1.8s var(--jn-ease-io) infinite;
+    }
+    &.bypass-ending::after,
+    &.bypass-ending .roe {
+      animation: jn-aura 1s var(--jn-ease-io) infinite;
     }
     /* Verrouillage : les crochets se referment sur la cible. */
     & .kc-node.is-replay .kc-node-head::after,
@@ -5971,6 +6119,15 @@ body.vscode-high-contrast-light .card-level {
     opacity: 1;
   }
 }
+@keyframes jn-aura {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
 @keyframes jn-lock-on {
   from {
     opacity: 0;
@@ -6125,6 +6282,8 @@ body.vscode-high-contrast-light .card-level {
 .mon-out.is-plain {
   padding-inline-start: var(--jn-s3);
 }
+body.page-hidden::after,
+body.paused::after,
 body.page-hidden *,
 body.page-hidden *::before,
 body.page-hidden *::after,
@@ -6156,4 +6315,18 @@ body.mode-report
     #no-provider
   ) {
   display: none;
+}
+
+/* L’aura portée par body respecte aussi la réduction des mouvements. */
+@media (prefers-reduced-motion: reduce), (forced-colors: active) {
+  body::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+body.reduce-motion::after,
+body.vscode-high-contrast::after,
+body.vscode-high-contrast-light::after {
+  animation: none !important;
+  transition: none !important;
 }
