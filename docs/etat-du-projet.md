@@ -20,7 +20,7 @@ La version du manifeste est **0.3.53**. Les paragraphes
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
 
-## Lot 0.3.53 — intégration de la refonte (préparé)
+## Lot 0.3.53 — intégration de la refonte (publié)
 
 La branche `design/ui-vscode` au commit `4565ce6` est portée dans les composants
 réels : charte, cinq palettes, polices locales Geist, logo, cartes d’approbation,
@@ -41,7 +41,19 @@ Les anciennes assertions de charte ont été remplacées par celles de la refont
 les tests des protocoles, de la CSP et des contrôles de projet sont conservés.
 Les **51 parcours Chromium** couvrent cinq vues, trois thèmes, trois largeurs et les
 interactions de production ; aucun appel payant n’a été lancé. Diff relu.
-Publication en cours. La recette native Windows, notamment la
+Le commit **6ef6880**, sous `tomtimlt`, est poussé sur `main` et marqué
+**v0.3.53**. Le [workflow 40607740766](https://github.com/tomtimlt/warband/actions/runs/40607740766)
+a réussi : contrôles, build et packaging Linux/Windows. Les quatre assets de la
+[release 0.3.53](https://github.com/tomtimlt/warband/releases/tag/v0.3.53) ont été
+téléchargés et vérifiés : deux VSIX et leurs SHA-256, empreintes conformes aux
+digests GitHub, ZIP intègres, manifeste 0.3.53, binaires natifs des deux cibles
+conformes à leurs empreintes embarquées. Les médias de la refonte sont identiques
+au commit validé ; les deux polices et leur licence locale, les commandes de
+palette et d’aperçu, les archives, les exports, la méthodologie et le transport
+HTTPS strict sont présents. Les fichiers SHA préexistants non suivis ne sont
+pas ajoutés au dépôt.
+
+La recette native Windows, notamment la
 reconnaissance des autorités HTTPS système, reste à confirmer sur le poste
 utilisateur ; cette refonte ne constitue pas une preuve de résolution TLS.
 
