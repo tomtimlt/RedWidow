@@ -20,7 +20,7 @@ La version du manifeste est **0.3.58**. Les paragraphes
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
 
-## Lot 0.3.58 — Apparence et Multicolore (préparé)
+## Lot 0.3.58 — Apparence et Multicolore (publié)
 
 Les trois commits jusqu’à `834cff1` de `design/ui-vscode` sont examinés. Apparence
 est raccordée au vrai réglage `warband.palette` : cinq cartes, clavier, aperçus
@@ -37,7 +37,18 @@ la cohérence des listes et les contrastes. Les neuf parcours Chromium couvrent
 Apparence, chat et Monitor sur trois thèmes et trois largeurs : confirmation,
 erreur/reprise, clavier, brouillon conservé et états préservés. Trois essais
 complémentaires valident le cycle des liserés sur les conteneurs réels du chat.
-Captures et diff relus ; aucun appel payant lancé. Publication en cours.
+Captures et diff relus ; aucun appel payant lancé.
+
+Le commit **54d7b2b**, poussé sous `tomtimlt`, est marqué **v0.3.58**. Le
+[workflow 40687792826](https://github.com/tomtimlt/warband/actions/runs/40687792826)
+a réussi. Les quatre assets de la [release 0.3.58](https://github.com/tomtimlt/warband/releases/tag/v0.3.58)
+ont été téléchargés et vérifiés : deux VSIX et leurs SHA-256, digests GitHub
+conformes, ZIP intègres, manifeste 0.3.58, binaires natifs conformes à leurs
+empreintes et médias identiques au commit validé. Apparence, la liste blanche,
+Multicolore et ses aperçus sont présents ; le SVG externe reste absent. Les
+confirmations natives, les consignes communes de tenue de mission et le
+transport HTTPS strict sont conservés. La recette native Windows, notamment
+ses certificats système, reste à confirmer sur le poste utilisateur.
 
 ## Lot 0.3.57 — contrat explicite de tenue de mission (publié)
 
