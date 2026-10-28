@@ -90,3 +90,27 @@ export function missionReport(
   );
   return lines.join("\n");
 }
+
+/** Vue de notes : aucune gravité n'est déduite du type ou de l'état d'une trouvaille. */
+export function missionReportPreview(
+  project: { id: string; name: string },
+  findings: readonly Finding[],
+) {
+  return {
+    id: -1,
+    kind: "report" as const,
+    projectId: project.id,
+    title: `Notes du projet — ${stripControl(project.name)}`,
+    description:
+      "Brouillon à compléter. Les notes ne constituent pas une liste de vulnérabilités. Gravité, preuves et remédiations restent à évaluer. Identifiants et loot exclus.",
+    findings: findings
+      .filter((finding) => finding.kind !== "credential" && finding.kind !== "loot")
+      .map((finding) => ({
+        label: stripControl(finding.label),
+        severity: "unrated" as const,
+        detail: [TYPES[finding.kind], STATES[finding.state], finding.tactic, finding.technique]
+          .filter(Boolean)
+          .join(" · "),
+      })),
+  };
+}

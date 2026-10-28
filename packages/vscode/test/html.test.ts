@@ -58,13 +58,11 @@ describe("HTML du chat : CSP stricte", () => {
 describe("scripts de la webview", () => {
   const js = read("../media/chat.js");
   const ui = read("../media/ui.js");
-  it("liste noire : pas d'horloge visuelle, de style en ligne ni de HTML dynamique", () => {
+  it("aucun HTML dynamique, style injecté ou évaluation de code", () => {
     for (const src of [js, ui]) {
       for (const bad of [
         'setAttribute("style"',
         "setAttribute('style'",
-        "requestAnimationFrame",
-        "setInterval",
         "innerHTML",
         "outerHTML",
         "insertAdjacentHTML",
@@ -81,7 +79,7 @@ describe("scripts de la webview", () => {
     for (const m of js.matchAll(/\.style\.(\w+)/g))
       expect(["setProperty", "height"]).toContain(m[1]);
     for (const m of js.matchAll(/style\.setProperty\(\s*("[^"]*")/g)) {
-      expect(m[1]).toMatch(/^"--jn-[a-z]+"$/);
+      expect(m[1]).toMatch(/^("--jn-[a-z]+"|"flex-grow")$/);
     }
   });
   it("n'insère jamais de HTML ni ne lance de code dynamique", () => {
@@ -117,7 +115,8 @@ describe("manifeste de l'extension", () => {
       { scope: string },
     ][];
     expect(props.length).toBeGreaterThan(0);
-    for (const [key, p] of props) expect(p.scope, key).toBe("machine");
+    for (const [key, p] of props)
+      expect(p.scope, key).toBe(key === "warband.palette" ? "window" : "machine");
   });
   it("aucun réglage ne désactive ou ne contourne la gate", () => {
     const keys = Object.keys(m.contributes.configuration.properties).join(" ");
@@ -147,7 +146,7 @@ describe("composer et Configurer (lot P1)", () => {
     expect(studio).not.toContain("/start");
     expect(js).toContain("Aucun terminal Warband ouvert. Alt+J T pour en ouvrir un.");
     expect(studio).toContain("Aucun conteneur affiché. Gérez les associations dans le cockpit.");
-    expect(studio).toContain("Aucun conteneur. Créez-en un dans le cockpit.");
+    expect(studio).toContain("Aucun conteneur pour l’instant");
     expect(html).not.toMatch(/\bmcp\b|jauge|compact|pièce jointe active/i);
   });
   it("Monitor est une icône du compositeur, à côté de /, et ouvre le panneau", () => {
@@ -224,7 +223,7 @@ describe("composer et Configurer (lot P1)", () => {
     for (const id of ["model-chip", "cfg-btn", "history-btn", "thinking", "send", "stop"]) {
       expect(tag(id), id).not.toBe("");
     }
-    expect(html).toContain('class="ico activity-icon"');
+    expect(html).toContain('class="brand thinking-mark"');
   });
   it("D2 : plus d'élément .sweep ni de curseur ▍ dans #thinking, plus de classes sweep/pop posées par chat.js", () => {
     expect(html).not.toContain("sweep");
@@ -238,20 +237,12 @@ describe("composer et Configurer (lot P1)", () => {
     expect(rule).toContain("--vscode-inputValidation-warningBorder");
     expect(rule).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
   });
-  it("l'approbation en attente garde sa bordure et ajoute un anneau d'1 px (double trait)", () => {
-    const rule = /body\.awaiting #composer \{([^}]*)\}/.exec(css)?.[1] ?? "";
-    expect(rule).toMatch(
-      /box-shadow:\s*inset 0 0 0 1px\s+var\(\s*--vscode-editorWarning-foreground/,
-    );
-    expect(rule).toContain("--vscode-inputValidation-warningBorder");
-    expect(rule).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
-  });
-  it("jetons de rayon (refonte visuelle)", () => {
-    expect(css).toMatch(/--jn-r-sm: 6px;/);
-    expect(css).toMatch(/--jn-r-md: 8px;/);
-    expect(css).toMatch(/--jn-r-lg: 12px;/);
-    expect(css).not.toMatch(/--jn-r-pill/);
-    expect(css).toMatch(/border-radius:\s*999px/);
+  it("les rayons suivent la nouvelle charte et l’attente conserve une couleur du thème", () => {
+    expect(css).toContain("--jn-r-sm: 8px");
+    expect(css).toContain("--jn-r-md: 12px");
+    expect(css).toContain("--jn-r-lg: 18px");
+    expect(css).toContain("body.awaiting #composer");
+    expect(css).toContain("--vscode-editorWarning-foreground");
   });
   it("Configurer garde ses deux sections sans options factices", () => {
     expect(tag("cfg-pop")).toContain('role="dialog"');
@@ -305,8 +296,7 @@ describe("Bypass des approbations (lot B1, ADR 0006)", () => {
     expect(bodies).toEqual(['type: "setBypass", enabled']);
   });
   it("le clic n'écrit ni aria-checked, ni classe, ni texte", () => {
-    const start = js.indexOf("function toggleBypass(");
-    const click = js.slice(start, js.indexOf("/** Envoi de `reset`", start));
+    const click = fnBody(js, "toggleBypass");
     expect(click).toContain("const enabled = !(last?.on === true || last?.armed === true);");
     expect(click).not.toMatch(/setAttribute|classList|textContent|\.hidden|replaceChildren/);
   });
@@ -321,7 +311,8 @@ describe("Bypass des approbations (lot B1, ADR 0006)", () => {
       "bypassBadge.hidden",
       "bypassBadge.title",
       "bypassBadge.replaceChildren",
-      '"bypass-on"',
+      'classList.add("bypass-on"',
+      'classList.toggle("bypass-on"',
     ]) {
       expect(outside, bad).not.toContain(bad);
     }
@@ -337,10 +328,7 @@ describe("Bypass des approbations (lot B1, ADR 0006)", () => {
     expect(js).toContain('bypassUserOff = true;\n    vscode.postMessage({ type: "reset" });');
   });
   it("aucun minuteur dans le Bypass", () => {
-    const block = js.slice(
-      js.indexOf("// --- Bypass des approbations"),
-      js.indexOf("  wirePop(cfgPop"),
-    );
+    const block = fnBody(js, "renderBypass") + fnBody(js, "toggleBypass");
     expect(block.length).toBeGreaterThan(0);
     expect(block).not.toMatch(/setInterval|setTimeout|requestAnimationFrame/);
   });

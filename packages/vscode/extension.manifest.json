@@ -2,7 +2,7 @@
   "name": "warband",
   "displayName": "Warband",
   "description": "Chat d'agent avec approbation des outils (warband).",
-  "version": "0.3.52",
+  "version": "0.3.53",
   "publisher": "warband",
   "license": "MIT",
   "engines": { "vscode": "^1.90.0" },
@@ -64,7 +64,12 @@
       },
       { "command": "warband.setToken", "title": "Warband : définir le jeton", "icon": "$(key)" },
       { "command": "warband.clearToken", "title": "Warband : effacer le jeton" },
-      { "command": "warband.diagnostic", "title": "Warband : diagnostic", "icon": "$(pulse)" }
+      { "command": "warband.diagnostic", "title": "Warband : diagnostic", "icon": "$(pulse)" },
+      { "command": "warband.choosePalette", "title": "Warband : choisir une palette" },
+      {
+        "command": "warband.previewReport",
+        "title": "Warband : prévisualiser le brouillon de rapport"
+      }
     ],
     "menus": {
       "view/title": [
@@ -131,6 +136,20 @@
     "configuration": {
       "title": "Warband",
       "properties": {
+        "warband.palette": {
+          "type": "string",
+          "enum": ["sentinelle", "braise", "bastion", "spectre", "editeur"],
+          "enumDescriptions": [
+            "Sarcelle et ardoise",
+            "Cramoisi et acier",
+            "Cuivre et graphite",
+            "Violet et glace",
+            "Accent du thème VS Code"
+          ],
+          "default": "sentinelle",
+          "scope": "window",
+          "description": "Palette visuelle de Warband."
+        },
         "warband.model": {
           "type": "string",
           "default": "",

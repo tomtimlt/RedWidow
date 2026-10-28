@@ -1,6 +1,6 @@
 # Warband — parcours, état actuel et reprise
 
-État inspecté le 27 octobre 2026 pour la version 0.3.52. Ce document sert de point d'entrée produit ;
+État inspecté le 28 octobre 2026 pour la version 0.3.53. Ce document sert de point d'entrée produit ;
 les ADR expliquent les décisions, les idées restent une réserve.
 
 ## Le parcours de référence
@@ -15,10 +15,35 @@ parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
 
-La version du manifeste est **0.3.52**. Les paragraphes
+La version du manifeste est **0.3.53**. Les paragraphes
 0.3.19 à 0.3.29 ci-dessous sont des relevés historiques, pas les preuves de
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
+
+## Lot 0.3.53 — intégration de la refonte (préparé)
+
+La branche `design/ui-vscode` au commit `4565ce6` est portée dans les composants
+réels : charte, cinq palettes, polices locales Geist, logo, cartes d’approbation,
+Monitor, réglages et Kill Chain. Les contrats et protections de production sont
+conservés, ainsi que les archives par pages et l’export SVG complet de la 0.3.52.
+Le changement de palette ne recharge pas les vues ; l’appui maintenu de 900 ms
+s’annule dès que la demande devient périmée. La gate conserve tous ses contrôles.
+
+Les éléments simulés ont été raccordés aux données disponibles : le rail compte
+l’activité de la page, l’horloge mesure le tour actif, le rejeu n’est qu’une
+visualisation du chemin vert, et l’aperçu du rapport utilise les notes réelles,
+sans identifiants ni loot et avec gravités « À évaluer ». Aucune progression
+ni réussite n’est inventée. Voir l’[ADR 0028](adr/0028-integration-refonte-interface.md)
+et les [retours au designer](retour-refonte-interface.md).
+
+Validation locale : **1 974 tests réussis, 14 ignorés**, typage et build réussis.
+Les anciennes assertions de charte ont été remplacées par celles de la refonte ;
+les tests des protocoles, de la CSP et des contrôles de projet sont conservés.
+Les **51 parcours Chromium** couvrent cinq vues, trois thèmes, trois largeurs et les
+interactions de production ; aucun appel payant n’a été lancé. Diff relu.
+Publication en cours. La recette native Windows, notamment la
+reconnaissance des autorités HTTPS système, reste à confirmer sur le poste
+utilisateur ; cette refonte ne constitue pas une preuve de résolution TLS.
 
 ## Lot 0.3.52 — image complète et archives par pages (publié)
 

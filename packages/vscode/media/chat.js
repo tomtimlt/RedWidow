@@ -1,7 +1,3 @@
-// Webview de chat (ADR 0004). Tout texte venant du modèle ou des outils est inséré par
-// `textContent` / createTextNode (jamais de HTML) ; il a déjà été neutralisé côté extension.
-// Le Markdown arrive déjà analysé en arbre (src/logic/markdown.ts) : ici on ne construit que
-// des nœuds d'une liste blanche. Aucun appel réseau.
 (() => {
   const vscode = acquireVsCodeApi();
   const $ = (id) => document.getElementById(id);
@@ -11,16 +7,13 @@
   const input = $("input");
   const send = $("send");
   const stop = $("stop");
-  // Logique pure (media/ui.js, chargé avant) : navigation clavier, placement, classes d'état.
   const UI = globalThis.WarbandUI;
-
   const el = (tag, className, text) => {
     const node = document.createElement(tag);
     if (className) node.className = className;
-    if (text !== undefined) node.textContent = text;
+    if (text !== void 0) node.textContent = text;
     return node;
   };
-
   const EXAMPLES = [
     "Fais un nmap peu verbeux et résume les ports ouverts",
     "Parmi les services trouvés, lesquels valent un test en premier ?",
@@ -29,8 +22,6 @@
   const STATUS = { pending: "en cours", ok: "réussi", error: "erreur", denied: "refusé" };
   const ICON = { pending: "clock", ok: "check", error: "close", denied: "ban" };
   const svg = (name, className) => globalThis.WarbandIcons.create(name, className);
-
-  // --- Markdown : arbre -> nœuds DOM (balises en liste blanche, texte par createTextNode) ---
   function inline(parent, nodes) {
     for (const n of nodes) {
       if (n.t === "text") parent.append(document.createTextNode(n.v));
@@ -42,7 +33,6 @@
       }
     }
   }
-
   async function copy(text, button) {
     try {
       await navigator.clipboard.writeText(text);
@@ -54,7 +44,6 @@
       button.textContent = "Copier";
     }, 1500);
   }
-
   function renderBlock(b) {
     if (b.t === "p") {
       const p = el("p");
@@ -116,13 +105,9 @@
     }
     return list;
   }
-
-  // --- Éléments du fil ---
-  const openTools = new Set();
-  // Dernier état vu de chaque outil : l'icône ne « se pose » (animation unique) qu'au changement d'état.
-  const toolStatus = new Map();
-
-  function renderTool(item, reference) {
+  const openTools = /* @__PURE__ */ new Set();
+  const toolStatus = /* @__PURE__ */ new Map();
+  function renderTool(item, credential) {
     const toolUseId = item.toolUseId;
     const box = el("details", `tool ${item.status}`);
     box.open = openTools.has(item.toolUseId);
@@ -133,7 +118,7 @@
     const sum = el("summary");
     const icon = svg(ICON[item.status] ?? "tool", "ico icon");
     const before = toolStatus.get(item.toolUseId);
-    if (before !== undefined && before !== item.status) icon.classList.add("settled");
+    if (before !== void 0 && before !== item.status) icon.classList.add("settled");
     toolStatus.set(item.toolUseId, item.status);
     sum.append(
       svg("chevronRight", "ico tool-chevron"),
@@ -143,22 +128,28 @@
     if (item.summary) sum.append(el("span", "tool-summary", item.summary));
     sum.append(icon, el("span", "tool-state", STATUS[item.status] ?? item.status));
     box.append(sum);
-    // Les sorties repliées ne créent aucun DOM de détail (souvent la majorité du Monitor).
     let body;
     const paintBody = () => {
       if (!box.open) {
         body?.remove();
-        body = undefined;
+        body = void 0;
         return;
       }
       if (body) return;
-      const current = reference.item;
+      const current = credential.item;
       body = el("div", "tool-body");
       body.append(el("div", "label", "Entrée"), el("pre", "", current.input));
       if (current.output)
         body.append(
           el("div", "label", "Sortie"),
-          el("pre", "", current.truncated ? `${current.output}\n[…tronqué]` : current.output),
+          el(
+            "pre",
+            "",
+            current.truncated
+              ? `${current.output}
+[…tronqué]`
+              : current.output,
+          ),
         );
       box.append(body);
     };
@@ -166,7 +157,6 @@
     paintBody();
     return box;
   }
-
   function copyButton(text) {
     const btn = el("button", "msg-copy", "Copier");
     btn.type = "button";
@@ -174,15 +164,107 @@
     btn.addEventListener("click", () => copy(text, btn));
     return btn;
   }
-
+  // Les réponses de l'agent sont signées du logo, repris de l'en-tête.
+  function agentMark() {
+    const mark = document.querySelector("#title .brand")?.cloneNode(true);
+    if (!mark) return null;
+    mark.setAttribute("class", "brand msg-avatar");
+    mark.setAttribute("width", "20");
+    mark.setAttribute("height", "20");
+    return mark;
+  }
   function messageShell(kind, text, body) {
     const row = el("div", `msg-row ${kind}`);
+    const mark = kind === "agent" ? agentMark() : null;
+    if (mark) row.append(mark);
     row.append(body, copyButton(text));
     return row;
   }
-
-  const itemNodes = new Map();
-  // Comparer les champs de vue sans dupliquer les longues sorties en signatures JSON.
+  // Rapport : constats classés par gravité, avec une barre de répartition.
+  const SEVERITY = [
+    ["critical", "Critique"],
+    ["high", "Élevée"],
+    ["medium", "Moyenne"],
+    ["low", "Faible"],
+    ["info", "Info"],
+    ["unrated", "À évaluer"],
+  ];
+  function renderReport(item) {
+    const findings = Array.isArray(item.findings) ? item.findings : [];
+    const box = el("section", "report");
+    box.setAttribute("aria-label", item.title || "Rapport");
+    const head = el("div", "report-head");
+    head.append(svg("file", "ico report-ico"), el("h3", "report-title", item.title || "Rapport"));
+    head.append(
+      el("span", "report-count", `${findings.length} constat${findings.length > 1 ? "s" : ""}`),
+    );
+    const bar = el("div", "report-bar");
+    bar.setAttribute("aria-hidden", "true");
+    const summary = el("p", "report-summary");
+    const parts = [];
+    for (const [key, label] of SEVERITY) {
+      const count = findings.filter((f) => f.severity === key).length;
+      if (!count) continue;
+      const seg = el("span", `report-seg sev-${key}`);
+      seg.style.setProperty("flex-grow", String(count));
+      bar.append(seg);
+      parts.push(`${count} ${label.toLowerCase()}`);
+    }
+    summary.textContent = parts.join(" · ");
+    const list = el("ul", "report-list");
+    for (const f of findings) {
+      const known = SEVERITY.find(([key]) => key === f.severity) ?? SEVERITY[5];
+      const li = el("li", `report-item sev-${known[0]}`);
+      li.append(el("span", "report-sev", known[1]));
+      const body = el("div", "report-body");
+      body.append(el("span", "report-label", f.label ?? ""));
+      if (f.detail) body.append(el("span", "report-detail", f.detail));
+      li.append(body);
+      list.append(li);
+    }
+    box.append(head, bar, summary);
+    if (item.description) box.append(el("p", "report-caption", item.description));
+    box.append(list);
+    if (item.projectId) {
+      const save = el("button", "primary", "Exporter le brouillon Markdown");
+      save.type = "button";
+      save.addEventListener("click", () =>
+        vscode.postMessage({ type: "exportReport", projectId: item.projectId }),
+      );
+      box.append(save);
+    }
+    return box;
+  }
+  // Progression de la mission : rail de phases sous l'en-tête.
+  function paintMission(mission) {
+    const nav = $("mission");
+    const phases = Array.isArray(mission?.phases) ? mission.phases : [];
+    nav.hidden = phases.length === 0;
+    const STATE = {
+      done: "terminée",
+      current: "en cours",
+      wait: "en attente d'accord",
+      todo: "à venir",
+    };
+    $("mission-steps").replaceChildren(
+      ...phases.map((tactic, i) => {
+        const li = el("li", `mission-step is-${tactic.state}`);
+        if (tactic.state === "current" || tactic.state === "wait")
+          li.setAttribute("aria-current", "step");
+        const mark = el("span", "mission-mark");
+        mark.setAttribute("aria-hidden", "true");
+        if (tactic.state === "done") mark.append(svg("check", "ico"));
+        else mark.textContent = String(i + 1);
+        li.append(
+          mark,
+          el("span", "mission-label", tactic.label),
+          el("span", "sr-only", ` : ${STATE[tactic.state] ?? tactic.state}`),
+        );
+        return li;
+      }),
+    );
+  }
+  const itemNodes = /* @__PURE__ */ new Map();
   const sameDisplay = (a, b) =>
     a &&
     Object.keys(a).length === Object.keys(b).length &&
@@ -193,9 +275,10 @@
       cached.item = item;
       return cached.node;
     }
-    const reference = { item, node: null };
+    const credential = { item, node: null };
     let node;
-    if (item.kind === "tool") node = renderTool(item, reference);
+    if (item.kind === "tool") node = renderTool(item, credential);
+    else if (item.kind === "report") node = renderReport(item);
     else if (item.kind === "user")
       node = messageShell("user", item.text, el("div", "msg user", item.text));
     else if (item.kind === "agent") {
@@ -206,8 +289,8 @@
       node = el("div", `notice ${item.level}`, item.text);
       if (item.level === "error") node.setAttribute("role", "alert");
     }
-    reference.node = node;
-    itemNodes.set(item.id, reference);
+    credential.node = node;
+    itemNodes.set(item.id, credential);
     return node;
   }
   function renderItems(items) {
@@ -234,9 +317,15 @@
     for (const id of openTools) if (!tools.has(id)) openTools.delete(id);
     return nodes;
   }
-
   function welcome(sandbox) {
     const box = el("div", "welcome");
+    const mark = document.querySelector("#title .brand")?.cloneNode(true);
+    if (mark) {
+      mark.setAttribute("class", "brand welcome-mark");
+      mark.removeAttribute("width");
+      mark.removeAttribute("height");
+      box.append(mark);
+    }
     box.append(
       el("h2", "", "On commence par où ?"),
       el("p", "hint", "Décris la cible. Chaque action sensible demande ton accord."),
@@ -258,21 +347,100 @@
     }
     return box;
   }
-
-  // --- Cartes d'approbation ---
-  const seenCards = new Set();
-
+  const seenCards = /* @__PURE__ */ new Set();
+  // Validation « armement » : repères descriptifs de la demande et, par
+  // défaut, appui maintenu jusqu'au verrouillage pour autoriser.
+  const HOLD_MS = 900;
+  let holdToConfirm = !(typeof vscode.getState === "function" && vscode.getState()?.hold === false);
+  let hintCount = 0;
+  const approvalNodes = new Map();
+  const cancelHolds = new Set();
+  function cardRisks(card) {
+    const risks = [];
+    if (UI.toolIcon(card.tool) === "terminal") risks.push(["terminal", "Exécution"]);
+    if (card.networkActive) risks.push(["link", "Réseau"]);
+    if (card.canRemember) risks.push(["history", "Mémorisable"]);
+    return { risks, level: "review" };
+  }
+  function armButton(b, hint, confirm) {
+    let start = 0;
+    let frame = 0;
+    const idle = "Maintenez le bouton jusqu'au verrouillage pour autoriser.";
+    const reset = () => {
+      cancelAnimationFrame(frame);
+      frame = 0;
+      b.classList.remove("is-arming");
+      b.style.setProperty("--jn-arm", "0");
+    };
+    const tick = (time) => {
+      if (!b.isConnected || document.hidden || !holdToConfirm) {
+        end();
+        return;
+      }
+      if (!start) start = time;
+      const progress = Math.min((time - start) / HOLD_MS, 1);
+      b.style.setProperty("--jn-arm", String(progress));
+      if (progress >= 1) {
+        reset();
+        confirm();
+        return;
+      }
+      frame = requestAnimationFrame(tick);
+    };
+    const begin = () => {
+      if (!holdToConfirm || frame || b.disabled) return;
+      start = 0;
+      b.classList.add("is-arming");
+      hint.textContent = "Armement…";
+      frame = requestAnimationFrame(tick);
+    };
+    const end = () => {
+      if (!frame) return;
+      reset();
+      hint.textContent = idle;
+    };
+    end.detached = () => !b.isConnected;
+    cancelHolds.add(end);
+    const isKey = (e) => e.key === " " || e.key === "Enter";
+    b.addEventListener("pointerdown", (e) => {
+      if (e.button === 0) begin();
+    });
+    for (const type of ["pointerup", "pointerleave", "pointercancel", "blur"])
+      b.addEventListener(type, end);
+    b.addEventListener("keydown", (e) => {
+      if (!holdToConfirm || !isKey(e)) return;
+      e.preventDefault();
+      if (!e.repeat) begin();
+    });
+    b.addEventListener("keyup", (e) => {
+      if (!holdToConfirm || !isKey(e)) return;
+      e.preventDefault();
+      end();
+    });
+    b.addEventListener("click", () => {
+      if (!holdToConfirm) confirm();
+      else if (!frame) hint.textContent = idle;
+    });
+  }
   function renderCard(card, isNew) {
     const box = el("div", isNew ? "card enter" : "card");
     box.tabIndex = -1;
     box.setAttribute("role", "group");
     box.setAttribute("aria-label", `Demande d'autorisation : ${card.label}`);
-    // En-tête : icône décorative (aria-hidden) et titre fixe.
+    const { risks, level } = cardRisks(card);
+    box.dataset.risk = level;
     const head = el("div", "card-head");
     const icon = svg("shield", "ico card-icon");
     icon.setAttribute("aria-hidden", "true");
     head.append(icon, el("div", "card-title", "Autorisation requise"));
-    // Grille clé/valeur compacte : outil, résumé, raison. Aucune ligne d'environnement (donnée absente).
+    const levelChip = el("span", "card-level", "À vérifier");
+    head.append(levelChip);
+    const chips = el("div", "card-risks");
+    for (const [name, label] of risks) {
+      const chip = el("span", "card-risk");
+      chip.append(svg(name, "ico"), document.createTextNode(label));
+      chips.append(chip);
+    }
     const grid = el("div", "card-grid");
     const outil = el("div", "card-val", card.label);
     if (card.networkActive) outil.append(document.createTextNode(" · réseau activé"));
@@ -286,25 +454,43 @@
     );
     const det = el("details", "card-details");
     det.append(el("summary", "", "Détails"), el("pre", "", card.detail));
-    box.append(head, grid, det);
+    box.append(head);
+    if (risks.length) box.append(chips);
+    box.append(grid, det);
     const row = el("div", "card-buttons");
+    const hint = el("p", "card-hint");
+    hint.id = `card-hint-${++hintCount}`;
+    hint.setAttribute("role", "status");
+    hint.textContent = holdToConfirm
+      ? "Maintenez le bouton jusqu'au verrouillage pour autoriser."
+      : "";
     const buttons = {};
+    const decide = (choice) => {
+      box.classList.add(choice === "deny" ? "is-denied" : "is-locked");
+      hint.textContent = "";
+      if (box.dataset.decided) return;
+      box.dataset.decided = "true";
+      for (const button of row.querySelectorAll("button")) button.disabled = true;
+      for (const cancel of cancelHolds) cancel();
+      row.replaceChildren(el("span", "badge", choice === "deny" ? "Refusé" : "Autorisé"));
+      vscode.postMessage({ type: "approve", toolUseId: card.toolUseId, choice });
+    };
     const button = (label, choice, css) => {
       const b = el("button", css, label);
       b.type = "button";
-      b.addEventListener("click", () => {
-        row.replaceChildren(el("span", "badge", choice === "deny" ? "Refusé" : "Autorisé"));
-        vscode.postMessage({ type: "approve", toolUseId: card.toolUseId, choice });
-      });
+      if (choice === "deny") b.addEventListener("click", () => decide(choice));
+      else {
+        b.classList.add("arm");
+        b.setAttribute("aria-describedby", hint.id);
+        armButton(b, hint, () => decide(choice));
+      }
       buttons[choice] = b;
       row.append(b);
     };
     button("Autoriser une fois", "once", "primary");
     button("Refuser", "deny", "danger");
-    // « Toujours » seulement si mémorisable ; la modale native le confirme côté extension.
     if (card.canRemember) button("Toujours", "always", "link");
-    box.append(row);
-    // Échap sur la carte (pas dans un champ) : refuser.
+    box.append(row, hint);
     box.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && e.target === box) {
         e.preventDefault();
@@ -314,7 +500,6 @@
     return box;
   }
 
-  // --- Modèle, Configurer : tout est revalidé par l'extension, ici on ne fait qu'afficher ---
   const ctlGroup = $("ctl-group");
   const modelChip = $("model-chip");
   const cfgBtn = $("cfg-btn");
@@ -330,13 +515,10 @@
   let active = -1;
   let visible = [];
   let optNodes = [];
-
-  // Placement d'un popover : mesures seulement à l'ouverture et pendant qu'il est ouvert.
   let openPop = null;
   const resizer = new ResizeObserver(() => {
     if (openPop) place(openPop.pop, openPop.chip);
   });
-
   function place(pop, anchor) {
     pop.style.setProperty("--jn-maxh", "9999px");
     const r = anchor.getBoundingClientRect();
@@ -353,9 +535,7 @@
     pop.style.setProperty("--jn-maxh", `${p.maxHeight}px`);
     pop.classList.add("placed");
   }
-
-  /** Popover natif (light dismiss, Échap) : ouverture refusée si la pastille est verrouillée ; focus rendu à la fermeture. */
-  function wirePop(pop, chip, { render, focus }) {
+  function wirePop(pop, chip, { render: render2, focus }) {
     pop.addEventListener("beforetoggle", (e) => {
       if (e.newState === "open" && chip.getAttribute("aria-disabled") === "true")
         e.preventDefault();
@@ -364,7 +544,7 @@
       const open = e.newState === "open";
       chip.setAttribute("aria-expanded", String(open));
       if (open) {
-        render();
+        render2();
         place(pop, chip);
         openPop = { pop, chip };
         resizer.observe(document.body);
@@ -380,7 +560,6 @@
       const a = document.activeElement;
       if (!a || a === document.body || pop.contains(a)) chip.focus();
     });
-    // Piège de focus : Tab et Maj+Tab cyclent dans le popover.
     pop.addEventListener("keydown", (e) => {
       if (e.key !== "Tab") return;
       const items = [...pop.querySelectorAll("button, input")].filter(
@@ -393,8 +572,6 @@
       }
     });
   }
-
-  // Liste des modèles : listbox ARIA avec filtre (aria-activedescendant, le focus reste dans le champ).
   const modelEntries = () => [
     {
       value: null,
@@ -403,7 +580,6 @@
     },
     ...(ctl?.models ?? []),
   ];
-
   function paintActive() {
     optNodes.forEach((n, i) => {
       n.classList.toggle("active", i === active);
@@ -414,13 +590,11 @@
       node.scrollIntoView({ block: "nearest" });
     } else modelFilter.removeAttribute("aria-activedescendant");
   }
-
   function pick(entry) {
     if (!ctl || ctl.locked) return;
     if (entry.value !== ctl.model) vscode.postMessage({ type: "setModel", model: entry.value });
     modelPop.hidePopover();
   }
-
   function renderModelList(preferCurrent) {
     visible = UI.filterModels(UI.groupModels(modelEntries(), ctl.provider), query);
     optNodes = [];
@@ -446,14 +620,15 @@
       const current = m.value === ctl.model;
       o.setAttribute("aria-selected", String(current));
       o.title = [m.value, m.description].filter(Boolean).join(" — ");
-      o.append(el("span", "opt-label", m.label));
+      const mark = svg("check", "ico opt-check");
+      o.append(mark, el("span", "opt-label", m.label));
       const badges = el("span", "model-badges");
       if (m.free) {
         const badge = el("span", "badge model-free", "Gratuit");
         badge.title = "Modèle annoncé « Free » par le fournisseur.";
         badges.append(badge);
       }
-      if (current) badges.append(el("span", "badge", "actuel"));
+      if (current) badges.append(el("span", "sr-only", "actuel"));
       o.append(badges);
       if (m.value !== null) o.append(el("span", "opt-desc model-source", m.value));
       if (m.description) o.append(el("span", "opt-desc", m.description));
@@ -484,9 +659,9 @@
           ).active;
     paintActive();
   }
-
   function renderControls(c) {
     ctlGroup.hidden = !c;
+    $("roe").hidden = !c;
     ctl = c;
     if (!c) {
       for (const p of [modelPop, cfgPop]) if (p.matches(":popover-open")) p.hidePopover();
@@ -502,7 +677,6 @@
     const name = c.model === null ? "Modèle par défaut" : (known?.label ?? c.model);
     $("model-chip-label").textContent = name;
     modelChip.title = `Modèle : ${name} (utilisé pour le message suivant)`;
-
     const free = c.models === null;
     const loading = c.modelsStatus === "loading";
     const message =
@@ -520,11 +694,12 @@
     modelInput.hidden = !free || loading;
     modelInput.disabled = c.locked;
     $("models-refresh").disabled = c.locked;
-    $("models-refresh").textContent = loading ? "Relancer le chargement" : "Actualiser la liste";
+    $("models-refresh-label").textContent = loading
+      ? "Relancer le chargement"
+      : "Actualiser la liste";
     if (free) {
       if (document.activeElement !== modelInput) modelInput.value = c.model ?? "";
     } else if (modelPop.matches(":popover-open")) renderModelList(false);
-
     levels =
       c.provider === "claude"
         ? c.levels.filter((level) => level.enabled)
@@ -545,27 +720,35 @@
         );
     effortInput.value = String(idx);
     const scale = $("effort-scale");
+    scale.classList.remove("is-dragging");
     scale.style.setProperty("--jn-progress", String(idx / Math.max(levels.length - 1, 1)));
     scale.classList.toggle("auto", auto);
+    shownLevel = auto ? -1 : idx;
     effortInput.disabled = c.locked || c.effortDisabled;
     const disabledTip =
       c.provider === "claude"
         ? "Ce modèle n'a pas d'effort réglable."
         : "Aucune variante de raisonnement connue pour ce modèle. Actualisez la liste des modèles.";
     effortInput.title = c.effortDisabled ? disabledTip : c.effortTip;
-    effortInput.setAttribute("aria-valuetext", `${c.effortLabel} : ${c.effortTip}`);
-    $("effort-label").textContent = c.effortLabel;
+    effortInput.setAttribute(
+      "aria-valuetext",
+      `${auto ? "Auto" : (levels[idx]?.label ?? c.effortLabel)} : ${c.effortTip}`,
+    );
+    const shown = auto ? "Auto" : (levels[idx]?.label ?? c.effortLabel);
+    $("effort-label").textContent = shown;
     $("effort-tip").textContent = c.effortDisabled ? disabledTip : c.effortTip;
-    $("cfg-level").textContent = c.effortLabel;
+    $("cfg-level").textContent = shown;
+    $("effort-model-label").textContent = name;
+    $("effort-model").disabled = c.locked;
+    paintNotches(idx);
+    scale.classList.toggle("is-disabled", effortInput.disabled);
     cfgBtn.title = `Configurer : effort ${c.effortLabel}`;
-    // Mode Apprentissage : pastille, classe du corps, interrupteur gelé pendant un tour ; le Bypass est grisé.
     document.body.classList.toggle("learning", c.learning === true);
     $("learning-badge").hidden = c.learning !== true;
     learningSwitch.setAttribute("aria-checked", String(c.learning === true));
     learningSwitch.setAttribute("aria-disabled", String(c.locked));
     renderBypass();
   }
-
   wirePop(modelPop, modelChip, {
     render() {
       query = "";
@@ -576,10 +759,7 @@
       (ctl?.models === null ? modelInput : modelFilter).focus();
     },
   });
-  // --- Bypass des approbations (ADR 0006, lot B1) : l'affichage ne reflète que le dernier message `bypass`.
-  // Aucune écriture hors de renderBypass (appelée par le gestionnaire `message` et à l'ouverture de Configurer).
   const bypassSwitch = $("bypass-switch");
-  // --- Mode Apprentissage (ADR 0010) : le clic n'écrit rien, il envoie le booléen inverse du dernier état reçu.
   const learningSwitch = $("learning-switch");
   function toggleLearning() {
     if (!ctl || ctl.locked) return;
@@ -588,13 +768,36 @@
   learningSwitch.addEventListener("click", toggleLearning);
   const bypassState = $("bypass-state");
   const bypassBadge = $("bypass-badge");
-  /** Dernier message reçu, le précédent, et le drapeau « off ou reset demandé » qui l'a précédé. */
   let bypassCtx = { push: null, previous: null, userOff: false };
-  /** Demande d'arrêt faite depuis la webview, consommée par le message `bypass` suivant. */
   let bypassUserOff = false;
-
+  // Mode de supervision : jauge à trois crans dans l'en-tête.
+  function paintRoe() {
+    const roe = $("roe");
+    const level = document.body.classList.contains("learning")
+      ? 1
+      : document.body.classList.contains("bypass-on")
+        ? 3
+        : 2;
+    const label = ["Apprentissage", "Supervisé", "Bypass"][level - 1];
+    roe.dataset.level = String(level);
+    $("roe-label").textContent = label;
+    roe.setAttribute("aria-label", `Mode de supervision : ${label}. Ouvrir Configurer`);
+  }
+  const holdSwitch = $("hold-switch");
+  holdSwitch.setAttribute("aria-checked", String(holdToConfirm));
+  holdSwitch.addEventListener("click", () => {
+    for (const cancel of cancelHolds) cancel();
+    holdToConfirm = !holdToConfirm;
+    holdSwitch.setAttribute("aria-checked", String(holdToConfirm));
+    if (typeof vscode.setState === "function")
+      vscode.setState({ ...(vscode.getState?.() ?? {}), hold: holdToConfirm });
+    for (const hint of document.querySelectorAll(".card-hint"))
+      hint.textContent = holdToConfirm
+        ? "Maintenez le bouton jusqu'au verrouillage pour autoriser."
+        : "";
+  });
   function renderBypass() {
-    // Apprentissage : le Bypass est inopérant pour ce chat (ADR 0010) ; l'état fenêtre-global reste intact.
+    paintRoe();
     const learning = ctl?.learning === true;
     bypassSwitch.setAttribute("aria-disabled", String(learning));
     if (learning) {
@@ -603,12 +806,14 @@
       document.body.classList.remove("bypass-on");
       bypassBadge.hidden = true;
       bypassBadge.replaceChildren();
+      paintRoe();
       return;
     }
     const v = UI.bypassView(bypassCtx.push, bypassCtx.previous, bypassCtx.userOff, Date.now());
     bypassSwitch.setAttribute("aria-checked", String(v.checked));
     bypassState.textContent = v.text;
     document.body.classList.toggle("bypass-on", v.state === "on");
+    paintRoe();
     bypassBadge.hidden = v.badge === null;
     if (v.badge) {
       bypassBadge.replaceChildren(
@@ -618,8 +823,6 @@
       bypassBadge.title = `Bypass actif jusqu'à ${v.until} : désactivable dans Configurer ou la barre d'état`;
     } else bypassBadge.replaceChildren();
   }
-
-  // Le clic n'écrit rien dans le DOM : il envoie le booléen calculé sur le dernier message reçu.
   function toggleBypass() {
     if (ctl?.learning === true) return;
     const last = bypassCtx.push;
@@ -628,13 +831,10 @@
     vscode.postMessage({ type: "setBypass", enabled });
   }
   bypassSwitch.addEventListener("click", toggleBypass);
-
-  /** Envoi de `reset` : mémorisé pour que l'avis de retombée ne prétende aucune cause. */
   function resetConversation() {
     bypassUserOff = true;
     vscode.postMessage({ type: "reset" });
   }
-
   wirePop(cfgPop, cfgBtn, {
     render() {
       renderBypass();
@@ -643,8 +843,6 @@
       [...cfgPop.querySelectorAll("input, button")].find((n) => !n.disabled && !n.hidden)?.focus();
     },
   });
-
-  // Menu « / » : seulement /clear.
   const slashPop = $("slash-pop");
   const slashBtn = $("slash-btn");
   $("monitor-btn").addEventListener("click", () => vscode.postMessage({ type: "openMonitor" }));
@@ -661,7 +859,6 @@
     slashPop.hidePopover();
     resetConversation();
   });
-  // Menu « @ » (conteneurs) et « # » (terminaux ouverts). Un seul popover, le sigil au curseur décide.
   const mentionPop = $("mention-pop");
   const mentionList = $("mention-list");
   const mentionEmpty = $("mention-empty");
@@ -670,7 +867,6 @@
   let mentionActive = 0;
   let mentionShown = [];
   let mentionSigil = "@";
-
   function mentionOpen() {
     return mentionPop.matches(":popover-open");
   }
@@ -729,9 +925,8 @@
   }
   let lastTerminalsAsk = 0;
   function openMention() {
-    // Menu « # » : liste fraîche (dernière commande de chaque terminal), au plus une demande par seconde.
     const cursor = input.selectionStart ?? input.value.length;
-    if (UI.hashSpan(input.value, cursor) && Date.now() - lastTerminalsAsk > 1000) {
+    if (UI.hashSpan(input.value, cursor) && Date.now() - lastTerminalsAsk > 1e3) {
       lastTerminalsAsk = Date.now();
       vscode.postMessage({ type: "refreshTerminals" });
     }
@@ -751,7 +946,6 @@
     grow();
     input.focus();
   }
-  // Boutons « @ » (conteneurs) et « # » (terminaux) : insèrent le signe au curseur puis ouvrent la liste.
   function sigilClick(sigil, spanOf) {
     const start = input.selectionStart ?? input.value.length;
     const end = input.selectionEnd ?? start;
@@ -762,7 +956,6 @@
   }
   mentionBtn.addEventListener("click", () => sigilClick("@", UI.mentionSpan));
   hashBtn.addEventListener("click", () => sigilClick("#", UI.hashSpan));
-
   modelFilter.addEventListener("input", () => {
     query = modelFilter.value;
     renderModelList(false);
@@ -811,39 +1004,103 @@
     );
   }
   $("effort-auto").addEventListener("click", () => postReasoningChoice(null));
-  effortInput.addEventListener("input", () => {
-    const index = Number(effortInput.value);
+  $("effort-model").addEventListener("click", () => {
+    if (!ctl || ctl.locked) return;
+    cfgPop.hidePopover();
+    modelPop.showPopover();
+  });
+  // Curseur d'effort : suit le pointeur en continu, puis se cale sur le niveau
+  // le plus proche au relâchement. Le clavier passe d'un niveau à l'autre.
+  const effortScale = $("effort-scale");
+  let shownLevel = -1;
+  const lastLevel = () => Math.max(levels.length - 1, 1);
+  function paintNotches(position) {
+    const box = effortScale.querySelector(".effort-notches");
+    if (box.childElementCount !== levels.length) {
+      box.replaceChildren(
+        ...levels.map((_, i) => {
+          const notch = el("span", "effort-notch");
+          notch.style.setProperty("--jn-at", String(i / lastLevel()));
+          return notch;
+        }),
+      );
+    }
+    [...box.children].forEach((notch, i) => {
+      notch.classList.toggle("is-on", i <= position + 0.001);
+    });
+  }
+  function showLevel(index) {
     const level = levels[index];
-    if (!level || !ctl || ctl.locked || ctl.effortDisabled) return;
-    $("effort-scale").style.setProperty(
-      "--jn-progress",
-      String(index / Math.max(levels.length - 1, 1)),
-    );
+    if (!level) return;
     $("effort-label").textContent = level.label;
     effortInput.setAttribute("aria-valuetext", level.label);
+    if (index !== shownLevel) {
+      const label = $("effort-label");
+      label.classList.remove("bump");
+      void label.offsetWidth;
+      label.classList.add("bump");
+      shownLevel = index;
+    }
+  }
+  const effortLocked = () => !ctl || ctl.locked || ctl.effortDisabled || levels.length === 0;
+  function settleEffort(index, post) {
+    const target = Math.min(Math.max(Math.round(index), 0), levels.length - 1);
+    effortScale.classList.remove("is-dragging");
+    effortInput.value = String(target);
+    effortScale.style.setProperty("--jn-progress", String(target / lastLevel()));
+    paintNotches(target);
+    showLevel(target);
+    if (post) postReasoningChoice(levels[target].value);
+  }
+  effortInput.addEventListener("pointerdown", () => {
+    if (!effortLocked()) effortScale.classList.add("is-dragging", "is-pressed");
+  });
+  const release = () => effortScale.classList.remove("is-pressed");
+  effortInput.addEventListener("pointerup", release);
+  effortInput.addEventListener("pointercancel", release);
+  effortInput.addEventListener("input", () => {
+    if (effortLocked()) return;
+    const raw = Number(effortInput.value);
+    effortScale.classList.add("is-dragging");
+    effortScale.style.setProperty("--jn-progress", String(raw / lastLevel()));
+    paintNotches(raw);
+    showLevel(Math.round(raw));
   });
   effortInput.addEventListener("change", () => {
-    const level = levels[Number(effortInput.value)];
-    if (level) postReasoningChoice(level.value);
+    if (!effortLocked()) settleEffort(Number(effortInput.value), true);
   });
-
-  // --- Historique : liste des conversations (chaînes déjà neutralisées par l'extension) ---
+  effortInput.addEventListener("keydown", (event) => {
+    if (effortLocked()) return;
+    const current = Math.round(Number(effortInput.value));
+    const next = {
+      ArrowLeft: current - 1,
+      ArrowDown: current - 1,
+      ArrowRight: current + 1,
+      ArrowUp: current + 1,
+      PageDown: current - 1,
+      PageUp: current + 1,
+      Home: 0,
+      End: levels.length - 1,
+    }[event.key];
+    if (next === undefined) return;
+    event.preventDefault();
+    const target = Math.min(Math.max(next, 0), levels.length - 1);
+    if (target !== current || effortScale.classList.contains("auto")) settleEffort(target, true);
+  });
   const historyPanel = $("history");
   const historyBtn = $("history-btn");
   let renaming = null;
-  // Vrai si la conversation courante tourne (badge « en cours » seulement dans ce cas).
   let historyRunning = false;
   let historyEntries = [];
   const projectFilter = el("select", "hist-project-filter");
   projectFilter.setAttribute("aria-label", "Filtrer les conversations par projet");
   historyList.before(projectFilter);
   projectFilter.addEventListener("change", () => renderHistory(historyEntries));
-
-  function renderHistory(entries) {
-    historyEntries = entries;
+  function renderHistory(findings) {
+    historyEntries = findings;
     const selected = projectFilter.value || "all";
     const projects = new Map(
-      entries.map((h) => [h.projectKey || "none", h.projectLabel || "Sans projet"]),
+      findings.map((h) => [h.projectKey || "none", h.projectLabel || "Sans projet"]),
     );
     const option = (value, label) => {
       const node = el("option", "", label);
@@ -855,19 +1112,19 @@
       ...[...projects].map(([key, label]) => option(key, label)),
     );
     projectFilter.value = selected === "all" || projects.has(selected) ? selected : "all";
-    const allEntries = entries;
-    entries = entries.filter(
+    const allEntries = findings;
+    findings = findings.filter(
       (h) => projectFilter.value === "all" || (h.projectKey || "none") === projectFilter.value,
     );
     $("history-clear").title =
       "Supprimer toutes les conversations de ce chat, tous projets compris";
     $("history-clear").disabled = allEntries.length === 0;
-    if (entries.length === 0) {
+    if (findings.length === 0) {
       historyList.replaceChildren(el("li", "hist-empty", "Aucune conversation enregistrée."));
       return;
     }
     historyList.replaceChildren(
-      ...entries.map((h) => {
+      ...findings.map((h) => {
         const li = el("li", h.current ? "hist current" : "hist");
         const when = new Date(h.updatedAt).toLocaleString();
         const meta = `${h.projectLabel || "Sans projet"} · ${when} · ${h.tools} outil${h.tools > 1 ? "s" : ""} · ${h.provider} · ${h.model}`;
@@ -922,7 +1179,6 @@
       }),
     );
   }
-
   function renderReadonly(info) {
     const bar = $("readonly");
     bar.hidden = !info;
@@ -935,8 +1191,6 @@
       ? "Reprendre"
       : "Reprendre (nouvelle session)";
   }
-
-  // Historique : tiroir à gauche. Fermeture par ✕, Échap, clic sur le voile ou choix d'une conversation.
   function setHistoryOpen(open) {
     historyPanel.hidden = !open;
     historyBtn.setAttribute("aria-expanded", String(open));
@@ -967,19 +1221,15 @@
     if (!ctl?.locked) vscode.postMessage({ type: "setProvider", provider: event.target.value });
   });
   $("no-provider-add").addEventListener("click", () => vscode.postMessage({ type: "addProvider" }));
-
-  // --- Monitor (lecture seule) : lignes pures de ui.js (monitorRows), texte en textContent ---
   const monitorRowsEl = $("monitor-rows");
   const monitorEmpty = $("monitor-empty");
   const monitor = $("monitor");
   const monitorFollowBtn = $("monitor-follow");
   let monitorFollow = true;
-
   function followMonitorBottom() {
     for (const box of monitorRowsEl.querySelectorAll(".mon-out")) box.scrollTop = box.scrollHeight;
     monitor.scrollTop = monitor.scrollHeight;
   }
-
   monitorFollowBtn.addEventListener("click", () => {
     monitorFollow = !monitorFollow;
     monitorFollowBtn.setAttribute("aria-pressed", String(monitorFollow));
@@ -988,19 +1238,30 @@
       : "Activer le suivi et revenir en bas";
     if (monitorFollow) followMonitorBottom();
   });
-
   let watchId = "";
-
   function monitorLine(row) {
     const li = el("li", `mon-row tone-${row.tone}`);
     li.dataset.monitorId = row.id;
     const cmd = el("div", "mon-cmd");
-    if (row.container !== "") cmd.append(el("span", "prompt", row.container));
+    const dot = el("span", "mon-dot");
+    dot.setAttribute("aria-hidden", "true");
+    cmd.append(dot);
+    if (row.container !== "") cmd.append(el("span", "prompt mon-space", row.container));
     cmd.append(el("span", "prompt", "$"), el("code", "mon-text", row.command));
     const meta = el("div", "mon-meta");
-    meta.append(el("span", "badge", row.status));
+    meta.append(el("span", "badge mon-state", row.status));
     li.append(cmd, meta);
-    if (row.output !== "") li.append(el("pre", "mon-out", row.output));
+    if (row.output !== "") {
+      // Sortie numérotée : une ligne par élément, toujours insérée comme texte.
+      const out = el("pre", "mon-out");
+      const lines = row.output.replace(/\n$/, "").split("\n");
+      if (row.numbered) out.append(...lines.map((line) => el("span", "mon-line", line)));
+      else {
+        out.textContent = row.output;
+        out.classList.add("is-plain");
+      }
+      li.append(out);
+    }
     if (row.truncated) li.append(el("p", "note", "sortie tronquée"));
     if (mode === "monitor" && row.toolUseId) {
       li.tabIndex = 0;
@@ -1017,10 +1278,51 @@
     }
     return li;
   }
+  const monitorNodes = /* @__PURE__ */ new Map();
+  // Frise : un trait par commande, coloré par son état ; un clic amène à l'entrée.
+  const stripTicks = /* @__PURE__ */ new Map();
+  function paintStrip(rows) {
+    const strip = $("monitor-strip");
+    strip.hidden = rows.length === 0 || mode === "watch";
+    const ids = new Set(rows.map((row) => row.id));
+    for (const id of stripTicks.keys()) if (!ids.has(id)) stripTicks.delete(id);
+    const ticks = rows.map((row, i) => {
+      let tick = stripTicks.get(row.id);
+      if (!tick) {
+        tick = el("button", "mon-tick");
+        tick.type = "button";
+        tick.addEventListener("click", () => {
+          const line = [...monitorRowsEl.children].find(
+            (n) => n.dataset.monitorId === tick.dataset.rowId,
+          );
+          if (!line) return;
+          monitorFollow = false;
+          monitorFollowBtn.setAttribute("aria-pressed", "false");
+          const head = monitor.querySelector(".mon-head").getBoundingClientRect();
+          const offset = line.getBoundingClientRect().top - head.bottom - 8;
+          monitor.scrollTo({
+            top: monitor.scrollTop + offset,
+            behavior: motion.matches ? "auto" : "smooth",
+          });
+          line.classList.remove("is-flash");
+          void line.offsetWidth;
+          line.classList.add("is-flash");
+        });
+        stripTicks.set(row.id, tick);
+      }
+      tick.dataset.rowId = row.id;
+      tick.className = `mon-tick tone-${row.tone}`;
+      tick.setAttribute("aria-label", `Commande ${i + 1} : ${row.command}, ${row.status}`);
+      tick.title = `${row.command} · ${row.status}`;
+      return tick;
+    });
+    const same =
+      ticks.length === strip.children.length &&
+      ticks.every((tick, i) => strip.children[i] === tick);
+    if (!same) strip.replaceChildren(...ticks);
+  }
 
-  const monitorNodes = new Map();
   function renderMonitor(view) {
-    // Le rendu remplace les lignes : conserver aussi le défilement de chaque sortie.
     const top = monitor.scrollTop;
     const positions = new Map(
       [...monitorRowsEl.children].map((line) => {
@@ -1033,6 +1335,13 @@
       rows = rows.filter((row) => row.toolUseId === watchId);
       if (!rows.length && monitorNodes.size) return;
     }
+    let numberBudget = 2000;
+    rows = rows.map((row) => {
+      const count = row.output.split("\n").length;
+      const numbered = count <= Math.min(80, numberBudget);
+      if (numbered) numberBudget -= count;
+      return { ...row, numbered };
+    });
     const ids = new Set(rows.map((row) => row.id));
     for (const id of monitorNodes.keys()) if (!ids.has(id)) monitorNodes.delete(id);
     monitorRowsEl.replaceChildren(
@@ -1046,6 +1355,20 @@
       }),
     );
     monitorEmpty.hidden = rows.length > 0;
+    const waiting = rows.filter((r) => r.tone === "wait").length;
+    const failed = rows.filter((r) => r.tone === "err").length;
+    $("monitor-count").textContent =
+      rows.length === 0
+        ? ""
+        : [
+            `${rows.length} commande${rows.length > 1 ? "s" : ""}`,
+            waiting ? `${waiting} en attente` : "",
+            failed ? `${failed} en erreur` : "",
+          ]
+            .filter(Boolean)
+            .join(" · ");
+    document.body.classList.toggle("monitor-live", waiting > 0);
+    paintStrip(rows);
     for (const line of monitorRowsEl.children) {
       const box = line.querySelector(".mon-out");
       const previous = positions.get(line.dataset.monitorId);
@@ -1057,11 +1380,7 @@
     if (monitorFollow) followMonitorBottom();
     else monitor.scrollTop = top;
   }
-
-  // Monitor : panneau éditeur seul. Le chat rend toujours ses propres cartes.
   let mode = "conversation";
-
-  // Classes de body (running, waiting, paused, readonly, reduce-motion) : les effets CSS n'en dépendent que par elles.
   const MANAGED = ["running", "waiting", "paused", "readonly", "reduce-motion"];
   const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
   let lastView = null;
@@ -1072,12 +1391,45 @@
       reducedMotion: motion.matches,
     });
     for (const c of MANAGED) document.body.classList.toggle(c, want.includes(c));
+    paintClock();
   }
-  // La vue a retainContextWhenHidden : on fige les animations quand elle est cachée.
+  // Horloge : temps écoulé depuis le début du tour actif (T+mm:ss).
+  let missionStart = null;
+  let missionTimer = 0;
+  const pad2 = (n) => String(n).padStart(2, "0");
+  function tickClock() {
+    let text = "";
+    if (missionStart !== null) {
+      const total = Math.floor((Date.now() - missionStart) / 1e3);
+      const h = Math.floor(total / 3600);
+      text = `T+${h ? `${h}:` : ""}${pad2(Math.floor(total / 60) % 60)}:${pad2(total % 60)}`;
+    }
+    $("mission-clock").textContent = text;
+    $("thinking-clock").textContent = text;
+  }
+  function paintClock() {
+    missionStart =
+      lastView?.busy && Number.isFinite(lastView.turnStartedAt) ? lastView.turnStartedAt : null;
+    if (missionStart === null || document.hidden) {
+      clearInterval(missionTimer);
+      missionTimer = 0;
+    } else if (!missionTimer) missionTimer = setInterval(tickClock, 1000);
+    tickClock();
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) for (const cancel of cancelHolds) cancel();
+  });
+  window.addEventListener("blur", () => {
+    for (const cancel of cancelHolds) cancel();
+  });
+  window.addEventListener("pagehide", () => {
+    clearInterval(missionTimer);
+    for (const cancel of cancelHolds) cancel();
+    cancelHolds.clear();
+    approvalNodes.clear();
+  });
   document.addEventListener("visibilitychange", applyBody);
   motion.addEventListener("change", applyBody);
-
-  // Rappel des consignes (comme un terminal) : index -1 = brouillon.
   let recall = { index: -1, draft: "" };
   let sent = [];
   let shownNodes = -1;
@@ -1098,7 +1450,10 @@
   }
   function renderPaging(paging) {
     timeline.hidden =
-      mode === "watch" || !paging || (!paging.earlier && !paging.archived && !paging.error);
+      mode === "watch" ||
+      mode === "report" ||
+      !paging ||
+      (!paging.earlier && !paging.archived && !paging.error);
     $("timeline-older").disabled = !paging?.earlier || paging.loading;
     $("timeline-newer").hidden = !paging?.archived;
     $("timeline-newer").disabled = !!paging?.loading;
@@ -1109,6 +1464,7 @@
   }
   let pageBefore = null;
   function render(view) {
+    paintMission(UI.conversationActivity(view));
     const nextBefore = view.paging?.before ?? null;
     const pageChanged = nextBefore !== pageBefore;
     pageBefore = nextBefore;
@@ -1119,7 +1475,6 @@
     renderPaging(view.paging);
     if (mode === "monitor" || mode === "watch") {
       renderMonitor(view);
-      // Ne pas construire un deuxième chat invisible, ni recopier son catalogue de modèles.
       log.replaceChildren();
       itemNodes.clear();
       approvals.replaceChildren();
@@ -1142,19 +1497,37 @@
       : log.scrollHeight - log.scrollTop - log.clientHeight < 40;
     const top = log.scrollTop;
     const nodes = view.items.length === 0 ? [welcome(view.sandbox)] : renderItems(view.items);
-    // Entrée animée des seuls nœuds ajoutés depuis le rendu précédent (pas au chargement d'un historique).
     const added = nodes.length - shownNodes;
     if (shownNodes >= 0 && added > 0 && added <= 3) {
       for (const n of nodes.slice(shownNodes)) n.classList.add("enter");
     }
     shownNodes = view.items.length === 0 ? 0 : nodes.length;
     log.replaceChildren(...nodes);
-    const visible = mode === "monitor" || !Array.isArray(view.approvals) ? [] : view.approvals;
-    const cards = visible.map((c) => renderCard(c, !seenCards.has(c.toolUseId)));
-    approvals.replaceChildren(...cards);
-    const fresh = visible.findIndex((c) => !seenCards.has(c.toolUseId));
+    const visible2 = mode === "monitor" || !Array.isArray(view.approvals) ? [] : view.approvals;
+    const cards = visible2.map((card) => {
+      let cached = approvalNodes.get(card.toolUseId);
+      if (!sameDisplay(cached?.card, card)) {
+        cached = { card, node: renderCard(card, !seenCards.has(card.toolUseId)) };
+        approvalNodes.set(card.toolUseId, cached);
+      }
+      return cached.node;
+    });
+    const currentApprovals = new Set(visible2.map((card) => card.toolUseId));
+    for (const id of approvalNodes.keys()) if (!currentApprovals.has(id)) approvalNodes.delete(id);
+    if (
+      cards.length !== approvals.children.length ||
+      cards.some((card, index) => approvals.children[index] !== card)
+    )
+      approvals.replaceChildren(...cards);
+    // Les cartes retirées ne peuvent plus envoyer une validation différée.
+    for (const cancel of cancelHolds)
+      if (cancel.detached?.()) {
+        cancel();
+        cancelHolds.delete(cancel);
+      }
+    const fresh = visible2.findIndex((c) => !seenCards.has(c.toolUseId));
     seenCards.clear();
-    for (const c of visible) seenCards.add(c.toolUseId);
+    for (const c of visible2) seenCards.add(c.toolUseId);
     if (fresh >= 0) cards[fresh]?.focus();
     const sb = $("sandbox");
     if (view.sandbox) {
@@ -1164,9 +1537,7 @@
           : `Bac à sable : ${view.sandbox}`;
     } else sb.textContent = "";
     sb.hidden = !view.sandbox;
-    // Bordure orange du composer tant qu'une demande d'autorisation attend la réponse.
     document.body.classList.toggle("awaiting", approvals.childElementCount > 0);
-    // Sans fournisseur : bandeau d'invite, saisie et envoi désactivés (le CSS grise le reste).
     const noProvider = !!view.noProvider;
     $("no-provider").hidden = !noProvider;
     ctlGroup.hidden = !view.controls || noProvider;
@@ -1183,13 +1554,12 @@
     log.setAttribute("aria-busy", view.busy ? "true" : "false");
     log.scrollTop = atBottom ? log.scrollHeight : top;
   }
-
   let chatId;
   window.addEventListener("message", (event) => {
     const message = event.data;
     if (message && message.type === "view") {
       if (
-        (message.chatId !== undefined && message.chatId !== chatId) ||
+        (message.chatId !== void 0 && message.chatId !== chatId) ||
         message.view.conversation !== lastView?.conversation
       ) {
         chatId = message.chatId;
@@ -1197,6 +1567,10 @@
         recall = { index: -1, draft: "" };
         shownNodes = -1;
         pageBefore = null;
+        for (const cancel of cancelHolds) cancel();
+        cancelHolds.clear();
+        approvalNodes.clear();
+        stripTicks.clear();
         itemNodes.clear();
         monitorNodes.clear();
         openTools.clear();
@@ -1221,8 +1595,14 @@
       document.body.classList.add("mode-watch");
       document.body.classList.remove("mode-monitor");
       if (lastView) render(lastView);
+    } else if (message && message.type === "role" && message.role === "report") {
+      mode = "report";
+      document.body.classList.add("mode-report");
+      if (lastView) render(lastView);
     } else if (message && message.type === "title" && typeof message.text === "string") {
-      $("title").textContent = message.text.slice(0, 120);
+      const brandName = document.querySelector("#title .brand-name");
+      if (brandName) brandName.textContent = message.text.slice(0, 120);
+      else $("title").textContent = message.text.slice(0, 120);
     } else if (message && message.type === "containers") {
       containers = UI.safeContainers(message.items);
       if (mentionOpen()) renderMentions();
@@ -1235,7 +1615,6 @@
       renderBypass();
     }
   });
-
   function grow() {
     input.style.height = "auto";
     input.style.height = `${input.scrollHeight}px`;
@@ -1300,7 +1679,7 @@
       !e.metaKey
     ) {
       const next = UI.inputRecall(
-        { index: recall.index, draft: recall.draft, entries: sent, current: input.value },
+        { index: recall.index, draft: recall.draft, findings: sent, current: input.value },
         e.key === "ArrowUp" ? "up" : "down",
         caretLine(),
       );

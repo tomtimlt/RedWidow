@@ -405,7 +405,33 @@
     );
   }
 
+  /** Compteurs observés de la fenêtre courante ; ne prétend pas mesurer les objectifs de la mission. */
+  function conversationActivity(view) {
+    const items = itemsOf(view);
+    if (!items.length && !view?.busy) return null;
+    const tools = items.filter((item) => item.kind === "tool");
+    const pending = tools.filter((item) => item.status === "pending").length;
+    const approvals = Array.isArray(view?.approvals) ? view.approvals.length : 0;
+    const messages = items.filter((item) => item.kind === "user" || item.kind === "agent").length;
+    return {
+      phases: [
+        {
+          label: `${messages} message${messages !== 1 ? "s" : ""}`,
+          state: view?.busy ? "current" : "done",
+        },
+        {
+          label: `${tools.length} outil${tools.length !== 1 ? "s" : ""}${pending ? ` · ${pending} en cours` : ""}`,
+          state: pending ? "current" : tools.length ? "done" : "todo",
+        },
+        {
+          label: `${approvals} accord${approvals > 1 ? "s" : ""} en attente`,
+          state: approvals ? "wait" : "todo",
+        },
+      ],
+    };
+  }
   const api = {
+    conversationActivity,
     EXEC_TOOL,
     toolIcon,
     bypassView,

@@ -1,5 +1,16 @@
 # Spécification de design : cockpit, composer, Configurer, cartes et réglages
 
+## Décision visuelle actuelle — intégration de la 0.3.53
+
+L’[ADR 0028](adr/0028-integration-refonte-interface.md) prime sur les prescriptions
+visuelles historiques ci-dessous : charte « Acier et signature », Geist locale,
+cinq palettes, rails, rayons 8/12/18 et pilules, nouvelle marque et animations
+respectant le mouvement réduit. Les obligations de CSP, accessibilité, vérité
+des données, contrôle des approbations et isolation restent applicables.
+Le Bypass réel conserve le contrat de l’ADR 0017 ; les mentions historiques
+« bientôt » ou « non câblé » ne décrivent pas sa réalisation actuelle.
+
+
 - Statut : cadré (cadre), 2026-10-16. Conception propre à Warband.
 - Hérite de `docs/design-chat-ui.md` (CSP, budget d'effets, règles JS) : tout ce qui n'est pas remplacé ici reste en vigueur.
 - Règle de vérité : **aucune valeur inventée**. Donnée absente : l'élément est masqué, ou affiché désactivé avec le libellé « bientôt » et sans faux état (ni %, ni pastille verte/rouge, ni compteur).

@@ -19,6 +19,32 @@ Le `.vsix` embarque les binaires Claude du SDK et OpenCode 1.19.0 pour sa cible.
 
 Pousser un tag `vX.Y.Z` égal à la version de `packages/vscode/extension.manifest.json` déclenche `.github/workflows/release.yml` : `pnpm check`, `pnpm build`, empaquetage `linux-x64` puis `win32-x64`, empreintes SHA-256, puis création de la release GitHub avec les deux `.vsix`. Un tag qui ne correspond pas à la version du manifeste fait échouer le workflow avant toute publication. Relancer le workflow sur un tag déjà publié remplace les fichiers de la release (`--clobber`). Le job demande `contents: write` ; le dépôt est extrait sans identifiants persistants et le jeton n'est lu que par l'étape de publication.
 
+## Interface et palettes (0.3.53)
+
+La commande **Warband : choisir une palette** (`warband.choosePalette`) propose
+Sentinelle, Braise, Bastion, Spectre et Éditeur. Le réglage `warband.palette`
+s’applique aux vues ouvertes sans rechargement. Les polices sont locales ; le
+code conserve la police de l’éditeur. Les thèmes clair, sombre et contrasté et
+le mouvement réduit sont respectés.
+
+Dans **Configurer → Exécution**, l’appui maintenu peut être désactivé pour revenir au
+clic simple. Par défaut, maintenir 900 ms autorise une demande ; relâcher,
+changer de conversation ou masquer la vue annule l’attente. **Refuser** reste
+immédiat et **Toujours** conserve sa confirmation native.
+
+Le rail du chat affiche des compteurs de la page courante, pas un pourcentage
+ou une progression de mission. L’horloge indique la durée du tour actif. Le
+Monitor ajoute une frise cliquable et numérote les petites sorties ; les longues
+sorties restent du texte. La flèche vers le bas active ou suspend le suivi.
+
+Dans la Kill Chain, **Rejouer** visualise les liens verts sans exécuter de
+commande. Échap arrête le rejeu et désélectionne. Les flèches déplacent la vue,
++ / − zooment et 0 ajuste le graphe. **Aperçu du rapport** (également accessible
+par `warband.previewReport`) affiche un instantané des notes du projet actif,
+sans identifiants ni loot. Toutes les gravités restent **À évaluer**. Le bouton
+d’export produit le brouillon Markdown existant, à compléter avec preuves et
+remédiations ; aucune instance SysReptor n’est nécessaire.
+
 ## Parcours de travail
 
 **Choisir un projet → associer ses conteneurs → travailler avec l’agent → approuver les actions nécessaires → consulter les résultats et les traces.**

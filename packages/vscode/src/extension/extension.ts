@@ -47,7 +47,8 @@ import { chatHtml, cockpitHtml, killchainHtml, makeNonce, studioHtml } from "../
 import { matchesFingerprint } from "../logic/integrity.js";
 import { killchainImage } from "../logic/killchain-image.js";
 import { setSelectedPathEdge } from "../logic/killchain-path.js";
-import { missionReport } from "../logic/mission-report.js";
+import { missionReport, missionReportPreview } from "../logic/mission-report.js";
+import { PALETTES, paletteOf } from "../logic/palette.js";
 import {
   activateSelectedProject,
   createSelectedProject,
@@ -167,6 +168,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const watches: { panel: vscode.WebviewPanel; chatId: string; toolUseId: string }[] = [];
   let cockpitPanel: vscode.WebviewPanel | undefined;
   let studioPanel: vscode.WebviewPanel | undefined;
+  let reportPanel: vscode.WebviewPanel | undefined;
   let killchainPanel: vscode.WebviewPanel | undefined;
   let killchainRevision = 0;
   let killchainPayload = "";
@@ -181,6 +183,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   >();
   const cancelFindingDeletions = () => {
     findingProjectGeneration++;
+    reportPanel?.dispose();
     for (const pending of findingDeletions.values()) pending.abort.abort();
   };
   let findingsTimer: ReturnType<typeof setTimeout> | undefined;
@@ -198,6 +201,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       killchainRevision++;
     },
   });
+  const currentPalette = () =>
+    paletteOf(vscode.workspace.getConfiguration("warband").get("palette"));
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      if (!event.affectsConfiguration("warband.palette")) return;
+      const message = { type: "palette", value: currentPalette() };
+      post(message);
+      for (const slot of slots.values()) void slot.panel?.webview.postMessage(message);
+      for (const panel of [monitorPanel, cockpitPanel, studioPanel, killchainPanel, reportPanel])
+        void panel?.webview.postMessage(message);
+      for (const watch of watches) void watch.panel.webview.postMessage(message);
+    }),
+  );
   let seq = 1;
   let restoring = false;
   const kaliPreparations = new Map<string, Promise<void>>();
@@ -690,6 +706,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       };
       const nonce = makeNonce();
       view.webview.html = chatHtml({
+        palette: currentPalette(),
         nonce,
         cspSource: view.webview.cspSource,
         scriptUri: view.webview.asWebviewUri(vscode.Uri.joinPath(media, "chat.js")).toString(),
@@ -754,6 +771,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const view = panel;
     const nonce = makeNonce();
     view.webview.html = cockpitHtml({
+      palette: currentPalette(),
       nonce,
       cspSource: view.webview.cspSource,
       scriptUri: view.webview.asWebviewUri(vscode.Uri.joinPath(media, "cockpit.js")).toString(),
@@ -1145,6 +1163,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const media = vscode.Uri.joinPath(context.extensionUri, "media");
     const nonce = makeNonce();
     webview.html = chatHtml({
+      palette: currentPalette(),
       nonce,
       cspSource: webview.cspSource,
       scriptUri: webview.asWebviewUri(vscode.Uri.joinPath(media, "chat.js")).toString(),
@@ -1414,6 +1433,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     killchainPanel.iconPath = vscode.Uri.joinPath(media, "logo-small.svg");
     const nonce = makeNonce();
     killchainPanel.webview.html = killchainHtml({
+      palette: currentPalette(),
       nonce,
       cspSource: killchainPanel.webview.cspSource,
       scriptUri: killchainPanel.webview
@@ -1433,6 +1453,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     });
     killchainPanel.webview.onDidReceiveMessage(async (raw: unknown) => {
       const message = parseStudioMessage(raw);
+      if (message?.type === "openReport") {
+        await openReport(message.projectId);
+        return;
+      }
       if (message?.type === "exportKillchain") {
         await exportMissionReport(message.projectId, true);
         return;
@@ -1518,6 +1542,66 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       ...(summaryError !== undefined && { summaryError }),
       ...(projectError !== undefined && { projectError }),
     });
+  };
+  const openReport = async (expectedProjectId?: string) => {
+    try {
+      const generation = findingProjectGeneration;
+      const file = await readProjects(defaultConfigDir());
+      const project = file === null ? null : activeProject(file);
+      if (
+        !project ||
+        (expectedProjectId !== undefined && project.id !== expectedProjectId) ||
+        projectChanging
+      )
+        throw new CodedError("project.absent");
+      const findings = await readFindings(defaultConfigDir(), project.id);
+      if (generation !== findingProjectGeneration || projectChanging)
+        throw new CodedError("project.absent");
+      reportPanel?.dispose();
+      const media = vscode.Uri.joinPath(context.extensionUri, "media");
+      const panel = vscode.window.createWebviewPanel(
+        "warband.report",
+        "Rapport · Brouillon",
+        warbandColumn(),
+        {
+          enableScripts: true,
+          enableCommandUris: false,
+          localResourceRoots: [media],
+        },
+      );
+      reportPanel = panel;
+      panel.iconPath = vscode.Uri.joinPath(media, "logo-small.svg");
+      panel.onDidDispose(() => {
+        if (reportPanel === panel) reportPanel = undefined;
+      });
+      panel.webview.onDidReceiveMessage(async (raw: unknown) => {
+        if (panel !== reportPanel || generation !== findingProjectGeneration) return;
+        if (parseWebviewMessage(raw)?.type === "ready") {
+          await panel.webview.postMessage({ type: "role", role: "report" });
+          await panel.webview.postMessage({
+            type: "view",
+            view: {
+              items: [missionReportPreview(project, findings)],
+              approvals: [],
+              busy: false,
+              sandbox: null,
+              sandboxNetwork: null,
+              controls: null,
+              history: [],
+              readonly: null,
+              noProvider: false,
+            },
+          });
+        } else {
+          const message = parseStudioMessage(raw);
+          if (message?.type === "exportReport" && message.projectId === project.id)
+            await exportMissionReport(project.id);
+        }
+      });
+      mountChatHtml(panel.webview);
+    } catch (error) {
+      void vscode.window.showErrorMessage(formatError(error));
+    }
   };
   const exportMissionReport = async (expectedProjectId?: string, image = false) => {
     try {
@@ -1678,6 +1762,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     studioPanel.iconPath = vscode.Uri.joinPath(media, "logo-small.svg");
     const nonce = makeNonce();
     studioPanel.webview.html = studioHtml({
+      palette: currentPalette(),
       nonce,
       cspSource: studioPanel.webview.cspSource,
       scriptUri: studioPanel.webview
@@ -1694,6 +1779,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     studioPanel.webview.onDidReceiveMessage(async (raw: unknown) => {
       const message = parseStudioMessage(raw);
       if (message === null) return;
+      if (message.type === "openReport") {
+        await openReport(message.projectId);
+        return;
+      }
       if (message.type === "exportKillchain") {
         await exportMissionReport(message.projectId, true);
         return;
@@ -1918,9 +2007,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand("warband.openTerminal", () => void pickContainerTerminal()),
     vscode.commands.registerCommand("warband.openMonitor", () => openMonitor()),
     vscode.commands.registerCommand("warband.openKillchain", () => openKillchain()),
+    vscode.commands.registerCommand("warband.choosePalette", async () => {
+      const selected = await vscode.window.showQuickPick(
+        PALETTES.map(([value, label, detail]) => ({ value, label, detail })),
+        { title: "Palette Warband" },
+      );
+      if (selected) {
+        const config = vscode.workspace.getConfiguration("warband");
+        const target =
+          config.inspect("palette")?.workspaceValue !== undefined
+            ? vscode.ConfigurationTarget.Workspace
+            : vscode.ConfigurationTarget.Global;
+        await config.update("palette", selected.value, target);
+      }
+    }),
     vscode.commands.registerCommand("warband.exportKillchain", () =>
       exportMissionReport(undefined, true),
     ),
+    vscode.commands.registerCommand("warband.previewReport", () => openReport()),
     vscode.commands.registerCommand("warband.exportReport", () => exportMissionReport()),
     vscode.commands.registerCommand("warband.focusChat", () =>
       vscode.commands.executeCommand("warband.chat.focus"),

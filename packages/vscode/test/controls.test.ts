@@ -328,8 +328,17 @@ describe("curseur de raisonnement de la webview", () => {
     const render = js.slice(renderStart, js.indexOf("\n  }", renderStart) + 4);
     const handlers = js.slice(
       js.indexOf("  function postReasoningChoice(value) {"),
-      js.indexOf("\n  // --- Historique"),
+      js.indexOf("\n  const historyPanel ="),
     );
+    const notches = {
+      children: [] as { classList: { toggle(): void } }[],
+      get childElementCount() {
+        return this.children.length;
+      },
+      replaceChildren(...nodes: { classList: { toggle(): void } }[]) {
+        this.children = nodes;
+      },
+    };
     const nodes = new Map<string, ReturnType<typeof node>>();
     function node() {
       return {
@@ -348,7 +357,8 @@ describe("curseur de raisonnement de la webview", () => {
           this.attrs.set(name, value);
         },
         matches: () => false,
-        classList: { toggle() {}, remove() {} },
+        classList: { toggle() {}, remove() {}, add() {}, contains: () => false },
+        querySelector: () => notches,
         style: { setProperty() {} },
       };
     }
@@ -363,6 +373,7 @@ describe("curseur de raisonnement de la webview", () => {
     const sent: unknown[] = [];
     const context = {
       $,
+      el: () => node(),
       ctl: null,
       levels: [],
       ctlGroup: $("ctl-group"),

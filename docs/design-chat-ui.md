@@ -1,5 +1,16 @@
 # Spécification de design : webviews VS Code (chat, cockpit, studio)
 
+## Décision visuelle actuelle — intégration de la 0.3.53
+
+L’[ADR 0028](adr/0028-integration-refonte-interface.md) prime sur les prescriptions
+visuelles historiques ci-dessous : charte « Acier et signature », Geist locale,
+cinq palettes, rails, rayons 8/12/18 et pilules, nouvelle marque et animations
+respectant le mouvement réduit. Les obligations de CSP, accessibilité, vérité
+des données, contrôle des approbations et isolation restent applicables.
+Le Bypass réel conserve le contrat de l’ADR 0017 ; les mentions historiques
+« bientôt » ou « non câblé » ne décrivent pas sa réalisation actuelle.
+
+
 ## Décision visuelle actuelle — refonte du 24 octobre 2026
 
 La demande du propriétaire de revoir toute l’interface à partir de ses trois

@@ -12,6 +12,8 @@ describe("chat.js : balises créées", () => {
   it("liste blanche, jamais script/a/img/iframe", () => {
     const js = readFileSync(here("../media/chat.js"), "utf8");
     const allowed = [
+      "section",
+      "h3",
       "div",
       "span",
       "p",

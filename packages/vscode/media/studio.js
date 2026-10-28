@@ -1,11 +1,3 @@
-// Réglages : navigation en deux groupes, pages. DOM sûr (textContent, jamais de HTML injecté).
-// La logique de navigation (navModel, killchainCount) est pure et testée par vitest (test/studio.test.ts).
-// Hors webview (pas d'acquireVsCodeApi), seule la logique est exposée.
-
-/**
- * Groupes de la navigation : clé, libellé et nom d’icône SVG de chaque page existante.
- * Miroir de STUDIO_PAGES et LABELS (src/logic/studio.ts), vérifié par test.
- */
 const STUDIO_GROUPS = [
   {
     label: "Engagement",
@@ -23,20 +15,10 @@ const STUDIO_GROUPS = [
     ],
   },
 ];
-
-/**
- * Compteur de la page « Kill chain » : nombre réel de trouvailles. `null` (compteur omis) si la liste
- * est vide ou absente : aucun chiffre inventé.
- */
 function killchainCount(findings) {
   if (!Array.isArray(findings) || findings.length === 0) return null;
   return findings.length;
 }
-
-/**
- * Modèle de la navigation : groupes, entrée courante, et `count` seulement sur « Kill chain » quand
- * il y a des trouvailles. Aucune pastille de statut, aucune entrée hors de STUDIO_GROUPS.
- */
 function navModel(current, findings) {
   return STUDIO_GROUPS.map((group) => ({
     label: group.label,
@@ -50,11 +32,6 @@ function navModel(current, findings) {
     }),
   }));
 }
-
-/**
- * Tactiques ATT&CK dans l'ordre de la kill chain : [id, nom officiel]. Les noms restent en anglais
- * (noms propres). Les ids sont vérifiés par test contre MITRE_TACTICS du cœur.
- */
 const MITRE_TACTICS = [
   ["TA0043", "Reconnaissance"],
   ["TA0042", "Resource Development"],
@@ -71,19 +48,13 @@ const MITRE_TACTICS = [
   ["TA0010", "Exfiltration"],
   ["TA0040", "Impact"],
 ];
-
-/**
- * Modèle du graphe de la kill chain : colonnes par tactique (ordre ATT&CK, seulement les présentes),
- * colonne finale « Non classé » (`tactic: null`) pour les trouvailles sans tactique connue, et arêtes
- * parent -> enfant quand les deux extrémités existent. Entrée non tableau : rien.
- */
 function killchainModel(findings) {
   if (!Array.isArray(findings)) return { columns: [], edges: [] };
   const known = new Map(
     MITRE_TACTICS.map(([id, name]) => [id, { tactic: id, label: name, nodes: [] }]),
   );
   const unclassified = { tactic: null, label: "Non classé", nodes: [] };
-  const ids = new Set();
+  const ids = /* @__PURE__ */ new Set();
   for (const f of findings) {
     if (!f || typeof f !== "object") continue;
     ids.add(f.id);
@@ -100,22 +71,11 @@ function killchainModel(findings) {
   }
   return { columns, edges };
 }
-
-/** Dimensions d'un nœud et des espaces entre couches (repère du graphe, px). */
 const KC = { nodeW: 190, nodeH: 118, gapX: 100, gapY: 36, diameter: 52 };
-
-/**
- * Disposition du graphe de la kill chain (DAG en couches, de gauche à droite). Pure et testée.
- * - Couches par plus long chemin depuis une racine (Kahn + repli sur les cycles).
- * - Arêtes seulement si les deux extrémités existent ; les arcs arrière (cycle) sont gardés mais
- *   n'avancent pas la couche.
- * - Ordre dans chaque couche par barycentre des parents (deux passes) pour limiter les croisements.
- * Retour : `nodes` avec x/y/w/h, `edges` (ids validés), `width`/`height`. Entrée non tableau : vide.
- */
 function killchainGraph(findings) {
   const empty = { nodes: [], edges: [], width: 0, height: 0 };
   if (!Array.isArray(findings)) return empty;
-  const byId = new Map();
+  const byId = /* @__PURE__ */ new Map();
   const order = [];
   for (const f of findings) {
     if (!f || typeof f !== "object" || typeof f.id !== "string" || byId.has(f.id)) continue;
@@ -123,17 +83,16 @@ function killchainGraph(findings) {
     order.push(f.id);
   }
   if (order.length === 0) return empty;
-
   const children = new Map(order.map((id) => [id, []]));
   const parents = new Map(order.map((id) => [id, []]));
   const edges = [];
-  const seen = new Set();
+  const seen = /* @__PURE__ */ new Set();
   for (const id of order) {
     const from = byId.get(id).from;
     if (!Array.isArray(from)) continue;
     for (const p of from) {
       if (!byId.has(p) || p === id) continue;
-      const key = `${p}\u0000${id}`;
+      const key = `${p}\0${id}`;
       if (seen.has(key)) continue;
       seen.add(key);
       edges.push({ from: p, to: id });
@@ -141,12 +100,10 @@ function killchainGraph(findings) {
       parents.get(id).push(p);
     }
   }
-
-  // Couches : Kahn par indegree ; le reste (cycles) traité en repli, couche = max(parent)+1.
   const indeg = new Map(order.map((id) => [id, parents.get(id).length]));
   const layer = new Map(order.map((id) => [id, 0]));
   const queue = order.filter((id) => indeg.get(id) === 0);
-  const placed = new Set();
+  const placed = /* @__PURE__ */ new Set();
   while (queue.length > 0) {
     const id = queue.shift();
     placed.add(id);
@@ -163,12 +120,10 @@ function killchainGraph(findings) {
     layer.set(id, max + 1);
     placed.add(id);
   }
-
-  // Colonnes dans l'ordre d'insertion, puis barycentre des parents (deux passes) pour l'ordre vertical.
   const maxLayer = Math.max(...order.map((id) => layer.get(id)));
   const cols = Array.from({ length: maxLayer + 1 }, () => []);
   for (const id of order) cols[layer.get(id)].push(id);
-  const rowOf = new Map();
+  const rowOf = /* @__PURE__ */ new Map();
   const reindex = () => {
     for (const col of cols)
       col.forEach((id, i) => {
@@ -182,13 +137,12 @@ function killchainGraph(findings) {
       reindex();
     }
   }
-
   const rows = Math.max(...cols.map((c) => c.length), 1);
   const height = rows * KC.nodeH + (rows - 1) * KC.gapY;
   const nodes = [];
   cols.forEach((col, l) => {
     const colH = col.length * KC.nodeH + (col.length - 1) * KC.gapY;
-    const top = (height - colH) / 2; // chaque colonne centrée verticalement
+    const top = (height - colH) / 2;
     col.forEach((id, i) => {
       const f = byId.get(id);
       nodes.push({
@@ -207,8 +161,6 @@ function killchainGraph(findings) {
   const width = (maxLayer + 1) * KC.nodeW + maxLayer * KC.gapX;
   return { nodes, edges, width, height };
 }
-
-/** Barycentre : moyenne des rangs des parents, sinon rang courant (stabilité). */
 function bary(id, parents, rowOf) {
   const ps = parents.get(id);
   if (ps.length === 0) return rowOf.get(id);
@@ -216,8 +168,6 @@ function bary(id, parents, rowOf) {
   for (const p of ps) sum += rowOf.get(p);
   return sum / ps.length;
 }
-
-/** Libellés fr des types de nœud (ordre du groupe « Type » du panneau légende). */
 const KIND_LABEL = {
   host: "Hôte",
   site: "Site / URL",
@@ -225,32 +175,23 @@ const KIND_LABEL = {
   step: "Étape",
   loot: "Loot",
 };
-/** Ordre d'affichage des types dans le panneau légende. */
 const LEGEND_KINDS = ["host", "credential", "site", "step", "loot"];
-/** Libellés fr des états de trouvaille (ordre du groupe « État » du panneau légende). */
 const STATE_LABEL = {
   confirmed: "Confirmé",
   hypothesis: "Hypothèse",
   failed: "Échec",
 };
-/** Ordre d'affichage des états dans le panneau légende. */
 const LEGEND_STATES = ["confirmed", "hypothesis", "failed"];
-
-/**
- * Modèle du panneau légende de la kill chain : deux groupes (Type, État), chacun avec un compteur
- * réel par entrée, calculé sur les trouvailles passées. Entrée non tableau : tous les compteurs à
- * zéro. `kind`/`state` inconnu dans une trouvaille : ignoré (ne compte dans aucune entrée).
- */
 function killchainLegend(findings) {
-  const kindCounts = new Map();
-  const stateCounts = new Map();
+  const kindCounts = /* @__PURE__ */ new Map();
+  const stateCounts = /* @__PURE__ */ new Map();
   if (Array.isArray(findings)) {
     for (const f of findings) {
       if (!f || typeof f !== "object") continue;
-      if (typeof f.kind === "string" && KIND_LABEL[f.kind] !== undefined) {
+      if (typeof f.kind === "string" && KIND_LABEL[f.kind] !== void 0) {
         kindCounts.set(f.kind, (kindCounts.get(f.kind) ?? 0) + 1);
       }
-      if (typeof f.state === "string" && STATE_LABEL[f.state] !== undefined) {
+      if (typeof f.state === "string" && STATE_LABEL[f.state] !== void 0) {
         stateCounts.set(f.state, (stateCounts.get(f.state) ?? 0) + 1);
       }
     }
@@ -274,18 +215,8 @@ function killchainLegend(findings) {
     },
   ];
 }
-
-/** Marge autour du graphe dans le canevas (px) et gabarit maximal de la minimap. */
 const KC_PAD = 28;
 const KC_MINIMAP = { maxW: 160, maxH: 100, minViewportW: 640 };
-
-/**
- * Géométrie de la minimap du graphe (pure, testée). Entrées : `graph` (killchainGraph), `viewport`
- * ({ width, height } en px), `view` ({ scale, tx, ty } : transformation actuelle du canevas).
- * Retour : `visible` (false si viewport < 640 px de large, graphe vide, ou graphe entièrement à
- * l'écran), `width`/`height`/`ratio` de la minimap, `rects` (un par nœud, avec son état) et `zone`
- * (portion du canevas visible dans le viewport, bornée au canevas), le tout en px de minimap.
- */
 function killchainMinimap(graph, viewport, view) {
   const hidden = { visible: false, width: 0, height: 0, ratio: 0, rects: [], zone: null };
   if (!graph || !Array.isArray(graph.nodes) || graph.nodes.length === 0) return hidden;
@@ -293,7 +224,6 @@ function killchainMinimap(graph, viewport, view) {
   const gh = graph.height + KC_PAD * 2;
   const { scale, tx, ty } = view;
   if (!(scale > 0) || !(viewport.width > 0) || !(viewport.height > 0)) return hidden;
-  // Zone visible en coordonnées du canevas.
   const vx = -tx / scale;
   const vy = -ty / scale;
   const vw = viewport.width / scale;
@@ -326,12 +256,6 @@ function killchainMinimap(graph, viewport, view) {
     },
   };
 }
-
-/**
- * Recentrage par clic/glissement sur la minimap (pure, testée) : le point (px, py) de la minimap
- * (borné à ses dimensions) devient le centre du viewport. Retour : nouvelle translation { tx, ty }
- * du canevas, à l'échelle courante. Minimap invalide (ratio nul) : translation inchangée.
- */
 function killchainMinimapRecenter(minimap, viewport, view, px, py) {
   if (!minimap || !(minimap.ratio > 0)) return { tx: view.tx, ty: view.ty };
   const cx = Math.min(minimap.width, Math.max(0, px)) / minimap.ratio;
@@ -341,8 +265,6 @@ function killchainMinimapRecenter(minimap, viewport, view, px, py) {
     ty: viewport.height / 2 - cy * view.scale,
   };
 }
-
-// Exposée pour les tests (même convention que ui.js : pas de module dans la webview).
 globalThis.WarbandStudio = {
   STUDIO_GROUPS,
   MITRE_TACTICS,
@@ -357,22 +279,21 @@ globalThis.WarbandStudio = {
   killchainLegend,
   navModel,
 };
-
 if (typeof acquireVsCodeApi === "function") start();
-
 function start() {
   const vscode = acquireVsCodeApi();
   const killchainOnly = document.body.classList.contains("killchain-full");
   const nav = killchainOnly ? null : document.getElementById("studio-nav");
   const main = document.getElementById("studio-main");
-
-  // État de repli du panneau légende : variable de module, survit aux render() successifs.
-  // `null` tant qu'il n'a pas été initialisé (calcul différé à la première ouverture du graphe).
   let legendCollapsed = null;
   let graphPose = null;
   let graphProject;
   let graphFingerprint = null;
   let graphCleanup = () => {};
+  let cancelReplay = () => {};
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) cancelReplay();
+  });
   let graphStatus = null;
   let graphBar = null;
   let selectedFinding = null;
@@ -396,6 +317,7 @@ function start() {
   });
   main?.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
+      cancelReplay();
       clearSelection();
       event.preventDefault();
     }
@@ -410,24 +332,20 @@ function start() {
     graphStatus.textContent = message;
     graphStatus.hidden = message === "";
   };
-  // Les rafraîchissements du panneau ne doivent pas écraser une saisie en cours.
-  const summaryDrafts = new Map();
-  const summarySaving = new Set();
+  const summaryDrafts = /* @__PURE__ */ new Map();
+  const summarySaving = /* @__PURE__ */ new Set();
   let projectNameDraft = "";
   let projectPanel = null;
-
   const el = (tag, className, text) => {
     const node = document.createElement(tag);
     if (className) node.className = className;
-    if (text !== undefined) node.textContent = text;
+    if (text !== void 0) node.textContent = text;
     return node;
   };
-
   const decorative = (node) => {
     node.setAttribute("aria-hidden", "true");
     return node;
   };
-
   function paintNav(current, findings, view) {
     if (!nav) return;
     while (nav.firstChild) nav.removeChild(nav.firstChild);
@@ -458,9 +376,9 @@ function start() {
           window.WarbandIcons.create(item.icon, { className: "ico" }),
           el("span", "btn-text", item.label),
         );
-        if (item.count !== undefined) {
+        if (item.count !== void 0) {
           const count = el("span", "studio-count", String(item.count));
-          count.title = `${item.count} trouvaille${item.count > 1 ? "s" : ""}`;
+          count.title = `${item.count} élément${item.count > 1 ? "s" : ""}`;
           b.append(count);
         }
         b.addEventListener("click", () => vscode.postMessage({ type: "open", page: item.id }));
@@ -469,19 +387,12 @@ function start() {
       nav.append(section);
     }
   }
-
   function empty(title, text) {
     const sec = el("section", "studio-card");
     sec.append(el("h2", "", title), el("p", "studio-help", text));
     return sec;
   }
-
   const SVG_NS = "http://www.w3.org/2000/svg";
-
-  /**
-   * Glyphes des types de n\u0153ud, en trac\u00E9s SVG (trait `currentColor`, pas de remplissage) : rep\u00E8re
-   * [tag, attributs] par forme. Rendus par `kindIcon`, jamais de texte ou d'emoji.
-   */
   const KIND_ICON_SHAPES = {
     host: [
       ["rect", { x: "2.5", y: "3.5", width: "11", height: "7", rx: "1" }],
@@ -515,35 +426,35 @@ function start() {
     }
     return svg;
   }
-  /** Glyphe du badge d'\u00E9tat, dans l'en-t\u00EAte du n\u0153ud (en plus de la bordure). */
   const STATE_BADGE = {
-    confirmed: "\u2713",
+    confirmed: "✓",
     hypothesis: "?",
-    failed: "\u2715",
+    failed: "✕",
   };
-
-  /**
-   * Vue graphe de la kill chain : nœuds typés, arêtes courbes, zoom/pan, bouton Ajuster, et le panneau
-   * légende (repliable, à droite). `findings` alimente uniquement les compteurs du panneau.
-   */
   function killchainGraphView(graph, findings, projectId) {
     const wrap = el("div", "studio-kc");
-
     const bar = el("div", "kc-bar");
     graphBar = bar;
     const fit = el("button", "ghost kc-btn");
     fit.type = "button";
-    fit.append(el("span", "btn-text", "Ajuster"));
+    fit.title = "Ajuster le graphe à la fenêtre (0)";
+    fit.append(window.WarbandIcons.create("fit"), el("span", "btn-text", "Ajuster"));
     const zoomOut = el("button", "ghost kc-btn kc-zoom");
     zoomOut.type = "button";
-    zoomOut.title = "D\u00e9zoomer";
-    zoomOut.append(decorative(el("span", "", "\u2212")));
+    zoomOut.title = "Dézoomer (−)";
+    zoomOut.setAttribute("aria-label", "Dézoomer");
+    zoomOut.append(window.WarbandIcons.create("minus"));
     const zoomIn = el("button", "ghost kc-btn kc-zoom");
     zoomIn.type = "button";
-    zoomIn.title = "Zoomer";
-    zoomIn.append(decorative(el("span", "", "+")));
+    zoomIn.title = "Zoomer (+)";
+    zoomIn.setAttribute("aria-label", "Zoomer");
+    zoomIn.append(window.WarbandIcons.create("plus"));
     bar.append(fit, zoomOut, zoomIn);
-    const report = el("button", "ghost kc-btn kc-report", "Exporter le brouillon");
+    const report = el("button", "ghost kc-btn kc-report");
+    report.append(
+      window.WarbandIcons.create("file"),
+      el("span", "btn-text", "Exporter le brouillon"),
+    );
     report.type = "button";
     report.title = "Rapport Markdown du projet, identifiants et loot exclus";
     report.disabled = typeof projectId !== "string";
@@ -551,7 +462,16 @@ function start() {
       if (!report.disabled) vscode.postMessage({ type: "exportReport", projectId });
     });
     bar.append(report);
-    const image = el("button", "ghost kc-btn kc-image", "Exporter l’image");
+    const preview = el("button", "ghost kc-btn kc-report-preview");
+    preview.append(window.WarbandIcons.create("file"), el("span", "btn-text", "Aperçu du rapport"));
+    preview.type = "button";
+    preview.disabled = typeof projectId !== "string";
+    preview.addEventListener("click", () => {
+      if (!preview.disabled) vscode.postMessage({ type: "openReport", projectId });
+    });
+    bar.append(preview);
+    const image = el("button", "ghost kc-btn kc-image");
+    image.append(window.WarbandIcons.create("image"), el("span", "btn-text", "Exporter l’image"));
     image.type = "button";
     image.title = "Image SVG de tous les éléments, noms complets et liens (sans filtre ni cadrage)";
     image.disabled = typeof projectId !== "string";
@@ -563,7 +483,7 @@ function start() {
     const selectedLabel = el("span", "kc-selection-label");
     const remove = el("button", "ghost kc-btn kc-delete");
     remove.type = "button";
-    remove.title = "Supprimer la trouvaille sélectionnée";
+    remove.title = "Supprimer l’élément sélectionné";
     const trash = document.createElementNS(SVG_NS, "svg");
     trash.setAttribute("viewBox", "0 0 16 16");
     trash.setAttribute("class", "kc-ico-svg");
@@ -582,14 +502,24 @@ function start() {
     edgeSelection.append(edgeLabel, mark);
     edgeSelection.addEventListener("click", (event) => event.stopPropagation());
     bar.append(edgeSelection);
-    const retainedEdges = new Set();
-    for (const finding of findings ?? []) {
-      for (const parent of finding?.pathFrom ?? [])
-        retainedEdges.add(JSON.stringify([parent, finding.id]));
+    const retainedEdges = /* @__PURE__ */ new Set();
+    for (const entry of findings ?? []) {
+      for (const parent of entry?.pathFrom ?? [])
+        retainedEdges.add(JSON.stringify([parent, entry.id]));
     }
     const edgeKey = (edge) => JSON.stringify([edge.from, edge.to]);
+    // Rejouer : parcourt le chemin retenu nœud par nœud, crochets verrouillés.
+    const replay = el("button", "ghost kc-btn kc-replay");
+    replay.type = "button";
+    replay.title = "Visualiser les liens retenus, étape par étape. Aucune commande exécutée.";
+    replay.setAttribute("aria-pressed", "false");
+    replay.append(window.WarbandIcons.create("play"), el("span", "btn-text", "Rejouer"));
+    image.after(replay);
+    const replayStatus = el("span", "kc-replay-status");
+    replayStatus.setAttribute("role", "status");
+    replay.after(replayStatus);
     const edgeElements = [];
-    const nodeButtons = new Map();
+    const nodeButtons = /* @__PURE__ */ new Map();
     paintFindingSelection = () => {
       const selected = graph.nodes.find((node) => node.id === selectedFinding);
       selection.hidden = !selected;
@@ -641,13 +571,12 @@ function start() {
       paintFindingSelection();
       vscode.postMessage({ type: "deleteFinding", projectId, id: selectedFinding });
     });
-
     const viewport = el("div", "kc-viewport");
     const canvas = el("div", "kc-canvas");
     const pad = KC_PAD;
     const svg = document.createElementNS(SVG_NS, "svg");
     svg.setAttribute("class", "kc-edges");
-    svg.setAttribute("aria-label", "Liens de la Kill Chain");
+    svg.setAttribute("aria-label", "Liens du graphe");
     svg.setAttribute("width", String(graph.width + pad * 2));
     svg.setAttribute("height", String(graph.height + pad * 2));
     const defs = document.createElementNS(SVG_NS, "defs");
@@ -681,7 +610,6 @@ function start() {
     retainedMarker.append(retainedTip);
     defs.append(retainedMarker);
     svg.append(defs);
-
     const pos = new Map(graph.nodes.map((n) => [n.id, n]));
     for (const e of graph.edges) {
       const a = pos.get(e.from);
@@ -725,7 +653,6 @@ function start() {
       svg.append(path, hit);
     }
     canvas.append(svg);
-
     for (const n of graph.nodes) {
       const node = el("div", `kc-node is-${n.state} kind-${n.kind}`);
       node.style.setProperty("left", `${n.x + pad}px`);
@@ -745,7 +672,7 @@ function start() {
       if (n.meta) node.append(el("span", "kc-node-meta", n.meta));
       node.title = [n.label, KIND_LABEL[n.kind] || n.kind, stateLabel, n.meta]
         .filter(Boolean)
-        .join(" \u00b7 ");
+        .join(" · ");
       node.tabIndex = 0;
       node.setAttribute("role", "button");
       node.setAttribute(
@@ -769,15 +696,70 @@ function start() {
       canvas.append(node);
     }
     paintFindingSelection();
+    const replayOrder = [...new Set([...retainedEdges].flatMap((key) => JSON.parse(key)))]
+      .map((id) => graph.nodes.find((node) => node.id === id))
+      .filter(Boolean)
+      .sort((a, b) => a.x - b.x || a.y - b.y);
+    replay.disabled = replayOrder.length === 0;
+    let replayTimer = 0;
+    const stopReplay = () => {
+      clearTimeout(replayTimer);
+      replayTimer = 0;
+      for (const node of nodeButtons.values()) node.classList.remove("is-replay", "is-visited");
+      for (const { path } of edgeElements) path.classList.remove("is-lit");
+      viewport.classList.remove("is-replaying");
+      replay.setAttribute("aria-pressed", "false");
+      replay.firstChild.replaceWith(window.WarbandIcons.create("play"));
+      replay.lastChild.textContent = "Rejouer";
+    };
+    cancelReplay = stopReplay;
+    const replayStep = (index) => {
+      if (!replay.isConnected) return stopReplay();
+      if (index >= replayOrder.length) {
+        replayStatus.textContent = "Parcours visualisé.";
+        replayTimer = setTimeout(() => {
+          stopReplay();
+          replayStatus.textContent = "";
+        }, 1400);
+        return;
+      }
+      const current = replayOrder[index];
+      for (const node of nodeButtons.values()) node.classList.remove("is-replay");
+      nodeButtons.get(current.id)?.classList.add("is-replay", "is-visited");
+      const visited = new Set(replayOrder.slice(0, index + 1).map((node) => node.id));
+      for (const { edge, path } of edgeElements)
+        path.classList.toggle(
+          "is-lit",
+          retainedEdges.has(edgeKey(edge)) && visited.has(edge.from) && visited.has(edge.to),
+        );
+      replayStatus.textContent = `Étape ${index + 1}/${replayOrder.length} : ${current.label}`;
+      replayTimer = setTimeout(() => replayStep(index + 1), 700);
+    };
+    replay.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (replayTimer) {
+        stopReplay();
+        replayStatus.textContent = "Rejeu interrompu.";
+        return;
+      }
+      stopReplay();
+      clearSelection();
+      viewport.classList.add("is-replaying");
+      replay.setAttribute("aria-pressed", "true");
+      replay.firstChild.replaceWith(window.WarbandIcons.create("stop"));
+      replay.lastChild.textContent = "Arrêter";
+      replayStep(0);
+    });
     viewport.append(canvas);
-
-    // Panneau légende : frère du viewport (colonne propre, pas de superposition), repliable.
     const aside = el("aside", "kc-legend");
     const legendHead = el("div", "kc-legend-head");
     const legendToggle = el("button", "ghost kc-legend-toggle");
     legendToggle.type = "button";
     legendToggle.setAttribute("aria-controls", "kc-legend-body");
-    legendToggle.append(el("span", "btn-text", "Légende"));
+    legendToggle.append(
+      el("span", "btn-text", "Légende"),
+      window.WarbandIcons.create("caret", "caret"),
+    );
     legendHead.append(legendToggle);
     const legendBody = el("div", "kc-legend-body");
     legendBody.id = "kc-legend-body";
@@ -819,7 +801,7 @@ function start() {
         const li = el("li", "");
         const button = el("button", "ghost kc-legend-item");
         button.type = "button";
-        const field = entry.kind !== undefined ? "kind" : "state";
+        const field = entry.kind !== void 0 ? "kind" : "state";
         const value = entry.kind ?? entry.state;
         button.setAttribute("aria-pressed", String(legendFilter[field] === value));
         button.title = `Mettre en évidence : ${entry.label}`;
@@ -828,7 +810,7 @@ function start() {
           clearSelection();
           paintFilter();
         });
-        if (entry.kind !== undefined) {
+        if (entry.kind !== void 0) {
           const dot = el("span", `kc-dot kind-${entry.kind}`);
           dot.append(decorative(kindIcon(entry.kind)));
           button.append(dot);
@@ -861,7 +843,6 @@ function start() {
       legendToggle.setAttribute("aria-expanded", String(!collapsed));
       legendBody.hidden = collapsed;
       legendToggle.title = collapsed ? "Déplier la légende" : "Replier la légende";
-      legendToggle.firstChild.textContent = collapsed ? "Légende ▸" : "Légende ▾";
     };
     legendToggle.addEventListener("click", () => setLegendCollapsed(!legendCollapsed));
     if (legendCollapsed === null) {
@@ -869,14 +850,10 @@ function start() {
         typeof matchMedia === "function" && matchMedia("(max-width: 640px)").matches;
     }
     setLegendCollapsed(legendCollapsed);
-
     wrap.append(bar, viewport, aside);
-
-    // Zoom et déplacement : transformation du canevas (jamais de scroll natif).
     let scale = graphPose?.scale ?? 1;
     let tx = graphPose?.tx ?? 0;
     let ty = graphPose?.ty ?? 0;
-    // Minimap : un rectangle par nœud + zone visible ; clic/glisser recentre le viewport.
     const mini = el("div", "kc-minimap");
     mini.setAttribute("role", "img");
     mini.setAttribute("aria-label", "Minimap du graphe : zone actuellement visible");
@@ -935,7 +912,7 @@ function start() {
     let miniDrag = false;
     mini.addEventListener("pointerdown", (ev) => {
       if (ev.button !== 0) return;
-      ev.stopPropagation(); // ne déclenche pas le pan du viewport
+      ev.stopPropagation();
       touched = true;
       miniDrag = true;
       mini.setPointerCapture(ev.pointerId);
@@ -953,8 +930,8 @@ function start() {
     const setScale = (next, cx, cy) => {
       const s = Math.min(2.5, Math.max(0.2, next));
       const vb = viewport.getBoundingClientRect();
-      const px = cx === undefined ? vb.width / 2 : cx;
-      const py = cy === undefined ? vb.height / 2 : cy;
+      const px = cx === void 0 ? vb.width / 2 : cx;
+      const py = cy === void 0 ? vb.height / 2 : cy;
       tx = px - ((px - tx) * s) / scale;
       ty = py - ((py - ty) * s) / scale;
       scale = s;
@@ -973,6 +950,37 @@ function start() {
     fit.addEventListener("click", fitToView);
     zoomIn.addEventListener("click", () => setScale(scale * 1.2));
     zoomOut.addEventListener("click", () => setScale(scale / 1.2));
+    viewport.tabIndex = 0;
+    viewport.setAttribute("role", "group");
+    viewport.setAttribute(
+      "aria-label",
+      "Graphe : flèches pour se déplacer, + et − pour zoomer, 0 pour ajuster, Échap pour désélectionner",
+    );
+    viewport.addEventListener("keydown", (ev) => {
+      if (ev.key === "Escape") {
+        stopReplay();
+        clearSelection();
+        return;
+      }
+      if (ev.altKey || ev.ctrlKey || ev.metaKey) return;
+      const step = ev.shiftKey ? 160 : 48;
+      const moves = {
+        ArrowLeft: [step, 0],
+        ArrowRight: [-step, 0],
+        ArrowUp: [0, step],
+        ArrowDown: [0, -step],
+      };
+      if (moves[ev.key]) {
+        tx += moves[ev.key][0];
+        ty += moves[ev.key][1];
+        apply();
+      } else if (ev.key === "+" || ev.key === "=") setScale(scale * 1.2);
+      else if (ev.key === "-" || ev.key === "−") setScale(scale / 1.2);
+      else if (ev.key === "0") fitToView();
+      else return;
+      touched = true;
+      ev.preventDefault();
+    });
     viewport.addEventListener(
       "wheel",
       (ev) => {
@@ -1011,9 +1019,6 @@ function start() {
       endDrag();
       ignoreGraphClick = false;
     });
-
-    // Ajuste à la première mesure (ResizeObserver notifie dès l'observation), puis à chaque changement
-    // de taille du panneau tant que l'utilisateur n'a pas zoomé/déplacé lui-même.
     let touched = graphPose !== null;
     for (const b of [zoomIn, zoomOut]) b.addEventListener("click", () => (touched = true));
     viewport.addEventListener("wheel", () => (touched = true), { passive: true });
@@ -1027,19 +1032,18 @@ function start() {
       });
       observer.observe(viewport);
       graphCleanup = () => {
+        stopReplay();
         disposed = true;
         observer.disconnect();
       };
-    } else if (!touched) {
-      fitToView();
+    } else {
+      graphCleanup = stopReplay;
+      if (!touched) fitToView();
     }
     if (touched) apply();
-
     return wrap;
   }
-
   function render(view) {
-    // Les accusés concernent une requête, même si l'utilisateur a changé de page/projet.
     if (typeof view.summarySaved === "string") {
       summaryDrafts.delete(view.summarySaved);
       summarySaving.delete(view.summarySaved);
@@ -1059,7 +1063,7 @@ function start() {
       pendingFindingDelete = null;
     }
     const findingExists = (id) =>
-      Array.isArray(view.findings) && view.findings.some((finding) => finding?.id === id);
+      Array.isArray(view.findings) && view.findings.some((entry) => entry?.id === id);
     if (selectedFinding !== null && !findingExists(selectedFinding)) selectedFinding = null;
     if (
       selectedEdge &&
@@ -1073,7 +1077,6 @@ function start() {
     }
     const fingerprint = page === "killchain" ? JSON.stringify(view.findings ?? []) : null;
     showGraphError("");
-    // Une notification sans nouvelle trouvaille ne remplace pas le graphe ni son focus.
     if (fingerprint !== null && fingerprint === graphFingerprint) return;
     graphFingerprint = fingerprint;
     graphCleanup();
@@ -1103,7 +1106,6 @@ function start() {
         active.append(el("p", "studio-project-active-name", current?.name ?? "Aucun projet actif"));
         if (current) active.append(el("p", "studio-project-path", current.workspace));
         sec.append(active);
-
         if (choices.projects.length === 0) projectPanel = "create";
         else if (projectPanel === null) projectPanel = "choose";
         const tabs = el("div", "studio-project-tabs");
@@ -1146,8 +1148,8 @@ function start() {
         tabs.append(chooseTab, createTab);
         sec.append(tabs, choosePanel, createPanel);
         if (choices.projects.length > 0) {
-          const label = el("label", "studio-help", "Choisir un projet");
-          label.htmlFor = "project-choice";
+          const label2 = el("label", "studio-help", "Choisir un projet");
+          label2.htmlFor = "project-choice";
           const select = el("select", "studio-project-control");
           select.id = "project-choice";
           select.disabled = projectBusy;
@@ -1155,25 +1157,25 @@ function start() {
           placeholder.value = "";
           placeholder.disabled = true;
           select.append(placeholder);
-          for (const project of choices.projects) {
-            const option = el("option", "", project.name);
-            option.value = project.id;
+          for (const project2 of choices.projects) {
+            const option = el("option", "", project2.name);
+            option.value = project2.id;
             select.append(option);
           }
           select.value = choices.activeId ?? "";
           const activate = el("button", "primary", "Activer le projet");
           activate.type = "button";
-          const update = () => {
+          const update2 = () => {
             activate.disabled = projectBusy || !select.value || select.value === choices.activeId;
           };
-          select.addEventListener("change", update);
+          select.addEventListener("change", update2);
           activate.addEventListener("click", () => {
             if (activate.disabled) return;
             activate.disabled = true;
             vscode.postMessage({ type: "activateProject", projectId: select.value });
           });
-          update();
-          choosePanel.append(label, select, activate);
+          update2();
+          choosePanel.append(label2, select, activate);
         }
         const label = el("label", "studio-help", "Nom du nouveau projet");
         label.htmlFor = "project-name";
@@ -1223,7 +1225,7 @@ function start() {
         );
       } else {
         const b = view.linkedBanner;
-        sec.append(el("p", "studio-kicker", "Conteneur affiché"));
+        sec.append(el("p", "studio-kicker", "Espace affiché"));
         sec.append(el("p", "studio-name", b.name));
         sec.append(el("p", "studio-help", b.workspace));
         const del = el("button", "ghost");
@@ -1263,7 +1265,7 @@ function start() {
           status.textContent =
             bytes > 8192
               ? "Résumé trop long : 8 Kio maximum."
-              : `${bytes} / 8192 octets · Les secrets reconnus sont masqués à l'enregistrement.`;
+              : `${bytes} / 8192 octets · Les secrets reconnus sont masqués à l’enregistrement.`;
         };
         input.addEventListener("input", () => {
           summaryDrafts.set(id, input.value);
@@ -1299,17 +1301,29 @@ function start() {
         manage.type = "button";
         manage.append(
           window.WarbandIcons.create("sliders"),
-          el("span", "btn-text", "Gérer les conteneurs"),
+          el("span", "btn-text", "Gérer les econtainers"),
         );
         manage.addEventListener("click", () => vscode.postMessage({ type: "openCockpit" }));
         header.append(manage);
       }
       sec.append(header);
-      const dl = el("dl", "studio-dl");
-      const row = (k, v) => {
-        dl.append(el("dt", "", k), el("dd", "", v));
+      // Tuiles d'état : pictogramme, libellé, valeur et pastille de ton.
+      const dl = el("dl", "studio-dl studio-tiles");
+      const row = (k, v, tone, icon) => {
+        const tile = el("div", `studio-tile tone-${tone}`);
+        const head = el("dt", "studio-tile-label");
+        head.append(window.WarbandIcons.create(icon, "ico studio-tile-ico"), el("span", "", k));
+        const value = el("dd", "studio-tile-value");
+        value.append(decorative(el("span", "dot")), el("span", "", v));
+        tile.append(head, value);
+        dl.append(tile);
       };
-      row("Docker", view.docker === "present" ? "présent" : "absent");
+      row(
+        "Docker",
+        view.docker === "present" ? "présent" : "absent",
+        view.docker === "present" ? "ok" : "warn",
+        "image",
+      );
       row(
         "Démon",
         view.daemon === "reachable"
@@ -1317,24 +1331,49 @@ function start() {
           : view.daemon === "unreachable"
             ? "injoignable"
             : "—",
+        view.daemon === "reachable" ? "ok" : view.daemon === "unreachable" ? "err" : "idle",
+        "pulse",
       );
-      row("Exegol", view.exegol === "present" ? "présent" : "absent");
+      row(
+        "Exegol",
+        view.exegol === "present" ? "présent" : "absent",
+        view.exegol === "present" ? "ok" : "warn",
+        "server",
+      );
       sec.append(dl);
       if (page === "containers") {
+        const running = (view.containers ?? []).filter((c) => c.state === "running").length;
+        const listHead = el("div", "studio-list-head");
+        listHead.append(
+          el("p", "studio-kicker", "Conteneurs"),
+          el("span", "studio-count", `${running}/${(view.containers ?? []).length} actifs`),
+        );
+        if ((view.containers ?? []).length > 0) sec.append(listHead);
         const ul = el("ul", "studio-rows");
         for (const c of view.containers ?? []) {
-          const li = el("li", "studio-row");
+          const li = el(
+            "li",
+            `studio-row studio-space ${c.state === "running" ? "is-running" : "is-stopped"}`,
+          );
           li.append(
-            window.WarbandIcons.create("container"),
-            el("span", `dot ${c.state === "running" ? "is-running" : "is-stopped"}`),
+            window.WarbandIcons.create("container", "ico studio-space-ico"),
             el("span", "studio-ellipsis", c.name),
-            el("span", "studio-help", c.state === "running" ? "en cours" : "arrêté"),
+            el("span", "studio-state", c.state === "running" ? "en cours" : "arrêté"),
+          );
+          li.querySelector(".studio-state").prepend(
+            decorative(el("span", `dot ${c.state === "running" ? "is-running" : "is-stopped"}`)),
           );
           ul.append(li);
         }
-        sec.append(ul);
+        if ((view.containers ?? []).length > 0) sec.append(ul);
         if ((view.containers ?? []).length === 0) {
-          sec.append(el("p", "studio-help", "Aucun conteneur. Créez-en un dans le cockpit."));
+          sec.append(
+            el(
+              "p",
+              "studio-help",
+              "Aucun conteneur pour l’instant. Créez-en un depuis « Gérer les econtainers ».",
+            ),
+          );
         }
       }
       main.append(sec);
@@ -1342,10 +1381,10 @@ function start() {
     }
     if (page === "killchain") {
       if (killchainOnly) {
-        const sec = el("section", "studio-kc-page");
+        const sec2 = el("section", "studio-kc-page");
         const graph = killchainGraph(view.findings);
         if (graph.nodes.length > 0) {
-          sec.append(killchainGraphView(graph, view.findings, project));
+          sec2.append(killchainGraphView(graph, view.findings, project));
         } else {
           const wrap = el("div", "studio-kc");
           const viewport = el("div", "kc-viewport kc-empty");
@@ -1353,25 +1392,25 @@ function start() {
             el(
               "p",
               "studio-help",
-              "Les nœuds notés par l'agent. Rien tant qu'il n'y a pas de trouvaille.",
+              "Le graphe est vide : les éléments notés par l’agent apparaîtront ici.",
             ),
           );
           wrap.append(viewport);
-          sec.append(wrap);
+          sec2.append(wrap);
         }
-        main.append(sec);
+        main.append(sec2);
         return;
       }
       const count = killchainCount(view.findings);
       const sec = empty(
-        "Kill chain",
+        "Graphe",
         count === null
-          ? "Graphe des trouvailles notées par l'agent. Ouvrez la vue plein écran pour explorer le graphe."
-          : `${count} trouvaille${count > 1 ? "s" : ""} : ouvrez la vue plein écran pour le graphe interactif.`,
+          ? "Graphe des éléments notés par l’agent. Ouvrez la vue plein écran pour explorer le graphe."
+          : `${count} élément${count > 1 ? "s" : ""} : ouvrez la vue plein écran pour le graphe interactif.`,
       );
       const open = el("button", "primary");
       open.type = "button";
-      open.append(el("span", "btn-text", "Ouvrir la Kill chain"));
+      open.append(el("span", "btn-text", "Ouvrir le graphe"));
       open.addEventListener("click", () => vscode.postMessage({ type: "openKillchain" }));
       sec.append(open);
       main.append(sec);
@@ -1386,7 +1425,6 @@ function start() {
       open.type = "button";
       open.addEventListener("click", () => vscode.postMessage({ type: "openCours" }));
       sec.append(open);
-      // Données de l'hôte, affichées en texte seulement (textContent).
       const sources = Array.isArray(view.sources) ? view.sources : [];
       if (sources.length === 0) {
         sec.append(el("p", "studio-help", "Aucune source dans le dossier de cours."));
@@ -1405,7 +1443,7 @@ function start() {
     }
     main.append(empty("Réglages", "Choisissez une rubrique dans la navigation."));
   }
-
+  window.addEventListener("pagehide", () => graphCleanup());
   window.addEventListener("message", (event) => {
     const msg = event.data;
     if (msg?.type === "pathEdgeState") {
@@ -1436,7 +1474,7 @@ function start() {
       return;
     }
     if (msg?.type === "findingsError") {
-      if (msg.projectId !== undefined && msg.projectId !== graphProject) return;
+      if (msg.projectId !== void 0 && msg.projectId !== graphProject) return;
       showGraphError(
         typeof msg.message === "string" ? msg.message : "Actualisation du graphe indisponible.",
       );

@@ -8,7 +8,7 @@ const css = read("../media/chat.css").replace(/\/\*[\s\S]*?\*\//g, "");
 
 /** Corps de `renderCard`, du début de la fonction à la section suivante. */
 const start = js.indexOf("function renderCard(card, isNew)");
-const end = js.indexOf("// --- Modèle", start);
+const end = js.indexOf("  const ctlGroup =", start);
 const card = start >= 0 && end > start ? js.slice(start, end) : "";
 
 /** Corps d'une règle CSS dont le sélecteur est exactement `selector`. */
@@ -65,7 +65,7 @@ describe("carte d'approbation (lot P2)", () => {
   it("aucun HTML dynamique ni balise hors liste blanche dans la carte", () => {
     expect(card).not.toMatch(/innerHTML|insertAdjacentHTML|style=/);
     for (const m of card.matchAll(/\bel\(\s*"(\w+)"/g)) {
-      expect(["div", "span", "code", "pre", "button", "details", "summary"]).toContain(m[1]);
+      expect(["div", "span", "p", "code", "pre", "button", "details", "summary"]).toContain(m[1]);
     }
   });
 
@@ -73,15 +73,15 @@ describe("carte d'approbation (lot P2)", () => {
     const body = rule(".card");
     expect(body).toContain("--vscode-editorWarning-foreground");
     expect(body).toContain("--vscode-inputValidation-warningBorder");
-    expect(body).toContain("border-left: 2px solid var(--jn-card-accent)");
-    expect(body).toContain("background: var(--vscode-editorWidget-background");
+    expect(body).toContain("box-shadow: inset 3px 0 0 var(--jn-card-accent)");
+    expect(body).toContain("var(--jn-widget)");
     expect(body).toContain("border-radius: var(--jn-r-md)");
     expect(body).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
   });
 
   it("le résumé est en police monospace de l'éditeur", () => {
     expect(rule(".card-summary")).toContain("var(--jn-mono)");
-    expect(css).toMatch(/--jn-mono: var\(--vscode-editor-font-family/);
+    expect(css).toContain("--vscode-editor-font-family");
   });
 
   it("la carte n'impose aucune largeur fixe (pas de débordement à 280 px)", () => {

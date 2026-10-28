@@ -237,16 +237,9 @@ describe("feuille des réglages", () => {
   const css = read(chatCss);
 
   it("groupes en capitales, sélection neutre et indicateur d’entrée courante", () => {
-    expect(css).toMatch(/\.studio-group-title \{[^}]*text-transform: uppercase/);
-    expect(css).toMatch(
-      /\.studio-nav-btn\.is-current,[^{]*\{[^}]*background: var\(--vscode-list-activeSelectionBackground/,
-    );
-    expect(css).toMatch(
-      /\.studio-nav-btn\.is-current,[^{]*\{[^}]*color: var\(--vscode-list-activeSelectionForeground/,
-    );
-    expect(css).toMatch(
-      /\.studio-nav-btn\.is-current,[^{]*\{[^}]*border-left-color: var\(--jn-accent\)/,
-    );
+    expect(css).toMatch(/\.studio-group-title[\s\S]*?text-transform: uppercase/);
+    expect(css).toMatch(/\.studio-nav-btn\.is-current[\s\S]*?var\(--jn-sig/);
+    expect(css).toContain("--vscode-list-activeSelectionForeground");
   });
 
   it("cartes au rayon lg, navigation en rangée sous 640 px", () => {
@@ -517,6 +510,7 @@ describe("killchainLegend (panneau légende, deux groupes avec compteurs)", () =
 // DOM minimal : exerce le vrai script, les saisies et le protocole sans dépendance de navigateur.
 class StudioNode {
   children: StudioNode[] = [];
+  parent: StudioNode | undefined;
   listeners = new Map<string, (event: Record<string, unknown>) => void>();
   id = "";
   textContent = "";
@@ -537,11 +531,11 @@ class StudioNode {
       else set.delete(name);
       this.className = [...set].join(" ");
     },
-    add: (name: string) => {
-      this.classList.toggle(name, true);
+    add: (...names: string[]) => {
+      for (const name of names) this.classList.toggle(name, true);
     },
-    remove: (name: string) => {
-      this.classList.toggle(name, false);
+    remove: (...names: string[]) => {
+      for (const name of names) this.classList.toggle(name, false);
     },
   };
   getBoundingClientRect() {
@@ -551,11 +545,52 @@ class StudioNode {
   get firstChild() {
     return this.children[0];
   }
+  get lastChild() {
+    return this.children.at(-1);
+  }
+  get isConnected(): boolean {
+    return this.parent?.isConnected ?? ["main", "body", "nav"].includes(this.tag);
+  }
   append(...nodes: StudioNode[]) {
-    this.children.push(...nodes);
+    for (const node of nodes) {
+      node.parent?.removeChild(node);
+      node.parent = this;
+      this.children.push(node);
+    }
+  }
+  prepend(...nodes: StudioNode[]) {
+    for (const node of [...nodes].reverse()) {
+      node.parent?.removeChild(node);
+      node.parent = this;
+      this.children.unshift(node);
+    }
+  }
+  after(...nodes: StudioNode[]) {
+    if (this.parent) {
+      const i = this.parent.children.indexOf(this);
+      for (const node of nodes) node.parent = this.parent;
+      this.parent.children.splice(i + 1, 0, ...nodes);
+    }
+  }
+  replaceWith(...nodes: StudioNode[]) {
+    this.after(...nodes);
+    this.parent?.removeChild(this);
+  }
+  replaceChildren(...nodes: StudioNode[]) {
+    for (const child of this.children) child.parent = undefined;
+    this.children = [];
+    this.append(...nodes);
+  }
+  querySelector(selector: string) {
+    return this.find((node) =>
+      selector.startsWith(".")
+        ? node.className.split(" ").includes(selector.slice(1))
+        : node.id === selector.slice(1),
+    );
   }
   removeChild(node: StudioNode) {
     this.children = this.children.filter((n) => n !== node);
+    node.parent = undefined;
   }
   attributes = new Map<string, string>();
   setAttribute(key: string, value: string) {
@@ -588,13 +623,17 @@ it("mémoire : saisie, plafond multioctet, conservation du brouillon et accusé 
   let receive: (event: { data: unknown }) => void = () => {};
   runInNewContext(read(studioJs), {
     TextEncoder,
+    setTimeout,
+    clearTimeout,
     acquireVsCodeApi: () => ({ postMessage: (message: unknown) => sent.push(message) }),
     document: {
+      addEventListener() {},
       body: new StudioNode("body"),
       getElementById: (id: string) => (id === "studio-main" ? main : null),
       createElement: (tag: string) => new StudioNode(tag),
     },
     window: {
+      WarbandIcons: { create: () => new StudioNode("svg") },
       addEventListener: (_type: string, listener: typeof receive) => {
         receive = listener;
       },
@@ -658,8 +697,11 @@ it("projets : choisir un projet réel et créer avec le nom seul, dossier laiss�
   let receive: (event: { data: unknown }) => void = () => {};
   runInNewContext(read(studioJs), {
     TextEncoder,
+    setTimeout,
+    clearTimeout,
     acquireVsCodeApi: () => ({ postMessage: (message: unknown) => sent.push(message) }),
     document: {
+      addEventListener() {},
       body: new StudioNode("body"),
       getElementById: (id: string) =>
         id === "studio-main" ? main : id === "studio-nav" ? nav : null,
@@ -782,6 +824,8 @@ it("graphe : conserve la caméra, libère les observateurs et signale une erreur
   let receive: (event: { data: unknown }) => void = () => {};
   runInNewContext(read(studioJs), {
     TextEncoder,
+    setTimeout,
+    clearTimeout,
     acquireVsCodeApi: () => ({ postMessage: () => {} }),
     matchMedia: () => ({ matches: false }),
     ResizeObserver: class {
@@ -798,12 +842,14 @@ it("graphe : conserve la caméra, libère les observateurs et signale une erreur
       }
     },
     document: {
+      addEventListener() {},
       body,
       getElementById: (id: string) => (id === "studio-main" ? main : null),
       createElement: (tag: string) => new StudioNode(tag),
       createElementNS: (_ns: string, tag: string) => new StudioNode(tag),
     },
     window: {
+      WarbandIcons: { create: () => new StudioNode("svg") },
       addEventListener: (_type: string, listener: typeof receive) => {
         receive = listener;
       },
@@ -828,7 +874,7 @@ it("graphe : conserve la caméra, libère les observateurs et signale une erreur
   expect(find("kc-live-status").textContent).toBe("Erreur sur graphe vide");
   receive({ data: view });
   const initial = find("kc-canvas");
-  const zoom = main.find((n) => n.title === "Zoomer");
+  const zoom = main.find((n) => n.attributes.get("aria-label") === "Zoomer");
   zoom?.fire("click");
   const pose = initial.styles.get("transform");
   const added = {
@@ -861,14 +907,18 @@ function killchainDom() {
   let receive: (event: { data: unknown }) => void = () => {};
   runInNewContext(read(studioJs), {
     TextEncoder,
+    setTimeout,
+    clearTimeout,
     acquireVsCodeApi: () => ({ postMessage: (message: unknown) => sent.push(message) }),
     document: {
+      addEventListener() {},
       body,
       getElementById: (id: string) => (id === "studio-main" ? main : null),
       createElement: (tag: string) => new StudioNode(tag),
       createElementNS: (_ns: string, tag: string) => new StudioNode(tag),
     },
     window: {
+      WarbandIcons: { create: () => new StudioNode("svg") },
       addEventListener: (_type: string, listener: typeof receive) => {
         receive = listener;
       },

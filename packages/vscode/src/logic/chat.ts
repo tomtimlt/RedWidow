@@ -70,6 +70,14 @@ export type ChatItem = { source?: string } & (
       output?: string;
       truncated?: boolean;
     }
+  | {
+      id: number;
+      kind: "report";
+      title: string;
+      description: string;
+      projectId: string;
+      findings: { label: string; detail: string; severity: "unrated" }[];
+    }
   | { id: number; kind: "notice"; level: "info" | "error"; text: string }
 );
 
@@ -121,6 +129,7 @@ export interface ChatView {
   approvals: ApprovalCard[];
   /** Un tour est en cours (saisie bloquée, bouton Stop actif). */
   busy: boolean;
+  turnStartedAt?: number | null;
   /** Image du bac à sable du run, si activé. */
   sandbox: string | null;
   /** Profil réseau du bac à sable (`none` ou `bridge`), ou absent si désactivé / inconnu. */
@@ -139,6 +148,7 @@ export function createChatState(before?: string) {
   const items: ChatItem[] = [];
   const approvals = new Map<string, ApprovalCard>();
   let busy = false;
+  let turnStartedAt: number | null = null;
   let retry: { attempt: number; delayMs: number } | undefined;
   let sandbox: string | null = null;
   let sandboxNetwork: "none" | "bridge" | null = null;
@@ -187,6 +197,8 @@ export function createChatState(before?: string) {
       return busy;
     },
     setBusy(value: boolean) {
+      if (value && !busy) turnStartedAt = Date.now();
+      if (!value) turnStartedAt = null;
       busy = value;
       retry = undefined;
     },
@@ -236,6 +248,7 @@ export function createChatState(before?: string) {
       execTools.clear();
       execProcs.clear();
       busy = false;
+      turnStartedAt = null;
       readonly = null;
       sandboxNetwork = null;
     },
@@ -358,6 +371,7 @@ export function createChatState(before?: string) {
         ...(retry && { retry }),
         approvals: readonly ? [] : [...approvals.values()],
         busy,
+        turnStartedAt: busy ? turnStartedAt : null,
         sandbox,
         sandboxNetwork,
         controls,

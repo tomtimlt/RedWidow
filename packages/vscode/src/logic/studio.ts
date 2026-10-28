@@ -20,6 +20,7 @@ export function isStudioPage(value: string): value is StudioPage {
 }
 
 export type StudioMessage =
+  | { type: "openReport"; projectId: string }
   | { type: "exportKillchain"; projectId: string }
   | { type: "exportReport"; projectId: string }
   | { type: "open"; page: StudioPage }
@@ -46,7 +47,7 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
   const m = raw as Record<string, unknown>;
   const keys = Object.keys(m);
   if (
-    (m.type === "exportReport" || m.type === "exportKillchain") &&
+    (m.type === "exportReport" || m.type === "exportKillchain" || m.type === "openReport") &&
     keys.length === 2 &&
     keys.every((key) => key === "type" || key === "projectId") &&
     typeof m.projectId === "string" &&
