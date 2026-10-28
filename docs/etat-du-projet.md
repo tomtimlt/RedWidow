@@ -20,7 +20,7 @@ La version du manifeste est **0.3.56**. Les paragraphes
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
 
-## Lot 0.3.56 — menu compact et cartes d’autorisation (préparé)
+## Lot 0.3.56 — menu compact et cartes d’autorisation (publié)
 
 Les deux nouveaux commits `122139c` et `6281a6b` de `design/ui-vscode` sont
 adaptés : Configurer plus compact, texte fournisseur dépliable au clic et au
@@ -41,8 +41,18 @@ conversation. Les **18 parcours Chromium** couvrent trois thèmes, largeurs
 280/360/1 000 px et hauteurs 480/800 px : menu de 414–416 px dans ces cas, texte
 repliable au clavier, Tab, avertissement intégral visible, 54 réponses initiales
 sans doublon et 18 reprises de carte après annulation simulée. Captures et diff
-relus ; aucun appel payant lancé. Publication en cours. La recette native
-Windows reste à confirmer.
+relus ; aucun appel payant lancé.
+
+Le commit **53ae824**, poussé sous `tomtimlt`, est marqué **v0.3.56**. Le
+[workflow 40653406286](https://github.com/tomtimlt/warband/actions/runs/40653406286)
+a réussi. Les quatre assets de la [release 0.3.56](https://github.com/tomtimlt/warband/releases/tag/v0.3.56)
+ont été téléchargés et vérifiés : deux VSIX et leurs SHA-256, digests GitHub
+conformes, ZIP intègres, manifeste 0.3.56 et binaires natifs conformes à leurs
+empreintes embarquées. Les médias sont identiques au commit validé ; menu
+compact, descriptions dépliables, état de confirmation et récupération après
+annulation sont présents. Le maintien reste absent, l’avertissement Bypass
+visible, et les archives, exports, méthodologie et TLS strict sont conservés.
+La recette native Windows et ses certificats système restent à confirmer.
 
 ## Lot 0.3.55 — seconde passe graphique (publié)
 
