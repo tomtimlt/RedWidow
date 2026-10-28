@@ -20,7 +20,7 @@ La version du manifeste est **0.3.60**. Les paragraphes
 validation de ce lot. Les artefacts publiés sont accessibles dans les
 [releases GitHub](https://github.com/tomtimlt/warband/releases).
 
-## Lot 0.3.60 — fichiers joints au chat (préparé)
+## Lot 0.3.60 — fichiers joints au chat (publié)
 
 Le trombone et le glisser-déposer dans la zone de saisie ajoutent des textes,
 logs et fichiers de code UTF-8. Les noms et boutons de retrait restent visibles
@@ -42,8 +42,17 @@ sélection, dépôt, retrait, formats et tailles refusés, acquittement, brouill
 conservé après refus, réponses périmées et lecture retardée après changement de
 chat. Le premier essai de la suite complète a été interrompu en bac à sable
 restreint ; l’exécution avec processus et serveurs locaux autorisés a réussi.
-Aucun appel payant effectué. Publication en cours ; voir ADR 0029. La validation du correctif
-HTTPS sur le poste Windows de l’utilisateur reste nécessaire.
+Aucun appel payant effectué. Voir ADR 0029.
+
+Le commit **ec490ed**, poussé sous `tomtimlt`, est marqué **v0.3.60**. Le
+[workflow 40703480393](https://github.com/tomtimlt/warband/actions/runs/40703480393)
+a réussi dès sa première exécution. Les quatre assets de la
+[release 0.3.60](https://github.com/tomtimlt/warband/releases/tag/v0.3.60) ont été
+téléchargés puis vérifiés : SHA-256 GitHub et fichiers conformes, archives
+intègres, manifeste 0.3.60, binaires Linux/Windows et empreintes embarquées
+conformes, présence des pièces jointes et correspondance des médias aux sources.
+La sélection native et le correctif HTTPS restent à confirmer dans VS Code sur
+le poste Windows de l’utilisateur ; les contrôles cloud ne prouvent pas ce test.
 
 ## Lot 0.3.59 — six teintes et effet d’effort maximal (publié)
 
