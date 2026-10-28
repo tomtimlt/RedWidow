@@ -12,9 +12,9 @@ fictifs. Les interactions modifient uniquement l’état de démonstration en m�
    ou utiliser la palette : **Warband UI : ouvrir le chat / le graphe / le Monitor / les réglages**.
 4. Utiliser **Warband UI : choisir un scénario** pour passer entre accueil,
    conversation, activité, validation, indisponibilité et historique long.
-5. **Warband UI : choisir une palette** (ou le réglage `warbandDesign.palette`)
-   change la couleur de signature : Sentinelle, Braise, Bastion, Spectre ou
-   Éditeur.
+5. **Réglages › Apparence** (ou **Warband UI : choisir une palette**, ou le
+   réglage `warbandDesign.palette`) change le jeu de couleurs : Sentinelle,
+   Braise, Spectre, Éditeur ou Multicolore.
 
 Aucune installation de dépendance n’est nécessaire. La démonstration ne demande
 aucune clé et ne contacte aucun fournisseur. Les activités affichées sont des

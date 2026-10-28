@@ -24,8 +24,13 @@ exports.activate = async function activate(context) {
     webview.options={enableScripts:true,enableCommandUris:false,localResourceRoots:[media]};
     const listener=webview.onDidReceiveMessage(message=>{
       if(!message||typeof message!=='object')return;
-      if(message.type==='open'&&kind==='settings'&&['project','spaces','graph','atlas','system'].includes(message.page)){record.page=message.page;redraw(record);return;}
+      if(message.type==='open'&&kind==='settings'&&['project','spaces','graph','atlas','system','appearance'].includes(message.page)){record.page=message.page;redraw(record);return;}
       if(message.type==='watch'){open('monitor');return;}
+      if(message.type==='setPalette'){
+        // Le choix passe par le réglage ; le changement de configuration prévient toutes les vues.
+        if(typeof message.palette==='string'&&PALETTES.some(([id])=>id===message.palette))void vscode.workspace?.getConfiguration?.('warbandDesign')?.update?.('palette',message.palette,vscode.ConfigurationTarget?.Global);
+        return;
+      }
       if(message.type==='ready'){
         if(kind==='monitor')void webview.postMessage({type:'role',role:'monitor'});
         redraw(record);for(const item of demo.auxiliary())void webview.postMessage(item);
@@ -55,7 +60,7 @@ exports.activate = async function activate(context) {
     if(selected)await vscode.workspace.getConfiguration('warbandDesign').update('palette',selected.value,vscode.ConfigurationTarget.Global);
   }));
   if(vscode.workspace?.onDidChangeConfiguration)context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event=>{
-    if(event.affectsConfiguration('warbandDesign.palette'))for(const record of mounted)render(record);
+    if(event.affectsConfiguration('warbandDesign.palette'))for(const record of mounted)void record.webview.postMessage({type:'palette',palette:palette()});
   }));
   context.subscriptions.push({dispose:()=>{demo.dispose();for(const panel of panels.values())panel.dispose();mounted.clear();panels.clear();}});
 };

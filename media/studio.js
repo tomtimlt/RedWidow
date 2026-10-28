@@ -13,7 +13,19 @@ const STUDIO_GROUPS = [
       ["atlas", "Atlas", "book"],
       ["system", "Contrôle système", "server"]
     ]
+  },
+  {
+    label: "Interface",
+    pages: [["appearance", "Apparence", "palette"]]
   }
+];
+// Jeux de couleurs : mêmes identifiants que PALETTES dans src/views.mjs (contrôlé par test).
+const PALETTES = [
+  ["sentinelle", "Sentinelle", "Sarcelle et ardoise : veille, terminal, sécurité"],
+  ["braise", "Braise", "Cramoisi et acier : la marque d’origine, plus offensive"],
+  ["spectre", "Spectre", "Violet et glace : agents, recherche, nuit"],
+  ["editeur", "Éditeur", "Accent du thème VS Code : intégration maximale"],
+  ["multi", "Multicolore", "Une teinte par rôle : cyan, bleu, violet et rose"]
 ];
 function graphCount(entries) {
   if (!Array.isArray(entries) || entries.length === 0) return null;
@@ -368,6 +380,90 @@ function start() {
       }
       nav.append(section);
     }
+  }
+  // Apparence : le choix s'applique tout de suite à cette vue ; l'hôte l'enregistre
+  // et prévient les autres vues.
+  const currentPalette = () => PALETTES.some(([id]) => id === document.body.dataset.palette) ? document.body.dataset.palette : PALETTES[0][0];
+  const applyPalette = (id) => {
+    if (PALETTES.some(([known]) => known === id)) document.body.dataset.palette = id;
+  };
+  let repaintPalette = () => {
+  };
+  function appearancePage() {
+    const sec = el("section", "studio-card");
+    sec.append(
+      el("h2", "", "Apparence"),
+      el(
+        "p",
+        "studio-help",
+        "Choisissez le jeu de couleurs de Warband. Il s’applique aussitôt à toutes les vues et s’adapte aux thèmes clair, sombre et contraste élevé de VS Code."
+      )
+    );
+    if (document.body.classList.contains("vscode-high-contrast") || document.body.classList.contains("vscode-high-contrast-light")) {
+      sec.append(
+        el(
+          "p",
+          "studio-help pal-note",
+          "En contraste élevé, Warband utilise les couleurs du thème : le choix est enregistré et s’applique dès que vous changez de thème."
+        )
+      );
+    }
+    const group = el("div", "pal-grid");
+    group.setAttribute("role", "radiogroup");
+    group.setAttribute("aria-label", "Jeu de couleurs");
+    const cards = PALETTES.map(([id, label, detail]) => {
+      const card = el("button", "pal-card");
+      card.type = "button";
+      card.dataset.palette = id;
+      card.setAttribute("role", "radio");
+      const logo = window.WarbandIcons.createBrand("brand pal-logo");
+      const swatches = el("span", "pal-sw");
+      swatches.setAttribute("aria-hidden", "true");
+      for (let i = 0; i < 4; i++) swatches.append(el("i"));
+      const bar = el("span", "pal-bar");
+      bar.setAttribute("aria-hidden", "true");
+      bar.append(el("span", "pal-bar-fill"), el("span", "pal-bar-knob"));
+      const top = el("span", "pal-top");
+      top.append(logo, swatches);
+      const preview = el("span", "pal-preview");
+      preview.append(top, bar);
+      const text = el("span", "pal-text");
+      text.append(el("span", "pal-name", label), el("span", "pal-desc", detail));
+      const check = decorative(el("span", "pal-check"));
+      check.append(window.WarbandIcons.create("check"));
+      card.append(preview, text, check);
+      return card;
+    });
+    repaintPalette = () => {
+      const now = currentPalette();
+      for (const card of cards) {
+        const on = card.dataset.palette === now;
+        card.setAttribute("aria-checked", String(on));
+        card.tabIndex = on ? 0 : -1;
+      }
+    };
+    const choose = (card) => {
+      const id = card.dataset.palette;
+      applyPalette(id);
+      repaintPalette();
+      vscode.postMessage({ type: "setPalette", palette: id });
+    };
+    cards.forEach((card, i) => {
+      card.addEventListener("click", () => choose(card));
+      card.addEventListener("keydown", (event) => {
+        const last = cards.length - 1;
+        const next = { ArrowRight: i + 1, ArrowDown: i + 1, ArrowLeft: i - 1, ArrowUp: i - 1, Home: 0, End: last }[event.key];
+        if (next === void 0) return;
+        event.preventDefault();
+        const target = cards[(next + cards.length) % cards.length];
+        target.focus();
+        choose(target);
+      });
+    });
+    group.append(...cards);
+    repaintPalette();
+    sec.append(group);
+    return sec;
   }
   function empty(title, text) {
     const sec = el("section", "studio-card");
@@ -1324,6 +1420,10 @@ function start() {
       main.append(sec);
       return;
     }
+    if (page === "appearance") {
+      main.append(appearancePage());
+      return;
+    }
     if (page === "atlas") {
       const sec = empty(
         "Atlas",
@@ -1375,6 +1475,11 @@ function start() {
       showGraphError(
         typeof msg.message === "string" ? msg.message : "Actualisation du graphe indisponible."
       );
+      return;
+    }
+    if (msg?.type === "palette" && typeof msg.palette === "string") {
+      applyPalette(msg.palette);
+      repaintPalette();
       return;
     }
     if (msg?.type !== "view") return;

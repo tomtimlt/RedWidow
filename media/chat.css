@@ -28,10 +28,6 @@
 body {
   /* Marque : --jn-brand et --jn-steel viennent de la palette (voir plus bas). */
   --jn-ink: #ffffff;
-  --jn-sig: var(--jn-brand);
-  --jn-sig-tint: color-mix(in srgb, var(--jn-sig) 13%, transparent);
-  --jn-sig-edge: color-mix(in srgb, var(--jn-sig) 48%, transparent);
-  --jn-ember: var(--jn-sig);
   /* Interaction : toujours l'accent du thème */
   --jn-accent: var(--vscode-textLink-foreground, var(--vscode-button-background));
   --jn-focus: var(--vscode-focusBorder, var(--jn-accent));
@@ -113,8 +109,6 @@ body.vscode-light {
   --jn-tint: color-mix(in srgb, var(--jn-accent) 9%, transparent);
   --jn-accent-wash: color-mix(in srgb, var(--jn-accent) 6%, transparent);
   --jn-accent-edge: color-mix(in srgb, var(--jn-accent) 50%, transparent);
-  --jn-sig-tint: color-mix(in srgb, var(--jn-sig) 10%, transparent);
-  --jn-sig-edge: color-mix(in srgb, var(--jn-sig) 55%, transparent);
   --jn-shadow-pop:
     0 1px 2px #0000000f,
     0 8px 24px var(--vscode-widget-shadow, #00000024);
@@ -142,50 +136,91 @@ body.vscode-high-contrast-light {
 }
 
 /* ───────────────────────────── Palettes ─────────────────────────────
- * Chaque palette fixe la couleur de signature (--jn-brand) et le gris de
- * marque (--jn-steel), en deux tons : sombre (par défaut) et clair. La
- * signature sert au logo, aux liserés, aux sélections et à l'activité ; les
- * boutons principaux et le focus restent ceux du thème. En contraste élevé,
- * la signature cède la place à la bordure active du thème.
+ * Cinq jeux de couleurs : Sentinelle, Braise, Spectre, Éditeur et Multicolore.
+ * Chaque jeu fixe la couleur de signature (--jn-brand) et le gris de marque
+ * (--jn-steel), en deux tons : sombre (par défaut) et clair. Les règles
+ * s'appliquent à tout élément portant data-palette : la page Apparence s'en
+ * sert pour aperçu de chaque jeu dans sa carte. La signature sert au logo, aux
+ * liserés, aux sélections et à l'activité ; les boutons principaux et le focus
+ * restent ceux du thème. En contraste élevé, la signature cède la place à la
+ * bordure active du thème.
  */
 body,
-body[data-palette="sentinelle"] {
+[data-palette="sentinelle"] {
   --jn-brand: #3cc7c0;
   --jn-steel: #8396aa;
 }
 body.vscode-light,
-body.vscode-light[data-palette="sentinelle"] {
+body.vscode-light [data-palette="sentinelle"] {
   --jn-brand: #0b7a82;
   --jn-steel: #55687c;
 }
-body[data-palette="braise"] {
+[data-palette="braise"] {
   --jn-brand: #f0506e;
   --jn-steel: #7f93a8;
 }
-body.vscode-light[data-palette="braise"] {
+body.vscode-light[data-palette="braise"],
+body.vscode-light [data-palette="braise"] {
   --jn-brand: #c41a3d;
   --jn-steel: #495f73;
 }
-body[data-palette="bastion"] {
-  --jn-brand: #f28c4b;
-  --jn-steel: #9a948d;
-}
-body.vscode-light[data-palette="bastion"] {
-  --jn-brand: #b04f12;
-  --jn-steel: #5f5850;
-}
-body[data-palette="spectre"] {
+[data-palette="spectre"] {
   --jn-brand: #a990ff;
   --jn-steel: #8f99c2;
 }
-body.vscode-light[data-palette="spectre"] {
+body.vscode-light[data-palette="spectre"],
+body.vscode-light [data-palette="spectre"] {
   --jn-brand: #6741d9;
   --jn-steel: #565e86;
 }
-body[data-palette="editeur"],
-body.vscode-light[data-palette="editeur"] {
+[data-palette="editeur"] {
   --jn-brand: var(--vscode-focusBorder, var(--jn-accent));
   --jn-steel: color-mix(in srgb, var(--vscode-foreground) 55%, transparent);
+}
+/* Pastilles et remplissage d'aperçu : propres à chaque jeu, jamais hérités. */
+body,
+[data-palette] {
+  --jn-sw-1: var(--jn-brand);
+  --jn-sw-2: var(--jn-steel);
+  --jn-sw-3: color-mix(in srgb, var(--jn-brand) 60%, var(--vscode-editor-background));
+  --jn-sw-4: color-mix(in srgb, var(--jn-brand) 30%, var(--vscode-editor-background));
+  --jn-pal-fill: var(--jn-brand);
+}
+/* Multicolore : quatre teintes (cyan, bleu, violet, rose) réparties par rôle. */
+[data-palette="multi"] {
+  --jn-brand: #35c4d8;
+  --jn-steel: #8396aa;
+  --jn-mc-1: #35c4d8;
+  --jn-mc-2: #6ea0ff;
+  --jn-mc-3: #a98bff;
+  --jn-mc-4: #ff7eb6;
+  --jn-sw-1: var(--jn-mc-1);
+  --jn-sw-2: var(--jn-mc-2);
+  --jn-sw-3: var(--jn-mc-3);
+  --jn-sw-4: var(--jn-mc-4);
+  --jn-pal-fill: linear-gradient(90deg, var(--jn-mc-1), var(--jn-mc-2), var(--jn-mc-3), var(--jn-mc-4));
+}
+body.vscode-light[data-palette="multi"],
+body.vscode-light [data-palette="multi"] {
+  --jn-brand: #0a7f95;
+  --jn-steel: #55687c;
+  --jn-mc-1: #0a7f95;
+  --jn-mc-2: #2a5fd0;
+  --jn-mc-3: #6a3fd0;
+  --jn-mc-4: #c2306f;
+}
+/* Jetons dérivés, recalculés sur chaque élément portant une palette. */
+body,
+[data-palette] {
+  --jn-sig: var(--jn-brand);
+  --jn-sig-tint: color-mix(in srgb, var(--jn-sig) 13%, transparent);
+  --jn-sig-edge: color-mix(in srgb, var(--jn-sig) 48%, transparent);
+  --jn-ember: var(--jn-sig);
+}
+body.vscode-light,
+body.vscode-light [data-palette] {
+  --jn-sig-tint: color-mix(in srgb, var(--jn-sig) 10%, transparent);
+  --jn-sig-edge: color-mix(in srgb, var(--jn-sig) 55%, transparent);
 }
 body.vscode-high-contrast,
 body.vscode-high-contrast-light {
@@ -196,6 +231,14 @@ body.vscode-high-contrast-light {
   --jn-sig-tint: transparent;
   --jn-sig-edge: var(--jn-sig);
   --jn-steel: var(--vscode-foreground);
+}
+body.vscode-high-contrast [data-palette],
+body.vscode-high-contrast-light [data-palette] {
+  --jn-sig: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+  --jn-sig-tint: transparent;
+  --jn-sig-edge: var(--jn-sig);
+  --jn-steel: var(--vscode-foreground);
+  --jn-pal-fill: var(--jn-sig);
 }
 
 /* ───────────────────────────── Base ───────────────────────────── */
@@ -5147,6 +5190,7 @@ body.vscode-high-contrast-light .kc-viewport {
  */
 .kc-node.is-selected .kc-node-head::after,
 .kc-node.is-replay .kc-node-head::after,
+.pal-card[aria-checked="true"]::after,
 #approvals .card:not(.is-locked, .is-denied)::after,
 .hist.current::after,
 .studio-project-active::after,
@@ -5187,6 +5231,10 @@ body.vscode-high-contrast-light .kc-viewport {
   --jn-lock-c: var(--jn-ok);
   --jn-lock-inset: -4px;
   --jn-lock-l: 14px;
+}
+.pal-card[aria-checked="true"]::after {
+  --jn-lock-inset: -5px;
+  --jn-lock-l: 12px;
 }
 .hist.current::after {
   --jn-lock-inset: 0;
@@ -5778,6 +5826,247 @@ body.mode-watch::after {
   opacity: 0.8;
 }
 
+/* ───────────────────────────── Apparence ───────────────────────────── */
+
+.pal-note {
+  padding: 8px 12px;
+  border: 1px dashed var(--jn-line-strong);
+  border-radius: var(--jn-r-md);
+  font-size: var(--jn-fs-sm);
+}
+.pal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin-top: 4px;
+}
+.pal-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+  text-align: left;
+  white-space: normal;
+  line-height: 1.35;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+  background: var(--jn-raise);
+  color: var(--vscode-foreground);
+  font-weight: 400;
+}
+.pal-card:hover:not(:disabled) {
+  background: var(--jn-raise-2);
+  border-color: var(--jn-sig-edge);
+}
+.pal-card[aria-checked="true"] {
+  border-color: var(--jn-sig);
+  background: var(--jn-sig-tint);
+}
+.pal-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-sm);
+  background: var(--vscode-editor-background);
+}
+.pal-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.pal-logo {
+  flex: none;
+  width: 26px;
+  height: 26px;
+}
+.pal-sw {
+  display: flex;
+  gap: 4px;
+}
+.pal-sw i {
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+.pal-sw i:nth-child(1) {
+  background: var(--jn-sw-1);
+}
+.pal-sw i:nth-child(2) {
+  background: var(--jn-sw-2);
+}
+.pal-sw i:nth-child(3) {
+  background: var(--jn-sw-3);
+}
+.pal-sw i:nth-child(4) {
+  background: var(--jn-sw-4);
+}
+/* Mini curseur d'effort : le remplissage est découpé dans une piste pleine. */
+.pal-bar {
+  position: relative;
+  height: 12px;
+  border-radius: var(--jn-r-pill);
+  background: var(--jn-raise-2);
+  box-shadow: inset 0 0 0 1px var(--jn-line);
+}
+.pal-bar-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--jn-r-pill);
+  background: var(--jn-pal-fill);
+  clip-path: inset(0 38% 0 0 round 99px);
+}
+.pal-bar-knob {
+  position: absolute;
+  top: 50%;
+  left: 62%;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border-radius: 50%;
+  background: var(--vscode-button-foreground, #fff);
+  box-shadow: 0 1px 3px var(--vscode-widget-shadow, #0004);
+}
+.pal-name {
+  display: block;
+  font-size: var(--jn-fs);
+  font-weight: 650;
+}
+.pal-desc {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--jn-fs-xs);
+  color: var(--jn-muted);
+}
+.pal-check {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--jn-sig);
+  color: var(--vscode-editor-background);
+  opacity: 0;
+  transform: scale(0.5);
+  transition:
+    opacity var(--jn-d2) var(--jn-ease-io),
+    transform var(--jn-d2) var(--jn-ease-out);
+}
+.pal-check .ico {
+  width: 12px;
+  height: 12px;
+}
+.pal-card[aria-checked="true"] .pal-check {
+  opacity: 1;
+  transform: none;
+}
+body.vscode-high-contrast .pal-card[aria-checked="true"],
+body.vscode-high-contrast-light .pal-card[aria-checked="true"] {
+  outline: 2px solid var(--jn-sig);
+  outline-offset: -2px;
+}
+/* Aperçu du multicolore dans sa carte : étincelle et satellite de teintes différentes. */
+[data-palette="multi"] .pal-logo .brand-lead {
+  fill: var(--jn-mc-1);
+}
+[data-palette="multi"] .pal-logo .brand-node {
+  fill: var(--jn-mc-3);
+}
+/* Dans une carte, le logo suit la palette de la carte, pas celle de la page. */
+.pal-card:not([data-palette="multi"]) .pal-logo .brand-lead,
+.pal-card:not([data-palette="multi"]) .pal-logo .brand-node {
+  fill: var(--jn-sig);
+}
+body.vscode-high-contrast [data-palette="multi"] .pal-logo .brand-lead,
+body.vscode-high-contrast-light [data-palette="multi"] .pal-logo .brand-lead,
+body.vscode-high-contrast [data-palette="multi"] .pal-logo .brand-node,
+body.vscode-high-contrast-light [data-palette="multi"] .pal-logo .brand-node {
+  fill: var(--vscode-foreground);
+}
+
+/* ───────────────────────────── Palette multicolore ─────────────────────────────
+ * Une teinte par rôle : cyan pour l'agent, bleu pour l'utilisateur, violet pour
+ * le satellite et les modèles, rose pour la fin de course. Jamais en contraste
+ * élevé, où la bordure active du thème prend le relais. Les états (ok, alerte,
+ * erreur) et le bypass gardent leurs couleurs.
+ */
+body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contrast-light)) {
+  & #bar::after,
+  & .studio-nav-title::after {
+    width: 40px;
+    background: linear-gradient(90deg, var(--jn-mc-1), var(--jn-mc-2), var(--jn-mc-3), var(--jn-mc-4));
+  }
+  & .msg.user {
+    box-shadow: inset var(--jn-rail) 0 0 var(--jn-mc-2);
+  }
+  & .brand-lead {
+    fill: var(--jn-mc-1);
+  }
+  & .brand-node {
+    fill: var(--jn-mc-3);
+  }
+  & .chip .chip-ico {
+    color: var(--jn-mc-3);
+  }
+  & .roe[data-level="1"] .roe-gauge i:nth-child(1),
+  & .roe[data-level="2"] .roe-gauge i:nth-child(1) {
+    background: var(--jn-mc-1);
+  }
+  & .roe[data-level="2"] .roe-gauge i:nth-child(2) {
+    background: var(--jn-mc-2);
+  }
+  & .mission-step:nth-child(1) {
+    --jn-step: var(--jn-mc-1);
+  }
+  & .mission-step:nth-child(2) {
+    --jn-step: var(--jn-mc-2);
+  }
+  & .mission-step:nth-child(3) {
+    --jn-step: var(--jn-mc-3);
+  }
+  & .mission-step:nth-child(4) {
+    --jn-step: var(--jn-mc-4);
+  }
+  & .mission-step.is-done .mission-mark {
+    background: var(--jn-step);
+  }
+  & .mission-step.is-current .mission-mark {
+    border-color: var(--jn-step);
+    color: var(--jn-step);
+  }
+  & .mission-step.is-current {
+    background: color-mix(in srgb, var(--jn-step) 14%, transparent);
+  }
+  /* Effort : dégradé fixe sur toute la piste, découpé jusqu'à la pastille. */
+  & #effort-scale::before {
+    left: 0;
+    right: 0;
+    width: auto;
+    background: linear-gradient(90deg, var(--jn-mc-1), var(--jn-mc-2), var(--jn-mc-3), var(--jn-mc-4));
+    clip-path: inset(0 calc(100% - (var(--jn-pos) + var(--jn-thumb) / 2)) 0 0 round 99px);
+    transition:
+      clip-path var(--jn-settle),
+      opacity var(--jn-d2) var(--jn-ease-io);
+  }
+  & #effort-scale.is-dragging::before {
+    transition: none;
+  }
+  & #effort-label {
+    color: var(--jn-mc-2);
+  }
+}
+
 /* ───────────────────────────── Micro-interactions ─────────────────────────────
  * Réactions discrètes au survol et à l'appui. Absentes en mouvement réduit,
  * en contraste élevé et avec la classe reduce-motion.
@@ -5904,6 +6193,7 @@ body.mode-watch::after {
     }
     /* Verrouillage : les crochets se referment sur la cible. */
     & .kc-node.is-replay .kc-node-head::after,
+    & .pal-card[aria-checked="true"]::after,
     & .kc-node.is-selected .kc-node-head::after,
     & .hist.current::after,
     & .studio-project-active::after,

@@ -95,19 +95,42 @@ Piste épaisse en pilule, remplissage de signature, un point par niveau et
 grande pastille claire. Le glisser est continu, le relâchement se cale sur le
 niveau le plus proche avec un rebond ; le clavier passe de niveau en niveau.
 
-## Palettes
+## Palettes et page Apparence
 
-Réglage `warbandDesign.palette` ou commande **Warband UI : choisir une
-palette** ; sélecteur « Palette » dans l’aperçu navigateur. Chaque palette a un
-ton pour les thèmes sombres et un ton plus foncé pour les thèmes clairs.
+Cinq jeux de couleurs, au choix dans **Réglages › Apparence** (icône palette,
+groupe « Interface »), par la commande **Warband UI : choisir une palette** ou
+par le réglage `warbandDesign.palette`. Le choix s’applique aussitôt à toutes
+les vues, sans rechargement, et l’aperçu navigateur le garde d’une vue à
+l’autre. Chaque jeu a un ton pour les thèmes sombres et un ton plus foncé pour
+les thèmes clairs.
 
-| Palette | Sombre | Clair | Intention |
+| Jeu | Sombre | Clair | Intention |
 | --- | --- | --- | --- |
 | Sentinelle (défaut) | `#3cc7c0` | `#0b7a82` | sarcelle et ardoise : veille, terminal, sécurité |
 | Braise | `#f0506e` | `#c41a3d` | cramoisi et acier, marque d’origine ; proche du rouge d’erreur |
-| Bastion | `#f28c4b` | `#b04f12` | cuivre et graphite, chaleur d’atelier |
 | Spectre | `#a990ff` | `#6741d9` | violet et glace, distinct de toutes les couleurs d’état |
 | Éditeur | accent du thème | accent du thème | intégration maximale avec n’importe quel thème |
+| Multicolore | `#35c4d8` `#6ea0ff` `#a98bff` `#ff7eb6` | `#0a7f95` `#2a5fd0` `#6a3fd0` `#c2306f` | une teinte par rôle, jamais en contraste élevé |
+
+Bastion (cuivre) est retiré : trop proche de l’orange des alertes. Une valeur
+inconnue, y compris « bastion » dans les réglages existants, retombe sur
+Sentinelle.
+
+- **Page Apparence** : une carte par jeu, dans un groupe `radiogroup`
+  (flèches, Début et Fin pour passer de l’un à l’autre, Entrée ou Espace pour
+  choisir). Chaque carte aperçoit son propre jeu (logo, pastilles, curseur) car
+  les variables de palette s’appliquent à tout élément `data-palette`. La carte
+  choisie porte les crochets de verrouillage et une coche. En contraste élevé,
+  une note rappelle que les couleurs du thème prennent le relais.
+- **Multicolore** : cyan pour l’agent (étincelle, soulignement de marque),
+  bleu pour les messages de l’utilisateur, violet pour le satellite et les
+  modèles, rose pour la fin de course ; soulignement dégradé, phases de la
+  mission en quatre teintes, deux premières barres des règles d’engagement,
+  dégradé continu du curseur d’effort. Les états (ok, alerte, erreur) et le
+  bypass gardent leurs couleurs.
+- **Messages** : la page envoie `setPalette` ; l’extension enregistre le
+  réglage et diffuse `palette` aux vues ouvertes. Le harnais fictif les traite
+  localement ; aucune autre donnée n’est ajoutée.
 
 ## Monitor et cockpit
 

@@ -79,18 +79,18 @@
           "enum": [
             "sentinelle",
             "braise",
-            "bastion",
             "spectre",
-            "editeur"
+            "editeur",
+            "multi"
           ],
           "enumDescriptions": [
             "Sarcelle et ardoise : veille, terminal, sécurité",
             "Cramoisi et acier : la marque d'origine",
-            "Cuivre et graphite : chaleur d'atelier",
             "Violet et glace : agents, recherche, nuit",
-            "Accent du thème VS Code : intégration maximale"
+            "Accent du thème VS Code : intégration maximale",
+            "Une teinte par rôle : cyan, bleu, violet et rose"
           ],
-          "description": "Palette de signature de Warband. Les couleurs s'adaptent aux thèmes clair, sombre et contraste élevé."
+          "description": "Jeu de couleurs de Warband (aussi réglable dans Réglages › Apparence). Les couleurs s'adaptent aux thèmes clair, sombre et contraste élevé."
         }
       }
     }

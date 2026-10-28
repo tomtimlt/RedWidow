@@ -1384,6 +1384,8 @@
       document.body.classList.add("mode-watch");
       document.body.classList.remove("mode-monitor");
       if (lastView) render(lastView);
+    } else if (message && message.type === "palette" && typeof message.palette === "string" && /^[a-z]{1,16}$/.test(message.palette)) {
+      document.body.dataset.palette = message.palette;
     } else if (message && message.type === "title" && typeof message.text === "string") {
       const brandName = document.querySelector("#title .brand-name");
       if (brandName) brandName.textContent = message.text.slice(0, 120);

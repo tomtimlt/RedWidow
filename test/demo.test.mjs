@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { createDemo, SCENARIOS, PROJECT } from "../src/demo.mjs";
-import { chatHtml, graphHtml, studioHtml } from "../src/views.mjs";
+import { chatHtml, graphHtml, studioHtml, PALETTES, BRAND_SHAPES } from "../src/views.mjs";
 test("les scénarios montrent accueil, activité, validation, catalogue indisponible et pages", () => {
   const demo = createDemo();
   for (const [key] of SCENARIOS) {
@@ -84,7 +84,14 @@ test("le pont VS Code ouvre les vues et transmet les interactions de la simulati
     }, send: (message) => receive(message) };
     return view;
   };
+  const updates = [];
+  let configChanged;
   const api = {
+    ConfigurationTarget: { Global: 1 },
+    workspace: {
+      getConfiguration: () => ({ get: (_key, fallback) => fallback, update: async (key, value) => { updates.push([key, value]); } }),
+      onDidChangeConfiguration: (fn) => { configChanged = fn; return disposable(); }
+    },
     Uri: { joinPath: (base, ...parts) => resource(base.path + "/" + parts.join("/")) },
     ViewColumn: { One: 1 },
     window: { registerWebviewViewProvider: (_id, value) => {
@@ -116,8 +123,17 @@ test("le pont VS Code ouvre les vues et transmet les interactions de la simulati
   sidebar.send({ type: "ready" });
   assert.ok(sidebar.webview.html.includes("Content-Security-Policy"));
   assert.ok(sidebar.messages.some((m) => m.type === "view" && m.view.items.length > 0));
+  sidebar.send({ type: "setPalette", palette: "multi" });
+  sidebar.send({ type: "setPalette", palette: "\"><script>" });
+  assert.deepEqual(updates, [["palette", "multi"]]);
+  configChanged({ affectsConfiguration: (key) => key === "warbandDesign.palette" });
+  assert.ok(sidebar.messages.some((m) => m.type === "palette" && m.palette === "sentinelle"));
+  commands.get("warbandDesign.settings")();
+  const settings = panels.at(-1);
+  settings.send({ type: "open", page: "appearance" });
+  assert.ok(settings.messages.some((m) => m.type === "view" && m.page === "appearance"));
   commands.get("warbandDesign.graph")();
-  assert.ok(panels[0].webview.html.includes("graph-full"));
+  assert.ok(panels.some((panel) => panel.webview.html.includes("graph-full")));
   await commands.get("warbandDesign.scenario")();
   assert.ok(sidebar.messages.some((m) => m.type === "view" && m.view.approvals.length === 1));
   sidebar.send({ type: "approve", toolUseId: "task-6", choice: "once" });
@@ -139,4 +155,23 @@ test("les pictogrammes viennent d'une source unique et la palette est validée",
   }
   const studio = await readFile(new URL("../media/studio.js", import.meta.url), "utf8");
   for (const [, name] of studio.matchAll(/WarbandIcons\.create\("([a-zA-Z]+)"/g)) assert.ok(names.has(name), name);
+});
+test("les cinq jeux de couleurs sont identiques dans la page Apparence, le réglage et le CSS", async () => {
+  const studio = await readFile(new URL("../media/studio.js", import.meta.url), "utf8");
+  const block = studio.slice(studio.indexOf("const PALETTES = ["), studio.indexOf("];", studio.indexOf("const PALETTES = [")));
+  const ids = [...block.matchAll(/\["([a-z]+)", "/g)].map((m) => m[1]);
+  assert.deepEqual(ids, PALETTES.map(([id]) => id));
+  assert.equal(ids.length, 5);
+  assert.ok(ids.includes("multi"));
+  const manifest = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+  assert.deepEqual(manifest.contributes.configuration.properties["warbandDesign.palette"].enum, ids);
+  const css = await readFile(new URL("../media/chat.css", import.meta.url), "utf8");
+  for (const id of ids.filter((id) => id !== "sentinelle")) assert.ok(css.includes(`[data-palette="${id}"]`), id);
+  assert.ok(!css.includes("bastion"));
+  assert.ok(studio.includes('["appearance", "Apparence", "palette"]'));
+});
+test("le logo de l'interface et celui de la page Apparence ont les mêmes tracés", async () => {
+  const icons = await readFile(new URL("../media/icons.js", import.meta.url), "utf8");
+  for (const d of [...BRAND_SHAPES.matchAll(/ d="([^"]+)"/g)].map((m) => m[1])) assert.ok(icons.includes(d), d);
+  assert.ok(icons.includes('cx: "17.4"') && BRAND_SHAPES.includes('cx="17.4"'));
 });

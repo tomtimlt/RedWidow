@@ -36,14 +36,28 @@ function applyTheme(value) {
 }
 select("Thème", [["dark", "Sombre"], ["light", "Clair"], ["hc", "Contraste élevé"]], query.get("theme") ?? "dark", applyTheme);
 applyTheme(query.get("theme") ?? "dark");
-const PALETTES = [["sentinelle", "Sentinelle"], ["braise", "Braise"], ["bastion", "Bastion"], ["spectre", "Spectre"], ["editeur", "Éditeur"]];
+const PALETTES = [["sentinelle", "Sentinelle"], ["braise", "Braise"], ["spectre", "Spectre"], ["editeur", "Éditeur"], ["multi", "Multicolore"]];
+// Le choix de l'atelier survit au changement de vue : il est gardé dans le navigateur.
+const stored = () => {
+  try {
+    return localStorage.getItem("warband-palette");
+  } catch {
+    return null;
+  }
+};
+const known = (value) => PALETTES.some(([id]) => id === value) ? value : null;
+const initialPalette = known(query.get("palette")) ?? known(stored()) ?? "sentinelle";
 const applyPalette = (value) => {
   document.body.dataset.palette = value;
   query.set("palette", value);
   history.replaceState(null, "", "?" + query.toString());
+  try {
+    localStorage.setItem("warband-palette", value);
+  } catch {
+  }
 };
-select("Palette", PALETTES, query.get("palette") ?? "sentinelle", applyPalette);
-applyPalette(query.get("palette") ?? "sentinelle");
+const paletteSelect = select("Palette", PALETTES, initialPalette, applyPalette);
+applyPalette(initialPalette);
 document.body.prepend(toolbar);
 demo = createDemo({ onChange: draw, onOpen: (view, page) => {
   if (view === "settings" && page) section = page;
@@ -59,6 +73,11 @@ demo = createDemo({ onChange: draw, onOpen: (view, page) => {
 if (kind === "monitor") send({ type: "role", role: "monitor" });
 demo.selectScenario(query.get("scenario") ?? "conversation");
 globalThis.__demoReceive = (message) => {
+  if (message.type === "setPalette" && known(message.palette)) {
+    applyPalette(message.palette);
+    paletteSelect.value = message.palette;
+    return;
+  }
   if (message.type === "open" && kind === "settings") {
     section = message.page;
     draw();

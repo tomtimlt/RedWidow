@@ -2,9 +2,9 @@ import { randomBytes } from "node:crypto";
 export const PALETTES = [
   ["sentinelle", "Sentinelle", "Sarcelle et ardoise : veille, terminal, sécurité"],
   ["braise", "Braise", "Cramoisi et acier : la marque d'origine, plus offensive"],
-  ["bastion", "Bastion", "Cuivre et graphite : chaleur d'atelier, alerte maîtrisée"],
   ["spectre", "Spectre", "Violet et glace : agents, recherche, nuit"],
-  ["editeur", "Éditeur", "Accent du thème VS Code : intégration maximale"]
+  ["editeur", "Éditeur", "Accent du thème VS Code : intégration maximale"],
+  ["multi", "Multicolore", "Une teinte par rôle : cyan, bleu, violet et rose"]
 ];
 const paletteOf = (value) => PALETTES.some(([key]) => key === value) ? value : PALETTES[0][0];
 export const makeNonce = () => randomBytes(18).toString("base64url");
