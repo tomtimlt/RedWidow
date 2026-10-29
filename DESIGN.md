@@ -78,11 +78,20 @@ l’atelier ; leurs textes sont remplacés au moment de la capture par un lab
 fictif (10.10.10.14, nmap, whatweb, ffuf, sqlmap), sans toucher aux fixtures.
 Aucune donnée réelle (IP, flags, identifiants) n’y figure.
 
-Visuel de post LinkedIn `linkedin-post.png` (1080 × 1350 en 2x, format 4:5
-qui occupe le plus de place dans le fil) : logo seul en haut, même titre en
+Carrousel LinkedIn (format 4:5, 1080 × 1350 en 2x, celui qui occupe le plus
+de place dans le fil) : `linkedin-carousel-1.png`, `linkedin-carousel-2.png`
+et `linkedin-carousel.pdf` (à publier comme document pour un vrai carrousel).
+Slide 1 « 1 / 2 » : logo en haut, même titre en
 grand pour le mobile, même texte, mêmes trois fenêtres et pastilles « Docker
 Kali », « Exegol », « Learning mode », « Open source ». Pas de badge du type
 « Now open source » : l’open source est une pastille comme les autres.
+Slide 2 « 2 / 2 », mode Apprentissage : titre « Stuck on a box? It read your
+terminal. », texte « Learning mode: share your course, cite #kali-1… It reads
+and explains. It never runs a thing. » ; à gauche la session de terminal
+kali-1 (invite Kali, SSH vers la cible du lab, ligne `sudo -l` utile soulignée
+d’un liseré de signature), à droite le chat avec le badge Apprentissage, la
+lecture du terminal et du cours, et un indice plutôt qu’une solution ;
+pastilles « Learning mode », « Your course », « Your terminal », « Read-only ».
 
 Arguments à mettre en avant, dans cet ordre : l’espace de travail (Docker Kali
 puis Exegol, terminaux, Monitor, kill chain, rapports) utilisable sans IA ;
