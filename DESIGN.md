@@ -78,20 +78,27 @@ l’atelier ; leurs textes sont remplacés au moment de la capture par un lab
 fictif (10.10.10.14, nmap, whatweb, ffuf, sqlmap), sans toucher aux fixtures.
 Aucune donnée réelle (IP, flags, identifiants) n’y figure.
 
-Carrousel LinkedIn (format 4:5, 1080 × 1350 en 2x, celui qui occupe le plus
-de place dans le fil) : `linkedin-carousel-1.png`, `linkedin-carousel-2.png`
-et `linkedin-carousel.pdf` (à publier comme document pour un vrai carrousel).
-Slide 1 « 1 / 2 » : logo en haut, même titre en
-grand pour le mobile, même texte, mêmes trois fenêtres et pastilles « Docker
-Kali », « Exegol », « Learning mode », « Open source ». Pas de badge du type
-« Now open source » : l’open source est une pastille comme les autres.
-Slide 2 « 2 / 2 », mode Apprentissage : titre « Stuck on a box? It read your
-terminal. », texte « Learning mode: share your course, cite #kali-1… It reads
-and explains. It never runs a thing. » ; à gauche la session de terminal
-kali-1 (invite Kali, SSH vers la cible du lab, ligne `sudo -l` utile soulignée
-d’un liseré de signature), à droite le chat avec le badge Apprentissage, la
-lecture du terminal et du cours, et un indice plutôt qu’une solution ;
-pastilles « Learning mode », « Your course », « Your terminal », « Read-only ».
+Carrousel LinkedIn en français (format 4:5, 1080 × 1350 en 2x, celui qui
+occupe le plus de place dans le fil) : `linkedin-carousel-1.png`,
+`linkedin-carousel-2.png` et `linkedin-carousel.pdf` (à publier comme document
+pour un vrai carrousel), plus `linkedin-carousel-1.mp4`, la slide 1 animée
+(6 s, H.264).
+
+- **Slide 1 « 1 / 2 »** : accroche en capitales « TON PENTEST. / UN SEUL
+  COCKPIT. / UN SEUL AGENT. », les deux premières lignes en blanc, la
+  troisième en signature ; ligne « Kali · Exegol · Terminaux · Kill chain » ;
+  les trois fenêtres en grand et un petit badge « IA optionnelle » au-dessus
+  de la capture : l’accroche pousse l’agent, le badge garde la promesse du
+  travail à la main. Animation : lignes qui montent l’une après l’autre
+  (0,25 s, 0,6 s, puis 1,25 s pour « UN SEUL AGENT. », légèrement décalée),
+  sous-titre, capture, badge, puis tenue avant la boucle.
+- **Slide 2 « 2 / 2 »**, mode Apprentissage : « BLOQUÉ SUR UNE BOX ? /
+  DONNE-LUI TON COURS. / IL LIT TON TERMINAL. » (dernière ligne en
+  signature) ; ligne « Mode Apprentissage · Ton cours · #kali-1 · Des
+  indices » ; badge « N’exécute rien » ; session de terminal kali-1 fictive à
+  gauche (ligne `sudo -l` utile soulignée d’un liseré de signature), chat en
+  mode Apprentissage à droite qui lit le terminal et le cours et donne un
+  indice plutôt qu’une solution.
 
 Arguments à mettre en avant, dans cet ordre : l’espace de travail (Docker Kali
 puis Exegol, terminaux, Monitor, kill chain, rapports) utilisable sans IA ;
