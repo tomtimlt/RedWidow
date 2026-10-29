@@ -68,7 +68,8 @@ Le logo reste celui de l’interface (`media/logo.svg`) ; le mot-symbole
 texte décalé hors de la photo de profil). Registre sobre : fond plat, aucune
 lueur ni dégradé ; titre « The offensive security workspace for VS Code. »,
 texte « Docker Kali and Exegol… Work by hand, or bring an AI agent when you
-want one. », faits « Open source · Docker Kali · Exegol · AI optional ». À
+want one. », puis quatre pastilles en pilule, en casse normale et sans
+séparateurs : « Open source », « Docker Kali », « Exegol », « AI optional ». À
 droite, trois fenêtres séparées : chat à gauche, Kill chain en haut à droite,
 Monitor (kali-1) en bas à droite. Les captures viennent de l’aperçu de
 l’atelier ; leurs textes sont remplacés au moment de la capture par un lab
