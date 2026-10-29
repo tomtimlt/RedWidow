@@ -53,8 +53,10 @@ d’activité, monochrome) en sont les versions fixes.
 
 Nom retenu : **Venator Ops** (*venator*, « le chasseur » en latin ; aussi un
 genre d’araignées-loups et un clin d’œil aux destroyers de Star Wars). Slogan :
-*Agentic AI for offensive security* — un cerveau IA, des environnements Exegol
-et Kali sur le terrain, dans VS Code. Le nom visible change ; les identifiants
+*The offensive security workspace for VS Code*. C’est d’abord un espace de
+travail : conteneurs Docker Kali puis Exegol (dans cet ordre), terminaux,
+Monitor, kill chain et rapports, utilisables entièrement sans IA ; l’agent est
+une option. Ne pas le présenter comme un agent autonome de plus. Le nom visible change ; les identifiants
 internes (`warbandDesign.*`, commandes, réglages, classes, globales
 `WarbandUI` / `WarbandIcons`) restent pour ne casser ni les réglages
 existants ni la réintégration.
@@ -64,10 +66,12 @@ Le logo reste celui de l’interface (`media/logo.svg`) ; le mot-symbole
 `media/brand/` : `banner-github.png` (1280 × 640, aperçu social du dépôt),
 `banner-github@2x.png` (README) et `banner-linkedin.png` (1584 × 396 en 2x,
 texte décalé hors de la photo de profil). Registre sobre : fond plat, aucune
-lueur ni dégradé ; titre « Offensive security, operated by an agent. » à
-gauche, capture produit à droite dans une fenêtre VS Code (chat avec carte
-d’autorisation, Kill chain, Monitor). La capture vient de l’aperçu de
-l’atelier ; ses textes sont remplacés au moment de la capture par un lab
+lueur ni dégradé ; titre « The offensive security workspace for VS Code. »,
+texte « Docker Kali and Exegol… Work by hand, or bring an AI agent when you
+want one. », faits « Open source · Docker Kali · Exegol · AI optional ». À
+droite, trois fenêtres séparées : chat à gauche, Kill chain en haut à droite,
+Monitor (kali-1) en bas à droite. Les captures viennent de l’aperçu de
+l’atelier ; leurs textes sont remplacés au moment de la capture par un lab
 fictif (10.10.10.14, nmap, whatweb, ffuf, sqlmap), sans toucher aux fixtures.
 Aucune donnée réelle (IP, flags, identifiants) n’y figure.
 
