@@ -79,8 +79,16 @@ Aucune donnée réelle (IP, flags, identifiants) n’y figure.
 Visuel de post LinkedIn `linkedin-post.png` (1080 × 1350 en 2x, format 4:5
 qui occupe le plus de place dans le fil) : pastille « Now open source », titre
 « Your pentest lab, inside VS Code. » lisible sur mobile, même texte, mêmes
-trois fenêtres en grand et pastilles « Docker Kali », « Exegol », « Kill
-chain », « AI optional ».
+trois fenêtres en grand et pastilles « Docker Kali », « Exegol », « Learning
+mode », « AI optional ».
+
+Arguments à mettre en avant, dans cet ordre : l’espace de travail (Docker Kali
+puis Exegol, terminaux, Monitor, kill chain, rapports) utilisable sans IA ;
+le mode Apprentissage, un tuteur qui lit le cours fourni et les sessions de
+terminal citées avec `#` (par exemple `#kali-1`) pour expliquer où l’on en
+est, sans rien exécuter ni écrire ; l’agent en option, qui n’exécute que ce
+que l’utilisateur autorise. Piste à l’étude pour les rapports : SysReptor,
+à ne pas annoncer comme disponible tant que l’intégration n’existe pas.
 
 ## Verrouillage, règles d’engagement et carte d’autorisation
 
