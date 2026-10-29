@@ -6607,6 +6607,7 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
 }
 #title .brand-ops {
   color: var(--jn-sig);
+  word-spacing: -0.3em;
 }
 @container app (max-width: 360px) {
   #title .brand-ops {

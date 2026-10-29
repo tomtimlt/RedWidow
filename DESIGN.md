@@ -59,16 +59,17 @@ internes (`warbandDesign.*`, commandes, réglages, classes, globales
 `WarbandUI` / `WarbandIcons`) restent pour ne casser ni les réglages
 existants ni la réintégration.
 
-Le logo reste celui de l’interface (`media/logo.svg`). Bannières dans
-`media/brand/` : `banner-github` (1280 × 640, aperçu social) et
-`banner-linkedin` (1584 × 396, texte décalé hors de la photo de profil), en
-SVG et PNG ; le PNG fait référence car le SVG suppose les polices Geist
-installées. Registre sobre, inspiré des marques de défense et du vrai panneau
-Terminal de VS Code : fond plat, aucune lueur, aucun dégradé, aucune trame ni
-constellation ; titre net (« Offensive security, operated by an agent. »),
-session de terminal avec une ligne par phase et la demande d’autorisation, la
-couleur de signature réservée au logo, à « OPS » et à l’invite. Les commandes
-affichées sont fictives.
+Le logo reste celui de l’interface (`media/logo.svg`) ; le mot-symbole
+« VENATOR OPS » est resserré (espace réduit avant « OPS »). Bannières dans
+`media/brand/` : `banner-github.png` (1280 × 640, aperçu social du dépôt),
+`banner-github@2x.png` (README) et `banner-linkedin.png` (1584 × 396 en 2x,
+texte décalé hors de la photo de profil). Registre sobre : fond plat, aucune
+lueur ni dégradé ; titre « Offensive security, operated by an agent. » à
+gauche, capture produit à droite dans une fenêtre VS Code (chat avec carte
+d’autorisation, Kill chain, Monitor). La capture vient de l’aperçu de
+l’atelier ; ses textes sont remplacés au moment de la capture par un lab
+fictif (10.10.10.14, nmap, whatweb, ffuf, sqlmap), sans toucher aux fixtures.
+Aucune donnée réelle (IP, flags, identifiants) n’y figure.
 
 ## Verrouillage, règles d’engagement et carte d’autorisation
 

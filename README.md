@@ -1,4 +1,4 @@
-![Venator Ops — Agentic AI for offensive security](media/brand/banner-github.png)
+![Venator Ops — Agentic AI for offensive security](media/brand/banner-github@2x.png)
 
 # Venator Ops — atelier de design VS Code
 
