@@ -1,4 +1,9 @@
-# Warband UI — atelier de design VS Code
+![Venator Ops — Agentic AI for offensive security](media/brand/banner-github.png)
+
+# Venator Ops — atelier de design VS Code
+
+*Agentic AI for offensive security* : un cerveau IA, des environnements Exegol
+et Kali sur le terrain, directement dans VS Code.
 
 Prototype autonome pour travailler la présentation : conversation, Monitor,
 graphe interactif et réglages. Les projets, modèles, messages et activités sont
@@ -7,12 +12,12 @@ fictifs. Les interactions modifient uniquement l’état de démonstration en m�
 ## Lancer dans VS Code
 
 1. Ouvrir ce dossier dans VS Code.
-2. Appuyer sur **F5**, configuration **Warband UI · Démonstration**.
-3. Dans la fenêtre de développement, ouvrir **Warband UI** dans la barre d’activité
-   ou utiliser la palette : **Warband UI : ouvrir le chat / le graphe / le Monitor / les réglages**.
-4. Utiliser **Warband UI : choisir un scénario** pour passer entre accueil,
+2. Appuyer sur **F5**, configuration **Venator Ops · Démonstration**.
+3. Dans la fenêtre de développement, ouvrir **Venator Ops** dans la barre d’activité
+   ou utiliser la palette : **Venator Ops : ouvrir le chat / le graphe / le Monitor / les réglages**.
+4. Utiliser **Venator Ops : choisir un scénario** pour passer entre accueil,
    conversation, activité, validation, indisponibilité et historique long.
-5. **Réglages › Apparence** (ou **Warband UI : choisir une palette**, ou le
+5. **Réglages › Apparence** (ou **Venator Ops : choisir une palette**, ou le
    réglage `warbandDesign.palette`) change le jeu de couleurs : Sentinelle,
    Braise, Spectre, Éditeur ou Multicolore.
 

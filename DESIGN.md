@@ -25,7 +25,7 @@ Le graphe doit rester agréable à parcourir au clavier, à la souris et au zoom
   un fond teinté.
 - **Typographie** : Geist pour l’interface, Geist Mono pour les repères
   techniques (étiquettes en capitales espacées `--jn-fs-2xs` / `--jn-track`,
-  compteurs, horloges, mot-symbole « WARBAND ») ; la police de l’éditeur
+  compteurs, horloges, mot-symbole « VENATOR OPS », « OPS » en signature et masqué sous 360 px) ; la police de l’éditeur
   (`--jn-code`) pour le code, les commandes et les sorties ; chiffres
   tabulaires. Polices locales sous licence OFL (`media/fonts/`).
 - **Géométrie** : formes arrondies plutôt que carrées. Boutons, puces,
@@ -48,6 +48,24 @@ chat ; à l’accueil, les crochets se verrouillent puis l’étincelle s’allu
 Classes `.brand-wing` (crochets), `.brand-core`, `.brand-lead`, `.brand-orbit`,
 `.brand-node` ; `media/logo.svg`, `logo-small.svg` et `icon.svg` (barre
 d’activité, monochrome) en sont les versions fixes.
+
+## Marque Venator Ops
+
+Nom retenu : **Venator Ops** (*venator*, « le chasseur » en latin ; aussi un
+genre d’araignées-loups et un clin d’œil aux destroyers de Star Wars). Slogan :
+*Agentic AI for offensive security* — un cerveau IA, des environnements Exegol
+et Kali sur le terrain, dans VS Code. Le nom visible change ; les identifiants
+internes (`warbandDesign.*`, commandes, réglages, classes, globales
+`WarbandUI` / `WarbandIcons`) restent pour ne casser ni les réglages
+existants ni la réintégration.
+
+Pistes de logo dans `media/brand/` (planche `pistes-logo.png`) :
+A « Verrouillage » (logo actuel, conservé dans l’interface), B « Pointe »
+(les crochets du bas deviennent un chevron : le V de Venator, recommandée),
+C « Réseau » (cerveau relié à quatre agents). Bannières `banner-github`
+(1280 × 640, aperçu social) et `banner-linkedin` (1584 × 396, texte décalé
+hors de la photo de profil), en SVG et PNG ; le PNG fait référence car le SVG
+suppose les polices Geist installées.
 
 ## Verrouillage, règles d’engagement et carte d’autorisation
 
@@ -98,7 +116,7 @@ niveau le plus proche avec un rebond ; le clavier passe de niveau en niveau.
 ## Palettes et page Apparence
 
 Cinq jeux de couleurs, au choix dans **Réglages › Apparence** (icône palette,
-groupe « Interface »), par la commande **Warband UI : choisir une palette** ou
+groupe « Interface »), par la commande **Venator Ops : choisir une palette** ou
 par le réglage `warbandDesign.palette`. Le choix s’applique aussitôt à toutes
 les vues, sans rechargement, et l’aperçu navigateur le garde d’une vue à
 l’autre. Chaque jeu a un ton pour les thèmes sombres et un ton plus foncé pour
