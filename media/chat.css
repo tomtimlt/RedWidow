@@ -1,5 +1,5 @@
 /*
- * Warband — direction « Acier et signature »
+ * Venator Ops — direction « Acier et signature »
  *
  * Acier : surfaces neutres dérivées du thème VS Code, hiérarchie portée par
  * des filets fins et un liseré vertical de 2 px qui signale l'état.
@@ -6604,6 +6604,14 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
+}
+#title .brand-ops {
+  color: var(--jn-sig);
+}
+@container app (max-width: 360px) {
+  #title .brand-ops {
+    display: none;
+  }
 }
 
 /* ───────────────────────────── Configurer compact ─────────────────────────────

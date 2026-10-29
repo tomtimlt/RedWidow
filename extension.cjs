@@ -56,7 +56,7 @@ exports.activate = async function activate(context) {
     if(selected)demo.selectScenario(selected.value);
   }));
   context.subscriptions.push(vscode.commands.registerCommand('warbandDesign.palette',async()=>{
-    const selected=await vscode.window.showQuickPick(PALETTES.map(([value,label,detail])=>({label,detail,value})),{title:'Palette Warband'});
+    const selected=await vscode.window.showQuickPick(PALETTES.map(([value,label,detail])=>({label,detail,value})),{title:'Palette Venator Ops'});
     if(selected)await vscode.workspace.getConfiguration('warbandDesign').update('palette',selected.value,vscode.ConfigurationTarget.Global);
   }));
   if(vscode.workspace?.onDidChangeConfiguration)context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event=>{

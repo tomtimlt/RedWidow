@@ -397,7 +397,7 @@ function start() {
       el(
         "p",
         "studio-help",
-        "Choisissez le jeu de couleurs de Warband. Il s’applique aussitôt à toutes les vues et s’adapte aux thèmes clair, sombre et contraste élevé de VS Code."
+        "Choisissez le jeu de couleurs de Venator Ops. Il s’applique aussitôt à toutes les vues et s’adapte aux thèmes clair, sombre et contraste élevé de VS Code."
       )
     );
     if (document.body.classList.contains("vscode-high-contrast") || document.body.classList.contains("vscode-high-contrast-light")) {
@@ -405,7 +405,7 @@ function start() {
         el(
           "p",
           "studio-help pal-note",
-          "En contraste élevé, Warband utilise les couleurs du thème : le choix est enregistré et s’applique dès que vous changez de thème."
+          "En contraste élevé, Venator Ops utilise les couleurs du thème : le choix est enregistré et s’applique dès que vous changez de thème."
         )
       );
     }

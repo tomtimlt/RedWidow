@@ -1,6 +1,6 @@
 {
   "name": "warband-ui-design",
-  "displayName": "Warband UI · Design",
+  "displayName": "Venator Ops · Design",
   "description": "Atelier de design VS Code avec chat, activités, graphe et données de démonstration.",
   "version": "0.0.1",
   "publisher": "warband",
@@ -29,34 +29,34 @@
     "commands": [
       {
         "command": "warbandDesign.chat",
-        "title": "Warband UI : ouvrir le chat"
+        "title": "Venator Ops : ouvrir le chat"
       },
       {
         "command": "warbandDesign.graph",
-        "title": "Warband UI : ouvrir le graphe"
+        "title": "Venator Ops : ouvrir le graphe"
       },
       {
         "command": "warbandDesign.monitor",
-        "title": "Warband UI : ouvrir le Monitor"
+        "title": "Venator Ops : ouvrir le Monitor"
       },
       {
         "command": "warbandDesign.settings",
-        "title": "Warband UI : ouvrir les réglages"
+        "title": "Venator Ops : ouvrir les réglages"
       },
       {
         "command": "warbandDesign.scenario",
-        "title": "Warband UI : choisir un scénario"
+        "title": "Venator Ops : choisir un scénario"
       },
       {
         "command": "warbandDesign.palette",
-        "title": "Warband UI : choisir une palette"
+        "title": "Venator Ops : choisir une palette"
       }
     ],
     "viewsContainers": {
       "activitybar": [
         {
           "id": "warbandDesign",
-          "title": "Warband UI",
+          "title": "Venator Ops",
           "icon": "media/icon.svg"
         }
       ]
@@ -71,7 +71,7 @@
       ]
     },
     "configuration": {
-      "title": "Warband UI",
+      "title": "Venator Ops",
       "properties": {
         "warbandDesign.palette": {
           "type": "string",
@@ -90,7 +90,7 @@
             "Accent du thème VS Code : intégration maximale",
             "Six teintes, une par rôle : corail, vert, cyan, bleu, violet et rose"
           ],
-          "description": "Jeu de couleurs de Warband (aussi réglable dans Réglages › Apparence). Les couleurs s'adaptent aux thèmes clair, sombre et contraste élevé."
+          "description": "Jeu de couleurs de Venator Ops (aussi réglable dans Réglages › Apparence). Les couleurs s'adaptent aux thèmes clair, sombre et contraste élevé."
         }
       }
     }

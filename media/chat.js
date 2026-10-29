@@ -789,7 +789,7 @@
     }));
     if (mentionActive >= mentionShown.length) mentionActive = 0;
     mentionEmpty.hidden = mentionShown.length > 0;
-    mentionEmpty.textContent = hash ? "Aucun terminal Warband ouvert. Alt+J T pour en ouvrir un." : "Aucun espace";
+    mentionEmpty.textContent = hash ? "Aucun terminal Venator ouvert. Alt+J T pour en ouvrir un." : "Aucun espace";
     mentionPop.setAttribute("aria-label", hash ? "Terminaux" : "Espaces");
     mentionList.replaceChildren(
       ...mentionShown.map((item, i) => {

@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Warband UI · Démonstration",
+      "name": "Venator Ops · Démonstration",
       "type": "extensionHost",
       "request": "launch",
       "args": [
