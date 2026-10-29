@@ -59,13 +59,16 @@ internes (`warbandDesign.*`, commandes, réglages, classes, globales
 `WarbandUI` / `WarbandIcons`) restent pour ne casser ni les réglages
 existants ni la réintégration.
 
-Pistes de logo dans `media/brand/` (planche `pistes-logo.png`) :
-A « Verrouillage » (logo actuel, conservé dans l’interface), B « Pointe »
-(les crochets du bas deviennent un chevron : le V de Venator, recommandée),
-C « Réseau » (cerveau relié à quatre agents). Bannières `banner-github`
-(1280 × 640, aperçu social) et `banner-linkedin` (1584 × 396, texte décalé
-hors de la photo de profil), en SVG et PNG ; le PNG fait référence car le SVG
-suppose les polices Geist installées.
+Le logo reste celui de l’interface (`media/logo.svg`). Bannières dans
+`media/brand/` : `banner-github` (1280 × 640, aperçu social) et
+`banner-linkedin` (1584 × 396, texte décalé hors de la photo de profil), en
+SVG et PNG ; le PNG fait référence car le SVG suppose les polices Geist
+installées. Registre sobre, inspiré des marques de défense et du vrai panneau
+Terminal de VS Code : fond plat, aucune lueur, aucun dégradé, aucune trame ni
+constellation ; titre net (« Offensive security, operated by an agent. »),
+session de terminal avec une ligne par phase et la demande d’autorisation, la
+couleur de signature réservée au logo, à « OPS » et à l’invite. Les commandes
+affichées sont fictives.
 
 ## Verrouillage, règles d’engagement et carte d’autorisation
 
