@@ -1,9 +1,9 @@
-![Venator Ops — The offensive security workspace for VS Code](media/brand/banner-github@2x.png)
+![Venator Ops — Pentest in VS Code, with AI on call](media/brand/banner-github@2x.png)
 
 # Venator Ops — atelier de design VS Code
 
-*The offensive security workspace for VS Code* : conteneurs Docker Kali et
-Exegol, terminaux, Monitor, kill chain et rapports au même endroit. On peut tout
+*Pentest in VS Code, with AI on call* : un espace de travail avec conteneurs
+Docker Kali et Exegol, terminaux, Monitor, kill chain et rapports au même endroit. On peut tout
 faire à la main ; l’agent IA est une option, pas un passage obligé.
 
 Prototype autonome pour travailler la présentation : conversation, Monitor,

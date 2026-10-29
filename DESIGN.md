@@ -53,7 +53,8 @@ d’activité, monochrome) en sont les versions fixes.
 
 Nom retenu : **Venator Ops** (*venator*, « le chasseur » en latin ; aussi un
 genre d’araignées-loups et un clin d’œil aux destroyers de Star Wars). Slogan :
-*The offensive security workspace for VS Code*. C’est d’abord un espace de
+*Pentest in VS Code, with AI on call* (« on call » : l’IA est d’astreinte,
+disponible quand on l’appelle, jamais aux commandes). C’est d’abord un espace de
 travail : conteneurs Docker Kali puis Exegol (dans cet ordre), terminaux,
 Monitor, kill chain et rapports, utilisables entièrement sans IA ; l’agent est
 une option. Ne pas le présenter comme un agent autonome de plus. Le nom visible change ; les identifiants
@@ -66,10 +67,11 @@ Le logo reste celui de l’interface (`media/logo.svg`) ; le mot-symbole
 `media/brand/` : `banner-github.png` (1280 × 640, aperçu social du dépôt),
 `banner-github@2x.png` (README) et `banner-linkedin.png` (1584 × 396 en 2x,
 texte décalé hors de la photo de profil). Registre sobre : fond plat, aucune
-lueur ni dégradé ; titre « The offensive security workspace for VS Code. »,
-texte « Docker Kali and Exegol… Work by hand, or bring an AI agent when you
-want one. », puis quatre pastilles en pilule, en casse normale et sans
-séparateurs : « Open source », « Docker Kali », « Exegol », « AI optional ». À
+lueur ni dégradé ; titre « Pentest in VS Code, with AI on call. » (il dit
+l’essentiel en une phrase : pentest, VS Code, IA en appui), texte « Docker
+Kali and Exegol… You hack; the AI explains, suggests, and runs only what you
+approve. », puis quatre pastilles en pilule, en casse normale et sans
+séparateurs : « Open source », « Docker Kali », « Exegol », « Learning mode ». À
 droite, trois fenêtres séparées : chat à gauche, Kill chain en haut à droite,
 Monitor (kali-1) en bas à droite. Les captures viennent de l’aperçu de
 l’atelier ; leurs textes sont remplacés au moment de la capture par un lab
@@ -77,10 +79,10 @@ fictif (10.10.10.14, nmap, whatweb, ffuf, sqlmap), sans toucher aux fixtures.
 Aucune donnée réelle (IP, flags, identifiants) n’y figure.
 
 Visuel de post LinkedIn `linkedin-post.png` (1080 × 1350 en 2x, format 4:5
-qui occupe le plus de place dans le fil) : pastille « Now open source », titre
-« Your pentest lab, inside VS Code. » lisible sur mobile, même texte, mêmes
-trois fenêtres en grand et pastilles « Docker Kali », « Exegol », « Learning
-mode », « AI optional ».
+qui occupe le plus de place dans le fil) : logo seul en haut, même titre en
+grand pour le mobile, même texte, mêmes trois fenêtres et pastilles « Docker
+Kali », « Exegol », « Learning mode », « Open source ». Pas de badge du type
+« Now open source » : l’open source est une pastille comme les autres.
 
 Arguments à mettre en avant, dans cet ordre : l’espace de travail (Docker Kali
 puis Exegol, terminaux, Monitor, kill chain, rapports) utilisable sans IA ;
