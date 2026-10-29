@@ -76,6 +76,12 @@ l’atelier ; leurs textes sont remplacés au moment de la capture par un lab
 fictif (10.10.10.14, nmap, whatweb, ffuf, sqlmap), sans toucher aux fixtures.
 Aucune donnée réelle (IP, flags, identifiants) n’y figure.
 
+Visuel de post LinkedIn `linkedin-post.png` (1080 × 1350 en 2x, format 4:5
+qui occupe le plus de place dans le fil) : pastille « Now open source », titre
+« Your pentest lab, inside VS Code. » lisible sur mobile, même texte, mêmes
+trois fenêtres en grand et pastilles « Docker Kali », « Exegol », « Kill
+chain », « AI optional ».
+
 ## Verrouillage, règles d’engagement et carte d’autorisation
 
 - **Verrouillage** : les crochets du logo se referment sur ce qui est ciblé —
