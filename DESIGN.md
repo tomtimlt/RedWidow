@@ -66,7 +66,16 @@ Le logo reste celui de l’interface (`media/logo.svg`) ; le mot-symbole
 « VENATOR OPS » est resserré (espace réduit avant « OPS »). Bannières dans
 `media/brand/` : `banner-github.png` (1280 × 640, aperçu social du dépôt),
 `banner-github@2x.png` (README) et `banner-linkedin.png` (1584 × 396 en 2x,
-texte décalé hors de la photo de profil). Registre sobre : fond plat, aucune
+texte décalé hors de la photo de profil, accroche du carrousel « TON PENTEST. /
+UN SEUL COCKPIT. / UN SEUL AGENT. » et badge « IA optionnelle »). Variantes
+GitHub (1280 × 640, à choisir comme aperçu social ou à placer dans le README) :
+`banner-github-hook-en.png` (« YOUR PENTEST. / ONE COCKPIT. / ONE AGENT. »,
+« AI optional »), `banner-github-hook-fr.png` (accroche française),
+`banner-github-learning.png` (mode Apprentissage : « STUCK ON A BOX? / FEED IT
+YOUR COURSE. / IT READS YOUR TERMINAL. », « Never executes », terminal et chat)
+et `banner-github-strip.png` (bandeau de titre 1280 × 320 en 2x, sans capture,
+pour le haut du README). Dans les accroches, la dernière ligne est en
+signature et la taille s’ajuste à la colonne. Bannière principale : registre sobre : fond plat, aucune
 lueur ni dégradé ; titre « Pentest in VS Code, with AI on call. » (il dit
 l’essentiel en une phrase : pentest, VS Code, IA en appui), texte « Docker
 Kali and Exegol… You hack; the AI explains, suggests, and runs only what you
