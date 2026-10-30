@@ -2,7 +2,7 @@
   "name": "warband",
   "displayName": "Warband",
   "description": "Chat d'agent avec approbation des outils (warband).",
-  "version": "0.3.63",
+  "version": "0.3.64",
   "publisher": "warband",
   "license": "MIT",
   "engines": {
@@ -151,6 +151,26 @@
           "command": "warband.openMonitor",
           "when": "view == warband.chat",
           "group": "navigation@3"
+        },
+        {
+          "command": "warband.openCockpit",
+          "when": "view == warband.chat",
+          "group": "navigation@4"
+        },
+        {
+          "command": "warband.openKillchain",
+          "when": "view == warband.chat",
+          "group": "navigation@5"
+        },
+        {
+          "command": "warband.openStudio",
+          "when": "view == warband.chat",
+          "group": "navigation@6"
+        },
+        {
+          "command": "warband.launcher",
+          "when": "view == warband.chat",
+          "group": "navigation@7"
         }
       ],
       "editor/title": [
@@ -168,6 +188,26 @@
           "command": "warband.openMonitor",
           "when": "activeWebviewPanelId =~ /^warband\\./",
           "group": "navigation@3"
+        },
+        {
+          "command": "warband.openCockpit",
+          "when": "activeWebviewPanelId =~ /^warband\\./",
+          "group": "navigation@4"
+        },
+        {
+          "command": "warband.openKillchain",
+          "when": "activeWebviewPanelId =~ /^warband\\./",
+          "group": "navigation@5"
+        },
+        {
+          "command": "warband.openStudio",
+          "when": "activeWebviewPanelId =~ /^warband\\./",
+          "group": "navigation@6"
+        },
+        {
+          "command": "warband.launcher",
+          "when": "activeWebviewPanelId =~ /^warband\\./",
+          "group": "navigation@7"
         }
       ],
       "commandPalette": [
