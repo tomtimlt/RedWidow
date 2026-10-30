@@ -18,7 +18,8 @@ par projet. Ne jamais déléguer la décision de sécurité au modèle.
 
 Repères :
 
-- `README.md` : présentation et parcours de développement.
+- `README.md` : présentation et premiers pas pour les utilisateurs.
+- `CONTRIBUTING.md` : installation de développement, compilation et repères techniques.
 - `docs/etat-du-projet.md` : parcours central, inventaire et prochaines étapes ;
   vérifier le commit de référence avant de reprendre ses statuts.
 - `docs/idees.md` : réserve d'idées, pas un engagement ni un état fiable du code.
