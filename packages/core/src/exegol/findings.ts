@@ -2,8 +2,10 @@ import { randomUUID } from "node:crypto";
 import { mkdir, open, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { setTimeout } from "node:timers/promises";
+import { listEvidence } from "../evidence.js";
 import { projectFindingsPath } from "../project.js";
 import { CodedError } from "../reason.js";
+import { createRedactor, secretsFromEnv } from "../redact.js";
 
 export const USER_FINDINGS_FILE = "findings.json";
 
@@ -44,9 +46,30 @@ export interface Finding {
   from?: string[];
   /** Parents appartenant au chemin retenu ; annotation, pas une preuve de réussite. */
   pathFrom?: string[];
+  evidenceIds?: string[];
 }
 
 const MAX_FROM = 8;
+const EVIDENCE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+function validEvidenceIds(value: unknown): value is string[] {
+  return (
+    Array.isArray(value) &&
+    value.length <= 20 &&
+    value.every((id) => typeof id === "string" && EVIDENCE_ID.test(id)) &&
+    new Set(value).size === value.length
+  );
+}
+async function validateEvidenceLinks(
+  configDir: string,
+  projectId: string,
+  ids: string[],
+): Promise<void> {
+  if (!validEvidenceIds(ids)) throw invalid();
+  if (!ids.length) return;
+  const known = new Set((await listEvidence(configDir, projectId)).map((row) => row.id));
+  if (ids.some((id) => !known.has(id))) throw invalid();
+}
+const redactLabel = (label: string) => createRedactor({ values: secretsFromEnv() })(label);
 
 export const FINDING_MAX_LABEL = 200;
 const MAX_FINDINGS = 200;
@@ -107,7 +130,12 @@ export async function readFindings(configDir: string, projectId: string): Promis
     if (typeof rec.label !== "string" || rec.label === "" || rec.label.length > FINDING_MAX_LABEL) {
       throw invalid();
     }
-    const finding: Finding = { id: rec.id, kind: rec.kind, label: rec.label, state: rec.state };
+    const finding: Finding = {
+      id: rec.id,
+      kind: rec.kind,
+      label: redactLabel(rec.label),
+      state: rec.state,
+    };
     if (rec.tactic !== undefined) {
       if (!isTactic(rec.tactic)) throw invalid();
       finding.tactic = rec.tactic;
@@ -124,6 +152,10 @@ export async function readFindings(configDir: string, projectId: string): Promis
       if (!validFrom(rec.pathFrom) || !rec.pathFrom.every((id) => finding.from?.includes(id)))
         throw invalid();
       finding.pathFrom = [...rec.pathFrom];
+    }
+    if (rec.evidenceIds !== undefined) {
+      if (!validEvidenceIds(rec.evidenceIds)) throw invalid();
+      finding.evidenceIds = [...rec.evidenceIds];
     }
     return finding;
   });
@@ -198,11 +230,12 @@ export async function appendFinding(
     tactic?: MitreTactic | undefined;
     technique?: string | undefined;
     from?: string[] | undefined;
+    evidenceIds?: string[] | undefined;
   },
   options: FindingMutationOptions = {},
 ): Promise<Finding> {
   const path = projectFindingsPath(configDir, projectId);
-  const label = input.label.trim();
+  const label = redactLabel(input.label.trim());
   if (label === "" || label.length > FINDING_MAX_LABEL) {
     throw new CodedError("finding.labelInvalid", { max: FINDING_MAX_LABEL });
   }
@@ -213,12 +246,15 @@ export async function appendFinding(
   if (from.length > MAX_FROM) throw invalid();
   return withFindingsLock(path, options, async () => {
     const current = await readFindings(configDir, projectId);
+    if (input.evidenceIds !== undefined)
+      await validateEvidenceLinks(configDir, projectId, input.evidenceIds);
     const known = new Set(current.map((f) => f.id));
     if (!from.every((id) => known.has(id))) throw invalid();
     const finding: Finding = { id: randomUUID(), kind: input.kind, label, state: input.state };
     if (input.tactic !== undefined) finding.tactic = input.tactic;
     if (input.technique !== undefined) finding.technique = input.technique;
     if (from.length > 0) finding.from = from;
+    if (input.evidenceIds?.length) finding.evidenceIds = [...input.evidenceIds];
     const next = [...current, finding].slice(-MAX_FINDINGS);
     await commitFindings(path, next, options);
     return finding;
@@ -234,6 +270,7 @@ export interface FindingPatch {
   technique?: string | null;
   from?: string[];
   pathFrom?: string[];
+  evidenceIds?: string[];
 }
 
 /** Remplace atomiquement le fichier, avec un temporaire exclusif propre à cet appel. */
@@ -283,7 +320,9 @@ export async function updateFinding(
         patch.label.trim().length > FINDING_MAX_LABEL
       )
         throw new CodedError("finding.labelInvalid", { max: FINDING_MAX_LABEL });
-      finding.label = patch.label.trim();
+      finding.label = redactLabel(patch.label.trim());
+      if (finding.label.length > FINDING_MAX_LABEL)
+        throw new CodedError("finding.labelInvalid", { max: FINDING_MAX_LABEL });
     }
     if (patch.kind !== undefined) {
       if (!isKind(patch.kind)) throw invalid();
@@ -337,6 +376,11 @@ export async function updateFinding(
       const pathFrom = finding.pathFrom.filter((parent) => finding.from?.includes(parent));
       if (pathFrom.length) finding.pathFrom = pathFrom;
       else delete finding.pathFrom;
+    }
+    if (patch.evidenceIds !== undefined) {
+      await validateEvidenceLinks(configDir, projectId, patch.evidenceIds);
+      if (patch.evidenceIds.length) finding.evidenceIds = [...patch.evidenceIds];
+      else delete finding.evidenceIds;
     }
     current[index] = finding;
     await commitFindings(path, current, options);
@@ -414,5 +458,28 @@ export async function deleteFinding(
       });
     await commitFindings(path, next, options);
     return { removed, detachedFrom };
+  });
+}
+
+/** Attache une preuve en fusionnant les références courantes sous le verrou de la trouvaille. */
+export async function attachEvidence(
+  configDir: string,
+  projectId: string,
+  findingId: string,
+  evidenceId: string,
+  options: FindingMutationOptions = {},
+): Promise<Finding> {
+  const path = projectFindingsPath(configDir, projectId);
+  return withFindingsLock(path, options, async () => {
+    const current = await readFindings(configDir, projectId);
+    const index = uniqueFindingIndex(current, findingId);
+    const existing = current[index];
+    if (!existing) throw new CodedError("finding.notFound");
+    const evidenceIds = [...new Set([...(existing.evidenceIds ?? []), evidenceId])];
+    await validateEvidenceLinks(configDir, projectId, evidenceIds);
+    const finding: Finding = { ...existing, evidenceIds };
+    current[index] = finding;
+    await commitFindings(path, current, options);
+    return finding;
   });
 }

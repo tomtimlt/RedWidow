@@ -1,3 +1,10 @@
+> **Travail local 0.3.63, 30 octobre 2026 :** le manifeste est désormais 0.3.63 sur
+> `temp/0.3.63-agent-solo`. Bureau de mission, preuves explicites et export Attack
+> Flow sont décrits dans [la livraison locale](livraison-0.3.63.md) et
+> [ADR 0032](adr/0032-bureau-de-mission-sans-memoire-implicite.md).
+> Push, tag et publication attendent la décision utilisateur. Les statuts 0.3.62
+> ci-dessous restent le relevé historique, pas une publication de la 0.3.63.
+
 # Warband — parcours, état actuel et reprise
 
 État inspecté le 28 octobre 2026 pour la version 0.3.62. Ce document sert de point d'entrée produit ;

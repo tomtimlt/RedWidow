@@ -79,6 +79,7 @@ const HIDDEN_WINDOW = { windowsHide: true };
 export interface EngineHandlers {
   onStarted?(info: { runId: string; policySource: string | null; warning?: Reason }): void;
   onEvent?(event: EngineEvent): void;
+  onMissionContext?(snapshot: { runId: string; text: string }): void;
   onApproval?(approval: PendingApproval): void;
   onEnded?(summary: EndedSummary): void;
   /** Erreur du moteur, ou message rejeté par la validation (le message fautif est ignoré). */
@@ -179,6 +180,8 @@ export function createEngineController(options: EngineControllerOptions): Engine
         });
       case "event":
         return handlers.onEvent?.(message.event);
+      case "missionContext":
+        return handlers.onMissionContext?.({ runId: message.runId, text: message.text });
       case "approval":
         return handlers.onApproval?.(message.approval);
       case "ended":

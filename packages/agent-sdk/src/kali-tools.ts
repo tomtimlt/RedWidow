@@ -36,7 +36,7 @@ export function kaliToolset(options: KaliToolsetOptions): Toolset {
       return createSpecTools(
         [
           ...kaliToolSpecs(docker, createKaliApi(client), options.targets),
-          ...taskToolSpecs("kali", docker, options.targets),
+          ...taskToolSpecs("kali", docker, options.targets, recorder),
         ].filter((spec) => options.includeMemory !== false || spec.name !== "remember"),
         resolveParent,
       );

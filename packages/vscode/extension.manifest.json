@@ -2,10 +2,12 @@
   "name": "warband",
   "displayName": "Warband",
   "description": "Chat d'agent avec approbation des outils (warband).",
-  "version": "0.3.62",
+  "version": "0.3.63",
   "publisher": "warband",
   "license": "MIT",
-  "engines": { "vscode": "^1.90.0" },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
   "main": "./extension.cjs",
   "extensionKind": ["workspace"],
   "activationEvents": ["onStartupFinished"],
@@ -18,6 +20,22 @@
   },
   "contributes": {
     "commands": [
+      {
+        "command": "warband.listProjectEvidence",
+        "title": "Warband : Lister les preuves du projet"
+      },
+      {
+        "command": "warband.captureEditorEvidence",
+        "title": "Warband : Capturer la sélection comme preuve"
+      },
+      {
+        "command": "warband.captureTerminalEvidence",
+        "title": "Warband : Capturer un extrait du journal terminal"
+      },
+      {
+        "command": "warband.missionContext",
+        "title": "Warband : Voir le contexte de cette mission"
+      },
       {
         "command": "warband.exportKillchain",
         "title": "Warband : Exporter la Kill Chain en image SVG"
@@ -34,12 +52,19 @@
         "command": "warband.prepareMission",
         "title": "Warband : préparer et vérifier le dossier de mission"
       },
-      { "command": "warband.chooseProfile", "title": "Warband : choisir un skill / profil agent" },
+      {
+        "command": "warband.chooseProfile",
+        "title": "Warband : choisir un skill / profil agent"
+      },
       {
         "command": "warband.configureIntegrations",
         "title": "Warband : catalogue des intégrations MCP"
       },
-      { "command": "warband.launcher", "title": "Warband : lanceur", "icon": "$(rocket)" },
+      {
+        "command": "warband.launcher",
+        "title": "Warband : lanceur",
+        "icon": "$(rocket)"
+      },
       {
         "command": "warband.openChat",
         "title": "Warband : ouvrir un chat",
@@ -75,15 +100,39 @@
         "title": "Warband : aller au chat latéral",
         "icon": "$(comment)"
       },
-      { "command": "warband.setToken", "title": "Warband : définir le jeton", "icon": "$(key)" },
-      { "command": "warband.clearToken", "title": "Warband : effacer le jeton" },
-      { "command": "warband.diagnostic", "title": "Warband : diagnostic", "icon": "$(pulse)" },
-      { "command": "warband.configureBurp", "title": "Warband : configurer Burp Suite MCP" },
-      { "command": "warband.testBurp", "title": "Warband : tester la connexion MCP Burp Suite" },
-      { "command": "warband.choosePalette", "title": "Warband : choisir une palette" },
+      {
+        "command": "warband.setToken",
+        "title": "Warband : définir le jeton",
+        "icon": "$(key)"
+      },
+      {
+        "command": "warband.clearToken",
+        "title": "Warband : effacer le jeton"
+      },
+      {
+        "command": "warband.diagnostic",
+        "title": "Warband : diagnostic",
+        "icon": "$(pulse)"
+      },
+      {
+        "command": "warband.configureBurp",
+        "title": "Warband : configurer Burp Suite MCP"
+      },
+      {
+        "command": "warband.testBurp",
+        "title": "Warband : tester la connexion MCP Burp Suite"
+      },
+      {
+        "command": "warband.choosePalette",
+        "title": "Warband : choisir une palette"
+      },
       {
         "command": "warband.previewReport",
         "title": "Warband : prévisualiser le brouillon de rapport"
+      },
+      {
+        "command": "warband.exportAttackFlow",
+        "title": "Warband : exporter Attack Flow"
       }
     ],
     "menus": {
@@ -121,23 +170,72 @@
           "group": "navigation@3"
         }
       ],
-      "commandPalette": [{ "command": "warband.focusChat", "when": "false" }]
+      "commandPalette": [
+        {
+          "command": "warband.focusChat",
+          "when": "false"
+        }
+      ]
     },
     "keybindings": [
-      { "command": "warband.launcher", "key": "alt+j alt+j", "mac": "ctrl+j ctrl+j" },
-      { "command": "warband.focusChat", "key": "alt+j c", "mac": "ctrl+j c" },
-      { "command": "warband.openChat", "key": "alt+j n", "mac": "ctrl+j n" },
-      { "command": "warband.openTerminal", "key": "alt+j t", "mac": "ctrl+j t" },
-      { "command": "warband.openCockpit", "key": "alt+j k", "mac": "ctrl+j k" },
-      { "command": "warband.openMonitor", "key": "alt+j m", "mac": "ctrl+j m" },
-      { "command": "warband.openKillchain", "key": "alt+j g", "mac": "ctrl+j g" },
-      { "command": "warband.openStudio", "key": "alt+j s", "mac": "ctrl+j s" }
+      {
+        "command": "warband.launcher",
+        "key": "alt+j alt+j",
+        "mac": "ctrl+j ctrl+j"
+      },
+      {
+        "command": "warband.focusChat",
+        "key": "alt+j c",
+        "mac": "ctrl+j c"
+      },
+      {
+        "command": "warband.openChat",
+        "key": "alt+j n",
+        "mac": "ctrl+j n"
+      },
+      {
+        "command": "warband.openTerminal",
+        "key": "alt+j t",
+        "mac": "ctrl+j t"
+      },
+      {
+        "command": "warband.openCockpit",
+        "key": "alt+j k",
+        "mac": "ctrl+j k"
+      },
+      {
+        "command": "warband.openMonitor",
+        "key": "alt+j m",
+        "mac": "ctrl+j m"
+      },
+      {
+        "command": "warband.openKillchain",
+        "key": "alt+j g",
+        "mac": "ctrl+j g"
+      },
+      {
+        "command": "warband.openStudio",
+        "key": "alt+j s",
+        "mac": "ctrl+j s"
+      }
     ],
     "viewsContainers": {
-      "activitybar": [{ "id": "warband", "title": "Warband", "icon": "media/icon.svg" }]
+      "activitybar": [
+        {
+          "id": "warband",
+          "title": "Warband",
+          "icon": "media/icon.svg"
+        }
+      ]
     },
     "views": {
-      "warband": [{ "type": "webview", "id": "warband.chat", "name": "Chat" }]
+      "warband": [
+        {
+          "type": "webview",
+          "id": "warband.chat",
+          "name": "Chat"
+        }
+      ]
     },
     "configuration": {
       "title": "Warband",
@@ -178,7 +276,6 @@
           "enumDescriptions": ["SSE officiel sur /sse", "Streamable HTTP sur /mcp"],
           "description": "Transport du serveur MCP installé dans Burp Suite."
         },
-
         "warband.palette": {
           "type": "string",
           "enum": ["sentinelle", "braise", "spectre", "editeur", "multi"],

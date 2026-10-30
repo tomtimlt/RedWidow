@@ -1,5 +1,5 @@
 import type { SdkMcpToolDefinition } from "@anthropic-ai/claude-agent-sdk";
-import type { Correlation, Recorder } from "@warband/core";
+import type { Correlation, MissionDesk, Recorder } from "@warband/core";
 
 /** Définition d'outil MCP quelconque (le schéma zod varie d'un outil à l'autre). */
 // biome-ignore lint/suspicious/noExplicitAny: le SDK type `tools` avec `SdkMcpToolDefinition<any>[]`.
@@ -16,6 +16,7 @@ export interface ResolvedCall {
 /** Contexte fourni à un toolset à chaque run. */
 export interface ToolContext {
   recorder: Recorder;
+  missionDesk?: MissionDesk;
   /**
    * Id de l'événement `tool.requested` à utiliser comme parent des `process.*`
    * d'un appel (nom complet `mcp__<serveur>__<outil>`), ou `null` pour aucun.

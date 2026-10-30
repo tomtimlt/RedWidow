@@ -8,6 +8,7 @@ import {
   resolveKaliContainer,
 } from "../exegol/targets.js";
 import { CodedError } from "../reason.js";
+import type { Recorder } from "../recorder.js";
 import { TASK_CLIENT_SCRIPT, TASK_SUPERVISOR_SCRIPT } from "./scripts.js";
 
 export const TASK_START_TOOLS = new Set(["mcp__kali__task_start", "mcp__exegol__task_start"]);
@@ -95,6 +96,7 @@ export function taskToolSpecs(
   family: "exegol" | "kali",
   docker: DockerClient,
   targets: ExegolTargets,
+  recorder?: Recorder,
 ): DockerToolSpec[] {
   const container = z.string().min(1).max(128);
   const taskId = z
@@ -129,6 +131,15 @@ export function taskToolSpecs(
           .max(86400)
           .optional()
           .describe("Défaut 3600 s ; maximum 24 h"),
+        max_parallel: z
+          .number()
+          .int()
+          .min(1)
+          .max(8)
+          .optional()
+          .describe(
+            "Plafond de tâches actives dans ce projet/conteneur pour ce lancement (1–8 ; défaut 8).",
+          ),
       },
     },
     {
@@ -155,6 +166,22 @@ export function taskToolSpecs(
           .optional()
           .describe("Attente bornée avant le relevé si la tâche est active ; défaut 2 s"),
       },
+      readOnly: true,
+    },
+    {
+      name: "task_status_json",
+      operation: "status",
+      description:
+        "État structuré d’une tâche : status, exit_code, sorties et indicateurs de troncature, chemins et temps. Lecture seule. Une tâche active ou une sortie tronquée n’est pas une preuve de réussite.",
+      input: { container, task_id: taskId },
+      readOnly: true,
+    },
+    {
+      name: "task_list_json",
+      operation: "list",
+      description:
+        "Liste structurée des tâches du projet dans le conteneur autorisé. Réutiliser leurs ids avant de lancer une opération indépendante ; ne pas relancer une tâche active.",
+      input: { container },
       readOnly: true,
     },
     {
@@ -205,6 +232,7 @@ export function taskToolSpecs(
           task_id: "task_id" in args ? args.task_id : randomUUID().replaceAll("-", ""),
           ...("argv" in args && { argv: args.argv }),
           timeout_seconds: "timeout_seconds" in args ? (args.timeout_seconds ?? 3600) : 3600,
+          max_parallel: "max_parallel" in args ? (args.max_parallel ?? 8) : 8,
           wait_seconds:
             definition.operation === "status"
               ? "wait_seconds" in args
@@ -223,7 +251,27 @@ export function taskToolSpecs(
         } catch {
           throw new CodedError("task.invalidResponse");
         }
-        return renderTask(value);
+        const reported = Array.isArray(value.tasks) ? value.tasks : [value];
+        for (const item of reported as Record<string, unknown>[]) {
+          const active = item.status === "starting" || item.status === "running";
+          recorder?.emit(
+            {
+              kind: "task.updated",
+              taskId: String(item.task_id),
+              phase: active
+                ? definition.operation === "start"
+                  ? "started"
+                  : "updated"
+                : "finished",
+              status: String(item.status),
+              description: `${name} / ${String(item.program ?? "tâche")}`,
+            },
+            ctx.parentId,
+          );
+        }
+        return definition.name.endsWith("_json")
+          ? JSON.stringify({ version: 1, ...value, objectiveVerified: false })
+          : renderTask(value);
       },
     }),
   );

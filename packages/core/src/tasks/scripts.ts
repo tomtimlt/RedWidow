@@ -197,7 +197,9 @@ if operation == "start":
     try:
         values = summaries()
         if len(values) >= 500: raise ValueError("task.registryLimit")
-        if sum(v["status"] in ("starting", "running") for v in values) >= 8: raise ValueError("task.activeLimit")
+        parallel = request.get("max_parallel", 8)
+        if type(parallel) is not int or not 1 <= parallel <= 8: raise ValueError("task.parallelLimit")
+        if sum(v["status"] in ("starting", "running") for v in values) >= parallel: raise ValueError("task.activeLimit")
         task_id = request["task_id"]
         if len(task_id) != 32 or any(c not in "0123456789abcdef" for c in task_id): raise ValueError("task.id")
         os.mkdir(task_id, 0o700, dir_fd=project)

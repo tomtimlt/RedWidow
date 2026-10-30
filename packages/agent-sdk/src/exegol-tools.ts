@@ -34,7 +34,7 @@ export function exegolToolset(options: ExegolToolsetOptions): Toolset {
       return createSpecTools(
         [
           ...exegolToolSpecs(docker, options.targets),
-          ...taskToolSpecs("exegol", docker, options.targets),
+          ...taskToolSpecs("exegol", docker, options.targets, recorder),
         ].filter((spec) => options.includeMemory !== false || spec.name !== "remember"),
         resolveParent,
       );

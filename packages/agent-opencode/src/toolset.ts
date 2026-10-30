@@ -24,6 +24,7 @@ import {
   KALI_SERVER_INSTRUCTIONS,
   KALI_SERVER_NAME,
   kaliToolSpecs,
+  type MissionDesk,
   type Recorder,
   taskToolSpecs,
   WEB_SERVER_INSTRUCTIONS,
@@ -34,6 +35,7 @@ import {
 /** Contexte fourni à un toolset à chaque run. */
 export interface OpencodeToolContext {
   recorder: Recorder;
+  missionDesk?: MissionDesk;
 }
 
 /**
@@ -93,7 +95,7 @@ export function exegolToolset(options: ExegolToolsetOptions): OpencodeToolset {
       const docker = createDockerClient({ ...options, recorder });
       return [
         ...exegolToolSpecs(docker, options.targets),
-        ...taskToolSpecs("exegol", docker, options.targets),
+        ...taskToolSpecs("exegol", docker, options.targets, recorder),
       ].filter((spec) => options.includeMemory !== false || spec.name !== "remember");
     },
   };
@@ -111,7 +113,7 @@ export function kaliToolset(options: KaliToolsetOptions): OpencodeToolset {
       const docker = createDockerClient(client);
       return [
         ...kaliToolSpecs(docker, createKaliApi(client), options.targets),
-        ...taskToolSpecs("kali", docker, options.targets),
+        ...taskToolSpecs("kali", docker, options.targets, recorder),
       ].filter((spec) => options.includeMemory !== false || spec.name !== "remember");
     },
   };
@@ -146,5 +148,5 @@ export function integrationToolset(
 }
 
 export function deskToolset(): OpencodeToolset {
-  return { name: "desk", create: () => deskToolSpecs() };
+  return { name: "desk", create: ({ missionDesk }) => deskToolSpecs(missionDesk) };
 }

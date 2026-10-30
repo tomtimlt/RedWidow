@@ -1,3 +1,4 @@
+import type { EngineEvent } from "@warband/core";
 import { isPalette, type Palette } from "./palette.js";
 
 /** Pages des réglages, dans l'ordre de la barre des captures. */
@@ -30,10 +31,12 @@ export function isStudioPage(value: string): value is StudioPage {
 }
 
 export type StudioMessage =
+  | { type: "openEvidence"; projectId: string; id: string }
   | { type: "setPalette"; palette: Palette }
   | { type: "openReport"; projectId: string }
   | { type: "exportKillchain"; projectId: string }
   | { type: "exportReport"; projectId: string }
+  | { type: "exportAttackFlow"; projectId: string }
   | { type: "open"; page: StudioPage }
   | { type: "refresh" }
   | { type: "openCockpit" }
@@ -81,7 +84,10 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
   )
     return { type: "setPalette", palette: m.palette };
   if (
-    (m.type === "exportReport" || m.type === "exportKillchain" || m.type === "openReport") &&
+    (m.type === "exportReport" ||
+      m.type === "exportAttackFlow" ||
+      m.type === "exportKillchain" ||
+      m.type === "openReport") &&
     keys.length === 2 &&
     keys.every((key) => key === "type" || key === "projectId") &&
     typeof m.projectId === "string" &&
@@ -135,7 +141,7 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
     return { type: "createProject", name: m.name.trim() };
   }
   if (
-    m.type === "deleteFinding" &&
+    (m.type === "deleteFinding" || m.type === "openEvidence") &&
     keys.length === 3 &&
     keys.every((key) => key === "type" || key === "projectId" || key === "id") &&
     typeof m.projectId === "string" &&
@@ -145,7 +151,7 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
     m.id.length <= 200 &&
     !/\p{Cc}/u.test(m.id)
   ) {
-    return { type: "deleteFinding", projectId: m.projectId, id: m.id };
+    return { type: m.type, projectId: m.projectId, id: m.id };
   }
   if (
     m.type === "saveSummary" &&
@@ -167,4 +173,43 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
     return { type: "open", page: m.page };
   }
   return null;
+}
+
+export interface ObservedMission {
+  runId: string;
+  objective: string;
+  results: {
+    reference: string;
+    isError: boolean;
+    truncated: boolean;
+    bytes: number;
+    output: string;
+    aperçuTronqué: boolean;
+  }[];
+}
+/** Snapshot borné, alimenté seulement par les événements déjà masqués du moteur courant. */
+export function observeMission(
+  previous: ObservedMission | undefined,
+  event: EngineEvent | null,
+): ObservedMission | undefined {
+  if (event === null) return undefined;
+  if (event.kind === "run.started")
+    return { runId: event.runId, objective: event.prompt.slice(0, 8192), results: [] };
+  if (!previous || previous.runId !== event.runId) return previous;
+  if (event.kind === "user.message") return { ...previous, objective: event.text.slice(0, 8192) };
+  if (event.kind !== "tool.result") return previous;
+  return {
+    ...previous,
+    results: [
+      ...previous.results,
+      {
+        reference: event.toolUseId,
+        isError: event.isError,
+        truncated: event.truncated,
+        bytes: event.bytes,
+        output: event.output.slice(0, 2048),
+        aperçuTronqué: event.output.length > 2048,
+      },
+    ].slice(-12),
+  };
 }

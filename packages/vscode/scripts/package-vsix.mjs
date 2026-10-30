@@ -22,10 +22,18 @@ import { build } from "esbuild";
 
 const target = process.argv[2] ?? "win32-x64";
 const pkgDir = fileURLToPath(new URL("..", import.meta.url));
-const stage = join(pkgDir, ".vsix-stage");
+const repository = join(pkgDir, "..", "..");
+const stage = join(pkgDir, ".vsix-stage", target);
 if (!["linux-x64", "win32-x64"].includes(target)) {
   throw new Error(`Cible non prise en charge : ${target}`);
 }
+// Les exports workspace pointent vers dist : compiler avant tout bundle garantit
+// que le VSIX contient les sources courantes, même après un packaging local direct.
+const tscManifest = createRequire(join(repository, "package.json")).resolve(
+  "typescript/package.json",
+);
+const tsc = join(dirname(tscManifest), JSON.parse(readFileSync(tscManifest, "utf8")).bin.tsc);
+execFileSync(process.execPath, [tsc, "-b"], { cwd: repository, stdio: "inherit" });
 const opencodeVersion = "1.19.0";
 const opencodeExeName = target === "win32-x64" ? "opencode.exe" : "opencode";
 const opencodePackage = `opencode-${target === "win32-x64" ? "windows" : "linux"}-x64-baseline`;
@@ -113,6 +121,8 @@ copyFileSync(
   join(pkgDir, "third-party", "opencode-LICENSE"),
   join(stage, "third-party", "opencode-LICENSE"),
 );
+for (const license of ["attack-flow-LICENSE", "stix-LICENSE"])
+  copyFileSync(join(pkgDir, "third-party", license), join(stage, "third-party", license));
 // Licences des dépendances du lecteur web et de leurs dépendances embarquées.
 const webLicenses = new Set();
 function copyWebLicenses(name, fromRequire) {

@@ -63,6 +63,8 @@ export interface RunContext {
   recorder: Recorder;
   gate: ApprovalGate;
   signal?: AbortSignal;
+  /** Observation du paquet ajouté au tour courant ; aucun effet sur les autorisations. */
+  onMissionContext?: (snapshot: import("./mission-desk.js").MissionContext) => void;
 }
 
 export interface RunSummary {

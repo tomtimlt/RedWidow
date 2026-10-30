@@ -8,6 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DockerClient, LabelPrefixContainer } from "../src/docker/client.js";
 import {
   createExegolTargets,
+  createMissionDesk,
+  createRecorder,
   DEFAULT_POLICY,
   evaluatePolicy,
   isRememberable,
@@ -227,6 +229,19 @@ describe.skipIf(process.platform === "win32")("superviseur Linux réel des tâch
     });
   });
 
+  it("applique un plafond de concurrence choisi avant de lancer un nouveau processus", async () => {
+    const first = await start("import time; time.sleep(20)");
+    await expect(
+      call("start", {
+        task_id: randomUUID().replaceAll("-", ""),
+        argv: ["true"],
+        timeout_seconds: 10,
+        max_parallel: 1,
+      }),
+    ).rejects.toThrow("task.activeLimit");
+    expect((await call("list")).tasks?.map((task) => task.task_id)).toEqual([first.task_id]);
+  });
+
   it("refuse les liens symboliques de sortie et les identifiants traversants", async () => {
     await symlink(tmpdir(), join(root, "outputs"));
     const id = randomUUID().replaceAll("-", "");
@@ -261,7 +276,9 @@ describe("outils de tâches et gate", () => {
         listLabelPrefix: vi.fn(async () => rows),
         execWorkspace: exec,
       } as unknown as DockerClient;
-      const tools = taskToolSpecs(family, docker, targets);
+      const recorder = createRecorder();
+      const desk = createMissionDesk({ recorder });
+      const tools = taskToolSpecs(family, docker, targets, recorder);
       const run = (container: string) =>
         tools
           .find((tool) => tool.name === "task_start")
@@ -282,6 +299,28 @@ describe("outils de tâches et gate", () => {
         scope: createHash("sha256").update("project-A").digest("hex"),
       });
       expect(argv[1][0]).toBe("python3");
+      const structured = JSON.parse(
+        (await tools
+          .find((tool) => tool.name === "task_status_json")
+          ?.run(
+            {
+              container: family === "kali" ? "kali-1" : "lab",
+              task_id: "a".repeat(32),
+            },
+            ctx,
+          )) ?? "{}",
+      );
+      expect(structured).toMatchObject({
+        version: 1,
+        status: "running",
+        exit_code: null,
+        objectiveVerified: false,
+      });
+      expect(desk.context().activeTasks).toContainEqual({
+        taskId: "a".repeat(32),
+        status: "running",
+      });
+      desk.dispose();
       expect(tools.find((tool) => tool.name === "task_cancel")?.readOnly).toBeUndefined();
       expect(tools.find((tool) => tool.name === "task_status")?.readOnly).toBe(true);
       targets.note("", ["exegol-lab", "kali-1"], "project-A");

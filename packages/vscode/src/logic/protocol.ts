@@ -86,6 +86,7 @@ export type FromEngine =
   | { v: 1; type: "started"; runId: string; policySource: string | null; warning?: Reason }
   | { v: 1; type: "models"; models: ModelOption[] }
   | { v: 1; type: "event"; event: EngineEvent }
+  | { v: 1; type: "missionContext"; runId: string; text: string }
   | { v: 1; type: "approval"; approval: PendingApproval }
   | { v: 1; type: "ended"; summary: EndedSummary }
   | { v: 1; type: "error"; reason: ErrorInfo }
@@ -331,6 +332,7 @@ export function parseFromEngine(raw: unknown): Parsed<FromEngine> {
     "started",
     "models",
     "event",
+    "missionContext",
     "approval",
     "ended",
     "error",
@@ -345,6 +347,7 @@ export function parseFromEngine(raw: unknown): Parsed<FromEngine> {
       started: ["v", "type", "runId", "policySource", "warning"],
       models: ["v", "type", "models"],
       event: ["v", "type", "event"],
+      missionContext: ["v", "type", "runId", "text"],
       approval: ["v", "type", "approval"],
       ended: ["v", "type", "summary"],
       error: ["v", "type", "reason"],
@@ -354,6 +357,28 @@ export function parseFromEngine(raw: unknown): Parsed<FromEngine> {
   if (unexpected) return bad(unexpected, "unexpected");
   const ok = { ok: true, message: obj as FromEngine } as const;
   switch (type) {
+    case "missionContext":
+      if (
+        !isString(obj.runId) ||
+        obj.runId.length > 200 ||
+        !isString(obj.text) ||
+        obj.text.length > 24000
+      )
+        return bad("missionContext");
+      try {
+        const snapshot: unknown = JSON.parse(obj.text);
+        return isObj(snapshot) &&
+          snapshot.version === 1 &&
+          snapshot.runId === obj.runId &&
+          isString(snapshot.prompt) &&
+          snapshot.prompt.length <= 4000 &&
+          Array.isArray(snapshot.observations) &&
+          snapshot.observations.length <= 128
+          ? ok
+          : bad("missionContext");
+      } catch {
+        return bad("missionContext");
+      }
     case "started":
       if (!isString(obj.runId)) return bad("runId");
       if (obj.policySource !== null && !isString(obj.policySource)) return bad("policySource");

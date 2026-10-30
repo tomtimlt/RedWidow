@@ -42,3 +42,7 @@ OpenCode 1.19.0 est embarqué sous licence MIT ; sa licence figure dans
 Recherche web : les agents disposent de `search_web` et `read_url` pour consulter
 les informations récentes et GitHub, avec sources et date de consultation.
 Recherche Exa publique sans clé ; lecture textuelle de pages publiques.
+
+## Version 0.3.63 — mission courante et preuves
+
+Bureau de mission commun aux moteurs : contexte sourcé à la demande, décisions courtes, méthodes par thème et conseils de déblocage. Aucun corpus d’anciennes sessions n’est injecté. La palette propose la capture et la consultation des preuves du projet, l’aperçu du contexte ajouté au dernier tour et l’export Attack Flow des étapes marquées confirmées. Les outils de tâches JSON sont additifs ; max_parallel borne réellement les tâches actives, les budgets de branche restent indicatifs.

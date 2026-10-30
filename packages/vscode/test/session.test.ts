@@ -70,6 +70,7 @@ function fake() {
 
 function setup(
   over: {
+    observe?: (event: EngineEvent | null) => void;
     confirm?: boolean;
     token?: boolean;
     settings?: object;
@@ -90,6 +91,7 @@ function setup(
         ? { auth: { name: "CLAUDE_CODE_OAUTH_TOKEN", value: "sk-secret" }, mode: "subscription" }
         : undefined,
     confirmAlways,
+    ...(over.observe && { onObservedEvent: over.observe }),
     onView: (v) => {
       view = v;
     },
@@ -1788,4 +1790,20 @@ describe("cycle de chargement des modèles", () => {
     expect(fail.session.view().items.filter((item) => item.kind === "notice")).toHaveLength(1);
     expect(JSON.stringify(fail.session.view())).not.toMatch(/secret-test|login.example/);
   });
+});
+
+it("transmet les observations du moteur actif et efface au reset, sans événements détachés", async () => {
+  const observe = vi.fn();
+  const t = setup({ observe });
+  await t.session.send("test");
+  const handlers = t.f.handlers;
+  const started = ev({ kind: "run.started", runId: "courant", prompt: "masqué", cwd: "/w" });
+  handlers.onEvent?.(started);
+  expect(observe).toHaveBeenLastCalledWith(started);
+  t.session.reset();
+  expect(observe).toHaveBeenLastCalledWith(null);
+  const count = observe.mock.calls.length;
+  handlers.onEvent?.(ev({ kind: "user.message", runId: "courant", text: "tardif" }));
+  expect(observe).toHaveBeenCalledTimes(count);
+  t.session.dispose();
 });

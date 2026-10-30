@@ -2,10 +2,16 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
+import type { EngineEvent } from "@warband/core";
 import { MITRE_TACTICS as CORE_TACTICS } from "@warband/core";
 import { describe, expect, it } from "vitest";
 import { studioHtml } from "../src/logic/html.js";
-import { parseStudioMessage, STUDIO_PAGES, studioLabel } from "../src/logic/studio.js";
+import {
+  observeMission,
+  parseStudioMessage,
+  STUDIO_PAGES,
+  studioLabel,
+} from "../src/logic/studio.js";
 
 interface NavItem {
   id: string;
@@ -1166,4 +1172,60 @@ describe("actions de projet et connexion Burp", () => {
     expect(parseStudioMessage({ type, url: "http://evil" })).toBeNull();
     expect(parseStudioMessage({ type, command: "java" })).toBeNull();
   });
+});
+
+describe("lecture de preuve", () => {
+  it("refuse les chemins, clés supplémentaires et identifiants malformés", () => {
+    const valid = {
+      type: "openEvidence",
+      projectId: "11111111-1111-4111-8111-111111111111",
+      id: "preuve-1",
+    };
+    expect(parseStudioMessage(valid)).toEqual(valid);
+    for (const raw of [
+      { ...valid, path: "/etc/passwd" },
+      { ...valid, projectId: "../autre" },
+      { ...valid, id: "a\n" },
+      { ...valid, id: "" },
+    ])
+      expect(parseStudioMessage(raw)).toBeNull();
+  });
+});
+
+it("isole et borne les observations du run courant, puis les efface", () => {
+  const event = (raw: object) => raw as EngineEvent;
+  let snapshot = observeMission(
+    undefined,
+    event({ kind: "run.started", runId: "a", prompt: "objectif" }),
+  );
+  snapshot = observeMission(
+    snapshot,
+    event({ kind: "tool.result", runId: "autre", output: "ancien" }),
+  );
+  expect(snapshot?.results).toEqual([]);
+  for (let i = 0; i < 15; i++)
+    snapshot = observeMission(
+      snapshot,
+      event({
+        kind: "tool.result",
+        runId: "a",
+        toolUseId: String(i),
+        output: "x".repeat(3000),
+        isError: true,
+        truncated: true,
+        bytes: 4000,
+      }),
+    );
+  expect(snapshot?.results).toHaveLength(12);
+  expect(snapshot?.results[0]?.output).toHaveLength(2048);
+  expect(snapshot?.results[0]).toMatchObject({
+    reference: "3",
+    isError: true,
+    truncated: true,
+    aperçuTronqué: true,
+  });
+  expect(
+    observeMission(snapshot, event({ kind: "run.started", runId: "b", prompt: "nouveau" })),
+  ).toEqual({ runId: "b", objective: "nouveau", results: [] });
+  expect(observeMission(snapshot, null)).toBeUndefined();
 });

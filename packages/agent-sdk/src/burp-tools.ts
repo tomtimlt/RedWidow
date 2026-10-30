@@ -36,8 +36,8 @@ export function integrationToolset(config: IntegrationConfig, backend: BurpBacke
 export function deskToolset(): Toolset {
   return {
     name: "desk",
-    create: ({ resolveCall }) =>
-      createSpecTools(deskToolSpecs(), (name, args, extra) =>
+    create: ({ resolveCall, missionDesk }) =>
+      createSpecTools(deskToolSpecs(missionDesk), (name, args, extra) =>
         resolveCall(`mcp__desk__${name}`, args, extra),
       ),
   };

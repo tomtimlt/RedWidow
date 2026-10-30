@@ -68,6 +68,9 @@ export const DEFAULT_POLICY: Policy = {
     { tool: BASH_TOOL, command: "rm *", decision: "deny" },
     { tool: BASH_TOOL, command: "sudo *", decision: "deny" },
     { tool: "mcp__desk__load_skill", decision: "allow" },
+    // Lecture du run courant et annotation en mémoire : aucune exécution ni persistance.
+    { tool: "mcp__desk__mission_context", decision: "allow" },
+    { tool: "mcp__desk__record_decision", decision: "allow" },
     { tool: "mcp__burp__list_tools", decision: "allow" },
     { tool: "mcp__docker__ps", decision: "allow" },
     { tool: "mcp__docker__images", decision: "allow" },

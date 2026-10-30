@@ -225,9 +225,8 @@ export function runEngine({
           ? LEARNING_SYSTEM_PROMPT
           : [
               SCAN_OUTPUT_GUIDANCE,
-              ...(params.profile || params.integrations?.length
-                ? [deskInstructions(params.profile), INTEGRATION_GUIDANCE]
-                : []),
+              deskInstructions(params.profile),
+              INTEGRATION_GUIDANCE,
               params.systemPrompt,
             ]
               .filter(Boolean)
@@ -252,7 +251,21 @@ export function runEngine({
             // En apprentissage, la consigne système ne vient jamais de l'UI.
             ...(systemPrompt !== undefined && { systemPrompt }),
           },
-          { recorder, gate, signal: abort.signal },
+          {
+            recorder,
+            gate,
+            signal: abort.signal,
+            ...(!learning && {
+              onMissionContext: (snapshot: import("@warband/core").MissionContext) => {
+                send({
+                  v: PROTOCOL_VERSION,
+                  type: "missionContext",
+                  runId: recorder.runId,
+                  text: JSON.stringify(snapshot),
+                });
+              },
+            }),
+          },
         );
         const ended: EndedSummary = {
           status: summary.status,

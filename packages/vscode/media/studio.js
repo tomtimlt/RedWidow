@@ -550,7 +550,7 @@ function start() {
     hypothesis: "?",
     failed: "✕",
   };
-  function killchainGraphView(graph, findings, projectId) {
+  function killchainGraphView(graph, findings, projectId, evidence) {
     const wrap = el("div", "studio-kc");
     const bar = el("div", "kc-bar");
     graphBar = bar;
@@ -598,6 +598,15 @@ function start() {
       if (!image.disabled) vscode.postMessage({ type: "exportKillchain", projectId });
     });
     bar.append(image);
+    const flow = el("button", "ghost kc-btn kc-flow");
+    flow.type = "button";
+    flow.textContent = "Attack Flow";
+    flow.title = "Exporter les étapes confirmées au format Attack Flow 2.0";
+    flow.disabled = typeof projectId !== "string";
+    flow.addEventListener("click", () => {
+      if (!flow.disabled) vscode.postMessage({ type: "exportAttackFlow", projectId });
+    });
+    bar.append(flow);
     const selection = el("div", "kc-selection");
     const selectedLabel = el("span", "kc-selection-label");
     const remove = el("button", "ghost kc-btn kc-delete");
@@ -610,7 +619,8 @@ function start() {
     trashPath.setAttribute("d", "M2.5 4.5h11M6 4.5V2.5h4v2M4 4.5l.5 9h7l.5-9M6.5 7v4M9.5 7v4");
     trash.append(trashPath);
     remove.append(decorative(trash), el("span", "btn-text", "Supprimer"));
-    selection.append(selectedLabel, remove);
+    const proofs = el("div", "kc-proofs");
+    selection.append(selectedLabel, remove, proofs);
     selection.addEventListener("click", (event) => event.stopPropagation());
     bar.append(selection);
     const edgeSelection = el("div", "kc-selection kc-edge-selection");
@@ -642,6 +652,22 @@ function start() {
     paintFindingSelection = () => {
       const selected = graph.nodes.find((node) => node.id === selectedFinding);
       selection.hidden = !selected;
+      proofs.replaceChildren();
+      const finding = findings?.find((row) => row.id === selectedFinding);
+      for (const id of finding?.evidenceIds ?? []) {
+        const proof = evidence?.find((row) => row.id === id);
+        const button = el("button", "ghost kc-btn", proof?.label ?? "Preuve indisponible");
+        button.type = "button";
+        button.disabled = !proof;
+        button.title = proof
+          ? `${proof.source.reference} · ${proof.capturedAt} · SHA-256 ${proof.sha256}`
+          : id;
+        button.addEventListener(
+          "click",
+          () => proof && vscode.postMessage({ type: "openEvidence", projectId, id }),
+        );
+        proofs.append(button);
+      }
       selectedLabel.textContent = selected?.label ?? "";
       selectedLabel.title = selected?.label ?? "";
       remove.disabled =
@@ -1194,7 +1220,8 @@ function start() {
     if (pendingFindingDelete !== null && !findingExists(pendingFindingDelete.id)) {
       pendingFindingDelete = null;
     }
-    const fingerprint = page === "killchain" ? JSON.stringify(view.findings ?? []) : null;
+    const fingerprint =
+      page === "killchain" ? JSON.stringify([view.findings ?? [], view.evidence ?? []]) : null;
     showGraphError("");
     if (fingerprint !== null && fingerprint === graphFingerprint) return;
     graphFingerprint = fingerprint;
@@ -1579,7 +1606,7 @@ function start() {
         const sec2 = el("section", "studio-kc-page");
         const graph = killchainGraph(view.findings);
         if (graph.nodes.length > 0) {
-          sec2.append(killchainGraphView(graph, view.findings, project));
+          sec2.append(killchainGraphView(graph, view.findings, project, view.evidence));
         } else {
           const wrap = el("div", "studio-kc");
           const viewport = el("div", "kc-viewport kc-empty");

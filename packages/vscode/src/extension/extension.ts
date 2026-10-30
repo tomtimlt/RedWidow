@@ -1,17 +1,25 @@
 import { fork } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdir } from "node:fs/promises";
+import { mkdir, realpath } from "node:fs/promises";
 import { basename, join } from "node:path";
 import {
   AGENT_PROFILES,
   activeProject,
+  appendFinding,
+  attachEvidence,
+  buildAttackFlow,
   burpToolSpecs,
   CodedError,
   coursRoot,
   createDockerClient,
+  createEvidence,
   createRecorder,
+  createRedactor,
   defaultConfigDir,
+  type EngineEvent,
+  type EvidenceSource,
   ensureWarbandKaliImage,
+  listEvidence,
   lookupContainer,
   MCP_CATALOG,
   parseIntegrations,
@@ -46,6 +54,7 @@ import {
 } from "../logic/cockpit.js";
 import { removeListedContainer } from "../logic/container-remove.js";
 import type { Provider } from "../logic/effort.js";
+import { evidenceEditorReference, evidenceTerminalAllowed } from "../logic/evidence-capture.js";
 import { type ExegolCreateOptions, prepareExegolCreate } from "../logic/exegol-create.js";
 import { deleteSelectedFinding } from "../logic/finding-delete.js";
 import { createJournalFiles } from "../logic/historyStore.js";
@@ -72,7 +81,13 @@ import { openAiSubscriptionReady } from "../logic/provider-auth.js";
 import { type ChatSession, createChatSession, type TokenChoice } from "../logic/session.js";
 import { machineValue, resolveSettings } from "../logic/settings.js";
 import { readSources } from "../logic/sources.js";
-import { parseStudioMessage, type StudioMessage, type StudioPage } from "../logic/studio.js";
+import {
+  type ObservedMission,
+  observeMission,
+  parseStudioMessage,
+  type StudioMessage,
+  type StudioPage,
+} from "../logic/studio.js";
 import {
   capturedShell,
   classifyMessageHashes,
@@ -159,6 +174,35 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     panel?: vscode.WebviewPanel;
   }
   const slots = new Map<string, Slot>();
+  const observedRuns = new Map<string, ObservedMission>();
+  const injectedContexts = new Map<string, { runId: string; text: string }>();
+  const observe = (id: string, event: EngineEvent | null) => {
+    const next = observeMission(observedRuns.get(id), event);
+    if (next) observedRuns.set(id, next);
+    else observedRuns.delete(id);
+    if (event === null || event.kind === "run.started") injectedContexts.delete(id);
+  };
+  const documents = new Map<string, string>();
+  context.subscriptions.push(
+    vscode.workspace.registerTextDocumentContentProvider("warband-observed", {
+      provideTextDocumentContent: (uri) =>
+        documents.get(uri.toString()) ?? "Document indisponible.",
+    }),
+  );
+  const showObserved = async (title: string, text: string) => {
+    const uri = vscode.Uri.from({
+      scheme: "warband-observed",
+      path: `/${title}-${randomBytes(6).toString("hex")}.txt`,
+    });
+    documents.set(uri.toString(), createRedactor()(text));
+    if (documents.size > 32) {
+      const oldest = documents.keys().next().value;
+      if (oldest !== undefined) documents.delete(oldest);
+    }
+    await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(uri), {
+      preview: true,
+    });
+  };
   /** Terminaux d'éditeur ouverts par cet hôte, par nom Docker réel. */
   interface TrackedShell {
     term: vscode.Terminal;
@@ -195,6 +239,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   >();
   const cancelFindingDeletions = () => {
     findingProjectGeneration++;
+    observedRuns.clear();
     reportPanel?.dispose();
     for (const pending of findingDeletions.values()) pending.abort.abort();
   };
@@ -400,6 +445,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
         updateModelStatus();
         scheduleFindingsRefresh();
+      },
+      onObservedEvent: (event) => observe(id, event),
+      onMissionContext: (snapshot) => {
+        if (observedRuns.get(id)?.runId === snapshot.runId) injectedContexts.set(id, snapshot);
       },
       onLog: (text) => out.append(text),
     });
@@ -1450,12 +1499,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (!panel) return;
     const revision = ++killchainRevision;
     let findings: unknown[] = [];
+    let evidence: unknown[] = [];
     let projectId: string | null = null;
     try {
       const file = await readProjects(defaultConfigDir());
       const active = file === null ? null : activeProject(file);
       projectId = active?.id ?? null;
       findings = active === null ? [] : await readFindings(defaultConfigDir(), active.id);
+      evidence =
+        active === null
+          ? []
+          : (await listEvidence(defaultConfigDir(), active.id)).map(
+              ({ text: _text, ...meta }) => meta,
+            );
     } catch (error) {
       if (killchainPanel === panel && revision === killchainRevision) {
         killchainPayload = "";
@@ -1467,7 +1523,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       return;
     }
     if (killchainPanel !== panel || revision !== killchainRevision) return;
-    const payload = { type: "view", page: "killchain", projectId, findings };
+    const payload = { type: "view", page: "killchain", projectId, findings, evidence };
     const fingerprint = JSON.stringify(payload);
     if (killchainPayload === fingerprint) return;
     killchainPayload = fingerprint;
@@ -1530,12 +1586,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     });
     killchainPanel.webview.onDidReceiveMessage(async (raw: unknown) => {
       const message = parseStudioMessage(raw);
+      if (message?.type === "openEvidence") {
+        await openEvidence(message.projectId, message.id);
+        return;
+      }
       if (message?.type === "openReport") {
         await openReport(message.projectId);
         return;
       }
       if (message?.type === "exportKillchain") {
         await exportMissionReport(message.projectId, true);
+        return;
+      }
+      if (message?.type === "exportAttackFlow") {
+        await exportMissionReport(message.projectId, false, true);
         return;
       }
       if (message?.type === "exportReport") {
@@ -1580,6 +1644,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       error: formatError(error),
     }));
     let findings: unknown[] = [];
+    let evidence: unknown[] = [];
     let projectChoices: Awaited<ReturnType<typeof readProjectChoices>> = {
       activeId: null,
       projects: [],
@@ -1601,6 +1666,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const file = await readProjects(defaultConfigDir());
       const active = file === null ? null : activeProject(file);
       findings = active === null ? [] : await readFindings(defaultConfigDir(), active.id);
+      evidence =
+        active === null
+          ? []
+          : (await listEvidence(defaultConfigDir(), active.id)).map(
+              ({ text: _text, ...meta }) => meta,
+            );
     } catch {
       findings = [];
     }
@@ -1612,6 +1683,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       ...cockpit,
       page: studioPage,
       findings,
+      evidence,
       sources,
       projectSummary,
       projectChoices,
@@ -1693,7 +1765,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       void vscode.window.showErrorMessage(formatError(error));
     }
   };
-  const exportMissionReport = async (expectedProjectId?: string, image = false) => {
+  const exportMissionReport = async (
+    expectedProjectId?: string,
+    image = false,
+    attackFlow = false,
+  ) => {
     try {
       const file = await readProjects(defaultConfigDir());
       const project = file === null ? null : activeProject(file);
@@ -1701,13 +1777,26 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         throw new CodedError("project.absent");
       const generation = findingProjectGeneration;
       const destination = await vscode.window.showSaveDialog({
-        title: image
-          ? "Exporter la Kill Chain complète en image SVG"
-          : "Exporter un brouillon de rapport (identifiants et loot exclus)",
+        title: attackFlow
+          ? "Exporter Attack Flow (étapes confirmées, identifiants et loot exclus)"
+          : image
+            ? "Exporter la Kill Chain complète en image SVG"
+            : "Exporter un brouillon de rapport (identifiants et loot exclus)",
         defaultUri: vscode.Uri.file(
-          join(project.workspace, image ? "killchain-warband.svg" : "rapport-warband.md"),
+          join(
+            project.workspace,
+            attackFlow
+              ? "attack-flow-warband.json"
+              : image
+                ? "killchain-warband.svg"
+                : "rapport-warband.md",
+          ),
         ),
-        filters: image ? { "Image SVG": ["svg"] } : { Markdown: ["md"] },
+        filters: attackFlow
+          ? { "Attack Flow JSON": ["json"] }
+          : image
+            ? { "Image SVG": ["svg"] }
+            : { Markdown: ["md"] },
       });
       if (!destination) return;
       const current = await readProjects(defaultConfigDir());
@@ -1732,7 +1821,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await vscode.workspace.fs.writeFile(
         destination,
         Buffer.from(
-          image ? killchainImage(project, findings) : missionReport(project, findings, new Date()),
+          attackFlow
+            ? JSON.stringify(buildAttackFlow(project, findings, new Date()), null, 2) + "\n"
+            : image
+              ? killchainImage(project, findings)
+              : missionReport(project, findings, new Date()),
           "utf8",
         ),
       );
@@ -1740,6 +1833,217 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       else await vscode.window.showTextDocument(destination);
     } catch (error) {
       void vscode.window.showErrorMessage(formatError(error));
+    }
+  };
+  const openEvidence = async (projectId: string, id: string) => {
+    try {
+      if ((await readProjectChoices(defaultConfigDir())).activeId !== projectId) return;
+      const row = (await listEvidence(defaultConfigDir(), projectId)).find(
+        (entry) => entry.id === id,
+      );
+      if (!row || (await readProjectChoices(defaultConfigDir())).activeId !== projectId) return;
+      await showObserved(
+        "preuve",
+        `${row.label}\n${JSON.stringify(row.source)}\nSHA-256 du texte affiché : ${row.sha256}${row.storedSha256 ? `\nSHA-256 original stocké : ${row.storedSha256}` : ""}${row.redactionTruncated ? "\nTexte remasqué et tronqué." : ""}\nCapturée : ${row.capturedAt}\n\n${row.text}`,
+      );
+    } catch (error) {
+      void vscode.window.showErrorMessage(formatError(error));
+    }
+  };
+  const evidenceProjectGuard = (projectId: string, generation: number) => async () => {
+    const file = await readProjects(defaultConfigDir());
+    const project = file === null ? null : activeProject(file);
+    if (projectChanging || generation !== findingProjectGeneration || project?.id !== projectId)
+      throw new Error("Le projet actif a changé. Relancez l’action sur les preuves.");
+    return project;
+  };
+  const listProjectEvidence = async () => {
+    try {
+      const file = await readProjects(defaultConfigDir());
+      const project = file === null ? null : activeProject(file);
+      if (!project) return;
+      const current = evidenceProjectGuard(project.id, findingProjectGeneration);
+      const rows = await listEvidence(defaultConfigDir(), project.id);
+      const findings = await readFindings(defaultConfigDir(), project.id);
+      const picked = await vscode.window.showQuickPick(
+        rows.map((row) => ({
+          label: row.label,
+          description: findings.some((finding) => finding.evidenceIds?.includes(row.id))
+            ? "Rattachée"
+            : "Non rattachée",
+          detail: row.id,
+          row,
+        })),
+        { title: "Preuves du projet actif — lecture ou rattachement" },
+      );
+      if (!picked) return;
+      await current();
+      const action = await vscode.window.showQuickPick(
+        ["Ouvrir", "Rattacher à une trouvaille existante"],
+        { title: picked.row.label },
+      );
+      if (!action) return;
+      await current();
+      if (action === "Ouvrir") {
+        await openEvidence(project.id, picked.row.id);
+        return;
+      }
+      const latest = await readFindings(defaultConfigDir(), project.id);
+      const target = await vscode.window.showQuickPick(
+        latest
+          .filter(
+            (finding) =>
+              (finding.evidenceIds?.length ?? 0) < 20 &&
+              !finding.evidenceIds?.includes(picked.row.id),
+          )
+          .map((finding) => ({ label: finding.label, id: finding.id })),
+        { title: "Rattacher la preuve à une trouvaille existante" },
+      );
+      if (!target) return;
+      const beforeCommit = async () => {
+        await current();
+      };
+      await beforeCommit();
+      await attachEvidence(defaultConfigDir(), project.id, target.id, picked.row.id, {
+        beforeCommit,
+      });
+      await pushKillchain();
+      await pushStudio();
+    } catch (error) {
+      void vscode.window.showErrorMessage(formatError(error));
+    }
+  };
+  const captureEvidence = async (terminal: boolean) => {
+    let createdEvidence: { id: string; projectId: string } | undefined;
+    let attached = false;
+    try {
+      if (!(await projectWorkspaceReady())) return;
+      const file = await readProjects(defaultConfigDir());
+      const project = file === null ? null : activeProject(file);
+      if (!project) return;
+      const projectId = project.id;
+      const current = evidenceProjectGuard(projectId, findingProjectGeneration);
+      let capturedContainer: string | undefined;
+      const beforeCommit = async () => {
+        const fresh = await current();
+        if (
+          capturedContainer !== undefined &&
+          !evidenceTerminalAllowed(fresh.containers, capturedContainer)
+        )
+          throw new Error("Le terminal n’appartient plus à l’allowlist du projet actif.");
+      };
+      let text: string;
+      let source: EvidenceSource;
+      if (terminal) {
+        const shells = [...editorShells.values()]
+          .flat()
+          .filter(
+            (shell) =>
+              shell.logPath !== null &&
+              evidenceTerminalAllowed(project.containers, shell.container),
+          );
+        if (!shells.length)
+          throw new Error("Aucun terminal capturé n’appartient à l’allowlist du projet actif.");
+        const picked = await vscode.window.showQuickPick(
+          shells.map((shell) => ({ label: shell.term.name, shell })),
+          { title: "Capturer la fin du journal d’un terminal du projet actif" },
+        );
+        if (!picked) return;
+        capturedContainer = picked.shell.container;
+        await beforeCommit();
+        if (!(editorShells.get(capturedContainer) ?? []).includes(picked.shell))
+          throw new Error("Ce terminal est fermé.");
+        const raw = await readLogTail(picked.shell);
+        await beforeCommit();
+        if (raw === null) throw new Error("Journal du terminal indisponible.");
+        text = readableTerminal(raw);
+        source = {
+          kind: "terminal",
+          reference: `terminal/${picked.shell.token ?? picked.shell.label}`,
+        };
+      } else {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor || editor.selection.isEmpty || editor.document.uri.scheme !== "file")
+          throw new Error("Sélectionnez un extrait dans un fichier du projet actif.");
+        text = editor.document.getText(editor.selection);
+        const startLine = editor.selection.start.line + 1;
+        const endLine = editor.selection.end.line + 1;
+        const selectedFile = editor.document.uri.fsPath;
+        const [root, path] = await Promise.all([
+          realpath(project.workspace),
+          realpath(selectedFile),
+        ]);
+        evidenceEditorReference(root, path);
+        source = {
+          kind: "editor",
+          reference: evidenceEditorReference(project.workspace, selectedFile),
+          startLine,
+          endLine,
+        };
+      }
+      if (!text.trim() || Buffer.byteLength(text, "utf8") > 16384)
+        throw new Error(
+          "Extrait vide ou supérieur à 16 Kio. Réduisez la sélection avant de capturer.",
+        );
+      await beforeCommit();
+      await showObserved("aperçu-preuve", `${JSON.stringify(source)}\n\n${text}`);
+      const confirmation = await vscode.window.showQuickPick(
+        ["Conserver cet extrait exact", "Annuler"],
+        {
+          title: "Aperçu multiligne ouvert en lecture seule — conserver cet extrait ?",
+          ignoreFocusOut: true,
+        },
+      );
+      if (confirmation !== "Conserver cet extrait exact") return;
+      const label = await vscode.window.showInputBox({
+        title: "Titre de la preuve",
+        ignoreFocusOut: true,
+        validateInput: (value) =>
+          !value.trim() || value.trim().length > 200
+            ? "Titre requis, 200 caractères maximum."
+            : undefined,
+      });
+      if (!label) return;
+      await beforeCommit();
+      const findings = await readFindings(defaultConfigDir(), projectId);
+      const target = await vscode.window.showQuickPick(
+        [
+          { label: "Nouvelle trouvaille", id: null },
+          ...findings
+            .filter((row) => (row.evidenceIds?.length ?? 0) < 20)
+            .map((row) => ({ label: row.label, id: row.id })),
+        ],
+        { title: "Rattacher la preuve" },
+      );
+      if (!target) return;
+      await beforeCommit();
+      const evidence = await createEvidence(
+        defaultConfigDir(),
+        projectId,
+        { label, text, source },
+        { beforeCommit },
+      );
+      createdEvidence = { id: evidence.id, projectId };
+      if (target.id === null)
+        await appendFinding(
+          defaultConfigDir(),
+          projectId,
+          { kind: "step", state: "hypothesis", label, evidenceIds: [evidence.id] },
+          { beforeCommit },
+        );
+      else
+        await attachEvidence(defaultConfigDir(), projectId, target.id, evidence.id, {
+          beforeCommit,
+        });
+      attached = true;
+      await pushKillchain();
+      await pushStudio();
+    } catch (error) {
+      const recovery =
+        createdEvidence && !attached
+          ? ` La preuve ${createdEvidence.id} a été créée dans le projet ${createdEvidence.projectId}, mais n’a pas été rattachée. Activez ce projet puis utilisez « Warband : Lister les preuves du projet » pour la retrouver et la rattacher.`
+          : "";
+      void vscode.window.showErrorMessage(`${formatError(error)}${recovery}`);
     }
   };
   const setPathFromPanel = async (
@@ -1907,12 +2211,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await exportMissionReport(message.projectId, true);
         return;
       }
+      if (message.type === "exportAttackFlow") {
+        await exportMissionReport(message.projectId, false, true);
+        return;
+      }
       if (message.type === "exportReport") {
         await exportMissionReport(message.projectId);
         return;
       }
       if (message.type === "setPathEdge") {
         await setPathFromPanel(panel, message);
+        return;
+      }
+      if (message.type === "openEvidence") {
+        await openEvidence(message.projectId, message.id);
         return;
       }
       if (message.type === "deleteFinding") {
@@ -2193,6 +2505,48 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     },
     vscode.window.registerWebviewViewProvider("warband.chat", provider, {
       webviewOptions: { retainContextWhenHidden: true },
+    }),
+    vscode.commands.registerCommand("warband.listProjectEvidence", () => listProjectEvidence()),
+    vscode.commands.registerCommand("warband.captureEditorEvidence", () => captureEvidence(false)),
+    vscode.commands.registerCommand("warband.captureTerminalEvidence", () => captureEvidence(true)),
+    vscode.commands.registerCommand("warband.missionContext", async () => {
+      const run = slots.get(activeId)?.session?.view().readonly
+        ? undefined
+        : observedRuns.get(activeId);
+      if (!run) {
+        void vscode.window.showInformationMessage("Aucune observation du run courant disponible.");
+        return;
+      }
+      await showObserved(
+        "contexte-mission",
+        JSON.stringify(
+          {
+            avertissement:
+              "Le paquet au dernier tour ci-dessous est le contexte structuré effectivement ajouté à la consigne, déjà masqué. Les observations reçues depuis peuvent être plus récentes. Aucun compteur de tokens n’est mesuré ici.",
+            limites:
+              "Objectif limité à 8192 caractères ; 12 derniers résultats, 2048 caractères par aperçu. Aucun ancien journal ni autre projet n’est relu.",
+            paquetAuDernierTour:
+              injectedContexts.get(activeId)?.runId === run.runId
+                ? JSON.parse(injectedContexts.get(activeId)?.text ?? "null")
+                : null,
+            configurationActuelle: {
+              statut: "Disponible à la consultation ; ne représente pas le prompt complet",
+              profil:
+                machineValue(vscode.workspace.getConfiguration("warband").inspect("profile")) ?? "",
+              projet: (await readProjectChoices(defaultConfigDir())).activeId,
+              intégrations: projectIntegrations(
+                machineValue(
+                  vscode.workspace.getConfiguration("warband").inspect("integrationsByProject"),
+                ) ?? {},
+                (await readProjectChoices(defaultConfigDir())).activeId,
+              ).map((c) => c.id),
+            },
+            ...run,
+          },
+          null,
+          2,
+        ),
+      );
     }),
     vscode.commands.registerCommand("warband.openChat", () => openEditorChat()),
     vscode.commands.registerCommand("warband.openCockpit", () => openCockpit()),
@@ -2491,6 +2845,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     ),
     vscode.commands.registerCommand("warband.previewReport", () => openReport()),
     vscode.commands.registerCommand("warband.exportReport", () => exportMissionReport()),
+    vscode.commands.registerCommand("warband.exportAttackFlow", () =>
+      exportMissionReport(undefined, false, true),
+    ),
     vscode.commands.registerCommand("warband.focusChat", () =>
       vscode.commands.executeCommand("warband.chat.focus"),
     ),

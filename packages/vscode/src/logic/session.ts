@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { AuthMode, Effort, ModelOption, Reason } from "@warband/core";
+import type { AuthMode, Effort, EngineEvent, ModelOption, Reason } from "@warband/core";
 import { formatReason } from "@warband/messages";
 import { alwaysConfirmText, answerFor, type Choice, cleanText, toCard } from "./approval.js";
 import type { BypassEngineLink, BypassSend } from "./bypass.js";
@@ -83,6 +83,9 @@ export interface ChatSessionDeps {
   onView(view: ChatView): void;
   /** Sortie d'erreur du moteur, déjà masquée. */
   onLog?(text: string): void;
+  /** Événements déjà masqués reçus du moteur courant, jamais l’historique. */
+  onObservedEvent?(event: EngineEvent | null): void;
+  onMissionContext?(snapshot: { runId: string; text: string }): void;
   createController?(options: EngineControllerOptions): EngineController;
   /** Bypass (ADR 0006) : lien vers le moteur courant, pour pousser l'état et recevoir l'accusé. */
   bypass?: { attach(send: BypassSend): BypassEngineLink; reset?(): void };
@@ -417,6 +420,9 @@ export function createChatSession(deps: ChatSessionDeps) {
       cwd: deps.cwd,
       ...(token?.auth && { auth: token.auth }),
       handlers: {
+        onMissionContext: (snapshot) => {
+          if (!detached.has(ctl)) deps.onMissionContext?.(snapshot);
+        },
         onStarted: ({ runId, warning }) => {
           if (detached.has(ctl)) return;
           if (current && isRunId(runId) && !current.runIds.includes(runId)) {
@@ -428,6 +434,7 @@ export function createChatSession(deps: ChatSessionDeps) {
         },
         onEvent: (event) => {
           if (detached.has(ctl)) return;
+          deps.onObservedEvent?.(event);
           // Connu dès le début de la session : la reprise (changement de modèle) n'attend pas la fin du run.
           if (event.kind === "session.started") {
             sessionId = event.sessionId;
@@ -1039,6 +1046,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       refresh();
     },
     reset(): void {
+      deps.onObservedEvent?.(null);
       conversationGeneration++;
       navigationRev++;
       stopping = true;
@@ -1064,6 +1072,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       // L'identifiant ne sert qu'à retrouver une entrée de l'index ; les chemins viennent des `runId` validés.
       const meta = index.find((c) => c.id === id);
       if (!meta) return;
+      deps.onObservedEvent?.(null);
       const revision = ++navigationRev;
       await reloadHistoryProjects(revision);
       if (revision !== navigationRev) return;
@@ -1187,6 +1196,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       refresh();
     },
     dispose(): void {
+      deps.onObservedEvent?.(null);
       disposed = true;
       clearTimeout(outputTimer);
       outputTimer = undefined;
