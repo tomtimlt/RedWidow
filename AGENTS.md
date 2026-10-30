@@ -143,24 +143,42 @@ de worktree sauf demande explicite.
 
 ## Livraison
 
-Préférence utilisateur : après chaque modification terminée et validée,
-committer et pousser avec l'identité Git `tomtimlt`, puis publier une nouvelle
-version via le workflow de release et vérifier les deux VSIX et leurs SHA-256.
-Cette autorisation de publication reste valable pour les prochaines demandes
-sur ce projet, sauf instruction contraire de l'utilisateur.
+Pipeline permanente validée par l'utilisateur le 30 octobre 2026 :
 
-Pour une release de l'extension, suivre `.github/workflows/release.yml` :
-le tag `vX.Y.Z` doit correspondre à `packages/vscode/extension.manifest.json`.
-Le workflow lance les contrôles, construit les VSIX `linux-x64` et `win32-x64`,
-calcule leurs SHA-256 et publie les artefacts dans une release GitHub.
-Un push sur `main` ne déclenche pas ce workflow. Ne pas annoncer une release
-disponible sans vérifier son exécution et ses artefacts. Ne pas créer ou
-repousser de tag de release sans demande de publication.
+1. Travailler sur une branche temporaire. Contrôler le code, les types et les
+   tests, puis compiler localement les VSIX `linux-x64` et `win32-x64`.
+   `pnpm release:local` automatise cette préparation sans GitHub Actions.
+2. Vérifier les archives, la version et la plateforme du manifeste, les binaires
+   embarqués et leurs empreintes. Fournir les deux VSIX et leurs SHA-256, les
+   sources exactes, le patch, les notes et les instructions de publication.
+3. Committer avec l'identité `tomtimlt`, pousser la branche temporaire et créer
+   un brouillon GitHub visant le commit exact des sources compilées. Le tag
+   `vX.Y.Z` doit correspondre à `extension.manifest.json`. Préserver les tags
+   existants ; laisser la publication finale à l'utilisateur.
+4. Déposer la livraison en accès privé dans le dossier **Warband** à la racine
+   du Google Drive connecté. Réutiliser le dossier vérifié ; ranger les versions
+   sans écraser les précédentes. L'utilisateur autorise durablement cet envoi,
+   y compris sources, patch, journaux de construction et artefacts du projet.
+5. Si le connecteur refuse les gros fichiers (100 Mio actuellement), découper
+   l'archive en parties de 90 Mio, joindre les assembleurs Windows/Linux et le
+   SHA-256 du ZIP complet. Tester la reconstitution locale, puis relire les
+   métadonnées Drive pour vérifier présence, tailles et emplacement privé.
+6. Donner les liens du dossier Drive et du brouillon. L'utilisateur récupère les
+   fichiers, ajoute les deux VSIX et leurs deux SHA-256 au brouillon, puis publie.
+
+Cette autorisation de commit, push sur branche temporaire, création de brouillon
+et livraison privée Drive reste valable pour les prochaines versions de ce
+projet, sauf instruction contraire. Ne pas redemander cette autorisation déjà
+donnée. GitHub Actions reste facultatif ; un échec du workflow ne remplace pas
+la livraison locale. Distinguer tests logiciels, vérification des paquets et
+essais manuels natifs. Annoncer un brouillon comme brouillon, une release publiée
+seulement après vérification de ses fichiers disponibles.
 
 Préserver les changements de l'utilisateur. Pas de refactoring hors périmètre,
 de secret ou de binaire ajouté au dépôt. Lire les fichiers avant modification.
 Une décision structurante mérite un ADR ; un détail local réversible non.
-Ne pas faire de commit, push ou PR sans demande explicite ; un sous-agent ne
-le fait pas non plus. Si un commit est demandé, message en français, sur la
+La pipeline ci-dessus autorise les commits et push de livraison ; toute autre
+publication ou PR demande une instruction explicite. Un sous-agent ne committe
+ni ne pousse. Messages de commit en français, sur la
 branche de la session. Rapporter ce qui a changé, les vérifications exécutées
 et leurs limites, sans présenter une lecture comme une validation fonctionnelle.
