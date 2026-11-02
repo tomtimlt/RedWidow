@@ -1,5 +1,11 @@
 # Spécification de design : webviews VS Code (chat, cockpit, studio)
 
+## Identité publique — Venator Ops 0.3.66
+
+Le [cadrage Venator Ops](venator-ops.md) précise le mot-symbole, l’accueil et la
+compatibilité des anciens noms de terminaux. Il conserve les thèmes, palettes,
+contrôles et contrats de sécurité des décisions précédentes.
+
 ## Décision visuelle actuelle — intégration de la 0.3.53
 
 L’[ADR 0028](adr/0028-integration-refonte-interface.md) prime sur les prescriptions

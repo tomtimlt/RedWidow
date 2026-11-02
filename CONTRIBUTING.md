@@ -1,6 +1,6 @@
 # Contribuer à Venator Ops
 
-Le projet portait auparavant le nom Warband. Les paquets, les commandes et les chemins de configuration gardent ce nom dans la version actuelle.
+Le projet portait auparavant le nom Warband. Le nom affiché devient Venator Ops ; les identifiants techniques (`warband.warband`, `warband.*`), les paquets et les chemins de configuration restent stables pour préserver les installations et les données existantes. Voir le [périmètre de la transition](docs/venator-ops.md).
 
 Pour installer et utiliser l’extension, commence par le [README](README.md). Cette page concerne la modification du code et la construction des paquets.
 

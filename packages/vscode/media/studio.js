@@ -414,7 +414,7 @@ function start() {
       el(
         "p",
         "studio-help",
-        "Choisissez le jeu de couleurs de Warband. Il s’applique aussitôt à toutes les vues et s’adapte aux thèmes clair, sombre et contraste élevé de VS Code.",
+        "Choisissez le jeu de couleurs de Venator Ops. Il s’applique aussitôt à toutes les vues et s’adapte aux thèmes clair, sombre et contraste élevé de VS Code.",
       ),
     );
     if (
@@ -425,7 +425,7 @@ function start() {
         el(
           "p",
           "studio-help pal-note",
-          "En contraste élevé, Warband utilise les couleurs du thème : le choix est enregistré et s’applique dès que vous changez de thème.",
+          "En contraste élevé, Venator Ops utilise les couleurs du thème : le choix est enregistré et s’applique dès que vous changez de thème.",
         ),
       );
     }
@@ -1236,7 +1236,7 @@ function start() {
       const sec = el("section", "studio-card");
       sec.append(el("h2", "", "Projet"));
       for (const [label, type] of [
-        ["Ouvrir l’espace Warband", "openWorkspace"],
+        ["Ouvrir l’espace Venator Ops", "openWorkspace"],
         ["Préparer et vérifier les fichiers de mission", "prepareMission"],
       ]) {
         const button = el("button", "ghost", label);
@@ -1545,7 +1545,7 @@ function start() {
             "p",
             "studio-help",
             view.burpEnabled
-              ? "Connexion locale activée. Les appels aux outils restent soumis à la gate Warband."
+              ? "Connexion locale activée. Les appels aux outils restent soumis à la gate Venator Ops."
               : "Connexion désactivée. Installez l’extension MCP officielle dans Burp Suite pour la connecter.",
           ),
         );

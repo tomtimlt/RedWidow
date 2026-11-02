@@ -1,4 +1,5 @@
 import { CodedError, type ErrorInfo } from "@warband/core";
+import { PRODUCT_NAME } from "./brand.js";
 
 /** Garde le diagnostic IPC sans prendre le message brut comme texte d'interface. */
 export class ModelProbeError extends Error {
@@ -24,10 +25,10 @@ export function modelLoadFailure(error: unknown): string {
       const code = reason.params?.code;
       const exit =
         typeof code === "number" && Number.isSafeInteger(code) ? ` (code de sortie ${code})` : "";
-      return `Le moteur de chargement des modèles s'est arrêté${exit}. Consultez Sortie → warband. [ipc.engineExited]`;
+      return `Le moteur de chargement des modèles s'est arrêté${exit}. Consultez Sortie → ${PRODUCT_NAME}. [ipc.engineExited]`;
     }
     case "opencode.unsafeConfig":
-      return "La configuration OpenCode contient des permissions, plugins ou hooks incompatibles avec les protections de Warband. [opencode.unsafeConfig]";
+      return `La configuration OpenCode contient des permissions, plugins ou hooks incompatibles avec les protections de ${PRODUCT_NAME}. [opencode.unsafeConfig]`;
     case "extension.binaryMismatch":
       return "L'intégrité du binaire embarqué n'est pas conforme. Réinstallez le VSIX officiel. [extension.binaryMismatch]";
     case "process.notFound":

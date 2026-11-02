@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
 import { chatHtml, makeNonce } from "../src/logic/html.js";
 
@@ -144,7 +145,7 @@ describe("composer et Configurer (lot P1)", () => {
     expect(menu).not.toContain("/start");
     expect(js).not.toContain("/start");
     expect(studio).not.toContain("/start");
-    expect(js).toContain("Aucun terminal Warband ouvert. Alt+J T pour en ouvrir un.");
+    expect(js).toContain("Aucun terminal Venator Ops ouvert. Alt+J T pour en ouvrir un.");
     expect(studio).toContain("Aucun conteneur affiché. Gérez les associations dans le cockpit.");
     expect(studio).toContain("Aucun conteneur pour l’instant");
     expect(html).not.toMatch(/\bmcp\b|jauge|compact|pièce jointe active/i);
@@ -220,7 +221,17 @@ describe("composer et Configurer (lot P1)", () => {
     expect(html).not.toMatch(/Autoriser une fois|Toujours</);
   });
   it("les sélecteurs testés sont conservés", () => {
-    for (const id of ["model-chip", "cfg-btn", "history-btn", "thinking", "send", "stop"]) {
+    for (const id of [
+      "model-chip",
+      "cfg-btn",
+      "history-btn",
+      "thinking",
+      "send",
+      "stop",
+      "monitor-btn",
+      "killchain-btn",
+      "no-provider-add",
+    ]) {
       expect(tag(id), id).not.toBe("");
     }
     expect(html).toContain('class="brand thinking-mark"');
@@ -249,6 +260,46 @@ describe("composer et Configurer (lot P1)", () => {
     expect(html).toContain('class="cfg-col cfg-model"');
     expect(html).toContain('class="cfg-col cfg-execution"');
   });
+});
+
+it("les titres Monitor et rapport préservent le mot-symbole, le logo et les contrôles", () => {
+  const html = chatHtml(opts);
+  const bar = html.slice(html.indexOf('<header id="bar">'), html.indexOf("</header>"));
+  expect(bar).toContain('class="brand-name"><span>VENATOR</span> <span class="brand-ops">OPS');
+  expect(bar).toContain('id="context-title" class="context-title" hidden');
+  const js = read("../media/chat.js");
+  const start = js.indexOf('  window.addEventListener("message",');
+  const listener = js.slice(start, js.indexOf("\n  function grow()", start));
+  const node = (textContent = "") => ({ textContent, title: "", hidden: false });
+  const wordmark = node("VENATOR OPS");
+  const contextTitle = node();
+  const title = node("VENATOR OPS");
+  let receive: (event: { data: unknown }) => void = () => {};
+  const nodes = new Map([
+    ["title", title],
+    ["context-title", contextTitle],
+  ]);
+  runInNewContext(listener, {
+    $: (id: string) => nodes.get(id),
+    document: { querySelector: () => wordmark },
+    window: {
+      addEventListener: (_: string, handler: typeof receive) => {
+        receive = handler;
+      },
+    },
+  });
+  for (const text of ["Monitor", "Rapport — Projet", "<b>texte littéral</b>", "x".repeat(200)]) {
+    receive({ data: { type: "title", text } });
+    expect(contextTitle.textContent).toBe(text.slice(0, 120));
+    expect(contextTitle.title).toBe(contextTitle.textContent);
+    expect(contextTitle.hidden).toBe(false);
+    expect(wordmark.textContent).toBe("VENATOR OPS");
+    expect(title.textContent).toBe("VENATOR OPS");
+  }
+  receive({ data: { type: "title", text: "" } });
+  expect(contextTitle.hidden).toBe(true);
+  receive({ data: { type: "title", text: { invalid: true } } });
+  expect(contextTitle.textContent).toBe("");
 });
 
 describe("Bypass des approbations (lot B1, ADR 0006)", () => {

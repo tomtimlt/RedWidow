@@ -1,5 +1,5 @@
 /*
- * Warband — direction « Acier et signature »
+ * Venator Ops — direction « Acier et signature »
  *
  * Acier : surfaces neutres dérivées du thème VS Code, hiérarchie portée par
  * des filets fins et un liseré vertical de 2 px qui signale l'état.
@@ -376,6 +376,7 @@ select {
 
 #bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--jn-s1);
   min-height: 40px;
@@ -401,6 +402,8 @@ select {
 #title {
   display: inline-flex;
   flex: none;
+  min-width: 0;
+  max-width: 100%;
   align-items: center;
   gap: var(--jn-s2);
   margin-right: var(--jn-s1);
@@ -426,6 +429,20 @@ select {
   flex: none;
   width: 18px;
   height: 18px;
+}
+.brand-heading {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.3;
+}
+.context-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--jn-fs-xs);
+  font-weight: 500;
+  letter-spacing: normal;
+  color: var(--jn-muted);
 }
 
 #sandbox {
@@ -2511,9 +2528,6 @@ body.vscode-high-contrast-light .effort-knob {
   border: 1px solid color-mix(in srgb, var(--jn-warn) 50%, transparent);
   background: color-mix(in srgb, var(--jn-warn) 8%, transparent);
   box-shadow: inset 3px 0 0 var(--jn-warn);
-}
-body.no-provider #log {
-  opacity: 0.5;
 }
 body.no-provider #input,
 body.no-provider #send {
@@ -5376,6 +5390,18 @@ body.mode-watch #roe {
   display: none;
 }
 @container app (max-width: 419px) {
+  #bar #sandbox {
+    order: 5;
+    flex-basis: 100%;
+  }
+  #bar .btn-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
   .roe .roe-text {
     position: absolute;
     width: 1px;
@@ -6714,6 +6740,18 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
+}
+.brand-ops {
+  color: var(--jn-brand);
+}
+body.vscode-high-contrast .brand-ops,
+body.vscode-high-contrast-light .brand-ops {
+  color: var(--vscode-foreground);
+}
+@media (forced-colors: active) {
+  .brand-ops {
+    color: CanvasText;
+  }
 }
 
 /* Garde-fous d'intégration : animations et prévisualisations sont purement visuelles. */

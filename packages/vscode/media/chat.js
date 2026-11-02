@@ -326,9 +326,15 @@
       mark.removeAttribute("height");
       box.append(mark);
     }
+    const tagline = el("h2", "welcome-tagline", "Pentest in VS Code, with AI on call.");
+    tagline.setAttribute("lang", "en");
     box.append(
-      el("h2", "", "On commence par où ?"),
-      el("p", "hint", "Décris la cible. Chaque action sensible demande ton accord."),
+      tagline,
+      el(
+        "p",
+        "hint",
+        "Pilote tes conteneurs depuis le cockpit, travaille dans les terminaux et relie tes trouvailles dans la Kill chain. L’IA intervient à la demande et reste optionnelle.",
+      ),
     );
     const list = el("div", "examples");
     for (const text of EXAMPLES) {
@@ -880,7 +886,7 @@
     if (mentionActive >= mentionShown.length) mentionActive = 0;
     mentionEmpty.hidden = mentionShown.length > 0;
     mentionEmpty.textContent = hash
-      ? "Aucun terminal Warband ouvert. Alt+J T pour en ouvrir un."
+      ? "Aucun terminal Venator Ops ouvert. Alt+J T pour en ouvrir un."
       : "Aucun conteneur";
     mentionPop.setAttribute("aria-label", hash ? "Terminaux" : "Conteneurs");
     mentionList.replaceChildren(
@@ -1601,9 +1607,10 @@
       document.body.classList.add("mode-report");
       if (lastView) render(lastView);
     } else if (message && message.type === "title" && typeof message.text === "string") {
-      const brandName = document.querySelector("#title .brand-name");
-      if (brandName) brandName.textContent = message.text.slice(0, 120);
-      else $("title").textContent = message.text.slice(0, 120);
+      const contextTitle = $("context-title");
+      contextTitle.textContent = message.text.slice(0, 120);
+      contextTitle.title = contextTitle.textContent;
+      contextTitle.hidden = contextTitle.textContent.length === 0;
     } else if (message && message.type === "containers") {
       containers = UI.safeContainers(message.items);
       if (mentionOpen()) renderMentions();

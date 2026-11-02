@@ -37,6 +37,7 @@ import { createBurpBackend } from "../engine/burp-client.js";
 import { createIntegrationBackend } from "../engine/integration-client.js";
 import { cleanText, parseWebviewMessage } from "../logic/approval.js";
 import { attachmentMessage, withAttachments } from "../logic/attachments.js";
+import { PRODUCT_NAME, productTitleSuffix } from "../logic/brand.js";
 import { type BypassPush, createBypassHost, formatRemaining } from "../logic/bypass.js";
 import { type ChatView, monitorChatView } from "../logic/chat.js";
 import {
@@ -116,7 +117,7 @@ type TokenKind = "subscription" | "api-key";
 
 /** Couche fine : seule autorisée à importer `vscode` (test de frontière). Toute la logique est dans `src/logic`. */
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-  const out = vscode.window.createOutputChannel("warband");
+  const out = vscode.window.createOutputChannel(PRODUCT_NAME);
   context.subscriptions.push(out);
 
   // Défense en profondeur : `capabilities.untrustedWorkspaces` empêche déjà l'activation.
@@ -148,7 +149,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   } catch (error) {
     out.appendLine(`Ouverture du dossier du projet : ${formatError(error)}`);
     void vscode.window.showWarningMessage(
-      `Impossible d'ouvrir le dossier du projet Warband : ${formatError(error)}. Sélectionnez le projet pour réessayer.`,
+      `Impossible d'ouvrir le dossier du projet ${PRODUCT_NAME} : ${formatError(error)}. Sélectionnez le projet pour réessayer.`,
     );
   }
 
@@ -382,7 +383,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (existing) return existing;
     if (!CHAT_ID.test(id)) throw new Error("Identifiant de chat refusé.");
     if (seats(id !== SIDEBAR_CHAT) >= CHAT_CAP) throw new Error("Quatre chats au maximum.");
-    if (!folder) throw new Error("Ouvrez un dossier avant de lancer Warband.");
+    if (!folder) throw new Error(`Ouvrez un dossier avant de lancer ${PRODUCT_NAME}.`);
     const historyKey = `warband.history.${id}`;
     // Mode apprentissage (ADR 0010) : une clé par chat, séparée de `warband.prefs` (partagé).
     const learningKey = `warband.learning.${id}`;
@@ -463,7 +464,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const launch = await prepareExegolCreate(options);
     signal.throwIfAborted();
     const term = vscode.window.createTerminal({
-      name: `Warband : création ${options.name}`,
+      name: `${PRODUCT_NAME} : création ${options.name}`,
       shellPath: launch.shellPath,
       shellArgs: [...launch.shellArgs],
     });
@@ -849,8 +850,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     },
   };
 
-  // Colonne des panneaux Warband : le groupe d'éditeur qui contient déjà un onglet Warband (panneau
-  // webview ou terminal d'éditeur « Warband : … »), sinon le groupe actif. Jamais `Beside` : il créait
+  // Colonne des panneaux Venator Ops : le groupe d'éditeur qui contient déjà un onglet Venator Ops (panneau
+  // webview ou terminal d'éditeur « Venator Ops : … »), sinon le groupe actif. Jamais `Beside` : il créait
   // un groupe scindé à chaque ouverture au lieu d'ajouter un onglet.
   const warbandColumn = (): vscode.ViewColumn => {
     for (const group of vscode.window.tabGroups.all) {
@@ -859,7 +860,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         if (input instanceof vscode.TabInputWebview && input.viewType.includes("warband.")) {
           return group.viewColumn;
         }
-        if (input instanceof vscode.TabInputTerminal && tab.label.startsWith("Warband")) {
+        if (input instanceof vscode.TabInputTerminal && productTitleSuffix(tab.label) !== null) {
           return group.viewColumn;
         }
       }
@@ -873,11 +874,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       return;
     }
     const media = vscode.Uri.joinPath(context.extensionUri, "media");
-    const panel = vscode.window.createWebviewPanel("warband.cockpit", "Cockpit", warbandColumn(), {
-      enableScripts: true,
-      enableCommandUris: false,
-      localResourceRoots: [media],
-    });
+    const panel = vscode.window.createWebviewPanel(
+      "warband.cockpit",
+      `${PRODUCT_NAME} · Cockpit`,
+      warbandColumn(),
+      {
+        enableScripts: true,
+        enableCommandUris: false,
+        localResourceRoots: [media],
+      },
+    );
     panel.iconPath = vscode.Uri.joinPath(media, "logo-small.svg");
     cockpitPanel = panel;
     let alive = true;
@@ -1030,7 +1036,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 description: item.primary ? "primary" : "",
                 item,
               })),
-              { title: "Warband : terminal du projet", ignoreFocusOut: true },
+              { title: `${PRODUCT_NAME} : terminal du projet`, ignoreFocusOut: true },
             );
             if (!choice) return;
             const result = await openEditorShell(choice.item.name);
@@ -1070,7 +1076,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 throw new Error("Ce conteneur existe déjà. Utilisez Démarrer dans la liste.");
               if (
                 vscode.window.terminals.some(
-                  (terminal) => terminal.name === `Warband : création ${message.name}`,
+                  (terminal) => productTitleSuffix(terminal.name) === `création ${message.name}`,
                 )
               )
                 throw new Error("Une création de ce nom est déjà ouverte dans un terminal.");
@@ -1266,7 +1272,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const panel = monitorPanel;
     if (!panel) return;
     const name = chatName(activeId);
-    panel.title = `Monitor · ${name}`;
+    panel.title = `${PRODUCT_NAME} · Monitor · ${name}`;
     void panel.webview.postMessage({ type: "title", text: name });
     const shown = view ?? slots.get(activeId)?.session?.view();
     if (shown)
@@ -1317,7 +1323,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const media = vscode.Uri.joinPath(context.extensionUri, "media");
     const panel = vscode.window.createWebviewPanel(
       "warband.chatPanel",
-      chatName(id),
+      `${PRODUCT_NAME} · ${chatName(id)}`,
       warbandColumn(),
       {
         enableScripts: true,
@@ -1329,7 +1335,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const slot = slots.get(id);
     if (!slot) return;
     slot.panel = panel;
-    panel.title = chatName(id);
+    panel.title = `${PRODUCT_NAME} · ${chatName(id)}`;
     mountChatHtml(panel.webview);
     panel.onDidDispose(() => {
       slot.session?.dispose();
@@ -1369,11 +1375,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       return;
     }
     const media = vscode.Uri.joinPath(context.extensionUri, "media");
-    const panel = vscode.window.createWebviewPanel("warband.watch", "Sortie", warbandColumn(), {
-      enableScripts: true,
-      enableCommandUris: false,
-      localResourceRoots: [media],
-    });
+    const panel = vscode.window.createWebviewPanel(
+      "warband.watch",
+      `${PRODUCT_NAME} · Sortie`,
+      warbandColumn(),
+      {
+        enableScripts: true,
+        enableCommandUris: false,
+        localResourceRoots: [media],
+      },
+    );
     panel.iconPath = vscode.Uri.joinPath(media, "logo-small.svg");
     const watch = { panel, chatId, toolUseId };
     watches.push(watch);
@@ -1405,7 +1416,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const media = vscode.Uri.joinPath(context.extensionUri, "media");
     const panel = vscode.window.createWebviewPanel(
       "warband.monitor",
-      "Monitor",
+      `${PRODUCT_NAME} · Monitor`,
       column ?? warbandColumn(),
       {
         enableScripts: true,
@@ -1441,8 +1452,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const barModel = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
   // Lanceur toujours visible : un clic ouvre chat, terminaux, cockpit, réglages.
   const barLauncher = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 104);
-  barLauncher.text = "$(rocket) Warband";
-  barLauncher.tooltip = "Warband : chat, terminaux, cockpit, réglages (Alt+J Alt+J)";
+  barLauncher.text = `$(rocket) ${PRODUCT_NAME}`;
+  barLauncher.tooltip = `${PRODUCT_NAME} : chat, terminaux, cockpit, réglages (Alt+J Alt+J)`;
   barLauncher.command = "warband.launcher";
   barLauncher.show();
   barContainer.command = "warband.openTerminal";
@@ -1555,7 +1566,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     killchainPayload = "";
     killchainPanel = vscode.window.createWebviewPanel(
       "warband.killchain",
-      "Kill chain",
+      `${PRODUCT_NAME} · Kill chain`,
       vscode.ViewColumn.One,
       {
         enableScripts: true,
@@ -1723,7 +1734,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const media = vscode.Uri.joinPath(context.extensionUri, "media");
       const panel = vscode.window.createWebviewPanel(
         "warband.report",
-        "Rapport · Brouillon",
+        `${PRODUCT_NAME} · Rapport · Brouillon`,
         warbandColumn(),
         {
           enableScripts: true,
@@ -2041,7 +2052,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     } catch (error) {
       const recovery =
         createdEvidence && !attached
-          ? ` La preuve ${createdEvidence.id} a été créée dans le projet ${createdEvidence.projectId}, mais n’a pas été rattachée. Activez ce projet puis utilisez « Warband : Lister les preuves du projet » pour la retrouver et la rattacher.`
+          ? ` La preuve ${createdEvidence.id} a été créée dans le projet ${createdEvidence.projectId}, mais n’a pas été rattachée. Activez ce projet puis utilisez « ${PRODUCT_NAME} : Lister les preuves du projet » pour la retrouver et la rattacher.`
           : "";
       void vscode.window.showErrorMessage(`${formatError(error)}${recovery}`);
     }
@@ -2148,11 +2159,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       return;
     }
     const media = vscode.Uri.joinPath(context.extensionUri, "media");
-    studioPanel = vscode.window.createWebviewPanel("warband.studio", "Réglages", warbandColumn(), {
-      enableScripts: true,
-      enableCommandUris: false,
-      localResourceRoots: [media],
-    });
+    studioPanel = vscode.window.createWebviewPanel(
+      "warband.studio",
+      `${PRODUCT_NAME} · Réglages`,
+      warbandColumn(),
+      {
+        enableScripts: true,
+        enableCommandUris: false,
+        localResourceRoots: [media],
+      },
+    );
     studioPanel.iconPath = vscode.Uri.joinPath(media, "logo-small.svg");
     const nonce = makeNonce();
     studioPanel.webview.html = studioHtml({
@@ -2274,7 +2290,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                   vscode.workspace.isTrusted,
                 rename: async (name) =>
                   vscode.window.showInputBox({
-                    title: "Renommer le projet Warband",
+                    title: `Renommer le projet ${PRODUCT_NAME}`,
                     value: name,
                     prompt:
                       "Le dossier, les conversations et les conteneurs gardent leur identité.",
@@ -2285,7 +2301,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                   }),
                 confirmRemove: async (name) =>
                   (await vscode.window.showWarningMessage(
-                    `Retirer le projet « ${cleanText(name, 80)} » de Warband ?`,
+                    `Retirer le projet « ${cleanText(name, 80)} » de ${PRODUCT_NAME} ?`,
                     {
                       modal: true,
                       detail:
@@ -2411,7 +2427,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         description: item.state === "running" ? "en cours" : "arrêté",
         item,
       })),
-      { title: "Warband : ouvrir un terminal", ignoreFocusOut: true },
+      { title: `${PRODUCT_NAME} : ouvrir un terminal`, ignoreFocusOut: true },
     );
     if (!choice) return;
     if (choice.item.state !== "running") {
@@ -2425,7 +2441,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   };
 
   /**
-   * Lanceur (Alt+J Alt+J, barre d'état) : toutes les fenêtres Warband en un seul menu, et un terminal par
+   * Lanceur (Alt+J Alt+J, barre d'état) : toutes les fenêtres Venator Ops en un seul menu, et un terminal par
    * conteneur démarré, sans passer par la palette de commandes.
    */
   type LauncherItem = vscode.QuickPickItem & { run?: () => unknown };
@@ -2451,7 +2467,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       { label: "$(settings-gear) Réglages", description: "Alt+J S", run: () => openStudio() },
     ];
     const pick = vscode.window.createQuickPick<LauncherItem>();
-    pick.title = "Warband";
+    pick.title = PRODUCT_NAME;
     pick.placeholder = "Ouvrir une fenêtre ou un terminal…";
     pick.matchOnDescription = true;
     pick.items = actions;
@@ -2665,7 +2681,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         } else if (action === "Tester le catalogue réel") {
           if (!existing)
             throw Error(
-              "Configurer le service avant le test. Warband n’installe ni ne démarre automatiquement le programme externe.",
+              `Configurer le service avant le test. ${PRODUCT_NAME} n’installe ni ne démarre automatiquement le programme externe.`,
             );
           const result = await createIntegrationBackend(existing).list({});
           const count = (result as { tools?: unknown[] }).tools?.length ?? 0;
@@ -2744,7 +2760,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           const port = await vscode.window.showInputBox({
             title: "Port MCP Burp sur 127.0.0.1",
             value: String(machineValue(config.inspect("burp.port")) ?? 9876),
-            prompt: "Port affiché dans l’onglet MCP de Burp. Warband ne lance pas Burp ni Java.",
+            prompt: `Port affiché dans l’onglet MCP de Burp. ${PRODUCT_NAME} ne lance pas Burp ni Java.`,
             validateInput: (value) =>
               !/^[0-9]{1,5}$/.test(value) || Number(value) < 1 || Number(value) > 65535
                 ? "Port entier entre 1 et 65535 requis."
@@ -2836,7 +2852,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand("warband.choosePalette", async () => {
       const selected = await vscode.window.showQuickPick(
         PALETTES.map(([value, label, detail]) => ({ value, label, detail })),
-        { title: "Palette Warband" },
+        { title: `Palette ${PRODUCT_NAME}` },
       );
       if (selected) await updatePalette(selected.value);
     }),
@@ -2892,7 +2908,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const binary = await openCodeBinary();
         const term = vscode.window.createTerminal({
           name:
-            provider === "openai" ? "Warband : connexion ChatGPT" : "Warband : connexion OpenCode",
+            provider === "openai"
+              ? `${PRODUCT_NAME} : connexion ChatGPT`
+              : `${PRODUCT_NAME} : connexion OpenCode`,
           shellPath: binary,
           shellArgs: ["auth", "login", ...(provider === "openai" ? ["--provider", "openai"] : [])],
           env: {
@@ -2926,11 +2944,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           { label: "Jeton d'abonnement", description: "claude setup-token", value: "subscription" },
           { label: "Clé API", description: "ANTHROPIC_API_KEY", value: "api-key" },
         ],
-        { title: "Warband : type de jeton", ignoreFocusOut: true },
+        { title: `${PRODUCT_NAME} : type de jeton`, ignoreFocusOut: true },
       );
       if (!kind) return;
       const token = await vscode.window.showInputBox({
-        title: "Warband : jeton",
+        title: `${PRODUCT_NAME} : jeton`,
         prompt: "Le jeton est stocké dans le stockage sécurisé de VS Code.",
         password: true,
         ignoreFocusOut: true,
@@ -2949,7 +2967,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await context.globalState.update(OPENAI_AUTH_MODE_KEY, undefined);
         applyAuthChange();
         void vscode.window.showInformationMessage(
-          "Connexion OpenAI désactivée dans Warband. Le cache OAuth d’OpenCode est conservé.",
+          `Connexion OpenAI désactivée dans ${PRODUCT_NAME}. Le cache OAuth d’OpenCode est conservé.`,
         );
         return;
       }

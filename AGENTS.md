@@ -1,4 +1,4 @@
-# Warband — consignes Codex / GPT
+# Venator Ops — consignes Codex / GPT
 
 ## Langue et périmètre
 
@@ -10,7 +10,7 @@ Codex ni importer leurs restrictions de fournisseurs ou de facturation.
 
 ## Comprendre le projet avant d'agir
 
-Warband est une extension VS Code et une CLI d'orchestration d'agents IA pour
+Venator Ops (anciennement Warband) est une extension VS Code et une CLI d'orchestration d'agents IA pour
 des missions de pentest autorisées et l'apprentissage. L'utilisateur garde
 le contrôle des actions sensibles par une gate d'approbation écrite en code.
 Les actions alimentent un journal JSONL, un graphe causal et des trouvailles
@@ -20,6 +20,7 @@ Repères :
 
 - `README.md` : présentation et premiers pas pour les utilisateurs.
 - `CONTRIBUTING.md` : installation de développement, compilation et repères techniques.
+- `docs/venator-ops.md` : identité publique et compatibilité des identifiants Warband.
 - `docs/etat-du-projet.md` : parcours central, inventaire et prochaines étapes ;
   vérifier le commit de référence avant de reprendre ses statuts.
 - `docs/idees.md` : réserve d'idées, pas un engagement ni un état fiable du code.

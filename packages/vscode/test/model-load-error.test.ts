@@ -42,3 +42,12 @@ it("n'expose pas les messages inconnus ou les paramètres malformés", () => {
   ])
     expect(modelLoadFailure(error)).not.toContain("oc_sk_test-secret");
 });
+
+it("dirige vers le canal Sortie avec la marque publique", () => {
+  expect(modelLoadFailure(new CodedError("ipc.engineExited", { code: 9 }))).toBe(
+    "Le moteur de chargement des modèles s'est arrêté (code de sortie 9). Consultez Sortie → Venator Ops. [ipc.engineExited]",
+  );
+  expect(modelLoadFailure(new CodedError("opencode.unsafeConfig"))).toContain(
+    "protections de Venator Ops",
+  );
+});

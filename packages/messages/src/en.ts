@@ -92,9 +92,9 @@ export const reasons: Catalog = {
     if (p.reason === "unsupportedImage")
       return `Cannot prepare ${name}: a Kali image with APT is required to install the missing server`;
     if (p.stage === "installing")
-      return `Kali server installation failed in ${name}: see Warband output`;
+      return `Kali server installation failed in ${name}: see Venator Ops output`;
     if (p.stage === "checking")
-      return `Kali prerequisite check failed in ${name}: see Warband output`;
+      return `Kali prerequisite check failed in ${name}: see Venator Ops output`;
     return `Kali server unavailable in the container: ${name}`;
   },
   "shell.unanalyzable": (p) =>

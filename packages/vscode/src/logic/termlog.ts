@@ -5,6 +5,8 @@ import {
   TERMINAL_CONTEXT_MARK,
 } from "@warband/core";
 
+import { productTitleSuffix } from "./brand.js";
+
 export { parseHashes };
 
 /** Octets lus en fin de fichier, avant nettoyage des séquences. */
@@ -95,13 +97,15 @@ export function shellToken(short: string, index: number): string | null {
   return TOKEN.test(token) ? token : null;
 }
 
-/** Indice porté par le titre `Warband : <réel>` ou `Warband : <réel> (n)`, puis jeton court. */
+/** Indice du titre actuel ou historique exact, puis jeton court. */
 export function mentionToken(real: string, title: string, short: string): string | null {
-  if (title === `Warband : ${real}`) return shellToken(short, 1);
-  const prefix = `Warband : ${real} (`;
-  if (!title.startsWith(prefix) || !title.endsWith(")")) return null;
-  const index = Number(title.slice(prefix.length, -1));
-  return shellToken(short, index);
+  const suffix = productTitleSuffix(title);
+  if (suffix === real) return shellToken(short, 1);
+  const prefix = `${real} (`;
+  if (suffix === null || !suffix.startsWith(prefix) || !suffix.endsWith(")")) return null;
+  const index = suffix.slice(prefix.length, -1);
+  if (!/^[2-4]$/.test(index)) return null;
+  return shellToken(short, Number(index));
 }
 
 const clipLine = (value: string): string => (value.length > 72 ? `${value.slice(0, 71)}…` : value);

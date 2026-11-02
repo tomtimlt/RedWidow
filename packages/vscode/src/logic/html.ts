@@ -4,6 +4,7 @@ import {
   MAX_ATTACHMENT_TOTAL_BYTES,
   MAX_ATTACHMENTS,
 } from "./attachments.js";
+import { PRODUCT_NAME } from "./brand.js";
 import { paletteOf } from "./palette.js";
 
 /** Nonce CSP aléatoire, nouveau à chaque rendu. */
@@ -66,7 +67,7 @@ const icon = (name: string, cls = "ico"): string => {
 };
 
 /**
- * Marque Warband : crochets de visée, étincelle et satellite.
+ * Marque Venator Ops : crochets de visée, étincelle et satellite.
  * SVG inline avec classes CSS pour les couleurs de marque. Décoratif : `aria-hidden`.
  */
 export const BRAND_SHAPES =
@@ -113,15 +114,15 @@ export function chatHtml({
 <meta http-equiv="Content-Security-Policy" content="${csp}">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="${styleUri}">
-<title>Warband</title>
+<title>${PRODUCT_NAME}</title>
 </head>
 <body data-palette="${paletteOf(palette)}">
-<header id="bar"><span id="title">${BRAND}<span class="brand-name">Warband</span></span><button id="roe" type="button" class="roe" popovertarget="cfg-pop" aria-haspopup="dialog" title="Mode de supervision : ouvrir Configurer" hidden><span class="roe-gauge" aria-hidden="true"><i></i><i></i><i></i></span><span class="roe-text"><span class="roe-kicker" aria-hidden="true">MODE</span><span id="roe-label">Supervisé</span></span><span id="roe-left" class="roe-left" aria-hidden="true"></span></button><span id="sandbox" class="badge" hidden></span><span id="bypass-badge" class="badge" hidden></span><span id="learning-badge" class="badge" title="Mode Apprentissage : lecture des cours seule, aucune action" hidden>Apprentissage</span><button id="history-btn" type="button" class="ghost" aria-expanded="false" aria-controls="history" title="Historique des conversations">${icon("history")}<span class="btn-text">Historique</span></button><button id="reset" type="button" class="ghost" title="Nouvelle conversation">${icon("plus")}<span class="btn-text">Nouvelle<span class="btn-more"> conversation</span></span></button></header>
+<header id="bar"><span id="title">${BRAND}<span class="brand-heading"><span class="brand-name"><span>VENATOR</span> <span class="brand-ops">OPS</span></span><span id="context-title" class="context-title" hidden></span></span></span><button id="roe" type="button" class="roe" popovertarget="cfg-pop" aria-haspopup="dialog" title="Mode de supervision : ouvrir Configurer" hidden><span class="roe-gauge" aria-hidden="true"><i></i><i></i><i></i></span><span class="roe-text"><span class="roe-kicker" aria-hidden="true">MODE</span><span id="roe-label">Supervisé</span></span><span id="roe-left" class="roe-left" aria-hidden="true"></span></button><span id="sandbox" class="badge" hidden></span><span id="bypass-badge" class="badge" hidden></span><span id="learning-badge" class="badge" title="Mode Apprentissage : lecture des cours seule, aucune action" hidden>Apprentissage</span><button id="history-btn" type="button" class="ghost" aria-expanded="false" aria-controls="history" title="Historique des conversations">${icon("history")}<span class="btn-text">Historique</span></button><button id="reset" type="button" class="ghost" title="Nouvelle conversation">${icon("plus")}<span class="btn-text">Nouvelle<span class="btn-more"> conversation</span></span></button></header>
 <nav id="mission" aria-label="Activité de la conversation" hidden><ol id="mission-steps"></ol></nav>
 <section id="history" aria-label="Historique des conversations" hidden><div class="hist-head"><strong>Historique</strong><button id="history-clear" type="button" class="ghost">Tout effacer</button><button id="history-close" type="button" class="ghost icon-btn" title="Fermer l'historique (Échap)" aria-label="Fermer l'historique">${icon("close")}</button></div><ul id="history-list"></ul></section>
 <nav id="timeline" aria-label="Navigation dans les messages" hidden><button id="timeline-older" type="button" class="ghost">Précédents</button><button id="timeline-newer" type="button" class="ghost">Suivants</button><button id="timeline-latest" type="button" class="ghost">Revenir au direct</button><span id="timeline-status" role="status"></span></nav>
 <main id="log" role="log" aria-live="polite" aria-label="Conversation"></main>
-<div id="no-provider" role="status" hidden><span id="no-provider-text">Aucun fournisseur n'a été ajouté. Ajoute un jeton pour utiliser le chat.</span><button id="no-provider-add" type="button" class="primary">Ajouter un fournisseur</button></div>
+<div id="no-provider" role="status" hidden><span id="no-provider-text">Connecte un fournisseur pour utiliser le chat. Le cockpit, les terminaux et la Kill chain restent accessibles sans IA.</span><button id="no-provider-add" type="button" class="primary">Ajouter un fournisseur</button></div>
 <div id="readonly" role="status" hidden><span id="readonly-text"></span><button id="readonly-resume" type="button" class="primary">Reprendre</button><button id="readonly-close" type="button" class="ghost">Fermer</button></div>
 <div id="monitor-layout"><div id="monitor-strip" class="mon-strip" role="group" aria-label="Frise des commandes"></div><section id="monitor" aria-label="Commandes Exegol / Kali (lecture seule)"><div class="mon-head"><div class="mon-title"><span class="mon-live" aria-hidden="true"></span><strong>Monitor</strong><span id="monitor-count" class="mon-count"></span><span id="mission-clock" class="mon-clock" title="Temps écoulé depuis le début du tour" aria-hidden="true"></span></div><p class="hint">Sortie en direct. Cliquer une entrée pour la suivre en lecture seule.</p><button id="monitor-follow" type="button" class="ghost" aria-label="Suivi du bas" aria-pressed="true" title="Désactiver le suivi du bas pour défiler librement">${icon("down")}</button></div><ol id="monitor-rows"></ol><div id="monitor-empty" class="empty"><span class="mon-empty-ico">${icon("pulse")}</span><span>Aucun appel Exegol / Kali dans cette conversation.</span><span class="mon-empty-sub">Les commandes lancées par l’agent apparaîtront ici en direct.</span></div></section>
 </div>

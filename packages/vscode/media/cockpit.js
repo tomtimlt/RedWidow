@@ -115,7 +115,7 @@
     const choices = [
       [
         "warband/kali:complete-1",
-        "Kali Warband complète — MCP et outils prêts (construction locale)",
+        "Kali Venator Ops complète — MCP et outils prêts (construction locale)",
       ],
       ["kalilinux/kali-rolling:latest", "Kali officielle — image minimale"],
       ...form.images

@@ -7,7 +7,7 @@
 
 # Venator Ops
 
-**Ton pentest. Un seul cockpit.**
+**Pentest in VS Code, with AI on call.**
 
 Kali · Exegol · Terminaux · Kill chain · Agent IA optionnel
 
@@ -24,7 +24,7 @@ Travaille à la main ou fais appel à un agent quand tu en as besoin.
 
 </div>
 
-> **Anciennement Warband.** Dans cette version, l’extension installée, ses commandes et certains écrans portent encore le nom **Warband**. Cherche ce nom dans VS Code pour les retrouver.
+> **Anciennement Warband.** L’extension et ses commandes portent maintenant le nom **Venator Ops**. La mise à jour conserve tes projets, ton historique et tes réglages.
 
 ## Ce que tu peux faire
 
@@ -59,9 +59,9 @@ La distribution se fait actuellement par VSIX ; l’extension n’est pas encore
 
 Si VS Code affiche le **mode restreint**, approuve d’abord ton dossier si tu lui fais confiance : l’extension reste désactivée tant qu’il ne l’est pas.
 
-1. **Crée ton projet.** Dans la palette de commandes (`Ctrl+Maj+P`), lance **Warband : ouvrir les réglages**. Dans **Projet**, choisis un projet existant ou crée-le avec un nom et un dossier. Approuve ce dossier dans VS Code si tu lui fais confiance.
+1. **Crée ton projet.** Dans la palette de commandes (`Ctrl+Maj+P`), lance **Venator Ops : ouvrir les réglages**. Dans **Projet**, choisis un projet existant ou crée-le avec un nom et un dossier. Approuve ce dossier dans VS Code si tu lui fais confiance.
 2. **Prépare ton conteneur.** Ouvre le **Cockpit**. Associe un conteneur existant à ton projet ou utilise **Nouveau conteneur** pour en préparer un, puis démarre-le. Le téléchargement ou la construction d’une image peut prendre du temps.
-3. **Ouvre ton espace de travail.** Lance **Warband : ouvrir ou restaurer l’espace Warband** pour retrouver le chat, la Kill chain et le Monitor. Ouvre un terminal pour commencer à travailler à la main.
+3. **Ouvre ton espace de travail.** Lance **Venator Ops : ouvrir ou restaurer l’espace Venator Ops** pour retrouver le chat, la Kill chain et le Monitor. Ouvre un terminal pour commencer à travailler à la main.
 4. **Ajoute l’IA si tu le souhaites.** Dans le chat, ouvre **Configurer**, choisis **Claude**, **OpenAI** ou **OpenCode**, puis configure ta connexion. Sélectionne ensuite l’un des modèles proposés par ton compte.
 
 L’accès aux modèles dépend de ton abonnement ou de ta clé API et des conditions du fournisseur ; il n’est pas inclus dans l’extension. Sous Windows, l’utilisation de Claude nécessite aussi [Git pour Windows, avec Git Bash](https://git-scm.com/downloads/win).
@@ -92,7 +92,7 @@ En mode supervisé, les actions qui nécessitent ton accord affichent une carte 
 
 Le **Bypass** est un choix explicite : pendant sa durée, il autorise automatiquement les demandes traitées par le contrôle d’approbation, y compris celles normalement refusées. Le mode Apprentissage reste en lecture seule.
 
-Pour conserver une observation, sélectionne du texte dans l’éditeur et lance **Warband : Capturer la sélection comme preuve**, ou capture un extrait du journal terminal. Tu retrouves les captures avec **Warband : Lister les preuves du projet**. La Kill chain aide à relier les découvertes ; son export SVG et le brouillon Markdown servent à préparer ton compte rendu. Vérifie les preuves, la gravité et les remédiations avant de livrer le rapport.
+Pour conserver une observation, sélectionne du texte dans l’éditeur et lance **Venator Ops : Capturer la sélection comme preuve**, ou capture un extrait du journal terminal. Tu retrouves les captures avec **Venator Ops : Lister les preuves du projet**. La Kill chain aide à relier les découvertes ; son export SVG et le brouillon Markdown servent à préparer ton compte rendu. Vérifie les preuves, la gravité et les remédiations avant de livrer le rapport.
 
 ## Les raccourcis utiles
 

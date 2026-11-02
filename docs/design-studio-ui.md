@@ -1,5 +1,10 @@
 # Spécification de design : cockpit, composer, Configurer, cartes et réglages
 
+## Identité publique — Venator Ops 0.3.66
+
+Le [cadrage Venator Ops](venator-ops.md) précise le nom affiché et le mot-symbole.
+Les réglages, palettes, contrôles et contrats de sécurité restent applicables.
+
 ## Décision visuelle actuelle — intégration de la 0.3.53
 
 L’[ADR 0028](adr/0028-integration-refonte-interface.md) prime sur les prescriptions

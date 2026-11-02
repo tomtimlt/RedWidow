@@ -1,8 +1,8 @@
 {
   "name": "warband",
-  "displayName": "Warband",
-  "description": "Chat d'agent avec approbation des outils (warband).",
-  "version": "0.3.65",
+  "displayName": "Venator Ops",
+  "description": "Espace de pentest pour VS Code : missions, terminaux, preuves et rapports, avec IA optionnelle.",
+  "version": "0.3.66",
   "publisher": "warband",
   "license": "MIT",
   "engines": {
@@ -14,7 +14,7 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": false,
-      "description": "Warband exécute un agent qui lit et modifie les fichiers de l'espace de travail : il est désactivé tant que le dossier n'est pas approuvé."
+      "description": "Venator Ops exécute un agent qui lit et modifie les fichiers de l'espace de travail : il est désactivé tant que le dossier n'est pas approuvé."
     },
     "virtualWorkspaces": false
   },
@@ -22,117 +22,117 @@
     "commands": [
       {
         "command": "warband.listProjectEvidence",
-        "title": "Warband : Lister les preuves du projet"
+        "title": "Venator Ops : Lister les preuves du projet"
       },
       {
         "command": "warband.captureEditorEvidence",
-        "title": "Warband : Capturer la sélection comme preuve"
+        "title": "Venator Ops : Capturer la sélection comme preuve"
       },
       {
         "command": "warband.captureTerminalEvidence",
-        "title": "Warband : Capturer un extrait du journal terminal"
+        "title": "Venator Ops : Capturer un extrait du journal terminal"
       },
       {
         "command": "warband.missionContext",
-        "title": "Warband : Voir le contexte de cette mission"
+        "title": "Venator Ops : Voir le contexte de cette mission"
       },
       {
         "command": "warband.exportKillchain",
-        "title": "Warband : Exporter la Kill Chain en image SVG"
+        "title": "Venator Ops : Exporter la Kill Chain en image SVG"
       },
       {
         "command": "warband.exportReport",
-        "title": "Warband : Exporter un brouillon de rapport Markdown"
+        "title": "Venator Ops : Exporter un brouillon de rapport Markdown"
       },
       {
         "command": "warband.openWorkspace",
-        "title": "Warband : ouvrir ou restaurer l’espace Warband"
+        "title": "Venator Ops : ouvrir ou restaurer l’espace Venator Ops"
       },
       {
         "command": "warband.prepareMission",
-        "title": "Warband : préparer et vérifier le dossier de mission"
+        "title": "Venator Ops : préparer et vérifier le dossier de mission"
       },
       {
         "command": "warband.chooseProfile",
-        "title": "Warband : choisir un skill / profil agent"
+        "title": "Venator Ops : choisir un skill / profil agent"
       },
       {
         "command": "warband.configureIntegrations",
-        "title": "Warband : catalogue des intégrations MCP"
+        "title": "Venator Ops : catalogue des intégrations MCP"
       },
       {
         "command": "warband.launcher",
-        "title": "Warband : lanceur",
+        "title": "Venator Ops : lanceur",
         "icon": "$(rocket)"
       },
       {
         "command": "warband.openChat",
-        "title": "Warband : ouvrir un chat",
+        "title": "Venator Ops : ouvrir un chat",
         "icon": "$(comment-discussion)"
       },
       {
         "command": "warband.openCockpit",
-        "title": "Warband : ouvrir le cockpit",
+        "title": "Venator Ops : ouvrir le cockpit",
         "icon": "$(dashboard)"
       },
       {
         "command": "warband.openStudio",
-        "title": "Warband : ouvrir les réglages",
+        "title": "Venator Ops : ouvrir les réglages",
         "icon": "$(settings-gear)"
       },
       {
         "command": "warband.openTerminal",
-        "title": "Warband : ouvrir un terminal",
+        "title": "Venator Ops : ouvrir un terminal",
         "icon": "$(terminal)"
       },
       {
         "command": "warband.openMonitor",
-        "title": "Warband : ouvrir le Monitor",
+        "title": "Venator Ops : ouvrir le Monitor",
         "icon": "$(pulse)"
       },
       {
         "command": "warband.openKillchain",
-        "title": "Warband : ouvrir la Kill chain",
+        "title": "Venator Ops : ouvrir la Kill chain",
         "icon": "$(type-hierarchy)"
       },
       {
         "command": "warband.focusChat",
-        "title": "Warband : aller au chat latéral",
+        "title": "Venator Ops : aller au chat latéral",
         "icon": "$(comment)"
       },
       {
         "command": "warband.setToken",
-        "title": "Warband : définir le jeton",
+        "title": "Venator Ops : définir le jeton",
         "icon": "$(key)"
       },
       {
         "command": "warband.clearToken",
-        "title": "Warband : effacer le jeton"
+        "title": "Venator Ops : effacer le jeton"
       },
       {
         "command": "warband.diagnostic",
-        "title": "Warband : diagnostic",
+        "title": "Venator Ops : diagnostic",
         "icon": "$(pulse)"
       },
       {
         "command": "warband.configureBurp",
-        "title": "Warband : configurer Burp Suite MCP"
+        "title": "Venator Ops : configurer Burp Suite MCP"
       },
       {
         "command": "warband.testBurp",
-        "title": "Warband : tester la connexion MCP Burp Suite"
+        "title": "Venator Ops : tester la connexion MCP Burp Suite"
       },
       {
         "command": "warband.choosePalette",
-        "title": "Warband : choisir une palette"
+        "title": "Venator Ops : choisir une palette"
       },
       {
         "command": "warband.previewReport",
-        "title": "Warband : prévisualiser le brouillon de rapport"
+        "title": "Venator Ops : prévisualiser le brouillon de rapport"
       },
       {
         "command": "warband.exportAttackFlow",
-        "title": "Warband : exporter Attack Flow"
+        "title": "Venator Ops : exporter Attack Flow"
       }
     ],
     "menus": {
@@ -263,7 +263,7 @@
       "activitybar": [
         {
           "id": "warband",
-          "title": "Warband",
+          "title": "Venator Ops",
           "icon": "media/icon.svg"
         }
       ]
@@ -278,7 +278,7 @@
       ]
     },
     "configuration": {
-      "title": "Warband",
+      "title": "Venator Ops",
       "properties": {
         "warband.profile": {
           "type": "string",
@@ -292,7 +292,7 @@
           "default": {},
           "maxProperties": 32,
           "scope": "machine",
-          "description": "Services MCP locaux explicitement configurés. Ignoré dans le dépôt ; utiliser le catalogue Warband."
+          "description": "Services MCP locaux explicitement configurés. Ignoré dans le dépôt ; utiliser le catalogue Venator Ops."
         },
         "warband.burp.enabled": {
           "type": "boolean",
@@ -306,7 +306,7 @@
           "maximum": 65535,
           "default": 9876,
           "scope": "machine",
-          "description": "Port du serveur MCP Burp sur 127.0.0.1. Aucun serveur distant ni commande Java lancé par Warband."
+          "description": "Port du serveur MCP Burp sur 127.0.0.1. Aucun serveur distant ni commande Java lancé par Venator Ops."
         },
         "warband.burp.transport": {
           "type": "string",
@@ -328,7 +328,7 @@
           ],
           "default": "sentinelle",
           "scope": "window",
-          "description": "Palette visuelle de Warband."
+          "description": "Palette visuelle de Venator Ops."
         },
         "warband.model": {
           "type": "string",

@@ -19,6 +19,7 @@ import {
   shortContainerName,
 } from "@warband/core";
 import { formatError } from "@warband/messages";
+import { PRODUCT_NAME, productTitleSuffix } from "./brand.js";
 
 /** Messages acceptés depuis la webview cockpit (non fiables). */
 export type CockpitMessage =
@@ -250,12 +251,14 @@ export type EditorShellPlan =
 const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const shellTitle = (name: string, index: number): string =>
-  index <= 1 ? `Warband : ${name}` : `Warband : ${name} (${index})`;
+  index <= 1 ? `${PRODUCT_NAME} : ${name}` : `${PRODUCT_NAME} : ${name} (${index})`;
 
 /** Indice 1–4 si le titre correspond exactement à un shell de ce conteneur ; sinon `null`. */
 const parseShellIndex = (title: string, name: string): number | null => {
-  if (title === `Warband : ${name}`) return 1;
-  const m = new RegExp(`^Warband : ${escapeRegExp(name)} \\((\\d+)\\)$`).exec(title);
+  const suffix = productTitleSuffix(title);
+  if (suffix === null) return null;
+  if (suffix === name) return 1;
+  const m = new RegExp(`^${escapeRegExp(name)} \\((\\d+)\\)$`).exec(suffix);
   if (m === null) return null;
   const n = Number(m[1]);
   if (n >= 2 && n <= EDITOR_SHELL_CAP) return n;

@@ -1,12 +1,12 @@
 # Venator Ops
 
-**Ton pentest. Un seul cockpit.**
+**Pentest in VS Code, with AI on call.**
 
 Kali · Exegol · Terminaux · Kill chain · Agent IA optionnel
 
 Un espace de travail dans VS Code pour tes CTF, tes labs et tes pentests autorisés. Prépare tes conteneurs, ouvre tes terminaux et rassemble tes découvertes. Travaille à la main ou fais appel à un agent quand tu en as besoin.
 
-**Anciennement Warband :** dans cette version, l’extension et ses commandes s’appellent encore **Warband** dans VS Code.
+**Anciennement Warband.** Retrouve maintenant **Venator Ops** dans VS Code. La mise à jour conserve tes projets, ton historique et tes réglages.
 
 ## Tout retrouver au même endroit
 
@@ -25,9 +25,9 @@ Il te faut **VS Code 1.90 ou plus** et **Docker installé et démarré** pour le
 
 Si VS Code affiche le **mode restreint**, approuve d’abord ton dossier si tu lui fais confiance : l’extension reste désactivée tant qu’il ne l’est pas.
 
-1. Ouvre la palette (`Ctrl+Maj+P`) et lance **Warband : ouvrir les réglages**. Dans **Projet**, crée un projet avec un nom et un dossier, ou active un projet existant. Approuve le dossier dans VS Code si tu lui fais confiance.
+1. Ouvre la palette (`Ctrl+Maj+P`) et lance **Venator Ops : ouvrir les réglages**. Dans **Projet**, crée un projet avec un nom et un dossier, ou active un projet existant. Approuve le dossier dans VS Code si tu lui fais confiance.
 2. Ouvre le **Cockpit**, associe un conteneur existant ou prépare-le avec **Nouveau conteneur**, puis démarre-le.
-3. Lance **Warband : ouvrir ou restaurer l’espace Warband** pour retrouver le chat, la Kill chain et le Monitor. Ouvre un terminal pour travailler à la main.
+3. Lance **Venator Ops : ouvrir ou restaurer l’espace Venator Ops** pour retrouver le chat, la Kill chain et le Monitor. Ouvre un terminal pour travailler à la main.
 4. Pour utiliser l’agent, ouvre **Configurer** dans le chat, choisis **Claude**, **OpenAI** ou **OpenCode**, configure la connexion et sélectionne un modèle disponible sur ton compte.
 
 Les abonnements et les frais API dépendent de ton fournisseur ; ils ne sont pas inclus. Sous Windows, Claude nécessite [Git pour Windows, avec Git Bash](https://git-scm.com/downloads/win).
@@ -56,7 +56,7 @@ Quand une action demande ton accord, une carte te permet de l’autoriser une fo
 
 Le **Bypass**, activé explicitement pour une durée limitée, autorise automatiquement les demandes traitées par le contrôle d’approbation, y compris celles normalement refusées. Il ne change pas le mode Apprentissage.
 
-Dans la palette, cherche **Warband : Capturer la sélection comme preuve**, **Warband : Capturer un extrait du journal terminal** ou **Warband : Lister les preuves du projet**. La Kill chain propose l’export SVG et un brouillon Markdown pour ton rapport. Complète et vérifie les preuves, la gravité et les remédiations avant livraison.
+Dans la palette, cherche **Venator Ops : Capturer la sélection comme preuve**, **Venator Ops : Capturer un extrait du journal terminal** ou **Venator Ops : Lister les preuves du projet**. La Kill chain propose l’export SVG et un brouillon Markdown pour ton rapport. Complète et vérifie les preuves, la gravité et les remédiations avant livraison.
 
 ## Accès rapide
 

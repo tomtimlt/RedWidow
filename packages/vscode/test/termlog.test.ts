@@ -87,6 +87,29 @@ describe("journal de terminal", () => {
     expect(mentionToken("exegol-htb1", "Warband : autre", "htb1")).toBeNull();
   });
 
+  it.each(["Warband", "Venator Ops"])("#mentions conservées pour %s", (name) => {
+    expect(mentionToken("exegol-htb1", `${name} : exegol-htb1`, "htb1")).toBe("htb1");
+    for (const index of [2, 3, 4]) {
+      expect(mentionToken("exegol-htb1", `${name} : exegol-htb1 (${index})`, "htb1")).toBe(
+        `htb1-${index}`,
+      );
+    }
+    for (const index of ["1", "5", "02", "2.0", "2e0", " 2", "2 "]) {
+      expect(mentionToken("exegol-htb1", `${name} : exegol-htb1 (${index})`, "htb1")).toBeNull();
+    }
+  });
+
+  it.each([
+    "Warband bis : exegol-htb1",
+    "Venator Ops bis : exegol-htb1",
+    "Autre Venator Ops : exegol-htb1",
+    "Venator Ops: exegol-htb1",
+    "Venator Ops : exegol-htb1-autre",
+    "Venator Ops : exegol-htb1 (2) suite",
+  ])("refuse le faux titre %s pour les #mentions", (title) => {
+    expect(mentionToken("exegol-htb1", title, "htb1")).toBeNull();
+  });
+
   it("extrait les # et nettoie la fin du tampon", () => {
     expect(parseHashes("vois #htb1 puis #lab et encore #htb1")).toEqual(["htb1", "lab"]);
     expect(parseHashes("port #80 collé#htb1")).toEqual(["80"]);

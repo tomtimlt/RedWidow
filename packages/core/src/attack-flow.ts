@@ -149,7 +149,7 @@ export function buildAttackFlow(
     id: `bundle--${randomUUID()}`,
     objects: [
       ...structuredClone(OFFICIAL),
-      { ...common, type: "identity", id: creator, name: "Warband", identity_class: "system" },
+      { ...common, type: "identity", id: creator, name: "Venator Ops", identity_class: "system" },
       flow,
       ...actions.values(),
       ...assets.values(),

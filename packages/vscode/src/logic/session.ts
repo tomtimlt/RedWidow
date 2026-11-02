@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { AuthMode, Effort, EngineEvent, ModelOption, Reason } from "@warband/core";
 import { formatReason } from "@warband/messages";
 import { alwaysConfirmText, answerFor, type Choice, cleanText, toCard } from "./approval.js";
+import { PRODUCT_NAME } from "./brand.js";
 import type { BypassEngineLink, BypassSend } from "./bypass.js";
 import {
   type ChatState,
@@ -904,7 +905,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       if (state.busy || state.readonly || text.trim() === "") return false;
       if (deps.requireProvider && state.noProvider) {
         state.notice(
-          "Aucun fournisseur n'a été ajouté : ajoute un jeton (Warband : définir le jeton) pour utiliser le chat.",
+          `Aucun fournisseur n'a été ajouté : ajoute un jeton (${PRODUCT_NAME} : définir le jeton) pour utiliser le chat.`,
           "error",
         );
         refresh();
