@@ -1,0 +1,9 @@
+{
+  "name": "Venator Ops",
+  "tagline": "Pentest in VS Code, with AI on call.",
+  "hook": ["Your pentest.", "One cockpit.", "One agent."],
+  "colors": { "background": "#101214", "panel": "#1f1f1f", "text": "#eef1f4", "muted": "#a3acb6", "signature": "#3cc7c0", "steel": "#7d8b99", "ok": "#3fb950", "warn": "#d29922" },
+  "fonts": { "headline": "Geist 800, uppercase, letter-spacing -0.03em", "mono": "Geist Mono 700, letter-spacing 0.16em" },
+  "motion": { "rise_px": 28, "duration_s": 0.65, "easing": "cubic-bezier(.2,.7,.2,1)", "stagger_s": [0.25, 0.6, 1.25] },
+  "rules": ["fictional lab only", "no invented features", "AI is a helper, not an autopilot", "animate screenshots, never redraw the UI", "flat dark look: no glow, gradients, neon or glitch"]
+}

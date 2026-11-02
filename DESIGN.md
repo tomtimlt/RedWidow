@@ -112,6 +112,15 @@ pour un vrai carrousel), plus `linkedin-carousel-1.mp4`, la slide 1 animée
   mode Apprentissage à droite qui lit le terminal et le cours et donne un
   indice plutôt qu’une solution.
 
+Kit vidéo publicitaire : `media/brand/video-kit/` (et son archive
+`venator-ops-video-kit.zip`) pour une IA de montage ou un monteur : `BRIEF.md`
+(règles, storyboard 30 s et 15 s, déclinaison 9:16, voix off), `brand.json`
+(couleurs, polices, mouvement), `logo/` (SVG, PNG transparents et sur fond),
+`screens/` (captures 2x du lab fictif, terminal kali-1 compris), `cards/`
+(cartons 1920 × 1080 et 1080 × 1920, sur fond et en `-alpha`) et `fonts/`
+(Geist, OFL). Règles : lab fictif uniquement, aucune fonction inventée, l’IA
+reste un appui, les captures s’animent sans être redessinées.
+
 README de la branche `main` pour les utilisateurs de Venator Ops (pas pour les
 développeurs), rédigé en anglais comme tous les visuels de la marque :
 `docs/readme-main/README.md` et ses images `docs/readme-main/docs/img/`.
