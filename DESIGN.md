@@ -105,7 +105,8 @@ pour un vrai carrousel), plus `linkedin-carousel-1.mp4`, la slide 1 animée
   sous-titre, capture, puis tenue avant la boucle.
 - **Slide 2 « 2 / 2 »**, mode Apprentissage : « STUCK ON A BOX? /
   FEED IT YOUR COURSE. / IT READS YOUR TERMINAL. » (dernière ligne en
-  signature) ; ligne « Learning mode · Your course · #kali-1 · Hints » ;
+  signature) ; ligne « Learning mode · Your course · Your terminal · Hints » (pas de « #kali-1 » dans
+  les visuels : sans contexte, ça se lit comme un hashtag) ;
   badge « Never executes » ; session de terminal kali-1 fictive à
   gauche (ligne `sudo -l` utile soulignée d’un liseré de signature), chat en
   mode Apprentissage à droite qui lit le terminal et le cours et donne un
