@@ -162,6 +162,16 @@ que l’utilisateur autorise. Piste à l’étude pour les rapports : SysReptor,
 - **Ne pas réintroduire l’appui maintenu** : option et comportement supprimés
   à la demande du propriétaire (0.3.54).
 
+## Menu Modèle
+
+Seule la liste des modèles défile (`#model-list`, 260 px au plus, plus petite
+quand la fenêtre manque de place) : l’en-tête, le filtre et « Actualiser la
+liste » restent visibles, et la fenêtre n’a pas de second ascenseur. La
+fenêtre `#model-pop` est une colonne en `overflow: hidden`. Cause du défaut
+signalé en natif (défilement de la fenêtre entière, en-tête masqué, espace
+vide sous le pied) non reproduite dans l’aperçu navigateur : à vérifier avec
+F5 et le vrai catalogue de modèles.
+
 ## Menu Configurer compact
 
 Le menu tient sans défilement (environ 370 px au lieu de 680) : pas de

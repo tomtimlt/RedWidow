@@ -1614,6 +1614,18 @@ body:not(.running) #toolbar #stop {
 
 #model-pop {
   width: min(360px, calc(100vw - 16px));
+  /* Seule la liste défile : l'en-tête, le filtre et le pied restent visibles,
+     et la fenêtre n'a jamais de second ascenseur ni d'espace vide. */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+#model-pop > * {
+  flex: none;
+}
+#model-pop > #model-list {
+  flex: 0 1 auto;
+  min-height: 0;
 }
 #models-status {
   margin: 0 8px var(--jn-s2);
