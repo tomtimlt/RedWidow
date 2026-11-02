@@ -118,7 +118,7 @@ Kit vidéo publicitaire : `media/brand/video-kit/` (et son archive
 (couleurs, polices, mouvement), `logo/` (SVG, PNG transparents et sur fond),
 `screens/` (captures 2x du lab fictif, terminal kali-1 compris), `cards/`
 (cartons 1920 × 1080 et 1080 × 1920, sur fond et en `-alpha`) et `fonts/`
-(Geist, OFL), plus `elements/` (découpes d’interface), `logo/parts/` (logo en calques) et `HYPERFRAMES-PROMPT.md` (prompt pour Sonnet : vidéo de 60 s avec le plugin HyperFrames). Règles : lab fictif uniquement, aucune fonction inventée, l’IA
+(Geist, OFL), plus `elements/` (découpes d’interface), `logo/parts/` (logo en calques) et `HYPERFRAMES-PROMPT.md` (prompt pour Sonnet : vidéo de 60 s avec le plugin HyperFrames). `html/` contient l’interface en composants HTML vivants (instantanés du vrai DOM avec `css/venator-ui.css`, le CSS de l’atelier réécrit pour s’appliquer à `.vo-ui` au lieu de `body`, et `venator-ui.js` qui restaure les défilements et pilote le curseur d’effort) : la vidéo anime ces composants au lieu de zoomer des PNG, qui deviennent flous. Règles : lab fictif uniquement, aucune fonction inventée, l’IA
 reste un appui, les captures s’animent sans être redessinées.
 
 README de la branche `main` pour les utilisateurs de Venator Ops (pas pour les
