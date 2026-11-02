@@ -67,10 +67,12 @@ Le logo reste celui de l’interface (`media/logo.svg`) ; le mot-symbole
 `media/brand/` : `banner-github.png` (1280 × 640, aperçu social du dépôt),
 `banner-github@2x.png` (README) et `banner-linkedin.png` (1584 × 396 en 2x,
 texte décalé hors de la photo de profil, accroche du carrousel « TON PENTEST. /
-UN SEUL COCKPIT. / UN SEUL AGENT. » et badge « IA optionnelle »). Variantes
+UN SEUL COCKPIT. / UN SEUL AGENT. », sans badge). Variantes
 GitHub (1280 × 640, à choisir comme aperçu social ou à placer dans le README) :
-`banner-github-hook-en.png` (« YOUR PENTEST. / ONE COCKPIT. / ONE AGENT. »,
-« AI optional »), `banner-github-hook-fr.png` (accroche française),
+`banner-github-hook-en.png` (« YOUR PENTEST. / ONE COCKPIT. / ONE AGENT. »),
+`banner-github-hook-fr.png` (accroche française), `social-preview.png` (copie
+de `banner-github-hook-en.png`, 1280 × 640, à téléverser dans les réglages du
+dépôt GitHub, section « Social preview » : ce réglage ne passe pas par git),
 `banner-github-learning.png` (mode Apprentissage : « STUCK ON A BOX? / FEED IT
 YOUR COURSE. / IT READS YOUR TERMINAL. », « Never executes », terminal et chat)
 et `banner-github-strip.png` (bandeau de titre 1280 × 320 en 2x, sans capture,
@@ -96,11 +98,11 @@ pour un vrai carrousel), plus `linkedin-carousel-1.mp4`, la slide 1 animée
 - **Slide 1 « 1 / 2 »** : accroche en capitales « TON PENTEST. / UN SEUL
   COCKPIT. / UN SEUL AGENT. », les deux premières lignes en blanc, la
   troisième en signature ; ligne « Kali · Exegol · Terminaux · Kill chain » ;
-  les trois fenêtres en grand et un petit badge « IA optionnelle » au-dessus
-  de la capture : l’accroche pousse l’agent, le badge garde la promesse du
-  travail à la main. Animation : lignes qui montent l’une après l’autre
+  les trois fenêtres en grand. Pas de badge « IA optionnelle » : l’IA
+  optionnelle se dit dans une section dédiée du README, pas dans les
+  visuels. Animation : lignes qui montent l’une après l’autre
   (0,25 s, 0,6 s, puis 1,25 s pour « UN SEUL AGENT. », légèrement décalée),
-  sous-titre, capture, badge, puis tenue avant la boucle.
+  sous-titre, capture, puis tenue avant la boucle.
 - **Slide 2 « 2 / 2 »**, mode Apprentissage : « BLOQUÉ SUR UNE BOX ? /
   DONNE-LUI TON COURS. / IL LIT TON TERMINAL. » (dernière ligne en
   signature) ; ligne « Mode Apprentissage · Ton cours · #kali-1 · Des
@@ -116,6 +118,13 @@ racine de `main` (le `README.md` remplace l’ancien, les images vont dans
 `docs/img/`). Il décrit le produit sous le nom Venator Ops ; les noms de
 commandes, du `.vsix` et du dépôt doivent être alignés côté `main`. Le README
 de cette branche (atelier) reste celui des développeurs de l’atelier.
+
+Ton du README utilisateur : décrire les fonctions sans répéter qu’on garde la
+main sur les commandes ni qu’on n’est pas obligé d’utiliser l’IA ; ce dernier
+point a sa propre section « Sans IA », limitée à ce qui fonctionne sans
+fournisseur (projets, cockpit, terminaux dans les conteneurs, kill chain,
+brouillon de rapport) — le Monitor et l’alimentation automatique de la kill
+chain viennent de l’agent.
 
 Arguments à mettre en avant, dans cet ordre : l’espace de travail (Docker Kali
 puis Exegol, terminaux, Monitor, kill chain, rapports) utilisable sans IA ;
