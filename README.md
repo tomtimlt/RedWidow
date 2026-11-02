@@ -1,181 +1,170 @@
 <div align="center">
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="packages/vscode/media/logo.svg">
-  <img src="docs/img/logo-clair.svg" alt="Logo Warband" width="96" height="96">
-</picture>
+<img src="docs/img/venator-ops-logo.svg" alt="Logo Venator Ops" width="88" height="88">
 
-# Warband
+# Venator Ops
 
-**Un assistant IA dans VS Code pour travailler dans tes conteneurs, avec approbation des actions et traces de mission.**
+**Pentest dans VS Code, avec l’IA d’astreinte.**
 
-[![CI](https://github.com/tomtimlt/warband/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/tomtimlt/warband/actions/workflows/ci.yml)
-[![Licence MIT](https://img.shields.io/badge/licence-MIT-CC1C40.svg)](LICENSE)
-![Node 22+](https://img.shields.io/badge/node-22%2B-495F73.svg)
-![TypeScript strict](https://img.shields.io/badge/TypeScript-strict-495F73.svg)
+Tes conteneurs Docker Kali et Exegol, leurs terminaux, un Monitor, une kill chain
+et des rapports au même endroit. Un agent IA t’aide quand tu l’appelles, et
+n’exécute que ce que tu autorises.
+
+![Licence MIT](https://img.shields.io/badge/licence-MIT-3cc7c0.svg)
+![VS Code 1.90+](https://img.shields.io/badge/VS%20Code-1.90%2B-495F73.svg)
+![Windows et Linux](https://img.shields.io/badge/Windows%20%7C%20Linux-495F73.svg)
+![Docker requis](https://img.shields.io/badge/Docker-requis-495F73.svg)
 
 <br>
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/img/paysage-chat-sombre.png">
-  <img src="docs/img/paysage-chat-clair.png" alt="Chat Warband sur grand écran, avec une carte d'approbation en attente" width="820">
-</picture>
+<img src="docs/img/venator-ops-banniere.png" alt="Venator Ops : ton pentest, un seul cockpit, un seul agent" width="860">
 
 </div>
 
 ---
 
-## Pourquoi Warband
+> **À utiliser uniquement dans un cadre autorisé** : CTF, labs de certification,
+> engagement avec périmètre et accord écrit.
 
-Un agent IA qui lance lui-même des commandes de reconnaissance et d'exploitation dans un conteneur de pentest peut faire gagner beaucoup de temps en pentest, en CTF et en préparation de certifications, à condition de garder la main sur chaque action sensible.
+## Pourquoi Venator Ops
 
-Warband fait ça : les appels d'outil (exécution dans le conteneur, écriture, accès réseau) passent par une **gate d'approbation écrite en code**, pas laissée au bon vouloir du modèle. Chaque trouvaille (hôte, identifiant, étape, technique MITRE ATT&CK) est notée au fil de la conversation et alimente la **Kill chain**.
+Un pentest, c’est des dizaines de terminaux, de scans, de notes et de captures
+éparpillés. Venator Ops les rassemble dans VS Code :
 
-> **À utiliser uniquement dans un cadre autorisé** : CTF, labs de certification, engagement avec périmètre et accord écrit.
+- **Tes conteneurs Docker Kali et Exegol** se préparent et se pilotent depuis le cockpit.
+- **Tes terminaux** s’ouvrent directement dans le conteneur, comme n’importe quel terminal de l’éditeur.
+- **Le Monitor** suit chaque commande lancée : son état et sa sortie en direct.
+- **La kill chain** dessine ce que tu trouves : hôtes, identifiants, sites, étapes et butin, reliés entre eux, avec la technique MITRE ATT&CK de chaque étape.
+- **Un agent IA** est là quand tu en as besoin : il lance les outils de ton conteneur, explique et propose. Il ne fait rien de sensible sans ton accord.
 
-## Le parcours
+Tu peux travailler à la main dans tes terminaux et n’appeler l’agent qu’au moment où tu bloques. L’IA est un renfort, pas un passage obligé.
 
-**Choisir un projet → associer ses conteneurs → travailler avec l’agent → approuver les actions nécessaires → consulter les résultats et les traces.**
+## Ce que tu peux faire
 
-Le **cockpit** prépare les conteneurs et leurs associations ; le **chat** pilote
-le travail et les approbations ; le **Monitor** suit les exécutions ; la **Kill
-chain** rassemble les trouvailles. Le mode **Apprentissage** lit les cours sans
-agir. Le Bypass est un choix explicite qui suspend les demandes d’approbation
-pendant sa durée (voir Sécurité).
+### Demander à l’agent, et garder la main
 
-Pour distinguer ce qui existe et ce qui reste à terminer :
-[état du projet](docs/etat-du-projet.md). Les ADR expliquent les décisions ;
-ils ne constituent pas le guide d’utilisation.
+Tu écris ta consigne dans le chat. Quand l’agent veut lancer une commande, une
+carte te dit **quel outil**, **avec quoi** et **pourquoi**. Tu choisis :
+*Autoriser une fois*, *Refuser* ou *Toujours* (pour la conversation en cours).
 
-## Fonctionnalités
+<div align="center">
+<img src="docs/img/venator-ops-chat.png" alt="Le chat Venator Ops avec une carte d’autorisation : outil, commande sqlmap, raison, et les boutons Autoriser une fois, Refuser, Toujours" width="380">
+</div>
 
-**Un chat dans VS Code**
-- Chat latéral ou dans l'éditeur, jusqu'à **quatre conversations** en parallèle.
-- Sélecteur de **modèle** découvert au runtime ; effort Claude à six crans ou variantes de raisonnement exactes annoncées par le modèle OpenAI/OpenCode.
-- **Historique** filtré par projet, relu depuis les journaux ; lecture seule ou reprise sous le même projet.
-- Mentions : `@` pour citer un conteneur, `#` pour citer un terminal ouvert, `/` pour les commandes.
-- Interface responsive de 280 px à plus de 900 px, thèmes sombre, clair et contraste élevé, mouvement réduit respecté.
+Dans le chat, tu disposes aussi de :
 
-**Recherche web**
-- Recherche et lecture de pages publiques communes à Claude, OpenAI et OpenCode, avec URL sources et date de consultation. Recherche Exa sans clé, soumise aux limites du service ; documentation, README et releases GitHub consultables.
+- `@` pour citer un conteneur, `#` pour citer un terminal ouvert (l’agent lit sa sortie), `/` pour les commandes ;
+- jusqu’à **quatre conversations** en parallèle, et un **historique** filtré par projet ;
+- le choix du **modèle** et de l’**effort de raisonnement** pour le message suivant ;
+- la recherche sur le web (documentation, README, releases GitHub), avec les sources et la date de consultation.
 
-**Pensé pour le pentest**
-- L'agent exécute les outils de ton conteneur de pentest (`argv` sans shell, dans `/workspace`). La cible doit appartenir aux conteneurs autorisés du projet ; `@` permet de la préciser. Dans le chat, l’agent ne crée, n’arrête ni ne supprime aucun conteneur.
-- **Résumé du projet** consultable et modifiable dans Réglages → Projet, conservé comme note personnelle sans injection automatique dans les nouvelles conversations.
-- **Carnet de trouvailles** : hôtes, identifiants, sites, étapes, butin, avec un état (confirmé, hypothèse, échoué), la tactique et la technique **MITRE ATT&CK**, et les liens de causalité entre elles.
-- Page **Kill chain** : le graphe interactif des trouvailles, en couches, avec zoom et déplacement.
-- **Terminaux** de l'éditeur dans le conteneur ; `#` colle dans la consigne la sortie d'un terminal ouvert.
+### Voir ce qui se passe : le Monitor
 
-**Une approbation qui a du sens**
-- Une carte par demande : outil, entrée neutralisée, raison de la politique. *Autoriser une fois*, *Refuser* ou *Toujours*, ce dernier sous confirmation native de VS Code et seulement quand c'est sûr.
-- **Bypass** borné : pendant 2 h (4 h au plafond), approuve tout — y compris un `deny`, un chemin sensible ou un danger shell — sans jamais rien mémoriser, si un canal de réponse humain est fourni ; l’apprentissage et la CLI non interactive restent exclus (ADR 0017).
-- **Mode Apprentissage** : l'agent lit des cours en lecture seule, explique et cite ses sources, et n'agit jamais.
+Chaque commande apparaît avec son état et sa sortie en direct. Une frise te
+permet de sauter à n’importe quelle commande ; la flèche vers le bas active ou
+suspend le suivi automatique.
 
-**Un moteur traçable**
-- Journal d'événements en JSONL, **graphe causal** exportable en HTML autonome.
-- Secrets masqués avant tout enregistrement ; processus enfants lancés avec une liste blanche de variables.
-- Outils **Docker structurés** (`ps`, `logs`, `inspect`, `run`…), chacun soumis à la politique.
-- **Claude, OpenAI et OpenCode dans le chat VS Code** : Claude Agent SDK ou OpenCode 1.19.0 embarqué, derrière la même gate. OpenAI propose l’abonnement ChatGPT par OAuth Codex et une clé API isolée du cache OAuth. Les modèles sont découverts au runtime, avec un chargement borné à 45 secondes et une action pour réessayer. Changer de fournisseur conserve le même fil et son projet, avec une nouvelle session SDK et un transfert borné des messages utilisateur/assistant du fil courant. La CLI propose aussi OpenCode (OpenAI, Gemini, Ollama, endpoints compatibles). Voir [le guide de l’extension](docs/extension-vscode.md) et les limites de validation dans [l’état du projet](docs/etat-du-projet.md).
+<div align="center">
+<img src="docs/img/venator-ops-monitor.png" alt="Le Monitor : une frise de commandes, l’entrée de la commande en cours et sa sortie numérotée" width="860">
+</div>
 
-**Windows d'abord**
-- Support natif, sans WSL. Les processus sont arrêtés proprement, arbre entier compris.
+### Suivre ton attaque : la kill chain
 
-## Démarrage rapide
+Hôtes, identifiants, sites, étapes, butin : chaque trouvaille a un **état**
+(confirmé, hypothèse, échoué), une **technique MITRE ATT&CK** et des liens de
+cause à effet avec les autres. Le graphe se parcourt à la souris et au clavier ;
+**Rejouer** déroule le chemin retenu nœud par nœud, sans rien exécuter.
 
-Prérequis : Node 22 ou plus, [pnpm](https://pnpm.io), VS Code 1.90 ou plus. Docker est nécessaire pour les outils de conteneur.
+<div align="center">
+<img src="docs/img/venator-ops-killchain.png" alt="La kill chain : un graphe de trouvailles reliées, le chemin retenu en pointillés verts, et la légende" width="860">
+</div>
 
-### L'extension VS Code
+### Apprendre : le mode Apprentissage
 
-```sh
-pnpm install --frozen-lockfile
-pnpm build
-pnpm --filter @warband/vscode package        # cible win32-x64 par défaut
-code --install-extension packages/vscode/warband-0.3.29-win32-x64.vsix
-```
+Tu bloques sur une box HTB ? Donne-lui ton cours, cite ta session de terminal
+avec `#`, et il t’explique où tu en es à partir de ce que tu as vraiment tapé.
+**Il lit et explique, il n’exécute rien.** Il cite ses sources.
 
-Raccourci : `pnpm maj` enchaîne mise à jour, build, empaquetage et installation.
+<div align="center">
+<img src="docs/img/venator-ops-apprentissage.png" alt="Mode Apprentissage : « Bloqué sur une box ? Donne-lui ton cours. Il lit ton terminal. », avec le terminal et le chat" width="860">
+</div>
 
-Puis, dans VS Code, ouvre un dossier de confiance et :
+### Garder une trace et rédiger
 
-1. **Warband : définir le jeton** (palette de commandes) : jeton d'abonnement (`claude setup-token`) ou clé API, stocké dans le stockage sécurisé de VS Code.
-2. **Warband : ouvrir un chat** ou clique sur l'icône Warband de la barre d'activité.
-3. Dans **Réglages → Projet**, active un projet ou crée-le (nom et dossier). Associe ensuite les conteneurs de travail dans le cockpit.
-4. Écris ta consigne dans le chat. Hors Bypass, la politique décide des autorisations, demandes et refus.
-5. Consulte les exécutions dans le Monitor et les trouvailles dans la Kill chain.
+Chaque mission est consignée dans un journal que tu peux relire. L’**aperçu du
+rapport** présente les trouvailles du projet actif, sans identifiants ni butin,
+et l’export produit un **brouillon Markdown** à compléter avec tes preuves et
+tes remédiations. Les gravités restent « À évaluer » : c’est toi qui les
+décides. Aucun outil de rapport externe n’est nécessaire.
+
+## Installation
+
+Prérequis : **VS Code 1.90 ou plus** et **Docker** pour les conteneurs.
+
+1. Télécharge le fichier `.vsix` de ta plateforme (**Windows** ou **Linux**) dans les [releases](https://github.com/tomtimlt/warband/releases).
+2. Installe-le : `code --install-extension <fichier>.vsix`, ou dans VS Code **Extensions → … → Installer à partir d’un VSIX**.
+3. Recharge la fenêtre VS Code.
+
+Venator Ops n’est pas encore sur le Marketplace : l’installation se fait à la main.
+
+## Premier lancement
+
+1. Ouvre un **dossier de confiance** dans VS Code.
+2. Si tu veux utiliser l’agent, ouvre **Configurer** dans le chat, choisis ton fournisseur (voir plus bas) et ajoute ton accès. Il est stocké dans le stockage sécurisé de VS Code.
+3. Ouvre **Réglages → Projet** : active un projet ou crée-le (un nom et un dossier).
+4. Dans le **cockpit**, associe les conteneurs Kali ou Exegol du projet, ou crée-les.
+5. Ouvre le chat (icône Venator Ops de la barre d’activité) et écris ta consigne.
 
 | Raccourci | Action |
 | --- | --- |
-| `Alt+J Alt+J` | Lanceur Warband |
+| `Alt+J Alt+J` | Lanceur |
 | `Alt+J C` | Chat latéral |
-| `Alt+J N` | Nouveau chat dans l'éditeur |
+| `Alt+J N` | Nouveau chat dans l’éditeur |
 | `Alt+J K` | Cockpit |
 | `Alt+J M` | Monitor |
 | `Alt+J S` | Réglages |
 
-### La ligne de commande
+## Tu gardes la main
 
-```sh
-node packages/cli/dist/main.js run "liste les conteneurs arrêtés"
-node packages/cli/dist/main.js policy check "docker ps -a | grep web"   # code 0 allow, 2 ask, 3 deny
-node packages/cli/dist/main.js graph .warband/runs/<run>.jsonl -o run.html
-node packages/cli/dist/main.js agents                                   # moteurs disponibles
-```
+- **Chaque action sensible passe par une carte d’autorisation**, décidée par du code et jamais laissée au bon vouloir du modèle.
+- Ce qui est refusé par la politique, un chemin sensible ou hors de ton espace de travail, un accès à l’hôte ou une commande dangereuse ne peut **jamais être mémorisé** avec « Toujours ».
+- « Toujours » demande une **confirmation native de VS Code**.
+- Dans le chat, l’agent **ne crée, n’arrête et ne supprime aucun conteneur**. Il ne travaille que dans les conteneurs autorisés du projet.
+- Les mots de passe, jetons et clés sont **masqués** avant d’être enregistrés dans un journal.
+- **Bypass** : un mode explicite qui approuve tout pendant une durée limitée (2 h par défaut, 4 h au plus). Il est signalé en magenta avec un compte à rebours et n’existe jamais en mode Apprentissage. À n’activer que sciemment, sous ta responsabilité.
 
-Le guide complet de la CLI est dans [docs/cli.md](docs/cli.md).
+## Questions fréquentes
 
-## Sécurité
+**Faut-il un compte pour l’agent ?**
+Oui, auprès du fournisseur de ton choix. **Claude** (jeton d’abonnement ou clé API), **OpenAI** (abonnement ChatGPT ou clé API) ou **OpenCode**, qui ouvre aussi la porte à Gemini, à des modèles locaux avec Ollama et à des points d’accès compatibles. Tu peux changer de fournisseur en gardant la même conversation.
 
-Ces règles ne s'affaiblissent pas :
+**Puis-je l’utiliser sans IA ?**
+Oui pour tout ce qui entoure l’agent : le cockpit, les conteneurs, les terminaux dans le conteneur et le Monitor. L’agent n’est lancé que lorsque tu envoies une consigne.
 
-- La **gate d'approbation est l'unique autorité**. Le hook `PreToolUse` du SDK décide ; le reste n'est qu'un filet qui refuse par défaut.
-- Un `deny` de politique, un chemin sensible ou hors de l'espace de travail, un conteneur donnant accès à l'hôte et les dangers shell ne sont **jamais mémorisables**. Ils sont **contournables uniquement pendant un Bypass actif** (ADR 0017), sous la responsabilité de l'utilisateur.
-- Les options du SDK qui touchent à la sécurité (mode de permission, outils, hooks, environnement…) sont **verrouillées** : un appelant ne peut pas les surcharger.
-- Les secrets sont masqués avant d'atteindre un journal ; l'adresse e-mail du compte n'est jamais journalisée.
-- **Bash est désactivé par défaut.**
-- La politique d'un dépôt n'est appliquée qu'après **approbation de son empreinte**.
-- L'extension vérifie l'empreinte SHA-256 du binaire embarqué avant de le lancer, et ses pages web ont une CSP stricte sans script en ligne.
+**Sur quels systèmes ça fonctionne ?**
+Windows (natif, sans WSL) et Linux.
 
-Le détail est dans [docs/cli.md](docs/cli.md) et dans les [décisions d'architecture](docs/adr/README.md).
+**Où sont mes données ?**
+Les journaux de conversation sont stockés par VS Code sur ta machine, hors de ton dépôt. L’historique conserve environ les 100 dernières conversations.
 
-## Architecture
+**Je suis en CTF ou en lab : y a-t-il des profils ?**
+Oui, des profils de méthode (mentor, bug bounty, out of the box, red team, HTB) guident l’agent.
 
-```
-packages/
-  core/            moteur : événements, journal, graphe, approbation (politique, gate, file), AgentRunner
-  messages/        libellés (français complet, anglais minimal) pour les codes du moteur
-  agent-sdk/       adaptateur du Claude Agent SDK, outils Docker
-  agent-opencode/  adaptateur OpenCode
-  cli/             interface en ligne de commande
-  export-html/     rendu HTML/SVG autonome du graphe
-  vscode/          extension VS Code (chat, cockpit, monitor, réglages)
-```
-
-Le cœur n'a aucune dépendance à un SDK d'agent et ne contient aucun texte d'affichage : il émet des événements typés et des codes, que les interfaces traduisent. Les interfaces dépendent du cœur, jamais l'inverse.
-
-## Documentation
-
-| Document | Contenu |
-| --- | --- |
-| [docs/etat-du-projet.md](docs/etat-du-projet.md) | Parcours central, état des fonctionnalités et travaux restants |
-| [docs/cli.md](docs/cli.md) | Moteur, approbation, authentification, OpenCode, Docker, CLI |
-| [docs/extension-vscode.md](docs/extension-vscode.md) | Installation, usage et limites de l'extension |
-| [docs/design-chat-ui.md](docs/design-chat-ui.md) | Charte visuelle : couleurs, formes, mouvement, logo |
-| [docs/adr/](docs/adr/README.md) | Décisions d'architecture |
-| [docs/cours.md](docs/cours.md) | Sources du mode Apprentissage |
-| [docs/idees.md](docs/idees.md) | Idées en réserve |
-
-## Développement
-
-```sh
-pnpm check   # biome + tsc (sources et tests) + vitest
-pnpm build
-```
-
-Le CI exécute `pnpm check` et `pnpm build` sur Linux (Node 22 et 24) et sous Windows (Node 22).
+**L’interface s’adapte à mon thème ?**
+Oui : thèmes clair, sombre et contraste élevé, mouvement réduit respecté, cinq jeux de couleurs au choix dans **Réglages → Apparence**.
 
 ## Statut
 
-Projet personnel en développement actif. L'extension se distribue sous forme de `.vsix` à installer à la main (artefacts de release : `win32-x64` et `linux-x64`), pas encore sur le Marketplace. Elle n'a pas encore été éprouvée dans toutes les configurations de VS Code (remote, web) : voir les [limites connues](docs/extension-vscode.md#limites-connues).
+Projet personnel en développement actif. La version publiée s’installe à la main (`.vsix`) et n’a pas encore été éprouvée dans toutes les configurations de VS Code (fenêtres distantes, version web). Les limites connues sont détaillées dans le [guide de l’extension](docs/extension-vscode.md#limites-connues).
+
+## Aller plus loin
+
+| | |
+| --- | --- |
+| [Guide de l’extension](docs/extension-vscode.md) | Installation, usage et limites |
+| [État du projet](docs/etat-du-projet.md) | Ce qui existe et ce qui reste à faire |
+| [Ligne de commande](docs/cli.md) | Pilotage et politique d’approbation hors de VS Code |
+| [Développer](docs/adr/README.md) | Pour les développeurs : décisions d’architecture et organisation du code |
 
 ## Licence
 
