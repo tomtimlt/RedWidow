@@ -64,6 +64,20 @@ chain and reports. An AI agent helps when you call it.
 - `killchain.png` — kill chain graph: linked findings with MITRE ATT&CK IDs, selected path as green dashes, legend.
 - `monitor.png` — Monitor: command timeline and live, numbered `ffuf` output.
 
+- `configure-effort-max.png` — Configure menu with the effort slider at maximum (animated gradient frozen).
+- `effort-slider-max.png` — the effort slider alone.
+- `appearance-palettes.png` — Settings → Appearance with the five color sets.
+
+### `elements/` (close-up crops, 2x)
+`approval-card.png`, `tool-calls.png`, `mission-rail.png`, `composer.png`,
+`killchain-path.png`, `killchain-legend.png`.
+
+### `logo/parts/`
+`brackets.svg`, `spark.svg`, `satellite.svg`: the mark split in layers (same
+viewBox) to animate the lock-on.
+
+For a HyperFrames render, use `HYPERFRAMES-PROMPT.md` (60 s shot list).
+
 ### `cards/` (text frames, 16:9 1920×1080 and 9:16 1080×1920)
 Each card exists on the brand background and as `-alpha` (transparent, to put
 text over footage).
