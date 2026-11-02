@@ -1,7 +1,42 @@
-import type { MissionDesk } from "@warband/core";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { createRecorder, type MissionDesk, renderProfileSkill } from "@warband/core";
 import { expect, it } from "vitest";
-import { createOpencodeRunner, deskToolset, type OpencodeToolset } from "../src/index.js";
+import {
+  createOpencodeRunner,
+  deskToolset,
+  type OpencodeToolset,
+  startToolServer,
+} from "../src/index.js";
 import { fakeOpencode, harness, userMessage } from "./helpers.js";
+
+it("transmet le même profil détaillé dans le résultat MCP du moteur OpenCode", async () => {
+  const server = await startToolServer({
+    token: "desk-profile-test",
+    toolsets: [{ name: "desk", tools: deskToolset().create({ recorder: createRecorder() }) }],
+    guard: async () => ({ allowed: true, ctx: { parentId: null, correlation: undefined } }),
+  });
+  const client = new Client({ name: "desk-profile-test", version: "1" });
+  try {
+    await client.connect(
+      new StreamableHTTPClientTransport(new URL(server.url("desk")), {
+        requestInit: { headers: { Authorization: "Bearer desk-profile-test" } },
+      }) as Parameters<typeof client.connect>[0],
+    );
+    const result = await client.callTool({
+      name: "load_skill",
+      arguments: { profile: "htb", section: "PREUVES" },
+    });
+    expect(result.isError).not.toBe(true);
+    const content = result.content as { type: string; text: string }[];
+    const loaded = JSON.parse(content.find((item) => item.type === "text")?.text ?? "null");
+    expect(loaded.instructions).toBe(renderProfileSkill("htb", "PREUVES").instructions);
+    expect(loaded.upstream).toMatchObject({ text: "", loaded: false });
+  } finally {
+    await client.close();
+    await server.close();
+  }
+});
 
 it("isole chaque run et branche mission_context sur les observations courantes", async () => {
   const desks: MissionDesk[] = [];

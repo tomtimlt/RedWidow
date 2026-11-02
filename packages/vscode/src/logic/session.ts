@@ -522,12 +522,15 @@ export function createChatSession(deps: ChatSessionDeps) {
       settings.burp ?? null,
       settings.integrations ?? [],
       settings.profile ?? null,
+      settings.opencodeProviders ?? null,
     ]);
     const maxTurns = picked.ultra ? picked.ultra.maxTurns : settings.maxTurns;
     await ctl.start({
       cwd: deps.cwd,
       auth: token?.mode ?? "auto",
       provider: prefs.provider,
+      ...(prefs.provider === "opencode" &&
+        settings.opencodeProviders && { opencodeProviders: settings.opencodeProviders }),
       ...(picked.model !== undefined && { model: picked.model }),
       ...(picked.effort !== undefined && { effort: picked.effort }),
       ...(picked.variant !== undefined && { variant: picked.variant }),
@@ -630,6 +633,10 @@ export function createChatSession(deps: ChatSessionDeps) {
             cwd: deps.cwd,
             auth: token?.mode ?? "auto",
             provider,
+            ...(provider === "opencode" &&
+              deps.readSettings().opencodeProviders && {
+                opencodeProviders: deps.readSettings().opencodeProviders,
+              }),
             timeoutMs: MODEL_LOAD_TIMEOUT_MS,
           }),
           interrupted,
@@ -948,6 +955,7 @@ export function createChatSession(deps: ChatSessionDeps) {
                 deps.readSettings().burp ?? null,
                 deps.readSettings().integrations ?? [],
                 deps.readSettings().profile ?? null,
+                deps.readSettings().opencodeProviders ?? null,
               ])
           ) {
             await retire(controller);

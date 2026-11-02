@@ -52,6 +52,7 @@ export interface EngineOptions {
     provider?: StartParams["provider"],
     burp?: StartParams["burp"],
     integrations?: StartParams["integrations"],
+    opencodeProviders?: StartParams["opencodeProviders"],
   ) => AgentRunner | Promise<AgentRunner>;
   /** Environnement dont on tire les secrets à masquer (défaut : `process.env`). */
   env?: NodeJS.ProcessEnv;
@@ -236,6 +237,7 @@ export function runEngine({
           params.provider,
           params.burp,
           params.integrations,
+          params.opencodeProviders,
         );
         const summary = await runner.run(
           {
@@ -293,9 +295,16 @@ export function runEngine({
       cwd: string,
       auth: AuthMode | undefined,
       provider?: StartParams["provider"],
+      opencodeProviders?: StartParams["opencodeProviders"],
     ) => {
       try {
-        const runner = await createRunner(undefined, provider);
+        const runner = await createRunner(
+          undefined,
+          provider,
+          undefined,
+          undefined,
+          opencodeProviders,
+        );
         const models =
           (await runner.listModels?.({
             cwd,
@@ -334,7 +343,7 @@ export function runEngine({
         case "models":
           if (started) return invalid("type", "state");
           started = true;
-          void probe(message.cwd, message.auth, message.provider);
+          void probe(message.cwd, message.auth, message.provider, message.opencodeProviders);
           return;
         case "prompt":
           if (!started) return invalid("type", "state");

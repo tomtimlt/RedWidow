@@ -1,6 +1,7 @@
 import { fork } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdir, realpath } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import {
   AGENT_PROFILES,
@@ -2906,27 +2907,45 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           await context.globalState.update(OPENAI_AUTH_MODE_KEY, kind);
         }
         const binary = await openCodeBinary();
-        const term = vscode.window.createTerminal({
-          name:
-            provider === "openai"
-              ? `${PRODUCT_NAME} : connexion ChatGPT`
-              : `${PRODUCT_NAME} : connexion OpenCode`,
-          shellPath: binary,
-          shellArgs: ["auth", "login", ...(provider === "openai" ? ["--provider", "openai"] : [])],
-          env: {
-            OPENCODE_DISABLE_PROJECT_CONFIG: "1",
-            OPENCODE_PURE: "1",
-            OPENCODE_DISABLE_AUTOUPDATE: "1",
-            OPENCODE_DISABLE_SHARE: "1",
-            OPENCODE_CONFIG_CONTENT: JSON.stringify({ plugin: [], share: "disabled" }),
-            OPENCODE_CONFIG: null,
-            OPENCODE_CONFIG_DIR: null,
-            OPENCODE_AUTH_CONTENT: null,
-            OPENAI_API_KEY: null,
-          },
-        });
+        const providers = provider === "opencode" ? readSettings().opencodeProviders : undefined;
+        const configHome = await mkdtemp(join(tmpdir(), "venator-opencode-login-"));
+        let term: vscode.Terminal;
+        try {
+          term = vscode.window.createTerminal({
+            name:
+              provider === "openai"
+                ? `${PRODUCT_NAME} : connexion ChatGPT`
+                : `${PRODUCT_NAME} : connexion OpenCode`,
+            shellPath: binary,
+            shellArgs: [
+              "auth",
+              "login",
+              ...(provider === "openai" ? ["--provider", "openai"] : []),
+            ],
+            env: {
+              OPENCODE_DISABLE_PROJECT_CONFIG: "1",
+              OPENCODE_PURE: "1",
+              OPENCODE_DISABLE_AUTOUPDATE: "1",
+              OPENCODE_DISABLE_SHARE: "1",
+              XDG_CONFIG_HOME: configHome,
+              OPENCODE_CONFIG_CONTENT: JSON.stringify({
+                plugin: [],
+                share: "disabled",
+                ...(providers && { provider: providers }),
+              }),
+              OPENCODE_CONFIG: null,
+              OPENCODE_CONFIG_DIR: null,
+              OPENCODE_AUTH_CONTENT: null,
+              OPENAI_API_KEY: null,
+            },
+          });
+        } catch (error) {
+          await rm(configHome, { recursive: true, force: true });
+          throw error;
+        }
         const subscription = vscode.window.onDidCloseTerminal((closed) => {
           if (closed !== term) return;
+          void rm(configHome, { recursive: true, force: true });
           subscription.dispose();
           applyAuthChange();
         });

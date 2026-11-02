@@ -928,3 +928,60 @@ describe("moteur : conversations sans injection de mémoire du projet", () => {
     },
   );
 });
+
+it.each([undefined, "learning"] as const)(
+  "transmet les endpoints validés au runner, mode %s",
+  async (mode) => {
+    const t = fakeChannel();
+    const opencodeProviders = {
+      "venator-local": {
+        npm: "@ai-sdk/openai-compatible" as const,
+        options: { baseURL: "http://localhost:11434/v1" },
+        models: { m: {} },
+      },
+    };
+    const createRunner = vi.fn(() => idleRunner);
+    const done = runEngine({ channel: t.channel, createRunner });
+    t.receive({
+      v: 1,
+      type: "start",
+      cwd,
+      provider: "opencode",
+      opencodeProviders,
+      ...(mode && { mode }),
+    });
+    await vi.waitFor(() =>
+      expect(createRunner).toHaveBeenCalledWith(
+        mode,
+        "opencode",
+        undefined,
+        undefined,
+        opencodeProviders,
+      ),
+    );
+    t.receive({ v: 1, type: "dispose" });
+    expect(await done).toBe(0);
+  },
+);
+
+it("transmet les endpoints validés au catalogue éphémère", async () => {
+  const t = fakeChannel();
+  const opencodeProviders = {
+    "venator-local": {
+      npm: "@ai-sdk/openai-compatible" as const,
+      options: { baseURL: "http://localhost:11434/v1" },
+      models: { m: {} },
+    },
+  };
+  const createRunner = vi.fn(() => ({ ...idleRunner, listModels: async () => [] }));
+  const done = runEngine({ channel: t.channel, createRunner });
+  t.receive({ v: 1, type: "models", cwd, provider: "opencode", opencodeProviders });
+  expect(await done).toBe(0);
+  expect(createRunner).toHaveBeenCalledWith(
+    undefined,
+    "opencode",
+    undefined,
+    undefined,
+    opencodeProviders,
+  );
+});

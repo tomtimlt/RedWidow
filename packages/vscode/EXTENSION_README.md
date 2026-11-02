@@ -80,3 +80,13 @@ Un conteneur manque ? Vérifie Docker, le projet actif et ses conteneurs associ�
 La distribution actuelle se fait par [releases GitHub](https://github.com/tomtimlt/warband/releases), sans publication Marketplace pour le moment. Télécharge le `.vsix` adapté à ton système, puis utilise **Extensions → … → Installer à partir de VSIX…**. Répète cette opération avec le nouveau paquet pour une mise à jour.
 
 [Présentation et installation](https://github.com/tomtimlt/warband#readme) · [Signaler un problème](https://github.com/tomtimlt/warband/issues)
+
+## Choisir une méthode
+
+La commande **Venator Ops : choisir un skill / profil agent** propose Mentor,
+Bug bounty, Out of the box, Red team et Hack The Box. Le résumé du profil choisi
+guide le prochain tour ; la méthode détaillée est chargée au besoin. Mentor
+aide par indices graduels, Bug bounty organise les preuves, Out of the box
+départage les hypothèses, Red team suit les objectifs de l’exercice et HTB
+adapte la progression au challenge. Le mode Apprentissage conserve son
+fonctionnement dédié aux cours, sans exécution.

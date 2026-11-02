@@ -21,6 +21,8 @@ Repères :
 - `README.md` : présentation et premiers pas pour les utilisateurs.
 - `CONTRIBUTING.md` : installation de développement, compilation et repères techniques.
 - `docs/venator-ops.md` : identité publique et compatibilité des identifiants Warband.
+- `docs/profils-agent.md`, `docs/personas-preparation.md` : usages et source canonique des profils.
+- `docs/profils-evaluation.md` : scénarios d’évaluation, pas un résultat de benchmark.
 - `docs/etat-du-projet.md` : parcours central, inventaire et prochaines étapes ;
   vérifier le commit de référence avant de reprendre ses statuts.
 - `docs/idees.md` : réserve d'idées, pas un engagement ni un état fiable du code.
@@ -144,6 +146,12 @@ Les tâches cloud sont déjà isolées : utiliser le checkout existant, sans cr�
 de worktree sauf demande explicite.
 
 ## Livraison
+
+La livraison du menu des modèles et des fournisseurs OpenCode a été suspendue
+le 2 novembre 2026 dans l’attente des personas. Le document fourni ensuite par
+l’utilisateur autorise leur conception et leur intégration. La 0.3.67 regroupe
+ces travaux après vérification des cinq skills ; la pipeline reprend alors.
+Les évaluations avec modèles réels restent distinctes et ne sont pas automatiques.
 
 Pipeline permanente validée par l'utilisateur le 30 octobre 2026 :
 

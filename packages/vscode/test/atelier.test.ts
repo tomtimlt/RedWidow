@@ -91,15 +91,25 @@ it("les profils ne chargent pas toutes les sources dans le prompt initial", asyn
   const start = deskInstructions("htb");
   expect(start.length).toBeLessThan(2500);
   expect(start).not.toContain("Systematic Debugging");
+  const skill = deskToolSpecs()[0];
+  if (!skill) throw new Error("load_skill absent");
   const source = JSON.parse(
-    await deskToolSpecs()[0]!.run(
+    await skill.run(
       { profile: "out-of-box" },
       { parentId: null, correlation: undefined, signal: undefined },
     ),
   );
   expect(source.upstream.source).toMatch(/github.com.*[a-f0-9]{40}/);
   expect(source.upstream.license).toBe("MIT");
-  expect(source.upstream.text).toContain("Systematic Debugging");
+  expect(source.upstream.text).toBe("");
+  expect(source.upstream.loaded).toBe(false);
+  const upstream = JSON.parse(
+    await skill.run(
+      { profile: "out-of-box", source: "upstream" },
+      { parentId: null, correlation: undefined, signal: undefined },
+    ),
+  );
+  expect(upstream.upstream.text).toContain("Systematic Debugging");
 });
 it("prépare les répertoires sans écraser les notes et lit les gros fichiers par extraits", async () => {
   const root = await temp();

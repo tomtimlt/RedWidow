@@ -22,6 +22,7 @@ import {
 import { type ConversationContext, isConversationContext } from "./conversation-context.js";
 import { isProvider, type Provider, parseEffort } from "./effort.js";
 import { isModelId, parseModelOptions } from "./models.js";
+import { type OpencodeProviders, parseOpencodeProviders } from "./opencode-providers.js";
 
 /**
  * Protocole IPC entre l'extension (parent) et le moteur (processus enfant), ADR 0004.
@@ -36,6 +37,7 @@ export const PROTOCOL_VERSION = 1;
 export const MAX_PROMPT_CHARS = 1_000_000;
 
 export interface StartParams {
+  opencodeProviders?: OpencodeProviders;
   integrations?: IntegrationConfig[];
   profile?: string;
   burp?: BurpConfig;
@@ -69,7 +71,14 @@ export interface EndedSummary {
 export type ToEngine =
   | ({ v: 1; type: "start" } & StartParams)
   /** Sondage (moteur éphémère, aucune consigne) : demande la liste des modèles puis le moteur sort. */
-  | { v: 1; type: "models"; cwd: string; auth?: AuthMode; provider?: Provider }
+  | {
+      v: 1;
+      type: "models";
+      cwd: string;
+      auth?: AuthMode;
+      provider?: Provider;
+      opencodeProviders?: OpencodeProviders;
+    }
   | { v: 1; type: "prompt"; text: string }
   | { v: 1; type: "answer"; toolUseId: string; decision: Decision; remember?: RememberScope }
   | { v: 1; type: "abort" }
@@ -136,6 +145,7 @@ const START_KEYS = [
   "cwd",
   "model",
   "provider",
+  "opencodeProviders",
   "effort",
   "variant",
   "conversationContext",
@@ -173,6 +183,11 @@ export function parseToEngine(raw: unknown): Parsed<ToEngine> {
   const extra = (keys: readonly string[]) => onlyKeys(obj, keys);
   let unexpected: string | null;
   if (obj.provider !== undefined && !isProvider(obj.provider)) return bad("provider");
+  if (
+    obj.opencodeProviders !== undefined &&
+    (obj.provider !== "opencode" || !parseOpencodeProviders(obj.opencodeProviders))
+  )
+    return bad("opencodeProviders");
   switch (type) {
     case "start": {
       unexpected = extra(START_KEYS);
@@ -240,7 +255,7 @@ export function parseToEngine(raw: unknown): Parsed<ToEngine> {
       return { ok: true, message: obj as ToEngine };
     }
     case "models":
-      unexpected = extra(["v", "type", "cwd", "auth", "provider"]);
+      unexpected = extra(["v", "type", "cwd", "auth", "provider", "opencodeProviders"]);
       if (unexpected) return bad(unexpected, "unexpected");
       if (!isString(obj.cwd) || obj.cwd === "" || !isAbsolute(obj.cwd)) return bad("cwd");
       if (

@@ -27,7 +27,8 @@ function fake() {
       started = p;
       starts.push(p);
     },
-    models: async () => {
+    models: async (params) => {
+      calls.push(["models", params]);
       if (modelError) throw new Error("sondage");
       return modelList;
     },
@@ -866,54 +867,57 @@ describe("historique (F4)", () => {
     });
   });
 
-  it("conserve conversation, projet et contexte lors d’un aller-retour entre fournisseurs", async () => {
-    const projectId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
-    const h = withHistory("warband.history", async () => ({
-      activeId: projectId,
-      projects: [{ id: projectId, name: "Courant" }],
-    }));
-    await h.session.send("question initiale");
-    h.f.handlers.onStarted?.({ runId: RUN1, policySource: null });
-    h.f.handlers.onEvent?.(ev({ kind: "session.started", sessionId: "CLAUDE-S" }));
-    h.f.handlers.onEvent?.(ev({ kind: "agent.text", text: "réponse Claude" }));
-    h.f.handlers.onEnded?.({ sessionId: "CLAUDE-S" } as never);
-    const id = h.view().history[0]?.id;
-    const old = h.f.handlers;
-    await h.session.setProvider("openai");
-    old.onEvent?.(ev({ kind: "session.started", sessionId: "TARDIF" }));
-    expect(h.stored.get("warband.history")).toMatchObject([
-      { id, projectId, provider: "openai", sessionId: null, runIds: [RUN1] },
-    ]);
-    expect(
-      h.view().items.some((item) => item.kind === "agent" && item.text === "réponse Claude"),
-    ).toBe(true);
-    await h.session.send("question OpenAI");
-    expect(h.f.started).toMatchObject({
-      provider: "openai",
-      conversationContext: {
-        messages: [
-          { role: "user", text: "question initiale" },
-          { role: "assistant", text: "réponse Claude" },
-        ],
-      },
-    });
-    expect(h.f.started).not.toHaveProperty("resume");
-    h.f.handlers.onEvent?.(ev({ kind: "session.started", sessionId: "OPENAI-S" }));
-    h.f.handlers.onEvent?.(ev({ kind: "agent.text", text: "réponse OpenAI" }));
-    h.f.handlers.onEnded?.({ sessionId: "OPENAI-S" } as never);
-    await h.session.setProvider("claude");
-    await h.session.send("retour Claude");
-    expect(h.f.started).not.toHaveProperty("resume");
-    expect(h.f.started?.conversationContext?.messages.map((message) => message.text)).toEqual([
-      "question initiale",
-      "réponse Claude",
-      "question OpenAI",
-      "réponse OpenAI",
-    ]);
-    expect(h.view().history).toHaveLength(1);
-    expect(h.view().history[0]?.id).toBe(id);
-    expect(h.stored.get("warband.history")).toMatchObject([{ projectId, provider: "claude" }]);
-  });
+  it.each(["openai", "opencode"] as const)(
+    "conserve conversation, projet et contexte via %s",
+    async (provider) => {
+      const projectId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+      const h = withHistory("warband.history", async () => ({
+        activeId: projectId,
+        projects: [{ id: projectId, name: "Courant" }],
+      }));
+      await h.session.send("question initiale");
+      h.f.handlers.onStarted?.({ runId: RUN1, policySource: null });
+      h.f.handlers.onEvent?.(ev({ kind: "session.started", sessionId: "CLAUDE-S" }));
+      h.f.handlers.onEvent?.(ev({ kind: "agent.text", text: "réponse Claude" }));
+      h.f.handlers.onEnded?.({ sessionId: "CLAUDE-S" } as never);
+      const id = h.view().history[0]?.id;
+      const old = h.f.handlers;
+      await h.session.setProvider(provider);
+      old.onEvent?.(ev({ kind: "session.started", sessionId: "TARDIF" }));
+      expect(h.stored.get("warband.history")).toMatchObject([
+        { id, projectId, provider, sessionId: null, runIds: [RUN1] },
+      ]);
+      expect(
+        h.view().items.some((item) => item.kind === "agent" && item.text === "réponse Claude"),
+      ).toBe(true);
+      await h.session.send("question OpenAI");
+      expect(h.f.started).toMatchObject({
+        provider,
+        conversationContext: {
+          messages: [
+            { role: "user", text: "question initiale" },
+            { role: "assistant", text: "réponse Claude" },
+          ],
+        },
+      });
+      expect(h.f.started).not.toHaveProperty("resume");
+      h.f.handlers.onEvent?.(ev({ kind: "session.started", sessionId: "OPENAI-S" }));
+      h.f.handlers.onEvent?.(ev({ kind: "agent.text", text: "réponse OpenAI" }));
+      h.f.handlers.onEnded?.({ sessionId: "OPENAI-S" } as never);
+      await h.session.setProvider("claude");
+      await h.session.send("retour Claude");
+      expect(h.f.started).not.toHaveProperty("resume");
+      expect(h.f.started?.conversationContext?.messages.map((message) => message.text)).toEqual([
+        "question initiale",
+        "réponse Claude",
+        "question OpenAI",
+        "réponse OpenAI",
+      ]);
+      expect(h.view().history).toHaveLength(1);
+      expect(h.view().history[0]?.id).toBe(id);
+      expect(h.stored.get("warband.history")).toMatchObject([{ projectId, provider: "claude" }]);
+    },
+  );
 
   it.each(["error", "event-error", "exit", "sdk-error", "ended-error"] as const)(
     "conserve le transfert après un échec %s et recommence sans session SDK partielle",
@@ -1807,3 +1811,27 @@ it("transmet les observations du moteur actif et efface au reset, sans événeme
   expect(observe).toHaveBeenCalledTimes(count);
   t.session.dispose();
 });
+
+it.each(["claude", "openai", "opencode"] as const)(
+  "transmet les endpoints seulement au moteur %s",
+  async (provider) => {
+    const opencodeProviders = {
+      "venator-local": {
+        npm: "@ai-sdk/openai-compatible",
+        options: { baseURL: "http://localhost:11434/v1" },
+        models: { m: {} },
+      },
+    };
+    const h = setup({ settings: { opencodeProviders } });
+    await h.session.setProvider(provider);
+    await h.session.send("suite");
+    if (provider === "opencode") {
+      expect(h.f.started?.opencodeProviders).toEqual(opencodeProviders);
+      expect(h.f.calls).toContainEqual(["models", expect.objectContaining({ opencodeProviders })]);
+    } else {
+      expect(h.f.started).not.toHaveProperty("opencodeProviders");
+      for (const call of h.f.calls.filter((item) => item[0] === "models"))
+        expect(call[1]).not.toHaveProperty("opencodeProviders");
+    }
+  },
+);

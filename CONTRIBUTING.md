@@ -68,3 +68,11 @@ Les commandes et l’authentification sont détaillées dans le [guide CLI](docs
 - [Charte du chat](docs/design-chat-ui.md) : conventions visuelles.
 
 Pour proposer une modification, explique le problème utilisateur, le comportement obtenu et les vérifications exécutées. Signale les essais non réalisés, notamment sous VS Code natif et Windows. Les contributions suivent la [licence MIT](LICENSE) du projet.
+
+## Modifier une méthode d’agent
+
+Les profils sont définis dans `packages/core/src/agent-profiles.ts`. Après une
+modification, compiler avec `pnpm build`, puis régénérer les cinq fichiers avec
+`node scripts/sync-agent-skills.mjs`. Le mode `--check` vérifie leur cohérence
+sans écrire. Les tests contrôlent les budgets et le chargement ; la qualité
+des réponses s’évalue séparément avec la [grille](docs/profils-evaluation.md).

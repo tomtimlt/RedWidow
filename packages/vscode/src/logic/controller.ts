@@ -120,6 +120,7 @@ export interface EngineController {
     cwd: string;
     auth?: AuthMode;
     provider?: StartParams["provider"];
+    opencodeProviders?: StartParams["opencodeProviders"];
     timeoutMs?: number;
   }): Promise<ModelOption[]>;
   prompt(text: string): void;
@@ -256,7 +257,7 @@ export function createEngineController(options: EngineControllerOptions): Engine
       sessionStarted = true;
       return launch({ v: PROTOCOL_VERSION, type: "start", ...params });
     },
-    models({ cwd, auth, provider, timeoutMs = 30_000 }) {
+    models({ cwd, auth, provider, opencodeProviders, timeoutMs = 30_000 }) {
       return new Promise<ModelOption[]>((resolve, reject) => {
         const timer = setTimeout(
           () =>
@@ -279,6 +280,7 @@ export function createEngineController(options: EngineControllerOptions): Engine
           cwd,
           ...(auth !== undefined && { auth }),
           ...(provider !== undefined && { provider }),
+          ...(opencodeProviders !== undefined && { opencodeProviders }),
         }).catch((error) => settle(() => reject(error)));
       });
     },

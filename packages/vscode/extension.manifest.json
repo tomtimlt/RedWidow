@@ -2,7 +2,7 @@
   "name": "warband",
   "displayName": "Venator Ops",
   "description": "Espace de pentest pour VS Code : missions, terminaux, preuves et rapports, avec IA optionnelle.",
-  "version": "0.3.66",
+  "version": "0.3.67",
   "publisher": "warband",
   "license": "MIT",
   "engines": {
@@ -280,6 +280,12 @@
     "configuration": {
       "title": "Venator Ops",
       "properties": {
+        "warband.opencodeProviders": {
+          "type": "object",
+          "default": {},
+          "scope": "machine",
+          "description": "Fournisseurs OpenCode compatibles OpenAI explicitement configurés (URL et modèles). Aucun secret : utiliser le cache d’authentification natif OpenCode. Les valeurs du dépôt sont ignorées."
+        },
         "warband.profile": {
           "type": "string",
           "enum": ["", "mentor", "bug-bounty", "out-of-box", "red-team", "htb"],

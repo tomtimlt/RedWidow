@@ -458,17 +458,21 @@
   function place(pop, anchor) {
     pop.style.setProperty("--jn-maxh", "9999px");
     const r = anchor.getBoundingClientRect();
+    const viewport = {
+      width: document.documentElement.clientWidth,
+      height: document.documentElement.clientHeight,
+    };
     const p = UI.placePopover(
       { left: r.left, top: r.top, bottom: r.bottom },
       { width: pop.offsetWidth, height: pop.offsetHeight },
-      {
-        width: document.documentElement.clientWidth,
-        height: document.documentElement.clientHeight,
-      },
+      viewport,
     );
-    pop.style.setProperty("--jn-x", `${p.x}px`);
-    pop.style.setProperty("--jn-y", `${p.y}px`);
     pop.style.setProperty("--jn-maxh", `${p.maxHeight}px`);
+    // La hauteur finale peut changer après rétraction de la liste ou retour à la ligne.
+    const height = pop.offsetHeight;
+    const y = p.side === "above" ? r.top - 6 - height : p.y;
+    pop.style.setProperty("--jn-x", `${p.x}px`);
+    pop.style.setProperty("--jn-y", `${Math.max(8, Math.round(y))}px`);
     pop.classList.add("placed");
   }
   function wirePop(pop, chip, { render: render2, focus }) {

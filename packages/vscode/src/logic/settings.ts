@@ -6,6 +6,7 @@ import {
   parseIntegrations,
 } from "@warband/core";
 import type { UltracodeLimits } from "./effort.js";
+import { type OpencodeProviders, parseOpencodeProviders } from "./opencode-providers.js";
 
 /** Forme de `WorkspaceConfiguration.inspect` : les valeurs d'espace de travail n'y sont jamais lues. */
 export interface Inspected {
@@ -24,6 +25,7 @@ export function machineValue(info: Inspected | undefined): unknown {
 }
 
 export interface ChatSettings {
+  opencodeProviders?: OpencodeProviders;
   burp?: BurpConfig;
   integrations?: IntegrationConfig[];
   profile?: string;
@@ -36,6 +38,16 @@ export interface ChatSettings {
 /** Lit et valide les réglages (`get` renvoie la valeur machine de `warband.<clé>`). Lève `CodedError`. */
 export function resolveSettings(get: (key: string) => unknown): ChatSettings {
   const out: ChatSettings = {};
+  const providers = get("opencodeProviders");
+  if (providers !== undefined) {
+    const parsed = parseOpencodeProviders(providers);
+    if (!parsed)
+      throw new CodedError("sandbox.invalidArgument", {
+        field: "opencodeProviders",
+        reason: "invalid",
+      });
+    if (Object.keys(parsed).length) out.opencodeProviders = parsed;
+  }
   if (get("burp.enabled") === true) {
     const config = { port: get("burp.port") ?? 9876, transport: get("burp.transport") ?? "sse" };
     if (!isBurpConfig(config)) throw new CodedError("burp.invalidConfig");

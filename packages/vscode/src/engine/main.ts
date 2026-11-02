@@ -82,7 +82,7 @@ const done = runEngine({
     targets.note(text, outcome.containers, outcome.projectId, outcome.blocked);
     return enrichContainerPrompt(text, outcome.containers, () => docker.listLabelPrefix());
   },
-  createRunner: async (mode, provider = "claude", burp, integrations) => {
+  createRunner: async (mode, provider = "claude", burp, integrations, opencodeProviders) => {
     if (provider !== "claude") {
       const binary = join(root, "bin", process.platform === "win32" ? "opencode.exe" : "opencode");
       const hash = typeof __OPENCODE_SHA256__ === "string" ? __OPENCODE_SHA256__ : "";
@@ -91,6 +91,8 @@ const done = runEngine({
       return createOpencodeRunner({
         binary,
         isolateConfig: true,
+        ...(provider === "opencode" &&
+          opencodeProviders && { config: { provider: opencodeProviders } }),
         ...(provider === "openai" && { provider: "openai" }),
         ...(mode === "learning"
           ? { toolsets: [openCodeCours()], builtinTools: [] }

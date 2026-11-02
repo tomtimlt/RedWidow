@@ -13,13 +13,16 @@ Les ressources méthodologiques sont distinctes du code MIT de Warband.
   Texte audit-context-building reproduit dans les données de référence du moteur.
   Licence complète : trailofbits-LICENSE.txt.
 
-Les cinq résumés/profils Warband sont des adaptations en français, limités à la
-méthode de mission : mentor, bug-bounty, out-of-box, red-team et htb. Les adaptations
+Les cinq profils Venator Ops sont des méthodes rédigées en français, avec un
+résumé injecté et des sections détaillées chargées à la demande. Les sources
+upstream restent identifiées séparément. Les licences existantes des artefacts
+sont conservées pour les adaptations, limitées à la méthode de mission : mentor, bug-bounty, out-of-box, red-team et htb. Les adaptations
 basées sur Trail of Bits sont distribuées sous CC BY-SA 4.0 ; celles basées sur
 Superpowers sous MIT. Leurs SKILL.md identifient la source applicable. Les données
 upstream restent sous leur licence originale et ne sont pas relicenciées MIT.
 
 Warband ne lance pas les exemples, n’importe aucun réglage de fournisseur ni
 n’accorde de droit d’outil à partir de ces documents. Les ressources citées mais
-non embarquées ne sont pas présentées comme connues. Le chargement d’un texte
-est borné à 16 000 caractères, sans charger les autres sources dans le prompt.
+non embarquées ne sont pas présentées comme connues. La référence upstream est chargée uniquement avec source: "upstream" et
+plafonnée à 16 000 octets UTF-8, sans couper un caractère. Le profil français
+est chargé par défaut ; aucune autre source n’est injectée implicitement.

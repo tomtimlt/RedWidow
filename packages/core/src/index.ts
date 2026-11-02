@@ -1,4 +1,5 @@
 export * from "./agent-desk.js";
+export * from "./agent-profile-skill.js";
 export * from "./approval/bypass.js";
 export * from "./approval/gate.js";
 export * from "./approval/paths.js";

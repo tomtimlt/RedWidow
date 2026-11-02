@@ -1635,20 +1635,35 @@ body:not(.running) #toolbar #stop {
   box-shadow: 0 0 0 1px var(--jn-focus);
 }
 
+#model-pop:popover-open {
+  display: flex;
+}
 #model-pop {
+  flex-direction: column;
+  height: fit-content;
+  overflow: hidden;
   width: min(360px, calc(100vw - 16px));
+}
+#model-pop > :not(#model-list) {
+  flex: none;
 }
 #models-status {
   margin: 0 8px var(--jn-s2);
   overflow-wrap: anywhere;
 }
 #model-list {
+  flex: 0 1 auto;
+  min-height: 0;
   max-height: 260px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   margin-top: 6px;
   display: flex;
   flex-direction: column;
   gap: 1px;
+}
+#model-list > * {
+  flex: none;
 }
 .grp {
   display: flex;

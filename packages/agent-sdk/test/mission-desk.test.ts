@@ -4,10 +4,42 @@ import {
   createRecorder,
   DEFAULT_POLICY,
   type MissionDesk,
+  renderProfileSkill,
 } from "@warband/core";
 import { expect, it } from "vitest";
 import { createSdkRunner, deskToolset, type Toolset } from "../src/index.js";
 import { callMcpTool } from "./helpers.js";
+
+it("transmet le profil détaillé commun dans le résultat MCP du moteur Claude", async () => {
+  const recorder = createRecorder();
+  await createSdkRunner({
+    processEnv: {},
+    toolsets: [deskToolset()],
+    query: async function* ({ options }) {
+      const server = options.mcpServers?.desk;
+      if (!server || !("instance" in server)) throw new Error("Serveur desk absent");
+      const result = await callMcpTool(server, "load_skill", {
+        profile: "htb",
+        section: "PREUVES",
+      });
+      expect(result.isError).toBe(false);
+      const loaded = JSON.parse(result.text);
+      expect(loaded.instructions).toBe(renderProfileSkill("htb", "PREUVES").instructions);
+      expect(loaded.upstream).toMatchObject({ text: "", loaded: false });
+      yield {
+        type: "result",
+        subtype: "success",
+        is_error: false,
+        num_turns: 1,
+        total_cost_usd: 0,
+        result: "ok",
+      } as SDKMessage;
+    },
+  }).run(
+    { prompt: "Mission autorisée", cwd: process.cwd() },
+    { recorder, gate: createApprovalGate({ recorder, policy: DEFAULT_POLICY }) },
+  );
+});
 
 it("isole le bureau par run et enrichit les tours à leur consommation", async () => {
   const desks: MissionDesk[] = [];
