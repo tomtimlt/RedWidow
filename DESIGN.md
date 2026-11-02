@@ -66,11 +66,11 @@ Le logo reste celui de l’interface (`media/logo.svg`) ; le mot-symbole
 « VENATOR OPS » est resserré (espace réduit avant « OPS »). Bannières dans
 `media/brand/` : `banner-github.png` (1280 × 640, aperçu social du dépôt),
 `banner-github@2x.png` (README) et `banner-linkedin.png` (1584 × 396 en 2x,
-texte décalé hors de la photo de profil, accroche du carrousel « TON PENTEST. /
-UN SEUL COCKPIT. / UN SEUL AGENT. », sans badge). Variantes
+texte décalé hors de la photo de profil, accroche « YOUR PENTEST. / ONE COCKPIT. /
+ONE AGENT. », sans badge). Variantes
 GitHub (1280 × 640, à choisir comme aperçu social ou à placer dans le README) :
 `banner-github-hook-en.png` (« YOUR PENTEST. / ONE COCKPIT. / ONE AGENT. »),
-`banner-github-hook-fr.png` (accroche française), `social-preview.png` (copie
+`social-preview.png` (copie
 de `banner-github-hook-en.png`, 1280 × 640, à téléverser dans les réglages du
 dépôt GitHub, section « Social preview » : ce réglage ne passe pas par git),
 `banner-github-learning.png` (mode Apprentissage : « STUCK ON A BOX? / FEED IT
@@ -89,35 +89,45 @@ l’atelier ; leurs textes sont remplacés au moment de la capture par un lab
 fictif (10.10.10.14, nmap, whatweb, ffuf, sqlmap), sans toucher aux fixtures.
 Aucune donnée réelle (IP, flags, identifiants) n’y figure.
 
-Carrousel LinkedIn en français (format 4:5, 1080 × 1350 en 2x, celui qui
+Carrousel LinkedIn en anglais (format 4:5, 1080 × 1350 en 2x, celui qui
 occupe le plus de place dans le fil) : `linkedin-carousel-1.png`,
 `linkedin-carousel-2.png` et `linkedin-carousel.pdf` (à publier comme document
 pour un vrai carrousel), plus `linkedin-carousel-1.mp4`, la slide 1 animée
 (6 s, H.264).
 
-- **Slide 1 « 1 / 2 »** : accroche en capitales « TON PENTEST. / UN SEUL
-  COCKPIT. / UN SEUL AGENT. », les deux premières lignes en blanc, la
-  troisième en signature ; ligne « Kali · Exegol · Terminaux · Kill chain » ;
+- **Slide 1 « 1 / 2 »** : accroche en capitales « YOUR PENTEST. / ONE
+  COCKPIT. / ONE AGENT. », les deux premières lignes en blanc, la
+  troisième en signature ; ligne « Kali · Exegol · Terminals · Kill chain » ;
   les trois fenêtres en grand. Pas de badge « IA optionnelle » : l’IA
   optionnelle se dit dans une section dédiée du README, pas dans les
   visuels. Animation : lignes qui montent l’une après l’autre
-  (0,25 s, 0,6 s, puis 1,25 s pour « UN SEUL AGENT. », légèrement décalée),
+  (0,25 s, 0,6 s, puis 1,25 s pour « ONE AGENT. », légèrement décalée),
   sous-titre, capture, puis tenue avant la boucle.
-- **Slide 2 « 2 / 2 »**, mode Apprentissage : « BLOQUÉ SUR UNE BOX ? /
-  DONNE-LUI TON COURS. / IL LIT TON TERMINAL. » (dernière ligne en
-  signature) ; ligne « Mode Apprentissage · Ton cours · #kali-1 · Des
-  indices » ; badge « N’exécute rien » ; session de terminal kali-1 fictive à
+- **Slide 2 « 2 / 2 »**, mode Apprentissage : « STUCK ON A BOX? /
+  FEED IT YOUR COURSE. / IT READS YOUR TERMINAL. » (dernière ligne en
+  signature) ; ligne « Learning mode · Your course · #kali-1 · Hints » ;
+  badge « Never executes » ; session de terminal kali-1 fictive à
   gauche (ligne `sudo -l` utile soulignée d’un liseré de signature), chat en
   mode Apprentissage à droite qui lit le terminal et le cours et donne un
   indice plutôt qu’une solution.
 
 README de la branche `main` pour les utilisateurs de Venator Ops (pas pour les
-développeurs) : `docs/readme-main/README.md` et ses images `docs/readme-main/docs/img/`.
+développeurs), rédigé en anglais comme tous les visuels de la marque :
+`docs/readme-main/README.md` et ses images `docs/readme-main/docs/img/`.
 Le dossier reproduit l’arborescence de la racine : le copier tel quel sur la
 racine de `main` (le `README.md` remplace l’ancien, les images vont dans
 `docs/img/`). Il décrit le produit sous le nom Venator Ops ; les noms de
 commandes, du `.vsix` et du dépôt doivent être alignés côté `main`. Le README
 de cette branche (atelier) reste celui des développeurs de l’atelier.
+
+Langue : le README utilisateur, les bannières, le carrousel et le texte des
+captures sont en anglais (public international) ; les captures traduisent à la
+prise de vue tout le texte visible, interface comprise, alors que l’interface
+réelle est aujourd’hui en français. Le README de `main` montre donc une
+interface anglaise qui n’existe pas encore : à traduire dans l’extension ou à
+signaler. Les captures du README (`venator-ops-chat.png` en paysage,
+980 × 640) sont tirées de l’aperçu. La documentation de l’atelier (ce fichier,
+AGENTS.md) reste en français.
 
 Ton du README utilisateur : décrire les fonctions sans répéter qu’on garde la
 main sur les commandes ni qu’on n’est pas obligé d’utiliser l’IA ; ce dernier
