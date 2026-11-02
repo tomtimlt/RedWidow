@@ -56,6 +56,11 @@ chain and reports. An AI agent helps when you call it.
 - `venator-ops-mark-on-dark-1024.png` — mark on the brand background.
 - `venator-ops-wordmark.png` / `-on-dark.png` — mark + `VENATOR OPS`, transparent or on dark.
 
+### `html/` — live UI components (use these for any UI shot)
+Real DOM + real CSS snapshots of the interface, sharp at any zoom, every part
+animatable. See `html/README.md` for sizes and selectors. Rule: animate these,
+never zoom the PNGs.
+
 ### `screens/` (2x, real interface, fictional lab)
 - `chat-approval-wide.png` — chat in landscape: tool calls and an authorization card (Allow once / Deny / Always) for a `sqlmap` command.
 - `chat-approval-tall.png` — same scene, portrait (good for 9:16).

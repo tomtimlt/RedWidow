@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>configure</title>
+<link rel="stylesheet" href="css/venator-ui.css">
+<script src="venator-ui.js" defer></script>
+<style>html,body{margin:0;background:#101214}</style></head>
+<body>
+<!-- component:start -->
+<div class="vo-ui vscode-dark" data-palette="sentinelle" data-theme="dark" style="width:340px;height:301px"><div id="cfg-pop" class="pop placed" role="dialog" aria-labelledby="cfg-pop-title" style="--jn-maxh: 660px; --jn-x: 172px; --jn-y: 367px; left: 0px; top: 0px; margin: 0px;">
+<div class="pop-head"><span id="cfg-pop-title" class="pop-title"><svg class="ico pop-title-ico" data-icon="sliders" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"></path><path d="M18 7a2 2 0 1 1-4 0 2 2 0 0 1 4 0"></path><path d="M12 17a2 2 0 1 1-4 0 2 2 0 0 1 4 0"></path></svg>Configure</span><span class="pop-sub sr-only">S'applique au message suivant</span></div>
+<section class="cfg-col cfg-model" aria-labelledby="cfg-h-reason"><h3 id="cfg-h-reason" class="sr-only">Modèle et raisonnement</h3>
+<div class="cfg-provider"><label for="provider">Provider</label><select id="provider" aria-describedby="provider-help"><option value="demo">Demo</option><option value="local">Local (ChatGPT / API)</option><option value="atelier">Atelier</option></select><button id="provider-connect" type="button" class="link">Sign in</button></div>
+<p id="provider-help" class="tip" tabindex="0" role="button" aria-expanded="false" title="Afficher tout le texte">Demo catalog: options only explore visual states.</p>
+<div class="effort-card">
+<div class="effort-head"><div class="effort-now"><output id="effort-label" for="effort" class="bump">Maximum</output><button id="effort-model" type="button" class="effort-model" title="Changer de modèle"><span id="effort-model-label">Balanced model</span><svg class="ico effort-model-ico" data-icon="chevronRight" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 6 6 6-6 6"></path></svg></button></div><div class="effort-row"><button id="effort-auto" type="button" class="ghost icon-btn" title="Revenir à Auto : le modèle garde son effort par défaut" aria-label="Revenir à Auto"><svg class="ico" data-icon="refresh" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 12a8 8 0 1 1-2.3-5.7"></path><path d="M20 4v5h-5"></path></svg></button></div></div>
+<label for="effort" class="sr-only">Niveau d'effort</label>
+<div id="effort-scale" class="is-max" style="--jn-progress: 1;"><div class="effort-notches" aria-hidden="true"><span class="effort-notch is-on" style="--jn-at: 0;"></span><span class="effort-notch is-on" style="--jn-at: 0.25;"></span><span class="effort-notch is-on" style="--jn-at: 0.5;"></span><span class="effort-notch is-on" style="--jn-at: 0.75;"></span><span class="effort-notch is-on" style="--jn-at: 1;"></span></div><input id="effort" type="range" min="0" max="4" step="any" value="2" aria-describedby="effort-tip" class="" title="Réglage de présentation." aria-valuetext="Maximum : Réglage de présentation." style=""><span class="effort-knob" aria-hidden="true"></span></div>
+</div>
+<p id="effort-tip" class="tip" title="Réglage de présentation.">Presentation setting.</p></section>
+<section class="cfg-col cfg-execution" aria-labelledby="cfg-h-execution"><h3 id="cfg-h-execution" class="sr-only">Exécution</h3>
+<div class="cfg-control"><button id="learning-switch" type="button" role="switch" title="Lecture des cours et explications, sans exécution ni écriture." aria-checked="false" aria-describedby="learning-help" aria-disabled="false"><span class="cfg-switch-label"><span class="cfg-switch-ico"><svg class="ico" data-icon="book" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 6c-3-2-6-2-9-1v14c3-1 6-1 9 1 3-2 6-2 9-1V5c-3-1-6-1-9 1z"></path><path d="M12 6v14"></path></svg></span>Learning</span></button>
+<p id="learning-help" class="tip">Lecture des cours et explications, sans exécution ni écriture.</p></div>
+<div class="cfg-control cfg-automatic"><button id="automatic-switch" type="button" role="switch" title="Approuve tout pendant 2 h au maximum, échéance fixée par l'outil au lancement." aria-checked="false" aria-describedby="automatic-state automatic-warn" aria-disabled="false"><span class="cfg-switch-label"><span class="cfg-switch-ico"><svg class="ico" data-icon="play" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m8 5 11 7-11 7z"></path></svg></span>Approval bypass</span></button>
+<p id="automatic-state" role="status"></p>
+<p id="automatic-warn" class="tip"><span class="warn-line">Approuve tout pendant 2 h au maximum, échéance fixée par l'outil au lancement. Ce réglage modifie uniquement les indicateurs de la démonstration.</span></p></div>
+</section>
+</div></div>
+<!-- component:end -->
+</body></html>
