@@ -109,6 +109,14 @@ pour un vrai carrousel), plus `linkedin-carousel-1.mp4`, la slide 1 animée
   mode Apprentissage à droite qui lit le terminal et le cours et donne un
   indice plutôt qu’une solution.
 
+README de la branche `main` pour les utilisateurs de Venator Ops (pas pour les
+développeurs) : `docs/readme-main/README.md` et ses images `docs/readme-main/docs/img/`.
+Le dossier reproduit l’arborescence de la racine : le copier tel quel sur la
+racine de `main` (le `README.md` remplace l’ancien, les images vont dans
+`docs/img/`). Il décrit le produit sous le nom Venator Ops ; les noms de
+commandes, du `.vsix` et du dépôt doivent être alignés côté `main`. Le README
+de cette branche (atelier) reste celui des développeurs de l’atelier.
+
 Arguments à mettre en avant, dans cet ordre : l’espace de travail (Docker Kali
 puis Exegol, terminaux, Monitor, kill chain, rapports) utilisable sans IA ;
 le mode Apprentissage, un tuteur qui lit le cours fourni et les sessions de
