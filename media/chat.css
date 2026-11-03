@@ -6435,6 +6435,7 @@ body[data-palette]:where(:not([data-palette="editeur"], .vscode-high-contrast, .
   --jn-accent-fill-hover: var(--jn-brand);
   --jn-accent-fill-border: transparent;
   --jn-on-accent: var(--jn-on-brand);
+  --jn-bypass: var(--jn-brand);
   & ::selection {
     background: color-mix(in srgb, var(--jn-brand) 34%, transparent);
   }
@@ -6493,24 +6494,80 @@ body:is([data-palette="widow"], [data-palette="braise"], [data-palette="bloodmoo
 .pal-card:not([data-palette="multi"]) .pal-logo .brand-node {
   fill: var(--jn-grad-c);
 }
-/* Aura du bypass en dégradé qui tourne (jeux en dégradé et Multicolore). */
+/* Bypass aux couleurs de la palette : aura en dégradé qui tourne autour de la
+ * vue, pastille de l'en-tête, compositeur, interrupteur et jauge des règles
+ * d'engagement en dégradé qui défile. Jeux unis : reflet de leur signature ;
+ * jeux en dégradé et Multicolore : leurs teintes. En attente de confirmation,
+ * le contour reste en pointillés. Hors jeu Éditeur et contraste élevé, où le
+ * bypass garde sa couleur propre. Mouvement réduit : dégradés fixes. */
 @property --jn-aura-turn {
   syntax: "<angle>";
   inherits: false;
   initial-value: 0deg;
 }
-body:is([data-palette="multi"], [data-palette="aurora"], [data-palette="synthwave"], [data-palette="toxic"], [data-palette="bloodmoon"], [data-palette="ocean"], [data-palette="nebula"]):where(:not(.vscode-high-contrast, .vscode-high-contrast-light)).automatic-on::after {
-  border: 3px solid transparent;
-  border-image: conic-gradient(from var(--jn-aura-turn), var(--jn-aura-stops)) 1;
-  box-shadow:
-    inset 0 0 26px color-mix(in srgb, var(--jn-grad-b) 30%, transparent),
-    inset 0 0 80px color-mix(in srgb, var(--jn-grad-c) 12%, transparent);
+body[data-palette]:where(:not([data-palette="editeur"], .vscode-high-contrast, .vscode-high-contrast-light)) {
+  &.automatic-on::after {
+    border: 3px solid transparent;
+    border-image: conic-gradient(from var(--jn-aura-turn), var(--jn-aura-stops)) 1;
+    box-shadow:
+      inset 0 0 26px color-mix(in srgb, var(--jn-grad-b) 30%, transparent),
+      inset 0 0 80px color-mix(in srgb, var(--jn-grad-c) 12%, transparent);
+  }
+  & #automatic-badge {
+    background: var(--jn-grad-loop);
+    background-size: 200% 100%;
+    color: var(--jn-on-brand);
+  }
+  &.automatic-on #composer {
+    border-color: transparent;
+    background:
+      linear-gradient(var(--vscode-input-background, var(--jn-widget)), var(--vscode-input-background, var(--jn-widget))) padding-box,
+      var(--jn-grad-loop) border-box;
+    background-size: 100% 100%, 200% 100%;
+    box-shadow: 0 0 18px color-mix(in srgb, var(--jn-grad-b) 26%, transparent);
+  }
+  & #automatic-switch[aria-checked="true"]::after,
+  & .roe[data-level="3"] .roe-gauge i {
+    background: var(--jn-grad-loop);
+    background-size: 200% 100%;
+  }
 }
 @media (prefers-reduced-motion: no-preference) {
-  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light):is([data-palette="multi"], [data-palette="aurora"], [data-palette="synthwave"], [data-palette="toxic"], [data-palette="bloodmoon"], [data-palette="ocean"], [data-palette="nebula"]).automatic-on::after {
-    animation:
-      jn-aura 4s var(--jn-ease-io) infinite,
-      jn-aura-spin 6s linear infinite;
+  body[data-palette]:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light):where(:not([data-palette="editeur"])) {
+    &.automatic-on::after {
+      animation:
+        jn-aura 4s var(--jn-ease-io) infinite,
+        jn-aura-spin 6s linear infinite;
+    }
+    &.bypass-ending::after {
+      animation:
+        jn-aura 1s var(--jn-ease-io) infinite,
+        jn-aura-spin 2s linear infinite;
+    }
+    & #automatic-badge,
+    & #automatic-switch[aria-checked="true"]::after,
+    & .roe[data-level="3"] .roe-gauge i {
+      animation: jn-grad-shift 3s linear infinite;
+    }
+    &.automatic-on #composer {
+      animation: jn-grad-shift-border 3s linear infinite;
+    }
+  }
+}
+@keyframes jn-grad-shift {
+  from {
+    background-position: 0% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+@keyframes jn-grad-shift-border {
+  from {
+    background-position: 0% 0, 0% 0;
+  }
+  to {
+    background-position: 0% 0, -200% 0;
   }
 }
 @keyframes jn-aura-spin {

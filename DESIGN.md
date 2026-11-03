@@ -279,9 +279,15 @@ sont dérivées de la signature (signature, reflet clair, signature). Le
 dégradé habille les boutons principaux, les soulignements de l’en-tête et des
 Réglages, « RED » du mot-symbole, les phases faites de la mission, le
 remplissage du curseur d’effort et les aperçus ; le logo prend la première
-teinte pour l’étincelle et la dernière pour le satellite. Avec les jeux en
-dégradé et le Multicolore, l’aura du bypass devient un contour en dégradé qui
-tourne (`@property --jn-aura-turn`, 6 s, figé en mouvement réduit). Rien de
+teinte pour l’étincelle et la dernière pour le satellite. Le bypass prend la
+palette (`--jn-bypass` = signature) : l’aura de la vue devient un contour en
+dégradé qui tourne (`@property --jn-aura-turn`, 6 s ; 2 s dans les dix
+dernières minutes), et la pastille de l’en-tête, le contour du compositeur,
+l’interrupteur de Configurer et la jauge des règles d’engagement passent en
+dégradé qui défile (3 s). Jeux unis : reflet de leur signature ; jeux en
+dégradé et Multicolore : leurs teintes. En attente de confirmation, le
+contour reste en pointillés ; mouvement réduit : dégradés fixes ; jeu Éditeur
+et contraste élevé : couleur propre du bypass. Rien de
 tout cela en contraste élevé ni avec le jeu Éditeur.
 
 | Jeu | Sombre | Clair | Intention |
@@ -331,7 +337,7 @@ Widow.
   mission, par espace du Monitor (somme des caractères du nom modulo 6, attribut
   `data-hue`) ; flèches des exemples ; compteurs et barres des règles
   d’engagement. Les états (ok, alerte,
-  erreur), la gravité et le bypass gardent leurs couleurs ; la couleur n’est
+  erreur) et la gravité gardent leurs couleurs ; la couleur n’est
   jamais seule porteuse de sens.
 - **Messages** : la page envoie `setPalette` ; l’extension enregistre le
   réglage et diffuse `palette` aux vues ouvertes. Le harnais fictif les traite
