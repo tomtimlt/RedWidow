@@ -136,8 +136,8 @@ export function chatHtml({ nonce, cspSource, scriptUri, uiUri, styleUri, iconsUr
 </html>
 `;
 }
-export function studioHtml({ nonce, cspSource, scriptUri, styleUri, iconsUri = scriptUri.replace(/[^/]+$/, "icons.js"), palette }) {
-  for (const [name, value] of Object.entries({ nonce, cspSource, scriptUri, styleUri, iconsUri })) {
+export function studioHtml({ nonce, cspSource, scriptUri, styleUri, iconsUri = scriptUri.replace(/[^/]+$/, "icons.js"), spiderUri = scriptUri.replace(/[^/]+$/, "spider.js"), palette }) {
+  for (const [name, value] of Object.entries({ nonce, cspSource, scriptUri, styleUri, iconsUri, spiderUri })) {
     const ok = name === "cspSource" ? !/["<>]/.test(value) && value !== "" : SAFE.test(value);
     if (!ok)
       throw new Error(`valeur invalide pour ${name}`);
@@ -164,13 +164,14 @@ export function studioHtml({ nonce, cspSource, scriptUri, styleUri, iconsUri = s
 <main id="studio-main"></main>
 </div>
 <script nonce="${nonce}" src="${iconsUri}"><\/script>
+<script nonce="${nonce}" src="${spiderUri}"><\/script>
 <script nonce="${nonce}" src="${scriptUri}"><\/script>
 </body>
 </html>
 `;
 }
-export function graphHtml({ nonce, cspSource, scriptUri, styleUri, iconsUri = scriptUri.replace(/[^/]+$/, "icons.js"), palette }) {
-  for (const [name, value] of Object.entries({ nonce, cspSource, scriptUri, styleUri, iconsUri })) {
+export function graphHtml({ nonce, cspSource, scriptUri, styleUri, iconsUri = scriptUri.replace(/[^/]+$/, "icons.js"), spiderUri = scriptUri.replace(/[^/]+$/, "spider.js"), palette }) {
+  for (const [name, value] of Object.entries({ nonce, cspSource, scriptUri, styleUri, iconsUri, spiderUri })) {
     const ok = name === "cspSource" ? !/["<>]/.test(value) && value !== "" : SAFE.test(value);
     if (!ok)
       throw new Error(`valeur invalide pour ${name}`);
@@ -196,6 +197,7 @@ export function graphHtml({ nonce, cspSource, scriptUri, styleUri, iconsUri = sc
 <main id="studio-main"></main>
 </div>
 <script nonce="${nonce}" src="${iconsUri}"><\/script>
+<script nonce="${nonce}" src="${spiderUri}"><\/script>
 <script nonce="${nonce}" src="${scriptUri}"><\/script>
 </body>
 </html>

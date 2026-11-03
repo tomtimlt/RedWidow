@@ -1035,26 +1035,55 @@ pre {
  * un livre ouvert entre les pédipalpes, les yeux qui suivent les lignes, le
  * cerveau qui luit, une page qui tourne, le viseur éteint (rien n'est ciblé).
  */
-.welcome-spider {
-  flex: none;
-  width: 120px;
-  height: auto;
-  aspect-ratio: 935 / 1175;
-  margin-bottom: var(--jn-s2);
+.rw-spider {
   overflow: visible;
+  aspect-ratio: 935 / 1175;
   --rw-red: var(--jn-sig);
   --rw-steel-hi: #b0b1b8;
   --rw-steel: #606168;
   --rw-ink: #131417;
 }
-body.vscode-light .welcome-spider {
+body.vscode-light .rw-spider {
   --rw-steel-hi: #9a9ca4;
   --rw-steel: #4f5157;
   --rw-ink: #1d1e22;
 }
-body.vscode-high-contrast .welcome-spider,
-body.vscode-high-contrast-light .welcome-spider {
-  --rw-red: var(--jn-sig);
+body.vscode-high-contrast .rw-spider,
+body.vscode-high-contrast-light .rw-spider {
+  --rw-steel-hi: var(--vscode-foreground);
+  --rw-steel: var(--vscode-foreground);
+  --rw-ink: var(--vscode-editor-background);
+}
+.welcome-spider {
+  flex: none;
+  width: 120px;
+  height: auto;
+  margin-bottom: var(--jn-s2);
+}
+/* Petite icône (tête au cerveau et quatre pattes) : logo de l'en-tête, de
+ * l'indicateur de réflexion, des réponses et des cartes d'aperçu. */
+.rw-mini {
+  flex: none;
+  aspect-ratio: 925 / 771;
+}
+.rw-mini .rw-book {
+  display: none;
+}
+#title .brand.rw-mini {
+  width: 26px;
+  height: auto;
+}
+.msg-avatar.rw-mini,
+.thinking-mark.rw-mini {
+  width: 22px;
+  height: auto;
+}
+.pal-logo.rw-mini {
+  width: 32px;
+  height: auto;
+}
+body.waiting .thinking-mark.rw-mini {
+  --rw-red: var(--jn-warn);
 }
 .rw-spider :is(.rw-leg, .rw-palp, .rw-crosshair, .rw-brain, .rw-eyes, .rw-book, .rw-book-turn) {
   transform-box: fill-box;
@@ -1065,12 +1094,12 @@ body.vscode-high-contrast-light .welcome-spider {
   transform-origin: 50% 50%;
   transition: opacity var(--jn-d3) var(--jn-ease-io);
 }
-#leg-l1, #leg-l2 { transform-origin: 100% 100%; }
-#leg-r1, #leg-r2 { transform-origin: 0% 100%; }
-#leg-l3 { transform-origin: 100% 30%; }
-#leg-r3 { transform-origin: 0% 30%; }
-#leg-l4 { transform-origin: 100% 0%; }
-#leg-r4 { transform-origin: 0% 0%; }
+.rw-leg-l1, .rw-leg-l2 { transform-origin: 100% 100%; }
+.rw-leg-r1, .rw-leg-r2 { transform-origin: 0% 100%; }
+.rw-leg-l3 { transform-origin: 100% 30%; }
+.rw-leg-r3 { transform-origin: 0% 30%; }
+.rw-leg-l4 { transform-origin: 100% 0%; }
+.rw-leg-r4 { transform-origin: 0% 0%; }
 .rw-book {
   opacity: 0;
   transform-origin: 50% 0%;
@@ -6632,10 +6661,10 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
     & .welcome-spider .rw-palp {
       animation: rw-leg-in 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both;
     }
-    & .welcome-spider #leg-l1, & .welcome-spider #leg-r1 { animation-delay: 0.1s; }
-    & .welcome-spider #leg-l2, & .welcome-spider #leg-r2 { animation-delay: 0.18s; }
-    & .welcome-spider #leg-l3, & .welcome-spider #leg-r3 { animation-delay: 0.26s; }
-    & .welcome-spider #leg-l4, & .welcome-spider #leg-r4 { animation-delay: 0.34s; }
+    & .welcome-spider .rw-leg-l1, & .welcome-spider .rw-leg-r1 { animation-delay: 0.1s; }
+    & .welcome-spider .rw-leg-l2, & .welcome-spider .rw-leg-r2 { animation-delay: 0.18s; }
+    & .welcome-spider .rw-leg-l3, & .welcome-spider .rw-leg-r3 { animation-delay: 0.26s; }
+    & .welcome-spider .rw-leg-l4, & .welcome-spider .rw-leg-r4 { animation-delay: 0.34s; }
     & .welcome-spider .rw-palp { animation-delay: 0.42s; }
     & .welcome-spider .rw-brain {
       animation: rw-brain-on 0.9s var(--jn-ease-out) 0.6s both;
@@ -6645,6 +6674,26 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
     }
     & .welcome-spider .rw-eyes {
       animation: rw-blink 5s var(--jn-ease-io) 1.3s infinite;
+    }
+    /* Mini araignée : elle marche pendant que l'agent travaille, une patte sur
+     * deux, et son cerveau luit ; au survol de l'en-tête, un pas. */
+    &.running:not(.waiting, .paused) :is(#title, #thinking) .rw-mini .rw-leg,
+    &.running:not(.waiting, .paused) #log .msg-row.agent:not(:has(~ .msg-row.agent)) .rw-mini .rw-leg {
+      animation: rw-walk 0.5s var(--jn-ease-io) infinite alternate;
+    }
+    &.running:not(.waiting, .paused) .rw-mini :is(.rw-leg-l3, .rw-leg-r4) {
+      animation-delay: -0.25s;
+    }
+    &.running:not(.waiting, .paused) :is(#title, #thinking) .rw-mini .rw-brain,
+    &.running:not(.waiting, .paused) #log .msg-row.agent:not(:has(~ .msg-row.agent)) .rw-mini .rw-brain {
+      animation: rw-pulse 1.2s var(--jn-ease-io) infinite;
+    }
+    & #title:hover .rw-mini .rw-leg {
+      animation: rw-walk 0.25s var(--jn-ease-io) 4 alternate;
+    }
+    & #log .msg-row.agent.enter .msg-avatar.rw-mini,
+    & #log .enter .msg-row.agent .msg-avatar.rw-mini {
+      animation: jn-spider-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
     }
     /* Apprentissage : elle lit. */
     &.learning .welcome-spider .rw-eyes {
@@ -6661,8 +6710,8 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
     &.learning .welcome-spider .rw-book-turn {
       animation: rw-page 4.8s var(--jn-ease-io) 0.8s infinite;
     }
-    &.learning .welcome-spider #leg-l1,
-    &.learning .welcome-spider #leg-r1 {
+    &.learning .welcome-spider .rw-leg-l1,
+    &.learning .welcome-spider .rw-leg-r1 {
       animation: rw-hold 2.4s var(--jn-ease-io) infinite;
     }
     & button .ico,
@@ -7015,6 +7064,23 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
   100% {
     opacity: 0;
     transform: scaleX(-1);
+  }
+}
+@keyframes rw-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+@keyframes rw-walk {
+  from {
+    rotate: -7deg;
+  }
+  to {
+    rotate: 7deg;
   }
 }
 @keyframes rw-dim {

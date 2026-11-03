@@ -43,17 +43,20 @@ Le graphe doit rester agréable à parcourir au clavier, à la souris et au zoom
 
 ## Logo
 
-**Petite taille (interface)** : le viseur RedWidow, vide : un anneau et quatre
-traits, plus un satellite qui figure l’agent. Les traits prennent le gris de
-marque, l’anneau et le satellite la couleur de signature (premier et dernier
-ton du dégradé de la palette). Pendant la réflexion, les traits se resserrent,
-l’anneau pulse en pivotant et le satellite orbite, dans l’en-tête comme dans
-l’indicateur du chat et sur l’avatar de la dernière réponse. Classes
-conservées : `.brand-wing` (traits), `.brand-core` / `.brand-lead` (anneau,
-tracé en `evenodd`), `.brand-orbit` / `.brand-node` (satellite) ; mêmes tracés
-dans `BRAND_SHAPES` (`src/views.mjs`) et `media/icons.js`, contrôlés par test.
-`media/logo.svg`, `logo-small.svg` et `icon.svg` (barre d’activité,
-monochrome) en sont les versions fixes.
+**Petite taille (interface)** : l’icône RedWidow, céphalothorax au cerveau,
+yeux rouges et quatre pattes (`WarbandSpider.createMini`, calques `rw-brain`,
+`rw-eyes`, `rw-leg-l3`, `-r3`, `-l4`, `-r4` de `media/spider.js`, viewBox
+`165 450 925 771`), sans abdomen ni viseur. Elle remplace le viseur dans
+l’en-tête (26 px), l’indicateur de réflexion et l’avatar des réponses (22 px)
+et les cartes de la page Apparence (32 px) ; les yeux et les détails rouges du
+cerveau prennent la signature, l’acier reste celui de la marque (couleurs du
+thème en contraste élevé, alerte pendant l’attente d’accord). Pendant
+l’activité, elle marche (une patte sur deux, `rw-walk`) et son cerveau pulse ;
+au survol de l’en-tête, elle fait quelques pas ; une nouvelle réponse la fait
+apparaître avec un rebond. Le viseur (`BRAND_SHAPES` et `media/icons.js`,
+classes `.brand-*`) reste le logo de secours sans script. `media/logo.svg`,
+`logo-small.svg` (couleurs de la marque) et `icon.svg` (barre d’activité,
+monochrome par masque, détails du cerveau en creux) en sont les versions fixes.
 
 **Grande taille (accueil)** : l’araignée complète en calques, construite par
 `media/spider.js` (`WarbandSpider.create`, sans innerHTML, généré depuis
@@ -82,7 +85,7 @@ cramoisi `#E5132B`) ; logo retenu : araignée blindée à facettes, gris acier,
 cerveau sur le céphalothorax (l’araignée intelligente, l’IA) et viseur rouge
 **vide** sur l’abdomen (anneau et quatre traits, sans motif au centre : le
 sablier et les autres variantes ont été écartés) ; yeux rouges discrets.
-Deux icônes : céphalothorax avec cerveau et quatre pattes avant, ou viseur seul.
+Deux icônes : céphalothorax avec cerveau et quatre pattes (logo de l’interface), ou viseur seul (secours).
 Fichiers dans `media/brand/redwidow/` : `redwidow.svg` (vectorisé depuis le
 rendu final, 20 Ko, en calques : `#body`, `#leg-l1` à `#leg-r4`, `#palp-l`,
 `#palp-r`, `#brain`, `#eyes`, `#crosshair` redessiné en géométrie avec
