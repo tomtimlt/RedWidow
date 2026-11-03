@@ -1027,21 +1027,92 @@ pre {
   margin-bottom: var(--jn-s3);
   overflow: visible;
 }
+/* ───────────────────────────── Araignée RedWidow ─────────────────────────────
+ * Accueil : l'araignée en calques (media/spider.js). Acier de la marque, rouge
+ * des yeux et du viseur pris sur la signature. À l'arrivée, les pattes se
+ * déploient avec un rebond, le cerveau s'allume, le viseur se verrouille et
+ * les yeux clignent ; puis elle respire. En mode Apprentissage, elle étudie :
+ * un livre ouvert entre les pédipalpes, les yeux qui suivent les lignes, le
+ * cerveau qui luit, une page qui tourne, le viseur éteint (rien n'est ciblé).
+ */
 .welcome-spider {
   flex: none;
   width: 120px;
   height: auto;
+  aspect-ratio: 935 / 1175;
   margin-bottom: var(--jn-s2);
+  overflow: visible;
+  --rw-red: var(--jn-sig);
+  --rw-steel-hi: #b0b1b8;
+  --rw-steel: #606168;
+  --rw-ink: #131417;
 }
-@keyframes jn-spider-in {
-  from {
-    opacity: 0;
-    transform: translateY(-14px) scale(0.86);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
+body.vscode-light .welcome-spider {
+  --rw-steel-hi: #9a9ca4;
+  --rw-steel: #4f5157;
+  --rw-ink: #1d1e22;
+}
+body.vscode-high-contrast .welcome-spider,
+body.vscode-high-contrast-light .welcome-spider {
+  --rw-red: var(--jn-sig);
+}
+.rw-spider :is(.rw-leg, .rw-palp, .rw-crosshair, .rw-brain, .rw-eyes, .rw-book, .rw-book-turn) {
+  transform-box: fill-box;
+}
+.rw-spider .rw-crosshair,
+.rw-spider .rw-brain,
+.rw-spider .rw-eyes {
+  transform-origin: 50% 50%;
+  transition: opacity var(--jn-d3) var(--jn-ease-io);
+}
+#leg-l1, #leg-l2 { transform-origin: 100% 100%; }
+#leg-r1, #leg-r2 { transform-origin: 0% 100%; }
+#leg-l3 { transform-origin: 100% 30%; }
+#leg-r3 { transform-origin: 0% 30%; }
+#leg-l4 { transform-origin: 100% 0%; }
+#leg-r4 { transform-origin: 0% 0%; }
+.rw-book {
+  opacity: 0;
+  transform-origin: 50% 0%;
+  transform: translateY(40px) scale(0.6);
+  transition:
+    opacity var(--jn-d3) var(--jn-ease-io),
+    transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.rw-book-cover {
+  fill: var(--jn-sig);
+}
+.rw-book-page,
+.rw-book-turn {
+  fill: #e9eaee;
+}
+.rw-book-turn {
+  opacity: 0;
+  transform-origin: 0% 50%;
+}
+.rw-book-lines {
+  fill: none;
+  stroke: #8b8e97;
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+.rw-book-spine {
+  fill: none;
+  stroke: var(--rw-ink);
+  stroke-width: 5;
+}
+body.learning .rw-book {
+  opacity: 1;
+  transform: none;
+}
+body.learning .rw-spider .rw-crosshair {
+  opacity: 0.25;
+}
+body.vscode-high-contrast .rw-book-page,
+body.vscode-high-contrast-light .rw-book-page {
+  fill: var(--vscode-editor-background);
+  stroke: var(--vscode-foreground);
+  stroke-width: 4;
 }
 .welcome h2 {
   margin: 0;
@@ -6551,11 +6622,48 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
  */
 @media (prefers-reduced-motion: no-preference) {
   body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light) {
-    /* Accueil : l'araignée se pose avec un rebond, puis respire. */
+    /* Araignée : arrivée (pattes, cerveau, viseur, yeux), puis respiration. */
     & .welcome-spider {
       animation:
-        jn-spider-in 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) both,
-        jn-breathe-lock 5s var(--jn-ease-io) 1s infinite;
+        jn-spider-in 0.6s var(--jn-ease-out) both,
+        jn-breathe-lock 5s var(--jn-ease-io) 1.6s infinite;
+    }
+    & .welcome-spider .rw-leg,
+    & .welcome-spider .rw-palp {
+      animation: rw-leg-in 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    }
+    & .welcome-spider #leg-l1, & .welcome-spider #leg-r1 { animation-delay: 0.1s; }
+    & .welcome-spider #leg-l2, & .welcome-spider #leg-r2 { animation-delay: 0.18s; }
+    & .welcome-spider #leg-l3, & .welcome-spider #leg-r3 { animation-delay: 0.26s; }
+    & .welcome-spider #leg-l4, & .welcome-spider #leg-r4 { animation-delay: 0.34s; }
+    & .welcome-spider .rw-palp { animation-delay: 0.42s; }
+    & .welcome-spider .rw-brain {
+      animation: rw-brain-on 0.9s var(--jn-ease-out) 0.6s both;
+    }
+    & .welcome-spider .rw-crosshair {
+      animation: rw-lock-in 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) 0.85s both;
+    }
+    & .welcome-spider .rw-eyes {
+      animation: rw-blink 5s var(--jn-ease-io) 1.3s infinite;
+    }
+    /* Apprentissage : elle lit. */
+    &.learning .welcome-spider .rw-eyes {
+      animation:
+        rw-read 2.4s var(--jn-ease-io) infinite,
+        rw-blink 5s var(--jn-ease-io) 1.3s infinite;
+    }
+    &.learning .welcome-spider .rw-brain {
+      animation: rw-think 2.4s var(--jn-ease-io) infinite;
+    }
+    &.learning .welcome-spider .rw-crosshair {
+      animation: rw-dim 0.4s var(--jn-ease-io) forwards;
+    }
+    &.learning .welcome-spider .rw-book-turn {
+      animation: rw-page 4.8s var(--jn-ease-io) 0.8s infinite;
+    }
+    &.learning .welcome-spider #leg-l1,
+    &.learning .welcome-spider #leg-r1 {
+      animation: rw-hold 2.4s var(--jn-ease-io) infinite;
     }
     & button .ico,
     & .chip .caret,
@@ -6819,6 +6927,111 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
   }
   50% {
     opacity: 0.45;
+  }
+}
+@keyframes rw-leg-in {
+  from {
+    opacity: 0;
+    transform: scale(0.15);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes rw-brain-on {
+  0% {
+    opacity: 0.2;
+    filter: none;
+  }
+  55% {
+    opacity: 1;
+    filter: drop-shadow(0 0 22px var(--jn-sig));
+  }
+  100% {
+    opacity: 1;
+    filter: none;
+  }
+}
+@keyframes rw-lock-in {
+  from {
+    opacity: 0;
+    transform: scale(1.7) rotate(-45deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes rw-blink {
+  0%,
+  92%,
+  100% {
+    transform: none;
+  }
+  95% {
+    transform: scaleY(0.1);
+  }
+}
+@keyframes rw-read {
+  0%,
+  100% {
+    translate: -10px 0;
+  }
+  45% {
+    translate: 10px 0;
+  }
+  55% {
+    translate: 10px 4px;
+  }
+  60% {
+    translate: -10px 4px;
+  }
+}
+@keyframes rw-think {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 6px color-mix(in srgb, var(--jn-sig) 50%, transparent));
+  }
+  50% {
+    filter: drop-shadow(0 0 24px var(--jn-sig));
+  }
+}
+@keyframes rw-page {
+  0%,
+  70% {
+    opacity: 0;
+    transform: none;
+  }
+  72% {
+    opacity: 1;
+    transform: none;
+  }
+  88% {
+    opacity: 1;
+    transform: scaleX(-1);
+  }
+  92%,
+  100% {
+    opacity: 0;
+    transform: scaleX(-1);
+  }
+}
+@keyframes rw-dim {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.25;
+  }
+}
+@keyframes rw-hold {
+  0%,
+  100% {
+    rotate: 0deg;
+  }
+  50% {
+    rotate: 2deg;
   }
 }
 @keyframes jn-breathe {

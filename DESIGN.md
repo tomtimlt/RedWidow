@@ -55,10 +55,18 @@ dans `BRAND_SHAPES` (`src/views.mjs`) et `media/icons.js`, contrôlés par test.
 `media/logo.svg`, `logo-small.svg` et `icon.svg` (barre d’activité,
 monochrome) en sont les versions fixes.
 
-**Grande taille (accueil)** : l’araignée complète `media/brand/redwidow/redwidow.svg`,
-chargée en image locale (`#brand-hero`, cloné dans l’accueil, CSP `img-src`
-inchangée), 120 px, qui se pose avec un rebond puis respire. Ses couleurs
-sont celles de la marque (acier et cramoisi) quelle que soit la palette.
+**Grande taille (accueil)** : l’araignée complète en calques, construite par
+`media/spider.js` (`WarbandSpider.create`, sans innerHTML, généré depuis
+`media/brand/redwidow/redwidow.svg`), 120 px. Acier de la marque ; yeux,
+viseur et couverture du livre en signature. À l’arrivée, les pattes se
+déploient deux par deux avec un rebond, les pédipalpes suivent, le cerveau
+s’allume, le viseur se verrouille en pivotant et les yeux clignent ; puis
+elle respire. **En mode Apprentissage, elle étudie** : un livre ouvert
+(`.rw-book`) apparaît entre les pédipalpes, les yeux suivent les lignes de
+gauche à droite, le cerveau luit en pulsant, une page tourne toutes les 4,8 s,
+les pattes avant tiennent le livre et le viseur s’éteint (rien n’est ciblé :
+le mode n’exécute rien). En mouvement réduit, le livre et le viseur éteint
+restent, sans mouvement ; en contraste élevé, couleurs du thème.
 
 **Mot-symbole** : « REDWIDOW » en capitales espacées JetBrains Mono, « RED » en
 signature (en dégradé selon la palette), toujours affiché en entier.

@@ -283,14 +283,11 @@
   }
   function welcome(sandbox) {
     const box = el("div", "welcome");
-    // Accueil : l'araignée RedWidow si l'image est là, sinon le viseur de l'en-tête.
-    const hero = document.getElementById("brand-hero")?.cloneNode(true);
-    const mark = hero ? null : document.querySelector("#title .brand")?.cloneNode(true);
-    if (hero) {
-      hero.removeAttribute("id");
-      hero.hidden = false;
-      hero.setAttribute("aria-hidden", "true");
-      box.append(hero);
+    // Accueil : l'araignée RedWidow en calques (media/spider.js), sinon le viseur.
+    const spider = window.WarbandSpider?.create("rw-spider welcome-spider");
+    const mark = spider ? null : document.querySelector("#title .brand")?.cloneNode(true);
+    if (spider) {
+      box.append(spider);
     } else if (mark) {
       mark.setAttribute("class", "brand welcome-mark");
       mark.removeAttribute("width");
