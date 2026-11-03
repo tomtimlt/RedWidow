@@ -60,7 +60,17 @@ cramoisi `#E5132B`) ; logo retenu : araignée blindée à facettes, gris acier,
 cerveau sur le céphalothorax (l’araignée intelligente, l’IA) et viseur rouge
 **vide** sur l’abdomen (anneau et quatre traits, sans motif au centre : le
 sablier et les autres variantes ont été écartés) ; yeux rouges discrets.
-Deux icônes : céphalothorax avec cerveau et quatre pattes avant, ou viseur seul. Les sections ci-dessous
+Deux icônes : céphalothorax avec cerveau et quatre pattes avant, ou viseur seul.
+Fichiers dans `media/brand/redwidow/` : `redwidow.svg` (vectorisé depuis le
+rendu final, 20 Ko, en calques : `#body`, `#leg-l1` à `#leg-r4`, `#palp-l`,
+`#palp-r`, `#brain`, `#eyes`, `#crosshair` redessiné en géométrie avec
+`.rw-ring` et `.rw-tick-*` ; couleurs en variables `--rw-steel-hi`,
+`--rw-steel`, `--rw-ink`, `--rw-red`), `redwidow-crosshair.svg` (icône 24×24
+pour les petites tailles : l’araignée ne se lit plus sous 32 px), PNG
+transparents, et `redwidow-intro.mp4` / `redwidow-intro.html` (animation de
+8 s : pattes qui jaillissent avec rebond, cerveau qui s’allume, viseur qui se
+verrouille, yeux qui clignent, nom puis respiration). Police provisoire Geist
+en attendant le choix des polices. Les sections ci-dessous
 décrivent encore l’identité Venator Ops tant que la refonte n’est pas faite.
 
 ## Marque Venator Ops
