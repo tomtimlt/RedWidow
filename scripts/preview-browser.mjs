@@ -36,7 +36,7 @@ function applyTheme(value) {
 }
 select("Thème", [["dark", "Sombre"], ["light", "Clair"], ["hc", "Contraste élevé"]], query.get("theme") ?? "dark", applyTheme);
 applyTheme(query.get("theme") ?? "dark");
-const PALETTES = [["sentinelle", "Sentinelle"], ["widow", "Widow"], ["braise", "Braise"], ["venom", "Venin"], ["arctic", "Arctique"], ["spectre", "Spectre"], ["ultraviolet", "Ultraviolet"], ["tactical", "Tactique"], ["aurora", "Aurore"], ["synthwave", "Synthwave"], ["toxic", "Toxique"], ["bloodmoon", "Lune de sang"], ["ocean", "Abysse"], ["nebula", "Nébuleuse"], ["multi", "Multicolore"], ["editeur", "Éditeur"]];
+const PALETTES = [["sentinelle", "Sentinelle"], ["widow", "Widow"], ["braise", "Braise"], ["venom", "Venin"], ["arctic", "Arctique"], ["spectre", "Spectre"], ["ultraviolet", "Ultraviolet"], ["tactical", "Tactique"], ["rouge", "Rouge"], ["orange", "Orange"], ["jaune", "Jaune"], ["vert", "Vert"], ["bleu", "Bleu"], ["rose", "Rose"], ["blanc", "Blanc"], ["aurora", "Aurore"], ["synthwave", "Synthwave"], ["toxic", "Toxique"], ["bloodmoon", "Lune de sang"], ["ocean", "Abysse"], ["nebula", "Nébuleuse"], ["multi", "Multicolore"], ["editeur", "Éditeur"]];
 // Le choix de l'atelier survit au changement de vue : il est gardé dans le navigateur.
 const stored = () => {
   try {

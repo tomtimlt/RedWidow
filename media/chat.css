@@ -136,7 +136,8 @@ body.vscode-high-contrast-light {
 }
 
 /* ───────────────────────────── Palettes ─────────────────────────────
- * Seize jeux de couleurs : huit unis, six en dégradé, Multicolore et Éditeur.
+ * Vingt-trois jeux de couleurs : huit unis, sept classiques, six en dégradé,
+ * Multicolore et Éditeur.
  * Chaque jeu fixe la couleur de signature (--jn-brand), le gris de marque
  * (--jn-steel), le texte sur la signature (--jn-on-brand) et trois teintes de
  * dégradé, en deux tons : sombre (par défaut) et clair. Les règles
@@ -283,6 +284,77 @@ body.vscode-light[data-palette="tactical"],
 body.vscode-light [data-palette="tactical"] {
   --jn-brand: #5c6b1f;
   --jn-steel: #575c48;
+}
+/* Jeux classiques : couleurs franches, acier neutre. */
+[data-palette="rouge"] {
+  --jn-brand: #ff4d4d;
+  --jn-steel: #8a909a;
+  --jn-on-brand: #1a0505;
+}
+body.vscode-light[data-palette="rouge"],
+body.vscode-light [data-palette="rouge"] {
+  --jn-brand: #c62828;
+  --jn-steel: #555b64;
+}
+[data-palette="orange"] {
+  --jn-brand: #ff9f43;
+  --jn-steel: #8a909a;
+  --jn-on-brand: #1a0e00;
+}
+body.vscode-light[data-palette="orange"],
+body.vscode-light [data-palette="orange"] {
+  --jn-brand: #b35900;
+  --jn-steel: #555b64;
+}
+[data-palette="jaune"] {
+  --jn-brand: #ffd43b;
+  --jn-steel: #8a909a;
+  --jn-on-brand: #1a1500;
+}
+body.vscode-light[data-palette="jaune"],
+body.vscode-light [data-palette="jaune"] {
+  --jn-brand: #8a6d00;
+  --jn-steel: #555b64;
+}
+[data-palette="vert"] {
+  --jn-brand: #4cd964;
+  --jn-steel: #8a909a;
+  --jn-on-brand: #04140a;
+}
+body.vscode-light[data-palette="vert"],
+body.vscode-light [data-palette="vert"] {
+  --jn-brand: #1e7e34;
+  --jn-steel: #555b64;
+}
+[data-palette="bleu"] {
+  --jn-brand: #4d9fff;
+  --jn-steel: #8a909a;
+  --jn-on-brand: #04101f;
+}
+body.vscode-light[data-palette="bleu"],
+body.vscode-light [data-palette="bleu"] {
+  --jn-brand: #1f5fbf;
+  --jn-steel: #555b64;
+}
+[data-palette="rose"] {
+  --jn-brand: #ff6fb5;
+  --jn-steel: #8a909a;
+  --jn-on-brand: #1a0510;
+}
+body.vscode-light[data-palette="rose"],
+body.vscode-light [data-palette="rose"] {
+  --jn-brand: #b8236f;
+  --jn-steel: #555b64;
+}
+[data-palette="blanc"] {
+  --jn-brand: #f2f4f7;
+  --jn-steel: #8a909a;
+  --jn-on-brand: #0b0d10;
+}
+body.vscode-light[data-palette="blanc"],
+body.vscode-light [data-palette="blanc"] {
+  --jn-brand: #2b2f36;
+  --jn-steel: #555b64;
 }
 /* Jeux en dégradé : trois teintes (--jn-grad-a, -b, -c) pour les boutons, les
  * soulignements, le curseur d'effort, le mot-symbole et l'aura du bypass. La
@@ -6293,9 +6365,9 @@ body[data-palette]:where(:not([data-palette="editeur"], .vscode-high-contrast, .
     transition: none;
   }
 }
-/* Jeux rouges : les liens gardent la couleur du thème pour ne pas se
- * confondre avec le rouge d'erreur (Refuser, échecs). */
-body:is([data-palette="widow"], [data-palette="braise"], [data-palette="bloodmoon"]):where(:not(.vscode-high-contrast, .vscode-high-contrast-light)) {
+/* Jeux rouges, orange et jaune : les liens gardent la couleur du thème pour ne
+ * pas se confondre avec l'erreur (Refuser, échecs) ni avec les alertes. */
+body:is([data-palette="widow"], [data-palette="braise"], [data-palette="bloodmoon"], [data-palette="rouge"], [data-palette="orange"], [data-palette="jaune"]):where(:not(.vscode-high-contrast, .vscode-high-contrast-light)) {
   --jn-accent: var(--vscode-textLink-foreground, var(--vscode-button-background));
 }
 /* Dans une carte d'aperçu, le logo suit la palette de la carte. */

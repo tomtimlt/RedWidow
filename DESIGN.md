@@ -18,8 +18,9 @@ Le graphe doit rester agréable à parcourir au clavier, à la souris et au zoom
 - **Signature** : `--jn-sig`, couleur de la palette choisie, marque le logo,
   les liserés, les sélections, l’effort et l’activité de l’agent. Elle habille
   aussi les boutons principaux (en dégradé), les liens et les teintes
-  d’accent, sauf avec le jeu Éditeur ; les jeux rouges (Widow, Braise, Lune de
-  sang) gardent les liens du thème pour ne pas se confondre avec l’erreur. Le
+  d’accent, sauf avec le jeu Éditeur ; les jeux rouges, orange et jaune (Widow,
+  Braise, Lune de sang, Rouge, Orange, Jaune) gardent les liens du thème pour
+  ne pas se confondre avec l’erreur ni les alertes. Le
   focus clavier reste celui du thème ; en contraste élevé, la signature
   devient la bordure active du thème.
 - **Liseré** : un trait vertical de 2 px (`--jn-rail`) signale l’état des
@@ -240,7 +241,7 @@ niveau le plus proche avec un rebond ; le clavier passe de niveau en niveau.
 
 ## Palettes et page Apparence
 
-Seize jeux de couleurs, au choix dans **Réglages › Apparence** (icône palette,
+Vingt-trois jeux de couleurs, au choix dans **Réglages › Apparence** (icône palette,
 groupe « Interface »), par la commande **Venator Ops : choisir une palette** ou
 par le réglage `warbandDesign.palette`. Le choix s’applique aussitôt à toutes
 les vues, sans rechargement, et l’aperçu navigateur le garde d’une vue à
@@ -269,6 +270,13 @@ tout cela en contraste élevé ni avec le jeu Éditeur.
 | Spectre | `#a990ff` | `#6741d9` | violet et glace, distinct de toutes les couleurs d’état |
 | Ultraviolet | `#c77dff` | `#7b2cbf` | violet électrique : nuit, IA, laboratoire |
 | Tactique | `#b5c46a` | `#5c6b1f` | olive et kaki : terrain, opérations |
+| Rouge | `#ff4d4d` | `#c62828` | rouge franc |
+| Orange | `#ff9f43` | `#b35900` | orange vif ; proche de la couleur des alertes |
+| Jaune | `#ffd43b` | `#8a6d00` | jaune soleil ; proche de la couleur des alertes |
+| Vert | `#4cd964` | `#1e7e34` | vert franc |
+| Bleu | `#4d9fff` | `#1f5fbf` | bleu franc |
+| Rose | `#ff6fb5` | `#b8236f` | rose vif |
+| Blanc | `#f2f4f7` | `#2b2f36` | blanc pur ; graphite en thème clair, où le blanc ne se verrait pas |
 | Aurore | `#35e0c0` `#4f9dff` `#a27bff` | `#0b8a73` `#2a5fd0` `#6a3fd0` | dégradé cyan, bleu, violet |
 | Synthwave | `#ff5fa2` `#b36bff` `#4fc3ff` | `#c2306f` `#7b3fd0` `#0a74a8` | dégradé rose, violet, bleu |
 | Toxique | `#9be84a` `#3ddc84` `#22c7d6` | `#4f7a12` `#13804a` `#0a7f95` | dégradé lime, vert, cyan |
@@ -278,7 +286,10 @@ tout cela en contraste élevé ni avec le jeu Éditeur.
 | Multicolore | `#ff6b81` `#5fd68a` `#35c4d8` `#6ea0ff` `#a98bff` `#ff7eb6` | `#d6334f` `#17803f` `#0a7f95` `#2a5fd0` `#6a3fd0` `#c2306f` | six teintes (`--jn-rb-1` à `--jn-rb-6`), sans jaune ni orange (réservés aux alertes), une par rôle, jamais en contraste élevé |
 | Éditeur | accent du thème | accent du thème | intégration maximale : boutons et liens du thème, pas de dégradé |
 
-Aucun jeu n’utilise de jaune ni d’orange, réservés aux alertes. Bastion (cuivre) est retiré : trop proche de l’orange des alertes. Une valeur
+Les jeux classiques Orange et Jaune, demandés par le propriétaire, sont
+proches de la couleur des alertes : celles-ci restent signalées par leur
+texte et leur pictogramme, et ces jeux (comme les jeux rouges) gardent les
+liens du thème. Les autres jeux évitent le jaune et l’orange. Bastion (cuivre) est retiré : trop proche de l’orange des alertes. Une valeur
 inconnue, y compris « bastion » dans les réglages existants, retombe sur
 Sentinelle.
 

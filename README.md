@@ -19,9 +19,9 @@ fictifs. Les interactions modifient uniquement l’état de démonstration en m�
 4. Utiliser **Venator Ops : choisir un scénario** pour passer entre accueil,
    conversation, activité, validation, indisponibilité et historique long.
 5. **Réglages › Apparence** (ou **Venator Ops : choisir une palette**, ou le
-   réglage `warbandDesign.palette`) change le jeu de couleurs parmi seize :
+   réglage `warbandDesign.palette`) change le jeu de couleurs parmi vingt-trois :
    unis (Sentinelle, Widow, Braise, Venin, Arctique, Spectre, Ultraviolet,
-   Tactique), en dégradé (Aurore, Synthwave, Toxique, Lune de sang, Abysse,
+   Tactique), classiques (Rouge, Orange, Jaune, Vert, Bleu, Rose, Blanc), en dégradé (Aurore, Synthwave, Toxique, Lune de sang, Abysse,
    Nébuleuse), Multicolore et Éditeur.
 
 Aucune installation de dépendance n’est nécessaire. La démonstration ne demande
