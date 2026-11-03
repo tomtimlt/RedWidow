@@ -7247,3 +7247,24 @@ body.mode-monitor .mon-tick.is-selected {
   border-color: var(--jn-focus);
   box-shadow: 0 0 0 1px var(--jn-focus);
 }
+.provider-catalog-search {
+  appearance: none;
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid var(--jn-line-strong);
+  border-radius: var(--jn-r-pill);
+  background: var(--vscode-input-background, var(--jn-raise));
+  color: var(--vscode-input-foreground, var(--vscode-foreground));
+  font: inherit;
+  outline: none;
+}
+.provider-catalog-search:focus-visible {
+  border-color: var(--jn-focus);
+  box-shadow: 0 0 0 1px var(--jn-focus);
+}
+.capability-row .resource-configure,
+.provider-catalog-head > button {
+  border: 1px solid var(--jn-line-strong);
+  border-radius: var(--jn-r-pill);
+  padding: 5px 12px;
+}
