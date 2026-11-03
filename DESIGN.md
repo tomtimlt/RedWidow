@@ -16,18 +16,21 @@ Le graphe doit rester agréable à parcourir au clavier, à la souris et au zoom
   `--jn-raise-2` mélangés au premier plan), filets fins `--jn-line`, ombres
   réservées aux menus et panneaux flottants.
 - **Signature** : `--jn-sig`, couleur de la palette choisie, marque le logo,
-  les liserés, les sélections, l’effort et l’activité de l’agent. Les boutons
-  principaux, les liens et le focus restent ceux du thème VS Code ; en
-  contraste élevé, la signature devient la bordure active du thème.
+  les liserés, les sélections, l’effort et l’activité de l’agent. Elle habille
+  aussi les boutons principaux (en dégradé), les liens et les teintes
+  d’accent, sauf avec le jeu Éditeur ; les jeux rouges (Widow, Braise, Lune de
+  sang) gardent les liens du thème pour ne pas se confondre avec l’erreur. Le
+  focus clavier reste celui du thème ; en contraste élevé, la signature
+  devient la bordure active du thème.
 - **Liseré** : un trait vertical de 2 px (`--jn-rail`) signale l’état des
   blocs : message envoyé, validation, entrée du Monitor, bandeaux, projet actif.
   Les éléments en pilule (rubrique, filtre, option) marquent la sélection par
   un fond teinté.
-- **Typographie** : Geist pour l’interface, Geist Mono pour les repères
+- **Typographie** : Geist pour l’interface, JetBrains Mono pour les repères
   techniques (étiquettes en capitales espacées `--jn-fs-2xs` / `--jn-track`,
-  compteurs, horloges, mot-symbole « VENATOR OPS », « OPS » en signature et masqué sous 360 px) ; la police de l’éditeur
-  (`--jn-code`) pour le code, les commandes et les sorties ; chiffres
-  tabulaires. Polices locales sous licence OFL (`media/fonts/`).
+  compteurs, horloges, mot-symbole « VENATOR OPS », « OPS » en signature et masqué sous 360 px) ; JetBrains Mono aussi
+  pour le code, les commandes et les sorties (`--jn-code`, police de l’éditeur
+  en secours) ; chiffres tabulaires. Polices locales sous licence OFL (`media/fonts/`).
 - **Géométrie** : formes arrondies plutôt que carrées. Boutons, puces,
   badges, onglets, champs d’une ligne et rubriques en pilule
   (`--jn-r-pill`) ; blocs et panneaux en `--jn-r-sm` 8 px, `--jn-r-md` 12 px
@@ -70,8 +73,8 @@ pour les petites tailles : l’araignée ne se lit plus sous 32 px), PNG
 transparents, et `redwidow-intro.mp4` / `redwidow-intro.html` (animation de
 8 s : pattes qui jaillissent avec rebond, cerveau qui s’allume, viseur qui se
 verrouille, yeux qui clignent, nom puis respiration). Polices validées :
-Geist (interface, titres, mot-symbole) et Geist Mono (repères techniques),
-inchangées ; la police de code et du terminal reste à choisir. Les sections ci-dessous
+Geist (interface, titres, mot-symbole) et JetBrains Mono (repères techniques,
+code, commandes et sorties) ; Geist Mono est retirée. Les sections ci-dessous
 décrivent encore l’identité Venator Ops tant que la refonte n’est pas faite.
 
 ## Marque Venator Ops
@@ -237,22 +240,45 @@ niveau le plus proche avec un rebond ; le clavier passe de niveau en niveau.
 
 ## Palettes et page Apparence
 
-Cinq jeux de couleurs, au choix dans **Réglages › Apparence** (icône palette,
+Seize jeux de couleurs, au choix dans **Réglages › Apparence** (icône palette,
 groupe « Interface »), par la commande **Venator Ops : choisir une palette** ou
 par le réglage `warbandDesign.palette`. Le choix s’applique aussitôt à toutes
 les vues, sans rechargement, et l’aperçu navigateur le garde d’une vue à
 l’autre. Chaque jeu a un ton pour les thèmes sombres et un ton plus foncé pour
-les thèmes clairs.
+les thèmes clairs, et un texte posé sur la signature (`--jn-on-brand`) :
+foncé sur les tons clairs, blanc sur les tons foncés et en thème clair.
+
+Chaque jeu fournit trois teintes de dégradé (`--jn-grad-a`, `-b`, `-c`, d’où
+`--jn-grad`, `--jn-grad-loop` et `--jn-aura-stops`) ; pour un jeu uni, elles
+sont dérivées de la signature (signature, reflet clair, signature). Le
+dégradé habille les boutons principaux, les soulignements de l’en-tête et des
+Réglages, « OPS » du mot-symbole, les phases faites de la mission, le
+remplissage du curseur d’effort et les aperçus ; le logo prend la première
+teinte pour l’étincelle et la dernière pour le satellite. Avec les jeux en
+dégradé et le Multicolore, l’aura du bypass devient un contour en dégradé qui
+tourne (`@property --jn-aura-turn`, 6 s, figé en mouvement réduit). Rien de
+tout cela en contraste élevé ni avec le jeu Éditeur.
 
 | Jeu | Sombre | Clair | Intention |
 | --- | --- | --- | --- |
 | Sentinelle (défaut) | `#3cc7c0` | `#0b7a82` | sarcelle et ardoise : veille, terminal, sécurité |
+| Widow | `#e5132b` | `#c40f24` | noir profond et cramoisi : la marque RedWidow |
 | Braise | `#f0506e` | `#c41a3d` | cramoisi et acier, marque d’origine ; proche du rouge d’erreur |
+| Venin | `#3ee08f` | `#0d7a45` | vert toxique sur acier |
+| Arctique | `#5ec8ff` | `#0a6aa3` | bleu glacier, froid et net |
 | Spectre | `#a990ff` | `#6741d9` | violet et glace, distinct de toutes les couleurs d’état |
-| Éditeur | accent du thème | accent du thème | intégration maximale avec n’importe quel thème |
+| Ultraviolet | `#c77dff` | `#7b2cbf` | violet électrique : nuit, IA, laboratoire |
+| Tactique | `#b5c46a` | `#5c6b1f` | olive et kaki : terrain, opérations |
+| Aurore | `#35e0c0` `#4f9dff` `#a27bff` | `#0b8a73` `#2a5fd0` `#6a3fd0` | dégradé cyan, bleu, violet |
+| Synthwave | `#ff5fa2` `#b36bff` `#4fc3ff` | `#c2306f` `#7b3fd0` `#0a74a8` | dégradé rose, violet, bleu |
+| Toxique | `#9be84a` `#3ddc84` `#22c7d6` | `#4f7a12` `#13804a` `#0a7f95` | dégradé lime, vert, cyan |
+| Lune de sang | `#e5132b` `#c8236e` `#7a4cf0` | `#c40f24` `#b0225f` `#6a2fd0` | dégradé cramoisi, magenta, violet |
+| Abysse | `#29d3c0` `#2fa8ff` `#5b7bff` | `#0a7f75` `#0a6aa3` `#2448c0` | dégradé sarcelle, bleu, indigo |
+| Nébuleuse | `#ff7eb6` `#a98bff` `#35c4d8` | `#c2306f` `#6a3fd0` `#0a7f95` | dégradé rose, violet, cyan |
 | Multicolore | `#ff6b81` `#5fd68a` `#35c4d8` `#6ea0ff` `#a98bff` `#ff7eb6` | `#d6334f` `#17803f` `#0a7f95` `#2a5fd0` `#6a3fd0` `#c2306f` | six teintes (`--jn-rb-1` à `--jn-rb-6`), sans jaune ni orange (réservés aux alertes), une par rôle, jamais en contraste élevé |
+| Éditeur | accent du thème | accent du thème | intégration maximale : boutons et liens du thème, pas de dégradé |
 
-Bastion (cuivre) est retiré : trop proche de l’orange des alertes. Une valeur
+Aucun jeu n’utilise de jaune ni d’orange, réservés aux alertes. Bastion (cuivre) est retiré : trop proche de l’orange des alertes. Une valeur
 inconnue, y compris « bastion » dans les réglages existants, retombe sur
 Sentinelle.
 

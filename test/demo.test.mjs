@@ -156,12 +156,12 @@ test("les pictogrammes viennent d'une source unique et la palette est validée",
   const studio = await readFile(new URL("../media/studio.js", import.meta.url), "utf8");
   for (const [, name] of studio.matchAll(/WarbandIcons\.create\("([a-zA-Z]+)"/g)) assert.ok(names.has(name), name);
 });
-test("les cinq jeux de couleurs sont identiques dans la page Apparence, le réglage et le CSS", async () => {
+test("les seize jeux de couleurs sont identiques dans la page Apparence, le réglage et le CSS", async () => {
   const studio = await readFile(new URL("../media/studio.js", import.meta.url), "utf8");
   const block = studio.slice(studio.indexOf("const PALETTES = ["), studio.indexOf("];", studio.indexOf("const PALETTES = [")));
   const ids = [...block.matchAll(/\["([a-z]+)", "/g)].map((m) => m[1]);
   assert.deepEqual(ids, PALETTES.map(([id]) => id));
-  assert.equal(ids.length, 5);
+  assert.equal(ids.length, 16);
   assert.ok(ids.includes("multi"));
   const manifest = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
   assert.deepEqual(manifest.contributes.configuration.properties["warbandDesign.palette"].enum, ids);

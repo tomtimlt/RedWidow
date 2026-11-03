@@ -78,17 +78,39 @@
           "default": "sentinelle",
           "enum": [
             "sentinelle",
+            "widow",
             "braise",
+            "venom",
+            "arctic",
             "spectre",
-            "editeur",
-            "multi"
+            "ultraviolet",
+            "tactical",
+            "aurora",
+            "synthwave",
+            "toxic",
+            "bloodmoon",
+            "ocean",
+            "nebula",
+            "multi",
+            "editeur"
           ],
           "enumDescriptions": [
             "Sarcelle et ardoise : veille, terminal, sécurité",
-            "Cramoisi et acier : la marque d'origine",
+            "Noir profond et cramoisi : la marque RedWidow",
+            "Cramoisi et acier : la marque d'origine, plus offensive",
+            "Vert toxique sur acier : terminal, offensif",
+            "Bleu glacier : froid, net, défensif",
             "Violet et glace : agents, recherche, nuit",
-            "Accent du thème VS Code : intégration maximale",
-            "Six teintes, une par rôle : corail, vert, cyan, bleu, violet et rose"
+            "Violet électrique : nuit, IA, laboratoire",
+            "Olive et kaki : terrain, opérations",
+            "Dégradé cyan, bleu et violet",
+            "Dégradé rose, violet et bleu",
+            "Dégradé lime, vert et cyan",
+            "Dégradé cramoisi, magenta et violet",
+            "Dégradé sarcelle, bleu et indigo",
+            "Dégradé rose, violet et cyan",
+            "Six teintes, une par rôle : corail, vert, cyan, bleu, violet et rose",
+            "Accent du thème VS Code : intégration maximale"
           ],
           "description": "Jeu de couleurs de Venator Ops (aussi réglable dans Réglages › Apparence). Les couleurs s'adaptent aux thèmes clair, sombre et contraste élevé."
         }

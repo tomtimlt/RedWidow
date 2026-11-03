@@ -1,10 +1,21 @@
 import { randomBytes } from "node:crypto";
 export const PALETTES = [
   ["sentinelle", "Sentinelle", "Sarcelle et ardoise : veille, terminal, sécurité"],
+  ["widow", "Widow", "Noir profond et cramoisi : la marque RedWidow"],
   ["braise", "Braise", "Cramoisi et acier : la marque d'origine, plus offensive"],
+  ["venom", "Venin", "Vert toxique sur acier : terminal, offensif"],
+  ["arctic", "Arctique", "Bleu glacier : froid, net, défensif"],
   ["spectre", "Spectre", "Violet et glace : agents, recherche, nuit"],
-  ["editeur", "Éditeur", "Accent du thème VS Code : intégration maximale"],
-  ["multi", "Multicolore", "Six teintes, une par rôle : corail, vert, cyan, bleu, violet et rose"]
+  ["ultraviolet", "Ultraviolet", "Violet électrique : nuit, IA, laboratoire"],
+  ["tactical", "Tactique", "Olive et kaki : terrain, opérations"],
+  ["aurora", "Aurore", "Dégradé cyan, bleu et violet"],
+  ["synthwave", "Synthwave", "Dégradé rose, violet et bleu"],
+  ["toxic", "Toxique", "Dégradé lime, vert et cyan"],
+  ["bloodmoon", "Lune de sang", "Dégradé cramoisi, magenta et violet"],
+  ["ocean", "Abysse", "Dégradé sarcelle, bleu et indigo"],
+  ["nebula", "Nébuleuse", "Dégradé rose, violet et cyan"],
+  ["multi", "Multicolore", "Six teintes, une par rôle : corail, vert, cyan, bleu, violet et rose"],
+  ["editeur", "Éditeur", "Accent du thème VS Code : intégration maximale"]
 ];
 const paletteOf = (value) => PALETTES.some(([key]) => key === value) ? value : PALETTES[0][0];
 export const makeNonce = () => randomBytes(18).toString("base64url");

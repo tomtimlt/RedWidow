@@ -19,8 +19,10 @@ fictifs. Les interactions modifient uniquement l’état de démonstration en m�
 4. Utiliser **Venator Ops : choisir un scénario** pour passer entre accueil,
    conversation, activité, validation, indisponibilité et historique long.
 5. **Réglages › Apparence** (ou **Venator Ops : choisir une palette**, ou le
-   réglage `warbandDesign.palette`) change le jeu de couleurs : Sentinelle,
-   Braise, Spectre, Éditeur ou Multicolore.
+   réglage `warbandDesign.palette`) change le jeu de couleurs parmi seize :
+   unis (Sentinelle, Widow, Braise, Venin, Arctique, Spectre, Ultraviolet,
+   Tactique), en dégradé (Aurore, Synthwave, Toxique, Lune de sang, Abysse,
+   Nébuleuse), Multicolore et Éditeur.
 
 Aucune installation de dépendance n’est nécessaire. La démonstration ne demande
 aucune clé et ne contacte aucun fournisseur. Les activités affichées sont des
@@ -57,7 +59,8 @@ Le prototype possède un manifeste distinct (`warband-ui-design`, version 0.0.1)
 Ses changements sont destinés à une revue graphique avant réintégration dans
 l’application. Les instructions de design sont dans [DESIGN.md](DESIGN.md).
 
-Licence MIT ; les polices Geist et Geist Mono (SIL Open Font License 1.1) sont
-livrées localement avec leur licence dans `media/fonts/OFL-Geist.txt`.
+Licence MIT ; les polices Geist et JetBrains Mono (SIL Open Font License 1.1) sont
+livrées localement avec leur licence dans `media/fonts/OFL-Geist.txt` et
+`media/fonts/OFL-JetBrainsMono.txt`.
 Le pictogramme du raisonnement est sous licence CC Attribution ; ses crédits et
 modifications figurent dans `media/ATTRIBUTIONS.md`.

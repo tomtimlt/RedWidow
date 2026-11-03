@@ -4,9 +4,9 @@
  * Acier : surfaces neutres dérivées du thème VS Code, hiérarchie portée par
  * des filets fins et un liseré vertical de 2 px qui signale l'état.
  * Signature : couleur de la palette choisie (logo, liserés, sélections,
- * activité). L'interaction suit l'accent et le focus du thème.
- * Typographie : Geist pour l'interface, Geist Mono pour les repères techniques
- * (étiquettes, compteurs, horloges) ; la police de l'éditeur pour le code.
+ * activité), boutons principaux et liens ; le focus suit le thème.
+ * Typographie : Geist pour l'interface, JetBrains Mono pour les repères techniques
+ * (étiquettes, compteurs, horloges) et pour le code, les commandes et les sorties.
  */
 @font-face {
   font-family: "Warband Geist";
@@ -16,8 +16,8 @@
   font-display: swap;
 }
 @font-face {
-  font-family: "Warband Geist Mono";
-  src: url("fonts/geist-mono-latin.woff2") format("woff2");
+  font-family: "Warband JetBrains Mono";
+  src: url("fonts/jetbrains-mono-latin.woff2") format("woff2");
   font-style: normal;
   font-weight: 100 900;
   font-display: swap;
@@ -89,8 +89,8 @@ body {
     0 8px 24px var(--vscode-widget-shadow, #0004);
   /* Typographie */
   --jn-font: "Warband Geist", var(--vscode-font-family, system-ui, sans-serif);
-  --jn-mono: "Warband Geist Mono", var(--vscode-editor-font-family, ui-monospace, monospace);
-  --jn-code: var(--vscode-editor-font-family, "Warband Geist Mono", ui-monospace, monospace);
+  --jn-mono: "Warband JetBrains Mono", var(--vscode-editor-font-family, ui-monospace, monospace);
+  --jn-code: "Warband JetBrains Mono", var(--vscode-editor-font-family, ui-monospace, monospace);
   --jn-fs-2xs: 10.5px;
   --jn-fs-xs: 11px;
   --jn-fs-sm: 12px;
@@ -136,14 +136,15 @@ body.vscode-high-contrast-light {
 }
 
 /* ───────────────────────────── Palettes ─────────────────────────────
- * Cinq jeux de couleurs : Sentinelle, Braise, Spectre, Éditeur et Multicolore.
- * Chaque jeu fixe la couleur de signature (--jn-brand) et le gris de marque
- * (--jn-steel), en deux tons : sombre (par défaut) et clair. Les règles
+ * Seize jeux de couleurs : huit unis, six en dégradé, Multicolore et Éditeur.
+ * Chaque jeu fixe la couleur de signature (--jn-brand), le gris de marque
+ * (--jn-steel), le texte sur la signature (--jn-on-brand) et trois teintes de
+ * dégradé, en deux tons : sombre (par défaut) et clair. Les règles
  * s'appliquent à tout élément portant data-palette : la page Apparence s'en
- * sert pour aperçu de chaque jeu dans sa carte. La signature sert au logo, aux
- * liserés, aux sélections et à l'activité ; les boutons principaux et le focus
- * restent ceux du thème. En contraste élevé, la signature cède la place à la
- * bordure active du thème.
+ * sert pour aperçu de chaque jeu dans sa carte. Hors jeu Éditeur, la palette
+ * habille aussi les boutons principaux et les liens (voir « Palettes
+ * partout ») ; le focus reste celui du thème. En contraste élevé, la signature
+ * cède la place à la bordure active du thème.
  */
 body,
 [data-palette="sentinelle"] {
@@ -206,7 +207,14 @@ body,
   --jn-sw-2: var(--jn-steel);
   --jn-sw-3: color-mix(in srgb, var(--jn-brand) 60%, var(--vscode-editor-background));
   --jn-sw-4: color-mix(in srgb, var(--jn-brand) 30%, var(--vscode-editor-background));
-  --jn-pal-fill: var(--jn-brand);
+  --jn-pal-fill: var(--jn-grad);
+  --jn-on-brand: #0b0d10;
+  --jn-grad-a: var(--jn-brand);
+  --jn-grad-b: color-mix(in srgb, var(--jn-brand) 62%, #ffffff);
+  --jn-grad-c: var(--jn-brand);
+}
+[data-palette="widow"] {
+  --jn-on-brand: #ffffff;
 }
 /* Multicolore : la signature est le cyan ; chaque rôle prend sa teinte. */
 [data-palette="multi"] {
@@ -224,6 +232,181 @@ body.vscode-light[data-palette="multi"],
 body.vscode-light [data-palette="multi"] {
   --jn-steel: #55687c;
 }
+/* Nouveaux jeux unis : signature, acier, texte sur la signature. Un dégradé
+ * léger (signature, reflet clair, signature) leur est dérivé plus bas. */
+[data-palette="widow"] {
+  --jn-brand: #e5132b;
+  --jn-steel: #8b8e97;
+  --jn-on-brand: #ffffff;
+}
+body.vscode-light[data-palette="widow"],
+body.vscode-light [data-palette="widow"] {
+  --jn-brand: #c40f24;
+  --jn-steel: #55585f;
+}
+[data-palette="venom"] {
+  --jn-brand: #3ee08f;
+  --jn-steel: #7f9a8c;
+  --jn-on-brand: #04140b;
+}
+body.vscode-light[data-palette="venom"],
+body.vscode-light [data-palette="venom"] {
+  --jn-brand: #0d7a45;
+  --jn-steel: #4d6458;
+}
+[data-palette="arctic"] {
+  --jn-brand: #5ec8ff;
+  --jn-steel: #8aa0b5;
+  --jn-on-brand: #031522;
+}
+body.vscode-light[data-palette="arctic"],
+body.vscode-light [data-palette="arctic"] {
+  --jn-brand: #0a6aa3;
+  --jn-steel: #4f657a;
+}
+[data-palette="ultraviolet"] {
+  --jn-brand: #c77dff;
+  --jn-steel: #9a8fb5;
+  --jn-on-brand: #14051f;
+}
+body.vscode-light[data-palette="ultraviolet"],
+body.vscode-light [data-palette="ultraviolet"] {
+  --jn-brand: #7b2cbf;
+  --jn-steel: #5f5680;
+}
+[data-palette="tactical"] {
+  --jn-brand: #b5c46a;
+  --jn-steel: #8c917c;
+  --jn-on-brand: #12140a;
+}
+body.vscode-light[data-palette="tactical"],
+body.vscode-light [data-palette="tactical"] {
+  --jn-brand: #5c6b1f;
+  --jn-steel: #575c48;
+}
+/* Jeux en dégradé : trois teintes (--jn-grad-a, -b, -c) pour les boutons, les
+ * soulignements, le curseur d'effort, le mot-symbole et l'aura du bypass. La
+ * signature unie est la teinte du milieu. */
+[data-palette="aurora"] {
+  --jn-brand: #4f9dff;
+  --jn-steel: #8a93a6;
+  --jn-on-brand: #06101c;
+  --jn-grad-a: #35e0c0;
+  --jn-grad-b: #4f9dff;
+  --jn-grad-c: #a27bff;
+  --jn-sw-1: var(--jn-grad-a);
+  --jn-sw-2: var(--jn-grad-b);
+  --jn-sw-3: var(--jn-grad-c);
+  --jn-sw-4: var(--jn-steel);
+}
+body.vscode-light[data-palette="aurora"],
+body.vscode-light [data-palette="aurora"] {
+  --jn-brand: #2a5fd0;
+  --jn-steel: #565e72;
+  --jn-grad-a: #0b8a73;
+  --jn-grad-b: #2a5fd0;
+  --jn-grad-c: #6a3fd0;
+}
+[data-palette="synthwave"] {
+  --jn-brand: #b36bff;
+  --jn-steel: #8a93a6;
+  --jn-on-brand: #12061a;
+  --jn-grad-a: #ff5fa2;
+  --jn-grad-b: #b36bff;
+  --jn-grad-c: #4fc3ff;
+  --jn-sw-1: var(--jn-grad-a);
+  --jn-sw-2: var(--jn-grad-b);
+  --jn-sw-3: var(--jn-grad-c);
+  --jn-sw-4: var(--jn-steel);
+}
+body.vscode-light[data-palette="synthwave"],
+body.vscode-light [data-palette="synthwave"] {
+  --jn-brand: #7b3fd0;
+  --jn-steel: #565e72;
+  --jn-grad-a: #c2306f;
+  --jn-grad-b: #7b3fd0;
+  --jn-grad-c: #0a74a8;
+}
+[data-palette="toxic"] {
+  --jn-brand: #3ddc84;
+  --jn-steel: #8a93a6;
+  --jn-on-brand: #04140b;
+  --jn-grad-a: #9be84a;
+  --jn-grad-b: #3ddc84;
+  --jn-grad-c: #22c7d6;
+  --jn-sw-1: var(--jn-grad-a);
+  --jn-sw-2: var(--jn-grad-b);
+  --jn-sw-3: var(--jn-grad-c);
+  --jn-sw-4: var(--jn-steel);
+}
+body.vscode-light[data-palette="toxic"],
+body.vscode-light [data-palette="toxic"] {
+  --jn-brand: #13804a;
+  --jn-steel: #565e72;
+  --jn-grad-a: #4f7a12;
+  --jn-grad-b: #13804a;
+  --jn-grad-c: #0a7f95;
+}
+[data-palette="bloodmoon"] {
+  --jn-brand: #c8236e;
+  --jn-steel: #8a93a6;
+  --jn-on-brand: #ffffff;
+  --jn-grad-a: #e5132b;
+  --jn-grad-b: #c8236e;
+  --jn-grad-c: #7a4cf0;
+  --jn-sw-1: var(--jn-grad-a);
+  --jn-sw-2: var(--jn-grad-b);
+  --jn-sw-3: var(--jn-grad-c);
+  --jn-sw-4: var(--jn-steel);
+}
+body.vscode-light[data-palette="bloodmoon"],
+body.vscode-light [data-palette="bloodmoon"] {
+  --jn-brand: #b0225f;
+  --jn-steel: #565e72;
+  --jn-grad-a: #c40f24;
+  --jn-grad-b: #b0225f;
+  --jn-grad-c: #6a2fd0;
+}
+[data-palette="ocean"] {
+  --jn-brand: #2fa8ff;
+  --jn-steel: #8a93a6;
+  --jn-on-brand: #03111c;
+  --jn-grad-a: #29d3c0;
+  --jn-grad-b: #2fa8ff;
+  --jn-grad-c: #5b7bff;
+  --jn-sw-1: var(--jn-grad-a);
+  --jn-sw-2: var(--jn-grad-b);
+  --jn-sw-3: var(--jn-grad-c);
+  --jn-sw-4: var(--jn-steel);
+}
+body.vscode-light[data-palette="ocean"],
+body.vscode-light [data-palette="ocean"] {
+  --jn-brand: #0a6aa3;
+  --jn-steel: #565e72;
+  --jn-grad-a: #0a7f75;
+  --jn-grad-b: #0a6aa3;
+  --jn-grad-c: #2448c0;
+}
+[data-palette="nebula"] {
+  --jn-brand: #a98bff;
+  --jn-steel: #8a93a6;
+  --jn-on-brand: #10081a;
+  --jn-grad-a: #ff7eb6;
+  --jn-grad-b: #a98bff;
+  --jn-grad-c: #35c4d8;
+  --jn-sw-1: var(--jn-grad-a);
+  --jn-sw-2: var(--jn-grad-b);
+  --jn-sw-3: var(--jn-grad-c);
+  --jn-sw-4: var(--jn-steel);
+}
+body.vscode-light[data-palette="nebula"],
+body.vscode-light [data-palette="nebula"] {
+  --jn-brand: #6a3fd0;
+  --jn-steel: #565e72;
+  --jn-grad-a: #c2306f;
+  --jn-grad-b: #6a3fd0;
+  --jn-grad-c: #0a7f95;
+}
 /* Jetons dérivés, recalculés sur chaque élément portant une palette. */
 body,
 [data-palette] {
@@ -231,6 +414,22 @@ body,
   --jn-sig-tint: color-mix(in srgb, var(--jn-sig) 13%, transparent);
   --jn-sig-edge: color-mix(in srgb, var(--jn-sig) 48%, transparent);
   --jn-ember: var(--jn-sig);
+  --jn-grad: linear-gradient(90deg, var(--jn-grad-a), var(--jn-grad-b), var(--jn-grad-c));
+  --jn-grad-loop: linear-gradient(90deg, var(--jn-grad-a), var(--jn-grad-b), var(--jn-grad-c), var(--jn-grad-b), var(--jn-grad-a));
+  --jn-aura-stops: var(--jn-grad-a), var(--jn-grad-b), var(--jn-grad-c), var(--jn-grad-b), var(--jn-grad-a);
+}
+[data-palette="multi"] {
+  --jn-on-brand: #031418;
+  --jn-grad-a: var(--jn-rb-3);
+  --jn-grad-b: var(--jn-rb-4);
+  --jn-grad-c: var(--jn-rb-6);
+  --jn-grad: var(--jn-rainbow);
+  --jn-grad-loop: linear-gradient(90deg, var(--jn-rb-1), var(--jn-rb-2), var(--jn-rb-3), var(--jn-rb-4), var(--jn-rb-5), var(--jn-rb-6), var(--jn-rb-1));
+  --jn-aura-stops: var(--jn-rb-1), var(--jn-rb-2), var(--jn-rb-3), var(--jn-rb-4), var(--jn-rb-5), var(--jn-rb-6), var(--jn-rb-1);
+}
+body.vscode-light,
+body.vscode-light [data-palette] {
+  --jn-on-brand: #ffffff;
 }
 body.vscode-light,
 body.vscode-light [data-palette] {
@@ -6027,16 +6226,109 @@ body.vscode-high-contrast-light .pal-card[aria-checked="true"] {
 [data-palette="multi"] .pal-logo .brand-node {
   fill: var(--jn-rb-6);
 }
-/* Dans une carte, le logo suit la palette de la carte, pas celle de la page. */
-.pal-card:not([data-palette="multi"]) .pal-logo .brand-lead,
-.pal-card:not([data-palette="multi"]) .pal-logo .brand-node {
-  fill: var(--jn-sig);
-}
 body.vscode-high-contrast [data-palette="multi"] .pal-logo .brand-lead,
 body.vscode-high-contrast-light [data-palette="multi"] .pal-logo .brand-lead,
 body.vscode-high-contrast [data-palette="multi"] .pal-logo .brand-node,
 body.vscode-high-contrast-light [data-palette="multi"] .pal-logo .brand-node {
   fill: var(--vscode-foreground);
+}
+
+/* ───────────────────────────── Palettes partout ─────────────────────────────
+ * Hors jeu Éditeur et hors contraste élevé, la palette habille toute
+ * l'interface : liens et teintes d'accent, boutons principaux en dégradé,
+ * soulignements, mot-symbole, phases faites de la mission, remplissage du
+ * curseur d'effort et sélection de texte. Le focus clavier reste celui du
+ * thème. Les jeux en dégradé et le Multicolore donnent au bypass une aura qui
+ * tourne. Les états (ok, alerte, erreur) et la gravité gardent leurs couleurs.
+ */
+body[data-palette]:where(:not([data-palette="editeur"], .vscode-high-contrast, .vscode-high-contrast-light)) {
+  --jn-accent: var(--jn-brand);
+  --jn-accent-fill: var(--jn-brand);
+  --jn-accent-fill-hover: var(--jn-brand);
+  --jn-accent-fill-border: transparent;
+  --jn-on-accent: var(--jn-on-brand);
+  & ::selection {
+    background: color-mix(in srgb, var(--jn-brand) 34%, transparent);
+  }
+  & button.primary:not(:disabled) {
+    background-image: var(--jn-grad);
+    background-size: 100% 100%;
+    font-weight: 600;
+  }
+  & button.primary:hover:not(:disabled):not([aria-disabled="true"]) {
+    filter: brightness(1.08) saturate(1.05);
+  }
+  & #bar::after,
+  & .studio-nav-title::after {
+    width: 40px;
+    background: var(--jn-grad);
+  }
+  & #title .brand-ops {
+    background: var(--jn-grad);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  & .brand-lead {
+    fill: var(--jn-grad-a);
+  }
+  & .brand-node {
+    fill: var(--jn-grad-c);
+  }
+  & .mission-step.is-done .mission-mark {
+    background: var(--jn-grad);
+    color: var(--jn-on-brand);
+  }
+  & #effort-scale::before {
+    left: 0;
+    right: 0;
+    width: auto;
+    background: var(--jn-grad);
+    clip-path: inset(0 calc(100% - (var(--jn-pos) + var(--jn-thumb) / 2)) 0 0 round 99px);
+    transition:
+      clip-path var(--jn-settle),
+      opacity var(--jn-d2) var(--jn-ease-io);
+  }
+  & #effort-scale.is-dragging::before {
+    transition: none;
+  }
+}
+/* Jeux rouges : les liens gardent la couleur du thème pour ne pas se
+ * confondre avec le rouge d'erreur (Refuser, échecs). */
+body:is([data-palette="widow"], [data-palette="braise"], [data-palette="bloodmoon"]):where(:not(.vscode-high-contrast, .vscode-high-contrast-light)) {
+  --jn-accent: var(--vscode-textLink-foreground, var(--vscode-button-background));
+}
+/* Dans une carte d'aperçu, le logo suit la palette de la carte. */
+.pal-card:not([data-palette="multi"]) .pal-logo .brand-lead {
+  fill: var(--jn-grad-a);
+}
+.pal-card:not([data-palette="multi"]) .pal-logo .brand-node {
+  fill: var(--jn-grad-c);
+}
+/* Aura du bypass en dégradé qui tourne (jeux en dégradé et Multicolore). */
+@property --jn-aura-turn {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+body:is([data-palette="multi"], [data-palette="aurora"], [data-palette="synthwave"], [data-palette="toxic"], [data-palette="bloodmoon"], [data-palette="ocean"], [data-palette="nebula"]):where(:not(.vscode-high-contrast, .vscode-high-contrast-light)).automatic-on::after {
+  border: 3px solid transparent;
+  border-image: conic-gradient(from var(--jn-aura-turn), var(--jn-aura-stops)) 1;
+  box-shadow:
+    inset 0 0 26px color-mix(in srgb, var(--jn-grad-b) 30%, transparent),
+    inset 0 0 80px color-mix(in srgb, var(--jn-grad-c) 12%, transparent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light):is([data-palette="multi"], [data-palette="aurora"], [data-palette="synthwave"], [data-palette="toxic"], [data-palette="bloodmoon"], [data-palette="ocean"], [data-palette="nebula"]).automatic-on::after {
+    animation:
+      jn-aura 4s var(--jn-ease-io) infinite,
+      jn-aura-spin 6s linear infinite;
+  }
+}
+@keyframes jn-aura-spin {
+  to {
+    --jn-aura-turn: 360deg;
+  }
 }
 
 /* ───────────────────────────── Palette multicolore ─────────────────────────────
