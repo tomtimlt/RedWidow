@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type EngineEvent, type ErrorInfo, type PendingApproval, safeEnv } from "@warband/core";
 import { build } from "esbuild";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   buildEngineEnv,
   createEngineController,
@@ -97,6 +97,33 @@ describe("contrôleur + moteur enfant (processus forké, QueryFn factice)", () =
     });
     await ctl.exited;
   }, 15_000);
+  it("accepte un grand catalogue et relaie tous les fournisseurs", async () => {
+    const file = join(dir, "large-catalog.mjs");
+    await writeFile(
+      file,
+      'process.on("message",()=>{process.send({v:1,type:"models",models:Array.from({length:1600},(_,i)=>({value:"opencode/m"+i,displayName:"Model "+i})),providers:[{id:"opencode",name:"OpenCode",connected:true},{id:"github-copilot",name:"GitHub Copilot",connected:false}]});});process.send({v:1,type:"ready"});',
+    );
+    const onProviders = vi.fn();
+    const ctl = createEngineController({ enginePath: file, handlers: { onProviders } });
+    expect(await ctl.models({ cwd: dir })).toHaveLength(1600);
+    expect(onProviders).toHaveBeenCalledWith([
+      { id: "opencode", name: "OpenCode", connected: true },
+      { id: "github-copilot", name: "GitHub Copilot", connected: false },
+    ]);
+    await ctl.exited;
+  });
+  it("une réponse invalide garde son erreur IPC plutôt qu’un arrêt code 0", async () => {
+    const file = join(dir, "invalid-catalog.mjs");
+    await writeFile(
+      file,
+      'process.on("message",()=>process.send({v:1,type:"models",models:[{value:"bad",displayName:"bad",secret:"forged"}]}));process.send({v:1,type:"ready"});',
+    );
+    const ctl = createEngineController({ enginePath: file });
+    await expect(ctl.models({ cwd: dir })).rejects.toMatchObject({
+      reason: { code: "ipc.invalidMessage" },
+    });
+    await ctl.exited;
+  });
   it("arrête un moteur qui ne répond pas à la demande de modèles", async () => {
     const hanging = join(dir, "catalogue-suspendu.mjs");
     await writeFile(

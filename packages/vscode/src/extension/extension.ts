@@ -56,6 +56,7 @@ import {
   setPrimary,
 } from "../logic/cockpit.js";
 import { removeListedContainer } from "../logic/container-remove.js";
+import { createEngineController } from "../logic/controller.js";
 import type { Provider } from "../logic/effort.js";
 import { evidenceEditorReference, evidenceTerminalAllowed } from "../logic/evidence-capture.js";
 import { type ExegolCreateOptions, prepareExegolCreate } from "../logic/exegol-create.js";
@@ -65,8 +66,10 @@ import { chatHtml, cockpitHtml, killchainHtml, makeNonce, studioHtml } from "../
 import { matchesFingerprint } from "../logic/integrity.js";
 import { killchainImage } from "../logic/killchain-image.js";
 import { setSelectedPathEdge } from "../logic/killchain-path.js";
+import { saveMachinePreference } from "../logic/machine-preference.js";
 import { prepareMissionFolder } from "../logic/mission-folder.js";
 import { missionReport, missionReportPreview } from "../logic/mission-report.js";
+import { parseProviderOptions } from "../logic/models.js";
 import { parseOpencodeProviders } from "../logic/opencode-providers.js";
 import { PALETTES, type Palette, paletteOf } from "../logic/palette.js";
 import {
@@ -120,14 +123,44 @@ type TokenKind = "subscription" | "api-key";
 
 /** Couche fine : seule autorisée à importer `vscode` (test de frontière). Toute la logique est dans `src/logic`. */
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-  const currentLocale = () =>
-    vscode.workspace.getConfiguration("warband").get("language") === "fr" ? "fr" : "en";
+  const readMachineSetting = (key: string): unknown => {
+    const info = vscode.workspace.getConfiguration("warband").inspect(key);
+    return (
+      context.globalState.get(`warband.pendingSetting.${key}`) ??
+      info?.globalValue ??
+      info?.defaultValue
+    );
+  };
+  const writeMachineSetting = async (key: string, value: unknown): Promise<void> => {
+    const config = vscode.workspace.getConfiguration("warband");
+    await saveMachinePreference(value, {
+      registered: config.inspect(key) !== undefined,
+      update: (next) => config.update(key, next, vscode.ConfigurationTarget.Global),
+      fallback: (next) => context.globalState.update(`warband.pendingSetting.${key}`, next),
+    });
+  };
+  const currentLocale = () => (readMachineSetting("language") === "fr" ? "fr" : "en");
   setUiLocale(currentLocale());
+  let runtimeProviders =
+    parseProviderOptions(context.globalState.get("warband.providerCatalog")) ?? [];
+  let providerCatalogStatus: "idle" | "loading" | "ready" | "unavailable" = "idle";
+  let providerCatalogError: string | undefined;
+  let catalogRequest: Promise<void> | undefined;
   const out = vscode.window.createOutputChannel(PRODUCT_NAME);
   context.subscriptions.push(out);
 
   // Défense en profondeur : `capabilities.untrustedWorkspaces` empêche déjà l'activation.
   if (!vscode.workspace.isTrusted) return;
+  if (!context.globalState.get("warband.providerMenu69")) {
+    const enabled = readMachineSetting("chat.providers");
+    if (
+      Array.isArray(enabled) &&
+      enabled.length === 3 &&
+      ["claude", "openai", "google"].every((id) => enabled.includes(id))
+    )
+      await writeMachineSetting("chat.providers", [...enabled, "opencode"]);
+    await context.globalState.update("warband.providerMenu69", true);
+  }
 
   let integrationProjectId =
     (await readProjectChoices(defaultConfigDir()).catch(() => null))?.activeId ?? null;
@@ -383,7 +416,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const readSettings = () => {
     const config = vscode.workspace.getConfiguration("warband");
     return {
-      capabilities: capabilitySettings((key) => machineValue(config.inspect(key))),
+      capabilities: capabilitySettings(readMachineSetting),
+      providerCatalog: runtimeProviders,
       ...resolveSettings((key) =>
         key === "integrations"
           ? projectIntegrations(
@@ -395,6 +429,43 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     };
   };
 
+  const acceptProviders = (providers: typeof runtimeProviders) => {
+    runtimeProviders = providers;
+    void context.globalState.update("warband.providerCatalog", providers);
+  };
+  const loadProviderCatalog = (force = false): Promise<void> => {
+    if (catalogRequest) return catalogRequest;
+    if (!force && providerCatalogStatus !== "idle") return Promise.resolve();
+    providerCatalogStatus = "loading";
+    providerCatalogError = undefined;
+    catalogRequest = (async () => {
+      const probe = createEngineController({
+        enginePath: join(context.extensionPath, "run-engine.mjs"),
+        args: [context.extensionPath],
+        handlers: { onProviders: acceptProviders, onLog: (text) => out.append(text) },
+      });
+      try {
+        await probe.models({
+          cwd: folder?.uri.fsPath ?? context.extensionPath,
+          provider: "opencode",
+          auth: "auto",
+          opencodeProviders: readSettings().opencodeProviders ?? {},
+          timeoutMs: 45000,
+        });
+        providerCatalogStatus = "ready";
+      } catch (error) {
+        providerCatalogStatus = "unavailable";
+        providerCatalogError = cleanText(formatError(error, getUiLocale()), 1000);
+      } finally {
+        probe.kill();
+        catalogRequest = undefined;
+        for (const slot of slots.values())
+          if (slot.session) slot.session.setSelection(slot.session.view().capabilities?.selection);
+        void pushStudio();
+      }
+    })();
+    return catalogRequest;
+  };
   const seats = (reserveSidebar: boolean) => {
     let n = reserveSidebar || slots.get(SIDEBAR_CHAT)?.session ? 1 : 0;
     for (const [id, slot] of slots) if (id !== SIDEBAR_CHAT && slot.session) n++;
@@ -421,6 +492,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       enginePath: join(context.extensionPath, "run-engine.mjs"),
       engineArgs: [context.extensionPath],
       readSettings,
+      onProviders: acceptProviders,
       // Bypass (ADR 0006, 0008) : un lien par moteur, l'interrupteur reste celui de la fenêtre.
       bypass: { attach: (send) => bypass.attach(send), reset: () => bypass.reset() },
       getToken,
@@ -455,7 +527,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         },
       },
       ...(typeof __SDK_VERSION__ === "string" && {
-        sdkVersion: `${__SDK_VERSION__}/${typeof __OPENCODE_VERSION__ === "string" ? __OPENCODE_VERSION__ : "unknown"}/catalog-v2`,
+        sdkVersion: `${__SDK_VERSION__}/${typeof __OPENCODE_VERSION__ === "string" ? __OPENCODE_VERSION__ : "unknown"}/catalog-v3`,
       }),
       confirmAlways: async (text) => {
         const action = t("Toujours autoriser");
@@ -1706,6 +1778,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   ) => {
     const panel = studioPanel;
     if (!panel) return;
+    if (studioPage === "system") void loadProviderCatalog();
     // Une sonde de conteneurs en échec ne doit pas perdre l'accusé d'écriture du résumé.
     const cockpit = await loadCockpitView().catch((error: unknown) => ({
       type: "view" as const,
@@ -1758,10 +1831,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       projectSummary,
       projectChoices,
       capabilities: readSettings().capabilities,
-      providerCatalog: providerChoices(readSettings(), false).map(({ id, label }) => ({
-        id,
-        label,
-      })),
+      providerCatalog: providerChoices(readSettings(), false).map(
+        ({ id, label, runtimeId, connected }) => ({
+          id,
+          label,
+          ...(runtimeId && { runtimeId }),
+          ...(connected !== undefined && { connected }),
+        }),
+      ),
+      providerCatalogStatus,
+      providerCatalogError,
       skillCatalog: Object.entries(AGENT_PROFILES).map(([id, p]) => ({ id, label: p.label })),
       mcpCatalog: MCP_CATALOG,
       mcpConfigured: projectIntegrations(
@@ -2294,19 +2373,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                     : message.id === "burp" || MCP_CATALOG.some((m) => m.id === message.id);
             if (!valid) return;
             if (message.kind === "web")
-              await config.update(
-                "chat.webSearch",
-                message.enabled,
-                vscode.ConfigurationTarget.Global,
-              );
+              await writeMachineSetting("chat.webSearch", message.enabled);
             else {
               const list = settings.capabilities?.[field] ?? [];
-              await config.update(
+              await writeMachineSetting(
                 `chat.${field}`,
                 message.enabled
                   ? [...new Set([...list, message.id])]
                   : list.filter((id) => id !== message.id),
-                vscode.ConfigurationTarget.Global,
               );
             }
             for (const slot of slots.values())
@@ -2318,6 +2392,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           }
         });
         await capabilityWrite;
+        return;
+      }
+      if (message.type === "refreshProviderCatalog") {
+        void loadProviderCatalog(true);
+        await pushStudio();
         return;
       }
       if (message.type === "configureProvider") {
@@ -2345,9 +2424,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
       if (message.type === "setLocale") {
         try {
-          await vscode.workspace
-            .getConfiguration("warband")
-            .update("language", message.locale, vscode.ConfigurationTarget.Global);
+          await writeMachineSetting("language", message.locale);
           broadcastLocale();
         } catch (error) {
           await panel.webview.postMessage(localeMessage());
@@ -3047,7 +3124,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand("warband.launcher", () => openLauncher()),
     vscode.commands.registerCommand("warband.configureProvider", async (requestedId?: unknown) => {
       if (typeof requestedId !== "string") return;
-      if (["claude", "openai", "google"].includes(requestedId)) {
+      if (
+        providerChoices(readSettings(), false).some(
+          (p) => p.id === requestedId && !p.id.startsWith("venator-"),
+        )
+      ) {
         await vscode.commands.executeCommand("warband.setToken", requestedId);
         return;
       }
@@ -3193,8 +3274,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
               "login",
               ...(provider === "openai"
                 ? ["--provider", "openai"]
-                : entry
-                  ? ["--provider", entry.id]
+                : entry?.runtimeId
+                  ? ["--provider", entry.runtimeId]
                   : []),
             ],
             env: {
@@ -3223,6 +3304,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           void rm(configHome, { recursive: true, force: true });
           subscription.dispose();
           applyAuthChange();
+          void loadProviderCatalog(true);
         });
         context.subscriptions.push(subscription);
         term.show();

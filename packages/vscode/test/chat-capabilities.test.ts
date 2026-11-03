@@ -15,6 +15,7 @@ import { parseStudioMessage } from "../src/logic/studio.js";
 
 describe("ressources du chat : configuration, activation et choix distincts", () => {
   const config: ChatSettings = {
+    providerCatalog: [{ id: "google", name: "Google Gemini", connected: true }],
     capabilities: {
       providers: ["claude", "google"],
       skills: ["mentor"],
@@ -108,5 +109,26 @@ describe("ressources du chat : configuration, activation et choix distincts", ()
     expect(
       parseToEngine({ v: 1, type: "start", cwd: "/workspace", webSearch: "false" }),
     ).toMatchObject({ ok: false });
+  });
+});
+
+it("rétablit OpenCode et route tous les fournisseurs découverts", () => {
+  const settings = {
+    capabilities: capabilitySettings(() => undefined),
+    providerCatalog: [
+      { id: "opencode", name: "OpenCode Zen", connected: true },
+      { id: "github-copilot", name: "GitHub Copilot", connected: false },
+      { id: "deepseek", name: "DeepSeek", connected: false },
+    ],
+  };
+  expect(providerChoices(settings).some((p) => p.id === "opencode" && !p.prefix)).toBe(true);
+  expect(providerChoices(settings, false).find((p) => p.id === "oc-github-copilot")).toMatchObject({
+    backend: "opencode",
+    runtimeId: "github-copilot",
+    prefix: "github-copilot/",
+    connected: false,
+  });
+  expect(providerChoices(settings, false).find((p) => p.id === "oc-opencode")).toMatchObject({
+    prefix: "opencode/",
   });
 });

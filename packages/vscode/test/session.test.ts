@@ -1838,6 +1838,7 @@ it.each(["claude", "openai", "opencode"] as const)(
 
 describe("ressources choisies dans chaque conversation", () => {
   const settings = {
+    providerCatalog: [{ id: "google", name: "Google Gemini", connected: true }],
     capabilities: {
       providers: ["claude", "google"],
       skills: ["mentor"],

@@ -1,5 +1,12 @@
 import { randomUUID } from "node:crypto";
-import type { AuthMode, Effort, EngineEvent, ModelOption, Reason } from "@warband/core";
+import type {
+  AuthMode,
+  Effort,
+  EngineEvent,
+  ModelOption,
+  ProviderOption,
+  Reason,
+} from "@warband/core";
 import { formatReason, getUiLocale, t } from "@warband/messages";
 import { alwaysConfirmText, answerFor, type Choice, cleanText, toCard } from "./approval.js";
 import { PRODUCT_NAME } from "./brand.js";
@@ -92,6 +99,7 @@ export interface ChatSessionDeps {
   onView(view: ChatView): void;
   /** Sortie d'erreur du moteur, déjà masquée. */
   onLog?(text: string): void;
+  onProviders?(providers: ProviderOption[]): void;
   /** Événements déjà masqués reçus du moteur courant, jamais l’historique. */
   onObservedEvent?(event: EngineEvent | null): void;
   onMissionContext?(snapshot: { runId: string; text: string }): void;
@@ -683,6 +691,9 @@ export function createChatSession(deps: ChatSessionDeps) {
         cwd: deps.cwd,
         ...(token?.auth && { auth: token.auth }),
         handlers: {
+          onProviders: (providers) => {
+            if (active()) deps.onProviders?.(providers);
+          },
           onLog: (text) => {
             if (active() && acceptingLogs) deps.onLog?.(text);
           },

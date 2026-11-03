@@ -22,18 +22,18 @@ export const emptySelection = (): ChatSelection => ({
   webSearch: false,
 });
 export const isCapabilityId = (value: unknown): value is string =>
-  typeof value === "string" && /^[a-z][a-z0-9_-]{0,63}$/.test(value);
+  typeof value === "string" && /^[a-z][a-z0-9._-]{0,98}$/.test(value);
 export function capabilitySettings(get: (key: string) => unknown): CapabilitySettings {
   const ids = (key: string, fallback: string[]) => {
     const raw = get(key);
     return raw === undefined
       ? fallback
-      : Array.isArray(raw) && raw.length <= 32 && raw.every(isCapabilityId)
+      : Array.isArray(raw) && raw.length <= 512 && raw.every(isCapabilityId)
         ? [...new Set(raw)]
         : [];
   };
   return {
-    providers: ids("chat.providers", ["claude", "openai", "google"]),
+    providers: ids("chat.providers", ["claude", "openai", "opencode"]),
     skills: ids("chat.skills", Object.keys(AGENT_PROFILES)),
     integrations: ids("chat.integrations", []),
     webSearch: get("chat.webSearch") === undefined || get("chat.webSearch") === true,
@@ -94,17 +94,31 @@ export interface ProviderChoice {
   label: string;
   backend: Provider;
   prefix?: string;
+  runtimeId?: string;
+  connected?: boolean;
 }
 export function providerChoices(settings: ChatSettings, enabledOnly = true): ProviderChoice[] {
   const all: ProviderChoice[] = [
     { id: "claude", label: "Claude", backend: "claude" },
     { id: "openai", label: "OpenAI · ChatGPT / API", backend: "openai" },
-    { id: "google", label: "Google Gemini", backend: "opencode", prefix: "google/" },
+    { id: "opencode", label: "OpenCode", backend: "opencode" },
+    ...(settings.providerCatalog ?? [])
+      .filter((p) => !p.id.startsWith("venator-"))
+      .map((p) => ({
+        id: p.id === "google" ? "google" : `oc-${p.id}`,
+        label: p.name,
+        backend: "opencode" as const,
+        prefix: `${p.id}/`,
+        runtimeId: p.id,
+        connected: p.connected,
+      })),
     ...Object.entries(settings.opencodeProviders ?? {}).map(([id, p]) => ({
       id,
       label: p.name ?? id,
       backend: "opencode" as const,
       prefix: `${id}/`,
+      runtimeId: id,
+      connected: settings.providerCatalog?.find((p) => p.id === id)?.connected ?? false,
     })),
   ];
   return enabledOnly ? all.filter((p) => settings.capabilities?.providers.includes(p.id)) : all;

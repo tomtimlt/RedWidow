@@ -4,6 +4,7 @@ import {
   type IntegrationConfig,
   isBurpConfig,
   MCP_CATALOG,
+  type ProviderOption,
   parseIntegrations,
 } from "@warband/core";
 import type { CapabilitySettings } from "./chat-capabilities.js";
@@ -40,6 +41,7 @@ export function machineValue(info: Inspected | undefined): unknown {
 }
 
 export interface ChatSettings {
+  providerCatalog?: ProviderOption[];
   capabilities?: CapabilitySettings;
   webSearch?: boolean;
   opencodeProviders?: OpencodeProviders;

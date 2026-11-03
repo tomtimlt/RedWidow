@@ -2,7 +2,7 @@
   "name": "warband",
   "displayName": "Venator Ops",
   "description": "%extension.description%",
-  "version": "0.3.68",
+  "version": "0.3.69",
   "publisher": "warband",
   "license": "MIT",
   "engines": {
@@ -377,7 +377,7 @@
             "type": "string"
           },
           "uniqueItems": true,
-          "default": ["claude", "openai", "google"],
+          "default": ["claude", "openai", "opencode"],
           "scope": "machine",
           "description": "%config.chat.providers%"
         },

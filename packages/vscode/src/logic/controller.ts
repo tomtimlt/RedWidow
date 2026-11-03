@@ -8,6 +8,7 @@ import {
   type ErrorInfo,
   type ModelOption,
   type PendingApproval,
+  type ProviderOption,
   type Reason,
   type RememberScope,
   safeEnv,
@@ -77,6 +78,7 @@ export function buildEngineEnv(
 const HIDDEN_WINDOW = { windowsHide: true };
 
 export interface EngineHandlers {
+  onProviders?(providers: ProviderOption[]): void;
   onStarted?(info: { runId: string; policySource: string | null; warning?: Reason }): void;
   onEvent?(event: EngineEvent): void;
   onMissionContext?(snapshot: { runId: string; text: string }): void;
@@ -188,6 +190,7 @@ export function createEngineController(options: EngineControllerOptions): Engine
       case "ended":
         return handlers.onEnded?.(message.summary);
       case "models":
+        if (message.providers) handlers.onProviders?.(message.providers);
         return probe?.resolve(message.models);
       case "error":
         if (probe) return probe.reject(new ModelProbeError(message.reason));
@@ -240,7 +243,11 @@ export function createEngineController(options: EngineControllerOptions): Engine
       });
       proc.on("message", (raw) => {
         const parsed = parseFromEngine(raw);
-        if (!parsed.ok) return handlers.onError?.(parsed.reason);
+        if (!parsed.ok) {
+          if (probe) probe.reject(new ModelProbeError(parsed.reason));
+          else handlers.onError?.(parsed.reason);
+          return;
+        }
         if (parsed.message.type === "ready" && !ready) {
           ready = true;
           clearTimeout(timer);

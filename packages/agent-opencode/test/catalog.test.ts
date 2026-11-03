@@ -410,3 +410,36 @@ describe("toolsets OpenCode", () => {
     ).toEqual(["chercher", "lire"]);
   });
 });
+
+it("expose tous les fournisseurs, même non connectés, sans options ni secrets", async () => {
+  const client = catalogClient({
+    listProviders: async () => ({
+      all: [
+        {
+          id: "opencode",
+          name: "OpenCode",
+          apiKey: "do-not-forward",
+          models: { free: { name: "Free" } },
+        },
+        {
+          id: "bedrock",
+          name: "Amazon Bedrock",
+          options: { secret: "do-not-forward" },
+          models: { m: { name: "Model" } },
+        },
+      ],
+      connected: ["opencode"],
+    }),
+  });
+  const catalog = await createOpencodeRunner({ createClient: client.createClient }).listCatalog?.({
+    cwd: process.cwd(),
+  });
+  expect(catalog?.providers).toEqual([
+    { id: "opencode", name: "OpenCode", connected: true },
+    { id: "bedrock", name: "Amazon Bedrock", connected: false },
+  ]);
+  expect(catalog?.models.map((m) => m.value)).toEqual(["opencode/free"]);
+  expect(JSON.stringify(catalog)).not.toContain("do-not-forward");
+  expect(client.fake.prompts).toEqual([]);
+  expect(client.fake.closed()).toBe(true);
+});

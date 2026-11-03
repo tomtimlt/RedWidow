@@ -1,8 +1,12 @@
 # Configurer les fournisseurs IA
 
-Dans **Réglages → Contrôle système**, configure Claude, OpenAI ou Google Gemini,
-puis active les fournisseurs à proposer dans le chat. Choisis ensuite le fournisseur
-dans **Configurer**. Le moteur OpenCode reste interne à l’extension.
+Dans **Réglages → Contrôle système**, configure Claude, OpenAI ou **OpenCode**.
+Le catalogue réel d’OpenCode propose tous ses fournisseurs, connectés ou non :
+utilise la recherche, configure la connexion native et active les fournisseurs
+à proposer dans **Configurer** du chat. Aucun identifiant de modèle n’est codé en dur.
+L’entrée générale **OpenCode** reste disponible et regroupe tous les modèles connectés.
+Un fournisseur individuel filtre les modèles sur son propre catalogue.
+La connexion ne donne aucune permission supplémentaire à l’agent.
 
 Pour Ollama ou une API compatible OpenAI, clique **Ajouter Ollama / un endpoint
 compatible**, saisis le nom, l’URL de l’API et les identifiants des modèles installés.

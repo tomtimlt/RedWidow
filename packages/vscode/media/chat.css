@@ -7134,3 +7134,116 @@ body.mode-monitor .mon-tick.is-selected {
 .capability-row .studio-help {
   margin: 0;
 }
+
+/* Même grammaire visuelle que les interrupteurs Apprentissage et Bypass. */
+.resource-toggle {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 36px;
+  padding: 6px 8px 6px 10px;
+  border: 0;
+  border-radius: var(--jn-r-pill);
+  background: transparent;
+  color: var(--vscode-foreground);
+  text-align: left;
+  font: inherit;
+}
+.resource-toggle::after {
+  content: "";
+  flex: 0 0 34px;
+  height: 20px;
+  box-sizing: border-box;
+  border: 1px solid var(--jn-line-strong);
+  border-radius: 999px;
+  background: var(--jn-raise-2);
+}
+.resource-toggle::before {
+  content: "";
+  position: absolute;
+  right: 26px;
+  top: 50%;
+  margin-top: -7px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--vscode-foreground);
+  opacity: 0.7;
+  pointer-events: none;
+  transition: transform var(--jn-d2) var(--jn-ease-out);
+}
+.resource-toggle[aria-checked="true"]::after {
+  background: var(--jn-sig);
+  border-color: transparent;
+}
+.resource-toggle[aria-checked="true"]::before {
+  transform: translateX(14px);
+  opacity: 1;
+  background: var(--vscode-editor-background, #181818);
+}
+.resource-toggle:hover:not(:disabled) {
+  background: var(--jn-raise-2);
+}
+.resource-toggle:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.capability-row > .resource-toggle {
+  flex: 1 1 230px;
+}
+.resource-configure {
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-pill);
+}
+.provider-catalog-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 24px;
+}
+.provider-catalog-search {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 8px 0;
+}
+.provider-catalog-list {
+  max-height: 400px;
+  overflow: auto;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+  padding: 0 10px;
+}
+.provider-catalog-list .capability-row[hidden] {
+  display: none;
+}
+/* La loupe et la saisie occupent deux colonnes, sans superposition. */
+#model-pop .pop-search {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  gap: 8px;
+  padding: 0 11px;
+  align-items: center;
+  border: 1px solid var(--jn-line-strong);
+  border-radius: var(--jn-r-pill);
+  background: var(--vscode-input-background);
+}
+#model-pop .pop-search-ico {
+  position: static;
+  width: 14px;
+  height: 14px;
+}
+#model-pop .pop-search #model-filter {
+  padding: 0;
+  min-width: 0;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+}
+#model-pop .pop-search:focus-within {
+  border-color: var(--jn-focus);
+  box-shadow: 0 0 0 1px var(--jn-focus);
+}

@@ -307,13 +307,15 @@ export function runEngine({
           undefined,
           opencodeProviders,
         );
-        const models =
-          (await runner.listModels?.({
-            cwd,
-            ...(auth !== undefined && { auth }),
-            signal: abort.signal,
-          })) ?? [];
-        send({ v: PROTOCOL_VERSION, type: "models", models });
+        const input = { cwd, ...(auth !== undefined && { auth }), signal: abort.signal };
+        const catalog = runner.listCatalog ? await runner.listCatalog(input) : undefined;
+        const models = catalog?.models ?? (await runner.listModels?.(input)) ?? [];
+        send({
+          v: PROTOCOL_VERSION,
+          type: "models",
+          models,
+          ...(catalog && { providers: catalog.providers }),
+        });
         finish(0);
       } catch (error) {
         send({ v: PROTOCOL_VERSION, type: "error", reason: errorInfo(error) });

@@ -1,7 +1,9 @@
 // Compilation déterministe du même catalogue pour les webviews, sans ressource distante.
 import { execFileSync } from "node:child_process";
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = new URL("../", import.meta.url);
@@ -17,17 +19,28 @@ const result = await build({
   write: false,
   charset: "utf8",
 });
-// Le fichier généré doit rester identique après le formatage du dépôt.
-const text = execFileSync(
-  process.execPath,
-  [
-    fileURLToPath(new URL("node_modules/@biomejs/biome/bin/biome", root)),
-    "format",
-    "--stdin-file-path",
-    fileURLToPath(output),
-  ],
-  { cwd: fileURLToPath(root), input: result.outputFiles[0].text, encoding: "utf8" },
-);
+// Fichier temporaire : le wrapper natif de Biome n’hérite pas d’un pipe stdin imbriqué.
+const temporary = await mkdtemp(join(tmpdir(), "venator-i18n-"));
+let text;
+try {
+  const input = join(temporary, "i18n.js");
+  await writeFile(input, result.outputFiles[0].text, "utf8");
+  execFileSync(
+    process.execPath,
+    [
+      fileURLToPath(new URL("node_modules/@biomejs/biome/bin/biome", root)),
+      "format",
+      "--write",
+      "--config-path",
+      fileURLToPath(new URL("biome.json", root)),
+      input,
+    ],
+    { cwd: fileURLToPath(root), timeout: 15000, stdio: ["ignore", "pipe", "pipe"] },
+  );
+  text = await readFile(input, "utf8");
+} finally {
+  await rm(temporary, { recursive: true, force: true });
+}
 if (process.argv.includes("--check")) {
   if ((await readFile(output, "utf8").catch(() => "")) !== text) {
     console.error("Catalogue webview désynchronisé : node scripts/sync-ui-i18n.mjs");

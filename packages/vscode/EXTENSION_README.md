@@ -28,7 +28,7 @@ You need **VS Code 1.90+** and **Docker installed and running** for containers. 
 3. Run **Venator Ops: Open or restore the Venator Ops workspace** to bring back the chat, kill chain and Monitor. Open a terminal to work by hand.
 4. For AI assistance, open **Settings → System control**, configure a provider and enable it. Pick that provider in the chat’s **Configure** menu, then select a model available on your account.
 
-Providers include **Claude**, **OpenAI / ChatGPT**, **Google Gemini**, **Ollama** and OpenAI-compatible endpoints. Use **Add Ollama / a compatible endpoint** to enter your API URL and installed model IDs. You can switch provider while keeping the same conversation. Provider subscriptions and API charges are separate. On Windows, Claude requires [Git for Windows with Git Bash](https://git-scm.com/downloads/win).
+Providers include **Claude**, **OpenAI / ChatGPT** and **OpenCode** with its full runtime provider catalog. Search and enable providers such as Google Gemini, OpenRouter, GitHub Copilot and DeepSeek in System control. The general **OpenCode** entry shows all connected models. Use **Add Ollama / a compatible endpoint** to enter your API URL and installed model IDs. You can switch provider while keeping the same conversation. Provider subscriptions and API charges are separate. On Windows, Claude requires [Git for Windows with Git Bash](https://git-scm.com/downloads/win).
 
 English is the default interface language. Choose **EN / FR** in Settings. Native command titles follow your VS Code language.
 

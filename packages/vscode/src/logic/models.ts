@@ -1,8 +1,8 @@
-import { EFFORTS, type ModelOption } from "@warband/core";
+import { EFFORTS, type ModelOption, type ProviderOption } from "@warband/core";
 import { cleanText } from "./approval.js";
 
 /** Plafonds du sondage (réponse venue du moteur, donc validée comme toute entrée). */
-export const MAX_MODELS = 1000;
+export const MAX_MODELS = 20_000;
 const MAX_FIELD = 200;
 const MAX_DESCRIPTION = 500;
 
@@ -102,4 +102,27 @@ export function validateModelChoice(
   if (!isModelId(choice)) return { ok: false };
   if (models !== null && !models.some((m) => m.value === choice)) return { ok: false };
   return { ok: true, model: choice };
+}
+
+/** Métadonnées publiques seulement : jamais de clés, URL, options ou schémas d’authentification. */
+export function parseProviderOptions(raw: unknown): ProviderOption[] | null {
+  if (!Array.isArray(raw) || raw.length > 512) return null;
+  const ids = new Set<string>();
+  for (const item of raw) {
+    if (
+      !isObj(item) ||
+      Object.keys(item).length !== 3 ||
+      !Object.keys(item).every((k) => ["id", "name", "connected"].includes(k)) ||
+      typeof item.id !== "string" ||
+      !/^[a-z0-9][a-z0-9._-]{0,95}$/.test(item.id) ||
+      ids.has(item.id) ||
+      typeof item.name !== "string" ||
+      !item.name.trim() ||
+      item.name.length > 200 ||
+      typeof item.connected !== "boolean"
+    )
+      return null;
+    ids.add(item.id);
+  }
+  return raw as ProviderOption[];
 }

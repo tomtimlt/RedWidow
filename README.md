@@ -136,9 +136,9 @@ Venator Ops is not on the Marketplace yet: installation is manual.
 ## FAQ
 
 **Which AI providers are supported?**
-**Claude** (subscription token or API key), **OpenAI** (ChatGPT subscription or API key), **Google Gemini**, **Ollama** and OpenAI-compatible endpoints. OpenCode powers the additional providers behind the scenes. You can switch provider and keep the same conversation.
+**Claude** (subscription token or API key), **OpenAI** (ChatGPT subscription or API key), and **OpenCode**, with its full provider catalog, including Gemini, OpenRouter, GitHub Copilot, DeepSeek, Ollama and compatible endpoints. You can switch provider and keep the same conversation.
 
-Open **Settings → System control** to configure and enable your providers. Pick an enabled provider in the chat’s **Configure** menu. For Ollama or another compatible endpoint, use **Add Ollama / a compatible endpoint** and enter its API URL and installed model IDs.
+Open **Settings → System control** to search OpenCode’s runtime provider catalog, configure connections and enable the providers you want in the chat’s **Configure** menu. **OpenCode** also remains available as a general entry showing all connected models. For Ollama or another compatible endpoint, use **Add Ollama / a compatible endpoint** and enter its API URL and installed model IDs.
 
 **Which systems does it run on?**
 Windows (native, no WSL) and Linux.

@@ -391,6 +391,7 @@ function start() {
   const summaryDrafts = /* @__PURE__ */ new Map();
   const summarySaving = /* @__PURE__ */ new Set();
   let projectNameDraft = "";
+  let providerFilter = "";
   let projectPanel = null;
   const el = (tag, className, text) => {
     const node = document.createElement(tag);
@@ -1623,32 +1624,82 @@ function start() {
             ),
           ),
         );
-        const capabilityRow = (kind, id, label, enabled, configure, detail) => {
+        const capabilityRow = (kind, id, label, enabled, configure, detail, parent = sec) => {
           const row = el("div", "capability-row");
-          const title = el("label", "capability-label");
-          const toggle = el("input");
-          toggle.type = "checkbox";
-          toggle.checked = enabled;
+          const toggle = el("button", "resource-toggle", label);
+          toggle.type = "button";
           toggle.id = `capability-${kind}-${id}`;
-          toggle.addEventListener("change", () =>
-            vscode.postMessage({ type: "setCapability", kind, id, enabled: toggle.checked }),
-          );
-          title.append(toggle, el("strong", "", label));
-          row.append(title);
+          toggle.setAttribute("role", "switch");
+          toggle.setAttribute("aria-checked", String(enabled));
+          toggle.addEventListener("click", () => {
+            const on = toggle.getAttribute("aria-checked") !== "true";
+            toggle.setAttribute("aria-checked", String(on));
+            vscode.postMessage({ type: "setCapability", kind, id, enabled: on });
+          });
+          row.append(toggle);
           if (detail) row.append(el("span", "studio-help", detail));
           if (configure) {
-            const button = el("button", "ghost", t("Configurer"));
+            const button = el("button", "ghost resource-configure", t("Configurer"));
             button.type = "button";
             button.addEventListener("click", () => vscode.postMessage(configure));
             row.append(button);
           }
-          sec.append(row);
+          parent.append(row);
         };
-        for (const p of view.providerCatalog ?? [])
+        const allProviders = view.providerCatalog ?? [];
+        for (const p of allProviders.filter((p) => !p.runtimeId))
           capabilityRow("provider", p.id, p.label, caps.providers.includes(p.id), {
             type: "configureProvider",
             id: p.id,
           });
+        const catalogHeader = el("div", "provider-catalog-head");
+        catalogHeader.append(el("h3", "", t("Fournisseurs OpenCode")));
+        const refreshProviders = el("button", "ghost", t("Actualiser le catalogue"));
+        refreshProviders.type = "button";
+        refreshProviders.disabled = view.providerCatalogStatus === "loading";
+        refreshProviders.addEventListener("click", () =>
+          vscode.postMessage({ type: "refreshProviderCatalog" }),
+        );
+        catalogHeader.append(refreshProviders);
+        sec.append(catalogHeader);
+        const providerStatus = el(
+          "p",
+          "studio-help",
+          view.providerCatalogStatus === "loading"
+            ? t("Chargement du catalogue OpenCode…")
+            : view.providerCatalogError ||
+                t(
+                  "Activez les fournisseurs souhaités. OpenCode conserve aussi son accès général à tous les modèles connectés.",
+                ),
+        );
+        providerStatus.setAttribute("role", "status");
+        sec.append(providerStatus);
+        const searchProviders = el("input", "provider-catalog-search");
+        searchProviders.type = "search";
+        searchProviders.id = "provider-catalog-filter";
+        searchProviders.value = providerFilter;
+        searchProviders.placeholder = t("Rechercher un fournisseur…");
+        searchProviders.setAttribute("aria-label", t("Rechercher un fournisseur"));
+        const providerList = el("div", "provider-catalog-list");
+        for (const p of allProviders.filter((p) => p.runtimeId))
+          capabilityRow(
+            "provider",
+            p.id,
+            p.label,
+            caps.providers.includes(p.id),
+            { type: "configureProvider", id: p.id },
+            p.connected ? t("connecté") : t("à connecter"),
+            providerList,
+          );
+        const filterProviders = () => {
+          providerFilter = searchProviders.value;
+          const query = searchProviders.value.trim().toLocaleLowerCase();
+          for (const row of providerList.children)
+            row.hidden = !row.textContent.toLocaleLowerCase().includes(query);
+        };
+        searchProviders.addEventListener("input", filterProviders);
+        filterProviders();
+        sec.append(searchProviders, providerList);
         const addProvider = el("button", "ghost", t("Ajouter Ollama / un endpoint compatible"));
         addProvider.type = "button";
         addProvider.addEventListener("click", () =>

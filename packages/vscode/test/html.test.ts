@@ -184,7 +184,7 @@ describe("composer et Configurer (lot P1)", () => {
     expect(cfg).toContain('<select id="provider"');
     expect(cfg).toContain('value="claude">Claude');
     expect(cfg).toContain('value="openai">OpenAI (ChatGPT / API)');
-    expect(cfg).toContain('value="google">Google Gemini');
+    expect(cfg).toContain('value="opencode">OpenCode');
     expect(cfg).toContain("Configurer la connexion");
     expect(cfg).toContain("Contrôle système");
     expect(js).toContain('type: "selectProvider", id: event.target.value');

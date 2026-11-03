@@ -1,5 +1,15 @@
 // Configuration des ressources et sélection explicite dans le chat.
 export const resourcesEn: Record<string, string> = {
+  "Fournisseurs OpenCode": "OpenCode providers",
+  "Actualiser le catalogue": "Refresh catalog",
+  "Chargement du catalogue OpenCode…": "Loading the OpenCode catalog…",
+  "Activez les fournisseurs souhaités. OpenCode conserve aussi son accès général à tous les modèles connectés.":
+    "Enable the providers you want. OpenCode also keeps its general access to all connected models.",
+  "Rechercher un fournisseur…": "Search providers…",
+  "Rechercher un fournisseur": "Search providers",
+  connecté: "connected",
+  "à connecter": "not connected",
+
   "Configuration invalide : identifiants et ports distincts requis.":
     "Invalid configuration: distinct IDs and ports are required.",
   "Ajouter des outils et du contexte": "Add tools and context",

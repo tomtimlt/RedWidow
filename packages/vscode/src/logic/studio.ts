@@ -55,6 +55,7 @@ export type StudioMessage =
   | { type: "openWorkspace" }
   | { type: "prepareMission" }
   | { type: "openCatalog" }
+  | { type: "refreshProviderCatalog" }
   | { type: "chooseProfile" }
   | { type: "configureBurp" }
   | { type: "testBurp" }
@@ -107,7 +108,8 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
   )
     return { type: "setLocale", locale: m.locale };
   if (
-    (m.type === "openCatalog" ||
+    (m.type === "refreshProviderCatalog" ||
+      m.type === "openCatalog" ||
       m.type === "chooseProfile" ||
       m.type === "openWorkspace" ||
       m.type === "prepareMission") &&

@@ -18,6 +18,7 @@ import {
   errorInfo,
   type ListModelsInput,
   type MissionDesk,
+  type ModelCatalog,
   type ModelOption,
   type Reason,
   type RunContext,
@@ -25,6 +26,7 @@ import {
   type RunSummary,
   reason,
   resolveBinary,
+  stripControl,
   ToolCallRegistry,
   withAgentMethodology,
   withWebResearchGuidance,
@@ -217,15 +219,16 @@ interface Call {
 export function createOpencodeRunner(options: OpencodeRunnerOptions = {}): AgentRunner {
   return {
     run: (input, ctx) => runWithOpencode(options, input, ctx),
-    listModels: (input) => probeModels(options, input),
+    listModels: async (input) => (await probeCatalog(options, input)).models,
+    listCatalog: (input) => probeCatalog(options, input),
   };
 }
 
 /** Catalogue runtime : aucune session, aucun prompt et aucun serveur d'outils. */
-async function probeModels(
+async function probeCatalog(
   options: OpencodeRunnerOptions,
   { cwd, auth, signal }: ListModelsInput,
-): Promise<ModelOption[]> {
+): Promise<ModelCatalog> {
   const processEnv = options.processEnv ?? process.env;
   const credentials = await authEnvironment(options, auth);
   const abort = new AbortController();
@@ -291,7 +294,7 @@ async function probeModels(
         if (!modelId) continue;
         models.push({
           value: `${id}/${modelId}`,
-          displayName: str(model.name) ?? modelId,
+          displayName: stripControl(str(model.name) ?? modelId).slice(0, 200),
           reasoningVariants: reasoningVariants(model),
         });
       }
@@ -321,7 +324,22 @@ async function probeModels(
       const [preferred] = models.splice(defaultIndex, 1);
       if (preferred) models.unshift(preferred);
     }
-    return models;
+    return {
+      models,
+      providers: providers.flatMap((raw) => {
+        const p = obj(raw),
+          id = str(p.id);
+        return id && /^[a-z0-9][a-z0-9._-]{0,95}$/.test(id)
+          ? [
+              {
+                id,
+                name: stripControl(str(p.name) ?? id).slice(0, 200),
+                connected: connected.has(id),
+              },
+            ]
+          : [];
+      }),
+    };
   } finally {
     signal?.removeEventListener("abort", onAbort);
     abort.abort();

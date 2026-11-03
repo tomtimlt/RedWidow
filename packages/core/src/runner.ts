@@ -82,8 +82,19 @@ export interface RunSummary {
  * Contrat d'un moteur d'agent. Le cœur ne connaît aucun SDK : un adaptateur
  * (ex. `@warband/agent-sdk`) l'implémente et traduit son flux en événements.
  */
+export interface ProviderOption {
+  id: string;
+  name: string;
+  connected: boolean;
+}
+export interface ModelCatalog {
+  models: ModelOption[];
+  providers: ProviderOption[];
+}
 export interface AgentRunner {
   run(input: RunInput, ctx: RunContext): Promise<RunSummary>;
   /** Modèles disponibles, obtenus sans envoyer de consigne (donc sans coût d'inférence). */
   listModels?(input: ListModelsInput): Promise<ModelOption[]>;
+  /** Catalogue complet des fournisseurs et modèles connectés, sans inférence. Aucun secret. */
+  listCatalog?(input: ListModelsInput): Promise<ModelCatalog>;
 }

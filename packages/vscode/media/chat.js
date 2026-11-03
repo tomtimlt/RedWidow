@@ -698,6 +698,7 @@
     $("models-connect").hidden = loading || !message;
     $("models-connect").disabled = c.locked;
     modelFilter.hidden = modelList.hidden = free;
+    if (modelFilter.parentElement) modelFilter.parentElement.hidden = free;
     modelInput.hidden = !free || loading;
     modelInput.disabled = c.locked;
     $("models-refresh").disabled = c.locked;
@@ -799,7 +800,9 @@
     lastCapabilities = caps ?? null;
     const target = $("composer-resources");
     const chips = $("selected-resources");
-    const focusedChoice = [...target.querySelectorAll("input")].indexOf(document.activeElement);
+    const focusedChoice = [...target.querySelectorAll(".resource-toggle")].indexOf(
+      document.activeElement,
+    );
     if (!caps) {
       target.replaceChildren();
       chips.hidden = true;
@@ -825,23 +828,23 @@
     const rows = [];
     const heading = (text) => rows.push(el("p", "composer-section", t(text)));
     const choice = (label, checked, apply, radio = false, unavailable = false) => {
-      const row = el("label", "composer-choice");
-      const box = el("input");
-      box.type = radio ? "radio" : "checkbox";
-      if (radio) box.name = "chat-skill";
-      box.checked = checked;
-      box.disabled = locked || unavailable;
-      box.addEventListener("change", () => {
+      const row = el("button", "resource-toggle composer-choice", label);
+      row.type = "button";
+      row.setAttribute("role", "switch");
+      row.setAttribute("aria-checked", String(checked));
+      row.disabled = locked || unavailable;
+      row.addEventListener("click", () => {
         const selection = {
           ...lastCapabilities.selection,
           integrations: [...lastCapabilities.selection.integrations],
         };
-        apply(selection, box.checked);
+        apply(selection, radio ? true : !checked);
         lastCapabilities = { ...lastCapabilities, selection };
         vscode.postMessage({ type: "setSelection", selection });
+        const index = rows.indexOf(row);
         renderCapabilities(lastCapabilities, view);
+        $("composer-resources").children[index]?.focus();
       });
-      row.append(box, el("span", "", label));
       rows.push(row);
     };
     if (caps.skills.length) {
@@ -899,7 +902,7 @@
       ),
     );
     target.replaceChildren(...rows);
-    if (focusedChoice >= 0) target.querySelectorAll("input")[focusedChoice]?.focus();
+    if (focusedChoice >= 0) target.querySelectorAll(".resource-toggle")[focusedChoice]?.focus();
     const names = [
       caps.selection.profile ? skillLabels[caps.selection.profile] : null,
       ...caps.selection.integrations.map((id) => mcpLabels[id] ?? id),
@@ -920,7 +923,7 @@
     },
   });
   composerMenu.addEventListener("click", (event) => {
-    if (event.target.closest("button")) closeComposer();
+    if (event.target.closest(".composer-action")) closeComposer();
   });
   $("composer-settings").addEventListener("click", () =>
     vscode.postMessage({ type: "openSystem" }),

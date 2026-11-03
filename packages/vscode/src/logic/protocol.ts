@@ -12,6 +12,7 @@ import {
   isBurpConfig,
   type ModelOption,
   type PendingApproval,
+  type ProviderOption,
   parseIntegrations,
   REASON_CODES,
   type Reason,
@@ -21,7 +22,7 @@ import {
 } from "@warband/core";
 import { type ConversationContext, isConversationContext } from "./conversation-context.js";
 import { isProvider, type Provider, parseEffort } from "./effort.js";
-import { isModelId, parseModelOptions } from "./models.js";
+import { isModelId, parseModelOptions, parseProviderOptions } from "./models.js";
 import { type OpencodeProviders, parseOpencodeProviders } from "./opencode-providers.js";
 
 /**
@@ -94,7 +95,7 @@ export type ToEngine =
 export type FromEngine =
   | { v: 1; type: "ready" }
   | { v: 1; type: "started"; runId: string; policySource: string | null; warning?: Reason }
-  | { v: 1; type: "models"; models: ModelOption[] }
+  | { v: 1; type: "models"; models: ModelOption[]; providers?: ProviderOption[] }
   | { v: 1; type: "event"; event: EngineEvent }
   | { v: 1; type: "missionContext"; runId: string; text: string }
   | { v: 1; type: "approval"; approval: PendingApproval }
@@ -364,7 +365,7 @@ export function parseFromEngine(raw: unknown): Parsed<FromEngine> {
     {
       ready: ["v", "type"],
       started: ["v", "type", "runId", "policySource", "warning"],
-      models: ["v", "type", "models"],
+      models: ["v", "type", "models", "providers"],
       event: ["v", "type", "event"],
       missionContext: ["v", "type", "runId", "text"],
       approval: ["v", "type", "approval"],
@@ -404,7 +405,10 @@ export function parseFromEngine(raw: unknown): Parsed<FromEngine> {
       if (obj.warning !== undefined && !validReason(obj.warning)) return bad("warning");
       return ok;
     case "models":
-      return parseModelOptions(obj.models) ? ok : bad("models");
+      return parseModelOptions(obj.models) &&
+        (obj.providers === undefined || parseProviderOptions(obj.providers))
+        ? ok
+        : bad("models");
     case "event": {
       const invalid = validateEvent(obj.event);
       return invalid ? bad("event", invalid.code) : ok;
