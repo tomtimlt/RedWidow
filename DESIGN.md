@@ -56,8 +56,11 @@ remplace Venator Ops. **Le projet est et restera open source** : la
 communication vise la croissance comme un produit : adoption, étoiles GitHub,
 visibilité dans la communauté cyber et valeur sur le CV de l’auteur ; il n’y a
 ni prix ni version payante (code public, licence open source). Palette par défaut à venir : Widow (noir profond,
-cramoisi `#E5132B`) ; logo : araignée blindée à facettes avec viseur en
-sablier, version détaillée et icône simplifiée. Les sections ci-dessous
+cramoisi `#E5132B`) ; logo retenu : araignée blindée à facettes, gris acier,
+cerveau sur le céphalothorax (l’araignée intelligente, l’IA) et viseur rouge
+**vide** sur l’abdomen (anneau et quatre traits, sans motif au centre : le
+sablier et les autres variantes ont été écartés) ; yeux rouges discrets.
+Deux icônes : céphalothorax avec cerveau et quatre pattes avant, ou viseur seul. Les sections ci-dessous
 décrivent encore l’identité Venator Ops tant que la refonte n’est pas faite.
 
 ## Marque Venator Ops
