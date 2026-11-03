@@ -156,3 +156,53 @@ describe("formatRunList", () => {
     expect(lines[1]).toMatch(/^B\t.*\tincomplet\t1 événements\tsecond$/);
   });
 });
+
+describe("interface anglaise", () => {
+  const r = createRecorder({ runId: "en", redact: false });
+  const opts = { color: false, verbose: true, locale: "en" as const };
+
+  it("traduit motifs et annotations en conservant les données", () => {
+    expect(
+      formatEvent(
+        r.emit({ kind: "error", code: "process.notFound", params: { binary: "français" } }),
+        opts,
+      ),
+    ).toBe("error     binary not found: français");
+    expect(
+      formatEvent(
+        r.emit({
+          kind: "tool.result",
+          toolUseId: "t",
+          isError: false,
+          output: "sortie française",
+          truncated: true,
+          bytes: 123,
+        }),
+        opts,
+      ),
+    ).toBe("result    sortie française [truncated: 123 bytes]");
+    expect(
+      formatEvent(
+        r.emit({
+          kind: "process.exited",
+          code: null,
+          signal: "SIGTERM",
+          durationMs: 10,
+          termination: "timeout",
+          droppedLines: 2,
+        }),
+        opts,
+      ),
+    ).toContain("timed out · 2 lines not logged");
+    expect(
+      formatEvent(r.emit({ kind: "journal.truncated", limitBytes: 50, droppedEvents: 2 }), opts),
+    ).toBe("journal   truncated at 50 bytes · 2 events lost");
+  });
+
+  it("traduit les listes de runs", () => {
+    const e = r.emit({ kind: "run.started", prompt: "consigne conservée", cwd: "/" });
+    expect(formatRunList(new Map([["en", [e]]]), "en")[0]).toMatch(
+      /incomplete\t1 events\tconsigne conservée$/,
+    );
+  });
+});

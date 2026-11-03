@@ -1,6 +1,48 @@
 // Webview cockpit : état système et conteneurs. DOM sûr (textContent), pas de réseau.
 (() => {
+  const t = (message, ...values) => {
+    if (globalThis.WarbandI18n) return globalThis.WarbandI18n.t(message, ...values);
+    return typeof message === "string"
+      ? message
+      : message.reduce((text, part, i) => text + (i ? values[i - 1] : "") + part, "");
+  };
   const vscode = acquireVsCodeApi();
+  // Un changement de langue reconstruit les libellés et conserve l’interaction en cours.
+  const captureLocaleState = () => {
+    const nodes = [...(document.querySelectorAll?.("*") ?? [])];
+    const active = document.activeElement;
+    const state = nodes.map((node, index) => ({
+      index,
+      id: node.id,
+      value: node.value,
+      checked: node.checked,
+      open: node.open,
+      top: node.scrollTop,
+      left: node.scrollLeft,
+      start: node.selectionStart,
+      end: node.selectionEnd,
+      direction: node.selectionDirection,
+      focused: node === active,
+    }));
+    return () => {
+      const next = [...(document.querySelectorAll?.("*") ?? [])];
+      for (const item of state) {
+        const node = item.id ? document.getElementById(item.id) : next[item.index];
+        if (!node) continue;
+        if (item.value !== undefined && node.id !== "studio-locale") node.value = item.value;
+        if (item.checked !== undefined) node.checked = item.checked;
+        if (item.open !== undefined) node.open = item.open;
+        if (item.focused) {
+          node.focus?.({ preventScroll: true });
+          if (typeof item.start === "number")
+            node.setSelectionRange?.(item.start, item.end, item.direction);
+        }
+        node.scrollTop = item.top;
+        node.scrollLeft = item.left;
+      }
+    };
+  };
+
   const main = document.getElementById("main");
   const refreshBtn = document.getElementById("refresh");
 
@@ -11,19 +53,19 @@
     return node;
   };
 
-  const stateLabel = (s) => (s === "running" ? "en cours" : "arrêté");
+  const stateLabel = (s) => (s === "running" ? t("en cours") : t("arrêté"));
 
   const linkedLine = (v) => {
-    if (v === "running") return "en cours";
-    if (v === "stopped") return "arrêté";
-    if (v === "absent") return "absent";
-    if (v === "none") return "non lié";
+    if (v === "running") return t("en cours");
+    if (v === "stopped") return t("arrêté");
+    if (v === t("absent")) return t("absent");
+    if (v === "none") return t("non lié");
     return "—";
   };
 
   const daemonLine = (v) => {
-    if (v === "reachable") return "joignable";
-    if (v === "unreachable") return "injoignable";
+    if (v === "reachable") return t("joignable");
+    if (v === "unreachable") return t("injoignable");
     return "—";
   };
 
@@ -115,9 +157,9 @@
     const choices = [
       [
         "warband/kali:complete-1",
-        "Kali Venator Ops complète — MCP et outils prêts (construction locale)",
+        t("Kali Venator Ops complète — MCP et outils prêts (construction locale)"),
       ],
-      ["kalilinux/kali-rolling:latest", "Kali officielle — image minimale"],
+      ["kalilinux/kali-rolling:latest", t("Kali officielle — image minimale")],
       ...form.images
         .filter(
           (ref) => !["warband/kali:complete-1", "kalilinux/kali-rolling:latest"].includes(ref),
@@ -167,16 +209,16 @@
     const engine = engineOf(view);
     const section = el("section", "cockpit-create");
     section.id = "cockpit-create";
-    section.setAttribute("aria-label", "Créer un conteneur");
+    section.setAttribute("aria-label", t("Créer un conteneur"));
     const head = el("div", "cockpit-create-head");
-    const close = button("ghost cockpit-create-close", "Replier le formulaire", "caret", () => {
+    const close = button("ghost cockpit-create-close", t("Replier le formulaire"), "caret", () => {
       form.open = false;
       rerender();
       document.getElementById("cockpit-create-toggle")?.focus();
     });
     close.setAttribute("aria-controls", "cockpit-create");
     close.querySelector(".btn-text")?.remove();
-    head.append(heading("Créer un conteneur"), close);
+    head.append(heading(t("Créer un conteneur")), close);
     section.append(head);
 
     const engines = el("div", "cockpit-actions");
@@ -203,14 +245,15 @@
     nameInput.spellcheck = false;
     nameInput.maxLength = 64;
     nameInput.pattern = "[A-Za-z0-9][A-Za-z0-9_.-]{0,63}";
-    nameInput.title =
-      "1 à 64 caractères : lettres, chiffres, point, tiret ou soulignement ; commence par une lettre ou un chiffre.";
+    nameInput.title = t(
+      "1 à 64 caractères : lettres, chiffres, point, tiret ou soulignement ; commence par une lettre ou un chiffre.",
+    );
     nameInput.setAttribute("autocomplete", "off");
     nameInput.addEventListener("input", () => {
       form.name = nameInput.value;
       updateCreate();
     });
-    fields.append(labeled("Nom", nameInput));
+    fields.append(labeled(t("Nom"), nameInput));
 
     const imageSelect = el(engine === "kali" ? "select" : "input");
     imageSelect.id = "cockpit-image";
@@ -224,13 +267,13 @@
       else form.exegolImage = imageSelect.value;
       updateCreate();
     });
-    fields.append(labeled(engine === "kali" ? "Image" : "Image Exegol (tag)", imageSelect));
+    fields.append(labeled(engine === "kali" ? "Image" : t("Image Exegol (tag)"), imageSelect));
 
     const folderRow = el("div", "cockpit-actions");
     folderRow.id = "cockpit-folder";
     const folderBtn = button(
       "secondary",
-      engine === "exegol" ? "Dossier (facultatif)" : "Dossier (obligatoire)",
+      engine === "exegol" ? t("Dossier (facultatif)") : t("Dossier (obligatoire)"),
       "folder",
       () => {
         vscode.postMessage({ type: "pickSource" });
@@ -260,14 +303,14 @@
         wrap.className += " cockpit-checkbox";
         fields.append(wrap);
       };
-      checkbox("vpn", "Activer le VPN", rerender);
-      const vpnButton = button("secondary", "Choisir une configuration VPN", "folder", () =>
+      checkbox("vpn", t("Activer le VPN"), rerender);
+      const vpnButton = button("secondary", t("Choisir une configuration VPN"), "folder", () =>
         vscode.postMessage({ type: "pickVpn" }),
       );
       vpnButton.disabled = !form.vpn;
       fields.append(vpnButton);
       if (form.vpnLabel) fields.append(el("span", "cockpit-source", form.vpnLabel));
-      checkbox("desktop", "Activer le bureau web", rerender);
+      checkbox("desktop", t("Activer le bureau web"), rerender);
       const port = el("input");
       port.id = "cockpit-desktop-port";
       port.type = "number";
@@ -280,19 +323,21 @@
         updateCreate();
       });
       fields.append(
-        labeled("Port du bureau web", port),
+        labeled(t("Port du bureau web"), port),
         el(
           "p",
           "cockpit-help",
-          "Le bureau est accessible uniquement sur votre machine (127.0.0.1). Choisissez un port libre, de 1 à 65535.",
+          t(
+            "Le bureau est accessible uniquement sur votre machine (127.0.0.1). Choisissez un port libre, de 1 à 65535.",
+          ),
         ),
       );
       const network = el("select");
       network.id = "cockpit-network";
       for (const [value, label] of [
-        ["nat", "NAT (recommandé)"],
-        ["host", "Réseau de l’hôte"],
-        ["disabled", "Sans réseau"],
+        ["nat", t("NAT (recommandé)")],
+        ["host", t("Réseau de l’hôte")],
+        ["disabled", t("Sans réseau")],
       ]) {
         const option = el("option", "", label);
         option.value = value;
@@ -303,20 +348,22 @@
         form.network = network.value;
         rerender();
       });
-      fields.append(labeled("Réseau", network));
+      fields.append(labeled(t("Réseau"), network));
       if (form.network === "host")
         fields.append(
           el(
             "p",
             "cockpit-help",
-            "Le réseau de l’hôte partage directement ses interfaces. Un VPN dans le conteneur peut modifier les routes de votre machine. Le bureau web exige le réseau NAT.",
+            t(
+              "Le réseau de l’hôte partage directement ses interfaces. Un VPN dans le conteneur peut modifier les routes de votre machine. Le bureau web exige le réseau NAT.",
+            ),
           ),
         );
-      checkbox("shareResources", "Partager les ressources Exegol");
-      checkbox("shareMyResources", "Partager mes ressources Exegol");
+      checkbox("shareResources", t("Partager les ressources Exegol"));
+      checkbox("shareMyResources", t("Partager mes ressources Exegol"));
     }
     const actions = el("div", "cockpit-actions");
-    const create = button("primary", "Créer", undefined, () => {
+    const create = button("primary", t("Créer"), undefined, () => {
       if (!canCreate(engine)) return;
       if (engine === "exegol") {
         if (!Number.isInteger(form.desktopPort) || form.desktopPort < 1 || form.desktopPort > 65535)
@@ -360,24 +407,24 @@
         card.append(content);
         if (operation.busy)
           card.append(
-            button("secondary", "Annuler", undefined, () =>
+            button("secondary", t("Annuler"), undefined, () =>
               vscode.postMessage({ type: "cancelOperation" }),
             ),
           );
       }
       const progress = card.children[0];
       while (progress.firstChild) progress.removeChild(progress.firstChild);
-      progress.setAttribute("aria-label", "Progression de l’opération");
-      const status = el("p", "", operation.stage || "Préparation…");
+      progress.setAttribute("aria-label", t("Progression de l’opération"));
+      const status = el("p", "", t(operation.stage || "Préparation…"));
       status.setAttribute("role", "status");
       progress.append(status);
-      if (operation.message) progress.append(el("p", "cockpit-help", operation.message));
+      if (operation.message) progress.append(el("p", "cockpit-help", t(operation.message)));
       for (const layer of operation.layers ?? []) {
         const row = el("div", "cockpit-layer");
         const speed = Number.isFinite(layer.speedBytesPerSecond)
-          ? ` · ${(layer.speedBytesPerSecond / 1048576).toFixed(1)} Mio/s`
+          ? t` · ${(layer.speedBytesPerSecond / 1048576).toFixed(1)} Mio/s`
           : "";
-        const label = `${layer.id} — ${layer.status}${speed}`;
+        const label = `${layer.id} — ${t(layer.status)}${speed}`;
         row.append(el("span", "", label));
         const bar = el("progress");
         bar.setAttribute("aria-label", label);
@@ -395,7 +442,7 @@
         row.append(bar);
         progress.append(row);
       }
-      if (operation.error) progress.append(el("p", "cockpit-error", operation.error));
+      if (operation.error) progress.append(el("p", "cockpit-error", t(operation.error)));
       return card;
     }
     return null;
@@ -407,7 +454,7 @@
     while (main.firstChild) main.removeChild(main.firstChild);
 
     if (view.loading) {
-      main.append(el("p", "cockpit-notice", "Actualisation…"));
+      main.append(el("p", "cockpit-notice", t("Actualisation…")));
       return;
     }
 
@@ -416,46 +463,46 @@
 
     // État compact du système et de la liaison au projet.
     const status = el("section", "cockpit-status");
-    status.setAttribute("aria-label", "État système");
+    status.setAttribute("aria-label", t("État système"));
     const grid = el("div", "cockpit-tiles");
     const linkedTone = { running: "ok", stopped: "warn", absent: "err" }[view.linked] ?? "off";
     const daemonTone = { reachable: "ok", unreachable: "err" }[view.daemon] ?? "off";
     grid.append(
       tile(
         "Docker",
-        view.docker === "present" ? "présent" : "absent",
+        view.docker === "present" ? t("présent") : t("absent"),
         view.docker === "present" ? "ok" : "err",
       ),
-      tile("Démon", daemonLine(view.daemon), daemonTone),
+      tile(t("Démon"), daemonLine(view.daemon), daemonTone),
       tile(
         "Exegol",
-        view.exegol === "present" ? "présent" : "absent",
+        view.exegol === "present" ? t("présent") : t("absent"),
         view.exegol === "present" ? "ok" : "off",
       ),
-      tile("Conteneur lié", linkedLine(view.linked), linkedTone),
+      tile(t("Conteneur lié"), linkedLine(view.linked), linkedTone),
     );
-    status.append(heading("Système"), grid);
+    status.append(heading(t("Système")), grid);
     main.append(status);
 
-    if (view.docker === "absent" || view.empty === "docker") {
-      main.append(el("p", "cockpit-notice", "Docker est absent."));
+    if (view.docker === t("absent") || view.empty === "docker") {
+      main.append(el("p", "cockpit-notice", t("Docker est absent.")));
       return;
     }
 
     if (view.error) {
-      main.append(el("p", "cockpit-error", view.error));
+      main.append(el("p", "cockpit-error", t(view.error)));
     }
 
     // Contexte du projet et commandes du conteneur affiché.
     const linkedSec = el("section", "cockpit-linked");
-    linkedSec.setAttribute("aria-label", "Conteneur lié");
-    linkedSec.append(heading("Conteneur lié"));
+    linkedSec.setAttribute("aria-label", t("Conteneur lié"));
+    linkedSec.append(heading(t("Conteneur lié")));
     if (!view.linkedBanner) {
       linkedSec.append(
         el(
           "p",
           "cockpit-muted",
-          "Aucun conteneur lié. Choisissez-en un dans la liste ci-dessous (Lier).",
+          t("Aucun conteneur lié. Choisissez-en un dans la liste ci-dessous (Lier)."),
         ),
       );
     } else {
@@ -465,13 +512,13 @@
       const head = el("div", "cockpit-linked-head");
       const name = el("strong", "cockpit-ellipsis cockpit-hero-name");
       ellipsize(name, b.short || b.name);
-      head.append(name, pill(tone, b.state === "absent" ? "absent" : stateLabel(b.state)));
+      head.append(name, pill(tone, b.state === t("absent") ? t("absent") : stateLabel(b.state)));
       const meta = el("dl", "cockpit-meta");
       const img = el("dd", "cockpit-ellipsis");
       ellipsize(img, b.image ?? "—", 64);
       const path = el("dd", "cockpit-ellipsis");
       ellipsize(path, b.workspace, 64);
-      meta.append(el("dt", "", "Image"), img, el("dt", "", "Dossier hôte"), path);
+      meta.append(el("dt", "", "Image"), img, el("dt", "", t("Dossier hôte")), path);
       const actions = el("div", "cockpit-actions");
       const termBtn = button("primary", "Terminal", "terminal", () =>
         vscode.postMessage({ type: "terminal" }),
@@ -481,23 +528,25 @@
       );
       if (!hasRunningLinked || view.projectInvalid) {
         termBtn.disabled = true;
-        termBtn.title = view.projectInvalid ? "Projet invalide" : "Aucun conteneur lié en cours";
+        termBtn.title = view.projectInvalid
+          ? t("Projet invalide")
+          : t("Aucun conteneur lié en cours");
       }
       actions.append(termBtn);
       actions.append(
-        button("secondary", "Ouvrir le dossier", "folder", () =>
+        button("secondary", t("Ouvrir le dossier"), "folder", () =>
           vscode.postMessage({ type: "openWorkspace" }),
         ),
       );
       const details = el("details", "cockpit-context-details");
-      const summary = el("summary", "", "Dossier et image");
+      const summary = el("summary", "", t("Dossier et image"));
       details.append(summary, meta);
       card.append(head, actions, details);
       linkedSec.append(card);
     }
     main.append(linkedSec);
     const createBar = el("div", "cockpit-create-bar");
-    const createToggle = button("secondary", "Nouveau conteneur", "plus", () => {
+    const createToggle = button("secondary", t("Nouveau conteneur"), "plus", () => {
       form.open = !form.open;
       rerender();
       document.getElementById(form.open ? "cockpit-name" : "cockpit-create-toggle")?.focus();
@@ -512,15 +561,15 @@
     if (view.error) return;
 
     if (view.empty === "list") {
-      main.append(el("p", "cockpit-notice", "Aucun conteneur."));
+      main.append(el("p", "cockpit-notice", t("Aucun conteneur.")));
       return;
     }
 
     // Lignes compactes et détails repliables conservés entre actualisations.
     const rows = view.containers ?? [];
     const listSec = el("section", "cockpit-list");
-    listSec.setAttribute("aria-label", "Conteneurs");
-    listSec.append(heading("Conteneurs", rows.length));
+    listSec.setAttribute("aria-label", t("Conteneurs"));
+    listSec.append(heading(t("Conteneurs"), rows.length));
     const linkedCount = rows.filter((r) => r.linked).length;
     const ul = el("ul", "cockpit-rows");
     for (const row of rows) {
@@ -530,7 +579,7 @@
       details.hidden = !expandedRows.has(row.name);
       const toggle = button(
         "ghost cockpit-row-toggle",
-        `Détails de ${row.short || row.name}`,
+        t`Détails de ${row.short || row.name}`,
         "chevronRight",
         () => {
           details.hidden = !details.hidden;
@@ -551,8 +600,8 @@
       if (row.linked) {
         top.append(
           row.primary
-            ? el("span", "cockpit-linked-tag is-primary", "Principal")
-            : el("span", "cockpit-linked-tag", "lié"),
+            ? el("span", "cockpit-linked-tag is-primary", t("Principal"))
+            : el("span", "cockpit-linked-tag", t("lié")),
         );
       }
       const sub = el("div", "cockpit-row-sub");
@@ -564,23 +613,23 @@
         im,
       );
       if (row.workspace === undefined) {
-        sub.append(el("span", "cockpit-muted cockpit-row-ws", "sans dossier"));
+        sub.append(el("span", "cockpit-muted cockpit-row-ws", t("sans dossier")));
       }
       mainCol.append(top, sub);
       li.append(mainCol);
       const act = el("div", "cockpit-row-act");
       if (row.linked && !row.primary && linkedCount >= 2) {
-        const primaryBtn = button("secondary", "Principal", "link", () =>
+        const primaryBtn = button("secondary", t("Principal"), "link", () =>
           vscode.postMessage({ type: "setPrimary", name: row.name }),
         );
-        primaryBtn.title = "Définir comme conteneur principal (affichage seulement)";
+        primaryBtn.title = t("Définir comme conteneur principal (affichage seulement)");
         act.append(primaryBtn);
       }
       if (!row.linked) {
-        const linkBtn = button("secondary", "Lier", "link");
+        const linkBtn = button("secondary", t("Lier"), "link");
         if (!row.canLink) {
           linkBtn.disabled = true;
-          linkBtn.title = row.linkTitle || "Association indisponible";
+          linkBtn.title = t(row.linkTitle || "Association indisponible");
         } else {
           linkBtn.addEventListener("click", () =>
             vscode.postMessage({ type: "link", name: row.name }),
@@ -590,28 +639,28 @@
       }
       if (row.state === "running") {
         act.append(
-          button("danger", "Arrêter", "stop", () =>
+          button("danger", t("Arrêter"), "stop", () =>
             submitOperation({ type: "stop", name: row.name }),
           ),
         );
       } else {
         act.append(
-          button("primary", "Démarrer", "play", () =>
+          button("primary", t("Démarrer"), "play", () =>
             submitOperation({ type: "start", name: row.name }),
           ),
         );
       }
       act.append(
-        button("danger", "Supprimer", "trash", () =>
+        button("danger", t("Supprimer"), "trash", () =>
           submitOperation({ type: "remove", name: row.name }),
         ),
       );
       for (const control of act.children) {
-        if (["Démarrer", "Arrêter", "Supprimer"].includes(control.title))
+        if ([t("Démarrer"), t("Arrêter"), t("Supprimer")].includes(control.title))
           control.disabled = operation.busy;
       }
       const workspace = el("span", "cockpit-row-workspace");
-      workspace.textContent = row.workspace ?? "Sans dossier hôte";
+      workspace.textContent = row.workspace ?? t("Sans dossier hôte");
       details.append(
         el("span", "cockpit-muted", row.name),
         el("span", "cockpit-row-image", row.image),
@@ -655,6 +704,14 @@
   window.addEventListener("message", (event) => {
     const msg = event.data;
     if (typeof msg !== "object" || msg === null) return;
+    if (msg.type === "locale" && (msg.locale === "fr" || msg.locale === "en")) {
+      const restore = captureLocaleState();
+      globalThis.WarbandI18n?.setLocale(msg.locale);
+      rerender();
+      globalThis.WarbandI18n?.applyStatic(document);
+      restore();
+      return;
+    }
     if (msg.type === "operation") {
       if (typeof msg.busy !== "boolean" || typeof msg.stage !== "string") return;
       const sameBusy = operation.busy === msg.busy;

@@ -53,6 +53,7 @@ export interface EngineOptions {
     burp?: StartParams["burp"],
     integrations?: StartParams["integrations"],
     opencodeProviders?: StartParams["opencodeProviders"],
+    webSearch?: boolean,
   ) => AgentRunner | Promise<AgentRunner>;
   /** Environnement dont on tire les secrets à masquer (défaut : `process.env`). */
   env?: NodeJS.ProcessEnv;
@@ -238,6 +239,7 @@ export function runEngine({
           params.burp,
           params.integrations,
           params.opencodeProviders,
+          params.webSearch,
         );
         const summary = await runner.run(
           {

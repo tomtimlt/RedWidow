@@ -2,8 +2,18 @@ import type { ReasonParams } from "@warband/core";
 
 export type Locale = "fr" | "en";
 
-/** Langue par défaut, et langue complète : le repli commence toujours par le catalogue demandé. */
+/** Langue par défaut : le repli commence toujours par le catalogue demandé. */
 export const DEFAULT_LOCALE: Locale = "fr";
+
+/** Valide une langue d’interface sans conversion implicite. */
+export function isLocale(value: unknown): value is Locale {
+  return value === "fr" || value === "en";
+}
+
+/** Utilise le français pour une valeur absente ou inconnue. */
+export function localeOf(value: unknown): Locale {
+  return isLocale(value) ? value : DEFAULT_LOCALE;
+}
 
 /** Outils de formatage donnés à chaque libellé, pour composer les motifs imbriqués. */
 export interface FormatContext {

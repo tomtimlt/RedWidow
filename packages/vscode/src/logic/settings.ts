@@ -3,10 +3,25 @@ import {
   CodedError,
   type IntegrationConfig,
   isBurpConfig,
+  MCP_CATALOG,
   parseIntegrations,
 } from "@warband/core";
+import type { CapabilitySettings } from "./chat-capabilities.js";
 import type { UltracodeLimits } from "./effort.js";
 import { type OpencodeProviders, parseOpencodeProviders } from "./opencode-providers.js";
+
+/** Configuration conservée sans exposer plus de quatre services à un runner. */
+export function parseConfiguredIntegrations(raw: unknown): IntegrationConfig[] | null {
+  if (!Array.isArray(raw) || raw.length > MCP_CATALOG.length) return null;
+  const result: IntegrationConfig[] = [];
+  for (const item of raw) {
+    const parsed = parseIntegrations([item]);
+    const next = parsed?.[0];
+    if (!next || result.some((m) => m.id === next.id || m.port === next.port)) return null;
+    result.push(next);
+  }
+  return result;
+}
 
 /** Forme de `WorkspaceConfiguration.inspect` : les valeurs d'espace de travail n'y sont jamais lues. */
 export interface Inspected {
@@ -25,6 +40,8 @@ export function machineValue(info: Inspected | undefined): unknown {
 }
 
 export interface ChatSettings {
+  capabilities?: CapabilitySettings;
+  webSearch?: boolean;
   opencodeProviders?: OpencodeProviders;
   burp?: BurpConfig;
   integrations?: IntegrationConfig[];
@@ -55,7 +72,7 @@ export function resolveSettings(get: (key: string) => unknown): ChatSettings {
   }
   const integrations = get("integrations");
   if (integrations !== undefined) {
-    const parsed = parseIntegrations(integrations);
+    const parsed = parseConfiguredIntegrations(integrations);
     if (!parsed) throw new CodedError("integration.invalidConfig");
     if (parsed.length) out.integrations = parsed;
   }

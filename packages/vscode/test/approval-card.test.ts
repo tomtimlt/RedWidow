@@ -7,7 +7,7 @@ const js = read("../media/chat.js");
 const css = read("../media/chat.css").replace(/\/\*[\s\S]*?\*\//g, "");
 
 /** Corps de `renderCard`, du début de la fonction à la section suivante. */
-const start = js.indexOf("function renderCard(card, isNew)");
+const start = js.indexOf("function renderCard(card, isNew, previous)");
 const end = js.indexOf("  const ctlGroup =", start);
 const card = start >= 0 && end > start ? js.slice(start, end) : "";
 
@@ -28,7 +28,7 @@ describe("carte d'approbation (lot P2)", () => {
   });
 
   it("boutons exactement once, deny, always ; always seulement si canRemember", () => {
-    const calls = [...card.matchAll(/button\("([^"]+)", "(\w+)", "(\w+)"\)/g)].map((m) => [
+    const calls = [...card.matchAll(/button\(l\("([^"]+)"\), "(\w+)", "(\w+)"\)/g)].map((m) => [
       m[2],
       m[3],
     ]);
@@ -37,7 +37,7 @@ describe("carte d'approbation (lot P2)", () => {
       ["deny", "danger"],
       ["always", "link"],
     ]);
-    expect(card).toMatch(/if \(card\.canRemember\) button\("Toujours", "always", "link"\);/);
+    expect(card).toMatch(/if \(card\.canRemember\) button\(l\("Toujours"\), "always", "link"\);/);
     expect(card.match(/canRemember/g)).toHaveLength(1);
   });
 

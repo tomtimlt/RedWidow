@@ -42,7 +42,7 @@ analyse en chantier de réécriture documentaire non demandé.
 | Paquet | Responsabilité |
 |---|---|
 | `core` | Événements, recorder, gate, politique, processus, Docker, projets, trouvailles, contrat `AgentRunner` |
-| `messages` | Traduction des codes du cœur : français complet, anglais minimal |
+| `messages` | Traduction des codes du cœur : français et anglais complets |
 | `agent-sdk` | Adaptateur Claude Agent SDK, hooks et outils MCP |
 | `agent-opencode` | Adaptateur OpenCode et traduction des permissions vers la gate |
 | `cli` | Interface terminal |
@@ -63,12 +63,12 @@ de la voie moteur.
 
 | Rôle | Modèle GPT souhaité | Mission et limites |
 |---|---|---|
-| Session principale | `gpt-6.1-sol` | Coordination, synthèse, intégration et validation finale |
-| `explorer` | `gpt-6.1-sol` | Lecture seule, faits avec `fichier:ligne`, incertitudes explicites ; aucune écriture ni décision |
-| `architect` | `gpt-6-astra` | Décisions moteur et revues de sécurité ; ADR et lots, aucune implémentation |
-| `dev` | `gpt-6.1-sol` | Un lot moteur décidé, code et tests ; remonter les décisions manquantes |
-| `cadre` | `gpt-6-astra` | Cadrage produit et lots vérifiables ; aucune implémentation |
-| `surface` | `gpt-6.1-sol` | Un lot produit cadré, interface et tests ; respecter les conventions visuelles |
+| Session principale | `gpt-6.1-terra` | Coordination, synthèse, intégration et validation finale |
+| `explorer` | `gpt-6.1-terra` | Lecture seule, faits avec `fichier:ligne`, incertitudes explicites ; aucune écriture ni décision |
+| `architect` | `gpt-6.1-sol` | Décisions moteur et revues de sécurité ; ADR et lots, aucune implémentation |
+| `dev` | `gpt-6.1-terra` | Un lot moteur décidé, code et tests ; remonter les décisions manquantes |
+| `cadre` | `gpt-6.1-sol` | Cadrage produit et lots vérifiables ; aucune implémentation |
+| `surface` | `gpt-6.1-terra` | Un lot produit cadré, interface et tests ; respecter les conventions visuelles |
 
 Cette table est une consigne de routage, pas une configuration exécutée :
 `AGENTS.md` ne crée pas de sous-agents et ne change pas le modèle de la session.
@@ -79,7 +79,9 @@ pas inventer d'alias ni basculer vers un autre fournisseur. Choisir un effort
 Les identifiants ci-dessus concernent uniquement l'outillage de développement,
 pas les modèles proposés aux utilisateurs de Warband.
 
-Pour un travail conséquent, déléguer aux rôles pertinents si l'outil le permet.
+Préférer le travail dans la session principale pour préserver le quota utilisateur.
+Ne déléguer qu’un lot court indispensable, sans équipe parallèle ni délégation récursive.
+Les tâches auparavant confiées à Luna restent sur Luna.
 Une petite modification dans un fichier connu se fait directement. Si la
 délégation est indisponible, appliquer les étapes lecture, décision,
 implémentation et vérification dans la session, sans prétendre à une revue

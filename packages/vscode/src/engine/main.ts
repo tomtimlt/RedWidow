@@ -82,7 +82,14 @@ const done = runEngine({
     targets.note(text, outcome.containers, outcome.projectId, outcome.blocked);
     return enrichContainerPrompt(text, outcome.containers, () => docker.listLabelPrefix());
   },
-  createRunner: async (mode, provider = "claude", burp, integrations, opencodeProviders) => {
+  createRunner: async (
+    mode,
+    provider = "claude",
+    burp,
+    integrations,
+    opencodeProviders,
+    webSearch = true,
+  ) => {
     if (provider !== "claude") {
       const binary = join(root, "bin", process.platform === "win32" ? "opencode.exe" : "opencode");
       const hash = typeof __OPENCODE_SHA256__ === "string" ? __OPENCODE_SHA256__ : "";
@@ -100,7 +107,7 @@ const done = runEngine({
               toolsets: [
                 openCodeExegol({ targets, binary: "docker", includeMemory: false }),
                 openCodeKali({ targets, binary: "docker", includeMemory: false }),
-                openCodeWeb(),
+                ...(webSearch ? [openCodeWeb()] : []),
                 openCodeDesk(),
                 { name: "projectfiles", create: () => projectFileSpecs(projectRoot) },
                 ...(integrations ?? []).map((config) =>
@@ -116,7 +123,7 @@ const done = runEngine({
     if (!(await matchesFingerprint(exe, expected))) {
       throw new CodedError("extension.binaryMismatch");
     }
-    const options = runnerOptions(mode, exe, targets);
+    const options = runnerOptions(mode, exe, targets, webSearch);
     if (mode !== "learning")
       options.toolsets?.push(claudeDesk(), {
         name: "projectfiles",

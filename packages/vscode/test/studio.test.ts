@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
 import type { EngineEvent } from "@warband/core";
 import { MITRE_TACTICS as CORE_TACTICS } from "@warband/core";
+import { createUiTranslator } from "@warband/messages";
 import { describe, expect, it } from "vitest";
 import { studioHtml } from "../src/logic/html.js";
 import {
@@ -591,6 +592,10 @@ class StudioNode {
     this.children = [];
     this.append(...nodes);
   }
+  closest(selector: string): StudioNode | undefined {
+    if (selector.split(",").some((tag) => tag.trim() === this.tag)) return this;
+    return this.parent?.closest(selector);
+  }
   querySelector(selector: string) {
     return this.find((node) =>
       selector.startsWith(".")
@@ -920,13 +925,14 @@ it("graphe : conserve la caméra, libère les observateurs et signale une erreur
   expect(observers[1]?.disconnected).toBe(true);
 });
 
-function killchainDom() {
+function killchainDom(i18n?: ReturnType<typeof localeService>) {
   const main = new StudioNode("main");
   const body = new StudioNode("body");
   body.classList.contains = () => true;
   const sent: unknown[] = [];
   let receive: (event: { data: unknown }) => void = () => {};
   runInNewContext(read(studioJs), {
+    WarbandI18n: i18n,
     TextEncoder,
     setTimeout,
     clearTimeout,
@@ -1228,4 +1234,104 @@ it("isole et borne les observations du run courant, puis les efface", () => {
     observeMission(snapshot, event({ kind: "run.started", runId: "b", prompt: "nouveau" })),
   ).toEqual({ runId: "b", objective: "nouveau", results: [] });
   expect(observeMission(snapshot, null)).toBeUndefined();
+});
+
+function localeService() {
+  let locale: "fr" | "en" = "fr";
+  return {
+    t: createUiTranslator(() => locale),
+    getLocale: () => locale,
+    setLocale: (next: "fr" | "en") => {
+      locale = next;
+    },
+    applyStatic() {},
+  };
+}
+
+it("traduit les commandes du graphe en conservant cadrage, filtre et sélection", () => {
+  const { main, find, receive } = killchainDom(localeService());
+  receive(deleteFindingView);
+  main.find((node) => node.dataset.filterValue === "loot")?.fire("click");
+  find("kc-node").fire("click");
+  const zoom = find("kc-zoom");
+  zoom.fire("click");
+  // Le navigateur propage ce clic depuis le pictogramme jusqu’au main.
+  main.fire("click", { target: zoom.children[0] });
+  expect(find("kc-node").attributes.get("aria-pressed")).toBe("true");
+  const pose = find("kc-canvas").styles.get("transform");
+  receive({ type: "locale", locale: "en" });
+  expect(find("kc-report-preview").children.at(-1)?.textContent).toBe("Report preview");
+  expect(find("kc-node").attributes.get("aria-label")).toContain("Host");
+  expect(find("kc-node").className).toContain("is-dimmed");
+  expect(
+    main.find((node) => node.dataset.filterValue === "loot")?.attributes.get("aria-pressed"),
+  ).toBe("true");
+  expect(find("kc-node").attributes.get("aria-pressed")).toBe("true");
+  expect(find("kc-canvas").styles.get("transform")).toBe(pose);
+  expect(find("kc-node-label").textContent).toBe("<Serveur>");
+  receive({ type: "locale", locale: "fr" });
+  expect(find("kc-report-preview").children.at(-1)?.textContent).toBe("Aperçu du rapport");
+  expect(find("kc-node").attributes.get("aria-pressed")).toBe("true");
+});
+
+it("Réglages : sélecteur FR/EN, mémoire privée et création conservées pendant la traduction", () => {
+  const main = new StudioNode("main");
+  const nav = new StudioNode("nav");
+  const sent: unknown[] = [];
+  let receive: (event: { data: unknown }) => void = () => {};
+  runInNewContext(read(studioJs), {
+    WarbandI18n: localeService(),
+    TextEncoder,
+    setTimeout,
+    clearTimeout,
+    acquireVsCodeApi: () => ({ postMessage: (message: unknown) => sent.push(message) }),
+    document: {
+      addEventListener() {},
+      body: new StudioNode("body"),
+      getElementById: (id: string) =>
+        id === "studio-main"
+          ? main
+          : id === "studio-nav"
+            ? nav
+            : (main.find((node) => node.id === id) ?? nav.find((node) => node.id === id)),
+      createElement: (tag: string) => new StudioNode(tag),
+    },
+    window: {
+      WarbandIcons: { create: () => new StudioNode("svg") },
+      addEventListener: (_type: string, listener: typeof receive) => {
+        receive = listener;
+      },
+    },
+  });
+  const view = {
+    type: "view",
+    page: "project",
+    projectChoices: { projects: [], activeId: null },
+    projectSummary: { projectId: deleteProject, text: "Mémoire française" },
+  };
+  const field = (id: string) => {
+    const node = main.find((entry) => entry.id === id) ?? nav.find((entry) => entry.id === id);
+    if (!node) throw Error(id);
+    return node;
+  };
+  receive({ data: view });
+  expect(field("studio-locale").children.map((node) => [node.value, node.textContent])).toEqual([
+    ["fr", "FR"],
+    ["en", "EN"],
+  ]);
+  field("studio-locale").value = "en";
+  field("studio-locale").fire("change");
+  expect(sent.at(-1)).toEqual({ type: "setLocale", locale: "en" });
+  field("project-name").value = "Projet personnel";
+  field("project-name").fire("input");
+  field("project-summary").value = "Résumé privé";
+  field("project-summary").fire("input");
+  receive({ data: { type: "locale", locale: "en" } });
+  expect(field("studio-locale").value).toBe("en");
+  expect(main.find((node) => node.textContent === "Save summary")).toBeDefined();
+  expect(field("project-name").value).toBe("Projet personnel");
+  expect(field("project-summary").value).toBe("Résumé privé");
+  receive({ data: { type: "locale", locale: "fr" } });
+  expect(main.find((node) => node.textContent === "Enregistrer le résumé")).toBeDefined();
+  expect(field("project-summary").value).toBe("Résumé privé");
 });

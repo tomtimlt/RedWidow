@@ -1,5 +1,5 @@
 import { type EngineEvent, EXEGOL_EXEC_TOOL, KALI_TOOL_PREFIX } from "@warband/core";
-import { formatError, formatReason } from "@warband/messages";
+import { formatError, formatReason, getUiLocale, t } from "@warband/messages";
 import { type ApprovalCard, cleanText, describeInput } from "./approval.js";
 import type { ChatControls } from "./controls.js";
 import { type Block, parseMarkdown } from "./markdown.js";
@@ -114,6 +114,15 @@ export interface ReadonlyInfo {
 
 /** Ce que la webview affiche : uniquement des chaînes déjà neutralisées, jamais de HTML. */
 export interface ChatView {
+  capabilities?: {
+    settings: import("./chat-capabilities.js").CapabilitySettings | undefined;
+    selection: import("./chat-capabilities.js").ChatSelection;
+    providers: { id: string; label: string }[];
+    provider: string | null;
+    skills: string[];
+    integrations: string[];
+    burp: boolean;
+  };
   /** Identité de vue : invalide les caches lors d’une nouvelle conversation, sans donner un accès disque. */
   conversation?: string;
   /** Attente annoncée par le fournisseur, distincte de la réflexion du modèle. */
@@ -237,7 +246,7 @@ export function createChatState(before?: string) {
       source = undefined;
     },
     notice,
-    error: (error: unknown) => notice(formatError(error), "error"),
+    error: (error: unknown) => notice(formatError(error, getUiLocale()), "error"),
     clear() {
       retry = undefined;
       dropped = 0;
@@ -271,7 +280,7 @@ export function createChatState(before?: string) {
           case "api.retry":
             retry = { attempt: e.attempt, delayMs: e.delayMs };
             notice(
-              `Fournisseur temporairement indisponible${e.errorStatus === null ? "" : ` (HTTP ${e.errorStatus})`}. Nouvelle tentative dans ${Math.ceil(e.delayMs / 1000)} s.`,
+              t`Fournisseur temporairement indisponible${e.errorStatus === null ? "" : ` (HTTP ${e.errorStatus})`}. Nouvelle tentative dans ${Math.ceil(e.delayMs / 1000)} s.`,
             );
             return;
           case "agent.thinking":
@@ -324,7 +333,7 @@ export function createChatState(before?: string) {
             if (t) t.decision = e.decision === "deny" ? "deny" : "allow";
             if (t && e.decision === "deny") {
               t.status = "denied";
-              t.output = cleanText(formatReason(e.reason), 1000);
+              t.output = cleanText(formatReason(e.reason, getUiLocale()), 1000);
             }
             return;
           }
@@ -351,12 +360,12 @@ export function createChatState(before?: string) {
             return;
           case "error":
             retry = undefined;
-            notice(formatError(e), "error");
+            notice(formatError(e, getUiLocale()), "error");
             return;
           case "sandbox.started":
             sandbox = cleanText(e.image, 300);
             if (e.network === "none" || e.network === "bridge") sandboxNetwork = e.network;
-            notice(`Bac à sable prêt : ${e.image}`);
+            notice(t`Bac à sable prêt : ${e.image}`);
             return;
           default:
             return;

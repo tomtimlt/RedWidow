@@ -1,8 +1,8 @@
 {
   "name": "warband",
   "displayName": "Venator Ops",
-  "description": "Espace de pentest pour VS Code : missions, terminaux, preuves et rapports, avec IA optionnelle.",
-  "version": "0.3.67",
+  "description": "%extension.description%",
+  "version": "0.3.68",
   "publisher": "warband",
   "license": "MIT",
   "engines": {
@@ -14,7 +14,7 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": false,
-      "description": "Venator Ops exécute un agent qui lit et modifie les fichiers de l'espace de travail : il est désactivé tant que le dossier n'est pas approuvé."
+      "description": "%extension.untrustedWorkspaces%"
     },
     "virtualWorkspaces": false
   },
@@ -22,117 +22,117 @@
     "commands": [
       {
         "command": "warband.listProjectEvidence",
-        "title": "Venator Ops : Lister les preuves du projet"
+        "title": "%command.listProjectEvidence%"
       },
       {
         "command": "warband.captureEditorEvidence",
-        "title": "Venator Ops : Capturer la sélection comme preuve"
+        "title": "%command.captureEditorEvidence%"
       },
       {
         "command": "warband.captureTerminalEvidence",
-        "title": "Venator Ops : Capturer un extrait du journal terminal"
+        "title": "%command.captureTerminalEvidence%"
       },
       {
         "command": "warband.missionContext",
-        "title": "Venator Ops : Voir le contexte de cette mission"
+        "title": "%command.missionContext%"
       },
       {
         "command": "warband.exportKillchain",
-        "title": "Venator Ops : Exporter la Kill Chain en image SVG"
+        "title": "%command.exportKillchain%"
       },
       {
         "command": "warband.exportReport",
-        "title": "Venator Ops : Exporter un brouillon de rapport Markdown"
+        "title": "%command.exportReport%"
       },
       {
         "command": "warband.openWorkspace",
-        "title": "Venator Ops : ouvrir ou restaurer l’espace Venator Ops"
+        "title": "%command.openWorkspace%"
       },
       {
         "command": "warband.prepareMission",
-        "title": "Venator Ops : préparer et vérifier le dossier de mission"
+        "title": "%command.prepareMission%"
       },
       {
         "command": "warband.chooseProfile",
-        "title": "Venator Ops : choisir un skill / profil agent"
+        "title": "%command.chooseProfile%"
       },
       {
         "command": "warband.configureIntegrations",
-        "title": "Venator Ops : catalogue des intégrations MCP"
+        "title": "%command.configureIntegrations%"
       },
       {
         "command": "warband.launcher",
-        "title": "Venator Ops : lanceur",
+        "title": "%command.launcher%",
         "icon": "$(rocket)"
       },
       {
         "command": "warband.openChat",
-        "title": "Venator Ops : ouvrir un chat",
+        "title": "%command.openChat%",
         "icon": "$(comment-discussion)"
       },
       {
         "command": "warband.openCockpit",
-        "title": "Venator Ops : ouvrir le cockpit",
+        "title": "%command.openCockpit%",
         "icon": "$(dashboard)"
       },
       {
         "command": "warband.openStudio",
-        "title": "Venator Ops : ouvrir les réglages",
+        "title": "%command.openStudio%",
         "icon": "$(settings-gear)"
       },
       {
         "command": "warband.openTerminal",
-        "title": "Venator Ops : ouvrir un terminal",
+        "title": "%command.openTerminal%",
         "icon": "$(terminal)"
       },
       {
         "command": "warband.openMonitor",
-        "title": "Venator Ops : ouvrir le Monitor",
+        "title": "%command.openMonitor%",
         "icon": "$(pulse)"
       },
       {
         "command": "warband.openKillchain",
-        "title": "Venator Ops : ouvrir la Kill chain",
+        "title": "%command.openKillchain%",
         "icon": "$(type-hierarchy)"
       },
       {
         "command": "warband.focusChat",
-        "title": "Venator Ops : aller au chat latéral",
+        "title": "%command.focusChat%",
         "icon": "$(comment)"
       },
       {
         "command": "warband.setToken",
-        "title": "Venator Ops : définir le jeton",
+        "title": "%command.setToken%",
         "icon": "$(key)"
       },
       {
         "command": "warband.clearToken",
-        "title": "Venator Ops : effacer le jeton"
+        "title": "%command.clearToken%"
       },
       {
         "command": "warband.diagnostic",
-        "title": "Venator Ops : diagnostic",
+        "title": "%command.diagnostic%",
         "icon": "$(pulse)"
       },
       {
         "command": "warband.configureBurp",
-        "title": "Venator Ops : configurer Burp Suite MCP"
+        "title": "%command.configureBurp%"
       },
       {
         "command": "warband.testBurp",
-        "title": "Venator Ops : tester la connexion MCP Burp Suite"
+        "title": "%command.testBurp%"
       },
       {
         "command": "warband.choosePalette",
-        "title": "Venator Ops : choisir une palette"
+        "title": "%command.choosePalette%"
       },
       {
         "command": "warband.previewReport",
-        "title": "Venator Ops : prévisualiser le brouillon de rapport"
+        "title": "%command.previewReport%"
       },
       {
         "command": "warband.exportAttackFlow",
-        "title": "Venator Ops : exporter Attack Flow"
+        "title": "%command.exportAttackFlow%"
       }
     ],
     "menus": {
@@ -284,27 +284,27 @@
           "type": "object",
           "default": {},
           "scope": "machine",
-          "description": "Fournisseurs OpenCode compatibles OpenAI explicitement configurés (URL et modèles). Aucun secret : utiliser le cache d’authentification natif OpenCode. Les valeurs du dépôt sont ignorées."
+          "description": "%config.opencodeProviders%"
         },
         "warband.profile": {
           "type": "string",
           "enum": ["", "mentor", "bug-bounty", "out-of-box", "red-team", "htb"],
           "default": "",
           "scope": "machine",
-          "description": "Profil méthodologique court, appliqué au prochain tour. Les sources sont chargées sur demande."
+          "description": "%config.profile%"
         },
         "warband.integrationsByProject": {
           "type": "object",
           "default": {},
           "maxProperties": 32,
           "scope": "machine",
-          "description": "Services MCP locaux explicitement configurés. Ignoré dans le dépôt ; utiliser le catalogue Venator Ops."
+          "description": "%config.integrationsByProject%"
         },
         "warband.burp.enabled": {
           "type": "boolean",
           "default": false,
           "scope": "machine",
-          "description": "Expose le MCP Burp Suite local aux agents. Ignoré dans les réglages du dossier. Les tours suivants utilisent les nouveaux réglages."
+          "description": "%config.burp.enabled%"
         },
         "warband.burp.port": {
           "type": "integer",
@@ -312,56 +312,100 @@
           "maximum": 65535,
           "default": 9876,
           "scope": "machine",
-          "description": "Port du serveur MCP Burp sur 127.0.0.1. Aucun serveur distant ni commande Java lancé par Venator Ops."
+          "description": "%config.burp.port%"
         },
         "warband.burp.transport": {
           "type": "string",
           "enum": ["sse", "http"],
           "default": "sse",
           "scope": "machine",
-          "enumDescriptions": ["SSE officiel sur /sse", "Streamable HTTP sur /mcp"],
-          "description": "Transport du serveur MCP installé dans Burp Suite."
+          "enumDescriptions": ["%config.burp.transport.enum.0%", "%config.burp.transport.enum.1%"],
+          "description": "%config.burp.transport%"
         },
         "warband.palette": {
           "type": "string",
           "enum": ["sentinelle", "braise", "spectre", "editeur", "multi"],
           "enumDescriptions": [
-            "Sarcelle et ardoise",
-            "Cramoisi et acier",
-            "Violet et glace",
-            "Accent du thème VS Code",
-            "Six teintes réparties dans l’interface"
+            "%config.palette.enum.0%",
+            "%config.palette.enum.1%",
+            "%config.palette.enum.2%",
+            "%config.palette.enum.3%",
+            "%config.palette.enum.4%"
           ],
           "default": "sentinelle",
           "scope": "window",
-          "description": "Palette visuelle de Venator Ops."
+          "description": "%config.palette%"
         },
         "warband.model": {
           "type": "string",
           "default": "",
           "scope": "machine",
-          "markdownDescription": "Modèle à utiliser (texte libre). Vide : défaut du SDK. Ignoré s'il est posé au niveau de l'espace de travail."
+          "markdownDescription": "%config.model%"
         },
         "warband.maxTurns": {
           "type": "integer",
           "minimum": 0,
           "default": 0,
           "scope": "machine",
-          "markdownDescription": "Nombre maximal de tours de l'agent par conversation. 0 : pas de plafond."
+          "markdownDescription": "%config.maxTurns%"
         },
         "warband.ultracode.maxTurns": {
           "type": "integer",
           "minimum": 0,
           "default": 0,
           "scope": "machine",
-          "markdownDescription": "Plafond de tours du préréglage **Ultracode** (effort Max + limites longues). 0 : pas de plafond de tours. Remplace `warband.maxTurns` quand Ultracode est choisi."
+          "markdownDescription": "%config.ultracode.maxTurns%"
         },
         "warband.ultracode.maxBudgetUsd": {
           "type": "number",
           "minimum": 0,
           "default": 0,
           "scope": "machine",
-          "markdownDescription": "Plafond de dépense (USD) du préréglage **Ultracode**. 0 : pas de plafond de dépense."
+          "markdownDescription": "%config.ultracode.maxBudgetUsd%"
+        },
+        "warband.language": {
+          "type": "string",
+          "enum": ["fr", "en"],
+          "enumDescriptions": ["%config.language.enum.0%", "%config.language.enum.1%"],
+          "default": "en",
+          "scope": "application",
+          "description": "%config.language%"
+        },
+        "warband.chat.providers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true,
+          "default": ["claude", "openai", "google"],
+          "scope": "machine",
+          "description": "%config.chat.providers%"
+        },
+        "warband.chat.skills": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true,
+          "default": ["mentor", "bug-bounty", "out-of-box", "red-team", "htb"],
+          "scope": "machine",
+          "description": "%config.chat.skills%"
+        },
+        "warband.chat.integrations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true,
+          "default": [],
+          "scope": "machine",
+          "description": "%config.chat.integrations%"
+        },
+        "warband.chat.webSearch": {
+          "type": "boolean",
+          "default": true,
+          "scope": "machine",
+          "description": "%config.chat.webSearch%"
         }
       }
     }

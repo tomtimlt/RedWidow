@@ -1,4 +1,5 @@
 import { EFFORTS, type Effort } from "@warband/core";
+import { t } from "@warband/messages";
 
 /** Fournisseur sélectionné pour la conversation. */
 export type Provider = "claude" | "openai" | "opencode";
@@ -30,12 +31,14 @@ export interface UltracodeLimits {
 /** Infobulle d'Ultracode : dit exactement ce que le préréglage fait avec les valeurs en vigueur. */
 export function ultracodeTip(limits: UltracodeLimits | undefined): string {
   const turns =
-    limits?.maxTurns === undefined ? "sans plafond de tours" : `${limits.maxTurns} tours au plus`;
+    limits?.maxTurns === undefined
+      ? t("sans plafond de tours")
+      : t`${limits.maxTurns} tours au plus`;
   const budget =
     limits?.maxBudgetUsd === undefined
-      ? "sans plafond de dépense"
-      : `dépense plafonnée à ${limits.maxBudgetUsd} $`;
-  return `Préréglage : réflexion « Max » (mêmes capacités que Max, pas un mode distinct du modèle) avec des limites longues réglables (${turns}, ${budget}). Réglages : warband.ultracode.maxTurns et warband.ultracode.maxBudgetUsd.${SUFFIX}`;
+      ? t("sans plafond de dépense")
+      : t`dépense plafonnée à ${limits.maxBudgetUsd} $`;
+  return t`Préréglage : réflexion « Max » (mêmes capacités que Max, pas un mode distinct du modèle) avec des limites longues réglables (${turns}, ${budget}). Réglages : warband.ultracode.maxTurns et warband.ultracode.maxBudgetUsd.${t(SUFFIX)}`;
 }
 
 const SUFFIX = " L'effet exact dépend du modèle.";
@@ -45,27 +48,47 @@ const SUFFIX = " L'effet exact dépend du modèle.";
  * curseur et le repli se déduisent de cette liste (correspondance 1:1 avec `Effort` du cœur).
  */
 export const EFFORT_LEVELS: readonly EffortLevel[] = [
-  { value: "low", label: "Low", tip: `Réponses rapides et économes, réflexion minimale.${SUFFIX}` },
-  { value: "medium", label: "Medium", tip: `Équilibre entre vitesse et réflexion.${SUFFIX}` },
+  {
+    value: "low",
+    label: "Low",
+    get tip() {
+      return t`Réponses rapides et économes, réflexion minimale.${t(SUFFIX)}`;
+    },
+  },
+  {
+    value: "medium",
+    label: "Medium",
+    get tip() {
+      return t`Équilibre entre vitesse et réflexion.${t(SUFFIX)}`;
+    },
+  },
   {
     value: "high",
     label: "High",
-    tip: `Réflexion soutenue, adaptée à la plupart des tâches.${SUFFIX}`,
+    get tip() {
+      return t`Réflexion soutenue, adaptée à la plupart des tâches.${t(SUFFIX)}`;
+    },
   },
   {
     value: "xhigh",
     label: "Extra",
-    tip: `Réflexion approfondie, plus lente et plus coûteuse.${SUFFIX}`,
+    get tip() {
+      return t`Réflexion approfondie, plus lente et plus coûteuse.${t(SUFFIX)}`;
+    },
   },
   {
     value: "max",
     label: "Max",
-    tip: `Réflexion la plus poussée, la plus lente et la plus coûteuse.${SUFFIX}`,
+    get tip() {
+      return t`Réflexion la plus poussée, la plus lente et la plus coûteuse.${t(SUFFIX)}`;
+    },
   },
   {
     value: "ultracode",
     label: "Ultracode",
-    tip: ultracodeTip(undefined),
+    get tip() {
+      return ultracodeTip(undefined);
+    },
     providers: ["claude"],
   },
 ];

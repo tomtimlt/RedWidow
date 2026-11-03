@@ -372,10 +372,15 @@ describe("curseur de raisonnement de la webview", () => {
     };
     const sent: unknown[] = [];
     const context = {
+      t: (key: string | TemplateStringsArray, ...values: unknown[]) =>
+        typeof key === "string"
+          ? key
+          : key.reduce((out, part, i) => out + part + (values[i] ?? ""), ""),
       $,
       el: () => node(),
       ctl: null,
       levels: [],
+      lastCapabilities: null,
       ctlGroup: $("ctl-group"),
       modelChip: $("model-chip"),
       cfgBtn: $("cfg-btn"),

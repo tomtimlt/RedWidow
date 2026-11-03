@@ -1,4 +1,5 @@
 import { KALI_TOOL_PREFIX, stripControl } from "@warband/core";
+import { t } from "@warband/messages";
 
 export interface DisplayToolOutput {
   output: string;
@@ -31,17 +32,17 @@ export function displayToolOutput(
             (code !== undefined && code !== 0) ||
             result.timed_out === true;
           const parts: string[] = [];
-          if (code !== undefined && code !== 0) parts.push(`Code de sortie : ${code}`);
-          if (result.timed_out === true) parts.push("Délai d’exécution dépassé.");
-          if (result.partial_results === true) parts.push("Résultats partiels.");
+          if (code !== undefined && code !== 0) parts.push(t`Code de sortie : ${code}`);
+          if (result.timed_out === true) parts.push(t("Délai d’exécution dépassé."));
+          if (result.partial_results === true) parts.push(t("Résultats partiels."));
           if (
             result.success === false &&
             (code === undefined || code === 0) &&
             result.timed_out !== true
           )
-            parts.push("La commande a échoué.");
+            parts.push(t("La commande a échoué."));
           if (result.stdout !== "") parts.push(result.stdout);
-          if (result.stderr !== "") parts.push(`Sortie d’erreur :\n${result.stderr}`);
+          if (result.stderr !== "") parts.push(t`Sortie d’erreur :\n${result.stderr}`);
           text = parts.join("\n\n");
         } else {
           text = JSON.stringify(value, null, 2);

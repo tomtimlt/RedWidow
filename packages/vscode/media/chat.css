@@ -7052,3 +7052,85 @@ body.mode-monitor .mon-tick.is-selected {
   width: 18px;
   min-height: 11px;
 }
+
+/* Un point d’entrée pour le contexte et les outils de la conversation. */
+#composer-menu:not(:popover-open) {
+  display: none;
+}
+.composer-menu {
+  width: min(390px, calc(100vw - 16px));
+  padding: 8px;
+}
+.composer-section {
+  margin: 10px 10px 5px;
+  color: var(--jn-muted);
+  font-size: 11px;
+}
+.composer-action,
+.composer-choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 34px;
+  padding: 7px 10px;
+  text-align: left;
+  border-radius: 7px;
+}
+.composer-action {
+  justify-content: flex-start;
+}
+.composer-choice {
+  box-sizing: border-box;
+  cursor: pointer;
+}
+.composer-choice:hover {
+  background: var(--jn-raise-2);
+}
+.composer-choice input {
+  margin: 0;
+  accent-color: var(--jn-accent);
+}
+#composer-resources {
+  border-top: 1px solid var(--jn-line);
+  margin-top: 6px;
+}
+#composer-settings {
+  margin-top: 6px;
+  border-top: 1px solid var(--jn-line);
+}
+.selected-resources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 2px 0 6px;
+}
+.selected-resources[hidden] {
+  display: none;
+}
+#composer-menu-btn {
+  border-radius: 50%;
+  flex: 0 0 28px;
+}
+.capability-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
+.capability-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 160px;
+  flex: 1;
+  cursor: pointer;
+}
+.capability-label input {
+  accent-color: var(--vscode-button-background);
+}
+.capability-row .studio-help {
+  margin: 0;
+}

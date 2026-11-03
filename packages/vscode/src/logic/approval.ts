@@ -1,6 +1,7 @@
 import { isRememberable, type PendingApproval, stripControl } from "@warband/core";
-import { formatReason } from "@warband/messages";
+import { formatReason, getUiLocale, type Locale, t } from "@warband/messages";
 import { parseAttachments, type TextAttachment } from "./attachments.js";
+import { type ChatSelection, isCapabilityId, parseChatSelection } from "./chat-capabilities.js";
 import { isProvider, type Provider } from "./effort.js";
 import { summarizeInput, toolLabel } from "./present.js";
 
@@ -16,9 +17,11 @@ export interface ApprovalCard {
   tool: string;
   /** Nom lisible de l'outil et résumé d'une ligne de l'action (pour la carte). */
   label: string;
+  labelByLocale?: Readonly<Record<Locale, string>>;
   summary: string;
   detail: string;
   reason: string;
+  reasonByLocale?: Readonly<Record<Locale, string>>;
   /** « Toujours » est proposé seulement si le verdict est mémorisable (prédicat du cœur). */
   canRemember: boolean;
   /** Confirmation native en cours ; aucune autorisation n’est encore accordée. */
@@ -43,9 +46,14 @@ export function toCard(pending: PendingApproval): ApprovalCard {
     toolUseId: pending.toolUseId,
     tool,
     label: toolLabel(tool),
+    labelByLocale: { fr: toolLabel(tool, "fr"), en: toolLabel(tool, "en") },
     summary: summarizeInput(pending.input, 200),
     detail: describeInput(pending.input),
-    reason: cleanText(formatReason(pending.verdict.reason), 1000),
+    reason: cleanText(formatReason(pending.verdict.reason, getUiLocale()), 1000),
+    reasonByLocale: {
+      fr: cleanText(formatReason(pending.verdict.reason, "fr"), 1000),
+      en: cleanText(formatReason(pending.verdict.reason, "en"), 1000),
+    },
     canRemember: pending.verdict.decision === "ask" && isRememberable(pending, pending.verdict),
   };
 }
@@ -61,7 +69,7 @@ export function answerFor(choice: Choice): {
 
 /** Texte de la confirmation modale native (hors webview) exigée pour « Toujours ». */
 export function alwaysConfirmText(card: ApprovalCard): string {
-  return `Autoriser « ${card.tool} » sans redemander, pour la durée de cette conversation (la persistance sur disque n'est pas encore disponible) ?\n\n${card.detail.slice(0, 300)}`;
+  return t`Autoriser « ${card.tool} » sans redemander, pour la durée de cette conversation (la persistance sur disque n'est pas encore disponible) ?\n\n${card.detail.slice(0, 300)}`;
 }
 
 export const MAX_WEBVIEW_TEXT = 100_000;
@@ -79,6 +87,9 @@ export type WebviewMessage =
   | { type: "ready" }
   /** Chat grisé sans jeton : demande d'ouvrir « définir le jeton ». Aucun champ ; l'hôte seul agit. */
   | { type: "addProvider" }
+  | { type: "openSystem" }
+  | { type: "selectProvider"; id: string }
+  | { type: "setSelection"; selection: ChatSelection }
   | { type: "setProvider"; provider: Provider }
   /** Valeurs non fiables : l'extension les revalide (liste de modèles, énumération des niveaux). */
   | { type: "setModel"; model: string | null }
@@ -131,6 +142,16 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
             conversation: m.conversation,
           }
         : null;
+    }
+    case "openSystem":
+      return only("type") ? { type: "openSystem" } : null;
+    case "selectProvider":
+      return only("type", "id") && isCapabilityId(m.id)
+        ? { type: "selectProvider", id: m.id }
+        : null;
+    case "setSelection": {
+      const selection = parseChatSelection(m.selection);
+      return only("type", "selection") && selection ? { type: "setSelection", selection } : null;
     }
     case "setProvider":
       return only("type", "provider") && isProvider(m.provider)

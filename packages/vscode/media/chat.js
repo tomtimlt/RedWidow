@@ -1,5 +1,10 @@
 (() => {
   const vscode = acquireVsCodeApi();
+  const t = (...args) => globalThis.WarbandI18n?.t(...args) ?? fallbackText(...args);
+  const fallbackText = (key, ...values) =>
+    typeof key === "string"
+      ? key
+      : key.reduce((out, part, i) => out + part + (values[i] ?? ""), "");
   const $ = (id) => document.getElementById(id);
   const log = $("log");
   const approvals = $("approvals");
@@ -8,18 +13,39 @@
   const send = $("send");
   const stop = $("stop");
   const UI = globalThis.WarbandUI;
+  // Ces liens portent uniquement des textes produit explicitement marqués par l().
+  const productBindings = new Set();
+  const l = (...args) => ({ translation: args });
+  function productAttribute(node, attribute, value) {
+    const paint = () => {
+      const text = value?.byLocale
+        ? (value.byLocale[globalThis.WarbandI18n?.getLocale() ?? "en"] ?? value.fallback)
+        : value?.translation
+          ? t(...value.translation)
+          : value;
+      if (attribute) node.setAttribute(attribute, text);
+      else node.textContent = text;
+    };
+    paint();
+    if (value?.translation || value?.byLocale) productBindings.add({ node, paint });
+  }
   const el = (tag, className, text) => {
     const node = document.createElement(tag);
     if (className) node.className = className;
-    if (text !== void 0) node.textContent = text;
+    if (text !== void 0) productAttribute(node, null, text);
     return node;
   };
-  const EXAMPLES = [
+  const exampleKeys = [
     "Fais un nmap peu verbeux et résume les ports ouverts",
     "Parmi les services trouvés, lesquels valent un test en premier ?",
     "Cherche les pages qui prennent un paramètre et sentent l'injection",
   ];
-  const STATUS = { pending: "en cours", ok: "réussi", error: "erreur", denied: "refusé" };
+  const statusLabels = () => ({
+    pending: t("en cours"),
+    ok: t("réussi"),
+    error: t("erreur"),
+    denied: t("refusé"),
+  });
   const ICON = { pending: "clock", ok: "check", error: "close", denied: "ban" };
   const svg = (name, className) => globalThis.WarbandIcons.create(name, className);
   function inline(parent, nodes) {
@@ -36,12 +62,12 @@
   async function copy(text, button) {
     try {
       await navigator.clipboard.writeText(text);
-      button.textContent = "Copié";
+      button.textContent = t("Copié");
     } catch {
-      button.textContent = "Échec";
+      button.textContent = t("Échec");
     }
     setTimeout(() => {
-      button.textContent = "Copier";
+      button.textContent = t("Copier");
     }, 1500);
   }
   function renderBlock(b) {
@@ -88,7 +114,7 @@
       const box = el("div", "codeblock");
       const head = el("div", "codehead");
       head.append(el("span", "lang", b.lang));
-      const btn = el("button", "copy", "Copier");
+      const btn = el("button", "copy", t("Copier"));
       btn.type = "button";
       btn.addEventListener("click", () => copy(b.text, btn));
       head.append(btn);
@@ -126,7 +152,7 @@
       el("span", "tool-name", item.label),
     );
     if (item.summary) sum.append(el("span", "tool-summary", item.summary));
-    sum.append(icon, el("span", "tool-state", STATUS[item.status] ?? item.status));
+    sum.append(icon, el("span", "tool-state", statusLabels()[item.status] ?? item.status));
     box.append(sum);
     let body;
     const paintBody = () => {
@@ -138,15 +164,15 @@
       if (body) return;
       const current = credential.item;
       body = el("div", "tool-body");
-      body.append(el("div", "label", "Entrée"), el("pre", "", current.input));
+      body.append(el("div", "label", t("Entrée")), el("pre", "", current.input));
       if (current.output)
         body.append(
-          el("div", "label", "Sortie"),
+          el("div", "label", t("Sortie")),
           el(
             "pre",
             "",
             current.truncated
-              ? `${current.output}
+              ? t`${current.output}
 […tronqué]`
               : current.output,
           ),
@@ -158,9 +184,9 @@
     return box;
   }
   function copyButton(text) {
-    const btn = el("button", "msg-copy", "Copier");
+    const btn = el("button", "msg-copy", t("Copier"));
     btn.type = "button";
-    btn.title = "Copier le message";
+    btn.title = t("Copier le message");
     btn.addEventListener("click", () => copy(text, btn));
     return btn;
   }
@@ -181,28 +207,35 @@
     return row;
   }
   // Rapport : constats classés par gravité, avec une barre de répartition.
-  const SEVERITY = [
-    ["critical", "Critique"],
-    ["high", "Élevée"],
-    ["medium", "Moyenne"],
-    ["low", "Faible"],
-    ["info", "Info"],
-    ["unrated", "À évaluer"],
+  const severityLabels = () => [
+    ["critical", t("Critique")],
+    ["high", t("Élevée")],
+    ["medium", t("Moyenne")],
+    ["low", t("Faible")],
+    ["info", t("Info")],
+    ["unrated", t("À évaluer")],
   ];
   function renderReport(item) {
     const findings = Array.isArray(item.findings) ? item.findings : [];
     const box = el("section", "report");
-    box.setAttribute("aria-label", item.title || "Rapport");
+    box.setAttribute("aria-label", item.title || t("Rapport"));
     const head = el("div", "report-head");
-    head.append(svg("file", "ico report-ico"), el("h3", "report-title", item.title || "Rapport"));
     head.append(
-      el("span", "report-count", `${findings.length} constat${findings.length > 1 ? "s" : ""}`),
+      svg("file", "ico report-ico"),
+      el("h3", "report-title", item.title || t("Rapport")),
+    );
+    head.append(
+      el(
+        "span",
+        "report-count",
+        findings.length > 1 ? t`${findings.length} constats` : t`${findings.length} constat`,
+      ),
     );
     const bar = el("div", "report-bar");
     bar.setAttribute("aria-hidden", "true");
     const summary = el("p", "report-summary");
     const parts = [];
-    for (const [key, label] of SEVERITY) {
+    for (const [key, label] of severityLabels()) {
       const count = findings.filter((f) => f.severity === key).length;
       if (!count) continue;
       const seg = el("span", `report-seg sev-${key}`);
@@ -213,7 +246,7 @@
     summary.textContent = parts.join(" · ");
     const list = el("ul", "report-list");
     for (const f of findings) {
-      const known = SEVERITY.find(([key]) => key === f.severity) ?? SEVERITY[5];
+      const known = severityLabels().find(([key]) => key === f.severity) ?? severityLabels()[5];
       const li = el("li", `report-item sev-${known[0]}`);
       li.append(el("span", "report-sev", known[1]));
       const body = el("div", "report-body");
@@ -226,7 +259,7 @@
     if (item.description) box.append(el("p", "report-caption", item.description));
     box.append(list);
     if (item.projectId) {
-      const save = el("button", "primary", "Exporter le brouillon Markdown");
+      const save = el("button", "primary", t("Exporter le brouillon Markdown"));
       save.type = "button";
       save.addEventListener("click", () =>
         vscode.postMessage({ type: "exportReport", projectId: item.projectId }),
@@ -241,10 +274,10 @@
     const phases = Array.isArray(mission?.phases) ? mission.phases : [];
     nav.hidden = phases.length === 0;
     const STATE = {
-      done: "terminée",
-      current: "en cours",
-      wait: "en attente d'accord",
-      todo: "à venir",
+      done: t("terminée"),
+      current: t("en cours"),
+      wait: t("en attente d'accord"),
+      todo: t("à venir"),
     };
     $("mission-steps").replaceChildren(
       ...phases.map((tactic, i) => {
@@ -326,18 +359,25 @@
       mark.removeAttribute("height");
       box.append(mark);
     }
-    const tagline = el("h2", "welcome-tagline", "Pentest in VS Code, with AI on call.");
-    tagline.setAttribute("lang", "en");
+    const tagline = el(
+      "h2",
+      "welcome-tagline",
+      t("Le pentest dans VS Code, avec l’IA à la demande."),
+    );
+    tagline.setAttribute("lang", globalThis.WarbandI18n?.getLocale() ?? "fr");
     box.append(
       tagline,
       el(
         "p",
         "hint",
-        "Pilote tes conteneurs depuis le cockpit, travaille dans les terminaux et relie tes trouvailles dans la Kill chain. L’IA intervient à la demande et reste optionnelle.",
+        t(
+          "Pilote tes conteneurs depuis le cockpit, travaille dans les terminaux et relie tes trouvailles dans la Kill chain. L’IA intervient à la demande et reste optionnelle.",
+        ),
       ),
     );
     const list = el("div", "examples");
-    for (const text of EXAMPLES) {
+    for (const key of exampleKeys) {
+      const text = t(key);
       const b = el("button", "example", text);
       b.type = "button";
       b.addEventListener("click", () => {
@@ -349,7 +389,7 @@
     }
     box.append(list);
     if (sandbox) {
-      box.append(el("p", "hint", `Bac à sable actif : les commandes tournent dans ${sandbox}.`));
+      box.append(el("p", "hint", t`Bac à sable actif : les commandes tournent dans ${sandbox}.`));
     }
     return box;
   }
@@ -357,56 +397,70 @@
   const approvalNodes = new Map();
   function cardTraits(card) {
     const risks = [];
-    if (UI.toolIcon(card.tool) === "terminal") risks.push(["terminal", "Exécution"]);
-    if (card.networkActive) risks.push(["link", "Réseau"]);
-    if (card.canRemember) risks.push(["history", "Mémorisable"]);
+    if (UI.toolIcon(card.tool) === "terminal") risks.push(["terminal", l("Exécution")]);
+    if (card.networkActive) risks.push(["link", l("Réseau")]);
+    if (card.canRemember) risks.push(["history", l("Mémorisable")]);
     return risks;
   }
-  function renderCard(card, isNew) {
+  function renderCard(card, isNew, previous) {
+    const previousChoice =
+      !!previous?.card.confirming === !!card.confirming ? previous?.node.dataset.choice : undefined;
     const box = el("div", isNew ? "card enter" : "card");
     box.tabIndex = -1;
     box.setAttribute("role", "group");
-    box.setAttribute("aria-label", `Demande d'autorisation : ${card.label}`);
+    productAttribute(box, "aria-label", l`Demande d'autorisation : ${card.label}`);
     const risks = cardTraits(card);
     const head = el("div", "card-head");
     const icon = svg("shield", "ico card-icon");
     icon.setAttribute("aria-hidden", "true");
-    head.append(icon, el("div", "card-title", "Autorisation requise"));
+    head.append(icon, el("div", "card-title", l("Autorisation requise")));
     const chips = el("div", "card-risks");
     for (const [name, label] of risks) {
       const chip = el("span", "card-risk");
-      chip.append(svg(name, "ico"), document.createTextNode(label));
+      chip.append(svg(name, "ico"), el("span", "", label));
       chips.append(chip);
     }
     const grid = el("div", "card-grid");
-    const outil = el("div", "card-val", card.label);
-    if (card.networkActive) outil.append(document.createTextNode(" · réseau activé"));
+    const outil = el(
+      "div",
+      "card-val",
+      card.labelByLocale ? { byLocale: card.labelByLocale, fallback: card.label } : card.label,
+    );
+    if (card.networkActive) outil.append(el("span", "", l(" · réseau activé")));
     grid.append(
-      el("span", "card-key", "Outil"),
+      el("span", "card-key", l("Outil")),
       outil,
-      el("span", "card-key", "Action"),
+      el("span", "card-key", l("Action")),
       el("code", "card-summary", card.summary || card.tool),
-      el("span", "card-key", "Raison"),
-      el("div", "card-val card-reason", card.reason),
+      el("span", "card-key", l("Raison")),
+      el(
+        "div",
+        "card-val card-reason",
+        card.reasonByLocale
+          ? { byLocale: card.reasonByLocale, fallback: card.reason }
+          : card.reason,
+      ),
     );
     const det = el("details", "card-details");
-    det.append(el("summary", "", "Détails"), el("pre", "", card.detail));
+    det.open = previous?.node.querySelector?.(".card-details")?.open === true;
+    det.append(el("summary", "", l("Détails")), el("pre", "", card.detail));
     box.append(head);
     if (risks.length) box.append(chips);
     box.append(grid, det);
     const row = el("div", "card-buttons");
     const buttons = {};
-    const pendingText = "Confirmation native en cours…";
+    const pendingText = l("Confirmation native en cours…");
     const decide = (choice) => {
       if (box.dataset.decided || card.confirming) return;
       box.dataset.decided = "true";
+      box.dataset.choice = choice;
       if (choice !== "always") box.classList.add(choice === "deny" ? "is-denied" : "is-locked");
       for (const button of row.querySelectorAll("button")) button.disabled = true;
       row.replaceChildren(
         el(
           "span",
           "badge",
-          choice === "always" ? pendingText : choice === "deny" ? "Refusé" : "Autorisé",
+          choice === "always" ? pendingText : choice === "deny" ? l("Refusé") : l("Autorisé"),
         ),
       );
       vscode.postMessage({ type: "approve", toolUseId: card.toolUseId, choice });
@@ -418,13 +472,26 @@
       buttons[choice] = b;
       row.append(b);
     };
-    button("Autoriser une fois", "once", "primary");
-    button("Refuser", "deny", "danger");
-    if (card.canRemember) button("Toujours", "always", "link");
-    if (card.confirming) {
+    button(l("Autoriser une fois"), "once", "primary");
+    button(l("Refuser"), "deny", "danger");
+    if (card.canRemember) button(l("Toujours"), "always", "link");
+    if (card.confirming || previousChoice) {
       box.dataset.decided = "true";
+      if (previousChoice) box.dataset.choice = previousChoice;
+      if (previousChoice && previousChoice !== "always")
+        box.classList.add(previousChoice === "deny" ? "is-denied" : "is-locked");
       for (const button of row.querySelectorAll("button")) button.disabled = true;
-      row.replaceChildren(el("span", "badge", pendingText));
+      row.replaceChildren(
+        el(
+          "span",
+          "badge",
+          previousChoice === "deny"
+            ? l("Refusé")
+            : previousChoice === "once"
+              ? l("Autorisé")
+              : pendingText,
+        ),
+      );
     }
     box.append(row);
     box.addEventListener("keydown", (e) => {
@@ -515,8 +582,8 @@
   const modelEntries = () => [
     {
       value: null,
-      label: "Modèle par défaut",
-      description: "Réglage warband.model, sinon le modèle du binaire.",
+      label: t("Modèle par défaut"),
+      description: t("Réglage warband.model, sinon le modèle du binaire."),
     },
     ...(ctl?.models ?? []),
   ];
@@ -564,11 +631,11 @@
       o.append(mark, el("span", "opt-label", m.label));
       const badges = el("span", "model-badges");
       if (m.free) {
-        const badge = el("span", "badge model-free", "Gratuit");
-        badge.title = "Modèle annoncé « Free » par le fournisseur.";
+        const badge = el("span", "badge model-free", t("Gratuit"));
+        badge.title = t("Modèle annoncé « Free » par le fournisseur.");
         badges.append(badge);
       }
-      if (current) badges.append(el("span", "sr-only", "actuel"));
+      if (current) badges.append(el("span", "sr-only", t("actuel")));
       o.append(badges);
       if (m.value !== null) o.append(el("span", "opt-desc model-source", m.value));
       if (m.description) o.append(el("span", "opt-desc", m.description));
@@ -582,8 +649,8 @@
           "div",
           "empty",
           ctl.modelsStatus === "loading"
-            ? "Chargement de la liste…"
-            : "Aucun modèle ne correspond.",
+            ? t("Chargement de la liste…")
+            : t("Aucun modèle ne correspond."),
         ),
       );
     }
@@ -609,22 +676,22 @@
       $("learning-badge").hidden = true;
       return;
     }
-    $("provider").value = c.provider;
+    if (!lastCapabilities) $("provider").value = c.provider;
     $("provider").disabled = c.locked;
     $("provider-connect").disabled = c.locked;
     modelChip.setAttribute("aria-disabled", String(c.locked));
     const known = c.models?.find((m) => m.value === c.model);
-    const name = c.model === null ? "Modèle par défaut" : (known?.label ?? c.model);
+    const name = c.model === null ? t("Modèle par défaut") : (known?.label ?? c.model);
     $("model-chip-label").textContent = name;
-    modelChip.title = `Modèle : ${name} (utilisé pour le message suivant)`;
+    modelChip.title = t`Modèle : ${name} (utilisé pour le message suivant)`;
     const free = c.models === null;
     const loading = c.modelsStatus === "loading";
     const message =
       c.modelsMessage ||
       (loading
-        ? "Récupération des modèles… Vous pouvez relancer si le chargement ne répond pas."
+        ? t("Récupération des modèles… Vous pouvez relancer si le chargement ne répond pas.")
         : c.modelsStatus === "unavailable"
-          ? "Liste indisponible. Vérifiez la connexion au fournisseur, puis réessayez."
+          ? t("Liste indisponible. Vérifiez la connexion au fournisseur, puis réessayez.")
           : "");
     $("models-status").textContent = message;
     $("models-status").hidden = !message;
@@ -635,15 +702,15 @@
     modelInput.disabled = c.locked;
     $("models-refresh").disabled = c.locked;
     $("models-refresh-label").textContent = loading
-      ? "Relancer le chargement"
-      : "Actualiser la liste";
+      ? t("Relancer le chargement")
+      : t("Actualiser la liste");
     if (free) {
       if (document.activeElement !== modelInput) modelInput.value = c.model ?? "";
     } else if (modelPop.matches(":popover-open")) renderModelList(false);
     levels =
       c.provider === "claude"
         ? c.levels.filter((level) => level.enabled)
-        : [{ value: null, label: "Auto" }, ...c.reasoningVariants];
+        : [{ value: null, label: t("Auto") }, ...c.reasoningVariants];
     const choice = c.provider === "claude" ? c.effort : c.variant;
     const auto = choice === null;
     $("effort-auto").hidden = auto;
@@ -667,14 +734,16 @@
     effortInput.disabled = c.locked || c.effortDisabled;
     const disabledTip =
       c.provider === "claude"
-        ? "Ce modèle n'a pas d'effort réglable."
-        : "Aucune variante de raisonnement connue pour ce modèle. Actualisez la liste des modèles.";
+        ? t("Ce modèle n'a pas d'effort réglable.")
+        : t(
+            "Aucune variante de raisonnement connue pour ce modèle. Actualisez la liste des modèles.",
+          );
     effortInput.title = c.effortDisabled ? disabledTip : c.effortTip;
     effortInput.setAttribute(
       "aria-valuetext",
-      `${auto ? "Auto" : (levels[idx]?.label ?? c.effortLabel)} : ${c.effortTip}`,
+      `${auto ? t("Auto") : (levels[idx]?.label ?? c.effortLabel)} : ${c.effortTip}`,
     );
-    const shown = auto ? "Auto" : (levels[idx]?.label ?? c.effortLabel);
+    const shown = auto ? t("Auto") : (levels[idx]?.label ?? c.effortLabel);
     $("effort-label").textContent = shown;
     $("effort-tip").textContent = c.effortDisabled ? disabledTip : c.effortTip;
     $("effort-tip").title = $("effort-tip").textContent;
@@ -683,7 +752,7 @@
     $("effort-model").disabled = c.locked;
     paintNotches(idx);
     scale.classList.toggle("is-disabled", effortInput.disabled);
-    cfgBtn.title = `Configurer : effort ${c.effortLabel}`;
+    cfgBtn.title = t`Configurer : effort ${c.effortLabel}`;
     document.body.classList.toggle("learning", c.learning === true);
     $("learning-badge").hidden = c.learning !== true;
     learningSwitch.setAttribute("aria-checked", String(c.learning === true));
@@ -700,6 +769,162 @@
       (ctl?.models === null ? modelInput : modelFilter).focus();
     },
   });
+  const composerMenu = $("composer-menu");
+  const composerMenuBtn = $("composer-menu-btn");
+  let lastCapabilities = null;
+  const skillLabels = {
+    mentor: "Mentor",
+    "bug-bounty": "Bug bounty",
+    "out-of-box": "Out of the box",
+    "red-team": "Red team",
+    htb: "HTB / CTF",
+  };
+  const mcpLabels = {
+    playwright: "Playwright",
+    filesystem: "Filesystem",
+    markitdown: "MarkItDown",
+    reptor: "Reptor",
+    serena: "Serena",
+    semgrep: "Semgrep",
+    trivy: "Trivy",
+    bloodhound: "BloodHound",
+    ghidra: "Ghidra",
+    wiremcp: "WireMCP",
+    burp: "Burp Suite",
+  };
+  function closeComposer() {
+    if (composerMenu.matches(":popover-open")) composerMenu.hidePopover();
+  }
+  function renderCapabilities(caps, view = lastView) {
+    lastCapabilities = caps ?? null;
+    const target = $("composer-resources");
+    const chips = $("selected-resources");
+    const focusedChoice = [...target.querySelectorAll("input")].indexOf(document.activeElement);
+    if (!caps) {
+      target.replaceChildren();
+      chips.hidden = true;
+      return;
+    }
+    const select = $("provider");
+    const selected = caps.provider;
+    select.replaceChildren(
+      ...caps.providers.map((p) => {
+        const option = el("option", "", p.label);
+        option.value = p.id;
+        return option;
+      }),
+    );
+    if (!caps.providers.length || !selected) {
+      const placeholder = el("option", "", t("Choisir un fournisseur"));
+      placeholder.value = "";
+      select.prepend(placeholder);
+    }
+    select.value = selected ?? "";
+    const learning = view?.controls?.learning === true;
+    const locked = !!view?.busy || !!view?.readonly || learning;
+    const rows = [];
+    const heading = (text) => rows.push(el("p", "composer-section", t(text)));
+    const choice = (label, checked, apply, radio = false, unavailable = false) => {
+      const row = el("label", "composer-choice");
+      const box = el("input");
+      box.type = radio ? "radio" : "checkbox";
+      if (radio) box.name = "chat-skill";
+      box.checked = checked;
+      box.disabled = locked || unavailable;
+      box.addEventListener("change", () => {
+        const selection = {
+          ...lastCapabilities.selection,
+          integrations: [...lastCapabilities.selection.integrations],
+        };
+        apply(selection, box.checked);
+        lastCapabilities = { ...lastCapabilities, selection };
+        vscode.postMessage({ type: "setSelection", selection });
+        renderCapabilities(lastCapabilities, view);
+      });
+      row.append(box, el("span", "", label));
+      rows.push(row);
+    };
+    if (caps.skills.length) {
+      heading("Skills / méthodes");
+      choice(
+        t("Méthode générale"),
+        caps.selection.profile === null,
+        (s) => {
+          s.profile = null;
+        },
+        true,
+      );
+      for (const id of caps.skills)
+        choice(
+          skillLabels[id] ?? id,
+          caps.selection.profile === id,
+          (s) => {
+            s.profile = id;
+          },
+          true,
+        );
+    }
+    if (caps.integrations.length || caps.burp) {
+      heading("Connecteurs MCP");
+      for (const id of caps.integrations)
+        choice(
+          mcpLabels[id] ?? id,
+          caps.selection.integrations.includes(id),
+          (s, on) => {
+            s.integrations = on ? [...s.integrations, id] : s.integrations.filter((v) => v !== id);
+          },
+          false,
+          caps.selection.integrations.length >= 4 && !caps.selection.integrations.includes(id),
+        );
+      if (caps.burp)
+        choice("Burp Suite", caps.selection.burp, (s, on) => {
+          s.burp = on;
+        });
+    }
+    if (caps.settings?.webSearch) {
+      heading("Recherche");
+      choice(t("Recherche web"), caps.selection.webSearch, (s, on) => {
+        s.webSearch = on;
+      });
+    }
+    rows.push(
+      el(
+        "p",
+        "tip",
+        t(
+          learning
+            ? "Le mode Apprentissage utilise seulement les cours et les terminaux en lecture."
+            : "Ces choix s’appliquent à cette conversation. Les actions restent soumises aux approbations.",
+        ),
+      ),
+    );
+    target.replaceChildren(...rows);
+    if (focusedChoice >= 0) target.querySelectorAll("input")[focusedChoice]?.focus();
+    const names = [
+      caps.selection.profile ? skillLabels[caps.selection.profile] : null,
+      ...caps.selection.integrations.map((id) => mcpLabels[id] ?? id),
+      caps.selection.burp ? "Burp Suite" : null,
+      caps.selection.webSearch ? t("Recherche web") : null,
+    ].filter(Boolean);
+    chips.replaceChildren(
+      ...names.map((name) => el("span", "badge", learning ? `${name} · ${t("en pause")}` : name)),
+    );
+    chips.hidden = !names.length;
+  }
+  wirePop(composerMenu, composerMenuBtn, {
+    render() {
+      renderCapabilities(lastCapabilities);
+    },
+    focus() {
+      composerMenu.querySelector("button:not(:disabled),input:not(:disabled)")?.focus();
+    },
+  });
+  composerMenu.addEventListener("click", (event) => {
+    if (event.target.closest("button")) closeComposer();
+  });
+  $("composer-settings").addEventListener("click", () =>
+    vscode.postMessage({ type: "openSystem" }),
+  );
   const bypassSwitch = $("bypass-switch");
   const learningSwitch = $("learning-switch");
   function toggleLearning() {
@@ -718,16 +943,16 @@
     const pending = !learning && document.body.classList.contains("bypass-pending");
     const level = learning ? 1 : document.body.classList.contains("bypass-on") || pending ? 3 : 2;
     const label = learning
-      ? "Apprentissage"
+      ? t("Apprentissage")
       : pending
-        ? "Bypass · en attente"
+        ? t("Bypass · en attente")
         : level === 3
-          ? "Bypass"
-          : "Supervisé";
+          ? t("Bypass")
+          : t("Supervisé");
     roe.dataset.level = String(level);
     roe.classList.toggle("is-pending", pending);
     $("roe-label").textContent = label;
-    roe.setAttribute("aria-label", `Mode de supervision : ${label}. Ouvrir Configurer`);
+    roe.setAttribute("aria-label", t`Mode de supervision : ${label}. Ouvrir Configurer`);
   }
   // Affichage seulement : l’échéance et la décision restent celles du moteur.
   const BYPASS_MAX_MS = 2 * 60 * 60 * 1000;
@@ -754,7 +979,7 @@
     $("roe-left").textContent = left;
     roe.setAttribute(
       "aria-label",
-      `Mode de supervision : Bypass, reste ${left}. Ouvrir Configurer`,
+      t`Mode de supervision : Bypass, reste ${left}. Ouvrir Configurer`,
     );
     if (!document.hidden) bypassTimer = setTimeout(renderBypass, Math.min(15000, ms));
   }
@@ -763,7 +988,7 @@
   const toggleProviderHelp = () => {
     const open = providerHelp.getAttribute("aria-expanded") !== "true";
     providerHelp.setAttribute("aria-expanded", String(open));
-    providerHelp.title = open ? "Réduire le texte" : "Afficher tout le texte";
+    providerHelp.title = open ? t("Réduire le texte") : t("Afficher tout le texte");
   };
   providerHelp.addEventListener("click", toggleProviderHelp);
   providerHelp.addEventListener("keydown", (event) => {
@@ -777,7 +1002,7 @@
     bypassSwitch.setAttribute("aria-disabled", String(learning));
     if (learning) {
       bypassSwitch.setAttribute("aria-checked", "false");
-      bypassState.textContent = "Inopérant en mode Apprentissage";
+      bypassState.textContent = t("Inopérant en mode Apprentissage");
       bypassState.title = bypassState.textContent;
       document.body.classList.remove("bypass-on", "bypass-pending");
       bypassBadge.hidden = true;
@@ -800,7 +1025,7 @@
         el("span", "bp-word", v.badge.word),
         el("span", "bp-time", ` · ${v.badge.time}`),
       );
-      bypassBadge.title = `Bypass actif jusqu'à ${v.until} : désactivable dans Configurer ou la barre d'état`;
+      bypassBadge.title = t`Bypass actif jusqu'à ${v.until} : désactivable dans Configurer ou la barre d'état`;
     } else bypassBadge.replaceChildren();
   }
   function toggleBypass() {
@@ -881,18 +1106,18 @@
             name: item.token,
             // Jeton exact (#htb1, #htb1-2) : deux shells du même conteneur restent distincts.
             label: `#${item.token}`,
-            desc: item.hint ? `$ ${item.hint}` : "terminal ouvert",
+            desc: item.hint ? `$ ${item.hint}` : t("terminal ouvert"),
           }))
         : UI.filterContainers(containers, span.query).map((item) => ({
             name: item.name,
-            desc: item.state === "running" ? "en cours" : "arrêté",
+            desc: item.state === "running" ? t("en cours") : t("arrêté"),
           }));
     if (mentionActive >= mentionShown.length) mentionActive = 0;
     mentionEmpty.hidden = mentionShown.length > 0;
     mentionEmpty.textContent = hash
-      ? "Aucun terminal Venator Ops ouvert. Alt+J T pour en ouvrir un."
-      : "Aucun conteneur";
-    mentionPop.setAttribute("aria-label", hash ? "Terminaux" : "Conteneurs");
+      ? t("Aucun terminal Venator Ops ouvert. Alt+J T pour en ouvrir un.")
+      : t("Aucun conteneur");
+    mentionPop.setAttribute("aria-label", hash ? t("Terminaux") : t("Conteneurs"));
     mentionList.replaceChildren(
       ...mentionShown.map((item, i) => {
         const btn = el("button", "cmd-opt");
@@ -929,6 +1154,7 @@
     input.focus();
   }
   function sigilClick(sigil, spanOf) {
+    closeComposer();
     const start = input.selectionStart ?? input.value.length;
     const end = input.selectionEnd ?? start;
     if (!spanOf(input.value, start)) input.setRangeText(sigil, start, end, "end");
@@ -1076,14 +1302,14 @@
   let historyRunning = false;
   let historyEntries = [];
   const projectFilter = el("select", "hist-project-filter");
-  projectFilter.setAttribute("aria-label", "Filtrer les conversations par projet");
+  projectFilter.setAttribute("aria-label", t("Filtrer les conversations par projet"));
   historyList.before(projectFilter);
   projectFilter.addEventListener("change", () => renderHistory(historyEntries));
   function renderHistory(findings) {
     historyEntries = findings;
     const selected = projectFilter.value || "all";
     const projects = new Map(
-      findings.map((h) => [h.projectKey || "none", h.projectLabel || "Sans projet"]),
+      findings.map((h) => [h.projectKey || "none", h.projectLabel || t("Sans projet")]),
     );
     const option = (value, label) => {
       const node = el("option", "", label);
@@ -1091,7 +1317,7 @@
       return node;
     };
     projectFilter.replaceChildren(
-      option("all", "Tous les projets"),
+      option("all", t("Tous les projets")),
       ...[...projects].map(([key, label]) => option(key, label)),
     );
     projectFilter.value = selected === "all" || projects.has(selected) ? selected : "all";
@@ -1099,24 +1325,27 @@
     findings = findings.filter(
       (h) => projectFilter.value === "all" || (h.projectKey || "none") === projectFilter.value,
     );
-    $("history-clear").title =
-      "Supprimer toutes les conversations de ce chat, tous projets compris";
+    $("history-clear").title = t(
+      "Supprimer toutes les conversations de ce chat, tous projets compris",
+    );
     $("history-clear").disabled = allEntries.length === 0;
     if (findings.length === 0) {
-      historyList.replaceChildren(el("li", "hist-empty", "Aucune conversation enregistrée."));
+      historyList.replaceChildren(el("li", "hist-empty", t("Aucune conversation enregistrée.")));
       return;
     }
     historyList.replaceChildren(
       ...findings.map((h) => {
         const li = el("li", h.current ? "hist current" : "hist");
-        const when = new Date(h.updatedAt).toLocaleString();
-        const meta = `${h.projectLabel || "Sans projet"} · ${when} · ${h.tools} outil${h.tools > 1 ? "s" : ""} · ${h.provider} · ${h.model}`;
+        const when = new Date(h.updatedAt).toLocaleString(
+          globalThis.WarbandI18n?.getLocale() === "en" ? "en-GB" : "fr-FR",
+        );
+        const meta = `${h.projectLabel || t("Sans projet")} · ${when} · ${h.tools > 1 ? t`${h.tools} outils` : t`${h.tools} outil`} · ${h.provider} · ${h.model}`;
         if (renaming === h.id) {
           const field = el("input", "hist-rename");
           field.type = "text";
           field.value = h.title;
           field.maxLength = 120;
-          field.setAttribute("aria-label", "Nouveau titre");
+          field.setAttribute("aria-label", t("Nouveau titre"));
           const commit = () => {
             vscode.postMessage({ type: "historyRename", id: h.id, title: field.value });
             renaming = null;
@@ -1135,19 +1364,19 @@
         }
         const open = el("button", "hist-open", h.title);
         open.type = "button";
-        open.title = "Ouvrir en lecture seule";
+        open.title = t("Ouvrir en lecture seule");
         open.addEventListener("click", () => {
           vscode.postMessage({ type: "historyOpen", id: h.id });
           setHistoryOpen(false);
         });
         const actions = el("div", "hist-actions");
-        const rename = el("button", "link", "Renommer");
+        const rename = el("button", "link", t("Renommer"));
         rename.type = "button";
         rename.addEventListener("click", () => {
           renaming = h.id;
           renderHistory(historyEntries);
         });
-        const del = el("button", "link", "Supprimer");
+        const del = el("button", "link", t("Supprimer"));
         del.type = "button";
         del.addEventListener("click", () =>
           vscode.postMessage({ type: "historyDelete", id: h.id }),
@@ -1166,13 +1395,13 @@
     const bar = $("readonly");
     bar.hidden = !info;
     if (!info) return;
-    let text = `Lecture seule : ${info.title}`;
-    if (info.invalid > 0) text += ` · ${info.invalid} ligne(s) du journal ignorée(s)`;
-    if (info.truncated) text += " · journal tronqué";
+    let text = t`Lecture seule : ${info.title}`;
+    if (info.invalid > 0) text += t` · ${info.invalid} ligne(s) du journal ignorée(s)`;
+    if (info.truncated) text += t(" · journal tronqué");
     $("readonly-text").textContent = text;
     $("readonly-resume").textContent = info.canResume
-      ? "Reprendre"
-      : "Reprendre (nouvelle session)";
+      ? t("Reprendre")
+      : t("Reprendre (nouvelle session)");
   }
   function setHistoryOpen(open) {
     historyPanel.hidden = !open;
@@ -1201,7 +1430,7 @@
     if (!ctl?.locked) vscode.postMessage({ type: "addProvider" });
   });
   $("provider").addEventListener("change", (event) => {
-    if (!ctl?.locked) vscode.postMessage({ type: "setProvider", provider: event.target.value });
+    if (!ctl?.locked) vscode.postMessage({ type: "selectProvider", id: event.target.value });
   });
   $("no-provider-add").addEventListener("click", () => vscode.postMessage({ type: "addProvider" }));
   const monitorRowsEl = $("monitor-rows");
@@ -1217,8 +1446,8 @@
     monitorFollow = !monitorFollow;
     monitorFollowBtn.setAttribute("aria-pressed", String(monitorFollow));
     monitorFollowBtn.title = monitorFollow
-      ? "Désactiver le suivi du bas pour défiler librement"
-      : "Activer le suivi et revenir en bas";
+      ? t("Désactiver le suivi du bas pour défiler librement")
+      : t("Activer le suivi et revenir en bas");
     if (monitorFollow) followMonitorBottom();
   });
   let watchId = "";
@@ -1251,11 +1480,11 @@
       }
       li.append(out);
     }
-    if (row.truncated) li.append(el("p", "note", "sortie tronquée"));
+    if (row.truncated) li.append(el("p", "note", t("sortie tronquée")));
     if (mode === "monitor" && row.toolUseId) {
       li.tabIndex = 0;
       li.setAttribute("role", "button");
-      li.title = "Suivre la sortie";
+      li.title = t("Suivre la sortie");
       const toolUseId = row.toolUseId;
       const open = () => vscode.postMessage({ type: "watch", toolUseId });
       li.addEventListener("click", open);
@@ -1308,7 +1537,7 @@
       tick.dataset.rowId = row.id;
       tick.className = `mon-tick tone-${row.tone}${String(row.id) === selectedMonitorRow ? " is-selected" : ""}`;
       tick.setAttribute("aria-pressed", String(String(row.id) === selectedMonitorRow));
-      tick.setAttribute("aria-label", `Commande ${i + 1} : ${row.command}, ${row.status}`);
+      tick.setAttribute("aria-label", t`Commande ${i + 1} : ${row.command}, ${row.status}`);
       tick.title = `${row.command} · ${row.status}`;
       return tick;
     });
@@ -1357,9 +1586,9 @@
       rows.length === 0
         ? ""
         : [
-            `${rows.length} commande${rows.length > 1 ? "s" : ""}`,
-            waiting ? `${waiting} en attente` : "",
-            failed ? `${failed} en erreur` : "",
+            rows.length > 1 ? t`${rows.length} commandes` : t`${rows.length} commande`,
+            waiting ? t`${waiting} en attente` : "",
+            failed ? t`${failed} en erreur` : "",
           ]
             .filter(Boolean)
             .join(" · ");
@@ -1429,11 +1658,11 @@
       if (direction === "latest") {
         monitorFollow = true;
         monitorFollowBtn.setAttribute("aria-pressed", "true");
-        monitorFollowBtn.title = "Désactiver le suivi du bas pour défiler librement";
+        monitorFollowBtn.title = t("Désactiver le suivi du bas pour défiler librement");
       } else {
         monitorFollow = false;
         monitorFollowBtn.setAttribute("aria-pressed", "false");
-        monitorFollowBtn.title = "Activer le suivi du bas";
+        monitorFollowBtn.title = t("Activer le suivi du bas");
       }
       vscode.postMessage({ type: "timelinePage", direction });
     });
@@ -1449,11 +1678,12 @@
     $("timeline-newer").disabled = !!paging?.loading;
     $("timeline-latest").hidden = !paging?.archived;
     $("timeline-status").textContent = paging?.loading
-      ? "Chargement…"
-      : (paging?.error ?? (paging?.archived ? "Messages précédents" : ""));
+      ? t("Chargement…")
+      : (paging?.error ?? (paging?.archived ? t("Messages précédents") : ""));
   }
   let pageBefore = null;
   function render(view) {
+    renderCapabilities(view.capabilities, view);
     paintMission(UI.conversationActivity(view));
     const nextBefore = view.paging?.before ?? null;
     const pageChanged = nextBefore !== pageBefore;
@@ -1494,10 +1724,21 @@
     shownNodes = view.items.length === 0 ? 0 : nodes.length;
     log.replaceChildren(...nodes);
     const visible2 = mode === "monitor" || !Array.isArray(view.approvals) ? [] : view.approvals;
+    let replacedCardFocus = null;
     const cards = visible2.map((card) => {
       let cached = approvalNodes.get(card.toolUseId);
       if (!sameDisplay(cached?.card, card)) {
-        cached = { card, node: renderCard(card, !seenCards.has(card.toolUseId)) };
+        const previous = cached;
+        const focused = document.activeElement;
+        cached = { card, node: renderCard(card, !seenCards.has(card.toolUseId), cached) };
+        if (previous?.node.contains(focused)) {
+          const controls = [...previous.node.querySelectorAll("button, summary")];
+          const index = controls.indexOf(focused);
+          replacedCardFocus =
+            index >= 0
+              ? (cached.node.querySelectorAll("button, summary")[index] ?? cached.node)
+              : cached.node;
+        }
         approvalNodes.set(card.toolUseId, cached);
       }
       return cached.node;
@@ -1509,16 +1750,19 @@
       cards.some((card, index) => approvals.children[index] !== card)
     )
       approvals.replaceChildren(...cards);
+    for (const binding of productBindings)
+      if (!binding.node.isConnected) productBindings.delete(binding);
     const fresh = visible2.findIndex((c) => !seenCards.has(c.toolUseId));
     seenCards.clear();
     for (const c of visible2) seenCards.add(c.toolUseId);
     if (fresh >= 0) cards[fresh]?.focus();
+    else replacedCardFocus?.focus({ preventScroll: true });
     const sb = $("sandbox");
     if (view.sandbox) {
       sb.textContent =
         view.sandboxNetwork === "bridge"
-          ? `Bac à sable : ${view.sandbox} · réseau activé`
-          : `Bac à sable : ${view.sandbox}`;
+          ? t`Bac à sable : ${view.sandbox} · réseau activé`
+          : t`Bac à sable : ${view.sandbox}`;
     } else sb.textContent = "";
     sb.hidden = !view.sandbox;
     document.body.classList.toggle("awaiting", approvals.childElementCount > 0);
@@ -1539,10 +1783,74 @@
     log.setAttribute("aria-busy", view.busy ? "true" : "false");
     log.scrollTop = atBottom ? log.scrollHeight : top;
   }
+  // Une bascule ne réinitialise aucune conversation ni décision locale de la gate.
+  function switchLocale(locale) {
+    const i18n = globalThis.WarbandI18n;
+    if (!i18n || (locale !== "fr" && locale !== "en")) return;
+    const pathOf = (node) => {
+      const path = [];
+      while (node && node !== document.body) {
+        const parent = node.parentElement;
+        if (!parent) return null;
+        path.unshift([...parent.children].indexOf(node));
+        node = parent;
+      }
+      return path;
+    };
+    const atPath = (path) => path?.reduce((node, index) => node?.children[index], document.body);
+    const focused = document.activeElement;
+    const focusPath = pathOf(focused);
+    const snapshots = [...document.querySelectorAll("[id], input, textarea, pre, .mon-out")].map(
+      (node) => ({
+        node,
+        path: pathOf(node),
+        top: node.scrollTop,
+        left: node.scrollLeft,
+        value: node.matches("input:not([type=file]), textarea") ? node.value : undefined,
+        start: node.matches("input:not([type=file]), textarea") ? node.selectionStart : null,
+        end: node.matches("input:not([type=file]), textarea") ? node.selectionEnd : null,
+      }),
+    );
+    i18n.setLocale(locale);
+    i18n.applyStatic(document);
+    for (const binding of productBindings) {
+      if (binding.node.isConnected) binding.paint();
+      else productBindings.delete(binding);
+    }
+    // Les cartes conservent leurs nœuds et leurs verrous ; les messages et sorties sont reparcourus.
+    itemNodes.clear();
+    monitorNodes.clear();
+    if (lastView) render(lastView);
+    paintAttachments();
+    if (mentionOpen()) renderMentions();
+    providerHelp.title =
+      providerHelp.getAttribute("aria-expanded") === "true"
+        ? t("Réduire le texte")
+        : t("Afficher tout le texte");
+    projectFilter.setAttribute("aria-label", t("Filtrer les conversations par projet"));
+    monitorFollowBtn.title = monitorFollow
+      ? t("Désactiver le suivi du bas pour défiler librement")
+      : t("Activer le suivi du bas");
+    for (const snapshot of snapshots) {
+      const node = snapshot.node.isConnected ? snapshot.node : atPath(snapshot.path);
+      if (!node) continue;
+      if (snapshot.value !== undefined && "value" in node) {
+        node.value = snapshot.value;
+        if (snapshot.start !== null && typeof node.setSelectionRange === "function")
+          node.setSelectionRange(snapshot.start, snapshot.end);
+      }
+      node.scrollTop = snapshot.top;
+      node.scrollLeft = snapshot.left;
+    }
+    const target = focused?.isConnected ? focused : atPath(focusPath);
+    target?.focus({ preventScroll: true });
+  }
   let chatId;
   window.addEventListener("message", (event) => {
     const message = event.data;
-    if (message && message.type === "view") {
+    if (message && message.type === "locale") {
+      switchLocale(message.locale);
+    } else if (message && message.type === "view") {
       if (
         (message.chatId !== void 0 && message.chatId !== chatId) ||
         message.view.conversation !== lastView?.conversation
@@ -1588,7 +1896,7 @@
         }
         attachmentStatus("");
       } else
-        attachmentStatus("Envoi refusé ou interrompu. Les fichiers restent dans le brouillon.");
+        attachmentStatus(t("Envoi refusé ou interrompu. Les fichiers restent dans le brouillon."));
       paintAttachments();
     } else if (message && message.type === "role" && message.role === "monitor") {
       mode = "monitor";
@@ -1617,9 +1925,11 @@
       contextTitle.hidden = contextTitle.textContent.length === 0;
     } else if (message && message.type === "containers") {
       containers = UI.safeContainers(message.items);
+      paintAttachments();
       if (mentionOpen()) renderMentions();
     } else if (message && message.type === "terminals") {
       terminals = UI.safeTerminals(message.items);
+      paintAttachments();
       if (mentionOpen()) renderMentions();
     } else if (message && message.type === "bypass") {
       bypassCtx = { push: message, previous: bypassCtx.push, userOff: bypassUserOff };
@@ -1674,12 +1984,12 @@
       ...draftFiles.map((file) => {
         const li = document.createElement("li");
         const label = document.createElement("span");
-        label.textContent = `${file.name} · ${Math.ceil(file.bytes / 1024)} Kio`;
+        label.textContent = t`${file.name} · ${Math.ceil(file.bytes / 1024)} Kio`;
         const remove = document.createElement("button");
         remove.type = "button";
         remove.className = "ghost";
         remove.textContent = "×";
-        remove.setAttribute("aria-label", `Retirer ${file.name}`);
+        remove.setAttribute("aria-label", t`Retirer ${file.name}`);
         remove.disabled = !!pendingFiles || readingFiles;
         remove.addEventListener("click", () => {
           draftFiles = draftFiles.filter((f) => f.id !== file.id);
@@ -1706,38 +2016,42 @@
     const added = [];
     try {
       if (draftFiles.length + files.length > Number(fileInput.dataset.count))
-        throw Error("Maximum 10 fichiers joints.");
+        throw Error(t("Maximum 10 fichiers joints."));
       let total = draftFiles.reduce((sum, f) => sum + f.bytes, 0);
       for (const file of files) {
         total += file.size;
         if (file.size > Number(fileInput.dataset.bytes) || total > Number(fileInput.dataset.total))
-          throw Error("Limite : 64 Kio par fichier et 256 Kio au total.");
+          throw Error(t("Limite : 64 Kio par fichier et 256 Kio au total."));
         if (!file.name.trim() || file.name.length > 180 || /[\\/\p{Cc}\p{Cf}]/u.test(file.name))
-          throw Error("Nom de fichier invalide.");
+          throw Error(t("Nom de fichier invalide."));
         if (
           /\.(?:pdf|png|jpe?g|gif|webp|zip|gz|7z|exe|dll|so|bin|docx|xlsx|pptx)$/i.test(file.name)
         )
           throw Error(
-            "Seuls les textes, logs et fichiers de code UTF-8 sont pris en charge. Images et PDF exclus.",
+            t(
+              "Seuls les textes, logs et fichiers de code UTF-8 sont pris en charge. Images et PDF exclus.",
+            ),
           );
         let text;
         try {
           text = new TextDecoder("utf-8", { fatal: true }).decode(await file.arrayBuffer());
         } catch {
-          throw Error("Impossible de lire ce fichier : un texte UTF-8 valide est requis.");
+          throw Error(t("Impossible de lire ce fichier : un texte UTF-8 valide est requis."));
         }
         if (text.includes("\0") || text.startsWith("%PDF-"))
-          throw Error("Ce fichier n’est pas un texte UTF-8 pris en charge.");
+          throw Error(t("Ce fichier n’est pas un texte UTF-8 pris en charge."));
         added.push({ id: ++fileSerial, name: file.name, text, bytes: file.size });
       }
       if (epoch !== fileEpoch) return;
       draftFiles.push(...added);
       attachmentStatus(
-        "Ces fichiers seront transmis au fournisseur et conservés dans le journal de conversation. N’ajoutez pas de secrets.",
+        t(
+          "Ces fichiers seront transmis au fournisseur et conservés dans le journal de conversation. N’ajoutez pas de secrets.",
+        ),
       );
     } catch (error) {
       if (epoch === fileEpoch)
-        attachmentStatus(error.message || "Impossible de lire ces fichiers en UTF-8.");
+        attachmentStatus(error.message || t("Impossible de lire ces fichiers en UTF-8."));
     } finally {
       if (epoch === fileEpoch) {
         readingFiles = false;
@@ -1760,7 +2074,7 @@
     const text = input.value;
     if ((!text.trim() && !draftFiles.length) || send.disabled) return;
     if (text.length > 100_000) {
-      attachmentStatus("La consigne dépasse la limite de 100 000 caractères.");
+      attachmentStatus(t("La consigne dépasse la limite de 100 000 caractères."));
       return;
     }
     if (draftFiles.length) {

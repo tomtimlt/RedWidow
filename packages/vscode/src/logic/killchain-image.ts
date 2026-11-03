@@ -1,4 +1,5 @@
 import { type Finding, stripControl } from "@warband/core";
+import { createUiTranslator, getUiLocale, type Locale } from "@warband/messages";
 
 const TYPES = {
   host: "Hôte",
@@ -37,7 +38,12 @@ function lines(text: string, width = 17): string[] {
 }
 
 /** Image autonome, sans scripts, HTML, liens externes ou données d'outil. Tout le graphe est exporté. */
-export function killchainImage(project: { name: string }, findings: readonly Finding[]): string {
+export function killchainImage(
+  project: { name: string },
+  findings: readonly Finding[],
+  locale: Locale = getUiLocale(),
+): string {
+  const t = createUiTranslator(() => locale);
   const byId = new Map(findings.map((finding) => [finding.id, finding]));
   const parents = new Map<string, string[]>();
   const children = new Map(findings.map((finding) => [finding.id, [] as string[]]));
@@ -91,7 +97,7 @@ export function killchainImage(project: { name: string }, findings: readonly Fin
     for (const finding of column) {
       const label = lines(finding.label);
       const meta = lines(
-        [TYPES[finding.kind], STATES[finding.state], finding.tactic, finding.technique]
+        [t(TYPES[finding.kind]), t(STATES[finding.state]), finding.tactic, finding.technique]
           .filter(Boolean)
           .join(" · "),
         20,
@@ -108,7 +114,7 @@ export function killchainImage(project: { name: string }, findings: readonly Fin
     '<?xml version="1.0" encoding="UTF-8"?>',
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-labelledby="title desc">`,
     `<title id="title">${xml(`Kill Chain — ${project.name}`)}</title>`,
-    `<desc id="desc">${findings.length} éléments. Les liens verts indiquent le chemin retenu, sans déduire une réussite.</desc>`,
+    `<desc id="desc">${xml(t`${findings.length} éléments. Les liens verts indiquent le chemin retenu, sans déduire une réussite.`)}</desc>`,
     `<rect width="${width}" height="${height}" fill="#fff"/>`,
     '<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#687887"/></marker><marker id="path" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#16804a"/></marker></defs>',
     '<g font-family="Arial, sans-serif" fill="#182533">',
@@ -116,8 +122,8 @@ export function killchainImage(project: { name: string }, findings: readonly Fin
       (row, i) =>
         `<text x="40" y="${38 + i * 28}" font-size="24" font-weight="bold">${xml(row)}</text>`,
     ),
-    `<text x="40" y="${54 + title.length * 28}" font-size="15">${findings.length} éléments · Hôte / Site / Identifiant / Étape / Loot</text>`,
-    `<text x="40" y="${78 + title.length * 28}" font-size="15">États : Confirmé / Hypothèse / Échec · Lien vert : chemin retenu</text>`,
+    `<text x="40" y="${54 + title.length * 28}" font-size="15">${xml(t`${findings.length} éléments · Hôte / Site / Identifiant / Étape / Loot`)}</text>`,
+    `<text x="40" y="${78 + title.length * 28}" font-size="15">${xml(t("États : Confirmé / Hypothèse / Échec · Lien vert : chemin retenu"))}</text>`,
   ];
   for (const finding of findings) {
     const to = positions.get(finding.id);

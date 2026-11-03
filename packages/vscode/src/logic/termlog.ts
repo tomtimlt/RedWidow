@@ -4,6 +4,7 @@ import {
   parseHashes,
   TERMINAL_CONTEXT_MARK,
 } from "@warband/core";
+import { type Locale, t, translateFr } from "@warband/messages";
 
 import { productTitleSuffix } from "./brand.js";
 
@@ -62,7 +63,7 @@ export function containerLogPath(token: string, suffix: string): string | null {
 }
 
 function assertLogPath(logPath: string): string {
-  if (!LOG_PATH.test(logPath)) throw new Error("chemin de journal refusé");
+  if (!LOG_PATH.test(logPath)) throw new Error(t("chemin de journal refusé"));
   return logPath;
 }
 
@@ -128,7 +129,11 @@ export function lastCommand(text: string): string {
 }
 
 /** Sortie lisible : sans séquences, fin du tampon. Vide → une ligne fixe. */
-export function readableTerminal(raw: string, max = TERMINAL_TAIL_CHARS): string {
+export function readableTerminal(
+  raw: string,
+  max = TERMINAL_TAIL_CHARS,
+  locale: Locale = "fr",
+): string {
   const clean = stripControls(raw)
     .split("\n")
     .filter((line) => !line.startsWith("Script started on ") && !line.startsWith("Script done on "))
@@ -136,7 +141,7 @@ export function readableTerminal(raw: string, max = TERMINAL_TAIL_CHARS): string
     .replaceAll(TERMINAL_CONTEXT_MARK, "");
   const tail = clean.length > max ? clean.slice(-max) : clean;
   const trimmed = tail.trim();
-  return trimmed === "" ? "Tampon vide." : trimmed;
+  return trimmed === "" ? translateFr("Tampon vide.", locale) : trimmed;
 }
 
 /**

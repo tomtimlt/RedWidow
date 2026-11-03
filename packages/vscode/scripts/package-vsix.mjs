@@ -34,6 +34,10 @@ const tscManifest = createRequire(join(repository, "package.json")).resolve(
 );
 const tsc = join(dirname(tscManifest), JSON.parse(readFileSync(tscManifest, "utf8")).bin.tsc);
 execFileSync(process.execPath, [tsc, "-b"], { cwd: repository, stdio: "inherit" });
+execFileSync(process.execPath, [join(repository, "scripts", "sync-ui-i18n.mjs")], {
+  cwd: repository,
+  stdio: "inherit",
+});
 const opencodeVersion = "1.19.0";
 const opencodeExeName = target === "win32-x64" ? "opencode.exe" : "opencode";
 const opencodePackage = `opencode-${target === "win32-x64" ? "windows" : "linux"}-x64-baseline`;
@@ -166,6 +170,8 @@ cpSync(join(pkgDir, "media"), join(stage, "media"), { recursive: true });
 const manifest = JSON.parse(readFileSync(join(pkgDir, "extension.manifest.json"), "utf8"));
 writeFileSync(join(stage, "package.json"), JSON.stringify(manifest, null, 2));
 copyFileSync(join(pkgDir, "EXTENSION_README.md"), join(stage, "README.md"));
+for (const file of ["package.nls.json", "package.nls.fr.json", "package.nls.en.json"])
+  copyFileSync(join(pkgDir, file), join(stage, file));
 
 const out = join(pkgDir, `warband-${manifest.version}-${target}.vsix`);
 const vsce = createRequire(import.meta.url).resolve("@vscode/vsce/vsce");

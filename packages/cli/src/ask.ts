@@ -1,6 +1,6 @@
 import { createInterface } from "node:readline/promises";
 import type { ApprovalAnswer, Asker, RememberScope } from "@warband/core";
-import { formatReason } from "@warband/messages";
+import { DEFAULT_LOCALE, formatReason, type Locale } from "@warband/messages";
 import { stripControl } from "./sanitize.js";
 
 /**
@@ -21,6 +21,7 @@ export function parseAnswer(text: string): ApprovalAnswer {
 export function createTerminalAsker(
   input: NodeJS.ReadableStream = process.stdin,
   output: NodeJS.WritableStream = process.stderr,
+  locale: Locale = DEFAULT_LOCALE,
 ): Asker {
   let queue: Promise<unknown> = Promise.resolve();
 
@@ -34,7 +35,7 @@ export function createTerminalAsker(
             : JSON.stringify(request.input),
         );
         const answer = await rl.question(
-          `\n? ${request.tool} : ${detail}\n  ${stripControl(formatReason(verdict.reason))}\n  Autoriser ? [o]ui une fois / [s]ession / [t]oujours / [N]on `,
+          `\n? ${request.tool} : ${detail}\n  ${stripControl(formatReason(verdict.reason, locale))}\n  ${locale === "en" ? "Allow? [y]es once / [s]ession / [a]lways / [N]o " : "Autoriser ? [o]ui une fois / [s]ession / [t]oujours / [N]on "}`,
           { signal },
         );
         return parseAnswer(answer);

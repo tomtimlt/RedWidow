@@ -1835,3 +1835,68 @@ it.each(["claude", "openai", "opencode"] as const)(
     }
   },
 );
+
+describe("ressources choisies dans chaque conversation", () => {
+  const settings = {
+    capabilities: {
+      providers: ["claude", "google"],
+      skills: ["mentor"],
+      integrations: ["playwright"],
+      webSearch: true,
+    },
+    integrations: [{ id: "playwright", port: 9877, transport: "http", path: "/mcp" }],
+    profile: "htb",
+  };
+  it("ne transmet que les ressources sélectionnées, puis les oublie à la réinitialisation", async () => {
+    const t = setup({ settings });
+    t.session.setSelection({
+      profile: "mentor",
+      integrations: ["playwright"],
+      burp: false,
+      webSearch: true,
+    });
+    await t.session.send("Utilise les ressources choisies");
+    expect(t.f.started).toMatchObject({
+      profile: "mentor",
+      integrations: settings.integrations,
+      webSearch: true,
+    });
+    t.session.setSelection({ profile: null, integrations: [], burp: false, webSearch: false });
+    expect(t.session.view().capabilities?.selection.profile).toBe("mentor");
+    t.session.reset();
+    await t.session.send("Nouvelle conversation");
+    expect(t.f.started).toMatchObject({ integrations: [], webSearch: false });
+    expect(t.f.started).not.toHaveProperty("profile");
+    t.session.dispose();
+  });
+  it("le mode Apprentissage exclut les ressources du chat même si elles sont choisies", async () => {
+    const t = setup({ settings });
+    t.session.setSelection({
+      profile: "mentor",
+      integrations: ["playwright"],
+      burp: false,
+      webSearch: true,
+    });
+    t.session.setLearning(true);
+    await t.session.send("Explique mon cours");
+    expect(t.f.started).toMatchObject({ mode: "learning", webSearch: false });
+    expect(t.f.started).not.toHaveProperty("integrations");
+    expect(t.f.started).not.toHaveProperty("profile");
+    t.session.dispose();
+  });
+  it("filtre le catalogue sur Gemini et refuse une route non activée", async () => {
+    const t = setup({ settings });
+    t.f.setModels([
+      { value: "google/real-model", displayName: "Gemini" },
+      { value: "other/unrelated", displayName: "Other" },
+    ]);
+    await t.session.selectProvider("google");
+    expect(t.session.view().controls?.models?.map((m) => m.value)).toEqual(["google/real-model"]);
+    await t.session.selectProvider("unknown");
+    expect(t.session.view().capabilities?.provider).toBe("google");
+    t.session.setModel("other/unrelated");
+    await t.session.send("Même conversation, fournisseur choisi");
+    expect(t.f.started).toMatchObject({ provider: "opencode", model: "google/real-model" });
+    t.session.dispose();
+  });
+});

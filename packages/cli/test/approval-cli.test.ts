@@ -143,3 +143,25 @@ describe("affichage", () => {
     ).toBe("auth      raté");
   });
 });
+
+describe("approbation anglaise", () => {
+  it("affiche les choix anglais et accepte always", async () => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const ask = createTerminalAsker(input, output, "en");
+    const pending = ask(
+      { toolUseId: "t", tool: "Bash", input: { command: "commande conservée" } },
+      { decision: "ask", reason: { code: "bash.empty" }, rule: null },
+      new AbortController().signal,
+    );
+    input.write("a\n");
+    await expect(pending).resolves.toEqual({ decision: "allow", remember: "always" });
+    const text = output.read()?.toString();
+    expect(text).toContain("commande conservée");
+    expect(text).toContain("empty command");
+    expect(text).toContain("Allow? [y]es once / [s]ession / [a]lways / [N]o");
+    expect(describeAuthIntent("auto", { ANTHROPIC_API_KEY: "k" }, "en")).toBe(
+      "API key (ANTHROPIC_API_KEY set)",
+    );
+  });
+});

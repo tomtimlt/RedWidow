@@ -37,6 +37,7 @@ export const PROTOCOL_VERSION = 1;
 export const MAX_PROMPT_CHARS = 1_000_000;
 
 export interface StartParams {
+  webSearch?: boolean;
   opencodeProviders?: OpencodeProviders;
   integrations?: IntegrationConfig[];
   profile?: string;
@@ -159,6 +160,7 @@ const START_KEYS = [
   "burp",
   "integrations",
   "profile",
+  "webSearch",
 ] as const;
 
 /** Valide un état du Bypass : `null`, ou bornes entières, ordonnées, de durée au plus `BYPASS_MAX_MS`. */
@@ -190,6 +192,8 @@ export function parseToEngine(raw: unknown): Parsed<ToEngine> {
     return bad("opencodeProviders");
   switch (type) {
     case "start": {
+      if (obj.webSearch !== undefined && typeof obj.webSearch !== "boolean")
+        return bad("webSearch");
       unexpected = extra(START_KEYS);
       if (unexpected) return bad(unexpected, "unexpected");
       if (!isString(obj.cwd) || obj.cwd === "" || !isAbsolute(obj.cwd)) return bad("cwd");

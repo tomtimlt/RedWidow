@@ -69,7 +69,8 @@ export function escapeHtml(text: string): string {
 const labelOf = (node: GraphNode, locale: Locale | undefined) =>
   eventLabel(node.event, { maxLength: 80, ...(locale && { locale }) });
 
-const linesOf = (n: number) => `${n} ${n > 1 ? "lignes" : "ligne"}`;
+const linesOf = (n: number, locale?: Locale) =>
+  `${n} ${locale === "en" ? (n > 1 ? "lines" : "line") : n > 1 ? "lignes" : "ligne"}`;
 
 function tooltip(node: GraphNode, locale: Locale | undefined, grouped: boolean): string {
   const lines = [`#${node.seq} ${node.kind}`, node.ts];
@@ -79,7 +80,7 @@ function tooltip(node: GraphNode, locale: Locale | undefined, grouped: boolean):
   if (node.output) {
     const { stdout, stderr } = node.output;
     lines.push(
-      `${linesOf(stdout + stderr)} (stdout ${stdout} · stderr ${stderr})`,
+      `${linesOf(stdout + stderr, locale)} (stdout ${stdout} · stderr ${stderr})`,
       ...node.output.tail,
     );
   }
@@ -144,7 +145,7 @@ export function renderGraphHtml(graph: EventGraph, options: RenderOptions = {}):
   const title = options.title ?? `Venator Ops · ${graph.runId ?? "run"}`;
   const runNote =
     graph.runs.length > 1
-      ? `<p class="runs">run ${graph.runs.indexOf(graph.runId ?? "") + 1} sur ${graph.runs.length} : ${graph.runs.map((r) => (r === graph.runId ? `<b>${escapeHtml(r)}</b>` : escapeHtml(r))).join(" · ")}</p>\n`
+      ? `<p class="runs">run ${graph.runs.indexOf(graph.runId ?? "") + 1} ${options.locale === "en" ? "of" : "sur"} ${graph.runs.length} : ${graph.runs.map((r) => (r === graph.runId ? `<b>${escapeHtml(r)}</b>` : escapeHtml(r))).join(" · ")}</p>\n`
       : "";
   const all = groupOrphanOutputs(graph);
   const maxNodes = Math.max(0, options.maxNodes ?? MAX_RENDERED_NODES);
@@ -164,7 +165,7 @@ export function renderGraphHtml(graph: EventGraph, options: RenderOptions = {}):
   const height = PAD * 2 + Math.max(nodes.length - 1, 0) * ROW + NODE_H + (hidden > 0 ? ROW : 0);
   const more =
     hidden > 0
-      ? `<text class="more" x="${PAD}" y="${moreY + 14}">${escapeHtml(`${hidden} ${hidden > 1 ? "événements non affichés" : "événement non affiché"}`)}</text>`
+      ? `<text class="more" x="${PAD}" y="${moreY + 14}">${escapeHtml(`${hidden} ${options.locale === "en" ? (hidden > 1 ? "events not displayed" : "event not displayed") : hidden > 1 ? "événements non affichés" : "événement non affiché"}`)}</text>`
       : "";
 
   const edges = all.edges
@@ -187,9 +188,9 @@ export function renderGraphHtml(graph: EventGraph, options: RenderOptions = {}):
       const isGroup = all.grouped.has(n.id);
       const count = n.output ? n.output.stdout + n.output.stderr : 0;
       const text = isGroup
-        ? linesOf(count)
+        ? linesOf(count, options.locale)
         : n.output
-          ? `${linesOf(count)} · ${labelOf(n, options.locale)}`
+          ? `${linesOf(count, options.locale)} · ${labelOf(n, options.locale)}`
           : labelOf(n, options.locale);
       return (
         `<g class="${cls}" transform="translate(${p.x},${p.y})">` +

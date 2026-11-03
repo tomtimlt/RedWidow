@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
-import { chatHtml, makeNonce } from "../src/logic/html.js";
+import { chatHtml, cockpitHtml, killchainHtml, makeNonce, studioHtml } from "../src/logic/html.js";
 
 const read = (p: string) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), "utf8");
 const opts = {
@@ -24,10 +24,11 @@ describe("HTML du chat : CSP stricte", () => {
     );
     expect(csp).not.toMatch(/unsafe|\*|http:|data:/);
   });
-  it("trois scripts (icons.js, ui.js puis chat.js), chacun avec nonce et source de l'extension ; aucun script ou style inline, aucun handler", () => {
+  it("quatre scripts (i18n.js, icons.js, ui.js puis chat.js), chacun avec nonce et source de l'extension ; aucun script ou style inline, aucun handler", () => {
     const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)];
-    expect(scripts).toHaveLength(3);
+    expect(scripts).toHaveLength(4);
     expect(scripts.map((m) => /src="([^"]+)"/.exec(m[1] ?? "")?.[1])).toEqual([
+      "https://x.vscode-cdn.net/media/i18n.js",
       opts.iconsUri,
       opts.uiUri,
       opts.scriptUri,
@@ -46,6 +47,7 @@ describe("HTML du chat : CSP stricte", () => {
     expect(() => chatHtml({ ...opts, nonce: 'a"onload="x' })).toThrow();
     expect(() => chatHtml({ ...opts, scriptUri: 'x" onerror="y' })).toThrow();
     expect(() => chatHtml({ ...opts, iconsUri: 'x" onerror="y' })).toThrow();
+    expect(() => chatHtml({ ...opts, i18nUri: 'x" onerror="y' })).toThrow();
     expect(() => chatHtml({ ...opts, uiUri: 'x" onerror="y' })).toThrow();
     expect(() => chatHtml({ ...opts, cspSource: 'a"><script>' })).toThrow();
   });
@@ -99,7 +101,7 @@ describe("scripts de la webview", () => {
     expect(js).toContain("textContent");
   });
   it("ne propose que les trois choix de la gate (pas de « tout autoriser »)", () => {
-    const choices = [...js.matchAll(/button\("[^"]+", "(\w+)"/g)].map((m) => m[1]);
+    const choices = [...js.matchAll(/button\(l\("[^"]+"\), "(\w+)"/g)].map((m) => m[1]);
     expect(choices.sort()).toEqual(["always", "deny", "once"]);
   });
 });
@@ -110,14 +112,20 @@ describe("manifeste de l'extension", () => {
     expect(m.capabilities.untrustedWorkspaces.supported).toBe(false);
     expect(m.capabilities.virtualWorkspaces).toBe(false);
   });
-  it("tous les réglages sont en scope machine", () => {
+  it("les réglages gardent leur scope prévu", () => {
     const props = Object.entries(m.contributes.configuration.properties) as [
       string,
       { scope: string },
     ][];
     expect(props.length).toBeGreaterThan(0);
     for (const [key, p] of props)
-      expect(p.scope, key).toBe(key === "warband.palette" ? "window" : "machine");
+      expect(p.scope, key).toBe(
+        key === "warband.palette"
+          ? "window"
+          : key === "warband.language"
+            ? "application"
+            : "machine",
+      );
   });
   it("aucun réglage ne désactive ou ne contourne la gate", () => {
     const keys = Object.keys(m.contributes.configuration.properties).join(" ");
@@ -150,10 +158,10 @@ describe("composer et Configurer (lot P1)", () => {
     expect(studio).toContain("Aucun conteneur pour l’instant");
     expect(html).not.toMatch(/\bmcp\b|jauge|compact|pièce jointe active/i);
   });
-  it("Monitor est une icône du compositeur, à côté de /, et ouvre le panneau", () => {
+  it("Monitor reste accessible dans le menu + et ouvre le panneau", () => {
     const toolbar = section('id="toolbar"', 'id="model-pop"');
     expect(toolbar.indexOf('id="monitor-btn"')).toBeGreaterThan(toolbar.indexOf('id="slash-btn"'));
-    expect(tag("monitor-btn")).toContain('class="ghost tool-btn"');
+    expect(tag("monitor-btn")).toContain('class="ghost composer-action"');
     expect(tag("monitor-btn")).toContain('aria-label="Monitor"');
     expect(js).toContain('vscode.postMessage({ type: "openMonitor" })');
     const ext = read("../src/extension/extension.ts");
@@ -176,10 +184,10 @@ describe("composer et Configurer (lot P1)", () => {
     expect(cfg).toContain('<select id="provider"');
     expect(cfg).toContain('value="claude">Claude');
     expect(cfg).toContain('value="openai">OpenAI (ChatGPT / API)');
-    expect(cfg).toContain('value="opencode">OpenCode');
+    expect(cfg).toContain('value="google">Google Gemini');
     expect(cfg).toContain("Configurer la connexion");
-    expect(cfg).toContain("authentification Codex via OpenCode");
-    expect(js).toContain('type: "setProvider", provider: event.target.value');
+    expect(cfg).toContain("Contrôle système");
+    expect(js).toContain('type: "selectProvider", id: event.target.value');
     expect(js).toContain('$("provider").disabled = c.locked');
     expect(js).toContain('$("provider-connect").addEventListener');
     expect(js).toContain("ctlGroup.hidden = !view.controls || noProvider");
@@ -440,5 +448,39 @@ describe("Mode apprentissage (ADR 0010)", () => {
     expect(js).toContain('bypassSwitch.setAttribute("aria-disabled", String(learning))');
     expect(js).toContain('document.body.classList.toggle("learning"');
     expect(css).toContain("#learning-badge");
+  });
+});
+
+describe("HTML localisé des webviews", () => {
+  it("traduit les textes statiques et attributs tout en conservant les annotations françaises", () => {
+    const french = chatHtml(opts);
+    const english = chatHtml({ ...opts, locale: "en" });
+    expect(french).toContain('<html lang="fr">');
+    expect(english).toContain('<html lang="en">');
+    expect(french).toContain('aria-label="Votre consigne"');
+    expect(english).toContain('aria-label="Your instruction"');
+    expect(english).toContain('placeholder="Your instruction…"');
+    expect(english).toContain('data-i18n-placeholder="Votre consigne…"');
+    expect(english).toContain('data-i18n="Tout effacer">Clear all</span>');
+    expect(english).toContain('id="send"');
+    expect(english).toContain(
+      'data-i18n="Vous en devenez responsable.">You take responsibility for it.</span>',
+    );
+  });
+  it("charge les traductions avant tous les rendus, pour chaque page", () => {
+    for (const renderer of [chatHtml, cockpitHtml, studioHtml, killchainHtml]) {
+      const html = renderer({ ...opts, locale: "en" });
+      expect(html).toContain('<html lang="en">');
+      const scripts = [...html.matchAll(/<script\b([^>]*)>/g)];
+      expect(scripts[0]?.[1]).toContain("media/i18n.js");
+      for (const script of scripts) expect(script[1]).toContain(`nonce="${opts.nonce}"`);
+    }
+    expect(cockpitHtml({ ...opts, locale: "en" })).toContain(
+      'data-i18n="Conteneurs">Containers</span>',
+    );
+    expect(studioHtml({ ...opts, locale: "en" })).toContain('aria-label="Settings"');
+    expect(killchainHtml({ ...opts, locale: "en" })).toContain(
+      '<title data-i18n="Graphe">Graph</title>',
+    );
   });
 });

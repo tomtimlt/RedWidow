@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
+import { createUiTranslator } from "@warband/messages";
 import { expect, it } from "vitest";
 
 class CockpitNode {
@@ -14,6 +15,17 @@ class CockpitNode {
   disabled = false;
   checked = false;
   title = "";
+  scrollTop = 0;
+  scrollLeft = 0;
+  selectionStart = 0;
+  selectionEnd = 0;
+  selectionDirection = "none";
+  onFocus = () => {};
+  setSelectionRange(start: number, end: number, direction: string) {
+    this.selectionStart = start;
+    this.selectionEnd = end;
+    this.selectionDirection = direction;
+  }
   constructor(readonly tag: string) {}
   get firstChild() {
     return this.children[0];
@@ -33,7 +45,9 @@ class CockpitNode {
   click() {
     if (!this.disabled) this.listeners.get("click")?.();
   }
-  focus() {}
+  focus() {
+    this.onFocus();
+  }
   querySelector() {
     return null;
   }
@@ -119,12 +133,37 @@ it("création repliée, brouillon préservé et détails indépendants des actio
 const cockpit = (exegol = "present") => {
   const main = new CockpitNode("main");
   const sent: unknown[] = [];
+  let locale: "fr" | "en" = "fr";
+  let activeElement: CockpitNode | undefined;
+  const descendants = (node: CockpitNode): CockpitNode[] => [
+    node,
+    ...node.children.flatMap(descendants),
+  ];
+  const i18n = {
+    t: createUiTranslator(() => locale),
+    getLocale: () => locale,
+    setLocale: (next: "fr" | "en") => {
+      locale = next;
+    },
+    applyStatic() {},
+  };
   let receive: (event: { data: unknown }) => void = () => {};
   runInNewContext(readFileSync(new URL("../media/cockpit.js", import.meta.url), "utf8"), {
+    WarbandI18n: i18n,
     acquireVsCodeApi: () => ({ postMessage: (message: unknown) => sent.push(message) }),
     document: {
       getElementById: (id: string) => (id === "main" ? main : main.find((n) => n.id === id)),
-      createElement: (tag: string) => new CockpitNode(tag),
+      querySelectorAll: () => descendants(main),
+      get activeElement() {
+        return activeElement;
+      },
+      createElement: (tag: string) => {
+        const node = new CockpitNode(tag);
+        node.onFocus = () => {
+          activeElement = node;
+        };
+        return node;
+      },
     },
     window: {
       WarbandIcons: { create: () => new CockpitNode("svg") },
@@ -150,7 +189,7 @@ const cockpit = (exegol = "present") => {
   };
   const field = (id: string) => find((node) => node.id === id);
   const button = (label: string) => find((node) => node.attributes.get("aria-label") === label);
-  return { main, sent, send, view, field, button, find };
+  return { main, sent, send, view, field, button, find, active: () => activeElement };
 };
 
 it("transmet les options Exegol et conserve le brouillon pendant la progression", () => {
@@ -285,4 +324,28 @@ it("refuse les brouillons invalides et réactive la création Kali après choix 
     image: "warband/kali:complete-1",
     source: "/tmp/mission",
   });
+});
+
+it("change de langue sans perdre le formulaire, le focus, la sélection et les détails", () => {
+  const ui = cockpit("absent");
+  ui.field("cockpit-create-toggle").click();
+  const name = ui.field("cockpit-name");
+  name.value = "Projet français";
+  name.listeners.get("input")?.();
+  name.focus();
+  name.setSelectionRange(2, 6, "backward");
+  ui.main.scrollTop = 123;
+  ui.find((node) => node.className.includes("cockpit-row-toggle")).click();
+  ui.send({ type: "locale", locale: "en" });
+  expect(ui.button("Create")).toBeDefined();
+  expect(ui.field("cockpit-name").value).toBe("Projet français");
+  expect(ui.active()).toBe(ui.field("cockpit-name"));
+  expect(ui.field("cockpit-name").selectionStart).toBe(2);
+  expect(ui.field("cockpit-name").selectionEnd).toBe(6);
+  expect(ui.main.scrollTop).toBe(123);
+  expect(ui.find((node) => node.className === "cockpit-row-details").hidden).toBe(false);
+  expect(ui.find((node) => node.textContent === "lab")).toBeDefined();
+  ui.send({ type: "locale", locale: "fr" });
+  expect(ui.button("Créer")).toBeDefined();
+  expect(ui.field("cockpit-name").value).toBe("Projet français");
 });

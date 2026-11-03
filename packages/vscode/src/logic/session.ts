@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { AuthMode, Effort, EngineEvent, ModelOption, Reason } from "@warband/core";
-import { formatReason } from "@warband/messages";
+import { formatReason, getUiLocale, t } from "@warband/messages";
 import { alwaysConfirmText, answerFor, type Choice, cleanText, toCard } from "./approval.js";
 import { PRODUCT_NAME } from "./brand.js";
 import type { BypassEngineLink, BypassSend } from "./bypass.js";
@@ -11,6 +11,14 @@ import {
   type HistoryEntry,
   isAbortError,
 } from "./chat.js";
+import {
+  allowedSelection,
+  type ChatSelection,
+  emptySelection,
+  parseChatSelection,
+  providerChoices,
+  selectedSettings,
+} from "./chat-capabilities.js";
 import {
   createEngineController,
   type EngineAuth,
@@ -130,8 +138,37 @@ export function createChatSession(deps: ChatSessionDeps) {
     set: (key: string, value: unknown) => memory.set(key, value),
   };
   let prefs: Prefs = parsePrefs(store.get(PREFS_KEY));
+  let selection: ChatSelection = emptySelection();
+  let providerChoiceId: string | undefined;
+  const rawSettings = () => deps.readSettings();
+  const readSettings = () => selectedSettings(rawSettings(), selection);
+  const displaySettings = (): ChatSettings => {
+    try {
+      return rawSettings();
+    } catch {
+      return {};
+    }
+  };
+  const providerChoice = () => {
+    const list = providerChoices(displaySettings());
+    if (providerChoiceId)
+      return list.find((p) => p.id === providerChoiceId && p.backend === prefs.provider);
+    return (
+      list.find((p) => p.id === providerChoiceId && p.backend === prefs.provider) ??
+      list.find(
+        (p) => p.backend === prefs.provider && (!p.prefix || prefs.model?.startsWith(p.prefix)),
+      ) ??
+      list.find((p) => p.backend === prefs.provider)
+    );
+  };
+  const routeModels = (list: ModelOption[]) => {
+    const prefix = providerChoice()?.prefix;
+    return prefix ? list.filter((m) => m.value.startsWith(prefix)) : list;
+  };
   const modelsKey = () =>
-    prefs.provider === "claude" ? MODELS_KEY : `${MODELS_KEY}.${prefs.provider}`;
+    prefs.provider === "claude"
+      ? MODELS_KEY
+      : `${MODELS_KEY}.${prefs.provider}${providerChoice()?.prefix ? `.${providerChoice()?.id}` : ""}`;
   let models: ModelOption[] | null = parseModelCache(store.get(modelsKey()), sdkVersion);
   let modelsRev = 0;
   let modelsStatus: ModelsStatus = models ? "ready" : "idle";
@@ -182,7 +219,7 @@ export function createChatSession(deps: ChatSessionDeps) {
     void Promise.resolve(store.set(key, value)).catch(() => undefined);
   const machineModel = (): string | undefined => {
     try {
-      return prefs.provider === "claude" ? deps.readSettings().model : undefined;
+      return prefs.provider === "claude" ? readSettings().model : undefined;
     } catch {
       return undefined;
     }
@@ -191,7 +228,7 @@ export function createChatSession(deps: ChatSessionDeps) {
     effectiveModel(models, prefs.model, fallback)?.supportedEffortLevels;
   const ultracodeLimits = (): UltracodeLimits | undefined => {
     try {
-      return deps.readSettings().ultracode;
+      return readSettings().ultracode;
     } catch {
       return undefined;
     }
@@ -227,10 +264,25 @@ export function createChatSession(deps: ChatSessionDeps) {
     pageError = undefined;
   };
   const view = (): ChatView => {
+    const settings = displaySettings();
     const live = state.view();
     const shown = archive ?? state;
     return {
       ...live,
+      ...(settings.capabilities && {
+        capabilities: {
+          settings: settings.capabilities,
+          selection: allowedSelection(settings, selection),
+          providers: providerChoices(settings).map(({ id, label }) => ({ id, label })),
+          provider: providerChoice()?.id ?? null,
+          skills: settings.capabilities?.skills ?? [],
+          integrations: (settings.integrations ?? [])
+            .filter((m) => settings.capabilities?.integrations.includes(m.id))
+            .map((m) => m.id),
+          burp: !!settings.burp && settings.capabilities?.integrations.includes("burp") === true,
+        },
+        noProvider: live.noProvider || !providerChoice(),
+      }),
       conversation: current?.id ?? state.readonly?.id ?? `new:${conversationGeneration}`,
       items: shown.view().items,
       ...(history && {
@@ -250,10 +302,10 @@ export function createChatSession(deps: ChatSessionDeps) {
     sync();
     deps.onView(view());
   };
-  const warn = (reason: Reason) => state.notice(formatReason(reason), "error");
+  const warn = (reason: Reason) => state.notice(formatReason(reason, getUiLocale()), "error");
   const clampNotice = (wanted: EffortChoice, got: Effort) =>
     state.notice(
-      `Niveau d'effort ramené à « ${labelOf(got)} » : « ${labelOf(wanted)} » n'est pas pris en charge par ce modèle.`,
+      t`Niveau d'effort ramené à « ${labelOf(got)} » : « ${labelOf(wanted)} » n'est pas pris en charge par ce modèle.`,
     );
 
   /** Une variante ne vaut que pour le modèle courant et son catalogue runtime. */
@@ -271,7 +323,12 @@ export function createChatSession(deps: ChatSessionDeps) {
 
   /** Modèle et effort du prochain message : préférence, sinon réglage machine ; effort ramené s'il n'est pas permis. */
   const choice = (settings: ChatSettings) => {
-    const model = prefs.model ?? (prefs.provider === "claude" ? settings.model : undefined);
+    const prefix = providerChoice()?.prefix;
+    const model = prefix
+      ? prefs.model?.startsWith(prefix)
+        ? prefs.model
+        : models?.find((m) => m.value.startsWith(prefix))?.value
+      : (prefs.model ?? (prefs.provider === "claude" ? settings.model : undefined));
     // « Auto » : aucun effort transmis, le modèle garde son défaut.
     if (prefs.provider !== "claude" || prefs.effort === null) {
       return {
@@ -314,7 +371,9 @@ export function createChatSession(deps: ChatSessionDeps) {
       if (revision !== navigationRev) return false;
       historyProjects = { activeId: null, projects: [] };
       state.notice(
-        "Liste des projets indisponible : envoi suspendu, réessayez après vérification du projet actif.",
+        t(
+          "Liste des projets indisponible : envoi suspendu, réessayez après vérification du projet actif.",
+        ),
         "error",
       );
       return false;
@@ -329,7 +388,7 @@ export function createChatSession(deps: ChatSessionDeps) {
         updatedAt: c.updatedAt,
         tools: c.tools,
         provider: { claude: "Claude", openai: "OpenAI", opencode: "OpenCode" }[c.provider],
-        model: c.model ?? "défaut",
+        model: c.model ?? t("défaut"),
         current: c.id === current?.id,
         projectKey: historyProject(c, historyProjects.projects).key,
         projectLabel: historyProject(c, historyProjects.projects).label,
@@ -384,7 +443,7 @@ export function createChatSession(deps: ChatSessionDeps) {
     revision: number,
     conversationContext?: ReturnType<typeof buildConversationContext>,
   ): Promise<EngineController | null> => {
-    const settings = deps.readSettings();
+    const settings = readSettings();
     const picked = choice(settings);
     if (picked.clampedTo !== undefined && picked.key !== null)
       clampNotice(picked.key, picked.clampedTo);
@@ -394,7 +453,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       state.setNoProvider(true);
       state.setBusy(false);
       state.notice(
-        "La connexion au fournisseur n’est plus disponible. Reconnectez-le avant de continuer.",
+        t("La connexion au fournisseur n’est plus disponible. Reconnectez-le avant de continuer."),
         "error",
       );
       refresh();
@@ -501,7 +560,7 @@ export function createChatSession(deps: ChatSessionDeps) {
           state.approvals.clear();
           state.setBusy(false);
           if (!stopping && code !== 0 && code !== null) {
-            state.notice(`Le moteur s'est arrêté (code ${code}).`, "error");
+            state.notice(t`Le moteur s'est arrêté (code ${code}).`, "error");
           }
           refresh();
         },
@@ -522,6 +581,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       settings.burp ?? null,
       settings.integrations ?? [],
       settings.profile ?? null,
+      settings.webSearch ?? true,
       settings.opencodeProviders ?? null,
     ]);
     const maxTurns = picked.ultra ? picked.ultra.maxTurns : settings.maxTurns;
@@ -541,6 +601,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       ...(!learning && settings.burp && { burp: settings.burp }),
       ...(!learning && settings.integrations && { integrations: settings.integrations }),
       ...(!learning && settings.profile && { profile: settings.profile }),
+      ...(settings.webSearch !== undefined && { webSearch: !learning && settings.webSearch }),
       ...(!transferring && sessionId !== undefined && { resume: sessionId }),
       // Le mode exclut `systemPrompt` (ADR 0010) : la consigne vient du moteur, jamais de l'UI.
       ...(learning && { mode: "learning" as const }),
@@ -612,7 +673,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       if (deps.requireProvider && !token) {
         state.setNoProvider(true);
         models = null;
-        failed("Connexion au fournisseur indisponible. Reconnectez-le puis réessayez.");
+        failed(t("Connexion au fournisseur indisponible. Reconnectez-le puis réessayez."));
         return;
       }
       if (deps.requireProvider) state.setNoProvider(false);
@@ -634,8 +695,8 @@ export function createChatSession(deps: ChatSessionDeps) {
             auth: token?.mode ?? "auto",
             provider,
             ...(provider === "opencode" &&
-              deps.readSettings().opencodeProviders && {
-                opencodeProviders: deps.readSettings().opencodeProviders,
+              readSettings().opencodeProviders && {
+                opencodeProviders: readSettings().opencodeProviders,
               }),
             timeoutMs: MODEL_LOAD_TIMEOUT_MS,
           }),
@@ -643,21 +704,24 @@ export function createChatSession(deps: ChatSessionDeps) {
         ]),
       );
       if (!active()) return;
-      if (list.length === 0) {
+      const routedList = routeModels(list);
+      if (routedList.length === 0) {
         failed(
-          "Le fournisseur n’a renvoyé aucun modèle utilisable. Réessayez ou vérifiez sa connexion.",
+          t(
+            "Le fournisseur n’a renvoyé aucun modèle utilisable. Réessayez ou vérifiez sa connexion.",
+          ),
         );
         return;
       }
-      models = list;
+      models = routedList;
       modelsStatus = "ready";
       modelsMessage = undefined;
       lastModelsNotice = undefined;
-      persist(cacheKey, { sdk: sdkVersion, models: list });
+      persist(cacheKey, { sdk: sdkVersion, models });
       if (prefs.model !== null && !list.some((m) => m.value === prefs.model)) {
         prefs = { ...prefs, model: null };
         persist(PREFS_KEY, prefs);
-        state.notice("Le modèle choisi n'est plus proposé : retour au modèle par défaut.");
+        state.notice(t("Le modèle choisi n'est plus proposé : retour au modèle par défaut."));
       }
       clampVariant();
     } catch (error) {
@@ -665,9 +729,11 @@ export function createChatSession(deps: ChatSessionDeps) {
       killProbe();
       const message =
         error === timedOut
-          ? "Chargement des modèles interrompu après 45 secondes. Réessayez ou vérifiez la connexion au fournisseur."
+          ? t(
+              "Chargement des modèles interrompu après 45 secondes. Réessayez ou vérifiez la connexion au fournisseur.",
+            )
           : modelLoadFailure(error);
-      deps.onLog?.(`Catalogue des modèles : ${message}\n`);
+      deps.onLog?.(t`Catalogue des modèles : ${message}\n`);
       failed(message);
     } finally {
       acceptingLogs = false;
@@ -692,7 +758,7 @@ export function createChatSession(deps: ChatSessionDeps) {
   /** Remplace le moteur inactif (modèle ou effort changé) ; le suivant reprendra la même session. */
   const retire = async (
     old: EngineController,
-    notice = "Réglages modifiés : nouveau moteur au prochain message, même session.",
+    notice = t("Réglages modifiés : nouveau moteur au prochain message, même session."),
   ) => {
     detached.add(old);
     controller = null;
@@ -768,18 +834,18 @@ export function createChatSession(deps: ChatSessionDeps) {
         const result = await readConversationPage(history.files, meta.runIds, next.at(-1), active);
         if (!result || !active()) return;
         if (!result.state.reached) {
-          pageError = "Journal indisponible ou pas encore écrit. Réessayez dans un instant.";
+          pageError = t("Journal indisponible ou pas encore écrit. Réessayez dans un instant.");
         } else {
           archive = result.state;
           pageBefore = next;
           const warnings = [
-            ...(result.invalid ? [`${result.invalid} ligne(s) invalide(s) ignorée(s).`] : []),
-            ...(result.missing ? [`${result.missing} journal(aux) introuvable(s).`] : []),
+            ...(result.invalid ? [t`${result.invalid} ligne(s) invalide(s) ignorée(s).`] : []),
+            ...(result.missing ? [t`${result.missing} journal(aux) introuvable(s).`] : []),
           ];
           if (warnings.length) pageError = warnings.join(" ");
         }
       } catch {
-        if (active()) pageError = "Lecture des messages précédents impossible. Réessayez.";
+        if (active()) pageError = t("Lecture des messages précédents impossible. Réessayez.");
       } finally {
         if (active()) {
           pageLoading = false;
@@ -789,6 +855,31 @@ export function createChatSession(deps: ChatSessionDeps) {
     },
     loadModels,
     getProvider: () => prefs.provider,
+    setSelection(raw: unknown): void {
+      if (state.busy || state.readonly) return;
+      const parsed = parseChatSelection(raw);
+      if (parsed) selection = allowedSelection(rawSettings(), parsed);
+      refresh();
+    },
+    async selectProvider(id: string): Promise<void> {
+      if (state.busy || state.readonly) return;
+      const entry = providerChoices(rawSettings()).find((p) => p.id === id);
+      if (!entry) return;
+      if (providerChoiceId === id && prefs.provider === entry.backend) return;
+      providerChoiceId = id;
+      if (entry.backend !== prefs.provider) await this.setProvider(entry.backend);
+      else {
+        cancelModelLoad();
+        models = null;
+        modelsStatus = "idle";
+        prefs = { ...prefs, model: null, variant: null };
+        persist(PREFS_KEY, prefs);
+        refresh();
+        await loadModels(true);
+      }
+      // Une route personnalisée doit toujours démarrer avec un modèle de son catalogue.
+      if (entry.prefix && models?.[0]) this.setModel(models[0].value);
+    },
     async setProvider(raw: unknown): Promise<void> {
       if (state.busy || !isProvider(raw) || raw === prefs.provider) {
         refresh();
@@ -830,8 +921,15 @@ export function createChatSession(deps: ChatSessionDeps) {
         return;
       }
       const v = validateModelChoice(raw, models);
+      if (
+        v.ok &&
+        v.model &&
+        providerChoice()?.prefix &&
+        !v.model.startsWith(providerChoice()?.prefix ?? "")
+      )
+        return;
       if (!v.ok) {
-        state.notice("Modèle refusé : identifiant invalide ou absent de la liste.", "error");
+        state.notice(t("Modèle refusé : identifiant invalide ou absent de la liste."), "error");
         refresh();
         return;
       }
@@ -851,7 +949,7 @@ export function createChatSession(deps: ChatSessionDeps) {
         raw !== null &&
         (typeof raw !== "string" || !selected?.reasoningVariants?.includes(raw))
       ) {
-        state.notice("Variante refusée : absente du catalogue du modèle courant.", "error");
+        state.notice(t("Variante refusée : absente du catalogue du modèle courant."), "error");
         refresh();
         return;
       }
@@ -873,7 +971,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       }
       const wanted = parseEffortChoice(raw);
       if (wanted === null) {
-        state.notice("Niveau d'effort refusé : valeur inconnue.", "error");
+        state.notice(t("Niveau d'effort refusé : valeur inconnue."), "error");
         refresh();
         return;
       }
@@ -885,7 +983,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       if (wanted === "ultracode" && c.clamped) {
         // Ultracode s'appuie sur `max` : indisponible si le modèle ne le supporte pas (cran grisé).
         state.notice(
-          "Ultracode n'est pas disponible : ce modèle ne prend pas en charge « Max ».",
+          t("Ultracode n'est pas disponible : ce modèle ne prend pas en charge « Max »."),
           "error",
         );
         refresh();
@@ -910,9 +1008,20 @@ export function createChatSession(deps: ChatSessionDeps) {
       // Mode lecture : aucune saisie tant que la conversation n'est pas reprise.
       // `text` est la bulle. `prompt` peut y joindre la sortie d'un terminal cité.
       if (state.busy || state.readonly || text.trim() === "") return false;
+      if (
+        displaySettings().capabilities &&
+        (!providerChoice() || (providerChoice()?.prefix && !choice(readSettings()).model))
+      ) {
+        state.notice(
+          t("Choisissez un fournisseur activé et un modèle disponible avant d’envoyer."),
+          "error",
+        );
+        refresh();
+        return false;
+      }
       if (deps.requireProvider && state.noProvider) {
         state.notice(
-          `Aucun fournisseur n'a été ajouté : ajoute un jeton (${PRODUCT_NAME} : définir le jeton) pour utiliser le chat.`,
+          t`Aucun fournisseur n'a été ajouté : ajoute un jeton (${PRODUCT_NAME} : définir le jeton) pour utiliser le chat.`,
           "error",
         );
         refresh();
@@ -930,7 +1039,9 @@ export function createChatSession(deps: ChatSessionDeps) {
         state.setBusy(false);
         if (projectsReady)
           state.notice(
-            "Le projet actif a changé. Revenez au projet de cette conversation ou créez une nouvelle conversation dans le projet actif.",
+            t(
+              "Le projet actif a changé. Revenez au projet de cette conversation ou créez une nouvelle conversation dans le projet actif.",
+            ),
             "error",
           );
         refresh();
@@ -944,7 +1055,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       refresh();
       try {
         if (controller !== null && applied !== null) {
-          const want = choice(deps.readSettings());
+          const want = choice(readSettings());
           if (
             want.model !== applied.model ||
             want.effort !== applied.effort ||
@@ -952,10 +1063,11 @@ export function createChatSession(deps: ChatSessionDeps) {
             learning !== applied.learning ||
             appliedBurp !==
               JSON.stringify([
-                deps.readSettings().burp ?? null,
-                deps.readSettings().integrations ?? [],
-                deps.readSettings().profile ?? null,
-                deps.readSettings().opencodeProviders ?? null,
+                readSettings().burp ?? null,
+                readSettings().integrations ?? [],
+                readSettings().profile ?? null,
+                readSettings().webSearch ?? true,
+                readSettings().opencodeProviders ?? null,
               ])
           ) {
             await retire(controller);
@@ -963,7 +1075,7 @@ export function createChatSession(deps: ChatSessionDeps) {
             // Jeton changé pendant un tour : le moteur courant garde l'ancien, le suivant relit le nouveau.
             await retire(
               controller,
-              "Jeton modifié : nouveau moteur démarré avec le nouveau jeton, même session.",
+              t("Jeton modifié : nouveau moteur démarré avec le nouveau jeton, même session."),
             );
           }
         }
@@ -1004,7 +1116,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       if (controller !== null && !state.busy) {
         await retire(
           controller,
-          "Jeton modifié : nouveau moteur au prochain message, même session.",
+          t("Jeton modifié : nouveau moteur au prochain message, même session."),
         );
       }
       refresh();
@@ -1021,7 +1133,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       userAbort.add(controller);
       stopping = true;
       controller.abort();
-      state.notice("Arrêt demandé.");
+      state.notice(t("Arrêt demandé."));
       refresh();
     },
     async approve(toolUseId: string, choice: Choice): Promise<void> {
@@ -1056,6 +1168,7 @@ export function createChatSession(deps: ChatSessionDeps) {
     },
     reset(): void {
       deps.onObservedEvent?.(null);
+      selection = emptySelection();
       conversationGeneration++;
       navigationRev++;
       stopping = true;
@@ -1067,10 +1180,12 @@ export function createChatSession(deps: ChatSessionDeps) {
       transferContext = false;
       current = null;
       latestPage();
+      selection = emptySelection();
       state.clear();
       refresh();
     },
     async refreshHistoryProjects(): Promise<void> {
+      selection = emptySelection();
       const revision = navigationRev;
       await reloadHistoryProjects(revision);
       if (revision === navigationRev) refresh();
@@ -1095,6 +1210,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       sessionId = undefined;
       transferContext = false;
       current = null;
+      selection = emptySelection();
       state.clear();
       latestPage();
       const result = await readConversationPage(
@@ -1106,7 +1222,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       if (!result || revision !== navigationRev) return;
       state = result.state;
       const { invalid, truncated, missing } = result;
-      if (missing > 0) state.notice(`${missing} journal(aux) introuvable(s).`);
+      if (missing > 0) state.notice(t`${missing} journal(aux) introuvable(s).`);
       state.setReadonly({
         id: meta.id,
         title: meta.title,
@@ -1134,7 +1250,9 @@ export function createChatSession(deps: ChatSessionDeps) {
       }
       if ((meta.projectId ?? null) !== historyProjects.activeId) {
         state.notice(
-          "Cette conversation appartient à un autre projet. Revenez à son projet ou créez une nouvelle conversation dans le projet actif.",
+          t(
+            "Cette conversation appartient à un autre projet. Revenez à son projet ou créez une nouvelle conversation dans le projet actif.",
+          ),
           "error",
         );
         refresh();
@@ -1160,8 +1278,8 @@ export function createChatSession(deps: ChatSessionDeps) {
       state.setReadonly(null);
       state.notice(
         meta.sessionId === null
-          ? "Session introuvable : le prochain message démarre une nouvelle session."
-          : "Conversation reprise dans son projet : la politique actuelle s'applique.",
+          ? t("Session introuvable : le prochain message démarre une nouvelle session.")
+          : t("Conversation reprise dans son projet : la politique actuelle s'applique."),
       );
       refresh();
       if (providerChanged) await loadModels();
@@ -1171,7 +1289,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       if (!meta) return;
       const title = cleanTitle(raw);
       if (title === null) {
-        state.notice("Titre refusé : il est vide.", "error");
+        state.notice(t("Titre refusé : il est vide."), "error");
         refresh();
         return;
       }
@@ -1183,7 +1301,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       const meta = history && isConversationId(id) ? index.find((c) => c.id === id) : undefined;
       if (!history || !meta) return;
       const ok = await history.confirmDelete(
-        `Supprimer la conversation « ${cleanText(meta.title, 80)} » et ses journaux ?`,
+        t`Supprimer la conversation « ${cleanText(meta.title, 80)} » et ses journaux ?`,
       );
       if (!ok) return;
       if (meta.id === current?.id || meta.id === state.readonly?.id) this.reset();
@@ -1195,7 +1313,7 @@ export function createChatSession(deps: ChatSessionDeps) {
     async clearHistory(): Promise<void> {
       if (!history) return;
       const ok = await history.confirmDelete(
-        "Effacer tout l'historique des conversations et leurs journaux ?",
+        t("Effacer tout l'historique des conversations et leurs journaux ?"),
       );
       if (!ok) return;
       this.reset();

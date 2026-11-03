@@ -17,6 +17,7 @@ export function runnerOptions(
   mode: StartParams["mode"],
   executable: string,
   targets: ReturnType<typeof createExegolTargets>,
+  webSearch = true,
 ): SdkRunnerOptions & { executable: string } {
   if (mode === "learning") {
     return { executable, toolsets: [coursToolset()], builtinTools: [] };
@@ -26,7 +27,7 @@ export function runnerOptions(
     toolsets: [
       exegolToolset({ targets, binary: "docker", includeMemory: false }),
       kaliToolset({ targets, binary: "docker", includeMemory: false }),
-      webToolset(),
+      ...(webSearch ? [webToolset()] : []),
     ],
   };
 }

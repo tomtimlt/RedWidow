@@ -1,4 +1,6 @@
 import type { EngineEvent } from "@warband/core";
+import { t } from "@warband/messages";
+import { isCapabilityId } from "./chat-capabilities.js";
 import { isPalette, type Palette } from "./palette.js";
 
 /** Pages des réglages, dans l'ordre de la barre des captures. */
@@ -23,7 +25,7 @@ const LABELS: Record<StudioPage, string> = {
 };
 
 export function studioLabel(page: StudioPage): string {
-  return LABELS[page];
+  return t(LABELS[page]);
 }
 
 export function isStudioPage(value: string): value is StudioPage {
@@ -31,8 +33,17 @@ export function isStudioPage(value: string): value is StudioPage {
 }
 
 export type StudioMessage =
+  | {
+      type: "setCapability";
+      kind: "provider" | "skill" | "mcp" | "web";
+      id: string;
+      enabled: boolean;
+    }
+  | { type: "configureProvider"; id: string }
+  | { type: "configureMcp"; id: string }
   | { type: "openEvidence"; projectId: string; id: string }
   | { type: "setPalette"; palette: Palette }
+  | { type: "setLocale"; locale: "fr" | "en" }
   | { type: "openReport"; projectId: string }
   | { type: "exportKillchain"; projectId: string }
   | { type: "exportReport"; projectId: string }
@@ -68,6 +79,33 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
   const m = raw as Record<string, unknown>;
   const keys = Object.keys(m);
+  if (
+    m.type === "setCapability" &&
+    keys.length === 4 &&
+    keys.every((k) => ["type", "kind", "id", "enabled"].includes(k)) &&
+    ["provider", "skill", "mcp", "web"].includes(m.kind as string) &&
+    isCapabilityId(m.id) &&
+    typeof m.enabled === "boolean"
+  )
+    return {
+      type: m.type,
+      kind: m.kind as "provider" | "skill" | "mcp" | "web",
+      id: m.id,
+      enabled: m.enabled,
+    };
+  if (
+    (m.type === "configureProvider" || m.type === "configureMcp") &&
+    keys.length === 2 &&
+    isCapabilityId(m.id)
+  )
+    return { type: m.type, id: m.id };
+  if (
+    m.type === "setLocale" &&
+    keys.length === 2 &&
+    keys.every((key) => key === "type" || key === "locale") &&
+    (m.locale === "fr" || m.locale === "en")
+  )
+    return { type: "setLocale", locale: m.locale };
   if (
     (m.type === "openCatalog" ||
       m.type === "chooseProfile" ||

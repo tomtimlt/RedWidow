@@ -1,4 +1,15 @@
-# Fournisseurs OpenCode et endpoints compatibles
+# Configurer les fournisseurs IA
+
+Dans **Réglages → Contrôle système**, configure Claude, OpenAI ou Google Gemini,
+puis active les fournisseurs à proposer dans le chat. Choisis ensuite le fournisseur
+dans **Configurer**. Le moteur OpenCode reste interne à l’extension.
+
+Pour Ollama ou une API compatible OpenAI, clique **Ajouter Ollama / un endpoint
+compatible**, saisis le nom, l’URL de l’API et les identifiants des modèles installés.
+Configure une clé dans le dialogue natif si nécessaire, puis active la nouvelle entrée.
+Aucun secret ne transite par la webview.
+
+## Réglage avancé et isolation
 
 Le réglage machine `warband.opencodeProviders` ajoute désormais des fournisseurs
 compatibles au serveur isolé ; il ne réimporte pas la configuration globale.
@@ -23,7 +34,8 @@ Exemple de réglage utilisateur VS Code pour une instance Ollama déjà démarr�
 ```
 
 Remplacer l'identifiant du modèle par celui réellement installé, puis choisir
-OpenCode dans le chat et actualiser les modèles. La déclaration n'installe ni
+le fournisseur nommé dans Configurer, après son activation dans Contrôle système,
+puis actualiser les modèles. La déclaration n'installe ni
 ne télécharge un modèle. Une URL HTTPS compatible suit le même format. HTTP
 est accepté pour les endpoints locaux/LAN explicitement choisis.
 
@@ -31,15 +43,15 @@ Les identifiants de fournisseur commencent par `venator-`. Aucun secret ne doit
 être placé dans ce réglage : ni clé API, ni header, ni URL avec identifiants,
 paramètres ou fragment. Les interpolations de fichiers ou d'environnement et
 les paquets npm arbitraires sont refusés. Pour une authentification nécessaire,
-utiliser « Configurer la connexion » dans le chat OpenCode et le même
+utiliser « Configurer » dans Contrôle système et le même
 identifiant de fournisseur `venator-…` dans l'authentification native ; le cache
 reste géré par OpenCode. Ce terminal charge les fournisseurs validés avec une
 configuration temporaire isolée, supprimée à sa fermeture. Un endpoint local
 sans clé reste soumis à la disponibilité réelle dans le catalogue OpenCode ;
 la déclaration seule ne prouve pas qu'il est connecté.
 
-Gemini utilise le fournisseur natif OpenCode : choisir OpenCode, configurer sa
-connexion native et actualiser le catalogue. Ne pas ajouter une entrée `google`
+Gemini utilise le fournisseur natif OpenCode : configurer Google Gemini dans
+Contrôle système, l’activer et le choisir dans le chat, puis actualiser le catalogue. Ne pas ajouter une entrée `google`
 au réglage des endpoints : ce nom est refusé pour protéger les identifiants des
 fournisseurs natifs. L'accès effectif dépend des identifiants et modèles
 annoncés par le catalogue runtime ; aucun appel d'inférence réel n'est validé

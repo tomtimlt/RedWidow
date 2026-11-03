@@ -1,3 +1,10 @@
+// Traduire au moment de produire les libellés, sans toucher aux données métier.
+function studioT(message, ...values) {
+  if (globalThis.WarbandI18n) return globalThis.WarbandI18n.t(message, ...values);
+  return typeof message === "string"
+    ? message
+    : message.reduce((text, part, i) => text + (i ? values[i - 1] : "") + part, "");
+}
 const STUDIO_GROUPS = [
   {
     label: "Engagement",
@@ -30,9 +37,9 @@ function killchainCount(findings) {
 }
 function navModel(current, findings) {
   return STUDIO_GROUPS.map((group) => ({
-    label: group.label,
+    label: studioT(group.label),
     items: group.pages.map(([id, label, icon]) => {
-      const item = { id, label, icon, current: id === current };
+      const item = { id, label: studioT(label), icon, current: id === current };
       if (id === "killchain") {
         const count = killchainCount(findings);
         if (count !== null) item.count = count;
@@ -62,7 +69,7 @@ function killchainModel(findings) {
   const known = new Map(
     MITRE_TACTICS.map(([id, name]) => [id, { tactic: id, label: name, nodes: [] }]),
   );
-  const unclassified = { tactic: null, label: "Non classé", nodes: [] };
+  const unclassified = { tactic: null, label: studioT("Non classé"), nodes: [] };
   const ids = /* @__PURE__ */ new Set();
   for (const f of findings) {
     if (!f || typeof f !== "object") continue;
@@ -210,15 +217,15 @@ function killchainLegend(findings) {
       label: "Type",
       entries: LEGEND_KINDS.map((kind) => ({
         kind,
-        label: KIND_LABEL[kind],
+        label: studioT(KIND_LABEL[kind]),
         count: kindCounts.get(kind) ?? 0,
       })),
     },
     {
-      label: "État",
+      label: studioT("État"),
       entries: LEGEND_STATES.map((state) => ({
         state,
-        label: STATE_LABEL[state],
+        label: studioT(STATE_LABEL[state]),
         count: stateCounts.get(state) ?? 0,
       })),
     },
@@ -290,7 +297,45 @@ globalThis.WarbandStudio = {
 };
 if (typeof acquireVsCodeApi === "function") start();
 function start() {
+  const t = studioT;
+  let lastView = null;
   const vscode = acquireVsCodeApi();
+  // Un changement de langue reconstruit les libellés et conserve l’interaction en cours.
+  const captureLocaleState = () => {
+    const nodes = [...(document.querySelectorAll?.("*") ?? [])];
+    const active = document.activeElement;
+    const state = nodes.map((node, index) => ({
+      index,
+      id: node.id,
+      value: node.value,
+      checked: node.checked,
+      open: node.open,
+      top: node.scrollTop,
+      left: node.scrollLeft,
+      start: node.selectionStart,
+      end: node.selectionEnd,
+      direction: node.selectionDirection,
+      focused: node === active,
+    }));
+    return () => {
+      const next = [...(document.querySelectorAll?.("*") ?? [])];
+      for (const item of state) {
+        const node = item.id ? document.getElementById(item.id) : next[item.index];
+        if (!node) continue;
+        if (item.value !== undefined && node.id !== "studio-locale") node.value = item.value;
+        if (item.checked !== undefined) node.checked = item.checked;
+        if (item.open !== undefined) node.open = item.open;
+        if (item.focused) {
+          node.focus?.({ preventScroll: true });
+          if (typeof item.start === "number")
+            node.setSelectionRange?.(item.start, item.end, item.direction);
+        }
+        node.scrollTop = item.top;
+        node.scrollLeft = item.left;
+      }
+    };
+  };
+
   const killchainOnly = document.body.classList.contains("killchain-full");
   const nav = killchainOnly ? null : document.getElementById("studio-nav");
   const main = document.getElementById("studio-main");
@@ -317,11 +362,13 @@ function start() {
     selectedEdge = null;
     paintFindingSelection();
   };
-  main?.addEventListener("click", () => {
+  main?.addEventListener("click", (event) => {
     if (ignoreGraphClick) {
       ignoreGraphClick = false;
       return;
     }
+    // Les commandes du graphe ne changent pas l’élément sélectionné.
+    if (event.target?.closest?.("button, input, select, textarea, a, summary")) return;
     clearSelection();
   });
   main?.addEventListener("keydown", (event) => {
@@ -358,7 +405,26 @@ function start() {
   function paintNav(current, findings, view) {
     if (!nav) return;
     while (nav.firstChild) nav.removeChild(nav.firstChild);
-    nav.append(el("div", "studio-nav-title", "Réglages"));
+    nav.append(el("div", "studio-nav-title", t("Réglages")));
+    const language = el("label", "studio-help", t("Langue"));
+    language.htmlFor = "studio-locale";
+    const locale = el("select", "studio-project-control");
+    locale.id = "studio-locale";
+    locale.setAttribute("aria-label", t("Langue"));
+    for (const [value, label] of [
+      ["fr", "FR"],
+      ["en", "EN"],
+    ]) {
+      const option = el("option", "", label);
+      option.value = value;
+      locale.append(option);
+    }
+    locale.value = globalThis.WarbandI18n?.getLocale() ?? "fr";
+    locale.addEventListener("change", () => {
+      if (locale.value === "fr" || locale.value === "en")
+        vscode.postMessage({ type: "setLocale", locale: locale.value });
+    });
+    nav.append(language, locale);
     const active = view.projectChoices?.projects?.find(
       (project) => project.id === view.projectChoices.activeId,
     );
@@ -366,7 +432,7 @@ function start() {
     if (typeof activeName === "string") {
       const context = el("div", "studio-nav-project");
       context.append(
-        el("span", "studio-kicker", "Projet actif"),
+        el("span", "studio-kicker", t("Projet actif")),
         el("strong", "studio-nav-project-name", activeName),
       );
       nav.append(context);
@@ -388,7 +454,7 @@ function start() {
         );
         if (item.count !== void 0) {
           const count = el("span", "studio-count", String(item.count));
-          count.title = `${item.count} élément${item.count > 1 ? "s" : ""}`;
+          count.title = t`${item.count} élément${item.count > 1 ? "s" : ""}`;
           b.append(count);
         }
         b.addEventListener("click", () => vscode.postMessage({ type: "open", page: item.id }));
@@ -410,11 +476,13 @@ function start() {
   function appearancePage() {
     const sec = el("section", "studio-card");
     sec.append(
-      el("h2", "", "Apparence"),
+      el("h2", "", t("Apparence")),
       el(
         "p",
         "studio-help",
-        "Choisissez le jeu de couleurs de Venator Ops. Il s’applique aussitôt à toutes les vues et s’adapte aux thèmes clair, sombre et contraste élevé de VS Code.",
+        t(
+          "Choisissez le jeu de couleurs de Venator Ops. Il s’applique aussitôt à toutes les vues et s’adapte aux thèmes clair, sombre et contraste élevé de VS Code.",
+        ),
       ),
     );
     if (
@@ -425,13 +493,15 @@ function start() {
         el(
           "p",
           "studio-help pal-note",
-          "En contraste élevé, Venator Ops utilise les couleurs du thème : le choix est enregistré et s’applique dès que vous changez de thème.",
+          t(
+            "En contraste élevé, Venator Ops utilise les couleurs du thème : le choix est enregistré et s’applique dès que vous changez de thème.",
+          ),
         ),
       );
     }
     const group = el("div", "pal-grid");
     group.setAttribute("role", "radiogroup");
-    group.setAttribute("aria-label", "Jeu de couleurs");
+    group.setAttribute("aria-label", t("Jeu de couleurs"));
     const paletteStatus = el("p", "studio-help");
     paletteStatus.setAttribute("role", "status");
     const cards = PALETTES.map(([id, label, detail]) => {
@@ -451,7 +521,7 @@ function start() {
       const preview = el("span", "pal-preview");
       preview.append(top, bar);
       const text = el("span", "pal-text");
-      text.append(el("span", "pal-name", label), el("span", "pal-desc", detail));
+      text.append(el("span", "pal-name", t(label)), el("span", "pal-desc", t(detail)));
       const check = decorative(el("span", "pal-check"));
       check.append(window.WarbandIcons.create("check"));
       card.append(preview, text, check);
@@ -475,7 +545,7 @@ function start() {
       group.setAttribute("aria-busy", "true");
       const id = card.dataset.palette;
       for (const item of cards) item.setAttribute("aria-disabled", "true");
-      paletteStatus.textContent = "Enregistrement…";
+      paletteStatus.textContent = t("Enregistrement…");
       vscode.postMessage({ type: "setPalette", palette: id });
     };
     cards.forEach((card, i) => {
@@ -556,33 +626,36 @@ function start() {
     graphBar = bar;
     const fit = el("button", "ghost kc-btn");
     fit.type = "button";
-    fit.title = "Ajuster le graphe à la fenêtre (0)";
-    fit.append(window.WarbandIcons.create("fit"), el("span", "btn-text", "Ajuster"));
+    fit.title = t("Ajuster le graphe à la fenêtre (0)");
+    fit.append(window.WarbandIcons.create("fit"), el("span", "btn-text", t("Ajuster")));
     const zoomOut = el("button", "ghost kc-btn kc-zoom");
     zoomOut.type = "button";
-    zoomOut.title = "Dézoomer (−)";
-    zoomOut.setAttribute("aria-label", "Dézoomer");
+    zoomOut.title = t("Dézoomer (−)");
+    zoomOut.setAttribute("aria-label", t("Dézoomer"));
     zoomOut.append(window.WarbandIcons.create("minus"));
     const zoomIn = el("button", "ghost kc-btn kc-zoom");
     zoomIn.type = "button";
-    zoomIn.title = "Zoomer (+)";
-    zoomIn.setAttribute("aria-label", "Zoomer");
+    zoomIn.title = t("Zoomer (+)");
+    zoomIn.setAttribute("aria-label", t("Zoomer"));
     zoomIn.append(window.WarbandIcons.create("plus"));
     bar.append(fit, zoomOut, zoomIn);
     const report = el("button", "ghost kc-btn kc-report");
     report.append(
       window.WarbandIcons.create("file"),
-      el("span", "btn-text", "Exporter le brouillon"),
+      el("span", "btn-text", t("Exporter le brouillon")),
     );
     report.type = "button";
-    report.title = "Rapport Markdown du projet, identifiants et loot exclus";
+    report.title = t("Rapport Markdown du projet, identifiants et loot exclus");
     report.disabled = typeof projectId !== "string";
     report.addEventListener("click", () => {
       if (!report.disabled) vscode.postMessage({ type: "exportReport", projectId });
     });
     bar.append(report);
     const preview = el("button", "ghost kc-btn kc-report-preview");
-    preview.append(window.WarbandIcons.create("file"), el("span", "btn-text", "Aperçu du rapport"));
+    preview.append(
+      window.WarbandIcons.create("file"),
+      el("span", "btn-text", t("Aperçu du rapport")),
+    );
     preview.type = "button";
     preview.disabled = typeof projectId !== "string";
     preview.addEventListener("click", () => {
@@ -590,9 +663,14 @@ function start() {
     });
     bar.append(preview);
     const image = el("button", "ghost kc-btn kc-image");
-    image.append(window.WarbandIcons.create("image"), el("span", "btn-text", "Exporter l’image"));
+    image.append(
+      window.WarbandIcons.create("image"),
+      el("span", "btn-text", t("Exporter l’image")),
+    );
     image.type = "button";
-    image.title = "Image SVG de tous les éléments, noms complets et liens (sans filtre ni cadrage)";
+    image.title = t(
+      "Image SVG de tous les éléments, noms complets et liens (sans filtre ni cadrage)",
+    );
     image.disabled = typeof projectId !== "string";
     image.addEventListener("click", () => {
       if (!image.disabled) vscode.postMessage({ type: "exportKillchain", projectId });
@@ -601,7 +679,7 @@ function start() {
     const flow = el("button", "ghost kc-btn kc-flow");
     flow.type = "button";
     flow.textContent = "Attack Flow";
-    flow.title = "Exporter les étapes confirmées au format Attack Flow 2.0";
+    flow.title = t("Exporter les étapes confirmées au format Attack Flow 2.0");
     flow.disabled = typeof projectId !== "string";
     flow.addEventListener("click", () => {
       if (!flow.disabled) vscode.postMessage({ type: "exportAttackFlow", projectId });
@@ -611,21 +689,21 @@ function start() {
     const selectedLabel = el("span", "kc-selection-label");
     const remove = el("button", "ghost kc-btn kc-delete");
     remove.type = "button";
-    remove.title = "Supprimer l’élément sélectionné";
+    remove.title = t("Supprimer l’élément sélectionné");
     const trash = document.createElementNS(SVG_NS, "svg");
     trash.setAttribute("viewBox", "0 0 16 16");
     trash.setAttribute("class", "kc-ico-svg");
     const trashPath = document.createElementNS(SVG_NS, "path");
     trashPath.setAttribute("d", "M2.5 4.5h11M6 4.5V2.5h4v2M4 4.5l.5 9h7l.5-9M6.5 7v4M9.5 7v4");
     trash.append(trashPath);
-    remove.append(decorative(trash), el("span", "btn-text", "Supprimer"));
+    remove.append(decorative(trash), el("span", "btn-text", t("Supprimer")));
     const proofs = el("div", "kc-proofs");
     selection.append(selectedLabel, remove, proofs);
     selection.addEventListener("click", (event) => event.stopPropagation());
     bar.append(selection);
     const edgeSelection = el("div", "kc-selection kc-edge-selection");
     const edgeLabel = el("span", "kc-selection-label");
-    const mark = el("button", "ghost kc-btn kc-mark-path", "Chemin retenu");
+    const mark = el("button", "ghost kc-btn kc-mark-path", t("Chemin retenu"));
     mark.type = "button";
     mark.setAttribute("aria-pressed", "false");
     edgeSelection.append(edgeLabel, mark);
@@ -640,9 +718,9 @@ function start() {
     // Rejouer : parcourt le chemin retenu nœud par nœud, crochets verrouillés.
     const replay = el("button", "ghost kc-btn kc-replay");
     replay.type = "button";
-    replay.title = "Visualiser les liens retenus, étape par étape. Aucune commande exécutée.";
+    replay.title = t("Visualiser les liens retenus, étape par étape. Aucune commande exécutée.");
     replay.setAttribute("aria-pressed", "false");
-    replay.append(window.WarbandIcons.create("play"), el("span", "btn-text", "Rejouer"));
+    replay.append(window.WarbandIcons.create("play"), el("span", "btn-text", t("Rejouer")));
     image.after(replay);
     const replayStatus = el("span", "kc-replay-status");
     replayStatus.setAttribute("role", "status");
@@ -656,7 +734,7 @@ function start() {
       const finding = findings?.find((row) => row.id === selectedFinding);
       for (const id of finding?.evidenceIds ?? []) {
         const proof = evidence?.find((row) => row.id === id);
-        const button = el("button", "ghost kc-btn", proof?.label ?? "Preuve indisponible");
+        const button = el("button", "ghost kc-btn", proof?.label ?? t("Preuve indisponible"));
         button.type = "button";
         button.disabled = !proof;
         button.title = proof
@@ -686,7 +764,7 @@ function start() {
         : "";
       edgeLabel.title = edgeLabel.textContent;
       const retained = edge && retainedEdges.has(edgeKey(edge));
-      mark.textContent = retained ? "Retirer du chemin" : "Marquer le chemin";
+      mark.textContent = retained ? t("Retirer du chemin") : t("Marquer le chemin");
       mark.setAttribute("aria-pressed", String(!!retained));
       mark.disabled = !edge || pendingPathEdge !== null || !/^[0-9a-f-]{36}$/.test(projectId ?? "");
       mark.setAttribute("aria-busy", String(pendingPathEdge !== null));
@@ -721,7 +799,7 @@ function start() {
     const pad = KC_PAD;
     const svg = document.createElementNS(SVG_NS, "svg");
     svg.setAttribute("class", "kc-edges");
-    svg.setAttribute("aria-label", "Liens du graphe");
+    svg.setAttribute("aria-label", t("Liens du graphe"));
     svg.setAttribute("width", String(graph.width + pad * 2));
     svg.setAttribute("height", String(graph.height + pad * 2));
     const defs = document.createElementNS(SVG_NS, "defs");
@@ -778,7 +856,7 @@ function start() {
       hit.setAttribute("tabindex", "0");
       hit.setAttribute(
         "aria-label",
-        `Lien ${a.label} vers ${b.label}${retained ? ", chemin retenu" : ""}`,
+        t`Lien ${a.label} vers ${b.label}${retained ? t(", chemin retenu") : ""}`,
       );
       const selectEdge = (event) => {
         event?.stopPropagation?.();
@@ -807,7 +885,7 @@ function start() {
       const ico = el("span", "kc-node-ico");
       ico.append(decorative(kindIcon(n.kind)));
       head.append(ico);
-      const stateLabel = STATE_LABEL[n.state] || n.state;
+      const stateLabel = t(STATE_LABEL[n.state] || n.state);
       const badge = el("span", `kc-node-badge is-${n.state}`, STATE_BADGE[n.state] || "");
       badge.setAttribute("role", "img");
       badge.setAttribute("aria-label", stateLabel);
@@ -815,14 +893,14 @@ function start() {
       node.append(head);
       node.append(el("span", "kc-node-label", n.label));
       if (n.meta) node.append(el("span", "kc-node-meta", n.meta));
-      node.title = [n.label, KIND_LABEL[n.kind] || n.kind, stateLabel, n.meta]
+      node.title = [n.label, t(KIND_LABEL[n.kind] || n.kind), stateLabel, n.meta]
         .filter(Boolean)
         .join(" · ");
       node.tabIndex = 0;
       node.setAttribute("role", "button");
       node.setAttribute(
         "aria-label",
-        [n.label, KIND_LABEL[n.kind] || n.kind, stateLabel, n.meta].filter(Boolean).join(" · "),
+        [n.label, t(KIND_LABEL[n.kind] || n.kind), stateLabel, n.meta].filter(Boolean).join(" · "),
       );
       const select = (event) => {
         event?.stopPropagation?.();
@@ -855,13 +933,13 @@ function start() {
       viewport.classList.remove("is-replaying");
       replay.setAttribute("aria-pressed", "false");
       replay.firstChild.replaceWith(window.WarbandIcons.create("play"));
-      replay.lastChild.textContent = "Rejouer";
+      replay.lastChild.textContent = t("Rejouer");
     };
     cancelReplay = stopReplay;
     const replayStep = (index) => {
       if (!replay.isConnected) return stopReplay();
       if (index >= replayOrder.length) {
-        replayStatus.textContent = "Parcours visualisé.";
+        replayStatus.textContent = t("Parcours visualisé.");
         replayTimer = setTimeout(() => {
           stopReplay();
           replayStatus.textContent = "";
@@ -877,14 +955,14 @@ function start() {
           "is-lit",
           retainedEdges.has(edgeKey(edge)) && visited.has(edge.from) && visited.has(edge.to),
         );
-      replayStatus.textContent = `Étape ${index + 1}/${replayOrder.length} : ${current.label}`;
+      replayStatus.textContent = t`Étape ${index + 1}/${replayOrder.length} : ${current.label}`;
       replayTimer = setTimeout(() => replayStep(index + 1), 700);
     };
     replay.addEventListener("click", (event) => {
       event.stopPropagation();
       if (replayTimer) {
         stopReplay();
-        replayStatus.textContent = "Rejeu interrompu.";
+        replayStatus.textContent = t("Rejeu interrompu.");
         return;
       }
       stopReplay();
@@ -892,7 +970,7 @@ function start() {
       viewport.classList.add("is-replaying");
       replay.setAttribute("aria-pressed", "true");
       replay.firstChild.replaceWith(window.WarbandIcons.create("stop"));
-      replay.lastChild.textContent = "Arrêter";
+      replay.lastChild.textContent = t("Arrêter");
       replayStep(0);
     });
     viewport.append(canvas);
@@ -902,14 +980,14 @@ function start() {
     legendToggle.type = "button";
     legendToggle.setAttribute("aria-controls", "kc-legend-body");
     legendToggle.append(
-      el("span", "btn-text", "Légende"),
+      el("span", "btn-text", t("Légende")),
       window.WarbandIcons.create("caret", "caret"),
     );
     legendHead.append(legendToggle);
     const legendBody = el("div", "kc-legend-body");
     legendBody.id = "kc-legend-body";
     const filterButtons = [];
-    const resetFilter = el("button", "ghost kc-filter-reset", "Tout afficher");
+    const resetFilter = el("button", "ghost kc-filter-reset", t("Tout afficher"));
     resetFilter.type = "button";
     const paintFilter = () => {
       const matching = new Set(
@@ -949,7 +1027,7 @@ function start() {
         const field = entry.kind !== void 0 ? "kind" : "state";
         const value = entry.kind ?? entry.state;
         button.setAttribute("aria-pressed", String(legendFilter[field] === value));
-        button.title = `Mettre en évidence : ${entry.label}`;
+        button.title = t`Mettre en évidence : ${entry.label}`;
         button.addEventListener("click", () => {
           legendFilter[field] = legendFilter[field] === value ? null : value;
           clearSelection();
@@ -976,7 +1054,9 @@ function start() {
     const pathHelp = el(
       "p",
       "studio-help kc-path-help",
-      "Chemin retenu : liens verts marqués par l’agent ou par vous. Sélectionnez un lien pour le modifier.",
+      t(
+        "Chemin retenu : liens verts marqués par l’agent ou par vous. Sélectionnez un lien pour le modifier.",
+      ),
     );
     legendBody.append(pathHelp);
     paintFilter();
@@ -987,7 +1067,7 @@ function start() {
       wrap.classList.toggle("legend-collapsed", collapsed);
       legendToggle.setAttribute("aria-expanded", String(!collapsed));
       legendBody.hidden = collapsed;
-      legendToggle.title = collapsed ? "Déplier la légende" : "Replier la légende";
+      legendToggle.title = collapsed ? t("Déplier la légende") : t("Replier la légende");
     };
     legendToggle.addEventListener("click", () => setLegendCollapsed(!legendCollapsed));
     if (legendCollapsed === null) {
@@ -1001,7 +1081,7 @@ function start() {
     let ty = graphPose?.ty ?? 0;
     const mini = el("div", "kc-minimap");
     mini.setAttribute("role", "img");
-    mini.setAttribute("aria-label", "Minimap du graphe : zone actuellement visible");
+    mini.setAttribute("aria-label", t("Minimap du graphe : zone actuellement visible"));
     const miniSvg = document.createElementNS(SVG_NS, "svg");
     miniSvg.setAttribute("class", "kc-minimap-svg");
     mini.append(miniSvg);
@@ -1099,7 +1179,9 @@ function start() {
     viewport.setAttribute("role", "group");
     viewport.setAttribute(
       "aria-label",
-      "Graphe : flèches pour se déplacer, + et − pour zoomer, 0 pour ajuster, Échap pour désélectionner",
+      t(
+        "Graphe : flèches pour se déplacer, + et − pour zoomer, 0 pour ajuster, Échap pour désélectionner",
+      ),
     );
     viewport.addEventListener("keydown", (ev) => {
       if (ev.key === "Escape") {
@@ -1189,6 +1271,7 @@ function start() {
     return wrap;
   }
   function render(view) {
+    lastView = { ...view, summarySaved: undefined, summaryFailed: undefined };
     if (typeof view.summarySaved === "string") {
       summaryDrafts.delete(view.summarySaved);
       summarySaving.delete(view.summarySaved);
@@ -1221,7 +1304,13 @@ function start() {
       pendingFindingDelete = null;
     }
     const fingerprint =
-      page === "killchain" ? JSON.stringify([view.findings ?? [], view.evidence ?? []]) : null;
+      page === "killchain"
+        ? JSON.stringify([
+            view.findings ?? [],
+            view.evidence ?? [],
+            globalThis.WarbandI18n?.getLocale() ?? "fr",
+          ])
+        : null;
     showGraphError("");
     if (fingerprint !== null && fingerprint === graphFingerprint) return;
     graphFingerprint = fingerprint;
@@ -1234,10 +1323,10 @@ function start() {
     if (!killchainOnly) paintNav(page, view.findings, view);
     if (page === "project") {
       const sec = el("section", "studio-card");
-      sec.append(el("h2", "", "Projet"));
+      sec.append(el("h2", "", t("Projet")));
       for (const [label, type] of [
-        ["Ouvrir l’espace Venator Ops", "openWorkspace"],
-        ["Préparer et vérifier les fichiers de mission", "prepareMission"],
+        [t("Ouvrir l’espace Venator Ops"), "openWorkspace"],
+        [t("Préparer et vérifier les fichiers de mission"), "prepareMission"],
       ]) {
         const button = el("button", "ghost", label);
         button.type = "button";
@@ -1249,7 +1338,11 @@ function start() {
         const projectBusy = view.projectBusy === true;
         if (projectBusy)
           sec.append(
-            el("p", "studio-help", "Attendez la fin du travail en cours pour changer de projet."),
+            el(
+              "p",
+              "studio-help",
+              t("Attendez la fin du travail en cours pour changer de projet."),
+            ),
           );
         if (typeof view.projectCreated === "string") {
           projectNameDraft = "";
@@ -1257,20 +1350,22 @@ function start() {
         }
         const current = choices.projects.find((p) => p.id === choices.activeId);
         const active = el("div", "studio-project-active");
-        active.append(el("p", "studio-kicker", "Projet actif"));
-        active.append(el("p", "studio-project-active-name", current?.name ?? "Aucun projet actif"));
+        active.append(el("p", "studio-kicker", t("Projet actif")));
+        active.append(
+          el("p", "studio-project-active-name", current?.name ?? t("Aucun projet actif")),
+        );
         if (current) active.append(el("p", "studio-project-path", current.workspace));
         sec.append(active);
         if (choices.projects.length === 0) projectPanel = "create";
         else if (projectPanel === null) projectPanel = "choose";
         const tabs = el("div", "studio-project-tabs");
         tabs.setAttribute("role", "group");
-        tabs.setAttribute("aria-label", "Gestion des projets");
-        const chooseTab = el("button", "", "Choisir un projet");
+        tabs.setAttribute("aria-label", t("Gestion des projets"));
+        const chooseTab = el("button", "", t("Choisir un projet"));
         chooseTab.type = "button";
         chooseTab.id = "project-choose-tab";
         chooseTab.disabled = choices.projects.length === 0;
-        const createTab = el("button", "", "Nouveau projet");
+        const createTab = el("button", "", t("Nouveau projet"));
         createTab.type = "button";
         createTab.id = "project-create-tab";
         const choosePanel = el("div", "studio-project-panel");
@@ -1303,12 +1398,12 @@ function start() {
         tabs.append(chooseTab, createTab);
         sec.append(tabs, choosePanel, createPanel);
         if (choices.projects.length > 0) {
-          const label2 = el("label", "studio-help", "Choisir un projet");
+          const label2 = el("label", "studio-help", t("Choisir un projet"));
           label2.htmlFor = "project-choice";
           const select = el("select", "studio-project-control");
           select.id = "project-choice";
           select.disabled = projectBusy;
-          const placeholder = el("option", "", "Choisir un projet…");
+          const placeholder = el("option", "", t("Choisir un projet…"));
           placeholder.value = "";
           placeholder.disabled = true;
           select.append(placeholder);
@@ -1318,7 +1413,7 @@ function start() {
             select.append(option);
           }
           select.value = choices.activeId ?? "";
-          const activate = el("button", "primary", "Activer le projet");
+          const activate = el("button", "primary", t("Activer le projet"));
           activate.type = "button";
           const update2 = () => {
             activate.disabled = projectBusy || !select.value || select.value === choices.activeId;
@@ -1330,8 +1425,8 @@ function start() {
             vscode.postMessage({ type: "activateProject", projectId: select.value });
           });
           update2();
-          const rename = el("button", "ghost", "Renommer…");
-          const remove = el("button", "ghost", "Supprimer…");
+          const rename = el("button", "ghost", t("Renommer…"));
+          const remove = el("button", "ghost", t("Supprimer…"));
           rename.type = remove.type = "button";
           rename.id = "project-rename";
           remove.id = "project-delete";
@@ -1352,7 +1447,7 @@ function start() {
           managementState();
           choosePanel.append(label2, select, activate, rename, remove);
         }
-        const label = el("label", "studio-help", "Nom du nouveau projet");
+        const label = el("label", "studio-help", t("Nom du nouveau projet"));
         label.htmlFor = "project-name";
         const name = el("input", "studio-project-control");
         name.id = "project-name";
@@ -1360,7 +1455,7 @@ function start() {
         name.maxLength = 80;
         name.value = projectNameDraft;
         name.disabled = projectBusy;
-        const create = el("button", "primary", "Créer un projet et choisir son dossier…");
+        const create = el("button", "primary", t("Créer un projet et choisir son dossier…"));
         create.type = "button";
         const update = () => {
           create.disabled = projectBusy || !name.value.trim();
@@ -1376,14 +1471,14 @@ function start() {
         });
         update();
         createPanel.append(
-          el("p", "studio-help", "Donnez un nom au projet, puis choisissez son dossier."),
+          el("p", "studio-help", t("Donnez un nom au projet, puis choisissez son dossier.")),
           label,
           name,
           create,
         );
       }
       if (typeof view.projectError === "string") {
-        const error = el("p", "studio-help", view.projectError);
+        const error = el("p", "studio-help", t(view.projectError));
         error.setAttribute("role", "status");
         sec.append(error);
       }
@@ -1395,27 +1490,27 @@ function start() {
           el(
             "p",
             "studio-help",
-            "Aucun conteneur affiché. Gérez les associations dans le cockpit.",
+            t("Aucun conteneur affiché. Gérez les associations dans le cockpit."),
           ),
         );
       } else {
         const b = view.linkedBanner;
-        sec.append(el("p", "studio-kicker", "Espace affiché"));
+        sec.append(el("p", "studio-kicker", t("Espace affiché")));
         sec.append(el("p", "studio-name", b.name));
         sec.append(el("p", "studio-help", b.workspace));
       }
       const summary = view.projectSummary;
       if (summary && typeof summary.projectId === "string" && typeof summary.text === "string") {
         const id = summary.projectId;
-        sec.append(el("h2", "", "Mémoire du projet"));
+        sec.append(el("h2", "", t("Mémoire du projet")));
         sec.append(
           el(
             "p",
             "studio-help",
-            "Notes privées du projet. Non transmises automatiquement aux conversations.",
+            t("Notes privées du projet. Non transmises automatiquement aux conversations."),
           ),
         );
-        const label = el("label", "studio-help", "Résumé de session");
+        const label = el("label", "studio-help", t("Résumé de session"));
         label.htmlFor = "project-summary";
         const input = el("textarea", "studio-summary");
         input.id = "project-summary";
@@ -1427,15 +1522,15 @@ function start() {
         const status = el("p", "studio-help");
         status.id = "summary-status";
         status.setAttribute("role", "status");
-        const save = el("button", "primary", "Enregistrer le résumé");
+        const save = el("button", "primary", t("Enregistrer le résumé"));
         save.type = "button";
         const update = () => {
           const bytes = new TextEncoder().encode(input.value).length;
           save.disabled = bytes > 8192 || summarySaving.has(id);
           status.textContent =
             bytes > 8192
-              ? "Résumé trop long : 8 Kio maximum."
-              : `${bytes} / 8192 octets · Les secrets reconnus sont masqués à l’enregistrement.`;
+              ? t("Résumé trop long : 8 Kio maximum.")
+              : t`${bytes} / 8192 octets · Les secrets reconnus sont masqués à l’enregistrement.`;
         };
         input.addEventListener("input", () => {
           summaryDrafts.set(id, input.value);
@@ -1447,15 +1542,15 @@ function start() {
           summarySaving.add(id);
           input.disabled = true;
           save.disabled = true;
-          status.textContent = "Enregistrement…";
+          status.textContent = t("Enregistrement…");
           vscode.postMessage({ type: "saveSummary", projectId: id, text: input.value });
         });
         update();
-        if (view.summarySaved === id) status.textContent = "Résumé enregistré.";
-        if (typeof view.summaryError === "string") status.textContent = view.summaryError;
+        if (view.summarySaved === id) status.textContent = t("Résumé enregistré.");
+        if (typeof view.summaryError === "string") status.textContent = t(view.summaryError);
         sec.append(label, input, status, save);
       } else if (typeof view.summaryError === "string") {
-        const error = el("p", "studio-help", view.summaryError);
+        const error = el("p", "studio-help", t(view.summaryError));
         error.setAttribute("role", "status");
         sec.append(error);
       }
@@ -1465,13 +1560,13 @@ function start() {
     if (page === "containers" || page === "system") {
       const sec = el("section", "studio-card");
       const header = el("div", "studio-section-head");
-      header.append(el("h2", "", page === "system" ? "Contrôle système" : "Conteneurs"));
+      header.append(el("h2", "", page === "system" ? t("Contrôle système") : t("Conteneurs")));
       if (page === "containers") {
         const manage = el("button", "secondary");
         manage.type = "button";
         manage.append(
           window.WarbandIcons.create("sliders"),
-          el("span", "btn-text", "Gérer les econtainers"),
+          el("span", "btn-text", t("Gérer les econtainers")),
         );
         manage.addEventListener("click", () => vscode.postMessage({ type: "openCockpit" }));
         header.append(manage);
@@ -1490,67 +1585,142 @@ function start() {
       };
       row(
         "Docker",
-        view.docker === "present" ? "présent" : "absent",
+        view.docker === "present" ? t("présent") : t("absent"),
         view.docker === "present" ? "ok" : "warn",
         "image",
       );
       row(
-        "Démon",
+        t("Démon"),
         view.daemon === "reachable"
-          ? "joignable"
+          ? t("joignable")
           : view.daemon === "unreachable"
-            ? "injoignable"
+            ? t("injoignable")
             : "—",
         view.daemon === "reachable" ? "ok" : view.daemon === "unreachable" ? "err" : "idle",
         "pulse",
       );
       row(
         "Exegol",
-        view.exegol === "present" ? "présent" : "absent",
+        view.exegol === "present" ? t("présent") : t("absent"),
         view.exegol === "present" ? "ok" : "warn",
         "server",
       );
       sec.append(dl);
       if (page === "system") {
-        sec.append(el("h2", "", "Bureau agent et catalogue MCP"));
+        const caps = view.capabilities ?? {
+          providers: [],
+          skills: [],
+          integrations: [],
+          webSearch: false,
+        };
         sec.append(
+          el("h2", "", t("Fournisseurs IA")),
           el(
             "p",
             "studio-help",
-            "Services externes activés à la demande, quatre maximum. Aucun programme téléchargé automatiquement. Profil : " +
-              (view.agentProfile || "général"),
+            t(
+              "Configurez une connexion, puis activez son accès dans le chat. Les clés restent dans le stockage sécurisé ou le gestionnaire du fournisseur.",
+            ),
           ),
         );
-        for (const [label, type] of [
-          ["Catalogue MCP…", "openCatalog"],
-          ["Choisir un skill / profil…", "chooseProfile"],
-        ]) {
-          const button = el("button", "ghost", label);
-          button.type = "button";
-          button.addEventListener("click", () => vscode.postMessage({ type }));
-          sec.append(button);
-        }
-        for (const entry of view.mcpCatalog ?? []) {
-          sec.append(
-            el(
-              "p",
-              "studio-help",
-              `${entry.label} · ${entry.profile} · ${(view.mcpConfigured ?? []).some((c) => c.id === entry.id) ? "configuré (test requis)" : "non configuré"}`,
-            ),
+        const capabilityRow = (kind, id, label, enabled, configure, detail) => {
+          const row = el("div", "capability-row");
+          const title = el("label", "capability-label");
+          const toggle = el("input");
+          toggle.type = "checkbox";
+          toggle.checked = enabled;
+          toggle.id = `capability-${kind}-${id}`;
+          toggle.addEventListener("change", () =>
+            vscode.postMessage({ type: "setCapability", kind, id, enabled: toggle.checked }),
           );
-        }
+          title.append(toggle, el("strong", "", label));
+          row.append(title);
+          if (detail) row.append(el("span", "studio-help", detail));
+          if (configure) {
+            const button = el("button", "ghost", t("Configurer"));
+            button.type = "button";
+            button.addEventListener("click", () => vscode.postMessage(configure));
+            row.append(button);
+          }
+          sec.append(row);
+        };
+        for (const p of view.providerCatalog ?? [])
+          capabilityRow("provider", p.id, p.label, caps.providers.includes(p.id), {
+            type: "configureProvider",
+            id: p.id,
+          });
+        const addProvider = el("button", "ghost", t("Ajouter Ollama / un endpoint compatible"));
+        addProvider.type = "button";
+        addProvider.addEventListener("click", () =>
+          vscode.postMessage({ type: "configureProvider", id: "add" }),
+        );
+        sec.append(addProvider);
+        sec.append(
+          el("h2", "", t("Skills / méthodes")),
+          el(
+            "p",
+            "studio-help",
+            t(
+              "Activez les méthodes à proposer dans le menu + du chat. Choisissez ensuite une méthode par conversation.",
+            ),
+          ),
+        );
+        for (const p of view.skillCatalog ?? [])
+          capabilityRow("skill", p.id, p.label, caps.skills.includes(p.id));
+        sec.append(
+          el("h2", "", t("Connecteurs MCP")),
+          el(
+            "p",
+            "studio-help",
+            t(
+              "Configurez les services locaux du projet, puis activez-les. Ils apparaîtront dans le menu + du chat pour une sélection explicite. Quatre services maximum.",
+            ),
+          ),
+        );
+        for (const entry of view.mcpCatalog ?? [])
+          capabilityRow(
+            "mcp",
+            entry.id,
+            entry.label,
+            caps.integrations.includes(entry.id),
+            { type: "configureMcp", id: entry.id },
+            (view.mcpConfigured ?? []).some((c) => c.id === entry.id)
+              ? t("configuré")
+              : t("non configuré"),
+          );
+        capabilityRow(
+          "mcp",
+          "burp",
+          "Burp Suite",
+          caps.integrations.includes("burp"),
+          { type: "configureBurp" },
+          view.burpEnabled ? t("configuré") : t("non configuré"),
+        );
+        sec.append(el("h2", "", t("Recherche web")));
+        capabilityRow(
+          "web",
+          "search",
+          t("Recherche web"),
+          caps.webSearch,
+          null,
+          t("Disponible à la demande dans le menu +. Désactivée pour les nouvelles conversations."),
+        );
         sec.append(el("h2", "", "Burp Suite MCP"));
         sec.append(
           el(
             "p",
             "studio-help",
             view.burpEnabled
-              ? "Connexion locale activée. Les appels aux outils restent soumis à la gate Venator Ops."
-              : "Connexion désactivée. Installez l’extension MCP officielle dans Burp Suite pour la connecter.",
+              ? t(
+                  "Connexion locale activée. Les appels aux outils restent soumis à la gate Venator Ops.",
+                )
+              : t(
+                  "Connexion désactivée. Installez l’extension MCP officielle dans Burp Suite pour la connecter.",
+                ),
           ),
         );
-        const configure = el("button", "ghost", "Configurer Burp Suite MCP…");
-        const test = el("button", "ghost", "Tester la connexion");
+        const configure = el("button", "ghost", t("Configurer Burp Suite MCP…"));
+        const test = el("button", "ghost", t("Tester la connexion"));
         configure.type = test.type = "button";
         configure.id = "burp-configure";
         test.id = "burp-test";
@@ -1558,7 +1728,7 @@ function start() {
         test.addEventListener("click", () => vscode.postMessage({ type: "testBurp" }));
         sec.append(configure, test);
         if (view.burpStatus) {
-          const status = el("p", "studio-help", view.burpStatus);
+          const status = el("p", "studio-help", t(view.burpStatus));
           status.setAttribute("role", "status");
           sec.append(status);
         }
@@ -1567,8 +1737,8 @@ function start() {
         const running = (view.containers ?? []).filter((c) => c.state === "running").length;
         const listHead = el("div", "studio-list-head");
         listHead.append(
-          el("p", "studio-kicker", "Conteneurs"),
-          el("span", "studio-count", `${running}/${(view.containers ?? []).length} actifs`),
+          el("p", "studio-kicker", t("Conteneurs")),
+          el("span", "studio-count", t`${running}/${(view.containers ?? []).length} actifs`),
         );
         if ((view.containers ?? []).length > 0) sec.append(listHead);
         const ul = el("ul", "studio-rows");
@@ -1580,7 +1750,7 @@ function start() {
           li.append(
             window.WarbandIcons.create("container", "ico studio-space-ico"),
             el("span", "studio-ellipsis", c.name),
-            el("span", "studio-state", c.state === "running" ? "en cours" : "arrêté"),
+            el("span", "studio-state", c.state === "running" ? t("en cours") : t("arrêté")),
           );
           li.querySelector(".studio-state").prepend(
             decorative(el("span", `dot ${c.state === "running" ? "is-running" : "is-stopped"}`)),
@@ -1593,7 +1763,7 @@ function start() {
             el(
               "p",
               "studio-help",
-              "Aucun conteneur pour l’instant. Créez-en un depuis « Gérer les econtainers ».",
+              t("Aucun conteneur pour l’instant. Créez-en un depuis « Gérer les econtainers »."),
             ),
           );
         }
@@ -1614,7 +1784,7 @@ function start() {
             el(
               "p",
               "studio-help",
-              "Le graphe est vide : les éléments notés par l’agent apparaîtront ici.",
+              t("Le graphe est vide : les éléments notés par l’agent apparaîtront ici."),
             ),
           );
           wrap.append(viewport);
@@ -1625,14 +1795,16 @@ function start() {
       }
       const count = killchainCount(view.findings);
       const sec = empty(
-        "Graphe",
+        t("Graphe"),
         count === null
-          ? "Graphe des éléments notés par l’agent. Ouvrez la vue plein écran pour explorer le graphe."
-          : `${count} élément${count > 1 ? "s" : ""} : ouvrez la vue plein écran pour le graphe interactif.`,
+          ? t(
+              "Graphe des éléments notés par l’agent. Ouvrez la vue plein écran pour explorer le graphe.",
+            )
+          : t`${count} élément${count > 1 ? "s" : ""} : ouvrez la vue plein écran pour le graphe interactif.`,
       );
       const open = el("button", "primary");
       open.type = "button";
-      open.append(el("span", "btn-text", "Ouvrir le graphe"));
+      open.append(el("span", "btn-text", t("Ouvrir le graphe")));
       open.addEventListener("click", () => vscode.postMessage({ type: "openKillchain" }));
       sec.append(open);
       main.append(sec);
@@ -1645,15 +1817,17 @@ function start() {
     if (page === "atlas") {
       const sec = empty(
         "Atlas",
-        "Dossier de cours lu par le mode Apprentissage, en lecture seule. Aucun cours inclus : dépose-y des sources libres, un sous-dossier par source.",
+        t(
+          "Dossier de cours lu par le mode Apprentissage, en lecture seule. Aucun cours inclus : dépose-y des sources libres, un sous-dossier par source.",
+        ),
       );
-      const open = el("button", "primary", "Ouvrir le dossier de cours");
+      const open = el("button", "primary", t("Ouvrir le dossier de cours"));
       open.type = "button";
       open.addEventListener("click", () => vscode.postMessage({ type: "openCours" }));
       sec.append(open);
       const sources = Array.isArray(view.sources) ? view.sources : [];
       if (sources.length === 0) {
-        sec.append(el("p", "studio-help", "Aucune source dans le dossier de cours."));
+        sec.append(el("p", "studio-help", t("Aucune source dans le dossier de cours.")));
       } else {
         const ul = el("ul", "studio-rows");
         for (const src of sources) {
@@ -1667,11 +1841,19 @@ function start() {
       main.append(sec);
       return;
     }
-    main.append(empty("Réglages", "Choisissez une rubrique dans la navigation."));
+    main.append(empty(t("Réglages"), t("Choisissez une rubrique dans la navigation.")));
   }
   window.addEventListener("pagehide", () => graphCleanup());
   window.addEventListener("message", (event) => {
     const msg = event.data;
+    if (msg?.type === "locale" && (msg.locale === "fr" || msg.locale === "en")) {
+      const restore = captureLocaleState();
+      globalThis.WarbandI18n?.setLocale(msg.locale);
+      if (lastView) render(lastView);
+      globalThis.WarbandI18n?.applyStatic(document);
+      restore();
+      return;
+    }
     if (msg?.type === "pathEdgeState") {
       if (
         !pendingPathEdge ||
@@ -1682,7 +1864,7 @@ function start() {
         return;
       pendingPathEdge = null;
       paintFindingSelection();
-      if (typeof msg.error === "string") showGraphError(msg.error);
+      if (typeof msg.error === "string") showGraphError(t(msg.error));
       return;
     }
     if (msg?.type === "findingDeleteState") {
@@ -1696,13 +1878,13 @@ function start() {
       }
       if (!msg.busy) pendingFindingDelete = null;
       paintFindingSelection();
-      if (typeof msg.error === "string") showGraphError(msg.error);
+      if (typeof msg.error === "string") showGraphError(t(msg.error));
       return;
     }
     if (msg?.type === "findingsError") {
       if (msg.projectId !== void 0 && msg.projectId !== graphProject) return;
       showGraphError(
-        typeof msg.message === "string" ? msg.message : "Actualisation du graphe indisponible.",
+        typeof msg.message === "string" ? msg.message : t("Actualisation du graphe indisponible."),
       );
       return;
     }
@@ -1712,7 +1894,7 @@ function start() {
       return;
     }
     if (msg?.type === "paletteError") {
-      repaintPalette("Impossible d’enregistrer le jeu de couleurs. Réessayez.");
+      repaintPalette(t("Impossible d’enregistrer le jeu de couleurs. Réessayez."));
       return;
     }
     if (msg?.type !== "view") return;

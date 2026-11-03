@@ -136,9 +136,9 @@ Venator Ops is not on the Marketplace yet: installation is manual.
 ## FAQ
 
 **Which AI providers are supported?**
-**Claude** (subscription token or API key), **OpenAI** (ChatGPT subscription or API key) and **OpenCode**, which also opens the door to Gemini, local models through Ollama and compatible endpoints. You can switch provider and keep the same conversation.
+**Claude** (subscription token or API key), **OpenAI** (ChatGPT subscription or API key), **Google Gemini**, **Ollama** and OpenAI-compatible endpoints. OpenCode powers the additional providers behind the scenes. You can switch provider and keep the same conversation.
 
-For Ollama and custom endpoints, see the [OpenCode setup guide](docs/opencode-providers.md). Configure the provider explicitly, then refresh the model list.
+Open **Settings → System control** to configure and enable your providers. Pick an enabled provider in the chat’s **Configure** menu. For Ollama or another compatible endpoint, use **Add Ollama / a compatible endpoint** and enter its API URL and installed model IDs.
 
 **Which systems does it run on?**
 Windows (native, no WSL) and Linux.
@@ -147,13 +147,13 @@ Windows (native, no WSL) and Linux.
 Conversation logs are stored by VS Code on your machine, outside your repository. The history keeps roughly the last 100 conversations, and passwords, tokens and keys are masked before anything is written to a log.
 
 **What is Bypass for?**
-Running a long sequence without clicking on every card. It is set in **Configure**, lasts 2 hours by default (4 hours at most) and is shown in magenta with a countdown.
+Running a long sequence without clicking on every card. It is set in **Configure**, lasts 2 hours and is shown in magenta with a countdown.
 
 **Are there profiles for my context?**
-Yes: method profiles (mentor, bug bounty, out of the box, red team, HTB) steer the agent. A short brief guides the next turn; detailed methods are loaded only when needed. See the [profile guide](docs/profils-agent.md).
+Yes: enable method profiles in **Settings → System control**, then choose one in the chat’s **+** menu: mentor, bug bounty, out of the box, red team or HTB. A short brief guides the next turn; detailed methods load only when needed. The same menu lets you attach configured MCP connectors and opt into web search for this conversation. See the [profile guide](docs/profils-agent.md).
 
 **Does the interface follow my theme?**
-Yes: light, dark and high-contrast themes, reduced motion respected, and five color sets to choose from in **Settings → Appearance**.
+Yes: light, dark and high-contrast themes, reduced motion respected, and five color sets to choose from in **Settings → Appearance**. English is the default interface language; switch between **EN / FR** in Settings.
 
 ## Status
 

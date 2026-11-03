@@ -948,6 +948,7 @@ it.each([undefined, "learning"] as const)(
       cwd,
       provider: "opencode",
       opencodeProviders,
+      webSearch: false,
       ...(mode && { mode }),
     });
     await vi.waitFor(() =>
@@ -957,6 +958,7 @@ it.each([undefined, "learning"] as const)(
         undefined,
         undefined,
         opencodeProviders,
+        false,
       ),
     );
     t.receive({ v: 1, type: "dispose" });

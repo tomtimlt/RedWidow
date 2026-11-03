@@ -1,4 +1,5 @@
 import type { ModelOption } from "@warband/core";
+import { t } from "@warband/messages";
 import {
   clampEffort,
   type EffortChoice,
@@ -125,13 +126,15 @@ export function buildControls(input: {
     variant,
     reasoningVariants,
     provider: prefs.provider,
-    effortLabel: variant ?? current?.label ?? "Auto",
+    effortLabel: variant ?? current?.label ?? t("Auto"),
     effortTip:
       variant !== null
-        ? `Variante de raisonnement du modèle : ${variant}.`
+        ? t`Variante de raisonnement du modèle : ${variant}.`
         : current
           ? tip(current)
-          : "Auto : aucun niveau d'effort n'est transmis, le modèle garde son comportement par défaut. Touchez le curseur pour en choisir un.",
+          : t(
+              "Auto : aucun niveau d'effort n'est transmis, le modèle garde son comportement par défaut. Touchez le curseur pour en choisir un.",
+            ),
     levels: levels.map((l) => ({
       value: l.value,
       label: l.label,

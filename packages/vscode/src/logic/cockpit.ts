@@ -18,7 +18,7 @@ import {
   setPrimaryContainer,
   shortContainerName,
 } from "@warband/core";
-import { formatError } from "@warband/messages";
+import { formatError, getUiLocale, t } from "@warband/messages";
 import { PRODUCT_NAME, productTitleSuffix } from "./brand.js";
 
 /** Messages acceptés depuis la webview cockpit (non fiables). */
@@ -166,7 +166,7 @@ const FORBIDDEN_EXEC_FLAGS = new Set([
 export function assertSafeExecArgv(argv: readonly string[]): void {
   for (const arg of argv) {
     if (FORBIDDEN_EXEC_FLAGS.has(arg) || arg.startsWith("--user=") || arg.startsWith("--env=")) {
-      throw new Error("argv interdit");
+      throw new Error(t("argv interdit"));
     }
   }
 }
@@ -183,7 +183,7 @@ export function terminalLaunch(
 ): { shellPath: string; shellArgs: readonly string[] } {
   if (dockerPath === null) throw new CodedError("process.notFound", { binary: "docker" });
   const name = assertOperand(container, "container");
-  if (!program[0]?.startsWith("/")) throw new Error("programme refusé");
+  if (!program[0]?.startsWith("/")) throw new Error(t("programme refusé"));
   const shellArgs = ["exec", "--interactive", "--tty", "--workdir", "/workspace", name, ...program];
   assertSafeExecArgv(shellArgs);
   return { shellPath: dockerPath, shellArgs };
@@ -457,7 +457,7 @@ export async function loadCockpitView(deps: CockpitDeps = {}): Promise<CockpitVi
       linked: stored === null || activeProject(stored) === null ? "none" : "na",
       linkedBanner: null,
       containers: [],
-      error: formatError(err),
+      error: formatError(err, getUiLocale()),
     };
   }
 
@@ -504,9 +504,9 @@ export async function loadCockpitView(deps: CockpitDeps = {}): Promise<CockpitVi
     if (isLinked) {
       canLink = false;
     } else if (r.state !== "running") {
-      linkTitle = "Conteneur arrêté";
+      linkTitle = t("Conteneur arrêté");
     } else if (!mount) {
-      linkTitle = "Sans montage /workspace";
+      linkTitle = t("Sans montage /workspace");
     } else {
       canLink = true;
     }

@@ -29,6 +29,7 @@ describe("chat.js : balises créées", () => {
       "li",
       "h2",
       "input",
+      "label",
       "select",
       "option",
       "table",
@@ -419,6 +420,7 @@ describe("pages de prévisualisation", () => {
         const html = chatHtml({
           nonce: "preview",
           cspSource,
+          i18nUri: "../media/i18n.js",
           scriptUri: "../media/chat.js",
           uiUri: "../media/ui.js",
           styleUri: "../media/chat.css",

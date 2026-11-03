@@ -10,6 +10,7 @@ import {
   readProjects,
   USER_PROJECT_FILE,
 } from "@warband/core";
+import { t } from "@warband/messages";
 
 export interface FindingDeleteConfirmation {
   projectName: string;
@@ -31,7 +32,7 @@ export type FindingDeleteResult =
 /** Une confirmation ne peut pas autoriser une nouvelle version des éléments affichés. */
 export class FindingDeleteChangedError extends Error {
   constructor() {
-    super("Les éléments ont été modifiés ; recommencez la suppression.");
+    super(t("Les éléments ont été modifiés ; recommencez la suppression."));
     this.name = "FindingDeleteChangedError";
   }
 }

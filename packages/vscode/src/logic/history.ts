@@ -1,4 +1,5 @@
 import { type EngineEvent, parseJournal, promptForTargets, stripControl } from "@warband/core";
+import { t } from "@warband/messages";
 import type { ChatState } from "./chat.js";
 import { type EffortChoice, isProvider, type Provider, parseEffortChoice } from "./effort.js";
 import { isModelId, isReasoningVariant } from "./models.js";
@@ -55,7 +56,7 @@ export function cleanTitle(raw: unknown, max = MAX_TITLE_CHARS): string | null {
 
 /** Titre d'une conversation : sa première consigne, tronquée. */
 export const titleFrom = (firstPrompt: string): string =>
-  cleanTitle(firstPrompt, 80) ?? "Conversation";
+  cleanTitle(firstPrompt, 80) ?? t("Conversation");
 
 /** Relit l'index stocké : entrées mal formées ou doublons écartés, bornes appliquées. */
 export function parseIndex(raw: unknown): ConversationMeta[] {
@@ -106,11 +107,11 @@ export function historyProject(
   conversation: Pick<ConversationMeta, "projectId">,
   projects: HistoryProjects["projects"],
 ): { key: string; label: string } {
-  if (!conversation.projectId) return { key: "none", label: "Sans projet" };
+  if (!conversation.projectId) return { key: "none", label: t("Sans projet") };
   const project = projects.find((p) => p.id === conversation.projectId);
   return {
     key: conversation.projectId,
-    label: project ? (cleanTitle(project.name) ?? "Projet") : "Projet inconnu",
+    label: project ? (cleanTitle(project.name) ?? t("Projet")) : t("Projet inconnu"),
   };
 }
 

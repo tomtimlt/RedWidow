@@ -25,7 +25,11 @@ import {
 } from "../src/index.js";
 
 describe("catalogues", () => {
-  it.each(REASON_CODES)("le catalogue fr a un libellé pour %s", (code) => {
+  it.each(REASON_CODES)("les catalogues ont un libellé pour %s", (code) => {
+    expect(en.reasons[code], code).toBeTypeOf("function");
+    expect(formatReason({ code, params: { x: 1 } }, "en")).not.toMatch(
+      new RegExp(`^${code.replaceAll(".", "\\.")}( |$)`),
+    );
     expect(fr.reasons[code], code).toBeTypeOf("function");
     // Aucun code connu ne tombe dans le repli `code + JSON params`.
     expect(formatReason({ code, params: { x: 1 } })).not.toMatch(
@@ -39,8 +43,9 @@ describe("catalogues", () => {
     for (const code of Object.keys(en.reasons)) expect(known.has(code), code).toBe(true);
   });
 
-  it("l'anglais est minimal mais exact sur ses codes", () => {
-    expect(Object.keys(en.reasons).length).toBeLessThan(Object.keys(fr.reasons).length);
+  it("les deux catalogues sont complets", () => {
+    expect(Object.keys(en.reasons).sort()).toEqual(Object.keys(fr.reasons).sort());
+    expect(Object.keys(en.events).sort()).toEqual(Object.keys(fr.events).sort());
     expect(formatReason({ code: "bash.empty" }, "en")).toBe("empty command");
     expect(formatReason({ code: "bash.empty" })).toBe("commande vide");
     expect(Object.keys(MESSAGES).sort()).toEqual(["en", "fr"]);
@@ -48,8 +53,32 @@ describe("catalogues", () => {
 });
 
 describe("formatReason", () => {
-  it("replie en → fr pour un code absent du catalogue anglais", () => {
-    expect(formatReason({ code: "process.emptyArgv" }, "en")).toBe("argv vide");
+  it("traduit les codes auparavant absents du catalogue anglais", () => {
+    expect(formatReason({ code: "process.emptyArgv" }, "en")).toBe("empty argv");
+  });
+
+  it("traduit les paramètres techniques et conserve les textes libres", () => {
+    expect(
+      formatReason({ code: "bash.hazard", params: { hazards: "substitution,background" } }, "en"),
+    ).toBe("cannot be auto-approved: command substitution, background execution");
+    expect(
+      formatReason(
+        { code: "sandbox.tarRejected", params: { reason: "symlink", entry: "entrée" } },
+        "en",
+      ),
+    ).toBe("tar archive rejected (symbolic link): entrée, nothing written");
+    expect(formatReason({ code: "integration.invalidConfig" }, "en")).toBe(
+      "Invalid local MCP configuration.",
+    );
+    expect(
+      formatReason({ code: "approval.noAsker", cause: { code: "process.emptyArgv" } }, "en"),
+    ).toBe("empty argv (no interactive approver)");
+    expect(
+      formatReason({ code: "policy.rule.custom", params: { text: "français conservé" } }, "en"),
+    ).toBe("français conservé");
+    expect(formatReason({ code: "legacy", params: { text: "ancienne erreur" } }, "en")).toBe(
+      "ancienne erreur",
+    );
   });
 
   it("affiche un code inconnu sous la forme code + JSON des paramètres", () => {

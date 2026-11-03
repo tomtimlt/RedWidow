@@ -1,6 +1,11 @@
 // Logique pure de l'interface du chat (aucun accès au DOM) : testée par vitest, chargée avant
 // chat.js par un second <script nonce src> (design-chat-ui.md §5). Aucune dépendance.
 ((root) => {
+  const t = (...args) =>
+    root.WarbandI18n?.t(...args) ??
+    (typeof args[0] === "string"
+      ? args[0]
+      : args[0].reduce((out, part, i) => out + part + (args[i + 1] ?? ""), ""));
   const enabled = (options, i) => i >= 0 && i < options.length && !options[i].disabled;
 
   /** Nom de l'outil d'exec Exegol (miroir de `EXEGOL_EXEC_TOOL`, vérifié par test). */
@@ -26,7 +31,7 @@
   /** Badge d'une ligne d'historique : « en cours » seulement pour la conversation courante si elle tourne. */
   function historyBadge(entry, running) {
     if (!entry?.current) return null;
-    return running ? "en cours" : "actuelle";
+    return running ? t("en cours") : t("actuelle");
   }
 
   /** Éléments de la vue, tolérant à une vue incomplète. */
@@ -35,11 +40,11 @@
   /** Statut lisible et tonalité d'un appel d'exec, d'après ce que porte la vue. */
   function execState(item) {
     if (item.status === "denied" || item.decision === "deny")
-      return { status: "refusé", tone: "err" };
-    if (item.status === "error") return { status: "erreur", tone: "err" };
+      return { status: t("refusé"), tone: "err" };
+    if (item.status === "error") return { status: t("erreur"), tone: "err" };
     if (item.status === "ok" || item.decision === "allow")
-      return { status: "approuvé", tone: "ok" };
-    return { status: "en attente", tone: "wait" };
+      return { status: t("approuvé"), tone: "ok" };
+    return { status: t("en attente"), tone: "wait" };
   }
 
   /** Argument de commande : tel quel, entre guillemets s'il contient un espace ou est vide. */
@@ -161,7 +166,7 @@
       groups.get(key).push({
         ...model,
         group: key,
-        providerLabel: model.value === null ? "Par défaut" : (names.get(provider) ?? provider),
+        providerLabel: model.value === null ? t("Par défaut") : (names.get(provider) ?? provider),
         // Ce badge reprend uniquement une indication explicite du catalogue.
         free:
           model.value !== null && (/\bfree\s*$/i.test(model.label) || /:free$/i.test(model.value)),
@@ -228,13 +233,13 @@
   /** Libellé de l'indicateur « thinking » (texte brut, inséré par textContent). */
   function activityLabel(view) {
     if (!view.busy) return "";
-    if (view.approvals.length > 0) return "En attente de votre accord";
-    if (view.retry) return "Fournisseur indisponible · nouvelle tentative en attente";
+    if (view.approvals.length > 0) return t("En attente de votre accord");
+    if (view.retry) return t("Fournisseur indisponible · nouvelle tentative en attente");
     for (let i = view.items.length - 1; i >= 0; i--) {
       const it = view.items[i];
-      if (it.kind === "tool" && it.status === "pending") return `Outil : ${it.label}`;
+      if (it.kind === "tool" && it.status === "pending") return t`Outil : ${it.label}`;
     }
-    return "Réflexion";
+    return t("Réflexion");
   }
 
   const isFiniteNumber = (v) => typeof v === "number" && Number.isFinite(v);
@@ -275,18 +280,21 @@
     let until = null;
     let badge = null;
     if (state === "pending") {
-      text = "En attente : actif dès que l'agent le confirme.";
+      text = t("En attente : actif dès que l'agent le confirme.");
     } else if (state === "on") {
-      until = new Date(push.expiresAt).toLocaleTimeString("fr-FR", {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-      text = `Actif jusqu'à ${until} (reste ${remainingText(push.expiresAt - now)}). Échéance fixée par le moteur.`;
+      until = new Date(push.expiresAt).toLocaleTimeString(
+        root.WarbandI18n?.getLocale() === "en" ? "en-GB" : "fr-FR",
+        {
+          hour: "2-digit",
+          minute: "2-digit",
+        },
+      );
+      text = t`Actif jusqu'à ${until} (reste ${remainingText(push.expiresAt - now)}). Échéance fixée par le moteur.`;
       badge = { word: "BYPASS", time: until };
     } else if (state === "dropped") {
-      text = "Bypass désactivé avant confirmation.";
+      text = t("Bypass désactivé avant confirmation.");
     } else if (state === "ended") {
-      text = "Bypass terminé.";
+      text = t("Bypass terminé.");
     }
     return { checked: state === "on" || state === "pending", state, text, badge, until };
   }
@@ -416,15 +424,16 @@
     return {
       phases: [
         {
-          label: `${messages} message${messages !== 1 ? "s" : ""}`,
+          label: messages !== 1 ? t`${messages} messages` : t`${messages} message`,
           state: view?.busy ? "current" : "done",
         },
         {
-          label: `${tools.length} outil${tools.length !== 1 ? "s" : ""}${pending ? ` · ${pending} en cours` : ""}`,
+          label: `${tools.length !== 1 ? t`${tools.length} outils` : t`${tools.length} outil`}${pending ? t` · ${pending} en cours` : ""}`,
           state: pending ? "current" : tools.length ? "done" : "todo",
         },
         {
-          label: `${approvals} accord${approvals > 1 ? "s" : ""} en attente`,
+          label:
+            approvals > 1 ? t`${approvals} accords en attente` : t`${approvals} accord en attente`,
           state: approvals ? "wait" : "todo",
         },
       ],

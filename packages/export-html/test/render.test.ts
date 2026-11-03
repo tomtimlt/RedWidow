@@ -177,3 +177,31 @@ describe("renderGraphHtml", () => {
     expect(html).toContain(`<text x="8" y="19" clip-path="url(#c)">${"a".repeat(79)}…</text>`);
   });
 });
+
+describe("annotations anglaises", () => {
+  it("traduit les lignes, runs et événements masqués en échappant les données", () => {
+    const events = [] as ReturnType<ReturnType<typeof createRecorder>["emit"]>[];
+    for (const runId of ["premier<", "second>"]) {
+      const r = createRecorder({ runId, redact: false });
+      r.subscribe((e) => events.push(e));
+      const root = r.emit({ kind: "run.started", prompt: "<script>français</script>", cwd: "/" });
+      const p = r.emit(
+        { kind: "process.started", argv: ["commande", "française"], pid: 1 },
+        root.id,
+      );
+      r.emit({ kind: "process.output", stream: "stdout", line: "résultat<" }, p.id);
+      r.emit({ kind: "process.output", stream: "stderr", line: "erreur>" }, p.id);
+    }
+    const graph = buildGraph(events, { runId: "premier<" });
+    const html = renderGraphHtml(graph, { locale: "en" });
+    expect(html).toContain('<html lang="en">');
+    expect(html).toContain("run 1 of 2");
+    expect(html).toContain("2 lines");
+    expect(html).toContain("&lt;script&gt;français&lt;/script&gt;");
+    expect(html).toContain("résultat&lt;");
+    expect(html).not.toContain("<script>");
+    expect(renderGraphHtml(graph, { locale: "en", maxNodes: 1 })).toContain(
+      "3 events not displayed",
+    );
+  });
+});

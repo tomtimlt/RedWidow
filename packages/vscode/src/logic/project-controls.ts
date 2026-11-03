@@ -5,6 +5,7 @@ import {
   renameProject,
   setActiveProject,
 } from "@warband/core";
+import { t } from "@warband/messages";
 
 export interface ProjectChoices {
   activeId: string | null;
@@ -52,7 +53,7 @@ export async function manageSelectedProject(
 ): Promise<boolean> {
   const file = await readProjects(configDir);
   const selected = file?.projects.find((project) => project.id === projectId);
-  if (!selected) throw new Error("Ce projet n’existe plus.");
+  if (!selected) throw new Error(t("Ce projet n’existe plus."));
   if (host.busy() || !host.isCurrent()) return false;
   const name = action === "rename" ? await host.rename(selected.name) : undefined;
   if (action === "rename" && name === undefined) return false;
@@ -65,7 +66,7 @@ export async function manageSelectedProject(
     JSON.stringify(fresh?.projects.find((project) => project.id === projectId)) !==
       JSON.stringify(selected)
   )
-    throw new Error("Le projet ou le travail en cours a changé. Recommencez l’action.");
+    throw new Error(t("Le projet ou le travail en cours a changé. Recommencez l’action."));
   if (action === "rename") await renameProject(configDir, projectId, name?.trim() ?? "");
   else await removeProject(configDir, projectId);
   return true;

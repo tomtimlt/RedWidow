@@ -2,6 +2,7 @@ import { constants, type Dirent } from "node:fs";
 import { open, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { stripControl } from "@warband/core";
+import { t } from "@warband/messages";
 
 /** Source de cours affichée par l'Atlas : sous-dossier direct de la racine et sa licence déclarée. */
 export interface CoursSource {
@@ -76,7 +77,7 @@ export async function readSources(root: string): Promise<CoursSource[]> {
     } catch {
       license = null;
     }
-    out.push({ name: clean(name), droits: license ?? LICENSE_MISSING });
+    out.push({ name: clean(name), droits: license ?? t(LICENSE_MISSING) });
   }
   return out;
 }

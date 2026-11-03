@@ -1,4 +1,5 @@
 import { stripControl } from "@warband/core";
+import { createUiTranslator, getUiLocale, type Locale } from "@warband/messages";
 
 const SANDBOX_TOOL_PREFIX = "mcp__sandbox__";
 
@@ -24,11 +25,12 @@ const LABELS: Record<string, string> = {
 };
 
 /** Nom lisible d'un outil (texte déjà nettoyé en amont ; inconnu → nom tel quel). */
-export function toolLabel(tool: string): string {
+export function toolLabel(tool: string, locale: Locale = getUiLocale()): string {
+  const t = createUiTranslator(() => locale);
   if (tool.startsWith(SANDBOX_TOOL_PREFIX)) {
-    return `Bac à sable · ${tool.slice(SANDBOX_TOOL_PREFIX.length)}`;
+    return t`Bac à sable · ${tool.slice(SANDBOX_TOOL_PREFIX.length)}`;
   }
-  return LABELS[tool] ?? tool;
+  return LABELS[tool] === undefined ? tool : t(LABELS[tool]);
 }
 
 const KEYS = [

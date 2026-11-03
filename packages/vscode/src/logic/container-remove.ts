@@ -8,6 +8,7 @@ import {
   removeContainerAssociations,
   type StoredProject,
 } from "@warband/core";
+import { t } from "@warband/messages";
 
 export interface ContainerRemovalConfirmation {
   name: string;
@@ -32,13 +33,13 @@ function validatedRow(rows: LabelPrefixContainer[], name: string): LabelPrefixCo
     (row.family !== "exegol" && row.family !== "kali") ||
     (row.state !== "running" && row.state !== "stopped")
   )
-    throw new Error("Conteneur absent ou famille non autorisée.");
+    throw new Error(t("Conteneur absent ou famille non autorisée."));
   return row;
 }
 
 async function identity(docker: RemovalDocker, row: LabelPrefixContainer): Promise<string> {
   const raw = await docker.inspect(row.name);
-  if (!Array.isArray(raw) || raw.length !== 1) throw new Error("Identité Docker invalide.");
+  if (!Array.isArray(raw) || raw.length !== 1) throw new Error(t("Identité Docker invalide."));
   const value = raw[0];
   if (
     value === null ||
@@ -48,7 +49,7 @@ async function identity(docker: RemovalDocker, row: LabelPrefixContainer): Promi
     value.Name !== `/${row.name}` ||
     value.State?.Running !== (row.state === "running")
   )
-    throw new Error("Identité ou état Docker modifié.");
+    throw new Error(t("Identité ou état Docker modifié."));
   return value.Id;
 }
 
@@ -64,7 +65,7 @@ export async function removeListedContainer(
   },
 ): Promise<ContainerRemovalResult> {
   deps.signal?.throwIfAborted();
-  if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(name)) throw new Error("Nom Docker invalide.");
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(name)) throw new Error(t("Nom Docker invalide."));
   const configDir = deps.configDir ?? defaultConfigDir();
   // Refuser un fichier invalide avant toute action destructive.
   const file = await readProjects(configDir);
@@ -94,7 +95,7 @@ export async function removeListedContainer(
     current.state !== row.state ||
     (await identity(docker, current)) !== id
   ) {
-    throw new Error("Le conteneur a changé depuis la confirmation ; recommencez.");
+    throw new Error(t("Le conteneur a changé depuis la confirmation ; recommencez."));
   }
   // Relire également la configuration avant Docker pour refuser une corruption concurrente.
   await readProjects(configDir);

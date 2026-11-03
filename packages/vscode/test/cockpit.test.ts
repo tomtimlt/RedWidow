@@ -881,8 +881,9 @@ describe("cockpitHtml : CSP", () => {
       "default-src 'none'; script-src 'nonce-abc123_-XYZ'; style-src https://x.vscode-cdn.net; img-src https://x.vscode-cdn.net; font-src https://x.vscode-cdn.net",
     );
     const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)];
-    expect(scripts).toHaveLength(2);
-    expect(scripts[0]?.[1]).toContain("media/icons.js");
+    expect(scripts).toHaveLength(3);
+    expect(scripts[0]?.[1]).toContain("media/i18n.js");
+    expect(scripts[1]?.[1]).toContain("media/icons.js");
     for (const script of scripts) expect(script[1]).toContain('nonce="abc123_-XYZ"');
     expect(html).not.toMatch(/<style\b|\sstyle=|\son[a-z]+=|javascript:/i);
   });
@@ -897,7 +898,7 @@ describe("cockpitHtml : CSP", () => {
       uiUri: "https://x.vscode-cdn.net/media/ui.js",
       scriptUri: "https://x.vscode-cdn.net/media/chat.js",
     });
-    expect([...chat.matchAll(/<script/g)]).toHaveLength(3);
+    expect([...chat.matchAll(/<script/g)]).toHaveLength(4);
     expect(chat.indexOf("media/icons.js")).toBeLessThan(chat.indexOf("media/ui.js"));
   });
 });

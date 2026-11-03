@@ -1,9 +1,10 @@
 # Choisir une méthode pour l’agent
 
 Les profils orientent la façon de travailler de l’agent, quel que soit son
-fournisseur ou son modèle. Dans la palette VS Code, lance **Venator Ops : choisir
-un skill / profil agent**, puis sélectionne le profil adapté. Le choix s’applique
-au prochain tour. Tu peux également travailler sans profil spécialisé.
+fournisseur ou son modèle. Ouvre **Réglages → Contrôle système** pour activer les
+méthodes proposées, puis sélectionne un profil dans le menu **+** du chat. Le choix
+concerne cette conversation et s’applique au prochain tour. Une nouvelle conversation
+repart sans méthode spécialisée. Les méthodes sont suspendues en mode Apprentissage.
 
 | Profil | Utile pour | Résultat recherché |
 | --- | --- | --- |

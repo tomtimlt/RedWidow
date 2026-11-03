@@ -1,4 +1,5 @@
 import { type Finding, stripControl } from "@warband/core";
+import { createUiTranslator, getUiLocale, type Locale } from "@warband/messages";
 
 const TYPES = {
   host: "Hôte",
@@ -14,7 +15,9 @@ export function missionReport(
   project: { id: string; name: string },
   findings: Finding[],
   date: Date,
+  locale: Locale = getUiLocale(),
 ): string {
+  const t = createUiTranslator(() => locale);
   const text = (value: string) =>
     stripControl(value)
       .replace(/[\r\n]/g, " ")
@@ -27,26 +30,32 @@ export function missionReport(
   );
   const nodes = new Map(visible.map((finding) => [finding.id, finding]));
   const lines = [
-    `# Rapport de mission — ${text(project.name)}`,
+    t`# Rapport de mission — ${text(project.name)}`,
     "",
-    "**Brouillon à relire et compléter avant diffusion.**",
+    t("**Brouillon à relire et compléter avant diffusion.**"),
     "",
-    `Projet : ${text(project.id)} · Export : ${date.toISOString()}`,
+    t`Projet : ${text(project.id)} · Export : ${date.toISOString()}`,
     "",
-    "## Cadre de la mission",
+    t("## Cadre de la mission"),
     "",
-    "- Objectif et périmètre autorisé : à compléter.",
-    "- Dates et conditions d’évaluation : à compléter.",
-    "- Ce document reprend les notes du projet ; il ne déduit aucune vulnérabilité d’un simple accès.",
-    "- Les identifiants et le loot sont exclus. Le journal, les sorties brutes et les captures ne sont pas joints.",
+    t("- Objectif et périmètre autorisé : à compléter."),
+    t("- Dates et conditions d’évaluation : à compléter."),
+    t(
+      "- Ce document reprend les notes du projet ; il ne déduit aucune vulnérabilité d’un simple accès.",
+    ),
+    t(
+      "- Les identifiants et le loot sont exclus. Le journal, les sorties brutes et les captures ne sont pas joints.",
+    ),
     "",
-    "## Synthèse",
+    t("## Synthèse"),
     "",
-    `${visible.filter((finding) => finding.state === "confirmed").length} élément(s) confirmé(s), ${visible.filter((finding) => finding.state === "hypothesis").length} hypothèse(s), ${visible.filter((finding) => finding.state === "failed").length} essai(s) en échec parmi les notes exportées.`,
+    t`${visible.filter((finding) => finding.state === "confirmed").length} élément(s) confirmé(s), ${visible.filter((finding) => finding.state === "hypothesis").length} hypothèse(s), ${visible.filter((finding) => finding.state === "failed").length} essai(s) en échec parmi les notes exportées.`,
     "",
-    "## Chemin retenu",
+    t("## Chemin retenu"),
     "",
-    "Le marquage des liens décrit le parcours retenu par l’agent ou l’utilisateur ; il ne constitue pas une preuve supplémentaire.",
+    t(
+      "Le marquage des liens décrit le parcours retenu par l’agent ou l’utilisateur ; il ne constitue pas une preuve supplémentaire.",
+    ),
     "",
   ];
   const edges = visible.flatMap((finding) =>
@@ -54,38 +63,44 @@ export function missionReport(
       .filter((id) => finding.from?.includes(id) && nodes.has(id))
       .map(
         (id) =>
-          `- ${text(nodes.get(id)?.label ?? "")} → ${text(finding.label)} (${STATES[finding.state]}).`,
+          `- ${text(nodes.get(id)?.label ?? "")} → ${text(finding.label)} (${t(STATES[finding.state])}).`,
       ),
   );
-  lines.push(...(edges.length ? edges : ["Aucun lien exportable marqué."]));
+  lines.push(...(edges.length ? edges : [t("Aucun lien exportable marqué.")]));
   for (const state of ["confirmed", "hypothesis", "failed"] as const) {
     lines.push(
       "",
-      `## ${state === "confirmed" ? "Éléments confirmés" : state === "hypothesis" ? "Hypothèses à vérifier" : "Essais non concluants"}`,
+      `## ${state === "confirmed" ? t("Éléments confirmés") : state === "hypothesis" ? t("Hypothèses à vérifier") : t("Essais non concluants")}`,
       "",
     );
     const rows = visible.filter((finding) => finding.state === state);
-    if (!rows.length) lines.push("Aucun élément exporté.");
+    if (!rows.length) lines.push(t("Aucun élément exporté."));
     for (const finding of rows)
       lines.push(
         `### ${text(finding.label)}`,
         "",
-        `- Référence : ${text(finding.id)} ; type : ${TYPES[finding.kind]} ; état : ${STATES[state]}.`,
-        ...(finding.tactic ? [`- Tactique ATT&CK : ${finding.tactic}.`] : []),
-        ...(finding.technique ? [`- Technique ATT&CK : ${finding.technique}.`] : []),
-        "- Preuve, chemin d’artefact et reproduction : à référencer après vérification.",
-        "- Impact, gravité/CVSS et recommandation : à évaluer si cet élément décrit une vulnérabilité.",
+        t`- Référence : ${text(finding.id)} ; type : ${t(TYPES[finding.kind])} ; état : ${t(STATES[state])}.`,
+        ...(finding.tactic ? [t`- Tactique ATT&CK : ${finding.tactic}.`] : []),
+        ...(finding.technique ? [t`- Technique ATT&CK : ${finding.technique}.`] : []),
+        t("- Preuve, chemin d’artefact et reproduction : à référencer après vérification."),
+        t(
+          "- Impact, gravité/CVSS et recommandation : à évaluer si cet élément décrit une vulnérabilité.",
+        ),
         "",
       );
   }
   lines.push(
-    "## Conclusion et suites",
+    t("## Conclusion et suites"),
     "",
-    "Objectifs démontrés, limites, pistes restantes et nettoyage : à compléter à partir des preuves.",
+    t(
+      "Objectifs démontrés, limites, pistes restantes et nettoyage : à compléter à partir des preuves.",
+    ),
     "",
-    "## Préparation du rapport final",
+    t("## Préparation du rapport final"),
     "",
-    "Ce Markdown peut être repris dans les notes SysReptor. Pour produire un rapport final, choisir un modèle, renseigner les champs requis et joindre uniquement les preuves vérifiées et autorisées. Ce fichier n’est pas une archive native d’import SysReptor.",
+    t(
+      "Ce Markdown peut être repris dans les notes SysReptor. Pour produire un rapport final, choisir un modèle, renseigner les champs requis et joindre uniquement les preuves vérifiées et autorisées. Ce fichier n’est pas une archive native d’import SysReptor.",
+    ),
     "",
   );
   return lines.join("\n");
@@ -95,20 +110,28 @@ export function missionReport(
 export function missionReportPreview(
   project: { id: string; name: string },
   findings: readonly Finding[],
+  locale: Locale = getUiLocale(),
 ) {
+  const t = createUiTranslator(() => locale);
   return {
     id: -1,
     kind: "report" as const,
     projectId: project.id,
-    title: `Notes du projet — ${stripControl(project.name)}`,
-    description:
+    title: t`Notes du projet — ${stripControl(project.name)}`,
+    description: t(
       "Brouillon à compléter. Les notes ne constituent pas une liste de vulnérabilités. Gravité, preuves et remédiations restent à évaluer. Identifiants et loot exclus.",
+    ),
     findings: findings
       .filter((finding) => finding.kind !== "credential" && finding.kind !== "loot")
       .map((finding) => ({
         label: stripControl(finding.label),
         severity: "unrated" as const,
-        detail: [TYPES[finding.kind], STATES[finding.state], finding.tactic, finding.technique]
+        detail: [
+          t(TYPES[finding.kind]),
+          t(STATES[finding.state]),
+          finding.tactic,
+          finding.technique,
+        ]
           .filter(Boolean)
           .join(" · "),
       })),

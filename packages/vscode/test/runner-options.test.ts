@@ -13,6 +13,14 @@ describe("options du runner selon le mode (ADR 0010)", () => {
     expect(o.executable).toBe("/bin/claude");
   });
 
+  it("sans recherche choisie : aucun outil web n’est exposé", () => {
+    expect(
+      runnerOptions(undefined, "/bin/claude", targets, false).toolsets?.map((t) => t.name),
+    ).toEqual(["exegol", "kali"]);
+    expect(
+      runnerOptions("learning", "/bin/claude", targets, true).toolsets?.map((t) => t.name),
+    ).toEqual(["cours"]);
+  });
   it("sans mode : Exegol et Kali, options par défaut pour le reste", () => {
     const o = runnerOptions(undefined, "/bin/claude", targets);
     expect(o.toolsets?.map((t) => t.name)).toEqual(["exegol", "kali", "web"]);

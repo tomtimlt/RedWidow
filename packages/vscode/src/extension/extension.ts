@@ -32,7 +32,7 @@ import {
   shortContainerName,
   WARBAND_KALI_IMAGE,
 } from "@warband/core";
-import { formatError } from "@warband/messages";
+import { formatError, getUiLocale, setUiLocale, t } from "@warband/messages";
 import * as vscode from "vscode";
 import { createBurpBackend } from "../engine/burp-client.js";
 import { createIntegrationBackend } from "../engine/integration-client.js";
@@ -41,6 +41,7 @@ import { attachmentMessage, withAttachments } from "../logic/attachments.js";
 import { PRODUCT_NAME, productTitleSuffix } from "../logic/brand.js";
 import { type BypassPush, createBypassHost, formatRemaining } from "../logic/bypass.js";
 import { type ChatView, monitorChatView } from "../logic/chat.js";
+import { capabilitySettings, providerChoices } from "../logic/chat-capabilities.js";
 import {
   containerMentions,
   controlListedContainer,
@@ -66,6 +67,7 @@ import { killchainImage } from "../logic/killchain-image.js";
 import { setSelectedPathEdge } from "../logic/killchain-path.js";
 import { prepareMissionFolder } from "../logic/mission-folder.js";
 import { missionReport, missionReportPreview } from "../logic/mission-report.js";
+import { parseOpencodeProviders } from "../logic/opencode-providers.js";
 import { PALETTES, type Palette, paletteOf } from "../logic/palette.js";
 import {
   activateSelectedProject,
@@ -81,7 +83,7 @@ import {
 } from "../logic/project-workspace.js";
 import { openAiSubscriptionReady } from "../logic/provider-auth.js";
 import { type ChatSession, createChatSession, type TokenChoice } from "../logic/session.js";
-import { machineValue, resolveSettings } from "../logic/settings.js";
+import { machineValue, parseConfiguredIntegrations, resolveSettings } from "../logic/settings.js";
 import { readSources } from "../logic/sources.js";
 import {
   type ObservedMission,
@@ -118,6 +120,9 @@ type TokenKind = "subscription" | "api-key";
 
 /** Couche fine : seule autorisée à importer `vscode` (test de frontière). Toute la logique est dans `src/logic`. */
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
+  const currentLocale = () =>
+    vscode.workspace.getConfiguration("warband").get("language") === "fr" ? "fr" : "en";
+  setUiLocale(currentLocale());
   const out = vscode.window.createOutputChannel(PRODUCT_NAME);
   context.subscriptions.push(out);
 
@@ -148,9 +153,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await openActiveProjectWorkspace(defaultConfigDir(), projectWorkspaceHost, "startup");
     }
   } catch (error) {
-    out.appendLine(`Ouverture du dossier du projet : ${formatError(error)}`);
+    out.appendLine(`Ouverture du dossier du projet : ${formatError(error, getUiLocale())}`);
     void vscode.window.showWarningMessage(
-      `Impossible d'ouvrir le dossier du projet ${PRODUCT_NAME} : ${formatError(error)}. Sélectionnez le projet pour réessayer.`,
+      t`Impossible d'ouvrir le dossier du projet ${PRODUCT_NAME} : ${formatError(error, getUiLocale())}. Sélectionnez le projet pour réessayer.`,
     );
   }
 
@@ -163,7 +168,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     )
       return true;
     void vscode.window.showWarningMessage(
-      "Le dossier de cette fenêtre ne correspond pas au projet actif. Utilisez la fenêtre du projet ou activez le projet correspondant dans les réglages.",
+      t(
+        "Le dossier de cette fenêtre ne correspond pas au projet actif. Utilisez la fenêtre du projet ou activez le projet correspondant dans les réglages.",
+      ),
     );
     return false;
   };
@@ -188,7 +195,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(
     vscode.workspace.registerTextDocumentContentProvider("warband-observed", {
       provideTextDocumentContent: (uri) =>
-        documents.get(uri.toString()) ?? "Document indisponible.",
+        documents.get(uri.toString()) ?? t("Document indisponible."),
     }),
   );
   const showObserved = async (title: string, text: string) => {
@@ -260,6 +267,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       killchainRevision++;
     },
   });
+  const localeMessage = () => ({ type: "locale", locale: getUiLocale() });
+  let refreshLocaleTitles = () => {};
+  let refreshReportLocale = () => {};
+  let capabilityWrite: Promise<void> = Promise.resolve();
+  let refreshBypassLocale = () => {};
+  const broadcastLocale = () => {
+    setUiLocale(currentLocale());
+    const message = localeMessage();
+    post(message);
+    for (const slot of slots.values()) void slot.panel?.webview.postMessage(message);
+    for (const panel of [monitorPanel, cockpitPanel, studioPanel, killchainPanel, reportPanel])
+      void panel?.webview.postMessage(message);
+    for (const watch of watches) void watch.panel.webview.postMessage(message);
+    refreshLocaleTitles();
+    refreshReportLocale();
+  };
   const currentPalette = () =>
     paletteOf(vscode.workspace.getConfiguration("warband").get("palette"));
   const updatePalette = async (value: Palette) => {
@@ -272,6 +295,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   };
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration("warband.language")) broadcastLocale();
       if (!event.affectsConfiguration("warband.palette")) return;
       const message = { type: "palette", value: currentPalette() };
       post(message);
@@ -300,11 +324,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       };
       try {
         await vscode.window.withProgress(
-          { location: vscode.ProgressLocation.Notification, title: `Préparation de ${name}` },
+          { location: vscode.ProgressLocation.Notification, title: t`Préparation de ${name}` },
           async (progress) =>
             prepareKaliContainer(name, {
               recorder,
-              onStage: (stage) => progress.report({ message: messages[stage] }),
+              onStage: (stage) => progress.report({ message: t(messages[stage]) }),
             }),
         );
       } catch (error) {
@@ -358,14 +382,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Réglages sensibles : valeur utilisateur/machine ou défaut, jamais celle de l'espace de travail.
   const readSettings = () => {
     const config = vscode.workspace.getConfiguration("warband");
-    return resolveSettings((key) =>
-      key === "integrations"
-        ? projectIntegrations(
-            machineValue(config.inspect("integrationsByProject")) ?? {},
-            integrationProjectId,
-          )
-        : machineValue(config.inspect(key)),
-    );
+    return {
+      capabilities: capabilitySettings((key) => machineValue(config.inspect(key))),
+      ...resolveSettings((key) =>
+        key === "integrations"
+          ? projectIntegrations(
+              machineValue(config.inspect("integrationsByProject")) ?? {},
+              integrationProjectId,
+            )
+          : machineValue(config.inspect(key)),
+      ),
+    };
   };
 
   const seats = (reserveSidebar: boolean) => {
@@ -382,9 +409,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const getSession = (id = SIDEBAR_CHAT): ChatSession => {
     const existing = slots.get(id)?.session;
     if (existing) return existing;
-    if (!CHAT_ID.test(id)) throw new Error("Identifiant de chat refusé.");
-    if (seats(id !== SIDEBAR_CHAT) >= CHAT_CAP) throw new Error("Quatre chats au maximum.");
-    if (!folder) throw new Error(`Ouvrez un dossier avant de lancer ${PRODUCT_NAME}.`);
+    if (!CHAT_ID.test(id)) throw new Error(t("Identifiant de chat refusé."));
+    if (seats(id !== SIDEBAR_CHAT) >= CHAT_CAP) throw new Error(t("Quatre chats au maximum."));
+    if (!folder) throw new Error(t`Ouvrez un dossier avant de lancer ${PRODUCT_NAME}.`);
     const historyKey = `warband.history.${id}`;
     // Mode apprentissage (ADR 0010) : une clé par chat, séparée de `warband.prefs` (partagé).
     const learningKey = `warband.learning.${id}`;
@@ -422,16 +449,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           set: (key: string, value: unknown) => context.workspaceState.update(key, value),
         },
         files: createJournalFiles(id === SIDEBAR_CHAT ? runs : join(runs, id)),
-        confirmDelete: async (text) =>
-          (await vscode.window.showWarningMessage(text, { modal: true }, "Supprimer")) ===
-          "Supprimer",
+        confirmDelete: async (text) => {
+          const action = t("Supprimer");
+          return (await vscode.window.showWarningMessage(text, { modal: true }, action)) === action;
+        },
       },
       ...(typeof __SDK_VERSION__ === "string" && {
         sdkVersion: `${__SDK_VERSION__}/${typeof __OPENCODE_VERSION__ === "string" ? __OPENCODE_VERSION__ : "unknown"}/catalog-v2`,
       }),
-      confirmAlways: async (text) =>
-        (await vscode.window.showWarningMessage(text, { modal: true }, "Toujours autoriser")) ===
-        "Toujours autoriser",
+      confirmAlways: async (text) => {
+        const action = t("Toujours autoriser");
+        return (await vscode.window.showWarningMessage(text, { modal: true }, action)) === action;
+      },
       onView: (view) => {
         const message = { type: "view", view, chatId: id };
         const slot = slots.get(id);
@@ -465,7 +494,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const launch = await prepareExegolCreate(options);
     signal.throwIfAborted();
     const term = vscode.window.createTerminal({
-      name: `${PRODUCT_NAME} : création ${options.name}`,
+      name: t`${PRODUCT_NAME} : création ${options.name}`,
       shellPath: launch.shellPath,
       shellArgs: [...launch.shellArgs],
     });
@@ -565,7 +594,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       view = await loadCockpitView();
       cockpitListOk = true;
     } catch (error) {
-      void vscode.window.showErrorMessage(formatError(error));
+      void vscode.window.showErrorMessage(formatError(error, getUiLocale()));
       return "skip";
     }
     const real = lookupContainer(token, view.containers);
@@ -615,7 +644,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       broadcastTerminals();
       return "ok";
     } catch (error) {
-      void vscode.window.showErrorMessage(formatError(error));
+      void vscode.window.showErrorMessage(formatError(error, getUiLocale()));
       return "skip";
     }
   };
@@ -653,6 +682,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   ) => {
     const message = parseWebviewMessage(raw);
     if (message === null) return;
+    if (message.type === "ready") reply(localeMessage());
     try {
       setActive(id);
       // Bypass (ADR 0006) : hôte seul, avant `getSession`. `enabled: true` refusé si la vue est cachée.
@@ -661,8 +691,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         return;
       }
       // Chat grisé sans fournisseur : ouvre la saisie du jeton (hôte seul, aucune donnée venue de la webview).
-      if (message.type === "addProvider") {
-        void vscode.commands.executeCommand("warband.setToken");
+      if (message.type === "addProvider" || message.type === "openSystem") {
+        studioPage = "system";
+        openStudio();
         return;
       }
       const s = getSession(id);
@@ -673,8 +704,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           reply(await containersMessage());
           reply(await terminalsMessage());
           return await s.loadModels();
-        case "setProvider":
-          return await s.setProvider(message.provider);
+        case "selectProvider":
+          return await s.selectProvider(message.id);
+        case "setSelection":
+          return s.setSelection(message.selection);
+        case "setProvider": {
+          const entry = providerChoices(readSettings()).find((p) => p.backend === message.provider);
+          if (entry) return await s.selectProvider(entry.id);
+          return;
+        }
         case "setModel":
           return s.setModel(message.model);
         case "setEffort":
@@ -710,7 +748,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           try {
             if (projectChanging) {
               void vscode.window.showWarningMessage(
-                "Changement de projet en cours, réessayez ensuite.",
+                t("Changement de projet en cours, réessayez ensuite."),
               );
               result(false);
               return;
@@ -733,8 +771,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
               const unknown = classified.unknown;
               void vscode.window.showWarningMessage(
                 unknown.length === 1
-                  ? `Terminal introuvable : ${unknown[0]}.`
-                  : `Terminaux introuvables : ${unknown.join(", ")}.`,
+                  ? t`Terminal introuvable : ${unknown[0]}.`
+                  : t`Terminaux introuvables : ${unknown.join(", ")}.`,
               );
             }
             const sections = [];
@@ -743,13 +781,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
               const raw = shell === undefined ? null : await readLogTail(shell);
               if (raw === null) {
                 void vscode.window.showWarningMessage(
-                  `La sortie de #${token} est illisible (conteneur arrêté, ou « script » absent de l'image).`,
+                  t`La sortie de #${token} est illisible (conteneur arrêté, ou « script » absent de l'image).`,
                 );
               }
               sections.push({
                 token,
                 ...(shell !== undefined ? { container: shell.container } : {}),
-                text: raw === null ? "Sortie illisible." : readableTerminal(raw),
+                text: raw === null ? t("Sortie illisible.") : readableTerminal(raw),
               });
             }
             // Aucun terminal ouvert ici : envoyer une consigne ne doit jamais créer de fenêtre.
@@ -804,7 +842,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           return;
       }
     } catch (error) {
-      void vscode.window.showErrorMessage(formatError(error));
+      void vscode.window.showErrorMessage(formatError(error, getUiLocale()));
     }
   };
 
@@ -818,6 +856,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       };
       const nonce = makeNonce();
       view.webview.html = chatHtml({
+        locale: getUiLocale(),
+        i18nUri: view.webview.asWebviewUri(vscode.Uri.joinPath(media, "i18n.js")).toString(),
         palette: currentPalette(),
         nonce,
         cspSource: view.webview.cspSource,
@@ -834,7 +874,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           if (view.visible)
             void vscode.commands
               .executeCommand("warband.openWorkspace")
-              .then(undefined, (error) => out.appendLine(formatError(error)));
+              .then(undefined, (error) => out.appendLine(formatError(error, getUiLocale())));
         }, 300);
       }
       view.webview.onDidReceiveMessage((raw: unknown) =>
@@ -899,6 +939,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const view = panel;
     const nonce = makeNonce();
     view.webview.html = cockpitHtml({
+      locale: getUiLocale(),
+      i18nUri: view.webview.asWebviewUri(vscode.Uri.joinPath(media, "i18n.js")).toString(),
       palette: currentPalette(),
       nonce,
       cspSource: view.webview.cspSource,
@@ -912,6 +954,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
     const pushView = async (loading = false) => {
       if (!alive) return;
+      postCockpit(localeMessage());
       if (loading) postCockpit({ type: "view", loading: true });
       try {
         const payload = await loadCockpitView();
@@ -921,11 +964,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         void refreshContainerStatus();
         if (payload.projectInvalid) {
           void vscode.window.showErrorMessage(
-            "Projet invalide : fichier project.json illisible ou incomplet.",
+            t("Projet invalide : fichier project.json illisible ou incomplet."),
           );
         }
       } catch (error) {
-        if (alive) void vscode.window.showErrorMessage(formatError(error));
+        if (alive) void vscode.window.showErrorMessage(formatError(error, getUiLocale()));
       }
     };
 
@@ -949,16 +992,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       report({ stage });
       try {
         const completedStage = await work(controller.signal, report);
-        postCockpit({ type: "operation", busy: false, stage: completedStage ?? "Terminé" });
+        postCockpit({ type: "operation", busy: false, stage: completedStage ?? t("Terminé") });
       } catch (error) {
         const cancelled = controller.signal.aborted;
         postCockpit({
           type: "operation",
           busy: false,
-          stage: cancelled ? "Opération annulée" : "Échec de l’opération",
-          ...(!cancelled && { error: formatError(error) }),
+          stage: cancelled ? t("Opération annulée") : t("Échec de l’opération"),
+          ...(!cancelled && { error: formatError(error, getUiLocale()) }),
         });
-        if (!cancelled) void vscode.window.showErrorMessage(formatError(error));
+        if (!cancelled) void vscode.window.showErrorMessage(formatError(error, getUiLocale()));
       } finally {
         if (operationAbort === controller) operationAbort = null;
         await pushView();
@@ -973,8 +1016,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         postCockpit({
           type: "operation",
           busy: false,
-          stage: "Paramètres invalides",
-          error: "Vérifiez le nom, l’image, le dossier et les options de création.",
+          stage: t("Paramètres invalides"),
+          error: t("Vérifiez le nom, l’image, le dossier et les options de création."),
         });
         return;
       }
@@ -1010,7 +1053,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 throw new Error("not-dir");
               }
             } catch {
-              void vscode.window.showErrorMessage(`Dossier inaccessible : ${st.workspace}`);
+              void vscode.window.showErrorMessage(t`Dossier inaccessible : ${st.workspace}`);
               return;
             }
             const folders = vscode.workspace.workspaceFolders ?? [];
@@ -1037,50 +1080,52 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 description: item.primary ? "primary" : "",
                 item,
               })),
-              { title: `${PRODUCT_NAME} : terminal du projet`, ignoreFocusOut: true },
+              { title: t`${PRODUCT_NAME} : terminal du projet`, ignoreFocusOut: true },
             );
             if (!choice) return;
             const result = await openEditorShell(choice.item.name);
             if (result === "skip") {
-              void vscode.window.showErrorMessage("Conteneur introuvable.");
+              void vscode.window.showErrorMessage(t("Conteneur introuvable."));
             }
             return;
           }
           case "start":
-            return await runOperation("Démarrage du conteneur…", async (signal) => {
+            return await runOperation(t("Démarrage du conteneur…"), async (signal) => {
               signal.throwIfAborted();
               await controlListedContainer("start", message.name);
               signal.throwIfAborted();
               await prepareIfKali(message.name);
             });
           case "stop":
-            return await runOperation("Arrêt du conteneur…", async (signal) => {
+            return await runOperation(t("Arrêt du conteneur…"), async (signal) => {
               signal.throwIfAborted();
               await controlListedContainer("stop", message.name);
             });
           case "createExegol":
-            return await runOperation("Préparation Exegol…", async (signal) => {
+            return await runOperation(t("Préparation Exegol…"), async (signal) => {
               if (message.vpn && !selectedVpn)
-                throw new Error("Choisissez une configuration VPN avec le bouton VPN.");
+                throw new Error(t("Choisissez une configuration VPN avec le bouton VPN."));
               if (
                 (message.desktop || message.vpn) &&
                 message.network !== undefined &&
                 message.network !== "nat"
               )
-                throw new Error("Le VPN et le bureau web nécessitent le réseau NAT.");
+                throw new Error(t("Le VPN et le bureau web nécessitent le réseau NAT."));
               const existing = await loadCockpitView();
               if (
                 existing.containers.some(
                   (item) => item.name === message.name || item.short === message.name,
                 )
               )
-                throw new Error("Ce conteneur existe déjà. Utilisez Démarrer dans la liste.");
+                throw new Error(t("Ce conteneur existe déjà. Utilisez Démarrer dans la liste."));
               if (
-                vscode.window.terminals.some(
-                  (terminal) => productTitleSuffix(terminal.name) === `création ${message.name}`,
+                vscode.window.terminals.some((terminal) =>
+                  [`création ${message.name}`, `creation ${message.name}`].includes(
+                    productTitleSuffix(terminal.name) ?? "",
+                  ),
                 )
               )
-                throw new Error("Une création de ce nom est déjà ouverte dans un terminal.");
+                throw new Error(t("Une création de ce nom est déjà ouverte dans un terminal."));
               signal.throwIfAborted();
               await startContainerTerminal(
                 {
@@ -1099,19 +1144,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
               );
               signal.throwIfAborted();
               void vscode.window.showInformationMessage(
-                "Terminez la création Exegol dans le terminal, puis actualisez les conteneurs.",
+                t("Terminez la création Exegol dans le terminal, puis actualisez les conteneurs."),
               );
-              return "Création Exegol lancée — progression dans le terminal";
+              return t("Création Exegol lancée — progression dans le terminal");
             });
           case "createKali":
-            return await runOperation("Préparation de l’image Kali…", async (signal, report) => {
+            return await runOperation(t("Préparation de l’image Kali…"), async (signal, report) => {
               const recorder = createRecorder();
               let lastReport = 0;
               const unsubscribe = recorder.subscribe((event) => {
                 if (event.kind === "process.output" && Date.now() - lastReport > 250) {
                   lastReport = Date.now();
                   report({
-                    stage: "Préparation de l’image Kali…",
+                    stage: t("Préparation de l’image Kali…"),
                     message: event.line.slice(-512),
                   });
                 }
@@ -1124,8 +1169,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                     report({
                       stage:
                         progress.stage === "build"
-                          ? "Installation des outils Kali…"
-                          : "Téléchargement de l’image…",
+                          ? t("Installation des outils Kali…")
+                          : t("Téléchargement de l’image…"),
                       message: progress.status,
                       layers: progress.layers,
                     }),
@@ -1144,12 +1189,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                     )
                   ) {
                     if (!images.includes(image))
-                      throw new Error("Image Kali absente de la sélection courante.");
+                      throw new Error(t("Image Kali absente de la sélection courante."));
                     await pullDockerImage(image, options);
                   }
                 }
                 signal.throwIfAborted();
-                report({ stage: "Création et démarrage du conteneur…", layers: [] });
+                report({ stage: t("Création et démarrage du conteneur…"), layers: [] });
                 await createDockerClient({ recorder, binary: "docker" }).createKaliContainer({
                   image,
                   name: message.name,
@@ -1157,11 +1202,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                   signal,
                 });
                 signal.throwIfAborted();
-                report({ stage: "Vérification du serveur MCP Kali…", layers: [] });
+                report({ stage: t("Vérification du serveur MCP Kali…"), layers: [] });
                 await prepareKaliContainer(message.name, {
                   recorder,
                   signal,
-                  onStage: (stage) => report({ stage: `Serveur MCP Kali : ${stage}` }),
+                  onStage: (stage) => report({ stage: t`Serveur MCP Kali : ${stage}` }),
                 });
               } finally {
                 unsubscribe();
@@ -1169,14 +1214,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
               }
             });
           case "remove":
-            return await runOperation("Suppression du conteneur…", async (signal) => {
+            return await runOperation(t("Suppression du conteneur…"), async (signal) => {
               const result = await removeListedContainer(message.name, {
                 signal,
                 confirm: async (info) => {
-                  const action = "Supprimer le conteneur";
-                  const projects = info.projects.map((p) => p.name).join(", ") || "aucun";
+                  const action = t("Supprimer le conteneur");
+                  const projects = info.projects.map((p) => p.name).join(", ") || t("aucun");
                   const choice = await vscode.window.showWarningMessage(
-                    `Supprimer ${info.name} (${info.family}) ?${info.force ? " Il est en cours et sera arrêté de force." : ""} Les fichiers internes non montés seront perdus. Les images, volumes et dossiers hôtes sont conservés. Projets associés : ${projects}.`,
+                    t`Supprimer ${info.name} (${info.family}) ?${info.force ? t(" Il est en cours et sera arrêté de force.") : ""} Les fichiers internes non montés seront perdus. Les images, volumes et dossiers hôtes sont conservés. Projets associés : ${projects}.`,
                     { modal: true },
                     action,
                   );
@@ -1191,24 +1236,27 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
               editorShells.delete(message.name);
               if (result.status === "partial")
                 throw new Error(
-                  `Le conteneur est supprimé, mais ses associations restent à nettoyer : ${formatError(result.error)}`,
+                  t`Le conteneur est supprimé, mais ses associations restent à nettoyer : ${formatError(result.error, getUiLocale())}`,
                 );
               await pushStudio();
               await refreshContainerStatus();
             });
           case "pickVpn": {
             const kind = await vscode.window.showQuickPick(
-              ["Fichier OpenVPN / WireGuard", "Dossier OpenVPN (certificats séparés)"],
-              { title: "Configuration VPN Exegol" },
+              [
+                { label: t("Fichier OpenVPN / WireGuard"), directory: false },
+                { label: t("Dossier OpenVPN (certificats séparés)"), directory: true },
+              ],
+              { title: t("Configuration VPN Exegol") },
             );
             if (!kind) return;
-            const directory = kind.startsWith("Dossier");
+            const directory = kind.directory;
             const picked = await vscode.window.showOpenDialog({
               canSelectFiles: !directory,
               canSelectFolders: directory,
               canSelectMany: false,
               ...(!directory && { filters: { VPN: ["ovpn", "conf"] } }),
-              openLabel: "Choisir le VPN",
+              openLabel: t("Choisir le VPN"),
             });
             if (!picked?.[0]) return;
             selectedVpn = picked[0].fsPath;
@@ -1231,7 +1279,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           }
         }
       } catch (error) {
-        void vscode.window.showErrorMessage(formatError(error));
+        void vscode.window.showErrorMessage(formatError(error, getUiLocale()));
         await pushView(true);
       }
     });
@@ -1291,6 +1339,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const media = vscode.Uri.joinPath(context.extensionUri, "media");
     const nonce = makeNonce();
     webview.html = chatHtml({
+      locale: getUiLocale(),
+      i18nUri: webview.asWebviewUri(vscode.Uri.joinPath(media, "i18n.js")).toString(),
       palette: currentPalette(),
       nonce,
       cspSource: webview.cspSource,
@@ -1318,7 +1368,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     try {
       getSession(id);
     } catch (error) {
-      void vscode.window.showErrorMessage(formatError(error));
+      void vscode.window.showErrorMessage(formatError(error, getUiLocale()));
       return;
     }
     const media = vscode.Uri.joinPath(context.extensionUri, "media");
@@ -1378,7 +1428,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const media = vscode.Uri.joinPath(context.extensionUri, "media");
     const panel = vscode.window.createWebviewPanel(
       "warband.watch",
-      `${PRODUCT_NAME} · Sortie`,
+      t`${PRODUCT_NAME} · Sortie`,
       warbandColumn(),
       {
         enableScripts: true,
@@ -1397,6 +1447,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     panel.webview.onDidReceiveMessage((raw: unknown) => {
       const message = parseWebviewMessage(raw);
       if (message?.type !== "ready") return;
+      void panel.webview.postMessage(localeMessage());
       void panel.webview.postMessage({ type: "role", role: "watch", toolUseId });
       const view = slots.get(chatId)?.session?.view();
       if (view)
@@ -1442,6 +1493,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         return;
       }
       if (message?.type !== "ready") return;
+      void panel.webview.postMessage(localeMessage());
       void panel.webview.postMessage({ type: "role", role: "monitor" });
       pushMonitor();
     });
@@ -1454,7 +1506,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Lanceur toujours visible : un clic ouvre chat, terminaux, cockpit, réglages.
   const barLauncher = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 104);
   barLauncher.text = `$(rocket) ${PRODUCT_NAME}`;
-  barLauncher.tooltip = `${PRODUCT_NAME} : chat, terminaux, cockpit, réglages (Alt+J Alt+J)`;
+  barLauncher.tooltip = t`${PRODUCT_NAME} : chat, terminaux, cockpit, réglages (Alt+J Alt+J)`;
   barLauncher.command = "warband.launcher";
   barLauncher.show();
   barContainer.command = "warband.openTerminal";
@@ -1470,8 +1522,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       return;
     }
     const known = c.models?.find((m) => m.value === c.model);
-    barModel.text = `$(sparkle) ${c.model === null ? "Modèle par défaut" : (known?.label ?? c.model)}`;
-    barModel.tooltip = "Modèle utilisé pour le message suivant (clic : ouvrir le chat)";
+    barModel.text = `$(sparkle) ${c.model === null ? t("Modèle par défaut") : (known?.label ?? c.model)}`;
+    barModel.tooltip = t("Modèle utilisé pour le message suivant (clic : ouvrir le chat)");
     barModel.show();
   };
   const refreshContainerStatus = async () => {
@@ -1490,8 +1542,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       st.state === "running" ? `$(terminal) ${label} $(circle-filled)` : `$(terminal) ${label}`;
     barContainer.tooltip =
       st.state === "running"
-        ? `Conteneur lié : ${st.container} (connecté). Clic : ouvrir un terminal (Alt+J T)`
-        : `Conteneur lié : ${st.container} (arrêté)`;
+        ? t`Conteneur lié : ${st.container} (connecté). Clic : ouvrir un terminal (Alt+J T)`
+        : t`Conteneur lié : ${st.container} (arrêté)`;
     barContainer.show();
   };
 
@@ -1502,7 +1554,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await mkdir(root, { recursive: true });
       await vscode.commands.executeCommand("revealFileInOS", vscode.Uri.file(root));
     } catch (error) {
-      void vscode.window.showErrorMessage(formatError(error));
+      void vscode.window.showErrorMessage(formatError(error, getUiLocale()));
     }
   };
 
@@ -1529,7 +1581,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         killchainPayload = "";
         await panel.webview.postMessage({
           type: "findingsError",
-          message: `Actualisation du graphe impossible : ${formatError(error)}`,
+          message: t`Actualisation du graphe impossible : ${formatError(error, getUiLocale())}`,
         });
       }
       return;
@@ -1578,6 +1630,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     killchainPanel.iconPath = vscode.Uri.joinPath(media, "logo-small.svg");
     const nonce = makeNonce();
     killchainPanel.webview.html = killchainHtml({
+      locale: getUiLocale(),
+      i18nUri: killchainPanel.webview
+        .asWebviewUri(vscode.Uri.joinPath(media, "i18n.js"))
+        .toString(),
       palette: currentPalette(),
       nonce,
       cspSource: killchainPanel.webview.cspSource,
@@ -1627,6 +1683,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         return;
       }
       if (message?.type === "refresh") {
+        await panel.webview.postMessage(localeMessage());
         killchainPayload = "";
         await pushKillchain();
       }
@@ -1653,7 +1710,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const cockpit = await loadCockpitView().catch((error: unknown) => ({
       type: "view" as const,
       containers: [],
-      error: formatError(error),
+      error: formatError(error, getUiLocale()),
     }));
     let findings: unknown[] = [];
     let evidence: unknown[] = [];
@@ -1665,14 +1722,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     try {
       projectChoices = await readProjectChoices(defaultConfigDir());
     } catch (error) {
-      projectError = `Projets indisponibles : ${formatError(error)}`;
+      projectError = t`Projets indisponibles : ${formatError(error, getUiLocale())}`;
     }
     let projectSummary: Awaited<ReturnType<typeof readProjectSummary>> = null;
     let summaryError = feedback.summaryError;
     try {
       projectSummary = await readProjectSummary(defaultConfigDir());
     } catch (error) {
-      summaryError = `Résumé indisponible : ${formatError(error)}`;
+      summaryError = t`Résumé indisponible : ${formatError(error, getUiLocale())}`;
     }
     try {
       const file = await readProjects(defaultConfigDir());
@@ -1691,6 +1748,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const sources = studioPage === "atlas" ? await readSources(coursRoot()) : [];
     // Fermé pendant les lectures : `panel.webview` lèverait « Webview is disposed ».
     if (studioPanel !== panel) return;
+    await panel.webview.postMessage(localeMessage());
     await panel.webview.postMessage({
       ...cockpit,
       page: studioPage,
@@ -1699,6 +1757,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       sources,
       projectSummary,
       projectChoices,
+      capabilities: readSettings().capabilities,
+      providerCatalog: providerChoices(readSettings(), false).map(({ id, label }) => ({
+        id,
+        label,
+      })),
+      skillCatalog: Object.entries(AGENT_PROFILES).map(([id, p]) => ({ id, label: p.label })),
       mcpCatalog: MCP_CATALOG,
       mcpConfigured: projectIntegrations(
         machineValue(
@@ -1735,7 +1799,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const media = vscode.Uri.joinPath(context.extensionUri, "media");
       const panel = vscode.window.createWebviewPanel(
         "warband.report",
-        `${PRODUCT_NAME} · Rapport · Brouillon`,
+        t`${PRODUCT_NAME} · Rapport · Brouillon`,
         warbandColumn(),
         {
           enableScripts: true,
@@ -1748,24 +1812,29 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       panel.onDidDispose(() => {
         if (reportPanel === panel) reportPanel = undefined;
       });
+      refreshReportLocale = () => {
+        if (panel !== reportPanel || generation !== findingProjectGeneration) return;
+        void panel.webview.postMessage({
+          type: "view",
+          view: {
+            items: [missionReportPreview(project, findings)],
+            approvals: [],
+            busy: false,
+            sandbox: null,
+            sandboxNetwork: null,
+            controls: null,
+            history: [],
+            readonly: null,
+            noProvider: false,
+          },
+        });
+      };
       panel.webview.onDidReceiveMessage(async (raw: unknown) => {
         if (panel !== reportPanel || generation !== findingProjectGeneration) return;
         if (parseWebviewMessage(raw)?.type === "ready") {
+          await panel.webview.postMessage(localeMessage());
           await panel.webview.postMessage({ type: "role", role: "report" });
-          await panel.webview.postMessage({
-            type: "view",
-            view: {
-              items: [missionReportPreview(project, findings)],
-              approvals: [],
-              busy: false,
-              sandbox: null,
-              sandboxNetwork: null,
-              controls: null,
-              history: [],
-              readonly: null,
-              noProvider: false,
-            },
-          });
+          refreshReportLocale();
         } else {
           const message = parseStudioMessage(raw);
           if (message?.type === "exportReport" && message.projectId === project.id)
@@ -1774,7 +1843,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       });
       mountChatHtml(panel.webview);
     } catch (error) {
-      void vscode.window.showErrorMessage(formatError(error));
+      void vscode.window.showErrorMessage(formatError(error, getUiLocale()));
     }
   };
   const exportMissionReport = async (
@@ -1790,10 +1859,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const generation = findingProjectGeneration;
       const destination = await vscode.window.showSaveDialog({
         title: attackFlow
-          ? "Exporter Attack Flow (étapes confirmées, identifiants et loot exclus)"
+          ? t("Exporter Attack Flow (étapes confirmées, identifiants et loot exclus)")
           : image
-            ? "Exporter la Kill Chain complète en image SVG"
-            : "Exporter un brouillon de rapport (identifiants et loot exclus)",
+            ? t("Exporter la Kill Chain complète en image SVG")
+            : t("Exporter un brouillon de rapport (identifiants et loot exclus)"),
         defaultUri: vscode.Uri.file(
           join(
             project.workspace,
@@ -1827,7 +1896,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         )
       ) {
         throw new Error(
-          "Ce fichier contient des modifications non enregistrées. Choisissez un autre nom de rapport.",
+          t(
+            "Ce fichier contient des modifications non enregistrées. Choisissez un autre nom de rapport.",
+          ),
         );
       }
       await vscode.workspace.fs.writeFile(
@@ -1844,7 +1915,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       if (image) await vscode.commands.executeCommand("vscode.open", destination);
       else await vscode.window.showTextDocument(destination);
     } catch (error) {
-      void vscode.window.showErrorMessage(formatError(error));
+      void vscode.window.showErrorMessage(formatError(error, getUiLocale()));
     }
   };
   const openEvidence = async (projectId: string, id: string) => {
@@ -1856,17 +1927,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       if (!row || (await readProjectChoices(defaultConfigDir())).activeId !== projectId) return;
       await showObserved(
         "preuve",
-        `${row.label}\n${JSON.stringify(row.source)}\nSHA-256 du texte affiché : ${row.sha256}${row.storedSha256 ? `\nSHA-256 original stocké : ${row.storedSha256}` : ""}${row.redactionTruncated ? "\nTexte remasqué et tronqué." : ""}\nCapturée : ${row.capturedAt}\n\n${row.text}`,
+        t`${row.label}\n${JSON.stringify(row.source)}\nSHA-256 du texte affiché : ${row.sha256}${row.storedSha256 ? t`\nSHA-256 original stocké : ${row.storedSha256}` : ""}${row.redactionTruncated ? t("\nTexte remasqué et tronqué.") : ""}\nCapturée : ${row.capturedAt}\n\n${row.text}`,
       );
     } catch (error) {
-      void vscode.window.showErrorMessage(formatError(error));
+      void vscode.window.showErrorMessage(formatError(error, getUiLocale()));
     }
   };
   const evidenceProjectGuard = (projectId: string, generation: number) => async () => {
     const file = await readProjects(defaultConfigDir());
     const project = file === null ? null : activeProject(file);
     if (projectChanging || generation !== findingProjectGeneration || project?.id !== projectId)
-      throw new Error("Le projet actif a changé. Relancez l’action sur les preuves.");
+      throw new Error(t("Le projet actif a changé. Relancez l’action sur les preuves."));
     return project;
   };
   const listProjectEvidence = async () => {
@@ -1881,22 +1952,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         rows.map((row) => ({
           label: row.label,
           description: findings.some((finding) => finding.evidenceIds?.includes(row.id))
-            ? "Rattachée"
-            : "Non rattachée",
+            ? t("Rattachée")
+            : t("Non rattachée"),
           detail: row.id,
           row,
         })),
-        { title: "Preuves du projet actif — lecture ou rattachement" },
+        { title: t("Preuves du projet actif — lecture ou rattachement") },
       );
       if (!picked) return;
       await current();
       const action = await vscode.window.showQuickPick(
-        ["Ouvrir", "Rattacher à une trouvaille existante"],
+        [t("Ouvrir"), t("Rattacher à une trouvaille existante")],
         { title: picked.row.label },
       );
       if (!action) return;
       await current();
-      if (action === "Ouvrir") {
+      if (action === t("Ouvrir")) {
         await openEvidence(project.id, picked.row.id);
         return;
       }
@@ -1909,7 +1980,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
               !finding.evidenceIds?.includes(picked.row.id),
           )
           .map((finding) => ({ label: finding.label, id: finding.id })),
-        { title: "Rattacher la preuve à une trouvaille existante" },
+        { title: t("Rattacher la preuve à une trouvaille existante") },
       );
       if (!target) return;
       const beforeCommit = async () => {
@@ -1922,7 +1993,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await pushKillchain();
       await pushStudio();
     } catch (error) {
-      void vscode.window.showErrorMessage(formatError(error));
+      void vscode.window.showErrorMessage(formatError(error, getUiLocale()));
     }
   };
   const captureEvidence = async (terminal: boolean) => {
@@ -1942,7 +2013,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           capturedContainer !== undefined &&
           !evidenceTerminalAllowed(fresh.containers, capturedContainer)
         )
-          throw new Error("Le terminal n’appartient plus à l’allowlist du projet actif.");
+          throw new Error(t("Le terminal n’appartient plus à l’allowlist du projet actif."));
       };
       let text: string;
       let source: EvidenceSource;
@@ -1955,20 +2026,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
               evidenceTerminalAllowed(project.containers, shell.container),
           );
         if (!shells.length)
-          throw new Error("Aucun terminal capturé n’appartient à l’allowlist du projet actif.");
+          throw new Error(t("Aucun terminal capturé n’appartient à l’allowlist du projet actif."));
         const picked = await vscode.window.showQuickPick(
           shells.map((shell) => ({ label: shell.term.name, shell })),
-          { title: "Capturer la fin du journal d’un terminal du projet actif" },
+          { title: t("Capturer la fin du journal d’un terminal du projet actif") },
         );
         if (!picked) return;
         capturedContainer = picked.shell.container;
         await beforeCommit();
         if (!(editorShells.get(capturedContainer) ?? []).includes(picked.shell))
-          throw new Error("Ce terminal est fermé.");
+          throw new Error(t("Ce terminal est fermé."));
         const raw = await readLogTail(picked.shell);
         await beforeCommit();
-        if (raw === null) throw new Error("Journal du terminal indisponible.");
-        text = readableTerminal(raw);
+        if (raw === null) throw new Error(t("Journal du terminal indisponible."));
+        text = readableTerminal(raw, undefined, getUiLocale());
         source = {
           kind: "terminal",
           reference: `terminal/${picked.shell.token ?? picked.shell.label}`,
@@ -1976,7 +2047,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       } else {
         const editor = vscode.window.activeTextEditor;
         if (!editor || editor.selection.isEmpty || editor.document.uri.scheme !== "file")
-          throw new Error("Sélectionnez un extrait dans un fichier du projet actif.");
+          throw new Error(t("Sélectionnez un extrait dans un fichier du projet actif."));
         text = editor.document.getText(editor.selection);
         const startLine = editor.selection.start.line + 1;
         const endLine = editor.selection.end.line + 1;
@@ -1995,24 +2066,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
       if (!text.trim() || Buffer.byteLength(text, "utf8") > 16384)
         throw new Error(
-          "Extrait vide ou supérieur à 16 Kio. Réduisez la sélection avant de capturer.",
+          t("Extrait vide ou supérieur à 16 Kio. Réduisez la sélection avant de capturer."),
         );
       await beforeCommit();
       await showObserved("aperçu-preuve", `${JSON.stringify(source)}\n\n${text}`);
       const confirmation = await vscode.window.showQuickPick(
-        ["Conserver cet extrait exact", "Annuler"],
+        [t("Conserver cet extrait exact"), t("Annuler")],
         {
-          title: "Aperçu multiligne ouvert en lecture seule — conserver cet extrait ?",
+          title: t("Aperçu multiligne ouvert en lecture seule — conserver cet extrait ?"),
           ignoreFocusOut: true,
         },
       );
-      if (confirmation !== "Conserver cet extrait exact") return;
+      if (confirmation !== t("Conserver cet extrait exact")) return;
       const label = await vscode.window.showInputBox({
-        title: "Titre de la preuve",
+        title: t("Titre de la preuve"),
         ignoreFocusOut: true,
         validateInput: (value) =>
           !value.trim() || value.trim().length > 200
-            ? "Titre requis, 200 caractères maximum."
+            ? t("Titre requis, 200 caractères maximum.")
             : undefined,
       });
       if (!label) return;
@@ -2020,12 +2091,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const findings = await readFindings(defaultConfigDir(), projectId);
       const target = await vscode.window.showQuickPick(
         [
-          { label: "Nouvelle trouvaille", id: null },
+          { label: t("Nouvelle trouvaille"), id: null },
           ...findings
             .filter((row) => (row.evidenceIds?.length ?? 0) < 20)
             .map((row) => ({ label: row.label, id: row.id })),
         ],
-        { title: "Rattacher la preuve" },
+        { title: t("Rattacher la preuve") },
       );
       if (!target) return;
       await beforeCommit();
@@ -2053,9 +2124,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     } catch (error) {
       const recovery =
         createdEvidence && !attached
-          ? ` La preuve ${createdEvidence.id} a été créée dans le projet ${createdEvidence.projectId}, mais n’a pas été rattachée. Activez ce projet puis utilisez « ${PRODUCT_NAME} : Lister les preuves du projet » pour la retrouver et la rattacher.`
+          ? t` La preuve ${createdEvidence.id} a été créée dans le projet ${createdEvidence.projectId}, mais n’a pas été rattachée. Activez ce projet puis utilisez « ${PRODUCT_NAME} : Lister les preuves du projet » pour la retrouver et la rattacher.`
           : "";
-      void vscode.window.showErrorMessage(`${formatError(error)}${recovery}`);
+      void vscode.window.showErrorMessage(`${formatError(error, getUiLocale())}${recovery}`);
     }
   };
   const setPathFromPanel = async (
@@ -2077,7 +2148,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await pushKillchain();
       await pushStudio();
     } catch (cause) {
-      error = cleanText(formatError(cause), 1000);
+      error = cleanText(formatError(cause, getUiLocale()), 1000);
     } finally {
       if (alive())
         await panel.webview.postMessage({
@@ -2109,11 +2180,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const existing = findingDeletions.get(panel);
     if (existing) {
       const same = existing.projectId === message.projectId && existing.id === message.id;
-      await post(same, same ? undefined : "Une suppression est déjà en cours. Réessayez ensuite.");
+      await post(
+        same,
+        same ? undefined : t("Une suppression est déjà en cours. Réessayez ensuite."),
+      );
       return;
     }
     if (projectChanging) {
-      await post(false, "Un changement de projet est en cours. Réessayez ensuite.");
+      await post(false, t("Un changement de projet est en cours. Réessayez ensuite."));
       return;
     }
     findingDeletions.set(panel, { abort, projectId: message.projectId, id: message.id });
@@ -2131,14 +2205,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             const label = cleanText(finding.label, 200);
             const links =
               dependentCount > 0
-                ? ` Les liens vers cet élément seront retirés de ${dependentCount} autre(s) élément(s).`
+                ? t` Les liens vers cet élément seront retirés de ${dependentCount} autre(s) élément(s).`
                 : "";
+            const action = t("Supprimer");
             const choice = await vscode.window.showWarningMessage(
-              `Supprimer « ${label} » de la Kill chain du projet « ${cleanText(projectName, 80)} » ?${links} Les autres éléments sont conservés.`,
+              t`Supprimer « ${label} » de la Kill chain du projet « ${cleanText(projectName, 80)} » ?${links} Les autres éléments sont conservés.`,
               { modal: true },
-              "Supprimer",
+              action,
             );
-            return choice === "Supprimer";
+            return choice === action;
           },
         },
       );
@@ -2147,7 +2222,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await pushStudio();
       }
     } catch (error) {
-      failure = cleanText(formatError(error), 1000);
+      failure = cleanText(formatError(error, getUiLocale()), 1000);
     } finally {
       findingDeletions.delete(panel);
       await post(false, failure);
@@ -2162,7 +2237,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const media = vscode.Uri.joinPath(context.extensionUri, "media");
     studioPanel = vscode.window.createWebviewPanel(
       "warband.studio",
-      `${PRODUCT_NAME} · Réglages`,
+      t`${PRODUCT_NAME} · Réglages`,
       warbandColumn(),
       {
         enableScripts: true,
@@ -2173,6 +2248,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     studioPanel.iconPath = vscode.Uri.joinPath(media, "logo-small.svg");
     const nonce = makeNonce();
     studioPanel.webview.html = studioHtml({
+      locale: getUiLocale(),
+      i18nUri: studioPanel.webview.asWebviewUri(vscode.Uri.joinPath(media, "i18n.js")).toString(),
       palette: currentPalette(),
       nonce,
       cspSource: studioPanel.webview.cspSource,
@@ -2196,6 +2273,62 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         );
         return;
       }
+      if (message.type === "setCapability") {
+        capabilityWrite = capabilityWrite.then(async () => {
+          try {
+            const settings = readSettings();
+            const config = vscode.workspace.getConfiguration("warband");
+            const field =
+              message.kind === "provider"
+                ? "providers"
+                : message.kind === "skill"
+                  ? "skills"
+                  : "integrations";
+            const valid =
+              message.kind === "provider"
+                ? providerChoices(settings, false).some((p) => p.id === message.id)
+                : message.kind === "skill"
+                  ? Object.hasOwn(AGENT_PROFILES, message.id)
+                  : message.kind === "web"
+                    ? message.id === "search"
+                    : message.id === "burp" || MCP_CATALOG.some((m) => m.id === message.id);
+            if (!valid) return;
+            if (message.kind === "web")
+              await config.update(
+                "chat.webSearch",
+                message.enabled,
+                vscode.ConfigurationTarget.Global,
+              );
+            else {
+              const list = settings.capabilities?.[field] ?? [];
+              await config.update(
+                `chat.${field}`,
+                message.enabled
+                  ? [...new Set([...list, message.id])]
+                  : list.filter((id) => id !== message.id),
+                vscode.ConfigurationTarget.Global,
+              );
+            }
+            for (const slot of slots.values())
+              if (slot.session)
+                slot.session.setSelection(slot.session.view().capabilities?.selection);
+            await pushStudio();
+          } catch (error) {
+            void vscode.window.showErrorMessage(formatError(error, getUiLocale()));
+          }
+        });
+        await capabilityWrite;
+        return;
+      }
+      if (message.type === "configureProvider") {
+        await vscode.commands.executeCommand("warband.configureProvider", message.id);
+        await pushStudio();
+        return;
+      }
+      if (message.type === "configureMcp") {
+        await vscode.commands.executeCommand("warband.configureIntegrations", message.id);
+        return;
+      }
       if (message.type === "openCatalog") {
         await vscode.commands.executeCommand("warband.configureIntegrations");
         return;
@@ -2208,6 +2341,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await vscode.commands.executeCommand(
           message.type === "configureBurp" ? "warband.configureBurp" : "warband.testBurp",
         );
+        return;
+      }
+      if (message.type === "setLocale") {
+        try {
+          await vscode.workspace
+            .getConfiguration("warband")
+            .update("language", message.locale, vscode.ConfigurationTarget.Global);
+          broadcastLocale();
+        } catch (error) {
+          await panel.webview.postMessage(localeMessage());
+          void vscode.window.showErrorMessage(formatError(error, getUiLocale()));
+        }
         return;
       }
       if (message.type === "setPalette") {
@@ -2265,7 +2410,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const chatsBusy = () => [...slots.values()].some((slot) => slot.session?.view().busy);
         if (projectChanging || chatsBusy()) {
           await pushStudio({
-            projectError: "Arrêtez les tours en cours avant de modifier un projet.",
+            projectError: t("Arrêtez les tours en cours avant de modifier un projet."),
           });
           return;
         }
@@ -2291,25 +2436,31 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                   vscode.workspace.isTrusted,
                 rename: async (name) =>
                   vscode.window.showInputBox({
-                    title: `Renommer le projet ${PRODUCT_NAME}`,
+                    title: t`Renommer le projet ${PRODUCT_NAME}`,
                     value: name,
-                    prompt:
+                    prompt: t(
                       "Le dossier, les conversations et les conteneurs gardent leur identité.",
+                    ),
                     validateInput: (value) =>
                       !value.trim() || value.trim().length > 80 || /[\p{Cc}\p{Cf}]/u.test(value)
-                        ? "Saisissez un nom de 1 à 80 caractères, sans caractères de contrôle."
+                        ? t("Saisissez un nom de 1 à 80 caractères, sans caractères de contrôle.")
                         : undefined,
                   }),
-                confirmRemove: async (name) =>
-                  (await vscode.window.showWarningMessage(
-                    `Retirer le projet « ${cleanText(name, 80)} » de ${PRODUCT_NAME} ?`,
-                    {
-                      modal: true,
-                      detail:
-                        "Le dossier, les conteneurs, les journaux, les trouvailles et les notes restent sur le disque. Aucun autre projet ne sera activé automatiquement.",
-                    },
-                    "Retirer le projet",
-                  )) === "Retirer le projet",
+                confirmRemove: async (name) => {
+                  const action = t("Retirer le projet");
+                  return (
+                    (await vscode.window.showWarningMessage(
+                      t`Retirer le projet « ${cleanText(name, 80)} » de ${PRODUCT_NAME} ?`,
+                      {
+                        modal: true,
+                        detail: t(
+                          "Le dossier, les conteneurs, les journaux, les trouvailles et les notes restent sur le disque. Aucun autre projet ne sera activé automatiquement.",
+                        ),
+                      },
+                      action,
+                    )) === action
+                  );
+                },
               },
             );
             if (changed) {
@@ -2321,7 +2472,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             }
           }
         } catch (error) {
-          projectError = formatError(error);
+          projectError = formatError(error, getUiLocale());
         } finally {
           projectChanging = false;
         }
@@ -2333,7 +2484,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const chatsBusy = () => [...slots.values()].some((slot) => slot.session?.view().busy);
         if (projectChanging || chatsBusy()) {
           await pushStudio({
-            projectError: "Arrêtez les tours en cours avant de changer de projet.",
+            projectError: t("Arrêtez les tours en cours avant de changer de projet."),
           });
           return;
         }
@@ -2351,12 +2502,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
               canSelectFiles: false,
               canSelectFolders: true,
               canSelectMany: false,
-              openLabel: "Choisir le dossier du projet",
+              openLabel: t("Choisir le dossier du projet"),
               ...(folder !== undefined && { defaultUri: folder.uri }),
             });
             if (chosen?.[0] !== undefined) {
               if (chatsBusy())
-                throw new Error("Arrêtez les tours en cours avant de créer le projet.");
+                throw new Error(t("Arrêtez les tours en cours avant de créer le projet."));
               projectCreated = await createSelectedProject(
                 defaultConfigDir(),
                 message.name,
@@ -2373,7 +2524,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             await openActiveProjectWorkspace(defaultConfigDir(), projectWorkspaceHost, "selection");
           }
         } catch (error) {
-          projectError = formatError(error);
+          projectError = formatError(error, getUiLocale());
         } finally {
           projectChanging = false;
         }
@@ -2395,7 +2546,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         } catch (error) {
           await pushStudio({
             summaryFailed: message.projectId,
-            summaryError: `Résumé non enregistré : ${formatError(error)}`,
+            summaryError: t`Résumé non enregistré : ${formatError(error, getUiLocale())}`,
           });
         }
         return;
@@ -2414,30 +2565,30 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       view = await loadCockpitView();
       cockpitListOk = true;
     } catch (error) {
-      void vscode.window.showErrorMessage(formatError(error));
+      void vscode.window.showErrorMessage(formatError(error, getUiLocale()));
       return;
     }
     const items = containerMentions(view.containers);
     if (items.length === 0) {
-      void vscode.window.showInformationMessage("Aucun conteneur Exegol.");
+      void vscode.window.showInformationMessage(t("Aucun conteneur Exegol."));
       return;
     }
     const choice = await vscode.window.showQuickPick(
       items.map((item) => ({
         label: item.name,
-        description: item.state === "running" ? "en cours" : "arrêté",
+        description: item.state === "running" ? t("en cours") : t("arrêté"),
         item,
       })),
-      { title: `${PRODUCT_NAME} : ouvrir un terminal`, ignoreFocusOut: true },
+      { title: t`${PRODUCT_NAME} : ouvrir un terminal`, ignoreFocusOut: true },
     );
     if (!choice) return;
     if (choice.item.state !== "running") {
-      void vscode.window.showErrorMessage(`Le conteneur ${choice.item.name} est arrêté.`);
+      void vscode.window.showErrorMessage(t`Le conteneur ${choice.item.name} est arrêté.`);
       return;
     }
     const result = await openEditorShell(choice.item.name);
     if (result === "skip") {
-      void vscode.window.showErrorMessage("Conteneur introuvable.");
+      void vscode.window.showErrorMessage(t("Conteneur introuvable."));
     }
   };
 
@@ -2446,15 +2597,26 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
    * conteneur démarré, sans passer par la palette de commandes.
    */
   type LauncherItem = vscode.QuickPickItem & { run?: () => unknown };
+  refreshLocaleTitles = () => {
+    if (studioPanel) studioPanel.title = t`${PRODUCT_NAME} · Réglages`;
+    if (reportPanel) reportPanel.title = t`${PRODUCT_NAME} · Rapport · Brouillon`;
+    for (const watch of watches) watch.panel.title = t`${PRODUCT_NAME} · Sortie`;
+    barLauncher.tooltip = t`${PRODUCT_NAME} : chat, terminaux, cockpit, réglages (Alt+J Alt+J)`;
+    refreshBypassLocale();
+    pushMonitor();
+    updateModelStatus();
+    void refreshContainerStatus();
+  };
+
   const openLauncher = () => {
     const actions: LauncherItem[] = [
       {
-        label: "$(comment) Chat latéral",
+        label: t("$(comment) Chat latéral"),
         description: "Alt+J C",
         run: () => vscode.commands.executeCommand("warband.chat.focus"),
       },
       {
-        label: "$(comment-discussion) Nouveau chat",
+        label: t("$(comment-discussion) Nouveau chat"),
         description: "Alt+J N",
         run: () => openEditorChat(),
       },
@@ -2465,11 +2627,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         description: "Alt+J G",
         run: () => openKillchain(),
       },
-      { label: "$(settings-gear) Réglages", description: "Alt+J S", run: () => openStudio() },
+      { label: t("$(settings-gear) Réglages"), description: "Alt+J S", run: () => openStudio() },
     ];
     const pick = vscode.window.createQuickPick<LauncherItem>();
     pick.title = PRODUCT_NAME;
-    pick.placeholder = "Ouvrir une fenêtre ou un terminal…";
+    pick.placeholder = t("Ouvrir une fenêtre ou un terminal…");
     pick.matchOnDescription = true;
     pick.items = actions;
     pick.busy = true;
@@ -2487,15 +2649,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           c.state === "running"
             ? {
                 label: `$(terminal) ${c.name}`,
-                description: "terminal · en cours",
+                description: t("terminal · en cours"),
                 run: () => openEditorShell(c.name),
               }
-            : { label: `$(circle-slash) ${c.name}`, description: "arrêté" },
+            : { label: `$(circle-slash) ${c.name}`, description: t("arrêté") },
         );
         pick.items = [
           ...actions,
-          { label: "Terminaux Exegol", kind: vscode.QuickPickItemKind.Separator },
-          ...(terminals.length > 0 ? terminals : [{ label: "Aucun conteneur Exegol" }]),
+          { label: t("Terminaux Exegol"), kind: vscode.QuickPickItemKind.Separator },
+          ...(terminals.length > 0 ? terminals : [{ label: t("Aucun conteneur Exegol") }]),
         ];
       })
       .catch(() => undefined)
@@ -2509,7 +2671,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     for (const slot of slots.values()) {
       void slot.session
         ?.authChanged()
-        .catch((error: unknown) => out.appendLine(formatError(error)));
+        .catch((error: unknown) => out.appendLine(formatError(error, getUiLocale())));
     }
   };
 
@@ -2531,23 +2693,27 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         ? undefined
         : observedRuns.get(activeId);
       if (!run) {
-        void vscode.window.showInformationMessage("Aucune observation du run courant disponible.");
+        void vscode.window.showInformationMessage(
+          t("Aucune observation du run courant disponible."),
+        );
         return;
       }
       await showObserved(
         "contexte-mission",
         JSON.stringify(
           {
-            avertissement:
+            avertissement: t(
               "Le paquet au dernier tour ci-dessous est le contexte structuré effectivement ajouté à la consigne, déjà masqué. Les observations reçues depuis peuvent être plus récentes. Aucun compteur de tokens n’est mesuré ici.",
-            limites:
+            ),
+            limites: t(
               "Objectif limité à 8192 caractères ; 12 derniers résultats, 2048 caractères par aperçu. Aucun ancien journal ni autre projet n’est relu.",
+            ),
             paquetAuDernierTour:
               injectedContexts.get(activeId)?.runId === run.runId
                 ? JSON.parse(injectedContexts.get(activeId)?.text ?? "null")
                 : null,
             configurationActuelle: {
-              statut: "Disponible à la consultation ; ne représente pas le prompt complet",
+              statut: t("Disponible à la consultation ; ne représente pas le prompt complet"),
               profil:
                 machineValue(vscode.workspace.getConfiguration("warband").inspect("profile")) ?? "",
               projet: (await readProjectChoices(defaultConfigDir())).activeId,
@@ -2593,137 +2759,136 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             ?.containers ?? [];
         const mappings = rows
           .filter((row) => linked.includes(row.name))
-          .map((row) => `${row.name} : ${row.workspace ?? "montage absent"} → /workspace`);
+          .map((row) => `${row.name} : ${row.workspace ?? t("montage absent")} → /workspace`);
         await vscode.window.showInformationMessage(
-          `Dossier de mission : ${root}. ${mappings.join(" ; ") || "Aucun montage lié vérifié : créez ou associez un conteneur avant de travailler."}`,
+          t`Dossier de mission : ${root}. ${mappings.join(" ; ") || t("Aucun montage lié vérifié : créez ou associez un conteneur avant de travailler.")}`,
         );
         await vscode.commands.executeCommand("workbench.files.action.focusFilesExplorer");
       } catch (error) {
-        await vscode.window.showErrorMessage(formatError(error));
+        await vscode.window.showErrorMessage(formatError(error, getUiLocale()));
       }
     }),
-    vscode.commands.registerCommand("warband.chooseProfile", async () => {
-      const entries = [
-        { label: "Général — méthode commune", id: "" },
-        ...Object.entries(AGENT_PROFILES).map(([id, p]) => ({ label: p.label, id })),
-      ];
-      const choice = await vscode.window.showQuickPick(entries, {
-        title: "Profil de travail de l’agent",
-      });
-      if (!choice) return;
-      await vscode.workspace
-        .getConfiguration("warband")
-        .update("profile", choice.id, vscode.ConfigurationTarget.Global);
-      await pushStudio();
+    vscode.commands.registerCommand("warband.chooseProfile", () => {
+      studioPage = "system";
+      openStudio();
     }),
-    vscode.commands.registerCommand("warband.configureIntegrations", async () => {
-      const config = vscode.workspace.getConfiguration("warband");
-      const projectId = (await readProjectChoices(defaultConfigDir())).activeId;
-      if (!projectId) {
-        await vscode.window.showWarningMessage(
-          "Choisissez un projet avant de configurer ses services MCP.",
-        );
-        return;
-      }
-      const readMap = () =>
-        integrationMap(machineValue(config.inspect("integrationsByProject")) ?? {});
-      let parsed: ReturnType<typeof integrationMap>[string] = [];
-      try {
-        parsed = readMap()[projectId] ?? [];
-      } catch (error) {
-        await vscode.window.showErrorMessage(formatError(error));
-        return;
-      }
-      const save = async (next: unknown) => {
-        if ((await readProjectChoices(defaultConfigDir())).activeId !== projectId)
-          throw Error("Le projet a changé pendant la configuration.");
-        await config.update(
-          "integrationsByProject",
-          { ...readMap(), [projectId]: next },
-          vscode.ConfigurationTarget.Global,
-        );
-      };
-      if (!parsed) {
-        await vscode.window.showErrorMessage(
-          "Configuration des intégrations invalide. Corrigez le réglage utilisateur warband.integrationsByProject.",
-        );
-        return;
-      }
-      const chosen = await vscode.window.showQuickPick(
-        MCP_CATALOG.map((e) => ({
-          label: e.label,
-          description: `${e.profile} · ${parsed.some((p) => p.id === e.id) ? "configuré" : "non configuré"}`,
-          detail: e.description,
-          id: e.id,
-        })),
-        { title: "Catalogue MCP — services externes locaux" },
-      );
-      if (!chosen) return;
-      const entry = MCP_CATALOG.find((e) => e.id === chosen.id);
-      if (!entry) return;
-      const action = await vscode.window.showQuickPick(
-        [
-          "Configurer le service local",
-          "Tester le catalogue réel",
-          "Désactiver ce connecteur",
-          "Voir le dépôt source",
-        ],
-        { title: entry.label },
-      );
-      if (!action) return;
-      if (action === "Voir le dépôt source") {
-        await vscode.env.openExternal(vscode.Uri.parse(entry.source));
-        return;
-      }
-      try {
-        const existing = parsed.find((e) => e.id === entry.id);
-        if (action === "Désactiver ce connecteur") {
-          await save(parsed.filter((e) => e.id !== entry.id));
-        } else if (action === "Tester le catalogue réel") {
-          if (!existing)
-            throw Error(
-              `Configurer le service avant le test. ${PRODUCT_NAME} n’installe ni ne démarre automatiquement le programme externe.`,
-            );
-          const result = await createIntegrationBackend(existing).list({});
-          const count = (result as { tools?: unknown[] }).tools?.length ?? 0;
-          await vscode.window.showInformationMessage(
-            `${entry.label} : ${count} outils annoncés. Aucun outil distant exécuté.`,
+    vscode.commands.registerCommand(
+      "warband.configureIntegrations",
+      async (requestedId?: unknown) => {
+        const config = vscode.workspace.getConfiguration("warband");
+        const projectId = (await readProjectChoices(defaultConfigDir())).activeId;
+        if (!projectId) {
+          await vscode.window.showWarningMessage(
+            t("Choisissez un projet avant de configurer ses services MCP."),
           );
-        } else {
-          const port = await vscode.window.showInputBox({
-            title: `${entry.label} — port local 127.0.0.1`,
-            value: String(existing?.port ?? 9877),
-            validateInput: (v) =>
-              !/^\d{1,5}$/.test(v) || Number(v) < 1 || Number(v) > 65535
-                ? "Port entre 1 et 65535"
-                : undefined,
-          });
-          if (port === undefined) return;
-          const transport = await vscode.window.showQuickPick(["http", "sse"], {
-            title: "Transport du service déjà démarré",
-          });
-          if (!transport) return;
-          const path = await vscode.window.showInputBox({
-            title: "Chemin MCP local",
-            value: existing?.path ?? (transport === "http" ? "/mcp" : "/sse"),
-            validateInput: (v) =>
-              !/^\/[a-zA-Z0-9_/-]{0,120}$/.test(v) || v.includes("..") || v.startsWith("//")
-                ? "Chemin local simple requis, sans URL ni paramètre"
-                : undefined,
-          });
-          if (path === undefined) return;
-          const next = parseIntegrations([
-            ...parsed.filter((e) => e.id !== entry.id),
-            { id: entry.id, port: Number(port), transport, path },
-          ]);
-          if (!next) throw Error("Maximum quatre services actifs, sur des ports distincts.");
-          await save(next);
+          return;
         }
-      } catch (error) {
-        await vscode.window.showErrorMessage(formatError(error));
-      }
-      await pushStudio();
-    }),
+        const readMap = () =>
+          integrationMap(machineValue(config.inspect("integrationsByProject")) ?? {});
+        let parsed: ReturnType<typeof integrationMap>[string] = [];
+        try {
+          parsed = readMap()[projectId] ?? [];
+        } catch (error) {
+          await vscode.window.showErrorMessage(formatError(error, getUiLocale()));
+          return;
+        }
+        const save = async (next: unknown) => {
+          if ((await readProjectChoices(defaultConfigDir())).activeId !== projectId)
+            throw Error(t("Le projet a changé pendant la configuration."));
+          await config.update(
+            "integrationsByProject",
+            { ...readMap(), [projectId]: next },
+            vscode.ConfigurationTarget.Global,
+          );
+        };
+        if (!parsed) {
+          await vscode.window.showErrorMessage(
+            t(
+              "Configuration des intégrations invalide. Corrigez le réglage utilisateur warband.integrationsByProject.",
+            ),
+          );
+          return;
+        }
+        const chosen =
+          typeof requestedId === "string" && MCP_CATALOG.some((e) => e.id === requestedId)
+            ? { id: requestedId }
+            : await vscode.window.showQuickPick(
+                MCP_CATALOG.map((e) => ({
+                  label: e.label,
+                  description: `${e.profile} · ${parsed.some((p) => p.id === e.id) ? t("configuré") : t("non configuré")}`,
+                  detail: e.description,
+                  id: e.id,
+                })),
+                { title: t("Catalogue MCP — services externes locaux") },
+              );
+        if (!chosen) return;
+        const entry = MCP_CATALOG.find((e) => e.id === chosen.id);
+        if (!entry) return;
+        const action = await vscode.window.showQuickPick(
+          [
+            { label: t("Configurer le service local"), value: "configure" },
+            { label: t("Tester le catalogue réel"), value: "test" },
+            { label: t("Supprimer la configuration"), value: "remove" },
+            { label: t("Voir le dépôt source"), value: "source" },
+          ],
+          { title: entry.label },
+        );
+        if (!action) return;
+        if (action.value === "source") {
+          await vscode.env.openExternal(vscode.Uri.parse(entry.source));
+          return;
+        }
+        try {
+          const existing = parsed.find((e) => e.id === entry.id);
+          if (action.value === "remove") {
+            await save(parsed.filter((e) => e.id !== entry.id));
+          } else if (action.value === "test") {
+            if (!existing)
+              throw Error(
+                t`Configurer le service avant le test. ${PRODUCT_NAME} n’installe ni ne démarre automatiquement le programme externe.`,
+              );
+            const result = await createIntegrationBackend(existing).list({});
+            const count = (result as { tools?: unknown[] }).tools?.length ?? 0;
+            await vscode.window.showInformationMessage(
+              t`${entry.label} : ${count} outils annoncés. Aucun outil distant exécuté.`,
+            );
+          } else {
+            const port = await vscode.window.showInputBox({
+              title: t`${entry.label} — port local 127.0.0.1`,
+              value: String(existing?.port ?? 9877),
+              validateInput: (v) =>
+                !/^\d{1,5}$/.test(v) || Number(v) < 1 || Number(v) > 65535
+                  ? t("Port entre 1 et 65535")
+                  : undefined,
+            });
+            if (port === undefined) return;
+            const transport = await vscode.window.showQuickPick(["http", "sse"], {
+              title: t("Transport du service déjà démarré"),
+            });
+            if (!transport) return;
+            const path = await vscode.window.showInputBox({
+              title: t("Chemin MCP local"),
+              value: existing?.path ?? (transport === "http" ? "/mcp" : "/sse"),
+              validateInput: (v) =>
+                !/^\/[a-zA-Z0-9_/-]{0,120}$/.test(v) || v.includes("..") || v.startsWith("//")
+                  ? t("Chemin local simple requis, sans URL ni paramètre")
+                  : undefined,
+            });
+            if (path === undefined) return;
+            const next = parseConfiguredIntegrations([
+              ...parsed.filter((e) => e.id !== entry.id),
+              { id: entry.id, port: Number(port), transport, path },
+            ]);
+            if (!next)
+              throw Error(t("Configuration invalide : identifiants et ports distincts requis."));
+            await save(next);
+          }
+        } catch (error) {
+          await vscode.window.showErrorMessage(formatError(error, getUiLocale()));
+        }
+        await pushStudio();
+      },
+    ),
     vscode.commands.registerCommand("warband.openStudio", () => openStudio()),
     vscode.commands.registerCommand("warband.openTerminal", () => void pickContainerTerminal()),
     vscode.commands.registerCommand("warband.openMonitor", () => openMonitor()),
@@ -2731,7 +2896,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand("warband.configureBurp", async () => {
       if ([...slots.values()].some((slot) => slot.session?.view().busy)) {
         await vscode.window.showWarningMessage(
-          "Arrêtez les tours en cours avant de configurer Burp.",
+          t("Arrêtez les tours en cours avant de configurer Burp."),
         );
         return;
       }
@@ -2740,14 +2905,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const choice = await vscode.window.showQuickPick(
         [
           {
-            label: "Activer ou configurer la connexion locale",
+            label: t("Activer ou configurer la connexion locale"),
             value: "enable",
-            description: "Extension MCP officielle requise dans Burp Suite",
+            description: t("Extension MCP officielle requise dans Burp Suite"),
           },
           {
-            label: "Désactiver la connexion",
+            label: t("Désactiver la connexion"),
             value: "disable",
-            description: enabled ? "Connexion actuellement activée" : "Connexion déjà désactivée",
+            description: enabled
+              ? t("Connexion actuellement activée")
+              : t("Connexion déjà désactivée"),
           },
         ],
         { title: "Burp Suite MCP" },
@@ -2756,41 +2923,42 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       try {
         if (choice.value === "disable") {
           await config.update("burp.enabled", false, vscode.ConfigurationTarget.Global);
-          burpStatus = "Connexion Burp désactivée.";
+          burpStatus = t("Connexion Burp désactivée.");
         } else {
           const port = await vscode.window.showInputBox({
-            title: "Port MCP Burp sur 127.0.0.1",
+            title: t("Port MCP Burp sur 127.0.0.1"),
             value: String(machineValue(config.inspect("burp.port")) ?? 9876),
-            prompt: `Port affiché dans l’onglet MCP de Burp. ${PRODUCT_NAME} ne lance pas Burp ni Java.`,
+            prompt: t`Port affiché dans l’onglet MCP de Burp. ${PRODUCT_NAME} ne lance pas Burp ni Java.`,
             validateInput: (value) =>
               !/^[0-9]{1,5}$/.test(value) || Number(value) < 1 || Number(value) > 65535
-                ? "Port entier entre 1 et 65535 requis."
+                ? t("Port entier entre 1 et 65535 requis.")
                 : undefined,
           });
           if (port === undefined) return;
           const transport = await vscode.window.showQuickPick(
             [
-              { label: "SSE — serveur officiel", value: "sse", description: "/sse" },
+              { label: t("SSE — serveur officiel"), value: "sse", description: "/sse" },
               {
                 label: "Streamable HTTP",
                 value: "http",
-                description: "/mcp, si proposé par votre serveur",
+                description: t("/mcp, si proposé par votre serveur"),
               },
             ],
-            { title: "Transport MCP Burp" },
+            { title: t("Transport MCP Burp") },
           );
           if (!transport) return;
           if ([...slots.values()].some((slot) => slot.session?.view().busy))
-            throw new Error("Un tour a démarré. Arrêtez-le avant de modifier cette connexion.");
+            throw new Error(t("Un tour a démarré. Arrêtez-le avant de modifier cette connexion."));
           await config.update("burp.enabled", false, vscode.ConfigurationTarget.Global);
           await config.update("burp.port", Number(port), vscode.ConfigurationTarget.Global);
           await config.update("burp.transport", transport.value, vscode.ConfigurationTarget.Global);
           await config.update("burp.enabled", true, vscode.ConfigurationTarget.Global);
-          burpStatus =
-            "Connexion configurée. Testez-la, puis envoyez une nouvelle consigne. Les tours suivants utilisent ces réglages.";
+          burpStatus = t(
+            "Connexion configurée. Testez-la, puis envoyez une nouvelle consigne. Les tours suivants utilisent ces réglages.",
+          );
         }
       } catch (error) {
-        burpStatus = formatError(error);
+        burpStatus = formatError(error, getUiLocale());
         await vscode.window.showErrorMessage(burpStatus);
       }
       if (!studioPanel && burpStatus) await vscode.window.showInformationMessage(burpStatus);
@@ -2800,13 +2968,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       try {
         const config = readSettings().burp;
         if (!config) {
-          burpStatus = "Connexion Burp désactivée : configurez-la avant le test.";
+          burpStatus = t("Connexion Burp désactivée : configurez-la avant le test.");
           await vscode.window.showInformationMessage(burpStatus);
         } else {
           await vscode.window.withProgress(
             {
               location: vscode.ProgressLocation.Notification,
-              title: "Connexion au MCP Burp local…",
+              title: t("Connexion au MCP Burp local…"),
               cancellable: true,
             },
             async (_, token) => {
@@ -2823,7 +2991,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                     { parentId: null, correlation: undefined, signal: abort.signal },
                   ),
                 );
-                burpStatus = `MCP Burp joignable : ${result.tools.length} outils dans cette page de catalogue. Aucun outil Burp exécuté, aucun appel au modèle.`;
+                burpStatus = t`MCP Burp joignable : ${result.tools.length} outils dans cette page de catalogue. Aucun outil Burp exécuté, aucun appel au modèle.`;
                 await vscode.window.showInformationMessage(burpStatus);
               } finally {
                 subscription.dispose();
@@ -2832,12 +3000,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           );
         }
       } catch (error) {
-        burpStatus = formatError(error);
+        burpStatus = formatError(error, getUiLocale());
         await vscode.window.showErrorMessage(burpStatus);
       }
       await pushStudio();
     }),
     vscode.workspace.onDidChangeConfiguration((event) => {
+      if (
+        event.affectsConfiguration("warband.chat") ||
+        event.affectsConfiguration("warband.opencodeProviders")
+      ) {
+        for (const slot of slots.values())
+          if (slot.session) slot.session.setSelection(slot.session.view().capabilities?.selection);
+        void pushStudio();
+      }
       if (event.affectsConfiguration("warband.integrationsByProject")) {
         for (const slot of slots.values()) if (slot.session?.view().busy) slot.session.stop();
         void pushStudio();
@@ -2847,13 +3023,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         machineValue(vscode.workspace.getConfiguration("warband").inspect("burp.enabled")) !== true
       )
         for (const slot of slots.values()) if (slot.session?.view().busy) slot.session.stop();
-      burpStatus = "Réglages modifiés. Les tours suivants utilisent la nouvelle connexion.";
+      burpStatus = t("Réglages modifiés. Les tours suivants utilisent la nouvelle connexion.");
       void pushStudio();
     }),
     vscode.commands.registerCommand("warband.choosePalette", async () => {
       const selected = await vscode.window.showQuickPick(
         PALETTES.map(([value, label, detail]) => ({ value, label, detail })),
-        { title: `Palette ${PRODUCT_NAME}` },
+        { title: t`Palette ${PRODUCT_NAME}` },
       );
       if (selected) await updatePalette(selected.value);
     }),
@@ -2869,34 +3045,129 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       vscode.commands.executeCommand("warband.chat.focus"),
     ),
     vscode.commands.registerCommand("warband.launcher", () => openLauncher()),
-    vscode.commands.registerCommand("warband.setToken", async () => {
-      const provider = slots.get(activeId)?.session?.getProvider() ?? "claude";
+    vscode.commands.registerCommand("warband.configureProvider", async (requestedId?: unknown) => {
+      if (typeof requestedId !== "string") return;
+      if (["claude", "openai", "google"].includes(requestedId)) {
+        await vscode.commands.executeCommand("warband.setToken", requestedId);
+        return;
+      }
+      const existing = readSettings().opencodeProviders ?? {};
+      if (requestedId !== "add" && !Object.hasOwn(existing, requestedId)) return;
+      const kind =
+        requestedId === "add"
+          ? await vscode.window.showQuickPick(
+              [
+                { label: "Ollama", value: "ollama" },
+                { label: t("Endpoint compatible OpenAI"), value: "compatible" },
+              ],
+              { title: t("Ajouter un fournisseur") },
+            )
+          : { value: "compatible" };
+      if (!kind) return;
+      const prior = existing[requestedId];
+      const name = await vscode.window.showInputBox({
+        title: t("Nom du fournisseur"),
+        value: prior?.name ?? (kind.value === "ollama" ? "Ollama" : ""),
+        ignoreFocusOut: true,
+        validateInput: (value) =>
+          value.trim() && value.length <= 128 && !/[\p{Cc}]/u.test(value)
+            ? undefined
+            : t("Nom requis (128 caractères maximum)."),
+      });
+      if (name === undefined) return;
+      const baseURL = await vscode.window.showInputBox({
+        title: t("URL de l’API compatible OpenAI"),
+        value:
+          prior?.options.baseURL ?? (kind.value === "ollama" ? "http://127.0.0.1:11434/v1" : ""),
+        ignoreFocusOut: true,
+      });
+      if (baseURL === undefined) return;
+      const modelIds = await vscode.window.showInputBox({
+        title: t("Identifiants des modèles, séparés par des virgules"),
+        value: Object.keys(prior?.models ?? {}).join(", "),
+        ignoreFocusOut: true,
+      });
+      if (modelIds === undefined) return;
+      const id = prior
+        ? requestedId
+        : `venator-${name
+            .toLowerCase()
+            .replace(/[^a-z0-9_-]/g, "-")
+            .slice(0, 40)}`;
+      if (!prior && Object.hasOwn(existing, id)) {
+        void vscode.window.showErrorMessage(t("Ce nom de fournisseur existe déjà."));
+        return;
+      }
+      const candidate = {
+        ...existing,
+        [id]: {
+          name,
+          npm: "@ai-sdk/openai-compatible",
+          options: { baseURL },
+          models: Object.fromEntries(
+            modelIds
+              .split(",")
+              .map((m) => m.trim())
+              .filter(Boolean)
+              .map((m) => [m, { name: m, tool_call: true }]),
+          ),
+        },
+      };
+      const parsed = parseOpencodeProviders(candidate);
+      if (!parsed) {
+        void vscode.window.showErrorMessage(
+          t(
+            "URL ou modèles invalides. Utilisez une URL HTTP(S) sans secret ni paramètre et au moins un modèle.",
+          ),
+        );
+        return;
+      }
+      await vscode.workspace
+        .getConfiguration("warband")
+        .update("opencodeProviders", parsed, vscode.ConfigurationTarget.Global);
+      const auth = await vscode.window.showQuickPick(
+        [
+          { label: t("Sans clé (local)"), value: false },
+          { label: t("Configurer une clé API"), value: true },
+        ],
+        { title: t("Authentification du fournisseur") },
+      );
+      if (auth?.value) await vscode.commands.executeCommand("warband.setToken", id);
+      await pushStudio();
+    }),
+    vscode.commands.registerCommand("warband.setToken", async (requestedId?: unknown) => {
+      const entry =
+        typeof requestedId === "string"
+          ? providerChoices(readSettings(), false).find((p) => p.id === requestedId)
+          : undefined;
+      if (requestedId !== undefined && !entry) return;
+      const provider = entry?.backend ?? slots.get(activeId)?.session?.getProvider() ?? "claude";
       if (provider !== "claude") {
         let kind: "subscription" | "api-key" | "auto" = "auto";
         if (provider === "openai") {
           const picked = await vscode.window.showQuickPick(
             [
               {
-                label: "Abonnement ChatGPT",
-                description: "Connexion OAuth Codex via OpenCode",
+                label: t("Abonnement ChatGPT"),
+                description: t("Connexion OAuth Codex via OpenCode"),
                 value: "subscription" as const,
               },
               {
-                label: "Clé API OpenAI",
-                description: "Stockage sécurisé de VS Code",
+                label: t("Clé API OpenAI"),
+                description: t("Stockage sécurisé de VS Code"),
                 value: "api-key" as const,
               },
             ],
-            { title: "Connexion OpenAI", ignoreFocusOut: true },
+            { title: t("Connexion OpenAI"), ignoreFocusOut: true },
           );
           if (!picked) return;
           kind = picked.value;
           if (kind === "api-key") {
             const value = await vscode.window.showInputBox({
-              title: "Clé API OpenAI",
+              title: t("Clé API OpenAI"),
               password: true,
               ignoreFocusOut: true,
-              validateInput: (text) => (text.trim() ? undefined : "La clé est vide."),
+              validateInput: (text) => (text.trim() ? undefined : t("La clé est vide.")),
             });
             if (value === undefined) return;
             await context.secrets.store(OPENAI_TOKEN_KEY, value.trim());
@@ -2914,13 +3185,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           term = vscode.window.createTerminal({
             name:
               provider === "openai"
-                ? `${PRODUCT_NAME} : connexion ChatGPT`
-                : `${PRODUCT_NAME} : connexion OpenCode`,
+                ? t`${PRODUCT_NAME} : connexion ChatGPT`
+                : `${PRODUCT_NAME} : ${entry?.label ?? "AI"}`,
             shellPath: binary,
             shellArgs: [
               "auth",
               "login",
-              ...(provider === "openai" ? ["--provider", "openai"] : []),
+              ...(provider === "openai"
+                ? ["--provider", "openai"]
+                : entry
+                  ? ["--provider", entry.id]
+                  : []),
             ],
             env: {
               OPENCODE_DISABLE_PROJECT_CONFIG: "1",
@@ -2953,31 +3228,37 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         term.show();
         applyAuthChange();
         void vscode.window.showInformationMessage(
-          "Terminez la connexion dans le terminal, puis fermez-le ou actualisez la liste des modèles.",
+          t(
+            "Terminez la connexion dans le terminal, puis fermez-le ou actualisez la liste des modèles.",
+          ),
         );
         return;
       }
 
       const kind = await vscode.window.showQuickPick(
         [
-          { label: "Jeton d'abonnement", description: "claude setup-token", value: "subscription" },
-          { label: "Clé API", description: "ANTHROPIC_API_KEY", value: "api-key" },
+          {
+            label: t("Jeton d'abonnement"),
+            description: "claude setup-token",
+            value: "subscription",
+          },
+          { label: t("Clé API"), description: "ANTHROPIC_API_KEY", value: "api-key" },
         ],
-        { title: `${PRODUCT_NAME} : type de jeton`, ignoreFocusOut: true },
+        { title: t`${PRODUCT_NAME} : type de jeton`, ignoreFocusOut: true },
       );
       if (!kind) return;
       const token = await vscode.window.showInputBox({
-        title: `${PRODUCT_NAME} : jeton`,
-        prompt: "Le jeton est stocké dans le stockage sécurisé de VS Code.",
+        title: t`${PRODUCT_NAME} : jeton`,
+        prompt: t("Le jeton est stocké dans le stockage sécurisé de VS Code."),
         password: true,
         ignoreFocusOut: true,
-        validateInput: (v) => (v.trim() === "" ? "Le jeton est vide." : undefined),
+        validateInput: (v) => (v.trim() === "" ? t("Le jeton est vide.") : undefined),
       });
       if (token === undefined) return;
       await context.secrets.store(TOKEN_KEY, token.trim());
       await context.secrets.store(TOKEN_KIND_KEY, kind.value as TokenKind);
       applyAuthChange();
-      void vscode.window.showInformationMessage("Jeton enregistré et appliqué.");
+      void vscode.window.showInformationMessage(t("Jeton enregistré et appliqué."));
     }),
     vscode.commands.registerCommand("warband.clearToken", async () => {
       const provider = slots.get(activeId)?.session?.getProvider() ?? "claude";
@@ -2986,13 +3267,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await context.globalState.update(OPENAI_AUTH_MODE_KEY, undefined);
         applyAuthChange();
         void vscode.window.showInformationMessage(
-          `Connexion OpenAI désactivée dans ${PRODUCT_NAME}. Le cache OAuth d’OpenCode est conservé.`,
+          t`Connexion OpenAI désactivée dans ${PRODUCT_NAME}. Le cache OAuth d’OpenCode est conservé.`,
         );
         return;
       }
       if (provider === "opencode") {
         void vscode.window.showInformationMessage(
-          "La connexion OpenCode se gère dans son terminal avec opencode auth logout.",
+          t("La connexion OpenCode se gère dans son terminal avec opencode auth logout."),
         );
         return;
       }
@@ -3001,7 +3282,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await context.secrets.delete(TOKEN_KIND_KEY);
       applyAuthChange();
       void vscode.window.showInformationMessage(
-        "Jeton effacé : le chat reste grisé tant qu'aucun fournisseur n'est ajouté.",
+        t("Jeton effacé : le chat reste grisé tant qu'aucun fournisseur n'est ajouté."),
       );
     }),
     // Spike E1 : forke le moteur de diagnostic (vérifie l'empreinte du binaire et affiche sa version).
@@ -3024,7 +3305,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const barBypass = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 103);
   barBypass.backgroundColor = new vscode.ThemeColor("statusBarItem.warningBackground");
   barBypass.command = "warband.disableBypass";
-  barBypass.tooltip = "Bypass des approbations actif : cliquer pour le désactiver";
+  barBypass.tooltip = t("Bypass des approbations actif : cliquer pour le désactiver");
   context.subscriptions.push(barBypass);
   let bypassTick: ReturnType<typeof setInterval> | undefined;
   const renderBypass = (push: BypassPush) => {
@@ -3035,7 +3316,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (!push.on) {
       // Armé (demandé, pas encore effectif) : affiché sans prétendre à « actif ».
       if (push.armed) {
-        barBypass.text = "BYPASS · en attente";
+        barBypass.text = t("BYPASS · en attente");
         barBypass.show();
       } else {
         barBypass.hide();
@@ -3064,6 +3345,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       renderBypass(push);
     },
   });
+  refreshBypassLocale = () => {
+    barBypass.tooltip = t("Bypass des approbations actif : cliquer pour le désactiver");
+    renderBypass(bypass.snapshot());
+  };
   context.subscriptions.push(
     {
       dispose: () => {

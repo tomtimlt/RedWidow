@@ -2,91 +2,60 @@
 
 **Pentest in VS Code, with AI on call.**
 
-Kali · Exegol · Terminaux · Kill chain · Agent IA optionnel
+Kali · Exegol · Terminals · Kill chain · Optional AI agent
 
-Un espace de travail dans VS Code pour tes CTF, tes labs et tes pentests autorisés. Prépare tes conteneurs, ouvre tes terminaux et rassemble tes découvertes. Travaille à la main ou fais appel à un agent quand tu en as besoin.
+A workspace for your CTFs, labs and authorized pentests. Prepare containers, open terminals and bring your findings together. Work by hand or call an agent when you need one.
 
-**Anciennement Warband.** Retrouve maintenant **Venator Ops** dans VS Code. La mise à jour conserve tes projets, ton historique et tes réglages.
+**Previously Warband.** The update keeps your projects, conversation history and settings.
 
-## Tout retrouver au même endroit
+## Your workspace in one place
 
-- **Cockpit** : crée, démarre et associe tes conteneurs Kali ou Exegol à un projet.
-- **Terminaux** : utilise tes outils à la main, sans compte IA.
-- **Chat** : fais analyser une sortie, chercher une documentation ou effectuer une vérification avec ton agent.
-- **Monitor** : suis les commandes exécutées par l’agent et leurs sorties en direct.
-- **Kill chain** : relie tes découvertes, tes hypothèses et tes tentatives échouées dans un graphe.
-- **Preuves et rapport** : capture une observation, exporte le graphe en SVG et prépare un brouillon de rapport Markdown.
+- **Cockpit**: create, start and link Kali or Exegol containers to a project.
+- **Terminals**: use your tools by hand, without an AI account.
+- **Chat**: ask an agent to analyze output, find documentation or run a check.
+- **Monitor**: follow the agent’s commands and their live output.
+- **Kill chain**: connect findings, hypotheses and failed attempts in a graph.
+- **Evidence and reports**: capture observations, export the graph as SVG and prepare a Markdown report draft.
 
-Le cockpit, les terminaux, la capture manuelle de preuves et les exports fonctionnent sans connexion à une IA.
+The cockpit, terminals, manual evidence capture and exports work without an AI connection.
 
-## Commencer
+## Get started
 
-Il te faut **VS Code 1.90 ou plus** et **Docker installé et démarré** pour les conteneurs. Les paquets VSIX sont disponibles pour **Windows x64** et **Linux x64** ; tu n’as pas besoin d’installer Node.js ou de compiler le projet.
+You need **VS Code 1.90+** and **Docker installed and running** for containers. VSIX packages are available for **Windows x64** and **Linux x64**. You do not need Node.js or a development environment.
 
-Si VS Code affiche le **mode restreint**, approuve d’abord ton dossier si tu lui fais confiance : l’extension reste désactivée tant qu’il ne l’est pas.
+1. Open **Venator Ops: Open settings** from the command palette (`Ctrl+Shift+P`). Under **Project**, create a project with a name and folder, or activate an existing project. Trust the folder in VS Code if you trust its contents.
+2. Open the **Cockpit**, link an existing container or create one with **New container**, then start it.
+3. Run **Venator Ops: Open or restore the Venator Ops workspace** to bring back the chat, kill chain and Monitor. Open a terminal to work by hand.
+4. For AI assistance, open **Settings → System control**, configure a provider and enable it. Pick that provider in the chat’s **Configure** menu, then select a model available on your account.
 
-1. Ouvre la palette (`Ctrl+Maj+P`) et lance **Venator Ops : ouvrir les réglages**. Dans **Projet**, crée un projet avec un nom et un dossier, ou active un projet existant. Approuve le dossier dans VS Code si tu lui fais confiance.
-2. Ouvre le **Cockpit**, associe un conteneur existant ou prépare-le avec **Nouveau conteneur**, puis démarre-le.
-3. Lance **Venator Ops : ouvrir ou restaurer l’espace Venator Ops** pour retrouver le chat, la Kill chain et le Monitor. Ouvre un terminal pour travailler à la main.
-4. Pour utiliser l’agent, ouvre **Configurer** dans le chat, choisis **Claude**, **OpenAI** ou **OpenCode**, configure la connexion et sélectionne un modèle disponible sur ton compte.
+Providers include **Claude**, **OpenAI / ChatGPT**, **Google Gemini**, **Ollama** and OpenAI-compatible endpoints. Use **Add Ollama / a compatible endpoint** to enter your API URL and installed model IDs. You can switch provider while keeping the same conversation. Provider subscriptions and API charges are separate. On Windows, Claude requires [Git for Windows with Git Bash](https://git-scm.com/downloads/win).
 
-Les abonnements et les frais API dépendent de ton fournisseur ; ils ne sont pas inclus. Sous Windows, Claude nécessite [Git pour Windows, avec Git Bash](https://git-scm.com/downloads/win).
+English is the default interface language. Choose **EN / FR** in Settings. Native command titles follow your VS Code language.
 
-## Montre-lui où tu en es
+## Add context and tools
 
-Utilise **`@`** pour citer un conteneur du projet et **`#`** pour joindre un extrait d’un terminal ouvert par l’extension. Choisis l’entrée dans le menu de mentions, puis formule ta demande :
+The chat’s **+** menu brings together files, container mentions, terminal context, commands, Monitor and kill chain shortcuts.
 
-> Résume mes observations et propose les deux prochaines vérifications utiles. Explique pourquoi avant de proposer une commande.
+Use **`@`** to mention a project container and **`#`** to attach an excerpt from a terminal opened by the extension. You can also type these shortcuts directly.
 
-Le Monitor suit les exécutions de l’agent ; utilise `#` pour lui transmettre les commandes que tu as tapées toi-même dans un terminal ouvert par l’extension.
+> Summarize my observations and suggest the next two useful checks. Explain why before proposing a command.
 
-Tu peux joindre du texte, du code et des journaux : **10 fichiers maximum**, **64 Kio chacun**, **256 Kio au total**. Les PDF et les images doivent être convertis en texte avant d’être fournis.
+Text, source files and logs are supported: **10 files**, **64 KiB per file**, **256 KiB in total**. Convert PDFs and images to text before attaching them.
 
-## Apprendre avec des indices
+In **Settings → System control**, enable the method profiles and MCP connectors you want available. Configure each external MCP service for your project. Then use **+** to choose one method, up to four MCP connectors, Burp and web search for this conversation. Disabling a connector preserves its configuration. A new conversation starts without optional resources selected.
 
-Dans **Réglages → Atlas → Ouvrir le dossier de cours**, dépose tes cours ou tes notes en **`.md` ou `.txt`**, avec un sous-dossier par source. Aucun cours n’est inclus. Active ensuite **Apprentissage** dans **Configurer**.
+Methods include **Mentor**, **Bug bounty**, **Out of the box**, **Red team** and **HTB / CTF**. A short brief guides the agent; detailed methods load only when needed. External MCP programs must be installed and started separately.
 
-L’agent consulte tes cours, explique et peut t’aider à partir d’un extrait de terminal joint avec `#`. Il **n’exécute aucune commande et ne modifie aucun fichier** dans ce mode.
+## Learn with hints
 
-> Je bloque sur cette étape. Appuie-toi sur mes cours et sur cet extrait de terminal pour me donner un indice, sans toute la solution.
+Put Markdown or PDF course material in the folder opened by **Settings → Atlas → Open courses folder**. Enable **Learning** in the chat’s **Configure** menu, attach terminal context with `#`, and ask for a hint or explanation. Learning mode reads course material and the context you provide; it does not execute commands or write files. Optional method profiles, MCP connectors and web search are paused in this mode.
 
-## Contrôler les actions et conserver les résultats
+## Stay in control
 
-Quand une action demande ton accord, une carte te permet de l’autoriser une fois ou de la refuser. **Toujours**, lorsqu’il est proposé, mémorise ton choix après confirmation. Certaines lectures sont autorisées directement ; certaines actions sont refusées par les règles.
+Sensitive actions produce approval cards. Allow an action once, deny it, or remember an eligible approval for the current conversation. Passwords, tokens and keys are masked before they reach logs.
 
-Le **Bypass**, activé explicitement pour une durée limitée, autorise automatiquement les demandes traitées par le contrôle d’approbation, y compris celles normalement refusées. Il ne change pas le mode Apprentissage.
+**Bypass** approves actions for two hours, including actions the gate would normally deny. Its active state and countdown remain visible. Use it only for a scope you control. Learning mode is excluded.
 
-Dans la palette, cherche **Venator Ops : Capturer la sélection comme preuve**, **Venator Ops : Capturer un extrait du journal terminal** ou **Venator Ops : Lister les preuves du projet**. La Kill chain propose l’export SVG et un brouillon Markdown pour ton rapport. Complète et vérifie les preuves, la gravité et les remédiations avant livraison.
+## More
 
-## Accès rapide
-
-Appuie sur `Alt+J`, relâche, puis sur la seconde touche :
-
-| Raccourci | Action |
-| --- | --- |
-| `Alt+J Alt+J` | Lanceur |
-| `Alt+J T` | Terminal |
-| `Alt+J C` | Chat latéral |
-| `Alt+J N` | Nouveau chat dans l’éditeur |
-| `Alt+J K` | Cockpit |
-| `Alt+J M` | Monitor |
-| `Alt+J G` | Kill chain |
-| `Alt+J S` | Réglages |
-
-Un conteneur manque ? Vérifie Docker, le projet actif et ses conteneurs associés. Aucun modèle ne s’affiche ? Vérifie la connexion dans **Configurer**, puis actualise la liste.
-
-## Télécharger et mettre à jour
-
-La distribution actuelle se fait par [releases GitHub](https://github.com/tomtimlt/warband/releases), sans publication Marketplace pour le moment. Télécharge le `.vsix` adapté à ton système, puis utilise **Extensions → … → Installer à partir de VSIX…**. Répète cette opération avec le nouveau paquet pour une mise à jour.
-
-[Présentation et installation](https://github.com/tomtimlt/warband#readme) · [Signaler un problème](https://github.com/tomtimlt/warband/issues)
-
-## Choisir une méthode
-
-La commande **Venator Ops : choisir un skill / profil agent** propose Mentor,
-Bug bounty, Out of the box, Red team et Hack The Box. Le résumé du profil choisi
-guide le prochain tour ; la méthode détaillée est chargée au besoin. Mentor
-aide par indices graduels, Bug bounty organise les preuves, Out of the box
-départage les hypothèses, Red team suit les objectifs de l’exercice et HTB
-adapte la progression au challenge. Le mode Apprentissage conserve son
-fonctionnement dédié aux cours, sans exécution.
+[User guide and source](https://github.com/tomtimlt/warband) · [Issues](https://github.com/tomtimlt/warband/issues) · MIT license

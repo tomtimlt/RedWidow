@@ -1,5 +1,6 @@
 import { stat } from "node:fs/promises";
 import { relative, resolve } from "node:path";
+import { t } from "@warband/messages";
 import { readProjectChoices } from "./project-controls.js";
 
 export interface ProjectWorkspaceHost {
@@ -37,7 +38,8 @@ export async function openActiveProjectWorkspace(
   if (folders.length === 1 && first !== undefined && relative(first, path) === "") return false;
   // Écrit avant openFolder : un refus, une erreur ou un rechargement ne relance pas la boucle.
   if (reason === "startup" && host.attempted() === path) return false;
-  if (!(await stat(path)).isDirectory()) throw new Error("Le dossier du projet est introuvable.");
+  if (!(await stat(path)).isDirectory())
+    throw new Error(t("Le dossier du projet est introuvable."));
   await host.rememberAttempt(path);
   await host.openFolder(path, host.hasUnsavedDocuments());
   return true;

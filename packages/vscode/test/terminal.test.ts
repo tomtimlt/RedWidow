@@ -10,6 +10,10 @@ describe("contribution de la commande", () => {
     const cmd = manifest.contributes.commands.find(
       (c: { command: string }) => c.command === "warband.openTerminal",
     );
-    expect(cmd?.title).toBe("Venator Ops : ouvrir un terminal");
+    expect(cmd?.title).toBe("%command.openTerminal%");
+    const fr = JSON.parse(read("../package.nls.fr.json"));
+    const en = JSON.parse(read("../package.nls.en.json"));
+    expect(fr["command.openTerminal"]).toBe("Venator Ops : ouvrir un terminal");
+    expect(en["command.openTerminal"]).toBe("Venator Ops: Open a terminal");
   });
 });
