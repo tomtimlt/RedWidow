@@ -69,8 +69,9 @@ rendu final, 20 Ko, en calques : `#body`, `#leg-l1` à `#leg-r4`, `#palp-l`,
 pour les petites tailles : l’araignée ne se lit plus sous 32 px), PNG
 transparents, et `redwidow-intro.mp4` / `redwidow-intro.html` (animation de
 8 s : pattes qui jaillissent avec rebond, cerveau qui s’allume, viseur qui se
-verrouille, yeux qui clignent, nom puis respiration). Police provisoire Geist
-en attendant le choix des polices. Les sections ci-dessous
+verrouille, yeux qui clignent, nom puis respiration). Polices validées :
+Geist (interface, titres, mot-symbole) et Geist Mono (repères techniques),
+inchangées ; la police de code et du terminal reste à choisir. Les sections ci-dessous
 décrivent encore l’identité Venator Ops tant que la refonte n’est pas faite.
 
 ## Marque Venator Ops
