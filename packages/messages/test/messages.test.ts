@@ -211,6 +211,18 @@ describe("eventLabel", () => {
   const emit = (payload: EventPayload): EngineEvent => r.emit(payload);
 
   const payloads: Record<EventKind, EventPayload> = {
+    "audit.test": {
+      kind: "audit.test",
+      claim: {
+        objective: "Vérifier un accès",
+        target: "lab.test",
+        testContext: "anonyme",
+        method: "HTTP GET",
+        observed: "403 sur un chemin",
+        conclusion: "not-observed",
+        evidenceIds: ["event-1"],
+      },
+    },
     "run.started": { kind: "run.started", prompt: "liste les conteneurs", cwd: "/w" },
     "session.started": {
       kind: "session.started",

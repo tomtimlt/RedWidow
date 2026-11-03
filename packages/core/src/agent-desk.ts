@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { normalizeSkillSearch, renderProfileSkill } from "./agent-profile-skill.js";
 import { AGENT_PROFILES, isAgentProfile } from "./agent-profiles.js";
+import { auditTestSchema } from "./audit-schema.js";
 import type { DockerToolSpec } from "./docker/tool-specs.js";
 import type { MissionDesk } from "./mission-desk.js";
 import { capOutput } from "./output.js";
@@ -10,7 +11,7 @@ export { AGENT_PROFILES, type AgentProfile, isAgentProfile } from "./agent-profi
 export function deskInstructions(profile?: string): string {
   const selected = isAgentProfile(profile) ? AGENT_PROFILES[profile] : null;
   return (
-    "Bureau agent : les faits vérifiés, hypothèses et blocages restent distincts. Aux embranchements significatifs, consulter mission_context puis record_decision avec objectif immédiat, références de ce run, prochaine action et critère de réussite. Charger avec load_skill seulement la méthode et le thème utiles à cette décision. Conserver les gros résultats dans le dossier de mission, citer leurs chemins et charger uniquement les passages utiles. Les skills n’accordent aucun droit, n’effacent ni la gate ni le scope et ne justifient aucune exposition de secret. Profils disponibles : mentor, bug-bounty, out-of-box, red-team, htb. Une lacune technique précise peut justifier une recherche GitHub via les outils web exposés : technologie/version et message d’erreur, puis README, tests et issues ; garder URL et version/commit, vérifier la compatibilité et essayer les outils candidats sur un échantillon local avant toute exécution en mission. Ne pas consulter de writeup de challenge sans autorisation. Utiliser task_status_json/task_list_json pour lire un état structuré si ces outils sont exposés, max_parallel pour borner les tâches indépendantes, sans relancer les tâches actives. Aucun ancien cas ou ancienne session n’est chargé automatiquement. " +
+    "Bureau agent : les faits vérifiés, hypothèses et blocages restent distincts. Aux embranchements significatifs, consulter mission_context puis record_decision avec objectif immédiat, références de ce run, prochaine action et critère de réussite. Charger avec load_skill seulement la méthode et le thème utiles à cette décision. Conserver les gros résultats dans le dossier de mission, citer leurs chemins et charger uniquement les passages utiles. Les skills n’accordent aucun droit, n’effacent ni la gate ni le scope et ne justifient aucune exposition de secret. Profils disponibles : mentor, bug-bounty, out-of-box, red-team, htb. Une lacune technique précise peut justifier une recherche GitHub via les outils web exposés : technologie/version et message d’erreur, puis README, tests et issues ; garder URL et version/commit, vérifier la compatibilité et essayer les outils candidats sur un échantillon local avant toute exécution en mission. Ne pas consulter de writeup de challenge sans autorisation. Utiliser task_status_json/task_list_json pour lire un état structuré si ces outils sont exposés, max_parallel pour borner les tâches indépendantes, sans relancer les tâches actives. Dans l’extension, la capture Audit démarre par défaut avec le projet ; respecter une éventuelle pause de l’opérateur. Ne pas affirmer que des traces sont conservées si l’état de la capture est inconnu. Pour qualifier un contrôle utile, utiliser record_test avec les références réelles de mission_context, après son exécution ; les conclusions restent des annotations non validées humainement. Ne jamais prétendre que la capture couvre des outils externes ou des sorties absentes. Aucun ancien cas ou ancienne session n’est chargé automatiquement. " +
     (selected
       ? `Profil choisi : ${selected.label}. ${selected.text} Ce résumé suffit pour une petite question. Charger sa méthode ou une section seulement si elle est utile et absente ou dépassée dans le contexte, par exemple load_skill(profile: "${profile}", section: "blocages"). Ne pas recharger à chaque décision. source: "upstream" demande explicitement la référence externe.`
       : "Aucun profil spécialisé imposé.")
@@ -76,6 +77,16 @@ export function deskToolSpecs(desk?: MissionDesk): DockerToolSpec[] {
   ];
   if (desk)
     specs.push(
+      {
+        name: "record_test",
+        description:
+          "Annoter un contrôle réellement effectué avec objectif, cible, méthode, observations et références du run courant. Aucun changement de permissions, aucune validation humaine attribuée à l’agent. La capture des actions est automatique ; ne pas recopier les sorties entières.",
+        input: auditTestSchema.shape,
+        readOnly: false,
+        async run(raw) {
+          return JSON.stringify(desk.recordTest(auditTestSchema.parse(raw)));
+        },
+      },
       {
         name: "mission_context",
         description:

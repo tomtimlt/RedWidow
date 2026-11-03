@@ -155,6 +155,7 @@ function copyWebLicenses(name, fromRequire) {
 const coreRequire = createRequire(join(pkgDir, "..", "core", "package.json"));
 copyWebLicenses("htmlparser2", coreRequire);
 copyWebLicenses("undici", coreRequire);
+copyWebLicenses("yazl", createRequire(join(pkgDir, "package.json")));
 // Les distributions natives peuvent fournir leur licence à côté du manifeste.
 for (const license of ["LICENSE", "LICENSE.md", "LICENSE.txt"]) {
   if (existsSync(join(opencodeDir, license))) {

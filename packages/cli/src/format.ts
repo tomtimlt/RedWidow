@@ -38,6 +38,8 @@ export function formatEvent(
   const tag = (style: Style, label: string) => paint(style, label.padEnd(9));
 
   switch (e.kind) {
+    case "audit.test":
+      return `${e.kind} : ${e.claim.objective}`;
     case "run.started":
       return `${tag("dim", "run")} ${e.prompt} ${paint("dim", `(${e.cwd})`)}`;
     case "agent.text":

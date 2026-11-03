@@ -27,6 +27,7 @@ const NODE_H = 30;
 const PAD = 20;
 
 export const KIND_CLASS: Record<EventKind, string> = {
+  "audit.test": "meta",
   "run.started": "k-run",
   "run.finished": "k-run",
   "agent.text": "k-agent",

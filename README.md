@@ -63,6 +63,25 @@ to any command, and the down arrow turns auto-follow on or off.
 <img src="docs/img/venator-ops-monitor.png" alt="The Monitor: a timeline of commands, the entry of the running command and its numbered output" width="860">
 </div>
 
+### Keep a trace of what you tested
+
+**Audit starts automatically with your active project**, even when you work without AI.
+It keeps agent actions, approval decisions and periodic captures of project-linked
+terminals opened by Venator. Open **Settings → Audit** to filter the timeline,
+review test drafts and record your assessment, including negative or inconclusive results.
+
+A successful command is not a validated test. The agent can annotate a test with
+references to real tool results; only your assessment receives the **Reviewed by
+operator** label. Audit storage is separate from chat history and is not automatically
+purged. You can pause it from the Audit page; interruptions and capture limits are visible.
+
+**Export audit bundle** creates a local ZIP with standalone HTML, the test-registry
+preview, retained evidence, full retained JSONL journals and a SHA-256 manifest.
+Terminal capture is periodic and bounded, so it can miss output between samples;
+external terminals and applications are outside its scope. Large missions have a
+bounded preview. Hashes help check file integrity; they are not a signature or an
+independent timestamp. [Capture details and limits](docs/audit.md).
+
 ### Follow your attack: the kill chain
 
 Hosts, credentials, sites, steps, loot: every finding has a **state**

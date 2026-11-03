@@ -40,6 +40,8 @@ export function eventLabel(e: EngineEvent, options: LabelOptions = {}): string {
   const clip = (text: string) => summarizeOutput(text, maxLength);
 
   switch (e.kind) {
+    case "audit.test":
+      return clip(`${locale === "en" ? "Audit test" : "Contrôle d’audit"} : ${e.claim.objective}`);
     case "run.started":
       return clip(`${t.run} : ${e.prompt}`);
     case "agent.text":

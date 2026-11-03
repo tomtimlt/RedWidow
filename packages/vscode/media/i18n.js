@@ -1,5 +1,110 @@
 "use strict";
 (() => {
+  // packages/messages/src/ui-domains/audit.ts
+  var auditEn = {
+    Audit: "Audit",
+    Demandé: "Requested",
+    "Retour reçu": "Returned",
+    Erreur: "Error",
+    Refusé: "Denied",
+    Capturé: "Captured",
+    Annoté: "Annotated",
+    Constat: "Finding",
+    "Non observé": "Not observed",
+    "Non concluant": "Inconclusive",
+    Agent: "Agent",
+    "Brouillon automatique": "Automatic draft",
+    "Brouillons automatiques et annotations de l’agent : vérifiez objectif, cible et preuves avant de les qualifier.":
+      "Automatic drafts and agent annotations: check objective, target and evidence before assessing them.",
+    "Capture automatique": "Automatic capture",
+    Auto: "Auto",
+    Partiel: "Partial",
+    "En pause": "Paused",
+    "À qualifier": "Needs review",
+    "Revu par l’opérateur": "Reviewed by operator",
+    "Registre des contrôles": "Test registry",
+    "Journal de mission": "Mission timeline",
+    "Aucun contrôle enregistré.": "No tests recorded.",
+    "Une exécution enregistrée ne constitue pas un contrôle validé.":
+      "A recorded execution is not a validated test.",
+    "Les journaux JSONL contiennent les traces conservées. Cet HTML est un aperçu borné.":
+      "The JSONL journals contain the retained records. This HTML is a bounded preview.",
+    "Les captures manuelles sont périodiques et bornées ; les outils externes ne sont pas enregistrés.":
+      "Manual terminal captures are periodic and bounded; external tools are not recorded.",
+    "Collecte incomplète : consulter les interruptions et les limites dans manifest.json.":
+      "Incomplete capture: see interruptions and limits in manifest.json.",
+    Filtrer: "Filter",
+    "Tous les acteurs": "All actors",
+    Opérateur: "Operator",
+    Système: "System",
+    "Le dossier d’audit ne peut pas être écrasé par son export.":
+      "An audit export cannot overwrite its storage directory.",
+    "Activez un projet pour démarrer sa collecte Audit automatique.":
+      "Activate a project to start its automatic Audit capture.",
+    "Journal d’audit indisponible.": "Audit journal unavailable.",
+    "Exporter le dossier d’audit": "Export audit bundle",
+    "Actions de l’agent et captures périodiques des terminaux Venator associés au projet, même sans IA. Conservation séparée du chat, sans effacement automatique.":
+      "Agent actions and periodic captures of project-linked Venator terminals, even without AI. Stored separately from chat, with no automatic deletion.",
+    "Le ZIP contient un HTML autonome, le registre, les preuves conservées, les JSONL et un manifeste SHA-256. Ces empreintes ne sont ni une signature ni un horodatage indépendant.":
+      "The ZIP contains standalone HTML, the registry, retained evidence, JSONL journals and a SHA-256 manifest. These hashes are neither a signature nor an independent timestamp.",
+    "Collecte partielle : pauses, captures indisponibles ou sorties tronquées. Consultez les traces et le manifeste.":
+      "Partial capture: pauses, unavailable captures or truncated output. See records and manifest.",
+    "Aperçu limité aux traces récentes. Les journaux conservés restent présents dans le ZIP ; le registre exporté est également un aperçu.":
+      "Preview limited to recent records. Retained journals remain in the ZIP; the exported registry is also a preview.",
+    "{0} traces affichées · {1} contrôles · {2} Kio conservés":
+      "{0} records shown · {1} tests · {2} KiB retained",
+    "Objectif du contrôle": "Test objective",
+    Cible: "Target",
+    "Contexte de test / accès": "Test context / access",
+    Méthode: "Method",
+    "Observations et limites": "Observations and limits",
+    "Conclusion du contrôle": "Test conclusion",
+    "Enregistrer ma qualification": "Save my assessment",
+    "Cible, outil, commande ou résultat": "Target, tool, command or result",
+    "À partir du (heure locale)": "From (local time)",
+    "Jusqu’au (heure locale)": "Until (local time)",
+    "Tous les événements": "All events",
+    "{0} traces correspondantes": "{0} matching records",
+    requested: "Requested",
+    returned: "Returned",
+    error: "Error",
+    denied: "Denied",
+    captured: "Captured",
+    annotated: "Annotated",
+    unreviewed: "Needs review",
+    finding: "Finding",
+    "not-observed": "Not observed",
+    inconclusive: "Inconclusive",
+    agent: "Agent",
+    operator: "Operator",
+    system: "System",
+    "La collecte Audit est incomplète. Ouvrez Audit pour consulter son état.":
+      "Audit capture is incomplete. Open Audit to inspect its status.",
+    "Choisissez un fichier local pour l’export Audit.": "Choose a local file for the Audit export.",
+    "Export Audit…": "Exporting Audit…",
+    "Afficher le fichier": "Show file",
+    "Dossier d’audit exporté. L’empreinte SHA-256 est dans Output → Venator Ops.":
+      "Audit bundle exported. Its SHA-256 hash is in Output → Venator Ops.",
+    "Capture automatique des actions et des terminaux Venator du projet. Cliquez pour consulter les limites et exporter.":
+      "Automatic capture of project actions and Venator terminals. Click to inspect limits and export.",
+  };
+  var AUDIT_LABELS = {
+    requested: "Demandé",
+    returned: "Retour reçu",
+    error: "Erreur",
+    denied: "Refusé",
+    captured: "Capturé",
+    annotated: "Annoté",
+    unreviewed: "À qualifier",
+    finding: "Constat",
+    "not-observed": "Non observé",
+    inconclusive: "Non concluant",
+    agent: "Agent",
+    operator: "Opérateur",
+    system: "Système",
+    automatic: "Brouillon automatique",
+  };
+
   // packages/messages/src/ui-domains/chat.ts
   var chatEn = {
     "Le pentest dans VS Code, avec l’IA à la demande.": "Pentest in VS Code, with AI on call.",
@@ -1067,6 +1172,7 @@
     ...logicEn,
     ...studioEn,
     ...resourcesEn,
+    ...auditEn,
   };
   var currentLocale = "fr";
   var getUiLocale = () => currentLocale;
@@ -1091,6 +1197,9 @@
     };
   }
   var t = createUiTranslator(getUiLocale);
+  function auditLabel(value, locale = currentLocale) {
+    return uiText(locale, AUDIT_LABELS[value] ?? value);
+  }
 
   // packages/vscode/src/webview/i18n.ts
   setUiLocale(document.documentElement.lang);
@@ -1108,6 +1217,6 @@
     }
   }
   Object.assign(globalThis, {
-    WarbandI18n: { t, setLocale: setUiLocale, getLocale: getUiLocale, applyStatic },
+    WarbandI18n: { t, auditLabel, setLocale: setUiLocale, getLocale: getUiLocale, applyStatic },
   });
 })();

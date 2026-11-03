@@ -1,4 +1,4 @@
-import type { EngineEvent } from "@warband/core";
+import { type AuditReview, auditReviewSchema, type EngineEvent } from "@warband/core";
 import { t } from "@warband/messages";
 import { isCapabilityId } from "./chat-capabilities.js";
 import { isPalette, type Palette } from "./palette.js";
@@ -8,6 +8,7 @@ export const STUDIO_PAGES = [
   "project",
   "containers",
   "killchain",
+  "audit",
   "atlas",
   "system",
   "appearance",
@@ -20,6 +21,7 @@ const LABELS: Record<StudioPage, string> = {
   containers: "Conteneurs",
   atlas: "Atlas",
   killchain: "Kill chain",
+  audit: "Audit",
   system: "Contrôle système",
   appearance: "Apparence",
 };
@@ -33,6 +35,9 @@ export function isStudioPage(value: string): value is StudioPage {
 }
 
 export type StudioMessage =
+  | { type: "exportAudit"; projectId: string }
+  | { type: "setAuditEnabled"; projectId: string; enabled: boolean }
+  | { type: "reviewAuditTest"; projectId: string; testId: string; claim: AuditReview }
   | {
       type: "setCapability";
       kind: "provider" | "skill" | "mcp" | "web";
@@ -80,6 +85,37 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
   const m = raw as Record<string, unknown>;
   const keys = Object.keys(m);
+  const auditProject =
+    typeof m.projectId === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(m.projectId);
+  if (m.type === "exportAudit" && keys.length === 2 && auditProject)
+    return { type: m.type, projectId: m.projectId as string };
+  if (
+    m.type === "setAuditEnabled" &&
+    keys.length === 3 &&
+    auditProject &&
+    typeof m.enabled === "boolean"
+  )
+    return { type: m.type, projectId: m.projectId as string, enabled: m.enabled };
+  if (
+    m.type === "reviewAuditTest" &&
+    keys.length === 4 &&
+    auditProject &&
+    typeof m.testId === "string" &&
+    m.testId.length <= 450 &&
+    m.testId.length > 0 &&
+    !/[\p{Cc}]/u.test(m.testId)
+  ) {
+    const claim = auditReviewSchema.safeParse(m.claim);
+    if (claim.success)
+      return {
+        type: m.type,
+        projectId: m.projectId as string,
+        testId: m.testId,
+        claim: claim.data,
+      };
+  }
+
   if (
     m.type === "setCapability" &&
     keys.length === 4 &&

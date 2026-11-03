@@ -1,3 +1,4 @@
+import { auditTestSchema } from "./audit-schema.js";
 /**
  * Modèle d'événements du moteur. Tout ce que le moteur produit passe par ici :
  * les UI (CLI, export HTML, extension VS Code) ne consomment que ces objets.
@@ -39,6 +40,7 @@ export interface AuthInfo {
 }
 
 export type EventPayload =
+  | { kind: "audit.test"; claim: import("./audit.js").AuditTestClaim }
   | { kind: "run.started"; prompt: string; cwd: string }
   | {
       kind: "session.started";
@@ -320,6 +322,10 @@ const USAGE_FIELDS = shape({ totalTokens: "number", toolUses: "number", duration
  * ajouter un kind sans validateur ne compile pas. `EVENT_KINDS` en découle.
  */
 export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
+  "audit.test": (p) =>
+    auditTestSchema.safeParse(p.claim).success
+      ? null
+      : reason("event.invalidField", { field: "claim" }),
   "run.started": shape({ prompt: "string", cwd: "string" }),
   "session.started": (p) =>
     shape({ sessionId: "string", model: "string", tools: "string[]", auth: "object?" })(p) ??

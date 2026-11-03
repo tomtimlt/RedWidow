@@ -1,4 +1,5 @@
 import type { Locale } from "./catalog.js";
+import { AUDIT_LABELS, auditEn } from "./ui-domains/audit.js";
 import { chatEn } from "./ui-domains/chat.js";
 import { cockpitEn } from "./ui-domains/cockpit.js";
 import { hostEn } from "./ui-domains/host.js";
@@ -14,6 +15,7 @@ export const UI_EN: Readonly<Record<string, string>> = {
   ...logicEn,
   ...studioEn,
   ...resourcesEn,
+  ...auditEn,
 };
 let currentLocale: Locale = "fr";
 export const getUiLocale = (): Locale => currentLocale;
@@ -51,3 +53,8 @@ export function createUiTranslator(locale: () => Locale): UiTranslator {
   }) as UiTranslator;
 }
 export const t: UiTranslator = createUiTranslator(getUiLocale);
+
+/** Les valeurs du registre gardent des codes stables ; seul leur libellé est traduit. */
+export function auditLabel(value: string, locale: Locale = currentLocale): string {
+  return uiText(locale, AUDIT_LABELS[value] ?? value);
+}

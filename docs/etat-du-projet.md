@@ -1,3 +1,7 @@
+> **Lot 0.3.70 — Audit automatique :** T01/T02/T05/T06 et première capture
+> manuelle durable sont décrits dans [Audit](audit.md), [ADR 0033](adr/0033-audit-automatique-par-projet.md)
+> et [la livraison 0.3.70](livraison-0.3.70.md). Les relevés ci-dessous restent historiques.
+
 > **Travail local 0.3.63, 30 octobre 2026 :** le manifeste est désormais 0.3.63 sur
 > `temp/0.3.63-agent-solo`. Bureau de mission, preuves explicites et export Attack
 > Flow sont décrits dans [la livraison locale](livraison-0.3.63.md) et

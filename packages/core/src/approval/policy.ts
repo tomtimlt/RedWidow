@@ -71,6 +71,8 @@ export const DEFAULT_POLICY: Policy = {
     // Lecture du run courant et annotation en mémoire : aucune exécution ni persistance.
     { tool: "mcp__desk__mission_context", decision: "allow" },
     { tool: "mcp__desk__record_decision", decision: "allow" },
+    // Annotation structurée avec références du run, sans exécution ni chemin choisi par le modèle.
+    { tool: "mcp__desk__record_test", decision: "allow" },
     { tool: "mcp__burp__list_tools", decision: "allow" },
     { tool: "mcp__docker__ps", decision: "allow" },
     { tool: "mcp__docker__images", decision: "allow" },

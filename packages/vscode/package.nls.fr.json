@@ -51,5 +51,7 @@
   "config.chat.providers": "Fournisseurs proposés dans le chat. Configurer les connexions dans Réglages → Contrôle système.",
   "config.chat.skills": "Méthodes proposées dans le menu + du chat. Choisir une méthode pour chaque conversation.",
   "config.chat.integrations": "Connecteurs MCP proposés dans le menu + après configuration. La désactivation conserve leurs paramètres.",
-  "config.chat.webSearch": "Proposer la recherche web dans le menu +. Chaque conversation choisit de l’utiliser ou non."
+  "config.chat.webSearch": "Proposer la recherche web dans le menu +. Chaque conversation choisit de l’utiliser ou non.",
+  "command.openAudit": "Venator Ops: Ouvrir Audit",
+  "command.exportAudit": "Venator Ops: Exporter le dossier d’audit"
 }

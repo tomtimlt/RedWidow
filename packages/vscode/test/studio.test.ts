@@ -172,7 +172,12 @@ describe("navigation en trois groupes", () => {
       "Interface",
     ]);
     const [engagement, system] = studio.STUDIO_GROUPS;
-    expect(engagement?.pages.map((p) => p[0])).toEqual(["project", "containers", "killchain"]);
+    expect(engagement?.pages.map((p) => p[0])).toEqual([
+      "project",
+      "containers",
+      "killchain",
+      "audit",
+    ]);
     expect(system?.pages.map((p) => p[0])).toEqual(["atlas", "system"]);
   });
 
@@ -181,7 +186,9 @@ describe("navigation en trois groupes", () => {
     expect([...keys].sort()).toEqual([...STUDIO_PAGES].sort());
     for (const [key, label, icon] of studio.STUDIO_GROUPS.flatMap((g) => g.pages)) {
       expect(label).toBe(studioLabel(key as (typeof STUDIO_PAGES)[number]));
-      expect(["project", "container", "graph", "book", "server", "palette"]).toContain(icon);
+      expect(["project", "container", "graph", "book", "server", "palette", "history"]).toContain(
+        icon,
+      );
     }
   });
 

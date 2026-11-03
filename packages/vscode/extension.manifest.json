@@ -2,7 +2,7 @@
   "name": "warband",
   "displayName": "Venator Ops",
   "description": "%extension.description%",
-  "version": "0.3.69",
+  "version": "0.3.70",
   "publisher": "warband",
   "license": "MIT",
   "engines": {
@@ -20,6 +20,8 @@
   },
   "contributes": {
     "commands": [
+      { "command": "warband.openAudit", "title": "%command.openAudit%" },
+      { "command": "warband.exportAudit", "title": "%command.exportAudit%" },
       {
         "command": "warband.listProjectEvidence",
         "title": "%command.listProjectEvidence%"

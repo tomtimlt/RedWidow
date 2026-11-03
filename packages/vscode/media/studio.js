@@ -12,6 +12,7 @@ const STUDIO_GROUPS = [
       ["project", "Projet", "project"],
       ["containers", "Conteneurs", "container"],
       ["killchain", "Kill chain", "graph"],
+      ["audit", "Audit", "history"],
     ],
   },
   {
@@ -392,6 +393,9 @@ function start() {
   const summarySaving = /* @__PURE__ */ new Set();
   let projectNameDraft = "";
   let providerFilter = "";
+  const auditDrafts = new Map();
+  let lastAuditProject = null;
+  const auditFilters = { search: "", actor: "", kind: "", from: "", to: "" };
   let projectPanel = null;
   const el = (tag, className, text) => {
     const node = document.createElement(tag);
@@ -1271,8 +1275,299 @@ function start() {
     if (touched) apply();
     return wrap;
   }
-  function render(view) {
+  function auditPage(view, project) {
+    const label = (value) => globalThis.WarbandI18n?.auditLabel(value) ?? value;
+    const sec = el("section", "studio-card audit-page");
+    sec.append(el("h2", "", t("Audit")));
+    if (!project) {
+      sec.append(
+        el("p", "studio-help", t("Activez un projet pour démarrer sa collecte Audit automatique.")),
+      );
+      return sec;
+    }
+    if (view.auditError) {
+      const error = el("p", "audit-warning", view.auditError);
+      error.setAttribute("role", "alert");
+      sec.append(error);
+    }
+    const audit = view.audit;
+    if (!audit) {
+      sec.append(el("p", "studio-help", t("Journal d’audit indisponible.")));
+      return sec;
+    }
+    const head = el("div", "audit-toolbar");
+    const toggle = el("button", "resource-toggle", t("Capture automatique"));
+    toggle.type = "button";
+    toggle.id = "audit-enabled";
+    toggle.setAttribute("role", "switch");
+    toggle.setAttribute("aria-checked", String(audit.enabled));
+    toggle.addEventListener("click", () => {
+      toggle.disabled = true;
+      vscode.postMessage({ type: "setAuditEnabled", projectId: project, enabled: !audit.enabled });
+    });
+    head.append(toggle, el("span", "audit-badge", audit.enabled ? t("Auto") : t("En pause")));
+    const download = el("button", "primary", t("Exporter le dossier d’audit"));
+    download.type = "button";
+    download.id = "audit-export";
+    download.addEventListener("click", () =>
+      vscode.postMessage({ type: "exportAudit", projectId: project }),
+    );
+    head.append(download);
+    sec.append(
+      head,
+      el(
+        "p",
+        "studio-help",
+        t(
+          "Actions de l’agent et captures périodiques des terminaux Venator associés au projet, même sans IA. Conservation séparée du chat, sans effacement automatique.",
+        ),
+      ),
+      el("p", "studio-help", t("Une exécution enregistrée ne constitue pas un contrôle validé.")),
+      el(
+        "p",
+        "studio-help",
+        t(
+          "Les captures manuelles sont périodiques et bornées ; les outils externes ne sont pas enregistrés.",
+        ),
+      ),
+      el(
+        "p",
+        "studio-help",
+        t(
+          "Le ZIP contient un HTML autonome, le registre, les preuves conservées, les JSONL et un manifeste SHA-256. Ces empreintes ne sont ni une signature ni un horodatage indépendant.",
+        ),
+      ),
+    );
+    if (audit.health?.incomplete || !audit.enabled) {
+      const warning = el(
+        "p",
+        "audit-warning",
+        t(
+          "Collecte partielle : pauses, captures indisponibles ou sorties tronquées. Consultez les traces et le manifeste.",
+        ),
+      );
+      warning.setAttribute("role", "status");
+      sec.append(warning);
+      if (audit.health?.error) sec.append(el("pre", "audit-raw", audit.health.error));
+    }
+    if (audit.viewLimited)
+      sec.append(
+        el(
+          "p",
+          "audit-warning",
+          t(
+            "Aperçu limité aux traces récentes. Les journaux conservés restent présents dans le ZIP ; le registre exporté est également un aperçu.",
+          ),
+        ),
+      );
+    sec.append(
+      el(
+        "p",
+        "studio-help",
+        t`${audit.records.length} traces affichées · ${audit.tests.length} contrôles · ${Math.ceil(audit.bytes / 1024)} Kio conservés`,
+      ),
+    );
+    sec.append(el("h3", "", t("Registre des contrôles")));
+    sec.append(
+      el(
+        "p",
+        "studio-help",
+        t(
+          "Brouillons automatiques et annotations de l’agent : vérifiez objectif, cible et preuves avant de les qualifier.",
+        ),
+      ),
+    );
+    const registry = el("div", "audit-tests");
+    if (!audit.tests.length)
+      registry.append(el("p", "studio-help", t("Aucun contrôle enregistré.")));
+    for (const test of [...audit.tests].reverse()) {
+      const item = el("details", "audit-test");
+      item.id = `audit-test-${test.id}`;
+      const summary = el("summary");
+      summary.append(
+        el("strong", "", test.objective),
+        el("span", "audit-badge", t(test.reviewed ? "Revu par l’opérateur" : "À qualifier")),
+      );
+      item.append(
+        summary,
+        el("p", "studio-help", `${test.startedAt} → ${test.ts}`),
+        el(
+          "p",
+          "",
+          `${test.target} · ${label(test.execution)} · ${label(test.conclusion)} · ${label(test.author)}`,
+        ),
+        el("pre", "audit-raw", test.observed),
+        el("p", "studio-help audit-refs", `ID : ${test.id}\n${test.evidenceIds.join("\n")}`),
+      );
+      const form = el("form", "audit-review");
+      const draftKey = `${project}:${test.id}`;
+      const draft = auditDrafts.get(draftKey) ?? {
+        objective: test.objective,
+        target: test.target,
+        testContext: test.testContext,
+        method: test.method,
+        observed: test.observed,
+        conclusion: test.conclusion === "unreviewed" ? "inconclusive" : test.conclusion,
+      };
+      const labels = {
+        objective: "Objectif du contrôle",
+        target: "Cible",
+        testContext: "Contexte de test / accès",
+        method: "Méthode",
+        observed: "Observations et limites",
+      };
+      const limits = {
+        objective: 500,
+        target: 500,
+        testContext: 1000,
+        method: 1000,
+        observed: 8000,
+      };
+      for (const key of Object.keys(labels)) {
+        const label = el("label", "", t(labels[key]));
+        const input = el(key === "observed" ? "textarea" : "input", "studio-project-control");
+        input.id = `audit-edit-${test.id}-${key}`;
+        input.name = key;
+        input.value = draft[key] ?? "";
+        input.maxLength = limits[key];
+        input.required = ["objective", "method", "observed"].includes(key);
+        if (key === "observed") input.rows = 4;
+        input.addEventListener("input", () => {
+          draft[key] = input.value;
+          auditDrafts.set(draftKey, draft);
+          if (auditDrafts.size > 1000) auditDrafts.delete(auditDrafts.keys().next().value);
+        });
+        label.htmlFor = input.id;
+        form.append(label, input);
+      }
+      const outcomeLabel = el("label", "", t("Conclusion du contrôle"));
+      const outcome = el("select", "studio-project-control");
+      outcome.id = `audit-edit-${test.id}-conclusion`;
+      outcomeLabel.htmlFor = outcome.id;
+      for (const value of ["finding", "not-observed", "inconclusive"]) {
+        const option = el("option", "", label(value));
+        option.value = value;
+        outcome.append(option);
+      }
+      outcome.value = draft.conclusion;
+      outcome.addEventListener("change", () => {
+        draft.conclusion = outcome.value;
+        auditDrafts.set(draftKey, draft);
+      });
+      const save = el("button", "ghost", t("Enregistrer ma qualification"));
+      save.type = "submit";
+      form.append(outcomeLabel, outcome, save);
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        if (!form.reportValidity()) return;
+        save.disabled = true;
+        vscode.postMessage({
+          type: "reviewAuditTest",
+          projectId: project,
+          testId: test.id,
+          claim: { ...draft },
+        });
+      });
+      item.append(form);
+      registry.append(item);
+    }
+    sec.append(registry, el("h3", "", t("Journal de mission")));
+    const filters = el("div", "audit-filters");
+    const records = el("div", "audit-records");
+    const count = el("p", "studio-help");
+    count.setAttribute("role", "status");
+    const rows = [];
+    const apply = () => {
+      let shown = 0;
+      const from = auditFilters.from ? new Date(auditFilters.from).getTime() : -Infinity;
+      const to = auditFilters.to ? new Date(auditFilters.to).getTime() : Infinity;
+      for (const row of rows) {
+        row.node.hidden =
+          (!!auditFilters.actor && row.record.actor !== auditFilters.actor) ||
+          (!!auditFilters.kind && row.kind !== auditFilters.kind) ||
+          !row.search.includes(auditFilters.search.toLowerCase()) ||
+          new Date(row.record.ts).getTime() < from ||
+          new Date(row.record.ts).getTime() > to;
+        if (!row.node.hidden) shown++;
+      }
+      count.textContent = t`${shown} traces correspondantes`;
+    };
+    for (const [key, label, type] of [
+      ["search", "Cible, outil, commande ou résultat", "search"],
+      ["from", "À partir du (heure locale)", "datetime-local"],
+      ["to", "Jusqu’au (heure locale)", "datetime-local"],
+    ]) {
+      const wrap = el("label", "studio-help", t(label));
+      const input = el("input", "studio-project-control");
+      input.type = type;
+      input.id = `audit-filter-${key}`;
+      input.value = auditFilters[key];
+      wrap.htmlFor = input.id;
+      input.addEventListener("input", () => {
+        auditFilters[key] = input.value;
+        apply();
+      });
+      wrap.append(input);
+      filters.append(wrap);
+    }
+    const kinds = [...new Set(audit.records.map((row) => row.data.kind ?? row.kind))].sort();
+    for (const [key, label, choices] of [
+      ["actor", "Tous les acteurs", ["agent", "operator", "system"]],
+      ["kind", "Tous les événements", kinds],
+    ]) {
+      const wrap = el("label", "studio-help", t(label));
+      const input = el("select", "studio-project-control");
+      input.id = `audit-filter-${key}`;
+      wrap.htmlFor = input.id;
+      for (const value of ["", ...choices]) {
+        const option = el(
+          "option",
+          "",
+          value ? (globalThis.WarbandI18n?.auditLabel(value) ?? value) : t(label),
+        );
+        option.value = value;
+        input.append(option);
+      }
+      input.value = auditFilters[key];
+      input.addEventListener("change", () => {
+        auditFilters[key] = input.value;
+        apply();
+      });
+      wrap.append(input);
+      filters.append(wrap);
+    }
+    for (const record of [...audit.records].reverse()) {
+      const item = el("details", "audit-record");
+      item.id = `audit-record-${record.id}`;
+      const kind = record.data.kind ?? record.kind;
+      item.append(
+        el("summary", "", `${record.ts} · ${label(record.actor)} · ${kind}`),
+        el(
+          "p",
+          "studio-help audit-refs",
+          `${record.source ?? record.runId ?? ""} · ID : ${record.id}`,
+        ),
+        el("pre", "audit-raw", JSON.stringify(record.data, null, 2)),
+      );
+      records.append(item);
+      rows.push({ node: item, record, kind, search: JSON.stringify(record).toLowerCase() });
+    }
+    apply();
+    sec.append(filters, count, records);
+    return sec;
+  }
+
+  function render(view, force = false) {
     lastView = { ...view, summarySaved: undefined, summaryFailed: undefined };
+    // Une arrivée de traces ne doit pas interrompre la saisie dans une qualification.
+    if (
+      !force &&
+      view.page === "audit" &&
+      lastAuditProject === view.projectId &&
+      document.activeElement?.closest?.(".audit-review") &&
+      !document.activeElement.disabled
+    )
+      return;
     if (typeof view.summarySaved === "string") {
       summaryDrafts.delete(view.summarySaved);
       summarySaving.delete(view.summarySaved);
@@ -1315,6 +1610,9 @@ function start() {
     showGraphError("");
     if (fingerprint !== null && fingerprint === graphFingerprint) return;
     graphFingerprint = fingerprint;
+    const restoreAudit =
+      page === "audit" && lastAuditProject === project ? captureLocaleState() : () => {};
+    lastAuditProject = page === "audit" ? project : null;
     graphCleanup();
     graphCleanup = () => {};
     paintFindingSelection = () => {};
@@ -1322,6 +1620,11 @@ function start() {
     graphBar = null;
     while (main.firstChild) main.removeChild(main.firstChild);
     if (!killchainOnly) paintNav(page, view.findings, view);
+    if (page === "audit") {
+      main.append(auditPage(view, project));
+      restoreAudit();
+      return;
+    }
     if (page === "project") {
       const sec = el("section", "studio-card");
       sec.append(el("h2", "", t("Projet")));
@@ -1900,7 +2203,7 @@ function start() {
     if (msg?.type === "locale" && (msg.locale === "fr" || msg.locale === "en")) {
       const restore = captureLocaleState();
       globalThis.WarbandI18n?.setLocale(msg.locale);
-      if (lastView) render(lastView);
+      if (lastView) render(lastView, true);
       globalThis.WarbandI18n?.applyStatic(document);
       restore();
       return;

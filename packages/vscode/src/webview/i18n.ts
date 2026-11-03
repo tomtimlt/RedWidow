@@ -1,4 +1,4 @@
-import { getUiLocale, setUiLocale, t } from "../../../messages/src/ui.js";
+import { auditLabel, getUiLocale, setUiLocale, t } from "../../../messages/src/ui.js";
 
 interface ProductElement {
   textContent: string | null;
@@ -26,5 +26,5 @@ function applyStatic(root: ProductRoot = document): void {
   }
 }
 Object.assign(globalThis, {
-  WarbandI18n: { t, setLocale: setUiLocale, getLocale: getUiLocale, applyStatic },
+  WarbandI18n: { t, auditLabel, setLocale: setUiLocale, getLocale: getUiLocale, applyStatic },
 });

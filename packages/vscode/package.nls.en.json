@@ -51,5 +51,7 @@
   "config.chat.providers": "Providers available in the chat. Configure connections in Settings → System control.",
   "config.chat.skills": "Method profiles available in the chat + menu. Select a profile for each conversation.",
   "config.chat.integrations": "MCP connectors available in the chat + menu after configuration. Disabling preserves configuration.",
-  "config.chat.webSearch": "Make web search available in the chat + menu. Each conversation chooses whether to use it."
+  "config.chat.webSearch": "Make web search available in the chat + menu. Each conversation chooses whether to use it.",
+  "command.openAudit": "Venator Ops: Open Audit",
+  "command.exportAudit": "Venator Ops: Export the audit bundle"
 }

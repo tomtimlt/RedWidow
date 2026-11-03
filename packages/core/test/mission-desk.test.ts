@@ -130,7 +130,11 @@ describe("bureau de mission", () => {
     expect(f.desk.context().prompt).toBe("Nouvelle consigne directe sans enveloppe moteur");
   });
   it("autorise uniquement les opérations locales exactes du bureau", () => {
-    for (const tool of ["mcp__desk__mission_context", "mcp__desk__record_decision"])
+    for (const tool of [
+      "mcp__desk__mission_context",
+      "mcp__desk__record_decision",
+      "mcp__desk__record_test",
+    ])
       expect(evaluatePolicy(DEFAULT_POLICY, tool, {}).decision).toBe("allow");
     expect(evaluatePolicy(DEFAULT_POLICY, "mcp__desk__exec", {}).decision).toBe("ask");
     expect(
@@ -148,7 +152,12 @@ describe("bureau de mission", () => {
     const f = fixture();
     expect(deskToolSpecs().map((s) => s.name)).toEqual(["load_skill"]);
     const specs = deskToolSpecs(f.desk);
-    expect(specs.map((s) => s.name)).toEqual(["load_skill", "mission_context", "record_decision"]);
+    expect(specs.map((s) => s.name)).toEqual([
+      "load_skill",
+      "record_test",
+      "mission_context",
+      "record_decision",
+    ]);
     f.result("context", false, { query: "service" }, "mcp__desk__mission_context");
     expect(f.desk.context().metrics.toolCalls).toBe(0);
     const load = specs[0];
@@ -161,4 +170,30 @@ describe("bureau de mission", () => {
     );
     expect(loaded.upstream).toHaveProperty("text");
   });
+});
+
+it("record_test exige des preuves de ce run, masque les annotations et ne donne aucun statut humain", () => {
+  const f = fixture(),
+    other = fixture(),
+    e = f.result("HTTP 403");
+  const claim = {
+    objective: "Test accès",
+    target: "lab",
+    testContext: "anonyme",
+    method: "HTTP GET",
+    observed: "token=private1234",
+    conclusion: "not-observed" as const,
+    evidenceIds: [e.id],
+  };
+  expect(() => other.desk.recordTest(claim)).toThrow("Référence inconnue");
+  const events: unknown[] = [];
+  f.recorder.subscribe((e) => events.push(e));
+  expect(f.desk.recordTest(claim)).toMatchObject({ runId: "run", reviewed: false });
+  expect(JSON.stringify(events)).not.toContain("private1234");
+  const forged = { ...claim, reviewed: true };
+  expect(() => f.desk.recordTest(forged)).toThrow();
+  expect(
+    evaluatePolicy({ default: "deny", rules: [] }, "mcp__desk__record_test", {}).decision,
+  ).toBe("deny");
+  expect(evaluatePolicy(DEFAULT_POLICY, "mcp__desk__record_test_exec", {}).decision).toBe("ask");
 });

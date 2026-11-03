@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
+import { type AuditTestClaim, auditTestSchema } from "./audit-schema.js";
 import type { Recorder } from "./recorder.js";
 import { createRedactor, secretsFromEnv } from "./redact.js";
 
@@ -51,6 +52,7 @@ export interface MissionDesk {
     maxChars?: number | undefined;
   }): MissionContext;
   recordDecision(decision: MissionDecision): MissionDecision;
+  recordTest(claim: AuditTestClaim): { eventId: string; runId: string; reviewed: false };
   dispose(): void;
 }
 // Les plafonds portent aussi sur les tables auxiliaires et les textes retenus.
@@ -101,7 +103,8 @@ export function createMissionDesk({
     if (event.kind === "user.message") {
       suppliedPrompt = clip(redact(event.text), 2000);
     } else if (event.kind === "tool.requested") {
-      if (/(?:^|__)(mission_context|record_decision|load_skill)$/.test(event.tool)) return;
+      if (/(?:^|__)(mission_context|record_decision|record_test|load_skill)$/.test(event.tool))
+        return;
       boundedSet(pending, event.toolUseId, {
         tool: clip(event.tool, 200),
         key: fingerprint([event.tool, canonical(event.input)]),
@@ -163,6 +166,15 @@ export function createMissionDesk({
       started = now().getTime();
       branchCalls = 0;
       return structuredClone(decision);
+    },
+    recordTest(raw) {
+      assertOpen();
+      const claim = auditTestSchema.parse(raw);
+      for (const id of claim.evidenceIds)
+        if (!observations.some((item) => item.eventId === id))
+          throw Error("Référence inconnue dans ce run.");
+      const event = recorder.emit({ kind: "audit.test", claim: redact(claim) });
+      return { eventId: event.id, runId: event.runId, reviewed: false };
     },
     context(options = {}) {
       assertOpen();

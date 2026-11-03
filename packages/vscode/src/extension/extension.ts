@@ -5,6 +5,8 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import {
   AGENT_PROFILES,
+  AuditStore,
+  type AuditView,
   activeProject,
   appendFinding,
   attachEvidence,
@@ -38,6 +40,9 @@ import { createBurpBackend } from "../engine/burp-client.js";
 import { createIntegrationBackend } from "../engine/integration-client.js";
 import { cleanText, parseWebviewMessage } from "../logic/approval.js";
 import { attachmentMessage, withAttachments } from "../logic/attachments.js";
+import { AuditCapture, newAuditCaptureId } from "../logic/audit-capture.js";
+import { exportAuditBundle } from "../logic/audit-export.js";
+import { reviewAuditTest } from "../logic/audit-review.js";
 import { PRODUCT_NAME, productTitleSuffix } from "../logic/brand.js";
 import { type BypassPush, createBypassHost, formatRemaining } from "../logic/bypass.js";
 import { type ChatView, monitorChatView } from "../logic/chat.js";
@@ -120,6 +125,7 @@ declare const __SDK_VERSION__: string | undefined;
 declare const __OPENCODE_SHA256__: string | undefined;
 declare const __OPENCODE_VERSION__: string | undefined;
 type TokenKind = "subscription" | "api-key";
+let shutdownAudit: (() => Promise<void>) | undefined;
 
 /** Couche fine : seule autorisée à importer `vscode` (test de frontière). Toute la logique est dans `src/logic`. */
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
@@ -164,6 +170,32 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   let integrationProjectId =
     (await readProjectChoices(defaultConfigDir()).catch(() => null))?.activeId ?? null;
+  const auditStore = new AuditStore(defaultConfigDir());
+  let auditTimer: ReturnType<typeof setTimeout> | undefined;
+  let auditStopped = false;
+  let refreshAudit = async () => {};
+  const scheduleAudit = () => {
+    if (auditStopped || auditTimer !== undefined) return;
+    auditTimer = setTimeout(() => {
+      auditTimer = undefined;
+      void refreshAudit().catch(auditFailed);
+    }, 2000);
+  };
+  let lastAuditError = "";
+  let showAuditFailure = () => {};
+  const auditFailed = (error: unknown) => {
+    const message = createRedactor()(formatError(error, getUiLocale()));
+    if (message !== lastAuditError) {
+      lastAuditError = message;
+      out.appendLine(`Audit : ${message}`);
+      void vscode.window.showWarningMessage(
+        t("La collecte Audit est incomplète. Ouvrez Audit pour consulter son état."),
+      );
+    }
+    showAuditFailure();
+    scheduleAudit();
+  };
+  const auditCapture = new AuditCapture(auditStore, scheduleAudit, auditFailed);
   const projectWorkspaceHost = {
     folders: () => vscode.workspace.workspaceFolders?.map((entry) => entry.uri.fsPath) ?? [],
     hasUnsavedDocuments: () =>
@@ -219,6 +251,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const observedRuns = new Map<string, ObservedMission>();
   const injectedContexts = new Map<string, { runId: string; text: string }>();
   const observe = (id: string, event: EngineEvent | null) => {
+    auditCapture.event(integrationProjectId, event);
     const next = observeMission(observedRuns.get(id), event);
     if (next) observedRuns.set(id, next);
     else observedRuns.delete(id);
@@ -255,6 +288,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     container: string;
     /** Journal de la session, DANS le conteneur (`termlog.ts`). `null` : pas de capture. */
     logPath: string | null;
+    auditId: string;
+    projectId: string | null;
   }
   const editorShells = new Map<string, TrackedShell[]>();
   let cockpitListOk = false;
@@ -281,6 +316,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   >();
   const cancelFindingDeletions = () => {
     findingProjectGeneration++;
+    scheduleAudit();
     observedRuns.clear();
     reportPanel?.dispose();
     for (const pending of findingDeletions.values()) pending.abort.abort();
@@ -315,6 +351,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     for (const watch of watches) void watch.panel.webview.postMessage(message);
     refreshLocaleTitles();
     refreshReportLocale();
+    scheduleAudit();
   };
   const currentPalette = () =>
     paletteOf(vscode.workspace.getConfiguration("warband").get("palette"));
@@ -638,6 +675,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
   };
 
+  const closingAudit = new Set<Promise<void>>();
   const dropTrackedShell = (term: vscode.Terminal) => {
     for (const [name, list] of editorShells) {
       const gone = list.find((shell) => shell.term === term);
@@ -645,11 +683,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const next = list.filter((shell) => shell.term !== term);
       if (next.length === 0) editorShells.delete(name);
       else editorShells.set(name, next);
-      if (gone.logPath !== null) {
-        void shellDocker()
-          .execWorkspace(gone.container, removeLogCommand(gone.logPath))
-          .catch(() => {});
-      }
+      // La copie durable précède la suppression du journal temporaire du conteneur.
+      const closing = auditCapture
+        .shell(gone, () => readLogTail(gone), true)
+        .then(async (saved) => {
+          if (saved && gone.logPath !== null)
+            await shellDocker()
+              .execWorkspace(gone.container, removeLogCommand(gone.logPath))
+              .catch(() => {});
+        });
+      closingAudit.add(closing);
+      void closing.finally(() => closingAudit.delete(closing));
       void saveWindows();
       broadcastTerminals();
       return;
@@ -701,6 +745,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         undefined,
         logPath === null ? undefined : capturedShell(logPath),
       );
+      const projectFile = await readProjects(defaultConfigDir());
+      const auditProject = projectFile === null ? null : activeProject(projectFile);
+      const projectId = auditProject?.containers.includes(plan.name) ? auditProject.id : null;
       const term = vscode.window.createTerminal({
         name: plan.title,
         shellPath,
@@ -709,7 +756,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         isTransient: true,
       });
       const list = editorShells.get(plan.name) ?? [];
-      list.push({ term, token, label, container: plan.name, logPath });
+      list.push({
+        term,
+        token,
+        label,
+        container: plan.name,
+        logPath,
+        auditId: newAuditCaptureId(),
+        projectId,
+      });
+      scheduleAudit();
       editorShells.set(plan.name, list);
       term.show();
       void saveWindows();
@@ -1774,17 +1830,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       summaryError?: string;
       projectError?: string;
       projectCreated?: string;
+      auditError?: string;
     } = {},
   ) => {
     const panel = studioPanel;
     if (!panel) return;
+    const auditGeneration = findingProjectGeneration;
+    const requestedPage = studioPage;
     if (studioPage === "system") void loadProviderCatalog();
     // Une sonde de conteneurs en échec ne doit pas perdre l'accusé d'écriture du résumé.
-    const cockpit = await loadCockpitView().catch((error: unknown) => ({
-      type: "view" as const,
-      containers: [],
-      error: formatError(error, getUiLocale()),
-    }));
+    const cockpit =
+      studioPage === "audit"
+        ? { type: "view" as const, containers: [] }
+        : await loadCockpitView().catch((error: unknown) => ({
+            type: "view" as const,
+            containers: [],
+            error: formatError(error, getUiLocale()),
+          }));
     let findings: unknown[] = [];
     let evidence: unknown[] = [];
     let projectChoices: Awaited<ReturnType<typeof readProjectChoices>> = {
@@ -1819,17 +1881,34 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
     // Sources de cours (lecture seule) : seulement pour l'Atlas, racine fixée par l'hôte.
     const sources = studioPage === "atlas" ? await readSources(coursRoot()) : [];
+    let audit: AuditView | undefined;
+    let auditError = feedback.auditError;
+    if (studioPage === "audit" && projectChoices.activeId) {
+      try {
+        audit = await auditStore.view(projectChoices.activeId);
+      } catch (error) {
+        auditError = formatError(error, getUiLocale());
+      }
+    }
     // Fermé pendant les lectures : `panel.webview` lèverait « Webview is disposed ».
-    if (studioPanel !== panel) return;
+    if (
+      studioPanel !== panel ||
+      requestedPage !== studioPage ||
+      auditGeneration !== findingProjectGeneration
+    )
+      return;
     await panel.webview.postMessage(localeMessage());
     await panel.webview.postMessage({
       ...cockpit,
+      projectId: projectChoices.activeId,
       page: studioPage,
       findings,
       evidence,
       sources,
       projectSummary,
       projectChoices,
+      audit,
+      auditError,
       capabilities: readSettings().capabilities,
       providerCatalog: providerChoices(readSettings(), false).map(
         ({ id, label, runtimeId, connected }) => ({
@@ -2018,6 +2097,64 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (projectChanging || generation !== findingProjectGeneration || project?.id !== projectId)
       throw new Error(t("Le projet actif a changé. Relancez l’action sur les preuves."));
     return project;
+  };
+  const exportProjectAudit = async (projectId?: string) => {
+    try {
+      const choices = await readProjectChoices(defaultConfigDir());
+      const selected = choices.projects.find((p) => p.id === choices.activeId);
+      if (!selected || (projectId !== undefined && selected.id !== projectId))
+        throw new CodedError("project.absent");
+      const current = evidenceProjectGuard(selected.id, findingProjectGeneration);
+      const locale = getUiLocale();
+      const destination = await vscode.window.showSaveDialog({
+        title: t("Exporter le dossier d’audit"),
+        defaultUri: vscode.Uri.file(
+          join(folder?.uri.fsPath ?? tmpdir(), `venator-audit-${selected.id.slice(0, 8)}.zip`),
+        ),
+        filters: { ZIP: ["zip"] },
+      });
+      if (!destination) return;
+      if (destination.scheme !== "file")
+        throw Error(t("Choisissez un fichier local pour l’export Audit."));
+      if (
+        vscode.workspace.textDocuments.some(
+          (d) => d.uri.toString() === destination.toString() && d.isDirty,
+        )
+      )
+        throw Error(
+          t(
+            "Ce fichier contient des modifications non enregistrées. Choisissez un autre nom de rapport.",
+          ),
+        );
+      await current();
+      const result = await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: t("Export Audit…") },
+        async () => {
+          await auditCapture.flush();
+          return exportAuditBundle({
+            store: auditStore,
+            projectId: selected.id,
+            projectName: selected.name,
+            destination: destination.fsPath,
+            locale,
+            beforeCommit: async () => {
+              await current();
+            },
+          });
+        },
+      );
+      out.appendLine(`Audit ZIP SHA-256 : ${result.sha256}`);
+      const reveal = t("Afficher le fichier");
+      if (
+        (await vscode.window.showInformationMessage(
+          t("Dossier d’audit exporté. L’empreinte SHA-256 est dans Output → Venator Ops."),
+          reveal,
+        )) === reveal
+      )
+        await vscode.commands.executeCommand("revealFileInOS", destination);
+    } catch (error) {
+      void vscode.window.showErrorMessage(formatError(error, getUiLocale()));
+    }
   };
   const listProjectEvidence = async () => {
     try {
@@ -2350,6 +2487,38 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await vscode.commands.executeCommand(
           message.type === "openWorkspace" ? "warband.openWorkspace" : "warband.prepareMission",
         );
+        return;
+      }
+      if (message.type === "exportAudit") {
+        await exportProjectAudit(message.projectId);
+        return;
+      }
+      if (message.type === "setAuditEnabled" || message.type === "reviewAuditTest") {
+        try {
+          const current = evidenceProjectGuard(message.projectId, findingProjectGeneration);
+          await current();
+          if (message.type === "setAuditEnabled") {
+            if (!message.enabled)
+              for (const shells of editorShells.values())
+                for (const shell of shells)
+                  if (shell.projectId === message.projectId)
+                    auditCapture.pauseCapture(shell.auditId);
+            await auditStore.setEnabled(message.projectId, message.enabled);
+          } else
+            await reviewAuditTest({
+              store: auditStore,
+              projectId: message.projectId,
+              testId: message.testId,
+              claim: message.claim,
+              isCurrent: async () => {
+                await current();
+              },
+            });
+          await refreshAudit();
+          await pushStudio();
+        } catch (error) {
+          await pushStudio({ auditError: formatError(error, getUiLocale()) });
+        }
         return;
       }
       if (message.type === "setCapability") {
@@ -2762,6 +2931,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.window.registerWebviewViewProvider("warband.chat", provider, {
       webviewOptions: { retainContextWhenHidden: true },
     }),
+    vscode.commands.registerCommand("warband.openAudit", () => {
+      studioPage = "audit";
+      openStudio();
+    }),
+    vscode.commands.registerCommand("warband.exportAudit", () => exportProjectAudit()),
     vscode.commands.registerCommand("warband.listProjectEvidence", () => listProjectEvidence()),
     vscode.commands.registerCommand("warband.captureEditorEvidence", () => captureEvidence(false)),
     vscode.commands.registerCommand("warband.captureTerminalEvidence", () => captureEvidence(true)),
@@ -3442,6 +3616,75 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand("warband.disableBypass", () => bypass.request(false, true)),
   );
 
+  const barAudit = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 99);
+  barAudit.command = "warband.openAudit";
+  showAuditFailure = () => {
+    barAudit.text = `$(warning) Audit`;
+    barAudit.tooltip = t("La collecte Audit est incomplète. Ouvrez Audit pour consulter son état.");
+    barAudit.show();
+  };
+  let healthProject: string | null = null;
+  let previousIncomplete = false;
+  refreshAudit = async () => {
+    const id = (await readProjectChoices(defaultConfigDir())).activeId;
+    integrationProjectId = id;
+    if (!id) {
+      barAudit.hide();
+      return;
+    }
+    if (healthProject !== id) {
+      previousIncomplete = (await auditStore.view(id)).health.incomplete;
+      healthProject = id;
+    }
+    const enabled = await auditStore.enabled(id);
+    const incomplete = previousIncomplete || auditStore.localHealth(id).incomplete;
+    barAudit.text = `$(record) Audit · ${!enabled ? t("En pause") : incomplete ? t("Partiel") : t("Auto")}`;
+    barAudit.tooltip = t(
+      "Capture automatique des actions et des terminaux Venator du projet. Cliquez pour consulter les limites et exporter.",
+    );
+    barAudit.backgroundColor =
+      !enabled || incomplete ? new vscode.ThemeColor("statusBarItem.warningBackground") : undefined;
+    barAudit.show();
+    if (studioPanel?.visible && studioPage === "audit") await pushStudio();
+  };
+  let pollingAudit = false;
+  const pollAudit = async () => {
+    if (pollingAudit || auditStopped) return;
+    pollingAudit = true;
+    try {
+      const currentProject = (await readProjectChoices(defaultConfigDir())).activeId;
+      if (healthProject !== currentProject) scheduleAudit();
+      for (const shells of editorShells.values())
+        for (const shell of shells) {
+          if (auditStopped) return;
+          await auditCapture.shell(shell, () => readLogTail(shell));
+        }
+    } finally {
+      pollingAudit = false;
+    }
+  };
+  const captureTimer = setInterval(() => void pollAudit().catch(auditFailed), 3000);
+  captureTimer.unref();
+  shutdownAudit = async () => {
+    auditStopped = true;
+    clearInterval(captureTimer);
+    if (auditTimer !== undefined) clearTimeout(auditTimer);
+    await Promise.allSettled(
+      [...editorShells.values()]
+        .flat()
+        .map((shell) => auditCapture.shell(shell, () => readLogTail(shell), true)),
+    );
+    await Promise.allSettled([...closingAudit]);
+    await auditCapture.flush();
+    await auditStore.close().catch(auditFailed);
+  };
+  context.subscriptions.push(barAudit, {
+    dispose: () => {
+      clearInterval(captureTimer);
+      if (auditTimer !== undefined) clearTimeout(auditTimer);
+    },
+  });
+  void refreshAudit().catch(auditFailed);
   updateModelStatus();
   void refreshContainerStatus();
   // Ancienne clé `warband.layout` ignorée : seule `warband.windows` est relue.
@@ -3474,4 +3717,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   })();
 }
 
-export function deactivate(): void {}
+export async function deactivate(): Promise<void> {
+  await shutdownAudit?.();
+  shutdownAudit = undefined;
+}

@@ -7,6 +7,7 @@ export * from "./approval/policy.js";
 export * from "./approval/shell.js";
 export * from "./approval/source.js";
 export * from "./attack-flow.js";
+export * from "./audit.js";
 export * from "./burp/tools.js";
 export * from "./correlation.js";
 export * from "./cours/confine.js";

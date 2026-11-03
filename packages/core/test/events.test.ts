@@ -12,6 +12,18 @@ import {
 
 /** Un exemplaire valide de chaque kind (le typage force l'exhaustivité). */
 const SAMPLES: { [K in EventKind]: Extract<EventPayload, { kind: K }> } = {
+  "audit.test": {
+    kind: "audit.test",
+    claim: {
+      objective: "Vérifier un accès",
+      target: "lab.test",
+      testContext: "anonyme",
+      method: "HTTP GET",
+      observed: "403 sur un chemin",
+      conclusion: "not-observed",
+      evidenceIds: ["event-1"],
+    },
+  },
   "run.started": { kind: "run.started", prompt: "p", cwd: "/" },
   "session.started": {
     kind: "session.started",
