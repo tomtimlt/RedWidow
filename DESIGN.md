@@ -49,6 +49,16 @@ Classes `.brand-wing` (crochets), `.brand-core`, `.brand-lead`, `.brand-orbit`,
 `.brand-node` ; `media/logo.svg`, `logo-small.svg` et `icon.svg` (barre
 d’activité, monochrome) en sont les versions fixes.
 
+## Marque RedWidow (en cours)
+
+Nouveau nom retenu : **RedWidow** (la veuve noire version red team), qui
+remplace Venator Ops. **Le projet est et restera open source** : la
+communication peut être commerciale, mais l’outil reste libre (code public,
+licence open source). Palette par défaut à venir : Widow (noir profond,
+cramoisi `#E5132B`) ; logo : araignée blindée à facettes avec viseur en
+sablier, version détaillée et icône simplifiée. Les sections ci-dessous
+décrivent encore l’identité Venator Ops tant que la refonte n’est pas faite.
+
 ## Marque Venator Ops
 
 Nom retenu : **Venator Ops** (*venator*, « le chasseur » en latin ; aussi un
