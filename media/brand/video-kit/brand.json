@@ -1,9 +1,163 @@
 {
-  "name": "Venator Ops",
+  "name": "RedWidow",
   "tagline": "Pentest in VS Code, with AI on call.",
-  "hook": ["Your pentest.", "One cockpit.", "One agent."],
-  "colors": { "background": "#101214", "panel": "#1f1f1f", "text": "#eef1f4", "muted": "#a3acb6", "signature": "#3cc7c0", "steel": "#7d8b99", "ok": "#3fb950", "warn": "#d29922" },
-  "fonts": { "headline": "Geist 800, uppercase, letter-spacing -0.03em", "mono": "Geist Mono 700, letter-spacing 0.16em" },
-  "motion": { "rise_px": 28, "duration_s": 0.65, "easing": "cubic-bezier(.2,.7,.2,1)", "stagger_s": [0.25, 0.6, 1.25] },
-  "rules": ["fictional lab only", "no invented features", "AI is a helper, not an autopilot", "animate screenshots, never redraw the UI", "flat dark look: no glow, gradients, neon or glitch"]
+  "hook": [
+    "Your pentest.",
+    "One cockpit.",
+    "One agent."
+  ],
+  "colors": {
+    "background": "#0b0b0d",
+    "panel": "#1f1f1f",
+    "text": "#eef1f4",
+    "muted": "#a3a6ad",
+    "signature": "#E5132B",
+    "steel_hi": "#B0B1B8",
+    "steel": "#606168",
+    "ink": "#131417",
+    "ok": "#3fb950",
+    "warn": "#d29922"
+  },
+  "fonts": {
+    "headline": "Geist 800, uppercase, letter-spacing -0.03em",
+    "wordmark": "Geist 800 (lockup) or JetBrains Mono 700 caps, letter-spacing 0.16em (UI wordmark); RED in signature",
+    "ui": "Geist",
+    "mono": "JetBrains Mono"
+  },
+  "logo": {
+    "full": "logo/redwidow.svg (layered spider: .rw-leg-*, .rw-palp-*, .rw-brain, .rw-eyes, .rw-crosshair)",
+    "small": "logo/redwidow-mini.svg (head with brain, eyes, four legs)",
+    "fallback": "logo/redwidow-crosshair.svg"
+  },
+  "palettes": [
+    {
+      "id": "widow",
+      "name": "Widow",
+      "color": "#e5132b"
+    },
+    {
+      "id": "sentinelle",
+      "name": "Sentinel",
+      "color": "#3cc7c0"
+    },
+    {
+      "id": "braise",
+      "name": "Ember",
+      "color": "#f0506e"
+    },
+    {
+      "id": "venom",
+      "name": "Venom",
+      "color": "#3ee08f"
+    },
+    {
+      "id": "arctic",
+      "name": "Arctic",
+      "color": "#5ec8ff"
+    },
+    {
+      "id": "spectre",
+      "name": "Specter",
+      "color": "#a990ff"
+    },
+    {
+      "id": "ultraviolet",
+      "name": "Ultraviolet",
+      "color": "#c77dff"
+    },
+    {
+      "id": "tactical",
+      "name": "Tactical",
+      "color": "#b5c46a"
+    },
+    {
+      "id": "rouge",
+      "name": "Red",
+      "color": "#ff4d4d"
+    },
+    {
+      "id": "orange",
+      "name": "Orange",
+      "color": "#ff9f43"
+    },
+    {
+      "id": "jaune",
+      "name": "Yellow",
+      "color": "#ffd43b"
+    },
+    {
+      "id": "vert",
+      "name": "Green",
+      "color": "#4cd964"
+    },
+    {
+      "id": "bleu",
+      "name": "Blue",
+      "color": "#4d9fff"
+    },
+    {
+      "id": "rose",
+      "name": "Pink",
+      "color": "#ff6fb5"
+    },
+    {
+      "id": "blanc",
+      "name": "White",
+      "color": "#f2f4f7"
+    },
+    {
+      "id": "aurora",
+      "name": "Aurora",
+      "color": "#35e0c0 → #4f9dff → #a27bff"
+    },
+    {
+      "id": "synthwave",
+      "name": "Synthwave",
+      "color": "#ff5fa2 → #b36bff → #4fc3ff"
+    },
+    {
+      "id": "toxic",
+      "name": "Toxic",
+      "color": "#9be84a → #3ddc84 → #22c7d6"
+    },
+    {
+      "id": "bloodmoon",
+      "name": "Blood moon",
+      "color": "#e5132b → #c8236e → #7a4cf0"
+    },
+    {
+      "id": "ocean",
+      "name": "Abyss",
+      "color": "#29d3c0 → #2fa8ff → #5b7bff"
+    },
+    {
+      "id": "nebula",
+      "name": "Nebula",
+      "color": "#ff7eb6 → #a98bff → #35c4d8"
+    },
+    {
+      "id": "multi",
+      "name": "Multicolor",
+      "color": "six hues"
+    },
+    {
+      "id": "editeur",
+      "name": "Editor",
+      "color": "VS Code theme accent"
+    }
+  ],
+  "motion": {
+    "rise_px": 28,
+    "duration_s": 0.45,
+    "easing": "power3.out",
+    "stagger_s": 0.18,
+    "bpm": 120
+  },
+  "rules": [
+    "fictional lab only (10.10.10.14, user dev)",
+    "no invented features",
+    "the AI is a helper, not an autopilot",
+    "animate the live HTML components, never zoom PNGs",
+    "flat dark look: no glow, neon, particles or glitch outside the UI's own effects"
+  ]
 }

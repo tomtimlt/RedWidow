@@ -1,4 +1,4 @@
-/* Venator Ops — interface CSS scoped to .vo-ui for video compositions.
+/* RedWidow — interface CSS scoped to .vo-ui for video compositions.
    Generated from media/chat.css and the preview theme; do not edit by hand. */
 :root {
  --vscode-font-family: "Segoe UI", system-ui, sans-serif;
@@ -57,14 +57,14 @@
 .demo-toolbar select { min-width:0; max-width:100%; font-size:11px; }
 
 /*
- * Venator Ops — direction « Acier et signature »
+ * RedWidow — direction « Acier et signature »
  *
  * Acier : surfaces neutres dérivées du thème VS Code, hiérarchie portée par
  * des filets fins et un liseré vertical de 2 px qui signale l'état.
  * Signature : couleur de la palette choisie (logo, liserés, sélections,
- * activité). L'interaction suit l'accent et le focus du thème.
- * Typographie : Geist pour l'interface, Geist Mono pour les repères techniques
- * (étiquettes, compteurs, horloges) ; la police de l'éditeur pour le code.
+ * activité), boutons principaux et liens ; le focus suit le thème.
+ * Typographie : Geist pour l'interface, JetBrains Mono pour les repères techniques
+ * (étiquettes, compteurs, horloges) et pour le code, les commandes et les sorties.
  */
 @font-face {
   font-family: "Warband Geist";
@@ -74,8 +74,8 @@
   font-display: swap;
 }
 @font-face {
-  font-family: "Warband Geist Mono";
-  src: url("fonts/geist-mono-latin.woff2") format("woff2");
+  font-family: "Warband JetBrains Mono";
+  src: url("fonts/jetbrains-mono-latin.woff2") format("woff2");
   font-style: normal;
   font-weight: 100 900;
   font-display: swap;
@@ -147,8 +147,8 @@
     0 8px 24px var(--vscode-widget-shadow, #0004);
   /* Typographie */
   --jn-font: "Warband Geist", var(--vscode-font-family, system-ui, sans-serif);
-  --jn-mono: "Warband Geist Mono", var(--vscode-editor-font-family, ui-monospace, monospace);
-  --jn-code: var(--vscode-editor-font-family, "Warband Geist Mono", ui-monospace, monospace);
+  --jn-mono: "Warband JetBrains Mono", var(--vscode-editor-font-family, ui-monospace, monospace);
+  --jn-code: "Warband JetBrains Mono", var(--vscode-editor-font-family, ui-monospace, monospace);
   --jn-fs-2xs: 10.5px;
   --jn-fs-xs: 11px;
   --jn-fs-sm: 12px;
@@ -194,14 +194,16 @@
 }
 
 /* ───────────────────────────── Palettes ─────────────────────────────
- * Cinq jeux de couleurs : Sentinelle, Braise, Spectre, Éditeur et Multicolore.
- * Chaque jeu fixe la couleur de signature (--jn-brand) et le gris de marque
- * (--jn-steel), en deux tons : sombre (par défaut) et clair. Les règles
+ * Vingt-trois jeux de couleurs : huit unis, sept classiques, six en dégradé,
+ * Multicolore et Éditeur.
+ * Chaque jeu fixe la couleur de signature (--jn-brand), le gris de marque
+ * (--jn-steel), le texte sur la signature (--jn-on-brand) et trois teintes de
+ * dégradé, en deux tons : sombre (par défaut) et clair. Les règles
  * s'appliquent à tout élément portant data-palette : la page Apparence s'en
- * sert pour aperçu de chaque jeu dans sa carte. La signature sert au logo, aux
- * liserés, aux sélections et à l'activité ; les boutons principaux et le focus
- * restent ceux du thème. En contraste élevé, la signature cède la place à la
- * bordure active du thème.
+ * sert pour aperçu de chaque jeu dans sa carte. Hors jeu Éditeur, la palette
+ * habille aussi les boutons principaux et les liens (voir « Palettes
+ * partout ») ; le focus reste celui du thème. En contraste élevé, la signature
+ * cède la place à la bordure active du thème.
  */
 .vo-ui,
 [data-palette="sentinelle"] {
@@ -264,7 +266,14 @@
   --jn-sw-2: var(--jn-steel);
   --jn-sw-3: color-mix(in srgb, var(--jn-brand) 60%, var(--vscode-editor-background));
   --jn-sw-4: color-mix(in srgb, var(--jn-brand) 30%, var(--vscode-editor-background));
-  --jn-pal-fill: var(--jn-brand);
+  --jn-pal-fill: var(--jn-grad);
+  --jn-on-brand: #0b0d10;
+  --jn-grad-a: var(--jn-brand);
+  --jn-grad-b: color-mix(in srgb, var(--jn-brand) 62%, #ffffff);
+  --jn-grad-c: var(--jn-brand);
+}
+[data-palette="widow"] {
+  --jn-on-brand: #ffffff;
 }
 /* Multicolore : la signature est le cyan ; chaque rôle prend sa teinte. */
 [data-palette="multi"] {
@@ -282,6 +291,252 @@
 .vo-ui.vscode-light [data-palette="multi"] {
   --jn-steel: #55687c;
 }
+/* Nouveaux jeux unis : signature, acier, texte sur la signature. Un dégradé
+ * léger (signature, reflet clair, signature) leur est dérivé plus bas. */
+[data-palette="widow"] {
+  --jn-brand: #e5132b;
+  --jn-steel: #8b8e97;
+  --jn-on-brand: #ffffff;
+}
+.vo-ui.vscode-light[data-palette="widow"],
+.vo-ui.vscode-light [data-palette="widow"] {
+  --jn-brand: #c40f24;
+  --jn-steel: #55585f;
+}
+[data-palette="venom"] {
+  --jn-brand: #3ee08f;
+  --jn-steel: #7f9a8c;
+  --jn-on-brand: #04140b;
+}
+.vo-ui.vscode-light[data-palette="venom"],
+.vo-ui.vscode-light [data-palette="venom"] {
+  --jn-brand: #0d7a45;
+  --jn-steel: #4d6458;
+}
+[data-palette="arctic"] {
+  --jn-brand: #5ec8ff;
+  --jn-steel: #8aa0b5;
+  --jn-on-brand: #031522;
+}
+.vo-ui.vscode-light[data-palette="arctic"],
+.vo-ui.vscode-light [data-palette="arctic"] {
+  --jn-brand: #0a6aa3;
+  --jn-steel: #4f657a;
+}
+[data-palette="ultraviolet"] {
+  --jn-brand: #c77dff;
+  --jn-steel: #9a8fb5;
+  --jn-on-brand: #14051f;
+}
+.vo-ui.vscode-light[data-palette="ultraviolet"],
+.vo-ui.vscode-light [data-palette="ultraviolet"] {
+  --jn-brand: #7b2cbf;
+  --jn-steel: #5f5680;
+}
+[data-palette="tactical"] {
+  --jn-brand: #b5c46a;
+  --jn-steel: #8c917c;
+  --jn-on-brand: #12140a;
+}
+.vo-ui.vscode-light[data-palette="tactical"],
+.vo-ui.vscode-light [data-palette="tactical"] {
+  --jn-brand: #5c6b1f;
+  --jn-steel: #575c48;
+}
+/* Jeux classiques : couleurs franches, acier neutre. */
+[data-palette="rouge"] {
+  --jn-brand: #ff4d4d;
+  --jn-steel: #8a909a;
+  --jn-on-brand: #1a0505;
+}
+.vo-ui.vscode-light[data-palette="rouge"],
+.vo-ui.vscode-light [data-palette="rouge"] {
+  --jn-brand: #c62828;
+  --jn-steel: #555b64;
+}
+[data-palette="orange"] {
+  --jn-brand: #ff9f43;
+  --jn-steel: #8a909a;
+  --jn-on-brand: #1a0e00;
+}
+.vo-ui.vscode-light[data-palette="orange"],
+.vo-ui.vscode-light [data-palette="orange"] {
+  --jn-brand: #b35900;
+  --jn-steel: #555b64;
+}
+[data-palette="jaune"] {
+  --jn-brand: #ffd43b;
+  --jn-steel: #8a909a;
+  --jn-on-brand: #1a1500;
+}
+.vo-ui.vscode-light[data-palette="jaune"],
+.vo-ui.vscode-light [data-palette="jaune"] {
+  --jn-brand: #8a6d00;
+  --jn-steel: #555b64;
+}
+[data-palette="vert"] {
+  --jn-brand: #4cd964;
+  --jn-steel: #8a909a;
+  --jn-on-brand: #04140a;
+}
+.vo-ui.vscode-light[data-palette="vert"],
+.vo-ui.vscode-light [data-palette="vert"] {
+  --jn-brand: #1e7e34;
+  --jn-steel: #555b64;
+}
+[data-palette="bleu"] {
+  --jn-brand: #4d9fff;
+  --jn-steel: #8a909a;
+  --jn-on-brand: #04101f;
+}
+.vo-ui.vscode-light[data-palette="bleu"],
+.vo-ui.vscode-light [data-palette="bleu"] {
+  --jn-brand: #1f5fbf;
+  --jn-steel: #555b64;
+}
+[data-palette="rose"] {
+  --jn-brand: #ff6fb5;
+  --jn-steel: #8a909a;
+  --jn-on-brand: #1a0510;
+}
+.vo-ui.vscode-light[data-palette="rose"],
+.vo-ui.vscode-light [data-palette="rose"] {
+  --jn-brand: #b8236f;
+  --jn-steel: #555b64;
+}
+[data-palette="blanc"] {
+  --jn-brand: #f2f4f7;
+  --jn-steel: #8a909a;
+  --jn-on-brand: #0b0d10;
+}
+.vo-ui.vscode-light[data-palette="blanc"],
+.vo-ui.vscode-light [data-palette="blanc"] {
+  --jn-brand: #2b2f36;
+  --jn-steel: #555b64;
+}
+/* Jeux en dégradé : trois teintes (--jn-grad-a, -b, -c) pour les boutons, les
+ * soulignements, le curseur d'effort, le mot-symbole et l'aura du bypass. La
+ * signature unie est la teinte du milieu. */
+[data-palette="aurora"] {
+  --jn-brand: #4f9dff;
+  --jn-steel: #8a93a6;
+  --jn-on-brand: #06101c;
+  --jn-grad-a: #35e0c0;
+  --jn-grad-b: #4f9dff;
+  --jn-grad-c: #a27bff;
+  --jn-sw-1: var(--jn-grad-a);
+  --jn-sw-2: var(--jn-grad-b);
+  --jn-sw-3: var(--jn-grad-c);
+  --jn-sw-4: var(--jn-steel);
+}
+.vo-ui.vscode-light[data-palette="aurora"],
+.vo-ui.vscode-light [data-palette="aurora"] {
+  --jn-brand: #2a5fd0;
+  --jn-steel: #565e72;
+  --jn-grad-a: #0b8a73;
+  --jn-grad-b: #2a5fd0;
+  --jn-grad-c: #6a3fd0;
+}
+[data-palette="synthwave"] {
+  --jn-brand: #b36bff;
+  --jn-steel: #8a93a6;
+  --jn-on-brand: #12061a;
+  --jn-grad-a: #ff5fa2;
+  --jn-grad-b: #b36bff;
+  --jn-grad-c: #4fc3ff;
+  --jn-sw-1: var(--jn-grad-a);
+  --jn-sw-2: var(--jn-grad-b);
+  --jn-sw-3: var(--jn-grad-c);
+  --jn-sw-4: var(--jn-steel);
+}
+.vo-ui.vscode-light[data-palette="synthwave"],
+.vo-ui.vscode-light [data-palette="synthwave"] {
+  --jn-brand: #7b3fd0;
+  --jn-steel: #565e72;
+  --jn-grad-a: #c2306f;
+  --jn-grad-b: #7b3fd0;
+  --jn-grad-c: #0a74a8;
+}
+[data-palette="toxic"] {
+  --jn-brand: #3ddc84;
+  --jn-steel: #8a93a6;
+  --jn-on-brand: #04140b;
+  --jn-grad-a: #9be84a;
+  --jn-grad-b: #3ddc84;
+  --jn-grad-c: #22c7d6;
+  --jn-sw-1: var(--jn-grad-a);
+  --jn-sw-2: var(--jn-grad-b);
+  --jn-sw-3: var(--jn-grad-c);
+  --jn-sw-4: var(--jn-steel);
+}
+.vo-ui.vscode-light[data-palette="toxic"],
+.vo-ui.vscode-light [data-palette="toxic"] {
+  --jn-brand: #13804a;
+  --jn-steel: #565e72;
+  --jn-grad-a: #4f7a12;
+  --jn-grad-b: #13804a;
+  --jn-grad-c: #0a7f95;
+}
+[data-palette="bloodmoon"] {
+  --jn-brand: #c8236e;
+  --jn-steel: #8a93a6;
+  --jn-on-brand: #ffffff;
+  --jn-grad-a: #e5132b;
+  --jn-grad-b: #c8236e;
+  --jn-grad-c: #7a4cf0;
+  --jn-sw-1: var(--jn-grad-a);
+  --jn-sw-2: var(--jn-grad-b);
+  --jn-sw-3: var(--jn-grad-c);
+  --jn-sw-4: var(--jn-steel);
+}
+.vo-ui.vscode-light[data-palette="bloodmoon"],
+.vo-ui.vscode-light [data-palette="bloodmoon"] {
+  --jn-brand: #b0225f;
+  --jn-steel: #565e72;
+  --jn-grad-a: #c40f24;
+  --jn-grad-b: #b0225f;
+  --jn-grad-c: #6a2fd0;
+}
+[data-palette="ocean"] {
+  --jn-brand: #2fa8ff;
+  --jn-steel: #8a93a6;
+  --jn-on-brand: #03111c;
+  --jn-grad-a: #29d3c0;
+  --jn-grad-b: #2fa8ff;
+  --jn-grad-c: #5b7bff;
+  --jn-sw-1: var(--jn-grad-a);
+  --jn-sw-2: var(--jn-grad-b);
+  --jn-sw-3: var(--jn-grad-c);
+  --jn-sw-4: var(--jn-steel);
+}
+.vo-ui.vscode-light[data-palette="ocean"],
+.vo-ui.vscode-light [data-palette="ocean"] {
+  --jn-brand: #0a6aa3;
+  --jn-steel: #565e72;
+  --jn-grad-a: #0a7f75;
+  --jn-grad-b: #0a6aa3;
+  --jn-grad-c: #2448c0;
+}
+[data-palette="nebula"] {
+  --jn-brand: #a98bff;
+  --jn-steel: #8a93a6;
+  --jn-on-brand: #10081a;
+  --jn-grad-a: #ff7eb6;
+  --jn-grad-b: #a98bff;
+  --jn-grad-c: #35c4d8;
+  --jn-sw-1: var(--jn-grad-a);
+  --jn-sw-2: var(--jn-grad-b);
+  --jn-sw-3: var(--jn-grad-c);
+  --jn-sw-4: var(--jn-steel);
+}
+.vo-ui.vscode-light[data-palette="nebula"],
+.vo-ui.vscode-light [data-palette="nebula"] {
+  --jn-brand: #6a3fd0;
+  --jn-steel: #565e72;
+  --jn-grad-a: #c2306f;
+  --jn-grad-b: #6a3fd0;
+  --jn-grad-c: #0a7f95;
+}
 /* Jetons dérivés, recalculés sur chaque élément portant une palette. */
 .vo-ui,
 [data-palette] {
@@ -289,6 +544,22 @@
   --jn-sig-tint: color-mix(in srgb, var(--jn-sig) 13%, transparent);
   --jn-sig-edge: color-mix(in srgb, var(--jn-sig) 48%, transparent);
   --jn-ember: var(--jn-sig);
+  --jn-grad: linear-gradient(90deg, var(--jn-grad-a), var(--jn-grad-b), var(--jn-grad-c));
+  --jn-grad-loop: linear-gradient(90deg, var(--jn-grad-a), var(--jn-grad-b), var(--jn-grad-c), var(--jn-grad-b), var(--jn-grad-a));
+  --jn-aura-stops: var(--jn-grad-a), var(--jn-grad-b), var(--jn-grad-c), var(--jn-grad-b), var(--jn-grad-a);
+}
+[data-palette="multi"] {
+  --jn-on-brand: #031418;
+  --jn-grad-a: var(--jn-rb-3);
+  --jn-grad-b: var(--jn-rb-4);
+  --jn-grad-c: var(--jn-rb-6);
+  --jn-grad: var(--jn-rainbow);
+  --jn-grad-loop: linear-gradient(90deg, var(--jn-rb-1), var(--jn-rb-2), var(--jn-rb-3), var(--jn-rb-4), var(--jn-rb-5), var(--jn-rb-6), var(--jn-rb-1));
+  --jn-aura-stops: var(--jn-rb-1), var(--jn-rb-2), var(--jn-rb-3), var(--jn-rb-4), var(--jn-rb-5), var(--jn-rb-6), var(--jn-rb-1);
+}
+.vo-ui.vscode-light,
+.vo-ui.vscode-light [data-palette] {
+  --jn-on-brand: #ffffff;
 }
 .vo-ui.vscode-light,
 .vo-ui.vscode-light [data-palette] {
@@ -813,6 +1084,122 @@ pre {
   height: 60px;
   margin-bottom: var(--jn-s3);
   overflow: visible;
+}
+/* ───────────────────────────── Araignée RedWidow ─────────────────────────────
+ * Accueil : l'araignée en calques (media/spider.js). Acier de la marque, rouge
+ * des yeux et du viseur pris sur la signature. À l'arrivée, les pattes se
+ * déploient avec un rebond, le cerveau s'allume, le viseur se verrouille et
+ * les yeux clignent ; puis elle respire. En mode Apprentissage, elle étudie :
+ * un livre ouvert entre les pédipalpes, les yeux qui suivent les lignes, le
+ * cerveau qui luit, une page qui tourne, le viseur éteint (rien n'est ciblé).
+ */
+.rw-spider {
+  overflow: visible;
+  aspect-ratio: 935 / 1175;
+  --rw-red: var(--jn-sig);
+  --rw-steel-hi: #b0b1b8;
+  --rw-steel: #606168;
+  --rw-ink: #131417;
+}
+.vo-ui.vscode-light .rw-spider {
+  --rw-steel-hi: #9a9ca4;
+  --rw-steel: #4f5157;
+  --rw-ink: #1d1e22;
+}
+.vo-ui.vscode-high-contrast .rw-spider,
+.vo-ui.vscode-high-contrast-light .rw-spider {
+  --rw-steel-hi: var(--vscode-foreground);
+  --rw-steel: var(--vscode-foreground);
+  --rw-ink: var(--vscode-editor-background);
+}
+.welcome-spider {
+  flex: none;
+  width: 120px;
+  height: auto;
+  margin-bottom: var(--jn-s2);
+}
+/* Petite icône (tête au cerveau et quatre pattes) : logo de l'en-tête, de
+ * l'indicateur de réflexion, des réponses et des cartes d'aperçu. */
+.rw-mini {
+  flex: none;
+  aspect-ratio: 925 / 771;
+}
+.rw-mini .rw-book {
+  display: none;
+}
+#title .brand.rw-mini {
+  width: 26px;
+  height: auto;
+}
+.msg-avatar.rw-mini,
+.thinking-mark.rw-mini {
+  width: 22px;
+  height: auto;
+}
+.pal-logo.rw-mini {
+  width: 32px;
+  height: auto;
+}
+.vo-ui.waiting .thinking-mark.rw-mini {
+  --rw-red: var(--jn-warn);
+}
+.rw-spider :is(.rw-leg, .rw-palp, .rw-crosshair, .rw-brain, .rw-eyes, .rw-book, .rw-book-turn) {
+  transform-box: fill-box;
+}
+.rw-spider .rw-crosshair,
+.rw-spider .rw-brain,
+.rw-spider .rw-eyes {
+  transform-origin: 50% 50%;
+  transition: opacity var(--jn-d3) var(--jn-ease-io);
+}
+.rw-leg-l1, .rw-leg-l2 { transform-origin: 100% 100%; }
+.rw-leg-r1, .rw-leg-r2 { transform-origin: 0% 100%; }
+.rw-leg-l3 { transform-origin: 100% 30%; }
+.rw-leg-r3 { transform-origin: 0% 30%; }
+.rw-leg-l4 { transform-origin: 100% 0%; }
+.rw-leg-r4 { transform-origin: 0% 0%; }
+.rw-book {
+  opacity: 0;
+  transform-origin: 50% 0%;
+  transform: translateY(40px) scale(0.6);
+  transition:
+    opacity var(--jn-d3) var(--jn-ease-io),
+    transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.rw-book-cover {
+  fill: var(--jn-sig);
+}
+.rw-book-page,
+.rw-book-turn {
+  fill: #e9eaee;
+}
+.rw-book-turn {
+  opacity: 0;
+  transform-origin: 0% 50%;
+}
+.rw-book-lines {
+  fill: none;
+  stroke: #8b8e97;
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+.rw-book-spine {
+  fill: none;
+  stroke: var(--rw-ink);
+  stroke-width: 5;
+}
+.vo-ui.learning .rw-book {
+  opacity: 1;
+  transform: none;
+}
+.vo-ui.learning .rw-spider .rw-crosshair {
+  opacity: 0.25;
+}
+.vo-ui.vscode-high-contrast .rw-book-page,
+.vo-ui.vscode-high-contrast-light .rw-book-page {
+  fill: var(--vscode-editor-background);
+  stroke: var(--vscode-foreground);
+  stroke-width: 4;
 }
 .welcome h2 {
   margin: 0;
@@ -5240,7 +5627,7 @@ select.studio-project-control {
 
 /* ───────────────────────────── Marque ───────────────────────────── */
 
-/* Crochets de visée en gris de marque ; étincelle et satellite en signature. */
+/* Viseur RedWidow : traits en gris de marque ; anneau et satellite en signature. */
 .brand {
   overflow: visible;
 }
@@ -6085,16 +6472,166 @@ select.studio-project-control {
 [data-palette="multi"] .pal-logo .brand-node {
   fill: var(--jn-rb-6);
 }
-/* Dans une carte, le logo suit la palette de la carte, pas celle de la page. */
-.pal-card:not([data-palette="multi"]) .pal-logo .brand-lead,
-.pal-card:not([data-palette="multi"]) .pal-logo .brand-node {
-  fill: var(--jn-sig);
-}
 .vo-ui.vscode-high-contrast [data-palette="multi"] .pal-logo .brand-lead,
 .vo-ui.vscode-high-contrast-light [data-palette="multi"] .pal-logo .brand-lead,
 .vo-ui.vscode-high-contrast [data-palette="multi"] .pal-logo .brand-node,
 .vo-ui.vscode-high-contrast-light [data-palette="multi"] .pal-logo .brand-node {
   fill: var(--vscode-foreground);
+}
+
+/* ───────────────────────────── Palettes partout ─────────────────────────────
+ * Hors jeu Éditeur et hors contraste élevé, la palette habille toute
+ * l'interface : liens et teintes d'accent, boutons principaux en dégradé,
+ * soulignements, mot-symbole, phases faites de la mission, remplissage du
+ * curseur d'effort et sélection de texte. Le focus clavier reste celui du
+ * thème. Les jeux en dégradé et le Multicolore donnent au bypass une aura qui
+ * tourne. Les états (ok, alerte, erreur) et la gravité gardent leurs couleurs.
+ */
+.vo-ui[data-palette]:where(:not([data-palette="editeur"], .vscode-high-contrast, .vscode-high-contrast-light)) {
+  --jn-accent: var(--jn-brand);
+  --jn-accent-fill: var(--jn-brand);
+  --jn-accent-fill-hover: var(--jn-brand);
+  --jn-accent-fill-border: transparent;
+  --jn-on-accent: var(--jn-on-brand);
+  --jn-bypass: var(--jn-brand);
+  & ::selection {
+    background: color-mix(in srgb, var(--jn-brand) 34%, transparent);
+  }
+  & button.primary:not(:disabled) {
+    background-image: var(--jn-grad);
+    background-size: 100% 100%;
+    font-weight: 600;
+  }
+  & button.primary:hover:not(:disabled):not([aria-disabled="true"]) {
+    filter: brightness(1.08) saturate(1.05);
+  }
+  & #bar::after,
+  & .studio-nav-title::after {
+    width: 40px;
+    background: var(--jn-grad);
+  }
+  & #title .brand-ops {
+    background: var(--jn-grad);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  & .brand-lead {
+    fill: var(--jn-grad-a);
+  }
+  & .brand-node {
+    fill: var(--jn-grad-c);
+  }
+  & .mission-step.is-done .mission-mark {
+    background: var(--jn-grad);
+    color: var(--jn-on-brand);
+  }
+  & #effort-scale::before {
+    left: 0;
+    right: 0;
+    width: auto;
+    background: var(--jn-grad);
+    clip-path: inset(0 calc(100% - (var(--jn-pos) + var(--jn-thumb) / 2)) 0 0 round 99px);
+    transition:
+      clip-path var(--jn-settle),
+      opacity var(--jn-d2) var(--jn-ease-io);
+  }
+  & #effort-scale.is-dragging::before {
+    transition: none;
+  }
+}
+/* Jeux rouges, orange et jaune : les liens gardent la couleur du thème pour ne
+ * pas se confondre avec l'erreur (Refuser, échecs) ni avec les alertes. */
+.vo-ui:is([data-palette="widow"], [data-palette="braise"], [data-palette="bloodmoon"], [data-palette="rouge"], [data-palette="orange"], [data-palette="jaune"]):where(:not(.vscode-high-contrast, .vscode-high-contrast-light)) {
+  --jn-accent: var(--vscode-textLink-foreground, var(--vscode-button-background));
+}
+/* Dans une carte d'aperçu, le logo suit la palette de la carte. */
+.pal-card:not([data-palette="multi"]) .pal-logo .brand-lead {
+  fill: var(--jn-grad-a);
+}
+.pal-card:not([data-palette="multi"]) .pal-logo .brand-node {
+  fill: var(--jn-grad-c);
+}
+/* Bypass aux couleurs de la palette : aura en dégradé qui tourne autour de la
+ * vue, pastille de l'en-tête, compositeur, interrupteur et jauge des règles
+ * d'engagement en dégradé qui défile. Jeux unis : reflet de leur signature ;
+ * jeux en dégradé et Multicolore : leurs teintes. En attente de confirmation,
+ * le contour reste en pointillés. Hors jeu Éditeur et contraste élevé, où le
+ * bypass garde sa couleur propre. Mouvement réduit : dégradés fixes. */
+@property --jn-aura-turn {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+.vo-ui[data-palette]:where(:not([data-palette="editeur"], .vscode-high-contrast, .vscode-high-contrast-light)) {
+  &.automatic-on::after {
+    border: 3px solid transparent;
+    border-image: conic-gradient(from var(--jn-aura-turn), var(--jn-aura-stops)) 1;
+    box-shadow:
+      inset 0 0 26px color-mix(in srgb, var(--jn-grad-b) 30%, transparent),
+      inset 0 0 80px color-mix(in srgb, var(--jn-grad-c) 12%, transparent);
+  }
+  & #automatic-badge {
+    background: var(--jn-grad-loop);
+    background-size: 200% 100%;
+    color: var(--jn-on-brand);
+  }
+  &.automatic-on #composer {
+    border-color: transparent;
+    background:
+      linear-gradient(var(--vscode-input-background, var(--jn-widget)), var(--vscode-input-background, var(--jn-widget))) padding-box,
+      var(--jn-grad-loop) border-box;
+    background-size: 100% 100%, 200% 100%;
+    box-shadow: 0 0 18px color-mix(in srgb, var(--jn-grad-b) 26%, transparent);
+  }
+  & #automatic-switch[aria-checked="true"]::after,
+  & .roe[data-level="3"] .roe-gauge i {
+    background: var(--jn-grad-loop);
+    background-size: 200% 100%;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .vo-ui[data-palette]:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light):where(:not([data-palette="editeur"])) {
+    &.automatic-on::after {
+      animation:
+        jn-aura 4s var(--jn-ease-io) infinite,
+        jn-aura-spin 6s linear infinite;
+    }
+    &.bypass-ending::after {
+      animation:
+        jn-aura 1s var(--jn-ease-io) infinite,
+        jn-aura-spin 2s linear infinite;
+    }
+    & #automatic-badge,
+    & #automatic-switch[aria-checked="true"]::after,
+    & .roe[data-level="3"] .roe-gauge i {
+      animation: jn-grad-shift 3s linear infinite;
+    }
+    &.automatic-on #composer {
+      animation: jn-grad-shift-border 3s linear infinite;
+    }
+  }
+}
+@keyframes jn-grad-shift {
+  from {
+    background-position: 0% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+@keyframes jn-grad-shift-border {
+  from {
+    background-position: 0% 0, 0% 0;
+  }
+  to {
+    background-position: 0% 0, -200% 0;
+  }
+}
+@keyframes jn-aura-spin {
+  to {
+    --jn-aura-turn: 360deg;
+  }
 }
 
 /* ───────────────────────────── Palette multicolore ─────────────────────────────
@@ -6229,6 +6766,69 @@ select.studio-project-control {
  */
 @media (prefers-reduced-motion: no-preference) {
   .vo-ui:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light) {
+    /* Araignée : arrivée (pattes, cerveau, viseur, yeux), puis respiration. */
+    & .welcome-spider {
+      animation:
+        jn-spider-in 0.6s var(--jn-ease-out) both,
+        jn-breathe-lock 5s var(--jn-ease-io) 1.6s infinite;
+    }
+    & .welcome-spider .rw-leg,
+    & .welcome-spider .rw-palp {
+      animation: rw-leg-in 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    }
+    & .welcome-spider .rw-leg-l1, & .welcome-spider .rw-leg-r1 { animation-delay: 0.1s; }
+    & .welcome-spider .rw-leg-l2, & .welcome-spider .rw-leg-r2 { animation-delay: 0.18s; }
+    & .welcome-spider .rw-leg-l3, & .welcome-spider .rw-leg-r3 { animation-delay: 0.26s; }
+    & .welcome-spider .rw-leg-l4, & .welcome-spider .rw-leg-r4 { animation-delay: 0.34s; }
+    & .welcome-spider .rw-palp { animation-delay: 0.42s; }
+    & .welcome-spider .rw-brain {
+      animation: rw-brain-on 0.9s var(--jn-ease-out) 0.6s both;
+    }
+    & .welcome-spider .rw-crosshair {
+      animation: rw-lock-in 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) 0.85s both;
+    }
+    & .welcome-spider .rw-eyes {
+      animation: rw-blink 5s var(--jn-ease-io) 1.3s infinite;
+    }
+    /* Mini araignée : elle marche pendant que l'agent travaille, une patte sur
+     * deux, et son cerveau luit ; au survol de l'en-tête, un pas. */
+    &.running:not(.waiting, .paused) :is(#title, #thinking) .rw-mini .rw-leg,
+    &.running:not(.waiting, .paused) #log .msg-row.agent:not(:has(~ .msg-row.agent)) .rw-mini .rw-leg {
+      animation: rw-walk 0.5s var(--jn-ease-io) infinite alternate;
+    }
+    &.running:not(.waiting, .paused) .rw-mini :is(.rw-leg-l3, .rw-leg-r4) {
+      animation-delay: -0.25s;
+    }
+    &.running:not(.waiting, .paused) :is(#title, #thinking) .rw-mini .rw-brain,
+    &.running:not(.waiting, .paused) #log .msg-row.agent:not(:has(~ .msg-row.agent)) .rw-mini .rw-brain {
+      animation: rw-pulse 1.2s var(--jn-ease-io) infinite;
+    }
+    & #title:hover .rw-mini .rw-leg {
+      animation: rw-walk 0.25s var(--jn-ease-io) 4 alternate;
+    }
+    & #log .msg-row.agent.enter .msg-avatar.rw-mini,
+    & #log .enter .msg-row.agent .msg-avatar.rw-mini {
+      animation: jn-spider-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    }
+    /* Apprentissage : elle lit. */
+    &.learning .welcome-spider .rw-eyes {
+      animation:
+        rw-read 2.4s var(--jn-ease-io) infinite,
+        rw-blink 5s var(--jn-ease-io) 1.3s infinite;
+    }
+    &.learning .welcome-spider .rw-brain {
+      animation: rw-think 2.4s var(--jn-ease-io) infinite;
+    }
+    &.learning .welcome-spider .rw-crosshair {
+      animation: rw-dim 0.4s var(--jn-ease-io) forwards;
+    }
+    &.learning .welcome-spider .rw-book-turn {
+      animation: rw-page 4.8s var(--jn-ease-io) 0.8s infinite;
+    }
+    &.learning .welcome-spider .rw-leg-l1,
+    &.learning .welcome-spider .rw-leg-r1 {
+      animation: rw-hold 2.4s var(--jn-ease-io) infinite;
+    }
     & button .ico,
     & .chip .caret,
     & .kc-dot,
@@ -6493,6 +7093,128 @@ select.studio-project-control {
     opacity: 0.45;
   }
 }
+@keyframes rw-leg-in {
+  from {
+    opacity: 0;
+    transform: scale(0.15);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes rw-brain-on {
+  0% {
+    opacity: 0.2;
+    filter: none;
+  }
+  55% {
+    opacity: 1;
+    filter: drop-shadow(0 0 22px var(--jn-sig));
+  }
+  100% {
+    opacity: 1;
+    filter: none;
+  }
+}
+@keyframes rw-lock-in {
+  from {
+    opacity: 0;
+    transform: scale(1.7) rotate(-45deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes rw-blink {
+  0%,
+  92%,
+  100% {
+    transform: none;
+  }
+  95% {
+    transform: scaleY(0.1);
+  }
+}
+@keyframes rw-read {
+  0%,
+  100% {
+    translate: -10px 0;
+  }
+  45% {
+    translate: 10px 0;
+  }
+  55% {
+    translate: 10px 4px;
+  }
+  60% {
+    translate: -10px 4px;
+  }
+}
+@keyframes rw-think {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 6px color-mix(in srgb, var(--jn-sig) 50%, transparent));
+  }
+  50% {
+    filter: drop-shadow(0 0 24px var(--jn-sig));
+  }
+}
+@keyframes rw-page {
+  0%,
+  70% {
+    opacity: 0;
+    transform: none;
+  }
+  72% {
+    opacity: 1;
+    transform: none;
+  }
+  88% {
+    opacity: 1;
+    transform: scaleX(-1);
+  }
+  92%,
+  100% {
+    opacity: 0;
+    transform: scaleX(-1);
+  }
+}
+@keyframes rw-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+@keyframes rw-walk {
+  from {
+    rotate: -7deg;
+  }
+  to {
+    rotate: 7deg;
+  }
+}
+@keyframes rw-dim {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.25;
+  }
+}
+@keyframes rw-hold {
+  0%,
+  100% {
+    rotate: 0deg;
+  }
+  50% {
+    rotate: 2deg;
+  }
+}
 @keyframes jn-breathe {
   0%,
   100% {
@@ -6675,14 +7397,9 @@ select.studio-project-control {
   letter-spacing: 0.16em;
   text-transform: uppercase;
 }
+/* Mot-symbole « REDWIDOW » : « RED » en signature (en dégradé selon la palette). */
 #title .brand-ops {
   color: var(--jn-sig);
-  word-spacing: -0.3em;
-}
-@container app (max-width: 360px) {
-  #title .brand-ops {
-    display: none;
-  }
 }
 
 /* ───────────────────────────── Configurer compact ─────────────────────────────
@@ -6818,9 +7535,9 @@ select.studio-project-control {
 .vo-ui { position: relative; overflow: hidden; transform: translateZ(0); background: var(--vscode-editor-background); }
 
 /* Terminal component (VS Code terminal look, Kali prompt). */
-.vo-term { position: relative; overflow: hidden; background: #1f1f1f; color: #cccccc; font: 16px/1.62 "Warband Geist Mono", ui-monospace, monospace; white-space: pre; padding: 18px 0; }
+.vo-term { position: relative; overflow: hidden; background: #1f1f1f; color: #cccccc; font: 16px/1.62 "Warband JetBrains Mono", ui-monospace, monospace; white-space: pre; padding: 18px 0; }
 .vo-term .ln { padding: 0 18px; }
-.vo-term .ln.hl { background: rgba(60, 199, 192, 0.12); box-shadow: inset 2px 0 0 #3cc7c0; color: #e8eaed; }
+.vo-term .ln.hl { background: rgba(229, 19, 43, 0.14); box-shadow: inset 2px 0 0 #e5132b; color: #e8eaed; }
 .vo-term .kb { color: #4f9cff; } .vo-term .ku { color: #4f9cff; font-weight: 700; } .vo-term .kp { color: #e8eaed; font-weight: 700; }
 .vo-term .tu { color: #3fb950; font-weight: 700; } .vo-term .tp { color: #4f9cff; font-weight: 700; } .vo-term .tw { color: #e8eaed; }
 .vo-term .cur { display: inline-block; width: 0.6em; height: 1.15em; background: #e8eaed; vertical-align: -0.2em; }

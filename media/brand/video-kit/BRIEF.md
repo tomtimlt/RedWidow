@@ -1,139 +1,141 @@
-# Venator Ops — Ad video brief
+# RedWidow — Ad video brief
 
-This kit is for an AI video tool (or an editor) producing a short promo for
-**Venator Ops**. Use only the assets in this folder. Read the rules before
+This kit is for an AI video tool (or an editor) producing promos for
+**RedWidow**. Use only the assets in this folder. Read the rules before
 generating anything.
 
 ## The product in one line
 
 **Pentest in VS Code, with AI on call.** A workspace inside VS Code that brings
 together Docker Kali and Exegol containers, their terminals, a Monitor, a kill
-chain and reports. An AI agent helps when you call it.
+chain and reports. An AI agent helps when you call it; Learning mode only reads
+and explains. Open source.
 
 ## Rules (must follow)
 
 1. **No real targets, no real data.** Every screen shows a fictional lab
    (`10.10.10.14`, user `dev`). Never add real IPs, hostnames, flags, hashes,
    credentials or company names.
-2. **Do not invent features.** Only show what is in the screens below. No
+2. **Do not invent features.** Only show what is in the components. No
    "autonomous hacking", no "one-click exploit", no "hack anything".
 3. **Not an autonomous agent.** The AI is a helper you call, not the pilot.
-   Avoid words like "autopilot", "fully automated", "replaces pentesters".
-4. **Authorized use only.** If a disclaimer is shown, use: *For authorized
-   testing only: CTFs, labs and scoped engagements.*
-5. **No fake UI.** Do not generate or redraw the interface. Animate the
-   provided screenshots (pan, zoom, crop, reveal), never alter their text.
-6. **Brand look.** Flat dark background, no glow, no gradients, no neon, no
-   particles, no glitch effects, no hooded hacker, no matrix rain, no stock
-   "cyber" footage.
+   Avoid "autopilot", "fully automated", "replaces pentesters".
+4. **Authorized use only.** End card, small: *For authorized testing only:
+   CTFs, labs and scoped engagements.*
+5. **No fake UI.** Build every UI shot from `html/` (live components). Never
+   redraw the interface, never zoom the PNGs in `screens/` (reference only).
+6. **Brand look.** Flat deep black background, no stock "cyber" footage, no
+   hooded hacker, no matrix rain, no glitch, no neon added on top. The only
+   glows and gradients are the ones the interface already has (bypass aura,
+   effort wave, gradient palettes).
 
 ## Brand
 
 | Token | Value | Use |
 | --- | --- | --- |
-| Background | `#101214` | every frame |
-| Panel | `#1f1f1f` | behind screenshots |
+| Background | `#0b0b0d` | every frame |
+| Panel | `#1f1f1f` | window frames behind components |
 | Text | `#eef1f4` | headlines |
-| Muted text | `#a3acb6` | sublines |
-| Signature teal | `#3cc7c0` | last line of a hook, accents only |
-| Steel | `#7d8b99` | logo brackets |
-| Status green / orange | `#3fb950` / `#d29922` | only as they appear in screenshots |
+| Muted text | `#a3a6ad` | sublines |
+| Signature crimson | `#E5132B` | “RED” of the wordmark, last line of a hook, accents |
+| Steel | `#B0B1B8` / `#606168` | spider body |
+| Status green / orange | `#3fb950` / `#d29922` | only as they appear in the UI |
 
-- **Fonts**: Geist (headlines, 800, uppercase, tight tracking −3 %) and Geist
-  Mono (wordmark, small labels). Files in `fonts/`, licence OFL (`OFL-Geist.txt`).
-- **Wordmark**: `VENATOR OPS`, mono, wide tracking, `OPS` in teal.
-- **Motion**: lines rise 28 px and fade in, 0.6–0.7 s, ease-out, one after the
-  other; the teal line arrives slightly later. Cuts on the beat, no spins, no
-  bounces except a small settle.
-- **Music**: minimal electronic, steady pulse around 100–110 BPM, dark but calm.
-  No dubstep drops, no sirens.
+- **Fonts** (`fonts/`, OFL): **Geist** for headlines (800, uppercase,
+  tracking −3 %) and sublines (500); **JetBrains Mono** for small labels and
+  the UI wordmark (700, caps, tracking 0.16em).
+- **Wordmark**: `REDWIDOW`, “RED” in crimson, “WIDOW” in white. Lockup:
+  spider + wordmark in Geist 800.
+- **Logo**: the armored spider with a brain on the cephalothorax and an empty
+  red crosshair on the abdomen. Small sizes use the head with four legs.
+- **Palettes**: the product has 23 color sets (`brand.json`). Default and
+  brand: **Widow** (crimson). Use other sets only in the “Make it yours” beat.
+- **Motion**: lines rise 28 px and fade in, 0.45 s `power3.out`, 0.18 s
+  stagger, crimson line half a beat late. Cuts on the beat. Small settles only.
+- **Music**: minimal electronic, steady pulse 110–120 BPM, dark but calm. No
+  dubstep drops, no sirens.
 
 ## Assets
 
+### `html/` — live UI components (use these for every UI shot)
+Real DOM + real CSS, sharp at any zoom, every part animatable, product
+animations included. See `html/README.md` for sizes, selectors and the
+`RedWidowUI` helpers (palette, learning, bypass, running, effort).
+
 ### `logo/`
-- `venator-ops-mark.svg` — vector mark.
-- `venator-ops-mark-1024.png` — mark, transparent background.
-- `venator-ops-mark-on-dark-1024.png` — mark on the brand background.
-- `venator-ops-wordmark.png` / `-on-dark.png` — mark + `VENATOR OPS`, transparent or on dark.
+- `redwidow.svg` — full spider, vector, **in layers** (`.rw-leg-l1` … `.rw-leg-r4`,
+  `.rw-palp-l/r`, `.rw-brain`, `.rw-eyes`, `.rw-crosshair` with `.rw-ring` and
+  `.rw-tick-*`; colors as CSS variables `--rw-steel-hi`, `--rw-steel`,
+  `--rw-ink`, `--rw-red`): inline it to animate legs, brain, eyes, crosshair.
+- `redwidow-mini.svg` — small icon (head with brain, eyes, four legs);
+  `redwidow-mini-mono.svg` — monochrome (`currentColor`).
+- `redwidow-crosshair.svg` — crosshair alone.
+- PNG, transparent and on dark: `redwidow-1024`, `redwidow-mini-1024`,
+  `redwidow-lockup` (spider + REDWIDOW), `redwidow-wordmark` (small icon + UI wordmark).
 
-### `html/` — live UI components (use these for any UI shot)
-Real DOM + real CSS snapshots of the interface, sharp at any zoom, every part
-animatable. See `html/README.md` for sizes and selectors. Rule: animate these,
-never zoom the PNGs.
+### `screens/` (2x PNG, reference only)
+`welcome`, `welcome-learning`, `chat-approval-wide`, `chat-approval-tall`,
+`chat-learning`, `chat-bypass`, `monitor`, `killchain`, `configure-effort-max`,
+`effort-slider-max`, `appearance-palettes`.
 
-### `screens/` (2x, real interface, fictional lab)
-- `chat-approval-wide.png` — chat in landscape: tool calls and an authorization card (Allow once / Deny / Always) for a `sqlmap` command.
-- `chat-approval-tall.png` — same scene, portrait (good for 9:16).
-- `chat-learning.png` — Learning mode: the user shares a course, the AI reads the terminal and gives a hint, not the answer.
-- `terminal-kali-1.png` — Kali terminal session over SSH to the lab; the useful `sudo -l` line is highlighted.
-- `killchain.png` — kill chain graph: linked findings with MITRE ATT&CK IDs, selected path as green dashes, legend.
-- `monitor.png` — Monitor: command timeline and live, numbered `ffuf` output.
-
-- `configure-effort-max.png` — Configure menu with the effort slider at maximum (animated gradient frozen).
-- `effort-slider-max.png` — the effort slider alone.
-- `appearance-palettes.png` — Settings → Appearance with the five color sets.
-
-### `elements/` (close-up crops, 2x)
-`approval-card.png`, `tool-calls.png`, `mission-rail.png`, `composer.png`,
-`killchain-path.png`, `killchain-legend.png`.
-
-### `logo/parts/`
-`brackets.svg`, `spark.svg`, `satellite.svg`: the mark split in layers (same
-viewBox) to animate the lock-on.
-
-For a HyperFrames render, use `HYPERFRAMES-PROMPT.md` (60 s shot list).
-
-### `cards/` (text frames, 16:9 1920×1080 and 9:16 1080×1920)
-Each card exists on the brand background and as `-alpha` (transparent, to put
-text over footage).
+### `cards/` (16:9 1920×1080 and 9:16 1080×1920, on background and `-alpha`)
+Reference for title size and layout; build titles as live text.
 
 | File | Text |
 | --- | --- |
 | `01-your-pentest` | YOUR PENTEST. |
 | `02-one-cockpit` | ONE COCKPIT. |
-| `03-one-agent` | ONE AGENT. (teal) |
+| `03-one-agent` | ONE AGENT. (crimson) |
 | `04-hook-full` | the three lines + “Kali · Exegol · Terminals · Kill chain” |
 | `05-learning` | STUCK ON A BOX? / FEED IT YOUR COURSE. / IT READS YOUR TERMINAL. |
 | `06-without-ai` | WORKS BY HAND. / AI WHEN YOU CALL IT. |
 | `07-tagline` | PENTEST IN VS CODE, / WITH AI ON CALL. |
-| `08-end` | logo, wordmark, tagline, “Open source · github.com/tomtimlt/warband” |
+| `08-end` | spider, REDWIDOW, tagline, “Open source · github.com/tomtimlt/warband” |
+| `09-make-it-yours` | 23 COLOR SETS. / ONE SPIDER. |
+
+### `fonts/`
+Geist and JetBrains Mono (woff2) with their OFL licences.
+
+For a HyperFrames render, use `HYPERFRAMES-PROMPT.md` (60 s shot list).
 
 ## Storyboard — 30 s, 16:9 (9:16 cut below)
 
 | Time | Visual | On-screen text | Voice-over |
 | --- | --- | --- | --- |
-| 0–2 s | `01-your-pentest` | YOUR PENTEST. | “Your pentest.” |
-| 2–4 s | `02-one-cockpit` | ONE COCKPIT. | “One cockpit.” |
-| 4–6 s | `03-one-agent` | ONE AGENT. | “One agent.” |
-| 6–10 s | `terminal-kali-1`, slow push-in | — | “Kali and Exegol, right inside VS Code.” |
-| 10–14 s | `monitor`, pan left to right | — | “Every command, followed live.” |
-| 14–18 s | `killchain`, slow zoom on the green path | — | “Every finding, mapped to your kill chain.” |
-| 18–22 s | `chat-approval-wide`, zoom to the card | — | “Call the agent when you need it. It asks before it acts.” |
-| 22–26 s | `05-learning` then `chat-learning` | STUCK ON A BOX? … | “Stuck? Feed it your course. It reads your terminal and gives you a hint.” |
-| 26–30 s | `08-end` | logo + tagline | “Venator Ops. Pentest in VS Code, with AI on call.” |
+| 0–2.5 s | spider from `logo/redwidow.svg`: legs unfold, brain lights up, crosshair locks | — | — |
+| 2.5–4.5 s | title | YOUR PENTEST. ONE COCKPIT. | “Your pentest. One cockpit.” |
+| 4.5–6 s | title | ONE AGENT. | “One agent.” |
+| 6–10 s | `terminal`, lines type out, push-in on `sudo -l` | — | “Kali and Exegol, right inside VS Code.” |
+| 10–14 s | `monitor`, output streams | — | “Every command, followed live.” |
+| 14–18 s | `killchain`, nodes pop, path draws | — | “Every finding, mapped to your kill chain.” |
+| 18–22 s | `chat-approval-wide`, the card lands, Allow once clicked | — | “Call the agent when you need it. It asks before it acts.” |
+| 22–26 s | `welcome-learning` then `chat-learning` | STUCK ON A BOX? … | “Stuck? Feed it your course. It reads your terminal and gives you a hint.” |
+| 26–30 s | `08-end` | spider + tagline | “RedWidow. Pentest in VS Code, with AI on call.” |
 
 ### 15 s cut
-`04-hook-full` (0–3 s) → `terminal-kali-1` (3–6 s) → `killchain` (6–9 s) →
-`chat-approval-wide` (9–12 s) → `08-end` (12–15 s).
+spider intro (0–2 s) → `04-hook-full` (2–5 s) → `terminal` (5–8 s) →
+`chat-approval-wide` (8–12 s) → `08-end` (12–15 s).
 
 ### 9:16 (Reels, Shorts, LinkedIn mobile)
-Same order with the `-9x16` cards; use `chat-approval-tall.png`; crop
-`killchain.png` and `monitor.png` to the middle third and pan across them.
+Same order with the `-9x16` cards; use `chat-approval-tall`, `welcome`,
+`welcome-learning` and `chat-learning` (side-panel width); stack two windows
+vertically when a scene shows two.
 
 ## Voice-over
 
-Calm, confident, low-key; one speaker; no hype words. Full script (≈ 25 s):
+Calm, confident, low-key; one speaker; no hype words.
 
 > Your pentest. One cockpit. One agent.
 > Kali and Exegol, right inside VS Code.
 > Every command, followed live. Every finding, mapped to your kill chain.
 > Call the agent when you need it. It asks before it acts.
 > Stuck on a box? Feed it your course. It reads your terminal and gives you a hint.
-> Venator Ops. Pentest in VS Code, with AI on call.
+> RedWidow. Pentest in VS Code, with AI on call.
 
 ## Status to keep in mind
 
-The extension interface currently ships in French; the screenshots were
-translated to English for this campaign. Distribution is a manual `.vsix`
-from the GitHub releases, not the VS Code Marketplace: do not say
-“available on the Marketplace”.
+The extension interface currently ships in French and is still named Warband
+in the published repository; the components were translated to English and
+rebranded for this campaign. Distribution is a manual `.vsix` from the GitHub
+releases, not the VS Code Marketplace: do not say “available on the
+Marketplace”.

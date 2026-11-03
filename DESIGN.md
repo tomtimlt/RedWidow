@@ -98,9 +98,9 @@ verrouille, yeux qui clignent, nom puis respiration). Polices validées :
 Geist (interface, titres, mot-symbole) et JetBrains Mono (repères techniques,
 code, commandes et sorties) ; Geist Mono est retirée. Dans l’atelier, la refonte est faite : nom visible
 (titres, commandes, réglages, configuration F5), viseur dans l’en-tête,
-araignée à l’accueil, mot-symbole et palette Widow par défaut. Restent sous
-le nom Venator Ops : la section suivante, les bannières, le carrousel, le kit
-vidéo et le README de `main`, à refaire avec la nouvelle identité.
+araignée à l’accueil, mot-symbole et palette Widow par défaut. Le kit vidéo est refait en RedWidow. Restent sous le
+nom Venator Ops : la section suivante, les bannières, le carrousel et le
+README de `main`, à refaire avec la nouvelle identité.
 
 ## Marque Venator Ops (ancienne identité)
 
@@ -165,14 +165,24 @@ pour un vrai carrousel), plus `linkedin-carousel-1.mp4`, la slide 1 animée
   mode Apprentissage à droite qui lit le terminal et le cours et donne un
   indice plutôt qu’une solution.
 
-Kit vidéo publicitaire : `media/brand/video-kit/` (et son archive
-`venator-ops-video-kit.zip`) pour une IA de montage ou un monteur : `BRIEF.md`
-(règles, storyboard 30 s et 15 s, déclinaison 9:16, voix off), `brand.json`
-(couleurs, polices, mouvement), `logo/` (SVG, PNG transparents et sur fond),
-`screens/` (captures 2x du lab fictif, terminal kali-1 compris), `cards/`
-(cartons 1920 × 1080 et 1080 × 1920, sur fond et en `-alpha`) et `fonts/`
-(Geist, OFL), plus `elements/` (découpes d’interface), `logo/parts/` (logo en calques) et `HYPERFRAMES-PROMPT.md` (prompt pour Sonnet : vidéo de 60 s avec le plugin HyperFrames). `html/` contient l’interface en composants HTML vivants (instantanés du vrai DOM avec `css/venator-ui.css`, le CSS de l’atelier réécrit pour s’appliquer à `.vo-ui` au lieu de `body`, et `venator-ui.js` qui restaure les défilements et pilote le curseur d’effort) : la vidéo anime ces composants au lieu de zoomer des PNG, qui deviennent flous. Règles : lab fictif uniquement, aucune fonction inventée, l’IA
-reste un appui, les captures s’animent sans être redessinées.
+Kit vidéo publicitaire (refait en RedWidow) : `media/brand/video-kit/` et son
+archive `redwidow-video-kit.zip`, pour une IA de montage ou un monteur :
+`BRIEF.md` (règles, storyboard 30 s et 15 s, déclinaison 9:16, voix off),
+`brand.json` (couleurs, polices, 23 palettes, mouvement), `logo/` (araignée en
+calques, petite icône couleur et monochrome, viseur, PNG transparents et sur
+fond, lockup araignée + REDWIDOW, mot-symbole), `screens/` (captures 2x du lab
+fictif, pour référence), `cards/` (cartons 1920 × 1080 et 1080 × 1920, sur fond
+et en `-alpha`, dont « 23 COLOR SETS. / ONE SPIDER. ») et `fonts/` (Geist et
+JetBrains Mono, OFL). `html/` contient l’interface en composants HTML vivants
+(instantanés du vrai DOM avec `css/redwidow-ui.css`, le CSS de l’atelier
+réécrit pour s’appliquer à `.vo-ui` au lieu de `body`) : accueil avec
+l’araignée, accueil en Apprentissage, chat (large et étroit), Apprentissage,
+bypass actif, Monitor, kill chain, Configurer, Apparence et terminal ; les
+animations du produit y jouent seules. `redwidow-ui.js` restaure les
+défilements et pilote l’effort, la palette, l’Apprentissage, le bypass et
+l’activité. `HYPERFRAMES-PROMPT.md` (v3) : prompt pour Sonnet, vidéo de 60 s
+avec le plugin HyperFrames, qui anime ces composants (jamais de PNG zoomés).
+Règles : lab fictif uniquement, aucune fonction inventée, l’IA reste un appui.
 
 README de la branche `main` pour les utilisateurs de Venator Ops (pas pour les
 développeurs), rédigé en anglais comme tous les visuels de la marque :
