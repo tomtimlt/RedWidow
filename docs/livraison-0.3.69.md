@@ -24,8 +24,8 @@ NLS. Si le registre VS Code ne connaît pas encore ce réglage pendant une mise
 à jour, FR/EN est conservé dans les préférences de l’extension et appliqué sans
 erreur d’écriture. Les autres erreurs d’écriture restent signalées.
 
-Validation globale : 2 218 tests réussis, 14 ignorés ; types et lint sans erreur
-(165 avertissements et 6 informations Biome conservés). Le catalogue Linux
+Validation globale : 2 219 tests réussis, 14 ignorés ; types et lint sans erreur
+(165 avertissements et 7 informations Biome conservés). Le catalogue Linux
 réel d’OpenCode 1.19.0 a fourni 235 fournisseurs et 9 modèles connectés, sans
 inférence. Ce nombre dépend du moteur et ne constitue pas une liste codée en dur.
 Les essais Chromium couvrent le catalogue complet, la recherche, les interrupteurs,

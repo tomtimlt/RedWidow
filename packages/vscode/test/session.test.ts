@@ -1,4 +1,10 @@
-import type { BypassState, EngineEvent, ModelOption, PendingApproval } from "@warband/core";
+import type {
+  BypassState,
+  EngineEvent,
+  ModelOption,
+  PendingApproval,
+  ProviderOption,
+} from "@warband/core";
 import { describe, expect, it, vi } from "vitest";
 import { createBypassHost } from "../src/logic/bypass.js";
 import type { ChatView } from "../src/logic/chat.js";
@@ -72,6 +78,7 @@ function fake() {
 function setup(
   over: {
     observe?: (event: EngineEvent | null) => void;
+    providers?: (catalog: ProviderOption[]) => void;
     confirm?: boolean;
     token?: boolean;
     settings?: object;
@@ -92,6 +99,7 @@ function setup(
         ? { auth: { name: "CLAUDE_CODE_OAUTH_TOKEN", value: "sk-secret" }, mode: "subscription" }
         : undefined,
     confirmAlways,
+    ...(over.providers && { onProviders: over.providers }),
     ...(over.observe && { onObservedEvent: over.observe }),
     onView: (v) => {
       view = v;
@@ -1900,4 +1908,17 @@ describe("ressources choisies dans chaque conversation", () => {
     expect(t.f.started).toMatchObject({ provider: "opencode", model: "google/real-model" });
     t.session.dispose();
   });
+});
+
+it("un catalogue OpenAI filtré ne remplace pas le catalogue global d’OpenCode", async () => {
+  const providers = vi.fn();
+  const t = setup({ providers });
+  t.f.setModels([{ value: "openai/m", displayName: "Model" }]);
+  await t.session.setProvider("openai");
+  t.f.handlers.onProviders?.([{ id: "openai", name: "OpenAI", connected: true }]);
+  expect(providers).not.toHaveBeenCalled();
+  await t.session.setProvider("opencode");
+  t.f.handlers.onProviders?.([{ id: "opencode", name: "OpenCode", connected: true }]);
+  expect(providers).toHaveBeenCalledWith([{ id: "opencode", name: "OpenCode", connected: true }]);
+  t.session.dispose();
 });

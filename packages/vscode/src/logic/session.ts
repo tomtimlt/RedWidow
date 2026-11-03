@@ -692,7 +692,7 @@ export function createChatSession(deps: ChatSessionDeps) {
         ...(token?.auth && { auth: token.auth }),
         handlers: {
           onProviders: (providers) => {
-            if (active()) deps.onProviders?.(providers);
+            if (active() && provider === "opencode") deps.onProviders?.(providers);
           },
           onLog: (text) => {
             if (active() && acceptingLogs) deps.onLog?.(text);

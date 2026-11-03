@@ -24,7 +24,11 @@ const temporary = await mkdtemp(join(tmpdir(), "venator-i18n-"));
 let text;
 try {
   const input = join(temporary, "i18n.js");
-  await writeFile(input, result.outputFiles[0].text, "utf8");
+  await writeFile(
+    input,
+    '"use strict";\n' + result.outputFiles[0].text.replace(/^(?:"use strict";\s*)+/, ""),
+    "utf8",
+  );
   execFileSync(
     process.execPath,
     [
