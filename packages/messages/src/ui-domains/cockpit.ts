@@ -30,8 +30,8 @@ export const cockpitEn: Record<string, string> = {
   Annuler: "Cancel",
   "non lié": "not linked",
   "Préparation…": "Preparing…",
-  "Kali Venator Ops complète — MCP et outils prêts (construction locale)":
-    "Complete Kali Venator Ops — MCP and tools ready (local build)",
+  "Kali RedWidow complète — MCP et outils prêts (construction locale)":
+    "Complete Kali RedWidow — MCP and tools ready (local build)",
   "Kali officielle — image minimale": "Official Kali — minimal image",
   "Créer un conteneur": "Create a container",
   "Replier le formulaire": "Collapse form",

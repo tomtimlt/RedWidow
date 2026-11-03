@@ -117,7 +117,16 @@ export interface ChatSessionDeps {
   history?: {
     /** Clé d'index de ce chat. Défaut : `warband.history` (un seul chat). */
     key?: string;
-    index: { get(key: string): unknown; set(key: string, value: unknown): unknown };
+    index: {
+      get(key: string): unknown;
+      set(key: string, value: unknown): unknown;
+      update?(key: string, change: (current: unknown) => unknown): unknown;
+      subscribe?(listener: () => void): () => void;
+    };
+    owner?: string;
+    maxEntries?: number;
+    protectedIds?(): readonly string[];
+    canRemove?(ids: readonly string[]): boolean;
     files: JournalFiles;
     /** Confirmation modale native avant suppression. */
     confirmDelete(text: string): Promise<boolean>;
@@ -364,7 +373,8 @@ export function createChatSession(deps: ChatSessionDeps) {
   // --- Historique (F4) ---
   const history = deps.history;
   const historyKey = history?.key ?? DEFAULT_HISTORY_KEY;
-  let index: ConversationMeta[] = history ? parseIndex(history.index.get(historyKey)) : [];
+  const parseHistory = (raw: unknown) => parseIndex(raw, history?.maxEntries);
+  let index: ConversationMeta[] = history ? parseHistory(history.index.get(historyKey)) : [];
   let current: ConversationMeta | null = null;
   // Invalide les lectures de projet/navigation en attente après arrêt ou nouvelle action.
   let navigationRev = 0;
@@ -401,8 +411,22 @@ export function createChatSession(deps: ChatSessionDeps) {
         projectKey: historyProject(c, historyProjects.projects).key,
         projectLabel: historyProject(c, historyProjects.projects).label,
       }));
-  const saveIndex = () => {
-    if (history) void Promise.resolve(history.index.set(historyKey, index)).catch(() => undefined);
+  const saveIndex = (change: { upsert?: ConversationMeta[]; remove?: string[] } = {}) => {
+    if (!history) return;
+    const saved = history.index.update
+      ? history.index.update(historyKey, (raw) => {
+          const rows = new Map(
+            parseHistory(raw)
+              .filter((row) => !change.remove?.includes(row.id))
+              .map((row) => [row.id, row]),
+          );
+          for (const row of change.upsert ?? []) rows.set(row.id, structuredClone(row));
+          return sortRecent([...rows.values()]);
+        })
+      : history.index.set(historyKey, index);
+    void Promise.resolve(saved).catch(() =>
+      state.notice(t("Impossible d’enregistrer l’historique partagé."), "error"),
+    );
   };
   /** Rétention : plus anciennes conversations purgées (journaux compris), la conversation en cours exceptée. */
   const enforceRetention = async () => {
@@ -413,10 +437,18 @@ export function createChatSession(deps: ChatSessionDeps) {
       for (const id of c.runIds) total += await history.files.size(id);
       sizes.set(c.id, total);
     }
-    const { keep, drop } = applyRetention(index, sizes, { protect: current?.id });
+    const owned =
+      history.owner === undefined
+        ? index
+        : index.filter((row) => row.historyOwner === history.owner);
+    const { drop } = applyRetention(owned, sizes, {
+      protect: current?.id,
+      protectIds: history.protectedIds?.() ?? [],
+    });
     if (drop.length === 0) return;
-    index = keep;
-    saveIndex();
+    const dropped = drop.map((row) => row.id);
+    index = index.filter((row) => !dropped.includes(row.id));
+    saveIndex({ remove: dropped });
     await history.files.remove(drop.flatMap((c) => c.runIds));
     refresh();
   };
@@ -425,6 +457,7 @@ export function createChatSession(deps: ChatSessionDeps) {
     const now = new Date().toISOString();
     current = {
       id: randomUUID(),
+      ...(history.owner && { historyOwner: history.owner }),
       ...(isRunId(historyProjects.activeId) && { projectId: historyProjects.activeId }),
       title: titleFrom(firstPrompt),
       createdAt: now,
@@ -444,7 +477,7 @@ export function createChatSession(deps: ChatSessionDeps) {
     current.updatedAt = new Date().toISOString();
     // Une session SDK partielle ne devient reprenable qu’après confirmation du transfert.
     if (sessionId !== undefined && !transferContext) current.sessionId = sessionId;
-    saveIndex();
+    saveIndex({ upsert: [current] });
   };
 
   const startEngine = async (
@@ -805,6 +838,51 @@ export function createChatSession(deps: ChatSessionDeps) {
       if (!disposed) refresh();
     });
 
+  const resetConversation = () => {
+    deps.onObservedEvent?.(null);
+    selection = emptySelection();
+    conversationGeneration++;
+    navigationRev++;
+    stopping = true;
+    if (controller !== null) detached.add(controller);
+    stopEngine(controller);
+    controller = null;
+    applied = null;
+    sessionId = undefined;
+    transferContext = false;
+    current = null;
+    latestPage();
+    selection = emptySelection();
+    state.clear();
+    refresh();
+  };
+  const unsubscribeHistory = history?.index.subscribe?.(() => {
+    if (disposed) return;
+    const incoming = parseHistory(history.index.get(historyKey));
+    const active = current?.id ?? state.readonly?.id;
+    if (active && !incoming.some((row) => row.id === active)) resetConversation();
+    if (current) {
+      const latest = incoming.find((row) => row.id === current?.id);
+      if (latest) Object.assign(current, latest);
+    }
+    if (state.readonly) {
+      const renamed = incoming.find((row) => row.id === state.readonly?.id);
+      if (renamed) state.setReadonly({ ...state.readonly, title: renamed.title });
+    }
+    index = incoming.map((row) => (row.id === current?.id ? current : row));
+    refresh();
+  });
+  const removable = (ids: readonly string[]) => {
+    if (history?.canRemove && !history.canRemove(ids)) {
+      state.notice(
+        t("Arrêtez les conversations en cours avant de supprimer leur historique."),
+        "error",
+      );
+      refresh();
+      return false;
+    }
+    return true;
+  };
   return {
     view: () => {
       sync();
@@ -1178,22 +1256,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       refresh();
     },
     reset(): void {
-      deps.onObservedEvent?.(null);
-      selection = emptySelection();
-      conversationGeneration++;
-      navigationRev++;
-      stopping = true;
-      if (controller !== null) detached.add(controller);
-      stopEngine(controller);
-      controller = null;
-      applied = null;
-      sessionId = undefined;
-      transferContext = false;
-      current = null;
-      latestPage();
-      selection = emptySelection();
-      state.clear();
-      refresh();
+      resetConversation();
     },
     async refreshHistoryProjects(): Promise<void> {
       selection = emptySelection();
@@ -1305,35 +1368,42 @@ export function createChatSession(deps: ChatSessionDeps) {
         return;
       }
       meta.title = title;
-      saveIndex();
+      saveIndex({ upsert: [meta] });
       refresh();
     },
     async deleteConversation(id: unknown): Promise<void> {
       const meta = history && isConversationId(id) ? index.find((c) => c.id === id) : undefined;
-      if (!history || !meta) return;
+      if (!history || !meta || !removable([meta.id])) return;
       const ok = await history.confirmDelete(
         t`Supprimer la conversation « ${cleanText(meta.title, 80)} » et ses journaux ?`,
       );
-      if (!ok) return;
+      if (!ok || !removable([meta.id])) return;
       if (meta.id === current?.id || meta.id === state.readonly?.id) this.reset();
       index = index.filter((c) => c.id !== meta.id);
-      saveIndex();
+      saveIndex({ remove: [meta.id] });
       await history.files.remove(meta.runIds);
       refresh();
     },
     async clearHistory(): Promise<void> {
-      if (!history) return;
+      if (!history || !removable(index.map((row) => row.id))) return;
       const ok = await history.confirmDelete(
-        t("Effacer tout l'historique des conversations et leurs journaux ?"),
+        t(
+          history.index.update
+            ? "Effacer l’historique commun des chats et ses journaux ?"
+            : "Effacer tout l'historique des conversations et leurs journaux ?",
+        ),
       );
-      if (!ok) return;
+      if (!ok || !removable(index.map((row) => row.id))) return;
+      const removed = [...index];
       this.reset();
       index = [];
-      saveIndex();
-      await history.files.removeAll();
+      saveIndex({ remove: removed.map((row) => row.id) });
+      if (history.index.update) await history.files.remove(removed.flatMap((row) => row.runIds));
+      else await history.files.removeAll();
       refresh();
     },
     dispose(): void {
+      unsubscribeHistory?.();
       deps.onObservedEvent?.(null);
       disposed = true;
       clearTimeout(outputTimer);

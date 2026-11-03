@@ -352,8 +352,11 @@
   }
   function welcome(sandbox) {
     const box = el("div", "welcome");
-    const mark = document.querySelector("#title .brand")?.cloneNode(true);
-    if (mark) {
+    const spider = globalThis.WarbandSpider?.create("rw-spider welcome-spider");
+    const mark = spider ? null : document.querySelector("#title .brand")?.cloneNode(true);
+    if (spider) {
+      box.append(spider);
+    } else if (mark) {
       mark.setAttribute("class", "brand welcome-mark");
       mark.removeAttribute("width");
       mark.removeAttribute("height");
@@ -1118,7 +1121,7 @@
     if (mentionActive >= mentionShown.length) mentionActive = 0;
     mentionEmpty.hidden = mentionShown.length > 0;
     mentionEmpty.textContent = hash
-      ? t("Aucun terminal Venator Ops ouvert. Alt+J T pour en ouvrir un.")
+      ? t("Aucun terminal RedWidow ouvert. Alt+J T pour en ouvrir un.")
       : t("Aucun conteneur");
     mentionPop.setAttribute("aria-label", hash ? t("Terminaux") : t("Conteneurs"));
     mentionList.replaceChildren(
@@ -1328,9 +1331,7 @@
     findings = findings.filter(
       (h) => projectFilter.value === "all" || (h.projectKey || "none") === projectFilter.value,
     );
-    $("history-clear").title = t(
-      "Supprimer toutes les conversations de ce chat, tous projets compris",
-    );
+    $("history-clear").title = t("Supprimer l’historique commun des chats, tous projets compris");
     $("history-clear").disabled = allEntries.length === 0;
     if (findings.length === 0) {
       historyList.replaceChildren(el("li", "hist-empty", t("Aucune conversation enregistrée.")));

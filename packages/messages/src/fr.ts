@@ -302,9 +302,9 @@ export const reasons: Catalog = {
     if (p.reason === "unsupportedImage")
       return `préparation impossible dans ${name} : une image Kali avec APT est nécessaire pour installer le serveur manquant`;
     if (p.stage === "installing")
-      return `installation du serveur Kali échouée dans ${name} : consultez la sortie Venator Ops`;
+      return `installation du serveur Kali échouée dans ${name} : consultez la sortie RedWidow`;
     if (p.stage === "checking")
-      return `vérification des prérequis Kali échouée dans ${name} : consultez la sortie Venator Ops`;
+      return `vérification des prérequis Kali échouée dans ${name} : consultez la sortie RedWidow`;
     return `serveur Kali indisponible dans le conteneur : ${name}`;
   },
 

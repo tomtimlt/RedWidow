@@ -45,9 +45,9 @@ it("n'expose pas les messages inconnus ou les paramètres malformés", () => {
 
 it("dirige vers le canal Sortie avec la marque publique", () => {
   expect(modelLoadFailure(new CodedError("ipc.engineExited", { code: 9 }))).toBe(
-    "Le moteur de chargement des modèles s'est arrêté (code de sortie 9). Consultez Sortie → Venator Ops. [ipc.engineExited]",
+    "Le moteur de chargement des modèles s'est arrêté (code de sortie 9). Consultez Sortie → RedWidow. [ipc.engineExited]",
   );
   expect(modelLoadFailure(new CodedError("opencode.unsafeConfig"))).toContain(
-    "protections de Venator Ops",
+    "protections de RedWidow",
   );
 });

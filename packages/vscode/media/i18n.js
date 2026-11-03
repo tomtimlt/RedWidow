@@ -43,8 +43,8 @@
       "Activate a project to start its automatic Audit capture.",
     "Journal d’audit indisponible.": "Audit journal unavailable.",
     "Exporter le dossier d’audit": "Export audit bundle",
-    "Actions de l’agent et captures périodiques des terminaux Venator associés au projet, même sans IA. Conservation séparée du chat, sans effacement automatique.":
-      "Agent actions and periodic captures of project-linked Venator terminals, even without AI. Stored separately from chat, with no automatic deletion.",
+    "Actions de l’agent et captures périodiques des terminaux RedWidow associés au projet, même sans IA. Conservation séparée du chat, sans effacement automatique.":
+      "Agent actions and periodic captures of project-linked RedWidow terminals, even without AI. Stored separately from chat, with no automatic deletion.",
     "Le ZIP contient un HTML autonome, le registre, les preuves conservées, les JSONL et un manifeste SHA-256. Ces empreintes ne sont ni une signature ni un horodatage indépendant.":
       "The ZIP contains standalone HTML, the registry, retained evidence, JSONL journals and a SHA-256 manifest. These hashes are neither a signature nor an independent timestamp.",
     "Collecte partielle : pauses, captures indisponibles ou sorties tronquées. Consultez les traces et le manifeste.":
@@ -83,10 +83,10 @@
     "Choisissez un fichier local pour l’export Audit.": "Choose a local file for the Audit export.",
     "Export Audit…": "Exporting Audit…",
     "Afficher le fichier": "Show file",
-    "Dossier d’audit exporté. L’empreinte SHA-256 est dans Output → Venator Ops.":
-      "Audit bundle exported. Its SHA-256 hash is in Output → Venator Ops.",
-    "Capture automatique des actions et des terminaux Venator du projet. Cliquez pour consulter les limites et exporter.":
-      "Automatic capture of project actions and Venator terminals. Click to inspect limits and export.",
+    "Dossier d’audit exporté. L’empreinte SHA-256 est dans Output → RedWidow.":
+      "Audit bundle exported. Its SHA-256 hash is in Output → RedWidow.",
+    "Capture automatique des actions et des terminaux RedWidow du projet. Cliquez pour consulter les limites et exporter.":
+      "Automatic capture of project actions and RedWidow terminals. Click to inspect limits and export.",
   };
   var AUDIT_LABELS = {
     requested: "Demandé",
@@ -182,8 +182,8 @@
     "Inopérant en mode Apprentissage": "Inactive in Learning mode",
     "terminal ouvert": "open terminal",
     arrêté: "stopped",
-    "Aucun terminal Venator Ops ouvert. Alt+J T pour en ouvrir un.":
-      "No Venator Ops terminal open. Press Alt+J T to open one.",
+    "Aucun terminal RedWidow ouvert. Alt+J T pour en ouvrir un.":
+      "No RedWidow terminal open. Press Alt+J T to open one.",
     "Aucun conteneur": "No containers",
     Terminaux: "Terminals",
     Conteneurs: "Containers",
@@ -382,8 +382,8 @@
     Annuler: "Cancel",
     "non lié": "not linked",
     "Préparation…": "Preparing…",
-    "Kali Venator Ops complète — MCP et outils prêts (construction locale)":
-      "Complete Kali Venator Ops — MCP and tools ready (local build)",
+    "Kali RedWidow complète — MCP et outils prêts (construction locale)":
+      "Complete Kali RedWidow — MCP and tools ready (local build)",
     "Kali officielle — image minimale": "Official Kali — minimal image",
     "Créer un conteneur": "Create a container",
     "Replier le formulaire": "Collapse form",
@@ -957,6 +957,56 @@
     "{0}\n\nPièces jointes :\n{1}": "{0}\n\nAttachments:\n{1}",
   };
 
+  // packages/messages/src/ui-domains/redwidow.ts
+  var redwidowEn = {
+    "Supprimer l’historique commun des chats, tous projets compris":
+      "Delete the shared chat history across all projects",
+    "Impossible d’enregistrer l’historique partagé.": "Unable to save shared history.",
+    "Arrêtez les conversations en cours avant de supprimer leur historique.":
+      "Stop running conversations before deleting their history.",
+    "Effacer l’historique commun des chats et ses journaux ?":
+      "Clear shared chat history and its journals?",
+    Widow: "Widow",
+    Venin: "Venom",
+    Arctique: "Arctic",
+    Ultraviolet: "Ultraviolet",
+    Tactique: "Tactical",
+    Rouge: "Red",
+    Orange: "Orange",
+    Jaune: "Yellow",
+    Vert: "Green",
+    Bleu: "Blue",
+    Rose: "Pink",
+    Blanc: "White",
+    Aurore: "Aurora",
+    Synthwave: "Synthwave",
+    Toxique: "Toxic",
+    "Lune de sang": "Blood moon",
+    Abysse: "Ocean",
+    Nébuleuse: "Nebula",
+    "Noir profond et cramoisi : la marque RedWidow":
+      "Deep black and crimson: the RedWidow identity",
+    "Cramoisi et acier : la marque d'origine, plus offensive":
+      "Crimson and steel: the original, more offensive brand",
+    "Vert toxique sur acier : terminal, offensif": "Toxic green on steel: terminal, offensive",
+    "Bleu glacier : froid, net, défensif": "Glacier blue: cool, sharp, defensive",
+    "Violet électrique : nuit, IA, laboratoire": "Electric violet: night, AI, laboratory",
+    "Olive et kaki : terrain, opérations": "Olive and khaki: field work, operations",
+    "Rouge franc": "Classic red",
+    "Orange vif ; proche de la couleur des alertes": "Bright orange; close to alert colors",
+    "Jaune soleil ; proche de la couleur des alertes": "Sun yellow; close to alert colors",
+    "Vert franc": "Classic green",
+    "Bleu franc": "Classic blue",
+    "Rose vif": "Bright pink",
+    "Blanc pur, graphite en thème clair": "Pure white, graphite in light themes",
+    "Dégradé cyan, bleu et violet": "Cyan, blue and violet gradient",
+    "Dégradé rose, violet et bleu": "Pink, violet and blue gradient",
+    "Dégradé lime, vert et cyan": "Lime, green and cyan gradient",
+    "Dégradé cramoisi, magenta et violet": "Crimson, magenta and violet gradient",
+    "Dégradé sarcelle, bleu et indigo": "Teal, blue and indigo gradient",
+    "Dégradé rose, violet et cyan": "Pink, violet and cyan gradient",
+  };
+
   // packages/messages/src/ui-domains/resources.ts
   var resourcesEn = {
     "Fournisseurs OpenCode": "OpenCode providers",
@@ -1054,10 +1104,10 @@
     Multicolore: "Multicolor",
     "Six teintes, une par rôle : corail, vert, cyan, bleu, violet et rose":
       "Six colors, one per role: coral, green, cyan, blue, purple and pink",
-    "Choisissez le jeu de couleurs de Venator Ops. Il s’applique aussitôt à toutes les vues et s’adapte aux thèmes clair, sombre et contraste élevé de VS Code.":
-      "Choose the Venator Ops color palette. It applies immediately to all views and adapts to VS Code light, dark and high contrast themes.",
-    "En contraste élevé, Venator Ops utilise les couleurs du thème : le choix est enregistré et s’applique dès que vous changez de thème.":
-      "In high contrast, Venator Ops uses theme colors. Your choice is saved and applies when you change themes.",
+    "Choisissez le jeu de couleurs de RedWidow. Il s’applique aussitôt à toutes les vues et s’adapte aux thèmes clair, sombre et contraste élevé de VS Code.":
+      "Choose the RedWidow color palette. It applies immediately to all views and adapts to VS Code light, dark and high contrast themes.",
+    "En contraste élevé, RedWidow utilise les couleurs du thème : le choix est enregistré et s’applique dès que vous changez de thème.":
+      "In high contrast, RedWidow uses theme colors. Your choice is saved and applies when you change themes.",
     "Jeu de couleurs": "Color palette",
     Ajuster: "Fit",
     "Ajuster le graphe à la fenêtre (0)": "Fit graph to window (0)",
@@ -1095,7 +1145,7 @@
     "Minimap du graphe : zone actuellement visible": "Graph minimap: currently visible area",
     "Graphe : flèches pour se déplacer, + et − pour zoomer, 0 pour ajuster, Échap pour désélectionner":
       "Graph: arrow keys to move, + and − to zoom, 0 to fit, Escape to deselect",
-    "Ouvrir l’espace Venator Ops": "Open Venator Ops workspace",
+    "Ouvrir l’espace RedWidow": "Open RedWidow workspace",
     "Préparer et vérifier les fichiers de mission": "Prepare and check mission files",
     "Attendez la fin du travail en cours pour changer de projet.":
       "Wait for the current task to finish before switching projects.",
@@ -1130,8 +1180,8 @@
     "Choisir un skill / profil…": "Choose a skill / profile…",
     "configuré (test requis)": "configured (test required)",
     "non configuré": "not configured",
-    "Connexion locale activée. Les appels aux outils restent soumis à la gate Venator Ops.":
-      "Local connection enabled. Tool calls remain subject to the Venator Ops gate.",
+    "Connexion locale activée. Les appels aux outils restent soumis à la gate RedWidow.":
+      "Local connection enabled. Tool calls remain subject to the RedWidow gate.",
     "Connexion désactivée. Installez l’extension MCP officielle dans Burp Suite pour la connecter.":
       "Connection disabled. Install the official MCP extension in Burp Suite to connect it.",
     "Configurer Burp Suite MCP…": "Configure Burp Suite MCP…",
@@ -1173,6 +1223,7 @@
     ...studioEn,
     ...resourcesEn,
     ...auditEn,
+    ...redwidowEn,
   };
   var currentLocale = "fr";
   var getUiLocale = () => currentLocale;

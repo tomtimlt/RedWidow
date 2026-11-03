@@ -13,7 +13,7 @@ describe("contribution de la commande", () => {
     expect(cmd?.title).toBe("%command.openTerminal%");
     const fr = JSON.parse(read("../package.nls.fr.json"));
     const en = JSON.parse(read("../package.nls.en.json"));
-    expect(fr["command.openTerminal"]).toBe("Venator Ops : ouvrir un terminal");
-    expect(en["command.openTerminal"]).toBe("Venator Ops: Open a terminal");
+    expect(fr["command.openTerminal"]).toBe("RedWidow : ouvrir un terminal");
+    expect(en["command.openTerminal"]).toBe("RedWidow: Open a terminal");
   });
 });

@@ -26,11 +26,29 @@ const STUDIO_GROUPS = [
 ];
 // Jeux de couleurs : mêmes identifiants que PALETTES dans src/logic/palette.ts (contrôlé par test).
 const PALETTES = [
+  ["widow", "Widow", "Noir profond et cramoisi : la marque RedWidow"],
   ["sentinelle", "Sentinelle", "Sarcelle et ardoise : veille, terminal, sécurité"],
-  ["braise", "Braise", "Cramoisi et acier : la marque d’origine, plus offensive"],
+  ["braise", "Braise", "Cramoisi et acier : la marque d'origine, plus offensive"],
+  ["venom", "Venin", "Vert toxique sur acier : terminal, offensif"],
+  ["arctic", "Arctique", "Bleu glacier : froid, net, défensif"],
   ["spectre", "Spectre", "Violet et glace : agents, recherche, nuit"],
-  ["editeur", "Éditeur", "Accent du thème VS Code : intégration maximale"],
+  ["ultraviolet", "Ultraviolet", "Violet électrique : nuit, IA, laboratoire"],
+  ["tactical", "Tactique", "Olive et kaki : terrain, opérations"],
+  ["rouge", "Rouge", "Rouge franc"],
+  ["orange", "Orange", "Orange vif ; proche de la couleur des alertes"],
+  ["jaune", "Jaune", "Jaune soleil ; proche de la couleur des alertes"],
+  ["vert", "Vert", "Vert franc"],
+  ["bleu", "Bleu", "Bleu franc"],
+  ["rose", "Rose", "Rose vif"],
+  ["blanc", "Blanc", "Blanc pur, graphite en thème clair"],
+  ["aurora", "Aurore", "Dégradé cyan, bleu et violet"],
+  ["synthwave", "Synthwave", "Dégradé rose, violet et bleu"],
+  ["toxic", "Toxique", "Dégradé lime, vert et cyan"],
+  ["bloodmoon", "Lune de sang", "Dégradé cramoisi, magenta et violet"],
+  ["ocean", "Abysse", "Dégradé sarcelle, bleu et indigo"],
+  ["nebula", "Nébuleuse", "Dégradé rose, violet et cyan"],
   ["multi", "Multicolore", "Six teintes, une par rôle : corail, vert, cyan, bleu, violet et rose"],
+  ["editeur", "Éditeur", "Accent du thème VS Code : intégration maximale"],
 ];
 function killchainCount(findings) {
   if (!Array.isArray(findings) || findings.length === 0) return null;
@@ -486,7 +504,7 @@ function start() {
         "p",
         "studio-help",
         t(
-          "Choisissez le jeu de couleurs de Venator Ops. Il s’applique aussitôt à toutes les vues et s’adapte aux thèmes clair, sombre et contraste élevé de VS Code.",
+          "Choisissez le jeu de couleurs de RedWidow. Il s’applique aussitôt à toutes les vues et s’adapte aux thèmes clair, sombre et contraste élevé de VS Code.",
         ),
       ),
     );
@@ -499,7 +517,7 @@ function start() {
           "p",
           "studio-help pal-note",
           t(
-            "En contraste élevé, Venator Ops utilise les couleurs du thème : le choix est enregistré et s’applique dès que vous changez de thème.",
+            "En contraste élevé, RedWidow utilise les couleurs du thème : le choix est enregistré et s’applique dès que vous changez de thème.",
           ),
         ),
       );
@@ -1319,7 +1337,7 @@ function start() {
         "p",
         "studio-help",
         t(
-          "Actions de l’agent et captures périodiques des terminaux Venator associés au projet, même sans IA. Conservation séparée du chat, sans effacement automatique.",
+          "Actions de l’agent et captures périodiques des terminaux RedWidow associés au projet, même sans IA. Conservation séparée du chat, sans effacement automatique.",
         ),
       ),
       el("p", "studio-help", t("Une exécution enregistrée ne constitue pas un contrôle validé.")),
@@ -1629,7 +1647,7 @@ function start() {
       const sec = el("section", "studio-card");
       sec.append(el("h2", "", t("Projet")));
       for (const [label, type] of [
-        [t("Ouvrir l’espace Venator Ops"), "openWorkspace"],
+        [t("Ouvrir l’espace RedWidow"), "openWorkspace"],
         [t("Préparer et vérifier les fichiers de mission"), "prepareMission"],
       ]) {
         const button = el("button", "ghost", label);
@@ -2066,7 +2084,7 @@ function start() {
             "studio-help",
             view.burpEnabled
               ? t(
-                  "Connexion locale activée. Les appels aux outils restent soumis à la gate Venator Ops.",
+                  "Connexion locale activée. Les appels aux outils restent soumis à la gate RedWidow.",
                 )
               : t(
                   "Connexion désactivée. Installez l’extension MCP officielle dans Burp Suite pour la connecter.",

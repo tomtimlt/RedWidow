@@ -94,13 +94,13 @@ describe("langue de la logique d’interface", () => {
 
   it("relit la langue des infobulles et palettes après import, sans modifier les valeurs", () => {
     expect(EFFORT_LEVELS[0]?.tip).toContain("Réponses rapides");
-    expect(PALETTES[0]?.[1]).toBe("Sentinelle");
+    expect(PALETTES.find(([id]) => id === "sentinelle")?.[1]).toBe("Sentinelle");
     setUiLocale("en");
     expect(EFFORT_LEVELS[0]?.tip).toContain("Fast, economical responses");
     expect(ultracodeTip({ maxTurns: 90, maxBudgetUsd: 5 })).toContain(
       "at most 90 turns, spending capped at 5 USD",
     );
-    expect(PALETTES[0]?.[1]).toBe("Sentinel");
+    expect(PALETTES.find(([id]) => id === "sentinelle")?.[1]).toBe("Sentinel");
     expect(paletteOf("sentinelle")).toBe("sentinelle");
     const controls = buildControls({
       prefs: DEFAULT_PREFS,
@@ -116,7 +116,7 @@ describe("langue de la logique d’interface", () => {
       description: "Hypothèse",
     });
     setUiLocale("fr");
-    expect(PALETTES[0]?.[1]).toBe("Sentinelle");
+    expect(PALETTES.find(([id]) => id === "sentinelle")?.[1]).toBe("Sentinelle");
   });
 
   it("traduit les motifs et confirmations sans traduire le détail d’action ni l’erreur brute", () => {

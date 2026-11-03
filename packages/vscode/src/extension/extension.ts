@@ -66,7 +66,6 @@ import type { Provider } from "../logic/effort.js";
 import { evidenceEditorReference, evidenceTerminalAllowed } from "../logic/evidence-capture.js";
 import { type ExegolCreateOptions, prepareExegolCreate } from "../logic/exegol-create.js";
 import { deleteSelectedFinding } from "../logic/finding-delete.js";
-import { createJournalFiles } from "../logic/historyStore.js";
 import { chatHtml, cockpitHtml, killchainHtml, makeNonce, studioHtml } from "../logic/html.js";
 import { matchesFingerprint } from "../logic/integrity.js";
 import { killchainImage } from "../logic/killchain-image.js";
@@ -92,6 +91,12 @@ import {
 import { openAiSubscriptionReady } from "../logic/provider-auth.js";
 import { type ChatSession, createChatSession, type TokenChoice } from "../logic/session.js";
 import { machineValue, parseConfiguredIntegrations, resolveSettings } from "../logic/settings.js";
+import {
+  createSharedHistoryIndex,
+  createSharedJournalFiles,
+  SHARED_HISTORY_KEY,
+  SHARED_HISTORY_MAX_ENTRIES,
+} from "../logic/shared-history.js";
 import { readSources } from "../logic/sources.js";
 import {
   type ObservedMission,
@@ -248,6 +253,27 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     panel?: vscode.WebviewPanel;
   }
   const slots = new Map<string, Slot>();
+  const sharedHistory = createSharedHistoryIndex(
+    {
+      get: (key) => context.workspaceState.get(key),
+      set: (key, value) => context.workspaceState.update(key, value),
+      keys: () => context.workspaceState.keys(),
+    },
+    (error) => out.appendLine(formatError(error, getUiLocale())),
+  );
+  const sharedJournalFiles = createSharedJournalFiles(
+    join((context.storageUri ?? context.globalStorageUri).fsPath, "runs"),
+    sharedHistory.legacyChats,
+  );
+  const currentConversations = () =>
+    [...slots.values()].flatMap(
+      (slot) =>
+        slot.session
+          ?.view()
+          .history.filter((row) => row.current)
+          .map((row) => row.id) ?? [],
+    );
+
   const observedRuns = new Map<string, ObservedMission>();
   const injectedContexts = new Map<string, { runId: string; text: string }>();
   const observe = (id: string, event: EngineEvent | null) => {
@@ -520,10 +546,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (!CHAT_ID.test(id)) throw new Error(t("Identifiant de chat refusé."));
     if (seats(id !== SIDEBAR_CHAT) >= CHAT_CAP) throw new Error(t("Quatre chats au maximum."));
     if (!folder) throw new Error(t`Ouvrez un dossier avant de lancer ${PRODUCT_NAME}.`);
-    const historyKey = `warband.history.${id}`;
+    const historyKey = SHARED_HISTORY_KEY;
     // Mode apprentissage (ADR 0010) : une clé par chat, séparée de `warband.prefs` (partagé).
     const learningKey = `warband.learning.${id}`;
-    const runs = join((context.storageUri ?? context.globalStorageUri).fsPath, "runs");
     const session = createChatSession({
       cwd: folder.uri.fsPath,
       enginePath: join(context.extensionPath, "run-engine.mjs"),
@@ -544,20 +569,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const file = await readProjects(defaultConfigDir());
         return file ?? { activeId: null, projects: [] };
       },
-      // Journaux hors du dépôt. Le chat latéral garde `runs/` et relit l'ancienne clé.
+      // Index commun ; les anciens journaux des chats restent lisibles à leur emplacement d’origine.
       history: {
         key: historyKey,
-        index: {
-          get: (key: string) => {
-            const value = context.workspaceState.get(key);
-            if (value === undefined && id === SIDEBAR_CHAT && key === historyKey) {
-              return context.workspaceState.get("warband.history");
-            }
-            return value;
-          },
-          set: (key: string, value: unknown) => context.workspaceState.update(key, value),
-        },
-        files: createJournalFiles(id === SIDEBAR_CHAT ? runs : join(runs, id)),
+        owner: id,
+        maxEntries: SHARED_HISTORY_MAX_ENTRIES,
+        index: sharedHistory.index,
+        files: sharedJournalFiles,
+        protectedIds: currentConversations,
+        canRemove: (ids) =>
+          ![...slots.values()].some((slot) => {
+            const view = slot.session?.view();
+            return view?.busy && view.history.some((row) => row.current && ids.includes(row.id));
+          }),
         confirmDelete: async (text) => {
           const action = t("Supprimer");
           return (await vscode.window.showWarningMessage(text, { modal: true }, action)) === action;
@@ -952,6 +976,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         case "historyResume":
           if (projectChanging) return;
           if (!(await projectWorkspaceReady()) || projectChanging) return;
+          {
+            const conversation = s.view().readonly?.id;
+            const existing =
+              conversation &&
+              [...slots.entries()].find(
+                ([other, slot]) =>
+                  other !== id &&
+                  slot.session
+                    ?.view()
+                    .history.some((row) => row.id === conversation && row.current),
+              );
+            if (existing) {
+              if (existing[0] === SIDEBAR_CHAT)
+                await vscode.commands.executeCommand("warband.chat.focus");
+              else existing[1].panel?.reveal();
+              return;
+            }
+          }
           return s.resumeConversation();
         case "historyRename":
           return s.renameConversation(message.id, message.title);
@@ -1019,8 +1061,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     },
   };
 
-  // Colonne des panneaux Venator Ops : le groupe d'éditeur qui contient déjà un onglet Venator Ops (panneau
-  // webview ou terminal d'éditeur « Venator Ops : … »), sinon le groupe actif. Jamais `Beside` : il créait
+  // Colonne des panneaux RedWidow : le groupe d'éditeur qui contient déjà un onglet RedWidow (panneau
+  // webview ou terminal d'éditeur « RedWidow : … »), sinon le groupe actif. Jamais `Beside` : il créait
   // un groupe scindé à chaque ouverture au lieu d'ajouter un onglet.
   const warbandColumn = (): vscode.ViewColumn => {
     for (const group of vscode.window.tabGroups.all) {
@@ -2147,7 +2189,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const reveal = t("Afficher le fichier");
       if (
         (await vscode.window.showInformationMessage(
-          t("Dossier d’audit exporté. L’empreinte SHA-256 est dans Output → Venator Ops."),
+          t("Dossier d’audit exporté. L’empreinte SHA-256 est dans Output → RedWidow."),
           reveal,
         )) === reveal
       )
@@ -2839,7 +2881,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   };
 
   /**
-   * Lanceur (Alt+J Alt+J, barre d'état) : toutes les fenêtres Venator Ops en un seul menu, et un terminal par
+   * Lanceur (Alt+J Alt+J, barre d'état) : toutes les fenêtres RedWidow en un seul menu, et un terminal par
    * conteneur démarré, sans passer par la palette de commandes.
    */
   type LauncherItem = vscode.QuickPickItem & { run?: () => unknown };
@@ -3640,7 +3682,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const incomplete = previousIncomplete || auditStore.localHealth(id).incomplete;
     barAudit.text = `$(record) Audit · ${!enabled ? t("En pause") : incomplete ? t("Partiel") : t("Auto")}`;
     barAudit.tooltip = t(
-      "Capture automatique des actions et des terminaux Venator du projet. Cliquez pour consulter les limites et exporter.",
+      "Capture automatique des actions et des terminaux RedWidow du projet. Cliquez pour consulter les limites et exporter.",
     );
     barAudit.backgroundColor =
       !enabled || incomplete ? new vscode.ThemeColor("statusBarItem.warningBackground") : undefined;
@@ -3676,6 +3718,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     );
     await Promise.allSettled([...closingAudit]);
     await auditCapture.flush();
+    await sharedHistory.flush().catch((error) => out.appendLine(formatError(error, getUiLocale())));
     await auditStore.close().catch(auditFailed);
   };
   context.subscriptions.push(barAudit, {

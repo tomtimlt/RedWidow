@@ -38,10 +38,10 @@ export const studioEn: Record<string, string> = {
   Multicolore: "Multicolor",
   "Six teintes, une par rôle : corail, vert, cyan, bleu, violet et rose":
     "Six colors, one per role: coral, green, cyan, blue, purple and pink",
-  "Choisissez le jeu de couleurs de Venator Ops. Il s’applique aussitôt à toutes les vues et s’adapte aux thèmes clair, sombre et contraste élevé de VS Code.":
-    "Choose the Venator Ops color palette. It applies immediately to all views and adapts to VS Code light, dark and high contrast themes.",
-  "En contraste élevé, Venator Ops utilise les couleurs du thème : le choix est enregistré et s’applique dès que vous changez de thème.":
-    "In high contrast, Venator Ops uses theme colors. Your choice is saved and applies when you change themes.",
+  "Choisissez le jeu de couleurs de RedWidow. Il s’applique aussitôt à toutes les vues et s’adapte aux thèmes clair, sombre et contraste élevé de VS Code.":
+    "Choose the RedWidow color palette. It applies immediately to all views and adapts to VS Code light, dark and high contrast themes.",
+  "En contraste élevé, RedWidow utilise les couleurs du thème : le choix est enregistré et s’applique dès que vous changez de thème.":
+    "In high contrast, RedWidow uses theme colors. Your choice is saved and applies when you change themes.",
   "Jeu de couleurs": "Color palette",
   Ajuster: "Fit",
   "Ajuster le graphe à la fenêtre (0)": "Fit graph to window (0)",
@@ -79,7 +79,7 @@ export const studioEn: Record<string, string> = {
   "Minimap du graphe : zone actuellement visible": "Graph minimap: currently visible area",
   "Graphe : flèches pour se déplacer, + et − pour zoomer, 0 pour ajuster, Échap pour désélectionner":
     "Graph: arrow keys to move, + and − to zoom, 0 to fit, Escape to deselect",
-  "Ouvrir l’espace Venator Ops": "Open Venator Ops workspace",
+  "Ouvrir l’espace RedWidow": "Open RedWidow workspace",
   "Préparer et vérifier les fichiers de mission": "Prepare and check mission files",
   "Attendez la fin du travail en cours pour changer de projet.":
     "Wait for the current task to finish before switching projects.",
@@ -114,8 +114,8 @@ export const studioEn: Record<string, string> = {
   "Choisir un skill / profil…": "Choose a skill / profile…",
   "configuré (test requis)": "configured (test required)",
   "non configuré": "not configured",
-  "Connexion locale activée. Les appels aux outils restent soumis à la gate Venator Ops.":
-    "Local connection enabled. Tool calls remain subject to the Venator Ops gate.",
+  "Connexion locale activée. Les appels aux outils restent soumis à la gate RedWidow.":
+    "Local connection enabled. Tool calls remain subject to the RedWidow gate.",
   "Connexion désactivée. Installez l’extension MCP officielle dans Burp Suite pour la connecter.":
     "Connection disabled. Install the official MCP extension in Burp Suite to connect it.",
   "Configurer Burp Suite MCP…": "Configure Burp Suite MCP…",

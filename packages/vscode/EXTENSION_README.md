@@ -1,4 +1,4 @@
-# Venator Ops
+# RedWidow
 
 **Pentest in VS Code, with AI on call.**
 
@@ -6,7 +6,7 @@ Kali · Exegol · Terminals · Kill chain · Optional AI agent
 
 A workspace for your CTFs, labs and authorized pentests. Prepare containers, open terminals and bring your findings together. Work by hand or call an agent when you need one.
 
-**Previously Warband.** The update keeps your projects, conversation history and settings.
+**Previously Venator Ops / Warband.** The update keeps your projects, conversation history and settings.
 
 ## Your workspace in one place
 
@@ -23,9 +23,9 @@ The cockpit, terminals, manual evidence capture and exports work without an AI c
 
 You need **VS Code 1.90+** and **Docker installed and running** for containers. VSIX packages are available for **Windows x64** and **Linux x64**. You do not need Node.js or a development environment.
 
-1. Open **Venator Ops: Open settings** from the command palette (`Ctrl+Shift+P`). Under **Project**, create a project with a name and folder, or activate an existing project. Trust the folder in VS Code if you trust its contents.
+1. Open **RedWidow: Open settings** from the command palette (`Ctrl+Shift+P`). Under **Project**, create a project with a name and folder, or activate an existing project. Trust the folder in VS Code if you trust its contents.
 2. Open the **Cockpit**, link an existing container or create one with **New container**, then start it.
-3. Run **Venator Ops: Open or restore the Venator Ops workspace** to bring back the chat, kill chain and Monitor. Open a terminal to work by hand.
+3. Run **RedWidow: Open or restore the RedWidow workspace** to bring back the chat, kill chain and Monitor. Open a terminal to work by hand.
 4. For AI assistance, open **Settings → System control**, configure a provider and enable it. Pick that provider in the chat’s **Configure** menu, then select a model available on your account.
 
 Providers include **Claude**, **OpenAI / ChatGPT** and **OpenCode** with its full runtime provider catalog. Search and enable providers such as Google Gemini, OpenRouter, GitHub Copilot and DeepSeek in System control. The general **OpenCode** entry shows all connected models. Use **Add Ollama / a compatible endpoint** to enter your API URL and installed model IDs. You can switch provider while keeping the same conversation. Provider subscriptions and API charges are separate. On Windows, Claude requires [Git for Windows with Git Bash](https://git-scm.com/downloads/win).

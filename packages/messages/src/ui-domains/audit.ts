@@ -41,8 +41,8 @@ export const auditEn: Record<string, string> = {
     "Activate a project to start its automatic Audit capture.",
   "Journal d’audit indisponible.": "Audit journal unavailable.",
   "Exporter le dossier d’audit": "Export audit bundle",
-  "Actions de l’agent et captures périodiques des terminaux Venator associés au projet, même sans IA. Conservation séparée du chat, sans effacement automatique.":
-    "Agent actions and periodic captures of project-linked Venator terminals, even without AI. Stored separately from chat, with no automatic deletion.",
+  "Actions de l’agent et captures périodiques des terminaux RedWidow associés au projet, même sans IA. Conservation séparée du chat, sans effacement automatique.":
+    "Agent actions and periodic captures of project-linked RedWidow terminals, even without AI. Stored separately from chat, with no automatic deletion.",
   "Le ZIP contient un HTML autonome, le registre, les preuves conservées, les JSONL et un manifeste SHA-256. Ces empreintes ne sont ni une signature ni un horodatage indépendant.":
     "The ZIP contains standalone HTML, the registry, retained evidence, JSONL journals and a SHA-256 manifest. These hashes are neither a signature nor an independent timestamp.",
   "Collecte partielle : pauses, captures indisponibles ou sorties tronquées. Consultez les traces et le manifeste.":
@@ -81,10 +81,10 @@ export const auditEn: Record<string, string> = {
   "Choisissez un fichier local pour l’export Audit.": "Choose a local file for the Audit export.",
   "Export Audit…": "Exporting Audit…",
   "Afficher le fichier": "Show file",
-  "Dossier d’audit exporté. L’empreinte SHA-256 est dans Output → Venator Ops.":
-    "Audit bundle exported. Its SHA-256 hash is in Output → Venator Ops.",
-  "Capture automatique des actions et des terminaux Venator du projet. Cliquez pour consulter les limites et exporter.":
-    "Automatic capture of project actions and Venator terminals. Click to inspect limits and export.",
+  "Dossier d’audit exporté. L’empreinte SHA-256 est dans Output → RedWidow.":
+    "Audit bundle exported. Its SHA-256 hash is in Output → RedWidow.",
+  "Capture automatique des actions et des terminaux RedWidow du projet. Cliquez pour consulter les limites et exporter.":
+    "Automatic capture of project actions and RedWidow terminals. Click to inspect limits and export.",
 };
 
 export const AUDIT_LABELS: Readonly<Record<string, string>> = {

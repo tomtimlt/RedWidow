@@ -24,7 +24,15 @@ describe("mouvement de la refonte — budget et accessibilité", () => {
     for (const frame of frames())
       for (const property of frame.body.matchAll(/([\w-]+)\s*:/g))
         expect(
-          ["transform", "opacity", "stroke-dashoffset", "background-position"],
+          [
+            "transform",
+            "translate",
+            "rotate",
+            "opacity",
+            "stroke-dashoffset",
+            "background-position",
+            ...(frame.name === "jn-aura-spin" ? ["--jn-aura-turn"] : []),
+          ],
           `${frame.name}: ${property[1]}`,
         ).toContain(property[1]);
   });

@@ -1,12 +1,12 @@
 /*
- * Venator Ops — direction « Acier et signature »
+ * RedWidow — direction « Acier et signature »
  *
  * Acier : surfaces neutres dérivées du thème VS Code, hiérarchie portée par
  * des filets fins et un liseré vertical de 2 px qui signale l'état.
  * Signature : couleur de la palette choisie (logo, liserés, sélections,
- * activité). L'interaction suit l'accent et le focus du thème.
- * Typographie : Geist pour l'interface, Geist Mono pour les repères techniques
- * (étiquettes, compteurs, horloges) ; la police de l'éditeur pour le code.
+ * activité), boutons principaux et liens ; le focus suit le thème.
+ * Typographie : Geist pour l'interface, JetBrains Mono pour les repères techniques
+ * (étiquettes, compteurs, horloges) et pour le code, les commandes et les sorties.
  */
 @font-face {
   font-family: "Warband Geist";
@@ -16,8 +16,8 @@
   font-display: swap;
 }
 @font-face {
-  font-family: "Warband Geist Mono";
-  src: url("fonts/geist-mono-latin.woff2") format("woff2");
+  font-family: "Warband JetBrains Mono";
+  src: url("fonts/jetbrains-mono-latin.woff2") format("woff2");
   font-style: normal;
   font-weight: 100 900;
   font-display: swap;
@@ -93,8 +93,8 @@ body {
     0 8px 24px var(--vscode-widget-shadow, #0004);
   /* Typographie */
   --jn-font: "Warband Geist", var(--vscode-font-family, system-ui, sans-serif);
-  --jn-mono: "Warband Geist Mono", var(--vscode-editor-font-family, ui-monospace, monospace);
-  --jn-code: var(--vscode-editor-font-family, "Warband Geist Mono", ui-monospace, monospace);
+  --jn-mono: "Warband JetBrains Mono", var(--vscode-editor-font-family, ui-monospace, monospace);
+  --jn-code: "Warband JetBrains Mono", var(--vscode-editor-font-family, ui-monospace, monospace);
   --jn-fs-2xs: 10.5px;
   --jn-fs-xs: 11px;
   --jn-fs-sm: 12px;
@@ -138,14 +138,16 @@ body.vscode-high-contrast-light {
 }
 
 /* ───────────────────────────── Palettes ─────────────────────────────
- * Cinq jeux de couleurs : Sentinelle, Braise, Spectre, Éditeur et Multicolore.
- * Chaque jeu fixe la couleur de signature (--jn-brand) et le gris de marque
- * (--jn-steel), en deux tons : sombre (par défaut) et clair. Les règles
+ * Vingt-trois jeux de couleurs : huit unis, sept classiques, six en dégradé,
+ * Multicolore et Éditeur.
+ * Chaque jeu fixe la couleur de signature (--jn-brand), le gris de marque
+ * (--jn-steel), le texte sur la signature (--jn-on-brand) et trois teintes de
+ * dégradé, en deux tons : sombre (par défaut) et clair. Les règles
  * s'appliquent à tout élément portant data-palette : la page Apparence s'en
- * sert pour aperçu de chaque jeu dans sa carte. La signature sert au logo, aux
- * liserés, aux sélections et à l'activité ; les boutons principaux et le focus
- * restent ceux du thème. En contraste élevé, la signature cède la place à la
- * bordure active du thème.
+ * sert pour aperçu de chaque jeu dans sa carte. Hors jeu Éditeur, la palette
+ * habille aussi les boutons principaux et les liens (voir « Palettes
+ * partout ») ; le focus reste celui du thème. En contraste élevé, la signature
+ * cède la place à la bordure active du thème.
  */
 body,
 [data-palette="sentinelle"] {
@@ -219,7 +221,15 @@ body,
   --jn-sw-2: var(--jn-steel);
   --jn-sw-3: color-mix(in srgb, var(--jn-brand) 60%, var(--vscode-editor-background));
   --jn-sw-4: color-mix(in srgb, var(--jn-brand) 30%, var(--vscode-editor-background));
-  --jn-pal-fill: var(--jn-brand);
+  --jn-pal-fill: var(--jn-grad);
+  --jn-on-brand: #0b0d10;
+  --jn-grad-a: var(--jn-brand);
+  --jn-grad-b: color-mix(in srgb, var(--jn-brand) 62%, #ffffff);
+  --jn-grad-c: var(--jn-brand);
+}
+[data-palette="widow"] {
+  --jn-on-brand: #ffffff;
+  --jn-grad-b: color-mix(in srgb, var(--jn-brand) 90%, #000000);
 }
 /* Multicolore : la signature est le cyan ; chaque rôle prend sa teinte. */
 body[data-palette="multi"],
@@ -238,6 +248,252 @@ body.vscode-light[data-palette="multi"],
 body.vscode-light [data-palette="multi"] {
   --jn-steel: #55687c;
 }
+/* Nouveaux jeux unis : signature, acier, texte sur la signature. Un dégradé
+ * léger (signature, reflet clair, signature) leur est dérivé plus bas. */
+[data-palette="widow"] {
+  --jn-brand: #e5132b;
+  --jn-steel: #8b8e97;
+  --jn-on-brand: #ffffff;
+}
+body.vscode-light[data-palette="widow"],
+body.vscode-light [data-palette="widow"] {
+  --jn-brand: #c40f24;
+  --jn-steel: #55585f;
+}
+[data-palette="venom"] {
+  --jn-brand: #3ee08f;
+  --jn-steel: #7f9a8c;
+  --jn-on-brand: #04140b;
+}
+body.vscode-light[data-palette="venom"],
+body.vscode-light [data-palette="venom"] {
+  --jn-brand: #0d7a45;
+  --jn-steel: #4d6458;
+}
+[data-palette="arctic"] {
+  --jn-brand: #5ec8ff;
+  --jn-steel: #8aa0b5;
+  --jn-on-brand: #031522;
+}
+body.vscode-light[data-palette="arctic"],
+body.vscode-light [data-palette="arctic"] {
+  --jn-brand: #0a6aa3;
+  --jn-steel: #4f657a;
+}
+[data-palette="ultraviolet"] {
+  --jn-brand: #c77dff;
+  --jn-steel: #9a8fb5;
+  --jn-on-brand: #14051f;
+}
+body.vscode-light[data-palette="ultraviolet"],
+body.vscode-light [data-palette="ultraviolet"] {
+  --jn-brand: #7b2cbf;
+  --jn-steel: #5f5680;
+}
+[data-palette="tactical"] {
+  --jn-brand: #b5c46a;
+  --jn-steel: #8c917c;
+  --jn-on-brand: #12140a;
+}
+body.vscode-light[data-palette="tactical"],
+body.vscode-light [data-palette="tactical"] {
+  --jn-brand: #5c6b1f;
+  --jn-steel: #575c48;
+}
+/* Jeux classiques : couleurs franches, acier neutre. */
+[data-palette="rouge"] {
+  --jn-brand: #ff4d4d;
+  --jn-steel: #8a909a;
+  --jn-on-brand: #1a0505;
+}
+body.vscode-light[data-palette="rouge"],
+body.vscode-light [data-palette="rouge"] {
+  --jn-brand: #c62828;
+  --jn-steel: #555b64;
+}
+[data-palette="orange"] {
+  --jn-brand: #ff9f43;
+  --jn-steel: #8a909a;
+  --jn-on-brand: #1a0e00;
+}
+body.vscode-light[data-palette="orange"],
+body.vscode-light [data-palette="orange"] {
+  --jn-brand: #b35900;
+  --jn-steel: #555b64;
+}
+[data-palette="jaune"] {
+  --jn-brand: #ffd43b;
+  --jn-steel: #8a909a;
+  --jn-on-brand: #1a1500;
+}
+body.vscode-light[data-palette="jaune"],
+body.vscode-light [data-palette="jaune"] {
+  --jn-brand: #8a6d00;
+  --jn-steel: #555b64;
+}
+[data-palette="vert"] {
+  --jn-brand: #4cd964;
+  --jn-steel: #8a909a;
+  --jn-on-brand: #04140a;
+}
+body.vscode-light[data-palette="vert"],
+body.vscode-light [data-palette="vert"] {
+  --jn-brand: #1e7e34;
+  --jn-steel: #555b64;
+}
+[data-palette="bleu"] {
+  --jn-brand: #4d9fff;
+  --jn-steel: #8a909a;
+  --jn-on-brand: #04101f;
+}
+body.vscode-light[data-palette="bleu"],
+body.vscode-light [data-palette="bleu"] {
+  --jn-brand: #1f5fbf;
+  --jn-steel: #555b64;
+}
+[data-palette="rose"] {
+  --jn-brand: #ff6fb5;
+  --jn-steel: #8a909a;
+  --jn-on-brand: #1a0510;
+}
+body.vscode-light[data-palette="rose"],
+body.vscode-light [data-palette="rose"] {
+  --jn-brand: #b8236f;
+  --jn-steel: #555b64;
+}
+[data-palette="blanc"] {
+  --jn-brand: #f2f4f7;
+  --jn-steel: #8a909a;
+  --jn-on-brand: #0b0d10;
+}
+body.vscode-light[data-palette="blanc"],
+body.vscode-light [data-palette="blanc"] {
+  --jn-brand: #2b2f36;
+  --jn-steel: #555b64;
+}
+/* Jeux en dégradé : trois teintes (--jn-grad-a, -b, -c) pour les boutons, les
+ * soulignements, le curseur d'effort, le mot-symbole et l'aura du bypass. La
+ * signature unie est la teinte du milieu. */
+[data-palette="aurora"] {
+  --jn-brand: #4f9dff;
+  --jn-steel: #8a93a6;
+  --jn-on-brand: #06101c;
+  --jn-grad-a: #35e0c0;
+  --jn-grad-b: #4f9dff;
+  --jn-grad-c: #a27bff;
+  --jn-sw-1: var(--jn-grad-a);
+  --jn-sw-2: var(--jn-grad-b);
+  --jn-sw-3: var(--jn-grad-c);
+  --jn-sw-4: var(--jn-steel);
+}
+body.vscode-light[data-palette="aurora"],
+body.vscode-light [data-palette="aurora"] {
+  --jn-brand: #2a5fd0;
+  --jn-steel: #565e72;
+  --jn-grad-a: #0b8370;
+  --jn-grad-b: #2a5fd0;
+  --jn-grad-c: #6a3fd0;
+}
+[data-palette="synthwave"] {
+  --jn-brand: #b36bff;
+  --jn-steel: #8a93a6;
+  --jn-on-brand: #12061a;
+  --jn-grad-a: #ff5fa2;
+  --jn-grad-b: #b36bff;
+  --jn-grad-c: #4fc3ff;
+  --jn-sw-1: var(--jn-grad-a);
+  --jn-sw-2: var(--jn-grad-b);
+  --jn-sw-3: var(--jn-grad-c);
+  --jn-sw-4: var(--jn-steel);
+}
+body.vscode-light[data-palette="synthwave"],
+body.vscode-light [data-palette="synthwave"] {
+  --jn-brand: #7b3fd0;
+  --jn-steel: #565e72;
+  --jn-grad-a: #c2306f;
+  --jn-grad-b: #7b3fd0;
+  --jn-grad-c: #0a74a8;
+}
+[data-palette="toxic"] {
+  --jn-brand: #3ddc84;
+  --jn-steel: #8a93a6;
+  --jn-on-brand: #04140b;
+  --jn-grad-a: #9be84a;
+  --jn-grad-b: #3ddc84;
+  --jn-grad-c: #22c7d6;
+  --jn-sw-1: var(--jn-grad-a);
+  --jn-sw-2: var(--jn-grad-b);
+  --jn-sw-3: var(--jn-grad-c);
+  --jn-sw-4: var(--jn-steel);
+}
+body.vscode-light[data-palette="toxic"],
+body.vscode-light [data-palette="toxic"] {
+  --jn-brand: #13804a;
+  --jn-steel: #565e72;
+  --jn-grad-a: #4f7a12;
+  --jn-grad-b: #13804a;
+  --jn-grad-c: #0a7f95;
+}
+[data-palette="bloodmoon"] {
+  --jn-brand: #c8236e;
+  --jn-steel: #8a93a6;
+  --jn-on-brand: #ffffff;
+  --jn-grad-a: #e5132b;
+  --jn-grad-b: #c8236e;
+  --jn-grad-c: #7a4cf0;
+  --jn-sw-1: var(--jn-grad-a);
+  --jn-sw-2: var(--jn-grad-b);
+  --jn-sw-3: var(--jn-grad-c);
+  --jn-sw-4: var(--jn-steel);
+}
+body.vscode-light[data-palette="bloodmoon"],
+body.vscode-light [data-palette="bloodmoon"] {
+  --jn-brand: #b0225f;
+  --jn-steel: #565e72;
+  --jn-grad-a: #c40f24;
+  --jn-grad-b: #b0225f;
+  --jn-grad-c: #6a2fd0;
+}
+[data-palette="ocean"] {
+  --jn-brand: #2fa8ff;
+  --jn-steel: #8a93a6;
+  --jn-on-brand: #03111c;
+  --jn-grad-a: #29d3c0;
+  --jn-grad-b: #2fa8ff;
+  --jn-grad-c: #5b7bff;
+  --jn-sw-1: var(--jn-grad-a);
+  --jn-sw-2: var(--jn-grad-b);
+  --jn-sw-3: var(--jn-grad-c);
+  --jn-sw-4: var(--jn-steel);
+}
+body.vscode-light[data-palette="ocean"],
+body.vscode-light [data-palette="ocean"] {
+  --jn-brand: #0a6aa3;
+  --jn-steel: #565e72;
+  --jn-grad-a: #0a7f75;
+  --jn-grad-b: #0a6aa3;
+  --jn-grad-c: #2448c0;
+}
+[data-palette="nebula"] {
+  --jn-brand: #a98bff;
+  --jn-steel: #8a93a6;
+  --jn-on-brand: #10081a;
+  --jn-grad-a: #ff7eb6;
+  --jn-grad-b: #a98bff;
+  --jn-grad-c: #35c4d8;
+  --jn-sw-1: var(--jn-grad-a);
+  --jn-sw-2: var(--jn-grad-b);
+  --jn-sw-3: var(--jn-grad-c);
+  --jn-sw-4: var(--jn-steel);
+}
+body.vscode-light[data-palette="nebula"],
+body.vscode-light [data-palette="nebula"] {
+  --jn-brand: #6a3fd0;
+  --jn-steel: #565e72;
+  --jn-grad-a: #c2306f;
+  --jn-grad-b: #6a3fd0;
+  --jn-grad-c: #0a7f95;
+}
 /* Jetons dérivés, recalculés sur chaque élément portant une palette. */
 body,
 [data-palette] {
@@ -245,6 +501,43 @@ body,
   --jn-sig-tint: color-mix(in srgb, var(--jn-sig) 13%, transparent);
   --jn-sig-edge: color-mix(in srgb, var(--jn-sig) 48%, transparent);
   --jn-ember: var(--jn-sig);
+  --jn-grad: linear-gradient(90deg, var(--jn-grad-a), var(--jn-grad-b), var(--jn-grad-c));
+  --jn-grad-loop: linear-gradient(
+    90deg,
+    var(--jn-grad-a),
+    var(--jn-grad-b),
+    var(--jn-grad-c),
+    var(--jn-grad-b),
+    var(--jn-grad-a)
+  );
+  --jn-aura-stops:
+    var(--jn-grad-a), var(--jn-grad-b), var(--jn-grad-c), var(--jn-grad-b), var(--jn-grad-a);
+}
+[data-palette="multi"] {
+  --jn-on-brand: #031418;
+  --jn-grad-a: var(--jn-rb-3);
+  --jn-grad-b: var(--jn-rb-4);
+  --jn-grad-c: var(--jn-rb-6);
+  --jn-grad: var(--jn-rainbow);
+  --jn-grad-loop: linear-gradient(
+    90deg,
+    var(--jn-rb-1),
+    var(--jn-rb-2),
+    var(--jn-rb-3),
+    var(--jn-rb-4),
+    var(--jn-rb-5),
+    var(--jn-rb-6),
+    var(--jn-rb-1)
+  );
+  --jn-aura-stops:
+    var(--jn-rb-1), var(--jn-rb-2), var(--jn-rb-3), var(--jn-rb-4), var(--jn-rb-5), var(--jn-rb-6),
+    var(--jn-rb-1);
+}
+body.vscode-light,
+body.vscode-light [data-palette] {
+  --jn-on-brand: #ffffff;
+  /* Un reflet plus sombre garde le texte blanc lisible sur les jeux unis. */
+  --jn-grad-b: color-mix(in srgb, var(--jn-brand) 90%, #000000);
 }
 body.vscode-light,
 body.vscode-light [data-palette] {
@@ -778,6 +1071,107 @@ pre {
   height: 60px;
   margin-bottom: var(--jn-s3);
   overflow: visible;
+}
+/* ───────────────────────────── Araignée RedWidow ─────────────────────────────
+ * Accueil : l'araignée en calques (media/spider.js). Acier de la marque, rouge
+ * des yeux et du viseur pris sur la signature. À l'arrivée, les pattes se
+ * déploient avec un rebond, le cerveau s'allume, le viseur se verrouille et
+ * les yeux clignent ; puis elle respire. En mode Apprentissage, elle étudie :
+ * un livre ouvert entre les pédipalpes, les yeux qui suivent les lignes, le
+ * cerveau qui luit, une page qui tourne, le viseur éteint (rien n'est ciblé).
+ */
+.welcome-spider {
+  flex: none;
+  width: 120px;
+  height: auto;
+  aspect-ratio: 935 / 1175;
+  margin-bottom: var(--jn-s2);
+  overflow: visible;
+  --rw-red: var(--jn-sig);
+  --rw-steel-hi: #b0b1b8;
+  --rw-steel: #606168;
+  --rw-ink: #131417;
+}
+body.vscode-light .welcome-spider {
+  --rw-steel-hi: #9a9ca4;
+  --rw-steel: #4f5157;
+  --rw-ink: #1d1e22;
+}
+body.vscode-high-contrast .welcome-spider,
+body.vscode-high-contrast-light .welcome-spider {
+  --rw-red: var(--jn-sig);
+}
+.rw-spider :is(.rw-leg, .rw-palp, .rw-crosshair, .rw-brain, .rw-eyes, .rw-book, .rw-book-turn) {
+  transform-box: fill-box;
+}
+.rw-spider .rw-crosshair,
+.rw-spider .rw-brain,
+.rw-spider .rw-eyes {
+  transform-origin: 50% 50%;
+  transition: opacity var(--jn-d3) var(--jn-ease-io);
+}
+#leg-l1,
+#leg-l2 {
+  transform-origin: 100% 100%;
+}
+#leg-r1,
+#leg-r2 {
+  transform-origin: 0% 100%;
+}
+#leg-l3 {
+  transform-origin: 100% 30%;
+}
+#leg-r3 {
+  transform-origin: 0% 30%;
+}
+#leg-l4 {
+  transform-origin: 100% 0%;
+}
+#leg-r4 {
+  transform-origin: 0% 0%;
+}
+.rw-book {
+  opacity: 0;
+  transform-origin: 50% 0%;
+  transform: translateY(40px) scale(0.6);
+  transition:
+    opacity var(--jn-d3) var(--jn-ease-io),
+    transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.rw-book-cover {
+  fill: var(--jn-sig);
+}
+.rw-book-page,
+.rw-book-turn {
+  fill: #e9eaee;
+}
+.rw-book-turn {
+  opacity: 0;
+  transform-origin: 0% 50%;
+}
+.rw-book-lines {
+  fill: none;
+  stroke: #8b8e97;
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+.rw-book-spine {
+  fill: none;
+  stroke: var(--rw-ink);
+  stroke-width: 5;
+}
+body.learning .rw-book {
+  opacity: 1;
+  transform: none;
+}
+body.learning .rw-spider .rw-crosshair {
+  opacity: 0.25;
+}
+body.vscode-high-contrast .rw-book-page,
+body.vscode-high-contrast-light .rw-book-page {
+  fill: var(--vscode-editor-background);
+  stroke: var(--vscode-foreground);
+  stroke-width: 4;
 }
 .welcome h2 {
   margin: 0;
@@ -5202,7 +5596,7 @@ body.mode-watch .mon-head .hint::before {
 
 /* ───────────────────────────── Marque ───────────────────────────── */
 
-/* Crochets de visée en gris de marque ; étincelle et satellite en signature. */
+/* Viseur RedWidow : traits en gris de marque ; anneau et satellite en signature. */
 .brand {
   overflow: visible;
 }
@@ -6068,16 +6462,135 @@ body.vscode-high-contrast-light .pal-card[aria-checked="true"] {
 [data-palette="multi"] .pal-logo .brand-node {
   fill: var(--jn-rb-6);
 }
-/* Dans une carte, le logo suit la palette de la carte, pas celle de la page. */
-.pal-card:not([data-palette="multi"]) .pal-logo .brand-lead,
-.pal-card:not([data-palette="multi"]) .pal-logo .brand-node {
-  fill: var(--jn-sig);
-}
 body.vscode-high-contrast [data-palette="multi"] .pal-logo .brand-lead,
 body.vscode-high-contrast-light [data-palette="multi"] .pal-logo .brand-lead,
 body.vscode-high-contrast [data-palette="multi"] .pal-logo .brand-node,
 body.vscode-high-contrast-light [data-palette="multi"] .pal-logo .brand-node {
   fill: var(--vscode-foreground);
+}
+
+/* ───────────────────────────── Palettes partout ─────────────────────────────
+ * Hors jeu Éditeur et hors contraste élevé, la palette habille toute
+ * l'interface : liens et teintes d'accent, boutons principaux en dégradé,
+ * soulignements, mot-symbole, phases faites de la mission, remplissage du
+ * curseur d'effort et sélection de texte. Le focus clavier reste celui du
+ * thème. Les jeux en dégradé et le Multicolore donnent au bypass une aura qui
+ * tourne. Les états (ok, alerte, erreur) et la gravité gardent leurs couleurs.
+ */
+body[data-palette]:where(
+  :not([data-palette="editeur"], .vscode-high-contrast, .vscode-high-contrast-light)
+) {
+  --jn-accent: var(--jn-brand);
+  --jn-accent-fill: var(--jn-brand);
+  --jn-accent-fill-hover: var(--jn-brand);
+  --jn-accent-fill-border: transparent;
+  --jn-on-accent: var(--jn-on-brand);
+  & ::selection {
+    background: color-mix(in srgb, var(--jn-brand) 34%, transparent);
+  }
+  & button.primary:not(:disabled) {
+    background-image: var(--jn-grad);
+    background-size: 100% 100%;
+    font-weight: 600;
+  }
+  & button.primary:hover:not(:disabled):not([aria-disabled="true"]) {
+    outline: 1px solid var(--jn-line-strong);
+    outline-offset: 1px;
+  }
+  & #bar::after,
+  & .studio-nav-title::after {
+    width: 40px;
+    background: var(--jn-grad);
+  }
+  & #title .brand-ops {
+    background: var(--jn-grad);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  & .brand-lead {
+    fill: var(--jn-grad-a);
+  }
+  & .brand-node {
+    fill: var(--jn-grad-c);
+  }
+  & .mission-step.is-done .mission-mark {
+    background: var(--jn-grad);
+    color: var(--jn-on-brand);
+  }
+  & #effort-scale::before {
+    left: 0;
+    right: 0;
+    width: auto;
+    background: var(--jn-grad);
+    clip-path: inset(0 calc(100% - (var(--jn-pos) + var(--jn-thumb) / 2)) 0 0 round 99px);
+    transition:
+      clip-path var(--jn-settle),
+      opacity var(--jn-d2) var(--jn-ease-io);
+  }
+  & #effort-scale.is-dragging::before {
+    transition: none;
+  }
+}
+/* Jeux rouges, orange et jaune : les liens gardent la couleur du thème pour ne
+ * pas se confondre avec l'erreur (Refuser, échecs) ni avec les alertes. */
+body:is(
+  [data-palette="widow"],
+  [data-palette="braise"],
+  [data-palette="bloodmoon"],
+  [data-palette="rouge"],
+  [data-palette="orange"],
+  [data-palette="jaune"]
+):where(:not(.vscode-high-contrast, .vscode-high-contrast-light)) {
+  --jn-accent: var(--vscode-textLink-foreground, var(--vscode-button-background));
+}
+/* Dans une carte d'aperçu, le logo suit la palette de la carte. */
+.pal-card:not([data-palette="multi"]) .pal-logo .brand-lead {
+  fill: var(--jn-grad-a);
+}
+.pal-card:not([data-palette="multi"]) .pal-logo .brand-node {
+  fill: var(--jn-grad-c);
+}
+/* Aura du bypass en dégradé qui tourne (jeux en dégradé et Multicolore). */
+@property --jn-aura-turn {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+body:is(
+  [data-palette="multi"],
+  [data-palette="aurora"],
+  [data-palette="synthwave"],
+  [data-palette="toxic"],
+  [data-palette="bloodmoon"],
+  [data-palette="ocean"],
+  [data-palette="nebula"]
+):where(:not(.vscode-high-contrast, .vscode-high-contrast-light)).bypass-on::after {
+  border: 3px solid transparent;
+  border-image: conic-gradient(from var(--jn-aura-turn), var(--jn-aura-stops)) 1;
+  box-shadow:
+    inset 0 0 26px color-mix(in srgb, var(--jn-grad-b) 30%, transparent),
+    inset 0 0 80px color-mix(in srgb, var(--jn-grad-c) 12%, transparent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light):is(
+    [data-palette="multi"],
+    [data-palette="aurora"],
+    [data-palette="synthwave"],
+    [data-palette="toxic"],
+    [data-palette="bloodmoon"],
+    [data-palette="ocean"],
+    [data-palette="nebula"]
+  ).bypass-on::after {
+    animation:
+      jn-aura 4s var(--jn-ease-io) infinite,
+      jn-aura-spin 6s linear infinite;
+  }
+}
+@keyframes jn-aura-spin {
+  to {
+    --jn-aura-turn: 360deg;
+  }
 }
 
 /* ───────────────────────────── Palette multicolore ─────────────────────────────
@@ -6281,6 +6794,63 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
  */
 @media (prefers-reduced-motion: no-preference) {
   body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light) {
+    /* Araignée : arrivée (pattes, cerveau, viseur, yeux), puis respiration. */
+    & .welcome-spider {
+      animation:
+        jn-spider-in 0.6s var(--jn-ease-out) both,
+        jn-breathe-lock 5s var(--jn-ease-io) 1.6s infinite;
+    }
+    & .welcome-spider .rw-leg,
+    & .welcome-spider .rw-palp {
+      animation: rw-leg-in 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    }
+    & .welcome-spider #leg-l1,
+    & .welcome-spider #leg-r1 {
+      animation-delay: 0.1s;
+    }
+    & .welcome-spider #leg-l2,
+    & .welcome-spider #leg-r2 {
+      animation-delay: 0.18s;
+    }
+    & .welcome-spider #leg-l3,
+    & .welcome-spider #leg-r3 {
+      animation-delay: 0.26s;
+    }
+    & .welcome-spider #leg-l4,
+    & .welcome-spider #leg-r4 {
+      animation-delay: 0.34s;
+    }
+    & .welcome-spider .rw-palp {
+      animation-delay: 0.42s;
+    }
+    & .welcome-spider .rw-brain {
+      animation: rw-brain-on 0.9s var(--jn-ease-out) 0.6s both;
+    }
+    & .welcome-spider .rw-crosshair {
+      animation: rw-lock-in 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) 0.85s both;
+    }
+    & .welcome-spider .rw-eyes {
+      animation: rw-blink 5s var(--jn-ease-io) 1.3s infinite;
+    }
+    /* Apprentissage : elle lit. */
+    &.learning .welcome-spider .rw-eyes {
+      animation:
+        rw-read 2.4s var(--jn-ease-io) infinite,
+        rw-blink 5s var(--jn-ease-io) 1.3s infinite;
+    }
+    &.learning .welcome-spider .rw-brain {
+      animation: rw-think 2.4s var(--jn-ease-io) infinite;
+    }
+    &.learning .welcome-spider .rw-crosshair {
+      animation: rw-dim 0.4s var(--jn-ease-io) forwards;
+    }
+    &.learning .welcome-spider .rw-book-turn {
+      animation: rw-page 4.8s var(--jn-ease-io) 0.8s infinite;
+    }
+    &.learning .welcome-spider #leg-l1,
+    &.learning .welcome-spider #leg-r1 {
+      animation: rw-hold 2.4s var(--jn-ease-io) infinite;
+    }
     & button .ico,
     & .chip .caret,
     & .kc-dot,
@@ -6559,6 +7129,108 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
     opacity: 0.45;
   }
 }
+@keyframes rw-leg-in {
+  from {
+    opacity: 0;
+    transform: scale(0.15);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes rw-brain-on {
+  0% {
+    opacity: 0.2;
+  }
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes rw-lock-in {
+  from {
+    opacity: 0;
+    transform: scale(1.7) rotate(-45deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes rw-blink {
+  0%,
+  92%,
+  100% {
+    transform: none;
+  }
+  95% {
+    transform: scaleY(0.1);
+  }
+}
+@keyframes rw-read {
+  0%,
+  100% {
+    translate: -10px 0;
+  }
+  45% {
+    translate: 10px 0;
+  }
+  55% {
+    translate: 10px 4px;
+  }
+  60% {
+    translate: -10px 4px;
+  }
+}
+@keyframes rw-think {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes rw-page {
+  0%,
+  70% {
+    opacity: 0;
+    transform: none;
+  }
+  72% {
+    opacity: 1;
+    transform: none;
+  }
+  88% {
+    opacity: 1;
+    transform: scaleX(-1);
+  }
+  92%,
+  100% {
+    opacity: 0;
+    transform: scaleX(-1);
+  }
+}
+@keyframes rw-dim {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.25;
+  }
+}
+@keyframes rw-hold {
+  0%,
+  100% {
+    rotate: 0deg;
+  }
+  50% {
+    rotate: 2deg;
+  }
+}
 @keyframes jn-breathe {
   0%,
   100% {
@@ -6728,7 +7400,7 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
 
 /* ───────────────────────────── Code et données ─────────────────────────────
  * Le code, les commandes et les sorties gardent la police de l'éditeur choisie
- * par l'utilisateur ; Geist Mono reste réservée aux repères de l'interface.
+ * par l'utilisateur ; JetBrains Mono habille aussi les repères de l’interface.
  */
 :is(
   code,
@@ -7357,4 +8029,12 @@ body.mode-monitor .mon-tick.is-selected {
 }
 .audit-page h3 {
   margin-top: 24px;
+}
+
+/* Les facettes décoratives suivent aussi les couleurs de contraste élevé. */
+body.vscode-high-contrast .welcome-spider,
+body.vscode-high-contrast-light .welcome-spider {
+  --rw-steel-hi: var(--vscode-foreground);
+  --rw-steel: color-mix(in srgb, var(--vscode-foreground) 70%, var(--vscode-editor-background));
+  --rw-ink: var(--vscode-editor-background);
 }

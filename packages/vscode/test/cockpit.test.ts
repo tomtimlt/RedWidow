@@ -64,7 +64,7 @@ describe("planEditorShell", () => {
     expect(planEditorShell("htb1", containers, [])).toEqual({
       action: "launch",
       name: "exegol-htb1",
-      title: "Venator Ops : exegol-htb1",
+      title: "RedWidow : exegol-htb1",
     });
   });
 
@@ -72,7 +72,7 @@ describe("planEditorShell", () => {
     expect(planEditorShell("htb1", containers, ["Warband : exegol-htb1"])).toEqual({
       action: "launch",
       name: "exegol-htb1",
-      title: "Venator Ops : exegol-htb1 (2)",
+      title: "RedWidow : exegol-htb1 (2)",
     });
   });
 
@@ -82,7 +82,7 @@ describe("planEditorShell", () => {
     ).toEqual({
       action: "launch",
       name: "exegol-htb1",
-      title: "Venator Ops : exegol-htb1 (2)",
+      title: "RedWidow : exegol-htb1 (2)",
     });
   });
 
@@ -91,12 +91,12 @@ describe("planEditorShell", () => {
     expect(planEditorShell("my.box", dotted, ["Warband : my.box"])).toEqual({
       action: "launch",
       name: "my.box",
-      title: "Venator Ops : my.box (2)",
+      title: "RedWidow : my.box (2)",
     });
     expect(planEditorShell("my.box", dotted, ["Warband : my.box (2)"])).toEqual({
       action: "launch",
       name: "my.box",
-      title: "Venator Ops : my.box",
+      title: "RedWidow : my.box",
     });
   });
 
@@ -124,16 +124,16 @@ describe("planEditorShell", () => {
   });
 
   it("anciens et nouveaux shells partagent les indices et la limite", () => {
-    const open = ["Warband : exegol-htb1", "Venator Ops : exegol-htb1 (3)"];
+    const open = ["Warband : exegol-htb1", "RedWidow : exegol-htb1 (3)"];
     expect(planEditorShell("htb1", containers, open)).toEqual({
       action: "launch",
       name: "exegol-htb1",
-      title: "Venator Ops : exegol-htb1 (2)",
+      title: "RedWidow : exegol-htb1 (2)",
     });
     expect(
       planEditorShell("htb1", containers, [
         ...open,
-        "Venator Ops : exegol-htb1 (2)",
+        "RedWidow : exegol-htb1 (2)",
         "Warband : exegol-htb1 (4)",
       ]),
     ).toEqual({ action: "reveal", title: "Warband : exegol-htb1 (4)" });
@@ -143,23 +143,23 @@ describe("planEditorShell", () => {
     expect(
       planEditorShell("htb1", containers, [
         "Warband : exegol-htb1",
-        "Venator Ops : exegol-htb1",
+        "RedWidow : exegol-htb1",
         "Warband : exegol-htb1 (2)",
-        "Venator Ops : exegol-htb1 (2)",
+        "RedWidow : exegol-htb1 (2)",
       ]),
-    ).toEqual({ action: "reveal", title: "Venator Ops : exegol-htb1 (2)" });
+    ).toEqual({ action: "reveal", title: "RedWidow : exegol-htb1 (2)" });
   });
 
   it("ignore les faux préfixes et les titres d'un autre conteneur", () => {
     expect(
       planEditorShell("htb1", containers, [
         "Warband bis : exegol-htb1",
-        "Venator Ops bis : exegol-htb1 (2)",
-        "Venator Ops : exegol-htb1-autre (3)",
-        "Autre Venator Ops : exegol-htb1 (4)",
-        "Venator Ops : exegol-htb1 (5)",
+        "RedWidow bis : exegol-htb1 (2)",
+        "RedWidow : exegol-htb1-autre (3)",
+        "Autre RedWidow : exegol-htb1 (4)",
+        "RedWidow : exegol-htb1 (5)",
       ]),
-    ).toEqual({ action: "launch", name: "exegol-htb1", title: "Venator Ops : exegol-htb1" });
+    ).toEqual({ action: "launch", name: "exegol-htb1", title: "RedWidow : exegol-htb1" });
   });
 });
 
@@ -892,13 +892,13 @@ describe("cockpitHtml : CSP", () => {
     expect(makeNonce()).not.toBe(makeNonce());
   });
 
-  it("chatHtml charge les icônes avant ses deux scripts", () => {
+  it("chatHtml charge icônes et araignée avant le chat", () => {
     const chat = chatHtml({
       ...htmlOpts,
       uiUri: "https://x.vscode-cdn.net/media/ui.js",
       scriptUri: "https://x.vscode-cdn.net/media/chat.js",
     });
-    expect([...chat.matchAll(/<script/g)]).toHaveLength(4);
+    expect([...chat.matchAll(/<script/g)]).toHaveLength(5);
     expect(chat.indexOf("media/icons.js")).toBeLessThan(chat.indexOf("media/ui.js"));
   });
 });

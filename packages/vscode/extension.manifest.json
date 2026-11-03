@@ -1,8 +1,8 @@
 {
   "name": "warband",
-  "displayName": "Venator Ops",
+  "displayName": "RedWidow",
   "description": "%extension.description%",
-  "version": "0.3.70",
+  "version": "0.3.71",
   "publisher": "warband",
   "license": "MIT",
   "engines": {
@@ -20,8 +20,14 @@
   },
   "contributes": {
     "commands": [
-      { "command": "warband.openAudit", "title": "%command.openAudit%" },
-      { "command": "warband.exportAudit", "title": "%command.exportAudit%" },
+      {
+        "command": "warband.openAudit",
+        "title": "%command.openAudit%"
+      },
+      {
+        "command": "warband.exportAudit",
+        "title": "%command.exportAudit%"
+      },
       {
         "command": "warband.listProjectEvidence",
         "title": "%command.listProjectEvidence%"
@@ -265,7 +271,7 @@
       "activitybar": [
         {
           "id": "warband",
-          "title": "Venator Ops",
+          "title": "RedWidow",
           "icon": "media/icon.svg"
         }
       ]
@@ -280,7 +286,7 @@
       ]
     },
     "configuration": {
-      "title": "Venator Ops",
+      "title": "RedWidow",
       "properties": {
         "warband.opencodeProviders": {
           "type": "object",
@@ -326,15 +332,57 @@
         },
         "warband.palette": {
           "type": "string",
-          "enum": ["sentinelle", "braise", "spectre", "editeur", "multi"],
+          "enum": [
+            "widow",
+            "sentinelle",
+            "braise",
+            "venom",
+            "arctic",
+            "spectre",
+            "ultraviolet",
+            "tactical",
+            "rouge",
+            "orange",
+            "jaune",
+            "vert",
+            "bleu",
+            "rose",
+            "blanc",
+            "aurora",
+            "synthwave",
+            "toxic",
+            "bloodmoon",
+            "ocean",
+            "nebula",
+            "multi",
+            "editeur"
+          ],
           "enumDescriptions": [
             "%config.palette.enum.0%",
             "%config.palette.enum.1%",
             "%config.palette.enum.2%",
             "%config.palette.enum.3%",
-            "%config.palette.enum.4%"
+            "%config.palette.enum.4%",
+            "%config.palette.enum.5%",
+            "%config.palette.enum.6%",
+            "%config.palette.enum.7%",
+            "%config.palette.enum.8%",
+            "%config.palette.enum.9%",
+            "%config.palette.enum.10%",
+            "%config.palette.enum.11%",
+            "%config.palette.enum.12%",
+            "%config.palette.enum.13%",
+            "%config.palette.enum.14%",
+            "%config.palette.enum.15%",
+            "%config.palette.enum.16%",
+            "%config.palette.enum.17%",
+            "%config.palette.enum.18%",
+            "%config.palette.enum.19%",
+            "%config.palette.enum.20%",
+            "%config.palette.enum.21%",
+            "%config.palette.enum.22%"
           ],
-          "default": "sentinelle",
+          "default": "widow",
           "scope": "window",
           "description": "%config.palette%"
         },
@@ -411,5 +459,6 @@
         }
       }
     }
-  }
+  },
+  "icon": "media/redwidow-icon.png"
 }

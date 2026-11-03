@@ -107,9 +107,9 @@
   const SVG_NS = "http://www.w3.org/2000/svg";
   // Logo (mêmes tracés que BRAND_SHAPES dans src/logic/html.ts, contrôlés par test).
   const BRAND = {
-    wing: "M3 8.5V3h5.5M15.5 3H21v5.5M21 15.5V21h-5.5M8.5 21H3v-5.5",
-    star: "M12 5c.8 3.9 3.1 6.2 7 7-3.9.8-6.2 3.1-7 7-.8-3.9-3.1-6.2-7-7 3.9-.8 6.2-3.1 7-7z",
-    node: { cx: "17.4", cy: "6.6", r: "1.3" },
+    wing: "M12 1.8v5M12 17.2v5M1.8 12h5M17.2 12h5",
+    star: "M12 5.2a6.8 6.8 0 1 0 0 13.6a6.8 6.8 0 1 0 0-13.6zM12 7.2a4.8 4.8 0 1 1 0 9.6a4.8 4.8 0 1 1 0-9.6z",
+    node: { cx: "19.2", cy: "4.8", r: "1.4" },
   };
   const createBrand = (className) => {
     const svg = document.createElementNS(SVG_NS, "svg");
@@ -125,6 +125,7 @@
     const star = document.createElementNS(SVG_NS, "path");
     star.setAttribute("class", "brand-lead");
     star.setAttribute("d", BRAND.star);
+    star.setAttribute("fill-rule", "evenodd");
     core.append(star);
     const orbit = document.createElementNS(SVG_NS, "g");
     orbit.setAttribute("class", "brand-orbit");
@@ -168,7 +169,31 @@
   const markHidden = () => document.body.classList.toggle("page-hidden", document.hidden);
   document.addEventListener("visibilitychange", markHidden);
   markHidden();
-  const PALETTES = new Set(["sentinelle", "braise", "spectre", "editeur", "multi"]);
+  const PALETTES = new Set([
+    "widow",
+    "sentinelle",
+    "braise",
+    "venom",
+    "arctic",
+    "spectre",
+    "ultraviolet",
+    "tactical",
+    "rouge",
+    "orange",
+    "jaune",
+    "vert",
+    "bleu",
+    "rose",
+    "blanc",
+    "aurora",
+    "synthwave",
+    "toxic",
+    "bloodmoon",
+    "ocean",
+    "nebula",
+    "multi",
+    "editeur",
+  ]);
   window.addEventListener("message", (event) => {
     if (event.data?.type === "palette" && PALETTES.has(event.data.value))
       document.body.dataset.palette = event.data.value;

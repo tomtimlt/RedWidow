@@ -33,6 +33,8 @@ export interface ChatHtmlOptions {
   styleUri: string;
   /** Catalogue SVG local, chargé avant les scripts de rendu. */
   iconsUri?: string;
+  /** Araignée décorative locale ; chargée sous le même nonce que le chat. */
+  spiderUri?: string;
 }
 
 /** Valeurs insérées dans des attributs : jamais de guillemet, chevron ni espace. */
@@ -79,15 +81,15 @@ const icon = (name: string, cls = "ico"): string => {
 };
 
 /**
- * Marque Venator Ops : crochets de visée, étincelle et satellite.
+ * Marque RedWidow : viseur vide et satellite.
  * SVG inline avec classes CSS pour les couleurs de marque. Décoratif : `aria-hidden`.
  */
 export const BRAND_SHAPES =
-  '<path class="brand-wing" d="M3 8.5V3h5.5M15.5 3H21v5.5M21 15.5V21h-5.5M8.5 21H3v-5.5"/><g class="brand-core"><path class="brand-lead" d="M12 5c.8 3.9 3.1 6.2 7 7-3.9.8-6.2 3.1-7 7-.8-3.9-3.1-6.2-7-7 3.9-.8 6.2-3.1 7-7z"/></g><g class="brand-orbit"><circle class="brand-node" cx="17.4" cy="6.6" r="1.3"/></g>';
+  '<path class="brand-wing" d="M12 1.8v5M12 17.2v5M1.8 12h5M17.2 12h5"/><g class="brand-core"><path class="brand-lead" fill-rule="evenodd" d="M12 5.2a6.8 6.8 0 1 0 0 13.6a6.8 6.8 0 1 0 0-13.6zM12 7.2a4.8 4.8 0 1 1 0 9.6a4.8 4.8 0 1 1 0-9.6z"/></g><g class="brand-orbit"><circle class="brand-node" cx="19.2" cy="4.8" r="1.4"/></g>';
 const BRAND = `<svg class="brand" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">${BRAND_SHAPES}</svg>`;
 
 /**
- * Page de la webview de chat. CSP stricte : `default-src 'none'`, quatre scripts (fichiers de
+ * Page de la webview de chat. CSP stricte : `default-src 'none'`, cinq scripts (fichiers de
  * l'extension) autorisés par nonce, feuille de style de l'extension seulement ; ni script inline
  * ni `eval` ni ressource distante. Les données arrivent par `postMessage`, affichées en `textContent`.
  */
@@ -99,6 +101,7 @@ export function chatHtml({
   styleUri,
   iconsUri = scriptUri.replace(/[^/]+$/, "icons.js"),
   i18nUri = scriptUri.replace(/[^/]+$/, "i18n.js"),
+  spiderUri = scriptUri.replace(/[^/]+$/, "spider.js"),
   locale = "fr",
   palette,
 }: ChatHtmlOptions): string {
@@ -110,6 +113,7 @@ export function chatHtml({
     styleUri,
     iconsUri,
     i18nUri,
+    spiderUri,
   })) {
     // `cspSource` peut contenir des espaces ou `'self'` selon l'hôte : on en retire seulement les caractères dangereux.
     const ok = name === "cspSource" ? !/["<>]/.test(value) && value !== "" : SAFE.test(value);
@@ -132,7 +136,7 @@ export function chatHtml({
 <title>${PRODUCT_NAME}</title>
 </head>
 <body data-palette="${paletteOf(palette)}">
-<header id="bar"><span id="title">${BRAND}<span class="brand-heading"><span class="brand-name"><span>VENATOR</span> <span class="brand-ops">OPS</span></span><span id="context-title" class="context-title" hidden></span></span></span><button id="roe" type="button" class="roe" popovertarget="cfg-pop" aria-haspopup="dialog" data-i18n-title="Mode de supervision : ouvrir Configurer" title="${localized("Mode de supervision : ouvrir Configurer", locale)}" hidden><span class="roe-gauge" aria-hidden="true"><i></i><i></i><i></i></span><span class="roe-text"><span class="roe-kicker" aria-hidden="true"><span data-i18n="MODE">${localized("MODE", locale)}</span></span><span id="roe-label"><span data-i18n="Supervisé">${localized("Supervisé", locale)}</span></span></span><span id="roe-left" class="roe-left" aria-hidden="true"></span></button><span id="sandbox" class="badge" hidden></span><span id="bypass-badge" class="badge" hidden></span><span id="learning-badge" class="badge" data-i18n-title="Mode Apprentissage : lecture des cours seule, aucune action" title="${localized("Mode Apprentissage : lecture des cours seule, aucune action", locale)}" hidden><span data-i18n="Apprentissage">${localized("Apprentissage", locale)}</span></span><button id="history-btn" type="button" class="ghost" aria-expanded="false" aria-controls="history" data-i18n-title="Historique des conversations" title="${localized("Historique des conversations", locale)}">${icon("history")}<span class="btn-text"><span data-i18n="Historique">${localized("Historique", locale)}</span></span></button><button id="reset" type="button" class="ghost" data-i18n-title="Nouvelle conversation" title="${localized("Nouvelle conversation", locale)}">${icon("plus")}<span class="btn-text"><span data-i18n="Nouvelle">${localized("Nouvelle", locale)}</span><span class="btn-more"><span data-i18n=" conversation">${localized(" conversation", locale)}</span></span></span></button></header>
+<header id="bar"><span id="title">${BRAND}<span class="brand-heading"><span class="brand-name"><span class="brand-ops">Red</span>Widow</span><span id="context-title" class="context-title" hidden></span></span></span><button id="roe" type="button" class="roe" popovertarget="cfg-pop" aria-haspopup="dialog" data-i18n-title="Mode de supervision : ouvrir Configurer" title="${localized("Mode de supervision : ouvrir Configurer", locale)}" hidden><span class="roe-gauge" aria-hidden="true"><i></i><i></i><i></i></span><span class="roe-text"><span class="roe-kicker" aria-hidden="true"><span data-i18n="MODE">${localized("MODE", locale)}</span></span><span id="roe-label"><span data-i18n="Supervisé">${localized("Supervisé", locale)}</span></span></span><span id="roe-left" class="roe-left" aria-hidden="true"></span></button><span id="sandbox" class="badge" hidden></span><span id="bypass-badge" class="badge" hidden></span><span id="learning-badge" class="badge" data-i18n-title="Mode Apprentissage : lecture des cours seule, aucune action" title="${localized("Mode Apprentissage : lecture des cours seule, aucune action", locale)}" hidden><span data-i18n="Apprentissage">${localized("Apprentissage", locale)}</span></span><button id="history-btn" type="button" class="ghost" aria-expanded="false" aria-controls="history" data-i18n-title="Historique des conversations" title="${localized("Historique des conversations", locale)}">${icon("history")}<span class="btn-text"><span data-i18n="Historique">${localized("Historique", locale)}</span></span></button><button id="reset" type="button" class="ghost" data-i18n-title="Nouvelle conversation" title="${localized("Nouvelle conversation", locale)}">${icon("plus")}<span class="btn-text"><span data-i18n="Nouvelle">${localized("Nouvelle", locale)}</span><span class="btn-more"><span data-i18n=" conversation">${localized(" conversation", locale)}</span></span></span></button></header>
 <nav id="mission" data-i18n-aria-label="Activité de la conversation" aria-label="${localized("Activité de la conversation", locale)}" hidden><ol id="mission-steps"></ol></nav>
 <section id="history" data-i18n-aria-label="Historique des conversations" aria-label="${localized("Historique des conversations", locale)}" hidden><div class="hist-head"><strong><span data-i18n="Historique">${localized("Historique", locale)}</span></strong><button id="history-clear" type="button" class="ghost"><span data-i18n="Tout effacer">${localized("Tout effacer", locale)}</span></button><button id="history-close" type="button" class="ghost icon-btn" data-i18n-title="Fermer l&#x27;historique (Échap)" title="${localized("Fermer l'historique (Échap)", locale)}" data-i18n-aria-label="Fermer l&#x27;historique" aria-label="${localized("Fermer l'historique", locale)}">${icon("close")}</button></div><ul id="history-list"></ul></section>
 <nav id="timeline" data-i18n-aria-label="Navigation dans les messages" aria-label="${localized("Navigation dans les messages", locale)}" hidden><button id="timeline-older" type="button" class="ghost"><span data-i18n="Précédents">${localized("Précédents", locale)}</span></button><button id="timeline-newer" type="button" class="ghost"><span data-i18n="Suivants">${localized("Suivants", locale)}</span></button><button id="timeline-latest" type="button" class="ghost"><span data-i18n="Revenir au direct">${localized("Revenir au direct", locale)}</span></button><span id="timeline-status" role="status"></span></nav>
@@ -205,6 +209,7 @@ export function chatHtml({
 </div>
 <script nonce="${nonce}" src="${i18nUri}"></script>
 <script nonce="${nonce}" src="${iconsUri}"></script>
+<script nonce="${nonce}" src="${spiderUri}"></script>
 <script nonce="${nonce}" src="${uiUri}"></script>
 <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>

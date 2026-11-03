@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="docs/img/venator-ops-logo.svg" alt="Venator Ops logo" width="88" height="88">
+<img src="docs/img/redwidow-logo.svg" alt="RedWidow logo" width="88" height="88">
 
-# Venator Ops
+# RedWidow
 
 **Pentest in VS Code, with AI on call.**
 
@@ -14,10 +14,6 @@ and reports in one place. An AI agent backs you up whenever you call it.
 ![Windows and Linux](https://img.shields.io/badge/Windows%20%7C%20Linux-495F73.svg)
 ![Docker required](https://img.shields.io/badge/Docker-required-495F73.svg)
 
-<br>
-
-<img src="docs/img/venator-ops-banner.png" alt="Venator Ops: your pentest, one cockpit, one agent" width="860">
-
 </div>
 
 ---
@@ -25,10 +21,12 @@ and reports in one place. An AI agent backs you up whenever you call it.
 > **Use only in an authorized setting**: CTFs, certification labs, or an
 > engagement with a defined scope and written permission.
 
-## Why Venator Ops
+> Screenshots below show the previous Venator Ops identity. The extension now uses RedWidow.
+
+## Why RedWidow
 
 A pentest means dozens of terminals, scans and notes scattered everywhere.
-Venator Ops brings them together inside VS Code:
+RedWidow brings them together inside VS Code:
 
 - **Your Docker Kali and Exegol containers** are prepared and managed from the cockpit.
 - **Your terminals** open straight inside the container, like any other editor terminal.
@@ -44,13 +42,13 @@ Write your prompt in the chat and the agent takes it from there. When an action
 needs your approval, a card shows the tool, the command and the reason.
 
 <div align="center">
-<img src="docs/img/venator-ops-chat.png" alt="The Venator Ops chat with an authorization card: tool, sqlmap command, reason, and the Allow once, Deny and Always buttons" width="860">
+<img src="docs/img/venator-ops-chat.png" alt="The RedWidow chat with an authorization card: tool, sqlmap command, reason, and the Allow once, Deny and Always buttons" width="860">
 </div>
 
 In the chat you also get:
 
 - `@` to mention a container, `#` to mention an open terminal (the agent reads its output), `/` for commands;
-- up to **four conversations** in parallel, and a **history** filtered by project;
+- up to **four conversations** in parallel, with **shared history** across chat tabs and the sidebar, filtered by project;
 - a choice of **model** and **reasoning effort** for the next message;
 - web search (documentation, READMEs, GitHub releases), with sources and the date they were read.
 
@@ -113,7 +111,7 @@ reporting tool is needed.
 
 ## Without AI
 
-Venator Ops helps you organize a pentest even without an account or an AI
+RedWidow helps you organize a pentest even without an account or an AI
 provider.
 
 - **Projects**: a name, a working folder and the containers that go with it, with a summary you write and edit yourself.
@@ -133,7 +131,7 @@ Requirements: **VS Code 1.90 or later** and **Docker** for the containers.
 2. Install it: `code --install-extension <file>.vsix`, or in VS Code **Extensions → … → Install from VSIX**.
 3. Reload the VS Code window.
 
-Venator Ops is not on the Marketplace yet: installation is manual.
+RedWidow is not on the Marketplace yet: installation is manual.
 
 ## First launch
 
@@ -141,7 +139,7 @@ Venator Ops is not on the Marketplace yet: installation is manual.
 2. Open **Settings → Project**: activate a project or create one (a name and a folder).
 3. In the **cockpit**, link the project's Kali or Exegol containers, or create them.
 4. To use the agent, open **Configure** in the chat, pick your provider and add your access. It is stored in VS Code's secure storage.
-5. Open the chat (the Venator Ops icon in the activity bar) and write your prompt.
+5. Open the chat (the RedWidow icon in the activity bar) and write your prompt.
 
 | Shortcut | Action |
 | --- | --- |

@@ -24,12 +24,13 @@ describe("HTML du chat : CSP stricte", () => {
     );
     expect(csp).not.toMatch(/unsafe|\*|http:|data:/);
   });
-  it("quatre scripts (i18n.js, icons.js, ui.js puis chat.js), chacun avec nonce et source de l'extension ; aucun script ou style inline, aucun handler", () => {
+  it("cinq scripts locaux (traductions, icônes, araignée, UI, chat), chacun avec nonce et source de l'extension ; aucun script ou style inline, aucun handler", () => {
     const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)];
-    expect(scripts).toHaveLength(4);
+    expect(scripts).toHaveLength(5);
     expect(scripts.map((m) => /src="([^"]+)"/.exec(m[1] ?? "")?.[1])).toEqual([
       "https://x.vscode-cdn.net/media/i18n.js",
       opts.iconsUri,
+      "https://x.vscode-cdn.net/media/spider.js",
       opts.uiUri,
       opts.scriptUri,
     ]);
@@ -48,6 +49,7 @@ describe("HTML du chat : CSP stricte", () => {
     expect(() => chatHtml({ ...opts, scriptUri: 'x" onerror="y' })).toThrow();
     expect(() => chatHtml({ ...opts, iconsUri: 'x" onerror="y' })).toThrow();
     expect(() => chatHtml({ ...opts, i18nUri: 'x" onerror="y' })).toThrow();
+    expect(() => chatHtml({ ...opts, spiderUri: 'x" onerror="y' })).toThrow();
     expect(() => chatHtml({ ...opts, uiUri: 'x" onerror="y' })).toThrow();
     expect(() => chatHtml({ ...opts, cspSource: 'a"><script>' })).toThrow();
   });
@@ -153,7 +155,7 @@ describe("composer et Configurer (lot P1)", () => {
     expect(menu).not.toContain("/start");
     expect(js).not.toContain("/start");
     expect(studio).not.toContain("/start");
-    expect(js).toContain("Aucun terminal Venator Ops ouvert. Alt+J T pour en ouvrir un.");
+    expect(js).toContain("Aucun terminal RedWidow ouvert. Alt+J T pour en ouvrir un.");
     expect(studio).toContain("Aucun conteneur affiché. Gérez les associations dans le cockpit.");
     expect(studio).toContain("Aucun conteneur pour l’instant");
     expect(html).not.toMatch(/\bmcp\b|jauge|compact|pièce jointe active/i);
@@ -273,7 +275,7 @@ describe("composer et Configurer (lot P1)", () => {
 it("les titres Monitor et rapport préservent le mot-symbole, le logo et les contrôles", () => {
   const html = chatHtml(opts);
   const bar = html.slice(html.indexOf('<header id="bar">'), html.indexOf("</header>"));
-  expect(bar).toContain('class="brand-name"><span>VENATOR</span> <span class="brand-ops">OPS');
+  expect(bar).toContain('class="brand-name"><span class="brand-ops">Red</span>Widow');
   expect(bar).toContain('id="context-title" class="context-title" hidden');
   const js = read("../media/chat.js");
   const start = js.indexOf('  window.addEventListener("message",');

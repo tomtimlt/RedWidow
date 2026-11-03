@@ -87,7 +87,7 @@ describe("journal de terminal", () => {
     expect(mentionToken("exegol-htb1", "Warband : autre", "htb1")).toBeNull();
   });
 
-  it.each(["Warband", "Venator Ops"])("#mentions conservées pour %s", (name) => {
+  it.each(["Warband", "Venator Ops", "RedWidow"])("#mentions conservées pour %s", (name) => {
     expect(mentionToken("exegol-htb1", `${name} : exegol-htb1`, "htb1")).toBe("htb1");
     for (const index of [2, 3, 4]) {
       expect(mentionToken("exegol-htb1", `${name} : exegol-htb1 (${index})`, "htb1")).toBe(

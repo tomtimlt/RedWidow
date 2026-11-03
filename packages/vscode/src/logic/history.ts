@@ -27,6 +27,8 @@ const MAX_RUNS_PER_CONVERSATION = 500;
 /** Entrée de l'index (stockée dans `workspaceState`, donc revalidée à chaque lecture). */
 export interface ConversationMeta {
   id: string;
+  /** Origine de conservation, sans rôle dans les permissions ou le contexte du modèle. */
+  historyOwner?: string;
   title: string;
   createdAt: string;
   updatedAt: string;
@@ -59,11 +61,11 @@ export const titleFrom = (firstPrompt: string): string =>
   cleanTitle(firstPrompt, 80) ?? t("Conversation");
 
 /** Relit l'index stocké : entrées mal formées ou doublons écartés, bornes appliquées. */
-export function parseIndex(raw: unknown): ConversationMeta[] {
+export function parseIndex(raw: unknown, maxEntries = MAX_CONVERSATIONS * 2): ConversationMeta[] {
   if (!Array.isArray(raw)) return [];
   const seen = new Set<string>();
   const out: ConversationMeta[] = [];
-  for (const item of raw.slice(0, MAX_CONVERSATIONS * 2)) {
+  for (const item of raw.slice(0, Math.min(2000, Math.max(0, maxEntries)))) {
     if (!isObj(item) || !isConversationId(item.id) || seen.has(item.id)) continue;
     if (item.provider !== undefined && !isProvider(item.provider)) continue;
     const title = cleanTitle(item.title);
@@ -72,6 +74,10 @@ export function parseIndex(raw: unknown): ConversationMeta[] {
     seen.add(item.id);
     out.push({
       id: item.id,
+      ...(typeof item.historyOwner === "string" &&
+        /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/.test(item.historyOwner) && {
+          historyOwner: item.historyOwner,
+        }),
       ...(isRunId(item.projectId) && { projectId: item.projectId }),
       title,
       createdAt: item.createdAt,
@@ -137,6 +143,7 @@ export interface RetentionOptions {
   maxBytes?: number;
   /** Conversation en cours : jamais purgée. */
   protect?: string | undefined;
+  protectIds?: readonly string[];
 }
 
 /**
@@ -146,14 +153,23 @@ export interface RetentionOptions {
 export function applyRetention(
   list: readonly ConversationMeta[],
   sizes: ReadonlyMap<string, number>,
-  { maxCount = MAX_CONVERSATIONS, maxBytes = MAX_TOTAL_BYTES, protect }: RetentionOptions = {},
+  {
+    maxCount = MAX_CONVERSATIONS,
+    maxBytes = MAX_TOTAL_BYTES,
+    protect,
+    protectIds = [],
+  }: RetentionOptions = {},
 ): { keep: ConversationMeta[]; drop: ConversationMeta[] } {
   const keep: ConversationMeta[] = [];
   const drop: ConversationMeta[] = [];
   let total = 0;
   for (const c of sortRecent(list)) {
     const size = sizes.get(c.id) ?? 0;
-    if (c.id === protect || (keep.length < maxCount && total + size <= maxBytes)) {
+    if (
+      c.id === protect ||
+      protectIds.includes(c.id) ||
+      (keep.length < maxCount && total + size <= maxBytes)
+    ) {
       keep.push(c);
       total += size;
     } else {

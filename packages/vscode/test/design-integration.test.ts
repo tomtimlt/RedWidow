@@ -13,7 +13,7 @@ describe("contrats de la refonte", () => {
   it("valide la palette avant son interpolation et n’ajoute aucune URI distante", () => {
     for (const [value] of PALETTES) expect(paletteOf(value)).toBe(value);
     for (const value of [null, [], {}, 'braise" onclick="x', "inconnue"])
-      expect(paletteOf(value)).toBe("sentinelle");
+      expect(paletteOf(value)).toBe("widow");
     const html = chatHtml({
       nonce: "testNonce123",
       cspSource: "https://local.invalid",
@@ -22,7 +22,7 @@ describe("contrats de la refonte", () => {
       styleUri: "https://local.invalid/chat.css",
       palette: 'braise" onclick="x',
     });
-    expect(html).toContain('data-palette="sentinelle"');
+    expect(html).toContain('data-palette="widow"');
     expect(html).not.toContain("onclick=");
     expect(html).toContain("default-src 'none'");
     expect(html).toContain('aria-label="Suivi du bas"');
@@ -90,7 +90,7 @@ it("le message de palette accepte seulement les valeurs prévues et aucun champ 
   for (const palette of ["bastion", "inconnue", 'multi" onclick="x', null, {}, []])
     expect(parseStudioMessage({ type: "setPalette", palette })).toBeNull();
   expect(parseStudioMessage({ type: "setPalette", palette: "multi", path: "/tmp" })).toBeNull();
-  expect(paletteOf("bastion")).toBe("sentinelle");
+  expect(paletteOf("bastion")).toBe("widow");
 });
 
 it("l’hôte, le manifeste et les cartes proposent les mêmes jeux de couleurs", () => {

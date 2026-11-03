@@ -14,18 +14,26 @@ function shapes(svg: string) {
   return [...svg.matchAll(/<(?:path|circle|polygon|rect)\b[^>]*>/g)].map((m) =>
     m[0]
       .replace(/\s(?:fill|stroke|stroke-width|stroke-linecap|stroke-linejoin|class)="[^"]*"/g, "")
-      .replace(/\s+/g, " "),
+      .replace(/\s+/g, " ")
+      .replace(
+        /<([a-z]+)\s+([^>]+?)\/?>/g,
+        (_all, tag, attributes) =>
+          `<${tag} ${[...attributes.matchAll(/[\w-]+="[^"]*"/g)]
+            .map((m: RegExpMatchArray) => m[0])
+            .sort()
+            .join(" ")}/>`,
+      ),
   );
 }
 describe("nouvelle marque — géométrie et ressources sûres", () => {
-  it("crochets, étincelle et satellite cohérents dans les versions inline et fichier", () => {
+  it("viseur vide et satellite cohérents dans les versions inline et fichier", () => {
     const inline = /<svg class="brand"[\s\S]*?<\/svg>/.exec(html)?.[0] ?? "";
     expect(inline).toContain('aria-hidden="true"');
     expect(shapes(inline)).toHaveLength(3);
     for (const file of ["logo.svg", "logo-small.svg", "icon.svg"]) {
       const svg = read(`../media/${file}`);
       expect(shapes(svg).slice(0, 2)).toEqual(shapes(inline).slice(0, 2));
-      expect(shapes(svg)[2]).toMatch(/cx="17.4" cy="6.6" r="1.[36]"/);
+      expect(shapes(svg)[2]).toMatch(/cx="19.2" cy="4.8" r="1\.[46]"/);
       expect(svg).not.toMatch(/<animate|<script|<set\b|\bon\w+\s*=|href\s*=|<style|url\(/i);
     }
   });

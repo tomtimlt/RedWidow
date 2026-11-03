@@ -75,8 +75,8 @@ export const chatEn: Record<string, string> = {
   "Inopérant en mode Apprentissage": "Inactive in Learning mode",
   "terminal ouvert": "open terminal",
   arrêté: "stopped",
-  "Aucun terminal Venator Ops ouvert. Alt+J T pour en ouvrir un.":
-    "No Venator Ops terminal open. Press Alt+J T to open one.",
+  "Aucun terminal RedWidow ouvert. Alt+J T pour en ouvrir un.":
+    "No RedWidow terminal open. Press Alt+J T to open one.",
   "Aucun conteneur": "No containers",
   Terminaux: "Terminals",
   Conteneurs: "Containers",
