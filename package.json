@@ -1,6 +1,6 @@
 {
   "name": "warband-ui-design",
-  "displayName": "Venator Ops · Design",
+  "displayName": "RedWidow · Design",
   "description": "Atelier de design VS Code avec chat, activités, graphe et données de démonstration.",
   "version": "0.0.1",
   "publisher": "warband",
@@ -29,34 +29,34 @@
     "commands": [
       {
         "command": "warbandDesign.chat",
-        "title": "Venator Ops : ouvrir le chat"
+        "title": "RedWidow : ouvrir le chat"
       },
       {
         "command": "warbandDesign.graph",
-        "title": "Venator Ops : ouvrir le graphe"
+        "title": "RedWidow : ouvrir le graphe"
       },
       {
         "command": "warbandDesign.monitor",
-        "title": "Venator Ops : ouvrir le Monitor"
+        "title": "RedWidow : ouvrir le Monitor"
       },
       {
         "command": "warbandDesign.settings",
-        "title": "Venator Ops : ouvrir les réglages"
+        "title": "RedWidow : ouvrir les réglages"
       },
       {
         "command": "warbandDesign.scenario",
-        "title": "Venator Ops : choisir un scénario"
+        "title": "RedWidow : choisir un scénario"
       },
       {
         "command": "warbandDesign.palette",
-        "title": "Venator Ops : choisir une palette"
+        "title": "RedWidow : choisir une palette"
       }
     ],
     "viewsContainers": {
       "activitybar": [
         {
           "id": "warbandDesign",
-          "title": "Venator Ops",
+          "title": "RedWidow",
           "icon": "media/icon.svg"
         }
       ]
@@ -71,14 +71,14 @@
       ]
     },
     "configuration": {
-      "title": "Venator Ops",
+      "title": "RedWidow",
       "properties": {
         "warbandDesign.palette": {
           "type": "string",
-          "default": "sentinelle",
+          "default": "widow",
           "enum": [
-            "sentinelle",
             "widow",
+            "sentinelle",
             "braise",
             "venom",
             "arctic",
@@ -102,8 +102,8 @@
             "editeur"
           ],
           "enumDescriptions": [
-            "Sarcelle et ardoise : veille, terminal, sécurité",
             "Noir profond et cramoisi : la marque RedWidow",
+            "Sarcelle et ardoise : veille, terminal, sécurité",
             "Cramoisi et acier : la marque d'origine, plus offensive",
             "Vert toxique sur acier : terminal, offensif",
             "Bleu glacier : froid, net, défensif",
@@ -126,7 +126,7 @@
             "Six teintes, une par rôle : corail, vert, cyan, bleu, violet et rose",
             "Accent du thème VS Code : intégration maximale"
           ],
-          "description": "Jeu de couleurs de Venator Ops (aussi réglable dans Réglages › Apparence). Les couleurs s'adaptent aux thèmes clair, sombre et contraste élevé."
+          "description": "Jeu de couleurs de RedWidow (aussi réglable dans Réglages › Apparence). Les couleurs s'adaptent aux thèmes clair, sombre et contraste élevé."
         }
       }
     }

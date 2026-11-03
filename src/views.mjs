@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 export const PALETTES = [
-  ["sentinelle", "Sentinelle", "Sarcelle et ardoise : veille, terminal, sécurité"],
   ["widow", "Widow", "Noir profond et cramoisi : la marque RedWidow"],
+  ["sentinelle", "Sentinelle", "Sarcelle et ardoise : veille, terminal, sécurité"],
   ["braise", "Braise", "Cramoisi et acier : la marque d'origine, plus offensive"],
   ["venom", "Venin", "Vert toxique sur acier : terminal, offensif"],
   ["arctic", "Arctique", "Bleu glacier : froid, net, défensif"],
@@ -33,18 +33,19 @@ const icon = (name, cls = "ico") => {
   if (!ICONS.has(name)) throw new Error(`pictogramme inconnu : ${name}`);
   return `<svg class="${cls}" data-icon="${name}" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"></svg>`;
 };
-// Logo : crochets de visée (offensif) verrouillés sur une étincelle (l'IA), avec un
+// Logo RedWidow en petite taille : viseur vide (anneau et quatre traits) et
 // satellite (l'agent). Pendant la réflexion : verrouillage, pulsation, orbite.
-export const BRAND_SHAPES = '<path class="brand-wing" d="M3 8.5V3h5.5M15.5 3H21v5.5M21 15.5V21h-5.5M8.5 21H3v-5.5"/><g class="brand-core"><path class="brand-lead" d="M12 5c.8 3.9 3.1 6.2 7 7-3.9.8-6.2 3.1-7 7-.8-3.9-3.1-6.2-7-7 3.9-.8 6.2-3.1 7-7z"/></g><g class="brand-orbit"><circle class="brand-node" cx="17.4" cy="6.6" r="1.3"/></g>';
+export const BRAND_SHAPES = '<path class="brand-wing" d="M12 1.8v5M12 17.2v5M1.8 12h5M17.2 12h5"/><g class="brand-core"><path class="brand-lead" fill-rule="evenodd" d="M12 5.2a6.8 6.8 0 1 0 0 13.6a6.8 6.8 0 1 0 0-13.6zM12 7.2a4.8 4.8 0 1 1 0 9.6a4.8 4.8 0 1 1 0-9.6z"/></g><g class="brand-orbit"><circle class="brand-node" cx="19.2" cy="4.8" r="1.4"/></g>';
 const BRAND = `<svg class="brand" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">${BRAND_SHAPES}</svg>`;
-export function chatHtml({ nonce, cspSource, scriptUri, uiUri, styleUri, iconsUri = scriptUri.replace(/[^/]+$/, "icons.js"), palette }) {
+export function chatHtml({ nonce, cspSource, scriptUri, uiUri, styleUri, iconsUri = scriptUri.replace(/[^/]+$/, "icons.js"), heroUri = scriptUri.replace(/[^/]+$/, "brand/redwidow/redwidow.svg"), palette }) {
   for (const [name, value] of Object.entries({
     nonce,
     cspSource,
     scriptUri,
     uiUri,
     styleUri,
-    iconsUri
+    iconsUri,
+    heroUri
   })) {
     const ok = name === "cspSource" ? !/["<>]/.test(value) && value !== "" : SAFE.test(value);
     if (!ok)
@@ -64,10 +65,11 @@ export function chatHtml({ nonce, cspSource, scriptUri, uiUri, styleUri, iconsUr
 <meta http-equiv="Content-Security-Policy" content="${csp}">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="${styleUri}">
-<title>Venator Ops</title>
+<title>RedWidow</title>
 </head>
 <body data-palette="${paletteOf(palette)}">
-<header id="bar"><span id="title">${BRAND}<span class="brand-name">Venator<span class="brand-ops"> Ops</span></span></span><button id="roe" type="button" class="roe" popovertarget="cfg-pop" aria-haspopup="dialog" title="Règles d'engagement : ouvrir Configurer" hidden><span class="roe-gauge" aria-hidden="true"><i></i><i></i><i></i></span><span class="roe-text"><span class="roe-kicker" aria-hidden="true">ROE</span><span id="roe-label">Supervisé</span></span><span id="roe-left" class="roe-left" aria-hidden="true"></span></button><span id="sandbox" class="badge" hidden></span><span id="automatic-badge" class="badge" hidden></span><span id="learning-badge" class="badge" title="Mode Apprentissage : lecture des cours seule, aucune action" hidden>Apprentissage</span><button id="history-btn" type="button" class="ghost" aria-expanded="false" aria-controls="history" title="Historique des conversations">${icon("history")}<span class="btn-text">Historique</span></button><button id="reset" type="button" class="ghost" title="Nouvelle conversation">${icon("plus")}<span class="btn-text">Nouvelle<span class="btn-more"> conversation</span></span></button></header>
+<img id="brand-hero" class="welcome-spider" src="${heroUri}" alt="" width="120" height="151" hidden>
+<header id="bar"><span id="title">${BRAND}<span class="brand-name"><span class="brand-ops">Red</span>Widow</span></span><button id="roe" type="button" class="roe" popovertarget="cfg-pop" aria-haspopup="dialog" title="Règles d'engagement : ouvrir Configurer" hidden><span class="roe-gauge" aria-hidden="true"><i></i><i></i><i></i></span><span class="roe-text"><span class="roe-kicker" aria-hidden="true">ROE</span><span id="roe-label">Supervisé</span></span><span id="roe-left" class="roe-left" aria-hidden="true"></span></button><span id="sandbox" class="badge" hidden></span><span id="automatic-badge" class="badge" hidden></span><span id="learning-badge" class="badge" title="Mode Apprentissage : lecture des cours seule, aucune action" hidden>Apprentissage</span><button id="history-btn" type="button" class="ghost" aria-expanded="false" aria-controls="history" title="Historique des conversations">${icon("history")}<span class="btn-text">Historique</span></button><button id="reset" type="button" class="ghost" title="Nouvelle conversation">${icon("plus")}<span class="btn-text">Nouvelle<span class="btn-more"> conversation</span></span></button></header>
 <nav id="mission" aria-label="Progression de la mission" hidden><ol id="mission-steps"></ol></nav>
 <section id="history" aria-label="Historique des conversations" hidden><div class="hist-head"><strong>Historique</strong><button id="history-clear" type="button" class="ghost">Tout effacer</button><button id="history-close" type="button" class="ghost icon-btn" title="Fermer l'historique (Échap)" aria-label="Fermer l'historique">${icon("close")}</button></div><ul id="history-list"></ul></section>
 <nav id="timeline" aria-label="Navigation dans les messages" hidden><button id="timeline-older" type="button" class="ghost">Précédents</button><button id="timeline-newer" type="button" class="ghost">Suivants</button><button id="timeline-latest" type="button" class="ghost">Revenir au direct</button><span id="timeline-status" role="status"></span></nav>

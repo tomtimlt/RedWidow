@@ -29,7 +29,7 @@ Le graphe doit rester agréable à parcourir au clavier, à la souris et au zoom
   un fond teinté.
 - **Typographie** : Geist pour l’interface, JetBrains Mono pour les repères
   techniques (étiquettes en capitales espacées `--jn-fs-2xs` / `--jn-track`,
-  compteurs, horloges, mot-symbole « VENATOR OPS », « OPS » en signature et masqué sous 360 px) ; JetBrains Mono aussi
+  compteurs, horloges, mot-symbole « REDWIDOW », « RED » en signature) ; JetBrains Mono aussi
   pour le code, les commandes et les sorties (`--jn-code`, police de l’éditeur
   en secours) ; chiffres tabulaires. Polices locales sous licence OFL (`media/fonts/`).
 - **Géométrie** : formes arrondies plutôt que carrées. Boutons, puces,
@@ -43,23 +43,33 @@ Le graphe doit rester agréable à parcourir au clavier, à la souris et au zoom
 
 ## Logo
 
-Quatre crochets de visée anguleux (offensif, verrouillage de cible) encadrent
-une étincelle à quatre branches (l’IA) ; un satellite figure l’agent. Les
-crochets prennent le gris de marque, l’étincelle et le satellite la couleur de
-signature. Pendant la réflexion, les crochets se resserrent, l’étincelle pulse
-en pivotant et le satellite orbite, dans l’en-tête comme dans l’indicateur du
-chat ; à l’accueil, les crochets se verrouillent puis l’étincelle s’allume.
-Classes `.brand-wing` (crochets), `.brand-core`, `.brand-lead`, `.brand-orbit`,
-`.brand-node` ; `media/logo.svg`, `logo-small.svg` et `icon.svg` (barre
-d’activité, monochrome) en sont les versions fixes.
+**Petite taille (interface)** : le viseur RedWidow, vide : un anneau et quatre
+traits, plus un satellite qui figure l’agent. Les traits prennent le gris de
+marque, l’anneau et le satellite la couleur de signature (premier et dernier
+ton du dégradé de la palette). Pendant la réflexion, les traits se resserrent,
+l’anneau pulse en pivotant et le satellite orbite, dans l’en-tête comme dans
+l’indicateur du chat et sur l’avatar de la dernière réponse. Classes
+conservées : `.brand-wing` (traits), `.brand-core` / `.brand-lead` (anneau,
+tracé en `evenodd`), `.brand-orbit` / `.brand-node` (satellite) ; mêmes tracés
+dans `BRAND_SHAPES` (`src/views.mjs`) et `media/icons.js`, contrôlés par test.
+`media/logo.svg`, `logo-small.svg` et `icon.svg` (barre d’activité,
+monochrome) en sont les versions fixes.
 
-## Marque RedWidow (en cours)
+**Grande taille (accueil)** : l’araignée complète `media/brand/redwidow/redwidow.svg`,
+chargée en image locale (`#brand-hero`, cloné dans l’accueil, CSP `img-src`
+inchangée), 120 px, qui se pose avec un rebond puis respire. Ses couleurs
+sont celles de la marque (acier et cramoisi) quelle que soit la palette.
+
+**Mot-symbole** : « REDWIDOW » en capitales espacées JetBrains Mono, « RED » en
+signature (en dégradé selon la palette), toujours affiché en entier.
+
+## Marque RedWidow
 
 Nouveau nom retenu : **RedWidow** (la veuve noire version red team), qui
 remplace Venator Ops. **Le projet est et restera open source** : la
 communication vise la croissance comme un produit : adoption, étoiles GitHub,
 visibilité dans la communauté cyber et valeur sur le CV de l’auteur ; il n’y a
-ni prix ni version payante (code public, licence open source). Palette par défaut à venir : Widow (noir profond,
+ni prix ni version payante (code public, licence open source). Palette par défaut : Widow (noir profond,
 cramoisi `#E5132B`) ; logo retenu : araignée blindée à facettes, gris acier,
 cerveau sur le céphalothorax (l’araignée intelligente, l’IA) et viseur rouge
 **vide** sur l’abdomen (anneau et quatre traits, sans motif au centre : le
@@ -75,10 +85,13 @@ transparents, et `redwidow-intro.mp4` / `redwidow-intro.html` (animation de
 8 s : pattes qui jaillissent avec rebond, cerveau qui s’allume, viseur qui se
 verrouille, yeux qui clignent, nom puis respiration). Polices validées :
 Geist (interface, titres, mot-symbole) et JetBrains Mono (repères techniques,
-code, commandes et sorties) ; Geist Mono est retirée. Les sections ci-dessous
-décrivent encore l’identité Venator Ops tant que la refonte n’est pas faite.
+code, commandes et sorties) ; Geist Mono est retirée. Dans l’atelier, la refonte est faite : nom visible
+(titres, commandes, réglages, configuration F5), viseur dans l’en-tête,
+araignée à l’accueil, mot-symbole et palette Widow par défaut. Restent sous
+le nom Venator Ops : la section suivante, les bannières, le carrousel, le kit
+vidéo et le README de `main`, à refaire avec la nouvelle identité.
 
-## Marque Venator Ops
+## Marque Venator Ops (ancienne identité)
 
 Nom retenu : **Venator Ops** (*venator*, « le chasseur » en latin ; aussi un
 genre d’araignées-loups et un clin d’œil aux destroyers de Star Wars). Slogan :
@@ -242,7 +255,7 @@ niveau le plus proche avec un rebond ; le clavier passe de niveau en niveau.
 ## Palettes et page Apparence
 
 Vingt-trois jeux de couleurs, au choix dans **Réglages › Apparence** (icône palette,
-groupe « Interface »), par la commande **Venator Ops : choisir une palette** ou
+groupe « Interface »), par la commande **RedWidow : choisir une palette** ou
 par le réglage `warbandDesign.palette`. Le choix s’applique aussitôt à toutes
 les vues, sans rechargement, et l’aperçu navigateur le garde d’une vue à
 l’autre. Chaque jeu a un ton pour les thèmes sombres et un ton plus foncé pour
@@ -253,7 +266,7 @@ Chaque jeu fournit trois teintes de dégradé (`--jn-grad-a`, `-b`, `-c`, d’o�
 `--jn-grad`, `--jn-grad-loop` et `--jn-aura-stops`) ; pour un jeu uni, elles
 sont dérivées de la signature (signature, reflet clair, signature). Le
 dégradé habille les boutons principaux, les soulignements de l’en-tête et des
-Réglages, « OPS » du mot-symbole, les phases faites de la mission, le
+Réglages, « RED » du mot-symbole, les phases faites de la mission, le
 remplissage du curseur d’effort et les aperçus ; le logo prend la première
 teinte pour l’étincelle et la dernière pour le satellite. Avec les jeux en
 dégradé et le Multicolore, l’aura du bypass devient un contour en dégradé qui
@@ -262,8 +275,8 @@ tout cela en contraste élevé ni avec le jeu Éditeur.
 
 | Jeu | Sombre | Clair | Intention |
 | --- | --- | --- | --- |
-| Sentinelle (défaut) | `#3cc7c0` | `#0b7a82` | sarcelle et ardoise : veille, terminal, sécurité |
-| Widow | `#e5132b` | `#c40f24` | noir profond et cramoisi : la marque RedWidow |
+| Sentinelle | `#3cc7c0` | `#0b7a82` | sarcelle et ardoise : veille, terminal, sécurité |
+| Widow (défaut) | `#e5132b` | `#c40f24` | noir profond et cramoisi : la marque RedWidow |
 | Braise | `#f0506e` | `#c41a3d` | cramoisi et acier, marque d’origine ; proche du rouge d’erreur |
 | Venin | `#3ee08f` | `#0d7a45` | vert toxique sur acier |
 | Arctique | `#5ec8ff` | `#0a6aa3` | bleu glacier, froid et net |
@@ -291,7 +304,7 @@ proches de la couleur des alertes : celles-ci restent signalées par leur
 texte et leur pictogramme, et ces jeux (comme les jeux rouges) gardent les
 liens du thème. Les autres jeux évitent le jaune et l’orange. Bastion (cuivre) est retiré : trop proche de l’orange des alertes. Une valeur
 inconnue, y compris « bastion » dans les réglages existants, retombe sur
-Sentinelle.
+Widow.
 
 - **Page Apparence** : une carte par jeu, dans un groupe `radiogroup`
   (flèches, Début et Fin pour passer de l’un à l’autre, Entrée ou Espace pour

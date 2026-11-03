@@ -127,7 +127,7 @@ test("le pont VS Code ouvre les vues et transmet les interactions de la simulati
   sidebar.send({ type: "setPalette", palette: "\"><script>" });
   assert.deepEqual(updates, [["palette", "multi"]]);
   configChanged({ affectsConfiguration: (key) => key === "warbandDesign.palette" });
-  assert.ok(sidebar.messages.some((m) => m.type === "palette" && m.palette === "sentinelle"));
+  assert.ok(sidebar.messages.some((m) => m.type === "palette" && m.palette === "widow"));
   commands.get("warbandDesign.settings")();
   const settings = panels.at(-1);
   settings.send({ type: "open", page: "appearance" });
@@ -150,7 +150,7 @@ test("les pictogrammes viennent d'une source unique et la palette est validée",
   for (const view of [chatHtml, graphHtml, studioHtml]) {
     const html = view({ ...options, palette: "\"><script>" });
     for (const [, name] of html.matchAll(/data-icon="([^"]+)"/g)) assert.ok(names.has(name), name);
-    assert.match(html, /data-palette="sentinelle"/);
+    assert.match(html, /data-palette="widow"/);
     assert.match(view({ ...options, palette: "spectre" }), /data-palette="spectre"/);
   }
   const studio = await readFile(new URL("../media/studio.js", import.meta.url), "utf8");
@@ -166,12 +166,12 @@ test("les vingt-trois jeux de couleurs sont identiques dans la page Apparence, l
   const manifest = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
   assert.deepEqual(manifest.contributes.configuration.properties["warbandDesign.palette"].enum, ids);
   const css = await readFile(new URL("../media/chat.css", import.meta.url), "utf8");
-  for (const id of ids.filter((id) => id !== "sentinelle")) assert.ok(css.includes(`[data-palette="${id}"]`), id);
+  for (const id of ids.filter((id) => id !== "widow")) assert.ok(css.includes(`[data-palette="${id}"]`), id);
   assert.ok(!css.includes("bastion"));
   assert.ok(studio.includes('["appearance", "Apparence", "palette"]'));
 });
 test("le logo de l'interface et celui de la page Apparence ont les mêmes tracés", async () => {
   const icons = await readFile(new URL("../media/icons.js", import.meta.url), "utf8");
   for (const d of [...BRAND_SHAPES.matchAll(/ d="([^"]+)"/g)].map((m) => m[1])) assert.ok(icons.includes(d), d);
-  assert.ok(icons.includes('cx: "17.4"') && BRAND_SHAPES.includes('cx="17.4"'));
+  assert.ok(icons.includes('cx: "19.2"') && BRAND_SHAPES.includes('cx="19.2"'));
 });

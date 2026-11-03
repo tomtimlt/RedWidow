@@ -7,7 +7,7 @@ exports.activate = async function activate(context) {
   const mounted = new Set();
   const panels = new Map();
   const demo = createDemo({onChange:()=>{for(const record of mounted)redraw(record);},onOpen:(kind,page)=>open(kind,page),onInfo:text=>vscode.window.showInformationMessage(text)});
-  const palette=()=>vscode.workspace?.getConfiguration?.('warbandDesign').get('palette','sentinelle');
+  const palette=()=>vscode.workspace?.getConfiguration?.('warbandDesign').get('palette','widow');
   function render(record) {
     const {webview,kind}=record;
     const uri=name=>webview.asWebviewUri(vscode.Uri.joinPath(media,name)).toString();
@@ -56,7 +56,7 @@ exports.activate = async function activate(context) {
     if(selected)demo.selectScenario(selected.value);
   }));
   context.subscriptions.push(vscode.commands.registerCommand('warbandDesign.palette',async()=>{
-    const selected=await vscode.window.showQuickPick(PALETTES.map(([value,label,detail])=>({label,detail,value})),{title:'Palette Venator Ops'});
+    const selected=await vscode.window.showQuickPick(PALETTES.map(([value,label,detail])=>({label,detail,value})),{title:'Palette RedWidow'});
     if(selected)await vscode.workspace.getConfiguration('warbandDesign').update('palette',selected.value,vscode.ConfigurationTarget.Global);
   }));
   if(vscode.workspace?.onDidChangeConfiguration)context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event=>{

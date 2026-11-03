@@ -21,8 +21,8 @@ const STUDIO_GROUPS = [
 ];
 // Jeux de couleurs : mêmes identifiants que PALETTES dans src/views.mjs (contrôlé par test).
 const PALETTES = [
-  ["sentinelle", "Sentinelle", "Sarcelle et ardoise : veille, terminal, sécurité"],
   ["widow", "Widow", "Noir profond et cramoisi : la marque RedWidow"],
+  ["sentinelle", "Sentinelle", "Sarcelle et ardoise : veille, terminal, sécurité"],
   ["braise", "Braise", "Cramoisi et acier : la marque d’origine, plus offensive"],
   ["venom", "Venin", "Vert toxique sur acier : terminal, offensif"],
   ["arctic", "Arctique", "Bleu glacier : froid, net, défensif"],
@@ -415,7 +415,7 @@ function start() {
       el(
         "p",
         "studio-help",
-        "Choisissez le jeu de couleurs de Venator Ops. Il s’applique aussitôt à toutes les vues et s’adapte aux thèmes clair, sombre et contraste élevé de VS Code."
+        "Choisissez le jeu de couleurs de RedWidow. Il s’applique aussitôt à toutes les vues et s’adapte aux thèmes clair, sombre et contraste élevé de VS Code."
       )
     );
     if (document.body.classList.contains("vscode-high-contrast") || document.body.classList.contains("vscode-high-contrast-light")) {
@@ -423,7 +423,7 @@ function start() {
         el(
           "p",
           "studio-help pal-note",
-          "En contraste élevé, Venator Ops utilise les couleurs du thème : le choix est enregistré et s’applique dès que vous changez de thème."
+          "En contraste élevé, RedWidow utilise les couleurs du thème : le choix est enregistré et s’applique dès que vous changez de thème."
         )
       );
     }

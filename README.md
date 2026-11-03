@@ -1,6 +1,4 @@
-![Venator Ops — Pentest in VS Code, with AI on call](media/brand/banner-github@2x.png)
-
-# Venator Ops — atelier de design VS Code
+# RedWidow — atelier de design VS Code
 
 *Pentest in VS Code, with AI on call* : un espace de travail avec conteneurs
 Docker Kali et Exegol, terminaux, Monitor, kill chain et rapports au même endroit. On peut tout
@@ -13,14 +11,14 @@ fictifs. Les interactions modifient uniquement l’état de démonstration en m�
 ## Lancer dans VS Code
 
 1. Ouvrir ce dossier dans VS Code.
-2. Appuyer sur **F5**, configuration **Venator Ops · Démonstration**.
-3. Dans la fenêtre de développement, ouvrir **Venator Ops** dans la barre d’activité
-   ou utiliser la palette : **Venator Ops : ouvrir le chat / le graphe / le Monitor / les réglages**.
-4. Utiliser **Venator Ops : choisir un scénario** pour passer entre accueil,
+2. Appuyer sur **F5**, configuration **RedWidow · Démonstration**.
+3. Dans la fenêtre de développement, ouvrir **RedWidow** dans la barre d’activité
+   ou utiliser la palette : **RedWidow : ouvrir le chat / le graphe / le Monitor / les réglages**.
+4. Utiliser **RedWidow : choisir un scénario** pour passer entre accueil,
    conversation, activité, validation, indisponibilité et historique long.
-5. **Réglages › Apparence** (ou **Venator Ops : choisir une palette**, ou le
+5. **Réglages › Apparence** (ou **RedWidow : choisir une palette**, ou le
    réglage `warbandDesign.palette`) change le jeu de couleurs parmi vingt-trois :
-   unis (Sentinelle, Widow, Braise, Venin, Arctique, Spectre, Ultraviolet,
+   unis (Widow par défaut, Sentinelle, Braise, Venin, Arctique, Spectre, Ultraviolet,
    Tactique), classiques (Rouge, Orange, Jaune, Vert, Bleu, Rose, Blanc), en dégradé (Aurore, Synthwave, Toxique, Lune de sang, Abysse,
    Nébuleuse), Multicolore et Éditeur.
 

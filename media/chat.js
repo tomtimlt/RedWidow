@@ -283,8 +283,15 @@
   }
   function welcome(sandbox) {
     const box = el("div", "welcome");
-    const mark = document.querySelector("#title .brand")?.cloneNode(true);
-    if (mark) {
+    // Accueil : l'araignée RedWidow si l'image est là, sinon le viseur de l'en-tête.
+    const hero = document.getElementById("brand-hero")?.cloneNode(true);
+    const mark = hero ? null : document.querySelector("#title .brand")?.cloneNode(true);
+    if (hero) {
+      hero.removeAttribute("id");
+      hero.hidden = false;
+      hero.setAttribute("aria-hidden", "true");
+      box.append(hero);
+    } else if (mark) {
       mark.setAttribute("class", "brand welcome-mark");
       mark.removeAttribute("width");
       mark.removeAttribute("height");
@@ -789,7 +796,7 @@
     }));
     if (mentionActive >= mentionShown.length) mentionActive = 0;
     mentionEmpty.hidden = mentionShown.length > 0;
-    mentionEmpty.textContent = hash ? "Aucun terminal Venator ouvert. Alt+J T pour en ouvrir un." : "Aucun espace";
+    mentionEmpty.textContent = hash ? "Aucun terminal RedWidow ouvert. Alt+J T pour en ouvrir un." : "Aucun espace";
     mentionPop.setAttribute("aria-label", hash ? "Terminaux" : "Espaces");
     mentionList.replaceChildren(
       ...mentionShown.map((item, i) => {

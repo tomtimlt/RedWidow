@@ -1,5 +1,5 @@
 /*
- * Venator Ops — direction « Acier et signature »
+ * RedWidow — direction « Acier et signature »
  *
  * Acier : surfaces neutres dérivées du thème VS Code, hiérarchie portée par
  * des filets fins et un liseré vertical de 2 px qui signale l'état.
@@ -1026,6 +1026,22 @@ pre {
   height: 60px;
   margin-bottom: var(--jn-s3);
   overflow: visible;
+}
+.welcome-spider {
+  flex: none;
+  width: 120px;
+  height: auto;
+  margin-bottom: var(--jn-s2);
+}
+@keyframes jn-spider-in {
+  from {
+    opacity: 0;
+    transform: translateY(-14px) scale(0.86);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 .welcome h2 {
   margin: 0;
@@ -5453,7 +5469,7 @@ body.mode-watch .mon-head .hint::before {
 
 /* ───────────────────────────── Marque ───────────────────────────── */
 
-/* Crochets de visée en gris de marque ; étincelle et satellite en signature. */
+/* Viseur RedWidow : traits en gris de marque ; anneau et satellite en signature. */
 .brand {
   overflow: visible;
 }
@@ -6535,6 +6551,12 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
  */
 @media (prefers-reduced-motion: no-preference) {
   body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light) {
+    /* Accueil : l'araignée se pose avec un rebond, puis respire. */
+    & .welcome-spider {
+      animation:
+        jn-spider-in 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+        jn-breathe-lock 5s var(--jn-ease-io) 1s infinite;
+    }
     & button .ico,
     & .chip .caret,
     & .kc-dot,
@@ -6981,14 +7003,9 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
   letter-spacing: 0.16em;
   text-transform: uppercase;
 }
+/* Mot-symbole « REDWIDOW » : « RED » en signature (en dégradé selon la palette). */
 #title .brand-ops {
   color: var(--jn-sig);
-  word-spacing: -0.3em;
-}
-@container app (max-width: 360px) {
-  #title .brand-ops {
-    display: none;
-  }
 }
 
 /* ───────────────────────────── Configurer compact ─────────────────────────────
