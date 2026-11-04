@@ -11,10 +11,12 @@ HTML du kit `../video-kit/html/`), sur le lab fictif `10.10.10.14`.
 | `redwidow-promo-v4.mp4` | 1920 × 1080, 30 i/s, 45 s, H.264 + AAC, −14 LUFS | V4 : ouverture lisible sans le son en 3 s (AN AI AGENT / THAT HACKS / WITH YOU, « For pentesters · inside VS Code »), kill chain remplie en direct par l'agent (journal sous le graphe, caméra qui suit la dernière étape) puis « Rejouer » du produit (crochets, liens allumés, reste atténué), « YOU STEER. / OR LET IT HUNT. » au passage en Automatique, une seconde par modèle, basses allégées (passe-haut ≈ 60 Hz, 808 et explosions réduits), niveau normalisé à −14 LUFS. Sources dans `src-v4/` |
 | `redwidow-promo-v5.mp4` | 1920 × 1080, 30 i/s, 42,4 s, H.264 + AAC, −14 LUFS | V5 « Toxic », tout nouveau concept : violet profond et vert toxique (interface en palette Toxique), toile d'araignée en fond qui bat la mesure, ouverture sur la galère du pentesteur en lignes de terminal barrées (23 terminals open…), révélation, puis quatre chapitres calqués sur le rail de mission du produit (01 RECON, 02 ANALYSIS, 03 ACTION avec « Drive it. / Or unleash it. », 04 REPORT), bonus 05 LEARN, modèles, fin ALL OF IT / OPEN SOURCE / FREE. Coupes en dédoublement violet-vert, balayages verts. Musique darksynth 110 BPM. Temps en temps musicaux dans `src-v5/build.py` (timeline.json partagé avec la musique) |
 | `redwidow-promo-v6.mp4` | 1920 × 1080, 30 i/s, 42,4 s, H.264 + AAC, −14 LUFS | V6 : la V5 à l'identique (montage, musique) dans la palette rouge Widow : noir, cramoisi `#E5132B` et acier, interface en palette Widow, araignée aux couleurs de la marque. `src-v6/recolor.py` dérive les fichiers de la V5 ; la musique et les autres sources sont celles de `src-v5/` |
+| `redwidow-promo-v7.mp4` | 1920 × 1080, 30 i/s, 51,5 s, H.264 + AAC, −14 LUFS | V7 : la V6 ralentie (94 BPM au lieu de 110, chaque temps dure 0,64 s) pour laisser lire chaque plan ; trois temps de plus après « Rejouer » pour que le chemin atteigne sa dernière étape avant le chapitre 3. Musique darksynth recalée sur le nouveau tempo. Sources dans `src-v7/` |
+| `redwidow-promo-v7-9x16.mp4` | 1080 × 1920, 30 i/s, 51,5 s, H.264 + AAC, −14 LUFS | V7 verticale pour Reels, Shorts et LinkedIn mobile : même montage et même musique, légendes et fenêtres en colonne entre 250 et 1600 px de haut (zones sûres des interfaces mobiles), chat capturé en hauteur (470 × 849) avec une caméra qui passe de la saisie aux messages, kill chain resserrée qui suit le chemin pendant « Rejouer », terminal et chat d'Apprentissage empilés. `film-9x16.css` complète `film.css` |
 
 ## Refaire une version
 
-Sources de la V1 dans `src/`, de la V2 dans `src-v2/`, de la V3 dans `src-v3/`, de la V4 dans `src-v4/`, de la V5 dans `src-v5/` (Playwright, ffmpeg, Python avec numpy) :
+Sources de la V1 dans `src/`, de la V2 dans `src-v2/`, de la V3 dans `src-v3/`, de la V4 dans `src-v4/`, de la V5 dans `src-v5/`, de la V7 dans `src-v7/` (Playwright, ffmpeg, Python avec numpy) :
 
 1. `node cap_agent.cjs` avec l'aperçu lancé (`PORT=4173 node scripts/preview.mjs`) :
    capture le chat de l'agent dans `snap/` (variable `SNAP`).
@@ -29,3 +31,15 @@ Chaque image est calculée à partir du temps (`window.render(t)` dans
 `film.js`) ; les animations CSS du produit suivent une horloge virtuelle.
 Règles : lab fictif uniquement, aucune fonction inventée, aucun zoom sans
 objet (chaque recadrage montre ce que dit la légende).
+
+### V7, deux formats
+
+Dans `src-v7/`, `build.py` prend le format en argument : `python3 build.py 16x9`
+et `python3 build.py 9x16` écrivent `film-16x9.html` et `film-9x16.html` (et
+`timeline.json`, commun aux deux). Les captures en hauteur viennent de
+`cap_agent_tall.cjs` et `cap_bypass_tall.cjs` (aperçu lancé). Ensuite :
+`python3 synth.py music_raw.wav 51.6`, normalisation à −14 LUFS, puis
+`node render.cjs 16x9 redwidow-promo-v7.mp4 51.5 music.wav` et
+`node render.cjs 9x16 redwidow-promo-v7-9x16.mp4 51.5 music.wav`
+(`node still.cjs 9x16 19 27.6` pour des images fixes). Le tempo se règle par
+`BPM` dans `build.py` ; la musique le lit dans `timeline.json`.
