@@ -1,0 +1,45 @@
+html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:#0b0b0d}
+#stage{position:absolute;inset:0;overflow:hidden;background:#0b0b0d}
+.scene{position:absolute;inset:0;display:none}
+#flash{position:absolute;inset:0;background:#E5132B;opacity:0;pointer-events:none;z-index:50}
+.cap{position:absolute;color:#eef1f4;font-family:"Warband Geist";z-index:5}
+.cap.left{left:130px}
+.cap.center{left:0;right:0;text-align:center}
+.cl{opacity:0;will-change:transform,opacity}
+.cl.big{font:800 140px/0.98 "Warband Geist";letter-spacing:-0.035em;text-transform:uppercase}
+.cl.giant{font:800 260px/0.9 "Warband Geist";letter-spacing:-0.04em;text-transform:uppercase}
+.cl.huge{font:800 170px/1 "Warband Geist";letter-spacing:-0.035em;text-transform:uppercase}
+.cl.mid{font:800 96px/0.98 "Warband Geist";letter-spacing:-0.03em;text-transform:uppercase}
+.cl.inl{display:inline-block;margin-right:28px}
+.cl.mono,.mono{font:700 30px/1.4 "Warband JetBrains Mono";letter-spacing:0.16em;text-transform:uppercase;color:#a3a6ad;margin-top:18px}
+.r{color:#E5132B}
+.tools{margin-top:22px}.tools .cl.mono{margin-top:4px;color:#eef1f4}
+.grp{position:absolute;left:0;top:0;width:100%}
+.swap{position:relative}.swap .one{position:absolute;left:0;right:0;top:0}
+.win{position:absolute;background:#1f1f1f;border:1px solid #2f3337;border-radius:12px;overflow:hidden;box-shadow:0 30px 90px rgba(0,0,0,.65);z-index:2}
+.tab{height:34px;display:flex;align-items:center;gap:10px;padding:0 16px;background:#181818;border-bottom:1px solid #2b2b2b;font:500 14px "Warband Geist";color:#c8c8c8}
+.tab .dot{width:8px;height:8px;border-radius:50%;background:#E5132B;display:inline-block}
+.cv{position:relative;overflow:hidden}
+.cs{transform-origin:0 0;position:absolute;left:0;top:0}
+.spslot{position:absolute}
+.spslot svg{width:100%;height:100%;display:block;overflow:visible}
+.hero-spider{--rw-red:#E5132B;--rw-steel-hi:#B0B1B8;--rw-steel:#606168;--rw-ink:#131417}
+.lock{position:absolute;left:0;right:0;display:flex;align-items:center;justify-content:center;gap:60px}
+.lock .spslot{position:relative}
+.wm{font:800 230px/1 "Warband Geist";letter-spacing:-0.035em;color:#eef1f4;opacity:0}.wm b{color:#E5132B}
+.lock.end .wm{font-size:200px}
+.lock .mono{margin-top:22px;color:#cfd2d8;font-size:34px}
+.glow{position:absolute;width:520px;height:520px;margin:-260px 0 0 -260px;border-radius:50%;background:radial-gradient(circle,rgba(229,19,43,.55) 0%,rgba(229,19,43,.18) 35%,rgba(229,19,43,0) 70%);opacity:0;z-index:1}
+#hero-slot{z-index:3}
+.legal{position:absolute;left:0;right:0;bottom:44px;text-align:center;font:500 18px "Warband Geist";color:#6f737b;letter-spacing:.02em}
+.link{position:absolute;left:0;top:0;z-index:6;pointer-events:none;overflow:visible}
+.link path{fill:none;stroke:#E5132B;stroke-width:4;stroke-linecap:round}
+.walker{position:absolute;width:110px;height:auto;z-index:4;pointer-events:none}
+.scr{opacity:0}
+/* Le film pilote les états : pas de transitions CSS (elles traîneraient d'une image à l'autre). */
+.vo-ui *,.vo-ui *::before,.vo-ui *::after,.vo-ui{transition:none !important}
+.feed{position:absolute;z-index:5;font:500 26px/1.55 "Warband JetBrains Mono";color:#cfd2d8;letter-spacing:.01em}
+.feed-row b{display:inline-block;font-weight:700;color:#0b0b0d;background:#E5132B;border-radius:999px;padding:0 12px;margin-right:6px;font-size:20px;letter-spacing:.12em;text-transform:uppercase;vertical-align:2px}
+.feed-row i{font-style:normal;color:#7d828b}
+.feed-row.bad span{color:#a3a6ad;text-decoration:line-through}
+.feed.step{color:#eef1f4;font-weight:700;letter-spacing:.06em;opacity:0}
