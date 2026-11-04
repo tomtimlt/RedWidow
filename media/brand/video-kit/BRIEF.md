@@ -67,6 +67,12 @@ animations included. See `html/README.md` for sizes, selectors and the
   `.rw-palp-l/r`, `.rw-brain`, `.rw-eyes`, `.rw-crosshair` with `.rw-ring` and
   `.rw-tick-*`; colors as CSS variables `--rw-steel-hi`, `--rw-steel`,
   `--rw-ink`, `--rw-red`): inline it to animate legs, brain, eyes, crosshair.
+  **Keep its colors**: steel `--rw-steel-hi: #B0B1B8`, `--rw-steel: #606168`,
+  ink `--rw-ink: #131417` (the dark plate under the crosshair and the brain
+  lines), red `--rw-red: #E5132B`. Never map `--rw-ink` or the steels to the
+  text color: the spider then turns white on grey. Do not put CSS `filter`
+  (drop-shadow, glow) on its layers, and animate the book of Learning mode
+  with keyframes, not transitions (frame-by-frame renders freeze transitions).
 - `redwidow-mini.svg` — small icon (head with brain, eyes, four legs);
   `redwidow-mini-mono.svg` — monochrome (`currentColor`).
 - `redwidow-crosshair.svg` — crosshair alone.
