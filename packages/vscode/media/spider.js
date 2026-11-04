@@ -1,14 +1,17 @@
 // RedWidow : l'araignée en calques, construite sans innerHTML (CSP).
-// Généré depuis media/brand/redwidow/redwidow.svg ; ne pas modifier à la main.
+// Généré depuis media/brand/redwidow/redwidow.svg (identifiants changés en classes
+// rw-*, l'araignée pouvant apparaître plusieurs fois) ; ne pas modifier à la main.
+// createMini() donne la petite icône (tête et quatre pattes).
 // Ajoute un livre ouvert (.rw-book) tenu par les pédipalpes, visible en mode
 // Apprentissage. Les animations sont dans media/chat.css (section RedWidow).
 (() => {
+  "use strict";
   const NS = "http://www.w3.org/2000/svg";
   const VIEWBOX = "160 50 935 1175";
   const LAYERS = [
     [
       "g",
-      { id: "body", class: "rw-body" },
+      { class: "rw-body" },
       [
         [
           "path",
@@ -22,7 +25,7 @@
     ],
     [
       "g",
-      { id: "leg-l4", class: "rw-leg" },
+      { class: "rw-leg rw-leg-l4" },
       [
         [
           "path",
@@ -60,7 +63,7 @@
     ],
     [
       "g",
-      { id: "leg-r4", class: "rw-leg" },
+      { class: "rw-leg rw-leg-r4" },
       [
         [
           "path",
@@ -98,7 +101,7 @@
     ],
     [
       "g",
-      { id: "leg-l3", class: "rw-leg" },
+      { class: "rw-leg rw-leg-l3" },
       [
         [
           "path",
@@ -128,7 +131,7 @@
     ],
     [
       "g",
-      { id: "leg-r3", class: "rw-leg" },
+      { class: "rw-leg rw-leg-r3" },
       [
         [
           "path",
@@ -158,7 +161,7 @@
     ],
     [
       "g",
-      { id: "leg-l2", class: "rw-leg" },
+      { class: "rw-leg rw-leg-l2" },
       [
         [
           "path",
@@ -188,7 +191,7 @@
     ],
     [
       "g",
-      { id: "leg-r2", class: "rw-leg" },
+      { class: "rw-leg rw-leg-r2" },
       [
         [
           "path",
@@ -218,7 +221,7 @@
     ],
     [
       "g",
-      { id: "leg-l1", class: "rw-leg" },
+      { class: "rw-leg rw-leg-l1" },
       [
         [
           "path",
@@ -248,7 +251,7 @@
     ],
     [
       "g",
-      { id: "leg-r1", class: "rw-leg" },
+      { class: "rw-leg rw-leg-r1" },
       [
         [
           "path",
@@ -278,7 +281,7 @@
     ],
     [
       "g",
-      { id: "palp-l", class: "rw-palp" },
+      { class: "rw-palp rw-palp-l" },
       [
         [
           "path",
@@ -308,7 +311,7 @@
     ],
     [
       "g",
-      { id: "palp-r", class: "rw-palp" },
+      { class: "rw-palp rw-palp-r" },
       [
         [
           "path",
@@ -350,7 +353,7 @@
     ],
     [
       "g",
-      { id: "crosshair", class: "rw-crosshair", fill: "var(--rw-red, #E5132B)" },
+      { class: "rw-crosshair", fill: "var(--rw-red, #E5132B)" },
       [
         [
           "circle",
@@ -372,7 +375,7 @@
     ],
     [
       "g",
-      { id: "brain", class: "rw-brain" },
+      { class: "rw-brain" },
       [
         [
           "path",
@@ -434,7 +437,7 @@
     ],
     [
       "g",
-      { id: "eyes", class: "rw-eyes" },
+      { class: "rw-eyes" },
       [
         [
           "path",
@@ -514,5 +517,20 @@
     svg.append(build(BOOK));
     return svg;
   };
-  window.WarbandSpider = Object.freeze({ create });
+  // Petite icône : céphalothorax avec cerveau, yeux et quatre pattes (l3, r3,
+  // l4, r4), sans abdomen ni viseur ; lisible jusqu'à 16 px.
+  const MINI = new Set(["rw-brain", "rw-eyes", "rw-leg-l3", "rw-leg-r3", "rw-leg-l4", "rw-leg-r4"]);
+  const createMini = (className) => {
+    const svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("class", className || "rw-spider rw-mini");
+    svg.setAttribute("viewBox", "165 450 925 771");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    for (const layer of LAYERS) {
+      const classes = String(layer[1].class || "").split(" ");
+      if (classes.some((name) => MINI.has(name))) svg.append(build(layer));
+    }
+    return svg;
+  };
+  window.WarbandSpider = Object.freeze({ create, createMini });
 })();

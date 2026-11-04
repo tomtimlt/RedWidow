@@ -278,7 +278,12 @@ export function cockpitHtml({
 `;
 }
 
-/** Page des réglages : même CSP, script `studio.js`. */
+export interface StudioHtmlOptions extends CockpitHtmlOptions {
+  /** Araignée locale, chargée avant les cartes de palettes. */
+  spiderUri?: string;
+}
+
+/** Page des réglages : même CSP, scripts locaux dont `studio.js`. */
 export function studioHtml({
   nonce,
   cspSource,
@@ -286,9 +291,10 @@ export function studioHtml({
   styleUri,
   iconsUri = scriptUri.replace(/[^/]+$/, "icons.js"),
   i18nUri = scriptUri.replace(/[^/]+$/, "i18n.js"),
+  spiderUri = scriptUri.replace(/[^/]+$/, "spider.js"),
   locale = "fr",
   palette,
-}: CockpitHtmlOptions): string {
+}: StudioHtmlOptions): string {
   for (const [name, value] of Object.entries({
     nonce,
     cspSource,
@@ -296,6 +302,7 @@ export function studioHtml({
     styleUri,
     iconsUri,
     i18nUri,
+    spiderUri,
   })) {
     const ok = name === "cspSource" ? !/["<>]/.test(value) && value !== "" : SAFE.test(value);
     if (!ok) throw new Error(`valeur invalide pour ${name}`);
@@ -323,6 +330,7 @@ export function studioHtml({
 </div>
 <script nonce="${nonce}" src="${i18nUri}"></script>
 <script nonce="${nonce}" src="${iconsUri}"></script>
+<script nonce="${nonce}" src="${spiderUri}"></script>
 <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>
@@ -337,9 +345,10 @@ export function killchainHtml({
   styleUri,
   iconsUri = scriptUri.replace(/[^/]+$/, "icons.js"),
   i18nUri = scriptUri.replace(/[^/]+$/, "i18n.js"),
+  spiderUri = scriptUri.replace(/[^/]+$/, "spider.js"),
   locale = "fr",
   palette,
-}: CockpitHtmlOptions): string {
+}: StudioHtmlOptions): string {
   for (const [name, value] of Object.entries({
     nonce,
     cspSource,
@@ -347,6 +356,7 @@ export function killchainHtml({
     styleUri,
     iconsUri,
     i18nUri,
+    spiderUri,
   })) {
     const ok = name === "cspSource" ? !/["<>]/.test(value) && value !== "" : SAFE.test(value);
     if (!ok) throw new Error(`valeur invalide pour ${name}`);
@@ -373,6 +383,7 @@ export function killchainHtml({
 </div>
 <script nonce="${nonce}" src="${i18nUri}"></script>
 <script nonce="${nonce}" src="${iconsUri}"></script>
+<script nonce="${nonce}" src="${spiderUri}"></script>
 <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>

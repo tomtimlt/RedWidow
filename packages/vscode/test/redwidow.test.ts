@@ -67,15 +67,49 @@ describe("intégration RedWidow en production", () => {
     if (!spider) return;
     expect(spider.attrs.get("aria-hidden")).toBe("true");
     expect(spider.attrs.get("focusable")).toBe("false");
-    const ids = spider.all().map((node) => node.attrs.get("id"));
+    const classes = spider.all().map((node) => node.attrs.get("class")?.split(" "));
     for (const side of ["l", "r"])
-      for (let n = 1; n <= 4; n++) expect(ids).toContain(`leg-${side}${n}`);
+      for (let n = 1; n <= 4; n++)
+        expect(classes.some((names) => names?.includes(`rw-leg-${side}${n}`))).toBe(true);
     expect(spider.all().some((node) => node.attrs.get("class") === "rw-book")).toBe(true);
     for (const node of spider.all()) {
       expect(["svg", "g", "path", "rect", "circle"]).toContain(node.tag);
       for (const attr of node.attrs.keys()) expect(attr).not.toMatch(/^(?:on|href|style)/i);
     }
     expect(read("../media/spider.js")).not.toMatch(/fetch\(|XMLHttpRequest|\.innerHTML\s*=/);
+  });
+  it("la petite icône conserve le cerveau et quatre pattes, sans viseur, livre ni identifiant dupliqué", () => {
+    const context: {
+      WarbandSpider?: { createMini(className: string): GraphicNode };
+      window?: unknown;
+      document: unknown;
+    } = { document: { createElementNS: (_ns: string, tag: string) => new GraphicNode(tag) } };
+    context.window = context;
+    runInNewContext(read("../media/spider.js"), context);
+    const minis = [
+      context.WarbandSpider?.createMini("brand"),
+      context.WarbandSpider?.createMini("avatar"),
+    ];
+    for (const mini of minis) {
+      expect(mini).toBeDefined();
+      if (!mini) continue;
+      expect(mini.attrs.get("viewBox")).toBe("165 450 925 771");
+      expect(mini.attrs.get("aria-hidden")).toBe("true");
+      const all = mini.all();
+      expect(
+        all.filter((node) => node.attrs.get("class")?.split(" ").includes("rw-leg")),
+      ).toHaveLength(4);
+      expect(all.some((node) => node.attrs.get("class") === "rw-brain")).toBe(true);
+      expect(all.some((node) => node.attrs.get("class") === "rw-eyes")).toBe(true);
+      expect(all.some((node) => /rw-book|rw-crosshair/.test(node.attrs.get("class") ?? ""))).toBe(
+        false,
+      );
+      expect(all.some((node) => node.attrs.has("id"))).toBe(false);
+      const svg = read("../media/logo.svg");
+      expect(all.filter((node) => node.tag === "path")).toHaveLength(23);
+      for (const node of all.filter((node) => node.tag === "path"))
+        expect(svg).toContain(`d="${node.attrs.get("d")}"`);
+    }
   });
   it("l’aura anime uniquement un angle typé, sans affaiblir les garde-fous de mouvement", () => {
     const css = read("../media/chat.css");

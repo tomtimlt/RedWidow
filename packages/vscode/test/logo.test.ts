@@ -26,15 +26,21 @@ function shapes(svg: string) {
   );
 }
 describe("nouvelle marque — géométrie et ressources sûres", () => {
-  it("viseur vide et satellite cohérents dans les versions inline et fichier", () => {
+  it("viseur de secours inline et petite araignée statique sûre", () => {
     const inline = /<svg class="brand"[\s\S]*?<\/svg>/.exec(html)?.[0] ?? "";
     expect(inline).toContain('aria-hidden="true"');
     expect(shapes(inline)).toHaveLength(3);
+    const reference = shapes(read("../media/logo.svg")).filter((shape) =>
+      shape.startsWith("<path"),
+    );
+    expect(reference).toHaveLength(23);
     for (const file of ["logo.svg", "logo-small.svg", "icon.svg"]) {
       const svg = read(`../media/${file}`);
-      expect(shapes(svg).slice(0, 2)).toEqual(shapes(inline).slice(0, 2));
-      expect(shapes(svg)[2]).toMatch(/cx="19.2" cy="4.8" r="1\.[46]"/);
-      expect(svg).not.toMatch(/<animate|<script|<set\b|\bon\w+\s*=|href\s*=|<style|url\(/i);
+      expect(shapes(svg).filter((shape) => shape.startsWith("<path"))).toEqual(reference);
+      expect(svg).not.toMatch(/<animate|<script|<set\b|\bon\w+\s*=|href\s*=|<style/i);
+      const refs = [...svg.matchAll(/url\(([^)]+)\)/g)].map((match) => match[1]);
+      expect(refs).toEqual(file === "icon.svg" ? ["#rw-m"] : []);
+      if (file === "icon.svg") expect(svg).toContain('id="rw-m"');
     }
   });
   it("icône monochrome, marque animable via CSS et réduction du mouvement", () => {

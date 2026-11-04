@@ -532,7 +532,9 @@ function start() {
       card.type = "button";
       card.dataset.palette = id;
       card.setAttribute("role", "radio");
-      const logo = window.WarbandIcons.createBrand("brand pal-logo");
+      const logo =
+        window.WarbandSpider?.createMini("brand rw-spider rw-mini pal-logo") ??
+        window.WarbandIcons.createBrand("brand pal-logo");
       const swatches = el("span", "pal-sw");
       swatches.setAttribute("aria-hidden", "true");
       for (let i = 0; i < 6; i++) swatches.append(el("i"));

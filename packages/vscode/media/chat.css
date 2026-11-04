@@ -223,13 +223,20 @@ body,
   --jn-sw-4: color-mix(in srgb, var(--jn-brand) 30%, var(--vscode-editor-background));
   --jn-pal-fill: var(--jn-grad);
   --jn-on-brand: #0b0d10;
-  --jn-grad-a: var(--jn-brand);
-  --jn-grad-b: color-mix(in srgb, var(--jn-brand) 62%, #ffffff);
-  --jn-grad-c: var(--jn-brand);
+  --jn-grad-a: color-mix(in srgb, var(--jn-brand) 86%, #000000);
+  --jn-grad-b: var(--jn-brand);
+  --jn-grad-c: color-mix(in srgb, var(--jn-brand) 94%, #ffffff);
+}
+@supports (color: oklch(from red l c h)) {
+  body,
+  [data-palette] {
+    --jn-grad-c: oklch(from var(--jn-brand) calc(l + 0.04) c h);
+  }
 }
 [data-palette="widow"] {
   --jn-on-brand: #ffffff;
-  --jn-grad-b: color-mix(in srgb, var(--jn-brand) 90%, #000000);
+  --jn-grad-c: var(--jn-brand);
+  --jn-grad-a: color-mix(in srgb, var(--jn-brand) 68%, #000000);
 }
 /* Multicolore : la signature est le cyan ; chaque rôle prend sa teinte. */
 body[data-palette="multi"],
@@ -537,7 +544,9 @@ body.vscode-light,
 body.vscode-light [data-palette] {
   --jn-on-brand: #ffffff;
   /* Un reflet plus sombre garde le texte blanc lisible sur les jeux unis. */
+  --jn-grad-a: color-mix(in srgb, var(--jn-brand) 68%, #000000);
   --jn-grad-b: color-mix(in srgb, var(--jn-brand) 90%, #000000);
+  --jn-grad-c: var(--jn-brand);
 }
 body.vscode-light,
 body.vscode-light [data-palette] {
@@ -1080,26 +1089,55 @@ pre {
  * un livre ouvert entre les pédipalpes, les yeux qui suivent les lignes, le
  * cerveau qui luit, une page qui tourne, le viseur éteint (rien n'est ciblé).
  */
-.welcome-spider {
-  flex: none;
-  width: 120px;
-  height: auto;
-  aspect-ratio: 935 / 1175;
-  margin-bottom: var(--jn-s2);
+.rw-spider {
   overflow: visible;
+  aspect-ratio: 935 / 1175;
   --rw-red: var(--jn-sig);
   --rw-steel-hi: #b0b1b8;
   --rw-steel: #606168;
   --rw-ink: #131417;
 }
-body.vscode-light .welcome-spider {
+body.vscode-light .rw-spider {
   --rw-steel-hi: #9a9ca4;
   --rw-steel: #4f5157;
   --rw-ink: #1d1e22;
 }
-body.vscode-high-contrast .welcome-spider,
-body.vscode-high-contrast-light .welcome-spider {
-  --rw-red: var(--jn-sig);
+body.vscode-high-contrast .rw-spider,
+body.vscode-high-contrast-light .rw-spider {
+  --rw-steel-hi: var(--vscode-foreground);
+  --rw-steel: var(--vscode-foreground);
+  --rw-ink: var(--vscode-editor-background);
+}
+.welcome-spider {
+  flex: none;
+  width: 120px;
+  height: auto;
+  margin-bottom: var(--jn-s2);
+}
+/* Petite icône (tête au cerveau et quatre pattes) : logo de l'en-tête, de
+ * l'indicateur de réflexion, des réponses et des cartes d'aperçu. */
+.rw-mini {
+  flex: none;
+  aspect-ratio: 925 / 771;
+}
+.rw-mini .rw-book {
+  display: none;
+}
+#title .brand.rw-mini {
+  width: 26px;
+  height: auto;
+}
+.msg-avatar.rw-mini,
+.thinking-mark.rw-mini {
+  width: 22px;
+  height: auto;
+}
+.pal-logo.rw-mini {
+  width: 32px;
+  height: auto;
+}
+body.waiting .thinking-mark.rw-mini {
+  --rw-red: var(--jn-warn);
 }
 .rw-spider :is(.rw-leg, .rw-palp, .rw-crosshair, .rw-brain, .rw-eyes, .rw-book, .rw-book-turn) {
   transform-box: fill-box;
@@ -1110,33 +1148,31 @@ body.vscode-high-contrast-light .welcome-spider {
   transform-origin: 50% 50%;
   transition: opacity var(--jn-d3) var(--jn-ease-io);
 }
-#leg-l1,
-#leg-l2 {
+.rw-leg-l1,
+.rw-leg-l2 {
   transform-origin: 100% 100%;
 }
-#leg-r1,
-#leg-r2 {
+.rw-leg-r1,
+.rw-leg-r2 {
   transform-origin: 0% 100%;
 }
-#leg-l3 {
+.rw-leg-l3 {
   transform-origin: 100% 30%;
 }
-#leg-r3 {
+.rw-leg-r3 {
   transform-origin: 0% 30%;
 }
-#leg-l4 {
+.rw-leg-l4 {
   transform-origin: 100% 0%;
 }
-#leg-r4 {
+.rw-leg-r4 {
   transform-origin: 0% 0%;
 }
+/* Livre : aucune transition (les rendus image par image les figent à mi-course) ;
+ * l'apparition est une animation, et l'état final est la position de repos. */
 .rw-book {
   opacity: 0;
   transform-origin: 50% 0%;
-  transform: translateY(40px) scale(0.6);
-  transition:
-    opacity var(--jn-d3) var(--jn-ease-io),
-    transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .rw-book-cover {
   fill: var(--jn-sig);
@@ -1162,7 +1198,6 @@ body.vscode-high-contrast-light .welcome-spider {
 }
 body.learning .rw-book {
   opacity: 1;
-  transform: none;
 }
 body.learning .rw-spider .rw-crosshair {
   opacity: 0.25;
@@ -6485,6 +6520,7 @@ body[data-palette]:where(
   --jn-accent-fill-hover: var(--jn-brand);
   --jn-accent-fill-border: transparent;
   --jn-on-accent: var(--jn-on-brand);
+  --jn-bypass: var(--jn-brand);
   & ::selection {
     background: color-mix(in srgb, var(--jn-brand) 34%, transparent);
   }
@@ -6551,40 +6587,94 @@ body:is(
 .pal-card:not([data-palette="multi"]) .pal-logo .brand-node {
   fill: var(--jn-grad-c);
 }
-/* Aura du bypass en dégradé qui tourne (jeux en dégradé et Multicolore). */
+/* Bypass aux couleurs de la palette : aura en dégradé qui tourne autour de la
+ * vue, pastille de l'en-tête, compositeur, interrupteur et jauge des règles
+ * d'engagement en dégradé qui défile. Jeux unis : reflet de leur signature ;
+ * jeux en dégradé et Multicolore : leurs teintes. En attente de confirmation,
+ * le contour reste en pointillés. Hors jeu Éditeur et contraste élevé, où le
+ * bypass garde sa couleur propre. Mouvement réduit : dégradés fixes. */
 @property --jn-aura-turn {
   syntax: "<angle>";
   inherits: false;
   initial-value: 0deg;
 }
-body:is(
-  [data-palette="multi"],
-  [data-palette="aurora"],
-  [data-palette="synthwave"],
-  [data-palette="toxic"],
-  [data-palette="bloodmoon"],
-  [data-palette="ocean"],
-  [data-palette="nebula"]
-):where(:not(.vscode-high-contrast, .vscode-high-contrast-light)).bypass-on::after {
-  border: 3px solid transparent;
-  border-image: conic-gradient(from var(--jn-aura-turn), var(--jn-aura-stops)) 1;
-  box-shadow:
-    inset 0 0 26px color-mix(in srgb, var(--jn-grad-b) 30%, transparent),
-    inset 0 0 80px color-mix(in srgb, var(--jn-grad-c) 12%, transparent);
+body[data-palette]:where(
+  :not([data-palette="editeur"], .vscode-high-contrast, .vscode-high-contrast-light)
+) {
+  &.bypass-on::after {
+    border: 3px solid transparent;
+    border-image: conic-gradient(from var(--jn-aura-turn), var(--jn-aura-stops)) 1;
+    box-shadow:
+      inset 0 0 26px color-mix(in srgb, var(--jn-grad-b) 30%, transparent),
+      inset 0 0 80px color-mix(in srgb, var(--jn-grad-c) 12%, transparent);
+  }
+  & #bypass-badge {
+    background: var(--jn-grad-loop);
+    background-size: 200% 100%;
+    color: var(--jn-on-brand);
+  }
+  &.bypass-on #composer {
+    border-color: transparent;
+    background:
+      linear-gradient(
+        var(--vscode-input-background, var(--jn-widget)),
+        var(--vscode-input-background, var(--jn-widget))
+      )
+      padding-box,
+      var(--jn-grad-loop) border-box;
+    background-size:
+      100% 100%,
+      200% 100%;
+    box-shadow: 0 0 18px color-mix(in srgb, var(--jn-grad-b) 26%, transparent);
+  }
+  & #bypass-switch[aria-checked="true"]::after,
+  & .roe[data-level="3"] .roe-gauge i {
+    background: var(--jn-grad-loop);
+    background-size: 200% 100%;
+  }
 }
 @media (prefers-reduced-motion: no-preference) {
-  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light):is(
-    [data-palette="multi"],
-    [data-palette="aurora"],
-    [data-palette="synthwave"],
-    [data-palette="toxic"],
-    [data-palette="bloodmoon"],
-    [data-palette="ocean"],
-    [data-palette="nebula"]
-  ).bypass-on::after {
-    animation:
-      jn-aura 4s var(--jn-ease-io) infinite,
-      jn-aura-spin 6s linear infinite;
+  body[data-palette]:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light):where(
+    :not([data-palette="editeur"])
+  ) {
+    &.bypass-on::after {
+      animation:
+        jn-aura 4s var(--jn-ease-io) infinite,
+        jn-aura-spin 6s linear infinite;
+    }
+    &.bypass-ending::after {
+      animation:
+        jn-aura 1s var(--jn-ease-io) infinite,
+        jn-aura-spin 2s linear infinite;
+    }
+    & #bypass-badge,
+    & #bypass-switch[aria-checked="true"]::after,
+    & .roe[data-level="3"] .roe-gauge i {
+      animation: jn-grad-shift 3s linear infinite;
+    }
+    &.bypass-on #composer {
+      animation: jn-grad-shift-border 3s linear infinite;
+    }
+  }
+}
+@keyframes jn-grad-shift {
+  from {
+    background-position: 0% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+@keyframes jn-grad-shift-border {
+  from {
+    background-position:
+      0% 0,
+      0% 0;
+  }
+  to {
+    background-position:
+      0% 0,
+      -200% 0;
   }
 }
 @keyframes jn-aura-spin {
@@ -6804,20 +6894,20 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
     & .welcome-spider .rw-palp {
       animation: rw-leg-in 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both;
     }
-    & .welcome-spider #leg-l1,
-    & .welcome-spider #leg-r1 {
+    & .welcome-spider .rw-leg-l1,
+    & .welcome-spider .rw-leg-r1 {
       animation-delay: 0.1s;
     }
-    & .welcome-spider #leg-l2,
-    & .welcome-spider #leg-r2 {
+    & .welcome-spider .rw-leg-l2,
+    & .welcome-spider .rw-leg-r2 {
       animation-delay: 0.18s;
     }
-    & .welcome-spider #leg-l3,
-    & .welcome-spider #leg-r3 {
+    & .welcome-spider .rw-leg-l3,
+    & .welcome-spider .rw-leg-r3 {
       animation-delay: 0.26s;
     }
-    & .welcome-spider #leg-l4,
-    & .welcome-spider #leg-r4 {
+    & .welcome-spider .rw-leg-l4,
+    & .welcome-spider .rw-leg-r4 {
       animation-delay: 0.34s;
     }
     & .welcome-spider .rw-palp {
@@ -6832,14 +6922,45 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
     & .welcome-spider .rw-eyes {
       animation: rw-blink 5s var(--jn-ease-io) 1.3s infinite;
     }
+    /* Mini araignée : elle marche pendant que l'agent travaille, une patte sur
+     * deux, et son cerveau luit ; au survol de l'en-tête, un pas. */
+    &.running:not(.waiting, .paused) :is(#title, #thinking) .rw-mini .rw-leg,
+    &.running:not(.waiting, .paused)
+      #log
+      .msg-row.agent:not(:has(~ .msg-row.agent))
+      .rw-mini
+      .rw-leg {
+      animation: rw-walk 0.5s var(--jn-ease-io) infinite alternate;
+    }
+    &.running:not(.waiting, .paused) .rw-mini :is(.rw-leg-l3, .rw-leg-r4) {
+      animation-delay: -0.25s;
+    }
+    &.running:not(.waiting, .paused) :is(#title, #thinking) .rw-mini .rw-brain,
+    &.running:not(.waiting, .paused)
+      #log
+      .msg-row.agent:not(:has(~ .msg-row.agent))
+      .rw-mini
+      .rw-brain {
+      animation: rw-pulse 1.2s var(--jn-ease-io) infinite;
+    }
+    & #title:hover .rw-mini .rw-leg {
+      animation: rw-walk 0.25s var(--jn-ease-io) 4 alternate;
+    }
+    & #log .msg-row.agent.enter .msg-avatar.rw-mini,
+    & #log .enter .msg-row.agent .msg-avatar.rw-mini {
+      animation: jn-spider-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    }
     /* Apprentissage : elle lit. */
     &.learning .welcome-spider .rw-eyes {
       animation:
         rw-read 2.4s var(--jn-ease-io) infinite,
         rw-blink 5s var(--jn-ease-io) 1.3s infinite;
     }
+    &.learning .welcome-spider .rw-book {
+      animation: rw-book-in 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    }
     &.learning .welcome-spider .rw-brain {
-      animation: rw-think 2.4s var(--jn-ease-io) infinite;
+      animation: rw-pulse 2.4s var(--jn-ease-io) infinite;
     }
     &.learning .welcome-spider .rw-crosshair {
       animation: rw-dim 0.4s var(--jn-ease-io) forwards;
@@ -6847,8 +6968,8 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
     &.learning .welcome-spider .rw-book-turn {
       animation: rw-page 4.8s var(--jn-ease-io) 0.8s infinite;
     }
-    &.learning .welcome-spider #leg-l1,
-    &.learning .welcome-spider #leg-r1 {
+    &.learning .welcome-spider .rw-leg-l1,
+    &.learning .welcome-spider .rw-leg-r1 {
       animation: rw-hold 2.4s var(--jn-ease-io) infinite;
     }
     & button .ico,
@@ -7141,13 +7262,26 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
 }
 @keyframes rw-brain-on {
   0% {
-    opacity: 0.2;
+    opacity: 0.15;
+  }
+  40% {
+    opacity: 1;
   }
   55% {
-    opacity: 1;
+    opacity: 0.6;
   }
   100% {
     opacity: 1;
+  }
+}
+@keyframes rw-book-in {
+  from {
+    opacity: 0;
+    transform: translateY(40px) scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }
 @keyframes rw-lock-in {
@@ -7185,15 +7319,6 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
     translate: -10px 4px;
   }
 }
-@keyframes rw-think {
-  0%,
-  100% {
-    opacity: 0.6;
-  }
-  50% {
-    opacity: 1;
-  }
-}
 @keyframes rw-page {
   0%,
   70% {
@@ -7212,6 +7337,23 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
   100% {
     opacity: 0;
     transform: scaleX(-1);
+  }
+}
+@keyframes rw-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+@keyframes rw-walk {
+  from {
+    rotate: -7deg;
+  }
+  to {
+    rotate: 7deg;
   }
 }
 @keyframes rw-dim {

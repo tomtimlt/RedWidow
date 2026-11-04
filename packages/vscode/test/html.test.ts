@@ -60,6 +60,28 @@ describe("HTML du chat : CSP stricte", () => {
   });
 });
 
+describe("araignée dans les réglages et la Kill chain", () => {
+  it.each([studioHtml, killchainHtml])(
+    "charge l’icône locale sous nonce avant le script de la vue",
+    (render) => {
+      const html = render({ ...opts, scriptUri: "https://x.vscode-cdn.net/media/studio.js" });
+      const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)];
+      expect(scripts).toHaveLength(4);
+      expect(scripts.map((match) => /src="([^"]+)"/.exec(match[1] ?? "")?.[1])).toEqual([
+        "https://x.vscode-cdn.net/media/i18n.js",
+        opts.iconsUri,
+        "https://x.vscode-cdn.net/media/spider.js",
+        "https://x.vscode-cdn.net/media/studio.js",
+      ]);
+      for (const match of scripts) {
+        expect(match[1]).toContain(`nonce="${opts.nonce}"`);
+        expect(match[2]).toBe("");
+      }
+      expect(() => render({ ...opts, spiderUri: 'x" onerror="y' })).toThrow();
+    },
+  );
+});
+
 describe("scripts de la webview", () => {
   const js = read("../media/chat.js");
   const ui = read("../media/ui.js");

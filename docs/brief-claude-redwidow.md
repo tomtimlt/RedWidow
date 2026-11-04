@@ -1,12 +1,13 @@
 # Brief Claude — supports RedWidow après intégration
 
-La branche temporaire de production est `temp/0.3.71-redwidow`. Le lot porte
-l’habillage de `design/ui-vscode` à `f26842c` dans la vraie extension 0.3.70.
+La branche temporaire de production est `temp/0.3.72-design-refresh`. Le lot porte
+les nouveautés de `design/ui-vscode` à `b7e2529` dans la vraie extension 0.3.71.
 Lire `docs/redwidow.md` et `AGENTS.md` avant de reprendre.
 
 ## Déjà intégré — ne pas remplacer par les fichiers de démonstration
 
-Le nom, le viseur, l’araignée SVG en mode normal/Apprentissage, les 23 palettes,
+Le nom, la petite araignée dans l’interface et l’icône native, le viseur de
+secours, l’araignée SVG en mode normal/Apprentissage, les 23 palettes,
 Geist + JetBrains Mono, l’aura réelle du Bypass et l’icône Marketplace. Le menu +,
 les providers, MCP, skills, FR/EN, Monitor, Kill chain et Audit restent ceux de
 production. `media/chat.js` et `studio.js` de l’atelier ne doivent pas remplacer
@@ -18,6 +19,17 @@ cerveau animé par opacité plutôt que `filter: drop-shadow`, cartes des palett
 traduites et anciens titres de terminaux reconnus. Le relais des palettes entre
 les vues accepte maintenant les 23 jeux. Les reflets de boutons unis et Aurora
 clair ont été ajustés pour préserver le contraste ; conserver ces corrections.
+
+## Kit et vidéos désormais livrés
+
+Le kit RedWidow refait par Claude est livré dans `redwidow-video-kit.zip`.
+Les quatre vidéos V8 (FR/EN, 16:9 et 9:16), leurs sources et leurs empreintes
+sont déposées dans le même dossier privé que la release 0.3.72. Ils restent
+séparés du VSIX. Les anciennes itérations V1 à V7 restent sur la branche design.
+Les aperçus de l’atelier ne prouvent pas une validation des actions réelles.
+Avant publication d’une vidéo, vérifier son URL finale : le dépôt de livraison
+utilise encore `tomtimlt/warband`, alors que les films annoncent `tomtimlt/redwidow`.
+La livraison ne renomme pas le dépôt GitHub.
 
 ## À refaire graphiquement
 
@@ -31,7 +43,7 @@ promotionnels à renouveler, pas des fonctions manquantes de l’extension.
 | Aperçu social GitHub | `media/brand/social-preview.png` et variantes `banner-github*.png` de l’atelier | 1280 × 640 ; logo RedWidow, lisible à petite taille ; réglage GitHub à faire par le propriétaire |
 | Bannière LinkedIn | `media/brand/banner-linkedin.png` de l’atelier | 1584 × 396 en 2x, zone de photo de profil préservée |
 | Carrousel | `media/brand/linkedin-carousel-*` de l’atelier | Deux slides 4:5 à 1080 × 1350 en 2x, PDF et version animée si conservée |
-| Kit vidéo | `media/brand/video-kit/` et ZIP Venator Ops de l’atelier | Mettre à jour brief, identité, logos, cartons, noms et captures, sans conserver le branding Venator |
+| Kit vidéo | `media/brand/video-kit/redwidow-video-kit.zip` | Refonte livrée en 0.3.72 ; conserver les composants RedWidow et les licences |
 
 Les logos RedWidow vectoriels et PNG et la vidéo `redwidow-intro.mp4` existent
 **déjà** dans `design/ui-vscode:media/brand/redwidow/`. La vidéo est une ressource

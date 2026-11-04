@@ -190,8 +190,21 @@
     btn.addEventListener("click", () => copy(text, btn));
     return btn;
   }
-  // Les réponses de l'agent sont signées du logo, repris de l'en-tête.
+  // L’araignée remplace le viseur de secours sans changer les contrôles du chat.
+  const spiderMark = (className) =>
+    globalThis.WarbandSpider?.createMini(`brand rw-spider rw-mini ${className}`) ?? null;
+  for (const [selector, className] of [
+    ["#title .brand", "rw-title"],
+    ["#thinking .thinking-mark", "thinking-mark"],
+  ]) {
+    const previous = document.querySelector(selector);
+    const mark = previous && spiderMark(className);
+    if (mark) previous.replaceWith(mark);
+  }
+  // Les réponses de l'agent sont signées du logo.
   function agentMark() {
+    const spider = spiderMark("msg-avatar");
+    if (spider) return spider;
     const mark = document.querySelector("#title .brand")?.cloneNode(true);
     if (!mark) return null;
     mark.setAttribute("class", "brand msg-avatar");
