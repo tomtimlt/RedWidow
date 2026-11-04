@@ -96,7 +96,7 @@ Reference for title size and layout; build titles as live text.
 | `05-learning` | STUCK ON A BOX? / FEED IT YOUR COURSE. / IT READS YOUR TERMINAL. |
 | `06-without-ai` | WORKS BY HAND. / AI WHEN YOU CALL IT. |
 | `07-tagline` | PENTEST IN VS CODE, / WITH AI ON CALL. |
-| `08-end` | spider, REDWIDOW, tagline, “Open source · github.com/tomtimlt/warband” |
+| `08-end` | spider, REDWIDOW, tagline, “Open source · github.com/tomtimlt/redwidow” |
 | `09-make-it-yours` | 23 COLOR SETS. / ONE SPIDER. |
 
 ### `fonts/`

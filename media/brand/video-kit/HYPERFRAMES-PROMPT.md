@@ -109,7 +109,7 @@ Learning mode only reads and explains. Open source.
 | 18 | 47.0–51.0 | `chat-bypass` | “Make it yours.” + card text 23 COLOR SETS. / ONE SPIDER. | the bypass aura already rotates; every half beat call `RedWidowUI.palette(root, id)` with `widow`, `aurora`, `venom`, `synthwave`, `arctic`, `nebula`, `multi`, ending on `widow`: the whole UI, the spider’s eyes and the aura change color |
 | 19 | 51.0–55.0 | montage | — | eight 0.5 s cuts on the beat, each a different component and a different moving part already shown, each with a 3 % punch-in |
 | 20 | 55.0–57.5 | title | PENTEST IN VS CODE, / WITH AI ON CALL. (crimson) | stagger |
-| 21 | 57.5–60.0 | end card | spider, REDWIDOW, “Open source · github.com/tomtimlt/warband”, small “For authorized testing only.” | spider lock-in again (legs + crosshair, 0.8 s), hold to the end |
+| 21 | 57.5–60.0 | end card | spider, REDWIDOW, “Open source · github.com/tomtimlt/redwidow”, small “For authorized testing only.” | spider lock-in again (legs + crosshair, 0.8 s), hold to the end |
 
 ## 6. Audio
 
