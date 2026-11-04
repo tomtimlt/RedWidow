@@ -1,10 +1,13 @@
 # RedWidow promo V7 : la V6 ralentie (94 BPM) en deux formats, 16:9 et 9:16.
-# Usage : python3 build.py 16x9|9x16  → film-16x9.html / film-9x16.html + timeline.json
+# Usage : python3 build.py 16x9|9x16 [fr]  → film-16x9.html / film-9x16.html (film-16x9-fr.html en français) + timeline.json
 import os, sys, json, math
 H = os.path.dirname(os.path.abspath(__file__))
 K = '/home/user/warband/media/brand/video-kit/html/'
 FMT = sys.argv[1] if len(sys.argv) > 1 else '16x9'
 V = FMT == '9x16'
+LANG = sys.argv[2] if len(sys.argv) > 2 else 'en'; FR = LANG == 'fr'
+import fr as FRM
+X = (lambda txt: FRM.cap(txt)) if FR else (lambda txt: txt)
 W, HH = (1080, 1920) if V else (1920, 1080)
 BPM = 94
 # +1 temps avant la révélation, +3 temps après « Rejouer » pour atteindre la racine avant le chapitre 3
@@ -22,11 +25,12 @@ C = {n: comp(K + n + '.html') for n in ['monitor', 'killchain', 'welcome', 'chat
 C['chat-agent'] = comp(H + '/snap/chat-agent.html')
 C['chat-agent-tall'] = comp(H + '/snap/chat-agent-tall.html')
 C['chat-bypass-tall'] = comp(H + '/snap/chat-bypass-tall.html')
+if FR: C = {k: FRM.ui(v) for k, v in C.items()}
 def L(b, cls, txt, x=None):
     xs = f' data-x="{B(x)}"' if x is not None else ''
-    return f'<div class="cl {cls}" data-t="{B(b)}"{xs}>{txt}</div>'
+    return f'<div class="cl {cls}" data-t="{B(b)}"{xs}>{X(txt)}</div>'
 def chapter(n, word, b, extra=''):
-    return f'<div class="chap{extra}" data-t="{B(b)}"><div class="chap-n">{n:02d}</div><div class="chap-w">{word}</div></div>'
+    return f'<div class="chap{extra}" data-t="{B(b)}"><div class="chap-n">{n:02d}</div><div class="chap-w">{X(word)}</div></div>'
 TL = {k: B(v) for k, v in dict(
     p1=0.5, p2=2.0, p3=3.5, p4=5.0, strike=6.5, reveal=8.0, tag=9.0,
     ch1=13.0, chat=14.5, type0=14.6, type1=16.0, send=16.1, tools=16.5, msg2=18.2, mon=18.5,
@@ -64,6 +68,7 @@ else:
     termWin = win('w-term', 'kali-1', C['terminal'], 560, 690, 1.75, 50, 560, (0, 160, 560, 270))
     learnWin = win('w-learn', 'RedWidow: Chat', C['chat-learning'], 470, 690, 2.1, 46, 1080, (0, 300, 470, 300))
     hintCap = dict(left=70, top=250, width=940); painPos = (70, 640); centerTop = dict(models=700, end1=560)
+if FR and not V: hintCap = dict(left=1285, top=hintCap['top'], width=620)  # légendes françaises plus longues
 def cap(d, inner, cls='cap'):
     return f'<div class="{cls}" style="left:{d["left"]}px;top:{d["top"]}px;width:{d["width"]}px">{inner}</div>'
 inl = '' if V else ' inl'
@@ -74,7 +79,7 @@ S.append(('pain', 0, TL['reveal'], f'''<div class="term-lines" style="left:{pain
 S.append(('reveal', TL['reveal'], B(13.0), f'''<div id="halo" class="halo"></div>
 <div class="lock"><div id="lock-slot" class="spslot"></div>
 <div class="lock-txt"><div class="wm slam" data-t="{TL['reveal']}"><b>RED</b>WIDOW</div>
-<div class="mono scr tagline" data-t="{TL['tag']}" data-d="0.8">AI-native pentest workspace · in VS Code</div></div></div>'''))
+<div class="mono scr tagline" data-t="{TL['tag']}" data-d="0.8">{X('AI-native pentest workspace · in VS Code')}</div></div></div>'''))
 S.append(('c1', TL['ch1'], TL['chat'], chapter(1, 'Recon', 13.0)))
 S.append(('recon', TL['chat'], TL['mon'], chatWin('w-chat', 'chat-agent-tall') + cap(capL,
     L(15.0, 'mid', 'Give it') + L(15.2, 'mid g', 'a target.') +
@@ -104,16 +109,16 @@ S.append(('end1', TL['all'], TL['lock'], f'''<div class="cap center" style="top:
 S.append(('end2', TL['lock'], TL['end'] + 1.2, f'''<div id="halo2" class="halo"></div>
 <div class="lock"><div id="end-slot" class="spslot small"></div>
 <div class="lock-txt"><div class="wm slam" data-t="{TL['lock']}"><b>RED</b>WIDOW</div><div class="mono scr url" data-t="{B(68.0)}" data-d="0.8">github.com/tomtimlt/redwidow</div></div></div>
-<div class="legal cl" data-t="{B(68.5)}">For authorized testing only.</div>'''))
-rail = '<div id="rail" class="rail">' + ''.join(f'<div class="rail-step" data-i="{i}"><i>{i + 1:02d}</i>{w}</div>' for i, w in enumerate(['Recon', 'Analysis', 'Action', 'Report'])) + '</div>'
+<div class="legal cl" data-t="{B(68.5)}">{X('For authorized testing only.')}</div>'''))
+rail = '<div id="rail" class="rail">' + ''.join(f'<div class="rail-step" data-i="{i}"><i>{i + 1:02d}</i>{X(w)}</div>' for i, w in enumerate(['Recon', 'Analysis', 'Action', 'Report'])) + '</div>'
 body = ''.join(f'<section class="scene" id="{i}" data-in="{a}" data-out="{b}">{h}</section>' for i, a, b, h in S)
-html = f'''<!doctype html><html><head><meta charset="utf-8"><title>RedWidow promo V7 {FMT}</title>
+html = f'''<!doctype html><html lang="{LANG}"><head><meta charset="utf-8"><title>RedWidow promo V7 {FMT} {LANG}</title>
 <link rel="stylesheet" href="file://{K}css/redwidow-ui.css">
 <link rel="stylesheet" href="file://{H}/film.css">
 {'<link rel="stylesheet" href="file://' + H + '/film-9x16.css">' if V else ''}
 <script src="file:///home/user/warband/media/spider.js"></script>
-<script>window.TL = {json.dumps(TL)}; window.FMT = "{FMT}";</script>
+<script>window.TL = {json.dumps(TL)}; window.FMT = "{FMT}"; window.LANG = "{LANG}";</script>
 </head><body class="fmt-{FMT}"><div id="stage">{web()}{body}{rail}<div id="wipe"></div></div><div id="flash"></div><script src="file://{H}/film.js"></script></body></html>'''
-open(f'{H}/film-{FMT}.html', 'w').write(html)
+open(f'{H}/film-{FMT}{"-fr" if FR else ""}.html', 'w').write(html)
 json.dump(TL, open(H + '/timeline.json', 'w'), indent=1)
 print(FMT, len(html), 'end', TL['end'])

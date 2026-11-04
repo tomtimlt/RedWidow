@@ -13,6 +13,7 @@ HTML du kit `../video-kit/html/`), sur le lab fictif `10.10.10.14`.
 | `redwidow-promo-v6.mp4` | 1920 × 1080, 30 i/s, 42,4 s, H.264 + AAC, −14 LUFS | V6 : la V5 à l'identique (montage, musique) dans la palette rouge Widow : noir, cramoisi `#E5132B` et acier, interface en palette Widow, araignée aux couleurs de la marque. `src-v6/recolor.py` dérive les fichiers de la V5 ; la musique et les autres sources sont celles de `src-v5/` |
 | `redwidow-promo-v7.mp4` | 1920 × 1080, 30 i/s, 51,5 s, H.264 + AAC, −14 LUFS | V7 : la V6 ralentie (94 BPM au lieu de 110, chaque temps dure 0,64 s) pour laisser lire chaque plan ; trois temps de plus après « Rejouer » pour que le chemin atteigne sa dernière étape avant le chapitre 3. Musique darksynth recalée sur le nouveau tempo. Sources dans `src-v7/` |
 | `redwidow-promo-v7-9x16.mp4` | 1080 × 1920, 30 i/s, 51,5 s, H.264 + AAC, −14 LUFS | V7 verticale pour Reels, Shorts et LinkedIn mobile : même montage et même musique, légendes et fenêtres en colonne entre 250 et 1600 px de haut (zones sûres des interfaces mobiles), chat capturé en hauteur (470 × 849) avec une caméra qui passe de la saisie aux messages, kill chain resserrée qui suit le chemin pendant « Rejouer », terminal et chat d'Apprentissage empilés. `film-9x16.css` complète `film.css` |
+| `redwidow-promo-v7-fr.mp4` | 1920 × 1080, 30 i/s, 51,5 s, H.264 + AAC, −14 LUFS | V7 paysage en français : même montage et même musique que la V7. Légendes traduites (« Donne-lui une cible. », « Pilote-la. / Ou lâche la bête. », « Tout ça. / Open source. / Gratuit. »), rail Repérage · Analyse · Action · Rapport, interface en français avec les libellés réels du produit (Supervisé, Rejouer, Votre consigne…) et lab fictif traduit (chat, kill chain, rapport, Apprentissage). Dictionnaires dans `src-v7/fr.py` |
 
 ## Refaire une version
 
@@ -43,3 +44,9 @@ et `python3 build.py 9x16` écrivent `film-16x9.html` et `film-9x16.html` (et
 `node render.cjs 9x16 redwidow-promo-v7-9x16.mp4 51.5 music.wav`
 (`node still.cjs 9x16 19 27.6` pour des images fixes). Le tempo se règle par
 `BPM` dans `build.py` ; la musique le lit dans `timeline.json`.
+
+Version française : `python3 build.py 16x9 fr` écrit `film-16x9-fr.html`, puis
+`node render.cjs 16x9-fr redwidow-promo-v7-fr.mp4 51.5 music.wav` (même
+musique). `fr.py` traduit les légendes (`CAP`) et les nœuds texte de
+l’interface (`UI`) ; `film.js` traduit les textes qu’il écrit lui-même
+(consigne tapée, journal de la kill chain, « Rejouer », ROE).

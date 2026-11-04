@@ -113,7 +113,8 @@
   // 1 — Recon : prompt, puis les outils
   const chat = $('#w-chat');
   const H = { rows: $$('#log > *', chat), tools: $$('.tool-group > details', chat), input: $('#input', chat), ui: $('.vo-ui', chat), label: $('#thinking-label', chat), clock: $('#thinking-clock', chat) };
-  const PROMPT = 'Recon 10.10.10.14 and find me a way in.', CMDS = ['nmap', 'whatweb', 'ffuf', 'sqlmap'];
+  const W = (en, fr) => (window.LANG === 'fr' ? fr : en);
+  const PROMPT = W('Recon 10.10.10.14 and find me a way in.', 'Repère 10.10.10.14 et trouve-moi une entrée.'), CMDS = ['nmap', 'whatweb', 'ffuf', 'sqlmap'];
   const pills = $$('.cl.tools span');
   // Caméra verticale du chat : sur la saisie pendant la frappe, puis sur les messages.
   const camY = (win, cy) => { const cs = $('.cs', win); cs.style.transform = `scale(${win.dataset.s}) translate(${-win.dataset.cx}px,${-cy}px)`; };
@@ -127,7 +128,7 @@
     show(H.rows[1], t >= T.send + 0.15); show(H.rows[2], t >= T.tools);
     H.tools.forEach((d, i) => show(d, t >= T.tools + i * BEAT * 0.75));
     pills.forEach((p, i) => { const a = T.tools + i * BEAT * 0.75; const q = out3(P(t, a, a + 0.2)); p.style.opacity = q; p.style.transform = `scale(${0.8 + 0.2 * back(q)})`; });
-    H.label.textContent = `Tool: ${CMDS[clamp(Math.floor((t - T.tools) / (BEAT * 0.75)), 0, 3)]}`;
+    H.label.textContent = `${W('Tool: ', 'Outil : ')}${CMDS[clamp(Math.floor((t - T.tools) / (BEAT * 0.75)), 0, 3)]}`;
     H.clock.textContent = `T+00:${String(Math.max(0, Math.floor((t - T.send) * 5))).padStart(2, '0')}`;
     show(H.rows[3], t >= T.msg2);
   }
@@ -148,7 +149,9 @@
   const FEED = [
     ['+', 'host', 'Scan 10.10.10.14', 'T1046'], ['+', 'site', 'Admin panel :8080', 'T1595'], ['+', 'credential', 'Default accounts', 'T1078'],
     ['×', 'step', 'SSH brute force', 'failed'], ['+', 'step', 'SQLi on /login confirmed', 'T1190'], ['+', 'step', 'www-data shell via webshell', 'T1059'],
-    ['+', 'loot', 'Root escalation', 'T1068']];
+    ['+', 'loot', 'Root escalation', 'T1068']].map(W((r) => r, ([s, k, l, id]) => [s, { host: 'hôte', credential: 'identifiant', step: 'étape' }[k] || k,
+    { 'Admin panel :8080': 'Panneau admin :8080', 'Default accounts': 'Comptes par défaut', 'SSH brute force': 'Force brute SSH', 'SQLi on /login confirmed': 'SQLi sur /login confirmée',
+      'www-data shell via webshell': 'Shell www-data via webshell', 'Root escalation': 'Élévation root' }[l] || l, id === 'failed' ? 'échec' : id]));
   const feed = $('#kc-feed'), stepLine = $('#kc-step');
   const feedRows = FEED.map(([s, k, l, id]) => { const d = document.createElement('div'); d.className = 'feed-row' + (s === '×' ? ' bad' : ''); const a = document.createElement('b'); a.textContent = 'agent'; const m = document.createElement('span'); m.textContent = ` ${s} ${l}`; const r = document.createElement('i'); r.textContent = `  ${k} · ${id}`; d.append(a, m, r); feed.append(d); return d; });
   const REPLAY = [0, 1, 2, 4, 5], STEP = BEAT;
@@ -193,7 +196,7 @@
     edges.forEach((e, i) => { const [u, v] = EDGE_NODES[i]; e.classList.toggle('is-lit', isPath[i] && visited.has(u) && visited.has(v)); });
     if (replaying) {
       const k = Math.min(step, REPLAY.length - 1), lab = $('.kc-node-label', nodes[REPLAY[k]]).textContent;
-      stepLine.textContent = step >= REPLAY.length ? 'Replay · path replayed' : `Replay · step ${k + 1}/${REPLAY.length} · ${lab}`;
+      stepLine.textContent = step >= REPLAY.length ? W('Replay · path replayed', 'Rejouer · chemin rejoué') : `${W('Replay · step', 'Rejouer · étape')} ${k + 1}/${REPLAY.length} · ${lab}`;
       stepLine.style.opacity = 1;
     } else stepLine.style.opacity = 0;
   }
@@ -203,7 +206,7 @@
   function action(t) {
     const on = t >= T.unleash;
     aui.classList.toggle('automatic-on', on);
-    const roe = $('#roe', act); roe.dataset.level = on ? '3' : '2'; $('#roe-label', act).textContent = on ? 'Automatic' : 'Supervised';
+    const roe = $('#roe', act); roe.dataset.level = on ? '3' : '2'; $('#roe-label', act).textContent = on ? W('Automatic', 'Automatique') : W('Supervised', 'Supervisé');
     const badge = $('#automatic-badge', act); badge.hidden = !on; badge.textContent = 'Bypass 2:00';
     aui.classList.toggle('running', on);
     const rep = $('#log .report', act); if (rep) rep.style.display = 'none';
@@ -216,7 +219,7 @@
   function report(t) {
     if (VERT) camY(rw, lerp(0, 269, io(P(t, T.report + 0.1, T.report + 0.7))));
     rui.classList.add('automatic-on');
-    const roe = $('#roe', rw); roe.dataset.level = '3'; $('#roe-label', rw).textContent = 'Automatic';
+    const roe = $('#roe', rw); roe.dataset.level = '3'; $('#roe-label', rw).textContent = W('Automatic', 'Automatique');
     const badge = $('#automatic-badge', rw); badge.hidden = false; badge.textContent = 'Bypass 1:59';
     if (before === null && rep) { rep.style.display = 'none'; before = rlog.scrollHeight - rlog.clientHeight; rep.style.display = ''; after = rlog.scrollHeight - rlog.clientHeight; }
     const a = T.report + 0.25;
@@ -231,7 +234,7 @@
   function learn(t) {
     const on = t >= T.learnOn;
     welUi.classList.toggle('learning', on);
-    const r = $('#roe', wel); if (r) { r.hidden = false; r.dataset.level = on ? '1' : '2'; const l = $('#roe-label', wel); if (l) l.textContent = on ? 'Learning' : 'Supervised'; }
+    const r = $('#roe', wel); if (r) { r.hidden = false; r.dataset.level = on ? '1' : '2'; const l = $('#roe-label', wel); if (l) l.textContent = on ? W('Learning', 'Apprentissage') : W('Supervised', 'Supervisé'); }
   }
   const term = $('#w-term'), lrn = $('#w-learn');
   const tl = $$('.ln', term), hl = $('.ln.hl', term), lrows = $$('#log > *', lrn);
