@@ -268,9 +268,12 @@
   --jn-sw-4: color-mix(in srgb, var(--jn-brand) 30%, var(--vscode-editor-background));
   --jn-pal-fill: var(--jn-grad);
   --jn-on-brand: #0b0d10;
-  --jn-grad-a: var(--jn-brand);
-  --jn-grad-b: color-mix(in srgb, var(--jn-brand) 62%, #ffffff);
-  --jn-grad-c: var(--jn-brand);
+  /* Jeux unis : signature assombrie, signature, signature avivée (plus claire à
+   * teinte égale) ; aucun reflet blanc. */
+  --jn-grad-a: color-mix(in srgb, var(--jn-brand) 68%, #000000);
+  --jn-grad-b: var(--jn-brand);
+  --jn-grad-c: color-mix(in srgb, var(--jn-brand) 86%, #ffffff);
+  --jn-grad-c: oklch(from var(--jn-brand) calc(l + 0.07) c h);
 }
 [data-palette="widow"] {
   --jn-on-brand: #ffffff;

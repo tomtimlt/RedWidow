@@ -285,7 +285,8 @@ foncé sur les tons clairs, blanc sur les tons foncés et en thème clair.
 
 Chaque jeu fournit trois teintes de dégradé (`--jn-grad-a`, `-b`, `-c`, d’où
 `--jn-grad`, `--jn-grad-loop` et `--jn-aura-stops`) ; pour un jeu uni, elles
-sont dérivées de la signature (signature, reflet clair, signature). Le
+sont dérivées de la signature (signature assombrie, signature, signature
+avivée à teinte égale), sans reflet blanc. Le
 dégradé habille les boutons principaux, les soulignements de l’en-tête et des
 Réglages, « RED » du mot-symbole, les phases faites de la mission, le
 remplissage du curseur d’effort et les aperçus ; le logo prend la première
@@ -294,7 +295,7 @@ palette (`--jn-bypass` = signature) : l’aura de la vue devient un contour en
 dégradé qui tourne (`@property --jn-aura-turn`, 6 s ; 2 s dans les dix
 dernières minutes), et la pastille de l’en-tête, le contour du compositeur,
 l’interrupteur de Configurer et la jauge des règles d’engagement passent en
-dégradé qui défile (3 s). Jeux unis : reflet de leur signature ; jeux en
+dégradé qui défile (3 s). Jeux unis : leur signature, de l’assombri à l’avivé ; jeux en
 dégradé et Multicolore : leurs teintes. En attente de confirmation, le
 contour reste en pointillés ; mouvement réduit : dégradés fixes ; jeu Éditeur
 et contraste élevé : couleur propre du bypass. Rien de
