@@ -92,7 +92,7 @@ else:
     welWin = win('w-wel', 'RedWidow: Chat', C['welcome'], 470, 690, 3.0, 90, 700, (85, 60, 300, 246)); welCap = dict(left=70, top=250, width=940)
     termWin = win('w-term', 'kali-1', C['terminal'], 560, 690, 1.75, 50, 560, (0, 160, 560, 270))
     learnWin = win('w-learn', 'RedWidow: Chat', C['chat-learning'], 470, 690, 2.1, 46, 1080, (0, 300, 470, 300))
-    hintCap = dict(left=70, top=250, width=940); centerTop = dict(models=700, end1=560, recap=760)
+    hintCap = dict(left=70, top=215, width=940); centerTop = dict(models=700, end1=560, recap=760)
     hookCap = dict(left=70, top=250, width=940); TGT = (540, 1330); SPW, SPH = 300, 377
 def cap(d, inner, cls='cap'):
     return f'<div class="{cls}" style="left:{d["left"]}px;top:{d["top"]}px;width:{d["width"]}px">{inner}</div>'
@@ -132,7 +132,7 @@ S.append(('report', TL['report'], TL['ch5'], chatWin('w-rep', 'chat-bypass-tall'
 S.append(('c5', TL['ch5'], TL['learn'], chapter(5, 'Learn.', 'Learning mode', 47.0, ' bonus')))
 S.append(('learn', TL['learn'], TL['hint'], welWin + cap(welCap,
     L(48.6, 'mono', 'Learning mode') + L(49.0, 'mid', 'Stuck on') + L(49.2, 'mid', 'a box?') + L(50.3, 'mid v', 'It studies') + L(50.5, 'mid v', 'with you.'))))
-S.append(('hint', TL['hint'], TL['models'], termWin + learnWin + cap(hintCap,
+S.append(('hint', TL['hint'], TL['models'], termWin + learnWin + cap(hintCap, cls='cap hintcap', inner=
     f'''<div class="cg" data-t="{TL['hint']}" data-x="{TL['notlong']}">{L(52.2, 'mid', 'It reads')}{L(52.4, 'mid', 'your terminal.')}{L(53.2, 'mid g', 'It points')}{L(53.4, 'mid g', 'to the flaw.')}</div>
 <div class="cg" data-t="{TL['notlong']}">{L(55.0, 'mid', 'Stuck?')}{L(55.3, 'mid g', 'Not for long.')}</div>''')))
 S.append(('models', TL['models'], TL['r1'], f'''<div class="cap center" style="top:{centerTop['models']}px">{L(57.0, 'mono', 'Bring any model')}
