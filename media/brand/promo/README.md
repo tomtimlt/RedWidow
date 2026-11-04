@@ -14,6 +14,10 @@ HTML du kit `../video-kit/html/`), sur le lab fictif `10.10.10.14`.
 | `redwidow-promo-v7.mp4` | 1920 × 1080, 30 i/s, 51,5 s, H.264 + AAC, −14 LUFS | V7 : la V6 ralentie (94 BPM au lieu de 110, chaque temps dure 0,64 s) pour laisser lire chaque plan ; trois temps de plus après « Rejouer » pour que le chemin atteigne sa dernière étape avant le chapitre 3. Musique darksynth recalée sur le nouveau tempo. Sources dans `src-v7/` |
 | `redwidow-promo-v7-9x16.mp4` | 1080 × 1920, 30 i/s, 51,5 s, H.264 + AAC, −14 LUFS | V7 verticale pour Reels, Shorts et LinkedIn mobile : même montage et même musique, légendes et fenêtres en colonne entre 250 et 1600 px de haut (zones sûres des interfaces mobiles), chat capturé en hauteur (470 × 849) avec une caméra qui passe de la saisie aux messages, kill chain resserrée qui suit le chemin pendant « Rejouer », terminal et chat d'Apprentissage empilés. `film-9x16.css` complète `film.css` |
 | `redwidow-promo-v7-fr.mp4` | 1920 × 1080, 30 i/s, 51,5 s, H.264 + AAC, −14 LUFS | V7 paysage en français : même montage et même musique que la V7. Légendes traduites (« Donne-lui une cible. », « Pilote-la. / Ou lâche la bête. », « Tout ça. / Open source. / Gratuit. »), rail Repérage · Analyse · Action · Rapport, interface en français avec les libellés réels du produit (Supervisé, Rejouer, Votre consigne…) et lab fictif traduit (chat, kill chain, rapport, Apprentissage). Dictionnaires dans `src-v7/fr.py` |
+| `redwidow-promo-v8-16x9.mp4` | 1920 × 1080, 30 i/s, 53 s, H.264 + AAC, −14 LUFS | V8 « Weave. Watch. Strike. Wrap. » : la chasse de la veuve noire calquée sur le rail de mission (Repérage, Analyse, Action, Rapport). Accroche lisible sans le son : « For pentesters · inside VS Code », la cible 10.10.10.14, « YOUR TARGET / IS ALREADY / IN THE WEB. », la toile qui se tisse depuis la cible, la veuve qui descend tête en bas sur son fil, crochets de verrouillage (LOCKED), une demi-seconde de silence puis braam et révélation. Chapitres 01 WEAVE · 02 WATCH · 03 STRIKE · 04 WRAP · 05 LEARN avec la phase réelle en sous-titre, mêmes plans d'interface que la V7, récapitulatif en quatre frappes (Am-F-C-G), fin All of it / Open source / Free. Grain et vignette. Nouvelle bande-son : drone, battement de cœur, fils de soie, descente, braam et sub drop, souffles de chapitres, pause Apprentissage sur le cœur |
+| `redwidow-promo-v8-9x16.mp4` | 1080 × 1920, 30 i/s, 53 s | V8 verticale (Reels, Shorts, LinkedIn mobile), mêmes zones sûres que la V7 |
+| `redwidow-promo-v8-16x9-fr.mp4` | 1920 × 1080, 30 i/s, 53 s | V8 en français : « TA CIBLE / EST DÉJÀ / DANS LA TOILE. », VERROUILLÉE, 01 TISSE · 02 GUETTE · 03 FRAPPE · 04 EMBALLE · 05 APPRENDS, interface en français |
+| `redwidow-promo-v8-9x16-fr.mp4` | 1080 × 1920, 30 i/s, 53 s | V8 verticale en français |
 
 ## Refaire une version
 
@@ -50,3 +54,13 @@ Version française : `python3 build.py 16x9 fr` écrit `film-16x9-fr.html`, puis
 musique). `fr.py` traduit les légendes (`CAP`) et les nœuds texte de
 l’interface (`UI`) ; `film.js` traduit les textes qu’il écrit lui-même
 (consigne tapée, journal de la kill chain, « Rejouer », ROE).
+
+### V8
+
+Dans `src-v8/` (mêmes outils que la V7) : `python3 build.py 16x9|9x16 [fr]`,
+`python3 synth.py music_raw.wav 53.3`, normalisation à −14 LUFS (deux passes),
+puis `node render.cjs <16x9|9x16|16x9-fr|9x16-fr> redwidow-promo-v8-<format>.mp4 53.2 music.wav`.
+La timeline tient en temps musicaux dans `build.py` (`TL`) et pilote à la fois
+l'image (`film.js`) et la musique (`synth.py`). Le silence avant l'impact est
+une porte entre `hush` et `reveal` dans `synth.py`. Les captures du chat en
+hauteur viennent de `src-v7/cap_*_tall.cjs`.

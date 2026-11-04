@@ -1,0 +1,31 @@
+/* RedWidow promo V7 — format vertical 1080 × 1920 (Reels, Shorts, LinkedIn mobile).
+   Zones sûres : légendes et fenêtres entre 250 et 1600 px de haut, marges de 50 à 70 px. */
+html,body{width:1080px;height:1920px}
+#stage{background:radial-gradient(900px 1200px at 50% 48%,#1c0a0e 0%,var(--bg) 70%)}
+.cl.mid{font-size:92px}
+.cl.big{font-size:130px}
+.cl.huge{font-size:170px}
+.cl.giant{font-size:280px}
+.cl.outline{font-size:130px;-webkit-text-stroke-width:3px}
+.cl.mono,.mono{font-size:26px}
+.cl.tools span{font-size:28px;padding:10px 18px}
+.cl.tl{font-size:42px}
+.chap{flex-direction:column;gap:10px}
+.chap-n{font-size:380px}
+.chap-w{font-size:150px}
+.rail{top:130px;gap:10px}
+.rail-step{font-size:19px;padding:11px 16px;gap:9px}
+.lock{flex-direction:column;gap:30px;text-align:center}
+.lock .spslot{width:420px;height:527px}.lock .spslot.small{width:360px;height:452px}
+.wm{font-size:170px}
+.tagline{font-size:26px;max-width:900px;margin:22px auto 0;line-height:1.5}
+.url{font-size:32px}
+.legal{bottom:120px}
+.feed{font-size:24px;max-width:960px}
+.feed-row{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.feed-row b{font-size:18px}
+/* V8 */
+.chap-t{align-items:center}
+.chap-s{font-size:30px;margin:12px 0 0}
+.rcw b{font-size:200px}
+.rcn{font-size:30px}

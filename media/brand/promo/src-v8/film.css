@@ -1,0 +1,99 @@
+/* RedWidow promo V7 : palette rouge Widow, 16:9 (base) ; film-9x16.css pour le vertical. */
+:root{--bg:#0b0b0d;--g:#E5132B;--v:#8b8e97;--v2:#d2d4da;--ink:#f2f3f5;--mute:#a3a6ad}
+html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:var(--bg)}
+#stage{position:absolute;inset:0;overflow:hidden;background:radial-gradient(1200px 800px at 50% 55%,#1c0a0e 0%,var(--bg) 70%)}
+#web{position:absolute;left:0;top:0;fill:none;stroke:rgba(229,19,43,.11);stroke-width:1.2;transform-origin:960px 540px}
+.scene{position:absolute;inset:0;display:none}
+#flash{position:absolute;inset:0;background:var(--g);opacity:0;pointer-events:none;z-index:50;mix-blend-mode:screen}
+#wipe{position:absolute;left:0;right:0;height:3px;background:var(--g);box-shadow:0 0 18px var(--g),0 0 2px #fff;opacity:0;z-index:40;pointer-events:none}
+.cl{opacity:0;will-change:transform,opacity}
+.cap{position:absolute;color:var(--ink);font-family:"Warband Geist";z-index:5}
+.cap.center{left:0;right:0;text-align:center}
+.g{color:var(--g)}.v{color:var(--v2)}
+.cl.mid{font:800 96px/0.98 "Warband Geist";letter-spacing:-0.03em;text-transform:uppercase}
+.cl.big{font:800 140px/0.96 "Warband Geist";letter-spacing:-0.035em;text-transform:uppercase}
+.cl.huge{font:800 190px/1 "Warband Geist";letter-spacing:-0.035em;text-transform:uppercase}
+.cl.giant{font:800 300px/0.9 "Warband Geist";letter-spacing:-0.04em;text-transform:uppercase}
+.cl.outline{font:800 190px/0.98 "Warband Geist";letter-spacing:-0.035em;text-transform:uppercase;color:transparent;-webkit-text-stroke:3px var(--ink)}
+.cl.inl{display:inline-block;margin-right:28px}
+.cl.mono,.mono{font:700 28px/1.4 "Warband JetBrains Mono";letter-spacing:0.16em;text-transform:uppercase;color:var(--mute);margin-top:18px}
+.cl.tools{margin-top:18px;display:flex;flex-wrap:wrap;gap:12px}
+.cl.tools span{font:700 30px/1 "Warband JetBrains Mono";color:#ff3b4e;border:2px solid rgba(229,19,43,.7);border-radius:999px;padding:10px 20px;opacity:0}
+.swap{position:relative}.swap .one{position:absolute;left:0;right:0;top:0}
+/* lignes de terminal de l'ouverture */
+.term-lines{position:absolute;z-index:5}
+.cl.tl{display:table;font:500 58px/1.55 "Warband JetBrains Mono";color:#e6e7ea;white-space:pre;position:relative}
+.cl.tl b{color:var(--g);font-weight:700;margin-right:18px}
+.cl.tl .strike{position:absolute;left:0;top:52%;height:5px;background:var(--g);box-shadow:0 0 12px var(--g)}
+/* cartons de chapitre */
+.chap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:56px;opacity:0;z-index:6}
+.chap-n{font:800 440px/1 "Warband Geist";letter-spacing:-0.05em;color:transparent;-webkit-text-stroke:4px var(--v2)}
+.chap-w{font:800 190px/1 "Warband Geist";letter-spacing:-0.035em;text-transform:uppercase;color:var(--g)}
+.chap.bonus .chap-n{-webkit-text-stroke-color:var(--g)}.chap.bonus .chap-w{color:var(--v2)}
+/* fenêtres */
+.win{position:absolute;background:#1f1f1f;border:1px solid #2f3337;border-radius:12px;overflow:hidden;box-shadow:0 30px 90px rgba(0,0,0,.7),0 0 60px rgba(229,19,43,.10);z-index:2}
+.tab{height:34px;display:flex;align-items:center;gap:10px;padding:0 16px;background:#181818;border-bottom:1px solid #2b2b2b;font:500 14px "Warband Geist";color:#c8c8c8}
+.tab .dot{width:8px;height:8px;border-radius:50%;background:var(--g);display:inline-block}
+.cv{position:relative;overflow:hidden}
+.cs{transform-origin:0 0;position:absolute;left:0;top:0}
+.vo-ui *,.vo-ui *::before,.vo-ui *::after,.vo-ui{transition:none !important}
+/* rail de chapitres */
+.rail{position:absolute;left:50%;top:44px;transform:translateX(-50%);display:flex;gap:14px;z-index:20;opacity:0}
+.rail-step{font:700 22px/1 "Warband JetBrains Mono";letter-spacing:.14em;text-transform:uppercase;color:#6f737b;border:1.5px solid #34363b;border-radius:999px;padding:12px 22px;display:flex;gap:12px;align-items:center;background:rgba(18,18,20,.85)}
+.rail-step i{font-style:normal;color:#55585f}
+.rail-step.done{color:var(--v2);border-color:rgba(210,212,218,.45);background:rgba(210,212,218,.08)}
+.rail-step.done i{color:var(--v2)}
+.rail-step.cur{color:#ffffff;background:var(--g);border-color:var(--g);box-shadow:0 0 24px rgba(229,19,43,.45)}
+.rail-step.cur i{color:#ffffff}
+/* araignée et signature */
+.spslot{position:absolute}
+.spslot svg{width:100%;height:100%;display:block;overflow:visible}
+.hero-spider{--rw-red:#E5132B;--rw-steel-hi:#B0B1B8;--rw-steel:#606168;--rw-ink:#131417}
+.halo{position:absolute;left:50%;top:50%;width:1100px;height:1100px;margin:-550px 0 0 -550px;border-radius:50%;background:radial-gradient(circle,rgba(229,19,43,.30) 0%,rgba(229,19,43,.09) 35%,rgba(229,19,43,0) 68%);opacity:0}
+.lock{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:64px;z-index:3}
+.lock .spslot{position:relative}
+.wm{font:800 230px/1 "Warband Geist";letter-spacing:-0.035em;color:var(--ink);opacity:0}.wm b{color:var(--g)}
+.tagline{position:static;color:var(--v2);font-size:30px;margin-top:24px}
+.url{position:static;color:var(--g);font-size:36px;margin-top:22px}
+.legal{position:absolute;left:0;right:0;bottom:44px;text-align:center;font:500 18px "Warband Geist";color:#6f737b}
+/* journal de l'agent sous la kill chain */
+.feed{position:absolute;z-index:5;font:500 26px/1.55 "Warband JetBrains Mono";color:#cfd2d8}
+.feed-row b{display:inline-block;font-weight:700;color:#ffffff;background:var(--g);border-radius:999px;padding:0 12px;margin-right:6px;font-size:20px;letter-spacing:.12em;text-transform:uppercase;vertical-align:2px}
+.feed-row i{font-style:normal;color:#7d828b}
+.feed-row.bad span{color:#a3a6ad;text-decoration:line-through}
+.feed.step{color:#ff3b4e;font-weight:700;letter-spacing:.06em;opacity:0}
+.scr{opacity:0}
+.cg{position:absolute;left:0;top:0;width:100%}
+.cg.stack{position:static}
+.lock .spslot{width:360px;height:452px}.lock .spslot.small{width:300px;height:377px}
+/* ===== V8 « Weave. Watch. Strike. Wrap. » ===== */
+/* accroche : la cible, la toile, la veuve suspendue */
+#hookweb{position:absolute;left:0;top:0;fill:none;stroke:rgba(229,19,43,.46);stroke-width:1.7;z-index:1}
+#hookweb .hr,#hookweb .hg{stroke-dasharray:1;stroke-dashoffset:1}
+#hookweb .hg{stroke:rgba(229,19,43,.34)}
+#tglow{position:absolute;width:1000px;height:1000px;margin:-500px 0 0 -500px;border-radius:50%;background:radial-gradient(circle,rgba(229,19,43,.26) 0%,rgba(229,19,43,.07) 38%,rgba(229,19,43,0) 70%);opacity:0;z-index:1}
+#thread{position:absolute;top:0;width:2px;background:linear-gradient(rgba(210,212,218,0),rgba(210,212,218,.9) 35%,#d2d4da);opacity:0;z-index:3}
+#hook-sp{position:absolute;transform-origin:50% 50%;z-index:3;opacity:0}
+#target{position:absolute;width:0;height:0;z-index:4}
+#target .t-dot,#target .t-ring{position:absolute;left:0;top:0;width:26px;height:26px;border-radius:50%}
+#target .t-dot{background:var(--g);box-shadow:0 0 26px var(--g),0 0 4px #fff}
+#target .t-ring{border:2px solid var(--g);box-sizing:border-box}
+#target .br{position:absolute;left:-15px;top:-15px;width:30px;height:30px;border:0 solid var(--g);opacity:0;box-sizing:border-box;filter:drop-shadow(0 0 6px rgba(229,19,43,.7))}
+#target .br.tl{border-top-width:4px;border-left-width:4px}#target .br.tr{border-top-width:4px;border-right-width:4px}
+#target .br.bl{border-bottom-width:4px;border-left-width:4px}#target .br.bm{border-bottom-width:4px;border-right-width:4px}
+#target .t-lab{position:absolute;left:0;top:96px;transform:translateX(-50%);white-space:nowrap;font:700 28px "Warband JetBrains Mono";letter-spacing:.14em;text-transform:uppercase;color:var(--v2);opacity:0}
+#target.locked .t-st{color:var(--g)}
+.cl.mono.kick{color:var(--g);margin:0 0 30px}
+/* chapitres : verbe de chasse et phase réelle du rail */
+.chap-t{display:flex;flex-direction:column;align-items:flex-start}
+.chap-s{font:700 34px/1 "Warband JetBrains Mono";letter-spacing:.24em;text-transform:uppercase;color:var(--mute);margin:10px 0 0 10px;opacity:0}
+/* récapitulatif : un verbe par temps */
+.recap{height:340px}
+.recap .rcw{position:absolute;left:0;right:0;top:0;opacity:0;text-align:center}
+.rcn{display:block;font:700 34px/1 "Warband JetBrains Mono";letter-spacing:.24em;text-transform:uppercase;color:var(--mute);margin-bottom:14px}
+.rcw b{display:block;font:800 260px/1 "Warband Geist";letter-spacing:-0.04em;text-transform:uppercase;color:var(--g)}
+/* texture : vignette et grain */
+#vig{position:absolute;inset:0;pointer-events:none;z-index:44;background:radial-gradient(ellipse at 50% 50%,rgba(0,0,0,0) 58%,rgba(0,0,0,.45) 100%)}
+#grain{position:absolute;inset:0;pointer-events:none;z-index:45;background-image:url(grain.png);opacity:.07;mix-blend-mode:overlay}
+#hook-sp .eyeglow{position:absolute;left:50%;top:14%;width:200px;height:200px;margin:-100px 0 0 -100px;border-radius:50%;background:radial-gradient(circle,rgba(255,40,60,.75) 0%,rgba(229,19,43,.25) 30%,rgba(229,19,43,0) 65%);opacity:0;z-index:-1}
+.rcw.ink b{color:var(--ink)}
