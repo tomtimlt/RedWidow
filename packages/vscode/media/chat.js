@@ -42,11 +42,12 @@
   ];
   const statusLabels = () => ({
     pending: t("en cours"),
+    interrupted: t("interrompu ou état inconnu"),
     ok: t("réussi"),
     error: t("erreur"),
     denied: t("refusé"),
   });
-  const ICON = { pending: "clock", ok: "check", error: "close", denied: "ban" };
+  const ICON = { interrupted: "ban", pending: "clock", ok: "check", error: "close", denied: "ban" };
   const svg = (name, className) => globalThis.WarbandIcons.create(name, className);
   function inline(parent, nodes) {
     for (const n of nodes) {
@@ -335,25 +336,51 @@
       node = el("div", `notice ${item.level}`, item.text);
       if (item.level === "error") node.setAttribute("role", "alert");
     }
+    if (cached) node.classList.add("no-enter");
+    if (item.source) node.dataset.source = item.source;
+    if (item.kind === "user" || item.kind === "agent") node.dataset.exchangeId = String(item.id);
     credential.node = node;
     itemNodes.set(item.id, credential);
     return node;
   }
+  const toolGroups = new Map();
+  function stableChildren(parent, nodes) {
+    const wanted = new Set(nodes);
+    for (const child of [...parent.children]) if (!wanted.has(child)) child.remove();
+    let next = null;
+    for (let i = nodes.length - 1; i >= 0; i--) {
+      const node = nodes[i];
+      if (node.parentNode !== parent || node.nextElementSibling !== next)
+        parent.insertBefore(node, next);
+      next = node;
+    }
+  }
   function renderItems(items) {
     const nodes = [];
     let group = null;
+    let grouped = [];
+    const activeGroups = new Set();
+    const finishGroup = () => {
+      if (group) stableChildren(group, grouped);
+    };
     for (const item of items) {
       if (item.kind === "tool") {
         if (!group) {
-          group = el("div", "tool-group");
+          group = toolGroups.get(item.id) ?? el("div", "tool-group");
+          toolGroups.set(item.id, group);
+          activeGroups.add(item.id);
+          grouped = [];
           nodes.push(group);
         }
-        group.append(renderItem(item));
+        grouped.push(renderItem(item));
         continue;
       }
+      finishGroup();
       group = null;
       nodes.push(renderItem(item));
     }
+    finishGroup();
+    for (const id of toolGroups.keys()) if (!activeGroups.has(id)) toolGroups.delete(id);
     const ids = new Set(items.map((item) => item.id));
     for (const id of itemNodes.keys()) if (!ids.has(id)) itemNodes.delete(id);
     const tools = new Set(
@@ -793,7 +820,7 @@
     mentor: "Mentor",
     "bug-bounty": "Bug bounty",
     "out-of-box": "Out of the box",
-    "red-team": "Red team",
+    "red-team": "Red Team — Expert",
     htb: "HTB / CTF",
   };
   const mcpLabels = {
@@ -840,6 +867,10 @@
     }
     select.value = selected ?? "";
     const learning = view?.controls?.learning === true;
+    const researchNext = $("research-next");
+    researchNext.disabled =
+      learning || !!view?.busy || !!view?.readonly || !caps.selection.webSearch;
+    if (learning || !caps.selection.webSearch) researchNext.setAttribute("aria-pressed", "false");
     const locked = !!view?.busy || !!view?.readonly || learning;
     const rows = [];
     const heading = (text) => rows.push(el("p", "composer-section", t(text)));
@@ -1424,6 +1455,7 @@
     historyPanel.hidden = !open;
     historyBtn.setAttribute("aria-expanded", String(open));
     if (open) {
+      renderHistory(historyEntries);
       vscode.postMessage({ type: "historyRefresh" });
       $("history-close").focus();
     } else if (historyPanel.contains(document.activeElement)) historyBtn.focus();
@@ -1467,6 +1499,17 @@
       : t("Activer le suivi et revenir en bas");
     if (monitorFollow) followMonitorBottom();
   });
+  monitor.addEventListener(
+    "scroll",
+    () => {
+      if (monitorFollow && monitor.scrollHeight - monitor.scrollTop - monitor.clientHeight > 40) {
+        monitorFollow = false;
+        monitorFollowBtn.setAttribute("aria-pressed", "false");
+        monitorFollowBtn.title = t("Activer le suivi et revenir en bas");
+      }
+    },
+    { passive: true },
+  );
   let watchId = "";
   function monitorLine(row) {
     const li = el("li", `mon-row tone-${row.tone}`);
@@ -1586,8 +1629,9 @@
     });
     const ids = new Set(rows.map((row) => row.id));
     for (const id of monitorNodes.keys()) if (!ids.has(id)) monitorNodes.delete(id);
-    monitorRowsEl.replaceChildren(
-      ...rows.map((row) => {
+    stableChildren(
+      monitorRowsEl,
+      rows.map((row) => {
         let cached = monitorNodes.get(row.id);
         if (!sameDisplay(cached?.row, row)) {
           cached = { row, node: monitorLine(row) };
@@ -1598,6 +1642,7 @@
     );
     monitorEmpty.hidden = rows.length > 0;
     const waiting = rows.filter((r) => r.tone === "wait").length;
+    monitorFollowBtn.hidden = mode === "watch" && !rows.some((row) => row.running);
     const failed = rows.filter((r) => r.tone === "err").length;
     $("monitor-count").textContent =
       rows.length === 0
@@ -1670,37 +1715,82 @@
   let sent = [];
   let shownNodes = -1;
   const timeline = $("timeline");
+  let exchangePosition = null;
+  let exchangeRevision = 0;
+  for (const event of ["wheel", "touchstart", "pointerdown"]) {
+    log.addEventListener(
+      event,
+      () => {
+        exchangePosition = null;
+      },
+      { passive: true },
+    );
+  }
+  function readingExchange() {
+    if (exchangePosition?.isConnected) return exchangePosition;
+    const rows = [...log.querySelectorAll("[data-exchange-id]")];
+    const top = log.getBoundingClientRect().top;
+    return rows.find((row) => row.getBoundingClientRect().bottom > top) ?? rows.at(-1);
+  }
   for (const direction of ["older", "newer", "latest"]) {
     $(`timeline-${direction}`).addEventListener("click", () => {
-      if (direction === "latest") {
-        monitorFollow = true;
-        monitorFollowBtn.setAttribute("aria-pressed", "true");
-        monitorFollowBtn.title = t("Désactiver le suivi du bas pour défiler librement");
-      } else {
-        monitorFollow = false;
-        monitorFollowBtn.setAttribute("aria-pressed", "false");
-        monitorFollowBtn.title = t("Activer le suivi du bas");
+      if (mode === "monitor" || direction === "latest") {
+        if (direction === "latest") exchangePosition = null;
+        monitorFollow = direction === "latest";
+        monitorFollowBtn.setAttribute("aria-pressed", String(monitorFollow));
+        vscode.postMessage({ type: "timelinePage", direction });
+        return;
       }
-      vscode.postMessage({ type: "timelinePage", direction });
+      const row = readingExchange();
+      if (row)
+        vscode.postMessage({
+          type: "timelineExchange",
+          direction,
+          id: Number(row.dataset.exchangeId),
+          ...(row.dataset.source && { source: row.dataset.source }),
+        });
     });
   }
-  function renderPaging(paging) {
+  function renderPaging(paging, view) {
+    const isMonitor = mode === "monitor";
+    $("timeline-older").firstElementChild.textContent = t(
+      isMonitor ? "Précédents" : "Échange précédent",
+    );
+    $("timeline-newer").firstElementChild.textContent = t(
+      isMonitor ? "Suivants" : "Échange suivant",
+    );
+    const hasMessages =
+      !isMonitor &&
+      (view.items ?? []).some((item) => item.kind === "user" || item.kind === "agent");
     timeline.hidden =
       mode === "watch" ||
       mode === "report" ||
       !paging ||
-      (!paging.earlier && !paging.archived && !paging.error);
-    $("timeline-older").disabled = !paging?.earlier || paging.loading;
-    $("timeline-newer").hidden = !paging?.archived;
-    $("timeline-newer").disabled = !!paging?.loading;
-    $("timeline-latest").hidden = !paging?.archived;
+      (!hasMessages && !paging.earlier && !paging.archived && !paging.error);
+    $("timeline-older").disabled =
+      !!paging?.loading || (isMonitor ? !paging?.earlier : !hasMessages);
+    $("timeline-newer").hidden = isMonitor && !paging?.archived;
+    $("timeline-newer").disabled = !!paging?.loading || (!isMonitor && !hasMessages);
+    $("timeline-latest").hidden = !paging?.archived && !exchangePosition;
     $("timeline-status").textContent = paging?.loading
       ? t("Chargement…")
       : (paging?.error ?? (paging?.archived ? t("Messages précédents") : ""));
   }
   let pageBefore = null;
+  let resourcesFingerprint;
+  let historyFingerprint;
   function render(view) {
-    renderCapabilities(view.capabilities, view);
+    const resourceKey = JSON.stringify([
+      view.capabilities,
+      view.busy,
+      !!view.readonly,
+      view.controls?.learning,
+      document.documentElement.lang,
+    ]);
+    if (resourceKey !== resourcesFingerprint) {
+      resourcesFingerprint = resourceKey;
+      renderCapabilities(view.capabilities, view);
+    }
     paintMission(UI.conversationActivity(view));
     const nextBefore = view.paging?.before ?? null;
     const pageChanged = nextBefore !== pageBefore;
@@ -1709,7 +1799,7 @@
       log.scrollTop = 0;
       monitor.scrollTop = 0;
     }
-    renderPaging(view.paging);
+    renderPaging(view.paging, view);
     if (mode === "monitor" || mode === "watch") {
       renderMonitor(view);
       log.replaceChildren();
@@ -1727,7 +1817,16 @@
     sent = nextSent;
     renderControls(view.controls);
     historyRunning = view.busy && !view.readonly;
-    renderHistory(view.history);
+    historyEntries = view.history;
+    const historyKey = JSON.stringify([
+      view.history,
+      historyRunning,
+      document.documentElement.lang,
+    ]);
+    if (!historyPanel.hidden && historyKey !== historyFingerprint) {
+      historyFingerprint = historyKey;
+      renderHistory(view.history);
+    }
     renderReadonly(view.readonly);
     const atBottom = pageChanged
       ? nextBefore === null
@@ -1739,7 +1838,7 @@
       for (const n of nodes.slice(shownNodes)) n.classList.add("enter");
     }
     shownNodes = view.items.length === 0 ? 0 : nodes.length;
-    log.replaceChildren(...nodes);
+    stableChildren(log, nodes);
     const visible2 = mode === "monitor" || !Array.isArray(view.approvals) ? [] : view.approvals;
     let replacedCardFocus = null;
     const cards = visible2.map((card) => {
@@ -1762,11 +1861,7 @@
     });
     const currentApprovals = new Set(visible2.map((card) => card.toolUseId));
     for (const id of approvalNodes.keys()) if (!currentApprovals.has(id)) approvalNodes.delete(id);
-    if (
-      cards.length !== approvals.children.length ||
-      cards.some((card, index) => approvals.children[index] !== card)
-    )
-      approvals.replaceChildren(...cards);
+    stableChildren(approvals, cards);
     for (const binding of productBindings)
       if (!binding.node.isConnected) productBindings.delete(binding);
     const fresh = visible2.findIndex((c) => !seenCards.has(c.toolUseId));
@@ -1799,6 +1894,19 @@
     if (view.items.length === 0) toolStatus.clear();
     log.setAttribute("aria-busy", view.busy ? "true" : "false");
     log.scrollTop = atBottom ? log.scrollHeight : top;
+    if (view.exchangeTarget && view.exchangeTarget.revision !== exchangeRevision) {
+      exchangeRevision = view.exchangeTarget.revision;
+      const target = [...log.querySelectorAll("[data-exchange-id]")].find((node) =>
+        view.exchangeTarget.source
+          ? node.dataset.source === view.exchangeTarget.source
+          : Number(node.dataset.exchangeId) === view.exchangeTarget.id,
+      );
+      if (target) {
+        exchangePosition = target;
+        target.scrollIntoView({ block: "start" });
+        $("timeline-latest").hidden = false;
+      }
+    }
   }
   // Une bascule ne réinitialise aucune conversation ni décision locale de la gate.
   function switchLocale(locale) {
@@ -1863,11 +1971,25 @@
     target?.focus({ preventScroll: true });
   }
   let chatId;
+  let pendingViewMessage = null;
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && pendingViewMessage) {
+      const data = pendingViewMessage;
+      pendingViewMessage = null;
+      window.dispatchEvent(new MessageEvent("message", { data }));
+    }
+  });
   window.addEventListener("message", (event) => {
     const message = event.data;
     if (message && message.type === "locale") {
       switchLocale(message.locale);
     } else if (message && message.type === "view") {
+      // Une vue cachée conserve seulement le dernier état, sans reconstruire son DOM.
+      if (document.hidden) {
+        pendingViewMessage = message;
+        return;
+      }
+      pendingViewMessage = null;
       if (
         (message.chatId !== void 0 && message.chatId !== chatId) ||
         message.view.conversation !== lastView?.conversation
@@ -2087,6 +2209,10 @@
     event.preventDefault();
     addFiles(Array.from(event.dataTransfer.files));
   });
+  $("research-next").addEventListener("click", () => {
+    const button = $("research-next");
+    button.setAttribute("aria-pressed", String(button.getAttribute("aria-pressed") !== "true"));
+  });
   function submit() {
     const text = input.value;
     if ((!text.trim() && !draftFiles.length) || send.disabled) return;
@@ -2109,14 +2235,21 @@
         attachments: draftFiles.map(({ name, text }) => ({ name, text })),
         requestId,
         conversation: lastView.conversation,
+        research: $("research-next").getAttribute("aria-pressed") === "true",
       });
+      $("research-next").setAttribute("aria-pressed", "false");
       return;
     }
     sent = sent.concat(text);
     recall = { index: -1, draft: "" };
     input.value = "";
     grow();
-    vscode.postMessage({ type: "send", text });
+    vscode.postMessage({
+      type: "send",
+      text,
+      research: $("research-next").getAttribute("aria-pressed") === "true",
+    });
+    $("research-next").setAttribute("aria-pressed", "false");
   }
   input.addEventListener("input", () => {
     grow();

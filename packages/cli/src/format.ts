@@ -38,6 +38,10 @@ export function formatEvent(
   const tag = (style: Style, label: string) => paint(style, label.padEnd(9));
 
   switch (e.kind) {
+    case "mission.decision":
+      return `${tag("dim", t("décision", "decision"))} ${stripControl(e.decision.objective)}`;
+    case "research.status":
+      return `${tag("dim", t("recherche", "research"))} ${e.status}`;
     case "audit.test":
       return `${e.kind} : ${e.claim.objective}`;
     case "run.started":

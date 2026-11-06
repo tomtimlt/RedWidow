@@ -7,6 +7,7 @@ import {
 import { type Locale, t, translateFr } from "@warband/messages";
 
 import { productTitleSuffix } from "./brand.js";
+import { type TerminalPrompt, terminalShellCommand } from "./terminal-prompt.js";
 
 export { parseHashes };
 
@@ -72,7 +73,16 @@ function assertLogPath(logPath: string): string {
  * images Exegol) garde le pty et journalise la session ; sans `script`, bash nu (pas de capture).
  * Le script est constant ; le chemin passe en argument positionnel, jamais interpolé.
  */
-export function capturedShell(logPath: string): string[] {
+export function capturedShell(logPath: string, style: TerminalPrompt = "native"): string[] {
+  if (style !== "native") {
+    const command = terminalShellCommand(style);
+    const body = [
+      `mkdir -p ${CONTAINER_LOG_DIR} && chmod 700 ${CONTAINER_LOG_DIR}`,
+      'if command -v script >/dev/null 2>&1; then exec script -q -f -c "$2" "$1"; fi',
+      'exec /bin/bash -c "$2"',
+    ].join("; ");
+    return ["/bin/bash", "-c", body, "warband", assertLogPath(logPath), command];
+  }
   const body = [
     `mkdir -p ${CONTAINER_LOG_DIR} && chmod 700 ${CONTAINER_LOG_DIR}`,
     'if command -v script >/dev/null 2>&1; then exec script -q -f -c /bin/bash "$1"; fi',

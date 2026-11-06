@@ -41,6 +41,8 @@
   function execState(item) {
     if (item.status === "denied" || item.decision === "deny")
       return { status: t("refusé"), tone: "err" };
+    if (item.status === "interrupted")
+      return { status: t("interrompu ou état inconnu"), tone: "err" };
     if (item.status === "error") return { status: t("erreur"), tone: "err" };
     if (item.status === "ok" || item.decision === "allow")
       return { status: t("approuvé"), tone: "ok" };
@@ -100,6 +102,7 @@
           output: typeof it.output === "string" ? it.output : "",
           truncated: it.truncated === true,
           pending: pending.has(it.toolUseId),
+          running: it.status === "pending" && it.decision !== "deny",
           ...execState(it),
         };
       });

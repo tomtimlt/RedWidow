@@ -413,7 +413,8 @@ function start() {
   let providerFilter = "";
   const auditDrafts = new Map();
   let lastAuditProject = null;
-  const auditFilters = { search: "", actor: "", kind: "", from: "", to: "" };
+  let auditPageIndex = 0;
+  let auditPageProject = null;
   let projectPanel = null;
   const el = (tag, className, text) => {
     const node = document.createElement(tag);
@@ -496,6 +497,105 @@ function start() {
   };
   let repaintPalette = () => {};
   let palettePending = false;
+  const promptStyles = [
+    ["native", "D’origine", "Conserver le prompt et le thème du conteneur.", "user@kali:~/lab$"],
+    [
+      "redwidow",
+      "RedWidow",
+      "Deux lignes : identité et dossier courant.",
+      "┌─[RedWidow] user@kali ~/lab\n└─$",
+    ],
+    ["compact", "Compact", "Utilisateur, hôte et dossier sur une ligne.", "user@kali:~/lab$"],
+    ["minimal", "Minimal", "Le dossier courant, sans couleurs.", "~/lab$"],
+  ];
+  const validPrompt = (id) => promptStyles.some(([known]) => known === id);
+  let terminalPrompt = "native";
+  let promptPending = false;
+  let repaintPrompt = () => {};
+  function terminalPromptSection() {
+    const section = el("section", "studio-card studio-prompt");
+    section.append(
+      el("h2", "", t("Prompt du terminal Docker")),
+      el(
+        "p",
+        "studio-help",
+        t(
+          "Le texte avant le curseur, pas une bannière. S’applique aux nouveaux terminaux Bash ouverts par RedWidow, pour Kali et Exegol. Les terminaux déjà ouverts restent inchangés.",
+        ),
+      ),
+    );
+    const group = el("div", "prompt-grid");
+    group.setAttribute("role", "radiogroup");
+    group.setAttribute("aria-label", t("Prompt du terminal Docker"));
+    const status = el("p", "studio-help");
+    status.setAttribute("role", "status");
+    const cards = promptStyles.map(([id, label, detail, example]) => {
+      const card = el("button", "prompt-card");
+      card.type = "button";
+      card.dataset.prompt = id;
+      card.setAttribute("role", "radio");
+      const title = el("span", "prompt-title", t(label));
+      const check = decorative(window.WarbandIcons.create("check"));
+      check.classList.add("prompt-check");
+      title.append(check);
+      const preview = el("pre", "prompt-preview", example);
+      preview.setAttribute("aria-hidden", "true");
+      card.append(title, el("span", "studio-help", t(detail)), preview);
+      return card;
+    });
+    repaintPrompt = (message = "") => {
+      promptPending = false;
+      group.setAttribute("aria-busy", "false");
+      status.textContent = message;
+      for (const card of cards) {
+        const selected = card.dataset.prompt === terminalPrompt;
+        card.setAttribute("aria-checked", String(selected));
+        card.setAttribute("aria-disabled", "false");
+        card.tabIndex = selected ? 0 : -1;
+      }
+    };
+    const choose = (card) => {
+      if (promptPending || card.dataset.prompt === terminalPrompt) return;
+      promptPending = true;
+      group.setAttribute("aria-busy", "true");
+      for (const item of cards) item.setAttribute("aria-disabled", "true");
+      status.textContent = t("Enregistrement…");
+      vscode.postMessage({ type: "setTerminalPrompt", value: card.dataset.prompt });
+    };
+    cards.forEach((card, index) => {
+      card.addEventListener("click", () => choose(card));
+      card.addEventListener("keydown", (event) => {
+        const next = {
+          ArrowRight: index + 1,
+          ArrowDown: index + 1,
+          ArrowLeft: index - 1,
+          ArrowUp: index - 1,
+          Home: 0,
+          End: cards.length - 1,
+        }[event.key];
+        if (next === undefined) return;
+        event.preventDefault();
+        if (promptPending) return;
+        const target = cards[(next + cards.length) % cards.length];
+        target.focus();
+        choose(target);
+      });
+    });
+    group.append(...cards);
+    repaintPrompt();
+    section.append(
+      group,
+      status,
+      el(
+        "p",
+        "studio-help",
+        t(
+          "Aperçus illustratifs. Le nom de l’utilisateur, l’hôte et le dossier suivent le terminal. Aucun fichier .bashrc n’est modifié. Choisissez D’origine pour retrouver votre thème habituel.",
+        ),
+      ),
+    );
+    return section;
+  }
   function appearancePage() {
     const sec = el("section", "studio-card");
     sec.append(
@@ -599,7 +699,9 @@ function start() {
     group.append(...cards);
     repaintPalette();
     sec.append(group, paletteStatus);
-    return sec;
+    const content = el("div", "studio-appearance");
+    content.append(terminalPromptSection(), sec);
+    return content;
   }
   function empty(title, text) {
     const sec = el("section", "studio-card");
@@ -1384,7 +1486,7 @@ function start() {
       el(
         "p",
         "studio-help",
-        t`${audit.records.length} traces affichées · ${audit.tests.length} contrôles · ${Math.ceil(audit.bytes / 1024)} Kio conservés`,
+        t`${audit.tests.length} contrôles · ${Math.ceil(audit.bytes / 1024)} Kio conservés`,
       ),
     );
     sec.append(el("h3", "", t("Registre des contrôles")));
@@ -1400,7 +1502,30 @@ function start() {
     const registry = el("div", "audit-tests");
     if (!audit.tests.length)
       registry.append(el("p", "studio-help", t("Aucun contrôle enregistré.")));
-    for (const test of [...audit.tests].reverse()) {
+    if (auditPageProject !== project) {
+      auditPageIndex = 0;
+      auditPageProject = project;
+    }
+    const pageCount = Math.max(1, Math.ceil(audit.tests.length / 25));
+    auditPageIndex = Math.min(auditPageIndex, pageCount - 1);
+    const navigation = el("div", "audit-filters");
+    for (const [text, delta] of [
+      ["Précédents", -1],
+      ["Suivants", 1],
+    ]) {
+      const button = el("button", "ghost", t(text));
+      button.disabled = delta < 0 ? auditPageIndex === 0 : auditPageIndex === pageCount - 1;
+      button.addEventListener("click", () => {
+        auditPageIndex += delta;
+        render(lastView, true);
+      });
+      navigation.append(button);
+    }
+    navigation.append(el("span", "studio-help", `${auditPageIndex + 1} / ${pageCount}`));
+    sec.append(navigation);
+    for (const test of [...audit.tests]
+      .reverse()
+      .slice(auditPageIndex * 25, (auditPageIndex + 1) * 25)) {
       const item = el("details", "audit-test");
       item.id = `audit-test-${test.id}`;
       const summary = el("summary");
@@ -1491,93 +1616,12 @@ function start() {
       item.append(form);
       registry.append(item);
     }
-    sec.append(registry, el("h3", "", t("Journal de mission")));
-    const filters = el("div", "audit-filters");
-    const records = el("div", "audit-records");
-    const count = el("p", "studio-help");
-    count.setAttribute("role", "status");
-    const rows = [];
-    const apply = () => {
-      let shown = 0;
-      const from = auditFilters.from ? new Date(auditFilters.from).getTime() : -Infinity;
-      const to = auditFilters.to ? new Date(auditFilters.to).getTime() : Infinity;
-      for (const row of rows) {
-        row.node.hidden =
-          (!!auditFilters.actor && row.record.actor !== auditFilters.actor) ||
-          (!!auditFilters.kind && row.kind !== auditFilters.kind) ||
-          !row.search.includes(auditFilters.search.toLowerCase()) ||
-          new Date(row.record.ts).getTime() < from ||
-          new Date(row.record.ts).getTime() > to;
-        if (!row.node.hidden) shown++;
-      }
-      count.textContent = t`${shown} traces correspondantes`;
-    };
-    for (const [key, label, type] of [
-      ["search", "Cible, outil, commande ou résultat", "search"],
-      ["from", "À partir du (heure locale)", "datetime-local"],
-      ["to", "Jusqu’au (heure locale)", "datetime-local"],
-    ]) {
-      const wrap = el("label", "studio-help", t(label));
-      const input = el("input", "studio-project-control");
-      input.type = type;
-      input.id = `audit-filter-${key}`;
-      input.value = auditFilters[key];
-      wrap.htmlFor = input.id;
-      input.addEventListener("input", () => {
-        auditFilters[key] = input.value;
-        apply();
-      });
-      wrap.append(input);
-      filters.append(wrap);
-    }
-    const kinds = [...new Set(audit.records.map((row) => row.data.kind ?? row.kind))].sort();
-    for (const [key, label, choices] of [
-      ["actor", "Tous les acteurs", ["agent", "operator", "system"]],
-      ["kind", "Tous les événements", kinds],
-    ]) {
-      const wrap = el("label", "studio-help", t(label));
-      const input = el("select", "studio-project-control");
-      input.id = `audit-filter-${key}`;
-      wrap.htmlFor = input.id;
-      for (const value of ["", ...choices]) {
-        const option = el(
-          "option",
-          "",
-          value ? (globalThis.WarbandI18n?.auditLabel(value) ?? value) : t(label),
-        );
-        option.value = value;
-        input.append(option);
-      }
-      input.value = auditFilters[key];
-      input.addEventListener("change", () => {
-        auditFilters[key] = input.value;
-        apply();
-      });
-      wrap.append(input);
-      filters.append(wrap);
-    }
-    for (const record of [...audit.records].reverse()) {
-      const item = el("details", "audit-record");
-      item.id = `audit-record-${record.id}`;
-      const kind = record.data.kind ?? record.kind;
-      item.append(
-        el("summary", "", `${record.ts} · ${label(record.actor)} · ${kind}`),
-        el(
-          "p",
-          "studio-help audit-refs",
-          `${record.source ?? record.runId ?? ""} · ID : ${record.id}`,
-        ),
-        el("pre", "audit-raw", JSON.stringify(record.data, null, 2)),
-      );
-      records.append(item);
-      rows.push({ node: item, record, kind, search: JSON.stringify(record).toLowerCase() });
-    }
-    apply();
-    sec.append(filters, count, records);
+    sec.append(registry);
     return sec;
   }
 
   function render(view, force = false) {
+    if (validPrompt(view.terminalPrompt)) terminalPrompt = view.terminalPrompt;
     lastView = { ...view, summarySaved: undefined, summaryFailed: undefined };
     // Une arrivée de traces ne doit pas interrompre la saisie dans une qualification.
     if (
@@ -2269,6 +2313,16 @@ function start() {
     }
     if (msg?.type === "paletteError") {
       repaintPalette(t("Impossible d’enregistrer le jeu de couleurs. Réessayez."));
+      return;
+    }
+    if (msg?.type === "terminalPrompt" && validPrompt(msg.value)) {
+      terminalPrompt = msg.value;
+      if (lastView) lastView.terminalPrompt = msg.value;
+      repaintPrompt(
+        msg.error
+          ? t("Impossible d’enregistrer le prompt. Réessayez.")
+          : t("Enregistré. Ouvrez un nouveau terminal pour appliquer ce choix."),
+      );
       return;
     }
     if (msg?.type !== "view") return;

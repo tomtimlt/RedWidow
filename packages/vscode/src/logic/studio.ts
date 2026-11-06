@@ -2,6 +2,7 @@ import { type AuditReview, auditReviewSchema, type EngineEvent } from "@warband/
 import { t } from "@warband/messages";
 import { isCapabilityId } from "./chat-capabilities.js";
 import { isPalette, type Palette } from "./palette.js";
+import { isTerminalPrompt, type TerminalPrompt } from "./terminal-prompt.js";
 
 /** Pages des réglages, dans l'ordre de la barre des captures. */
 export const STUDIO_PAGES = [
@@ -48,6 +49,7 @@ export type StudioMessage =
   | { type: "configureMcp"; id: string }
   | { type: "openEvidence"; projectId: string; id: string }
   | { type: "setPalette"; palette: Palette }
+  | { type: "setTerminalPrompt"; value: TerminalPrompt }
   | { type: "setLocale"; locale: "fr" | "en" }
   | { type: "openReport"; projectId: string }
   | { type: "exportKillchain"; projectId: string }
@@ -85,6 +87,8 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
   const m = raw as Record<string, unknown>;
   const keys = Object.keys(m);
+  if (m.type === "setTerminalPrompt" && keys.length === 2 && isTerminalPrompt(m.value))
+    return { type: m.type, value: m.value };
   const auditProject =
     typeof m.projectId === "string" &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(m.projectId);

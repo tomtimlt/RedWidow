@@ -193,7 +193,7 @@
       );
     return (
       /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(form.exegolImage) &&
-      (!form.source || validSource(form.source)) &&
+      validSource(form.source) &&
       Number.isInteger(form.desktopPort) &&
       form.desktopPort >= 1 &&
       form.desktopPort <= 65535 &&
@@ -271,14 +271,9 @@
 
     const folderRow = el("div", "cockpit-actions");
     folderRow.id = "cockpit-folder";
-    const folderBtn = button(
-      "secondary",
-      engine === "exegol" ? t("Dossier (facultatif)") : t("Dossier (obligatoire)"),
-      "folder",
-      () => {
-        vscode.postMessage({ type: "pickSource" });
-      },
-    );
+    const folderBtn = button("secondary", t("Dossier du projet"), "folder", () => {
+      vscode.postMessage({ type: "openWorkspace" });
+    });
 
     folderRow.append(folderBtn);
     if (form.source !== "") {
@@ -287,7 +282,16 @@
       ellipsize(src, form.source, 64);
       folderRow.append(src);
     }
-    fields.append(folderRow);
+    fields.append(
+      folderRow,
+      el(
+        "p",
+        "studio-help",
+        t(
+          "Les fichiers sont partagés avec le dossier du projet ouvert dans VS Code. Un conteneur existant doit monter ce même dossier ; un autre montage nécessite une migration explicite.",
+        ),
+      ),
+    );
 
     if (engine === "exegol") {
       const checkbox = (key, label, onChange) => {
@@ -737,6 +741,8 @@
       return;
     }
     if (msg.type !== "view") return;
+    if (msg.loading !== true)
+      form.source = typeof msg.projectWorkspace === "string" ? msg.projectWorkspace : "";
     const loading = msg.loading === true;
     if (refreshBtn) refreshBtn.disabled = loading;
     render(msg);

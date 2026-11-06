@@ -223,6 +223,11 @@ describe("eventLabel", () => {
         evidenceIds: ["event-1"],
       },
     },
+    "mission.decision": {
+      kind: "mission.decision",
+      decision: { objective: "o", evidenceIds: [], nextAction: "n", successCriterion: "s" },
+    },
+    "research.status": { kind: "research.status", status: "requested" },
     "run.started": { kind: "run.started", prompt: "liste les conteneurs", cwd: "/w" },
     "session.started": {
       kind: "session.started",

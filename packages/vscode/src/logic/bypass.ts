@@ -1,7 +1,7 @@
 import { BYPASS_DEFAULT_MS, type BypassState, createBypassSwitch } from "@warband/core";
 
 /**
- * Bypass des approbations, côté hôte (ADR 0006, lots 2 et 2b). L'état vit en mémoire, par fenêtre :
+ * Bypass des approbations, côté hôte (ADR 0006, lots 2 et 2b). L'état vit en mémoire, par chat :
  * jamais persisté (ni `globalState`, ni `workspaceState`, ni réglage, ni variable d'environnement).
  * Module pur : l'horloge et les minuteurs sont injectés, `vscode` n'est pas importé ici.
  *
@@ -86,7 +86,7 @@ function same(a: BypassState | null | undefined, b: BypassState | null | undefin
   return a.since === b.since && a.expiresAt === b.expiresAt;
 }
 
-/** Hôte du Bypass : une instance par fenêtre, branchée sur l'interrupteur du cœur. */
+/** Hôte du Bypass : une instance par chat, branchée sur l'interrupteur du cœur. */
 export function createBypassHost({ clock, onChange }: BypassHostOptions): BypassHost {
   const switchState = createBypassSwitch({ now: clock.now });
   let expiryTimer: unknown = null;

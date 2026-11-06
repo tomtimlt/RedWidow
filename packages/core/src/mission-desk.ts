@@ -1,20 +1,10 @@
 import { createHash } from "node:crypto";
-import { z } from "zod";
 import { type AuditTestClaim, auditTestSchema } from "./audit-schema.js";
+import { type MissionDecision, missionDecisionSchema } from "./mission-decision-schema.js";
 import type { Recorder } from "./recorder.js";
 import { createRedactor, secretsFromEnv } from "./redact.js";
 
-const decisionSchema = z
-  .object({
-    objective: z.string().min(1).max(2000),
-    evidenceIds: z.array(z.string().max(200)).max(32),
-    nextAction: z.string().min(1).max(2000),
-    successCriterion: z.string().min(1).max(2000),
-    maxCalls: z.number().int().min(1).max(1000).optional(),
-    maxDurationSeconds: z.number().positive().max(86400).optional(),
-  })
-  .strict();
-export type MissionDecision = z.infer<typeof decisionSchema>;
+export type { MissionDecision } from "./mission-decision-schema.js";
 export interface MissionObservation {
   eventId: string;
   ts: string;
@@ -158,11 +148,12 @@ export function createMissionDesk({
     },
     recordDecision(raw) {
       assertOpen();
-      const parsed = decisionSchema.parse(raw);
+      const parsed = missionDecisionSchema.parse(raw);
       for (const id of parsed.evidenceIds)
         if (!observations.some((item) => item.eventId === id))
           throw new Error("Référence inconnue dans ce run.");
       decision = redact(parsed);
+      recorder.emit({ kind: "mission.decision", decision });
       started = now().getTime();
       branchCalls = 0;
       return structuredClone(decision);

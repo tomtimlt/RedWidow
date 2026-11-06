@@ -1,6 +1,6 @@
 # 0008 — Plusieurs chats, un Bypass de fenêtre
 
-- Statut : accepté
+- Statut : accepté ; Bypass global et préférences partagées remplacés par l’[ADR 0036](0036-isolation-chats.md)
 - Date : 2026-10-16
 
 ## Contexte

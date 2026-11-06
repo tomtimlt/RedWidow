@@ -6331,6 +6331,79 @@ body.mode-watch::after {
   border-radius: var(--jn-r-md);
   font-size: var(--jn-fs-sm);
 }
+.studio-appearance {
+  display: grid;
+  gap: 20px;
+}
+.prompt-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+.prompt-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 16px;
+  min-width: 0;
+  text-align: left;
+  white-space: normal;
+  line-height: 1.35;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+  background: var(--jn-raise);
+  color: var(--vscode-foreground);
+  cursor: pointer;
+}
+.prompt-card[aria-checked="true"] {
+  border-color: var(--jn-sig);
+  background: var(--jn-sig-tint);
+}
+.prompt-card:hover:not([aria-disabled="true"]) {
+  border-color: var(--jn-sig-edge);
+}
+.prompt-card .studio-help {
+  margin: 0;
+}
+.prompt-card:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder);
+  outline-offset: 3px;
+}
+.prompt-card[aria-disabled="true"] {
+  cursor: wait;
+  opacity: 0.7;
+}
+.prompt-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  font-weight: 600;
+}
+.prompt-check {
+  visibility: hidden;
+}
+.prompt-card[aria-checked="true"] .prompt-check {
+  visibility: visible;
+}
+.prompt-preview {
+  margin: auto 0 0;
+  padding: 12px 0 0;
+  max-width: 100%;
+  width: 100%;
+  text-align: left;
+  overflow-x: auto;
+  font-family: var(--vscode-editor-font-family, monospace);
+  line-height: 1.5;
+  color: var(--vscode-terminal-foreground, var(--vscode-foreground));
+}
+.prompt-card[data-prompt="redwidow"] .prompt-preview,
+.prompt-card[data-prompt="compact"] .prompt-preview {
+  color: var(--jn-sig);
+}
 .pal-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -8179,4 +8252,16 @@ body.vscode-high-contrast-light .welcome-spider {
   --rw-steel-hi: var(--vscode-foreground);
   --rw-steel: color-mix(in srgb, var(--vscode-foreground) 70%, var(--vscode-editor-background));
   --rw-ink: var(--vscode-editor-background);
+}
+
+/* Un élément déjà présent qui reçoit une mise à jour ne rejoue pas son entrée. */
+.no-enter,
+.no-enter .msg {
+  animation: none !important;
+}
+
+.research-request[aria-pressed="true"] {
+  border-color: var(--vscode-focusBorder);
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
 }

@@ -125,7 +125,7 @@ export interface EngineController {
     opencodeProviders?: StartParams["opencodeProviders"];
     timeoutMs?: number;
   }): Promise<ModelOption[]>;
-  prompt(text: string): void;
+  prompt(text: string, research?: boolean): void;
   answer(toolUseId: string, decision: "allow" | "deny", remember?: RememberScope): void;
   /**
    * Envoie l'état du Bypass au moteur (`null` = inactif) et renvoie le `seq` attribué. Le compteur
@@ -291,7 +291,13 @@ export function createEngineController(options: EngineControllerOptions): Engine
         }).catch((error) => settle(() => reject(error)));
       });
     },
-    prompt: (text) => post({ v: PROTOCOL_VERSION, type: "prompt", text }),
+    prompt: (text, research) =>
+      post({
+        v: PROTOCOL_VERSION,
+        type: "prompt",
+        text,
+        ...(research !== undefined && { research }),
+      }),
     answer: (toolUseId, decision, remember) =>
       post({
         v: PROTOCOL_VERSION,

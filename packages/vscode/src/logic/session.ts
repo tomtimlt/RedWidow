@@ -39,7 +39,11 @@ import {
   type Prefs,
   parsePrefs,
 } from "./controls.js";
-import { buildConversationContext } from "./conversation-context.js";
+import {
+  buildConversationContext,
+  mergeConversationTail,
+  readConversationContext,
+} from "./conversation-context.js";
 import {
   clampEffort,
   EFFORT_LEVELS,
@@ -66,7 +70,7 @@ import type { JournalFiles } from "./historyStore.js";
 import { modelLoadFailure } from "./model-load-error.js";
 import { isModelId, parseModelCache, usableModels, validateModelChoice } from "./models.js";
 import type { ChatSettings } from "./settings.js";
-import { readConversationPage } from "./timeline.js";
+import { findAdjacentExchange, readConversationPage } from "./timeline.js";
 
 const PREFS_KEY = "warband.prefs";
 const MODELS_KEY = "warband.models";
@@ -108,6 +112,8 @@ export interface ChatSessionDeps {
   bypass?: { attach(send: BypassSend): BypassEngineLink; reset?(): void };
   /** Clé de stockage du mode apprentissage de ce chat (`warband.learning.<id>`), distincte de `warband.prefs`. Absente : mémoire. */
   learningKey?: string;
+  /** Préférences propres au chat ; l’ancienne clé partagée sert seulement à la migration. */
+  prefsKey?: string;
   /** Stockage persistant (globalState) : préférences et cache des modèles. Défaut : mémoire. */
   store?: { get(key: string): unknown; set(key: string, value: unknown): unknown };
   /** Version du SDK embarqué : clé du cache de la liste des modèles. */
@@ -146,7 +152,9 @@ export function createChatSession(deps: ChatSessionDeps) {
   let sessionId: string | undefined;
   let transferContext = false;
   let confirming = false;
+  let researchPending = false;
   let stopping = false;
+  let stopTimer: ReturnType<typeof setTimeout> | undefined;
 
   const sdkVersion = deps.sdkVersion ?? "unknown";
   const memory = new Map<string, unknown>();
@@ -154,7 +162,8 @@ export function createChatSession(deps: ChatSessionDeps) {
     get: (key: string) => memory.get(key),
     set: (key: string, value: unknown) => memory.set(key, value),
   };
-  let prefs: Prefs = parsePrefs(store.get(PREFS_KEY));
+  const prefsKey = deps.prefsKey ?? "warband.prefs.chat.default";
+  let prefs: Prefs = parsePrefs(store.get(prefsKey) ?? store.get(PREFS_KEY));
   let selection: ChatSelection = emptySelection();
   let providerChoiceId: string | undefined;
   const rawSettings = () => deps.readSettings();
@@ -273,12 +282,15 @@ export function createChatSession(deps: ChatSessionDeps) {
   let pageLoading = false;
   let pageError: string | undefined;
   let pageRevision = 0;
+  let exchangeRevision = 0;
+  let exchangeTarget: ChatView["exchangeTarget"];
   const latestPage = () => {
     pageRevision++;
     archive = null;
     pageBefore = [];
     pageLoading = false;
     pageError = undefined;
+    exchangeTarget = undefined;
   };
   const view = (): ChatView => {
     const settings = displaySettings();
@@ -302,6 +314,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       }),
       conversation: current?.id ?? state.readonly?.id ?? `new:${conversationGeneration}`,
       items: shown.view().items,
+      ...(exchangeTarget && { exchangeTarget }),
       ...(history && {
         paging: {
           earlier: shown.dropped > 0,
@@ -334,7 +347,7 @@ export function createChatSession(deps: ChatSessionDeps) {
   const clampVariant = () => {
     if (prefs.variant !== null && validVariant() === undefined) {
       prefs = { ...prefs, variant: null };
-      persist(PREFS_KEY, prefs);
+      persist(prefsKey, prefs);
     }
   };
 
@@ -543,7 +556,7 @@ export function createChatSession(deps: ChatSessionDeps) {
             touch();
           }
           if (event.kind === "tool.requested" && current) current.tools++;
-          if (transferring && transferContext && event.kind === "turn.finished") {
+          if (!stopping && transferring && transferContext && event.kind === "turn.finished") {
             if (event.status === "success") {
               transferContext = false;
               touch();
@@ -552,10 +565,13 @@ export function createChatSession(deps: ChatSessionDeps) {
             }
           }
           if (event.kind === "error") {
-            invalidateTransfer();
+            if (!stopping) invalidateTransfer();
             if (skipAbortBubble(ctl, event)) return;
           }
           state.event(event);
+          if (event.kind === "research.status" && event.status !== "requested")
+            researchPending = false;
+          if (stopping) state.setBusy(true);
           if (event.kind === "process.output" || event.kind === "agent.thinking") {
             outputTimer ??= setTimeout(refresh, 100);
           } else refresh();
@@ -567,6 +583,10 @@ export function createChatSession(deps: ChatSessionDeps) {
         },
         onEnded: (summary) => {
           if (detached.has(ctl)) return;
+          if (stopping) {
+            refresh();
+            return;
+          }
           if (transferring && transferContext && summary.status === "error") {
             invalidateTransfer();
           } else {
@@ -575,12 +595,12 @@ export function createChatSession(deps: ChatSessionDeps) {
           }
           touch();
           void enforceRetention();
-          state.setBusy(false);
+          if (!stopping) state.setBusy(false);
           refresh();
         },
         onError: (reason) => {
           if (detached.has(ctl)) return;
-          invalidateTransfer();
+          if (!stopping) invalidateTransfer();
           if (skipAbortBubble(ctl, reason)) return;
           state.error(reason);
           refresh();
@@ -597,12 +617,34 @@ export function createChatSession(deps: ChatSessionDeps) {
           if (controller !== null && controller !== ctl) return;
           invalidateTransfer();
           controller = null;
+          clearTimeout(stopTimer);
+          stopTimer = undefined;
+          if (researchPending) {
+            researchPending = false;
+            state.notice(t("Recherche demandée interrompue : résultat inconnu."), "error");
+          }
+          const interrupted = state.interruptPending();
+          if (stopping) {
+            state.notice(
+              t(
+                "Moteur arrêté. Les tâches détachées dans les conteneurs peuvent continuer ; vérifiez leur état.",
+              ),
+            );
+          } else if (interrupted) {
+            state.notice(
+              t(
+                "Moteur terminé avec des outils sans résultat. Les tâches détachées dans les conteneurs peuvent continuer ; vérifiez leur état.",
+              ),
+              "error",
+            );
+          }
           touch();
           state.approvals.clear();
           state.setBusy(false);
           if (!stopping && code !== 0 && code !== null) {
             state.notice(t`Le moteur s'est arrêté (code ${code}).`, "error");
           }
+          stopping = false;
           refresh();
         },
         onLog: (text) => deps.onLog?.(text),
@@ -764,7 +806,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       persist(cacheKey, { sdk: sdkVersion, models });
       if (prefs.model !== null && !list.some((m) => m.value === prefs.model)) {
         prefs = { ...prefs, model: null };
-        persist(PREFS_KEY, prefs);
+        persist(prefsKey, prefs);
         state.notice(t("Le modèle choisi n'est plus proposé : retour au modèle par défaut."));
       }
       clampVariant();
@@ -839,6 +881,8 @@ export function createChatSession(deps: ChatSessionDeps) {
     });
 
   const resetConversation = () => {
+    deps.bypass?.reset?.();
+    researchPending = false;
     deps.onObservedEvent?.(null);
     selection = emptySelection();
     conversationGeneration++;
@@ -942,6 +986,88 @@ export function createChatSession(deps: ChatSessionDeps) {
         }
       }
     },
+    /** Déplace la lecture d'un seul message humain ou agent ; les outils ne sont pas des échanges. */
+    async timelineExchange(
+      direction: "older" | "newer",
+      id: number,
+      source?: string,
+    ): Promise<void> {
+      if (pageLoading) return;
+      const shown = archive ?? state;
+      const messages = (page: ChatState) =>
+        page.view().items.filter((item) => item.kind === "user" || item.kind === "agent");
+      const items = messages(shown);
+      const indexInPage = items.findIndex(
+        (item) => item.id === id && (!source || item.source === source),
+      );
+      if (indexInPage < 0) return;
+      const choose = (item: (typeof items)[number]) => {
+        exchangeTarget = {
+          id: item.id,
+          ...(item.source && { source: item.source }),
+          revision: ++exchangeRevision,
+        };
+      };
+      const adjacent = items[indexInPage + (direction === "older" ? -1 : 1)];
+      if (adjacent) {
+        choose(adjacent);
+        refresh();
+        return;
+      }
+      const anchor = items[indexInPage]?.source;
+      const meta = current ?? index.find((entry) => entry.id === state.readonly?.id);
+      if (!history || !meta || !anchor) return;
+      const revision = navigationRev;
+      const request = ++pageRevision;
+      const active = () => !disposed && revision === navigationRev && request === pageRevision;
+      pageLoading = true;
+      pageError = undefined;
+      refresh();
+      try {
+        const found = await findAdjacentExchange(
+          history.files,
+          meta.runIds,
+          anchor,
+          direction,
+          active,
+        );
+        if (!found || !active()) return;
+        if (!found.found) {
+          pageError = t("Journal indisponible ou pas encore écrit. Réessayez dans un instant.");
+          return;
+        }
+        if (!found.target) return;
+        const liveTarget = state.view().items.find((item) => item.source === found.target?.source);
+        if (liveTarget && (liveTarget.kind === "user" || liveTarget.kind === "agent")) {
+          archive = null;
+          pageBefore = [];
+          choose(liveTarget);
+          return;
+        }
+        const result = await readConversationPage(
+          history.files,
+          meta.runIds,
+          found.target.before,
+          active,
+        );
+        if (!result || !active()) return;
+        const target = messages(result.state).find((item) => item.source === found.target?.source);
+        if (!target || (found.target.before && !result.state.reached)) {
+          pageError = t("Journal indisponible ou pas encore écrit. Réessayez dans un instant.");
+          return;
+        }
+        archive = result.state;
+        pageBefore = found.target.before ? [found.target.before] : [];
+        choose(target);
+      } catch {
+        if (active()) pageError = t("Lecture des messages précédents impossible. Réessayez.");
+      } finally {
+        if (active()) {
+          pageLoading = false;
+          refresh();
+        }
+      }
+    },
     loadModels,
     getProvider: () => prefs.provider,
     setSelection(raw: unknown): void {
@@ -962,7 +1088,7 @@ export function createChatSession(deps: ChatSessionDeps) {
         models = null;
         modelsStatus = "idle";
         prefs = { ...prefs, model: null, variant: null };
-        persist(PREFS_KEY, prefs);
+        persist(prefsKey, prefs);
         refresh();
         await loadModels(true);
       }
@@ -995,7 +1121,7 @@ export function createChatSession(deps: ChatSessionDeps) {
         current.sessionId = null;
         touch();
       }
-      persist(PREFS_KEY, prefs);
+      persist(prefsKey, prefs);
       cancelModelLoad();
       models = null;
       modelsStatus = "idle";
@@ -1025,7 +1151,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       prefs = { ...prefs, model: v.model };
       clampVariant();
       reclamp();
-      persist(PREFS_KEY, prefs);
+      persist(prefsKey, prefs);
       refresh();
     },
     setVariant(raw: unknown): void {
@@ -1043,7 +1169,7 @@ export function createChatSession(deps: ChatSessionDeps) {
         return;
       }
       prefs = { ...prefs, variant: raw };
-      persist(PREFS_KEY, prefs);
+      persist(prefsKey, prefs);
       refresh();
     },
     setEffort(raw: unknown): void {
@@ -1054,7 +1180,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       if (raw === null) {
         // Retour à « Auto » : plus aucun niveau transmis.
         prefs = { ...prefs, effort: null };
-        persist(PREFS_KEY, prefs);
+        persist(prefsKey, prefs);
         refresh();
         return;
       }
@@ -1080,7 +1206,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       }
       if (c.clamped) clampNotice(wanted, c.effort);
       prefs = { ...prefs, effort: wanted === "ultracode" ? wanted : c.effort };
-      persist(PREFS_KEY, prefs);
+      persist(prefsKey, prefs);
       refresh();
     },
     /** Interrupteur venu de la webview (hostile) : booléen strict, gelé pendant un tour, appliqué au message suivant. */
@@ -1093,10 +1219,11 @@ export function createChatSession(deps: ChatSessionDeps) {
       if (deps.learningKey !== undefined) persist(deps.learningKey, raw);
       refresh();
     },
-    async send(text: string, prompt = text): Promise<boolean> {
+    async send(text: string, prompt = text, research = false): Promise<boolean> {
       // Mode lecture : aucune saisie tant que la conversation n'est pas reprise.
       // `text` est la bulle. `prompt` peut y joindre la sortie d'un terminal cité.
-      if (state.busy || state.readonly || text.trim() === "") return false;
+      if (state.busy || (stopping && controller !== null) || state.readonly || text.trim() === "")
+        return false;
       if (
         displaySettings().capabilities &&
         (!providerChoice() || (providerChoice()?.prefix && !choice(readSettings()).model))
@@ -1113,6 +1240,11 @@ export function createChatSession(deps: ChatSessionDeps) {
           t`Aucun fournisseur n'a été ajouté : ajoute un jeton (${PRODUCT_NAME} : définir le jeton) pour utiliser le chat.`,
           "error",
         );
+        refresh();
+        return false;
+      }
+      if (research && (learning || readSettings().webSearch !== true)) {
+        state.notice(t("Activez les outils Web pour demander une recherche à ce tour."), "error");
         refresh();
         return false;
       }
@@ -1137,9 +1269,27 @@ export function createChatSession(deps: ChatSessionDeps) {
         return false;
       }
       ensureConversation(text);
-      const conversationContext = transferContext
+      let conversationContext = transferContext
         ? buildConversationContext(state.view().items)
         : undefined;
+      if (transferContext && history && current?.runIds.length) {
+        try {
+          const durable = await readConversationContext(
+            history.files,
+            current.runIds,
+            () => !disposed && revision === navigationRev,
+          );
+          if (!durable || revision !== navigationRev) return false;
+          if (durable.messages.length)
+            conversationContext = conversationContext
+              ? mergeConversationTail(durable, conversationContext)
+              : durable;
+          else if (conversationContext) conversationContext.truncated = true;
+        } catch {
+          if (revision !== navigationRev) return false;
+          if (conversationContext) conversationContext.truncated = true;
+        }
+      }
       state.user(text);
       refresh();
       try {
@@ -1171,7 +1321,8 @@ export function createChatSession(deps: ChatSessionDeps) {
         if (revision !== navigationRev) return false;
         const ctl = controller ?? (await startEngine(revision, conversationContext));
         if (revision !== navigationRev || ctl === null) return false;
-        ctl.prompt(prompt);
+        researchPending = research;
+        ctl.prompt(prompt, research || undefined);
         return true;
       } catch (error) {
         if (revision !== navigationRev) return false;
@@ -1221,7 +1372,14 @@ export function createChatSession(deps: ChatSessionDeps) {
       }
       userAbort.add(controller);
       stopping = true;
-      controller.abort();
+      state.setBusy(true);
+      const stoppingController = controller;
+      stoppingController.abort();
+      clearTimeout(stopTimer);
+      stopTimer = setTimeout(() => {
+        if (controller === stoppingController && stopping) stoppingController.kill();
+      }, 2000);
+      stopTimer.unref();
       state.notice(t("Arrêt demandé."));
       refresh();
     },
@@ -1339,7 +1497,7 @@ export function createChatSession(deps: ChatSessionDeps) {
         effort: meta.effort,
         variant: meta.variant ?? null,
       };
-      persist(PREFS_KEY, prefs);
+      persist(prefsKey, prefs);
       if (providerChanged) {
         cancelModelLoad();
         models = null;
@@ -1407,6 +1565,8 @@ export function createChatSession(deps: ChatSessionDeps) {
       deps.onObservedEvent?.(null);
       disposed = true;
       clearTimeout(outputTimer);
+      clearTimeout(stopTimer);
+      stopTimer = undefined;
       outputTimer = undefined;
       latestPage();
       cancelModelLoad();

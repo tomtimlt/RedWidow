@@ -99,8 +99,17 @@ describe("scripts de la webview", () => {
       ]) {
         expect(src, bad).not.toContain(bad);
       }
-      expect(src).not.toMatch(/addEventListener\(\s*["']scroll/);
     }
+  });
+  it("le seul écouteur scroll suit le Monitor sans reconstruire la vue", () => {
+    expect([...js.matchAll(/addEventListener\(\s*["']scroll/g)]).toHaveLength(1);
+    expect(ui).not.toMatch(/addEventListener\(\s*["']scroll/);
+    const listener = js.match(
+      /monitor\.addEventListener\(\s*["']scroll["'],\s*\(\) => \{([\s\S]*?)\},\s*\{\s*passive:\s*true\s*\}\s*,?\s*\)/,
+    );
+    expect(listener).not.toBeNull();
+    expect(listener?.[1]).toContain("monitorFollow = false");
+    expect(listener?.[1]).not.toMatch(/render|replaceChildren|innerHTML|outerHTML|postMessage/);
   });
   it("seules écritures de style : propriétés --jn-* et hauteur du champ", () => {
     for (const m of js.matchAll(/\.style\.(\w+)/g))

@@ -38,7 +38,8 @@ function fake() {
       if (modelError) throw new Error("sondage");
       return modelList;
     },
-    prompt: (t) => void calls.push(["prompt", t]),
+    prompt: (t, research) =>
+      void calls.push(research === undefined ? ["prompt", t] : ["prompt", t, research]),
     answer: (...a) => void calls.push(["answer", ...a]),
     abort: () => void calls.push(["abort"]),
     dispose: () => void calls.push(["dispose"]),
@@ -84,6 +85,7 @@ function setup(
     settings?: object;
     store?: { get(k: string): unknown; set(k: string, v: unknown): unknown };
     learningKey?: string;
+    prefsKey?: string;
   } = {},
 ) {
   const f = fake();
@@ -108,6 +110,7 @@ function setup(
     sdkVersion: "1.0.0",
     ...(over.store && { store: over.store }),
     ...(over.learningKey !== undefined && { learningKey: over.learningKey }),
+    ...(over.prefsKey !== undefined && { prefsKey: over.prefsKey }),
   });
   return { f, session, confirmAlways, view: () => view };
 }
@@ -186,6 +189,19 @@ describe("session de chat", () => {
     expect(t.f.calls).toHaveLength(1);
     t.f.handlers.onEvent?.(ev({ kind: "turn.finished" }));
     expect(t.view().busy).toBe(false);
+  });
+
+  it("n’accepte une recherche explicite que si les outils Web sont sélectionnés", async () => {
+    const settings = {
+      capabilities: { providers: ["claude"], skills: [], integrations: [], webSearch: true },
+    };
+    const t = setup({ settings });
+    expect(await t.session.send("cherche", "cherche", true)).toBe(false);
+    expect(t.f.calls).toEqual([]);
+    t.session.setSelection({ profile: null, integrations: [], burp: false, webSearch: true });
+    expect(await t.session.send("cherche", "cherche", true)).toBe(true);
+    expect(t.f.calls).toContainEqual(["prompt", "cherche", true]);
+    t.session.dispose();
   });
 
   it("acquitte uniquement un prompt transmis et garde les fichiers hors de la bulle", async () => {
@@ -436,6 +452,63 @@ describe("session de chat", () => {
     expect(t.view().busy).toBe(false);
     await t.session.send("suite");
     expect(t.f.started?.resume).toBe("S1");
+  });
+
+  it("Stop attend la sortie du moteur, force son arrêt et marque les outils sans résultat", async () => {
+    vi.useFakeTimers();
+    try {
+      const t = setup();
+      await t.session.send("x");
+      t.f.handlers.onEvent?.(
+        ev({
+          id: "req",
+          runId: "r",
+          kind: "tool.requested",
+          toolUseId: "t",
+          tool: "Bash",
+          input: {},
+        }),
+      );
+      t.session.stop();
+      t.f.handlers.onEvent?.(ev({ kind: "turn.finished" }));
+      expect(t.view().busy).toBe(true);
+      t.f.handlers.onEnded?.({ status: "error", turns: 0, costUsd: 0, result: null });
+      expect(await t.session.send("trop tôt")).toBe(false);
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(t.f.calls).toContainEqual(["kill"]);
+      expect(t.view().busy).toBe(true);
+      t.f.handlers.onExit?.({ code: null, signal: "SIGKILL" });
+      expect(t.view().busy).toBe(false);
+      expect(t.view().items.find((item) => item.kind === "tool")).toMatchObject({
+        status: "interrupted",
+      });
+      expect(JSON.stringify(t.view().items)).toContain("tâches détachées");
+      expect(await t.session.send("suite")).toBe(true);
+      t.session.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("une sortie inattendue laisse les outils sans résultat dans un état inconnu", async () => {
+    const t = setup();
+    await t.session.send("x");
+    t.f.handlers.onEvent?.(
+      ev({
+        id: "req",
+        runId: "r",
+        kind: "tool.requested",
+        toolUseId: "t",
+        tool: "Bash",
+        input: {},
+      }),
+    );
+    t.f.handlers.onExit?.({ code: 1, signal: null });
+    expect(t.view().items.find((item) => item.kind === "tool")).toMatchObject({
+      status: "interrupted",
+    });
+    expect(JSON.stringify(t.view().items)).toContain("tâches détachées");
+    t.session.dispose();
   });
 
   it("l'état du chat ne contient que du texte neutralisé", async () => {
@@ -1052,12 +1125,12 @@ describe("historique (F4)", () => {
     for (let i = 1; i <= 700; i++) raw.push(jline({ kind: "agent.text", text: `message ${i}` }, i));
     h.written.set(RUN1, raw.join("\n"));
     for (const line of raw) h.f.handlers.onEvent?.(JSON.parse(line));
-    expect(h.view().items).toHaveLength(300);
+    expect(h.view().items).toHaveLength(60);
     expect(h.view().paging).toMatchObject({ earlier: true, archived: false });
     const calls = h.f.calls.length;
     await Promise.all([h.session.timelinePage("older"), h.session.timelinePage("older")]);
     expect(h.view().paging).toMatchObject({ earlier: true, archived: true, loading: false });
-    expect(h.view().items[0]).toMatchObject({ text: "message 101" });
+    expect(h.view().items[0]).toMatchObject({ text: "message 581" });
     const previous = h.view().items;
     h.f.handlers.onApproval?.(approval("toujours-active"));
     h.f.handlers.onEvent?.(JSON.parse(jline({ kind: "agent.text", text: "en direct" }, 701)));
@@ -1065,11 +1138,12 @@ describe("historique (F4)", () => {
     expect(h.view().approvals).toHaveLength(1);
     expect(h.view().items).toEqual(previous);
     expect(h.f.calls).toHaveLength(calls);
-    await h.session.timelinePage("older");
+    for (let page = 0; page < 20 && h.view().paging?.earlier; page++)
+      await h.session.timelinePage("older");
     expect(h.view().items[0]).toMatchObject({ kind: "user", text: "début" });
     expect(h.view().paging?.earlier).toBe(false);
     await h.session.timelinePage("newer");
-    expect(h.view().items).toEqual(previous);
+    expect(h.view().items[0]).toMatchObject({ text: "message 41" });
     await h.session.timelinePage("latest");
     expect(h.view().paging?.archived).toBe(false);
     expect(h.view().items.at(-1)).toMatchObject({ text: "en direct" });
@@ -1080,12 +1154,94 @@ describe("historique (F4)", () => {
     expect(h.view().readonly).not.toBeNull();
     await h.session.timelinePage("older");
     await h.session.timelinePage("older");
+    for (let page = 0; page < 20 && h.view().paging?.earlier; page++)
+      await h.session.timelinePage("older");
     expect(h.view().items[0]).toMatchObject({ text: "début" });
     expect(h.view().approvals).toEqual([]);
     h.session.reset();
     await h.session.timelinePage("older");
     expect(h.view().items).toEqual([]);
     expect(h.view().paging).toMatchObject({ archived: false, loading: false });
+  });
+
+  it("transfère objectif et décision sourcée du journal lors du changement de fournisseur", async () => {
+    const h = withHistory();
+    await h.session.send("objectif initial");
+    h.f.handlers.onStarted?.({ runId: RUN1, policySource: null });
+    const lines = [jline({ kind: "user.message", text: "objectif initial" }, 0)];
+    lines.push(
+      jline(
+        {
+          kind: "mission.decision",
+          decision: {
+            objective: "choisir",
+            evidenceIds: ["preuve-1"],
+            nextAction: "vérifier",
+            successCriterion: "preuve obtenue",
+          },
+        },
+        1,
+      ),
+    );
+    for (let i = 2; i <= 140; i++)
+      lines.push(jline({ kind: "tool.requested", toolUseId: `t${i}`, tool: "Read", input: {} }, i));
+    lines.push(jline({ kind: "agent.text", text: "réponse récente" }, 141));
+    h.written.set(RUN1, lines.join("\n"));
+    for (const line of lines) h.f.handlers.onEvent?.(JSON.parse(line));
+    h.f.handlers.onEnded?.({ status: "success", turns: 1, costUsd: 0, result: null });
+    await h.session.setProvider("openai");
+    await h.session.send("suite");
+    expect(h.f.started?.conversationContext?.messages[0]).toEqual({
+      role: "user",
+      text: "objectif initial",
+    });
+    expect(h.f.started?.conversationContext?.decisions).toMatchObject([
+      { runId: RUN1, eventId: "e1", decision: { evidenceIds: ["preuve-1"] } },
+    ]);
+    h.session.dispose();
+  });
+
+  it("navigue par échange dans les deux sens à travers plusieurs pages d’outils", async () => {
+    const h = withHistory();
+    await h.session.send("début");
+    h.f.handlers.onStarted?.({ runId: RUN1, policySource: null });
+    h.f.handlers.onEnded?.({ sessionId: "S" } as never);
+    const conversation = h.view().history[0]?.id;
+    const lines = [jline({ kind: "user.message", text: "début" }, 0)];
+    let seq = 1;
+    const tools = () => {
+      for (let i = 0; i < 140; i++, seq++)
+        lines.push(
+          jline({ kind: "tool.requested", toolUseId: `t${seq}`, tool: "Read", input: {} }, seq),
+        );
+    };
+    tools();
+    lines.push(jline({ kind: "agent.text", text: "réponse A" }, seq++));
+    tools();
+    lines.push(jline({ kind: "user.message", text: "question B" }, seq++));
+    lines.push(jline({ kind: "agent.text", text: "réponse C" }, seq++));
+    h.written.set(RUN1, lines.join("\n"));
+    await h.session.openConversation(conversation);
+    let item = h.view().items.at(-1);
+    expect(item).toMatchObject({ kind: "agent", text: "réponse C" });
+    for (const [direction, text] of [
+      ["older", "question B"],
+      ["older", "réponse A"],
+      ["older", "début"],
+      ["newer", "réponse A"],
+      ["newer", "question B"],
+      ["newer", "réponse C"],
+    ] as const) {
+      if (!item) throw new Error("Échange introuvable");
+      await h.session.timelineExchange(direction, item.id, item.source);
+      const view = h.view();
+      expect(view.items.length).toBeLessThanOrEqual(60);
+      item = view.items.find((entry) => entry.source === view.exchangeTarget?.source);
+      expect(item).toMatchObject({ text });
+    }
+    await h.session.timelinePage("latest");
+    expect(h.view().paging?.archived).toBe(false);
+    h.session.dispose();
   });
 
   it("une lecture tardive ne remplit jamais une nouvelle conversation", async () => {
@@ -1303,6 +1459,139 @@ describe("deux chats (ADR 0008)", () => {
     expect(host.snapshot().on).toBe(false);
     expect(b.f.calls.filter((c) => c[0] === "bypass").at(-1)?.[1]).toBeNull();
     host.dispose();
+  });
+});
+
+describe("isolation des chats", () => {
+  it("les préférences et le mode apprentissage ne contaminent ni les autres chats ni la migration", async () => {
+    const data = new Map<string, unknown>([["warband.prefs", { provider: "claude" }]]);
+    const store = {
+      get: (key: string) => data.get(key),
+      set: (key: string, value: unknown) => void data.set(key, value),
+    };
+    const a = setup({ store, prefsKey: "prefs.a", learningKey: "learning.a" });
+    const b = setup({ store, prefsKey: "prefs.b", learningKey: "learning.b" });
+    await a.session.setProvider("openai");
+    a.session.setLearning(true);
+    expect(b.session.getProvider()).toBe("claude");
+    expect(b.session.view().controls?.learning).toBe(false);
+    const c = setup({ store, prefsKey: "prefs.c", learningKey: "learning.c" });
+    expect(c.session.getProvider()).toBe("claude");
+    expect(data.get("warband.prefs")).toEqual({ provider: "claude" });
+    expect(setup({ store, prefsKey: "prefs.a" }).session.getProvider()).toBe("openai");
+    a.session.dispose();
+    b.session.dispose();
+    c.session.dispose();
+  });
+
+  it("les choix de modèle, effort et ressources restent locaux", async () => {
+    const data = new Map<string, unknown>();
+    const store = {
+      get: (key: string) => data.get(key),
+      set: (key: string, value: unknown) => void data.set(key, value),
+    };
+    const settings = {
+      capabilities: {
+        providers: ["claude"],
+        skills: ["mentor"],
+        integrations: ["playwright"],
+        webSearch: true,
+      },
+      integrations: [{ id: "playwright", port: 9877, transport: "http", path: "/mcp" }],
+    };
+    const a = setup({ store, prefsKey: "prefs.a", settings });
+    const b = setup({ store, prefsKey: "prefs.b", settings });
+    a.f.setModels([{ value: "a", displayName: "A", supportedEffortLevels: ["low", "high"] }]);
+    await a.session.loadModels();
+    a.session.setModel("a");
+    a.session.setEffort("high");
+    a.session.setSelection({
+      profile: "mentor",
+      integrations: ["playwright"],
+      burp: false,
+      webSearch: true,
+    });
+    expect(b.session.view().controls).toMatchObject({ model: null, effort: null });
+    expect(b.session.view().capabilities?.selection).toEqual({
+      profile: null,
+      integrations: [],
+      burp: false,
+      webSearch: false,
+    });
+    const c = setup({ store, prefsKey: "prefs.c", settings });
+    expect(c.session.view().controls).toMatchObject({ model: null, effort: null });
+    await b.session.send("b");
+    expect(b.f.started).toMatchObject({ integrations: [], webSearch: false });
+    expect(b.f.started).not.toHaveProperty("profile");
+    a.session.dispose();
+    b.session.dispose();
+    c.session.dispose();
+  });
+
+  it("la variante d’un chat ne devient pas le choix d’un autre", async () => {
+    const data = new Map<string, unknown>([["warband.prefs", { provider: "opencode" }]]);
+    const store = {
+      get: (key: string) => data.get(key),
+      set: (key: string, value: unknown) => void data.set(key, value),
+    };
+    const models = [{ value: "a", displayName: "A", reasoningVariants: ["deep", "fast"] }];
+    const a = setup({ store, prefsKey: "prefs.a" });
+    const b = setup({ store, prefsKey: "prefs.b" });
+    a.f.setModels(models);
+    await a.session.loadModels();
+    a.session.setModel("a");
+    a.session.setVariant("deep");
+    expect(a.session.view().controls?.variant).toBe("deep");
+    expect(b.session.view().controls?.variant).toBeNull();
+    const c = setup({ store, prefsKey: "prefs.c" });
+    expect(c.session.view().controls?.variant).toBeNull();
+    a.session.dispose();
+    b.session.dispose();
+    c.session.dispose();
+  });
+
+  it("activation, accusé et reset d’un hôte ne touchent pas l’autre moteur", async () => {
+    const make = () => {
+      const f = fake();
+      const host = createBypassHost({
+        clock: {
+          now: () => 1000,
+          schedule: (fn, ms) => setTimeout(fn, ms),
+          cancel: (h) => clearTimeout(h as ReturnType<typeof setTimeout>),
+        },
+        onChange: () => {},
+      });
+      const session = createChatSession({
+        cwd: "/w",
+        enginePath: "/e",
+        engineArgs: [],
+        readSettings: () => ({}),
+        getToken: async () => undefined,
+        confirmAlways: async () => false,
+        onView: () => {},
+        createController: f.create,
+        bypass: host,
+      });
+      return { f, host, session };
+    };
+    const a = make();
+    const b = make();
+    await a.session.send("a");
+    await b.session.send("b");
+    a.host.request(true, true);
+    const state = a.f.calls.filter((c) => c[0] === "bypass").at(-1)?.[1] as BypassState;
+    a.f.handlers.onBypassAck?.({ seq: 2, state });
+    expect(a.host.snapshot().on).toBe(true);
+    expect(b.host.snapshot()).toMatchObject({ on: false, armed: false });
+    expect(b.f.calls.filter((c) => c[0] === "bypass").map((c) => c[1])).toEqual([null]);
+    b.session.reset();
+    expect(a.host.snapshot().on).toBe(true);
+    a.session.reset();
+    expect(a.host.snapshot().on).toBe(false);
+    a.session.dispose();
+    b.session.dispose();
+    a.host.dispose();
+    b.host.dispose();
   });
 });
 

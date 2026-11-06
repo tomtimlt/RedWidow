@@ -1,7 +1,11 @@
 import { constants } from "node:fs";
-import { open, readdir, realpath } from "node:fs/promises";
+import { lstat, open, readdir, realpath, unlink } from "node:fs/promises";
 import { isAbsolute, relative, resolve } from "node:path";
-import type { DockerToolSpec } from "@warband/core";
+import {
+  type DockerToolSpec,
+  PROJECT_WORKSPACE_FOLDERS,
+  prepareProjectWorkspace,
+} from "@warband/core";
 import { z } from "zod";
 /** Lecture bornée des preuves du projet, sans index global ni chargement du fichier complet. */
 export function projectFileSpecs(root: string): DockerToolSpec[] {
@@ -22,6 +26,17 @@ export function projectFileSpecs(root: string): DockerToolSpec[] {
     path: z.string().max(1024),
     offset: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).default(0),
     length: z.number().int().min(1).max(32768).default(16384),
+  };
+  const write = {
+    category: z.enum(PROJECT_WORKSPACE_FOLDERS),
+    filename: z
+      .string()
+      .regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/)
+      .refine(
+        (name) =>
+          !name.endsWith(".") && !/^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)/i.test(name),
+      ),
+    content: z.string().max(262144),
   };
   return [
     {
@@ -68,6 +83,46 @@ export function projectFileSpecs(root: string): DockerToolSpec[] {
             totalBytes: st.size,
             note: "Les bornes UTF-8 peuvent traverser un caractère : lire avec chevauchement si nécessaire. Fichiers binaires à convertir avant analyse.",
           });
+        } finally {
+          await file.close();
+        }
+      },
+    },
+    {
+      name: "write_project_artifact",
+      description:
+        "Créer un rapport, payload, scan, script, preuve ou note UTF-8 dans le projet ouvert, visible dans VS Code et le conteneur partagé. Catégorie imposée, nom simple sans chemin, 256 Kio maximum. Refuse les liens sortants et tout écrasement : choisir un nom de version unique. Ne pas appeler en Apprentissage.",
+      input: write,
+      async run(raw, ctx) {
+        const a = z.object(write).strict().parse(raw);
+        if (Buffer.byteLength(a.content) > 262144) throw Error("Artefact limité à 256 Kio.");
+        ctx.signal?.throwIfAborted();
+        await prepareProjectWorkspace(root);
+        const { base, target: directory } = await bound(a.category);
+        const destination = resolve(directory, a.filename);
+        const file = await open(
+          destination,
+          constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | (constants.O_NOFOLLOW ?? 0),
+          0o600,
+        );
+        const own = await file.stat();
+        try {
+          const parent = await bound(a.category);
+          const actual = await realpath(destination);
+          if (parent.base !== base || parent.target !== directory || actual !== destination)
+            throw Error("Chemin de mission modifié.");
+          ctx.signal?.throwIfAborted();
+          await file.writeFile(a.content, "utf8");
+          await file.sync();
+          return JSON.stringify({
+            path: `${a.category}/${a.filename}`,
+            bytes: Buffer.byteLength(a.content),
+          });
+        } catch (error) {
+          const current = await lstat(destination).catch(() => null);
+          if (current?.ino === own.ino && current?.dev === own.dev)
+            await unlink(destination).catch(() => {});
+          throw error;
         } finally {
           await file.close();
         }

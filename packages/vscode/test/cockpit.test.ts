@@ -924,7 +924,8 @@ describe("cockpit.js", () => {
     expect(js).toContain('type: "createExegol"');
     expect(js).toContain('type: "createKali"');
     expect(js).toContain('type: "listImages"');
-    expect(js).toContain('type: "pickSource"');
+    expect(js).toContain('type: "openWorkspace"');
+    expect(js).toContain("msg.projectWorkspace");
     expect(js).not.toContain('type: "create"');
     expect(js).toContain("Aucun conteneur.");
     expect(js).toContain("row.short");

@@ -81,7 +81,7 @@ export type ToEngine =
       provider?: Provider;
       opencodeProviders?: OpencodeProviders;
     }
-  | { v: 1; type: "prompt"; text: string }
+  | { v: 1; type: "prompt"; text: string; research?: boolean }
   | { v: 1; type: "answer"; toolUseId: string; decision: Decision; remember?: RememberScope }
   | { v: 1; type: "abort" }
   | { v: 1; type: "dispose" }
@@ -271,11 +271,12 @@ export function parseToEngine(raw: unknown): Parsed<ToEngine> {
       }
       return { ok: true, message: obj as ToEngine };
     case "prompt":
-      unexpected = extra(["v", "type", "text"]);
+      unexpected = extra(["v", "type", "text", "research"]);
       if (unexpected) return bad(unexpected, "unexpected");
       if (!isString(obj.text) || obj.text === "" || obj.text.length > MAX_PROMPT_CHARS) {
         return bad("text");
       }
+      if (obj.research !== undefined && typeof obj.research !== "boolean") return bad("research");
       return { ok: true, message: obj as ToEngine };
     case "answer":
       unexpected = extra(["v", "type", "toolUseId", "decision", "remember"]);

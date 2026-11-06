@@ -1,5 +1,6 @@
 import { type Finding, stripControl } from "@warband/core";
 import { createUiTranslator, getUiLocale, type Locale } from "@warband/messages";
+import type { MissionSnapshot } from "./mission-snapshot.js";
 
 const TYPES = {
   host: "Hôte",
@@ -16,6 +17,7 @@ export function missionReport(
   findings: Finding[],
   date: Date,
   locale: Locale = getUiLocale(),
+  snapshot?: MissionSnapshot,
 ): string {
   const t = createUiTranslator(() => locale);
   const text = (value: string) =>
@@ -35,6 +37,7 @@ export function missionReport(
     t("**Brouillon à relire et compléter avant diffusion.**"),
     "",
     t`Projet : ${text(project.id)} · Export : ${date.toISOString()}`,
+    ...(snapshot ? [t`Instantané des notes, du graphe et des contrôles : ${snapshot.id}`] : []),
     "",
     t("## Cadre de la mission"),
     "",
@@ -82,12 +85,62 @@ export function missionReport(
         t`- Référence : ${text(finding.id)} ; type : ${t(TYPES[finding.kind])} ; état : ${t(STATES[state])}.`,
         ...(finding.tactic ? [t`- Tactique ATT&CK : ${finding.tactic}.`] : []),
         ...(finding.technique ? [t`- Technique ATT&CK : ${finding.technique}.`] : []),
-        t("- Preuve, chemin d’artefact et reproduction : à référencer après vérification."),
+        ...(snapshot?.findingReferences.find((ref) => ref.id === finding.id)?.references.length
+          ? [
+              t`- Références connues : ${snapshot.findingReferences
+                .find((ref) => ref.id === finding.id)
+                ?.references.map(text)
+                .join(", ")}.`,
+            ]
+          : [t("- Preuve, chemin d’artefact et reproduction : à référencer après vérification.")]),
+        ...((snapshot?.findingReferences.find((ref) => ref.id === finding.id)?.unknown ?? []).length
+          ? [
+              t`- Références absentes de cette coupe : ${snapshot?.findingReferences
+                .find((ref) => ref.id === finding.id)
+                ?.unknown.map(text)
+                .join(", ")}.`,
+            ]
+          : []),
         t(
           "- Impact, gravité/CVSS et recommandation : à évaluer si cet élément décrit une vulnérabilité.",
         ),
         "",
       );
+  }
+  if (snapshot) {
+    lines.push("", t("## Contrôles et références Audit"), "");
+    lines.push(
+      t(
+        "Coupe de lecture non atomique : les notes et contrôles ont pu évoluer pendant la collecte.",
+      ),
+    );
+    if (!snapshot.auditAvailable)
+      lines.push(t("Contrôles Audit indisponibles : aucune conclusion de couverture."));
+    if (!snapshot.evidenceAvailable)
+      lines.push(
+        t(
+          "Registre des preuves indisponible : certaines références ne peuvent pas être vérifiées.",
+        ),
+      );
+    if (snapshot.auditIncomplete || snapshot.auditLimited)
+      lines.push(
+        t(
+          "Collecte Audit incomplète ou vue limitée : des contrôles et références peuvent manquer.",
+        ),
+      );
+    if (!snapshot.controls.length) lines.push(t("Aucun contrôle disponible dans cette coupe."));
+    for (const control of snapshot.controls) {
+      lines.push(
+        `- ${text(control.objective)} (${text(control.execution)} ; ${text(control.conclusion)} ; ${control.reviewed ? t("revu") : t("non revu")}).`,
+      );
+      if (control.references.length)
+        lines.push(t`  Références connues : ${control.references.map(text).join(", ")}.`);
+      if (control.unknown.length)
+        lines.push(
+          t`  Références absentes de cette coupe : ${control.unknown.map(text).join(", ")}.`,
+        );
+    }
+    lines.push("");
   }
   lines.push(
     t("## Conclusion et suites"),

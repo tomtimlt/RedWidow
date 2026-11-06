@@ -2,12 +2,12 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { EngineEvent } from "@warband/core";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { parseWebviewMessage } from "../src/logic/approval.js";
 import { createChatState, MAX_ITEMS, monitorChatView } from "../src/logic/chat.js";
 import { MAX_JOURNAL_BYTES, MAX_LINE_CHARS } from "../src/logic/history.js";
 import { createJournalFiles } from "../src/logic/historyStore.js";
-import { readConversationPage } from "../src/logic/timeline.js";
+import { findAdjacentExchange, readConversationPage } from "../src/logic/timeline.js";
 
 const RUN = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const OTHER = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -80,9 +80,28 @@ describe("pages de conversation", () => {
       if (!page?.state.dropped) break;
       before = items[0]?.source;
     }
-    expect(pages).toBe(4);
+    expect(pages).toBe(Math.ceil(905 / MAX_ITEMS));
     expect(seen.size).toBe(905);
     expect(seen.has(`${RUN}/e0`)).toBe(true);
+  });
+
+  it("trouve l’échange voisin en une seule lecture même après 10 000 outils", async () => {
+    const events: EngineEvent[] = [event(0, { kind: "user.message", text: "début" })];
+    for (let i = 1; i <= 10000; i++)
+      events.push(
+        event(i, { kind: "tool.requested", toolUseId: `t${i}`, tool: "Read", input: {} }),
+      );
+    events.push(event(10001, { kind: "agent.text", text: "fin" }));
+    const files = await journal(events);
+    const scan = vi.spyOn(files, "scan");
+    const result = await findAdjacentExchange(files, [RUN], `${RUN}/e10001`, "older", () => true);
+    expect(result).toMatchObject({
+      found: true,
+      target: { source: `${RUN}/e0`, before: `${RUN}/e1` },
+    });
+    expect(scan).toHaveBeenCalledTimes(1);
+    const page = await readConversationPage(files, [RUN], result?.target?.before, () => true);
+    expect(page?.state.view().items).toMatchObject([{ kind: "user", text: "début" }]);
   });
 
   it("garde les résultats arrivés après la borne et ignore les autres runs et lignes invalides", async () => {

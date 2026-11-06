@@ -42,6 +42,7 @@ export function killchainImage(
   project: { name: string },
   findings: readonly Finding[],
   locale: Locale = getUiLocale(),
+  snapshotId?: string,
 ): string {
   const t = createUiTranslator(() => locale);
   const byId = new Map(findings.map((finding) => [finding.id, finding]));
@@ -113,6 +114,7 @@ export function killchainImage(
   const parts = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-labelledby="title desc">`,
+    ...(snapshotId ? [`<metadata>snapshot-sha256:${xml(snapshotId)}</metadata>`] : []),
     `<title id="title">${xml(`Kill Chain — ${project.name}`)}</title>`,
     `<desc id="desc">${xml(t`${findings.length} éléments. Les liens verts indiquent le chemin retenu, sans déduire une réussite.`)}</desc>`,
     `<rect width="${width}" height="${height}" fill="#fff"/>`,

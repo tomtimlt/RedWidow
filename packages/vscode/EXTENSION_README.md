@@ -30,6 +30,10 @@ You need **VS Code 1.90+** and **Docker installed and running** for containers. 
 
 Providers include **Claude**, **OpenAI / ChatGPT** and **OpenCode** with its full runtime provider catalog. Search and enable providers such as Google Gemini, OpenRouter, GitHub Copilot and DeepSeek in System control. The general **OpenCode** entry shows all connected models. Use **Add Ollama / a compatible endpoint** to enter your API URL and installed model IDs. You can switch provider while keeping the same conversation. Provider subscriptions and API charges are separate. On Windows, Claude requires [Git for Windows with Git Bash](https://git-scm.com/downloads/win).
 
+Your active project folder is also the container’s shared workspace. New containers use that folder automatically. Reports, payloads, scans, scripts, evidence and notes appear directly in the VS Code Explorer. Preparing a linked container also provides a named path under `/redwidow/Workspace/` for its project. Existing files remain in place. A container with a different mount needs an explicit migration; RedWidow does not recreate it automatically.
+
+In **Settings → Appearance → Docker terminal prompt**, choose Original, RedWidow, Compact or Minimal, with a preview of each. The choice applies to new Bash terminals opened by RedWidow in Kali or Exegol. Existing terminals keep their prompt, and no `.bashrc` file is changed. Choose Original to keep the container’s own theme.
+
 English is the default interface language. Choose **EN / FR** in Settings. Native command titles follow your VS Code language.
 
 ## Add context and tools

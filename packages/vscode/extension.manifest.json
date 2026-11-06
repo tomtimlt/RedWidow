@@ -2,7 +2,7 @@
   "name": "warband",
   "displayName": "RedWidow",
   "description": "%extension.description%",
-  "version": "0.3.72",
+  "version": "0.3.73",
   "publisher": "warband",
   "license": "MIT",
   "engines": {
@@ -329,6 +329,19 @@
           "scope": "machine",
           "enumDescriptions": ["%config.burp.transport.enum.0%", "%config.burp.transport.enum.1%"],
           "description": "%config.burp.transport%"
+        },
+        "warband.terminalPrompt": {
+          "type": "string",
+          "enum": ["native", "redwidow", "compact", "minimal"],
+          "default": "native",
+          "scope": "machine",
+          "description": "%config.terminalPrompt%",
+          "enumDescriptions": [
+            "%config.terminalPrompt.enum.0%",
+            "%config.terminalPrompt.enum.1%",
+            "%config.terminalPrompt.enum.2%",
+            "%config.terminalPrompt.enum.3%"
+          ]
         },
         "warband.palette": {
           "type": "string",

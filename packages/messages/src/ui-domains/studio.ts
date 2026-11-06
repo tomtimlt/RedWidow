@@ -5,6 +5,21 @@ export const studioEn: Record<string, string> = {
   "Contrôle système": "System control",
   Projet: "Project",
   Apparence: "Appearance",
+  "Prompt du terminal Docker": "Docker terminal prompt",
+  "D’origine": "Original",
+  "Conserver le prompt et le thème du conteneur.": "Keep the container's prompt and theme.",
+  "Deux lignes : identité et dossier courant.": "Two lines: identity and current directory.",
+  "Utilisateur, hôte et dossier sur une ligne.": "User, host and directory on one line.",
+  "Le dossier courant, sans couleurs.": "Current directory, without colors.",
+  Compact: "Compact",
+  Minimal: "Minimal",
+  "Le texte avant le curseur, pas une bannière. S’applique aux nouveaux terminaux Bash ouverts par RedWidow, pour Kali et Exegol. Les terminaux déjà ouverts restent inchangés.":
+    "The text before the cursor, rather than a banner. Applies to new Bash terminals opened by RedWidow, for Kali and Exegol. Existing terminals stay unchanged.",
+  "Aperçus illustratifs. Le nom de l’utilisateur, l’hôte et le dossier suivent le terminal. Aucun fichier .bashrc n’est modifié. Choisissez D’origine pour retrouver votre thème habituel.":
+    "Illustrative previews. User, host and directory follow the terminal. No .bashrc file is changed. Choose Original to keep your usual theme.",
+  "Impossible d’enregistrer le prompt. Réessayez.": "Could not save the prompt. Try again.",
+  "Enregistré. Ouvrez un nouveau terminal pour appliquer ce choix.":
+    "Saved. Open a new terminal to apply this choice.",
   Interface: "Interface",
   "Non classé": "Unclassified",
   Hôte: "Host",

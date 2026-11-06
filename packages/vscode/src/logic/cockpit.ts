@@ -180,11 +180,25 @@ export function terminalLaunch(
   container: string,
   dockerPath: string | null = resolveBinary("docker"),
   program: readonly string[] = ["/bin/bash"],
+  workspace = "/workspace",
 ): { shellPath: string; shellArgs: readonly string[] } {
   if (dockerPath === null) throw new CodedError("process.notFound", { binary: "docker" });
   const name = assertOperand(container, "container");
   if (!program[0]?.startsWith("/")) throw new Error(t("programme refusé"));
-  const shellArgs = ["exec", "--interactive", "--tty", "--workdir", "/workspace", name, ...program];
+  if (workspace !== "/workspace" && !/^\/redwidow\/Workspace\/[A-Za-z0-9_-]+$/.test(workspace))
+    throw new Error(t("Chemin de workspace invalide."));
+  const launch =
+    workspace === "/workspace"
+      ? program
+      : [
+          "/bin/sh",
+          "-c",
+          'cd "$1" || exit; shift; exec "$@"',
+          "redwidow-terminal",
+          workspace,
+          ...program,
+        ];
+  const shellArgs = ["exec", "--interactive", "--tty", "--workdir", workspace, name, ...launch];
   assertSafeExecArgv(shellArgs);
   return { shellPath: dockerPath, shellArgs };
 }
@@ -224,6 +238,7 @@ export async function prepareTerminal(
   dockerPath: string | null = resolveBinary("docker"),
   program: readonly string[] = ["/bin/bash"],
   run?: WorkspaceRun,
+  workspace = "/workspace",
 ): Promise<{ shellPath: string; shellArgs: readonly string[] }> {
   if (dockerPath === null) throw new CodedError("process.notFound", { binary: "docker" });
   const name = assertOperand(container, "container");
@@ -237,7 +252,7 @@ export async function prepareTerminal(
       stderr: result.stderr.join("\n"),
     });
   }
-  return terminalLaunch(name, dockerPath, program);
+  return terminalLaunch(name, dockerPath, program, workspace);
 }
 
 /** Plafond de shells d'éditeur par conteneur Docker réel. */
@@ -338,6 +353,7 @@ export interface CockpitLinkedBanner {
 export interface CockpitViewPayload {
   type: "view";
   loading?: boolean;
+  projectWorkspace?: string;
   docker: "present" | "absent";
   daemon: CockpitDaemon;
   exegol: "present" | "absent";
@@ -532,6 +548,7 @@ export async function loadCockpitView(deps: CockpitDeps = {}): Promise<CockpitVi
     linked,
     linkedBanner,
     containers,
+    ...(active && { projectWorkspace: active.workspace }),
     ...(containers.length === 0 && { empty: "list" }),
   };
 }

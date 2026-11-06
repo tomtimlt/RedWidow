@@ -1,5 +1,12 @@
 // Libellés de la webview, indexés par leur texte français.
 export const cockpitEn: Record<string, string> = {
+  "Les fichiers sont partagés avec le dossier du projet ouvert dans VS Code. Un conteneur existant doit monter ce même dossier ; un autre montage nécessite une migration explicite.":
+    "Files are shared with the project folder open in VS Code. An existing container must mount that same folder; a different mount requires an explicit migration.",
+  "Dossier du projet": "Project folder",
+  "Choisissez un projet avant de créer son conteneur.":
+    "Choose a project before creating its container.",
+  "Le projet a changé pendant la préparation.": "The project changed during preparation.",
+  "Chemin de workspace invalide.": "Invalid workspace path.",
   Conteneurs: "Containers",
   Système: "System",
   "Contrôle système": "System control",

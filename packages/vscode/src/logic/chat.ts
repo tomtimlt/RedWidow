@@ -6,7 +6,8 @@ import { type Block, parseMarkdown } from "./markdown.js";
 import { summarizeInput, toolLabel } from "./present.js";
 import { displayToolOutput } from "./tool-output.js";
 
-export const MAX_ITEMS = 300;
+// Fenêtre de travail bornée ; les pages précédentes restent dans le journal.
+export const MAX_ITEMS = 60;
 export const MAX_OUTPUT_CHARS = 2000;
 
 /** Textes bruts qu'un abandon (SDK, DOMException, signal de l'UI) laisse dans `error.unknown`. */
@@ -50,7 +51,7 @@ export function isAbortError(error: unknown): boolean {
 /** Fenêtre de sortie montrée pendant qu'un exec tourne encore (le résultat final reste plafonné). */
 const LIVE_OUTPUT_CHARS = 12_000;
 
-export type ToolStatus = "pending" | "ok" | "error" | "denied";
+export type ToolStatus = "pending" | "ok" | "error" | "denied" | "interrupted";
 
 export type ChatItem = { source?: string } & (
   | { id: number; kind: "user"; text: string }
@@ -128,6 +129,7 @@ export interface ChatView {
   /** Attente annoncée par le fournisseur, distincte de la réflexion du modèle. */
   retry?: { attempt: number; delayMs: number };
   items: ChatItem[];
+  exchangeTarget?: { id: number; source?: string; revision: number };
   paging?: {
     earlier: boolean;
     archived: boolean;
@@ -201,6 +203,15 @@ export function createChatState(before?: string) {
     },
     get reached() {
       return reached;
+    },
+    interruptPending() {
+      let count = 0;
+      for (const item of items)
+        if (item.kind === "tool" && item.status === "pending") {
+          item.status = "interrupted";
+          count++;
+        }
+      return count;
     },
     get busy() {
       return busy;
@@ -281,6 +292,22 @@ export function createChatState(before?: string) {
             retry = { attempt: e.attempt, delayMs: e.delayMs };
             notice(
               t`Fournisseur temporairement indisponible${e.errorStatus === null ? "" : ` (HTTP ${e.errorStatus})`}. Nouvelle tentative dans ${Math.ceil(e.delayMs / 1000)} s.`,
+            );
+            return;
+          case "research.status":
+            notice(
+              e.status === "requested"
+                ? t("Recherche demandée pour ce message.")
+                : e.status === "completed"
+                  ? t(
+                      "Recherche et lecture demandées : réponses web reçues. Vérifiez leur pertinence.",
+                    )
+                  : e.status === "cancelled"
+                    ? t("Recherche demandée interrompue : résultat inconnu.")
+                    : t(
+                        "Recherche demandée non aboutie : recherche et lecture de source non confirmées.",
+                      ),
+              e.status === "failed" || e.status === "cancelled" ? "error" : "info",
             );
             return;
           case "agent.thinking":

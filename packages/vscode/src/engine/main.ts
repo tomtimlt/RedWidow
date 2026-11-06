@@ -1,3 +1,4 @@
+import { realpath } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import {
   createOpencodeRunner,
@@ -23,8 +24,12 @@ import {
   createExegolTargets,
   createRecorder,
   defaultConfigDir,
+  prepareContainerProjectWorkspace,
   readActiveProjectForPrompt,
   readProjects,
+  resolveExegolContainer,
+  resolveKaliContainer,
+  type StoredProject,
 } from "@warband/core";
 import { matchesFingerprint } from "../logic/integrity.js";
 import { PROTOCOL_VERSION } from "../logic/protocol.js";
@@ -52,6 +57,7 @@ const exe = join(root, "bin", process.platform === "win32" ? "claude.exe" : "cla
 const channel = processChannel();
 
 const targets = createExegolTargets();
+let learningMode = false;
 let projectRoot = process.cwd();
 const docker = createDockerClient({ recorder: createRecorder(), timeoutMs: 8_000 });
 
@@ -74,13 +80,42 @@ const done = runEngine({
   onPrompt: async (text) => {
     // Lecture robuste (ADR 0015 point 3) : fichier absent/pas de projet actif, project.invalid
     // (pas de nouvelle tentative) et erreur transitoire (une relecture) sont distingués. Jamais
-    // d'exception relancée ici : elle aborterait tout le run, pas seulement le tour.
-    const outcome = await readActiveProjectForPrompt(
-      () => readProjects(defaultConfigDir()),
-      activeProject,
-    );
+    // d’exception relancée pour la lecture du projet. Un partage invalide est en revanche
+    // bloquant : aucune action ne doit partir vers un autre dossier de mission.
+    let selected: StoredProject | null = null;
+    const outcome = await readActiveProjectForPrompt(async () => {
+      const file = await readProjects(defaultConfigDir());
+      selected = file && activeProject(file);
+      return file;
+    }, activeProject);
     targets.note(text, outcome.containers, outcome.projectId, outcome.blocked);
-    return enrichContainerPrompt(text, outcome.containers, () => docker.listLabelPrefix());
+    if (learningMode) return text;
+    let rows: Awaited<ReturnType<typeof docker.listLabelPrefix>>;
+    try {
+      rows = await docker.listLabelPrefix();
+    } catch {
+      return enrichContainerPrompt(text, outcome.containers, () => docker.listLabelPrefix());
+    }
+    if (!learningMode && selected && outcome.projectId === (selected as StoredProject).id) {
+      const project = selected as StoredProject;
+      if ((await realpath(project.workspace)) !== (await realpath(projectRoot)))
+        throw new CodedError("project.invalid");
+      for (const row of rows.filter(
+        (r) => project.containers.includes(r.name) && r.state === "running",
+      )) {
+        let chosen: string;
+        try {
+          chosen =
+            row.family === "kali"
+              ? resolveKaliContainer(targets.current(), row.name, rows)
+              : resolveExegolContainer(targets.current(), row.name, rows);
+        } catch {
+          continue;
+        }
+        if (chosen === row.name) await prepareContainerProjectWorkspace(project, row.name, docker);
+      }
+    }
+    return enrichContainerPrompt(text, outcome.containers, async () => rows);
   },
   createRunner: async (
     mode,
@@ -90,6 +125,7 @@ const done = runEngine({
     opencodeProviders,
     webSearch = true,
   ) => {
+    learningMode = mode === "learning";
     if (provider !== "claude") {
       const binary = join(root, "bin", process.platform === "win32" ? "opencode.exe" : "opencode");
       const hash = typeof __OPENCODE_SHA256__ === "string" ? __OPENCODE_SHA256__ : "";

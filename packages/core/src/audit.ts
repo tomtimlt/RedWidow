@@ -22,6 +22,8 @@ export const AUDIT_CHUNK_BYTES = 8 * 1024 * 1024;
 const FILE = /^events-[0-9a-f-]{36}-[0-9]{6}\.jsonl$/;
 const HEALTH = /^status-[0-9a-f-]{36}\.json$/;
 const retained = new Set([
+  "mission.decision",
+  "research.status",
   "run.started",
   "run.finished",
   "session.started",
@@ -323,7 +325,7 @@ export class AuditStore {
     }
     return rows;
   }
-  async view(projectId: string): Promise<AuditView> {
+  async view(projectId: string, options: { compact?: boolean } = {}): Promise<AuditView> {
     await this.flush(projectId).catch(() => undefined);
     const files = await this.files(projectId),
       records: AuditRecord[] = [];
@@ -333,11 +335,15 @@ export class AuditStore {
     for (const file of [...files].sort(
       (a, b) => b.modifiedAt - a.modifiedAt || b.name.localeCompare(a.name),
     )) {
-      if (readBytes >= 32 * 1024 * 1024) {
+      if (readBytes >= (options.compact ? 4 : 32) * 1024 * 1024) {
         limited = true;
         break;
       }
-      const length = Math.min(file.size, AUDIT_CHUNK_BYTES),
+      const length = Math.min(
+          file.size,
+          AUDIT_CHUNK_BYTES,
+          (options.compact ? 4 : 32) * 1024 * 1024 - readBytes,
+        ),
         handle = await open(file.path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
       let text: string;
       try {
@@ -412,7 +418,7 @@ export class AuditStore {
     };
     return {
       enabled: await this.enabled(projectId),
-      records: sorted.slice(-500),
+      records: options.compact ? [] : sorted.slice(-500),
       tests: auditTests(sorted).slice(-1000),
       bytes: files.reduce((n, f) => n + f.size, 0),
       health,

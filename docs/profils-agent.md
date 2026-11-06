@@ -11,7 +11,7 @@ repart sans méthode spécialisée. Les méthodes sont suspendues en mode Appren
 | Mentor | Comprendre un concept ou dépasser une difficulté | Un indice adapté, une tentative de l’apprenant, puis une vérification de compréhension |
 | Bug bounty | Examiner une application dans un programme défini | Un constat reproductible, un impact démontré et un rapport exploitable |
 | Out of the box | Sortir d’une piste qui tourne en rond | Des hypothèses distinctes et une observation qui permet de les départager |
-| Red team | Évaluer un objectif d’exercice et les défenses associées | Des résultats et de la télémétrie corrélés, dans les règles d’engagement |
+| Red Team — Expert | Évaluer un objectif d’exercice et les défenses associées | Des résultats et de la télémétrie corrélés, dans les règles d’engagement |
 | Hack The Box | Progresser sur un laboratoire ou un challenge | Une prochaine investigation justifiée et une résolution comprise |
 
 ## Comment ils aident
@@ -29,7 +29,7 @@ un timeout ne devient pas automatiquement une conclusion sur la cible.
 
 Le Mentor respecte le niveau d’aide demandé : indique par exemple « un premier
 indice seulement » ou « explique toute la correction ». Le profil HTB ne consulte
-pas implicitement une solution du challenge. Le profil Red team distingue une
+pas implicitement une solution du challenge. Le profil Red Team — Expert distingue une
 action observée, une alerte et une réponse défensive : l’absence de télémétrie
 ne permet pas de conclure à une absence de détection.
 
@@ -44,3 +44,5 @@ limites de contexte et la cohérence des fichiers embarqués. Ils ne mesurent pa
 la qualité des réponses d’un modèle. La [grille d’évaluation](profils-evaluation.md)
 permet de comparer les modèles sur les mêmes situations et de relever leurs
 erreurs sans publier de secrets ni de solutions de challenges actifs.
+
+Le profil Expert garde l’identifiant `red-team`. Ses modules à la demande couvrent la recherche technique, l’applicabilité des CVE, les hypothèses discriminantes et les preuves de concept. La création autorisée d’un artefact ne vaut pas autorisation de l’exécuter ; modèle, effort et permissions restent ceux choisis.

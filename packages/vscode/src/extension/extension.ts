@@ -9,6 +9,7 @@ import {
   type AuditView,
   activeProject,
   appendFinding,
+  associateContainer,
   attachEvidence,
   buildAttackFlow,
   burpToolSpecs,
@@ -26,6 +27,7 @@ import {
   lookupContainer,
   MCP_CATALOG,
   parseIntegrations,
+  prepareContainerProjectWorkspace,
   prepareKaliContainer,
   pullDockerImage,
   readFindings,
@@ -73,6 +75,7 @@ import { setSelectedPathEdge } from "../logic/killchain-path.js";
 import { saveMachinePreference } from "../logic/machine-preference.js";
 import { prepareMissionFolder } from "../logic/mission-folder.js";
 import { missionReport, missionReportPreview } from "../logic/mission-report.js";
+import { missionSnapshot } from "../logic/mission-snapshot.js";
 import { parseProviderOptions } from "../logic/models.js";
 import { parseOpencodeProviders } from "../logic/opencode-providers.js";
 import { PALETTES, type Palette, paletteOf } from "../logic/palette.js";
@@ -105,6 +108,7 @@ import {
   type StudioMessage,
   type StudioPage,
 } from "../logic/studio.js";
+import { terminalPromptOf, terminalShell } from "../logic/terminal-prompt.js";
 import {
   capturedShell,
   classifyMessageHashes,
@@ -151,6 +155,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     });
   };
   const currentLocale = () => (readMachineSetting("language") === "fr" ? "fr" : "en");
+  const currentTerminalPrompt = () => terminalPromptOf(readMachineSetting("terminalPrompt"));
   setUiLocale(currentLocale());
   let runtimeProviders =
     parseProviderOptions(context.globalState.get("warband.providerCatalog")) ?? [];
@@ -392,6 +397,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("warband.language")) broadcastLocale();
+      if (event.affectsConfiguration("warband.terminalPrompt"))
+        void studioPanel?.webview.postMessage({
+          type: "terminalPrompt",
+          value: currentTerminalPrompt(),
+        });
       if (!event.affectsConfiguration("warband.palette")) return;
       const message = { type: "palette", value: currentPalette() };
       post(message);
@@ -401,7 +411,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       for (const watch of watches) void watch.panel.webview.postMessage(message);
     }),
   );
-  let seq = 1;
   let restoring = false;
   const kaliPreparations = new Map<string, Promise<void>>();
   const prepareIfKali = async (name: string): Promise<void> => {
@@ -547,7 +556,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (seats(id !== SIDEBAR_CHAT) >= CHAT_CAP) throw new Error(t("Quatre chats au maximum."));
     if (!folder) throw new Error(t`Ouvrez un dossier avant de lancer ${PRODUCT_NAME}.`);
     const historyKey = SHARED_HISTORY_KEY;
-    // Mode apprentissage (ADR 0010) : une clé par chat, séparée de `warband.prefs` (partagé).
+    // Préférences et mode apprentissage propres à chaque chat.
     const learningKey = `warband.learning.${id}`;
     const session = createChatSession({
       cwd: folder.uri.fsPath,
@@ -555,15 +564,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       engineArgs: [context.extensionPath],
       readSettings,
       onProviders: acceptProviders,
-      // Bypass (ADR 0006, 0008) : un lien par moteur, l'interrupteur reste celui de la fenêtre.
-      bypass: { attach: (send) => bypass.attach(send), reset: () => bypass.reset() },
+      bypass: getBypass(id),
+      prefsKey: `warband.prefs.chat.${id}`,
       getToken,
       // Sans jeton, le chat est grisé et propose d'en ajouter un.
       requireProvider: true,
       learningKey,
       store: {
-        get: (key: string) => context.globalState.get(key),
-        set: (key: string, value: unknown) => context.globalState.update(key, value),
+        get: (key: string) =>
+          key.startsWith("warband.prefs.chat.") || key.startsWith("warband.learning.")
+            ? (context.workspaceState.get(key) ?? context.globalState.get(key))
+            : context.globalState.get(key),
+        set: (key: string, value: unknown) =>
+          key.startsWith("warband.prefs.chat.") || key.startsWith("warband.learning.")
+            ? context.workspaceState.update(key, value)
+            : context.globalState.update(key, value),
       },
       readHistoryProjects: async () => {
         const file = await readProjects(defaultConfigDir());
@@ -764,13 +779,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       // Session journalisée dans le conteneur : indépendant de l'hôte (Windows, macOS, Linux).
       const logPath =
         token === null ? null : containerLogPath(token, randomBytes(4).toString("hex"));
+      const projectFile = await readProjects(defaultConfigDir());
+      const auditProject = projectFile === null ? null : activeProject(projectFile);
+      const workdir = auditProject?.containers.includes(plan.name)
+        ? await prepareContainerProjectWorkspace(auditProject, plan.name, shellDocker())
+        : "/workspace";
       const { shellPath, shellArgs } = await prepareTerminal(
         plan.name,
         undefined,
-        logPath === null ? undefined : capturedShell(logPath),
+        logPath === null
+          ? terminalShell(currentTerminalPrompt())
+          : capturedShell(logPath, currentTerminalPrompt()),
+        undefined,
+        workdir,
       );
-      const projectFile = await readProjects(defaultConfigDir());
-      const auditProject = projectFile === null ? null : activeProject(projectFile);
       const projectId = auditProject?.containers.includes(plan.name) ? auditProject.id : null;
       const term = vscode.window.createTerminal({
         name: plan.title,
@@ -839,7 +861,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       setActive(id);
       // Bypass (ADR 0006) : hôte seul, avant `getSession`. `enabled: true` refusé si la vue est cachée.
       if (message.type === "setBypass") {
-        bypass.request(message.enabled, visible());
+        getBypass(id).request(message.enabled, visible());
         return;
       }
       // Chat grisé sans fournisseur : ouvre la saisie du jeton (hôte seul, aucune donnée venue de la webview).
@@ -851,7 +873,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const s = getSession(id);
       switch (message.type) {
         case "ready":
-          reply(bypass.snapshot());
+          reply(getBypass(id).snapshot());
           reply({ type: "view", view: s.view(), chatId: id });
           reply(await containersMessage());
           reply(await terminalsMessage());
@@ -952,6 +974,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             const accepted = await s.send(
               hasFiles ? attachmentMessage(message.text, message.attachments ?? []) : message.text,
               hasFiles ? withAttachments(context, message.attachments ?? []) : context,
+              message.research === true,
             );
             result(accepted);
           } catch (error) {
@@ -963,12 +986,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         case "stop":
           return s.stop();
         case "reset":
-          bypass.reset();
           return s.reset();
         case "approve":
           return await s.approve(message.toolUseId, message.choice);
         case "timelinePage":
           return await s.timelinePage(message.direction);
+        case "timelineExchange":
+          return await s.timelineExchange(message.direction, message.id, message.source);
         case "historyRefresh":
           return await s.refreshHistoryProjects();
         case "historyOpen":
@@ -1203,8 +1227,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             return void pushView(true);
           case "link": {
             await pushView(true);
+            const beforeFile = await readProjects(defaultConfigDir());
+            const before = beforeFile && activeProject(beforeFile);
+            if (before)
+              await prepareContainerProjectWorkspace(
+                { ...before, containers: [...new Set([...before.containers, message.name])] },
+                message.name,
+                shellDocker(),
+              );
             await prepareIfKali(message.name);
-            postCockpit(await linkContainer(message.name));
+            if (before && (await readProjects(defaultConfigDir()))?.activeId !== before.id)
+              throw Error(t("Le projet a changé pendant la préparation."));
+            const linkedView = await linkContainer(message.name);
+            const file = await readProjects(defaultConfigDir());
+            const project = file && activeProject(file);
+            if (project)
+              await prepareContainerProjectWorkspace(project, message.name, shellDocker());
+            postCockpit(linkedView);
+            await vscode.commands.executeCommand("warband.prepareMission");
             return;
           }
           case "setPrimary": {
@@ -1297,11 +1337,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
               )
                 throw new Error(t("Une création de ce nom est déjà ouverte dans un terminal."));
               signal.throwIfAborted();
+              const projectFile = await readProjects(defaultConfigDir());
+              const selectedProject = projectFile && activeProject(projectFile);
+              if (!selectedProject)
+                throw Error(t("Choisissez un projet avant de créer son conteneur."));
+              await prepareMissionFolder(selectedProject.workspace);
               await startContainerTerminal(
                 {
                   name: message.name,
                   ...(message.image && { image: message.image }),
-                  ...(message.source && { workspacePath: message.source }),
+                  workspacePath: selectedProject.workspace,
                   ...(message.vpn && selectedVpn && { vpnPath: selectedVpn }),
                   ...(message.desktop !== undefined && { desktop: message.desktop }),
                   ...(message.desktopPort !== undefined && { desktopPort: message.desktopPort }),
@@ -1332,6 +1377,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 }
               });
               try {
+                const projectFile = await readProjects(defaultConfigDir());
+                const selectedProject = projectFile && activeProject(projectFile);
+                if (!selectedProject)
+                  throw Error(t("Choisissez un projet avant de créer son conteneur."));
+                await prepareMissionFolder(selectedProject.workspace);
                 const options = {
                   recorder,
                   signal,
@@ -1368,7 +1418,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 await createDockerClient({ recorder, binary: "docker" }).createKaliContainer({
                   image,
                   name: message.name,
-                  source: message.source,
+                  source: selectedProject.workspace,
                   signal,
                 });
                 signal.throwIfAborted();
@@ -1378,6 +1428,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                   signal,
                   onStage: (stage) => report({ stage: t`Serveur MCP Kali : ${stage}` }),
                 });
+                const latest = await readProjects(defaultConfigDir());
+                if (latest?.activeId !== selectedProject.id)
+                  throw Error(t("Le projet a changé pendant la préparation."));
+                await associateContainer(
+                  defaultConfigDir(),
+                  selectedProject.id,
+                  message.name,
+                  shellDocker(),
+                );
+                const linkedProject = {
+                  ...selectedProject,
+                  containers: [...new Set([...selectedProject.containers, message.name])],
+                };
+                await prepareContainerProjectWorkspace(linkedProject, message.name, shellDocker());
               } finally {
                 unsubscribe();
                 recorder.close();
@@ -1503,6 +1567,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   };
   const setActive = (id: string) => {
     activeId = id;
+    renderBypass(getBypass(id).snapshot());
     pushMonitor();
   };
   const mountChatHtml = (webview: vscode.Webview) => {
@@ -1522,8 +1587,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const nextChatId = () => {
     let id = "";
     do {
-      seq += 1;
-      id = `c${seq}`;
+      id = `c${randomBytes(12).toString("hex")}`;
     } while (slots.has(id));
     return id;
   };
@@ -1560,9 +1624,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     mountChatHtml(panel.webview);
     panel.onDidDispose(() => {
       slot.session?.dispose();
+      bypassHosts.get(id)?.dispose();
+      bypassHosts.delete(id);
       slots.delete(id);
-      if (activeId === id) activeId = SIDEBAR_CHAT;
-      pushMonitor();
+      if (activeId === id) setActive(SIDEBAR_CHAT);
+      else pushMonitor();
       void saveWindows();
     });
     panel.onDidChangeViewState((e) => {
@@ -1927,7 +1993,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     let auditError = feedback.auditError;
     if (studioPage === "audit" && projectChoices.activeId) {
       try {
-        audit = await auditStore.view(projectChoices.activeId);
+        audit = await auditStore.view(projectChoices.activeId, { compact: true });
       } catch (error) {
         auditError = formatError(error, getUiLocale());
       }
@@ -1952,6 +2018,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       audit,
       auditError,
       capabilities: readSettings().capabilities,
+      terminalPrompt: currentTerminalPrompt(),
       providerCatalog: providerChoices(readSettings(), false).map(
         ({ id, label, runtimeId, connected }) => ({
           id,
@@ -2088,6 +2155,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       )
         throw new CodedError("project.absent");
       const findings = await readFindings(defaultConfigDir(), project.id);
+      const [audit, evidence] = await Promise.all([
+        auditStore.view(project.id).catch(() => null),
+        listEvidence(defaultConfigDir(), project.id).catch(() => null),
+      ]);
+      const snapshot = missionSnapshot(findings, audit, evidence);
       if (generation !== findingProjectGeneration || projectChanging)
         throw new CodedError("project.absent");
       if (
@@ -2105,10 +2177,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         destination,
         Buffer.from(
           attackFlow
-            ? JSON.stringify(buildAttackFlow(project, findings, new Date()), null, 2) + "\n"
+            ? JSON.stringify(
+                {
+                  ...buildAttackFlow(project, snapshot.findings, new Date()),
+                  x_venator_snapshot: snapshot.id,
+                },
+                null,
+                2,
+              ) + "\n"
             : image
-              ? killchainImage(project, findings)
-              : missionReport(project, findings, new Date()),
+              ? killchainImage(project, snapshot.findings, getUiLocale(), snapshot.id)
+              : missionReport(project, snapshot.findings, new Date(), getUiLocale(), snapshot),
           "utf8",
         ),
       );
@@ -2643,6 +2722,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
         return;
       }
+      if (message.type === "setTerminalPrompt") {
+        try {
+          await writeMachineSetting("terminalPrompt", message.value);
+          await panel.webview.postMessage({
+            type: "terminalPrompt",
+            value: currentTerminalPrompt(),
+          });
+        } catch {
+          await panel.webview.postMessage({
+            type: "terminalPrompt",
+            value: currentTerminalPrompt(),
+            error: true,
+          });
+        }
+        return;
+      }
       if (message.type === "setPalette") {
         try {
           await updatePalette(message.palette);
@@ -2752,6 +2847,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
               },
             );
             if (changed) {
+              if (message.type !== "renameProject") resetAllBypass();
               cancelFindingDeletions();
               await Promise.all(
                 [...slots.values()].map((slot) => slot.session?.refreshHistoryProjects()),
@@ -2806,6 +2902,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             }
           }
           if (projectSelected) {
+            resetAllBypass();
             await Promise.all(
               [...slots.values()].map((slot) => slot.session?.refreshHistoryProjects()),
             );
@@ -3050,9 +3147,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const linked =
           (await readProjects(defaultConfigDir()))?.projects.find((p) => p.id === current?.id)
             ?.containers ?? [];
-        const mappings = rows
-          .filter((row) => linked.includes(row.name))
-          .map((row) => `${row.name} : ${row.workspace ?? t("montage absent")} → /workspace`);
+        const stored = (await readProjects(defaultConfigDir()))?.projects.find(
+          (p) => p.id === current?.id,
+        );
+        const mappings: string[] = [];
+        if (stored)
+          for (const row of rows.filter((r) => linked.includes(r.name) && r.state === "running")) {
+            const target = await prepareContainerProjectWorkspace(stored, row.name, shellDocker());
+            mappings.push(`${row.name} : ${root} → ${target}`);
+          }
         await vscode.window.showInformationMessage(
           t`Dossier de mission : ${root}. ${mappings.join(" ; ") || t("Aucun montage lié vérifié : créez ou associez un conteneur avant de travailler.")}`,
         );
@@ -3614,7 +3717,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (!push.on) {
       // Armé (demandé, pas encore effectif) : affiché sans prétendre à « actif ».
       if (push.armed) {
-        barBypass.text = t("BYPASS · en attente");
+        barBypass.text = `${t("BYPASS · en attente")} · ${chatName(activeId)}`;
         barBypass.show();
       } else {
         barBypass.hide();
@@ -3622,40 +3725,51 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       return;
     }
     const refreshText = () => {
-      const left = bypass.remainingMs();
-      barBypass.text = `BYPASS · ${left === null ? "" : formatRemaining(left)}`;
+      const left = getBypass(activeId).remainingMs();
+      barBypass.text = `BYPASS · ${chatName(activeId)} · ${left === null ? "" : formatRemaining(left)}`;
       barBypass.show();
     };
     refreshText();
     bypassTick = setInterval(refreshText, 30_000);
   };
-  const bypass = createBypassHost({
-    clock: {
-      now: () => Date.now(),
-      schedule: (fn, delayMs) => setTimeout(fn, delayMs),
-      cancel: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
-    },
-    onChange: (push) => {
-      post(push);
-      for (const [id, slot] of slots) {
-        if (id !== SIDEBAR_CHAT) void slot.panel?.webview.postMessage(push);
-      }
-      renderBypass(push);
-    },
-  });
+  const bypassHosts = new Map<string, ReturnType<typeof createBypassHost>>();
+  const getBypass = (id: string) => {
+    let host = bypassHosts.get(id);
+    if (host) return host;
+    host = createBypassHost({
+      clock: {
+        now: () => Date.now(),
+        schedule: (fn, delayMs) => setTimeout(fn, delayMs),
+        cancel: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+      },
+      onChange: (push) => {
+        if (id === SIDEBAR_CHAT) post(push);
+        else void slots.get(id)?.panel?.webview.postMessage(push);
+        if (id === activeId) renderBypass(push);
+      },
+    });
+    bypassHosts.set(id, host);
+    return host;
+  };
+  const resetAllBypass = () => {
+    for (const host of bypassHosts.values()) host.reset();
+  };
   refreshBypassLocale = () => {
     barBypass.tooltip = t("Bypass des approbations actif : cliquer pour le désactiver");
-    renderBypass(bypass.snapshot());
+    renderBypass(getBypass(activeId).snapshot());
   };
   context.subscriptions.push(
     {
       dispose: () => {
-        bypass.dispose();
+        for (const host of bypassHosts.values()) host.dispose();
+        bypassHosts.clear();
         if (bypassTick !== undefined) clearInterval(bypassTick);
       },
     },
-    vscode.workspace.onDidChangeWorkspaceFolders(() => bypass.reset()),
-    vscode.commands.registerCommand("warband.disableBypass", () => bypass.request(false, true)),
+    vscode.workspace.onDidChangeWorkspaceFolders(resetAllBypass),
+    vscode.commands.registerCommand("warband.disableBypass", () =>
+      getBypass(activeId).request(false, true),
+    ),
   );
 
   const barAudit = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 99);

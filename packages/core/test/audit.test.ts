@@ -33,6 +33,13 @@ const input = {
 } as const;
 
 describe("journal d’audit par projet", () => {
+  it("la vue compacte retire les traces du transport sans effacer les journaux", async () => {
+    const { store, project } = await fixture();
+    const row = await store.append(project, input);
+    expect((await store.view(project, { compact: true })).records).toEqual([]);
+    expect((await store.view(project)).records.map((r) => r.id)).toEqual([row?.id]);
+    await store.close();
+  });
   it("démarre activé, refuse les chemins étrangers et sépare deux missions", async () => {
     const { store, project } = await fixture(),
       other = randomUUID();

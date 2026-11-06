@@ -2,6 +2,7 @@
 (() => {
   // packages/messages/src/ui-domains/audit.ts
   var auditEn = {
+    "{0} contrôles · {1} Kio conservés": "{0} tests · {1} KiB retained",
     Audit: "Audit",
     Demandé: "Requested",
     "Retour reçu": "Returned",
@@ -265,6 +266,10 @@
     "Fermer l'historique (Échap)": "Close history (Escape)",
     "Fermer l'historique": "Close history",
     "Navigation dans les messages": "Message navigation",
+    "interrompu ou état inconnu": "interrupted or unknown",
+    "Rechercher pour ce message": "Research for this message",
+    "Échange précédent": "Previous exchange",
+    "Échange suivant": "Next exchange",
     Précédents: "Previous",
     Suivants: "Next",
     "Revenir au direct": "Return to live",
@@ -352,6 +357,13 @@
 
   // packages/messages/src/ui-domains/cockpit.ts
   var cockpitEn = {
+    "Les fichiers sont partagés avec le dossier du projet ouvert dans VS Code. Un conteneur existant doit monter ce même dossier ; un autre montage nécessite une migration explicite.":
+      "Files are shared with the project folder open in VS Code. An existing container must mount that same folder; a different mount requires an explicit migration.",
+    "Dossier du projet": "Project folder",
+    "Choisissez un projet avant de créer son conteneur.":
+      "Choose a project before creating its container.",
+    "Le projet a changé pendant la préparation.": "The project changed during preparation.",
+    "Chemin de workspace invalide.": "Invalid workspace path.",
     Conteneurs: "Containers",
     Système: "System",
     "Contrôle système": "System control",
@@ -803,6 +815,39 @@
       "Token changed: a new engine started with the new token in the same session.",
     "Jeton modifié : nouveau moteur au prochain message, même session.":
       "Token changed: a new engine will start for the next message in the same session.",
+    "Moteur arrêté. Les tâches détachées dans les conteneurs peuvent continuer ; vérifiez leur état.":
+      "Engine stopped. Detached container tasks may still be running; check their status.",
+    "Recherche demandée : une source web a répondu. Vérifiez sa pertinence.":
+      "Requested research: a web source responded. Check its relevance.",
+    "Recherche demandée interrompue : résultat inconnu.":
+      "Requested research was interrupted; the result is unknown.",
+    "Recherche demandée non aboutie : aucune source web confirmée pour ce tour.":
+      "Requested research did not complete: no web source was confirmed for this turn.",
+    "Activez les outils Web pour demander une recherche à ce tour.":
+      "Enable Web tools to request research for this turn.",
+    "Instantané des notes, du graphe et des contrôles : {0}":
+      "Notes, graph and controls snapshot: {0}",
+    "## Contrôles et références Audit": "## Audit controls and references",
+    "Coupe de lecture non atomique : les notes et contrôles ont pu évoluer pendant la collecte.":
+      "Non-atomic snapshot: notes and controls may have changed during collection.",
+    "Contrôles Audit indisponibles : aucune conclusion de couverture.":
+      "Audit controls unavailable: no coverage conclusion is possible.",
+    "Registre des preuves indisponible : certaines références ne peuvent pas être vérifiées.":
+      "Evidence registry unavailable: some references cannot be verified.",
+    "Collecte Audit incomplète ou vue limitée : des contrôles et références peuvent manquer.":
+      "Audit collection incomplete or view limited: controls and references may be missing.",
+    "Aucun contrôle disponible dans cette coupe.": "No controls available in this snapshot.",
+    "Références connues : {0}.": "Known references: {0}.",
+    "Références absentes de cette coupe : {0}.": "References absent from this snapshot: {0}.",
+    revu: "reviewed",
+    "non revu": "not reviewed",
+    "Recherche demandée pour ce message.": "Research requested for this message.",
+    "Recherche et lecture demandées : réponses web reçues. Vérifiez leur pertinence.":
+      "Requested search and reading: web responses received. Check their relevance.",
+    "Recherche demandée non aboutie : recherche et lecture de source non confirmées.":
+      "Requested research did not complete: search and source reading were not confirmed.",
+    "Moteur terminé avec des outils sans résultat. Les tâches détachées dans les conteneurs peuvent continuer ; vérifiez leur état.":
+      "Engine exited with unfinished tools. Detached container tasks may still be running; check their status.",
     "Arrêt demandé.": "Stop requested.",
     "Cette conversation appartient à un autre projet. Revenez à son projet ou créez une nouvelle conversation dans le projet actif.":
       "This conversation belongs to another project. Return to its project or create a new conversation in the active project.",
@@ -1071,6 +1116,21 @@
     "Contrôle système": "System control",
     Projet: "Project",
     Apparence: "Appearance",
+    "Prompt du terminal Docker": "Docker terminal prompt",
+    "D’origine": "Original",
+    "Conserver le prompt et le thème du conteneur.": "Keep the container's prompt and theme.",
+    "Deux lignes : identité et dossier courant.": "Two lines: identity and current directory.",
+    "Utilisateur, hôte et dossier sur une ligne.": "User, host and directory on one line.",
+    "Le dossier courant, sans couleurs.": "Current directory, without colors.",
+    Compact: "Compact",
+    Minimal: "Minimal",
+    "Le texte avant le curseur, pas une bannière. S’applique aux nouveaux terminaux Bash ouverts par RedWidow, pour Kali et Exegol. Les terminaux déjà ouverts restent inchangés.":
+      "The text before the cursor, rather than a banner. Applies to new Bash terminals opened by RedWidow, for Kali and Exegol. Existing terminals stay unchanged.",
+    "Aperçus illustratifs. Le nom de l’utilisateur, l’hôte et le dossier suivent le terminal. Aucun fichier .bashrc n’est modifié. Choisissez D’origine pour retrouver votre thème habituel.":
+      "Illustrative previews. User, host and directory follow the terminal. No .bashrc file is changed. Choose Original to keep your usual theme.",
+    "Impossible d’enregistrer le prompt. Réessayez.": "Could not save the prompt. Try again.",
+    "Enregistré. Ouvrez un nouveau terminal pour appliquer ce choix.":
+      "Saved. Open a new terminal to apply this choice.",
     Interface: "Interface",
     "Non classé": "Unclassified",
     Hôte: "Host",

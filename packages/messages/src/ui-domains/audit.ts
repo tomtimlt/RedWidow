@@ -1,5 +1,6 @@
 /** Libellés du journal de mission et de son export autonome. */
 export const auditEn: Record<string, string> = {
+  "{0} contrôles · {1} Kio conservés": "{0} tests · {1} KiB retained",
   Audit: "Audit",
   Demandé: "Requested",
   "Retour reçu": "Returned",

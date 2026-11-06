@@ -332,10 +332,10 @@ describe("Bypass : aucune persistance ni réglage", () => {
     }
   });
 
-  it("un seul point d'activation : bypass.request n'est appelé que par setBypass et la commande de désactivation", () => {
+  it("seuls le chat et la commande de désactivation demandent un changement de Bypass", () => {
     const calls = read("../src/extension/extension.ts")
       .split("\n")
-      .filter((l) => l.includes("bypass.request("));
+      .filter((l) => /getBypass\([^)]*\)\.request\(/.test(l));
     expect(calls).toHaveLength(2);
     expect(calls.some((l) => l.includes("message.enabled"))).toBe(true);
     expect(calls.some((l) => l.includes("request(false, true)"))).toBe(true);

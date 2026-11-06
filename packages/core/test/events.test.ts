@@ -24,6 +24,11 @@ const SAMPLES: { [K in EventKind]: Extract<EventPayload, { kind: K }> } = {
       evidenceIds: ["event-1"],
     },
   },
+  "mission.decision": {
+    kind: "mission.decision",
+    decision: { objective: "o", evidenceIds: [], nextAction: "n", successCriterion: "s" },
+  },
+  "research.status": { kind: "research.status", status: "requested" },
   "run.started": { kind: "run.started", prompt: "p", cwd: "/" },
   "session.started": {
     kind: "session.started",

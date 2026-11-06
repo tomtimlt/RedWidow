@@ -1,4 +1,5 @@
 import { auditTestSchema } from "./audit-schema.js";
+import { type MissionDecision, missionDecisionSchema } from "./mission-decision-schema.js";
 /**
  * Modèle d'événements du moteur. Tout ce que le moteur produit passe par ici :
  * les UI (CLI, export HTML, extension VS Code) ne consomment que ces objets.
@@ -63,6 +64,8 @@ export type EventPayload =
   | { kind: "agent.text"; text: string }
   /** Consigne de l'utilisateur (un tour d'une conversation multi-tours) ; masquée par le recorder. */
   | { kind: "user.message"; text: string }
+  | { kind: "mission.decision"; decision: MissionDecision }
+  | { kind: "research.status"; status: "requested" | "completed" | "failed" | "cancelled" }
   | {
       /** Raisonnement du modèle ; `redacted` : bloc chiffré, `text` vaut alors "". */
       kind: "agent.thinking";
@@ -334,6 +337,11 @@ export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
   "auth.status": shape({ isAuthenticating: "boolean", error: "string?" }),
   "agent.text": shape({ text: "string" }),
   "user.message": shape({ text: "string" }),
+  "mission.decision": (p) =>
+    missionDecisionSchema.safeParse(p.decision).success
+      ? null
+      : reason("event.invalidField", { field: "decision" }),
+  "research.status": shape({ status: "enum:requested,completed,failed,cancelled" }),
   "agent.thinking": shape({ text: "string", redacted: "boolean" }),
   "tool.requested": shape({
     toolUseId: "string",

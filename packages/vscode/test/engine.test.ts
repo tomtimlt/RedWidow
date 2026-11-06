@@ -189,6 +189,60 @@ describe("moteur : journal de l'extension (F4)", () => {
         .map((event) => event.text),
     ).toEqual(seen);
   });
+  it("trace la recherche demandée, ses deux résultats et ne répète pas l’instruction au tour suivant", async () => {
+    const t = fakeChannel();
+    const received: string[] = [];
+    const runner: AgentRunner = {
+      run: async ({ prompt }, { recorder }) => {
+        for await (const text of prompt as AsyncIterable<string>) {
+          received.push(text);
+          if (received.length === 1) {
+            for (const [id, tool] of [
+              ["s", "search_web"],
+              ["r", "read_url"],
+            ] as const) {
+              recorder.emit({
+                kind: "tool.requested",
+                toolUseId: id,
+                tool: `mcp__web__${tool}`,
+                input: {},
+              });
+              recorder.emit({
+                kind: "tool.result",
+                toolUseId: id,
+                output: "source",
+                isError: false,
+                truncated: false,
+                bytes: 6,
+              });
+            }
+          }
+          recorder.emit({
+            kind: "turn.finished",
+            turns: 1,
+            costUsd: 0,
+            status: "success",
+            result: null,
+          });
+        }
+        return { status: "success", turns: 2, costUsd: 0, result: null };
+      },
+    };
+    const done = runEngine({ channel: t.channel, createRunner: () => runner });
+    t.receive({ v: 1, type: "start", cwd, webSearch: true });
+    t.receive({ v: 1, type: "prompt", text: "chercher", research: true });
+    t.receive({ v: 1, type: "prompt", text: "suite" });
+    t.receive({ v: 1, type: "dispose" });
+    await done;
+    expect(received[0]).toContain("search_web puis lis une source pertinente avec read_url");
+    expect(received[1]).toBe("suite");
+    expect(
+      eventsOf(t.sent)
+        .filter((event) => event.kind === "research.status")
+        .map((event) => event.status),
+    ).toEqual(["requested", "completed"]);
+  });
+
   it("enrichit chaque consigne pour le modèle et conserve uniquement l'original dans le journal", async () => {
     const t = fakeChannel();
     const received: string[] = [];

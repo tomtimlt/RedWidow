@@ -78,6 +78,7 @@ export type WebviewMessage =
   | {
       type: "send";
       text: string;
+      research?: boolean;
       attachments?: TextAttachment[];
       requestId?: string;
       conversation?: string;
@@ -96,6 +97,7 @@ export type WebviewMessage =
   | { type: "setEffort"; effort: string | null }
   | { type: "setVariant"; variant: string | null }
   | { type: "timelinePage"; direction: "older" | "newer" | "latest" }
+  | { type: "timelineExchange"; direction: "older" | "newer"; id: number; source?: string }
   | { type: "historyOpen"; id: string }
   | { type: "historyResume" }
   | { type: "historyRename"; id: string; title: string }
@@ -124,11 +126,22 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
   const only = (...allowed: string[]) => Object.keys(m).every((k) => allowed.includes(k));
   switch (m.type) {
     case "send": {
-      if (typeof m.text !== "string" || m.text.length > MAX_WEBVIEW_TEXT) return null;
+      if (
+        typeof m.text !== "string" ||
+        m.text.length > MAX_WEBVIEW_TEXT ||
+        (m.research !== undefined && typeof m.research !== "boolean")
+      )
+        return null;
       if (m.attachments === undefined)
-        return only("type", "text") && m.text.trim() !== "" ? { type: "send", text: m.text } : null;
+        return only("type", "text", "research") && m.text.trim() !== ""
+          ? {
+              type: "send",
+              text: m.text,
+              ...(typeof m.research === "boolean" && { research: m.research }),
+            }
+          : null;
       const attachments = parseAttachments(m.attachments);
-      return only("type", "text", "attachments", "requestId", "conversation") &&
+      return only("type", "text", "research", "attachments", "requestId", "conversation") &&
         attachments !== null &&
         typeof m.requestId === "string" &&
         /^[a-zA-Z0-9-]{1,80}$/.test(m.requestId) &&
@@ -137,6 +150,7 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
         ? {
             type: "send",
             text: m.text,
+            ...(typeof m.research === "boolean" && { research: m.research }),
             attachments,
             requestId: m.requestId,
             conversation: m.conversation,
@@ -172,6 +186,19 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
         (m.variant === null ||
           (typeof m.variant === "string" && /^[A-Za-z0-9_.-]{1,64}$/.test(m.variant)))
         ? { type: "setVariant", variant: m.variant }
+        : null;
+    case "timelineExchange":
+      return only("type", "direction", "id", "source") &&
+        (m.direction === "older" || m.direction === "newer") &&
+        Number.isSafeInteger(m.id) &&
+        (m.id as number) > 0 &&
+        (m.source === undefined || (typeof m.source === "string" && m.source.length <= 256))
+        ? {
+            type: "timelineExchange",
+            direction: m.direction,
+            id: m.id as number,
+            ...(typeof m.source === "string" && { source: m.source }),
+          }
         : null;
     case "timelinePage":
       return only("type", "direction") &&

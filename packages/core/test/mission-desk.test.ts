@@ -59,6 +59,25 @@ describe("bureau de mission", () => {
     expect(packet).not.toMatch(/topsecret|abcdefghi|othersecret/);
     expect(packet).toContain("[REDACTED]");
   });
+  it("journalise uniquement une décision validée et masquée avec ses références", () => {
+    const f = fixture();
+    const events: import("../src/events.js").EngineEvent[] = [];
+    f.recorder.subscribe((event) => events.push(event));
+    const observed = f.result("preuve");
+    f.desk.recordDecision({
+      ...decision,
+      objective: "password=othersecret",
+      evidenceIds: [observed.id],
+    });
+    const saved = events.find((event) => event.kind === "mission.decision");
+    expect(saved).toMatchObject({
+      kind: "mission.decision",
+      decision: { evidenceIds: [observed.id] },
+    });
+    expect(JSON.stringify(saved)).not.toContain("othersecret");
+    expect(() => f.desk.recordDecision({ ...decision, evidenceIds: ["inconnu"] })).toThrow();
+    expect(events.filter((event) => event.kind === "mission.decision")).toHaveLength(1);
+  });
   it("comptabilise les budgets sans bloquer ni déduire une réussite", () => {
     const f = fixture();
     f.desk.recordDecision({ ...decision, maxCalls: 1, maxDurationSeconds: 2 });

@@ -194,6 +194,7 @@ const cockpit = (exegol = "present") => {
 
 it("transmet les options Exegol et conserve le brouillon pendant la progression", () => {
   const ui = cockpit();
+  ui.send({ ...ui.view, projectWorkspace: "/tmp/mission" });
   ui.field("cockpit-create-toggle").click();
   const name = ui.field("cockpit-name");
   name.value = "mission";
@@ -207,6 +208,7 @@ it("transmet les options Exegol et conserve le brouillon pendant la progression"
   ).toEqual([
     {
       type: "createExegol",
+      source: "/tmp/mission",
       name: "mission",
       image: "free",
       vpn: false,
@@ -271,6 +273,7 @@ it("propose Kali Warband sans attendre les images locales et transmet la suppres
 
 it("garde les choix Exegol et bloque le bureau hors NAT", () => {
   const ui = cockpit();
+  ui.send({ ...ui.view, projectWorkspace: "/tmp/mission" });
   ui.field("cockpit-create-toggle").click();
   ui.field("cockpit-name").value = "mission";
   ui.field("cockpit-name").listeners.get("input")?.();
@@ -294,6 +297,7 @@ it("garde les choix Exegol et bloque le bureau hors NAT", () => {
   ui.button("Créer").click();
   expect(ui.sent).toContainEqual({
     type: "createExegol",
+    source: "/tmp/mission",
     name: "mission",
     image: "free",
     vpn: true,
@@ -348,4 +352,20 @@ it("change de langue sans perdre le formulaire, le focus, la sélection et les d
   ui.send({ type: "locale", locale: "fr" });
   expect(ui.button("Créer")).toBeDefined();
   expect(ui.field("cockpit-name").value).toBe("Projet français");
+});
+
+it("la création attend un projet et suit sa racine sans conserver un ancien dossier", () => {
+  const ui = cockpit();
+  ui.field("cockpit-create-toggle").click();
+  ui.field("cockpit-name").value = "lab";
+  ui.field("cockpit-name").listeners.get("input")?.();
+  expect(ui.button("Créer").disabled).toBe(true);
+  ui.send({ ...ui.view, projectWorkspace: "/tmp/project-A" });
+  expect(ui.button("Créer").disabled).toBe(false);
+  expect(ui.field("cockpit-source").textContent).toContain("/tmp/project-A");
+  ui.send({ ...ui.view, projectWorkspace: "/tmp/project-B" });
+  ui.button("Créer").click();
+  expect(ui.sent).toContainEqual(
+    expect.objectContaining({ type: "createExegol", source: "/tmp/project-B" }),
+  );
 });

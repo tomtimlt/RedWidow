@@ -351,6 +351,18 @@ describe("monitorRows (lot P4) : lecture seule, une ligne par appel Exegol", () 
     expect(rows[1]?.command).toBe("id");
   });
 
+  it("garde le suivi disponible pendant une commande approuvée mais encore en cours", () => {
+    const rows = ui.monitorRows({
+      items: [
+        exec(1, "actif", ["x"], { decision: "allow" }),
+        exec(2, "fini", ["x"], { status: "ok", decision: "allow" }),
+      ],
+      approvals: [],
+    });
+    expect(rows[0]).toMatchObject({ running: true });
+    expect(rows[1]).toMatchObject({ running: false });
+  });
+
   it("commande et conteneur ; argument avec espace ou vide entre guillemets", () => {
     const [row] = ui.monitorRows({
       items: [exec(1, "e", ["echo", "deux mots", ""])],
