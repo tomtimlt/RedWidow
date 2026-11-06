@@ -89,9 +89,10 @@ export function chatHtml({ nonce, cspSource, scriptUri, uiUri, styleUri, iconsUr
 <button id="monitor-btn" type="button" class="ghost tool-btn" title="Monitor" aria-label="Monitor">${icon("pulse")}</button>
 <button id="graph-btn" type="button" class="ghost tool-btn" title="Graphe" aria-label="Graphe">${icon("graph")}</button>
 </span>
+<button id="cfg-btn" type="button" class="chip" popovertarget="cfg-pop" aria-haspopup="dialog" aria-expanded="false" aria-label="Effort : ouvrir Configurer" title="Configurer : raisonnement et exécution">${icon("bolt", "ico chip-ico")}<span class="cfg-text">Effort</span><span id="cfg-level" class="cfg-level"></span>${icon("caret", "caret")}</button>
 <span id="ctl-group" hidden><button id="model-chip" type="button" class="chip" popovertarget="model-pop" aria-haspopup="listbox" aria-expanded="false" title="Modèle utilisé pour le message suivant">${icon("sparkle", "ico chip-ico")}<span id="model-chip-label" class="chip-label">Modèle par défaut</span>${icon("caret", "caret")}<span class="sr-only"> (choisir le modèle)</span></button></span>
 
-<span class="spacer"></span><button id="cfg-btn" type="button" class="chip" popovertarget="cfg-pop" aria-haspopup="dialog" aria-expanded="false" aria-label="Configurer" title="Configurer : raisonnement et exécution">${icon("sliders", "ico chip-ico")}<span class="cfg-text">Configurer</span><span id="cfg-level" class="cfg-level"></span>${icon("caret", "caret")}</button>
+<span class="spacer"></span>
 <button id="stop" type="button" class="danger" title="Arrêter l'agent">${icon("stop")}<span class="btn-text">Stop</span></button>
 <button id="send" type="submit" class="primary" title="Envoyer (Entrée)" aria-label="Envoyer">${icon("send")}</button>
 </div>

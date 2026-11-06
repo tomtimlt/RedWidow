@@ -7478,3 +7478,208 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
     --jn-thumb: 20px;
   }
 }
+
+/* ───────────────── Console de mission : compositeur, effort, outils ─────────────────
+ * Compositeur : invite « › » en signature devant la consigne ; réglages (effort,
+ * modèle) groupés à gauche, actions (arrêt, envoi) seules à droite.
+ * Curseur d'effort : rampe de barres, une par niveau, qui montent avec l'effort,
+ * rail fin dessous et curseur vertical étroit ; au maximum, les barres allumées
+ * prennent le dégradé multicolore. La commande native reste dessous (glisser,
+ * clavier, lecteurs d'écran inchangés).
+ * Lignes d'outils : liseré d'état à gauche, état en pastille, chevron à droite. */
+#composer::before {
+  content: "›";
+  position: absolute;
+  left: 12px;
+  top: 8px;
+  font: 700 var(--jn-fs) / 1.5 var(--jn-mono);
+  color: var(--jn-sig);
+  pointer-events: none;
+}
+#composer > textarea {
+  padding-left: 20px;
+}
+body.waiting #composer::before {
+  color: var(--jn-warn);
+}
+#cfg-btn {
+  order: 1;
+}
+#ctl-group {
+  order: 2;
+}
+#toolbar > .spacer {
+  order: 3;
+}
+#toolbar #stop {
+  order: 4;
+}
+#toolbar #send {
+  order: 5;
+}
+#cfg-btn .chip-ico {
+  color: var(--jn-sig);
+}
+
+/* Curseur d'effort en rampe */
+#cfg-pop #effort-scale {
+  --jn-thumb: 26px;
+}
+#effort-scale,
+#cfg-pop #effort-scale {
+  --jn-ramp: calc(var(--jn-thumb) - 6px);
+}
+#effort-scale::before,
+#effort-scale::after,
+#cfg-pop #effort-scale::before,
+#cfg-pop #effort-scale::after {
+  top: auto;
+  bottom: 0;
+  height: 3px;
+  margin-top: 0;
+}
+.effort-notches {
+  top: 0;
+  bottom: 5px;
+}
+.effort-notch {
+  top: auto;
+  bottom: 0;
+  width: 22px;
+  height: calc(var(--jn-ramp) * (0.3 + 0.7 * var(--jn-at)));
+  margin: 0 0 0 -11px;
+  border-radius: 3px 3px 1px 1px;
+  background: color-mix(in srgb, var(--vscode-foreground) 16%, transparent);
+  transform-origin: 50% 100%;
+}
+.effort-notch.is-on {
+  background: var(--jn-sig);
+}
+#effort-scale.auto .effort-notch.is-on {
+  background: color-mix(in srgb, var(--jn-sig) 45%, transparent);
+}
+#effort-scale.is-pressed .effort-notch.is-on {
+  transform: scaleY(1.06);
+}
+.effort-knob,
+#cfg-pop .effort-knob {
+  width: 6px;
+  height: calc(var(--jn-thumb) + 4px);
+  margin: calc((var(--jn-thumb) + 4px) / -2) 0 0 -3px;
+  border-radius: 3px;
+  background: var(--vscode-foreground);
+  box-shadow:
+    0 0 0 2px var(--vscode-editorWidget-background, var(--vscode-editor-background)),
+    0 0 0 0 var(--jn-sig-tint);
+}
+#effort:hover:not(:disabled) ~ .effort-knob {
+  transform: scaleY(1.06);
+  box-shadow:
+    0 0 0 2px var(--vscode-editorWidget-background, var(--vscode-editor-background)),
+    0 0 0 6px var(--jn-sig-tint);
+}
+#effort-scale.is-pressed .effort-knob {
+  transform: scaleY(1.1);
+  box-shadow:
+    0 0 0 2px var(--vscode-editorWidget-background, var(--vscode-editor-background)),
+    0 0 0 9px var(--jn-sig-tint);
+}
+body.vscode-light .effort-knob {
+  box-shadow:
+    0 0 0 2px var(--vscode-editorWidget-background, #fff),
+    0 1px 4px var(--vscode-widget-shadow, #0003);
+}
+body:where(:not(.vscode-high-contrast, .vscode-high-contrast-light)) #effort-scale.is-max:not(.auto) .effort-notch.is-on:nth-child(5n + 1) { background: var(--jn-rb-3); }
+body:where(:not(.vscode-high-contrast, .vscode-high-contrast-light)) #effort-scale.is-max:not(.auto) .effort-notch.is-on:nth-child(5n + 2) { background: var(--jn-rb-4); }
+body:where(:not(.vscode-high-contrast, .vscode-high-contrast-light)) #effort-scale.is-max:not(.auto) .effort-notch.is-on:nth-child(5n + 3) { background: var(--jn-rb-5); }
+body:where(:not(.vscode-high-contrast, .vscode-high-contrast-light)) #effort-scale.is-max:not(.auto) .effort-notch.is-on:nth-child(5n + 4) { background: var(--jn-rb-6); }
+body:where(:not(.vscode-high-contrast, .vscode-high-contrast-light)) #effort-scale.is-max:not(.auto) .effort-notch.is-on:nth-child(5n) { background: var(--jn-rb-1); }
+body.vscode-high-contrast .effort-notch,
+body.vscode-high-contrast-light .effort-notch {
+  background: transparent;
+  border: 1px solid var(--vscode-foreground);
+}
+body.vscode-high-contrast .effort-notch.is-on,
+body.vscode-high-contrast-light .effort-notch.is-on {
+  background: var(--jn-sig);
+  border-color: var(--jn-sig);
+}
+body.vscode-high-contrast .effort-knob,
+body.vscode-high-contrast-light .effort-knob {
+  width: 8px;
+  margin-left: -4px;
+}
+
+/* Lignes d'outils : liseré d'état, pastille, chevron à droite */
+.tool > summary {
+  position: relative;
+  padding-left: var(--jn-s3);
+}
+.tool > summary::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 7px;
+  bottom: 7px;
+  width: var(--jn-rail);
+  border-radius: var(--jn-rail);
+  background: var(--jn-faint);
+}
+.tool.pending > summary::before {
+  background: var(--jn-sig);
+}
+.tool.ok > summary::before {
+  background: var(--jn-ok);
+}
+.tool.error > summary::before,
+.tool.denied > summary::before {
+  background: var(--jn-err);
+}
+.tool .tool-chevron {
+  order: 9;
+}
+.tool > summary > .icon {
+  order: 7;
+}
+.tool-state {
+  order: 8;
+  min-width: 0;
+  padding: 1px 8px;
+  border-radius: var(--jn-r-pill);
+  background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+  line-height: 1.5;
+}
+.tool.pending .tool-state {
+  color: var(--vscode-foreground);
+  background: var(--jn-sig-tint);
+}
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light) .tool.pending > summary::before {
+    animation: jn-rail-pulse 1.4s var(--jn-ease-io) infinite;
+  }
+}
+@keyframes jn-rail-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+.tool.error .tool-state,
+.tool.denied .tool-state {
+  background: color-mix(in srgb, var(--jn-err) 14%, transparent);
+}
+.tool-name {
+  font-weight: 500;
+}
+body.vscode-high-contrast .tool-state,
+body.vscode-high-contrast-light .tool-state {
+  background: transparent;
+  border: 1px solid currentColor;
+}
+@container app (max-width: 359px) {
+  .tool > summary > .icon {
+    order: 3;
+  }
+  .tool .tool-chevron {
+    order: 4;
+  }
+}
