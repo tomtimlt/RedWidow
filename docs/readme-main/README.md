@@ -1,22 +1,26 @@
 <div align="center">
 
-<img src="docs/img/venator-ops-logo.svg" alt="Venator Ops logo" width="88" height="88">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/redwidow-logo.svg">
+  <img src="docs/img/redwidow-logo-light.svg" alt="RedWidow logo" width="96" height="80">
+</picture>
 
-# Venator Ops
+# RedWidow
 
-**Pentest in VS Code, with AI on call.**
+**Weave. Watch. Strike. Wrap.**
 
-Your Docker Kali and Exegol containers, their terminals, a Monitor, a kill chain
-and reports in one place. An AI agent backs you up whenever you call it.
+The AI-native pentest workspace for VS Code. Your Docker Kali and Exegol
+containers, their terminals, a Monitor, a kill chain and reports in one place,
+with an AI agent that runs only what you approve.
 
-![MIT license](https://img.shields.io/badge/license-MIT-3cc7c0.svg)
-![VS Code 1.90+](https://img.shields.io/badge/VS%20Code-1.90%2B-495F73.svg)
-![Windows and Linux](https://img.shields.io/badge/Windows%20%7C%20Linux-495F73.svg)
-![Docker required](https://img.shields.io/badge/Docker-required-495F73.svg)
+![Open source](https://img.shields.io/badge/open%20source-MIT-E5132B.svg)
+![VS Code 1.90+](https://img.shields.io/badge/VS%20Code-1.90%2B-606168.svg)
+![Windows and Linux](https://img.shields.io/badge/Windows%20%7C%20Linux-606168.svg)
+![Docker required](https://img.shields.io/badge/Docker-required-606168.svg)
 
 <br>
 
-<img src="docs/img/venator-ops-banner.png" alt="Venator Ops: your pentest, one cockpit, one agent" width="860">
+<img src="docs/img/redwidow-banner.png" alt="RedWidow: Weave. Watch. Strike. Wrap. The chat, the kill chain and the Monitor side by side" width="860">
 
 </div>
 
@@ -25,16 +29,25 @@ and reports in one place. An AI agent backs you up whenever you call it.
 > **Use only in an authorized setting**: CTFs, certification labs, or an
 > engagement with a defined scope and written permission.
 
-## Why Venator Ops
+## See it in 50 seconds
+
+<div align="center">
+<img src="docs/img/redwidow-promo.gif" alt="Animated preview: a target locked in a web, the spider drops, the RedWidow logo appears" width="640">
+
+[Watch the full video](docs/video/redwidow-promo.mp4)
+</div>
+
+## Why RedWidow
 
 A pentest means dozens of terminals, scans and notes scattered everywhere.
-Venator Ops brings them together inside VS Code:
+RedWidow follows the way a widow hunts, and brings it all together inside VS Code:
 
-- **Your Docker Kali and Exegol containers** are prepared and managed from the cockpit.
-- **Your terminals** open straight inside the container, like any other editor terminal.
-- **The Monitor** follows every command the agent runs: its status and its live output.
-- **The kill chain** maps what you find: hosts, credentials, sites, steps and loot, linked together, with the MITRE ATT&CK technique of each step.
-- **An AI agent** runs the tools in your container, explains results and suggests next leads.
+| | | |
+| --- | --- | --- |
+| **01 Weave** | Recon | Prepare your Docker Kali and Exegol containers, open terminals in them, and give the agent a target. |
+| **02 Watch** | Analysis | The Monitor follows every command live; the kill chain maps hosts, credentials, sites, steps and loot. |
+| **03 Strike** | Action | Drive it step by step, or let it hunt in Automatic mode. Sensitive actions ask for your approval. |
+| **04 Wrap** | Report | Findings with severities, drafted as Markdown. |
 
 ## What you can do
 
@@ -44,7 +57,7 @@ Write your prompt in the chat and the agent takes it from there. When an action
 needs your approval, a card shows the tool, the command and the reason.
 
 <div align="center">
-<img src="docs/img/venator-ops-chat.png" alt="The Venator Ops chat with an authorization card: tool, sqlmap command, reason, and the Allow once, Deny and Always buttons" width="860">
+<img src="docs/img/redwidow-chat.png" alt="The RedWidow chat with an authorization card: tool, sqlmap command, reason, and the Allow once, Deny and Always buttons" width="860">
 </div>
 
 In the chat you also get:
@@ -60,7 +73,7 @@ Each command shows up with its status and live output. A timeline lets you jump
 to any command, and the down arrow turns auto-follow on or off.
 
 <div align="center">
-<img src="docs/img/venator-ops-monitor.png" alt="The Monitor: a timeline of commands, the entry of the running command and its numbered output" width="860">
+<img src="docs/img/redwidow-monitor.png" alt="The Monitor: a timeline of commands, the entry of the running command and its numbered output" width="860">
 </div>
 
 ### Follow your attack: the kill chain
@@ -71,17 +84,18 @@ links to the others. The graph works with mouse and keyboard, and **Replay**
 walks the selected path node by node.
 
 <div align="center">
-<img src="docs/img/venator-ops-killchain.png" alt="The kill chain: a graph of linked findings, the selected path as green dashes, and the legend" width="860">
+<img src="docs/img/redwidow-killchain.png" alt="The kill chain: a graph of linked findings, the selected path as green dashes, and the legend" width="860">
 </div>
 
 ### Learn: Learning mode
 
 Stuck on an HTB box? Give it your course, mention your terminal session with
 `#`, and it explains where you stand based on what you actually typed. The mode
-is read-only: it cites its sources and points you in the right direction.
+is read-only: it cites its sources and points you in the right direction. It
+never runs or writes anything.
 
 <div align="center">
-<img src="docs/img/venator-ops-learning.png" alt="Learning mode: “Stuck on a box? Feed it your course. It reads your terminal.”, with the terminal and the chat" width="860">
+<img src="docs/img/redwidow-learning.png" alt="Learning mode: Stuck on a box? Feed it your course. It reads your terminal. Never executes." width="860">
 </div>
 
 ### Keep a record and write it up
@@ -89,12 +103,12 @@ is read-only: it cites its sources and points you in the right direction.
 Every mission is logged so you can read it back. The **report preview** shows
 the active project's findings without credentials or loot, and the export
 produces a **Markdown draft** to complete with your evidence and remediations.
-Severities stay “To be assessed”: you decide them yourself. No external
+Severities stay "To be assessed": you decide them yourself. No external
 reporting tool is needed.
 
 ## Without AI
 
-Venator Ops helps you organize a pentest even without an account or an AI
+RedWidow helps you organize a pentest even without an account or an AI
 provider.
 
 - **Projects**: a name, a working folder and the containers that go with it, with a summary you write and edit yourself.
@@ -110,11 +124,11 @@ Monitor and the automatic feeding of the kill chain then rely on the agent.
 
 Requirements: **VS Code 1.90 or later** and **Docker** for the containers.
 
-1. Download the `.vsix` file for your platform (**Windows** or **Linux**) from the [releases](https://github.com/tomtimlt/warband/releases).
+1. Download the `.vsix` file for your platform (**Windows** or **Linux**) from the [releases](https://github.com/tomtimlt/redwidow/releases).
 2. Install it: `code --install-extension <file>.vsix`, or in VS Code **Extensions → … → Install from VSIX**.
 3. Reload the VS Code window.
 
-Venator Ops is not on the Marketplace yet: installation is manual.
+RedWidow is not on the Marketplace yet: installation is manual.
 
 ## First launch
 
@@ -122,7 +136,7 @@ Venator Ops is not on the Marketplace yet: installation is manual.
 2. Open **Settings → Project**: activate a project or create one (a name and a folder).
 3. In the **cockpit**, link the project's Kali or Exegol containers, or create them.
 4. To use the agent, open **Configure** in the chat, pick your provider and add your access. It is stored in VS Code's secure storage.
-5. Open the chat (the Venator Ops icon in the activity bar) and write your prompt.
+5. Open the chat (the RedWidow icon in the activity bar) and write your prompt.
 
 | Shortcut | Action |
 | --- | --- |
@@ -145,13 +159,13 @@ Windows (native, no WSL) and Linux.
 Conversation logs are stored by VS Code on your machine, outside your repository. The history keeps roughly the last 100 conversations, and passwords, tokens and keys are masked before anything is written to a log.
 
 **What is Bypass for?**
-Running a long sequence without clicking on every card. It is set in **Configure**, lasts 2 hours by default (4 hours at most) and is shown in magenta with a countdown.
+Running a long sequence without clicking on every card. It is set in **Configure**, lasts 2 hours by default (4 hours at most) and takes the color of your palette, with a countdown.
 
 **Are there profiles for my context?**
 Yes: method profiles (mentor, bug bounty, out of the box, red team, HTB) steer the agent.
 
 **Does the interface follow my theme?**
-Yes: light, dark and high-contrast themes, reduced motion respected, and five color sets to choose from in **Settings → Appearance**.
+Yes: light, dark and high-contrast themes, reduced motion respected, and **23 color sets** (solid colors and gradients, Widow by default) to choose from in **Settings → Appearance**.
 
 ## Status
 

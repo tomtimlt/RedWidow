@@ -64,3 +64,11 @@ La timeline tient en temps musicaux dans `build.py` (`TL`) et pilote à la fois
 l'image (`film.js`) et la musique (`synth.py`). Le silence avant l'impact est
 une porte entre `hush` et `reveal` dans `synth.py`. Les captures du chat en
 hauteur viennent de `src-v7/cap_*_tall.cjs`.
+
+### Bannières et README
+
+`media/brand/src-banners/` : `cap_en.cjs` (captures anglaises du lab, aperçu lancé),
+`gen.py` (pages des bannières) et `shoot.cjs` (photographie, 2x pour le bandeau et
+LinkedIn), `hook.cjs` (aperçu social tiré de l'accroche du film V8, en
+`node hook.cjs <film-16x9.html> 3.4`). L'aperçu animé du README (`promo.gif`, 640 px,
+6,6 s) et la vidéo légère (1280 × 720, 1,9 Mo) viennent de la V8 par ffmpeg.

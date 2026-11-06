@@ -98,9 +98,18 @@ verrouille, yeux qui clignent, nom puis respiration). Polices validées :
 Geist (interface, titres, mot-symbole) et JetBrains Mono (repères techniques,
 code, commandes et sorties) ; Geist Mono est retirée. Dans l’atelier, la refonte est faite : nom visible
 (titres, commandes, réglages, configuration F5), viseur dans l’en-tête,
-araignée à l’accueil, mot-symbole et palette Widow par défaut. Le kit vidéo est refait en RedWidow. Restent sous le
-nom Venator Ops : la section suivante, les bannières, le carrousel et le
-README de `main`, à refaire avec la nouvelle identité.
+araignée à l’accueil, mot-symbole et palette Widow par défaut. Le kit vidéo est refait en RedWidow, de même que les
+bannières (`media/brand/banner-*.png`, `social-preview.png`, sources dans
+`media/brand/src-banners/`) et le README de `main` (`docs/readme-main/`, en
+anglais : logo clair et sombre, captures du lab fictif, aperçu animé et vidéo
+légère de la V8). Reste sous le nom Venator Ops : la section suivante (archive)
+et le carrousel LinkedIn, à refaire avec la nouvelle identité.
+
+Fil rouge de la communication : **Weave. Watch. Strike. Wrap.** (Tisse. Guette.
+Frappe. Emballe.), les quatre temps de la chasse de la veuve noire, calqués sur le
+rail de mission (Repérage, Analyse, Action, Rapport) ; accroche « Your target is
+already in the web. » (cible verrouillée dans la toile). Les publicités V7 et V8
+sont décrites dans `media/brand/promo/README.md`.
 
 ## Marque Venator Ops (ancienne identité)
 
