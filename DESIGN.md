@@ -249,8 +249,7 @@ F5 et le vrai catalogue de modèles.
 Le menu tient sans défilement (environ 370 px au lieu de 680) : pas de
 sous-titre ni de titres de section visibles (conservés pour les lecteurs
 d’écran), descriptions en infobulle et toujours liées par `aria-describedby`,
-interrupteurs sur une ligne, curseur en rampe resserré. Le menu s’ouvre depuis la
-puce Effort du compositeur ou depuis la jauge de l’en-tête. Seule la ligne d’état du bypass
+interrupteurs sur une ligne, curseur resserré. Seule la ligne d’état du bypass
 reste visible ; le texte du fournisseur est limité à deux lignes et se déplie
 au clic ou au clavier. En production, le texte réel du fournisseur et ses
 infobulles dynamiques passent par les mêmes identifiants.
@@ -270,29 +269,9 @@ en couleur d’alerte et s’immobilise.
 
 Carte compacte : pictogramme à gauche, niveau centré en couleur de signature
 avec le modèle en dessous (ouvre le menu Modèle), retour à Auto à droite.
-Rampe de barres, une par niveau, de plus en plus hautes avec l’effort (comme un
-vumètre) ; les barres atteintes s’allument en signature (à demi en Auto), un
-rail fin les souligne et un curseur vertical étroit suit le pointeur. Au
-maximum, les barres allumées et le rail passent en dégradé multicolore (cyan,
-bleu, violet, rose) qui ondule en boucle, quelle que soit la palette (classe
-`.is-max`, hors contraste élevé, où les barres sont cerclées aux couleurs du
-thème). Le glisser est continu, le relâchement se cale sur le niveau le plus
-proche avec un rebond ; le clavier passe de niveau en niveau. La commande native
-reste sous le dessin : lecteurs d’écran et clavier inchangés.
-
-## Compositeur et lignes d’outils
-
-- **Compositeur « console »** : invite `›` en signature devant la consigne
-  (couleur d’alerte pendant l’attente d’accord). Les réglages sont groupés à
-  gauche du pied, d’abord la puce **Effort** (pictogramme éclair et niveau, elle
-  ouvre Configurer), puis le modèle ; à droite, seulement Arrêter et Envoyer.
-- **Lignes d’outils** : liseré d’état à gauche (signature qui pulse en cours,
-  succès, erreur), famille d’outil, nom, résumé en mono, état en pastille,
-  chevron à droite. Sous 360 px, le résumé passe sur une seconde ligne et l’état
-  ne garde que son pictogramme (texte conservé pour les lecteurs d’écran).
-
-Styles regroupés dans la section « Console de mission » à la fin de
-`media/chat.css`.
+Piste épaisse en pilule, remplissage de signature, un point par niveau et
+grande pastille claire. Au maximum, le remplissage passe en dégradé multicolore (cyan, bleu, violet, rose) qui ondule en boucle, quelle que soit la palette (classe `.is-max`, hors contraste élevé). Le glisser est continu, le relâchement se cale sur le
+niveau le plus proche avec un rebond ; le clavier passe de niveau en niveau.
 
 ## Palettes et page Apparence
 
