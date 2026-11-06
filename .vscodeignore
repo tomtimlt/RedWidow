@@ -6,3 +6,5 @@ node_modules/**
 AGENTS.md
 DESIGN.md
 CLAUDE.md
+media/brand/**
+docs/**
