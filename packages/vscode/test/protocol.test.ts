@@ -249,3 +249,25 @@ describe("configuration Burp du moteur", () => {
       expect(parseToEngine({ ...start, ...patch }).ok).toBe(false);
   });
 });
+
+it("valide les images et la capacité de vision aux frontières IPC", () => {
+  const image = { name: "capture.png", mimeType: "image/png", data: "iVBORw0KGgo=" };
+  expect(parseToEngine({ v: 1, type: "prompt", text: "voir", images: [image] }).ok).toBe(true);
+  expect(
+    parseToEngine({ v: 1, type: "prompt", text: "voir", images: [{ ...image, data: "AAAA" }] }).ok,
+  ).toBe(false);
+  expect(
+    parseFromEngine({
+      v: 1,
+      type: "models",
+      models: [{ value: "a", displayName: "A", supportsImages: false }],
+    }).ok,
+  ).toBe(true);
+  expect(
+    parseFromEngine({
+      v: 1,
+      type: "models",
+      models: [{ value: "a", displayName: "A", supportsImages: "yes" }],
+    }).ok,
+  ).toBe(false);
+});

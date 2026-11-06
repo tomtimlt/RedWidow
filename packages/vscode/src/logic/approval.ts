@@ -1,6 +1,6 @@
 import { isRememberable, type PendingApproval, stripControl } from "@warband/core";
 import { formatReason, getUiLocale, type Locale, t } from "@warband/messages";
-import { parseAttachments, type TextAttachment } from "./attachments.js";
+import { type Attachment, parseAttachments } from "./attachments.js";
 import { type ChatSelection, isCapabilityId, parseChatSelection } from "./chat-capabilities.js";
 import { isProvider, type Provider } from "./effort.js";
 import { summarizeInput, toolLabel } from "./present.js";
@@ -79,7 +79,7 @@ export type WebviewMessage =
       type: "send";
       text: string;
       research?: boolean;
-      attachments?: TextAttachment[];
+      attachments?: Attachment[];
       requestId?: string;
       conversation?: string;
     }

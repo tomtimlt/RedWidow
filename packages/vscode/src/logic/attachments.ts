@@ -1,3 +1,4 @@
+import { type PromptImage, parsePromptImages } from "@warband/core";
 import { t } from "@warband/messages";
 import { MAX_PROMPT_CHARS } from "./protocol.js";
 
@@ -9,14 +10,22 @@ export interface TextAttachment {
   text: string;
 }
 
+export type Attachment = TextAttachment | PromptImage;
+
 /** Données envoyées volontairement : jamais un chemin à lire sur le poste. */
-export function parseAttachments(raw: unknown): TextAttachment[] | null {
+export function parseAttachments(raw: unknown): Attachment[] | null {
   if (!Array.isArray(raw) || raw.length < 1 || raw.length > MAX_ATTACHMENTS) return null;
   let total = 0;
-  const result: TextAttachment[] = [];
+  const result: Attachment[] = [];
+  const images = raw.filter((value) => value && typeof value === "object" && "mimeType" in value);
+  if (parsePromptImages(images) === null) return null;
   for (const value of raw) {
     if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
     const item = value as Record<string, unknown>;
+    if ("mimeType" in item) {
+      result.push(item as unknown as PromptImage);
+      continue;
+    }
     if (
       Object.keys(item).length !== 2 ||
       !Object.keys(item).every((key) => key === "name" || key === "text")
@@ -48,7 +57,7 @@ export function parseAttachments(raw: unknown): TextAttachment[] | null {
   return result;
 }
 
-export function attachmentMessage(text: string, files: readonly TextAttachment[]): string {
+export function attachmentMessage(text: string, files: readonly Attachment[]): string {
   return t`${text.trim() ? text : t("Analyse les fichiers joints.")}\n\nPièces jointes :\n${files.map((file) => `• ${file.name}`).join("\n")}`;
 }
 

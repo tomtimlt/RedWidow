@@ -38,8 +38,14 @@ function fake() {
       if (modelError) throw new Error("sondage");
       return modelList;
     },
-    prompt: (t, research) =>
-      void calls.push(research === undefined ? ["prompt", t] : ["prompt", t, research]),
+    prompt: (t, research, images) =>
+      void calls.push(
+        images
+          ? ["prompt", t, research, images]
+          : research === undefined
+            ? ["prompt", t]
+            : ["prompt", t, research],
+      ),
     answer: (...a) => void calls.push(["answer", ...a]),
     abort: () => void calls.push(["abort"]),
     dispose: () => void calls.push(["dispose"]),
@@ -2209,5 +2215,21 @@ it("un catalogue OpenAI filtré ne remplace pas le catalogue global d’OpenCode
   await t.session.setProvider("opencode");
   t.f.handlers.onProviders?.([{ id: "opencode", name: "OpenCode", connected: true }]);
   expect(providers).toHaveBeenCalledWith([{ id: "opencode", name: "OpenCode", connected: true }]);
+  t.session.dispose();
+});
+
+it("refuse les images pour un modèle explicitement incompatible avant la bulle et accepte une capacité inconnue", async () => {
+  const image = { name: "a.png", mimeType: "image/png" as const, data: "iVBORw0KGgo=" };
+  const t = setup();
+  t.f.setModels([{ value: "a", displayName: "A", supportsImages: false }]);
+  await t.session.loadModels();
+  expect(await t.session.send("observer", "observer", false, [image])).toBe(false);
+  expect(t.view().items.some((item) => JSON.stringify(item).includes("observer"))).toBe(false);
+  t.f.setModels([{ value: "a", displayName: "A" }]);
+  await t.session.loadModels(true);
+  expect(await t.session.send("observer", "observer", false, [image])).toBe(true);
+  expect(
+    t.f.calls.some((call) => call[0] === "prompt" && JSON.stringify(call).includes(image.data)),
+  ).toBe(true);
   t.session.dispose();
 });

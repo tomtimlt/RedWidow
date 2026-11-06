@@ -64,6 +64,7 @@ import {
 } from "../logic/cockpit.js";
 import { removeListedContainer } from "../logic/container-remove.js";
 import { createEngineController } from "../logic/controller.js";
+import { prepareEditorShellWorkspace } from "../logic/editor-shell-workspace.js";
 import type { Provider } from "../logic/effort.js";
 import { evidenceEditorReference, evidenceTerminalAllowed } from "../logic/evidence-capture.js";
 import { type ExegolCreateOptions, prepareExegolCreate } from "../logic/exegol-create.js";
@@ -603,7 +604,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         },
       },
       ...(typeof __SDK_VERSION__ === "string" && {
-        sdkVersion: `${__SDK_VERSION__}/${typeof __OPENCODE_VERSION__ === "string" ? __OPENCODE_VERSION__ : "unknown"}/catalog-v3`,
+        sdkVersion: `${__SDK_VERSION__}/${typeof __OPENCODE_VERSION__ === "string" ? __OPENCODE_VERSION__ : "unknown"}/catalog-v4`,
       }),
       confirmAlways: async (text) => {
         const action = t("Toujours autoriser");
@@ -781,9 +782,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         token === null ? null : containerLogPath(token, randomBytes(4).toString("hex"));
       const projectFile = await readProjects(defaultConfigDir());
       const auditProject = projectFile === null ? null : activeProject(projectFile);
-      const workdir = auditProject?.containers.includes(plan.name)
-        ? await prepareContainerProjectWorkspace(auditProject, plan.name, shellDocker())
-        : "/workspace";
+      const workdir = await prepareEditorShellWorkspace(
+        auditProject?.containers.includes(plan.name)
+          ? () => prepareContainerProjectWorkspace(auditProject, plan.name, shellDocker())
+          : null,
+        (error) =>
+          void vscode.window.showWarningMessage(
+            t`Partage du projet non vérifié : terminal ouvert dans /workspace. ${formatError(error, getUiLocale())}`,
+          ),
+      );
       const { shellPath, shellArgs } = await prepareTerminal(
         plan.name,
         undefined,
@@ -971,10 +978,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             }
             const raw = message.text.trim() ? message.text : "Analyse les fichiers joints.";
             const context = withTerminalContext(raw, sections);
+            const files = message.attachments ?? [];
+            const texts = files.filter((file) => "text" in file);
+            const images = files.filter((file) => "mimeType" in file);
             const accepted = await s.send(
               hasFiles ? attachmentMessage(message.text, message.attachments ?? []) : message.text,
-              hasFiles ? withAttachments(context, message.attachments ?? []) : context,
+              texts.length ? withAttachments(context, texts) : context,
               message.research === true,
+              images,
             );
             result(accepted);
           } catch (error) {

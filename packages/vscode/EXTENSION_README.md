@@ -44,7 +44,7 @@ Use **`@`** to mention a project container and **`#`** to attach an excerpt from
 
 > Summarize my observations and suggest the next two useful checks. Explain why before proposing a command.
 
-Text, source files and logs are supported: **10 files**, **64 KiB per file**, **256 KiB in total**. Convert PDFs and images to text before attaching them.
+Attach text, source files, logs and PNG, JPEG, GIF or WebP images with the file picker, drag and drop, or paste from the clipboard. Preview images and remove attachments before sending. Up to **10 attachments**: text files are limited to **64 KiB each / 256 KiB total**, images to **5 MiB each / 12 MiB total**. The composer warns when image support is unknown and blocks image sends when the selected model explicitly lacks vision. PDFs and other binary documents are not supported. Clipboard file access depends on the platform; pasting a path does not read that file.
 
 In **Settings → System control**, enable the method profiles and MCP connectors you want available. Configure each external MCP service for your project. Then use **+** to choose one method, up to four MCP connectors, Burp and web search for this conversation. Disabling a connector preserves its configuration. A new conversation starts without optional resources selected.
 

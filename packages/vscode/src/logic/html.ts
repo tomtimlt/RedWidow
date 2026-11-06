@@ -123,7 +123,7 @@ export function chatHtml({
     "default-src 'none'",
     `script-src 'nonce-${nonce}'`,
     `style-src ${cspSource}`,
-    `img-src ${cspSource}`,
+    `img-src ${cspSource} data:`,
     `font-src ${cspSource}`,
   ].join("; ");
   return `<!doctype html>
@@ -152,6 +152,7 @@ export function chatHtml({
 <input id="attachment-input" type="file" multiple hidden disabled data-count="${MAX_ATTACHMENTS}" data-bytes="${MAX_ATTACHMENT_BYTES}" data-total="${MAX_ATTACHMENT_TOTAL_BYTES}">
 <ul id="attachment-list" data-i18n-aria-label="Fichiers joints" aria-label="${localized("Fichiers joints", locale)}" hidden></ul>
 <div id="selected-resources" class="selected-resources" aria-live="polite" hidden></div>
+<p id="attachment-vision-warning" class="hint" role="status" hidden></p>
 <p id="attachment-status" class="hint" role="status" hidden></p>
 <textarea id="input" rows="1" data-i18n-aria-label="Votre consigne" aria-label="${localized("Votre consigne", locale)}" data-i18n-placeholder="Votre consigne…" placeholder="${localized("Votre consigne…", locale)}" data-i18n-title="Entrée pour envoyer, Maj+Entrée pour une nouvelle ligne" title="${localized("Entrée pour envoyer, Maj+Entrée pour une nouvelle ligne", locale)}"></textarea>
 <div id="toolbar">

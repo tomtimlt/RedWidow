@@ -12,8 +12,10 @@ import {
   isBurpConfig,
   type ModelOption,
   type PendingApproval,
+  type PromptImage,
   type ProviderOption,
   parseIntegrations,
+  parsePromptImages,
   REASON_CODES,
   type Reason,
   type RememberScope,
@@ -81,7 +83,7 @@ export type ToEngine =
       provider?: Provider;
       opencodeProviders?: OpencodeProviders;
     }
-  | { v: 1; type: "prompt"; text: string; research?: boolean }
+  | { v: 1; type: "prompt"; text: string; research?: boolean; images?: PromptImage[] }
   | { v: 1; type: "answer"; toolUseId: string; decision: Decision; remember?: RememberScope }
   | { v: 1; type: "abort" }
   | { v: 1; type: "dispose" }
@@ -271,12 +273,13 @@ export function parseToEngine(raw: unknown): Parsed<ToEngine> {
       }
       return { ok: true, message: obj as ToEngine };
     case "prompt":
-      unexpected = extra(["v", "type", "text", "research"]);
+      unexpected = extra(["v", "type", "text", "research", "images"]);
       if (unexpected) return bad(unexpected, "unexpected");
       if (!isString(obj.text) || obj.text === "" || obj.text.length > MAX_PROMPT_CHARS) {
         return bad("text");
       }
       if (obj.research !== undefined && typeof obj.research !== "boolean") return bad("research");
+      if (obj.images !== undefined && parsePromptImages(obj.images) === null) return bad("images");
       return { ok: true, message: obj as ToEngine };
     case "answer":
       unexpected = extra(["v", "type", "toolUseId", "decision", "remember"]);

@@ -96,6 +96,7 @@ const done = runEngine({
     } catch {
       return enrichContainerPrompt(text, outcome.containers, () => docker.listLabelPrefix());
     }
+    const verified = new Map<string, string>();
     if (!learningMode && selected && outcome.projectId === (selected as StoredProject).id) {
       const project = selected as StoredProject;
       if ((await realpath(project.workspace)) !== (await realpath(projectRoot)))
@@ -112,10 +113,11 @@ const done = runEngine({
         } catch {
           continue;
         }
-        if (chosen === row.name) await prepareContainerProjectWorkspace(project, row.name, docker);
+        if (chosen === row.name)
+          verified.set(row.name, await prepareContainerProjectWorkspace(project, row.name, docker));
       }
     }
-    return enrichContainerPrompt(text, outcome.containers, async () => rows);
+    return enrichContainerPrompt(text, outcome.containers, async () => rows, verified);
   },
   createRunner: async (
     mode,

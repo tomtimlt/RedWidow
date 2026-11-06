@@ -72,7 +72,15 @@ export function createSdkApi({
     async prompt(sessionId, body) {
       // Le serveur accepte `variant`, encore absent des types du SDK v1.
       const promptBody = {
-        parts: [{ type: "text" as const, text: body.text }],
+        parts: [
+          { type: "text" as const, text: body.text },
+          ...(body.images ?? []).map((image) => ({
+            type: "file" as const,
+            mime: image.mimeType,
+            filename: image.name,
+            url: `data:${image.mimeType};base64,${image.data}`,
+          })),
+        ],
         ...(body.model && { model: body.model }),
         ...(body.variant !== undefined && { variant: body.variant }),
         ...(body.system !== undefined && { system: body.system }),

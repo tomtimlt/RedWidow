@@ -38,6 +38,7 @@ export * from "./process/run.js";
 export * from "./process/terminate.js";
 export * from "./project.js";
 export * from "./project-workspace.js";
+export * from "./prompt-images.js";
 export * from "./reason.js";
 export * from "./recorder.js";
 export * from "./redact.js";

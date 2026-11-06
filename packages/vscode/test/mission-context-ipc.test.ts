@@ -26,9 +26,9 @@ it("relaie le paquet réellement construit par le runner, borné et masqué, san
       createRunner: () => ({
         run: async (input, ctx) => {
           const desk = createMissionDesk({ recorder: ctx.recorder });
-          if (typeof input.prompt !== "string")
+          if (typeof input.prompt !== "string" && !("text" in input.prompt))
             for await (const text of input.prompt) {
-              desk.beginTurn(text);
+              desk.beginTurn(typeof text === "string" ? text : text.text);
               break;
             }
           ctx.onMissionContext?.(desk.context());

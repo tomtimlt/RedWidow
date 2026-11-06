@@ -2134,18 +2134,34 @@
           draftFiles = draftFiles.filter((f) => f.id !== file.id);
           paintAttachments();
         });
+        if (file.mimeType) {
+          const preview = document.createElement("img");
+          preview.src = `data:${file.mimeType};base64,${file.data}`;
+          preview.alt = file.name;
+          preview.width = 40;
+          preview.height = 40;
+          li.append(preview);
+        }
         li.append(label, remove);
         return li;
       }),
     );
     list.hidden = draftFiles.length === 0;
+    const warning = $("attachment-vision-warning");
+    const selected = lastView?.controls;
+    warning.hidden = !draftFiles.some((f) => f.mimeType) || selected?.supportsImages === true;
+    warning.textContent =
+      selected?.supportsImages === false
+        ? t("Ce modèle ne prend pas les images en charge.")
+        : t("La prise en charge des images par ce modèle est inconnue.");
     send.disabled =
       !lastView ||
       lastView.busy ||
       !!lastView.readonly ||
       !!lastView.noProvider ||
       !!pendingFiles ||
-      readingFiles;
+      readingFiles ||
+      (selected?.supportsImages === false && draftFiles.some((f) => f.mimeType));
   }
   async function addFiles(files) {
     if (!lastView || attachBtn.disabled) return;
@@ -2156,8 +2172,51 @@
     try {
       if (draftFiles.length + files.length > Number(fileInput.dataset.count))
         throw Error(t("Maximum 10 fichiers joints."));
-      let total = draftFiles.reduce((sum, f) => sum + f.bytes, 0);
+      let total = draftFiles.filter((f) => !f.mimeType).reduce((sum, f) => sum + f.bytes, 0);
+      let imageTotal = draftFiles.filter((f) => f.mimeType).reduce((sum, f) => sum + f.bytes, 0);
       for (const file of files) {
+        const extensions = {
+          png: "image/png",
+          jpg: "image/jpeg",
+          jpeg: "image/jpeg",
+          gif: "image/gif",
+          webp: "image/webp",
+        };
+        const extension = file.name.toLowerCase().split(".").pop();
+        const mimeType = ["image/png", "image/jpeg", "image/gif", "image/webp"].includes(file.type)
+          ? file.type
+          : !file.type || file.type === "application/octet-stream"
+            ? extensions[extension]
+            : undefined;
+        if (mimeType) {
+          imageTotal += file.size;
+          if (file.size > 5 * 1024 * 1024 || imageTotal > 12 * 1024 * 1024)
+            throw Error(t("Limite des images : 5 Mio par image et 12 Mio au total."));
+          if (!file.name.trim() || file.name.length > 180 || /[\\/\p{Cc}\p{Cf}]/u.test(file.name))
+            throw Error(t("Nom de fichier invalide."));
+          const bytes = new Uint8Array(await file.arrayBuffer());
+          const signature =
+            mimeType === "image/png"
+              ? [137, 80, 78, 71, 13, 10, 26, 10].every((b, i) => bytes[i] === b)
+              : mimeType === "image/jpeg"
+                ? bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255
+                : mimeType === "image/gif"
+                  ? ["GIF87a", "GIF89a"].includes(String.fromCharCode(...bytes.subarray(0, 6)))
+                  : String.fromCharCode(...bytes.subarray(0, 4)) === "RIFF" &&
+                    String.fromCharCode(...bytes.subarray(8, 12)) === "WEBP";
+          if (!signature) throw Error(t("La signature de l’image ne correspond pas à son format."));
+          let binary = "";
+          for (let i = 0; i < bytes.length; i += 32768)
+            binary += String.fromCharCode(...bytes.subarray(i, i + 32768));
+          added.push({
+            id: ++fileSerial,
+            name: file.name,
+            mimeType,
+            data: btoa(binary),
+            bytes: file.size,
+          });
+          continue;
+        }
         total += file.size;
         if (file.size > Number(fileInput.dataset.bytes) || total > Number(fileInput.dataset.total))
           throw Error(t("Limite : 64 Kio par fichier et 256 Kio au total."));
@@ -2168,7 +2227,7 @@
         )
           throw Error(
             t(
-              "Seuls les textes, logs et fichiers de code UTF-8 sont pris en charge. Images et PDF exclus.",
+              "Seuls les textes UTF-8 et les images PNG, JPEG, GIF ou WebP sont pris en charge. Les PDF et binaires sont refusés.",
             ),
           );
         let text;
@@ -2185,7 +2244,7 @@
       draftFiles.push(...added);
       attachmentStatus(
         t(
-          "Ces fichiers seront transmis au fournisseur et conservés dans le journal de conversation. N’ajoutez pas de secrets.",
+          "Ces fichiers seront transmis au fournisseur. Seuls leurs noms apparaissent dans la conversation. N’ajoutez pas de secrets.",
         ),
       );
     } catch (error) {
@@ -2208,6 +2267,19 @@
     if (!event.dataTransfer?.types.includes("Files")) return;
     event.preventDefault();
     addFiles(Array.from(event.dataTransfer.files));
+  });
+  input.addEventListener("paste", (event) => {
+    const clipboard = event.clipboardData;
+    if (!clipboard) return;
+    const files = Array.from(clipboard.files || []);
+    if (!files.length)
+      for (const item of Array.from(clipboard.items || [])) {
+        if (item.kind === "file") {
+          const file = item.getAsFile();
+          if (file) files.push(file);
+        }
+      }
+    if (files.length) addFiles(files);
   });
   $("research-next").addEventListener("click", () => {
     const button = $("research-next");
@@ -2232,7 +2304,9 @@
       vscode.postMessage({
         type: "send",
         text,
-        attachments: draftFiles.map(({ name, text }) => ({ name, text })),
+        attachments: draftFiles.map(({ name, text, mimeType, data }) =>
+          mimeType ? { name, mimeType, data } : { name, text },
+        ),
         requestId,
         conversation: lastView.conversation,
         research: $("research-next").getAttribute("aria-pressed") === "true",

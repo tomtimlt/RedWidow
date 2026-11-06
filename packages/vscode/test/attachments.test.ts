@@ -69,3 +69,14 @@ describe("pièces jointes texte", () => {
     expect(() => withAttachments("a".repeat(1_000_000), [file])).toThrow();
   });
 });
+
+it("valide un mélange texte et image à la frontière webview", () => {
+  const image = { name: "capture.png", mimeType: "image/png", data: "iVBORw0KGgo=" };
+  expect(parseWebviewMessage({ ...message, attachments: [file, image] })).toEqual({
+    ...message,
+    attachments: [file, image],
+  });
+  expect(
+    parseWebviewMessage({ ...message, attachments: [file, { ...image, data: "AAAA" }] }),
+  ).toBeNull();
+});

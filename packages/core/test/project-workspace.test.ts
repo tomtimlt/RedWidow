@@ -63,7 +63,8 @@ it("vérifie le partage réel et ne transmet le nom de projet que comme argument
   const path = await prepareContainerProjectWorkspace(project, "kali-1", docker);
   expect(path).toMatch(/^\/redwidow\/Workspace\/[A-Za-z0-9_-]+$/);
   expect(calls).toHaveLength(2);
-  expect(calls[1]?.at(-1)).toBe(path);
+  expect(calls[1]?.at(-2)).toBe(path);
+  expect(calls[1]?.at(-1)).toBe("/workspace");
   expect(await readdir(root)).toEqual([...PROJECT_WORKSPACE_FOLDERS].sort());
   expect(containerProjectWorkspace({ ...project, id: randomUUID() })).not.toBe(path);
 });
@@ -91,4 +92,31 @@ it("adapte Docker Desktop sans transformer un chemin arbitraire ou distant", () 
   expect(dockerHostWorkspace("/run/desktop/mnt/host/c/Users/Lab", "win32")).toBe("c:\\Users\\Lab");
   expect(dockerHostWorkspace("/host_mnt/C/Users/Lab", "linux")).toBe("/mnt/c/Users/Lab");
   expect(dockerHostWorkspace("/remote/project", "win32")).toBe("/remote/project");
+});
+
+it("accepte un sous-dossier réel et refuse une sortie par lien", async () => {
+  const { root, project, docker, calls } = await fixture();
+  const nested = join(root, "mission avec espaces");
+  await mkdir(nested);
+  const nestedDocker = {
+    ...docker,
+    execWorkspace: async (_container: string, command: readonly string[]) => {
+      (calls as string[][]).push([...command]);
+      return command[0] === "cat"
+        ? [await readFile(join(nested, basename(command[1] as string)), "utf8")]
+        : [];
+    },
+  };
+  await prepareContainerProjectWorkspace({ ...project, workspace: nested }, "kali-1", nestedDocker);
+  expect(calls[0]?.[1]).toContain("/workspace/mission avec espaces/");
+  expect(calls[1]?.at(-1)).toBe("/workspace/mission avec espaces");
+  const other = await fixture();
+  await symlink(other.root, join(root, "escape"));
+  await expect(
+    prepareContainerProjectWorkspace(
+      { ...project, workspace: join(root, "escape") },
+      "kali-1",
+      docker,
+    ),
+  ).rejects.toThrow();
 });

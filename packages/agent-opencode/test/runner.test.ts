@@ -842,3 +842,20 @@ it.each([
     expect(fake.closed()).toBe(true);
   },
 );
+
+it("transmet l’image au client sans la journaliser", async () => {
+  const image = { name: "capture.png", mimeType: "image/png" as const, data: "iVBORw0KGgo=" };
+  const fake = fakeOpencode([
+    (stage) => {
+      begin(stage);
+      stage.idle();
+    },
+  ]);
+  const h = harness();
+  await h.run(createOpencodeRunner({ createClient: fake.createClient }), {
+    prompt: { text: "observer", images: [image] },
+  });
+  expect(fake.prompts[0]?.body.images).toEqual([image]);
+  expect(JSON.stringify(h.events)).not.toContain(image.data);
+  expect(h.events.find((e) => e.kind === "run.started")).toMatchObject({ prompt: "observer" });
+});

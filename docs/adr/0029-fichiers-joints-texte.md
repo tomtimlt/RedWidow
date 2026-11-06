@@ -3,6 +3,9 @@
 Statut : accepté et implémenté pour la 0.3.60. Lecture, décision, implémentation
 et revue dans la session principale à la demande de travailler sans sous-agents.
 
+Depuis la 0.3.74, l’[ADR 0038](0038-images-jointes.md) étend ce contrat aux images.
+Les décisions ci-dessous décrivent le périmètre initial des fichiers texte.
+
 ## Décision
 
 Le contrat neutre du moteur accepte un prompt texte, pas des contenus multimodaux.

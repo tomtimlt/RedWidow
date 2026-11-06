@@ -4,6 +4,7 @@ import type {
   Effort,
   EngineEvent,
   ModelOption,
+  PromptImage,
   ProviderOption,
   Reason,
 } from "@warband/core";
@@ -1219,7 +1220,20 @@ export function createChatSession(deps: ChatSessionDeps) {
       if (deps.learningKey !== undefined) persist(deps.learningKey, raw);
       refresh();
     },
-    async send(text: string, prompt = text, research = false): Promise<boolean> {
+    async send(
+      text: string,
+      prompt = text,
+      research = false,
+      images: PromptImage[] = [],
+    ): Promise<boolean> {
+      if (
+        images.length &&
+        effectiveModel(models, prefs.model, machineModel())?.supportsImages === false
+      ) {
+        state.notice(t("Ce modèle ne prend pas les images en charge."), "error");
+        refresh();
+        return false;
+      }
       // Mode lecture : aucune saisie tant que la conversation n'est pas reprise.
       // `text` est la bulle. `prompt` peut y joindre la sortie d'un terminal cité.
       if (state.busy || (stopping && controller !== null) || state.readonly || text.trim() === "")
@@ -1322,7 +1336,7 @@ export function createChatSession(deps: ChatSessionDeps) {
         const ctl = controller ?? (await startEngine(revision, conversationContext));
         if (revision !== navigationRev || ctl === null) return false;
         researchPending = research;
-        ctl.prompt(prompt, research || undefined);
+        ctl.prompt(prompt, research || undefined, images.length ? images : undefined);
         return true;
       } catch (error) {
         if (revision !== navigationRev) return false;

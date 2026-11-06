@@ -5,6 +5,8 @@
  * Ce contrat étroit est aussi ce que les tests remplacent par un faux client.
  */
 
+import type { PromptImage } from "@warband/core";
+
 /** Événement du flux SSE d'OpenCode (`/event`). */
 export interface OpencodeEvent {
   type: string;
@@ -14,6 +16,7 @@ export interface OpencodeEvent {
 /** Corps d'un tour. `tools` ne contient que des `false` : un `true` créerait une règle « allow ». */
 export interface PromptBody {
   text: string;
+  images?: PromptImage[];
   model?: { providerID: string; modelID: string };
   variant?: string;
   system?: string;

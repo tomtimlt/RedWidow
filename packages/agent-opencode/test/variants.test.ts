@@ -213,12 +213,21 @@ describe("transport HTTP de la variante OpenCode", () => {
       });
       await api.prompt("session", {
         text: "consigne",
+        images: [{ name: "a.png", mimeType: "image/png", data: "iVBORw0KGgo=" }],
         model: { providerID: "provider", modelID: "runtime" },
         tools: { bash: false },
         ...(variant !== undefined && { variant }),
       });
       expect(received).toEqual({
-        parts: [{ type: "text", text: "consigne" }],
+        parts: [
+          { type: "text", text: "consigne" },
+          {
+            type: "file",
+            mime: "image/png",
+            filename: "a.png",
+            url: "data:image/png;base64,iVBORw0KGgo=",
+          },
+        ],
         model: { providerID: "provider", modelID: "runtime" },
         tools: { bash: false },
         ...(variant !== undefined && { variant }),

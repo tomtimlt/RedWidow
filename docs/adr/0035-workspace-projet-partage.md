@@ -1,8 +1,6 @@
 # ADR 0035 — workspace de mission partagé avec Docker
 
-Statut : accepté pour le P1 demandé par l’utilisateur, en attente de livraison.
-Base : 0.3.72 ; P0 conservé dans `temp/p1-project-workspace`.
-Aucune release ni publication sans nouveau go.
+Statut : accepté ; étendu aux sous-dossiers du partage en 0.3.74.
 
 ## Parcours
 
@@ -26,8 +24,8 @@ fichiers : aucune copie ni synchronisation périodique. Le terminal conserve ce
 chemin logique avec un wrapper shell fixe. Le prompt personnalisable reste au P2.
 
 Avant préparation : conteneur associé, lancé, source du montage résolue et
-comparée au dossier du projet. Un fichier aléatoire est créé dans le dossier
-hôte, lu depuis `/workspace` puis supprimé. Les parents de l’alias ne doivent
+comparée au dossier réel du projet, qui peut être le montage ou un sous-dossier réel de celui-ci. Un fichier aléatoire est créé dans le dossier
+hôte, lu depuis le chemin correspondant sous `/workspace` puis supprimé. Les parents de l’alias ne doivent
 pas être des liens ; un chemin existant incompatible est refusé, jamais remplacé.
 Cette préparation intervient à l’association, à l’ouverture du terminal, par
 Préparer le dossier de mission et avant un tour visant un conteneur résolu.
@@ -64,7 +62,7 @@ Les caches système ne constituent pas les destinations des fichiers de mission.
 
 ## Migration
 
-Si le montage d’un conteneur existant pointe vers le dossier actif, la préparation
+Si le dossier actif est le montage ou un sous-dossier de celui-ci, la préparation
 est additive. Sinon, conserver l’ancien conteneur et sauvegarder ses données
 avant de créer explicitement un conteneur utilisant le bon dossier ; comparer
 les fichiers avant tout retrait de l’ancien. Docker nécessite une recréation

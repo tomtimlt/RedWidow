@@ -11,6 +11,7 @@ import {
 } from "@anthropic-ai/claude-agent-sdk";
 import {
   AGENT_METHODOLOGY,
+  type AgentPrompt,
   type AgentRunner,
   type ApprovalOutcome,
   type AuthInfo,
@@ -173,14 +174,28 @@ export function envWithout(
 
 /** Messages utilisateur du SDK à partir d'un flux de textes (session multi-tours). */
 async function* userMessages(
-  prompts: AsyncIterable<string>,
+  prompts: AsyncIterable<AgentPrompt>,
   missionDesk?: MissionDesk,
   onMissionContext?: RunContext["onMissionContext"],
 ): AsyncGenerator<SDKUserMessage> {
-  for await (const text of prompts) {
+  for await (const prompt of prompts) {
+    const text = typeof prompt === "string" ? prompt : prompt.text;
+    const enriched = missionPrompt(text, missionDesk, onMissionContext);
     yield {
       type: "user",
-      message: { role: "user", content: missionPrompt(text, missionDesk, onMissionContext) },
+      message: {
+        role: "user",
+        content:
+          typeof prompt === "string"
+            ? enriched
+            : [
+                { type: "text", text: enriched },
+                ...prompt.images.map((image) => ({
+                  type: "image" as const,
+                  source: { type: "base64" as const, media_type: image.mimeType, data: image.data },
+                })),
+              ],
+      },
       parent_tool_use_id: null,
     };
   }
@@ -345,7 +360,7 @@ async function runWithSdkWithDesk(
   // Un flux de messages n'a pas de texte unique à consigner : chaque tour sera visible via les événements.
   const root = recorder.emit({
     kind: "run.started",
-    prompt: typeof prompt === "string" ? prompt : "",
+    prompt: typeof prompt === "string" ? prompt : "text" in prompt ? prompt.text : "",
     cwd,
   });
   const requested = new Map<string, EventOf<"tool.requested">>();
@@ -758,7 +773,15 @@ async function runWithSdkWithDesk(
       prompt:
         typeof prompt === "string"
           ? missionPrompt(prompt, missionDesk, onMissionContext)
-          : userMessages(prompt, missionDesk, onMissionContext),
+          : userMessages(
+              "text" in prompt
+                ? (async function* () {
+                    yield prompt;
+                  })()
+                : prompt,
+              missionDesk,
+              onMissionContext,
+            ),
       options: sdkOptions,
     });
     for await (const message of stream) {

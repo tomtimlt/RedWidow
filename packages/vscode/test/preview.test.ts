@@ -9,7 +9,7 @@ import { chatHtml, cockpitHtml, killchainHtml, studioHtml } from "../src/logic/h
 const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 
 describe("chat.js : balises créées", () => {
-  it("liste blanche, jamais script/a/img/iframe", () => {
+  it("autorise uniquement l’aperçu image validé et interdit script, lien, iframe et handlers", () => {
     const js = readFileSync(here("../media/chat.js"), "utf8");
     const allowed = [
       "section",
@@ -40,7 +40,13 @@ describe("chat.js : balises créées", () => {
       "td",
     ];
     for (const m of js.matchAll(/\bel\(\s*"(\w+)"/g)) expect(allowed).toContain(m[1]);
-    expect(js).not.toMatch(/createElement\(\s*["'`](script|a|img|iframe)/);
+    expect(js).not.toMatch(/createElement\(\s*["'`](script|a|iframe)["'`]/);
+    expect([...js.matchAll(/createElement\(\s*["'`]img["'`]\s*\)/g)]).toHaveLength(1);
+    expect(js).toContain("preview.src = `data:${file.mimeType};base64,${file.data}`");
+    expect(js).toContain(
+      '["image/png", "image/jpeg", "image/gif", "image/webp"].includes(file.type)',
+    );
+    expect(js).toContain("if (!signature)");
     expect(js).not.toMatch(/\.on[a-z]+\s*=|setAttribute\(\s*["']on/);
   });
 });

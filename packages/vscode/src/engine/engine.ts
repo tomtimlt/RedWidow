@@ -1,4 +1,5 @@
 import { isAbsolute, join } from "node:path";
+import type { AgentPrompt, PromptImage } from "@warband/core";
 import {
   type AgentRunner,
   type ApprovalGate,
@@ -82,7 +83,7 @@ const isBypassMessage = (raw: unknown): boolean =>
 
 /** Flux de consignes d'une session multi-tours : `push` alimente, `end` clôt. */
 function createPromptStream(onTake: (text: string, research: boolean) => string | Promise<string>) {
-  const buffer: { text: string; research: boolean }[] = [];
+  const buffer: { text: string; research: boolean; images?: PromptImage[] }[] = [];
   let ended = false;
   let wake: (() => void) | null = null;
   const poke = () => {
@@ -90,20 +91,20 @@ function createPromptStream(onTake: (text: string, research: boolean) => string 
     wake = null;
   };
   return {
-    push(text: string, research: boolean) {
-      if (!ended) buffer.push({ text, research });
+    push(text: string, research: boolean, images?: PromptImage[]) {
+      if (!ended) buffer.push({ text, research, ...(images !== undefined && { images }) });
       poke();
     },
     end() {
       ended = true;
       poke();
     },
-    async *[Symbol.asyncIterator](): AsyncGenerator<string> {
+    async *[Symbol.asyncIterator](): AsyncGenerator<AgentPrompt> {
       for (;;) {
         const next = buffer.shift();
         if (next !== undefined) {
           const enriched = await onTake(next.text, next.research);
-          yield enriched;
+          yield next.images?.length ? { text: enriched, images: next.images } : enriched;
         } else if (ended) return;
         else await new Promise<void>((resolve) => (wake = resolve));
       }
@@ -377,7 +378,7 @@ export function runEngine({
           if (!started) return invalid("type", "state");
           if (message.research && (paramsLearning || !webAvailable))
             return invalid("research", "unavailable");
-          prompts.push(message.text, message.research === true);
+          prompts.push(message.text, message.research === true, message.images);
           return;
         case "answer":
           // Sans effet si la demande n'existe pas (inconnue, déjà traitée ou annulée).

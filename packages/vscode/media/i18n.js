@@ -108,6 +108,19 @@
 
   // packages/messages/src/ui-domains/chat.ts
   var chatEn = {
+    "La signature de l’image ne correspond pas à son format.":
+      "The image signature does not match its format.",
+    "Ce modèle ne prend pas les images en charge.": "This model does not support images.",
+    "La prise en charge des images par ce modèle est inconnue.":
+      "Image support for this model is unknown.",
+    "Limite des images : 5 Mio par image et 12 Mio au total.":
+      "Image limit: 5 MiB per image and 12 MiB total.",
+    "Seuls les textes UTF-8 et les images PNG, JPEG, GIF ou WebP sont pris en charge. Les PDF et binaires sont refusés.":
+      "Only UTF-8 text and PNG, JPEG, GIF or WebP images are supported. PDFs and binary files are rejected.",
+    "Ces fichiers seront transmis au fournisseur. Seuls leurs noms apparaissent dans la conversation. N’ajoutez pas de secrets.":
+      "These files will be sent to the provider. Only their names appear in the conversation. Do not attach secrets.",
+    "Partage du projet non vérifié : terminal ouvert dans /workspace. {0}":
+      "Project share could not be verified: terminal opened in /workspace. {0}",
     "Le pentest dans VS Code, avec l’IA à la demande.": "Pentest in VS Code, with AI on call.",
     Copié: "Copied",
     Échec: "Failed",

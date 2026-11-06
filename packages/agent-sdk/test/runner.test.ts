@@ -1120,3 +1120,20 @@ describe("outil de shell inattendu à l'init", () => {
     expect(ok.after).toBe(true);
   });
 });
+
+it("transmet l’image au SDK sans la journaliser", async () => {
+  const { recorder, events, gate } = setup();
+  const image = { name: "capture.png", mimeType: "image/png" as const, data: "iVBORw0KGgo=" };
+  const messages: unknown[] = [];
+  const query: QueryFn = async function* ({ prompt }) {
+    if (typeof prompt !== "string") for await (const message of prompt) messages.push(message);
+    yield result({});
+  };
+  await createSdkRunner({ query }).run(
+    { cwd: "/w", prompt: { text: "observer", images: [image] } },
+    { recorder, gate },
+  );
+  expect(JSON.stringify(messages)).toContain(image.data);
+  expect(JSON.stringify(events)).not.toContain(image.data);
+  expect(events.find((e) => e.kind === "run.started")).toMatchObject({ prompt: "observer" });
+});

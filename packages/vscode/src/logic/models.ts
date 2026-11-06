@@ -24,6 +24,7 @@ const OPTION_KEYS = [
   "description",
   "supportedEffortLevels",
   "reasoningVariants",
+  "supportsImages",
 ];
 
 /** Valide strictement la liste reçue du moteur : forme exacte, bornes ; `null` si mal formée. */
@@ -32,6 +33,7 @@ export function parseModelOptions(raw: unknown): ModelOption[] | null {
   const out: ModelOption[] = [];
   for (const item of raw) {
     if (!isObj(item) || Object.keys(item).some((k) => !OPTION_KEYS.includes(k))) return null;
+    if (item.supportsImages !== undefined && typeof item.supportsImages !== "boolean") return null;
     const { value, displayName, description, supportedEffortLevels, reasoningVariants } = item;
     if (typeof value !== "string" || value === "" || value.length > MAX_FIELD) return null;
     if (typeof displayName !== "string" || displayName.length > MAX_FIELD) return null;

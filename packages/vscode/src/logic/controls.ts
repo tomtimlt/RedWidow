@@ -50,7 +50,8 @@ export interface ChatControls {
   /** Modèle choisi (`null` = défaut). */
   model: string | null;
   /** `null` : liste inconnue, la webview propose la saisie libre. */
-  models: { value: string; label: string; description: string }[] | null;
+  models: { value: string; label: string; description: string; supportsImages?: boolean }[] | null;
+  supportsImages?: boolean;
   modelsStatus: ModelsStatus;
   modelsMessage: string | null;
   /** `null` : Auto (aucun niveau transmis). */
@@ -114,11 +115,13 @@ export function buildControls(input: {
   const current = levels.find((l) => l.value === effort);
   return {
     model: prefs.model,
+    ...(model?.supportsImages !== undefined && { supportsImages: model.supportsImages }),
     models:
       models?.map((m) => ({
         value: m.value,
         label: m.displayName,
         description: m.description ?? "",
+        ...(m.supportsImages !== undefined && { supportsImages: m.supportsImages }),
       })) ?? null,
     modelsStatus: status,
     modelsMessage: input.modelsMessage ?? null,

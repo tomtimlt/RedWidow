@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { lstat, mkdir, realpath, unlink, writeFile } from "node:fs/promises";
-import { join, win32 } from "node:path";
+import { isAbsolute, join, posix, relative, sep, win32 } from "node:path";
 import type { DockerClient } from "./docker/client.js";
 import type { StoredProject } from "./project.js";
 import { CodedError } from "./reason.js";
@@ -58,9 +58,9 @@ for parent in /redwidow /redwidow/Workspace; do
   mkdir -p "$parent"
 done
 if test -e "$1" || test -L "$1"; then
-  test "$(readlink -f "$1")" = "$(readlink -f /workspace)"
+  test "$(readlink -f "$1")" = "$(readlink -f "$2")"
 else
-  ln -s /workspace "$1" || test "$(readlink -f "$1")" = "$(readlink -f /workspace)"
+  ln -s "$2" "$1" || test "$(readlink -f "$1")" = "$(readlink -f "$2")"
 fi`;
 
 /** Prouve le partage hôte/conteneur avant de créer l’alias. Ne recrée jamais un conteneur. */
@@ -82,15 +82,16 @@ export async function prepareContainerProjectWorkspace(
   } catch {
     throw new CodedError("path.outside", { path: row.workspace });
   }
-  const equal =
-    process.platform === "win32" ? root.toLowerCase() === mounted.toLowerCase() : root === mounted;
-  if (!equal) throw new CodedError("path.outside", { path: row.workspace });
+  const rel = relative(mounted, root);
+  if (isAbsolute(rel) || rel === ".." || rel.startsWith(`..${sep}`))
+    throw new CodedError("path.outside", { path: row.workspace });
+  const containerRoot = posix.join("/workspace", ...rel.split(sep).filter(Boolean));
   await prepareProjectWorkspace(root);
   const marker = `.redwidow-share-${randomUUID()}`;
   const proof = randomUUID();
   await writeFile(join(root, marker), proof, { flag: "wx", mode: 0o600 });
   try {
-    const lines = await docker.execWorkspace(container, ["cat", `/workspace/${marker}`]);
+    const lines = await docker.execWorkspace(container, ["cat", posix.join(containerRoot, marker)]);
     if (lines.join("\n").trim() !== proof)
       throw new CodedError("path.outside", { path: row.workspace });
     const target = containerProjectWorkspace(project);
@@ -100,6 +101,7 @@ export async function prepareContainerProjectWorkspace(
       ALIAS_SCRIPT,
       "redwidow-workspace",
       target,
+      containerRoot,
     ]);
     return target;
   } finally {

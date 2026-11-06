@@ -101,10 +101,14 @@ describe("contexte conteneurs de la consigne", () => {
 });
 
 it("donne le montage réel sans exposer de labels ou inventer un montage", async () => {
-  const out = await enrichContainerPrompt("inventaire", [kali.name], async () => [
-    { ...kali, workspace: "/mission" },
-  ]);
+  const out = await enrichContainerPrompt(
+    "inventaire",
+    [kali.name],
+    async () => [{ ...kali, workspace: "/mission" }],
+    new Map([[kali.name, "/redwidow/Workspace/projet"]]),
+  );
   expect(data(out).containers[0]).toMatchObject({
+    projectWorkspace: "/redwidow/Workspace/projet",
     hostWorkspace: "/mission",
     containerWorkspace: "/workspace",
   });

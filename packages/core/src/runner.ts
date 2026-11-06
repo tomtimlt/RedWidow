@@ -1,4 +1,5 @@
 import type { ApprovalGate } from "./approval/gate.js";
+import type { AgentPrompt } from "./prompt-images.js";
 import type { Recorder } from "./recorder.js";
 
 /**
@@ -22,6 +23,8 @@ export interface ModelOption {
   supportedEffortLevels?: Effort[];
   /** Variantes de raisonnement annoncées par OpenCode ; distinctes des efforts Claude. */
   reasoningVariants?: string[];
+  /** Capacité vision annoncée explicitement ; absente si inconnue. */
+  supportsImages?: boolean;
 }
 
 /** Paramètres du sondage de la liste des modèles (aucune consigne n'est envoyée). */
@@ -38,7 +41,7 @@ export interface ListModelsInput {
  */
 export interface RunInput {
   /** Consigne unique, ou flux de messages utilisateur (session multi-tours). */
-  prompt: string | AsyncIterable<string>;
+  prompt: AgentPrompt | AsyncIterable<AgentPrompt>;
   cwd: string;
   model?: string;
   /** Effort de raisonnement Claude ; OpenCode utilise `variant` et refuse ce champ. */

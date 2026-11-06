@@ -1041,3 +1041,27 @@ it("transmet les endpoints validés au catalogue éphémère", async () => {
     opencodeProviders,
   );
 });
+
+it("transporte l’image au seul tour demandé sans la journaliser", async () => {
+  const t = fakeChannel();
+  const received: unknown[] = [];
+  const image = { name: "a.png", mimeType: "image/png", data: "iVBORw0KGgo=" };
+  const runner: AgentRunner = {
+    run: async ({ prompt }) => {
+      for await (const item of prompt as AsyncIterable<unknown>) received.push(item);
+      return { status: "success", turns: 0, costUsd: 0, result: null };
+    },
+  };
+  const done = runEngine({
+    channel: t.channel,
+    createRunner: () => runner,
+    onPrompt: (text) => `${text} contexte`,
+  });
+  t.receive({ v: 1, type: "start", cwd });
+  t.receive({ v: 1, type: "prompt", text: "voir", images: [image] });
+  t.receive({ v: 1, type: "prompt", text: "suite" });
+  t.receive({ v: 1, type: "dispose" });
+  await done;
+  expect(received).toEqual([{ text: "voir contexte", images: [image] }, "suite contexte"]);
+  expect(JSON.stringify(t.sent)).not.toContain(image.data);
+});

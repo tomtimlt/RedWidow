@@ -20,9 +20,9 @@ describe("HTML du chat : CSP stricte", () => {
 
   it("politique exacte, sans unsafe-* ni source distante", () => {
     expect(csp).toBe(
-      "default-src 'none'; script-src 'nonce-abc123_-XYZ'; style-src https://x.vscode-cdn.net; img-src https://x.vscode-cdn.net; font-src https://x.vscode-cdn.net",
+      "default-src 'none'; script-src 'nonce-abc123_-XYZ'; style-src https://x.vscode-cdn.net; img-src https://x.vscode-cdn.net data:; font-src https://x.vscode-cdn.net",
     );
-    expect(csp).not.toMatch(/unsafe|\*|http:|data:/);
+    expect(csp).not.toMatch(/unsafe|\*|http:/);
   });
   it("cinq scripts locaux (traductions, icônes, araignée, UI, chat), chacun avec nonce et source de l'extension ; aucun script ou style inline, aucun handler", () => {
     const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)];

@@ -579,17 +579,21 @@ réutilisation des nœuds et le regroupement du flux réduisent les allocations 
 l’interface. Le Monitor ne construit plus un deuxième chat invisible. Cela ne
 constitue pas une garantie de plafond mémoire pour VS Code et ses agents.
 
-## Fichiers joints au chat — 0.3.60
+## Fichiers joints au chat — 0.3.74
 
-Utiliser le **trombone** ou déposer des fichiers dans la zone de saisie. Vérifier
-leurs noms, retirer ceux qui ne conviennent pas avec **×**, puis envoyer. Une
+Utiliser le **trombone**, déposer ou coller les fichiers exposés par le
+presse-papiers dans la zone de saisie. Vérifier les noms et aperçus d’images,
+retirer les pièces avec **×**, puis envoyer. Une
 consigne est facultative : sans texte, l’agent reçoit « Analyse les fichiers
-joints. ». Cette version accepte les textes, logs et fichiers de code **UTF-8** :
-5 fichiers maximum, 64 Kio chacun et 256 Kio au total. Les images, PDF et formats
-binaires ne sont pas pris en charge.
+joints. ». Cette version accepte les textes, logs et fichiers de code **UTF-8**,
+ainsi que les images PNG, JPEG, GIF et WebP : dix pièces au maximum. Les textes
+restent limités à 64 Kio chacun et 256 Kio au total ; les images à 5 Mio chacune
+et 12 Mio au total. PDF et autres documents binaires ne sont pas pris en charge.
 
-Le contenu est envoyé au fournisseur choisi, comme texte, et conservé dans le
-journal de conversation avec le masquage de secrets existant. Celui-ci n’est pas
+Le contenu est envoyé au fournisseur choisi : texte ou blocs d’images selon le
+type de pièce. Le texte rejoint le journal avec le masquage de secrets existant ;
+les octets des images ne sont pas recopiés dans ce journal par le moteur. Le
+fournisseur peut conserver les images dans son historique. Le masquage n’est pas
 une garantie de détection de tous les secrets : relire les fichiers avant envoi.
 Le chemin local n’est pas transmis et aucun fichier n’est installé dans Kali.
 Le chat direct montre les noms ; la relecture du journal peut montrer le prompt
@@ -600,6 +604,11 @@ Un refus d’envoi garde les fichiers dans le brouillon. Un changement de
 conversation, de chat ou un rechargement de la webview retire les pièces jointes
 non envoyées : elles ne sont pas enregistrées dans l’état persistant de VS Code.
 Aucun fichier du disque n’est modifié. La confiance du dossier reste obligatoire.
+
+Un modèle explicitement sans vision bloque l’envoi avec images ; retirer les
+images ou changer de modèle permet de continuer. Une capacité non annoncée
+déclenche un avertissement et laisse essayer. Le collage dépend des formats
+exposés par le système : coller un chemin comme texte ne lit aucun fichier hôte.
 
 ## Renommer et supprimer un projet — 0.3.61
 
@@ -649,7 +658,8 @@ fonctionnement sur une instance Burp réelle reste à confirmer sur votre poste.
 Le nombre maximal passe à **10 fichiers**. Les bornes de **64 Kio par fichier** et
 **256 Kio au total** restent en place. La demande de 40 Mo par fichier et 400 Mo
 au total nécessite une lecture progressive distincte du prompt ; elle n’est pas
-annoncée comme implémentée dans cette version. Images et PDF restent exclus.
+annoncée comme implémentée dans cette version. L’ajout des images en 0.3.74 est
+décrit dans la section des fichiers joints ; les PDF restent exclus.
 
 ## Atelier de mission — 0.3.62
 

@@ -4,6 +4,7 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   AGENT_METHODOLOGY,
+  type AgentPrompt,
   type AgentRunner,
   type ApprovalOutcome,
   type AuthMode,
@@ -296,6 +297,9 @@ async function probeCatalog(
           value: `${id}/${modelId}`,
           displayName: stripControl(str(model.name) ?? modelId).slice(0, 200),
           reasoningVariants: reasoningVariants(model),
+          ...(typeof obj(obj(model.capabilities).input).image === "boolean" && {
+            supportsImages: obj(obj(model.capabilities).input).image as boolean,
+          }),
         });
       }
     }
@@ -424,8 +428,10 @@ async function hasOpenaiOAuth(env: NodeJS.ProcessEnv): Promise<boolean> {
   }
 }
 
-async function* promptTexts(prompt: string | AsyncIterable<string>): AsyncGenerator<string> {
-  if (typeof prompt === "string") yield prompt;
+async function* promptTexts(
+  prompt: AgentPrompt | AsyncIterable<AgentPrompt>,
+): AsyncGenerator<AgentPrompt> {
+  if (typeof prompt === "string" || "text" in prompt) yield prompt;
   else yield* prompt;
 }
 
@@ -489,7 +495,12 @@ async function runWithOpencodeWithDesk(
 
   const root = recorder.emit({
     kind: "run.started",
-    prompt: typeof input.prompt === "string" ? input.prompt : "",
+    prompt:
+      typeof input.prompt === "string"
+        ? input.prompt
+        : "text" in input.prompt
+          ? input.prompt.text
+          : "",
     cwd,
   });
 
@@ -1131,7 +1142,8 @@ async function runWithOpencodeWithDesk(
       root.id,
     );
 
-    for await (const text of promptTexts(input.prompt)) {
+    for await (const prompt of promptTexts(input.prompt)) {
+      const text = typeof prompt === "string" ? prompt : prompt.text;
       if (abort.signal.aborted || budgetTripped) break;
       let finish: () => void = () => undefined;
       const finished = new Promise<void>((resolve) => {
@@ -1142,6 +1154,7 @@ async function runWithOpencodeWithDesk(
       reportedErrors.delete("terminal-provider-retry");
       const body: PromptBody = {
         text: missionPrompt(text, missionDesk, onMissionContext),
+        ...(typeof prompt !== "string" && { images: prompt.images }),
         model,
         ...(input.variant !== undefined && { variant: input.variant }),
         tools: toolsOff,
