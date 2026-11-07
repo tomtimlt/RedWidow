@@ -174,6 +174,7 @@ describe("bureau de mission", () => {
     expect(specs.map((s) => s.name)).toEqual([
       "load_skill",
       "record_test",
+      "program_draft",
       "mission_context",
       "record_decision",
     ]);

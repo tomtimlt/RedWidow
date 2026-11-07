@@ -31,6 +31,7 @@ import {
   resolveExegolContainer,
   resolveKaliContainer,
   type StoredProject,
+  writeProgramDraft,
 } from "@warband/core";
 import { matchesFingerprint } from "../logic/integrity.js";
 import { PROTOCOL_VERSION } from "../logic/protocol.js";
@@ -70,6 +71,7 @@ const done = runEngine({
     activeProjectId === null
       ? { state: "none" }
       : readProgramSync(defaultConfigDir(), activeProjectId),
+  programDraft: (text) => writeProgramDraft(defaultConfigDir(), activeProjectId, text),
   resolveCwd: async (cwd) => {
     projectRoot = cwd;
     try {

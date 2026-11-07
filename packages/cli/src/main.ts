@@ -37,6 +37,7 @@ import {
   status,
   suspendProgram,
   trustPolicy,
+  writeProgramDraft,
 } from "@warband/core";
 import { renderGraphHtml } from "@warband/export-html";
 import { formatError, formatReason, isLocale } from "@warband/messages";
@@ -242,6 +243,9 @@ program
     }
     const programProvider = (): ProgramStatus =>
       activeId === null ? { state: "none" } : readProgramSync(configDir, activeId);
+    // Écriture du brouillon par l'outil `program_draft` : n'approuve rien (approbation = CLI seule).
+    const programDraft = (text: string): Promise<ProgramStatus> =>
+      writeProgramDraft(configDir, activeId, text);
     const gate = createApprovalGate({
       policy,
       recorder,
@@ -337,7 +341,7 @@ program
           ...(opts.maxBudgetUsd && { maxBudgetUsd: opts.maxBudgetUsd }),
           ...(opts.systemPrompt && { systemPrompt: opts.systemPrompt }),
         },
-        { recorder, gate, signal: abort.signal, program: programProvider },
+        { recorder, gate, signal: abort.signal, program: programProvider, programDraft },
       );
       if (summary.result) process.stdout.write(`\n${summary.result}\n`);
       if (summary.sessionId) {

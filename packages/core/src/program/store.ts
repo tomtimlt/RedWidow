@@ -192,6 +192,20 @@ export async function importProgramDraft(
 }
 
 /**
+ * Écriture du brouillon demandée par l'outil d'agent `program_draft` : même effet que l'import
+ * (aucune approbation, toute modification invalide l'approbation existante). Sans projet actif
+ * (`projectId` nul) → `project.absent`.
+ */
+export async function writeProgramDraft(
+  configDir: string,
+  projectId: string | null,
+  text: string,
+): Promise<ProgramStatus> {
+  if (projectId === null) throw new CodedError("project.absent");
+  return importProgramDraft(configDir, projectId, text);
+}
+
+/**
  * Approuve le brouillon courant : écrit son empreinte et la date. Réservé à la CLI (puis à
  * l'interface) : aucun outil d'agent ne l'appelle. Brouillon absent ou illisible →
  * `program.absent` / `program.unreadable`.

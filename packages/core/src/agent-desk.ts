@@ -3,11 +3,32 @@ import { normalizeSkillSearch, renderProfileSkill } from "./agent-profile-skill.
 import { AGENT_PROFILES, isAgentProfile } from "./agent-profiles.js";
 import { auditTestSchema } from "./audit-schema.js";
 import type { DockerToolSpec } from "./docker/tool-specs.js";
-import type { MissionDesk } from "./mission-desk.js";
+import type { MissionDesk, ProgramDraftInput } from "./mission-desk.js";
 import { capOutput } from "./output.js";
 import { SKILL_SOURCES } from "./skill-sources.js";
 
 export { AGENT_PROFILES, type AgentProfile, isAgentProfile } from "./agent-profiles.js";
+
+// Champs cités fournis par l'agent : `verified` n'existe pas (clé inconnue ignorée), le moteur le calcule.
+const citedInput = <V extends z.ZodTypeAny>(value: V) =>
+  z.object({
+    value,
+    quote: z.string().max(2000),
+    url: z.string().max(2048),
+    retrievedAt: z.string().max(40),
+  });
+const programDraftShape = {
+  inScope: citedInput(z.array(z.string().max(253)).max(200)),
+  outOfScope: citedInput(z.array(z.string().max(253)).max(200)),
+  userAgentSuffix: citedInput(z.string().max(100)).optional(),
+  pace: citedInput(
+    z.union([
+      z.object({ preset: z.enum(["fast", "normal", "careful"]) }),
+      z.object({ maxRequestsPerSecond: z.number().positive().max(1000) }),
+    ]),
+  ),
+};
+const programDraftSchema = z.object(programDraftShape);
 export function deskInstructions(profile?: string): string {
   const name = isAgentProfile(profile) ? profile : null;
   const selected = name ? AGENT_PROFILES[name] : null;
@@ -86,6 +107,18 @@ export function deskToolSpecs(desk?: MissionDesk): DockerToolSpec[] {
         readOnly: false,
         async run(raw) {
           return JSON.stringify(desk.recordTest(auditTestSchema.parse(raw)));
+        },
+      },
+      {
+        name: "program_draft",
+        description:
+          "Écrire le brouillon de fiche programme du projet actif : périmètre (inScope, outOfScope), suffixe User-Agent éventuel et rythme, chacun avec value, quote (extrait exact de la page), url et retrievedAt. Lire d'abord la page avec read_url : le moteur calcule seul `verified` (citation retrouvée dans cette page, lue pendant ce run) ; toute valeur `verified` fournie est ignorée. Ne peut pas approuver : l'humain relit et approuve avec « program approve --digest ».",
+        input: programDraftShape,
+        readOnly: false,
+        async run(raw) {
+          return JSON.stringify(
+            await desk.draftProgram(programDraftSchema.parse(raw) as ProgramDraftInput),
+          );
         },
       },
       {

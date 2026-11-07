@@ -444,6 +444,7 @@ async function runWithOpencode(
     ? createMissionDesk({
         recorder: context.recorder,
         ...(context.program !== undefined && { program: context.program }),
+        ...(context.programDraft !== undefined && { programDraft: context.programDraft }),
       })
     : undefined;
   try {

@@ -77,6 +77,8 @@ export const DEFAULT_POLICY: Policy = {
     { tool: "mcp__desk__record_decision", decision: "allow" },
     // Annotation structurée avec références du run, sans exécution ni chemin choisi par le modèle.
     { tool: "mcp__desk__record_test", decision: "allow" },
+    // Écrit un brouillon de fiche programme (fichier du projet) : jamais en allow, toujours demandé.
+    { tool: "mcp__desk__program_draft", decision: "ask" },
     // Recherche web : destination unique et fixe ; la garde d'arguments (ADR 0039) reste appliquée.
     { tool: SEARCH_WEB_TOOL, decision: "allow" },
     { tool: "mcp__burp__list_tools", decision: "allow" },

@@ -80,6 +80,8 @@ export interface EngineOptions {
    * ou sans projet actif : aucun effet. Jamais en apprentissage.
    */
   program?: () => ProgramStatus;
+  /** Écrit un brouillon de fiche (outil `program_draft`) dans le projet actif ; n'approuve rien. */
+  programDraft?: (text: string) => Promise<ProgramStatus>;
 }
 
 /** Message dont le type est `bypass` : même rejeté par la validation, il met le miroir à « off ». */
@@ -133,6 +135,7 @@ export function runEngine({
   policyLoader = (cwd) => loadPolicy({ cwd }),
   resolveCwd,
   program,
+  programDraft,
 }: EngineOptions): Promise<number> {
   // Miroir en lecture du Bypass (ADR 0006, décision 6) : naît « off », jamais calculé ici.
   const mirror = createBypassMirror({ now });
@@ -290,6 +293,7 @@ export function runEngine({
             gate,
             signal: abort.signal,
             ...(!learning && program !== undefined && { program }),
+            ...(!learning && programDraft !== undefined && { programDraft }),
             ...(!learning && {
               onMissionContext: (snapshot: import("@warband/core").MissionContext) => {
                 send({

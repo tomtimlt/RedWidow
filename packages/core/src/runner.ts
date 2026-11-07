@@ -69,6 +69,8 @@ export interface RunContext {
   /** Observation du paquet ajouté au tour courant ; aucun effet sur les autorisations. */
   /** Fiche programme du projet actif (ADR 0040) : injectée dans `mission_context` si approuvée. */
   program?: () => import("./program/store.js").ProgramStatus;
+  /** Écrit un brouillon de fiche (texte JSON) dans le projet actif ; `project.absent` sans projet. */
+  programDraft?: (text: string) => Promise<import("./program/store.js").ProgramStatus>;
   onMissionContext?: (snapshot: import("./mission-desk.js").MissionContext) => void;
 }
 
