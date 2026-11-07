@@ -137,6 +137,10 @@ export function formatEvent(
     }
     case "rate.limited":
       return `${tag(e.status === "rejected" ? "red" : "yellow", "limit")} ${e.status}${e.limitType ? ` · ${e.limitType}` : ""}${e.utilization === undefined ? "" : ` · ${Math.round(e.utilization * 100)} %`}`;
+    case "pace.adjusted":
+      return `${tag("yellow", "rythme")} ${stripControl(e.host)} ${e.fromRps} → ${e.toRps} req/s ${paint("dim", e.cause)}`;
+    case "pace.halted":
+      return `${tag("red", "rythme")} hôte arrêté ${stripControl(e.host)} ${paint("dim", e.cause)}`;
     case "sink.error":
       return `${tag("red", "sink")} ${e.message}`;
     case "sandbox.started":

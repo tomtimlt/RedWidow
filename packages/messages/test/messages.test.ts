@@ -303,6 +303,14 @@ describe("eventLabel", () => {
     },
     "task.updated": { kind: "task.updated", taskId: "k", phase: "started", description: "d" },
     "rate.limited": { kind: "rate.limited", status: "rejected" },
+    "pace.adjusted": {
+      kind: "pace.adjusted",
+      host: "cible.example",
+      fromRps: 1,
+      toRps: 0.5,
+      cause: "http429",
+    },
+    "pace.halted": { kind: "pace.halted", host: "cible.example", cause: "floor" },
     "run.finished": {
       kind: "run.finished",
       status: "success",

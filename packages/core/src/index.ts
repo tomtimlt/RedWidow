@@ -32,6 +32,7 @@ export * from "./methodology.js";
 export { missionDecisionSchema } from "./mission-decision-schema.js";
 export * from "./mission-desk.js";
 export * from "./output.js";
+export * from "./pace/controller.js";
 export * from "./process/lines.js";
 export * from "./process/resolve.js";
 export * from "./process/run.js";

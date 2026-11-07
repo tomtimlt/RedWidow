@@ -119,6 +119,14 @@ const SAMPLES: { [K in EventKind]: Extract<EventPayload, { kind: K }> } = {
     usage: { totalTokens: 1, toolUses: 2, durationMs: 3 },
   },
   "rate.limited": { kind: "rate.limited", status: "allowed_warning", utilization: 0.9 },
+  "pace.adjusted": {
+    kind: "pace.adjusted",
+    host: "cible.example",
+    fromRps: 1,
+    toRps: 0.5,
+    cause: "http429",
+  },
+  "pace.halted": { kind: "pace.halted", host: "cible.example", cause: "floor" },
   "run.finished": {
     kind: "run.finished",
     status: "success",

@@ -110,6 +110,10 @@ export function eventLabel(e: EngineEvent, options: LabelOptions = {}): string {
       return clip(`${t.task} ${e.phase} : ${e.description ?? e.summary ?? e.taskId}`);
     case "rate.limited":
       return clip(`${t.rateLimit} : ${e.status}`);
+    case "pace.adjusted":
+      return clip(`${t.paceAdjusted} : ${e.host} ${e.fromRps} → ${e.toRps} req/s`);
+    case "pace.halted":
+      return clip(`${t.paceHalted} : ${e.host}`);
     case "sandbox.started":
       return clip(`${t.sandbox} : ${e.image} · ${e.network}`);
     case "sandbox.stopped":

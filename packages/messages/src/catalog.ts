@@ -37,6 +37,8 @@ export interface EventStrings {
   retry: string;
   task: string;
   rateLimit: string;
+  paceAdjusted: string;
+  paceHalted: string;
   session: string;
   tools: string;
   turns: string;

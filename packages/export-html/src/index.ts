@@ -47,6 +47,8 @@ export const KIND_CLASS: Record<EventKind, string> = {
   "api.retry": "k-warn",
   "task.updated": "k-tool",
   "rate.limited": "k-warn",
+  "pace.adjusted": "k-warn",
+  "pace.halted": "k-error",
   "sink.error": "k-error",
   "journal.truncated": "k-error",
   "approval.requested": "k-approval",

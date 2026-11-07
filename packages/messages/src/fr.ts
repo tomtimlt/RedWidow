@@ -353,6 +353,8 @@ export const events: EventStrings = {
   retry: "nouvel essai",
   task: "tâche",
   rateLimit: "limite d'usage",
+  paceAdjusted: "rythme ajusté",
+  paceHalted: "hôte arrêté",
   session: "session",
   tools: "outils",
   turns: "tours",

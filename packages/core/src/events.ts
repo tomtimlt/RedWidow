@@ -220,6 +220,20 @@ export type EventPayload =
       cause: "runEnd" | "abort" | "error" | "exit";
     }
   | {
+      /** Débit d'un hôte ajusté par le contrôleur de rythme (≠ `rate.limited`, limite d'usage du moteur). */
+      kind: "pace.adjusted";
+      host: string;
+      fromRps: number;
+      toRps: number;
+      cause: "http429" | "waf403" | "timeout" | "recovery";
+    }
+  | {
+      /** Hôte arrêté par le contrôleur de rythme ; reprise explicite seulement. */
+      kind: "pace.halted";
+      host: string;
+      cause: "burst" | "floor";
+    }
+  | {
       /** Un abonné (sink) a levé une exception ; émis vers les autres abonnés. */
       kind: "sink.error";
       message: string;
@@ -468,6 +482,13 @@ export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
     containerId: "string",
     cause: "enum:runEnd,abort,error,exit",
   }),
+  "pace.adjusted": shape({
+    host: "string",
+    fromRps: "number",
+    toRps: "number",
+    cause: "enum:http429,waf403,timeout,recovery",
+  }),
+  "pace.halted": shape({ host: "string", cause: "enum:burst,floor" }),
   "sink.error": shape({ message: "string" }),
   "journal.truncated": shape({ limitBytes: "number", droppedEvents: "number" }),
 };
