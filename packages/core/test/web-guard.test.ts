@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createApprovalGate,
+  createBypassSwitch,
   createRecorder,
   DEFAULT_POLICY,
   evaluatePolicy,
@@ -9,7 +10,9 @@ import {
   READ_URL_TOOL,
   SEARCH_WEB_TOOL,
   webArgumentGuard,
+  webToolSpecs,
 } from "../src/index.js";
+import type { WebDependencies, WebResponse } from "../src/web/network.js";
 
 const read = (url: string, policy: Policy = DEFAULT_POLICY) =>
   evaluatePolicy(policy, READ_URL_TOOL, { url });
@@ -133,5 +136,110 @@ describe("garde d'arguments web", () => {
       expect(out.decision).toBe("allow");
     }
     expect(asked).toBe(2);
+  });
+});
+
+describe("durcissements de la revue (ADR 0039)", () => {
+  it("normalise la casse et le point final de l'hôte", () => {
+    expect(read("HTTPS://NVD.NIST.GOV./x").decision).toBe("allow");
+  });
+
+  it.each([
+    "https://xn--nvd-nist-gov-9a.example/x",
+    "https://xn--vd-nist-gov.nist.gov.evil.tld/",
+    "https://[::1]/",
+    "https://8.8.8.8/",
+  ])("%s n'est pas promu", (url) => {
+    expect(read(url).decision).toBe("ask");
+  });
+
+  it("default deny sans règle reste deny", () => {
+    const strict: Policy = { default: "deny", rules: [] };
+    expect(read("https://nvd.nist.gov/x", strict).decision).toBe("deny");
+    expect(search("solr", strict).decision).toBe("deny");
+  });
+
+  it("une règle allow de dépôt sur read_url avec secret dans l'URL repasse en ask", () => {
+    const allow: Policy = { default: "ask", rules: [{ tool: READ_URL_TOOL, decision: "allow" }] };
+    const v = read("https://example.com/x?token=abcdef123456", allow);
+    expect(v.decision).toBe("ask");
+    expect(v.reason.code).toBe("web.query_sensitive");
+  });
+
+  it("l'IP privée précédée d'un point est détectée", () => {
+    const v = read("https://github.com/x.10.0.0.5");
+    expect(v.reason.code).toBe("web.query_sensitive");
+  });
+
+  it("sous Bypass, web.query_sensitive est approuvé sans mémorisation", async () => {
+    const bypass = createBypassSwitch({ now: () => 0 });
+    bypass.enable(60_000);
+    let asked = 0;
+    const gate = createApprovalGate({
+      policy: DEFAULT_POLICY,
+      recorder: createRecorder(),
+      ask: async () => {
+        asked++;
+        return { decision: "deny" };
+      },
+      bypass,
+      now: () => 0,
+    });
+    const signal = new AbortController().signal;
+    const input = { query: "scan 10.0.0.5" };
+    for (const id of ["a", "b"]) {
+      const out = await gate.decide({ toolUseId: id, tool: SEARCH_WEB_TOOL, input }, signal);
+      expect(out.decision).toBe("allow");
+      expect(out.source).toBe("bypass");
+      expect(out.reason.code).toBe("approval.bypassed");
+      expect(out.reason.cause?.code).toBe("web.query_sensitive");
+    }
+    expect(asked).toBe(0);
+  });
+});
+
+describe("redirections de read_url depuis une source de référence", () => {
+  const html = (text: string, status = 200, headers: Record<string, string> = {}): WebResponse => ({
+    status,
+    headers: { "content-type": "text/html", ...headers },
+    body: (async function* () {
+      yield Buffer.from(text);
+    })(),
+  });
+  const run = (location: string, url = "https://nvd.nist.gov/x") => {
+    const seen: string[] = [];
+    const deps: WebDependencies = {
+      lookup: async () => [{ address: "8.8.8.8", family: 4 }],
+      transport: async (u) => {
+        seen.push(u.href);
+        return seen.length === 1
+          ? html("", 302, { location })
+          : html("<html><body><main>ok</main></body></html>");
+      },
+    };
+    const tool = webToolSpecs(deps).find((t) => t.name === "read_url");
+    return {
+      seen,
+      call: () => tool?.run({ url }, { parentId: null, correlation: undefined, signal: undefined }),
+    };
+  };
+
+  it("refuse un saut hors liste avec web.redirectOffList", async () => {
+    const r = run("https://evil.example/leak");
+    await expect(r.call()).rejects.toMatchObject({
+      code: "web.redirectOffList",
+      params: { host: "evil.example" },
+    });
+    expect(r.seen).toHaveLength(1);
+  });
+
+  it("accepte une redirection interne à la liste", async () => {
+    const r = run("https://github.com/advisories/x");
+    await expect(r.call()).resolves.toContain("ok");
+  });
+
+  it("ne restreint pas une URL hors liste (approuvée par l'utilisateur)", async () => {
+    const r = run("https://other.example/y", "https://example.com/x");
+    await expect(r.call()).resolves.toContain("ok");
   });
 });

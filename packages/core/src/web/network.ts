@@ -166,6 +166,8 @@ export async function requestWeb(
   value: string,
   init: WebRequest,
   deps: WebDependencies = {},
+  /** Filtre de redirection : un saut refusé échoue (`web.redirectOffList`). Absent : tout hôte public HTTPS. */
+  redirectAllowed?: (next: URL) => boolean,
 ): Promise<{ url: string; type: string; text: string }> {
   let url = webUrl(value);
   let current = init;
@@ -191,6 +193,8 @@ export async function requestWeb(
         const next = webUrl(new URL(location, url).href);
         if (url.protocol === "https:" && next.protocol !== "https:")
           throw new CodedError("web.invalidUrl");
+        if (redirectAllowed && !redirectAllowed(next))
+          throw new CodedError("web.redirectOffList", { host: next.hostname });
         if ([301, 302, 303].includes(response.status))
           current = { method: "GET", signal: init.signal };
         url = next;

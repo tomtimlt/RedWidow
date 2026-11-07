@@ -286,6 +286,8 @@ export const reasons: Catalog = {
     `lecture autorisée : source de référence (${text(p.host)}), HTTPS uniquement`,
   "web.query_sensitive": (p) =>
     `${text(p.tool)} : la requête ou l'URL pourrait fuiter vers un tiers (constat : ${text(p.finding)} ; secret, valeur masquée ou adresse privée), approbation requise à chaque appel`,
+  "web.redirectOffList": (p) =>
+    `redirection vers ${text(p.host)}, hors des sources de référence : lecture interrompue ; rappelez read_url sur la cible pour la soumettre à approbation`,
   "web.searchFailed": () =>
     "Le service de recherche n’a pas renvoyé de réponse exploitable. Réessayez plus tard.",
   "finding.busy": () =>

@@ -72,7 +72,7 @@ export function isReferenceUrl(value: unknown): boolean {
 
 export type WebGuardFinding = "secret" | "redacted" | "privateAddress";
 
-const IPV4 = /(?<![\d.])\d{1,3}(?:\.\d{1,3}){3}(?![\d.])/g;
+const IPV4 = /(?<!\d)\d{1,3}(?:\.\d{1,3}){3}(?![\d.])/g;
 const IPV6 = /[0-9a-f]{0,4}(?::[0-9a-f]{0,4}){2,7}/gi;
 const LOCAL_NAME = /(?:^|\.)(?:localhost|local|internal|lan|home|corp|intranet)$/;
 const redact = createRedactor();

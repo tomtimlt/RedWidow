@@ -151,6 +151,7 @@ export const REASON_CODES = [
   "web.searchFailed",
   "web.reference_source",
   "web.query_sensitive",
+  "web.redirectOffList",
   "kali.nmapUnavailable",
   "finding.invalidLinks",
   "project.absent",

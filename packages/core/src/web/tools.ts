@@ -4,6 +4,7 @@ import type { DockerToolSpec } from "../docker/tool-specs.js";
 import { CodedError } from "../reason.js";
 import { stripControl } from "../sanitize.js";
 import { webNetworkError } from "./errors.js";
+import { isReferenceUrl } from "./guard.js";
 import { requestWeb, type WebDependencies, webUrl } from "./network.js";
 
 export const WEB_SERVER_NAME = "web";
@@ -189,7 +190,13 @@ export function webToolSpecs(deps: WebDependencies = {}): DockerToolSpec[] {
       async run(raw, ctx) {
         const args = z.object(readInput).strict().parse(raw);
         return safe(ctx.signal, async (signal) => {
-          const response = await requestWeb(args.url, { method: "GET", signal }, deps);
+          // URL promue par la gate (source de référence) : chaque saut doit rester dans la liste.
+          const response = await requestWeb(
+            args.url,
+            { method: "GET", signal },
+            deps,
+            isReferenceUrl(args.url) ? (next) => isReferenceUrl(next.href) : undefined,
+          );
           const content =
             response.type === "text/html" || response.type === "application/xhtml+xml"
               ? pageContent(response.text, response.url)

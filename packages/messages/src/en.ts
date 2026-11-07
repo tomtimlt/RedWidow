@@ -162,6 +162,8 @@ export const reasons: Catalog = {
   "web.reference_source": (p) => `read allowed: reference source (${text(p.host)}), HTTPS only`,
   "web.query_sensitive": (p) =>
     `${text(p.tool)}: the query or URL could leak to a third party (finding: ${text(p.finding)}; secret, masked value or private address), approval required on every call`,
+  "web.redirectOffList": (p) =>
+    `redirect to ${text(p.host)}, outside the reference sources: read stopped; call read_url on the target to submit it for approval`,
   "web.searchFailed": () => "The search service returned no usable response.",
   "kali.nmapUnavailable": () =>
     "Nmap cannot execute in this container. Check its Linux capabilities and Docker restrictions.",

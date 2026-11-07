@@ -73,6 +73,11 @@ pas les arguments d'un outil MCP (`policy.ts:17-24`).
 - Risques : Exa voit les requêtes (technologies, versions) ; une mission
   confidentielle peut refuser `search_web` par politique de dépôt (`deny` reste
   le plus strict). Heuristique de détection imparfaite : relance seulement.
+- Canal résiduel : le chemin d'une URL vers `github.com` ou
+  `raw.githubusercontent.com` reste lisible par le propriétaire du dépôt visé
+  (statistiques de trafic) ; la garde ne détecte que les secrets reconnus. Une
+  redirection depuis une source de référence vers un hôte hors liste échoue
+  (`web.redirectOffList`) ; l'agent peut rappeler `read_url` sur la cible (ask).
 - À surveiller : taux de relances ignorées, faux positifs de la garde.
 
 ## Plan
