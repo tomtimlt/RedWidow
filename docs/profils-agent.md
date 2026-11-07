@@ -45,6 +45,15 @@ la qualité des réponses d’un modèle. La [grille d’évaluation](profils-ev
 permet de comparer les modèles sur les mêmes situations et de relever leurs
 erreurs sans publier de secrets ni de solutions de challenges actifs.
 
-Le profil Bug bounty suit sa propre méthode en huit sections (`regles`, `rythme`, `phases`, `couverture`, `negatifs`, `recherche`, `preuves`, `rapport`) : carte des règles du programme citée avant toute requête, une requête à la fois avec le User-Agent exigé et au moins 10 s d’écart si le programme ne fixe aucun débit, matrice surface × paramètre × classe × état tenue avec `record_test`, négatif accepté seulement avec contrôle positif et deux variantes (un 403 du WAF reste « bloqué, non réfuté »), rapport généré depuis la matrice et relu contre les contradictions. Ces consignes guident le modèle ; le moteur ne mesure ni le débit ni la couverture.
+Le profil Bug bounty suit sa propre méthode en onze sections, dans cet ordre : `regles`, `rythme`, `impact`, `phases`, `fiches`, `couverture`, `negatifs`, `waf`, `recherche`, `preuves`, `rapport`.
+
+- **Règles** : carte du programme citée avant toute requête. Aucun interdit n'est inventé : contourner le WAF n'est interdit que si le programme l'écrit, et toute contrainte non citée est « auto-imposée ».
+- **Rythme adaptatif** : rythme du programme s'il existe ; sinon environ une requête par seconde, une à la fois, sans parallélisme. Au premier 429, 403 de WAF ou timeout, pause de 60 s puis débit divisé par deux, avec remontée progressive ; arrêt et signalement au premier ban. Un script séquentiel bridé est permis (une requête à la fois, arrêt automatique au premier 429, 403 ou timeout, sortie enregistrée).
+- **Impact et phases** : usage normal de l'application, cartographie, puis chasse depuis l'impact éligible ; reconnaissance passive sans trafic vers la cible, code partagé entre hôtes testé sur chacun d'eux.
+- **Fiches** : une phrase par fiche, au format fixe « Fiche <type> : vérification ; vérification. », pour sept types de paramètres (identifiant, URL ou hôte, fichier ou chemin, email/téléphone/OTP, texte réaffiché, nombre, corps de requête) et cinq fonctionnalités (recherche ou filtre, flux à code, lien envoyé par email, upload, export).
+- **Couverture et négatifs** : matrice surface × paramètre × classe × état tenue avec `record_test` ; un négatif exige un contrôle positif et deux variantes ; un 403 du WAF reste « bloqué, non réfuté » ; une anomalie n'est fermée qu'après trois variantes.
+- **Preuves et rapport** : preuve minimale expurgée, validation avant constat (preuve objective et reproductible, rejouée avec un contrôle, sinon « piste qualifiée »), rapport généré depuis la matrice et relu contre les contradictions.
+
+Ces consignes guident le modèle ; le moteur ne mesure ni le débit ni la couverture. Les fiches sont aujourd'hui du texte dans le profil ; leur extraction en données structurées est un lot moteur, non fait.
 
 Le profil Expert garde l’identifiant `red-team`. Ses modules à la demande couvrent la recherche technique, l’applicabilité des CVE, les hypothèses discriminantes et les preuves de concept. La création autorisée d’un artefact ne vaut pas autorisation de l’exécuter ; modèle, effort et permissions restent ceux choisis.
