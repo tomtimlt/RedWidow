@@ -234,6 +234,20 @@ un tour actif. Smoke Chromium passé (édition, brouillon, retours de sauvegarde
 et d’erreur, filtre) ; validation globale en cours, Windows réel non exécuté.
 Ces gardes UI ne transactionnent pas les écritures externes pendant un tour.
 
+## Fiche programme et rythme vers les cibles (ADR 0040) — proposé
+
+Fiche par projet (`<configDir>/projects/<id>/program.json`), champs cités, appliquée seulement après validation humaine de son empreinte. Hors périmètre : `ask` mémorisable par hôte, jamais par outil. Rythme appliqué dans `http_request`, jamais dans la gate. Proxy sortant reporté, sans interception TLS.
+
+| Lot | Contenu | Revue sécurité | État |
+|---|---|---|---|
+| B1 | Fiche, empreinte, CLI, chemins sensibles, `program.state`, `mission_context` | oui | à faire |
+| B2 | Outil `program_draft`, recoupement des citations | non | à faire |
+| B3 | `evaluateProgram`, clé `program-host:` | oui | à faire |
+| B4 | Extraction d'hôte des commandes shell connues | oui | à faire |
+| B5 | Contrôleur de rythme pur, `pace.adjusted`, `pace.halted` | non | à faire |
+| B6 | Outil `http_request` | oui | à faire |
+| B7 | Conformité des drapeaux shell | oui | à faire |
+
 ## Ancien récapitulatif des décisions initiales
 
 - ~~**Garde unique** (points 2 et 3)~~ : tranché, `PreToolUse`.
