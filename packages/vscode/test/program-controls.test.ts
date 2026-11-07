@@ -156,6 +156,35 @@ describe("contrôles de la fiche programme : gestes", () => {
   });
 });
 
+describe("contrôles de la fiche programme : import", () => {
+  it("importer un fichier valide crée un brouillon sans rien approuver", async () => {
+    const { controls } = await setup();
+    const v = await controls.importDraft(JSON.stringify(sheet()));
+    expect(v.state).toBe("draft");
+    expect(v.canValidate).toBe(true);
+    expect(v.approvedAt).toBeUndefined();
+  });
+
+  it("importer un contenu différent invalide l'approbation existante, jamais l'inverse", async () => {
+    const { controls } = await setup();
+    const first = await controls.importDraft(JSON.stringify(sheet()));
+    expect((await controls.validate(first.digest ?? "")).state).toBe("approved");
+    const changed = await controls.importDraft(
+      JSON.stringify(sheet({ inScope: cited(["*.autre.example.com"]) })),
+    );
+    expect(changed.state).toBe("invalidated");
+    expect(changed.canSuspend).toBe(false);
+  });
+
+  it("un fichier invalide est refusé et n'écrit rien", async () => {
+    const { controls } = await setup();
+    await expect(controls.importDraft("pas du json")).rejects.toMatchObject({
+      code: "program.invalid",
+    });
+    expect((await controls.view()).state).toBe("none");
+  });
+});
+
 describe("frontière : engine/ n'atteint jamais les contrôles de la fiche", () => {
   it("aucun fichier de src/engine n'importe program-controls", () => {
     const engine = join(dirname(fileURLToPath(import.meta.url)), "..", "src", "engine");

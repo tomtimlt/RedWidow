@@ -11,6 +11,7 @@ import {
   buildProgramView,
   citationUrl,
   parseProgramMessage,
+  programDraftPrompt,
 } from "../src/logic/program-controls.js";
 import { parseStudioMessage } from "../src/logic/studio.js";
 
@@ -40,6 +41,25 @@ describe("interface de la fiche : messages et rendu", () => {
     expect(parseProgramMessage({ type: "openCitation", field: "url", url: "http://x" })).toBeNull();
     expect(parseProgramMessage({ type: "openCitation", url: "https://x" })).toBeNull();
     expect(parseProgramMessage(null)).toBeNull();
+  });
+
+  it("les actions de la fiche vide sont validées côté hôte et ne portent aucune donnée", () => {
+    expect(parseProgramMessage({ type: "askAgent" })).toEqual({ type: "askAgent" });
+    expect(parseProgramMessage({ type: "importFile" })).toEqual({ type: "importFile" });
+    expect(parseProgramMessage({ type: "askAgent", text: "rédige" })).toBeNull();
+    expect(parseProgramMessage({ type: "importFile", path: "/etc/passwd" })).toBeNull();
+    expect(parseProgramMessage({ type: "importFile", content: "{}" })).toBeNull();
+    const script = readFileSync(join(here, "..", "media", "program.js"), "utf8");
+    expect(script).toContain('type: "askAgent"');
+    expect(script).toContain('type: "importFile"');
+    expect(script).not.toContain("program import");
+  });
+
+  it("la consigne à l'agent lit la page avec read_url, appelle program_draft et ne valide rien", () => {
+    const prompt = programDraftPrompt();
+    expect(prompt).toContain("read_url");
+    expect(prompt).toContain("program_draft");
+    expect(prompt).toContain("Ne valide rien");
   });
 
   it("l'URL de citation vient de la vue de l'hôte et doit être en http(s)", () => {

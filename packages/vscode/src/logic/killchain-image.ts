@@ -85,7 +85,7 @@ export function killchainImage(
     col.push(finding);
     columns.set(rank, col);
   }
-  const title = lines(`Kill Chain — ${project.name}`, 28);
+  const title = lines(`Kill chain — ${project.name}`, 28);
   const top = 125 + title.length * 28;
   const positions = new Map<
     string,
@@ -115,7 +115,7 @@ export function killchainImage(
     '<?xml version="1.0" encoding="UTF-8"?>',
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-labelledby="title desc">`,
     ...(snapshotId ? [`<metadata>snapshot-sha256:${xml(snapshotId)}</metadata>`] : []),
-    `<title id="title">${xml(`Kill Chain — ${project.name}`)}</title>`,
+    `<title id="title">${xml(`Kill chain — ${project.name}`)}</title>`,
     `<desc id="desc">${xml(t`${findings.length} éléments. Les liens verts indiquent le chemin retenu, sans déduire une réussite.`)}</desc>`,
     `<rect width="${width}" height="${height}" fill="#fff"/>`,
     '<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#687887"/></marker><marker id="path" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#16804a"/></marker></defs>',

@@ -90,8 +90,10 @@ import { PALETTES, type Palette, paletteOf } from "../logic/palette.js";
 import {
   citationUrl,
   createProgramControls,
+  PROGRAM_IMPORT_MAX_BYTES,
   type ProgramView,
   parseProgramMessage,
+  programDraftPrompt,
 } from "../logic/program-controls.js";
 import {
   activateSelectedProject,
@@ -114,6 +116,7 @@ import {
   SHARED_HISTORY_KEY,
   SHARED_HISTORY_MAX_ENTRIES,
 } from "../logic/shared-history.js";
+import { shortcutLabel } from "../logic/shortcuts.js";
 import { readSources } from "../logic/sources.js";
 import {
   type ObservedMission,
@@ -901,8 +904,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
       // Chat grisé sans fournisseur : ouvre la saisie du jeton (hôte seul, aucune donnée venue de la webview).
       if (message.type === "addProvider" || message.type === "openSystem") {
-        studioPage = "system";
-        openStudio();
+        openStudio("system");
         return;
       }
       const s = getSession(id);
@@ -1833,8 +1835,35 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           return;
         }
         if (!vscode.workspace.isTrusted) return;
+        if (message.type === "askAgent") {
+          // Consigne fixe côté hôte (la webview n'envoie aucun texte) ; le chat reste soumis à la gate.
+          if (activeId === SIDEBAR_CHAT) await vscode.commands.executeCommand("warband.chat.focus");
+          else slots.get(activeId)?.panel?.reveal();
+          const prompt = programDraftPrompt();
+          if (!(await getSession(activeId).send(prompt))) {
+            void vscode.window.showWarningMessage(
+              t("Le chat n’est pas disponible (occupé, sans fournisseur ou en lecture seule)."),
+            );
+          }
+          return;
+        }
         const { shown, controls } = await controlsForDisplayed();
-        if (message.type === "validate") {
+        if (message.type === "importFile") {
+          const picked = await vscode.window.showOpenDialog({
+            canSelectMany: false,
+            canSelectFiles: true,
+            canSelectFolders: false,
+            filters: { JSON: ["json"] },
+            openLabel: t("Importer la fiche"),
+          });
+          const file = picked?.[0];
+          if (file === undefined) return;
+          if ((await vscode.workspace.fs.stat(file)).size > PROGRAM_IMPORT_MAX_BYTES)
+            throw new Error(t("Ce fichier est trop volumineux pour une fiche programme."));
+          const text = new TextDecoder("utf-8").decode(await vscode.workspace.fs.readFile(file));
+          // Importer n'approuve rien : la validation reste le geste de la modale ci-dessous.
+          await controls.importDraft(text);
+        } else if (message.type === "validate") {
           const digest = shown.view.digest;
           if (digest === undefined || !shown.view.canValidate) return;
           const action = t("Valider la fiche");
@@ -1932,7 +1961,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Lanceur toujours visible : un clic ouvre chat, terminaux, cockpit, réglages.
   const barLauncher = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 104);
   barLauncher.text = `$(rocket) ${PRODUCT_NAME}`;
-  barLauncher.tooltip = t`${PRODUCT_NAME} : chat, terminaux, cockpit, réglages (Alt+J Alt+J)`;
+  const launcherTooltip = () =>
+    t`${PRODUCT_NAME} : chat, terminaux, cockpit, réglages (${shortcutLabel("launcher")})`;
+  barLauncher.tooltip = launcherTooltip();
   barLauncher.command = "warband.launcher";
   barLauncher.show();
   barContainer.command = "warband.openTerminal";
@@ -1968,7 +1999,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       st.state === "running" ? `$(terminal) ${label} $(circle-filled)` : `$(terminal) ${label}`;
     barContainer.tooltip =
       st.state === "running"
-        ? t`Conteneur lié : ${st.container} (connecté). Clic : ouvrir un terminal (Alt+J T)`
+        ? t`Conteneur lié : ${st.container} (connecté). Clic : ouvrir un terminal (${shortcutLabel("openTerminal")})`
         : t`Conteneur lié : ${st.container} (arrêté)`;
     barContainer.show();
   };
@@ -2037,7 +2068,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   );
   const openKillchain = () => {
     if (killchainPanel) {
-      killchainPanel.reveal(vscode.ViewColumn.One);
+      killchainPanel.reveal();
       void pushKillchain();
       return;
     }
@@ -2046,7 +2077,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     killchainPanel = vscode.window.createWebviewPanel(
       "warband.killchain",
       `${PRODUCT_NAME} · Kill chain`,
-      vscode.ViewColumn.One,
+      warbandColumn(),
       {
         enableScripts: true,
         enableCommandUris: false,
@@ -2318,7 +2349,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         title: attackFlow
           ? t("Exporter Attack Flow (étapes confirmées, identifiants et loot exclus)")
           : image
-            ? t("Exporter la Kill Chain complète en image SVG")
+            ? t("Exporter la Kill chain complète en image SVG")
             : t("Exporter un brouillon de rapport (identifiants et loot exclus)"),
         defaultUri: vscode.Uri.file(
           join(
@@ -2755,7 +2786,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await post(false, failure);
     }
   };
-  const openStudio = () => {
+  const openStudio = (page?: StudioPage) => {
+    if (page !== undefined) studioPage = page;
     if (studioPanel) {
       studioPanel.reveal();
       void pushStudio();
@@ -2886,14 +2918,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
       if (message.type === "configureMcp") {
         await vscode.commands.executeCommand("warband.configureIntegrations", message.id);
-        return;
-      }
-      if (message.type === "openCatalog") {
-        await vscode.commands.executeCommand("warband.configureIntegrations");
-        return;
-      }
-      if (message.type === "chooseProfile") {
-        await vscode.commands.executeCommand("warband.chooseProfile");
         return;
       }
       if (message.type === "configureBurp" || message.type === "testBurp") {
@@ -3172,7 +3196,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   };
 
   /**
-   * Lanceur (Alt+J Alt+J, barre d'état) : toutes les fenêtres RedWidow en un seul menu, et un terminal par
+   * Lanceur (raccourci `shortcutLabel("launcher")`, barre d'état) : toutes les fenêtres RedWidow en un seul menu, et un terminal par
    * conteneur démarré, sans passer par la palette de commandes.
    */
   type LauncherItem = vscode.QuickPickItem & { run?: () => unknown };
@@ -3180,7 +3204,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (studioPanel) studioPanel.title = t`${PRODUCT_NAME} · Réglages`;
     if (reportPanel) reportPanel.title = t`${PRODUCT_NAME} · Rapport · Brouillon`;
     for (const watch of watches) watch.panel.title = t`${PRODUCT_NAME} · Sortie`;
-    barLauncher.tooltip = t`${PRODUCT_NAME} : chat, terminaux, cockpit, réglages (Alt+J Alt+J)`;
+    barLauncher.tooltip = launcherTooltip();
     refreshBypassLocale();
     pushMonitor();
     updateModelStatus();
@@ -3191,22 +3215,34 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const actions: LauncherItem[] = [
       {
         label: t("$(comment) Chat latéral"),
-        description: "Alt+J C",
+        description: shortcutLabel("focusChat"),
         run: () => vscode.commands.executeCommand("warband.chat.focus"),
       },
       {
         label: t("$(comment-discussion) Nouveau chat"),
-        description: "Alt+J N",
+        description: shortcutLabel("openChat"),
         run: () => openEditorChat(),
       },
-      { label: "$(dashboard) Cockpit", description: "Alt+J K", run: () => openCockpit() },
-      { label: "$(pulse) Monitor", description: "Alt+J M", run: () => openMonitor() },
       {
-        label: "$(type-hierarchy) Kill chain",
-        description: "Alt+J G",
+        label: t("$(dashboard) Cockpit"),
+        description: shortcutLabel("openCockpit"),
+        run: () => openCockpit(),
+      },
+      {
+        label: t("$(pulse) Monitor"),
+        description: shortcutLabel("openMonitor"),
+        run: () => openMonitor(),
+      },
+      {
+        label: t("$(type-hierarchy) Kill chain"),
+        description: shortcutLabel("openKillchain"),
         run: () => openKillchain(),
       },
-      { label: t("$(settings-gear) Réglages"), description: "Alt+J S", run: () => openStudio() },
+      {
+        label: t("$(settings-gear) Réglages"),
+        description: shortcutLabel("openStudio"),
+        run: () => openStudio(),
+      },
     ];
     const pick = vscode.window.createQuickPick<LauncherItem>();
     pick.title = PRODUCT_NAME;
@@ -3264,10 +3300,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.window.registerWebviewViewProvider("warband.chat", provider, {
       webviewOptions: { retainContextWhenHidden: true },
     }),
-    vscode.commands.registerCommand("warband.openAudit", () => {
-      studioPage = "audit";
-      openStudio();
-    }),
+    // Alias interne (barre d'état, raccourcis existants) : hors palette, même panneau que les réglages.
+    vscode.commands.registerCommand("warband.openAudit", () => openStudio("audit")),
     vscode.commands.registerCommand("warband.exportAudit", () => exportProjectAudit()),
     vscode.commands.registerCommand("warband.listProjectEvidence", () => listProjectEvidence()),
     vscode.commands.registerCommand("warband.captureEditorEvidence", () => captureEvidence(false)),
@@ -3359,10 +3393,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await vscode.window.showErrorMessage(formatError(error, getUiLocale()));
       }
     }),
-    vscode.commands.registerCommand("warband.chooseProfile", () => {
-      studioPage = "system";
-      openStudio();
-    }),
+    vscode.commands.registerCommand("warband.chooseProfile", () => openStudio("system")),
     vscode.commands.registerCommand(
       "warband.configureIntegrations",
       async (requestedId?: unknown) => {
@@ -3627,6 +3658,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand("warband.exportKillchain", () =>
       exportMissionReport(undefined, true),
     ),
+    // Hors palette : le même panneau s'ouvre depuis la page Rapport des réglages (`openReport`).
     vscode.commands.registerCommand("warband.previewReport", () => openReport()),
     vscode.commands.registerCommand("warband.exportReport", () => exportMissionReport()),
     vscode.commands.registerCommand("warband.exportAttackFlow", () =>
@@ -3905,6 +3937,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(barBypass);
   let bypassTick: ReturnType<typeof setInterval> | undefined;
   const renderBypass = (push: BypassPush) => {
+    // Contexte de la palette : « Désactiver le Bypass » n'y figure que pendant un Bypass actif.
+    void vscode.commands.executeCommand("setContext", "warband.bypassActive", push.on);
     if (bypassTick !== undefined) {
       clearInterval(bypassTick);
       bypassTick = undefined;
@@ -3921,7 +3955,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
     const refreshText = () => {
       const left = getBypass(activeId).remainingMs();
-      barBypass.text = `BYPASS · ${chatName(activeId)} · ${left === null ? "" : formatRemaining(left)}`;
+      barBypass.text = `${t("BYPASS")} · ${chatName(activeId)} · ${left === null ? "" : formatRemaining(left)}`;
       barBypass.show();
     };
     refreshText();

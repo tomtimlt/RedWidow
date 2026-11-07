@@ -146,6 +146,14 @@
       {
         "command": "warband.exportAttackFlow",
         "title": "%command.exportAttackFlow%"
+      },
+      {
+        "command": "warband.configureProvider",
+        "title": "%command.configureProvider%"
+      },
+      {
+        "command": "warband.disableBypass",
+        "title": "%command.disableBypass%"
       }
     ],
     "menus": {
@@ -227,6 +235,22 @@
         {
           "command": "warband.focusChat",
           "when": "false"
+        },
+        {
+          "command": "warband.openAudit",
+          "when": "false"
+        },
+        {
+          "command": "warband.previewReport",
+          "when": "false"
+        },
+        {
+          "command": "warband.configureProvider",
+          "when": "false"
+        },
+        {
+          "command": "warband.disableBypass",
+          "when": "warband.bypassActive"
         }
       ]
     },

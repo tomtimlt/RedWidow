@@ -84,15 +84,17 @@
     main.append(tile);
 
     if (view.state === "none") {
-      main.append(
-        el(
-          "p",
-          "cockpit-notice",
-          t(
-            "Aucune fiche programme pour ce projet. Importez-la avec la commande « program import ».",
-          ),
+      main.append(el("p", "cockpit-notice", t("Aucune fiche programme pour ce projet.")));
+      const start = el("div", "cockpit-actions");
+      start.append(
+        button("primary", t("Demander à l'agent de rédiger la fiche"), () =>
+          vscode.postMessage({ type: "askAgent" }),
+        ),
+        button("ghost", t("Importer un fichier…"), () =>
+          vscode.postMessage({ type: "importFile" }),
         ),
       );
+      main.append(start);
     }
     if (view.digest) {
       const d = el("p", "cockpit-notice");

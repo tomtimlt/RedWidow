@@ -555,13 +555,13 @@
     "Configuration VPN Exegol": "Exegol VPN configuration",
     "Choisir le VPN": "Choose the VPN",
     "{0} · Sortie": "{0} · Output",
-    "{0} : chat, terminaux, cockpit, réglages (Alt+J Alt+J)":
-      "{0}: chat, terminals, cockpit, settings (Alt+J Alt+J)",
+    "{0} : chat, terminaux, cockpit, réglages ({1})":
+      "{0}: chat, terminals, cockpit, settings ({1})",
     "Modèle par défaut": "Default model",
     "Modèle utilisé pour le message suivant (clic : ouvrir le chat)":
       "Model used for the next message (click to open chat)",
-    "Conteneur lié : {0} (connecté). Clic : ouvrir un terminal (Alt+J T)":
-      "Linked container: {0} (connected). Click to open a terminal (Alt+J T)",
+    "Conteneur lié : {0} (connecté). Clic : ouvrir un terminal ({1})":
+      "Linked container: {0} (connected). Click to open a terminal ({1})",
     "Conteneur lié : {0} (arrêté)": "Linked container: {0} (stopped)",
     "Actualisation du graphe impossible : {0}": "Could not refresh the graph: {0}",
     "Projets indisponibles : {0}": "Projects unavailable: {0}",
@@ -569,8 +569,8 @@
     "{0} · Rapport · Brouillon": "{0} · Report · Draft",
     "Exporter Attack Flow (étapes confirmées, identifiants et loot exclus)":
       "Export Attack Flow (confirmed steps, credentials and loot excluded)",
-    "Exporter la Kill Chain complète en image SVG":
-      "Export the complete Kill Chain as an SVG image",
+    "Exporter la Kill chain complète en image SVG":
+      "Export the complete Kill chain as an SVG image",
     "Exporter un brouillon de rapport (identifiants et loot exclus)":
       "Export a draft report (credentials and loot excluded)",
     "Ce fichier contient des modifications non enregistrées. Choisissez un autre nom de rapport.":
@@ -641,6 +641,9 @@
     "$(comment) Chat latéral": "$(comment) Sidebar chat",
     "$(comment-discussion) Nouveau chat": "$(comment-discussion) New chat",
     "$(settings-gear) Réglages": "$(settings-gear) Settings",
+    "$(dashboard) Cockpit": "$(dashboard) Cockpit",
+    "$(pulse) Monitor": "$(pulse) Monitor",
+    "$(type-hierarchy) Kill chain": "$(type-hierarchy) Kill chain",
     "Ouvrir une fenêtre ou un terminal…": "Open a window or a terminal…",
     "terminal · en cours": "terminal · running",
     "Terminaux Exegol": "Exegol terminals",
@@ -737,6 +740,7 @@
       "Token cleared: chat stays disabled until a provider is added.",
     "Bypass des approbations actif : cliquer pour le désactiver":
       "Approval bypass active: click to disable it",
+    BYPASS: "BYPASS",
     "BYPASS · en attente": "BYPASS · pending",
     Supprimer: "Delete",
     aucun: "none",
@@ -1062,8 +1066,16 @@
     "Ouvrir la source…": "Open the source…",
     Aucun: "None",
     État: "State",
-    "Aucune fiche programme pour ce projet. Importez-la avec la commande « program import ».":
-      "No program sheet for this project. Import it with the “program import” command.",
+    "Aucune fiche programme pour ce projet.": "No program sheet for this project.",
+    "Demander à l'agent de rédiger la fiche": "Ask the agent to draft the sheet",
+    "Importer un fichier…": "Import a file…",
+    "Rédige la fiche programme du projet actif. Si tu n'as pas l'adresse de la page officielle du programme, demande-la-moi. Lis cette page avec read_url, puis appelle program_draft avec le périmètre, le hors périmètre, le rythme et le suffixe User-Agent, chacun cité depuis la page. Ne valide rien : je relirai le brouillon et je le validerai moi-même depuis la page Fiche programme.":
+      "Draft the program sheet for the active project. If you do not have the address of the official program page, ask me for it. Read that page with read_url, then call program_draft with the scope, the out-of-scope list, the pace and the User-Agent suffix, each cited from the page. Do not validate anything: I will review the draft and validate it myself from the Program sheet page.",
+    "Le chat n’est pas disponible (occupé, sans fournisseur ou en lecture seule).":
+      "The chat is not available (busy, no provider or read-only).",
+    "Importer la fiche": "Import the sheet",
+    "Ce fichier est trop volumineux pour une fiche programme.":
+      "This file is too large for a program sheet.",
     "Empreinte : ": "Digest: ",
     "Validée le": "Validated on",
     "Suspendue le": "Suspended on",

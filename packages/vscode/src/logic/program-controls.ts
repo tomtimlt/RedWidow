@@ -3,16 +3,18 @@ import {
   type Cited,
   clearPaceHalt,
   haltedPaceHosts,
+  importProgramDraft,
   type ProgramPace,
   type ProgramState,
   type ProgramStatus,
   readProgram,
   suspendProgram,
 } from "@warband/core";
+import { t } from "@warband/messages";
 
 /**
  * Contrôles de la fiche programme (ADR 0040) côté hôte de l'extension. Seul module autorisé à
- * appeler `approveProgram`, `suspendProgram` et `clearPaceHalt` : jamais importé par `engine/`
+ * appeler `approveProgram`, `suspendProgram`, `importProgramDraft` et `clearPaceHalt` : jamais importé par `engine/`
  * ni exposé à un outil d'agent. La fiche est une donnée non fiable : la vue ne contient que des
  * valeurs brutes, le rendu se fait par `textContent`.
  */
@@ -87,6 +89,8 @@ export interface ProgramControls {
   /** Approuve le brouillon dont l'empreinte a été affichée ; empreinte périmée → rejet, rien n'est écrit. */
   validate(displayedDigest: string): Promise<ProgramView>;
   suspend(): Promise<ProgramView>;
+  /** Importe un brouillon (texte JSON) : n'approuve jamais, une approbation existante devient « modifiée ». */
+  importDraft(text: string): Promise<ProgramView>;
   /** Retire un hôte arrêté ; `false` s'il n'y figurait pas. */
   resume(host: string): Promise<{ resumed: boolean; view: ProgramView }>;
 }
@@ -107,6 +111,10 @@ export function createProgramControls(configDir: string, projectId: string): Pro
       await suspendProgram(configDir, projectId);
       return view();
     },
+    async importDraft(text) {
+      await importProgramDraft(configDir, projectId, text);
+      return view();
+    },
     async resume(host) {
       const resumed = clearPaceHalt(configDir, projectId, host);
       return { resumed, view: await view() };
@@ -116,7 +124,7 @@ export function createProgramControls(configDir: string, projectId: string): Pro
 
 /** Messages acceptés depuis la webview de la fiche (non fiables) : aucun champ de donnée, jamais l'empreinte. */
 export type ProgramMessage =
-  | { type: "ready" | "refresh" | "validate" | "suspend" }
+  | { type: "ready" | "refresh" | "validate" | "suspend" | "askAgent" | "importFile" }
   | { type: "resume"; host: string }
   | { type: "openCitation"; field: ProgramCitationField };
 
@@ -129,7 +137,12 @@ export function parseProgramMessage(raw: unknown): ProgramMessage | null {
   const m = raw as Record<string, unknown>;
   const keys = Object.keys(m);
   if (
-    (m.type === "ready" || m.type === "refresh" || m.type === "validate" || m.type === "suspend") &&
+    (m.type === "ready" ||
+      m.type === "refresh" ||
+      m.type === "validate" ||
+      m.type === "suspend" ||
+      m.type === "askAgent" ||
+      m.type === "importFile") &&
     keys.length === 1
   )
     return { type: m.type };
@@ -162,4 +175,17 @@ export function citationUrl(view: ProgramView, field: ProgramCitationField): str
   } catch {
     return null;
   }
+}
+
+/** Taille maximale d'un fichier de fiche importé (octets) : une fiche est un petit JSON. */
+export const PROGRAM_IMPORT_MAX_BYTES = 256 * 1024;
+
+/**
+ * Consigne envoyée au chat actif par « Demander à l'agent de rédiger la fiche ». Elle ne
+ * demande que la rédaction du brouillon : la validation reste un geste humain de la page.
+ */
+export function programDraftPrompt(): string {
+  return t(
+    "Rédige la fiche programme du projet actif. Si tu n'as pas l'adresse de la page officielle du programme, demande-la-moi. Lis cette page avec read_url, puis appelle program_draft avec le périmètre, le hors périmètre, le rythme et le suffixe User-Agent, chacun cité depuis la page. Ne valide rien : je relirai le brouillon et je le validerai moi-même depuis la page Fiche programme.",
+  );
 }

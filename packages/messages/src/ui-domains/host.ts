@@ -67,13 +67,12 @@ export const hostEn: Record<string, string> = {
   "Configuration VPN Exegol": "Exegol VPN configuration",
   "Choisir le VPN": "Choose the VPN",
   "{0} · Sortie": "{0} · Output",
-  "{0} : chat, terminaux, cockpit, réglages (Alt+J Alt+J)":
-    "{0}: chat, terminals, cockpit, settings (Alt+J Alt+J)",
+  "{0} : chat, terminaux, cockpit, réglages ({1})": "{0}: chat, terminals, cockpit, settings ({1})",
   "Modèle par défaut": "Default model",
   "Modèle utilisé pour le message suivant (clic : ouvrir le chat)":
     "Model used for the next message (click to open chat)",
-  "Conteneur lié : {0} (connecté). Clic : ouvrir un terminal (Alt+J T)":
-    "Linked container: {0} (connected). Click to open a terminal (Alt+J T)",
+  "Conteneur lié : {0} (connecté). Clic : ouvrir un terminal ({1})":
+    "Linked container: {0} (connected). Click to open a terminal ({1})",
   "Conteneur lié : {0} (arrêté)": "Linked container: {0} (stopped)",
   "Actualisation du graphe impossible : {0}": "Could not refresh the graph: {0}",
   "Projets indisponibles : {0}": "Projects unavailable: {0}",
@@ -81,7 +80,7 @@ export const hostEn: Record<string, string> = {
   "{0} · Rapport · Brouillon": "{0} · Report · Draft",
   "Exporter Attack Flow (étapes confirmées, identifiants et loot exclus)":
     "Export Attack Flow (confirmed steps, credentials and loot excluded)",
-  "Exporter la Kill Chain complète en image SVG": "Export the complete Kill Chain as an SVG image",
+  "Exporter la Kill chain complète en image SVG": "Export the complete Kill chain as an SVG image",
   "Exporter un brouillon de rapport (identifiants et loot exclus)":
     "Export a draft report (credentials and loot excluded)",
   "Ce fichier contient des modifications non enregistrées. Choisissez un autre nom de rapport.":
@@ -152,6 +151,9 @@ export const hostEn: Record<string, string> = {
   "$(comment) Chat latéral": "$(comment) Sidebar chat",
   "$(comment-discussion) Nouveau chat": "$(comment-discussion) New chat",
   "$(settings-gear) Réglages": "$(settings-gear) Settings",
+  "$(dashboard) Cockpit": "$(dashboard) Cockpit",
+  "$(pulse) Monitor": "$(pulse) Monitor",
+  "$(type-hierarchy) Kill chain": "$(type-hierarchy) Kill chain",
   "Ouvrir une fenêtre ou un terminal…": "Open a window or a terminal…",
   "terminal · en cours": "terminal · running",
   "Terminaux Exegol": "Exegol terminals",
@@ -247,6 +249,7 @@ export const hostEn: Record<string, string> = {
     "Token cleared: chat stays disabled until a provider is added.",
   "Bypass des approbations actif : cliquer pour le désactiver":
     "Approval bypass active: click to disable it",
+  BYPASS: "BYPASS",
   "BYPASS · en attente": "BYPASS · pending",
   Supprimer: "Delete",
   aucun: "none",
