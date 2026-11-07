@@ -1,6 +1,6 @@
 # 0039 — Recherche web native et relancée pour les missions cyber
 
-- Statut : proposé
+- Statut : accepté (livré en 0.3.75)
 - Date : 2026-11-07
 
 ## Contexte

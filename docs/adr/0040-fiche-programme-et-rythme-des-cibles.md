@@ -1,6 +1,6 @@
 # 0040 — Fiche programme, périmètre et rythme vers les cibles
 
-- Statut : proposé
+- Statut : accepté (livré en 0.3.75)
 - Date : 2026-11-07
 
 ## Contexte

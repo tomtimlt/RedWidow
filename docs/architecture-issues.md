@@ -234,7 +234,7 @@ un tour actif. Smoke Chromium passé (édition, brouillon, retours de sauvegarde
 et d’erreur, filtre) ; validation globale en cours, Windows réel non exécuté.
 Ces gardes UI ne transactionnent pas les écritures externes pendant un tour.
 
-## Fiche programme et rythme vers les cibles (ADR 0040) — proposé
+## Fiche programme et rythme vers les cibles (ADR 0040) — livré (0.3.75)
 
 Fiche par projet (`<configDir>/projects/<id>/program.json`), champs cités, appliquée seulement après validation humaine de son empreinte. Hors périmètre : `ask` mémorisable par hôte, jamais par outil. Rythme appliqué dans `http_request`, jamais dans la gate. Proxy sortant reporté, sans interception TLS.
 

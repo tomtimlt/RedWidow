@@ -1,3 +1,4 @@
+"use strict";
 (() => {
   // packages/messages/src/ui-domains/audit.ts
   var auditEn = {
