@@ -7,9 +7,17 @@
 
 import { parseShell, programName } from "../approval/shell.js";
 
+/** Un appel d'outil réseau connu : binaire normalisé (alias résolu) et arguments bruts. */
+export interface NetworkCall {
+  binary: string;
+  args: string[];
+}
+
 export interface NetworkTargets {
   /** Cibles textuelles brutes (URL, hôte, CIDR) ; à passer à `hostOfTarget`. */
   targets: string[];
+  /** Appels d'outils réseau qui visent une cible (ou une cible non extractible), pour les drapeaux attendus. */
+  calls: NetworkCall[];
   /** Un outil réseau connu est appelé sans cible extractible (variable, `-iL fichier`, stdin…). */
   unresolved: boolean;
 }
@@ -291,7 +299,7 @@ interface Ctx {
   literal: boolean;
 }
 
-function scanArgs(spec: ToolSpec, args: readonly string[], ctx: Ctx): void {
+function scanArgs(binary: string, spec: ToolSpec, args: readonly string[], ctx: Ctx): void {
   const found: string[] = [];
   let unresolved = false;
   const take = (value: string | undefined) => {
@@ -335,6 +343,7 @@ function scanArgs(spec: ToolSpec, args: readonly string[], ctx: Ctx): void {
   // `--help` / `--version` seuls n'atteignent aucun hôte.
   if (args.length > 0 && args.every((a) => INFO_FLAGS.has(a))) return;
   ctx.out.targets.push(...found);
+  ctx.out.calls.push({ binary, args: [...args] });
   // Aucune cible trouvée (stdin, argument absent) : à traiter comme non extractible.
   if (unresolved || found.length === 0) ctx.out.unresolved = true;
 }
@@ -366,8 +375,9 @@ function scanSegment(words: readonly string[], ctx: Ctx, depth: number): void {
     if (script !== undefined) scanScript(script, ctx, depth + 1);
     return;
   }
-  const spec = SPECS[ALIASES[name] ?? name];
-  if (spec !== undefined) scanArgs(spec, rest.slice(1), ctx);
+  const binary = ALIASES[name] ?? name;
+  const spec = SPECS[binary];
+  if (spec !== undefined) scanArgs(binary, spec, rest.slice(1), ctx);
 }
 
 function scanScript(command: string, ctx: Ctx, depth: number): void {
@@ -378,14 +388,14 @@ function scanScript(command: string, ctx: Ctx, depth: number): void {
 
 /** Cibles réseau d'une ligne de commande shell (Bash, `execute_command`). */
 export function shellNetworkTargets(command: string): NetworkTargets {
-  const ctx: Ctx = { out: { targets: [], unresolved: false }, literal: false };
+  const ctx: Ctx = { out: { targets: [], calls: [], unresolved: false }, literal: false };
   scanScript(command, ctx, 0);
   return ctx.out;
 }
 
 /** Cibles réseau d'un argv direct (`task_start`, `exec`) : aucune expansion shell. */
 export function argvNetworkTargets(argv: readonly string[]): NetworkTargets {
-  const ctx: Ctx = { out: { targets: [], unresolved: false }, literal: true };
+  const ctx: Ctx = { out: { targets: [], calls: [], unresolved: false }, literal: true };
   scanSegment(argv, ctx, 0);
   return ctx.out;
 }

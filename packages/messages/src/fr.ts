@@ -323,6 +323,8 @@ export const reasons: Catalog = {
     `${text(p.tool)} : hôte hors du périmètre du programme (${text(p.host)}), approbation requise ; une approbation de session ne vaut que pour cet hôte`,
   "program.host_unresolved": (p) =>
     `${text(p.tool)} : hôte non déterminable (variable, liste, substitution ou cible absente), approbation requise à chaque appel`,
+  "program.flag_missing": (p) =>
+    `${text(p.binary)} : drapeau attendu par la fiche programme absent ou incompatible (${text(p.flag)}), approbation requise ; une approbation de session ne vaut que pour ce binaire`,
   "program.in_scope": (p) =>
     `${text(p.tool)} : hôte dans le périmètre du programme validé (${text(p.host)})`,
   "program.digestRequired": () =>

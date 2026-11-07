@@ -1,6 +1,6 @@
 import { isIP } from "node:net";
 import type { ProgramSheet } from "./sheet.js";
-import { argvNetworkTargets, shellNetworkTargets } from "./shell-hosts.js";
+import { argvNetworkTargets, type NetworkCall, shellNetworkTargets } from "./shell-hosts.js";
 
 /** Outil réservé de l'étape suivante (ADR 0040) : requête HTTP faite par le moteur. */
 export const HTTP_REQUEST_TOOL = "mcp__web__http_request";
@@ -111,6 +111,8 @@ export interface ProgramTargets {
   hosts: string[];
   /** Outil réseau connu appelé sans hôte extractible (variable, `-iL fichier`, substitution…). */
   unresolved: boolean;
+  /** Appels d'outils réseau d'une commande shell ou d'un argv (absent pour les autres outils). */
+  calls?: NetworkCall[];
 }
 
 /** Outils dont l'argument est une commande shell, ou un argv direct (Bash, Kali, Exegol). */
@@ -142,12 +144,20 @@ export function programTargets(
   }
   if (SHELL_COMMAND_TOOLS.has(tool) && typeof input.command === "string") {
     const found = shellNetworkTargets(input.command);
-    return { hosts: uniqueHosts(found.targets), unresolved: found.unresolved };
+    return {
+      hosts: uniqueHosts(found.targets),
+      unresolved: found.unresolved,
+      calls: found.calls,
+    };
   }
   if (ARGV_TOOLS.test(tool) && Array.isArray(input.argv)) {
     const argv = input.argv.filter((a): a is string => typeof a === "string");
     const found = argvNetworkTargets(argv);
-    return { hosts: uniqueHosts(found.targets), unresolved: found.unresolved };
+    return {
+      hosts: uniqueHosts(found.targets),
+      unresolved: found.unresolved,
+      calls: found.calls,
+    };
   }
   if (tool.startsWith("mcp__kali__")) {
     // Un champ `target` peut porter plusieurs cibles séparées par des espaces (nmap).

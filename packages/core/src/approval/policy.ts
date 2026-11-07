@@ -1,4 +1,5 @@
 import { KALI_EXECUTE_TOOL } from "../kali/tool-specs.js";
+import { missingProgramFlags } from "../program/flags.js";
 import {
   HTTP_REQUEST_TOOL,
   hostInScope,
@@ -401,6 +402,8 @@ function programStatus(provider: ProgramProvider): ProgramStatus {
  * restent non mémorisables. N'agit que sur les hôtes visibles (`read_url`, `http_request`, champ
  * `target` des outils Kali) et seulement si la fiche est approuvée à son empreinte courante.
  * Fiche illisible → `ask` non mémorisable. Hors périmètre → `ask` mémorisable par hôte seulement.
+ * Commande shell dans le périmètre sans les drapeaux attendus → `ask` `program.flag_missing`,
+ * mémorisable par binaire seulement.
  */
 function evaluateProgram(
   tool: string,
@@ -435,6 +438,18 @@ function evaluateProgram(
     return {
       decision: "ask",
       reason: reason("program.host_unresolved", { tool }),
+      rule: null,
+    };
+  }
+  // Commande shell vers des hôtes du périmètre : User-Agent et débit de la fiche attendus (lot 7).
+  const missing = missingProgramFlags(sheet, targets.calls ?? []);
+  if (missing.length > 0) {
+    return {
+      decision: "ask",
+      reason: reason("program.flag_missing", {
+        binary: missing.map((m) => m.binary).join(", "),
+        flag: missing.map((m) => m.flag).join(" ; "),
+      }),
       rule: null,
     };
   }

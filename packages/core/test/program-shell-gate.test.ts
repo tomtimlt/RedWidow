@@ -66,23 +66,31 @@ const CASES: ReadonlyArray<readonly [string, string, string]> = [
   ],
   ["curl --url", "curl --url=https://app.test/a", "curl --url https://evil.test/a"],
   ["wget", "wget -q -O page.html http://app.test/index", "wget http://evil.test/index"],
-  ["httpx", "httpx -u https://api.example.com -silent", "httpx -u evil.test -silent"],
-  ["nmap", "nmap -sV -p 80,443 -oN scan.txt api.example.com", "nmap -sV -p 80 evil.test"],
-  ["nmap CIDR", "nmap -sn 10.0.0.0/25", "nmap -sn 10.0.1.0/24"],
+  ["httpx", "httpx -u https://api.example.com -silent -rl 0.2", "httpx -u evil.test -silent"],
+  [
+    "nmap",
+    "nmap -sV -p 80,443 --max-rate 0.2 -oN scan.txt api.example.com",
+    "nmap -sV -p 80 evil.test",
+  ],
+  ["nmap CIDR", "nmap -sn --max-rate 0.2 10.0.0.0/25", "nmap -sn 10.0.1.0/24"],
   [
     "sqlmap",
-    "sqlmap -u 'https://api.example.com/?id=1' --batch",
+    "sqlmap -u 'https://api.example.com/?id=1' --batch --delay 5",
     "sqlmap --url https://evil.test/?id=1",
   ],
   [
     "ffuf",
-    "ffuf -u https://api.example.com/FUZZ -w words.txt",
+    "ffuf -u https://api.example.com/FUZZ -w words.txt -rate 0.2",
     "ffuf -u https://evil.test/FUZZ -w words.txt",
   ],
-  ["nuclei", "nuclei -u https://api.example.com -t cves/", "nuclei -target https://evil.test"],
+  [
+    "nuclei",
+    "nuclei -u https://api.example.com -t cves/ -rl 0.2",
+    "nuclei -target https://evil.test",
+  ],
   [
     "gobuster",
-    "gobuster dir -u https://api.example.com -w words.txt",
+    "gobuster dir -u https://api.example.com -w words.txt --delay 5s",
     "gobuster dir -u https://evil.test -w w",
   ],
 ];
@@ -97,9 +105,10 @@ describe("commandes shell : hôtes dans / hors périmètre", () => {
   });
 
   it("argv direct (task_start, exec Exegol) : mêmes règles, sans expansion shell", () => {
-    expect(verdict(TASK, { argv: ["nmap", "-sV", "app.test"] }, approved).reason.code).toBe(
-      "shell.unanalyzable",
-    );
+    expect(
+      verdict(TASK, { argv: ["nmap", "-sV", "--max-rate", "0.2", "app.test"] }, approved).reason
+        .code,
+    ).toBe("shell.unanalyzable");
     expect(verdict(TASK, { argv: ["nmap", "evil.test"] }, approved).reason.code).toBe(
       "program.out_of_scope",
     );
@@ -125,7 +134,7 @@ describe("commandes shell : hôtes dans / hors périmètre", () => {
     ]) {
       expect(cmd(c).reason.code, c).toBe("program.out_of_scope");
     }
-    expect(cmd("curl https://app.test/ ; nmap api.example.com").reason.code).toBe(
+    expect(cmd("curl https://app.test/ ; nmap --max-rate 0.2 api.example.com").reason.code).toBe(
       "shell.unanalyzable",
     );
   });

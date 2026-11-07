@@ -102,6 +102,7 @@ const REMEMBERABLE = new Set([
   "bash.noRule",
   "sandbox.interpreter",
   "program.out_of_scope",
+  "program.flag_missing",
 ]);
 
 /**
@@ -132,6 +133,15 @@ function sessionKey(request: ApprovalRequest, verdict: PolicyVerdict): string | 
     if (isProgramShellTool(request.tool)) return null;
     const host = verdict.reason.params?.host;
     return typeof host === "string" && host !== "" ? `program-host:${host}` : null;
+  }
+  // Drapeaux attendus manquants : la clé est le binaire, jamais la commande ni l'outil ; plusieurs
+  // binaires fautifs dans une même commande → non mémorisable (un seul « toujours » ne les couvrirait pas).
+  if (verdict.reason.code === "program.flag_missing") {
+    if (!isProgramShellTool(request.tool)) return null;
+    const binary = verdict.reason.params?.binary;
+    return typeof binary === "string" && /^[A-Za-z0-9._-]+$/.test(binary)
+      ? `program-flag:${binary}`
+      : null;
   }
   if (request.tool !== BASH_TOOL) return JSON.stringify([request.tool]);
   const command = request.input.command;
