@@ -1,6 +1,20 @@
 (() => {
   // packages/messages/src/ui-domains/audit.ts
   var auditEn = {
+    Couverture: "Coverage",
+    "Aucune case de couverture enregistrée.": "No coverage cell recorded.",
+    "{0} % des cases testées ({1} cases)": "{0} % of cells tested ({1} cells)",
+    "Filtrer par état": "Filter by state",
+    "Tous les états": "All states",
+    "Aucune case dans cet état.": "No cell in this state.",
+    "Non testé": "Untested",
+    Négatif: "Negative",
+    Bloqué: "Blocked",
+    "Prérequis manquant": "Missing prerequisite",
+    Surface: "Surface",
+    Paramètre: "Parameter",
+    Classe: "Class",
+    Note: "Note",
     "{0} contrôles · {1} Kio conservés": "{0} tests · {1} KiB retained",
     Audit: "Audit",
     Demandé: "Requested",
@@ -1014,56 +1028,6 @@
     "{0}\n\nPièces jointes :\n{1}": "{0}\n\nAttachments:\n{1}",
   };
 
-  // packages/messages/src/ui-domains/redwidow.ts
-  var redwidowEn = {
-    "Supprimer l’historique commun des chats, tous projets compris":
-      "Delete the shared chat history across all projects",
-    "Impossible d’enregistrer l’historique partagé.": "Unable to save shared history.",
-    "Arrêtez les conversations en cours avant de supprimer leur historique.":
-      "Stop running conversations before deleting their history.",
-    "Effacer l’historique commun des chats et ses journaux ?":
-      "Clear shared chat history and its journals?",
-    Widow: "Widow",
-    Venin: "Venom",
-    Arctique: "Arctic",
-    Ultraviolet: "Ultraviolet",
-    Tactique: "Tactical",
-    Rouge: "Red",
-    Orange: "Orange",
-    Jaune: "Yellow",
-    Vert: "Green",
-    Bleu: "Blue",
-    Rose: "Pink",
-    Blanc: "White",
-    Aurore: "Aurora",
-    Synthwave: "Synthwave",
-    Toxique: "Toxic",
-    "Lune de sang": "Blood moon",
-    Abysse: "Ocean",
-    Nébuleuse: "Nebula",
-    "Noir profond et cramoisi : la marque RedWidow":
-      "Deep black and crimson: the RedWidow identity",
-    "Cramoisi et acier : la marque d'origine, plus offensive":
-      "Crimson and steel: the original, more offensive brand",
-    "Vert toxique sur acier : terminal, offensif": "Toxic green on steel: terminal, offensive",
-    "Bleu glacier : froid, net, défensif": "Glacier blue: cool, sharp, defensive",
-    "Violet électrique : nuit, IA, laboratoire": "Electric violet: night, AI, laboratory",
-    "Olive et kaki : terrain, opérations": "Olive and khaki: field work, operations",
-    "Rouge franc": "Classic red",
-    "Orange vif ; proche de la couleur des alertes": "Bright orange; close to alert colors",
-    "Jaune soleil ; proche de la couleur des alertes": "Sun yellow; close to alert colors",
-    "Vert franc": "Classic green",
-    "Bleu franc": "Classic blue",
-    "Rose vif": "Bright pink",
-    "Blanc pur, graphite en thème clair": "Pure white, graphite in light themes",
-    "Dégradé cyan, bleu et violet": "Cyan, blue and violet gradient",
-    "Dégradé rose, violet et bleu": "Pink, violet and blue gradient",
-    "Dégradé lime, vert et cyan": "Lime, green and cyan gradient",
-    "Dégradé cramoisi, magenta et violet": "Crimson, magenta and violet gradient",
-    "Dégradé sarcelle, bleu et indigo": "Teal, blue and indigo gradient",
-    "Dégradé rose, violet et cyan": "Pink, violet and cyan gradient",
-  };
-
   // packages/messages/src/ui-domains/program.ts
   var programEn = {
     "Fiche programme": "Program sheet",
@@ -1121,6 +1085,56 @@
     "Reprendre l’hôte {0} ?": "Resume host {0}?",
     "L’hôte avait été arrêté par le contrôle de rythme (réponses de limitation ou blocage). Les requêtes pourront reprendre.":
       "The host was halted by the pace control (throttling or blocking responses). Requests may resume.",
+  };
+
+  // packages/messages/src/ui-domains/redwidow.ts
+  var redwidowEn = {
+    "Supprimer l’historique commun des chats, tous projets compris":
+      "Delete the shared chat history across all projects",
+    "Impossible d’enregistrer l’historique partagé.": "Unable to save shared history.",
+    "Arrêtez les conversations en cours avant de supprimer leur historique.":
+      "Stop running conversations before deleting their history.",
+    "Effacer l’historique commun des chats et ses journaux ?":
+      "Clear shared chat history and its journals?",
+    Widow: "Widow",
+    Venin: "Venom",
+    Arctique: "Arctic",
+    Ultraviolet: "Ultraviolet",
+    Tactique: "Tactical",
+    Rouge: "Red",
+    Orange: "Orange",
+    Jaune: "Yellow",
+    Vert: "Green",
+    Bleu: "Blue",
+    Rose: "Pink",
+    Blanc: "White",
+    Aurore: "Aurora",
+    Synthwave: "Synthwave",
+    Toxique: "Toxic",
+    "Lune de sang": "Blood moon",
+    Abysse: "Ocean",
+    Nébuleuse: "Nebula",
+    "Noir profond et cramoisi : la marque RedWidow":
+      "Deep black and crimson: the RedWidow identity",
+    "Cramoisi et acier : la marque d'origine, plus offensive":
+      "Crimson and steel: the original, more offensive brand",
+    "Vert toxique sur acier : terminal, offensif": "Toxic green on steel: terminal, offensive",
+    "Bleu glacier : froid, net, défensif": "Glacier blue: cool, sharp, defensive",
+    "Violet électrique : nuit, IA, laboratoire": "Electric violet: night, AI, laboratory",
+    "Olive et kaki : terrain, opérations": "Olive and khaki: field work, operations",
+    "Rouge franc": "Classic red",
+    "Orange vif ; proche de la couleur des alertes": "Bright orange; close to alert colors",
+    "Jaune soleil ; proche de la couleur des alertes": "Sun yellow; close to alert colors",
+    "Vert franc": "Classic green",
+    "Bleu franc": "Classic blue",
+    "Rose vif": "Bright pink",
+    "Blanc pur, graphite en thème clair": "Pure white, graphite in light themes",
+    "Dégradé cyan, bleu et violet": "Cyan, blue and violet gradient",
+    "Dégradé rose, violet et bleu": "Pink, violet and blue gradient",
+    "Dégradé lime, vert et cyan": "Lime, green and cyan gradient",
+    "Dégradé cramoisi, magenta et violet": "Crimson, magenta and violet gradient",
+    "Dégradé sarcelle, bleu et indigo": "Teal, blue and indigo gradient",
+    "Dégradé rose, violet et cyan": "Pink, violet and cyan gradient",
   };
 
   // packages/messages/src/ui-domains/resources.ts

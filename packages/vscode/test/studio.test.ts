@@ -28,6 +28,17 @@ interface NavGroup {
 }
 
 interface StudioApi {
+  COVERAGE_STATES: string[];
+  coverageModel(
+    coverage: unknown,
+    filter: unknown,
+  ): {
+    total: number;
+    percent: number;
+    counts: Record<string, number>;
+    filter: string | null;
+    rows: { surface: string; state: string }[];
+  };
   STUDIO_GROUPS: { label: string; pages: [string, string, string][] }[];
   MITRE_TACTICS: [string, string][];
   killchainCount(findings: unknown): number | null;
@@ -1341,4 +1352,68 @@ it("Réglages : sélecteur FR/EN, mémoire privée et création conservées pend
   receive({ data: { type: "locale", locale: "fr" } });
   expect(main.find((node) => node.textContent === "Enregistrer le résumé")).toBeDefined();
   expect(field("project-summary").value).toBe("Résumé privé");
+});
+
+describe("page Audit : couverture", () => {
+  const cell = (surface: string, state: string) => ({ surface, testClass: "sqli", state });
+  const coverage = {
+    cells: [cell("/login", "untested"), cell("/api", "confirmed"), cell("/admin", "untested")],
+    total: 3,
+    counts: { untested: 2, negative: 0, blocked: 0, prerequisite: 0, confirmed: 1 },
+    coveredPercent: 33,
+  };
+
+  it("construit le modèle : pourcentage, comptes et toutes les lignes sans filtre", () => {
+    const model = studio.coverageModel(coverage, "all");
+    expect(model.percent).toBe(33);
+    expect(model.total).toBe(3);
+    expect(model.counts.untested).toBe(2);
+    expect(model.filter).toBeNull();
+    expect(model.rows).toHaveLength(3);
+  });
+
+  it("filtre par état (non testé) ; un filtre inconnu montre tout", () => {
+    expect(studio.coverageModel(coverage, "untested").rows.map((r) => r.surface)).toEqual([
+      "/login",
+      "/admin",
+    ]);
+    expect(studio.coverageModel(coverage, "negative").rows).toEqual([]);
+    expect(studio.coverageModel(coverage, "<img onerror=x>").rows).toHaveLength(3);
+  });
+
+  it("tolère une vue absente ou malformée sans lever", () => {
+    for (const bad of [undefined, null, 3, {}, { cells: "x", counts: [], coveredPercent: "9" }]) {
+      const model = studio.coverageModel(bad, "all");
+      expect(model).toMatchObject({ total: 0, percent: 0, rows: [] });
+    }
+    expect(
+      studio.coverageModel({ cells: [cell("a", "untested")], coveredPercent: 250 }, "all").percent,
+    ).toBe(100);
+  });
+
+  it("le rendu de la couverture n'utilise que textContent pour les données de l'agent", () => {
+    const src = read(studioJs);
+    const start = src.indexOf("function coverageSection");
+    const end = src.indexOf("function auditPage");
+    const section = src.slice(start, end);
+    expect(section.length).toBeGreaterThan(0);
+    expect(section).not.toMatch(/innerHTML|outerHTML|insertAdjacentHTML|\.append\(\s*cell/);
+    expect(section).toContain("cell.note");
+  });
+
+  it("chaque état et chaque libellé de la section a une traduction anglaise", () => {
+    const en = createUiTranslator(() => "en");
+    for (const label of [
+      "Couverture",
+      "Non testé",
+      "Négatif",
+      "Bloqué",
+      "Prérequis manquant",
+      "Filtrer par état",
+      "Tous les états",
+      "Aucune case de couverture enregistrée.",
+      "Aucune case dans cet état.",
+    ])
+      expect(en(label), label).not.toBe(label);
+  });
 });

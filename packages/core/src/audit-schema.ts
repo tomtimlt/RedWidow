@@ -107,8 +107,8 @@ export interface AuditView {
   enabled: boolean;
   records: AuditRecord[];
   tests: AuditTest[];
-  /** Matrice de couverture agrégée ; toujours fournie par `AuditStore.view`. */
-  coverage?: CoverageView;
+  /** Matrice de couverture agrégée, toujours fournie par `AuditStore.view`. */
+  coverage: CoverageView;
   bytes: number;
   health: AuditHealth;
   viewLimited: boolean;

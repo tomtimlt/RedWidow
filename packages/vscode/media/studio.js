@@ -300,7 +300,36 @@ function killchainMinimapRecenter(minimap, viewport, view, px, py) {
     ty: viewport.height / 2 - cy * view.scale,
   };
 }
+// Matrice de couverture : états dans l’ordre d’affichage, libellés produit français (traduits à l’affichage).
+const COVERAGE_STATES = ["untested", "negative", "blocked", "prerequisite", "confirmed"];
+const COVERAGE_STATE_LABELS = {
+  untested: "Non testé",
+  negative: "Négatif",
+  blocked: "Bloqué",
+  prerequisite: "Prérequis manquant",
+  confirmed: "Confirmé",
+};
+/** Modèle d’affichage de la couverture : pourcentage, comptes par état et lignes filtrées (filtre inconnu = tout). */
+function coverageModel(coverage, filter) {
+  const cells = Array.isArray(coverage?.cells) ? coverage.cells : [];
+  const wanted = COVERAGE_STATES.includes(filter) ? filter : null;
+  const counts = {};
+  for (const state of COVERAGE_STATES) {
+    const n = coverage?.counts?.[state];
+    counts[state] = Number.isInteger(n) && n >= 0 ? n : 0;
+  }
+  const percent = coverage?.coveredPercent;
+  return {
+    total: cells.length ? Math.max(Number(coverage?.total) || 0, cells.length) : 0,
+    percent: Number.isInteger(percent) ? Math.min(100, Math.max(0, percent)) : 0,
+    counts,
+    filter: wanted,
+    rows: cells.filter((cell) => wanted === null || cell?.state === wanted),
+  };
+}
 globalThis.WarbandStudio = {
+  coverageModel,
+  COVERAGE_STATES,
   STUDIO_GROUPS,
   MITRE_TACTICS,
   KC,
@@ -415,6 +444,7 @@ function start() {
   let lastAuditProject = null;
   let auditPageIndex = 0;
   let auditPageProject = null;
+  let coverageFilter = "all";
   let projectPanel = null;
   const el = (tag, className, text) => {
     const node = document.createElement(tag);
@@ -1397,6 +1427,72 @@ function start() {
     if (touched) apply();
     return wrap;
   }
+  // Couverture : données écrites par l’agent, donc rendues par textContent uniquement (jamais de HTML).
+  function coverageSection(coverage) {
+    const part = el("div", "audit-coverage");
+    part.append(el("h3", "", t("Couverture")));
+    const model = coverageModel(coverage, coverageFilter);
+    if (!model.total) {
+      part.append(el("p", "studio-help", t("Aucune case de couverture enregistrée.")));
+      return part;
+    }
+    part.append(
+      el("p", "studio-help", t`${model.percent} % des cases testées (${model.total} cases)`),
+    );
+    const counts = el("p", "audit-filters");
+    for (const state of COVERAGE_STATES)
+      counts.append(
+        el("span", "audit-badge", `${t(COVERAGE_STATE_LABELS[state])} : ${model.counts[state]}`),
+      );
+    part.append(counts);
+    const bar = el("div", "audit-filters");
+    const field = el("label", "", t("Filtrer par état"));
+    const select = el("select");
+    select.id = "audit-coverage-filter";
+    for (const [value, text] of [
+      ["all", t("Tous les états")],
+      ...COVERAGE_STATES.map((state) => [state, t(COVERAGE_STATE_LABELS[state])]),
+    ]) {
+      const option = el("option", "", text);
+      option.value = value;
+      select.append(option);
+    }
+    select.value = model.filter ?? "all";
+    select.addEventListener("change", () => {
+      coverageFilter = select.value;
+      render(lastView, true);
+    });
+    field.append(select);
+    bar.append(field);
+    part.append(bar);
+    if (!model.rows.length) {
+      part.append(el("p", "studio-help", t("Aucune case dans cet état.")));
+      return part;
+    }
+    const wrap = el("div", "md-table");
+    const table = el("table");
+    const head = el("tr");
+    for (const text of ["Surface", "Paramètre", "Classe", "État", "Note"])
+      head.append(el("th", "", t(text)));
+    table.append(el("thead"));
+    table.firstChild.append(head);
+    const body = el("tbody");
+    for (const cell of model.rows) {
+      const row = el("tr");
+      row.append(
+        el("td", "", String(cell.surface ?? "")),
+        el("td", "", String(cell.parameter ?? "")),
+        el("td", "", String(cell.testClass ?? "")),
+        el("td", "", COVERAGE_STATE_LABELS[cell.state] ? t(COVERAGE_STATE_LABELS[cell.state]) : ""),
+        el("td", "", String(cell.note ?? "")),
+      );
+      body.append(row);
+    }
+    table.append(body);
+    wrap.append(table);
+    part.append(wrap);
+    return part;
+  }
   function auditPage(view, project) {
     const label = (value) => globalThis.WarbandI18n?.auditLabel(value) ?? value;
     const sec = el("section", "studio-card audit-page");
@@ -1489,6 +1585,7 @@ function start() {
         t`${audit.tests.length} contrôles · ${Math.ceil(audit.bytes / 1024)} Kio conservés`,
       ),
     );
+    sec.append(coverageSection(audit.coverage));
     sec.append(el("h3", "", t("Registre des contrôles")));
     sec.append(
       el(

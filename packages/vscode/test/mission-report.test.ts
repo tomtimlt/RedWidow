@@ -54,6 +54,12 @@ it("rapproche notes et contrôles du même instantané en signalant les référe
     bytes: 0,
     health: { incomplete: true, failedEntries: 1 },
     viewLimited: true,
+    coverage: {
+      cells: [],
+      total: 0,
+      counts: { untested: 0, negative: 0, blocked: 0, prerequisite: 0, confirmed: 0 },
+      coveredPercent: 0,
+    },
     tests: [
       {
         id: "test",
