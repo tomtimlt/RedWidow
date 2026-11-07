@@ -235,7 +235,7 @@ describe("composer et Configurer (lot P1)", () => {
     expect(cfg).toContain('value="openai">OpenAI (ChatGPT / API)');
     expect(cfg).toContain('value="opencode">OpenCode');
     expect(cfg).toContain("Configurer la connexion");
-    expect(cfg).toContain("Contrôle système");
+    expect(cfg).toContain("Réglages → Fournisseurs");
     expect(js).toContain('type: "selectProvider", id: event.target.value');
     expect(js).toContain('$("provider").disabled = c.locked');
     expect(js).toContain('$("provider-connect").addEventListener');

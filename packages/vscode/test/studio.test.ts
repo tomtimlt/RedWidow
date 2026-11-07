@@ -11,6 +11,7 @@ import {
   observeMission,
   parseStudioMessage,
   STUDIO_PAGES,
+  studioGroup,
   studioLabel,
 } from "../src/logic/studio.js";
 
@@ -20,6 +21,7 @@ interface NavItem {
   icon: string;
   current: boolean;
   count?: number;
+  action?: string;
 }
 
 interface NavGroup {
@@ -39,7 +41,7 @@ interface StudioApi {
     filter: string | null;
     rows: { surface: string; state: string }[];
   };
-  STUDIO_GROUPS: { label: string; pages: [string, string, string][] }[];
+  STUDIO_GROUPS: { label: string; pages: [string, string, string, string?][] }[];
   MITRE_TACTICS: [string, string][];
   killchainCount(findings: unknown): number | null;
   killchainModel(findings: unknown): {
@@ -175,31 +177,56 @@ describe("réglages", () => {
   });
 });
 
-describe("navigation en trois groupes", () => {
-  it("Engagement, Système puis Interface, avec le contenu exact", () => {
-    expect(studio.STUDIO_GROUPS.map((g) => g.label)).toEqual([
-      "Engagement",
-      "Système",
-      "Interface",
-    ]);
-    const [engagement, system] = studio.STUDIO_GROUPS;
-    expect(engagement?.pages.map((p) => p[0])).toEqual([
+describe("navigation en deux rubriques", () => {
+  it("Projet puis Global, avec le contenu exact", () => {
+    expect(studio.STUDIO_GROUPS.map((g) => g.label)).toEqual(["Projet", "Global"]);
+    const [project, global] = studio.STUDIO_GROUPS;
+    expect(project?.pages.map((p) => p[0])).toEqual([
       "project",
+      "program",
       "containers",
       "killchain",
       "audit",
+      "integrations",
     ]);
-    expect(system?.pages.map((p) => p[0])).toEqual(["atlas", "system"]);
+    expect(global?.pages.map((p) => p[0])).toEqual(["appearance", "providers", "system", "atlas"]);
+  });
+
+  it("la rubrique de chaque page suit studioGroup, et la fiche programme ouvre la page existante", () => {
+    for (const [index, group] of studio.STUDIO_GROUPS.entries()) {
+      for (const [key, , , action] of group.pages) {
+        if (action !== undefined) {
+          expect(action).toBe("openProgram");
+          continue;
+        }
+        expect(studioGroup(key as (typeof STUDIO_PAGES)[number])).toBe(
+          index === 0 ? "project" : "global",
+        );
+      }
+    }
+    expect(parseStudioMessage({ type: "openProgram" })).toEqual({ type: "openProgram" });
+    expect(parseStudioMessage({ type: "open", page: "providers" })).toEqual({
+      type: "open",
+      page: "providers",
+    });
   });
 
   it("chaque page existante apparaît une seule fois, avec son libellé d'origine", () => {
-    const keys = studio.STUDIO_GROUPS.flatMap((g) => g.pages.map((p) => p[0]));
-    expect([...keys].sort()).toEqual([...STUDIO_PAGES].sort());
-    for (const [key, label, icon] of studio.STUDIO_GROUPS.flatMap((g) => g.pages)) {
+    const entries = studio.STUDIO_GROUPS.flatMap((g) => g.pages).filter((p) => p[3] === undefined);
+    expect([...entries.map((p) => p[0])].sort()).toEqual([...STUDIO_PAGES].sort());
+    for (const [key, label, icon] of entries) {
       expect(label).toBe(studioLabel(key as (typeof STUDIO_PAGES)[number]));
-      expect(["project", "container", "graph", "book", "server", "palette", "history"]).toContain(
-        icon,
-      );
+      expect([
+        "project",
+        "container",
+        "graph",
+        "book",
+        "server",
+        "palette",
+        "history",
+        "sliders",
+        "settings",
+      ]).toContain(icon);
     }
   });
 
@@ -214,9 +241,14 @@ describe("navigation en trois groupes", () => {
     for (const item of items) {
       expect(item.label).not.toMatch(/licen[cs]e/i);
       expect(Object.keys(item).sort()).toEqual(
-        item.count === undefined
-          ? ["current", "icon", "id", "label"]
-          : ["count", "current", "icon", "id", "label"],
+        [
+          ...(item.count === undefined ? [] : ["count"]),
+          ...(item.action === undefined ? [] : ["action"]),
+          "current",
+          "icon",
+          "id",
+          "label",
+        ].sort(),
       );
     }
     expect(read(studioJs)).not.toMatch(/licen[cs]e/i);

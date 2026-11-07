@@ -905,7 +905,7 @@
       });
       rows.push(row);
     };
-    if (caps.skills.length) {
+    if (caps.available.skills.length) {
       heading("Skills / méthodes");
       choice(
         t("Méthode générale"),
@@ -915,7 +915,7 @@
         },
         true,
       );
-      for (const id of caps.skills)
+      for (const id of caps.available.skills)
         choice(
           skillLabels[id] ?? id,
           caps.selection.profile === id,
@@ -925,9 +925,9 @@
           true,
         );
     }
-    if (caps.integrations.length || caps.burp) {
+    if (caps.available.integrations.length || caps.available.burp) {
       heading("Connecteurs MCP");
-      for (const id of caps.integrations)
+      for (const id of caps.available.integrations)
         choice(
           mcpLabels[id] ?? id,
           caps.selection.integrations.includes(id),
@@ -937,17 +937,15 @@
           false,
           caps.selection.integrations.length >= 4 && !caps.selection.integrations.includes(id),
         );
-      if (caps.burp)
+      if (caps.available.burp)
         choice("Burp Suite", caps.selection.burp, (s, on) => {
           s.burp = on;
         });
     }
-    if (caps.settings?.webSearch) {
-      heading("Recherche");
-      choice(t("Recherche web"), caps.selection.webSearch, (s, on) => {
-        s.webSearch = on;
-      });
-    }
+    heading("Recherche");
+    choice(t("Recherche web"), caps.selection.webSearch, (s, on) => {
+      s.webSearch = on;
+    });
     rows.push(
       el(
         "p",

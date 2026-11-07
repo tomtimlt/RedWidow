@@ -1,4 +1,3 @@
-"use strict";
 (() => {
   // packages/messages/src/ui-domains/audit.ts
   var auditEn = {
@@ -1181,8 +1180,8 @@
     Ajouter: "Add",
     Fichiers: "Files",
     "Configurer les outils et fournisseurs": "Configure tools and providers",
-    "Configurez vos connexions dans Réglages → Contrôle système, puis choisissez votre fournisseur ici.":
-      "Configure your connections in Settings → System control, then choose your provider here.",
+    "Configurez vos connexions dans Réglages → Fournisseurs, puis choisissez votre fournisseur ici.":
+      "Configure your connections in Settings → Providers, then choose your provider here.",
     "Choisir un fournisseur": "Choose a provider",
     "Skills / méthodes": "Skills / methods",
     "Méthode générale": "General method",
@@ -1225,6 +1224,26 @@
     Conteneurs: "Containers",
     Système: "System",
     "Contrôle système": "System control",
+    Global: "Global",
+    Intégrations: "Integrations",
+    Fournisseurs: "Providers",
+    "Limites par défaut": "Default limits",
+    "Valeurs globales pour tous les projets, lues depuis les paramètres VS Code (warband.maxTurns, warband.ultracode.*). Le niveau d’effort se choisit dans le chat.":
+      "Global values for all projects, read from the VS Code settings (warband.maxTurns, warband.ultracode.*). The effort level is chosen in the chat.",
+    "Tours maximum": "Maximum turns",
+    "Ultracode : tours maximum": "Ultracode: maximum turns",
+    "Ultracode : budget maximum": "Ultracode: maximum budget",
+    "sans plafond": "no limit",
+    "clé présente : oui": "key present: yes",
+    "clé présente : non": "key present: no",
+    "connexion gérée par OpenCode": "connection managed by OpenCode",
+    "Configurez les services locaux du projet actif. Le chat les propose ensuite dans le menu + pour une sélection explicite. Quatre services maximum.":
+      "Configure the local services of the active project. The chat then offers them in the + menu for explicit selection. Four services at most.",
+    Profil: "Profile",
+    "Profil par défaut du projet :": "Project default profile:",
+    "Aucun profil par défaut.": "No default profile.",
+    "La méthode d’une conversation se choisit dans le chat.":
+      "A conversation's method is chosen in the chat.",
     Projet: "Project",
     Apparence: "Appearance",
     "Prompt du terminal Docker": "Docker terminal prompt",

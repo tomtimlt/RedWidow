@@ -9,7 +9,7 @@ import type {
   Reason,
   SupervisionLevel,
 } from "@warband/core";
-import { parseSupervision } from "@warband/core";
+import { AGENT_PROFILES, parseSupervision } from "@warband/core";
 import { formatReason, getUiLocale, t } from "@warband/messages";
 import { alwaysConfirmText, answerFor, type Choice, cleanText, toCard } from "./approval.js";
 import { PRODUCT_NAME } from "./brand.js";
@@ -313,6 +313,12 @@ export function createChatSession(deps: ChatSessionDeps) {
             .filter((m) => settings.capabilities?.integrations.includes(m.id))
             .map((m) => m.id),
           burp: !!settings.burp && settings.capabilities?.integrations.includes("burp") === true,
+          // Tout ce que le chat peut proposer : choisir une entrée dans le chat l'active (l'hôte écrit le réglage).
+          available: {
+            skills: Object.keys(AGENT_PROFILES),
+            integrations: (settings.integrations ?? []).map((m) => m.id),
+            burp: !!settings.burp,
+          },
         },
         noProvider: live.noProvider || !providerChoice(),
       }),

@@ -475,8 +475,10 @@ const CAPS = {
     { id: "opencode-autre", label: "Autre fournisseur", runtimeId: "autre", connected: false },
   ],
   capabilities: { providers: ["claude"], skills: [], integrations: [], webSearch: false },
-  skillCatalog: [{ id: "recon", label: "Reconnaissance" }],
+  providerAuth: { claude: true, openai: false },
   mcpCatalog: [{ id: "dns", label: "DNS local" }],
+  mcpConfigured: [],
+  limits: { maxTurns: 40, ultracodeMaxTurns: null, ultracodeMaxBudgetUsd: 25 },
 };
 
 // --- Pages -------------------------------------------------------------------------------------------------------
@@ -549,6 +551,8 @@ const PAGES = [
     ["containers", {}],
     ["killchain", { findings: FINDINGS }],
     ["audit", { audit: AUDIT }],
+    ["integrations", CAPS],
+    ["providers", CAPS],
     ["atlas", {}],
     ["system", CAPS],
     ["appearance", {}],

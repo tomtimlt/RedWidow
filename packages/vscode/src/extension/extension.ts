@@ -4,7 +4,6 @@ import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import {
-  AGENT_PROFILES,
   AuditStore,
   type AuditView,
   activeProject,
@@ -49,7 +48,11 @@ import { reviewAuditTest } from "../logic/audit-review.js";
 import { PRODUCT_NAME, productTitleSuffix } from "../logic/brand.js";
 import { type BypassPush, createBypassHost, formatRemaining } from "../logic/bypass.js";
 import { type ChatView, monitorChatView } from "../logic/chat.js";
-import { capabilitySettings, providerChoices } from "../logic/chat-capabilities.js";
+import {
+  type ChatSelection,
+  capabilitySettings,
+  providerChoices,
+} from "../logic/chat-capabilities.js";
 import {
   containerMentions,
   controlListedContainer,
@@ -392,6 +395,27 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   let refreshLocaleTitles = () => {};
   let refreshReportLocale = () => {};
   let capabilityWrite: Promise<void> = Promise.resolve();
+  const activateSelection = (selection: ChatSelection): Promise<void> => {
+    capabilityWrite = capabilityWrite.then(async () => {
+      try {
+        const caps = readSettings().capabilities;
+        if (selection.profile && !caps.skills.includes(selection.profile))
+          await writeMachineSetting("chat.skills", [...caps.skills, selection.profile]);
+        const missing = [...selection.integrations, ...(selection.burp ? ["burp"] : [])].filter(
+          (id) => !caps.integrations.includes(id),
+        );
+        if (missing.length > 0)
+          await writeMachineSetting("chat.integrations", [
+            ...new Set([...caps.integrations, ...missing]),
+          ]);
+        if (selection.webSearch && !caps.webSearch)
+          await writeMachineSetting("chat.webSearch", true);
+      } catch (error) {
+        void vscode.window.showErrorMessage(formatError(error, getUiLocale()));
+      }
+    });
+    return capabilityWrite;
+  };
   let refreshBypassLocale = () => {};
   const broadcastLocale = () => {
     setUiLocale(currentLocale());
@@ -911,7 +935,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
       // Chat grisé sans fournisseur : ouvre la saisie du jeton (hôte seul, aucune donnée venue de la webview).
       if (message.type === "addProvider" || message.type === "openSystem") {
-        openStudio("system");
+        openStudio("providers");
         return;
       }
       const s = getSession(id);
@@ -924,8 +948,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           return await s.loadModels();
         case "selectProvider":
           return await s.selectProvider(message.id);
-        case "setSelection":
+        case "setSelection": {
+          // Choisir un skill, un connecteur ou la recherche web dans le chat l'active (réglages `chat.*`).
+          if (!s.view().busy && !s.view().readonly) await activateSelection(message.selection);
           return s.setSelection(message.selection);
+        }
         case "setProvider": {
           const entry = providerChoices(readSettings()).find((p) => p.backend === message.provider);
           if (entry) return await s.selectProvider(entry.id);
@@ -2232,7 +2259,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (!panel) return;
     const auditGeneration = findingProjectGeneration;
     const requestedPage = studioPage;
-    if (studioPage === "system") void loadProviderCatalog();
+    if (studioPage === "providers") void loadProviderCatalog();
     // Une sonde de conteneurs en échec ne doit pas perdre l'accusé d'écriture du résumé.
     const cockpit =
       studioPage === "audit"
@@ -2316,7 +2343,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       ),
       providerCatalogStatus,
       providerCatalogError,
-      skillCatalog: Object.entries(AGENT_PROFILES).map(([id, p]) => ({ id, label: p.label })),
+      // Présence seule d'un jeton ou d'une connexion : jamais la valeur.
+      providerAuth: {
+        claude: (await getToken("claude").catch(() => undefined)) !== undefined,
+        openai: (await getToken("openai").catch(() => undefined)) !== undefined,
+      },
+      limits: {
+        maxTurns: readSettings().maxTurns ?? null,
+        ultracodeMaxTurns: readSettings().ultracode?.maxTurns ?? null,
+        ultracodeMaxBudgetUsd: readSettings().ultracode?.maxBudgetUsd ?? null,
+      },
       mcpCatalog: MCP_CATALOG,
       mcpConfigured: projectIntegrations(
         machineValue(
@@ -2931,36 +2967,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         return;
       }
       if (message.type === "setCapability") {
+        // Seule l'activation des fournisseurs se règle ici ; skills, MCP et recherche web se règlent dans le chat.
         capabilityWrite = capabilityWrite.then(async () => {
           try {
             const settings = readSettings();
-            const config = vscode.workspace.getConfiguration("warband");
-            const field =
-              message.kind === "provider"
-                ? "providers"
-                : message.kind === "skill"
-                  ? "skills"
-                  : "integrations";
-            const valid =
-              message.kind === "provider"
-                ? providerChoices(settings, false).some((p) => p.id === message.id)
-                : message.kind === "skill"
-                  ? Object.hasOwn(AGENT_PROFILES, message.id)
-                  : message.kind === "web"
-                    ? message.id === "search"
-                    : message.id === "burp" || MCP_CATALOG.some((m) => m.id === message.id);
-            if (!valid) return;
-            if (message.kind === "web")
-              await writeMachineSetting("chat.webSearch", message.enabled);
-            else {
-              const list = settings.capabilities?.[field] ?? [];
-              await writeMachineSetting(
-                `chat.${field}`,
-                message.enabled
-                  ? [...new Set([...list, message.id])]
-                  : list.filter((id) => id !== message.id),
-              );
-            }
+            if (!providerChoices(settings, false).some((p) => p.id === message.id)) return;
+            const list = settings.capabilities?.providers ?? [];
+            await writeMachineSetting(
+              "chat.providers",
+              message.enabled
+                ? [...new Set([...list, message.id])]
+                : list.filter((id) => id !== message.id),
+            );
             for (const slot of slots.values())
               if (slot.session)
                 slot.session.setSelection(slot.session.view().capabilities?.selection);
@@ -3460,7 +3478,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await vscode.window.showErrorMessage(formatError(error, getUiLocale()));
       }
     }),
-    vscode.commands.registerCommand("warband.chooseProfile", () => openStudio("system")),
+    vscode.commands.registerCommand("warband.chooseProfile", () => openStudio("integrations")),
     vscode.commands.registerCommand(
       "warband.configureIntegrations",
       async (requestedId?: unknown) => {

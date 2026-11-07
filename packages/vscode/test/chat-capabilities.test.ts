@@ -87,9 +87,13 @@ describe("ressources du chat : configuration, activation et choix distincts", ()
     expect(
       parseStudioMessage({ type: "configureProvider", id: "google", key: "secret" }),
     ).toBeNull();
+    // Les réglages n'activent plus que les fournisseurs : le reste se règle dans le chat.
     expect(
       parseStudioMessage({ type: "setCapability", kind: "web", id: "search", enabled: true }),
-    ).toEqual({ type: "setCapability", kind: "web", id: "search", enabled: true });
+    ).toBeNull();
+    expect(
+      parseStudioMessage({ type: "setCapability", kind: "provider", id: "google", enabled: true }),
+    ).toEqual({ type: "setCapability", kind: "provider", id: "google", enabled: true });
   });
   it("conserve tous les connecteurs configurés, tout en bornant le démarrage à quatre", () => {
     const configured = MCP_CATALOG.map((m, i) => ({

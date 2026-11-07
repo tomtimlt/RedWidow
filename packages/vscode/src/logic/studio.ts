@@ -10,6 +10,8 @@ export const STUDIO_PAGES = [
   "containers",
   "killchain",
   "audit",
+  "integrations",
+  "providers",
   "atlas",
   "system",
   "appearance",
@@ -17,13 +19,34 @@ export const STUDIO_PAGES = [
 
 export type StudioPage = (typeof STUDIO_PAGES)[number];
 
+/** Rubrique de navigation : réglages propres à l'engagement actif, ou communs à tous les projets. */
+export type StudioGroup = "project" | "global";
+
+const GROUPS: Record<StudioPage, StudioGroup> = {
+  project: "project",
+  containers: "project",
+  killchain: "project",
+  audit: "project",
+  integrations: "project",
+  providers: "global",
+  system: "global",
+  appearance: "global",
+  atlas: "global",
+};
+
+export function studioGroup(page: StudioPage): StudioGroup {
+  return GROUPS[page];
+}
+
 const LABELS: Record<StudioPage, string> = {
   project: "Projet",
   containers: "Conteneurs",
   atlas: "Atlas",
   killchain: "Kill chain",
   audit: "Audit",
-  system: "Contrôle système",
+  integrations: "Intégrations",
+  providers: "Fournisseurs",
+  system: "Système",
   appearance: "Apparence",
 };
 
@@ -39,12 +62,8 @@ export type StudioMessage =
   | { type: "exportAudit"; projectId: string }
   | { type: "setAuditEnabled"; projectId: string; enabled: boolean }
   | { type: "reviewAuditTest"; projectId: string; testId: string; claim: AuditReview }
-  | {
-      type: "setCapability";
-      kind: "provider" | "skill" | "mcp" | "web";
-      id: string;
-      enabled: boolean;
-    }
+  /** Activation d'un fournisseur dans le chat ; skills, MCP et recherche web se règlent dans le chat. */
+  | { type: "setCapability"; kind: "provider"; id: string; enabled: boolean }
   | { type: "configureProvider"; id: string }
   | { type: "configureMcp"; id: string }
   | { type: "openEvidence"; projectId: string; id: string }
@@ -123,13 +142,13 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
     m.type === "setCapability" &&
     keys.length === 4 &&
     keys.every((k) => ["type", "kind", "id", "enabled"].includes(k)) &&
-    ["provider", "skill", "mcp", "web"].includes(m.kind as string) &&
+    m.kind === "provider" &&
     isCapabilityId(m.id) &&
     typeof m.enabled === "boolean"
   )
     return {
       type: m.type,
-      kind: m.kind as "provider" | "skill" | "mcp" | "web",
+      kind: "provider",
       id: m.id,
       enabled: m.enabled,
     };

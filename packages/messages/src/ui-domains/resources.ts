@@ -17,8 +17,8 @@ export const resourcesEn: Record<string, string> = {
   Ajouter: "Add",
   Fichiers: "Files",
   "Configurer les outils et fournisseurs": "Configure tools and providers",
-  "Configurez vos connexions dans Réglages → Contrôle système, puis choisissez votre fournisseur ici.":
-    "Configure your connections in Settings → System control, then choose your provider here.",
+  "Configurez vos connexions dans Réglages → Fournisseurs, puis choisissez votre fournisseur ici.":
+    "Configure your connections in Settings → Providers, then choose your provider here.",
   "Choisir un fournisseur": "Choose a provider",
   "Skills / méthodes": "Skills / methods",
   "Méthode générale": "General method",

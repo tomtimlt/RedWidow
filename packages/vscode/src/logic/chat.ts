@@ -123,6 +123,8 @@ export interface ChatView {
     skills: string[];
     integrations: string[];
     burp: boolean;
+    /** Entrées proposables dans le chat ; en choisir une l'active (réglage écrit par l'hôte). */
+    available: { skills: string[]; integrations: string[]; burp: boolean };
   };
   /** Identité de vue : invalide les caches lors d’une nouvelle conversation, sans donner un accès disque. */
   conversation?: string;

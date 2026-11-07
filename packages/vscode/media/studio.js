@@ -5,24 +5,29 @@ function studioT(message, ...values) {
     ? message
     : message.reduce((text, part, i) => text + (i ? values[i - 1] : "") + part, "");
 }
+// Deux rubriques : réglages de l'engagement actif (Projet) et réglages communs à tous les projets (Global).
+// Un quatrième élément désigne une action de l'hôte au lieu d'une page (la fiche programme a sa propre page).
 const STUDIO_GROUPS = [
   {
-    label: "Engagement",
+    label: "Projet",
     pages: [
       ["project", "Projet", "project"],
+      ["program", "Fiche programme", "book", "openProgram"],
       ["containers", "Conteneurs", "container"],
       ["killchain", "Kill chain", "graph"],
       ["audit", "Audit", "history"],
+      ["integrations", "Intégrations", "sliders"],
     ],
   },
   {
-    label: "Système",
+    label: "Global",
     pages: [
+      ["appearance", "Apparence", "palette"],
+      ["providers", "Fournisseurs", "server"],
+      ["system", "Système", "settings"],
       ["atlas", "Atlas", "book"],
-      ["system", "Contrôle système", "server"],
     ],
   },
-  { label: "Interface", pages: [["appearance", "Apparence", "palette"]] },
 ];
 // Jeux de couleurs : mêmes identifiants que PALETTES dans src/logic/palette.ts (contrôlé par test).
 const PALETTES = [
@@ -57,8 +62,9 @@ function killchainCount(findings) {
 function navModel(current, findings) {
   return STUDIO_GROUPS.map((group) => ({
     label: studioT(group.label),
-    items: group.pages.map(([id, label, icon]) => {
+    items: group.pages.map(([id, label, icon, action]) => {
       const item = { id, label: studioT(label), icon, current: id === current };
+      if (action !== void 0) item.action = action;
       if (id === "killchain") {
         const count = killchainCount(findings);
         if (count !== null) item.count = count;
@@ -511,7 +517,9 @@ function start() {
           count.title = t`${item.count} élément${item.count > 1 ? "s" : ""}`;
           b.append(count);
         }
-        b.addEventListener("click", () => vscode.postMessage({ type: "open", page: item.id }));
+        b.addEventListener("click", () =>
+          vscode.postMessage(item.action ? { type: item.action } : { type: "open", page: item.id }),
+        );
         section.append(b);
       }
       nav.append(section);
@@ -625,6 +633,170 @@ function start() {
       ),
     );
     return section;
+  }
+  // Fournisseurs (Global) : statut en présence/absence seulement ; aucune valeur de secret ni champ de saisie ici.
+  // Le jeton se saisit dans la boîte sécurisée de VS Code, ouverte par l'hôte (commande « Configurer »).
+  function providersPage(view) {
+    const sec = el("section", "studio-card");
+    sec.append(
+      el("h2", "", t("Fournisseurs IA")),
+      el(
+        "p",
+        "studio-help",
+        t(
+          "Configurez une connexion, puis activez son accès dans le chat. Les clés restent dans le stockage sécurisé ou le gestionnaire du fournisseur.",
+        ),
+      ),
+    );
+    const caps = view.capabilities ?? { providers: [] };
+    const auth = view.providerAuth ?? {};
+    const keyState = (present) => (present ? t("clé présente : oui") : t("clé présente : non"));
+    const providerRow = (p, detail, parent = sec) => {
+      const row = el("div", "capability-row");
+      const toggle = el("button", "resource-toggle", p.label);
+      toggle.type = "button";
+      toggle.id = `capability-provider-${p.id}`;
+      toggle.setAttribute("role", "switch");
+      toggle.setAttribute("aria-checked", String(caps.providers.includes(p.id)));
+      toggle.addEventListener("click", () => {
+        const on = toggle.getAttribute("aria-checked") !== "true";
+        toggle.setAttribute("aria-checked", String(on));
+        vscode.postMessage({ type: "setCapability", kind: "provider", id: p.id, enabled: on });
+      });
+      row.append(toggle, el("span", "studio-help", detail));
+      const button = el("button", "ghost resource-configure", t("Configurer"));
+      button.type = "button";
+      button.addEventListener("click", () =>
+        vscode.postMessage({ type: "configureProvider", id: p.id }),
+      );
+      row.append(button);
+      parent.append(row);
+    };
+    const allProviders = view.providerCatalog ?? [];
+    for (const p of allProviders.filter((p) => !p.runtimeId))
+      providerRow(
+        p,
+        p.id === "claude" || p.id === "openai"
+          ? keyState(auth[p.id] === true)
+          : t("connexion gérée par OpenCode"),
+      );
+    const catalogHeader = el("div", "provider-catalog-head");
+    catalogHeader.append(el("h3", "", t("Fournisseurs OpenCode")));
+    const refreshProviders = el("button", "ghost", t("Actualiser le catalogue"));
+    refreshProviders.type = "button";
+    refreshProviders.disabled = view.providerCatalogStatus === "loading";
+    refreshProviders.addEventListener("click", () =>
+      vscode.postMessage({ type: "refreshProviderCatalog" }),
+    );
+    catalogHeader.append(refreshProviders);
+    sec.append(catalogHeader);
+    const providerStatus = el(
+      "p",
+      "studio-help",
+      view.providerCatalogStatus === "loading"
+        ? t("Chargement du catalogue OpenCode…")
+        : view.providerCatalogError ||
+            t(
+              "Activez les fournisseurs souhaités. OpenCode conserve aussi son accès général à tous les modèles connectés.",
+            ),
+    );
+    providerStatus.setAttribute("role", "status");
+    sec.append(providerStatus);
+    const searchProviders = el("input", "provider-catalog-search");
+    searchProviders.type = "search";
+    searchProviders.id = "provider-catalog-filter";
+    searchProviders.value = providerFilter;
+    searchProviders.placeholder = t("Rechercher un fournisseur…");
+    searchProviders.setAttribute("aria-label", t("Rechercher un fournisseur"));
+    const providerList = el("div", "provider-catalog-list");
+    for (const p of allProviders.filter((p) => p.runtimeId))
+      providerRow(p, keyState(p.connected === true), providerList);
+    const filterProviders = () => {
+      providerFilter = searchProviders.value;
+      const query = searchProviders.value.trim().toLocaleLowerCase();
+      for (const row of providerList.children)
+        row.hidden = !row.textContent.toLocaleLowerCase().includes(query);
+    };
+    searchProviders.addEventListener("input", filterProviders);
+    filterProviders();
+    sec.append(searchProviders, providerList);
+    const addProvider = el("button", "ghost", t("Ajouter Ollama / un endpoint compatible"));
+    addProvider.type = "button";
+    addProvider.addEventListener("click", () =>
+      vscode.postMessage({ type: "configureProvider", id: "add" }),
+    );
+    sec.append(addProvider);
+    return sec;
+  }
+  // Intégrations (Projet) : connecteurs MCP du projet actif, Burp et profil. Leur usage se choisit dans le chat.
+  function integrationsPage(view) {
+    const sec = el("section", "studio-card");
+    sec.append(
+      el("h2", "", t("Connecteurs MCP")),
+      el(
+        "p",
+        "studio-help",
+        t(
+          "Configurez les services locaux du projet actif. Le chat les propose ensuite dans le menu + pour une sélection explicite. Quatre services maximum.",
+        ),
+      ),
+    );
+    const configured = view.mcpConfigured ?? [];
+    for (const entry of view.mcpCatalog ?? []) {
+      const row = el("div", "capability-row");
+      row.append(
+        el("span", "studio-ellipsis", entry.label),
+        el(
+          "span",
+          "studio-help",
+          configured.some((c) => c.id === entry.id) ? t("configuré") : t("non configuré"),
+        ),
+      );
+      const button = el("button", "ghost resource-configure", t("Configurer"));
+      button.type = "button";
+      button.addEventListener("click", () =>
+        vscode.postMessage({ type: "configureMcp", id: entry.id }),
+      );
+      row.append(button);
+      sec.append(row);
+    }
+    sec.append(el("h2", "", "Burp Suite MCP"));
+    sec.append(
+      el(
+        "p",
+        "studio-help",
+        view.burpEnabled
+          ? t("Connexion locale activée. Les appels aux outils restent soumis à la gate RedWidow.")
+          : t(
+              "Connexion désactivée. Installez l’extension MCP officielle dans Burp Suite pour la connecter.",
+            ),
+      ),
+    );
+    const configure = el("button", "ghost", t("Configurer Burp Suite MCP…"));
+    const test = el("button", "ghost", t("Tester la connexion"));
+    configure.type = test.type = "button";
+    configure.id = "burp-configure";
+    test.id = "burp-test";
+    configure.addEventListener("click", () => vscode.postMessage({ type: "configureBurp" }));
+    test.addEventListener("click", () => vscode.postMessage({ type: "testBurp" }));
+    sec.append(configure, test);
+    if (view.burpStatus) {
+      const status = el("p", "studio-help", t(view.burpStatus));
+      status.setAttribute("role", "status");
+      sec.append(status);
+    }
+    sec.append(
+      el("h2", "", t("Profil")),
+      el(
+        "p",
+        "studio-help",
+        view.agentProfile
+          ? `${t("Profil par défaut du projet :")} ${view.agentProfile}`
+          : t("Aucun profil par défaut."),
+      ),
+      el("p", "studio-help", t("La méthode d’une conversation se choisit dans le chat.")),
+    );
+    return sec;
   }
   function appearancePage() {
     const sec = el("section", "studio-card");
@@ -2029,7 +2201,7 @@ function start() {
     if (page === "containers" || page === "system") {
       const sec = el("section", "studio-card");
       const header = el("div", "studio-section-head");
-      header.append(el("h2", "", page === "system" ? t("Contrôle système") : t("Conteneurs")));
+      header.append(el("h2", "", page === "system" ? t("Système") : t("Conteneurs")));
       if (page === "containers") {
         const manage = el("button", "secondary");
         manage.type = "button";
@@ -2076,181 +2248,38 @@ function start() {
       );
       sec.append(dl);
       if (page === "system") {
-        const caps = view.capabilities ?? {
-          providers: [],
-          skills: [],
-          integrations: [],
-          webSearch: false,
-        };
+        const limits = view.limits ?? {};
         sec.append(
-          el("h2", "", t("Fournisseurs IA")),
+          el("h2", "", t("Limites par défaut")),
           el(
             "p",
             "studio-help",
             t(
-              "Configurez une connexion, puis activez son accès dans le chat. Les clés restent dans le stockage sécurisé ou le gestionnaire du fournisseur.",
+              "Valeurs globales pour tous les projets, lues depuis les paramètres VS Code (warband.maxTurns, warband.ultracode.*). Le niveau d’effort se choisit dans le chat.",
             ),
           ),
         );
-        const capabilityRow = (kind, id, label, enabled, configure, detail, parent = sec) => {
-          const row = el("div", "capability-row");
-          const toggle = el("button", "resource-toggle", label);
-          toggle.type = "button";
-          toggle.id = `capability-${kind}-${id}`;
-          toggle.setAttribute("role", "switch");
-          toggle.setAttribute("aria-checked", String(enabled));
-          toggle.addEventListener("click", () => {
-            const on = toggle.getAttribute("aria-checked") !== "true";
-            toggle.setAttribute("aria-checked", String(on));
-            vscode.postMessage({ type: "setCapability", kind, id, enabled: on });
-          });
-          row.append(toggle);
-          if (detail) row.append(el("span", "studio-help", detail));
-          if (configure) {
-            const button = el("button", "ghost resource-configure", t("Configurer"));
-            button.type = "button";
-            button.addEventListener("click", () => vscode.postMessage(configure));
-            row.append(button);
-          }
-          parent.append(row);
-        };
-        const allProviders = view.providerCatalog ?? [];
-        for (const p of allProviders.filter((p) => !p.runtimeId))
-          capabilityRow("provider", p.id, p.label, caps.providers.includes(p.id), {
-            type: "configureProvider",
-            id: p.id,
-          });
-        const catalogHeader = el("div", "provider-catalog-head");
-        catalogHeader.append(el("h3", "", t("Fournisseurs OpenCode")));
-        const refreshProviders = el("button", "ghost", t("Actualiser le catalogue"));
-        refreshProviders.type = "button";
-        refreshProviders.disabled = view.providerCatalogStatus === "loading";
-        refreshProviders.addEventListener("click", () =>
-          vscode.postMessage({ type: "refreshProviderCatalog" }),
-        );
-        catalogHeader.append(refreshProviders);
-        sec.append(catalogHeader);
-        const providerStatus = el(
-          "p",
-          "studio-help",
-          view.providerCatalogStatus === "loading"
-            ? t("Chargement du catalogue OpenCode…")
-            : view.providerCatalogError ||
-                t(
-                  "Activez les fournisseurs souhaités. OpenCode conserve aussi son accès général à tous les modèles connectés.",
-                ),
-        );
-        providerStatus.setAttribute("role", "status");
-        sec.append(providerStatus);
-        const searchProviders = el("input", "provider-catalog-search");
-        searchProviders.type = "search";
-        searchProviders.id = "provider-catalog-filter";
-        searchProviders.value = providerFilter;
-        searchProviders.placeholder = t("Rechercher un fournisseur…");
-        searchProviders.setAttribute("aria-label", t("Rechercher un fournisseur"));
-        const providerList = el("div", "provider-catalog-list");
-        for (const p of allProviders.filter((p) => p.runtimeId))
-          capabilityRow(
-            "provider",
-            p.id,
-            p.label,
-            caps.providers.includes(p.id),
-            { type: "configureProvider", id: p.id },
-            p.connected ? t("connecté") : t("à connecter"),
-            providerList,
+        const limitList = el("dl", "studio-dl studio-tiles");
+        for (const [k, v, unit] of [
+          [t("Tours maximum"), limits.maxTurns, ""],
+          [t("Ultracode : tours maximum"), limits.ultracodeMaxTurns, ""],
+          [t("Ultracode : budget maximum"), limits.ultracodeMaxBudgetUsd, " USD"],
+        ]) {
+          const tile = el("div", `studio-tile tone-${typeof v === "number" ? "ok" : "idle"}`);
+          const head = el("dt", "studio-tile-label");
+          head.append(
+            window.WarbandIcons.create("settings", "ico studio-tile-ico"),
+            el("span", "", k),
           );
-        const filterProviders = () => {
-          providerFilter = searchProviders.value;
-          const query = searchProviders.value.trim().toLocaleLowerCase();
-          for (const row of providerList.children)
-            row.hidden = !row.textContent.toLocaleLowerCase().includes(query);
-        };
-        searchProviders.addEventListener("input", filterProviders);
-        filterProviders();
-        sec.append(searchProviders, providerList);
-        const addProvider = el("button", "ghost", t("Ajouter Ollama / un endpoint compatible"));
-        addProvider.type = "button";
-        addProvider.addEventListener("click", () =>
-          vscode.postMessage({ type: "configureProvider", id: "add" }),
-        );
-        sec.append(addProvider);
-        sec.append(
-          el("h2", "", t("Skills / méthodes")),
-          el(
-            "p",
-            "studio-help",
-            t(
-              "Activez les méthodes à proposer dans le menu + du chat. Choisissez ensuite une méthode par conversation.",
-            ),
-          ),
-        );
-        for (const p of view.skillCatalog ?? [])
-          capabilityRow("skill", p.id, p.label, caps.skills.includes(p.id));
-        sec.append(
-          el("h2", "", t("Connecteurs MCP")),
-          el(
-            "p",
-            "studio-help",
-            t(
-              "Configurez les services locaux du projet, puis activez-les. Ils apparaîtront dans le menu + du chat pour une sélection explicite. Quatre services maximum.",
-            ),
-          ),
-        );
-        for (const entry of view.mcpCatalog ?? [])
-          capabilityRow(
-            "mcp",
-            entry.id,
-            entry.label,
-            caps.integrations.includes(entry.id),
-            { type: "configureMcp", id: entry.id },
-            (view.mcpConfigured ?? []).some((c) => c.id === entry.id)
-              ? t("configuré")
-              : t("non configuré"),
+          const value = el("dd", "studio-tile-value");
+          value.append(
+            decorative(el("span", "dot")),
+            el("span", "", typeof v === "number" ? `${v}${unit}` : t("sans plafond")),
           );
-        capabilityRow(
-          "mcp",
-          "burp",
-          "Burp Suite",
-          caps.integrations.includes("burp"),
-          { type: "configureBurp" },
-          view.burpEnabled ? t("configuré") : t("non configuré"),
-        );
-        sec.append(el("h2", "", t("Recherche web")));
-        capabilityRow(
-          "web",
-          "search",
-          t("Recherche web"),
-          caps.webSearch,
-          null,
-          t("Disponible à la demande dans le menu +. Désactivée pour les nouvelles conversations."),
-        );
-        sec.append(el("h2", "", "Burp Suite MCP"));
-        sec.append(
-          el(
-            "p",
-            "studio-help",
-            view.burpEnabled
-              ? t(
-                  "Connexion locale activée. Les appels aux outils restent soumis à la gate RedWidow.",
-                )
-              : t(
-                  "Connexion désactivée. Installez l’extension MCP officielle dans Burp Suite pour la connecter.",
-                ),
-          ),
-        );
-        const configure = el("button", "ghost", t("Configurer Burp Suite MCP…"));
-        const test = el("button", "ghost", t("Tester la connexion"));
-        configure.type = test.type = "button";
-        configure.id = "burp-configure";
-        test.id = "burp-test";
-        configure.addEventListener("click", () => vscode.postMessage({ type: "configureBurp" }));
-        test.addEventListener("click", () => vscode.postMessage({ type: "testBurp" }));
-        sec.append(configure, test);
-        if (view.burpStatus) {
-          const status = el("p", "studio-help", t(view.burpStatus));
-          status.setAttribute("role", "status");
-          sec.append(status);
+          tile.append(head, value);
+          limitList.append(tile);
         }
+        sec.append(limitList);
       }
       if (page === "containers") {
         const running = (view.containers ?? []).filter((c) => c.state === "running").length;
@@ -2288,6 +2317,14 @@ function start() {
         }
       }
       main.append(sec);
+      return;
+    }
+    if (page === "providers") {
+      main.append(providersPage(view));
+      return;
+    }
+    if (page === "integrations") {
+      main.append(integrationsPage(view));
       return;
     }
     if (page === "killchain") {
