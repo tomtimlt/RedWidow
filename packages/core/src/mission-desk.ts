@@ -236,7 +236,7 @@ export function createMissionDesk({
         );
       if (!observations.length || metrics.repeatedErrors >= 2)
         guidance.push(
-          "Charger avec load_skill une section du profil pertinent (htb, bug-bounty, red-team, mentor). En absence de preuve ou erreur de ressource, effectuer une recherche GitHub ciblée sur le message et le composant ; vérifier la source épinglée.",
+          "Charger avec load_skill une section du profil pertinent (htb, bug-bounty, red-team, mentor). En absence de preuve ou erreur de ressource, appliquer la recherche web commune (pas seulement GitHub) sur le message et le composant ; relever URL, date et version.",
         );
       if (metrics.stagnation >= 2 || metrics.repeatedErrors >= 2)
         guidance.push(

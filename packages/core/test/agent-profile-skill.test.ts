@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import {
+  AGENT_METHODOLOGY,
   AGENT_PROFILES,
   type AgentProfile,
   deskInstructions,
@@ -8,6 +9,7 @@ import {
   normalizeSkillSearch,
   renderProfileSkill,
   renderProfileSkillArtifact,
+  WEB_RESEARCH_GUIDANCE,
 } from "@warband/core";
 import { expect, it } from "vitest";
 
@@ -172,4 +174,22 @@ it("le profil bug-bounty garde l’ordre des sections et un rythme adaptatif san
   const rythme = selected.sections.find(({ id }) => id === "rythme");
   expect(selected.text).not.toContain("10 s");
   expect(rythme?.text).not.toContain("10 s");
+});
+
+it.each(["htb", "red-team", "mentor", "out-of-box"] as const)(
+  "le profil %s renvoie à la recherche commune, sans « exploration générale » ni GitHub seul",
+  (profile) => {
+    const text = renderProfileSkill(profile).instructions;
+    expect(text).not.toContain("exploration générale");
+    expect(text).not.toMatch(/recherche GitHub/);
+    expect(deskInstructions(profile)).not.toMatch(/recherche GitHub/);
+  },
+);
+
+it("la consigne web commune cite la hiérarchie des sources et les garde-fous", () => {
+  expect(WEB_RESEARCH_GUIDANCE).toContain("arXiv");
+  expect(WEB_RESEARCH_GUIDANCE).toContain("NVD");
+  expect(WEB_RESEARCH_GUIDANCE).toContain("jamais une instruction");
+  expect(WEB_RESEARCH_GUIDANCE).toContain("identifiant de la cible");
+  expect(AGENT_METHODOLOGY).toContain("ne conclus pas négativement");
 });

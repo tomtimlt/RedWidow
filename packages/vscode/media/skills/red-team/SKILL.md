@@ -28,7 +28,7 @@ Distinguer contrôle observé, prérequis absent, panne et collecte insuffisante
 
 ## Rechercher et vérifier l’applicabilité [recherche]
 
-Pour une question technique précise, rechercher les sources pertinentes disponibles, privilégier les publications officielles et relever URL, date et version. Consulter les avis, CVE et correctifs récents pertinents pour les technologies observées ; comparer leurs versions et prérequis avec les caractéristiques réellement vérifiées ; une correspondance de nom ou une source externe ne prouve pas la vulnérabilité locale. Signaler les éléments manquants et les échecs de recherche. Ne pas exécuter ni installer une ressource téléchargée implicitement.
+Pour une question technique précise, appliquer la recherche commune : sources officielles d’abord, puis relever URL, date et version. Consulter les avis, CVE et correctifs récents pertinents pour les technologies observées ; comparer leurs versions et prérequis avec les caractéristiques réellement vérifiées ; une correspondance de nom ou une source externe ne prouve pas la vulnérabilité locale. Signaler les éléments manquants et les échecs de recherche. Ne pas exécuter ni installer une ressource téléchargée implicitement.
 
 ## Imaginer et départager les pistes [hypotheses]
 
