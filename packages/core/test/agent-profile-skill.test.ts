@@ -153,3 +153,23 @@ it.each(profiles)(
     expect(artifact).toContain(`Source de méthode : ${loaded.upstream.source}`);
   },
 );
+
+it("le profil bug-bounty garde l’ordre des sections et un rythme adaptatif sans « 10 s »", () => {
+  const selected = AGENT_PROFILES["bug-bounty"];
+  expect(selected.sections.map(({ id }) => id)).toEqual([
+    "regles",
+    "rythme",
+    "impact",
+    "phases",
+    "fiches",
+    "couverture",
+    "negatifs",
+    "waf",
+    "recherche",
+    "preuves",
+    "rapport",
+  ]);
+  const rythme = selected.sections.find(({ id }) => id === "rythme");
+  expect(selected.text).not.toContain("10 s");
+  expect(rythme?.text).not.toContain("10 s");
+});
