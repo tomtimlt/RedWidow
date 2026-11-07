@@ -305,6 +305,21 @@ const PROGRAM = {
   },
 };
 
+/** Fiche absente : le seul état qui montre les deux boutons de démarrage. */
+const PROGRAM_EMPTY = {
+  type: "view",
+  view: {
+    state: "none",
+    inScope: null,
+    outOfScope: null,
+    userAgentSuffix: null,
+    pace: null,
+    haltedHosts: [],
+    canValidate: false,
+    canSuspend: false,
+  },
+};
+
 const FINDINGS = [
   {
     id: "network",
@@ -525,6 +540,7 @@ const PAGES = [
   ]),
   simple("cockpit", L.cockpitHtml, "cockpit.js", [COCKPIT], { tall: true }),
   simple("programme", L.programHtml, "program.js", [PROGRAM], { tall: true }),
+  simple("programme-vide", L.programHtml, "program.js", [PROGRAM_EMPTY], { tall: true }),
   simple("killchain-plein-ecran", L.killchainHtml, "studio.js", [
     studio("killchain", { findings: FINDINGS }),
   ]),

@@ -1176,7 +1176,7 @@
     if (mentionActive >= mentionShown.length) mentionActive = 0;
     mentionEmpty.hidden = mentionShown.length > 0;
     mentionEmpty.textContent = hash
-      ? t("Aucun terminal RedWidow ouvert. Alt+J T pour en ouvrir un.")
+      ? t`Aucun terminal RedWidow ouvert. ${document.body.dataset.terminalShortcut || "Alt+J T"} pour en ouvrir un.`
       : t("Aucun conteneur");
     mentionPop.setAttribute("aria-label", hash ? t("Terminaux") : t("Conteneurs"));
     mentionList.replaceChildren(

@@ -26,6 +26,7 @@ describe("commandes du manifeste", () => {
     expect(when("warband.openAudit")).toBe("false");
     expect(when("warband.previewReport")).toBe("false");
     expect(when("warband.configureProvider")).toBe("false");
+    expect(when("warband.revealPendingApproval")).toBe("false");
     expect(when("warband.disableBypass")).toBe("warband.bypassActive");
     expect(extension).toContain('"setContext", "warband.bypassActive"');
   });

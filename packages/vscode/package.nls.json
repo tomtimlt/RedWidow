@@ -62,6 +62,7 @@
   "command.exportAudit": "RedWidow: Export the audit bundle",
   "command.configureProvider": "RedWidow: Configure a provider",
   "command.disableBypass": "RedWidow: Turn off the approval Bypass",
+  "command.revealPendingApproval": "RedWidow: Show the chat awaiting an approval",
   "config.palette.enum.5": "Violet and ice: agents, research, night",
   "config.palette.enum.6": "Electric violet: night, AI, laboratory",
   "config.palette.enum.7": "Olive and khaki: field work, operations",

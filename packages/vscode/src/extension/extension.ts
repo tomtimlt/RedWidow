@@ -41,6 +41,7 @@ import * as vscode from "vscode";
 import { createBurpBackend } from "../engine/burp-client.js";
 import { createIntegrationBackend } from "../engine/integration-client.js";
 import { cleanText, parseWebviewMessage } from "../logic/approval.js";
+import { createApprovalWatch } from "../logic/approval-watch.js";
 import { attachmentMessage, withAttachments } from "../logic/attachments.js";
 import { AuditCapture, newAuditCaptureId } from "../logic/audit-capture.js";
 import { exportAuditBundle } from "../logic/audit-export.js";
@@ -344,6 +345,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   /** Shells mémorisés non encore réconciliés avec une liste cockpit réussie. */
   let pendingTerminalRestore: string[] = [];
   let post: (message: unknown) => void = () => {};
+  /** Vue latérale du chat, pour son badge d'approbations et sa visibilité. */
+  let sidebarView: vscode.WebviewView | undefined;
   let activeId = SIDEBAR_CHAT;
   let monitorPanel: vscode.WebviewPanel | undefined;
   const watches: { panel: vscode.WebviewPanel; chatId: string; toolUseId: string }[] = [];
@@ -655,6 +658,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             });
         }
         updateModelStatus();
+        approvalWatch.sync(
+          id,
+          view.approvals.map((card) => card.toolUseId),
+        );
         scheduleFindingsRefresh();
       },
       onObservedEvent: (event) => observe(id, event),
@@ -1085,6 +1092,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const provider: vscode.WebviewViewProvider = {
     resolveWebviewView(view) {
+      sidebarView = view;
+      renderApprovals(approvalWatch.state());
       const media = vscode.Uri.joinPath(context.extensionUri, "media");
       view.webview.options = {
         enableScripts: true,
@@ -1094,6 +1103,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const nonce = makeNonce();
       view.webview.html = chatHtml({
         locale: getUiLocale(),
+        terminalShortcut: shortcutLabel("openTerminal"),
         i18nUri: view.webview.asWebviewUri(vscode.Uri.joinPath(media, "i18n.js")).toString(),
         palette: currentPalette(),
         nonce,
@@ -1124,6 +1134,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       );
       view.onDidDispose(() => {
         post = () => {};
+        if (sidebarView === view) sidebarView = undefined;
       });
     },
   };
@@ -1621,6 +1632,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const nonce = makeNonce();
     webview.html = chatHtml({
       locale: getUiLocale(),
+      terminalShortcut: shortcutLabel("openTerminal"),
       i18nUri: webview.asWebviewUri(vscode.Uri.joinPath(media, "i18n.js")).toString(),
       palette: currentPalette(),
       nonce,
@@ -1670,6 +1682,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     mountChatHtml(panel.webview);
     panel.onDidDispose(() => {
       slot.session?.dispose();
+      approvalWatch.drop(id);
       bypassHosts.get(id)?.dispose();
       bypassHosts.delete(id);
       slots.delete(id);
@@ -1969,6 +1982,59 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   barContainer.command = "warband.openTerminal";
   barModel.command = "warband.focusChat";
   context.subscriptions.push(barLauncher, barContainer, barModel);
+  // Approbations en attente, toutes sessions : élément de barre d'état, badge de la vue latérale et
+  // notification unique si le chat concerné n'est pas visible. Aucun effet sur la décision elle-même.
+  const barApprovals = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 105);
+  barApprovals.backgroundColor = new vscode.ThemeColor("statusBarItem.warningBackground");
+  barApprovals.command = "warband.revealPendingApproval";
+  context.subscriptions.push(barApprovals);
+  const approvalsLabel = (n: number) =>
+    n === 1 ? t`${n} approbation en attente` : t`${n} approbations en attente`;
+  const renderApprovals = (state: { count: number }) => {
+    if (state.count === 0) {
+      barApprovals.hide();
+      if (sidebarView) sidebarView.badge = undefined;
+      return;
+    }
+    barApprovals.text = `$(bell-dot) ${approvalsLabel(state.count)}`;
+    barApprovals.tooltip = t("Cliquer pour ouvrir le chat qui attend votre réponse.");
+    barApprovals.show();
+    if (sidebarView)
+      sidebarView.badge = { value: state.count, tooltip: approvalsLabel(state.count) };
+  };
+  /** Révèle et met au premier plan un chat (vue latérale ou onglet d'éditeur). */
+  const revealChat = async (chatId: string) => {
+    if (chatId === SIDEBAR_CHAT) {
+      await vscode.commands.executeCommand("warband.chat.focus");
+      return;
+    }
+    const panel = slots.get(chatId)?.panel;
+    if (!panel) return;
+    panel.reveal(undefined, false);
+    setActive(chatId);
+  };
+  const approvalWatch = createApprovalWatch({
+    isVisible: (chatId) =>
+      chatId === SIDEBAR_CHAT
+        ? sidebarView?.visible === true
+        : slots.get(chatId)?.panel?.visible === true,
+    onChange: renderApprovals,
+    notify: (chatId) => {
+      const open = t("Ouvrir");
+      void vscode.window
+        .showInformationMessage(
+          t`${chatName(chatId)} : une approbation attend votre réponse.`,
+          open,
+        )
+        .then((picked) => (picked === open ? revealChat(chatId) : undefined));
+    },
+  });
+  context.subscriptions.push(
+    vscode.commands.registerCommand("warband.revealPendingApproval", async () => {
+      const { oldest } = approvalWatch.state();
+      if (oldest !== null) await revealChat(oldest);
+    }),
+  );
   const updateModelStatus = () => {
     const c =
       slots.get(activeId)?.session?.view().controls ??
@@ -3206,6 +3272,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     for (const watch of watches) watch.panel.title = t`${PRODUCT_NAME} · Sortie`;
     barLauncher.tooltip = launcherTooltip();
     refreshBypassLocale();
+    renderApprovals(approvalWatch.state());
     pushMonitor();
     updateModelStatus();
     void refreshContainerStatus();

@@ -15,6 +15,11 @@ export const hostEn: Record<string, string> = {
   "Quatre chats au maximum.": "A maximum of four chats is allowed.",
   "Ouvrez un dossier avant de lancer {0}.": "Open a folder before starting {0}.",
   "Toujours autoriser": "Always allow",
+  "{0} approbation en attente": "{0} approval pending",
+  "{0} approbations en attente": "{0} approvals pending",
+  "Cliquer pour ouvrir le chat qui attend votre réponse.":
+    "Click to open the chat awaiting your answer.",
+  "{0} : une approbation attend votre réponse.": "{0}: an approval is awaiting your answer.",
   "Changement de projet en cours, réessayez ensuite.":
     "Project change in progress. Try again afterwards.",
   "Terminal introuvable : {0}.": "Terminal not found: {0}.",

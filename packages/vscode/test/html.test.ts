@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
 import { chatHtml, cockpitHtml, killchainHtml, makeNonce, studioHtml } from "../src/logic/html.js";
+import { shortcutLabel } from "../src/logic/shortcuts.js";
 
 const read = (p: string) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), "utf8");
 const opts = {
@@ -13,6 +14,18 @@ const opts = {
   uiUri: "https://x.vscode-cdn.net/media/ui.js",
   styleUri: "https://x.vscode-cdn.net/media/chat.css",
 };
+
+describe("HTML du chat : raccourci de terminal selon la plate-forme", () => {
+  it("Alt+J T par défaut hors macOS, Ctrl+J T transmis sous macOS, valeur refusée si suspecte", () => {
+    expect(
+      chatHtml({ ...opts, terminalShortcut: shortcutLabel("openTerminal", "linux") }),
+    ).toContain('data-terminal-shortcut="Alt+J T"');
+    expect(
+      chatHtml({ ...opts, terminalShortcut: shortcutLabel("openTerminal", "darwin") }),
+    ).toContain('data-terminal-shortcut="Ctrl+J T"');
+    expect(() => chatHtml({ ...opts, terminalShortcut: '"><script>' })).toThrow();
+  });
+});
 
 describe("HTML du chat : CSP stricte", () => {
   const html = chatHtml(opts);
@@ -186,7 +199,10 @@ describe("composer et Configurer (lot P1)", () => {
     expect(menu).not.toContain("/start");
     expect(js).not.toContain("/start");
     expect(studio).not.toContain("/start");
-    expect(js).toContain("Aucun terminal RedWidow ouvert. Alt+J T pour en ouvrir un.");
+    expect(js).toContain(
+      "Aucun terminal RedWidow ouvert. ${document.body.dataset.terminalShortcut",
+    );
+    expect(js).not.toContain("Alt+J T pour en ouvrir un");
     expect(studio).toContain("Aucun conteneur affiché. Gérez les associations dans le cockpit.");
     expect(studio).toContain("Aucun conteneur pour l’instant");
     expect(html).not.toMatch(/\bmcp\b|jauge|compact|pièce jointe active/i);

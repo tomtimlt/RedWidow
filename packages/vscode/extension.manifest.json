@@ -154,6 +154,10 @@
       {
         "command": "warband.disableBypass",
         "title": "%command.disableBypass%"
+      },
+      {
+        "command": "warband.revealPendingApproval",
+        "title": "%command.revealPendingApproval%"
       }
     ],
     "menus": {
@@ -251,6 +255,10 @@
         {
           "command": "warband.disableBypass",
           "when": "warband.bypassActive"
+        },
+        {
+          "command": "warband.revealPendingApproval",
+          "when": "false"
         }
       ]
     },

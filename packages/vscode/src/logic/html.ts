@@ -7,6 +7,7 @@ import {
 } from "./attachments.js";
 import { PRODUCT_NAME } from "./brand.js";
 import { paletteOf } from "./palette.js";
+import { shortcutLabel } from "./shortcuts.js";
 
 /** Échappement des traductions insérées dans les attributs ou les textes statiques. */
 const localized = (text: string, locale: Locale): string =>
@@ -35,6 +36,8 @@ export interface ChatHtmlOptions {
   iconsUri?: string;
   /** Araignée décorative locale ; chargée sous le même nonce que le chat. */
   spiderUri?: string;
+  /** Libellé du raccourci d'ouverture d'un terminal (selon la plate-forme), par exemple « Alt+J T ». */
+  terminalShortcut?: string;
 }
 
 /** Valeurs insérées dans des attributs : jamais de guillemet, chevron ni espace. */
@@ -104,7 +107,10 @@ export function chatHtml({
   spiderUri = scriptUri.replace(/[^/]+$/, "spider.js"),
   locale = "fr",
   palette,
+  terminalShortcut = shortcutLabel("openTerminal"),
 }: ChatHtmlOptions): string {
+  if (!/^[A-Za-z0-9+ ]{1,24}$/.test(terminalShortcut))
+    throw new Error("valeur invalide pour terminalShortcut");
   for (const [name, value] of Object.entries({
     nonce,
     cspSource,
@@ -135,7 +141,7 @@ export function chatHtml({
 <link rel="stylesheet" href="${styleUri}">
 <title>${PRODUCT_NAME}</title>
 </head>
-<body data-palette="${paletteOf(palette)}">
+<body data-palette="${paletteOf(palette)}" data-terminal-shortcut="${terminalShortcut}">
 <header id="bar"><span id="title">${BRAND}<span class="brand-heading"><span class="brand-name"><span class="brand-ops">Red</span>Widow</span><span id="context-title" class="context-title" hidden></span></span></span><button id="roe" type="button" class="roe" popovertarget="cfg-pop" aria-haspopup="dialog" data-i18n-title="Mode de supervision : ouvrir Configurer" title="${localized("Mode de supervision : ouvrir Configurer", locale)}" hidden><span class="roe-gauge" aria-hidden="true"><i></i><i></i><i></i></span><span class="roe-text"><span class="roe-kicker" aria-hidden="true"><span data-i18n="MODE">${localized("MODE", locale)}</span></span><span id="roe-label"><span data-i18n="Supervisé">${localized("Supervisé", locale)}</span></span></span><span id="roe-left" class="roe-left" aria-hidden="true"></span></button><span id="sandbox" class="badge" hidden></span><span id="bypass-badge" class="badge" hidden></span><span id="learning-badge" class="badge" data-i18n-title="Mode Apprentissage : lecture des cours seule, aucune action" title="${localized("Mode Apprentissage : lecture des cours seule, aucune action", locale)}" hidden><span data-i18n="Apprentissage">${localized("Apprentissage", locale)}</span></span><button id="history-btn" type="button" class="ghost" aria-expanded="false" aria-controls="history" data-i18n-title="Historique des conversations" title="${localized("Historique des conversations", locale)}">${icon("history")}<span class="btn-text"><span data-i18n="Historique">${localized("Historique", locale)}</span></span></button><button id="reset" type="button" class="ghost" data-i18n-title="Nouvelle conversation" title="${localized("Nouvelle conversation", locale)}">${icon("plus")}<span class="btn-text"><span data-i18n="Nouvelle">${localized("Nouvelle", locale)}</span><span class="btn-more"><span data-i18n=" conversation">${localized(" conversation", locale)}</span></span></span></button></header>
 <nav id="mission" data-i18n-aria-label="Activité de la conversation" aria-label="${localized("Activité de la conversation", locale)}" hidden><ol id="mission-steps"></ol></nav>
 <section id="history" data-i18n-aria-label="Historique des conversations" aria-label="${localized("Historique des conversations", locale)}" hidden><div class="hist-head"><strong><span data-i18n="Historique">${localized("Historique", locale)}</span></strong><button id="history-clear" type="button" class="ghost"><span data-i18n="Tout effacer">${localized("Tout effacer", locale)}</span></button><button id="history-close" type="button" class="ghost icon-btn" data-i18n-title="Fermer l&#x27;historique (Échap)" title="${localized("Fermer l'historique (Échap)", locale)}" data-i18n-aria-label="Fermer l&#x27;historique" aria-label="${localized("Fermer l'historique", locale)}">${icon("close")}</button></div><ul id="history-list"></ul></section>

@@ -62,6 +62,7 @@
   "command.exportAudit": "RedWidow : Exporter le dossier d’audit",
   "command.configureProvider": "RedWidow : Configurer un fournisseur",
   "command.disableBypass": "RedWidow : Désactiver le Bypass des approbations",
+  "command.revealPendingApproval": "RedWidow : Afficher le chat en attente d'une approbation",
   "config.palette.enum.5": "Violet et glace : agents, recherche, nuit",
   "config.palette.enum.6": "Violet électrique : nuit, IA, laboratoire",
   "config.palette.enum.7": "Olive et kaki : terrain, opérations",
