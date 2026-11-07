@@ -263,15 +263,13 @@ describe("mémorisation par binaire", () => {
     return { decide, asked: () => asked };
   };
 
-  it("« session » couvre le même binaire, pas un autre", async () => {
+  it("execute_command : jamais mémorisé par binaire (shell non analysable)", async () => {
     const { decide, asked } = setup();
     expect((await decide(`curl ${H}/a`)).decision).toBe("allow");
     expect(asked()).toBe(1);
-    // Autre commande, même binaire, aussi sans drapeau : couverte.
-    expect((await decide(`curl https://app.test/b`)).reason.code).toBe("approval.remembered");
-    expect(asked()).toBe(1);
-    // Autre binaire : redemandé.
-    await decide(`wget ${H}/a`);
+    // Même binaire : redemandé, un « toujours » ne lève pas le shell non analysable.
+    const again = await decide(`curl https://app.test/b`);
+    expect(again.reason.code).not.toBe("approval.remembered");
     expect(asked()).toBe(2);
   });
 

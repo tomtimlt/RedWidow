@@ -137,7 +137,9 @@ function sessionKey(request: ApprovalRequest, verdict: PolicyVerdict): string | 
   // Drapeaux attendus manquants : la clé est le binaire, jamais la commande ni l'outil ; plusieurs
   // binaires fautifs dans une même commande → non mémorisable (un seul « toujours » ne les couvrirait pas).
   if (verdict.reason.code === "program.flag_missing") {
-    if (!isProgramShellTool(request.tool)) return null;
+    // Seul Bash (commande analysée) : `execute_command`, `task_start` et `exec` partent d'un
+    // « shell non analysable » non mémorisable, qu'un « toujours » par binaire ne doit pas lever.
+    if (request.tool !== BASH_TOOL) return null;
     const binary = verdict.reason.params?.binary;
     return typeof binary === "string" && /^[A-Za-z0-9._-]+$/.test(binary)
       ? `program-flag:${binary}`
