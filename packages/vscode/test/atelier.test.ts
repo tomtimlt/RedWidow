@@ -89,7 +89,7 @@ it("les outils sont découverts et leurs sorties bornées", async () => {
 it("les profils ne chargent pas toutes les sources dans le prompt initial", async () => {
   expect(Object.keys(AGENT_PROFILES)).toHaveLength(5);
   const start = deskInstructions("htb");
-  expect(start.length).toBeLessThan(2500);
+  expect(start.length).toBeLessThanOrEqual(12000);
   expect(start).not.toContain("Systematic Debugging");
   const skill = deskToolSpecs()[0];
   if (!skill) throw new Error("load_skill absent");

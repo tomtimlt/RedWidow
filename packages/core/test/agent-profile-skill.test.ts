@@ -20,12 +20,13 @@ async function load(profile: AgentProfile, section?: string, source?: "profile" 
 }
 
 it.each(profiles)(
-  "garde seulement le résumé initial et charge le détail de %s à la demande",
+  "injecte la méthode complète de %s dans le prompt et garde load_skill disponible",
   async (profile) => {
     const selected = AGENT_PROFILES[profile];
     const prompt = deskInstructions(profile);
     expect(prompt).toContain(selected.text);
-    for (const section of selected.sections) expect(prompt).not.toContain(section.text);
+    for (const section of selected.sections) expect(prompt).toContain(section.text);
+    expect(prompt).toContain("ne pas la recharger");
     const detail = renderProfileSkill(profile);
     expect(detail.sectionFound).toBe(true);
     expect(detail.sections).toEqual(selected.sections.map(({ id, title }) => ({ id, title })));
@@ -41,10 +42,10 @@ it.each(profiles)(
 
 it.each(profiles)("respecte les budgets de caractères du profil %s", (profile) => {
   expect(AGENT_PROFILES[profile].text.length).toBeLessThanOrEqual(1200);
-  expect(deskInstructions(profile).length).toBeLessThanOrEqual(2500);
+  expect(deskInstructions(profile).length).toBeLessThanOrEqual(12000);
   const detail = renderProfileSkill(profile).instructions;
   expect(detail.length).toBeGreaterThanOrEqual(4000);
-  expect(detail.length).toBeLessThanOrEqual(7000);
+  expect(detail.length).toBeLessThanOrEqual(9000);
 });
 
 it.each(profiles)(
