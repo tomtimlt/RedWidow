@@ -1,5 +1,10 @@
 import { KALI_EXECUTE_TOOL } from "../kali/tool-specs.js";
-import { HTTP_REQUEST_TOOL, hostInScope, programHosts } from "../program/scope.js";
+import {
+  HTTP_REQUEST_TOOL,
+  hostInScope,
+  isProgramShellTool,
+  programTargets,
+} from "../program/scope.js";
 import type { ProgramStatus } from "../program/store.js";
 import { type Reason, reason, ValidationError } from "../reason.js";
 import { TASK_START_TOOLS } from "../tasks/tools.js";
@@ -404,9 +409,13 @@ function evaluateProgram(
   ctx: PolicyContext,
 ): PolicyVerdict {
   if (ctx.program === undefined || base.decision === "deny") return base;
-  if (base.decision === "ask" && !SOFT_ASK.has(base.reason.code)) return base;
-  const hosts = programHosts(tool, input);
-  if (hosts === null || hosts.length === 0) return base;
+  // `execute_command`, `task_start` et `exec` sont toujours « shell non analysable » : ask non
+  // mémorisable, que le périmètre précise sans l'affaiblir (la gate ne mémorise jamais leurs hôtes).
+  const unanalyzable = base.reason.code === "shell.unanalyzable" && isProgramShellTool(tool);
+  if (base.decision === "ask" && !SOFT_ASK.has(base.reason.code) && !unanalyzable) return base;
+  const targets = programTargets(tool, input);
+  if (targets === null || (targets.hosts.length === 0 && !targets.unresolved)) return base;
+  const { hosts } = targets;
   const status = programStatus(ctx.program);
   if (status.state === "unreadable") {
     return { decision: "ask", reason: reason("program.unreadable", { part: "sheet" }), rule: null };
@@ -418,6 +427,14 @@ function evaluateProgram(
     return {
       decision: "ask",
       reason: reason("program.out_of_scope", { tool, host: outside.join(", ") }),
+      rule: null,
+    };
+  }
+  if (targets.unresolved) {
+    // Outil réseau connu dont l'hôte n'est pas extractible : jamais mémorisable (ADR 0040).
+    return {
+      decision: "ask",
+      reason: reason("program.host_unresolved", { tool }),
       rule: null,
     };
   }

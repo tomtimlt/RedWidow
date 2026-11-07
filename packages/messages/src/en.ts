@@ -183,6 +183,8 @@ export const reasons: Catalog = {
   "program.absent": () => "no program sheet to handle for this project",
   "program.out_of_scope": (p) =>
     `${text(p.tool)}: host outside the program scope (${text(p.host)}), approval required; a session approval only covers that host`,
+  "program.host_unresolved": (p) =>
+    `${text(p.tool)}: host cannot be determined (variable, list, substitution or missing target), approval required on every call`,
   "program.in_scope": (p) =>
     `${text(p.tool)}: host inside the approved program scope (${text(p.host)})`,
   "program.digestRequired": () =>

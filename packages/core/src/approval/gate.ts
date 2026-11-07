@@ -1,4 +1,5 @@
 import type { Decision } from "../events.js";
+import { isProgramShellTool } from "../program/scope.js";
 import { errorInfo, type Reason, reason } from "../reason.js";
 import type { Recorder } from "../recorder.js";
 import {
@@ -127,6 +128,8 @@ function sessionKey(request: ApprovalRequest, verdict: PolicyVerdict): string | 
   // Hors périmètre : la clé est l'hôte, jamais le nom d'outil (ADR 0040) ; une approbation de
   // session de `nmap_scan` ne couvre donc pas un hôte hors périmètre, ni l'inverse.
   if (verdict.reason.code === "program.out_of_scope") {
+    // Commande shell ou argv : un « toujours » sur un hôte couvrirait des commandes arbitraires.
+    if (isProgramShellTool(request.tool)) return null;
     const host = verdict.reason.params?.host;
     return typeof host === "string" && host !== "" ? `program-host:${host}` : null;
   }

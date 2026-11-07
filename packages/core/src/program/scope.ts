@@ -1,5 +1,6 @@
 import { isIP } from "node:net";
 import type { ProgramSheet } from "./sheet.js";
+import { argvNetworkTargets, shellNetworkTargets } from "./shell-hosts.js";
 
 /** Outil réservé de l'étape suivante (ADR 0040) : requête HTTP faite par le moteur. */
 export const HTTP_REQUEST_TOOL = "mcp__web__http_request";
@@ -105,22 +106,65 @@ export function hostOfTarget(value: string): string | null {
   return text === "" ? null : text;
 }
 
-/** Hôtes visés par un appel d'outil réseau connu, ou `null` si l'outil n'est pas couvert. */
-export function programHosts(tool: string, input: Record<string, unknown>): string[] | null {
-  const fromUrl = (value: unknown): string[] => {
-    const host = typeof value === "string" ? hostOfTarget(value) : null;
-    return host === null ? [] : [host];
-  };
-  if (tool === "mcp__web__read_url" || tool === HTTP_REQUEST_TOOL) return fromUrl(input.url);
-  if (tool.startsWith("mcp__kali__") && typeof input.target === "string") {
+/** Hôtes visés par un appel et indicateur « cible non extractible » (ADR 0040). */
+export interface ProgramTargets {
+  hosts: string[];
+  /** Outil réseau connu appelé sans hôte extractible (variable, `-iL fichier`, substitution…). */
+  unresolved: boolean;
+}
+
+/** Outils dont l'argument est une commande shell, ou un argv direct (Bash, Kali, Exegol). */
+const SHELL_COMMAND_TOOLS = new Set(["Bash", "mcp__kali__execute_command"]);
+const ARGV_TOOLS = /^mcp__(?:kali|exegol)__(?:task_start|exec)$/;
+
+/** Vrai pour les outils dont la cible se lit dans une commande shell ou un argv. */
+export const isProgramShellTool = (tool: string): boolean =>
+  SHELL_COMMAND_TOOLS.has(tool) || ARGV_TOOLS.test(tool);
+
+const uniqueHosts = (targets: readonly string[]): string[] => [
+  ...new Set(targets.map(hostOfTarget).filter((h): h is string => h !== null)),
+];
+
+/**
+ * Cibles d'un appel d'outil réseau connu, ou `null` si l'outil n'est pas couvert : `read_url`,
+ * `http_request`, champs `target` / `url` des outils Kali dédiés, commandes shell et argv des
+ * outils réseau connus (curl, wget, httpx, nmap, sqlmap, ffuf, nuclei, gobuster).
+ */
+export function programTargets(
+  tool: string,
+  input: Record<string, unknown>,
+): ProgramTargets | null {
+  if (tool === "mcp__web__read_url" || tool === HTTP_REQUEST_TOOL) {
+    return {
+      hosts: typeof input.url === "string" ? uniqueHosts([input.url]) : [],
+      unresolved: false,
+    };
+  }
+  if (SHELL_COMMAND_TOOLS.has(tool) && typeof input.command === "string") {
+    const found = shellNetworkTargets(input.command);
+    return { hosts: uniqueHosts(found.targets), unresolved: found.unresolved };
+  }
+  if (ARGV_TOOLS.test(tool) && Array.isArray(input.argv)) {
+    const argv = input.argv.filter((a): a is string => typeof a === "string");
+    const found = argvNetworkTargets(argv);
+    return { hosts: uniqueHosts(found.targets), unresolved: found.unresolved };
+  }
+  if (tool.startsWith("mcp__kali__")) {
     // Un champ `target` peut porter plusieurs cibles séparées par des espaces (nmap).
-    const hosts = input.target
-      .split(/\s+/)
-      .map(hostOfTarget)
-      .filter((h): h is string => h !== null);
-    return [...new Set(hosts)];
+    const targets: string[] = [];
+    if (typeof input.target === "string") targets.push(...input.target.split(/\s+/));
+    if (typeof input.url === "string") targets.push(input.url);
+    const extra = typeof input.additional_args === "string" ? input.additional_args : "";
+    // `nmap_scan` avec `-iL` / `-iR` dans additional_args : liste non extractible.
+    const unresolved = tool === "mcp__kali__nmap_scan" && /(?:^|\s)-i[LR](?:\s|$)/.test(extra);
+    if (targets.length > 0 || unresolved) return { hosts: uniqueHosts(targets), unresolved };
   }
   return null;
+}
+
+/** Hôtes visés par un appel d'outil réseau connu, ou `null` si l'outil n'est pas couvert. */
+export function programHosts(tool: string, input: Record<string, unknown>): string[] | null {
+  return programTargets(tool, input)?.hosts ?? null;
 }
 
 function matches(pattern: string, host: string): boolean {

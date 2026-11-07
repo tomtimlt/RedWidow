@@ -133,6 +133,7 @@ export const REASON_CODES = [
   "program.invalid",
   "program.absent",
   "program.out_of_scope",
+  "program.host_unresolved",
   "program.in_scope",
   "program.digestRequired",
   "program.digestMismatch",
