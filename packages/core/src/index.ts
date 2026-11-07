@@ -45,5 +45,6 @@ export * from "./redact.js";
 export * from "./runner.js";
 export * from "./sanitize.js";
 export * from "./tasks/tools.js";
+export * from "./web/guard.js";
 export * from "./web/guidance.js";
 export * from "./web/tools.js";

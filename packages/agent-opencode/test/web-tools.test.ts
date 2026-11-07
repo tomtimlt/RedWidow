@@ -62,14 +62,14 @@ it("les outils web partagés restent soumis à la gate malgré leur annotation l
     );
     const denied = await client.callTool({
       name: "search_web",
-      arguments: { query: "documentation GitHub" },
+      arguments: { query: "documentation GitHub 10.0.0.5" },
     });
     expect(denied.isError).toBe(true);
     expect(network).not.toHaveBeenCalled();
     allow = true;
     const allowed = await client.callTool({
       name: "search_web",
-      arguments: { query: "documentation GitHub" },
+      arguments: { query: "documentation GitHub 10.0.0.5" },
     });
     expect(allowed.isError).not.toBe(true);
     expect(network).toHaveBeenCalledOnce();

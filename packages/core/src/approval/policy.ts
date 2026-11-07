@@ -1,6 +1,7 @@
 import { KALI_EXECUTE_TOOL } from "../kali/tool-specs.js";
 import { type Reason, reason, ValidationError } from "../reason.js";
 import { TASK_START_TOOLS } from "../tasks/tools.js";
+import { isReferenceUrl, READ_URL_TOOL, SEARCH_WEB_TOOL, webArgumentGuard } from "../web/guard.js";
 import {
   checkPathAccess,
   defaultPlatform,
@@ -73,6 +74,8 @@ export const DEFAULT_POLICY: Policy = {
     { tool: "mcp__desk__record_decision", decision: "allow" },
     // Annotation structurée avec références du run, sans exécution ni chemin choisi par le modèle.
     { tool: "mcp__desk__record_test", decision: "allow" },
+    // Recherche web : destination unique et fixe ; la garde d'arguments (ADR 0039) reste appliquée.
+    { tool: SEARCH_WEB_TOOL, decision: "allow" },
     { tool: "mcp__burp__list_tools", decision: "allow" },
     { tool: "mcp__docker__ps", decision: "allow" },
     { tool: "mcp__docker__images", decision: "allow" },
@@ -436,13 +439,50 @@ function evaluateUncapped(
     }
     return evaluateBash(policy, command);
   }
-  return (
-    firstMatch(policy.rules, (r) => r.command === undefined && toolMatches(r, tool)) ?? {
-      decision: policy.default,
-      reason: reason("policy.default", { tool }),
+  const base = firstMatch(policy.rules, (r) => r.command === undefined && toolMatches(r, tool)) ?? {
+    decision: policy.default,
+    reason: reason("policy.default", { tool }),
+    rule: null,
+  };
+  return tool === SEARCH_WEB_TOOL || tool === READ_URL_TOOL
+    ? evaluateWeb(policy, tool, input, base)
+    : base;
+}
+
+/**
+ * Outils web (ADR 0039). Un `deny` reste prioritaire. Un argument sensible (secret, valeur masquée,
+ * IP privée) repasse en `ask` non mémorisable (`web.query_sensitive`), même vers un hôte de
+ * référence. Sinon `read_url` vers une source de référence en HTTPS remplace le seul « ask » par
+ * défaut (aucune règle) : une règle `ask` explicite de la politique est respectée.
+ */
+function evaluateWeb(
+  policy: Policy,
+  tool: string,
+  input: Record<string, unknown>,
+  base: PolicyVerdict,
+): PolicyVerdict {
+  if (base.decision === "deny") return base;
+  const finding = webArgumentGuard(tool, input);
+  if (finding !== null) {
+    return {
+      decision: stricter("ask", policy.default),
+      reason: reason("web.query_sensitive", { tool, finding }),
       rule: null,
-    }
-  );
+    };
+  }
+  if (
+    tool === READ_URL_TOOL &&
+    base.decision === "ask" &&
+    base.rule === null &&
+    isReferenceUrl(input.url)
+  ) {
+    return {
+      decision: "allow",
+      reason: reason("web.reference_source", { host: new URL(String(input.url)).hostname }),
+      rule: null,
+    };
+  }
+  return base;
 }
 
 const DECISIONS = new Set<string>(["allow", "ask", "deny"]);

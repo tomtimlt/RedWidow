@@ -282,6 +282,10 @@ export const reasons: Catalog = {
     "La page dépasse la limite de lecture de 1 Mio. Utilisez une page plus courte ou le fichier brut.",
   "web.unsupportedType": () =>
     "Ce contenu web n’est pas un texte pris en charge (page HTML, Markdown, JSON ou texte brut).",
+  "web.reference_source": (p) =>
+    `lecture autorisée : source de référence (${text(p.host)}), HTTPS uniquement`,
+  "web.query_sensitive": (p) =>
+    `${text(p.tool)} : la requête ou l'URL pourrait fuiter vers un tiers (constat : ${text(p.finding)} ; secret, valeur masquée ou adresse privée), approbation requise à chaque appel`,
   "web.searchFailed": () =>
     "Le service de recherche n’a pas renvoyé de réponse exploitable. Réessayez plus tard.",
   "finding.busy": () =>

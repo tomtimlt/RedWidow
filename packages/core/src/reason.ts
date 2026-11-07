@@ -149,6 +149,8 @@ export const REASON_CODES = [
   "web.tooLarge",
   "web.unsupportedType",
   "web.searchFailed",
+  "web.reference_source",
+  "web.query_sensitive",
   "kali.nmapUnavailable",
   "finding.invalidLinks",
   "project.absent",
