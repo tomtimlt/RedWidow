@@ -18,6 +18,13 @@ Deux voies. Voie moteur (orchestrateur → `dev`) : le brief se formule avec les
 | Cadrage produit | `cadre` | Décision et lots pour `surface`. | Coder le lot. |
 | Réalisation produit | `surface` | Un lot déjà cadré. | Trancher l'architecture. |
 
+Chaque token chez le modèle de son niveau : lecture → `haiku`, code → `sonnet`, jugement (décision, revue) → orchestrateur. L'orchestrateur ne lit pas de gros fichiers lui-même : ce qu'il lit reste dans son contexte et se repaie à chaque tour.
+
+Contrats (un brief flou se paie deux fois) :
+- Orchestrateur → `explorer` : le périmètre (dossiers), ce qu'il faut trouver, le format de retour (chemins, lignes, extraits courts).
+- Orchestrateur → `dev`/`surface` : fichiers et fonctions à modifier, changement attendu étape par étape, critères d'acceptation (tests), ce qu'il ne faut pas toucher.
+- `dev`/`surface` → orchestrateur : le diff résumé (pas les fichiers entiers), le résultat des tests, les points d'incertitude.
+
 Pare-feu. Un sous-agent part vide. La consigne tient dans les sections Objectif, Fichiers, Faits, Décision, Critères, Interdits. On n'y colle pas le fil, ni un rapport entier : seulement les lignes utiles (faits cités, ou la décision, ou la section « décisions requises »). Rapport ≤ 400 mots. Pas de reprise d'un agent pour un autre rôle.
 
 Règles de délégation :
