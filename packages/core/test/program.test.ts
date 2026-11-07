@@ -385,7 +385,7 @@ describe("mission_context", () => {
 });
 
 describe("aucun outil d'agent n'approuve", () => {
-  it("approveProgram/suspendProgram/importProgramDraft ne sont référencés que par le module et la CLI", () => {
+  it("approveProgram/suspendProgram/importProgramDraft/clearPaceHalt ne sont référencés que par le module, le registre de rythme, la CLI et les contrôles de l'extension", () => {
     const root = join(__dirname, "..", "..");
     const hits: string[] = [];
     const walk = (dirPath: string) => {
@@ -399,7 +399,7 @@ describe("aucun outil d'agent n'approuve", () => {
           !full.includes(`${join("vscode", "media")}`)
         ) {
           if (
-            /\b(approveProgram|suspendProgram|importProgramDraft)\b/.test(
+            /\b(approveProgram|suspendProgram|importProgramDraft|clearPaceHalt)\b/.test(
               readFileSync(full, "utf8"),
             )
           )
@@ -408,7 +408,12 @@ describe("aucun outil d'agent n'approuve", () => {
       }
     };
     for (const pkg of readdirSync(root)) walk(join(root, pkg, "src"));
-    expect(hits.sort()).toEqual(["cli/src/main.ts", "core/src/program/store.ts"]);
+    expect(hits.sort()).toEqual([
+      "cli/src/main.ts",
+      "core/src/pace/registry.ts",
+      "core/src/program/store.ts",
+      "vscode/src/logic/program-controls.ts",
+    ]);
   });
 });
 
