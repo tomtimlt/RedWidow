@@ -791,6 +791,17 @@
     $("effort-label").textContent = shown;
     $("effort-tip").textContent = c.effortDisabled ? disabledTip : c.effortTip;
     $("effort-tip").title = $("effort-tip").textContent;
+    // Encadrement : liste fermée, gelée pendant un tour comme l'effort.
+    const supervisionTips = {
+      light: "Léger : moins de relances du moteur.",
+      standard: "Standard : réglage par défaut.",
+      strict:
+        "Strict : relances dès le premier signal et point de contrôle toutes les 8 actions, conseillé pour les petits modèles.",
+    };
+    const level = Object.hasOwn(supervisionTips, c.supervision) ? c.supervision : "standard";
+    $("supervision").value = level;
+    $("supervision").disabled = c.locked;
+    $("supervision-tip").textContent = t(supervisionTips[level]);
     $("cfg-level").textContent = shown;
     $("effort-model-label").textContent = name;
     $("effort-model").disabled = c.locked;
@@ -1262,6 +1273,10 @@
     );
   }
   $("effort-auto").addEventListener("click", () => postReasoningChoice(null));
+  $("supervision").addEventListener("change", (event) => {
+    if (ctl?.locked) return;
+    vscode.postMessage({ type: "setSupervision", supervision: event.target.value });
+  });
   $("effort-model").addEventListener("click", () => {
     if (!ctl || ctl.locked) return;
     cfgPop.hidePopover();

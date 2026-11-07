@@ -75,6 +75,8 @@ export interface ChatControls {
   effortDisabled: boolean;
   /** Un tour est en cours : les choix sont gelés (ils s'appliquent au message suivant). */
   locked: boolean;
+  /** Niveau d'encadrement de ce chat (liste fermée ; les libellés sont ceux de la webview). */
+  supervision: SupervisionLevel;
   /** Mode apprentissage (ADR 0010) de ce chat : lecture des cours seule, Bypass inopérant. */
   learning: boolean;
 }
@@ -158,6 +160,7 @@ export function buildControls(input: {
         ? supported !== undefined && supported.length === 0
         : reasoningVariants.length === 0,
     locked: busy,
+    supervision: prefs.supervision,
     learning: input.learning === true,
   };
 }

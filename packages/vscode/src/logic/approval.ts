@@ -1,4 +1,10 @@
-import { isRememberable, type PendingApproval, stripControl } from "@warband/core";
+import {
+  isRememberable,
+  isSupervisionLevel,
+  type PendingApproval,
+  type SupervisionLevel,
+  stripControl,
+} from "@warband/core";
 import { formatReason, getUiLocale, type Locale, t } from "@warband/messages";
 import { type Attachment, parseAttachments } from "./attachments.js";
 import { type ChatSelection, isCapabilityId, parseChatSelection } from "./chat-capabilities.js";
@@ -96,6 +102,8 @@ export type WebviewMessage =
   | { type: "setModel"; model: string | null }
   | { type: "setEffort"; effort: string | null }
   | { type: "setVariant"; variant: string | null }
+  /** Niveau d'encadrement du chat : énumération stricte, revalidée par la session. */
+  | { type: "setSupervision"; supervision: SupervisionLevel }
   | { type: "timelinePage"; direction: "older" | "newer" | "latest" }
   | { type: "timelineExchange"; direction: "older" | "newer"; id: number; source?: string }
   | { type: "historyOpen"; id: string }
@@ -180,6 +188,10 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
       return only("type", "effort") &&
         (m.effort === null || (typeof m.effort === "string" && m.effort.length <= 20))
         ? { type: "setEffort", effort: m.effort }
+        : null;
+    case "setSupervision":
+      return only("type", "supervision") && isSupervisionLevel(m.supervision)
+        ? { type: "setSupervision", supervision: m.supervision }
         : null;
     case "setVariant":
       return only("type", "variant") &&

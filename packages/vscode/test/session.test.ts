@@ -2234,3 +2234,62 @@ it("refuse les images pour un modèle explicitement incompatible avant la bulle 
   ).toBe(true);
   t.session.dispose();
 });
+
+describe("niveau d'encadrement (webview → session)", () => {
+  /** Contrôles calculés une fois la liste des modèles chargée. */
+  const ready = async (t: ReturnType<typeof setup>) => {
+    t.f.setModels([{ value: "a", displayName: "A" }]);
+    await t.session.loadModels();
+    return t;
+  };
+  it("par défaut standard ; le choix est transmis au démarrage et affiché", async () => {
+    const t = await ready(setup({}));
+    expect(t.view().controls?.supervision).toBe("standard");
+    t.session.setSupervision("strict");
+    expect(t.view().controls?.supervision).toBe("strict");
+    await t.session.send("x");
+    expect(t.f.started).toMatchObject({ supervision: "strict" });
+  });
+
+  it("valeur invalide : retour à standard", async () => {
+    const t = await ready(setup({}));
+    t.session.setSupervision("light");
+    for (const bad of ["max", "", 3, null, undefined, { level: "strict" }]) {
+      t.session.setSupervision("strict");
+      t.session.setSupervision(bad);
+      expect(t.view().controls?.supervision, String(bad)).toBe("standard");
+    }
+  });
+
+  it("gelé pendant un tour", async () => {
+    const t = await ready(setup({}));
+    await t.session.send("x");
+    t.session.setSupervision("strict");
+    expect(t.view().controls?.supervision).toBe("standard");
+  });
+
+  it("persisté par chat : relu au rechargement, sans fuite vers un autre chat", async () => {
+    const data = new Map<string, unknown>();
+    const store = {
+      get: (key: string) => data.get(key),
+      set: (key: string, value: unknown) => void data.set(key, value),
+    };
+    const a = await ready(setup({ store, prefsKey: "prefs.a" }));
+    a.session.setSupervision("strict");
+    expect((data.get("prefs.a") as { supervision?: string }).supervision).toBe("strict");
+    const again = await ready(setup({ store, prefsKey: "prefs.a" }));
+    expect(again.session.view().controls?.supervision).toBe("strict");
+    const other = await ready(setup({ store, prefsKey: "prefs.b" }));
+    expect(other.session.view().controls?.supervision).toBe("standard");
+  });
+
+  it("changement entre deux messages : moteur inactif remplacé, nouvelle valeur transmise", async () => {
+    const t = setup({});
+    await t.session.send("un");
+    t.f.handlers.onEvent?.(ev({ kind: "session.started", sessionId: "S1" }));
+    t.f.handlers.onEnded?.({ sessionId: "S1" } as never);
+    t.session.setSupervision("strict");
+    await t.session.send("deux");
+    expect(t.f.starts[1]).toMatchObject({ supervision: "strict", resume: "S1" });
+  });
+});

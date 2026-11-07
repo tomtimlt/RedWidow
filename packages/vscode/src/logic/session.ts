@@ -9,6 +9,7 @@ import type {
   Reason,
   SupervisionLevel,
 } from "@warband/core";
+import { parseSupervision } from "@warband/core";
 import { formatReason, getUiLocale, t } from "@warband/messages";
 import { alwaysConfirmText, answerFor, type Choice, cleanText, toCard } from "./approval.js";
 import { PRODUCT_NAME } from "./brand.js";
@@ -1216,6 +1217,16 @@ export function createChatSession(deps: ChatSessionDeps) {
       }
       if (c.clamped) clampNotice(wanted, c.effort);
       prefs = { ...prefs, effort: wanted === "ultracode" ? wanted : c.effort };
+      persist(prefsKey, prefs);
+      refresh();
+    },
+    /** Niveau d'encadrement venu de la webview (hostile) : gelé pendant un tour, valeur inconnue = standard. */
+    setSupervision(raw: unknown): void {
+      if (state.busy) {
+        refresh();
+        return;
+      }
+      prefs = { ...prefs, supervision: parseSupervision(raw) };
       persist(prefsKey, prefs);
       refresh();
     },

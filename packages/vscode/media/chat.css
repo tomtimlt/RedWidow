@@ -2304,7 +2304,8 @@ body.vscode-high-contrast-light .opt.active {
 .cfg-provider label {
   flex: none;
 }
-#provider {
+#provider,
+#supervision {
   flex: 1 1 8em;
   max-width: 100%;
   min-width: 0;
@@ -7732,7 +7733,8 @@ body.vscode-high-contrast-light::after {
 #cfg-pop .cfg-provider {
   gap: 4px 8px;
 }
-#cfg-pop #provider {
+#cfg-pop #provider,
+#cfg-pop #supervision {
   min-height: 26px;
 }
 #cfg-pop #provider-help {

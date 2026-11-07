@@ -357,9 +357,9 @@ describe("curseur de raisonnement de la webview", () => {
         hidden: false,
         max: "",
         title: "",
-        events: new Map<string, () => void>(),
+        events: new Map<string, (event?: unknown) => void>(),
         attrs: new Map<string, string>(),
-        addEventListener(type: string, handler: () => void) {
+        addEventListener(type: string, handler: (event?: unknown) => void) {
           this.events.set(type, handler);
         },
         setAttribute(name: string, value: string) {
@@ -438,6 +438,16 @@ describe("curseur de raisonnement de la webview", () => {
     renderControls(buildControls({ ...input, busy: true }));
     $("effort-auto").events.get("click")?.();
     $("effort").events.get("change")?.();
+    expect(sent).toEqual([]);
+    // Encadrement : liste fermée, message exact, gel pendant un tour.
+    renderControls(buildControls({ ...input, prefs: { ...DEFAULT_PREFS, supervision: "strict" } }));
+    expect($("supervision").value).toBe("strict");
+    expect($("supervision-tip").textContent).toContain("toutes les 8 actions");
+    $("supervision").events.get("change")?.({ target: { value: "light" } });
+    expect(sent.pop()).toEqual({ type: "setSupervision", supervision: "light" });
+    renderControls(buildControls({ ...input, busy: true }));
+    expect($("supervision").disabled).toBe(true);
+    $("supervision").events.get("change")?.({ target: { value: "strict" } });
     expect(sent).toEqual([]);
     renderControls(buildControls({ ...input, prefs: { ...DEFAULT_PREFS, effort: "low" } }));
     $("effort-auto").events.get("click")?.();

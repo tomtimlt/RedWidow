@@ -165,6 +165,26 @@ describe("parseWebviewMessage : setBypass (ADR 0006)", () => {
   });
 });
 
+describe("parseWebviewMessage : setSupervision", () => {
+  it("accepte les trois niveaux, seuls", () => {
+    for (const supervision of ["light", "standard", "strict"])
+      expect(parseWebviewMessage({ type: "setSupervision", supervision })).toEqual({
+        type: "setSupervision",
+        supervision,
+      });
+  });
+  it("refuse une valeur hors énumération, un non-texte et toute clé en plus", () => {
+    for (const supervision of ["max", "", "Strict", 3, null, undefined, {}])
+      expect(
+        parseWebviewMessage({ type: "setSupervision", supervision }),
+        String(supervision),
+      ).toBeNull();
+    expect(
+      parseWebviewMessage({ type: "setSupervision", supervision: "strict", effort: "max" }),
+    ).toBeNull();
+  });
+});
+
 describe("parseWebviewMessage : setLearning (ADR 0010)", () => {
   it("accepte un booléen seul", () => {
     expect(parseWebviewMessage({ type: "setLearning", enabled: true })).toEqual({

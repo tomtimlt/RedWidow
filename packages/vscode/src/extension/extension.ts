@@ -926,6 +926,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           return s.setModel(message.model);
         case "setEffort":
           return s.setEffort(message.effort);
+        case "setSupervision":
+          return s.setSupervision(message.supervision);
         case "setVariant":
           return s.setVariant(message.variant);
         case "setLearning":
