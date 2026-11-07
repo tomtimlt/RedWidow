@@ -77,10 +77,7 @@ describe("ressources du chat : configuration, activation et choix distincts", ()
       { ...emptySelection(), integrations: MCP_CATALOG.slice(0, 5).map((m) => m.id) },
     ])
       expect(parseChatSelection(raw)).toBeNull();
-    expect(parseWebviewMessage({ type: "setSelection", selection: emptySelection() })).toEqual({
-      type: "setSelection",
-      selection: emptySelection(),
-    });
+    expect(parseWebviewMessage({ type: "setSelection", selection: emptySelection() })).toBeNull();
     expect(
       parseWebviewMessage({ type: "selectProvider", id: "google", apiKey: "secret" }),
     ).toBeNull();

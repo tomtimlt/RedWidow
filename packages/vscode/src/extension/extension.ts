@@ -49,6 +49,8 @@ import { PRODUCT_NAME, productTitleSuffix } from "../logic/brand.js";
 import { type BypassPush, createBypassHost, formatRemaining } from "../logic/bypass.js";
 import { type ChatView, monitorChatView } from "../logic/chat.js";
 import {
+  applyCapabilityToggle,
+  type CapabilityToggle,
   type ChatSelection,
   capabilitySettings,
   providerChoices,
@@ -395,26 +397,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   let refreshLocaleTitles = () => {};
   let refreshReportLocale = () => {};
   let capabilityWrite: Promise<void> = Promise.resolve();
-  const activateSelection = (selection: ChatSelection): Promise<void> => {
-    capabilityWrite = capabilityWrite.then(async () => {
+  /** Bascule d'une capacité depuis le chat : écrit l'ajout ou le retrait dans `chat.*`, puis la sélection. */
+  const toggleCapability = (
+    toggle: CapabilityToggle,
+    selection: ChatSelection,
+  ): Promise<ChatSelection | null> => {
+    const run = capabilityWrite.then(async () => {
       try {
-        const caps = readSettings().capabilities;
-        if (selection.profile && !caps.skills.includes(selection.profile))
-          await writeMachineSetting("chat.skills", [...caps.skills, selection.profile]);
-        const missing = [...selection.integrations, ...(selection.burp ? ["burp"] : [])].filter(
-          (id) => !caps.integrations.includes(id),
-        );
-        if (missing.length > 0)
-          await writeMachineSetting("chat.integrations", [
-            ...new Set([...caps.integrations, ...missing]),
-          ]);
-        if (selection.webSearch && !caps.webSearch)
-          await writeMachineSetting("chat.webSearch", true);
+        const outcome = applyCapabilityToggle(readSettings().capabilities, selection, toggle);
+        if (!outcome) return null;
+        for (const w of outcome.writes) await writeMachineSetting(w.key, w.value);
+        return outcome.selection;
       } catch (error) {
         void vscode.window.showErrorMessage(formatError(error, getUiLocale()));
+        return null;
       }
     });
-    return capabilityWrite;
+    capabilityWrite = run.then(() => undefined);
+    return run;
   };
   let refreshBypassLocale = () => {};
   const broadcastLocale = () => {
@@ -948,10 +948,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           return await s.loadModels();
         case "selectProvider":
           return await s.selectProvider(message.id);
-        case "setSelection": {
-          // Choisir un skill, un connecteur ou la recherche web dans le chat l'active (réglages `chat.*`).
-          if (!s.view().busy && !s.view().readonly) await activateSelection(message.selection);
-          return s.setSelection(message.selection);
+        case "setCapability": {
+          // Bascule activer/désactiver dans le chat : l'hôte écrit l'ajout ou le retrait dans `chat.*`.
+          const current = s.view().capabilities?.selection;
+          if (s.view().busy || s.view().readonly || !current) return;
+          const next = await toggleCapability(message.toggle, current);
+          return next ? s.setSelection(next) : undefined;
         }
         case "setProvider": {
           const entry = providerChoices(readSettings()).find((p) => p.backend === message.provider);
@@ -3001,13 +3003,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         return;
       }
       if (message.type === "configureMcp") {
-        await vscode.commands.executeCommand("warband.configureIntegrations", message.id);
+        await configureIntegrationsFlow(message.id);
         return;
       }
       if (message.type === "configureBurp" || message.type === "testBurp") {
-        await vscode.commands.executeCommand(
-          message.type === "configureBurp" ? "warband.configureBurp" : "warband.testBurp",
-        );
+        if (message.type === "configureBurp") await configureBurpFlow();
+        else await vscode.commands.executeCommand("warband.testBurp");
         return;
       }
       if (message.type === "setLocale") {
@@ -3375,6 +3376,194 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
   };
 
+  /** Saisie guidée des services MCP du projet (ouverte depuis Réglages › Intégrations). */
+  const configureIntegrationsFlow = async (requestedId?: unknown) => {
+    const config = vscode.workspace.getConfiguration("warband");
+    const projectId = (await readProjectChoices(defaultConfigDir())).activeId;
+    if (!projectId) {
+      await vscode.window.showWarningMessage(
+        t("Choisissez un projet avant de configurer ses services MCP."),
+      );
+      return;
+    }
+    const readMap = () =>
+      integrationMap(machineValue(config.inspect("integrationsByProject")) ?? {});
+    let parsed: ReturnType<typeof integrationMap>[string] = [];
+    try {
+      parsed = readMap()[projectId] ?? [];
+    } catch (error) {
+      await vscode.window.showErrorMessage(formatError(error, getUiLocale()));
+      return;
+    }
+    const save = async (next: unknown) => {
+      if ((await readProjectChoices(defaultConfigDir())).activeId !== projectId)
+        throw Error(t("Le projet a changé pendant la configuration."));
+      await config.update(
+        "integrationsByProject",
+        { ...readMap(), [projectId]: next },
+        vscode.ConfigurationTarget.Global,
+      );
+    };
+    if (!parsed) {
+      await vscode.window.showErrorMessage(
+        t(
+          "Configuration des intégrations invalide. Corrigez le réglage utilisateur warband.integrationsByProject.",
+        ),
+      );
+      return;
+    }
+    const chosen =
+      typeof requestedId === "string" && MCP_CATALOG.some((e) => e.id === requestedId)
+        ? { id: requestedId }
+        : await vscode.window.showQuickPick(
+            MCP_CATALOG.map((e) => ({
+              label: e.label,
+              description: `${e.profile} · ${parsed.some((p) => p.id === e.id) ? t("configuré") : t("non configuré")}`,
+              detail: e.description,
+              id: e.id,
+            })),
+            { title: t("Catalogue MCP — services externes locaux") },
+          );
+    if (!chosen) return;
+    const entry = MCP_CATALOG.find((e) => e.id === chosen.id);
+    if (!entry) return;
+    const action = await vscode.window.showQuickPick(
+      [
+        { label: t("Configurer le service local"), value: "configure" },
+        { label: t("Tester le catalogue réel"), value: "test" },
+        { label: t("Supprimer la configuration"), value: "remove" },
+        { label: t("Voir le dépôt source"), value: "source" },
+      ],
+      { title: entry.label },
+    );
+    if (!action) return;
+    if (action.value === "source") {
+      await vscode.env.openExternal(vscode.Uri.parse(entry.source));
+      return;
+    }
+    try {
+      const existing = parsed.find((e) => e.id === entry.id);
+      if (action.value === "remove") {
+        await save(parsed.filter((e) => e.id !== entry.id));
+      } else if (action.value === "test") {
+        if (!existing)
+          throw Error(
+            t`Configurer le service avant le test. ${PRODUCT_NAME} n’installe ni ne démarre automatiquement le programme externe.`,
+          );
+        const result = await createIntegrationBackend(existing).list({});
+        const count = (result as { tools?: unknown[] }).tools?.length ?? 0;
+        await vscode.window.showInformationMessage(
+          t`${entry.label} : ${count} outils annoncés. Aucun outil distant exécuté.`,
+        );
+      } else {
+        const port = await vscode.window.showInputBox({
+          title: t`${entry.label} — port local 127.0.0.1`,
+          value: String(existing?.port ?? 9877),
+          validateInput: (v) =>
+            !/^\d{1,5}$/.test(v) || Number(v) < 1 || Number(v) > 65535
+              ? t("Port entre 1 et 65535")
+              : undefined,
+        });
+        if (port === undefined) return;
+        const transport = await vscode.window.showQuickPick(["http", "sse"], {
+          title: t("Transport du service déjà démarré"),
+        });
+        if (!transport) return;
+        const path = await vscode.window.showInputBox({
+          title: t("Chemin MCP local"),
+          value: existing?.path ?? (transport === "http" ? "/mcp" : "/sse"),
+          validateInput: (v) =>
+            !/^\/[a-zA-Z0-9_/-]{0,120}$/.test(v) || v.includes("..") || v.startsWith("//")
+              ? t("Chemin local simple requis, sans URL ni paramètre")
+              : undefined,
+        });
+        if (path === undefined) return;
+        const next = parseConfiguredIntegrations([
+          ...parsed.filter((e) => e.id !== entry.id),
+          { id: entry.id, port: Number(port), transport, path },
+        ]);
+        if (!next)
+          throw Error(t("Configuration invalide : identifiants et ports distincts requis."));
+        await save(next);
+      }
+    } catch (error) {
+      await vscode.window.showErrorMessage(formatError(error, getUiLocale()));
+    }
+    await pushStudio();
+  };
+  /** Connexion Burp Suite (ouverte depuis Réglages › Intégrations). */
+  const configureBurpFlow = async () => {
+    if ([...slots.values()].some((slot) => slot.session?.view().busy)) {
+      await vscode.window.showWarningMessage(
+        t("Arrêtez les tours en cours avant de configurer Burp."),
+      );
+      return;
+    }
+    const config = vscode.workspace.getConfiguration("warband");
+    const enabled = machineValue(config.inspect("burp.enabled")) === true;
+    const choice = await vscode.window.showQuickPick(
+      [
+        {
+          label: t("Activer ou configurer la connexion locale"),
+          value: "enable",
+          description: t("Extension MCP officielle requise dans Burp Suite"),
+        },
+        {
+          label: t("Désactiver la connexion"),
+          value: "disable",
+          description: enabled
+            ? t("Connexion actuellement activée")
+            : t("Connexion déjà désactivée"),
+        },
+      ],
+      { title: "Burp Suite MCP" },
+    );
+    if (!choice) return;
+    try {
+      if (choice.value === "disable") {
+        await config.update("burp.enabled", false, vscode.ConfigurationTarget.Global);
+        burpStatus = t("Connexion Burp désactivée.");
+      } else {
+        const port = await vscode.window.showInputBox({
+          title: t("Port MCP Burp sur 127.0.0.1"),
+          value: String(machineValue(config.inspect("burp.port")) ?? 9876),
+          prompt: t`Port affiché dans l’onglet MCP de Burp. ${PRODUCT_NAME} ne lance pas Burp ni Java.`,
+          validateInput: (value) =>
+            !/^[0-9]{1,5}$/.test(value) || Number(value) < 1 || Number(value) > 65535
+              ? t("Port entier entre 1 et 65535 requis.")
+              : undefined,
+        });
+        if (port === undefined) return;
+        const transport = await vscode.window.showQuickPick(
+          [
+            { label: t("SSE — serveur officiel"), value: "sse", description: "/sse" },
+            {
+              label: "Streamable HTTP",
+              value: "http",
+              description: t("/mcp, si proposé par votre serveur"),
+            },
+          ],
+          { title: t("Transport MCP Burp") },
+        );
+        if (!transport) return;
+        if ([...slots.values()].some((slot) => slot.session?.view().busy))
+          throw new Error(t("Un tour a démarré. Arrêtez-le avant de modifier cette connexion."));
+        await config.update("burp.enabled", false, vscode.ConfigurationTarget.Global);
+        await config.update("burp.port", Number(port), vscode.ConfigurationTarget.Global);
+        await config.update("burp.transport", transport.value, vscode.ConfigurationTarget.Global);
+        await config.update("burp.enabled", true, vscode.ConfigurationTarget.Global);
+        burpStatus = t(
+          "Connexion configurée. Testez-la, puis envoyez une nouvelle consigne. Les tours suivants utilisent ces réglages.",
+        );
+      }
+    } catch (error) {
+      burpStatus = formatError(error, getUiLocale());
+      await vscode.window.showErrorMessage(burpStatus);
+    }
+    if (!studioPanel && burpStatus) await vscode.window.showInformationMessage(burpStatus);
+    await pushStudio();
+  };
+
   context.subscriptions.push(
     vscode.window.onDidCloseTerminal((term) => dropTrackedShell(term)),
     {
@@ -3479,198 +3668,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
     }),
     vscode.commands.registerCommand("warband.chooseProfile", () => openStudio("integrations")),
-    vscode.commands.registerCommand(
-      "warband.configureIntegrations",
-      async (requestedId?: unknown) => {
-        const config = vscode.workspace.getConfiguration("warband");
-        const projectId = (await readProjectChoices(defaultConfigDir())).activeId;
-        if (!projectId) {
-          await vscode.window.showWarningMessage(
-            t("Choisissez un projet avant de configurer ses services MCP."),
-          );
-          return;
-        }
-        const readMap = () =>
-          integrationMap(machineValue(config.inspect("integrationsByProject")) ?? {});
-        let parsed: ReturnType<typeof integrationMap>[string] = [];
-        try {
-          parsed = readMap()[projectId] ?? [];
-        } catch (error) {
-          await vscode.window.showErrorMessage(formatError(error, getUiLocale()));
-          return;
-        }
-        const save = async (next: unknown) => {
-          if ((await readProjectChoices(defaultConfigDir())).activeId !== projectId)
-            throw Error(t("Le projet a changé pendant la configuration."));
-          await config.update(
-            "integrationsByProject",
-            { ...readMap(), [projectId]: next },
-            vscode.ConfigurationTarget.Global,
-          );
-        };
-        if (!parsed) {
-          await vscode.window.showErrorMessage(
-            t(
-              "Configuration des intégrations invalide. Corrigez le réglage utilisateur warband.integrationsByProject.",
-            ),
-          );
-          return;
-        }
-        const chosen =
-          typeof requestedId === "string" && MCP_CATALOG.some((e) => e.id === requestedId)
-            ? { id: requestedId }
-            : await vscode.window.showQuickPick(
-                MCP_CATALOG.map((e) => ({
-                  label: e.label,
-                  description: `${e.profile} · ${parsed.some((p) => p.id === e.id) ? t("configuré") : t("non configuré")}`,
-                  detail: e.description,
-                  id: e.id,
-                })),
-                { title: t("Catalogue MCP — services externes locaux") },
-              );
-        if (!chosen) return;
-        const entry = MCP_CATALOG.find((e) => e.id === chosen.id);
-        if (!entry) return;
-        const action = await vscode.window.showQuickPick(
-          [
-            { label: t("Configurer le service local"), value: "configure" },
-            { label: t("Tester le catalogue réel"), value: "test" },
-            { label: t("Supprimer la configuration"), value: "remove" },
-            { label: t("Voir le dépôt source"), value: "source" },
-          ],
-          { title: entry.label },
-        );
-        if (!action) return;
-        if (action.value === "source") {
-          await vscode.env.openExternal(vscode.Uri.parse(entry.source));
-          return;
-        }
-        try {
-          const existing = parsed.find((e) => e.id === entry.id);
-          if (action.value === "remove") {
-            await save(parsed.filter((e) => e.id !== entry.id));
-          } else if (action.value === "test") {
-            if (!existing)
-              throw Error(
-                t`Configurer le service avant le test. ${PRODUCT_NAME} n’installe ni ne démarre automatiquement le programme externe.`,
-              );
-            const result = await createIntegrationBackend(existing).list({});
-            const count = (result as { tools?: unknown[] }).tools?.length ?? 0;
-            await vscode.window.showInformationMessage(
-              t`${entry.label} : ${count} outils annoncés. Aucun outil distant exécuté.`,
-            );
-          } else {
-            const port = await vscode.window.showInputBox({
-              title: t`${entry.label} — port local 127.0.0.1`,
-              value: String(existing?.port ?? 9877),
-              validateInput: (v) =>
-                !/^\d{1,5}$/.test(v) || Number(v) < 1 || Number(v) > 65535
-                  ? t("Port entre 1 et 65535")
-                  : undefined,
-            });
-            if (port === undefined) return;
-            const transport = await vscode.window.showQuickPick(["http", "sse"], {
-              title: t("Transport du service déjà démarré"),
-            });
-            if (!transport) return;
-            const path = await vscode.window.showInputBox({
-              title: t("Chemin MCP local"),
-              value: existing?.path ?? (transport === "http" ? "/mcp" : "/sse"),
-              validateInput: (v) =>
-                !/^\/[a-zA-Z0-9_/-]{0,120}$/.test(v) || v.includes("..") || v.startsWith("//")
-                  ? t("Chemin local simple requis, sans URL ni paramètre")
-                  : undefined,
-            });
-            if (path === undefined) return;
-            const next = parseConfiguredIntegrations([
-              ...parsed.filter((e) => e.id !== entry.id),
-              { id: entry.id, port: Number(port), transport, path },
-            ]);
-            if (!next)
-              throw Error(t("Configuration invalide : identifiants et ports distincts requis."));
-            await save(next);
-          }
-        } catch (error) {
-          await vscode.window.showErrorMessage(formatError(error, getUiLocale()));
-        }
-        await pushStudio();
-      },
+    vscode.commands.registerCommand("warband.configureIntegrations", () =>
+      openStudio("integrations"),
     ),
     vscode.commands.registerCommand("warband.openStudio", () => openStudio()),
     vscode.commands.registerCommand("warband.openTerminal", () => void pickContainerTerminal()),
     vscode.commands.registerCommand("warband.openMonitor", () => openMonitor()),
     vscode.commands.registerCommand("warband.openKillchain", () => openKillchain()),
-    vscode.commands.registerCommand("warband.configureBurp", async () => {
-      if ([...slots.values()].some((slot) => slot.session?.view().busy)) {
-        await vscode.window.showWarningMessage(
-          t("Arrêtez les tours en cours avant de configurer Burp."),
-        );
-        return;
-      }
-      const config = vscode.workspace.getConfiguration("warband");
-      const enabled = machineValue(config.inspect("burp.enabled")) === true;
-      const choice = await vscode.window.showQuickPick(
-        [
-          {
-            label: t("Activer ou configurer la connexion locale"),
-            value: "enable",
-            description: t("Extension MCP officielle requise dans Burp Suite"),
-          },
-          {
-            label: t("Désactiver la connexion"),
-            value: "disable",
-            description: enabled
-              ? t("Connexion actuellement activée")
-              : t("Connexion déjà désactivée"),
-          },
-        ],
-        { title: "Burp Suite MCP" },
-      );
-      if (!choice) return;
-      try {
-        if (choice.value === "disable") {
-          await config.update("burp.enabled", false, vscode.ConfigurationTarget.Global);
-          burpStatus = t("Connexion Burp désactivée.");
-        } else {
-          const port = await vscode.window.showInputBox({
-            title: t("Port MCP Burp sur 127.0.0.1"),
-            value: String(machineValue(config.inspect("burp.port")) ?? 9876),
-            prompt: t`Port affiché dans l’onglet MCP de Burp. ${PRODUCT_NAME} ne lance pas Burp ni Java.`,
-            validateInput: (value) =>
-              !/^[0-9]{1,5}$/.test(value) || Number(value) < 1 || Number(value) > 65535
-                ? t("Port entier entre 1 et 65535 requis.")
-                : undefined,
-          });
-          if (port === undefined) return;
-          const transport = await vscode.window.showQuickPick(
-            [
-              { label: t("SSE — serveur officiel"), value: "sse", description: "/sse" },
-              {
-                label: "Streamable HTTP",
-                value: "http",
-                description: t("/mcp, si proposé par votre serveur"),
-              },
-            ],
-            { title: t("Transport MCP Burp") },
-          );
-          if (!transport) return;
-          if ([...slots.values()].some((slot) => slot.session?.view().busy))
-            throw new Error(t("Un tour a démarré. Arrêtez-le avant de modifier cette connexion."));
-          await config.update("burp.enabled", false, vscode.ConfigurationTarget.Global);
-          await config.update("burp.port", Number(port), vscode.ConfigurationTarget.Global);
-          await config.update("burp.transport", transport.value, vscode.ConfigurationTarget.Global);
-          await config.update("burp.enabled", true, vscode.ConfigurationTarget.Global);
-          burpStatus = t(
-            "Connexion configurée. Testez-la, puis envoyez une nouvelle consigne. Les tours suivants utilisent ces réglages.",
-          );
-        }
-      } catch (error) {
-        burpStatus = formatError(error, getUiLocale());
-        await vscode.window.showErrorMessage(burpStatus);
-      }
-      if (!studioPanel && burpStatus) await vscode.window.showInformationMessage(burpStatus);
-      await pushStudio();
-    }),
+    vscode.commands.registerCommand("warband.configureBurp", () => openStudio("integrations")),
     vscode.commands.registerCommand("warband.testBurp", async () => {
       try {
         const config = readSettings().burp;
@@ -3733,13 +3738,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       burpStatus = t("Réglages modifiés. Les tours suivants utilisent la nouvelle connexion.");
       void pushStudio();
     }),
-    vscode.commands.registerCommand("warband.choosePalette", async () => {
-      const selected = await vscode.window.showQuickPick(
-        PALETTES.map(([value, label, detail]) => ({ value, label, detail })),
-        { title: t`Palette ${PRODUCT_NAME}` },
-      );
-      if (selected) await updatePalette(selected.value);
-    }),
+    vscode.commands.registerCommand("warband.choosePalette", () => openStudio("appearance")),
     vscode.commands.registerCommand("warband.exportKillchain", () =>
       exportMissionReport(undefined, true),
     ),

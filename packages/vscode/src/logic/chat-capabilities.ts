@@ -64,6 +64,71 @@ export function parseChatSelection(raw: unknown): ChatSelection | null {
     webSearch: r.webSearch,
   };
 }
+/** Bascule d'une capacité depuis le chat : activer ou retirer, avec écriture dans `chat.*` côté hôte. */
+export interface CapabilityToggle {
+  kind: "skill" | "integration" | "burp" | "webSearch";
+  /** Identifiant connu (profil ou catalogue MCP) ; absent pour Burp et la recherche web. */
+  id?: string;
+  enabled: boolean;
+}
+export function parseCapabilityToggle(raw: unknown): CapabilityToggle | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.enabled !== "boolean") return null;
+  const keys = Object.keys(r);
+  if (r.kind === "burp" || r.kind === "webSearch")
+    return keys.length === 2 && keys.every((k) => k === "kind" || k === "enabled")
+      ? { kind: r.kind, enabled: r.enabled }
+      : null;
+  if (
+    keys.length === 3 &&
+    keys.every((k) => k === "kind" || k === "id" || k === "enabled") &&
+    typeof r.id === "string" &&
+    ((r.kind === "skill" && Object.hasOwn(AGENT_PROFILES, r.id)) ||
+      (r.kind === "integration" && MCP_CATALOG.some((m) => m.id === r.id)))
+  )
+    return { kind: r.kind, id: r.id, enabled: r.enabled };
+  return null;
+}
+/**
+ * Effet d'une bascule : réglages `chat.*` à écrire (ajout ou retrait) et nouvelle sélection de la
+ * conversation. Un retrait désactive aussi la capacité pour les prochaines conversations.
+ * Retourne `null` si la bascule est refusée (4 connecteurs au plus par conversation).
+ */
+export function applyCapabilityToggle(
+  caps: CapabilitySettings,
+  selection: ChatSelection,
+  toggle: CapabilityToggle,
+): { writes: { key: string; value: unknown }[]; selection: ChatSelection } | null {
+  const next: ChatSelection = { ...selection, integrations: [...selection.integrations] };
+  const writes: { key: string; value: unknown }[] = [];
+  const list = (key: "skills" | "integrations", id: string) => {
+    const has = caps[key].includes(id);
+    if (toggle.enabled && !has) writes.push({ key: `chat.${key}`, value: [...caps[key], id] });
+    if (!toggle.enabled && has)
+      writes.push({ key: `chat.${key}`, value: caps[key].filter((v) => v !== id) });
+  };
+  if (toggle.kind === "skill" && toggle.id) {
+    list("skills", toggle.id);
+    if (toggle.enabled) next.profile = toggle.id;
+    else if (next.profile === toggle.id) next.profile = null;
+  } else if (toggle.kind === "integration" && toggle.id) {
+    if (toggle.enabled && !next.integrations.includes(toggle.id)) {
+      if (next.integrations.length >= 4) return null;
+      next.integrations.push(toggle.id);
+    }
+    if (!toggle.enabled) next.integrations = next.integrations.filter((v) => v !== toggle.id);
+    list("integrations", toggle.id);
+  } else if (toggle.kind === "burp") {
+    next.burp = toggle.enabled;
+    list("integrations", "burp");
+  } else if (toggle.kind === "webSearch") {
+    next.webSearch = toggle.enabled;
+    if (toggle.enabled !== caps.webSearch)
+      writes.push({ key: "chat.webSearch", value: toggle.enabled });
+  } else return null;
+  return { writes, selection: next };
+}
 export function allowedSelection(settings: ChatSettings, selection: ChatSelection): ChatSelection {
   const caps = settings.capabilities;
   return {

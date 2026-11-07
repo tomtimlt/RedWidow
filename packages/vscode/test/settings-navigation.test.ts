@@ -75,7 +75,9 @@ describe("aucun réglage propre au chat modifiable depuis les réglages", () => 
   it("le chat propose tout le catalogue ; choisir une entrée l'active côté hôte", () => {
     expect(chatJs).toContain("caps.available.skills");
     expect(chatJs).toContain("caps.available.integrations");
-    expect(extension).toMatch(/await activateSelection\(message\.selection\)/);
+    expect(chatJs).toContain('type: "setCapability"');
+    expect(chatJs).not.toContain('type: "setSelection"');
+    expect(extension).toMatch(/await toggleCapability\(message\.toggle, current\)/);
   });
 });
 

@@ -21,14 +21,15 @@ export const resourcesEn: Record<string, string> = {
     "Configure your connections in Settings → Providers, then choose your provider here.",
   "Choisir un fournisseur": "Choose a provider",
   "Skills / méthodes": "Skills / methods",
-  "Méthode générale": "General method",
+  Activé: "On",
+  Désactivé: "Off",
   "Connecteurs MCP": "MCP connectors",
   Recherche: "Search",
   "Recherche web": "Web search",
   "Le mode Apprentissage utilise seulement les cours et les terminaux en lecture.":
     "Learning mode only reads courses and terminal context.",
-  "Ces choix s’appliquent à cette conversation. Les actions restent soumises aux approbations.":
-    "These choices apply to this conversation. Actions still require the usual approvals.",
+  "Activer ou désactiver ici met aussi à jour les réglages. Les actions restent soumises aux approbations.":
+    "Turning a capability on or off here also updates the settings. Actions still require the usual approvals.",
   "en pause": "paused",
   "Fournisseurs IA": "AI providers",
   "Configurez une connexion, puis activez son accès dans le chat. Les clés restent dans le stockage sécurisé ou le gestionnaire du fournisseur.":

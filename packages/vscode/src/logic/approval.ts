@@ -7,7 +7,11 @@ import {
 } from "@warband/core";
 import { formatReason, getUiLocale, type Locale, t } from "@warband/messages";
 import { type Attachment, parseAttachments } from "./attachments.js";
-import { type ChatSelection, isCapabilityId, parseChatSelection } from "./chat-capabilities.js";
+import {
+  type CapabilityToggle,
+  isCapabilityId,
+  parseCapabilityToggle,
+} from "./chat-capabilities.js";
 import { isProvider, type Provider } from "./effort.js";
 import { summarizeInput, toolLabel } from "./present.js";
 
@@ -96,7 +100,7 @@ export type WebviewMessage =
   | { type: "addProvider" }
   | { type: "openSystem" }
   | { type: "selectProvider"; id: string }
-  | { type: "setSelection"; selection: ChatSelection }
+  | { type: "setCapability"; toggle: CapabilityToggle }
   | { type: "setProvider"; provider: Provider }
   /** Valeurs non fiables : l'extension les revalide (liste de modèles, énumération des niveaux). */
   | { type: "setModel"; model: string | null }
@@ -171,9 +175,10 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
       return only("type", "id") && isCapabilityId(m.id)
         ? { type: "selectProvider", id: m.id }
         : null;
-    case "setSelection": {
-      const selection = parseChatSelection(m.selection);
-      return only("type", "selection") && selection ? { type: "setSelection", selection } : null;
+    case "setCapability": {
+      const { type: _type, ...rest } = m;
+      const toggle = parseCapabilityToggle(rest);
+      return toggle ? { type: "setCapability", toggle } : null;
     }
     case "setProvider":
       return only("type", "provider") && isProvider(m.provider)

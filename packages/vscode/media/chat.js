@@ -885,8 +885,13 @@
     const locked = !!view?.busy || !!view?.readonly || learning;
     const rows = [];
     const heading = (text) => rows.push(el("p", "composer-section", t(text)));
-    const choice = (label, checked, apply, radio = false, unavailable = false) => {
-      const row = el("button", "resource-toggle composer-choice", label);
+    // Chaque capacité est une bascule activer/désactiver : l'hôte écrit l'ajout ou le retrait dans `chat.*`.
+    const choice = (label, checked, apply, toggle, unavailable = false) => {
+      const row = el(
+        "button",
+        "resource-toggle composer-choice",
+        `${label} · ${checked ? t("Activé") : t("Désactivé")}`,
+      );
       row.type = "button";
       row.setAttribute("role", "switch");
       row.setAttribute("aria-checked", String(checked));
@@ -896,9 +901,9 @@
           ...lastCapabilities.selection,
           integrations: [...lastCapabilities.selection.integrations],
         };
-        apply(selection, radio ? true : !checked);
+        apply(selection, !checked);
         lastCapabilities = { ...lastCapabilities, selection };
-        vscode.postMessage({ type: "setSelection", selection });
+        vscode.postMessage({ type: "setCapability", ...toggle, enabled: !checked });
         const index = rows.indexOf(row);
         renderCapabilities(lastCapabilities, view);
         $("composer-resources").children[index]?.focus();
@@ -907,22 +912,14 @@
     };
     if (caps.available.skills.length) {
       heading("Skills / méthodes");
-      choice(
-        t("Méthode générale"),
-        caps.selection.profile === null,
-        (s) => {
-          s.profile = null;
-        },
-        true,
-      );
       for (const id of caps.available.skills)
         choice(
           skillLabels[id] ?? id,
           caps.selection.profile === id,
-          (s) => {
-            s.profile = id;
+          (s, on) => {
+            s.profile = on ? id : s.profile === id ? null : s.profile;
           },
-          true,
+          { kind: "skill", id },
         );
     }
     if (caps.available.integrations.length || caps.available.burp) {
@@ -934,18 +931,28 @@
           (s, on) => {
             s.integrations = on ? [...s.integrations, id] : s.integrations.filter((v) => v !== id);
           },
-          false,
+          { kind: "integration", id },
           caps.selection.integrations.length >= 4 && !caps.selection.integrations.includes(id),
         );
       if (caps.available.burp)
-        choice("Burp Suite", caps.selection.burp, (s, on) => {
-          s.burp = on;
-        });
+        choice(
+          "Burp Suite",
+          caps.selection.burp,
+          (s, on) => {
+            s.burp = on;
+          },
+          { kind: "burp" },
+        );
     }
     heading("Recherche");
-    choice(t("Recherche web"), caps.selection.webSearch, (s, on) => {
-      s.webSearch = on;
-    });
+    choice(
+      t("Recherche web"),
+      caps.selection.webSearch,
+      (s, on) => {
+        s.webSearch = on;
+      },
+      { kind: "webSearch" },
+    );
     rows.push(
       el(
         "p",
@@ -953,7 +960,7 @@
         t(
           learning
             ? "Le mode Apprentissage utilise seulement les cours et les terminaux en lecture."
-            : "Ces choix s’appliquent à cette conversation. Les actions restent soumises aux approbations.",
+            : "Activer ou désactiver ici met aussi à jour les réglages. Les actions restent soumises aux approbations.",
         ),
       ),
     );

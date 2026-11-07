@@ -163,22 +163,22 @@
     "menus": {
       "view/title": [
         {
-          "command": "warband.openTerminal",
+          "command": "warband.openStudio",
           "when": "view == warband.chat",
           "group": "navigation@1"
         },
         {
-          "command": "warband.openChat",
+          "command": "warband.openProgram",
           "when": "view == warband.chat",
           "group": "navigation@2"
         },
         {
-          "command": "warband.openMonitor",
+          "command": "warband.openCockpit",
           "when": "view == warband.chat",
           "group": "navigation@3"
         },
         {
-          "command": "warband.openCockpit",
+          "command": "warband.openTerminal",
           "when": "view == warband.chat",
           "group": "navigation@4"
         },
@@ -188,34 +188,39 @@
           "group": "navigation@5"
         },
         {
-          "command": "warband.openStudio",
+          "command": "warband.openChat",
           "when": "view == warband.chat",
-          "group": "navigation@6"
+          "group": "1_more@1"
+        },
+        {
+          "command": "warband.openMonitor",
+          "when": "view == warband.chat",
+          "group": "1_more@2"
         },
         {
           "command": "warband.launcher",
           "when": "view == warband.chat",
-          "group": "navigation@7"
+          "group": "1_more@3"
         }
       ],
       "editor/title": [
         {
-          "command": "warband.openTerminal",
+          "command": "warband.openStudio",
           "when": "activeWebviewPanelId =~ /^warband\\./",
           "group": "navigation@1"
         },
         {
-          "command": "warband.openChat",
+          "command": "warband.openProgram",
           "when": "activeWebviewPanelId =~ /^warband\\./",
           "group": "navigation@2"
         },
         {
-          "command": "warband.openMonitor",
+          "command": "warband.openCockpit",
           "when": "activeWebviewPanelId =~ /^warband\\./",
           "group": "navigation@3"
         },
         {
-          "command": "warband.openCockpit",
+          "command": "warband.openTerminal",
           "when": "activeWebviewPanelId =~ /^warband\\./",
           "group": "navigation@4"
         },
@@ -225,27 +230,92 @@
           "group": "navigation@5"
         },
         {
-          "command": "warband.openStudio",
+          "command": "warband.openChat",
           "when": "activeWebviewPanelId =~ /^warband\\./",
-          "group": "navigation@6"
+          "group": "1_more@1"
+        },
+        {
+          "command": "warband.openMonitor",
+          "when": "activeWebviewPanelId =~ /^warband\\./",
+          "group": "1_more@2"
         },
         {
           "command": "warband.launcher",
           "when": "activeWebviewPanelId =~ /^warband\\./",
-          "group": "navigation@7"
+          "group": "1_more@3"
         }
       ],
       "commandPalette": [
-        {
-          "command": "warband.focusChat",
-          "when": "false"
-        },
         {
           "command": "warband.openAudit",
           "when": "false"
         },
         {
+          "command": "warband.exportAudit",
+          "when": "false"
+        },
+        {
+          "command": "warband.listProjectEvidence",
+          "when": "false"
+        },
+        {
+          "command": "warband.exportKillchain",
+          "when": "false"
+        },
+        {
+          "command": "warband.exportReport",
+          "when": "false"
+        },
+        {
+          "command": "warband.openWorkspace",
+          "when": "false"
+        },
+        {
+          "command": "warband.prepareMission",
+          "when": "false"
+        },
+        {
+          "command": "warband.chooseProfile",
+          "when": "false"
+        },
+        {
+          "command": "warband.configureIntegrations",
+          "when": "false"
+        },
+        {
+          "command": "warband.openTerminal",
+          "when": "false"
+        },
+        {
+          "command": "warband.openMonitor",
+          "when": "false"
+        },
+        {
+          "command": "warband.openKillchain",
+          "when": "false"
+        },
+        {
+          "command": "warband.focusChat",
+          "when": "false"
+        },
+        {
+          "command": "warband.configureBurp",
+          "when": "false"
+        },
+        {
+          "command": "warband.testBurp",
+          "when": "false"
+        },
+        {
+          "command": "warband.choosePalette",
+          "when": "false"
+        },
+        {
           "command": "warband.previewReport",
+          "when": "false"
+        },
+        {
+          "command": "warband.exportAttackFlow",
           "when": "false"
         },
         {
