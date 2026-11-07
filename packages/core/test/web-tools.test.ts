@@ -347,8 +347,11 @@ describe("lecture et recherche communes aux moteurs", () => {
       );
     });
     const specs = webToolSpecs({ lookup, transport } as WebDependencies);
-    expect(specs.map((spec) => spec.name)).toEqual(["search_web", "read_url"]);
-    expect(specs.every((spec) => spec.readOnly)).toBe(true);
+    expect(specs.map((spec) => spec.name)).toEqual(["search_web", "read_url", "http_request"]);
+    expect(specs.filter((spec) => spec.readOnly).map((spec) => spec.name)).toEqual([
+      "search_web",
+      "read_url",
+    ]);
     const search = specs[0];
     if (!search) throw new Error("absent");
     const result = JSON.parse(

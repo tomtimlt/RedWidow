@@ -204,17 +204,20 @@ describe("arrêt de l'hôte", () => {
     expect(c.pace.acquire("autre.example")).toEqual({ action: "send" });
   });
 
-  it("resume reprend l'hôte au plancher, historique effacé", () => {
+  it("resume reprend l'hôte à ÷2 du plafond, historique effacé", () => {
     const c = setup();
     for (let i = 0; i < 3; i++) c.pace.report(H, "http429");
     c.pace.resume(H);
     expect(c.pace.status(H)).toMatchObject({ halted: false, pausedUntil: 0 });
-    expect(c.pace.status(H).rps).toBeCloseTo(0.125);
-    c.advance(1000);
+    expect(c.pace.status(H).rps).toBeCloseTo(0.5);
+    c.advance(2000);
     expect(c.pace.acquire(H)).toEqual({ action: "send" });
     // Remontée possible après reprise.
     for (let i = 0; i < 20; i++) c.pace.report(H, "ok");
-    expect(c.pace.status(H).rps).toBeCloseTo(0.1875);
+    expect(c.pace.status(H).rps).toBeCloseTo(0.75);
+    // Un signal après reprise ne ré-arrête pas l'hôte (historique effacé, pas au plancher).
+    c.pace.report(H, "http429");
+    expect(c.pace.status(H).halted).toBe(false);
   });
 
   it("resume sur un hôte actif ou inconnu est sans effet", () => {

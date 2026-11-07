@@ -22,8 +22,11 @@ import {
   CodedError,
   createDockerClient,
   createExegolTargets,
+  createPaceRegistry,
   createRecorder,
+  createWebProgram,
   defaultConfigDir,
+  type ProgramStatus,
   prepareContainerProjectWorkspace,
   readActiveProjectForPrompt,
   readProgramSync,
@@ -63,14 +66,20 @@ let learningMode = false;
 let projectRoot = process.cwd();
 // Projet actif connu du moteur (ADR 0040) : mis à jour au `start` et à chaque consigne ; sans projet, la fiche n'a aucun effet.
 let activeProjectId: string | null = null;
+const programStatus = (): ProgramStatus =>
+  activeProjectId === null
+    ? { state: "none" }
+    : readProgramSync(defaultConfigDir(), activeProjectId);
+// Fiche et rythme du projet actif pour l'outil `http_request` (ADR 0040).
+const webProgram = createWebProgram({
+  program: programStatus,
+  registry: createPaceRegistry({ configDir: defaultConfigDir(), projectId: () => activeProjectId }),
+});
 const docker = createDockerClient({ recorder: createRecorder(), timeoutMs: 8_000 });
 
 const done = runEngine({
   channel,
-  program: () =>
-    activeProjectId === null
-      ? { state: "none" }
-      : readProgramSync(defaultConfigDir(), activeProjectId),
+  program: programStatus,
   programDraft: (text) => writeProgramDraft(defaultConfigDir(), activeProjectId, text),
   resolveCwd: async (cwd) => {
     projectRoot = cwd;
@@ -156,7 +165,7 @@ const done = runEngine({
               toolsets: [
                 openCodeExegol({ targets, binary: "docker", includeMemory: false }),
                 openCodeKali({ targets, binary: "docker", includeMemory: false }),
-                ...(webSearch ? [openCodeWeb()] : []),
+                ...(webSearch ? [openCodeWeb(webProgram)] : []),
                 openCodeDesk(),
                 { name: "projectfiles", create: () => projectFileSpecs(projectRoot) },
                 ...(integrations ?? []).map((config) =>
@@ -172,7 +181,7 @@ const done = runEngine({
     if (!(await matchesFingerprint(exe, expected))) {
       throw new CodedError("extension.binaryMismatch");
     }
-    const options = runnerOptions(mode, exe, targets, webSearch);
+    const options = runnerOptions(mode, exe, targets, webSearch, webProgram);
     if (mode !== "learning")
       options.toolsets?.push(claudeDesk(), {
         name: "projectfiles",

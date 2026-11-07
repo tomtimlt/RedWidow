@@ -15,9 +15,12 @@ import {
   approveProgram,
   buildGraph,
   CodedError,
+  clearPaceHalt,
   createApprovalGate,
   createDockerClient,
+  createPaceRegistry,
   createRecorder,
+  createWebProgram,
   defaultConfigDir,
   type EngineEvent,
   evaluatePolicy,
@@ -246,6 +249,10 @@ program
     // Écriture du brouillon par l'outil `program_draft` : n'approuve rien (approbation = CLI seule).
     const programDraft = (text: string): Promise<ProgramStatus> =>
       writeProgramDraft(configDir, activeId, text);
+    const webProgram = createWebProgram({
+      program: programProvider,
+      registry: createPaceRegistry({ configDir, projectId: () => activeId }),
+    });
     const gate = createApprovalGate({
       policy,
       recorder,
@@ -310,7 +317,7 @@ program
         opts.agent === "opencode"
           ? createOpencodeRunner({
               toolsets: [
-                opencodeWebToolset(),
+                opencodeWebToolset(webProgram),
                 ...(opts.dockerTools === false
                   ? []
                   : [opencodeDockerToolset({ binary: opts.docker })]),
@@ -325,7 +332,7 @@ program
             })
           : createSdkRunner({
               toolsets: [
-                webToolset(),
+                webToolset(webProgram),
                 ...(opts.dockerTools === false ? [] : [dockerToolset({ binary: opts.docker })]),
               ],
               bash: Boolean(opts.allowBash),
@@ -605,6 +612,25 @@ programCmd
       opts.digest,
     );
     printProgramStatus(status);
+  });
+
+programCmd
+  .command("resume")
+  .description(
+    t(
+      "Reprendre un hôte arrêté par le contrôleur de rythme (débit relancé à la moitié du plafond).",
+      "Resume a host halted by the pace controller (restarts at half the ceiling).",
+    ),
+  )
+  .argument("<hôte>", t("hôte arrêté", "halted host"))
+  .option(...PROJECT_OPTION)
+  .action(async (host: string, opts) => {
+    const resumed = clearPaceHalt(defaultConfigDir(), await programProjectId(opts), host);
+    process.stdout.write(
+      resumed
+        ? t(`hôte ${host} repris\n`, `host ${host} resumed\n`)
+        : t(`hôte ${host} : non arrêté\n`, `host ${host}: not halted\n`),
+    );
   });
 
 programCmd

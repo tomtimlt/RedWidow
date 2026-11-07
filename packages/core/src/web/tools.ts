@@ -1,10 +1,12 @@
 import { DomUtils, parseDocument } from "htmlparser2";
 import { z } from "zod";
 import type { DockerToolSpec } from "../docker/tool-specs.js";
+import { hostInScope, hostOfTarget } from "../program/scope.js";
 import { CodedError } from "../reason.js";
 import { stripControl } from "../sanitize.js";
 import { webNetworkError } from "./errors.js";
 import { isReferenceUrl } from "./guard.js";
+import { HTTP_REQUEST_INPUT, runHttpRequest, type WebProgram } from "./http-request.js";
 import { requestWeb, type WebDependencies, webUrl } from "./network.js";
 
 export const WEB_SERVER_NAME = "web";
@@ -118,7 +120,11 @@ export function searchContent(text: string): string {
   throw new CodedError("web.searchFailed");
 }
 
-export function webToolSpecs(deps: WebDependencies = {}): DockerToolSpec[] {
+/**
+ * `program` (ADR 0040) : fiche du projet actif et contrôleur de rythme. Sans lui, `http_request`
+ * répond `program.required` et `read_url` ne connaît que les sources de référence.
+ */
+export function webToolSpecs(deps: WebDependencies = {}, program?: WebProgram): DockerToolSpec[] {
   const searchInput = {
     query: z.string().trim().min(1).max(500),
     max_results: z.number().int().min(1).max(8).optional(),
@@ -190,12 +196,20 @@ export function webToolSpecs(deps: WebDependencies = {}): DockerToolSpec[] {
       async run(raw, ctx) {
         const args = z.object(readInput).strict().parse(raw);
         return safe(ctx.signal, async (signal) => {
-          // URL promue par la gate (source de référence) : chaque saut doit rester dans la liste.
+          // URL promue par la gate (source de référence ou hôte du périmètre d'une fiche
+          // approuvée) : chaque saut doit rester dans la liste ou dans le périmètre.
+          const sheet = program?.sheet();
+          const inScope = (value: string): boolean => {
+            const host = hostOfTarget(value);
+            return sheet !== undefined && host !== null && hostInScope(sheet, host);
+          };
           const response = await requestWeb(
             args.url,
             { method: "GET", signal },
             deps,
-            isReferenceUrl(args.url) ? (next) => isReferenceUrl(next.href) : undefined,
+            isReferenceUrl(args.url) || inScope(args.url)
+              ? (next) => isReferenceUrl(next.href) || inScope(next.href)
+              : undefined,
           );
           const content =
             response.type === "text/html" || response.type === "application/xhtml+xml"
@@ -208,6 +222,16 @@ export function webToolSpecs(deps: WebDependencies = {}): DockerToolSpec[] {
                 };
           return { url: response.url, retrievedAt: new Date().toISOString(), ...content };
         });
+      },
+    },
+    {
+      name: "http_request",
+      description:
+        "Requête HTTP(S) vers une cible du périmètre de la fiche programme approuvée (méthodes GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS ; en-têtes et corps texte). Le User-Agent porte toujours le suffixe de la fiche. Les redirections ne sont pas suivies : le 3xx et son en-tête Location sont rendus. Le débit est géré par le moteur (attente, puis refus si trop longue) ; un hôte arrêté après des signaux de limitation ne reprend que par un geste humain. Nécessite une fiche approuvée.",
+      input: HTTP_REQUEST_INPUT,
+      destructive: true,
+      async run(raw, ctx) {
+        return runHttpRequest(raw, ctx.signal, { deps, program });
       },
     },
   ];

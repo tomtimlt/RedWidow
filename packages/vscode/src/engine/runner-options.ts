@@ -5,7 +5,7 @@ import {
   type SdkRunnerOptions,
   webToolset,
 } from "@warband/agent-sdk";
-import type { createExegolTargets } from "@warband/core";
+import type { createExegolTargets, WebProgram } from "@warband/core";
 import type { StartParams } from "../logic/protocol.js";
 
 /**
@@ -18,6 +18,7 @@ export function runnerOptions(
   executable: string,
   targets: ReturnType<typeof createExegolTargets>,
   webSearch = true,
+  webProgram?: WebProgram,
 ): SdkRunnerOptions & { executable: string } {
   if (mode === "learning") {
     return { executable, toolsets: [coursToolset()], builtinTools: [] };
@@ -27,7 +28,7 @@ export function runnerOptions(
     toolsets: [
       exegolToolset({ targets, binary: "docker", includeMemory: false }),
       kaliToolset({ targets, binary: "docker", includeMemory: false }),
-      ...(webSearch ? [webToolset()] : []),
+      ...(webSearch ? [webToolset(webProgram)] : []),
     ],
   };
 }

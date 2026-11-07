@@ -12,9 +12,13 @@ export interface WebResponse {
   close?(): Promise<void>;
 }
 export interface WebRequest {
-  method: "GET" | "POST";
+  method: "GET" | "POST" | "HEAD" | "PUT" | "PATCH" | "DELETE" | "OPTIONS";
   body?: string;
   signal: AbortSignal;
+  /** En-têtes fournis par l'appelant de confiance (`http_request`) ; les outils de lecture n'en passent pas. */
+  headers?: Record<string, string>;
+  /** User-Agent complet, remplaçant celui des outils de lecture. */
+  userAgent?: string;
 }
 export interface WebDependencies {
   lookup?: (hostname: string) => Promise<{ address: string; family: number }[]>;
@@ -113,14 +117,16 @@ export async function webTransport(
       method: init.method,
       signal: init.signal,
       headers: {
-        host: url.host,
-        "user-agent": "Warband/0.3 (web tools)",
         "accept-encoding": "identity",
         accept:
           init.method === "POST"
             ? "application/json, text/event-stream"
             : "text/html, text/plain, application/json;q=0.9, */*;q=0.1",
         ...(init.body !== undefined && { "content-type": "application/json" }),
+        ...init.headers,
+        // L'hôte et le User-Agent ne sont jamais surchargés par les en-têtes de l'appelant.
+        host: url.host,
+        "user-agent": init.userAgent ?? "Warband/0.3 (web tools)",
       },
       ...(init.body !== undefined && { body: init.body }),
     });
@@ -161,6 +167,79 @@ async function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T
   }
 }
 
+/** Résout l'hôte et refuse toute adresse non publique ; renvoie l'adresse épinglée (IPv4 préférée). */
+async function publicAddress(
+  url: URL,
+  deps: WebDependencies,
+  signal: AbortSignal,
+): Promise<string> {
+  const hostname = url.hostname.replace(/^\[|\]$/g, "");
+  const addresses = isIP(hostname)
+    ? [{ address: hostname, family: isIP(hostname) }]
+    : await abortable(
+        (deps.lookup ?? ((name) => lookup(name, { all: true, verbatim: true })))(hostname),
+        signal,
+      );
+  signal.throwIfAborted();
+  if (addresses.length === 0 || addresses.some((row) => !isPublicAddress(row.address)))
+    throw new CodedError("web.invalidUrl");
+  const address = addresses.find((row) => isIP(row.address) === 4) ?? addresses[0];
+  if (!address) throw new CodedError("web.invalidUrl");
+  return address.address;
+}
+
+export interface RawWebResponse {
+  url: string;
+  status: number;
+  headers: Record<string, string | undefined>;
+  /** Corps lu, au plus 1 Mio ; `truncated` s'il a été coupé. */
+  body: Buffer;
+  truncated: boolean;
+}
+
+/**
+ * Une seule requête, sans suivre de redirection ni filtrer le statut (3xx, 4xx, 5xx rendus tels
+ * quels). Mêmes refus d'adresses non publiques que `requestWeb`, DNS compris.
+ */
+export async function requestRaw(
+  value: string,
+  init: WebRequest,
+  deps: WebDependencies = {},
+): Promise<RawWebResponse> {
+  const url = webUrl(value);
+  init.signal.throwIfAborted();
+  const address = await publicAddress(url, deps, init.signal);
+  const response = await (deps.transport ?? webTransport)(url, address, init);
+  try {
+    const chunks: Uint8Array[] = [];
+    let bytes = 0;
+    let truncated = false;
+    if (init.method !== "HEAD") {
+      for await (const chunk of response.body) {
+        init.signal.throwIfAborted();
+        const room = MAX_BYTES - bytes;
+        if (chunk.byteLength > room) {
+          chunks.push(chunk.subarray(0, room));
+          truncated = true;
+          break;
+        }
+        bytes += chunk.byteLength;
+        chunks.push(chunk);
+      }
+    }
+    init.signal.throwIfAborted();
+    return {
+      url: url.href,
+      status: response.status,
+      headers: response.headers,
+      body: Buffer.concat(chunks),
+      truncated,
+    };
+  } finally {
+    await response.close?.();
+  }
+}
+
 /** Réseau partagé : pas de cookies, d’identifiants ou d’en-têtes fournis par le modèle. */
 export async function requestWeb(
   value: string,
@@ -173,19 +252,8 @@ export async function requestWeb(
   let current = init;
   for (let redirect = 0; redirect <= 5; redirect++) {
     current.signal.throwIfAborted();
-    const hostname = url.hostname.replace(/^\[|\]$/g, "");
-    const addresses = isIP(hostname)
-      ? [{ address: hostname, family: isIP(hostname) }]
-      : await abortable(
-          (deps.lookup ?? ((name) => lookup(name, { all: true, verbatim: true })))(hostname),
-          current.signal,
-        );
-    current.signal.throwIfAborted();
-    if (addresses.length === 0 || addresses.some((row) => !isPublicAddress(row.address)))
-      throw new CodedError("web.invalidUrl");
-    const address = addresses.find((row) => isIP(row.address) === 4) ?? addresses[0];
-    if (!address) throw new CodedError("web.invalidUrl");
-    const response = await (deps.transport ?? webTransport)(url, address.address, current);
+    const address = await publicAddress(url, deps, current.signal);
+    const response = await (deps.transport ?? webTransport)(url, address, current);
     try {
       if ([301, 302, 303, 307, 308].includes(response.status)) {
         const location = response.headers.location;

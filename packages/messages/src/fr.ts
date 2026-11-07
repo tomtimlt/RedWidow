@@ -288,6 +288,8 @@ export const reasons: Catalog = {
     `${text(p.tool)} : la requête ou l'URL pourrait fuiter vers un tiers (constat : ${text(p.finding)} ; secret, valeur masquée ou adresse privée), approbation requise à chaque appel`,
   "web.redirectOffList": (p) =>
     `redirection vers ${text(p.host)}, hors des sources de référence : lecture interrompue ; rappelez read_url sur la cible pour la soumettre à approbation`,
+  "web.invalidRequest": () =>
+    "requête http_request invalide (méthode, en-têtes ou corps incompatibles)",
   "web.searchFailed": () =>
     "Le service de recherche n’a pas renvoyé de réponse exploitable. Réessayez plus tard.",
   "finding.busy": () =>
@@ -317,6 +319,12 @@ export const reasons: Catalog = {
     "empreinte requise : relire « program show », puis relancer « program approve --digest <empreinte> »",
   "program.digestMismatch": (p) =>
     `le brouillon courant a changé (empreinte ${text(p.actual)}, attendue ${text(p.expected)}) : relire « program show » avant d'approuver`,
+  "program.required": () =>
+    "http_request exige une fiche programme approuvée pour le projet actif (« program show », puis « program approve »)",
+  "program.paced": (p) =>
+    `rythme du programme : la requête vers ${text(p.host)} doit attendre ${text(p.retryAfterMs)} ms, au-delà du délai d'attente borné ; réessayez plus tard`,
+  "program.halted": (p) =>
+    `hôte ${text(p.host)} arrêté par le contrôleur de rythme (signaux répétés de limitation) : reprise par un humain avec « program resume ${text(p.host)} »`,
   "project.absent": () => "aucun projet actif",
   "project.readFailed": () => "lecture du projet impossible ce tour-ci",
   "cours.absent": () => "aucun cours installé (dossier de cours absent)",

@@ -20,6 +20,7 @@ const SUMMARY_BASENAME = "summary.txt";
 /** Fiche programme (brouillon) et son approbation : chemins sensibles, voir `approval/paths.ts`. */
 const PROGRAM_BASENAME = "program.json";
 const PROGRAM_APPROVAL_BASENAME = "program.approval.json";
+const PACE_HALTED_BASENAME = "pace-halted.json";
 /** Plafond du résumé de session (octets UTF-8, marqueur compris). */
 const MAX_SUMMARY_BYTES = 8192;
 const SUMMARY_TRUNCATED = "\n[… résumé tronqué]";
@@ -119,6 +120,12 @@ export function projectProgramPath(configDir: string, projectId: string): string
 export function projectProgramApprovalPath(configDir: string, projectId: string): string {
   if (!PROJECT_ID.test(projectId)) throw invalidProject();
   return join(configDir, PROJECTS_DIR, projectId, PROGRAM_APPROVAL_BASENAME);
+}
+
+/** Chemin des hôtes arrêtés par le contrôleur de rythme. L'id est contrôlé avant tout `join`. */
+export function projectPaceHaltedPath(configDir: string, projectId: string): string {
+  if (!PROJECT_ID.test(projectId)) throw invalidProject();
+  return join(configDir, PROJECTS_DIR, projectId, PACE_HALTED_BASENAME);
 }
 
 /** Chemin du résumé de session. L'id est contrôlé avant tout `join`. */

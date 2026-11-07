@@ -164,6 +164,7 @@ export const reasons: Catalog = {
     `${text(p.tool)}: the query or URL could leak to a third party (finding: ${text(p.finding)}; secret, masked value or private address), approval required on every call`,
   "web.redirectOffList": (p) =>
     `redirect to ${text(p.host)}, outside the reference sources: read stopped; call read_url on the target to submit it for approval`,
+  "web.invalidRequest": () => "invalid http_request (incompatible method, headers or body)",
   "web.searchFailed": () => "The search service returned no usable response.",
   "kali.nmapUnavailable": () =>
     "Nmap cannot execute in this container. Check its Linux capabilities and Docker restrictions.",
@@ -191,6 +192,12 @@ export const reasons: Catalog = {
     "hash required: re-read 'program show', then run 'program approve --digest <hash>'",
   "program.digestMismatch": (p) =>
     `the current draft changed (hash ${text(p.actual)}, expected ${text(p.expected)}): re-read 'program show' before approving`,
+  "program.required": () =>
+    "http_request requires an approved program sheet for the active project ('program show', then 'program approve')",
+  "program.paced": (p) =>
+    `program pace: the request to ${text(p.host)} must wait ${text(p.retryAfterMs)} ms, beyond the bounded wait; retry later`,
+  "program.halted": (p) =>
+    `host ${text(p.host)} halted by the pace controller (repeated throttling signals): a human resumes it with 'program resume ${text(p.host)}'`,
   "project.absent": () => "no active project",
   "project.readFailed": () => "could not read the active project this turn",
   "cours.absent": () => "no course installed (course folder missing)",

@@ -75,6 +75,8 @@ export interface PaceController {
 export const PACE_PAUSE_MS = 60_000;
 /** Plancher du multiplicateur : le débit ne descend pas sous le plafond ÷ 8. */
 export const PACE_FLOOR = 1 / 8;
+/** Multiplicateur après une reprise explicite : plafond ÷ 2. */
+export const PACE_RESUME = 1 / 2;
 /** Facteur de remontée et nombre de réponses saines consécutives qui le déclenchent. */
 export const PACE_RECOVERY_FACTOR = 1.5;
 export const PACE_RECOVERY_AFTER = 20;
@@ -181,9 +183,10 @@ export function createPaceController(options: PaceOptions = {}): PaceController 
     resume(host) {
       const s = hosts.get(host);
       if (!s?.halted) return;
-      // Reprise prudente : débit au plancher, historique effacé, pas de pause résiduelle.
+      // Reprise prudente : débit à la moitié du plafond (pas au plancher : un signal ultérieur
+      // ne ré-arrêterait pas aussitôt l'hôte), historique effacé, pas de pause résiduelle.
       s.halted = false;
-      s.multiplier = PACE_FLOOR;
+      s.multiplier = PACE_RESUME;
       s.healthy = 0;
       s.signals = [];
       s.pausedUntil = 0;

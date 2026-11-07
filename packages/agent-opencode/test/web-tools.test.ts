@@ -84,7 +84,7 @@ it("les outils web partagés restent soumis à la gate malgré leur annotation l
       webToolset()
         .create({ recorder })
         .map((spec) => spec.name),
-    ).toEqual(["search_web", "read_url"]);
+    ).toEqual(["search_web", "read_url", "http_request"]);
   } finally {
     await client.close();
     await server.close();
