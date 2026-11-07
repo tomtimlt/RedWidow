@@ -11,6 +11,12 @@ import {
   auditProjectIdSchema,
   auditRecordSchema,
   auditTestSchema,
+  COVERAGE_STATES,
+  type CoverageCellView,
+  type CoverageState,
+  type CoverageView,
+  coverageCellsSchema,
+  coverageKey,
 } from "./audit-schema.js";
 import type { EngineEvent } from "./events.js";
 import { createRedactor, secretsFromEnv } from "./redact.js";
@@ -40,6 +46,7 @@ const retained = new Set([
   "sink.error",
   "journal.truncated",
   "audit.test",
+  "audit.coverage",
 ]);
 
 /** Journal de mission indépendant de la rétention du chat. Aucun effacement automatique. */
@@ -420,6 +427,7 @@ export class AuditStore {
       enabled: await this.enabled(projectId),
       records: options.compact ? [] : sorted.slice(-500),
       tests: auditTests(sorted).slice(-1000),
+      coverage: coverageView(sorted),
       bytes: files.reduce((n, f) => n + f.size, 0),
       health,
       viewLimited: limited || sorted.length > 500,
@@ -455,7 +463,11 @@ export function auditTests(records: readonly AuditRecord[]): AuditTest[] {
       const input =
         e.input && typeof e.input === "object" ? (e.input as Record<string, unknown>) : {};
       const tool = typeof e.tool === "string" ? e.tool : (old?.method ?? "tool");
-      if (/(?:^|__)(?:load_skill|mission_context|record_decision|record_test)$/.test(tool))
+      if (
+        /(?:^|__)(?:load_skill|mission_context|record_decision|record_test|record_coverage)$/.test(
+          tool,
+        )
+      )
         continue;
       tests.set(id, {
         id,
@@ -529,6 +541,40 @@ export function auditTests(records: readonly AuditRecord[]): AuditTest[] {
     }
   }
   return [...tests.values()].sort((a, b) => a.ts.localeCompare(b.ts));
+}
+
+/** Dernier état de chaque case (clé normalisée) sur les événements `audit.coverage` du projet. */
+export function coverageView(records: readonly AuditRecord[]): CoverageView {
+  const latest = new Map<string, CoverageCellView>();
+  for (const record of records) {
+    if (record.kind !== "engine" || record.data.kind !== "audit.coverage") continue;
+    const parsed = coverageCellsSchema.safeParse(record.data.cells);
+    if (!parsed.success) continue;
+    for (const cell of parsed.data) {
+      const key = coverageKey(cell);
+      // Retire l'ancienne entrée pour que l'ordre reste celui de la dernière écriture.
+      latest.delete(key);
+      latest.set(key, {
+        ...cell,
+        key,
+        ts: record.ts,
+        ...(record.runId !== undefined && { runId: record.runId }),
+      });
+    }
+  }
+  const cells = [...latest.values()];
+  const counts = Object.fromEntries(COVERAGE_STATES.map((state) => [state, 0])) as Record<
+    CoverageState,
+    number
+  >;
+  for (const cell of cells) counts[cell.state]++;
+  const total = cells.length;
+  return {
+    cells,
+    total,
+    counts,
+    coveredPercent: total === 0 ? 0 : Math.round(((total - counts.untested) / total) * 100),
+  };
 }
 
 export function auditTextHash(text: string): string {

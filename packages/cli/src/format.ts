@@ -44,6 +44,8 @@ export function formatEvent(
       return `${tag("dim", t("recherche", "research"))} ${e.status}`;
     case "audit.test":
       return `${e.kind} : ${e.claim.objective}`;
+    case "audit.coverage":
+      return `${e.kind} : ${e.cells.length} ${t("case(s)", "cell(s)")}`;
     case "run.started":
       return `${tag("dim", "run")} ${e.prompt} ${paint("dim", `(${e.cwd})`)}`;
     case "agent.text":

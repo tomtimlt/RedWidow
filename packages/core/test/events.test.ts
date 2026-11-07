@@ -12,6 +12,10 @@ import {
 
 /** Un exemplaire valide de chaque kind (le typage force l'exhaustivité). */
 const SAMPLES: { [K in EventKind]: Extract<EventPayload, { kind: K }> } = {
+  "audit.coverage": {
+    kind: "audit.coverage",
+    cells: [{ surface: "/api/users", parameter: "id", testClass: "IDOR", state: "untested" }],
+  },
   "audit.test": {
     kind: "audit.test",
     claim: {

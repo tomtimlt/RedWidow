@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { normalizeSkillSearch, renderProfileSkill } from "./agent-profile-skill.js";
 import { AGENT_PROFILES, isAgentProfile } from "./agent-profiles.js";
-import { auditTestSchema } from "./audit-schema.js";
+import { auditTestSchema, coverageWriteSchema } from "./audit-schema.js";
 import type { DockerToolSpec } from "./docker/tool-specs.js";
 import type { MissionDesk, ProgramDraftInput } from "./mission-desk.js";
 import { capOutput } from "./output.js";
@@ -107,6 +107,16 @@ export function deskToolSpecs(desk?: MissionDesk): DockerToolSpec[] {
         readOnly: false,
         async run(raw) {
           return JSON.stringify(desk.recordTest(auditTestSchema.parse(raw)));
+        },
+      },
+      {
+        name: "record_coverage",
+        description:
+          "Déclarer ou mettre à jour les cases de la matrice de couverture (surface × paramètre × classe) avec leur état : untested, negative, blocked, prerequisite, confirmed. Upsert par clé (casse et espaces ignorés). negative et confirmed exigent testRefs : des événements audit.test de ce run, créés par record_test. Annotation seulement : aucune exécution, aucun changement de permissions. La réponse donne le résumé de couverture ; le moteur relance (sans bloquer) si des cases restent untested à la conclusion.",
+        input: coverageWriteSchema.shape,
+        readOnly: false,
+        async run(raw) {
+          return JSON.stringify(desk.recordCoverage(coverageWriteSchema.parse(raw).cells));
         },
       },
       {

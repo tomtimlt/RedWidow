@@ -12,7 +12,13 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AUDIT_RECORD_MAX_BYTES, AuditStore, auditTests } from "../src/audit.js";
+import {
+  AUDIT_RECORD_MAX_BYTES,
+  AuditStore,
+  auditTests,
+  type CoverageView,
+  coverageView,
+} from "../src/audit.js";
 import { createRecorder } from "../src/recorder.js";
 
 const roots: string[] = [];
@@ -262,5 +268,60 @@ describe("registre des contrôles", () => {
       reviewed: false,
     });
     await store.close();
+  });
+
+  it("agrège la matrice de couverture : dernier état par case, comptes et pourcentage", async () => {
+    const { store, project } = await fixture();
+    const r = createRecorder({ runId: "run", redact: false });
+    expect((await store.view(project)).coverage).toMatchObject({ total: 0, coveredPercent: 0 });
+    const a = { surface: "/api/users", parameter: "id", testClass: "IDOR" };
+    const b = { surface: "/login", testClass: "SQLi" };
+    const c = { surface: "/upload", parameter: "file", testClass: "XXE" };
+    await store.recordEvent(
+      project,
+      r.emit({
+        kind: "audit.coverage",
+        cells: [
+          { ...a, state: "untested" },
+          { ...b, state: "untested" },
+          { ...c, state: "untested" },
+        ],
+      }),
+    );
+    await store.recordEvent(
+      project,
+      r.emit({
+        kind: "audit.coverage",
+        cells: [{ surface: " /API/users", parameter: "ID", testClass: "idor", state: "blocked" }],
+      }),
+    );
+    const coverage = (await store.view(project)).coverage as CoverageView;
+    expect(coverage.total).toBe(3);
+    expect(coverage.counts).toEqual({
+      untested: 2,
+      negative: 0,
+      blocked: 1,
+      prerequisite: 0,
+      confirmed: 0,
+    });
+    expect(coverage.coveredPercent).toBe(33);
+    expect(coverage.cells.find((x) => x.testClass === "idor")).toMatchObject({
+      state: "blocked",
+      runId: "run",
+    });
+    // Données illisibles ignorées, sans lever.
+    expect(
+      coverageView([
+        {
+          v: 1,
+          id: randomUUID(),
+          projectId: project,
+          ts: new Date().toISOString(),
+          actor: "agent",
+          kind: "engine",
+          data: { kind: "audit.coverage", cells: "nope" },
+        },
+      ]).total,
+    ).toBe(0);
   });
 });

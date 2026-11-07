@@ -173,6 +173,12 @@ export const reasons: Catalog = {
   "research.noSearch": () => "no web search in this run although web tools are exposed",
   "mission.sourceUnknown": (p) =>
     `unknown source in this run: ${text(p.id)} is not a search_web or read_url event`,
+  "coverage.testRefUnknown": (p) =>
+    `unknown test reference in this run: ${text(p.id)} is not an audit.test event`,
+  "coverage.testRefRequired": (p) =>
+    `cell "${text(p.surface)}" in state ${text(p.state)}: at least one testRefs entry (audit.test event of the run) is required`,
+  "coverage.untested": (p) =>
+    `${text(p.count)} coverage cell(s) still untested (${text(p.examples)}): test them, or mark them blocked / prerequisite with a justification, before concluding`,
   "web.invalidRequest": () => "invalid http_request (incompatible method, headers or body)",
   "web.searchFailed": () => "The search service returned no usable response.",
   "kali.nmapUnavailable": () =>

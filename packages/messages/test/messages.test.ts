@@ -211,6 +211,10 @@ describe("eventLabel", () => {
   const emit = (payload: EventPayload): EngineEvent => r.emit(payload);
 
   const payloads: Record<EventKind, EventPayload> = {
+    "audit.coverage": {
+      kind: "audit.coverage",
+      cells: [{ surface: "/api/users", testClass: "IDOR", state: "untested" }],
+    },
     "audit.test": {
       kind: "audit.test",
       claim: {

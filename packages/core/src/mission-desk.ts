@@ -1,9 +1,17 @@
 import { createHash } from "node:crypto";
-import { type AuditTestClaim, auditTestSchema } from "./audit-schema.js";
+import {
+  type AuditTestClaim,
+  auditTestSchema,
+  COVERAGE_STATES,
+  type CoverageCell,
+  type CoverageState,
+  coverageCellsSchema,
+  coverageKey,
+} from "./audit-schema.js";
 import { type MissionDecision, missionDecisionSchema } from "./mission-decision-schema.js";
 import { type ProgramPace, type ProgramSheet, programSheetSchema } from "./program/sheet.js";
 import type { ProgramStatus } from "./program/store.js";
-import { CodedError, type Reason } from "./reason.js";
+import { CodedError, type Reason, reason } from "./reason.js";
 import type { Recorder } from "./recorder.js";
 import { createRedactor, secretsFromEnv } from "./redact.js";
 import { isClosingText, type ResearchEvent, researchTriggers } from "./research-triggers.js";
@@ -29,6 +37,17 @@ export interface MissionWebCall {
   target: string;
   isError: boolean;
 }
+/** Résumé de la matrice de couverture du run (cases déclarées avec `record_coverage`). */
+export interface CoverageSummary {
+  total: number;
+  counts: Record<CoverageState, number>;
+  /** (cases dont l'état ≠ untested) / total, en pourcentage entier ; 0 sans case. */
+  coveredPercent: number;
+  /** Cases `untested` (au plus 20, les plus anciennes d'abord). */
+  untested: { surface: string; parameter?: string; testClass: string }[];
+  /** Nombre de cases `untested` non listées. */
+  untestedOmitted: number;
+}
 export interface MissionContext {
   version: 1;
   runId: string;
@@ -42,6 +61,7 @@ export interface MissionContext {
    */
   program: { untrusted: true; notice: string; sheet: ProgramSheet } | null;
   guidance: string[];
+  coverage: CoverageSummary;
   /** Relances de recherche web (codes + paramètres, non bloquantes) et recherches web du run. */
   research: { triggers: Reason[]; searches: MissionWebCall[] };
   activeTasks: { taskId: string; status: string }[];
@@ -63,13 +83,27 @@ export interface MissionDesk {
     maxChars?: number | undefined;
   }): MissionContext;
   /** `research` : relances de recherche web, présentes seulement pour une décision de clôture. */
-  recordDecision(decision: MissionDecision): MissionDecision & { research?: Reason[] };
+  recordDecision(decision: MissionDecision): MissionDecision & {
+    research?: Reason[];
+    /** `coverage.untested` : relance non bloquante, présente si des cases restent non testées. */
+    coverage?: Reason;
+  };
   /** `research` : relances de recherche web, présentes seulement pour un résultat non positif. */
   recordTest(claim: AuditTestClaim): {
     eventId: string;
     runId: string;
     reviewed: false;
     research?: Reason[];
+    coverage?: Reason;
+  };
+  /**
+   * Upsert des cases de couverture (clé normalisée). Les `testRefs` doivent désigner des événements
+   * `audit.test` de ce run ; `negative` et `confirmed` en exigent au moins un. Tout ou rien.
+   */
+  recordCoverage(cells: CoverageCell[]): {
+    written: number;
+    coverage: CoverageSummary;
+    followUp?: Reason;
   };
   /**
    * Écrit le brouillon de fiche programme du projet actif (ADR 0040). `verified` est calculé ici
@@ -102,6 +136,8 @@ export interface ProgramDraftResult {
 // Les plafonds portent aussi sur les tables auxiliaires et les textes retenus.
 const MAX_ITEMS = 128;
 const MAX_WEB_CALLS = 32;
+const MAX_COVERAGE_CELLS = 1000;
+const MAX_UNTESTED_LISTED = 20;
 const WEB_EXPOSED = /(?:^|__)(?:search_web|read_url)$/;
 function clip(text: string, size: number): string {
   return Array.from(text).slice(0, size).join("");
@@ -163,6 +199,9 @@ export function createMissionDesk({
   const researchLog: ResearchEvent[] = [];
   const webCalls: MissionWebCall[] = [];
   const webIds = new Set<string>();
+  // Événements audit.test du run (citables en `testRefs`) et matrice de couverture (clé normalisée → case).
+  const testIds = new Set<string>();
+  const coverage = new Map<string, CoverageCell>();
   let webExposed = false;
   const outputs = new Map<string, string>();
   const tasks = new Map<string, string>();
@@ -181,6 +220,10 @@ export function createMissionDesk({
     if (disposed || event.runId !== recorder.runId) return;
     if (event.kind === "user.message") {
       suppliedPrompt = clip(redact(event.text), 2000);
+    } else if (event.kind === "audit.test") {
+      testIds.add(event.id);
+      if (testIds.size > MAX_COVERAGE_CELLS)
+        testIds.delete(testIds.values().next().value as string);
     } else if (event.kind === "session.started") {
       webExposed = event.tools.some((tool) => WEB_EXPOSED.test(tool));
     } else if (event.kind === "tool.requested") {
@@ -193,7 +236,11 @@ export function createMissionDesk({
         const url = (event.input as { url?: unknown } | null)?.url;
         if (typeof url === "string") boundedSet(readRequests, event.toolUseId, url);
       }
-      if (/(?:^|__)(mission_context|record_decision|record_test|load_skill)$/.test(event.tool))
+      if (
+        /(?:^|__)(mission_context|record_decision|record_test|record_coverage|load_skill)$/.test(
+          event.tool,
+        )
+      )
         return;
       boundedSet(pending, event.toolUseId, {
         tool: clip(event.tool, 200),
@@ -295,6 +342,46 @@ export function createMissionDesk({
       if (!webIds.has(id))
         throw new CodedError("mission.sourceUnknown", { id: clip(redact(id), 200) });
   }
+  function coverageSummary(): CoverageSummary {
+    const counts = Object.fromEntries(COVERAGE_STATES.map((state) => [state, 0])) as Record<
+      CoverageState,
+      number
+    >;
+    const untested: CoverageSummary["untested"] = [];
+    let untestedCount = 0;
+    for (const cell of coverage.values()) {
+      counts[cell.state]++;
+      if (cell.state !== "untested") continue;
+      untestedCount++;
+      if (untested.length < MAX_UNTESTED_LISTED)
+        untested.push({
+          surface: cell.surface,
+          ...(cell.parameter !== undefined && { parameter: cell.parameter }),
+          testClass: cell.testClass,
+        });
+    }
+    const total = coverage.size;
+    return {
+      total,
+      counts,
+      coveredPercent: total === 0 ? 0 : Math.round(((total - counts.untested) / total) * 100),
+      untested,
+      untestedOmitted: untestedCount - untested.length,
+    };
+  }
+  /** Relance non bloquante : cases encore `untested` au moment d'une conclusion. */
+  function untestedReminder(): Reason | undefined {
+    const summary = coverageSummary();
+    if (summary.counts.untested === 0) return undefined;
+    const examples = summary.untested
+      .slice(0, 3)
+      .map((c) => [c.surface, c.parameter, c.testClass].filter(Boolean).join(" / "))
+      .join(" ; ");
+    return reason("coverage.untested", {
+      count: summary.counts.untested,
+      examples: clip(examples, 300),
+    });
+  }
   return {
     beginTurn(text) {
       assertOpen();
@@ -314,8 +401,14 @@ export function createMissionDesk({
       recorder.emit({ kind: "mission.decision", decision });
       started = now().getTime();
       branchCalls = 0;
-      const research = isClosingText(`${parsed.objective} ${parsed.nextAction}`) ? triggers() : [];
-      return { ...structuredClone(decision), ...(research.length > 0 && { research }) };
+      const closing = isClosingText(`${parsed.objective} ${parsed.nextAction}`);
+      const research = closing ? triggers() : [];
+      const reminder = closing ? untestedReminder() : undefined;
+      return {
+        ...structuredClone(decision),
+        ...(research.length > 0 && { research }),
+        ...(reminder && { coverage: reminder }),
+      };
     },
     recordTest(raw) {
       assertOpen();
@@ -326,12 +419,39 @@ export function createMissionDesk({
       assertSources(claim.sources);
       const event = recorder.emit({ kind: "audit.test", claim: redact(claim) });
       const research = claim.conclusion === "finding" ? [] : triggers();
+      const reminder = claim.conclusion === "finding" ? undefined : untestedReminder();
       return {
         eventId: event.id,
         runId: event.runId,
         reviewed: false,
         ...(research.length > 0 && { research }),
+        ...(reminder && { coverage: reminder }),
       };
+    },
+    recordCoverage(raw) {
+      assertOpen();
+      const cells = coverageCellsSchema.parse(raw);
+      for (const cell of cells) {
+        if ((cell.state === "negative" || cell.state === "confirmed") && !cell.testRefs?.length)
+          throw new CodedError("coverage.testRefRequired", {
+            surface: clip(redact(cell.surface), 100),
+            state: cell.state,
+          });
+        for (const id of cell.testRefs ?? [])
+          if (!testIds.has(id))
+            throw new CodedError("coverage.testRefUnknown", { id: clip(redact(id), 200) });
+      }
+      const written = redact(cells);
+      recorder.emit({ kind: "audit.coverage", cells: written });
+      for (const cell of written) {
+        const key = coverageKey(cell);
+        // Réinsertion : une case mise à jour passe en fin d'ordre ; plafond par éviction des plus anciennes.
+        coverage.delete(key);
+        coverage.set(key, structuredClone(cell));
+        if (coverage.size > MAX_COVERAGE_CELLS)
+          coverage.delete(coverage.keys().next().value as string);
+      }
+      return { written: written.length, coverage: coverageSummary() };
     },
     async draftProgram(raw) {
       assertOpen();
@@ -462,6 +582,7 @@ export function createMissionDesk({
           ? { untrusted: true, notice: PROGRAM_NOTICE, sheet: redact(structuredClone(applied)) }
           : null,
         guidance,
+        coverage: coverageSummary(),
         research: { triggers: triggers(), searches: webCalls.slice(-8).map((c) => ({ ...c })) },
         activeTasks: [...tasks].map(([taskId, status]) => ({ taskId, status })),
         taskRegistry: { scope: "observed-current-run", incomplete: true },
@@ -489,6 +610,10 @@ export function createMissionDesk({
       }
       while (JSON.stringify(packet).length > maxChars && packet.omissions.unknownEvidenceIds.length)
         packet.omissions.unknownEvidenceIds.pop();
+      while (JSON.stringify(packet).length > maxChars && packet.coverage.untested.length) {
+        packet.coverage.untested.pop();
+        packet.coverage.untestedOmitted++;
+      }
       while (JSON.stringify(packet).length > maxChars && packet.research.searches.length)
         packet.research.searches.shift();
       while (JSON.stringify(packet).length > maxChars && packet.guidance.length > 1)
@@ -531,6 +656,8 @@ export function createMissionDesk({
       researchLog.length = 0;
       webCalls.length = 0;
       webIds.clear();
+      testIds.clear();
+      coverage.clear();
       decision = null;
       prompt = "";
       suppliedPrompt = undefined;

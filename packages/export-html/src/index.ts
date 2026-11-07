@@ -28,6 +28,7 @@ const PAD = 20;
 
 export const KIND_CLASS: Record<EventKind, string> = {
   "audit.test": "meta",
+  "audit.coverage": "meta",
   "research.status": "k-tool",
   "mission.decision": "meta",
   "run.started": "k-run",

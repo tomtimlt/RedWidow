@@ -298,6 +298,12 @@ export const reasons: Catalog = {
     "aucune recherche web dans ce run alors que les outils web sont exposés : chercher la pile identifiée",
   "mission.sourceUnknown": (p) =>
     `source inconnue dans ce run : ${text(p.id)} n'est pas un événement search_web ou read_url`,
+  "coverage.testRefUnknown": (p) =>
+    `référence de test inconnue dans ce run : ${text(p.id)} n'est pas un événement audit.test`,
+  "coverage.testRefRequired": (p) =>
+    `case « ${text(p.surface)} » à l'état ${text(p.state)} : au moins une référence testRefs (événement audit.test du run) est requise`,
+  "coverage.untested": (p) =>
+    `${text(p.count)} case(s) de la matrice encore non testée(s) (${text(p.examples)}) : les tester, ou les marquer bloquée / prérequis manquant avec la justification, avant de conclure`,
   "web.invalidRequest": () =>
     "requête http_request invalide (méthode, en-têtes ou corps incompatibles)",
   "web.searchFailed": () =>

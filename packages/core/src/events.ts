@@ -1,4 +1,4 @@
-import { auditTestSchema } from "./audit-schema.js";
+import { auditTestSchema, coverageCellsSchema } from "./audit-schema.js";
 import { type MissionDecision, missionDecisionSchema } from "./mission-decision-schema.js";
 /**
  * Modèle d'événements du moteur. Tout ce que le moteur produit passe par ici :
@@ -42,6 +42,7 @@ export interface AuthInfo {
 
 export type EventPayload =
   | { kind: "audit.test"; claim: import("./audit.js").AuditTestClaim }
+  | { kind: "audit.coverage"; cells: import("./audit-schema.js").CoverageCell[] }
   | { kind: "run.started"; prompt: string; cwd: string }
   | {
       kind: "session.started";
@@ -350,6 +351,10 @@ export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
     auditTestSchema.safeParse(p.claim).success
       ? null
       : reason("event.invalidField", { field: "claim" }),
+  "audit.coverage": (p) =>
+    coverageCellsSchema.safeParse(p.cells).success
+      ? null
+      : reason("event.invalidField", { field: "cells" }),
   "run.started": shape({ prompt: "string", cwd: "string" }),
   "session.started": (p) =>
     shape({ sessionId: "string", model: "string", tools: "string[]", auth: "object?" })(p) ??

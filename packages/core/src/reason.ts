@@ -172,6 +172,10 @@ export const REASON_CODES = [
   "research.blocked",
   "research.noSearch",
   "mission.sourceUnknown",
+  // Matrice de couverture
+  "coverage.testRefUnknown",
+  "coverage.testRefRequired",
+  "coverage.untested",
   "kali.nmapUnavailable",
   "finding.invalidLinks",
   "project.absent",

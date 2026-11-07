@@ -174,6 +174,7 @@ describe("bureau de mission", () => {
     expect(specs.map((s) => s.name)).toEqual([
       "load_skill",
       "record_test",
+      "record_coverage",
       "program_draft",
       "mission_context",
       "record_decision",
@@ -216,4 +217,153 @@ it("record_test exige des preuves de ce run, masque les annotations et ne donne 
     evaluatePolicy({ default: "deny", rules: [] }, "mcp__desk__record_test", {}).decision,
   ).toBe("deny");
   expect(evaluatePolicy(DEFAULT_POLICY, "mcp__desk__record_test_exec", {}).decision).toBe("ask");
+});
+
+describe("matrice de couverture", () => {
+  function setup() {
+    const f = fixture();
+    const e = f.result("HTTP 403");
+    const claim = {
+      objective: "Test IDOR",
+      target: "lab",
+      testContext: "anonyme",
+      method: "HTTP GET",
+      observed: "403",
+      conclusion: "finding" as const,
+      evidenceIds: [e.id],
+    };
+    const test = f.desk.recordTest(claim);
+    return { ...f, evidence: e, claim, test };
+  }
+  const cell = { surface: "/api/users", parameter: "id", testClass: "IDOR" };
+
+  it("upsert par clé normalisée (casse et espaces) et événement audit.coverage", () => {
+    const f = fixture();
+    const events: { kind: string }[] = [];
+    f.recorder.subscribe((e) => events.push(e));
+    f.desk.recordCoverage([{ ...cell, state: "untested" }]);
+    const out = f.desk.recordCoverage([
+      {
+        surface: "  /API/users ",
+        parameter: "ID",
+        testClass: "idor",
+        state: "blocked",
+        note: "WAF",
+      },
+    ]);
+    expect(out.written).toBe(1);
+    expect(out.coverage).toMatchObject({
+      total: 1,
+      coveredPercent: 100,
+      counts: { blocked: 1, untested: 0 },
+    });
+    expect(events.filter((e) => e.kind === "audit.coverage")).toHaveLength(2);
+  });
+
+  it("refuse un testRef inconnu, un négatif ou un confirmé sans testRef, sans rien écrire", () => {
+    const f = setup();
+    expect(() =>
+      f.desk.recordCoverage([{ ...cell, state: "negative", testRefs: ["inconnu"] }]),
+    ).toThrow(expect.objectContaining({ code: "coverage.testRefUnknown" }));
+    // Un événement du run qui n'est pas un audit.test n'est pas citable.
+    expect(() =>
+      f.desk.recordCoverage([{ ...cell, state: "confirmed", testRefs: [f.evidence.id] }]),
+    ).toThrow(expect.objectContaining({ code: "coverage.testRefUnknown" }));
+    for (const state of ["negative", "confirmed"] as const)
+      expect(() => f.desk.recordCoverage([{ ...cell, state }])).toThrow(
+        expect.objectContaining({ code: "coverage.testRefRequired" }),
+      );
+    // Lot atomique : une case valide suivie d'une invalide n'écrit rien.
+    expect(() =>
+      f.desk.recordCoverage([
+        { surface: "a", testClass: "x", state: "untested" },
+        { ...cell, state: "negative" },
+      ]),
+    ).toThrow();
+    expect(f.desk.context().coverage.total).toBe(0);
+    expect(() => f.desk.recordCoverage([])).toThrow();
+    expect(() => f.desk.recordCoverage([{ ...cell, state: "bogus" } as never])).toThrow();
+  });
+
+  it("accepte un testRef issu de record_test et refuse celui d'un autre run", () => {
+    const f = setup();
+    const other = setup();
+    expect(
+      f.desk.recordCoverage([{ ...cell, state: "negative", testRefs: [f.test.eventId] }]).coverage
+        .counts.negative,
+    ).toBe(1);
+    expect(() =>
+      f.desk.recordCoverage([{ ...cell, state: "negative", testRefs: [other.test.eventId] }]),
+    ).toThrow(expect.objectContaining({ code: "coverage.testRefUnknown" }));
+  });
+
+  it("expose le résumé dans mission_context (≤ 20 non testées listées)", () => {
+    const f = fixture();
+    f.desk.recordCoverage(
+      Array.from({ length: 25 }, (_, n) => ({
+        surface: `/s${n}`,
+        testClass: "XSS",
+        state: "untested" as const,
+      })),
+    );
+    f.desk.recordCoverage([{ surface: "/ok", testClass: "XSS", state: "blocked" }]);
+    const { coverage } = f.desk.context();
+    expect(coverage).toMatchObject({
+      total: 26,
+      coveredPercent: 4,
+      counts: { untested: 25, blocked: 1, negative: 0, prerequisite: 0, confirmed: 0 },
+      untestedOmitted: 5,
+    });
+    expect(coverage.untested).toHaveLength(20);
+    expect(f.desk.context({ maxChars: 2048 }).coverage.untested.length).toBeLessThanOrEqual(20);
+  });
+
+  it("relance coverage.untested à la clôture et sur un test non positif, sans bloquer", () => {
+    const f = setup();
+    f.desk.recordCoverage([{ ...cell, state: "untested" }]);
+    const closing = {
+      ...decision,
+      objective: "Conclure la mission",
+      nextAction: "Rédiger le rapport final et terminer",
+    };
+    const reply = f.desk.recordDecision(closing);
+    expect(reply.coverage).toMatchObject({
+      code: "coverage.untested",
+      params: { count: 1, examples: "/api/users / id / IDOR" },
+    });
+    // Décision ordinaire : aucune relance.
+    expect(f.desk.recordDecision(decision).coverage).toBeUndefined();
+    // Test non positif : relance ; test positif : aucune.
+    expect(f.desk.recordTest({ ...f.claim, conclusion: "inconclusive" }).coverage?.code).toBe(
+      "coverage.untested",
+    );
+    expect(f.desk.recordTest(f.claim).coverage).toBeUndefined();
+  });
+
+  it("aucune relance quand tout est couvert ou sans matrice", () => {
+    const f = setup();
+    expect(
+      f.desk.recordDecision({ ...decision, nextAction: "Terminer la mission" }).coverage,
+    ).toBeUndefined();
+    f.desk.recordCoverage([{ ...cell, state: "untested" }]);
+    f.desk.recordCoverage([{ ...cell, state: "confirmed", testRefs: [f.test.eventId] }]);
+    expect(
+      f.desk.recordDecision({ ...decision, nextAction: "Terminer la mission" }).coverage,
+    ).toBeUndefined();
+    expect(f.desk.recordTest({ ...f.claim, conclusion: "not-observed" }).coverage).toBeUndefined();
+  });
+
+  it("outil desk record_coverage : politique allow, aucune demande bloquée", async () => {
+    const f = fixture();
+    const spec = deskToolSpecs(f.desk).find((s) => s.name === "record_coverage");
+    expect(spec?.readOnly).toBe(false);
+    const out = JSON.parse(
+      (await spec?.run({ cells: [{ ...cell, state: "untested" }] }, {} as never)) as string,
+    );
+    expect(out.coverage.total).toBe(1);
+    expect(evaluatePolicy(DEFAULT_POLICY, "mcp__desk__record_coverage", {}).decision).toBe("allow");
+    expect(evaluatePolicy(DEFAULT_POLICY, "mcp__desk__record_coverage_exec", {}).decision).toBe(
+      "ask",
+    );
+  });
 });

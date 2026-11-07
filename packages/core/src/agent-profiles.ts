@@ -45,7 +45,7 @@ export const AGENT_PROFILES = {
   "bug-bounty": {
     label: "Bug bounty",
     source: "audit-context",
-    text: "Lire et citer les règles du programme avant toute requête. Rythme du programme, sinon ≤ 1 requête/s, une à la fois ; au premier 429, 403 de WAF ou timeout, pause de 60 s puis débit divisé par deux ; arrêt au premier ban. Utiliser l’application, cartographier, chasser depuis l’impact éligible, tester par fiches et tenir la matrice avec record_test. Un négatif exige un contrôle positif et deux variantes ; une anomalie n’est fermée qu’après trois variantes. Preuve minimale ; sans preuve rejouée, piste qualifiée.",
+    text: "Lire et citer les règles du programme avant toute requête. Rythme du programme, sinon ≤ 1 requête/s, une à la fois ; au premier 429, 403 de WAF ou timeout, pause de 60 s puis débit divisé par deux ; arrêt au premier ban. Utiliser l’application, cartographier, chasser depuis l’impact éligible, tester par fiches et tenir la matrice avec record_coverage (et record_test pour chaque essai exécuté). Un négatif exige un contrôle positif et deux variantes ; une anomalie n’est fermée qu’après trois variantes. Preuve minimale ; sans preuve rejouée, piste qualifiée.",
     sections: [
       {
         id: "regles",
@@ -80,8 +80,8 @@ export const AGENT_PROFILES = {
       {
         id: "couverture",
         title: "Tenir une matrice de couverture",
-        keywords: ["matrice", "couverture", "record_test", "épuisé", "état"],
-        text: `Tenir une matrice surface × paramètre × classe × état. États : non testé, négatif avec contrôle, bloqué, prérequis manquant, confirmé. Enregistrer avec record_test chaque case qualifiée, avec les références de mission_context. Avant toute conclusion ou clôture, afficher la matrice et le pourcentage couvert. Interdit de conclure s’il reste des cases « non testé » sans justification citant la règle ou le prérequis. Une case « bloqué » ou « prérequis manquant » reste ouverte et nomme ce qui la débloquerait.`,
+        keywords: ["matrice", "couverture", "record_coverage", "record_test", "épuisé", "état"],
+        text: `Tenir une matrice surface × paramètre × classe × état. États : non testé, négatif avec contrôle, bloqué, prérequis manquant, confirmé. Déclarer et mettre à jour les cases avec record_coverage (et record_test pour chaque essai exécuté) ; un négatif ou un confirmé cite en testRefs les événements record_test du run. Le résumé de couverture figure dans mission_context. Avant toute conclusion ou clôture, afficher la matrice et le pourcentage couvert. Interdit de conclure s’il reste des cases « non testé » sans justification citant la règle ou le prérequis. Une case « bloqué » ou « prérequis manquant » reste ouverte et nomme ce qui la débloquerait.`,
       },
       {
         id: "negatifs",
