@@ -427,6 +427,27 @@ function checkTail(tail: readonly string[]): void {
   }
 }
 
+/**
+ * Fiche programme d'un projet et son approbation (`…/projects/<uuid>/program.json`,
+ * `program.approval.json`, temporaires compris). Sensibles où qu'ils soient : le dossier de
+ * configuration peut être redirigé, et seul un humain (CLI) doit pouvoir les écrire.
+ */
+const PROGRAM_FILE =
+  /(?:^|[\\/])projects[\\/][0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[\\/]program(?:\.approval)?\.json(?:\.[^\\/]*)?$/i;
+
+/** Texte de commande shell : fiche programme nommée par chemin de projet, ou approbation nommée seule. */
+const PROGRAM_SHELL =
+  /projects[\\/][0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[\\/]program|program\.approval\.json/i;
+
+/**
+ * Vrai si une commande shell désigne littéralement un fichier de fiche programme. Au mieux
+ * (le shell n'est pas évalué : variables, `cd` puis nom relatif échappent) ; la défense de
+ * fond est que seule la CLI écrit la fiche et que l'empreinte invalide toute modification.
+ */
+export function mentionsProgramFile(commandText: string): boolean {
+  return PROGRAM_SHELL.test(commandText);
+}
+
 function isInside(root: string, path: string, f: Flavor): boolean {
   const rel = f.path.relative(f.fold(root), f.fold(path));
   if (rel === "") return true;
@@ -505,7 +526,7 @@ export function checkPathAccess(
       throw err;
     }
     for (const path of [absolute, real]) {
-      if (sensitive.some((s) => isInside(s, path, f)))
+      if (sensitive.some((s) => isInside(s, path, f)) || PROGRAM_FILE.test(path))
         return { kind: "sensitive", path: candidate };
     }
     if (!roots.some((root) => isInside(root, real, f))) outside ??= candidate;

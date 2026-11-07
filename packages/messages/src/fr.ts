@@ -298,6 +298,13 @@ export const reasons: Catalog = {
   "finding.labelInvalid": (p) =>
     `libellé de trouvaille invalide : utiliser un titre de 1 à ${text(p.max)} caractères ; conserver les détails dans le fichier de résultats, puis réessayer note avec un titre court.`,
   "project.invalid": () => "projet invalide : fichier project.json illisible ou incomplet",
+  "program.unreadable": (p) =>
+    p.part === "approval"
+      ? "fiche programme : approbation illisible, fiche non appliquée"
+      : "fiche programme : brouillon illisible, fiche non appliquée",
+  "program.invalid": (p) =>
+    `fiche programme invalide${p.field ? ` (champ : ${text(p.field)})` : ""} : motifs d'hôte, URL, date, suffixe et rythme attendus`,
+  "program.absent": () => "aucune fiche programme à traiter pour ce projet",
   "project.absent": () => "aucun projet actif",
   "project.readFailed": () => "lecture du projet impossible ce tour-ci",
   "cours.absent": () => "aucun cours installé (dossier de cours absent)",
@@ -350,6 +357,7 @@ export const events: EventStrings = {
   authenticating: "authentification en cours",
   approvalRequested: "approbation demandée",
   bypass: "bypass",
+  programSheet: "fiche programme",
   turn: "tour",
   sandbox: "bac à sable",
 };

@@ -102,6 +102,13 @@ export type EventPayload =
       expiresAt?: number;
     }
   | {
+      /** Changement d'état de la fiche programme d'un projet (ADR 0040) ; `digest` : empreinte SHA-256 concernée. */
+      kind: "program.state";
+      projectId: string;
+      state: "approved" | "suspended" | "invalidated";
+      digest: string;
+    }
+  | {
       /** Une approbation est sollicitée auprès de l'Asker ; `approval.decided` suivra. */
       kind: "approval.requested";
       toolUseId: string;
@@ -364,6 +371,11 @@ export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
       since: "number?",
       expiresAt: "number?",
     })(p) ?? (p.state === "on" ? shape({ since: "number", expiresAt: "number" })(p) : null),
+  "program.state": shape({
+    projectId: "string",
+    state: "enum:approved,suspended,invalidated",
+    digest: "string",
+  }),
   "approval.requested": shape({
     toolUseId: "string",
     tool: "string",

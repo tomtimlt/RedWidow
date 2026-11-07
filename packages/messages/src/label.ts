@@ -96,6 +96,8 @@ export function eventLabel(e: EngineEvent, options: LabelOptions = {}): string {
     }
     case "bypass.changed":
       return clip(`${t.bypass} : ${formatReason(e.reason, locale)}`);
+    case "program.state":
+      return clip(`${t.programSheet} : ${e.state} [${e.digest.slice(0, 12)}]`);
     case "turn.finished":
       return `${t.turn} ${e.turns} · ${e.status} · $${e.costUsd.toFixed(4)}`;
     case "agent.thinking":

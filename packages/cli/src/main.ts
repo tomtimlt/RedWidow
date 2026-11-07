@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFile } from "node:child_process";
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import {
   createOpencodeRunner,
@@ -11,22 +11,30 @@ import { createSdkRunner, dockerToolset, webToolset } from "@warband/agent-sdk";
 import {
   type AgentRunner,
   type AuthMode,
+  activeProject,
+  approveProgram,
   buildGraph,
+  CodedError,
   createApprovalGate,
   createDockerClient,
   createRecorder,
   defaultConfigDir,
   type EngineEvent,
   evaluatePolicy,
+  importProgramDraft,
   link as linkProject,
   loadPolicy,
   openJournal,
+  type ProgramStatus,
   REPO_POLICY_PATH,
   readJournal,
+  readProgram,
+  readProjects,
   resolveBinary,
   safeEnv,
   splitRuns,
   status,
+  suspendProgram,
   trustPolicy,
 } from "@warband/core";
 import { renderGraphHtml } from "@warband/export-html";
@@ -454,6 +462,138 @@ policyCmd
     );
   });
 
+const programCmd = program
+  .command("program")
+  .description(
+    t(
+      "Fiche programme du projet (périmètre, suffixe User-Agent, rythme) : validation par empreinte.",
+      "Project program sheet (scope, User-Agent suffix, pace): hash-based approval.",
+    ),
+  );
+
+/** Projet visé : `--project`, sinon le projet actif. Aucun projet → `project.absent`. */
+async function programProjectId(opts: { project?: string }): Promise<string> {
+  if (opts.project !== undefined) return opts.project;
+  const file = await readProjects(defaultConfigDir());
+  const active = file ? activeProject(file) : null;
+  if (!active) throw new CodedError("project.absent");
+  return active.id;
+}
+
+const PROJECT_OPTION = [
+  "--project <id>",
+  t("identifiant du projet (défaut : actif)", "project id (default: active)"),
+] as const;
+
+/** Champs de la fiche dont la citation n'a pas été recoupée par le moteur. */
+const unverifiedFields = (status: ProgramStatus): string[] => {
+  const sheet = status.draft;
+  if (!sheet) return [];
+  const fields = {
+    inScope: sheet.inScope,
+    outOfScope: sheet.outOfScope,
+    pace: sheet.pace,
+  } as const;
+  return [
+    ...Object.entries(fields)
+      .filter(([, c]) => !c.verified)
+      .map(([k]) => k),
+    ...(sheet.userAgentSuffix && !sheet.userAgentSuffix.verified ? ["userAgentSuffix"] : []),
+  ];
+};
+
+function printProgramStatus(status: ProgramStatus): void {
+  process.stderr.write(
+    t(
+      `état : ${status.state}${status.digest ? ` · empreinte ${status.digest}` : ""}\n`,
+      `state: ${status.state}${status.digest ? ` · hash ${status.digest}` : ""}\n`,
+    ),
+  );
+  if (status.approvedDigest !== undefined)
+    process.stderr.write(
+      t(
+        `approuvée : ${status.approvedAt} · empreinte ${status.approvedDigest}\n`,
+        `approved: ${status.approvedAt} · hash ${status.approvedDigest}\n`,
+      ),
+    );
+  if (status.suspendedAt !== undefined)
+    process.stderr.write(
+      t(`suspendue : ${status.suspendedAt}\n`, `suspended: ${status.suspendedAt}\n`),
+    );
+  if (status.problem) process.stderr.write(`${formatReason(status.problem, locale)}\n`);
+  const unverified = unverifiedFields(status);
+  if (unverified.length > 0)
+    process.stderr.write(
+      t(
+        `citations non recoupées : ${unverified.join(", ")}\n`,
+        `unverified citations: ${unverified.join(", ")}\n`,
+      ),
+    );
+  if (status.state !== "approved")
+    process.stderr.write(
+      t(
+        "fiche non appliquée (non approuvée à l'empreinte courante)\n",
+        "sheet not applied (not approved at the current hash)\n",
+      ),
+    );
+}
+
+programCmd
+  .command("show")
+  .description(
+    t("Afficher la fiche du projet et son état.", "Show the project sheet and its state."),
+  )
+  .option(...PROJECT_OPTION)
+  .action(async (opts) => {
+    const status = await readProgram(defaultConfigDir(), await programProjectId(opts));
+    printProgramStatus(status);
+    if (status.draft) process.stdout.write(`${JSON.stringify(status.draft, null, 2)}\n`);
+  });
+
+programCmd
+  .command("import")
+  .description(
+    t(
+      "Importer un brouillon de fiche (n'approuve rien : approbation avec « program approve »).",
+      "Import a draft sheet (approves nothing: use 'program approve').",
+    ),
+  )
+  .argument("<file>", t("fichier JSON du brouillon", "draft JSON file"))
+  .option(...PROJECT_OPTION)
+  .action(async (file: string, opts) => {
+    const text = await readFile(resolve(process.cwd(), file), "utf8");
+    const status = await importProgramDraft(defaultConfigDir(), await programProjectId(opts), text);
+    printProgramStatus(status);
+  });
+
+programCmd
+  .command("approve")
+  .description(
+    t(
+      "Approuver le brouillon courant (son contenu, identifié par son empreinte).",
+      "Approve the current draft (its content, identified by its hash).",
+    ),
+  )
+  .option(...PROJECT_OPTION)
+  .action(async (opts) => {
+    const status = await approveProgram(defaultConfigDir(), await programProjectId(opts));
+    printProgramStatus(status);
+  });
+
+programCmd
+  .command("suspend")
+  .description(
+    t(
+      "Suspendre la fiche (retour au profil généraliste, fiche conservée).",
+      "Suspend the sheet (back to the generalist profile, sheet kept).",
+    ),
+  )
+  .option(...PROJECT_OPTION)
+  .action(async (opts) => {
+    const status = await suspendProgram(defaultConfigDir(), await programProjectId(opts));
+    printProgramStatus(status);
+  });
+
 program
   .command("journal")
   .description(
@@ -593,7 +733,12 @@ program
     process.stdout.write(`${container}\t${state}\t${s.image ?? ""}\t${s.workspace}\n`);
   });
 
-for (const command of [program, ...program.commands, ...policyCmd.commands]) {
+for (const command of [
+  program,
+  ...program.commands,
+  ...policyCmd.commands,
+  ...programCmd.commands,
+]) {
   command.helpOption("-h, --help", t("afficher l’aide", "display help"));
 }
 

@@ -128,6 +128,10 @@ export const REASON_CODES = [
   "project.notRunning",
   "project.noWorkspace",
   "project.invalid",
+  // Fiche programme (ADR 0040)
+  "program.unreadable",
+  "program.invalid",
+  "program.absent",
   "finding.labelInvalid",
   "finding.notFound",
   "finding.busy",

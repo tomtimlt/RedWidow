@@ -17,6 +17,9 @@ const PROJECTS_DIR = "projects";
 const FINDINGS_BASENAME = "findings.json";
 
 const SUMMARY_BASENAME = "summary.txt";
+/** Fiche programme (brouillon) et son approbation : chemins sensibles, voir `approval/paths.ts`. */
+const PROGRAM_BASENAME = "program.json";
+const PROGRAM_APPROVAL_BASENAME = "program.approval.json";
 /** Plafond du résumé de session (octets UTF-8, marqueur compris). */
 const MAX_SUMMARY_BYTES = 8192;
 const SUMMARY_TRUNCATED = "\n[… résumé tronqué]";
@@ -106,6 +109,18 @@ export function projectFindingsPath(configDir: string, projectId: string): strin
   return join(configDir, PROJECTS_DIR, projectId, FINDINGS_BASENAME);
 }
 
+/** Chemin de la fiche programme (brouillon). L'id est contrôlé avant tout `join`. */
+export function projectProgramPath(configDir: string, projectId: string): string {
+  if (!PROJECT_ID.test(projectId)) throw invalidProject();
+  return join(configDir, PROJECTS_DIR, projectId, PROGRAM_BASENAME);
+}
+
+/** Chemin de l'approbation de la fiche programme. L'id est contrôlé avant tout `join`. */
+export function projectProgramApprovalPath(configDir: string, projectId: string): string {
+  if (!PROJECT_ID.test(projectId)) throw invalidProject();
+  return join(configDir, PROJECTS_DIR, projectId, PROGRAM_APPROVAL_BASENAME);
+}
+
 /** Chemin du résumé de session. L'id est contrôlé avant tout `join`. */
 export function projectSummaryPath(configDir: string, projectId: string): string {
   if (!PROJECT_ID.test(projectId)) throw invalidProject();
@@ -159,7 +174,7 @@ export function activeProject(file: ProjectFile): StoredProject | null {
 }
 
 /** Renommage atomique ; sous win32, nouveaux essais sur EPERM/EBUSY/EACCES. */
-async function renameWithRetry(
+export async function renameWithRetry(
   from: string,
   to: string,
   io: {

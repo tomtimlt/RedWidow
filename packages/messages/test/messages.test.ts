@@ -275,6 +275,12 @@ describe("eventLabel", () => {
       since: 0,
       expiresAt: 7_200_000,
     },
+    "program.state": {
+      kind: "program.state",
+      projectId: "11111111-1111-4111-8111-111111111111",
+      state: "invalidated",
+      digest: "abcdef0123456789",
+    },
     "permission.denied": { kind: "permission.denied", toolUseId: "t", tool: "x", message: "non" },
     "tool.result": {
       kind: "tool.result",
@@ -334,6 +340,12 @@ describe("eventLabel", () => {
     );
     expect(eventLabel(emit(payloads["bypass.changed"]), { locale: "en" })).toBe(
       "bypass : approval bypass enabled",
+    );
+  });
+
+  it("libelle program.state", () => {
+    expect(eventLabel(emit(payloads["program.state"]))).toBe(
+      "fiche programme : invalidated [abcdef012345]",
     );
   });
 

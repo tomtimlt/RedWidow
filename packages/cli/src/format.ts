@@ -61,6 +61,8 @@ export function formatEvent(
       return `${tag(e.decision === "allow" ? "green" : "red", e.decision)} ${paint("dim", `[${e.source}] ${formatReason(e.reason, locale)}`)}`;
     case "bypass.changed":
       return `${tag(e.state === "on" ? "yellow" : "dim", "bypass")} ${paint("dim", formatReason(e.reason, locale))}`;
+    case "program.state":
+      return `${tag(e.state === "approved" ? "green" : "yellow", "program")} ${paint("dim", `${e.state} [${e.digest.slice(0, 12)}]`)}`;
     case "tool.result": {
       const more = e.truncated
         ? paint("dim", t(` [tronqué : ${e.bytes} octets]`, ` [truncated: ${e.bytes} bytes]`))

@@ -9,6 +9,7 @@ import {
   EXTERNAL_PATTERNS_FIELD,
   extractPaths,
   findGlobHazard,
+  mentionsProgramFile,
   type PathPlatform,
 } from "./paths.js";
 import { matchCommand, parseShell, programName } from "./shell.js";
@@ -298,6 +299,19 @@ function checkPaths(
     return {
       decision: "deny",
       reason: reason("path.unsupported", { path: hazard, form: "unresolvable" }),
+      rule: null,
+    };
+  }
+  const shellText =
+    typeof input.command === "string"
+      ? input.command
+      : Array.isArray(input.argv)
+        ? input.argv.map(String).join(" ")
+        : "";
+  if (shellText !== "" && mentionsProgramFile(shellText)) {
+    return {
+      decision: "deny",
+      reason: reason("path.sensitive", { path: "program.json" }),
       rule: null,
     };
   }

@@ -172,6 +172,13 @@ export const reasons: Catalog = {
   "finding.labelInvalid": (p) =>
     `invalid finding label: use a title of 1 to ${text(p.max)} characters; keep details in the results file and retry note with a short title.`,
   "project.invalid": () => "invalid project: unreadable or incomplete project.json",
+  "program.unreadable": (p) =>
+    p.part === "approval"
+      ? "program sheet: unreadable approval, sheet not applied"
+      : "program sheet: unreadable draft, sheet not applied",
+  "program.invalid": (p) =>
+    `invalid program sheet${p.field ? ` (field: ${text(p.field)})` : ""}: expected host patterns, URL, date, suffix and pace`,
+  "program.absent": () => "no program sheet to handle for this project",
   "project.absent": () => "no active project",
   "project.readFailed": () => "could not read the active project this turn",
   "cours.absent": () => "no course installed (course folder missing)",
@@ -307,6 +314,7 @@ export const events: EventStrings = {
   authenticating: "authenticating",
   approvalRequested: "approval requested",
   bypass: "bypass",
+  programSheet: "program sheet",
   turn: "turn",
   sandbox: "sandbox",
 };

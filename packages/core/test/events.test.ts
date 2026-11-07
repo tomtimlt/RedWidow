@@ -71,6 +71,12 @@ const SAMPLES: { [K in EventKind]: Extract<EventPayload, { kind: K }> } = {
     source: "policy",
     reason: { code: "policy.rule", params: { index: 0, decision: "allow", target: "Read" } },
   },
+  "program.state": {
+    kind: "program.state",
+    projectId: "11111111-1111-4111-8111-111111111111",
+    state: "invalidated",
+    digest: "a".repeat(64),
+  },
   "bypass.changed": {
     kind: "bypass.changed",
     state: "on",
@@ -168,6 +174,7 @@ describe("schéma d'événements", () => {
       ["tool.requested", { input: [] }],
       ["approval.decided", { decision: "ask" }],
       ["approval.decided", { source: "auto" }],
+      ["program.state", { state: "none" }],
       ["bypass.changed", { state: "maybe" }],
       ["bypass.changed", { reason: "texte brut" }],
       ["bypass.changed", { since: "1" }],
