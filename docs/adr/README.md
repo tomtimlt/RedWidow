@@ -51,5 +51,7 @@ Lots pour `dev` : objectif, fichiers, critères d'acceptation vérifiables.
 
 - [0031 — Atelier agent et catalogue](0031-atelier-agent-et-catalogue.md) : dossier partagé, connecteurs isolés et skills à la demande.
 
+- [0039 — Recherche web native pour les missions cyber](0039-recherche-web-native-missions-cyber.md) : recherche autorisée, lecture sur sources de référence, garde d'arguments et relances non bloquantes.
+
 Le statut accepté décrit la décision ; les preuves d’exécution et les limites
 figurent dans [l’état du projet](../etat-du-projet.md).
