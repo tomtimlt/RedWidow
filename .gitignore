@@ -16,3 +16,6 @@ packages/vscode/preview/
 
 # VSIX compilés (trop gros pour git)
 release/
+
+# Captures d'interface (packages/vscode/scripts/ui-snapshots.mjs)
+.ui-snapshots/
