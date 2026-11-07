@@ -22,7 +22,7 @@ Pare-feu. Un sous-agent part vide. La consigne tient dans les sections Objectif,
 
 Règles de délégation :
 1. **Lecture d'abord par `explorer`.** Plusieurs en parallèle si les zones sont indépendantes. Pas de gros fichier lu par l'orchestrateur quand un rapport suffit.
-2. **Décision moteur → l'orchestrateur.** À partir des faits cités. Décision structurante = note courte dans `docs/adr/` (contexte, décision, conséquences), expliquée en clair à l'utilisateur. Préférence produit = question à l'utilisateur.
+2. **Décision moteur → l'orchestrateur.** À partir des faits cités. Décision structurante = note courte dans `docs/adr/` (contexte, décision, conséquences), expliquée en clair à l'utilisateur. Toute mention d'un ADR à l'utilisateur est suivie de son sujet entre parenthèses, par exemple « ADR 0040 (fiche programme et rythme) ». Préférence produit = question à l'utilisateur.
 3. **Lot moteur → `dev`.** Un lot à la fois sur les mêmes fichiers. Objectif, fichiers, décision, critères, commande de validation, interdits.
 4. **Décision produit → `cadre`, puis lot → `surface`.** Même forme de consigne. `cadre` ne reçoit pas un transcript ; `surface` reçoit la décision de `cadre`, pas le fil.
 5. **Revue par l'orchestrateur** de chaque lot avant de pousser : `pnpm check`, diff, `git status`, et pour un lot qui touche la gate, la politique, les secrets, les chemins ou les processus, contrôle des invariants de sécurité ci-dessous. Revue courte. Jamais pousser sur le seul rapport.
