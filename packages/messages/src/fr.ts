@@ -304,6 +304,8 @@ export const reasons: Catalog = {
     `case « ${text(p.surface)} » à l'état ${text(p.state)} : au moins une référence testRefs (événement audit.test du run) est requise`,
   "coverage.untested": (p) =>
     `${text(p.count)} case(s) de la matrice encore non testée(s) (${text(p.examples)}) : les tester, ou les marquer bloquée / prérequis manquant avec la justification, avant de conclure`,
+  "supervision.checkpoint": (p) =>
+    `${text(p.calls)} appels d'outils depuis la dernière décision : appeler record_decision (objectif, critère de sortie, prochaine action) avant de poursuivre`,
   "web.invalidRequest": () =>
     "requête http_request invalide (méthode, en-têtes ou corps incompatibles)",
   "web.searchFailed": () =>

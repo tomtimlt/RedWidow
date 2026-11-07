@@ -183,6 +183,7 @@ describe("session de chat", () => {
       auth: "subscription",
       provider: "claude",
       model: "m",
+      supervision: "standard",
       maxTurns: 3,
     });
     expect(JSON.stringify(t.f.started)).not.toContain("sk-secret");

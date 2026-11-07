@@ -443,6 +443,7 @@ async function runWithOpencode(
   const missionDesk = options.toolsets?.some((set) => set.name === "desk")
     ? createMissionDesk({
         recorder: context.recorder,
+        ...(context.supervision !== undefined && { supervision: context.supervision }),
         ...(context.program !== undefined && { program: context.program }),
         ...(context.programDraft !== undefined && { programDraft: context.programDraft }),
       })

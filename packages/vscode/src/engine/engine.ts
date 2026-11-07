@@ -292,6 +292,8 @@ export function runEngine({
             recorder,
             gate,
             signal: abort.signal,
+            ...(!learning &&
+              params.supervision !== undefined && { supervision: params.supervision }),
             ...(!learning && program !== undefined && { program }),
             ...(!learning && programDraft !== undefined && { programDraft }),
             ...(!learning && {

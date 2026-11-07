@@ -10,6 +10,7 @@ import {
   type ErrorInfo,
   type IntegrationConfig,
   isBurpConfig,
+  isSupervisionLevel,
   type ModelOption,
   type PendingApproval,
   type PromptImage,
@@ -20,6 +21,7 @@ import {
   type Reason,
   type RememberScope,
   reason,
+  type SupervisionLevel,
   validateEvent,
 } from "@warband/core";
 import { type ConversationContext, isConversationContext } from "./conversation-context.js";
@@ -50,6 +52,8 @@ export interface StartParams {
   model?: string;
   effort?: Effort;
   variant?: string;
+  /** Niveau d'encadrement du chat ; absent : `standard`. */
+  supervision?: SupervisionLevel;
   conversationContext?: ConversationContext;
   maxTurns?: number;
   auth?: AuthMode;
@@ -152,6 +156,7 @@ const START_KEYS = [
   "opencodeProviders",
   "effort",
   "variant",
+  "supervision",
   "conversationContext",
   "maxTurns",
   "auth",
@@ -230,6 +235,8 @@ export function parseToEngine(raw: unknown): Parsed<ToEngine> {
       }
       if (obj.model !== undefined && !isModelId(obj.model)) return bad("model");
       if (obj.effort !== undefined && parseEffort(obj.effort) === null) return bad("effort");
+      if (obj.supervision !== undefined && !isSupervisionLevel(obj.supervision))
+        return bad("supervision");
       if (
         obj.variant !== undefined &&
         (typeof obj.variant !== "string" ||

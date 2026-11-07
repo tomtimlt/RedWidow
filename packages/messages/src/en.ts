@@ -179,6 +179,8 @@ export const reasons: Catalog = {
     `cell "${text(p.surface)}" in state ${text(p.state)}: at least one testRefs entry (audit.test event of the run) is required`,
   "coverage.untested": (p) =>
     `${text(p.count)} coverage cell(s) still untested (${text(p.examples)}): test them, or mark them blocked / prerequisite with a justification, before concluding`,
+  "supervision.checkpoint": (p) =>
+    `${text(p.calls)} tool calls since the last decision: call record_decision (objective, exit criterion, next action) before continuing`,
   "web.invalidRequest": () => "invalid http_request (incompatible method, headers or body)",
   "web.searchFailed": () => "The search service returned no usable response.",
   "kali.nmapUnavailable": () =>

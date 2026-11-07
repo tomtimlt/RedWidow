@@ -1,4 +1,9 @@
-import type { ModelOption } from "@warband/core";
+import {
+  DEFAULT_SUPERVISION,
+  type ModelOption,
+  parseSupervision,
+  type SupervisionLevel,
+} from "@warband/core";
 import { t } from "@warband/messages";
 import {
   clampEffort,
@@ -23,6 +28,8 @@ export interface Prefs {
   /** Variante OpenCode exacte ; `null` laisse le moteur choisir. */
   variant: string | null;
   provider: Provider;
+  /** Niveau d'encadrement du chat (fréquence des relances du moteur) ; défaut `standard`. */
+  supervision: SupervisionLevel;
 }
 
 export const DEFAULT_PREFS: Prefs = {
@@ -30,6 +37,7 @@ export const DEFAULT_PREFS: Prefs = {
   effort: null,
   variant: null,
   provider: "claude",
+  supervision: DEFAULT_SUPERVISION,
 };
 
 /** Relit des préférences stockées en les revalidant (le stockage n'est pas une source de confiance). */
@@ -40,6 +48,7 @@ export function parsePrefs(raw: unknown): Prefs {
     effort: parseEffortChoice(r.effort),
     variant: isReasoningVariant(r.variant) ? r.variant : null,
     provider: isProvider(r.provider) ? r.provider : "claude",
+    supervision: parseSupervision(r.supervision),
   };
 }
 

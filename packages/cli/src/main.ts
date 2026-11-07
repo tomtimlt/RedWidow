@@ -35,6 +35,7 @@ import {
   readProgramSync,
   readProjects,
   resolveBinary,
+  type SupervisionLevel,
   safeEnv,
   splitRuns,
   status,
@@ -49,6 +50,7 @@ import { createTerminalAsker } from "./ask.js";
 import { colorEnabled, describeAuthIntent, formatEvent, formatRunList } from "./format.js";
 import { languageFromArgs, type Translator } from "./locale.js";
 import { appendUserRule } from "./policy-store.js";
+import { parseSupervisionArg } from "./supervision-arg.js";
 
 const locale = languageFromArgs(process.argv.slice(2));
 const t: Translator = (fr, en) => (locale === "en" ? en : fr);
@@ -221,6 +223,15 @@ program
     t("--system-prompt <texte>", "--system-prompt <text>"),
     t("texte ajouté au prompt système", "text appended to the system prompt"),
   )
+  .option(
+    "--supervision <niveau>",
+    t(
+      "encadrement du moteur : light, standard (défaut) ou strict (relances plus fréquentes)",
+      "engine supervision: light, standard (default) or strict (more frequent reminders)",
+    ),
+    (value: string) => parseSupervisionArg(value, t),
+    "standard",
+  )
   .option("-v, --verbose", t("afficher la sortie des processus", "show process output"))
   .action(async (words: string[], opts) => {
     const cwd = process.cwd();
@@ -348,7 +359,14 @@ program
           ...(opts.maxBudgetUsd && { maxBudgetUsd: opts.maxBudgetUsd }),
           ...(opts.systemPrompt && { systemPrompt: opts.systemPrompt }),
         },
-        { recorder, gate, signal: abort.signal, program: programProvider, programDraft },
+        {
+          recorder,
+          gate,
+          signal: abort.signal,
+          supervision: opts.supervision as SupervisionLevel,
+          program: programProvider,
+          programDraft,
+        },
       );
       if (summary.result) process.stdout.write(`\n${summary.result}\n`);
       if (summary.sessionId) {

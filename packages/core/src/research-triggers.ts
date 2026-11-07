@@ -15,8 +15,15 @@ export interface ResearchState {
   webToolsExposed: boolean;
 }
 
+/** Seuils par défaut (niveau `standard`) ; le niveau d'encadrement peut les remplacer. */
 const MAX_TECHS = 4;
 const REPEAT_THRESHOLD = 2;
+export interface ResearchOptions {
+  /** Répétitions d'une même erreur, ou de refus 403 / WAF, à partir desquelles on relance. */
+  repeatThreshold: number;
+  /** Technologies relancées au plus à la fois. */
+  maxTechs: number;
+}
 // Noms qui ressemblent à « nom/x.y » sans désigner une pile de la cible (clients, moteurs de rendu).
 const NOT_A_STACK = new Set([
   "mozilla",
@@ -80,8 +87,13 @@ function normalizedError(event: ResearchEvent): string {
  * (code + paramètres) que le bureau de mission place dans `mission_context` et dans les réponses
  * de `record_decision` / `record_test`. Ordre : technologie, erreur répétée, blocage, aucune recherche.
  */
-export function researchTriggers(state: ResearchState): Reason[] {
+export function researchTriggers(
+  state: ResearchState,
+  options: Partial<ResearchOptions> = {},
+): Reason[] {
   const { events } = state;
+  const repeatThreshold = options.repeatThreshold ?? REPEAT_THRESHOLD;
+  const maxTechs = options.maxTechs ?? MAX_TECHS;
   const triggers: Reason[] = [];
   const searched = (after: number, needle?: string): boolean =>
     events.some(
@@ -105,7 +117,7 @@ export function researchTriggers(state: ResearchState): Reason[] {
   });
   let techs = 0;
   for (const { tech, at } of seen.values()) {
-    if (techs >= MAX_TECHS) break;
+    if (techs >= maxTechs) break;
     if (searched(at, tech.name)) continue;
     techs++;
     triggers.push(
@@ -116,7 +128,7 @@ export function researchTriggers(state: ResearchState): Reason[] {
     );
   }
 
-  // (b) même erreur au moins deux fois (hors outils web), sans recherche après la dernière occurrence.
+  // (b) même erreur au moins `repeatThreshold` fois (hors outils web), sans recherche après la dernière occurrence.
   const errors = new Map<string, { tool: string; count: number; last: number }>();
   events.forEach((e, i) => {
     if (!e.isError || isWeb(e.tool)) return;
@@ -127,7 +139,7 @@ export function researchTriggers(state: ResearchState): Reason[] {
     errors.set(key, entry);
   });
   const worst = [...errors.values()]
-    .filter((e) => e.count >= REPEAT_THRESHOLD && !searched(e.last))
+    .filter((e) => e.count >= repeatThreshold && !searched(e.last))
     .sort((a, b) => b.count - a.count)[0];
   if (worst)
     triggers.push(reason("research.repeatedError", { tool: worst.tool, count: worst.count }));
@@ -140,7 +152,7 @@ export function researchTriggers(state: ResearchState): Reason[] {
     blocks++;
     lastBlock = i;
   });
-  if (blocks >= REPEAT_THRESHOLD && !searched(lastBlock))
+  if (blocks >= repeatThreshold && !searched(lastBlock))
     triggers.push(reason("research.blocked", { count: blocks }));
 
   // (d) aucune recherche web dans le run alors que les outils web sont exposés.

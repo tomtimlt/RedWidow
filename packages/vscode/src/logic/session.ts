@@ -7,6 +7,7 @@ import type {
   PromptImage,
   ProviderOption,
   Reason,
+  SupervisionLevel,
 } from "@warband/core";
 import { formatReason, getUiLocale, t } from "@warband/messages";
 import { alwaysConfirmText, answerFor, type Choice, cleanText, toCard } from "./approval.js";
@@ -212,6 +213,7 @@ export function createChatSession(deps: ChatSessionDeps) {
     model: string | undefined;
     effort: Effort | undefined;
     variant: string | undefined;
+    supervision: SupervisionLevel;
     learning: boolean;
   } | null = null;
   /** Révision de l'authentification : incrémentée à chaque jeton défini ou effacé ; le moteur démarré avec une autre est remplacé. */
@@ -652,7 +654,13 @@ export function createChatSession(deps: ChatSessionDeps) {
       },
     });
     controller = ctl;
-    applied = { model: picked.model, effort: picked.effort, variant: picked.variant, learning };
+    applied = {
+      model: picked.model,
+      effort: picked.effort,
+      variant: picked.variant,
+      supervision: prefs.supervision,
+      learning,
+    };
     if (current) {
       current.provider = prefs.provider;
       current.model = picked.model ?? null;
@@ -678,6 +686,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       ...(picked.model !== undefined && { model: picked.model }),
       ...(picked.effort !== undefined && { effort: picked.effort }),
       ...(picked.variant !== undefined && { variant: picked.variant }),
+      ...(!learning && { supervision: prefs.supervision }),
       ...(conversationContext !== undefined && { conversationContext }),
       ...(maxTurns !== undefined && { maxTurns }),
       ...(picked.ultra?.maxBudgetUsd !== undefined && { maxBudgetUsd: picked.ultra.maxBudgetUsd }),
@@ -1113,7 +1122,7 @@ export function createChatSession(deps: ChatSessionDeps) {
         .view()
         .items.some((item) => item.kind === "user" || item.kind === "agent");
       stopEngine(previous);
-      prefs = { model: null, effort: null, variant: null, provider: raw };
+      prefs = { ...prefs, model: null, effort: null, variant: null, provider: raw };
       if (current) {
         current.provider = raw;
         current.model = null;
@@ -1313,6 +1322,7 @@ export function createChatSession(deps: ChatSessionDeps) {
             want.model !== applied.model ||
             want.effort !== applied.effort ||
             want.variant !== applied.variant ||
+            prefs.supervision !== applied.supervision ||
             learning !== applied.learning ||
             appliedBurp !==
               JSON.stringify([
@@ -1510,6 +1520,7 @@ export function createChatSession(deps: ChatSessionDeps) {
         model: meta.model,
         effort: meta.effort,
         variant: meta.variant ?? null,
+        supervision: prefs.supervision,
       };
       persist(prefsKey, prefs);
       if (providerChanged) {

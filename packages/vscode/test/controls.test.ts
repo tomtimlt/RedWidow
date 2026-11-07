@@ -190,6 +190,15 @@ describe("contrôles", () => {
     });
     expect(parsePrefs({ effort: "ultracode" }).effort).toBe("ultracode");
   });
+  it("encadrement : défaut standard, valeur invalide ramenée à standard", () => {
+    expect(DEFAULT_PREFS.supervision).toBe("standard");
+    expect(parsePrefs({ supervision: "strict" }).supervision).toBe("strict");
+    expect(parsePrefs({ supervision: "light" }).supervision).toBe("light");
+    for (const bad of ["max", "", 3, null, {}]) {
+      expect(parsePrefs({ supervision: bad }).supervision, String(bad)).toBe("standard");
+    }
+    expect(parsePrefs(null).supervision).toBe("standard");
+  });
   it("par défaut : Auto, aucun effort transmis tant que le curseur n'est pas touché", () => {
     expect(DEFAULT_PREFS.effort).toBeNull();
     const c = buildControls({ ...base, prefs: DEFAULT_PREFS, models: null });

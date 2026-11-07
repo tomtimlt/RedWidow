@@ -15,6 +15,7 @@ import { CodedError, type Reason, reason } from "./reason.js";
 import type { Recorder } from "./recorder.js";
 import { createRedactor, secretsFromEnv } from "./redact.js";
 import { isClosingText, type ResearchEvent, researchTriggers } from "./research-triggers.js";
+import { DEFAULT_SUPERVISION, SUPERVISION_SETTINGS, type SupervisionLevel } from "./supervision.js";
 import { READ_URL_TOOL, SEARCH_WEB_TOOL } from "./web/guard.js";
 
 export type { MissionDecision } from "./mission-decision-schema.js";
@@ -64,6 +65,8 @@ export interface MissionContext {
   coverage: CoverageSummary;
   /** Relances de recherche web (codes + paramètres, non bloquantes) et recherches web du run. */
   research: { triggers: Reason[]; searches: MissionWebCall[] };
+  /** Niveau d'encadrement du chat et point de contrôle périodique (non bloquant) s'il est dû. */
+  supervision: { level: SupervisionLevel; checkpoint?: Reason };
   activeTasks: { taskId: string; status: string }[];
   taskRegistry: { scope: "observed-current-run"; incomplete: true };
   budgets: {
@@ -95,6 +98,8 @@ export interface MissionDesk {
     reviewed: false;
     research?: Reason[];
     coverage?: Reason;
+    /** `supervision.checkpoint` : point de contrôle dû (niveau strict). */
+    supervision?: Reason;
   };
   /**
    * Upsert des cases de couverture (clé normalisée). Les `testRefs` doivent désigner des événements
@@ -104,6 +109,7 @@ export interface MissionDesk {
     written: number;
     coverage: CoverageSummary;
     followUp?: Reason;
+    supervision?: Reason;
   };
   /**
    * Écrit le brouillon de fiche programme du projet actif (ADR 0040). `verified` est calculé ici
@@ -184,14 +190,18 @@ export function createMissionDesk({
   now = () => new Date(),
   program,
   programDraft,
+  supervision = DEFAULT_SUPERVISION,
 }: {
   recorder: Recorder;
+  /** Niveau d'encadrement : seuils de relance et point de contrôle (défaut `standard`). */
+  supervision?: SupervisionLevel;
   now?: () => Date;
   /** État de la fiche du projet actif (lecture synchrone) ; seule une fiche `approved` est injectée. */
   program?: () => ProgramStatus;
   /** Écrit un brouillon (texte JSON) dans le projet actif ; absent → `project.absent`. */
   programDraft?: (text: string) => Promise<ProgramStatus>;
 }): MissionDesk {
+  const settings = SUPERVISION_SETTINGS[supervision];
   const redact = createRedactor({ values: secretsFromEnv(process.env) });
   const observations: MissionObservation[] = [];
   const pending = new Map<string, { tool: string; key: string; input: string; target: string }>();
@@ -335,7 +345,17 @@ export function createMissionDesk({
     if (disposed) throw new Error("Bureau de mission fermé.");
   }
   function triggers(): Reason[] {
-    return researchTriggers({ events: researchLog, webToolsExposed: webExposed });
+    return researchTriggers(
+      { events: researchLog, webToolsExposed: webExposed },
+      { repeatThreshold: settings.repeatThreshold, maxTechs: settings.maxTechs },
+    );
+  }
+  /** Point de contrôle périodique : trop d'appels d'outils depuis la dernière décision (non bloquant). */
+  function checkpoint(): Reason | undefined {
+    const limit = settings.checkpointAfterCalls;
+    return limit !== null && branchCalls >= limit
+      ? reason("supervision.checkpoint", { calls: branchCalls })
+      : undefined;
   }
   function assertSources(sources: string[] | undefined) {
     for (const id of sources ?? [])
@@ -419,13 +439,18 @@ export function createMissionDesk({
       assertSources(claim.sources);
       const event = recorder.emit({ kind: "audit.test", claim: redact(claim) });
       const research = claim.conclusion === "finding" ? [] : triggers();
-      const reminder = claim.conclusion === "finding" ? undefined : untestedReminder();
+      const reminder =
+        claim.conclusion === "finding" && !settings.coverageEveryTest
+          ? undefined
+          : untestedReminder();
+      const due = checkpoint();
       return {
         eventId: event.id,
         runId: event.runId,
         reviewed: false,
         ...(research.length > 0 && { research }),
         ...(reminder && { coverage: reminder }),
+        ...(due && { supervision: due }),
       };
     },
     recordCoverage(raw) {
@@ -451,7 +476,12 @@ export function createMissionDesk({
         if (coverage.size > MAX_COVERAGE_CELLS)
           coverage.delete(coverage.keys().next().value as string);
       }
-      return { written: written.length, coverage: coverageSummary() };
+      const due = checkpoint();
+      return {
+        written: written.length,
+        coverage: coverageSummary(),
+        ...(due && { supervision: due }),
+      };
     },
     async draftProgram(raw) {
       assertOpen();
@@ -546,11 +576,14 @@ export function createMissionDesk({
         guidance.push(
           "Sortie partielle : consulter la source ou le fichier par extraits ciblés avant de conclure ; ne pas relancer la commande pour obtenir la même sortie.",
         );
-      if (!observations.length || metrics.repeatedErrors >= 2)
+      if (!observations.length || metrics.repeatedErrors >= settings.repeatThreshold)
         guidance.push(
           "Charger avec load_skill une section du profil pertinent (htb, bug-bounty, red-team, mentor). En absence de preuve ou erreur de ressource, appliquer la recherche web commune (pas seulement GitHub) sur le message et le composant ; relever URL, date et version.",
         );
-      if (metrics.stagnation >= 2 || metrics.repeatedErrors >= 2)
+      if (
+        metrics.stagnation >= settings.repeatThreshold ||
+        metrics.repeatedErrors >= settings.repeatThreshold
+      )
         guidance.push(
           `Branche ${ranked[0]?.item.tool ?? "courante"} : changer une hypothèse ou un argument, vérifier les prérequis ; charger out-of-box si nécessaire.`,
         );
@@ -565,6 +598,7 @@ export function createMissionDesk({
       } catch {
         // Fiche illisible : rien n'est injecté (fail-closed côté information).
       }
+      const due = checkpoint();
       const packet: MissionContext = {
         version: 1,
         runId: recorder.runId,
@@ -584,6 +618,7 @@ export function createMissionDesk({
         guidance,
         coverage: coverageSummary(),
         research: { triggers: triggers(), searches: webCalls.slice(-8).map((c) => ({ ...c })) },
+        supervision: { level: supervision, ...(due && { checkpoint: due }) },
         activeTasks: [...tasks].map(([taskId, status]) => ({ taskId, status })),
         taskRegistry: { scope: "observed-current-run", incomplete: true },
         budgets: {

@@ -124,6 +124,17 @@ describe("protocole IPC : vers l'extension", () => {
   });
 });
 
+describe("protocole IPC : encadrement", () => {
+  it("supervision : énumération stricte", () => {
+    for (const supervision of ["light", "standard", "strict"])
+      expect(parseToEngine({ v: 1, type: "start", cwd, supervision }).ok, supervision).toBe(true);
+    for (const supervision of ["max", "", 3, null])
+      expect(parseToEngine({ v: 1, type: "start", cwd, supervision }).ok, String(supervision)).toBe(
+        false,
+      );
+  });
+});
+
 describe("protocole IPC : effort et modèles", () => {
   it("effort : énumération stricte", () => {
     expect(parseToEngine({ v: 1, type: "start", cwd, effort: "xhigh" }).ok).toBe(true);

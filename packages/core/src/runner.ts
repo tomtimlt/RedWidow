@@ -1,6 +1,7 @@
 import type { ApprovalGate } from "./approval/gate.js";
 import type { AgentPrompt } from "./prompt-images.js";
 import type { Recorder } from "./recorder.js";
+import type { SupervisionLevel } from "./supervision.js";
 
 /**
  * Origine des identifiants : `auto` hérite de l'environnement tel quel ;
@@ -66,6 +67,8 @@ export interface RunContext {
   recorder: Recorder;
   gate: ApprovalGate;
   signal?: AbortSignal;
+  /** Niveau d'encadrement du chat (fréquence des relances du bureau de mission) ; absent : `standard`. */
+  supervision?: SupervisionLevel;
   /** Observation du paquet ajouté au tour courant ; aucun effet sur les autorisations. */
   /** Fiche programme du projet actif (ADR 0040) : injectée dans `mission_context` si approuvée. */
   program?: () => import("./program/store.js").ProgramStatus;
