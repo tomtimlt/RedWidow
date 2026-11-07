@@ -44,11 +44,11 @@ Identifier le jeu de règles et son niveau. Chercher chemins, méthodes, hôtes 
 
 ## Chercher la pile, le WAF et les rapports publics [recherche]
 
-Appliquer la recherche commune de la mission. Chercher les techniques de la pile identifiée, puis les rapports publics sur cette technologie. Relever URL, date et version ; une correspondance de nom ne prouve rien. Ne jamais mettre dans une requête un identifiant de la cible, un secret ou une donnée client. Ne pas installer ni exécuter une ressource trouvée.
+Appliquer la recherche commune de la mission. Chercher les techniques de la pile identifiée, puis les rapports publics sur cette technologie. Relever URL, date et version ; une correspondance de nom ne prouve rien. Ne jamais mettre dans une requête un identifiant de la cible, un secret ou une donnée client. Lire un exploit ou un outil trouvé avant de l’utiliser, l’essayer d’abord en local, puis l’adapter ou écrire son propre exploit au besoin.
 
 ## Preuve minimale et validation avant constat [preuves]
 
-Viser la preuve minimale : une requête et une réponse expurgées. Privilégier ses comptes de test et des données synthétiques ; ne jamais imprimer de secrets ni de jetons complets. Arrêter dès l’impact démontré, sans élargir l’accès ni énumérer. Validation avant constat : preuve objective et reproductible, rejouée avec un contrôle ; sinon « piste qualifiée ». Stocker les gros journaux hors du contexte. Ne pas reprendre la sévérité d’un scanner.
+Viser la preuve minimale : une requête et une réponse expurgées. Privilégier les comptes de test autorisés par le programme et des données synthétiques ; ne jamais imprimer de secrets ni de jetons complets. Arrêter dès l’impact démontré, sans élargir l’accès ni énumérer. Validation avant constat : preuve objective et reproductible, rejouée avec un contrôle ; sinon « piste qualifiée ». Stocker les gros journaux hors du contexte. Ne pas reprendre la sévérité d’un scanner.
 
 ## Rapport généré, mesuré et relu [rapport]
 
