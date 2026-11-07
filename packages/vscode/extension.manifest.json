@@ -84,6 +84,11 @@
         "icon": "$(dashboard)"
       },
       {
+        "command": "warband.openProgram",
+        "title": "%command.openProgram%",
+        "icon": "$(checklist)"
+      },
+      {
         "command": "warband.openStudio",
         "title": "%command.openStudio%",
         "icon": "$(settings-gear)"

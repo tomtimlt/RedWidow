@@ -113,3 +113,53 @@ export function createProgramControls(configDir: string, projectId: string): Pro
     },
   };
 }
+
+/** Messages acceptés depuis la webview de la fiche (non fiables) : aucun champ de donnée, jamais l'empreinte. */
+export type ProgramMessage =
+  | { type: "ready" | "refresh" | "validate" | "suspend" }
+  | { type: "resume"; host: string }
+  | { type: "openCitation"; field: ProgramCitationField };
+
+export type ProgramCitationField = "inScope" | "outOfScope" | "userAgentSuffix" | "pace";
+
+const CITATION_FIELDS: readonly string[] = ["inScope", "outOfScope", "userAgentSuffix", "pace"];
+
+export function parseProgramMessage(raw: unknown): ProgramMessage | null {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
+  const m = raw as Record<string, unknown>;
+  const keys = Object.keys(m);
+  if (
+    (m.type === "ready" || m.type === "refresh" || m.type === "validate" || m.type === "suspend") &&
+    keys.length === 1
+  )
+    return { type: m.type };
+  if (
+    m.type === "resume" &&
+    keys.length === 2 &&
+    typeof m.host === "string" &&
+    m.host.length > 0 &&
+    m.host.length <= 253 &&
+    !/[\p{Cc}\s]/u.test(m.host)
+  )
+    return { type: "resume", host: m.host };
+  if (
+    m.type === "openCitation" &&
+    keys.length === 2 &&
+    typeof m.field === "string" &&
+    CITATION_FIELDS.includes(m.field)
+  )
+    return { type: "openCitation", field: m.field as ProgramCitationField };
+  return null;
+}
+
+/** URL de citation de la vue affichée, seulement en http(s) ; la webview n'en fournit jamais. */
+export function citationUrl(view: ProgramView, field: ProgramCitationField): string | null {
+  const url = view[field]?.citation.url;
+  if (url === undefined) return null;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.href : null;
+  } catch {
+    return null;
+  }
+}

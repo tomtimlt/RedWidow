@@ -280,6 +280,56 @@ export function cockpitHtml({
 `;
 }
 
+/** Page « Fiche programme » : CSP stricte, un seul script `program.js`, aucune donnée de la fiche dans le HTML. */
+export function programHtml({
+  nonce,
+  cspSource,
+  scriptUri,
+  styleUri,
+  iconsUri = scriptUri.replace(/[^/]+$/, "icons.js"),
+  i18nUri = scriptUri.replace(/[^/]+$/, "i18n.js"),
+  locale = "fr",
+  palette,
+}: CockpitHtmlOptions): string {
+  for (const [name, value] of Object.entries({
+    nonce,
+    cspSource,
+    scriptUri,
+    styleUri,
+    iconsUri,
+    i18nUri,
+  })) {
+    const ok = name === "cspSource" ? !/["<>]/.test(value) && value !== "" : SAFE.test(value);
+    if (!ok) throw new Error(`valeur invalide pour ${name}`);
+  }
+  const csp = [
+    "default-src 'none'",
+    `script-src 'nonce-${nonce}'`,
+    `style-src ${cspSource}`,
+    `img-src ${cspSource}`,
+    `font-src ${cspSource}`,
+  ].join("; ");
+  const title = localized("Fiche programme", locale);
+  return `<!doctype html>
+<html lang="${locale === "en" ? "en" : "fr"}">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="${csp}">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="${styleUri}">
+<title data-i18n="Fiche programme">${title}</title>
+</head>
+<body class="cockpit program" data-palette="${paletteOf(palette)}">
+<header id="bar"><span id="title"><span data-i18n="Fiche programme">${title}</span></span><button id="refresh" type="button" class="ghost" data-i18n-title="Actualiser" title="${localized("Actualiser", locale)}">${icon("refresh")}<span class="btn-text"><span data-i18n="Actualiser">${localized("Actualiser", locale)}</span></span></button></header>
+<main id="main" role="main" aria-live="polite"></main>
+<script nonce="${nonce}" src="${i18nUri}"></script>
+<script nonce="${nonce}" src="${iconsUri}"></script>
+<script nonce="${nonce}" src="${scriptUri}"></script>
+</body>
+</html>
+`;
+}
+
 export interface StudioHtmlOptions extends CockpitHtmlOptions {
   /** Araignée locale, chargée avant les cartes de palettes. */
   spiderUri?: string;

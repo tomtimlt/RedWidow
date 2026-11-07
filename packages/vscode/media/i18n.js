@@ -1,4 +1,3 @@
-"use strict";
 (() => {
   // packages/messages/src/ui-domains/audit.ts
   var auditEn = {
@@ -1065,6 +1064,65 @@
     "Dégradé rose, violet et cyan": "Pink, violet and cyan gradient",
   };
 
+  // packages/messages/src/ui-domains/program.ts
+  var programEn = {
+    "Fiche programme": "Program sheet",
+    "Fiche programme…": "Program sheet…",
+    "aucune fiche": "no sheet",
+    "brouillon à valider": "draft to validate",
+    validée: "validated",
+    suspendue: "suspended",
+    "modifiée depuis la validation": "changed since validation",
+    illisible: "unreadable",
+    "{0} hôte(s) arrêté(s)": "{0} host(s) halted",
+    "Aucune fiche": "No sheet",
+    "Brouillon, non validé": "Draft, not validated",
+    "Validée et appliquée": "Validated and applied",
+    Suspendue: "Suspended",
+    "Modifiée depuis la validation": "Changed since validation",
+    Illisible: "Unreadable",
+    "{0} requête(s) par seconde au plus": "At most {0} request(s) per second",
+    Rapide: "Fast",
+    Normal: "Normal",
+    Prudent: "Careful",
+    "Citation non vérifiée": "Unverified citation",
+    "Ouvrir la source…": "Open the source…",
+    Aucun: "None",
+    État: "State",
+    "Aucune fiche programme pour ce projet. Importez-la avec la commande « program import ».":
+      "No program sheet for this project. Import it with the “program import” command.",
+    "Empreinte : ": "Digest: ",
+    "Validée le": "Validated on",
+    "Suspendue le": "Suspended on",
+    Périmètre: "Scope",
+    "Hors périmètre": "Out of scope",
+    "Suffixe User-Agent": "User-Agent suffix",
+    Rythme: "Pace",
+    "Hôtes arrêtés": "Halted hosts",
+    "Aucun hôte arrêté.": "No halted host.",
+    Reprendre: "Resume",
+    "Valider la fiche…": "Validate the sheet…",
+    Suspendre: "Suspend",
+    "Aucun projet actif.": "No active project.",
+    "Rien n’est affiché. Actualisez la page.": "Nothing is displayed. Refresh the page.",
+    "Le projet actif a changé. Recommencez l’action.":
+      "The active project changed. Try the action again.",
+    "Ouvrir dans le navigateur": "Open in the browser",
+    "Ouvrir cette source ?": "Open this source?",
+    "Adresse : {0}\n\nElle provient de la fiche, qui est une donnée non fiable.":
+      "Address: {0}\n\nIt comes from the sheet, which is untrusted data.",
+    "Valider la fiche": "Validate the sheet",
+    "Valider la fiche programme ?": "Validate the program sheet?",
+    "Empreinte : {0}\n\nLa fiche devient la référence du périmètre, du rythme et du suffixe User-Agent pour ce projet. Vérifiez qu’elle correspond au programme officiel.":
+      "Digest: {0}\n\nThe sheet becomes the reference for scope, pace and User-Agent suffix for this project. Check that it matches the official program.",
+    "Suspendre la fiche programme ?": "Suspend the program sheet?",
+    "Le projet revient au profil généraliste ; la fiche et son empreinte sont conservées.":
+      "The project goes back to the generalist profile; the sheet and its digest are kept.",
+    "Reprendre l’hôte {0} ?": "Resume host {0}?",
+    "L’hôte avait été arrêté par le contrôle de rythme (réponses de limitation ou blocage). Les requêtes pourront reprendre.":
+      "The host was halted by the pace control (throttling or blocking responses). Requests may resume.",
+  };
+
   // packages/messages/src/ui-domains/resources.ts
   var resourcesEn = {
     "Fournisseurs OpenCode": "OpenCode providers",
@@ -1297,6 +1355,7 @@
     ...resourcesEn,
     ...auditEn,
     ...redwidowEn,
+    ...programEn,
   };
   var currentLocale = "fr";
   var getUiLocale = () => currentLocale;

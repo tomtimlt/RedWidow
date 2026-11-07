@@ -69,7 +69,14 @@ import type { Provider } from "../logic/effort.js";
 import { evidenceEditorReference, evidenceTerminalAllowed } from "../logic/evidence-capture.js";
 import { type ExegolCreateOptions, prepareExegolCreate } from "../logic/exegol-create.js";
 import { deleteSelectedFinding } from "../logic/finding-delete.js";
-import { chatHtml, cockpitHtml, killchainHtml, makeNonce, studioHtml } from "../logic/html.js";
+import {
+  chatHtml,
+  cockpitHtml,
+  killchainHtml,
+  makeNonce,
+  programHtml,
+  studioHtml,
+} from "../logic/html.js";
 import { matchesFingerprint } from "../logic/integrity.js";
 import { killchainImage } from "../logic/killchain-image.js";
 import { setSelectedPathEdge } from "../logic/killchain-path.js";
@@ -80,6 +87,12 @@ import { missionSnapshot } from "../logic/mission-snapshot.js";
 import { parseProviderOptions } from "../logic/models.js";
 import { parseOpencodeProviders } from "../logic/opencode-providers.js";
 import { PALETTES, type Palette, paletteOf } from "../logic/palette.js";
+import {
+  citationUrl,
+  createProgramControls,
+  type ProgramView,
+  parseProgramMessage,
+} from "../logic/program-controls.js";
 import {
   activateSelectedProject,
   createSelectedProject,
@@ -332,6 +345,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   let monitorPanel: vscode.WebviewPanel | undefined;
   const watches: { panel: vscode.WebviewPanel; chatId: string; toolUseId: string }[] = [];
   let cockpitPanel: vscode.WebviewPanel | undefined;
+  let programPanel: vscode.WebviewPanel | undefined;
   let studioPanel: vscode.WebviewPanel | undefined;
   let reportPanel: vscode.WebviewPanel | undefined;
   let killchainPanel: vscode.WebviewPanel | undefined;
@@ -378,7 +392,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const message = localeMessage();
     post(message);
     for (const slot of slots.values()) void slot.panel?.webview.postMessage(message);
-    for (const panel of [monitorPanel, cockpitPanel, studioPanel, killchainPanel, reportPanel])
+    for (const panel of [
+      monitorPanel,
+      cockpitPanel,
+      programPanel,
+      studioPanel,
+      killchainPanel,
+      reportPanel,
+    ])
       void panel?.webview.postMessage(message);
     for (const watch of watches) void watch.panel.webview.postMessage(message);
     refreshLocaleTitles();
@@ -407,7 +428,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const message = { type: "palette", value: currentPalette() };
       post(message);
       for (const slot of slots.values()) void slot.panel?.webview.postMessage(message);
-      for (const panel of [monitorPanel, cockpitPanel, studioPanel, killchainPanel, reportPanel])
+      for (const panel of [
+        monitorPanel,
+        cockpitPanel,
+        programPanel,
+        studioPanel,
+        killchainPanel,
+        reportPanel,
+      ])
         void panel?.webview.postMessage(message);
       for (const watch of watches) void watch.panel.webview.postMessage(message);
     }),
@@ -1264,6 +1292,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             void refreshContainerStatus();
             return;
           }
+          case "openProgram":
+            openProgram();
+            return;
           case "openWorkspace": {
             const st = await linkedProjectStatus();
             if (st === null) return;
@@ -1703,6 +1734,152 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           view: monitorChatView(view, toolUseId),
           chatId,
         });
+    });
+  };
+
+  /**
+   * Fiche programme (ADR 0040) : voir, valider, suspendre, reprendre un hôte arrêté. L'hôte
+   * mémorise la vue (donc l'empreinte) au moment de l'affichage ; la webview ne renvoie jamais
+   * d'empreinte ni d'URL. Chaque geste passe par une modale native confirmée côté hôte.
+   */
+  const openProgram = () => {
+    if (programPanel) {
+      programPanel.reveal();
+      return;
+    }
+    const media = vscode.Uri.joinPath(context.extensionUri, "media");
+    const panel = vscode.window.createWebviewPanel(
+      "warband.program",
+      `${PRODUCT_NAME} · ${t("Fiche programme")}`,
+      warbandColumn(),
+      { enableScripts: true, enableCommandUris: false, localResourceRoots: [media] },
+    );
+    panel.iconPath = vscode.Uri.joinPath(media, "logo-small.svg");
+    programPanel = panel;
+    let alive = true;
+    let displayed: { projectId: string; view: ProgramView } | null = null;
+    panel.onDidDispose(() => {
+      alive = false;
+      programPanel = undefined;
+    });
+    panel.webview.html = programHtml({
+      locale: getUiLocale(),
+      i18nUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(media, "i18n.js")).toString(),
+      palette: currentPalette(),
+      nonce: makeNonce(),
+      cspSource: panel.webview.cspSource,
+      scriptUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(media, "program.js")).toString(),
+      styleUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(media, "chat.css")).toString(),
+    });
+    // Une fois le panneau fermé, `panel.webview` lève : on ne le touche plus.
+    const postProgram = (message: unknown) => {
+      if (alive) void panel.webview.postMessage(message);
+    };
+    const reportError = (error: unknown) =>
+      postProgram({ type: "error", text: cleanText(formatError(error, getUiLocale()), 500) });
+    const activeProjectId = async () => (await readProjectChoices(defaultConfigDir())).activeId;
+    const push = async () => {
+      try {
+        const projectId = await activeProjectId();
+        if (projectId === null) {
+          displayed = null;
+          postProgram({ type: "error", text: t("Aucun projet actif.") });
+          return;
+        }
+        const view = await createProgramControls(defaultConfigDir(), projectId).view();
+        displayed = { projectId, view };
+        postProgram(localeMessage());
+        postProgram({ type: "view", view });
+        if (cockpitPanel) void cockpitPanel.webview.postMessage(await loadCockpitView());
+      } catch (error) {
+        reportError(error);
+      }
+    };
+    /** Contrôles du projet affiché ; le projet actif ne doit pas avoir changé depuis l'affichage. */
+    const controlsForDisplayed = async () => {
+      const shown = displayed;
+      if (shown === null) throw new Error(t("Rien n’est affiché. Actualisez la page."));
+      if ((await activeProjectId()) !== shown.projectId) {
+        await push();
+        throw new Error(t("Le projet actif a changé. Recommencez l’action."));
+      }
+      return { shown, controls: createProgramControls(defaultConfigDir(), shown.projectId) };
+    };
+    const confirmModal = async (message: string, detail: string, action: string) =>
+      (await vscode.window.showWarningMessage(message, { modal: true, detail }, action)) === action;
+
+    panel.webview.onDidReceiveMessage(async (raw: unknown) => {
+      const message = parseProgramMessage(raw);
+      if (message === null) return;
+      try {
+        if (message.type === "ready" || message.type === "refresh") {
+          await push();
+          return;
+        }
+        if (message.type === "openCitation") {
+          const url = displayed === null ? null : citationUrl(displayed.view, message.field);
+          if (url === null) return;
+          const open = t("Ouvrir dans le navigateur");
+          if (
+            await confirmModal(
+              t("Ouvrir cette source ?"),
+              t`Adresse : ${cleanText(url, 300)}\n\nElle provient de la fiche, qui est une donnée non fiable.`,
+              open,
+            )
+          )
+            await vscode.env.openExternal(vscode.Uri.parse(url));
+          return;
+        }
+        if (!vscode.workspace.isTrusted) return;
+        const { shown, controls } = await controlsForDisplayed();
+        if (message.type === "validate") {
+          const digest = shown.view.digest;
+          if (digest === undefined || !shown.view.canValidate) return;
+          const action = t("Valider la fiche");
+          if (
+            !(await confirmModal(
+              t("Valider la fiche programme ?"),
+              t`Empreinte : ${digest}\n\nLa fiche devient la référence du périmètre, du rythme et du suffixe User-Agent pour ce projet. Vérifiez qu’elle correspond au programme officiel.`,
+              action,
+            ))
+          )
+            return;
+          // L'empreinte est celle affichée : si le brouillon a changé depuis, rien n'est écrit.
+          await controls.validate(digest);
+        } else if (message.type === "suspend") {
+          if (!shown.view.canSuspend) return;
+          const action = t("Suspendre");
+          if (
+            !(await confirmModal(
+              t("Suspendre la fiche programme ?"),
+              t(
+                "Le projet revient au profil généraliste ; la fiche et son empreinte sont conservées.",
+              ),
+              action,
+            ))
+          )
+            return;
+          await controls.suspend();
+        } else if (message.type === "resume") {
+          const host = shown.view.haltedHosts.find((h) => h === message.host.toLowerCase());
+          if (host === undefined) return;
+          const action = t("Reprendre");
+          if (
+            !(await confirmModal(
+              t`Reprendre l’hôte ${cleanText(host, 253)} ?`,
+              t(
+                "L’hôte avait été arrêté par le contrôle de rythme (réponses de limitation ou blocage). Les requêtes pourront reprendre.",
+              ),
+              action,
+            ))
+          )
+            return;
+          await controls.resume(host);
+        }
+      } catch (error) {
+        reportError(error);
+      }
+      await push();
     });
   };
 
@@ -2792,6 +2969,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         openCockpit();
         return;
       }
+      if (message.type === "openProgram") {
+        openProgram();
+        return;
+      }
       if (message.type === "openKillchain") {
         openKillchain();
         return;
@@ -3134,6 +3315,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }),
     vscode.commands.registerCommand("warband.openChat", () => openEditorChat()),
     vscode.commands.registerCommand("warband.openCockpit", () => openCockpit()),
+    vscode.commands.registerCommand("warband.openProgram", () => openProgram()),
     vscode.commands.registerCommand("warband.openWorkspace", async () => {
       if (await openActiveProjectWorkspace(defaultConfigDir(), projectWorkspaceHost, "selection"))
         return;

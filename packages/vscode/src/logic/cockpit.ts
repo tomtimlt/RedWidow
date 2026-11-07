@@ -7,11 +7,14 @@ import {
   createRecorder,
   type DockerClient,
   defaultConfigDir,
+  haltedPaceHosts,
   type ImageSummary,
   type LabelPrefixContainer,
   link,
   lookupContainer,
+  type ProgramState,
   type ProjectFile,
+  readProgramSync,
   readProjects,
   resolveBinary,
   runProcess,
@@ -28,6 +31,7 @@ export type CockpitMessage =
   | { type: "setPrimary"; name: string }
   | { type: "openWorkspace" }
   | { type: "terminal" }
+  | { type: "openProgram" }
   | { type: "start"; name: string }
   | { type: "stop"; name: string }
   | {
@@ -87,6 +91,7 @@ export function parseCockpitMessage(raw: unknown): CockpitMessage | null {
     case "refresh":
       return only("type") ? { type: "refresh" } : null;
     case "openWorkspace":
+    case "openProgram":
     case "terminal":
       return only("type") ? { type: m.type } : null;
     case "link":
@@ -365,6 +370,8 @@ export interface CockpitViewPayload {
   /** Projet illisible : pas de terminal. */
   projectInvalid?: boolean;
   empty?: "docker" | "list";
+  /** Fiche programme du projet actif (lecture seule) : état et nombre d'hôtes arrêtés. */
+  program?: { state: ProgramState; halted: number };
 }
 
 export function sortContainers(rows: LabelPrefixContainer[]): LabelPrefixContainer[] {
@@ -410,6 +417,21 @@ export function containerMentions(
   return tagged
     .filter((c) => counts.get(c.short) === 1)
     .map((c) => ({ name: c.short, state: c.state }));
+}
+
+/** État de la fiche pour la ligne du cockpit ; une lecture en échec reste « illisible ». */
+function programLine(
+  configDir: string,
+  projectId: string,
+): { state: ProgramState; halted: number } {
+  try {
+    return {
+      state: readProgramSync(configDir, projectId).state,
+      halted: haltedPaceHosts(configDir, projectId).length,
+    };
+  } catch {
+    return { state: "unreadable", halted: 0 };
+  }
 }
 
 /** Sonde Docker / projet et construit la vue cockpit. */
@@ -549,6 +571,7 @@ export async function loadCockpitView(deps: CockpitDeps = {}): Promise<CockpitVi
     linkedBanner,
     containers,
     ...(active && { projectWorkspace: active.workspace }),
+    ...(active && { program: programLine(configDir, active.id) }),
     ...(containers.length === 0 && { empty: "list" }),
   };
 }

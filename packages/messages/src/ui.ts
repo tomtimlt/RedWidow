@@ -4,6 +4,7 @@ import { chatEn } from "./ui-domains/chat.js";
 import { cockpitEn } from "./ui-domains/cockpit.js";
 import { hostEn } from "./ui-domains/host.js";
 import { logicEn } from "./ui-domains/logic.js";
+import { programEn } from "./ui-domains/program.js";
 import { redwidowEn } from "./ui-domains/redwidow.js";
 import { resourcesEn } from "./ui-domains/resources.js";
 import { studioEn } from "./ui-domains/studio.js";
@@ -18,6 +19,7 @@ export const UI_EN: Readonly<Record<string, string>> = {
   ...resourcesEn,
   ...auditEn,
   ...redwidowEn,
+  ...programEn,
 };
 let currentLocale: Locale = "fr";
 export const getUiLocale = (): Locale => currentLocale;

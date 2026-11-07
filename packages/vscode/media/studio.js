@@ -1795,6 +1795,10 @@ function start() {
           update2();
           const rename = el("button", "ghost", t("Renommer…"));
           const remove = el("button", "ghost", t("Supprimer…"));
+          const program = el("button", "ghost", t("Fiche programme…"));
+          program.type = "button";
+          program.id = "project-program";
+          program.addEventListener("click", () => vscode.postMessage({ type: "openProgram" }));
           rename.type = remove.type = "button";
           rename.id = "project-rename";
           remove.id = "project-delete";
@@ -1813,7 +1817,7 @@ function start() {
             });
           }
           managementState();
-          choosePanel.append(label2, select, activate, rename, remove);
+          choosePanel.append(label2, select, activate, program, rename, remove);
         }
         const label = el("label", "studio-help", t("Nom du nouveau projet"));
         label.htmlFor = "project-name";

@@ -486,6 +486,36 @@
       tile(t("Conteneur lié"), linkedLine(view.linked), linkedTone),
     );
     status.append(heading(t("Système")), grid);
+    if (view.program && typeof view.program.state === "string") {
+      const programLabels = {
+        none: t("aucune fiche"),
+        draft: t("brouillon à valider"),
+        approved: t("validée"),
+        suspended: t("suspendue"),
+        invalidated: t("modifiée depuis la validation"),
+        unreadable: t("illisible"),
+      };
+      const programTone =
+        { approved: "ok", draft: "warn", suspended: "warn" }[view.program.state] ?? "off";
+      const halted = Number.isInteger(view.program.halted) ? view.program.halted : 0;
+      const programState = programLabels[view.program.state] ?? "—";
+      const line = el("button", `cockpit-tile cockpit-program-line tone-${programTone}`);
+      line.type = "button";
+      line.id = "cockpit-program";
+      line.append(
+        el("span", "dot"),
+        el("span", "cockpit-tile-label", t("Fiche programme")),
+        el(
+          "strong",
+          "",
+          halted > 0
+            ? `${programState} · ${t("{0} hôte(s) arrêté(s)", { 0: halted })}`
+            : programState,
+        ),
+      );
+      line.addEventListener("click", () => vscode.postMessage({ type: "openProgram" }));
+      status.append(line);
+    }
     main.append(status);
 
     if (view.docker === t("absent") || view.empty === "docker") {
