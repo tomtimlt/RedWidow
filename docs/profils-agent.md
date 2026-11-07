@@ -9,7 +9,7 @@ repart sans méthode spécialisée. Les méthodes sont suspendues en mode Appren
 | Profil | Utile pour | Résultat recherché |
 | --- | --- | --- |
 | Mentor | Comprendre un concept ou dépasser une difficulté | Un indice adapté, une tentative de l’apprenant, puis une vérification de compréhension |
-| Bug bounty | Examiner une application dans un programme défini | Un constat reproductible, un impact démontré et un rapport exploitable |
+| Bug bounty | Examiner une application dans un programme défini, au rythme que ses règles permettent | Les règles citées, une matrice de couverture, des négatifs contrôlés et un rapport généré depuis le journal |
 | Out of the box | Sortir d’une piste qui tourne en rond | Des hypothèses distinctes et une observation qui permet de les départager |
 | Red Team — Expert | Évaluer un objectif d’exercice et les défenses associées | Des résultats et de la télémétrie corrélés, dans les règles d’engagement |
 | Hack The Box | Progresser sur un laboratoire ou un challenge | Une prochaine investigation justifiée et une résolution comprise |
@@ -44,5 +44,7 @@ limites de contexte et la cohérence des fichiers embarqués. Ils ne mesurent pa
 la qualité des réponses d’un modèle. La [grille d’évaluation](profils-evaluation.md)
 permet de comparer les modèles sur les mêmes situations et de relever leurs
 erreurs sans publier de secrets ni de solutions de challenges actifs.
+
+Le profil Bug bounty suit sa propre méthode en huit sections (`regles`, `rythme`, `phases`, `couverture`, `negatifs`, `recherche`, `preuves`, `rapport`) : carte des règles du programme citée avant toute requête, une requête à la fois avec le User-Agent exigé et au moins 10 s d’écart si le programme ne fixe aucun débit, matrice surface × paramètre × classe × état tenue avec `record_test`, négatif accepté seulement avec contrôle positif et deux variantes (un 403 du WAF reste « bloqué, non réfuté »), rapport généré depuis la matrice et relu contre les contradictions. Ces consignes guident le modèle ; le moteur ne mesure ni le débit ni la couverture.
 
 Le profil Expert garde l’identifiant `red-team`. Ses modules à la demande couvrent la recherche technique, l’applicabilité des CVE, les hypothèses discriminantes et les preuves de concept. La création autorisée d’un artefact ne vaut pas autorisation de l’exécuter ; modèle, effort et permissions restent ceux choisis.
