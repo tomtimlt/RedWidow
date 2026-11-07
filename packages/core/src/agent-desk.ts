@@ -152,6 +152,7 @@ export function deskToolSpecs(desk?: MissionDesk): DockerToolSpec[] {
           evidenceIds: z.array(z.string().max(200)).max(32),
           nextAction: z.string().min(1).max(2000),
           successCriterion: z.string().min(1).max(2000),
+          sources: z.array(z.string().min(1).max(200)).max(32).optional(),
           maxCalls: z.number().int().min(1).max(1000).optional(),
           maxDurationSeconds: z.number().positive().max(86400).optional(),
         },

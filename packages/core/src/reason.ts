@@ -165,6 +165,12 @@ export const REASON_CODES = [
   "web.query_sensitive",
   "web.redirectOffList",
   "web.invalidRequest",
+  // Relances de recherche web et traçabilité (ADR 0039)
+  "research.techUnsearched",
+  "research.repeatedError",
+  "research.blocked",
+  "research.noSearch",
+  "mission.sourceUnknown",
   "kali.nmapUnavailable",
   "finding.invalidLinks",
   "project.absent",

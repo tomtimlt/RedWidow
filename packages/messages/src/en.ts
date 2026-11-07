@@ -164,6 +164,15 @@ export const reasons: Catalog = {
     `${text(p.tool)}: the query or URL could leak to a third party (finding: ${text(p.finding)}; secret, masked value or private address), approval required on every call`,
   "web.redirectOffList": (p) =>
     `redirect to ${text(p.host)}, outside the reference sources: read stopped; call read_url on the target to submit it for approval`,
+  "research.techUnsearched": (p) =>
+    `${text(p.tech)}${p.version === undefined ? "" : ` ${text(p.version)}`} identified without a web search: look up the component and its version before concluding`,
+  "research.repeatedError": (p) =>
+    `same error ${text(p.count)} times (${text(p.tool)}): search the component's error message before retrying`,
+  "research.blocked": (p) =>
+    `${text(p.count)} 403 or WAF refusals: search documented bypasses for the component (no target identifier in the query)`,
+  "research.noSearch": () => "no web search in this run although web tools are exposed",
+  "mission.sourceUnknown": (p) =>
+    `unknown source in this run: ${text(p.id)} is not a search_web or read_url event`,
   "web.invalidRequest": () => "invalid http_request (incompatible method, headers or body)",
   "web.searchFailed": () => "The search service returned no usable response.",
   "kali.nmapUnavailable": () =>

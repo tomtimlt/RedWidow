@@ -288,6 +288,16 @@ export const reasons: Catalog = {
     `${text(p.tool)} : la requête ou l'URL pourrait fuiter vers un tiers (constat : ${text(p.finding)} ; secret, valeur masquée ou adresse privée), approbation requise à chaque appel`,
   "web.redirectOffList": (p) =>
     `redirection vers ${text(p.host)}, hors des sources de référence : lecture interrompue ; rappelez read_url sur la cible pour la soumettre à approbation`,
+  "research.techUnsearched": (p) =>
+    `${text(p.tech)}${p.version === undefined ? "" : ` ${text(p.version)}`} identifié sans recherche web : chercher le composant et sa version (CVE, avis, configuration) avant de conclure`,
+  "research.repeatedError": (p) =>
+    `même erreur ${text(p.count)} fois (${text(p.tool)}) : chercher le message d'erreur du composant avant de réessayer`,
+  "research.blocked": (p) =>
+    `${text(p.count)} refus 403 ou WAF : chercher les contournements documentés du composant (sans y mettre d'identifiant de la cible)`,
+  "research.noSearch": () =>
+    "aucune recherche web dans ce run alors que les outils web sont exposés : chercher la pile identifiée",
+  "mission.sourceUnknown": (p) =>
+    `source inconnue dans ce run : ${text(p.id)} n'est pas un événement search_web ou read_url`,
   "web.invalidRequest": () =>
     "requête http_request invalide (méthode, en-têtes ou corps incompatibles)",
   "web.searchFailed": () =>

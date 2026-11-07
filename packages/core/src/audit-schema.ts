@@ -9,10 +9,12 @@ export const auditTestSchema = z
     observed: z.string().min(1).max(8000),
     conclusion: z.enum(["finding", "not-observed", "inconclusive"]),
     evidenceIds: z.array(z.string().min(1).max(200)).min(1).max(32),
+    /** Événements web (search_web, read_url) du run qui étayent le contrôle ; validés par le bureau. */
+    sources: z.array(z.string().min(1).max(200)).max(32).optional(),
   })
   .strict();
 export type AuditTestClaim = z.infer<typeof auditTestSchema>;
-export const auditReviewSchema = auditTestSchema.omit({ evidenceIds: true });
+export const auditReviewSchema = auditTestSchema.omit({ evidenceIds: true, sources: true });
 export type AuditReview = z.infer<typeof auditReviewSchema>;
 export const auditRecordSchema = z
   .object({

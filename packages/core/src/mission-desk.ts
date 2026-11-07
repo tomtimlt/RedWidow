@@ -3,10 +3,11 @@ import { type AuditTestClaim, auditTestSchema } from "./audit-schema.js";
 import { type MissionDecision, missionDecisionSchema } from "./mission-decision-schema.js";
 import { type ProgramPace, type ProgramSheet, programSheetSchema } from "./program/sheet.js";
 import type { ProgramStatus } from "./program/store.js";
-import { CodedError } from "./reason.js";
+import { CodedError, type Reason } from "./reason.js";
 import type { Recorder } from "./recorder.js";
 import { createRedactor, secretsFromEnv } from "./redact.js";
-import { READ_URL_TOOL } from "./web/guard.js";
+import { isClosingText, type ResearchEvent, researchTriggers } from "./research-triggers.js";
+import { READ_URL_TOOL, SEARCH_WEB_TOOL } from "./web/guard.js";
 
 export type { MissionDecision } from "./mission-decision-schema.js";
 export interface MissionObservation {
@@ -18,6 +19,15 @@ export interface MissionObservation {
   truncated: boolean;
   excerpt: string;
   selectionReason?: string;
+}
+/** Appel `search_web` / `read_url` du run : `eventId` est citable dans `sources`. */
+export interface MissionWebCall {
+  eventId: string;
+  ts: string;
+  tool: string;
+  /** Requête ou URL demandée (masquée). */
+  target: string;
+  isError: boolean;
 }
 export interface MissionContext {
   version: 1;
@@ -32,6 +42,8 @@ export interface MissionContext {
    */
   program: { untrusted: true; notice: string; sheet: ProgramSheet } | null;
   guidance: string[];
+  /** Relances de recherche web (codes + paramètres, non bloquantes) et recherches web du run. */
+  research: { triggers: Reason[]; searches: MissionWebCall[] };
   activeTasks: { taskId: string; status: string }[];
   taskRegistry: { scope: "observed-current-run"; incomplete: true };
   budgets: {
@@ -50,8 +62,15 @@ export interface MissionDesk {
     evidenceIds?: string[] | undefined;
     maxChars?: number | undefined;
   }): MissionContext;
-  recordDecision(decision: MissionDecision): MissionDecision;
-  recordTest(claim: AuditTestClaim): { eventId: string; runId: string; reviewed: false };
+  /** `research` : relances de recherche web, présentes seulement pour une décision de clôture. */
+  recordDecision(decision: MissionDecision): MissionDecision & { research?: Reason[] };
+  /** `research` : relances de recherche web, présentes seulement pour un résultat non positif. */
+  recordTest(claim: AuditTestClaim): {
+    eventId: string;
+    runId: string;
+    reviewed: false;
+    research?: Reason[];
+  };
   /**
    * Écrit le brouillon de fiche programme du projet actif (ADR 0040). `verified` est calculé ici
    * (citation retrouvée dans un `read_url` du run sur la même URL), jamais fourni par l'agent.
@@ -82,6 +101,8 @@ export interface ProgramDraftResult {
 }
 // Les plafonds portent aussi sur les tables auxiliaires et les textes retenus.
 const MAX_ITEMS = 128;
+const MAX_WEB_CALLS = 32;
+const WEB_EXPOSED = /(?:^|__)(?:search_web|read_url)$/;
 function clip(text: string, size: number): string {
   return Array.from(text).slice(0, size).join("");
 }
@@ -137,7 +158,12 @@ export function createMissionDesk({
 }): MissionDesk {
   const redact = createRedactor({ values: secretsFromEnv(process.env) });
   const observations: MissionObservation[] = [];
-  const pending = new Map<string, { tool: string; key: string }>();
+  const pending = new Map<string, { tool: string; key: string; input: string; target: string }>();
+  // Journal des appels terminés pour `researchTriggers` ; appels web (identifiants citables en `sources`).
+  const researchLog: ResearchEvent[] = [];
+  const webCalls: MissionWebCall[] = [];
+  const webIds = new Set<string>();
+  let webExposed = false;
   const outputs = new Map<string, string>();
   const tasks = new Map<string, string>();
   // Pages lues par `read_url` dans ce run (mémoire moteur, jamais fournie par l'agent) : URL → texte normalisé.
@@ -155,7 +181,14 @@ export function createMissionDesk({
     if (disposed || event.runId !== recorder.runId) return;
     if (event.kind === "user.message") {
       suppliedPrompt = clip(redact(event.text), 2000);
+    } else if (event.kind === "session.started") {
+      webExposed = event.tools.some((tool) => WEB_EXPOSED.test(tool));
     } else if (event.kind === "tool.requested") {
+      if (event.tool === READ_URL_TOOL || event.tool === SEARCH_WEB_TOOL) {
+        webExposed = true;
+        webIds.add(event.id);
+        if (webIds.size > MAX_ITEMS) webIds.delete(webIds.values().next().value as string);
+      }
       if (event.tool === READ_URL_TOOL) {
         const url = (event.input as { url?: unknown } | null)?.url;
         if (typeof url === "string") boundedSet(readRequests, event.toolUseId, url);
@@ -165,6 +198,17 @@ export function createMissionDesk({
       boundedSet(pending, event.toolUseId, {
         tool: clip(event.tool, 200),
         key: fingerprint([event.tool, canonical(event.input)]),
+        input: clip(redact(JSON.stringify(event.input) ?? ""), 1000),
+        target: clip(
+          redact(
+            String(
+              (event.input as { query?: unknown; url?: unknown } | null)?.query ??
+                (event.input as { url?: unknown } | null)?.url ??
+                "",
+            ),
+          ),
+          300,
+        ),
       });
       metrics.toolCalls++;
       branchCalls++;
@@ -199,6 +243,24 @@ export function createMissionDesk({
       metrics.repeatedErrors = event.isError ? metrics.repeatedErrors + 1 : 0;
       if (event.isError) metrics.toolErrors++;
       const excerpt = clip(redact(event.output), 3000);
+      researchLog.push({
+        tool: call.tool,
+        input: call.input,
+        output: clip(redact(event.output), 6000),
+        isError: event.isError,
+      });
+      if (researchLog.length > 2 * MAX_ITEMS) researchLog.shift();
+      if (call.tool === READ_URL_TOOL || call.tool === SEARCH_WEB_TOOL) {
+        webIds.add(event.id);
+        webCalls.push({
+          eventId: event.id,
+          ts: event.ts,
+          tool: call.tool,
+          target: call.target,
+          isError: event.isError,
+        });
+        if (webCalls.length > MAX_WEB_CALLS) webCalls.shift();
+      }
       observations.push({
         eventId: event.id,
         ts: event.ts,
@@ -225,6 +287,14 @@ export function createMissionDesk({
   function assertOpen() {
     if (disposed) throw new Error("Bureau de mission fermé.");
   }
+  function triggers(): Reason[] {
+    return researchTriggers({ events: researchLog, webToolsExposed: webExposed });
+  }
+  function assertSources(sources: string[] | undefined) {
+    for (const id of sources ?? [])
+      if (!webIds.has(id))
+        throw new CodedError("mission.sourceUnknown", { id: clip(redact(id), 200) });
+  }
   return {
     beginTurn(text) {
       assertOpen();
@@ -239,11 +309,13 @@ export function createMissionDesk({
       for (const id of parsed.evidenceIds)
         if (!observations.some((item) => item.eventId === id))
           throw new Error("Référence inconnue dans ce run.");
+      assertSources(parsed.sources);
       decision = redact(parsed);
       recorder.emit({ kind: "mission.decision", decision });
       started = now().getTime();
       branchCalls = 0;
-      return structuredClone(decision);
+      const research = isClosingText(`${parsed.objective} ${parsed.nextAction}`) ? triggers() : [];
+      return { ...structuredClone(decision), ...(research.length > 0 && { research }) };
     },
     recordTest(raw) {
       assertOpen();
@@ -251,8 +323,15 @@ export function createMissionDesk({
       for (const id of claim.evidenceIds)
         if (!observations.some((item) => item.eventId === id))
           throw Error("Référence inconnue dans ce run.");
+      assertSources(claim.sources);
       const event = recorder.emit({ kind: "audit.test", claim: redact(claim) });
-      return { eventId: event.id, runId: event.runId, reviewed: false };
+      const research = claim.conclusion === "finding" ? [] : triggers();
+      return {
+        eventId: event.id,
+        runId: event.runId,
+        reviewed: false,
+        ...(research.length > 0 && { research }),
+      };
     },
     async draftProgram(raw) {
       assertOpen();
@@ -383,6 +462,7 @@ export function createMissionDesk({
           ? { untrusted: true, notice: PROGRAM_NOTICE, sheet: redact(structuredClone(applied)) }
           : null,
         guidance,
+        research: { triggers: triggers(), searches: webCalls.slice(-8).map((c) => ({ ...c })) },
         activeTasks: [...tasks].map(([taskId, status]) => ({ taskId, status })),
         taskRegistry: { scope: "observed-current-run", incomplete: true },
         budgets: {
@@ -409,6 +489,8 @@ export function createMissionDesk({
       }
       while (JSON.stringify(packet).length > maxChars && packet.omissions.unknownEvidenceIds.length)
         packet.omissions.unknownEvidenceIds.pop();
+      while (JSON.stringify(packet).length > maxChars && packet.research.searches.length)
+        packet.research.searches.shift();
       while (JSON.stringify(packet).length > maxChars && packet.guidance.length > 1)
         packet.guidance.pop();
       // Dernier recours avant de rogner les observations : la fiche n'est jamais tronquée, seulement omise.
@@ -446,6 +528,9 @@ export function createMissionDesk({
       tasks.clear();
       readRequests.clear();
       pages.clear();
+      researchLog.length = 0;
+      webCalls.length = 0;
+      webIds.clear();
       decision = null;
       prompt = "";
       suppliedPrompt = undefined;
