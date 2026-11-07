@@ -297,4 +297,65 @@ describe("gate : mémorisation par hôte", () => {
     expect(out.reason.code).toBe("program.in_scope");
     expect(asked).toHaveLength(0);
   });
+
+  describe("read_url : mémorisation par hôte", () => {
+    const gateWith = (policy: Policy, remember: "session" | "always") => {
+      const asked: string[] = [];
+      const persisted: unknown[] = [];
+      const gate = createApprovalGate({
+        policy,
+        recorder: createRecorder(),
+        workspace: { cwd: process.cwd(), posixShell: true },
+        ask: async (request) => {
+          asked.push(String(request.input.url));
+          return { decision: "allow", remember };
+        },
+        persistRule: async (rule) => {
+          persisted.push(rule);
+        },
+        now: () => 0,
+      });
+      const decide = (url: string, id: string) =>
+        gate.decide(
+          { toolUseId: id, tool: READ_URL_TOOL, input: { url } },
+          new AbortController().signal,
+        );
+      return { decide, asked, persisted };
+    };
+
+    it("« session » pour a.test ne couvre pas b.test", async () => {
+      const { decide, asked } = gateWith(DEFAULT_POLICY, "session");
+      await decide("https://a.test/x", "1");
+      expect((await decide("https://A.test./y", "2")).reason.code).toBe("approval.remembered");
+      expect((await decide("https://b.test/x", "3")).reason.code).not.toBe("approval.remembered");
+      expect(asked).toHaveLength(2);
+    });
+
+    it("« toujours » pour a.test : aucune règle persistée, b.test redemandé", async () => {
+      const { decide, asked, persisted } = gateWith(DEFAULT_POLICY, "always");
+      await decide("https://a.test/", "1");
+      expect(persisted).toHaveLength(0);
+      await decide("https://b.test/", "2");
+      expect(asked).toHaveLength(2);
+    });
+
+    it("URL illisible : jamais mémorisée", async () => {
+      const { decide, asked } = gateWith(DEFAULT_POLICY, "session");
+      await decide("pas une url", "1");
+      await decide("pas une url", "2");
+      expect(asked).toHaveLength(2);
+    });
+
+    it("deny de politique et web.query_sensitive : jamais mémorisés", async () => {
+      const deny: Policy = { default: "ask", rules: [{ tool: READ_URL_TOOL, decision: "deny" }] };
+      const d = gateWith(deny, "session");
+      expect((await d.decide("https://a.test/", "1")).decision).toBe("deny");
+      expect((await d.decide("https://a.test/", "2")).reason.code).not.toBe("approval.remembered");
+      const s = gateWith(DEFAULT_POLICY, "session");
+      const secret = "https://a.test/?token=AKIAIOSFODNN7EXAMPLE";
+      await s.decide(secret, "3");
+      await s.decide(secret, "4");
+      expect(s.asked).toHaveLength(2);
+    });
+  });
 });

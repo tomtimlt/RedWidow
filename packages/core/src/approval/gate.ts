@@ -2,6 +2,7 @@ import type { Decision } from "../events.js";
 import { isProgramShellTool } from "../program/scope.js";
 import { errorInfo, type Reason, reason } from "../reason.js";
 import type { Recorder } from "../recorder.js";
+import { READ_URL_TOOL } from "../web/guard.js";
 import {
   BYPASS_MAX_MS,
   type BypassOffReason,
@@ -111,6 +112,20 @@ const REMEMBERABLE = new Set([
  */
 const PERSISTABLE = new Set(["policy.default", "bash.noRule"]);
 
+/** Hôte normalisé d'une URL de `read_url`, ou `null` si l'URL est illisible ou sans hôte. */
+function readUrlHost(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  try {
+    const host = new URL(value).hostname
+      .toLowerCase()
+      .replace(/^\[|\]$/g, "")
+      .replace(/\.$/, "");
+    return host === "" ? null : host;
+  } catch {
+    return null;
+  }
+}
+
 /** Clé d'autorisation de session : le même outil et, pour Bash, la même commande exacte ; `null` si non mémorisable. */
 function sessionKey(request: ApprovalRequest, verdict: PolicyVerdict): string | null {
   // Un outil multiplexé peut appeler des actions Burp différentes : jamais de mémorisation globale.
@@ -145,6 +160,12 @@ function sessionKey(request: ApprovalRequest, verdict: PolicyVerdict): string | 
       ? `program-flag:${binary}`
       : null;
   }
+  // `read_url` : la clé est l'hôte de l'URL (parseur WHATWG, minuscules, sans point final), jamais
+  // l'outil seul : une approbation pour a.test ne couvre pas b.test. URL illisible → non mémorisable.
+  if (request.tool === READ_URL_TOOL) {
+    const host = readUrlHost(request.input.url);
+    return host === null ? null : `read-url-host:${host}`;
+  }
   if (request.tool !== BASH_TOOL) return JSON.stringify([request.tool]);
   const command = request.input.command;
   if (typeof command !== "string" || command.trim() === "") return null;
@@ -166,6 +187,9 @@ export function isRememberable(request: ApprovalRequest, verdict: PolicyVerdict)
  */
 function persistableRule(request: ApprovalRequest, verdict: PolicyVerdict): PolicyRule | null {
   if (sessionKey(request, verdict) === null || !PERSISTABLE.has(verdict.reason.code)) return null;
+  // `read_url` : une règle allow par outil couvrirait tous les hôtes, et la syntaxe de règle n'exprime
+  // pas l'hôte : « toujours » se comporte comme « session » (pas de persistance).
+  if (request.tool === READ_URL_TOOL) return null;
   if (request.tool !== BASH_TOOL) return { tool: request.tool, decision: "allow" };
   const parsed = parseShell(String(request.input.command));
   if (!parsed.ok || parsed.value.hazards.size > 0 || parsed.value.segments.length !== 1)
