@@ -157,7 +157,7 @@ export function readProgramSync(configDir: string, projectId: string): ProgramSt
 
 /** Écriture atomique (temporaire exclusif puis renommage), mode 0o600. */
 async function writePrivate(path: string, content: string): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
+  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
   const temp = `${path}.${process.pid}.${randomUUID()}.tmp`;
   try {
     await writeFile(temp, content, { encoding: "utf8", mode: 0o600, flag: "wx" });
