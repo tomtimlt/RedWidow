@@ -26,6 +26,7 @@ import {
   defaultConfigDir,
   prepareContainerProjectWorkspace,
   readActiveProjectForPrompt,
+  readProgramSync,
   readProjects,
   resolveExegolContainer,
   resolveKaliContainer,
@@ -59,15 +60,22 @@ const channel = processChannel();
 const targets = createExegolTargets();
 let learningMode = false;
 let projectRoot = process.cwd();
+// Projet actif connu du moteur (ADR 0040) : mis à jour au `start` et à chaque consigne ; sans projet, la fiche n'a aucun effet.
+let activeProjectId: string | null = null;
 const docker = createDockerClient({ recorder: createRecorder(), timeoutMs: 8_000 });
 
 const done = runEngine({
   channel,
+  program: () =>
+    activeProjectId === null
+      ? { state: "none" }
+      : readProgramSync(defaultConfigDir(), activeProjectId),
   resolveCwd: async (cwd) => {
     projectRoot = cwd;
     try {
       const file = await readProjects(defaultConfigDir());
       const active = file === null ? null : activeProject(file);
+      activeProjectId = active?.id ?? null;
       if (active !== null && active.workspace !== "" && isAbsolute(active.workspace)) {
         projectRoot = active.workspace;
         return active.workspace;
@@ -86,6 +94,7 @@ const done = runEngine({
     const outcome = await readActiveProjectForPrompt(async () => {
       const file = await readProjects(defaultConfigDir());
       selected = file && activeProject(file);
+      activeProjectId = (selected as StoredProject | null)?.id ?? null;
       return file;
     }, activeProject);
     targets.note(text, outcome.containers, outcome.projectId, outcome.blocked);

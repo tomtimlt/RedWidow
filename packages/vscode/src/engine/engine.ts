@@ -1,5 +1,5 @@
 import { isAbsolute, join } from "node:path";
-import type { AgentPrompt, PromptImage } from "@warband/core";
+import type { AgentPrompt, ProgramStatus, PromptImage } from "@warband/core";
 import {
   type AgentRunner,
   type ApprovalGate,
@@ -75,6 +75,11 @@ export interface EngineOptions {
    * Retour non absolu, vide, ou exception : on garde le cwd du `start`.
    */
   resolveCwd?: (cwd: string) => Promise<string>;
+  /**
+   * Fiche programme du projet actif (ADR 0040), relue à chaque décision et à chaque tour ; absente
+   * ou sans projet actif : aucun effet. Jamais en apprentissage.
+   */
+  program?: () => ProgramStatus;
 }
 
 /** Message dont le type est `bypass` : même rejeté par la validation, il met le miroir à « off ». */
@@ -127,6 +132,7 @@ export function runEngine({
   now = Date.now,
   policyLoader = (cwd) => loadPolicy({ cwd }),
   resolveCwd,
+  program,
 }: EngineOptions): Promise<number> {
   // Miroir en lecture du Bypass (ADR 0006, décision 6) : naît « off », jamais calculé ici.
   const mirror = createBypassMirror({ now });
@@ -232,6 +238,7 @@ export function runEngine({
           ...(!learning && { ask: approvals }),
           bypass: mirror,
           now,
+          ...(!learning && program !== undefined && { program }),
         });
         // Les demandes en attente partent vers l'UI ; la réponse revient par `answer`.
         void (async () => {
@@ -282,6 +289,7 @@ export function runEngine({
             recorder,
             gate,
             signal: abort.signal,
+            ...(!learning && program !== undefined && { program }),
             ...(!learning && {
               onMissionContext: (snapshot: import("@warband/core").MissionContext) => {
                 send({

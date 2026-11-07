@@ -1,4 +1,6 @@
 import { KALI_EXECUTE_TOOL } from "../kali/tool-specs.js";
+import { HTTP_REQUEST_TOOL, hostInScope, programHosts } from "../program/scope.js";
+import type { ProgramStatus } from "../program/store.js";
 import { type Reason, reason, ValidationError } from "../reason.js";
 import { TASK_START_TOOLS } from "../tasks/tools.js";
 import { isReferenceUrl, READ_URL_TOOL, SEARCH_WEB_TOOL, webArgumentGuard } from "../web/guard.js";
@@ -260,7 +262,12 @@ function evaluatePolicyBash(policy: Policy, command: unknown): PolicyVerdict {
 }
 
 /** Contexte d'évaluation des outils qui touchent au système de fichiers. */
+/** Rend le statut de la fiche programme du projet actif (lecture synchrone, ADR 0040). */
+export type ProgramProvider = () => ProgramStatus;
+
 export interface PolicyContext {
+  /** Fiche programme du projet actif ; absent → aucun effet de périmètre. Fixé par le code appelant. */
+  program?: ProgramProvider;
   /** Répertoire de travail ; sert à résoudre les chemins relatifs. */
   cwd: string;
   /** Racines autorisées (défaut : `[cwd]`). Hors de ces racines, un `allow` est rétrogradé en `ask`. */
@@ -365,7 +372,65 @@ export function evaluatePolicy(
   input: Record<string, unknown>,
   ctx: PolicyContext = { cwd: process.cwd() },
 ): PolicyVerdict {
-  return capExternal(policy, tool, input, evaluateUncapped(policy, tool, input, ctx));
+  const base = evaluateUncapped(policy, tool, input, ctx);
+  return capExternal(policy, tool, input, evaluateProgram(tool, input, base, ctx));
+}
+
+/** Motifs d'un `ask` « souple » (défaut ou règle) : seuls ceux-là cèdent la place au périmètre. */
+const SOFT_ASK = new Set(["policy.default", "policy.rule", "policy.rule.custom"]);
+
+/** Statut de la fiche ; un fournisseur qui lève est traité comme une fiche illisible (fail-closed). */
+function programStatus(provider: ProgramProvider): ProgramStatus {
+  try {
+    return provider();
+  } catch {
+    return { state: "unreadable" };
+  }
+}
+
+/**
+ * Périmètre du programme (ADR 0040), après `evaluateUncapped` (donc après `evaluateWeb`). Ne
+ * transforme jamais un `deny`, ni un `ask` de garde (`web.query_sensitive`, chemins…) : ceux-là
+ * restent non mémorisables. N'agit que sur les hôtes visibles (`read_url`, `http_request`, champ
+ * `target` des outils Kali) et seulement si la fiche est approuvée à son empreinte courante.
+ * Fiche illisible → `ask` non mémorisable. Hors périmètre → `ask` mémorisable par hôte seulement.
+ */
+function evaluateProgram(
+  tool: string,
+  input: Record<string, unknown>,
+  base: PolicyVerdict,
+  ctx: PolicyContext,
+): PolicyVerdict {
+  if (ctx.program === undefined || base.decision === "deny") return base;
+  if (base.decision === "ask" && !SOFT_ASK.has(base.reason.code)) return base;
+  const hosts = programHosts(tool, input);
+  if (hosts === null || hosts.length === 0) return base;
+  const status = programStatus(ctx.program);
+  if (status.state === "unreadable") {
+    return { decision: "ask", reason: reason("program.unreadable", { part: "sheet" }), rule: null };
+  }
+  const sheet = status.state === "approved" ? status.applied : undefined;
+  if (sheet === undefined) return base;
+  const outside = hosts.filter((host) => !hostInScope(sheet, host));
+  if (outside.length > 0) {
+    return {
+      decision: "ask",
+      reason: reason("program.out_of_scope", { tool, host: outside.join(", ") }),
+      rule: null,
+    };
+  }
+  if (
+    (tool === READ_URL_TOOL || tool === HTTP_REQUEST_TOOL) &&
+    base.decision === "ask" &&
+    base.rule === null
+  ) {
+    return {
+      decision: "allow",
+      reason: reason("program.in_scope", { tool, host: hosts.join(", ") }),
+      rule: null,
+    };
+  }
+  return base;
 }
 
 function evaluateUncapped(

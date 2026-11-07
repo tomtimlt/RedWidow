@@ -199,12 +199,23 @@ export async function importProgramDraft(
 export async function approveProgram(
   configDir: string,
   projectId: string,
+  expectedDigest: string | undefined,
   now: () => Date = () => new Date(),
 ): Promise<ProgramStatus> {
+  if (expectedDigest === undefined || expectedDigest === "") {
+    throw new CodedError("program.digestRequired");
+  }
   const current = await readProgram(configDir, projectId);
   if (current.state === "none") throw new CodedError("program.absent");
   if (current.draft === undefined || current.digest === undefined) {
     throw new CodedError("program.unreadable", { part: "draft" });
+  }
+  // L'humain approuve ce qu'il a lu : si le brouillon a changé depuis, rien n'est écrit.
+  if (current.digest !== expectedDigest.trim().toLowerCase()) {
+    throw new CodedError("program.digestMismatch", {
+      expected: expectedDigest,
+      actual: current.digest,
+    });
   }
   const approval: ProgramApproval = {
     version: 1,

@@ -441,7 +441,10 @@ async function runWithOpencode(
   context: RunContext,
 ): Promise<RunSummary> {
   const missionDesk = options.toolsets?.some((set) => set.name === "desk")
-    ? createMissionDesk({ recorder: context.recorder })
+    ? createMissionDesk({
+        recorder: context.recorder,
+        ...(context.program !== undefined && { program: context.program }),
+      })
     : undefined;
   try {
     return await runWithOpencodeWithDesk(options, input, context, missionDesk);

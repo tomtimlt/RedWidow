@@ -299,12 +299,22 @@ export const reasons: Catalog = {
     `libellé de trouvaille invalide : utiliser un titre de 1 à ${text(p.max)} caractères ; conserver les détails dans le fichier de résultats, puis réessayer note avec un titre court.`,
   "project.invalid": () => "projet invalide : fichier project.json illisible ou incomplet",
   "program.unreadable": (p) =>
-    p.part === "approval"
-      ? "fiche programme : approbation illisible, fiche non appliquée"
-      : "fiche programme : brouillon illisible, fiche non appliquée",
+    p.part === "sheet"
+      ? "fiche programme illisible : approbation requise à chaque appel réseau vers un hôte connu"
+      : p.part === "approval"
+        ? "fiche programme : approbation illisible, fiche non appliquée"
+        : "fiche programme : brouillon illisible, fiche non appliquée",
   "program.invalid": (p) =>
     `fiche programme invalide${p.field ? ` (champ : ${text(p.field)})` : ""} : motifs d'hôte, URL, date, suffixe et rythme attendus`,
   "program.absent": () => "aucune fiche programme à traiter pour ce projet",
+  "program.out_of_scope": (p) =>
+    `${text(p.tool)} : hôte hors du périmètre du programme (${text(p.host)}), approbation requise ; une approbation de session ne vaut que pour cet hôte`,
+  "program.in_scope": (p) =>
+    `${text(p.tool)} : hôte dans le périmètre du programme validé (${text(p.host)})`,
+  "program.digestRequired": () =>
+    "empreinte requise : relire « program show », puis relancer « program approve --digest <empreinte> »",
+  "program.digestMismatch": (p) =>
+    `le brouillon courant a changé (empreinte ${text(p.actual)}, attendue ${text(p.expected)}) : relire « program show » avant d'approuver`,
   "project.absent": () => "aucun projet actif",
   "project.readFailed": () => "lecture du projet impossible ce tour-ci",
   "cours.absent": () => "aucun cours installé (dossier de cours absent)",

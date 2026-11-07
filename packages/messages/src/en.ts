@@ -173,12 +173,22 @@ export const reasons: Catalog = {
     `invalid finding label: use a title of 1 to ${text(p.max)} characters; keep details in the results file and retry note with a short title.`,
   "project.invalid": () => "invalid project: unreadable or incomplete project.json",
   "program.unreadable": (p) =>
-    p.part === "approval"
-      ? "program sheet: unreadable approval, sheet not applied"
-      : "program sheet: unreadable draft, sheet not applied",
+    p.part === "sheet"
+      ? "unreadable program sheet: approval required on every network call to a known host"
+      : p.part === "approval"
+        ? "program sheet: unreadable approval, sheet not applied"
+        : "program sheet: unreadable draft, sheet not applied",
   "program.invalid": (p) =>
     `invalid program sheet${p.field ? ` (field: ${text(p.field)})` : ""}: expected host patterns, URL, date, suffix and pace`,
   "program.absent": () => "no program sheet to handle for this project",
+  "program.out_of_scope": (p) =>
+    `${text(p.tool)}: host outside the program scope (${text(p.host)}), approval required; a session approval only covers that host`,
+  "program.in_scope": (p) =>
+    `${text(p.tool)}: host inside the approved program scope (${text(p.host)})`,
+  "program.digestRequired": () =>
+    "hash required: re-read 'program show', then run 'program approve --digest <hash>'",
+  "program.digestMismatch": (p) =>
+    `the current draft changed (hash ${text(p.actual)}, expected ${text(p.expected)}): re-read 'program show' before approving`,
   "project.absent": () => "no active project",
   "project.readFailed": () => "could not read the active project this turn",
   "cours.absent": () => "no course installed (course folder missing)",

@@ -1,6 +1,15 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { createRecorder, type MissionDesk, renderProfileSkill } from "@warband/core";
+import {
+  createApprovalGate,
+  createRecorder,
+  DEFAULT_POLICY,
+  evaluateProgramStatus,
+  type MissionDesk,
+  parseProgramSheet,
+  programDigest,
+  renderProfileSkill,
+} from "@warband/core";
 import { expect, it } from "vitest";
 import {
   createOpencodeRunner,
@@ -178,4 +187,68 @@ it("empêche une observation de fermer le bloc de données non fiables", async (
   expect(seen.match(/<\/mission_context>/g)).toHaveLength(1);
   expect(seen).toContain("\\u003c/mission_context\\u003e");
   expect(seen.indexOf("données non fiables")).toBeLessThan(seen.indexOf("<mission_context>"));
+});
+
+it("mission_context contient la fiche approuvée du projet actif fournie par l'appelant", async () => {
+  const cited = <T>(value: T) => ({
+    value,
+    quote: "Scope",
+    url: "https://example.com/program",
+    retrievedAt: "2026-11-07T10:00:00Z",
+    verified: true,
+  });
+  const sheet = parseProgramSheet({
+    version: 1,
+    inScope: cited(["*.example.com"]),
+    outOfScope: cited([]),
+    pace: cited({ preset: "careful" }),
+  });
+  const approval = JSON.stringify({
+    version: 1,
+    digest: programDigest(sheet),
+    approvedAt: "2026-11-07T12:00:00Z",
+  });
+  const desk = deskToolset();
+  let contextTool: ReturnType<OpencodeToolset["create"]>[number] | undefined;
+  const set: OpencodeToolset = {
+    ...desk,
+    create(ctx) {
+      const tools = desk.create(ctx);
+      contextTool = tools.find((tool) => tool.name === "mission_context");
+      return tools;
+    },
+  };
+  const seen: string[] = [];
+  for (const approvalText of [approval, null]) {
+    const h = harness();
+    const fake = fakeOpencode([
+      async (s) => {
+        seen.push(
+          String(
+            await contextTool?.run(
+              {},
+              { parentId: null, correlation: undefined, signal: undefined },
+            ),
+          ),
+        );
+        s.emit("message.updated", userMessage("u"));
+        s.idle();
+      },
+    ]);
+    const runner = createOpencodeRunner({
+      processEnv: {},
+      toolsets: [set],
+      createClient: fake.createClient,
+    });
+    await runner.run(
+      { prompt: "go", cwd: h.cwd, model: "fake/m" },
+      {
+        recorder: h.recorder,
+        gate: createApprovalGate({ recorder: h.recorder, policy: DEFAULT_POLICY }),
+        program: () => evaluateProgramStatus(JSON.stringify(sheet), approvalText),
+      },
+    );
+  }
+  expect(seen[0]).toContain("*.example.com");
+  expect(seen[1]).not.toContain("*.example.com");
 });

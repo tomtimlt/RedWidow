@@ -29,6 +29,7 @@ import {
   REPO_POLICY_PATH,
   readJournal,
   readProgram,
+  readProgramSync,
   readProjects,
   resolveBinary,
   safeEnv,
@@ -231,9 +232,20 @@ program
 
     const interactive = !opts.nonInteractive && process.stdin.isTTY === true;
     const configDir = defaultConfigDir();
+    // Projet actif au lancement (ADR 0040) : sans projet, ou fichier illisible, la fiche n'a aucun effet.
+    let activeId: string | null = null;
+    try {
+      const file = await readProjects(configDir);
+      activeId = (file ? activeProject(file) : null)?.id ?? null;
+    } catch {
+      // Projets illisibles : pas de périmètre appliqué.
+    }
+    const programProvider = (): ProgramStatus =>
+      activeId === null ? { state: "none" } : readProgramSync(configDir, activeId);
     const gate = createApprovalGate({
       policy,
       recorder,
+      program: programProvider,
       // Sous win32, Bash n'est analysable que si c'est réellement Git Bash : c'est le cas de Claude
       // (qui l'exige) ; le bash d'OpenCode peut être cmd ou PowerShell, donc rien n'est déclaré.
       workspace: { cwd, ...(opts.agent !== "opencode" && { posixShell: true }) },
@@ -325,7 +337,7 @@ program
           ...(opts.maxBudgetUsd && { maxBudgetUsd: opts.maxBudgetUsd }),
           ...(opts.systemPrompt && { systemPrompt: opts.systemPrompt }),
         },
-        { recorder, gate, signal: abort.signal },
+        { recorder, gate, signal: abort.signal, program: programProvider },
       );
       if (summary.result) process.stdout.write(`\n${summary.result}\n`);
       if (summary.sessionId) {
@@ -574,9 +586,20 @@ programCmd
       "Approve the current draft (its content, identified by its hash).",
     ),
   )
+  .option(
+    "--digest <empreinte>",
+    t(
+      "empreinte du brouillon relue avec « program show » (obligatoire)",
+      "draft hash read with 'program show' (required)",
+    ),
+  )
   .option(...PROJECT_OPTION)
   .action(async (opts) => {
-    const status = await approveProgram(defaultConfigDir(), await programProjectId(opts));
+    const status = await approveProgram(
+      defaultConfigDir(),
+      await programProjectId(opts),
+      opts.digest,
+    );
     printProgramStatus(status);
   });
 

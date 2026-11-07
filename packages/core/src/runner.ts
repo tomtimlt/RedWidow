@@ -67,6 +67,8 @@ export interface RunContext {
   gate: ApprovalGate;
   signal?: AbortSignal;
   /** Observation du paquet ajouté au tour courant ; aucun effet sur les autorisations. */
+  /** Fiche programme du projet actif (ADR 0040) : injectée dans `mission_context` si approuvée. */
+  program?: () => import("./program/store.js").ProgramStatus;
   onMissionContext?: (snapshot: import("./mission-desk.js").MissionContext) => void;
 }
 

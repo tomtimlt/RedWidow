@@ -15,6 +15,7 @@ import {
   type PolicyContext,
   type PolicyRule,
   type PolicyVerdict,
+  type ProgramProvider,
 } from "./policy.js";
 import { parseShell } from "./shell.js";
 
@@ -79,6 +80,8 @@ export interface ApprovalGateOptions {
    * La gate la retient aussi pour la session, même si la persistance échoue.
    */
   persistRule?: (rule: PolicyRule) => void | Promise<void>;
+  /** Fiche programme du projet actif (ADR 0040) ; absent → aucun effet de périmètre. Relue à chaque décision. */
+  program?: ProgramProvider;
   /** Interrupteur du Bypass (ADR 0006) ; absent → aucun Bypass. Relu à chaque décision. */
   bypass?: BypassSwitch;
   /** Horloge des décisions, en ms epoch (défaut : `Date.now`). */
@@ -97,6 +100,7 @@ const REMEMBERABLE = new Set([
   "policy.default",
   "bash.noRule",
   "sandbox.interpreter",
+  "program.out_of_scope",
 ]);
 
 /**
@@ -119,6 +123,12 @@ function sessionKey(request: ApprovalRequest, verdict: PolicyVerdict): string | 
   // jamais mémorisable, sinon un « toujours » sur `Read` couvrirait des lectures hors de l'espace de travail.
   if (request.tool === EXTERNAL_DIRECTORY_TOOL || EXTERNAL_PATTERNS_FIELD in request.input) {
     return null;
+  }
+  // Hors périmètre : la clé est l'hôte, jamais le nom d'outil (ADR 0040) ; une approbation de
+  // session de `nmap_scan` ne couvre donc pas un hôte hors périmètre, ni l'inverse.
+  if (verdict.reason.code === "program.out_of_scope") {
+    const host = verdict.reason.params?.host;
+    return typeof host === "string" && host !== "" ? `program-host:${host}` : null;
   }
   if (request.tool !== BASH_TOOL) return JSON.stringify([request.tool]);
   const command = request.input.command;
@@ -161,6 +171,7 @@ export function createApprovalGate({
   persistRule,
   bypass,
   now,
+  program,
 }: ApprovalGateOptions): ApprovalGate {
   /** Autorisations de session. Consultées seulement face à un verdict « ask » mémorisable. */
   const session = new Set<string>();
@@ -269,7 +280,10 @@ export function createApprovalGate({
     async decide(request, signal, parentId = null) {
       const bypassActive = observeBypass(parentId);
       // Même contexte que `evaluatePolicy` (défaut : répertoire courant), partagé avec le Bypass.
-      const ctx: PolicyContext = workspace ?? { cwd: process.cwd() };
+      const ctx: PolicyContext = {
+        ...(workspace ?? { cwd: process.cwd() }),
+        ...(program !== undefined && { program }),
+      };
       const verdict = evaluatePolicy(policy, request.tool, request.input, ctx);
       let outcome: ApprovalOutcome;
 

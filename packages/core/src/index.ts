@@ -36,6 +36,7 @@ export * from "./process/lines.js";
 export * from "./process/resolve.js";
 export * from "./process/run.js";
 export * from "./process/terminate.js";
+export * from "./program/scope.js";
 export * from "./program/sheet.js";
 export * from "./program/store.js";
 export * from "./project.js";

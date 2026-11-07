@@ -43,6 +43,8 @@ const sheet = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+/** Empreinte du brouillon courant, comme la lirait l'humain avec « program show ». */
+const digestOf = async (d: string) => (await readProgram(d, ID)).digest as string;
 const dir = () => mkdtemp(join(tmpdir(), "warband-program-"));
 const T = (iso: string) => () => new Date(iso);
 
@@ -136,7 +138,7 @@ describe("stockage", () => {
       await expect(importProgramDraft(d, bad, JSON.stringify(sheet()))).rejects.toMatchObject({
         code: "project.invalid",
       });
-      await expect(approveProgram(d, bad)).rejects.toMatchObject({ code: "project.invalid" });
+      await expect(approveProgram(d, bad, "x")).rejects.toMatchObject({ code: "project.invalid" });
       await expect(suspendProgram(d, bad)).rejects.toMatchObject({ code: "project.invalid" });
     }
     expect(readdirSync(d)).toEqual([]);
@@ -173,13 +175,40 @@ describe("stockage", () => {
   });
 
   it("approuver sans brouillon → program.absent", async () => {
-    await expect(approveProgram(await dir(), ID)).rejects.toMatchObject({ code: "program.absent" });
+    await expect(approveProgram(await dir(), ID, "x")).rejects.toMatchObject({
+      code: "program.absent",
+    });
+  });
+
+  it("approuver sans empreinte ou avec une empreinte différente → refus, rien d'écrit", async () => {
+    const d = await dir();
+    await importProgramDraft(d, ID, JSON.stringify(sheet()));
+    await expect(approveProgram(d, ID, undefined)).rejects.toMatchObject({
+      code: "program.digestRequired",
+    });
+    await expect(approveProgram(d, ID, "")).rejects.toMatchObject({
+      code: "program.digestRequired",
+    });
+    await expect(approveProgram(d, ID, "0".repeat(64))).rejects.toMatchObject({
+      code: "program.digestMismatch",
+    });
+    expect((await readProgram(d, ID)).state).toBe("draft");
+  });
+
+  it("l'empreinte relue avant un changement du brouillon ne vaut plus", async () => {
+    const d = await dir();
+    await importProgramDraft(d, ID, JSON.stringify(sheet()));
+    const seen = await digestOf(d);
+    await importProgramDraft(d, ID, JSON.stringify(sheet({ inScope: cited(["*.evil.com"]) })));
+    await expect(approveProgram(d, ID, seen)).rejects.toMatchObject({
+      code: "program.digestMismatch",
+    });
   });
 
   it("approuver applique la fiche, avec empreinte et date, en 0o600", async () => {
     const d = await dir();
     await importProgramDraft(d, ID, JSON.stringify(sheet()));
-    const status = await approveProgram(d, ID, T("2026-11-07T12:00:00Z"));
+    const status = await approveProgram(d, ID, await digestOf(d), T("2026-11-07T12:00:00Z"));
     expect(status.state).toBe("approved");
     expect(status.applied?.inScope.value).toContain("*.example.com");
     expect(status.approvedAt).toBe("2026-11-07T12:00:00.000Z");
@@ -191,7 +220,7 @@ describe("stockage", () => {
   it("brouillon modifié après approbation → invalidated, non appliqué", async () => {
     const d = await dir();
     await importProgramDraft(d, ID, JSON.stringify(sheet()));
-    await approveProgram(d, ID);
+    await approveProgram(d, ID, await digestOf(d));
     // Modification directe du fichier (ce qu'un agent ne devrait pouvoir faire) puis par import.
     const widened = sheet({ inScope: cited(["*.example.com", "*.evil.com"]) });
     await writeFile(projectProgramPath(d, ID), JSON.stringify(widened));
@@ -210,7 +239,7 @@ describe("stockage", () => {
   it("une réécriture de même sens (ordre, casse) reste approuvée", async () => {
     const d = await dir();
     await importProgramDraft(d, ID, JSON.stringify(sheet()));
-    await approveProgram(d, ID);
+    await approveProgram(d, ID, await digestOf(d));
     const reordered = sheet({ inScope: cited(["10.0.0.0/24", "*.EXAMPLE.com"]) });
     await writeFile(projectProgramPath(d, ID), JSON.stringify(reordered));
     expect((await readProgram(d, ID)).state).toBe("approved");
@@ -220,19 +249,19 @@ describe("stockage", () => {
     const d = await dir();
     await expect(suspendProgram(d, ID)).rejects.toMatchObject({ code: "program.absent" });
     await importProgramDraft(d, ID, JSON.stringify(sheet()));
-    await approveProgram(d, ID);
+    await approveProgram(d, ID, await digestOf(d));
     const s = await suspendProgram(d, ID, T("2026-11-07T13:00:00Z"));
     expect(s.state).toBe("suspended");
     expect(s.applied).toBeUndefined();
     expect(s.draft).toBeDefined();
     expect(s.suspendedAt).toBe("2026-11-07T13:00:00.000Z");
-    expect((await approveProgram(d, ID)).state).toBe("approved");
+    expect((await approveProgram(d, ID, await digestOf(d))).state).toBe("approved");
   });
 
   it("approbation illisible ou brouillon disparu → unreadable, non appliqué", async () => {
     const d = await dir();
     await importProgramDraft(d, ID, JSON.stringify(sheet()));
-    await approveProgram(d, ID);
+    await approveProgram(d, ID, await digestOf(d));
     await writeFile(projectProgramPath(d, ID), "{ cassé");
     const broken = await readProgram(d, ID);
     expect(broken.state).toBe("unreadable");
@@ -323,7 +352,7 @@ describe("mission_context", () => {
   it("fiche validée : injectée dans un bloc marqué non fiable", async () => {
     const d = await dir();
     await importProgramDraft(d, ID, JSON.stringify(sheet()));
-    await approveProgram(d, ID);
+    await approveProgram(d, ID, await digestOf(d));
     const { program } = desk(d).context();
     expect(program?.untrusted).toBe(true);
     expect(program?.notice).toMatch(/non fiables/);
@@ -333,10 +362,10 @@ describe("mission_context", () => {
   it("invalidée, suspendue ou illisible : plus injectée", async () => {
     const d = await dir();
     await importProgramDraft(d, ID, JSON.stringify(sheet()));
-    await approveProgram(d, ID);
+    await approveProgram(d, ID, await digestOf(d));
     await suspendProgram(d, ID);
     expect(desk(d).context().program).toBeNull();
-    await approveProgram(d, ID);
+    await approveProgram(d, ID, await digestOf(d));
     await importProgramDraft(d, ID, JSON.stringify(sheet({ pace: cited({ preset: "fast" }) })));
     expect(desk(d).context().program).toBeNull();
     await writeFile(projectProgramPath(d, ID), "cassé");
