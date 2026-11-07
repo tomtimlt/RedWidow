@@ -169,6 +169,6 @@ it("revalide les ids et parents après une suppression concurrente", async () =>
   }
   expect((await deleting.done).error).toBeUndefined();
   expect((await updating.done).error).toBe("finding.notFound");
-  expect((await adding.done).error).toBe("project.invalid");
+  expect((await adding.done).error).toBe("finding.parentUnknown");
   expect(await readFindings(dir, ID)).toEqual([]);
 });

@@ -79,7 +79,52 @@ describe("trouvailles Exegol", () => {
     const d = await dir();
     await expect(
       appendFinding(d, ID, { kind: "host", label: "h", state: "confirmed", from: ["absent"] }),
-    ).rejects.toMatchObject({ code: "project.invalid" });
+    ).rejects.toMatchObject({ code: "finding.parentUnknown", params: { ids: "absent" } });
+  });
+
+  it("évince la plus ancienne note et retire les parents orphelins", async () => {
+    const d = await dir();
+    const first = await appendFinding(d, ID, { kind: "host", label: "n0", state: "confirmed" });
+    const child = await appendFinding(d, ID, {
+      kind: "step",
+      label: "enfant",
+      state: "hypothesis",
+      from: [first.id],
+    });
+    await updateFinding(d, ID, child.id, { pathFrom: [first.id] });
+    for (let i = 0; i < 199; i++)
+      await appendFinding(d, ID, { kind: "host", label: `n${i + 1}`, state: "confirmed" });
+    const rows = await readFindings(d, ID);
+    expect(rows).toHaveLength(200);
+    expect(rows.some((r) => r.id === first.id)).toBe(false);
+    const kept = rows.find((r) => r.id === child.id);
+    expect(kept).toBeDefined();
+    expect(kept).not.toHaveProperty("from");
+    expect(kept).not.toHaveProperty("pathFrom");
+    const ids = new Set(rows.map((r) => r.id));
+    expect(rows.every((r) => (r.from ?? []).every((p) => ids.has(p)))).toBe(true);
+  }, 60_000);
+
+  it("refuse pathFrom hors from avec un code dédié, et entrée mal typée sans ZodError", async () => {
+    const d = await dir();
+    const a = await appendFinding(d, ID, { kind: "host", label: "a", state: "confirmed" });
+    const b = await appendFinding(d, ID, { kind: "host", label: "b", state: "confirmed" });
+    await expect(updateFinding(d, ID, b.id, { pathFrom: [a.id] })).rejects.toMatchObject({
+      code: "finding.pathNotSubset",
+      params: { ids: a.id },
+    });
+    const targets = createExegolTargets();
+    targets.note("observé", [], ID);
+    const specs = exegolToolSpecs({} as DockerClient, targets);
+    const note = specs.find((s) => s.name === "note");
+    if (!note) throw new Error("outil absent");
+    const ctx = { parentId: null, correlation: undefined, signal: undefined };
+    await expect(note.run({ kind: 42, label: "x", state: "confirmed" }, ctx)).rejects.toMatchObject(
+      {
+        code: "finding.invalidInput",
+        params: { field: "kind" },
+      },
+    );
   });
 
   it("isole les trouvailles de deux projets", async () => {

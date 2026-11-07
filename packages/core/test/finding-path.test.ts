@@ -54,7 +54,7 @@ it("refuse les liens inexistants et les annotations hors parents sans modifier l
     code: "finding.notFound",
   });
   await expect(updateFinding(dir, project, c.id, { pathFrom: ["absent"] })).rejects.toMatchObject({
-    code: "project.invalid",
+    code: "finding.pathNotSubset",
   });
   expect(await readFile(path, "utf8")).toBe(before);
 });

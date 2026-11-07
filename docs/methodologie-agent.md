@@ -70,6 +70,10 @@ seul l’obéissance de chaque modèle. Les tests vérifient son injection, y co
   vérifiable et dans le périmètre.
 - Mettre à jour la Kill Chain au fil des faits confirmés, préserver les preuves
   et distinguer résultat partiel, réussite démontrée et soumission confirmée.
+  Trois stockages distincts : les notes Kill Chain (graphe d'attaque : hôtes,
+  identifiants, sites, étapes, butin ; états hypothesis, confirmed, failed ;
+  liens `from` entre faits établis), la matrice `record_coverage` (surfaces
+  testées et leur état) et le registre de conversation (point de reprise).
 
 Une hypothèse peut guider un test ; elle ne doit pas être présentée comme un
 fait. Un blocage suspend une branche, sans arrêter automatiquement la mission.

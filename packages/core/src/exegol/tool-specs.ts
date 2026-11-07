@@ -52,7 +52,10 @@ function spec(def: {
           parsed.error.issues.some((issue) => issue.path.includes("label"))
         )
           throw new CodedError("finding.labelInvalid", { max: FINDING_MAX_LABEL });
-        throw parsed.error;
+        // Jamais d'erreur non codée vers l'agent : champ fautif nommé, sans valeur.
+        const issue = parsed.error.issues[0];
+        const field = issue?.path.length ? issue.path.join(".") : "entrée";
+        throw new CodedError("finding.invalidInput", { field });
       }
       return def.run(parsed.data as Record<string, unknown>, callOf(ctx));
     },

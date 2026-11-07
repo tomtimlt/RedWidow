@@ -187,6 +187,11 @@ export const reasons: Catalog = {
     "Nmap cannot execute in this container. Check its Linux capabilities and Docker restrictions.",
   "finding.notFound": () => "Finding not found in the active project.",
   "finding.invalidLinks": () => "Invalid finding links: unknown reference or causal cycle.",
+  "finding.parentUnknown": (p) =>
+    `unknown finding parent: ${text(p.ids)}; re-read ids with list_notes (an old note may have been evicted) and retry with existing ids.`,
+  "finding.pathNotSubset": (p) =>
+    `pathFrom must be a subset of the finding's from parents: ${text(p.ids)} is not one; re-read list_notes.`,
+  "finding.invalidInput": (p) => `invalid input for ${text(p.field)}: fix this field and retry.`,
   "finding.labelInvalid": (p) =>
     `invalid finding label: use a title of 1 to ${text(p.max)} characters; keep details in the results file and retry note with a short title.`,
   "project.invalid": () => "invalid project: unreadable or incomplete project.json",

@@ -315,6 +315,12 @@ export const reasons: Catalog = {
   "finding.notFound": () => "Trouvaille introuvable dans le projet actif.",
   "finding.invalidLinks": () =>
     "Liens de trouvaille invalides : référence inconnue ou cycle causal.",
+  "finding.parentUnknown": (p) =>
+    `parent de trouvaille inconnu : ${text(p.ids)} ; relire les ids avec list_notes (une note ancienne a pu être évincée) puis réessayer avec des ids existants.`,
+  "finding.pathNotSubset": (p) =>
+    `pathFrom doit être un sous-ensemble des parents from de la trouvaille : ${text(p.ids)} n'en fait pas partie ; relire list_notes.`,
+  "finding.invalidInput": (p) =>
+    `entrée invalide pour ${text(p.field)} : corriger ce champ puis réessayer.`,
   "finding.labelInvalid": (p) =>
     `libellé de trouvaille invalide : utiliser un titre de 1 à ${text(p.max)} caractères ; conserver les détails dans le fichier de résultats, puis réessayer note avec un titre court.`,
   "project.invalid": () => "projet invalide : fichier project.json illisible ou incomplet",

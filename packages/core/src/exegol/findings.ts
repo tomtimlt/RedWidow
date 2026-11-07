@@ -78,6 +78,23 @@ function invalid() {
   return new CodedError("project.invalid", { reason: "json" });
 }
 
+/** Retire des `from`/`pathFrom` toute référence à un id absent de la liste (réconciliation). */
+function reconcileParents(findings: Finding[], removed: ReadonlySet<string>): Finding[] {
+  return findings.map((finding) => {
+    if (!finding.from?.some((parent) => removed.has(parent))) return finding;
+    const child = { ...finding };
+    const from = finding.from.filter((parent) => !removed.has(parent));
+    if (child.pathFrom) {
+      const pathFrom = child.pathFrom.filter((parent) => !removed.has(parent));
+      if (pathFrom.length) child.pathFrom = pathFrom;
+      else delete child.pathFrom;
+    }
+    if (from.length) child.from = from;
+    else delete child.from;
+    return child;
+  });
+}
+
 function isKind(v: unknown): v is FindingKind {
   return typeof v === "string" && (FINDING_KINDS as readonly string[]).includes(v);
 }
@@ -249,13 +266,18 @@ export async function appendFinding(
     if (input.evidenceIds !== undefined)
       await validateEvidenceLinks(configDir, projectId, input.evidenceIds);
     const known = new Set(current.map((f) => f.id));
-    if (!from.every((id) => known.has(id))) throw invalid();
+    const unknown = from.filter((id) => !known.has(id));
+    if (unknown.length) throw new CodedError("finding.parentUnknown", { ids: unknown.join(", ") });
     const finding: Finding = { id: randomUUID(), kind: input.kind, label, state: input.state };
     if (input.tactic !== undefined) finding.tactic = input.tactic;
     if (input.technique !== undefined) finding.technique = input.technique;
     if (from.length > 0) finding.from = from;
     if (input.evidenceIds?.length) finding.evidenceIds = [...input.evidenceIds];
-    const next = [...current, finding].slice(-MAX_FINDINGS);
+    const all = [...current, finding];
+    const kept = all.slice(-MAX_FINDINGS);
+    // Aucune note ne garde un parent évincé : on réconcilie les liens restants.
+    const evicted = new Set(all.slice(0, all.length - kept.length).map((f) => f.id));
+    const next = evicted.size ? reconcileParents(kept, evicted) : kept;
     await commitFindings(path, next, options);
     return finding;
   });
@@ -362,14 +384,12 @@ export async function updateFinding(
     if (patch.pathFrom !== undefined) {
       if (!Array.isArray(patch.pathFrom)) throw invalid();
       const pathFrom = [...new Set(patch.pathFrom)];
-      if (
-        pathFrom.length > MAX_FROM ||
-        pathFrom.some(
-          (parent) =>
-            !finding.from?.includes(parent) || !current.some((node) => node.id === parent),
-        )
-      )
-        throw invalid();
+      if (pathFrom.length > MAX_FROM) throw invalid();
+      const notParents = pathFrom.filter(
+        (parent) => !finding.from?.includes(parent) || !current.some((node) => node.id === parent),
+      );
+      if (notParents.length)
+        throw new CodedError("finding.pathNotSubset", { ids: notParents.join(", ") });
       if (pathFrom.length) finding.pathFrom = pathFrom;
       else delete finding.pathFrom;
     } else if (finding.pathFrom) {
@@ -439,23 +459,13 @@ export async function deleteFinding(
     const index = uniqueFindingIndex(current, id);
     const removed = current[index];
     if (!removed) throw new CodedError("finding.notFound");
-    const detachedFrom: string[] = [];
-    const next = current
-      .filter((_, other) => other !== index)
-      .map((finding) => {
-        if (!finding.from?.includes(id)) return finding;
-        detachedFrom.push(finding.id);
-        const child = { ...finding };
-        const from = finding.from.filter((parent) => parent !== id);
-        if (child.pathFrom) {
-          const pathFrom = child.pathFrom.filter((parent) => parent !== id);
-          if (pathFrom.length) child.pathFrom = pathFrom;
-          else delete child.pathFrom;
-        }
-        if (from.length) child.from = from;
-        else delete child.from;
-        return child;
-      });
+    const detachedFrom = current
+      .filter((finding) => finding.from?.includes(id))
+      .map((finding) => finding.id);
+    const next = reconcileParents(
+      current.filter((_, other) => other !== index),
+      new Set([id]),
+    );
     await commitFindings(path, next, options);
     return { removed, detachedFrom };
   });
