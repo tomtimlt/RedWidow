@@ -38,4 +38,4 @@ Ta seule entrée est ce message. S'il contient un fil de discussion ou une déci
 2. **Fichiers** créés, modifiés, déplacés.
 3. **Résultat de `pnpm check`** (lignes de résumé) et des essais manuels.
 4. **Écarts à la consigne**, justifiés.
-5. **Décisions requises ou risques** pour l'architecte, le cas échéant.
+5. **Décisions requises ou risques** pour l'orchestrateur, le cas échéant.

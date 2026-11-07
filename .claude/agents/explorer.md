@@ -1,7 +1,7 @@
 ---
 name: explorer
 description: Toujours pour lire le dépôt, les typings, une doc ou git. Faits cités, rien d'autre. Ne pas l'utiliser pour décider ou écrire.
-model: sonnet
+model: haiku
 readonly: true
 tools: Read, Grep, Glob, Bash, WebFetch, WebSearch
 ---

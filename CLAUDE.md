@@ -4,16 +4,16 @@ Orchestration d'agents (Claude Agent SDK, OpenCode) avec journal d'événements,
 
 ## Organisation des modèles (consigne permanente)
 
-La session principale orchestre. Elle ne code pas un lot et ne tranche pas une architecture. Les fiches sont dans `.claude/agents/`. Le modèle de chaque fiche est épinglé dans son en-tête : ne pas le surcharger au lancement, ne pas utiliser un sous-agent intégré à la place.
+La session principale orchestre, décide l'architecture moteur et fait la revue des lots. Elle ne code pas un lot (sauf quelques lignes, règle 7). Les fiches sont dans `.claude/agents/`. Le modèle de chaque fiche est épinglé dans son en-tête : ne pas le surcharger au lancement, ne pas utiliser un sous-agent intégré à la place.
 
-Alias `opus` pour les décisions (`architect`, `cadre`). Alias `sonnet` pour la lecture et le code (`explorer`, `dev`, `surface`). Pas de variante Fast. Pas de modèle tiers.
+Alias `opus` pour le cadrage produit (`cadre`). Alias `sonnet` pour le code (`dev`, `surface`). Alias `haiku` pour la lecture (`explorer`). Pas de variante Fast. Pas de modèle tiers. Économiser les tokens : pas de sous-agent de revue, pas de décision redéléguée quand l'orchestrateur a les faits.
 
-Deux voies. Voie moteur (`architect`, `dev`) : le brief se formule avec les paquets, les types, les événements, la gate, les processus. Voie produit (`cadre`, `surface`) : le brief a besoin de l'interface, d'un branchement ou d'un rendu. On ne mélange pas les voies dans un même brief.
+Deux voies. Voie moteur (orchestrateur → `dev`) : le brief se formule avec les paquets, les types, les événements, la gate, les processus. Voie produit (`cadre`, `surface`) : le brief a besoin de l'interface, d'un branchement ou d'un rendu. On ne mélange pas les voies dans un même brief.
 
 | Rôle | Agent | Fait | Ne fait pas |
 |---|---|---|---|
 | Éclaireur | `explorer` | Lecture. Faits cités (`fichier:ligne`). | Écrire, décider. |
-| Architecte moteur | `architect` | Décision, ADR, lots pour `dev`. | Coder, relire tout le dépôt. |
+| Orchestrateur et reviewer | session principale | Décision moteur, lots pour `dev`, revue courte de chaque lot. | Coder un lot. |
 | Développeur moteur | `dev` | Un lot déjà décidé. | Trancher l'architecture. |
 | Cadrage produit | `cadre` | Décision et lots pour `surface`. | Coder le lot. |
 | Réalisation produit | `surface` | Un lot déjà cadré. | Trancher l'architecture. |
@@ -22,11 +22,11 @@ Pare-feu. Un sous-agent part vide. La consigne tient dans les sections Objectif,
 
 Règles de délégation :
 1. **Lecture d'abord par `explorer`.** Plusieurs en parallèle si les zones sont indépendantes. Pas de gros fichier lu par l'orchestrateur quand un rapport suffit.
-2. **Décision moteur → `architect`.** Options et faits cités. Décision structurante = ADR dans `docs/adr/`. Préférence produit = question à l'utilisateur.
+2. **Décision moteur → l'orchestrateur.** À partir des faits cités. Décision structurante = note courte dans `docs/adr/` (contexte, décision, conséquences), expliquée en clair à l'utilisateur. Préférence produit = question à l'utilisateur.
 3. **Lot moteur → `dev`.** Un lot à la fois sur les mêmes fichiers. Objectif, fichiers, décision, critères, commande de validation, interdits.
 4. **Décision produit → `cadre`, puis lot → `surface`.** Même forme de consigne. `cadre` ne reçoit pas un transcript ; `surface` reçoit la décision de `cadre`, pas le fil.
-5. **Vérifier soi-même chaque lot** avant de pousser : `pnpm check`, diff, `git status`. Jamais pousser sur le seul rapport.
-6. **Escalade.** `explorer` ambigu → reformuler. `dev` échoue deux fois → `architect`, avec l'échec seulement. `surface` échoue deux fois → `cadre`. Revue d'un lot qui touche la gate, la politique, les secrets, les chemins ou les processus → `architect`.
+5. **Revue par l'orchestrateur** de chaque lot avant de pousser : `pnpm check`, diff, `git status`, et pour un lot qui touche la gate, la politique, les secrets, les chemins ou les processus, contrôle des invariants de sécurité ci-dessous. Revue courte. Jamais pousser sur le seul rapport.
+6. **Escalade.** `explorer` ambigu → reformuler. `dev` échoue deux fois → l'orchestrateur reprend la décision, avec l'échec seulement. `surface` échoue deux fois → `cadre`.
 7. **Pas de sous-agent pour quelques lignes** dans un fichier déjà connu.
 8. **Pas de relecture** d'un fichier déjà rapporté, ni de sous-agent pour redécouvrir ce que le fil établit déjà.
 
