@@ -12,6 +12,7 @@ import {
   type AgentRunner,
   type AuthMode,
   activeProject,
+  analyzeTrace,
   approveCampaign,
   approveEngagement,
   approveProgram,
@@ -69,6 +70,7 @@ import { formatJournalDiagnostic } from "./journal-diagnostic.js";
 import { languageFromArgs, type Translator } from "./locale.js";
 import { appendUserRule } from "./policy-store.js";
 import { parseSupervisionArg } from "./supervision-arg.js";
+import { formatTraceReport } from "./trace-format.js";
 
 const locale = languageFromArgs(process.argv.slice(2));
 const t: Translator = (fr, en) => (locale === "en" ? en : fr);
@@ -1009,6 +1011,50 @@ program
       const shown = opts.run === undefined ? events : (runs.get(opts.run) ?? []);
       shown.forEach(printer(Boolean(opts.verbose)));
     }
+    for (const issue of issues)
+      process.stderr.write(
+        t(
+          `ligne ${issue.line} ignorée : ${formatReason(issue.error, locale)}\n`,
+          `line ${issue.line} ignored: ${formatReason(issue.error, locale)}\n`,
+        ),
+      );
+  });
+
+program
+  .command("trace")
+  .description(
+    t(
+      "Expliquer pourquoi un run s'est arrêté ou a stagné (lecture seule du journal).",
+      "Explain why a run stopped or stalled (read-only journal analysis).",
+    ),
+  )
+  .argument("<file>", t("journal JSONL", "JSONL journal"))
+  .option(
+    "-r, --run <id>",
+    t("run à analyser (défaut : le dernier)", "run to analyze (default: last)"),
+  )
+  .option("--json", t("sortie JSON", "JSON output"))
+  .option("-n, --top <n>", t("taille des listes (défaut 5)", "list size (default 5)"), "5")
+  .action(async (file: string, opts) => {
+    const { events, issues } = await readJournal(file);
+    const runs = splitRuns(events);
+    const runId = opts.run ?? [...runs.keys()].at(-1);
+    if (runId === undefined || !runs.has(runId)) {
+      throw new InvalidArgumentError(
+        runId === undefined
+          ? t("journal vide", "empty journal")
+          : t(`run inconnu : ${runId}`, `unknown run: ${runId}`),
+      );
+    }
+    const topN = Number.parseInt(String(opts.top), 10);
+    if (!Number.isInteger(topN) || topN < 1) {
+      throw new InvalidArgumentError(
+        t("--top attend un entier ≥ 1", "--top expects an integer ≥ 1"),
+      );
+    }
+    const report = analyzeTrace(runs.get(runId) ?? [], { topN });
+    if (opts.json) process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+    else for (const line of formatTraceReport(report, locale)) process.stdout.write(`${line}\n`);
     for (const issue of issues)
       process.stderr.write(
         t(

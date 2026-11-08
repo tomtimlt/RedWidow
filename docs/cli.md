@@ -205,6 +205,7 @@ node packages/cli/dist/main.js run "liste les conteneurs arrêtés"
 node packages/cli/dist/main.js policy check "docker ps -a | grep web"   # exit 0 allow / 2 ask / 3 deny
 node packages/cli/dist/main.js journal .warband/runs/<run>.jsonl -v
 node packages/cli/dist/main.js --lang fr diagnostic .warband/runs/<run>.jsonl
+node packages/cli/dist/main.js trace .warband/runs/<run>.jsonl --json
 node packages/cli/dist/main.js graph .warband/runs/<run>.jsonl -o run.html
 node packages/cli/dist/main.js ps -a
 node packages/cli/dist/main.js agents                                       # claude, opencode (binaire trouvé ?)
@@ -218,6 +219,18 @@ déclarées tronquées, avec un extrait de 512 octets UTF-8 au maximum par sorti
 comptages couvrent tous les runs, dans l’ordre du fichier. Les pistes ouvertes et les appels
 fournisseur ne peuvent pas être déterminés à partir du journal seul. Le rapport peut contenir
 des extraits du journal : traitez-le avec la même prudence que celui-ci.
+
+La commande `trace` est l’analyse détaillée d’un run ; `diagnostic` n’en est que l’aperçu rapide.
+Elle lit le journal (déjà masqué) sans le modifier, analyse le dernier run (`-r <id>` pour un autre)
+et explique pourquoi il s’est arrêté ou a stagné : volume (tours, appels par outil, durée, plus
+longs silences), fin du run (raison, appels depuis la dernière décision), troncatures (drapeau
+`truncated`, marqueur de lignes, coupe à 16 Kio, plus gros résultats tronqués), approches
+répétées (au moins quatre appels de même outil et même premier mot de commande, ou même hôte et
+chemin d’URL, aux résultats quasi identiques), recherches web et couverture `audit.coverage`
+(cases `untested` et `blocked` restantes), puis une classe de blocage indicative : A (troncatures
+proches de la fin), B (arrêt du modèle avec pistes restantes) ou C (aucune recherche web et peu
+d’approches). `--json` produit le rapport brut, `-n <n>` règle la taille des listes. Comme pour
+`diagnostic`, le rapport peut contenir des extraits du journal.
 
 ## Développement
 

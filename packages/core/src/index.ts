@@ -63,6 +63,7 @@ export * from "./runner.js";
 export * from "./sanitize.js";
 export * from "./supervision.js";
 export * from "./tasks/tools.js";
+export * from "./trace/analyze.js";
 export * from "./web/guard.js";
 export * from "./web/guidance.js";
 export * from "./web/http-request.js";
