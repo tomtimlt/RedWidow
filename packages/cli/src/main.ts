@@ -65,6 +65,7 @@ import { formatError, formatReason, isLocale } from "@warband/messages";
 import { Command, InvalidArgumentError } from "commander";
 import { createTerminalAsker } from "./ask.js";
 import { colorEnabled, describeAuthIntent, formatEvent, formatRunList } from "./format.js";
+import { formatJournalDiagnostic } from "./journal-diagnostic.js";
 import { languageFromArgs, type Translator } from "./locale.js";
 import { appendUserRule } from "./policy-store.js";
 import { parseSupervisionArg } from "./supervision-arg.js";
@@ -1015,6 +1016,16 @@ program
           `line ${issue.line} ignored: ${formatReason(issue.error, locale)}\n`,
         ),
       );
+  });
+
+program
+  .command("diagnostic")
+  .description(
+    t("Diagnostiquer un journal JSONL en lecture seule.", "Diagnose a JSONL journal read-only."),
+  )
+  .argument("<file>", t("journal JSONL", "JSONL journal"))
+  .action(async (file: string) => {
+    process.stdout.write(formatJournalDiagnostic(await readJournal(file), locale));
   });
 
 program

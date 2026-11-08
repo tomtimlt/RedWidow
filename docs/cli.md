@@ -204,11 +204,20 @@ pnpm install && pnpm build
 node packages/cli/dist/main.js run "liste les conteneurs arrêtés"
 node packages/cli/dist/main.js policy check "docker ps -a | grep web"   # exit 0 allow / 2 ask / 3 deny
 node packages/cli/dist/main.js journal .warband/runs/<run>.jsonl -v
+node packages/cli/dist/main.js --lang fr diagnostic .warband/runs/<run>.jsonl
 node packages/cli/dist/main.js graph .warband/runs/<run>.jsonl -o run.html
 node packages/cli/dist/main.js ps -a
 node packages/cli/dist/main.js agents                                       # claude, opencode (binaire trouvé ?)
 node packages/cli/dist/main.js run --agent opencode -m fournisseur/modèle "liste les conteneurs"
 ```
+
+La commande `diagnostic` lit tout le journal sans le modifier : elle compte les événements
+`tool.requested` et `turn.finished`, indique le dernier événement et le dernier état de fin
+observé, et signale les lignes ignorées. Elle affiche au plus cinq sorties `tool.result`
+déclarées tronquées, avec un extrait de 512 octets UTF-8 au maximum par sortie. Les
+comptages couvrent tous les runs, dans l’ordre du fichier. Les pistes ouvertes et les appels
+fournisseur ne peuvent pas être déterminés à partir du journal seul. Le rapport peut contenir
+des extraits du journal : traitez-le avec la même prudence que celui-ci.
 
 ## Développement
 
