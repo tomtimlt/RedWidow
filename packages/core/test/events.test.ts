@@ -160,6 +160,7 @@ const SAMPLES: { [K in EventKind]: Extract<EventPayload, { kind: K }> } = {
     phase: "progress",
     usage: { totalTokens: 1, toolUses: 2, durationMs: 3 },
   },
+  "continuation.auto": { kind: "continuation.auto", count: 1, max: 20, openLeads: 3 },
   "context.usage": { kind: "context.usage", usedTokens: 1200, windowTokens: 200000 },
   "rate.limited": { kind: "rate.limited", status: "allowed_warning", utilization: 0.9 },
   "pace.adjusted": {
@@ -254,6 +255,8 @@ describe("schéma d'événements", () => {
       ["api.retry", { errorStatus: "500" }],
       ["task.updated", { phase: "done" }],
       ["task.updated", { usage: { totalTokens: "1" } }],
+      ["continuation.auto", { count: -1 }],
+      ["continuation.auto", { openLeads: "3" }],
       ["context.usage", { usedTokens: -1 }],
       ["context.usage", { usedTokens: 1.5 }],
       ["context.usage", { usedTokens: "12" }],

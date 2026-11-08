@@ -734,6 +734,8 @@
       standard: "Standard : réglage par défaut.",
       strict:
         "Strict : relances dès le premier signal et point de contrôle toutes les 8 actions, conseillé pour les petits modèles.",
+      relentless:
+        "Acharné : relances automatiques, pas de point de contrôle, conseillé pour les longues missions.",
     };
     const level = Object.hasOwn(supervisionTips, c.supervision) ? c.supervision : "standard";
     $("supervision").value = level;

@@ -378,10 +378,13 @@
     Léger: "Light",
     Standard: "Standard",
     Strict: "Strict",
+    Acharné: "Relentless",
     "Léger : moins de relances du moteur.": "Light: fewer engine nudges.",
     "Standard : réglage par défaut.": "Standard: default setting.",
     "Strict : relances dès le premier signal et point de contrôle toutes les 8 actions, conseillé pour les petits modèles.":
       "Strict: nudges from the first signal and a checkpoint every 8 actions, recommended for small models.",
+    "Acharné : relances automatiques, pas de point de contrôle, conseillé pour les longues missions.":
+      "Relentless: automatic follow-ups, no checkpoint, recommended for long missions.",
     "Lecture des cours et explications, sans exécution ni écriture.":
       "Read lessons and explanations, without execution or writing.",
     "Bypass des approbations": "Approval bypass",

@@ -134,6 +134,8 @@ export function formatEvent(
       return verbose
         ? `${tag("dim", "turn")} ${paint("dim", `${e.turns} ${t("tours", "turns")} · $${e.costUsd.toFixed(4)} · ${e.status}`)}`
         : null;
+    case "continuation.auto":
+      return `${tag("yellow", "relance")} ${paint("dim", t(`tour ré-amorcé automatiquement ${e.count}/${e.max} · ${e.openLeads} piste(s) ouverte(s)`, `turn automatically continued ${e.count}/${e.max} · ${e.openLeads} open lead(s)`))}`;
     case "context.usage":
       return verbose
         ? `${tag("dim", "contexte")} ${paint("dim", `${e.usedTokens}${e.windowTokens === undefined ? "" : ` / ${e.windowTokens}`} tokens`)}`

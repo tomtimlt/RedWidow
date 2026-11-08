@@ -243,6 +243,17 @@ export type EventPayload =
     }
   | {
       /**
+       * Continuation automatique (niveau d'encadrement `relentless`) : le moteur ré-amorce un tour
+       * parce que des pistes restent ouvertes. `count` : rang de ce ré-amorçage, `max` : plafond,
+       * `openLeads` : nombre de pistes ouvertes signalées par le bureau de mission.
+       */
+      kind: "continuation.auto";
+      count: number;
+      max: number;
+      openLeads: number;
+    }
+  | {
+      /**
        * Occupation du contexte au dernier appel modèle du tour (jamais un cumul).
        * Absent du journal quand le moteur ne fournit pas d'usage pour le tour.
        */
@@ -554,6 +565,7 @@ export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
     status: "enum:success,error",
     result: "string|null",
   }),
+  "continuation.auto": shape({ count: "uint", max: "uint", openLeads: "uint" }),
   "context.usage": shape({ usedTokens: "uint", windowTokens: "uint?" }),
   "run.finished": (p) =>
     shape({

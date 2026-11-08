@@ -68,7 +68,21 @@ describe("table de réglages", () => {
       maxTechs: 4,
       checkpointAfterCalls: null,
       coverageEveryTest: false,
+      autoContinue: false,
+      maxAutoContinues: 0,
     });
+    expect(SUPERVISION_SETTINGS.relentless).toEqual({
+      repeatThreshold: 2,
+      maxTechs: 4,
+      checkpointAfterCalls: null,
+      coverageEveryTest: true,
+      autoContinue: true,
+      maxAutoContinues: 20,
+    });
+    for (const level of ["light", "standard", "strict"] as const) {
+      expect(SUPERVISION_SETTINGS[level].autoContinue).toBe(false);
+      expect(SUPERVISION_SETTINGS[level].maxAutoContinues).toBe(0);
+    }
     expect(SUPERVISION_SETTINGS.light.repeatThreshold).toBe(3);
     expect(SUPERVISION_SETTINGS.light.checkpointAfterCalls).toBeNull();
     expect(SUPERVISION_SETTINGS.strict.repeatThreshold).toBe(1);
@@ -77,6 +91,8 @@ describe("table de réglages", () => {
   });
   it("valeur inconnue : standard", () => {
     expect(isSupervisionLevel("strict")).toBe(true);
+    expect(isSupervisionLevel("relentless")).toBe(true);
+    expect(parseSupervision("relentless")).toBe("relentless");
     expect(isSupervisionLevel("max")).toBe(false);
     expect(parseSupervision("max")).toBe("standard");
     expect(parseSupervision(undefined)).toBe("standard");
@@ -136,8 +152,8 @@ describe("point de contrôle périodique", () => {
     for (let i = 0; i < 8; i++) f.call("ok");
     expect(f.desk.context().supervision.checkpoint).toBeDefined();
   });
-  it("standard et light : jamais de point de contrôle", () => {
-    for (const level of ["standard", "light"] as const) {
+  it("standard, light et relentless : jamais de point de contrôle", () => {
+    for (const level of ["standard", "light", "relentless"] as const) {
       const f = fixture(level);
       for (let i = 0; i < 20; i++) f.call("ok");
       expect(f.desk.context().supervision).toEqual({ level });
@@ -151,6 +167,7 @@ describe("relance de couverture", () => {
   it("strict : aussi dans un record_test positif ; standard : non positifs seulement", () => {
     for (const [level, expected] of [
       ["strict", true],
+      ["relentless", true],
       ["standard", false],
       ["light", false],
     ] as const) {
@@ -165,5 +182,12 @@ describe("relance de couverture", () => {
     const f = fixture("strict");
     for (let i = 0; i < 10; i++) f.call("ok");
     expect(f.test("finding")).toMatchObject({ reviewed: false });
+  });
+});
+
+describe("niveau relentless", () => {
+  it("relance dès la deuxième erreur (pas la première)", () => {
+    expect(guidance("relentless", 1)).not.toContain("changer une hypothèse");
+    expect(guidance("relentless", 2)).toContain("changer une hypothèse");
   });
 });

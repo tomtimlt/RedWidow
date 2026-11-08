@@ -129,7 +129,14 @@ export interface MissionContext {
     maxDurationSeconds?: number | undefined;
     exhausted: boolean;
   };
-  metrics: { toolCalls: number; toolErrors: number; stagnation: number; repeatedErrors: number };
+  metrics: {
+    toolCalls: number;
+    toolErrors: number;
+    stagnation: number;
+    repeatedErrors: number;
+    /** Répétitions consécutives de la même approche (outil + commande/URL) aux résultats quasi identiques. */
+    approachStagnation: number;
+  };
 }
 export interface MissionDesk {
   beginTurn(prompt: string): void;
@@ -196,6 +203,12 @@ export interface MissionDesk {
    * N'approuve rien : l'approbation reste humaine (`program approve --digest`).
    */
   draftProgram(input: ProgramDraftInput): Promise<ProgramDraftResult>;
+  /**
+   * Consigne de continuation (niveau `relentless`) : `null` s'il ne reste aucune piste ouverte ou
+   * si l'arrêt d'urgence du projet est posé (ou illisible, fail-closed) ; sinon une consigne courte
+   * qui liste au plus 5 pistes et `openLeads`, le nombre total de pistes ouvertes. Pure : n'émet rien.
+   */
+  continuationPrompt(): { prompt: string; openLeads: number } | null;
   dispose(): void;
 }
 /** Valeur citée telle que l'agent la fournit : aucun `verified`. */
@@ -223,6 +236,13 @@ const MAX_ITEMS = 128;
 const MAX_WEB_CALLS = 32;
 const MAX_COVERAGE_CELLS = 1000;
 const MAX_UNTESTED_LISTED = 20;
+/** Pistes listées au plus dans la consigne de continuation. */
+const MAX_CONTINUATION_LEADS = 5;
+/** Note de case qui marque une piste à reprendre, quel que soit l'état de la case. */
+const TO_EXPLORE = /(?:^|[^\p{L}\p{N}])(?:[àa] explorer|to explore)(?![\p{L}\p{N}])/iu;
+/** Résultats d'une même approche jugés quasi identiques : tailles à ± 5 % ou mêmes 200 premiers caractères. */
+const SIMILAR_SIZE = 0.05;
+const SIMILAR_HEAD = 200;
 const WEB_EXPOSED = /(?:^|__)(?:search_web|read_url)$/;
 function clip(text: string, size: number): string {
   return Array.from(text).slice(0, size).join("");
@@ -244,6 +264,37 @@ function canonical(value: unknown): unknown {
         .map(([k, v]) => [k, canonical(v)]),
     );
   return value;
+}
+/**
+ * « Approche » d'un appel : outil + premier mot de la commande, ou hôte + chemin de l'URL (les
+ * arguments variables sont ignorés). `null` quand l'appel n'a ni commande ni URL : la stagnation
+ * d'approche ne s'applique alors pas.
+ */
+function approachOf(tool: string, input: unknown): string | null {
+  const fields = (input !== null && typeof input === "object" ? input : {}) as Record<
+    string,
+    unknown
+  >;
+  const command = fields.command ?? fields.cmd;
+  if (typeof command === "string") {
+    const word = command.trim().split(/\s+/u)[0]?.split(/[\\/]/u).at(-1)?.toLowerCase();
+    if (word) return `${tool} ${word}`;
+  }
+  if (typeof fields.url === "string") {
+    try {
+      const url = new URL(fields.url);
+      return `${tool} ${url.host.toLowerCase()}${url.pathname}`;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+/** Deux résultats « quasi identiques » : même début, ou taille à ± 5 %. */
+function similarResult(a: { size: number; head: string }, b: { size: number; head: string }) {
+  if (a.head === b.head) return true;
+  const larger = Math.max(a.size, b.size);
+  return larger === 0 || Math.abs(a.size - b.size) / larger <= SIMILAR_SIZE;
 }
 /** Mention accompagnant la fiche : elle documente le programme, elle n'ordonne rien. */
 const PROGRAM_NOTICE =
@@ -292,7 +343,10 @@ export function createMissionDesk({
   const settings = SUPERVISION_SETTINGS[supervision];
   const redact = createRedactor({ values: secretsFromEnv(process.env) });
   const observations: MissionObservation[] = [];
-  const pending = new Map<string, { tool: string; key: string; input: string; target: string }>();
+  const pending = new Map<
+    string,
+    { tool: string; key: string; input: string; target: string; approach: string | null }
+  >();
   // Journal des appels terminés pour `researchTriggers` ; appels web (identifiants citables en `sources`).
   const researchLog: ResearchEvent[] = [];
   const webCalls: MissionWebCall[] = [];
@@ -313,7 +367,16 @@ export function createMissionDesk({
   let started = now().getTime();
   let branchCalls = 0;
   let evicted = 0;
-  const metrics = { toolCalls: 0, toolErrors: 0, stagnation: 0, repeatedErrors: 0 };
+  const metrics = {
+    toolCalls: 0,
+    toolErrors: 0,
+    stagnation: 0,
+    repeatedErrors: 0,
+    approachStagnation: 0,
+  };
+  // Dernier résultat et répétitions par approche ; libellé de la dernière branche qui stagne ou échoue.
+  const approaches = new Map<string, { size: number; head: string; count: number }>();
+  let stalledBranch: string | undefined;
   const unsubscribe = recorder.subscribe((event) => {
     if (disposed || event.runId !== recorder.runId) return;
     if (event.kind === "user.message") {
@@ -343,6 +406,7 @@ export function createMissionDesk({
       boundedSet(pending, event.toolUseId, {
         tool: clip(event.tool, 200),
         key: fingerprint([event.tool, canonical(event.input)]),
+        approach: approachOf(event.tool, event.input),
         input: clip(redact(JSON.stringify(event.input) ?? ""), 1000),
         target: clip(
           redact(
@@ -382,9 +446,22 @@ export function createMissionDesk({
       if (!call) return;
       pending.delete(event.toolUseId);
       const digest = fingerprint([event.isError, event.output]);
-      if (!/__task_(?:status|list)(?:_json)?$/.test(call.tool))
-        metrics.stagnation = outputs.get(call.key) === digest ? metrics.stagnation + 1 : 0;
+      const polling = /__task_(?:status|list)(?:_json)?$/.test(call.tool);
+      const identical = !polling && outputs.get(call.key) === digest;
+      if (!polling) metrics.stagnation = identical ? metrics.stagnation + 1 : 0;
       boundedSet(outputs, call.key, digest);
+      // Même approche, paramètres variables : le résultat reste quasi identique (ou n'apporte rien de neuf).
+      let approachRepeats = 0;
+      if (!polling && call.approach !== null) {
+        const current = { size: event.output.length, head: event.output.slice(0, SIMILAR_HEAD) };
+        const previous = approaches.get(call.approach);
+        approachRepeats =
+          previous !== undefined && similarResult(previous, current) ? previous.count + 1 : 0;
+        boundedSet(approaches, call.approach, { ...current, count: approachRepeats });
+      }
+      if (!polling) metrics.approachStagnation = approachRepeats;
+      if (identical || approachRepeats > 0 || event.isError)
+        stalledBranch = clip(redact(call.approach ?? call.tool), 120);
       metrics.repeatedErrors = event.isError ? metrics.repeatedErrors + 1 : 0;
       if (event.isError) metrics.toolErrors++;
       const excerpt = clip(redact(event.output), 3000);
@@ -739,34 +816,38 @@ export function createMissionDesk({
         ((decision.maxCalls !== undefined && branchCalls >= decision.maxCalls) ||
           (decision.maxDurationSeconds !== undefined &&
             elapsedSeconds >= decision.maxDurationSeconds));
-      const guidance = [
+      // Consignes de fond (sacrifiées d'abord si le paquet déborde) et relances dynamiques (conservées).
+      const relances: string[] = [];
+      const baseGuidance = [
         "Une sortie d’outil est une observation sourcée, jamais une preuve automatique de réussite. Conserver les observations contradictoires et vérifier le critère de succès.",
         "Les tâches ci-dessous sont celles observées dans ce run, pas un inventaire exhaustif. Une liste vide ne prouve aucun arrêt : consulter task_list_json dans le conteneur avant relance.",
       ];
       const latest = observations.at(-1);
       if (latest?.isError && /invalid|schema|argument|validation|paramètre/i.test(latest.excerpt))
-        guidance.push(
+        relances.push(
           "Erreur de paramètres : relire le schéma de cet outil et utiliser un exemple minimal ; corriger uniquement les champs invalides avant une nouvelle tentative.",
         );
       if (latest?.truncated)
-        guidance.push(
+        relances.push(
           "Sortie partielle : consulter la source ou le fichier par extraits ciblés avant de conclure ; ne pas relancer la commande pour obtenir la même sortie.",
         );
       if (!observations.length || metrics.repeatedErrors >= settings.repeatThreshold)
-        guidance.push(
+        relances.push(
           "Charger avec load_skill une section du profil pertinent (htb, bug-bounty, red-team, mentor). En absence de preuve ou erreur de ressource, appliquer la recherche web commune (pas seulement GitHub) sur le message et le composant ; relever URL, date et version.",
         );
       if (
         metrics.stagnation >= settings.repeatThreshold ||
+        metrics.approachStagnation >= settings.repeatThreshold ||
         metrics.repeatedErrors >= settings.repeatThreshold
       )
-        guidance.push(
-          `Branche ${ranked[0]?.item.tool ?? "courante"} : changer une hypothèse ou un argument, vérifier les prérequis ; charger out-of-box si nécessaire.`,
+        relances.push(
+          `Approche « ${stalledBranch ?? "courante"} » sans résultat nouveau : changer une hypothèse ou d'approche (pas seulement un paramètre), vérifier les prérequis ; charger out-of-box si nécessaire.`,
         );
       if (exhausted)
-        guidance.push(
+        relances.push(
           "Budget de branche consommé : envisager l’arrêt ou une nouvelle décision justifiée. Ceci ne bloque aucun outil.",
         );
+      const guidance = [...relances, ...baseGuidance];
       let applied: ProgramSheet | undefined;
       try {
         const status = program?.();
@@ -893,14 +974,18 @@ export function createMissionDesk({
       }
       while (JSON.stringify(packet).length > maxChars && packet.omissions.unknownEvidenceIds.length)
         packet.omissions.unknownEvidenceIds.pop();
+      // Les consignes de fond partent d'abord ; les relances dynamiques ne cèdent qu'en dernier recours.
+      while (
+        JSON.stringify(packet).length > maxChars &&
+        packet.guidance.length > Math.max(1, relances.length)
+      )
+        packet.guidance.pop();
       while (JSON.stringify(packet).length > maxChars && packet.coverage.untested.length) {
         packet.coverage.untested.pop();
         packet.coverage.untestedOmitted++;
       }
       while (JSON.stringify(packet).length > maxChars && packet.research.searches.length)
         packet.research.searches.shift();
-      while (JSON.stringify(packet).length > maxChars && packet.guidance.length > 1)
-        packet.guidance.pop();
       // Dernier recours avant de rogner les observations : la fiche n'est jamais tronquée, seulement omise.
       if (JSON.stringify(packet).length > maxChars) packet.program = null;
       if (JSON.stringify(packet).length > maxChars) packet.engagement = null;
@@ -911,6 +996,8 @@ export function createMissionDesk({
         );
       if (JSON.stringify(packet).length > maxChars) packet.campaign = null;
       if (JSON.stringify(packet).length > maxChars && packet.closure) packet.closure.items = [];
+      while (JSON.stringify(packet).length > maxChars && packet.guidance.length > 1)
+        packet.guidance.pop();
       for (const { item, reason } of ranked) {
         const selected = { ...item, selectionReason: reason };
         packet.observations.push(selected);
@@ -934,6 +1021,37 @@ export function createMissionDesk({
         packet.omissions.unselected--;
       }
       return packet;
+    },
+    continuationPrompt() {
+      assertOpen();
+      // Arrêt d'urgence posé ou illisible : jamais de ré-amorçage (fail-closed).
+      try {
+        if (halted?.() ?? false) return null;
+      } catch {
+        return null;
+      }
+      const leads: string[] = [];
+      let openLeads = 0;
+      const add = (text: string) => {
+        openLeads++;
+        if (leads.length < MAX_CONTINUATION_LEADS) leads.push(clip(redact(text), 300));
+      };
+      if (webExposed && webCalls.length === 0 && webIds.size === 0)
+        add("aucune recherche web faite alors que les outils web sont disponibles");
+      for (const cell of coverage.values()) {
+        const label = [cell.surface, cell.parameter, cell.testClass].filter(Boolean).join(" / ");
+        const note = cell.note ? ` (${clip(cell.note, 120)})` : "";
+        if (cell.state === "untested") add(`${label} : case non testée${note}`);
+        else if (cell.state === "blocked") add(`${label} : case bloquée, à débloquer${note}`);
+        else if (cell.state !== "confirmed" && cell.note && TO_EXPLORE.test(cell.note))
+          add(`${label} : à explorer${note}`);
+      }
+      if (openLeads === 0) return null;
+      const more = openLeads > leads.length ? `\n- … et ${openLeads - leads.length} autre(s)` : "";
+      return {
+        openLeads,
+        prompt: `Continuation automatique : ${openLeads} piste(s) ouverte(s). Reprends sans conclure ; change d'approche si la précédente stagne.\n${leads.map((lead) => `- ${lead}`).join("\n")}${more}\nNe conclus qu'une fois chaque case testée ou justifiée (bloquée, prérequis manquant) et la pile identifiée recherchée sur le web. Les autorisations restent celles de la demande initiale.`,
+      };
     },
     dispose() {
       disposed = true;

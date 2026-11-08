@@ -116,6 +116,10 @@ export function eventLabel(e: EngineEvent, options: LabelOptions = {}): string {
       return clip(`${t.teardown} ${e.itemId} : ${e.done ? "ok" : "ko"} (${e.remaining})`);
     case "turn.finished":
       return `${t.turn} ${e.turns} · ${e.status} · $${e.costUsd.toFixed(4)}`;
+    case "continuation.auto":
+      return locale === "en"
+        ? `Automatic continuation ${e.count}/${e.max} · ${e.openLeads} open lead(s)`
+        : `Relance automatique ${e.count}/${e.max} · ${e.openLeads} piste(s) ouverte(s)`;
     case "context.usage":
       return `${t.context} : ${e.usedTokens}${e.windowTokens === undefined ? "" : ` / ${e.windowTokens}`}`;
     case "agent.thinking":

@@ -246,8 +246,8 @@ program
   .option(
     "--supervision <niveau>",
     t(
-      "encadrement du moteur : light, standard (défaut) ou strict (relances plus fréquentes)",
-      "engine supervision: light, standard (default) or strict (more frequent reminders)",
+      "encadrement du moteur : light, standard (défaut), strict (relances plus fréquentes) ou relentless (acharné : relances automatiques de tour, conseillé pour les longues missions)",
+      "engine supervision: light, standard (default), strict (more frequent reminders) or relentless (automatic turn continuation, recommended for long missions)",
     ),
     (value: string) => parseSupervisionArg(value, t),
     "standard",

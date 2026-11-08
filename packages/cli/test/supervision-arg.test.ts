@@ -5,8 +5,8 @@ import { parseSupervisionArg } from "../src/supervision-arg.js";
 const t = (fr: string, _en: string) => fr;
 
 describe("run --supervision", () => {
-  it("accepte light, standard et strict", () => {
-    for (const level of ["light", "standard", "strict"])
+  it("accepte light, standard, strict et relentless", () => {
+    for (const level of ["light", "standard", "strict", "relentless"])
       expect(parseSupervisionArg(level, t)).toBe(level);
   });
   it("refuse une autre valeur", () => {

@@ -369,3 +369,142 @@ describe("matrice de couverture", () => {
     );
   });
 });
+
+describe("continuationPrompt", () => {
+  const cell = { surface: "/api/users", parameter: "id", testClass: "IDOR" };
+  it("null sans piste ouverte (matrice vide ou tout couvert)", () => {
+    const f = fixture();
+    expect(f.desk.continuationPrompt()).toBeNull();
+    const e = f.result("HTTP 403");
+    const t = f.desk.recordTest({
+      objective: "Test IDOR",
+      target: "lab",
+      testContext: "",
+      method: "GET",
+      observed: "403",
+      conclusion: "not-observed",
+      evidenceIds: [e.id],
+    });
+    f.desk.recordCoverage([{ ...cell, state: "negative", testRefs: [t.eventId] }]);
+    expect(f.desk.continuationPrompt()).toBeNull();
+  });
+  it("non null avec une case untested ou blocked, ou une note « à explorer »", () => {
+    const f = fixture();
+    const e = f.result("HTTP 403");
+    const t = f.desk.recordTest({
+      objective: "Test IDOR",
+      target: "lab",
+      testContext: "",
+      method: "GET",
+      observed: "403",
+      conclusion: "not-observed",
+      evidenceIds: [e.id],
+    });
+    f.desk.recordCoverage([
+      { ...cell, state: "untested" },
+      { surface: "/admin", testClass: "authz", state: "blocked", note: "WAF" },
+      {
+        surface: "/upload",
+        testClass: "rce",
+        state: "negative",
+        testRefs: [t.eventId],
+        note: "Variante à explorer",
+      },
+    ]);
+    const out = f.desk.continuationPrompt();
+    expect(out?.openLeads).toBe(3);
+    expect(out?.prompt).toContain("sans conclure");
+    expect(out?.prompt).toContain("/api/users");
+    expect(out?.prompt).toContain("/admin");
+    expect(out?.prompt).toContain("/upload");
+  });
+  it("plafonne la liste à 5 pistes mais compte toutes les pistes ouvertes", () => {
+    const f = fixture();
+    f.desk.recordCoverage(
+      Array.from({ length: 8 }, (_, i) => ({
+        surface: `/route-${i}`,
+        testClass: "sqli",
+        state: "untested" as const,
+      })),
+    );
+    const out = f.desk.continuationPrompt();
+    expect(out?.openLeads).toBe(8);
+    expect(out?.prompt.split("\n").filter((l) => l.startsWith("- /route-"))).toHaveLength(5);
+    expect(out?.prompt).toContain("3 autre(s)");
+  });
+  it("signale l'absence de recherche web quand les outils web sont exposés", () => {
+    const f = fixture();
+    f.recorder.emit({
+      kind: "session.started",
+      sessionId: "s",
+      model: "m",
+      tools: ["mcp__web__search_web"],
+    });
+    expect(f.desk.continuationPrompt()).toMatchObject({ openLeads: 1 });
+    expect(f.desk.continuationPrompt()?.prompt).toContain("recherche web");
+    f.result("{}", false, { query: "x" }, "mcp__web__search_web");
+    expect(f.desk.continuationPrompt()).toBeNull();
+  });
+  it("null sous arrêt d'urgence, y compris illisible (fail-closed)", () => {
+    const unreadable = () => {
+      throw new Error("illisible");
+    };
+    for (const halted of [() => true, unreadable]) {
+      const recorder = createRecorder({ runId: "run", redact: false });
+      const desk = createMissionDesk({ recorder, halted });
+      desk.recordCoverage([{ ...cell, state: "untested" }]);
+      expect(desk.continuationPrompt()).toBeNull();
+    }
+  });
+});
+
+describe("stagnation d'approche", () => {
+  it("détectée quand seul un paramètre change et que le résultat reste quasi identique", () => {
+    const f = fixture();
+    const body = "<html>404 not found</html>";
+    f.result(body, false, { command: "curl http://cible/a" } as never, "execute_command");
+    f.result(`${body}.`, false, { command: "curl http://cible/b?x=2" } as never, "execute_command");
+    f.result(`${body}..`, false, { command: "curl -s http://cible/c" } as never, "execute_command");
+    expect(f.desk.context().metrics).toMatchObject({ stagnation: 0, approachStagnation: 2 });
+    const guidance = f.desk.context().guidance.join(" ");
+    expect(guidance).toContain("changer une hypothèse");
+    expect(guidance).toContain("execute_command curl");
+  });
+  it("même hôte+chemin d'URL, requête variable ; une sortie différente remet à zéro", () => {
+    const f = fixture();
+    const page = "x".repeat(400);
+    const tool = "mcp__web__http_request";
+    for (const q of ["1", "2", "3"])
+      f.result(page, false, { url: `http://cible/login?id=${q}` } as never, tool);
+    expect(f.desk.context().metrics.approachStagnation).toBe(2);
+    expect(f.desk.context().guidance.join(" ")).toContain("cible/login");
+    f.result("y".repeat(40), false, { url: "http://cible/login?id=4" } as never, tool);
+    expect(f.desk.context().metrics.approachStagnation).toBe(0);
+  });
+  it("ignore les appels sans commande ni URL", () => {
+    const f = fixture();
+    for (let i = 0; i < 4; i++) f.result("même sortie", false, { n: i } as never, "read");
+    expect(f.desk.context().metrics.approachStagnation).toBe(0);
+  });
+});
+
+describe("réduction du paquet", () => {
+  it("garde les relances et sacrifie les consignes de fond puis les observations", () => {
+    const f = fixture();
+    f.desk.recordCoverage(
+      Array.from({ length: 15 }, (_, i) => ({
+        surface: `/s${i}-${"p".repeat(150)}`,
+        testClass: "sqli",
+        state: "untested" as const,
+      })),
+    );
+    for (let i = 0; i < 40; i++) f.result(`observation ancienne ${i} ${"z".repeat(300)}`);
+    f.result("missing", true);
+    f.result("missing", true);
+    const packet = f.desk.context({ maxChars: 2048 });
+    expect(JSON.stringify(packet).length).toBeLessThanOrEqual(2048);
+    expect(packet.guidance.join(" ")).toContain("changer une hypothèse");
+    expect(packet.guidance.join(" ")).not.toContain("jamais une preuve automatique");
+    expect(packet.coverage.counts.untested).toBe(15);
+  });
+});

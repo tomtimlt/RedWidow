@@ -11,6 +11,7 @@ import {
   type EngineEvent,
   type Policy,
   type Recorder,
+  type RunContext,
   type RunInput,
   type RunSummary,
 } from "@warband/core";
@@ -172,7 +173,12 @@ export function fakeOpencode(
 export interface Harness {
   events: EngineEvent[];
   recorder: Recorder;
-  run(runner: AgentRunner, input?: Partial<RunInput>, signal?: AbortSignal): Promise<RunSummary>;
+  run(
+    runner: AgentRunner,
+    input?: Partial<RunInput>,
+    signal?: AbortSignal,
+    context?: Partial<RunContext>,
+  ): Promise<RunSummary>;
 }
 
 export function harness(
@@ -192,10 +198,15 @@ export function harness(
     events,
     recorder,
     cwd,
-    run: (runner: AgentRunner, input: Partial<RunInput> = {}, signal?: AbortSignal) =>
+    run: (
+      runner: AgentRunner,
+      input: Partial<RunInput> = {},
+      signal?: AbortSignal,
+      context: Partial<RunContext> = {},
+    ) =>
       runner.run(
         { prompt: "go", cwd, model: "fake/m", ...input },
-        { recorder, gate, ...(signal && { signal }) },
+        { recorder, gate, ...(signal && { signal }), ...context },
       ),
   };
 }

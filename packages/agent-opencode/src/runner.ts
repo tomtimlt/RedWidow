@@ -21,12 +21,14 @@ import {
   type MissionDesk,
   type ModelCatalog,
   type ModelOption,
+  parseSupervision,
   type Reason,
   type RunContext,
   type RunInput,
   type RunSummary,
   reason,
   resolveBinary,
+  SUPERVISION_SETTINGS,
   stripControl,
   ToolCallRegistry,
   withAgentMethodology,
@@ -493,9 +495,11 @@ function missionPrompt(
   text: string,
   missionDesk?: MissionDesk,
   onMissionContext?: RunContext["onMissionContext"],
+  continuing = false,
 ): string {
   if (!missionDesk) return text;
-  missionDesk.beginTurn(text);
+  // Un tour de continuation garde la consigne d'origine de la mission (jamais remplacée par la relance).
+  if (!continuing) missionDesk.beginTurn(text);
   const snapshot = missionDesk.context({ maxChars: 6000 });
   try {
     onMissionContext?.(structuredClone(snapshot));
@@ -509,9 +513,10 @@ function missionPrompt(
 async function runWithOpencodeWithDesk(
   options: OpencodeRunnerOptions,
   input: RunInput,
-  { recorder, gate, signal, onMissionContext }: RunContext,
+  { recorder, gate, signal, onMissionContext, supervision, halted }: RunContext,
   missionDesk?: MissionDesk,
 ): Promise<RunSummary> {
+  const supervisionSettings = SUPERVISION_SETTINGS[parseSupervision(supervision)];
   const { cwd } = input;
   const credentials = await authEnvironment(options, input.auth);
   const processEnv = options.processEnv ?? process.env;
@@ -1037,8 +1042,19 @@ async function runWithOpencodeWithDesk(
     }
   };
 
+  /** Arrêt d'urgence du projet actif ; illisible : traité comme posé (fail-closed). */
+  const engagementHalted = (): boolean => {
+    try {
+      return halted?.() ?? false;
+    } catch {
+      return true;
+    }
+  };
+
   // --- exécution ------------------------------------------------------------
   let pump: Promise<void> | undefined;
+  let promptIterator: AsyncIterator<AgentPrompt> | undefined;
+  let upcoming: Promise<IteratorResult<AgentPrompt>> | undefined;
   try {
     if (input.effort !== undefined) throw new CodedError("opencode.unsupportedEffort");
     // Outils du moteur, servis en MCP HTTP local.
@@ -1186,7 +1202,52 @@ async function runWithOpencodeWithDesk(
       root.id,
     );
 
-    for await (const prompt of promptTexts(input.prompt)) {
+    // Itération manuelle des prompts : la continuation automatique doit pouvoir ré-amorcer un tour
+    // sans attendre le message humain suivant, tout en lui laissant la priorité s'il est arrivé.
+    const prompts = promptTexts(input.prompt)[Symbol.asyncIterator]();
+    promptIterator = prompts;
+    let continuation: { prompt: string; openLeads: number } | null = null;
+    let autoContinues = 0;
+    for (;;) {
+      let prompt: AgentPrompt | undefined;
+      let continuing = false;
+      upcoming ??= prompts.next();
+      if (continuation === null) {
+        const next = await upcoming;
+        upcoming = undefined;
+        if (next.done) break;
+        prompt = next.value;
+        autoContinues = 0;
+      } else {
+        // Un message humain déjà en attente passe avant la continuation et remet le compteur à zéro.
+        const next = await Promise.race([
+          upcoming,
+          new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 0)),
+        ]);
+        if (next !== undefined) {
+          upcoming = undefined;
+          if (!next.done) {
+            prompt = next.value;
+            autoContinues = 0;
+          }
+        }
+        if (prompt === undefined) {
+          if (abort.signal.aborted || budgetTripped) break;
+          prompt = continuation.prompt;
+          continuing = true;
+          autoContinues++;
+          recorder.emit(
+            {
+              kind: "continuation.auto",
+              count: autoContinues,
+              max: supervisionSettings.maxAutoContinues,
+              openLeads: continuation.openLeads,
+            },
+            root.id,
+          );
+        }
+        continuation = null;
+      }
       const text = typeof prompt === "string" ? prompt : prompt.text;
       if (abort.signal.aborted || budgetTripped) break;
       let finish: () => void = () => undefined;
@@ -1198,7 +1259,7 @@ async function runWithOpencodeWithDesk(
       lastStepTokens = undefined;
       reportedErrors.delete("terminal-provider-retry");
       const body: PromptBody = {
-        text: missionPrompt(text, missionDesk, onMissionContext),
+        text: missionPrompt(text, missionDesk, onMissionContext, continuing),
         ...(typeof prompt !== "string" && { images: prompt.images }),
         model,
         ...(input.variant !== undefined && { variant: input.variant }),
@@ -1260,6 +1321,18 @@ async function runWithOpencodeWithDesk(
         root.id,
       );
       if (current.failed) break;
+      // Fin normale du tour : continuation automatique tant que des pistes restent ouvertes, dans la
+      // limite du plafond. Annulation, budget, erreur fournisseur et arrêt d'urgence l'interdisent.
+      if (
+        supervisionSettings.autoContinue &&
+        missionDesk !== undefined &&
+        autoContinues < supervisionSettings.maxAutoContinues &&
+        (input.maxTurns === undefined || turns < input.maxTurns) &&
+        !abort.signal.aborted &&
+        !budgetTripped &&
+        !engagementHalted()
+      )
+        continuation = missionDesk.continuationPrompt();
     }
   } catch (err) {
     fail(errorInfo(err));
@@ -1268,6 +1341,9 @@ async function runWithOpencodeWithDesk(
     signal?.removeEventListener("abort", onAbort);
     aborting = true;
     abort.abort();
+    // Libère la source des prompts (sans l'attendre : elle peut être en attente d'un message humain).
+    upcoming?.catch(() => undefined);
+    void Promise.resolve(promptIterator?.return?.()).catch(() => undefined);
     await Promise.allSettled([...inflight]);
     if (sessionId && api && !ownsServer) await api.abort(sessionId).catch(() => undefined);
     await pump?.catch(() => undefined);
