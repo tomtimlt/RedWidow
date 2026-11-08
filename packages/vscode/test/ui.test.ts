@@ -130,7 +130,24 @@ describe("jauge de contexte", () => {
   it("jetons : forme courte", () => {
     expect(ui.formatTokens(999)).toBe("999");
     expect(ui.formatTokens(1_499)).toBe("1 k");
-    expect(ui.formatTokens(1_000_000)).toBe("1000 k");
+    expect(ui.formatTokens(999_000)).toBe("999 k");
+  });
+  it("jetons : millions selon la langue de l'interface", () => {
+    const g = globalThis as unknown as { WarbandI18n?: { getLocale: () => string } };
+    const avant = g.WarbandI18n;
+    try {
+      g.WarbandI18n = { getLocale: () => "fr" };
+      expect(ui.formatTokens(1_000_000)).toBe("1 M");
+      expect(ui.formatTokens(1_200_000)).toBe("1,2 M");
+      expect(ui.formatTokens(2_000_000)).toBe("2 M");
+      expect(ui.formatTokens(999_600)).toBe("1 M");
+      g.WarbandI18n = { getLocale: () => "en" };
+      expect(ui.formatTokens(1_200_000)).toBe("1.2 M");
+      expect(ui.formatTokens(1_000_000)).toBe("1 M");
+      expect(ui.formatTokens(2_000_000)).toBe("2 M");
+    } finally {
+      g.WarbandI18n = avant;
+    }
   });
 });
 

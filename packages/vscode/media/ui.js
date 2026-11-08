@@ -443,10 +443,17 @@
       ],
     };
   }
-  /** Jetons en notation courte : `850`, `42 k` (arrondi au millier, jamais de chiffre inventé). */
+  /**
+   * Jetons en notation courte : `850`, `42 k` (arrondi au millier), `1,2 M` (millions, une décimale,
+   * virgule en français, point sinon ; `1 M` si entier). Jamais de chiffre inventé.
+   */
   function formatTokens(n) {
     const v = Math.max(0, Math.round(Number(n) || 0));
-    return v < 1000 ? String(v) : `${Math.round(v / 1000)} k`;
+    if (v < 999_500) return v < 1000 ? String(v) : `${Math.round(v / 1000)} k`;
+    const millions = Math.round(v / 100_000) / 10;
+    const text = Number.isInteger(millions) ? String(millions) : millions.toFixed(1);
+    const fr = String(root.WarbandI18n?.getLocale?.() ?? "fr").startsWith("fr");
+    return `${fr ? text.replace(".", ",") : text} M`;
   }
 
   /**
