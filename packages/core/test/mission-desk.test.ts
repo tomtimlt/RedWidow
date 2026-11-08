@@ -175,6 +175,8 @@ describe("bureau de mission", () => {
       "load_skill",
       "record_test",
       "record_coverage",
+      "record_step",
+      "record_teardown",
       "program_draft",
       "mission_context",
       "record_decision",

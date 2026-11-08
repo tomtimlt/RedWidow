@@ -117,6 +117,40 @@ export type EventPayload =
       digest: string;
     }
   | {
+      /** Changement d'état du plan de campagne d'un projet (ADR 0041) ; `digest` : empreinte SHA-256 concernée. */
+      kind: "campaign.state";
+      projectId: string;
+      state: "approved" | "suspended" | "invalidated";
+      digest: string;
+    }
+  | {
+      /**
+       * Étape du plan de campagne enregistrée par l'agent (`record_step`). `tactic`, `technique`,
+       * `objectiveId` et `stepLabel` viennent du plan approuvé, jamais de l'agent ; `evidenceIds` :
+       * événements du run.
+       */
+      kind: "campaign.step";
+      stepId: string;
+      stepLabel: string;
+      planDigest: string;
+      result: "success" | "partial" | "failed" | "blocked";
+      note: string;
+      evidenceIds: string[];
+      target?: string;
+      tactic?: string;
+      technique?: string;
+      objectiveId?: string;
+    }
+  | {
+      /** Élément de la liste de démontage coché (`record_teardown`) ; `remaining` : éléments encore à faire. */
+      kind: "teardown.state";
+      itemId: string;
+      itemLabel: string;
+      done: boolean;
+      proof: string;
+      remaining: number;
+    }
+  | {
       /** Arrêt d'urgence d'un projet posé (`on`) ou levé (`off`) par un geste humain (ADR 0041). */
       kind: "engagement.halt";
       projectId: string;
@@ -429,6 +463,30 @@ export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
   "engagement.halt": shape({
     projectId: "string",
     state: "enum:on,off",
+  }),
+  "campaign.state": shape({
+    projectId: "string",
+    state: "enum:approved,suspended,invalidated",
+    digest: "string",
+  }),
+  "campaign.step": shape({
+    stepId: "string",
+    stepLabel: "string",
+    planDigest: "string",
+    result: "enum:success,partial,failed,blocked",
+    note: "string",
+    evidenceIds: "string[]",
+    target: "string?",
+    tactic: "string?",
+    technique: "string?",
+    objectiveId: "string?",
+  }),
+  "teardown.state": shape({
+    itemId: "string",
+    itemLabel: "string",
+    done: "boolean",
+    proof: "string",
+    remaining: "uint",
   }),
   "approval.requested": shape({
     toolUseId: "string",

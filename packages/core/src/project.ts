@@ -25,6 +25,11 @@ const PACE_HALTED_BASENAME = "pace-halted.json";
 const ENGAGEMENT_BASENAME = "engagement.json";
 const ENGAGEMENT_APPROVAL_BASENAME = "engagement.approval.json";
 const ENGAGEMENT_HALT_BASENAME = "engagement-halt.json";
+/** Plan de campagne (ADR 0041), son approbation, l'exécution des étapes et le démontage : chemins sensibles. */
+const CAMPAIGN_BASENAME = "campaign.json";
+const CAMPAIGN_APPROVAL_BASENAME = "campaign.approval.json";
+const CAMPAIGN_STEPS_BASENAME = "campaign.steps.json";
+const TEARDOWN_BASENAME = "teardown.json";
 /** Plafond du résumé de session (octets UTF-8, marqueur compris). */
 const MAX_SUMMARY_BYTES = 8192;
 const SUMMARY_TRUNCATED = "\n[… résumé tronqué]";
@@ -142,6 +147,30 @@ export function projectEngagementApprovalPath(configDir: string, projectId: stri
 export function projectEngagementHaltPath(configDir: string, projectId: string): string {
   if (!PROJECT_ID.test(projectId)) throw invalidProject();
   return join(configDir, PROJECTS_DIR, projectId, ENGAGEMENT_HALT_BASENAME);
+}
+
+/** Chemin du plan de campagne (brouillon). L'id est contrôlé avant tout `join`. */
+export function projectCampaignPath(configDir: string, projectId: string): string {
+  if (!PROJECT_ID.test(projectId)) throw invalidProject();
+  return join(configDir, PROJECTS_DIR, projectId, CAMPAIGN_BASENAME);
+}
+
+/** Chemin de l'approbation du plan de campagne. L'id est contrôlé avant tout `join`. */
+export function projectCampaignApprovalPath(configDir: string, projectId: string): string {
+  if (!PROJECT_ID.test(projectId)) throw invalidProject();
+  return join(configDir, PROJECTS_DIR, projectId, CAMPAIGN_APPROVAL_BASENAME);
+}
+
+/** Chemin de l'exécution des étapes du plan (écrit par le moteur). L'id est contrôlé avant tout `join`. */
+export function projectCampaignStepsPath(configDir: string, projectId: string): string {
+  if (!PROJECT_ID.test(projectId)) throw invalidProject();
+  return join(configDir, PROJECTS_DIR, projectId, CAMPAIGN_STEPS_BASENAME);
+}
+
+/** Chemin de l'avancement du démontage (écrit par le moteur). L'id est contrôlé avant tout `join`. */
+export function projectTeardownPath(configDir: string, projectId: string): string {
+  if (!PROJECT_ID.test(projectId)) throw invalidProject();
+  return join(configDir, PROJECTS_DIR, projectId, TEARDOWN_BASENAME);
 }
 
 /** Chemin des hôtes arrêtés par le contrôleur de rythme. L'id est contrôlé avant tout `join`. */

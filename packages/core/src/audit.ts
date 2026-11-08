@@ -18,6 +18,9 @@ import {
   coverageCellsSchema,
   coverageKey,
 } from "./audit-schema.js";
+import { type CampaignLogView, campaignLogFromRecords } from "./engagement/campaign-log.js";
+import { campaignOverview } from "./engagement/campaign-progress.js";
+import { readTeardownSync } from "./engagement/teardown.js";
 import type { EngineEvent } from "./events.js";
 import { createRedactor, secretsFromEnv } from "./redact.js";
 
@@ -47,6 +50,8 @@ const retained = new Set([
   "journal.truncated",
   "audit.test",
   "audit.coverage",
+  "campaign.step",
+  "teardown.state",
 ]);
 
 /** Journal de mission indépendant de la rétention du chat. Aucun effacement automatique. */
@@ -428,6 +433,7 @@ export class AuditStore {
       records: options.compact ? [] : sorted.slice(-500),
       tests: auditTests(sorted).slice(-1000),
       coverage: coverageView(sorted),
+      ...campaignSection(this.configDir, projectId, sorted),
       bytes: files.reduce((n, f) => n + f.size, 0),
       health,
       viewLimited: limited || sorted.length > 500,
@@ -464,7 +470,7 @@ export function auditTests(records: readonly AuditRecord[]): AuditTest[] {
         e.input && typeof e.input === "object" ? (e.input as Record<string, unknown>) : {};
       const tool = typeof e.tool === "string" ? e.tool : (old?.method ?? "tool");
       if (
-        /(?:^|__)(?:load_skill|mission_context|record_decision|record_test|record_coverage)$/.test(
+        /(?:^|__)(?:load_skill|mission_context|record_decision|record_test|record_coverage|record_step|record_teardown)$/.test(
           tool,
         )
       )
@@ -579,4 +585,43 @@ export function coverageView(records: readonly AuditRecord[]): CoverageView {
 
 export function auditTextHash(text: string): string {
   return createHash("sha256").update(text).digest("hex");
+}
+
+/**
+ * Journal de campagne (ADR 0041) : agrège les événements `campaign.step` et `teardown.state` du
+ * projet en entrées d'« operator log » (horodatage UTC, étape, technique ATT&CK, cible, résultat,
+ * références de preuve), avec l'avancement du plan approuvé. Lecture seule.
+ */
+export async function campaignLog(configDir: string, projectId: string): Promise<CampaignLogView> {
+  const view = await new AuditStore(configDir).view(projectId);
+  return view.campaign ?? { entries: [], teardown: [] };
+}
+
+/** Section `campaign` d'`AuditView` : absente tant que le projet n'a ni événement de campagne ni plan approuvé. */
+function campaignSection(
+  configDir: string,
+  projectId: string,
+  records: readonly AuditRecord[],
+): { campaign?: CampaignLogView } {
+  const log = campaignLogFromRecords(records);
+  try {
+    const overview = campaignOverview(configDir, projectId);
+    if (overview.plan !== null && overview.digest !== undefined)
+      log.progress = {
+        total: overview.steps.length,
+        executed: overview.executedCount,
+        percent: overview.executedPercent,
+        planDigest: overview.digest,
+      };
+    const teardown = readTeardownSync(configDir, projectId);
+    if (teardown.items.length > 0) log.teardownRemaining = teardown.remaining;
+  } catch {
+    // Plan illisible : le journal reste celui des événements.
+  }
+  const present =
+    log.entries.length > 0 ||
+    log.teardown.length > 0 ||
+    log.progress !== undefined ||
+    log.teardownRemaining !== undefined;
+  return present ? { campaign: log } : {};
 }

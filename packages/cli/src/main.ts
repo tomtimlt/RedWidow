@@ -12,13 +12,17 @@ import {
   type AgentRunner,
   type AuthMode,
   activeProject,
+  approveCampaign,
   approveEngagement,
   approveProgram,
   buildGraph,
+  type CampaignStatus,
   CodedError,
+  campaignOverview,
   clearHalt,
   clearPaceHalt,
   createApprovalGate,
+  createCampaignPort,
   createDockerClient,
   createPaceRegistry,
   createRecorder,
@@ -27,6 +31,7 @@ import {
   type EngagementStatus,
   type EngineEvent,
   evaluatePolicy,
+  importCampaignDraft,
   importEngagementDraft,
   importProgramDraft,
   isHalted,
@@ -35,18 +40,21 @@ import {
   openJournal,
   type ProgramStatus,
   REPO_POLICY_PATH,
+  readCampaign,
   readEngagement,
   readEngagementSync,
   readJournal,
   readProgram,
   readProgramSync,
   readProjects,
+  readTeardownSync,
   resolveBinary,
   type SupervisionLevel,
   safeEnv,
   setHalt,
   splitRuns,
   status,
+  suspendCampaign,
   suspendEngagement,
   suspendProgram,
   trustPolicy,
@@ -383,6 +391,7 @@ program
           programDraft,
           engagement: engagementProvider,
           halted: haltedProvider,
+          campaign: createCampaignPort(configDir, () => activeId),
         },
       );
       if (summary.result) process.stdout.write(`\n${summary.result}\n`);
@@ -849,6 +858,127 @@ engagementCmd
     );
   });
 
+// Plan de campagne red team (ADR 0041) : gestes humains (import, approbation, suspension), jamais un outil d'agent.
+const campaignCmd = program
+  .command("campaign")
+  .description(
+    t(
+      "Plan de campagne red team du projet (objectifs, étapes ATT&CK, démontage) : validation par empreinte.",
+      "Project red team campaign plan (objectives, ATT&CK steps, teardown): hash-based approval.",
+    ),
+  );
+
+function printCampaignStatus(status: CampaignStatus): void {
+  process.stderr.write(
+    t(
+      `état : ${status.state}${status.digest ? ` · empreinte ${status.digest}` : ""}\n`,
+      `state: ${status.state}${status.digest ? ` · hash ${status.digest}` : ""}\n`,
+    ),
+  );
+  if (status.approvedDigest !== undefined)
+    process.stderr.write(
+      t(
+        `approuvé : ${status.approvedAt} · empreinte ${status.approvedDigest}\n`,
+        `approved: ${status.approvedAt} · hash ${status.approvedDigest}\n`,
+      ),
+    );
+  if (status.suspendedAt !== undefined)
+    process.stderr.write(
+      t(`suspendu : ${status.suspendedAt}\n`, `suspended: ${status.suspendedAt}\n`),
+    );
+  if (status.problem) process.stderr.write(`${formatReason(status.problem, locale)}\n`);
+  if (status.state !== "approved")
+    process.stderr.write(
+      t(
+        "plan non appliqué (non approuvé à l'empreinte courante) : record_step est refusé\n",
+        "plan not applied (not approved at the current hash): record_step is refused\n",
+      ),
+    );
+}
+
+campaignCmd
+  .command("show")
+  .description(
+    t(
+      "Afficher le plan de campagne du projet, son état, l'avancement des étapes et le démontage.",
+      "Show the project campaign plan, its state, step progress and teardown.",
+    ),
+  )
+  .option(...PROJECT_OPTION)
+  .action(async (opts) => {
+    const id = await programProjectId(opts);
+    const status = await readCampaign(defaultConfigDir(), id);
+    printCampaignStatus(status);
+    const overview = campaignOverview(defaultConfigDir(), id);
+    if (overview.plan !== null)
+      process.stderr.write(
+        t(
+          `avancement : ${overview.executedCount}/${overview.steps.length} étapes (${overview.executedPercent} %)\n`,
+          `progress: ${overview.executedCount}/${overview.steps.length} steps (${overview.executedPercent}%)\n`,
+        ),
+      );
+    const teardown = readTeardownSync(defaultConfigDir(), id);
+    if (teardown.items.length > 0)
+      process.stderr.write(
+        t(
+          `démontage : ${teardown.items.length - teardown.remaining}/${teardown.items.length} faits${teardown.canClose ? "" : " (clôture bloquée)"}\n`,
+          `teardown: ${teardown.items.length - teardown.remaining}/${teardown.items.length} done${teardown.canClose ? "" : " (closure blocked)"}\n`,
+        ),
+      );
+    if (status.draft) process.stdout.write(`${JSON.stringify(status.draft, null, 2)}\n`);
+  });
+
+campaignCmd
+  .command("import")
+  .description(
+    t(
+      "Importer un brouillon de plan de campagne (n'approuve rien : approbation avec « campaign approve »).",
+      "Import a draft campaign plan (approves nothing: use 'campaign approve').",
+    ),
+  )
+  .argument("<file>", t("fichier JSON du brouillon", "draft JSON file"))
+  .option(...PROJECT_OPTION)
+  .action(async (file: string, opts) => {
+    const text = await readFile(resolve(process.cwd(), file), "utf8");
+    const id = await programProjectId(opts);
+    printCampaignStatus(await importCampaignDraft(defaultConfigDir(), id, text));
+  });
+
+campaignCmd
+  .command("approve")
+  .description(
+    t(
+      "Approuver le brouillon courant (son contenu, identifié par son empreinte).",
+      "Approve the current draft (its content, identified by its hash).",
+    ),
+  )
+  .option(
+    "--digest <empreinte>",
+    t(
+      "empreinte du brouillon relue avec « campaign show » (obligatoire)",
+      "draft hash read with 'campaign show' (required)",
+    ),
+  )
+  .option(...PROJECT_OPTION)
+  .action(async (opts) => {
+    const id = await programProjectId(opts);
+    printCampaignStatus(await approveCampaign(defaultConfigDir(), id, opts.digest));
+  });
+
+campaignCmd
+  .command("suspend")
+  .description(
+    t(
+      "Suspendre le plan de campagne (plan conservé, non appliqué).",
+      "Suspend the campaign plan (plan kept, not applied).",
+    ),
+  )
+  .option(...PROJECT_OPTION)
+  .action(async (opts) => {
+    const id = await programProjectId(opts);
+    printCampaignStatus(await suspendCampaign(defaultConfigDir(), id));
+  });
+
 program
   .command("journal")
   .description(
@@ -994,6 +1124,7 @@ for (const command of [
   ...policyCmd.commands,
   ...programCmd.commands,
   ...engagementCmd.commands,
+  ...campaignCmd.commands,
 ]) {
   command.helpOption("-h, --help", t("afficher l’aide", "display help"));
 }

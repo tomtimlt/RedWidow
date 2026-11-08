@@ -297,6 +297,30 @@ describe("eventLabel", () => {
       projectId: "11111111-1111-4111-8111-111111111111",
       state: "on",
     },
+    "campaign.state": {
+      kind: "campaign.state",
+      projectId: "11111111-1111-4111-8111-111111111111",
+      state: "approved",
+      digest: "abcdef0123456789",
+    },
+    "campaign.step": {
+      kind: "campaign.step",
+      stepId: "s1",
+      stepLabel: "Hameçonnage",
+      planDigest: "abcdef0123456789",
+      result: "success",
+      note: "ok",
+      evidenceIds: ["e1"],
+      technique: "T1566",
+    },
+    "teardown.state": {
+      kind: "teardown.state",
+      itemId: "t1",
+      itemLabel: "Compte de test",
+      done: true,
+      proof: "supprimé",
+      remaining: 2,
+    },
     "permission.denied": { kind: "permission.denied", toolUseId: "t", tool: "x", message: "non" },
     "tool.result": {
       kind: "tool.result",
@@ -381,6 +405,17 @@ describe("eventLabel", () => {
     expect(eventLabel(emit(payloads["engagement.halt"]), { locale: "en" })).toBe(
       "emergency halt : on",
     );
+  });
+
+  it("libelle campaign.state, campaign.step et teardown.state", () => {
+    expect(eventLabel(emit(payloads["campaign.state"]))).toBe(
+      "plan de campagne : approved [abcdef012345]",
+    );
+    expect(eventLabel(emit(payloads["campaign.step"]))).toBe("étape s1 : success (T1566)");
+    expect(eventLabel(emit(payloads["campaign.step"]), { locale: "en" })).toBe(
+      "step s1 : success (T1566)",
+    );
+    expect(eventLabel(emit(payloads["teardown.state"]))).toBe("démontage t1 : ok (2)");
   });
 
   it("décrit le mode d'authentification", () => {

@@ -349,6 +349,7 @@ async function runWithSdk(
         ...(context.programDraft !== undefined && { programDraft: context.programDraft }),
         ...(context.engagement !== undefined && { engagement: context.engagement }),
         ...(context.halted !== undefined && { halted: context.halted }),
+        ...(context.campaign !== undefined && { campaign: context.campaign }),
       })
     : undefined;
   try {

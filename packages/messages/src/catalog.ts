@@ -56,6 +56,9 @@ export interface EventStrings {
   programSheet: string;
   engagementSheet: string;
   engagementHalt: string;
+  campaignPlan: string;
+  campaignStep: string;
+  teardown: string;
   turn: string;
   context: string;
   sandbox: string;

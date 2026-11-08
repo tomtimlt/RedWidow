@@ -241,6 +241,32 @@ export const reasons: Catalog = {
     `${text(p.tool)}: host outside the engagement scope and infrastructure (${text(p.host)}), approval required; a session approval only covers that host`,
   "engagement.infrastructure": (p) =>
     `${text(p.tool)}: host in the declared engagement infrastructure (${text(p.host)}), allowed and logged`,
+  "campaign.unreadable": (p) =>
+    p.part === "approval"
+      ? "campaign plan: unreadable approval, plan not applied"
+      : p.part === "steps"
+        ? "campaign plan: unreadable progress, no step considered executed"
+        : p.part === "teardown"
+          ? "teardown: unreadable progress, no item considered done"
+          : "campaign plan: unreadable draft, plan not applied",
+  "campaign.invalid": (p) =>
+    `invalid campaign plan${p.field ? ` (field: ${text(p.field)})` : ""}: expected a cited threat summary, objectives, ordered steps (unique ids, optional TA00xx tactic and Txxxx technique, existing objective) and a teardown list`,
+  "campaign.absent": () => "no campaign plan to handle for this project",
+  "campaign.digestRequired": () =>
+    "hash required: re-read 'campaign show', then run 'campaign approve --digest <hash>'",
+  "campaign.digestMismatch": (p) =>
+    `the current draft changed (hash ${text(p.actual)}, expected ${text(p.expected)}): re-read 'campaign show' before approving`,
+  "campaign.notApproved": (p) =>
+    `no approved campaign plan for this project (state: ${text(p.state)}): a human approves it with 'campaign approve --digest'`,
+  "campaign.stepUnknown": (p) =>
+    `step ${text(p.stepId)} is not in the approved campaign plan: a step outside the plan cannot be recorded`,
+  "campaign.evidenceRequired": (p) =>
+    `step ${text(p.stepId)}: a success or partial result requires at least one evidence reference (evidenceIds)`,
+  "campaign.evidenceUnknown": (p) => `unknown evidence reference in this run: ${text(p.id)}`,
+  "teardown.itemUnknown": (p) =>
+    `teardown item ${text(p.itemId)} is not in the approved campaign plan list`,
+  "teardown.closeBlocked": (p) =>
+    `closure blocked: ${text(p.count)} teardown items remaining (artifacts, accounts, infrastructure); tick them with record_teardown and a proof`,
   "project.absent": () => "no active project",
   "project.readFailed": () => "could not read the active project this turn",
   "cours.absent": () => "no course installed (course folder missing)",
@@ -381,6 +407,9 @@ export const events: EventStrings = {
   programSheet: "program sheet",
   engagementSheet: "engagement sheet",
   engagementHalt: "emergency halt",
+  campaignPlan: "campaign plan",
+  campaignStep: "step",
+  teardown: "teardown",
   turn: "turn",
   context: "context",
   sandbox: "sandbox",

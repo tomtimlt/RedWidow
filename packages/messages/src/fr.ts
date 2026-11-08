@@ -370,6 +370,32 @@ export const reasons: Catalog = {
     `${text(p.tool)} : hôte hors du périmètre et de l'infrastructure de l'engagement (${text(p.host)}), approbation requise ; une approbation de session ne vaut que pour cet hôte`,
   "engagement.infrastructure": (p) =>
     `${text(p.tool)} : hôte de l'infrastructure déclarée de l'engagement (${text(p.host)}), autorisé et journalisé`,
+  "campaign.unreadable": (p) =>
+    p.part === "approval"
+      ? "plan de campagne : approbation illisible, plan non appliqué"
+      : p.part === "steps"
+        ? "plan de campagne : avancement illisible, aucune étape considérée comme exécutée"
+        : p.part === "teardown"
+          ? "démontage : avancement illisible, aucun élément considéré comme fait"
+          : "plan de campagne : brouillon illisible, plan non appliqué",
+  "campaign.invalid": (p) =>
+    `plan de campagne invalide${p.field ? ` (champ : ${text(p.field)})` : ""} : synthèse de menace citée, objectifs, étapes ordonnées (identifiants uniques, tactique TA00xx et technique Txxxx facultatives, objectif existant) et liste de démontage attendus`,
+  "campaign.absent": () => "aucun plan de campagne à traiter pour ce projet",
+  "campaign.digestRequired": () =>
+    "empreinte requise : relire « campaign show », puis relancer « campaign approve --digest <empreinte> »",
+  "campaign.digestMismatch": (p) =>
+    `le brouillon courant a changé (empreinte ${text(p.actual)}, attendue ${text(p.expected)}) : relire « campaign show » avant d'approuver`,
+  "campaign.notApproved": (p) =>
+    `aucun plan de campagne approuvé pour ce projet (état : ${text(p.state)}) : l'humain l'approuve avec « campaign approve --digest »`,
+  "campaign.stepUnknown": (p) =>
+    `étape ${text(p.stepId)} absente du plan de campagne approuvé : une étape hors plan ne peut pas être enregistrée`,
+  "campaign.evidenceRequired": (p) =>
+    `étape ${text(p.stepId)} : un résultat success ou partial exige au moins une référence de preuve (evidenceIds)`,
+  "campaign.evidenceUnknown": (p) => `référence de preuve inconnue dans ce run : ${text(p.id)}`,
+  "teardown.itemUnknown": (p) =>
+    `élément de démontage ${text(p.itemId)} absent de la liste du plan de campagne approuvé`,
+  "teardown.closeBlocked": (p) =>
+    `clôture bloquée : ${text(p.count)} éléments de démontage restants (artefacts, comptes, infrastructure) ; les cocher avec record_teardown et une preuve`,
   "project.absent": () => "aucun projet actif",
   "project.readFailed": () => "lecture du projet impossible ce tour-ci",
   "cours.absent": () => "aucun cours installé (dossier de cours absent)",
@@ -427,6 +453,9 @@ export const events: EventStrings = {
   programSheet: "fiche programme",
   engagementSheet: "fiche d'engagement",
   engagementHalt: "arrêt d'urgence",
+  campaignPlan: "plan de campagne",
+  campaignStep: "étape",
+  teardown: "démontage",
   turn: "tour",
   context: "contexte",
   sandbox: "bac à sable",

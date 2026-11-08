@@ -90,6 +90,9 @@ export const DEFAULT_POLICY: Policy = {
     { tool: "mcp__desk__record_coverage", decision: "allow" },
     // Écrit un brouillon de fiche programme (fichier du projet) : jamais en allow, toujours demandé.
     { tool: "mcp__desk__program_draft", decision: "ask" },
+    // Contrôle d'étape et démontage (ADR 0041) : écrivent un fichier du projet, jamais en allow.
+    { tool: "mcp__desk__record_step", decision: "ask" },
+    { tool: "mcp__desk__record_teardown", decision: "ask" },
     // Recherche web : destination unique et fixe ; la garde d'arguments (ADR 0039) reste appliquée.
     { tool: SEARCH_WEB_TOOL, decision: "allow" },
     { tool: "mcp__burp__list_tools", decision: "allow" },

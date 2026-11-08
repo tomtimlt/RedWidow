@@ -3,6 +3,7 @@ import { normalizeSkillSearch, renderProfileSkill } from "./agent-profile-skill.
 import { AGENT_PROFILES, isAgentProfile } from "./agent-profiles.js";
 import { auditTestSchema, coverageWriteSchema } from "./audit-schema.js";
 import type { DockerToolSpec } from "./docker/tool-specs.js";
+import { recordStepSchema, recordTeardownSchema } from "./engagement/campaign-schema.js";
 import type { MissionDesk, ProgramDraftInput } from "./mission-desk.js";
 import { capOutput } from "./output.js";
 import { SKILL_SOURCES } from "./skill-sources.js";
@@ -117,6 +118,26 @@ export function deskToolSpecs(desk?: MissionDesk): DockerToolSpec[] {
         readOnly: false,
         async run(raw) {
           return JSON.stringify(desk.recordCoverage(coverageWriteSchema.parse(raw).cells));
+        },
+      },
+      {
+        name: "record_step",
+        description:
+          "Enregistrer l'exécution d'une étape du plan de campagne approuvé (ADR 0041) : stepId (doit exister dans le plan approuvé du projet, sinon refus), result (success, partial, failed, blocked), note courte, cible éventuelle et evidenceIds (événements de ce run ; au moins un pour success et partial). La tactique et la technique ATT&CK viennent du plan. Annotation seulement : aucune exécution, aucun changement de permissions ; demande toujours une approbation. Respecter les critères de décision et d'arrêt de l'étape (voir mission_context).",
+        input: recordStepSchema.shape,
+        readOnly: false,
+        async run(raw) {
+          return JSON.stringify(await desk.recordStep(recordStepSchema.parse(raw)));
+        },
+      },
+      {
+        name: "record_teardown",
+        description:
+          "Cocher un élément de la liste de démontage du plan approuvé (artefacts, comptes créés, infrastructure) avec sa preuve : itemId (doit figurer dans le plan, sinon refus), proof (ce qui a été nettoyé et constaté), evidenceIds éventuels. La clôture de l'engagement reste signalée comme bloquée tant qu'un élément n'est pas fait (relance non bloquante, voir mission_context.closure). Demande toujours une approbation.",
+        input: recordTeardownSchema.shape,
+        readOnly: false,
+        async run(raw) {
+          return JSON.stringify(await desk.recordTeardown(recordTeardownSchema.parse(raw)));
         },
       },
       {

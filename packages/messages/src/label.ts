@@ -106,6 +106,14 @@ export function eventLabel(e: EngineEvent, options: LabelOptions = {}): string {
       return clip(`${t.engagementSheet} : ${e.state} [${e.digest.slice(0, 12)}]`);
     case "engagement.halt":
       return clip(`${t.engagementHalt} : ${e.state}`);
+    case "campaign.state":
+      return clip(`${t.campaignPlan} : ${e.state} [${e.digest.slice(0, 12)}]`);
+    case "campaign.step":
+      return clip(
+        `${t.campaignStep} ${e.stepId} : ${e.result}${e.technique ? ` (${e.technique})` : ""}`,
+      );
+    case "teardown.state":
+      return clip(`${t.teardown} ${e.itemId} : ${e.done ? "ok" : "ko"} (${e.remaining})`);
     case "turn.finished":
       return `${t.turn} ${e.turns} · ${e.status} · $${e.costUsd.toFixed(4)}`;
     case "context.usage":

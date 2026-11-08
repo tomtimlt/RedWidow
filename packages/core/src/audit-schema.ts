@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { CampaignLogView } from "./engagement/campaign-log.js";
 export const auditProjectIdSchema = z.string().uuid();
 export const auditTestSchema = z
   .object({
@@ -109,6 +110,8 @@ export interface AuditView {
   tests: AuditTest[];
   /** Matrice de couverture agrégée, toujours fournie par `AuditStore.view`. */
   coverage: CoverageView;
+  /** Journal de campagne (ADR 0041), présent seulement si le projet a des événements de campagne ou un plan approuvé. */
+  campaign?: CampaignLogView;
   bytes: number;
   health: AuditHealth;
   viewLimited: boolean;

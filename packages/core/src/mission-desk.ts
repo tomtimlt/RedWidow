@@ -8,6 +8,15 @@ import {
   coverageCellsSchema,
   coverageKey,
 } from "./audit-schema.js";
+import type { CampaignPort } from "./engagement/campaign-port.js";
+import type { StepResult } from "./engagement/campaign-progress.js";
+import {
+  type RecordStepInput,
+  type RecordTeardownInput,
+  recordStepSchema,
+  recordTeardownSchema,
+} from "./engagement/campaign-schema.js";
+import type { CampaignObjective } from "./engagement/plan.js";
 import type { EngagementSheet } from "./engagement/sheet.js";
 import type { EngagementStatus } from "./engagement/store.js";
 import { type MissionDecision, missionDecisionSchema } from "./mission-decision-schema.js";
@@ -51,6 +60,19 @@ export interface CoverageSummary {
   /** Nombre de cases `untested` non listées. */
   untestedOmitted: number;
 }
+/** Étape du plan telle qu'exposée par `mission_context` (textes de décision omis si le paquet est trop grand). */
+export interface CampaignStepSummary {
+  id: string;
+  label: string;
+  tactic?: string;
+  technique?: string;
+  objectiveId?: string;
+  precondition?: string;
+  decisionPoint?: string;
+  stopCriterion?: string;
+  executed: boolean;
+  result?: StepResult;
+}
 export interface MissionContext {
   version: 1;
   runId: string;
@@ -70,6 +92,28 @@ export interface MissionContext {
   engagement: { untrusted: true; notice: string; digest: string; sheet: EngagementSheet } | null;
   /** Arrêt d'urgence du projet actif posé (la gate le fera respecter, lot suivant). */
   halted: boolean;
+  /**
+   * Plan de campagne approuvé (ADR 0041) et avancement, sinon `null`. Même statut que `program` :
+   * **données non fiables**, aucune autorisation. `steps` : déroulé ordonné et état exécuté/non.
+   */
+  campaign: {
+    untrusted: true;
+    notice: string;
+    digest: string;
+    threatSummary: string;
+    objectives: CampaignObjective[];
+    steps: CampaignStepSummary[];
+    stepsExecuted: number;
+    stepsTotal: number;
+    executedPercent: number;
+  } | null;
+  /** Clôture de l'engagement : démontage restant (relance non bloquante) ; `null` sans liste de démontage. */
+  closure: {
+    canClose: boolean;
+    remaining: number;
+    blocked?: Reason;
+    items: { id: string; label: string; kind: string; done: boolean }[];
+  } | null;
   guidance: string[];
   coverage: CoverageSummary;
   /** Relances de recherche web (codes + paramètres, non bloquantes) et recherches web du run. */
@@ -99,6 +143,8 @@ export interface MissionDesk {
     research?: Reason[];
     /** `coverage.untested` : relance non bloquante, présente si des cases restent non testées. */
     coverage?: Reason;
+    /** `teardown.closeBlocked` : relance non bloquante à la conclusion si du démontage reste à faire. */
+    closure?: Reason;
   };
   /** `research` : relances de recherche web, présentes seulement pour un résultat non positif. */
   recordTest(claim: AuditTestClaim): {
@@ -120,6 +166,30 @@ export interface MissionDesk {
     followUp?: Reason;
     supervision?: Reason;
   };
+  /**
+   * Enregistre l'exécution d'une étape du plan de campagne **approuvé** (ADR 0041) : `stepId`
+   * absent du plan → `campaign.stepUnknown`, sans plan approuvé → `campaign.notApproved`.
+   * La tactique et la technique viennent du plan, pas de l'agent.
+   */
+  recordStep(input: RecordStepInput): Promise<{
+    eventId: string;
+    runId: string;
+    stepId: string;
+    result: StepResult;
+    stepsExecuted: number;
+    stepsTotal: number;
+    executedPercent: number;
+    supervision?: Reason;
+  }>;
+  /** Coche un élément de la liste de démontage du plan approuvé, avec sa preuve (`teardown.itemUnknown` sinon). */
+  recordTeardown(input: RecordTeardownInput): Promise<{
+    eventId: string;
+    runId: string;
+    itemId: string;
+    remaining: number;
+    canClose: boolean;
+    closure?: Reason;
+  }>;
   /**
    * Écrit le brouillon de fiche programme du projet actif (ADR 0040). `verified` est calculé ici
    * (citation retrouvée dans un `read_url` du run sur la même URL), jamais fourni par l'agent.
@@ -201,6 +271,7 @@ export function createMissionDesk({
   programDraft,
   engagement,
   halted,
+  campaign,
   supervision = DEFAULT_SUPERVISION,
 }: {
   recorder: Recorder;
@@ -215,6 +286,8 @@ export function createMissionDesk({
   engagement?: () => EngagementStatus;
   /** Arrêt d'urgence du projet actif (lecture synchrone) ; illisible → traité comme actif (fail-closed). */
   halted?: () => boolean;
+  /** Plan de campagne et démontage du projet actif (ADR 0041) ; absent → `record_step` / `record_teardown` refusent (`project.absent`). */
+  campaign?: CampaignPort;
 }): MissionDesk {
   const settings = SUPERVISION_SETTINGS[supervision];
   const redact = createRedactor({ values: secretsFromEnv(process.env) });
@@ -262,7 +335,7 @@ export function createMissionDesk({
         if (typeof url === "string") boundedSet(readRequests, event.toolUseId, url);
       }
       if (
-        /(?:^|__)(mission_context|record_decision|record_test|record_coverage|load_skill)$/.test(
+        /(?:^|__)(mission_context|record_decision|record_test|record_coverage|record_step|record_teardown|load_skill)$/.test(
           event.tool,
         )
       )
@@ -417,6 +490,21 @@ export function createMissionDesk({
       examples: clip(examples, 300),
     });
   }
+  /** Relance non bloquante : démontage restant au moment d'une conclusion. */
+  function closureReminder(): Reason | undefined {
+    let remaining = 0;
+    try {
+      remaining = campaign?.teardown().remaining ?? 0;
+    } catch {
+      return undefined;
+    }
+    return remaining > 0 ? reason("teardown.closeBlocked", { count: remaining }) : undefined;
+  }
+  function assertEvidence(ids: readonly string[] | undefined) {
+    for (const id of ids ?? [])
+      if (!observations.some((item) => item.eventId === id) && !testIds.has(id))
+        throw new CodedError("campaign.evidenceUnknown", { id: clip(redact(id), 200) });
+  }
   return {
     beginTurn(text) {
       assertOpen();
@@ -439,10 +527,12 @@ export function createMissionDesk({
       const closing = isClosingText(`${parsed.objective} ${parsed.nextAction}`);
       const research = closing ? triggers() : [];
       const reminder = closing ? untestedReminder() : undefined;
+      const closure = closing ? closureReminder() : undefined;
       return {
         ...structuredClone(decision),
         ...(research.length > 0 && { research }),
         ...(reminder && { coverage: reminder }),
+        ...(closure && { closure }),
       };
     },
     recordTest(raw) {
@@ -496,6 +586,77 @@ export function createMissionDesk({
         written: written.length,
         coverage: coverageSummary(),
         ...(due && { supervision: due }),
+      };
+    },
+    async recordStep(raw) {
+      assertOpen();
+      const input = recordStepSchema.parse(raw);
+      if (campaign === undefined) throw new CodedError("project.absent");
+      const evidenceIds = input.evidenceIds ?? [];
+      assertEvidence(evidenceIds);
+      if ((input.result === "success" || input.result === "partial") && evidenceIds.length === 0)
+        throw new CodedError("campaign.evidenceRequired", {
+          stepId: clip(redact(input.stepId), 64),
+        });
+      // Le plan approuvé décide : étape inconnue ou plan non approuvé → refus codé, rien d'écrit.
+      const { step, planDigest } = await campaign.recordStep({
+        stepId: input.stepId,
+        result: input.result,
+        runId: recorder.runId,
+      });
+      const target = input.target === undefined ? undefined : redact(input.target);
+      const event = recorder.emit({
+        kind: "campaign.step",
+        stepId: step.id,
+        stepLabel: redact(step.label),
+        planDigest,
+        result: input.result,
+        note: redact(input.note),
+        evidenceIds: [...evidenceIds],
+        ...(target !== undefined && { target }),
+        ...(step.tactic !== undefined && { tactic: step.tactic }),
+        ...(step.technique !== undefined && { technique: step.technique }),
+        ...(step.objectiveId !== undefined && { objectiveId: step.objectiveId }),
+      });
+      const overview = campaign.overview();
+      const due = checkpoint();
+      return {
+        eventId: event.id,
+        runId: event.runId,
+        stepId: step.id,
+        result: input.result,
+        stepsExecuted: overview.executedCount,
+        stepsTotal: overview.steps.length,
+        executedPercent: overview.executedPercent,
+        ...(due && { supervision: due }),
+      };
+    },
+    async recordTeardown(raw) {
+      assertOpen();
+      const input = recordTeardownSchema.parse(raw);
+      if (campaign === undefined) throw new CodedError("project.absent");
+      assertEvidence(input.evidenceIds);
+      const { item, status } = await campaign.markTeardown({
+        itemId: input.itemId,
+        proof: redact(input.proof),
+        runId: recorder.runId,
+      });
+      const event = recorder.emit({
+        kind: "teardown.state",
+        itemId: item.id,
+        itemLabel: redact(item.label),
+        done: true,
+        proof: redact(input.proof),
+        remaining: status.remaining,
+      });
+      const closure = closureReminder();
+      return {
+        eventId: event.id,
+        runId: event.runId,
+        itemId: item.id,
+        remaining: status.remaining,
+        canClose: status.canClose,
+        ...(closure && { closure }),
       };
     },
     async draftProgram(raw) {
@@ -621,6 +782,53 @@ export function createMissionDesk({
       } catch {
         // Fiche illisible : rien n'est injecté (fail-closed côté information).
       }
+      let campaignApplied: MissionContext["campaign"] = null;
+      let closure: MissionContext["closure"] = null;
+      try {
+        const overview = campaign?.overview();
+        if (overview?.plan && overview.digest !== undefined)
+          campaignApplied = {
+            untrusted: true,
+            notice: PROGRAM_NOTICE,
+            digest: overview.digest,
+            threatSummary: overview.plan.threatSummary.value,
+            objectives: overview.plan.objectives.map((o) => ({ ...o })),
+            steps: overview.steps.map(
+              (s): CampaignStepSummary => ({
+                id: s.id,
+                label: s.label,
+                ...(s.tactic !== undefined && { tactic: s.tactic }),
+                ...(s.technique !== undefined && { technique: s.technique }),
+                ...(s.objectiveId !== undefined && { objectiveId: s.objectiveId }),
+                ...(s.precondition !== undefined && { precondition: s.precondition }),
+                ...(s.decisionPoint !== undefined && { decisionPoint: s.decisionPoint }),
+                ...(s.stopCriterion !== undefined && { stopCriterion: s.stopCriterion }),
+                executed: s.executed,
+                ...(s.result !== undefined && { result: s.result }),
+              }),
+            ),
+            stepsExecuted: overview.executedCount,
+            stepsTotal: overview.steps.length,
+            executedPercent: overview.executedPercent,
+          };
+        const teardown = campaign?.teardown();
+        if (teardown && teardown.items.length > 0)
+          closure = {
+            canClose: teardown.canClose,
+            remaining: teardown.remaining,
+            ...(teardown.remaining > 0 && {
+              blocked: reason("teardown.closeBlocked", { count: teardown.remaining }),
+            }),
+            items: teardown.items.map((i) => ({
+              id: i.id,
+              label: i.label,
+              kind: i.kind,
+              done: i.done,
+            })),
+          };
+      } catch {
+        // Plan ou démontage illisible : rien n'est injecté (fail-closed côté information).
+      }
       let isHalted = false;
       try {
         isHalted = halted?.() ?? false;
@@ -653,6 +861,8 @@ export function createMissionDesk({
             }
           : null,
         halted: isHalted,
+        campaign: campaignApplied ? redact(structuredClone(campaignApplied)) : null,
+        closure: closure ? redact(structuredClone(closure)) : null,
         guidance,
         coverage: coverageSummary(),
         research: { triggers: triggers(), searches: webCalls.slice(-8).map((c) => ({ ...c })) },
@@ -694,6 +904,13 @@ export function createMissionDesk({
       // Dernier recours avant de rogner les observations : la fiche n'est jamais tronquée, seulement omise.
       if (JSON.stringify(packet).length > maxChars) packet.program = null;
       if (JSON.stringify(packet).length > maxChars) packet.engagement = null;
+      // Le plan d'abord allégé (textes de décision omis, l'état d'exécution reste), puis omis.
+      if (JSON.stringify(packet).length > maxChars && packet.campaign)
+        packet.campaign.steps = packet.campaign.steps.map(
+          ({ precondition: _p, decisionPoint: _d, stopCriterion: _s, ...rest }) => rest,
+        );
+      if (JSON.stringify(packet).length > maxChars) packet.campaign = null;
+      if (JSON.stringify(packet).length > maxChars && packet.closure) packet.closure.items = [];
       for (const { item, reason } of ranked) {
         const selected = { ...item, selectionReason: reason };
         packet.observations.push(selected);

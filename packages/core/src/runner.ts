@@ -78,6 +78,8 @@ export interface RunContext {
   engagement?: () => import("./engagement/store.js").EngagementStatus;
   /** Arrêt d'urgence du projet actif (ADR 0041), exposé dans `mission_context`. */
   halted?: () => boolean;
+  /** Plan de campagne et démontage du projet actif (ADR 0041) : `record_step`, `record_teardown`, `mission_context`. */
+  campaign?: import("./engagement/campaign-port.js").CampaignPort;
   onMissionContext?: (snapshot: import("./mission-desk.js").MissionContext) => void;
 }
 

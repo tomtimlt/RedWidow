@@ -39,3 +39,19 @@ export async function writePrivate(path: string, content: string): Promise<void>
   }
   await chmod(path, 0o600);
 }
+
+const chains = new Map<string, Promise<unknown>>();
+
+/**
+ * Sérialise les lecture-modification-écriture d'un même fichier dans ce processus (deux appels
+ * d'outil parallèles ne s'écrasent pas). Une erreur n'empêche pas les suivants.
+ */
+export function serialized<T>(path: string, task: () => Promise<T>): Promise<T> {
+  const run = (chains.get(path) ?? Promise.resolve()).then(task, task);
+  const tail = run.catch(() => undefined);
+  chains.set(path, tail);
+  void tail.then(() => {
+    if (chains.get(path) === tail) chains.delete(path);
+  });
+  return run;
+}

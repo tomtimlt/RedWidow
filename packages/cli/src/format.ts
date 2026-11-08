@@ -69,6 +69,12 @@ export function formatEvent(
       return `${tag(e.state === "approved" ? "green" : "yellow", "engagement")} ${paint("dim", `${e.state} [${e.digest.slice(0, 12)}]`)}`;
     case "engagement.halt":
       return `${tag(e.state === "on" ? "red" : "green", "halt")} ${paint("dim", e.state)}`;
+    case "campaign.state":
+      return `${tag(e.state === "approved" ? "green" : "yellow", "campaign")} ${paint("dim", `${e.state} [${e.digest.slice(0, 12)}]`)}`;
+    case "campaign.step":
+      return `${tag(e.result === "success" ? "green" : e.result === "failed" ? "red" : "yellow", "step")} ${paint("dim", `${e.stepId} ${e.result}${e.technique ? ` ${e.technique}` : ""}`)}`;
+    case "teardown.state":
+      return `${tag("green", "teardown")} ${paint("dim", `${e.itemId} (${e.remaining})`)}`;
     case "tool.result": {
       const more = e.truncated
         ? paint("dim", t(` [tronqué : ${e.bytes} octets]`, ` [truncated: ${e.bytes} bytes]`))
