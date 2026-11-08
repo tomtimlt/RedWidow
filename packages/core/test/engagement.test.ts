@@ -326,7 +326,7 @@ describe("mission_context", () => {
 });
 
 describe("aucun outil d'agent n'approuve ni ne lève l'arrêt", () => {
-  it("approveEngagement/suspendEngagement/importEngagementDraft/setHalt/clearHalt ne sont référencés que par le module et la CLI", () => {
+  it("approveEngagement/suspendEngagement/importEngagementDraft/setHalt/clearHalt ne sont référencés que par le module, la CLI et les contrôles de l’extension", () => {
     const root = join(__dirname, "..", "..");
     const hits: string[] = [];
     const walk = (dirPath: string) => {
@@ -350,6 +350,7 @@ describe("aucun outil d'agent n'approuve ni ne lève l'arrêt", () => {
       "cli/src/main.ts",
       "core/src/engagement/halt.ts",
       "core/src/engagement/store.ts",
+      "vscode/src/logic/engagement-controls.ts",
     ]);
   });
 });

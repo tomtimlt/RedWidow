@@ -506,7 +506,7 @@ describe("journal de campagne", () => {
 });
 
 describe("aucun outil d'agent n'approuve ni n'importe un plan", () => {
-  it("approveCampaign/suspendCampaign/importCampaignDraft ne sont référencés que par le module et la CLI", () => {
+  it("approveCampaign/suspendCampaign/importCampaignDraft ne sont référencés que par le module, la CLI et les contrôles de l’extension", () => {
     const root = join(__dirname, "..", "..");
     const hits: string[] = [];
     const walk = (dirPath: string) => {
@@ -526,7 +526,11 @@ describe("aucun outil d'agent n'approuve ni n'importe un plan", () => {
       }
     };
     for (const pkg of readdirSync(root)) walk(join(root, pkg, "src"));
-    expect(hits.sort()).toEqual(["cli/src/main.ts", "core/src/engagement/campaign-store.ts"]);
+    expect(hits.sort()).toEqual([
+      "cli/src/main.ts",
+      "core/src/engagement/campaign-store.ts",
+      "vscode/src/logic/engagement-controls.ts",
+    ]);
   });
 });
 
