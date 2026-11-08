@@ -4,6 +4,7 @@
 //   ETIQUETTE : nom du jeu de captures (défaut : nom du dossier). Pages 1280x800 et 420x800 (barre latérale), thèmes sombre et clair.
 // Le HTML vient de html.ts (compilé à la volée avec esbuild), le CSS/JS de media/ ; l'hôte VS Code est simulé (faux
 // acquireVsCodeApi, variables de thème, messages de données d'exemple). Chromium via Playwright (déjà installé, non ajouté au dépôt).
+// Deux lancements successifs produisent les mêmes PNG (horloge simulée, rAF neutralisé, transitions coupées, raster déterministe).
 // Échoue (code 1) si une page lève une erreur JS, journalise une erreur console ou produit un PNG vide.
 
 import {
@@ -64,6 +65,12 @@ export { EXEGOL_EXEC_TOOL } from "@warband/core";`,
   logLevel: "error",
 });
 const L = await import(pathToFileURL(bundle).href);
+
+// Horloge déterministe : les états d'exemple horodatent le début de tour avec Date.now() ; on la fige pendant
+// leur construction (rétablie avant Playwright) et la page reçoit une horloge simulée à FIXED + 65 s (T+01:05).
+const FIXED = Date.parse("2026-01-01T00:00:00Z");
+const realNow = Date.now;
+Date.now = () => FIXED;
 
 // --- Thèmes VS Code (valeurs proches de Dark Modern et Light Modern) --------------------------------------------
 const COMMON = `--vscode-font-family:"Segoe UI",system-ui,sans-serif;--vscode-font-size:13px;--vscode-editor-font-family:Consolas,"Courier New",monospace`;
@@ -724,6 +731,8 @@ const origin = `http://127.0.0.1:${server.address().port}`;
 const shim = (cls) =>
   `window.__sent=[];window.acquireVsCodeApi=()=>({postMessage:(m)=>{window.__sent.push(m);},getState:()=>undefined,setState:()=>{}});document.body.classList.add("${cls}");`;
 
+Date.now = realNow;
+
 let playwright;
 try {
   playwright = require("playwright");
@@ -735,7 +744,19 @@ try {
 }
 
 mkdirSync(outDir, { recursive: true });
-const browser = await playwright.chromium.launch();
+// Reproductibilité octet pour octet : rastérisation mono-fil et sans raster partiel (sinon les coins arrondis varient
+// d'un niveau d'une exécution à l'autre), pas de GPU ni de lissage LCD, profil couleur sRGB.
+const browser = await playwright.chromium.launch({
+  args: [
+    "--disable-gpu",
+    "--disable-lcd-text",
+    "--font-render-hinting=none",
+    "--force-color-profile=srgb",
+    "--num-raster-threads=1",
+    "--disable-partial-raster",
+    "--disable-skia-runtime-opts",
+  ],
+});
 const shots = [];
 const failures = [];
 try {
@@ -751,6 +772,10 @@ try {
       const path = `/${page.name}-${themeName}.html`;
       pageHtml.set(path, html);
       themeCss.set(`/theme-${themeName}.css`, theme.css);
+      themeCss.set(
+        "/bench-stable.css",
+        "*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important;scroll-behavior:auto!important}",
+      );
       for (const size of SIZES) {
         const ctx = await browser.newContext({
           viewport: { width: size.width, height: size.height },
@@ -765,7 +790,15 @@ try {
           if (m.type() === "error") errors.push(`console.error: ${m.text()}`);
         });
         tab.on("requestfailed", (r) => errors.push(`requête échouée: ${r.url()}`));
+        // Stabilité : horloge simulée figée (T+mm:ss, setInterval), rAF neutralisé, curseur masqué, transitions
+        // coupées. Réservé au banc : rien de cela n'existe dans le produit.
+        await tab.clock.install({ time: new Date(FIXED) });
+        await tab.clock.pauseAt(new Date(FIXED + 65_000));
+        await tab.addInitScript(() => {
+          window.requestAnimationFrame = () => 0;
+        });
         await tab.goto(origin + path, { waitUntil: "load" });
+        await tab.addStyleTag({ url: `${origin}/bench-stable.css` });
         await tab.evaluate(() => document.fonts.ready);
         for (const m of page.messages) await tab.evaluate((msg) => window.postMessage(msg, "*"), m);
         await tab.waitForTimeout(150);
