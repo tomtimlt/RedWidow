@@ -143,3 +143,16 @@ it("affiche l'attente fournisseur puis l'efface quand la réponse reprend", () =
   expect(state.view().retry).toBeUndefined();
   expect(state.view().busy).toBe(false);
 });
+
+describe("jauge de contexte", () => {
+  it("expose la dernière valeur de context.usage dans view().context", () => {
+    const state = createChatState();
+    expect(state.view().context).toBeUndefined();
+    state.event(ev({ id: "c1", kind: "context.usage", usedTokens: 1000, windowTokens: 200000 }));
+    expect(state.view().context).toEqual({ usedTokens: 1000, windowTokens: 200000 });
+    state.event(ev({ id: "c2", kind: "context.usage", usedTokens: 1500 }));
+    expect(state.view().context).toEqual({ usedTokens: 1500 });
+    state.clear();
+    expect(state.view().context).toBeUndefined();
+  });
+});

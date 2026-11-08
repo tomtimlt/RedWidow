@@ -361,6 +361,7 @@ export const events: EventStrings = {
   bypass: "bypass",
   programSheet: "program sheet",
   turn: "turn",
+  context: "context",
   sandbox: "sandbox",
 };
 

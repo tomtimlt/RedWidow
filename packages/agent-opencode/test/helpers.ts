@@ -66,6 +66,8 @@ export interface FakeOptions {
   /** Configuration effective renvoyée par `getConfig` (défaut : celle imposée par le moteur). */
   effective?: (forced: Record<string, unknown>) => Record<string, unknown>;
   hasSession?: boolean;
+  /** Catalogue renvoyé par `listProviders` (absent : l'API n'expose pas le catalogue). */
+  providers?: Record<string, unknown>;
 }
 
 export interface FakeOpencode {
@@ -138,6 +140,9 @@ export function fakeOpencode(
               return event ? { done: false, value: event } : { done: true, value: undefined };
             },
           }),
+        }),
+        ...(options.providers && {
+          listProviders: async () => options.providers as Record<string, unknown>,
         }),
         createSession: async () => SESSION,
         hasSession: async () => options.hasSession ?? true,

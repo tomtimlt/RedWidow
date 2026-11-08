@@ -153,6 +153,37 @@ const toUsage = (u: {
   durationMs: u.duration_ms,
 });
 
+const tokenCount = (v: unknown): number =>
+  typeof v === "number" && Number.isSafeInteger(v) && v >= 0 ? v : 0;
+
+/**
+ * Occupation du contexte d'un appel modèle : entrée + cache lu + cache créé.
+ * `undefined` si le message n'a aucun usage exploitable (rien n'est inventé).
+ */
+function contextTokens(usage: unknown): number | undefined {
+  if (typeof usage !== "object" || usage === null) return undefined;
+  const u = usage as Record<string, unknown>;
+  if (typeof u.input_tokens !== "number") return undefined;
+  return (
+    tokenCount(u.input_tokens) +
+    tokenCount(u.cache_read_input_tokens) +
+    tokenCount(u.cache_creation_input_tokens)
+  );
+}
+
+/** Fenêtre de contexte du modèle : celui du dernier appel, ou l'unique modèle du tour ; sinon inconnue. */
+function contextWindow(modelUsage: unknown, model: string | undefined): number | undefined {
+  if (typeof modelUsage !== "object" || modelUsage === null) return undefined;
+  const entries = Object.entries(modelUsage as Record<string, unknown>);
+  const pick =
+    (model === undefined ? undefined : entries.find(([name]) => name === model)) ??
+    (entries.length === 1 ? entries[0] : undefined);
+  const window = (pick?.[1] as { contextWindow?: unknown } | undefined)?.contextWindow;
+  return typeof window === "number" && Number.isSafeInteger(window) && window > 0
+    ? window
+    : undefined;
+}
+
 function blocks(content: unknown): Record<string, unknown>[] {
   return Array.isArray(content)
     ? content.filter((b): b is Record<string, unknown> => typeof b === "object" && b !== null)
@@ -373,6 +404,8 @@ async function runWithSdkWithDesk(
   const maxResultBytes = options.maxResultBytes ?? DEFAULT_MAX_RESULT_BYTES;
   /** Messages SDK non traduits, par `type/subtype`. */
   const unhandled: Record<string, number> = {};
+  /** Dernier appel modèle du fil principal dans le tour courant (pour `context.usage`). */
+  let lastCall: { usedTokens: number; model?: string } | undefined;
   /** `agent_id` d'un sous-agent → `tool_use_id` de l'outil Task qui l'a lancé (via `task_started`). */
   const taskToolUse = new Map<string, string>();
 
@@ -794,6 +827,13 @@ async function runWithSdkWithDesk(
       const agentToolUseId = agentOf(message);
 
       if (message.type === "assistant") {
+        if (message.parent_tool_use_id == null) {
+          const used = contextTokens(message.message.usage);
+          const model = (message.message as { model?: unknown }).model;
+          if (used !== undefined) {
+            lastCall = { usedTokens: used, ...(typeof model === "string" && { model }) };
+          }
+        }
         const authError = message.error
           ? AUTH_ERRORS[message.error as keyof typeof AUTH_ERRORS]
           : undefined;
@@ -841,6 +881,21 @@ async function runWithSdkWithDesk(
           ...(sessionId !== undefined && { sessionId }),
           unhandledMessages: unhandled,
         };
+        if (lastCall) {
+          const windowTokens = contextWindow(
+            (message as { modelUsage?: unknown }).modelUsage,
+            lastCall.model,
+          );
+          recorder.emit(
+            {
+              kind: "context.usage",
+              usedTokens: lastCall.usedTokens,
+              ...(windowTokens !== undefined && { windowTokens }),
+            },
+            root.id,
+          );
+        }
+        lastCall = undefined;
         recorder.emit(
           {
             kind: "turn.finished",

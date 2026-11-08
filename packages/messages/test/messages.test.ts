@@ -256,6 +256,7 @@ describe("eventLabel", () => {
       status: "success",
       result: null,
     },
+    "context.usage": { kind: "context.usage", usedTokens: 1200, windowTokens: 200000 },
     "agent.text": { kind: "agent.text", text: "bonjour" },
     "user.message": { kind: "user.message", text: "salut" },
     "agent.thinking": { kind: "agent.thinking", text: "hmm", redacted: false },

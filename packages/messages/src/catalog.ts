@@ -55,6 +55,7 @@ export interface EventStrings {
   bypass: string;
   programSheet: string;
   turn: string;
+  context: string;
   sandbox: string;
 }
 

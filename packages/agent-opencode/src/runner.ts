@@ -130,6 +130,36 @@ async function runtimeCatalog(api: OpencodeApi, signal?: AbortSignal): Promise<O
   return obj(await api.listProviders(signal));
 }
 
+const tokens = (v: unknown): number =>
+  typeof v === "number" && Number.isSafeInteger(v) && v >= 0 ? v : 0;
+
+/**
+ * Occupation du contexte d'une étape : entrée + cache lu + cache écrit.
+ * `undefined` si l'étape n'annonce aucun token d'entrée (rien n'est inventé).
+ */
+function stepContextTokens(raw: unknown): number | undefined {
+  const t = obj(raw);
+  if (typeof t.input !== "number") return undefined;
+  const cache = obj(t.cache);
+  return tokens(t.input) + tokens(cache.read) + tokens(cache.write);
+}
+
+/** `limit.context` du modèle dans le catalogue fournisseur ; `undefined` si hors catalogue. */
+function catalogContextLimit(
+  catalog: Obj,
+  model: { providerID: string; modelID: string },
+): number | undefined {
+  const providers = Array.isArray(catalog.all) ? catalog.all.map(obj) : [];
+  const provider = providers.find((entry) => entry.id === model.providerID);
+  const entry = Object.entries(obj(provider?.models)).find(
+    ([key, raw]) => (str(obj(raw).id) ?? key) === model.modelID,
+  );
+  const context = obj(obj(entry?.[1]).limit).context;
+  return typeof context === "number" && Number.isSafeInteger(context) && context > 0
+    ? context
+    : undefined;
+}
+
 /** Variantes effectives : aucun niveau déduit du nom du modèle ni alias d'effort Claude. */
 function reasoningVariants(model: Obj): string[] {
   if (obj(model.capabilities).reasoning === false || model.reasoning === false) return [];
@@ -577,6 +607,8 @@ async function runWithOpencodeWithDesk(
     done: () => void;
   }
   let turn: Turn | undefined;
+  /** Dernière étape du tour pour le fil principal (alimente `context.usage`). */
+  let lastStepTokens: number | undefined;
   const userMessages = new Set<string>();
   const assistantMessages = new Set<string>();
   const emittedParts = new Set<string>();
@@ -843,6 +875,10 @@ async function runWithOpencodeWithDesk(
       return;
     }
     if (type === "step-finish") {
+      if (str(part.sessionID) === sessionId) {
+        const used = stepContextTokens(part.tokens);
+        if (used !== undefined) lastStepTokens = used;
+      }
       stepCosts.set(id, typeof part.cost === "number" ? part.cost : 0);
       if (messageID !== undefined) messageOfStep.set(id, messageID);
       checkBudget();
@@ -1156,6 +1192,7 @@ async function runWithOpencodeWithDesk(
       });
       turn = { started: false, failed: false, text: null, done: finish };
       retries.clear();
+      lastStepTokens = undefined;
       reportedErrors.delete("terminal-provider-retry");
       const body: PromptBody = {
         text: missionPrompt(text, missionDesk, onMissionContext),
@@ -1192,6 +1229,23 @@ async function runWithOpencodeWithDesk(
         sessionId,
         unhandledMessages: unhandled,
       };
+      if (lastStepTokens !== undefined) {
+        let windowTokens: number | undefined;
+        try {
+          windowTokens = catalogContextLimit(await runtimeCatalog(api, abort.signal), model);
+        } catch {
+          // Catalogue indisponible : la fenêtre reste inconnue.
+        }
+        recorder.emit(
+          {
+            kind: "context.usage",
+            usedTokens: lastStepTokens,
+            ...(windowTokens !== undefined && { windowTokens }),
+          },
+          root.id,
+        );
+        lastStepTokens = undefined;
+      }
       recorder.emit(
         {
           kind: "turn.finished",

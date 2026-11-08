@@ -407,6 +407,7 @@ export const events: EventStrings = {
   bypass: "bypass",
   programSheet: "fiche programme",
   turn: "tour",
+  context: "contexte",
   sandbox: "bac à sable",
 };
 

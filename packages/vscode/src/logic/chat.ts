@@ -140,6 +140,8 @@ export interface ChatView {
     error?: string;
   };
   approvals: ApprovalCard[];
+  /** Occupation du contexte au dernier appel modèle (absente tant que le moteur n'en a pas annoncé). */
+  context?: { usedTokens: number; windowTokens?: number };
   /** Un tour est en cours (saisie bloquée, bouton Stop actif). */
   busy: boolean;
   turnStartedAt?: number | null;
@@ -163,6 +165,7 @@ export function createChatState(before?: string) {
   let busy = false;
   let turnStartedAt: number | null = null;
   let retry: { attempt: number; delayMs: number } | undefined;
+  let context: { usedTokens: number; windowTokens?: number } | undefined;
   let sandbox: string | null = null;
   let sandboxNetwork: "none" | "bridge" | null = null;
   let controls: ChatControls | null = null;
@@ -271,6 +274,7 @@ export function createChatState(before?: string) {
       execProcs.clear();
       busy = false;
       turnStartedAt = null;
+      context = undefined;
       readonly = null;
       sandboxNetwork = null;
     },
@@ -295,6 +299,12 @@ export function createChatState(before?: string) {
             notice(
               t`Fournisseur temporairement indisponible${e.errorStatus === null ? "" : ` (HTTP ${e.errorStatus})`}. Nouvelle tentative dans ${Math.ceil(e.delayMs / 1000)} s.`,
             );
+            return;
+          case "context.usage":
+            context = {
+              usedTokens: e.usedTokens,
+              ...(e.windowTokens !== undefined && { windowTokens: e.windowTokens }),
+            };
             return;
           case "research.status":
             notice(
@@ -407,6 +417,7 @@ export function createChatState(before?: string) {
       return {
         items: [...items],
         ...(retry && { retry }),
+        ...(context && { context: { ...context } }),
         approvals: readonly ? [] : [...approvals.values()],
         busy,
         turnStartedAt: busy ? turnStartedAt : null,

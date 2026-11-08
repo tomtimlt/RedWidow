@@ -124,6 +124,10 @@ export function formatEvent(
       return verbose
         ? `${tag("dim", "turn")} ${paint("dim", `${e.turns} ${t("tours", "turns")} · $${e.costUsd.toFixed(4)} · ${e.status}`)}`
         : null;
+    case "context.usage":
+      return verbose
+        ? `${tag("dim", "contexte")} ${paint("dim", `${e.usedTokens}${e.windowTokens === undefined ? "" : ` / ${e.windowTokens}`} tokens`)}`
+        : null;
     case "agent.thinking":
       return e.redacted
         ? `${tag("dim", "thinking")} ${paint("dim", t("(masquée)", "(hidden)"))}`

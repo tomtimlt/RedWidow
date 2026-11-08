@@ -791,6 +791,69 @@ describe("événements du SDK", () => {
     expect(events.find((e) => e.kind === "task.updated")?.parentId).toBe(events[0]?.id);
   });
 
+  describe("context.usage", () => {
+    const withUsage = (usage: unknown, model = "m-test") =>
+      ({
+        type: "assistant",
+        parent_tool_use_id: null,
+        message: { model, content: [], usage },
+      }) as unknown as SDKMessage;
+    const run = async (messages: SDKMessage[], modelUsage?: unknown) => {
+      const { recorder, events, gate } = setup();
+      const query: QueryFn = async function* () {
+        for (const m of messages) yield m;
+        yield result(modelUsage === undefined ? {} : { modelUsage });
+      };
+      await runAgent({ prompt: "x", recorder, gate, query });
+      return events.filter((e) => e.kind === "context.usage");
+    };
+
+    it("émet le dernier appel du tour (entrée + caches) et la fenêtre du modèle", async () => {
+      const usages = await run(
+        [
+          withUsage({
+            input_tokens: 10,
+            cache_read_input_tokens: 0,
+            cache_creation_input_tokens: 0,
+          }),
+          withUsage({
+            input_tokens: 100,
+            cache_read_input_tokens: 2000,
+            cache_creation_input_tokens: 30,
+            output_tokens: 999,
+          }),
+        ],
+        { "m-test": { contextWindow: 200000 } },
+      );
+      expect(usages).toHaveLength(1);
+      expect(usages[0]).toMatchObject({ usedTokens: 2130, windowTokens: 200000 });
+    });
+
+    it("omet windowTokens sans contextWindow", async () => {
+      const usages = await run([withUsage({ input_tokens: 5 })], { "m-test": {} });
+      expect(usages[0]).toMatchObject({ usedTokens: 5 });
+      expect(usages[0]).not.toHaveProperty("windowTokens");
+    });
+
+    it("ne devine pas la fenêtre quand plusieurs modèles ne correspondent pas", async () => {
+      const usages = await run([withUsage({ input_tokens: 5 })], {
+        a: { contextWindow: 1 },
+        b: { contextWindow: 2 },
+      });
+      expect(usages[0]).not.toHaveProperty("windowTokens");
+    });
+
+    it("ignore les sous-agents et n'émet rien sans usage", async () => {
+      const sub = {
+        type: "assistant",
+        parent_tool_use_id: "toolu_x",
+        message: { model: "m-test", content: [], usage: { input_tokens: 77 } },
+      } as unknown as SDKMessage;
+      expect(await run([sub])).toHaveLength(0);
+      expect(await run([withUsage(undefined)])).toHaveLength(0);
+    });
+  });
+
   it("traduit rate_limit_event en rate.limited", async () => {
     const { events } = await replay([
       {

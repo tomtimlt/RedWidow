@@ -195,6 +195,17 @@ export type EventPayload =
       result: string | null;
     }
   | {
+      /**
+       * Occupation du contexte au dernier appel modèle du tour (jamais un cumul).
+       * Absent du journal quand le moteur ne fournit pas d'usage pour le tour.
+       */
+      kind: "context.usage";
+      /** Entrée + cache lu + cache créé du dernier appel modèle. */
+      usedTokens: number;
+      /** Taille de la fenêtre de contexte du modèle, si connue. */
+      windowTokens?: number;
+    }
+  | {
       kind: "run.finished";
       status: "success" | "error";
       turns: number;
@@ -300,6 +311,8 @@ function isReason(value: unknown): boolean {
 function matches(value: unknown, type: string): boolean {
   if (type === "string") return typeof value === "string";
   if (type === "number") return typeof value === "number" && Number.isFinite(value);
+  if (type === "uint")
+    return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
   if (type === "boolean") return typeof value === "boolean";
   if (type === "object")
     return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -461,6 +474,7 @@ export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
     status: "enum:success,error",
     result: "string|null",
   }),
+  "context.usage": shape({ usedTokens: "uint", windowTokens: "uint?" }),
   "run.finished": (p) =>
     shape({
       status: "enum:success,error",

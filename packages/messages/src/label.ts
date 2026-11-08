@@ -104,6 +104,8 @@ export function eventLabel(e: EngineEvent, options: LabelOptions = {}): string {
       return clip(`${t.programSheet} : ${e.state} [${e.digest.slice(0, 12)}]`);
     case "turn.finished":
       return `${t.turn} ${e.turns} · ${e.status} · $${e.costUsd.toFixed(4)}`;
+    case "context.usage":
+      return `${t.context} : ${e.usedTokens}${e.windowTokens === undefined ? "" : ` / ${e.windowTokens}`}`;
     case "agent.thinking":
       return e.redacted ? t.thinkingMasked : clip(`${t.thinking} : ${e.text}`);
     case "permission.denied":

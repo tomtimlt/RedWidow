@@ -859,3 +859,81 @@ it("transmet l’image au client sans la journaliser", async () => {
   expect(JSON.stringify(h.events)).not.toContain(image.data);
   expect(h.events.find((e) => e.kind === "run.started")).toMatchObject({ prompt: "observer" });
 });
+
+type Script = Parameters<typeof fakeOpencode>[0][number];
+
+describe("context.usage (OpenCode)", () => {
+  const catalog = {
+    all: [{ id: "fake", models: { m: { id: "m", limit: { context: 128000, output: 4096 } } } }],
+    connected: ["fake"],
+  };
+  const step = (id: string, tokens?: Record<string, unknown>) => ({
+    part: {
+      id,
+      sessionID: SESSION,
+      messageID: "msg_a",
+      type: "step-finish",
+      cost: 0,
+      ...(tokens && { tokens }),
+    },
+  });
+  const play = async (stages: Script[], model: string, providers?: Record<string, unknown>) => {
+    const fake = fakeOpencode(stages, providers ? { providers } : {});
+    const h = harness();
+    await h.run(createOpencodeRunner({ createClient: fake.createClient }), { model });
+    return of(h.events, "context.usage");
+  };
+  const oneStep =
+    (tokens?: Record<string, unknown>): Script =>
+    (s) => {
+      begin(s);
+      s.emit(
+        "message.part.updated",
+        step("sf1", { input: 1, output: 1, cache: { read: 1, write: 1 } }),
+      );
+      s.emit("message.part.updated", step("sf2", tokens));
+      s.idle();
+    };
+
+  it("émet la dernière étape (entrée + cache) et limit.context du modèle", async () => {
+    const usages = await play(
+      [oneStep({ input: 100, output: 50, reasoning: 0, cache: { read: 4000, write: 20 } })],
+      "fake/m",
+      catalog,
+    );
+    expect(usages).toHaveLength(1);
+    expect(usages[0]).toMatchObject({ usedTokens: 4120, windowTokens: 128000 });
+  });
+
+  it("omet windowTokens pour un modèle hors catalogue", async () => {
+    const usages = await play(
+      [oneStep({ input: 10, cache: { read: 0, write: 0 } })],
+      "fake/inconnu",
+      catalog,
+    );
+    expect(usages[0]).toMatchObject({ usedTokens: 10 });
+    expect(usages[0]).not.toHaveProperty("windowTokens");
+  });
+
+  it("omet windowTokens sans catalogue", async () => {
+    const usages = await play([oneStep({ input: 10 })], "fake/m");
+    expect(usages[0]).toMatchObject({ usedTokens: 10 });
+    expect(usages[0]).not.toHaveProperty("windowTokens");
+  });
+
+  it("n'émet rien sans usage pour le tour", async () => {
+    const fake = fakeOpencode(
+      [
+        (s) => {
+          begin(s);
+          s.emit("message.part.updated", step("sf1"));
+          s.idle();
+        },
+      ],
+      { providers: catalog },
+    );
+    const h = harness();
+    await h.run(createOpencodeRunner({ createClient: fake.createClient }), { model: "fake/m" });
+    expect(of(h.events, "context.usage")).toHaveLength(0);
+  });
+});
