@@ -29,6 +29,7 @@ import {
   defaultConfigDir,
   type EngagementView,
   isHalted,
+  outputFileSpecs,
   type ProgramStatus,
   prepareContainerProjectWorkspace,
   readActiveProjectForPrompt,
@@ -65,7 +66,10 @@ const root = process.argv[2] ?? ".";
 const exe = join(root, "bin", process.platform === "win32" ? "claude.exe" : "claude");
 const channel = processChannel();
 
-const targets = createExegolTargets();
+// Sorties complètes des commandes : <projet>/outputs, relues par `read_output` (dossier hôte).
+const outputRoot = () => join(projectRoot, "outputs");
+const targets = createExegolTargets({ outputRoot });
+const projectFileTools = () => [...projectFileSpecs(projectRoot), ...outputFileSpecs(outputRoot)];
 let learningMode = false;
 let projectRoot = process.cwd();
 // Projet actif connu du moteur (ADR 0040) : mis à jour au `start` et à chaque consigne ; sans projet, la fiche n'a aucun effet.
@@ -181,7 +185,7 @@ const done = runEngine({
                 openCodeKali({ targets, binary: "docker", includeMemory: false }),
                 ...(webSearch ? [openCodeWeb(webProgram)] : []),
                 openCodeDesk(),
-                { name: "projectfiles", create: () => projectFileSpecs(projectRoot) },
+                { name: "projectfiles", create: projectFileTools },
                 ...(integrations ?? []).map((config) =>
                   openCodeIntegration(config, createIntegrationBackend(config)),
                 ),
@@ -200,7 +204,7 @@ const done = runEngine({
       options.toolsets?.push(claudeDesk(), {
         name: "projectfiles",
         create: ({ resolveCall }) =>
-          createSpecTools(projectFileSpecs(projectRoot), (name, args, extra) =>
+          createSpecTools(projectFileTools(), (name, args, extra) =>
             resolveCall(`mcp__projectfiles__${name}`, args, extra),
           ),
       });

@@ -7,6 +7,7 @@ import { resolveBinary } from "../process/resolve.js";
 import { type ProcessResult, runProcess } from "../process/run.js";
 import { CodedError, type ReasonParams, ValidationError } from "../reason.js";
 import type { Recorder } from "../recorder.js";
+import type { OutputCapture } from "./output-capture.js";
 
 export interface ContainerSummary {
   id: string;
@@ -353,6 +354,13 @@ export interface CallOptions {
   correlation?: Correlation;
 }
 
+/** Résultat d'une commande dont la sortie est capturée (un code ≠ 0 ne lève pas). */
+export interface CaptureResult {
+  code: number | null;
+  signal: string | null;
+  termination?: "abort" | "timeout";
+}
+
 export interface RunContainerOptions extends CallOptions {
   image: string;
   name?: string;
@@ -403,6 +411,16 @@ export interface DockerClient {
     command: readonly string[],
     options?: CallOptions,
   ): Promise<string[]>;
+  /**
+   * Même `docker exec` figé, sans lever sur un code de sortie ≠ 0 : les octets bruts de chaque
+   * flux vont à `capture` (stdout et stderr séparés) ; le résultat porte code et terminaison.
+   */
+  execCapture(
+    container: string,
+    command: readonly string[],
+    capture: OutputCapture,
+    options?: CallOptions,
+  ): Promise<CaptureResult>;
 }
 
 /** Options de `createKaliContainer`. Le nom est obligatoire. */
@@ -564,6 +582,45 @@ export function createDockerClient({
         call,
       );
       return [...r.stdout, ...r.stderr];
+    },
+    async execCapture(container, command, capture, call = {}) {
+      assertOperand(container, "container");
+      assertCommand(command);
+      const program = command[0];
+      if (program === undefined || program === "" || program.startsWith("-")) {
+        throw new ValidationError("docker.invalidArgument", {
+          field: "command",
+          reason: "program",
+        });
+      }
+      const file = resolveBinary(binary);
+      if (file === null) throw new CodedError("process.notFound", { binary });
+      const r = await runProcess(
+        [
+          file,
+          ...prefix,
+          "exec",
+          "--interactive",
+          "--workdir",
+          "/workspace",
+          container,
+          ...command,
+        ],
+        {
+          recorder,
+          parentId: call.parentId === undefined ? defaultParent : call.parentId,
+          timeoutMs: call.timeoutMs ?? defaultTimeoutMs,
+          maxCapturedLines: 0,
+          onOutput: (stream, chunk) => capture.write(stream, chunk),
+          ...(call.signal && { signal: call.signal }),
+          ...(call.correlation && { correlation: call.correlation }),
+        },
+      );
+      return {
+        code: r.code,
+        signal: r.signal,
+        ...(r.termination && { termination: r.termination }),
+      };
     },
     async createKaliContainer({ image, name, source, ...call }) {
       const img = assertOperand(image, "image");

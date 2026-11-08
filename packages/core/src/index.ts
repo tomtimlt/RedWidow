@@ -16,6 +16,8 @@ export * from "./cours/policy.js";
 export * from "./cours/tool-specs.js";
 export * from "./docker/client.js";
 export * from "./docker/image-progress.js";
+export * from "./docker/output-capture.js";
+export * from "./docker/output-files.js";
 export * from "./docker/tool-specs.js";
 export * from "./engagement/campaign-log.js";
 export * from "./engagement/campaign-port.js";

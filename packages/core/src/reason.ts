@@ -24,6 +24,9 @@ export interface ErrorInfo extends Reason {
 /** Tous les codes que le cœur et l'adaptateur peuvent émettre. */
 export const REASON_CODES = [
   "task.invalidResponse",
+  "output.invalidPath",
+  "output.notFound",
+  "output.patternInvalid",
   "opencode.httpFailed",
   "kali.taskRequired",
   // Verdicts de la politique

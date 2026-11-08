@@ -1,10 +1,10 @@
 import { z } from "zod";
 import type { CallOptions, DockerClient } from "../docker/client.js";
 import type { DockerToolContext, DockerToolSpec } from "../docker/tool-specs.js";
-import { formatLines } from "../docker/tool-specs.js";
 import { type ExegolTargets, resolveKaliContainer } from "../exegol/targets.js";
 import { CodedError, ValidationError } from "../reason.js";
 import { KALI_EXEC_TIMEOUT_MS, type KaliApi } from "./api.js";
+import { renderKaliResponse } from "./output.js";
 
 export const KALI_SERVER_NAME = "kali";
 export const KALI_TOOL_PREFIX = "mcp__kali__";
@@ -540,7 +540,7 @@ export function kaliToolSpecs(
               },
           call,
         );
-        return formatLines(lines);
+        return renderKaliResponse(lines.join("\n"), targets.outputRoot?.());
       },
     }),
   );

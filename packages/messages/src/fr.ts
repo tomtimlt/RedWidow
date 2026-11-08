@@ -191,6 +191,10 @@ export const reasons: Catalog = {
     "les niveaux d'effort Claude ne sont pas pris en charge par OpenCode : choisissez une variante du catalogue",
   "task.invalidResponse": () =>
     "réponse de suivi de tâche invalide ; ne pas relancer sans vérifier les tâches existantes",
+  "output.invalidPath": () =>
+    "chemin de sortie refusé : relatif au dossier outputs, sans « .. », sans lien sortant",
+  "output.notFound": () => "fichier de sortie introuvable ou non régulier dans le dossier outputs",
+  "output.patternInvalid": (p) => `motif de recherche refusé (${text(p.reason)})`,
   "opencode.serverFailed": (p) => `le serveur OpenCode n'a pas démarré : ${text(p.detail)}`,
   "opencode.serverTimeout": (p) => `le serveur OpenCode n'a pas répondu en ${text(p.seconds)} s`,
   "opencode.sessionNotFound": (p) => `session OpenCode introuvable : ${text(p.id)}`,

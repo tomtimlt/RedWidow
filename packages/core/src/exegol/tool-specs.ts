@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { defaultConfigDir } from "../approval/source.js";
-import type { CallOptions, DockerClient } from "../docker/client.js";
+import type { CallOptions, CaptureResult, DockerClient } from "../docker/client.js";
+import { createOutputCapture, renderCommandResult } from "../docker/output-capture.js";
 import type { DockerToolContext, DockerToolSpec } from "../docker/tool-specs.js";
-import { formatLines } from "../docker/tool-specs.js";
 import { writeSummary } from "../project.js";
 import { CodedError } from "../reason.js";
 import {
@@ -98,8 +98,15 @@ export function exegolToolSpecs(docker: DockerClient, targets: ExegolTargets): D
         const rows = await docker.listLabelPrefix(call);
         const container = resolveExegolContainer(targets.current(), String(args.container), rows);
         const argv = args.argv as string[];
-        const lines = await docker.execWorkspace(container, argv, call);
-        return formatLines(lines);
+        const capture = createOutputCapture(targets.outputRoot?.());
+        let result: CaptureResult;
+        try {
+          result = await docker.execCapture(container, argv, capture, call);
+        } catch (error) {
+          capture.finish();
+          throw error;
+        }
+        return renderCommandResult(result, capture.finish());
       },
     }),
     spec({

@@ -13,6 +13,9 @@ import type { Recorder } from "../recorder.js";
 /** Délai d'un `docker exec` vers l'API, le même que l'exec Exegol. */
 export const KALI_EXEC_TIMEOUT_MS = 600_000;
 
+/** Longueur maximale de la réponse JSON d'une ligne (au-delà : coupée, signalée par l'outil). */
+export const KALI_MAX_RESPONSE_CHARS = 34 * 1024 * 1024;
+
 /** Lectures de `/health` après l'unique démarrage. */
 const HEALTH_TRIES = 10;
 
@@ -93,6 +96,7 @@ export function createKaliApi({
     argv: readonly string[],
     call: CallOptions,
     stdin?: string,
+    maxLineLength?: number,
   ): Promise<ProcessResult> => {
     const file = resolveBinary(binary);
     if (file === null) return Promise.reject(new CodedError("process.notFound", { binary }));
@@ -103,6 +107,7 @@ export function createKaliApi({
       ...(call.signal && { signal: call.signal }),
       ...(call.correlation && { correlation: call.correlation }),
       ...(stdin !== undefined && { stdin }),
+      ...(maxLineLength !== undefined && { maxLineLength }),
     });
   };
 
@@ -186,7 +191,8 @@ export function createKaliApi({
         path: request.path,
         ...(body !== undefined && { body }),
       });
-      const result = await exec(httpArgv(name), call, stdin);
+      // La réponse est un JSON sur une ligne : ne pas la couper à 16 Kio (JSON invalide).
+      const result = await exec(httpArgv(name), call, stdin, KALI_MAX_RESPONSE_CHARS);
       if (result.code !== 0) throw new CodedError("kali.unavailable", { name });
       return result.stdout;
     },

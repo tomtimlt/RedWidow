@@ -263,13 +263,23 @@ export interface ExegolTargets {
     projectId: string | null,
     blocked?: "invalid" | "readFailed",
   ): void;
+  /**
+   * Dossier hôte `outputs` du projet ouvert, où les sorties complètes des commandes sont
+   * sauvegardées. Absent : l'extrait est renvoyé sans sauvegarde.
+   */
+  outputRoot?(): string | undefined;
 }
 
-export function createExegolTargets(): ExegolTargets {
+export function createExegolTargets({
+  outputRoot,
+}: {
+  outputRoot?: () => string | undefined;
+} = {}): ExegolTargets {
   let target: ExegolTarget = { allowed: [], mentions: [], projectId: null, hashes: [] };
   const recall: KaliRecall[] = [];
   return {
     current: () => target,
+    ...(outputRoot && { outputRoot }),
     note(text, allowed, projectId, blocked) {
       const prompt = promptForTargets(text);
       const mentions = parseMentions(prompt);

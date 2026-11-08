@@ -105,6 +105,10 @@ export const reasons: Catalog = {
   "kali.taskRequired": () =>
     "Full-port scan not started: use mcp__kali__task_start with nmap argv, then task_status. Synchronous scans are not tracked by task_list and may keep running after an MCP timeout.",
   "task.invalidResponse": () => "invalid task response; check existing tasks before starting again",
+  "output.invalidPath": () =>
+    "output path refused: relative to the outputs folder, no '..', no outgoing link",
+  "output.notFound": () => "output file not found or not a regular file in the outputs folder",
+  "output.patternInvalid": (p) => `search pattern refused (${text(p.reason)})`,
   "policy.rule": (p) => `rule #${text(p.index)} ${text(p.decision)} ${text(p.target)}`,
   "policy.rule.custom": (p) => text(p.text),
   "policy.default": (p) => `no rule for tool ${text(p.tool)}`,

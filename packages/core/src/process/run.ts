@@ -89,6 +89,8 @@ export interface RunProcessOptions {
   maxJournaledLines?: number;
   /** Longueur maximale d'une ligne de sortie (voir `LineSplitter`). */
   maxLineLength?: number;
+  /** Reçoit les octets bruts de chaque flux, avant tout découpage (sauvegarde de la sortie complète). */
+  onOutput?: (stream: "stdout" | "stderr", chunk: Buffer) => void;
   /** Fiabilité du rattachement à l'appel d'outil parent, consignée dans `process.started`. */
   correlation?: Correlation;
   /**
@@ -210,8 +212,14 @@ export function runProcess(
       );
     const out = splitter("stdout");
     const err = splitter("stderr");
-    child.stdout.on("data", (chunk: Buffer) => out.push(chunk));
-    child.stderr.on("data", (chunk: Buffer) => err.push(chunk));
+    child.stdout.on("data", (chunk: Buffer) => {
+      options.onOutput?.("stdout", chunk);
+      out.push(chunk);
+    });
+    child.stderr.on("data", (chunk: Buffer) => {
+      options.onOutput?.("stderr", chunk);
+      err.push(chunk);
+    });
 
     let spawnError: Error | null = null;
     child.on("error", (e) => {
