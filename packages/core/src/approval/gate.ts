@@ -12,6 +12,7 @@ import {
 import { EXTERNAL_DIRECTORY_TOOL, EXTERNAL_PATTERNS_FIELD } from "./paths.js";
 import {
   BASH_TOOL,
+  type EngagementProvider,
   evaluatePolicy,
   type Policy,
   type PolicyContext,
@@ -84,6 +85,8 @@ export interface ApprovalGateOptions {
   persistRule?: (rule: PolicyRule) => void | Promise<void>;
   /** Fiche programme du projet actif (ADR 0040) ; absent → aucun effet de périmètre. Relue à chaque décision. */
   program?: ProgramProvider;
+  /** Engagement red team et arrêt d'urgence du projet actif (ADR 0041) ; absent → aucun effet. Relu à chaque décision. */
+  engagement?: EngagementProvider;
   /** Interrupteur du Bypass (ADR 0006) ; absent → aucun Bypass. Relu à chaque décision. */
   bypass?: BypassSwitch;
   /** Horloge des décisions, en ms epoch (défaut : `Date.now`). */
@@ -104,6 +107,7 @@ const REMEMBERABLE = new Set([
   "sandbox.interpreter",
   "program.out_of_scope",
   "program.flag_missing",
+  "engagement.out_of_scope",
 ]);
 
 /**
@@ -148,6 +152,12 @@ function sessionKey(request: ApprovalRequest, verdict: PolicyVerdict): string | 
     if (isProgramShellTool(request.tool)) return null;
     const host = verdict.reason.params?.host;
     return typeof host === "string" && host !== "" ? `program-host:${host}` : null;
+  }
+  // Hors périmètre de l'engagement (ADR 0041) : même règle, clé propre (jamais celle du programme).
+  if (verdict.reason.code === "engagement.out_of_scope") {
+    if (isProgramShellTool(request.tool)) return null;
+    const host = verdict.reason.params?.host;
+    return typeof host === "string" && host !== "" ? `engagement-host:${host}` : null;
   }
   // Drapeaux attendus manquants : la clé est le binaire, jamais la commande ni l'outil ; plusieurs
   // binaires fautifs dans une même commande → non mémorisable (un seul « toujours » ne les couvrirait pas).
@@ -211,6 +221,7 @@ export function createApprovalGate({
   bypass,
   now,
   program,
+  engagement,
 }: ApprovalGateOptions): ApprovalGate {
   /** Autorisations de session. Consultées seulement face à un verdict « ask » mémorisable. */
   const session = new Set<string>();
@@ -322,6 +333,7 @@ export function createApprovalGate({
       const ctx: PolicyContext = {
         ...(workspace ?? { cwd: process.cwd() }),
         ...(program !== undefined && { program }),
+        ...(engagement !== undefined && { engagement }),
       };
       const verdict = evaluatePolicy(policy, request.tool, request.input, ctx);
       let outcome: ApprovalOutcome;
@@ -329,7 +341,12 @@ export function createApprovalGate({
       // Bypass universel (ADR 0017) : sous Bypass actif et avec un Asker, tout verdict non-`allow`
       // (refus dur compris) est auto-approuvé une fois, jamais mémorisé. L'absence d'Asker (apprentissage,
       // CLI non interactive) est l'unique garde qui préserve ces modes sans drapeau spécial.
-      const override = bypassActive && ask !== undefined && verdict.decision !== "allow";
+      // Exception : l'arrêt d'urgence (ADR 0041) n'est jamais levé par le Bypass, seul un humain le relâche.
+      const override =
+        bypassActive &&
+        ask !== undefined &&
+        verdict.decision !== "allow" &&
+        verdict.reason.code !== "engagement.halted";
       if (override) {
         outcome = {
           decision: "allow",

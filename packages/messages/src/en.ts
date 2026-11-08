@@ -237,6 +237,10 @@ export const reasons: Catalog = {
     `the current draft changed (hash ${text(p.actual)}, expected ${text(p.expected)}): re-read 'engagement show' before approving`,
   "engagement.halted": () =>
     "emergency halt active for this project: a human resumes it with 'engagement resume'",
+  "engagement.out_of_scope": (p) =>
+    `${text(p.tool)}: host outside the engagement scope and infrastructure (${text(p.host)}), approval required; a session approval only covers that host`,
+  "engagement.infrastructure": (p) =>
+    `${text(p.tool)}: host in the declared engagement infrastructure (${text(p.host)}), allowed and logged`,
   "project.absent": () => "no active project",
   "project.readFailed": () => "could not read the active project this turn",
   "cours.absent": () => "no course installed (course folder missing)",

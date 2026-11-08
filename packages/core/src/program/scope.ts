@@ -196,6 +196,15 @@ function excluded(pattern: string, host: string): boolean {
 
 /** Exclusion prioritaire ; hôte non listé = hors périmètre. */
 export function hostInScope(sheet: ProgramSheet, host: string): boolean {
-  if (sheet.outOfScope.value.some((pattern) => excluded(pattern, host))) return false;
-  return sheet.inScope.value.some((pattern) => matches(pattern, host));
+  return hostInLists(sheet.inScope.value, sheet.outOfScope.value, host);
+}
+
+/** Hôte couvert par un des motifs `include` et par aucune exclusion (exclusion prioritaire). */
+export function hostInLists(
+  include: readonly string[],
+  exclude: readonly string[],
+  host: string,
+): boolean {
+  if (exclude.some((pattern) => excluded(pattern, host))) return false;
+  return include.some((pattern) => matches(pattern, host));
 }

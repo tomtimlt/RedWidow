@@ -366,6 +366,10 @@ export const reasons: Catalog = {
     `le brouillon courant a changé (empreinte ${text(p.actual)}, attendue ${text(p.expected)}) : relire « engagement show » avant d'approuver`,
   "engagement.halted": () =>
     "arrêt d'urgence actif pour ce projet : reprise par un humain avec « engagement resume »",
+  "engagement.out_of_scope": (p) =>
+    `${text(p.tool)} : hôte hors du périmètre et de l'infrastructure de l'engagement (${text(p.host)}), approbation requise ; une approbation de session ne vaut que pour cet hôte`,
+  "engagement.infrastructure": (p) =>
+    `${text(p.tool)} : hôte de l'infrastructure déclarée de l'engagement (${text(p.host)}), autorisé et journalisé`,
   "project.absent": () => "aucun projet actif",
   "project.readFailed": () => "lecture du projet impossible ce tour-ci",
   "cours.absent": () => "aucun cours installé (dossier de cours absent)",

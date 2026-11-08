@@ -1,5 +1,5 @@
 import { isAbsolute, join } from "node:path";
-import type { AgentPrompt, ProgramStatus, PromptImage } from "@warband/core";
+import type { AgentPrompt, EngagementView, ProgramStatus, PromptImage } from "@warband/core";
 import {
   type AgentRunner,
   type ApprovalGate,
@@ -82,6 +82,11 @@ export interface EngineOptions {
   program?: () => ProgramStatus;
   /** Écrit un brouillon de fiche (outil `program_draft`) dans le projet actif ; n'approuve rien. */
   programDraft?: (text: string) => Promise<ProgramStatus>;
+  /**
+   * Engagement red team et arrêt d'urgence du projet actif (ADR 0041), relus à chaque décision de
+   * la gate ; absent ou sans projet actif : aucun effet. Jamais en apprentissage.
+   */
+  engagement?: () => EngagementView;
 }
 
 /** Message dont le type est `bypass` : même rejeté par la validation, il met le miroir à « off ». */
@@ -136,6 +141,7 @@ export function runEngine({
   resolveCwd,
   program,
   programDraft,
+  engagement,
 }: EngineOptions): Promise<number> {
   // Miroir en lecture du Bypass (ADR 0006, décision 6) : naît « off », jamais calculé ici.
   const mirror = createBypassMirror({ now });
@@ -242,6 +248,7 @@ export function runEngine({
           bypass: mirror,
           now,
           ...(!learning && program !== undefined && { program }),
+          ...(!learning && engagement !== undefined && { engagement }),
         });
         // Les demandes en attente partent vers l'UI ; la réponse revient par `answer`.
         void (async () => {

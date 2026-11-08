@@ -1,7 +1,9 @@
+import type { EngagementStatus } from "../engagement/store.js";
 import { KALI_EXECUTE_TOOL } from "../kali/tool-specs.js";
 import { missingProgramFlags } from "../program/flags.js";
 import {
   HTTP_REQUEST_TOOL,
+  hostInLists,
   hostInScope,
   isProgramShellTool,
   programTargets,
@@ -276,7 +278,18 @@ function evaluatePolicyBash(policy: Policy, command: unknown): PolicyVerdict {
 /** Rend le statut de la fiche programme du projet actif (lecture synchrone, ADR 0040). */
 export type ProgramProvider = () => ProgramStatus;
 
+/** Vue de l'engagement du projet actif pour la gate : fiche (appliquée si approuvée) et arrêt d'urgence. */
+export interface EngagementView {
+  status: EngagementStatus;
+  halted: boolean;
+}
+
+/** Rend la vue de l'engagement du projet actif (lecture synchrone, ADR 0041). */
+export type EngagementProvider = () => EngagementView;
+
 export interface PolicyContext {
+  /** Engagement red team du projet actif ; absent → aucun effet. Fixé par le code appelant. */
+  engagement?: EngagementProvider;
   /** Fiche programme du projet actif ; absent → aucun effet de périmètre. Fixé par le code appelant. */
   program?: ProgramProvider;
   /** Répertoire de travail ; sert à résoudre les chemins relatifs. */
@@ -391,7 +404,84 @@ export function evaluatePolicy(
   ctx: PolicyContext = { cwd: process.cwd() },
 ): PolicyVerdict {
   const base = evaluateUncapped(policy, tool, input, ctx);
-  return capExternal(policy, tool, input, evaluateProgram(tool, input, base, ctx));
+  const programmed = evaluateProgram(tool, input, base, ctx);
+  return capExternal(policy, tool, input, evaluateEngagement(tool, input, programmed, ctx));
+}
+
+/** Vue de l'engagement ; un fournisseur qui lève vaut arrêt actif (fail-closed, ADR 0041). */
+function engagementView(provider: EngagementProvider): EngagementView {
+  try {
+    return provider();
+  } catch {
+    return { status: { state: "unreadable" }, halted: true };
+  }
+}
+
+/**
+ * Engagement red team et arrêt d'urgence (ADR 0041), après `evaluateProgram`.
+ * 1. Arrêt d'urgence actif : tout outil réseau (`read_url`, `http_request`, champs `target` / `url`
+ *    des outils Kali, commande shell visant un hôte) → `deny` `engagement.halted`, même sur un deny
+ *    ou un ask de garde préexistant : le Bypass lève un verdict de politique, jamais celui-ci (la
+ *    gate l'exclut). Les outils non réseau ne sont pas touchés.
+ * 2. Engagement approuvé : hôte hors `inScope` et hors `infrastructure` (ou exclu) → `ask`
+ *    `engagement.out_of_scope`, mémorisable par hôte, jamais pour un outil shell. N'agit que sur un
+ *    `allow`, un ask souple, un shell non analysable ou un `program.out_of_scope` (qu'il remplace,
+ *    pour qu'une approbation du programme ne couvre pas un hôte hors engagement).
+ * 3. Hôte d'infrastructure (hors `inScope`) : `allow` `engagement.infrastructure` quand la base est
+ *    un ask souple sur `read_url` / `http_request` ; sinon inchangé.
+ * Jamais de transformation d'un deny ni d'un ask de garde hors arrêt.
+ */
+function evaluateEngagement(
+  tool: string,
+  input: Record<string, unknown>,
+  base: PolicyVerdict,
+  ctx: PolicyContext,
+): PolicyVerdict {
+  if (ctx.engagement === undefined) return base;
+  const view = engagementView(ctx.engagement);
+  const approved = view.status.state === "approved" ? view.status.applied : undefined;
+  if (!view.halted && approved === undefined) return base;
+  const targets = programTargets(tool, input);
+  if (targets === null) return base;
+  const isWebTool = tool === READ_URL_TOOL || tool === HTTP_REQUEST_TOOL;
+  const { hosts } = targets;
+  if (view.halted) {
+    if (!isWebTool && hosts.length === 0 && !targets.unresolved) return base;
+    return {
+      decision: "deny",
+      reason: reason("engagement.halted", { tool }),
+      rule: null,
+    };
+  }
+  if (approved === undefined || base.decision === "deny") return base;
+  const unanalyzable = base.reason.code === "shell.unanalyzable" && isProgramShellTool(tool);
+  const replaceable = base.reason.code === "program.out_of_scope";
+  if (base.decision === "ask" && !SOFT_ASK.has(base.reason.code) && !unanalyzable && !replaceable)
+    return base;
+  if (hosts.length === 0) return base;
+  const outside = hosts.filter(
+    (host) =>
+      !hostInLists(approved.inScope.value, approved.outOfScope.value, host) &&
+      !hostInLists(approved.infrastructure.value, approved.outOfScope.value, host),
+  );
+  if (outside.length > 0) {
+    return {
+      decision: "ask",
+      reason: reason("engagement.out_of_scope", { tool, host: outside.join(", ") }),
+      rule: null,
+    };
+  }
+  const infrastructure = hosts.filter(
+    (host) => !hostInLists(approved.inScope.value, approved.outOfScope.value, host),
+  );
+  if (infrastructure.length > 0 && isWebTool && base.decision === "ask" && base.rule === null) {
+    return {
+      decision: "allow",
+      reason: reason("engagement.infrastructure", { tool, host: infrastructure.join(", ") }),
+      rule: null,
+    };
+  }
+  return base;
 }
 
 /** Motifs d'un `ask` « souple » (défaut ou règle) : seuls ceux-là cèdent la place au périmètre. */

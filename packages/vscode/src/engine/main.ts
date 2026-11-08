@@ -26,9 +26,12 @@ import {
   createRecorder,
   createWebProgram,
   defaultConfigDir,
+  type EngagementView,
+  isHalted,
   type ProgramStatus,
   prepareContainerProjectWorkspace,
   readActiveProjectForPrompt,
+  readEngagementSync,
   readProgramSync,
   readProjects,
   resolveExegolContainer,
@@ -70,6 +73,14 @@ const programStatus = (): ProgramStatus =>
   activeProjectId === null
     ? { state: "none" }
     : readProgramSync(defaultConfigDir(), activeProjectId);
+// Engagement red team et arrêt d'urgence du projet actif (ADR 0041), relus à chaque décision de la gate.
+const engagementView = (): EngagementView =>
+  activeProjectId === null
+    ? { status: { state: "none" }, halted: false }
+    : {
+        status: readEngagementSync(defaultConfigDir(), activeProjectId),
+        halted: isHalted(defaultConfigDir(), activeProjectId),
+      };
 // Fiche et rythme du projet actif pour l'outil `http_request` (ADR 0040).
 const webProgram = createWebProgram({
   program: programStatus,
@@ -80,6 +91,7 @@ const docker = createDockerClient({ recorder: createRecorder(), timeoutMs: 8_000
 const done = runEngine({
   channel,
   program: programStatus,
+  engagement: engagementView,
   programDraft: (text) => writeProgramDraft(defaultConfigDir(), activeProjectId, text),
   resolveCwd: async (cwd) => {
     projectRoot = cwd;

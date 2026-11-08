@@ -148,6 +148,8 @@ export const REASON_CODES = [
   "engagement.digestRequired",
   "engagement.digestMismatch",
   "engagement.halted",
+  "engagement.out_of_scope",
+  "engagement.infrastructure",
   "finding.labelInvalid",
   "finding.notFound",
   "finding.busy",

@@ -281,6 +281,8 @@ program
       policy,
       recorder,
       program: programProvider,
+      // Engagement et arrêt d'urgence (ADR 0041) : relus à chaque décision de la gate.
+      engagement: () => ({ status: engagementProvider(), halted: haltedProvider() }),
       // Sous win32, Bash n'est analysable que si c'est réellement Git Bash : c'est le cas de Claude
       // (qui l'exige) ; le bash d'OpenCode peut être cmd ou PowerShell, donc rien n'est déclaré.
       workspace: { cwd, ...(opts.agent !== "opencode" && { posixShell: true }) },
