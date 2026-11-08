@@ -15,6 +15,16 @@ const setup = (visible: string[] = []) => {
 };
 
 describe("suivi des approbations en attente", () => {
+  it("ordonne les chats en attente du plus ancien au plus récent", () => {
+    const { watch } = setup();
+    watch.sync("b", ["t1"]);
+    watch.sync("a", ["t2"]);
+    watch.sync("c", ["t3"]);
+    expect(watch.order()).toEqual(["b", "a", "c"]);
+    watch.drop("b");
+    expect(watch.order()).toEqual(["a", "c"]);
+  });
+
   it("compte l'arrivée, la résolution et la fermeture d'un chat", () => {
     const { watch, changes } = setup();
     watch.sync("a", ["t1"]);

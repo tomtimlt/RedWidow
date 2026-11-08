@@ -75,5 +75,11 @@ export function createApprovalWatch(deps: ApprovalWatchDeps) {
     state(): ApprovalWatchState {
       return last;
     },
+    /** Chats ayant une demande en attente, du plus ancien au plus récent (rang de leur première demande). */
+    order(): string[] {
+      const firsts: [string, number][] = [];
+      for (const [chatId, pending] of chats) firsts.push([chatId, Math.min(...pending.values())]);
+      return firsts.sort((a, b) => a[1] - b[1]).map(([chatId]) => chatId);
+    },
   };
 }
