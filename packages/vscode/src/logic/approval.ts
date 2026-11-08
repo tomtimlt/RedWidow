@@ -134,7 +134,12 @@ export type WebviewMessage =
   /** Ouvre la Kill chain en vue plein écran. Aucun champ. */
   | { type: "openKillchain" }
   /** Ouvre le panneau Monitor. Aucun champ : l'hôte seul choisit la colonne. */
-  | { type: "openMonitor" };
+  | { type: "openMonitor" }
+  /** Enregistre le contenu visible du Monitor ou d'une Sortie en texte : l'hôte choisit nom et dossier. */
+  | { type: "exportText"; text: string };
+
+/** Plafond du texte d'un export de page en lecture seule (le même que `media/viewer.js`). */
+export const MAX_EXPORT_TEXT_CHARS = 2_000_000;
 
 /** Valide un message venu de la webview (non fiable) : forme exacte, sinon `null`. */
 export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
@@ -274,6 +279,13 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
     case "openKillchain":
     case "openMonitor":
       return only("type") ? { type: m.type } : null;
+    case "exportText":
+      return only("type", "text") &&
+        typeof m.text === "string" &&
+        m.text.length > 0 &&
+        m.text.length <= MAX_EXPORT_TEXT_CHARS
+        ? { type: "exportText", text: m.text }
+        : null;
     case "setBypass":
       return only("type", "enabled") && typeof m.enabled === "boolean"
         ? { type: "setBypass", enabled: m.enabled }

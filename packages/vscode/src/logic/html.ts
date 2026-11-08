@@ -80,6 +80,8 @@ const ICONS = new Set([
   "bolt",
   "play",
   "chevronRight",
+  "copy",
+  "download",
 ]);
 const icon = (name: string, cls = "ico"): string => {
   if (!ICONS.has(name)) throw new Error(`Pictogramme inconnu : ${name}`);
@@ -521,6 +523,99 @@ export function killchainHtml({
 <script nonce="${nonce}" src="${i18nUri}"></script>
 <script nonce="${nonce}" src="${iconsUri}"></script>
 <script nonce="${nonce}" src="${spiderUri}"></script>
+<script nonce="${nonce}" src="${scriptUri}"></script>
+</body>
+</html>
+`;
+}
+
+export type ViewerKind = "monitor" | "watch" | "report";
+
+export interface ViewerHtmlOptions extends CockpitHtmlOptions {
+  kind: ViewerKind;
+  /** URI webview de `media/ui.js` (extraction des commandes), chargé avant `viewer.js`. */
+  uiUri: string;
+}
+
+/** En-tête de chaque page : nature de la vue, dite en toutes lettres (clé du catalogue). */
+const VIEWER_HEADINGS: Record<ViewerKind, string> = {
+  monitor: "Monitor — lecture seule, ce n'est pas un shell",
+  watch: "Sortie — lecture seule",
+  report: "Rapport — brouillon",
+};
+
+const escapeAttr = (text: string): string =>
+  text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+/**
+ * Pages en lecture seule (Monitor, Sortie, Rapport) : CSP stricte, `viewer.js` seul, aucune donnée
+ * dans le HTML. Aucun composer ni contrôle de chat : une barre d'actions (copier, exporter, suivre
+ * la fin, filtrer) et une zone de contenu remplie en `textContent`.
+ */
+export function viewerHtml({
+  kind,
+  nonce,
+  cspSource,
+  scriptUri,
+  uiUri,
+  styleUri,
+  baseStyleUri = styleUri.replace(/[^/]+$/, "base.css"),
+  iconsUri = scriptUri.replace(/[^/]+$/, "icons.js"),
+  i18nUri = scriptUri.replace(/[^/]+$/, "i18n.js"),
+  locale = "fr",
+  palette,
+}: ViewerHtmlOptions): string {
+  if (!Object.hasOwn(VIEWER_HEADINGS, kind)) throw new Error("valeur invalide pour kind");
+  for (const [name, value] of Object.entries({
+    nonce,
+    cspSource,
+    scriptUri,
+    uiUri,
+    styleUri,
+    baseStyleUri,
+    iconsUri,
+    i18nUri,
+  })) {
+    const ok = name === "cspSource" ? !/["<>]/.test(value) && value !== "" : SAFE.test(value);
+    if (!ok) throw new Error(`valeur invalide pour ${name}`);
+  }
+  const csp = [
+    "default-src 'none'",
+    `script-src 'nonce-${nonce}'`,
+    `style-src ${cspSource}`,
+    `img-src ${cspSource}`,
+    `font-src ${cspSource}`,
+  ].join("; ");
+  const heading = VIEWER_HEADINGS[kind];
+  const label = (key: string): string => `data-i18n="${escapeAttr(key)}">${localized(key, locale)}`;
+  const attr = (name: string, key: string): string =>
+    `data-i18n-${name}="${escapeAttr(key)}" ${name}="${localized(key, locale)}"`;
+  const exportTitle =
+    kind === "report" ? "Exporter le brouillon Markdown" : "Enregistrer le contenu en texte";
+  return `<!doctype html>
+<html lang="${locale === "en" ? "en" : "fr"}">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="${csp}">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="${baseStyleUri}">
+<link rel="stylesheet" href="${styleUri}">
+<title ${label(heading)}</title>
+</head>
+<body class="viewer viewer-${kind}" data-kind="${kind}" data-palette="${paletteOf(palette)}">
+<header id="bar"><h1 id="title" class="viewer-heading"><span ${label(heading)}</span></h1><span id="viewer-context" class="context-title" hidden></span>${kind === "report" ? "" : `<span id="viewer-clock" class="mon-clock" ${attr("title", "Temps écoulé depuis le début du tour")} aria-hidden="true"></span>`}</header>
+<div id="viewer-actions" role="toolbar" ${attr("aria-label", "Actions de la page")}>
+<button id="viewer-copy" type="button" class="ghost" ${attr("title", "Copier tout le contenu visible")}>${icon("copy")}<span class="btn-text"><span ${label("Copier")}</span></span></button>
+<button id="viewer-export" type="button" class="ghost" ${attr("title", exportTitle)}>${icon("download")}<span class="btn-text"><span ${label("Exporter")}</span></span></button>
+<button id="viewer-follow" type="button" class="ghost" aria-pressed="true"${kind === "report" ? " hidden" : ""} ${attr("title", "Désactiver le suivi de la fin pour défiler librement")}>${icon("down")}<span class="btn-text"><span ${label("Suivre la fin")}</span></span></button>
+<input id="viewer-filter" type="search" autocomplete="off" spellcheck="false" ${attr("placeholder", "Filtrer les lignes…")} ${attr("aria-label", "Filtrer les lignes")}>
+<span id="viewer-count" class="mon-count"></span>
+<span id="viewer-status" class="sr-only" role="status" aria-live="polite"></span>
+</div>
+<div id="viewer-layout"><div id="viewer-strip" class="mon-strip" role="group" ${attr("aria-label", "Frise des commandes")} hidden></div><main id="viewer-main" role="main" tabindex="0" ${attr("aria-label", heading)}><div id="viewer-body"></div><p id="viewer-empty" class="empty" hidden></p></main></div>
+<script nonce="${nonce}" src="${i18nUri}"></script>
+<script nonce="${nonce}" src="${iconsUri}"></script>
+<script nonce="${nonce}" src="${uiUri}"></script>
 <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>

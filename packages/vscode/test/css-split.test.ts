@@ -10,6 +10,7 @@ import {
   programHtml,
   sessionsHtml,
   studioHtml,
+  viewerHtml,
 } from "../src/logic/html.js";
 import { CSS_FILES, readCssFile } from "./css.js";
 
@@ -27,6 +28,7 @@ const PAGES: [string, string, (o: CockpitHtmlOptions & { uiUri: string }) => str
   ["sessions", "sessions", sessionsHtml],
   ["studio", "studio", studioHtml],
   ["killchain", "killchain", killchainHtml],
+  ["viewer", "viewer", (o) => viewerHtml({ ...o, kind: "monitor" })],
 ];
 const links = (html: string) =>
   [...html.matchAll(/<link rel="stylesheet" href="([^"]+)">/g)].map((m) => m[1]);
@@ -63,7 +65,7 @@ describe("feuilles de style : base commune puis feuille de page", () => {
 });
 
 describe("fichiers de media/css", () => {
-  it("six feuilles non vides, et plus aucun media/chat.css", () => {
+  it("sept feuilles non vides, et plus aucun media/chat.css", () => {
     for (const name of CSS_FILES) expect(readCssFile(name).length).toBeGreaterThan(200);
     expect(existsSync(here("../media/chat.css"))).toBe(false);
   });
@@ -92,7 +94,7 @@ describe("fichiers de media/css", () => {
 
   it("chaque page nomme sa feuille dans l'extension, et le VSIX embarque media/ en entier", () => {
     const extension = readFileSync(here("../src/extension/extension.ts"), "utf8");
-    for (const sheet of ["chat", "cockpit", "program", "sessions", "studio", "killchain"])
+    for (const sheet of ["chat", "cockpit", "program", "sessions", "studio", "killchain", "viewer"])
       expect(extension).toContain(`"css", "${sheet}.css"`);
     const pack = readFileSync(here("../scripts/package-vsix.mjs"), "utf8");
     expect(pack).toMatch(

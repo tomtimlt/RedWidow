@@ -1,0 +1,553 @@
+/*
+ * Pages en lecture seule (Monitor, Sortie, Rapport). Chargée après base.css ; reprend les composants
+ * d'entrée de commande et de rapport du chat, sans la page du chat. Aucune palette, police ni couleur propre :
+ * uniquement les jetons de base.css.
+ */
+/* ───────────────────────────── Page ───────────────────────────── */
+body.viewer .viewer-heading {
+  margin: 0;
+  font-size: var(--jn-fs);
+  font-weight: 650;
+  letter-spacing: -0.005em;
+}
+body.viewer #bar {
+  gap: 4px var(--jn-s3);
+}
+body.viewer #bar .mon-clock {
+  margin-left: auto;
+}
+body.viewer #viewer-context {
+  min-width: 0;
+  max-width: 40ch;
+  overflow: hidden;
+  white-space: nowrap;
+}
+/* Barre d'actions : copier, exporter, suivre la fin, filtrer */
+#viewer-actions {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--jn-s2);
+  margin-inline: 0;
+  padding: var(--jn-s2) var(--jn-gutter);
+  border-bottom: 1px solid var(--jn-line);
+}
+#viewer-actions button.ghost {
+  min-height: 28px;
+  padding: 0 10px;
+  color: var(--jn-muted);
+}
+#viewer-actions button.ghost:hover:not(:disabled) {
+  color: var(--vscode-foreground);
+}
+#viewer-follow[aria-pressed="true"] {
+  border-color: var(--jn-sig-edge);
+  background: var(--jn-sig-tint);
+  color: var(--vscode-foreground);
+}
+#viewer-follow[aria-pressed="true"] .ico {
+  color: var(--jn-sig);
+}
+#viewer-filter {
+  flex: 1 1 14em;
+  min-width: 0;
+  max-width: 28em;
+  min-height: 28px;
+  padding: 0 12px;
+  color: var(--vscode-input-foreground, var(--vscode-foreground));
+  background: var(--vscode-input-background, var(--jn-raise));
+  border: 1px solid var(--vscode-input-border, var(--jn-line));
+  border-radius: var(--jn-r-pill);
+}
+#viewer-filter:focus-visible {
+  outline: 2px solid var(--jn-focus);
+  outline-offset: 1px;
+}
+#viewer-actions .mon-count {
+  margin-left: auto;
+}
+/* Zone de contenu : seule zone qui défile ; la frise reste à côté */
+#viewer-layout {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  gap: var(--jn-s3);
+  width: calc(100% - 2 * var(--jn-gutter));
+  margin: 0 auto;
+}
+#viewer-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s3);
+  padding: var(--jn-s3) 0 var(--jn-s4);
+}
+#viewer-main:focus-visible {
+  outline-offset: -2px;
+}
+body.viewer-report #viewer-main > #viewer-body,
+body.viewer-monitor #viewer-main > #viewer-body,
+body.viewer-watch #viewer-main > #viewer-body {
+  width: min(860px, 100%);
+  margin-inline: auto;
+}
+#viewer-empty {
+  margin: auto;
+  padding: var(--jn-s5) var(--jn-s4);
+  border: 1px dashed var(--jn-line-strong);
+  border-radius: var(--jn-r-lg);
+  text-align: center;
+  font-style: normal;
+}
+/* ───────────────────────────── Commandes ───────────────────────────── */
+.mon-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s3);
+}
+.mon-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--jn-s3);
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+  background: var(--jn-widget);
+  box-shadow: inset var(--jn-rail) 0 0 var(--jn-faint);
+  transition:
+    border-color var(--jn-d1) var(--jn-ease-io),
+    box-shadow var(--jn-d2) var(--jn-ease-io),
+    transform var(--jn-d2) var(--jn-ease-out);
+}
+.mon-row > :not(.mon-cmd):not(.mon-meta) {
+  grid-column: 1 / -1;
+}
+.mon-row.tone-err {
+  border-color: color-mix(in srgb, var(--jn-err) 45%, var(--jn-line));
+  box-shadow: inset var(--jn-rail) 0 0 var(--jn-err);
+}
+.mon-row.tone-ok {
+  box-shadow: inset var(--jn-rail) 0 0 var(--jn-ok);
+}
+.mon-row.tone-wait {
+  border-color: color-mix(in srgb, var(--jn-warn) 40%, var(--jn-line));
+  box-shadow: inset var(--jn-rail) 0 0 var(--jn-warn);
+}
+.mon-cmd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  min-width: 0;
+  padding: 10px 0 10px 14px;
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-sm);
+}
+.mon-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--jn-faint);
+}
+.tone-ok .mon-dot {
+  background: var(--jn-ok);
+}
+.tone-err .mon-dot {
+  background: var(--jn-err);
+}
+.tone-wait .mon-dot {
+  background: var(--jn-warn);
+}
+.mon-cmd .prompt {
+  color: var(--jn-muted);
+}
+.mon-space {
+  padding: 1px 8px;
+  border-radius: var(--jn-r-pill);
+  background: var(--jn-sig-tint);
+  color: var(--jn-sig) !important;
+  font-size: var(--jn-fs-xs);
+}
+.mon-text {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 1em;
+  font-weight: 600;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.mon-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--jn-s2);
+  margin: 0;
+  padding-right: 12px;
+  font-size: var(--jn-fs-xs);
+}
+.mon-meta .badge {
+  height: 20px;
+  padding: 0 9px;
+  font-family: var(--jn-font);
+  font-size: var(--jn-fs-2xs);
+  font-weight: 600;
+}
+.mon-row.tone-err .mon-meta .badge {
+  color: var(--jn-err);
+  border-color: color-mix(in srgb, var(--jn-err) 45%, transparent);
+  background: color-mix(in srgb, var(--jn-err) 10%, transparent);
+}
+.mon-row.tone-ok .mon-meta .badge {
+  color: var(--jn-ok);
+  border-color: color-mix(in srgb, var(--jn-ok) 45%, transparent);
+  background: color-mix(in srgb, var(--jn-ok) 10%, transparent);
+}
+.mon-row.tone-wait .mon-meta .badge {
+  color: var(--jn-warn);
+  border-color: color-mix(in srgb, var(--jn-warn) 45%, transparent);
+  background: color-mix(in srgb, var(--jn-warn) 10%, transparent);
+}
+.mon-out {
+  margin: 0;
+  padding: 10px 14px 12px 16px;
+  max-height: 240px;
+  overflow: auto;
+  border-top: 1px solid var(--jn-line);
+  border-radius: 0;
+  background: var(--jn-inset);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-sm);
+  line-height: 1.6;
+}
+.mon-row > .note {
+  margin: 0;
+  padding: 6px 16px 8px;
+  border-top: 1px dashed var(--jn-line);
+  background: var(--jn-inset);
+}
+.mon-open {
+  min-height: 24px;
+  padding: 0 10px;
+  font-size: var(--jn-fs-xs);
+  color: var(--jn-sig);
+}
+body.viewer-watch .mon-out {
+  max-height: none;
+  min-height: 50vh;
+}
+@container app (max-width: 419px) {
+  #viewer-filter {
+    flex-basis: 100%;
+    max-width: none;
+  }
+  .mon-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .mon-meta {
+    justify-content: flex-start;
+    padding: 0 12px 10px 14px;
+  }
+  .mon-cmd {
+    padding-right: 12px;
+  }
+}
+/* Frise : un trait par commande, état en couleur */
+.mon-strip {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  min-height: 22px;
+  margin-top: 8px;
+  padding: 4px 6px;
+  overflow-x: auto;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-pill);
+  background: var(--jn-raise);
+}
+.mon-tick {
+  flex: 0 0 auto;
+  width: 6px;
+  min-width: 6px;
+  height: 12px;
+  min-height: 12px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--jn-r-pill);
+  background: var(--jn-faint);
+  transition:
+    height var(--jn-d2) var(--jn-ease-out),
+    background-color var(--jn-d1) var(--jn-ease-io);
+}
+.mon-tick.tone-ok {
+  background: var(--jn-ok);
+}
+.mon-tick.tone-wait {
+  background: var(--jn-warn);
+}
+.mon-tick.tone-err {
+  background: var(--jn-err);
+  height: 14px;
+}
+.mon-tick:hover,
+.mon-tick:focus-visible {
+  height: 16px;
+}
+.mon-tick:focus-visible {
+  outline-offset: 2px;
+}
+body.vscode-high-contrast .mon-tick,
+body.vscode-high-contrast-light .mon-tick {
+  border: 1px solid var(--vscode-contrastBorder, currentColor);
+}
+body.viewer-monitor .mon-strip {
+  width: 30px;
+  flex: 0 0 30px;
+  flex-direction: column;
+  align-items: center;
+  align-self: stretch;
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin: var(--jn-s3) 0;
+  padding: 6px 3px;
+  border-radius: 8px;
+}
+body.viewer-monitor .mon-tick {
+  width: 12px;
+  min-width: 12px;
+  height: 7px;
+  min-height: 7px;
+}
+body.viewer-monitor .mon-tick:hover,
+body.viewer-monitor .mon-tick:focus-visible {
+  width: 18px;
+}
+/* Sortie numérotée : le numéro est une donnée (data-n), les lignes masquées par le filtre gardent leur rang. */
+.mon-line {
+  display: block;
+  min-height: 1.6em;
+  padding-left: 3.2em;
+  text-indent: -3.2em;
+}
+.mon-line::before {
+  content: attr(data-n);
+  display: inline-block;
+  width: 2.4em;
+  margin-right: 0.8em;
+  text-align: right;
+  text-indent: 0;
+  color: var(--jn-faint);
+  user-select: none;
+}
+.mon-row.is-flash {
+  border-color: var(--jn-sig-edge);
+}
+.mon-clock {
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--jn-sig);
+}
+.mon-clock:empty {
+  display: none;
+}
+.mon-count {
+  padding: 2px 9px;
+  border-radius: var(--jn-r-pill);
+  background: var(--jn-raise-2);
+  color: var(--jn-muted);
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-2xs);
+  font-variant-numeric: tabular-nums;
+}
+.mon-count:empty {
+  display: none;
+}
+/* ───────────────────────────── Rapport ───────────────────────────── */
+.sev-critical {
+  --jn-sev: var(--jn-sev-critical);
+}
+.sev-high {
+  --jn-sev: var(--jn-sev-high);
+}
+.sev-medium {
+  --jn-sev: var(--jn-sev-medium);
+}
+.sev-low {
+  --jn-sev: var(--jn-sev-low);
+}
+.sev-info {
+  --jn-sev: var(--jn-sev-info);
+}
+.sev-unrated {
+  --jn-sev: var(--jn-muted);
+}
+.report {
+  padding: 14px 16px 12px;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+  background: var(--jn-widget);
+}
+.report-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.report-ico {
+  color: var(--jn-sig);
+}
+.report-title {
+  margin: 0;
+  font-size: var(--jn-fs);
+  font-weight: 650;
+}
+.report-count {
+  margin-left: auto;
+  padding: 2px 9px;
+  border-radius: var(--jn-r-pill);
+  background: var(--jn-raise-2);
+  color: var(--jn-muted);
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-2xs);
+}
+.report-bar {
+  display: flex;
+  gap: 2px;
+  height: 6px;
+  margin-top: 12px;
+  overflow: hidden;
+  border-radius: var(--jn-r-pill);
+}
+.report-seg {
+  flex: 1 1 0;
+  min-width: 6px;
+  background: var(--jn-sev);
+}
+.report-summary {
+  margin: 6px 0 10px;
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-2xs);
+  color: var(--jn-muted);
+}
+.report-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--jn-line);
+}
+.report-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--jn-line);
+}
+.report-item:last-child {
+  border-bottom: 0;
+}
+.report-sev {
+  flex: none;
+  min-width: 64px;
+  padding: 2px 8px;
+  border-radius: var(--jn-r-pill);
+  background: color-mix(in srgb, var(--jn-sev) 16%, transparent);
+  color: var(--jn-sev);
+  font-size: var(--jn-fs-2xs);
+  font-weight: 700;
+  text-align: center;
+}
+.sev-info .report-sev {
+  color: var(--jn-muted);
+}
+.report-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.report-label {
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+.report-detail {
+  font-size: var(--jn-fs-xs);
+  color: var(--jn-muted);
+}
+body.vscode-high-contrast .report-sev,
+body.vscode-high-contrast-light .report-sev {
+  border: 1px solid currentColor;
+  color: var(--vscode-foreground);
+}
+body.vscode-high-contrast .report-seg,
+body.vscode-high-contrast-light .report-seg {
+  background: var(--vscode-foreground);
+}
+@container app (max-width: 359px) {
+  .report {
+    padding: 12px;
+  }
+  .report-item {
+    flex-direction: column;
+    gap: 4px;
+  }
+}
+.report-caption {
+  color: var(--jn-muted);
+  font-size: var(--jn-fs-sm);
+}
+.mon-out.is-plain {
+  padding-inline-start: var(--jn-s3);
+}
+.note {
+  margin: 6px 0 0;
+  font-size: var(--jn-fs-xs);
+  font-style: italic;
+  color: var(--jn-muted);
+}
+/* Une teinte stable par espace (data-hue calculé dans viewer.js), palette multi. */
+.mon-space[data-hue="1"] {
+  --jn-hue: var(--jn-rb-1);
+}
+body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contrast-light))
+  .mon-space[data-hue="2"] {
+  --jn-hue: var(--jn-rb-2);
+}
+body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contrast-light))
+  .mon-space[data-hue="3"] {
+  --jn-hue: var(--jn-rb-3);
+}
+body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contrast-light))
+  .mon-space[data-hue="4"] {
+  --jn-hue: var(--jn-rb-4);
+}
+body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contrast-light))
+  .mon-space[data-hue="5"] {
+  --jn-hue: var(--jn-rb-5);
+}
+body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contrast-light))
+  .mon-space[data-hue="6"] {
+  --jn-hue: var(--jn-rb-6);
+}
+body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contrast-light))
+  .mon-space[data-hue] {
+  color: var(--vscode-foreground);
+  background: color-mix(in srgb, var(--jn-hue) 14%, transparent);
+}

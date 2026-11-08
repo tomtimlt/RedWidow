@@ -84,6 +84,8 @@ import {
   programHtml,
   sessionsHtml,
   studioHtml,
+  type ViewerKind,
+  viewerHtml,
 } from "../logic/html.js";
 import { matchesFingerprint } from "../logic/integrity.js";
 import { killchainImage } from "../logic/killchain-image.js";
@@ -1764,6 +1766,51 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       styleUri: webview.asWebviewUri(vscode.Uri.joinPath(media, "css", "chat.css")).toString(),
     });
   };
+  /** Monitor, Sortie et Rapport : pages en lecture seule, sans composer ni contrôle de chat. */
+  const mountViewerHtml = (webview: vscode.Webview, kind: ViewerKind) => {
+    const media = vscode.Uri.joinPath(context.extensionUri, "media");
+    const uri = (...parts: string[]) =>
+      webview.asWebviewUri(vscode.Uri.joinPath(media, ...parts)).toString();
+    webview.html = viewerHtml({
+      kind,
+      locale: getUiLocale(),
+      palette: currentPalette(),
+      nonce: makeNonce(),
+      cspSource: webview.cspSource,
+      i18nUri: uri("i18n.js"),
+      iconsUri: uri("icons.js"),
+      uiUri: uri("ui.js"),
+      scriptUri: uri("viewer.js"),
+      styleUri: uri("css", "viewer.css"),
+    });
+  };
+  /** Enregistre le contenu visible d'une page en lecture seule ; nom et dossier restent au choix de l'utilisateur. */
+  const exportViewerText = async (kind: "monitor" | "watch", text: string) => {
+    try {
+      const folder = vscode.workspace.workspaceFolders?.[0]?.uri;
+      const name = kind === "monitor" ? "monitor-warband.txt" : "sortie-warband.txt";
+      const destination = await vscode.window.showSaveDialog({
+        title:
+          kind === "monitor"
+            ? t("Enregistrer le contenu du Monitor en texte")
+            : t("Enregistrer la sortie en texte"),
+        ...(folder && { defaultUri: vscode.Uri.joinPath(folder, name) }),
+        filters: { [t("Texte")]: ["txt"] },
+      });
+      if (!destination) return;
+      if (
+        vscode.workspace.textDocuments.some(
+          (document) => document.isDirty && document.uri.toString() === destination.toString(),
+        )
+      )
+        throw new Error(
+          t("Ce fichier contient des modifications non enregistrées. Choisissez un autre nom."),
+        );
+      await vscode.workspace.fs.writeFile(destination, Buffer.from(text, "utf8"));
+    } catch (error) {
+      void vscode.window.showErrorMessage(formatError(error, getUiLocale()));
+    }
+  };
   const nextChatId = () => {
     let id = "";
     do {
@@ -1857,16 +1904,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     panel.iconPath = vscode.Uri.joinPath(media, "logo-small.svg");
     const watch = { panel, chatId, toolUseId };
     watches.push(watch);
-    mountChatHtml(panel.webview);
+    mountViewerHtml(panel.webview, "watch");
     panel.onDidDispose(() => {
       const at = watches.indexOf(watch);
       if (at >= 0) watches.splice(at, 1);
     });
     panel.webview.onDidReceiveMessage((raw: unknown) => {
       const message = parseWebviewMessage(raw);
+      if (message?.type === "exportText") {
+        void exportViewerText("watch", message.text);
+        return;
+      }
       if (message?.type !== "ready") return;
       void panel.webview.postMessage(localeMessage());
-      void panel.webview.postMessage({ type: "role", role: "watch", toolUseId });
       const view = slots.get(chatId)?.session?.view();
       if (view)
         void panel.webview.postMessage({
@@ -2152,23 +2202,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     );
     panel.iconPath = vscode.Uri.joinPath(media, "logo-small.svg");
     monitorPanel = panel;
-    mountChatHtml(panel.webview);
+    mountViewerHtml(panel.webview, "monitor");
     panel.onDidDispose(() => {
       monitorPanel = undefined;
       void saveWindows();
     });
     panel.webview.onDidReceiveMessage((raw: unknown) => {
       const message = parseWebviewMessage(raw);
-      if (message?.type === "timelinePage") {
-        return slots.get(activeId)?.session?.timelinePage(message.direction);
-      }
       if (message?.type === "watch") {
         openWatch(message.toolUseId);
         return;
       }
+      if (message?.type === "exportText") {
+        void exportViewerText("monitor", message.text);
+        return;
+      }
       if (message?.type !== "ready") return;
       void panel.webview.postMessage(localeMessage());
-      void panel.webview.postMessage({ type: "role", role: "monitor" });
       pushMonitor();
     });
     void saveWindows();
@@ -2602,7 +2652,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         if (panel !== reportPanel || generation !== findingProjectGeneration) return;
         if (parseWebviewMessage(raw)?.type === "ready") {
           await panel.webview.postMessage(localeMessage());
-          await panel.webview.postMessage({ type: "role", role: "report" });
           refreshReportLocale();
         } else {
           const message = parseStudioMessage(raw);
@@ -2610,7 +2659,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             await exportMissionReport(project.id);
         }
       });
-      mountChatHtml(panel.webview);
+      mountViewerHtml(panel.webview, "report");
     } catch (error) {
       void vscode.window.showErrorMessage(formatError(error, getUiLocale()));
     }

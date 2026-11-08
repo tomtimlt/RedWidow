@@ -9,6 +9,7 @@ import { redwidowEn } from "./ui-domains/redwidow.js";
 import { resourcesEn } from "./ui-domains/resources.js";
 import { sessionsEn } from "./ui-domains/sessions.js";
 import { studioEn } from "./ui-domains/studio.js";
+import { viewerEn } from "./ui-domains/viewer.js";
 
 /** Les clés sont les textes produit français ; les valeurs dynamiques restent des données. */
 export const UI_EN: Readonly<Record<string, string>> = {
@@ -22,6 +23,7 @@ export const UI_EN: Readonly<Record<string, string>> = {
   ...redwidowEn,
   ...programEn,
   ...sessionsEn,
+  ...viewerEn,
 };
 let currentLocale: Locale = "fr";
 export const getUiLocale = (): Locale => currentLocale;

@@ -242,6 +242,20 @@ function execState() {
     stream: "stdout",
     line: "80/tcp open  http",
   });
+  e({
+    id: "o3",
+    parentId: "proc",
+    kind: "process.output",
+    stream: "stdout",
+    line: "22/tcp closed ssh",
+  });
+  e({
+    id: "o4",
+    parentId: "proc",
+    kind: "process.output",
+    stream: "stdout",
+    line: "443/tcp open  https",
+  });
   return s;
 }
 
@@ -564,6 +578,21 @@ const simple = (name, make, script, messages, extra = {}) => ({
   messages,
   ...extra,
 });
+// Pages en lecture seule (Monitor, Sortie, Rapport) : viewer.js, sans le chat.
+const viewerPage = (name, kind, messages, extra = {}) => ({
+  name,
+  html: (o) =>
+    L.viewerHtml({
+      ...o,
+      kind,
+      i18nUri: "/media/i18n.js",
+      scriptUri: "/media/viewer.js",
+      uiUri: "/media/ui.js",
+      styleUri: "/media/css/viewer.css",
+    }),
+  messages,
+  ...extra,
+});
 const PAGES = [
   chatPage("chat-conversation", [{ type: "view", view: chatView({ approval: true }) }, CONTAINERS]),
   chatPage("chat-accueil", [{ type: "view", view: chatView({ conversation: false }) }, CONTAINERS]),
@@ -593,17 +622,20 @@ const PAGES = [
   chatPage("chat-reglages-popover", [{ type: "view", view: chatView() }, CONTAINERS], {
     click: "cfg-btn",
   }),
-  chatPage("monitor", [
-    { type: "role", role: "monitor" },
+  viewerPage("monitor", "monitor", [
     { type: "title", text: "Laboratoire" },
     { type: "view", view: L.monitorChatView(execState().view()) },
   ]),
-  chatPage("sortie", [
-    { type: "role", role: "watch", toolUseId: "scan" },
+  viewerPage("sortie", "watch", [
     { type: "view", view: L.monitorChatView(execState().view(), "scan") },
   ]),
-  chatPage("rapport", [
-    { type: "role", role: "report" },
+  viewerPage(
+    "sortie-filtre",
+    "watch",
+    [{ type: "view", view: L.monitorChatView(execState().view(), "scan") }],
+    { filter: "open" },
+  ),
+  viewerPage("rapport", "report", [
     {
       type: "view",
       view: {
@@ -748,6 +780,10 @@ try {
           await tab.waitForTimeout(250);
           for (const m of page.after ?? [])
             await tab.evaluate((msg) => window.postMessage(msg, "*"), m);
+          await tab.waitForTimeout(150);
+        }
+        if (page.filter) {
+          await tab.fill("#viewer-filter", page.filter);
           await tab.waitForTimeout(150);
         }
         if (page.click) {

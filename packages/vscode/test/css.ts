@@ -9,6 +9,7 @@ export const CSS_FILES = [
   "program",
   "sessions",
   "killchain",
+  "viewer",
 ] as const;
 export type CssFile = (typeof CSS_FILES)[number];
 
