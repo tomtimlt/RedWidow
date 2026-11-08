@@ -133,7 +133,7 @@ describe("jauge de contexte", () => {
     expect(ui.formatTokens(999_000)).toBe("999 k");
   });
   it("jetons : millions selon la langue de l'interface", () => {
-    const g = globalThis as unknown as { WarbandI18n?: { getLocale: () => string } };
+    const g = globalThis as unknown as { WarbandI18n: { getLocale: () => string } | undefined };
     const avant = g.WarbandI18n;
     try {
       g.WarbandI18n = { getLocale: () => "fr" };
