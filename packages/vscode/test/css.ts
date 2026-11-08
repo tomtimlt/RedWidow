@@ -7,6 +7,7 @@ export const CSS_FILES = [
   "studio",
   "cockpit",
   "program",
+  "engagement",
   "sessions",
   "killchain",
   "viewer",

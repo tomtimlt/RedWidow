@@ -6,6 +6,7 @@ import {
   type CockpitHtmlOptions,
   chatHtml,
   cockpitHtml,
+  engagementHtml,
   killchainHtml,
   programHtml,
   sessionsHtml,
@@ -25,6 +26,7 @@ const PAGES: [string, string, (o: CockpitHtmlOptions & { uiUri: string }) => str
   ["chat", "chat", chatHtml],
   ["cockpit", "cockpit", cockpitHtml],
   ["program", "program", programHtml],
+  ["engagement", "engagement", engagementHtml],
   ["sessions", "sessions", sessionsHtml],
   ["studio", "studio", studioHtml],
   ["killchain", "killchain", killchainHtml],
@@ -108,5 +110,19 @@ describe("fichiers de media/css", () => {
     const rules = program.replace(/\/\*[\s\S]*?\*\//g, "").match(/[^{}]+\{[^{}]*\}/g) ?? [];
     expect(rules.length).toBeGreaterThan(5);
     for (const rule of rules) expect(cockpit, rule.slice(0, 60)).toContain(rule.trim());
+  });
+
+  it("la page Engagement reprend les règles de la fiche programme et n'emprunte pas cockpit.css", () => {
+    const engagement = readCssFile("engagement");
+    const program = readCssFile("program");
+    const rules = program.replace(/\/\*[\s\S]*?\*\//g, "").match(/[^{}]+\{[^{}]*\}/g) ?? [];
+    expect(rules.length).toBeGreaterThan(5);
+    for (const rule of rules) expect(engagement, rule.slice(0, 60)).toContain(rule.trim());
+    expect(engagement).toContain(".eng-halt");
+    expect(engagement).toContain("var(--jn-warn)");
+    // Aucune couleur ni police propre : seulement les jetons de la base.
+    expect(engagement.replace(/\/\*[\s\S]*?\*\//g, "")).not.toMatch(
+      /#[0-9a-fA-F]{3,8}\b|rgba?\(|font-family:(?!\s*var\()/,
+    );
   });
 });

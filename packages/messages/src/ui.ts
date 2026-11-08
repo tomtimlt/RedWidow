@@ -2,6 +2,7 @@ import type { Locale } from "./catalog.js";
 import { AUDIT_LABELS, auditEn } from "./ui-domains/audit.js";
 import { chatEn } from "./ui-domains/chat.js";
 import { cockpitEn } from "./ui-domains/cockpit.js";
+import { engagementEn } from "./ui-domains/engagement.js";
 import { hostEn } from "./ui-domains/host.js";
 import { logicEn } from "./ui-domains/logic.js";
 import { programEn } from "./ui-domains/program.js";
@@ -22,6 +23,7 @@ export const UI_EN: Readonly<Record<string, string>> = {
   ...auditEn,
   ...redwidowEn,
   ...programEn,
+  ...engagementEn,
   ...sessionsEn,
   ...viewerEn,
 };

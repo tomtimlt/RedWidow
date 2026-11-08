@@ -1,4 +1,3 @@
-"use strict";
 (() => {
   // packages/messages/src/ui-domains/audit.ts
   var auditEn = {
@@ -500,6 +499,88 @@
     Téléchargement: "Downloading",
     Extraction: "Extracting",
     Annulé: "Cancelled",
+  };
+
+  // packages/messages/src/ui-domains/engagement.ts
+  var engagementEn = {
+    Engagement: "Engagement",
+    "Engagement…": "Engagement…",
+    "Aucun engagement": "no engagement",
+    "Aucun engagement pour ce projet.": "No engagement for this project.",
+    "Aucun plan de campagne pour ce projet.": "No campaign plan for this project.",
+    "Arrêt d'urgence": "Emergency halt",
+    "ARRÊT D'URGENCE ACTIF": "EMERGENCY HALT ACTIVE",
+    "arrêt d'urgence actif": "emergency halt active",
+    "Posé le": "Set on",
+    "Les actions de l'agent sont refusées.": "The agent's actions are refused.",
+    "Inactif. Un geste suffit pour refuser toute action de l'agent sur ce projet.":
+      "Inactive. One gesture is enough to refuse every agent action on this project.",
+    "Lever l'arrêt…": "Lift the halt…",
+    "Activer…": "Activate…",
+    Autorisation: "Authorization",
+    Mandant: "Principal",
+    Référence: "Reference",
+    Signataire: "Signatory",
+    "Fenêtre d'engagement": "Engagement window",
+    Période: "Period",
+    Début: "Start",
+    Fin: "End",
+    "Infrastructure de l'agent": "Agent infrastructure",
+    "Règles d'engagement": "Rules of engagement",
+    "White team": "White team",
+    Contact: "Contact",
+    Déconfliction: "Deconfliction",
+    Notes: "Notes",
+    "Politique OSINT": "OSINT policy",
+    "Valider l'engagement…": "Validate the engagement…",
+    Réussie: "Succeeded",
+    Partielle: "Partial",
+    Échec: "Failed",
+    Bloquée: "Blocked",
+    "Plan de campagne": "Campaign plan",
+    "Synthèse de la menace": "Threat summary",
+    Objectifs: "Objectives",
+    Étapes: "Steps",
+    Exécutée: "Executed",
+    "À faire": "To do",
+    "Valider le plan…": "Validate the plan…",
+    "Journal d'opérations": "Operator log",
+    "Aucune étape enregistrée.": "No step recorded.",
+    Horodatage: "Timestamp",
+    Technique: "Technique",
+    Résultat: "Result",
+    "{0} lignes sur {1} (les plus récentes).": "{0} of {1} rows (the most recent).",
+    Clôture: "Closure",
+    "Aucune liste de démontage.": "No teardown list.",
+    "Démontage terminé": "Teardown complete",
+    "{0} élément(s) restant(s)": "{0} item(s) remaining",
+    "Fait le": "Done on",
+    "Valider l'engagement ?": "Validate the engagement?",
+    "Valider l'engagement": "Validate the engagement",
+    "Empreinte : {0}\n\nL'engagement devient la référence de l'autorisation, du périmètre, de l'infrastructure et des règles pour ce projet. Vérifiez qu'il correspond à la lettre de mission signée.":
+      "Digest: {0}\n\nThe engagement becomes the reference for authorization, scope, infrastructure and rules for this project. Check that it matches the signed engagement letter.",
+    "Suspendre l'engagement ?": "Suspend the engagement?",
+    "L'engagement cesse de s'appliquer ; la fiche et son empreinte sont conservées.":
+      "The engagement stops applying; the sheet and its digest are kept.",
+    "Valider le plan de campagne ?": "Validate the campaign plan?",
+    "Valider le plan": "Validate the plan",
+    "Empreinte : {0}\n\nLe plan devient la référence des objectifs, des étapes et de la liste de démontage. Les étapes enregistrées par l'agent seront comparées à ce plan.":
+      "Digest: {0}\n\nThe plan becomes the reference for objectives, steps and the teardown list. Steps recorded by the agent will be checked against this plan.",
+    "Suspendre le plan de campagne ?": "Suspend the campaign plan?",
+    "Le plan cesse de s'appliquer ; le plan et son empreinte sont conservés.":
+      "The plan stops applying; the plan and its digest are kept.",
+    "Activer l'arrêt d'urgence ?": "Activate the emergency halt?",
+    "Toute action de l'agent sur ce projet sera refusée jusqu'à la levée de l'arrêt. L'arrêt reste actif si VS Code est fermé.":
+      "Every agent action on this project will be refused until the halt is lifted. The halt stays active if VS Code is closed.",
+    "Activer l'arrêt": "Activate the halt",
+    "Lever l'arrêt d'urgence ?": "Lift the emergency halt?",
+    "L'agent pourra de nouveau agir dans le cadre de l'engagement validé. Vérifiez avec la white team que la reprise est autorisée.":
+      "The agent will be able to act again within the validated engagement. Check with the white team that resuming is authorized.",
+    "Lever l'arrêt": "Lift the halt",
+    "Importer l'engagement": "Import the engagement",
+    "Importer le plan": "Import the plan",
+    "Ce fichier est trop volumineux pour un engagement ou un plan.":
+      "This file is too large for an engagement or a plan.",
   };
 
   // packages/messages/src/ui-domains/host.ts
@@ -1482,6 +1563,7 @@
     ...auditEn,
     ...redwidowEn,
     ...programEn,
+    ...engagementEn,
     ...sessionsEn,
     ...viewerEn,
   };

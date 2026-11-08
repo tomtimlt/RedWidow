@@ -1,0 +1,236 @@
+/*
+ * Page « Engagement » (red team). Chargée après base.css. Reprend les règles de la fiche programme
+ * (elles-mêmes copiées du cockpit : la page ne charge pas cockpit.css), puis ajoute ses propres
+ * règles : bandeau d'arrêt d'urgence, plan de campagne, journal et clôture. Mêmes jetons que le
+ * reste de l'interface : aucune couleur, police ni palette propre.
+ */
+/* ───────────────────────────── Cockpit (application complète) ───────────────────────────── */
+body.cockpit #bar #refresh {
+  margin-left: auto;
+}
+body.cockpit #main {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--jn-s3) 0 var(--jn-s5);
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+@container app (min-width: 600px) {
+  body.cockpit #main {
+    width: min(860px, calc(100% - 2 * var(--jn-gutter)));
+    margin-inline: auto;
+  }
+}
+body.cockpit #main > * {
+  animation: jn-msg-in var(--jn-d2) var(--jn-ease-out) 1 both;
+}
+body.cockpit #main > :nth-child(2) {
+  animation-delay: 40ms;
+}
+body.cockpit #main > :nth-child(3) {
+  animation-delay: 80ms;
+}
+body.cockpit section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s2);
+  min-width: 0;
+}
+.cockpit-h {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+  margin: 0;
+  font-family: var(--jn-font);
+  font-size: var(--jn-fs-xs);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--jn-muted);
+}
+body.cockpit .tone-ok .dot {
+  background: var(--jn-ok);
+}
+body.cockpit .tone-warn .dot {
+  background: var(--jn-warn);
+}
+body.cockpit .tone-err .dot {
+  background: var(--jn-err);
+}
+.cockpit-tile {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--jn-fs-sm);
+}
+.cockpit-tile-label {
+  color: var(--jn-muted);
+}
+.cockpit-tile.tone-err {
+  border-color: color-mix(in srgb, var(--jn-err) 50%, var(--jn-line));
+}
+.cockpit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--jn-s2);
+}
+.cockpit-actions button,
+.cockpit-row-act button {
+  min-height: 30px;
+}
+.cockpit-notice,
+.cockpit-error {
+  margin: 0;
+  padding: var(--jn-s3);
+  border-radius: var(--jn-r-md);
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  border: 1px solid var(--jn-line);
+  border-left: 2px solid var(--jn-accent);
+}
+.cockpit-error {
+  color: var(--jn-err);
+  border-color: color-mix(in srgb, var(--jn-err) 50%, var(--jn-line));
+  border-left-color: var(--jn-err);
+}
+/* ───────────────────────────── Engagement ───────────────────────────── */
+.eng-halt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--jn-s3);
+  padding: var(--jn-s4);
+  border-radius: var(--jn-r-md);
+  border: 2px solid var(--jn-warn);
+  background: color-mix(in srgb, var(--jn-warn) 12%, var(--jn-widget));
+  color: var(--vscode-foreground);
+}
+.eng-halt.is-on {
+  background: color-mix(in srgb, var(--jn-warn) 30%, var(--jn-widget));
+  border-width: 3px;
+}
+.eng-halt-text {
+  flex: 1 1 220px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.eng-halt-title {
+  font-size: var(--jn-fs-lg);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.eng-halt-sub {
+  font-size: var(--jn-fs-sm);
+  overflow-wrap: anywhere;
+}
+.eng-halt button {
+  min-height: 36px;
+  padding-inline: var(--jn-s4);
+  font-weight: 600;
+  border: 2px solid var(--jn-warn);
+}
+.eng-grid {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--jn-s1) var(--jn-s3);
+  margin: 0;
+}
+.eng-grid dt {
+  color: var(--jn-muted);
+}
+.eng-grid dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.eng-text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.eng-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s3);
+}
+.eng-bar {
+  flex: 1;
+  height: 6px;
+  border-radius: var(--jn-r-pill);
+  background: var(--jn-line);
+  overflow: hidden;
+}
+.eng-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--jn-accent);
+}
+.eng-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s1);
+}
+.eng-step {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--jn-s2);
+  padding: var(--jn-s2) var(--jn-s3);
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+  min-width: 0;
+}
+.eng-step.is-done {
+  border-color: color-mix(in srgb, var(--jn-ok) 45%, var(--jn-line));
+}
+.eng-step-label {
+  flex: 1 1 200px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.eng-tag {
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-xs);
+  color: var(--jn-muted);
+}
+.eng-table-wrap {
+  overflow-x: auto;
+}
+.eng-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--jn-fs-sm);
+}
+.eng-table th,
+.eng-table td {
+  padding: var(--jn-s1) var(--jn-s3);
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--jn-line);
+  overflow-wrap: anywhere;
+}
+.eng-table th {
+  color: var(--jn-muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.eng-table td.mono {
+  font-family: var(--jn-mono);
+}
+.eng-result-success {
+  color: var(--jn-ok);
+}
+.eng-result-failed,
+.eng-result-blocked {
+  color: var(--jn-err);
+}
+.eng-result-partial {
+  color: var(--jn-warn);
+}
