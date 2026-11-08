@@ -645,6 +645,7 @@ try {
           viewport: { width: size.width, height: size.height },
           deviceScaleFactor: 1,
           colorScheme: themeName,
+          reducedMotion: "reduce",
         });
         const tab = await ctx.newPage();
         const errors = [];
@@ -661,6 +662,13 @@ try {
           await tab.evaluate((id) => document.getElementById(id)?.click(), page.click);
           await tab.waitForTimeout(150);
         }
+        // Captures stables : animations et transitions figées à leur début.
+        await tab.evaluate(() => {
+          for (const a of document.getAnimations()) {
+            a.pause();
+            a.currentTime = 0;
+          }
+        });
         if (page.tall) {
           const extra = await tab.evaluate(() => {
             let more = document.documentElement.scrollHeight - innerHeight;
