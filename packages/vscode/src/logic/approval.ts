@@ -13,6 +13,7 @@ import {
   parseCapabilityToggle,
 } from "./chat-capabilities.js";
 import { isProvider, type Provider } from "./effort.js";
+import { MENTION_KINDS, MENTION_MAX_QUERY, type MentionKind } from "./mentions.js";
 import { summarizeInput, toolLabel } from "./present.js";
 
 /** Plafond du texte d'entrée d'outil affiché dans une carte (caractères). */
@@ -119,6 +120,10 @@ export type WebviewMessage =
   | { type: "refreshModels" }
   /** Menu `#` ouvert : l'hôte renvoie la liste des terminaux avec leur dernière commande. */
   | { type: "refreshTerminals" }
+  /** Menu `@` : texte recherché (fichiers de l'espace de travail, entrées spéciales). */
+  | { type: "mentionQuery"; query: string }
+  /** Choix d'une mention à joindre : l'hôte relit et revalide (chemin, plafonds), jamais la webview. */
+  | { type: "mentionAttach"; requestId: string; kind: MentionKind; path?: string }
   /** Ouvre la sortie d'un exec en lecture seule. `toolUseId` est celui de la vue, pas une commande. */
   | { type: "watch"; toolUseId: string }
   | { type: "approve"; toolUseId: string; choice: Choice }
@@ -235,6 +240,28 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
         m.title.length <= 1000
         ? { type: "historyRename", id: m.id, title: m.title }
         : null;
+    case "mentionQuery":
+      return only("type", "query") &&
+        typeof m.query === "string" &&
+        m.query.length <= MENTION_MAX_QUERY
+        ? { type: "mentionQuery", query: m.query }
+        : null;
+    case "mentionAttach": {
+      if (
+        !only("type", "requestId", "kind", "path") ||
+        typeof m.requestId !== "string" ||
+        !/^[a-zA-Z0-9-]{1,80}$/.test(m.requestId) ||
+        typeof m.kind !== "string" ||
+        !(MENTION_KINDS as readonly string[]).includes(m.kind)
+      )
+        return null;
+      const kind = m.kind as MentionKind;
+      if (kind === "file")
+        return typeof m.path === "string" && m.path !== "" && m.path.length <= 1024
+          ? { type: "mentionAttach", requestId: m.requestId, kind, path: m.path }
+          : null;
+      return m.path === undefined ? { type: "mentionAttach", requestId: m.requestId, kind } : null;
+    }
     case "stop":
     case "reset":
     case "refreshModels":

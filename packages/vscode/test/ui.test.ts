@@ -42,6 +42,18 @@ interface UiApi {
     cursor: { line: number; lines: number },
   ): { index: number; draft: string; value: string } | null;
   syncRecallEntries(local: string[], viewUsers: string[]): string[];
+  formatTokens(n: number): string;
+  contextGauge(context?: { usedTokens: number; windowTokens?: number }): {
+    level: "unknown" | "ok" | "warn";
+    text: string;
+    title: string;
+  };
+  safeMentionResults(message: unknown): {
+    query: string;
+    files: { path: string; label: string }[];
+    killchain: { available: boolean; why?: string };
+    sortie: { available: boolean; why?: string };
+  };
   mentionSpan(value: string, cursor: number): { query: string; start: number } | null;
   hashSpan(value: string, cursor: number): { query: string; start: number } | null;
   filterTerminals(
@@ -81,6 +93,74 @@ createRequire(import.meta.url)("../media/ui.js");
 const ui = (globalThis as unknown as { WarbandUI: UiApi }).WarbandUI;
 
 const opts = (...disabled: boolean[]) => disabled.map((d) => ({ disabled: d }));
+
+describe("jauge de contexte", () => {
+  it("fenêtre connue : « 42 k / 200 k (21 %) »", () => {
+    expect(ui.contextGauge({ usedTokens: 42_000, windowTokens: 200_000 })).toEqual({
+      level: "ok",
+      text: "42 k / 200 k (21 %)",
+      title: "",
+    });
+    expect(ui.contextGauge({ usedTokens: 850, windowTokens: 200_000 }).text).toBe(
+      "850 / 200 k (0 %)",
+    );
+  });
+  it("fenêtre inconnue : jetons seuls, sans pourcentage", () => {
+    expect(ui.contextGauge({ usedTokens: 42_000 })).toEqual({
+      level: "ok",
+      text: "42 k utilisés",
+      title: "",
+    });
+  });
+  it("aucune donnée : « — » et info-bulle ; aucun chiffre inventé", () => {
+    for (const none of [undefined, null, {}, { usedTokens: Number.NaN }, { usedTokens: -1 }])
+      expect(ui.contextGauge(none as never)).toEqual({
+        level: "unknown",
+        text: "—",
+        title: "Utilisation du contexte inconnue pour ce fournisseur",
+      });
+  });
+  it("avertissement strictement au-delà de 80 %", () => {
+    expect(ui.contextGauge({ usedTokens: 160_000, windowTokens: 200_000 }).level).toBe("ok");
+    expect(ui.contextGauge({ usedTokens: 160_001, windowTokens: 200_000 }).level).toBe("warn");
+    expect(ui.contextGauge({ usedTokens: 210_000, windowTokens: 200_000 }).text).toBe(
+      "210 k / 200 k (105 %)",
+    );
+  });
+  it("jetons : forme courte", () => {
+    expect(ui.formatTokens(999)).toBe("999");
+    expect(ui.formatTokens(1_499)).toBe("1 k");
+    expect(ui.formatTokens(1_000_000)).toBe("1000 k");
+  });
+});
+
+describe("menu @ : résultats de l'hôte", () => {
+  it("revalide les fichiers et l'état des entrées spéciales", () => {
+    const safe = ui.safeMentionResults({
+      query: "a",
+      files: [
+        { path: "/w/a.ts", label: "a.ts" },
+        { path: 1, label: "x" },
+        null,
+        { path: "p".repeat(2000), label: "x" },
+      ],
+      killchain: { available: false, why: "no-project" },
+      sortie: { available: true },
+    });
+    expect(safe).toEqual({
+      query: "a",
+      files: [{ path: "/w/a.ts", label: "a.ts" }],
+      killchain: { available: false, why: "no-project" },
+      sortie: { available: true },
+    });
+    expect(ui.safeMentionResults(null).killchain).toEqual({ available: false, why: "empty" });
+  });
+  it("le span @ admet les chemins", () => {
+    expect(ui.mentionSpan("lis @src/a.ts", 13)).toEqual({ query: "src/a.ts", start: 4 });
+    expect(ui.mentionSpan("lis @src\\a", 10)).toEqual({ query: "src\\a", start: 4 });
+    expect(ui.hashSpan("lis #src/a", 10)).toBeNull();
+  });
+});
 
 describe("listboxKey : navigation clavier", () => {
   it("flèches : saute les options désactivées et boucle", () => {

@@ -22,6 +22,7 @@ import {
   type EngineEvent,
   type EvidenceSource,
   ensureWarbandKaliImage,
+  type Finding,
   listEvidence,
   lookupContainer,
   MCP_CATALOG,
@@ -88,6 +89,15 @@ import { matchesFingerprint } from "../logic/integrity.js";
 import { killchainImage } from "../logic/killchain-image.js";
 import { setSelectedPathEdge } from "../logic/killchain-path.js";
 import { saveMachinePreference } from "../logic/machine-preference.js";
+import {
+  killchainSummary,
+  lastToolOutput,
+  listMentionFiles,
+  MENTION_MAX_CANDIDATES,
+  type MentionFile,
+  mentionGlob,
+  resolveMentionFile,
+} from "../logic/mentions.js";
 import { prepareMissionFolder } from "../logic/mission-folder.js";
 import { missionReport, missionReportPreview } from "../logic/mission-report.js";
 import { missionSnapshot } from "../logic/mission-snapshot.js";
@@ -902,6 +912,26 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
   };
 
+  const mentionFolders = () => (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
+  /** Notes Kill Chain du projet actif, pour `@killchain` ; sans projet ou sans note : indisponible. */
+  const mentionFindings = async (): Promise<
+    | { ok: true; findings: Finding[] }
+    | { ok: false; why: "no-project" | "empty"; result: { ok: false; reason: "empty" } }
+  > => {
+    try {
+      const file = await readProjects(defaultConfigDir());
+      const active = file === null ? null : activeProject(file);
+      if (active === null)
+        return { ok: false, why: "no-project", result: { ok: false, reason: "empty" } };
+      const findings = await readFindings(defaultConfigDir(), active.id);
+      return findings.length > 0
+        ? { ok: true, findings }
+        : { ok: false, why: "empty", result: { ok: false, reason: "empty" } };
+    } catch {
+      return { ok: false, why: "empty", result: { ok: false, reason: "empty" } };
+    }
+  };
+
   /** Noms courts pour le menu `@`. Échec de lecture : liste vide (le menu n'invente rien). */
   const containersMessage = async () => {
     try {
@@ -984,6 +1014,55 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           return await s.authChanged();
         case "refreshTerminals":
           return reply(await terminalsMessage());
+        case "mentionQuery": {
+          const folders = mentionFolders();
+          const files: MentionFile[] = [];
+          if (vscode.workspace.isTrusted && folders.length > 0) {
+            const found: string[] = [];
+            for (const folder of vscode.workspace.workspaceFolders ?? []) {
+              const uris = await vscode.workspace.findFiles(
+                new vscode.RelativePattern(folder, mentionGlob(message.query)),
+                "**/{node_modules,.git}/**",
+                MENTION_MAX_CANDIDATES,
+              );
+              found.push(...uris.map((uri) => uri.fsPath));
+            }
+            // Chemin sensible ou hors espace de travail : absent de la liste (checkPathAccess).
+            files.push(...listMentionFiles(found, folders));
+          }
+          const findings = await mentionFindings();
+          return reply({
+            type: "mentionResults",
+            query: message.query,
+            files,
+            killchain: findings.ok ? { available: true } : { available: false, why: findings.why },
+            sortie: lastToolOutput(s.view().items).ok
+              ? { available: true }
+              : { available: false, why: "empty" },
+          });
+        }
+        case "mentionAttach": {
+          const refuse = (reason: string) =>
+            reply({ type: "mentionRefused", requestId: message.requestId, reason });
+          if (!vscode.workspace.isTrusted) return refuse("path");
+          const resolved =
+            message.kind === "file"
+              ? await resolveMentionFile(message.path ?? "", mentionFolders())
+              : message.kind === "sortie"
+                ? lastToolOutput(s.view().items)
+                : await (async () => {
+                    const findings = await mentionFindings();
+                    return findings.ok ? killchainSummary(findings.findings) : findings.result;
+                  })();
+          if (!resolved.ok) return refuse(resolved.reason);
+          return reply({
+            type: "mentionAttached",
+            requestId: message.requestId,
+            kind: message.kind,
+            name: resolved.attachment.name,
+            text: resolved.attachment.text,
+          });
+        }
         case "send": {
           const hasFiles = message.attachments !== undefined;
           const generation = findingProjectGeneration;

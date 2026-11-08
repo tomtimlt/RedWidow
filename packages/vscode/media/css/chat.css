@@ -611,6 +611,26 @@ body:not(.running) #toolbar #stop {
   white-space: normal;
   text-align: left;
 }
+/* Menu `@` : chemins longs coupés proprement ; entrée indisponible grisée avec sa raison. */
+#mention-pop .cmd {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.cmd-opt:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.context-gauge {
+  margin: var(--jn-s1) 0 0;
+  padding: 0 var(--jn-s2);
+  color: var(--jn-muted);
+  font-size: var(--jn-fs-xs);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.context-gauge[data-level="warn"] {
+  color: var(--jn-warn);
+}
 .cmd-opt:hover:not(:disabled),
 .cmd-opt[aria-selected="true"] {
   background: var(

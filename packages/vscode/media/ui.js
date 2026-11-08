@@ -350,7 +350,8 @@
 
   /** Mention en cours de saisie : `@` collé au curseur. `null` sinon. */
   function mentionSpan(value, cursor) {
-    return sigilSpan(value, cursor, "@");
+    // Les chemins de fichiers (`@src/a.ts`) sont admis, pas les espaces.
+    return sigilSpan(value, cursor, "@", "A-Za-z0-9_.\\\\/-");
   }
 
   /** Citation de terminal en cours de saisie : `#` collé au curseur. `null` sinon. */
@@ -358,11 +359,11 @@
     return sigilSpan(value, cursor, "#");
   }
 
-  function sigilSpan(value, cursor, sigil) {
+  function sigilSpan(value, cursor, sigil, chars = "A-Za-z0-9_.-") {
     const text = String(value ?? "");
     const pos = Math.max(0, Math.min(text.length, Number(cursor) || 0));
     const upto = text.slice(0, pos);
-    const match = new RegExp(`(?:^|[\\s(])\\${sigil}([A-Za-z0-9_.-]*)$`).exec(upto);
+    const match = new RegExp(`(?:^|[\\s(])\\${sigil}([${chars}]*)$`).exec(upto);
     if (!match) return null;
     return { query: match[1], start: upto.lastIndexOf(sigil) };
   }
@@ -442,7 +443,61 @@
       ],
     };
   }
+  /** Jetons en notation courte : `850`, `42 k` (arrondi au millier, jamais de chiffre inventé). */
+  function formatTokens(n) {
+    const v = Math.max(0, Math.round(Number(n) || 0));
+    return v < 1000 ? String(v) : `${Math.round(v / 1000)} k`;
+  }
+
+  /**
+   * Jauge de contexte sous le composer. `context` vient de `view().context` : absent = inconnu.
+   * Fenêtre inconnue : pas de pourcentage. Au-delà de 80 % : niveau `warn`.
+   */
+  function contextGauge(context) {
+    const used = context ? Number(context.usedTokens) : Number.NaN;
+    if (!Number.isFinite(used) || used < 0)
+      return {
+        level: "unknown",
+        text: "—",
+        title: t("Utilisation du contexte inconnue pour ce fournisseur"),
+      };
+    const windowTokens = Number(context.windowTokens);
+    if (!Number.isFinite(windowTokens) || windowTokens <= 0)
+      return { level: "ok", text: t`${formatTokens(used)} utilisés`, title: "" };
+    const ratio = used / windowTokens;
+    const pct = Math.round(ratio * 100);
+    return {
+      level: ratio > 0.8 ? "warn" : "ok",
+      text: t`${formatTokens(used)} / ${formatTokens(windowTokens)} (${pct} %)`,
+      title: "",
+    };
+  }
+
+  /** Réponse de l'hôte au menu `@` : tout est revalidé ; le rendu se fait par textContent. */
+  function safeMentionResults(message) {
+    const files = [];
+    if (message && Array.isArray(message.files))
+      for (const f of message.files.slice(0, 20)) {
+        if (!f || typeof f.path !== "string" || typeof f.label !== "string") continue;
+        if (f.path.length > 1024 || f.label.length > 300) continue;
+        files.push({ path: f.path, label: f.label });
+      }
+    const special = (value) =>
+      value && value.available === true
+        ? { available: true }
+        : { available: false, why: value && value.why === "no-project" ? "no-project" : "empty" };
+    return {
+      query: message && typeof message.query === "string" ? message.query : "",
+      files,
+      killchain: special(message && message.killchain),
+      sortie: special(message && message.sortie),
+    };
+  }
+
   const api = {
+    formatTokens,
+    contextGauge,
+    safeMentionResults,
     conversationActivity,
     EXEC_TOOL,
     toolIcon,

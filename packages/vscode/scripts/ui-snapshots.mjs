@@ -96,10 +96,11 @@ const MODELS = [
   { value: "rapide", displayName: "Modèle rapide", description: "Réponses vives, coût réduit" },
 ];
 
-function chatState({ conversation = true, approval = false } = {}) {
+function chatState({ conversation = true, approval = false, context } = {}) {
   const s = L.createChatState();
   const e = ev(s);
   s.setSandbox("node:22-slim");
+  if (context) e({ kind: "context.usage", ...context });
   if (conversation) {
     s.user("Scanne 10.10.11.42 et résume les services exposés");
     e({
@@ -191,6 +192,17 @@ const chatView = (opts) => ({
   ...chatState(opts).view(),
   approvals: opts?.approval ? [APPROVAL] : [],
 });
+const MENTION_RESULTS = {
+  type: "mentionResults",
+  query: "",
+  files: [
+    { path: "/work/src/auth/login.ts", label: "src/auth/login.ts" },
+    { path: "/work/src/auth/session.ts", label: "src/auth/session.ts" },
+    { path: "/work/README.md", label: "README.md" },
+  ],
+  killchain: { available: true },
+  sortie: { available: false, why: "empty" },
+};
 const CONTAINERS = {
   type: "containers",
   items: [
@@ -555,6 +567,29 @@ const simple = (name, make, script, messages, extra = {}) => ({
 const PAGES = [
   chatPage("chat-conversation", [{ type: "view", view: chatView({ approval: true }) }, CONTAINERS]),
   chatPage("chat-accueil", [{ type: "view", view: chatView({ conversation: false }) }, CONTAINERS]),
+  // Jauge de contexte : fenêtre connue, avertissement (> 80 %), fenêtre inconnue, aucune donnée.
+  chatPage("chat-jauge-connue", [
+    { type: "view", view: chatView({ context: { usedTokens: 42_000, windowTokens: 200_000 } }) },
+    CONTAINERS,
+  ]),
+  chatPage("chat-jauge-alerte", [
+    { type: "view", view: chatView({ context: { usedTokens: 170_000, windowTokens: 200_000 } }) },
+    CONTAINERS,
+  ]),
+  chatPage("chat-jauge-fenetre-inconnue", [
+    { type: "view", view: chatView({ context: { usedTokens: 42_000 } }) },
+    CONTAINERS,
+  ]),
+  chatPage("chat-jauge-inconnue", [{ type: "view", view: chatView() }, CONTAINERS]),
+  // Menu `@` : fichiers de l'espace de travail, @killchain et @sortie (grisée sans sortie).
+  chatPage("chat-mention", [{ type: "view", view: chatView() }, CONTAINERS], {
+    type: "@",
+    after: [MENTION_RESULTS],
+  }),
+  chatPage("chat-mention-sans-projet", [{ type: "view", view: chatView() }, CONTAINERS], {
+    type: "@",
+    after: [{ ...MENTION_RESULTS, files: [], killchain: { available: false, why: "no-project" } }],
+  }),
   chatPage("chat-reglages-popover", [{ type: "view", view: chatView() }, CONTAINERS], {
     click: "cfg-btn",
   }),
@@ -702,6 +737,19 @@ try {
         await tab.evaluate(() => document.fonts.ready);
         for (const m of page.messages) await tab.evaluate((msg) => window.postMessage(msg, "*"), m);
         await tab.waitForTimeout(150);
+        if (page.type) {
+          await tab.evaluate((value) => {
+            const field = document.getElementById("input");
+            field.focus();
+            field.value = value;
+            field.setSelectionRange(value.length, value.length);
+            field.dispatchEvent(new Event("input", { bubbles: true }));
+          }, page.type);
+          await tab.waitForTimeout(250);
+          for (const m of page.after ?? [])
+            await tab.evaluate((msg) => window.postMessage(msg, "*"), m);
+          await tab.waitForTimeout(150);
+        }
         if (page.click) {
           await tab.evaluate((id) => document.getElementById(id)?.click(), page.click);
           await tab.waitForTimeout(150);

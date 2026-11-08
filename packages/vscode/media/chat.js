@@ -1144,6 +1144,7 @@
     return mentionPop.matches(":popover-open");
   }
   function closeMention() {
+    lastMentionQuery = null;
     if (mentionOpen()) mentionPop.hidePopover();
   }
   mentionPop.addEventListener("toggle", (e) => {
@@ -1174,27 +1175,146 @@
             label: `#${item.token}`,
             desc: item.hint ? `$ ${item.hint}` : t("terminal ouvert"),
           }))
-        : UI.filterContainers(containers, span.query).map((item) => ({
-            name: item.name,
-            desc: item.state === "running" ? t("en cours") : t("arrêté"),
-          }));
-    if (mentionActive >= mentionShown.length) mentionActive = 0;
+        : mentionEntries(span.query);
+    if (!mentionShown[mentionActive] || mentionShown[mentionActive].disabled)
+      mentionActive = Math.max(
+        0,
+        mentionShown.findIndex((item) => !item.disabled),
+      );
     mentionEmpty.hidden = mentionShown.length > 0;
     mentionEmpty.textContent = hash
       ? t`Aucun terminal RedWidow ouvert. ${document.body.dataset.terminalShortcut || "Alt+J T"} pour en ouvrir un.`
       : t("Aucun conteneur");
-    mentionPop.setAttribute("aria-label", hash ? t("Terminaux") : t("Conteneurs"));
+    mentionPop.setAttribute(
+      "aria-label",
+      hash ? t("Terminaux") : t("Conteneurs, fichiers et contexte"),
+    );
     mentionList.replaceChildren(
       ...mentionShown.map((item, i) => {
         const btn = el("button", "cmd-opt");
         btn.type = "button";
         btn.setAttribute("role", "option");
+        // Les chemins et noms viennent de l'hôte : rendus par textContent uniquement (el).
         btn.append(el("span", "cmd", item.label || item.name), el("span", "cmd-desc", item.desc));
-        btn.addEventListener("click", () => pickMention(item.name));
+        if (item.disabled) {
+          btn.disabled = true;
+          btn.setAttribute("aria-disabled", "true");
+        } else btn.addEventListener("click", () => pickMention(item));
         if (i === mentionActive) btn.setAttribute("aria-selected", "true");
         return btn;
       }),
     );
+  }
+  /** Entrées du menu `@` : contexte spécial, conteneurs, puis fichiers trouvés par l'hôte. */
+  function mentionEntries(query) {
+    const q = query.toLowerCase();
+    const entries = [];
+    if (mentionData) {
+      const special = (kind, label, ok, off) =>
+        label.toLowerCase().includes(q) &&
+        entries.push({
+          kind,
+          name: kind,
+          label: `@${label}`,
+          desc: ok.available ? ok.text : off[ok.why],
+          disabled: !ok.available,
+        });
+      special(
+        "killchain",
+        "killchain",
+        { ...mentionData.killchain, text: t("Notes Kill Chain du projet actif") },
+        {
+          "no-project": t("Aucun projet actif"),
+          empty: t("Aucune note dans le projet actif"),
+        },
+      );
+      special(
+        "sortie",
+        "sortie",
+        { ...mentionData.sortie, text: t("Dernière sortie d’outil de la session") },
+        {
+          "no-project": t("Aucune sortie d’outil dans cette session"),
+          empty: t("Aucune sortie d’outil dans cette session"),
+        },
+      );
+    }
+    for (const item of UI.filterContainers(containers, query))
+      entries.push({
+        kind: "container",
+        name: item.name,
+        desc: item.state === "running" ? t("en cours") : t("arrêté"),
+      });
+    if (mentionData)
+      for (const file of mentionData.files)
+        entries.push({ kind: "file", name: file.path, label: file.label, desc: t("fichier") });
+    return entries;
+  }
+  let mentionData = null;
+  let mentionTimer = 0;
+  let lastMentionQuery = null;
+  /** Demande à l'hôte les fichiers et entrées spéciales ; groupée pour ne pas inonder pendant la frappe. */
+  function askMentions(query) {
+    if (query === lastMentionQuery) return;
+    lastMentionQuery = query;
+    clearTimeout(mentionTimer);
+    mentionTimer = setTimeout(() => vscode.postMessage({ type: "mentionQuery", query }), 120);
+  }
+  let pendingMention = null;
+  function attachMention(item) {
+    if (!lastView || attachBtn.disabled) return;
+    const requestId = `mention-${Date.now()}-${++fileSerial}`;
+    pendingMention = { requestId, epoch: fileEpoch };
+    vscode.postMessage({
+      type: "mentionAttach",
+      requestId,
+      kind: item.kind,
+      ...(item.kind === "file" && { path: item.name }),
+    });
+  }
+  /** Pièce jointe fournie par l'hôte (déjà relue et revalidée) ; mêmes plafonds que les fichiers manuels. */
+  function addMention(message) {
+    if (!pendingMention || message.requestId !== pendingMention.requestId) return;
+    const { epoch } = pendingMention;
+    pendingMention = null;
+    if (epoch !== fileEpoch || typeof message.name !== "string" || typeof message.text !== "string")
+      return;
+    const key =
+      message.kind === "file" ? `file:${message.name}:${message.text.length}` : message.kind;
+    const bytes = new TextEncoder().encode(message.text).length;
+    const others = draftFiles.filter((f) => f.mentionKey !== key);
+    const total = others.filter((f) => !f.mimeType).reduce((sum, f) => sum + f.bytes, 0) + bytes;
+    if (others.length + 1 > Number(fileInput.dataset.count)) {
+      attachmentStatus(t("Maximum 10 fichiers joints."));
+      return;
+    }
+    if (bytes > Number(fileInput.dataset.bytes) || total > Number(fileInput.dataset.total)) {
+      attachmentStatus(t("Limite : 64 Kio par fichier et 256 Kio au total."));
+      return;
+    }
+    draftFiles = [
+      ...others,
+      { id: ++fileSerial, name: message.name, text: message.text, bytes, mentionKey: key },
+    ];
+    attachmentStatus(
+      t(
+        "Ces fichiers seront transmis au fournisseur. Seuls leurs noms apparaissent dans la conversation. N’ajoutez pas de secrets.",
+      ),
+    );
+    paintAttachments();
+  }
+  const MENTION_REFUSALS = {
+    path: () => t("Fichier refusé : chemin sensible ou hors de l’espace de travail."),
+    missing: () => t("Fichier introuvable."),
+    size: () => t("Fichier trop volumineux : 64 Kio au maximum."),
+    binary: () => t("Ce fichier n’est pas un texte UTF-8 pris en charge."),
+    empty: () => t("Rien à joindre."),
+    invalid: () => t("Mention invalide."),
+  };
+  function refuseMention(message) {
+    if (!pendingMention || message.requestId !== pendingMention.requestId) return;
+    pendingMention = null;
+    const key = Object.hasOwn(MENTION_REFUSALS, message.reason) ? message.reason : "invalid";
+    attachmentStatus(MENTION_REFUSALS[key]());
   }
   let lastTerminalsAsk = 0;
   function openMention() {
@@ -1203,14 +1323,29 @@
       lastTerminalsAsk = Date.now();
       vscode.postMessage({ type: "refreshTerminals" });
     }
+    if (!UI.hashSpan(input.value, cursor)) {
+      const at = UI.mentionSpan(input.value, cursor);
+      if (at) askMentions(at.query);
+    }
     renderMentions();
     if (!mentionOpen()) mentionPop.showPopover();
     place(mentionPop, input);
   }
-  function pickMention(name) {
+  function pickMention(item) {
+    const name = item.name;
     const cursor = input.selectionStart ?? input.value.length;
     const span = UI.hashSpan(input.value, cursor) ?? UI.mentionSpan(input.value, cursor);
     if (!span) return;
+    if (item.kind === "file" || item.kind === "killchain" || item.kind === "sortie") {
+      // Pièce jointe : le texte `@…` tapé est retiré, l'hôte relit et revalide la cible.
+      input.value = `${input.value.slice(0, span.start)}${input.value.slice(cursor)}`;
+      input.setSelectionRange(span.start, span.start);
+      closeMention();
+      grow();
+      input.focus();
+      attachMention(item);
+      return;
+    }
     const next = `${input.value.slice(0, span.start)}${mentionSigil}${name} ${input.value.slice(cursor)}`;
     input.value = next;
     const pos = span.start + 1 + name.length + 1;
@@ -1799,7 +1934,17 @@
   let pageBefore = null;
   let resourcesFingerprint;
   let historyFingerprint;
+  /** Jauge de contexte : valeurs du moteur uniquement, « — » tant qu'il n'a rien annoncé. */
+  function paintGauge(context) {
+    const gauge = $("context-gauge");
+    const state = UI.contextGauge(context);
+    gauge.textContent = state.text;
+    gauge.dataset.level = state.level;
+    if (state.title) gauge.title = state.title;
+    else gauge.removeAttribute("title");
+  }
   function render(view) {
+    paintGauge(view.context);
     const resourceKey = JSON.stringify([
       view.capabilities,
       view.busy,
@@ -2086,6 +2231,16 @@
       containers = UI.safeContainers(message.items);
       paintAttachments();
       if (mentionOpen()) renderMentions();
+    } else if (message && message.type === "mentionResults") {
+      const span = UI.mentionSpan(input.value, input.selectionStart ?? input.value.length);
+      if (span && span.query === message.query && mentionOpen()) {
+        mentionData = UI.safeMentionResults(message);
+        renderMentions();
+      }
+    } else if (message && message.type === "mentionAttached") {
+      addMention(message);
+    } else if (message && message.type === "mentionRefused") {
+      refuseMention(message);
     } else if (message && message.type === "terminals") {
       terminals = UI.safeTerminals(message.items);
       paintAttachments();
@@ -2367,7 +2522,7 @@
         mentionActive = UI.listboxKey(
           { active: mentionActive },
           e.key,
-          mentionShown.map(() => ({ disabled: false })),
+          mentionShown.map((item) => ({ disabled: !!item.disabled })),
         ).active;
         if (mentionActive < 0) mentionActive = 0;
         paintMention();
@@ -2376,7 +2531,7 @@
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         const item = mentionShown[mentionActive];
-        if (item) pickMention(item.name);
+        if (item && !item.disabled) pickMention(item);
         return;
       }
     }

@@ -178,6 +178,7 @@ export function chatHtml({
 <button id="send" type="submit" class="primary" data-i18n-title="Envoyer (Entrée)" title="${localized("Envoyer (Entrée)", locale)}" data-i18n-aria-label="Envoyer" aria-label="${localized("Envoyer", locale)}">${icon("send")}</button>
 </div>
 </div>
+<p id="context-gauge" class="context-gauge" data-level="unknown" role="status" title="${localized("Utilisation du contexte inconnue pour ce fournisseur", locale)}">—</p>
 </form>
 <div id="composer-menu" class="pop composer-menu" popover="auto" data-i18n-aria-label="Outils et contexte" aria-label="${localized("Outils et contexte", locale)}">
 <p class="composer-section" data-i18n="Ajouter">${localized("Ajouter", locale)}</p>
