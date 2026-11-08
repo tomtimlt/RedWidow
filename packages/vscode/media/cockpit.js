@@ -516,6 +516,36 @@
       line.addEventListener("click", () => vscode.postMessage({ type: "openProgram" }));
       status.append(line);
     }
+    // Engagement red team : ligne présente seulement si un engagement ou un arrêt d'urgence existe.
+    if (view.engagement && typeof view.engagement.state === "string") {
+      const engagementLabels = {
+        none: t("Aucun engagement"),
+        draft: t("brouillon à valider"),
+        approved: t("validée"),
+        suspended: t("suspendue"),
+        invalidated: t("modifiée depuis la validation"),
+        unreadable: t("illisible"),
+      };
+      const halted = view.engagement.halt === true;
+      const engagementTone = halted
+        ? "warn"
+        : ({ approved: "ok", draft: "warn", suspended: "warn" }[view.engagement.state] ?? "off");
+      const engagementState = engagementLabels[view.engagement.state] ?? "—";
+      const eline = el("button", `cockpit-tile cockpit-program-line tone-${engagementTone}`);
+      eline.type = "button";
+      eline.id = "cockpit-engagement";
+      eline.append(
+        el("span", "dot"),
+        el("span", "cockpit-tile-label", t("Engagement")),
+        el(
+          "strong",
+          "",
+          halted ? `${engagementState} · ${t("arrêt d'urgence actif")}` : engagementState,
+        ),
+      );
+      eline.addEventListener("click", () => vscode.postMessage({ type: "openEngagement" }));
+      status.append(eline);
+    }
     main.append(status);
 
     if (view.docker === t("absent") || view.empty === "docker") {

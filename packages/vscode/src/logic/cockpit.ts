@@ -2,18 +2,23 @@ import { isAbsolute } from "node:path";
 import {
   activeProject,
   assertOperand,
+  type CampaignState,
   CodedError,
   createDockerClient,
   createRecorder,
   type DockerClient,
   defaultConfigDir,
+  type EngagementState,
   haltedPaceHosts,
   type ImageSummary,
+  isHalted,
   type LabelPrefixContainer,
   link,
   lookupContainer,
   type ProgramState,
   type ProjectFile,
+  readCampaignSync,
+  readEngagementSync,
   readProgramSync,
   readProjects,
   resolveBinary,
@@ -32,6 +37,7 @@ export type CockpitMessage =
   | { type: "openWorkspace" }
   | { type: "terminal" }
   | { type: "openProgram" }
+  | { type: "openEngagement" }
   | { type: "start"; name: string }
   | { type: "stop"; name: string }
   | {
@@ -92,6 +98,7 @@ export function parseCockpitMessage(raw: unknown): CockpitMessage | null {
       return only("type") ? { type: "refresh" } : null;
     case "openWorkspace":
     case "openProgram":
+    case "openEngagement":
     case "terminal":
       return only("type") ? { type: m.type } : null;
     case "link":
@@ -372,6 +379,11 @@ export interface CockpitViewPayload {
   empty?: "docker" | "list";
   /** Fiche programme du projet actif (lecture seule) : état et nombre d'hôtes arrêtés. */
   program?: { state: ProgramState; halted: number };
+  /**
+   * Engagement red team du projet actif (lecture seule) : présent seulement si un engagement ou un
+   * arrêt d'urgence existe. `halt` : arrêt d'urgence actif ; `campaign` : état du plan.
+   */
+  engagement?: { state: EngagementState; campaign: CampaignState; halt: boolean };
 }
 
 export function sortContainers(rows: LabelPrefixContainer[]): LabelPrefixContainer[] {
@@ -431,6 +443,21 @@ function programLine(
     };
   } catch {
     return { state: "unreadable", halted: 0 };
+  }
+}
+
+/** Ligne « Engagement » du cockpit : absente sans engagement ni arrêt ; lecture en échec → « illisible ». */
+function engagementLine(
+  configDir: string,
+  projectId: string,
+): { state: EngagementState; campaign: CampaignState; halt: boolean } | undefined {
+  try {
+    const state = readEngagementSync(configDir, projectId).state;
+    const halt = isHalted(configDir, projectId);
+    if (state === "none" && !halt) return undefined;
+    return { state, campaign: readCampaignSync(configDir, projectId).state, halt };
+  } catch {
+    return { state: "unreadable", campaign: "none", halt: false };
   }
 }
 
@@ -562,6 +589,7 @@ export async function loadCockpitView(deps: CockpitDeps = {}): Promise<CockpitVi
     };
   });
 
+  const engagement = active ? engagementLine(configDir, active.id) : undefined;
   return {
     type: "view",
     docker: "present",
@@ -572,6 +600,7 @@ export async function loadCockpitView(deps: CockpitDeps = {}): Promise<CockpitVi
     containers,
     ...(active && { projectWorkspace: active.workspace }),
     ...(active && { program: programLine(configDir, active.id) }),
+    ...(engagement && { engagement }),
     ...(containers.length === 0 && { empty: "list" }),
   };
 }

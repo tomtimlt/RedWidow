@@ -253,13 +253,13 @@ export interface EngagementControls {
   view(): Promise<EngagementPageView>;
   /** Approuve l'engagement dont l'empreinte a été affichée ; empreinte périmée → rejet, rien n'est écrit. */
   validateEngagement(displayedDigest: string): Promise<EngagementPageView>;
-  suspendEngagement(): Promise<EngagementPageView>;
+  suspendSheet(): Promise<EngagementPageView>;
   /** Pose l'arrêt d'urgence (idempotent). */
   halt(): Promise<EngagementPageView>;
   /** Lève l'arrêt d'urgence. */
   resume(): Promise<EngagementPageView>;
   validateCampaign(displayedDigest: string): Promise<EngagementPageView>;
-  suspendCampaign(): Promise<EngagementPageView>;
+  suspendPlan(): Promise<EngagementPageView>;
   /** Importe un brouillon d'engagement (texte JSON) : n'approuve jamais. */
   importEngagement(text: string): Promise<EngagementPageView>;
   /** Importe un brouillon de plan (texte JSON) : n'approuve jamais. */
@@ -318,7 +318,7 @@ export function createEngagementControls(
       emitState("engagement.state", await approveEngagement(configDir, projectId, displayedDigest));
       return view();
     },
-    async suspendEngagement() {
+    async suspendSheet() {
       emitState("engagement.state", await suspendEngagement(configDir, projectId));
       return view();
     },
@@ -336,7 +336,7 @@ export function createEngagementControls(
       emitState("campaign.state", await approveCampaign(configDir, projectId, displayedDigest));
       return view();
     },
-    async suspendCampaign() {
+    async suspendPlan() {
       emitState("campaign.state", await suspendCampaign(configDir, projectId));
       return view();
     },
@@ -365,11 +365,11 @@ export type EngagementMessage =
         | "ready"
         | "refresh"
         | "validateEngagement"
-        | "suspendEngagement"
+        | "suspendSheet"
         | "halt"
         | "resume"
         | "validateCampaign"
-        | "suspendCampaign"
+        | "suspendPlan"
         | "importEngagement"
         | "importCampaign";
     }
@@ -379,11 +379,11 @@ const SIMPLE_TYPES: readonly string[] = [
   "ready",
   "refresh",
   "validateEngagement",
-  "suspendEngagement",
+  "suspendSheet",
   "halt",
   "resume",
   "validateCampaign",
-  "suspendCampaign",
+  "suspendPlan",
   "importEngagement",
   "importCampaign",
 ];

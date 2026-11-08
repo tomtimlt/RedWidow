@@ -13,6 +13,7 @@ const STUDIO_GROUPS = [
     pages: [
       ["project", "Projet", "project"],
       ["program", "Fiche programme", "book", "openProgram"],
+      ["engagement", "Engagement", "shield", "openEngagement"],
       ["containers", "Conteneurs", "container"],
       ["killchain", "Kill chain", "graph"],
       ["audit", "Audit", "history"],
@@ -2068,6 +2069,12 @@ function start() {
           program.type = "button";
           program.id = "project-program";
           program.addEventListener("click", () => vscode.postMessage({ type: "openProgram" }));
+          const engagement = el("button", "ghost", t("Engagement…"));
+          engagement.type = "button";
+          engagement.id = "project-engagement";
+          engagement.addEventListener("click", () =>
+            vscode.postMessage({ type: "openEngagement" }),
+          );
           rename.type = remove.type = "button";
           rename.id = "project-rename";
           remove.id = "project-delete";
@@ -2086,7 +2093,7 @@ function start() {
             });
           }
           managementState();
-          choosePanel.append(label2, select, activate, program, rename, remove);
+          choosePanel.append(label2, select, activate, program, engagement, rename, remove);
         }
         const label = el("label", "studio-help", t("Nom du nouveau projet"));
         label.htmlFor = "project-name";

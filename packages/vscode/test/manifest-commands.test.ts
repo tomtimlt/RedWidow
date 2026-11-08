@@ -47,6 +47,7 @@ describe("commandes du manifeste", () => {
         "warband.missionContext",
         "warband.openChat",
         "warband.openCockpit",
+        "warband.openEngagement",
         "warband.openProgram",
         "warband.openSessions",
         "warband.openStudio",

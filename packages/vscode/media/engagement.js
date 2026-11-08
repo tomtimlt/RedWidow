@@ -189,7 +189,7 @@
     const actions = el("div", "cockpit-actions");
     if (view.canValidate)
       actions.append(button("primary", t("Valider l'engagement…"), send("validateEngagement")));
-    if (view.canSuspend) actions.append(button("ghost", t("Suspendre"), send("suspendEngagement")));
+    if (view.canSuspend) actions.append(button("ghost", t("Suspendre"), send("suspendSheet")));
     actions.append(button("ghost", t("Importer un fichier…"), send("importEngagement")));
     wrap.append(actions);
     return wrap;
@@ -265,7 +265,7 @@
     const actions = el("div", "cockpit-actions");
     if (c.canValidate)
       actions.append(button("primary", t("Valider le plan…"), send("validateCampaign")));
-    if (c.canSuspend) actions.append(button("ghost", t("Suspendre"), send("suspendCampaign")));
+    if (c.canSuspend) actions.append(button("ghost", t("Suspendre"), send("suspendPlan")));
     actions.append(button("ghost", t("Importer un fichier…"), send("importCampaign")));
     wrap.append(actions);
     return wrap;

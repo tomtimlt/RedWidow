@@ -184,6 +184,7 @@ describe("navigation en deux rubriques", () => {
     expect(project?.pages.map((p) => p[0])).toEqual([
       "project",
       "program",
+      "engagement",
       "containers",
       "killchain",
       "audit",
@@ -196,7 +197,7 @@ describe("navigation en deux rubriques", () => {
     for (const [index, group] of studio.STUDIO_GROUPS.entries()) {
       for (const [key, , , action] of group.pages) {
         if (action !== undefined) {
-          expect(action).toBe("openProgram");
+          expect(["openProgram", "openEngagement"]).toContain(action);
           continue;
         }
         expect(studioGroup(key as (typeof STUDIO_PAGES)[number])).toBe(

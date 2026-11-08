@@ -73,12 +73,20 @@ import { removeListedContainer } from "../logic/container-remove.js";
 import { createEngineController } from "../logic/controller.js";
 import { prepareEditorShellWorkspace } from "../logic/editor-shell-workspace.js";
 import type { Provider } from "../logic/effort.js";
+import {
+  createEngagementControls,
+  ENGAGEMENT_IMPORT_MAX_BYTES,
+  type EngagementPageView,
+  engagementCitationUrl,
+  parseEngagementMessage,
+} from "../logic/engagement-controls.js";
 import { evidenceEditorReference, evidenceTerminalAllowed } from "../logic/evidence-capture.js";
 import { type ExegolCreateOptions, prepareExegolCreate } from "../logic/exegol-create.js";
 import { deleteSelectedFinding } from "../logic/finding-delete.js";
 import {
   chatHtml,
   cockpitHtml,
+  engagementHtml,
   killchainHtml,
   makeNonce,
   programHtml,
@@ -375,6 +383,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const watches: { panel: vscode.WebviewPanel; chatId: string; toolUseId: string }[] = [];
   let cockpitPanel: vscode.WebviewPanel | undefined;
   let programPanel: vscode.WebviewPanel | undefined;
+  let engagementPanel: vscode.WebviewPanel | undefined;
   let sessionsPanel: vscode.WebviewPanel | undefined;
   let studioPanel: vscode.WebviewPanel | undefined;
   let reportPanel: vscode.WebviewPanel | undefined;
@@ -445,6 +454,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       monitorPanel,
       cockpitPanel,
       programPanel,
+      engagementPanel,
       sessionsPanel,
       studioPanel,
       killchainPanel,
@@ -482,6 +492,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         monitorPanel,
         cockpitPanel,
         programPanel,
+        engagementPanel,
         sessionsPanel,
         studioPanel,
         killchainPanel,
@@ -1434,6 +1445,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           case "openProgram":
             openProgram();
             return;
+          case "openEngagement":
+            openEngagement();
+            return;
           case "openWorkspace": {
             const st = await linkedProjectStatus();
             if (st === null) return;
@@ -2175,6 +2189,213 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           )
             return;
           await controls.resume(host);
+        }
+      } catch (error) {
+        reportError(error);
+      }
+      await push();
+    });
+  };
+
+  /**
+   * Engagement red team (ADR 0041) : engagement, arrêt d'urgence, plan de campagne, journal et
+   * clôture. Même principe que la fiche programme : l'hôte mémorise la vue (donc les empreintes) au
+   * moment de l'affichage ; la webview ne renvoie jamais d'empreinte, de chemin ni d'URL. Chaque
+   * geste passe par une modale native confirmée côté hôte. Aucun journal de session n'existe côté
+   * hôte : les événements d'état ne sont pas émis ici (le geste n'en dépend pas).
+   */
+  const openEngagement = () => {
+    if (engagementPanel) {
+      engagementPanel.reveal();
+      return;
+    }
+    const media = vscode.Uri.joinPath(context.extensionUri, "media");
+    const panel = vscode.window.createWebviewPanel(
+      "warband.engagement",
+      `${PRODUCT_NAME} · ${t("Engagement")}`,
+      warbandColumn(),
+      { enableScripts: true, enableCommandUris: false, localResourceRoots: [media] },
+    );
+    panel.iconPath = vscode.Uri.joinPath(media, "logo-small.svg");
+    engagementPanel = panel;
+    let alive = true;
+    let displayed: { projectId: string; view: EngagementPageView } | null = null;
+    panel.onDidDispose(() => {
+      alive = false;
+      engagementPanel = undefined;
+    });
+    panel.webview.html = engagementHtml({
+      locale: getUiLocale(),
+      i18nUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(media, "i18n.js")).toString(),
+      palette: currentPalette(),
+      nonce: makeNonce(),
+      cspSource: panel.webview.cspSource,
+      scriptUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(media, "engagement.js")).toString(),
+      styleUri: panel.webview
+        .asWebviewUri(vscode.Uri.joinPath(media, "css", "engagement.css"))
+        .toString(),
+    });
+    const postEngagement = (message: unknown) => {
+      if (alive) void panel.webview.postMessage(message);
+    };
+    const reportError = (error: unknown) =>
+      postEngagement({ type: "error", text: cleanText(formatError(error, getUiLocale()), 500) });
+    const activeProjectId = async () => (await readProjectChoices(defaultConfigDir())).activeId;
+    const push = async () => {
+      try {
+        const projectId = await activeProjectId();
+        if (projectId === null) {
+          displayed = null;
+          postEngagement({ type: "error", text: t("Aucun projet actif.") });
+          return;
+        }
+        const view = await createEngagementControls(defaultConfigDir(), projectId).view();
+        displayed = { projectId, view };
+        postEngagement(localeMessage());
+        postEngagement({ type: "view", view });
+        if (cockpitPanel) void cockpitPanel.webview.postMessage(await loadCockpitView());
+      } catch (error) {
+        reportError(error);
+      }
+    };
+    /** Contrôles du projet affiché ; le projet actif ne doit pas avoir changé depuis l'affichage. */
+    const controlsForDisplayed = async () => {
+      const shown = displayed;
+      if (shown === null) throw new Error(t("Rien n’est affiché. Actualisez la page."));
+      if ((await activeProjectId()) !== shown.projectId) {
+        await push();
+        throw new Error(t("Le projet actif a changé. Recommencez l’action."));
+      }
+      return { shown, controls: createEngagementControls(defaultConfigDir(), shown.projectId) };
+    };
+    const confirmModal = async (message: string, detail: string, action: string) =>
+      (await vscode.window.showWarningMessage(message, { modal: true, detail }, action)) === action;
+    /** Lit un fichier JSON choisi dans un dialogue natif (aucun chemin ne vient de la webview). */
+    const pickJson = async (openLabel: string): Promise<string | null> => {
+      const picked = await vscode.window.showOpenDialog({
+        canSelectMany: false,
+        canSelectFiles: true,
+        canSelectFolders: false,
+        filters: { JSON: ["json"] },
+        openLabel,
+      });
+      const file = picked?.[0];
+      if (file === undefined) return null;
+      if ((await vscode.workspace.fs.stat(file)).size > ENGAGEMENT_IMPORT_MAX_BYTES)
+        throw new Error(t("Ce fichier est trop volumineux pour un engagement ou un plan."));
+      return new TextDecoder("utf-8").decode(await vscode.workspace.fs.readFile(file));
+    };
+
+    panel.webview.onDidReceiveMessage(async (raw: unknown) => {
+      const message = parseEngagementMessage(raw);
+      if (message === null) return;
+      try {
+        if (message.type === "ready" || message.type === "refresh") {
+          await push();
+          return;
+        }
+        if (message.type === "openCitation") {
+          const url =
+            displayed === null ? null : engagementCitationUrl(displayed.view, message.field);
+          if (url === null) return;
+          const open = t("Ouvrir dans le navigateur");
+          if (
+            await confirmModal(
+              t("Ouvrir cette source ?"),
+              t`Adresse : ${cleanText(url, 300)}\n\nElle provient de la fiche, qui est une donnée non fiable.`,
+              open,
+            )
+          )
+            await vscode.env.openExternal(vscode.Uri.parse(url));
+          return;
+        }
+        if (!vscode.workspace.isTrusted) return;
+        const { shown, controls } = await controlsForDisplayed();
+        if (message.type === "halt") {
+          const action = t("Activer l'arrêt");
+          if (
+            !(await confirmModal(
+              t("Activer l'arrêt d'urgence ?"),
+              t(
+                "Toute action de l'agent sur ce projet sera refusée jusqu'à la levée de l'arrêt. L'arrêt reste actif si VS Code est fermé.",
+              ),
+              action,
+            ))
+          )
+            return;
+          await controls.halt();
+        } else if (message.type === "resume") {
+          if (!shown.view.halt.active) return;
+          const action = t("Lever l'arrêt");
+          if (
+            !(await confirmModal(
+              t("Lever l'arrêt d'urgence ?"),
+              t(
+                "L'agent pourra de nouveau agir dans le cadre de l'engagement validé. Vérifiez avec la white team que la reprise est autorisée.",
+              ),
+              action,
+            ))
+          )
+            return;
+          await controls.resume();
+        } else if (message.type === "importEngagement") {
+          const text = await pickJson(t("Importer l'engagement"));
+          // Importer n'approuve rien : la validation reste le geste de la modale.
+          if (text !== null) await controls.importEngagement(text);
+        } else if (message.type === "importCampaign") {
+          const text = await pickJson(t("Importer le plan"));
+          if (text !== null) await controls.importCampaign(text);
+        } else if (message.type === "validateEngagement") {
+          const digest = shown.view.digest;
+          if (digest === undefined || !shown.view.canValidate) return;
+          const action = t("Valider l'engagement");
+          if (
+            !(await confirmModal(
+              t("Valider l'engagement ?"),
+              t`Empreinte : ${digest}\n\nL'engagement devient la référence de l'autorisation, du périmètre, de l'infrastructure et des règles pour ce projet. Vérifiez qu'il correspond à la lettre de mission signée.`,
+              action,
+            ))
+          )
+            return;
+          // L'empreinte est celle affichée : si le brouillon a changé depuis, rien n'est écrit.
+          await controls.validateEngagement(digest);
+        } else if (message.type === "suspendSheet") {
+          if (!shown.view.canSuspend) return;
+          const action = t("Suspendre");
+          if (
+            !(await confirmModal(
+              t("Suspendre l'engagement ?"),
+              t("L'engagement cesse de s'appliquer ; la fiche et son empreinte sont conservées."),
+              action,
+            ))
+          )
+            return;
+          await controls.suspendSheet();
+        } else if (message.type === "validateCampaign") {
+          const digest = shown.view.campaign.digest;
+          if (digest === undefined || !shown.view.campaign.canValidate) return;
+          const action = t("Valider le plan");
+          if (
+            !(await confirmModal(
+              t("Valider le plan de campagne ?"),
+              t`Empreinte : ${digest}\n\nLe plan devient la référence des objectifs, des étapes et de la liste de démontage. Les étapes enregistrées par l'agent seront comparées à ce plan.`,
+              action,
+            ))
+          )
+            return;
+          await controls.validateCampaign(digest);
+        } else if (message.type === "suspendPlan") {
+          if (!shown.view.campaign.canSuspend) return;
+          const action = t("Suspendre");
+          if (
+            !(await confirmModal(
+              t("Suspendre le plan de campagne ?"),
+              t("Le plan cesse de s'appliquer ; le plan et son empreinte sont conservés."),
+              action,
+            ))
+          )
+            return;
+          await controls.suspendPlan();
         }
       } catch (error) {
         reportError(error);
@@ -3312,6 +3533,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         openProgram();
         return;
       }
+      if (message.type === "openEngagement") {
+        openEngagement();
+        return;
+      }
       if (message.type === "openKillchain") {
         openKillchain();
         return;
@@ -3855,6 +4080,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand("warband.openChat", () => openEditorChat()),
     vscode.commands.registerCommand("warband.openCockpit", () => openCockpit()),
     vscode.commands.registerCommand("warband.openProgram", () => openProgram()),
+    vscode.commands.registerCommand("warband.openEngagement", () => openEngagement()),
     vscode.commands.registerCommand("warband.openSessions", () => openSessions()),
     vscode.commands.registerCommand("warband.openWorkspace", async () => {
       if (await openActiveProjectWorkspace(defaultConfigDir(), projectWorkspaceHost, "selection"))

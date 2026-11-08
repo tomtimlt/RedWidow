@@ -78,6 +78,7 @@ export type StudioMessage =
   | { type: "refresh" }
   | { type: "openCockpit" }
   | { type: "openProgram" }
+  | { type: "openEngagement" }
   | { type: "unlink" }
   | { type: "openWorkspace" }
   | { type: "prepareMission" }
@@ -212,6 +213,7 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
     };
   if (m.type === "openCockpit" && keys.length === 1) return { type: "openCockpit" };
   if (m.type === "openProgram" && keys.length === 1) return { type: "openProgram" };
+  if (m.type === "openEngagement" && keys.length === 1) return { type: "openEngagement" };
   if (m.type === "refresh" && keys.length === 1) return { type: "refresh" };
   if ((m.type === "configureBurp" || m.type === "testBurp") && keys.length === 1)
     return { type: m.type };

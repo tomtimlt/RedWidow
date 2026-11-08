@@ -1,8 +1,13 @@
 import { readFileSync } from "node:fs";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createProject, importEngagementDraft, setActiveProject, setHalt } from "@warband/core";
 import { describe, expect, it } from "vitest";
+import { loadCockpitView, parseCockpitMessage } from "../src/logic/cockpit.js";
 import { engagementHtml } from "../src/logic/html.js";
+import { parseStudioMessage } from "../src/logic/studio.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const script = readFileSync(join(here, "..", "media", "engagement.js"), "utf8");
@@ -53,9 +58,9 @@ describe("page Engagement : HTML et script", () => {
       "halt",
       "resume",
       "validateEngagement",
-      "suspendEngagement",
+      "suspendSheet",
       "validateCampaign",
-      "suspendCampaign",
+      "suspendPlan",
       "importEngagement",
       "importCampaign",
       "refresh",
@@ -70,5 +75,92 @@ describe("page Engagement : HTML et script", () => {
     expect(render.indexOf("engagementSection(")).toBeLessThan(render.indexOf("campaignSection("));
     expect(render.indexOf("campaignSection(")).toBeLessThan(render.indexOf("journalSection("));
     expect(render.indexOf("journalSection(")).toBeLessThan(render.indexOf("closureSection("));
+  });
+});
+
+describe("ouverture de la page : menu projet, cockpit et palette", () => {
+  const read = (file: string) => readFileSync(join(here, "..", file), "utf8");
+
+  it("messages studio et cockpit validés, sans donnée", () => {
+    expect(parseStudioMessage({ type: "openEngagement" })).toEqual({ type: "openEngagement" });
+    expect(parseStudioMessage({ type: "openEngagement", x: 1 })).toBeNull();
+    expect(parseCockpitMessage({ type: "openEngagement" })).toEqual({ type: "openEngagement" });
+    expect(parseCockpitMessage({ type: "openEngagement", x: 1 })).toBeNull();
+    expect(read("media/studio.js")).toContain(
+      '["engagement", "Engagement", "shield", "openEngagement"]',
+    );
+    expect(read("media/cockpit.js")).toContain('type: "openEngagement"');
+  });
+
+  it("l'extension câble la commande, les deux messages et la feuille de style", () => {
+    const extension = read("src/extension/extension.ts");
+    expect(extension).toContain('registerCommand("warband.openEngagement"');
+    expect(extension).toMatch(/case "openEngagement":\s*openEngagement\(\)/);
+    expect(extension).toMatch(/message\.type === "openEngagement"[\s\S]{0,40}openEngagement\(\)/);
+    expect(extension).toContain('"css", "engagement.css"');
+    const manifest = JSON.parse(read("extension.manifest.json"));
+    expect(manifest.contributes.commands.map((c: { command: string }) => c.command)).toContain(
+      "warband.openEngagement",
+    );
+    for (const nls of ["package.nls.json", "package.nls.en.json", "package.nls.fr.json"])
+      expect(JSON.parse(read(nls))["command.openEngagement"]).toBeTruthy();
+  });
+
+  it("les gestes de l'hôte passent par une modale native et jamais par la webview", () => {
+    const extension = read("src/extension/extension.ts");
+    const start = extension.indexOf("const openEngagement = ");
+    const body = extension.slice(start, extension.indexOf("const openMonitor = ", start));
+    for (const gesture of [
+      "controls.halt()",
+      "controls.resume()",
+      "controls.validateEngagement(digest)",
+      "controls.validateCampaign(digest)",
+      "controls.suspendSheet()",
+      "controls.suspendPlan()",
+    ])
+      expect(body, gesture).toContain(gesture);
+    // Chaque geste est précédé d'une confirmation modale ; l'empreinte vient de la vue de l'hôte.
+    expect(body.match(/confirmModal\(/g)?.length).toBeGreaterThanOrEqual(7);
+    expect(body).toContain("shown.view.digest");
+    expect(body).toContain("shown.view.campaign.digest");
+    expect(body).not.toMatch(/message\.(digest|path|url|host|text)/);
+  });
+
+  it("le cockpit n'expose la ligne Engagement que s'il existe un engagement ou un arrêt", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "warband-eng-cockpit-"));
+    const project = await createProject(dir, { name: "p", workspace: dir });
+    await setActiveProject(dir, project.id);
+    const load = () =>
+      loadCockpitView({
+        configDir: dir,
+        resolveBin: () => "/usr/bin/docker",
+        createDocker: () => ({ listLabelPrefix: async () => [] }),
+      });
+    expect((await load()).engagement).toBeUndefined();
+    await setHalt(dir, project.id);
+    expect((await load()).engagement).toEqual({ state: "none", campaign: "none", halt: true });
+    const cited = <T>(value: T) => ({
+      value,
+      quote: "Lettre de mission",
+      url: "https://client.example/mission",
+      retrievedAt: "2026-11-07T10:00:00Z",
+      verified: true,
+    });
+    await importEngagementDraft(
+      dir,
+      project.id,
+      JSON.stringify({
+        version: 1,
+        authorization: cited({ principal: "ACME", reference: "LM-1", signatory: "A. Martin" }),
+        window: cited({ text: "novembre" }),
+        inScope: cited(["*.acme.example"]),
+        infrastructure: cited(["c2.redteam.example"]),
+        outOfScope: cited([]),
+        rulesOfEngagement: cited("Pas de déni de service."),
+        whiteTeam: cited({ contact: "soc@acme.example", deconfliction: "Appel" }),
+        osintPolicy: cited("Public seulement."),
+      }),
+    );
+    expect((await load()).engagement).toEqual({ state: "draft", campaign: "none", halt: true });
   });
 });

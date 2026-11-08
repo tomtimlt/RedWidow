@@ -89,6 +89,11 @@
         "icon": "$(checklist)"
       },
       {
+        "command": "warband.openEngagement",
+        "title": "%command.openEngagement%",
+        "icon": "$(shield)"
+      },
+      {
         "command": "warband.openSessions",
         "title": "%command.openSessions%",
         "icon": "$(layout)"

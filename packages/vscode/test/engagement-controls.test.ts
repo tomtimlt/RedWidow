@@ -106,7 +106,7 @@ describe("contrôles de l'engagement : vue pour chaque état", () => {
     let v = await controls.validateEngagement(draft.digest as string);
     expect(v).toMatchObject({ state: "approved", canValidate: false, canSuspend: true });
     expect(v.approvedAt).toBeDefined();
-    v = await controls.suspendEngagement();
+    v = await controls.suspendSheet();
     expect(v).toMatchObject({ state: "suspended", canValidate: true, canSuspend: false });
     expect(v.suspendedAt).toBeDefined();
     v = await controls.validateEngagement(draft.digest as string);
@@ -160,7 +160,7 @@ describe("contrôles de l'engagement : validation à empreinte périmée", () =>
     await expect(controls.validateEngagement("a".repeat(64))).rejects.toMatchObject({
       code: "engagement.absent",
     });
-    await expect(controls.suspendCampaign()).rejects.toMatchObject({ code: "campaign.absent" });
+    await expect(controls.suspendPlan()).rejects.toMatchObject({ code: "campaign.absent" });
   });
 });
 
@@ -223,7 +223,7 @@ describe("contrôles de l'engagement : plan, journal et clôture", () => {
     ]);
     expect(v.campaign.steps[0]).toMatchObject({ tactic: "TA0001", technique: "T1566" });
 
-    v = await controls.suspendCampaign();
+    v = await controls.suspendPlan();
     expect(v.campaign).toMatchObject({ state: "suspended", percent: 0 });
     expect(events.at(-1)).toMatchObject({ kind: "campaign.state", state: "suspended" });
   });
@@ -267,7 +267,7 @@ describe("contrôles de l'engagement : événements et imports", () => {
     const { dir, controls, events } = await setup();
     const draft = await importEngagementDraft(dir, ID, JSON.stringify(sheet()));
     await controls.validateEngagement(draft.digest as string);
-    await controls.suspendEngagement();
+    await controls.suspendSheet();
     expect(events).toEqual([
       { kind: "engagement.state", projectId: ID, state: "approved", digest: draft.digest },
       { kind: "engagement.state", projectId: ID, state: "suspended", digest: draft.digest },
@@ -294,11 +294,11 @@ describe("messages de la page et citations", () => {
       "ready",
       "refresh",
       "validateEngagement",
-      "suspendEngagement",
+      "suspendSheet",
       "halt",
       "resume",
       "validateCampaign",
-      "suspendCampaign",
+      "suspendPlan",
       "importEngagement",
       "importCampaign",
     ]) {
@@ -384,9 +384,7 @@ describe("aucun chemin d'approbation ni d'arrêt depuis engine/ ou un outil d'ag
     };
     walk(join(here, "..", "src"));
     // Le module de contrôles et l'extension (qui l'importe) : rien d'autre.
-    expect(hits).toContain("src/logic/engagement-controls.ts");
-    for (const hit of hits)
-      expect(["src/extension/extension.ts", "src/logic/engagement-controls.ts"]).toContain(hit);
+    expect(hits.sort()).toEqual(["src/extension/extension.ts", "src/logic/engagement-controls.ts"]);
     // L'extension n'appelle aucune de ces fonctions du cœur directement : elle passe par les contrôles.
     const extension = readFileSync(join(here, "..", "src", "extension", "extension.ts"), "utf8");
     expect(extension).not.toMatch(
