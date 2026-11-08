@@ -95,8 +95,9 @@ body.cockpit .tone-err .dot {
   border-left-color: var(--jn-err);
 }
 /* ───────────────────────────── Engagement ───────────────────────────── */
-.eng-halt {
+body.cockpit section.eng-halt {
   display: flex;
+  flex-direction: row;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--jn-s3);
@@ -106,7 +107,7 @@ body.cockpit .tone-err .dot {
   background: color-mix(in srgb, var(--jn-warn) 12%, var(--jn-widget));
   color: var(--vscode-foreground);
 }
-.eng-halt.is-on {
+body.cockpit section.eng-halt.is-on {
   background: color-mix(in srgb, var(--jn-warn) 30%, var(--jn-widget));
   border-width: 3px;
 }
@@ -145,6 +146,9 @@ body.cockpit .tone-err .dot {
 .eng-grid dd {
   margin: 0;
   min-width: 0;
+  overflow-wrap: anywhere;
+}
+.cockpit-notice code {
   overflow-wrap: anywhere;
 }
 .eng-text {

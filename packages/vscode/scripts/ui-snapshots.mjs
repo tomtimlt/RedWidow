@@ -393,6 +393,195 @@ const PROGRAM_EMPTY = {
   },
 };
 
+// Page Engagement (red team) : engagement validé, arrêt d'urgence actif, plan de campagne avec journal et clôture.
+const engQuote = (verified = true) => ({
+  quote: "Lettre de mission LM-2026-14, article 2 : périmètre et fenêtre de test.",
+  url: "https://client.example/lettre-de-mission",
+  retrievedAt: "2026-11-02T08:00:00.000Z",
+  verified,
+});
+const ENG_SHEET = {
+  authorization: {
+    value: { principal: "ACME Industries", reference: "LM-2026-14", signatory: "A. Martin, RSSI" },
+    citation: engQuote(),
+  },
+  window: {
+    value: {
+      text: "Du 10 au 21 novembre 2026, heures ouvrées",
+      notBefore: "2026-11-10T08:00:00.000Z",
+      notAfter: "2026-11-21T18:00:00.000Z",
+    },
+    citation: engQuote(),
+  },
+  inScope: { value: ["*.acme.example", "10.20.0.0/16"], citation: engQuote() },
+  infrastructure: { value: ["c2.redteam.example"], citation: engQuote() },
+  outOfScope: { value: ["paie.acme.example", "10.20.99.0/24"], citation: engQuote(false) },
+  rulesOfEngagement: {
+    value:
+      "Pas de déni de service. Systèmes de production critiques intouchables. Aucune exfiltration de données personnelles.",
+    citation: engQuote(),
+  },
+  whiteTeam: {
+    value: {
+      contact: "soc@acme.example",
+      deconfliction: "Appel au SOC avant toute action bruyante",
+    },
+    citation: engQuote(),
+  },
+  osintPolicy: {
+    value: "Rôles et informations professionnelles publiques seulement ; minimisation.",
+    citation: engQuote(),
+  },
+};
+const ENG_DIGEST = "5d1e0c7a93b24f6e8a10c2d7b9e4f3a6180d5c2b7e9f4a63d1c80b5e27a9f4d1";
+const ENG_CAMPAIGN_NONE = {
+  state: "none",
+  threatSummary: null,
+  objectives: [],
+  steps: [],
+  executed: 0,
+  total: 0,
+  percent: 0,
+  canValidate: false,
+  canSuspend: false,
+};
+const ENG_BASE = {
+  state: "approved",
+  digest: ENG_DIGEST,
+  approvedAt: "2026-11-03T09:14:00.000Z",
+  sheet: ENG_SHEET,
+  halt: { active: false },
+  campaign: ENG_CAMPAIGN_NONE,
+  journal: { rows: [], total: 0 },
+  closure: null,
+  canValidate: false,
+  canSuspend: true,
+};
+const ENGAGEMENT = { type: "view", view: ENG_BASE };
+const ENGAGEMENT_HALT = {
+  type: "view",
+  view: { ...ENG_BASE, halt: { active: true, since: "2026-11-12T14:32:00.000Z" } },
+};
+const ENGAGEMENT_PLAN = {
+  type: "view",
+  view: {
+    ...ENG_BASE,
+    campaign: {
+      state: "approved",
+      digest: "a37c90e1d24b58f6c0913e7d5a8b24f1c6e09d3a7b5f2814e6c0a9d73b1f58e2",
+      approvedAt: "2026-11-03T09:20:00.000Z",
+      threatSummary: {
+        value: "Groupe criminel motivé par l'extorsion, accès initial par hameçonnage ciblé.",
+        citation: engQuote(),
+      },
+      objectives: [
+        {
+          id: "o1",
+          label: "Compromettre le domaine",
+          successCriterion: "Compte administrateur du domaine obtenu",
+        },
+        {
+          id: "o2",
+          label: "Atteindre la base clients",
+          successCriterion: "Lecture d'une ligne de test sur le serveur de base",
+        },
+      ],
+      steps: [
+        {
+          id: "s1",
+          label: "Hameçonnage ciblé",
+          tactic: "TA0001",
+          technique: "T1566",
+          objectiveId: "o1",
+          executed: true,
+          result: "success",
+        },
+        {
+          id: "s2",
+          label: "Exécution de la charge",
+          tactic: "TA0002",
+          technique: "T1059",
+          objectiveId: "o1",
+          executed: true,
+          result: "partial",
+        },
+        {
+          id: "s3",
+          label: "Mouvement latéral SMB",
+          tactic: "TA0008",
+          technique: "T1021.002",
+          objectiveId: "o1",
+          executed: false,
+          result: "blocked",
+        },
+        {
+          id: "s4",
+          label: "Accès à la base clients",
+          tactic: "TA0009",
+          technique: "T1005",
+          objectiveId: "o2",
+          executed: false,
+        },
+      ],
+      executed: 2,
+      total: 4,
+      percent: 50,
+      canValidate: false,
+      canSuspend: true,
+    },
+    journal: {
+      total: 3,
+      rows: [
+        {
+          ts: "2026-11-10T09:12:44Z",
+          stepId: "s1",
+          stepLabel: "Hameçonnage ciblé",
+          technique: "T1566",
+          target: "mail.acme.example",
+          result: "success",
+        },
+        {
+          ts: "2026-11-10T11:03:09Z",
+          stepId: "s2",
+          stepLabel: "Exécution de la charge",
+          technique: "T1059",
+          target: "ws-0142.acme.example",
+          result: "partial",
+        },
+        {
+          ts: "2026-11-11T08:41:27Z",
+          stepId: "s3",
+          stepLabel: "Mouvement latéral SMB",
+          technique: "T1021.002",
+          target: "fs01.acme.example",
+          result: "blocked",
+        },
+      ],
+    },
+    closure: {
+      remaining: 2,
+      canClose: false,
+      items: [
+        {
+          id: "t1",
+          label: "Retirer la balise de ws-0142",
+          kind: "artifact",
+          done: true,
+          doneAt: "2026-11-11T17:02:00Z",
+          proof: "Processus arrêté, binaire supprimé",
+        },
+        { id: "t2", label: "Supprimer le compte de test svc-rt", kind: "account", done: false },
+        {
+          id: "t3",
+          label: "Détruire le serveur de commande et contrôle",
+          kind: "infrastructure",
+          done: false,
+        },
+      ],
+    },
+  },
+};
+
 const FINDINGS = [
   {
     id: "network",
@@ -661,6 +850,9 @@ const PAGES = [
   simple("cockpit", L.cockpitHtml, "cockpit.js", [COCKPIT], { tall: true }),
   simple("programme", L.programHtml, "program.js", [PROGRAM], { tall: true }),
   simple("programme-vide", L.programHtml, "program.js", [PROGRAM_EMPTY], { tall: true }),
+  simple("engagement", L.engagementHtml, "engagement.js", [ENGAGEMENT], { tall: true }),
+  simple("engagement-arret", L.engagementHtml, "engagement.js", [ENGAGEMENT_HALT], { tall: true }),
+  simple("engagement-plan", L.engagementHtml, "engagement.js", [ENGAGEMENT_PLAN], { tall: true }),
   simple("sessions", L.sessionsHtml, "sessions.js", [SESSIONS]),
   simple("sessions-attente", L.sessionsHtml, "sessions.js", [SESSIONS], {
     click: "filter-awaiting",
