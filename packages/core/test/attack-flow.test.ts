@@ -130,7 +130,9 @@ describe("export Attack Flow", () => {
     ).toThrow("attack-flow.no-start-action");
   });
 
-  const python = spawnSync("python", ["-c", "import jsonschema"], { encoding: "utf8" });
+  const python = spawnSync("python", ["-c", "import jsonschema, referencing"], {
+    encoding: "utf8",
+  });
   it.skipIf(python.status !== 0)(
     "valide réellement les SDO avec le schéma officiel et ses références STIX",
     () => {
