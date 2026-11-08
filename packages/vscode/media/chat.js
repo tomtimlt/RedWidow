@@ -220,68 +220,6 @@
     row.append(body, copyButton(text));
     return row;
   }
-  // Rapport : constats classés par gravité, avec une barre de répartition.
-  const severityLabels = () => [
-    ["critical", t("Critique")],
-    ["high", t("Élevée")],
-    ["medium", t("Moyenne")],
-    ["low", t("Faible")],
-    ["info", t("Info")],
-    ["unrated", t("À évaluer")],
-  ];
-  function renderReport(item) {
-    const findings = Array.isArray(item.findings) ? item.findings : [];
-    const box = el("section", "report");
-    box.setAttribute("aria-label", item.title || t("Rapport"));
-    const head = el("div", "report-head");
-    head.append(
-      svg("file", "ico report-ico"),
-      el("h3", "report-title", item.title || t("Rapport")),
-    );
-    head.append(
-      el(
-        "span",
-        "report-count",
-        findings.length > 1 ? t`${findings.length} constats` : t`${findings.length} constat`,
-      ),
-    );
-    const bar = el("div", "report-bar");
-    bar.setAttribute("aria-hidden", "true");
-    const summary = el("p", "report-summary");
-    const parts = [];
-    for (const [key, label] of severityLabels()) {
-      const count = findings.filter((f) => f.severity === key).length;
-      if (!count) continue;
-      const seg = el("span", `report-seg sev-${key}`);
-      seg.style.setProperty("flex-grow", String(count));
-      bar.append(seg);
-      parts.push(`${count} ${label.toLowerCase()}`);
-    }
-    summary.textContent = parts.join(" · ");
-    const list = el("ul", "report-list");
-    for (const f of findings) {
-      const known = severityLabels().find(([key]) => key === f.severity) ?? severityLabels()[5];
-      const li = el("li", `report-item sev-${known[0]}`);
-      li.append(el("span", "report-sev", known[1]));
-      const body = el("div", "report-body");
-      body.append(el("span", "report-label", f.label ?? ""));
-      if (f.detail) body.append(el("span", "report-detail", f.detail));
-      li.append(body);
-      list.append(li);
-    }
-    box.append(head, bar, summary);
-    if (item.description) box.append(el("p", "report-caption", item.description));
-    box.append(list);
-    if (item.projectId) {
-      const save = el("button", "primary", t("Exporter le brouillon Markdown"));
-      save.type = "button";
-      save.addEventListener("click", () =>
-        vscode.postMessage({ type: "exportReport", projectId: item.projectId }),
-      );
-      box.append(save);
-    }
-    return box;
-  }
   // Progression de la mission : rail de phases sous l'en-tête.
   function paintMission(mission) {
     const nav = $("mission");
@@ -325,7 +263,6 @@
     const credential = { item, node: null };
     let node;
     if (item.kind === "tool") node = renderTool(item, credential);
-    else if (item.kind === "report") node = renderReport(item);
     else if (item.kind === "user")
       node = messageShell("user", item.text, el("div", "msg user", item.text));
     else if (item.kind === "agent") {
@@ -1637,192 +1574,6 @@
     if (!ctl?.locked) vscode.postMessage({ type: "selectProvider", id: event.target.value });
   });
   $("no-provider-add").addEventListener("click", () => vscode.postMessage({ type: "addProvider" }));
-  const monitorRowsEl = $("monitor-rows");
-  const monitorEmpty = $("monitor-empty");
-  const monitor = $("monitor");
-  const monitorFollowBtn = $("monitor-follow");
-  let monitorFollow = true;
-  function followMonitorBottom() {
-    for (const box of monitorRowsEl.querySelectorAll(".mon-out")) box.scrollTop = box.scrollHeight;
-    monitor.scrollTop = monitor.scrollHeight;
-  }
-  monitorFollowBtn.addEventListener("click", () => {
-    monitorFollow = !monitorFollow;
-    monitorFollowBtn.setAttribute("aria-pressed", String(monitorFollow));
-    monitorFollowBtn.title = monitorFollow
-      ? t("Désactiver le suivi du bas pour défiler librement")
-      : t("Activer le suivi et revenir en bas");
-    if (monitorFollow) followMonitorBottom();
-  });
-  monitor.addEventListener(
-    "scroll",
-    () => {
-      if (monitorFollow && monitor.scrollHeight - monitor.scrollTop - monitor.clientHeight > 40) {
-        monitorFollow = false;
-        monitorFollowBtn.setAttribute("aria-pressed", "false");
-        monitorFollowBtn.title = t("Activer le suivi et revenir en bas");
-      }
-    },
-    { passive: true },
-  );
-  let watchId = "";
-  function monitorLine(row) {
-    const li = el("li", `mon-row tone-${row.tone}`);
-    li.dataset.monitorId = row.id;
-    const cmd = el("div", "mon-cmd");
-    const dot = el("span", "mon-dot");
-    dot.setAttribute("aria-hidden", "true");
-    cmd.append(dot);
-    if (row.container !== "") {
-      const tag = el("span", "prompt mon-space", row.container);
-      tag.dataset.hue = String(
-        ([...row.container].reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % 6) + 1,
-      );
-      cmd.append(tag);
-    }
-    cmd.append(el("span", "prompt", "$"), el("code", "mon-text", row.command));
-    const meta = el("div", "mon-meta");
-    meta.append(el("span", "badge mon-state", row.status));
-    li.append(cmd, meta);
-    if (row.output !== "") {
-      // Sortie numérotée : une ligne par élément, toujours insérée comme texte.
-      const out = el("pre", "mon-out");
-      const lines = row.output.replace(/\n$/, "").split("\n");
-      if (row.numbered) out.append(...lines.map((line) => el("span", "mon-line", line)));
-      else {
-        out.textContent = row.output;
-        out.classList.add("is-plain");
-      }
-      li.append(out);
-    }
-    if (row.truncated) li.append(el("p", "note", t("sortie tronquée")));
-    if (mode === "monitor" && row.toolUseId) {
-      li.tabIndex = 0;
-      li.setAttribute("role", "button");
-      li.title = t("Suivre la sortie");
-      const toolUseId = row.toolUseId;
-      const open = () => vscode.postMessage({ type: "watch", toolUseId });
-      li.addEventListener("click", open);
-      li.addEventListener("keydown", (e) => {
-        if (e.key !== "Enter" && e.key !== " ") return;
-        e.preventDefault();
-        open();
-      });
-    }
-    return li;
-  }
-  const monitorNodes = /* @__PURE__ */ new Map();
-  // Frise : un trait par commande, coloré par son état ; un clic amène à l'entrée.
-  let selectedMonitorRow = null;
-  const stripTicks = /* @__PURE__ */ new Map();
-  function paintStrip(rows) {
-    const strip = $("monitor-strip");
-    strip.hidden = rows.length === 0 || mode === "watch";
-    const ids = new Set(rows.map((row) => row.id));
-    for (const id of stripTicks.keys()) if (!ids.has(id)) stripTicks.delete(id);
-    const ticks = rows.map((row, i) => {
-      let tick = stripTicks.get(row.id);
-      if (!tick) {
-        tick = el("button", "mon-tick");
-        tick.type = "button";
-        tick.addEventListener("click", () => {
-          const line = [...monitorRowsEl.children].find(
-            (n) => n.dataset.monitorId === tick.dataset.rowId,
-          );
-          if (!line) return;
-          selectedMonitorRow = tick.dataset.rowId;
-          for (const [id, button] of stripTicks) {
-            button.classList.toggle("is-selected", String(id) === selectedMonitorRow);
-            button.setAttribute("aria-pressed", String(String(id) === selectedMonitorRow));
-          }
-          monitorFollow = false;
-          monitorFollowBtn.setAttribute("aria-pressed", "false");
-          const head = monitor.querySelector(".mon-head").getBoundingClientRect();
-          const offset = line.getBoundingClientRect().top - head.bottom - 8;
-          monitor.scrollTo({
-            top: monitor.scrollTop + offset,
-            behavior: motion.matches ? "auto" : "smooth",
-          });
-          line.classList.remove("is-flash");
-          void line.offsetWidth;
-          line.classList.add("is-flash");
-        });
-        stripTicks.set(row.id, tick);
-      }
-      tick.dataset.rowId = row.id;
-      tick.className = `mon-tick tone-${row.tone}${String(row.id) === selectedMonitorRow ? " is-selected" : ""}`;
-      tick.setAttribute("aria-pressed", String(String(row.id) === selectedMonitorRow));
-      tick.setAttribute("aria-label", t`Commande ${i + 1} : ${row.command}, ${row.status}`);
-      tick.title = `${row.command} · ${row.status}`;
-      return tick;
-    });
-    const same =
-      ticks.length === strip.children.length &&
-      ticks.every((tick, i) => strip.children[i] === tick);
-    if (!same) strip.replaceChildren(...ticks);
-  }
-
-  function renderMonitor(view) {
-    const top = monitor.scrollTop;
-    const positions = new Map(
-      [...monitorRowsEl.children].map((line) => {
-        const box = line.querySelector(".mon-out");
-        return [line.dataset.monitorId, { top: box?.scrollTop ?? 0, left: box?.scrollLeft ?? 0 }];
-      }),
-    );
-    let rows = UI.monitorRows(view);
-    if (mode === "watch") {
-      rows = rows.filter((row) => row.toolUseId === watchId);
-      if (!rows.length && monitorNodes.size) return;
-    }
-    let numberBudget = 2000;
-    rows = rows.map((row) => {
-      const count = row.output.split("\n").length;
-      const numbered = count <= Math.min(80, numberBudget);
-      if (numbered) numberBudget -= count;
-      return { ...row, numbered };
-    });
-    const ids = new Set(rows.map((row) => row.id));
-    for (const id of monitorNodes.keys()) if (!ids.has(id)) monitorNodes.delete(id);
-    stableChildren(
-      monitorRowsEl,
-      rows.map((row) => {
-        let cached = monitorNodes.get(row.id);
-        if (!sameDisplay(cached?.row, row)) {
-          cached = { row, node: monitorLine(row) };
-          monitorNodes.set(row.id, cached);
-        } else cached.row = row;
-        return cached.node;
-      }),
-    );
-    monitorEmpty.hidden = rows.length > 0;
-    const waiting = rows.filter((r) => r.tone === "wait").length;
-    monitorFollowBtn.hidden = mode === "watch" && !rows.some((row) => row.running);
-    const failed = rows.filter((r) => r.tone === "err").length;
-    $("monitor-count").textContent =
-      rows.length === 0
-        ? ""
-        : [
-            rows.length > 1 ? t`${rows.length} commandes` : t`${rows.length} commande`,
-            waiting ? t`${waiting} en attente` : "",
-            failed ? t`${failed} en erreur` : "",
-          ]
-            .filter(Boolean)
-            .join(" · ");
-    document.body.classList.toggle("monitor-live", waiting > 0);
-    paintStrip(rows);
-    for (const line of monitorRowsEl.children) {
-      const box = line.querySelector(".mon-out");
-      const previous = positions.get(line.dataset.monitorId);
-      if (box && previous) {
-        box.scrollTop = previous.top;
-        box.scrollLeft = previous.left;
-      }
-    }
-    if (monitorFollow) followMonitorBottom();
-    else monitor.scrollTop = top;
-  }
-  let mode = "conversation";
   const MANAGED = ["running", "waiting", "paused", "readonly", "reduce-motion"];
   const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
   let lastView = null;
@@ -1846,7 +1597,6 @@
       const h = Math.floor(total / 3600);
       text = `T+${h ? `${h}:` : ""}${pad2(Math.floor(total / 60) % 60)}:${pad2(total % 60)}`;
     }
-    $("mission-clock").textContent = text;
     $("thinking-clock").textContent = text;
   }
   function paintClock() {
@@ -1889,10 +1639,8 @@
   }
   for (const direction of ["older", "newer", "latest"]) {
     $(`timeline-${direction}`).addEventListener("click", () => {
-      if (mode === "monitor" || direction === "latest") {
-        if (direction === "latest") exchangePosition = null;
-        monitorFollow = direction === "latest";
-        monitorFollowBtn.setAttribute("aria-pressed", String(monitorFollow));
+      if (direction === "latest") {
+        exchangePosition = null;
         vscode.postMessage({ type: "timelinePage", direction });
         return;
       }
@@ -1907,25 +1655,16 @@
     });
   }
   function renderPaging(paging, view) {
-    const isMonitor = mode === "monitor";
-    $("timeline-older").firstElementChild.textContent = t(
-      isMonitor ? "Précédents" : "Échange précédent",
+    $("timeline-older").firstElementChild.textContent = t("Échange précédent");
+    $("timeline-newer").firstElementChild.textContent = t("Échange suivant");
+    const hasMessages = (view.items ?? []).some(
+      (item) => item.kind === "user" || item.kind === "agent",
     );
-    $("timeline-newer").firstElementChild.textContent = t(
-      isMonitor ? "Suivants" : "Échange suivant",
-    );
-    const hasMessages =
-      !isMonitor &&
-      (view.items ?? []).some((item) => item.kind === "user" || item.kind === "agent");
     timeline.hidden =
-      mode === "watch" ||
-      mode === "report" ||
-      !paging ||
-      (!hasMessages && !paging.earlier && !paging.archived && !paging.error);
-    $("timeline-older").disabled =
-      !!paging?.loading || (isMonitor ? !paging?.earlier : !hasMessages);
-    $("timeline-newer").hidden = isMonitor && !paging?.archived;
-    $("timeline-newer").disabled = !!paging?.loading || (!isMonitor && !hasMessages);
+      !paging || (!hasMessages && !paging.earlier && !paging.archived && !paging.error);
+    $("timeline-older").disabled = !!paging?.loading || !hasMessages;
+    $("timeline-newer").hidden = false;
+    $("timeline-newer").disabled = !!paging?.loading || !hasMessages;
     $("timeline-latest").hidden = !paging?.archived && !exchangePosition;
     $("timeline-status").textContent = paging?.loading
       ? t("Chargement…")
@@ -1960,20 +1699,8 @@
     const nextBefore = view.paging?.before ?? null;
     const pageChanged = nextBefore !== pageBefore;
     pageBefore = nextBefore;
-    if (pageChanged) {
-      log.scrollTop = 0;
-      monitor.scrollTop = 0;
-    }
+    if (pageChanged) log.scrollTop = 0;
     renderPaging(view.paging, view);
-    if (mode === "monitor" || mode === "watch") {
-      renderMonitor(view);
-      log.replaceChildren();
-      itemNodes.clear();
-      approvals.replaceChildren();
-      lastView = view;
-      applyBody();
-      return;
-    }
     const users = (view.items ?? []).filter((it) => it.kind === "user").map((it) => it.text);
     const nextSent = UI.syncRecallEntries(sent, users);
     if (nextSent.length < sent.length || nextSent[0] !== sent[0]) {
@@ -2004,7 +1731,7 @@
     }
     shownNodes = view.items.length === 0 ? 0 : nodes.length;
     stableChildren(log, nodes);
-    const visible2 = mode === "monitor" || !Array.isArray(view.approvals) ? [] : view.approvals;
+    const visible2 = Array.isArray(view.approvals) ? view.approvals : [];
     let replacedCardFocus = null;
     const cards = visible2.map((card) => {
       let cached = approvalNodes.get(card.toolUseId);
@@ -2090,17 +1817,15 @@
     const atPath = (path) => path?.reduce((node, index) => node?.children[index], document.body);
     const focused = document.activeElement;
     const focusPath = pathOf(focused);
-    const snapshots = [...document.querySelectorAll("[id], input, textarea, pre, .mon-out")].map(
-      (node) => ({
-        node,
-        path: pathOf(node),
-        top: node.scrollTop,
-        left: node.scrollLeft,
-        value: node.matches("input:not([type=file]), textarea") ? node.value : undefined,
-        start: node.matches("input:not([type=file]), textarea") ? node.selectionStart : null,
-        end: node.matches("input:not([type=file]), textarea") ? node.selectionEnd : null,
-      }),
-    );
+    const snapshots = [...document.querySelectorAll("[id], input, textarea, pre")].map((node) => ({
+      node,
+      path: pathOf(node),
+      top: node.scrollTop,
+      left: node.scrollLeft,
+      value: node.matches("input:not([type=file]), textarea") ? node.value : undefined,
+      start: node.matches("input:not([type=file]), textarea") ? node.selectionStart : null,
+      end: node.matches("input:not([type=file]), textarea") ? node.selectionEnd : null,
+    }));
     i18n.setLocale(locale);
     i18n.applyStatic(document);
     for (const binding of productBindings) {
@@ -2109,7 +1834,6 @@
     }
     // Les cartes conservent leurs nœuds et leurs verrous ; les messages et sorties sont reparcourus.
     itemNodes.clear();
-    monitorNodes.clear();
     if (lastView) render(lastView);
     paintAttachments();
     if (mentionOpen()) renderMentions();
@@ -2118,9 +1842,6 @@
         ? t("Réduire le texte")
         : t("Afficher tout le texte");
     projectFilter.setAttribute("aria-label", t("Filtrer les conversations par projet"));
-    monitorFollowBtn.title = monitorFollow
-      ? t("Désactiver le suivi du bas pour défiler librement")
-      : t("Activer le suivi du bas");
     for (const snapshot of snapshots) {
       const node = snapshot.node.isConnected ? snapshot.node : atPath(snapshot.path);
       if (!node) continue;
@@ -2178,14 +1899,10 @@
         shownNodes = -1;
         pageBefore = null;
         approvalNodes.clear();
-        stripTicks.clear();
-        selectedMonitorRow = null;
         itemNodes.clear();
-        monitorNodes.clear();
         openTools.clear();
         toolStatus.clear();
         log.replaceChildren();
-        monitorRowsEl.replaceChildren();
       }
       render(message.view);
     } else if (message && message.type === "attachmentResult") {
@@ -2202,26 +1919,6 @@
       } else
         attachmentStatus(t("Envoi refusé ou interrompu. Les fichiers restent dans le brouillon."));
       paintAttachments();
-    } else if (message && message.type === "role" && message.role === "monitor") {
-      mode = "monitor";
-      document.body.classList.add("mode-monitor");
-      document.body.classList.remove("mode-watch");
-      if (lastView) render(lastView);
-    } else if (
-      message &&
-      message.type === "role" &&
-      message.role === "watch" &&
-      typeof message.toolUseId === "string"
-    ) {
-      mode = "watch";
-      watchId = message.toolUseId;
-      document.body.classList.add("mode-watch");
-      document.body.classList.remove("mode-monitor");
-      if (lastView) render(lastView);
-    } else if (message && message.type === "role" && message.role === "report") {
-      mode = "report";
-      document.body.classList.add("mode-report");
-      if (lastView) render(lastView);
     } else if (message && message.type === "title" && typeof message.text === "string") {
       const contextTitle = $("context-title");
       contextTitle.textContent = message.text.slice(0, 120);

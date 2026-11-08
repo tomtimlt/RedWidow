@@ -25,7 +25,7 @@ describe("contrats de la refonte", () => {
     expect(html).toContain('data-palette="widow"');
     expect(html).not.toContain("onclick=");
     expect(html).toContain("default-src 'none'");
-    expect(html).toContain('aria-label="Suivi du bas"');
+    expect(html).toContain('id="send"');
   });
   it("date le début réel du tour sans renouveler la date lors des mises à jour", () => {
     const state = createChatState();

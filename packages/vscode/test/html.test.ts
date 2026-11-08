@@ -115,15 +115,10 @@ describe("scripts de la webview", () => {
       }
     }
   });
-  it("le seul écouteur scroll suit le Monitor sans reconstruire la vue", () => {
-    expect([...js.matchAll(/addEventListener\(\s*["']scroll/g)]).toHaveLength(1);
+  it("le chat n'écoute plus le défilement : le suivi du Monitor vit dans viewer.js", () => {
+    expect([...js.matchAll(/addEventListener\(\s*["']scroll/g)]).toHaveLength(0);
     expect(ui).not.toMatch(/addEventListener\(\s*["']scroll/);
-    const listener = js.match(
-      /monitor\.addEventListener\(\s*["']scroll["'],\s*\(\) => \{([\s\S]*?)\},\s*\{\s*passive:\s*true\s*\}\s*,?\s*\)/,
-    );
-    expect(listener).not.toBeNull();
-    expect(listener?.[1]).toContain("monitorFollow = false");
-    expect(listener?.[1]).not.toMatch(/render|replaceChildren|innerHTML|outerHTML|postMessage/);
+    expect(read("../media/viewer.js")).toMatch(/addEventListener\(\s*["']scroll/);
   });
   it("seules écritures de style : propriétés --jn-* et hauteur du champ", () => {
     for (const m of js.matchAll(/\.style\.(\w+)/g))
@@ -268,14 +263,14 @@ describe("composer et Configurer (lot P1)", () => {
     expect(css).toMatch(/body\.killchain-full \.kc-viewport\s*\{[^}]*height:\s*100%/);
     expect(read("../src/extension/extension.ts")).not.toContain("Cite un conteneur");
   });
-  it("chaque chat rend ses cartes ; le Monitor est une section sans décision", () => {
+  it("chaque chat rend ses cartes ; le Monitor, la Sortie et le Rapport ne sont plus servis par le chat", () => {
     expect(js).not.toContain("cardsFor");
     expect(js).not.toContain("setLayout");
     expect(js).toContain("view.approvals");
     expect(html).not.toContain('id="away-return"');
-    expect(tag("monitor-rows")).not.toBe("");
-    const monitor = section('id="monitor"', 'id="approvals"');
-    expect(monitor).not.toMatch(/once|deny|always|approve/);
+    expect(html).not.toMatch(/id="monitor(?!-btn)/);
+    expect(html).not.toContain("mon-");
+    expect(js).not.toMatch(/mode-(monitor|watch|report)|monitorRows|renderReport/);
     expect(html).not.toMatch(/Autoriser une fois|Toujours</);
   });
   it("les sélecteurs testés sont conservés", () => {

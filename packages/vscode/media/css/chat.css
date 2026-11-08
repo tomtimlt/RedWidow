@@ -1502,340 +1502,6 @@ body.vscode-high-contrast .card,
 body.vscode-high-contrast-light .card {
   border-color: var(--vscode-contrastBorder, currentColor);
 }
-/* ───────────────────────────── Monitor ───────────────────────────── */
-#monitor {
-  display: none;
-}
-body.mode-monitor #log,
-body.mode-monitor #approvals,
-body.mode-monitor #thinking,
-body.mode-monitor #form,
-body.mode-monitor #readonly,
-body.mode-monitor #no-provider,
-body.mode-monitor #history,
-body.mode-monitor #history-btn,
-body.mode-monitor #reset,
-body.mode-monitor #timeline,
-body.mode-watch #log,
-body.mode-watch #approvals,
-body.mode-watch #thinking,
-body.mode-watch #form,
-body.mode-watch #readonly,
-body.mode-watch #no-provider,
-body.mode-watch #history,
-body.mode-watch #history-btn,
-body.mode-watch #reset,
-body.mode-watch #timeline {
-  display: none;
-}
-body.mode-monitor #monitor,
-body.mode-watch #monitor {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  gap: var(--jn-s3);
-  padding: 0 0 var(--jn-s4);
-  width: min(860px, calc(100% - 2 * var(--jn-gutter)));
-  margin-inline: auto;
-}
-/* En-tête du Monitor : voyant en direct, titre, compteurs, suivi du bas */
-.mon-head {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  flex-shrink: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  column-gap: var(--jn-s3);
-  row-gap: 2px;
-  padding: var(--jn-s3) 0 var(--jn-s3);
-  border-bottom: 1px solid var(--jn-line);
-  background: var(--vscode-editor-background, var(--vscode-sideBar-background));
-}
-.mon-title {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px 10px;
-  min-width: 0;
-}
-.mon-live {
-  position: relative;
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--jn-ok);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--jn-ok) 22%, transparent);
-}
-body.monitor-live .mon-live {
-  background: var(--jn-warn);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--jn-warn) 22%, transparent);
-}
-.mon-count {
-  padding: 2px 9px;
-  border-radius: var(--jn-r-pill);
-  background: var(--jn-raise-2);
-  color: var(--jn-muted);
-  font-family: var(--jn-mono);
-  font-size: var(--jn-fs-2xs);
-  font-variant-numeric: tabular-nums;
-}
-.mon-count:empty {
-  display: none;
-}
-.mon-head .hint {
-  grid-column: 1;
-  margin: 0;
-  min-width: 0;
-  font-size: var(--jn-fs-xs);
-}
-#monitor-follow {
-  grid-row: 1 / span 2;
-  grid-column: 2;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 30px;
-  padding: 0 12px 0 10px;
-  flex-shrink: 0;
-  border: 1px solid var(--jn-line);
-  font-size: var(--jn-fs-xs);
-}
-#monitor-follow[aria-pressed="true"] {
-  border-color: var(--jn-sig-edge);
-  background: var(--jn-sig-tint);
-  color: var(--vscode-foreground);
-}
-#monitor-follow[aria-pressed="true"] .ico {
-  color: var(--jn-sig);
-}
-#monitor-rows {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--jn-s3);
-}
-/* État vide : pictogramme en pastille et explication */
-#monitor-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  margin: auto 0;
-  padding: var(--jn-s6) var(--jn-s4);
-  border: 1px dashed var(--jn-line-strong);
-  border-radius: var(--jn-r-lg);
-  font-style: normal;
-  text-align: center;
-}
-.mon-empty-ico {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  margin-bottom: 4px;
-  border-radius: 50%;
-  background: var(--jn-sig-tint);
-  color: var(--jn-sig);
-}
-.mon-empty-ico .ico {
-  width: 20px;
-  height: 20px;
-}
-.mon-empty-sub {
-  font-size: var(--jn-fs-xs);
-}
-/* Entrée : barre de commande, état en pilule, sortie en volet terminal */
-.mon-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  column-gap: var(--jn-s3);
-  min-width: 0;
-  padding: 0;
-  overflow: hidden;
-  border: 1px solid var(--jn-line);
-  border-radius: var(--jn-r-md);
-  background: var(--jn-widget);
-  box-shadow: inset var(--jn-rail) 0 0 var(--jn-faint);
-  transition:
-    border-color var(--jn-d1) var(--jn-ease-io),
-    box-shadow var(--jn-d2) var(--jn-ease-io),
-    transform var(--jn-d2) var(--jn-ease-out);
-}
-.mon-row > :not(.mon-cmd):not(.mon-meta) {
-  grid-column: 1 / -1;
-}
-.mon-row.tone-err {
-  border-color: color-mix(in srgb, var(--jn-err) 45%, var(--jn-line));
-  box-shadow: inset var(--jn-rail) 0 0 var(--jn-err);
-}
-.mon-row.tone-ok {
-  box-shadow: inset var(--jn-rail) 0 0 var(--jn-ok);
-}
-.mon-row.tone-wait {
-  border-color: color-mix(in srgb, var(--jn-warn) 40%, var(--jn-line));
-  box-shadow: inset var(--jn-rail) 0 0 var(--jn-warn);
-}
-.mon-cmd {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 8px;
-  min-width: 0;
-  padding: 10px 0 10px 14px;
-  font-family: var(--jn-mono);
-  font-size: var(--jn-fs-sm);
-}
-.mon-dot {
-  flex: none;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--jn-faint);
-}
-.tone-ok .mon-dot {
-  background: var(--jn-ok);
-}
-.tone-err .mon-dot {
-  background: var(--jn-err);
-}
-.tone-wait .mon-dot {
-  background: var(--jn-warn);
-}
-.mon-cmd .prompt {
-  color: var(--jn-muted);
-}
-.mon-space {
-  padding: 1px 8px;
-  border-radius: var(--jn-r-pill);
-  background: var(--jn-sig-tint);
-  color: var(--jn-sig) !important;
-  font-size: var(--jn-fs-xs);
-}
-.mon-text {
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  font-size: 1em;
-  font-weight: 600;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.mon-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--jn-s2);
-  margin: 0;
-  padding-right: 12px;
-  font-size: var(--jn-fs-xs);
-}
-.mon-meta .badge {
-  height: 20px;
-  padding: 0 9px;
-  font-family: var(--jn-font);
-  font-size: var(--jn-fs-2xs);
-  font-weight: 600;
-}
-.mon-row.tone-err .mon-meta .badge {
-  color: var(--jn-err);
-  border-color: color-mix(in srgb, var(--jn-err) 45%, transparent);
-  background: color-mix(in srgb, var(--jn-err) 10%, transparent);
-}
-.mon-row.tone-ok .mon-meta .badge {
-  color: var(--jn-ok);
-  border-color: color-mix(in srgb, var(--jn-ok) 45%, transparent);
-  background: color-mix(in srgb, var(--jn-ok) 10%, transparent);
-}
-.mon-row.tone-wait .mon-meta .badge {
-  color: var(--jn-warn);
-  border-color: color-mix(in srgb, var(--jn-warn) 45%, transparent);
-  background: color-mix(in srgb, var(--jn-warn) 10%, transparent);
-}
-.mon-out {
-  margin: 0;
-  padding: 10px 14px 12px 16px;
-  max-height: 240px;
-  overflow: auto;
-  border-top: 1px solid var(--jn-line);
-  border-radius: 0;
-  background: var(--jn-inset);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  font-family: var(--jn-mono);
-  font-size: var(--jn-fs-sm);
-  line-height: 1.6;
-}
-.mon-row > .note {
-  margin: 0;
-  padding: 6px 16px 8px;
-  border-top: 1px dashed var(--jn-line);
-  background: var(--jn-inset);
-}
-/* Entrée cliquable : invitation à suivre */
-body.mode-monitor .mon-row[role="button"] {
-  cursor: pointer;
-}
-body.mode-monitor .mon-row[role="button"]:hover {
-  border-color: var(--jn-sig-edge);
-}
-body.mode-monitor .mon-row[role="button"] .mon-meta::after {
-  content: "Suivre ›";
-  color: var(--jn-sig);
-  font-weight: 600;
-  opacity: 0;
-  transform: translateX(-4px);
-  transition:
-    opacity var(--jn-d1) var(--jn-ease-io),
-    transform var(--jn-d2) var(--jn-ease-out);
-}
-body.mode-monitor .mon-row[role="button"]:hover .mon-meta::after,
-body.mode-monitor .mon-row[role="button"]:focus-visible .mon-meta::after {
-  opacity: 1;
-  transform: none;
-}
-body.mode-monitor .mon-row[role="button"]:focus-visible {
-  outline-offset: 2px;
-}
-body.mode-watch .mon-out {
-  max-height: none;
-  min-height: 50vh;
-}
-body.mode-watch .mon-head .hint::before {
-  content: "Lecture seule · ";
-  color: var(--jn-sig);
-  font-weight: 600;
-}
-@container app (max-width: 419px) {
-  .mon-head {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-  #monitor-follow {
-    width: 30px;
-    padding: 0;
-  }
-  .mon-row {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .mon-meta {
-    justify-content: flex-start;
-    padding: 0 12px 10px 14px;
-  }
-  .mon-cmd {
-    padding-right: 12px;
-  }
-}
 .welcome-mark .brand-wing {
   stroke-width: 1.6;
 }
@@ -1955,10 +1621,6 @@ body.mode-watch .mon-head .hint::before {
 #roe-label {
   font-weight: 600;
 }
-body.mode-monitor #roe,
-body.mode-watch #roe {
-  display: none;
-}
 @container app (max-width: 419px) {
   #bar #sandbox {
     order: 5;
@@ -1976,90 +1638,9 @@ body.mode-watch #roe {
     padding: 0 8px;
   }
 }
-/* ───────────────────────────── Monitor tactique ───────────────────────────── */
-.mon-clock {
-  font-family: var(--jn-mono);
-  font-size: var(--jn-fs-xs);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--jn-sig);
-}
-.mon-clock:empty,
+
 .thinking-clock:empty {
   display: none;
-}
-/* Frise : un trait par commande, état en couleur */
-.mon-strip {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: flex-end;
-  gap: 3px;
-  min-height: 22px;
-  margin-top: 8px;
-  padding: 4px 6px;
-  overflow-x: auto;
-  border: 1px solid var(--jn-line);
-  border-radius: var(--jn-r-pill);
-  background: var(--jn-raise);
-}
-.mon-tick {
-  flex: 0 0 auto;
-  width: 6px;
-  min-width: 6px;
-  height: 12px;
-  min-height: 12px;
-  padding: 0;
-  border: 0;
-  border-radius: var(--jn-r-pill);
-  background: var(--jn-faint);
-  transition:
-    height var(--jn-d2) var(--jn-ease-out),
-    background-color var(--jn-d1) var(--jn-ease-io);
-}
-.mon-tick.tone-ok {
-  background: var(--jn-ok);
-}
-.mon-tick.tone-wait {
-  background: var(--jn-warn);
-}
-.mon-tick.tone-err {
-  background: var(--jn-err);
-  height: 14px;
-}
-.mon-tick:hover,
-.mon-tick:focus-visible {
-  height: 16px;
-}
-.mon-tick:focus-visible {
-  outline-offset: 2px;
-}
-body.vscode-high-contrast .mon-tick,
-body.vscode-high-contrast-light .mon-tick {
-  border: 1px solid var(--vscode-contrastBorder, currentColor);
-}
-/* Sortie numérotée */
-.mon-out {
-  counter-reset: jn-line;
-}
-.mon-line {
-  display: block;
-  min-height: 1.6em;
-  padding-left: 3.2em;
-  text-indent: -3.2em;
-}
-.mon-line::before {
-  counter-increment: jn-line;
-  content: counter(jn-line);
-  display: inline-block;
-  width: 2.4em;
-  margin-right: 0.8em;
-  text-align: right;
-  text-indent: 0;
-  color: var(--jn-faint);
-  user-select: none;
-}
-.mon-row.is-flash {
-  border-color: var(--jn-sig-edge);
 }
 /* Horloge dans l'indicateur de réflexion */
 .thinking-clock {
@@ -2070,21 +1651,6 @@ body.vscode-high-contrast-light .mon-tick {
   font-size: var(--jn-fs-2xs);
   font-variant-numeric: tabular-nums;
   color: var(--jn-muted);
-}
-.sev-critical {
-  --jn-sev: var(--jn-sev-critical);
-}
-.sev-high {
-  --jn-sev: var(--jn-sev-high);
-}
-.sev-medium {
-  --jn-sev: var(--jn-sev-medium);
-}
-.sev-low {
-  --jn-sev: var(--jn-sev-low);
-}
-.sev-info {
-  --jn-sev: var(--jn-sev-info);
 }
 /* ───────────────────────────── Progression de la mission ───────────────────────────── */
 #mission {
@@ -2174,10 +1740,6 @@ body.vscode-high-contrast-light .mon-tick {
   border-color: var(--jn-warn);
   color: var(--jn-warn);
 }
-body.mode-monitor #mission,
-body.mode-watch #mission {
-  display: none;
-}
 @container app (max-width: 419px) {
   .mission-step:not(.is-current, .is-wait) .mission-label {
     position: absolute;
@@ -2199,121 +1761,6 @@ body.mode-watch #mission {
   #mission {
     width: min(760px, calc(100% - 2 * var(--jn-gutter)));
     margin-inline: auto;
-  }
-}
-/* ───────────────────────────── Rapport ───────────────────────────── */
-#log > .report {
-  margin-left: var(--jn-indent);
-}
-.report {
-  padding: 14px 16px 12px;
-  border: 1px solid var(--jn-line);
-  border-radius: var(--jn-r-md);
-  background: var(--jn-widget);
-}
-.report-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.report-ico {
-  color: var(--jn-sig);
-}
-.report-title {
-  margin: 0;
-  font-size: var(--jn-fs);
-  font-weight: 650;
-}
-.report-count {
-  margin-left: auto;
-  padding: 2px 9px;
-  border-radius: var(--jn-r-pill);
-  background: var(--jn-raise-2);
-  color: var(--jn-muted);
-  font-family: var(--jn-mono);
-  font-size: var(--jn-fs-2xs);
-}
-.report-bar {
-  display: flex;
-  gap: 2px;
-  height: 6px;
-  margin-top: 12px;
-  overflow: hidden;
-  border-radius: var(--jn-r-pill);
-}
-.report-seg {
-  flex: 1 1 0;
-  min-width: 6px;
-  background: var(--jn-sev);
-}
-.report-summary {
-  margin: 6px 0 10px;
-  font-family: var(--jn-mono);
-  font-size: var(--jn-fs-2xs);
-  color: var(--jn-muted);
-}
-.report-list {
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  border-top: 1px solid var(--jn-line);
-}
-.report-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 9px 0;
-  border-bottom: 1px solid var(--jn-line);
-}
-.report-item:last-child {
-  border-bottom: 0;
-}
-.report-sev {
-  flex: none;
-  min-width: 64px;
-  padding: 2px 8px;
-  border-radius: var(--jn-r-pill);
-  background: color-mix(in srgb, var(--jn-sev) 16%, transparent);
-  color: var(--jn-sev);
-  font-size: var(--jn-fs-2xs);
-  font-weight: 700;
-  text-align: center;
-}
-.sev-info .report-sev {
-  color: var(--jn-muted);
-}
-.report-body {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-.report-label {
-  font-weight: 550;
-  overflow-wrap: anywhere;
-}
-.report-detail {
-  font-size: var(--jn-fs-xs);
-  color: var(--jn-muted);
-}
-body.vscode-high-contrast .report-sev,
-body.vscode-high-contrast-light .report-sev {
-  border: 1px solid currentColor;
-  color: var(--vscode-foreground);
-}
-body.vscode-high-contrast .report-seg,
-body.vscode-high-contrast-light .report-seg {
-  background: var(--vscode-foreground);
-}
-@container app (max-width: 359px) {
-  .report {
-    padding: 12px;
-  }
-  .report-item {
-    flex-direction: column;
-    gap: 4px;
   }
 }
 /* ───────────────────────────── Aura du bypass ─────────────────────────────
@@ -2343,9 +1790,6 @@ body.vscode-high-contrast-light.bypass-on::after {
 body.vscode-high-contrast.bypass-pending::after,
 body.vscode-high-contrast-light.bypass-pending::after {
   box-shadow: none;
-}
-body.mode-watch::after {
-  inset: 0;
 }
 /* ───────────────────────────── Caractéristiques de la demande ───────────────────────────── */
 .card-risks {
@@ -2632,36 +2076,6 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
   .mission-step.is-current {
   background: color-mix(in srgb, var(--jn-step) 14%, transparent);
 }
-/* Monitor : une teinte stable par espace (data-hue calculé dans chat.js). */
-body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contrast-light))
-.mon-space[data-hue="1"] {
-  --jn-hue: var(--jn-rb-1);
-}
-body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contrast-light))
-  .mon-space[data-hue="2"] {
-  --jn-hue: var(--jn-rb-2);
-}
-body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contrast-light))
-  .mon-space[data-hue="3"] {
-  --jn-hue: var(--jn-rb-3);
-}
-body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contrast-light))
-  .mon-space[data-hue="4"] {
-  --jn-hue: var(--jn-rb-4);
-}
-body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contrast-light))
-  .mon-space[data-hue="5"] {
-  --jn-hue: var(--jn-rb-5);
-}
-body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contrast-light))
-  .mon-space[data-hue="6"] {
-  --jn-hue: var(--jn-rb-6);
-}
-body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contrast-light))
-  .mon-space[data-hue] {
-  color: var(--vscode-foreground);
-  background: color-mix(in srgb, var(--jn-hue) 14%, transparent);
-}
 /* Effort : dégradé fixe sur toute la piste, découpé jusqu'à la pastille. */
 body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contrast-light))
 #effort-scale::before {
@@ -2905,11 +2319,6 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
     transform: rotate(90deg);
   }
   body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light)
-    #monitor-follow:hover
-    .ico {
-    transform: translateY(2px);
-  }
-  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light)
     .chip:hover:not([aria-disabled="true"])
     .caret {
     transform: translateY(1px);
@@ -2942,13 +2351,6 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
     .mission-mark {
     animation: jn-live 1.8s var(--jn-ease-io) infinite;
   }
-  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light) .report-seg {
-    transform-origin: left center;
-    animation: jn-grow 0.6s var(--jn-ease-out) both;
-  }
-  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light) .mon-row.is-flash {
-    animation: jn-flash 1s var(--jn-ease-out) 1;
-  }
   /* Bypass : respiration de l'aura, plus vive dans les 10 dernières minutes. */
   body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light).bypass-on::after {
     animation: jn-aura 4s var(--jn-ease-io) infinite;
@@ -2970,13 +2372,6 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
     animation:
       jn-lock-on 0.32s var(--jn-ease-out) both,
       jn-lock-pulse 2s var(--jn-ease-io) 0.4s infinite;
-  }
-  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light).mode-monitor
-    .mon-row[role="button"]:hover {
-    transform: translateY(-1px);
-    box-shadow:
-      inset var(--jn-rail) 0 0 var(--jn-sig),
-      0 4px 14px var(--vscode-widget-shadow, #0003);
   }
   /* Accueil : verrouillage, allumage, mise en orbite, puis respiration lente. */
   body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light)
@@ -3233,22 +2628,6 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
     transform: scale(0.95);
   }
 }
-@keyframes jn-grow {
-  from {
-    transform: scaleX(0);
-  }
-  to {
-    transform: none;
-  }
-}
-@keyframes jn-flash {
-  from {
-    opacity: 0.55;
-  }
-  to {
-    opacity: 1;
-  }
-}
 @keyframes jn-aura {
   0%,
   100% {
@@ -3344,33 +2723,6 @@ body.vscode-high-contrast-light .brand-ops {
   .brand-ops {
     color: CanvasText;
   }
-}
-/* Garde-fous d'intégration : animations et prévisualisations sont purement visuelles. */
-.mon-out.is-plain {
-  padding-inline-start: var(--jn-s3);
-}
-.report-caption {
-  color: var(--jn-muted);
-  font-size: var(--jn-fs-sm);
-}
-.sev-unrated {
-  --jn-sev: var(--jn-muted);
-}
-body.mode-report
-  :is(
-    #roe,
-    #mission,
-    #timeline,
-    #history,
-    #history-btn,
-    #reset,
-    #form,
-    #approvals,
-    #thinking,
-    #readonly,
-    #no-provider
-  ) {
-  display: none;
 }
 /* ───────────────────────────── Configurer compact ─────────────────────────────
  * Le menu tient sans défilement : pas de sous-titre ni de titres de section,
@@ -3538,56 +2890,6 @@ body.mode-report
 #attachment-status {
   margin: 6px 12px;
   overflow-wrap: anywhere;
-}
-/* Chronologie indépendante du défilement des sorties. */
-#monitor-layout {
-  display: none;
-}
-body.mode-monitor #monitor-layout,
-body.mode-watch #monitor-layout {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-  gap: 12px;
-  width: calc(100% - 24px);
-  margin: 0 auto;
-}
-body.mode-monitor #monitor,
-body.mode-watch #monitor {
-  width: auto;
-  min-width: 0;
-  margin: 0;
-  flex: 1;
-}
-body.mode-monitor .mon-strip {
-  width: 30px;
-  flex: 0 0 30px;
-  flex-direction: column;
-  align-items: center;
-  align-self: stretch;
-  overflow-y: auto;
-  overflow-x: hidden;
-  margin: 4px 0;
-  padding: 6px 3px;
-  border-radius: 8px;
-}
-body.mode-monitor .mon-tick {
-  width: 12px;
-  min-width: 12px;
-  height: 7px;
-  min-height: 7px;
-}
-body.mode-monitor .mon-tick:hover,
-body.mode-monitor .mon-tick:focus-visible {
-  width: 18px;
-}
-.mon-tick.is-selected {
-  outline: 2px solid var(--vscode-focusBorder, var(--jn-sig));
-  outline-offset: 2px;
-}
-body.mode-monitor .mon-tick.is-selected {
-  width: 18px;
-  min-height: 11px;
 }
 /* Un point d’entrée pour le contexte et les outils de la conversation. */
 #composer-menu:not(:popover-open) {
