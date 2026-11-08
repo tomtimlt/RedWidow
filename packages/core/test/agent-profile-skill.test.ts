@@ -176,6 +176,20 @@ it("le profil bug-bounty garde l’ordre des sections et un rythme adaptatif san
   expect(rythme?.text).not.toContain("10 s");
 });
 
+it("le profil red-team garde les neuf sections de l’émulation d’adversaire dans l’ordre", () => {
+  expect(AGENT_PROFILES["red-team"].sections.map(({ id }) => id)).toEqual([
+    "engagement",
+    "menace",
+    "reconnaissance",
+    "plan",
+    "infrastructure",
+    "execution",
+    "opsec_journal",
+    "preuves",
+    "cloture",
+  ]);
+});
+
 it.each(["htb", "red-team", "mentor", "out-of-box"] as const)(
   "le profil %s renvoie à la recherche commune, sans « exploration générale » ni GitHub seul",
   (profile) => {

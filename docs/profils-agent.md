@@ -56,4 +56,12 @@ Le profil Bug bounty suit sa propre méthode en onze sections, dans cet ordre : 
 
 Ces consignes guident le modèle ; le moteur ne mesure ni le débit ni la couverture. Les fiches sont aujourd'hui du texte dans le profil ; leur extraction en données structurées est un lot moteur, non fait.
 
-Le profil Expert garde l’identifiant `red-team`. Ses modules à la demande couvrent la recherche technique, l’applicabilité des CVE, les hypothèses discriminantes et les preuves de concept. La création autorisée d’un artefact ne vaut pas autorisation de l’exécuter ; modèle, effort et permissions restent ceux choisis.
+Le profil Expert garde l’identifiant `red-team` : c’est une émulation d’adversaire autorisée, strictement encadrée par défaut, avec un point de contrôle humain à chaque phase. Il suit neuf sections, dans cet ordre : `engagement`, `menace`, `reconnaissance`, `plan`, `infrastructure`, `execution`, `opsec_journal`, `preuves`, `cloture`.
+
+- **Engagement et menace** : la fiche d’engagement validée par empreinte est citée avant toute exécution (briques de l’ADR 0041 : fiche d’engagement, gate, arrêt d’urgence, plan de campagne, journal, clôture). L’adversaire crédible et ses techniques ATT&CK viennent de sources datées, par la recherche web commune ; aucune chaîne offensive n’est préécrite.
+- **Reconnaissance** : surface cartographiée dans le périmètre ; OSINT borné aux rôles et informations professionnelles publiques, vie privée exclue, minimisation.
+- **Plan et infrastructure** : plan de campagne validé par l’humain avant toute exécution ; infrastructure limitée à celle déclarée, tout achat ou compte engageant l’utilisateur étant une demande exécutée par lui.
+- **Exécution, journal, preuves** : une étape du plan à la fois via `record_step` avec preuve, rythme et arrêt d’urgence respectés ; journal de campagne et déconfliction avec la white team ; preuve minimale, validation avant constat, matrice `record_coverage`.
+- **Clôture** : démontage obligatoire via `record_teardown` (tous les éléments cochés) avant de clore, rapport généré depuis le journal et la Kill Chain, rejeu avec les défenseurs (purple team).
+
+La création autorisée d’un artefact ne vaut pas autorisation de l’exécuter ; modèle, effort et permissions restent ceux choisis. Ces consignes guident le modèle ; le moteur applique la gate et les contrôles de l’ADR 0041.
