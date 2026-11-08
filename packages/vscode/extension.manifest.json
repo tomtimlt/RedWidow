@@ -89,6 +89,11 @@
         "icon": "$(checklist)"
       },
       {
+        "command": "warband.openSessions",
+        "title": "%command.openSessions%",
+        "icon": "$(layout)"
+      },
+      {
         "command": "warband.openStudio",
         "title": "%command.openStudio%",
         "icon": "$(settings-gear)"
@@ -198,9 +203,14 @@
           "group": "1_more@2"
         },
         {
-          "command": "warband.launcher",
+          "command": "warband.openSessions",
           "when": "view == warband.chat",
           "group": "1_more@3"
+        },
+        {
+          "command": "warband.launcher",
+          "when": "view == warband.chat",
+          "group": "1_more@4"
         }
       ],
       "editor/title": [
@@ -240,9 +250,14 @@
           "group": "1_more@2"
         },
         {
-          "command": "warband.launcher",
+          "command": "warband.openSessions",
           "when": "activeWebviewPanelId =~ /^warband\\./",
           "group": "1_more@3"
+        },
+        {
+          "command": "warband.launcher",
+          "when": "activeWebviewPanelId =~ /^warband\\./",
+          "group": "1_more@4"
         }
       ],
       "commandPalette": [
@@ -372,6 +387,11 @@
         "command": "warband.openStudio",
         "key": "alt+j s",
         "mac": "ctrl+j s"
+      },
+      {
+        "command": "warband.openSessions",
+        "key": "alt+j e",
+        "mac": "ctrl+j e"
       }
     ],
     "viewsContainers": {

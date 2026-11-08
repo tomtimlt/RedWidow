@@ -270,6 +270,46 @@ const DOCKER = {
     },
   ],
 };
+const tile = (id, name, state, extra = {}) => ({
+  id,
+  name,
+  title: "",
+  location: "editor",
+  state,
+  model: "défaut",
+  project: "Laboratoire",
+  updatedAt: "2026-11-07T10:00:00.000Z",
+  approvals: state === "approval" ? 1 : 0,
+  ...extra,
+});
+const SESSIONS = {
+  type: "view",
+  tiles: [
+    tile("c1", "Chat 2", "approval", {
+      title: "Scan du périmètre web",
+      approvals: 2,
+      updatedAt: "2026-11-07T09:12:00.000Z",
+    }),
+    tile("sidebar", "Chat", "approval", {
+      title: "Rédaction de la fiche programme",
+      location: "sidebar",
+      updatedAt: "2026-11-07T09:40:00.000Z",
+    }),
+    tile("c3", "Chat 3", "error", {
+      title: "Énumération DNS",
+      updatedAt: "2026-11-07T08:50:00.000Z",
+    }),
+    tile("c4", "Chat 4", "busy", {
+      title: "Analyse des en-têtes HTTP",
+      updatedAt: "2026-11-07T10:20:00.000Z",
+    }),
+    tile("c5", "Chat 5", "idle", {
+      title: "Relecture du rapport",
+      project: "",
+      updatedAt: "2026-11-06T16:00:00.000Z",
+    }),
+  ],
+};
 const COCKPIT = {
   type: "view",
   ...DOCKER,
@@ -547,6 +587,10 @@ const PAGES = [
   simple("cockpit", L.cockpitHtml, "cockpit.js", [COCKPIT], { tall: true }),
   simple("programme", L.programHtml, "program.js", [PROGRAM], { tall: true }),
   simple("programme-vide", L.programHtml, "program.js", [PROGRAM_EMPTY], { tall: true }),
+  simple("sessions", L.sessionsHtml, "sessions.js", [SESSIONS]),
+  simple("sessions-attente", L.sessionsHtml, "sessions.js", [SESSIONS], {
+    click: "filter-awaiting",
+  }),
   simple("killchain-plein-ecran", L.killchainHtml, "studio.js", [
     studio("killchain", { findings: FINDINGS }),
   ]),

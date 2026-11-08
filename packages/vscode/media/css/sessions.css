@@ -1,0 +1,144 @@
+/*
+ * Page « Sessions » : grille des chats ouverts. Chargée après base.css, dont elle réutilise la barre,
+ * les pastilles (.badge, .dot), les boutons discrets et les variables de palette.
+ */
+body.sessions #bar .seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-pill);
+}
+body.sessions #bar #filters {
+  margin-left: auto;
+}
+body.sessions #bar .seg button.ghost {
+  min-height: 24px;
+  border-radius: var(--jn-r-pill);
+  padding: 0 10px;
+}
+body.sessions #bar .seg button.ghost[aria-pressed="true"] {
+  background: var(--jn-tint);
+  color: var(--jn-accent);
+}
+body.sessions #main {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--jn-s4) var(--jn-gutter) var(--jn-s5);
+}
+.session-grid {
+  display: grid;
+  gap: var(--jn-s3);
+  grid-template-columns: repeat(auto-fill, minmax(var(--session-min, 240px), 1fr));
+}
+.session-grid.size-s {
+  --session-min: 160px;
+  gap: var(--jn-s2);
+}
+.session-grid.size-l {
+  --session-min: 360px;
+}
+.session-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--jn-s2);
+  min-width: 0;
+  padding: var(--jn-s3);
+  text-align: left;
+  font: inherit;
+  font-size: var(--jn-fs-sm);
+  color: var(--vscode-foreground);
+  background: var(--jn-widget);
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+  cursor: pointer;
+}
+.session-tile:hover {
+  border-color: var(--jn-line-strong);
+  background: var(--jn-raise);
+}
+.session-tile:focus-visible {
+  outline: 1px solid var(--jn-focus);
+  outline-offset: 2px;
+}
+.session-tile.tone-warn {
+  border-color: color-mix(in srgb, var(--jn-warn) 55%, var(--jn-line));
+  border-left: var(--jn-rail) solid var(--jn-warn);
+}
+.session-tile.tone-err {
+  border-color: color-mix(in srgb, var(--jn-err) 50%, var(--jn-line));
+  border-left: var(--jn-rail) solid var(--jn-err);
+}
+.session-tile .dot {
+  background: var(--jn-muted);
+}
+.session-tile.tone-ok .dot {
+  background: var(--jn-ok);
+}
+.session-tile.tone-warn .dot {
+  background: var(--jn-warn);
+}
+.session-tile.tone-err .dot {
+  background: var(--jn-err);
+}
+.session-head,
+.session-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+.session-name {
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.session-head .badge {
+  margin-left: auto;
+}
+.session-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.session-state,
+.session-project,
+.session-time {
+  color: var(--jn-muted);
+}
+.session-time {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+.session-meta .badge {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.size-s .session-title,
+.size-s .session-meta {
+  display: none;
+}
+.size-l .session-tile {
+  padding: var(--jn-s4);
+  font-size: var(--jn-fs-md, var(--jn-fs-sm));
+}
+.session-empty {
+  margin: 0;
+  padding: var(--jn-s3);
+  color: var(--jn-muted);
+  border: 1px dashed var(--jn-line);
+  border-radius: var(--jn-r-md);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .session-tile {
+    transition:
+      border-color var(--jn-d1) var(--jn-ease-out),
+      background-color var(--jn-d1) var(--jn-ease-out);
+  }
+}

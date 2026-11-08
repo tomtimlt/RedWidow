@@ -1,0 +1,20 @@
+// Libellés de la grille des sessions (page, tuiles, filtre), indexés par leur texte français.
+export const sessionsEn: Record<string, string> = {
+  Sessions: "Sessions",
+  "{0} · Sessions": "{0} · Sessions",
+  Toutes: "All",
+  "En attente de toi": "Waiting for you",
+  Filtre: "Filter",
+  "Taille des tuiles": "Tile size",
+  "Au repos": "Idle",
+  "Tour en cours": "Working",
+  "Approbation en attente": "Approval pending",
+  Erreur: "Error",
+  "Chat latéral": "Sidebar chat",
+  Éditeur: "Editor",
+  "Aucune session ouverte.": "No open session.",
+  "Aucune session n’attend de toi.": "No session is waiting for you.",
+  "Ouvrir {0}": "Open {0}",
+  "{0} approbation(s)": "{0} approval(s)",
+  "Aucune activité": "No activity",
+};

@@ -81,6 +81,7 @@ import {
   killchainHtml,
   makeNonce,
   programHtml,
+  sessionsHtml,
   studioHtml,
 } from "../logic/html.js";
 import { matchesFingerprint } from "../logic/integrity.js";
@@ -115,6 +116,11 @@ import {
 } from "../logic/project-workspace.js";
 import { openAiSubscriptionReady } from "../logic/provider-auth.js";
 import { type ChatSession, createChatSession, type TokenChoice } from "../logic/session.js";
+import {
+  buildSessionGrid,
+  parseSessionsMessage,
+  type SessionGridChat,
+} from "../logic/session-grid.js";
 import { machineValue, parseConfiguredIntegrations, resolveSettings } from "../logic/settings.js";
 import {
   createSharedHistoryIndex,
@@ -357,6 +363,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const watches: { panel: vscode.WebviewPanel; chatId: string; toolUseId: string }[] = [];
   let cockpitPanel: vscode.WebviewPanel | undefined;
   let programPanel: vscode.WebviewPanel | undefined;
+  let sessionsPanel: vscode.WebviewPanel | undefined;
   let studioPanel: vscode.WebviewPanel | undefined;
   let reportPanel: vscode.WebviewPanel | undefined;
   let killchainPanel: vscode.WebviewPanel | undefined;
@@ -426,6 +433,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       monitorPanel,
       cockpitPanel,
       programPanel,
+      sessionsPanel,
       studioPanel,
       killchainPanel,
       reportPanel,
@@ -462,6 +470,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         monitorPanel,
         cockpitPanel,
         programPanel,
+        sessionsPanel,
         studioPanel,
         killchainPanel,
         reportPanel,
@@ -686,6 +695,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           id,
           view.approvals.map((card) => card.toolUseId),
         );
+        scheduleSessions();
         scheduleFindingsRefresh();
       },
       onObservedEvent: (event) => observe(id, event),
@@ -1721,6 +1731,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       slots.delete(id);
       if (activeId === id) setActive(SIDEBAR_CHAT);
       else pushMonitor();
+      scheduleSessions();
       void saveWindows();
     });
     panel.onDidChangeViewState((e) => {
@@ -1784,6 +1795,87 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           view: monitorChatView(view, toolUseId),
           chatId,
         });
+    });
+  };
+
+  /**
+   * Grille des sessions : tous les chats ouverts (latéral et éditeur), triés par urgence. Lecture
+   * seule : un clic ouvre le chat, jamais une réponse d'approbation (la gate reste l'unique autorité).
+   */
+  const sessionChats = (): SessionGridChat[] => {
+    const chats: SessionGridChat[] = [];
+    for (const [id, slot] of slots) {
+      if (!slot.session) continue;
+      chats.push({
+        id,
+        name: chatName(id),
+        location: id === SIDEBAR_CHAT ? "sidebar" : "editor",
+        view: slot.session.view(),
+      });
+    }
+    return chats;
+  };
+  const pushSessions = () => {
+    const panel = sessionsPanel;
+    if (!panel) return;
+    const tiles = buildSessionGrid(sessionChats(), approvalWatch.order());
+    void panel.webview.postMessage({ type: "view", tiles });
+  };
+  let sessionsTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Les vues arrivent en rafale pendant un tour : une mise à jour de la grille par intervalle. */
+  const scheduleSessions = () => {
+    if (!sessionsPanel || sessionsTimer !== undefined) return;
+    sessionsTimer = setTimeout(() => {
+      sessionsTimer = undefined;
+      pushSessions();
+    }, 100);
+  };
+  context.subscriptions.push({
+    dispose: () => {
+      if (sessionsTimer !== undefined) clearTimeout(sessionsTimer);
+    },
+  });
+  const openSessions = () => {
+    if (sessionsPanel) {
+      sessionsPanel.reveal();
+      return;
+    }
+    const media = vscode.Uri.joinPath(context.extensionUri, "media");
+    const panel = vscode.window.createWebviewPanel(
+      "warband.sessions",
+      t`${PRODUCT_NAME} · Sessions`,
+      warbandColumn(),
+      { enableScripts: true, enableCommandUris: false, localResourceRoots: [media] },
+    );
+    panel.iconPath = vscode.Uri.joinPath(media, "logo-small.svg");
+    sessionsPanel = panel;
+    panel.onDidDispose(() => {
+      if (sessionsPanel === panel) sessionsPanel = undefined;
+    });
+    panel.webview.html = sessionsHtml({
+      locale: getUiLocale(),
+      i18nUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(media, "i18n.js")).toString(),
+      palette: currentPalette(),
+      nonce: makeNonce(),
+      cspSource: panel.webview.cspSource,
+      scriptUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(media, "sessions.js")).toString(),
+      styleUri: panel.webview
+        .asWebviewUri(vscode.Uri.joinPath(media, "css", "sessions.css"))
+        .toString(),
+    });
+    panel.webview.onDidReceiveMessage((raw: unknown) => {
+      const message = parseSessionsMessage(raw);
+      if (message === null) return;
+      if (message.type === "ready") {
+        void panel.webview.postMessage(localeMessage());
+        pushSessions();
+        return;
+      }
+      // Seuls les chats ouverts s'ouvrent ; un identifiant inconnu est ignoré.
+      if (!slots.get(message.chatId)?.session) return;
+      if (message.chatId === SIDEBAR_CHAT)
+        void vscode.commands.executeCommand("warband.chat.focus");
+      else openEditorChat(message.chatId);
     });
   };
 
@@ -3295,6 +3387,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   type LauncherItem = vscode.QuickPickItem & { run?: () => unknown };
   refreshLocaleTitles = () => {
     if (studioPanel) studioPanel.title = t`${PRODUCT_NAME} · Réglages`;
+    if (sessionsPanel) sessionsPanel.title = t`${PRODUCT_NAME} · Sessions`;
     if (reportPanel) reportPanel.title = t`${PRODUCT_NAME} · Rapport · Brouillon`;
     for (const watch of watches) watch.panel.title = t`${PRODUCT_NAME} · Sortie`;
     barLauncher.tooltip = launcherTooltip();
@@ -3634,6 +3727,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand("warband.openChat", () => openEditorChat()),
     vscode.commands.registerCommand("warband.openCockpit", () => openCockpit()),
     vscode.commands.registerCommand("warband.openProgram", () => openProgram()),
+    vscode.commands.registerCommand("warband.openSessions", () => openSessions()),
     vscode.commands.registerCommand("warband.openWorkspace", async () => {
       if (await openActiveProjectWorkspace(defaultConfigDir(), projectWorkspaceHost, "selection"))
         return;

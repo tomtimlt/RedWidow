@@ -1,3 +1,4 @@
+"use strict";
 (() => {
   // packages/messages/src/ui-domains/audit.ts
   var auditEn = {
@@ -1220,6 +1221,27 @@
       "Choose an enabled provider and an available model before sending.",
   };
 
+  // packages/messages/src/ui-domains/sessions.ts
+  var sessionsEn = {
+    Sessions: "Sessions",
+    "{0} · Sessions": "{0} · Sessions",
+    Toutes: "All",
+    "En attente de toi": "Waiting for you",
+    Filtre: "Filter",
+    "Taille des tuiles": "Tile size",
+    "Au repos": "Idle",
+    "Tour en cours": "Working",
+    "Approbation en attente": "Approval pending",
+    Erreur: "Error",
+    "Chat latéral": "Sidebar chat",
+    Éditeur: "Editor",
+    "Aucune session ouverte.": "No open session.",
+    "Aucune session n’attend de toi.": "No session is waiting for you.",
+    "Ouvrir {0}": "Open {0}",
+    "{0} approbation(s)": "{0} approval(s)",
+    "Aucune activité": "No activity",
+  };
+
   // packages/messages/src/ui-domains/studio.ts
   var studioEn = {
     Conteneurs: "Containers",
@@ -1416,6 +1438,7 @@
     ...auditEn,
     ...redwidowEn,
     ...programEn,
+    ...sessionsEn,
   };
   var currentLocale = "fr";
   var getUiLocale = () => currentLocale;

@@ -98,3 +98,24 @@ export function filterSessionGrid(
     ? tiles.filter((tile) => tile.state === "approval" || tile.state === "error")
     : [...tiles];
 }
+
+/** Messages acceptés depuis la webview de la grille (non fiable) : prête, ou ouverture d'un chat. */
+export type SessionsMessage = { type: "ready" } | { type: "open"; chatId: string };
+
+const CHAT_ID = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;
+
+/** Aucune réponse d'approbation ne passe par ici : « open » ne fait que montrer le chat. */
+export function parseSessionsMessage(raw: unknown): SessionsMessage | null {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
+  const m = raw as Record<string, unknown>;
+  const keys = Object.keys(m);
+  if (m.type === "ready" && keys.length === 1) return { type: "ready" };
+  if (
+    m.type === "open" &&
+    keys.length === 2 &&
+    typeof m.chatId === "string" &&
+    CHAT_ID.test(m.chatId)
+  )
+    return { type: "open", chatId: m.chatId };
+  return null;
+}

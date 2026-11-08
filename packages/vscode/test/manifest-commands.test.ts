@@ -48,6 +48,7 @@ describe("commandes du manifeste", () => {
         "warband.openChat",
         "warband.openCockpit",
         "warband.openProgram",
+        "warband.openSessions",
         "warband.openStudio",
         "warband.setToken",
       ].sort(),
@@ -91,8 +92,9 @@ describe("commandes du manifeste", () => {
       expect(main).toContain("warband.openStudio");
       expect(main).toContain("warband.openProgram");
       // Le reste passe dans le menu « … », rien n'est supprimé.
-      expect(entries.length).toBe(8);
-      expect(entries.filter((e) => !e.group.startsWith("navigation")).length).toBe(3);
+      expect(entries.length).toBe(9);
+      expect(entries.filter((e) => !e.group.startsWith("navigation")).length).toBe(4);
+      expect(entries.map((e) => e.command)).toContain("warband.openSessions");
     }
   });
 

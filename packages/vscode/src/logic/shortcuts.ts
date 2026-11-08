@@ -12,7 +12,8 @@ export type ShortcutId =
   | "openCockpit"
   | "openMonitor"
   | "openKillchain"
-  | "openStudio";
+  | "openStudio"
+  | "openSessions";
 
 /** Identifiant → commande du manifeste et touche suivant l'accord (`null` : l'accord seul, doublé). */
 export const SHORTCUTS: Readonly<Record<ShortcutId, { command: string; key: string | null }>> = {
@@ -24,6 +25,7 @@ export const SHORTCUTS: Readonly<Record<ShortcutId, { command: string; key: stri
   openMonitor: { command: "warband.openMonitor", key: "m" },
   openKillchain: { command: "warband.openKillchain", key: "g" },
   openStudio: { command: "warband.openStudio", key: "s" },
+  openSessions: { command: "warband.openSessions", key: "e" },
 };
 
 /** Libellé affiché, par exemple « Alt+J C », « Ctrl+J C » ou « Alt+J Alt+J ». */

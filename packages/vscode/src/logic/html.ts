@@ -353,6 +353,61 @@ export function programHtml({
 `;
 }
 
+/** Page « Sessions » : grille des chats ouverts. CSP stricte, un seul script `sessions.js`, aucune donnée dans le HTML. */
+export function sessionsHtml({
+  nonce,
+  cspSource,
+  scriptUri,
+  styleUri,
+  baseStyleUri = styleUri.replace(/[^/]+$/, "base.css"),
+  iconsUri = scriptUri.replace(/[^/]+$/, "icons.js"),
+  i18nUri = scriptUri.replace(/[^/]+$/, "i18n.js"),
+  locale = "fr",
+  palette,
+}: CockpitHtmlOptions): string {
+  for (const [name, value] of Object.entries({
+    nonce,
+    cspSource,
+    scriptUri,
+    styleUri,
+    baseStyleUri,
+    iconsUri,
+    i18nUri,
+  })) {
+    const ok = name === "cspSource" ? !/["<>]/.test(value) && value !== "" : SAFE.test(value);
+    if (!ok) throw new Error(`valeur invalide pour ${name}`);
+  }
+  const csp = [
+    "default-src 'none'",
+    `script-src 'nonce-${nonce}'`,
+    `style-src ${cspSource}`,
+    `img-src ${cspSource}`,
+    `font-src ${cspSource}`,
+  ].join("; ");
+  const title = localized("Sessions", locale);
+  const toggle = (id: string, label: string, pressed: boolean) =>
+    `<button id="${id}" type="button" class="ghost" aria-pressed="${pressed}"><span data-i18n="${label}">${localized(label, locale)}</span></button>`;
+  return `<!doctype html>
+<html lang="${locale === "en" ? "en" : "fr"}">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="${csp}">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="${baseStyleUri}">
+<link rel="stylesheet" href="${styleUri}">
+<title data-i18n="Sessions">${title}</title>
+</head>
+<body class="sessions" data-palette="${paletteOf(palette)}">
+<header id="bar"><span id="title">${icon("pulse")}<span data-i18n="Sessions">${title}</span></span><span id="filters" class="seg" role="group" data-i18n-aria-label="Filtre" aria-label="${localized("Filtre", locale)}">${toggle("filter-all", "Toutes", true)}${toggle("filter-awaiting", "En attente de toi", false)}</span><span id="sizes" class="seg" role="group" data-i18n-aria-label="Taille des tuiles" aria-label="${localized("Taille des tuiles", locale)}">${toggle("size-s", "S", false)}${toggle("size-m", "M", true)}${toggle("size-l", "L", false)}</span></header>
+<main id="main" role="main" aria-live="polite"></main>
+<script nonce="${nonce}" src="${i18nUri}"></script>
+<script nonce="${nonce}" src="${iconsUri}"></script>
+<script nonce="${nonce}" src="${scriptUri}"></script>
+</body>
+</html>
+`;
+}
+
 export interface StudioHtmlOptions extends CockpitHtmlOptions {
   /** Araignée locale, chargée avant les cartes de palettes. */
   spiderUri?: string;

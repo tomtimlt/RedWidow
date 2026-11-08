@@ -8,6 +8,7 @@ import {
   cockpitHtml,
   killchainHtml,
   programHtml,
+  sessionsHtml,
   studioHtml,
 } from "../src/logic/html.js";
 import { CSS_FILES, readCssFile } from "./css.js";
@@ -23,6 +24,7 @@ const PAGES: [string, string, (o: CockpitHtmlOptions & { uiUri: string }) => str
   ["chat", "chat", chatHtml],
   ["cockpit", "cockpit", cockpitHtml],
   ["program", "program", programHtml],
+  ["sessions", "sessions", sessionsHtml],
   ["studio", "studio", studioHtml],
   ["killchain", "killchain", killchainHtml],
 ];
@@ -90,7 +92,7 @@ describe("fichiers de media/css", () => {
 
   it("chaque page nomme sa feuille dans l'extension, et le VSIX embarque media/ en entier", () => {
     const extension = readFileSync(here("../src/extension/extension.ts"), "utf8");
-    for (const sheet of ["chat", "cockpit", "program", "studio", "killchain"])
+    for (const sheet of ["chat", "cockpit", "program", "sessions", "studio", "killchain"])
       expect(extension).toContain(`"css", "${sheet}.css"`);
     const pack = readFileSync(here("../scripts/package-vsix.mjs"), "utf8");
     expect(pack).toMatch(

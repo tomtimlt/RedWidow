@@ -18,6 +18,7 @@
   "command.openTerminal": "RedWidow: Open a terminal",
   "command.openMonitor": "RedWidow: Open the Monitor",
   "command.openProgram": "RedWidow: Open the program sheet",
+  "command.openSessions": "RedWidow: Open the sessions grid",
   "command.openKillchain": "RedWidow: Open the Kill chain",
   "command.focusChat": "RedWidow: Go to sidebar chat",
   "command.setToken": "RedWidow: Set token",

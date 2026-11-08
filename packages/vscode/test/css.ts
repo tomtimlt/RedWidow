@@ -1,7 +1,15 @@
 import { readFileSync } from "node:fs";
 
 /** Feuilles de `media/css`, dans l'ordre de chargement : la base commune, puis une feuille par page. */
-export const CSS_FILES = ["base", "chat", "studio", "cockpit", "program", "killchain"] as const;
+export const CSS_FILES = [
+  "base",
+  "chat",
+  "studio",
+  "cockpit",
+  "program",
+  "sessions",
+  "killchain",
+] as const;
 export type CssFile = (typeof CSS_FILES)[number];
 
 /** Contenu d'une feuille de `media/css`. */
