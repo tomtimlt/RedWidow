@@ -21,6 +21,10 @@ const SUMMARY_BASENAME = "summary.txt";
 const PROGRAM_BASENAME = "program.json";
 const PROGRAM_APPROVAL_BASENAME = "program.approval.json";
 const PACE_HALTED_BASENAME = "pace-halted.json";
+/** Fiche d'engagement (ADR 0041), son approbation et l'arrêt d'urgence : chemins sensibles. */
+const ENGAGEMENT_BASENAME = "engagement.json";
+const ENGAGEMENT_APPROVAL_BASENAME = "engagement.approval.json";
+const ENGAGEMENT_HALT_BASENAME = "engagement-halt.json";
 /** Plafond du résumé de session (octets UTF-8, marqueur compris). */
 const MAX_SUMMARY_BYTES = 8192;
 const SUMMARY_TRUNCATED = "\n[… résumé tronqué]";
@@ -120,6 +124,24 @@ export function projectProgramPath(configDir: string, projectId: string): string
 export function projectProgramApprovalPath(configDir: string, projectId: string): string {
   if (!PROJECT_ID.test(projectId)) throw invalidProject();
   return join(configDir, PROJECTS_DIR, projectId, PROGRAM_APPROVAL_BASENAME);
+}
+
+/** Chemin de la fiche d'engagement (brouillon). L'id est contrôlé avant tout `join`. */
+export function projectEngagementPath(configDir: string, projectId: string): string {
+  if (!PROJECT_ID.test(projectId)) throw invalidProject();
+  return join(configDir, PROJECTS_DIR, projectId, ENGAGEMENT_BASENAME);
+}
+
+/** Chemin de l'approbation de la fiche d'engagement. L'id est contrôlé avant tout `join`. */
+export function projectEngagementApprovalPath(configDir: string, projectId: string): string {
+  if (!PROJECT_ID.test(projectId)) throw invalidProject();
+  return join(configDir, PROJECTS_DIR, projectId, ENGAGEMENT_APPROVAL_BASENAME);
+}
+
+/** Chemin de l'interrupteur d'arrêt d'urgence. L'id est contrôlé avant tout `join`. */
+export function projectEngagementHaltPath(configDir: string, projectId: string): string {
+  if (!PROJECT_ID.test(projectId)) throw invalidProject();
+  return join(configDir, PROJECTS_DIR, projectId, ENGAGEMENT_HALT_BASENAME);
 }
 
 /** Chemin des hôtes arrêtés par le contrôleur de rythme. L'id est contrôlé avant tout `join`. */

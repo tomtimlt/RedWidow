@@ -222,6 +222,21 @@ export const reasons: Catalog = {
     `program pace: the request to ${text(p.host)} must wait ${text(p.retryAfterMs)} ms, beyond the bounded wait; retry later`,
   "program.halted": (p) =>
     `host ${text(p.host)} halted by the pace controller (repeated throttling signals): a human resumes it with 'program resume ${text(p.host)}'`,
+  "engagement.unreadable": (p) =>
+    p.part === "approval"
+      ? "engagement sheet: unreadable approval, sheet not applied"
+      : p.part === "halt"
+        ? "emergency halt: unreadable file, halt treated as active"
+        : "engagement sheet: unreadable draft, sheet not applied",
+  "engagement.invalid": (p) =>
+    `invalid engagement sheet${p.field ? ` (field: ${text(p.field)})` : ""}: expected authorization, window, scope, infrastructure distinct from scope, exclusions, rules, white team and OSINT policy, each cited`,
+  "engagement.absent": () => "no engagement sheet to handle for this project",
+  "engagement.digestRequired": () =>
+    "hash required: re-read 'engagement show', then run 'engagement approve --digest <hash>'",
+  "engagement.digestMismatch": (p) =>
+    `the current draft changed (hash ${text(p.actual)}, expected ${text(p.expected)}): re-read 'engagement show' before approving`,
+  "engagement.halted": () =>
+    "emergency halt active for this project: a human resumes it with 'engagement resume'",
   "project.absent": () => "no active project",
   "project.readFailed": () => "could not read the active project this turn",
   "cours.absent": () => "no course installed (course folder missing)",
@@ -360,6 +375,8 @@ export const events: EventStrings = {
   approvalRequested: "approval requested",
   bypass: "bypass",
   programSheet: "program sheet",
+  engagementSheet: "engagement sheet",
+  engagementHalt: "emergency halt",
   turn: "turn",
   context: "context",
   sandbox: "sandbox",

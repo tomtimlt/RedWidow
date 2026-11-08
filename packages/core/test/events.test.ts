@@ -81,6 +81,17 @@ const SAMPLES: { [K in EventKind]: Extract<EventPayload, { kind: K }> } = {
     state: "invalidated",
     digest: "a".repeat(64),
   },
+  "engagement.state": {
+    kind: "engagement.state",
+    projectId: "11111111-1111-4111-8111-111111111111",
+    state: "approved",
+    digest: "a".repeat(64),
+  },
+  "engagement.halt": {
+    kind: "engagement.halt",
+    projectId: "11111111-1111-4111-8111-111111111111",
+    state: "on",
+  },
   "bypass.changed": {
     kind: "bypass.changed",
     state: "on",
@@ -188,6 +199,8 @@ describe("schéma d'événements", () => {
       ["approval.decided", { decision: "ask" }],
       ["approval.decided", { source: "auto" }],
       ["program.state", { state: "none" }],
+      ["engagement.state", { state: "none" }],
+      ["engagement.halt", { state: "maybe" }],
       ["bypass.changed", { state: "maybe" }],
       ["bypass.changed", { reason: "texte brut" }],
       ["bypass.changed", { since: "1" }],

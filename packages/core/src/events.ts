@@ -110,6 +110,19 @@ export type EventPayload =
       digest: string;
     }
   | {
+      /** Changement d'état de la fiche d'engagement d'un projet (ADR 0041) ; `digest` : empreinte SHA-256 concernée. */
+      kind: "engagement.state";
+      projectId: string;
+      state: "approved" | "suspended" | "invalidated";
+      digest: string;
+    }
+  | {
+      /** Arrêt d'urgence d'un projet posé (`on`) ou levé (`off`) par un geste humain (ADR 0041). */
+      kind: "engagement.halt";
+      projectId: string;
+      state: "on" | "off";
+    }
+  | {
       /** Une approbation est sollicitée auprès de l'Asker ; `approval.decided` suivra. */
       kind: "approval.requested";
       toolUseId: string;
@@ -407,6 +420,15 @@ export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
     projectId: "string",
     state: "enum:approved,suspended,invalidated",
     digest: "string",
+  }),
+  "engagement.state": shape({
+    projectId: "string",
+    state: "enum:approved,suspended,invalidated",
+    digest: "string",
+  }),
+  "engagement.halt": shape({
+    projectId: "string",
+    state: "enum:on,off",
   }),
   "approval.requested": shape({
     toolUseId: "string",

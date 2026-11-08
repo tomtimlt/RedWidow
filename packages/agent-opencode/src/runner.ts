@@ -476,6 +476,8 @@ async function runWithOpencode(
         ...(context.supervision !== undefined && { supervision: context.supervision }),
         ...(context.program !== undefined && { program: context.program }),
         ...(context.programDraft !== undefined && { programDraft: context.programDraft }),
+        ...(context.engagement !== undefined && { engagement: context.engagement }),
+        ...(context.halted !== undefined && { halted: context.halted }),
       })
     : undefined;
   try {

@@ -74,6 +74,10 @@ export interface RunContext {
   program?: () => import("./program/store.js").ProgramStatus;
   /** Écrit un brouillon de fiche (texte JSON) dans le projet actif ; `project.absent` sans projet. */
   programDraft?: (text: string) => Promise<import("./program/store.js").ProgramStatus>;
+  /** Fiche d'engagement du projet actif (ADR 0041) : injectée dans `mission_context` si approuvée. */
+  engagement?: () => import("./engagement/store.js").EngagementStatus;
+  /** Arrêt d'urgence du projet actif (ADR 0041), exposé dans `mission_context`. */
+  halted?: () => boolean;
   onMissionContext?: (snapshot: import("./mission-desk.js").MissionContext) => void;
 }
 

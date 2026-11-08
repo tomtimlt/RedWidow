@@ -55,6 +55,8 @@ export const KIND_CLASS: Record<EventKind, string> = {
   "approval.requested": "k-approval",
   "bypass.changed": "k-approval",
   "program.state": "k-approval",
+  "engagement.state": "k-approval",
+  "engagement.halt": "k-error",
   "turn.finished": "k-run",
   "context.usage": "k-run",
   "auth.info": "k-run",

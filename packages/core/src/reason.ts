@@ -141,6 +141,13 @@ export const REASON_CODES = [
   "program.required",
   "program.paced",
   "program.halted",
+  // Fiche d'engagement et arrêt d'urgence (ADR 0041)
+  "engagement.unreadable",
+  "engagement.invalid",
+  "engagement.absent",
+  "engagement.digestRequired",
+  "engagement.digestMismatch",
+  "engagement.halted",
   "finding.labelInvalid",
   "finding.notFound",
   "finding.busy",

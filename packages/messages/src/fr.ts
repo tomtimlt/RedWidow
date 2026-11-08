@@ -351,6 +351,21 @@ export const reasons: Catalog = {
     `rythme du programme : la requête vers ${text(p.host)} doit attendre ${text(p.retryAfterMs)} ms, au-delà du délai d'attente borné ; réessayez plus tard`,
   "program.halted": (p) =>
     `hôte ${text(p.host)} arrêté par le contrôleur de rythme (signaux répétés de limitation) : reprise par un humain avec « program resume ${text(p.host)} »`,
+  "engagement.unreadable": (p) =>
+    p.part === "approval"
+      ? "fiche d'engagement : approbation illisible, fiche non appliquée"
+      : p.part === "halt"
+        ? "arrêt d'urgence : fichier illisible, arrêt considéré comme actif"
+        : "fiche d'engagement : brouillon illisible, fiche non appliquée",
+  "engagement.invalid": (p) =>
+    `fiche d'engagement invalide${p.field ? ` (champ : ${text(p.field)})` : ""} : autorisation, fenêtre, périmètre, infrastructure distincte du périmètre, exclusions, règles, white team et politique OSINT attendus, chacun cité`,
+  "engagement.absent": () => "aucune fiche d'engagement à traiter pour ce projet",
+  "engagement.digestRequired": () =>
+    "empreinte requise : relire « engagement show », puis relancer « engagement approve --digest <empreinte> »",
+  "engagement.digestMismatch": (p) =>
+    `le brouillon courant a changé (empreinte ${text(p.actual)}, attendue ${text(p.expected)}) : relire « engagement show » avant d'approuver`,
+  "engagement.halted": () =>
+    "arrêt d'urgence actif pour ce projet : reprise par un humain avec « engagement resume »",
   "project.absent": () => "aucun projet actif",
   "project.readFailed": () => "lecture du projet impossible ce tour-ci",
   "cours.absent": () => "aucun cours installé (dossier de cours absent)",
@@ -406,6 +421,8 @@ export const events: EventStrings = {
   approvalRequested: "approbation demandée",
   bypass: "bypass",
   programSheet: "fiche programme",
+  engagementSheet: "fiche d'engagement",
+  engagementHalt: "arrêt d'urgence",
   turn: "tour",
   context: "contexte",
   sandbox: "bac à sable",

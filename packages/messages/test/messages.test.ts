@@ -286,6 +286,17 @@ describe("eventLabel", () => {
       state: "invalidated",
       digest: "abcdef0123456789",
     },
+    "engagement.state": {
+      kind: "engagement.state",
+      projectId: "11111111-1111-4111-8111-111111111111",
+      state: "approved",
+      digest: "abcdef0123456789",
+    },
+    "engagement.halt": {
+      kind: "engagement.halt",
+      projectId: "11111111-1111-4111-8111-111111111111",
+      state: "on",
+    },
     "permission.denied": { kind: "permission.denied", toolUseId: "t", tool: "x", message: "non" },
     "tool.result": {
       kind: "tool.result",
@@ -359,6 +370,16 @@ describe("eventLabel", () => {
   it("libelle program.state", () => {
     expect(eventLabel(emit(payloads["program.state"]))).toBe(
       "fiche programme : invalidated [abcdef012345]",
+    );
+  });
+
+  it("libelle engagement.state et engagement.halt", () => {
+    expect(eventLabel(emit(payloads["engagement.state"]))).toBe(
+      "fiche d'engagement : approved [abcdef012345]",
+    );
+    expect(eventLabel(emit(payloads["engagement.halt"]))).toBe("arrêt d'urgence : on");
+    expect(eventLabel(emit(payloads["engagement.halt"]), { locale: "en" })).toBe(
+      "emergency halt : on",
     );
   });
 

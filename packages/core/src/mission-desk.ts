@@ -8,6 +8,8 @@ import {
   coverageCellsSchema,
   coverageKey,
 } from "./audit-schema.js";
+import type { EngagementSheet } from "./engagement/sheet.js";
+import type { EngagementStatus } from "./engagement/store.js";
 import { type MissionDecision, missionDecisionSchema } from "./mission-decision-schema.js";
 import { type ProgramPace, type ProgramSheet, programSheetSchema } from "./program/sheet.js";
 import type { ProgramStatus } from "./program/store.js";
@@ -61,6 +63,13 @@ export interface MissionContext {
    * **données non fiables** : ses citations viennent du web et ne donnent aucune autorisation.
    */
   program: { untrusted: true; notice: string; sheet: ProgramSheet } | null;
+  /**
+   * Fiche d'engagement validée (ADR 0041, empreinte approuvée = contenu courant), sinon `null`.
+   * Même statut que `program` : **données non fiables**, aucune autorisation ; `digest` : empreinte approuvée.
+   */
+  engagement: { untrusted: true; notice: string; digest: string; sheet: EngagementSheet } | null;
+  /** Arrêt d'urgence du projet actif posé (la gate le fera respecter, lot suivant). */
+  halted: boolean;
   guidance: string[];
   coverage: CoverageSummary;
   /** Relances de recherche web (codes + paramètres, non bloquantes) et recherches web du run. */
@@ -190,6 +199,8 @@ export function createMissionDesk({
   now = () => new Date(),
   program,
   programDraft,
+  engagement,
+  halted,
   supervision = DEFAULT_SUPERVISION,
 }: {
   recorder: Recorder;
@@ -200,6 +211,10 @@ export function createMissionDesk({
   program?: () => ProgramStatus;
   /** Écrit un brouillon (texte JSON) dans le projet actif ; absent → `project.absent`. */
   programDraft?: (text: string) => Promise<ProgramStatus>;
+  /** État de la fiche d'engagement du projet actif (lecture synchrone) ; seule une fiche `approved` est injectée. */
+  engagement?: () => EngagementStatus;
+  /** Arrêt d'urgence du projet actif (lecture synchrone) ; illisible → traité comme actif (fail-closed). */
+  halted?: () => boolean;
 }): MissionDesk {
   const settings = SUPERVISION_SETTINGS[supervision];
   const redact = createRedactor({ values: secretsFromEnv(process.env) });
@@ -598,6 +613,20 @@ export function createMissionDesk({
       } catch {
         // Fiche illisible : rien n'est injecté (fail-closed côté information).
       }
+      let engagementApplied: { sheet: EngagementSheet; digest: string } | undefined;
+      try {
+        const status = engagement?.();
+        if (status?.state === "approved" && status.applied && status.approvedDigest !== undefined)
+          engagementApplied = { sheet: status.applied, digest: status.approvedDigest };
+      } catch {
+        // Fiche illisible : rien n'est injecté (fail-closed côté information).
+      }
+      let isHalted = false;
+      try {
+        isHalted = halted?.() ?? false;
+      } catch {
+        isHalted = true;
+      }
       const due = checkpoint();
       const packet: MissionContext = {
         version: 1,
@@ -615,6 +644,15 @@ export function createMissionDesk({
         program: applied
           ? { untrusted: true, notice: PROGRAM_NOTICE, sheet: redact(structuredClone(applied)) }
           : null,
+        engagement: engagementApplied
+          ? {
+              untrusted: true,
+              notice: PROGRAM_NOTICE,
+              digest: engagementApplied.digest,
+              sheet: redact(structuredClone(engagementApplied.sheet)),
+            }
+          : null,
+        halted: isHalted,
         guidance,
         coverage: coverageSummary(),
         research: { triggers: triggers(), searches: webCalls.slice(-8).map((c) => ({ ...c })) },
@@ -655,6 +693,7 @@ export function createMissionDesk({
         packet.guidance.pop();
       // Dernier recours avant de rogner les observations : la fiche n'est jamais tronquée, seulement omise.
       if (JSON.stringify(packet).length > maxChars) packet.program = null;
+      if (JSON.stringify(packet).length > maxChars) packet.engagement = null;
       for (const { item, reason } of ranked) {
         const selected = { ...item, selectionReason: reason };
         packet.observations.push(selected);

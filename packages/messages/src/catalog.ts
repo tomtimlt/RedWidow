@@ -54,6 +54,8 @@ export interface EventStrings {
   approvalRequested: string;
   bypass: string;
   programSheet: string;
+  engagementSheet: string;
+  engagementHalt: string;
   turn: string;
   context: string;
   sandbox: string;

@@ -429,11 +429,12 @@ function checkTail(tail: readonly string[]): void {
 
 /**
  * Fiche programme d'un projet et son approbation (`…/projects/<uuid>/program.json`,
- * `program.approval.json`, temporaires compris). Sensibles où qu'ils soient : le dossier de
+ * `program.approval.json`), fiche d'engagement, approbation et arrêt d'urgence (ADR 0041 :
+ * `engagement.json`, `engagement.approval.json`, `engagement-halt.json`), temporaires compris. Sensibles où qu'ils soient : le dossier de
  * configuration peut être redirigé, et seul un humain (CLI) doit pouvoir les écrire.
  */
 const PROGRAM_FILE =
-  /(?:^|[\\/])projects[\\/][0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[\\/]program(?:\.approval)?\.json(?:\.[^\\/]*)?$/i;
+  /(?:^|[\\/])projects[\\/][0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[\\/](?:program(?:\.approval)?|engagement(?:\.approval|-halt)?)\.json(?:\.[^\\/]*)?$/i;
 
 /** Texte de commande shell : fiche programme nommée par chemin de projet, ou approbation nommée seule. */
 const PROGRAM_SHELL =
@@ -607,4 +608,13 @@ export function mountExposesSensitive(
     }
   }
   return null;
+}
+
+/** Texte de commande shell : fichiers d'engagement nommés par chemin de projet, ou approbation / arrêt nommés seuls. */
+const ENGAGEMENT_SHELL =
+  /projects[\\/][0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[\\/]engagement|engagement\.approval\.json|engagement-halt\.json/i;
+
+/** Comme `mentionsProgramFile`, pour la fiche d'engagement, son approbation et l'arrêt d'urgence (ADR 0041). */
+export function mentionsEngagementFile(commandText: string): boolean {
+  return ENGAGEMENT_SHELL.test(commandText);
 }

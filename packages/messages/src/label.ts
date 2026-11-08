@@ -102,6 +102,10 @@ export function eventLabel(e: EngineEvent, options: LabelOptions = {}): string {
       return clip(`${t.bypass} : ${formatReason(e.reason, locale)}`);
     case "program.state":
       return clip(`${t.programSheet} : ${e.state} [${e.digest.slice(0, 12)}]`);
+    case "engagement.state":
+      return clip(`${t.engagementSheet} : ${e.state} [${e.digest.slice(0, 12)}]`);
+    case "engagement.halt":
+      return clip(`${t.engagementHalt} : ${e.state}`);
     case "turn.finished":
       return `${t.turn} ${e.turns} · ${e.status} · $${e.costUsd.toFixed(4)}`;
     case "context.usage":

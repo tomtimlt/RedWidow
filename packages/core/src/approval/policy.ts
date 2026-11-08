@@ -17,6 +17,7 @@ import {
   EXTERNAL_PATTERNS_FIELD,
   extractPaths,
   findGlobHazard,
+  mentionsEngagementFile,
   mentionsProgramFile,
   type PathPlatform,
 } from "./paths.js";
@@ -329,6 +330,13 @@ function checkPaths(
     return {
       decision: "deny",
       reason: reason("path.sensitive", { path: "program.json" }),
+      rule: null,
+    };
+  }
+  if (shellText !== "" && mentionsEngagementFile(shellText)) {
+    return {
+      decision: "deny",
+      reason: reason("path.sensitive", { path: "engagement.json" }),
       rule: null,
     };
   }

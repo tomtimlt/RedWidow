@@ -65,6 +65,10 @@ export function formatEvent(
       return `${tag(e.state === "on" ? "yellow" : "dim", "bypass")} ${paint("dim", formatReason(e.reason, locale))}`;
     case "program.state":
       return `${tag(e.state === "approved" ? "green" : "yellow", "program")} ${paint("dim", `${e.state} [${e.digest.slice(0, 12)}]`)}`;
+    case "engagement.state":
+      return `${tag(e.state === "approved" ? "green" : "yellow", "engagement")} ${paint("dim", `${e.state} [${e.digest.slice(0, 12)}]`)}`;
+    case "engagement.halt":
+      return `${tag(e.state === "on" ? "red" : "green", "halt")} ${paint("dim", e.state)}`;
     case "tool.result": {
       const more = e.truncated
         ? paint("dim", t(` [tronqué : ${e.bytes} octets]`, ` [truncated: ${e.bytes} bytes]`))

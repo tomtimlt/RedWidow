@@ -12,9 +12,11 @@ import {
   type AgentRunner,
   type AuthMode,
   activeProject,
+  approveEngagement,
   approveProgram,
   buildGraph,
   CodedError,
+  clearHalt,
   clearPaceHalt,
   createApprovalGate,
   createDockerClient,
@@ -22,14 +24,19 @@ import {
   createRecorder,
   createWebProgram,
   defaultConfigDir,
+  type EngagementStatus,
   type EngineEvent,
   evaluatePolicy,
+  importEngagementDraft,
   importProgramDraft,
+  isHalted,
   link as linkProject,
   loadPolicy,
   openJournal,
   type ProgramStatus,
   REPO_POLICY_PATH,
+  readEngagement,
+  readEngagementSync,
   readJournal,
   readProgram,
   readProgramSync,
@@ -37,8 +44,10 @@ import {
   resolveBinary,
   type SupervisionLevel,
   safeEnv,
+  setHalt,
   splitRuns,
   status,
+  suspendEngagement,
   suspendProgram,
   trustPolicy,
   writeProgramDraft,
@@ -260,6 +269,10 @@ program
     // Écriture du brouillon par l'outil `program_draft` : n'approuve rien (approbation = CLI seule).
     const programDraft = (text: string): Promise<ProgramStatus> =>
       writeProgramDraft(configDir, activeId, text);
+    // Fiche d'engagement et arrêt d'urgence (ADR 0041) : lecture seule pour l'agent (`mission_context`).
+    const engagementProvider = (): EngagementStatus =>
+      activeId === null ? { state: "none" } : readEngagementSync(configDir, activeId);
+    const haltedProvider = (): boolean => activeId !== null && isHalted(configDir, activeId);
     const webProgram = createWebProgram({
       program: programProvider,
       registry: createPaceRegistry({ configDir, projectId: () => activeId }),
@@ -366,6 +379,8 @@ program
           supervision: opts.supervision as SupervisionLevel,
           program: programProvider,
           programDraft,
+          engagement: engagementProvider,
+          halted: haltedProvider,
         },
       );
       if (summary.result) process.stdout.write(`\n${summary.result}\n`);
@@ -665,6 +680,173 @@ programCmd
     printProgramStatus(status);
   });
 
+// Fiche d'engagement red team (ADR 0041) et arrêt d'urgence : gestes humains, jamais un outil d'agent.
+const engagementCmd = program
+  .command("engagement")
+  .description(
+    t(
+      "Fiche d'engagement red team du projet (autorisation, périmètre, règles) : validation par empreinte, et arrêt d'urgence.",
+      "Project red team engagement sheet (authorization, scope, rules): hash-based approval, and emergency halt.",
+    ),
+  );
+
+/** Champs de la fiche d'engagement dont la citation n'a pas été recoupée par le moteur. */
+const unverifiedEngagementFields = (status: EngagementStatus): string[] => {
+  const sheet = status.draft;
+  if (!sheet) return [];
+  const { version: _version, ...fields } = sheet;
+  return Object.entries(fields)
+    .filter(([, c]) => !c.verified)
+    .map(([k]) => k);
+};
+
+function printEngagementStatus(status: EngagementStatus, halted: boolean): void {
+  process.stderr.write(
+    t(
+      `état : ${status.state}${status.digest ? ` · empreinte ${status.digest}` : ""}\n`,
+      `state: ${status.state}${status.digest ? ` · hash ${status.digest}` : ""}\n`,
+    ),
+  );
+  if (status.approvedDigest !== undefined)
+    process.stderr.write(
+      t(
+        `approuvée : ${status.approvedAt} · empreinte ${status.approvedDigest}\n`,
+        `approved: ${status.approvedAt} · hash ${status.approvedDigest}\n`,
+      ),
+    );
+  if (status.suspendedAt !== undefined)
+    process.stderr.write(
+      t(`suspendue : ${status.suspendedAt}\n`, `suspended: ${status.suspendedAt}\n`),
+    );
+  if (status.problem) process.stderr.write(`${formatReason(status.problem, locale)}\n`);
+  const unverified = unverifiedEngagementFields(status);
+  if (unverified.length > 0)
+    process.stderr.write(
+      t(
+        `citations non recoupées : ${unverified.join(", ")}\n`,
+        `unverified citations: ${unverified.join(", ")}\n`,
+      ),
+    );
+  if (status.state !== "approved")
+    process.stderr.write(
+      t(
+        "fiche non appliquée (non approuvée à l'empreinte courante)\n",
+        "sheet not applied (not approved at the current hash)\n",
+      ),
+    );
+  if (halted)
+    process.stderr.write(
+      t(
+        "ARRÊT D'URGENCE ACTIF (reprise : « engagement resume »)\n",
+        "EMERGENCY HALT ACTIVE (resume with 'engagement resume')\n",
+      ),
+    );
+}
+
+engagementCmd
+  .command("show")
+  .description(
+    t(
+      "Afficher la fiche d'engagement du projet, son état et l'arrêt d'urgence.",
+      "Show the project engagement sheet, its state and the emergency halt.",
+    ),
+  )
+  .option(...PROJECT_OPTION)
+  .action(async (opts) => {
+    const id = await programProjectId(opts);
+    const status = await readEngagement(defaultConfigDir(), id);
+    printEngagementStatus(status, isHalted(defaultConfigDir(), id));
+    if (status.draft) process.stdout.write(`${JSON.stringify(status.draft, null, 2)}\n`);
+  });
+
+engagementCmd
+  .command("import")
+  .description(
+    t(
+      "Importer un brouillon de fiche d'engagement (n'approuve rien : approbation avec « engagement approve »).",
+      "Import a draft engagement sheet (approves nothing: use 'engagement approve').",
+    ),
+  )
+  .argument("<file>", t("fichier JSON du brouillon", "draft JSON file"))
+  .option(...PROJECT_OPTION)
+  .action(async (file: string, opts) => {
+    const text = await readFile(resolve(process.cwd(), file), "utf8");
+    const id = await programProjectId(opts);
+    const status = await importEngagementDraft(defaultConfigDir(), id, text);
+    printEngagementStatus(status, isHalted(defaultConfigDir(), id));
+  });
+
+engagementCmd
+  .command("approve")
+  .description(
+    t(
+      "Approuver le brouillon courant (son contenu, identifié par son empreinte).",
+      "Approve the current draft (its content, identified by its hash).",
+    ),
+  )
+  .option(
+    "--digest <empreinte>",
+    t(
+      "empreinte du brouillon relue avec « engagement show » (obligatoire)",
+      "draft hash read with 'engagement show' (required)",
+    ),
+  )
+  .option(...PROJECT_OPTION)
+  .action(async (opts) => {
+    const id = await programProjectId(opts);
+    const status = await approveEngagement(defaultConfigDir(), id, opts.digest);
+    printEngagementStatus(status, isHalted(defaultConfigDir(), id));
+  });
+
+engagementCmd
+  .command("suspend")
+  .description(
+    t(
+      "Suspendre la fiche d'engagement (fiche conservée, non appliquée).",
+      "Suspend the engagement sheet (sheet kept, not applied).",
+    ),
+  )
+  .option(...PROJECT_OPTION)
+  .action(async (opts) => {
+    const id = await programProjectId(opts);
+    const status = await suspendEngagement(defaultConfigDir(), id);
+    printEngagementStatus(status, isHalted(defaultConfigDir(), id));
+  });
+
+engagementCmd
+  .command("halt")
+  .description(
+    t(
+      "ARRÊT D'URGENCE : poser l'interrupteur du projet (levé seulement par « engagement resume »).",
+      "EMERGENCY HALT: set the project switch (lifted only by 'engagement resume').",
+    ),
+  )
+  .option(...PROJECT_OPTION)
+  .action(async (opts) => {
+    const halt = await setHalt(defaultConfigDir(), await programProjectId(opts));
+    process.stdout.write(
+      t(`arrêt d'urgence posé (${halt.haltedAt})\n`, `emergency halt set (${halt.haltedAt})\n`),
+    );
+  });
+
+engagementCmd
+  .command("resume")
+  .description(
+    t(
+      "Lever l'arrêt d'urgence du projet (geste humain).",
+      "Lift the project emergency halt (human gesture).",
+    ),
+  )
+  .option(...PROJECT_OPTION)
+  .action(async (opts) => {
+    const lifted = await clearHalt(defaultConfigDir(), await programProjectId(opts));
+    process.stdout.write(
+      lifted
+        ? t("arrêt d'urgence levé\n", "emergency halt lifted\n")
+        : t("aucun arrêt d'urgence posé\n", "no emergency halt set\n"),
+    );
+  });
+
 program
   .command("journal")
   .description(
@@ -809,6 +991,7 @@ for (const command of [
   ...program.commands,
   ...policyCmd.commands,
   ...programCmd.commands,
+  ...engagementCmd.commands,
 ]) {
   command.helpOption("-h, --help", t("afficher l’aide", "display help"));
 }
