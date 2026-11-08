@@ -20,6 +20,7 @@ import {
 import {
   activeProject,
   CodedError,
+  createCampaignPort,
   createDockerClient,
   createExegolTargets,
   createPaceRegistry,
@@ -92,6 +93,7 @@ const done = runEngine({
   channel,
   program: programStatus,
   engagement: engagementView,
+  campaign: createCampaignPort(defaultConfigDir(), () => activeProjectId),
   programDraft: (text) => writeProgramDraft(defaultConfigDir(), activeProjectId, text),
   resolveCwd: async (cwd) => {
     projectRoot = cwd;

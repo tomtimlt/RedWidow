@@ -7,6 +7,7 @@ import {
   type ApprovalOutcome,
   type ApprovalRequest,
   BYPASS_DEFAULT_MS,
+  createCampaignPort,
   deskInstructions,
   INTEGRATION_GUIDANCE,
   LEARNING_SYSTEM_PROMPT,
@@ -1064,4 +1065,86 @@ it("transporte l’image au seul tour demandé sans la journaliser", async () =>
   await done;
   expect(received).toEqual([{ text: "voir contexte", images: [image] }, "suite contexte"]);
   expect(JSON.stringify(t.sent)).not.toContain(image.data);
+});
+
+describe("moteur : engagement, arrêt d'urgence et campagne transmis au runner (ADR 0041)", () => {
+  const ID = "11111111-1111-4111-8111-111111111111";
+  type Ctx = Parameters<AgentRunner["run"]>[1];
+
+  const run = async (
+    options: Partial<Parameters<typeof runEngine>[0]>,
+    start: Record<string, unknown> = {},
+  ) => {
+    const t = fakeChannel();
+    const seen: { ctx?: Ctx } = {};
+    const runner: AgentRunner = {
+      run: async ({ prompt }, ctx) => {
+        seen.ctx = ctx;
+        for await (const _ of prompt as AsyncIterable<unknown>) {
+          // consignes ignorées
+        }
+        return { status: "success", turns: 0, costUsd: 0, result: null };
+      },
+    };
+    const done = runEngine({ channel: t.channel, createRunner: () => runner, ...options });
+    t.receive({ v: 1, type: "start", cwd, ...start });
+    t.receive({ v: 1, type: "dispose" });
+    await done;
+    return seen.ctx;
+  };
+
+  it("le runner relit l'engagement et l'arrêt à chaque appel, et reçoit le port de campagne", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "warband-engine-campaign-"));
+    let halted = false;
+    const campaign = createCampaignPort(dir, () => ID);
+    const ctx = await run({
+      engagement: () => ({ status: { state: "none" }, halted }),
+      campaign,
+    });
+    expect(ctx?.engagement?.()).toEqual({ state: "none" });
+    expect(ctx?.halted?.()).toBe(false);
+    halted = true;
+    expect(ctx?.halted?.()).toBe(true);
+    expect(ctx?.campaign).toBe(campaign);
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("sans projet actif, record_step et record_teardown échouent en project.absent", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "warband-engine-campaign-"));
+    const ctx = await run({ campaign: createCampaignPort(dir, () => null) });
+    // Le port refuse tout de suite (levée synchrone) : on l'observe comme un rejet.
+    await expect(
+      (async () => ctx?.campaign?.recordStep({ stepId: "s1", result: "success" }))(),
+    ).rejects.toMatchObject({ code: "project.absent" });
+    await expect(
+      (async () => ctx?.campaign?.markTeardown({ itemId: "t1", proof: "ok" }))(),
+    ).rejects.toMatchObject({ code: "project.absent" });
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("avec un projet actif mais sans plan approuvé, record_step est refusé", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "warband-engine-campaign-"));
+    const ctx = await run({ campaign: createCampaignPort(dir, () => ID) });
+    await expect(
+      ctx?.campaign?.recordStep({ stepId: "s1", result: "success" }),
+    ).rejects.toMatchObject({ code: "campaign.notApproved" });
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("rien n'est transmis sans option, ni en apprentissage", async () => {
+    const none = await run({});
+    expect(none?.engagement).toBeUndefined();
+    expect(none?.halted).toBeUndefined();
+    expect(none?.campaign).toBeUndefined();
+    const learning = await run(
+      {
+        engagement: () => ({ status: { state: "none" }, halted: true }),
+        campaign: createCampaignPort(cwd, () => ID),
+      },
+      { mode: "learning" },
+    );
+    expect(learning?.engagement).toBeUndefined();
+    expect(learning?.halted).toBeUndefined();
+    expect(learning?.campaign).toBeUndefined();
+  });
 });

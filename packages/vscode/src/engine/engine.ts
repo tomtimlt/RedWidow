@@ -1,5 +1,11 @@
 import { isAbsolute, join } from "node:path";
-import type { AgentPrompt, EngagementView, ProgramStatus, PromptImage } from "@warband/core";
+import type {
+  AgentPrompt,
+  CampaignPort,
+  EngagementView,
+  ProgramStatus,
+  PromptImage,
+} from "@warband/core";
 import {
   type AgentRunner,
   type ApprovalGate,
@@ -87,6 +93,12 @@ export interface EngineOptions {
    * la gate ; absent ou sans projet actif : aucun effet. Jamais en apprentissage.
    */
   engagement?: () => EngagementView;
+  /**
+   * Plan de campagne et démontage du projet actif (ADR 0041) : outils `record_step` et
+   * `record_teardown`, `mission_context`. Le port ne sait qu'enregistrer l'avancement : aucune
+   * approbation ni arrêt d'urgence. Absent ou sans projet actif : `project.absent`. Jamais en apprentissage.
+   */
+  campaign?: CampaignPort;
 }
 
 /** Message dont le type est `bypass` : même rejeté par la validation, il met le miroir à « off ». */
@@ -142,6 +154,7 @@ export function runEngine({
   program,
   programDraft,
   engagement,
+  campaign,
 }: EngineOptions): Promise<number> {
   // Miroir en lecture du Bypass (ADR 0006, décision 6) : naît « off », jamais calculé ici.
   const mirror = createBypassMirror({ now });
@@ -303,6 +316,13 @@ export function runEngine({
               params.supervision !== undefined && { supervision: params.supervision }),
             ...(!learning && program !== undefined && { program }),
             ...(!learning && programDraft !== undefined && { programDraft }),
+            // Même relecture que la gate : le bureau de mission voit l'engagement et l'arrêt d'urgence.
+            ...(!learning &&
+              engagement !== undefined && {
+                engagement: () => engagement().status,
+                halted: () => engagement().halted,
+              }),
+            ...(!learning && campaign !== undefined && { campaign }),
             ...(!learning && {
               onMissionContext: (snapshot: import("@warband/core").MissionContext) => {
                 send({
