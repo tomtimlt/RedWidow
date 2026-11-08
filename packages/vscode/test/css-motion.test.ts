@@ -1,10 +1,8 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { readCss } from "./css.js";
 
-const css = readFileSync(new URL("../media/chat.css", import.meta.url), "utf8").replace(
-  /\/\*[\s\S]*?\*\//g,
-  "",
-);
+const css = readCss().replace(/\/\*[\s\S]*?\*\//g, "");
 function frames() {
   return [...css.matchAll(/@keyframes\s+([\w-]+)\s*\{/g)].map((match) => {
     let end = (match.index ?? 0) + match[0].length;

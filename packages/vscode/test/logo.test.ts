@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { chatHtml } from "../src/logic/html.js";
+import { readCss } from "./css.js";
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 const html = chatHtml({
@@ -45,7 +46,7 @@ describe("nouvelle marque — géométrie et ressources sûres", () => {
   });
   it("icône monochrome, marque animable via CSS et réduction du mouvement", () => {
     expect(read("../media/icon.svg")).toContain("currentColor");
-    const css = read("../media/chat.css");
+    const css = readCss();
     for (const part of ["brand-wing", "brand-core", "brand-lead", "brand-orbit", "brand-node"])
       expect(css).toContain(part);
     expect(css).toContain("prefers-reduced-motion: reduce");

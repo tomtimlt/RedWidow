@@ -1139,7 +1139,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         cspSource: view.webview.cspSource,
         scriptUri: view.webview.asWebviewUri(vscode.Uri.joinPath(media, "chat.js")).toString(),
         uiUri: view.webview.asWebviewUri(vscode.Uri.joinPath(media, "ui.js")).toString(),
-        styleUri: view.webview.asWebviewUri(vscode.Uri.joinPath(media, "chat.css")).toString(),
+        styleUri: view.webview
+          .asWebviewUri(vscode.Uri.joinPath(media, "css", "chat.css"))
+          .toString(),
       });
       post = (message) => void view.webview.postMessage(message);
       if (
@@ -1222,7 +1224,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       nonce,
       cspSource: view.webview.cspSource,
       scriptUri: view.webview.asWebviewUri(vscode.Uri.joinPath(media, "cockpit.js")).toString(),
-      styleUri: view.webview.asWebviewUri(vscode.Uri.joinPath(media, "chat.css")).toString(),
+      styleUri: view.webview
+        .asWebviewUri(vscode.Uri.joinPath(media, "css", "cockpit.css"))
+        .toString(),
     });
     // `panel.webview` lève « Webview is disposed » une fois le panneau fermé : on ne le touche plus.
     const postCockpit: (message: unknown) => void = (message) => {
@@ -1668,7 +1672,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       cspSource: webview.cspSource,
       scriptUri: webview.asWebviewUri(vscode.Uri.joinPath(media, "chat.js")).toString(),
       uiUri: webview.asWebviewUri(vscode.Uri.joinPath(media, "ui.js")).toString(),
-      styleUri: webview.asWebviewUri(vscode.Uri.joinPath(media, "chat.css")).toString(),
+      styleUri: webview.asWebviewUri(vscode.Uri.joinPath(media, "css", "chat.css")).toString(),
     });
   };
   const nextChatId = () => {
@@ -1815,7 +1819,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       nonce: makeNonce(),
       cspSource: panel.webview.cspSource,
       scriptUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(media, "program.js")).toString(),
-      styleUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(media, "chat.css")).toString(),
+      styleUri: panel.webview
+        .asWebviewUri(vscode.Uri.joinPath(media, "css", "program.css"))
+        .toString(),
     });
     // Une fois le panneau fermé, `panel.webview` lève : on ne le touche plus.
     const postProgram = (message: unknown) => {
@@ -2193,7 +2199,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         .asWebviewUri(vscode.Uri.joinPath(media, "studio.js"))
         .toString(),
       styleUri: killchainPanel.webview
-        .asWebviewUri(vscode.Uri.joinPath(media, "chat.css"))
+        .asWebviewUri(vscode.Uri.joinPath(media, "css", "killchain.css"))
         .toString(),
     });
     const panel = killchainPanel;
@@ -2919,7 +2925,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       scriptUri: studioPanel.webview
         .asWebviewUri(vscode.Uri.joinPath(media, "studio.js"))
         .toString(),
-      styleUri: studioPanel.webview.asWebviewUri(vscode.Uri.joinPath(media, "chat.css")).toString(),
+      styleUri: studioPanel.webview
+        .asWebviewUri(vscode.Uri.joinPath(media, "css", "studio.css"))
+        .toString(),
     });
     const panel = studioPanel;
     studioPanel.onDidDispose(() => {

@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { readCss } from "./css.js";
 
 const read = (p: string) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), "utf8");
 const js = read("../media/chat.js");
-const css = read("../media/chat.css").replace(/\/\*[\s\S]*?\*\//g, "");
+const css = readCss().replace(/\/\*[\s\S]*?\*\//g, "");
 
 /** Corps de `renderCard`, du début de la fonction à la section suivante. */
 const start = js.indexOf("function renderCard(card, isNew, previous)");

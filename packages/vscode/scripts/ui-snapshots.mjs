@@ -483,9 +483,9 @@ const CAPS = {
 
 // --- Pages -------------------------------------------------------------------------------------------------------
 // make : fabrique HTML ; script : fichier media ; messages : envoyés après le chargement ; body : classes ajoutées.
-const opts = (script, extra = {}) => ({
+const opts = (script, style, extra = {}) => ({
   scriptUri: `/media/${script}`,
-  styleUri: "/media/chat.css",
+  styleUri: `/media/css/${style}.css`,
   ...extra,
 });
 const chatPage = (name, messages, extra = {}) => ({
@@ -496,7 +496,7 @@ const chatPage = (name, messages, extra = {}) => ({
       i18nUri: "/media/i18n.js",
       scriptUri: "/media/chat.js",
       uiUri: "/media/ui.js",
-      styleUri: "/media/chat.css",
+      styleUri: "/media/css/chat.css",
     }),
   messages,
   ...extra,
@@ -504,7 +504,11 @@ const chatPage = (name, messages, extra = {}) => ({
 // tall : pages de texte à défilement interne ; la fenêtre est allongée (plafond 3200 px de plus) pour tout capturer.
 const simple = (name, make, script, messages, extra = {}) => ({
   name,
-  html: (o) => make({ ...o, ...opts(script) }),
+  html: (o) =>
+    make({
+      ...o,
+      ...opts(script, make === L.killchainHtml ? "killchain" : script.replace(/\.js$/, "")),
+    }),
   messages,
   ...extra,
 });
@@ -629,8 +633,8 @@ try {
       const html = page
         .html({ nonce: "snap", cspSource: origin })
         .replace(
-          '<link rel="stylesheet" href="/media/chat.css">',
-          `<link rel="stylesheet" href="/theme-${themeName}.css">\n<link rel="stylesheet" href="/media/chat.css">`,
+          '<link rel="stylesheet" href="/media/css/base.css">',
+          `<link rel="stylesheet" href="/theme-${themeName}.css">\n<link rel="stylesheet" href="/media/css/base.css">`,
         )
         .replace(/(<body[^>]*>)/, `$1<script nonce="snap">${shim(theme.cls)}</script>`);
       const path = `/${page.name}-${themeName}.html`;

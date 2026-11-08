@@ -3,7 +3,7 @@
 // rw-*, l'araignée pouvant apparaître plusieurs fois) ; ne pas modifier à la main.
 // createMini() donne la petite icône (tête et quatre pattes).
 // Ajoute un livre ouvert (.rw-book) tenu par les pédipalpes, visible en mode
-// Apprentissage. Les animations sont dans media/chat.css (section RedWidow).
+// Apprentissage. Les animations sont dans media/css/chat.css (section RedWidow).
 (() => {
   "use strict";
   const NS = "http://www.w3.org/2000/svg";

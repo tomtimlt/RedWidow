@@ -429,11 +429,11 @@ describe("pages de prévisualisation", () => {
           i18nUri: "../media/i18n.js",
           scriptUri: "../media/chat.js",
           uiUri: "../media/ui.js",
-          styleUri: "../media/chat.css",
+          styleUri: "../media/css/chat.css",
         })
           .replace(
-            '<link rel="stylesheet" href="../media/chat.css">',
-            `<link rel="stylesheet" href="theme-${theme}.css">\n<link rel="stylesheet" href="../media/chat.css">`,
+            '<link rel="stylesheet" href="../media/css/base.css">',
+            `<link rel="stylesheet" href="theme-${theme}.css">\n<link rel="stylesheet" href="../media/css/base.css">`,
           )
           .replace(
             '<script nonce="preview" src="../media/ui.js"></script>',
@@ -533,16 +533,18 @@ describe("pages de prévisualisation", () => {
     ];
     for (const p of pages) {
       for (const [theme, t] of Object.entries(THEMES)) {
+        const sheet =
+          p.make === cockpitHtml ? "cockpit" : p.make === killchainHtml ? "killchain" : "studio";
         const base = p.make({
           nonce: "preview",
           cspSource,
           scriptUri: `../media/${p.script}`,
-          styleUri: "../media/chat.css",
+          styleUri: `../media/css/${sheet}.css`,
         });
         const html = base
           .replace(
-            '<link rel="stylesheet" href="../media/chat.css">',
-            `<link rel="stylesheet" href="theme-${theme}.css">\n<link rel="stylesheet" href="../media/chat.css">`,
+            '<link rel="stylesheet" href="../media/css/base.css">',
+            `<link rel="stylesheet" href="theme-${theme}.css">\n<link rel="stylesheet" href="../media/css/base.css">`,
           )
           .replace(
             `<script nonce="preview" src="../media/${p.script}"></script>`,

@@ -4,6 +4,7 @@ import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
 import { chatHtml, cockpitHtml, killchainHtml, makeNonce, studioHtml } from "../src/logic/html.js";
 import { shortcutLabel } from "../src/logic/shortcuts.js";
+import { readCss } from "./css.js";
 
 const read = (p: string) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), "utf8");
 const opts = {
@@ -181,7 +182,7 @@ describe("manifeste de l'extension", () => {
 
 describe("composer et Configurer (lot P1)", () => {
   const html = chatHtml(opts);
-  const css = read("../media/chat.css");
+  const css = readCss();
   const js = read("../media/chat.js");
   const tag = (id: string) => new RegExp(`<[^>]*\\sid="${id}"[^>]*>`).exec(html)?.[0] ?? "";
   const section = (from: string, to: string) =>
@@ -361,7 +362,7 @@ it("les titres Monitor et rapport préservent le mot-symbole, le logo et les con
 
 describe("Bypass des approbations (lot B1, ADR 0006)", () => {
   const html = chatHtml(opts);
-  const css = read("../media/chat.css");
+  const css = readCss();
   const js = read("../media/chat.js");
   const tag = (id: string) => new RegExp(`<[^>]*\\sid="${id}"[^>]*>`).exec(html)?.[0] ?? "";
   const cfg = html.slice(html.indexOf('id="cfg-pop"'), html.indexOf("<script nonce"));
@@ -457,7 +458,7 @@ describe("Bypass des approbations (lot B1, ADR 0006)", () => {
 
 describe("Mode apprentissage (ADR 0010)", () => {
   const html = chatHtml(opts);
-  const css = read("../media/chat.css");
+  const css = readCss();
   const js = read("../media/chat.js");
   const tag = (id: string) => new RegExp(`<[^>]*\\sid="${id}"[^>]*>`).exec(html)?.[0] ?? "";
   const cfg = html.slice(html.indexOf('id="cfg-pop"'), html.indexOf("<script nonce"));

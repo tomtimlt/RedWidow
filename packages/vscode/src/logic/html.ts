@@ -28,10 +28,13 @@ export interface ChatHtmlOptions {
   nonce: string;
   /** `webview.cspSource`. */
   cspSource: string;
-  /** URI webview de `media/chat.js`, `media/ui.js` (logique pure, chargée avant) et `media/chat.css`. */
+  /** URI webview de `media/chat.js`, `media/ui.js` (logique pure, chargée avant) et `media/css/chat.css`. */
   scriptUri: string;
   uiUri: string;
+  /** Feuille de la page, chargée après la base commune. */
   styleUri: string;
+  /** Base commune `css/base.css`, chargée avant la feuille de page ; par défaut à côté de `styleUri`. */
+  baseStyleUri?: string;
   /** Catalogue SVG local, chargé avant les scripts de rendu. */
   iconsUri?: string;
   /** Araignée décorative locale ; chargée sous le même nonce que le chat. */
@@ -102,6 +105,7 @@ export function chatHtml({
   scriptUri,
   uiUri,
   styleUri,
+  baseStyleUri = styleUri.replace(/[^/]+$/, "base.css"),
   iconsUri = scriptUri.replace(/[^/]+$/, "icons.js"),
   i18nUri = scriptUri.replace(/[^/]+$/, "i18n.js"),
   spiderUri = scriptUri.replace(/[^/]+$/, "spider.js"),
@@ -117,6 +121,7 @@ export function chatHtml({
     scriptUri,
     uiUri,
     styleUri,
+    baseStyleUri,
     iconsUri,
     i18nUri,
     spiderUri,
@@ -138,6 +143,7 @@ export function chatHtml({
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="${csp}">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="${baseStyleUri}">
 <link rel="stylesheet" href="${styleUri}">
 <title>${PRODUCT_NAME}</title>
 </head>
@@ -236,7 +242,10 @@ export interface CockpitHtmlOptions {
   nonce: string;
   cspSource: string;
   scriptUri: string;
+  /** Feuille de la page (`css/cockpit.css`, `css/program.css`…), chargée après la base commune. */
   styleUri: string;
+  /** Base commune `css/base.css`, chargée avant la feuille de page ; par défaut à côté de `styleUri`. */
+  baseStyleUri?: string;
 }
 
 /** Page de la webview cockpit : même CSP que le chat, un seul script `cockpit.js`. */
@@ -245,6 +254,7 @@ export function cockpitHtml({
   cspSource,
   scriptUri,
   styleUri,
+  baseStyleUri = styleUri.replace(/[^/]+$/, "base.css"),
   iconsUri = scriptUri.replace(/[^/]+$/, "icons.js"),
   i18nUri = scriptUri.replace(/[^/]+$/, "i18n.js"),
   locale = "fr",
@@ -255,6 +265,7 @@ export function cockpitHtml({
     cspSource,
     scriptUri,
     styleUri,
+    baseStyleUri,
     iconsUri,
     i18nUri,
   })) {
@@ -274,6 +285,7 @@ export function cockpitHtml({
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="${csp}">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="${baseStyleUri}">
 <link rel="stylesheet" href="${styleUri}">
 <title data-i18n="Conteneurs">${localized("Conteneurs", locale)}</title>
 </head>
@@ -294,6 +306,7 @@ export function programHtml({
   cspSource,
   scriptUri,
   styleUri,
+  baseStyleUri = styleUri.replace(/[^/]+$/, "base.css"),
   iconsUri = scriptUri.replace(/[^/]+$/, "icons.js"),
   i18nUri = scriptUri.replace(/[^/]+$/, "i18n.js"),
   locale = "fr",
@@ -304,6 +317,7 @@ export function programHtml({
     cspSource,
     scriptUri,
     styleUri,
+    baseStyleUri,
     iconsUri,
     i18nUri,
   })) {
@@ -324,6 +338,7 @@ export function programHtml({
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="${csp}">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="${baseStyleUri}">
 <link rel="stylesheet" href="${styleUri}">
 <title data-i18n="Fiche programme">${title}</title>
 </head>
@@ -349,6 +364,7 @@ export function studioHtml({
   cspSource,
   scriptUri,
   styleUri,
+  baseStyleUri = styleUri.replace(/[^/]+$/, "base.css"),
   iconsUri = scriptUri.replace(/[^/]+$/, "icons.js"),
   i18nUri = scriptUri.replace(/[^/]+$/, "i18n.js"),
   spiderUri = scriptUri.replace(/[^/]+$/, "spider.js"),
@@ -360,6 +376,7 @@ export function studioHtml({
     cspSource,
     scriptUri,
     styleUri,
+    baseStyleUri,
     iconsUri,
     i18nUri,
     spiderUri,
@@ -380,6 +397,7 @@ export function studioHtml({
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="${csp}">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="${baseStyleUri}">
 <link rel="stylesheet" href="${styleUri}">
 <title data-i18n="Réglages">${localized("Réglages", locale)}</title>
 </head>
@@ -403,6 +421,7 @@ export function killchainHtml({
   cspSource,
   scriptUri,
   styleUri,
+  baseStyleUri = styleUri.replace(/[^/]+$/, "base.css"),
   iconsUri = scriptUri.replace(/[^/]+$/, "icons.js"),
   i18nUri = scriptUri.replace(/[^/]+$/, "i18n.js"),
   spiderUri = scriptUri.replace(/[^/]+$/, "spider.js"),
@@ -414,6 +433,7 @@ export function killchainHtml({
     cspSource,
     scriptUri,
     styleUri,
+    baseStyleUri,
     iconsUri,
     i18nUri,
     spiderUri,
@@ -434,6 +454,7 @@ export function killchainHtml({
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="${csp}">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="${baseStyleUri}">
 <link rel="stylesheet" href="${styleUri}">
 <title data-i18n="Graphe">${localized("Graphe", locale)}</title>
 </head>

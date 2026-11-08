@@ -1,13 +1,14 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { readCss } from "./css.js";
 
 /**
  * Contraste WCAG des paires figées de la charte (design-chat-ui.md §1.1-1.2) contre les fonds des fixtures
  * de `preview.test.ts` (Dark Modern, Light Modern, Contraste élevé). Texte ≥ 4,5 ; focus et bordure active ≥ 3.
  */
 const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
-const chatCss = readFileSync(here("../media/chat.css"), "utf8");
+const chatCss = readCss();
 const previewSrc = readFileSync(here("./preview.test.ts"), "utf8");
 
 /** Variables `--vscode-*` d'une fixture de thème de preview.test.ts. */

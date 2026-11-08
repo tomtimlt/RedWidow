@@ -1,8 +1,9 @@
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { PALETTES } from "../src/logic/palette.js";
+import { readCss } from "./css.js";
 
-const css = readFileSync(new URL("../media/chat.css", import.meta.url), "utf8");
+const css = readCss();
 describe("Acier et signature — typographie et composants", () => {
   it("embarque Geist et JetBrains Mono avec leurs replis et la licence", () => {
     expect(css).toContain('font-family: "Warband Geist"');

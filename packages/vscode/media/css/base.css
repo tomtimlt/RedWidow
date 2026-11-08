@@ -1,0 +1,2460 @@
+/*
+ * Base commune, chargée en premier par toutes les pages : jetons, palettes, polices, typographie,
+ * réinitialisations et composants partagés (boutons, champs, pastilles, fenêtres flottantes, tableaux
+ * Markdown, bandeaux, mouvement réduit et contraste élevé). Les feuilles de page viennent après.
+ */
+/*
+ * RedWidow — direction « Acier et signature »
+ *
+ * Acier : surfaces neutres dérivées du thème VS Code, hiérarchie portée par
+ * des filets fins et un liseré vertical de 2 px qui signale l'état.
+ * Signature : couleur de la palette choisie (logo, liserés, sélections,
+ * activité), boutons principaux et liens ; le focus suit le thème.
+ * Typographie : Geist pour l'interface, JetBrains Mono pour les repères techniques
+ * (étiquettes, compteurs, horloges) et pour le code, les commandes et les sorties.
+ */
+@font-face {
+  font-family: "Warband Geist";
+  src: url("../fonts/geist-latin.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Warband JetBrains Mono";
+  src: url("../fonts/jetbrains-mono-latin.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+/* ───────────────────────────── Jetons ───────────────────────────── */
+body {
+  /* Marque : --jn-brand et --jn-steel viennent de la palette (voir plus bas). */
+  --jn-ink: #ffffff;
+  /* Interaction : toujours l'accent du thème */
+  --jn-accent: var(--vscode-textLink-foreground, var(--vscode-button-background));
+  --jn-focus: var(--vscode-focusBorder, var(--jn-accent));
+  --jn-accent-fill: var(--vscode-button-background);
+  --jn-accent-fill-hover: var(--vscode-button-hoverBackground, var(--vscode-button-background));
+  --jn-accent-fill-border: transparent;
+  --jn-on-accent: var(--vscode-button-foreground);
+  --jn-tint: color-mix(in srgb, var(--jn-accent) 11%, transparent);
+  --jn-accent-wash: color-mix(in srgb, var(--jn-accent) 7%, transparent);
+  --jn-accent-edge: color-mix(in srgb, var(--jn-accent) 45%, transparent);
+  --jn-secondary: var(--jn-steel);
+  /* Surfaces : voiles du premier plan, valables sur fond clair comme sombre */
+  --jn-raise: color-mix(in srgb, var(--vscode-foreground) 4%, transparent);
+  --jn-raise-2: color-mix(in srgb, var(--vscode-foreground) 7.5%, transparent);
+  --jn-inset: var(--vscode-textCodeBlock-background, var(--jn-raise-2));
+  --jn-widget: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  --jn-drawer-bg: var(
+    --vscode-sideBar-background,
+    var(--vscode-editorWidget-background, var(--vscode-editor-background))
+  );
+  --jn-line: color-mix(in srgb, var(--vscode-foreground) 13%, transparent);
+  --jn-line-strong: color-mix(in srgb, var(--vscode-foreground) 24%, transparent);
+  --jn-muted: color-mix(in srgb, var(--vscode-foreground) 76%, transparent);
+  --jn-faint: color-mix(in srgb, var(--vscode-foreground) 70%, transparent);
+  /* États */
+  --jn-ok: var(--vscode-testing-iconPassed, var(--vscode-foreground));
+  --jn-warn: var(--vscode-editorWarning-foreground, var(--vscode-foreground));
+  --jn-err: var(--vscode-errorForeground, var(--vscode-foreground));
+  --jn-rail: 2px;
+
+  /* Bypass des approbations : magenta du terminal du thème, distinct des états
+   * ok / alerte / erreur et de la couleur de signature. */
+  --jn-bypass: color-mix(
+    in srgb,
+    var(--vscode-terminal-ansiMagenta, #bc3fbc) 60%,
+    var(--vscode-foreground) 40%
+  );
+  --jn-bypass-tint: color-mix(in srgb, var(--jn-bypass) 16%, transparent);
+  --jn-bypass-edge: color-mix(in srgb, var(--jn-bypass) 60%, transparent);
+  /* Espacements (grille de 4 px) */
+  --jn-s1: 4px;
+  --jn-s2: 8px;
+  --jn-s3: 12px;
+  --jn-s4: 16px;
+  --jn-s5: 24px;
+  --jn-s6: 32px;
+  --jn-gutter: 16px;
+  --jn-row: 28px;
+  /* Rayons : formes arrondies, boutons en pilule */
+  --jn-r-xs: 4px;
+  --jn-r-sm: 8px;
+  --jn-r-md: 12px;
+  --jn-r-lg: 18px;
+  --jn-r-pill: 999px;
+  /* Mouvement */
+  --jn-d1: 110ms;
+  --jn-d2: 160ms;
+  --jn-d3: 220ms;
+  --jn-ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --jn-ease-io: cubic-bezier(0.4, 0, 0.2, 1);
+  --jn-shadow-pop:
+    0 1px 2px color-mix(in srgb, var(--vscode-widget-shadow, #0005) 60%, transparent),
+    0 8px 24px var(--vscode-widget-shadow, #0004);
+  /* Typographie */
+  --jn-font: "Warband Geist", var(--vscode-font-family, system-ui, sans-serif);
+  --jn-mono: "Warband JetBrains Mono", var(--vscode-editor-font-family, ui-monospace, monospace);
+  --jn-code: "Warband JetBrains Mono", var(--vscode-editor-font-family, ui-monospace, monospace);
+  --jn-fs-2xs: 10.5px;
+  --jn-fs-xs: 11px;
+  --jn-fs-sm: 12px;
+  --jn-fs: var(--vscode-font-size, 13px);
+  --jn-fs-lg: 15px;
+  --jn-fs-xl: 18px;
+  --jn-track: 0.08em;
+}
+body.vscode-light {
+  --jn-raise: color-mix(in srgb, var(--vscode-foreground) 3.5%, transparent);
+  --jn-raise-2: color-mix(in srgb, var(--vscode-foreground) 6.5%, transparent);
+  --jn-line: color-mix(in srgb, var(--vscode-foreground) 14%, transparent);
+  --jn-muted: color-mix(in srgb, var(--vscode-foreground) 76%, transparent);
+  --jn-faint: color-mix(in srgb, var(--vscode-foreground) 74%, transparent);
+  --jn-tint: color-mix(in srgb, var(--jn-accent) 9%, transparent);
+  --jn-accent-wash: color-mix(in srgb, var(--jn-accent) 6%, transparent);
+  --jn-accent-edge: color-mix(in srgb, var(--jn-accent) 50%, transparent);
+  --jn-shadow-pop: 0 1px 2px #0000000f, 0 8px 24px var(--vscode-widget-shadow, #00000024);
+}
+body.vscode-high-contrast,
+body.vscode-high-contrast-light {
+  --jn-accent: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+  --jn-focus: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+  --jn-accent-fill: var(--vscode-button-background);
+  --jn-accent-fill-hover: var(--vscode-button-background);
+  --jn-accent-fill-border: var(--vscode-contrastBorder, currentColor);
+  --jn-on-accent: var(--vscode-button-foreground);
+  --jn-tint: transparent;
+  --jn-accent-wash: transparent;
+  --jn-accent-edge: var(--jn-accent);
+  --jn-secondary: var(--vscode-contrastBorder, currentColor);
+  --jn-raise: transparent;
+  --jn-raise-2: transparent;
+  --jn-shadow-pop: none;
+  --jn-line: var(--vscode-contrastBorder, currentColor);
+  --jn-line-strong: var(--vscode-contrastBorder, currentColor);
+  --jn-muted: var(--vscode-foreground);
+  --jn-faint: var(--vscode-foreground);
+}
+/* ───────────────────────────── Palettes ─────────────────────────────
+ * Vingt-trois jeux de couleurs : huit unis, sept classiques, six en dégradé,
+ * Multicolore et Éditeur.
+ * Chaque jeu fixe la couleur de signature (--jn-brand), le gris de marque
+ * (--jn-steel), le texte sur la signature (--jn-on-brand) et trois teintes de
+ * dégradé, en deux tons : sombre (par défaut) et clair. Les règles
+ * s'appliquent à tout élément portant data-palette : la page Apparence s'en
+ * sert pour aperçu de chaque jeu dans sa carte. Hors jeu Éditeur, la palette
+ * habille aussi les boutons principaux et les liens (voir « Palettes
+ * partout ») ; le focus reste celui du thème. En contraste élevé, la signature
+ * cède la place à la bordure active du thème.
+ */
+body,
+[data-palette="sentinelle"] {
+  --jn-brand: #3cc7c0;
+  --jn-steel: #8396aa;
+}
+body.vscode-light,
+body.vscode-light[data-palette="sentinelle"],
+body.vscode-light [data-palette="sentinelle"] {
+  --jn-brand: #0b7a82;
+  --jn-steel: #55687c;
+}
+[data-palette="braise"] {
+  --jn-brand: #ff728b;
+  --jn-steel: #7f93a8;
+}
+body.vscode-light[data-palette="braise"],
+body.vscode-light [data-palette="braise"] {
+  --jn-brand: #c41a3d;
+  --jn-steel: #495f73;
+}
+[data-palette="spectre"] {
+  --jn-brand: #a990ff;
+  --jn-steel: #8f99c2;
+}
+body.vscode-light[data-palette="spectre"],
+body.vscode-light [data-palette="spectre"] {
+  --jn-brand: #6741d9;
+  --jn-steel: #565e86;
+}
+body[data-palette="editeur"],
+body.vscode-light[data-palette="editeur"],
+[data-palette="editeur"] {
+  --jn-brand: var(--jn-accent);
+  --jn-steel: color-mix(in srgb, var(--vscode-foreground) 55%, transparent);
+}
+/* Spectre du jeu Multicolore : six teintes, définies partout pour que le
+ * dégradé SVG partagé et les aperçus les trouvent. Corail, vert, cyan, bleu,
+ * violet, rose. Décoratives : le sens passe toujours par un texte. */
+body,
+[data-palette] {
+  --jn-rb-1: #ff6b81;
+  --jn-rb-2: #5fd68a;
+  --jn-rb-3: #35c4d8;
+  --jn-rb-4: #6ea0ff;
+  --jn-rb-5: #a98bff;
+  --jn-rb-6: #ff7eb6;
+  --jn-rainbow: linear-gradient(
+    90deg,
+    var(--jn-rb-1),
+    var(--jn-rb-2),
+    var(--jn-rb-3),
+    var(--jn-rb-4),
+    var(--jn-rb-5),
+    var(--jn-rb-6)
+  );
+}
+body.vscode-light,
+body.vscode-light [data-palette] {
+  --jn-rb-1: #d6334f;
+  --jn-rb-2: #17803f;
+  --jn-rb-3: #0a7488;
+  --jn-rb-4: #2a5fd0;
+  --jn-rb-5: #6a3fd0;
+  --jn-rb-6: #c2306f;
+}
+/* Pastilles et remplissage d'aperçu : propres à chaque jeu, jamais hérités. */
+body,
+[data-palette] {
+  --jn-sw-1: var(--jn-brand);
+  --jn-sw-2: var(--jn-steel);
+  --jn-sw-3: color-mix(in srgb, var(--jn-brand) 60%, var(--vscode-editor-background));
+  --jn-sw-4: color-mix(in srgb, var(--jn-brand) 30%, var(--vscode-editor-background));
+  --jn-pal-fill: var(--jn-grad);
+  --jn-on-brand: #0b0d10;
+  --jn-grad-a: color-mix(in srgb, var(--jn-brand) 86%, #000000);
+  --jn-grad-b: var(--jn-brand);
+  --jn-grad-c: color-mix(in srgb, var(--jn-brand) 94%, #ffffff);
+}
+@supports (color: oklch(from red l c h)) {
+  body,
+  [data-palette] {
+    --jn-grad-c: oklch(from var(--jn-brand) calc(l + 0.04) c h);
+  }
+}
+[data-palette="widow"] {
+  --jn-on-brand: #ffffff;
+  --jn-grad-c: var(--jn-brand);
+  --jn-grad-a: color-mix(in srgb, var(--jn-brand) 68%, #000000);
+}
+/* Multicolore : la signature est le cyan ; chaque rôle prend sa teinte. */
+body[data-palette="multi"],
+[data-palette="multi"] {
+  --jn-brand: var(--jn-rb-3);
+  --jn-steel: #8396aa;
+  --jn-sw-1: var(--jn-rb-1);
+  --jn-sw-2: var(--jn-rb-2);
+  --jn-sw-3: var(--jn-rb-3);
+  --jn-sw-4: var(--jn-rb-4);
+  --jn-sw-5: var(--jn-rb-5);
+  --jn-sw-6: var(--jn-rb-6);
+  --jn-pal-fill: var(--jn-rainbow);
+}
+body.vscode-light[data-palette="multi"],
+body.vscode-light [data-palette="multi"] {
+  --jn-steel: #55687c;
+}
+/* Nouveaux jeux unis : signature, acier, texte sur la signature. Un dégradé
+ * léger (signature, reflet clair, signature) leur est dérivé plus bas. */
+[data-palette="widow"] {
+  --jn-brand: #e5132b;
+  --jn-steel: #8b8e97;
+  --jn-on-brand: #ffffff;
+}
+body.vscode-light[data-palette="widow"],
+body.vscode-light [data-palette="widow"] {
+  --jn-brand: #c40f24;
+  --jn-steel: #55585f;
+}
+[data-palette="venom"] {
+  --jn-brand: #3ee08f;
+  --jn-steel: #7f9a8c;
+  --jn-on-brand: #04140b;
+}
+body.vscode-light[data-palette="venom"],
+body.vscode-light [data-palette="venom"] {
+  --jn-brand: #0d7a45;
+  --jn-steel: #4d6458;
+}
+[data-palette="arctic"] {
+  --jn-brand: #5ec8ff;
+  --jn-steel: #8aa0b5;
+  --jn-on-brand: #031522;
+}
+body.vscode-light[data-palette="arctic"],
+body.vscode-light [data-palette="arctic"] {
+  --jn-brand: #0a6aa3;
+  --jn-steel: #4f657a;
+}
+[data-palette="ultraviolet"] {
+  --jn-brand: #c77dff;
+  --jn-steel: #9a8fb5;
+  --jn-on-brand: #14051f;
+}
+body.vscode-light[data-palette="ultraviolet"],
+body.vscode-light [data-palette="ultraviolet"] {
+  --jn-brand: #7b2cbf;
+  --jn-steel: #5f5680;
+}
+[data-palette="tactical"] {
+  --jn-brand: #b5c46a;
+  --jn-steel: #8c917c;
+  --jn-on-brand: #12140a;
+}
+body.vscode-light[data-palette="tactical"],
+body.vscode-light [data-palette="tactical"] {
+  --jn-brand: #5c6b1f;
+  --jn-steel: #575c48;
+}
+/* Jeux classiques : couleurs franches, acier neutre. */
+[data-palette="rouge"] {
+  --jn-brand: #ff4d4d;
+  --jn-steel: #8a909a;
+  --jn-on-brand: #1a0505;
+}
+body.vscode-light[data-palette="rouge"],
+body.vscode-light [data-palette="rouge"] {
+  --jn-brand: #c62828;
+  --jn-steel: #555b64;
+}
+[data-palette="orange"] {
+  --jn-brand: #ff9f43;
+  --jn-steel: #8a909a;
+  --jn-on-brand: #1a0e00;
+}
+body.vscode-light[data-palette="orange"],
+body.vscode-light [data-palette="orange"] {
+  --jn-brand: #b35900;
+  --jn-steel: #555b64;
+}
+[data-palette="jaune"] {
+  --jn-brand: #ffd43b;
+  --jn-steel: #8a909a;
+  --jn-on-brand: #1a1500;
+}
+body.vscode-light[data-palette="jaune"],
+body.vscode-light [data-palette="jaune"] {
+  --jn-brand: #8a6d00;
+  --jn-steel: #555b64;
+}
+[data-palette="vert"] {
+  --jn-brand: #4cd964;
+  --jn-steel: #8a909a;
+  --jn-on-brand: #04140a;
+}
+body.vscode-light[data-palette="vert"],
+body.vscode-light [data-palette="vert"] {
+  --jn-brand: #1e7e34;
+  --jn-steel: #555b64;
+}
+[data-palette="bleu"] {
+  --jn-brand: #4d9fff;
+  --jn-steel: #8a909a;
+  --jn-on-brand: #04101f;
+}
+body.vscode-light[data-palette="bleu"],
+body.vscode-light [data-palette="bleu"] {
+  --jn-brand: #1f5fbf;
+  --jn-steel: #555b64;
+}
+[data-palette="rose"] {
+  --jn-brand: #ff6fb5;
+  --jn-steel: #8a909a;
+  --jn-on-brand: #1a0510;
+}
+body.vscode-light[data-palette="rose"],
+body.vscode-light [data-palette="rose"] {
+  --jn-brand: #b8236f;
+  --jn-steel: #555b64;
+}
+[data-palette="blanc"] {
+  --jn-brand: #f2f4f7;
+  --jn-steel: #8a909a;
+  --jn-on-brand: #0b0d10;
+}
+body.vscode-light[data-palette="blanc"],
+body.vscode-light [data-palette="blanc"] {
+  --jn-brand: #2b2f36;
+  --jn-steel: #555b64;
+}
+/* Jeux en dégradé : trois teintes (--jn-grad-a, -b, -c) pour les boutons, les
+ * soulignements, le curseur d'effort, le mot-symbole et l'aura du bypass. La
+ * signature unie est la teinte du milieu. */
+[data-palette="aurora"] {
+  --jn-brand: #4f9dff;
+  --jn-steel: #8a93a6;
+  --jn-on-brand: #06101c;
+  --jn-grad-a: #35e0c0;
+  --jn-grad-b: #4f9dff;
+  --jn-grad-c: #a27bff;
+  --jn-sw-1: var(--jn-grad-a);
+  --jn-sw-2: var(--jn-grad-b);
+  --jn-sw-3: var(--jn-grad-c);
+  --jn-sw-4: var(--jn-steel);
+}
+body.vscode-light[data-palette="aurora"],
+body.vscode-light [data-palette="aurora"] {
+  --jn-brand: #2a5fd0;
+  --jn-steel: #565e72;
+  --jn-grad-a: #0b8370;
+  --jn-grad-b: #2a5fd0;
+  --jn-grad-c: #6a3fd0;
+}
+[data-palette="synthwave"] {
+  --jn-brand: #b36bff;
+  --jn-steel: #8a93a6;
+  --jn-on-brand: #12061a;
+  --jn-grad-a: #ff5fa2;
+  --jn-grad-b: #b36bff;
+  --jn-grad-c: #4fc3ff;
+  --jn-sw-1: var(--jn-grad-a);
+  --jn-sw-2: var(--jn-grad-b);
+  --jn-sw-3: var(--jn-grad-c);
+  --jn-sw-4: var(--jn-steel);
+}
+body.vscode-light[data-palette="synthwave"],
+body.vscode-light [data-palette="synthwave"] {
+  --jn-brand: #7b3fd0;
+  --jn-steel: #565e72;
+  --jn-grad-a: #c2306f;
+  --jn-grad-b: #7b3fd0;
+  --jn-grad-c: #0a74a8;
+}
+[data-palette="toxic"] {
+  --jn-brand: #3ddc84;
+  --jn-steel: #8a93a6;
+  --jn-on-brand: #04140b;
+  --jn-grad-a: #9be84a;
+  --jn-grad-b: #3ddc84;
+  --jn-grad-c: #22c7d6;
+  --jn-sw-1: var(--jn-grad-a);
+  --jn-sw-2: var(--jn-grad-b);
+  --jn-sw-3: var(--jn-grad-c);
+  --jn-sw-4: var(--jn-steel);
+}
+body.vscode-light[data-palette="toxic"],
+body.vscode-light [data-palette="toxic"] {
+  --jn-brand: #13804a;
+  --jn-steel: #565e72;
+  --jn-grad-a: #4f7a12;
+  --jn-grad-b: #13804a;
+  --jn-grad-c: #0a7f95;
+}
+[data-palette="bloodmoon"] {
+  --jn-brand: #c8236e;
+  --jn-steel: #8a93a6;
+  --jn-on-brand: #ffffff;
+  --jn-grad-a: #e5132b;
+  --jn-grad-b: #c8236e;
+  --jn-grad-c: #7a4cf0;
+  --jn-sw-1: var(--jn-grad-a);
+  --jn-sw-2: var(--jn-grad-b);
+  --jn-sw-3: var(--jn-grad-c);
+  --jn-sw-4: var(--jn-steel);
+}
+body.vscode-light[data-palette="bloodmoon"],
+body.vscode-light [data-palette="bloodmoon"] {
+  --jn-brand: #b0225f;
+  --jn-steel: #565e72;
+  --jn-grad-a: #c40f24;
+  --jn-grad-b: #b0225f;
+  --jn-grad-c: #6a2fd0;
+}
+[data-palette="ocean"] {
+  --jn-brand: #2fa8ff;
+  --jn-steel: #8a93a6;
+  --jn-on-brand: #03111c;
+  --jn-grad-a: #29d3c0;
+  --jn-grad-b: #2fa8ff;
+  --jn-grad-c: #5b7bff;
+  --jn-sw-1: var(--jn-grad-a);
+  --jn-sw-2: var(--jn-grad-b);
+  --jn-sw-3: var(--jn-grad-c);
+  --jn-sw-4: var(--jn-steel);
+}
+body.vscode-light[data-palette="ocean"],
+body.vscode-light [data-palette="ocean"] {
+  --jn-brand: #0a6aa3;
+  --jn-steel: #565e72;
+  --jn-grad-a: #0a7f75;
+  --jn-grad-b: #0a6aa3;
+  --jn-grad-c: #2448c0;
+}
+[data-palette="nebula"] {
+  --jn-brand: #a98bff;
+  --jn-steel: #8a93a6;
+  --jn-on-brand: #10081a;
+  --jn-grad-a: #ff7eb6;
+  --jn-grad-b: #a98bff;
+  --jn-grad-c: #35c4d8;
+  --jn-sw-1: var(--jn-grad-a);
+  --jn-sw-2: var(--jn-grad-b);
+  --jn-sw-3: var(--jn-grad-c);
+  --jn-sw-4: var(--jn-steel);
+}
+body.vscode-light[data-palette="nebula"],
+body.vscode-light [data-palette="nebula"] {
+  --jn-brand: #6a3fd0;
+  --jn-steel: #565e72;
+  --jn-grad-a: #c2306f;
+  --jn-grad-b: #6a3fd0;
+  --jn-grad-c: #0a7f95;
+}
+/* Jetons dérivés, recalculés sur chaque élément portant une palette. */
+body,
+[data-palette] {
+  --jn-sig: var(--jn-brand);
+  --jn-sig-tint: color-mix(in srgb, var(--jn-sig) 13%, transparent);
+  --jn-sig-edge: color-mix(in srgb, var(--jn-sig) 48%, transparent);
+  --jn-ember: var(--jn-sig);
+  --jn-grad: linear-gradient(90deg, var(--jn-grad-a), var(--jn-grad-b), var(--jn-grad-c));
+  --jn-grad-loop: linear-gradient(
+    90deg,
+    var(--jn-grad-a),
+    var(--jn-grad-b),
+    var(--jn-grad-c),
+    var(--jn-grad-b),
+    var(--jn-grad-a)
+  );
+  --jn-aura-stops:
+    var(--jn-grad-a), var(--jn-grad-b), var(--jn-grad-c), var(--jn-grad-b), var(--jn-grad-a);
+}
+[data-palette="multi"] {
+  --jn-on-brand: #031418;
+  --jn-grad-a: var(--jn-rb-3);
+  --jn-grad-b: var(--jn-rb-4);
+  --jn-grad-c: var(--jn-rb-6);
+  --jn-grad: var(--jn-rainbow);
+  --jn-grad-loop: linear-gradient(
+    90deg,
+    var(--jn-rb-1),
+    var(--jn-rb-2),
+    var(--jn-rb-3),
+    var(--jn-rb-4),
+    var(--jn-rb-5),
+    var(--jn-rb-6),
+    var(--jn-rb-1)
+  );
+  --jn-aura-stops:
+    var(--jn-rb-1), var(--jn-rb-2), var(--jn-rb-3), var(--jn-rb-4), var(--jn-rb-5), var(--jn-rb-6),
+    var(--jn-rb-1);
+}
+body.vscode-light,
+body.vscode-light [data-palette] {
+  --jn-on-brand: #ffffff;
+  /* Un reflet plus sombre garde le texte blanc lisible sur les jeux unis. */
+  --jn-grad-a: color-mix(in srgb, var(--jn-brand) 68%, #000000);
+  --jn-grad-b: color-mix(in srgb, var(--jn-brand) 90%, #000000);
+  --jn-grad-c: var(--jn-brand);
+}
+body.vscode-light,
+body.vscode-light [data-palette] {
+  --jn-sig-tint: color-mix(in srgb, var(--jn-sig) 10%, transparent);
+  --jn-sig-edge: color-mix(in srgb, var(--jn-sig) 55%, transparent);
+}
+body.vscode-high-contrast,
+body.vscode-high-contrast-light {
+  --jn-bypass: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+  --jn-bypass-tint: transparent;
+  --jn-bypass-edge: var(--jn-bypass);
+  --jn-sig: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+  --jn-sig-tint: transparent;
+  --jn-sig-edge: var(--jn-sig);
+  --jn-steel: var(--vscode-foreground);
+}
+body.vscode-high-contrast [data-palette],
+body.vscode-high-contrast-light [data-palette] {
+  --jn-sig: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+  --jn-sig-tint: transparent;
+  --jn-sig-edge: var(--jn-sig);
+  --jn-steel: var(--vscode-foreground);
+  --jn-pal-fill: var(--jn-sig);
+}
+/* ───────────────────────────── Base ───────────────────────────── */
+* {
+  box-sizing: border-box;
+}
+html {
+  height: 100%;
+  overflow: hidden;
+}
+body {
+  font-family: var(--jn-font);
+  font-size: var(--jn-fs);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  color: var(--vscode-foreground);
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  container: app / inline-size;
+}
+body > * {
+  margin-inline: var(--jn-gutter);
+}
+:focus-visible {
+  outline: 2px solid var(--jn-focus);
+  outline-offset: 1px;
+}
+/* VS Code injecte un contour :focus dans ses webviews : il apparaît au clic
+ * souris. On ne garde que le contour clavier (:focus-visible). */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+  font-size: inherit;
+}
+::selection {
+  background: var(--vscode-editor-selectionBackground, var(--jn-tint));
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--vscode-scrollbarSlider-background, var(--jn-line-strong)) transparent;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+[hidden] {
+  display: none !important;
+}
+.ico,
+.caret {
+  flex: none;
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+.caret {
+  width: 12px;
+  height: 12px;
+  opacity: 0.7;
+  transition: transform var(--jn-d2) var(--jn-ease-out);
+}
+[aria-expanded="true"] > .caret {
+  transform: rotate(180deg);
+}
+/* Étiquette : capitales mono espacées, repère commun à toutes les vues. */
+.label,
+.codehead,
+.grp-head,
+.cfg-col h3,
+.studio-group-title,
+.studio-kicker,
+.studio-kc-head,
+.kc-legend-title,
+.card-key {
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-2xs);
+  font-weight: 600;
+  letter-spacing: var(--jn-track);
+  text-transform: uppercase;
+  color: var(--jn-muted);
+}
+/* ───────────────────────────── Barre ───────────────────────────── */
+#bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--jn-s1);
+  min-height: 40px;
+  margin-inline: 0;
+  padding: 4px calc(var(--jn-gutter) - 6px) 4px var(--jn-gutter);
+  position: relative;
+  flex: none;
+  background: transparent;
+  color: var(--vscode-foreground);
+  border-bottom: 1px solid var(--jn-line);
+}
+/* Trait de braise : la signature de la marque, sous le logo. */
+#bar::after {
+  content: "";
+  position: absolute;
+  left: var(--jn-gutter);
+  bottom: -1px;
+  width: 22px;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--jn-sig);
+}
+#title {
+  display: inline-flex;
+  flex: none;
+  min-width: 0;
+  max-width: 100%;
+  align-items: center;
+  gap: var(--jn-s2);
+  margin-right: var(--jn-s1);
+  font-size: var(--jn-fs);
+  font-weight: 650;
+  letter-spacing: -0.005em;
+  color: var(--vscode-foreground);
+  white-space: nowrap;
+}
+#bar button.ghost {
+  color: var(--jn-muted);
+  min-height: 28px;
+  padding: 0 8px;
+}
+#bar button.ghost:hover:not(:disabled) {
+  color: var(--vscode-foreground);
+}
+#bar button.ghost .ico {
+  color: currentColor;
+}
+#title .brand {
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+.brand-heading {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.3;
+}
+.context-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--jn-fs-xs);
+  font-weight: 500;
+  letter-spacing: normal;
+  color: var(--jn-muted);
+}
+#sandbox {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-xs);
+  font-weight: 500;
+  line-height: 1;
+  padding: 0 7px;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-pill);
+  background: var(--jn-raise);
+  color: var(--vscode-foreground);
+  white-space: nowrap;
+}
+.badge,
+.cockpit-count,
+.studio-count,
+.cfg-level,
+.hist-meta,
+.mon-meta,
+.cockpit-row-state,
+.cockpit-tile strong,
+.effort-now,
+.kc-legend-count,
+.kc-node-meta {
+  font-variant-numeric: tabular-nums;
+}
+/* ───────────────────────────── Conversation ───────────────────────────── */
+#log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--jn-s5) 0 var(--jn-s4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s4);
+  scroll-padding-block: var(--jn-s4);
+}
+#log > * {
+  flex-shrink: 0;
+}
+/* Retrait des réponses : largeur de l'avatar plus l'écart, repris par les tâches. */
+body {
+  --jn-indent: 30px;
+}
+@container app (max-width: 359px) {
+  body > * {
+    --jn-indent: 22px;
+  }
+}
+.md-table {
+  max-width: 100%;
+  margin: 0.75em 0;
+  overflow-x: auto;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+}
+.md-table table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.95em;
+}
+.md-table th,
+.md-table td {
+  border: 0;
+  border-bottom: 1px solid var(--jn-line);
+  padding: 6px 12px;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.md-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.md-table th + th,
+.md-table td + td {
+  border-left: 1px solid var(--jn-line);
+}
+.md-table th[data-align="center"],
+.md-table td[data-align="center"] {
+  text-align: center;
+}
+.md-table th[data-align="right"],
+.md-table td[data-align="right"] {
+  text-align: right;
+}
+.md-table th {
+  background: var(--jn-raise);
+  font-size: var(--jn-fs-sm);
+  font-weight: 600;
+  color: var(--jn-muted);
+}
+.md-table tbody tr:hover {
+  background: var(--jn-raise);
+}
+.msg strong {
+  font-weight: 650;
+}
+code {
+  font-family: var(--jn-mono);
+  font-size: 0.9em;
+  background: var(--jn-inset);
+  padding: 1px 5px;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-sm);
+}
+pre {
+  margin: 4px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--jn-mono);
+  font-size: 0.9em;
+  max-height: 14em;
+  overflow-y: auto;
+}
+.codeblock pre {
+  margin: 0;
+  padding: 10px 12px;
+  overflow-x: auto;
+  max-height: 24em;
+  line-height: 1.6;
+}
+.welcome-mark {
+  flex: none;
+  width: 60px;
+  height: 60px;
+  margin-bottom: var(--jn-s3);
+  overflow: visible;
+}
+/* ───────────────────────────── Araignée RedWidow ─────────────────────────────
+ * Accueil : l'araignée en calques (media/spider.js). Acier de la marque, rouge
+ * des yeux et du viseur pris sur la signature. À l'arrivée, les pattes se
+ * déploient avec un rebond, le cerveau s'allume, le viseur se verrouille et
+ * les yeux clignent ; puis elle respire. En mode Apprentissage, elle étudie :
+ * un livre ouvert entre les pédipalpes, les yeux qui suivent les lignes, le
+ * cerveau qui luit, une page qui tourne, le viseur éteint (rien n'est ciblé).
+ */
+.rw-spider {
+  overflow: visible;
+  aspect-ratio: 935 / 1175;
+  --rw-red: var(--jn-sig);
+  --rw-steel-hi: #b0b1b8;
+  --rw-steel: #606168;
+  --rw-ink: #131417;
+}
+body.vscode-light .rw-spider {
+  --rw-steel-hi: #9a9ca4;
+  --rw-steel: #4f5157;
+  --rw-ink: #1d1e22;
+}
+body.vscode-high-contrast .rw-spider,
+body.vscode-high-contrast-light .rw-spider {
+  --rw-steel-hi: var(--vscode-foreground);
+  --rw-steel: var(--vscode-foreground);
+  --rw-ink: var(--vscode-editor-background);
+}
+/* Petite icône (tête au cerveau et quatre pattes) : logo de l'en-tête, de
+ * l'indicateur de réflexion, des réponses et des cartes d'aperçu. */
+.rw-mini {
+  flex: none;
+  aspect-ratio: 925 / 771;
+}
+.rw-mini .rw-book {
+  display: none;
+}
+.rw-spider :is(.rw-leg, .rw-palp, .rw-crosshair, .rw-brain, .rw-eyes, .rw-book, .rw-book-turn) {
+  transform-box: fill-box;
+}
+.rw-spider .rw-crosshair,
+.rw-spider .rw-brain,
+.rw-spider .rw-eyes {
+  transform-origin: 50% 50%;
+  transition: opacity var(--jn-d3) var(--jn-ease-io);
+}
+.rw-leg-l1,
+.rw-leg-l2 {
+  transform-origin: 100% 100%;
+}
+.rw-leg-r1,
+.rw-leg-r2 {
+  transform-origin: 0% 100%;
+}
+.rw-leg-l3 {
+  transform-origin: 100% 30%;
+}
+.rw-leg-r3 {
+  transform-origin: 0% 30%;
+}
+.rw-leg-l4 {
+  transform-origin: 100% 0%;
+}
+.rw-leg-r4 {
+  transform-origin: 0% 0%;
+}
+/* Livre : aucune transition (les rendus image par image les figent à mi-course) ;
+ * l'apparition est une animation, et l'état final est la position de repos. */
+.rw-book {
+  opacity: 0;
+  transform-origin: 50% 0%;
+}
+.rw-book-cover {
+  fill: var(--jn-sig);
+}
+.rw-book-page,
+.rw-book-turn {
+  fill: #e9eaee;
+}
+.rw-book-turn {
+  opacity: 0;
+  transform-origin: 0% 50%;
+}
+.rw-book-lines {
+  fill: none;
+  stroke: #8b8e97;
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+.rw-book-spine {
+  fill: none;
+  stroke: var(--rw-ink);
+  stroke-width: 5;
+}
+body.vscode-high-contrast .rw-book-page,
+body.vscode-high-contrast-light .rw-book-page {
+  fill: var(--vscode-editor-background);
+  stroke: var(--vscode-foreground);
+  stroke-width: 4;
+}
+.welcome h2 {
+  margin: 0;
+  font-size: var(--jn-fs-xl);
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  color: var(--vscode-foreground);
+}
+.hint {
+  margin: 0;
+  color: var(--jn-muted);
+  font-size: var(--jn-fs-sm);
+}
+button.example {
+  justify-content: flex-start;
+  min-height: 40px;
+  text-align: left;
+  white-space: normal;
+  line-height: 1.4;
+  background: transparent;
+  color: var(--vscode-foreground);
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-pill);
+  padding: 8px 18px;
+}
+button.example::after {
+  content: "→";
+  margin-left: auto;
+  padding-left: var(--jn-s2);
+  color: var(--jn-sig);
+  opacity: 0;
+  transform: translateX(-4px);
+  transition:
+    opacity var(--jn-d1) var(--jn-ease-io),
+    transform var(--jn-d2) var(--jn-ease-out);
+}
+button.example:hover:not(:disabled) {
+  background: var(--jn-raise);
+  border-color: var(--jn-sig-edge);
+}
+button.example:active:not(:disabled) {
+  transform: none;
+}
+.tool {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: hidden;
+}
+.tool > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+  min-height: 32px;
+  padding: 0 var(--jn-s3) 0 var(--jn-s2);
+  cursor: pointer;
+  list-style: none;
+  min-width: 0;
+  transition: background-color var(--jn-d1) var(--jn-ease-io);
+}
+.tool-body pre {
+  margin: 0;
+  font-family: var(--jn-mono);
+  max-height: 420px;
+  overflow: auto;
+  padding: 8px 10px;
+  font-size: var(--jn-fs-sm);
+  line-height: 1.6;
+  background: var(--jn-inset);
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-sm);
+}
+.label {
+  margin-top: 6px;
+}
+/* Réflexion : pastille avec logo animé, libellé et points */
+#thinking {
+  display: none;
+  flex: none;
+  position: relative;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  margin-bottom: var(--jn-s2);
+  font-size: var(--jn-fs-sm);
+  font-weight: 500;
+  color: var(--jn-muted);
+}
+#thinking > * {
+  flex: none;
+}
+#thinking-label {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@keyframes jn-thinking-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes jn-msg-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes jn-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes jn-drawer-in {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes jn-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+/* ───────────────────────────── Validation ───────────────────────────── */
+.card {
+  --jn-card-accent: var(
+    --vscode-editorWarning-foreground,
+    var(--vscode-inputValidation-warningBorder, var(--jn-warn))
+  );
+  border: 1px solid color-mix(in srgb, var(--jn-card-accent) 38%, var(--jn-line));
+  border-radius: var(--jn-r-md);
+  box-shadow: inset 3px 0 0 var(--jn-card-accent);
+  padding: 12px 14px 12px 17px;
+  margin-block: 6px;
+  background: color-mix(in srgb, var(--jn-card-accent) 5%, var(--jn-widget));
+  min-width: 0;
+}
+.card-summary {
+  display: block;
+  max-height: 8em;
+  overflow: auto;
+  padding: 4px 8px;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-sm);
+  background: var(--jn-inset);
+  font-family: var(--jn-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.card-details summary:hover {
+  color: var(--vscode-foreground);
+}
+/* ───────────────────────────── Boutons ───────────────────────────── */
+button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 28px;
+  white-space: nowrap;
+  background: var(--vscode-button-secondaryBackground, var(--jn-raise-2));
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+  border: 1px solid transparent;
+  border-radius: var(--jn-r-pill);
+  padding: 0 12px;
+  font: inherit;
+  font-size: var(--jn-fs-sm);
+  font-weight: 500;
+  line-height: 1;
+  text-align: center;
+  vertical-align: middle;
+  user-select: none;
+  cursor: pointer;
+  transition:
+    color var(--jn-d1) var(--jn-ease-io),
+    background-color var(--jn-d1) var(--jn-ease-io),
+    border-color var(--jn-d1) var(--jn-ease-io),
+    box-shadow var(--jn-d1) var(--jn-ease-io),
+    opacity var(--jn-d1) var(--jn-ease-io),
+    transform var(--jn-d1) var(--jn-ease-io);
+}
+button:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: var(--vscode-button-secondaryHoverBackground, var(--jn-raise-2));
+}
+button:active:not(:disabled):not([aria-disabled="true"]) {
+  transform: translateY(1px);
+}
+button:focus-visible,
+textarea:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--jn-focus);
+  outline-offset: 1px;
+}
+button.primary {
+  background: var(--jn-accent-fill);
+  color: var(--jn-on-accent);
+  border-color: var(--jn-accent-fill-border);
+}
+button.primary:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: var(--jn-accent-fill-hover);
+}
+button.secondary {
+  border-color: var(--jn-line);
+}
+button.ghost,
+button.copy,
+button.link {
+  padding: 0 10px;
+}
+button.ghost,
+button.copy {
+  background: transparent;
+  border-color: transparent;
+}
+button.ghost {
+  color: var(--vscode-foreground);
+}
+#bar button.ghost,
+#composer button.ghost {
+  border-radius: var(--jn-r-pill);
+}
+button.ghost .ico {
+  color: var(--jn-muted);
+  transition: color var(--jn-d1) var(--jn-ease-io);
+}
+button.ghost:hover:not(:disabled) .ico {
+  color: var(--vscode-foreground);
+}
+button.link,
+button.copy {
+  color: var(--jn-accent);
+  min-height: 22px;
+  background: transparent;
+}
+button.ghost:hover:not(:disabled):not([aria-disabled="true"]),
+button.copy:hover:not(:disabled),
+button.link:hover:not(:disabled) {
+  background: var(--vscode-toolbar-hoverBackground, var(--jn-raise-2));
+}
+body.vscode-high-contrast button.ghost:hover:not(:disabled),
+body.vscode-high-contrast-light button.ghost:hover:not(:disabled),
+body.vscode-high-contrast button.copy:hover:not(:disabled),
+body.vscode-high-contrast-light button.copy:hover:not(:disabled),
+body.vscode-high-contrast button.link:hover:not(:disabled),
+body.vscode-high-contrast-light button.link:hover:not(:disabled) {
+  border-color: var(--jn-accent);
+  border-style: dashed;
+}
+button.danger {
+  background: transparent;
+  color: var(--jn-err);
+  border-color: color-mix(in srgb, var(--jn-err) 60%, transparent);
+}
+button.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--jn-err) 12%, transparent);
+  border-color: var(--jn-err);
+}
+button:disabled,
+button[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: default;
+}
+button:disabled:active {
+  transform: none;
+}
+button[aria-busy="true"] {
+  cursor: progress;
+}
+button[aria-busy="true"]::after {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: jn-thinking-turn 0.8s linear infinite;
+}
+/* ───────────────────────────── Compositeur ───────────────────────────── */
+#form {
+  flex: none;
+  padding: var(--jn-s2) 0 var(--jn-s3);
+}
+#composer {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--vscode-input-border, var(--jn-line-strong));
+  border-radius: var(--jn-r-lg);
+  background: var(--vscode-input-background, var(--jn-widget));
+  padding: 8px 8px 6px;
+  transition:
+    border-color var(--jn-d2) var(--jn-ease-io),
+    box-shadow var(--jn-d2) var(--jn-ease-io);
+}
+textarea {
+  width: 100%;
+  resize: none;
+  max-height: 12em;
+  overflow-y: auto;
+  padding: 4px 6px;
+  line-height: 1.5;
+  background: transparent;
+  color: var(--vscode-input-foreground);
+  border: 0;
+  border-radius: var(--jn-r-sm);
+  font-family: inherit;
+  font-size: inherit;
+}
+textarea:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+textarea::placeholder,
+input::placeholder {
+  color: var(--vscode-input-placeholderForeground, var(--jn-faint));
+  opacity: 1;
+}
+#toolbar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  min-width: 0;
+}
+#ctl-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+  flex: 0 1 auto;
+  max-width: 220px;
+}
+#ctl-group > * {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.spacer {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.chip {
+  min-height: 26px;
+  border-radius: var(--jn-r-pill);
+  background: transparent;
+  color: var(--vscode-foreground);
+  border-color: transparent;
+  padding: 0 8px 0 6px;
+  gap: 5px;
+  font-size: var(--jn-fs-sm);
+  font-weight: 500;
+  min-width: 0;
+}
+.cfg-level {
+  padding: 1px 5px;
+  border-radius: var(--jn-r-pill);
+  background: var(--jn-raise-2);
+  color: var(--jn-muted);
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-2xs);
+}
+/* ───────────────────────────── Menus ───────────────────────────── */
+.pop {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  left: var(--jn-x, 8px);
+  top: var(--jn-y, 8px);
+  max-height: var(--jn-maxh, 70vh);
+  width: min(360px, calc(100vw - 16px));
+  overflow: auto;
+  padding: 6px;
+  color: var(--vscode-foreground);
+  background: var(--jn-widget);
+  border: 1px solid var(--vscode-editorWidget-border, var(--jn-line-strong));
+  border-radius: var(--jn-r-md);
+  box-shadow: var(--jn-shadow-pop);
+  font-size: var(--jn-fs-sm);
+}
+#mention-list,
+#slash-pop {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+#model-pop {
+  flex-direction: column;
+  height: fit-content;
+  overflow: hidden;
+  width: min(360px, calc(100vw - 16px));
+}
+#model-list {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+#model-list > * {
+  flex: none;
+}
+.pop-foot button {
+  min-height: 24px;
+}
+.cfg-provider {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin: 0;
+  font-size: var(--jn-fs-sm);
+  color: var(--jn-muted);
+}
+#provider,
+#supervision {
+  flex: 1 1 8em;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 28px;
+  background: var(--vscode-dropdown-background, var(--vscode-input-background));
+  color: var(--vscode-dropdown-foreground, var(--vscode-input-foreground));
+  border: 1px solid var(--vscode-dropdown-border, var(--jn-line-strong));
+  border-radius: var(--jn-r-pill);
+  padding: 2px 10px;
+}
+#provider-connect {
+  flex: none;
+  min-height: 26px;
+  padding: 0 8px;
+}
+#provider-help {
+  margin-top: 6px;
+}
+.tip {
+  margin: var(--jn-s1) 0 0;
+  font-size: var(--jn-fs-xs);
+  line-height: 1.45;
+  color: var(--jn-muted);
+}
+.provider-help {
+  margin: 0;
+  font-size: var(--jn-fs-xs);
+  color: var(--jn-muted);
+}
+/* Points : un par niveau, clairs dans le remplissage, discrets ailleurs */
+.effort-notches {
+  position: absolute;
+  inset: 0 calc(var(--jn-thumb) / 2);
+  z-index: 1;
+  pointer-events: none;
+}
+/* Pastille : grand disque clair, suit le pointeur et rebondit au calage */
+.effort-knob {
+  position: absolute;
+  top: 50%;
+  left: var(--jn-pos);
+  z-index: 2;
+  width: var(--jn-thumb);
+  height: var(--jn-thumb);
+  margin: calc(var(--jn-thumb) / -2) 0 0 calc(var(--jn-thumb) / -2);
+  border-radius: 50%;
+  background: var(--vscode-button-foreground, #fff);
+  box-shadow:
+    0 1px 2px var(--vscode-widget-shadow, #0003),
+    0 3px 8px var(--vscode-widget-shadow, #0003),
+    0 0 0 0 var(--jn-sig-tint);
+  pointer-events: none;
+  transition:
+    left var(--jn-settle),
+    transform var(--jn-d2) var(--jn-ease-out),
+    box-shadow var(--jn-d2) var(--jn-ease-out);
+}
+#bypass-switch::before,
+#learning-switch::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 23px;
+  width: 14px;
+  height: 14px;
+  margin-top: -7px;
+  border-radius: 999px;
+  background: var(--vscode-foreground);
+  opacity: 0.75;
+  pointer-events: none;
+  box-shadow: 0 1px 2px var(--vscode-widget-shadow, #0003);
+  transition:
+    transform var(--jn-d2) var(--jn-ease-out),
+    background-color var(--jn-d2) var(--jn-ease-io),
+    opacity var(--jn-d2) var(--jn-ease-io);
+}
+/* ───────────────────────────── Historique ───────────────────────────── */
+#history {
+  position: fixed;
+  z-index: 20;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: min(340px, 90vw);
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  border-right: 1px solid var(--jn-line-strong);
+  background: var(--jn-drawer-bg);
+  box-shadow: var(--jn-shadow-pop);
+  animation: jn-drawer-in var(--jn-d2) var(--jn-ease-out) 1;
+}
+#history::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: var(--vscode-widget-shadow, #0006);
+  animation: jn-fade-in var(--jn-d2) var(--jn-ease-io) 1;
+}
+#history::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--jn-drawer-bg);
+}
+.hist-head strong {
+  flex: 1;
+  font-size: var(--jn-fs);
+  font-weight: 650;
+}
+.hist-actions button {
+  min-height: 22px;
+  padding: 0 8px;
+  font-size: var(--jn-fs-xs);
+}
+/* ───────────────────────────── Bandeaux d'état ───────────────────────────── */
+#readonly,
+#no-provider {
+  display: flex;
+  flex: none;
+  gap: var(--jn-s2);
+  align-items: center;
+  flex-wrap: wrap;
+  margin-block: var(--jn-s2) 0;
+  padding: 8px 10px 8px 14px;
+  border-radius: var(--jn-r-md);
+  font-size: var(--jn-fs-sm);
+}
+#timeline {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  margin-top: var(--jn-s2);
+  padding: 3px 3px 3px 3px;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-pill);
+  background: var(--jn-raise);
+}
+#timeline button {
+  min-height: 24px;
+  padding: 0 8px;
+  font-size: var(--jn-fs-xs);
+}
+body.awaiting #composer {
+  border-color: var(
+    --vscode-editorWarning-foreground,
+    var(--vscode-inputValidation-warningBorder, currentColor)
+  );
+  box-shadow: 0 0 0 1px
+    var(
+      --vscode-editorWarning-foreground,
+      var(--vscode-inputValidation-warningBorder, currentColor)
+    );
+}
+body.bypass-on #composer {
+  border-color: var(--jn-bypass);
+  box-shadow:
+    0 0 0 1px var(--jn-bypass),
+    0 0 18px color-mix(in srgb, var(--jn-bypass) 28%, transparent);
+}
+body.bypass-pending #composer {
+  border-color: var(--jn-bypass-edge);
+  border-style: dashed;
+}
+@container app (max-width: 359px) {
+  /* ───────────────────────────── Formats ───────────────────────────── */
+  :where(.btn-text) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  body > * {
+    --jn-gutter: 10px;
+  }
+  button {
+    min-height: 24px;
+    min-width: 24px;
+    padding: 0 6px;
+  }
+  #bar button {
+    min-height: 28px;
+    min-width: 28px;
+  }
+}
+#stop .btn-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+@container app (min-width: 600px) {
+  #log,
+  #approvals,
+  #thinking,
+  #form,
+  #readonly,
+  #no-provider,
+  #timeline {
+    width: min(760px, calc(100% - 2 * var(--jn-gutter)));
+    margin-inline: auto;
+  }
+  body > * {
+    --jn-gutter: 20px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* ───────────────────────────── Accessibilité ───────────────────────────── */
+  body *,
+  body ::before,
+  body ::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+@media (forced-colors: active) {
+  body {
+    --jn-accent: Highlight;
+    --jn-focus: Highlight;
+    --jn-accent-fill: ButtonFace;
+    --jn-accent-fill-hover: ButtonFace;
+    --jn-accent-fill-border: ButtonText;
+    --jn-on-accent: ButtonText;
+    --jn-tint: Highlight;
+    --jn-accent-wash: transparent;
+    --jn-accent-edge: Highlight;
+    --jn-secondary: CanvasText;
+    --jn-shadow-pop: none;
+    --jn-ember: CanvasText;
+    --jn-sig: Highlight;
+    --jn-sig-tint: transparent;
+    --jn-sig-edge: Highlight;
+    --jn-line: CanvasText;
+    --jn-line-strong: CanvasText;
+  }
+  body *,
+  body ::before,
+  body ::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  button,
+  .chip,
+  #composer,
+  .pop,
+  .card,
+  #thinking {
+    border: 1px solid CanvasText;
+  }
+  #bar::after,
+  .studio-nav-title::after,
+  #composer::before,
+  #composer::after,
+  .chip::before {
+    display: none;
+  }
+  #bar,
+  #title,
+  #bar button.ghost,
+  #bar button.ghost .ico,
+  .welcome h2 {
+    color: CanvasText;
+    background: transparent;
+    box-shadow: none;
+  }
+  #title::before,
+  #bypass-switch::before,
+  #learning-switch::before {
+    background: CanvasText;
+    box-shadow: none;
+  }
+  .brand-wing {
+    stroke: CanvasText;
+  }
+  .brand-lead,
+  .brand-node {
+    fill: CanvasText;
+  }
+  .kc-ico-svg {
+    stroke: CanvasText;
+  }
+  :focus-visible {
+    outline: 2px solid Highlight;
+    box-shadow: none;
+  }
+}
+body.vscode-high-contrast *,
+body.vscode-high-contrast ::before,
+body.vscode-high-contrast ::after,
+body.vscode-high-contrast-light *,
+body.vscode-high-contrast-light ::before,
+body.vscode-high-contrast-light ::after,
+body.reduce-motion *,
+body.reduce-motion ::before,
+body.reduce-motion ::after {
+  animation: none !important;
+  transition: none !important;
+}
+body.vscode-high-contrast #bar,
+body.vscode-high-contrast-light #bar {
+  background: transparent;
+  color: var(--vscode-foreground);
+  box-shadow: none;
+}
+body.vscode-high-contrast #bar::after,
+body.vscode-high-contrast-light #bar::after,
+body.vscode-high-contrast .studio-nav-title::after,
+body.vscode-high-contrast-light .studio-nav-title::after,
+body.vscode-high-contrast #composer::after,
+body.vscode-high-contrast-light #composer::after {
+  display: none;
+}
+body.vscode-high-contrast #bar #title,
+body.vscode-high-contrast-light #bar #title,
+body.vscode-high-contrast #bar button.ghost,
+body.vscode-high-contrast-light #bar button.ghost,
+body.vscode-high-contrast #bar button.ghost .ico,
+body.vscode-high-contrast-light #bar button.ghost .ico {
+  color: var(--vscode-foreground);
+}
+body.vscode-high-contrast .brand-wing,
+body.vscode-high-contrast-light .brand-wing {
+  stroke: var(--vscode-foreground);
+}
+body.vscode-high-contrast .brand-lead,
+body.vscode-high-contrast-light .brand-lead,
+body.vscode-high-contrast .brand-node,
+body.vscode-high-contrast-light .brand-node {
+  fill: var(--vscode-foreground);
+}
+body.vscode-high-contrast #title,
+body.vscode-high-contrast-light #title,
+body.vscode-high-contrast .welcome h2,
+body.vscode-high-contrast-light .welcome h2 {
+  background: none;
+  color: var(--vscode-foreground);
+}
+body.vscode-high-contrast :focus-visible,
+body.vscode-high-contrast-light :focus-visible {
+  outline: 2px solid var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+  outline-offset: 2px;
+  box-shadow: none;
+}
+body.vscode-high-contrast .chip,
+body.vscode-high-contrast-light .chip,
+body.vscode-high-contrast .pop,
+body.vscode-high-contrast-light .pop,
+body.vscode-high-contrast #composer,
+body.vscode-high-contrast-light #composer,
+body.vscode-high-contrast button.secondary,
+body.vscode-high-contrast-light button.secondary,
+body.vscode-high-contrast
+  button:not(.ghost):not(.copy):not(.link):not(.example):not(.cmd-opt):not(.hist-open),
+body.vscode-high-contrast-light
+  button:not(.ghost):not(.copy):not(.link):not(.example):not(.cmd-opt):not(.hist-open) {
+  border-color: var(--vscode-contrastBorder, currentColor);
+}
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--jn-muted);
+}
+.cockpit-tile strong {
+  font: inherit;
+}
+.cockpit-meta dd {
+  margin: 0;
+  font-family: var(--jn-mono);
+}
+.cockpit-field input,
+.cockpit-field select {
+  width: 100%;
+  font-family: var(--jn-mono);
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, var(--jn-line));
+  border-radius: var(--jn-r-pill);
+  padding: var(--jn-s1) var(--jn-s2);
+  min-height: 28px;
+  min-width: 0;
+}
+/* ───────────────────────────── Réglages ───────────────────────────── */
+body.studio {
+  height: 100%;
+}
+body.studio > .studio-shell {
+  margin-inline: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.studio-shell {
+  display: grid;
+  grid-template-columns: 212px minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+.studio-shell .btn-text {
+  position: static;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip-path: none;
+  white-space: normal;
+}
+#studio-main {
+  min-width: 0;
+  overflow: auto;
+  padding: var(--jn-s6) var(--jn-s6) var(--jn-s6);
+}
+.studio-help {
+  margin: 0;
+  color: var(--jn-muted);
+}
+label.studio-help {
+  color: var(--vscode-foreground);
+  font-size: var(--jn-fs-sm);
+  font-weight: 550;
+}
+.studio-row > .studio-ellipsis,
+.studio-row > .studio-help {
+  font-family: var(--jn-mono);
+}
+.studio-row > .studio-help {
+  flex: 0 1 auto;
+  margin-left: auto;
+  text-align: right;
+  font-size: var(--jn-fs-xs);
+}
+@media (max-width: 640px) {
+  .studio-shell {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  #studio-main {
+    padding: 20px 16px 28px;
+  }
+}
+.kc-viewport {
+  position: relative;
+  overflow: hidden;
+  height: min(60vh, 460px);
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+  /* Trame de points : repère discret pour le déplacement et le zoom. */
+  background:
+    radial-gradient(circle, var(--jn-line) 1px, transparent 1.2px) 0 0 / 22px 22px,
+    var(--vscode-editor-background);
+  cursor: grab;
+  touch-action: none;
+}
+.kc-viewport:focus-visible {
+  outline-offset: -2px;
+}
+.kc-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--jn-s5);
+  cursor: default;
+}
+.kc-empty .studio-help {
+  max-width: 24em;
+  padding: var(--jn-s5) var(--jn-s4);
+  border: 1px dashed var(--jn-line-strong);
+  border-radius: var(--jn-r-md);
+  background: var(--vscode-editor-background);
+  text-align: center;
+}
+.kc-ico-svg {
+  width: 1em;
+  height: 1em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.kc-live-status {
+  position: relative;
+  flex: 1 0 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  z-index: 2;
+  margin: 4px 0 0;
+  padding: 6px 10px 6px 12px;
+  border: 1px solid color-mix(in srgb, var(--jn-warn) 55%, transparent);
+  border-radius: var(--jn-r-sm);
+  background: color-mix(in srgb, var(--jn-warn) 8%, var(--jn-widget));
+  box-shadow: inset var(--jn-rail) 0 0 var(--jn-warn);
+  color: var(--vscode-foreground);
+  font-size: var(--jn-fs-sm);
+}
+.mon-title strong {
+  font-size: var(--jn-fs-lg);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+#monitor-follow .btn-text {
+  position: static;
+  width: auto;
+  height: auto;
+  clip-path: none;
+}
+@container app (max-width: 419px) {
+  #monitor-follow .btn-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
+/* ───────────────────────────── Marque ───────────────────────────── */
+/* Viseur RedWidow : traits en gris de marque ; anneau et satellite en signature. */
+.brand {
+  overflow: visible;
+}
+.brand-wing {
+  fill: none;
+  stroke: var(--jn-steel);
+  stroke-width: 2;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  transform-origin: 12px 12px;
+}
+.brand-lead,
+.brand-node {
+  fill: var(--jn-sig);
+}
+.brand-core,
+.brand-orbit {
+  transform-origin: 12px 12px;
+}
+body.vscode-high-contrast .kc-viewport,
+body.vscode-high-contrast-light .kc-viewport {
+  background: var(--vscode-editor-background);
+}
+/* ───────────────────────────── Verrouillage ─────────────────────────────
+ * Les crochets du logo marquent ce qui est ciblé : nœud sélectionné,
+ * validation en attente, conversation ouverte, projet actif. Le contour de
+ * focus clavier reste affiché en plus.
+ */
+.kc-node.is-selected .kc-node-head::after,
+.kc-node.is-replay .kc-node-head::after,
+.pal-card[aria-checked="true"]::after,
+#approvals .card:not(.is-locked, .is-denied)::after,
+.hist.current::after,
+.studio-project-active::after,
+.card.is-locked::after {
+  --jn-lock-c: var(--jn-sig);
+  --jn-lock-l: 10px;
+  --jn-lock-w: 2px;
+  content: "";
+  position: absolute;
+  inset: var(--jn-lock-inset, -5px);
+  pointer-events: none;
+  background:
+    linear-gradient(var(--jn-lock-c) 0 0) top left / var(--jn-lock-l) var(--jn-lock-w),
+    linear-gradient(var(--jn-lock-c) 0 0) top left / var(--jn-lock-w) var(--jn-lock-l),
+    linear-gradient(var(--jn-lock-c) 0 0) top right / var(--jn-lock-l) var(--jn-lock-w),
+    linear-gradient(var(--jn-lock-c) 0 0) top right / var(--jn-lock-w) var(--jn-lock-l),
+    linear-gradient(var(--jn-lock-c) 0 0) bottom left / var(--jn-lock-l) var(--jn-lock-w),
+    linear-gradient(var(--jn-lock-c) 0 0) bottom left / var(--jn-lock-w) var(--jn-lock-l),
+    linear-gradient(var(--jn-lock-c) 0 0) bottom right / var(--jn-lock-l) var(--jn-lock-w),
+    linear-gradient(var(--jn-lock-c) 0 0) bottom right / var(--jn-lock-w) var(--jn-lock-l);
+  background-repeat: no-repeat;
+}
+.hist,
+.studio-project-active,
+.card {
+  position: relative;
+}
+@container app (max-width: 419px) {
+  #bar .btn-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+/* ───────────────────────────── Gravité ─────────────────────────────
+ * Échelle à cinq niveaux, construite sur les couleurs d'état du thème. Le
+ * libellé écrit porte toujours le sens ; la couleur ne fait que le renforcer.
+ */
+body {
+  --jn-sev-critical: var(--jn-err);
+  --jn-sev-high: color-mix(in srgb, var(--jn-err) 55%, var(--jn-warn));
+  --jn-sev-medium: var(--jn-warn);
+  --jn-sev-low: var(--vscode-editorInfo-foreground, var(--jn-accent));
+  --jn-sev-info: var(--jn-faint);
+}
+/* ───────────────────────────── Palettes partout ─────────────────────────────
+ * Hors jeu Éditeur et hors contraste élevé, la palette habille toute
+ * l'interface : liens et teintes d'accent, boutons principaux en dégradé,
+ * soulignements, mot-symbole, phases faites de la mission, remplissage du
+ * curseur d'effort et sélection de texte. Le focus clavier reste celui du
+ * thème. Les jeux en dégradé et le Multicolore donnent au bypass une aura qui
+ * tourne. Les états (ok, alerte, erreur) et la gravité gardent leurs couleurs.
+ */
+body[data-palette]:where(
+  :not([data-palette="editeur"], .vscode-high-contrast, .vscode-high-contrast-light)
+) {
+  --jn-accent: var(--jn-brand);
+  --jn-accent-fill: var(--jn-brand);
+  --jn-accent-fill-hover: var(--jn-brand);
+  --jn-accent-fill-border: transparent;
+  --jn-on-accent: var(--jn-on-brand);
+  --jn-bypass: var(--jn-brand);
+}
+body[data-palette]:where(
+    :not([data-palette="editeur"], .vscode-high-contrast, .vscode-high-contrast-light)
+  )
+  ::selection {
+  background: color-mix(in srgb, var(--jn-brand) 34%, transparent);
+}
+body[data-palette]:where(
+    :not([data-palette="editeur"], .vscode-high-contrast, .vscode-high-contrast-light)
+  )
+  button.primary:not(:disabled) {
+  background-image: var(--jn-grad);
+  background-size: 100% 100%;
+  font-weight: 600;
+}
+body[data-palette]:where(
+    :not([data-palette="editeur"], .vscode-high-contrast, .vscode-high-contrast-light)
+  )
+  button.primary:hover:not(:disabled):not([aria-disabled="true"]) {
+  outline: 1px solid var(--jn-line-strong);
+  outline-offset: 1px;
+}
+body[data-palette]:where(
+    :not([data-palette="editeur"], .vscode-high-contrast, .vscode-high-contrast-light)
+  )
+  #bar::after,
+body[data-palette]:where(
+    :not([data-palette="editeur"], .vscode-high-contrast, .vscode-high-contrast-light)
+  )
+  .studio-nav-title::after {
+  width: 40px;
+  background: var(--jn-grad);
+}
+body[data-palette]:where(
+    :not([data-palette="editeur"], .vscode-high-contrast, .vscode-high-contrast-light)
+  )
+  .brand-lead {
+  fill: var(--jn-grad-a);
+}
+body[data-palette]:where(
+    :not([data-palette="editeur"], .vscode-high-contrast, .vscode-high-contrast-light)
+  )
+  .brand-node {
+  fill: var(--jn-grad-c);
+}
+/* Jeux rouges, orange et jaune : les liens gardent la couleur du thème pour ne
+ * pas se confondre avec l'erreur (Refuser, échecs) ni avec les alertes. */
+body:is(
+  [data-palette="widow"],
+  [data-palette="braise"],
+  [data-palette="bloodmoon"],
+  [data-palette="rouge"],
+  [data-palette="orange"],
+  [data-palette="jaune"]
+):where(:not(.vscode-high-contrast, .vscode-high-contrast-light)) {
+  --jn-accent: var(--vscode-textLink-foreground, var(--vscode-button-background));
+}
+/* Bypass aux couleurs de la palette : aura en dégradé qui tourne autour de la
+ * vue, pastille de l'en-tête, compositeur, interrupteur et jauge des règles
+ * d'engagement en dégradé qui défile. Jeux unis : reflet de leur signature ;
+ * jeux en dégradé et Multicolore : leurs teintes. En attente de confirmation,
+ * le contour reste en pointillés. Hors jeu Éditeur et contraste élevé, où le
+ * bypass garde sa couleur propre. Mouvement réduit : dégradés fixes. */
+@property --jn-aura-turn {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+/* ───────────────────────────── Palette multicolore ─────────────────────────────
+ * Six teintes (--jn-rb-1 à --jn-rb-6) réparties dans toute l'interface : dégradé
+ * continu pour les soulignements, le logo et le curseur d'effort, une teinte par
+ * page de réglages, par compteur d’activité, par conteneur du Monitor, et un cycle de
+ * liserés dans la conversation. Jamais en contraste élevé, où la bordure active
+ * du thème prend le relais. Les états (ok, alerte, erreur), la gravité et le
+ * bypass gardent leurs couleurs ; le sens passe toujours par le texte.
+ */
+body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contrast-light))
+#bar::after,
+body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contrast-light))
+  .studio-nav-title::after {
+  width: 56px;
+  background: var(--jn-rainbow);
+}
+/* Logo : étincelle et satellite sur les bouts du spectre, crochets en gris. */
+body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contrast-light))
+.brand-lead {
+  fill: var(--jn-rb-4);
+}
+body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contrast-light))
+  .brand-core {
+  fill: var(--jn-rb-3);
+}
+body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contrast-light))
+  .brand-node {
+  fill: var(--jn-rb-6);
+}
+@media (prefers-reduced-motion: no-preference) {
+  /* Mini araignée : elle marche pendant que l'agent travaille, une patte sur
+     * deux, et son cerveau luit ; au survol de l'en-tête, un pas. */
+  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light).running:not(
+      .waiting,
+      .paused
+    )
+    :is(#title, #thinking)
+    .rw-mini
+    .rw-leg,
+  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light).running:not(
+      .waiting,
+      .paused
+    )
+    #log
+    .msg-row.agent:not(:has(~ .msg-row.agent))
+    .rw-mini
+    .rw-leg {
+    animation: rw-walk 0.5s var(--jn-ease-io) infinite alternate;
+  }
+  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light).running:not(
+      .waiting,
+      .paused
+    )
+    .rw-mini
+    :is(.rw-leg-l3, .rw-leg-r4) {
+    animation-delay: -0.25s;
+  }
+  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light).running:not(
+      .waiting,
+      .paused
+    )
+    :is(#title, #thinking)
+    .rw-mini
+    .rw-brain,
+  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light).running:not(
+      .waiting,
+      .paused
+    )
+    #log
+    .msg-row.agent:not(:has(~ .msg-row.agent))
+    .rw-mini
+    .rw-brain {
+    animation: rw-pulse 1.2s var(--jn-ease-io) infinite;
+  }
+  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light) button .ico,
+  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light) .chip .caret,
+  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light) .kc-dot,
+  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light) .studio-kc-swatch {
+    transition:
+      transform var(--jn-d2) var(--jn-ease-out),
+      color var(--jn-d1) var(--jn-ease-io);
+  }
+  /* Boutons principaux : léger relief */
+  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light)
+  button.primary:not(#send):hover:not(:disabled):not([aria-disabled="true"]) {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px color-mix(in srgb, var(--jn-accent-fill) 30%, transparent);
+  }
+  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light)
+    button.primary:not(#send):active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: none;
+  }
+  /* Verrouillage : les crochets se referment sur la cible. */
+  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light)
+    .kc-node.is-replay
+    .kc-node-head::after,
+  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light)
+    .pal-card[aria-checked="true"]::after,
+  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light)
+    .kc-node.is-selected
+    .kc-node-head::after,
+  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light) .hist.current::after,
+  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light)
+    .studio-project-active::after,
+  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light)
+    .card.is-locked::after {
+    animation: jn-lock-on 0.32s var(--jn-ease-out) both;
+  }
+  /* Voyants en direct : le Monitor et les econtainers actifs pulsent. */
+  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light) .mon-live,
+  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light) .tone-wait .mon-dot,
+  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light)
+    .studio-space.is-running
+    .dot {
+    animation: jn-live 1.8s var(--jn-ease-io) infinite;
+  }
+  /* Marque : pendant la réflexion, l'étincelle pulse et le satellite orbite. */
+  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light).running:not(
+      .waiting,
+      .paused
+    )
+    :is(#title, #thinking)
+    .brand-core {
+    animation: jn-spark 1.6s var(--jn-ease-io) infinite;
+  }
+  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light).running:not(
+      .waiting,
+      .paused
+    )
+    :is(#title, #thinking)
+    .brand-orbit {
+    animation: jn-orbit 2.4s linear infinite;
+  }
+  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light).running:not(
+      .waiting,
+      .paused
+    )
+    :is(#title, #thinking)
+    .brand-wing {
+    animation: jn-lock 1.6s var(--jn-ease-io) infinite;
+  }
+  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light)
+    #title:hover
+    .brand-wing {
+    animation: jn-lock 0.9s var(--jn-ease-io) 1;
+  }
+  /* Au repos : le satellite fait lentement le tour, l'étincelle respire. */
+  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light) #title .brand-orbit {
+    animation: jn-orbit 14s linear infinite;
+  }
+  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light)
+    #title:hover
+    .brand-core {
+    animation: jn-spark 0.9s var(--jn-ease-io) 1;
+  }
+  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light)
+    #title:hover
+    .brand-orbit {
+    animation: jn-orbit 0.9s var(--jn-ease-out) 1;
+  }
+}
+@keyframes jn-live {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+@keyframes rw-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+@keyframes rw-walk {
+  from {
+    rotate: -7deg;
+  }
+  to {
+    rotate: 7deg;
+  }
+}
+@keyframes jn-lock-on {
+  from {
+    opacity: 0;
+    transform: scale(1.25);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes jn-lock {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.88);
+  }
+}
+@keyframes jn-spark {
+  0%,
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+  50% {
+    transform: scale(0.78) rotate(45deg);
+  }
+}
+@keyframes jn-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* ───────────────────────────── Code et données ─────────────────────────────
+ * Le code, les commandes et les sorties gardent la police de l'éditeur choisie
+ * par l'utilisateur ; JetBrains Mono habille aussi les repères de l’interface.
+ */
+:is(
+  code,
+  pre,
+  kbd,
+  samp,
+  textarea.studio-summary,
+  .codeblock pre,
+  .tool-body pre,
+  .tool-summary,
+  .card-summary,
+  .mon-cmd,
+  .mon-text,
+  .mon-out,
+  .model-source,
+  .hist-meta
+) {
+  font-family: var(--jn-code);
+}
+body.page-hidden::after,
+body.paused::after,
+body.page-hidden *,
+body.page-hidden *::before,
+body.page-hidden *::after,
+body.paused *,
+body.paused *::before,
+body.paused *::after {
+  animation-play-state: paused !important;
+}
+@media (prefers-reduced-motion: reduce), (forced-colors: active) {
+  /* L’aura portée par body respecte aussi la réduction des mouvements. */
+  body::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+body.reduce-motion::after,
+body.vscode-high-contrast::after,
+body.vscode-high-contrast-light::after {
+  animation: none !important;
+  transition: none !important;
+}
+/* Les aperçus respectent aussi les couleurs natives du contraste élevé. */
+body.vscode-high-contrast [data-palette],
+body.vscode-high-contrast-light [data-palette] {
+  --jn-sw-1: var(--vscode-foreground);
+  --jn-sw-2: var(--vscode-foreground);
+  --jn-sw-3: var(--vscode-foreground);
+  --jn-sw-4: var(--vscode-foreground);
+  --jn-sw-5: var(--vscode-foreground);
+  --jn-sw-6: var(--vscode-foreground);
+}
+.composer-action,
+.composer-choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 34px;
+  padding: 7px 10px;
+  text-align: left;
+  border-radius: 7px;
+}
+/* Même grammaire visuelle que les interrupteurs Apprentissage et Bypass. */
+.resource-toggle {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 36px;
+  padding: 6px 8px 6px 10px;
+  border: 0;
+  border-radius: var(--jn-r-pill);
+  background: transparent;
+  color: var(--vscode-foreground);
+  text-align: left;
+  font: inherit;
+}
+.resource-toggle::after {
+  content: "";
+  flex: 0 0 34px;
+  height: 20px;
+  box-sizing: border-box;
+  border: 1px solid var(--jn-line-strong);
+  border-radius: 999px;
+  background: var(--jn-raise-2);
+}
+.resource-toggle::before {
+  content: "";
+  position: absolute;
+  right: 26px;
+  top: 50%;
+  margin-top: -7px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--vscode-foreground);
+  opacity: 0.7;
+  pointer-events: none;
+  transition: transform var(--jn-d2) var(--jn-ease-out);
+}
+.resource-toggle[aria-checked="true"]::after {
+  background: var(--jn-sig);
+  border-color: transparent;
+}
+.resource-toggle[aria-checked="true"]::before {
+  transform: translateX(14px);
+  opacity: 1;
+  background: var(--vscode-editor-background, #181818);
+}
+.resource-toggle:hover:not(:disabled) {
+  background: var(--jn-raise-2);
+}
+.resource-toggle:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.audit-filters input,
+.audit-filters select {
+  display: block;
+  width: 100%;
+  margin-top: 5px;
+}
+.audit-review {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  margin-top: 16px;
+}
+.audit-review input,
+.audit-review textarea,
+.audit-review select {
+  width: 100%;
+  box-sizing: border-box;
+}
+.audit-review button {
+  justify-self: start;
+}

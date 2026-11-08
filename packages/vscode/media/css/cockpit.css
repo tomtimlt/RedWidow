@@ -1,0 +1,463 @@
+/*
+ * Page du cockpit (conteneurs). Chargée après base.css.
+ */
+/* ───────────────────────────── Cockpit (application complète) ───────────────────────────── */
+body.cockpit #bar #refresh {
+  margin-left: auto;
+}
+body.cockpit #main {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--jn-s3) 0 var(--jn-s5);
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+@container app (min-width: 600px) {
+  body.cockpit #main {
+    width: min(860px, calc(100% - 2 * var(--jn-gutter)));
+    margin-inline: auto;
+  }
+}
+body.cockpit #main > * {
+  animation: jn-msg-in var(--jn-d2) var(--jn-ease-out) 1 both;
+}
+body.cockpit #main > :nth-child(2) {
+  animation-delay: 40ms;
+}
+body.cockpit #main > :nth-child(3) {
+  animation-delay: 80ms;
+}
+body.cockpit section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s2);
+  min-width: 0;
+}
+.cockpit-h {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+  margin: 0;
+  font-family: var(--jn-font);
+  font-size: var(--jn-fs-xs);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--jn-muted);
+}
+.cockpit-count {
+  display: inline-flex;
+  font-family: var(--jn-mono);
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: var(--jn-r-pill);
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  font-size: var(--jn-fs-xs);
+  letter-spacing: 0;
+}
+body.cockpit .tone-ok .dot {
+  background: var(--jn-ok);
+}
+body.cockpit .tone-warn .dot {
+  background: var(--jn-warn);
+}
+body.cockpit .tone-err .dot {
+  background: var(--jn-err);
+}
+body.cockpit .cockpit-row.is-running > .dot {
+  background: var(--jn-ok);
+}
+.cockpit-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+.cockpit-tile {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--jn-fs-sm);
+}
+.cockpit-tile-label {
+  color: var(--jn-muted);
+}
+.cockpit-context {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+}
+.cockpit-context-details > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: var(--jn-muted);
+  list-style: none;
+}
+.cockpit-context-details > summary::-webkit-details-marker {
+  display: none;
+}
+.cockpit-context-details[open] .ico {
+  transform: rotate(90deg);
+}
+.cockpit-context-details .cockpit-meta {
+  margin-top: 12px;
+}
+.cockpit-create-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.cockpit-row-toggle {
+  flex: none;
+  padding: 0;
+  min-width: 24px;
+  min-height: 24px;
+  background: transparent;
+  color: var(--jn-muted);
+}
+.cockpit-row-toggle[aria-expanded="true"] .ico {
+  transform: rotate(90deg);
+}
+.cockpit-row-details {
+  flex: 1 0 100%;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  padding: 8px 0 4px 32px;
+  border-top: 1px solid var(--jn-line);
+  color: var(--jn-muted);
+  font-size: var(--jn-fs-sm);
+  overflow-wrap: anywhere;
+}
+.cockpit-row-workspace {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.cockpit-tile.tone-err {
+  border-color: color-mix(in srgb, var(--jn-err) 50%, var(--jn-line));
+}
+.cockpit-hero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s3);
+  padding: var(--jn-s4);
+  border: 1px solid var(--jn-line);
+  border-left: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-lg);
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+}
+.cockpit-hero.tone-ok {
+  border-left-color: var(--jn-line);
+}
+.cockpit-hero.tone-warn {
+  border-left-color: var(--jn-line);
+}
+.cockpit-hero.tone-err {
+  border-left-color: var(--jn-line);
+}
+.cockpit-linked-head {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+  min-width: 0;
+}
+.cockpit-hero-name {
+  flex: 1;
+  font-family: var(--jn-font);
+  font-size: var(--jn-fs-lg);
+  font-weight: 600;
+}
+.cockpit-pill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 10px;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-pill);
+  background: transparent;
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+  font-family: var(--jn-font);
+  font-size: var(--jn-fs-sm);
+  font-weight: 600;
+}
+.cockpit-meta {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--jn-s1) var(--jn-s4);
+  margin: 0;
+  font-size: var(--jn-fs-sm);
+}
+.cockpit-meta dt {
+  color: var(--jn-muted);
+}
+.cockpit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--jn-s2);
+}
+.cockpit-actions button,
+.cockpit-row-act button {
+  min-height: 30px;
+}
+.cockpit-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s2);
+}
+.cockpit-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s1);
+  min-width: 0;
+  font-size: var(--jn-fs-sm);
+}
+.cockpit-field-label {
+  color: var(--jn-muted);
+}
+.cockpit-field input:disabled,
+.cockpit-field select:disabled {
+  opacity: 0.5;
+}
+.cockpit-create {
+  padding: 16px;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+  background: var(--vscode-editorWidget-background, transparent);
+}
+/* Formulaire de création : en-tête avec bouton de repli (flèche vers le haut),
+ * présent uniquement quand le formulaire est ouvert. */
+.cockpit-create-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.cockpit-create-head .cockpit-h {
+  margin: 0;
+}
+.cockpit-create-close {
+  flex: none;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--jn-line);
+  border-radius: 50%;
+}
+.cockpit-create-close .ico {
+  width: 14px;
+  height: 14px;
+  transform: rotate(180deg);
+}
+.cockpit-create-close:hover:not(:disabled) {
+  border-color: var(--jn-sig-edge);
+  background: var(--jn-sig-tint);
+}
+.cockpit-create-close:hover:not(:disabled) .ico {
+  color: var(--jn-sig);
+}
+#cockpit-create-toggle[aria-expanded="true"] {
+  border-color: var(--jn-sig-edge);
+  background: var(--jn-sig-tint);
+}
+.cockpit-create {
+  animation: jn-pop-in var(--jn-d2) var(--jn-ease-out) 1;
+}
+.cockpit-create .cockpit-actions {
+  align-items: center;
+}
+.cockpit-source {
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-sm);
+}
+.cockpit-muted {
+  color: var(--jn-muted);
+  margin: 0;
+}
+.cockpit-notice,
+.cockpit-error {
+  margin: 0;
+  padding: var(--jn-s3);
+  border-radius: var(--jn-r-md);
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  border: 1px solid var(--jn-line);
+  border-left: 2px solid var(--jn-accent);
+}
+.cockpit-error {
+  color: var(--jn-err);
+  border-color: color-mix(in srgb, var(--jn-err) 50%, var(--jn-line));
+  border-left-color: var(--jn-err);
+}
+.cockpit-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.cockpit-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cockpit-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--jn-s3);
+  min-height: 48px;
+  padding: var(--jn-s2) var(--jn-s3);
+  border-radius: var(--jn-r-md);
+  border: 1px solid var(--jn-line);
+  background: transparent;
+  transition:
+    background-color var(--jn-d1) var(--jn-ease-io),
+    border-color var(--jn-d1) var(--jn-ease-io);
+}
+.cockpit-row:hover {
+  border-color: var(--jn-accent-edge);
+}
+.cockpit-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cockpit-row-top {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+  min-width: 0;
+}
+.cockpit-row-name {
+  font-family: var(--jn-font);
+  font-weight: 600;
+}
+.cockpit-row-sub {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--jn-fs-xs);
+  color: var(--jn-muted);
+}
+.cockpit-row-image {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--jn-mono);
+}
+.cockpit-row-ws,
+.cockpit-row-state {
+  flex: none;
+  white-space: nowrap;
+  font-family: var(--jn-mono);
+  font-weight: 600;
+}
+.cockpit-row-ws {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cockpit-row.is-running .cockpit-row-state {
+  color: var(--jn-ok);
+}
+.cockpit-row-act {
+  flex: none;
+  display: flex;
+  gap: 6px;
+}
+.cockpit-linked-tag {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 8px;
+  border-radius: var(--jn-r-pill);
+  background: var(--jn-tint);
+  border: 1px solid var(--jn-accent-fill-border);
+  color: var(--vscode-foreground);
+  font-family: var(--jn-font);
+  font-size: var(--jn-fs-xs);
+  font-weight: 500;
+}
+.cockpit-linked-tag.is-primary {
+  border-color: var(--jn-accent);
+}
+@container app (max-width: 359px) {
+  .cockpit-row {
+    flex-wrap: wrap;
+  }
+  .cockpit-row-act {
+    flex-basis: 100%;
+    justify-content: flex-end;
+  }
+  .cockpit-row-image {
+    display: none;
+  }
+}
+.cockpit-checkbox {
+  flex-direction: row-reverse;
+  justify-content: flex-end;
+  align-items: center;
+}
+.cockpit-checkbox input {
+  width: auto;
+  min-height: auto;
+}
+.cockpit-help {
+  margin: 0;
+  font-size: var(--jn-fs-sm);
+  color: var(--jn-muted);
+  overflow-wrap: anywhere;
+}
+.cockpit-progress {
+  padding: var(--jn-s3);
+  border: 1px solid var(--vscode-contrastBorder, var(--jn-line));
+  border-radius: var(--jn-r-md);
+}
+.cockpit-layer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s1);
+  margin-block: var(--jn-s2);
+  overflow-wrap: anywhere;
+}
+.cockpit-layer progress {
+  width: 100%;
+  accent-color: var(--jn-accent);
+}
+.cockpit-row-act {
+  flex-wrap: wrap;
+}
+.cockpit-create button {
+  max-width: 100%;
+  white-space: normal;
+}
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light)
+    .cockpit-create-close:hover:not(:disabled)
+    .ico {
+    transform: rotate(180deg) translateY(2px);
+  }
+}

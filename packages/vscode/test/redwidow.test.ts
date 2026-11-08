@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { PRODUCT_NAME, productTitleSuffix } from "../src/logic/brand.js";
 import { planEditorShell } from "../src/logic/cockpit.js";
 import { PALETTES, paletteOf } from "../src/logic/palette.js";
+import { readCss } from "./css.js";
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 class GraphicNode {
@@ -112,7 +113,7 @@ describe("intégration RedWidow en production", () => {
     }
   });
   it("l’aura anime uniquement un angle typé, sans affaiblir les garde-fous de mouvement", () => {
-    const css = read("../media/chat.css");
+    const css = readCss();
     expect(css).toMatch(/@property --jn-aura-turn\s*\{[^}]*syntax:\s*"<angle>"/);
     expect(css).toMatch(
       /@keyframes jn-aura-spin\s*\{\s*to\s*\{\s*--jn-aura-turn:\s*360deg;\s*\}\s*\}/,

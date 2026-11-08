@@ -14,6 +14,7 @@ import {
   studioGroup,
   studioLabel,
 } from "../src/logic/studio.js";
+import { readCss } from "./css.js";
 
 interface NavItem {
   id: string;
@@ -92,7 +93,6 @@ interface StudioApi {
 }
 
 const studioJs = fileURLToPath(new URL("../media/studio.js", import.meta.url));
-const chatCss = fileURLToPath(new URL("../media/chat.css", import.meta.url));
 createRequire(import.meta.url)(studioJs);
 const studio = (globalThis as unknown as { WarbandStudio: StudioApi }).WarbandStudio;
 const read = (p: string) => readFileSync(p, "utf8");
@@ -295,7 +295,7 @@ describe("compteur Kill chain", () => {
 });
 
 describe("feuille des réglages", () => {
-  const css = read(chatCss);
+  const css = readCss();
 
   it("groupes en capitales, sélection neutre et indicateur d’entrée courante", () => {
     expect(css).toMatch(/\.studio-group-title[\s\S]*?text-transform: uppercase/);
