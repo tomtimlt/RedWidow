@@ -62,24 +62,20 @@ Fichiers : `packages/core/src/mission-desk.ts` (`continuationPrompt`), `packages
   - test : deux tours sans outil → arrêt ;
   - le compteur `continuation.auto` n'augmente plus dans ces cas.
 
-### Lot 2 — Comptes de test (ADR 0043) [revue sécurité]
+### Lot 2 — Comptes de test, version simple (ADR 0043) [revue sécurité]
 
-Décision de l'orchestrateur, à écrire dans `docs/adr/0043-comptes-de-test.md` (contexte, décision, conséquences) :
+Décision de l'utilisateur (2026-11-09) : ce sont des comptes de test jetables ; il faut qu'ils soient simples à utiliser, en bug bounty comme en CTF ou en pentest. Le modèle peut voir et utiliser les identifiants. Ce qui compte : qu'ils servent, et qu'ils ne fuient pas dans les journaux et les exports.
 
-- **Page « Comptes de test »** dans le groupe Projet (à côté de Fiche programme). L'utilisateur y saisit : site (hôte du périmètre de la fiche validée), identifiant, mot de passe ou cookie de session, libellé (`A`, `B`…). Stockage : `SecretStorage` de VS Code, jamais dans le projet ni dans le journal.
-- **Le modèle ne voit jamais la valeur.** `mission_context` liste seulement « compte A sur boost.vinci.com (identifiant, mot de passe) ». Le modèle utilise des jetons : `{{compte:A:identifiant}}`, `{{compte:A:secret}}`.
-- **Substitution au moment de l'exécution**, uniquement dans :
-  - `http_request` (en-têtes, corps, URL), et seulement si l'hôte de la requête est celui du compte ;
-  - `exec` et `task_start` : **refusé dans cette version** (code `account.shellUnsupported`). Dans le conteneur, le modèle pourrait relire une variable d'environnement (`echo`, `/proc`), ce qui contredirait « le modèle ne voit jamais la valeur ». Une exécution isolée viendra après la V1.
-  - Ailleurs, la requête est refusée avec un nouveau code `account.hostMismatch`, non mémorisable. Cela empêche d'envoyer un mot de passe vers un autre hôte.
-- **Masquage.** Les valeurs de tous les comptes sont ajoutées au masquage du recorder avant tout sink. Toute réponse d'outil qui les contient arrive masquée au modèle et au journal.
-- **Session.** `http_request` reçoit une option `session: "A"` qui conserve les cookies de ce compte (jarre en mémoire, par compte et par hôte). L'agent peut ainsi enchaîner connexion puis navigation authentifiée sans navigateur.
-- Profil `bug-bounty` et `methodology.ts` : « les comptes de test fournis sont autorisés par la fiche ; utilise-les via les jetons ; ne demande jamais un mot de passe en clair ».
+À écrire dans `docs/adr/0043-comptes-de-test.md` :
+- **Page « Comptes de test »** dans le groupe Projet. Champs : libellé (A, B…), site ou hôte (facultatif), identifiant, mot de passe ou cookie de session. Stockage dans `SecretStorage` de VS Code, pas dans le projet.
+- **L'agent y a accès directement.** `mission_context` donne les comptes avec leurs identifiants. Le profil `bug-bounty` et `methodology.ts` disent : « les comptes de test fournis sont faits pour être utilisés ; ne refuse pas de t'en servir ».
+- **Jetons pratiques** `{{compte:A:identifiant}}` / `{{compte:A:secret}}`, substitués dans `http_request`, `exec` et `task_start` (y compris en variables d'environnement `RW_COMPTE_A_*`). Aucune restriction d'hôte.
+- **Session HTTP** : `http_request` accepte `session: "A"`, qui garde les cookies de ce compte entre deux appels (connexion, puis navigation authentifiée).
+- **Masquage** : les valeurs des comptes sont ajoutées au masquage du recorder. Elles n'apparaissent ni dans le journal, ni dans le fil exporté, ni dans le ZIP d'audit.
 - Critères :
-  - jeton substitué vers l'hôte du compte ;
-  - refus vers un autre hôte ;
+  - jeton substitué dans `http_request` et `exec` ;
+  - cookies conservés entre deux appels ;
   - valeur absente du journal et des exports ;
-  - jarre de cookies conservée entre deux appels ;
   - test d'exhaustivité des codes à jour.
 
 ### Lot 3 — Masquage des identifiants collés dans le chat [revue sécurité]
