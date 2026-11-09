@@ -70,7 +70,7 @@ Décision de l'orchestrateur, à écrire dans `docs/adr/0043-comptes-de-test.md`
 - **Le modèle ne voit jamais la valeur.** `mission_context` liste seulement « compte A sur boost.vinci.com (identifiant, mot de passe) ». Le modèle utilise des jetons : `{{compte:A:identifiant}}`, `{{compte:A:secret}}`.
 - **Substitution au moment de l'exécution**, uniquement dans :
   - `http_request` (en-têtes, corps, URL), et seulement si l'hôte de la requête est celui du compte ;
-  - `exec` et `task_start` sous forme de variables d'environnement `RW_COMPTE_A_IDENTIFIANT` / `RW_COMPTE_A_SECRET`, si la commande vise l'hôte du compte (analyse des hôtes existante, `core/src/program/shell-hosts.ts`).
+  - `exec` et `task_start` : **refusé dans cette version** (code `account.shellUnsupported`). Dans le conteneur, le modèle pourrait relire une variable d'environnement (`echo`, `/proc`), ce qui contredirait « le modèle ne voit jamais la valeur ». Une exécution isolée viendra après la V1.
   - Ailleurs, la requête est refusée avec un nouveau code `account.hostMismatch`, non mémorisable. Cela empêche d'envoyer un mot de passe vers un autre hôte.
 - **Masquage.** Les valeurs de tous les comptes sont ajoutées au masquage du recorder avant tout sink. Toute réponse d'outil qui les contient arrive masquée au modèle et au journal.
 - **Session.** `http_request` reçoit une option `session: "A"` qui conserve les cookies de ce compte (jarre en mémoire, par compte et par hôte). L'agent peut ainsi enchaîner connexion puis navigation authentifiée sans navigateur.
