@@ -307,7 +307,7 @@ Sa licence est GPL-3.0 : **ne rien copier dans le dépôt** (MIT).
 
 ## Ordre
 
-1. Lots 1, 2, 3, 4, 7, 23 et 24 : comportement de l'agent et secrets. Ce sont eux qui bloquent le prochain benchmark.
+1. Lots 1, 2, 3, 4, 7, 23, 24 et 25 : comportement de l'agent et secrets. Ce sont eux qui bloquent le prochain benchmark.
 2. Lots 8, 9, 11, 17, 20 : ce qui bloque l'utilisateur.
 3. Lots 5, 6, 10, 12-16, 18, 19, 21 : finition de l'interface.
 4. Lot 22 (facultatif).
@@ -371,6 +371,34 @@ Critères (tests) :
 - bandeau présent sans conteneur et absent avec un conteneur lié ;
 - mention d'un conteneur non lié → carte « Lier » et nouveau message ; liaison refusée si le montage ne correspond pas (lot 8) ;
 - codes ajoutés à `REASON_CODES` et aux catalogues fr/en.
+
+### Lot 25 — Un profil, un comportement, ses propres documents
+
+Décision de l'utilisateur (2026-11-09) : chaque profil a son comportement et ses exigences, sans mélange. Le mode « normal » est le pentest.
+
+| Profil (libellé affiché) | Document exigé | Comportement attendu | Livrable |
+|---|---|---|---|
+| **Pentest** (mode normal ; renommer « Out of the box ») | Aucun | Rapide, à la volée, tous outils après approbation | Notes et constats |
+| **Hack The Box / CTF** | Aucun | Énumération, exploitation, élévation, recherche des drapeaux | Chemin d'attaque et drapeaux (kill chain) |
+| **Bug bounty** | Fiche programme validée | Règles du programme, rythme, User-Agent, matrice de couverture, preuve minimale | Rapport pour la plateforme |
+| **Red Team — Expert** | Fiche d'engagement validée | Plan de campagne, ATT&CK, déconfliction, arrêt d'urgence | Journal de campagne |
+| **Mentor** | Aucun | Pédagogie | Explications |
+
+À faire :
+- **Exigences du moteur** :
+  - fiche programme exigée seulement en Bug bounty (lot 23) ;
+  - fiche d'engagement et plan de campagne exigés seulement en Red Team ;
+  - aucun document dans les autres profils.
+- **Consignes** : chaque profil ne parle que de ses propres documents.
+  - Hors Bug bounty, aucun texte ne mentionne la fiche programme ni `program_draft`.
+  - Hors Red Team, aucun texte ne mentionne la fiche d'engagement.
+  - Hors Bug bounty, pas de `record_coverage` obligatoire (outil disponible, non exigé).
+- **Socle commun** (`methodology.ts`) : ne garder que ce qui vaut pour tous (méthode, preuves, kill chain). Les règles bug bounty passent dans le profil Bug bounty.
+- **Profil par défaut** d'une nouvelle conversation : Pentest.
+- Critères (tests) :
+  - pour chaque profil, la liste des documents exigés par le moteur correspond au tableau ;
+  - aucune mention croisée dans les textes de profil (grep dans un test) ;
+  - Pentest et HTB sans aucune fiche : `http_request`, `exec` et Kali fonctionnent après approbation.
 
 ### Règle transversale — hors bug bounty, l'agent n'est pas bridé
 
