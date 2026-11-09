@@ -307,7 +307,7 @@ Sa licence est GPL-3.0 : **ne rien copier dans le dépôt** (MIT).
 
 ## Ordre
 
-1. Lots 1, 2, 3, 4 et 7 : comportement de l'agent et secrets. Ce sont eux qui bloquent le prochain benchmark.
+1. Lots 1, 2, 3, 4, 7 et 23 : comportement de l'agent et secrets. Ce sont eux qui bloquent le prochain benchmark.
 2. Lots 8, 9, 11, 17, 20 : ce qui bloque l'utilisateur.
 3. Lots 5, 6, 10, 12-16, 18, 19, 21 : finition de l'interface.
 4. Lot 22 (facultatif).
@@ -316,6 +316,24 @@ Lots qui touchent les mêmes fichiers, à faire dans l'ordre et un à la fois :
 - `studio.js` : 9, 13, 14, 16, 18 ;
 - `chat.js` : 11, 15, 19 ;
 - `mission-desk.ts` : 1, 4, 5, 6.
+
+### Lot 23 — Red team et pentest sans page de programme [revue sécurité]
+
+Constat (session red team du 2026-11-09) :
+- `http_request` exige une fiche programme (`core/src/web/http-request.ts:142`, `program.required`) et ignore la fiche d'engagement validée (ADR 0041, engagement red team et arrêt d'urgence).
+- La rédaction de fiche exige une page publique à citer. Un pentest ou un engagement red team n'en a pas : l'autorisation est un contrat ou un mandat.
+
+Décision :
+- **Engagement accepté par `http_request`.** Une fiche d'engagement validée par empreinte sert d'autorité, au même titre qu'une fiche programme : périmètre cible et infrastructure déclarée autorisés, exclusions refusées. Le rythme vient de l'engagement (par défaut « Prudent ») et le suffixe User-Agent est facultatif. L'arrêt d'urgence refuse toute requête, comme pour le shell.
+- **Saisie manuelle de la fiche programme** : bouton « Remplir à la main » sur la page Fiche programme. Chaque champ peut citer comme source « déclaration de l'utilisateur » avec une référence (contrat, mandat, e-mail d'autorisation) au lieu d'une page web. La validation par empreinte reste inchangée.
+- **Rédaction par l'agent** : si l'URL donnée n'est pas une page de programme, l'agent propose la saisie manuelle ou la page Engagement au lieu de bloquer.
+- Profil `red-team` : au démarrage, si aucune fiche d'engagement n'est validée, l'agent le dit et oriente vers la page Engagement ; il ne demande pas d'URL de programme.
+
+Critères (tests) :
+- `http_request` autorisé par une fiche d'engagement validée ;
+- requête refusée hors périmètre et sous arrêt d'urgence ;
+- fiche manuelle validable avec la source « déclaration de l'utilisateur » ;
+- profil `red-team` sans fiche → message vers Engagement.
 
 ## Assets graphiques des nouvelles fonctionnalités
 
