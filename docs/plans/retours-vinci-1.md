@@ -150,11 +150,31 @@ Fichier : `packages/vscode/media/studio.js` (`render`, vers 1893-1930 ; interrup
   - retour à l'état précédent si l'hôte répond par une erreur.
 - Critères : test DOM — un clic pendant l'arrivée d'une `view` reste appliqué ; un seul `postMessage` par clic.
 
-### Lot 10 — Temps de chargement des fenêtres (mesure puis correctif)
+### Lot 10 — Fenêtres lentes et clics multiples : la cause, et son correctif (pas de bouton « recharger »)
 
-- Ajouter des marques de temps : création du panneau, `DOMContentLoaded`, première `view` reçue, premier rendu. Les écrire dans Sortie → RedWidow (niveau debug).
-- L'utilisateur relève les temps sur sa machine ; correction de la cause mesurée (attente de l'hôte, rendu complet, taille de `i18n.js`, CSS). Ne rien optimiser à l'aveugle.
-- Critères : marques visibles dans Sortie ; après le correctif, temps relevé avant et après dans le commit.
+Cause trouvée par l'orchestrateur (lecture du code) :
+- `pushStudio` (`extension.ts:2712`) fait `await loadCockpitView()` (2728-2735) **avant tout `postMessage`** (2786).
+- `loadCockpitView` lance `docker ps --all --quiet` puis `docker inspect` (`core/src/docker/client.ts:545-566`, `cockpit.ts:510-515`, délai max 15 s). Sous Windows avec Docker Desktop, chaque commande `docker` coûte souvent une à plusieurs secondes.
+- Ce sondage Docker est refait **à chaque message** de la page Réglages : `await pushStudio()` après chaque action (`extension.ts:3746`). Un clic attend donc le sondage Docker avant que l'interface réagisse : l'utilisateur reclique, d'où les « plusieurs clics ». C'est aussi la cause du lot 9, à traiter ensemble.
+- Les panneaux n'ont pas `retainContextWhenHidden` (`extension.ts:1313, 1864, 1922, 2001, 2050, 2227, 2428, 2634, 2854, 3397`). Seule la vue latérale du chat l'a (4078). Chaque changement d'onglet détruit la page et la reconstruit, sondage Docker compris.
+- Studio, kill chain et cockpit n'ont pas de poignée de main `ready`, contrairement à chat, program, engagement, sessions et viewer. Le premier message peut arriver avant que le script n'écoute.
+
+Correctif :
+1. **Rendu immédiat** :
+   - `pushStudio` envoie tout de suite la vue avec les dernières données Docker en cache, marquées « mise à jour… », puis rafraîchit la partie conteneurs en arrière-plan ;
+   - le sondage Docker n'est fait qu'à l'ouverture, sur les pages qui l'utilisent (Conteneurs, Projet), sur « Actualiser », et au plus toutes les 10 s ;
+   - les actions qui ne concernent pas Docker ne le déclenchent plus.
+2. **`retainContextWhenHidden: true`** sur les panneaux Réglages, Kill chain, Cockpit, Monitor et Engagement. Les autres restaurent leur dernier état via `getState`/`setState`.
+3. **Poignée de main `ready`** dans `studio.js`, `killchain` et `cockpit.js` : l'hôte attend `ready` (ou renvoie la vue à sa réception) avant le premier envoi.
+4. **Mesure** : marques de temps (création du panneau, `ready`, première vue envoyée, premier rendu) écrites dans Sortie → RedWidow au niveau debug. Le commit du correctif donne les temps avant et après relevés sur la machine de l'utilisateur.
+
+Critères (tests) :
+- `pushStudio` poste une vue sans attendre `listLabelPrefix` (double de Docker lent de 5 s : vue reçue en moins de 100 ms) ;
+- une action non Docker ne relance pas `listLabelPrefix` ;
+- les panneaux concernés ont `retainContextWhenHidden` ;
+- le premier message n'est envoyé qu'après `ready`.
+
+Pas de bouton « recharger l'interface » comme correctif.
 
 ### Lot 11 — Stop dans la zone de saisie
 
@@ -399,6 +419,20 @@ Décision de l'utilisateur (2026-11-09) : chaque profil a son comportement et se
   - pour chaque profil, la liste des documents exigés par le moteur correspond au tableau ;
   - aucune mention croisée dans les textes de profil (grep dans un test) ;
   - Pentest et HTB sans aucune fiche : `http_request`, `exec` et Kali fonctionnent après approbation.
+
+### Lot 26 — Idées retenues d'Exegol Studio (idées seulement, aucun code ni asset copié : licence propriétaire)
+
+- **Plancher dur, même en Bypass** [revue sécurité] :
+  - liste courte de commandes refusées dans tous les modes, Bypass illimité compris, jamais mémorisables, code `shell.hardFloor` ;
+  - cible : ce qui détruit la machine hôte ou le moteur, par exemple effacement récursif de `/` ou du dossier utilisateur, formatage de disque (`mkfs`, `dd` vers un périphérique bloc), bombe fork, arrêt ou redémarrage de l'hôte, `docker run` monté sur `/` de l'hôte ;
+  - réutiliser l'analyse shell existante ;
+  - tests : chaque motif est refusé avec et sans Bypass ; une commande légitime proche (`rm -rf ./build`) reste autorisée.
+- **Messages pendant que l'agent travaille** : réglage « Pendant un run, Entrée… » avec deux choix :
+  - « oriente l'agent » : le message est lu après l'étape en cours, sans couper la commande qui tourne ;
+  - « met en file » : le message est envoyé à la fin du tour.
+
+  Ctrl+Entrée fait l'autre choix. Chaque message en attente est visible et modifiable avant d'être lu. À combiner avec le lot 11 (Stop quand la saisie est vide).
+- **Import de skills** : commande « Importer des skills, règles et agents ». Elle lit les dossiers de l'utilisateur (`~/.claude/skills`, `~/.claude/agents`, `.claude/` du projet, `AGENTS.md`) et les propose comme skills RedWidow, après aperçu et confirmation. Copie dans le dossier de configuration de RedWidow, sans modifier la source. Cela couvre claude-kit (lot 22) quand l'utilisateur l'a installé.
 
 ### Règle transversale — hors bug bounty, l'agent n'est pas bridé
 
