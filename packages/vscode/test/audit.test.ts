@@ -282,6 +282,7 @@ describe("dossier client autonome", () => {
       projectName: "Lab <img src=x onerror=bad()>",
       destination,
       locale: "en",
+      chat: "# Fil de mission\nTexte déjà masqué",
       beforeCommit,
     });
     const bytes = await readFile(destination),
@@ -301,6 +302,8 @@ describe("dossier client autonome", () => {
       .join("");
     expect(raw.trim().split("\n")).toHaveLength(506);
     expect(raw).not.toContain("hidden");
+    expect(entries.get("chat.md")?.toString()).toContain("Texte déjà masqué");
+    expect(manifest.collection.chatIncluded).toBe(true);
     expect(manifest.collection.htmlLimited).toBe(true);
     expect(manifest.collection.cryptographicSignature).toBe(false);
     for (const file of manifest.files) {

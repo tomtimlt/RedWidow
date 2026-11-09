@@ -1,4 +1,5 @@
-import { type FileHandle, open, readdir, rm, stat } from "node:fs/promises";
+import { constants } from "node:fs";
+import { type FileHandle, lstat, open, readdir, realpath, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { type EngineEvent, validateEvent } from "@warband/core";
@@ -24,6 +25,25 @@ export interface JournalFiles {
 const fileOf = (dir: string, runId: string): string => join(dir, `${runId}.jsonl`);
 
 export function createJournalFiles(dir: string): JournalFiles {
+  const openJournal = async (id: string) => {
+    const directory = await realpath(dir);
+    if (!(await lstat(dir)).isDirectory()) throw Error("Répertoire de journaux symbolique.");
+    const path = fileOf(directory, id);
+    if (!(await lstat(path)).isFile()) throw Error("Journal non régulier.");
+    const handle = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    try {
+      if (
+        !(await handle.stat()).isFile() ||
+        (await realpath(path)) !== path ||
+        (await realpath(dir)) !== directory
+      )
+        throw Error("Le journal a changé pendant la lecture.");
+      return handle;
+    } catch (error) {
+      await handle.close();
+      throw error;
+    }
+  };
   const remove = async (runIds: readonly string[]) => {
     await Promise.all(
       runIds.filter(isRunId).map((id) => rm(fileOf(dir, id), { force: true }).catch(() => {})),
@@ -34,7 +54,7 @@ export function createJournalFiles(dir: string): JournalFiles {
     async read(runId) {
       if (!isRunId(runId)) return null;
       try {
-        const handle = await open(fileOf(dir, runId), "r");
+        const handle = await openJournal(runId);
         try {
           const { size } = await handle.stat();
           const length = Math.min(size, MAX_JOURNAL_BYTES + 1);
@@ -52,7 +72,7 @@ export function createJournalFiles(dir: string): JournalFiles {
       if (!isRunId(runId)) return { invalid: 0, missing: true };
       let handle: FileHandle;
       try {
-        handle = await open(fileOf(dir, runId), "r");
+        handle = await openJournal(runId);
       } catch {
         return { invalid: 0, missing: true };
       }

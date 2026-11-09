@@ -43,6 +43,7 @@ describe("commandes du manifeste", () => {
         "warband.captureTerminalEvidence",
         "warband.clearToken",
         "warband.diagnostic",
+        "warband.exportChat",
         "warband.launcher",
         "warband.missionContext",
         "warband.openChat",

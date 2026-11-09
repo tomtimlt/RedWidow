@@ -1057,6 +1057,7 @@
   });
   const slashPop = $("slash-pop");
   const slashBtn = $("slash-btn");
+  $("export-chat-btn")?.addEventListener("click", () => vscode.postMessage({ type: "exportChat" }));
   $("monitor-btn").addEventListener("click", () => vscode.postMessage({ type: "openMonitor" }));
   $("killchain-btn").addEventListener("click", () => vscode.postMessage({ type: "openKillchain" }));
   const mentionBtn = $("mention-btn");

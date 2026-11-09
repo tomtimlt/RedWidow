@@ -168,6 +168,11 @@
       {
         "command": "warband.revealPendingApproval",
         "title": "%command.revealPendingApproval%"
+      },
+      {
+        "command": "warband.exportChat",
+        "title": "Exporter le fil",
+        "category": "RedWidow"
       }
     ],
     "menus": {

@@ -87,6 +87,18 @@ describe("journal d’audit par projet", () => {
     });
     await store.close();
   });
+  it("retient la fin de tour pour le diagnostic d’audit", async () => {
+    const { store, project } = await fixture();
+    const r = createRecorder();
+    await store.recordEvent(
+      project,
+      r.emit({ kind: "turn.finished", turns: 1, costUsd: 0, status: "success", result: null }),
+    );
+    expect(
+      (await store.view(project)).records.some((row) => row.data.kind === "turn.finished"),
+    ).toBe(true);
+    await store.close();
+  });
   it("sérialise, persiste les pauses, reprend et ne purge pas au redémarrage", async () => {
     const { root, store, project } = await fixture();
     await Promise.all(

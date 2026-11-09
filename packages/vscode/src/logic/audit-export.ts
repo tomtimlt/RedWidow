@@ -42,6 +42,7 @@ export async function exportAuditBundle(options: {
   projectName: string;
   destination: string;
   locale: Locale;
+  chat?: string;
   beforeCommit(): Promise<void>;
 }): Promise<{ sha256: string; files: number }> {
   const { store, projectId, destination, locale } = options;
@@ -63,7 +64,7 @@ export async function exportAuditBundle(options: {
     scope: "managed-project-actions",
     collection: {
       automatic: true,
-      chatIncluded: false,
+      chatIncluded: options.chat !== undefined,
       manual: "periodic bounded snapshots, not exhaustive command instrumentation",
       htmlRecords: view.records.length,
       htmlLimited: view.viewLimited,
@@ -93,6 +94,8 @@ export async function exportAuditBundle(options: {
     },
     { name: "evidence.json", data: Buffer.from(JSON.stringify(evidence, null, 2)) },
   ];
+  if (options.chat !== undefined)
+    buffers.push({ name: "chat.md", data: Buffer.from(options.chat) });
   for (const file of buffers)
     entries.push({ name: file.name, size: file.data.length, sha256: digest(file.data) });
   manifest.files = entries;

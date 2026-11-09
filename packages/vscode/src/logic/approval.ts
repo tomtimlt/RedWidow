@@ -135,6 +135,7 @@ export type WebviewMessage =
   | { type: "openKillchain" }
   /** Ouvre le panneau Monitor. Aucun champ : l'hôte seul choisit la colonne. */
   | { type: "openMonitor" }
+  | { type: "exportChat" }
   /** Enregistre le contenu visible du Monitor ou d'une Sortie en texte : l'hôte choisit nom et dossier. */
   | { type: "exportText"; text: string };
 
@@ -277,6 +278,7 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
     case "addProvider":
     case "ready":
     case "openKillchain":
+    case "exportChat":
     case "openMonitor":
       return only("type") ? { type: m.type } : null;
     case "exportText":

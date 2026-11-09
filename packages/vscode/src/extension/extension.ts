@@ -56,6 +56,8 @@ import {
   capabilitySettings,
   providerChoices,
 } from "../logic/chat-capabilities.js";
+import { exportChat } from "../logic/chat-export.js";
+import { writeChatExports } from "../logic/chat-export-files.js";
 import {
   containerMentions,
   controlListedContainer,
@@ -83,6 +85,7 @@ import {
 import { evidenceEditorReference, evidenceTerminalAllowed } from "../logic/evidence-capture.js";
 import { type ExegolCreateOptions, prepareExegolCreate } from "../logic/exegol-create.js";
 import { deleteSelectedFinding } from "../logic/finding-delete.js";
+import { isRunId, parseIndex } from "../logic/history.js";
 import {
   chatHtml,
   cockpitHtml,
@@ -1211,6 +1214,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           return;
         case "openKillchain":
           openKillchain();
+          return;
+        case "exportChat":
+          await exportMissionChat(id);
           return;
         case "openMonitor":
           openMonitor();
@@ -2991,6 +2997,40 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       throw new Error(t("Le projet actif a changé. Relancez l’action sur les preuves."));
     return project;
   };
+  const journalEvents = async (projectId: string, conversationId?: string) => {
+    const entries = parseIndex(
+      sharedHistory.index.get("warband.history.shared.v1"),
+      SHARED_HISTORY_MAX_ENTRIES,
+    ).filter(
+      (row) =>
+        row.projectId === projectId && (conversationId === undefined || row.id === conversationId),
+    );
+    const events: EngineEvent[] = [];
+    for (const runId of new Set(entries.flatMap((row) => row.runIds))) {
+      const result = await sharedJournalFiles.scan?.(runId, (event) => {
+        events.push(event);
+        return true;
+      });
+      if (result?.invalid || result?.missing)
+        throw Error(t("Journal incomplet : export du fil interrompu."));
+    }
+    return events;
+  };
+  const exportMissionChat = async (slotId?: string) => {
+    const file = await readProjects(defaultConfigDir());
+    const project = file ? activeProject(file) : null;
+    if (!project) throw new CodedError("project.absent");
+    const current = evidenceProjectGuard(project.id, findingProjectGeneration);
+    const view = slots.get(slotId ?? activeId)?.session?.view();
+    const conversation = view?.readonly?.id ?? view?.history.find((row) => row.current)?.id;
+    if (!conversation) throw Error(t("Aucun fil à exporter."));
+    const events = await journalEvents(project.id, conversation);
+    const runId = events.at(-1)?.runId;
+    if (!runId || !isRunId(runId)) throw Error(t("Aucun fil à exporter."));
+    const result = exportChat(events);
+    await writeChatExports(project.workspace, runId, result, current);
+    await vscode.window.showInformationMessage(t("Fil exporté dans le dossier exports du projet."));
+  };
   const exportProjectAudit = async (projectId?: string) => {
     try {
       const choices = await readProjectChoices(defaultConfigDir());
@@ -3028,6 +3068,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             store: auditStore,
             projectId: selected.id,
             projectName: selected.name,
+            chat: exportChat(await journalEvents(selected.id)).markdown,
             destination: destination.fsPath,
             locale,
             beforeCommit: async () => {
@@ -4030,6 +4071,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }),
     // Alias interne (barre d'état, raccourcis existants) : hors palette, même panneau que les réglages.
     vscode.commands.registerCommand("warband.openAudit", () => openStudio("audit")),
+    vscode.commands.registerCommand("warband.exportChat", () =>
+      exportMissionChat().catch((error) =>
+        vscode.window.showErrorMessage(formatError(error, getUiLocale())),
+      ),
+    ),
     vscode.commands.registerCommand("warband.exportAudit", () => exportProjectAudit()),
     vscode.commands.registerCommand("warband.listProjectEvidence", () => listProjectEvidence()),
     vscode.commands.registerCommand("warband.captureEditorEvidence", () => captureEvidence(false)),
