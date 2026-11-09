@@ -21,7 +21,7 @@ repart en **Pentest**, le mode normal sans document préalable. Les méthodes so
 | Pentest | Aucun |
 | Hack The Box / CTF | Aucun |
 | Bug bounty | Fiche programme |
-| Red Team — Expert | Fiche d’engagement et plan de campagne |
+| Red Team — Expert | Fiche d’engagement ; plan de campagne seulement pour `record_step` |
 | Mentor | Aucun |
 
 Les lectures de documentation et la préparation restent disponibles pour rédiger

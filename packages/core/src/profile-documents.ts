@@ -15,37 +15,28 @@ export function profileDocuments(
   return [];
 }
 
-/** Les lectures documentaires et outils de préparation restent utilisables avant validation. */
+/** Le plan est contrôlé par record_step ; la reconnaissance ne dépend que de l’engagement. */
 export function missingProfileDocument(tool: string, ctx: PolicyContext): Reason | null {
   const operational =
     tool === HTTP_REQUEST_TOOL || isProgramShellTool(tool) || KALI_OPERATIONAL_TOOLS.has(tool);
   if (!operational) return null;
   const profile = isAgentProfile(ctx.profile) ? ctx.profile : DEFAULT_AGENT_PROFILE;
   for (const document of profileDocuments(profile)) {
+    if (document === "campaign") continue;
     let approved = false;
     try {
       if (document === "program") {
         const status = ctx.program?.();
         approved = status?.state === "approved" && status.applied !== undefined;
-      } else if (document === "engagement") {
+      } else {
         const status = ctx.engagement?.().status;
         approved = status?.state === "approved" && status.applied !== undefined;
-      } else {
-        const overview = ctx.campaign?.();
-        approved =
-          overview?.state === "approved" && overview.plan !== null && overview.plan !== undefined;
       }
     } catch {
       /* Une lecture incertaine n’est jamais une validation. */
     }
     if (!approved)
-      return reason(
-        document === "program"
-          ? "program.required"
-          : document === "engagement"
-            ? "engagement.required"
-            : "campaign.notApproved",
-      );
+      return reason(document === "program" ? "program.required" : "engagement.required");
   }
   return null;
 }

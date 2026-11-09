@@ -1,4 +1,6 @@
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
   AGENT_METHODOLOGY,
@@ -7,6 +9,7 @@ import {
   type CampaignOverview,
   createApprovalGate,
   createBypassSwitch,
+  createCampaignPort,
   createExegolTargets,
   createMissionDesk,
   createPaceRegistry,
@@ -75,6 +78,10 @@ const campaign: CampaignOverview = {
   executedCount: 0,
   executedPercent: 0,
 };
+const approvedEngagement = () => ({
+  status: { state: "approved" as const, applied: engagement },
+  halted: false,
+});
 // Shell POSIX analysable explicitement : sous Windows, Bash serait sinon refusé par une autre règle.
 const complete = (profile: AgentProfile): PolicyContext => ({
   cwd: process.cwd(),
@@ -110,9 +117,10 @@ describe("documents propres au profil", () => {
       expect(absent.reason.code).toBe(
         profile === "bug-bounty" ? "program.required" : "engagement.required",
       );
-      expect(evaluatePolicy(DEFAULT_POLICY, tool, args, complete(profile)).decision).not.toBe(
-        "deny",
-      );
+      const validated = complete(profile);
+      delete validated.campaign;
+      if (profile === "red-team") delete validated.program;
+      expect(evaluatePolicy(DEFAULT_POLICY, tool, args, validated).decision).not.toBe("deny");
     }
   });
 
@@ -175,25 +183,30 @@ describe("documents propres au profil", () => {
       expect(evaluatePolicy(DEFAULT_POLICY, HTTP_REQUEST_TOOL, input, red).reason.code).toBe(
         "engagement.required",
       );
-      expect(
-        evaluatePolicy(DEFAULT_POLICY, HTTP_REQUEST_TOOL, input, {
-          ...complete("red-team"),
-          campaign: () => ({ ...campaign, state, plan: null }),
-        }).reason.code,
-      ).toBe("campaign.notApproved");
     },
   );
 
-  it("Red Team : la fiche seule ne remplace pas le plan validé", () => {
+  it.each(["none", "draft", "unreadable", "suspended", "invalidated"] as const)(
+    "Red Team : un plan %s ne bloque pas la reconnaissance",
+    (state) => {
+      const ctx = complete("red-team");
+      delete ctx.program;
+      ctx.campaign = () => ({ ...campaign, state, plan: null });
+      expect(evaluatePolicy(DEFAULT_POLICY, HTTP_REQUEST_TOOL, input, ctx).decision).toBe("ask");
+    },
+  );
+
+  it("Red Team : seule la fiche d’engagement est vérifiée pour la reconnaissance", () => {
     const ctx = complete("red-team");
+    delete ctx.program;
     delete ctx.campaign;
-    expect(evaluatePolicy(DEFAULT_POLICY, HTTP_REQUEST_TOOL, input, ctx).reason.code).toBe(
-      "campaign.notApproved",
-    );
-    ctx.campaign = () => {
+    expect(evaluatePolicy(DEFAULT_POLICY, HTTP_REQUEST_TOOL, input, ctx).decision).toBe("ask");
+    const readCampaign = vi.fn(() => {
       throw Error("lecture");
-    };
-    expect(evaluatePolicy(DEFAULT_POLICY, HTTP_REQUEST_TOOL, input, ctx).decision).toBe("deny");
+    });
+    ctx.campaign = readCampaign;
+    expect(evaluatePolicy(DEFAULT_POLICY, HTTP_REQUEST_TOOL, input, ctx).decision).toBe("ask");
+    expect(readCampaign).not.toHaveBeenCalled();
     const bounty = {
       cwd: process.cwd(),
       profile: "bug-bounty" as const,
@@ -272,8 +285,8 @@ describe("documents propres au profil", () => {
   });
 });
 
-it.each(["out-of-box", "htb"] as const)(
-  "%s sans fiche : HTTP, lecture, exec et Kali fonctionnent après approbation",
+it.each(["out-of-box", "htb", "red-team"] as const)(
+  "%s sans plan : HTTP, lecture, exec et Kali fonctionnent après approbation",
   async (profile) => {
     const recorder = createRecorder();
     const ask = vi.fn(async () => ({ decision: "allow" as const }));
@@ -281,6 +294,7 @@ it.each(["out-of-box", "htb"] as const)(
       policy: DEFAULT_POLICY,
       recorder,
       workspace: { cwd: process.cwd(), profile },
+      ...(profile === "red-team" && { engagement: approvedEngagement }),
       ask,
     });
     const targets = createExegolTargets();
@@ -304,6 +318,7 @@ it.each(["out-of-box", "htb"] as const)(
     const web = createWebProgram({
       profile: () => profile,
       program: () => ({ state: "none" }),
+      ...(profile === "red-team" && { engagement: approvedEngagement }),
       registry: createPaceRegistry({ configDir: tmpdir(), projectId: () => null }),
     });
     const specs = webToolSpecs(
@@ -363,6 +378,46 @@ it.each(["out-of-box", "htb"] as const)(
     expect(api.call).toHaveBeenCalledOnce();
   },
 );
+
+it("Red Team : record_step reste refusé sans plan validé après approbation", async () => {
+  const configDir = await mkdtemp(join(tmpdir(), "red-team-sans-plan-"));
+  try {
+    const recorder = createRecorder();
+    const desk = createMissionDesk({
+      recorder,
+      mission: { profile: "red-team", containers: ["laboratoire"] },
+      engagement: () => approvedEngagement().status,
+      campaign: createCampaignPort(configDir, () => "11111111-1111-4111-8111-111111111111"),
+    });
+    const ask = vi.fn(async () => ({ decision: "allow" as const }));
+    const gate = createApprovalGate({
+      recorder,
+      policy: DEFAULT_POLICY,
+      workspace: { cwd: process.cwd(), profile: "red-team" },
+      engagement: approvedEngagement,
+      ask,
+    });
+    const input = { stepId: "s1", result: "blocked", note: "Plan à valider" };
+    expect(
+      (
+        await gate.decide(
+          { toolUseId: "etape", tool: "mcp__desk__record_step", input },
+          new AbortController().signal,
+        )
+      ).decision,
+    ).toBe("allow");
+    expect(ask).toHaveBeenCalledOnce();
+    await expect(
+      findTool(deskToolSpecs(desk), "record_step").run(input, {
+        parentId: null,
+        correlation: undefined,
+        signal: undefined,
+      }),
+    ).rejects.toMatchObject({ code: "campaign.notApproved" });
+  } finally {
+    await rm(configDir, { recursive: true, force: true });
+  }
+});
 
 it.each(profiles)(
   "%s : aucun document d’un autre profil dans les consignes injectées",

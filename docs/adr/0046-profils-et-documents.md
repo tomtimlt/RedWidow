@@ -5,10 +5,14 @@ Statut : accepté — décision utilisateur du 9 novembre 2026 (lot 25).
 Pentest est le profil normal et le défaut des nouvelles conversations. Son
 identifiant historique `out-of-box` reste compatible avec les préférences.
 HTB/CTF et Mentor n’exigent aucun document. Bug bounty exige une fiche programme
-validée ; Red Team exige une fiche d’engagement et un plan de campagne validés.
+validée ; Red Team exige une fiche d’engagement validée pour les actions
+opérationnelles. Le plan de campagne validé est exigé seulement par `record_step`
+(ADR 0041), afin de permettre la reconnaissance qui sert à construire ce plan.
 
-La table `profileDocuments` du cœur gouverne le contrôle de politique sur les
-actions opérationnelles : HTTP, shells et outils Kali. La classification Kali
+La table `profileDocuments` du cœur conserve les documents du profil pour
+l’affichage et les consignes. Le contrôle des actions opérationnelles (HTTP,
+shells et outils Kali) en exclut le plan de campagne ; `record_step` conserve
+sa validation propre du plan approuvé. La classification Kali
 vient du catalogue canonique, indépendamment des arguments de cible (notamment
 Metasploit et John). Les lectures de santé/suivi, la documentation et les outils
 de préparation restent accessibles. Une lecture documentaire défaillante ne
@@ -29,5 +33,7 @@ Validation : table des cinq profils et états documentaires, lectures en erreur,
 arrêt avec Bypass, chaque outil Kali opérationnel, HTTP/lecture/exec/Kali en
 Pentest et HTB sans fiche après approbation, absence de mentions croisées,
 nouvelle conversation et couverture facultative sans relance automatique.
+Red Team avec engagement validé et sans plan : HTTP, exec et Kali fonctionnent
+après approbation ; `record_step` reste refusé sans plan approuvé.
 Libellés fr/en, icônes/couleurs existantes et captures du menu avant/après dans
 `docs/img/chat-profils-*`, clair/sombre et mobile.
