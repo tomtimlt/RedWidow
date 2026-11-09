@@ -40,6 +40,7 @@ import {
   loadPolicy,
   openJournal,
   type ProgramStatus,
+  projectProgramPath,
   REPO_POLICY_PATH,
   readCampaign,
   readEngagement,
@@ -287,6 +288,10 @@ program
     const haltedProvider = (): boolean => activeId !== null && isHalted(configDir, activeId);
     const webProgram = createWebProgram({
       outputRoot: () => join(cwd, "outputs"),
+      targetsFile: () =>
+        activeId
+          ? join(projectProgramPath(configDir, activeId), "..", "target-hosts.json")
+          : undefined,
       program: programProvider,
       engagement: () => ({ status: engagementProvider(), halted: haltedProvider() }),
       registry: createPaceRegistry({ configDir, projectId: () => activeId }),

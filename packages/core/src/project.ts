@@ -593,6 +593,7 @@ export async function link(
   configDir: string,
   name: string,
   docker: Pick<DockerClient, "listLabelPrefix">,
+  expectedProjectId?: string,
 ): Promise<void> {
   const rows = await docker.listLabelPrefix();
   const row = rows.find((r) => r.name === name);
@@ -605,6 +606,8 @@ export async function link(
     throw new CodedError("project.noWorkspace", { name });
   }
   const file = await readProjects(configDir);
+  if (expectedProjectId !== undefined && file?.activeId !== expectedProjectId)
+    throw new CodedError("project.absent");
   if (file === null || activeProject(file) === null) {
     const projectName = row.family === "exegol" ? shortContainerName(row.name) : row.name;
     await createProject(configDir, {
@@ -614,7 +617,8 @@ export async function link(
   }
   const current = await readProjects(configDir);
   const active = current === null ? null : activeProject(current);
-  if (active === null) throw new CodedError("project.absent");
+  if (active === null || (expectedProjectId !== undefined && active.id !== expectedProjectId))
+    throw new CodedError("project.absent");
   await associateContainer(configDir, active.id, row.name, docker);
 }
 

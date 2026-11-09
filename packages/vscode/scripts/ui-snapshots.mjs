@@ -798,6 +798,32 @@ const PAGES = [
     { type: "view", view: credentialWarning.view() },
     CONTAINERS,
   ]),
+  chatPage(
+    "chat-conteneur-manquant",
+    [
+      { type: "view", view: chatView({ conversation: false }) },
+      { type: "containers", items: [], linkedCount: 0 },
+      {
+        type: "containerLinks",
+        items: [
+          {
+            name: "kali-1",
+            message:
+              "kali-1 n’est pas lié au projet : une mention @ ne suffit pas, liez-le dans le cockpit.",
+          },
+        ],
+      },
+    ],
+    { containerState: "missing" },
+  ),
+  chatPage(
+    "chat-conteneur-lie",
+    [
+      { type: "view", view: chatView({ conversation: false }) },
+      { ...CONTAINERS, linkedCount: 1 },
+    ],
+    { containerState: "linked" },
+  ),
   chatPage("chat-conversation", [{ type: "view", view: chatView({ approval: true }) }, CONTAINERS]),
   chatPage("chat-accueil", [{ type: "view", view: chatView({ conversation: false }) }, CONTAINERS]),
   // Jauge de contexte : fenêtre connue, avertissement (> 80 %), fenêtre inconnue, aucune donnée.
@@ -1039,6 +1065,32 @@ try {
         if (page.click) {
           await tab.evaluate((id) => document.getElementById(id)?.click(), page.click);
           await tab.waitForTimeout(150);
+        }
+        if (page.containerState) {
+          const expected = page.containerState === "missing";
+          const visible = await tab.locator("#container-warning").isVisible();
+          if (visible !== expected) throw new Error(`Bandeau conteneur incorrect : ${page.name}`);
+          if (expected) {
+            if (
+              !(await tab.locator("#container-links").innerText()).includes(
+                "Lier kali-1 à ce projet ?",
+              )
+            )
+              throw new Error("Carte de liaison absente");
+            await tab.locator("#link-container").click();
+            await tab.locator("#container-links button").first().click();
+            await tab.locator("#container-links button").last().click();
+            const sent = await tab.evaluate(() => window.__sent.slice(-3));
+            if (
+              JSON.stringify(sent) !==
+              JSON.stringify([
+                { type: "openCockpit" },
+                { type: "linkMention", name: "kali-1" },
+                { type: "ignoreLinkMention", name: "kali-1" },
+              ])
+            )
+              throw new Error("Actions de liaison incorrectes");
+          }
         }
         // Captures stables : animations et transitions figées à leur début.
         await tab.evaluate(() => {

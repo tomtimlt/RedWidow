@@ -34,6 +34,7 @@ import {
   outputFileSpecs,
   type ProgramStatus,
   prepareContainerProjectWorkspace,
+  projectProgramPath,
   readActiveProjectForPrompt,
   readEngagementSync,
   readProgramSync,
@@ -93,6 +94,10 @@ const engagementView = (): EngagementView =>
 // Fiche et rythme du projet actif pour l'outil `http_request` (ADR 0040).
 const webProgram = createWebProgram({
   outputRoot,
+  targetsFile: () =>
+    activeProjectId
+      ? join(projectProgramPath(defaultConfigDir(), activeProjectId), "..", "target-hosts.json")
+      : undefined,
   profile: () => activeProfile ?? "out-of-box",
   engagement: engagementView,
   program: programStatus,

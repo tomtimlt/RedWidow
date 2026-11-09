@@ -155,7 +155,10 @@ function resolveListedContainer(
   const listed = containers.filter((c) => (c as { family?: unknown }).family === family);
   const real = lookupContainer(name, listed);
   if (real === null || !target.allowed.includes(real)) {
-    throw new CodedError("exegol.containerDenied", { name });
+    throw new CodedError("exegol.containerDenied", {
+      name,
+      ...(real !== null && !target.allowed.includes(real) ? { unlinked: 1 } : {}),
+    });
   }
   if (target.mentions.length > 0) {
     const cited = target.mentions.some((mention) => lookupContainer(mention, listed) === real);

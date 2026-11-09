@@ -2983,3 +2983,29 @@ body.vscode-high-contrast-light .welcome-spider {
   background: var(--vscode-button-background);
   color: var(--vscode-button-foreground);
 }
+
+/* Même vocabulaire visuel que les avis et cartes d’approbation. */
+.container-warning,
+.container-link-card {
+  margin: 8px 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-sm);
+  background: var(--jn-raise);
+  color: var(--vscode-foreground);
+}
+.container-warning {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.container-warning[hidden] {
+  display: none;
+}
+.container-link-card p {
+  margin: 0 0 8px;
+}
+.container-link-card button + button {
+  margin-left: 8px;
+}

@@ -187,6 +187,12 @@ export const reasons: Catalog = {
     `${text(p.count)} coverage cell(s) still untested (${text(p.examples)}): test them, or mark them blocked / prerequisite with a justification, before concluding`,
   "supervision.checkpoint": (p) =>
     `${text(p.calls)} tool calls since the last decision: call record_decision (objective, exit criterion, next action) before continuing`,
+  "web.relayRefused": () =>
+    "Third-party relay refused for a target of an approved program: use exec or http_request.",
+  "web.relayDiscouraged": () =>
+    "Third-party relays are discouraged for targets: use exec or http_request to keep traffic direct.",
+  "web.targetRead": () =>
+    "read_url removes JavaScript, comments and hidden fields: to test the target, use the container (exec) or http_request",
   "web.invalidRequest": () => "invalid http_request (incompatible method, headers or body)",
   "web.searchFailed": () => "The search service returned no usable response.",
   "kali.nmapUnavailable": () =>
@@ -279,7 +285,9 @@ export const reasons: Catalog = {
   "project.readFailed": () => "could not read the active project this turn",
   "cours.absent": () => "no course installed (course folder missing)",
   "exegol.containerDenied": (p) =>
-    `container not allowed for this message: ${text(p.name)} (project allowlist, named with @, or designated by #)`,
+    p.unlinked
+      ? `${text(p.name)} is not linked to the project: an @ mention is not enough; link it in the cockpit.`
+      : `container not allowed for this message: ${text(p.name)} (choose a linked container, named with @ or designated by #)`,
   "kali.unavailable": (p) => {
     const name = text(p.name);
     if (p.reason === "unsupportedImage")

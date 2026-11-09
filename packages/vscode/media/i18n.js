@@ -122,6 +122,10 @@
 
   // packages/messages/src/ui-domains/chat.ts
   var chatEn = {
+    "Aucun conteneur lié : l'agent n'a pas de shell": "No linked container: the agent has no shell",
+    "Lier un conteneur": "Link a container",
+    "Lier {0} à ce projet ?": "Link {0} to this project?",
+    Ignorer: "Ignore",
     "Identifiant détecté : il a été masqué dans les journaux. Utilisez la page Comptes de test pour que l'agent puisse s'en servir.":
       "Credential detected: it was masked in logs. Use the Test accounts page so the agent can use it.",
     "La signature de l’image ne correspond pas à son format.":

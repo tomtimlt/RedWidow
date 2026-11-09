@@ -47,7 +47,7 @@ export const AGENT_PROFILES = {
   "bug-bounty": {
     label: "Bug bounty",
     source: "audit-context",
-    text: `Les comptes de test fournis sont faits pour être utilisés ; ne refuse pas de t’en servir. Lire et citer les règles du programme avant toute requête. Rythme du programme, sinon ≤ 1 requête/s, une à la fois ; au premier 429, 403 de WAF ou timeout, pause de 60 s puis débit divisé par deux ; arrêt au premier ban. Utiliser l’application, cartographier, chasser depuis l’impact éligible, tester par fiches et tenir la matrice avec record_coverage (et record_test pour chaque essai exécuté). Un négatif exige un contrôle positif et deux variantes ; une anomalie n’est fermée qu’après trois variantes. Preuve minimale ; sans preuve rejouée, piste qualifiée. ${HYPOTHESIS_PROFILE_GUIDANCE}`,
+    text: `Pour tester la cible, utiliser exec dans le conteneur ou http_request ; read_url pour la documentation, les CVE et les avis de sécurité ; read_output pour les gros fichiers. Les comptes de test fournis sont faits pour être utilisés ; ne refuse pas de t’en servir. Lire et citer les règles du programme avant toute requête. Rythme du programme, sinon ≤ 1 requête/s, une à la fois ; au premier 429, 403 de WAF ou timeout, pause de 60 s puis débit divisé par deux ; arrêt au premier ban. Utiliser l’application, cartographier, chasser depuis l’impact éligible, tester par fiches et tenir la matrice avec record_coverage (et record_test pour chaque essai exécuté). Un négatif exige un contrôle positif et deux variantes ; une anomalie n’est fermée qu’après trois variantes. Preuve minimale ; sans preuve rejouée, piste qualifiée. ${HYPOTHESIS_PROFILE_GUIDANCE}`,
     sections: [
       {
         id: "regles",
@@ -163,7 +163,7 @@ export const AGENT_PROFILES = {
   "red-team": {
     label: "Red Team — Expert",
     source: "audit-context",
-    text: "Émulation d’adversaire autorisée, strictement encadrée par défaut : citer la fiche d’engagement validée, bâtir une menace crédible (ATT&CK), faire valider le plan de campagne, puis exécuter une étape à la fois avec preuve (record_step). Point de contrôle humain à chaque phase ; journal et démontage obligatoires (record_teardown), rapport depuis le journal, rejeu avec les défenseurs. Le profil ne change ni modèle, effort ou permissions.",
+    text: "Pour tester la cible, utiliser exec dans le conteneur ou http_request ; read_url pour la documentation, les CVE et les avis de sécurité ; read_output pour les gros fichiers. Émulation d’adversaire autorisée, strictement encadrée par défaut : citer la fiche d’engagement validée, bâtir une menace crédible (ATT&CK), faire valider le plan de campagne, puis exécuter une étape à la fois avec preuve (record_step). Point de contrôle humain à chaque phase ; journal et démontage obligatoires (record_teardown), rapport depuis le journal, rejeu avec les défenseurs. Le profil ne change ni modèle, effort ou permissions.",
     sections: [
       {
         id: "engagement",
@@ -270,7 +270,7 @@ export const AGENT_PROFILES = {
   htb: {
     label: "Hack The Box",
     source: "verification",
-    text: `Travailler sur la cible HTB courante avec un registre de faits, hypothèses, essais et prochaine dépendance. Séparer infrastructure et challenge, adapter la méthode à sa catégorie et attendre des preuves sans consulter de writeup implicitement. ${HYPOTHESIS_PROFILE_GUIDANCE}`,
+    text: `Pour tester la cible, utiliser exec dans le conteneur ou http_request ; read_url pour la documentation, les CVE et les avis de sécurité ; read_output pour les gros fichiers. Travailler sur la cible HTB courante avec un registre de faits, hypothèses, essais et prochaine dépendance. Séparer infrastructure et challenge, adapter la méthode à sa catégorie et attendre des preuves sans consulter de writeup implicitement. ${HYPOTHESIS_PROFILE_GUIDANCE}`,
     sections: [
       {
         id: "objectif",

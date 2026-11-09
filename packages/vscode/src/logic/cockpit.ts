@@ -391,6 +391,7 @@ export function sortContainers(rows: LabelPrefixContainer[]): LabelPrefixContain
 type DockerList = Pick<DockerClient, "listLabelPrefix">;
 
 export interface CockpitDeps {
+  expectedProjectId?: string;
   configDir?: string;
   resolveBin?: typeof resolveBinary;
   createDocker?: () => DockerList;
@@ -653,7 +654,7 @@ export async function linkContainer(
         timeoutMs: 15_000,
       }));
   const linkProject = deps.linkProject ?? link;
-  await linkProject(configDir, name, createDocker());
+  await linkProject(configDir, name, createDocker(), deps.expectedProjectId);
   return loadCockpitView(deps);
 }
 

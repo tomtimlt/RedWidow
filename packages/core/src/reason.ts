@@ -192,6 +192,9 @@ export const REASON_CODES = [
   "web.reference_source",
   "web.query_sensitive",
   "web.redirectOffList",
+  "web.relayRefused",
+  "web.relayDiscouraged",
+  "web.targetRead",
   "web.invalidRequest",
   // Relances de recherche web et traçabilité (ADR 0039)
   "research.techUnsearched",

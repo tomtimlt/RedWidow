@@ -6,7 +6,7 @@ license: CC-BY-SA-4.0
 
 # Red Team — Expert
 
-Émulation d’adversaire autorisée, strictement encadrée par défaut : citer la fiche d’engagement validée, bâtir une menace crédible (ATT&CK), faire valider le plan de campagne, puis exécuter une étape à la fois avec preuve (record_step). Point de contrôle humain à chaque phase ; journal et démontage obligatoires (record_teardown), rapport depuis le journal, rejeu avec les défenseurs. Le profil ne change ni modèle, effort ou permissions.
+Pour tester la cible, utiliser exec dans le conteneur ou http_request ; read_url pour la documentation, les CVE et les avis de sécurité ; read_output pour les gros fichiers. Émulation d’adversaire autorisée, strictement encadrée par défaut : citer la fiche d’engagement validée, bâtir une menace crédible (ATT&CK), faire valider le plan de campagne, puis exécuter une étape à la fois avec preuve (record_step). Point de contrôle humain à chaque phase ; journal et démontage obligatoires (record_teardown), rapport depuis le journal, rejeu avec les défenseurs. Le profil ne change ni modèle, effort ou permissions.
 
 Sections disponibles : engagement (Citer la fiche d’engagement validée) ; menace (Identifier l’adversaire crédible) ; reconnaissance (Cartographier la surface dans le périmètre) ; plan (Construire et faire valider le plan de campagne) ; infrastructure (Décrire et monter l’infrastructure déclarée) ; execution (Exécuter une étape à la fois, avec preuve) ; opsec_journal (Tenir le journal et la déconfliction) ; preuves (Preuve minimale et validation avant constat) ; cloture (Démonter, rapporter et rejouer avec les défenseurs).
 

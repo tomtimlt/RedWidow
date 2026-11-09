@@ -84,6 +84,18 @@ describe("link", () => {
     }
   });
 
+  it("une carte de liaison ne peut pas modifier un autre projet actif", async () => {
+    const { docker, configDir } = await setup();
+    const first = await createProject(configDir, { name: "Premier", workspace: "/host/premier" });
+    const second = await createProject(configDir, { name: "Second", workspace: "/host/second" });
+    await setActiveProject(configDir, second.id);
+    const before = await textOf(configDir);
+    await expect(link(configDir, "with-ws", docker, first.id)).rejects.toMatchObject({
+      code: "project.absent",
+    });
+    expect(await textOf(configDir)).toBe(before);
+  });
+
   it("refuse un conteneur arrêté", async () => {
     const { docker, configDir } = await setup();
     await expect(link(configDir, "paused", docker)).rejects.toMatchObject({

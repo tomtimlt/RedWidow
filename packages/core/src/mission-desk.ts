@@ -976,7 +976,11 @@ export function createMissionDesk({
           "Budget de branche consommé : envisager l’arrêt ou une nouvelle décision justifiée. Ceci ne bloque aucun outil.",
         );
       const guidance = [
-        ...(noContainer ? ["Pas de conteneur : outils shell indisponibles."] : []),
+        ...(noContainer
+          ? [
+              "Pas de conteneur lié : outils shell indisponibles. Demander une fois de lier un conteneur dans le cockpit, puis continuer avec http_request. Une mention @ ne suffit pas pour lier un conteneur.",
+            ]
+          : []),
         ...relances,
         ...baseGuidance,
       ];

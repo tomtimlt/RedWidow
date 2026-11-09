@@ -27,8 +27,10 @@ import {
   lookupContainer,
   MCP_CATALOG,
   parseIntegrations,
+  parseMentions,
   prepareContainerProjectWorkspace,
   prepareKaliContainer,
+  promptForTargets,
   pullDockerImage,
   readFindings,
   readProjects,
@@ -38,7 +40,7 @@ import {
   testAccountsSchema,
   WARBAND_KALI_IMAGE,
 } from "@warband/core";
-import { formatError, getUiLocale, setUiLocale, t } from "@warband/messages";
+import { formatError, formatReason, getUiLocale, setUiLocale, t } from "@warband/messages";
 import * as vscode from "vscode";
 import { createBurpBackend } from "../engine/burp-client.js";
 import { createIntegrationBackend } from "../engine/integration-client.js";
@@ -128,6 +130,10 @@ import {
   parseProgramMessage,
   programDraftPrompt,
 } from "../logic/program-controls.js";
+import {
+  linkWithProjectWorkspace,
+  unlinkedContainerMentions,
+} from "../logic/project-container-link.js";
 import {
   activateSelectedProject,
   createSelectedProject,
@@ -979,11 +985,33 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
   };
 
+  const linkForProject = async (name: string, expectedProjectId?: string) => {
+    if (projectChanging) throw new CodedError("project.absent");
+    projectChanging = true;
+    try {
+      return await linkWithProjectWorkspace(name, {
+        ...(expectedProjectId && { expectedProjectId }),
+        read: () => readProjects(defaultConfigDir()),
+        prepare: (project, container) =>
+          prepareContainerProjectWorkspace(project, container, shellDocker()),
+        prepareRuntime: prepareIfKali,
+        link: (container, projectId) => linkContainer(container, { expectedProjectId: projectId }),
+      });
+    } finally {
+      projectChanging = false;
+    }
+  };
+  // Chaque proposition est attachée au projet lu à l’envoi, jamais à la seule requête de la webview.
+  const proposedLinks = new Map<string, { projectId: string; names: Set<string> }>();
   /** Noms courts pour le menu `@`. Échec de lecture : liste vide (le menu n'invente rien). */
   const containersMessage = async () => {
     try {
       const view = await loadCockpitView();
-      return { type: "containers" as const, items: containerMentions(view.containers) };
+      return {
+        type: "containers" as const,
+        items: containerMentions(view.containers),
+        linkedCount: view.containers.filter((row) => row.linked).length,
+      };
     } catch {
       return {
         type: "containers" as const,
@@ -994,7 +1022,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const broadcastContainers = (
     containers: readonly { name: string; state: "running" | "stopped" }[],
   ) => {
-    const message = { type: "containers", items: containerMentions(containers) };
+    const message = {
+      type: "containers",
+      items: containerMentions(containers),
+      linkedCount: containers.filter((row) => "linked" in row && row.linked).length,
+    };
     post(message);
     for (const [id, slot] of slots) {
       if (id !== SIDEBAR_CHAT) void slot.panel?.webview.postMessage(message);
@@ -1033,6 +1065,29 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           reply(await containersMessage());
           reply(await terminalsMessage());
           return await s.loadModels();
+        case "openCockpit":
+          await vscode.commands.executeCommand("warband.cockpit");
+          return;
+        case "linkMention": {
+          if (!visible() || projectChanging) return;
+          const proposal = proposedLinks.get(id);
+          const file = await readProjects(defaultConfigDir());
+          if (!proposal?.names.has(message.name) || file?.activeId !== proposal.projectId) return;
+          const payload = await linkForProject(message.name, proposal.projectId);
+          proposal.names.delete(message.name);
+          reply({ type: "containerLinks", items: [...proposal.names].map((name) => ({ name })) });
+          broadcastContainers(payload.containers);
+          await vscode.commands.executeCommand("warband.prepareMission");
+          return;
+        }
+        case "ignoreLinkMention": {
+          proposedLinks.get(id)?.names.delete(message.name);
+          reply({
+            type: "containerLinks",
+            items: [...(proposedLinks.get(id)?.names ?? [])].map((name) => ({ name })),
+          });
+          return;
+        }
         case "selectProvider":
           return await s.selectProvider(message.id);
         case "setCapability": {
@@ -1137,6 +1192,27 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
               );
               result(false);
               return;
+            }
+            const projectFile = await readProjects(defaultConfigDir());
+            const project = projectFile && activeProject(projectFile);
+            proposedLinks.delete(id);
+            reply({ type: "containerLinks", items: [] });
+            if (project && parseMentions(promptForTargets(message.text)).length > 0) {
+              const rows = await shellDocker()
+                .listLabelPrefix()
+                .catch(() => []);
+              const names = unlinkedContainerMentions(message.text, rows, project.containers);
+              proposedLinks.set(id, { projectId: project.id, names: new Set(names) });
+              reply({
+                type: "containerLinks",
+                items: names.map((name) => ({
+                  name,
+                  message: formatReason({
+                    code: "exegol.containerDenied",
+                    params: { name, unlinked: 1 },
+                  }),
+                })),
+              });
             }
             const hashes = parseHashes(message.text);
             let listed: { name: string }[] = [];
@@ -1453,22 +1529,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             return void pushView(true);
           case "link": {
             await pushView(true);
-            const beforeFile = await readProjects(defaultConfigDir());
-            const before = beforeFile && activeProject(beforeFile);
-            if (before)
-              await prepareContainerProjectWorkspace(
-                { ...before, containers: [...new Set([...before.containers, message.name])] },
-                message.name,
-                shellDocker(),
-              );
-            await prepareIfKali(message.name);
-            if (before && (await readProjects(defaultConfigDir()))?.activeId !== before.id)
-              throw Error(t("Le projet a changé pendant la préparation."));
-            const linkedView = await linkContainer(message.name);
-            const file = await readProjects(defaultConfigDir());
-            const project = file && activeProject(file);
-            if (project)
-              await prepareContainerProjectWorkspace(project, message.name, shellDocker());
+            const linkedView = await linkForProject(message.name);
             postCockpit(linkedView);
             await vscode.commands.executeCommand("warband.prepareMission");
             return;

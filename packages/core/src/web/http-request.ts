@@ -14,6 +14,7 @@ import { stripControl } from "../sanitize.js";
 import type { TestAccounts } from "../test-accounts.js";
 import { webNetworkError } from "./errors.js";
 import { requestRaw, type WebDependencies, webUrl } from "./network.js";
+import { createProjectTargets } from "./project-targets.js";
 
 /** Attente maximale d'un créneau de rythme avant de rendre `program.paced`. */
 export const MAX_PACE_WAIT_MS = 90_000;
@@ -29,6 +30,7 @@ export interface WebProgram {
   /** Profil fixé par le moteur, jamais par les arguments de l’outil. */
   profile?(): AgentProfile;
   engagement?: EngagementProvider;
+  isTarget?(host: string): boolean;
   /** Contrôleur du projet (éphémère sans projet), rythme Normal sans fiche. */
   pace(sheet?: ProgramSheet): PaceController | null;
   /** Journal du run en cours (reçoit `pace.adjusted` et `pace.halted`). */
@@ -44,14 +46,20 @@ export function createWebProgram(options: {
   profile?: () => AgentProfile;
   engagement?: EngagementProvider;
   outputRoot?: () => string | undefined;
+  targetsFile?: () => string | undefined;
 }): WebProgram {
+  const targets = createProjectTargets(options.targetsFile);
   return {
+    isTarget: targets.has,
     ...(options.outputRoot && { outputRoot: options.outputRoot }),
     sheet: () => options.program().applied,
     profile: options.profile ?? (() => "out-of-box"),
     ...(options.engagement && { engagement: options.engagement }),
     pace: (sheet) => options.registry.controller(sheet),
-    attach: (recorder) => options.registry.attach(recorder),
+    attach: (recorder) => {
+      options.registry.attach(recorder);
+      targets.attach(recorder);
+    },
   };
 }
 

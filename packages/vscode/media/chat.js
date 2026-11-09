@@ -221,6 +221,31 @@
     return row;
   }
   // Progression de la mission : rail de phases sous l'en-tête.
+  $("link-container").addEventListener("click", () => vscode.postMessage({ type: "openCockpit" }));
+  let linkedContainerCount = null;
+  const paintContainerWarning = (missing) => {
+    $("container-warning").hidden = !missing;
+  };
+  function paintContainerLinks(items) {
+    $("container-links").replaceChildren(
+      ...(Array.isArray(items) ? items : []).slice(0, 8).flatMap((item) => {
+        if (typeof item.name !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(item.name))
+          return [];
+        const card = el("div", "container-link-card");
+        card.append(el("p", "", t("Lier {0} à ce projet ?", { 0: item.name })));
+        if (typeof item.message === "string") card.append(el("p", "hint", item.message));
+        for (const [type, label] of [
+          ["linkMention", "Lier"],
+          ["ignoreLinkMention", "Ignorer"],
+        ]) {
+          const button = el("button", "ghost", t(label));
+          button.addEventListener("click", () => vscode.postMessage({ type, name: item.name }));
+          card.append(button);
+        }
+        return [card];
+      }),
+    );
+  }
   function paintMission(mission) {
     const nav = $("mission");
     const phases = Array.isArray(mission?.phases) ? mission.phases : [];
@@ -1687,6 +1712,9 @@
   }
   function render(view) {
     paintGauge(view.context);
+    paintContainerWarning(
+      linkedContainerCount === null ? view.noContainer === true : linkedContainerCount === 0,
+    );
     const resourceKey = JSON.stringify([
       view.capabilities,
       view.busy,
@@ -1927,7 +1955,13 @@
       contextTitle.textContent = message.text.slice(0, 120);
       contextTitle.title = contextTitle.textContent;
       contextTitle.hidden = contextTitle.textContent.length === 0;
+    } else if (message && message.type === "containerLinks") {
+      paintContainerLinks(message.items);
     } else if (message && message.type === "containers") {
+      if (Number.isInteger(message.linkedCount)) {
+        linkedContainerCount = message.linkedCount;
+        paintContainerWarning(linkedContainerCount === 0);
+      }
       containers = UI.safeContainers(message.items);
       paintAttachments();
       if (mentionOpen()) renderMentions();

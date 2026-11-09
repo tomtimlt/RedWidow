@@ -547,6 +547,109 @@ describe("http_request : engagement facultatif, exclusions et arrêt d’urgence
 });
 
 describe("read_url : redirections et périmètre", () => {
+  it("mémorise seulement les cibles approuvées, les isole par projet et les retrouve au prochain moteur", async () => {
+    const root = mkdtempSync(join(tmpdir(), "targets-"));
+    try {
+      let project = "a";
+      const make = () =>
+        createWebProgram({
+          program: () => ({ state: "none" }),
+          registry: createPaceRegistry({ configDir: root, projectId: () => null }),
+          targetsFile: () => join(root, project, "target-hosts.json"),
+        });
+      const web = make();
+      const recorder = createRecorder();
+      web.attach?.(recorder);
+      recorder.emit({
+        kind: "tool.requested",
+        toolUseId: "shell",
+        tool: "mcp__exegol__exec",
+        input: { argv: ["curl", "https://cible.example/"] },
+      });
+      recorder.emit({
+        kind: "approval.decided",
+        toolUseId: "shell",
+        decision: "allow",
+        source: "user",
+        reason: { code: "approval.remembered" },
+      });
+      recorder.emit({
+        kind: "tool.requested",
+        toolUseId: "refus",
+        tool: HTTP_REQUEST_TOOL,
+        input: { url: "https://refuse.example/" },
+      });
+      recorder.emit({
+        kind: "approval.decided",
+        toolUseId: "refus",
+        decision: "deny",
+        source: "user",
+        reason: { code: "approval.noAsker" },
+      });
+      expect(web.isTarget?.("cible.example")).toBe(true);
+      expect(web.isTarget?.("refuse.example")).toBe(false);
+      project = "b";
+      expect(web.isTarget?.("cible.example")).toBe(false);
+      project = "a";
+      const next = make();
+      expect(next.isTarget?.("cible.example")).toBe(true);
+      const f = fixture({ sheet: undefined });
+      const read = webToolSpecs(f.deps, next).find((tool) => tool.name === "read_url");
+      expect(parse(await read!.run({ url: "https://cible.example/" }, ctx)).notes[0].code).toBe(
+        "web.targetRead",
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+  it("une cible reçoit sa réponse nettoyée et la note ; une documentation reste lisible", async () => {
+    const f = fixture({
+      responses: [
+        () =>
+          reply(200, "<main>Page<script>secret()</script><input hidden value='x'></main>", {
+            "content-type": "text/html",
+          }),
+      ],
+    });
+    const target = parse(await f.read(URL_OK));
+    expect(target.text).toBe("Page");
+    expect(target.notes[0]).toMatchObject({ code: "web.targetRead" });
+    expect(target.notes[0].message).toContain("champs cachés");
+    expect(parse(await f.read("https://docs.example.net/guide")).notes).toBeUndefined();
+  });
+
+  it.each([
+    "https://r.jina.ai/https://app.example.com/",
+    "https://r.jina.ai./https://app.example.com/",
+    "https://corsproxy.io/?url=https%3A%2F%2Fapp.example.com%2F",
+    "https://translate.google.com/translate?u=https%3A%2F%2Fapp.example.com%2F",
+    "https://app-example-com.translate.goog/",
+  ])("relais %s : refus avec fiche, note sans fiche", async (url) => {
+    const approved = fixture();
+    await expect(approved.read(url)).rejects.toMatchObject({ code: "web.relayRefused" });
+    expect(approved.calls).toHaveLength(0);
+    const general = fixture({ profile: "out-of-box", sheet: undefined });
+    general.program.isTarget = (host) => host === "app.example.com";
+    expect(parse(await general.read(url)).notes[0].code).toBe("web.relayDiscouraged");
+    expect(general.calls).toHaveLength(1);
+  });
+
+  it("un relais de documentation et une URL documentaire qui cite la cible restent lisibles", async () => {
+    const f = fixture();
+    await f.read("https://r.jina.ai/https://docs.example.net/guide");
+    await f.read("https://docs.example.net/?url=https://app.example.com/");
+    expect(f.calls).toHaveLength(2);
+  });
+
+  it("un saut vers un relais est contrôlé avant de contacter le relais", async () => {
+    const f = fixture({
+      responses: [() => reply(302, "", { location: "https://r.jina.ai/https://app.example.com/" })],
+    });
+    await expect(f.read("https://docs.example.net/")).rejects.toMatchObject({
+      code: "web.relayRefused",
+    });
+    expect(f.calls).toHaveLength(1);
+  });
   it("un hôte du périmètre qui redirige hors périmètre échoue", async () => {
     const f = fixture({
       responses: [() => reply(302, "", { location: "https://hors-perimetre.example.net/" })],

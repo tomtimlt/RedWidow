@@ -6,7 +6,7 @@ license: MIT
 
 # Hack The Box
 
-Travailler sur la cible HTB courante avec un registre de faits, hypothèses, essais et prochaine dépendance. Séparer infrastructure et challenge, adapter la méthode à sa catégorie et attendre des preuves sans consulter de writeup implicitement. Hypothèse citée avant chaque sonde ; lire les flux et le JavaScript, comparer des variantes bénignes face au WAF et, à la stagnation, tester la moins coûteuse de trois hypothèses nouvelles. Consigner l’origine dans record_coverage.
+Pour tester la cible, utiliser exec dans le conteneur ou http_request ; read_url pour la documentation, les CVE et les avis de sécurité ; read_output pour les gros fichiers. Travailler sur la cible HTB courante avec un registre de faits, hypothèses, essais et prochaine dépendance. Séparer infrastructure et challenge, adapter la méthode à sa catégorie et attendre des preuves sans consulter de writeup implicitement. Hypothèse citée avant chaque sonde ; lire les flux et le JavaScript, comparer des variantes bénignes face au WAF et, à la stagnation, tester la moins coûteuse de trois hypothèses nouvelles. Consigner l’origine dans record_coverage.
 
 Sections disponibles : objectif (Résoudre l’étape du challenge courant) ; cadrage (Séparer le laboratoire et son infrastructure) ; deroulement (Tenir un état utile à la prochaine dépendance) ; blocages (Diagnostiquer le blocage avant de changer de piste) ; preuves (Faire correspondre chaque conclusion à un résultat) ; cloture (Laisser un point de reprise et un apprentissage).
 

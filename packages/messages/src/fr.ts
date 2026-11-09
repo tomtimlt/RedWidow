@@ -313,6 +313,12 @@ export const reasons: Catalog = {
     `${text(p.count)} case(s) de la matrice encore non testée(s) (${text(p.examples)}) : les tester, ou les marquer bloquée / prérequis manquant avec la justification, avant de conclure`,
   "supervision.checkpoint": (p) =>
     `${text(p.calls)} appels d'outils depuis la dernière décision : appeler record_decision (objectif, critère de sortie, prochaine action) avant de poursuivre`,
+  "web.relayRefused": () =>
+    "Relais tiers refusé vers une cible d’un programme validé : utilisez exec ou http_request.",
+  "web.relayDiscouraged": () =>
+    "Relais tiers déconseillé vers une cible : utilisez exec ou http_request pour conserver le trafic direct.",
+  "web.targetRead": () =>
+    "read_url retire le JavaScript, les commentaires et les champs cachés : pour tester la cible, utilisez le conteneur (exec) ou http_request",
   "web.invalidRequest": () =>
     "requête http_request invalide (méthode, en-têtes ou corps incompatibles)",
   "web.searchFailed": () =>
@@ -409,7 +415,9 @@ export const reasons: Catalog = {
   "project.readFailed": () => "lecture du projet impossible ce tour-ci",
   "cours.absent": () => "aucun cours installé (dossier de cours absent)",
   "exegol.containerDenied": (p) =>
-    `conteneur non autorisé pour ce message : ${text(p.name)} (allowlist du projet, cité par @, ou désigné par #)`,
+    p.unlinked
+      ? `${text(p.name)} n’est pas lié au projet : une mention @ ne suffit pas, liez-le dans le cockpit.`
+      : `conteneur non autorisé pour ce message : ${text(p.name)} (choisissez un conteneur lié, cité par @ ou désigné par #)`,
   "kali.unavailable": (p) => {
     const name = text(p.name);
     if (p.reason === "unsupportedImage")
