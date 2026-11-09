@@ -665,6 +665,7 @@ ${kind === "monitor" ? `<select id="viewer-family" aria-label="Famille des outil
 <span id="viewer-count" class="mon-count"></span>
 <span id="viewer-status" class="sr-only" role="status" aria-live="polite"></span>
 </div>
+${kind === "monitor" ? `<p id="viewer-warning" class="note" role="status" hidden></p>` : ""}
 <div id="viewer-layout"><div id="viewer-strip" class="mon-strip" role="group" ${attr("aria-label", "Frise des commandes")} hidden></div><main id="viewer-main" role="main" tabindex="0" ${attr("aria-label", heading)}><div id="viewer-body"></div><p id="viewer-empty" class="empty" hidden></p></main></div>
 <script nonce="${nonce}" src="${i18nUri}"></script>
 <script nonce="${nonce}" src="${iconsUri}"></script>

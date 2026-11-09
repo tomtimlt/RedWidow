@@ -50,6 +50,7 @@ export interface EngineChannel {
 }
 
 export interface EngineOptions {
+  containers?: () => readonly string[];
   channel: EngineChannel;
   /**
    * Fabrique du runner, appelée au `start` (production : vérifie l'empreinte du binaire
@@ -142,6 +143,7 @@ function createPromptStream(onTake: (text: string, research: boolean) => string 
  * Résout avec le code de sortie souhaité ; l'appelant termine le processus.
  */
 export function runEngine({
+  containers,
   channel,
   createRunner,
   env = process.env,
@@ -311,6 +313,10 @@ export function runEngine({
           {
             recorder,
             gate,
+            ...(!learning &&
+              containers !== undefined && {
+                mission: { profile: params.profile ?? "out-of-box", containers: containers() },
+              }),
             signal: abort.signal,
             ...(!learning &&
               params.supervision !== undefined && { supervision: params.supervision }),

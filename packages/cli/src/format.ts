@@ -38,6 +38,8 @@ export function formatEvent(
   const tag = (style: Style, label: string) => paint(style, label.padEnd(9));
 
   switch (e.kind) {
+    case "mission.noContainer":
+      return `${tag("yellow", "mission")} ${t("Pas de conteneur attaché : outils shell indisponibles.", "No attached container: shell tools unavailable.")}`;
     case "mission.decision":
       return `${tag("dim", t("décision", "decision"))} ${stripControl(e.decision.objective)}`;
     case "research.status":

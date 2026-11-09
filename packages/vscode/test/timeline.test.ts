@@ -183,3 +183,10 @@ describe("pages de conversation", () => {
     ).toBeNull();
   });
 });
+it("transmet l’avertissement sans conteneur au Monitor", () => {
+  const state = createChatState();
+  state.event(event(0, { kind: "mission.noContainer", profile: "bug-bounty" }));
+  expect(monitorChatView(state.view()).noContainer).toBe(true);
+  state.event(event(1, { kind: "run.started", prompt: "suite", cwd: "/project" }));
+  expect(monitorChatView(state.view()).noContainer).toBe(false);
+});

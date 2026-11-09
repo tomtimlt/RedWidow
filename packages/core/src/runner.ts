@@ -64,6 +64,7 @@ export interface RunInput {
 
 /** Services fournis par l'appelant : journal d'événements, approbation, annulation. */
 export interface RunContext {
+  mission?: { profile: string; containers: readonly string[] };
   recorder: Recorder;
   gate: ApprovalGate;
   signal?: AbortSignal;

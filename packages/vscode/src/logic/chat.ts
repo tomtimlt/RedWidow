@@ -156,6 +156,7 @@ export interface ChatView {
   readonly: ReadonlyInfo | null;
   /** Aucun fournisseur (jeton) ajouté : saisie grisée, la webview propose d'en ajouter un. */
   noProvider: boolean;
+  noContainer?: boolean;
 }
 
 /** État du chat : mutable, une instance par conversation ; `view()` donne la forme envoyée à la webview. */
@@ -172,6 +173,7 @@ export function createChatState(before?: string) {
   let history: HistoryEntry[] = [];
   let readonly: ReadonlyInfo | null = null;
   let noProvider = false;
+  let noContainer = false;
   let nextId = 1;
   let dropped = 0;
   let source: string | undefined;
@@ -277,6 +279,7 @@ export function createChatState(before?: string) {
       context = undefined;
       readonly = null;
       sandboxNetwork = null;
+      noContainer = false;
     },
     /** Traduit un événement du moteur en éléments de vue. */
     event(e: EngineEvent) {
@@ -284,6 +287,13 @@ export function createChatState(before?: string) {
         source = `${e.runId}/${e.id}`;
         if (source === before) reached = true;
         switch (e.kind) {
+          case "run.started":
+            noContainer = false;
+            return;
+          case "mission.noContainer":
+            noContainer = true;
+            notice(t("Pas de conteneur attaché : outils shell indisponibles."));
+            return;
           case "user.message": {
             // La saisie locale précède le journal du moteur ; on lui associe sa preuve, sans doublon.
             const user = items.findLast((item) => item.kind === "user" && !item.source);
@@ -427,6 +437,7 @@ export function createChatState(before?: string) {
         history,
         readonly,
         noProvider,
+        noContainer,
       };
     },
   };

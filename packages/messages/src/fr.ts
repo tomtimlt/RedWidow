@@ -300,6 +300,7 @@ export const reasons: Catalog = {
     `${text(p.count)} refus 403 ou WAF : chercher les contournements documentés du composant (sans y mettre d'identifiant de la cible)`,
   "research.noSearch": () =>
     "aucune recherche web dans ce run alors que les outils web sont exposés : chercher la pile identifiée",
+  "mission.noContainer": () => "Pas de conteneur attaché : outils shell indisponibles.",
   "mission.sourceUnknown": (p) =>
     `source inconnue dans ce run : ${text(p.id)} n'est pas un événement search_web ou read_url`,
   "coverage.testRefUnknown": (p) =>

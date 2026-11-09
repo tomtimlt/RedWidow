@@ -324,9 +324,11 @@ export function createMissionDesk({
   engagement,
   halted,
   campaign,
+  mission,
   supervision = DEFAULT_SUPERVISION,
 }: {
   recorder: Recorder;
+  mission?: { profile: string; containers: readonly string[] };
   /** Niveau d'encadrement : seuils de relance et point de contrôle (défaut `standard`). */
   supervision?: SupervisionLevel;
   now?: () => Date;
@@ -342,6 +344,11 @@ export function createMissionDesk({
   campaign?: CampaignPort;
 }): MissionDesk {
   const settings = SUPERVISION_SETTINGS[supervision];
+  const noContainer =
+    mission !== undefined &&
+    ["bug-bounty", "htb", "red-team", "out-of-box"].includes(mission.profile) &&
+    mission.containers.length === 0;
+  let warnedNoContainer = false;
   const redact = createRedactor({ values: secretsFromEnv(process.env) });
   const observations: MissionObservation[] = [];
   const pending = new Map<
@@ -622,6 +629,10 @@ export function createMissionDesk({
     },
     beginTurn(text) {
       assertOpen();
+      if (noContainer && !warnedNoContainer) {
+        warnedNoContainer = true;
+        recorder.emit({ kind: "mission.noContainer", profile: mission!.profile });
+      }
       // Le moteur fournit la consigne originale avant les métadonnées de conteneur
       // ou l'historique explicite du fil : ces préfixes ne doivent pas guider le RAG.
       prompt = suppliedPrompt ?? clip(redact(text), 2000);
@@ -884,7 +895,11 @@ export function createMissionDesk({
         relances.push(
           "Budget de branche consommé : envisager l’arrêt ou une nouvelle décision justifiée. Ceci ne bloque aucun outil.",
         );
-      const guidance = [...relances, ...baseGuidance];
+      const guidance = [
+        ...(noContainer ? ["Pas de conteneur : outils shell indisponibles."] : []),
+        ...relances,
+        ...baseGuidance,
+      ];
       let applied: ProgramSheet | undefined;
       try {
         const status = program?.();

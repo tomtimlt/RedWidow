@@ -14,6 +14,9 @@ export function exportChat(
     let text: string;
     let row = event;
     switch (event.kind) {
+      case "mission.noContainer":
+        text = "Pas de conteneur attaché : outils shell indisponibles.";
+        break;
       case "user.message":
         text = `Utilisateur : ${event.text}`;
         break;

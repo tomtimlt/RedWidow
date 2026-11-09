@@ -351,6 +351,7 @@ describe("eventLabel", () => {
       toRps: 0.5,
       cause: "http429",
     },
+    "mission.noContainer": { kind: "mission.noContainer", profile: "bug-bounty" },
     "pace.halted": { kind: "pace.halted", host: "cible.example", cause: "floor" },
     "run.finished": {
       kind: "run.finished",

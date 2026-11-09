@@ -270,7 +270,7 @@ export async function runHttpRequest(
   }
   const excerpt =
     saved.bodyFile && Buffer.byteLength(cleaned) > 64 * 1024
-      ? `${cleaned.slice(0, 24000)}\n[… corps omis …]\n${cleaned.slice(-24000)}`
+      ? `${Buffer.from(cleaned).subarray(0, 24000).toString("utf8")}\n[… corps omis …]\n${Buffer.from(cleaned).subarray(-24000).toString("utf8")}`
       : cleaned;
   const capped = capOutput(excerpt);
   return JSON.stringify({

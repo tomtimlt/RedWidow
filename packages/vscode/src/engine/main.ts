@@ -74,6 +74,7 @@ let learningMode = false;
 let projectRoot = process.cwd();
 // Projet actif connu du moteur (ADR 0040) : mis à jour au `start` et à chaque consigne ; sans projet, la fiche n'a aucun effet.
 let activeProjectId: string | null = null;
+let attachedContainers: readonly string[] = [];
 const programStatus = (): ProgramStatus =>
   activeProjectId === null
     ? { state: "none" }
@@ -95,6 +96,7 @@ const webProgram = createWebProgram({
 const docker = createDockerClient({ recorder: createRecorder(), timeoutMs: 8_000 });
 
 const done = runEngine({
+  containers: () => attachedContainers,
   channel,
   program: programStatus,
   engagement: engagementView,
@@ -106,6 +108,7 @@ const done = runEngine({
       const file = await readProjects(defaultConfigDir());
       const active = file === null ? null : activeProject(file);
       activeProjectId = active?.id ?? null;
+      attachedContainers = active?.containers ?? [];
       if (active !== null && active.workspace !== "" && isAbsolute(active.workspace)) {
         projectRoot = active.workspace;
         return active.workspace;
@@ -127,6 +130,7 @@ const done = runEngine({
       activeProjectId = (selected as StoredProject | null)?.id ?? null;
       return file;
     }, activeProject);
+    attachedContainers = outcome.containers;
     targets.note(text, outcome.containers, outcome.projectId, outcome.blocked);
     if (learningMode) return text;
     let rows: Awaited<ReturnType<typeof docker.listLabelPrefix>>;

@@ -31,6 +31,7 @@ export const AUDIT_CHUNK_BYTES = 8 * 1024 * 1024;
 const FILE = /^events-[0-9a-f-]{36}-[0-9]{6}\.jsonl$/;
 const HEALTH = /^status-[0-9a-f-]{36}\.json$/;
 const retained = new Set([
+  "mission.noContainer",
   "mission.decision",
   "research.status",
   "run.started",
@@ -301,7 +302,7 @@ export class AuditStore {
         ? event.source === "user"
           ? "operator"
           : "system"
-        : event.kind === "bypass.changed"
+        : event.kind === "bypass.changed" || event.kind === "mission.noContainer"
           ? "system"
           : "agent";
     return this.append(projectId, { actor, kind: "engine", runId: event.runId, data });

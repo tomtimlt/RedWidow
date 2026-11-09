@@ -40,6 +40,8 @@ export function eventLabel(e: EngineEvent, options: LabelOptions = {}): string {
   const clip = (text: string) => summarizeOutput(text, maxLength);
 
   switch (e.kind) {
+    case "mission.noContainer":
+      return formatReason({ code: "mission.noContainer" }, locale);
     case "mission.decision":
       return clip(`${locale === "en" ? "Decision" : "Décision"} : ${e.decision.objective}`);
     case "research.status":

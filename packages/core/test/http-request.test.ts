@@ -476,7 +476,7 @@ it("la limite DNS ne raccourcit pas le transport après l’attente de rythme", 
 it("sauvegarde 200 Kio minifiés et read_output trouve une chaîne au milieu", async () => {
   const root = mkdtempSync(join(tmpdir(), "http-output-"));
   try {
-    const body = "x".repeat(100000) + "MIDDLE_SENTINEL" + "y".repeat(100000);
+    const body = "é".repeat(50000) + "MIDDLE_SENTINEL" + "é".repeat(50000) + "TAIL_END";
     const f = fixture({
       responses: [() => reply(200, body, { "content-type": "application/javascript" })],
     });
@@ -485,6 +485,7 @@ it("sauvegarde 200 Kio minifiés et read_output trouve une chaîne au milieu", a
     expect(result.bodyFile).toMatch(/warband-http-.*body.txt$/);
     expect(result.note).toContain("read_output");
     expect(result.truncated).toBe(true);
+    expect(result.body).toContain("TAIL_END");
     const local = result.bodyFile.replace("/workspace/outputs", root);
     expect(readFileSync(local, "utf8")).toBe(body);
     const read = outputFileSpecs(() => root)[0];

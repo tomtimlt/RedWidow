@@ -41,6 +41,7 @@ export interface AuthInfo {
 }
 
 export type EventPayload =
+  | { kind: "mission.noContainer"; profile: string }
   | { kind: "audit.test"; claim: import("./audit.js").AuditTestClaim }
   | { kind: "audit.coverage"; cells: import("./audit-schema.js").CoverageCell[] }
   | { kind: "run.started"; prompt: string; cwd: string }
@@ -418,6 +419,7 @@ const USAGE_FIELDS = shape({ totalTokens: "number", toolUses: "number", duration
  * ajouter un kind sans validateur ne compile pas. `EVENT_KINDS` en découle.
  */
 export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
+  "mission.noContainer": shape({ profile: "string" }),
   "audit.test": (p) =>
     auditTestSchema.safeParse(p.claim).success
       ? null

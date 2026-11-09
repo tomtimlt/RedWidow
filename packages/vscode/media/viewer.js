@@ -426,6 +426,11 @@
   // ───────────────────────────── Messages de l'hôte ─────────────────────────────
   function render(view) {
     lastView = view;
+    const warning = $("viewer-warning");
+    if (warning) {
+      warning.hidden = !view.noContainer;
+      warning.textContent = t("Pas de conteneur attaché : outils shell indisponibles.");
+    }
     if (kind === "report") renderReport(view);
     else renderRows(view);
     if (kind !== "report") paintClock(view);
