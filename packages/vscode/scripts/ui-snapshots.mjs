@@ -862,6 +862,7 @@ const PAGES = [
   ]),
   ...[
     ["project", {}],
+    ["accounts", { testAccounts: [{ label: "A", host: "example.com", kind: "password" }] }],
     ["containers", {}],
     ["killchain", { findings: FINDINGS }],
     ["audit", { audit: AUDIT }],
@@ -891,6 +892,10 @@ const pageHtml = new Map();
 const themeCss = new Map();
 const server = createServer((req, res) => {
   const url = new URL(req.url ?? "/", "http://x");
+  if (url.pathname === "/favicon.ico") {
+    res.writeHead(204).end();
+    return;
+  }
   const mem = pageHtml.get(url.pathname);
   if (mem !== undefined) {
     res.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end(mem);
@@ -927,7 +932,11 @@ Date.now = realNow;
 
 let playwright;
 try {
-  playwright = require("playwright");
+  try {
+    playwright = require("playwright");
+  } catch {
+    playwright = require("playwright-core");
+  }
 } catch {
   console.error(
     "Playwright introuvable (require('playwright')) : installez-le globalement, il n'est pas une dépendance du dépôt.",
@@ -939,6 +948,7 @@ mkdirSync(outDir, { recursive: true });
 // Reproductibilité octet pour octet : rastérisation mono-fil et sans raster partiel (sinon les coins arrondis varient
 // d'un niveau d'une exécution à l'autre), pas de GPU ni de lissage LCD, profil couleur sRGB.
 const browser = await playwright.chromium.launch({
+  ...(process.env.WARBAND_CHROMIUM && { executablePath: process.env.WARBAND_CHROMIUM }),
   args: [
     "--disable-gpu",
     "--disable-lcd-text",

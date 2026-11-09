@@ -485,7 +485,7 @@ Ce plan est la dernière vague de fonctionnalités avant le gel. Ensuite on appl
 
 ## Interdits
 
-- Ne pas affaiblir la gate ni les invariants de `CLAUDE.md` (Bypass : voir lot 19, décision de l'utilisateur) ; un mot de passe de compte ne sort jamais vers un hôte autre que le sien et n'apparaît jamais dans le journal.
+- Ne pas affaiblir la gate ni les invariants de `CLAUDE.md` (Bypass : voir lot 19, décision de l'utilisateur) ; les identifiants des comptes de test ne figurent ni dans le journal ni dans les exports.
 - Pas de contenu copié depuis claude-kit (GPL).
 - Pas de données de cible réelle dans les fixtures ni la documentation.
 - Pas de binaire dans le dépôt ; aucun identifiant de modèle ; pas de changement de branche ; pas de PR.

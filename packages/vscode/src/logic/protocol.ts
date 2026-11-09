@@ -22,6 +22,8 @@ import {
   type RememberScope,
   reason,
   type SupervisionLevel,
+  type TestAccount,
+  testAccountsSchema,
   validateEvent,
 } from "@warband/core";
 import { type ConversationContext, isConversationContext } from "./conversation-context.js";
@@ -42,6 +44,7 @@ export const PROTOCOL_VERSION = 1;
 export const MAX_PROMPT_CHARS = 1_000_000;
 
 export interface StartParams {
+  testAccounts?: TestAccount[];
   webSearch?: boolean;
   opencodeProviders?: OpencodeProviders;
   integrations?: IntegrationConfig[];
@@ -169,6 +172,7 @@ const START_KEYS = [
   "integrations",
   "profile",
   "webSearch",
+  "testAccounts",
 ] as const;
 
 /** Valide un état du Bypass : `null`, ou bornes entières, ordonnées, de durée au plus `BYPASS_MAX_MS`. */
@@ -200,6 +204,11 @@ export function parseToEngine(raw: unknown): Parsed<ToEngine> {
     return bad("opencodeProviders");
   switch (type) {
     case "start": {
+      if (
+        obj.testAccounts !== undefined &&
+        (!testAccountsSchema.safeParse(obj.testAccounts).success || obj.mode === "learning")
+      )
+        return bad("testAccounts");
       if (obj.webSearch !== undefined && typeof obj.webSearch !== "boolean")
         return bad("webSearch");
       unexpected = extra(START_KEYS);

@@ -12,11 +12,11 @@ export function webToolset(program?: WebProgram): Toolset {
   return {
     name: WEB_SERVER_NAME,
     instructions: WEB_SERVER_INSTRUCTIONS,
-    create: ({ resolveCall, recorder }) => {
+    create: ({ resolveCall, recorder, accounts }) => {
       program?.attach?.(recorder);
       const parent: ResolveParent = (name, args, extra) =>
         resolveCall(`mcp__web__${name}`, args, extra);
-      return createSpecTools(webToolSpecs({}, program), parent);
+      return createSpecTools(webToolSpecs({}, program, accounts), parent);
     },
   };
 }

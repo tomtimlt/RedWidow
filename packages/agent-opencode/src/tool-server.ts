@@ -3,10 +3,11 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import type { DockerToolContext, DockerToolSpec } from "@warband/core";
+import type { DockerToolContext, DockerToolSpec, TestAccounts } from "@warband/core";
 import { formatError } from "@warband/messages";
 
 export interface ServedToolset {
+  accounts?: TestAccounts;
   name: string;
   instructions?: string;
   tools: DockerToolSpec[];
@@ -93,7 +94,16 @@ function buildMcp(set: ServedToolset, guard: ToolGuard): McpServer {
             signal: extra.signal,
           });
           if (!verdict.allowed) return text(verdict.message, true);
-          return text(await spec.run(args, { ...verdict.ctx, signal: extra.signal }));
+          return text(
+            await spec.run(
+              set.accounts &&
+                ["kali", "exegol"].includes(set.name) &&
+                ["exec", "task_start"].includes(spec.name)
+                ? set.accounts.substitute(args)
+                : args,
+              { ...verdict.ctx, signal: extra.signal },
+            ),
+          );
         } catch (err) {
           return text(formatError(err), true);
         }

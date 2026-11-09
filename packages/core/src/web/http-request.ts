@@ -9,6 +9,7 @@ import type { ProgramStatus } from "../program/store.js";
 import { CodedError } from "../reason.js";
 import type { Recorder } from "../recorder.js";
 import { stripControl } from "../sanitize.js";
+import type { TestAccounts } from "../test-accounts.js";
 import { webNetworkError } from "./errors.js";
 import { requestRaw, type WebDependencies, webUrl } from "./network.js";
 
@@ -78,6 +79,10 @@ const FORBIDDEN_HEADERS = new Set([
 const HEADER_NAME = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
 
 export const HTTP_REQUEST_INPUT = {
+  session: z
+    .string()
+    .regex(/^[A-Z][A-Z0-9_]{0,15}$/)
+    .optional(),
   method: z.enum(["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]),
   url: z.string().min(1).max(4096),
   headers: z.record(z.string(), z.string().max(8192)).optional(),
@@ -127,6 +132,7 @@ function isTimeout(error: unknown, bounded: AbortSignal, parent: AbortSignal | u
 }
 
 export interface HttpRequestSpecOptions {
+  accounts?: TestAccounts;
   deps: WebDependencies;
   program: WebProgram | undefined;
 }
@@ -135,9 +141,17 @@ export interface HttpRequestSpecOptions {
 export async function runHttpRequest(
   raw: unknown,
   signal: AbortSignal | undefined,
-  { deps, program }: HttpRequestSpecOptions,
+  { deps, program, accounts }: HttpRequestSpecOptions,
 ): Promise<string> {
-  const args = z.object(HTTP_REQUEST_INPUT).strict().parse(raw);
+  const initial = z.object(HTTP_REQUEST_INPUT).strict().parse(raw);
+  if (!accounts && (initial.session !== undefined || JSON.stringify(initial).includes("{{compte:")))
+    throw new CodedError("account.invalid");
+  const prepared = z
+    .object(HTTP_REQUEST_INPUT)
+    .strict()
+    .safeParse(accounts ? { ...initial, ...accounts.prepareHttp(initial) } : initial);
+  if (!prepared.success) throw new CodedError("web.invalidRequest");
+  const args = prepared.data;
   const sheet = program?.sheet();
   if (!program || !sheet) throw new CodedError("program.required");
 
@@ -232,6 +246,11 @@ export async function runHttpRequest(
     throw webNetworkError(error, bounded.aborted);
   }
   const durationMs = Date.now() - started;
+  accounts?.receiveCookies(
+    args.session,
+    response.url,
+    response.setCookies ?? (response.headers["set-cookie"] ? [response.headers["set-cookie"]] : []),
+  );
   const text = response.body.toString("utf8");
   pace?.report(host, paceOutcome(response.status, response.headers, text));
 
@@ -246,7 +265,7 @@ export async function runHttpRequest(
       files: { stdout: "body.txt", stderr: "body.split.txt" },
       keep: true,
     });
-    capture.write("stdout", response.body);
+    capture.write("stdout", text);
     if (minified || cleaned.split("\n").some((line) => line.length > 2000)) {
       let column = 0;
       const split = cleaned.replace(/./g, (char) => {
@@ -273,15 +292,18 @@ export async function runHttpRequest(
       ? `${Buffer.from(cleaned).subarray(0, 24000).toString("utf8")}\n[… corps omis …]\n${Buffer.from(cleaned).subarray(-24000).toString("utf8")}`
       : cleaned;
   const capped = capOutput(excerpt);
-  return JSON.stringify({
+  const result = {
     url: response.url,
     status: response.status,
     bytes: response.body.length,
-    headers: response.headers,
+    headers: Object.fromEntries(
+      Object.entries(response.headers).filter(([key]) => key.toLowerCase() !== "set-cookie"),
+    ),
     body: capped.output,
     truncated: capped.truncated || response.truncated || excerpt !== cleaned,
     durationMs,
     ...(waited > 0 && { pacedMs: waited }),
     ...saved,
-  });
+  };
+  return JSON.stringify(result);
 }

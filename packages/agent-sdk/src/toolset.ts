@@ -15,6 +15,7 @@ export interface ResolvedCall {
 
 /** Contexte fourni à un toolset à chaque run. */
 export interface ToolContext {
+  accounts?: import("@warband/core").TestAccounts;
   recorder: Recorder;
   missionDesk?: MissionDesk;
   /**

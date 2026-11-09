@@ -23,7 +23,7 @@ export function exegolToolset(options: ExegolToolsetOptions): Toolset {
   return {
     name: EXEGOL_SERVER_NAME,
     instructions: EXEGOL_SERVER_INSTRUCTIONS,
-    create: ({ recorder, resolveCall }) => {
+    create: ({ recorder, resolveCall, accounts }) => {
       const resolveParent: ResolveParent = (name, args, extra) =>
         resolveCall(`${EXEGOL_TOOL_PREFIX}${name}`, args, extra);
       const docker = createDockerClient({
@@ -33,8 +33,8 @@ export function exegolToolset(options: ExegolToolsetOptions): Toolset {
       });
       return createSpecTools(
         [
-          ...exegolToolSpecs(docker, options.targets),
-          ...taskToolSpecs("exegol", docker, options.targets, recorder),
+          ...exegolToolSpecs(docker, options.targets, accounts?.environment()),
+          ...taskToolSpecs("exegol", docker, options.targets, recorder, accounts?.environment()),
         ].filter((spec) => options.includeMemory !== false || spec.name !== "remember"),
         resolveParent,
       );

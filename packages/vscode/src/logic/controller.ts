@@ -4,6 +4,7 @@ import {
   type BypassState,
   CodedError,
   createRedactor,
+  createTestAccounts,
   type EngineEvent,
   type ErrorInfo,
   type ModelOption,
@@ -14,6 +15,7 @@ import {
   type RememberScope,
   safeEnv,
   spawnOptionsForTree,
+  type TestAccounts,
   terminateProcessTree,
   trackProcessTree,
 } from "@warband/core";
@@ -147,7 +149,10 @@ export interface EngineController {
 export function createEngineController(options: EngineControllerOptions): EngineController {
   const { handlers = {}, startTimeoutMs = 15_000, killGraceMs = 2000 } = options;
   // Le jeton connu est masqué dans tout ce que l'on relaie, en plus des motifs usuels.
-  const redact = createRedactor({ values: options.auth ? [options.auth.value] : [] });
+  const baseRedact = createRedactor({ values: options.auth ? [options.auth.value] : [] });
+  let accounts: TestAccounts | undefined;
+  const redact: import("@warband/core").Redactor = <T>(value: T): T =>
+    baseRedact(accounts ? accounts.redact(value) : value);
   let child: ChildProcess | null = null;
   /** Sondage en cours : la réponse `models` ou une erreur du moteur le résout. */
   let probe: { resolve(models: ModelOption[]): void; reject(error: unknown): void } | null = null;
@@ -262,6 +267,7 @@ export function createEngineController(options: EngineControllerOptions): Engine
   return {
     exited,
     start(params) {
+      accounts = params.testAccounts ? createTestAccounts(params.testAccounts) : undefined;
       sessionStarted = true;
       return launch({ v: PROTOCOL_VERSION, type: "start", ...params });
     },

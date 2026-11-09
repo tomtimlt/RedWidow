@@ -12,6 +12,7 @@ const STUDIO_GROUPS = [
     label: "Projet",
     pages: [
       ["project", "Projet", "project"],
+      ["accounts", "Comptes de test", "shield"],
       ["program", "Fiche programme", "book", "openProgram"],
       ["engagement", "Engagement", "shield", "openEngagement"],
       ["containers", "Conteneurs", "container"],
@@ -1957,6 +1958,96 @@ function start() {
     if (page === "audit") {
       main.append(auditPage(view, project));
       restoreAudit();
+      return;
+    }
+    if (page === "accounts") {
+      const sec = el("section", "studio-card");
+      sec.append(el("h2", "", t("Comptes de test")));
+      sec.append(
+        el(
+          "p",
+          "studio-help",
+          t("Comptes du projet actif, utilisés par l’agent et masqués dans les journaux."),
+        ),
+      );
+      if (!project) {
+        sec.append(el("p", "studio-help", t("Activez un projet pour ajouter un compte.")));
+        main.append(sec);
+        return;
+      }
+      for (const account of view.testAccounts ?? []) {
+        const row = el("div", "studio-account-row");
+        row.append(el("span", "", `${account.label}${account.host ? ` · ${account.host}` : ""}`));
+        const remove = el("button", "ghost", t("Supprimer"));
+        remove.type = "button";
+        remove.addEventListener("click", () =>
+          vscode.postMessage({
+            type: "deleteTestAccount",
+            projectId: project,
+            label: account.label,
+          }),
+        );
+        row.append(remove);
+        sec.append(row);
+      }
+      const form = el("form", "studio-card");
+      form.append(el("h3", "", t("Ajouter ou remplacer un compte")));
+      const field = (label, type, name, required = false) => {
+        const wrapper = el("label", "studio-account-field", t(label));
+        const input = el("input", "studio-project-control");
+        input.type = type;
+        input.name = name;
+        input.required = required;
+        input.autocomplete = "off";
+        wrapper.append(input);
+        form.append(wrapper);
+        return input;
+      };
+      const label = field("Libellé (A, B…)", "text", "label", true);
+      label.maxLength = 16;
+      label.pattern = "[A-Z][A-Z0-9_]{0,15}";
+      const host = field("Site ou hôte (facultatif)", "text", "host");
+      const identifier = field("Identifiant", "text", "identifier");
+      const kindLabel = el("label", "studio-account-field", t("Type de secret"));
+      const kind = el("select", "studio-project-control");
+      for (const [value, text] of [
+        ["password", "Mot de passe"],
+        ["cookie", "Cookie de session"],
+      ]) {
+        const option = el("option", "", t(text));
+        option.value = value;
+        kind.append(option);
+      }
+      kindLabel.append(kind);
+      form.append(kindLabel);
+      const secret = field("Secret", "password", "secret", true);
+      const save = el("button", "primary", t("Enregistrer"));
+      save.type = "submit";
+      form.append(save);
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        let hostname = host.value.trim().toLowerCase();
+        try {
+          if (hostname.includes("://")) hostname = new URL(hostname).hostname;
+        } catch {
+          return;
+        }
+        vscode.postMessage({
+          type: "saveTestAccount",
+          projectId: project,
+          account: {
+            label: label.value.trim().toUpperCase(),
+            host: hostname,
+            identifier: identifier.value,
+            secret: secret.value,
+            kind: kind.value,
+          },
+        });
+        secret.value = "";
+        identifier.value = "";
+      });
+      sec.append(form);
+      main.append(sec);
       return;
     }
     if (page === "project") {

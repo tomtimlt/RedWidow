@@ -24,7 +24,7 @@ export function kaliToolset(options: KaliToolsetOptions): Toolset {
   return {
     name: KALI_SERVER_NAME,
     instructions: KALI_SERVER_INSTRUCTIONS,
-    create: ({ recorder, resolveCall }) => {
+    create: ({ recorder, resolveCall, accounts }) => {
       const resolveParent: ResolveParent = (name, args, extra) =>
         resolveCall(`${KALI_TOOL_PREFIX}${name}`, args, extra);
       const client = {
@@ -36,7 +36,7 @@ export function kaliToolset(options: KaliToolsetOptions): Toolset {
       return createSpecTools(
         [
           ...kaliToolSpecs(docker, createKaliApi(client), options.targets),
-          ...taskToolSpecs("kali", docker, options.targets, recorder),
+          ...taskToolSpecs("kali", docker, options.targets, recorder, accounts?.environment()),
         ].filter((spec) => options.includeMemory !== false || spec.name !== "remember"),
         resolveParent,
       );

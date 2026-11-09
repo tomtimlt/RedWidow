@@ -979,3 +979,22 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
 .audit-page h3 {
   margin-top: 24px;
 }
+
+.studio-account-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s1);
+  max-width: 480px;
+  color: var(--jn-muted);
+}
+
+.studio-account-row {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s3);
+  font-weight: 600;
+}
+.studio-account-row > button.ghost {
+  border: 1px solid var(--jn-line-strong);
+  padding: var(--jn-s1) var(--jn-s3);
+}

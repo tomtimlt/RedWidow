@@ -8,6 +8,7 @@ import {
   createPaceController,
   createPaceRegistry,
   createRecorder,
+  createTestAccounts,
   type EngineEvent,
   haltedPaceHosts,
   MAX_PACE_WAIT_MS,
@@ -508,4 +509,42 @@ it("ne sauvegarde pas une réponse HTTP courte et lisible", async () => {
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+it("http_request utilise les jetons et conserve les cookies dans la session choisie", async () => {
+  const f = fixture({
+    responses: [
+      () => ({
+        ...reply(200),
+        setCookies: ["sid=abc123; Path=/; Secure", "other=def456; Path=/; Secure"],
+      }),
+      () => reply(200),
+    ],
+  });
+  const accounts = createTestAccounts([
+    {
+      label: "A",
+      host: "",
+      identifier: "test@example.com",
+      secret: "jeton-test",
+      kind: "password",
+    },
+  ]);
+  const tool = webToolSpecs(f.deps, f.program, accounts).find((s) => s.name === "http_request");
+  if (!tool) throw new Error("outil absent");
+  await tool.run(
+    {
+      method: "POST",
+      url: URL_OK,
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: "login={{compte:A:identifiant}}&pass={{compte:A:secret}}",
+      session: "A",
+    },
+    ctx,
+  );
+  await tool.run({ method: "GET", url: URL_OK, session: "A" }, ctx);
+  expect(f.calls[0]?.init.body).toContain("login=test%40example.com");
+  expect(f.calls[0]?.init.body).toContain("pass=jeton-test");
+  expect(f.calls[1]?.init.headers?.cookie).toContain("sid=abc123");
+  expect(f.calls[1]?.init.headers?.cookie).toContain("other=def456");
 });

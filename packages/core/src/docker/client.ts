@@ -4,7 +4,7 @@ import { isAbsolute, join, normalize, parse, relative, sep } from "node:path";
 import { mountExposesSensitive } from "../approval/paths.js";
 import type { Correlation } from "../events.js";
 import { resolveBinary } from "../process/resolve.js";
-import { type ProcessResult, runProcess } from "../process/run.js";
+import { type ProcessResult, runProcess, safeEnv } from "../process/run.js";
 import { CodedError, type ReasonParams, ValidationError } from "../reason.js";
 import type { Recorder } from "../recorder.js";
 import type { OutputCapture } from "./output-capture.js";
@@ -344,8 +344,18 @@ function assertEnvValue(key: string, value: string): void {
   if (Buffer.byteLength(value) > MAX_ENV_VALUE_BYTES) throw invalid("tooLarge");
 }
 
+function assertContainerEnv(env: Readonly<Record<string, string>> | undefined): void {
+  for (const [key, value] of Object.entries(env ?? {})) {
+    if (!/^RW_COMPTE_[A-Z][A-Z0-9_]{0,15}_(?:IDENTIFIANT|SECRET)$/.test(key))
+      throw new ValidationError("docker.invalidEnvKey", { key });
+    assertEnvValue(key, value);
+  }
+}
+
 /** Options communes à chaque appel. `parentId` remplace celui de la factory. */
 export interface CallOptions {
+  /** Variables internes des comptes de test, jamais fournies par le modèle. */
+  containerEnv?: Readonly<Record<string, string>>;
   parentId?: string | null;
   signal?: AbortSignal;
   /** Durée maximale de cet appel (remplace celle du client). */
@@ -449,13 +459,15 @@ export function createDockerClient({
   const prefix = assertArgsPrefix(argsPrefix);
   const exec = (
     args: readonly string[],
-    { parentId, signal, correlation, timeoutMs }: CallOptions = {},
+    { parentId, signal, correlation, timeoutMs, containerEnv }: CallOptions = {},
   ) => {
+    assertContainerEnv(containerEnv);
     // Chemin absolu avant `spawn` : jamais de recherche implicite (cwd, PATH relatif, .cmd).
     const file = resolveBinary(binary);
     if (file === null) return Promise.reject(new CodedError("process.notFound", { binary }));
     return runProcess([file, ...prefix, ...args], {
       recorder,
+      ...(containerEnv && { env: { ...safeEnv(), ...containerEnv } }),
       parentId: parentId === undefined ? defaultParent : parentId,
       timeoutMs: timeoutMs ?? defaultTimeoutMs,
       ...(signal && { signal }),
@@ -578,12 +590,21 @@ export function createDockerClient({
       }
       const r = await checked(
         "exec",
-        ["exec", "--interactive", "--workdir", "/workspace", container, ...command],
+        [
+          "exec",
+          "--interactive",
+          "--workdir",
+          "/workspace",
+          ...Object.keys(call.containerEnv ?? {}).flatMap((key) => ["--env", key]),
+          container,
+          ...command,
+        ],
         call,
       );
       return [...r.stdout, ...r.stderr];
     },
     async execCapture(container, command, capture, call = {}) {
+      assertContainerEnv(call.containerEnv);
       assertOperand(container, "container");
       assertCommand(command);
       const program = command[0];
@@ -603,11 +624,13 @@ export function createDockerClient({
           "--interactive",
           "--workdir",
           "/workspace",
+          ...Object.keys(call.containerEnv ?? {}).flatMap((key) => ["--env", key]),
           container,
           ...command,
         ],
         {
           recorder,
+          ...(call.containerEnv && { env: { ...safeEnv(), ...call.containerEnv } }),
           parentId: call.parentId === undefined ? defaultParent : call.parentId,
           timeoutMs: call.timeoutMs ?? defaultTimeoutMs,
           maxCapturedLines: 0,

@@ -81,7 +81,11 @@ function activeProjectId(targets: ExegolTargets): string {
 }
 
 /** Outils : `exec`, `note`, `list_notes`, `update_note`, `delete_note`, `remember`. Le conteneur est validé contre la cible du message, pas choisi librement. */
-export function exegolToolSpecs(docker: DockerClient, targets: ExegolTargets): DockerToolSpec[] {
+export function exegolToolSpecs(
+  docker: DockerClient,
+  targets: ExegolTargets,
+  containerEnv?: Readonly<Record<string, string>>,
+): DockerToolSpec[] {
   return [
     spec({
       name: "exec",
@@ -101,7 +105,10 @@ export function exegolToolSpecs(docker: DockerClient, targets: ExegolTargets): D
         const capture = createOutputCapture(targets.outputRoot?.());
         let result: CaptureResult;
         try {
-          result = await docker.execCapture(container, argv, capture, call);
+          result = await docker.execCapture(container, argv, capture, {
+            ...call,
+            ...(containerEnv && { containerEnv }),
+          });
         } catch (error) {
           capture.finish();
           throw error;

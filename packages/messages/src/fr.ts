@@ -100,6 +100,8 @@ const REPO_HINT = "Après relecture : warband policy trust";
 
 /** Catalogue complet : `REASON_CODES` est testé contre lui. */
 export const reasons: Catalog = {
+  "account.invalid": () =>
+    "Compte de test invalide : vérifiez le libellé, l’hôte et les champs requis.",
   "integration.invalidConfig": () => "Configuration MCP locale invalide.",
   "integration.invalidResponse": () =>
     "Réponse MCP locale refusée : origine, taille ou format invalide.",

@@ -74,6 +74,19 @@ describe("DockerClient", () => {
     ]);
   });
 
+  it("transmet uniquement les noms des variables de comptes à docker exec", async () => {
+    const { fake, docker } = await setup();
+    await docker.execWorkspace("web", ["printenv", "RW_COMPTE_A_SECRET"], {
+      containerEnv: { RW_COMPTE_A_SECRET: "petit-secret" },
+    });
+    const calls = await fake.calls();
+    expect(calls[0]).toContain("--env|RW_COMPTE_A_SECRET|");
+    expect(calls[0]).not.toContain("petit-secret");
+    await expect(
+      docker.execWorkspace("web", ["true"], { containerEnv: { PATH: "bad" } }),
+    ).rejects.toMatchObject({ code: "docker.invalidEnvKey" });
+  });
+
   it("refuse l'injection d'options avant tout lancement", async () => {
     const { fake, docker } = await setup();
     const invalid = (code: string, params: Record<string, string | number>) =>

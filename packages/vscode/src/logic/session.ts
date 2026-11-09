@@ -96,6 +96,7 @@ export interface ChatSessionDeps {
   readSettings(): ChatSettings;
   /** Jeton (SecretStorage) ; `undefined` → authentification `auto` du binaire. */
   getToken(provider?: Provider): Promise<TokenChoice | undefined>;
+  getTestAccounts?(): Promise<import("@warband/core").TestAccount[]>;
   /**
    * Sans jeton, le chat est grisé (`noProvider`) et aucun message ne part. Absent : le binaire garde
    * son authentification `auto` (comportement historique, et celui des tests).
@@ -684,7 +685,10 @@ export function createChatSession(deps: ChatSessionDeps) {
       settings.opencodeProviders ?? null,
     ]);
     const maxTurns = picked.ultra ? picked.ultra.maxTurns : settings.maxTurns;
+    const testAccounts = !learning ? await deps.getTestAccounts?.() : undefined;
+    if (revision !== navigationRev || detached.has(ctl)) return null;
     await ctl.start({
+      ...(testAccounts && { testAccounts }),
       cwd: deps.cwd,
       auth: token?.mode ?? "auto",
       provider: prefs.provider,
@@ -1386,6 +1390,9 @@ export function createChatSession(deps: ChatSessionDeps) {
      * (le suivant relit le jeton), la liste des modèles est sondée de nouveau, le chat se dégrise ou se grise.
      * Pendant un tour, le moteur courant finit avec l'ancien jeton ; le message suivant relira le nouveau.
      */
+    testAccountsChanged(): void {
+      appliedBurp = "";
+    },
     async authChanged(): Promise<void> {
       authRev++;
       cancelModelLoad();

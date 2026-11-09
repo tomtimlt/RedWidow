@@ -35,6 +35,7 @@ import {
 
 /** Contexte fourni à un toolset à chaque run. */
 export interface OpencodeToolContext {
+  accounts?: import("@warband/core").TestAccounts;
   recorder: Recorder;
   missionDesk?: MissionDesk;
 }
@@ -55,9 +56,9 @@ export function webToolset(program?: WebProgram): OpencodeToolset {
   return {
     name: WEB_SERVER_NAME,
     instructions: WEB_SERVER_INSTRUCTIONS,
-    create: ({ recorder }) => {
+    create: ({ recorder, accounts }) => {
       program?.attach?.(recorder);
-      return webToolSpecs({}, program);
+      return webToolSpecs({}, program, accounts);
     },
   };
 }
@@ -96,11 +97,11 @@ export function exegolToolset(options: ExegolToolsetOptions): OpencodeToolset {
   return {
     name: EXEGOL_SERVER_NAME,
     instructions: EXEGOL_SERVER_INSTRUCTIONS,
-    create: ({ recorder }) => {
+    create: ({ recorder, accounts }) => {
       const docker = createDockerClient({ ...options, recorder });
       return [
-        ...exegolToolSpecs(docker, options.targets),
-        ...taskToolSpecs("exegol", docker, options.targets, recorder),
+        ...exegolToolSpecs(docker, options.targets, accounts?.environment()),
+        ...taskToolSpecs("exegol", docker, options.targets, recorder, accounts?.environment()),
       ].filter((spec) => options.includeMemory !== false || spec.name !== "remember");
     },
   };
@@ -113,12 +114,12 @@ export function kaliToolset(options: KaliToolsetOptions): OpencodeToolset {
   return {
     name: KALI_SERVER_NAME,
     instructions: KALI_SERVER_INSTRUCTIONS,
-    create: ({ recorder }) => {
+    create: ({ recorder, accounts }) => {
       const client = { ...options, recorder };
       const docker = createDockerClient(client);
       return [
         ...kaliToolSpecs(docker, createKaliApi(client), options.targets),
-        ...taskToolSpecs("kali", docker, options.targets, recorder),
+        ...taskToolSpecs("kali", docker, options.targets, recorder, accounts?.environment()),
       ].filter((spec) => options.includeMemory !== false || spec.name !== "remember");
     },
   };

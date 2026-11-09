@@ -1,4 +1,10 @@
-import { type AuditReview, auditReviewSchema, type EngineEvent } from "@warband/core";
+import {
+  type AuditReview,
+  auditReviewSchema,
+  type EngineEvent,
+  type TestAccount,
+  testAccountSchema,
+} from "@warband/core";
 import { t } from "@warband/messages";
 import { isCapabilityId } from "./chat-capabilities.js";
 import { isPalette, type Palette } from "./palette.js";
@@ -7,6 +13,7 @@ import { isTerminalPrompt, type TerminalPrompt } from "./terminal-prompt.js";
 /** Pages des réglages, dans l'ordre de la barre des captures. */
 export const STUDIO_PAGES = [
   "project",
+  "accounts",
   "containers",
   "killchain",
   "audit",
@@ -24,6 +31,7 @@ export type StudioGroup = "project" | "global";
 
 const GROUPS: Record<StudioPage, StudioGroup> = {
   project: "project",
+  accounts: "project",
   containers: "project",
   killchain: "project",
   audit: "project",
@@ -40,6 +48,7 @@ export function studioGroup(page: StudioPage): StudioGroup {
 
 const LABELS: Record<StudioPage, string> = {
   project: "Projet",
+  accounts: "Comptes de test",
   containers: "Conteneurs",
   atlas: "Atlas",
   killchain: "Kill chain",
@@ -59,6 +68,8 @@ export function isStudioPage(value: string): value is StudioPage {
 }
 
 export type StudioMessage =
+  | { type: "saveTestAccount"; projectId: string; account: TestAccount }
+  | { type: "deleteTestAccount"; projectId: string; label: string }
   | { type: "exportAudit"; projectId: string }
   | { type: "setAuditEnabled"; projectId: string; enabled: boolean }
   | { type: "reviewAuditTest"; projectId: string; testId: string; claim: AuditReview }
@@ -111,6 +122,20 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
   const auditProject =
     typeof m.projectId === "string" &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(m.projectId);
+  if (m.type === "saveTestAccount" && keys.length === 3 && auditProject) {
+    const account = testAccountSchema.safeParse(m.account);
+    return account.success
+      ? { type: m.type, projectId: m.projectId as string, account: account.data }
+      : null;
+  }
+  if (
+    m.type === "deleteTestAccount" &&
+    keys.length === 3 &&
+    auditProject &&
+    typeof m.label === "string" &&
+    /^[A-Z][A-Z0-9_]{0,15}$/.test(m.label)
+  )
+    return { type: m.type, projectId: m.projectId as string, label: m.label };
   if (m.type === "exportAudit" && keys.length === 2 && auditProject)
     return { type: m.type, projectId: m.projectId as string };
   if (

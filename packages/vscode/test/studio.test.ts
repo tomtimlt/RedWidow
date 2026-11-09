@@ -125,6 +125,26 @@ describe("réglages", () => {
     expect(parseStudioMessage({ type: "openCours", enabled: true })).toBeNull();
   });
 
+  it("comptes : accepte uniquement un compte borné du projet actif", () => {
+    const projectId = "11111111-1111-4111-8111-111111111111";
+    const message = {
+      type: "saveTestAccount",
+      projectId,
+      account: {
+        label: "A",
+        host: "",
+        identifier: "alice@example.com",
+        secret: "xy",
+        kind: "password",
+      },
+    };
+    expect(parseStudioMessage(message)).toEqual(message);
+    expect(
+      parseStudioMessage({ ...message, account: { ...message.account, extra: "refus" } }),
+    ).toBeNull();
+    expect(parseStudioMessage({ ...message, projectId: "../autre" })).toBeNull();
+  });
+
   it("résumé : id canonique, taille UTF-8 bornée et aucun champ supplémentaire", () => {
     const projectId = "11111111-1111-4111-8111-111111111111";
     const message = { type: "saveSummary", projectId, text: "é".repeat(4096) };
@@ -183,6 +203,7 @@ describe("navigation en deux rubriques", () => {
     const [project, global] = studio.STUDIO_GROUPS;
     expect(project?.pages.map((p) => p[0])).toEqual([
       "project",
+      "accounts",
       "program",
       "engagement",
       "containers",
@@ -219,6 +240,7 @@ describe("navigation en deux rubriques", () => {
       expect(label).toBe(studioLabel(key as (typeof STUDIO_PAGES)[number]));
       expect([
         "project",
+        "shield",
         "container",
         "graph",
         "book",

@@ -344,6 +344,7 @@ async function runWithSdk(
 ): Promise<RunSummary> {
   const missionDesk = options.toolsets?.some((set) => set.name === "desk")
     ? createMissionDesk({
+        ...(context.accounts && { accounts: context.accounts }),
         recorder: context.recorder,
         ...(context.mission && { mission: context.mission }),
         ...(context.supervision !== undefined && { supervision: context.supervision }),
@@ -382,7 +383,7 @@ function missionPrompt(
 async function runWithSdkWithDesk(
   options: SdkRunnerOptions,
   input: RunInput,
-  { recorder, gate, signal, onMissionContext }: RunContext,
+  { recorder, gate, signal, onMissionContext, accounts }: RunContext,
   missionDesk?: MissionDesk,
 ): Promise<RunSummary> {
   const { prompt, cwd } = input;
@@ -476,12 +477,26 @@ async function runWithSdkWithDesk(
         taskEvent ? taskToolUseId : undefined,
         agentId,
       );
-      decision = gate.decide({ toolUseId, tool, input }, signal, parent.id).then((outcome) => {
-        if (outcome.decision === "allow") {
-          registry.register(tool, input, { toolUseId, eventId: parent.id });
-        }
-        return outcome;
-      });
+      decision = gate
+        .decide(
+          {
+            toolUseId,
+            tool,
+            input:
+              accounts &&
+              /^mcp__(?:web__http_request|(?:kali|exegol)__(?:exec|task_start))$/.test(tool)
+                ? accounts.effectiveInput(tool, input)
+                : input,
+          },
+          signal,
+          parent.id,
+        )
+        .then((outcome) => {
+          if (outcome.decision === "allow") {
+            registry.register(tool, input, { toolUseId, eventId: parent.id });
+          }
+          return outcome;
+        });
       decisions.set(toolUseId, decision);
     }
     return decision;
@@ -546,11 +561,21 @@ async function runWithSdkWithDesk(
   let webAvailable = false;
   for (const set of options.toolsets ?? []) {
     const tools = set.create({
+      ...(accounts && { accounts: accounts }),
       recorder,
       ...(missionDesk && { missionDesk }),
       resolveCall,
       resolveParent: (toolName, args, extra) => resolveCall(toolName, args, extra).parentId,
     });
+    for (const tool of tools) {
+      if (!["kali", "exegol"].includes(set.name) || !["exec", "task_start"].includes(tool.name))
+        continue;
+      const handler = tool.handler;
+      tool.handler = async (...args) => {
+        if (accounts) args[0] = accounts.substitute(args[0]);
+        return handler(...args);
+      };
+    }
     if (["web", "exegol", "kali", "projectfiles"].includes(set.name)) {
       for (const tool of tools) {
         const handler = tool.handler;

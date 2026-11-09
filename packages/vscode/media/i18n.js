@@ -1349,6 +1349,18 @@
 
   // packages/messages/src/ui-domains/studio.ts
   var studioEn = {
+    "Comptes de test": "Test accounts",
+    "Comptes du projet actif, utilisés par l’agent et masqués dans les journaux.":
+      "Accounts for the active project, used by the agent and masked in logs.",
+    "Activez un projet pour ajouter un compte.": "Activate a project to add an account.",
+    "Ajouter ou remplacer un compte": "Add or replace an account",
+    "Libellé (A, B…)": "Label (A, B…)",
+    "Site ou hôte (facultatif)": "Site or host (optional)",
+    "Type de secret": "Secret type",
+    "Mot de passe": "Password",
+    "Cookie de session": "Session cookie",
+    Secret: "Secret",
+    "Impossible d’enregistrer les comptes de test.": "Could not save test accounts",
     Conteneurs: "Containers",
     Système: "System",
     "Contrôle système": "System control",

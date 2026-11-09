@@ -64,6 +64,8 @@ export interface RunInput {
 
 /** Services fournis par l'appelant : journal d'événements, approbation, annulation. */
 export interface RunContext {
+  /** Coffre de comptes du moteur : seules ses métadonnées rejoignent le contexte. */
+  accounts?: import("./test-accounts.js").TestAccounts;
   mission?: { profile: string; containers: readonly string[] };
   recorder: Recorder;
   gate: ApprovalGate;

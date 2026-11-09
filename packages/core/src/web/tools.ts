@@ -4,6 +4,7 @@ import type { DockerToolSpec } from "../docker/tool-specs.js";
 import { hostInScope, hostOfTarget } from "../program/scope.js";
 import { CodedError } from "../reason.js";
 import { stripControl } from "../sanitize.js";
+import type { TestAccounts } from "../test-accounts.js";
 import { webNetworkError } from "./errors.js";
 import { isReferenceUrl } from "./guard.js";
 import { HTTP_REQUEST_INPUT, runHttpRequest, type WebProgram } from "./http-request.js";
@@ -124,7 +125,11 @@ export function searchContent(text: string): string {
  * `program` (ADR 0040) : fiche du projet actif et contrôleur de rythme. Sans lui, `http_request`
  * répond `program.required` et `read_url` ne connaît que les sources de référence.
  */
-export function webToolSpecs(deps: WebDependencies = {}, program?: WebProgram): DockerToolSpec[] {
+export function webToolSpecs(
+  deps: WebDependencies = {},
+  program?: WebProgram,
+  accounts?: TestAccounts,
+): DockerToolSpec[] {
   const searchInput = {
     query: z.string().trim().min(1).max(500),
     max_results: z.number().int().min(1).max(8).optional(),
@@ -231,7 +236,7 @@ export function webToolSpecs(deps: WebDependencies = {}, program?: WebProgram): 
       input: HTTP_REQUEST_INPUT,
       destructive: true,
       async run(raw, ctx) {
-        return runHttpRequest(raw, ctx.signal, { deps, program });
+        return runHttpRequest(raw, ctx.signal, { deps, program, ...(accounts && { accounts }) });
       },
     },
   ];

@@ -3,7 +3,7 @@ import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { AuditStore, createRecorder } from "@warband/core";
+import { AuditStore, createRecorder, createTestAccounts } from "@warband/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AuditCapture, auditTerminalText, terminalOverlap } from "../src/logic/audit-capture.js";
 import { auditHtml, exportAuditBundle } from "../src/logic/audit-export.js";
@@ -311,6 +311,35 @@ describe("dossier client autonome", () => {
       expect(data.length).toBe(file.size);
       expect(createHash("sha256").update(data).digest("hex")).toBe(file.sha256);
     }
+    await store.close();
+  });
+  it("exclut du ZIP les comptes masqués par le recorder", async () => {
+    const { root, store, project, capture } = await fixture();
+    const accounts = createTestAccounts([
+      { label: "A", host: "", identifier: "alice@example.com", secret: "xy", kind: "password" },
+    ]);
+    const recorder = createRecorder({ redact: accounts.redact });
+    capture.event(
+      project,
+      recorder.emit({ kind: "run.started", prompt: "alice@example.com xy", cwd: "/workspace" }),
+    );
+    await capture.flush();
+    const destination = join(root, "audit-comptes.zip");
+    const chatEvent = recorder.emit({ kind: "user.message", text: "alice@example.com xy" });
+    if (chatEvent.kind !== "user.message") throw new Error("événement inattendu");
+    await exportAuditBundle({
+      store,
+      projectId: project,
+      projectName: "Test",
+      destination,
+      locale: "fr",
+      chat: chatEvent.text,
+      beforeCommit: async () => {},
+    });
+    const entries = await unzip(await readFile(destination));
+    const output = [...entries.values()].map((value) => value.toString()).join("\n");
+    expect(output).not.toContain("alice@example.com");
+    expect(output).not.toContain("xy");
     await store.close();
   });
   it("échappe aussi les preuves dans l’HTML et traduit le français", async () => {

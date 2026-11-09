@@ -475,6 +475,7 @@ async function runWithOpencode(
 ): Promise<RunSummary> {
   const missionDesk = options.toolsets?.some((set) => set.name === "desk")
     ? createMissionDesk({
+        ...(context.accounts && { accounts: context.accounts }),
         recorder: context.recorder,
         ...(context.mission && { mission: context.mission }),
         ...(context.supervision !== undefined && { supervision: context.supervision }),
@@ -515,7 +516,7 @@ function missionPrompt(
 async function runWithOpencodeWithDesk(
   options: OpencodeRunnerOptions,
   input: RunInput,
-  { recorder, gate, signal, onMissionContext, supervision, halted }: RunContext,
+  { recorder, gate, signal, onMissionContext, supervision, halted, accounts }: RunContext,
   missionDesk?: MissionDesk,
 ): Promise<RunSummary> {
   const supervisionSettings = SUPERVISION_SETTINGS[parseSupervision(supervision)];
@@ -725,7 +726,15 @@ async function runWithOpencodeWithDesk(
         })
       : gate
           .decide(
-            { toolUseId: call.toolUseId, tool: policyTool, input: normalized },
+            {
+              toolUseId: call.toolUseId,
+              tool: policyTool,
+              input:
+                accounts &&
+                /^mcp__(?:web__http_request|(?:kali|exegol)__(?:exec|task_start))$/.test(policyTool)
+                  ? accounts.effectiveInput(policyTool, normalized)
+                  : normalized,
+            },
             abort.signal,
             event.id,
           )
@@ -826,7 +835,15 @@ async function runWithOpencodeWithDesk(
       root.id,
     );
     const outcome = await gate.decide(
-      { toolUseId, tool: toolName, input: inputObj },
+      {
+        toolUseId,
+        tool: toolName,
+        input:
+          accounts &&
+          /^mcp__(?:web__http_request|(?:kali|exegol)__(?:exec|task_start))$/.test(toolName)
+            ? accounts.effectiveInput(toolName, inputObj)
+            : inputObj,
+      },
       callSignal ?? abort.signal,
       event.id,
     );
@@ -1065,8 +1082,13 @@ async function runWithOpencodeWithDesk(
     const mcp: Obj = {};
     const specs = (options.toolsets ?? []).map((set) => ({
       name: set.name,
+      ...(accounts && { accounts }),
       ...(set.instructions && { instructions: set.instructions }),
-      tools: set.create({ recorder, ...(missionDesk && { missionDesk }) }),
+      tools: set.create({
+        recorder,
+        ...(missionDesk && { missionDesk }),
+        ...(accounts && { accounts }),
+      }),
       ...(["web", "exegol", "kali", "projectfiles"].includes(set.name) && {
         decorateResult: (output: string) => appendDeskNote(output, missionDesk),
       }),

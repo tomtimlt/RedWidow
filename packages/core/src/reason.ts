@@ -23,6 +23,7 @@ export interface ErrorInfo extends Reason {
 
 /** Tous les codes que le cœur et l'adaptateur peuvent émettre. */
 export const REASON_CODES = [
+  "account.invalid",
   "mission.noContainer",
   "pace.edgeBanSuspected",
   "task.invalidResponse",

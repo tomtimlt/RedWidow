@@ -89,6 +89,7 @@ function setup(
     confirm?: boolean;
     token?: boolean;
     settings?: object;
+    getTestAccounts?: import("../src/logic/session.js").ChatSessionDeps["getTestAccounts"];
     store?: { get(k: string): unknown; set(k: string, v: unknown): unknown };
     learningKey?: string;
     prefsKey?: string;
@@ -107,6 +108,7 @@ function setup(
         ? { auth: { name: "CLAUDE_CODE_OAUTH_TOKEN", value: "sk-secret" }, mode: "subscription" }
         : undefined,
     confirmAlways,
+    ...(over.getTestAccounts && { getTestAccounts: over.getTestAccounts }),
     ...(over.providers && { onProviders: over.providers }),
     ...(over.observe && { onObservedEvent: over.observe }),
     onView: (v) => {
@@ -598,6 +600,24 @@ describe("modèle et effort (F2/F3)", () => {
     session.setEffort("max");
     expect(view().controls?.effort).toBe("high");
     expect(view().items.at(-1)).toMatchObject({ kind: "notice" });
+  });
+
+  it("recharge les comptes au prochain message sans changer de conversation", async () => {
+    const accounts: import("@warband/core").TestAccount[] = [];
+    const { f, session } = setup({ getTestAccounts: async () => [...accounts] });
+    await session.send("un");
+    f.handlers.onEvent?.(ev({ kind: "session.started", sessionId: "S1" }));
+    f.handlers.onEnded?.({ sessionId: "S1" } as never);
+    accounts.push({
+      label: "A",
+      host: "",
+      identifier: "test@example.com",
+      secret: "xy",
+      kind: "password",
+    });
+    session.testAccountsChanged();
+    await session.send("deux");
+    expect(f.starts[1]).toMatchObject({ resume: "S1", testAccounts: accounts });
   });
 
   it("transmis au démarrage, puis reprise par resume si le choix change", async () => {

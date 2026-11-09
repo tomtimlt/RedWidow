@@ -1,5 +1,5 @@
 import { fork } from "node:child_process";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
@@ -34,6 +34,8 @@ import {
   readProjects,
   resolveBinary,
   shortContainerName,
+  type TestAccount,
+  testAccountsSchema,
   WARBAND_KALI_IMAGE,
 } from "@warband/core";
 import { formatError, getUiLocale, setUiLocale, t } from "@warband/messages";
@@ -644,6 +646,26 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const n = ids.indexOf(id);
     return `Chat ${n < 0 ? ids.length + 2 : n + 2}`;
   };
+  const accountKey = (projectId: string) =>
+    `warband.testAccounts.${createHash("sha256").update(projectId).digest("hex")}`;
+  const readTestAccounts = async (projectId: string): Promise<TestAccount[]> => {
+    const raw = await context.secrets.get(accountKey(projectId));
+    if (!raw) return [];
+    let value: unknown;
+    try {
+      value = JSON.parse(raw);
+    } catch {
+      throw new CodedError("account.invalid");
+    }
+    const parsed = testAccountsSchema.safeParse(value);
+    if (!parsed.success) throw new CodedError("account.invalid");
+    return parsed.data;
+  };
+  const activeTestAccounts = async (): Promise<TestAccount[]> => {
+    const file = await readProjects(defaultConfigDir());
+    const project = file && activeProject(file);
+    return project ? readTestAccounts(project.id) : [];
+  };
   const getSession = (id = SIDEBAR_CHAT): ChatSession => {
     const existing = slots.get(id)?.session;
     if (existing) return existing;
@@ -662,6 +684,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       bypass: getBypass(id),
       prefsKey: `warband.prefs.chat.${id}`,
       getToken,
+      getTestAccounts: activeTestAccounts,
       // Sans jeton, le chat est grisé et propose d'en ajouter un.
       requireProvider: true,
       learningKey,
@@ -3571,6 +3594,28 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
       if (message.type === "deleteFinding") {
         await deleteFindingFromPanel(panel, message);
+        return;
+      }
+      if (message.type === "saveTestAccount" || message.type === "deleteTestAccount") {
+        try {
+          const file = await readProjects(defaultConfigDir());
+          const active = file && activeProject(file);
+          if (!active || active.id !== message.projectId || projectChanging)
+            throw new CodedError("project.absent");
+          const previous = await readTestAccounts(active.id);
+          const label = message.type === "saveTestAccount" ? message.account.label : message.label;
+          const next = previous.filter((account) => account.label !== label);
+          if (message.type === "saveTestAccount") next.push(message.account);
+          if (!testAccountsSchema.safeParse(next).success) throw new CodedError("account.invalid");
+          const current = await readProjects(defaultConfigDir());
+          if (!current || activeProject(current)?.id !== active.id || projectChanging)
+            throw new CodedError("project.absent");
+          await context.secrets.store(accountKey(active.id), JSON.stringify(next));
+          for (const slot of slots.values()) slot.session?.testAccountsChanged();
+          await pushStudio();
+        } catch {
+          void vscode.window.showErrorMessage(t("Impossible d’enregistrer les comptes de test."));
+        }
         return;
       }
       if (message.type === "open") studioPage = message.page;

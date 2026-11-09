@@ -27,6 +27,7 @@ import type { Recorder } from "./recorder.js";
 import { createRedactor, secretsFromEnv } from "./redact.js";
 import { isClosingText, type ResearchEvent, researchTriggers } from "./research-triggers.js";
 import { DEFAULT_SUPERVISION, SUPERVISION_SETTINGS, type SupervisionLevel } from "./supervision.js";
+import type { TestAccountSummary, TestAccounts } from "./test-accounts.js";
 import { READ_URL_TOOL, SEARCH_WEB_TOOL } from "./web/guard.js";
 
 export type { MissionDecision } from "./mission-decision-schema.js";
@@ -74,6 +75,7 @@ export interface CampaignStepSummary {
   result?: StepResult;
 }
 export interface MissionContext {
+  accounts?: TestAccountSummary[];
   version: 1;
   runId: string;
   prompt: string;
@@ -320,6 +322,7 @@ function pageKey(url: string): string | null {
 
 export function createMissionDesk({
   recorder,
+  accounts,
   now = () => new Date(),
   program,
   programDraft,
@@ -330,6 +333,7 @@ export function createMissionDesk({
   supervision = DEFAULT_SUPERVISION,
 }: {
   recorder: Recorder;
+  accounts?: TestAccounts;
   mission?: { profile: string; containers: readonly string[] };
   /** Niveau d'encadrement : seuils de relance et point de contrôle (défaut `standard`). */
   supervision?: SupervisionLevel;
@@ -1020,6 +1024,7 @@ export function createMissionDesk({
       }
       const due = checkpoint();
       const packet: MissionContext = {
+        ...(accounts && { accounts: accounts.summaries() }),
         version: 1,
         runId: recorder.runId,
         prompt,

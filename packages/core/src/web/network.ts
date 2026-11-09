@@ -6,6 +6,7 @@ import { webCertificateAuthorities } from "./certificates.js";
 
 const MAX_BYTES = 1024 * 1024;
 export interface WebResponse {
+  setCookies?: string[];
   status: number;
   headers: Record<string, string | undefined>;
   body: AsyncIterable<Uint8Array>;
@@ -142,6 +143,9 @@ export async function webTransport(
       if (typeof value === "string") headers[key.toLowerCase()] = value;
     return {
       status: response.statusCode,
+      ...(Array.isArray(response.headers["set-cookie"]) && {
+        setCookies: response.headers["set-cookie"],
+      }),
       headers,
       body: response.body,
       close: async () => {
@@ -197,6 +201,7 @@ async function publicAddress(
 }
 
 export interface RawWebResponse {
+  setCookies?: string[];
   url: string;
   status: number;
   headers: Record<string, string | undefined>;
@@ -251,6 +256,7 @@ export async function requestRaw(
     return {
       url: url.href,
       status: response.status,
+      ...(response.setCookies && { setCookies: response.setCookies }),
       headers: response.headers,
       body: Buffer.concat(chunks),
       truncated,

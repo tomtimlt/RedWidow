@@ -97,6 +97,7 @@ export function taskToolSpecs(
   docker: DockerClient,
   targets: ExegolTargets,
   recorder?: Recorder,
+  containerEnv?: Readonly<Record<string, string>>,
 ): DockerToolSpec[] {
   const container = z.string().min(1).max(128);
   const taskId = z
@@ -212,6 +213,7 @@ export function taskToolSpecs(
         const call = {
           parentId: ctx.parentId,
           timeoutMs: 15_000,
+          ...(definition.operation === "start" && containerEnv && { containerEnv }),
           ...(ctx.signal && { signal: ctx.signal }),
           ...(ctx.correlation && { correlation: ctx.correlation }),
         };

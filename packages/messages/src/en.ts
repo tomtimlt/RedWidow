@@ -86,6 +86,7 @@ const TAR_REASONS: Readonly<Record<string, string>> = {
 
 /** Catalogue anglais complet, vérifié contre `REASON_CODES`. */
 export const reasons: Catalog = {
+  "account.invalid": () => "Invalid test account: check the label, host and required fields.",
   "integration.invalidConfig": () => "Invalid local MCP configuration.",
   "integration.invalidResponse": () =>
     "Local MCP response rejected: invalid origin, size or format.",

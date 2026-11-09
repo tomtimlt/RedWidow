@@ -1,8 +1,10 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import {
+  type ApprovalRequest,
   createApprovalGate,
   createRecorder,
+  createTestAccounts,
   DEFAULT_POLICY,
   evaluateProgramStatus,
   type MissionDesk,
@@ -11,6 +13,7 @@ import {
   renderProfileSkill,
 } from "@warband/core";
 import { expect, it } from "vitest";
+import { z } from "zod";
 import {
   createOpencodeRunner,
   deskToolset,
@@ -18,6 +21,83 @@ import {
   startToolServer,
 } from "../src/index.js";
 import { fakeOpencode, harness, userMessage } from "./helpers.js";
+
+it("la politique refuse les arguments substitués avant toute exécution", async () => {
+  const accounts = createTestAccounts([
+    {
+      label: "A",
+      host: "",
+      identifier: "test@example.com",
+      secret: "valeur-test",
+      kind: "password",
+    },
+  ]);
+  const h = harness({ recorder: createRecorder({ redact: accounts.redact }) });
+  const policyGate = createApprovalGate({
+    recorder: h.recorder,
+    policy: { default: "allow", rules: [{ tool: "mcp__exegol__exec", decision: "deny" }] },
+    workspace: { cwd: h.cwd },
+  });
+  const seen: ApprovalRequest[] = [];
+  let executions = 0;
+  const fake = fakeOpencode([
+    async (stage) => {
+      const endpoint = (
+        stage.init.config.mcp as Record<string, { url: string; headers: Record<string, string> }>
+      ).exegol;
+      if (!endpoint) throw new Error("serveur MCP absent");
+      const client = new Client({ name: "test", version: "1" });
+      try {
+        await client.connect(
+          new StreamableHTTPClientTransport(new URL(endpoint.url), {
+            requestInit: { headers: endpoint.headers },
+          }) as Parameters<typeof client.connect>[0],
+        );
+        const result = await client.callTool({
+          name: "exec",
+          arguments: { argv: ["printf", "{{compte:A:secret}}"] },
+        });
+        expect(result.isError).toBe(true);
+      } finally {
+        await client.close();
+      }
+      stage.emit("message.updated", userMessage("u"));
+      stage.idle();
+    },
+  ]);
+  const runner = createOpencodeRunner({
+    processEnv: {},
+    createClient: fake.createClient,
+    toolsets: [
+      {
+        name: "exegol",
+        create: () => [
+          {
+            name: "exec",
+            description: "Test",
+            input: { argv: z.array(z.string()) },
+            async run() {
+              executions++;
+              return "ok";
+            },
+          },
+        ],
+      },
+    ],
+  });
+  await h.run(runner, {}, undefined, {
+    accounts,
+    gate: {
+      decide(request, signal, parentId) {
+        seen.push(request);
+        return policyGate.decide(request, signal, parentId);
+      },
+    },
+  });
+  expect(seen[0]?.input.argv).toEqual(["printf", "valeur-test"]);
+  expect(executions).toBe(0);
+  expect(JSON.stringify(h.events)).not.toContain("valeur-test");
+});
 
 it("transmet le même profil détaillé dans le résultat MCP du moteur OpenCode", async () => {
   const server = await startToolServer({
@@ -251,4 +331,48 @@ it("mission_context contient la fiche approuvée du projet actif fournie par l'a
   }
   expect(seen[0]).toContain("*.example.com");
   expect(seen[1]).not.toContain("*.example.com");
+});
+
+it("les outils MCP exec et task_start reçoivent les jetons substitués", async () => {
+  const accounts = createTestAccounts([
+    {
+      label: "A",
+      host: "",
+      identifier: "test@example.com",
+      secret: "valeur-test",
+      kind: "password",
+    },
+  ]);
+  const inputs: unknown[] = [];
+  const tools = ["exec", "task_start"].map((name) => ({
+    name,
+    description: name,
+    input: { argv: z.array(z.string()) },
+    async run(args: unknown) {
+      inputs.push(args);
+      return "ok";
+    },
+  }));
+  const server = await startToolServer({
+    token: "test-mcp",
+    toolsets: [{ name: "exegol", accounts, tools }],
+    guard: async () => ({ allowed: true, ctx: { parentId: null, correlation: undefined } }),
+  });
+  const client = new Client({ name: "test", version: "1" });
+  try {
+    await client.connect(
+      new StreamableHTTPClientTransport(new URL(server.url("exegol")), {
+        requestInit: { headers: { Authorization: "Bearer test-mcp" } },
+      }) as Parameters<typeof client.connect>[0],
+    );
+    for (const name of ["exec", "task_start"])
+      await client.callTool({ name, arguments: { argv: ["printf", "{{compte:A:secret}}"] } });
+    expect(inputs).toEqual([
+      { argv: ["printf", "valeur-test"] },
+      { argv: ["printf", "valeur-test"] },
+    ]);
+  } finally {
+    await client.close();
+    await server.close();
+  }
 });

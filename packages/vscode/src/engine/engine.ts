@@ -14,6 +14,7 @@ import {
   createApprovalQueue,
   createRecorder,
   createRedactor,
+  createTestAccounts,
   deskInstructions,
   errorInfo,
   INTEGRATION_GUIDANCE,
@@ -23,6 +24,7 @@ import {
   loadPolicy,
   openJournal,
   secretsFromEnv,
+  type TestAccounts,
 } from "@warband/core";
 import {
   type ConversationContext,
@@ -166,10 +168,15 @@ export function runEngine({
   let webAvailable = false;
   // Tout ce qui part vers le parent est masqué, y compris ce que le recorder ne voit pas
   // (entrée d'un outil en attente d'approbation, erreurs, résumé).
-  const redact = createRedactor({ values: secretsFromEnv(env) });
+  const baseRedact = createRedactor({ values: secretsFromEnv(env) });
+  let accounts: TestAccounts | undefined;
+  const redact: import("@warband/core").Redactor = <T>(value: T): T =>
+    baseRedact(accounts ? accounts.redact(value) : value);
   const pendingSends = new Set<Promise<void>>();
   const send = (message: FromEngine) => {
-    const p = channel.send(redact(message)).catch(() => undefined);
+    const p = channel
+      .send(message.type === "missionContext" ? message : redact(message))
+      .catch(() => undefined);
     pendingSends.add(p);
     void p.finally(() => pendingSends.delete(p));
   };
@@ -215,6 +222,7 @@ export function runEngine({
       });
 
     const session = async (params: StartParams) => {
+      accounts = params.testAccounts ? createTestAccounts(params.testAccounts) : undefined;
       conversationContext = params.conversationContext;
       paramsLearning = params.mode === "learning";
       webAvailable = params.webSearch !== false;
@@ -313,6 +321,7 @@ export function runEngine({
           {
             recorder,
             gate,
+            ...(accounts && { accounts }),
             ...(!learning &&
               containers !== undefined && {
                 mission: { profile: params.profile ?? "out-of-box", containers: containers() },
@@ -335,7 +344,7 @@ export function runEngine({
                   v: PROTOCOL_VERSION,
                   type: "missionContext",
                   runId: recorder.runId,
-                  text: JSON.stringify(snapshot),
+                  text: JSON.stringify(redact(snapshot)),
                 });
               },
             }),
@@ -360,6 +369,8 @@ export function runEngine({
         queue?.close();
         recorder.close();
         await journal.close().catch(() => undefined);
+        accounts?.dispose();
+        accounts = undefined;
       }
       finish(code);
     };
