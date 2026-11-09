@@ -39,7 +39,7 @@ Retours d'interface de l'utilisateur, avec les faits trouvés dans le code :
 16. Matrice de couverture illisible : tableau sans `colgroup` avec `overflow-wrap: anywhere` (`css/base.css:794-813`, `studio.js:1652-1668`), et aucun code couleur des états (`studio.js:310-317,1632`).
 17. Fiche programme : il manque un vrai « Remplir par IA ». Le bouton actuel envoie la consigne dans le chat actif, avec ses outils du moment (`program.js:90-91`, `extension.ts:2127-2137`).
 18. Réglages : il manque un tri par usage (bug bounty, red team…). Groupes actuels : `studio.js:10-32`.
-19. Bypass : l'utilisateur le veut illimité. Durée fixe de 2 h (`vscode/src/logic/bypass.ts:155-156`), plafond de 4 h dans le cœur (`core/src/approval/bypass.ts:9-12`). La jauge du chat croit le maximum à 2 h (`chat.js:963`).
+19. Bypass : l'utilisateur veut choisir la durée, jusqu'à l'illimité. Durée fixe de 2 h (`vscode/src/logic/bypass.ts:155-156`), plafond de 4 h dans le cœur (`core/src/approval/bypass.ts:9-12`). La jauge du chat croit le maximum à 2 h (`chat.js:963`).
 20. « Quota gratuit OpenCode Zen épuisé » sur la 0.3.77 avec une nouvelle clé, alors que la même clé marche sur la 0.3.76.
     - La détection repose sur le message OpenCode `Free usage exceeded` (`agent-opencode/src/runner.ts:911-923`), inchangée entre les deux versions.
     - Le moteur n'isole que `XDG_CONFIG_HOME` (`runner.ts:296-298`), pas `XDG_DATA_HOME`, où se trouve `auth.json`.
@@ -243,17 +243,38 @@ Fichier : `media/studio.js` (groupes 10-32), `packages/messages`.
 - Le choix est mémorisé par projet. Aucun réglage de sécurité n'est modifié sans action explicite : les préréglages sont proposés, pas appliqués d'office.
 - Critères : test de filtrage des pages par usage ; « Tout » égal à l'affichage actuel.
 
-### Lot 19 — Bypass renouvelable (amendement de l'ADR 0017) [revue sécurité]
+### Lot 19 — Bypass à durée choisie ou illimité (amendement de l'ADR 0017) [revue sécurité]
 
-- **Pas de Bypass illimité.** L'invariant de `CLAUDE.md` et l'ADR 0017 (Bypass) fixent 2 h par défaut et 4 h au plafond par activation.
-- À la place :
-  - choix de la durée à l'activation (1 h, 2 h, 4 h) ;
-  - notification 10 minutes avant l'échéance avec un bouton « Prolonger », qui réactive pour la même durée par un geste humain ;
-  - le Bypass reste éteint à l'arrêt du moteur.
-- Le nombre de renouvellements n'est pas limité, mais chaque renouvellement est un geste humain journalisé.
-- Corriger la jauge (`chat.js:963`) pour qu'elle utilise la durée réelle.
-- Ajouter l'amendement à l'ADR 0017.
-- Critères : tests — plafond de 4 h respecté par activation ; renouvellement journalisé ; extinction à l'arrêt.
+Décision de l'utilisateur (2026-11-09) : la durée du Bypass est choisie par l'utilisateur, qui en porte la responsabilité.
+
+- Un clic sur l'interrupteur « Bypass des approbations » ouvre une petite fenêtre (classe `.pop`) avec deux choix :
+  - un bouton **« Illimité »** ;
+  - un champ **durée** en heures et minutes, de 1 minute à **48 h** au maximum ;
+  - un bouton « Activer ».
+- Le texte de la fenêtre rappelle : « Pendant le Bypass, les actions de l'agent ne vous sont plus demandées ; vous en êtes responsable. »
+- Cœur (`core/src/approval/bypass.ts`) :
+  - `BYPASS_MAX_MS` passe à 48 h ;
+  - ajout d'un mode `unlimited` (pas d'échéance) ;
+  - durée par défaut proposée : 2 h.
+- **Inchangé** :
+  - le Bypass s'éteint à l'arrêt du moteur ;
+  - il n'a d'effet que si un humain répond aux demandes ;
+  - l'arrêt d'urgence d'engagement n'est jamais levé par le Bypass ;
+  - les deny et les dangers restent non mémorisables hors Bypass ;
+  - activation et désactivation sont journalisées, avec la durée choisie ou `illimité`.
+- Affichage :
+  - la jauge (`chat.js:963`) affiche le temps restant réel, ou « ∞ illimité » ;
+  - un bandeau reste visible tant que le Bypass est actif, avec un bouton « Couper ».
+- Mises à jour :
+  - ADR 0017 : amendement daté (contexte, décision, conséquences) ;
+  - `CLAUDE.md` : la règle « 2 h, 4 h au plafond » devient « durée choisie par l'utilisateur, jusqu'à 48 h ou illimitée » ;
+  - `packages/vscode/src/logic/bypass.ts:155-156` : ne plus fixer la durée côté hôte.
+- Critères (tests) :
+  - durée au-delà de 48 h refusée ;
+  - mode illimité sans échéance ;
+  - extinction à l'arrêt du moteur dans tous les modes ;
+  - journalisation de la durée ;
+  - la gate reste inchangée en dehors du Bypass.
 
 ### Lot 20 — Diagnostic du fournisseur et du moteur
 
@@ -302,7 +323,7 @@ Lots qui touchent les mêmes fichiers, à faire dans l'ordre et un à la fois :
 
 ## Interdits
 
-- Ne pas affaiblir la gate ni les invariants de `CLAUDE.md` : pas de Bypass illimité ; un mot de passe de compte ne sort jamais vers un hôte autre que le sien et n'apparaît jamais dans le journal.
+- Ne pas affaiblir la gate ni les invariants de `CLAUDE.md` (Bypass : voir lot 19, décision de l'utilisateur) ; un mot de passe de compte ne sort jamais vers un hôte autre que le sien et n'apparaît jamais dans le journal.
 - Pas de contenu copié depuis claude-kit (GPL).
 - Pas de données de cible réelle dans les fixtures ni la documentation.
 - Pas de binaire dans le dépôt ; aucun identifiant de modèle ; pas de changement de branche ; pas de PR.
