@@ -18,5 +18,9 @@ export default defineConfig({
       ),
     },
   },
-  test: { include: ["packages/*/test/**/*.test.ts", "test/**/*.test.ts"] },
+  test: {
+    include: ["packages/*/test/**/*.test.ts", "test/**/*.test.ts"],
+    // Les runners Windows sont lents sur les tests à nombreuses écritures disque.
+    testTimeout: process.platform === "win32" ? 30_000 : 5_000,
+  },
 });
