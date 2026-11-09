@@ -348,8 +348,9 @@ Critères (tests) :
 Constat (runs Zecible, VINCI et red team du 2026-11-09) : sans conteneur, l'agent teste la cible avec `read_url`, un outil de lecture de documentation qui supprime JS, commentaires et champs cachés et refuse le JS. Il passe aussi par des services tiers (`r.jina.ai`, proxys CORS publics) pour contourner. Il en tire des conclusions fausses, et le trafic vers la cible passe par des tiers.
 
 Décision :
-- **`read_url` = documentation et recherche.** Si l'hôte demandé est une cible du projet, `read_url` refuse avec le code `web.targetUseShell` et le message : « cible du projet : utilisez http_request ou le conteneur (exec) ». Une cible du projet, c'est un hôte du périmètre d'une fiche programme ou d'engagement, ou un hôte déjà visé par `http_request` ou `exec` dans ce projet.
-- **Pas de relais tiers vers une cible.** `read_url` et `http_request` refusent les URL de services de relais qui embarquent une autre URL (`r.jina.ai/<url>`, proxys CORS, traducteurs web) quand l'URL embarquée est une cible du projet. Code `web.relayRefused`.
+- **`read_url` = documentation et recherche, sans brider l'agent.** Si l'hôte demandé est une cible du projet (hôte d'une fiche validée, ou déjà visé par `http_request` ou `exec` dans ce projet), `read_url` répond normalement et ajoute une note : « read_url retire le JavaScript, les commentaires et les champs cachés : pour tester la cible, utilisez le conteneur (exec) ou http_request ». Aucun refus.
+- **Relais tiers vers une cible** (`r.jina.ai/<url>`, proxys CORS, traducteurs web) : refusés **seulement quand une fiche programme est validée** (bug bounty : le trafic doit porter le User-Agent et suivre le rythme du programme). Code `web.relayRefused`. Dans les autres profils, une note le déconseille sans le refuser.
+- **Conteneurs liés utilisables sans mention.** Un conteneur lié au projet est utilisable par l'agent qu'on le mentionne ou non : c'est déjà le cas, à garder et à tester. La mention `@` sert seulement à choisir lequel quand il y en a plusieurs.
 - **Consignes d'outils** (`scan-guidance.ts`, guides web, profils `bug-bounty`, `red-team`, `htb`) :
   - cible : `exec` dans le conteneur (curl, outils Exegol) ou `http_request` ;
   - `read_url` : documentation, CVE, avis de sécurité ;
@@ -363,12 +364,30 @@ Décision :
   - Quand un message mentionne `@nom` d'un conteneur existant mais non lié, le chat affiche une carte « Lier kali-1 à ce projet ? » avec les boutons « Lier » et « Ignorer ». « Lier » applique la liaison du cockpit, avec les mêmes contrôles de montage. C'est un geste humain : l'allowlist reste l'autorité.
 
 Critères (tests) :
-- `read_url` vers une cible → `web.targetUseShell` ;
+- `read_url` vers une cible → réponse normale avec la note ;
 - `read_url` vers une page de documentation → autorisé ;
-- `r.jina.ai/https://<cible>` → `web.relayRefused` ;
+- `r.jina.ai/https://<cible>` → `web.relayRefused` avec une fiche programme validée, note sans refus sinon ;
+- conteneur lié, non mentionné → utilisable ;
 - bandeau présent sans conteneur et absent avec un conteneur lié ;
 - mention d'un conteneur non lié → carte « Lier » et nouveau message ; liaison refusée si le montage ne correspond pas (lot 8) ;
 - codes ajoutés à `REASON_CODES` et aux catalogues fr/en.
+
+### Règle transversale — hors bug bounty, l'agent n'est pas bridé
+
+Décision de l'utilisateur (2026-11-09) : sans le profil `bug-bounty`, l'agent se comporte comme avant les ajouts bug bounty. Les contraintes propres au bug bounty ne s'appliquent que si ce profil est actif ou qu'une fiche programme est validée :
+- fiche programme obligatoire ;
+- User-Agent imposé ;
+- rythme du programme ;
+- refus des relais.
+
+Ce qui reste partout, parce que ce n'est pas du bug bounty :
+- la gate et ses approbations ;
+- le Bypass ;
+- l'arrêt d'urgence d'un engagement validé ;
+- le contrôleur de rythme par groupe d'IP (protection contre le bannissement, réglable) ;
+- les consignes de méthode, qui sont des conseils et non des refus.
+
+Test de non-régression à ajouter : en profil général sans fiche, `http_request`, `read_url`, `exec` et les outils Kali fonctionnent sur un hôte quelconque après approbation.
 
 ## Assets graphiques des nouvelles fonctionnalités
 
