@@ -317,23 +317,31 @@ Lots qui touchent les mêmes fichiers, à faire dans l'ordre et un à la fois :
 - `chat.js` : 11, 15, 19 ;
 - `mission-desk.ts` : 1, 4, 5, 6.
 
-### Lot 23 — Red team et pentest sans page de programme [revue sécurité]
+### Lot 23 — La fiche programme ne sert qu'au bug bounty [revue sécurité]
 
 Constat (session red team du 2026-11-09) :
-- `http_request` exige une fiche programme (`core/src/web/http-request.ts:142`, `program.required`) et ignore la fiche d'engagement validée (ADR 0041, engagement red team et arrêt d'urgence).
-- La rédaction de fiche exige une page publique à citer. Un pentest ou un engagement red team n'en a pas : l'autorisation est un contrat ou un mandat.
+- `http_request` exige une fiche programme dans tous les profils (`core/src/web/http-request.ts:142`, `program.required`).
+- En profil général, red team, HTB/CTF ou pentest, il n'y a pas de page de programme. L'agent reste bloqué.
 
-Décision :
-- **Engagement accepté par `http_request`.** Une fiche d'engagement validée par empreinte sert d'autorité, au même titre qu'une fiche programme : périmètre cible et infrastructure déclarée autorisés, exclusions refusées. Le rythme vient de l'engagement (par défaut « Prudent ») et le suffixe User-Agent est facultatif. L'arrêt d'urgence refuse toute requête, comme pour le shell.
-- **Saisie manuelle de la fiche programme** : bouton « Remplir à la main » sur la page Fiche programme. Chaque champ peut citer comme source « déclaration de l'utilisateur » avec une référence (contrat, mandat, e-mail d'autorisation) au lieu d'une page web. La validation par empreinte reste inchangée.
-- **Rédaction par l'agent** : si l'URL donnée n'est pas une page de programme, l'agent propose la saisie manuelle ou la page Engagement au lieu de bloquer.
-- Profil `red-team` : au démarrage, si aucune fiche d'engagement n'est validée, l'agent le dit et oriente vers la page Engagement ; il ne demande pas d'URL de programme.
+Décision de l'utilisateur (2026-11-09) :
+- **La fiche programme n'est exigée qu'en profil `bug-bounty`**, là où le rythme, le User-Agent et le périmètre publié comptent.
+- **Profils général, red team, HTB/CTF et pentest** : `http_request` fonctionne sans fiche.
+  - Les approbations passent par la gate comme pour les autres outils : carte d'approbation, « Toujours » possible, Bypass.
+  - Rythme par défaut : « Normal », toujours avec le contrôleur par groupe d'IP (ADR 0042, groupes edge et suspicion de bannissement).
+  - Pas de User-Agent imposé.
+- **Si une fiche d'engagement est validée** (ADR 0041, engagement red team et arrêt d'urgence) :
+  - ses exclusions sont refusées et l'arrêt d'urgence bloque toute requête, comme pour le shell ;
+  - la fiche reste facultative.
+- **Si une fiche programme est validée dans un autre profil**, elle s'applique quand même (périmètre, rythme, User-Agent).
+- Profil `bug-bounty` : inchangé.
+- Rédaction de fiche : si l'URL donnée n'est pas une page de programme, l'agent le dit et propose de continuer sans fiche (hors bug bounty) au lieu de bloquer.
 
 Critères (tests) :
-- `http_request` autorisé par une fiche d'engagement validée ;
-- requête refusée hors périmètre et sous arrêt d'urgence ;
-- fiche manuelle validable avec la source « déclaration de l'utilisateur » ;
-- profil `red-team` sans fiche → message vers Engagement.
+- profil `red-team`, `htb` ou général sans fiche → `http_request` passe par la gate et fonctionne ;
+- profil `bug-bounty` sans fiche → `program.required` comme aujourd'hui ;
+- exclusion d'engagement refusée ;
+- arrêt d'urgence respecté ;
+- contrôleur de rythme actif dans tous les profils.
 
 ## Assets graphiques des nouvelles fonctionnalités
 
