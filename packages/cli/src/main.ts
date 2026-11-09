@@ -71,6 +71,7 @@ import { languageFromArgs, type Translator } from "./locale.js";
 import { appendUserRule } from "./policy-store.js";
 import { parseSupervisionArg } from "./supervision-arg.js";
 import { formatTraceReport } from "./trace-format.js";
+import { readTraceInput } from "./trace-input.js";
 
 const locale = languageFromArgs(process.argv.slice(2));
 const t: Translator = (fr, en) => (locale === "en" ? en : fr);
@@ -1036,7 +1037,14 @@ program
   .option("--json", t("sortie JSON", "JSON output"))
   .option("-n, --top <n>", t("taille des listes (défaut 5)", "list size (default 5)"), "5")
   .action(async (file: string, opts) => {
-    const { events, issues } = await readJournal(file);
+    const { events, issues, restoredSequences } = await readTraceInput(file);
+    if (restoredSequences)
+      process.stderr.write(
+        t(
+          `Séquence absente : ordre des lignes utilisé pour ${restoredSequences} événements.\n`,
+          `Missing sequence: line order used for ${restoredSequences} events.\n`,
+        ),
+      );
     const runs = splitRuns(events);
     const runId = opts.run ?? [...runs.keys()].at(-1);
     if (runId === undefined || !runs.has(runId)) {

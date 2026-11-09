@@ -80,6 +80,13 @@ importers:
       commander:
         specifier: ^15.0.0
         version: 15.0.0
+      yauzl:
+        specifier: ^3.4.0
+        version: 3.4.0
+    devDependencies:
+      '@types/yauzl':
+        specifier: ^2.10.3
+        version: 2.10.3
 
   packages/core:
     dependencies:
@@ -717,6 +724,9 @@ packages:
 
   '@types/vscode@1.140.0':
     resolution: {integrity: sha512-KAB5RBZIgnUhpp4mKsVJPPHLOQKu6WtGy2xpfWjaajEXO4xIIC+UESAXLiQ9ewx6QD1uBmvC/S8BJzkbvv4bRA==}
+
+  '@types/yauzl@2.10.3':
+    resolution: {integrity: sha512-oJoftv0LSuaDZE3Le4DbKX+KS9G36NzOeSap90UIK0yMA/NhKJhqlSGtNDORNRaIbQfzjXDrQa0ytJ6mNRGz/Q==}
 
   '@types/yazl@2.4.5':
     resolution: {integrity: sha512-qpmPfx32HS7vlGJf7EsoM9qJnLZhXJBf1KH0hzfdc+D794rljQWh4H0I/UrZy+6Nhqn0l2jdBZXBGZtR1vnHqw==}
@@ -2253,6 +2263,10 @@ snapshots:
       undici-types: 6.21.0
 
   '@types/vscode@1.140.0': {}
+
+  '@types/yauzl@2.10.3':
+    dependencies:
+      '@types/node': 20.19.43
 
   '@types/yazl@2.4.5':
     dependencies:

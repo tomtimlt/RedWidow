@@ -20,6 +20,10 @@
     "@warband/core": "workspace:*",
     "@warband/export-html": "workspace:*",
     "@warband/messages": "workspace:*",
-    "commander": "^15.0.0"
+    "commander": "^15.0.0",
+    "yauzl": "^3.4.0"
+  },
+  "devDependencies": {
+    "@types/yauzl": "^2.10.3"
   }
 }
