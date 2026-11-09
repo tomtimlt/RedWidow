@@ -2313,3 +2313,24 @@ describe("niveau d'encadrement (webview → session)", () => {
     expect(t.f.starts[1]).toMatchObject({ supervision: "strict", resume: "S1" });
   });
 });
+
+it.each([
+  "alice@example.com:mot-secret",
+  "password=mot-secret",
+  "pass=mot-secret",
+  "mdp mot-secret",
+  "Cookie: sid=mot-secret",
+])("avertit sans bloquer l’envoi de %s", async (prompt) => {
+  const t = setup();
+  expect(await t.session.send(prompt)).toBe(true);
+  expect(t.f.calls).toContainEqual(["prompt", prompt]);
+  expect(t.view().items).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        kind: "notice",
+        text: "Identifiant détecté : il a été masqué dans les journaux. Utilisez la page Comptes de test pour que l'agent puisse s'en servir.",
+      }),
+    ]),
+  );
+  t.session.dispose();
+});

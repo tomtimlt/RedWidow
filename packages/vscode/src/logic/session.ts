@@ -9,7 +9,7 @@ import type {
   Reason,
   SupervisionLevel,
 } from "@warband/core";
-import { AGENT_PROFILES, parseSupervision } from "@warband/core";
+import { AGENT_PROFILES, hasPastedCredentials, parseSupervision } from "@warband/core";
 import { formatReason, getUiLocale, t } from "@warband/messages";
 import { alwaysConfirmText, answerFor, type Choice, cleanText, toCard } from "./approval.js";
 import { PRODUCT_NAME } from "./brand.js";
@@ -1367,6 +1367,14 @@ export function createChatSession(deps: ChatSessionDeps) {
         const ctl = controller ?? (await startEngine(revision, conversationContext));
         if (revision !== navigationRev || ctl === null) return false;
         researchPending = research;
+        if (hasPastedCredentials(prompt)) {
+          state.notice(
+            t(
+              "Identifiant détecté : il a été masqué dans les journaux. Utilisez la page Comptes de test pour que l'agent puisse s'en servir.",
+            ),
+          );
+          refresh();
+        }
         ctl.prompt(prompt, research || undefined, images.length ? images : undefined);
         return true;
       } catch (error) {

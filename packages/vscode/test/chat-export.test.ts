@@ -32,3 +32,26 @@ describe("export du fil masqué", () => {
     expect(exportChat(events, { thinking: true }).markdown).toContain("pensée privée");
   });
 });
+
+it("remasque les identifiants des anciens journaux dans le Markdown et le JSONL", () => {
+  const recorder = createRecorder({ redact: false });
+  const events = [
+    recorder.emit({
+      kind: "user.message",
+      text: "alice@example.com:mot-secret\npassword=autre-secret\nCookie: sid=cookie-secret\npass=pass-secret\nmdp mdp-secret",
+    }),
+  ];
+  const exported = exportChat(events);
+  for (const output of [exported.markdown, exported.jsonl]) {
+    for (const secret of [
+      "alice@example.com",
+      "mot-secret",
+      "autre-secret",
+      "cookie-secret",
+      "pass-secret",
+      "mdp-secret",
+    ])
+      expect(output).not.toContain(secret);
+    expect(output).toContain("[REDACTED]");
+  }
+});

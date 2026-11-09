@@ -9,7 +9,7 @@ export const REDACTED = "[REDACTED]";
 export type Redactor = <T>(value: T) => T;
 
 const SENSITIVE_KEY =
-  /secret|token|passw|pwd|api[-_]?key|auth|credential|private[-_]?key|access[-_]?key|cookie|session/i;
+  /secret|token|passw|pwd|api[-_]?key|auth|credential|private[-_]?key|access[-_]?key|cookie|session|^pass$|^mdp$/i;
 
 /** Clés qui correspondent à l'heuristique mais ne portent pas de secret (identifiants opaques). */
 /**
@@ -40,7 +40,20 @@ const URL_CREDENTIALS = /(:\/\/[^\s:/@]+:)[^\s@/]+(@)/g;
 
 /** `password=abc`, `token: abc`, `--api-key abc` → valeur masquée. */
 const KEY_VALUE =
-  /\b((?:[A-Za-z0-9_-]*(?:secret|token|passw(?:or)?d|pwd|api[-_]?key|credential|private[-_]?key|access[-_]?key))\s*[=:]\s*)(?!\[REDACTED\])("[^"]*"|'[^']*'|[^\s"',;]+)/gi;
+  /\b((?:pass|[A-Za-z0-9_-]*(?:secret|token|passw(?:or)?d|pwd|api[-_]?key|credential|private[-_]?key|access[-_]?key))\s*[=:]\s*)(?!\[REDACTED\])("[^"]*"|'[^']*'|[^\s"',;]+)/gi;
+
+/** Identifiants saisis comme texte libre : mêmes motifs pour le masquage et l’avertissement. */
+const EMAIL_PASSWORD =
+  /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}:(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s"'<>]+)/gi;
+const MDP_VALUE =
+  /\b(mdp(?:[ \t]*[=:][ \t]*|[ \t]+))(?!\[REDACTED\])(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s"',;]+)/gi;
+const COOKIE_HEADER = /\b(Cookie[ \t]*:[ \t]*)(?!\[REDACTED\])[^\r\n]+/gi;
+
+export function hasPastedCredentials(text: string): boolean {
+  return [EMAIL_PASSWORD, KEY_VALUE, MDP_VALUE, COOKIE_HEADER].some(
+    (pattern) => text.search(pattern) >= 0,
+  );
+}
 
 const ENV_FLAGS = new Set(["--env", "-e"]);
 
@@ -75,6 +88,9 @@ export function createRedactor({ values = [] }: RedactorOptions = {}): Redactor 
     for (const pattern of PATTERNS) out = out.replace(pattern, REDACTED);
     out = out.replace(URL_CREDENTIALS, `$1${REDACTED}$2`);
     out = out.replace(KEY_VALUE, `$1${REDACTED}`);
+    out = out.replace(EMAIL_PASSWORD, REDACTED);
+    out = out.replace(MDP_VALUE, `$1${REDACTED}`);
+    out = out.replace(COOKIE_HEADER, `$1${REDACTED}`);
     return out;
   };
 

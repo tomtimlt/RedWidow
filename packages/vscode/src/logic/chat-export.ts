@@ -1,4 +1,4 @@
-import { capOutput, type EngineEvent } from "@warband/core";
+import { capOutput, createRedactor, type EngineEvent } from "@warband/core";
 
 /** Exporte uniquement les événements du journal masqué, dans leur ordre de lecture. */
 export function exportChat(
@@ -8,7 +8,9 @@ export function exportChat(
   const calls = new Map<string, number>();
   const rows: EngineEvent[] = [];
   const lines = ["# Fil de mission", ""];
-  for (const event of events) {
+  const redact = createRedactor();
+  for (const rawEvent of events) {
+    const event = redact(rawEvent);
     const key = "toolUseId" in event ? `${event.runId}/${event.toolUseId}` : "";
     if (event.kind === "tool.requested") calls.set(key, calls.size + 1);
     let text: string;

@@ -789,7 +789,15 @@ const viewerPage = (name, kind, messages, extra = {}) => ({
   messages,
   ...extra,
 });
+const credentialWarning = chatState({ conversation: false });
+credentialWarning.notice(
+  "Identifiant détecté : il a été masqué dans les journaux. Utilisez la page Comptes de test pour que l'agent puisse s'en servir.",
+);
 const PAGES = [
+  chatPage("chat-identifiant-detecte", [
+    { type: "view", view: credentialWarning.view() },
+    CONTAINERS,
+  ]),
   chatPage("chat-conversation", [{ type: "view", view: chatView({ approval: true }) }, CONTAINERS]),
   chatPage("chat-accueil", [{ type: "view", view: chatView({ conversation: false }) }, CONTAINERS]),
   // Jauge de contexte : fenêtre connue, avertissement (> 80 %), fenêtre inconnue, aucune donnée.

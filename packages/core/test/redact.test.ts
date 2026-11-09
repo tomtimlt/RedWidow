@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   createRecorder,
   createRedactor,
+  hasPastedCredentials,
   openJournal,
   REDACTED,
   secretsFromEnv,
@@ -166,5 +167,42 @@ describe("recorder + journal", () => {
   it("redact: false désactive le masquage", () => {
     const e = createRecorder({ redact: false }).emit({ kind: "agent.text", text: "password=abc" });
     expect(e).toMatchObject({ text: "password=abc" });
+  });
+});
+
+describe("identifiants collés dans les textes", () => {
+  it.each([
+    ["alice@example.com:mot-secret", "alice@example.com", "mot-secret"],
+    ["password=mot-secret", "mot-secret"],
+    ["pass=mot-secret", "mot-secret"],
+    ["mdp mot-secret", "mot-secret"],
+    ["Cookie: sid=mot-secret; session=autre-secret", "mot-secret", "autre-secret"],
+  ])("masque %s avant tous les sinks", (text, ...secrets) => {
+    const recorder = createRecorder();
+    const events: unknown[] = [];
+    recorder.subscribe((event) => events.push(event));
+    recorder.emit({ kind: "user.message", text });
+    recorder.emit({ kind: "agent.text", text });
+    recorder.emit({
+      kind: "tool.result",
+      toolUseId: "t",
+      output: text,
+      bytes: text.length,
+      truncated: false,
+      isError: false,
+    });
+    const output = JSON.stringify(events);
+    for (const secret of secrets) expect(output).not.toContain(secret);
+    expect(output).toContain(REDACTED);
+  });
+  it("conserve une adresse seule et le texte après un en-tête de cookie", () => {
+    expect(redact("compass=north")).toBe("compass=north");
+    expect(hasPastedCredentials("Contact alice@example.com")).toBe(false);
+    expect(hasPastedCredentials("compass=north")).toBe(false);
+    for (let i = 0; i < 2; i++) expect(hasPastedCredentials("pass=secret")).toBe(true);
+    expect(redact("Contact alice@example.com : documentation")).toBe(
+      "Contact alice@example.com : documentation",
+    );
+    expect(redact("Cookie: sid=test\nSuite du texte")).toBe("Cookie: [REDACTED]\nSuite du texte");
   });
 });
