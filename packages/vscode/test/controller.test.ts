@@ -88,19 +88,25 @@ describe("contrôleur + moteur enfant (processus forké, QueryFn factice)", () =
     const fake = join(dir, "stderr-comptes.mjs");
     await writeFile(
       fake,
-      `process.send({ v: 1, type: "ready" }); process.on("message", () => { process.stderr.write("alice@example.com xy"); setTimeout(() => process.exit(0), 50); });`,
+      `process.send({ v: 1, type: "ready" }); process.on("message", () => { process.stderr.write("alice@example.com xy1234"); setTimeout(() => process.exit(0), 50); });`,
     );
     const c = collect();
     const ctl = createEngineController({ enginePath: fake, cwd: dir, handlers: c.handlers });
     await ctl.start({
       cwd: dir,
       testAccounts: [
-        { label: "A", host: "", identifier: "alice@example.com", secret: "xy", kind: "password" },
+        {
+          label: "A",
+          host: "",
+          identifier: "alice@example.com",
+          secret: "xy1234",
+          kind: "password",
+        },
       ],
     });
     await ctl.exited;
     expect(c.logs.join("")).not.toContain("alice@example.com");
-    expect(c.logs.join("")).not.toContain("xy");
+    expect(c.logs.join("")).not.toContain("xy1234");
     expect(c.logs.join("")).toContain("[REDACTED]");
   });
 

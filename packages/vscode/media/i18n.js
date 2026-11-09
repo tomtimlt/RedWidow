@@ -1350,6 +1350,8 @@
   // packages/messages/src/ui-domains/studio.ts
   var studioEn = {
     "Comptes de test": "Test accounts",
+    "Valeur trop courte pour être masquée dans les journaux.":
+      "Value too short to be masked in logs.",
     "Comptes du projet actif, utilisés par l’agent et masqués dans les journaux.":
       "Accounts for the active project, used by the agent and masked in logs.",
     "Activez un projet pour ajouter un compte.": "Activate a project to add an account.",

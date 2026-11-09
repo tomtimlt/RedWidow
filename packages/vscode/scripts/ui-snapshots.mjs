@@ -848,6 +848,9 @@ const PAGES = [
     },
   ]),
   simple("cockpit", L.cockpitHtml, "cockpit.js", [COCKPIT], { tall: true }),
+  simple("reglages-accounts-valeurs-courtes", L.studioHtml, "studio.js", [studio("accounts")], {
+    accountDraft: { identifier: "admin", secret: "a1" },
+  }),
   simple("programme", L.programHtml, "program.js", [PROGRAM], { tall: true }),
   simple("programme-vide", L.programHtml, "program.js", [PROGRAM_EMPTY], { tall: true }),
   simple("engagement", L.engagementHtml, "engagement.js", [ENGAGEMENT], { tall: true }),
@@ -1004,6 +1007,10 @@ try {
         await tab.evaluate(() => document.fonts.ready);
         for (const m of page.messages) await tab.evaluate((msg) => window.postMessage(msg, "*"), m);
         await tab.waitForTimeout(150);
+        if (page.accountDraft) {
+          for (const [name, value] of Object.entries(page.accountDraft))
+            await tab.fill(`input[name="${name}"]`, value);
+        }
         if (page.type) {
           await tab.evaluate((value) => {
             const field = document.getElementById("input");

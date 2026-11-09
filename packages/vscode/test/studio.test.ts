@@ -1472,3 +1472,50 @@ describe("page Audit : couverture", () => {
       expect(en(label), label).not.toBe(label);
   });
 });
+
+it("avertit pendant la saisie d’une valeur de compte de moins de six caractères", () => {
+  const main = new StudioNode("main");
+  let receive: (event: { data: unknown }) => void = () => {};
+  runInNewContext(read(studioJs), {
+    TextEncoder,
+    setTimeout,
+    clearTimeout,
+    acquireVsCodeApi: () => ({ postMessage() {} }),
+    document: {
+      addEventListener() {},
+      body: new StudioNode("body"),
+      getElementById: (id: string) => (id === "studio-main" ? main : null),
+      createElement: (tag: string) => new StudioNode(tag),
+    },
+    window: {
+      WarbandIcons: { create: () => new StudioNode("svg") },
+      addEventListener: (_type: string, listener: typeof receive) => {
+        receive = listener;
+      },
+    },
+  });
+  receive({
+    data: { type: "view", page: "accounts", projectId: "11111111-1111-4111-8111-111111111111" },
+  });
+  const warning = main.find(
+    (node) => node.textContent === "Valeur trop courte pour être masquée dans les journaux.",
+  );
+  const identifier = main.find(
+    (node) => (node as StudioNode & { name?: string }).name === "identifier",
+  );
+  const secret = main.find((node) => (node as StudioNode & { name?: string }).name === "secret");
+  if (!warning || !identifier || !secret) throw new Error("Formulaire des comptes absent");
+  expect(warning.hidden).toBe(true);
+  identifier.value = "admin";
+  identifier.fire("input");
+  expect(warning.hidden).toBe(false);
+  identifier.value = "admin+";
+  identifier.fire("input");
+  expect(warning.hidden).toBe(true);
+  secret.value = "a1";
+  secret.fire("input");
+  expect(warning.hidden).toBe(false);
+  secret.value = "a1/b2?";
+  secret.fire("input");
+  expect(warning.hidden).toBe(true);
+});

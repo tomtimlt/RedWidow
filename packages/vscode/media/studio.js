@@ -2021,6 +2021,21 @@ function start() {
       kindLabel.append(kind);
       form.append(kindLabel);
       const secret = field("Secret", "password", "secret", true);
+      const warning = el(
+        "p",
+        "studio-help",
+        t("Valeur trop courte pour être masquée dans les journaux."),
+      );
+      warning.setAttribute("role", "status");
+      const updateWarning = () => {
+        warning.hidden = ![identifier.value, secret.value].some(
+          (value) => value.length > 0 && value.length < 6,
+        );
+      };
+      identifier.addEventListener("input", updateWarning);
+      secret.addEventListener("input", updateWarning);
+      updateWarning();
+      form.append(warning);
       const save = el("button", "primary", t("Enregistrer"));
       save.type = "submit";
       form.append(save);

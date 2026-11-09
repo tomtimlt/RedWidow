@@ -68,7 +68,7 @@ export interface TestAccounts {
   substitute<T>(value: T): T;
   effectiveInput<T extends Record<string, unknown>>(tool: string, value: T): T;
   environment(): Record<string, string>;
-  /** Masque les données libres, y compris les valeurs courtes et les cookies reçus. */
+  /** Masque les valeurs d’au moins six caractères et leurs variantes encodées. */
   redact: Redactor;
   prepareHttp(input: AccountHttpInput): AccountHttpInput;
   receiveCookies(session: string | undefined, url: string, cookies: readonly string[]): void;
@@ -89,7 +89,7 @@ export function createTestAccounts(
   let literalPattern: RegExp | null = null;
   const baseRedact = createRedactor();
   const protect = (value: string) => {
-    if (!value) return;
+    if (value.length < 6) return;
     for (const variant of [
       value,
       encodeURIComponent(value),
@@ -109,7 +109,8 @@ export function createTestAccounts(
   for (const account of accounts.values()) {
     protect(account.identifier);
     protect(account.secret);
-    protect(`${account.identifier}:${account.secret}`);
+    if (account.identifier.length >= 6 && account.secret.length >= 6)
+      protect(`${account.identifier}:${account.secret}`);
   }
   const redact: Redactor = <T>(value: T): T => {
     const walk = (item: unknown, key = "", path: string[] = []): unknown => {

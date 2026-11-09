@@ -316,16 +316,16 @@ describe("dossier client autonome", () => {
   it("exclut du ZIP les comptes masqués par le recorder", async () => {
     const { root, store, project, capture } = await fixture();
     const accounts = createTestAccounts([
-      { label: "A", host: "", identifier: "alice@example.com", secret: "xy", kind: "password" },
+      { label: "A", host: "", identifier: "alice@example.com", secret: "xy1234", kind: "password" },
     ]);
     const recorder = createRecorder({ redact: accounts.redact });
     capture.event(
       project,
-      recorder.emit({ kind: "run.started", prompt: "alice@example.com xy", cwd: "/workspace" }),
+      recorder.emit({ kind: "run.started", prompt: "alice@example.com xy1234", cwd: "/workspace" }),
     );
     await capture.flush();
     const destination = join(root, "audit-comptes.zip");
-    const chatEvent = recorder.emit({ kind: "user.message", text: "alice@example.com xy" });
+    const chatEvent = recorder.emit({ kind: "user.message", text: "alice@example.com xy1234" });
     if (chatEvent.kind !== "user.message") throw new Error("événement inattendu");
     await exportAuditBundle({
       store,
@@ -339,7 +339,7 @@ describe("dossier client autonome", () => {
     const entries = await unzip(await readFile(destination));
     const output = [...entries.values()].map((value) => value.toString()).join("\n");
     expect(output).not.toContain("alice@example.com");
-    expect(output).not.toContain("xy");
+    expect(output).not.toContain("xy1234");
     await store.close();
   });
   it("échappe aussi les preuves dans l’HTML et traduit le français", async () => {
