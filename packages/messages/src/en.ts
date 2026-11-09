@@ -222,6 +222,8 @@ export const reasons: Catalog = {
     `the current draft changed (hash ${text(p.actual)}, expected ${text(p.expected)}): re-read 'program show' before approving`,
   "program.required": () =>
     "http_request requires an approved program sheet for the active project ('program show', then 'program approve')",
+  "pace.edgeBanSuspected": (p) =>
+    `Suspected edge ban: stop every request to ${p.host} for at least five minutes. Switch to a passive source or another network group.`,
   "program.paced": (p) =>
     `program pace: the request to ${text(p.host)} must wait ${text(p.retryAfterMs)} ms, beyond the bounded wait; retry later`,
   "program.halted": (p) =>

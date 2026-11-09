@@ -351,6 +351,8 @@ export const reasons: Catalog = {
     `le brouillon courant a changé (empreinte ${text(p.actual)}, attendue ${text(p.expected)}) : relire « program show » avant d'approuver`,
   "program.required": () =>
     "http_request exige une fiche programme approuvée pour le projet actif (« program show », puis « program approve »)",
+  "pace.edgeBanSuspected": (p) =>
+    `Bannissement d’edge suspecté : arrêter toute requête vers ${p.host} pendant au moins cinq minutes. Passer à une source passive ou à un autre groupe réseau.`,
   "program.paced": (p) =>
     `rythme du programme : la requête vers ${text(p.host)} doit attendre ${text(p.retryAfterMs)} ms, au-delà du délai d'attente borné ; réessayez plus tard`,
   "program.halted": (p) =>

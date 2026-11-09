@@ -261,3 +261,55 @@ describe("événements pace.*", () => {
     for (const data of c.events) expect(validateEvent({ ...meta, ...data })).toBeNull();
   });
 });
+
+describe("groupes d’edge", () => {
+  it("fusionne les alias, partage le débit et l’arrêt et reprend le groupe", () => {
+    const c = setup();
+    c.pace.bind?.("a.example", ["203.0.113.1"]);
+    c.pace.bind?.("b.example", ["203.0.113.1", "203.0.113.2"]);
+    c.pace.bind?.("c.example", ["203.0.113.2"]);
+    c.pace.report("a.example", "http429");
+    expect(c.pace.status("c.example")).toMatchObject({ rps: 0.5, pausedUntil: c.time() + 60000 });
+    c.pace.report("b.example", "http429");
+    c.pace.report("a.example", "http429");
+    expect(c.pace.acquire("c.example")).toEqual({ action: "halted" });
+    c.pace.resume("b.example");
+    expect(c.pace.status("a.example")).toMatchObject({ halted: false, pausedUntil: 0 });
+    // La rotation DNS conserve les observations précédentes.
+    c.pace.bind?.("b.example", ["203.0.113.3"]);
+    expect(c.pace.members?.("a.example")).toEqual(["a.example", "b.example", "c.example"]);
+  });
+  it("un délai après une réponse saine suspend l’edge cinq minutes, puis le second signal l’arrête", () => {
+    const c = setup();
+    c.pace.bind?.("a.example", ["203.0.113.1"]);
+    c.pace.bind?.("b.example", ["203.0.113.1"]);
+    c.pace.report("a.example", "ok");
+    c.advance(1000);
+    c.pace.report("a.example", "timeout");
+    expect(c.pace.status("b.example")).toMatchObject({
+      suspected: true,
+      pausedUntil: c.time() + 300000,
+    });
+    // Une réponse saine déjà en vol ne lève pas la pause.
+    c.pace.report("b.example", "ok");
+    c.pace.report("b.example", "disconnect");
+    expect(c.pace.status("a.example").halted).toBe(true);
+    c.pace.resume("b.example");
+    expect(c.pace.status("a.example").halted).toBe(false);
+  });
+  it("le signal à l’échéance exacte n’est pas un second signal pendant la pause", () => {
+    const c = setup();
+    c.pace.report(H, "ok");
+    c.pace.report(H, "timeout");
+    c.advance(300000);
+    c.pace.report(H, "timeout");
+    expect(c.pace.status(H).halted).toBe(false);
+  });
+});
+it("regroupe les représentations équivalentes d’une IPv6", () => {
+  const c = setup();
+  c.pace.bind?.("a.example", ["2001:db8::1"]);
+  c.pace.bind?.("b.example", ["2001:0db8:0000:0000:0000:0000:0000:0001"]);
+  c.pace.report("a.example", "http429");
+  expect(c.pace.status("b.example").rps).toBe(0.5);
+});

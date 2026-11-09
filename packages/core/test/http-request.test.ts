@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -14,10 +14,11 @@ import {
   type PaceController,
   type ProgramSheet,
   parseProgramSheet,
+  projectPaceHaltedPath,
   type WebProgram,
   webToolSpecs,
 } from "../src/index.js";
-import type { WebDependencies, WebResponse } from "../src/web/network.js";
+import { requestRaw, type WebDependencies, type WebResponse } from "../src/web/network.js";
 
 const cited = <T>(value: T) => ({
   value,
@@ -320,7 +321,7 @@ describe("http_request : rythme", () => {
     expect(f.pace?.status("app.example.com").rps).toBeCloseTo(0.5);
   });
 
-  it("un hôte arrêté rend program.halted, les autres hôtes continuent", async () => {
+  it("un arrêt bloque également les alias résolus sur le même edge", async () => {
     const f = fixture({
       responses: [() => reply(429), () => reply(429), () => reply(429)],
     });
@@ -332,8 +333,10 @@ describe("http_request : rythme", () => {
       code: "program.halted",
       params: { host: "app.example.com" },
     });
-    const other = parse(await f.http({ method: "GET", url: "https://b.example.com/" }));
-    expect(other.status).toBe(200);
+    await expect(f.http({ method: "GET", url: "https://b.example.com/" })).rejects.toMatchObject({
+      code: "program.halted",
+    });
+    expect(f.calls).toHaveLength(3);
   });
 });
 
@@ -373,6 +376,41 @@ describe("registre de contrôleurs", () => {
     expect(clearPaceHalt(s.configDir, s.projectId, "a.example.com")).toBe(false);
     expect(pace?.acquire("a.example.com").action).not.toBe("halted");
     expect(pace?.status("a.example.com").rps).toBeCloseTo(0.5);
+  });
+
+  it("relit les arrêts historiques et reprend tous les alias après redémarrage", () => {
+    const s = setup();
+    const path = projectPaceHaltedPath(s.configDir, s.projectId);
+    mkdirSync(join(path, ".."), { recursive: true });
+    writeFileSync(path, JSON.stringify(["a.example.com"]));
+    const pace = s.registry.controller(sheet());
+    pace?.bind?.("a.example.com", ["203.0.113.1"]);
+    pace?.bind?.("b.example.com", ["203.0.113.1"]);
+    const next = createPaceRegistry({
+      configDir: s.configDir,
+      projectId: () => s.projectId,
+    }).controller(sheet());
+    expect(next?.acquire("b.example.com")).toEqual({ action: "halted" });
+    expect(clearPaceHalt(s.configDir, s.projectId, "b.example.com")).toBe(true);
+    expect(next?.acquire("a.example.com").action).not.toBe("halted");
+    expect(haltedPaceHosts(s.configDir, s.projectId)).toEqual([]);
+  });
+
+  it("conserve la pause suspecte au redémarrage et la reprise CLI la lève", () => {
+    const s = setup();
+    const pace = s.registry.controller(sheet());
+    pace?.bind?.("a.example.com", ["203.0.113.1"]);
+    pace?.bind?.("b.example.com", ["203.0.113.1"]);
+    pace?.report("a.example.com", "ok");
+    pace?.report("a.example.com", "timeout");
+    const next = createPaceRegistry({
+      configDir: s.configDir,
+      projectId: () => s.projectId,
+      now: () => 1000000,
+    }).controller(sheet());
+    expect(next?.acquire("b.example.com")).toEqual({ action: "wait", ms: 300000 });
+    expect(clearPaceHalt(s.configDir, s.projectId, "b.example.com")).toBe(true);
+    expect(next?.acquire("a.example.com")).toEqual({ action: "send" });
   });
 
   it("sans projet actif, pas de contrôleur", () => {
@@ -416,4 +454,20 @@ describe("read_url : redirections et périmètre", () => {
     const out = parse(await f.read("https://app.example.com/page"));
     expect(out.url).toBe("https://hors-perimetre.example.net/");
   });
+});
+
+it("la limite DNS ne raccourcit pas le transport après l’attente de rythme", async () => {
+  const output = await requestRaw(
+    "https://example.test/",
+    {
+      method: "GET",
+      signal: new AbortController().signal,
+      timeoutMs: 1,
+      beforeRequest: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      },
+    },
+    { lookup, transport: async () => reply(200, "ok") },
+  );
+  expect(output.status).toBe(200);
 });

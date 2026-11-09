@@ -19,6 +19,9 @@ export interface WebRequest {
   headers?: Record<string, string>;
   /** User-Agent complet, remplaçant celui des outils de lecture. */
   userAgent?: string;
+  timeoutMs?: number;
+  onTransport?: () => void;
+  beforeRequest?: (url: URL, addresses: string[]) => Promise<void>;
 }
 export interface WebDependencies {
   lookup?: (hostname: string) => Promise<{ address: string; family: number }[]>;
@@ -172,6 +175,7 @@ async function publicAddress(
   url: URL,
   deps: WebDependencies,
   signal: AbortSignal,
+  beforeRequest?: WebRequest["beforeRequest"],
 ): Promise<string> {
   const hostname = url.hostname.replace(/^\[|\]$/g, "");
   const addresses = isIP(hostname)
@@ -185,6 +189,10 @@ async function publicAddress(
     throw new CodedError("web.invalidUrl");
   const address = addresses.find((row) => isIP(row.address) === 4) ?? addresses[0];
   if (!address) throw new CodedError("web.invalidUrl");
+  await beforeRequest?.(
+    url,
+    addresses.map((row) => row.address),
+  );
   return address.address;
 }
 
@@ -208,8 +216,20 @@ export async function requestRaw(
 ): Promise<RawWebResponse> {
   const url = webUrl(value);
   init.signal.throwIfAborted();
-  const address = await publicAddress(url, deps, init.signal);
-  const response = await (deps.transport ?? webTransport)(url, address, init);
+  const address = await publicAddress(
+    url,
+    deps,
+    AbortSignal.any([init.signal, AbortSignal.timeout(init.timeoutMs ?? 25_000)]),
+    init.beforeRequest,
+  );
+  init.signal.throwIfAborted();
+  if (init.timeoutMs !== undefined)
+    init = { ...init, signal: AbortSignal.any([init.signal, AbortSignal.timeout(init.timeoutMs)]) };
+  init.onTransport?.();
+  const response = await (deps.transport ?? webTransport)(url, address, init).catch((error) => {
+    if (init.signal.aborted) throw init.signal.reason;
+    throw error;
+  });
   try {
     const chunks: Uint8Array[] = [];
     let bytes = 0;

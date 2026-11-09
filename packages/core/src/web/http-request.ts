@@ -112,7 +112,7 @@ export function paceOutcome(
 ): PaceOutcome {
   if (status === 429) return "http429";
   if (status === 403 && isWafForbidden(headers, bodyText)) return "waf403";
-  return "ok";
+  return status >= 200 && status < 400 ? "ok" : "neutral";
 }
 
 function isTimeout(error: unknown, bounded: AbortSignal, parent: AbortSignal | undefined): boolean {
@@ -161,23 +161,30 @@ export async function runHttpRequest(
   const pace = program.pace(sheet);
   const sleep = program.sleep ?? sleepAbortable;
   let waited = 0;
-  if (pace) {
-    for (;;) {
-      signal?.throwIfAborted();
-      const decision = pace.acquire(host);
-      if (decision.action === "send") break;
-      if (decision.action === "halted") throw new CodedError("program.halted", { host });
-      if (waited + decision.ms > MAX_PACE_WAIT_MS)
-        throw new CodedError("program.paced", { host, retryAfterMs: decision.ms });
-      await sleep(decision.ms, signal);
-      waited += decision.ms;
+  const beforeRequest = async (_url: URL, addresses: string[]) => {
+    pace?.bind?.(host, addresses);
+    if (pace) {
+      for (;;) {
+        signal?.throwIfAborted();
+        const decision = pace.acquire(host);
+        if (decision.action === "send") break;
+        if (decision.action === "halted")
+          throw new CodedError("program.halted", {
+            host: (pace.members?.(host) ?? [host]).join(", "),
+          });
+        if (waited + decision.ms > MAX_PACE_WAIT_MS)
+          throw new CodedError(
+            pace.status(host).suspected ? "pace.edgeBanSuspected" : "program.paced",
+            { host: (pace.members?.(host) ?? [host]).join(", "), retryAfterMs: decision.ms },
+          );
+        await sleep(decision.ms, signal);
+        waited += decision.ms;
+      }
     }
-  }
+  };
 
-  const bounded = AbortSignal.any([
-    ...(signal ? [signal] : []),
-    AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  ]);
+  const bounded = AbortSignal.any(signal ? [signal] : []);
+  let transportStarted = false;
   const started = Date.now();
   let response: Awaited<ReturnType<typeof requestRaw>>;
   try {
@@ -188,13 +195,35 @@ export async function runHttpRequest(
         signal: bounded,
         headers,
         userAgent,
+        beforeRequest,
+        timeoutMs: REQUEST_TIMEOUT_MS,
+        onTransport: () => {
+          transportStarted = true;
+        },
         ...(args.body !== undefined && { body: args.body }),
       },
       deps,
     );
   } catch (error) {
     if (signal?.aborted) throw signal.reason;
-    if (isTimeout(error, bounded, signal)) pace?.report(host, "timeout");
+    if (
+      error instanceof CodedError &&
+      ["program.halted", "program.paced", "pace.edgeBanSuspected"].includes(error.code)
+    )
+      throw error;
+    if (transportStarted && isTimeout(error, bounded, signal)) pace?.report(host, "timeout");
+    else if (transportStarted) {
+      const cause = error as { code?: string; cause?: { code?: string } };
+      if (["ECONNRESET", "UND_ERR_SOCKET"].includes(cause.code ?? cause.cause?.code ?? ""))
+        pace?.report(host, "disconnect");
+    }
+    if (pace?.status(host).halted)
+      throw new CodedError("program.halted", { host: (pace.members?.(host) ?? [host]).join(", ") });
+    if (pace?.status(host).suspected)
+      throw new CodedError("pace.edgeBanSuspected", {
+        host: (pace.members?.(host) ?? [host]).join(", "),
+        retryAfterMs: 300_000,
+      });
     if (error instanceof CodedError) throw error;
     throw webNetworkError(error, bounded.aborted);
   }

@@ -18,7 +18,7 @@ export type PacePreset = keyof typeof PACE_PRESETS;
 export type PaceSignal = "http429" | "waf403" | "timeout";
 
 /** Résultat d'une réponse rapporté au contrôleur. */
-export type PaceOutcome = "ok" | PaceSignal;
+export type PaceOutcome = "ok" | "neutral" | "disconnect" | PaceSignal;
 
 /** Cause d'un ajustement : un signal, ou la remontée après des réponses saines. */
 export type PaceAdjustCause = PaceSignal | "recovery";
@@ -59,11 +59,22 @@ export interface PaceHostStatus {
   rps: number;
   /** Fin de la pause en cours (ms), 0 si aucune. */
   pausedUntil: number;
+  suspected?: boolean;
 }
 
 export interface PaceController {
   /** Plafond global effectif (req/s). */
   readonly ceilingRps: number;
+  bind?(host: string, addresses: readonly string[]): void;
+  members?(host: string): string[];
+  groups?(): {
+    hosts: string[];
+    addresses: string[];
+    pausedUntil?: number;
+    suspectedUntil?: number;
+  }[];
+  restorePause?(host: string, pausedUntil: number, suspectedUntil: number): void;
+  restoreHalt?(host: string): void;
   acquire(host: string): PaceDecision;
   report(host: string, outcome: PaceOutcome): void;
   /** Reprise explicite d'un hôte arrêté (geste humain, jamais automatique). */
@@ -91,6 +102,8 @@ interface HostState {
   pausedUntil: number;
   nextAt: number;
   halted: boolean;
+  healthyAt: number | null;
+  suspectedUntil: number;
 }
 
 const EPSILON = 1e-9;
@@ -105,10 +118,22 @@ export function createPaceController(options: PaceOptions = {}): PaceController 
   let refilledAt = now();
   const hosts = new Map<string, HostState>();
 
+  const addresses = new Map<string, HostState>();
+  const normalize = (host: string) => host.toLowerCase().replace(/\.$/, "");
   const state = (host: string): HostState => {
+    host = normalize(host);
     let s = hosts.get(host);
     if (!s) {
-      s = { multiplier: 1, healthy: 0, signals: [], pausedUntil: 0, nextAt: 0, halted: false };
+      s = {
+        multiplier: 1,
+        healthy: 0,
+        signals: [],
+        pausedUntil: 0,
+        nextAt: 0,
+        halted: false,
+        healthyAt: null,
+        suspectedUntil: 0,
+      };
       hosts.set(host, s);
     }
     return s;
@@ -121,6 +146,55 @@ export function createPaceController(options: PaceOptions = {}): PaceController 
 
   return {
     ceilingRps: ceiling,
+    bind(host, ips) {
+      const target = state(host);
+      for (const raw of ips) {
+        const ip = raw.includes(":")
+          ? new URL(`http://[${raw.replace(/^\[|\]$/g, "")}]`).hostname.slice(1, -1)
+          : raw;
+        const previous = addresses.get(ip);
+        if (previous && previous !== target) {
+          target.multiplier = Math.min(target.multiplier, previous.multiplier);
+          target.halted ||= previous.halted;
+          target.pausedUntil = Math.max(target.pausedUntil, previous.pausedUntil);
+          target.suspectedUntil = Math.max(target.suspectedUntil, previous.suspectedUntil);
+          target.nextAt = Math.max(target.nextAt, previous.nextAt);
+          target.signals = [...target.signals, ...previous.signals].sort((a, b) => a - b);
+          target.healthyAt = Math.max(
+            target.healthyAt ?? -Infinity,
+            previous.healthyAt ?? -Infinity,
+          );
+          target.healthy = 0;
+          for (const [name, value] of hosts) if (value === previous) hosts.set(name, target);
+          for (const [address, value] of addresses)
+            if (value === previous) addresses.set(address, target);
+        }
+        addresses.set(ip, target);
+      }
+    },
+    members(host) {
+      const target = state(host);
+      return [...hosts]
+        .filter(([, s]) => s === target)
+        .map(([h]) => h)
+        .sort();
+    },
+    groups() {
+      return [...new Set(hosts.values())].map((s) => ({
+        pausedUntil: s.pausedUntil,
+        suspectedUntil: s.suspectedUntil,
+        hosts: [...hosts].filter(([, v]) => v === s).map(([h]) => h),
+        addresses: [...addresses].filter(([, v]) => v === s).map(([ip]) => ip),
+      }));
+    },
+    restorePause(host, pausedUntil, suspectedUntil) {
+      const s = state(host);
+      s.pausedUntil = Math.max(s.pausedUntil, pausedUntil);
+      s.suspectedUntil = Math.max(s.suspectedUntil, suspectedUntil);
+    },
+    restoreHalt(host) {
+      state(host).halted = true;
+    },
 
     acquire(host) {
       const s = state(host);
@@ -140,7 +214,9 @@ export function createPaceController(options: PaceOptions = {}): PaceController 
       const s = state(host);
       if (s.halted) return;
       const t = now();
+      if (outcome === "neutral") return;
       if (outcome === "ok") {
+        s.healthyAt = t;
         s.healthy += 1;
         if (s.healthy >= PACE_RECOVERY_AFTER) {
           s.healthy = 0;
@@ -159,6 +235,16 @@ export function createPaceController(options: PaceOptions = {}): PaceController 
         }
         return;
       }
+      const suspect =
+        (outcome === "timeout" || outcome === "disconnect") &&
+        s.healthyAt !== null &&
+        t - s.healthyAt < 300_000;
+      if (t < s.suspectedUntil) {
+        s.halted = true;
+        emit({ kind: "pace.halted", host, cause: "burst" });
+        return;
+      }
+      if (suspect) s.suspectedUntil = t + 300_000;
       s.healthy = 0;
       s.signals = s.signals.filter((ts) => t - ts < PACE_HALT_WINDOW_MS);
       s.signals.push(t);
@@ -170,22 +256,24 @@ export function createPaceController(options: PaceOptions = {}): PaceController 
       }
       const from = s.multiplier;
       s.multiplier = Math.max(PACE_FLOOR, from / 2);
-      s.pausedUntil = t + PACE_PAUSE_MS;
+      s.pausedUntil = Math.max(s.pausedUntil, t + (suspect ? 300_000 : PACE_PAUSE_MS));
       emit({
         kind: "pace.adjusted",
         host,
         fromRps: ceiling * from,
         toRps: ceiling * s.multiplier,
-        cause: outcome,
+        cause: outcome === "disconnect" ? "timeout" : outcome,
       });
     },
 
     resume(host) {
-      const s = hosts.get(host);
-      if (!s?.halted) return;
+      const s = state(host);
+      if (!s.halted && s.pausedUntil <= now()) return;
       // Reprise prudente : débit à la moitié du plafond (pas au plancher : un signal ultérieur
       // ne ré-arrêterait pas aussitôt l'hôte), historique effacé, pas de pause résiduelle.
       s.halted = false;
+      s.suspectedUntil = 0;
+      s.healthyAt = null;
       s.multiplier = PACE_RESUME;
       s.healthy = 0;
       s.signals = [];
@@ -195,7 +283,12 @@ export function createPaceController(options: PaceOptions = {}): PaceController 
 
     status(host) {
       const s = state(host);
-      return { halted: s.halted, rps: ceiling * s.multiplier, pausedUntil: s.pausedUntil };
+      return {
+        halted: s.halted,
+        rps: ceiling * s.multiplier,
+        pausedUntil: s.pausedUntil,
+        ...(s.suspectedUntil > now() && { suspected: true }),
+      };
     },
   };
 }
