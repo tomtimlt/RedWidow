@@ -20,6 +20,12 @@ const PS1: Record<Exclude<TerminalPrompt, "native">, string> = {
 /** Réservé aux constantes de ce module, pas à du contenu fourni par le projet. */
 const quote = (value: string): string => `'${value.replaceAll("'", "'\\''")}'`;
 
+/** Scripts constants du lanceur : aucun guillemet ni retour à la ligne dans l’argv transporté. */
+export function encodedBashScript(script: string, args: readonly string[] = []): string[] {
+  const encoded = Buffer.from(script, "utf8").toString("base64");
+  return ["/bin/bash", "-c", `source <(printf %s ${encoded} | base64 -d)`, "redwidow", ...args];
+}
+
 /** Bash interactif éphémère : conserve le rc utilisateur sans l'écrire sur disque. */
 export function terminalShell(style: TerminalPrompt = "native"): string[] {
   if (!isTerminalPrompt(style)) throw new Error("Style de prompt invalide");
@@ -35,7 +41,8 @@ export function terminalShell(style: TerminalPrompt = "native"): string[] {
     "  *) PROMPT_COMMAND=\"${PROMPT_COMMAND:+$PROMPT_COMMAND$'\\n'}__redwidow_apply_prompt\" ;;",
     "esac",
   ].join("\n");
-  return ["/bin/bash", "-c", `exec /bin/bash --rcfile <(printf '%s\\n' ${quote(rc)}) -i`];
+  const encoded = Buffer.from(rc, "utf8").toString("base64");
+  return ["/bin/bash", "-c", `exec /bin/bash --rcfile <(printf %s ${encoded} | base64 -d) -i`];
 }
 
 /** Commande fermée pour `script -c`, quel que soit le shell défini dans l'image. */

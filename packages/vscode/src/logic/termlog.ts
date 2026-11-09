@@ -7,7 +7,7 @@ import {
 import { type Locale, t, translateFr } from "@warband/messages";
 
 import { productTitleSuffix } from "./brand.js";
-import { type TerminalPrompt, terminalShellCommand } from "./terminal-prompt.js";
+import { encodedBashScript, type TerminalPrompt, terminalShellCommand } from "./terminal-prompt.js";
 
 export { parseHashes };
 
@@ -74,21 +74,15 @@ function assertLogPath(logPath: string): string {
  * Le script est constant ; le chemin passe en argument positionnel, jamais interpolé.
  */
 export function capturedShell(logPath: string, style: TerminalPrompt = "native"): string[] {
-  if (style !== "native") {
-    const command = terminalShellCommand(style);
-    const body = [
-      `mkdir -p ${CONTAINER_LOG_DIR} && chmod 700 ${CONTAINER_LOG_DIR}`,
-      'if command -v script >/dev/null 2>&1; then exec script -q -f -c "$2" "$1"; fi',
-      'exec /bin/bash -c "$2"',
-    ].join("; ");
-    return ["/bin/bash", "-c", body, "warband", assertLogPath(logPath), command];
-  }
+  const command = terminalShellCommand(style);
+  // La commande dépend seulement du style fermé. Le chemin validé reste positionnel.
+  const quoted = `'${command.replaceAll("'", "'\\''")}'`;
   const body = [
     `mkdir -p ${CONTAINER_LOG_DIR} && chmod 700 ${CONTAINER_LOG_DIR}`,
-    'if command -v script >/dev/null 2>&1; then exec script -q -f -c /bin/bash "$1"; fi',
-    "exec /bin/bash",
+    `if command -v script >/dev/null 2>&1; then exec script -q -f -c ${quoted} "$1"; fi`,
+    `exec ${command}`,
   ].join("; ");
-  return ["/bin/bash", "-c", body, "warband", assertLogPath(logPath)];
+  return encodedBashScript(body, [assertLogPath(logPath)]);
 }
 
 /** Lecture de la fin du journal (argv de `docker exec`, sans shell). */

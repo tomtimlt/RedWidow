@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSy
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { terminalLaunch } from "../src/logic/cockpit.js";
 import { parseStudioMessage } from "../src/logic/studio.js";
 import {
   TERMINAL_PROMPTS,
@@ -36,6 +37,29 @@ it("le réglage et la webview n'acceptent qu'un choix fermé", () => {
   expect(terminalShell()).toEqual(["/bin/bash"]);
 });
 
+it.each(TERMINAL_PROMPTS)(
+  "%s : argv sans guillemet double ni retour à la ligne, scripts décodables",
+  (style) => {
+    const log = "/tmp/warband-terminals/test-0a1b2c3d.log";
+    for (const program of [terminalShell(style), capturedShell(log, style)]) {
+      for (const workspace of ["/workspace", "/redwidow/Workspace/projet"]) {
+        const launch = terminalLaunch("exegol-test", "/usr/bin/docker", program, workspace);
+        for (const arg of launch.shellArgs) expect(arg).not.toMatch(/[\r\n"]/);
+        for (const arg of launch.shellArgs) {
+          for (const match of arg.matchAll(/printf %s ([A-Za-z0-9+/=]+) \| base64 -d/g)) {
+            const script = Buffer.from(match[1] as string, "base64").toString("utf8");
+            expect(script.length).toBeGreaterThan(0);
+            if (existsSync("/bin/bash")) {
+              const syntax = spawnSync("/bin/bash", ["-n"], { input: script, encoding: "utf8" });
+              expect(syntax.status, syntax.stderr).toBe(0);
+            }
+          }
+        }
+      }
+    }
+  },
+);
+
 describe.skipIf(!existsSync("/bin/bash"))("prompt dans un vrai Bash interactif", () => {
   const input = [
     "printf '__PS1__%s\\n' \"$PS1\"",
@@ -53,8 +77,9 @@ describe.skipIf(!existsSync("/bin/bash"))("prompt dans un vrai Bash interactif",
       if (rc !== undefined) writeFileSync(join(root, ".bashrc"), rc);
       let path = "/usr/bin:/bin";
       if (fallback) {
-        // PATH sans script : les deux seuls utilitaires du wrapper restent accessibles.
-        for (const name of ["mkdir", "chmod"]) symlinkSync(`/bin/${name}`, join(root, name));
+        // PATH sans script : les utilitaires du wrapper restent accessibles.
+        for (const name of ["mkdir", "chmod", "base64"])
+          symlinkSync(`/bin/${name}`, join(root, name));
         path = root;
       }
       const log = `/tmp/warband-terminals/p2-${Math.random().toString(16).slice(2, 10).padEnd(8, "0")}.log`;
@@ -119,4 +144,10 @@ describe.skipIf(!existsSync("/bin/bash"))("prompt dans un vrai Bash interactif",
       expect(result.transcript).not.toContain("Syntax error");
     },
   );
+  it.each(TERMINAL_PROMPTS)("capture %s : journal utilisable avec le style choisi", (style) => {
+    const result = run(style, "CUSTOM_RC=loaded\n", true);
+    expect(result.transcript).toContain("__CUSTOM__loaded");
+    expect(result.transcript).toContain("__STATUS__1");
+    expect(result.transcript).not.toContain("syntax error");
+  });
 });

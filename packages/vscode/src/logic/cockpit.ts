@@ -28,6 +28,7 @@ import {
 } from "@warband/core";
 import { formatError, getUiLocale, t } from "@warband/messages";
 import { PRODUCT_NAME, productTitleSuffix } from "./brand.js";
+import { encodedBashScript } from "./terminal-prompt.js";
 
 /** Messages acceptés depuis la webview cockpit (non fiables). */
 export type CockpitMessage =
@@ -202,14 +203,7 @@ export function terminalLaunch(
   const launch =
     workspace === "/workspace"
       ? program
-      : [
-          "/bin/sh",
-          "-c",
-          'cd "$1" || exit; shift; exec "$@"',
-          "redwidow-terminal",
-          workspace,
-          ...program,
-        ];
+      : encodedBashScript('cd "$1" || exit; shift; exec "$@"', [workspace, ...program]);
   const shellArgs = ["exec", "--interactive", "--tty", "--workdir", workspace, name, ...launch];
   assertSafeExecArgv(shellArgs);
   return { shellPath: dockerPath, shellArgs };

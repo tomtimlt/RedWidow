@@ -41,10 +41,14 @@ describe("journal de terminal", () => {
     const argv = capturedShell(log);
     expect(argv[0]).toBe("/bin/bash");
     expect(argv[1]).toBe("-c");
-    expect(argv[2]).toContain('exec script -q -f -c /bin/bash "$1"');
-    expect(argv[2]).toContain("exec /bin/bash");
-    expect(argv[2]).not.toContain(log);
-    expect(argv.slice(3)).toEqual(["warband", log]);
+    const encoded = /printf %s ([A-Za-z0-9+/=]+)/.exec(argv[2] ?? "")?.[1];
+    expect(encoded).toBeDefined();
+    const body = Buffer.from(encoded ?? "", "base64").toString("utf8");
+    expect(body).toContain("exec script -q -f -c");
+    expect(body).toContain('"$1"');
+    expect(body).toContain("/bin/bash");
+    expect(body).not.toContain(log);
+    expect(argv.slice(3)).toEqual(["redwidow", log]);
     expect(() => capturedShell("/etc/passwd")).toThrow();
     expect(() => capturedShell("/tmp/warband-terminals/x-0a1b2c3d.log; rm -rf /")).toThrow();
   });
