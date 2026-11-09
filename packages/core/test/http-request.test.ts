@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -11,6 +11,7 @@ import {
   type EngineEvent,
   haltedPaceHosts,
   MAX_PACE_WAIT_MS,
+  outputFileSpecs,
   type PaceController,
   type ProgramSheet,
   parseProgramSheet,
@@ -470,4 +471,40 @@ it("la limite DNS ne raccourcit pas le transport après l’attente de rythme", 
     { lookup, transport: async () => reply(200, "ok") },
   );
   expect(output.status).toBe(200);
+});
+
+it("sauvegarde 200 Kio minifiés et read_output trouve une chaîne au milieu", async () => {
+  const root = mkdtempSync(join(tmpdir(), "http-output-"));
+  try {
+    const body = "x".repeat(100000) + "MIDDLE_SENTINEL" + "y".repeat(100000);
+    const f = fixture({
+      responses: [() => reply(200, body, { "content-type": "application/javascript" })],
+    });
+    f.program.outputRoot = () => root;
+    const result = JSON.parse(await f.http({ method: "GET", url: URL_OK }));
+    expect(result.bodyFile).toMatch(/warband-http-.*body.txt$/);
+    expect(result.note).toContain("read_output");
+    expect(result.truncated).toBe(true);
+    const local = result.bodyFile.replace("/workspace/outputs", root);
+    expect(readFileSync(local, "utf8")).toBe(body);
+    const read = outputFileSpecs(() => root)[0];
+    const found = JSON.parse(
+      await read!.run({ path: result.splitFile, pattern: "MIDDLE_SENTINEL" }, ctx),
+    );
+    expect(found.matchCount).toBe(1);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+it("ne sauvegarde pas une réponse HTTP courte et lisible", async () => {
+  const root = mkdtempSync(join(tmpdir(), "http-short-"));
+  try {
+    const f = fixture();
+    f.program.outputRoot = () => root;
+    const result = JSON.parse(await f.http({ method: "GET", url: URL_OK }));
+    expect(result.bodyFile).toBeUndefined();
+    expect(readdirSync(root)).toEqual([]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

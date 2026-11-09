@@ -62,10 +62,26 @@ interface StreamState {
  */
 export function createOutputCapture(
   root: string | undefined,
-  { maxBytes = OUTPUT_MAX_BYTES }: { maxBytes?: number } = {},
+  {
+    maxBytes = OUTPUT_MAX_BYTES,
+    prefix = OUTPUT_DIR_PREFIX,
+    files = { stdout: "stdout.txt", stderr: "stderr.txt" },
+    keep = false,
+  }: {
+    maxBytes?: number;
+    prefix?: string;
+    files?: Record<OutputStream, string>;
+    keep?: boolean;
+  } = {},
 ): OutputCapture {
+  const simple = /^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$/;
+  if (
+    ![prefix, files.stdout, files.stderr].every((name) => simple.test(name)) ||
+    files.stdout === files.stderr
+  )
+    throw new RangeError("Noms de capture invalides.");
   const id = randomUUID().replaceAll("-", "");
-  const name = `${OUTPUT_DIR_PREFIX}${id}`;
+  const name = `${prefix}${id}`;
   let directory: string | undefined;
   if (root !== undefined) {
     try {
@@ -82,7 +98,7 @@ export function createOutputCapture(
     if (directory === undefined) return null;
     try {
       return openSync(
-        join(directory, `${stream}.txt`),
+        join(directory, files[stream]),
         constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | (constants.O_NOFOLLOW ?? 0),
         0o600,
       );
@@ -145,10 +161,10 @@ export function createOutputCapture(
         s.splitter.end();
         if (s.fd !== null) closeSync(s.fd);
         const omitted = Math.max(0, s.lines - s.head.length - s.tail.length);
-        const needed = omitted > 0 || s.lineCut || s.capped;
+        const needed = keep || omitted > 0 || s.lineCut || s.capped;
         const kept = s.fd !== null && needed;
         if (s.fd !== null && !needed && directory !== undefined) {
-          rmSync(join(directory, `${stream}.txt`), { force: true });
+          rmSync(join(directory, files[stream]), { force: true });
         }
         result[stream] = {
           bytes: s.bytes,
@@ -159,7 +175,7 @@ export function createOutputCapture(
           lineCut: s.lineCut,
           capped: s.capped,
           unsaved: needed && !kept,
-          ...(kept && { file: `${CONTAINER_OUTPUTS}/${name}/${stream}.txt` }),
+          ...(kept && { file: `${CONTAINER_OUTPUTS}/${name}/${files[stream]}` }),
         };
       }
       // Dossier vide : rien n'est conservé pour une sortie courte.

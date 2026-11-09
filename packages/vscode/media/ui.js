@@ -108,7 +108,7 @@
             command = `${input.method ?? "GET"} ${input.url ?? ""}`;
             if (result.status !== undefined) command += ` → ${result.status}`;
             if (typeof result.body === "string")
-              command += ` (${new TextEncoder().encode(result.body).length} octets)`;
+              command += ` (${result.bytes ?? new TextEncoder().encode(result.body).length} octets)`;
             failed =
               result.status >= 400 ||
               /program\.(?:paced|halted)|web\.timeout|pace\.edgeBanSuspected/.test(it.output ?? "");

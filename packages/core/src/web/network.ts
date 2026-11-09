@@ -200,7 +200,7 @@ export interface RawWebResponse {
   url: string;
   status: number;
   headers: Record<string, string | undefined>;
-  /** Corps lu, au plus 1 Mio ; `truncated` s'il a été coupé. */
+  /** Corps lu, au plus 32 Mio ; `truncated` s'il a été coupé. */
   body: Buffer;
   truncated: boolean;
 }
@@ -237,7 +237,7 @@ export async function requestRaw(
     if (init.method !== "HEAD") {
       for await (const chunk of response.body) {
         init.signal.throwIfAborted();
-        const room = MAX_BYTES - bytes;
+        const room = 32 * 1024 * 1024 - bytes;
         if (chunk.byteLength > room) {
           chunks.push(chunk.subarray(0, room));
           truncated = true;

@@ -88,6 +88,7 @@ const engagementView = (): EngagementView =>
       };
 // Fiche et rythme du projet actif pour l'outil `http_request` (ADR 0040).
 const webProgram = createWebProgram({
+  outputRoot,
   program: programStatus,
   registry: createPaceRegistry({ configDir: defaultConfigDir(), projectId: () => activeProjectId }),
 });

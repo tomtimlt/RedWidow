@@ -286,6 +286,7 @@ program
       activeId === null ? { state: "none" } : readEngagementSync(configDir, activeId);
     const haltedProvider = (): boolean => activeId !== null && isHalted(configDir, activeId);
     const webProgram = createWebProgram({
+      outputRoot: () => join(cwd, "outputs"),
       program: programProvider,
       registry: createPaceRegistry({ configDir, projectId: () => activeId }),
     });

@@ -296,3 +296,10 @@ describe("read_output", () => {
     await expect(tool?.run({ path: "x" }, ctx)).rejects.toMatchObject({ code: "output.notFound" });
   });
 });
+
+it("refuse les traversées dans les noms internes de capture", () => {
+  expect(() => createOutputCapture(undefined, { prefix: "../escape-" })).toThrow(RangeError);
+  expect(() =>
+    createOutputCapture(undefined, { files: { stdout: "../../escape.txt", stderr: "stderr.txt" } }),
+  ).toThrow(RangeError);
+});

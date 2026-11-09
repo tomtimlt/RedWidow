@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { createOutputCapture } from "../docker/output-capture.js";
 import { capOutput } from "../output.js";
 import type { PaceController, PaceOutcome } from "../pace/controller.js";
 import type { PaceRegistry } from "../pace/registry.js";
@@ -20,6 +21,7 @@ const MAX_BODY = 1024 * 1024;
 /** Accès de l'outil à la fiche programme du projet actif et à son contrôleur de rythme. */
 export interface WebProgram {
   /** Fiche appliquée (approuvée) du projet actif, sinon `undefined`. */
+  outputRoot?(): string | undefined;
   sheet(): ProgramSheet | undefined;
   /** Contrôleur de rythme du projet pour cette fiche ; `null` sans projet. */
   pace(sheet: ProgramSheet): PaceController | null;
@@ -33,8 +35,10 @@ export interface WebProgram {
 export function createWebProgram(options: {
   program: () => ProgramStatus;
   registry: PaceRegistry;
+  outputRoot?: () => string | undefined;
 }): WebProgram {
   return {
+    ...(options.outputRoot && { outputRoot: options.outputRoot }),
     sheet: () => options.program().applied,
     pace: (sheet) => options.registry.controller(sheet),
     attach: (recorder) => options.registry.attach(recorder),
@@ -231,14 +235,53 @@ export async function runHttpRequest(
   const text = response.body.toString("utf8");
   pace?.report(host, paceOutcome(response.status, response.headers, text));
 
-  const capped = capOutput(stripControl(text));
+  const cleaned = stripControl(text);
+  const minified =
+    /(?:javascript|json)/i.test(response.headers["content-type"] ?? "") &&
+    cleaned.split("\n").some((line) => line.length > 2000);
+  let saved: { bodyFile?: string | undefined; splitFile?: string | undefined; note?: string } = {};
+  if (response.body.length > 64 * 1024 || minified) {
+    const capture = createOutputCapture(program.outputRoot?.(), {
+      prefix: "warband-http-",
+      files: { stdout: "body.txt", stderr: "body.split.txt" },
+      keep: true,
+    });
+    capture.write("stdout", response.body);
+    if (minified || cleaned.split("\n").some((line) => line.length > 2000)) {
+      let column = 0;
+      const split = cleaned.replace(/./g, (char) => {
+        column++;
+        if (column >= 200 && (/[;},]/.test(char) || column >= 2000)) {
+          column = 0;
+          return `${char}\n`;
+        }
+        return char;
+      });
+      capture.write("stderr", split);
+    }
+    const summary = capture.finish();
+    saved = {
+      bodyFile: summary.stdout.file,
+      ...(summary.stderr.bytes > 0 && { splitFile: summary.stderr.file }),
+      note: summary.stdout.file
+        ? `sortie complète : ${summary.stdout.file}${response.truncated || summary.stdout.capped ? " (limitée à 32 Mio)" : ""} ; à relire avec read_output (tranche ou recherche)${summary.stderr.file && summary.stderr.bytes > 0 ? ` ; version à lignes courtes : ${summary.stderr.file}` : ""}`
+        : "Sortie complète non sauvegardée : aucun dossier outputs utilisable.",
+    };
+  }
+  const excerpt =
+    saved.bodyFile && Buffer.byteLength(cleaned) > 64 * 1024
+      ? `${cleaned.slice(0, 24000)}\n[… corps omis …]\n${cleaned.slice(-24000)}`
+      : cleaned;
+  const capped = capOutput(excerpt);
   return JSON.stringify({
     url: response.url,
     status: response.status,
+    bytes: response.body.length,
     headers: response.headers,
     body: capped.output,
-    truncated: capped.truncated || response.truncated,
+    truncated: capped.truncated || response.truncated || excerpt !== cleaned,
     durationMs,
     ...(waited > 0 && { pacedMs: waited }),
+    ...saved,
   });
 }
