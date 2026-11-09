@@ -75,8 +75,10 @@ const campaign: CampaignOverview = {
   executedCount: 0,
   executedPercent: 0,
 };
+// Shell POSIX analysable explicitement : sous Windows, Bash serait sinon refusé par une autre règle.
 const complete = (profile: AgentProfile): PolicyContext => ({
   cwd: process.cwd(),
+  posixShell: true,
   profile,
   program: () => ({ state: "approved", applied: program }),
   engagement: () => ({ status: { state: "approved", applied: engagement }, halted: false }),
@@ -99,7 +101,11 @@ describe("documents propres au profil", () => {
       ? { module: "auxiliary/scanner/portscan/tcp", options: { RHOSTS: "app.example.com" } }
       : { command: "pwd", argv: ["pwd"] };
     for (const profile of ["bug-bounty", "red-team"] as const) {
-      const absent = evaluatePolicy(DEFAULT_POLICY, tool, args, { cwd: process.cwd(), profile });
+      const absent = evaluatePolicy(DEFAULT_POLICY, tool, args, {
+        cwd: process.cwd(),
+        posixShell: true,
+        profile,
+      });
       expect(absent.decision).toBe("deny");
       expect(absent.reason.code).toBe(
         profile === "bug-bounty" ? "program.required" : "engagement.required",
