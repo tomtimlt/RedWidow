@@ -321,6 +321,38 @@ Lots qui touchent les mêmes fichiers, à faire dans l'ordre et un à la fois :
 - `chat.js` : 11, 15, 19 ;
 - `mission-desk.ts` : 1, 4, 5, 6.
 
+## Assets graphiques des nouvelles fonctionnalités
+
+Chaque élément d'interface ajouté par ce plan arrive avec ses assets. Un lot d'interface n'est pas terminé sans eux.
+
+- **Icônes** pour la page « Comptes de test », le sélecteur « Usage », la fenêtre Bypass (icônes « Illimité » et minuteur), la fiche de nœud de la kill chain et l'accès rapide « Chat ».
+  - Utiliser les codicons de VS Code déjà employées par l'extension, ou des SVG en ligne dans le style des icônes existantes de `packages/vscode/media/`.
+  - Même épaisseur de trait et mêmes jetons de couleur (`--jn-*`). Lisibles en thème clair et en thème sombre.
+- **Couleurs d'état** de la matrice (lot 16) : jetons ajoutés dans `css/base.css` et réutilisés par la kill chain, pas de couleur en dur.
+- **Libellés** : chaque chaîne nouvelle passe par `packages/messages` et `media/i18n.js` (fr complet, en minimal).
+- **Captures** : mettre à jour `packages/vscode/scripts/ui-snapshots.mjs` pour couvrir chaque nouvel écran, puis régénérer les captures du README (`docs/img/`) avec l'identité RedWidow, en thème sombre et en thème clair.
+- **Marketplace** (pour la V1) : vérifier l'icône `media/redwidow-icon.png` (128 × 128 au minimum) et ajouter `galleryBanner` au manifeste.
+
+## Suite : la V1
+
+Ce plan est la dernière vague de fonctionnalités avant le gel. Ensuite on applique `docs/plans/v1.md` :
+- section B (tri des restes) ;
+- section C (revue de sécurité par l'orchestrateur) ;
+- release candidate `v1.0.0-rc.1` en brouillon ;
+- section D (recette manuelle sous Windows) et section E (démo sur une machine HTB retirée) ;
+- section F (publication 1.0.0 : identité, README vitrine, `THIRD_PARTY_NOTICES.md`, workflows release et Marketplace) ;
+- section G (annonces).
+
+À l'issue de ce plan, mettre à jour `docs/plans/v1.md` :
+- la section A est remplacée par « fait (0.3.77 et 0.3.78) » ;
+- la recette D gagne les scénarios suivants :
+  - comptes de test ;
+  - Bypass illimité et à durée choisie ;
+  - « Remplir par IA » ;
+  - Stop dans la zone de saisie ;
+  - création de projet sans dialogue ;
+  - terminal sous Windows.
+
 ## Interdits
 
 - Ne pas affaiblir la gate ni les invariants de `CLAUDE.md` (Bypass : voir lot 19, décision de l'utilisateur) ; un mot de passe de compte ne sort jamais vers un hôte autre que le sien et n'apparaît jamais dans le journal.
