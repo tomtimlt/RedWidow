@@ -358,11 +358,16 @@ Décision :
   - bandeau dans le chat « Aucun conteneur lié : l'agent n'a pas de shell » avec un bouton « Lier un conteneur » (ouvre le cockpit) ;
   - l'agent reçoit dans `mission_context` la consigne de le demander une fois, puis de continuer avec `http_request`.
 
+- **Mention d'un conteneur non lié.** Constat : `@kali-1` dans le message est ignoré si `kali-1` n'est pas lié au projet. Les mentions sont filtrées par l'allowlist du projet (`vscode/src/engine/container-prompt.ts:19-24`). Le message d'erreur actuel, « allowlist du projet, cité par @, ou désigné par # », laisse croire qu'une mention suffit.
+  - Nouveau message : « kali-1 n'est pas lié au projet : une mention @ ne suffit pas, liez-le dans le cockpit. »
+  - Quand un message mentionne `@nom` d'un conteneur existant mais non lié, le chat affiche une carte « Lier kali-1 à ce projet ? » avec les boutons « Lier » et « Ignorer ». « Lier » applique la liaison du cockpit, avec les mêmes contrôles de montage. C'est un geste humain : l'allowlist reste l'autorité.
+
 Critères (tests) :
 - `read_url` vers une cible → `web.targetUseShell` ;
 - `read_url` vers une page de documentation → autorisé ;
 - `r.jina.ai/https://<cible>` → `web.relayRefused` ;
 - bandeau présent sans conteneur et absent avec un conteneur lié ;
+- mention d'un conteneur non lié → carte « Lier » et nouveau message ; liaison refusée si le montage ne correspond pas (lot 8) ;
 - codes ajoutés à `REASON_CODES` et aux catalogues fr/en.
 
 ## Assets graphiques des nouvelles fonctionnalités
