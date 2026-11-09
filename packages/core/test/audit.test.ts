@@ -164,7 +164,8 @@ describe("journal d’audit par projet", () => {
     const files = await store.files(project);
     expect((await readFile(files[0]?.path as string, "utf8")).trim().split("\n")).toHaveLength(510);
     await store.close();
-  });
+    // 510 écritures sérialisées sur disque : lentes sur les runners Windows.
+  }, 30_000);
   it("une fermeture propre est persistée et ne déclenche pas de fausse alerte", async () => {
     const { root, store, project } = await fixture();
     await store.append(project, input);
