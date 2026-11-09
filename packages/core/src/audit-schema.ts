@@ -1,5 +1,16 @@
 import { z } from "zod";
 import type { CampaignLogView } from "./engagement/campaign-log.js";
+/** Chemin relatif admis pour une preuve du run. */
+export function isAuditEvidencePath(path: string): boolean {
+  const parts = path.split("/");
+  return (
+    !path.includes("\\") &&
+    !path.includes("\0") &&
+    parts.length >= 2 &&
+    ["outputs", "scans", "evidence"].includes(parts[0] ?? "") &&
+    parts.every((part) => part !== "" && part !== "." && part !== "..")
+  );
+}
 export const auditProjectIdSchema = z.string().uuid();
 export const auditTestSchema = z
   .object({
@@ -10,7 +21,7 @@ export const auditTestSchema = z
     observed: z.string().min(1).max(8000),
     conclusion: z.enum(["finding", "not-observed", "inconclusive"]),
     evidenceIds: z.array(z.string().min(1).max(200)).min(1).max(32),
-    /** Événements web (search_web, read_url) du run qui étayent le contrôle ; validés par le bureau. */
+    /** Références du run ou chemins de fichiers produits pendant ce run ; validés par le bureau. */
     sources: z.array(z.string().min(1).max(200)).max(32).optional(),
   })
   .strict();

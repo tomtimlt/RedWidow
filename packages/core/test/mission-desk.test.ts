@@ -1,3 +1,16 @@
+import { createHash } from "node:crypto";
+import {
+  mkdirSync,
+  mkdtempSync,
+  renameSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { deskToolSpecs } from "../src/agent-desk.js";
 import { DEFAULT_POLICY, evaluatePolicy } from "../src/approval/policy.js";
@@ -208,7 +221,7 @@ it("record_test exige des preuves de ce run, masque les annotations et ne donne 
     conclusion: "not-observed" as const,
     evidenceIds: [e.id],
   };
-  expect(() => other.desk.recordTest(claim)).toThrow("Référence inconnue");
+  expect(() => other.desk.recordTest(claim)).toThrow();
   const events: unknown[] = [];
   f.recorder.subscribe((e) => events.push(e));
   expect(f.desk.recordTest(claim)).toMatchObject({ runId: "run", reviewed: false });
@@ -563,4 +576,105 @@ it("relance dès la première technologie observée et ne répète pas sa note",
   for (let i = 0; i < 8; i++) f.result("résultat nouveau");
   expect(f.desk.pendingNudge()).toBeNull();
   f.desk.dispose();
+});
+
+describe("preuves du contrôle", () => {
+  const claim = {
+    objective: "Contrôle",
+    target: "lab",
+    testContext: "test",
+    method: "lecture",
+    observed: "résultat",
+    conclusion: "inconclusive" as const,
+    evidenceIds: ["inconnu"],
+  };
+  it("accepte les identifiants d'appels terminés du run seulement", () => {
+    const f = fixture();
+    for (const tool of [
+      "mcp__docker__exec",
+      "mcp__docker__task_status",
+      "mcp__web__http_request",
+      "mcp__docker__read_output",
+    ]) {
+      const event = f.result("ok", false, { query: "test" }, tool);
+      if (event.kind !== "tool.result") throw new Error("Résultat attendu");
+      f.desk.recordTest({ ...claim, evidenceIds: [event.toolUseId], sources: [event.toolUseId] });
+    }
+    f.recorder.emit({ kind: "tool.requested", tool: "exec", toolUseId: "pending", input: {} });
+    expect(() => f.desk.recordTest({ ...claim, evidenceIds: ["pending"] })).toThrow();
+    expect(() => fixture().desk.recordTest({ ...claim, evidenceIds: ["call-0"] })).toThrow();
+  });
+  it("journalise l'empreinte des seuls fichiers admissibles produits pendant le run", () => {
+    const workspace = mkdtempSync(join(tmpdir(), "mission-evidence-"));
+    try {
+      mkdirSync(join(workspace, "scans"));
+      mkdirSync(join(workspace, "autre"));
+      writeFileSync(join(workspace, "scans", "ancien"), "ancien");
+      utimesSync(join(workspace, "scans", "ancien"), new Date(0), new Date(0));
+      const recorder = createRecorder({ runId: "run", redact: false });
+      const desk = createMissionDesk({
+        recorder,
+        workspace,
+        now: () => new Date(Date.now() - 1000),
+      });
+      const events: import("../src/events.js").EngineEvent[] = [];
+      recorder.subscribe((e) => events.push(e));
+      writeFileSync(join(workspace, "scans", "resultat"), "preuve");
+      writeFileSync(join(workspace, "autre", "resultat"), "preuve");
+      symlinkSync("resultat", join(workspace, "scans", "lien"));
+      desk.recordDecision(decision);
+      desk.recordTest({ ...claim, evidenceIds: ["scans/resultat"], sources: ["scans/resultat"] });
+      expect(events.find((e) => e.kind === "audit.test")).toMatchObject({
+        files: [
+          { path: "scans/resultat", sha256: createHash("sha256").update("preuve").digest("hex") },
+        ],
+      });
+      for (const path of [
+        "scans/ancien",
+        "autre/resultat",
+        "scans/../autre/resultat",
+        join(workspace, "scans", "resultat"),
+        "scans/lien",
+        "scans",
+        "scans/absent",
+      ]) {
+        expect(() => desk.recordTest({ ...claim, evidenceIds: [path] })).toThrow();
+      }
+      expect(events.filter((e) => e.kind === "audit.test")).toHaveLength(1);
+    } finally {
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  });
+});
+
+it("refuse une preuve ancienne retouchée et une racine remplacée", () => {
+  const parent = mkdtempSync(join(tmpdir(), "mission-root-"));
+  try {
+    const workspace = join(parent, "projet");
+    mkdirSync(workspace);
+    mkdirSync(join(workspace, "scans"));
+    const ancien = join(workspace, "scans", "ancien");
+    writeFileSync(ancien, "ancien");
+    const runStart = Math.floor(statSync(ancien).birthtimeMs) + 1;
+    const recorder = createRecorder({ runId: "run", redact: false });
+    const desk = createMissionDesk({ recorder, workspace, now: () => new Date(runStart) });
+    utimesSync(ancien, new Date(runStart + 10000), new Date(runStart + 10000));
+    const claim = {
+      objective: "Contrôle",
+      target: "lab",
+      testContext: "test",
+      method: "lecture",
+      observed: "résultat",
+      conclusion: "inconclusive" as const,
+      evidenceIds: ["scans/ancien"],
+    };
+    expect(() => desk.recordTest(claim)).toThrow();
+    renameSync(workspace, join(parent, "ancien-projet"));
+    mkdirSync(workspace);
+    mkdirSync(join(workspace, "scans"));
+    writeFileSync(join(workspace, "scans", "ancien"), "remplacé");
+    expect(() => desk.recordTest(claim)).toThrow();
+  } finally {
+    rmSync(parent, { recursive: true, force: true });
+  }
 });

@@ -195,6 +195,18 @@ describe("identifiants collés dans les textes", () => {
     for (const secret of secrets) expect(output).not.toContain(secret);
     expect(output).toContain(REDACTED);
   });
+  it("conserve les dépôts SSH et pass suivi de deux-points", () => {
+    for (const text of [
+      "git@github.com:owner/repo.git",
+      "alice@example.org:owner/repo",
+      "tests: pass: 12",
+    ]) {
+      expect(redact(text)).toBe(text);
+      expect(hasPastedCredentials(text)).toBe(false);
+    }
+    expect(redact("pass=secret")).toBe("pass=[REDACTED]");
+    expect(hasPastedCredentials("alice@example.org:secret")).toBe(true);
+  });
   it("conserve une adresse seule et le texte après un en-tête de cookie", () => {
     expect(redact("compass=north")).toBe("compass=north");
     expect(hasPastedCredentials("Contact alice@example.com")).toBe(false);

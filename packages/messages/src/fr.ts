@@ -303,8 +303,8 @@ export const reasons: Catalog = {
   "research.noSearch": () =>
     "aucune recherche web dans ce run alors que les outils web sont exposés : chercher la pile identifiée",
   "mission.noContainer": () => "Pas de conteneur attaché : outils shell indisponibles.",
-  "mission.sourceUnknown": (p) =>
-    `source inconnue dans ce run : ${text(p.id)} n'est pas un événement search_web ou read_url`,
+  "mission.sourceUnknown": () =>
+    "source inconnue : citez l'appel d'outil ou un fichier produit dans ce run",
   "coverage.testRefUnknown": (p) =>
     `référence de test inconnue dans ce run : ${text(p.id)} n'est pas un événement audit.test`,
   "coverage.testRefRequired": (p) =>

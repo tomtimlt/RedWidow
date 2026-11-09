@@ -20,6 +20,7 @@ import type { CampaignObjective } from "./engagement/plan.js";
 import type { EngagementSheet } from "./engagement/sheet.js";
 import type { EngagementStatus } from "./engagement/store.js";
 import { type MissionDecision, missionDecisionSchema } from "./mission-decision-schema.js";
+import { evidenceWorkspace, missionEvidenceFile } from "./mission-evidence-file.js";
 import { type ProgramPace, type ProgramSheet, programSheetSchema } from "./program/sheet.js";
 import type { ProgramStatus } from "./program/store.js";
 import { CodedError, type Reason, reason } from "./reason.js";
@@ -322,6 +323,7 @@ function pageKey(url: string): string | null {
 
 export function createMissionDesk({
   recorder,
+  workspace,
   accounts,
   now = () => new Date(),
   program,
@@ -333,6 +335,7 @@ export function createMissionDesk({
   supervision = DEFAULT_SUPERVISION,
 }: {
   recorder: Recorder;
+  workspace?: string;
   accounts?: TestAccounts;
   mission?: { profile: string; containers: readonly string[] };
   /** Niveau d'encadrement : seuils de relance et point de contrôle (défaut `standard`). */
@@ -368,6 +371,7 @@ export function createMissionDesk({
   const sentNudges = new Set<string>();
   const webCalls: MissionWebCall[] = [];
   const webIds = new Set<string>();
+  const completedToolIds = new Set<string>();
   // Événements audit.test du run (citables en `testRefs`) et matrice de couverture (clé normalisée → case).
   const testIds = new Set<string>();
   const coverage = new Map<string, CoverageCell>();
@@ -381,7 +385,9 @@ export function createMissionDesk({
   let prompt = "";
   let suppliedPrompt: string | undefined;
   let decision: MissionDecision | null = null;
-  let started = now().getTime();
+  const evidenceRoot = workspace ? evidenceWorkspace(workspace) : null;
+  const runStart = now().getTime();
+  let started = runStart;
   let branchCalls = 0;
   let evicted = 0;
   const metrics = {
@@ -462,6 +468,11 @@ export function createMissionDesk({
       const call = pending.get(event.toolUseId);
       if (!call) return;
       pending.delete(event.toolUseId);
+      if (/(?:^|__)(?:exec|task_status(?:_json)?|http_request|read_output)$/.test(call.tool)) {
+        completedToolIds.add(event.toolUseId);
+        if (completedToolIds.size > MAX_ITEMS)
+          completedToolIds.delete(completedToolIds.values().next().value as string);
+      }
       const digest = fingerprint([event.isError, event.output]);
       const polling = /__task_(?:status|list)(?:_json)?$/.test(call.tool);
       const identical = !polling && outputs.get(call.key) === digest;
@@ -717,11 +728,26 @@ export function createMissionDesk({
     recordTest(raw) {
       assertOpen();
       const claim = auditTestSchema.parse(raw);
-      for (const id of claim.evidenceIds)
-        if (!observations.some((item) => item.eventId === id))
-          throw Error("Référence inconnue dans ce run.");
-      assertSources(claim.sources);
-      const event = recorder.emit({ kind: "audit.test", claim: redact(claim) });
+      const files = new Map<string, { path: string; sha256: string }>();
+      for (const [id, source] of [
+        ...claim.evidenceIds.map((id) => [id, false] as const),
+        ...(claim.sources ?? []).map((id) => [id, true] as const),
+      ]) {
+        if (
+          (!source && observations.some((item) => item.eventId === id)) ||
+          (source && webIds.has(id)) ||
+          completedToolIds.has(id)
+        )
+          continue;
+        const file = evidenceRoot ? missionEvidenceFile(evidenceRoot, id, runStart) : null;
+        if (!file) throw new CodedError("mission.sourceUnknown", { id: clip(redact(id), 200) });
+        files.set(id, file);
+      }
+      const event = recorder.emit({
+        kind: "audit.test",
+        claim: redact(claim),
+        ...(files.size > 0 && { files: redact([...files.values()]) }),
+      });
       const research = claim.conclusion === "finding" ? [] : triggers();
       const reminder =
         claim.conclusion === "finding" && !settings.coverageEveryTest

@@ -477,6 +477,7 @@ async function runWithOpencode(
     ? createMissionDesk({
         ...(context.accounts && { accounts: context.accounts }),
         recorder: context.recorder,
+        workspace: input.cwd,
         ...(context.mission && { mission: context.mission }),
         ...(context.supervision !== undefined && { supervision: context.supervision }),
         ...(context.program !== undefined && { program: context.program }),

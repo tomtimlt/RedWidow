@@ -103,7 +103,7 @@ export function deskToolSpecs(desk?: MissionDesk): DockerToolSpec[] {
       {
         name: "record_test",
         description:
-          "Annoter un contrôle réellement effectué avec objectif, cible, méthode, observations et références du run courant. Aucun changement de permissions, aucune validation humaine attribuée à l’agent. La capture des actions est automatique ; ne pas recopier les sorties entières.",
+          "Annoter un contrôle réellement effectué avec objectif, cible, méthode, observations et références du run courant : identifiants d’appels terminés, événements ou fichiers produits sous outputs/, scans/ ou evidence/. Aucun changement de permissions, aucune validation humaine attribuée à l’agent. La capture des actions est automatique ; ne pas recopier les sorties entières.",
         input: auditTestSchema.shape,
         readOnly: false,
         async run(raw) {

@@ -381,3 +381,12 @@ describe("relecture du journal", () => {
     expect(events[0]).not.toHaveProperty("summary");
   });
 });
+
+it("valide les empreintes de fichiers de audit.test", () => {
+  const validate = EVENT_VALIDATORS["audit.test"];
+  const claim = SAMPLES["audit.test"].claim;
+  expect(validate({ claim, files: [{ path: "scans/preuve", sha256: "a".repeat(64) }] })).toBeNull();
+  expect(validate({ claim, files: [{ path: "scans/preuve", sha256: "faux" }] })).not.toBeNull();
+  for (const path of ["/scans/preuve", "scans/../secret", "autre/preuve"])
+    expect(validate({ claim, files: [{ path, sha256: "a".repeat(64) }] })).not.toBeNull();
+});

@@ -1,4 +1,4 @@
-import { auditTestSchema, coverageCellsSchema } from "./audit-schema.js";
+import { auditTestSchema, coverageCellsSchema, isAuditEvidencePath } from "./audit-schema.js";
 import { type MissionDecision, missionDecisionSchema } from "./mission-decision-schema.js";
 /**
  * Modèle d'événements du moteur. Tout ce que le moteur produit passe par ici :
@@ -42,7 +42,11 @@ export interface AuthInfo {
 
 export type EventPayload =
   | { kind: "mission.noContainer"; profile: string }
-  | { kind: "audit.test"; claim: import("./audit.js").AuditTestClaim }
+  | {
+      kind: "audit.test";
+      claim: import("./audit.js").AuditTestClaim;
+      files?: { path: string; sha256: string }[];
+    }
   | { kind: "audit.coverage"; cells: import("./audit-schema.js").CoverageCell[] }
   | { kind: "run.started"; prompt: string; cwd: string }
   | {
@@ -423,9 +427,22 @@ const USAGE_FIELDS = shape({ totalTokens: "number", toolUses: "number", duration
 export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
   "mission.noContainer": shape({ profile: "string" }),
   "audit.test": (p) =>
-    auditTestSchema.safeParse(p.claim).success
-      ? null
-      : reason("event.invalidField", { field: "claim" }),
+    !auditTestSchema.safeParse(p.claim).success
+      ? reason("event.invalidField", { field: "claim" })
+      : p.files !== undefined &&
+          (!Array.isArray(p.files) ||
+            p.files.length > 64 ||
+            p.files.some(
+              (file: unknown) =>
+                typeof file !== "object" ||
+                file === null ||
+                typeof (file as { path?: unknown }).path !== "string" ||
+                !isAuditEvidencePath((file as { path: string }).path) ||
+                typeof (file as { sha256?: unknown }).sha256 !== "string" ||
+                !/^[a-f0-9]{64}$/.test((file as { sha256: string }).sha256),
+            ))
+        ? reason("event.invalidField", { field: "files" })
+        : null,
   "audit.coverage": (p) =>
     coverageCellsSchema.safeParse(p.cells).success
       ? null

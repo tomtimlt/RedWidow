@@ -40,11 +40,11 @@ const URL_CREDENTIALS = /(:\/\/[^\s:/@]+:)[^\s@/]+(@)/g;
 
 /** `password=abc`, `token: abc`, `--api-key abc` → valeur masquée. */
 const KEY_VALUE =
-  /\b((?:pass|[A-Za-z0-9_-]*(?:secret|token|passw(?:or)?d|pwd|api[-_]?key|credential|private[-_]?key|access[-_]?key))\s*[=:]\s*)(?!\[REDACTED\])("[^"]*"|'[^']*'|[^\s"',;]+)/gi;
+  /\b((?:pass\s*=|[A-Za-z0-9_-]*(?:secret|token|passw(?:or)?d|pwd|api[-_]?key|credential|private[-_]?key|access[-_]?key)\s*[=:])\s*)(?!\[REDACTED\])("[^"]*"|'[^']*'|[^\s"',;]+)/gi;
 
 /** Identifiants saisis comme texte libre : mêmes motifs pour le masquage et l’avertissement. */
 const EMAIL_PASSWORD =
-  /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}:(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s"'<>]+)/gi;
+  /(?<![A-Z0-9._%+-])[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}:(?![A-Z0-9_.-]+\/[A-Z0-9_.-]+)(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s"'<>]+)/gi;
 const MDP_VALUE =
   /\b(mdp(?:[ \t]*[=:][ \t]*|[ \t]+))(?!\[REDACTED\])(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s"',;]+)/gi;
 const COOKIE_HEADER = /\b(Cookie[ \t]*:[ \t]*)(?!\[REDACTED\])[^\r\n]+/gi;

@@ -177,8 +177,8 @@ export const reasons: Catalog = {
     `${text(p.count)} 403 or WAF refusals: search documented bypasses for the component (no target identifier in the query)`,
   "research.noSearch": () => "no web search in this run although web tools are exposed",
   "mission.noContainer": () => "No attached container: shell tools unavailable.",
-  "mission.sourceUnknown": (p) =>
-    `unknown source in this run: ${text(p.id)} is not a search_web or read_url event`,
+  "mission.sourceUnknown": () =>
+    "unknown source: cite the tool call or a file produced in this run",
   "coverage.testRefUnknown": (p) =>
     `unknown test reference in this run: ${text(p.id)} is not an audit.test event`,
   "coverage.testRefRequired": (p) =>
