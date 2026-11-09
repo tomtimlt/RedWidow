@@ -213,7 +213,9 @@ describe("pages en lecture seule : HTML", () => {
       expect(html).toContain(`<h1 id="title" class="viewer-heading"><span data-i18n=`);
       expect(html).toContain(`${headings[kind]}</span></h1>`);
       for (const id of CHAT_CONTROLS) expect(html, `${kind} ${id}`).not.toContain(`id="${id}"`);
-      expect(html).not.toMatch(/<(form|textarea|select)\b/);
+      expect(html).not.toMatch(/<(form|textarea)\b/);
+      if (kind === "monitor") expect(html).toContain('id="viewer-family"');
+      else expect(html).not.toMatch(/<select\b/);
       expect(html.match(/<input\b/g)).toHaveLength(1);
       expect(html).toContain('<input id="viewer-filter" type="search"');
       // la CSP n'autorise que les scripts de l'extension, sans script inline ni gestionnaire

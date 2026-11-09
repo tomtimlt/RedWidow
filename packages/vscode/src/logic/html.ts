@@ -659,6 +659,7 @@ export function viewerHtml({
 <button id="viewer-copy" type="button" class="ghost" ${attr("title", "Copier tout le contenu visible")}>${icon("copy")}<span class="btn-text"><span ${label("Copier")}</span></span></button>
 <button id="viewer-export" type="button" class="ghost" ${attr("title", exportTitle)}>${icon("download")}<span class="btn-text"><span ${label("Exporter")}</span></span></button>
 <button id="viewer-follow" type="button" class="ghost" aria-pressed="true"${kind === "report" ? " hidden" : ""} ${attr("title", "Désactiver le suivi de la fin pour défiler librement")}>${icon("down")}<span class="btn-text"><span ${label("Suivre la fin")}</span></span></button>
+${kind === "monitor" ? `<select id="viewer-family" aria-label="Famille des outils"><option value="all">Tout</option><option value="shell">Shell</option><option value="web">Web</option></select>` : ""}
 <input id="viewer-filter" type="search" autocomplete="off" spellcheck="false" ${attr("placeholder", "Filtrer les lignes…")} ${attr("aria-label", "Filtrer les lignes")}>
 <span id="viewer-count" class="mon-count"></span>
 <span id="viewer-status" class="sr-only" role="status" aria-live="polite"></span>

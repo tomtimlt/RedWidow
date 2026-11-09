@@ -439,10 +439,7 @@ export function monitorChatView(view: ChatView, toolUseId?: string): ChatView {
   return {
     ...view,
     items: view.items.filter(
-      (item) =>
-        item.kind === "tool" &&
-        (item.tool === EXEGOL_EXEC_TOOL || item.tool.startsWith(KALI_TOOL_PREFIX)) &&
-        (toolUseId === undefined || item.toolUseId === toolUseId),
+      (item) => item.kind === "tool" && (toolUseId === undefined || item.toolUseId === toolUseId),
     ),
     controls: null,
     history: [],

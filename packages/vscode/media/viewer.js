@@ -21,6 +21,7 @@
   const countEl = $("viewer-count");
   const statusEl = $("viewer-status");
   const filterEl = $("viewer-filter");
+  const familyEl = $("viewer-family");
   const followBtn = $("viewer-follow");
   const copyBtn = $("viewer-copy");
   const exportBtn = $("viewer-export");
@@ -100,7 +101,9 @@
           line.el.hidden = !line.shown;
           if (line.shown) lineHits++;
         }
-        record.shown = cmdHit || lineHits > 0;
+        record.shown =
+          (cmdHit || lineHits > 0) &&
+          (!familyEl || familyEl.value === "all" || record.row.family === familyEl.value);
         record.li.hidden = !record.shown;
         if (record.out) record.out.hidden = q !== "" && lineHits === 0;
         if (record.tick) record.tick.hidden = !record.shown;
@@ -138,12 +141,13 @@
     emptyEl.textContent = none
       ? t("Aucune ligne ne contient ce texte.")
       : kind === "monitor"
-        ? t("Aucun appel Exegol / Kali dans cette conversation.")
+        ? t("Aucun appel d’outil dans cette conversation.")
         : kind === "watch"
           ? t("Aucune sortie à afficher.")
           : t("Aucun constat dans ce brouillon.");
   }
   filterEl.addEventListener("input", applyFilter);
+  familyEl?.addEventListener("change", applyFilter);
 
   // ───────────────────────────── Commandes (Monitor, Sortie) ─────────────────────────────
   function buildRecord(row) {

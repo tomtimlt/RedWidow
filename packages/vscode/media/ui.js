@@ -79,23 +79,51 @@
    * ce que la vue porte (statut ; ni durée ni volumétrie). `pending` : une autorisation attend, à
    * donner dans le chat.
    */
-  function monitorRows(view) {
+  function toolFamily(tool) {
+    if (toolIcon(tool) === "terminal") return "shell";
+    if (/^(?:mcp__web__|WebSearch$|WebFetch$)/.test(tool)) return "web";
+    return "other";
+  }
+
+  function monitorRows(view, family = "all") {
     const pending = new Set(
       view && Array.isArray(view.approvals) ? view.approvals.map((a) => a.toolUseId) : [],
     );
     const rows = itemsOf(view)
       .filter(
-        (it) =>
-          it &&
-          it.kind === "tool" &&
-          (it.tool === EXEC_TOOL ||
-            (typeof it.tool === "string" && it.tool.startsWith(KALI_PREFIX))),
+        (it) => it && it.kind === "tool" && (family === "all" || toolFamily(it.tool) === family),
       )
       .map((it) => {
         const raw = typeof it.input === "string" ? it.input : "";
-        const { container, command } = execCommand(raw);
+        const { container, command: shellCommand } = execCommand(raw);
+        let command = shellCommand;
+        let failed = false;
+        try {
+          const input = JSON.parse(raw);
+          if (/http_request$/.test(it.tool)) {
+            let result = {};
+            try {
+              result = JSON.parse(it.output ?? "{}");
+            } catch {}
+            command = `${input.method ?? "GET"} ${input.url ?? ""}`;
+            if (result.status !== undefined) command += ` → ${result.status}`;
+            if (typeof result.body === "string")
+              command += ` (${new TextEncoder().encode(result.body).length} octets)`;
+            failed =
+              result.status >= 400 ||
+              /program\.(?:paced|halted)|web\.timeout|pace\.edgeBanSuspected/.test(it.output ?? "");
+          } else if (toolFamily(it.tool) === "web")
+            command = input.url ?? input.query ?? shellCommand;
+          else if (/read_output$|mcp__projectfiles__/.test(it.tool))
+            command =
+              [input.path ?? input.file ?? input.filePath, input.pattern ?? input.query]
+                .filter(Boolean)
+                .join(" · ") || shellCommand;
+        } catch {}
+
         return {
           id: it.id,
+          family: toolFamily(it.tool),
           toolUseId: typeof it.toolUseId === "string" ? it.toolUseId : "",
           container,
           command,
@@ -104,6 +132,7 @@
           pending: pending.has(it.toolUseId),
           running: it.status === "pending" && it.decision !== "deny",
           ...execState(it),
+          ...(failed && { status: t("erreur"), tone: "err" }),
         };
       });
     return rows.slice(-MONITOR_MAX_ROWS);

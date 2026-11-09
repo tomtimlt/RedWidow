@@ -35,7 +35,7 @@ interface UiApi {
   EXEC_TOOL: string;
   toolIcon(tool: unknown): string;
   historyBadge(entry: { current: boolean }, running: boolean): string | null;
-  monitorRows(view: unknown): MonitorRow[];
+  monitorRows(view: unknown, family?: string): MonitorRow[];
   inputRecall(
     state: { index: number; draft: string; entries: string[]; current: string },
     key: string,
@@ -403,7 +403,7 @@ describe("monitorRows (lot P4) : lecture seule, une ligne par appel Exegol", () 
     ...extra,
   });
 
-  it("ne garde que les appels d'exec Exegol", () => {
+  it("garde tous les appels d’outils", () => {
     const rows = ui.monitorRows({
       items: [
         { id: 1, kind: "tool", tool: "Bash", toolUseId: "b", input: "ls", status: "ok" },
@@ -413,7 +413,7 @@ describe("monitorRows (lot P4) : lecture seule, une ligne par appel Exegol", () 
       ],
       approvals: [],
     });
-    expect(rows.map((r) => r.id)).toEqual([4]);
+    expect(rows.map((r) => r.id)).toEqual([1, 4]);
   });
 
   it("garde un outil préfixé mcp__kali__ et lit le conteneur dans le JSON", () => {
@@ -441,7 +441,8 @@ describe("monitorRows (lot P4) : lecture seule, une ligne par appel Exegol", () 
       ],
       approvals: [],
     });
-    expect(rows.map((r) => r.id)).toEqual([3, 4]);
+    expect(rows.map((r) => r.id)).toEqual([1, 2, 3, 4]);
+    rows.splice(0, 2);
     expect(rows[0]?.container).toBe("kali-box");
     expect(rows[0]?.command).toBe(JSON.stringify({ target: "10.0.0.1", ports: "80" }));
     expect(rows[1]?.container).toBe("");
@@ -524,6 +525,30 @@ describe("monitorRows (lot P4) : lecture seule, une ligne par appel Exegol", () 
     expect(rows).toHaveLength(300);
     expect(rows[0]?.id).toBe(51);
     expect(rows.at(-1)?.id).toBe(350);
+  });
+
+  it("affiche HTTP et exec et filtre Shell localement", () => {
+    const view = {
+      items: [
+        exec(1, "e", ["id"]),
+        {
+          id: 2,
+          kind: "tool",
+          tool: "mcp__web__http_request",
+          toolUseId: "w",
+          input: JSON.stringify({ method: "GET", url: "https://example.test/app" }),
+          output: JSON.stringify({ status: 403, body: "refus" }),
+          status: "ok",
+        },
+      ],
+    };
+    expect(ui.monitorRows(view)).toHaveLength(2);
+    expect(ui.monitorRows(view)[1]).toMatchObject({
+      command: "GET https://example.test/app → 403 (5 octets)",
+      tone: "err",
+    });
+    expect(ui.monitorRows(view, "shell").map((r) => r.id)).toEqual([1]);
+    expect(ui.monitorRows(view, "web").map((r) => r.id)).toEqual([2]);
   });
 
   it("vue absente ou incomplète : aucune ligne, sans erreur", () => {
