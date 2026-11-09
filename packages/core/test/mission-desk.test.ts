@@ -388,7 +388,7 @@ describe("continuationPrompt", () => {
     f.desk.recordCoverage([{ ...cell, state: "negative", testRefs: [t.eventId] }]);
     expect(f.desk.continuationPrompt()).toBeNull();
   });
-  it("non null avec une case untested ou blocked, ou une note « à explorer »", () => {
+  it("ne relance que les cases untested ou blocked avançables", () => {
     const f = fixture();
     const e = f.result("HTTP 403");
     const t = f.desk.recordTest({
@@ -412,11 +412,50 @@ describe("continuationPrompt", () => {
       },
     ]);
     const out = f.desk.continuationPrompt();
-    expect(out?.openLeads).toBe(3);
+    expect(out?.openLeads).toBe(2);
     expect(out?.prompt).toContain("sans conclure");
     expect(out?.prompt).toContain("/api/users");
     expect(out?.prompt).toContain("/admin");
-    expect(out?.prompt).toContain("/upload");
+    expect(out?.prompt).not.toContain("/upload");
+  });
+  it("attend les blocages externes uniquement quand aucune piste avançable ne subsiste", () => {
+    const f = fixture();
+    f.desk.recordCoverage([
+      { ...cell, state: "prerequisite", note: "Compte requis" },
+      { surface: "/site", testClass: "authz", state: "blocked", note: "Domaine mort" },
+      { surface: "/autre", testClass: "authz", state: "untested" },
+    ]);
+    expect(f.desk.continuationPrompt()?.openLeads).toBe(1);
+    expect(f.desk.waitingHuman()).toBeNull();
+    f.desk.recordCoverage([
+      { surface: "/autre", testClass: "authz", state: "blocked", note: "Action humaine requise" },
+    ]);
+    expect(f.desk.continuationPrompt()).toBeNull();
+    expect(f.desk.waitingHuman()).toMatchObject({
+      openLeads: 3,
+      reasons: expect.arrayContaining([expect.stringContaining("Domaine mort")]),
+    });
+  });
+  it("attend un compte pour une case non testée et ignore la recherche web générique", () => {
+    const f = fixture();
+    f.recorder.emit({
+      kind: "session.started",
+      sessionId: "s",
+      model: "m",
+      tools: ["mcp__web__search_web"],
+    });
+    f.desk.recordCoverage([{ ...cell, state: "untested", note: "Compte requis" }]);
+    expect(f.desk.continuationPrompt()).toBeNull();
+    expect(f.desk.waitingHuman()).toMatchObject({ openLeads: 1 });
+    f.desk.recordCoverage([{ ...cell, state: "prerequisite", note: "Compte requis" }]);
+    expect(f.desk.continuationPrompt()).toBeNull();
+    expect(f.desk.waitingHuman()).toMatchObject({ openLeads: 1 });
+  });
+  it("continue une case lorsque le compte est fourni", () => {
+    const f = fixture();
+    f.desk.recordCoverage([{ ...cell, state: "untested", note: "Compte fourni, test à faire" }]);
+    expect(f.desk.continuationPrompt()?.openLeads).toBe(1);
+    expect(f.desk.waitingHuman()).toBeNull();
   });
   it("plafonne la liste à 5 pistes mais compte toutes les pistes ouvertes", () => {
     const f = fixture();

@@ -614,6 +614,7 @@ async function runWithOpencodeWithDesk(
     started: boolean;
     failed: boolean;
     text: string | null;
+    tools: Set<string>;
     done: () => void;
   }
   let turn: Turn | undefined;
@@ -847,6 +848,7 @@ async function runWithOpencodeWithDesk(
     const state = obj(part.state);
     const status = str(state.status);
     if (status === undefined || status === "pending") return;
+    if (!call.finished) turn?.tools.add(call.key);
     const requested = emitRequested(call);
     if ((status === "completed" || status === "error") && !call.finished) {
       call.finished = true;
@@ -1213,6 +1215,7 @@ async function runWithOpencodeWithDesk(
     promptIterator = prompts;
     let continuation: { prompt: string; openLeads: number } | null = null;
     let autoContinues = 0;
+    let emptyTurns = 0;
     for (;;) {
       let prompt: AgentPrompt | undefined;
       let continuing = false;
@@ -1223,6 +1226,7 @@ async function runWithOpencodeWithDesk(
         if (next.done) break;
         prompt = next.value;
         autoContinues = 0;
+        emptyTurns = 0;
       } else {
         // Un message humain déjà en attente passe avant la continuation et remet le compteur à zéro.
         const next = await Promise.race([
@@ -1234,6 +1238,7 @@ async function runWithOpencodeWithDesk(
           if (!next.done) {
             prompt = next.value;
             autoContinues = 0;
+            emptyTurns = 0;
           }
         }
         if (prompt === undefined) {
@@ -1259,7 +1264,7 @@ async function runWithOpencodeWithDesk(
       const finished = new Promise<void>((resolve) => {
         finish = resolve;
       });
-      turn = { started: false, failed: false, text: null, done: finish };
+      turn = { started: false, failed: false, text: null, tools: new Set(), done: finish };
       retries.clear();
       lastStepTokens = undefined;
       reportedErrors.delete("terminal-provider-retry");
@@ -1326,18 +1331,24 @@ async function runWithOpencodeWithDesk(
         root.id,
       );
       if (current.failed) break;
-      // Fin normale du tour : continuation automatique tant que des pistes restent ouvertes, dans la
-      // limite du plafond. Annulation, budget, erreur fournisseur et arrêt d'urgence l'interdisent.
+      emptyTurns = current.tools.size > 0 ? 0 : emptyTurns + 1;
+      // L'attente humaine et la stagnation restent visibles dans le journal.
       if (
         supervisionSettings.autoContinue &&
         missionDesk !== undefined &&
-        autoContinues < supervisionSettings.maxAutoContinues &&
         (input.maxTurns === undefined || turns < input.maxTurns) &&
         !abort.signal.aborted &&
         !budgetTripped &&
         !engagementHalted()
-      )
-        continuation = missionDesk.continuationPrompt();
+      ) {
+        const waiting = missionDesk.waitingHuman();
+        if (waiting) recorder.emit({ kind: "continuation.waitingHuman", ...waiting }, root.id);
+        else if (autoContinues < supervisionSettings.maxAutoContinues) {
+          const next = missionDesk.continuationPrompt();
+          if (next && emptyTurns >= 2) recorder.emit({ kind: "continuation.stalled" }, root.id);
+          else continuation = next;
+        }
+      }
     }
   } catch (err) {
     fail(errorInfo(err));

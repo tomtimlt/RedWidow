@@ -7,6 +7,7 @@ import {
   harness,
   SESSION,
   type Stage,
+  toolPart,
   userMessage,
 } from "./helpers.js";
 
@@ -43,6 +44,13 @@ const normalTurn = (s: Stage, i: number) => {
   s.emit("message.updated", userMessage(`u${i}`));
   s.emit("message.updated", assistantMessage(`a${i}`));
   s.idle();
+};
+
+const toolTurn = (s: Stage, i: number) => {
+  s.emit("message.part.updated", {
+    part: toolPart(`call${i}`, "read", { status: "running", input: {} }, `a${i}`),
+  });
+  normalTurn(s, i);
 };
 
 /** Referme toutes les pistes : un test observé, puis la case marquée `negative` avec sa référence. */
@@ -82,10 +90,14 @@ describe("continuation automatique (OpenCode)", () => {
     const t = setup();
     const h = harness();
     const fake = fakeOpencode(
-      scripts(30, (s) => {
-        t.desk().recordCoverage([{ ...cell, state: "untested" }]);
-        normalTurn(s, 0);
-      }),
+      scripts(
+        30,
+        (s) => {
+          t.desk().recordCoverage([{ ...cell, state: "untested" }]);
+          toolTurn(s, 0);
+        },
+        toolTurn,
+      ),
     );
     const seenPrompts: string[] = [];
     const summary = await h.run(t.runner(fake.createClient), {}, undefined, {
@@ -105,6 +117,86 @@ describe("continuation automatique (OpenCode)", () => {
     expect(second).toContain("<mission_context>");
     // La consigne de mission d'origine n'est pas remplacée par la relance.
     expect(new Set(seenPrompts)).toEqual(new Set(["go"]));
+  });
+
+  it("arrête après deux tours sans outil et journalise le motif", async () => {
+    const t = setup();
+    const h = harness();
+    const fake = fakeOpencode(
+      scripts(5, (s) => {
+        t.desk().recordCoverage([{ ...cell, state: "untested" }]);
+        normalTurn(s, 0);
+      }),
+    );
+    const summary = await h.run(t.runner(fake.createClient), {}, undefined, relentless);
+    expect(summary.turns).toBe(2);
+    expect(of(h.events, "continuation.auto")).toHaveLength(1);
+    expect(of(h.events, "continuation.stalled")).toHaveLength(1);
+  });
+
+  it("un appel d'outil remet à zéro les tours sans outil", async () => {
+    const t = setup();
+    const h = harness();
+    const fake = fakeOpencode(
+      scripts(
+        6,
+        (s) => {
+          t.desk().recordCoverage([{ ...cell, state: "untested" }]);
+          normalTurn(s, 0);
+        },
+        (s, i) => {
+          if (i === 1) toolTurn(s, i);
+          else normalTurn(s, i);
+        },
+      ),
+    );
+    const summary = await h.run(t.runner(fake.createClient), {}, undefined, relentless);
+    expect(summary.turns).toBe(4);
+    expect(of(h.events, "continuation.auto")).toHaveLength(3);
+    expect(of(h.events, "continuation.stalled")).toHaveLength(1);
+  });
+
+  it("ne compte pas le rejeu d'un outil déjà terminé", async () => {
+    const t = setup();
+    const h = harness();
+    const completed = toolPart(
+      "ancien",
+      "read",
+      { status: "completed", input: {}, output: "ok" },
+      "a0",
+    );
+    const fake = fakeOpencode(
+      scripts(
+        6,
+        (s) => {
+          t.desk().recordCoverage([{ ...cell, state: "untested" }]);
+          s.emit("message.part.updated", { part: completed });
+          normalTurn(s, 0);
+        },
+        (s, i) => {
+          s.emit("message.part.updated", { part: completed });
+          normalTurn(s, i);
+        },
+      ),
+    );
+    const summary = await h.run(t.runner(fake.createClient), {}, undefined, relentless);
+    expect(summary.turns).toBe(3);
+    expect(of(h.events, "continuation.auto")).toHaveLength(2);
+    expect(of(h.events, "continuation.stalled")).toHaveLength(1);
+  });
+
+  it("attend un humain lorsque seul un prérequis subsiste", async () => {
+    const t = setup();
+    const h = harness();
+    const fake = fakeOpencode(
+      scripts(3, (s) => {
+        t.desk().recordCoverage([{ ...cell, state: "prerequisite", note: "Compte requis" }]);
+        normalTurn(s, 0);
+      }),
+    );
+    await h.run(t.runner(fake.createClient), {}, undefined, relentless);
+    expect(of(h.events, "continuation.auto")).toHaveLength(0);
+    expect(of(h.events, "continuation.waitingHuman")).toMatchObject([{ openLeads: 1 }]);
   });
 
   it("s'arrête dès qu'aucune piste n'est ouverte", async () => {
@@ -227,10 +319,14 @@ describe("continuation automatique (OpenCode)", () => {
     const t = setup();
     const h = harness();
     const fake = fakeOpencode(
-      scripts(10, (s) => {
-        t.desk().recordCoverage([{ ...cell, state: "untested" }]);
-        normalTurn(s, 0);
-      }),
+      scripts(
+        10,
+        (s) => {
+          t.desk().recordCoverage([{ ...cell, state: "untested" }]);
+          toolTurn(s, 0);
+        },
+        toolTurn,
+      ),
     );
     const summary = await h.run(
       t.runner(fake.createClient),

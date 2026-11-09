@@ -72,6 +72,7 @@ import {
   setPrimary,
 } from "../logic/cockpit.js";
 import { removeListedContainer } from "../logic/container-remove.js";
+import { notifyWaitingHuman } from "../logic/continuation-notification.js";
 import { createEngineController } from "../logic/controller.js";
 import { prepareEditorShellWorkspace } from "../logic/editor-shell-workspace.js";
 import type { Provider } from "../logic/effort.js";
@@ -724,7 +725,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         scheduleSessions();
         scheduleFindingsRefresh();
       },
-      onObservedEvent: (event) => observe(id, event),
+      onObservedEvent: (event) => {
+        observe(id, event);
+        void notifyWaitingHuman(
+          event,
+          (message, action) => vscode.window.showInformationMessage(message, action),
+          () => revealChat(id),
+        );
+      },
       onMissionContext: (snapshot) => {
         if (observedRuns.get(id)?.runId === snapshot.runId) injectedContexts.set(id, snapshot);
       },

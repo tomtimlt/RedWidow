@@ -160,6 +160,12 @@ const SAMPLES: { [K in EventKind]: Extract<EventPayload, { kind: K }> } = {
     phase: "progress",
     usage: { totalTokens: 1, toolUses: 2, durationMs: 3 },
   },
+  "continuation.waitingHuman": {
+    kind: "continuation.waitingHuman",
+    openLeads: 1,
+    reasons: ["prérequis"],
+  },
+  "continuation.stalled": { kind: "continuation.stalled" },
   "continuation.auto": { kind: "continuation.auto", count: 1, max: 20, openLeads: 3 },
   "context.usage": { kind: "context.usage", usedTokens: 1200, windowTokens: 200000 },
   "rate.limited": { kind: "rate.limited", status: "allowed_warning", utilization: 0.9 },

@@ -138,6 +138,10 @@ export function formatEvent(
         : null;
     case "continuation.auto":
       return `${tag("yellow", "relance")} ${paint("dim", t(`tour ré-amorcé automatiquement ${e.count}/${e.max} · ${e.openLeads} piste(s) ouverte(s)`, `turn automatically continued ${e.count}/${e.max} · ${e.openLeads} open lead(s)`))}`;
+    case "continuation.waitingHuman":
+      return `${tag("yellow", "attente")} ${stripControl(e.reasons.join(" ; "))}`;
+    case "continuation.stalled":
+      return `${tag("yellow", "arrêt")} ${t("deux tours sans outil", "two turns without tools")}`;
     case "context.usage":
       return verbose
         ? `${tag("dim", "contexte")} ${paint("dim", `${e.usedTokens}${e.windowTokens === undefined ? "" : ` / ${e.windowTokens}`} tokens`)}`

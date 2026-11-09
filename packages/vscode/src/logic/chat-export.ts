@@ -42,6 +42,12 @@ export function exportChat(
       case "continuation.auto":
         text = `Continuation automatique : ${event.count}/${event.max}`;
         break;
+      case "continuation.waitingHuman":
+        text = `En attente d’une action humaine : ${event.reasons.join(" ; ")}`;
+        break;
+      case "continuation.stalled":
+        text = "Continuation arrêtée : deux tours sans outil.";
+        break;
       case "pace.halted":
         text = `Arrêt de rythme : ${event.host} (${event.cause})`;
         break;

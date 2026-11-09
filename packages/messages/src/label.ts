@@ -122,6 +122,14 @@ export function eventLabel(e: EngineEvent, options: LabelOptions = {}): string {
       return locale === "en"
         ? `Automatic continuation ${e.count}/${e.max} · ${e.openLeads} open lead(s)`
         : `Relance automatique ${e.count}/${e.max} · ${e.openLeads} piste(s) ouverte(s)`;
+    case "continuation.waitingHuman":
+      return locale === "en"
+        ? `Waiting for human action: ${e.reasons.join("; ")}`
+        : `En attente d’une action humaine : ${e.reasons.join(" ; ")}`;
+    case "continuation.stalled":
+      return locale === "en"
+        ? "Continuation stopped: two turns without tools"
+        : "Continuation arrêtée : deux tours sans outil";
     case "context.usage":
       return `${t.context} : ${e.usedTokens}${e.windowTokens === undefined ? "" : ` / ${e.windowTokens}`}`;
     case "agent.thinking":

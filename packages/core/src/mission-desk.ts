@@ -209,6 +209,7 @@ export interface MissionDesk {
    * qui liste au plus 5 pistes et `openLeads`, le nombre total de pistes ouvertes. Pure : n'émet rien.
    */
   continuationPrompt(): { prompt: string; openLeads: number } | null;
+  waitingHuman(): { openLeads: number; reasons: string[] } | null;
   pendingNudge(): string | null;
   dispose(): void;
 }
@@ -239,8 +240,9 @@ const MAX_COVERAGE_CELLS = 1000;
 const MAX_UNTESTED_LISTED = 20;
 /** Pistes listées au plus dans la consigne de continuation. */
 const MAX_CONTINUATION_LEADS = 5;
-/** Note de case qui marque une piste à reprendre, quel que soit l'état de la case. */
-const TO_EXPLORE = /(?:^|[^\p{L}\p{N}])(?:[àa] explorer|to explore)(?![\p{L}\p{N}])/iu;
+// Motifs signalant une dépendance externe que l'agent ne peut pas résoudre seul.
+const EXTERNAL_BLOCK =
+  /(?:domaine|domain|site|h[oô]te|host).{0,40}(?:mort|inaccessible|expir[ée]|hors ligne|dead|down|unreachable)|(?:compte|account|identifiant|credential|mot de passe|password|connexion|login|authentification|authentication).{0,40}(?:requis|nécessaire|manquant|absent|non fourni|attend|required|needed|missing|not provided)|(?:attend|besoin|requiert|nécessite|requires?|needs?|waiting for).{0,40}(?:humain|utilisateur|user|human|compte|account|identifiant|credential|mot de passe|password)|action.{0,20}(?:humaine|human|utilisateur|user)/iu;
 /** Résultats d'une même approche jugés quasi identiques : tailles à ± 5 % ou mêmes 200 premiers caractères. */
 const SIMILAR_SIZE = 0.05;
 const SIMILAR_HEAD = 200;
@@ -594,6 +596,54 @@ export function createMissionDesk({
       if (!observations.some((item) => item.eventId === id) && !testIds.has(id))
         throw new CodedError("campaign.evidenceUnknown", { id: clip(redact(id), 200) });
   }
+  const continuationState = () => {
+    assertOpen();
+    try {
+      if (halted?.() ?? false) return null;
+    } catch {
+      return null;
+    }
+    const leads: string[] = [];
+    const reasons: string[] = [];
+    let openLeads = 0;
+    let waiting = 0;
+    const add = (list: string[], text: string) => {
+      if (list.length < MAX_CONTINUATION_LEADS) list.push(clip(redact(text), 300));
+    };
+    for (const cell of coverage.values()) {
+      const label = [cell.surface, cell.parameter, cell.testClass].filter(Boolean).join(" / ");
+      const note = cell.note ? ` (${clip(cell.note, 120)})` : "";
+      if (
+        cell.state === "prerequisite" ||
+        ((cell.state === "blocked" || cell.state === "untested") &&
+          cell.note &&
+          EXTERNAL_BLOCK.test(cell.note))
+      ) {
+        waiting++;
+        add(
+          reasons,
+          `${label} : ${cell.state === "prerequisite" ? "prérequis manquant" : "blocage externe"}${note}`,
+        );
+      } else if (cell.state === "untested" || cell.state === "blocked") {
+        openLeads++;
+        add(
+          leads,
+          `${label} : ${cell.state === "untested" ? "case non testée" : "case bloquée, à débloquer"}${note}`,
+        );
+      }
+    }
+    if (
+      (waiting === 0 || openLeads > 0) &&
+      webExposed &&
+      webCalls.length === 0 &&
+      webIds.size === 0
+    ) {
+      openLeads++;
+      add(leads, "aucune recherche web faite alors que les outils web sont disponibles");
+    }
+    return { leads, openLeads, waiting, reasons };
+  };
+
   return {
     pendingNudge() {
       if (disposed || completedResponses === 0 || completedResponses - lastNudgeAt < 8) return null;
@@ -1075,35 +1125,22 @@ export function createMissionDesk({
       return packet;
     },
     continuationPrompt() {
-      assertOpen();
-      // Arrêt d'urgence posé ou illisible : jamais de ré-amorçage (fail-closed).
-      try {
-        if (halted?.() ?? false) return null;
-      } catch {
-        return null;
-      }
-      const leads: string[] = [];
-      let openLeads = 0;
-      const add = (text: string) => {
-        openLeads++;
-        if (leads.length < MAX_CONTINUATION_LEADS) leads.push(clip(redact(text), 300));
-      };
-      if (webExposed && webCalls.length === 0 && webIds.size === 0)
-        add("aucune recherche web faite alors que les outils web sont disponibles");
-      for (const cell of coverage.values()) {
-        const label = [cell.surface, cell.parameter, cell.testClass].filter(Boolean).join(" / ");
-        const note = cell.note ? ` (${clip(cell.note, 120)})` : "";
-        if (cell.state === "untested") add(`${label} : case non testée${note}`);
-        else if (cell.state === "blocked") add(`${label} : case bloquée, à débloquer${note}`);
-        else if (cell.state !== "confirmed" && cell.note && TO_EXPLORE.test(cell.note))
-          add(`${label} : à explorer${note}`);
-      }
-      if (openLeads === 0) return null;
-      const more = openLeads > leads.length ? `\n- … et ${openLeads - leads.length} autre(s)` : "";
+      const state = continuationState();
+      if (!state || state.leads.length === 0) return null;
+      const more =
+        state.openLeads > state.leads.length
+          ? `\n- … et ${state.openLeads - state.leads.length} autre(s)`
+          : "";
       return {
-        openLeads,
-        prompt: `Continuation automatique : ${openLeads} piste(s) ouverte(s). Reprends sans conclure ; change d'approche si la précédente stagne.\n${leads.map((lead) => `- ${lead}`).join("\n")}${more}\nNe conclus qu'une fois chaque case testée ou justifiée (bloquée, prérequis manquant) et la pile identifiée recherchée sur le web. Les autorisations restent celles de la demande initiale.`,
+        openLeads: state.openLeads,
+        prompt: `Continuation automatique : ${state.openLeads} piste(s) ouverte(s). Reprends sans conclure ; change d'approche si la précédente stagne.\n${state.leads.map((lead) => `- ${lead}`).join("\n")}${more}\nNe conclus qu'une fois chaque case testée ou justifiée (bloquée, prérequis manquant) et la pile identifiée recherchée sur le web. Les autorisations restent celles de la demande initiale.`,
       };
+    },
+    waitingHuman() {
+      const state = continuationState();
+      return state && state.openLeads === 0 && state.waiting > 0
+        ? { openLeads: state.waiting, reasons: state.reasons }
+        : null;
     },
     dispose() {
       disposed = true;

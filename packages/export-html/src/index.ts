@@ -63,6 +63,8 @@ export const KIND_CLASS: Record<EventKind, string> = {
   "teardown.state": "k-tool",
   "turn.finished": "k-run",
   "continuation.auto": "k-run",
+  "continuation.waitingHuman": "k-run",
+  "continuation.stalled": "k-run",
   "context.usage": "k-run",
   "auth.info": "k-run",
   "auth.status": "k-warn",

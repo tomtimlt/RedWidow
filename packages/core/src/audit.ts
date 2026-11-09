@@ -39,6 +39,8 @@ const retained = new Set([
   "turn.started",
   "turn.finished",
   "continuation.auto",
+  "continuation.waitingHuman",
+  "continuation.stalled",
   "pace.adjusted",
   "pace.halted",
   "session.started",

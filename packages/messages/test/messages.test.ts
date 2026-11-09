@@ -256,6 +256,12 @@ describe("eventLabel", () => {
       status: "success",
       result: null,
     },
+    "continuation.waitingHuman": {
+      kind: "continuation.waitingHuman",
+      openLeads: 1,
+      reasons: ["prérequis"],
+    },
+    "continuation.stalled": { kind: "continuation.stalled" },
     "continuation.auto": { kind: "continuation.auto", count: 1, max: 20, openLeads: 3 },
     "context.usage": { kind: "context.usage", usedTokens: 1200, windowTokens: 200000 },
     "agent.text": { kind: "agent.text", text: "bonjour" },

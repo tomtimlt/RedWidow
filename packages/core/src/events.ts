@@ -253,6 +253,8 @@ export type EventPayload =
       max: number;
       openLeads: number;
     }
+  | { kind: "continuation.waitingHuman"; openLeads: number; reasons: string[] }
+  | { kind: "continuation.stalled" }
   | {
       /**
        * Occupation du contexte au dernier appel modèle du tour (jamais un cumul).
@@ -568,6 +570,8 @@ export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
     result: "string|null",
   }),
   "continuation.auto": shape({ count: "uint", max: "uint", openLeads: "uint" }),
+  "continuation.waitingHuman": shape({ openLeads: "uint", reasons: "string[]" }),
+  "continuation.stalled": shape({}),
   "context.usage": shape({ usedTokens: "uint", windowTokens: "uint?" }),
   "run.finished": (p) =>
     shape({

@@ -14,6 +14,9 @@ export const hostEn: Record<string, string> = {
   "Identifiant de chat refusé.": "Chat identifier rejected.",
   "Quatre chats au maximum.": "A maximum of four chats is allowed.",
   "Ouvrez un dossier avant de lancer {0}.": "Open a folder before starting {0}.",
+  "RedWidow attend une action de votre part : {reasons}":
+    "RedWidow is waiting for you to act: {reasons}",
+  "Ouvrir le chat": "Open chat",
   "Toujours autoriser": "Always allow",
   "{0} approbation en attente": "{0} approval pending",
   "{0} approbations en attente": "{0} approvals pending",
