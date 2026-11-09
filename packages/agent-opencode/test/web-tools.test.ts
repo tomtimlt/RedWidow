@@ -1,6 +1,13 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { createApprovalGate, createRecorder, DEFAULT_POLICY, webToolSpecs } from "@warband/core";
+import {
+  appendDeskNote,
+  createApprovalGate,
+  createMissionDesk,
+  createRecorder,
+  DEFAULT_POLICY,
+  webToolSpecs,
+} from "@warband/core";
 import { expect, it, vi } from "vitest";
 import { startToolServer, webToolset } from "../src/index.js";
 
@@ -8,6 +15,7 @@ it("les outils web partagés restent soumis à la gate malgré leur annotation l
   let allow = false;
   const ask = vi.fn(async () => ({ decision: allow ? ("allow" as const) : ("deny" as const) }));
   const recorder = createRecorder();
+  const desk = createMissionDesk({ recorder });
   const gate = createApprovalGate({ policy: DEFAULT_POLICY, recorder, ask });
   const network = vi.fn(async () => ({
     status: 200,
@@ -33,6 +41,7 @@ it("les outils web partagés restent soumis à la gate malgré leur annotation l
     toolsets: [
       {
         name: "web",
+        decorateResult: (output) => appendDeskNote(output, desk),
         tools: webToolSpecs({
           lookup: async () => [{ address: "8.8.8.8", family: 4 }],
           transport: network,
@@ -66,12 +75,28 @@ it("les outils web partagés restent soumis à la gate malgré leur annotation l
     });
     expect(denied.isError).toBe(true);
     expect(network).not.toHaveBeenCalled();
+    recorder.emit({
+      kind: "tool.requested",
+      toolUseId: "earlier",
+      tool: "mcp__web__http_request",
+      input: {},
+    });
+    recorder.emit({
+      kind: "tool.result",
+      toolUseId: "earlier",
+      output: "Server: nginx/1.2.3",
+      isError: false,
+      truncated: false,
+      bytes: 20,
+    });
     allow = true;
     const allowed = await client.callTool({
       name: "search_web",
       arguments: { query: "documentation GitHub 10.0.0.5" },
     });
     expect(allowed.isError).not.toBe(true);
+    expect(JSON.stringify(allowed.content)).toContain("Note du bureau");
+    expect(JSON.stringify(allowed.content)).toContain("nginx");
     expect(network).toHaveBeenCalledOnce();
     expect(ask).toHaveBeenCalledTimes(2);
     const privateUrl = await client.callTool({
@@ -86,6 +111,7 @@ it("les outils web partagés restent soumis à la gate malgré leur annotation l
         .map((spec) => spec.name),
     ).toEqual(["search_web", "read_url", "http_request"]);
   } finally {
+    desk.dispose();
     await client.close();
     await server.close();
   }

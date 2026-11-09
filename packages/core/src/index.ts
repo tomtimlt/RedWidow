@@ -42,6 +42,7 @@ export * from "./kali/tool-specs.js";
 export * from "./methodology.js";
 export { missionDecisionSchema } from "./mission-decision-schema.js";
 export * from "./mission-desk.js";
+export * from "./mission-nudge.js";
 export * from "./output.js";
 export * from "./pace/controller.js";
 export * from "./pace/registry.js";

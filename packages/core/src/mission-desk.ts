@@ -209,6 +209,7 @@ export interface MissionDesk {
    * qui liste au plus 5 pistes et `openLeads`, le nombre total de pistes ouvertes. Pure : n'émet rien.
    */
   continuationPrompt(): { prompt: string; openLeads: number } | null;
+  pendingNudge(): string | null;
   dispose(): void;
 }
 /** Valeur citée telle que l'agent la fournit : aucun `verified`. */
@@ -349,6 +350,9 @@ export function createMissionDesk({
   >();
   // Journal des appels terminés pour `researchTriggers` ; appels web (identifiants citables en `sources`).
   const researchLog: ResearchEvent[] = [];
+  let completedResponses = 0;
+  let lastNudgeAt = -8;
+  const sentNudges = new Set<string>();
   const webCalls: MissionWebCall[] = [];
   const webIds = new Set<string>();
   // Événements audit.test du run (citables en `testRefs`) et matrice de couverture (clé normalisée → case).
@@ -465,6 +469,7 @@ export function createMissionDesk({
       metrics.repeatedErrors = event.isError ? metrics.repeatedErrors + 1 : 0;
       if (event.isError) metrics.toolErrors++;
       const excerpt = clip(redact(event.output), 3000);
+      completedResponses++;
       researchLog.push({
         tool: call.tool,
         input: call.input,
@@ -583,6 +588,38 @@ export function createMissionDesk({
         throw new CodedError("campaign.evidenceUnknown", { id: clip(redact(id), 200) });
   }
   return {
+    pendingNudge() {
+      if (disposed || completedResponses === 0 || completedResponses - lastNudgeAt < 8) return null;
+      for (const trigger of triggers()) {
+        if (trigger.code === "research.noSearch" && completedResponses < 8) continue;
+        const params = trigger.params ?? {};
+        const key = `${trigger.code}:${String(params.tech ?? params.tool ?? "")}`;
+        if (sentNudges.has(key)) continue;
+        const note =
+          trigger.code === "research.techUnsearched"
+            ? `Technologie observée : ${params.tech}. Chercher sa documentation et ses limites avant la prochaine sonde.`
+            : trigger.code === "research.noSearch"
+              ? "Aucune recherche web effectuée : confronter les observations aux sources techniques avant de poursuivre."
+              : trigger.code === "research.blocked"
+                ? "Blocages répétés : arrêter les répétitions et privilégier une source passive ou une autre hypothèse."
+                : `Erreur répétée sur ${params.tool} : rechercher sa cause avant de répéter l’approche.`;
+        sentNudges.add(key);
+        lastNudgeAt = completedResponses;
+        return clip(note, 300);
+      }
+      for (const cell of coverage.values()) {
+        if (cell.state !== "untested") continue;
+        const key = `coverage:${coverageKey(cell)}`;
+        if (sentNudges.has(key)) continue;
+        sentNudges.add(key);
+        lastNudgeAt = completedResponses;
+        return clip(
+          `Piste non testée : ${cell.surface} / ${cell.parameter ?? ""} / ${cell.testClass}. Choisir une hypothèse discriminante et consigner son origine.`,
+          300,
+        );
+      }
+      return null;
+    },
     beginTurn(text) {
       assertOpen();
       // Le moteur fournit la consigne originale avant les métadonnées de conteneur

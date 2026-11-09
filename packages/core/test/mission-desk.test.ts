@@ -508,3 +508,20 @@ describe("réduction du paquet", () => {
     expect(packet.coverage.counts.untested).toBe(15);
   });
 });
+
+it("relance dès la première technologie observée et ne répète pas sa note", () => {
+  const f = fixture();
+  f.result(
+    JSON.stringify({ headers: { server: "nginx/1.2.3" } }),
+    false,
+    { query: "service" },
+    "mcp__web__http_request",
+  );
+  const first = f.desk.pendingNudge();
+  expect(first).toContain("nginx");
+  expect(first?.length).toBeLessThanOrEqual(300);
+  expect(f.desk.pendingNudge()).toBeNull();
+  for (let i = 0; i < 8; i++) f.result("résultat nouveau");
+  expect(f.desk.pendingNudge()).toBeNull();
+  f.desk.dispose();
+});

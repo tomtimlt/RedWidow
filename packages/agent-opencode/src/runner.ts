@@ -8,6 +8,7 @@ import {
   type AgentRunner,
   type ApprovalOutcome,
   type AuthMode,
+  appendDeskNote,
   CodedError,
   capOutput,
   createMissionDesk,
@@ -1063,6 +1064,9 @@ async function runWithOpencodeWithDesk(
       name: set.name,
       ...(set.instructions && { instructions: set.instructions }),
       tools: set.create({ recorder, ...(missionDesk && { missionDesk }) }),
+      ...(["web", "exegol", "kali", "projectfiles"].includes(set.name) && {
+        decorateResult: (output: string) => appendDeskNote(output, missionDesk),
+      }),
     }));
     const webAvailable = specs.some(
       (set) =>

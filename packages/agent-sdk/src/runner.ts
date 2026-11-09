@@ -15,6 +15,7 @@ import {
   type AgentRunner,
   type ApprovalOutcome,
   type AuthInfo,
+  appendDeskNote,
   BASH_TOOL,
   CodedError,
   capOutput,
@@ -549,6 +550,24 @@ async function runWithSdkWithDesk(
       resolveCall,
       resolveParent: (toolName, args, extra) => resolveCall(toolName, args, extra).parentId,
     });
+    if (["web", "exegol", "kali", "projectfiles"].includes(set.name)) {
+      for (const tool of tools) {
+        const handler = tool.handler;
+        tool.handler = async (...args) => {
+          const result = await handler(...args);
+          const last = result.content.findLastIndex((item) => item.type === "text");
+          if (last < 0) return result;
+          return {
+            ...result,
+            content: result.content.map((item, index) =>
+              index === last && item.type === "text"
+                ? { ...item, text: appendDeskNote(item.text, missionDesk) }
+                : item,
+            ),
+          };
+        };
+      }
+    }
     if (
       set.name === "web" &&
       ["search_web", "read_url"].every((name) => tools.some((tool) => tool.name === name))

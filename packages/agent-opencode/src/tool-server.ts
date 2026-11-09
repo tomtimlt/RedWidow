@@ -10,6 +10,7 @@ export interface ServedToolset {
   name: string;
   instructions?: string;
   tools: DockerToolSpec[];
+  decorateResult?: (output: string) => string;
 }
 
 /** Résultat de la garde d'un appel : autorisé (avec son contexte causal) ou refusé (texte pour le modèle). */
@@ -82,7 +83,7 @@ function buildMcp(set: ServedToolset, guard: ToolGuard): McpServer {
       },
       async (args: unknown, extra: { signal?: AbortSignal }) => {
         const text = (value: string, isError = false) => ({
-          content: [{ type: "text" as const, text: value }],
+          content: [{ type: "text" as const, text: set.decorateResult?.(value) ?? value }],
           ...(isError && { isError: true }),
         });
         try {

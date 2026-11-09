@@ -65,6 +65,15 @@ export function detectTechnologies(output: string): Tech[] {
       return;
     found.push(tech);
   };
+  try {
+    const response = JSON.parse(output) as { headers?: Record<string, unknown> };
+    for (const key of ["server", "x-powered-by"]) {
+      const value = response?.headers?.[key];
+      if (typeof value === "string") add(parseProduct(value));
+    }
+  } catch {
+    /* Une sortie texte reste analysée ci-dessous. */
+  }
   for (const header of output.matchAll(/^\s*(?:server|x-powered-by):[ \t]*([^\r\n]+)/gim))
     add(parseProduct(header[1] ?? ""));
   for (const meta of output.matchAll(/<meta\b[^>]*>/gi)) {
