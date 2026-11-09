@@ -124,6 +124,16 @@ export function formatTraceReport(report: TraceReport, locale: Locale = DEFAULT_
       );
   }
 
+  const d = w.derivation;
+  out.push(
+    `  ${t("Dérivé / générique", "Derived / generic")} : ${d.derived} / ${d.generic} (${d.percent} %)`,
+  );
+  for (const row of d.genericPaths)
+    out.push(`  ${t("chemin générique", "generic path")} : ${clean(row.path)} × ${row.calls}`);
+  out.push(
+    `  ${t("Familles de technique observées (heuristique)", "Observed technique families (heuristic)")} : ${d.techniqueFamilies.length} (${d.techniqueFamilies.map(clean).join(", ")})`,
+  );
+
   out.push("", t("6. Classe de blocage (indicatif)", "6. Blocking class (indicative)"));
   const dom = report.blockClass.dominant;
   out.push(

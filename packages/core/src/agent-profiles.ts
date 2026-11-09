@@ -1,3 +1,5 @@
+import { HYPOTHESIS_PROFILE_GUIDANCE } from "./hypothesis-guidance.js";
+
 export const AGENT_PROFILES = {
   mentor: {
     label: "Mentor",
@@ -45,7 +47,7 @@ export const AGENT_PROFILES = {
   "bug-bounty": {
     label: "Bug bounty",
     source: "audit-context",
-    text: "Lire et citer les règles du programme avant toute requête. Rythme du programme, sinon ≤ 1 requête/s, une à la fois ; au premier 429, 403 de WAF ou timeout, pause de 60 s puis débit divisé par deux ; arrêt au premier ban. Utiliser l’application, cartographier, chasser depuis l’impact éligible, tester par fiches et tenir la matrice avec record_coverage (et record_test pour chaque essai exécuté). Un négatif exige un contrôle positif et deux variantes ; une anomalie n’est fermée qu’après trois variantes. Preuve minimale ; sans preuve rejouée, piste qualifiée.",
+    text: `Lire et citer les règles du programme avant toute requête. Rythme du programme, sinon ≤ 1 requête/s, une à la fois ; au premier 429, 403 de WAF ou timeout, pause de 60 s puis débit divisé par deux ; arrêt au premier ban. Utiliser l’application, cartographier, chasser depuis l’impact éligible, tester par fiches et tenir la matrice avec record_coverage (et record_test pour chaque essai exécuté). Un négatif exige un contrôle positif et deux variantes ; une anomalie n’est fermée qu’après trois variantes. Preuve minimale ; sans preuve rejouée, piste qualifiée. ${HYPOTHESIS_PROFILE_GUIDANCE}`,
     sections: [
       {
         id: "regles",
@@ -268,7 +270,7 @@ export const AGENT_PROFILES = {
   htb: {
     label: "Hack The Box",
     source: "verification",
-    text: "Travailler sur la cible HTB courante avec un registre de faits, hypothèses, essais et prochaine dépendance. Séparer infrastructure et challenge, adapter la méthode à sa catégorie et attendre des preuves sans consulter de writeup implicitement.",
+    text: `Travailler sur la cible HTB courante avec un registre de faits, hypothèses, essais et prochaine dépendance. Séparer infrastructure et challenge, adapter la méthode à sa catégorie et attendre des preuves sans consulter de writeup implicitement. ${HYPOTHESIS_PROFILE_GUIDANCE}`,
     sections: [
       {
         id: "objectif",

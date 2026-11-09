@@ -102,7 +102,17 @@ export interface TraceReport {
     top: TraceTruncatedResult[];
   };
   repetition: { approaches: number; repeated: TraceRepeat[] };
-  web: { searches: TraceWebSearch[]; coverage: TraceCoverage | null };
+  web: {
+    searches: TraceWebSearch[];
+    coverage: TraceCoverage | null;
+    derivation: {
+      derived: number;
+      generic: number;
+      percent: number;
+      genericPaths: { path: string; calls: number }[];
+      techniqueFamilies: string[];
+    };
+  };
   blockClass: {
     dominant: BlockClass | null;
     scores: Record<BlockClass, boolean>;
@@ -214,6 +224,12 @@ export function analyzeTrace(
   const resultsInOrder: TraceTruncatedResult[] = [];
   const searches: TraceWebSearch[] = [];
   const cells = new Map<string, TraceCoverage["remaining"][number]>();
+  const observedPaths = new Set<string>();
+  const observedTokens = new Set<string>();
+  const genericPaths = new Map<string, number>();
+  const techniqueFamilies = new Set<string>();
+  let derived = 0,
+    generic = 0;
   let calls = 0;
   let turns = 0;
   let lastDecisionSeq: number | null = null;
@@ -224,6 +240,39 @@ export function analyzeTrace(
   for (const e of sorted) {
     switch (e.kind) {
       case "tool.requested": {
+        if (/http_request$/.test(e.tool) && typeof e.input.url === "string") {
+          try {
+            const url = new URL(e.input.url);
+            const parameters = [...url.searchParams];
+            const known =
+              observedPaths.has(url.pathname) ||
+              parameters.some(
+                ([key, value]) =>
+                  observedTokens.has(key) || (value !== "" && observedTokens.has(value)),
+              );
+            if (known) derived++;
+            else {
+              generic++;
+              genericPaths.set(url.pathname, (genericPaths.get(url.pathname) ?? 0) + 1);
+            }
+            const signature = `${url.pathname} ${parameters.map(([key]) => key).join(" ")}`;
+            const family = /cache/i.test(signature)
+              ? "cache"
+              : /login|auth|session|token/i.test(signature)
+                ? "authentification"
+                : /order|cart|pay|checkout|workflow/i.test(signature)
+                  ? "logique métier"
+                  : /user|account|role|\bid\b/i.test(signature)
+                    ? "contrôle d’accès"
+                    : /\.env|robots|favicon|health/i.test(signature)
+                      ? "reconnaissance"
+                      : "observation HTTP";
+            techniqueFamilies.add(family);
+          } catch {
+            /* URL invalide : aucune classification inventée. */
+          }
+        } else if (commandOf(e.input))
+          techniqueFamilies.add(`shell:${firstWord(commandOf(e.input) ?? "")}`);
         calls++;
         callsSinceDecision++;
         requested.set(e.toolUseId, { seq: e.seq, tool: e.tool, input: e.input });
@@ -239,6 +288,16 @@ export function analyzeTrace(
         break;
       }
       case "tool.result": {
+        for (const match of e.output.matchAll(/https?:\/\/[^\s"'<>\\]+/g)) {
+          try {
+            observedPaths.add(new URL(match[0]).pathname);
+          } catch {}
+        }
+        for (const match of e.output.matchAll(
+          /(?<![\w/:])\/(?!\/)[a-zA-Z0-9_~!$&()*+;=:@%.,/?#-]*/g,
+        ))
+          observedPaths.add(match[0].replace(/[.,;]+$/, ""));
+        for (const match of e.output.matchAll(/[a-zA-Z0-9_~-]+/g)) observedTokens.add(match[0]);
         const call = requested.get(e.toolUseId);
         const loggedBytes = Buffer.byteLength(e.output);
         const signs: TruncationSign[] = [];
@@ -372,7 +431,20 @@ export function analyzeTrace(
       top,
     },
     repetition: { approaches: approaches.size, repeated },
-    web: { searches, coverage },
+    web: {
+      searches,
+      coverage,
+      derivation: {
+        derived,
+        generic,
+        percent: derived + generic === 0 ? 0 : Math.round((100 * derived) / (derived + generic)),
+        genericPaths: [...genericPaths]
+          .map(([path, calls]) => ({ path, calls }))
+          .sort((a, b) => b.calls - a.calls || a.path.localeCompare(b.path))
+          .slice(0, 5),
+        techniqueFamilies: [...techniqueFamilies].sort(),
+      },
+    },
     blockClass: { dominant, scores },
   };
 }
