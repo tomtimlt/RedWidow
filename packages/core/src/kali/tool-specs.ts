@@ -460,6 +460,13 @@ const TOOLS: readonly KaliToolDef[] = [
   },
 ];
 
+/** Outils opérationnels issus du catalogue canonique ; les lectures de santé restent libres. */
+export const KALI_OPERATIONAL_TOOLS: ReadonlySet<string> = new Set(
+  TOOLS.filter((tool) => tool.name !== "server_health").map(
+    (tool) => `${KALI_TOOL_PREFIX}${tool.name}`,
+  ),
+);
+
 function spec(def: {
   name: string;
   description: string;

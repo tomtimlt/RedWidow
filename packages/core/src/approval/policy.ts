@@ -1,5 +1,8 @@
+import type { AgentProfile } from "../agent-profiles.js";
+import type { CampaignOverview } from "../engagement/campaign-progress.js";
 import type { EngagementStatus } from "../engagement/store.js";
-import { KALI_EXECUTE_TOOL } from "../kali/tool-specs.js";
+import { KALI_EXECUTE_TOOL, KALI_OPERATIONAL_TOOLS } from "../kali/tool-specs.js";
+import { missingProfileDocument } from "../profile-documents.js";
 import { missingProgramFlags } from "../program/flags.js";
 import {
   HTTP_REQUEST_TOOL,
@@ -291,6 +294,8 @@ export interface EngagementView {
 export type EngagementProvider = () => EngagementView;
 
 export interface PolicyContext {
+  profile?: AgentProfile;
+  campaign?: () => CampaignOverview;
   /** Engagement red team du projet actif ; absent → aucun effet. Fixé par le code appelant. */
   engagement?: EngagementProvider;
   /** Fiche programme du projet actif ; absent → aucun effet de périmètre. Fixé par le code appelant. */
@@ -408,7 +413,14 @@ export function evaluatePolicy(
 ): PolicyVerdict {
   const base = evaluateUncapped(policy, tool, input, ctx);
   const programmed = evaluateProgram(tool, input, base, ctx);
-  return capExternal(policy, tool, input, evaluateEngagement(tool, input, programmed, ctx));
+  const missing =
+    programmed.decision === "deny"
+      ? null
+      : missingProfileDocument(isUnanalyzableShellTool(tool) ? BASH_TOOL : tool, ctx);
+  const documented: PolicyVerdict = missing
+    ? { decision: "deny", reason: missing, rule: null }
+    : programmed;
+  return capExternal(policy, tool, input, evaluateEngagement(tool, input, documented, ctx));
 }
 
 /** Vue de l'engagement ; un fournisseur qui lève vaut arrêt actif (fail-closed, ADR 0041). */
@@ -445,7 +457,11 @@ function evaluateEngagement(
   const approved = view.status.state === "approved" ? view.status.applied : undefined;
   if (!view.halted && approved === undefined) return base;
   const targets = programTargets(tool, input);
-  if (targets === null) return base;
+  if (targets === null) {
+    if (view.halted && KALI_OPERATIONAL_TOOLS.has(tool))
+      return { decision: "deny", reason: reason("engagement.halted", { tool }), rule: null };
+    return base;
+  }
   const isWebTool = tool === READ_URL_TOOL || tool === HTTP_REQUEST_TOOL;
   const { hosts } = targets;
   if (view.halted) {

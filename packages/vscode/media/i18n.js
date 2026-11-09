@@ -122,6 +122,8 @@
 
   // packages/messages/src/ui-domains/chat.ts
   var chatEn = {
+    Pentest: "Pentest",
+    "Hack The Box / CTF": "Hack The Box / CTF",
     "Aucun conteneur lié : l'agent n'a pas de shell": "No linked container: the agent has no shell",
     "Lier un conteneur": "Link a container",
     "Lier {0} à ce projet ?": "Link {0} to this project?",

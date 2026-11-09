@@ -359,7 +359,7 @@ export const reasons: Catalog = {
   "program.digestMismatch": (p) =>
     `le brouillon courant a changé (empreinte ${text(p.actual)}, attendue ${text(p.expected)}) : relire « program show » avant d'approuver`,
   "program.required": () =>
-    "http_request exige une fiche programme approuvée pour le projet actif (« program show », puis « program approve »)",
+    "Le profil Bug bounty exige une fiche programme approuvée pour le projet actif (« program show », puis « program approve »)",
   "pace.edgeBanSuspected": (p) =>
     `Bannissement d’edge suspecté : arrêter toute requête vers ${p.host} pendant au moins cinq minutes. Passer à une source passive ou à un autre groupe réseau.`,
   "program.paced": (p) =>
@@ -374,6 +374,7 @@ export const reasons: Catalog = {
         : "fiche d'engagement : brouillon illisible, fiche non appliquée",
   "engagement.invalid": (p) =>
     `fiche d'engagement invalide${p.field ? ` (champ : ${text(p.field)})` : ""} : autorisation, fenêtre, périmètre, infrastructure distincte du périmètre, exclusions, règles, white team et politique OSINT attendus, chacun cité`,
+  "engagement.required": () => "Le profil Red Team exige une fiche d’engagement validée.",
   "engagement.absent": () => "aucune fiche d'engagement à traiter pour ce projet",
   "engagement.digestRequired": () =>
     "empreinte requise : relire « engagement show », puis relancer « engagement approve --digest <empreinte> »",

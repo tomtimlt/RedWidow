@@ -1,4 +1,4 @@
-import { AGENT_PROFILES, MCP_CATALOG } from "@warband/core";
+import { AGENT_PROFILES, DEFAULT_AGENT_PROFILE, MCP_CATALOG } from "@warband/core";
 import type { Provider } from "./effort.js";
 import type { ChatSettings } from "./settings.js";
 
@@ -16,7 +16,7 @@ export interface ChatSelection {
   webSearch: boolean;
 }
 export const emptySelection = (): ChatSelection => ({
-  profile: null,
+  profile: DEFAULT_AGENT_PROFILE,
   integrations: [],
   burp: false,
   webSearch: false,

@@ -434,7 +434,7 @@
         "warband.profile": {
           "type": "string",
           "enum": ["", "mentor", "bug-bounty", "out-of-box", "red-team", "htb"],
-          "default": "",
+          "default": "out-of-box",
           "scope": "machine",
           "description": "%config.profile%"
         },

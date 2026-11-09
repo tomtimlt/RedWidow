@@ -794,6 +794,32 @@ credentialWarning.notice(
   "Identifiant détecté : il a été masqué dans les journaux. Utilisez la page Comptes de test pour que l'agent puisse s'en servir.",
 );
 const PAGES = [
+  chatPage(
+    "chat-profils",
+    [
+      {
+        type: "view",
+        view: {
+          ...chatView({ conversation: false }),
+          capabilities: {
+            providers: [{ id: "claude", label: "Fournisseur" }],
+            provider: "claude",
+            selection: { profile: "out-of-box", integrations: [], burp: false, webSearch: false },
+            skills: ["out-of-box", "htb", "bug-bounty", "red-team", "mentor"],
+            integrations: [],
+            burp: false,
+            available: {
+              skills: ["out-of-box", "htb", "bug-bounty", "red-team", "mentor"],
+              integrations: [],
+              burp: false,
+            },
+          },
+        },
+      },
+      { ...CONTAINERS, linkedCount: 1 },
+    ],
+    { click: "composer-menu-btn", profileMenu: true },
+  ),
   chatPage("chat-identifiant-detecte", [
     { type: "view", view: credentialWarning.view() },
     CONTAINERS,
@@ -1091,6 +1117,18 @@ try {
             )
               throw new Error("Actions de liaison incorrectes");
           }
+        }
+        if (page.profileMenu) {
+          const text = await tab.locator("#composer-resources").innerText();
+          for (const label of [
+            "Pentest",
+            "Hack The Box / CTF",
+            "Bug bounty",
+            "Red Team — Expert",
+            "Mentor",
+          ])
+            if (!text.includes(label)) throw new Error(`Profil absent : ${label}`);
+          if (text.includes("Out of the box")) throw new Error("Ancien libellé de profil");
         }
         // Captures stables : animations et transitions figées à leur début.
         await tab.evaluate(() => {

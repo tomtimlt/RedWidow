@@ -52,7 +52,7 @@ describe("ressources du chat : configuration, activation et choix distincts", ()
       ...config,
       capabilities: { providers: [], skills: [], integrations: [], webSearch: false },
     };
-    expect(allowedSelection(disabled, chosen)).toEqual(emptySelection());
+    expect(allowedSelection(disabled, chosen)).toEqual({ ...emptySelection(), profile: null });
     expect(config.integrations).toHaveLength(2);
     expect(config.burp).toBeDefined();
   });

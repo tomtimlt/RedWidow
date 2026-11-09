@@ -15,9 +15,11 @@ import {
   createRecorder,
   createRedactor,
   createTestAccounts,
+  DEFAULT_AGENT_PROFILE,
   deskInstructions,
   errorInfo,
   INTEGRATION_GUIDANCE,
+  isAgentProfile,
   killOwnTree,
   LEARNING_POLICY,
   LEARNING_SYSTEM_PROMPT,
@@ -266,7 +268,14 @@ export function runEngine({
           policy,
           recorder,
           // Claude exige Git Bash sous Windows : le shell est analysable comme POSIX (comme la CLI).
-          workspace: { cwd, posixShell: true },
+          workspace: {
+            cwd,
+            posixShell: true,
+            ...(!learning && {
+              profile: isAgentProfile(params.profile) ? params.profile : DEFAULT_AGENT_PROFILE,
+            }),
+            ...(!learning && campaign && { campaign: () => campaign.overview() }),
+          },
           // Sans `ask` en apprentissage : un verdict `ask` imprévu est refusé (approval.noAsker).
           ...(!learning && { ask: approvals }),
           bypass: mirror,

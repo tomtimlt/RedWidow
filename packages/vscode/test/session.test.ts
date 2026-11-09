@@ -182,6 +182,7 @@ describe("session de chat", () => {
     await t.session.send("bonjour");
     expect(t.f.started).toEqual({
       cwd: "/w",
+      profile: "out-of-box",
       auth: "subscription",
       provider: "claude",
       model: "m",
@@ -1549,7 +1550,7 @@ describe("isolation des chats", () => {
     expect(c.session.view().controls).toMatchObject({ model: null, effort: null });
     await b.session.send("b");
     expect(b.f.started).toMatchObject({ integrations: [], webSearch: false });
-    expect(b.f.started).not.toHaveProperty("profile");
+    expect(b.f.started).toHaveProperty("profile", "out-of-box");
     a.session.dispose();
     b.session.dispose();
     c.session.dispose();
@@ -2191,7 +2192,7 @@ describe("ressources choisies dans chaque conversation", () => {
     t.session.reset();
     await t.session.send("Nouvelle conversation");
     expect(t.f.started).toMatchObject({ integrations: [], webSearch: false });
-    expect(t.f.started).not.toHaveProperty("profile");
+    expect(t.f.started).toHaveProperty("profile", "out-of-box");
     t.session.dispose();
   });
   it("le mode Apprentissage exclut les ressources du chat même si elles sont choisies", async () => {

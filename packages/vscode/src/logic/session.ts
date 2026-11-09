@@ -9,7 +9,12 @@ import type {
   Reason,
   SupervisionLevel,
 } from "@warband/core";
-import { AGENT_PROFILES, hasPastedCredentials, parseSupervision } from "@warband/core";
+import {
+  AGENT_PROFILES,
+  DEFAULT_AGENT_PROFILE,
+  hasPastedCredentials,
+  parseSupervision,
+} from "@warband/core";
 import { formatReason, getUiLocale, t } from "@warband/messages";
 import { alwaysConfirmText, answerFor, type Choice, cleanText, toCard } from "./approval.js";
 import { PRODUCT_NAME } from "./brand.js";
@@ -704,7 +709,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       ...(history && { journalDir: history.files.dir }),
       ...(!learning && settings.burp && { burp: settings.burp }),
       ...(!learning && settings.integrations && { integrations: settings.integrations }),
-      ...(!learning && settings.profile && { profile: settings.profile }),
+      ...(!learning && { profile: settings.profile ?? DEFAULT_AGENT_PROFILE }),
       ...(settings.webSearch !== undefined && { webSearch: !learning && settings.webSearch }),
       ...(!transferring && sessionId !== undefined && { resume: sessionId }),
       // Le mode exclut `systemPrompt` (ADR 0010) : la consigne vient du moteur, jamais de l'UI.

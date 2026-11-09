@@ -83,9 +83,33 @@ const scripts = (
   rest: (s: Stage, i: number) => void = normalTurn,
 ) => Array.from({ length: count }, (_, i) => (s: Stage) => (i === 0 ? first(s) : rest(s, i)));
 
-const relentless: Partial<RunContext> = { supervision: "relentless" };
+// La continuation issue d’une matrice obligatoire appartient au profil Bug bounty.
+const relentless: Partial<RunContext> = {
+  supervision: "relentless",
+  mission: { profile: "bug-bounty", containers: ["laboratoire"] },
+};
 
 describe("continuation automatique (OpenCode)", () => {
+  it.each(["out-of-box", "htb"])(
+    "%s : une matrice facultative ne force pas un nouveau tour",
+    async (profile) => {
+      const h = harness();
+      const t = setup();
+      const fake = fakeOpencode([
+        (stage) => {
+          t.desk().recordCoverage([{ ...cell, state: "untested" }]);
+          toolTurn(stage, 0);
+        },
+      ]);
+      const summary = await h.run(t.runner(fake.createClient), {}, undefined, {
+        ...relentless,
+        mission: { profile, containers: ["laboratoire"] },
+      });
+      expect(summary).toMatchObject({ status: "success", turns: 1 });
+      expect(of(h.events, "continuation.auto")).toHaveLength(0);
+    },
+  );
+
   it("ré-amorce un tour après fin normale jusqu'à maxAutoContinues, puis s'arrête", async () => {
     const t = setup();
     const h = harness();

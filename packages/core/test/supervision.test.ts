@@ -12,7 +12,11 @@ import {
 
 function fixture(level?: SupervisionLevel) {
   const recorder = createRecorder({ runId: "run", redact: false });
-  const desk = createMissionDesk({ recorder, ...(level !== undefined && { supervision: level }) });
+  const desk = createMissionDesk({
+    recorder,
+    mission: { profile: "bug-bounty", containers: ["laboratoire"] },
+    ...(level !== undefined && { supervision: level }),
+  });
   let n = 0;
   let lastId = "";
   const call = (

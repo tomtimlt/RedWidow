@@ -151,6 +151,7 @@ export const REASON_CODES = [
   "engagement.unreadable",
   "engagement.invalid",
   "engagement.absent",
+  "engagement.required",
   "engagement.digestRequired",
   "engagement.digestMismatch",
   "engagement.halted",

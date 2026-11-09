@@ -353,6 +353,7 @@ export function createMissionDesk({
   campaign?: CampaignPort;
 }): MissionDesk {
   const settings = SUPERVISION_SETTINGS[supervision];
+  const requiresCoverage = mission?.profile === "bug-bounty";
   const noContainer =
     mission !== undefined &&
     ["bug-bounty", "htb", "red-team", "out-of-box"].includes(mission.profile) &&
@@ -585,6 +586,7 @@ export function createMissionDesk({
   }
   /** Relance non bloquante : cases encore `untested` au moment d'une conclusion. */
   function untestedReminder(): Reason | undefined {
+    if (!requiresCoverage) return undefined;
     const summary = coverageSummary();
     if (summary.counts.untested === 0) return undefined;
     const examples = summary.untested
@@ -639,7 +641,7 @@ export function createMissionDesk({
           reasons,
           `${label} : ${cell.state === "prerequisite" ? "prérequis manquant" : "blocage externe"}${note}`,
         );
-      } else if (cell.state === "untested" || cell.state === "blocked") {
+      } else if (requiresCoverage && (cell.state === "untested" || cell.state === "blocked")) {
         openLeads++;
         add(
           leads,
@@ -679,7 +681,7 @@ export function createMissionDesk({
         lastNudgeAt = completedResponses;
         return clip(note, 300);
       }
-      for (const cell of coverage.values()) {
+      for (const cell of requiresCoverage ? coverage.values() : []) {
         if (cell.state !== "untested") continue;
         const key = `coverage:${coverageKey(cell)}`;
         if (sentNudges.has(key)) continue;
@@ -750,7 +752,7 @@ export function createMissionDesk({
       });
       const research = claim.conclusion === "finding" ? [] : triggers();
       const reminder =
-        claim.conclusion === "finding" && !settings.coverageEveryTest
+        claim.conclusion === "finding" && (!requiresCoverage || !settings.coverageEveryTest)
           ? undefined
           : untestedReminder();
       const due = checkpoint();
@@ -1168,7 +1170,7 @@ export function createMissionDesk({
           : "";
       return {
         openLeads: state.openLeads,
-        prompt: `Continuation automatique : ${state.openLeads} piste(s) ouverte(s). Reprends sans conclure ; change d'approche si la précédente stagne.\n${state.leads.map((lead) => `- ${lead}`).join("\n")}${more}\nNe conclus qu'une fois chaque case testée ou justifiée (bloquée, prérequis manquant) et la pile identifiée recherchée sur le web. Les autorisations restent celles de la demande initiale.`,
+        prompt: `Continuation automatique : ${state.openLeads} piste(s) ouverte(s). Reprends sans conclure ; change d'approche si la précédente stagne.\n${state.leads.map((lead) => `- ${lead}`).join("\n")}${more}\n${requiresCoverage ? "Ne conclus qu'une fois chaque case testée ou justifiée (bloquée, prérequis manquant) et la pile identifiée recherchée sur le web." : "Étaye les pistes utiles et confronte la pile identifiée aux sources techniques avant le bilan."} Les autorisations restent celles de la demande initiale.`,
       };
     },
     waitingHuman() {

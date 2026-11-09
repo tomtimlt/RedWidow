@@ -229,7 +229,7 @@ export const reasons: Catalog = {
   "program.digestMismatch": (p) =>
     `the current draft changed (hash ${text(p.actual)}, expected ${text(p.expected)}): re-read 'program show' before approving`,
   "program.required": () =>
-    "http_request requires an approved program sheet for the active project ('program show', then 'program approve')",
+    "The Bug bounty profile requires an approved program sheet for the active project ('program show', then 'program approve')",
   "pace.edgeBanSuspected": (p) =>
     `Suspected edge ban: stop every request to ${p.host} for at least five minutes. Switch to a passive source or another network group.`,
   "program.paced": (p) =>
@@ -244,6 +244,7 @@ export const reasons: Catalog = {
         : "engagement sheet: unreadable draft, sheet not applied",
   "engagement.invalid": (p) =>
     `invalid engagement sheet${p.field ? ` (field: ${text(p.field)})` : ""}: expected authorization, window, scope, infrastructure distinct from scope, exclusions, rules, white team and OSINT policy, each cited`,
+  "engagement.required": () => "The Red Team profile requires an approved engagement sheet.",
   "engagement.absent": () => "no engagement sheet to handle for this project",
   "engagement.digestRequired": () =>
     "hash required: re-read 'engagement show', then run 'engagement approve --digest <hash>'",

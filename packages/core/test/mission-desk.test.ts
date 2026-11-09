@@ -20,7 +20,11 @@ import { createRecorder } from "../src/recorder.js";
 function fixture() {
   let clock = 0;
   const recorder = createRecorder({ runId: "run", redact: false });
-  const desk = createMissionDesk({ recorder, now: () => new Date(clock) });
+  const desk = createMissionDesk({
+    recorder,
+    now: () => new Date(clock),
+    mission: { profile: "bug-bounty", containers: ["laboratoire"] },
+  });
   let n = 0;
   function result(output: string, isError = false, input = { query: "service" }, tool = "read") {
     const toolUseId = `call-${n++}`;

@@ -1,5 +1,6 @@
 export * from "./agent-desk.js";
 export * from "./agent-profile-skill.js";
+export { agentProfileLabel, DEFAULT_AGENT_PROFILE } from "./agent-profiles.js";
 export * from "./approval/bypass.js";
 export * from "./approval/gate.js";
 export * from "./approval/paths.js";
@@ -50,6 +51,7 @@ export * from "./process/lines.js";
 export * from "./process/resolve.js";
 export * from "./process/run.js";
 export * from "./process/terminate.js";
+export * from "./profile-documents.js";
 export * from "./program/flags.js";
 export * from "./program/scope.js";
 export * from "./program/sheet.js";

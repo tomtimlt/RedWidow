@@ -794,9 +794,9 @@
   const skillLabels = {
     mentor: "Mentor",
     "bug-bounty": "Bug bounty",
-    "out-of-box": "Out of the box",
+    "out-of-box": "Pentest",
     "red-team": "Red Team — Expert",
-    htb: "HTB / CTF",
+    htb: "Hack The Box / CTF",
   };
   const mcpLabels = {
     playwright: "Playwright",
@@ -931,7 +931,7 @@
     target.replaceChildren(...rows);
     if (focusedChoice >= 0) target.querySelectorAll(".resource-toggle")[focusedChoice]?.focus();
     const names = [
-      caps.selection.profile ? skillLabels[caps.selection.profile] : null,
+      skillLabels[caps.selection.profile ?? "out-of-box"],
       ...caps.selection.integrations.map((id) => mcpLabels[id] ?? id),
       caps.selection.burp ? "Burp Suite" : null,
       caps.selection.webSearch ? t("Recherche web") : null,

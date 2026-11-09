@@ -7,6 +7,7 @@ import {
   AuditStore,
   type AuditView,
   activeProject,
+  agentProfileLabel,
   appendFinding,
   associateContainer,
   attachEvidence,
@@ -2908,8 +2909,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         ) ?? {},
         projectChoices.activeId,
       ),
-      agentProfile:
-        machineValue(vscode.workspace.getConfiguration("warband").inspect("profile")) ?? "",
+      agentProfile: agentProfileLabel(
+        machineValue(vscode.workspace.getConfiguration("warband").inspect("profile")),
+      ),
       burpEnabled:
         machineValue(vscode.workspace.getConfiguration("warband").inspect("burp.enabled")) === true,
       burpStatus,

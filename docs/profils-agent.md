@@ -4,15 +4,34 @@ Les profils orientent la façon de travailler de l’agent, quel que soit son
 fournisseur ou son modèle. Ouvre **Réglages → Contrôle système** pour activer les
 méthodes proposées, puis sélectionne un profil dans le menu **+** du chat. Le choix
 concerne cette conversation et s’applique au prochain tour. Une nouvelle conversation
-repart sans méthode spécialisée. Les méthodes sont suspendues en mode Apprentissage.
+repart en **Pentest**, le mode normal sans document préalable. Les méthodes sont suspendues en mode Apprentissage.
 
 | Profil | Utile pour | Résultat recherché |
 | --- | --- | --- |
 | Mentor | Comprendre un concept ou dépasser une difficulté | Un indice adapté, une tentative de l’apprenant, puis une vérification de compréhension |
 | Bug bounty | Examiner une application dans un programme défini, au rythme que ses règles permettent | Les règles citées, une matrice de couverture, des négatifs contrôlés et un rapport généré depuis le journal |
-| Out of the box | Sortir d’une piste qui tourne en rond | Des hypothèses distinctes et une observation qui permet de les départager |
+| Pentest (par défaut) | Tester rapidement avec les accès disponibles | Notes, constats et preuves |
 | Red Team — Expert | Évaluer un objectif d’exercice et les défenses associées | Des résultats et de la télémétrie corrélés, dans les règles d’engagement |
-| Hack The Box | Progresser sur un laboratoire ou un challenge | Une prochaine investigation justifiée et une résolution comprise |
+| Hack The Box / CTF | Progresser sur un laboratoire ou un challenge | Une prochaine investigation justifiée et une résolution comprise |
+
+## Documents exigés
+
+| Profil | Documents validés avant les actions opérationnelles |
+| --- | --- |
+| Pentest | Aucun |
+| Hack The Box / CTF | Aucun |
+| Bug bounty | Fiche programme |
+| Red Team — Expert | Fiche d’engagement et plan de campagne |
+| Mentor | Aucun |
+
+Les lectures de documentation et la préparation restent disponibles pour rédiger
+les documents nécessaires. Les documents manquants produisent un refus de politique
+non mémorisable ; le Bypass conserve son contrat. La validation propre à
+`http_request` continue d’exiger la fiche en Bug bounty, y compris sous Bypass.
+Les protections universelles (gate, arrêt d’urgence, rythme par groupe d’IP)
+restent actives ; une fiche programme validée reste appliquée dans tout profil.
+L’identifiant interne `out-of-box` est conservé pour les préférences existantes,
+avec le libellé **Pentest**.
 
 ## Comment ils aident
 
@@ -54,14 +73,17 @@ Le profil Bug bounty suit sa propre méthode en onze sections, dans cet ordre : 
 - **Couverture et négatifs** : matrice surface × paramètre × classe × état tenue avec `record_test` ; un négatif exige un contrôle positif et deux variantes ; un 403 du WAF reste « bloqué, non réfuté » ; une anomalie n'est fermée qu'après trois variantes.
 - **Preuves et rapport** : preuve minimale expurgée, validation avant constat (preuve objective et reproductible, rejouée avec un contrôle, sinon « piste qualifiée »), rapport généré depuis la matrice et relu contre les contradictions.
 
-Ces consignes guident le modèle ; le moteur ne mesure ni le débit ni la couverture. Les fiches sont aujourd'hui du texte dans le profil ; leur extraction en données structurées est un lot moteur, non fait.
+Le profil Bug bounty exige une fiche programme validée. Le moteur applique son
+périmètre, son suffixe User-Agent et son rythme à `http_request` ; il conserve la
+matrice structurée avec `record_coverage` et les essais avec `record_test`.
+Hors Bug bounty, cet outil reste disponible mais la couverture n’est pas exigée.
 
 Le profil Expert garde l’identifiant `red-team` : c’est une émulation d’adversaire autorisée, strictement encadrée par défaut, avec un point de contrôle humain à chaque phase. Il suit neuf sections, dans cet ordre : `engagement`, `menace`, `reconnaissance`, `plan`, `infrastructure`, `execution`, `opsec_journal`, `preuves`, `cloture`.
 
 - **Engagement et menace** : la fiche d’engagement validée par empreinte est citée avant toute exécution (briques de l’ADR 0041 : fiche d’engagement, gate, arrêt d’urgence, plan de campagne, journal, clôture). L’adversaire crédible et ses techniques ATT&CK viennent de sources datées, par la recherche web commune ; aucune chaîne offensive n’est préécrite.
 - **Reconnaissance** : surface cartographiée dans le périmètre ; OSINT borné aux rôles et informations professionnelles publiques, vie privée exclue, minimisation.
 - **Plan et infrastructure** : plan de campagne validé par l’humain avant toute exécution ; infrastructure limitée à celle déclarée, tout achat ou compte engageant l’utilisateur étant une demande exécutée par lui.
-- **Exécution, journal, preuves** : une étape du plan à la fois via `record_step` avec preuve, rythme et arrêt d’urgence respectés ; journal de campagne et déconfliction avec la white team ; preuve minimale, validation avant constat, matrice `record_coverage`.
+- **Exécution, journal, preuves** : une étape du plan à la fois via `record_step` avec preuve, rythme et arrêt d’urgence respectés ; journal de campagne et déconfliction avec la white team ; preuve minimale, validation avant constat, résultats avec `record_test` et journal de campagne.
 - **Clôture** : démontage obligatoire via `record_teardown` (tous les éléments cochés) avant de clore, rapport généré depuis le journal et la Kill Chain, rejeu avec les défenseurs (purple team).
 
 La création autorisée d’un artefact ne vaut pas autorisation de l’exécuter ; modèle, effort et permissions restent ceux choisis. Ces consignes guident le modèle ; le moteur applique la gate et les contrôles de l’ADR 0041.

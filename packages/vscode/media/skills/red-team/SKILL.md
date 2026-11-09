@@ -40,7 +40,7 @@ Tenir le journal de campagne : horodatage, étape, technique, cible, résultat. 
 
 ## Preuve minimale et validation avant constat [preuves]
 
-Retenir la preuve minimale. Valider avant de constater : une preuve objective et reproductible fonde un constat, sinon la piste reste « qualifiée ». Séparer l’action menée, l’observation et l’impact ; ne jamais conclure à un impact non démontré. Tenir la matrice avec record_coverage. Distinguer absence d’alerte avec capteur vérifié, absence de capteur et défaut de collecte. Référencer les preuves sans jamais exposer de secrets.
+Retenir la preuve minimale. Valider avant de constater : une preuve objective et reproductible fonde un constat, sinon la piste reste « qualifiée ». Séparer l’action menée, l’observation et l’impact ; ne jamais conclure à un impact non démontré. Consigner les résultats avec record_test et record_step. Distinguer absence d’alerte avec capteur vérifié, absence de capteur et défaut de collecte. Référencer les preuves sans jamais exposer de secrets.
 
 ## Démonter, rapporter et rejouer avec les défenseurs [cloture]
 
