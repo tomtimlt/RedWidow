@@ -307,7 +307,7 @@ Sa licence est GPL-3.0 : **ne rien copier dans le dépôt** (MIT).
 
 ## Ordre
 
-1. Lots 1, 2, 3, 4, 7 et 23 : comportement de l'agent et secrets. Ce sont eux qui bloquent le prochain benchmark.
+1. Lots 1, 2, 3, 4, 7, 23 et 24 : comportement de l'agent et secrets. Ce sont eux qui bloquent le prochain benchmark.
 2. Lots 8, 9, 11, 17, 20 : ce qui bloque l'utilisateur.
 3. Lots 5, 6, 10, 12-16, 18, 19, 21 : finition de l'interface.
 4. Lot 22 (facultatif).
@@ -342,6 +342,28 @@ Critères (tests) :
 - exclusion d'engagement refusée ;
 - arrêt d'urgence respecté ;
 - contrôleur de rythme actif dans tous les profils.
+
+### Lot 24 — Chaque outil à sa place : la cible passe par le conteneur
+
+Constat (runs Zecible, VINCI et red team du 2026-11-09) : sans conteneur, l'agent teste la cible avec `read_url`, un outil de lecture de documentation qui supprime JS, commentaires et champs cachés et refuse le JS. Il passe aussi par des services tiers (`r.jina.ai`, proxys CORS publics) pour contourner. Il en tire des conclusions fausses, et le trafic vers la cible passe par des tiers.
+
+Décision :
+- **`read_url` = documentation et recherche.** Si l'hôte demandé est une cible du projet, `read_url` refuse avec le code `web.targetUseShell` et le message : « cible du projet : utilisez http_request ou le conteneur (exec) ». Une cible du projet, c'est un hôte du périmètre d'une fiche programme ou d'engagement, ou un hôte déjà visé par `http_request` ou `exec` dans ce projet.
+- **Pas de relais tiers vers une cible.** `read_url` et `http_request` refusent les URL de services de relais qui embarquent une autre URL (`r.jina.ai/<url>`, proxys CORS, traducteurs web) quand l'URL embarquée est une cible du projet. Code `web.relayRefused`.
+- **Consignes d'outils** (`scan-guidance.ts`, guides web, profils `bug-bounty`, `red-team`, `htb`) :
+  - cible : `exec` dans le conteneur (curl, outils Exegol) ou `http_request` ;
+  - `read_url` : documentation, CVE, avis de sécurité ;
+  - gros fichiers : `read_output`.
+- **Conteneur manquant, mis en avant** (complète l'événement `mission.noContainer` de la 0.3.77) :
+  - bandeau dans le chat « Aucun conteneur lié : l'agent n'a pas de shell » avec un bouton « Lier un conteneur » (ouvre le cockpit) ;
+  - l'agent reçoit dans `mission_context` la consigne de le demander une fois, puis de continuer avec `http_request`.
+
+Critères (tests) :
+- `read_url` vers une cible → `web.targetUseShell` ;
+- `read_url` vers une page de documentation → autorisé ;
+- `r.jina.ai/https://<cible>` → `web.relayRefused` ;
+- bandeau présent sans conteneur et absent avec un conteneur lié ;
+- codes ajoutés à `REASON_CODES` et aux catalogues fr/en.
 
 ## Assets graphiques des nouvelles fonctionnalités
 
