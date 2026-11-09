@@ -232,7 +232,7 @@ export function webToolSpecs(
     {
       name: "http_request",
       description:
-        "Requête HTTP(S) vers une cible du périmètre de la fiche programme approuvée (méthodes GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS ; en-têtes et corps texte). Le User-Agent porte toujours le suffixe de la fiche. Les redirections ne sont pas suivies : le 3xx et son en-tête Location sont rendus. Le débit est géré par le moteur (attente, puis refus si trop longue) ; un hôte arrêté après des signaux de limitation ne reprend que par un geste humain. Nécessite une fiche approuvée.",
+        "Requête HTTP(S) vers une cible après approbation (méthodes GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS ; en-têtes et corps texte). Une fiche programme validée impose son périmètre, son rythme et son suffixe User-Agent, quel que soit le profil. Sans fiche, rythme Normal par groupe d’IP et User-Agent libre. Les redirections ne sont pas suivies : le 3xx et son en-tête Location sont rendus. Le débit est géré par le moteur (attente, puis refus si trop longue) ; un hôte arrêté après des signaux de limitation ne reprend que par un geste humain. La fiche programme est exigée seulement en profil Bug bounty.",
       input: HTTP_REQUEST_INPUT,
       destructive: true,
       async run(raw, ctx) {

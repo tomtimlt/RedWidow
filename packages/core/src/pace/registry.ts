@@ -114,8 +114,8 @@ export interface PaceRegistryOptions {
 }
 
 export interface PaceRegistry {
-  /** Contrôleur du projet actif, créé avec le rythme de la fiche ; `null` sans projet. */
-  controller(sheet: ProgramSheet): PaceController | null;
+  /** Contrôleur du projet actif, rythme Normal sans fiche ; éphémère sans projet. */
+  controller(sheet?: ProgramSheet): PaceController | null;
   /** Journal vers lequel partent `pace.adjusted` et `pace.halted` (le dernier run attaché). */
   attach(recorder: Recorder): void;
 }
@@ -136,8 +136,20 @@ export function createPaceRegistry(options: PaceRegistryOptions): PaceRegistry {
     },
     controller(sheet) {
       const projectId = options.projectId();
-      if (projectId === null) return null;
-      const pace = sheet.pace.value;
+      const pace = sheet?.pace.value ?? { preset: "normal" as const };
+      if (projectId === null) {
+        const key = `ephemeral:${JSON.stringify(pace)}`;
+        let controller = controllers.get(key);
+        if (!controller) {
+          controller = createPaceController({
+            ...pace,
+            ...(options.now && { now: options.now }),
+            onEvent: (event) => recorder?.emit(event),
+          });
+          controllers.set(key, controller);
+        }
+        return controller;
+      }
       const key = `${projectId}:${JSON.stringify(pace)}`;
       const known = controllers.get(key);
       if (known) return known;

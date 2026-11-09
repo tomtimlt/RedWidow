@@ -288,6 +288,7 @@ program
     const webProgram = createWebProgram({
       outputRoot: () => join(cwd, "outputs"),
       program: programProvider,
+      engagement: () => ({ status: engagementProvider(), halted: haltedProvider() }),
       registry: createPaceRegistry({ configDir, projectId: () => activeId }),
     });
     const gate = createApprovalGate({

@@ -65,6 +65,7 @@ export interface EngineOptions {
     integrations?: StartParams["integrations"],
     opencodeProviders?: StartParams["opencodeProviders"],
     webSearch?: boolean,
+    profile?: StartParams["profile"],
   ) => AgentRunner | Promise<AgentRunner>;
   /** Environnement dont on tire les secrets à masquer (défaut : `process.env`). */
   env?: NodeJS.ProcessEnv;
@@ -303,6 +304,7 @@ export function runEngine({
           params.integrations,
           params.opencodeProviders,
           params.webSearch,
+          params.profile,
         );
         const summary = await runner.run(
           {

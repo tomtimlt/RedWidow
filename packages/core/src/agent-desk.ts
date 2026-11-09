@@ -143,7 +143,7 @@ export function deskToolSpecs(desk?: MissionDesk): DockerToolSpec[] {
       {
         name: "program_draft",
         description:
-          "Écrire le brouillon de fiche programme du projet actif : périmètre (inScope, outOfScope), suffixe User-Agent éventuel et rythme, chacun avec value, quote (extrait exact de la page), url et retrievedAt. Lire d'abord la page avec read_url : le moteur calcule seul `verified` (citation retrouvée dans cette page, lue pendant ce run) ; toute valeur `verified` fournie est ignorée. Ne peut pas approuver : l'humain relit et approuve avec « program approve --digest ».",
+          "Écrire le brouillon de fiche programme du projet actif : périmètre (inScope, outOfScope), suffixe User-Agent éventuel et rythme, chacun avec value, quote (extrait exact de la page), url et retrievedAt. Lire d'abord la page avec read_url : le moteur calcule seul `verified` (citation retrouvée dans cette page, lue pendant ce run) ; toute valeur `verified` fournie est ignorée. Si l’URL ne décrit pas un programme, le dire et proposer de continuer sans fiche hors du profil Bug bounty. Ne peut pas approuver : l'humain relit et approuve avec « program approve --digest ».",
         input: programDraftShape,
         readOnly: false,
         async run(raw) {

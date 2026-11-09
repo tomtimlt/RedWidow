@@ -18,6 +18,7 @@ import {
   createSpecTools,
 } from "@warband/agent-sdk";
 import {
+  type AgentProfile,
   activeProject,
   CodedError,
   createCampaignPort,
@@ -28,6 +29,7 @@ import {
   createWebProgram,
   defaultConfigDir,
   type EngagementView,
+  isAgentProfile,
   isHalted,
   outputFileSpecs,
   type ProgramStatus,
@@ -71,6 +73,7 @@ const outputRoot = () => join(projectRoot, "outputs");
 const targets = createExegolTargets({ outputRoot });
 const projectFileTools = () => [...projectFileSpecs(projectRoot), ...outputFileSpecs(outputRoot)];
 let learningMode = false;
+let activeProfile: AgentProfile = "out-of-box";
 let projectRoot = process.cwd();
 // Projet actif connu du moteur (ADR 0040) : mis à jour au `start` et à chaque consigne ; sans projet, la fiche n'a aucun effet.
 let activeProjectId: string | null = null;
@@ -90,6 +93,8 @@ const engagementView = (): EngagementView =>
 // Fiche et rythme du projet actif pour l'outil `http_request` (ADR 0040).
 const webProgram = createWebProgram({
   outputRoot,
+  profile: () => activeProfile ?? "out-of-box",
+  engagement: engagementView,
   program: programStatus,
   registry: createPaceRegistry({ configDir: defaultConfigDir(), projectId: () => activeProjectId }),
 });
@@ -169,7 +174,9 @@ const done = runEngine({
     integrations,
     opencodeProviders,
     webSearch = true,
+    profile = "out-of-box",
   ) => {
+    activeProfile = isAgentProfile(profile) ? profile : "out-of-box";
     learningMode = mode === "learning";
     if (provider !== "claude") {
       const binary = join(root, "bin", process.platform === "win32" ? "opencode.exe" : "opencode");

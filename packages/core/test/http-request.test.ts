@@ -4,17 +4,25 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  type AgentProfile,
   clearPaceHalt,
+  createApprovalGate,
+  createBypassSwitch,
   createPaceController,
   createPaceRegistry,
   createRecorder,
   createTestAccounts,
+  createWebProgram,
+  DEFAULT_POLICY,
+  type EngagementView,
   type EngineEvent,
+  HTTP_REQUEST_TOOL,
   haltedPaceHosts,
   MAX_PACE_WAIT_MS,
   outputFileSpecs,
   type PaceController,
   type ProgramSheet,
+  parseEngagementSheet,
   parseProgramSheet,
   projectPaceHaltedPath,
   type WebProgram,
@@ -61,6 +69,7 @@ function reply(
 /** Horloge simulée : `sleep` avance le temps sans attendre. */
 function fixture(
   options: {
+    profile?: AgentProfile;
     sheet?: ProgramSheet | undefined;
     pace?: PaceController | null;
     responses?: (() => WebResponse)[];
@@ -86,6 +95,7 @@ function fixture(
     },
   };
   const program: WebProgram = {
+    profile: () => options.profile ?? "bug-bounty",
     sheet: () => ("sheet" in options ? options.sheet : sheet()),
     pace: () => pace,
     sleep: async (ms) => {
@@ -117,6 +127,34 @@ const URL_OK = "https://app.example.com/api";
 const parse = (text: string) => JSON.parse(text) as Record<string, any>;
 
 describe("http_request : fiche et en-têtes", () => {
+  it.each(["out-of-box", "red-team", "htb", "mentor"] as const)(
+    "%s sans fiche : approbation de la gate puis requête, sans suffixe imposé",
+    async (profile) => {
+      const f = fixture({ profile, sheet: undefined });
+      const ask = vi.fn(async () => ({ decision: "allow" as const, remember: "session" as const }));
+      const gate = createApprovalGate({ policy: DEFAULT_POLICY, recorder: createRecorder(), ask });
+      const input = { method: "GET", url: URL_OK, headers: { "User-Agent": "ClientLibre" } };
+      const decide = (id: string) =>
+        gate.decide(
+          { toolUseId: id, tool: HTTP_REQUEST_TOOL, input },
+          new AbortController().signal,
+        );
+      expect((await decide("premier")).decision).toBe("allow");
+      expect(ask).toHaveBeenCalledTimes(1);
+      expect((await decide("second")).reason.code).toBe("approval.remembered");
+      expect(parse(await f.http(input)).status).toBe(200);
+      expect(f.calls[0]?.init.userAgent).toBe("ClientLibre");
+    },
+  );
+
+  it("applique encore la fiche et son suffixe hors Bug bounty", async () => {
+    const f = fixture({ profile: "htb" });
+    await f.http({ method: "GET", url: URL_OK });
+    expect(f.calls[0]?.init.userAgent).toContain(SUFFIX);
+    await f.http({ method: "GET", url: URL_OK });
+    expect(f.sleeps).toEqual([1000]);
+  });
+
   it("exige une fiche approuvée", async () => {
     const f = fixture({ sheet: undefined });
     await expect(f.http({ method: "GET", url: URL_OK })).rejects.toMatchObject({
@@ -360,6 +398,25 @@ describe("registre de contrôleurs", () => {
     return { configDir, projectId, registry, events, advance: (ms: number) => (t += ms) };
   };
 
+  it("sans fiche : rythme Normal, alias par IP et arrêts persistés", () => {
+    const s = setup();
+    const web = createWebProgram({ program: () => ({ state: "none" }), registry: s.registry });
+    expect(web.profile?.()).toBe("out-of-box");
+    const pace = web.pace();
+    expect(pace?.ceilingRps).toBe(createPaceController({ preset: "normal" }).ceilingRps);
+    pace?.bind?.("a.example", ["203.0.113.7"]);
+    pace?.bind?.("b.example", ["203.0.113.7"]);
+    pace?.report("a.example", "http429");
+    expect(pace?.status("b.example").pausedUntil).toBeGreaterThan(0);
+    pace?.report("a.example", "http429");
+    pace?.report("b.example", "http429");
+    const restarted = createPaceRegistry({
+      configDir: s.configDir,
+      projectId: () => s.projectId,
+    }).controller();
+    expect(restarted?.acquire("b.example").action).toBe("halted");
+  });
+
   it("journalise pace.adjusted et pace.halted ; l'arrêt est persisté et repris par clearPaceHalt", () => {
     const s = setup();
     const pace = s.registry.controller(sheet());
@@ -415,9 +472,77 @@ describe("registre de contrôleurs", () => {
     expect(next?.acquire("a.example.com")).toEqual({ action: "send" });
   });
 
-  it("sans projet actif, pas de contrôleur", () => {
+  it("sans projet actif, contrôleur éphémère Normal conservé pendant la session", () => {
     const registry = createPaceRegistry({ configDir: tmpdir(), projectId: () => null });
-    expect(registry.controller(sheet())).toBeNull();
+    expect(registry.controller()?.ceilingRps).toBe(
+      createPaceController({ preset: "normal" }).ceilingRps,
+    );
+    expect(registry.controller()).toBe(registry.controller());
+  });
+});
+
+describe("http_request : engagement facultatif, exclusions et arrêt d’urgence", () => {
+  const engagement = parseEngagementSheet({
+    version: 1,
+    authorization: cited({ principal: "Exemple", reference: "RT-1", signatory: "Équipe test" }),
+    window: cited({ text: "novembre 2026" }),
+    inScope: cited(["*.example.com"]),
+    infrastructure: cited([]),
+    outOfScope: cited(["admin.example.com"]),
+    rulesOfEngagement: cited("Pas de déni de service"),
+    whiteTeam: cited({ contact: "white@example.com", deconfliction: "Appeler avant intervention" }),
+    osintPolicy: cited("Sources publiques"),
+  });
+
+  it.each([false, true])("refuse une exclusion après approbation (Bypass %s)", async (enabled) => {
+    const f = fixture({ profile: "out-of-box", sheet: undefined });
+    const view = (): EngagementView => ({
+      status: { state: "approved", applied: engagement },
+      halted: false,
+    });
+    f.program.engagement = view;
+    const bypass = createBypassSwitch({ now: Date.now });
+    if (enabled) bypass.enable(60_000);
+    const gate = createApprovalGate({
+      policy: DEFAULT_POLICY,
+      recorder: createRecorder(),
+      engagement: view,
+      bypass,
+      ask: async () => ({ decision: "allow" }),
+    });
+    const input = { method: "GET", url: "https://admin.example.com/" };
+    expect(
+      (
+        await gate.decide(
+          { toolUseId: "exclu", tool: HTTP_REQUEST_TOOL, input },
+          new AbortController().signal,
+        )
+      ).decision,
+    ).toBe("allow");
+    await expect(f.http(input)).rejects.toMatchObject({ code: "engagement.out_of_scope" });
+    expect(f.calls).toHaveLength(0);
+  });
+
+  it.each(["dns", "attente"])("arrêt pendant %s : aucun transport", async (stage) => {
+    const f = fixture({ profile: "red-team", sheet: undefined });
+    let halted = false;
+    f.program.engagement = () => ({ status: { state: "approved", applied: engagement }, halted });
+    if (stage === "attente") {
+      await f.http({ method: "GET", url: URL_OK });
+      f.calls.length = 0;
+      f.program.sleep = async () => {
+        halted = true;
+      };
+    } else {
+      f.deps.lookup = async () => {
+        halted = true;
+        return lookup();
+      };
+    }
+    await expect(f.http({ method: "GET", url: URL_OK })).rejects.toMatchObject({
+      code: "engagement.halted",
+    });
+    expect(f.calls).toHaveLength(0);
   });
 });
 

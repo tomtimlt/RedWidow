@@ -1004,6 +1004,7 @@ it.each([undefined, "learning"] as const)(
       provider: "opencode",
       opencodeProviders,
       webSearch: false,
+      profile: "htb",
       ...(mode && { mode }),
     });
     await vi.waitFor(() =>
@@ -1014,6 +1015,7 @@ it.each([undefined, "learning"] as const)(
         undefined,
         opencodeProviders,
         false,
+        "htb",
       ),
     );
     t.receive({ v: 1, type: "dispose" });

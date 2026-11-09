@@ -1,9 +1,11 @@
 import { z } from "zod";
+import type { AgentProfile } from "../agent-profiles.js";
+import type { EngagementProvider } from "../approval/policy.js";
 import { createOutputCapture } from "../docker/output-capture.js";
 import { capOutput } from "../output.js";
 import type { PaceController, PaceOutcome } from "../pace/controller.js";
 import type { PaceRegistry } from "../pace/registry.js";
-import { hostOfTarget } from "../program/scope.js";
+import { hostInLists, hostOfTarget } from "../program/scope.js";
 import type { ProgramSheet } from "../program/sheet.js";
 import type { ProgramStatus } from "../program/store.js";
 import { CodedError } from "../reason.js";
@@ -24,8 +26,11 @@ export interface WebProgram {
   /** Fiche appliquée (approuvée) du projet actif, sinon `undefined`. */
   outputRoot?(): string | undefined;
   sheet(): ProgramSheet | undefined;
-  /** Contrôleur de rythme du projet pour cette fiche ; `null` sans projet. */
-  pace(sheet: ProgramSheet): PaceController | null;
+  /** Profil fixé par le moteur, jamais par les arguments de l’outil. */
+  profile?(): AgentProfile;
+  engagement?: EngagementProvider;
+  /** Contrôleur du projet (éphémère sans projet), rythme Normal sans fiche. */
+  pace(sheet?: ProgramSheet): PaceController | null;
   /** Journal du run en cours (reçoit `pace.adjusted` et `pace.halted`). */
   attach?(recorder: Recorder): void;
   /** Attente annulable (défaut : minuterie). Injectable pour les tests. */
@@ -36,11 +41,15 @@ export interface WebProgram {
 export function createWebProgram(options: {
   program: () => ProgramStatus;
   registry: PaceRegistry;
+  profile?: () => AgentProfile;
+  engagement?: EngagementProvider;
   outputRoot?: () => string | undefined;
 }): WebProgram {
   return {
     ...(options.outputRoot && { outputRoot: options.outputRoot }),
     sheet: () => options.program().applied,
+    profile: options.profile ?? (() => "out-of-box"),
+    ...(options.engagement && { engagement: options.engagement }),
     pace: (sheet) => options.registry.controller(sheet),
     attach: (recorder) => options.registry.attach(recorder),
   };
@@ -153,7 +162,8 @@ export async function runHttpRequest(
   if (!prepared.success) throw new CodedError("web.invalidRequest");
   const args = prepared.data;
   const sheet = program?.sheet();
-  if (!program || !sheet) throw new CodedError("program.required");
+  if (!program || (!sheet && (program.profile?.() ?? "bug-bounty") === "bug-bounty"))
+    throw new CodedError("program.required");
 
   if (args.body !== undefined && (args.method === "GET" || args.method === "HEAD"))
     throw new CodedError("web.invalidRequest");
@@ -172,18 +182,33 @@ export async function runHttpRequest(
     if (key === "user-agent") provided = stripControl(value).trim();
     else if (!FORBIDDEN_HEADERS.has(key)) headers[key] = value;
   }
-  const suffix = sheet.userAgentSuffix?.value.trim();
+  const suffix = sheet?.userAgentSuffix?.value.trim();
   const userAgent = [provided || DEFAULT_USER_AGENT, suffix].filter(Boolean).join(" ");
 
   // Rythme : attente annulable bornée, puis `program.paced`.
   const pace = program.pace(sheet);
   const sleep = program.sleep ?? sleepAbortable;
   let waited = 0;
+  const checkEngagement = () => {
+    if (!program.engagement) return;
+    let view: ReturnType<EngagementProvider>;
+    try {
+      view = program.engagement();
+    } catch {
+      throw new CodedError("engagement.halted", { tool: "http_request" });
+    }
+    if (view.halted) throw new CodedError("engagement.halted", { tool: "http_request" });
+    const approved = view.status.state === "approved" ? view.status.applied : undefined;
+    if (approved && hostInLists(approved.outOfScope.value, [], host))
+      throw new CodedError("engagement.out_of_scope", { tool: "http_request", host });
+  };
+  checkEngagement();
   const beforeRequest = async (_url: URL, addresses: string[]) => {
     pace?.bind?.(host, addresses);
     if (pace) {
       for (;;) {
         signal?.throwIfAborted();
+        checkEngagement();
         const decision = pace.acquire(host);
         if (decision.action === "send") break;
         if (decision.action === "halted")
@@ -199,6 +224,7 @@ export async function runHttpRequest(
         waited += decision.ms;
       }
     }
+    checkEngagement();
   };
 
   const bounded = AbortSignal.any(signal ? [signal] : []);
