@@ -1,4 +1,5 @@
 import {
+  createManagedProject,
   createProject,
   readProjects,
   removeProject,
@@ -35,6 +36,17 @@ export async function createSelectedProject(
   const project = await createProject(configDir, { name, workspace });
   await setActiveProject(configDir, project.id);
   return project.id;
+}
+
+/** L’extension ne demande que le nom ; la racine provient du réglage machine. */
+export async function createManagedSelectedProject(
+  configDir: string,
+  name: string,
+  root?: unknown,
+) {
+  const project = await createManagedProject(configDir, name, root);
+  await activateSelectedProject(configDir, project.id);
+  return project;
 }
 
 export interface ProjectManagementHost {

@@ -431,6 +431,12 @@
           "scope": "machine",
           "description": "%config.opencodeProviders%"
         },
+        "warband.projects.workspaceRoot": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "%config.projects.workspaceRoot%"
+        },
         "warband.profile": {
           "type": "string",
           "enum": ["", "mentor", "bug-bounty", "out-of-box", "red-team", "htb"],

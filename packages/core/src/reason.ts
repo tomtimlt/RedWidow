@@ -215,6 +215,7 @@ export const REASON_CODES = [
   "finding.pathNotSubset",
   "finding.invalidInput",
   "project.absent",
+  "project.workspaceNotMounted",
   "project.readFailed",
   "cours.absent",
   "exegol.containerDenied",

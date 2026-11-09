@@ -412,6 +412,8 @@ export const reasons: Catalog = {
     `élément de démontage ${text(p.itemId)} absent de la liste du plan de campagne approuvé`,
   "teardown.closeBlocked": (p) =>
     `clôture bloquée : ${text(p.count)} éléments de démontage restants (artefacts, comptes, infrastructure) ; les cocher avec record_teardown et une preuve`,
+  "project.workspaceNotMounted": (p) =>
+    `Le conteneur ${text(p.container)} partage le dossier ${text(p.mounted)}, qui ne contient pas le projet ${text(p.project)}. L’agent et le conteneur ne verraient pas les mêmes fichiers.`,
   "project.absent": () => "aucun projet actif",
   "project.readFailed": () => "lecture du projet impossible ce tour-ci",
   "cours.absent": () => "aucun cours installé (dossier de cours absent)",

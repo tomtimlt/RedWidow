@@ -109,7 +109,7 @@
 
   // État du formulaire, hors du DOM : un rafraîchissement reconstruit la vue sans l'effacer.
   const form = {
-    open: false,
+    open: document.body?.dataset?.openCreate === "true",
     touched: false,
     engine: null,
     name: "",
@@ -288,7 +288,7 @@
         "p",
         "studio-help",
         t(
-          "Les fichiers sont partagés avec le dossier du projet ouvert dans VS Code. Un conteneur existant doit monter ce même dossier ; un autre montage nécessite une migration explicite.",
+          "Le nouveau conteneur monte le dossier du projet et sera lié après vérification du partage. Pour un autre montage, créez un conteneur pour ce projet ou choisissez un autre conteneur.",
         ),
       ),
     );
@@ -774,6 +774,12 @@
       rerender();
       globalThis.WarbandI18n?.applyStatic(document);
       restore();
+      return;
+    }
+    if (msg.type === "focusCreate") {
+      form.open = true;
+      rerender();
+      document.getElementById("cockpit-name")?.focus();
       return;
     }
     if (msg.type === "operation") {

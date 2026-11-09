@@ -2209,7 +2209,7 @@ function start() {
         name.maxLength = 80;
         name.value = projectNameDraft;
         name.disabled = projectBusy;
-        const create = el("button", "primary", t("Créer un projet et choisir son dossier…"));
+        const create = el("button", "primary", t("Créer le projet"));
         create.type = "button";
         const update = () => {
           create.disabled = projectBusy || !name.value.trim();
@@ -2225,10 +2225,21 @@ function start() {
         });
         update();
         createPanel.append(
-          el("p", "studio-help", t("Donnez un nom au projet, puis choisissez son dossier.")),
+          el(
+            "p",
+            "studio-help",
+            t("Donnez un nom au projet : son dossier est créé automatiquement."),
+          ),
           label,
           name,
           create,
+          el(
+            "p",
+            "studio-help",
+            t("Dossier des nouveaux projets : {0}", {
+              0: view.projectWorkspaceRoot ?? "~/.exegol/workspaces",
+            }),
+          ),
         );
       }
       if (typeof view.projectError === "string") {
@@ -2361,6 +2372,38 @@ function start() {
       );
       sec.append(dl);
       if (page === "system") {
+        sec.append(el("h2", "", t("Dossiers des projets")));
+        const rootLabel = el("label", "studio-help", t("Racine des nouveaux projets (avancé)"));
+        rootLabel.htmlFor = "project-workspace-root";
+        const rootInput = el("input", "studio-project-control");
+        rootInput.id = "project-workspace-root";
+        rootInput.type = "text";
+        rootInput.value =
+          typeof view.projectWorkspaceRoot === "string" ? view.projectWorkspaceRoot : "";
+        const rootSave = el("button", "secondary", t("Enregistrer"));
+        rootSave.type = "button";
+        rootSave.id = "project-workspace-root-save";
+        rootSave.addEventListener("click", () => {
+          rootSave.disabled = true;
+          vscode.postMessage({ type: "setWorkspaceRoot", value: rootInput.value.trim() });
+        });
+        sec.append(
+          rootLabel,
+          rootInput,
+          rootSave,
+          el(
+            "p",
+            "studio-help",
+            t(
+              "Ce réglage machine concerne les nouveaux projets. Les projets existants restent à leur emplacement. Vide : ~/.exegol/workspaces.",
+            ),
+          ),
+        );
+        if (view.workspaceRootError) {
+          const error = el("p", "studio-help", view.workspaceRootError);
+          error.setAttribute("role", "alert");
+          sec.append(error);
+        }
         const limits = view.limits ?? {};
         sec.append(
           el("h2", "", t("Limites par défaut")),

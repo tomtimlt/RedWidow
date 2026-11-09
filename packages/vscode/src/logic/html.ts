@@ -239,6 +239,7 @@ export function chatHtml({
 }
 
 export interface CockpitHtmlOptions {
+  initialCreate?: boolean;
   palette?: unknown;
   locale?: Locale;
   /** Catalogue de traduction local, chargé avant les scripts de rendu. */
@@ -264,6 +265,7 @@ export function cockpitHtml({
   i18nUri = scriptUri.replace(/[^/]+$/, "i18n.js"),
   locale = "fr",
   palette,
+  initialCreate = false,
 }: CockpitHtmlOptions): string {
   for (const [name, value] of Object.entries({
     nonce,
@@ -294,7 +296,7 @@ export function cockpitHtml({
 <link rel="stylesheet" href="${styleUri}">
 <title data-i18n="Conteneurs">${localized("Conteneurs", locale)}</title>
 </head>
-<body class="cockpit" data-palette="${paletteOf(palette)}">
+<body class="cockpit" data-palette="${paletteOf(palette)}" data-open-create="${initialCreate === true}">
 <header id="bar"><span id="title">${icon("container")}<span data-i18n="Conteneurs">${localized("Conteneurs", locale)}</span></span><button id="refresh" type="button" class="ghost" data-i18n-title="Actualiser" title="${localized("Actualiser", locale)}">${icon("refresh")}<span class="btn-text"><span data-i18n="Actualiser">${localized("Actualiser", locale)}</span></span></button></header>
 <main id="main" role="main" aria-live="polite"></main>
 <script nonce="${nonce}" src="${i18nUri}"></script>

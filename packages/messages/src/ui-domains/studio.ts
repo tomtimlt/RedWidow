@@ -1,5 +1,13 @@
 // Libellés de la webview, indexés par leur texte français.
 export const studioEn: Record<string, string> = {
+  "Créer le projet": "Create project",
+  "Donnez un nom au projet : son dossier est créé automatiquement.":
+    "Name the project: its folder is created automatically.",
+  "Dossier des nouveaux projets : {0}": "New project folder root: {0}",
+  "Dossiers des projets": "Project folders",
+  "Racine des nouveaux projets (avancé)": "Root for new projects (advanced)",
+  "Ce réglage machine concerne les nouveaux projets. Les projets existants restent à leur emplacement. Vide : ~/.exegol/workspaces.":
+    "This machine setting applies to new projects. Existing projects stay in place. Empty: ~/.exegol/workspaces.",
   "Comptes de test": "Test accounts",
   "Valeur trop courte pour être masquée dans les journaux.":
     "Value too short to be masked in logs.",

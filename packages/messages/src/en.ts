@@ -282,6 +282,8 @@ export const reasons: Catalog = {
     `teardown item ${text(p.itemId)} is not in the approved campaign plan list`,
   "teardown.closeBlocked": (p) =>
     `closure blocked: ${text(p.count)} teardown items remaining (artifacts, accounts, infrastructure); tick them with record_teardown and a proof`,
+  "project.workspaceNotMounted": (p) =>
+    `Container ${text(p.container)} shares ${text(p.mounted)}, which does not contain project ${text(p.project)}. The agent and container would not see the same files.`,
   "project.absent": () => "no active project",
   "project.readFailed": () => "could not read the active project this turn",
   "cours.absent": () => "no course installed (course folder missing)",

@@ -369,3 +369,11 @@ it("la création attend un projet et suit sa racine sans conserver un ancien dos
     expect.objectContaining({ type: "createExegol", source: "/tmp/project-B" }),
   );
 });
+
+it("la recommandation de créer un conteneur ouvre directement le formulaire", () => {
+  const ui = cockpit();
+  ui.send({ ...ui.view, projectWorkspace: "/tmp/mission" });
+  ui.send({ type: "focusCreate" });
+  expect(ui.field("cockpit-name")).toBeDefined();
+  expect(ui.field("cockpit-create-toggle").attributes.get("aria-expanded")).toBe("true");
+});

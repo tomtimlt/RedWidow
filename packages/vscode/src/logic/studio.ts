@@ -80,6 +80,7 @@ export type StudioMessage =
   | { type: "openEvidence"; projectId: string; id: string }
   | { type: "setPalette"; palette: Palette }
   | { type: "setTerminalPrompt"; value: TerminalPrompt }
+  | { type: "setWorkspaceRoot"; value: string }
   | { type: "setLocale"; locale: "fr" | "en" }
   | { type: "openReport"; projectId: string }
   | { type: "exportKillchain"; projectId: string }
@@ -99,7 +100,7 @@ export type StudioMessage =
   | { type: "activateProject"; projectId: string }
   | { type: "renameProject"; projectId: string }
   | { type: "deleteProject"; projectId: string }
-  /** Le dossier est choisi dans un dialogue natif ; aucun chemin accepté ici. */
+  /** Seul le nom est accepté ; le dossier est réservé par l’hôte. */
   | { type: "createProject"; name: string }
   /** Résumé du projet affiché : l'hôte revalide le projet actif avant l'écriture. */
   | { type: "saveSummary"; projectId: string; text: string }
@@ -117,6 +118,14 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
   const m = raw as Record<string, unknown>;
   const keys = Object.keys(m);
+  if (
+    m.type === "setWorkspaceRoot" &&
+    keys.length === 2 &&
+    typeof m.value === "string" &&
+    m.value.length <= 4096 &&
+    !/[\p{Cc}\p{Cf}]/u.test(m.value)
+  )
+    return { type: m.type, value: m.value };
   if (m.type === "setTerminalPrompt" && keys.length === 2 && isTerminalPrompt(m.value))
     return { type: m.type, value: m.value };
   const auditProject =

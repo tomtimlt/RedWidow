@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  CodedError,
   prepareContainerProjectWorkspace,
   resolveExegolContainer,
   resolveKaliContainer,
@@ -12,6 +13,7 @@ import { expect, it, vi } from "vitest";
 import { parseWebviewMessage } from "../src/logic/approval.js";
 import {
   linkWithProjectWorkspace,
+  recoverWorkspaceLink,
   unlinkedContainerMentions,
 } from "../src/logic/project-container-link.js";
 
@@ -94,7 +96,7 @@ it("refuse un montage divergent avant de modifier l’allowlist", async () => {
         prepareRuntime: async () => undefined,
         link,
       }),
-    ).rejects.toMatchObject({ code: "path.outside" });
+    ).rejects.toMatchObject({ code: "project.workspaceNotMounted" });
     expect(link).not.toHaveBeenCalled();
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -155,4 +157,35 @@ it("revalide les messages de la carte et du bandeau", () => {
   expect(
     parseWebviewMessage({ type: "linkMention", name: "kali-1", projectId: "forgé" }),
   ).toBeNull();
+});
+
+it("un changement de dossier sous le même id annule la liaison avant l’allowlist", async () => {
+  const project: StoredProject = {
+    id: randomUUID(),
+    name: "Démo",
+    workspace: "/projet",
+    containers: [],
+  };
+  let current = project;
+  const link = vi.fn(async () => undefined);
+  await expect(
+    linkWithProjectWorkspace("kali-1", {
+      read: async () => ({ activeId: project.id, projects: [current] }),
+      prepare: async () => {
+        current = { ...project, workspace: "/autre" };
+      },
+      prepareRuntime: async () => undefined,
+      link,
+    }),
+  ).rejects.toMatchObject({ code: "project.absent" });
+  expect(link).not.toHaveBeenCalled();
+});
+
+it("l’auto-liaison ne récupère jamais une erreur de montage en choisissant une autre cible", async () => {
+  const error = new CodedError("project.workspaceNotMounted");
+  const recover = vi.fn(async () => "autre-conteneur");
+  await expect(recoverWorkspaceLink(error, true, recover)).rejects.toBe(error);
+  expect(recover).not.toHaveBeenCalled();
+  expect(await recoverWorkspaceLink(error, false, recover)).toBe("autre-conteneur");
+  expect(recover).toHaveBeenCalledOnce();
 });

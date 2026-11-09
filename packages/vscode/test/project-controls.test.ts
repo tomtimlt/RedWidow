@@ -13,6 +13,7 @@ import {
 import { afterEach, expect, it } from "vitest";
 import {
   activateSelectedProject,
+  createManagedSelectedProject,
   createSelectedProject,
   manageSelectedProject,
   readProjectChoices,
@@ -24,6 +25,15 @@ const temp = async () => {
   dirs.push(dir);
   return dir;
 };
+
+it("crée et active le projet sans dialogue dans la racine machine", async () => {
+  const config = await temp();
+  const root = await temp();
+  const project = await createManagedSelectedProject(config, "Mission Démo", root);
+  expect(project.workspace).toBe(join(root, "mission-demo"));
+  expect((await readProjectChoices(config)).activeId).toBe(project.id);
+  expect(await readFile(join(config, USER_PROJECT_FILE), "utf8")).toContain(project.id);
+});
 afterEach(async () => {
   await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });

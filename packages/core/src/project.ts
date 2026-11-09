@@ -5,6 +5,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import type { DockerClient } from "./docker/client.js";
 import { lookupContainer, shortContainerName } from "./exegol/targets.js";
 import { capOutput } from "./output.js";
+import { createProjectDirectory, PROJECT_WORKSPACE_MAX } from "./project-workspace.js";
 import { CodedError } from "./reason.js";
 import { createRedactor } from "./redact.js";
 
@@ -37,7 +38,6 @@ const SUMMARY_TRUNCATED = "\n[… résumé tronqué]";
 const MAX_PROJECTS = 32;
 const MAX_CONTAINERS = 32;
 const MAX_CREATE_NAME = 80;
-const MAX_CREATE_WORKSPACE = 1024;
 
 /** UUID v4 canonique, minuscules. */
 const PROJECT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -404,7 +404,7 @@ function assertCreateName(name: string): void {
 function assertCreateWorkspace(workspace: string): void {
   if (
     workspace.length < 1 ||
-    workspace.length > MAX_CREATE_WORKSPACE ||
+    workspace.length > PROJECT_WORKSPACE_MAX ||
     workspace.includes("\0") ||
     !isAbsolute(workspace)
   ) {
@@ -436,6 +436,19 @@ export async function createProject(
   const projects = file === null ? [project] : [...file.projects, project];
   await writeProjectFile(configDir, { activeId, projects });
   return project;
+}
+
+/** Nouveau projet géré : valide avant le disque, réserve son dossier, puis enregistre la fiche. */
+export async function createManagedProject(
+  configDir: string,
+  name: string,
+  root?: unknown,
+): Promise<StoredProject> {
+  assertCreateName(name);
+  const file = await readProjects(configDir);
+  if (file !== null && file.projects.length >= MAX_PROJECTS) throw invalidProject();
+  const workspace = await createProjectDirectory(name, root);
+  return createProject(configDir, { name, workspace });
 }
 
 /** Renomme la fiche sans changer son identité, son dossier ou ses associations. */

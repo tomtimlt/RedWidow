@@ -9,7 +9,6 @@ import {
   activeProject,
   agentProfileLabel,
   appendFinding,
-  associateContainer,
   attachEvidence,
   buildAttackFlow,
   burpToolSpecs,
@@ -31,6 +30,7 @@ import {
   parseMentions,
   prepareContainerProjectWorkspace,
   prepareKaliContainer,
+  projectWorkspacesRoot,
   promptForTargets,
   pullDockerImage,
   readFindings,
@@ -76,9 +76,10 @@ import {
   prepareTerminal,
   setPrimary,
 } from "../logic/cockpit.js";
-import { removeListedContainer } from "../logic/container-remove.js";
+import { listedContainerIdentity, removeListedContainer } from "../logic/container-remove.js";
 import { notifyWaitingHuman } from "../logic/continuation-notification.js";
 import { createEngineController } from "../logic/controller.js";
+import { createAndLinkContainer } from "../logic/created-container-link.js";
 import { prepareEditorShellWorkspace } from "../logic/editor-shell-workspace.js";
 import type { Provider } from "../logic/effort.js";
 import {
@@ -133,11 +134,12 @@ import {
 } from "../logic/program-controls.js";
 import {
   linkWithProjectWorkspace,
+  recoverWorkspaceLink,
   unlinkedContainerMentions,
 } from "../logic/project-container-link.js";
 import {
   activateSelectedProject,
-  createSelectedProject,
+  createManagedSelectedProject,
   manageSelectedProject,
   readProjectChoices,
 } from "../logic/project-controls.js";
@@ -986,17 +988,55 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
   };
 
-  const linkForProject = async (name: string, expectedProjectId?: string) => {
+  const linkForProject = async (
+    name: string,
+    expectedProjectId?: string,
+    verifyContainer?: () => Promise<void>,
+  ): Promise<Awaited<ReturnType<typeof linkContainer>>> => {
     if (projectChanging) throw new CodedError("project.absent");
     projectChanging = true;
     try {
+      expectedProjectId ??= (await readProjects(defaultConfigDir()))?.activeId ?? undefined;
       return await linkWithProjectWorkspace(name, {
         ...(expectedProjectId && { expectedProjectId }),
         read: () => readProjects(defaultConfigDir()),
         prepare: (project, container) =>
           prepareContainerProjectWorkspace(project, container, shellDocker()),
         prepareRuntime: prepareIfKali,
-        link: (container, projectId) => linkContainer(container, { expectedProjectId: projectId }),
+        link: async (container, projectId) => {
+          await verifyContainer?.();
+          return linkContainer(container, { expectedProjectId: projectId });
+        },
+      });
+    } catch (error) {
+      return await recoverWorkspaceLink(error, verifyContainer !== undefined, async () => {
+        const create = t("Créer un conteneur pour ce projet");
+        const choose = t("Choisir un autre conteneur");
+        const choice = await vscode.window.showWarningMessage(
+          formatError(error, getUiLocale()),
+          { modal: true, detail: t("Créer un conteneur pour ce projet est recommandé.") },
+          create,
+          choose,
+        );
+        if (choice === create) openCockpit(true);
+        else if (choice === choose) {
+          const view = await loadCockpitView();
+          const options = view.containers.filter((row) => row.name !== name && row.canLink);
+          const picked = await vscode.window.showQuickPick(
+            options.map((row) => ({
+              label: row.short,
+              description: row.workspace ?? "",
+              name: row.name,
+            })),
+            { title: choose },
+          );
+          if (picked) {
+            // Le prochain parcours doit prendre le verrou et refaire tous les contrôles.
+            projectChanging = false;
+            return await linkForProject(picked.name, expectedProjectId);
+          }
+        }
+        throw error;
       });
     } finally {
       projectChanging = false;
@@ -1404,9 +1444,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     return vscode.ViewColumn.Active;
   };
 
-  const openCockpit = () => {
+  const openCockpit = (initialCreate = false) => {
     if (cockpitPanel) {
       cockpitPanel.reveal();
+      if (initialCreate) void cockpitPanel.webview.postMessage({ type: "focusCreate" });
       return;
     }
     const media = vscode.Uri.joinPath(context.extensionUri, "media");
@@ -1434,6 +1475,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const view = panel;
     const nonce = makeNonce();
     view.webview.html = cockpitHtml({
+      initialCreate,
       locale: getUiLocale(),
       i18nUri: view.webview.asWebviewUri(vscode.Uri.joinPath(media, "i18n.js")).toString(),
       palette: currentPalette(),
@@ -1636,26 +1678,47 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
               if (!selectedProject)
                 throw Error(t("Choisissez un projet avant de créer son conteneur."));
               await prepareMissionFolder(selectedProject.workspace);
-              await startContainerTerminal(
-                {
-                  name: message.name,
-                  ...(message.image && { image: message.image }),
-                  workspacePath: selectedProject.workspace,
-                  ...(message.vpn && selectedVpn && { vpnPath: selectedVpn }),
-                  ...(message.desktop !== undefined && { desktop: message.desktop }),
-                  ...(message.desktopPort !== undefined && { desktopPort: message.desktopPort }),
-                  network: message.network ?? "nat",
-                  gui: false,
-                  exegolResources: message.shareResources ?? true,
-                  myResources: message.shareMyResources ?? true,
-                },
-                signal,
-              );
-              signal.throwIfAborted();
-              void vscode.window.showInformationMessage(
-                t("Terminez la création Exegol dans le terminal, puis actualisez les conteneurs."),
-              );
-              return t("Création Exegol lancée — progression dans le terminal");
+              const closed = new AbortController();
+              const watching = AbortSignal.any([signal, closed.signal]);
+              let terminalClose: vscode.Disposable | undefined;
+              try {
+                await createAndLinkContainer(selectedProject, message.name, {
+                  signal: watching,
+                  read: () => readProjects(defaultConfigDir()),
+                  list: () => shellDocker().listLabelPrefix({ signal: watching }),
+                  identity: (row) =>
+                    listedContainerIdentity(
+                      { inspect: (name) => shellDocker().inspect(name, { signal: watching }) },
+                      row,
+                    ),
+                  start: async () => {
+                    const terminal = await startContainerTerminal(
+                      {
+                        name: message.name,
+                        ...(message.image && { image: message.image }),
+                        workspacePath: selectedProject.workspace,
+                        ...(message.vpn && selectedVpn && { vpnPath: selectedVpn }),
+                        ...(message.desktop !== undefined && { desktop: message.desktop }),
+                        ...(message.desktopPort !== undefined && {
+                          desktopPort: message.desktopPort,
+                        }),
+                        network: message.network ?? "nat",
+                        gui: false,
+                        exegolResources: message.shareResources ?? true,
+                        myResources: message.shareMyResources ?? true,
+                      },
+                      signal,
+                    );
+                    terminalClose = vscode.window.onDidCloseTerminal((term) => {
+                      if (term === terminal) closed.abort();
+                    });
+                  },
+                  link: (name, projectId, verify) => linkForProject(name, projectId, verify),
+                });
+              } finally {
+                terminalClose?.dispose();
+              }
+              return t("Conteneur créé et lié au projet après vérification du partage.");
             });
           case "createKali":
             return await runOperation(t("Préparation de l’image Kali…"), async (signal, report) => {
@@ -1723,19 +1786,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                   onStage: (stage) => report({ stage: t`Serveur MCP Kali : ${stage}` }),
                 });
                 const latest = await readProjects(defaultConfigDir());
-                if (latest?.activeId !== selectedProject.id)
+                if (
+                  latest?.activeId !== selectedProject.id ||
+                  activeProject(latest)?.workspace !== selectedProject.workspace
+                )
                   throw Error(t("Le projet a changé pendant la préparation."));
-                await associateContainer(
-                  defaultConfigDir(),
-                  selectedProject.id,
-                  message.name,
-                  shellDocker(),
-                );
-                const linkedProject = {
-                  ...selectedProject,
-                  containers: [...new Set([...selectedProject.containers, message.name])],
-                };
-                await prepareContainerProjectWorkspace(linkedProject, message.name, shellDocker());
+                await linkForProject(message.name, selectedProject.id);
               } finally {
                 unsubscribe();
                 recorder.close();
@@ -1750,7 +1806,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                   const projects = info.projects.map((p) => p.name).join(", ") || t("aucun");
                   const choice = await vscode.window.showWarningMessage(
                     t`Supprimer ${info.name} (${info.family}) ?${info.force ? t(" Il est en cours et sera arrêté de force.") : ""} Les fichiers internes non montés seront perdus. Les images, volumes et dossiers hôtes sont conservés. Projets associés : ${projects}.`,
-                    { modal: true },
+                    {
+                      modal: true,
+                      detail: info.projects
+                        .map(
+                          (project) =>
+                            t`Le projet reste sur votre PC dans ${project.workspace} ; seuls les fichiers créés hors de /workspace dans le conteneur sont perdus.`,
+                        )
+                        .join("\n"),
+                    },
                     action,
                   );
                   return choice === action && !signal.aborted;
@@ -2800,6 +2864,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       summaryFailed?: string;
       summaryError?: string;
       projectError?: string;
+      workspaceRootError?: string;
       projectCreated?: string;
       auditError?: string;
     } = {},
@@ -2909,6 +2974,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         ) ?? {},
         projectChoices.activeId,
       ),
+      projectWorkspaceRoot: readMachineSetting("projects.workspaceRoot") || projectWorkspacesRoot(),
+      ...(feedback.workspaceRootError && { workspaceRootError: feedback.workspaceRootError }),
       agentProfile: agentProfileLabel(
         machineValue(vscode.workspace.getConfiguration("warband").inspect("profile")),
       ),
@@ -3605,6 +3672,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
         return;
       }
+      if (message.type === "setWorkspaceRoot") {
+        try {
+          projectWorkspacesRoot(message.value);
+          await writeMachineSetting("projects.workspaceRoot", message.value);
+          await pushStudio();
+        } catch (error) {
+          await pushStudio({ workspaceRootError: formatError(error, getUiLocale()) });
+        }
+        return;
+      }
       if (message.type === "setTerminalPrompt") {
         try {
           await writeMachineSetting("terminalPrompt", message.value);
@@ -3795,24 +3872,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             await activateSelectedProject(defaultConfigDir(), message.projectId);
             projectSelected = true;
           } else {
-            const chosen = await vscode.window.showOpenDialog({
-              canSelectFiles: false,
-              canSelectFolders: true,
-              canSelectMany: false,
-              openLabel: t("Choisir le dossier du projet"),
-              ...(folder !== undefined && { defaultUri: folder.uri }),
-            });
-            if (chosen?.[0] !== undefined) {
-              if (chatsBusy())
-                throw new Error(t("Arrêtez les tours en cours avant de créer le projet."));
-              projectCreated = await createSelectedProject(
-                defaultConfigDir(),
-                message.name,
-                chosen[0].fsPath,
-              );
-              await prepareMissionFolder(chosen[0].fsPath);
-              projectSelected = true;
-            }
+            if (chatsBusy())
+              throw new Error(t("Arrêtez les tours en cours avant de créer le projet."));
+            const created = await createManagedSelectedProject(
+              defaultConfigDir(),
+              message.name,
+              readMachineSetting("projects.workspaceRoot"),
+            );
+            projectCreated = created.id;
+            await prepareMissionFolder(created.workspace);
+            projectSelected = true;
           }
           if (projectSelected) {
             resetAllBypass();

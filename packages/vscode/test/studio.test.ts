@@ -843,7 +843,7 @@ it("projets : choisir un projet réel et créer avec le nom seul, dossier laiss�
   expect(choosePanel.hidden).toBe(true);
   expect(createPanel.hidden).toBe(false);
   expect(createTab.attributes.get("aria-pressed")).toBe("true");
-  const create = find((n) => n.textContent === "Créer un projet et choisir son dossier…");
+  const create = find((n) => n.textContent === "Créer le projet");
   expect(create.disabled).toBe(true);
   const name = find((n) => n.id === "project-name");
   name.value = " Nouvelle mission ";
@@ -869,12 +869,10 @@ it("projets : choisir un projet réel et créer avec le nom seul, dossier laiss�
   expect(find((n) => n.id === "project-choice").disabled).toBe(true);
   expect(find((n) => n.id === "project-name").disabled).toBe(true);
   expect(find((n) => n.textContent === "Activer le projet").disabled).toBe(true);
-  expect(find((n) => n.textContent === "Créer un projet et choisir son dossier…").disabled).toBe(
-    true,
-  );
+  expect(find((n) => n.textContent === "Créer le projet").disabled).toBe(true);
   const before = sent.length;
   find((n) => n.textContent === "Activer le projet").fire("click");
-  find((n) => n.textContent === "Créer un projet et choisir son dossier…").fire("click");
+  find((n) => n.textContent === "Créer le projet").fire("click");
   expect(sent).toHaveLength(before);
   receive({
     data: { type: "view", page: "project", projectChoices: { activeId: null, projects: [] } },
@@ -998,10 +996,10 @@ it("graphe : conserve la caméra, libère les observateurs et signale une erreur
   expect(observers[1]?.disconnected).toBe(true);
 });
 
-function killchainDom(i18n?: ReturnType<typeof localeService>) {
+function killchainDom(i18n?: ReturnType<typeof localeService>, fullKillchain = true) {
   const main = new StudioNode("main");
   const body = new StudioNode("body");
-  body.classList.contains = () => true;
+  body.classList.contains = () => fullKillchain;
   const sent: unknown[] = [];
   let receive: (event: { data: unknown }) => void = () => {};
   runInNewContext(read(studioJs), {
@@ -1518,4 +1516,38 @@ it("avertit pendant la saisie d’une valeur de compte de moins de six caractèr
   secret.value = "a1/b2?";
   secret.fire("input");
   expect(warning.hidden).toBe(true);
+});
+
+it("le réglage de racine appartient au Système et envoie uniquement une valeur machine", () => {
+  const h = killchainDom(undefined, false);
+  h.receive({
+    type: "view",
+    page: "system",
+    projectWorkspaceRoot: "/home/demo/.exegol/workspaces",
+  });
+  const input = h.main.find((node) => node.id === "project-workspace-root");
+  const save = h.main.find((node) => node.id === "project-workspace-root-save");
+  if (!input || !save) throw Error("Réglage de racine absent");
+  expect(input.value).toBe("/home/demo/.exegol/workspaces");
+  input.value = "/home/demo/missions";
+  save.fire("click");
+  expect(h.sent.at(-1)).toEqual({ type: "setWorkspaceRoot", value: "/home/demo/missions" });
+  expect(parseStudioMessage({ type: "setWorkspaceRoot", value: "/home/demo/missions" })).toEqual({
+    type: "setWorkspaceRoot",
+    value: "/home/demo/missions",
+  });
+  expect(parseStudioMessage({ type: "setWorkspaceRoot", value: "bad\0path" })).toBeNull();
+  expect(
+    parseStudioMessage({ type: "createProject", name: "Projet", workspaceRoot: "/autre" }),
+  ).toBeNull();
+});
+
+it("la création de projet n’ouvre plus de choix de dossier", () => {
+  const source = read(fileURLToPath(new URL("../src/extension/extension.ts", import.meta.url)));
+  const start = source.indexOf(
+    'if (message.type === "activateProject" || message.type === "createProject")',
+  );
+  const handler = source.slice(start, source.indexOf("if (projectSelected)", start));
+  expect(handler).toContain("createManagedSelectedProject");
+  expect(handler).not.toContain("showOpenDialog");
 });

@@ -79,13 +79,20 @@ it("refuse un autre projet, un partage différent et une fausse preuve sans cré
         { name: "kali-1", workspace: other.root, state: "running", family: "kali", image: "kali" },
       ],
     }),
-  ).rejects.toThrow();
+  ).rejects.toMatchObject({
+    code: "project.workspaceNotMounted",
+    params: {
+      container: "kali-1",
+      mounted: other.root,
+      project: `${project.name} (${project.workspace})`,
+    },
+  });
   await expect(
     prepareContainerProjectWorkspace(project, "kali-1", {
       ...docker,
       execWorkspace: async () => ["fake"],
     }),
-  ).rejects.toThrow();
+  ).rejects.toMatchObject({ code: "project.workspaceNotMounted" });
   expect(calls).toHaveLength(0);
 });
 it("adapte Docker Desktop sans transformer un chemin arbitraire ou distant", () => {

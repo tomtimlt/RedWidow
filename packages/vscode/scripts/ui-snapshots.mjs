@@ -794,6 +794,56 @@ credentialWarning.notice(
   "Identifiant détecté : il a été masqué dans les journaux. Utilisez la page Comptes de test pour que l'agent puisse s'en servir.",
 );
 const PAGES = [
+  simple(
+    "projet-dossier-automatique",
+    L.studioHtml,
+    "studio.js",
+    [
+      studio("project", {
+        projectChoices: { activeId: null, projects: [] },
+        projectId: null,
+        projectSummary: null,
+        linkedBanner: null,
+        findings: [],
+        projectWorkspaceRoot: "/home/user/.exegol/workspaces",
+      }),
+    ],
+    { projectDraft: "Mission démo" },
+  ),
+  simple("systeme-racine-projets", L.studioHtml, "studio.js", [
+    studio("system", {
+      ...CAPS,
+      projectWorkspaceRoot: "/home/user/.exegol/workspaces",
+    }),
+  ]),
+  simple(
+    "conteneur-partage-incompatible",
+    L.cockpitHtml,
+    "cockpit.js",
+    [
+      {
+        ...COCKPIT,
+        linked: "none",
+        linkedBanner: null,
+        projectWorkspace: "/home/user/.exegol/workspaces/mission-demo",
+        containers: DOCKER.containers.map((row) => ({
+          ...row,
+          state: "running",
+          canLink: true,
+          linked: false,
+          workspace: "/home/user/autre",
+        })),
+      },
+      {
+        type: "operation",
+        busy: false,
+        stage: "Erreur",
+        error:
+          "Le conteneur exegol-lab partage le dossier /home/user/autre, qui ne contient pas le projet Mission démo (/home/user/.exegol/workspaces/mission-demo). L’agent et le conteneur ne verraient pas les mêmes fichiers.",
+      },
+    ],
+    { mountError: true },
+  ),
   chatPage(
     "chat-profils",
     [
@@ -1067,6 +1117,15 @@ try {
         await tab.evaluate(() => document.fonts.ready);
         for (const m of page.messages) await tab.evaluate((msg) => window.postMessage(msg, "*"), m);
         await tab.waitForTimeout(150);
+        if (page.projectDraft) {
+          await tab.fill("#project-name", page.projectDraft);
+          if (
+            !(await tab.locator("#studio-main").innerText()).includes(
+              "son dossier est créé automatiquement",
+            )
+          )
+            throw new Error("Création sans dialogue absente");
+        }
         if (page.accountDraft) {
           for (const [name, value] of Object.entries(page.accountDraft))
             await tab.fill(`input[name="${name}"]`, value);
@@ -1130,6 +1189,11 @@ try {
             if (!text.includes(label)) throw new Error(`Profil absent : ${label}`);
           if (text.includes("Out of the box")) throw new Error("Ancien libellé de profil");
         }
+        if (
+          page.mountError &&
+          !(await tab.locator("body").innerText()).includes("ne verraient pas les mêmes fichiers")
+        )
+          throw new Error("Message de montage absent");
         // Captures stables : animations et transitions figées à leur début.
         await tab.evaluate(() => {
           for (const a of document.getAnimations()) {

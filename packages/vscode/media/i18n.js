@@ -420,6 +420,16 @@
 
   // packages/messages/src/ui-domains/cockpit.ts
   var cockpitEn = {
+    "Conteneur créé et lié au projet après vérification du partage.":
+      "Container created and linked to the project after share verification.",
+    "Le nouveau conteneur monte le dossier du projet et sera lié après vérification du partage. Pour un autre montage, créez un conteneur pour ce projet ou choisissez un autre conteneur.":
+      "The new container mounts the project folder and will be linked after the share is verified. For a different mount, create a container for this project or choose another container.",
+    "Créer un conteneur pour ce projet": "Create a container for this project",
+    "Choisir un autre conteneur": "Choose another container",
+    "Créer un conteneur pour ce projet est recommandé.":
+      "Creating a container for this project is recommended.",
+    "Le projet reste sur votre PC dans {0} ; seuls les fichiers créés hors de /workspace dans le conteneur sont perdus.":
+      "The project stays on your PC in {0}; only files created outside /workspace in the container are lost.",
     "Les fichiers sont partagés avec le dossier du projet ouvert dans VS Code. Un conteneur existant doit monter ce même dossier ; un autre montage nécessite une migration explicite.":
       "Files are shared with the project folder open in VS Code. An existing container must mount that same folder; a different mount requires an explicit migration.",
     "Dossier du projet": "Project folder",
@@ -1357,6 +1367,14 @@
 
   // packages/messages/src/ui-domains/studio.ts
   var studioEn = {
+    "Créer le projet": "Create project",
+    "Donnez un nom au projet : son dossier est créé automatiquement.":
+      "Name the project: its folder is created automatically.",
+    "Dossier des nouveaux projets : {0}": "New project folder root: {0}",
+    "Dossiers des projets": "Project folders",
+    "Racine des nouveaux projets (avancé)": "Root for new projects (advanced)",
+    "Ce réglage machine concerne les nouveaux projets. Les projets existants restent à leur emplacement. Vide : ~/.exegol/workspaces.":
+      "This machine setting applies to new projects. Existing projects stay in place. Empty: ~/.exegol/workspaces.",
     "Comptes de test": "Test accounts",
     "Valeur trop courte pour être masquée dans les journaux.":
       "Value too short to be masked in logs.",

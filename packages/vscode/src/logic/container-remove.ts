@@ -37,7 +37,10 @@ function validatedRow(rows: LabelPrefixContainer[], name: string): LabelPrefixCo
   return row;
 }
 
-async function identity(docker: RemovalDocker, row: LabelPrefixContainer): Promise<string> {
+export async function listedContainerIdentity(
+  docker: Pick<DockerClient, "inspect">,
+  row: LabelPrefixContainer,
+): Promise<string> {
   const raw = await docker.inspect(row.name);
   if (!Array.isArray(raw) || raw.length !== 1) throw new Error(t("Identité Docker invalide."));
   const value = raw[0];
@@ -77,7 +80,7 @@ export async function removeListedContainer(
       timeoutMs: 15_000,
     });
   const row = validatedRow(await docker.listLabelPrefix(), name);
-  const id = await identity(docker, row);
+  const id = await listedContainerIdentity(docker, row);
   const force = row.state === "running";
   if (
     !(await deps.confirm({
@@ -93,7 +96,7 @@ export async function removeListedContainer(
   if (
     current.family !== row.family ||
     current.state !== row.state ||
-    (await identity(docker, current)) !== id
+    (await listedContainerIdentity(docker, current)) !== id
   ) {
     throw new Error(t("Le conteneur a changé depuis la confirmation ; recommencez."));
   }

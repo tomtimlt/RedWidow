@@ -1,5 +1,15 @@
 // Libellés de la webview, indexés par leur texte français.
 export const cockpitEn: Record<string, string> = {
+  "Conteneur créé et lié au projet après vérification du partage.":
+    "Container created and linked to the project after share verification.",
+  "Le nouveau conteneur monte le dossier du projet et sera lié après vérification du partage. Pour un autre montage, créez un conteneur pour ce projet ou choisissez un autre conteneur.":
+    "The new container mounts the project folder and will be linked after the share is verified. For a different mount, create a container for this project or choose another container.",
+  "Créer un conteneur pour ce projet": "Create a container for this project",
+  "Choisir un autre conteneur": "Choose another container",
+  "Créer un conteneur pour ce projet est recommandé.":
+    "Creating a container for this project is recommended.",
+  "Le projet reste sur votre PC dans {0} ; seuls les fichiers créés hors de /workspace dans le conteneur sont perdus.":
+    "The project stays on your PC in {0}; only files created outside /workspace in the container are lost.",
   "Les fichiers sont partagés avec le dossier du projet ouvert dans VS Code. Un conteneur existant doit monter ce même dossier ; un autre montage nécessite une migration explicite.":
     "Files are shared with the project folder open in VS Code. An existing container must mount that same folder; a different mount requires an explicit migration.",
   "Dossier du projet": "Project folder",
