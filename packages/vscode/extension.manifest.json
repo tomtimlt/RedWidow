@@ -76,7 +76,7 @@
       {
         "command": "warband.openChat",
         "title": "%command.openChat%",
-        "icon": "$(comment-discussion)"
+        "icon": "media/logo-small.svg"
       },
       {
         "command": "warband.openCockpit",
@@ -232,12 +232,12 @@
         {
           "command": "warband.openProgram",
           "when": "activeWebviewPanelId =~ /^warband\\./",
-          "group": "navigation@2"
+          "group": "1_more@4"
         },
         {
           "command": "warband.openCockpit",
           "when": "activeWebviewPanelId =~ /^warband\\./",
-          "group": "navigation@3"
+          "group": "1_more@5"
         },
         {
           "command": "warband.openTerminal",
@@ -252,12 +252,12 @@
         {
           "command": "warband.openChat",
           "when": "activeWebviewPanelId =~ /^warband\\./",
-          "group": "1_more@1"
+          "group": "navigation@2"
         },
         {
           "command": "warband.openMonitor",
           "when": "activeWebviewPanelId =~ /^warband\\./",
-          "group": "1_more@2"
+          "group": "navigation@3"
         },
         {
           "command": "warband.openSessions",

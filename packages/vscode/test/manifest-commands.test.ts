@@ -86,13 +86,22 @@ describe("commandes du manifeste", () => {
     expect(palette.length).toBe(declared.length - visible.length);
   });
 
-  it("au plus 5 entrées principales dans les menus de titre, avec Réglages et Fiche programme", () => {
+  it("au plus 5 entrées principales dans les menus de titre, avec les accès rapides", () => {
     for (const menu of ["view/title", "editor/title"]) {
       const entries: { command: string; group: string }[] = manifest.contributes.menus[menu];
       const main = entries.filter((e) => e.group.startsWith("navigation")).map((e) => e.command);
       expect(main.length).toBeLessThanOrEqual(5);
       expect(main).toContain("warband.openStudio");
-      expect(main).toContain("warband.openProgram");
+      if (menu === "view/title") expect(main).toContain("warband.openProgram");
+      else {
+        for (const command of [
+          "warband.openChat",
+          "warband.openMonitor",
+          "warband.openTerminal",
+          "warband.openKillchain",
+        ])
+          expect(main).toContain(command);
+      }
       // Le reste passe dans le menu « … », rien n'est supprimé.
       expect(entries.length).toBe(9);
       expect(entries.filter((e) => !e.group.startsWith("navigation")).length).toBe(4);
