@@ -311,6 +311,8 @@ export const reasons: Catalog = {
     `référence de test inconnue dans ce run : ${text(p.id)} n'est pas un événement audit.test`,
   "coverage.testRefRequired": (p) =>
     `case « ${text(p.surface)} » à l'état ${text(p.state)} : au moins une référence testRefs (événement audit.test du run) est requise`,
+  "coverage.singleProbe": (p) =>
+    `${text(p.count)} case(s) : une seule sonde : précise les variantes essayées ou garde untested`,
   "coverage.untested": (p) =>
     `${text(p.count)} case(s) de la matrice encore non testée(s) (${text(p.examples)}) : les tester, ou les marquer bloquée / prérequis manquant avec la justification, avant de conclure`,
   "supervision.checkpoint": (p) =>

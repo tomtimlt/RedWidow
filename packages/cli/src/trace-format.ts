@@ -118,6 +118,9 @@ export function formatTraceReport(report: TraceReport, locale: Locale = DEFAULT_
       .map(([k, n]) => `${k} ${n}`)
       .join(" · ");
     out.push(`  ${t("couverture", "coverage")} (${w.coverage.total}) : ${counts}`);
+    out.push(
+      `  ${t("négatifs avec une seule sonde", "negative cells with one probe")} : ${w.coverage.negativeSingleProbe}`,
+    );
     for (const c of w.coverage.remaining)
       out.push(
         `  ${c.state} : ${clean(c.surface)}${c.parameter ? ` [${clean(c.parameter)}]` : ""} / ${clean(c.testClass)}`,

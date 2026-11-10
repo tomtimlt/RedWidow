@@ -55,6 +55,20 @@ describe("formatTraceReport", () => {
     expect(text).toContain("A: truncated outputs");
   });
 
+  it("affiche le compteur de négatifs à une sonde dans les deux langues", () => {
+    const coverage = ev(3, {
+      kind: "audit.coverage",
+      cells: [{ surface: "/a", testClass: "idor", state: "negative", testRefs: ["t1"] }],
+    });
+    const withCoverage = analyzeTrace([...events, coverage]);
+    expect(formatTraceReport(withCoverage, "fr").join("\n")).toContain(
+      "négatifs avec une seule sonde : 1",
+    );
+    expect(formatTraceReport(withCoverage, "en").join("\n")).toContain(
+      "negative cells with one probe : 1",
+    );
+  });
+
   it("neutralise les caractères de contrôle d'une commande du journal", () => {
     expect(formatTraceReport(report, "fr").join("\n")).not.toContain("\u001b");
   });

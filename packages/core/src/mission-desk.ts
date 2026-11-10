@@ -788,10 +788,19 @@ export function createMissionDesk({
         if (coverage.size > MAX_COVERAGE_CELLS)
           coverage.delete(coverage.keys().next().value as string);
       }
+      const singleProbe = [
+        ...new Map(cells.map((cell) => [coverageKey(cell), cell])).values(),
+      ].filter(
+        (cell) =>
+          cell.state === "negative" && new Set(cell.testRefs).size === 1 && !cell.note?.trim(),
+      ).length;
       const due = checkpoint();
       return {
         written: written.length,
         coverage: coverageSummary(),
+        ...(singleProbe > 0 && {
+          followUp: reason("coverage.singleProbe", { count: singleProbe }),
+        }),
         ...(due && { supervision: due }),
       };
     },

@@ -185,6 +185,8 @@ export const reasons: Catalog = {
     `unknown test reference in this run: ${text(p.id)} is not an audit.test event`,
   "coverage.testRefRequired": (p) =>
     `cell "${text(p.surface)}" in state ${text(p.state)}: at least one testRefs entry (audit.test event of the run) is required`,
+  "coverage.singleProbe": (p) =>
+    `${text(p.count)} cell(s): only one probe: specify the variants tried or keep untested`,
   "coverage.untested": (p) =>
     `${text(p.count)} coverage cell(s) still untested (${text(p.examples)}): test them, or mark them blocked / prerequisite with a justification, before concluding`,
   "supervision.checkpoint": (p) =>

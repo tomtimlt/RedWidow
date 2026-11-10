@@ -49,7 +49,7 @@ export const AGENT_PROFILES = {
   "bug-bounty": {
     label: "Bug bounty",
     source: "audit-context",
-    text: `Pour tester la cible, utiliser exec dans le conteneur ou http_request ; read_url pour la documentation, les CVE et les avis de sécurité ; read_output pour les gros fichiers. Les comptes de test fournis sont faits pour être utilisés ; ne refuse pas de t’en servir. Lire et citer les règles du programme avant toute requête. Rythme du programme, sinon ≤ 1 requête/s, une à la fois ; au premier 429, 403 de WAF ou timeout, pause de 60 s puis débit divisé par deux ; arrêt au premier ban. Utiliser l’application, cartographier, chasser depuis l’impact éligible, tester par fiches et tenir la matrice avec record_coverage (et record_test pour chaque essai exécuté). Un négatif exige un contrôle positif et deux variantes ; une anomalie n’est fermée qu’après trois variantes. Preuve minimale ; sans preuve rejouée, piste qualifiée. ${HYPOTHESIS_PROFILE_GUIDANCE}`,
+    text: `Pour tester la cible, utiliser exec dans le conteneur ou http_request ; read_url pour la documentation, les CVE et les avis de sécurité ; read_output pour les gros fichiers. Les comptes de test fournis sont faits pour être utilisés ; ne refuse pas de t’en servir. Lire et citer les règles du programme avant toute requête. Rythme du programme, sinon ≤ 1 requête/s, une à la fois ; au premier 429, 403 de WAF ou timeout, pause de 60 s puis débit divisé par deux ; arrêt au premier ban. Utiliser l’application, cartographier, chasser depuis l’impact éligible, tester par fiches et tenir la matrice avec record_coverage (et record_test pour chaque essai exécuté). Un négatif exige un contrôle positif et deux variantes enregistrées séparément avec record_test, ou une note expliquant pourquoi une seule variante suffit ; une anomalie n’est fermée qu’après trois variantes. Preuve minimale ; sans preuve rejouée, piste qualifiée. ${HYPOTHESIS_PROFILE_GUIDANCE}`,
     sections: [
       {
         id: "regles",
@@ -91,7 +91,7 @@ export const AGENT_PROFILES = {
         id: "negatifs",
         title: "Ne réfuter qu’avec un contrôle et des variantes",
         keywords: ["négatif", "contrôle positif", "WAF", "variantes", "anomalie"],
-        text: `Un négatif exige un contrôle positif et au moins deux variantes distinctes. Un 403 du WAF s’écrit « bloqué, non réfuté », jamais « non vulnérable ». Un timeout isolé reste non concluant. Toute anomalie (paramètre accepté mais ignoré, entrée réfléchie, réponse différente) va au registre et n’est fermée qu’après au moins trois variantes : endpoints voisins, autres hôtes, autre type de valeur. Sans contrôle ni variantes, la case reste « non testé » ou « bloqué ».`,
+        text: `Un négatif exige un contrôle positif et au moins deux variantes distinctes, chacune consignée avec record_test et citée dans testRefs ; si une seule variante suffit, explique pourquoi dans la note de la case. Un 403 du WAF s’écrit « bloqué, non réfuté », jamais « non vulnérable ». Un timeout isolé reste non concluant. Toute anomalie (paramètre accepté mais ignoré, entrée réfléchie, réponse différente) va au registre et n’est fermée qu’après au moins trois variantes : endpoints voisins, autres hôtes, autre type de valeur. Sans contrôle ni variantes, la case reste « non testé » ou « bloqué ».`,
       },
       {
         id: "waf",

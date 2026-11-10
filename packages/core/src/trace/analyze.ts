@@ -73,6 +73,8 @@ export interface TraceWebSearch {
 export interface TraceCoverage {
   total: number;
   counts: Record<CoverageState, number>;
+  /** Cases négatives finales avec une seule référence de test distincte. */
+  negativeSingleProbe: number;
   /** Cases `untested` ou `blocked` restantes. */
   remaining: { surface: string; parameter?: string; testClass: string; state: CoverageState }[];
 }
@@ -223,7 +225,7 @@ export function analyzeTrace(
   >();
   const resultsInOrder: TraceTruncatedResult[] = [];
   const searches: TraceWebSearch[] = [];
-  const cells = new Map<string, TraceCoverage["remaining"][number]>();
+  const cells = new Map<string, TraceCoverage["remaining"][number] & { singleProbe: boolean }>();
   const observedPaths = new Set<string>();
   const observedTokens = new Set<string>();
   const genericPaths = new Map<string, number>();
@@ -341,6 +343,7 @@ export function analyzeTrace(
             ...(cell.parameter !== undefined && { parameter: cell.parameter }),
             testClass: cell.testClass,
             state: cell.state,
+            singleProbe: new Set(cell.testRefs ?? []).size === 1,
           });
         }
         break;
@@ -391,11 +394,13 @@ export function analyzeTrace(
       number
     >;
     const remaining: TraceCoverage["remaining"] = [];
-    for (const cell of cells.values()) {
+    let negativeSingleProbe = 0;
+    for (const { singleProbe, ...cell } of cells.values()) {
       counts[cell.state]++;
+      if (cell.state === "negative" && singleProbe) negativeSingleProbe++;
       if (cell.state === "untested" || cell.state === "blocked") remaining.push(cell);
     }
-    coverage = { total: cells.size, counts, remaining };
+    coverage = { total: cells.size, counts, negativeSingleProbe, remaining };
   }
 
   // Classe de blocage (indicative, priorité A > B > C).

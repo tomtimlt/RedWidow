@@ -17,13 +17,13 @@ import { DEFAULT_POLICY, evaluatePolicy } from "../src/approval/policy.js";
 import { createMissionDesk } from "../src/mission-desk.js";
 import { createRecorder } from "../src/recorder.js";
 
-function fixture() {
+function fixture(profile: "bug-bounty" | "htb" = "bug-bounty") {
   let clock = 0;
   const recorder = createRecorder({ runId: "run", redact: false });
   const desk = createMissionDesk({
     recorder,
     now: () => new Date(clock),
-    mission: { profile: "bug-bounty", containers: ["laboratoire"] },
+    mission: { profile, containers: ["laboratoire"] },
   });
   let n = 0;
   function result(output: string, isError = false, input = { query: "service" }, tool = "read") {
@@ -239,8 +239,8 @@ it("record_test exige des preuves de ce run, masque les annotations et ne donne 
 });
 
 describe("matrice de couverture", () => {
-  function setup() {
-    const f = fixture();
+  function setup(profile: "bug-bounty" | "htb" = "bug-bounty") {
+    const f = fixture(profile);
     const e = f.result("HTTP 403");
     const claim = {
       objective: "Test IDOR",
@@ -314,6 +314,39 @@ describe("matrice de couverture", () => {
     expect(() =>
       f.desk.recordCoverage([{ ...cell, state: "negative", testRefs: [other.test.eventId] }]),
     ).toThrow(expect.objectContaining({ code: "coverage.testRefUnknown" }));
+  });
+
+  it("avertit sans refuser un négatif fondé sur une seule sonde non justifiée", () => {
+    const f = setup();
+    const events: string[] = [];
+    f.recorder.subscribe((event) => events.push(event.kind));
+    const single = { ...cell, state: "negative" as const, testRefs: [f.test.eventId] };
+    const out = f.desk.recordCoverage([single, { ...single, surface: "/autre" }]);
+    expect(out).toMatchObject({
+      written: 2,
+      followUp: { code: "coverage.singleProbe", params: { count: 2 } },
+    });
+    expect(events).toContain("audit.coverage");
+    expect(
+      f.desk.recordCoverage([{ ...single, testRefs: [f.test.eventId, f.test.eventId], note: "  " }])
+        .followUp?.code,
+    ).toBe("coverage.singleProbe");
+    expect(
+      f.desk.recordCoverage([
+        { ...single, note: "Une seule variante est possible dans ce contexte." },
+      ]).followUp,
+    ).toBeUndefined();
+    const other = f.desk.recordTest(f.claim);
+    expect(
+      f.desk.recordCoverage([{ ...single, testRefs: [f.test.eventId, other.eventId] }]).followUp,
+    ).toBeUndefined();
+  });
+
+  it("avertit aussi hors Bug bounty lorsque la couverture est utilisée", () => {
+    const f = setup("htb");
+    expect(
+      f.desk.recordCoverage([{ ...cell, state: "negative", testRefs: [f.test.eventId] }]).followUp,
+    ).toMatchObject({ code: "coverage.singleProbe" });
   });
 
   it("expose le résumé dans mission_context (≤ 20 non testées listées)", () => {

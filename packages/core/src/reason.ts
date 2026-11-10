@@ -207,6 +207,7 @@ export const REASON_CODES = [
   "coverage.testRefUnknown",
   "coverage.testRefRequired",
   "coverage.untested",
+  "coverage.singleProbe",
   // Encadrement (niveau de supervision)
   "supervision.checkpoint",
   "kali.nmapUnavailable",

@@ -210,6 +210,27 @@ describe("analyzeTrace : run sans recherche (classe C, puis B)", () => {
     expect(cov?.remaining.map((c) => c.state).sort()).toEqual(["blocked", "untested"]);
   });
 
+  it("compte les cases négatives finales à une référence distincte", () => {
+    const j = new Journal();
+    const cell = { surface: "/a", testClass: "idor", state: "negative" as const, testRefs: ["t1"] };
+    j.emit({
+      kind: "audit.coverage",
+      cells: [cell, { ...cell, surface: "/b" }, { ...cell, surface: "/c" }],
+    });
+    j.emit({
+      kind: "audit.coverage",
+      cells: [
+        { ...cell, note: "Une variante suffit", testRefs: ["t1", "t1"] },
+        { ...cell, surface: "/b", testRefs: ["t1", "t2"] },
+        { ...cell, surface: "/c", state: "blocked" },
+      ],
+    });
+    expect(analyzeTrace(j.events()).web.coverage).toMatchObject({
+      total: 3,
+      negativeSingleProbe: 1,
+    });
+  });
+
   it("classe B : arrêt du modèle avec cases restantes (prioritaire sur C)", () => {
     expect(build(true).blockClass.dominant).toBe("B");
   });
