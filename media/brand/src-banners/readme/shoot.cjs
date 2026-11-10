@@ -1,5 +1,6 @@
 const { chromium } = require('playwright');
-const names = ['01-weave', '02-watch', '03-strike', '04-wrap', '05-learn', '06-yours'];
+const base = ['01-weave', '02-watch', '03-strike', '04-wrap', '05-learn', '06-yours'];
+const names = process.argv[2] === 'fr' ? base.map((n) => n + '-fr') : base;
 (async () => {
   const b = await chromium.launch(); const errs = [];
   for (const n of names) {

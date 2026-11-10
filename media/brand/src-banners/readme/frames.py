@@ -52,17 +52,37 @@ def page(name, plate_html, panes, web_at=(1160, 400)):
     open(H + name + '.html', 'w').write(f'<!doctype html><meta charset="utf-8"><style>{css}</style><body><div class="stage">'
         f'{web(*web_at)}{panes}{plate_html}<div class="vig"></div></div>')
 
+import sys
+FR = len(sys.argv) > 1 and sys.argv[1] == 'fr'
 CHAT = 'RedWidow: Chat'
-page('01-weave', plate('01', 'Weave.', 'Recon', 'Give it<br><span>a target.</span>', 'The agent runs the scans in your<br>Exegol or Kali container.'),
-     pane(590, 70, 960, H + 'chat-agent.png', 980, 640, CHAT))
-page('02-watch', plate('02', 'Watch.', 'Analysis', 'It maps<br><span>the kill chain.</span>', 'Every command live in the Monitor,<br>every finding linked in the graph.'),
-     pane(620, 52, 930, R0 + 'lab-graph.png', 981, 450, 'Kill chain') + pane(570, 432, 740, R0 + 'lab-monitor.png', 981, 340, 'Monitor · kali-1'))
-page('03-strike', plate('03', 'Strike.', 'Action', 'Drive it.<br><span>Or unleash it.</span>', 'Approve each action, or let it run<br>in Automatic mode for a set time.'),
-     pane(590, 70, 960, R0 + 'lab-chat-wide.png', 980, 640, CHAT))
-page('04-wrap', plate('04', 'Wrap.', 'Report', 'It writes<br><span>the report.</span>', 'Findings with severities, a coverage<br>matrix, a Markdown draft.'),
-     pane(590, 70, 960, H + 'chat-bypass.png', 980, 640, CHAT))
-page('05-learn', plate('05', 'Learn.', 'Learning mode', 'Stuck on a box?<br><span>It reads your terminal.</span>', 'It reads your course and the terminal<br>you cite with #. It never runs anything.'),
-     pane(586, 72, 512, R0 + 'lab-learn-term.png', 560, 690, 'kali-1') + pane(1118, 72, 430, R0 + 'lab-learn-chat.png', 470, 690, CHAT))
-page('06-yours', plate('', '', 'Make it yours', '23 color sets.<br><span>One spider.</span>', 'Solid colors and gradients, for light,<br>dark and high-contrast themes.'),
-     pane(660, 40, 840, H + 'appearance.png', 1100, 900, 'RedWidow: Settings'))
+if FR:
+    css = css + '.verb{font-size:76px}.cap{font-size:36px}'
+    CHAT = 'RedWidow : Chat'
+
+if FR:
+    page('01-weave-fr', plate('01', 'Tisse.', 'Repérage', 'Donne-lui<br><span>une cible.</span>', 'L’agent lance les scans dans ton<br>conteneur Exegol ou Kali.'),
+         pane(590, 70, 960, H + 'fr-chat-agent.png', 980, 640, CHAT))
+    page('02-watch-fr', plate('02', 'Guette.', 'Analyse', 'Elle trace<br><span>la kill chain.</span>', 'Chaque commande en direct dans le Monitor,<br>chaque trouvaille reliée dans le graphe.'),
+         pane(620, 52, 930, H + 'fr-killchain.png', 981, 450, 'Kill chain') + pane(570, 432, 740, H + 'fr-monitor.png', 981, 340, 'Monitor · kali-1'))
+    page('03-strike-fr', plate('03', 'Frappe.', 'Action', 'Pilote-la.<br><span>Ou lâche la bête.</span>', 'Valide chaque action, ou laisse-la<br>travailler seule pour une durée choisie.'),
+         pane(590, 70, 960, H + 'fr-chat-approval-wide.png', 980, 640, CHAT))
+    page('04-wrap-fr', plate('04', 'Emballe.', 'Rapport', 'Elle écrit<br><span>le rapport.</span>', 'Constats et gravités, matrice de<br>couverture, brouillon Markdown.'),
+         pane(590, 70, 960, H + 'fr-chat-bypass.png', 980, 640, CHAT))
+    page('05-learn-fr', plate('05', 'Apprends.', 'Mode Apprentissage', 'Bloqué sur une box&nbsp;?<br><span>Elle lit ton terminal.</span>', 'Elle lit ton cours et le terminal cité<br>avec #. Elle n’exécute jamais rien.'),
+         pane(586, 72, 512, H + 'fr-terminal.png', 560, 690, 'kali-1') + pane(1118, 72, 430, H + 'fr-chat-learning.png', 470, 690, CHAT))
+    page('06-yours-fr', plate('', '', 'À ta façon', '23 jeux de couleurs.<br><span>Une araignée.</span>', 'Couleurs franches et dégradés, pour<br>les thèmes clair, sombre et contrasté.'),
+         pane(660, 40, 840, H + 'fr-appearance.png', 1100, 900, 'RedWidow : Réglages'))
+else:
+    page('01-weave', plate('01', 'Weave.', 'Recon', 'Give it<br><span>a target.</span>', 'The agent runs the scans in your<br>Exegol or Kali container.'),
+         pane(590, 70, 960, H + 'chat-agent.png', 980, 640, CHAT))
+    page('02-watch', plate('02', 'Watch.', 'Analysis', 'It maps<br><span>the kill chain.</span>', 'Every command live in the Monitor,<br>every finding linked in the graph.'),
+         pane(620, 52, 930, R0 + 'lab-graph.png', 981, 450, 'Kill chain') + pane(570, 432, 740, R0 + 'lab-monitor.png', 981, 340, 'Monitor · kali-1'))
+    page('03-strike', plate('03', 'Strike.', 'Action', 'Drive it.<br><span>Or unleash it.</span>', 'Approve each action, or let it run<br>in Automatic mode for a set time.'),
+         pane(590, 70, 960, R0 + 'lab-chat-wide.png', 980, 640, CHAT))
+    page('04-wrap', plate('04', 'Wrap.', 'Report', 'It writes<br><span>the report.</span>', 'Findings with severities, a coverage<br>matrix, a Markdown draft.'),
+         pane(590, 70, 960, H + 'chat-bypass.png', 980, 640, CHAT))
+    page('05-learn', plate('05', 'Learn.', 'Learning mode', 'Stuck on a box?<br><span>It reads your terminal.</span>', 'It reads your course and the terminal<br>you cite with #. It never runs anything.'),
+         pane(586, 72, 512, R0 + 'lab-learn-term.png', 560, 690, 'kali-1') + pane(1118, 72, 430, R0 + 'lab-learn-chat.png', 470, 690, CHAT))
+    page('06-yours', plate('', '', 'Make it yours', '23 color sets.<br><span>One spider.</span>', 'Solid colors and gradients, for light,<br>dark and high-contrast themes.'),
+         pane(660, 40, 840, H + 'appearance.png', 1100, 900, 'RedWidow: Settings'))
 print('ok')

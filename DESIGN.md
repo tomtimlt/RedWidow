@@ -108,7 +108,11 @@ de 1600 × 800 par chapitre (01 WEAVE à 05 LEARN, plus « 23 color sets. One
 spider. ») avec plaque à gauche (numéro détouré, verbe en signature, phase en
 mono, légende reprise des pubs) et fenêtres du kit à droite sur fond acier et
 toile ; sources dans `media/brand/src-banners/` (`gen.py` pour les bannières,
-`readme/` pour les images de chapitre). Ordre des conteneurs dans la communication : Exegol
+`readme/` pour les images de chapitre). Le README français (`README.fr.md`) suit
+la même structure avec ses propres visuels (`*-fr.png`, `hero-fr.png`,
+`preview-fr.gif`, film français) : plaques en français dans la voix des pubs
+(« Donne-lui une cible. »), fenêtres du kit traduites avec les libellés réels du
+produit (`cap_fr.cjs` et `fr-map.json`), texte en vouvoiement comme celui de `main`. Ordre des conteneurs dans la communication : Exegol
 puis Kali, comme dans la 1.0. Reste sous le nom Venator Ops : la section suivante (archive)
 et le carrousel LinkedIn, à refaire avec la nouvelle identité.
 
