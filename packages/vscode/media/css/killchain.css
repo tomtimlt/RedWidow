@@ -430,13 +430,13 @@ body.killchain-full .kc-empty {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  max-height: 100%;
+  max-height: calc(100% - 24px);
   overflow: auto;
-  margin: 0;
-  background: var(--jn-drawer-bg);
-  border: 0;
-  border-left: 1px solid var(--jn-line);
-  border-radius: 0;
+  margin: 12px 12px 12px 0;
+  background: var(--jn-widget);
+  border: 1px solid var(--vscode-editorWidget-border, var(--jn-line-strong));
+  border-radius: var(--jn-r-md);
+  box-shadow: var(--jn-shadow-pop);
   font-family: var(--jn-font);
 }
 .kc-legend-head {
@@ -745,26 +745,26 @@ body.killchain-full .studio-kc > .kc-viewport {
   font-size: var(--jn-fs-sm);
 }
 .kc-node-card[hidden],
-.kc-node-meta[hidden] {
+.kc-card-meta[hidden] {
   display: none;
 }
-.kc-node-head {
+.kc-card-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
 }
-.kc-node-title {
+.kc-card-title {
   min-width: 0;
   font-weight: 600;
   overflow-wrap: anywhere;
 }
-.kc-node-close {
+.kc-card-close {
   flex: none;
   min-height: 22px;
   padding: 0 8px;
 }
-.kc-node-meta {
+.kc-card-meta {
   color: var(--jn-muted);
   font-size: var(--jn-fs-xs);
   overflow-wrap: anywhere;
@@ -775,9 +775,15 @@ body.killchain-full .studio-kc > .kc-viewport {
   align-items: stretch;
   gap: 4px;
 }
-.kc-node-foot {
+.kc-card-foot {
   display: flex;
   justify-content: flex-end;
   padding-top: 6px;
   border-top: 1px solid var(--jn-line);
+}
+
+main.is-loading {
+  opacity: 0.55;
+  transition: opacity var(--jn-d1);
+  pointer-events: none;
 }

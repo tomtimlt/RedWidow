@@ -3008,7 +3008,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const active = file === null ? null : activeProject(file);
       findings = active === null ? [] : await readFindings(defaultConfigDir(), active.id);
       evidence =
-        active === null
+        active === null || studioPage !== "killchain"
           ? []
           : (await listEvidence(defaultConfigDir(), active.id)).map(
               ({ text: _text, ...meta }) => meta,

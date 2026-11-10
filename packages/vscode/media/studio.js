@@ -541,9 +541,19 @@ function start() {
           count.title = t`${item.count} élément${item.count > 1 ? "s" : ""}`;
           b.append(count);
         }
-        b.addEventListener("click", () =>
-          vscode.postMessage(item.action ? { type: item.action } : { type: "open", page: item.id }),
-        );
+        b.addEventListener("click", () => {
+          if (item.action) {
+            vscode.postMessage({ type: item.action });
+            return;
+          }
+          // Retour immédiat : la page choisie est surlignée et le contenu attend les données.
+          if (lastView && item.id !== current && main) {
+            main.classList.add("is-loading");
+            main.setAttribute?.("aria-busy", "true");
+            paintNav(item.id, lastView.findings, lastView);
+          }
+          vscode.postMessage({ type: "open", page: item.id });
+        });
         section.append(b);
       }
       nav.append(section);
@@ -1080,9 +1090,9 @@ function start() {
     bar.append(flow);
     // Fiche flottante du nœud sélectionné : contenu complet et suppression, hors de la barre du haut.
     const selection = el("div", "kc-node-card");
-    const selectedLabel = el("span", "kc-node-title");
-    const nodeMeta = el("div", "kc-node-meta");
-    const closeCard = el("button", "ghost kc-btn kc-node-close", "×");
+    const selectedLabel = el("span", "kc-card-title");
+    const nodeMeta = el("div", "kc-card-meta");
+    const closeCard = el("button", "ghost kc-btn kc-card-close", "×");
     closeCard.type = "button";
     closeCard.setAttribute("aria-label", t("Fermer"));
     closeCard.addEventListener("click", () => {
@@ -1100,9 +1110,9 @@ function start() {
     trash.append(trashPath);
     remove.append(decorative(trash), el("span", "btn-text", t("Supprimer")));
     const proofs = el("div", "kc-proofs");
-    const cardHead = el("div", "kc-node-head");
+    const cardHead = el("div", "kc-card-head");
     cardHead.append(selectedLabel, closeCard);
-    const cardFoot = el("div", "kc-node-foot");
+    const cardFoot = el("div", "kc-card-foot");
     cardFoot.append(remove);
     selection.append(cardHead, nodeMeta, proofs, cardFoot);
     selection.addEventListener("click", (event) => event.stopPropagation());
@@ -1998,6 +2008,10 @@ function start() {
   }
 
   function render(view, force = false) {
+    if (main) {
+      main.classList.remove("is-loading");
+      main.removeAttribute?.("aria-busy");
+    }
     if (validPrompt(view.terminalPrompt)) terminalPrompt = view.terminalPrompt;
     lastView = { ...view, summarySaved: undefined, summaryFailed: undefined };
     // Une arrivée de traces ne doit pas interrompre la saisie dans une qualification.

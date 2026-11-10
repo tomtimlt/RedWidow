@@ -212,8 +212,8 @@ export function chatHtml({
 <p data-i18n="Pendant le Bypass, les actions de l’agent ne vous sont plus demandées ; vous en êtes responsable.">${localized("Pendant le Bypass, les actions de l’agent ne vous sont plus demandées ; vous en êtes responsable.", locale)}</p>
 <label><span data-i18n="Heures">${localized("Heures", locale)}</span> <input id="bypass-hours" type="number" min="0" max="48" value="2"></label>
 <label><span data-i18n="Minutes">${localized("Minutes", locale)}</span> <input id="bypass-minutes" type="number" min="0" max="59" value="0"></label>
-<button id="bypass-unlimited" type="button" aria-pressed="false" data-i18n="Illimité">${localized("Illimité", locale)}</button>
-<button id="bypass-activate" type="button" data-i18n="Activer">${localized("Activer", locale)}</button>
+<button id="bypass-unlimited" type="button" class="ghost" aria-pressed="false" data-i18n="Illimité">${localized("Illimité", locale)}</button>
+<button id="bypass-activate" type="button" class="primary" data-i18n="Activer">${localized("Activer", locale)}</button>
 <p id="bypass-error" role="alert" hidden data-i18n="Choisissez une durée de 1 minute à 48 h.">${localized("Choisissez une durée de 1 minute à 48 h.", locale)}</p></div>
 <div id="cfg-pop" class="pop" popover="auto" role="dialog" aria-labelledby="cfg-pop-title">
 <div class="pop-head"><span id="cfg-pop-title" class="pop-title">${icon("sliders", "ico pop-title-ico")}<span data-i18n="Configurer">${localized("Configurer", locale)}</span></span><span class="pop-sub sr-only"><span data-i18n="S&#x27;applique au message suivant">${localized("S'applique au message suivant", locale)}</span></span></div>

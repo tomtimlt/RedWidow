@@ -1197,7 +1197,7 @@ it("suppression : sélection accessible, action unique et cible du projet affich
   expect(selection.hidden).toBe(true);
   node.fire("click");
   expect(selection.hidden).toBe(false);
-  expect(find("kc-node-title").textContent).toBe("<Serveur>");
+  expect(find("kc-card-title").textContent).toBe("<Serveur>");
   expect(node.attributes.get("aria-pressed")).toBe("true");
   expect(remove.disabled).toBe(false);
   expect(remove.children[0]?.tag).toBe("svg");
@@ -1270,7 +1270,7 @@ it("suppression : sélection conservée au rafraîchissement puis effacée aprè
     findings: [{ ...deleteFindingView.findings[0], label: "Renommé" }],
   });
   expect(find("kc-node").attributes.get("aria-pressed")).toBe("true");
-  expect(find("kc-node-title").textContent).toBe("Renommé");
+  expect(find("kc-card-title").textContent).toBe("Renommé");
   find("kc-delete").fire("click");
   receive({ ...deleteFindingView, findings: [] });
   expect(find("kc-empty")).toBeDefined();

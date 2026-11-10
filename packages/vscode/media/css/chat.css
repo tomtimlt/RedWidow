@@ -3068,28 +3068,11 @@ body.vscode-high-contrast-light .welcome-spider {
 }
 #bypass-pop button {
   min-height: 28px;
-  padding: 4px 12px;
-  border: 1px solid var(--jn-line-strong);
-  border-radius: var(--jn-r-sm);
-  background: var(--jn-raise-2);
-  color: var(--vscode-foreground);
   cursor: pointer;
-}
-#bypass-pop button:hover {
-  border-color: var(--vscode-focusBorder, var(--jn-accent));
 }
 #bypass-pop #bypass-unlimited[aria-pressed="true"] {
   background: var(--jn-bypass-tint);
   border-color: var(--jn-bypass-edge);
-  outline: none;
-}
-#bypass-pop #bypass-activate {
-  background: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
-  border-color: transparent;
-}
-#bypass-pop #bypass-activate:hover {
-  background: var(--vscode-button-hoverBackground);
 }
 #bypass-banner:not([hidden]) {
   display: flex;
