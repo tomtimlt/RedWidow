@@ -1024,6 +1024,9 @@ const PAGES = [
   simple("engagement", L.engagementHtml, "engagement.js", [ENGAGEMENT], { tall: true }),
   simple("engagement-arret", L.engagementHtml, "engagement.js", [ENGAGEMENT_HALT], { tall: true }),
   simple("engagement-plan", L.engagementHtml, "engagement.js", [ENGAGEMENT_PLAN], { tall: true }),
+  simple("audit-couverture", L.studioHtml, "studio.js", [studio("audit", { audit: AUDIT })], {
+    tall: true,
+  }),
   simple("sessions", L.sessionsHtml, "sessions.js", [SESSIONS]),
   simple("sessions-attente", L.sessionsHtml, "sessions.js", [SESSIONS], {
     click: "filter-awaiting",

@@ -2,6 +2,8 @@
 (() => {
   // packages/messages/src/ui-domains/audit.ts
   var auditEn = {
+    "1 faille confirmée": "1 confirmed vulnerability",
+    "{0} failles confirmées": "{0} confirmed vulnerabilities",
     Couverture: "Coverage",
     "Aucune case de couverture enregistrée.": "No coverage cell recorded.",
     "{0} % des cases testées ({1} cases)": "{0} % of cells tested ({1} cells)",
@@ -11,6 +13,7 @@
     "Non testé": "Untested",
     Négatif: "Negative",
     Bloqué: "Blocked",
+    Prérequis: "Prerequisite",
     "Prérequis manquant": "Missing prerequisite",
     Surface: "Surface",
     Paramètre: "Parameter",

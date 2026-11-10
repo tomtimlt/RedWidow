@@ -1656,13 +1656,27 @@ function start() {
       part.append(el("p", "studio-help", t("Aucune case de couverture enregistrée.")));
       return part;
     }
+    if (model.counts.confirmed > 0) {
+      const count = model.counts.confirmed;
+      part.append(
+        el(
+          "p",
+          "coverage-banner",
+          count === 1 ? t("1 faille confirmée") : t`${count} failles confirmées`,
+        ),
+      );
+    }
     part.append(
       el("p", "studio-help", t`${model.percent} % des cases testées (${model.total} cases)`),
     );
     const counts = el("p", "audit-filters");
     for (const state of COVERAGE_STATES)
       counts.append(
-        el("span", "audit-badge", `${t(COVERAGE_STATE_LABELS[state])} : ${model.counts[state]}`),
+        el(
+          "span",
+          `audit-badge coverage-state is-${state}`,
+          `${t(state === "prerequisite" ? "Prérequis" : COVERAGE_STATE_LABELS[state])} : ${model.counts[state]}`,
+        ),
       );
     part.append(counts);
     const bar = el("div", "audit-filters");
@@ -1691,11 +1705,14 @@ function start() {
     }
     const wrap = el("div", "md-table");
     const table = el("table");
+    const columns = el("colgroup");
+    for (let i = 0; i < 5; i++) columns.append(el("col"));
+    table.append(columns);
     const head = el("tr");
     for (const text of ["Surface", "Paramètre", "Classe", "État", "Note"])
       head.append(el("th", "", t(text)));
     table.append(el("thead"));
-    table.firstChild.append(head);
+    table.lastChild.append(head);
     const body = el("tbody");
     for (const cell of model.rows) {
       const row = el("tr");
@@ -1703,7 +1720,18 @@ function start() {
         el("td", "", String(cell.surface ?? "")),
         el("td", "", String(cell.parameter ?? "")),
         el("td", "", String(cell.testClass ?? "")),
-        el("td", "", COVERAGE_STATE_LABELS[cell.state] ? t(COVERAGE_STATE_LABELS[cell.state]) : ""),
+        (() => {
+          const td = el("td");
+          if (COVERAGE_STATES.includes(cell.state))
+            td.append(
+              el(
+                "span",
+                `audit-badge coverage-state is-${cell.state}`,
+                t(COVERAGE_STATE_LABELS[cell.state]),
+              ),
+            );
+          return td;
+        })(),
         el("td", "", String(cell.note ?? "")),
       );
       body.append(row);

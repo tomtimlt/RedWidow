@@ -1589,10 +1589,68 @@ describe("page Audit : couverture", () => {
     expect(section).toContain("cell.note");
   });
 
+  it("affiche les pastilles, les colonnes et le bandeau seulement si une faille est confirmée", () => {
+    const main = new StudioNode("main");
+    let receive: (event: { data: unknown }) => void = () => {};
+    runInNewContext(read(studioJs), {
+      TextEncoder,
+      setTimeout,
+      clearTimeout,
+      acquireVsCodeApi: () => ({ postMessage() {} }),
+      document: {
+        addEventListener() {},
+        body: new StudioNode("body"),
+        getElementById: (id: string) => (id === "studio-main" ? main : null),
+        createElement: (tag: string) => new StudioNode(tag),
+      },
+      window: {
+        WarbandIcons: { create: () => new StudioNode("svg") },
+        addEventListener: (_type: string, listener: typeof receive) => {
+          receive = listener;
+        },
+      },
+    });
+    const show = (confirmed: number) =>
+      receive({
+        data: {
+          type: "view",
+          page: "audit",
+          projectId: "projet",
+          audit: {
+            enabled: true,
+            health: {},
+            tests: [],
+            coverage: {
+              cells: studio.COVERAGE_STATES.map((state) => cell("surface", state)),
+              total: 5,
+              counts: { ...coverage.counts, confirmed },
+              coveredPercent: 80,
+            },
+          },
+        },
+      });
+    show(1);
+    expect(main.find((node) => node.className === "coverage-banner")?.textContent).toBe(
+      "1 faille confirmée",
+    );
+    for (const state of studio.COVERAGE_STATES) {
+      expect(main.find((node) => node.classList.contains(`is-${state}`))).toBeDefined();
+    }
+    expect(main.find((node) => node.tag === "colgroup")?.children).toHaveLength(5);
+    show(2);
+    expect(main.find((node) => node.className === "coverage-banner")?.textContent).toBe(
+      "2 failles confirmées",
+    );
+    show(0);
+    expect(main.find((node) => node.className === "coverage-banner")).toBeUndefined();
+  });
+
   it("chaque état et chaque libellé de la section a une traduction anglaise", () => {
     const en = createUiTranslator(() => "en");
     for (const label of [
       "Couverture",
+      "1 faille confirmée",
+      "{0} failles confirmées",
       "Non testé",
       "Négatif",
       "Bloqué",

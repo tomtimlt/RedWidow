@@ -59,6 +59,12 @@ body {
   --jn-ok: var(--vscode-testing-iconPassed, var(--vscode-foreground));
   --jn-warn: var(--vscode-editorWarning-foreground, var(--vscode-foreground));
   --jn-err: var(--vscode-errorForeground, var(--vscode-foreground));
+  /* États de couverture, partagés avec la Kill chain. */
+  --jn-coverage-confirmed: #ff8080;
+  --jn-coverage-prerequisite: #e5bd69;
+  --jn-coverage-blocked: #dfaa86;
+  --jn-coverage-negative: #8ac79b;
+  --jn-coverage-untested: var(--vscode-foreground);
   --jn-rail: 2px;
 
   /* Bypass des approbations : magenta du terminal du thème, distinct des états
@@ -107,6 +113,10 @@ body {
   --jn-track: 0.08em;
 }
 body.vscode-light {
+  --jn-coverage-confirmed: #a10016;
+  --jn-coverage-prerequisite: #775000;
+  --jn-coverage-blocked: #8a420e;
+  --jn-coverage-negative: #28663a;
   --jn-raise: color-mix(in srgb, var(--vscode-foreground) 3.5%, transparent);
   --jn-raise-2: color-mix(in srgb, var(--vscode-foreground) 6.5%, transparent);
   --jn-line: color-mix(in srgb, var(--vscode-foreground) 14%, transparent);

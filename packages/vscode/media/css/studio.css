@@ -1006,3 +1006,60 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
   border: 1px solid var(--jn-line-strong);
   padding: var(--jn-s1) var(--jn-s3);
 }
+
+/* Matrice : les libellés restent lisibles même sans perception des couleurs. */
+.audit-coverage .md-table table {
+  table-layout: fixed;
+  min-width: 760px;
+}
+.audit-coverage .md-table th,
+.audit-coverage .md-table td {
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+.audit-coverage .md-table col:nth-child(1) {
+  width: 22%;
+}
+.audit-coverage .md-table col:nth-child(2) {
+  width: 18%;
+}
+.audit-coverage .md-table col:nth-child(3) {
+  width: 14%;
+}
+.audit-coverage .md-table col:nth-child(4) {
+  width: 10%;
+}
+.audit-coverage .md-table col:nth-child(5) {
+  width: 36%;
+}
+.audit-coverage .md-table th:nth-child(4),
+.audit-coverage .md-table td:nth-child(4) {
+  padding-inline: 4px;
+}
+.coverage-state {
+  --coverage-color: var(--jn-coverage-untested);
+  color: var(--vscode-foreground);
+  border-color: var(--coverage-color);
+  background: color-mix(in srgb, var(--coverage-color) 8%, transparent);
+}
+.coverage-state.is-negative {
+  --coverage-color: var(--jn-coverage-negative);
+}
+.coverage-state.is-blocked {
+  --coverage-color: var(--jn-coverage-blocked);
+}
+.coverage-state.is-prerequisite {
+  --coverage-color: var(--jn-coverage-prerequisite);
+}
+.coverage-state.is-confirmed {
+  --coverage-color: var(--jn-coverage-confirmed);
+  font-weight: 700;
+}
+.coverage-banner {
+  padding: 10px 12px;
+  border: 1px solid var(--jn-coverage-confirmed);
+  border-radius: var(--jn-r-sm);
+  background: color-mix(in srgb, var(--jn-coverage-confirmed) 8%, transparent);
+  color: var(--vscode-foreground);
+  font-weight: 700;
+}

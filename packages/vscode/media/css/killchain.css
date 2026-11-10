@@ -318,14 +318,14 @@ body.killchain-full .kc-empty {
   display: none;
 }
 .kc-node-badge.is-confirmed {
-  color: var(--vscode-testing-iconPassed, var(--jn-accent));
+  color: var(--jn-coverage-negative);
 }
 .kc-node-badge.is-hypothesis {
-  color: var(--vscode-editorWarning-foreground, var(--jn-warn));
+  color: var(--jn-coverage-prerequisite);
 }
 .kc-node-badge.is-failed {
-  color: var(--jn-err);
-  border-color: color-mix(in srgb, var(--jn-err) 60%, transparent);
+  color: var(--jn-coverage-confirmed);
+  border-color: color-mix(in srgb, var(--jn-coverage-confirmed) 60%, transparent);
 }
 .kc-node-label {
   display: -webkit-box;

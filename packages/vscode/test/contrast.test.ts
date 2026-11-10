@@ -103,6 +103,22 @@ describe("contraste de la refonte", () => {
     expect(chatCss).toContain("--jn-on-accent: var(--vscode-button-foreground)");
   });
   for (const theme of ["dark", "light"] as const) {
+    it(`les états de couverture restent lisibles en ${theme}`, () => {
+      const { vars, body } = fixture(theme);
+      const fg = vars.get("--vscode-foreground") as string;
+      const start =
+        theme === "dark"
+          ? chatCss.indexOf("--jn-coverage-confirmed:")
+          : chatCss.indexOf("body.vscode-light {");
+      const block = chatCss.slice(start, chatCss.indexOf("}", start));
+      for (const state of ["confirmed", "prerequisite", "blocked", "negative"]) {
+        const color = new RegExp(`--jn-coverage-${state}:\\s*(#[0-9a-fA-F]{6})`).exec(block)?.[1];
+        expect(color, state).toBeDefined();
+        expect(ratio(fg, mix(color as string, 8, body)), state).toBeGreaterThanOrEqual(4.5);
+      }
+    });
+  }
+  for (const theme of ["dark", "light"] as const) {
     it(`le badge Bypass et son compteur restent lisibles en ${theme}`, () => {
       const { vars, body } = fixture(theme);
       const fg = vars.get("--vscode-foreground") as string;
