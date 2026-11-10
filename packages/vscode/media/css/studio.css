@@ -1033,6 +1033,10 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
   width: 36%;
 }
 .audit-coverage .md-table th:nth-child(4),
+.audit-coverage .md-table th:nth-child(4),
+.audit-coverage .md-table td:nth-child(4) {
+  white-space: nowrap;
+}
 .audit-coverage .md-table td:nth-child(4) {
   padding-inline: 4px;
 }
