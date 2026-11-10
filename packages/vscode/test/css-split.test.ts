@@ -113,12 +113,14 @@ describe("fichiers de media/css", () => {
     );
   });
 
-  it("la fiche programme n'emprunte pas cockpit.css : ses règles propres sont recopiées dans les deux feuilles", () => {
+  it("la fiche programme n'emprunte pas cockpit.css : les règles partagées sont recopiées", () => {
     const program = readCssFile("program");
     const cockpit = readCssFile("cockpit");
     const rules = program.replace(/\/\*[\s\S]*?\*\//g, "").match(/[^{}]+\{[^{}]*\}/g) ?? [];
     expect(rules.length).toBeGreaterThan(5);
-    for (const rule of rules) expect(cockpit, rule.slice(0, 60)).toContain(rule.trim());
+    // Le formulaire d'adresse n'existe que dans la fiche programme.
+    for (const rule of rules.filter((r) => !r.includes("#program-url")))
+      expect(cockpit, rule.slice(0, 60)).toContain(rule.trim());
   });
 
   it("la page Engagement reprend les règles de la fiche programme et n'emprunte pas cockpit.css", () => {
@@ -126,7 +128,8 @@ describe("fichiers de media/css", () => {
     const program = readCssFile("program");
     const rules = program.replace(/\/\*[\s\S]*?\*\//g, "").match(/[^{}]+\{[^{}]*\}/g) ?? [];
     expect(rules.length).toBeGreaterThan(5);
-    for (const rule of rules) expect(engagement, rule.slice(0, 60)).toContain(rule.trim());
+    for (const rule of rules.filter((r) => !r.includes("#program-url")))
+      expect(engagement, rule.slice(0, 60)).toContain(rule.trim());
     expect(engagement).toContain(".eng-halt");
     expect(engagement).toContain("var(--jn-warn)");
     // Aucune couleur ni police propre : seulement les jetons de la base.

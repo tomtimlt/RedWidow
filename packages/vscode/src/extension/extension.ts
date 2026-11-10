@@ -132,7 +132,8 @@ import {
   PROGRAM_IMPORT_MAX_BYTES,
   type ProgramView,
   parseProgramMessage,
-  programDraftPrompt,
+  programDraftSettings,
+  startProgramDraft,
 } from "../logic/program-controls.js";
 import {
   linkWithProjectWorkspace,
@@ -704,7 +705,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const project = file && activeProject(file);
     return project ? readTestAccounts(project.id) : [];
   };
-  const getSession = (id = SIDEBAR_CHAT): ChatSession => {
+  const getSession = (id = SIDEBAR_CHAT, purpose?: "programDraft"): ChatSession => {
     const existing = slots.get(id)?.session;
     if (existing) return existing;
     if (!CHAT_ID.test(id)) throw new Error(t("Identifiant de chat refusé."));
@@ -717,7 +718,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       cwd: folder.uri.fsPath,
       enginePath: join(context.extensionPath, "run-engine.mjs"),
       engineArgs: [context.extensionPath],
-      readSettings,
+      readSettings:
+        purpose === "programDraft" ? () => programDraftSettings(readSettings()) : readSettings,
       onProviders: acceptProviders,
       bypass: getBypass(id),
       prefsKey: `warband.prefs.chat.${id}`,
@@ -2350,11 +2352,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
         if (!vscode.workspace.isTrusted) return;
         if (message.type === "askAgent") {
-          // Consigne fixe côté hôte (la webview n'envoie aucun texte) ; le chat reste soumis à la gate.
-          if (activeId === SIDEBAR_CHAT) await vscode.commands.executeCommand("warband.chat.focus");
-          else slots.get(activeId)?.panel?.reveal();
-          const prompt = programDraftPrompt();
-          if (!(await getSession(activeId).send(prompt))) {
+          await controlsForDisplayed();
+          const sent = await startProgramDraft(message.url, {
+            nextId: nextChatId,
+            create: (id) => getSession(id, "programDraft"),
+            open: openEditorChat,
+          });
+          if (!sent) {
             void vscode.window.showWarningMessage(
               t("Le chat n’est pas disponible (occupé, sans fournisseur ou en lecture seule)."),
             );

@@ -98,13 +98,27 @@
     );
     main.append(tile);
 
+    const form = el("form", "cockpit-status");
+    const urlLabel = el("label", "cockpit-h", t("Adresse de la page du programme"));
+    const url = el("input", "");
+    url.id = "program-url";
+    url.type = "url";
+    url.required = true;
+    url.maxLength = 2048;
+    urlLabel.append(url);
+    const submit = el("button", "primary", t("Remplir par IA"));
+    submit.type = "submit";
+    form.append(urlLabel, submit);
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      if (url.reportValidity()) vscode.postMessage({ type: "askAgent", url: url.value });
+    });
+    main.append(form);
+
     if (view.state === "none") {
       main.append(el("p", "cockpit-notice", t("Aucune fiche programme pour ce projet.")));
       const start = el("div", "cockpit-actions");
       start.append(
-        button("primary", t("Demander à l'agent de rédiger la fiche"), () =>
-          vscode.postMessage({ type: "askAgent" }),
-        ),
         button("ghost", t("Importer un fichier…"), () =>
           vscode.postMessage({ type: "importFile" }),
         ),

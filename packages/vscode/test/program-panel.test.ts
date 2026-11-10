@@ -13,6 +13,9 @@ import {
   citationUrl,
   parseProgramMessage,
   programDraftPrompt,
+  programDraftSettings,
+  startProgramDraft,
+  validProgramUrl,
 } from "../src/logic/program-controls.js";
 import { parseStudioMessage } from "../src/logic/studio.js";
 
@@ -107,7 +110,14 @@ describe("interface de la fiche : messages et rendu", () => {
   });
 
   it("les actions de la fiche vide sont validées côté hôte et ne portent aucune donnée", () => {
-    expect(parseProgramMessage({ type: "askAgent" })).toEqual({ type: "askAgent" });
+    expect(parseProgramMessage({ type: "askAgent" })).toBeNull();
+    expect(parseProgramMessage({ type: "askAgent", url: "https://example.test/p" })).toEqual({
+      type: "askAgent",
+      url: "https://example.test/p",
+    });
+    expect(
+      parseProgramMessage({ type: "askAgent", url: "https://example.test/p", digest: "x" }),
+    ).toBeNull();
     expect(parseProgramMessage({ type: "importFile" })).toEqual({ type: "importFile" });
     expect(parseProgramMessage({ type: "askAgent", text: "rédige" })).toBeNull();
     expect(parseProgramMessage({ type: "importFile", path: "/etc/passwd" })).toBeNull();
@@ -119,10 +129,70 @@ describe("interface de la fiche : messages et rendu", () => {
   });
 
   it("la consigne à l'agent lit la page avec read_url, appelle program_draft et ne valide rien", () => {
-    const prompt = programDraftPrompt();
+    const prompt = programDraftPrompt("https://example.test/p");
+    expect(prompt).toContain("https://example.test/p");
     expect(prompt).toContain("read_url");
     expect(prompt).toContain("program_draft");
     expect(prompt).toContain("Ne valide rien");
+  });
+
+  it("refuse les adresses invalides ou porteuses d'identifiants et de contrôles", () => {
+    expect(validProgramUrl("https://example.test/p")).toBe(true);
+    expect(validProgramUrl("http://example.test")).toBe(true);
+    for (const url of [
+      "",
+      "file:///etc/passwd",
+      "https://user:secret@example.test",
+      "https://example.test/\n",
+      `https://example.test/${"a".repeat(2048)}`,
+    ]) {
+      expect(parseProgramMessage({ type: "askAgent", url })).toBeNull();
+    }
+  });
+
+  it("crée une conversation dédiée avec profil, web et adresse, sans modifier les réglages", async () => {
+    const base = {
+      capabilities: {
+        providers: ["opencode"],
+        skills: ["general"],
+        integrations: [],
+        webSearch: false,
+      },
+      model: "test",
+    };
+    const settings = programDraftSettings(base);
+    expect(settings.capabilities).toEqual({
+      providers: ["opencode"],
+      skills: ["general", "bug-bounty"],
+      integrations: [],
+      webSearch: true,
+    });
+    expect(base.capabilities.skills).toEqual(["general"]);
+    expect(base.capabilities.webSearch).toBe(false);
+    const calls: unknown[] = [];
+    expect(
+      await startProgramDraft("https://example.test/p", {
+        nextId: () => "new-id",
+        create: (id) => {
+          calls.push(["create", id, settings]);
+          return {
+            setSelection: (selection) => calls.push(["selection", selection]),
+            send: async (prompt) => {
+              calls.push(["send", prompt]);
+              return true;
+            },
+          };
+        },
+        open: (id) => calls.push(["open", id]),
+      }),
+    ).toBe(true);
+    expect(calls[0]).toEqual(["create", "new-id", settings]);
+    expect(calls[1]).toEqual([
+      "selection",
+      { profile: "bug-bounty", integrations: [], burp: false, webSearch: true },
+    ]);
+    expect(calls[2]).toEqual(["open", "new-id"]);
+    expect(calls[3]).toEqual(["send", expect.stringContaining("https://example.test/p")]);
   });
 
   it("l'URL de citation vient de la vue de l'hôte et doit être en http(s)", () => {

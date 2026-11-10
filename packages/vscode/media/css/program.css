@@ -74,6 +74,27 @@ body.cockpit .tone-err .dot {
   flex-wrap: wrap;
   gap: var(--jn-s2);
 }
+.cockpit-status:has(#program-url) {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--jn-s2);
+}
+.cockpit-h:has(#program-url) {
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+}
+#program-url {
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--jn-s2);
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+  background: var(--vscode-input-background, var(--jn-widget));
+  color: var(--vscode-input-foreground, var(--vscode-foreground));
+  font: inherit;
+}
 .cockpit-actions button,
 .cockpit-row-act button {
   min-height: 30px;

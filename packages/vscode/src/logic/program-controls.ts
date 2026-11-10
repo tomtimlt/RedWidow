@@ -11,6 +11,7 @@ import {
   suspendProgram,
 } from "@warband/core";
 import { t } from "@warband/messages";
+import type { ChatSettings } from "./settings.js";
 
 /**
  * Contrôles de la fiche programme (ADR 0040) côté hôte de l'extension. Seul module autorisé à
@@ -122,9 +123,10 @@ export function createProgramControls(configDir: string, projectId: string): Pro
   };
 }
 
-/** Messages acceptés depuis la webview de la fiche (non fiables) : aucun champ de donnée, jamais l'empreinte. */
+/** Messages acceptés depuis la webview non fiable ; jamais d’empreinte ni de consigne libre. */
 export type ProgramMessage =
-  | { type: "ready" | "refresh" | "validate" | "suspend" | "askAgent" | "importFile" }
+  | { type: "ready" | "refresh" | "validate" | "suspend" | "importFile" }
+  | { type: "askAgent"; url: string }
   | { type: "resume"; host: string }
   | { type: "openCitation"; field: ProgramCitationField };
 
@@ -141,11 +143,12 @@ export function parseProgramMessage(raw: unknown): ProgramMessage | null {
       m.type === "refresh" ||
       m.type === "validate" ||
       m.type === "suspend" ||
-      m.type === "askAgent" ||
       m.type === "importFile") &&
     keys.length === 1
   )
     return { type: m.type };
+  if (m.type === "askAgent" && keys.length === 2 && validProgramUrl(m.url))
+    return { type: "askAgent", url: m.url };
   if (
     m.type === "resume" &&
     keys.length === 2 &&
@@ -165,6 +168,58 @@ export function parseProgramMessage(raw: unknown): ProgramMessage | null {
   return null;
 }
 
+/** Adresse fournie par la webview, bornée et sans identifiants. */
+export function validProgramUrl(value: unknown): value is string {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value.length > 2048 ||
+    /[\p{Cc}\s]/u.test(value)
+  )
+    return false;
+  try {
+    const url = new URL(value);
+    return (
+      (url.protocol === "https:" || url.protocol === "http:") && !url.username && !url.password
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** Capacités locales à la conversation de rédaction, sans modifier les réglages machine. */
+export function programDraftSettings(base: ChatSettings): ChatSettings {
+  const caps = base.capabilities;
+  if (!caps) return base;
+  return {
+    ...base,
+    capabilities: {
+      ...caps,
+      skills: [...new Set([...caps.skills, "bug-bounty"])],
+      webSearch: true,
+    },
+  };
+}
+
+/** Crée et configure une conversation neuve avant l'envoi de la consigne fixe. */
+export async function startProgramDraft(
+  url: string,
+  port: {
+    nextId(): string;
+    create(id: string): {
+      setSelection(selection: unknown): void;
+      send(prompt: string): Promise<boolean>;
+    };
+    open(id: string): void;
+  },
+): Promise<boolean> {
+  const id = port.nextId();
+  const session = port.create(id);
+  session.setSelection({ profile: "bug-bounty", integrations: [], burp: false, webSearch: true });
+  port.open(id);
+  return session.send(programDraftPrompt(url));
+}
+
 /** URL de citation de la vue affichée, seulement en http(s) ; la webview n'en fournit jamais. */
 export function citationUrl(view: ProgramView, field: ProgramCitationField): string | null {
   const url = view[field]?.citation.url;
@@ -180,12 +235,7 @@ export function citationUrl(view: ProgramView, field: ProgramCitationField): str
 /** Taille maximale d'un fichier de fiche importé (octets) : une fiche est un petit JSON. */
 export const PROGRAM_IMPORT_MAX_BYTES = 256 * 1024;
 
-/**
- * Consigne envoyée au chat actif par « Demander à l'agent de rédiger la fiche ». Elle ne
- * demande que la rédaction du brouillon : la validation reste un geste humain de la page.
- */
-export function programDraftPrompt(): string {
-  return t(
-    "Rédige la fiche programme du projet actif. Si tu n'as pas l'adresse de la page officielle du programme, demande-la-moi. Lis cette page avec read_url, puis appelle program_draft avec le périmètre, le hors périmètre, le rythme et le suffixe User-Agent, chacun cité depuis la page. Ne valide rien : je relirai le brouillon et je le validerai moi-même depuis la page Fiche programme.",
-  );
+/** Consigne fixe : seule l'adresse validée est fournie par la page. */
+export function programDraftPrompt(url: string): string {
+  return t`Rédige la fiche programme du projet actif à partir de cette page officielle : ${url}. Lis cette page avec read_url, puis appelle program_draft avec le périmètre, le hors périmètre, le rythme et le suffixe User-Agent, chacun cité depuis la page. Ne valide rien : je relirai le brouillon et je le validerai moi-même depuis la page Fiche programme.`;
 }

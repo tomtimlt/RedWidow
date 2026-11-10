@@ -14,6 +14,7 @@ import type {
   EngineHandlers,
 } from "../src/logic/controller.js";
 import { ModelProbeError } from "../src/logic/model-load-error.js";
+import { programDraftPrompt, programDraftSettings } from "../src/logic/program-controls.js";
 import type { StartParams } from "../src/logic/protocol.js";
 import { createChatSession, MODEL_LOAD_TIMEOUT_MS } from "../src/logic/session.js";
 
@@ -2179,6 +2180,29 @@ describe("ressources choisies dans chaque conversation", () => {
     integrations: [{ id: "playwright", port: 9877, transport: "http", path: "/mcp" }],
     profile: "htb",
   };
+  it("transmet au moteur le profil et le web de la conversation de rédaction", async () => {
+    const base = {
+      capabilities: { providers: ["claude"], skills: [], integrations: [], webSearch: false },
+    };
+    const t = setup({ settings: programDraftSettings(base) });
+    t.session.setSelection({
+      profile: "bug-bounty",
+      integrations: [],
+      burp: false,
+      webSearch: true,
+    });
+    const prompt = programDraftPrompt("https://example.test/programme");
+    expect(await t.session.send(prompt)).toBe(true);
+    expect(t.f.started).toMatchObject({ profile: "bug-bounty", webSearch: true, integrations: [] });
+    expect(t.f.calls).toContainEqual(["prompt", prompt]);
+    expect(base.capabilities).toEqual({
+      providers: ["claude"],
+      skills: [],
+      integrations: [],
+      webSearch: false,
+    });
+    t.session.dispose();
+  });
   it("ne transmet que les ressources sélectionnées, puis les oublie à la réinitialisation", async () => {
     const t = setup({ settings });
     t.session.setSelection({

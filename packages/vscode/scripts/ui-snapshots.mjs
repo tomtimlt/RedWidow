@@ -989,6 +989,10 @@ const PAGES = [
   }),
   simple("programme", L.programHtml, "program.js", [PROGRAM], { tall: true }),
   simple("programme-vide", L.programHtml, "program.js", [PROGRAM_EMPTY], { tall: true }),
+  simple("fiche-programme-ia", L.programHtml, "program.js", [PROGRAM], {
+    tall: true,
+    programDraft: true,
+  }),
   simple("engagement", L.engagementHtml, "engagement.js", [ENGAGEMENT], { tall: true }),
   simple("engagement-arret", L.engagementHtml, "engagement.js", [ENGAGEMENT_HALT], { tall: true }),
   simple("engagement-plan", L.engagementHtml, "engagement.js", [ENGAGEMENT_PLAN], { tall: true }),
@@ -1147,6 +1151,22 @@ try {
         await tab.evaluate(() => document.fonts.ready);
         for (const m of page.messages) await tab.evaluate((msg) => window.postMessage(msg, "*"), m);
         await tab.waitForTimeout(150);
+        if (page.programDraft) {
+          const field = tab.locator("#program-url");
+          if (
+            (await field.getAttribute("type")) !== "url" ||
+            (await field.getAttribute("required")) === null
+          )
+            throw new Error("Adresse requise absente");
+          await field.fill("https://example.test/programme");
+          await tab.getByRole("button", { name: "Remplir par IA" }).click();
+          const sent = await tab.evaluate(() => window.__sent.at(-1));
+          if (
+            JSON.stringify(sent) !==
+            JSON.stringify({ type: "askAgent", url: "https://example.test/programme" })
+          )
+            throw new Error("Message de rédaction incorrect");
+        }
         if (page.projectDraft) {
           await tab.fill("#project-name", page.projectDraft);
           if (
