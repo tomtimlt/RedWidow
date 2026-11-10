@@ -100,9 +100,16 @@ code, commandes et sorties) ; Geist Mono est retirée. Dans l’atelier, la refo
 (titres, commandes, réglages, configuration F5), viseur dans l’en-tête,
 araignée à l’accueil, mot-symbole et palette Widow par défaut. Le kit vidéo est refait en RedWidow, de même que les
 bannières (`media/brand/banner-*.png`, `social-preview.png`, sources dans
-`media/brand/src-banners/`) et le README de `main` (`docs/readme-main/`, en
-anglais : logo clair et sombre, captures du lab fictif, aperçu animé et vidéo
-légère de la V8). Reste sous le nom Venator Ops : la section suivante (archive)
+`media/brand/src-banners/`) et le README V1 de `main` (`docs/readme-main/`, en
+anglais, contenu aligné sur la 1.0 : profils, matrice de couverture, audit,
+comptes de test, fiche programme). Images toutes horizontales dans
+`docs/img/readme/` : bannière d'en-tête, aperçu animé de la V8, puis une image
+de 1600 × 800 par chapitre (01 WEAVE à 05 LEARN, plus « 23 color sets. One
+spider. ») avec plaque à gauche (numéro détouré, verbe en signature, phase en
+mono, légende reprise des pubs) et fenêtres du kit à droite sur fond acier et
+toile ; sources dans `media/brand/src-banners/` (`gen.py` pour les bannières,
+`readme/` pour les images de chapitre). Ordre des conteneurs dans la communication : Exegol
+puis Kali, comme dans la 1.0. Reste sous le nom Venator Ops : la section suivante (archive)
 et le carrousel LinkedIn, à refaire avec la nouvelle identité.
 
 Fil rouge de la communication : **Weave. Watch. Strike. Wrap.** (Tisse. Guette.

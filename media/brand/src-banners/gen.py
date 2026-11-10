@@ -54,18 +54,18 @@ def page(file, W, H, copy_html, copy_vars, shot=None, at=None, extra=''):
         f'<div class="copy" style="left:{copy_vars["left"]}px;top:{copy_vars["top"]}px;{vars_}">{copy_html}</div></div>')
 
 MARK = f'<div class="mark"><img src="{logo}" alt=""><span><b>RED</b>WIDOW</span></div>'
-PILLS = ['Open source', 'Docker Kali', 'Exegol', 'Learning mode']
+PILLS = ['Open source', 'Exegol', 'Docker Kali', 'Learning mode']
 
 # 1 — README / dépôt (1280 × 640) : description, trois fenêtres
 page('banner-github.html', 1280, 640,
     MARK + '<h1>Weave. Watch.<br><span>Strike. Wrap.</span></h1>'
-    '<p>The AI-native pentest workspace for VS Code.<br>Docker Kali and Exegol, terminals, Monitor,<br>kill chain and reports in one place.</p>' + facts(PILLS),
+    '<p>The AI-native pentest workspace for VS Code.<br>Exegol and Kali containers, terminals, Monitor,<br>kill chain and reports in one place.</p>' + facts(PILLS),
     dict(left=72, top=172, m=17, h=52, b=19, g1=40, g2=18, g3=28, f=14), shot_main, (612, 56, 0.6))
 
 # 2 — LinkedIn (1584 × 396), texte décalé hors de la photo de profil
 page('banner-linkedin.html', 1584, 396,
     MARK + '<h1>Weave. Watch.<br><span>Strike. Wrap.</span></h1>'
-    '<p>The AI-native pentest workspace for VS Code.<br>Docker Kali and Exegol in one workspace. Open source.</p>' + facts(PILLS[:3]),
+    '<p>The AI-native pentest workspace for VS Code.<br>Exegol and Kali in one workspace. Open source.</p>' + facts(PILLS[:3]),
     dict(left=440, top=60, m=14, h=40, b=16, g1=22, g2=12, g3=18, f=13), shot_main, (946, 10, 0.425))
 
 # 3 — Apprentissage (1280 × 640)
