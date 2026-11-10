@@ -66,6 +66,7 @@ import { writeChatExports } from "../logic/chat-export-files.js";
 import {
   containerMentions,
   controlListedContainer,
+  engagementLine,
   linkContainer,
   linkedProjectStatus,
   linkedTerminalChoices,
@@ -74,6 +75,7 @@ import {
   parseCockpitMessage,
   planEditorShell,
   prepareTerminal,
+  programLine,
   setPrimary,
 } from "../logic/cockpit.js";
 import { listedContainerIdentity, removeListedContainer } from "../logic/container-remove.js";
@@ -172,6 +174,7 @@ import {
   type StudioMessage,
   type StudioPage,
 } from "../logic/studio.js";
+import { createStudioDockerCache } from "../logic/studio-docker-cache.js";
 import { terminalPromptOf, terminalShell } from "../logic/terminal-prompt.js";
 import {
   capturedShell,
@@ -226,7 +229,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   let providerCatalogStatus: "idle" | "loading" | "ready" | "unavailable" = "idle";
   let providerCatalogError: string | undefined;
   let catalogRequest: Promise<void> | undefined;
-  const out = vscode.window.createOutputChannel(PRODUCT_NAME);
+  const out = vscode.window.createOutputChannel(PRODUCT_NAME, { log: true });
   context.subscriptions.push(out);
 
   // Défense en profondeur : `capabilities.untrustedWorkspaces` empêche déjà l'activation.
@@ -403,6 +406,32 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   let studioPanel: vscode.WebviewPanel | undefined;
   let reportPanel: vscode.WebviewPanel | undefined;
   let killchainPanel: vscode.WebviewPanel | undefined;
+  let studioReady = false;
+  let killchainReady = false;
+  let cockpitReady = false;
+  let cockpitFocusPending = false;
+  const panelTimes = new WeakMap<
+    vscode.WebviewPanel,
+    { start: number; sent: boolean; rendered: boolean }
+  >();
+  const panelMark = (panel: vscode.WebviewPanel, name: string, step: string) => {
+    const times = panelTimes.get(panel);
+    if (times) out.debug(`${name} ${step} : ${Date.now() - times.start} ms`);
+  };
+  const firstViewMark = (panel: vscode.WebviewPanel, name: string) => {
+    const times = panelTimes.get(panel);
+    if (times && !times.sent) {
+      times.sent = true;
+      panelMark(panel, name, "première vue envoyée");
+    }
+  };
+  const firstRenderMark = (panel: vscode.WebviewPanel, name: string) => {
+    const times = panelTimes.get(panel);
+    if (times && !times.rendered) {
+      times.rendered = true;
+      panelMark(panel, name, "premier rendu");
+    }
+  };
   let killchainRevision = 0;
   let killchainPayload = "";
   let findingProjectGeneration = 0;
@@ -1447,7 +1476,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const openCockpit = (initialCreate = false) => {
     if (cockpitPanel) {
       cockpitPanel.reveal();
-      if (initialCreate) void cockpitPanel.webview.postMessage({ type: "focusCreate" });
+      if (initialCreate) {
+        if (cockpitReady) void cockpitPanel.webview.postMessage({ type: "focusCreate" });
+        else cockpitFocusPending = true;
+      }
       return;
     }
     const media = vscode.Uri.joinPath(context.extensionUri, "media");
@@ -1458,9 +1490,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       {
         enableScripts: true,
         enableCommandUris: false,
+        retainContextWhenHidden: true,
         localResourceRoots: [media],
       },
     );
+    panelTimes.set(panel, { start: Date.now(), sent: false, rendered: false });
+    panelMark(panel, "Cockpit", "création");
     panel.iconPath = vscode.Uri.joinPath(media, "logo-small.svg");
     cockpitPanel = panel;
     let alive = true;
@@ -1470,6 +1505,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       operationAbort?.abort();
       alive = false;
       cockpitPanel = undefined;
+      cockpitReady = false;
+      cockpitFocusPending = false;
       void saveWindows();
     });
     const view = panel;
@@ -1488,7 +1525,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     });
     // `panel.webview` lève « Webview is disposed » une fois le panneau fermé : on ne le touche plus.
     const postCockpit: (message: unknown) => void = (message) => {
-      if (alive) void view.webview.postMessage(message);
+      if (alive && cockpitReady) {
+        if ((message as { type?: unknown })?.type === "view") firstViewMark(panel, "Cockpit");
+        void view.webview.postMessage(message);
+      }
     };
 
     const pushView = async (loading = false) => {
@@ -1547,8 +1587,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
     };
 
-    void pushView(true);
-
     view.webview.onDidReceiveMessage(async (raw: unknown) => {
       const message = parseCockpitMessage(raw);
       if (message === null) {
@@ -1560,6 +1598,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         });
         return;
       }
+      if (message.type === "ready") {
+        if (cockpitReady) return;
+        cockpitReady = true;
+        panelMark(panel, "Cockpit", "prêt");
+        void pushView(true);
+        if (cockpitFocusPending) {
+          cockpitFocusPending = false;
+          postCockpit({ type: "focusCreate" });
+        }
+        return;
+      }
+      if (message.type === "rendered") {
+        if (cockpitReady) firstRenderMark(panel, "Cockpit");
+        return;
+      }
+      if (!cockpitReady) return;
       if (message.type === "cancelOperation") {
         operationAbort?.abort();
         return;
@@ -2190,6 +2244,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
    * mémorise la vue (donc l'empreinte) au moment de l'affichage ; la webview ne renvoie jamais
    * d'empreinte ni d'URL. Chaque geste passe par une modale native confirmée côté hôte.
    */
+  const refreshCockpitMetadata = async (projectId: string) => {
+    const panel = cockpitPanel;
+    if (!panel || !cockpitReady) return;
+    if ((await readProjectChoices(defaultConfigDir())).activeId !== projectId) return;
+    if (cockpitPanel !== panel || !cockpitReady) return;
+    await panel.webview.postMessage({
+      type: "projectMetadata",
+      program: programLine(defaultConfigDir(), projectId),
+      engagement: engagementLine(defaultConfigDir(), projectId) ?? null,
+    });
+  };
   const openProgram = () => {
     if (programPanel) {
       programPanel.reveal();
@@ -2240,7 +2305,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         displayed = { projectId, view };
         postProgram(localeMessage());
         postProgram({ type: "view", view });
-        if (cockpitPanel) void cockpitPanel.webview.postMessage(await loadCockpitView());
+        await refreshCockpitMetadata(projectId);
       } catch (error) {
         reportError(error);
       }
@@ -2377,7 +2442,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       "warband.engagement",
       `${PRODUCT_NAME} · ${t("Engagement")}`,
       warbandColumn(),
-      { enableScripts: true, enableCommandUris: false, localResourceRoots: [media] },
+      {
+        enableScripts: true,
+        enableCommandUris: false,
+        retainContextWhenHidden: true,
+        localResourceRoots: [media],
+      },
     );
     panel.iconPath = vscode.Uri.joinPath(media, "logo-small.svg");
     engagementPanel = panel;
@@ -2416,7 +2486,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         displayed = { projectId, view };
         postEngagement(localeMessage());
         postEngagement({ type: "view", view });
-        if (cockpitPanel) void cockpitPanel.webview.postMessage(await loadCockpitView());
+        await refreshCockpitMetadata(projectId);
       } catch (error) {
         reportError(error);
       }
@@ -2581,6 +2651,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       {
         enableScripts: true,
         enableCommandUris: false,
+        retainContextWhenHidden: true,
         localResourceRoots: [media],
       },
     );
@@ -2723,7 +2794,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const pushKillchain = async () => {
     const panel = killchainPanel;
-    if (!panel) return;
+    if (!panel || !killchainReady) return;
     const revision = ++killchainRevision;
     let findings: unknown[] = [];
     let evidence: unknown[] = [];
@@ -2754,6 +2825,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const fingerprint = JSON.stringify(payload);
     if (killchainPayload === fingerprint) return;
     killchainPayload = fingerprint;
+    firstViewMark(panel, "Kill chain");
     await panel.webview.postMessage(payload);
   };
   const findingsWatcher = vscode.workspace.createFileSystemWatcher(
@@ -2787,6 +2859,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       {
         enableScripts: true,
         enableCommandUris: false,
+        retainContextWhenHidden: true,
         localResourceRoots: [media],
       },
     );
@@ -2808,15 +2881,32 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         .toString(),
     });
     const panel = killchainPanel;
+    panelTimes.set(panel, { start: Date.now(), sent: false, rendered: false });
+    panelMark(panel, "Kill chain", "création");
     killchainPanel.onDidDispose(() => {
       findingDeletions.get(panel)?.abort.abort();
       killchainPanel = undefined;
+      killchainReady = false;
       killchainRevision++;
       killchainPayload = "";
       void saveWindows();
     });
     killchainPanel.webview.onDidReceiveMessage(async (raw: unknown) => {
       const message = parseStudioMessage(raw);
+      if (message?.type === "ready") {
+        if (killchainReady) return;
+        killchainReady = true;
+        panelMark(panel, "Kill chain", "prêt");
+        await panel.webview.postMessage(localeMessage());
+        killchainPayload = "";
+        await pushKillchain();
+        return;
+      }
+      if (message?.type === "rendered") {
+        if (killchainReady) firstRenderMark(panel, "Kill chain");
+        return;
+      }
+      if (!killchainReady) return;
       if (message?.type === "openEvidence") {
         await openEvidence(message.projectId, message.id);
         return;
@@ -2851,13 +2941,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await pushKillchain();
       }
     });
-    void pushKillchain();
     void saveWindows();
   };
 
   let studioPage: StudioPage = "project";
   let projectChanging = false;
   let burpStatus = "";
+  const studioDocker = createStudioDockerCache(async (project) => {
+    const before = await readProjects(defaultConfigDir());
+    if ((before ? (activeProject(before)?.id ?? null) : null) !== project)
+      throw new Error("Projet modifié");
+    const result = await loadCockpitView();
+    const after = await readProjects(defaultConfigDir());
+    if ((after ? (activeProject(after)?.id ?? null) : null) !== project)
+      throw new Error("Projet modifié");
+    return result;
+  });
   const pushStudio = async (
     feedback: {
       summarySaved?: string;
@@ -2868,21 +2967,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       projectCreated?: string;
       auditError?: string;
     } = {},
+    refreshDocker = false,
   ) => {
     const panel = studioPanel;
-    if (!panel) return;
+    if (!panel || !studioReady) return;
     const auditGeneration = findingProjectGeneration;
     const requestedPage = studioPage;
     if (studioPage === "providers") void loadProviderCatalog();
-    // Une sonde de conteneurs en échec ne doit pas perdre l'accusé d'écriture du résumé.
-    const cockpit =
-      studioPage === "audit"
-        ? { type: "view" as const, containers: [] }
-        : await loadCockpitView().catch((error: unknown) => ({
-            type: "view" as const,
-            containers: [],
-            error: formatError(error, getUiLocale()),
-          }));
     let findings: unknown[] = [];
     let evidence: unknown[] = [];
     let projectChoices: Awaited<ReturnType<typeof readProjectChoices>> = {
@@ -2934,59 +3025,92 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     )
       return;
     await panel.webview.postMessage(localeMessage());
-    await panel.webview.postMessage({
-      ...cockpit,
-      projectId: projectChoices.activeId,
-      page: studioPage,
-      findings,
-      evidence,
-      sources,
-      projectSummary,
-      projectChoices,
-      audit,
-      auditError,
-      capabilities: readSettings().capabilities,
-      terminalPrompt: currentTerminalPrompt(),
-      providerCatalog: providerChoices(readSettings(), false).map(
-        ({ id, label, runtimeId, connected }) => ({
-          id,
-          label,
-          ...(runtimeId && { runtimeId }),
-          ...(connected !== undefined && { connected }),
-        }),
-      ),
-      providerCatalogStatus,
-      providerCatalogError,
-      // Présence seule d'un jeton ou d'une connexion : jamais la valeur.
-      providerAuth: {
-        claude: (await getToken("claude").catch(() => undefined)) !== undefined,
-        openai: (await getToken("openai").catch(() => undefined)) !== undefined,
+    await studioDocker.present(
+      projectChoices.activeId,
+      auditGeneration,
+      refreshDocker && (requestedPage === "project" || requestedPage === "containers"),
+      async (cockpit) => {
+        const payload = {
+          ...(cockpit.value ?? { type: "view" as const, containers: [] }),
+          dockerLoading:
+            cockpit.pending ||
+            (cockpit.value === undefined &&
+              !cockpit.failed &&
+              (requestedPage === "project" || requestedPage === "containers")),
+          dockerUnavailable:
+            cockpit.failed ||
+            (cockpit.value === undefined &&
+              !cockpit.pending &&
+              requestedPage !== "project" &&
+              requestedPage !== "containers"),
+          projectId: projectChoices.activeId,
+          page: studioPage,
+          findings,
+          evidence,
+          sources,
+          projectSummary,
+          projectChoices,
+          audit,
+          auditError,
+          capabilities: readSettings().capabilities,
+          terminalPrompt: currentTerminalPrompt(),
+          providerCatalog: providerChoices(readSettings(), false).map(
+            ({ id, label, runtimeId, connected }) => ({
+              id,
+              label,
+              ...(runtimeId && { runtimeId }),
+              ...(connected !== undefined && { connected }),
+            }),
+          ),
+          providerCatalogStatus,
+          providerCatalogError,
+          // Présence seule d'un jeton ou d'une connexion : jamais la valeur.
+          providerAuth: {
+            claude: (await getToken("claude").catch(() => undefined)) !== undefined,
+            openai: (await getToken("openai").catch(() => undefined)) !== undefined,
+          },
+          limits: {
+            maxTurns: readSettings().maxTurns ?? null,
+            ultracodeMaxTurns: readSettings().ultracode?.maxTurns ?? null,
+            ultracodeMaxBudgetUsd: readSettings().ultracode?.maxBudgetUsd ?? null,
+          },
+          mcpCatalog: MCP_CATALOG,
+          mcpConfigured: projectIntegrations(
+            machineValue(
+              vscode.workspace.getConfiguration("warband").inspect("integrationsByProject"),
+            ) ?? {},
+            projectChoices.activeId,
+          ),
+          projectWorkspaceRoot:
+            readMachineSetting("projects.workspaceRoot") || projectWorkspacesRoot(),
+          ...(feedback.workspaceRootError && { workspaceRootError: feedback.workspaceRootError }),
+          agentProfile: agentProfileLabel(
+            machineValue(vscode.workspace.getConfiguration("warband").inspect("profile")),
+          ),
+          burpEnabled:
+            machineValue(vscode.workspace.getConfiguration("warband").inspect("burp.enabled")) ===
+            true,
+          burpStatus,
+          projectBusy:
+            projectChanging || [...slots.values()].some((slot) => slot.session?.view().busy),
+          ...feedback,
+          ...(summaryError !== undefined && { summaryError }),
+          ...(projectError !== undefined && { projectError }),
+        };
+        if (
+          studioPanel !== panel ||
+          !studioReady ||
+          requestedPage !== studioPage ||
+          auditGeneration !== findingProjectGeneration
+        )
+          return false;
+        firstViewMark(panel, "Réglages");
+        return panel.webview.postMessage(payload);
       },
-      limits: {
-        maxTurns: readSettings().maxTurns ?? null,
-        ultracodeMaxTurns: readSettings().ultracode?.maxTurns ?? null,
-        ultracodeMaxBudgetUsd: readSettings().ultracode?.maxBudgetUsd ?? null,
+      () => {
+        void pushStudio();
       },
-      mcpCatalog: MCP_CATALOG,
-      mcpConfigured: projectIntegrations(
-        machineValue(
-          vscode.workspace.getConfiguration("warband").inspect("integrationsByProject"),
-        ) ?? {},
-        projectChoices.activeId,
-      ),
-      projectWorkspaceRoot: readMachineSetting("projects.workspaceRoot") || projectWorkspacesRoot(),
-      ...(feedback.workspaceRootError && { workspaceRootError: feedback.workspaceRootError }),
-      agentProfile: agentProfileLabel(
-        machineValue(vscode.workspace.getConfiguration("warband").inspect("profile")),
-      ),
-      burpEnabled:
-        machineValue(vscode.workspace.getConfiguration("warband").inspect("burp.enabled")) === true,
-      burpStatus,
-      projectBusy: projectChanging || [...slots.values()].some((slot) => slot.session?.view().busy),
-      ...feedback,
-      ...(summaryError !== undefined && { summaryError }),
-      ...(projectError !== undefined && { projectError }),
-    });
+    );
   };
   const openReport = async (expectedProjectId?: string) => {
     try {
@@ -3543,7 +3667,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (page !== undefined) studioPage = page;
     if (studioPanel) {
       studioPanel.reveal();
-      void pushStudio();
+      void pushStudio({}, true);
       return;
     }
     const media = vscode.Uri.joinPath(context.extensionUri, "media");
@@ -3554,6 +3678,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       {
         enableScripts: true,
         enableCommandUris: false,
+        retainContextWhenHidden: true,
         localResourceRoots: [media],
       },
     );
@@ -3573,14 +3698,29 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         .toString(),
     });
     const panel = studioPanel;
+    panelTimes.set(panel, { start: Date.now(), sent: false, rendered: false });
+    panelMark(panel, "Réglages", "création");
     studioPanel.onDidDispose(() => {
       findingDeletions.get(panel)?.abort.abort();
       studioPanel = undefined;
+      studioReady = false;
       void saveWindows();
     });
     studioPanel.webview.onDidReceiveMessage(async (raw: unknown) => {
       const message = parseStudioMessage(raw);
       if (message === null) return;
+      if (message.type === "ready") {
+        if (studioReady) return;
+        studioReady = true;
+        panelMark(panel, "Réglages", "prêt");
+        await pushStudio({}, true);
+        return;
+      }
+      if (message.type === "rendered") {
+        if (studioReady) firstRenderMark(panel, "Réglages");
+        return;
+      }
+      if (!studioReady) return;
       if (message.type === "openWorkspace" || message.type === "prepareMission") {
         await vscode.commands.executeCommand(
           message.type === "openWorkspace" ? "warband.openWorkspace" : "warband.prepareMission",
@@ -3871,7 +4011,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           projectChanging = false;
         }
         await pushStudio({ ...(projectError !== undefined ? { projectError } : {}) });
-        if (cockpitPanel) await cockpitPanel.webview.postMessage(await loadCockpitView());
+        if (cockpitPanel && cockpitReady)
+          await cockpitPanel.webview.postMessage(await loadCockpitView());
         return;
       }
       if (message.type === "activateProject" || message.type === "createProject") {
@@ -3915,11 +4056,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         } finally {
           projectChanging = false;
         }
-        await pushStudio({
-          ...(projectCreated !== undefined && { projectCreated }),
-          ...(projectError !== undefined && { projectError }),
-        });
-        if (cockpitPanel !== undefined) {
+        await pushStudio(
+          {
+            ...(projectCreated !== undefined && { projectCreated }),
+            ...(projectError !== undefined && { projectError }),
+          },
+          projectSelected,
+        );
+        if (cockpitPanel !== undefined && cockpitReady) {
           const view = await loadCockpitView();
           await cockpitPanel.webview.postMessage(view);
           broadcastContainers(view.containers);
@@ -3940,9 +4084,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
 
       if (message.type === "openCours") await openCoursFolder();
-      await pushStudio();
+      await pushStudio({}, message.type === "open" || message.type === "refresh");
     });
-    void pushStudio();
     void saveWindows();
   };
 

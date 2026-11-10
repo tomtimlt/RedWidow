@@ -794,6 +794,21 @@ credentialWarning.notice(
   "Identifiant détecté : il a été masqué dans les journaux. Utilisez la page Comptes de test pour que l'agent puisse s'en servir.",
 );
 const PAGES = [
+  simple("reglages-actualisation", L.studioHtml, "studio.js", [
+    studio("containers", {
+      containers: [],
+      docker: undefined,
+      daemon: undefined,
+      exegol: undefined,
+      dockerLoading: true,
+      dockerUnavailable: false,
+    }),
+  ]),
+  chatPage(
+    "chat-restauration",
+    [{ type: "view", view: chatView({ conversation: false }) }, CONTAINERS],
+    { uiState: { top: 0, historyOpen: true } },
+  ),
   simple(
     "projet-dossier-automatique",
     L.studioHtml,
@@ -1039,7 +1054,7 @@ const origin = `http://127.0.0.1:${server.address().port}`;
 
 // Faux hôte : avant tout script de la page.
 const shim = (cls) =>
-  `window.__sent=[];window.acquireVsCodeApi=()=>({postMessage:(m)=>{window.__sent.push(m);},getState:()=>undefined,setState:()=>{}});document.body.classList.add("${cls}");`;
+  `window.__sent=[];window.acquireVsCodeApi=()=>({postMessage:(m)=>{window.__sent.push(m);},getState:()=>window.__uiState,setState:(next)=>{window.__uiState=next;}});document.body.classList.add("${cls}");`;
 
 Date.now = realNow;
 
@@ -1112,6 +1127,10 @@ try {
         await tab.addInitScript(() => {
           window.requestAnimationFrame = () => 0;
         });
+        if (page.uiState)
+          await tab.addInitScript((state) => {
+            window.__uiState = state;
+          }, page.uiState);
         await tab.goto(origin + path, { waitUntil: "load" });
         await tab.addStyleTag({ url: `${origin}/bench-stable.css` });
         await tab.evaluate(() => document.fonts.ready);
@@ -1194,6 +1213,16 @@ try {
           !(await tab.locator("body").innerText()).includes("ne verraient pas les mêmes fichiers")
         )
           throw new Error("Message de montage absent");
+        if (page.uiState) {
+          if (await tab.locator("#history").evaluate((node) => node.hidden))
+            throw new Error("Historique non restauré");
+          const saved = await tab.evaluate(() => {
+            window.dispatchEvent(new Event("pagehide"));
+            return window.__uiState;
+          });
+          if (JSON.stringify(Object.keys(saved).sort()) !== JSON.stringify(["historyOpen", "top"]))
+            throw new Error("État de chat excessif");
+        }
         // Captures stables : animations et transitions figées à leur début.
         await tab.evaluate(() => {
           for (const a of document.getAnimations()) {

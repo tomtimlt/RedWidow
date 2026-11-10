@@ -10,6 +10,21 @@
   const vscode = acquireVsCodeApi();
   const main = document.getElementById("main");
   const refreshBtn = document.getElementById("refresh");
+  const saved = vscode.getState?.();
+  const savedTop =
+    saved &&
+    typeof saved === "object" &&
+    Object.keys(saved).length === 1 &&
+    Number.isFinite(saved.top) &&
+    saved.top >= 0 &&
+    saved.top <= 10000000
+      ? saved.top
+      : null;
+  let restoreTop = savedTop;
+  window.addEventListener("pagehide", () => {
+    const top = main.scrollTop;
+    if (Number.isFinite(top) && top >= 0 && top <= 10000000) vscode.setState?.({ top });
+  });
   let lastView = null;
   let lastError = null;
 
@@ -158,6 +173,10 @@
         button("ghost", t("Suspendre"), () => vscode.postMessage({ type: "suspend" })),
       );
     main.append(actions);
+    if (restoreTop !== null) {
+      main.scrollTop = restoreTop;
+      restoreTop = null;
+    }
   }
 
   refreshBtn?.addEventListener("click", () => vscode.postMessage({ type: "refresh" }));

@@ -1,5 +1,7 @@
 // Libellés de la webview, indexés par leur texte français.
 export const studioEn: Record<string, string> = {
+  "Mise à jour des conteneurs…": "Updating containers…",
+  "État des conteneurs indisponible.": "Container status unavailable.",
   "Impossible d’enregistrer ce fournisseur. Réessayez.": "Could not save this provider. Try again.",
   "Créer le projet": "Create project",
   "Donnez un nom au projet : son dossier est créé automatiquement.":

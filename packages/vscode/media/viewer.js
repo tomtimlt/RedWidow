@@ -25,6 +25,20 @@
   const followBtn = $("viewer-follow");
   const copyBtn = $("viewer-copy");
   const exportBtn = $("viewer-export");
+  const saved = vscode.getState?.();
+  const validSaved =
+    saved &&
+    typeof saved === "object" &&
+    Object.keys(saved).length === 2 &&
+    typeof saved.follow === "boolean" &&
+    Number.isFinite(saved.top) &&
+    saved.top >= 0 &&
+    saved.top <= 10000000;
+  let restoreTop = validSaved ? saved.top : null;
+  window.addEventListener("pagehide", () => {
+    const top = main.scrollTop;
+    if (Number.isFinite(top) && top >= 0 && top <= 10000000) vscode.setState?.({ top, follow });
+  });
 
   const el = (tag, className, text) => {
     const node = document.createElement(tag);
@@ -47,7 +61,7 @@
   let report = null;
 
   // ───────────────────────────── Suivi de la fin ─────────────────────────────
-  let follow = kind !== "report";
+  let follow = validSaved ? saved.follow : kind !== "report";
   const followTitle = () =>
     follow
       ? t("Désactiver le suivi de la fin pour défiler librement")
@@ -63,6 +77,8 @@
     followBtn.title = followTitle();
     if (on) toBottom();
   }
+  followBtn.setAttribute("aria-pressed", String(follow));
+  followBtn.title = followTitle();
   followBtn.addEventListener("click", () => setFollow(!follow));
   // L'utilisateur qui remonte coupe le suivi ; le bouton le rétablit.
   main.addEventListener(
@@ -435,6 +451,10 @@
     else renderRows(view);
     if (kind !== "report") paintClock(view);
     applyFilter();
+    if (restoreTop !== null) {
+      if (!follow) main.scrollTop = restoreTop;
+      restoreTop = null;
+    }
   }
 
   function paintHeading(text) {

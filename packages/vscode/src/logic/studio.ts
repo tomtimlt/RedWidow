@@ -68,6 +68,7 @@ export function isStudioPage(value: string): value is StudioPage {
 }
 
 export type StudioMessage =
+  | { type: "ready" | "rendered" }
   | { type: "saveTestAccount"; projectId: string; account: TestAccount }
   | { type: "deleteTestAccount"; projectId: string; label: string }
   | { type: "exportAudit"; projectId: string }
@@ -248,7 +249,8 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
   if (m.type === "openCockpit" && keys.length === 1) return { type: "openCockpit" };
   if (m.type === "openProgram" && keys.length === 1) return { type: "openProgram" };
   if (m.type === "openEngagement" && keys.length === 1) return { type: "openEngagement" };
-  if (m.type === "refresh" && keys.length === 1) return { type: "refresh" };
+  if ((m.type === "refresh" || m.type === "ready" || m.type === "rendered") && keys.length === 1)
+    return { type: m.type };
   if ((m.type === "configureBurp" || m.type === "testBurp") && keys.length === 1)
     return { type: m.type };
   if (m.type === "unlink" && keys.length === 1) return { type: "unlink" };

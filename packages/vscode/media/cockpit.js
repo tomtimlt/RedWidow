@@ -765,6 +765,7 @@
     row.append(src);
   };
 
+  let firstRendered = false;
   window.addEventListener("message", (event) => {
     const msg = event.data;
     if (typeof msg !== "object" || msg === null) return;
@@ -780,6 +781,12 @@
       form.open = true;
       rerender();
       document.getElementById("cockpit-name")?.focus();
+      return;
+    }
+    if (msg.type === "projectMetadata") {
+      if (!lastView || !msg.program || typeof msg.program !== "object") return;
+      lastView = { ...lastView, program: msg.program, engagement: msg.engagement ?? undefined };
+      rerender();
       return;
     }
     if (msg.type === "operation") {
@@ -812,7 +819,11 @@
     const loading = msg.loading === true;
     if (refreshBtn) refreshBtn.disabled = loading;
     render(msg);
+    if (!firstRendered) {
+      firstRendered = true;
+      vscode.postMessage({ type: "rendered" });
+    }
   });
 
-  vscode.postMessage({ type: "refresh" });
+  vscode.postMessage({ type: "ready" });
 })();

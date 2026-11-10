@@ -3,6 +3,7 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { runInNewContext } from "node:vm";
 import { createProject, importProgramDraft, setActiveProject } from "@warband/core";
 import { describe, expect, it } from "vitest";
 import { loadCockpitView, parseCockpitMessage } from "../src/logic/cockpit.js";
@@ -16,6 +17,68 @@ import {
 import { parseStudioMessage } from "../src/logic/studio.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
+
+it("fiche : rétablit une position bornée sans conserver le contenu de la fiche", () => {
+  class Node {
+    children: Node[] = [];
+    scrollTop = 0;
+    className = "";
+    textContent = "";
+    append(...nodes: Node[]) {
+      this.children.push(...nodes);
+    }
+    get firstChild() {
+      return this.children[0];
+    }
+    removeChild(node: Node) {
+      this.children = this.children.filter((item) => item !== node);
+    }
+    addEventListener() {}
+  }
+  const mount = (saved: unknown) => {
+    const main = new Node();
+    let hide = () => {};
+    let receive: (event: { data: unknown }) => void = () => {};
+    let state: unknown;
+    runInNewContext(readFileSync(join(here, "..", "media", "program.js"), "utf8"), {
+      acquireVsCodeApi: () => ({
+        postMessage() {},
+        getState: () => saved,
+        setState: (s: unknown) => {
+          state = s;
+        },
+      }),
+      document: {
+        getElementById: (id: string) => (id === "main" ? main : null),
+        createElement: () => new Node(),
+      },
+      window: {
+        addEventListener: (type: string, fn: typeof receive) => {
+          if (type === "message") receive = fn;
+          if (type === "pagehide") hide = () => fn({ data: null });
+        },
+      },
+    });
+    return {
+      main,
+      post: () => receive({ data: { type: "view", view: { state: "none", haltedHosts: [] } } }),
+      hide: () => {
+        hide();
+        return state;
+      },
+    };
+  };
+  const first = mount(null);
+  first.post();
+  first.main.scrollTop = 210;
+  expect(first.hide()).toEqual({ top: 210 });
+  const restored = mount(first.hide());
+  restored.post();
+  expect(restored.main.scrollTop).toBe(210);
+  const invalid = mount({ top: 210, secret: "ne pas restaurer" });
+  invalid.post();
+  expect(invalid.main.scrollTop).toBe(0);
+});
 
 const cited = <T>(value: T, url = "https://example.com/program") => ({
   value,

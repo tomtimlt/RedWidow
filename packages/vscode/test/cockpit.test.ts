@@ -299,7 +299,8 @@ describe("parseCockpitMessage", () => {
   it("refuse clés en trop, types chat et formes invalides", () => {
     expect(parseCockpitMessage({ type: "refresh", extra: 1 })).toBeNull();
     expect(parseCockpitMessage({ type: "send", text: "x" })).toBeNull();
-    expect(parseCockpitMessage({ type: "ready" })).toBeNull();
+    expect(parseCockpitMessage({ type: "ready" })).toEqual({ type: "ready" });
+    expect(parseCockpitMessage({ type: "rendered", extra: 1 })).toBeNull();
     expect(parseCockpitMessage({ type: "link", name: "" })).toBeNull();
     expect(parseCockpitMessage({ type: "start", name: "a", extra: 1 })).toBeNull();
     expect(parseCockpitMessage({ type: "stop" })).toBeNull();

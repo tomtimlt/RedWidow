@@ -111,7 +111,7 @@ const IDS = [
   "viewer-clock",
 ];
 
-function mount(kind: ViewerKind) {
+function mount(kind: ViewerKind, saved?: unknown) {
   let locale: Locale = "fr";
   const nodes = new Map(IDS.map((id) => [id, new Stub("div", id)]));
   const node = (id: string) => nodes.get(id) as Stub;
@@ -119,10 +119,18 @@ function mount(kind: ViewerKind) {
   const sent: Record<string, unknown>[] = [];
   const copied: string[] = [];
   let receive: (event: { data: unknown }) => void = () => {};
+  const pagehide: (() => void)[] = [];
+  let persisted: unknown;
   const root = new Stub("body");
   root.append(...nodes.values());
   runInNewContext(`${uiSource}\n${viewerSource}`, {
-    acquireVsCodeApi: () => ({ postMessage: (m: Record<string, unknown>) => sent.push(m) }),
+    acquireVsCodeApi: () => ({
+      postMessage: (m: Record<string, unknown>) => sent.push(m),
+      getState: () => saved,
+      setState: (state: unknown) => {
+        persisted = state;
+      },
+    }),
     document: {
       body: { dataset: { kind } },
       getElementById: (id: string) => nodes.get(id) ?? null,
@@ -131,6 +139,7 @@ function mount(kind: ViewerKind) {
     window: {
       addEventListener: (type: string, listener: typeof receive) => {
         if (type === "message") receive = listener;
+        if (type === "pagehide") pagehide.push(() => listener({ data: null }));
       },
     },
     navigator: { clipboard: { writeText: async (text: string) => void copied.push(text) } },
@@ -154,6 +163,10 @@ function mount(kind: ViewerKind) {
     sent,
     copied,
     root,
+    hide: () => {
+      for (const listener of pagehide) listener();
+      return persisted;
+    },
     post: (data: unknown) => receive({ data }),
     lines: () =>
       node("viewer-body")
@@ -200,6 +213,23 @@ const REPORT = {
   approvals: [],
   busy: false,
 };
+
+it("rapport : restaure uniquement la position et le suivi, jamais le texte du filtre", () => {
+  const first = mount("report");
+  first.post({ type: "view", view: REPORT });
+  first.filter("texte privé");
+  first.node("viewer-main").scrollTop = 123;
+  const saved = first.hide();
+  expect(saved).toEqual({ top: 123, follow: false });
+  const restored = mount("report", saved);
+  restored.post({ type: "view", view: REPORT });
+  expect(restored.node("viewer-main").scrollTop).toBe(123);
+  expect(restored.node("viewer-filter").value).toBe("");
+  expect(restored.node("viewer-follow").getAttribute("aria-pressed")).toBe("false");
+  const invalid = mount("report", { top: Infinity, follow: false });
+  invalid.post({ type: "view", view: REPORT });
+  expect(invalid.node("viewer-main").scrollTop).toBe(0);
+});
 
 describe("pages en lecture seule : HTML", () => {
   it("chaque page annonce sa nature et ne contient ni composer ni contrôle de chat", () => {
@@ -395,7 +425,7 @@ describe("pages en lecture seule : DOM rendu", () => {
     const message = view.sent.at(-1);
     expect(message).toEqual({ type: "exportReport", projectId: PROJECT_ID });
     expect(parseStudioMessage(message)).toEqual(message);
-    expect(view.node("viewer-follow").getAttribute("aria-pressed")).toBe("true");
+    expect(view.node("viewer-follow").getAttribute("aria-pressed")).toBe("false");
   });
 
   it("bascule de langue : mêmes données, libellés traduits", () => {

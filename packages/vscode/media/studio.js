@@ -356,6 +356,7 @@ function start() {
   const t = studioT;
   let lastView = null;
   let pageFingerprint = null;
+  let firstRendered = false;
   const providerChanges = new Map();
   const providerPainters = new Map();
   const vscode = acquireVsCodeApi();
@@ -1936,6 +1937,8 @@ function start() {
     }
     const pageFields = {
       project: [
+        "dockerLoading",
+        "dockerUnavailable",
         "projectChoices",
         "projectBusy",
         "projectCreated",
@@ -1949,6 +1952,8 @@ function start() {
       ],
       accounts: ["testAccounts"],
       system: [
+        "dockerLoading",
+        "dockerUnavailable",
         "docker",
         "daemon",
         "exegol",
@@ -1956,7 +1961,14 @@ function start() {
         "workspaceRootError",
         "limits",
       ],
-      containers: ["containers"],
+      containers: [
+        "containers",
+        "docker",
+        "daemon",
+        "exegol",
+        "dockerLoading",
+        "dockerUnavailable",
+      ],
       providers: [
         "capabilities",
         "providerAuth",
@@ -2318,7 +2330,18 @@ function start() {
       if (!choices && typeof view.projectSummary?.projectName === "string") {
         sec.append(el("p", "studio-name", view.projectSummary.projectName));
       }
-      if (!view.linkedBanner) {
+      if (view.dockerLoading || view.dockerUnavailable) {
+        sec.append(
+          el(
+            "p",
+            "studio-help",
+            view.dockerUnavailable
+              ? t("État des conteneurs indisponible.")
+              : t("Mise à jour des conteneurs…"),
+          ),
+        );
+      }
+      if (!view.linkedBanner && !view.dockerLoading && !view.dockerUnavailable) {
         sec.append(
           el(
             "p",
@@ -2326,7 +2349,7 @@ function start() {
             t("Aucun conteneur affiché. Gérez les associations dans le cockpit."),
           ),
         );
-      } else {
+      } else if (view.linkedBanner) {
         const b = view.linkedBanner;
         sec.append(el("p", "studio-kicker", t("Espace affiché")));
         sec.append(el("p", "studio-name", b.name));
@@ -2405,6 +2428,17 @@ function start() {
         header.append(manage);
       }
       sec.append(header);
+      if (view.dockerLoading || view.dockerUnavailable) {
+        sec.append(
+          el(
+            "p",
+            "studio-help",
+            view.dockerUnavailable
+              ? t("État des conteneurs indisponible.")
+              : t("Mise à jour des conteneurs…"),
+          ),
+        );
+      }
       // Tuiles d'état : pictogramme, libellé, valeur et pastille de ton.
       const dl = el("dl", "studio-dl studio-tiles");
       const row = (k, v, tone, icon) => {
@@ -2418,8 +2452,8 @@ function start() {
       };
       row(
         "Docker",
-        view.docker === "present" ? t("présent") : t("absent"),
-        view.docker === "present" ? "ok" : "warn",
+        view.docker === "present" ? t("présent") : view.docker === "absent" ? t("absent") : "—",
+        view.docker === "present" ? "ok" : view.docker === "absent" ? "warn" : "idle",
         "image",
       );
       row(
@@ -2434,8 +2468,8 @@ function start() {
       );
       row(
         "Exegol",
-        view.exegol === "present" ? t("présent") : t("absent"),
-        view.exegol === "present" ? "ok" : "warn",
+        view.exegol === "present" ? t("présent") : view.exegol === "absent" ? t("absent") : "—",
+        view.exegol === "present" ? "ok" : view.exegol === "absent" ? "warn" : "idle",
         "server",
       );
       sec.append(dl);
@@ -2530,7 +2564,11 @@ function start() {
           ul.append(li);
         }
         if ((view.containers ?? []).length > 0) sec.append(ul);
-        if ((view.containers ?? []).length === 0) {
+        if (
+          (view.containers ?? []).length === 0 &&
+          !view.dockerLoading &&
+          !view.dockerUnavailable
+        ) {
           sec.append(
             el(
               "p",
@@ -2698,6 +2736,10 @@ function start() {
     }
     if (msg?.type !== "view") return;
     render(msg);
+    if (!firstRendered) {
+      firstRendered = true;
+      vscode.postMessage({ type: "rendered" });
+    }
   });
-  vscode.postMessage({ type: "refresh" });
+  vscode.postMessage({ type: "ready" });
 }

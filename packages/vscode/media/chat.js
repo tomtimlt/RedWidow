@@ -7,6 +7,21 @@
       : key.reduce((out, part, i) => out + part + (values[i] ?? ""), "");
   const $ = (id) => document.getElementById(id);
   const log = $("log");
+  const savedUi = vscode.getState?.();
+  const validSavedUi =
+    savedUi &&
+    typeof savedUi === "object" &&
+    Object.keys(savedUi).length === 2 &&
+    typeof savedUi.historyOpen === "boolean" &&
+    Number.isFinite(savedUi.top) &&
+    savedUi.top >= 0 &&
+    savedUi.top <= 10000000;
+  let restoreUi = validSavedUi ? { top: savedUi.top, historyOpen: savedUi.historyOpen } : null;
+  window.addEventListener("pagehide", () => {
+    const top = log.scrollTop;
+    if (Number.isFinite(top) && top >= 0 && top <= 10000000)
+      vscode.setState?.({ top, historyOpen: !historyPanel.hidden });
+  });
   const approvals = $("approvals");
   const historyList = $("history-list");
   const input = $("input");
@@ -1817,6 +1832,11 @@
     if (view.items.length === 0) toolStatus.clear();
     log.setAttribute("aria-busy", view.busy ? "true" : "false");
     log.scrollTop = atBottom ? log.scrollHeight : top;
+    if (restoreUi) {
+      log.scrollTop = restoreUi.top;
+      if (restoreUi.historyOpen) setHistoryOpen(true);
+      restoreUi = null;
+    }
     if (view.exchangeTarget && view.exchangeTarget.revision !== exchangeRevision) {
       exchangeRevision = view.exchangeTarget.revision;
       const target = [...log.querySelectorAll("[data-exchange-id]")].find((node) =>

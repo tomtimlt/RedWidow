@@ -1367,6 +1367,8 @@
 
   // packages/messages/src/ui-domains/studio.ts
   var studioEn = {
+    "Mise à jour des conteneurs…": "Updating containers…",
+    "État des conteneurs indisponible.": "Container status unavailable.",
     "Impossible d’enregistrer ce fournisseur. Réessayez.":
       "Could not save this provider. Try again.",
     "Créer le projet": "Create project",

@@ -32,6 +32,7 @@ import { encodedBashScript } from "./terminal-prompt.js";
 
 /** Messages acceptés depuis la webview cockpit (non fiables). */
 export type CockpitMessage =
+  | { type: "ready" | "rendered" }
   | { type: "refresh" }
   | { type: "link"; name: string }
   | { type: "setPrimary"; name: string }
@@ -95,6 +96,9 @@ export function parseCockpitMessage(raw: unknown): CockpitMessage | null {
   const m = raw as Record<string, unknown>;
   const only = (...allowed: string[]) => Object.keys(m).every((k) => allowed.includes(k));
   switch (m.type) {
+    case "ready":
+    case "rendered":
+      return only("type") ? { type: m.type } : null;
     case "refresh":
       return only("type") ? { type: "refresh" } : null;
     case "openWorkspace":
@@ -427,7 +431,7 @@ export function containerMentions(
 }
 
 /** État de la fiche pour la ligne du cockpit ; une lecture en échec reste « illisible ». */
-function programLine(
+export function programLine(
   configDir: string,
   projectId: string,
 ): { state: ProgramState; halted: number } {
@@ -442,7 +446,7 @@ function programLine(
 }
 
 /** Ligne « Engagement » du cockpit : absente sans engagement ni arrêt ; lecture en échec → « illisible ». */
-function engagementLine(
+export function engagementLine(
   configDir: string,
   projectId: string,
 ): { state: EngagementState; campaign: CampaignState; halt: boolean } | undefined {

@@ -102,6 +102,11 @@ const findings = (n: number) =>
   Array.from({ length: n }, (_, i) => ({ id: `f${i}`, label: `Nœud ${i}`, ...FINDING }));
 
 describe("réglages", () => {
+  it("traduit les indications d'état des conteneurs", () => {
+    const english = createUiTranslator(() => "en");
+    expect(english("Mise à jour des conteneurs…")).toBe("Updating containers…");
+    expect(english("État des conteneurs indisponible.")).toBe("Container status unavailable.");
+  });
   it("accepte open, refresh, unlink et refuse le reste", () => {
     expect(parseStudioMessage({ type: "open", page: "project" })).toEqual({
       type: "open",
@@ -748,11 +753,11 @@ it("fournisseurs : choix optimiste verrouillé jusqu'à l'accusé, puis reprise 
   expect(toggle()).toBe(initial);
   expect(toggle().attributes.get("aria-checked")).toBe("true");
   toggle().fire("click");
-  expect(sent).toHaveLength(2);
+  expect(sent).toHaveLength(3);
   receive({ data: { ...view, providerCatalogStatus: "loading" } });
   expect(toggle().attributes.get("aria-checked")).toBe("true");
   toggle().fire("click");
-  expect(sent).toHaveLength(2);
+  expect(sent).toHaveLength(3);
   receive({ data: { type: "capabilityState", id: "exemple", enabled: true, error: false } });
   receive({ data: view });
   expect(toggle().attributes.get("aria-checked")).toBe("true");
@@ -770,7 +775,36 @@ it("fournisseurs : choix optimiste verrouillé jusqu'à l'accusé, puis reprise 
     main.find((item) => item.textContent.includes("Impossible d’enregistrer ce fournisseur")),
   ).toBeDefined();
   toggle().fire("click");
-  expect(sent).toHaveLength(4);
+  expect(sent).toHaveLength(5);
+});
+
+it("projet : le bandeau de mise à jour disparaît lorsque la sonde vide se termine", () => {
+  const main = new StudioNode("main");
+  let receive: (event: { data: unknown }) => void = () => {};
+  runInNewContext(read(studioJs), {
+    TextEncoder,
+    setTimeout,
+    clearTimeout,
+    acquireVsCodeApi: () => ({ postMessage() {} }),
+    document: {
+      addEventListener() {},
+      body: new StudioNode("body"),
+      getElementById: (id: string) => (id === "studio-main" ? main : null),
+      createElement: (tag: string) => new StudioNode(tag),
+    },
+    window: {
+      WarbandIcons: { create: () => new StudioNode("svg") },
+      addEventListener: (type: string, fn: typeof receive) => {
+        if (type === "message") receive = fn;
+      },
+    },
+  });
+  const view = { type: "view", page: "project", linkedBanner: null };
+  receive({ data: { ...view, dockerLoading: true } });
+  expect(main.find((node) => node.textContent === "Mise à jour des conteneurs…")).toBeDefined();
+  receive({ data: { ...view, dockerLoading: false } });
+  expect(main.find((node) => node.textContent === "Mise à jour des conteneurs…")).toBeUndefined();
+  expect(main.find((node) => node.textContent.includes("Aucun conteneur affiché"))).toBeDefined();
 });
 
 it("mémoire : saisie, plafond multioctet, conservation du brouillon et accusé de sauvegarde", () => {
@@ -817,7 +851,7 @@ it("mémoire : saisie, plafond multioctet, conservation du brouillon et accusé 
   input().fire("input");
   expect(save().disabled).toBe(true);
   save().fire("click");
-  expect(sent).toEqual([{ type: "refresh" }]);
+  expect(sent).toEqual([{ type: "ready" }, { type: "rendered" }]);
   input().value = "<texte non interprété>";
   input().fire("input");
   receive({ data: view });
@@ -1162,7 +1196,7 @@ it("suppression : Entrée et Espace sélectionnent, les projets inconnus désact
     expect(find("kc-node").attributes.get("aria-pressed")).toBe("true");
     expect(find("kc-delete").disabled).toBe(true);
     find("kc-delete").fire("click");
-    expect(sent).toEqual([{ type: "refresh" }]);
+    expect(sent).toEqual([{ type: "ready" }, { type: "rendered" }]);
   }
 });
 
@@ -1240,7 +1274,7 @@ it("graphe : clic dans le vide et Échap désélectionnent sans supprimer", () =
   find("kc-node").fire("click");
   main.fire("keydown", { key: "Escape", preventDefault: () => {} });
   expect(find("kc-selection").hidden).toBe(true);
-  expect(sent).toEqual([{ type: "refresh" }]);
+  expect(sent).toEqual([{ type: "ready" }, { type: "rendered" }]);
 });
 it("légende : repli réel, filtres combinés, reset et conservation au rafraîchissement", () => {
   const { main, find, receive } = killchainDom();

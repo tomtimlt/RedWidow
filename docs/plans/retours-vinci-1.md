@@ -176,6 +176,11 @@ Critères (tests) :
 
 Pas de bouton « recharger l'interface » comme correctif.
 
+Mesure locale automatisée : une sonde simulée de 5 s laisse envoyer la première vue en moins de
+100 ms dans le test du cache de présentation. Les marques de création, disponibilité, premier
+envoi et premier rendu sont au niveau debug du canal de sortie. Les temps avant/après sur la
+machine Windows de l'utilisateur restent à relever lors de la recette native.
+
 ### Lot 11 — Stop dans la zone de saisie
 
 Fichiers : `media/chat.js` (vers 1780-1784, 2165, 2265), `css/chat.css` (522).
