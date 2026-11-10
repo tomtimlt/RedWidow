@@ -5,6 +5,9 @@
   "version": "0.3.78",
   "publisher": "warband",
   "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/tomtimlt/warband.git" },
+  "homepage": "https://github.com/tomtimlt/warband#readme",
+  "bugs": { "url": "https://github.com/tomtimlt/warband/issues" },
   "engines": {
     "vscode": "^1.90.0"
   },
