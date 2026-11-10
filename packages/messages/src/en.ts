@@ -1,6 +1,8 @@
 import type { Catalog, EventStrings, Messages } from "./catalog.js";
 
 const text = (v: string | number | undefined): string => (v === undefined ? "?" : String(v));
+const providerDiagnostic = (p: Record<string, string | number>, includeMessage: boolean): string =>
+  `${p.provider === undefined ? "" : `\nProvider: ${text(p.provider)}`}${p.model === undefined ? "" : `\nModel: ${text(p.model)}`}${p.tokenSource === undefined ? "" : `\nCredential source: ${p.tokenSource === "indeterminate" ? "undetermined (OpenCode)" : text(p.tokenSource)}`}${p.sourceFile === undefined ? "" : `\nOpenCode cache searched: ${text(p.sourceFile)}`}${includeMessage && p.message !== undefined ? `\nMessage: ${text(p.message)}` : ""}`;
 
 /** Paramètres techniques rendus dans la langue de l'interface. */
 const PATH_FORMS: Readonly<Record<string, string>> = {
@@ -351,9 +353,9 @@ export const reasons: Catalog = {
   "auth.orgNotAllowed": () =>
     "the signed-in account's organization is not allowed: sign in again with /login (allowed account) or set ANTHROPIC_API_KEY",
   "provider.authFailed": (p) =>
-    `authentication rejected by provider ${text(p.provider)}: run 'opencode auth login' or pass its key with --pass-env <VARIABLE>`,
+    `authentication rejected by provider ${text(p.provider)}: run 'opencode auth login' or pass its key with --pass-env <VARIABLE>${providerDiagnostic(p, true)}`,
   "provider.error": (p) =>
-    `model provider error (${text(p.name)}): ${text(p.message)}${p.status === undefined ? "" : ` [HTTP ${text(p.status)}]`}`,
+    `model provider error (${text(p.name)}): ${text(p.message)}${p.status === undefined ? "" : ` [HTTP ${text(p.status)}]`}${providerDiagnostic(p, false)}`,
   "opencode.unsafeConfig": (p) =>
     `OpenCode configuration is too permissive (${text(p.setting)}): warband requires 'ask' or 'deny' for every tool`,
   "opencode.invalidModel": (p) =>

@@ -26,6 +26,7 @@ import {
   listEvidence,
   lookupContainer,
   MCP_CATALOG,
+  opencodeAuthFile,
   parseIntegrations,
   parseMentions,
   prepareContainerProjectWorkspace,
@@ -123,6 +124,7 @@ import {
 import { prepareMissionFolder } from "../logic/mission-folder.js";
 import { missionReport, missionReportPreview } from "../logic/mission-report.js";
 import { missionSnapshot } from "../logic/mission-snapshot.js";
+import { ModelProbeError } from "../logic/model-load-error.js";
 import { parseProviderOptions } from "../logic/models.js";
 import { parseOpencodeProviders } from "../logic/opencode-providers.js";
 import { PALETTES, type Palette, paletteOf } from "../logic/palette.js";
@@ -153,6 +155,7 @@ import {
   openActiveProjectWorkspace,
 } from "../logic/project-workspace.js";
 import { openAiSubscriptionReady } from "../logic/provider-auth.js";
+import { probeProviderConnection } from "../logic/provider-connection.js";
 import { type ChatSession, createChatSession, type TokenChoice } from "../logic/session.js";
 import {
   buildSessionGrid,
@@ -3071,6 +3074,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           ),
           providerCatalogStatus,
           providerCatalogError,
+          providerAuthFile: opencodeAuthFile(),
           // Présence seule d'un jeton ou d'une connexion : jamais la valeur.
           providerAuth: {
             claude: (await getToken("claude").catch(() => undefined)) !== undefined,
@@ -3705,6 +3709,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         .toString(),
     });
     const panel = studioPanel;
+    const connectionTests = new Set<string>();
     panelTimes.set(panel, { start: Date.now(), sent: false, rendered: false });
     panelMark(panel, "Réglages", "création");
     studioPanel.onDidDispose(() => {
@@ -3818,6 +3823,66 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       if (message.type === "configureProvider") {
         await vscode.commands.executeCommand("warband.configureProvider", message.id);
         await pushStudio();
+        return;
+      }
+      if (message.type === "testProviderConnection") {
+        if (!vscode.workspace.isTrusted || connectionTests.has(message.id)) return;
+        connectionTests.add(message.id);
+        const post = (pending: boolean, text?: string, error = false) =>
+          studioPanel === panel &&
+          panel.webview.postMessage({
+            type: "providerConnectionResult",
+            id: message.id,
+            pending,
+            text,
+            error,
+          });
+        try {
+          await post(true);
+          const result = await probeProviderConnection(message.id, {
+            settings: readSettings(),
+            cwd: folder?.uri.fsPath ?? context.extensionPath,
+            getToken,
+            create: (auth, handlers) =>
+              createEngineController({
+                enginePath: join(context.extensionPath, "run-engine.mjs"),
+                args: [context.extensionPath],
+                ...(auth && { auth }),
+                handlers,
+              }),
+          });
+          const declared =
+            result.connected === null
+              ? t("Statut de connexion non annoncé.")
+              : result.connected
+                ? t("Connexion déclarée par le fournisseur.")
+                : t("Connexion non déclarée par le fournisseur.");
+          const source = result.sourceFile
+            ? t`Fichier OpenCode recherché : ${result.sourceFile}`
+            : "";
+          await post(
+            false,
+            [
+              t`Catalogue accessible : ${result.models} modèle(s).`,
+              declared,
+              t("Aucune génération testée."),
+              source,
+            ]
+              .filter(Boolean)
+              .join("\n"),
+          );
+        } catch (error) {
+          await post(
+            false,
+            cleanText(
+              formatError(error instanceof ModelProbeError ? error.reason : error, getUiLocale()),
+              8000,
+            ),
+            true,
+          );
+        } finally {
+          connectionTests.delete(message.id);
+        }
         return;
       }
       if (message.type === "configureMcp") {

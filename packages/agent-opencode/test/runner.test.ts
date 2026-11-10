@@ -553,7 +553,12 @@ describe("createOpencodeRunner (faux client)", () => {
       },
     ]);
     const h = harness();
-    const summary = await h.run(createOpencodeRunner({ createClient: fake.createClient }));
+    const summary = await h.run(
+      createOpencodeRunner({
+        createClient: fake.createClient,
+        processEnv: { XDG_DATA_HOME: "/data" },
+      }),
+    );
     expect(summary.status).toBe("error");
     expect(of(h.events, "api.retry")[0]).toMatchObject({
       attempt: 1,
@@ -563,12 +568,57 @@ describe("createOpencodeRunner (faux client)", () => {
     const errors = of(h.events, "error");
     expect(errors[0]).toMatchObject({
       code: "provider.authFailed",
-      params: { provider: "openai" },
+      params: { provider: "fake", model: "m", message: "m", tokenSource: "indeterminate" },
     });
     expect(errors[1]).toMatchObject({
       code: "provider.error",
-      params: { name: "APIError", message: "boom", status: 500 },
+      params: {
+        name: "APIError",
+        provider: "fake",
+        model: "m",
+        message: "boom\ntrace",
+        status: 500,
+      },
     });
+  });
+
+  it("masque le diagnostic avant le recorder et indique la source API explicite", async () => {
+    const secret = "valeur-secrete-personnalisee";
+    const fake = fakeOpencode([
+      async (stage) => {
+        begin(stage);
+        stage.emit("session.error", {
+          sessionID: SESSION,
+          error: {
+            name: "ProviderAuthError",
+            data: { message: `première ligne\n${secret} Bearer abcdefghijklmnop` },
+          },
+        });
+        stage.idle();
+      },
+    ]);
+    const recorder = createRecorder({ runId: "r", redact: (value) => value });
+    const h = harness({ recorder });
+    await h.run(
+      createOpencodeRunner({
+        createClient: fake.createClient,
+        provider: "openai",
+        processEnv: { OPENAI_API_KEY: secret, XDG_DATA_HOME: "/data" },
+      }),
+      { auth: "api-key", model: "openai/example" },
+    );
+    const error = of(h.events, "error")[0];
+    expect(error).toMatchObject({
+      code: "provider.authFailed",
+      params: {
+        provider: "openai",
+        model: "example",
+        tokenSource: "OPENAI_API_KEY",
+        message: "première ligne\n[REDACTED] [REDACTED]",
+      },
+    });
+    expect(error?.params).not.toHaveProperty("sourceFile");
+    expect(JSON.stringify(error)).not.toContain(secret);
   });
 
   it("interrompt la session quand le budget est dépassé", async () => {

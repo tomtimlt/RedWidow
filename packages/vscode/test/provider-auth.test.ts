@@ -28,6 +28,13 @@ it("l’abonnement OpenAI exige un cache OAuth natif ; API, cache absent et cont
       { mode: 0o600 },
     );
     expect(await openAiSubscriptionReady(env, root)).toBe(true);
+    const home = join(root, "home");
+    await mkdir(join(home, ".local", "share", "opencode"), { recursive: true });
+    await writeFile(
+      join(home, ".local", "share", "opencode", "auth.json"),
+      JSON.stringify({ openai: { type: "oauth" } }),
+    );
+    expect(await openAiSubscriptionReady({ HOME: home }, root)).toBe(true);
     await writeFile(path, " ".repeat(1024 * 1024 + 1));
     expect(await openAiSubscriptionReady(env, root)).toBe(false);
   } finally {

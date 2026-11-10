@@ -77,6 +77,7 @@ export type StudioMessage =
   /** Activation d'un fournisseur dans le chat ; skills, MCP et recherche web se règlent dans le chat. */
   | { type: "setCapability"; kind: "provider"; id: string; enabled: boolean }
   | { type: "configureProvider"; id: string }
+  | { type: "testProviderConnection"; id: string }
   | { type: "configureMcp"; id: string }
   | { type: "openEvidence"; projectId: string; id: string }
   | { type: "setPalette"; palette: Palette }
@@ -189,7 +190,9 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
       enabled: m.enabled,
     };
   if (
-    (m.type === "configureProvider" || m.type === "configureMcp") &&
+    (m.type === "configureProvider" ||
+      m.type === "testProviderConnection" ||
+      m.type === "configureMcp") &&
     keys.length === 2 &&
     isCapabilityId(m.id)
   )

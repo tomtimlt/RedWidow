@@ -790,10 +790,38 @@ const viewerPage = (name, kind, messages, extra = {}) => ({
   ...extra,
 });
 const credentialWarning = chatState({ conversation: false });
+const providerFailure = chatState({ conversation: false });
+providerFailure.error({
+  code: "provider.error",
+  params: {
+    name: "APIError",
+    provider: "Fournisseur démo",
+    model: "Choix du catalogue",
+    sourceFile: "/home/user/.local/share/opencode/auth.json",
+    tokenSource: "indeterminate",
+    message: "Quota de démonstration dépassé.\nRéessayez plus tard. Jeton : [REDACTED]",
+  },
+});
 credentialWarning.notice(
   "Identifiant détecté : il a été masqué dans les journaux. Utilisez la page Comptes de test pour que l'agent puisse s'en servir.",
 );
 const PAGES = [
+  chatPage("diagnostic-erreur-fournisseur", [
+    { type: "view", view: providerFailure.view() },
+    CONTAINERS,
+  ]),
+  simple(
+    "diagnostic-fournisseurs",
+    L.studioHtml,
+    "studio.js",
+    [
+      studio("providers", {
+        ...CAPS,
+        providerAuthFile: "/home/user/.local/share/opencode/auth.json",
+      }),
+    ],
+    { providerProbe: true },
+  ),
   simple("reglages-actualisation", L.studioHtml, "studio.js", [
     studio("containers", {
       containers: [],
@@ -1151,6 +1179,31 @@ try {
         await tab.evaluate(() => document.fonts.ready);
         for (const m of page.messages) await tab.evaluate((msg) => window.postMessage(msg, "*"), m);
         await tab.waitForTimeout(150);
+        if (page.providerProbe) {
+          const button = tab.locator('.resource-test[data-provider="claude"]');
+          await button.click();
+          const message = await tab.evaluate(() => window.__sent.at(-1));
+          if (
+            message.type !== "testProviderConnection" ||
+            message.id !== "claude" ||
+            !(await button.isDisabled())
+          )
+            throw new Error("Sondage du fournisseur incorrect");
+          await tab.evaluate(() =>
+            window.postMessage(
+              {
+                type: "providerConnectionResult",
+                id: "claude",
+                pending: false,
+                error: false,
+                text: "Catalogue accessible : 3 modèle(s).\nStatut de connexion non annoncé.\nAucune génération testée.",
+              },
+              "*",
+            ),
+          );
+          await tab.waitForTimeout(50);
+          if (await button.isDisabled()) throw new Error("Sondage resté bloqué");
+        }
         if (page.programDraft) {
           const field = tab.locator("#program-url");
           if (

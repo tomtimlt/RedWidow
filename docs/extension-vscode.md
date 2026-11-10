@@ -667,3 +667,9 @@ Voir le [guide de l’atelier](atelier-agent.md) : disposition, dossier partagé
 lecture de gros fichiers par extraits, catalogue MCP par projet et cinq skills
 méthodologiques avec sources et licences. Les applications externes ne sont pas
 installées automatiquement et les pièces jointes du chat gardent leurs limites.
+
+### Cache d'authentification OpenCode
+
+OpenCode recherche son cache dans `$XDG_DATA_HOME/opencode/auth.json` si `XDG_DATA_HOME` est défini ; sinon dans `$HOME/.local/share/opencode/auth.json` (ou le répertoire personnel du système si `HOME` est absent). Une connexion effectuée avec `opencode auth login` est visible si l'extension et OpenCode utilisent le même chemin. Le diagnostic affiche le chemin recherché, sans lire ni afficher le contenu pour déterminer la source effectivement utilisée par OpenCode.
+
+Le bouton « Tester la connexion » d'un fournisseur utilise ses réglages et identifiants pour interroger le catalogue de modèles, puis arrête le moteur de sondage. Le résultat distingue l'accès au catalogue de la connexion déclarée par le runtime. La génération n'est pas testée et le fournisseur actif ne change pas.

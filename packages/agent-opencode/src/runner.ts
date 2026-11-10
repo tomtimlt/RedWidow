@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { mkdtemp, open, rm, writeFile } from "node:fs/promises";
-import { homedir, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   AGENT_METHODOLOGY,
@@ -12,6 +12,7 @@ import {
   CodedError,
   capOutput,
   createMissionDesk,
+  createRedactor,
   DEFAULT_MAX_RESULT_BYTES,
   type EngineEvent,
   type EventOf,
@@ -22,6 +23,7 @@ import {
   type MissionDesk,
   type ModelCatalog,
   type ModelOption,
+  opencodeAuthFile,
   parseSupervision,
   type Reason,
   type RunContext,
@@ -30,6 +32,7 @@ import {
   reason,
   resolveBinary,
   SUPERVISION_SETTINGS,
+  secretsFromEnv,
   stripControl,
   ToolCallRegistry,
   withAgentMethodology,
@@ -440,10 +443,9 @@ async function authEnvironment(options: OpencodeRunnerOptions, auth?: AuthMode) 
 
 /** Lecture bornée : aucun identifiant du cache ne sort de cette fonction. */
 async function hasOpenaiOAuth(env: NodeJS.ProcessEnv): Promise<boolean> {
-  const data = env.XDG_DATA_HOME || join(env.HOME || homedir(), ".local", "share");
   let file: Awaited<ReturnType<typeof open>> | undefined;
   try {
-    file = await open(join(data, "opencode", "auth.json"), "r");
+    file = await open(opencodeAuthFile(env), "r");
     const maxBytes = 1024 * 1024;
     const buffer = Buffer.alloc(maxBytes + 1);
     let length = 0;
@@ -524,6 +526,11 @@ async function runWithOpencodeWithDesk(
   const { cwd } = input;
   const credentials = await authEnvironment(options, input.auth);
   const processEnv = options.processEnv ?? process.env;
+  const diagnosticRedact = createRedactor({
+    values: [...secretsFromEnv(processEnv), ...secretsFromEnv(options.env)],
+  });
+  const diagnostic = (value: string) =>
+    capOutput(diagnosticRedact(accounts ? accounts.redact(value) : value), 8192).output;
   // Échecs avant tout lancement : rien n'est émis ni démarré.
   const requestedModel =
     input.model === undefined ? undefined : parseModel(input.model, options.provider);
@@ -977,10 +984,11 @@ async function runWithOpencodeWithDesk(
     if (sessionId) void api?.abort(sessionId).catch(() => undefined);
   };
 
+  let resolvedModel = requestedModel;
   const onSessionError = (error: Obj) => {
     const name = str(error.name) ?? "UnknownError";
     const data = obj(error.data);
-    const message = (str(data.message) ?? name).split("\n")[0] ?? name;
+    const message = diagnostic(str(data.message) ?? name);
     if (turn) {
       turn.started = true;
       turn.failed = true;
@@ -989,12 +997,31 @@ async function runWithOpencodeWithDesk(
     const key = `${name}:${message}`;
     if (reportedErrors.has(key)) return;
     reportedErrors.add(key);
+    const provider = resolvedModel?.providerID ?? str(data.providerID) ?? options.provider ?? "?";
+    const details = {
+      provider: diagnostic(provider),
+      ...(resolvedModel && { model: diagnostic(resolvedModel.modelID) }),
+      ...(options.provider === "openai" && input.auth === "api-key"
+        ? {}
+        : { sourceFile: diagnostic(opencodeAuthFile({ ...processEnv, ...options.env })) }),
+      tokenSource:
+        options.provider === "openai" && input.auth === "api-key"
+          ? "OPENAI_API_KEY"
+          : "indeterminate",
+      message,
+    };
     if (name === "ProviderAuthError") {
-      fail(reason("provider.authFailed", { provider: str(data.providerID) ?? "?" }));
+      fail(reason("provider.authFailed", details));
       return;
     }
     const status = typeof data.statusCode === "number" ? data.statusCode : undefined;
-    fail(reason("provider.error", { name, message, ...(status !== undefined && { status }) }));
+    fail(
+      reason("provider.error", {
+        ...details,
+        name: diagnostic(name),
+        ...(status !== undefined && { status }),
+      }),
+    );
   };
 
   const handle = (event: OpencodeEvent) => {
@@ -1178,6 +1205,7 @@ async function runWithOpencodeWithDesk(
       (defaultModel !== undefined
         ? parseModel(defaultModel, options.provider)
         : runtimeDefaultModel(catalog ?? {}, options.provider));
+    resolvedModel = model;
     if (input.variant !== undefined) {
       const providers = Array.isArray(catalog?.all) ? catalog.all.map(obj) : [];
       const connected = Array.isArray(catalog?.connected) ? catalog.connected : [];

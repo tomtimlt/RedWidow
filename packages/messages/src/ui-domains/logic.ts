@@ -167,6 +167,8 @@ export const logicEn: Record<string, string> = {
     "The OpenCode server could not provide the catalog{0}. [opencode.httpFailed]",
   "Niveau d'effort ramené à « {0} » : « {1} » n'est pas pris en charge par ce modèle.":
     "Effort level reduced to “{0}”: “{1}” is not supported by this model.",
+  "[stderr trop volumineux : diagnostic ignoré]": "[stderr too large: diagnostic discarded]",
+  "[stderr incomplet : diagnostic ignoré]": "[stderr incomplete: diagnostic discarded]",
   "Le moteur s'est arrêté (code {0}).": "The engine stopped (code {0}).",
   "Catalogue des modèles : {0}\n": "Model catalog: {0}\n",
   "{0} ligne(s) invalide(s) ignorée(s).": "{0} invalid line(s) ignored.",

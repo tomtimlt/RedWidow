@@ -359,6 +359,8 @@ function start() {
   let firstRendered = false;
   const providerChanges = new Map();
   const providerPainters = new Map();
+  const providerChecks = new Map();
+  const providerCheckPainters = new Map();
   const vscode = acquireVsCodeApi();
   // Un changement de langue reconstruit les libellés et conserve l’interaction en cours.
   const captureLocaleState = () => {
@@ -656,6 +658,10 @@ function start() {
     );
     const caps = view.capabilities ?? { providers: [] };
     const auth = view.providerAuth ?? {};
+    if (view.providerAuthFile)
+      sec.append(
+        el("p", "studio-help", t("Fichier OpenCode recherché : {0}", { 0: view.providerAuthFile })),
+      );
     const keyState = (present) => (present ? t("clé présente : oui") : t("clé présente : non"));
     const providerRow = (p, detail, parent = sec) => {
       const row = el("div", "capability-row");
@@ -690,6 +696,28 @@ function start() {
         vscode.postMessage({ type: "configureProvider", id: p.id }),
       );
       row.append(button);
+      const test = el("button", "ghost resource-test", t("Tester la connexion"));
+      test.type = "button";
+      test.dataset.provider = p.id;
+      const result = el("span", "studio-help provider-test-result");
+      result.setAttribute("role", "status");
+      const paintTest = () => {
+        const check = providerChecks.get(p.id);
+        test.disabled = check?.pending === true;
+        result.textContent = check?.pending
+          ? t("Test du catalogue en cours…")
+          : (check?.text ?? "");
+        result.classList.toggle("error", check?.error === true);
+      };
+      providerCheckPainters.set(p.id, paintTest);
+      paintTest();
+      test.addEventListener("click", () => {
+        if (providerChecks.get(p.id)?.pending) return;
+        providerChecks.set(p.id, { pending: true });
+        paintTest();
+        vscode.postMessage({ type: "testProviderConnection", id: p.id });
+      });
+      row.append(test, result);
       parent.append(row);
     };
     const allProviders = view.providerCatalog ?? [];
@@ -1972,6 +2000,7 @@ function start() {
       providers: [
         "capabilities",
         "providerAuth",
+        "providerAuthFile",
         "providerCatalog",
         "providerCatalogStatus",
         "providerCatalogError",
@@ -2723,6 +2752,20 @@ function start() {
           ? t("Impossible d’enregistrer le prompt. Réessayez.")
           : t("Enregistré. Ouvrez un nouveau terminal pour appliquer ce choix."),
       );
+      return;
+    }
+    if (
+      msg?.type === "providerConnectionResult" &&
+      typeof msg.id === "string" &&
+      typeof msg.pending === "boolean" &&
+      providerChecks.has(msg.id)
+    ) {
+      providerChecks.set(msg.id, {
+        pending: msg.pending,
+        text: typeof msg.text === "string" ? msg.text.slice(0, 8000) : "",
+        error: msg.error === true,
+      });
+      providerCheckPainters.get(msg.id)?.();
       return;
     }
     if (msg?.type === "capabilityState" && typeof msg.id === "string") {

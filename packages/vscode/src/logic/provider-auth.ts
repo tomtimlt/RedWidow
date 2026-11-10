@@ -1,13 +1,13 @@
 import { readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { opencodeAuthFile } from "@warband/core";
 
 /** Lit uniquement le type de connexion ; aucun jeton du cache n’est renvoyé à l’interface. */
 export async function openAiSubscriptionReady(
   env: NodeJS.ProcessEnv = process.env,
   home = homedir(),
 ): Promise<boolean> {
-  const file = join(env.XDG_DATA_HOME || join(home, ".local", "share"), "opencode", "auth.json");
+  const file = opencodeAuthFile(env, home);
   try {
     if ((await stat(file)).size > 1024 * 1024) return false;
     const value: unknown = JSON.parse(await readFile(file, "utf8"));

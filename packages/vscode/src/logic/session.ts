@@ -626,7 +626,7 @@ export function createChatSession(deps: ChatSessionDeps) {
           if (detached.has(ctl)) return;
           bypassLinks.get(ctl)?.acked(ack.seq, ack.state);
         },
-        onExit: ({ code }) => {
+        onExit: ({ code, stderrTail }) => {
           // Avant le filtre des moteurs écartés : un moteur qui sort n'a plus de Bypass (échec fermé).
           bypassLinks.get(ctl)?.release();
           if (detached.has(ctl)) return;
@@ -659,7 +659,11 @@ export function createChatSession(deps: ChatSessionDeps) {
           state.approvals.clear();
           state.setBusy(false);
           if (!stopping && code !== 0 && code !== null) {
-            state.notice(t`Le moteur s'est arrêté (code ${code}).`, "error");
+            state.notice(
+              `${t`Le moteur s'est arrêté (code ${code}).`}${stderrTail ? `\n${stderrTail}` : ""}`,
+              "error",
+              66_000,
+            );
           }
           stopping = false;
           refresh();

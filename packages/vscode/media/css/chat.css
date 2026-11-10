@@ -171,6 +171,7 @@
   overflow-wrap: anywhere;
 }
 .notice.error {
+  white-space: pre-wrap;
   align-self: stretch;
   padding: 8px 12px;
   text-align: left;

@@ -52,6 +52,25 @@ describe("catalogues", () => {
   });
 });
 
+it("affiche le diagnostic fournisseur multiligne dans les deux langues", () => {
+  const reason = {
+    code: "provider.authFailed",
+    params: {
+      provider: "f",
+      model: "m",
+      tokenSource: "indeterminate",
+      sourceFile: "/cache/auth.json",
+      message: "erreur\ndétail",
+    },
+  };
+  for (const locale of ["fr", "en"] as const) {
+    const message = formatReason(reason, locale);
+    expect(message).toContain("/cache/auth.json");
+    expect(message).toContain("erreur\ndétail");
+    expect(message).toContain("m");
+  }
+});
+
 describe("formatReason", () => {
   it("traduit les codes auparavant absents du catalogue anglais", () => {
     expect(formatReason({ code: "process.emptyArgv" }, "en")).toBe("empty argv");

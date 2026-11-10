@@ -520,7 +520,13 @@ describe("session de chat", () => {
         input: {},
       }),
     );
-    t.f.handlers.onExit?.({ code: 1, signal: null });
+    t.f.handlers.onExit?.({
+      code: 1,
+      signal: null,
+      stderrTail: `diagnostic\n${"x".repeat(60_000)}fin`,
+    });
+    expect(JSON.stringify(t.view().items)).toContain("fin");
+    expect(JSON.stringify(t.view().items)).toContain("diagnostic");
     expect(t.view().items.find((item) => item.kind === "tool")).toMatchObject({
       status: "interrupted",
     });

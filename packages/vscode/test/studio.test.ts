@@ -776,6 +776,39 @@ it("fournisseurs : choix optimiste verrouillé jusqu'à l'accusé, puis reprise 
   ).toBeDefined();
   toggle().fire("click");
   expect(sent).toHaveLength(5);
+  const test = main.find((item) => item.dataset.provider === "exemple");
+  if (!test) throw new Error("Test de connexion introuvable");
+  test.fire("click");
+  expect(sent.at(-1)).toEqual({ type: "testProviderConnection", id: "exemple" });
+  expect(test.disabled).toBe(true);
+  const count = sent.length;
+  test.fire("click");
+  expect(sent).toHaveLength(count);
+  receive({
+    data: {
+      type: "providerConnectionResult",
+      id: "exemple",
+      pending: false,
+      text: "Catalogue indisponible",
+      error: true,
+    },
+  });
+  expect(test.disabled).toBe(false);
+  expect(main.find((item) => item.textContent === "Catalogue indisponible")).toBeDefined();
+});
+
+it("valide le sondage d'un fournisseur sans accepter une consigne ni des identifiants", () => {
+  expect(parseStudioMessage({ type: "testProviderConnection", id: "opencode" })).toEqual({
+    type: "testProviderConnection",
+    id: "opencode",
+  });
+  expect(parseStudioMessage({ type: "testProviderConnection", id: "../cache" })).toBeNull();
+  expect(
+    parseStudioMessage({ type: "testProviderConnection", id: "opencode", prompt: "mission" }),
+  ).toBeNull();
+  expect(
+    parseStudioMessage({ type: "testProviderConnection", id: "opencode", token: "cle-factice" }),
+  ).toBeNull();
 });
 
 it("projet : le bandeau de mise à jour disparaît lorsque la sonde vide se termine", () => {

@@ -1053,6 +1053,8 @@
       "The OpenCode server could not provide the catalog{0}. [opencode.httpFailed]",
     "Niveau d'effort ramené à « {0} » : « {1} » n'est pas pris en charge par ce modèle.":
       "Effort level reduced to “{0}”: “{1}” is not supported by this model.",
+    "[stderr trop volumineux : diagnostic ignoré]": "[stderr too large: diagnostic discarded]",
+    "[stderr incomplet : diagnostic ignoré]": "[stderr incomplete: diagnostic discarded]",
     "Le moteur s'est arrêté (code {0}).": "The engine stopped (code {0}).",
     "Catalogue des modèles : {0}\n": "Model catalog: {0}\n",
     "{0} ligne(s) invalide(s) ignorée(s).": "{0} invalid line(s) ignored.",
@@ -1371,6 +1373,13 @@
 
   // packages/messages/src/ui-domains/studio.ts
   var studioEn = {
+    "Fichier OpenCode recherché : {0}": "OpenCode file searched: {0}",
+    "Test du catalogue en cours…": "Testing the catalog…",
+    "Statut de connexion non annoncé.": "Connection status not reported.",
+    "Connexion déclarée par le fournisseur.": "Connection reported by the provider.",
+    "Connexion non déclarée par le fournisseur.": "Connection not reported by the provider.",
+    "Catalogue accessible : {0} modèle(s).": "Catalog accessible: {0} model(s).",
+    "Aucune génération testée.": "No generation tested.",
     "Mise à jour des conteneurs…": "Updating containers…",
     "État des conteneurs indisponible.": "Container status unavailable.",
     "Impossible d’enregistrer ce fournisseur. Réessayez.":

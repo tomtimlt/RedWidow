@@ -201,8 +201,11 @@ export function createChatState(before?: string) {
     const found = items.find((i) => i.kind === "tool" && i.toolUseId === toolUseId);
     return found?.kind === "tool" ? found : undefined;
   };
-  const notice = (text: string, level: "info" | "error" = "info") =>
-    push({ kind: "notice", level, text: cleanText(text, 2000) });
+  const notice = (
+    text: string,
+    level: "info" | "error" = "info",
+    maxChars = level === "error" ? 12_000 : 2000,
+  ) => push({ kind: "notice", level, text: cleanText(text, maxChars) });
 
   return {
     approvals,

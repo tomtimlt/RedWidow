@@ -1,5 +1,12 @@
 // Libellés de la webview, indexés par leur texte français.
 export const studioEn: Record<string, string> = {
+  "Fichier OpenCode recherché : {0}": "OpenCode file searched: {0}",
+  "Test du catalogue en cours…": "Testing the catalog…",
+  "Statut de connexion non annoncé.": "Connection status not reported.",
+  "Connexion déclarée par le fournisseur.": "Connection reported by the provider.",
+  "Connexion non déclarée par le fournisseur.": "Connection not reported by the provider.",
+  "Catalogue accessible : {0} modèle(s).": "Catalog accessible: {0} model(s).",
+  "Aucune génération testée.": "No generation tested.",
   "Mise à jour des conteneurs…": "Updating containers…",
   "État des conteneurs indisponible.": "Container status unavailable.",
   "Impossible d’enregistrer ce fournisseur. Réessayez.": "Could not save this provider. Try again.",

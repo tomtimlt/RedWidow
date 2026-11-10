@@ -95,6 +95,8 @@ const TAR_REASONS: Readonly<Record<string, string>> = {
 };
 
 const text = (v: string | number | undefined): string => (v === undefined ? "?" : String(v));
+const providerDiagnostic = (p: Record<string, string | number>, includeMessage: boolean): string =>
+  `${p.provider === undefined ? "" : `\nFournisseur : ${text(p.provider)}`}${p.model === undefined ? "" : `\nModèle : ${text(p.model)}`}${p.tokenSource === undefined ? "" : `\nSource des identifiants : ${p.tokenSource === "indeterminate" ? "indéterminée (OpenCode)" : text(p.tokenSource)}`}${p.sourceFile === undefined ? "" : `\nCache OpenCode recherché : ${text(p.sourceFile)}`}${includeMessage && p.message !== undefined ? `\nMessage : ${text(p.message)}` : ""}`;
 
 const REPO_HINT = "Après relecture : warband policy trust";
 
@@ -167,9 +169,9 @@ export const reasons: Catalog = {
     "l'organisation du compte connecté n'est pas autorisée : reconnectez-vous avec /login (compte autorisé) ou définissez ANTHROPIC_API_KEY",
 
   "provider.authFailed": (p) =>
-    `authentification refusée par le fournisseur ${text(p.provider)} : lancez « opencode auth login » ou transmettez sa clé avec --pass-env <VARIABLE>`,
+    `authentification refusée par le fournisseur ${text(p.provider)} : lancez « opencode auth login » ou transmettez sa clé avec --pass-env <VARIABLE>${providerDiagnostic(p, true)}`,
   "provider.error": (p) =>
-    `erreur du fournisseur de modèle (${text(p.name)}) : ${text(p.message)}${p.status === undefined ? "" : ` [HTTP ${text(p.status)}]`}`,
+    `erreur du fournisseur de modèle (${text(p.name)}) : ${text(p.message)}${p.status === undefined ? "" : ` [HTTP ${text(p.status)}]`}${providerDiagnostic(p, false)}`,
   "budget.exceeded": (p) =>
     `plafond de dépense dépassé : ${text(p.spent)} $ dépensés pour ${text(p.limit)} $ autorisés`,
 

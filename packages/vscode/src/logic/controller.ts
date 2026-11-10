@@ -19,6 +19,7 @@ import {
   terminateProcessTree,
   trackProcessTree,
 } from "@warband/core";
+import { t } from "@warband/messages";
 import { ModelProbeError } from "./model-load-error.js";
 import {
   type EndedSummary,
@@ -92,7 +93,7 @@ export interface EngineHandlers {
   /** Accusé du miroir du Bypass : `state` est l'état réellement retenu (ADR 0006, décision 3). */
   onBypassAck?(ack: { seq: number; state: BypassState | null }): void;
   /** Processus enfant terminé. */
-  onExit?(info: { code: number | null; signal: NodeJS.Signals | null }): void;
+  onExit?(info: { code: number | null; signal: NodeJS.Signals | null; stderrTail?: string }): void;
   /** Sortie d'erreur du moteur, masquée (jeton et motifs usuels de secrets). */
   onLog?(text: string): void;
 }
@@ -235,7 +236,41 @@ export function createEngineController(options: EngineControllerOptions): Engine
         () => fail(new CodedError("ipc.startTimeout", { seconds: startTimeoutMs / 1000 })),
         startTimeoutMs,
       );
-      proc.stderr?.on("data", (chunk: Buffer) => handlers.onLog?.(redact(chunk.toString())));
+      const stderrChunks: Buffer[] = [];
+      let stderrBytes = 0;
+      let stderrOverflow = false;
+      let stderrIncomplete = false;
+      let stderrFinished = false;
+      let exitInfo: { code: number | null; signal: NodeJS.Signals | null } | undefined;
+      let drainTimer: ReturnType<typeof setTimeout> | undefined;
+      const finishStderr = () => {
+        if (stderrFinished || !exitInfo) return;
+        stderrFinished = true;
+        if (drainTimer) clearTimeout(drainTimer);
+        const output = stderrOverflow
+          ? t("[stderr trop volumineux : diagnostic ignoré]")
+          : stderrIncomplete
+            ? t("[stderr incomplet : diagnostic ignoré]")
+            : redact(Buffer.concat(stderrChunks).toString("utf8"));
+        stderrChunks.length = 0;
+        if (output) handlers.onLog?.(output);
+        const lines = output.replace(/\n$/, "").split(/\r?\n/).slice(-20).join("\n");
+        handlers.onExit?.({ ...exitInfo, ...(lines && { stderrTail: lines }) });
+        resolveExited();
+      };
+      proc.stderr?.on("data", (chunk: Buffer) => {
+        if (stderrFinished || stderrOverflow) return;
+        stderrBytes += chunk.length;
+        if (stderrBytes > 64 * 1024) {
+          stderrOverflow = true;
+          stderrChunks.length = 0;
+        } else stderrChunks.push(chunk);
+      });
+      let stderrEnded = !proc.stderr;
+      proc.stderr?.on("end", () => {
+        stderrEnded = true;
+        finishStderr();
+      });
       proc.on("error", fail);
       proc.on("exit", (code, signal) => {
         fail(
@@ -244,8 +279,14 @@ export function createEngineController(options: EngineControllerOptions): Engine
           }),
         );
         probe?.reject(new CodedError("ipc.engineExited", { code: code ?? -1 }));
-        handlers.onExit?.({ code, signal });
-        resolveExited();
+        exitInfo = { code, signal };
+        if (stderrEnded) finishStderr();
+        else
+          drainTimer = setTimeout(() => {
+            // Un descendant peut conserver le descripteur : le bloc incomplet ne doit pas fuiter.
+            stderrIncomplete = true;
+            finishStderr();
+          }, 250);
       });
       proc.on("message", (raw) => {
         const parsed = parseFromEngine(raw);

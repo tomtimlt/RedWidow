@@ -860,6 +860,14 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
 .capability-row .studio-help {
   margin: 0;
 }
+.provider-test-result {
+  flex-basis: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+.provider-test-result.error {
+  color: var(--jn-err);
+}
 .capability-row > .resource-toggle {
   flex: 1 1 230px;
 }

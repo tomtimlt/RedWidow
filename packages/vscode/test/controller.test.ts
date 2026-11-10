@@ -60,7 +60,7 @@ function collect() {
   const errors: ErrorInfo[] = [];
   const logs: string[] = [];
   const ended: EndedSummary[] = [];
-  const exits: { code: number | null; signal: NodeJS.Signals | null }[] = [];
+  const exits: { code: number | null; signal: NodeJS.Signals | null; stderrTail?: string }[] = [];
   const handlers: EngineHandlers = {
     onEvent: (e) => void events.push(e),
     onApproval: (a) => void approvals.push(a),
@@ -84,6 +84,65 @@ const hasText = (events: EngineEvent[], text: string) =>
   events.some((e) => JSON.stringify(e).includes(text));
 
 describe("contrôleur + moteur enfant (processus forké, QueryFn factice)", () => {
+  it("reconstitue stderr avant masquage, puis conserve les 20 dernières lignes", async () => {
+    const fake = join(dir, "stderr-fragments.mjs");
+    await writeFile(
+      fake,
+      `process.send({v:1,type:"ready"}); process.on("message",()=>{
+      const b=Buffer.from(${JSON.stringify(Array.from({ length: 25 }, (_, i) => `ligne ${i}`).join("\n") + "\nété " + TOKEN + "\nBearer abcdefghijklmnop\n-----BEGIN PRIVATE KEY-----\nsecret\n-----END PRIVATE KEY-----\n")});
+      for(let i=0;i<b.length;i+=3) process.stderr.write(b.subarray(i,i+3)); process.exitCode=1; process.disconnect();
+    });`,
+    );
+    const c = collect();
+    const ctl = createEngineController({
+      enginePath: fake,
+      auth: { name: "OPENAI_API_KEY", value: TOKEN },
+      handlers: c.handlers,
+    });
+    await ctl.start({ cwd: dir });
+    await ctl.exited;
+    const tail = c.exits[0]?.stderrTail ?? "";
+    expect(tail).not.toContain("ligne 0");
+    expect(tail).toContain("été [REDACTED]");
+    expect(tail).not.toContain(TOKEN);
+    expect(tail).not.toContain("abcdefghijklmnop");
+    expect(tail).not.toContain("PRIVATE KEY");
+    expect(c.logs.join("")).not.toContain(TOKEN);
+  });
+
+  it("rejette tout stderr en cas de dépassement du plafond", async () => {
+    const fake = join(dir, "stderr-volumineux.mjs");
+    await writeFile(
+      fake,
+      `process.send({v:1,type:"ready"}); process.on("message",()=>{process.stderr.write("x".repeat(70000),()=>{process.exitCode=1; process.disconnect();});});`,
+    );
+    const c = collect();
+    const ctl = createEngineController({ enginePath: fake, handlers: c.handlers });
+    await ctl.start({ cwd: dir });
+    await ctl.exited;
+    expect(c.exits[0]?.stderrTail).toBe("[stderr trop volumineux : diagnostic ignoré]");
+    expect(c.logs.join("")).not.toContain("xxxxxxxx");
+  });
+
+  it("termine malgré un descendant qui conserve stderr, sans publier le bloc incomplet", async () => {
+    const fake = join(dir, "stderr-descendant.mjs");
+    await writeFile(
+      fake,
+      `import {spawn} from "node:child_process";
+      process.send({v:1,type:"ready"}); process.on("message",()=>{
+        process.stderr.write("fragment-confidentiel");
+        spawn(process.execPath,["-e","setTimeout(()=>{},700)"],{stdio:["ignore","ignore",2]});
+        process.exit(1);
+      });`,
+    );
+    const c = collect();
+    const ctl = createEngineController({ enginePath: fake, handlers: c.handlers });
+    await ctl.start({ cwd: dir });
+    await ctl.exited;
+    expect(c.exits[0]?.stderrTail).toBe("[stderr incomplet : diagnostic ignoré]");
+    expect(c.logs.join("")).not.toContain("fragment-confidentiel");
+  });
+
   it("masque les comptes de test dans stderr du moteur", async () => {
     const fake = join(dir, "stderr-comptes.mjs");
     await writeFile(
