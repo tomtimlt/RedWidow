@@ -3624,7 +3624,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         capabilityWrite = capabilityWrite.then(async () => {
           try {
             const settings = readSettings();
-            if (!providerChoices(settings, false).some((p) => p.id === message.id)) return;
+            if (!providerChoices(settings, false).some((p) => p.id === message.id)) {
+              await panel.webview.postMessage({
+                type: "capabilityState",
+                id: message.id,
+                enabled: message.enabled,
+                error: true,
+              });
+              return;
+            }
             const list = settings.capabilities?.providers ?? [];
             await writeMachineSetting(
               "chat.providers",
@@ -3632,11 +3640,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 ? [...new Set([...list, message.id])]
                 : list.filter((id) => id !== message.id),
             );
+            await panel.webview.postMessage({
+              type: "capabilityState",
+              id: message.id,
+              enabled: message.enabled,
+              error: false,
+            });
             for (const slot of slots.values())
               if (slot.session)
                 slot.session.setSelection(slot.session.view().capabilities?.selection);
             await pushStudio();
           } catch (error) {
+            await panel.webview.postMessage({
+              type: "capabilityState",
+              id: message.id,
+              enabled: message.enabled,
+              error: true,
+            });
             void vscode.window.showErrorMessage(formatError(error, getUiLocale()));
           }
         });

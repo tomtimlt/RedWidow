@@ -685,6 +685,9 @@ class StudioNode {
     this.attributes.set(key, value);
     if (key === "class") this.className = value;
   }
+  getAttribute(key: string) {
+    return this.attributes.get(key) ?? null;
+  }
   addEventListener(type: string, listener: (event: Record<string, unknown>) => void) {
     const previous = this.listeners.get(type);
     this.listeners.set(type, (event) => {
@@ -704,6 +707,71 @@ class StudioNode {
     return undefined;
   }
 }
+
+it("fournisseurs : choix optimiste verrouillé jusqu'à l'accusé, puis reprise ou retour en erreur", () => {
+  const main = new StudioNode("main");
+  const sent: unknown[] = [];
+  let receive: (event: { data: unknown }) => void = () => {};
+  runInNewContext(read(studioJs), {
+    TextEncoder,
+    setTimeout,
+    clearTimeout,
+    acquireVsCodeApi: () => ({ postMessage: (message: unknown) => sent.push(message) }),
+    document: {
+      addEventListener() {},
+      body: new StudioNode("body"),
+      getElementById: (id: string) => (id === "studio-main" ? main : null),
+      createElement: (tag: string) => new StudioNode(tag),
+    },
+    window: {
+      WarbandIcons: { create: () => new StudioNode("svg") },
+      addEventListener: (_type: string, listener: typeof receive) => {
+        receive = listener;
+      },
+    },
+  });
+  const view = {
+    type: "view",
+    page: "providers",
+    capabilities: { providers: [] },
+    providerCatalog: [{ id: "exemple", label: "Exemple" }],
+  };
+  const toggle = () => {
+    const node = main.find((item) => item.id === "capability-provider-exemple");
+    if (!node) throw new Error("Fournisseur introuvable");
+    return node;
+  };
+  receive({ data: view });
+  const initial = toggle();
+  initial.fire("click");
+  receive({ data: { ...view, containers: [{ name: "autre" }] } });
+  expect(toggle()).toBe(initial);
+  expect(toggle().attributes.get("aria-checked")).toBe("true");
+  toggle().fire("click");
+  expect(sent).toHaveLength(2);
+  receive({ data: { ...view, providerCatalogStatus: "loading" } });
+  expect(toggle().attributes.get("aria-checked")).toBe("true");
+  toggle().fire("click");
+  expect(sent).toHaveLength(2);
+  receive({ data: { type: "capabilityState", id: "exemple", enabled: true, error: false } });
+  receive({ data: view });
+  expect(toggle().attributes.get("aria-checked")).toBe("true");
+  toggle().fire("click");
+  expect(sent.at(-1)).toEqual({
+    type: "setCapability",
+    kind: "provider",
+    id: "exemple",
+    enabled: false,
+  });
+  receive({ data: { type: "capabilityState", id: "exemple", enabled: false, error: true } });
+  expect(toggle().attributes.get("aria-checked")).toBe("true");
+  expect(toggle().attributes.get("aria-disabled")).toBe("false");
+  expect(
+    main.find((item) => item.textContent.includes("Impossible d’enregistrer ce fournisseur")),
+  ).toBeDefined();
+  toggle().fire("click");
+  expect(sent).toHaveLength(4);
+});
 
 it("mémoire : saisie, plafond multioctet, conservation du brouillon et accusé de sauvegarde", () => {
   const main = new StudioNode("main");

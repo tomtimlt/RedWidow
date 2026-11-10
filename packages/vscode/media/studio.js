@@ -355,6 +355,9 @@ if (typeof acquireVsCodeApi === "function") start();
 function start() {
   const t = studioT;
   let lastView = null;
+  let pageFingerprint = null;
+  const providerChanges = new Map();
+  const providerPainters = new Map();
   const vscode = acquireVsCodeApi();
   // Un changement de langue reconstruit les libellés et conserve l’interaction en cours.
   const captureLocaleState = () => {
@@ -659,13 +662,27 @@ function start() {
       toggle.type = "button";
       toggle.id = `capability-provider-${p.id}`;
       toggle.setAttribute("role", "switch");
-      toggle.setAttribute("aria-checked", String(caps.providers.includes(p.id)));
+      const status = el("span", "studio-help");
+      status.setAttribute("role", "status");
+      const paint = (error = false) => {
+        const change = providerChanges.get(p.id);
+        toggle.setAttribute(
+          "aria-checked",
+          String(change?.enabled ?? caps.providers.includes(p.id)),
+        );
+        toggle.setAttribute("aria-disabled", String(change?.pending === true));
+        status.textContent = error ? t("Impossible d’enregistrer ce fournisseur. Réessayez.") : "";
+      };
+      providerPainters.set(p.id, paint);
+      paint();
       toggle.addEventListener("click", () => {
+        if (providerChanges.get(p.id)?.pending) return;
         const on = toggle.getAttribute("aria-checked") !== "true";
-        toggle.setAttribute("aria-checked", String(on));
+        providerChanges.set(p.id, { enabled: on, previous: !on, pending: true });
+        paint();
         vscode.postMessage({ type: "setCapability", kind: "provider", id: p.id, enabled: on });
       });
-      row.append(toggle, el("span", "studio-help", detail));
+      row.append(toggle, el("span", "studio-help", detail), status);
       const button = el("button", "ghost resource-configure", t("Configurer"));
       button.type = "button";
       button.addEventListener("click", () =>
@@ -1911,6 +1928,58 @@ function start() {
     if (!main) return;
     const page = killchainOnly ? "killchain" : view.page;
     const project = typeof view.projectId === "string" ? view.projectId : null;
+    if (page === "providers") {
+      for (const [id, change] of providerChanges) {
+        if (!change.pending && (view.capabilities?.providers ?? []).includes(id) === change.enabled)
+          providerChanges.delete(id);
+      }
+    }
+    const pageFields = {
+      project: [
+        "projectChoices",
+        "projectBusy",
+        "projectCreated",
+        "projectWorkspaceRoot",
+        "projectError",
+        "projectSummary",
+        "linkedBanner",
+        "summarySaved",
+        "summaryFailed",
+        "summaryError",
+      ],
+      accounts: ["testAccounts"],
+      system: [
+        "docker",
+        "daemon",
+        "exegol",
+        "projectWorkspaceRoot",
+        "workspaceRootError",
+        "limits",
+      ],
+      containers: ["containers"],
+      providers: [
+        "capabilities",
+        "providerAuth",
+        "providerCatalog",
+        "providerCatalogStatus",
+        "providerCatalogError",
+      ],
+      integrations: ["mcpConfigured", "mcpCatalog", "burpEnabled", "burpStatus", "agentProfile"],
+      audit: ["audit", "auditError"],
+      killchain: ["findings", "evidence"],
+      appearance: ["terminalPrompt"],
+      atlas: ["sources"],
+    };
+    const nextPageFingerprint = JSON.stringify([
+      page,
+      project,
+      globalThis.WarbandI18n?.getLocale() ?? "fr",
+      (pageFields[page] ?? []).map((key) => view[key]),
+    ]);
+    if (!killchainOnly) paintNav(page, view.findings, view);
+    if (page === "killchain") showGraphError("");
+    if (!force && pageFingerprint === nextPageFingerprint) return;
+    pageFingerprint = nextPageFingerprint;
     if (project !== graphProject) {
       graphProject = project;
       graphPose = null;
@@ -1943,7 +2012,7 @@ function start() {
           ])
         : null;
     showGraphError("");
-    if (fingerprint !== null && fingerprint === graphFingerprint) return;
+    if (!force && fingerprint !== null && fingerprint === graphFingerprint) return;
     graphFingerprint = fingerprint;
     const restoreAudit =
       page === "audit" && lastAuditProject === project ? captureLocaleState() : () => {};
@@ -1954,7 +2023,6 @@ function start() {
     graphStatus = null;
     graphBar = null;
     while (main.firstChild) main.removeChild(main.firstChild);
-    if (!killchainOnly) paintNav(page, view.findings, view);
     if (page === "audit") {
       main.append(auditPage(view, project));
       restoreAudit();
@@ -2617,6 +2685,15 @@ function start() {
           ? t("Impossible d’enregistrer le prompt. Réessayez.")
           : t("Enregistré. Ouvrez un nouveau terminal pour appliquer ce choix."),
       );
+      return;
+    }
+    if (msg?.type === "capabilityState" && typeof msg.id === "string") {
+      const change = providerChanges.get(msg.id);
+      if (!change?.pending || msg.enabled !== change.enabled || typeof msg.error !== "boolean")
+        return;
+      change.pending = false;
+      if (msg.error) change.enabled = change.previous;
+      providerPainters.get(msg.id)?.(msg.error);
       return;
     }
     if (msg?.type !== "view") return;
