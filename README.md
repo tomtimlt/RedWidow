@@ -1,138 +1,165 @@
 <div align="center">
 
-<img src="docs/img/redwidow-logo.svg" alt="Logo RedWidow" width="88" height="88">
+<img src="docs/img/readme/redwidow-lockup.png" alt="RedWidow" width="360">
 
 # RedWidow
 
-**Le pentest dans VS Code, avec l'IA à la demande.**
+**Pentest in VS Code, with AI on call.**
 
-Vos conteneurs Exegol et Kali, vos terminaux, un Monitor, un graphe d'attaque,
-une matrice de couverture et un rapport, au même endroit. Un agent IA agit dans
-votre conteneur quand vous l'appelez, sous votre contrôle.
+Your Exegol and Kali containers, their terminals, a Monitor, a kill chain, a
+coverage matrix and reports in one workspace. An AI agent helps when you call
+it, under your approval.
 
-![Licence MIT](https://img.shields.io/badge/licence-MIT-3cc7c0.svg)
+![MIT license](https://img.shields.io/badge/license-MIT-3cc7c0.svg)
 ![VS Code 1.90+](https://img.shields.io/badge/VS%20Code-1.90%2B-495F73.svg)
-![Windows et Linux](https://img.shields.io/badge/Windows%20%7C%20Linux-495F73.svg)
-![Docker requis](https://img.shields.io/badge/Docker-requis-495F73.svg)
-![Bêta publique](https://img.shields.io/badge/statut-b%C3%AAta%20publique-c8344a.svg)
+![Windows and Linux](https://img.shields.io/badge/Windows%20%7C%20Linux-495F73.svg)
+![Docker required](https://img.shields.io/badge/Docker-required-495F73.svg)
+![Public beta](https://img.shields.io/badge/status-public%20beta-E5132B.svg)
+
+[Français](README.fr.md) · [Download](https://github.com/tomtimlt/RedWidow/releases) · [Issues](https://github.com/tomtimlt/RedWidow/issues)
+
+<img src="docs/img/readme/welcome.png" alt="The RedWidow welcome screen" width="860">
 
 </div>
 
 ---
 
-> **Usage autorisé uniquement** : CTF, laboratoires de certification, ou mission
-> avec un périmètre défini et une autorisation écrite. Vous restez responsable de
-> ce que l'agent fait en votre nom.
+> [!WARNING]
+> **For authorized testing only: CTFs, labs and scoped engagements.**
+> Only test systems you own or have written permission to test. You are
+> responsible for what the agent does on your behalf.
 
-> **Bêta publique 1.0.** L'outil est utilisable au quotidien, mais jeune : il ne
-> promet aucun résultat. La réussite d'une mission dépend du modèle d'IA choisi
-> et de la cible. [Limites connues](#limites-connues).
+> [!NOTE]
+> **Public beta 1.0.** RedWidow is usable day to day but young. It promises no
+> result: how far a mission goes depends on the model you pick and on the
+> target. See [known limits](#known-limits).
 
-## Ce que c'est
+## What it is
 
-Un pentest, ce sont des dizaines de terminaux, de scans et de notes éparpillés.
-RedWidow les réunit dans VS Code :
+A pentest means dozens of terminals, scans and notes scattered everywhere.
+RedWidow brings them together inside VS Code:
 
-- **Conteneurs Exegol et Kali** préparés et pilotés depuis le cockpit, terminaux ouverts directement dedans.
-- **Un agent IA** qui lance les outils dans votre conteneur, lit les résultats et propose la suite. Chaque action sensible passe par une carte d'approbation.
-- **Un Monitor** qui suit chaque commande et chaque requête web de l'agent, en direct.
-- **Un graphe d'attaque** (kill chain) : hôtes, identifiants, sites, étapes, avec la technique MITRE ATT&CK de chaque étape.
-- **Une matrice de couverture** : ce qui est testé, négatif, bloqué ou confirmé, en couleurs.
-- **Un journal complet et exportable** de la mission, pour rendre des comptes ou mesurer l'agent.
+- **Exegol and Kali containers**, prepared and managed from a cockpit, with terminals that open straight inside them.
+- **An AI agent you call** to run tools in your container, read the results and suggest next leads. Every sensitive action goes through an approval card.
+- **A Monitor** that follows every command and web request the agent makes, live.
+- **A kill chain**: hosts, credentials, sites, steps and loot linked together, each step tagged with its MITRE ATT&CK technique.
+- **A coverage matrix**: what was tested, negative, blocked or confirmed, in colour, with a banner when a finding is confirmed.
+- **A full, exportable log** of the mission, to account for it or to measure the agent.
 
-## Un profil par type de mission
+The AI is a helper you call, not the pilot. Learning mode only reads and explains.
 
-| Profil | Pour quoi | Document demandé |
+## One profile per kind of mission
+
+| Profile | For | Document required |
 |---|---|---|
-| **Pentest** (par défaut) | Mission à la volée, tous les outils après approbation | Aucun |
-| **HTB / CTF** | Énumération, exploitation, drapeaux | Aucun |
-| **Bug bounty** | Respect des règles d'un programme, preuves minimales | Fiche programme |
-| **Red Team** | Plan de campagne, ATT&CK, déconfliction | Fiche d'engagement |
-| **Mentor** | Pédagogie, l'agent explique sans agir | Aucun |
+| **Pentest** (default) | Quick, ad-hoc mission, every tool after approval | None |
+| **HTB / CTF** | Enumeration, exploitation, flags | None |
+| **Bug bounty** | Respect a program's rules, minimal proof | Program sheet |
+| **Red Team** | Campaign plan, ATT&CK, deconfliction | Engagement sheet |
+| **Mentor** | Teaching: the agent explains, it does not act | None |
 
-Aucun profil n'impose les documents d'un autre : un pentest ne demande pas de
-fiche de bug bounty, un CTF ne demande aucun contrat.
+No profile asks for another profile's documents: a pentest needs no bug bounty
+sheet, a CTF needs no contract.
 
-## Fonctions
+## Features
 
-### Piloter l'agent
+### Drive the agent, stay in control
 
-Écrivez votre consigne dans le chat. L'agent propose, vous autorisez : une carte
-montre l'outil, la commande et la raison, avec *Autoriser une fois*, *Refuser*
-ou *Toujours*.
+Write your prompt in the chat. The agent proposes, you approve: a card shows
+the tool, the command and the reason, with *Allow once*, *Deny* or *Always*.
 
-- `@` pour citer un conteneur, `#` pour citer un terminal ouvert, `/` pour les commandes.
-- Plusieurs conversations en parallèle, avec un historique partagé par projet.
-- Choix du **fournisseur** et du **modèle** (OpenCode, Claude, OpenAI) pour le message suivant.
-- Niveau d'encadrement **Acharné** : l'agent est relancé tant qu'il reste des pistes qu'il peut avancer seul, et s'arrête quand seule une action humaine peut le débloquer.
-- Bouton **Stop** dans la zone de saisie pendant un run.
-- **Bypass** à durée choisie (de 1 minute à 48 h) ou illimité, quand vous voulez que l'agent travaille sans vous solliciter.
+<div align="center">
+<img src="docs/img/readme/chat-approval-wide.png" alt="An authorization card: tool, sqlmap command, reason, and the Allow once, Deny and Always buttons" width="860">
+</div>
 
-### Comptes de test
+- `@` to mention a container, `#` to mention an open terminal, `/` for commands.
+- Several conversations in parallel, with a history shared by project.
+- A choice of **provider** and **model** (OpenCode, Claude, OpenAI) for the next message.
+- **Relentless** supervision level: the agent is nudged to keep going while it still has leads it can pursue alone, and stops when only you can unblock it.
+- A **Stop** button in the prompt box while a run is active.
+- **Bypass** with a duration you choose (1 minute to 48 hours) or unlimited, for when you want the agent to work without asking. It switches off when the engine stops.
 
-Une page **Comptes de test** enregistre vos identifiants ou un cookie de session
-dans le coffre de VS Code. L'agent les utilise pour tester les parties
-authentifiées, avec une session conservée entre deux requêtes. Les valeurs sont
-masquées dans les journaux et les exports.
+### Test accounts
 
-### Fiche programme remplie par l'IA
+A **Test accounts** page stores your credentials or a session cookie in the VS
+Code secret store. The agent uses them to test authenticated areas, keeping the
+session between requests. Values are masked in logs and exports.
 
-Pour un bug bounty, collez l'adresse du programme et cliquez sur **Remplir par
-IA** : une conversation dédiée lit la page, rédige le périmètre, les exclusions,
-le rythme et le User-Agent, en citant ses sources. Vous relisez et vous validez :
-rien ne s'applique avant votre validation.
+### Program sheet filled by AI
 
-### Suivre l'exécution et garder une trace
+For a bug bounty, paste the program URL and click **Fill with AI**: a dedicated
+conversation reads the page and drafts the scope, exclusions, pace and
+User-Agent, citing its sources. You review and validate it. Nothing applies
+before you do.
 
-- Le **Monitor** liste toutes les actions de l'agent (shell et web), filtrables.
-- La **matrice de couverture** colore chaque case et signale d'un bandeau une faille confirmée.
-- L'**Audit** conserve actions, décisions et captures du projet. Un ZIP exportable contient le fil de la mission, les journaux et les empreintes SHA-256.
-- Les **sorties longues** sont gardées en entier et relisibles par tranche ou par recherche.
+### Follow the execution and keep a trace
 
-### Mesurer un run
+<div align="center">
+<img src="docs/img/readme/monitor.png" alt="The Monitor: a timeline of commands and the live output of the running one" width="860">
+</div>
 
-La commande `trace` lit le ZIP d'audit d'un run et dit où il a perdu du temps :
-nombre d'appels, répétitions, recherches, part des requêtes dérivées de ce que
-l'agent avait observé, classe de blocage probable.
+- The **Monitor** lists every agent action, shell and web, with filters.
+- **Audit** keeps actions, decisions and project captures. A ZIP export holds the mission thread, the logs and SHA-256 hashes.
+- **Long outputs** are kept in full and can be read back by slice or by search.
+
+### Follow your attack
+
+<div align="center">
+<img src="docs/img/readme/killchain.png" alt="The kill chain: a graph of linked findings, the selected path as green dashes, and the legend" width="860">
+</div>
+
+Every finding has a **state** (confirmed, hypothesis, failed), a **MITRE ATT&CK
+technique** and cause-and-effect links to the others. **Replay** walks the
+selected path node by node. Click a node for its full card.
+
+### Make it yours
+
+23 colour sets, light and dark.
+
+<div align="center">
+<img src="docs/img/readme/appearance-palettes.png" alt="The appearance page with the colour palettes" width="860">
+</div>
+
+### Measure a run
+
+The `trace` command reads a run's audit ZIP and tells you where it lost time:
+number of calls, repetitions, searches, the share of requests derived from what
+the agent had observed, and the likely class of blocker.
 
 ```bash
-node packages/cli/dist/main.js trace mon-audit.zip
+node packages/cli/dist/main.js trace my-audit.zip
 ```
 
-## Installation
+## Install
 
-Prérequis : **VS Code 1.90+**, **Docker** en marche, un conteneur **Exegol** ou
-un Kali (RedWidow sait le préparer), et un compte chez un fournisseur de modèle
-(OpenCode propose des modèles gratuits).
+Requirements: **VS Code 1.90+**, **Docker** running, an **Exegol** or Kali
+container (RedWidow can prepare one), and an account with a model provider
+(OpenCode offers free models).
 
-1. Téléchargez le fichier `.vsix` de la [dernière version](https://github.com/tomtimlt/warband/releases).
-2. Dans VS Code : *Extensions* → menu `···` → **Installer à partir d'un VSIX…**
-3. Ouvrez **RedWidow** dans la barre d'activité.
+1. Download the `.vsix` for your platform from the [latest release](https://github.com/tomtimlt/RedWidow/releases).
+2. In VS Code: *Extensions* → `···` menu → **Install from VSIX…**
+3. Open **RedWidow** in the activity bar.
 
-## Démarrage en 5 étapes
+## Quick start
 
-1. **Réglages → Fournisseurs** : configurez un fournisseur de modèle.
-2. **Réglages → Projet** : créez un projet (son dossier est créé pour vous).
-3. **Cockpit → Nouveau conteneur** : il se lie tout seul au projet.
-4. Dans le chat, **Configurer** : choisissez fournisseur, modèle et niveau d'encadrement.
-5. Écrivez votre consigne, par exemple « scanne 10.10.11.42 et résume les services exposés ».
+1. **Settings → Providers**: set up a model provider.
+2. **Settings → Project**: create a project (its folder is created for you).
+3. **Cockpit → New container**: it links itself to the project.
+4. In the chat, **Configure**: pick provider, model and supervision level.
+5. Write your prompt, for example “scan 10.10.11.42 and summarize the exposed services”.
 
-## Limites connues
+## Known limits
 
-- **Bêta** : des défauts d'interface sont possibles, signalez-les.
-- Pas encore sur le Marketplace : installation par fichier `.vsix`.
-- Testé sous Windows et Linux, pas sous macOS.
-- Les résultats dépendent du modèle : un modèle gratuit trouve moins qu'un modèle de pointe.
-- Les relances automatiques du niveau Acharné fonctionnent avec OpenCode.
+- **Beta**: UI defects are possible, please report them.
+- Not on the Marketplace yet: install from the `.vsix` file.
+- Tested on Windows and Linux, not on macOS.
+- Results depend on the model: a free model finds less than a frontier model.
+- Automatic nudging at the Relentless level works with OpenCode.
 
-## Licences et contenus tiers
+## Licenses and third-party content
 
-RedWidow est sous licence **MIT** ([LICENSE](LICENSE)). Les contenus tiers
-(OWASP, HackTricks, Attack Flow, OpenCode) et leurs licences sont listés dans
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-
-## English
-
-An [English README](README.en.md) is available. RedWidow is a VS Code extension
-that drives Exegol and Kali containers with an AI agent, under your approval,
-with a Monitor, an attack graph, a coverage matrix and an exportable audit log.
+RedWidow is released under the **MIT** license ([LICENSE](LICENSE)).
+Third-party content (OWASP, HackTricks, Attack Flow, OpenCode) and its
+licenses are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Exegol, Kali Linux, HackTheBox, OWASP and MITRE ATT&CK are names of their
+respective owners; RedWidow is not affiliated with any of them.

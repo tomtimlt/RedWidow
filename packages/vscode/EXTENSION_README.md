@@ -62,4 +62,4 @@ Sensitive actions produce approval cards. Allow an action once, deny it, or reme
 
 ## More
 
-[User guide and source](https://github.com/tomtimlt/warband) · [Issues](https://github.com/tomtimlt/warband/issues) · MIT license
+[User guide and source](https://github.com/tomtimlt/RedWidow) · [Issues](https://github.com/tomtimlt/RedWidow/issues) · MIT license

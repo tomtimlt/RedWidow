@@ -5,9 +5,9 @@
   "version": "1.0.0",
   "publisher": "warband",
   "license": "MIT",
-  "repository": { "type": "git", "url": "https://github.com/tomtimlt/warband.git" },
-  "homepage": "https://github.com/tomtimlt/warband#readme",
-  "bugs": { "url": "https://github.com/tomtimlt/warband/issues" },
+  "repository": { "type": "git", "url": "https://github.com/tomtimlt/RedWidow.git" },
+  "homepage": "https://github.com/tomtimlt/RedWidow#readme",
+  "bugs": { "url": "https://github.com/tomtimlt/RedWidow/issues" },
   "engines": {
     "vscode": "^1.90.0"
   },
