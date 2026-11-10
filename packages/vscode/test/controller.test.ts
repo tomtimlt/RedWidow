@@ -130,7 +130,7 @@ describe("contrôleur + moteur enfant (processus forké, QueryFn factice)", () =
       fake,
       `import {spawn} from "node:child_process";
       process.send({v:1,type:"ready"}); process.on("message",()=>{
-        process.stderr.write("fragment-confidentiel");
+        process.stderr.write("password=fragment-confidentiel");
         spawn(process.execPath,["-e","setTimeout(()=>{},700)"],{stdio:["ignore","ignore",2]});
         process.exit(1);
       });`,
@@ -139,8 +139,12 @@ describe("contrôleur + moteur enfant (processus forké, QueryFn factice)", () =
     const ctl = createEngineController({ enginePath: fake, handlers: c.handlers });
     await ctl.start({ cwd: dir });
     await ctl.exited;
-    expect(c.exits[0]?.stderrTail).toBe("[stderr incomplet : diagnostic ignoré]");
+    // Le secret ne fuit jamais : bloc incomplet ignoré, ou flux fermé puis masqué.
+    expect(c.exits[0]?.stderrTail ?? "").not.toContain("fragment-confidentiel");
     expect(c.logs.join("")).not.toContain("fragment-confidentiel");
+    // Sous Windows, le descendant n'hérite pas du tube : le flux se termine et le bloc est complet.
+    if (process.platform !== "win32")
+      expect(c.exits[0]?.stderrTail).toBe("[stderr incomplet : diagnostic ignoré]");
   });
 
   it("masque les comptes de test dans stderr du moteur", async () => {
