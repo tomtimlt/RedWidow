@@ -2897,8 +2897,15 @@ body.vscode-high-contrast-light .brand-ops {
   display: none;
 }
 .composer-menu {
-  width: min(390px, calc(100vw - 16px));
-  padding: 8px;
+  width: min(300px, calc(100vw - 16px));
+  max-height: min(var(--jn-maxh, 50vh), 340px);
+  overflow-y: auto;
+  padding: 6px;
+}
+.composer-menu .composer-action,
+.composer-menu .composer-choice {
+  min-height: 26px;
+  padding-block: 3px;
 }
 .composer-section {
   margin: 10px 10px 5px;
@@ -3012,18 +3019,77 @@ body.vscode-high-contrast-light .welcome-spider {
 }
 
 #bypass-pop {
-  padding: 16px;
-  max-width: min(360px, 90vw);
+  display: none;
+  padding: 12px;
+  width: min(300px, calc(100vw - 16px));
+}
+#bypass-pop:popover-open {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+#bypass-pop > p,
+#bypass-pop > button {
+  grid-column: 1 / -1;
+}
+#bypass-pop p {
+  margin: 0;
+  color: var(--jn-muted);
+  font-size: var(--jn-fs-sm);
+  line-height: 1.4;
+}
+#bypass-pop p#bypass-error {
+  color: var(--jn-err);
+}
+#bypass-pop p#bypass-error[hidden] {
+  display: none;
 }
 #bypass-pop label {
-  display: inline-block;
-  margin: 4px;
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  color: var(--jn-muted);
+  font-size: var(--jn-fs-xs);
 }
 #bypass-pop input {
-  width: 5em;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 5px 8px;
+  color: var(--vscode-input-foreground, var(--vscode-foreground));
+  background: var(--vscode-input-background, var(--jn-raise-2));
+  border: 1px solid var(--vscode-input-border, var(--jn-line-strong));
+  border-radius: var(--jn-r-sm);
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-sm);
 }
-#bypass-unlimited[aria-pressed="true"] {
-  outline: 2px solid var(--vscode-focusBorder);
+#bypass-pop input:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+#bypass-pop button {
+  min-height: 28px;
+  padding: 4px 12px;
+  border: 1px solid var(--jn-line-strong);
+  border-radius: var(--jn-r-sm);
+  background: var(--jn-raise-2);
+  color: var(--vscode-foreground);
+  cursor: pointer;
+}
+#bypass-pop button:hover {
+  border-color: var(--vscode-focusBorder, var(--jn-accent));
+}
+#bypass-pop #bypass-unlimited[aria-pressed="true"] {
+  background: var(--jn-bypass-tint);
+  border-color: var(--jn-bypass-edge);
+  outline: none;
+}
+#bypass-pop #bypass-activate {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border-color: transparent;
+}
+#bypass-pop #bypass-activate:hover {
+  background: var(--vscode-button-hoverBackground);
 }
 #bypass-banner:not([hidden]) {
   display: flex;
