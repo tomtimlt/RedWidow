@@ -194,9 +194,14 @@ describe("session de chat", () => {
     expect(t.f.calls).toEqual([["prompt", "bonjour"]]);
     expect(t.view().busy).toBe(true);
     expect(t.view().sandbox).toBeNull();
-    // Pas de second message pendant un tour.
-    await t.session.send("encore");
-    expect(t.f.calls).toHaveLength(1);
+    // Un message pendant un tour est transmis au moteur déjà actif.
+    const startedAt = t.view().turnStartedAt;
+    expect(await t.session.send("encore")).toBe(true);
+    expect(t.f.calls).toEqual([
+      ["prompt", "bonjour"],
+      ["prompt", "encore"],
+    ]);
+    expect(t.view().turnStartedAt).toBe(startedAt);
     t.f.handlers.onEvent?.(ev({ kind: "turn.finished" }));
     expect(t.view().busy).toBe(false);
   });
@@ -227,7 +232,8 @@ describe("session de chat", () => {
         .items.filter((item) => item.kind === "user")
         .map((item) => item.text),
     ).toEqual([display]);
-    expect(await t.session.send(display, prompt)).toBe(false);
+    expect(await t.session.send(display, prompt)).toBe(true);
+    expect(t.f.calls.filter((call) => call[0] === "prompt")).toHaveLength(2);
     t.session.stop();
   });
 

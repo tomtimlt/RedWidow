@@ -915,6 +915,17 @@ const PAGES = [
     ],
     { containerState: "linked" },
   ),
+  chatPage(
+    "chat-stop-composer",
+    [
+      {
+        type: "view",
+        view: { ...chatView({ conversation: false }), busy: true, conversation: "new:0" },
+      },
+      CONTAINERS,
+    ],
+    { stopComposer: true },
+  ),
   chatPage("chat-conversation", [{ type: "view", view: chatView({ approval: true }) }, CONTAINERS]),
   chatPage("chat-accueil", [{ type: "view", view: chatView({ conversation: false }) }, CONTAINERS]),
   // Jauge de contexte : fenêtre connue, avertissement (> 80 %), fenêtre inconnue, aucune donnée.
@@ -1169,6 +1180,52 @@ try {
         if (page.click) {
           await tab.evaluate((id) => document.getElementById(id)?.click(), page.click);
           await tab.waitForTimeout(150);
+        }
+        if (page.stopComposer) {
+          const send = tab.locator("#send");
+          const input = tab.locator("#input");
+          if (
+            (await send.getAttribute("type")) !== "button" ||
+            (await send.getAttribute("aria-label")) !== "Arrêter l'agent"
+          )
+            throw new Error("Bouton Stop absent");
+          await send.click();
+          await input.press("Escape");
+          await input.press("Enter");
+          const actions = await tab.evaluate(() => window.__sent.filter((m) => m.type !== "ready"));
+          if (JSON.stringify(actions) !== JSON.stringify([{ type: "stop" }, { type: "stop" }]))
+            throw new Error("Clic, Échap ou Entrée à vide incorrects");
+          await input.fill("Suite de la mission");
+          if (
+            (await send.getAttribute("type")) !== "submit" ||
+            (await send.getAttribute("aria-label")) !== "Envoyer"
+          )
+            throw new Error("Bouton Envoyer absent");
+          await send.click();
+          const message = await tab.evaluate(() => window.__sent.at(-1));
+          if (
+            message.type !== "send" ||
+            message.text !== "Suite de la mission" ||
+            message.conversation !== "new:0"
+          )
+            throw new Error("Envoi pendant le run incorrect");
+          await tab.evaluate(
+            (requestId) =>
+              window.postMessage({ type: "sendResult", requestId, accepted: false }, "*"),
+            message.requestId,
+          );
+          await tab.waitForTimeout(50);
+          if ((await input.inputValue()) !== "Suite de la mission")
+            throw new Error("Brouillon perdu après refus");
+          await send.click();
+          const retry = await tab.evaluate(() => window.__sent.at(-1));
+          await tab.evaluate(
+            (requestId) =>
+              window.postMessage({ type: "sendResult", requestId, accepted: true }, "*"),
+            retry.requestId,
+          );
+          await tab.waitForTimeout(50);
+          if ((await input.inputValue()) !== "") throw new Error("Brouillon accepté non vidé");
         }
         if (page.containerState) {
           const expected = page.containerState === "missing";

@@ -1820,11 +1820,10 @@
     $("no-provider").hidden = !noProvider;
     ctlGroup.hidden = !view.controls || noProvider;
     document.body.classList.toggle("no-provider", noProvider);
-    send.disabled = view.busy || !!view.readonly || noProvider;
-    input.disabled = !!view.readonly || noProvider;
+    input.disabled = !!view.readonly || !!view.stopping || noProvider;
     mentionBtn.disabled = input.disabled;
     hashBtn.disabled = input.disabled;
-    stop.disabled = !view.busy;
+    stop.disabled = !view.busy || !!view.stopping;
     lastView = view;
     paintAttachments();
     applyBody();
@@ -1970,6 +1969,18 @@
       } else
         attachmentStatus(t("Envoi refusé ou interrompu. Les fichiers restent dans le brouillon."));
       paintAttachments();
+    } else if (message && message.type === "sendResult") {
+      if (!pendingText || message.requestId !== pendingText.requestId) return;
+      const pending = pendingText;
+      pendingText = null;
+      if (message.accepted === true) {
+        attachmentStatus("");
+        sent = sent.concat(pending.text);
+        recall = { index: -1, draft: "" };
+        if (input.value === pending.text) input.value = "";
+        grow();
+      } else attachmentStatus(t("Envoi refusé ou interrompu. Le texte reste dans le brouillon."));
+      paintAttachments();
     } else if (message && message.type === "title" && typeof message.text === "string") {
       const contextTitle = $("context-title");
       contextTitle.textContent = message.text.slice(0, 120);
@@ -2008,6 +2019,7 @@
   function grow() {
     input.style.height = "auto";
     input.style.height = `${input.scrollHeight}px`;
+    paintAttachments();
   }
   function caretLine() {
     const value = input.value;
@@ -2021,6 +2033,7 @@
   const attachBtn = $("attach-btn");
   let draftFiles = [];
   let pendingFiles = null;
+  let pendingText = null;
   let fileEpoch = 0;
   let readingFiles = false;
   let fileSerial = 0;
@@ -2083,9 +2096,15 @@
       selected?.supportsImages === false
         ? t("Ce modèle ne prend pas les images en charge.")
         : t("La prise en charge des images par ce modèle est inconnue.");
+    const isStop = !!lastView?.busy && !input.value.trim() && !draftFiles.length;
+    send.type = isStop ? "button" : "submit";
+    send.replaceChildren(svg(isStop ? "stop" : "send"));
+    send.title = t(isStop ? "Arrêter l'agent" : "Envoyer (Entrée)");
+    send.setAttribute("aria-label", t(isStop ? "Arrêter l'agent" : "Envoyer"));
     send.disabled =
       !lastView ||
-      lastView.busy ||
+      !!lastView.stopping ||
+      !!pendingText ||
       !!lastView.readonly ||
       !!lastView.noProvider ||
       !!pendingFiles ||
@@ -2243,13 +2262,14 @@
       $("research-next").setAttribute("aria-pressed", "false");
       return;
     }
-    sent = sent.concat(text);
-    recall = { index: -1, draft: "" };
-    input.value = "";
-    grow();
+    const requestId = `text-${Date.now()}-${++fileSerial}`;
+    pendingText = { requestId, text };
+    paintAttachments();
     vscode.postMessage({
       type: "send",
       text,
+      requestId,
+      conversation: lastView.conversation,
       research: $("research-next").getAttribute("aria-pressed") === "true",
     });
     $("research-next").setAttribute("aria-pressed", "false");
@@ -2290,6 +2310,18 @@
       }
     }
     if (
+      e.key === "Escape" &&
+      lastView?.busy &&
+      !lastView.stopping &&
+      !input.value.trim() &&
+      !draftFiles.length &&
+      !send.disabled
+    ) {
+      e.preventDefault();
+      vscode.postMessage({ type: "stop" });
+      return;
+    }
+    if (
       (e.key === "ArrowUp" || e.key === "ArrowDown") &&
       !e.shiftKey &&
       !e.altKey &&
@@ -2315,6 +2347,9 @@
       e.preventDefault();
       submit();
     }
+  });
+  send.addEventListener("click", () => {
+    if (send.type === "button" && !send.disabled) vscode.postMessage({ type: "stop" });
   });
   stop.addEventListener("click", () => vscode.postMessage({ type: "stop" }));
   $("reset").addEventListener("click", () => resetConversation());

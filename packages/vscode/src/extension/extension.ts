@@ -1239,10 +1239,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           const hasFiles = message.attachments !== undefined;
           const generation = findingProjectGeneration;
           const validContext = () =>
-            !hasFiles ||
+            (!hasFiles && !message.requestId) ||
             (vscode.workspace.isTrusted &&
               visible() &&
-              !s.view().busy &&
+              (!hasFiles || !s.view().busy) &&
+              !s.view().stopping &&
               !s.view().readonly &&
               !s.view().noProvider &&
               message.conversation === s.view().conversation &&
@@ -1250,6 +1251,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           const result = (accepted: boolean) => {
             if (hasFiles)
               reply({ type: "attachmentResult", requestId: message.requestId, accepted });
+            else if (message.requestId)
+              reply({ type: "sendResult", requestId: message.requestId, accepted });
           };
           if (!validContext()) {
             result(false);

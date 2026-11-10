@@ -158,10 +158,21 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
       )
         return null;
       if (m.attachments === undefined)
-        return only("type", "text", "research") && m.text.trim() !== ""
+        return only("type", "text", "research", "requestId", "conversation") &&
+          ((m.requestId === undefined && m.conversation === undefined) ||
+            (typeof m.requestId === "string" &&
+              /^[a-zA-Z0-9-]{1,80}$/.test(m.requestId) &&
+              typeof m.conversation === "string" &&
+              /^(?:new:[0-9]{1,12}|[0-9a-f-]{36})$/.test(m.conversation))) &&
+          m.text.trim() !== ""
           ? {
               type: "send",
               text: m.text,
+              ...(typeof m.requestId === "string" &&
+                typeof m.conversation === "string" && {
+                  requestId: m.requestId,
+                  conversation: m.conversation,
+                }),
               ...(typeof m.research === "boolean" && { research: m.research }),
             }
           : null;

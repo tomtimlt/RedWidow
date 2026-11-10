@@ -308,6 +308,7 @@ export function createChatSession(deps: ChatSessionDeps) {
     const shown = archive ?? state;
     return {
       ...live,
+      stopping: stopping && controller !== null,
       ...(settings.capabilities && {
         capabilities: {
           settings: settings.capabilities,
@@ -1271,7 +1272,12 @@ export function createChatSession(deps: ChatSessionDeps) {
       }
       // Mode lecture : aucune saisie tant que la conversation n'est pas reprise.
       // `text` est la bulle. `prompt` peut y joindre la sortie d'un terminal cité.
-      if (state.busy || (stopping && controller !== null) || state.readonly || text.trim() === "")
+      if (
+        (stopping && controller !== null) ||
+        state.readonly ||
+        text.trim() === "" ||
+        (state.busy && controller === null)
+      )
         return false;
       if (
         displaySettings().capabilities &&
@@ -1297,16 +1303,17 @@ export function createChatSession(deps: ChatSessionDeps) {
         refresh();
         return false;
       }
+      const activeController = state.busy ? controller : null;
       latestPage();
-      state.setBusy(true);
-      const revision = ++navigationRev;
+      if (!activeController) state.setBusy(true);
+      const revision = activeController ? navigationRev : ++navigationRev;
       const projectsReady = await reloadHistoryProjects(revision);
       if (revision !== navigationRev) return false;
       if (
         !projectsReady ||
         (current !== null && (current.projectId ?? null) !== historyProjects.activeId)
       ) {
-        state.setBusy(false);
+        if (!activeController) state.setBusy(false);
         if (projectsReady)
           state.notice(
             t(
@@ -1316,6 +1323,24 @@ export function createChatSession(deps: ChatSessionDeps) {
           );
         refresh();
         return false;
+      }
+      if (activeController) {
+        if (stopping || controller !== activeController || !state.busy || state.readonly)
+          return false;
+        try {
+          activeController.prompt(
+            prompt,
+            research || undefined,
+            images.length ? images : undefined,
+          );
+          state.user(text);
+          refresh();
+          return true;
+        } catch (error) {
+          state.error(error);
+          refresh();
+          return false;
+        }
       }
       ensureConversation(text);
       let conversationContext = transferContext

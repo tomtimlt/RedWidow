@@ -142,8 +142,9 @@ export interface ChatView {
   approvals: ApprovalCard[];
   /** Occupation du contexte au dernier appel modèle (absente tant que le moteur n'en a pas annoncé). */
   context?: { usedTokens: number; windowTokens?: number };
-  /** Un tour est en cours (saisie bloquée, bouton Stop actif). */
+  /** Un tour est en cours. */
   busy: boolean;
+  stopping?: boolean;
   turnStartedAt?: number | null;
   /** Image du bac à sable du run, si activé. */
   sandbox: string | null;

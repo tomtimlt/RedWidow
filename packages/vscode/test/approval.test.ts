@@ -229,3 +229,11 @@ describe("sélection du fournisseur depuis la webview", () => {
     expect(parseWebviewMessage({ type: "addProvider", provider: "openai" })).toBeNull();
   });
 });
+
+it("valide ensemble l'identifiant d'envoi texte et la conversation", () => {
+  const message = { type: "send", text: "suite", requestId: "text-1", conversation: "new:0" };
+  expect(parseWebviewMessage(message)).toEqual(message);
+  expect(parseWebviewMessage({ ...message, conversation: "../autre" })).toBeNull();
+  expect(parseWebviewMessage({ ...message, requestId: undefined })).toBeNull();
+  expect(parseWebviewMessage({ ...message, extra: true })).toBeNull();
+});

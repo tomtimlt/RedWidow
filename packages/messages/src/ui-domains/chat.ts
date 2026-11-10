@@ -137,6 +137,8 @@ export const chatEn: Record<string, string> = {
   "Suivre la sortie": "Follow output",
   "Chargement…": "Loading…",
   "Messages précédents": "Earlier messages",
+  "Envoi refusé ou interrompu. Le texte reste dans le brouillon.":
+    "Send refused or interrupted. The text remains in the draft.",
   "Envoi refusé ou interrompu. Les fichiers restent dans le brouillon.":
     "Send rejected or interrupted. Files remain in the draft.",
   "Maximum 10 fichiers joints.": "Maximum 10 attachments.",
