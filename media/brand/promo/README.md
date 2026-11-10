@@ -19,6 +19,7 @@ HTML du kit `../video-kit/html/`), sur le lab fictif `10.10.10.14`.
 | `redwidow-promo-v8-16x9-fr.mp4` | 1920 × 1080, 30 i/s, 53 s | V8 en français : « TA CIBLE / EST DÉJÀ / DANS LA TOILE. », VERROUILLÉE, 01 TISSE · 02 GUETTE · 03 FRAPPE · 04 EMBALLE · 05 APPRENDS, interface en français |
 | `redwidow-promo-v8-9x16-fr.mp4` | 1080 × 1920, 30 i/s, 53 s | V8 verticale en français |
 | `redwidow-promo-v8-4x5-fr.mp4` | 1080 × 1350 (4:5), 30 i/s, 53 s | V8 en français au format LinkedIn : titre dans la bande du haut (60–390 px), interface zoomée au centre (commande lancée, réponse de l'agent, résultat), rail de mission en bas. `film-4x5.css` complète `film-9x16.css` ; `python3 build.py 4x5 fr`, puis `node render.cjs 4x5-fr …` |
+| `redwidow-promo-v9-4x5-fr.mp4` | 1080 × 1350 (4:5), 30 i/s, 50,7 s | V9 : la V8 4:5 française corrigée. Interligne de « TOUT ÇA. / OPEN SOURCE. » (cédille dégagée, 24 px au plus serré) ; kill chain redisposée en colonnes, libellés à 28 px, rien de coupé, et nœud « Élévation root » allumé à la fin du rejeu ; plan logo réduit à 1,3 s (une mesure retirée, même coupe dans la musique de la V8, non régénérée) ; badge « Auto 2:00 » ; pastille « 05 Apprentissage » au rail et « APPRENDS. » dans le récapitulatif. Sources dans `src-v9/` (`make_v9.py` décrit les changements) |
 
 ## Refaire une version
 

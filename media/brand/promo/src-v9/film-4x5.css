@@ -1,0 +1,28 @@
+/* RedWidow promo V8 — format LinkedIn 4:5 (1080 × 1350), chargé après film-9x16.css.
+   Bande du haut (60–390 px) : titre. Centre (400–1200 px) : interface zoomée.
+   Bande du bas (1240–1300 px) : rail de mission et sous-titres. */
+html,body{width:1080px;height:1350px}
+#stage{background:radial-gradient(900px 900px at 50% 50%,#1c0a0e 0%,var(--bg) 70%)}
+.cl.mid{font-size:74px}
+.cl.big{font-size:96px}
+.cl.huge{font-size:150px}
+.cl.giant{font-size:240px}
+.cl.outline{font-size:110px}
+.cl.mono,.mono{font-size:24px}
+.cl.tools span{font-size:24px;padding:8px 16px}
+.chap-n{font-size:320px}
+.chap-w{font-size:128px}
+.rail{top:auto;bottom:52px}
+.lock .spslot{width:320px;height:402px}.lock .spslot.small{width:280px;height:352px}
+.wm{font-size:150px}
+.legal{bottom:56px}
+.rcw b{font-size:180px}
+.hintcap .cl.mid{font-size:64px}
+.welcap .cl.mid{font-size:70px}
+/* V9 */
+.cl.outline{line-height:1.2}
+#w-kc .cs > *{width:974px !important;height:880px !important}
+#w-kc .kc-node-label{font-size:14px}
+#w-kc .kc-node-meta{font-size:11px}
+#w-kc .kc-legend,#w-kc .kc-legend-toggle{display:none !important}
+.rail{gap:8px}.rail-step{font-size:17px;padding:10px 13px;gap:7px}

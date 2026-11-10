@@ -1,0 +1,334 @@
+// RedWidow promo V9 (corrections de la V8) « Weave. Watch. Strike. Wrap. » (palette Widow, 94 BPM, 16:9 et 9:16, en et fr) : chaque image est calculée à partir du temps t (secondes).
+(() => {
+  const T = window.TL, BEAT = T.beat;
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+  const P = (t, a, b) => clamp((t - a) / (b - a));
+  const out3 = (x) => 1 - Math.pow(1 - x, 3);
+  const io = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+  const back = (x, k = 2.2) => 1 + (k + 1) * Math.pow(x - 1, 3) + k * Math.pow(x - 1, 2);
+  const show = (el, on) => { if (el) el.style.display = on ? '' : 'none'; };
+  const lerp = (a, b, p) => a + (b - a) * p;
+  const b2t = (n) => n * BEAT;
+
+  // Interface dans la palette par défaut, Widow (cramoisi)
+  $$('.vo-ui').forEach((u) => u.setAttribute('data-palette', 'widow'));
+  const mk = (slot) => { const s = WarbandSpider.create('rw-spider hero-spider'); $(slot).append(s); return s; };
+  const lockSp = mk('#lock-slot'), endSp = mk('#end-slot'), hookSp = mk('#hook-sp');
+  const W = (en, fr) => (window.LANG === 'fr' ? fr : en);
+  const legsOf = (s) => ['l1', 'r1', 'l2', 'r2', 'l3', 'r3', 'l4', 'r4'].map((k) => $('.rw-leg-' + k, s));
+
+  // Légendes, groupes, mots qui claquent, texte décodé, cartons de chapitre
+  const lines = $$('.cl[data-t]'), groups = $$('.cg[data-t]'), slams = $$('.slam[data-t]'), scr = $$('.scr[data-t]'), chaps = $$('.chap[data-t]');
+  const GLYPHS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&@<>/\\|=+*';
+  scr.forEach((e) => { e.dataset.text = e.textContent; });
+  function captions(t) {
+    for (const e of lines) {
+      const a = +e.dataset.t, x = e.dataset.x ? +e.dataset.x : 1e9;
+      const p = out3(P(t, a, a + 0.32));
+      e.style.opacity = t < a || t >= x ? 0 : p;
+      e.style.transform = `translateY(${(1 - p) * 30}px)`;
+    }
+    for (const g of groups) { const a = +g.dataset.t, x = g.dataset.x ? +g.dataset.x : 1e9; g.style.display = t >= a - 0.001 && t < x ? '' : 'none'; }
+    for (const e of slams) { const a = +e.dataset.t, p = P(t, a, a + 0.25); e.style.opacity = t < a ? 0 : 1; e.style.transform = `scale(${1.15 - 0.15 * out3(p)})`; }
+    for (const e of scr) {
+      const a = +e.dataset.t, d = +e.dataset.d, txt = e.dataset.text;
+      if (t < a) { e.style.opacity = 0; continue; }
+      e.style.opacity = 1;
+      const n = Math.floor(P(t, a, a + d) * txt.length), f = Math.floor(t * 30);
+      e.textContent = txt.split('').map((c, i) => (i < n || c === ' ' ? c : GLYPHS[(i * 7 + f * 13) % GLYPHS.length])).join('');
+    }
+    for (const c of chaps) {
+      const a = +c.dataset.t, p = out3(P(t, a, a + 0.35));
+      c.style.opacity = t >= a ? 1 : 0;
+      $('.chap-n', c).style.transform = `translateX(${(1 - p) * -160}px)`;
+      $('.chap-w', c).style.clipPath = `inset(0 ${(1 - out3(P(t, a + 0.1, a + 0.45))) * 100}% 0 0)`;
+      const sub = $('.chap-s', c); if (sub) { const q = out3(P(t, a + 0.35, a + 0.6)); sub.style.opacity = q; sub.style.transform = `translateY(${(1 - q) * 16}px)`; }
+    }
+  }
+
+  // Effets : toile qui respire sur le temps, éclairs violets, dédoublement de couleurs
+  // sur les coupes de chapitre, balayage vert à l'entrée des plans d'interface
+  const CUTS = [T.reveal, T.ch1, T.ch2, T.ch3, T.ch4, T.ch5, T.models, T.r1, T.r2, T.r3, T.r4, T.r5, T.all, T.lock];
+  const FLASH = [T.reveal, T.ch5, T.r3, T.free];
+  const WIPES = [T.chat, T.mon, T.kc, T.drive, T.report, T.learn, T.hint];
+  function fx(t) {
+    const web = $('#web'), beatPh = (t / BEAT) % 1;
+    const pulse = t >= T.reveal ? Math.exp(-beatPh * 5) : 0.2;
+    web.style.opacity = t < T.reveal ? 0 : 0.55 + 0.45 * pulse * (t >= T.ch5 && t < T.models ? 0.3 : 1);
+    const fr = Math.floor(t * 15), gr = $('#grain'); gr.style.backgroundPosition = `${(fr * 137) % 512}px ${(fr * 89) % 512}px`;
+    web.style.transform = `rotate(${t * 2.2}deg) scale(${1 + 0.012 * pulse})`;
+    let f = 0;
+    for (const a of FLASH) if (t >= a && t < a + 0.35) f = Math.max(f, t < a + 0.067 ? 0.75 : 0.75 * (1 - P(t, a + 0.067, a + 0.35)));
+    $('#flash').style.opacity = f;
+    let g = 0;
+    for (const a of CUTS) if (t >= a && t < a + 0.12) g = 1 - P(t, a, a + 0.12);
+    const st = $('#stage');
+    st.style.filter = g > 0 ? `drop-shadow(${8 * g}px 0 0 rgba(229,19,43,.85)) drop-shadow(${-8 * g}px 0 0 rgba(235,238,242,.55))` : 'none';
+    st.style.transform = g > 0 ? `translateX(${Math.sin(t * 400) * 10 * g}px)` : 'none';
+    const w = $('#wipe'); let on = false;
+    for (const a of WIPES) if (t >= a && t < a + 0.35) { const p = io(P(t, a, a + 0.35)); w.style.top = `${p * $('#stage').clientHeight}px`; w.style.opacity = 1 - p * 0.3; on = true; }
+    if (!on) w.style.opacity = 0;
+    for (const s of $$('.scene')) {
+      const a = +s.dataset.in; if (!WIPES.includes(a) || s.style.display === 'none') { if (WIPES.includes(a)) s.style.clipPath = ''; continue; }
+      const p = io(P(t, a, a + 0.35)); s.style.clipPath = p < 1 ? `inset(0 0 ${(1 - p) * 100}% 0)` : '';
+    }
+    // rail de chapitres
+    const rail = $('#rail'), chs = [T.ch1, T.ch2, T.ch3, T.ch4, T.ch5];
+    const inRail = t >= T.ch1 + 0.6 && t < T.models;
+    rail.style.opacity = inRail ? out3(P(t, T.ch1 + 0.6, T.ch1 + 0.9)) : 0;
+    const cur = chs.filter((x) => t >= x).length - 1;
+    $$('.rail-step', rail).forEach((r, i) => { r.classList.toggle('cur', i === cur); r.classList.toggle('done', i < cur); });
+  }
+
+  function spiderBuild(s, t, t0, o = {}) {
+    legsOf(s).forEach((g, i) => { const a = t0 + i * 0.035, p = P(t, a, a + 0.4); g.style.opacity = p > 0 ? 1 : 0; g.style.transform = `scale(${0.12 + 0.88 * back(p)})`; });
+    $$('.rw-palp', s).forEach((g) => { const p = P(t, t0 + 0.3, t0 + 0.55); g.style.opacity = p > 0 ? 1 : 0; g.style.transform = `scale(${0.2 + 0.8 * back(p)})`; });
+    $('.rw-body', s).style.opacity = 0.25 + 0.75 * P(t, t0 - 0.2, t0 + 0.1);
+    const tb = o.brain ?? t0 + 0.35, tc = o.cross ?? t0 + 0.55;
+    $('.rw-brain', s).style.opacity = t < tb ? 0.12 : 0.12 + 0.88 * out3(P(t, tb, tb + 0.12));
+    const pc = P(t, tc, tc + 0.38);
+    for (const e of [$('.rw-crosshair', s), $('.rw-plate', s)]) if (e) e.style.opacity = t < tc ? 0 : 1;
+    const ch = $('.rw-crosshair', s); ch.style.transformOrigin = '50% 50%'; ch.style.transform = `scale(${1.8 - 0.8 * back(pc, 1.6)}) rotate(${-60 * (1 - out3(pc))}deg)`;
+    const eyes = $('.rw-eyes', s); eyes.style.opacity = t < tc ? 0.3 : 1; eyes.style.transformOrigin = '50% 50%';
+    const bl = P(t, tc + 0.9, tc + 1.05); eyes.style.transform = `scaleY(${bl > 0 && bl < 1 ? 1 - 0.9 * Math.sin(bl * Math.PI) : 1})`;
+  }
+
+  // 0 — Accroche : la cible, la toile qui se tisse, la veuve qui descend, les crochets qui se ferment
+  const hw = $('#hookweb'), hRays = $$('.hr', hw), hRings = $$('.hg', hw), tgt = $('#target'), thread = $('#thread');
+  const spSlot = $('#hook-sp'), spTop = +spSlot.dataset.top, spH = spSlot.offsetHeight || +spSlot.style.height.replace('px', '');
+  const brs = $$('.br', tgt), BRD = [[-1, -1], [1, -1], [-1, 1], [1, 1]];
+  function hook(t) {
+    const d = P(t, 0, 0.3); $('.t-dot', tgt).style.transform = `translate(-50%,-50%) scale(${d > 0 ? back(d) : 0})`;
+    const ph = (t % 1.1) / 1.1, rg = $('.t-ring', tgt);
+    rg.style.transform = `translate(-50%,-50%) scale(${1 + 2.2 * ph})`; rg.style.opacity = t < T.lockon ? 0.7 * (1 - ph) : 0;
+    $('.t-lab', tgt).style.opacity = out3(P(t, 0.15, 0.45));
+    hRays.forEach((r, i) => { const a0 = T.h3 + (i % 4) * 0.06; r.style.strokeDashoffset = String(1 - out3(P(t, a0, a0 + 1.0))); });
+    hRings.forEach((g, i) => { const a0 = T.h3 + 0.3 + i * 0.075; g.style.strokeDashoffset = String(1 - io(P(t, a0, a0 + 0.55))); });
+    $('#tglow').style.opacity = 0.35 + 0.65 * out3(P(t, T.h3, T.h3 + 0.8));
+    // la veuve descend sur son fil, tête en bas, puis se balance
+    const pd = P(t, T.thread, T.land), drop = -(spTop + spH + 60) * (1 - back(pd, 1.1));
+    const sway = t >= T.land ? 4 * Math.sin((t - T.land) * 6) * Math.exp(-(t - T.land) * 2.2) : 0;
+    spSlot.style.transform = `translateY(${drop}px) rotate(${180 + sway}deg)`;
+    spSlot.style.opacity = t < T.thread ? 0 : 1;
+    thread.style.height = `${Math.max(0, spTop + drop + 18)}px`;
+    thread.style.opacity = t < T.thread ? 0 : 0.85;
+    spiderBuild(hookSp, t, -2, { brain: T.eyes, cross: T.lockon });
+    $('.eyeglow', spSlot).style.opacity = t < T.eyes ? 0 : out3(P(t, T.eyes, T.eyes + 0.25)) * (0.75 + 0.25 * Math.sin((t - T.eyes) * 9));
+    // verrouillage de la cible : crochets qui se ferment, étiquette en signature
+    const pl = P(t, T.lockon, T.lockon + 0.3), off = 120 - 78 * back(pl, 1.6);
+    brs.forEach((e, i) => { e.style.opacity = t < T.lockon ? 0 : 1; e.style.transform = `translate(${BRD[i][0] * off}px,${BRD[i][1] * off}px)`; });
+    const st = $('.t-st', tgt); st.textContent = t >= T.lockon ? W('locked', 'verrouillée') : W('target', 'cible');
+    tgt.classList.toggle('locked', t >= T.lockon);
+    // silence avant l'impact : tout retient son souffle
+    $('#hook').style.filter = t >= T.hush ? `brightness(${1 - 0.45 * out3(P(t, T.hush, T.reveal))})` : '';  }
+  function reveal(t) {
+    spiderBuild(lockSp, t, T.reveal, { brain: T.reveal + 0.3, cross: T.reveal + 0.5 });
+    $('#halo').style.opacity = 0.9 * out3(P(t, T.reveal, T.reveal + 0.5));
+  }
+
+  // 1 — Recon : prompt, puis les outils
+  const chat = $('#w-chat');
+  const H = { rows: $$('#log > *', chat), tools: $$('.tool-group > details', chat), input: $('#input', chat), ui: $('.vo-ui', chat), label: $('#thinking-label', chat), clock: $('#thinking-clock', chat) };
+  const PROMPT = W('Recon 10.10.10.14 and find me a way in.', 'Repère 10.10.10.14 et trouve-moi une entrée.'), CMDS = ['nmap', 'whatweb', 'ffuf', 'sqlmap'];
+  const pills = $$('.cl.tools span');
+  // Caméra verticale du chat : sur la saisie pendant la frappe, puis sur les messages.
+  const camY = (win, cy) => { const cs = $('.cs', win); cs.style.transform = `scale(${win.dataset.s}) translate(${-win.dataset.cx}px,${-cy}px)`; };
+  const VERT = window.FMT !== '16x9';
+  function recon(t) {
+    if (VERT) camY(chat, lerp(+chat.dataset.cy, 0, io(P(t, T.send, T.send + 0.45))));
+    const n = Math.floor(P(t, T.type0, T.type1) * PROMPT.length), caret = Math.floor(t * 2.5) % 2 ? '' : '▍';
+    H.input.value = t < T.send ? PROMPT.slice(0, n) + caret : '';
+    show(H.rows[0], t >= T.send);
+    H.ui.classList.toggle('running', t >= T.send + 0.15 && t < T.msg2);
+    show(H.rows[1], t >= T.send + 0.15); show(H.rows[2], t >= T.tools);
+    H.tools.forEach((d, i) => show(d, t >= T.tools + i * BEAT * 0.75));
+    pills.forEach((p, i) => { const a = T.tools + i * BEAT * 0.75; const q = out3(P(t, a, a + 0.2)); p.style.opacity = q; p.style.transform = `scale(${0.8 + 0.2 * back(q)})`; });
+    H.label.textContent = `${W('Tool: ', 'Outil : ')}${CMDS[clamp(Math.floor((t - T.tools) / (BEAT * 0.75)), 0, 3)]}`;
+    H.clock.textContent = `T+00:${String(Math.max(0, Math.floor((t - T.send) * 5))).padStart(2, '0')}`;
+    show(H.rows[3], t >= T.msg2);
+  }
+  // Monitor qui suit les nouvelles lignes
+  const mon = $('#w-mon'), monRows = $$('.mon-row', mon), lastLines = $$('.mon-line', monRows[monRows.length - 1]), ticks = $$('.mon-tick', mon);
+  function monitor(t) {
+    lastLines.forEach((l, i) => show(l, t >= T.mon + 0.15 + i * 0.07));
+    $$('[data-scroll-top]', mon).forEach((e) => { e.scrollTop = e.scrollHeight; });
+    ticks.forEach((k, i) => { const p = P(t, T.mon + i * 0.12, T.mon + 0.2 + i * 0.12); k.style.opacity = p; k.style.transform = `scaleY(${p})`; });
+  }
+
+  // 2 — Analysis : l'agent ajoute les étapes, la caméra suit, puis « Rejouer »
+  const kc = $('#w-kc'), cs = $('.cs', kc), view = $('.kc-viewport', kc);
+  const nodes = $$('.kc-node', kc), edges = $$('.kc-edge', kc), tips = $$('.kc-tip', kc);
+  const CN = [[65, 238], [219, 197], [219, 279], [374, 197], [374, 279], [528, 238], [683, 238]];
+  const NB = [0.3, 1.1, 1.8, 2.5, 3.1, 3.8, 4.4].map((x) => T.kc + b2t(x));
+  const EB = [[0.6, 1.1], [1.3, 1.8], [2.6, 3.1], [2.6, 3.1], [2.0, 2.5], [3.3, 3.8], [3.9, 4.4]].map(([a, b]) => [T.kc + b2t(a), T.kc + b2t(b)]);
+  const FEED = [
+    ['+', 'host', 'Scan 10.10.10.14', 'T1046'], ['+', 'site', 'Admin panel :8080', 'T1595'], ['+', 'credential', 'Default accounts', 'T1078'],
+    ['×', 'step', 'SSH brute force', 'failed'], ['+', 'step', 'SQLi on /login confirmed', 'T1190'], ['+', 'step', 'www-data shell via webshell', 'T1059'],
+    ['+', 'loot', 'Root escalation', 'T1068']].map(W((r) => r, ([s, k, l, id]) => [s, { host: 'hôte', credential: 'identifiant', step: 'étape' }[k] || k,
+    { 'Admin panel :8080': 'Panneau admin :8080', 'Default accounts': 'Comptes par défaut', 'SSH brute force': 'Force brute SSH', 'SQLi on /login confirmed': 'SQLi sur /login confirmée',
+      'www-data shell via webshell': 'Shell www-data via webshell', 'Root escalation': 'Élévation root' }[l] || l, id === 'failed' ? 'échec' : id]));
+  const feed = $('#kc-feed'), stepLine = $('#kc-step');
+  const feedRows = FEED.map(([s, k, l, id]) => { const d = document.createElement('div'); d.className = 'feed-row' + (s === '×' ? ' bad' : ''); const a = document.createElement('b'); a.textContent = 'agent'; const m = document.createElement('span'); m.textContent = ` ${s} ${l}`; const r = document.createElement('i'); r.textContent = `  ${k} · ${id}`; d.append(a, m, r); feed.append(d); return d; });
+  const REPLAY = [0, 1, 2, 4, 5], STEP = BEAT;
+  const isPath = edges.map((e) => e.classList.contains('is-path'));
+  const EDGE_NODES = [[0, 1], [0, 2], [1, 4], [2, 4], [1, 3], [4, 5], [5, 6]];
+  // Caméra : zoom serré qui suit la dernière étape (recadrage de la fenêtre), puis recul
+  // sur tout le graphe (760 px de large) pour « Rejouer ».
+  const S0 = +kc.dataset.s, W0 = +kc.dataset.cw, H0 = +kc.dataset.ch, WP = W0 * S0, HP = H0 * S0, S1 = WP / 760;
+  function camAt(t) {
+    let k = 0; for (let i = 0; i < NB.length; i++) if (t >= NB[i] - 0.15) k = i;
+    const prev = Math.max(0, k - 1), pk = io(P(t, NB[k] - 0.15, NB[k] + 0.35));
+    const targ = (i) => clamp(CN[i][0] - W0 * 0.62, 0, 760 - W0);
+    const cx = lerp(targ(prev), targ(k), k === prev ? 1 : pk), bk = io(P(t, T.replay - 0.2, T.replay + 0.4));
+    if (VERT) {
+      // Vertical : « Rejouer » garde un zoom lisible et suit le chemin nœud par nœud.
+      const SR = 1.75, VW = WP / SR, VH = HP / SR, r0 = T.replay + 0.5;
+      const st = clamp(Math.floor((t - r0) / STEP), 0, REPLAY.length - 1), ps = Math.max(0, st - 1);
+      const ct = (i) => clamp(CN[REPLAY[i]][0] - VW / 2, 0, 760 - VW);
+      const rx = t < r0 ? ct(0) : lerp(ct(ps), ct(st), st === ps ? 1 : io(P(t, r0 + st * STEP - 0.1, r0 + st * STEP + 0.35)));
+      return { s: lerp(S0, SR, bk), cx: lerp(cx, rx, bk), cy: lerp(238 - H0 / 2, 238 - VH / 2, bk) };
+    }
+    return { s: lerp(S0, S1, bk), cx: lerp(cx, 0, bk), cy: lerp(238 - H0 / 2, 238 - HP / S1 / 2, bk) };
+  }
+  const F45 = window.FMT === '4x5';
+  if (F45) {
+    // Disposition en colonnes pour le format 4:5 : libellés d'environ 28 px, rien de coupé.
+    const K = 2.0, NW = 214, X1 = 14, X2 = 258, XC = 136, R = [6, 112, 218, 324];
+    const POS = [[XC, R[0]], [X1, R[1]], [X2, R[1]], [X1, R[2]], [X2, R[2]], [X1, R[3]], [X2, R[3]]];
+    const canvas = $('.kc-canvas', kc); canvas.style.transform = `translate(1px, 6px) scale(${K})`;
+    nodes.forEach((n, i) => { n.style.left = `${POS[i][0]}px`; n.style.top = `${POS[i][1]}px`; n.style.width = `${NW}px`; });
+    const c = (i) => [POS[i][0] + NW / 2, POS[i][1] + 26];
+    const svg = $('.kc-edges', kc); svg.setAttribute('width', '500'); svg.setAttribute('height', '480');
+    const d = (a, b) => {
+      const [x1, y1] = c(a), [x2, y2] = c(b);
+      if (Math.abs(y1 - y2) < 1) return `M${x1 + 26} ${y1} C${(x1 + x2) / 2} ${y1} ${(x1 + x2) / 2} ${y2} ${x2 - 26} ${y2}`;
+      const ya = y1 + 26, yb = y2 - 26, ym = (ya + yb) / 2;
+      return `M${x1} ${ya} C${x1} ${ym} ${x2} ${ym} ${x2} ${yb}`;
+    };
+    edges.forEach((e, i) => e.setAttribute('d', d(...EDGE_NODES[i])));
+    $$('.kc-edge-hit', kc).forEach((e, i) => e.setAttribute('d', d(...EDGE_NODES[i])));
+    cs.style.transform = 'none';
+  }
+  const ROOT = 6, ROOT_EDGE = EDGE_NODES.findIndex(([u, v]) => u === 5 && v === ROOT);
+  const setDone = (n, on) => {
+    if (!n.dataset.state) n.dataset.state = [...n.classList].find((k) => k.startsWith('is-') && k !== 'is-visited' && k !== 'is-replay') || '';
+    const b = $('.kc-node-badge', n);
+    if (b && b.dataset.text === undefined) { b.dataset.text = b.textContent; b.dataset.state = [...b.classList].find((k) => k.startsWith('is-')) || ''; }
+    n.classList.toggle(n.dataset.state, !on); n.classList.toggle('is-complete', on || n.dataset.state === 'is-complete');
+    if (b) { b.classList.toggle(b.dataset.state, !on); b.classList.toggle('is-complete', on || b.dataset.state === 'is-complete'); b.textContent = on ? '✓' : b.dataset.text; }
+  };
+  function killchain(t) {
+    if (!F45) { const cam = camAt(t); cs.style.transform = `scale(${cam.s}) translate(${-cam.cx}px,${-cam.cy}px)`; }
+    nodes.forEach((n, i) => { const p = P(t, NB[i], NB[i] + 0.3); n.style.opacity = p > 0 ? '' : 0; n.style.transformOrigin = '50% 50%'; n.style.scale = String(0.5 + 0.5 * back(p)); });
+    edges.forEach((e, i) => { const [a, b] = EB[i]; const p = io(P(t, a, b)); e.style.visibility = p > 0 ? 'visible' : 'hidden'; e.style.clipPath = F45 ? `inset(-20px -20px ${(1 - p) * 100}% -20px)` : `inset(-20px ${(1 - p) * 100}% -20px -20px)`; });
+    tips.forEach((e) => { e.style.opacity = P(t, NB[6], NB[6] + 0.2); });
+    const shown = NB.filter((x) => t >= x).length;
+    feedRows.forEach((r, i) => {
+      const age = shown - 1 - i, p = out3(P(t, NB[i], NB[i] + 0.25));
+      r.style.display = i < shown && age < (F45 ? 2 : 3) ? '' : 'none';
+      r.style.opacity = (age === 0 ? p : age === 1 ? 0.7 : 0.4) * (1 - P(t, T.replay - 0.3, T.replay));
+      r.style.transform = `translateY(${(1 - p) * 14}px)`;
+    });
+    const r0 = T.replay + 0.5, replaying = t >= r0 && t < r0 + REPLAY.length * STEP + 1.0;
+    view.classList.toggle('is-replaying', replaying);
+    const step = Math.floor((t - r0) / STEP);
+    const visited = new Set(replaying ? REPLAY.slice(0, Math.min(REPLAY.length, step + 1)) : []);
+    nodes.forEach((n, i) => { n.classList.toggle('is-visited', visited.has(i)); n.classList.toggle('is-replay', replaying && REPLAY[Math.min(step, REPLAY.length - 1)] === i); });
+    // Fin du rejeu : la racine s'allume, avec son lien, comme les autres nœuds validés
+    const done = replaying && step >= REPLAY.length;
+    if (done) { visited.add(ROOT); nodes[ROOT].classList.add('is-visited', 'is-replay'); nodes[REPLAY[REPLAY.length - 1]].classList.remove('is-replay'); }
+    nodes.forEach((n, i) => setDone(n, (replaying && visited.has(i) && i !== 3) || (done && i === ROOT)));
+    edges.forEach((e, i) => { const [u, v] = EDGE_NODES[i]; e.classList.toggle('is-lit', (isPath[i] || (done && i === ROOT_EDGE)) && visited.has(u) && visited.has(v)); e.classList.toggle('is-path', isPath[i] || (done && i === ROOT_EDGE)); });
+    if (replaying) {
+      const k = Math.min(step, REPLAY.length - 1), lab = $('.kc-node-label', nodes[REPLAY[k]]).textContent;
+      stepLine.textContent = step >= REPLAY.length ? `${W('Replay · path replayed', 'Rejouer · chemin rejoué')} · ${$('.kc-node-label', nodes[ROOT]).textContent}` : `${W('Replay · step', 'Rejouer · étape')} ${k + 1}/${REPLAY.length} · ${lab}`;
+      stepLine.style.opacity = 1;
+    } else stepLine.style.opacity = 0;
+  }
+
+  // 3 — Action : « Drive it. » (Supervisé) puis « Or unleash it. » (Automatique)
+  const act = $('#w-auto'), aui = $('.vo-ui', act);
+  function action(t) {
+    const on = t >= T.unleash;
+    aui.classList.toggle('automatic-on', on);
+    const roe = $('#roe', act); roe.dataset.level = on ? '3' : '2'; $('#roe-label', act).textContent = on ? W('Automatic', 'Automatique') : W('Supervised', 'Supervisé');
+    const badge = $('#automatic-badge', act); badge.hidden = !on; badge.textContent = 'Auto 2:00';
+    aui.classList.toggle('running', on);
+    const rep = $('#log .report', act); if (rep) rep.style.display = 'none';
+    const log = $('#log', act); log.scrollTop = log.scrollHeight;
+  }
+  // 4 — Report : le rapport s'écrit, le chat défile jusqu'à lui
+  const rw = $('#w-rep'), rui = $('.vo-ui', rw), rlog = $('#log', rw), rep = $('#log .report', rw);
+  const segs = $$('.report-seg', rw), items = $$('.report-item', rw), repParts = rep ? [$('.report-head', rep), $('.report-summary', rep)] : [];
+  let before = null, after = null;
+  function report(t) {
+    if (VERT) camY(rw, lerp(0, 849 - (+rw.dataset.ch) - 20, io(P(t, T.report + 0.1, T.report + 0.7))));
+    rui.classList.add('automatic-on');
+    const roe = $('#roe', rw); roe.dataset.level = '3'; $('#roe-label', rw).textContent = W('Automatic', 'Automatique');
+    const badge = $('#automatic-badge', rw); badge.hidden = false; badge.textContent = 'Auto 1:59';
+    if (before === null && rep) { rep.style.display = 'none'; before = rlog.scrollHeight - rlog.clientHeight; rep.style.display = ''; after = rlog.scrollHeight - rlog.clientHeight; }
+    const a = T.report + 0.25;
+    repParts.forEach((p) => { if (p) p.style.opacity = P(t, a, a + 0.2); });
+    segs.forEach((s, i) => { s.style.transformOrigin = '0 50%'; s.style.transform = `scaleX(${out3(P(t, a + 0.1 + i * 0.08, a + 0.4 + i * 0.08))})`; });
+    items.forEach((it, i) => { const p = P(t, a + 0.3 + i * BEAT * 0.6, a + 0.55 + i * BEAT * 0.6); it.style.opacity = p; it.style.transform = `translateY(${(1 - out3(p)) * 16}px)`; });
+    rlog.scrollTop = before + (after - before) * io(P(t, a - 0.1, a + 0.5));
+  }
+
+  // 5 — Learn : l'araignée étudie, puis l'indice pointe la faille
+  const wel = $('#w-wel'), welUi = $('.vo-ui', wel);
+  function learn(t) {
+    const on = t >= T.learnOn;
+    welUi.classList.toggle('learning', on);
+    const r = $('#roe', wel); if (r) { r.hidden = false; r.dataset.level = on ? '1' : '2'; const l = $('#roe-label', wel); if (l) l.textContent = on ? W('Learning', 'Apprentissage') : W('Supervised', 'Supervisé'); }
+  }
+  const term = $('#w-term'), lrn = $('#w-learn');
+  const tl = $$('.ln', term), hl = $('.ln.hl', term), lrows = $$('#log > *', lrn);
+  function hint(t) {
+    const h0 = T.hint;
+    tl.forEach((l, i) => { l.style.visibility = t >= h0 + i * 0.045 ? 'visible' : 'hidden'; });
+    const fl = P(t, h0 + 0.9, h0 + 1.4); hl.style.background = t >= h0 + 0.9 ? `rgba(229,19,43,${0.14 + 0.45 * (1 - fl)})` : '';
+    lrows.forEach((r, i) => show(r, t >= h0 + 0.4 + i * 0.28));
+    const strong = $('#log strong', lrn), s0 = h0 + b2t(2.2);
+    if (strong) {
+      const p = out3(P(t, s0, s0 + 0.45));
+      strong.style.color = t >= s0 ? '#ffffff' : '';
+      strong.style.backgroundImage = `linear-gradient(90deg, rgba(229,19,43,.75) ${p * 100}%, transparent ${p * 100}%)`;
+      strong.style.borderRadius = '3px'; strong.style.boxDecorationBreak = 'clone'; strong.style.webkitBoxDecorationBreak = 'clone'; strong.style.padding = '0 2px';
+    }
+    hl.style.boxShadow = t >= s0 ? `inset 4px 0 0 #E5132B, 0 0 0 1px rgba(229,19,43,${0.6 * (1 - P(t, s0 + 0.5, s0 + 1.5)) + 0.25})` : '';
+  }
+  const rcw = $$('.rcw');
+  function recap(t) {
+    rcw.forEach((e) => {
+      const a = +e.dataset.t, x = +e.dataset.x, on = t >= a && t < x, p = out3(P(t, a, a + 0.2));
+      e.style.opacity = on ? 1 : 0; e.style.transform = `scale(${1.22 - 0.22 * p})`;
+    });
+  }
+  function end2(t) {
+    spiderBuild(endSp, t, T.lock, { brain: T.lock + 0.3, cross: T.lock + 0.45 });
+    $('#halo2').style.opacity = 0.9 * out3(P(t, T.lock, T.lock + 0.5));
+  }
+
+  // Horloge virtuelle pour les animations CSS du produit
+  const seen = new WeakMap();
+  function clockAnims(t) {
+    for (const an of document.getAnimations()) {
+      if (!seen.has(an)) seen.set(an, t);
+      an.pause(); an.currentTime = Math.max(0, (t - seen.get(an)) * 1000);
+    }
+  }
+  const scenes = $$('.scene');
+  const RUN = { hook, reveal, recon, mon: monitor, kc: killchain, action, report, learn, hint, recap, end2 };
+  window.render = (t) => {
+    for (const s of scenes) {
+      const on = t >= +s.dataset.in && t < +s.dataset.out;
+      if (on && s.style.display !== 'block') { s.style.display = 'block'; $$('[data-scroll-top]', s).forEach((el) => { el.scrollTop = +el.dataset.scrollTop; }); }
+      if (!on) s.style.display = 'none';
+      if (on && RUN[s.id]) RUN[s.id](t);
+    }
+    captions(t); fx(t); clockAnims(t);
+  };
+  window.ready = document.fonts.ready.then(() => true);
+})();
