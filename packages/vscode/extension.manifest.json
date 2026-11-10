@@ -2,7 +2,7 @@
   "name": "warband",
   "displayName": "RedWidow",
   "description": "%extension.description%",
-  "version": "0.3.77",
+  "version": "0.3.78",
   "publisher": "warband",
   "license": "MIT",
   "engines": {
