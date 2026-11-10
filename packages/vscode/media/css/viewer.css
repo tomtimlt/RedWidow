@@ -60,6 +60,22 @@ body.viewer #viewer-context {
   border: 1px solid var(--vscode-input-border, var(--jn-line));
   border-radius: var(--jn-r-pill);
 }
+#viewer-family {
+  min-height: 28px;
+  padding: 0 12px;
+  color: var(
+    --vscode-dropdown-foreground,
+    var(--vscode-input-foreground, var(--vscode-foreground))
+  );
+  background: var(--vscode-dropdown-background, var(--vscode-input-background, var(--jn-raise)));
+  border: 1px solid var(--vscode-dropdown-border, var(--jn-line));
+  border-radius: var(--jn-r-pill);
+  font: inherit;
+}
+#viewer-family:focus-visible {
+  outline: 2px solid var(--jn-focus);
+  outline-offset: 1px;
+}
 #viewer-filter:focus-visible {
   outline: 2px solid var(--jn-focus);
   outline-offset: 1px;

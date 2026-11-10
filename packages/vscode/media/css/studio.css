@@ -1063,3 +1063,8 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
   color: var(--vscode-foreground);
   font-weight: 700;
 }
+
+.audit-filters select.studio-project-control {
+  width: auto;
+  min-width: 12em;
+}

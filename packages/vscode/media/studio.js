@@ -1695,7 +1695,7 @@ function start() {
     part.append(counts);
     const bar = el("div", "audit-filters");
     const field = el("label", "", t("Filtrer par état"));
-    const select = el("select");
+    const select = el("select", "studio-project-control");
     select.id = "audit-coverage-filter";
     for (const [value, text] of [
       ["all", t("Tous les états")],

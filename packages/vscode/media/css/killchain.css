@@ -422,6 +422,7 @@ body.killchain-full .kc-empty {
 }
 /* Légende et filtres */
 .kc-legend {
+  align-self: start;
   flex: none;
   min-width: 0;
   width: 232px;
