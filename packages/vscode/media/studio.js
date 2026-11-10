@@ -470,8 +470,22 @@ function start() {
     node.setAttribute("aria-hidden", "true");
     return node;
   };
+  // Le menu n'est reconstruit que si son contenu change : un rafraîchissement de vue entre le
+  // bouton enfoncé et relâché supprimerait le bouton visé et le clic serait perdu.
+  let navSignature = null;
   function paintNav(current, findings, view) {
     if (!nav) return;
+    const activeProject = view.projectChoices?.projects?.find(
+      (project) => project.id === view.projectChoices.activeId,
+    );
+    const signature = JSON.stringify([
+      current,
+      navModel(current, findings),
+      activeProject?.name ?? view.projectSummary?.projectName ?? null,
+      globalThis.WarbandI18n?.getLocale() ?? "fr",
+    ]);
+    if (signature === navSignature && nav.firstChild) return;
+    navSignature = signature;
     while (nav.firstChild) nav.removeChild(nav.firstChild);
     nav.append(el("div", "studio-nav-title", t("Réglages")));
     const language = el("label", "studio-help", t("Langue"));
