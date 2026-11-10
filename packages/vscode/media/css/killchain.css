@@ -720,3 +720,64 @@ body.killchain-full .studio-kc > .kc-viewport {
     stroke-dashoffset: -12;
   }
 }
+
+/* Fiche flottante du nœud sélectionné */
+.studio-kc {
+  position: relative;
+}
+.kc-node-card {
+  position: absolute;
+  top: 52px;
+  left: 12px;
+  z-index: 5;
+  box-sizing: border-box;
+  display: grid;
+  gap: 8px;
+  width: min(320px, calc(100% - 24px));
+  max-height: calc(100% - 64px);
+  overflow: auto;
+  padding: 10px 12px;
+  color: var(--vscode-foreground);
+  background: var(--jn-widget);
+  border: 1px solid var(--vscode-editorWidget-border, var(--jn-line-strong));
+  border-radius: var(--jn-r-md);
+  box-shadow: var(--jn-shadow-pop);
+  font-size: var(--jn-fs-sm);
+}
+.kc-node-card[hidden],
+.kc-node-meta[hidden] {
+  display: none;
+}
+.kc-node-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.kc-node-title {
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.kc-node-close {
+  flex: none;
+  min-height: 22px;
+  padding: 0 8px;
+}
+.kc-node-meta {
+  color: var(--jn-muted);
+  font-size: var(--jn-fs-xs);
+  overflow-wrap: anywhere;
+}
+.kc-node-card .kc-proofs {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+.kc-node-foot {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 6px;
+  border-top: 1px solid var(--jn-line);
+}

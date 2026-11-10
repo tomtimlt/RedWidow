@@ -1076,8 +1076,17 @@ function start() {
       if (!flow.disabled) vscode.postMessage({ type: "exportAttackFlow", projectId });
     });
     bar.append(flow);
-    const selection = el("div", "kc-selection");
-    const selectedLabel = el("span", "kc-selection-label");
+    // Fiche flottante du nœud sélectionné : contenu complet et suppression, hors de la barre du haut.
+    const selection = el("div", "kc-node-card");
+    const selectedLabel = el("span", "kc-node-title");
+    const nodeMeta = el("div", "kc-node-meta");
+    const closeCard = el("button", "ghost kc-btn kc-node-close", "×");
+    closeCard.type = "button";
+    closeCard.setAttribute("aria-label", t("Fermer"));
+    closeCard.addEventListener("click", () => {
+      selectedFinding = null;
+      paintFindingSelection();
+    });
     const remove = el("button", "ghost kc-btn kc-delete");
     remove.type = "button";
     remove.title = t("Supprimer l’élément sélectionné");
@@ -1089,9 +1098,12 @@ function start() {
     trash.append(trashPath);
     remove.append(decorative(trash), el("span", "btn-text", t("Supprimer")));
     const proofs = el("div", "kc-proofs");
-    selection.append(selectedLabel, remove, proofs);
+    const cardHead = el("div", "kc-node-head");
+    cardHead.append(selectedLabel, closeCard);
+    const cardFoot = el("div", "kc-node-foot");
+    cardFoot.append(remove);
+    selection.append(cardHead, nodeMeta, proofs, cardFoot);
     selection.addEventListener("click", (event) => event.stopPropagation());
-    bar.append(selection);
     const edgeSelection = el("div", "kc-selection kc-edge-selection");
     const edgeLabel = el("span", "kc-selection-label");
     const mark = el("button", "ghost kc-btn kc-mark-path", t("Chemin retenu"));
@@ -1139,6 +1151,10 @@ function start() {
       }
       selectedLabel.textContent = selected?.label ?? "";
       selectedLabel.title = selected?.label ?? "";
+      nodeMeta.textContent = [finding?.kind, finding?.state, finding?.technique, finding?.tactic]
+        .filter(Boolean)
+        .join(" · ");
+      nodeMeta.hidden = nodeMeta.textContent === "";
       remove.disabled =
         !selected ||
         !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
@@ -1466,7 +1482,7 @@ function start() {
         typeof matchMedia === "function" && matchMedia("(max-width: 640px)").matches;
     }
     setLegendCollapsed(legendCollapsed);
-    wrap.append(bar, viewport, aside);
+    wrap.append(bar, viewport, aside, selection);
     let scale = graphPose?.scale ?? 1;
     let tx = graphPose?.tx ?? 0;
     let ty = graphPose?.ty ?? 0;

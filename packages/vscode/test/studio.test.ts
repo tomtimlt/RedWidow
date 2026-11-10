@@ -1181,7 +1181,7 @@ it("suppression : sélection accessible, action unique et cible du projet affich
   const { find, sent, receive } = killchainDom();
   receive(deleteFindingView);
   const node = find("kc-node");
-  const selection = find("kc-selection");
+  const selection = find("kc-node-card");
   const remove = find("kc-delete");
   expect(selection.hidden).toBe(true);
   expect(remove.disabled).toBe(true);
@@ -1197,7 +1197,7 @@ it("suppression : sélection accessible, action unique et cible du projet affich
   expect(selection.hidden).toBe(true);
   node.fire("click");
   expect(selection.hidden).toBe(false);
-  expect(find("kc-selection-label").textContent).toBe("<Serveur>");
+  expect(find("kc-node-title").textContent).toBe("<Serveur>");
   expect(node.attributes.get("aria-pressed")).toBe("true");
   expect(remove.disabled).toBe(false);
   expect(remove.children[0]?.tag).toBe("svg");
@@ -1270,16 +1270,16 @@ it("suppression : sélection conservée au rafraîchissement puis effacée aprè
     findings: [{ ...deleteFindingView.findings[0], label: "Renommé" }],
   });
   expect(find("kc-node").attributes.get("aria-pressed")).toBe("true");
-  expect(find("kc-selection-label").textContent).toBe("Renommé");
+  expect(find("kc-node-title").textContent).toBe("Renommé");
   find("kc-delete").fire("click");
   receive({ ...deleteFindingView, findings: [] });
   expect(find("kc-empty")).toBeDefined();
   receive(deleteFindingView);
-  expect(find("kc-selection").hidden).toBe(true);
+  expect(find("kc-node-card").hidden).toBe(true);
   expect(find("kc-node").attributes.get("aria-pressed")).toBe("false");
   find("kc-node").fire("click");
   receive({ ...deleteFindingView, projectId: deleteOtherProject });
-  expect(find("kc-selection").hidden).toBe(true);
+  expect(find("kc-node-card").hidden).toBe(true);
   find("kc-node").fire("click");
   find("kc-delete").fire("click");
   expect(sent.at(-1)).toEqual({
@@ -1301,12 +1301,12 @@ it("graphe : clic dans le vide et Échap désélectionnent sans supprimer", () =
   const { main, find, receive, sent } = killchainDom();
   receive(deleteFindingView);
   find("kc-node").fire("click");
-  expect(find("kc-selection").hidden).toBe(false);
+  expect(find("kc-node-card").hidden).toBe(false);
   main.fire("click");
-  expect(find("kc-selection").hidden).toBe(true);
+  expect(find("kc-node-card").hidden).toBe(true);
   find("kc-node").fire("click");
   main.fire("keydown", { key: "Escape", preventDefault: () => {} });
-  expect(find("kc-selection").hidden).toBe(true);
+  expect(find("kc-node-card").hidden).toBe(true);
   expect(sent).toEqual([{ type: "ready" }, { type: "rendered" }]);
 });
 it("légende : repli réel, filtres combinés, reset et conservation au rafraîchissement", () => {
