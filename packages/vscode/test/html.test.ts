@@ -382,27 +382,45 @@ describe("Bypass des approbations (lot B1, ADR 0006)", () => {
     expect(tag("bypass-state")).toContain('role="status"');
     expect(cfg).not.toContain("cfg-later");
   });
-  it("avertissement (ADR 0017) : deux phrases exactes, tout est levé", () => {
+  it("avertissement : durée choisie et responsabilité explicite", () => {
     expect(html).toContain(
-      "Approuve tout pendant 2 h, deny compris : chemins sensibles ou hors projet, accès hôte d'un conteneur, dangers shell, sans rien mémoriser.",
+      "Approuve tout pendant la durée choisie, deny compris : chemins sensibles ou hors projet, accès hôte d'un conteneur, dangers shell, sans rien mémoriser.",
     );
     expect(html).toContain("Vous en devenez responsable.");
+    expect(html).toContain(
+      "Pendant le Bypass, les actions de l’agent ne vous sont plus demandées ; vous en êtes responsable.",
+    );
   });
   it("badge dans #bar après #sandbox, masqué au départ", () => {
     const bar = html.slice(html.indexOf('<header id="bar">'), html.indexOf("</header>"));
     expect(bar.indexOf('id="sandbox"')).toBeLessThan(bar.indexOf('id="bypass-badge"'));
     expect(tag("bypass-badge")).toMatch(/\shidden[\s>]/);
   });
-  it("la webview n'envoie qu'un setBypass avec une seule clé booléenne", () => {
+  it("la webview transmet la durée choisie à l'activation et demande la coupure", () => {
     const bodies = [...js.matchAll(/postMessage\(\{([^}]*)\}\)/g)]
       .map((m) => m[1]?.trim() ?? "")
       .filter((b) => b.includes("setBypass"));
-    expect(bodies).toEqual(['type: "setBypass", enabled']);
+    expect(bodies).toHaveLength(2);
+    expect(bodies[0]).toContain('type: "setBypass", enabled: false');
+    expect(bodies[1]).toContain('type: "setBypass"');
+    expect(bodies[1]).toContain("enabled: true");
+    expect(bodies[1]).toContain("durationMs: bypassUnlimited ? null : durationMs");
   });
-  it("le clic n'écrit ni aria-checked, ni classe, ni texte", () => {
+  it("le clic ouvre le choix ou demande la coupure sans modifier l'état actif", () => {
     const click = fnBody(js, "toggleBypass");
-    expect(click).toContain("const enabled = !(last?.on === true || last?.armed === true);");
-    expect(click).not.toMatch(/setAttribute|classList|textContent|\.hidden|replaceChildren/);
+    expect(click).toContain("bypassPop.showPopover()");
+    expect(click).toContain('type: "setBypass", enabled: false');
+    expect(click).not.toMatch(
+      /bypassSwitch\.setAttribute|bypassState\.textContent|bypassBadge|classList|replaceChildren/,
+    );
+    const activation = js.slice(
+      js.indexOf('$("bypass-activate").addEventListener'),
+      js.indexOf("  function resetConversation()"),
+    );
+    expect(activation).toContain('type: "setBypass"');
+    expect(activation).not.toMatch(
+      /bypassSwitch\.setAttribute|bypassState\.textContent|bypassBadge|classList|replaceChildren/,
+    );
   });
   it("aria-checked, bypass-on, badge et texte d'état ne sont écrits que par renderBypass", () => {
     const render = fnBody(js, "renderBypass");
@@ -474,7 +492,7 @@ describe("Mode apprentissage (ADR 0010)", () => {
     expect(js).toContain('learningSwitch.addEventListener("click", toggleLearning)');
     expect(js).toContain('bypassSwitch.addEventListener("click", toggleBypass)');
     expect(js.match(/type: "setLearning"/g)?.length).toBe(1);
-    expect(js.match(/type: "setBypass"/g)?.length).toBe(1);
+    expect(js.match(/type: "setBypass"/g)?.length).toBe(2);
     expect(js).not.toMatch(/barLearning|barBypass/);
   });
   it("pastille dans l'en-tête, masquée au départ", () => {

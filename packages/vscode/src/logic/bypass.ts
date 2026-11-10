@@ -21,6 +21,7 @@ export interface BypassPush {
   /** Demandé mais non effectif (pas de moteur, accusé en attente). */
   armed: boolean;
   expiresAt: number | null;
+  unlimited?: boolean;
 }
 
 /** Horloge et minuteurs injectés (tests : horloge factice). */
@@ -37,7 +38,7 @@ export type BypassSend = (state: BypassState | null) => number;
 export interface BypassEngineLink {
   /** Accusé du moteur. Ignoré si le lien est libéré ou remplacé, ou si `seq` n'est pas le dernier envoyé. */
   acked(seq: number, state: BypassState | null): void;
-  /** Le moteur a disparu : l'état n'est plus « actif ». */
+  /** Le moteur a disparu : le Bypass est éteint. */
   release(): void;
 }
 
@@ -52,7 +53,7 @@ export interface BypassHost {
    * Demande d'interrupteur. `enabled: true` n'est accepté que si la vue demandeuse est visible ;
    * `enabled: false` est toujours accepté. Renvoie `false` si la demande est refusée.
    */
-  request(enabled: boolean, viewVisible: boolean): boolean;
+  request(enabled: boolean, viewVisible: boolean, durationMs?: number | null): boolean;
   /** Remise à « off » sans demande de l'utilisateur (`reset`, changement de dossiers). */
   reset(): void;
   /**
@@ -105,7 +106,14 @@ export function createBypassHost({ clock, onChange }: BypassHostOptions): Bypass
     if (state === null) return offPush();
     if (links.size === 0) return { type: "bypass", on: false, armed: true, expiresAt: null };
     const all = [...links].every((link) => link.confirmed && same(link.sent, state));
-    if (all) return { type: "bypass", on: true, armed: false, expiresAt: state.expiresAt };
+    if (all)
+      return {
+        type: "bypass",
+        on: true,
+        armed: false,
+        expiresAt: state.expiresAt,
+        ...(state.expiresAt === null ? { unlimited: true } : {}),
+      };
     return { type: "bypass", on: false, armed: true, expiresAt: null };
   };
 
@@ -126,7 +134,7 @@ export function createBypassHost({ clock, onChange }: BypassHostOptions): Bypass
     cancel(expiryTimer);
     expiryTimer = null;
     const state = desired();
-    if (state !== null) {
+    if (state !== null && state.expiresAt !== null) {
       expiryTimer = clock.schedule(sync, Math.max(0, state.expiresAt - clock.now()));
     }
     for (const link of links) {
@@ -149,11 +157,14 @@ export function createBypassHost({ clock, onChange }: BypassHostOptions): Bypass
   };
 
   return {
-    request(enabled, viewVisible) {
+    request(enabled, viewVisible, durationMs = BYPASS_DEFAULT_MS) {
       if (enabled) {
         if (!viewVisible) return false;
-        // Durée fixée par l'hôte : la webview ne fournit jamais de durée.
-        switchState.enable(BYPASS_DEFAULT_MS);
+        switchState.enable(durationMs);
+        if (desired() === null) {
+          sync();
+          return false;
+        }
       } else {
         switchState.disable();
       }
@@ -189,6 +200,7 @@ export function createBypassHost({ clock, onChange }: BypassHostOptions): Bypass
           cancel(link.ackTimer);
           link.ackTimer = null;
           links.delete(link);
+          switchState.disable();
           sync();
         },
       };
@@ -196,7 +208,9 @@ export function createBypassHost({ clock, onChange }: BypassHostOptions): Bypass
     snapshot: view,
     remainingMs() {
       const state = desired();
-      return state === null ? null : Math.max(0, state.expiresAt - clock.now());
+      return state === null || state.expiresAt === null
+        ? null
+        : Math.max(0, state.expiresAt - clock.now());
     },
     dispose() {
       cancel(expiryTimer);

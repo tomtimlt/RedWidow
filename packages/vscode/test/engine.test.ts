@@ -399,6 +399,30 @@ describe("moteur : Bypass (ADR 0006, pont hôte → moteur)", () => {
 
   const acks = (sent: FromEngine[]) => sent.flatMap((m) => (m.type === "bypassAck" ? [m] : []));
 
+  it("journalise les transitions sans décision et à l'arrêt du moteur", async () => {
+    const repo = await mkdtemp(join(tmpdir(), "warband-bp-"));
+    const journalDir = await mkdtemp(join(tmpdir(), "warband-bp-j-"));
+    try {
+      const t = fakeChannel();
+      const done = runEngine({ channel: t.channel, createRunner: () => idleRunner });
+      await started(t, repo, journalDir);
+      t.receive({ v: 1, type: "bypass", seq: 1, state: { since: Date.now(), expiresAt: null } });
+      await vi.waitFor(() => expect(acks(t.sent)).toHaveLength(1));
+      t.receive({ v: 1, type: "dispose" });
+      await done;
+      const transitions = t.sent.flatMap((m) =>
+        m.type === "event" && m.event.kind === "bypass.changed" ? [m.event] : [],
+      );
+      expect(transitions.map((e) => [e.state, e.unlimited])).toEqual([
+        ["on", true],
+        ["off", true],
+      ]);
+    } finally {
+      await rm(journalDir, { recursive: true, force: true });
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
   it("(q) accusé = état retenu ; rejeu et seq non croissant ignorés sans accusé", async () => {
     const repo = await mkdtemp(join(tmpdir(), "warband-bp-"));
     const journalDir = await mkdtemp(join(tmpdir(), "warband-bp-j-"));
@@ -442,7 +466,7 @@ describe("moteur : Bypass (ADR 0006, pont hôte → moteur)", () => {
       t.receive(bypassMsg(1));
       await vi.waitFor(() => expect(acks(t.sent)).toHaveLength(1));
       // Durée excessive, puis clé en trop : rejetés, et le miroir repasse à « off ».
-      t.receive({ ...bypassMsg(2), state: { since: 1, expiresAt: 1 + 4 * 60 * 60 * 1000 + 1 } });
+      t.receive({ ...bypassMsg(2), state: { since: 1, expiresAt: 1 + 48 * 60 * 60 * 1000 + 1 } });
       await vi.waitFor(() => expect(codes(t.sent)).toContain("ipc.invalidMessage"));
       t.receive({ ...bypassMsg(3), extra: true });
       t.receive({ v: 1, type: "prompt", text: "ok" });

@@ -1377,6 +1377,49 @@ describe("session de chat : lien du Bypass (ADR 0006)", () => {
 describe("session de chat : arrêt du moteur et Bypass (lot 2c)", () => {
   const RUN = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
+  it.each([60_000, null])(
+    "arrêt et sortie éteignent le Bypass %s avant la réouverture",
+    async (duration) => {
+      for (const mode of ["stop", "exit"] as const) {
+        const f = fake();
+        const host = createBypassHost({
+          clock: {
+            now: () => 1000,
+            schedule: (fn, ms) => setTimeout(fn, ms),
+            cancel: (h) => clearTimeout(h as ReturnType<typeof setTimeout>),
+          },
+          onChange: () => {},
+        });
+        const session = createChatSession({
+          cwd: "/w",
+          enginePath: "/e",
+          engineArgs: [],
+          readSettings: () => ({}),
+          getToken: async () => undefined,
+          confirmAlways: async () => false,
+          onView: () => {},
+          createController: f.create,
+          bypass: host,
+        });
+        await session.send("premier");
+        host.request(true, true, duration);
+        const state = f.calls.filter((c) => c[0] === "bypass").at(-1)?.[1] as BypassState;
+        f.handlers.onBypassAck?.({ seq: 2, state });
+        expect(host.snapshot().on).toBe(true);
+        if (mode === "stop") {
+          session.stop();
+          expect(host.snapshot()).toMatchObject({ on: false, armed: false });
+        }
+        f.handlers.onExit?.({ code: 0, signal: null });
+        expect(host.snapshot()).toMatchObject({ on: false, armed: false });
+        await session.send("suivant");
+        expect(f.calls.filter((c) => c[0] === "bypass").at(-1)?.[1]).toBeNull();
+        session.dispose();
+        host.dispose();
+      }
+    },
+  );
+
   it("ouverture d'une conversation : Bypass hôte remis à « off », lien libéré, moteur arrêté", async () => {
     const f = fake();
     const stored = new Map<string, unknown>();
@@ -1442,7 +1485,7 @@ describe("session de chat : arrêt du moteur et Bypass (lot 2c)", () => {
 });
 
 describe("deux chats (ADR 0008)", () => {
-  it("les cartes restent dans leur session ; fermer l'un laisse le Bypass de l'autre", async () => {
+  it("les cartes restent dans leur session ; un hôte partagé éteint le Bypass à la fermeture", async () => {
     const host = createBypassHost({
       clock: {
         now: () => 1_000_000,
@@ -1495,7 +1538,7 @@ describe("deux chats (ADR 0008)", () => {
     a.session.dispose();
     expect(a.f.calls).toContainEqual(["kill"]);
     expect(b.f.calls).not.toContainEqual(["kill"]);
-    expect(host.snapshot().on).toBe(true);
+    expect(host.snapshot().on).toBe(false);
     host.reset();
     expect(host.snapshot().on).toBe(false);
     expect(b.f.calls.filter((c) => c[0] === "bypass").at(-1)?.[1]).toBeNull();

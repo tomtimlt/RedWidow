@@ -442,7 +442,7 @@ describe("contrôleur : messages rejetés, démarrage, environnement", () => {
 describe("Bypass : accusés et environnement du moteur (ADR 0006)", () => {
   it("bypass : seq croissant par moteur (1, 2…) et accusé relayé avec l'état retenu", async () => {
     const c = collect();
-    const acks: { seq: number; state: { since: number; expiresAt: number } | null }[] = [];
+    const acks: { seq: number; state: { since: number; expiresAt: number | null } | null }[] = [];
     const ctl = createEngineController({
       enginePath: engine,
       handlers: { ...c.handlers, onBypassAck: (a) => void acks.push(a) },

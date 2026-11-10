@@ -401,9 +401,19 @@
       "Relentless: automatic follow-ups, no checkpoint, recommended for long missions.",
     "Lecture des cours et explications, sans exécution ni écriture.":
       "Read lessons and explanations, without execution or writing.",
+    "Pendant le Bypass, les actions de l’agent ne vous sont plus demandées ; vous en êtes responsable.":
+      "During Bypass, the agent's actions no longer require your approval; you are responsible for them.",
+    Heures: "Hours",
+    Minutes: "Minutes",
+    Illimité: "Unlimited",
+    "∞ illimité": "∞ unlimited",
+    Activer: "Activate",
+    Couper: "Turn off",
+    "Bypass actif": "Bypass active",
+    "Choisissez une durée de 1 minute à 48 h.": "Choose a duration from 1 minute to 48 hours.",
     "Bypass des approbations": "Approval bypass",
-    "Approuve tout pendant 2 h, deny compris : chemins sensibles ou hors projet, accès hôte d'un conteneur, dangers shell, sans rien mémoriser.":
-      "Approves everything for 2 hours, including deny: sensitive or outside-project paths, container host access and shell hazards, without remembering anything.",
+    "Approuve tout pendant la durée choisie, deny compris : chemins sensibles ou hors projet, accès hôte d'un conteneur, dangers shell, sans rien mémoriser.":
+      "Approves everything for the chosen duration, including deny: sensitive or outside-project paths, container host access and shell hazards, without remembering anything.",
     "Vous en devenez responsable.": "You take responsibility for it.",
     Actualiser: "Refresh",
     Réglages: "Settings",

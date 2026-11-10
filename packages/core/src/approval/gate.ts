@@ -62,6 +62,8 @@ export interface ApprovalOutcome {
 }
 
 export interface ApprovalGate {
+  /** Journalise la transition éventuelle sans prendre de décision. */
+  observeBypass?(): void;
   decide(
     request: ApprovalRequest,
     signal: AbortSignal,
@@ -245,8 +247,8 @@ export function createApprovalGate({
     const live =
       state !== null &&
       state.since <= at &&
-      at < state.expiresAt &&
-      state.expiresAt - state.since <= BYPASS_MAX_MS
+      (state.expiresAt === null ||
+        (at < state.expiresAt && state.expiresAt - state.since <= BYPASS_MAX_MS))
         ? state
         : null;
     if (live !== null) {
@@ -258,7 +260,7 @@ export function createApprovalGate({
             state: "on",
             reason: reason("bypass.enabled"),
             since: live.since,
-            expiresAt: live.expiresAt,
+            ...(live.expiresAt === null ? { unlimited: true } : { expiresAt: live.expiresAt }),
           },
           parentId,
         );
@@ -269,9 +271,20 @@ export function createApprovalGate({
     if (bypassOn !== null) {
       let code: BypassOffReason;
       if (state === null) code = bypass.lastOffReason();
-      else if (at >= state.expiresAt) code = "bypass.expired";
+      else if (state.expiresAt !== null && at >= state.expiresAt) code = "bypass.expired";
       else code = "bypass.disabled";
-      recorder.emit({ kind: "bypass.changed", state: "off", reason: reason(code) }, parentId);
+      recorder.emit(
+        {
+          kind: "bypass.changed",
+          state: "off",
+          reason: reason(code),
+          since: bypassOn.since,
+          ...(bypassOn.expiresAt === null
+            ? { unlimited: true }
+            : { expiresAt: bypassOn.expiresAt }),
+        },
+        parentId,
+      );
       bypassOn = null;
     }
     return false;
@@ -327,6 +340,9 @@ export function createApprovalGate({
   };
 
   return {
+    observeBypass: () => {
+      observeBypass(null);
+    },
     async decide(request, signal, parentId = null) {
       const bypassActive = observeBypass(parentId);
       // Même contexte que `evaluatePolicy` (défaut : répertoire courant), partagé avec le Bypass.

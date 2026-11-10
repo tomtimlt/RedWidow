@@ -127,12 +127,15 @@ describe("createBypassSwitch", () => {
     });
   });
 
-  it("borne toute durée demandée à BYPASS_MAX_MS", () => {
+  it("refuse une durée supérieure à 48 h et accepte le mode illimité", () => {
     const c = clock();
     const sw = createBypassSwitch({ now: c.now });
-    sw.enable(10 * BYPASS_MAX_MS);
-    const state = sw.current(c.now());
-    expect(state !== null && state.expiresAt - state.since).toBe(BYPASS_MAX_MS);
+    sw.enable(BYPASS_MAX_MS + 1);
+    expect(sw.current(c.now())).toBeNull();
+    sw.enable(null);
+    expect(sw.current(c.now() + BYPASS_MAX_MS * 2)).toEqual({ since: c.now(), expiresAt: null });
+    sw.disable();
+    expect(sw.current(c.now())).toBeNull();
   });
 
   it("passe à off à l'échéance, avec le motif bypass.expired", () => {
@@ -447,6 +450,20 @@ describe("Bypass dans la gate : transitions et état", () => {
       (e) => e.kind === "approval.decided" && e.source === "bypass",
     );
     expect(onIndex).toBeLessThan(firstDecided);
+  });
+
+  it("journalise les transitions du Bypass illimité", async () => {
+    const c = clock();
+    const bypass = createBypassSwitch({ now: c.now });
+    bypass.enable(null);
+    const h = harness({ bypass, now: c.now, policy: ASK_POLICY });
+    await h.gate.decide(mcp("a"), signal);
+    bypass.disable();
+    await h.gate.decide(mcp("b"), signal);
+    expect(changes(h.events)).toMatchObject([
+      { state: "on", since: c.now(), unlimited: true },
+      { state: "off", since: c.now(), unlimited: true },
+    ]);
   });
 
   it("(i) l'expiration prend effet dès la décision suivante, avec bypass.expired", async () => {

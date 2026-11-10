@@ -106,6 +106,7 @@ export type EventPayload =
       reason: Reason;
       since?: number;
       expiresAt?: number;
+      unlimited?: boolean;
     }
   | {
       /** Changement d'état de la fiche programme d'un projet (ADR 0040) ; `digest` : empreinte SHA-256 concernée. */
@@ -474,14 +475,20 @@ export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
     source: "enum:policy,user,bypass",
     reason: "reason",
   }),
-  // `since` / `expiresAt` sont obligatoires pour un « on » : les bornes décident des approbations auto.
+  // Un « on » porte son début et son échéance, ou le marqueur explicite illimité.
   "bypass.changed": (p) =>
     shape({
       state: "enum:on,off",
       reason: "reason",
       since: "number?",
       expiresAt: "number?",
-    })(p) ?? (p.state === "on" ? shape({ since: "number", expiresAt: "number" })(p) : null),
+      unlimited: "boolean?",
+    })(p) ??
+    (p.state === "on"
+      ? p.unlimited === true && typeof p.since === "number" && p.expiresAt === undefined
+        ? null
+        : shape({ since: "number", expiresAt: "number" })(p)
+      : null),
   "program.state": shape({
     projectId: "string",
     state: "enum:approved,suspended,invalidated",

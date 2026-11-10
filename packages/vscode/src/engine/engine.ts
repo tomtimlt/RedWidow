@@ -165,6 +165,7 @@ export function runEngine({
 }: EngineOptions): Promise<number> {
   // Miroir en lecture du Bypass (ADR 0006, décision 6) : naît « off », jamais calculé ici.
   const mirror = createBypassMirror({ now });
+  let observeBypass: (() => void) | undefined;
   // Un message `bypass` n'est admis qu'après `start` (pas pendant un sondage `models`).
   let sessionStarted = false;
   let paramsLearning = false;
@@ -283,6 +284,8 @@ export function runEngine({
           ...(!learning && program !== undefined && { program }),
           ...(!learning && engagement !== undefined && { engagement }),
         });
+        observeBypass = () => gate.observeBypass?.();
+        observeBypass();
         // Les demandes en attente partent vers l'UI ; la réponse revient par `answer`.
         void (async () => {
           for await (const approval of approvals.requests(abort.signal)) {
@@ -376,6 +379,9 @@ export function runEngine({
       } finally {
         const researchStatus = researchTracker.cancel();
         if (researchStatus) researchJournal?.(researchStatus);
+        mirror.off();
+        observeBypass?.();
+        observeBypass = undefined;
         // Refuse ce qui restait en attente (interrompu), ferme les flux puis le journal.
         queue?.close();
         recorder.close();
@@ -421,7 +427,10 @@ export function runEngine({
       const parsed = parseToEngine(raw);
       if (!parsed.ok) {
         // Échec fermé : un `bypass` rejeté met le miroir à « off ».
-        if (isBypassMessage(raw)) mirror.off();
+        if (isBypassMessage(raw)) {
+          mirror.off();
+          observeBypass?.();
+        }
         send({ v: PROTOCOL_VERSION, type: "error", reason: parsed.reason });
         return;
       }
@@ -467,6 +476,7 @@ export function runEngine({
           }
           // Rejeu ou désordre (seq non croissant) : ignoré, sans accusé.
           if (!mirror.apply(message.seq, message.state)) return;
+          observeBypass?.();
           send({
             v: PROTOCOL_VERSION,
             type: "bypassAck",
@@ -491,6 +501,7 @@ export function runEngine({
     channel.onDisconnect(() => {
       // Échec fermé : le Bypass s'éteint avant l'annulation du run (aucune décision ultérieure ne l'utilise).
       mirror.off();
+      observeBypass?.();
       abort.abort(new Error("IPC coupée"));
       prompts.end();
       if (!started) return finish(1);

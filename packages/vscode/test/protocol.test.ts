@@ -177,7 +177,12 @@ describe("protocole IPC : Bypass (ADR 0006, décision 6)", () => {
   };
 
   it("accepte un état actif, un état nul (off) et les bornes à la durée maximale", () => {
-    for (const state of [ok, null, { since: now, expiresAt: now + 4 * 60 * 60 * 1000 }]) {
+    for (const state of [
+      ok,
+      null,
+      { since: now, expiresAt: null },
+      { since: now, expiresAt: now + 48 * 60 * 60 * 1000 },
+    ]) {
       expect(parseToEngine({ v: 1, type: "bypass", seq: 1, state }).ok).toBe(true);
     }
   });
@@ -190,8 +195,9 @@ describe("protocole IPC : Bypass (ADR 0006, décision 6)", () => {
       v: 1,
       type: "bypass",
       seq: 1,
-      state: { since: now, expiresAt: now + 4 * 60 * 60 * 1000 + 1 },
+      state: { since: now, expiresAt: now + 48 * 60 * 60 * 1000 + 1 },
     });
+    bad({ v: 1, type: "bypass", seq: 1, state: { since: now, expiresAt: now + 59_999 } });
     bad({ v: 1, type: "bypass", seq: 1, state: { since: now, expiresAt: now } });
     bad({ v: 1, type: "bypass", seq: 1, state: { since: now + 1, expiresAt: now } });
     bad({ v: 1, type: "bypass", seq: 1, state: { since: 1.5, expiresAt: now + 60_000 } });

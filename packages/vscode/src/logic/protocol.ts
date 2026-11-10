@@ -175,14 +175,16 @@ const START_KEYS = [
   "testAccounts",
 ] as const;
 
-/** Valide un état du Bypass : `null`, ou bornes entières, ordonnées, de durée au plus `BYPASS_MAX_MS`. */
+/** Valide un état du Bypass : `null`, ou bornes entières de 1 minute à `BYPASS_MAX_MS`, ou sans échéance. */
 function validBypassState(value: unknown): boolean {
   if (value === null) return true;
   if (!isObj(value) || onlyKeys(value, ["since", "expiresAt"]) !== null) return false;
   const { since, expiresAt } = value;
-  if (typeof since !== "number" || typeof expiresAt !== "number") return false;
-  if (!Number.isSafeInteger(since) || !Number.isSafeInteger(expiresAt)) return false;
-  return since < expiresAt && expiresAt - since <= BYPASS_MAX_MS;
+  if (typeof since !== "number" || (expiresAt !== null && typeof expiresAt !== "number"))
+    return false;
+  if (!Number.isSafeInteger(since) || (expiresAt !== null && !Number.isSafeInteger(expiresAt)))
+    return false;
+  return expiresAt === null || (expiresAt - since >= 60_000 && expiresAt - since <= BYPASS_MAX_MS);
 }
 
 /** Numéro de séquence : entier sûr strictement positif. */

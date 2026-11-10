@@ -130,7 +130,7 @@ export type WebviewMessage =
   | { type: "watch"; toolUseId: string }
   | { type: "approve"; toolUseId: string; choice: Choice }
   /** Interrupteur du Bypass (ADR 0006) : seul champ, pas de durée (fixée par l'hôte). */
-  | { type: "setBypass"; enabled: boolean }
+  | { type: "setBypass"; enabled: boolean; durationMs?: number | null }
   /** Mode apprentissage (ADR 0010) de ce chat : seul champ, appliqué au message suivant. */
   | { type: "setLearning"; enabled: boolean }
   /** Ouvre la Kill chain en vue plein écran. Aucun champ. */
@@ -310,8 +310,19 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
         ? { type: "exportText", text: m.text }
         : null;
     case "setBypass":
-      return only("type", "enabled") && typeof m.enabled === "boolean"
-        ? { type: "setBypass", enabled: m.enabled }
+      return only("type", "enabled", "durationMs") &&
+        typeof m.enabled === "boolean" &&
+        (m.durationMs === undefined ||
+          m.durationMs === null ||
+          (typeof m.durationMs === "number" &&
+            Number.isSafeInteger(m.durationMs) &&
+            m.durationMs >= 60_000 &&
+            m.durationMs <= 48 * 60 * 60 * 1000))
+        ? {
+            type: "setBypass",
+            enabled: m.enabled,
+            ...(m.durationMs === undefined ? {} : { durationMs: m.durationMs as number | null }),
+          }
         : null;
     case "setLearning":
       return only("type", "enabled") && typeof m.enabled === "boolean"

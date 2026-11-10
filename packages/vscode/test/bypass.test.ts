@@ -72,6 +72,17 @@ function setup() {
 const off = { type: "bypass", on: false, armed: false, expiresAt: null };
 
 describe("Bypass hôte : armé sans moteur, actif seulement avec accusé", () => {
+  it("transmet le mode illimité et refuse une durée excessive", () => {
+    const s = setup();
+    expect(s.host.request(true, true, 48 * 60 * 60 * 1000 + 1)).toBe(false);
+    expect(s.host.request(true, true, null)).toBe(true);
+    const link = s.host.attach(s.engine);
+    s.ack(link);
+    expect(s.host.snapshot()).toMatchObject({ on: true, expiresAt: null, unlimited: true });
+    s.host.reset();
+    expect(s.host.snapshot()).toEqual(off);
+  });
+
   it("activation sans moteur : « armé », jamais « actif »", () => {
     const { host, pushes } = setup();
     expect(host.request(true, true)).toBe(true);
@@ -176,23 +187,24 @@ describe("Bypass hôte : armé sans moteur, actif seulement avec accusé", () =>
     expect(s.host.snapshot().armed).toBe(true);
   });
 
-  it("release (moteur sorti) : repasse à « armé », sans envoi", () => {
-    const s = setup();
-    s.host.request(true, true);
-    const link = s.host.attach(s.engine);
-    s.ack(link);
-    const before = s.sent.length;
-    link.release();
-    expect(s.host.snapshot()).toEqual({
-      type: "bypass",
-      on: false,
-      armed: true,
-      expiresAt: null,
-    });
-    expect(s.sent.length).toBe(before);
-  });
+  it.each([60_000, null])(
+    "release éteint la durée %s et le moteur suivant reçoit off",
+    (duration) => {
+      const s = setup();
+      s.host.request(true, true, duration);
+      const link = s.host.attach(s.engine);
+      s.ack(link);
+      link.release();
+      expect(s.host.snapshot()).toEqual(off);
+      const next = s.host.attach(s.engine);
+      expect(s.sent.at(-1)?.state).toBeNull();
+      s.ack(next);
+      link.release();
+      expect(s.host.snapshot()).toEqual(off);
+    },
+  );
 
-  it("deux liens : libérer l'un laisse l'autre actif, un accusé du lien libéré est ignoré", () => {
+  it("libérer un lien éteint les autres moteurs et ignore ses accusés tardifs", () => {
     const s = setup();
     const otherSent: Array<BypassState | null> = [];
     const other: BypassSend = (state) => {
@@ -202,18 +214,14 @@ describe("Bypass hôte : armé sans moteur, actif seulement avec accusé", () =>
     s.host.request(true, true);
     const first = s.host.attach(s.engine);
     const second = s.host.attach(other);
-    expect(s.sent.at(-1)?.state).not.toBeNull();
-    expect(otherSent.at(-1)).not.toBeNull();
     s.ack(first);
-    expect(s.host.snapshot().on).toBe(false);
     second.acked(otherSent.length, otherSent.at(-1) ?? null);
     expect(s.host.snapshot().on).toBe(true);
-    const before = otherSent.length;
     first.release();
-    expect(otherSent).toHaveLength(before);
-    expect(s.host.snapshot().on).toBe(true);
+    expect(otherSent.at(-1)).toBeNull();
+    expect(s.host.snapshot()).toEqual(off);
     first.acked(s.sent.length, s.sent.at(-1)?.state ?? null);
-    expect(s.host.snapshot().on).toBe(true);
+    expect(s.host.snapshot()).toEqual(off);
   });
 });
 
@@ -360,7 +368,7 @@ describe("Bypass hôte : faux accusés et moteur détaché (lot 2c)", () => {
     const link = s.host.attach(s.engine);
     s.ack(link);
     const last = s.sent.at(-1)?.state as BypassState;
-    link.acked(s.sent.length, { since: last.since, expiresAt: last.expiresAt + 1 });
+    link.acked(s.sent.length, { since: last.since, expiresAt: (last.expiresAt ?? 0) + 1 });
     expect(s.host.snapshot()).toEqual(off);
     // Le moteur reçoit l'état nul : rien ne reste actif de son côté.
     expect(s.sent.at(-1)?.state).toBeNull();

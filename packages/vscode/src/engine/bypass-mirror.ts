@@ -28,7 +28,7 @@ export function createBypassMirror({ now }: BypassMirrorOptions): BypassMirror {
 
   /** Retire l'état s'il est échu à `at` ; le motif devient « expiré ». */
   const expire = (at: number): void => {
-    if (held !== null && at >= held.expiresAt) {
+    if (held !== null && held.expiresAt !== null && at >= held.expiresAt) {
       held = null;
       offReason = "bypass.expired";
     }
@@ -37,7 +37,8 @@ export function createBypassMirror({ now }: BypassMirrorOptions): BypassMirror {
   /** Passe à « off ». Le motif tient compte de l'échéance de l'état retenu, à l'horloge du moteur. */
   const drop = (): void => {
     if (held === null) return;
-    offReason = now() >= held.expiresAt ? "bypass.expired" : "bypass.disabled";
+    offReason =
+      held.expiresAt !== null && now() >= held.expiresAt ? "bypass.expired" : "bypass.disabled";
     held = null;
   };
 

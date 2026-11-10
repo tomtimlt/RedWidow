@@ -277,13 +277,16 @@
   const isFiniteNumber = (v) => typeof v === "number" && Number.isFinite(v);
 
   /**
-   * État effectif d'un message `bypass` (échec fermé) : « on » seulement avec `expiresAt` fini ;
+   * État effectif d'un message `bypass` (échec fermé) : « on » avec échéance finie ou mode illimité explicite ;
    * « pending » si demandé mais non effectif ; « off » sinon, y compris pour un message mal formé.
    */
   function bypassEffective(push) {
     if (push === null || typeof push !== "object" || push.type !== "bypass") return "off";
     if (typeof push.on !== "boolean" || typeof push.armed !== "boolean") return "off";
-    if (push.on) return isFiniteNumber(push.expiresAt) ? "on" : "off";
+    if (push.on)
+      return isFiniteNumber(push.expiresAt) || (push.unlimited === true && push.expiresAt === null)
+        ? "on"
+        : "off";
     return push.armed ? "pending" : "off";
   }
 
@@ -304,7 +307,8 @@
   function bypassView(push, previous, userOff, now) {
     const effective = bypassEffective(push);
     const before = bypassEffective(previous);
-    let state = effective === "on" && push.expiresAt <= now ? "ended" : effective;
+    let state =
+      effective === "on" && push.expiresAt !== null && push.expiresAt <= now ? "ended" : effective;
     if (effective === "off" && !userOff && before !== "off") {
       state = before === "on" ? "ended" : "dropped";
     }
@@ -314,14 +318,20 @@
     if (state === "pending") {
       text = t("En attente : actif dès que l'agent le confirme.");
     } else if (state === "on") {
-      until = new Date(push.expiresAt).toLocaleTimeString(
-        root.WarbandI18n?.getLocale() === "en" ? "en-GB" : "fr-FR",
-        {
-          hour: "2-digit",
-          minute: "2-digit",
-        },
-      );
-      text = t`Actif jusqu'à ${until} (reste ${remainingText(push.expiresAt - now)}). Échéance fixée par le moteur.`;
+      until =
+        push.unlimited === true
+          ? "∞"
+          : new Date(push.expiresAt).toLocaleTimeString(
+              root.WarbandI18n?.getLocale() === "en" ? "en-GB" : "fr-FR",
+              {
+                hour: "2-digit",
+                minute: "2-digit",
+              },
+            );
+      text =
+        push.unlimited === true
+          ? t("∞ illimité")
+          : t`Actif jusqu'à ${until} (reste ${remainingText(push.expiresAt - now)}). Échéance fixée par le moteur.`;
       badge = { word: "BYPASS", time: until };
     } else if (state === "dropped") {
       text = t("Bypass désactivé avant confirmation.");

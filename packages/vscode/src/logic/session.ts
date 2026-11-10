@@ -1464,6 +1464,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       stopping = true;
       state.setBusy(true);
       const stoppingController = controller;
+      deps.bypass?.reset?.();
       stoppingController.abort();
       clearTimeout(stopTimer);
       stopTimer = setTimeout(() => {

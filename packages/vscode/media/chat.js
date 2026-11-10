@@ -1000,7 +1000,7 @@
     roe.setAttribute("aria-label", t`Mode de supervision : ${label}. Ouvrir Configurer`);
   }
   // Affichage seulement : l’échéance et la décision restent celles du moteur.
-  const BYPASS_MAX_MS = 2 * 60 * 60 * 1000;
+  const BYPASS_MAX_MS = 48 * 60 * 60 * 1000;
   const BYPASS_ENDING_MS = 10 * 60 * 1000;
   let bypassTimer = 0;
   function paintBypassClock() {
@@ -1008,12 +1008,20 @@
     bypassTimer = 0;
     const roe = $("roe");
     const expiresAt = bypassCtx.push?.expiresAt;
+    const unlimited =
+      document.body.classList.contains("bypass-on") && bypassCtx.push?.unlimited === true;
     const on = document.body.classList.contains("bypass-on") && Number.isFinite(expiresAt);
+    $("bypass-banner").hidden = !on && !unlimited;
+    $("bypass-banner-time").textContent = unlimited
+      ? t("∞ illimité")
+      : on
+        ? UI.bypassView(bypassCtx.push, null, false, Date.now()).text
+        : "";
     const ms = on ? Math.max(0, expiresAt - Date.now()) : 0;
     document.body.classList.toggle("bypass-ending", on && ms > 0 && ms <= BYPASS_ENDING_MS);
     if (!on || ms === 0) {
       roe.style.removeProperty("--jn-left");
-      $("roe-left").textContent = "";
+      $("roe-left").textContent = unlimited ? "∞" : "";
       return;
     }
     const minutes = Math.ceil(ms / 60000);
@@ -1073,14 +1081,57 @@
       bypassBadge.title = t`Bypass actif jusqu'à ${v.until} : désactivable dans Configurer ou la barre d'état`;
     } else bypassBadge.replaceChildren();
   }
+  const bypassPop = $("bypass-pop");
+  wirePop(bypassPop, cfgBtn, {
+    render() {},
+    focus() {
+      $("bypass-hours").focus();
+    },
+  });
+  let bypassUnlimited = false;
   function toggleBypass() {
     if (ctl?.learning === true) return;
     const last = bypassCtx.push;
-    const enabled = !(last?.on === true || last?.armed === true);
-    if (!enabled) bypassUserOff = true;
-    vscode.postMessage({ type: "setBypass", enabled });
+    if (last?.on === true || last?.armed === true) {
+      bypassUserOff = true;
+      vscode.postMessage({ type: "setBypass", enabled: false });
+    } else {
+      bypassUnlimited = false;
+      $("bypass-unlimited").setAttribute("aria-pressed", "false");
+      $("bypass-error").hidden = true;
+      bypassPop.showPopover();
+    }
   }
   bypassSwitch.addEventListener("click", toggleBypass);
+  $("bypass-cut").addEventListener("click", toggleBypass);
+  $("bypass-unlimited").addEventListener("click", () => {
+    bypassUnlimited = !bypassUnlimited;
+    $("bypass-unlimited").setAttribute("aria-pressed", String(bypassUnlimited));
+  });
+  $("bypass-activate").addEventListener("click", () => {
+    const hours = Number($("bypass-hours").value);
+    const minutes = Number($("bypass-minutes").value);
+    const durationMs = (hours * 60 + minutes) * 60_000;
+    if (
+      !bypassUnlimited &&
+      (!Number.isInteger(hours) ||
+        !Number.isInteger(minutes) ||
+        hours < 0 ||
+        minutes < 0 ||
+        minutes > 59 ||
+        durationMs < 60_000 ||
+        durationMs > BYPASS_MAX_MS)
+    ) {
+      $("bypass-error").hidden = false;
+      return;
+    }
+    vscode.postMessage({
+      type: "setBypass",
+      enabled: true,
+      durationMs: bypassUnlimited ? null : durationMs,
+    });
+    bypassPop.hidePopover();
+  });
   function resetConversation() {
     bypassUserOff = true;
     vscode.postMessage({ type: "reset" });

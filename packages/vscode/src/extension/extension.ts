@@ -1124,7 +1124,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       setActive(id);
       // Bypass (ADR 0006) : hôte seul, avant `getSession`. `enabled: true` refusé si la vue est cachée.
       if (message.type === "setBypass") {
-        getBypass(id).request(message.enabled, visible());
+        getBypass(id).request(message.enabled, visible(), message.durationMs);
         return;
       }
       // Chat grisé sans fournisseur : ouvre la saisie du jeton (hôte seul, aucune donnée venue de la webview).
@@ -4961,7 +4961,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
     const refreshText = () => {
       const left = getBypass(activeId).remainingMs();
-      barBypass.text = `${t("BYPASS")} · ${chatName(activeId)} · ${left === null ? "" : formatRemaining(left)}`;
+      barBypass.text = `${t("BYPASS")} · ${chatName(activeId)} · ${left === null ? "∞" : formatRemaining(left)}`;
       barBypass.show();
     };
     refreshText();

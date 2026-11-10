@@ -982,6 +982,14 @@ const PAGES = [
   chatPage("chat-reglages-popover", [{ type: "view", view: chatView() }, CONTAINERS], {
     click: "cfg-btn",
   }),
+  chatPage(
+    "chat-bypass-duree",
+    [{ type: "view", view: chatView({ conversation: false }) }, CONTAINERS],
+    {
+      click: ["cfg-btn", "bypass-switch"],
+      bypassChoices: true,
+    },
+  ),
   viewerPage("monitor", "monitor", [
     { type: "title", text: "Laboratoire" },
     { type: "view", view: L.monitorChatView(execState().view()) },
@@ -1254,8 +1262,65 @@ try {
           await tab.waitForTimeout(150);
         }
         if (page.click) {
-          await tab.evaluate((id) => document.getElementById(id)?.click(), page.click);
+          for (const id of [page.click].flat()) {
+            await tab.evaluate((target) => document.getElementById(target)?.click(), id);
+          }
           await tab.waitForTimeout(150);
+        }
+        if (page.bypassChoices) {
+          if (!(await tab.locator("#bypass-pop").evaluate((el) => el.matches(":popover-open"))))
+            throw new Error("Popover Bypass fermé");
+          await tab.fill("#bypass-hours", "1");
+          await tab.fill("#bypass-minutes", "15");
+          await tab.click("#bypass-activate");
+          let last = await tab.evaluate(() => window.__sent.at(-1));
+          if (last?.type !== "setBypass" || last.enabled !== true || last.durationMs !== 4_500_000)
+            throw new Error("Durée Bypass incorrecte");
+          await tab.evaluate(() =>
+            window.postMessage(
+              { type: "bypass", on: true, armed: false, expiresAt: Date.now() + 4_500_000 },
+              "*",
+            ),
+          );
+          await tab.waitForTimeout(50);
+          await tab.click("#bypass-cut");
+          last = await tab.evaluate(() => window.__sent.at(-1));
+          if (last?.type !== "setBypass" || last.enabled !== false)
+            throw new Error("Coupure Bypass absente");
+          await tab.evaluate(() =>
+            window.postMessage({ type: "bypass", on: false, armed: false, expiresAt: null }, "*"),
+          );
+          await tab.waitForTimeout(50);
+          await tab.evaluate(() => {
+            document.getElementById("cfg-btn").click();
+            document.getElementById("bypass-switch").click();
+          });
+          await tab.click("#bypass-unlimited");
+          await tab.click("#bypass-activate");
+          last = await tab.evaluate(() => window.__sent.at(-1));
+          if (last?.type !== "setBypass" || last.enabled !== true || last.durationMs !== null)
+            throw new Error("Choix Bypass illimité absent");
+          await tab.evaluate(() =>
+            window.postMessage(
+              { type: "bypass", on: true, armed: false, expiresAt: null, unlimited: true },
+              "*",
+            ),
+          );
+          await tab.waitForTimeout(50);
+          if (!(await tab.locator("#bypass-banner-time").innerText()).includes("∞"))
+            throw new Error("Affichage Bypass illimité absent");
+          await tab.click("#bypass-cut");
+          last = await tab.evaluate(() => window.__sent.at(-1));
+          if (last?.type !== "setBypass" || last.enabled !== false)
+            throw new Error("Coupure Bypass illimité absente");
+          await tab.evaluate(() =>
+            window.postMessage({ type: "bypass", on: false, armed: false, expiresAt: null }, "*"),
+          );
+          await tab.waitForTimeout(50);
+          await tab.evaluate(() => {
+            document.getElementById("cfg-btn").click();
+            document.getElementById("bypass-switch").click();
+          });
         }
         if (page.stopComposer) {
           const send = tab.locator("#send");

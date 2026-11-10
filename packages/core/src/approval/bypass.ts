@@ -8,13 +8,13 @@
 /** Durée par défaut d'une activation du Bypass : 2 h. */
 export const BYPASS_DEFAULT_MS = 2 * 60 * 60 * 1000;
 
-/** Durée maximale d'une activation : 4 h. Aucune durée demandée ne la dépasse. */
-export const BYPASS_MAX_MS = 4 * 60 * 60 * 1000;
+/** Durée maximale d'une activation : 48 h. */
+export const BYPASS_MAX_MS = 48 * 60 * 60 * 1000;
 
 /** Bornes d'une activation, en ms epoch. */
 export interface BypassState {
   since: number;
-  expiresAt: number;
+  expiresAt: number | null;
 }
 
 /** Motif de la dernière mise à « off » : désactivation explicite ou expiration. */
@@ -30,8 +30,8 @@ export interface BypassSwitch {
 
 /** Interrupteur modifiable (côté hôte) : la gate ne voit que la lecture. */
 export interface MemoryBypassSwitch extends BypassSwitch {
-  /** Active le Bypass pour `durationMs`, bornée à `BYPASS_MAX_MS`. Durée invalide : désactive (fail-closed). */
-  enable(durationMs: number): void;
+  /** Active pour une durée de 1 minute à `BYPASS_MAX_MS`, ou sans échéance si `null`. Durée invalide : désactive. */
+  enable(durationMs: number | null): void;
   disable(): void;
 }
 
@@ -47,7 +47,7 @@ export function createBypassSwitch({ now }: BypassSwitchOptions): MemoryBypassSw
 
   /** Passe à « off » si l'échéance est atteinte à l'instant `at`. */
   const expire = (at: number): void => {
-    if (state !== null && at >= state.expiresAt) {
+    if (state !== null && state.expiresAt !== null && at >= state.expiresAt) {
       state = null;
       offReason = "bypass.expired";
     }
@@ -63,13 +63,15 @@ export function createBypassSwitch({ now }: BypassSwitchOptions): MemoryBypassSw
 
   return {
     enable(durationMs) {
-      if (!Number.isFinite(durationMs) || durationMs <= 0) {
+      if (
+        durationMs !== null &&
+        (!Number.isSafeInteger(durationMs) || durationMs < 60_000 || durationMs > BYPASS_MAX_MS)
+      ) {
         disable();
         return;
       }
       const at = now();
-      const duration = Math.min(durationMs, BYPASS_MAX_MS);
-      state = { since: at, expiresAt: at + duration };
+      state = { since: at, expiresAt: durationMs === null ? null : at + durationMs };
     },
     disable,
     current(at) {

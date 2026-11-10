@@ -3010,3 +3010,28 @@ body.vscode-high-contrast-light .welcome-spider {
 .container-link-card button + button {
   margin-left: 8px;
 }
+
+#bypass-pop {
+  padding: 16px;
+  max-width: min(360px, 90vw);
+}
+#bypass-pop label {
+  display: inline-block;
+  margin: 4px;
+}
+#bypass-pop input {
+  width: 5em;
+}
+#bypass-unlimited[aria-pressed="true"] {
+  outline: 2px solid var(--vscode-focusBorder);
+}
+#bypass-banner:not([hidden]) {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--jn-bypass-tint);
+}
+#bypass-cut {
+  margin-left: auto;
+}
