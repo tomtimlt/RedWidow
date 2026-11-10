@@ -1,7 +1,7 @@
 // node render.cjs 16x9|9x16 out.mp4 durée musique.wav
 const { chromium } = require('playwright'); const { spawn } = require('child_process');
 const [fmt, out, durArg, audio] = process.argv.slice(2);
-const [W, H] = fmt.startsWith('9x16') ? [1080, 1920] : [1920, 1080]; const FPS = 30, DUR = Number(durArg);
+const [W, H] = fmt.startsWith('4x5') ? [1080, 1350] : fmt.startsWith('9x16') ? [1080, 1920] : [1920, 1080]; const FPS = 30, DUR = Number(durArg);
 (async () => {
   const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: W, height: H } });
   const errs = []; p.on('pageerror', (e) => errs.push(e.message));

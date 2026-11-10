@@ -5,11 +5,11 @@ import os, sys, json, math
 H = os.path.dirname(os.path.abspath(__file__))
 K = '/home/user/warband/media/brand/video-kit/html/'
 FMT = sys.argv[1] if len(sys.argv) > 1 else '16x9'
-V = FMT == '9x16'
+V = FMT in ('9x16', '4x5'); F45 = FMT == '4x5'
 LANG = sys.argv[2] if len(sys.argv) > 2 else 'en'; FR = LANG == 'fr'
 import fr as FRM
 X = (lambda txt: FRM.cap(txt)) if FR else (lambda txt: txt)
-W, HH = (1080, 1920) if V else (1920, 1080)
+W, HH = (1080, 1350) if F45 else (1080, 1920) if V else (1920, 1080)
 BPM = 94
 def B(n): return round(n * 60 / BPM, 4)  # temps musicaux → secondes
 def comp(path):
@@ -94,6 +94,17 @@ else:
     learnWin = win('w-learn', 'RedWidow: Chat', C['chat-learning'], 470, 690, 2.1, 46, 1080, (0, 300, 470, 300))
     hintCap = dict(left=70, top=215, width=940); centerTop = dict(models=700, end1=560, recap=760)
     hookCap = dict(left=70, top=250, width=940); TGT = (540, 1330); SPW, SPH = 300, 377
+if F45:
+    capL = dict(left=60, top=60, width=960); capT = dict(left=60, top=60, width=960)
+    CROP = {'w-chat': (0, 469, 470, 380), 'w-auto': (0, 0, 470, 380), 'w-rep': (0, 0, 470, 380)}
+    chatWin = lambda cid, key: win(cid, 'RedWidow: Chat', C[key], 470, 849, 2.0, 70, 400, CROP[cid])
+    monWin = win('w-mon', 'Monitor · kali-1', C['monitor'], 981, 340, 1.75, 50, 400, (0, 40, 560, 300))
+    kcWin = win('w-kc', 'Kill chain', C['killchain'], 981, 450, 2.4, 52, 400, (0, 130, 406, 230)); feedPos = (60, 1010)
+    welWin = win('w-wel', 'RedWidow: Chat', C['welcome'], 470, 690, 3.0, 90, 410, (85, 60, 300, 246)); welCap = dict(left=60, top=50, width=960)
+    termWin = win('w-term', 'kali-1', C['terminal'], 560, 690, 1.75, 50, 400, (0, 250, 560, 190))
+    learnWin = win('w-learn', 'RedWidow: Chat', C['chat-learning'], 470, 690, 2.1, 46, 790, (0, 330, 470, 180))
+    hintCap = dict(left=60, top=60, width=960); centerTop = dict(models=480, end1=380, recap=500)
+    hookCap = dict(left=60, top=60, width=960); TGT = (540, 1010); SPW, SPH = 240, 302
 def cap(d, inner, cls='cap'):
     return f'<div class="{cls}" style="left:{d["left"]}px;top:{d["top"]}px;width:{d["width"]}px">{inner}</div>'
 inl = '' if V else ' inl'
@@ -130,7 +141,7 @@ S.append(('c4', TL['ch4'], TL['report'], chapter(4, 'Wrap.', 'Report', 41.0)))
 S.append(('report', TL['report'], TL['ch5'], chatWin('w-rep', 'chat-bypass-tall') + cap(capL,
     L(42.6, 'mid', 'It writes') + L(42.8, 'mid g', 'the report.') + L(43.6, 'mono', 'Findings · severities · Markdown draft'))))
 S.append(('c5', TL['ch5'], TL['learn'], chapter(5, 'Learn.', 'Learning mode', 47.0, ' bonus')))
-S.append(('learn', TL['learn'], TL['hint'], welWin + cap(welCap,
+S.append(('learn', TL['learn'], TL['hint'], welWin + cap(welCap, cls='cap welcap', inner=
     L(48.6, 'mono', 'Learning mode') + L(49.0, 'mid', 'Stuck on') + L(49.2, 'mid', 'a box?') + L(50.3, 'mid v', 'It studies') + L(50.5, 'mid v', 'with you.'))))
 S.append(('hint', TL['hint'], TL['models'], termWin + learnWin + cap(hintCap, cls='cap hintcap', inner=
     f'''<div class="cg" data-t="{TL['hint']}" data-x="{TL['notlong']}">{L(52.2, 'mid', 'It reads')}{L(52.4, 'mid', 'your terminal.')}{L(53.2, 'mid g', 'It points')}{L(53.4, 'mid g', 'to the flaw.')}</div>
@@ -150,7 +161,7 @@ body = ''.join(f'<section class="scene" id="{i}" data-in="{a}" data-out="{b}">{h
 html = f'''<!doctype html><html lang="{LANG}"><head><meta charset="utf-8"><title>RedWidow promo V8 {FMT} {LANG}</title>
 <link rel="stylesheet" href="file://{K}css/redwidow-ui.css">
 <link rel="stylesheet" href="file://{H}/film.css">
-{'<link rel="stylesheet" href="file://' + H + '/film-9x16.css">' if V else ''}
+{'<link rel="stylesheet" href="file://' + H + '/film-9x16.css">' if V else ''}{'<link rel="stylesheet" href="file://' + H + '/film-4x5.css">' if F45 else ''}
 <script src="file:///home/user/warband/media/spider.js"></script>
 <script>window.TL = {json.dumps(TL)}; window.FMT = "{FMT}"; window.LANG = "{LANG}";</script>
 </head><body class="fmt-{FMT}"><div id="stage">{web()}{body}{rail}<div id="wipe"></div></div><div id="vig"></div><div id="grain"></div><div id="flash"></div><script src="file://{H}/film.js"></script></body></html>'''

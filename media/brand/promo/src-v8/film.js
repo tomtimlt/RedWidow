@@ -135,9 +135,9 @@
   const pills = $$('.cl.tools span');
   // Caméra verticale du chat : sur la saisie pendant la frappe, puis sur les messages.
   const camY = (win, cy) => { const cs = $('.cs', win); cs.style.transform = `scale(${win.dataset.s}) translate(${-win.dataset.cx}px,${-cy}px)`; };
-  const VERT = window.FMT === '9x16';
+  const VERT = window.FMT !== '16x9';
   function recon(t) {
-    if (VERT) camY(chat, lerp(289, 0, io(P(t, T.send, T.send + 0.45))));
+    if (VERT) camY(chat, lerp(+chat.dataset.cy, 0, io(P(t, T.send, T.send + 0.45))));
     const n = Math.floor(P(t, T.type0, T.type1) * PROMPT.length), caret = Math.floor(t * 2.5) % 2 ? '' : '▍';
     H.input.value = t < T.send ? PROMPT.slice(0, n) + caret : '';
     show(H.rows[0], t >= T.send);
@@ -234,7 +234,7 @@
   const segs = $$('.report-seg', rw), items = $$('.report-item', rw), repParts = rep ? [$('.report-head', rep), $('.report-summary', rep)] : [];
   let before = null, after = null;
   function report(t) {
-    if (VERT) camY(rw, lerp(0, 269, io(P(t, T.report + 0.1, T.report + 0.7))));
+    if (VERT) camY(rw, lerp(0, 849 - (+rw.dataset.ch) - 20, io(P(t, T.report + 0.1, T.report + 0.7))));
     rui.classList.add('automatic-on');
     const roe = $('#roe', rw); roe.dataset.level = '3'; $('#roe-label', rw).textContent = W('Automatic', 'Automatique');
     const badge = $('#automatic-badge', rw); badge.hidden = false; badge.textContent = 'Bypass 1:59';

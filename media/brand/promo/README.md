@@ -18,6 +18,7 @@ HTML du kit `../video-kit/html/`), sur le lab fictif `10.10.10.14`.
 | `redwidow-promo-v8-9x16.mp4` | 1080 × 1920, 30 i/s, 53 s | V8 verticale (Reels, Shorts, LinkedIn mobile), mêmes zones sûres que la V7 |
 | `redwidow-promo-v8-16x9-fr.mp4` | 1920 × 1080, 30 i/s, 53 s | V8 en français : « TA CIBLE / EST DÉJÀ / DANS LA TOILE. », VERROUILLÉE, 01 TISSE · 02 GUETTE · 03 FRAPPE · 04 EMBALLE · 05 APPRENDS, interface en français |
 | `redwidow-promo-v8-9x16-fr.mp4` | 1080 × 1920, 30 i/s, 53 s | V8 verticale en français |
+| `redwidow-promo-v8-4x5-fr.mp4` | 1080 × 1350 (4:5), 30 i/s, 53 s | V8 en français au format LinkedIn : titre dans la bande du haut (60–390 px), interface zoomée au centre (commande lancée, réponse de l'agent, résultat), rail de mission en bas. `film-4x5.css` complète `film-9x16.css` ; `python3 build.py 4x5 fr`, puis `node render.cjs 4x5-fr …` |
 
 ## Refaire une version
 
