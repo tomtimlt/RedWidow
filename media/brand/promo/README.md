@@ -74,3 +74,10 @@ hauteur viennent de `src-v7/cap_*_tall.cjs`.
 LinkedIn), `hook.cjs` (aperçu social tiré de l'accroche du film V8, en
 `node hook.cjs <film-16x9.html> 3.4`). L'aperçu animé du README (`promo.gif`, 640 px,
 6,6 s) et la vidéo légère (1280 × 720, 1,9 Mo) viennent de la V8 par ffmpeg.
+
+### Prochaine version (prompt)
+
+`PROMPT-FABLE-LINKEDIN.md` : brief complet pour qu'un modèle monte la V10 au
+format LinkedIn (4:5, français et anglais) : stratégie d'accroche, règles
+d'honnêteté, emplacement de chaque asset, structure de départ, livrables et
+vérifications.
