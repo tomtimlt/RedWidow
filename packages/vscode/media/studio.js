@@ -534,6 +534,8 @@ function start() {
           window.WarbandIcons.create(item.icon, { className: "ico" }),
           el("span", "btn-text", item.label),
         );
+        // Fiche programme et Engagement s'ouvrent dans leur propre onglet : la flèche le signale.
+        if (item.action !== void 0) b.append(decorative(el("span", "studio-ext-mark", "↗")));
         if (item.count !== void 0) {
           const count = el("span", "studio-count", String(item.count));
           count.title = t`${item.count} élément${item.count > 1 ? "s" : ""}`;

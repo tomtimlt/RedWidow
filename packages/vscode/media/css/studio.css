@@ -1068,3 +1068,10 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
   width: auto;
   min-width: 12em;
 }
+
+.studio-ext-mark {
+  margin-left: auto;
+  color: var(--jn-muted);
+  font-size: var(--jn-fs-xs);
+  line-height: 1;
+}
