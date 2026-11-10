@@ -726,6 +726,33 @@ it("sauvegarde 200 Kio minifiés et read_output trouve une chaîne au milieu", a
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+it("réinitialise la colonne du fichier découpé sur chaque retour à la ligne existant", async () => {
+  const root = mkdtempSync(join(tmpdir(), "http-lines-"));
+  try {
+    const body = `${"a".repeat(190)}\n${"b".repeat(20)},${"c".repeat(2100)}`;
+    const f = fixture({
+      responses: [() => reply(200, body, { "content-type": "application/javascript" })],
+    });
+    f.program.outputRoot = () => root;
+    const result = parse(await f.http({ method: "GET", url: URL_OK }));
+    const split = readFileSync(result.splitFile.replace("/workspace/outputs", root), "utf8");
+    expect(split.startsWith(`${"a".repeat(190)}\n${"b".repeat(20)},${"c".repeat(1979)}\n`)).toBe(
+      true,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+it("read_url refuse plus de 1 Mio alors que http_request accepte cette taille", async () => {
+  const body = "x".repeat(1024 * 1024 + 1);
+  const f = fixture({ responses: [() => reply(200, body), () => reply(200, body)] });
+  await expect(f.read(URL_OK)).rejects.toMatchObject({ code: "web.tooLarge" });
+  const result = parse(await f.http({ method: "GET", url: URL_OK }));
+  expect(result.status).toBe(200);
+  expect(result.bytes).toBe(Buffer.byteLength(body));
+});
 it("ne sauvegarde pas une réponse HTTP courte et lisible", async () => {
   const root = mkdtempSync(join(tmpdir(), "http-short-"));
   try {

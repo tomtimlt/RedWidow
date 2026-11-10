@@ -38,3 +38,75 @@ it("mesure trois chemins dérivés et deux génériques sans utiliser les sortie
   ]);
   expect(report.web.derivation.techniqueFamilies.length).toBeGreaterThan(1);
 });
+
+it("ignore les racines et reconnaît un nom de fichier déjà observé", () => {
+  const r = createRecorder();
+  const events = [
+    r.emit({
+      kind: "tool.result",
+      toolUseId: "page",
+      isError: false,
+      truncated: false,
+      bytes: 10,
+      output: "Script console.js",
+    }),
+    ...[
+      "https://a.test/",
+      "https://b.test/?scan=1",
+      "https://a.test/assets/console.js",
+      "https://a.test/unknown.js",
+    ].map((url, i) =>
+      r.emit({
+        kind: "tool.requested",
+        toolUseId: `req-${i}`,
+        tool: "mcp__web__http_request",
+        input: { url },
+      }),
+    ),
+  ];
+  const report = analyzeTrace(events);
+  expect(report.web.derivation).toMatchObject({ derived: 1, generic: 1, percent: 50 });
+  expect(report.web.derivation.genericPaths).toEqual([{ path: "/unknown.js", calls: 1 }]);
+});
+
+it("exclut trois sondes génériques distinctes de premier niveau, mais garde les sondes isolées", () => {
+  const r = createRecorder();
+  const events = [
+    r.emit({
+      kind: "tool.result",
+      toolUseId: "page",
+      isError: false,
+      truncated: false,
+      bytes: 7,
+      output: "/orders",
+    }),
+    ...[
+      "/isolated",
+      "/orders",
+      "/admin",
+      "/backup",
+      "/config",
+      "/api/unknown",
+      "/repeat",
+      "/repeat",
+      "/repeat",
+    ].map((path, i) =>
+      r.emit({
+        kind: "tool.requested",
+        toolUseId: `req-${i}`,
+        tool: "mcp__web__http_request",
+        input: { url: `https://example.test${path}` },
+      }),
+    ),
+  ];
+  const report = analyzeTrace(events);
+  expect(report.web.derivation).toMatchObject({ derived: 1, generic: 5, percent: 17 });
+  expect(report.web.derivation.genericPaths).toEqual(
+    expect.arrayContaining([
+      { path: "/isolated", calls: 1 },
+      { path: "/api/unknown", calls: 1 },
+      { path: "/repeat", calls: 3 },
+    ]),
+  );
+  expect(report.web.derivation.genericPaths.map((entry) => entry.path)).not.toContain("/admin");
+});

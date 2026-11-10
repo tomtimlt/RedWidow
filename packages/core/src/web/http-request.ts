@@ -302,7 +302,11 @@ export async function runHttpRequest(
     capture.write("stdout", text);
     if (minified || cleaned.split("\n").some((line) => line.length > 2000)) {
       let column = 0;
-      const split = cleaned.replace(/./g, (char) => {
+      const split = cleaned.replace(/[^\n]|\n/g, (char) => {
+        if (char === "\n") {
+          column = 0;
+          return char;
+        }
         column++;
         if (column >= 200 && (/[;},]/.test(char) || column >= 2000)) {
           column = 0;

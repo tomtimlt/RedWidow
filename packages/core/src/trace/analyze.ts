@@ -227,11 +227,24 @@ export function analyzeTrace(
   const searches: TraceWebSearch[] = [];
   const cells = new Map<string, TraceCoverage["remaining"][number] & { singleProbe: boolean }>();
   const observedPaths = new Set<string>();
+  const observedFiles = new Set<string>();
   const observedTokens = new Set<string>();
   const genericPaths = new Map<string, number>();
   const techniqueFamilies = new Set<string>();
   let derived = 0,
     generic = 0;
+  let rootProbes: string[] = [];
+  // Trois chemins génériques distincts consécutifs au premier niveau constituent
+  // un balayage ; une ou deux sondes isolées restent comptées normalement.
+  const flushRootProbes = () => {
+    if (new Set(rootProbes).size < 3) {
+      for (const path of rootProbes) {
+        generic++;
+        genericPaths.set(path, (genericPaths.get(path) ?? 0) + 1);
+      }
+    }
+    rootProbes = [];
+  };
   let calls = 0;
   let turns = 0;
   let lastDecisionSeq: number | null = null;
@@ -246,17 +259,25 @@ export function analyzeTrace(
           try {
             const url = new URL(e.input.url);
             const parameters = [...url.searchParams];
+            const filename = url.pathname.split("/").pop() ?? "";
             const known =
               observedPaths.has(url.pathname) ||
+              (filename !== "" && observedFiles.has(filename)) ||
               parameters.some(
                 ([key, value]) =>
                   observedTokens.has(key) || (value !== "" && observedTokens.has(value)),
               );
-            if (known) derived++;
-            else {
-              generic++;
-              genericPaths.set(url.pathname, (genericPaths.get(url.pathname) ?? 0) + 1);
-            }
+            if (url.pathname !== "/") {
+              if (known) {
+                flushRootProbes();
+                derived++;
+              } else if (/^\/[^/]+\/?$/.test(url.pathname)) rootProbes.push(url.pathname);
+              else {
+                flushRootProbes();
+                generic++;
+                genericPaths.set(url.pathname, (genericPaths.get(url.pathname) ?? 0) + 1);
+              }
+            } else flushRootProbes();
             const signature = `${url.pathname} ${parameters.map(([key]) => key).join(" ")}`;
             const family = /cache/i.test(signature)
               ? "cache"
@@ -271,10 +292,14 @@ export function analyzeTrace(
                       : "observation HTTP";
             techniqueFamilies.add(family);
           } catch {
+            flushRootProbes();
             /* URL invalide : aucune classification inventée. */
           }
-        } else if (commandOf(e.input))
-          techniqueFamilies.add(`shell:${firstWord(commandOf(e.input) ?? "")}`);
+        } else {
+          flushRootProbes();
+          if (commandOf(e.input))
+            techniqueFamilies.add(`shell:${firstWord(commandOf(e.input) ?? "")}`);
+        }
         calls++;
         callsSinceDecision++;
         requested.set(e.toolUseId, { seq: e.seq, tool: e.tool, input: e.input });
@@ -300,6 +325,8 @@ export function analyzeTrace(
         ))
           observedPaths.add(match[0].replace(/[.,;]+$/, ""));
         for (const match of e.output.matchAll(/[a-zA-Z0-9_~-]+/g)) observedTokens.add(match[0]);
+        for (const match of e.output.matchAll(/[a-zA-Z0-9_~-]+(?:\.[a-zA-Z0-9_~-]+)+/g))
+          observedFiles.add(match[0]);
         const call = requested.get(e.toolUseId);
         const loggedBytes = Buffer.byteLength(e.output);
         const signs: TruncationSign[] = [];
@@ -351,6 +378,7 @@ export function analyzeTrace(
         break;
     }
   }
+  flushRootProbes();
 
   // Volume.
   const gaps: { afterSeq: number; ms: number }[] = [];
