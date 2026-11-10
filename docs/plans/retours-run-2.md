@@ -1,4 +1,4 @@
-# Plan — Retours du run VINCI n°1 et finition de l'interface (avant V1)
+# Plan — Retours du run programme B n°1 et finition de l'interface (avant V1)
 
 Branche : `temp/0.3.74-attachments-vision`. Version visée : 0.3.78. Implémenteur : GPT. Revue : orchestrateur, lot par lot, avant push.
 
@@ -14,7 +14,7 @@ Les lots marqués **[revue sécurité]** touchent aux secrets, chemins, processu
 
 ## Contexte
 
-Le run VINCI n°1 a duré de 11:36 à 14:26 : 123 appels, 38 relances automatiques, aucun test authentifié. Il a révélé :
+Le run programme B n°1 a duré de 11:36 à 14:26 : 123 appels, 38 relances automatiques, aucun test authentifié. Il a révélé :
 
 1. **Relances à vide.** Quand la seule piste restante demandait une action humaine (comptes de test), la continuation automatique a relancé 20 fois de suite : environ 40 messages « En attente des identifiants », 20 relances consommées pour rien.
 2. **Comptes de test inutilisables.** L'utilisateur a collé `email:mot de passe` dans le chat. Après changement de modèle, l'agent a refusé de s'en servir (« pas de navigateur »), alors qu'il avait écrit lui-même `scripts/auth_login_probe.sh` une heure plus tôt.
@@ -134,7 +134,7 @@ Fichiers : `extension.ts` (création de projet vers 3682-3690, `case "link"` ver
 
 - **Création de projet** : plus de choix de dossier. Le dossier est créé automatiquement sous `~/.exegol/workspaces/<slug-du-projet>` (le chemin racine reste réglable dans Système pour les cas avancés).
 - **« Nouveau conteneur »** monte ce dossier (`--workspace`, déjà fait à `extension.ts:1549`), puis lie automatiquement le conteneur au projet.
-- **Liaison d'un conteneur existant** dont le montage ne contient pas le projet : remplacer « chemin hors de l'espace de travail » par une fenêtre claire. Texte : « Le conteneur htb1 partage le dossier C:\…\htb1, qui ne contient pas le projet vinci-bb-1 (C:\…\vinci-bb-1). L'agent et le conteneur ne verraient pas les mêmes fichiers. » Boutons : « Créer un conteneur pour ce projet » (recommandé) et « Choisir un autre conteneur ». Nouveau code `project.workspaceNotMounted { container, mounted, project }`.
+- **Liaison d'un conteneur existant** dont le montage ne contient pas le projet : remplacer « chemin hors de l'espace de travail » par une fenêtre claire. Texte : « Le conteneur htb1 partage le dossier C:\…\htb1, qui ne contient pas le projet programme-b-bb-1 (C:\…\programme-b-bb-1). L'agent et le conteneur ne verraient pas les mêmes fichiers. » Boutons : « Créer un conteneur pour ce projet » (recommandé) et « Choisir un autre conteneur ». Nouveau code `project.workspaceNotMounted { container, mounted, project }`.
 - **Suppression du conteneur** : compléter le message existant par « Le projet reste sur votre PC dans <chemin> ; seuls les fichiers créés hors de /workspace dans le conteneur sont perdus. »
 - Les projets existants hors de ce chemin restent utilisables, rien n'est déplacé automatiquement.
 - Critères : tests de la création sans dialogue ; nouveau code et message ; montage vérifié par le marqueur existant (inchangé).
@@ -370,7 +370,7 @@ Critères (tests) :
 
 ### Lot 24 — Chaque outil à sa place : la cible passe par le conteneur
 
-Constat (runs Zecible, VINCI et red team du 2026-11-09) : sans conteneur, l'agent teste la cible avec `read_url`, un outil de lecture de documentation qui supprime JS, commentaires et champs cachés et refuse le JS. Il passe aussi par des services tiers (`r.jina.ai`, proxys CORS publics) pour contourner. Il en tire des conclusions fausses, et le trafic vers la cible passe par des tiers.
+Constat (runs programme A, programme B et red team du 2026-11-09) : sans conteneur, l'agent teste la cible avec `read_url`, un outil de lecture de documentation qui supprime JS, commentaires et champs cachés et refuse le JS. Il passe aussi par des services tiers (`r.jina.ai`, proxys CORS publics) pour contourner. Il en tire des conclusions fausses, et le trafic vers la cible passe par des tiers.
 
 Décision :
 - **`read_url` = documentation et recherche, sans brider l'agent.** Si l'hôte demandé est une cible du projet (hôte d'une fiche validée, ou déjà visé par `http_request` ou `exec` dans ce projet), `read_url` répond normalement et ajoute une note : « read_url retire le JavaScript, les commentaires et les champs cachés : pour tester la cible, utilisez le conteneur (exec) ou http_request ». Aucun refus.
@@ -506,7 +506,7 @@ Ce plan est la dernière vague de fonctionnalités avant le gel. Ensuite on appl
   - Stop (lot 11) ;
   - Remplir par IA (lot 17) ;
   - comptes de test (lot 2).
-- Re-mesure : run VINCI n°2, avec deux comptes de test saisis dans la page Comptes de test. Attendus :
+- Re-mesure : run programme B n°2, avec deux comptes de test saisis dans la page Comptes de test. Attendus :
   - aucune relance à vide ;
   - tests authentifiés effectués ;
   - aucun secret dans le ZIP d'audit.

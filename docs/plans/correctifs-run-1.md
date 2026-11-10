@@ -1,11 +1,11 @@
-# Plan — Correctifs issus du run Zecible n°1 (pour implémenteur GPT)
+# Plan — Correctifs issus du run programme A n°1 (pour implémenteur GPT)
 
 Branche : `temp/0.3.74-attachments-vision`. Release visée : 0.3.77 (procédure de `docs/livraison-0.3.76.md`).
 Règles du dépôt : voir `CLAUDE.md` (texte en français, `pnpm check` vert avant chaque commit, aucun identifiant de modèle, gate inchangée, tout nouveau code `Reason` → `REASON_CODES` + catalogues fr/en, tout nouveau `kind` → validateur + `KIND_CLASS` + switch de `cli/format.ts`).
 
 ## Contexte
 
-Premier run réel de bug bounty (DeepSeek via OpenCode, RedWidow 0.3.76, programme YesWeHack Zecible). 159 appels en 29 min, aucune vulnérabilité. Constats tirés de la trace :
+Premier run réel de bug bounty (DeepSeek via OpenCode, RedWidow 0.3.76, programme YesWeHack programme A). 159 appels en 29 min, aucune vulnérabilité. Constats tirés de la trace :
 
 1. **Monitor aveugle** : l'agent n'a utilisé que des outils MCP (`mcp__web__http_request`, `read_url`, recherche). Le Monitor ne montre que `mcp__exegol__exec` et `mcp__kali__*` (filtre par nom, `packages/vscode/src/logic/chat.ts:438-450` et `packages/vscode/media/ui.js:12-13,82-110`). L'utilisateur n'a rien vu en direct.
 2. **Pas d'export du fil** : aucun export de la conversation (texte agent, outils). L'utilisateur doit copier-coller. L'export d'audit ne garde pas `turn.*` (`packages/core/src/audit.ts:33-53`) et sa forme enveloppée (`{v,id,projectId,ts,actor,kind:"engine",runId,data}`, sans `seq`) n'est pas lisible par `warband trace`.
@@ -87,7 +87,7 @@ Mesure (`packages/core/src/trace/analyze.ts` + `packages/cli/src/trace-format.ts
 - `pnpm check` vert après chaque lot ; `git status` propre.
 - Bout en bout : `pnpm build`, puis `node packages/cli/dist/main.js --lang fr trace <export-audit>.zip` produit tours, ratio dérivé/générique et aucun avertissement par ligne.
 - Dans VS Code : une mission avec un `http_request` apparaît dans le Monitor ; « Exporter le fil » produit le Markdown.
-- Re-mesure : l'utilisateur relance la même mission Zecible (alias YesWeHack pour la surface authentifiée, Exegol attaché, rythme prudent), envoie le ZIP d'audit et le fil exporté ; comparaison à froid avec le run n°1 (appels avant la première recherche, ratio dérivé, bannissement évité).
+- Re-mesure : l'utilisateur relance la même mission programme A (alias YesWeHack pour la surface authentifiée, Exegol attaché, rythme prudent), envoie le ZIP d'audit et le fil exporté ; comparaison à froid avec le run n°1 (appels avant la première recherche, ratio dérivé, bannissement évité).
 
 ## Livraison
-Après approbation : copier ce plan dans `docs/plans/correctifs-run-zecible-1.md`, commit et push sur la branche ; l'implémenteur GPT part de ce fichier.
+Après approbation : copier ce plan dans `docs/plans/correctifs-run-1.md`, commit et push sur la branche ; l'implémenteur GPT part de ce fichier.
