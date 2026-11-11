@@ -1,5 +1,14 @@
 // Libellés de la webview, indexés par leur texte français.
 export const studioEn: Record<string, string> = {
+  "Politique du dépôt": "Repository policy",
+  "Aucune politique du dépôt.": "No repository policy.",
+  "Politique du dépôt illisible ou invalide.": "Repository policy unreadable or invalid.",
+  "Non approuvée : ignorée tant que tu ne l’as pas relue.":
+    "Not approved: ignored until you have reviewed it.",
+  "Approuvée : appliquée aux prochains runs.": "Approved: applied to the next runs.",
+  "Modifiée depuis l’approbation : ignorée tant qu’elle n’est pas réapprouvée.":
+    "Changed since approval: ignored until approved again.",
+  "Relire et approuver…": "Review and approve…",
   "Utiliser RedWidow gratuitement": "Use RedWidow for free",
   "OpenCode Zen (modèles gratuits)": "OpenCode Zen (free models)",
   "GitHub Copilot (gratuit avec le GitHub Student Developer Pack)":

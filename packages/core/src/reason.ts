@@ -90,6 +90,7 @@ export const REASON_CODES = [
   "policy.invalid.commandWildcard",
   "policy.repo.untrusted",
   "policy.repo.modified",
+  "policy.repo.changedBeforeTrust",
   // Docker et processus
   "docker.failed",
   "docker.pathNotShared",

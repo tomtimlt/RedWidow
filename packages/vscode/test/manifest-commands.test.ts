@@ -53,6 +53,7 @@ describe("commandes du manifeste", () => {
         "warband.openSessions",
         "warband.openStudio",
         "warband.setToken",
+        "warband.trustRepoPolicy",
       ].sort(),
     );
     // Masquées car ouvertes plus directement : Réglages (pages Projet/Global), cockpit, barre de titre.

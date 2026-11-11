@@ -376,6 +376,8 @@ export const reasons: Catalog = {
   "policy.invalid.ruleField": (p) => `invalid policy: rules[${text(p.index)}].${text(p.field)}`,
   "policy.repo.untrusted": (p) =>
     `repository policy ignored (not trusted): ${text(p.path)} [sha256 ${text(p.digest)}]. After review: warband policy trust`,
+  "policy.repo.changedBeforeTrust": (p) =>
+    `repository policy changed before approval, nothing was trusted: ${text(p.path)}`,
   "policy.repo.modified": (p) =>
     `repository policy ignored (changed since approval): ${text(p.path)} [sha256 ${text(p.digest)}]. After review: warband policy trust`,
   "docker.failed": (p) =>

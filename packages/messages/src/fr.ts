@@ -220,6 +220,8 @@ export const reasons: Catalog = {
     `politique invalide : rules[${text(p.index)}].command, « * » doit être un jeton entier (pas de joker partiel)`,
   "policy.repo.untrusted": (p) =>
     `politique du dépôt ignorée (non approuvée) : ${text(p.path)} [sha256 ${text(p.digest)}]. ${REPO_HINT}`,
+  "policy.repo.changedBeforeTrust": (p) =>
+    `politique du dépôt modifiée avant son approbation, rien n'a été approuvé : ${text(p.path)}`,
   "policy.repo.modified": (p) =>
     `politique du dépôt ignorée (modifiée depuis son approbation) : ${text(p.path)} [sha256 ${text(p.digest)}]. ${REPO_HINT}`,
 

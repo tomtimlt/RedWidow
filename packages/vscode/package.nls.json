@@ -7,6 +7,7 @@
   "command.missionContext": "RedWidow: View this mission’s context",
   "command.exportKillchain": "RedWidow: Export the Kill chain as an SVG image",
   "command.exportReport": "RedWidow: Export a Markdown draft report",
+  "command.trustRepoPolicy": "RedWidow: Approve the repository policy",
   "command.openWorkspace": "RedWidow: Open or restore the RedWidow workspace",
   "command.prepareMission": "RedWidow: Prepare and check the mission folder",
   "command.chooseProfile": "RedWidow: Choose an agent skill / profile",

@@ -115,7 +115,9 @@ export type StudioMessage =
   /** Ouvre le dossier de cours : aucun champ, le chemin vient de l'hôte (`coursRoot()`). */
   | { type: "openCours" }
   /** Ouvre la Kill chain en vue plein écran (hôte seul). */
-  | { type: "openKillchain" };
+  | { type: "openKillchain" }
+  /** Aucun champ : l'hôte déduit le chemin du dossier de la fenêtre et exige une modale humaine. */
+  | { type: "trustRepoPolicy" };
 
 /** Valide un message de la webview réglages. */
 export function parseStudioMessage(raw: unknown): StudioMessage | null {
@@ -268,6 +270,7 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
   if (m.type === "unlink" && keys.length === 1) return { type: "unlink" };
   if (m.type === "openCours" && keys.length === 1) return { type: "openCours" };
   if (m.type === "openKillchain" && keys.length === 1) return { type: "openKillchain" };
+  if (m.type === "trustRepoPolicy" && keys.length === 1) return { type: "trustRepoPolicy" };
   if (
     (m.type === "activateProject" || m.type === "renameProject" || m.type === "deleteProject") &&
     keys.every((key) => key === "type" || key === "projectId") &&

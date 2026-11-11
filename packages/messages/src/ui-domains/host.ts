@@ -96,6 +96,21 @@ export const hostEn: Record<string, string> = {
     "Linked container: {0} (connected). Click to open a terminal ({1})",
   "Conteneur lié : {0} (arrêté)": "Linked container: {0} (stopped)",
   "Actualisation du graphe impossible : {0}": "Could not refresh the graph: {0}",
+  Approuver: "Approve",
+  "Aucun dossier ouvert : pas de politique du dépôt.": "No folder open: no repository policy.",
+  "Approuvez d'abord ce dossier (Workspace Trust) pour approuver sa politique.":
+    "Trust this folder first (Workspace Trust) to approve its policy.",
+  "Aucune politique du dépôt (.warband/policy.json).":
+    "No repository policy (.warband/policy.json).",
+  "Politique du dépôt invalide, rien n'a été approuvé : {0}":
+    "Invalid repository policy, nothing was approved: {0}",
+  "La politique a changé avant l'approbation : rien n'a été approuvé. Relisez-la.":
+    "The policy changed before approval: nothing was approved. Review it again.",
+  "Politique du dépôt approuvée [{0}] : elle s'applique aux prochains runs.":
+    "Repository policy approved [{0}]: it applies to the next runs.",
+  "Approbation impossible : {0}": "Approval failed: {0}",
+  "Approuver la politique du dépôt {0} ? Empreinte : {1}. Elle s'appliquera aux prochains runs de ce dossier tant que son contenu ne change pas.":
+    "Approve the repository policy {0}? Fingerprint: {1}. It will apply to the next runs of this folder as long as its content does not change.",
   "Projets indisponibles : {0}": "Projects unavailable: {0}",
   "Résumé indisponible : {0}": "Summary unavailable: {0}",
   "{0} · Rapport · Brouillon": "{0} · Report · Draft",

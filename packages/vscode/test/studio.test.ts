@@ -124,6 +124,12 @@ describe("réglages", () => {
     expect(parseStudioMessage({ type: "openCockpit", command: "docker stop" })).toBeNull();
   });
 
+  it("trustRepoPolicy : sans aucun champ (le chemin vient de l'hôte)", () => {
+    expect(parseStudioMessage({ type: "trustRepoPolicy" })).toEqual({ type: "trustRepoPolicy" });
+    expect(parseStudioMessage({ type: "trustRepoPolicy", path: "/etc/x" })).toBeNull();
+    expect(parseStudioMessage({ type: "trustRepoPolicy", digest: "abc" })).toBeNull();
+  });
+
   it("openCours : sans aucun champ (le chemin vient de l'hôte)", () => {
     expect(parseStudioMessage({ type: "openCours" })).toEqual({ type: "openCours" });
     expect(parseStudioMessage({ type: "openCours", path: "/etc" })).toBeNull();

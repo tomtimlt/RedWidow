@@ -56,6 +56,10 @@
         "title": "%command.exportReport%"
       },
       {
+        "command": "warband.trustRepoPolicy",
+        "title": "%command.trustRepoPolicy%"
+      },
+      {
         "command": "warband.openWorkspace",
         "title": "%command.openWorkspace%"
       },

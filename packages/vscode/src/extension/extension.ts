@@ -159,6 +159,7 @@ import {
 } from "../logic/project-workspace.js";
 import { openAiSubscriptionReady } from "../logic/provider-auth.js";
 import { probeProviderConnection } from "../logic/provider-connection.js";
+import { repoPolicyState, trustRepoPolicy } from "../logic/repo-policy.js";
 import { type ChatSession, createChatSession, type TokenChoice } from "../logic/session.js";
 import {
   buildSessionGrid,
@@ -3233,6 +3234,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       projectSummary = summaryResult.value;
     }
     const settings = readSettings();
+    // État de la politique du dépôt (lecture seule), pour la page Projet : dossier de la fenêtre.
+    const windowFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    const repoPolicy =
+      studioPage === "project" && windowFolder !== undefined
+        ? await repoPolicyState(windowFolder, config)
+        : undefined;
     // Sources de cours (lecture seule) : seulement pour l'Atlas, racine fixée par l'hôte.
     const sources = studioPage === "atlas" ? await readSources(coursRoot()) : [];
     let audit: AuditView | undefined;
@@ -3274,6 +3281,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           page: studioPage,
           findings,
           sources,
+          ...(repoPolicy !== undefined && { repoPolicy }),
           projectSummary,
           projectChoices,
           audit,
@@ -4349,9 +4357,72 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
 
       if (message.type === "openCours") await openCoursFolder();
+      if (message.type === "trustRepoPolicy") {
+        await approveRepoPolicy();
+        return;
+      }
       await pushStudio({}, message.type === "open" || message.type === "refresh");
     });
     void saveWindows();
+  };
+
+  /**
+   * Geste humain direct : jamais déclenché par l'agent ni automatisé, le Bypass n'y change rien.
+   * Le chemin vient du dossier de la fenêtre ; la webview n'envoie aucun paramètre.
+   */
+  const approveRepoPolicy = async () => {
+    const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (cwd === undefined) {
+      void vscode.window.showWarningMessage(t("Aucun dossier ouvert : pas de politique du dépôt."));
+      return;
+    }
+    try {
+      const result = await trustRepoPolicy(cwd, {
+        configDir: defaultConfigDir(),
+        isWorkspaceTrusted: () => vscode.workspace.isTrusted,
+        show: async (path) => {
+          await vscode.window.showTextDocument(vscode.Uri.file(path), { preview: true });
+        },
+        confirm: async (text) => {
+          const action = t("Approuver");
+          return (await vscode.window.showWarningMessage(text, { modal: true }, action)) === action;
+        },
+      });
+      switch (result.status) {
+        case "untrustedWorkspace":
+          void vscode.window.showWarningMessage(
+            t("Approuvez d'abord ce dossier (Workspace Trust) pour approuver sa politique."),
+          );
+          break;
+        case "absent":
+          void vscode.window.showWarningMessage(
+            t("Aucune politique du dépôt (.warband/policy.json)."),
+          );
+          break;
+        case "invalid":
+          void vscode.window.showErrorMessage(
+            t`Politique du dépôt invalide, rien n'a été approuvé : ${result.message}`,
+          );
+          break;
+        case "changed":
+          void vscode.window.showErrorMessage(
+            t("La politique a changé avant l'approbation : rien n'a été approuvé. Relisez-la."),
+          );
+          break;
+        case "trusted":
+          void vscode.window.showInformationMessage(
+            t`Politique du dépôt approuvée [${result.digest}] : elle s'applique aux prochains runs.`,
+          );
+          break;
+        case "cancelled":
+          break;
+      }
+    } catch (error) {
+      void vscode.window.showErrorMessage(
+        t`Approbation impossible : ${formatError(error, getUiLocale())}`,
+      );
+    }
+    await pushStudio({});
   };
 
   const pickContainerTerminal = async () => {
@@ -4790,6 +4861,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand("warband.openTerminal", () => void pickContainerTerminal()),
     vscode.commands.registerCommand("warband.openMonitor", () => openMonitor()),
     vscode.commands.registerCommand("warband.openKillchain", () => openKillchain()),
+    vscode.commands.registerCommand("warband.trustRepoPolicy", () => void approveRepoPolicy()),
     vscode.commands.registerCommand("warband.configureBurp", () => openStudio("integrations")),
     vscode.commands.registerCommand("warband.testBurp", async () => {
       try {

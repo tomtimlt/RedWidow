@@ -2339,6 +2339,31 @@ function start() {
         button.addEventListener("click", () => vscode.postMessage({ type }));
         sec.append(button);
       }
+      const repoPolicy = view.repoPolicy;
+      if (repoPolicy && typeof repoPolicy.state === "string") {
+        const policySec = el("div", "studio-project-active");
+        policySec.append(el("p", "studio-kicker", t("Politique du dépôt")));
+        const digest = typeof repoPolicy.digest === "string" ? repoPolicy.digest : "";
+        const labels = {
+          absent: t("Aucune politique du dépôt."),
+          invalid: t("Politique du dépôt illisible ou invalide."),
+          untrusted: t("Non approuvée : ignorée tant que tu ne l’as pas relue."),
+          trusted: t("Approuvée : appliquée aux prochains runs."),
+          modified: t(
+            "Modifiée depuis l’approbation : ignorée tant qu’elle n’est pas réapprouvée.",
+          ),
+        };
+        policySec.append(el("p", "studio-help", labels[repoPolicy.state] ?? labels.invalid));
+        if (digest) policySec.append(el("p", "studio-project-path", `sha256 ${digest}`));
+        if (repoPolicy.state === "untrusted" || repoPolicy.state === "modified") {
+          // Aucun paramètre : l'hôte déduit le chemin et demande une confirmation humaine.
+          const approve = el("button", "ghost", t("Relire et approuver…"));
+          approve.type = "button";
+          approve.addEventListener("click", () => vscode.postMessage({ type: "trustRepoPolicy" }));
+          policySec.append(approve);
+        }
+        sec.append(policySec);
+      }
       const choices = view.projectChoices;
       if (choices && Array.isArray(choices.projects)) {
         const projectBusy = view.projectBusy === true;

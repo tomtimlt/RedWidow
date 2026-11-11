@@ -104,3 +104,22 @@ describe("defaultConfigDir", () => {
     );
   });
 });
+
+describe("trustPolicy avec expectedDigest", () => {
+  it("refuse si le fichier a changé depuis l'empreinte relue, magasin inchangé", async () => {
+    await writeFile(repoPolicy, denyAll);
+    const seen = policyDigest(denyAll);
+    await writeFile(repoPolicy, allowAll);
+    await expect(
+      trustPolicy(repoPolicy, configDir, { expectedDigest: seen }),
+    ).rejects.toMatchObject({ code: "policy.repo.changedBeforeTrust" });
+    const loaded = await loadPolicy({ cwd, configDir });
+    expect(loaded.warning).toMatchObject({ code: "policy.repo.untrusted" });
+  });
+
+  it("écrit l'approbation quand l'empreinte correspond", async () => {
+    await writeFile(repoPolicy, denyAll);
+    await trustPolicy(repoPolicy, configDir, { expectedDigest: policyDigest(denyAll) });
+    expect((await loadPolicy({ cwd, configDir })).origin).toBe("repository");
+  });
+});

@@ -3,7 +3,7 @@ import { realpathSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import { type Reason, reason } from "../reason.js";
+import { CodedError, type Reason, reason } from "../reason.js";
 import { DEFAULT_POLICY, type Policy, parsePolicy } from "./policy.js";
 
 /** Politique propre au dépôt de travail, lue seulement si son empreinte a été approuvée. */
@@ -75,11 +75,22 @@ export interface TrustedPolicy {
  * Enregistre l'empreinte actuelle d'un fichier de politique : il sera appliqué
  * tant que son contenu ne change pas. À appeler après que l'utilisateur l'a lu.
  */
-export async function trustPolicy(path: string, configDir: string): Promise<TrustedPolicy> {
+export interface TrustPolicyOptions {
+  /** Empreinte vue par l'humain avant d'approuver : refus si le fichier a changé depuis. */
+  expectedDigest?: string | undefined;
+}
+
+export async function trustPolicy(
+  path: string,
+  configDir: string,
+  options: TrustPolicyOptions = {},
+): Promise<TrustedPolicy> {
   const text = await readFile(path, "utf8");
   const policy = parsePolicy(JSON.parse(text));
   const key = await realPathOf(path);
   const digest = policyDigest(text);
+  if (options.expectedDigest !== undefined && options.expectedDigest !== digest)
+    throw new CodedError("policy.repo.changedBeforeTrust", { path: key });
   const store = await readTrustStore(configDir);
   store[key] = digest;
   await mkdir(configDir, { recursive: true });

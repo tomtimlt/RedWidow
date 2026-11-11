@@ -534,6 +534,20 @@
     Téléchargement: "Downloading",
     Extraction: "Extracting",
     Annulé: "Cancelled",
+    Image: "Image",
+    "Téléchargement / Construction": "Download / Build",
+    "Création dans le terminal": "Creation in the terminal",
+    Démarrage: "Startup",
+    "Vérification MCP": "MCP check",
+    Liaison: "Link",
+    "Étapes de création": "Creation steps",
+    "Création…": "Creating…",
+    Réessayer: "Retry",
+    "Voir le conteneur": "View container",
+    "Conteneur créé": "Container created",
+    "Aucun conteneur pour l’instant": "No containers yet",
+    "Créez un environnement isolé pour lancer vos outils et garder le projet à portée.":
+      "Create an isolated environment to run your tools and keep the project close at hand.",
   };
 
   // packages/messages/src/ui-domains/engagement.ts
@@ -718,6 +732,21 @@
       "Linked container: {0} (connected). Click to open a terminal ({1})",
     "Conteneur lié : {0} (arrêté)": "Linked container: {0} (stopped)",
     "Actualisation du graphe impossible : {0}": "Could not refresh the graph: {0}",
+    Approuver: "Approve",
+    "Aucun dossier ouvert : pas de politique du dépôt.": "No folder open: no repository policy.",
+    "Approuvez d'abord ce dossier (Workspace Trust) pour approuver sa politique.":
+      "Trust this folder first (Workspace Trust) to approve its policy.",
+    "Aucune politique du dépôt (.warband/policy.json).":
+      "No repository policy (.warband/policy.json).",
+    "Politique du dépôt invalide, rien n'a été approuvé : {0}":
+      "Invalid repository policy, nothing was approved: {0}",
+    "La politique a changé avant l'approbation : rien n'a été approuvé. Relisez-la.":
+      "The policy changed before approval: nothing was approved. Review it again.",
+    "Politique du dépôt approuvée [{0}] : elle s'applique aux prochains runs.":
+      "Repository policy approved [{0}]: it applies to the next runs.",
+    "Approbation impossible : {0}": "Approval failed: {0}",
+    "Approuver la politique du dépôt {0} ? Empreinte : {1}. Elle s'appliquera aux prochains runs de ce dossier tant que son contenu ne change pas.":
+      "Approve the repository policy {0}? Fingerprint: {1}. It will apply to the next runs of this folder as long as its content does not change.",
     "Projets indisponibles : {0}": "Projects unavailable: {0}",
     "Résumé indisponible : {0}": "Summary unavailable: {0}",
     "{0} · Rapport · Brouillon": "{0} · Report · Draft",
@@ -1402,6 +1431,15 @@
 
   // packages/messages/src/ui-domains/studio.ts
   var studioEn = {
+    "Politique du dépôt": "Repository policy",
+    "Aucune politique du dépôt.": "No repository policy.",
+    "Politique du dépôt illisible ou invalide.": "Repository policy unreadable or invalid.",
+    "Non approuvée : ignorée tant que tu ne l’as pas relue.":
+      "Not approved: ignored until you have reviewed it.",
+    "Approuvée : appliquée aux prochains runs.": "Approved: applied to the next runs.",
+    "Modifiée depuis l’approbation : ignorée tant qu’elle n’est pas réapprouvée.":
+      "Changed since approval: ignored until approved again.",
+    "Relire et approuver…": "Review and approve…",
     "Utiliser RedWidow gratuitement": "Use RedWidow for free",
     "OpenCode Zen (modèles gratuits)": "OpenCode Zen (free models)",
     "GitHub Copilot (gratuit avec le GitHub Student Developer Pack)":
