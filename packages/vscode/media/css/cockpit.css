@@ -95,23 +95,6 @@ body.cockpit .cockpit-row.is-running > .dot {
   border: 1px solid var(--jn-line);
   border-radius: var(--jn-r-md);
 }
-.cockpit-context-details > summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  color: var(--jn-muted);
-  list-style: none;
-}
-.cockpit-context-details > summary::-webkit-details-marker {
-  display: none;
-}
-.cockpit-context-details[open] .ico {
-  transform: rotate(90deg);
-}
-.cockpit-context-details .cockpit-meta {
-  margin-top: 12px;
-}
 .cockpit-create-bar {
   display: flex;
   justify-content: space-between;
@@ -269,10 +252,6 @@ body.cockpit .cockpit-row.is-running > .dot {
 }
 .cockpit-create-close:hover:not(:disabled) .ico {
   color: var(--jn-sig);
-}
-#cockpit-create-toggle[aria-expanded="true"] {
-  border-color: var(--jn-sig-edge);
-  background: var(--jn-sig-tint);
 }
 .cockpit-create {
   animation: jn-pop-in var(--jn-d2) var(--jn-ease-out) 1;

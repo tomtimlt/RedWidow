@@ -555,6 +555,28 @@
       main.append(el("p", "cockpit-error", t(view.error)));
     }
 
+    // Une seule entrée de création : le bouton est masqué quand le panneau est ouvert.
+    const appendCreate = () => {
+      if (form.open) {
+        main.append(renderCreate(view));
+        return;
+      }
+      const createBar = el("div", "cockpit-create-bar");
+      const createToggle = button("secondary", t("Nouveau conteneur"), "plus", () => {
+        form.open = true;
+        rerender();
+        document.getElementById("cockpit-name")?.focus();
+      });
+      createToggle.id = "cockpit-create-toggle";
+      createToggle.setAttribute("aria-expanded", "false");
+      createToggle.setAttribute("aria-controls", "cockpit-create");
+      createBar.append(createToggle);
+      main.append(createBar);
+    };
+    // Sans conteneur lié, la création passe en tête ; sinon elle suit la liste.
+    const createFirst = !view.linkedBanner;
+    if (createFirst) appendCreate();
+
     // Contexte du projet et commandes du conteneur affiché.
     const linkedSec = el("section", "cockpit-linked");
     linkedSec.setAttribute("aria-label", t("Conteneur lié"));
@@ -600,30 +622,18 @@
           vscode.postMessage({ type: "openWorkspace" }),
         ),
       );
-      const details = el("details", "cockpit-context-details");
-      const summary = el("summary", "", t("Dossier et image"));
-      details.append(summary, meta);
-      card.append(head, actions, details);
+      card.append(head, meta, actions);
       linkedSec.append(card);
     }
     main.append(linkedSec);
-    const createBar = el("div", "cockpit-create-bar");
-    const createToggle = button("secondary", t("Nouveau conteneur"), "plus", () => {
-      form.open = !form.open;
-      rerender();
-      document.getElementById(form.open ? "cockpit-name" : "cockpit-create-toggle")?.focus();
-    });
-    createToggle.id = "cockpit-create-toggle";
-    createToggle.setAttribute("aria-expanded", String(form.open));
-    createToggle.setAttribute("aria-controls", "cockpit-create");
-    createBar.append(createToggle);
-    main.append(createBar);
-    if (form.open) main.append(renderCreate(view));
-
-    if (view.error) return;
+    if (view.error) {
+      if (!createFirst) appendCreate();
+      return;
+    }
 
     if (view.empty === "list") {
       main.append(el("p", "cockpit-notice", t("Aucun conteneur.")));
+      if (!createFirst) appendCreate();
       return;
     }
 
@@ -733,6 +743,7 @@
     }
     listSec.append(ul);
     main.append(listSec);
+    if (!createFirst) appendCreate();
   }
 
   refreshBtn?.addEventListener("click", () => {

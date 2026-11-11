@@ -114,8 +114,11 @@ it("création repliée, brouillon préservé et détails indépendants des actio
   const name = find((n) => n.id === "cockpit-name");
   name.value = "brouillon";
   name.listeners.get("input")?.();
-  find((n) => n.id === "cockpit-create-toggle").click();
+  // Le bouton d'entrée est masqué tant que le panneau est ouvert.
+  expect(main.find((n) => n.id === "cockpit-create-toggle")).toBeUndefined();
+  find((n) => n.className.includes("cockpit-create-close")).click();
   expect(main.find((n) => n.id === "cockpit-name")).toBeUndefined();
+  expect(main.find((n) => n.id === "cockpit-create-toggle")).toBeDefined();
   find((n) => n.id === "cockpit-create-toggle").click();
   expect(find((n) => n.id === "cockpit-name").value).toBe("brouillon");
   const toggle = find((n) => n.className.includes("cockpit-row-toggle"));
@@ -387,5 +390,33 @@ it("la recommandation de créer un conteneur ouvre directement le formulaire", (
   ui.send({ ...ui.view, projectWorkspace: "/tmp/mission" });
   ui.send({ type: "focusCreate" });
   expect(ui.field("cockpit-name")).toBeDefined();
-  expect(ui.field("cockpit-create-toggle").attributes.get("aria-expanded")).toBe("true");
+  expect(ui.main.find((n) => n.id === "cockpit-create-toggle")).toBeUndefined();
+});
+
+const sectionOrder = (main: CockpitNode) =>
+  main.children
+    .map((n) =>
+      n.id === "cockpit-create" || n.className === "cockpit-create-bar" ? "create" : n.className,
+    )
+    .filter((c) => ["cockpit-linked", "cockpit-list", "create"].includes(c));
+
+it("la fermeture du panneau réaffiche le bouton et lui rend le focus", () => {
+  const ui = cockpit();
+  ui.field("cockpit-create-toggle").click();
+  expect(ui.main.find((n) => n.id === "cockpit-create-toggle")).toBeUndefined();
+  ui.button("Replier le formulaire").click();
+  expect(ui.active()).toBe(ui.field("cockpit-create-toggle"));
+});
+
+it("la carte liée affiche image et dossier sans repli, et l'ordre suit le lien", () => {
+  const ui = cockpit();
+  expect(sectionOrder(ui.main)).toEqual(["create", "cockpit-linked", "cockpit-list"]);
+  ui.send({
+    ...ui.view,
+    linkedBanner: { name: "lab", short: "lab", state: "running", image: "kali", workspace: "/w" },
+  });
+  expect(ui.main.find((n) => n.tag === "details")).toBeUndefined();
+  expect(ui.main.find((n) => n.textContent === "Dossier et image")).toBeUndefined();
+  expect(ui.main.find((n) => n.tag === "dl")).toBeDefined();
+  expect(sectionOrder(ui.main)).toEqual(["cockpit-linked", "cockpit-list", "create"]);
 });

@@ -85,7 +85,6 @@ export const cockpitEn: Record<string, string> = {
   "Projet invalide": "Invalid project",
   "Aucun conteneur lié en cours": "No running linked container",
   "Ouvrir le dossier": "Open folder",
-  "Dossier et image": "Folder and image",
   "Nouveau conteneur": "New container",
   "Aucun conteneur.": "No containers.",
   Principal: "Primary",
