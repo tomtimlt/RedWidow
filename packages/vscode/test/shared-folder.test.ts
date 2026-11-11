@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, parse } from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import {
   projectInSharedFolder,
@@ -44,6 +44,8 @@ it("refuse un dossier qui expose un chemin sensible (dossier personnel, racine, 
   await expect(validateSharedFolder(home, { home })).rejects.toThrow(/sensibles/);
   await expect(validateSharedFolder(join(home, ".ssh"), { home })).rejects.toThrow(/sensibles/);
   await expect(validateSharedFolder("/", { home })).rejects.toThrow(/sensibles/);
+  // Racine du disque du dossier de test (« D:\\ » sous Windows, « / » ailleurs).
+  await expect(validateSharedFolder(parse(base).root, { home })).rejects.toThrow(/sensibles/);
   if (process.platform !== "win32")
     await expect(validateSharedFolder("/etc", { home })).rejects.toThrow(/sensibles/);
   // Le vrai dossier personnel de la machine de test est lui aussi refusé s'il contient des secrets.

@@ -1,5 +1,5 @@
 import { lstat, realpath } from "node:fs/promises";
-import { isAbsolute, relative, sep } from "node:path";
+import { isAbsolute, parse, relative, sep } from "node:path";
 import { mountExposesSensitive, type PathOptions } from "@warband/core";
 import { t } from "@warband/messages";
 
@@ -30,7 +30,8 @@ export async function validateSharedFolder(
   } catch {
     throw new Error(t("Le dossier partagé est introuvable."));
   }
-  if (mountExposesSensitive(real, { ...options, cwd: real }) !== null)
+  // Racine d'un disque (« / », « C:\\ ») : toujours refusée, même si aucun secret connu n'y est trouvé.
+  if (parse(real).root === real || mountExposesSensitive(real, { ...options, cwd: real }) !== null)
     throw new Error(t("Ce dossier ne peut pas être partagé : il expose des données sensibles."));
   return real;
 }
