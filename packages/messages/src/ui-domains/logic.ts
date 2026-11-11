@@ -134,6 +134,11 @@ export const logicEn: Record<string, string> = {
   "Arrêt demandé.": "Stop requested.",
   "Cette conversation appartient à un autre projet. Revenez à son projet ou créez une nouvelle conversation dans le projet actif.":
     "This conversation belongs to another project. Return to its project or create a new conversation in the active project.",
+  "Cette conversation appartient au projet « {0} ». Changer de projet pour la reprendre ?":
+    "This conversation belongs to the project “{0}”. Switch project to resume it?",
+  "Cette conversation (« {0} ») ne peut pas être reprise dans le projet actif. Créez une nouvelle conversation.":
+    "This conversation (“{0}”) cannot be resumed in the active project. Create a new conversation.",
+  "Changer de projet": "Switch project",
   "Session introuvable : le prochain message démarre une nouvelle session.":
     "Session not found: the next message will start a new session.",
   "Conversation reprise dans son projet : la politique actuelle s'applique.":

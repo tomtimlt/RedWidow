@@ -128,6 +128,7 @@ import { ModelProbeError } from "../logic/model-load-error.js";
 import { parseProviderOptions } from "../logic/models.js";
 import { parseOpencodeProviders } from "../logic/opencode-providers.js";
 import { PALETTES, type Palette, paletteOf } from "../logic/palette.js";
+import { consumePendingOpen, resumeFromOtherProject } from "../logic/pending-open.js";
 import {
   citationUrl,
   createProgramControls,
@@ -166,7 +167,7 @@ import { machineValue, parseConfiguredIntegrations, resolveSettings } from "../l
 import {
   createSharedHistoryIndex,
   createSharedJournalFiles,
-  SHARED_HISTORY_KEY,
+  GLOBAL_HISTORY_KEY,
   SHARED_HISTORY_MAX_ENTRIES,
 } from "../logic/shared-history.js";
 import { shortcutLabel } from "../logic/shortcuts.js";
@@ -329,17 +330,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     panel?: vscode.WebviewPanel;
   }
   const slots = new Map<string, Slot>();
+  // ADR 0049 : l'historique est commun à tous les projets (état et stockage globaux) ; l'ancien index de
+  // la fenêtre (`workspaceState`) et ses journaux (`storageUri/runs`) sont migrés puis lus en repli.
   const sharedHistory = createSharedHistoryIndex(
+    {
+      get: (key) => context.globalState.get(key),
+      set: (key, value) => context.globalState.update(key, value),
+      keys: () => context.globalState.keys(),
+    },
+    (error) => out.appendLine(formatError(error, getUiLocale())),
     {
       get: (key) => context.workspaceState.get(key),
       set: (key, value) => context.workspaceState.update(key, value),
       keys: () => context.workspaceState.keys(),
     },
-    (error) => out.appendLine(formatError(error, getUiLocale())),
   );
   const sharedJournalFiles = createSharedJournalFiles(
-    join((context.storageUri ?? context.globalStorageUri).fsPath, "runs"),
+    join(context.globalStorageUri.fsPath, "runs"),
     sharedHistory.legacyChats,
+    context.storageUri ? join(context.storageUri.fsPath, "runs") : undefined,
   );
   const currentConversations = () =>
     [...slots.values()].flatMap(
@@ -714,7 +723,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (!CHAT_ID.test(id)) throw new Error(t("Identifiant de chat refusé."));
     if (seats(id !== SIDEBAR_CHAT) >= CHAT_CAP) throw new Error(t("Quatre chats au maximum."));
     if (!folder) throw new Error(t`Ouvrez un dossier avant de lancer ${PRODUCT_NAME}.`);
-    const historyKey = SHARED_HISTORY_KEY;
+    const historyKey = GLOBAL_HISTORY_KEY;
     // Préférences et mode apprentissage propres à chaque chat.
     const learningKey = `warband.learning.${id}`;
     const session = createChatSession({
@@ -807,7 +816,33 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const slot = slots.get(id) ?? {};
     slot.session = session;
     slots.set(id, slot);
+    if (id === SIDEBAR_CHAT) void openPendingConversation(session);
     return session;
+  };
+
+  /**
+   * Après un changement de projet demandé depuis l'historique (ADR 0049) : rouvre la conversation mémorisée en
+   * lecture seule si son projet est bien celui de cette fenêtre. Jamais de reprise automatique.
+   */
+  const openPendingConversation = async (session: ChatSession) => {
+    try {
+      if (
+        folder === undefined ||
+        !(await matchesActiveProjectWorkspace(defaultConfigDir(), folder.uri.fsPath))
+      )
+        return;
+      const file = await readProjects(defaultConfigDir());
+      await consumePendingOpen(
+        context.globalState,
+        (file && activeProject(file)?.id) ?? null,
+        async (conversationId) => {
+          await session.refreshHistoryProjects();
+          await session.openConversation(conversationId);
+        },
+      );
+    } catch (error) {
+      out.appendLine(formatError(error, getUiLocale()));
+    }
   };
 
   /** La CLI Exegol reste interactive pour sa licence, le VPN et le shell. */
@@ -1385,6 +1420,39 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 await vscode.commands.executeCommand("warband.chat.focus");
               else existing[1].panel?.reveal();
               return;
+            }
+          }
+          {
+            // ADR 0049 : une conversation d'un autre projet ne se reprend qu'après un changement de projet confirmé.
+            const conversation = s.view().history.find((row) => row.id === s.view().readonly?.id);
+            if (conversation) {
+              const file = await readProjects(defaultConfigDir());
+              const outcome = await resumeFromOtherProject({
+                conversation: {
+                  id: conversation.id,
+                  projectKey: conversation.projectKey ?? "none",
+                  projectLabel: conversation.projectLabel ?? t("Sans projet"),
+                },
+                activeProjectId: (file && activeProject(file)?.id) ?? null,
+                projectKnown: file?.projects.some((p) => p.id === conversation.projectKey) ?? false,
+                confirm: async (text, action) =>
+                  (await vscode.window.showWarningMessage(text, { modal: true }, action)) ===
+                  action,
+                inform: async (text) => {
+                  await vscode.window.showWarningMessage(text, { modal: true });
+                },
+                store: context.globalState,
+                switchProject: async (projectId, beforeOpen) => {
+                  const result = await changeProject(async () => {
+                    await activateSelectedProject(defaultConfigDir(), projectId);
+                    return undefined;
+                  }, beforeOpen);
+                  if (result.projectError !== undefined)
+                    void vscode.window.showErrorMessage(result.projectError);
+                  return result.projectSelected && result.projectError === undefined;
+                },
+              });
+              if (outcome === "cancelled" || outcome === "switched" || outcome === "failed") return;
             }
           }
           return s.resumeConversation();
@@ -2956,6 +3024,53 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   let studioPage: StudioPage = "project";
   let projectChanging = false;
+  const chatsBusy = () => [...slots.values()].some((slot) => slot.session?.view().busy);
+  /**
+   * Chemin unique de changement de projet (Studio et reprise d'historique, ADR 0049) : refus si des tours
+   * tournent ou si un changement est en cours, Bypass coupé, historique rafraîchi, dossier du projet ouvert.
+   * `select` active (ou crée) le projet et renvoie l'id d'un projet créé ; `beforeOpen` s'exécute juste avant
+   * l'ouverture du dossier (la fenêtre peut être remplacée).
+   */
+  const changeProject = async (
+    select: () => Promise<string | undefined>,
+    beforeOpen?: () => Promise<void>,
+  ): Promise<{ projectSelected: boolean; projectError?: string }> => {
+    if (projectChanging || chatsBusy()) {
+      const projectError = t("Arrêtez les tours en cours avant de changer de projet.");
+      await pushStudio({ projectError });
+      return { projectSelected: false, projectError };
+    }
+    cancelFindingDeletions();
+    projectChanging = true;
+    let projectCreated: string | undefined;
+    let projectError: string | undefined;
+    let projectSelected = false;
+    try {
+      projectCreated = await select();
+      projectSelected = true;
+      resetAllBypass();
+      await Promise.all([...slots.values()].map((slot) => slot.session?.refreshHistoryProjects()));
+      await beforeOpen?.();
+      await openActiveProjectWorkspace(defaultConfigDir(), projectWorkspaceHost, "selection");
+    } catch (error) {
+      projectError = formatError(error, getUiLocale());
+    } finally {
+      projectChanging = false;
+    }
+    await pushStudio(
+      {
+        ...(projectCreated !== undefined && { projectCreated }),
+        ...(projectError !== undefined && { projectError }),
+      },
+      projectSelected,
+    );
+    if (cockpitPanel !== undefined && cockpitReady) {
+      const view = await loadCockpitView();
+      await cockpitPanel.webview.postMessage(view);
+      broadcastContainers(view.containers);
+    }
+    return { projectSelected, ...(projectError !== undefined && { projectError }) };
+  };
   let burpStatus = "";
   const studioDocker = createStudioDockerCache(async (project) => {
     const before = await readProjects(defaultConfigDir());
@@ -3295,7 +3410,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   };
   const journalEvents = async (projectId: string, conversationId?: string) => {
     const entries = parseIndex(
-      sharedHistory.index.get("warband.history.shared.v1"),
+      sharedHistory.index.get(GLOBAL_HISTORY_KEY),
       SHARED_HISTORY_MAX_ENTRIES,
     ).filter(
       (row) =>
@@ -4012,7 +4127,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         message.type === "deleteProject" ||
         message.type === "unlink"
       ) {
-        const chatsBusy = () => [...slots.values()].some((slot) => slot.session?.view().busy);
         if (projectChanging || chatsBusy()) {
           await pushStudio({
             projectError: t("Arrêtez les tours en cours avant de modifier un projet."),
@@ -4088,58 +4202,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         return;
       }
       if (message.type === "activateProject" || message.type === "createProject") {
-        const chatsBusy = () => [...slots.values()].some((slot) => slot.session?.view().busy);
-        if (projectChanging || chatsBusy()) {
-          await pushStudio({
-            projectError: t("Arrêtez les tours en cours avant de changer de projet."),
-          });
-          return;
-        }
-        cancelFindingDeletions();
-        projectChanging = true;
-        let projectCreated: string | undefined;
-        let projectError: string | undefined;
-        let projectSelected = false;
-        try {
+        await changeProject(async () => {
           if (message.type === "activateProject") {
             await activateSelectedProject(defaultConfigDir(), message.projectId);
-            projectSelected = true;
-          } else {
-            if (chatsBusy())
-              throw new Error(t("Arrêtez les tours en cours avant de créer le projet."));
-            const created = await createManagedSelectedProject(
-              defaultConfigDir(),
-              message.name,
-              readMachineSetting("projects.workspaceRoot"),
-            );
-            projectCreated = created.id;
-            await prepareMissionFolder(created.workspace);
-            projectSelected = true;
+            return undefined;
           }
-          if (projectSelected) {
-            resetAllBypass();
-            await Promise.all(
-              [...slots.values()].map((slot) => slot.session?.refreshHistoryProjects()),
-            );
-            await openActiveProjectWorkspace(defaultConfigDir(), projectWorkspaceHost, "selection");
-          }
-        } catch (error) {
-          projectError = formatError(error, getUiLocale());
-        } finally {
-          projectChanging = false;
-        }
-        await pushStudio(
-          {
-            ...(projectCreated !== undefined && { projectCreated }),
-            ...(projectError !== undefined && { projectError }),
-          },
-          projectSelected,
-        );
-        if (cockpitPanel !== undefined && cockpitReady) {
-          const view = await loadCockpitView();
-          await cockpitPanel.webview.postMessage(view);
-          broadcastContainers(view.containers);
-        }
+          if (chatsBusy())
+            throw new Error(t("Arrêtez les tours en cours avant de créer le projet."));
+          const created = await createManagedSelectedProject(
+            defaultConfigDir(),
+            message.name,
+            readMachineSetting("projects.workspaceRoot"),
+          );
+          await prepareMissionFolder(created.workspace);
+          return created.id;
+        });
         return;
       }
       if (message.type === "saveSummary") {

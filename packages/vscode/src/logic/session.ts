@@ -947,6 +947,13 @@ export function createChatSession(deps: ChatSessionDeps) {
     index = incoming.map((row) => (row.id === current?.id ? current : row));
     refresh();
   });
+  /** Relit l'index depuis l'hôte (écritures d'une autre fenêtre) sans perdre la conversation courante. */
+  const reloadIndex = () => {
+    if (!history) return;
+    const incoming = parseHistory(history.index.get(historyKey));
+    const merged = incoming.map((row) => (row.id === current?.id ? current : row));
+    index = current && !merged.includes(current) ? [current, ...merged] : merged;
+  };
   const removable = (ids: readonly string[]) => {
     if (history?.canRemove && !history.canRemove(ids)) {
       state.notice(
@@ -1509,6 +1516,8 @@ export function createChatSession(deps: ChatSessionDeps) {
     },
     async refreshHistoryProjects(): Promise<void> {
       selection = emptySelection();
+      // L'index est commun à toutes les fenêtres : on relit l'hôte pour voir leurs conversations.
+      reloadIndex();
       const revision = navigationRev;
       await reloadHistoryProjects(revision);
       if (revision === navigationRev) refresh();
