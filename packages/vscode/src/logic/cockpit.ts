@@ -46,7 +46,6 @@ export type CockpitMessage =
       type: "createExegol";
       name: string;
       image?: string;
-      source?: string;
       vpn?: boolean;
       desktop?: boolean;
       desktopPort?: number;
@@ -57,9 +56,9 @@ export type CockpitMessage =
   | { type: "remove"; name: string }
   | { type: "pickVpn" }
   | { type: "cancelOperation" }
-  | { type: "createKali"; image: string; name: string; source: string }
+  | { type: "createKali"; image: string; name: string }
   | { type: "listImages" }
-  | { type: "pickSource" };
+  | { type: "pickSharedFolder" };
 
 const CONTAINER_NAME_MAX = 256;
 /** Nom saisi pour créer : une lettre ou un chiffre, puis au plus 63 caractères `.`, `_` ou `-`. */
@@ -148,17 +147,20 @@ export function parseCockpitMessage(raw: unknown): CockpitMessage | null {
         return null;
       if (m.network !== undefined && !["nat", "host", "disabled"].includes(String(m.network)))
         return null;
-      return { ...m } as Extract<CockpitMessage, { type: "createExegol" }>;
+      // `source` reste toléré (anciennes webviews) mais n'est jamais retransmis : le dossier
+      // partagé vient du sélecteur de l'hôte (ADR 0050).
+      const { source: _ignored, ...kept } = m;
+      return kept as Extract<CockpitMessage, { type: "createExegol" }>;
     }
     case "createKali":
       return only("type", "image", "name", "source") &&
         isImageRef(m.image) &&
         isCreateName(m.name) &&
-        isSourcePath(m.source)
-        ? { type: "createKali", image: m.image, name: m.name, source: m.source }
+        (m.source === undefined || m.source === "" || isSourcePath(m.source))
+        ? { type: "createKali", image: m.image, name: m.name }
         : null;
     case "listImages":
-    case "pickSource":
+    case "pickSharedFolder":
     case "pickVpn":
     case "cancelOperation":
       return only("type") ? { type: m.type } : null;

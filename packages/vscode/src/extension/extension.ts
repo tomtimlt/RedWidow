@@ -164,6 +164,7 @@ import {
   type SessionGridChat,
 } from "../logic/session-grid.js";
 import { machineValue, parseConfiguredIntegrations, resolveSettings } from "../logic/settings.js";
+import { resolveCreationFolder, validateSharedFolder } from "../logic/shared-folder.js";
 import {
   createSharedHistoryIndex,
   createSharedJournalFiles,
@@ -196,6 +197,9 @@ import {
 } from "../logic/termlog.js";
 import { parseWindows, WINDOW_CAP, type WindowEntry } from "../logic/windows.js";
 
+/** Notice neutre : un conteneur sans liaison n'est pas une erreur (ADR 0050). */
+const NOT_LINKED_NOTICE = () =>
+  t("Conteneur créé sans liaison : le dossier du projet n'est pas dans ce dossier partagé.");
 const TOKEN_KEY = "warband.token";
 const TOKEN_KIND_KEY = "warband.tokenKind";
 const OPENAI_TOKEN_KEY = "warband.openai.apiKey";
@@ -1577,6 +1581,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     let alive = true;
     let operationAbort: AbortController | null = null;
     let selectedVpn: string | undefined;
+    /** Dossier partagé (chemin réel) issu du sélecteur de l'hôte, jamais d'un texte de la webview (ADR 0050). */
+    let sharedFolder: string | undefined;
+    const forgetSharedFolder = () => {
+      sharedFolder = undefined;
+      postCockpit({ type: "pickedSharedFolder", path: "" });
+    };
     panel.onDidDispose(() => {
       operationAbort?.abort();
       alive = false;
@@ -1807,7 +1817,30 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
               const selectedProject = projectFile && activeProject(projectFile);
               if (!selectedProject)
                 throw Error(t("Choisissez un projet avant de créer son conteneur."));
+              const { source: shared, link: linkable } = await resolveCreationFolder(
+                sharedFolder,
+                selectedProject,
+              );
               await prepareMissionFolder(selectedProject.workspace);
+              if (!linkable) {
+                await startContainerTerminal(
+                  {
+                    name: message.name,
+                    ...(message.image && { image: message.image }),
+                    workspacePath: shared,
+                    ...(message.vpn && selectedVpn && { vpnPath: selectedVpn }),
+                    ...(message.desktop !== undefined && { desktop: message.desktop }),
+                    ...(message.desktopPort !== undefined && { desktopPort: message.desktopPort }),
+                    network: message.network ?? "nat",
+                    gui: false,
+                    exegolResources: message.shareResources ?? true,
+                    myResources: message.shareMyResources ?? true,
+                  },
+                  signal,
+                );
+                forgetSharedFolder();
+                return NOT_LINKED_NOTICE();
+              }
               const closed = new AbortController();
               const watching = AbortSignal.any([signal, closed.signal]);
               let terminalClose: vscode.Disposable | undefined;
@@ -1826,7 +1859,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                       {
                         name: message.name,
                         ...(message.image && { image: message.image }),
-                        workspacePath: selectedProject.workspace,
+                        workspacePath: shared,
                         ...(message.vpn && selectedVpn && { vpnPath: selectedVpn }),
                         ...(message.desktop !== undefined && { desktop: message.desktop }),
                         ...(message.desktopPort !== undefined && {
@@ -1848,6 +1881,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
               } finally {
                 terminalClose?.dispose();
               }
+              forgetSharedFolder();
               return t("Conteneur créé et lié au projet après vérification du partage.");
             });
           case "createKali":
@@ -1868,6 +1902,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 const selectedProject = projectFile && activeProject(projectFile);
                 if (!selectedProject)
                   throw Error(t("Choisissez un projet avant de créer son conteneur."));
+                const { source: shared, link: linkable } = await resolveCreationFolder(
+                  sharedFolder,
+                  selectedProject,
+                );
                 await prepareMissionFolder(selectedProject.workspace);
                 const options = {
                   recorder,
@@ -1905,7 +1943,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 await createDockerClient({ recorder, binary: "docker" }).createKaliContainer({
                   image,
                   name: message.name,
-                  source: selectedProject.workspace,
+                  source: shared,
                   signal,
                 });
                 signal.throwIfAborted();
@@ -1915,12 +1953,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                   signal,
                   onStage: (stage) => report({ stage: t`Serveur MCP Kali : ${stage}` }),
                 });
+                if (!linkable) {
+                  forgetSharedFolder();
+                  return NOT_LINKED_NOTICE();
+                }
                 const latest = await readProjects(defaultConfigDir());
                 if (
                   latest?.activeId !== selectedProject.id ||
                   activeProject(latest)?.workspace !== selectedProject.workspace
                 )
                   throw Error(t("Le projet a changé pendant la préparation."));
+                forgetSharedFolder();
                 await linkForProject(message.name, selectedProject.id);
               } finally {
                 unsubscribe();
@@ -1988,15 +2031,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           case "listImages":
             postCockpit({ type: "images", images: await listCockpitImages() });
             return;
-          case "pickSource": {
+          case "pickSharedFolder": {
             const picked = await vscode.window.showOpenDialog({
               canSelectFolders: true,
               canSelectFiles: false,
               canSelectMany: false,
+              openLabel: t("Choisir le dossier partagé"),
             });
-            const source = picked?.[0]?.fsPath;
-            if (source === undefined) return;
-            postCockpit({ type: "pickedSource", source });
+            const chosen = picked?.[0]?.fsPath;
+            if (chosen === undefined) return;
+            try {
+              const real = await validateSharedFolder(chosen);
+              sharedFolder = real;
+              postCockpit({ type: "pickedSharedFolder", path: real });
+            } catch (error) {
+              void vscode.window.showErrorMessage(formatError(error, getUiLocale()));
+            }
             return;
           }
         }

@@ -122,7 +122,7 @@
     network: "nat",
     shareResources: true,
     shareMyResources: true,
-    source: "",
+    sharedFolder: "",
     images: [],
     imagesAsked: false,
   };
@@ -181,19 +181,19 @@
     return wrap;
   };
 
-  const validSource = (source) =>
-    source.length > 0 && source.length <= 4096 && !/[\0\r\n]/.test(source);
+  // Chemin renvoyé par le sélecteur de l'hôte, jamais saisi ni retransmis à la création.
+  const validSource = (folder) => folder.length > 0 && folder.length <= 4096;
   const canCreate = (engine) => {
     if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(form.name)) return false;
     if (engine === "kali")
       return (
         form.image.length <= 256 &&
         /^[A-Za-z0-9][A-Za-z0-9_.:@/-]*$/.test(form.image) &&
-        validSource(form.source)
+        validSource(form.sharedFolder)
       );
     return (
       /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(form.exegolImage) &&
-      validSource(form.source) &&
+      validSource(form.sharedFolder) &&
       Number.isInteger(form.desktopPort) &&
       form.desktopPort >= 1 &&
       form.desktopPort <= 65535 &&
@@ -271,15 +271,15 @@
 
     const folderRow = el("div", "cockpit-actions");
     folderRow.id = "cockpit-folder";
-    const folderBtn = button("secondary", t("Dossier du projet"), "folder", () => {
-      vscode.postMessage({ type: "openWorkspace" });
+    const folderBtn = button("secondary", t("Choisir…"), "folder", () => {
+      vscode.postMessage({ type: "pickSharedFolder" });
     });
 
-    folderRow.append(folderBtn);
-    if (form.source !== "") {
+    folderRow.append(el("span", "cockpit-field-label", t("Dossier partagé")), folderBtn);
+    if (form.sharedFolder !== "") {
       const src = el("span", "cockpit-ellipsis cockpit-source");
       src.id = "cockpit-source";
-      ellipsize(src, form.source, 64);
+      ellipsize(src, form.sharedFolder, 64);
       folderRow.append(src);
     }
     fields.append(
@@ -288,7 +288,7 @@
         "p",
         "studio-help",
         t(
-          "Le nouveau conteneur monte le dossier du projet et sera lié après vérification du partage. Pour un autre montage, créez un conteneur pour ce projet ou choisissez un autre conteneur.",
+          "Le conteneur partage ce dossier. Il sera lié au projet actif si le dossier du projet s'y trouve.",
         ),
       ),
     );
@@ -376,7 +376,6 @@
           type: "createExegol",
           name: form.name,
           image: form.exegolImage,
-          ...(form.source ? { source: form.source } : {}),
           vpn: form.vpn,
           desktop: form.desktop,
           desktopPort: form.desktopPort,
@@ -389,7 +388,6 @@
           type: "createKali",
           image: form.image,
           name: form.name,
-          source: form.source,
         });
     });
     create.id = "cockpit-submit";
@@ -749,19 +747,23 @@
     updateCreate();
   };
 
-  const applySource = (source) => {
-    form.source = source;
+  const applySharedFolder = (path) => {
+    form.sharedFolder = path;
     updateCreate();
     const node = document.getElementById("cockpit-source");
+    if (path === "") {
+      rerender();
+      return;
+    }
     if (node) {
-      ellipsize(node, source, 64);
+      ellipsize(node, path, 64);
       return;
     }
     const row = document.getElementById("cockpit-folder");
     if (!row) return;
     const src = el("span", "cockpit-ellipsis cockpit-source");
     src.id = "cockpit-source";
-    ellipsize(src, source, 64);
+    ellipsize(src, path, 64);
     row.append(src);
   };
 
@@ -808,14 +810,12 @@
       applyImages(msg.images);
       return;
     }
-    if (msg.type === "pickedSource") {
-      if (typeof msg.source !== "string" || msg.source === "") return;
-      applySource(msg.source);
+    if (msg.type === "pickedSharedFolder") {
+      if (typeof msg.path !== "string") return;
+      applySharedFolder(msg.path);
       return;
     }
     if (msg.type !== "view") return;
-    if (msg.loading !== true)
-      form.source = typeof msg.projectWorkspace === "string" ? msg.projectWorkspace : "";
     const loading = msg.loading === true;
     if (refreshBtn) refreshBtn.disabled = loading;
     render(msg);

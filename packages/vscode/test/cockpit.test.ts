@@ -277,14 +277,16 @@ describe("parseCockpitMessage", () => {
       name: "exegol-htb1",
     });
     expect(parseCockpitMessage({ type: "listImages" })).toEqual({ type: "listImages" });
-    expect(parseCockpitMessage({ type: "pickSource" })).toEqual({ type: "pickSource" });
+    expect(parseCockpitMessage({ type: "pickSharedFolder" })).toEqual({
+      type: "pickSharedFolder",
+    });
     expect(parseCockpitMessage({ type: "createExegol", name: "htb1" })).toEqual({
       type: "createExegol",
       name: "htb1",
     });
   });
 
-  it("le message Kali parsé égale image, name et source", () => {
+  it("le message Kali parsé égale image et name, sans source", () => {
     const image = "kalilinux/kali-rolling:latest";
     const name = "lab";
     const source = "/home/me/lab";
@@ -292,7 +294,6 @@ describe("parseCockpitMessage", () => {
       type: "createKali",
       image,
       name,
-      source,
     });
   });
 
@@ -307,7 +308,7 @@ describe("parseCockpitMessage", () => {
     expect(parseCockpitMessage({ type: "create" })).toBeNull();
     expect(parseCockpitMessage({ type: "create", name: "htb1" })).toBeNull();
     expect(parseCockpitMessage({ type: "listImages", extra: true })).toBeNull();
-    expect(parseCockpitMessage({ type: "pickSource", source: "/tmp" })).toBeNull();
+    expect(parseCockpitMessage({ type: "pickSharedFolder", source: "/tmp" })).toBeNull();
     expect(parseCockpitMessage({ type: "setPrimary", name: "a", extra: 1 })).toBeNull();
     expect(parseCockpitMessage({ type: "setPrimary", name: "" })).toBeNull();
     expect(parseCockpitMessage({ type: "setPrimary", name: "a".repeat(257) })).toBeNull();
@@ -335,10 +336,10 @@ describe("parseCockpitMessage", () => {
     expect(
       parseCockpitMessage({ type: "createExegol", name: "htb1", image: "kali:latest" }),
     ).toBeNull();
+    // Un `source` texte de la webview est toléré mais jamais retransmis (ADR 0050).
     expect(parseCockpitMessage({ type: "createExegol", name: "htb1", source: "/tmp" })).toEqual({
       type: "createExegol",
       name: "htb1",
-      source: "/tmp",
     });
     expect(parseCockpitMessage({ type: "createExegol" })).toBeNull();
     expect(parseCockpitMessage({ type: "createExegol", name: "" })).toBeNull();
@@ -350,28 +351,23 @@ describe("parseCockpitMessage", () => {
     });
   });
 
-  it("refuse un Kali incomplet, une image hors motif ou une source illisible", () => {
-    const ok = { type: "createKali", image: "kali:latest", name: "lab", source: "/tmp/lab" };
+  it("refuse un Kali incomplet ou une image hors motif, et ignore tout `source` de la webview", () => {
+    const ok = { type: "createKali", image: "kali:latest", name: "lab" };
     expect(parseCockpitMessage({ ...ok, extra: 1 })).toBeNull();
-    expect(
-      parseCockpitMessage({ type: "createKali", image: "kali:latest", name: "lab" }),
-    ).toBeNull();
+    expect(parseCockpitMessage(ok)).toEqual(ok);
     expect(parseCockpitMessage({ ...ok, image: "" })).toBeNull();
     expect(parseCockpitMessage({ ...ok, name: "" })).toBeNull();
-    expect(parseCockpitMessage({ ...ok, source: "" })).toBeNull();
     expect(parseCockpitMessage({ ...ok, image: "-kali" })).toBeNull();
     expect(parseCockpitMessage({ ...ok, image: "a".repeat(257) })).toBeNull();
     expect(parseCockpitMessage({ ...ok, image: "a".repeat(256) })).toEqual({
       ...ok,
       image: "a".repeat(256),
     });
+    // Le chemin texte n'est jamais retransmis : le dossier partagé vient du sélecteur de l'hôte.
+    expect(parseCockpitMessage({ ...ok, source: "/etc" })).toEqual(ok);
+    expect(parseCockpitMessage({ ...ok, source: "" })).toEqual(ok);
     expect(parseCockpitMessage({ ...ok, source: "a\nb" })).toBeNull();
     expect(parseCockpitMessage({ ...ok, source: "a\0b" })).toBeNull();
-    expect(parseCockpitMessage({ ...ok, source: "a\rb" })).toBeNull();
-    expect(parseCockpitMessage({ ...ok, source: "a".repeat(4096) })).toEqual({
-      ...ok,
-      source: "a".repeat(4096),
-    });
     expect(parseCockpitMessage({ ...ok, source: "a".repeat(4097) })).toBeNull();
   });
 });
@@ -926,7 +922,8 @@ describe("cockpit.js", () => {
     expect(js).toContain('type: "createKali"');
     expect(js).toContain('type: "listImages"');
     expect(js).toContain('type: "openWorkspace"');
-    expect(js).toContain("msg.projectWorkspace");
+    expect(js).toContain('type: "pickSharedFolder"');
+    expect(js).not.toContain("msg.projectWorkspace");
     expect(js).not.toContain('type: "create"');
     expect(js).toContain("Aucun conteneur.");
     expect(js).toContain("row.short");
@@ -979,7 +976,6 @@ it("création Exegol : options fermées, aucun chemin VPN provenant de la webvie
     type: "createExegol",
     name: "lab",
     image: "free",
-    source: "/workspace/lab",
     vpn: true,
     desktop: true,
     desktopPort: 6080,

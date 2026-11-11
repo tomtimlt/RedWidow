@@ -435,8 +435,8 @@
   var cockpitEn = {
     "Conteneur créé et lié au projet après vérification du partage.":
       "Container created and linked to the project after share verification.",
-    "Le nouveau conteneur monte le dossier du projet et sera lié après vérification du partage. Pour un autre montage, créez un conteneur pour ce projet ou choisissez un autre conteneur.":
-      "The new container mounts the project folder and will be linked after the share is verified. For a different mount, create a container for this project or choose another container.",
+    "Le conteneur partage ce dossier. Il sera lié au projet actif si le dossier du projet s'y trouve.":
+      "The container shares this folder. It will be linked to the active project if the project folder is inside it.",
     "Créer un conteneur pour ce projet": "Create a container for this project",
     "Choisir un autre conteneur": "Choose another container",
     "Créer un conteneur pour ce projet est recommandé.":
@@ -445,7 +445,8 @@
       "The project stays on your PC in {0}; only files created outside /workspace in the container are lost.",
     "Les fichiers sont partagés avec le dossier du projet ouvert dans VS Code. Un conteneur existant doit monter ce même dossier ; un autre montage nécessite une migration explicite.":
       "Files are shared with the project folder open in VS Code. An existing container must mount that same folder; a different mount requires an explicit migration.",
-    "Dossier du projet": "Project folder",
+    "Dossier partagé": "Shared folder",
+    "Choisir…": "Choose…",
     "Choisissez un projet avant de créer son conteneur.":
       "Choose a project before creating its container.",
     "Le projet a changé pendant la préparation.": "The project changed during preparation.",
@@ -695,6 +696,19 @@
     "Dossier OpenVPN (certificats séparés)": "OpenVPN folder (separate certificates)",
     "Configuration VPN Exegol": "Exegol VPN configuration",
     "Choisir le VPN": "Choose the VPN",
+    "Choisir le dossier partagé": "Choose the shared folder",
+    "Choisissez le dossier partagé.": "Choose the shared folder.",
+    "Le dossier partagé a changé. Choisissez-le à nouveau.":
+      "The shared folder changed. Choose it again.",
+    "Le dossier partagé doit être un chemin absolu.": "The shared folder must be an absolute path.",
+    "Le dossier partagé est introuvable.": "The shared folder was not found.",
+    "Le dossier partagé ne peut pas être un lien symbolique.":
+      "The shared folder cannot be a symbolic link.",
+    "Le dossier partagé doit être un dossier.": "The shared folder must be a folder.",
+    "Ce dossier ne peut pas être partagé : il expose des données sensibles.":
+      "This folder cannot be shared: it exposes sensitive data.",
+    "Conteneur créé sans liaison : le dossier du projet n'est pas dans ce dossier partagé.":
+      "Container created without a link: the project folder is not inside this shared folder.",
     "{0} · Sortie": "{0} · Output",
     "{0} : chat, terminaux, cockpit, réglages ({1})":
       "{0}: chat, terminals, cockpit, settings ({1})",

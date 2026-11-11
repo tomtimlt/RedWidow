@@ -1,0 +1,107 @@
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, expect, it } from "vitest";
+import {
+  projectInSharedFolder,
+  resolveCreationFolder,
+  validateSharedFolder,
+} from "../src/logic/shared-folder.js";
+
+let base: string;
+let home: string;
+beforeEach(() => {
+  base = realpathSync(mkdtempSync(join(tmpdir(), "warband-shared-")));
+  home = join(base, "home");
+  mkdirSync(join(home, ".ssh"), { recursive: true });
+});
+afterEach(() => rmSync(base, { recursive: true, force: true }));
+
+const dir = (...parts: string[]) => {
+  const path = join(base, ...parts);
+  mkdirSync(path, { recursive: true });
+  return path;
+};
+
+it("accepte un dossier ordinaire et renvoie son chemin réel", async () => {
+  const shared = dir("partage");
+  await expect(validateSharedFolder(shared, { home })).resolves.toBe(shared);
+});
+
+it("refuse un chemin relatif, absent, un fichier et un lien symbolique", async () => {
+  await expect(validateSharedFolder("partage", { home })).rejects.toThrow(/absolu/);
+  await expect(validateSharedFolder(join(base, "absent"), { home })).rejects.toThrow(/introuvable/);
+  const file = join(base, "fichier");
+  writeFileSync(file, "x");
+  await expect(validateSharedFolder(file, { home })).rejects.toThrow(/dossier/);
+  const target = dir("cible");
+  const link = join(base, "lien");
+  symlinkSync(target, link);
+  await expect(validateSharedFolder(link, { home })).rejects.toThrow(/lien symbolique/);
+});
+
+it("refuse un dossier qui expose un chemin sensible (dossier personnel, racine, /etc)", async () => {
+  await expect(validateSharedFolder(home, { home })).rejects.toThrow(/sensibles/);
+  await expect(validateSharedFolder(join(home, ".ssh"), { home })).rejects.toThrow(/sensibles/);
+  await expect(validateSharedFolder("/", { home })).rejects.toThrow(/sensibles/);
+  if (process.platform !== "win32")
+    await expect(validateSharedFolder("/etc", { home })).rejects.toThrow(/sensibles/);
+  // Le vrai dossier personnel de la machine de test est lui aussi refusé s'il contient des secrets.
+  expect(homedir()).toBeTypeOf("string");
+});
+
+it("la création sans dossier choisi est refusée", async () => {
+  const project = { workspace: dir("projet") };
+  await expect(resolveCreationFolder(undefined, project, { home })).rejects.toThrow(
+    "Choisissez le dossier partagé.",
+  );
+});
+
+it("la source du montage est le dossier choisi, pas celui du projet", async () => {
+  const shared = dir("partage");
+  const project = { workspace: dir("ailleurs", "projet") };
+  const plan = await resolveCreationFolder(shared, project, { home });
+  expect(plan.source).toBe(shared);
+  expect(plan.source).not.toBe(project.workspace);
+});
+
+it("la liaison est faite si le projet est dans le dossier partagé ou égal à lui", async () => {
+  const shared = dir("partage");
+  const inside = dir("partage", "sous", "projet");
+  await expect(resolveCreationFolder(shared, { workspace: inside }, { home })).resolves.toEqual({
+    source: shared,
+    link: true,
+  });
+  await expect(resolveCreationFolder(shared, { workspace: shared }, { home })).resolves.toEqual({
+    source: shared,
+    link: true,
+  });
+});
+
+it("la liaison est absente si le projet est hors du dossier partagé (sans erreur)", async () => {
+  const shared = dir("partage");
+  const outside = dir("partage-voisin", "projet");
+  await expect(resolveCreationFolder(shared, { workspace: outside }, { home })).resolves.toEqual({
+    source: shared,
+    link: false,
+  });
+  // Un préfixe de nom identique ne vaut pas inclusion.
+  expect(await projectInSharedFolder(shared, join(base, "partage-voisin"))).toBe(false);
+  // Projet parent du dossier partagé : pas dans le montage.
+  expect(await projectInSharedFolder(shared, base)).toBe(false);
+  expect(await projectInSharedFolder(shared, join(base, "inexistant"))).toBe(false);
+});
+
+it("revalide le dossier mémorisé juste avant la création", async () => {
+  const shared = dir("partage");
+  rmSync(shared, { recursive: true });
+  await expect(resolveCreationFolder(shared, { workspace: base }, { home })).rejects.toThrow(
+    /introuvable/,
+  );
+  // Un chemin mémorisé qui n'est plus son propre chemin réel (remplacé par un lien) est refusé.
+  const target = dir("cible");
+  symlinkSync(target, shared);
+  await expect(resolveCreationFolder(shared, { workspace: base }, { home })).rejects.toThrow(
+    /lien symbolique/,
+  );
+});

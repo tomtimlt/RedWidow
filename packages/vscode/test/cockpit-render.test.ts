@@ -199,6 +199,7 @@ it("transmet les options Exegol et conserve le brouillon pendant la progression"
   const name = ui.field("cockpit-name");
   name.value = "mission";
   name.listeners.get("input")?.();
+  ui.send({ type: "pickedSharedFolder", path: "/tmp/mission" });
   ui.send({ type: "pickedVpn", label: "mission.ovpn" });
   expect(ui.main.find((node) => node.textContent === "mission.ovpn")).toBeDefined();
   ui.button("Créer").click();
@@ -208,7 +209,6 @@ it("transmet les options Exegol et conserve le brouillon pendant la progression"
   ).toEqual([
     {
       type: "createExegol",
-      source: "/tmp/mission",
       name: "mission",
       image: "free",
       vpn: false,
@@ -277,6 +277,7 @@ it("garde les choix Exegol et bloque le bureau hors NAT", () => {
   ui.field("cockpit-create-toggle").click();
   ui.field("cockpit-name").value = "mission";
   ui.field("cockpit-name").listeners.get("input")?.();
+  ui.send({ type: "pickedSharedFolder", path: "/tmp/mission" });
   for (const id of ["vpn", "desktop"]) {
     const input = ui.field(`cockpit-${id}`);
     input.checked = true;
@@ -297,7 +298,6 @@ it("garde les choix Exegol et bloque le bureau hors NAT", () => {
   ui.button("Créer").click();
   expect(ui.sent).toContainEqual({
     type: "createExegol",
-    source: "/tmp/mission",
     name: "mission",
     image: "free",
     vpn: true,
@@ -316,7 +316,7 @@ it("refuse les brouillons invalides et réactive la création Kali après choix 
   const name = ui.field("cockpit-name");
   name.value = "nom avec espaces";
   name.listeners.get("input")?.();
-  ui.send({ type: "pickedSource", source: "/tmp/mission" });
+  ui.send({ type: "pickedSharedFolder", path: "/tmp/mission" });
   expect(ui.button("Créer").disabled).toBe(true);
   name.value = "mission";
   name.listeners.get("input")?.();
@@ -326,7 +326,6 @@ it("refuse les brouillons invalides et réactive la création Kali après choix 
     type: "createKali",
     name: "mission",
     image: "warband/kali:complete-1",
-    source: "/tmp/mission",
   });
 });
 
@@ -354,20 +353,33 @@ it("change de langue sans perdre le formulaire, le focus, la sélection et les d
   expect(ui.field("cockpit-name").value).toBe("Projet français");
 });
 
-it("la création attend un projet et suit sa racine sans conserver un ancien dossier", () => {
+it("la création attend le dossier partagé choisi sur l'hôte et ne le déduit pas du projet", () => {
   const ui = cockpit();
   ui.field("cockpit-create-toggle").click();
   ui.field("cockpit-name").value = "lab";
   ui.field("cockpit-name").listeners.get("input")?.();
-  expect(ui.button("Créer").disabled).toBe(true);
   ui.send({ ...ui.view, projectWorkspace: "/tmp/project-A" });
+  // Aucune valeur par défaut : le dossier du projet n'est pas proposé.
+  expect(ui.button("Créer").disabled).toBe(true);
+  expect(ui.main.find((node) => node.id === "cockpit-source")).toBeUndefined();
+  ui.button("Choisir…").click();
+  expect(ui.sent).toContainEqual({ type: "pickSharedFolder" });
+  ui.send({ type: "pickedSharedFolder", path: "/srv/partage" });
   expect(ui.button("Créer").disabled).toBe(false);
-  expect(ui.field("cockpit-source").textContent).toContain("/tmp/project-A");
+  expect(ui.field("cockpit-source").textContent).toContain("/srv/partage");
+  // Un changement de projet ne touche pas au dossier choisi.
   ui.send({ ...ui.view, projectWorkspace: "/tmp/project-B" });
+  expect(ui.field("cockpit-source").textContent).toContain("/srv/partage");
   ui.button("Créer").click();
-  expect(ui.sent).toContainEqual(
-    expect.objectContaining({ type: "createExegol", source: "/tmp/project-B" }),
-  );
+  const created = ui.sent.find(
+    (message) => (message as { type: string }).type === "createExegol",
+  ) as Record<string, unknown>;
+  expect(created).toBeDefined();
+  expect(created).not.toHaveProperty("source");
+  // L'hôte oublie le dossier après une création réussie : la webview le retire et bloque Créer.
+  ui.send({ type: "pickedSharedFolder", path: "" });
+  expect(ui.button("Créer").disabled).toBe(true);
+  expect(ui.main.find((node) => node.id === "cockpit-source")).toBeUndefined();
 });
 
 it("la recommandation de créer un conteneur ouvre directement le formulaire", () => {
