@@ -2,7 +2,7 @@
   "name": "redwidow",
   "displayName": "RedWidow",
   "description": "%extension.description%",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "publisher": "tomtimlt",
   "license": "MIT",
   "repository": { "type": "git", "url": "https://github.com/tomtimlt/RedWidow.git" },
