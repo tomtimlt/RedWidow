@@ -20,6 +20,12 @@ HTML du kit `../video-kit/html/`), sur le lab fictif `10.10.10.14`.
 | `redwidow-promo-v8-9x16-fr.mp4` | 1080 × 1920, 30 i/s, 53 s | V8 verticale en français |
 | `redwidow-promo-v8-4x5-fr.mp4` | 1080 × 1350 (4:5), 30 i/s, 53 s | V8 en français au format LinkedIn : titre dans la bande du haut (60–390 px), interface zoomée au centre (commande lancée, réponse de l'agent, résultat), rail de mission en bas. `film-4x5.css` complète `film-9x16.css` ; `python3 build.py 4x5 fr`, puis `node render.cjs 4x5-fr …` |
 | `redwidow-promo-v9-4x5-fr.mp4` | 1080 × 1350 (4:5), 30 i/s, 50,7 s | V9 : la V8 4:5 française corrigée. Interligne de « TOUT ÇA. / OPEN SOURCE. » (cédille dégagée, 24 px au plus serré) ; kill chain redisposée en colonnes, libellés à 28 px, rien de coupé, et nœud « Élévation root » allumé à la fin du rejeu ; plan logo réduit à 1,3 s (une mesure retirée, même coupe dans la musique de la V8, non régénérée) ; badge « Auto 2:00 » ; pastille « 05 Apprentissage » au rail et « APPRENDS. » dans le récapitulatif. Sources dans `src-v9/` (`make_v9.py` décrit les changements) |
+| `redwidow-promo-v10-4x5-fr.mp4` | 1080 × 1350 (4:5), 30 i/s, 39,6 s, H.264 + AAC, −14 LUFS | V10, film LinkedIn en français (version principale). On entre en pleine action : la consigne est déjà envoyée, nmap, whatweb, ffuf arrivent un par temps, sqlmap fait tomber la carte d'autorisation, « Autoriser une fois » est pressé, l'injection SQL est confirmée (« UNE PHRASE. / QUATRE OUTILS. / UNE ENTRÉE. »). Demi-seconde de silence, logo en 1,3 s, puis les cinq temps sans carton plein écran (repère « 01 · TISSE · REPÉRAGE » dans la bande du haut, rail de mission en bas avec progression) : Monitor en direct, kill chain en colonnes puis « Rejouer » jusqu'au nœud racine (qui reste « prévu »), carte d'autorisation puis mode Auto, rapport de constats, mode Apprentissage. Modèles, « Tout ça. / Open source. / Gratuit. », URL en grand et invitation à l'étoile. Sources dans `src-v10/` |
+| `redwidow-promo-v10-4x5.mp4` | 1080 × 1350, 30 i/s, 39,6 s | V10 en anglais, même montage et même musique (« ONE SENTENCE. / FOUR TOOLS. / ONE WAY IN. ») |
+| `redwidow-promo-v10-4x5-fr-15s.mp4` | 1080 × 1350, 30 i/s, 15,3 s | V10 courte en français : accroche, logo, Strike (carte puis Auto), rejeu de la kill chain, fin avec « Open source. Gratuit. » et l'URL |
+| `redwidow-promo-v10-4x5-15s.mp4` | 1080 × 1350, 30 i/s, 15,3 s | V10 courte en anglais |
+| `redwidow-promo-v10-4x5-fr-b.mp4` | 1080 × 1350, 30 i/s, 39,6 s | V10 française avec l'accroche B, à tester contre la A : on ouvre sur la fin du rejeu de la kill chain (« ELLE TRACE LE CHEMIN / JUSQU'AU ROOT. »), puis la consigne tapée (« UNE PHRASE / A TOUT LANCÉ. ») ; même corps de film |
+| `redwidow-v10-cover-fr.png`, `redwidow-v10-cover.png` | 1080 × 1350 | Couvertures LinkedIn (français, anglais) : l'image de l'accroche où la carte d'autorisation est à l'écran sous le titre complet |
 
 ## Refaire une version
 
@@ -66,6 +72,31 @@ La timeline tient en temps musicaux dans `build.py` (`TL`) et pilote à la fois
 l'image (`film.js`) et la musique (`synth.py`). Le silence avant l'impact est
 une porte entre `hush` et `reveal` dans `synth.py`. Les captures du chat en
 hauteur viennent de `src-v7/cap_*_tall.cjs`.
+
+### V10 (LinkedIn 4:5)
+
+Dans `src-v10/` (Playwright, ffmpeg, Python avec numpy ; les instruments de la
+musique viennent de `src-v8/synth.py`). Une commande par fichier :
+
+```
+./make.sh fr a   ../redwidow-promo-v10-4x5-fr.mp4
+./make.sh en a   ../redwidow-promo-v10-4x5.mp4
+./make.sh fr 15s ../redwidow-promo-v10-4x5-fr-15s.mp4
+./make.sh en 15s ../redwidow-promo-v10-4x5-15s.mp4
+./make.sh fr b   ../redwidow-promo-v10-4x5-fr-b.mp4
+```
+
+`make.sh` enchaîne `python3 build.py <fr|en> <a|15s|b>` (film HTML et
+`timeline[-15s|-b].json`, en temps musicaux à 94 BPM), `python3 synth.py`
+(bande-son calée sur cette timeline), la normalisation à −14 LUFS en deux passes
+et `node render.cjs <variante> sortie.mp4 <durée> musique.wav`. Ne pas lancer deux
+`make.sh` de la même coupe en même temps : ils écrivent la même musique. Images
+de contrôle : `node still.cjs 4x5-fr 0 3.6 12.6` ; couvertures :
+`PNG=1 node still.cjs 4x5-fr 3.6`. Le rendu échoue si la page fait une requête
+réseau. `fr.py` traduit les légendes et l'interface (libellés réels de
+`src-banners/readme/fr-map.json`) ; le chat de l'accroche assemble la
+conversation de `snap/chat-agent-tall.html` et la carte d'autorisation du
+composant `chat-approval-tall`. `POST.md` propose les textes de publication.
 
 ### Bannières et README
 
