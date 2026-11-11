@@ -29,8 +29,9 @@ describe("page Fournisseurs", () => {
   });
 
   it("l'hôte n'envoie que des booléens de présence", () => {
+    expect(extension).toMatch(/getToken\("claude"\)\.catch\(\(\) => undefined\)/);
     expect(extension).toMatch(
-      /providerAuth: \{\s+claude: \(await getToken\("claude"\)[^)]*\)[^,]*!== undefined,/,
+      /providerAuth: \{\s+claude: claudeToken !== undefined,\s+openai: openaiToken !== undefined,/,
     );
     expect(parseStudioMessage({ type: "setToken", token: "sk-secret" })).toBeNull();
     expect(parseStudioMessage({ type: "configureProvider", id: "claude", token: "x" })).toBeNull();

@@ -63,8 +63,8 @@ jobs:
       - name: Empreintes SHA-256
         working-directory: packages/vscode
         run: |
-          for f in warband-${VERSION}-*.vsix; do sha256sum "$f" > "$f.sha256"; done
-          ls -l warband-${VERSION}-*
+          for f in redwidow-${VERSION}-*.vsix; do sha256sum "$f" > "$f.sha256"; done
+          ls -l redwidow-${VERSION}-*
 
       - name: Publier la release
         env:
@@ -72,12 +72,14 @@ jobs:
           TAG: ${{ github.ref_name }}
         working-directory: packages/vscode
         run: |
-          files=(warband-${VERSION}-*.vsix warband-${VERSION}-*.vsix.sha256)
+          NOTES="$(mktemp)"
+          sed "s/__VERSION__/${VERSION}/" "${GITHUB_WORKSPACE}/.github/release-notes.md" > "${NOTES}"
+          files=(redwidow-${VERSION}-*.vsix redwidow-${VERSION}-*.vsix.sha256)
           if gh release view "${TAG}" > /dev/null 2>&1; then
             gh release upload "${TAG}" "${files[@]}" --clobber
           else
             gh release create "${TAG}" "${files[@]}" \
               --verify-tag \
-              --title "RedWidow ${VERSION}" \
-              --generate-notes
+              --title "Red Widow v${VERSION} — AI pentest agents for your Kali, inside VS Code" \
+              --notes-file "${NOTES}"
           fi

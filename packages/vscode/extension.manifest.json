@@ -1,9 +1,9 @@
 {
-  "name": "warband",
+  "name": "redwidow",
   "displayName": "RedWidow",
   "description": "%extension.description%",
   "version": "1.0.2",
-  "publisher": "warband",
+  "publisher": "tomtimlt",
   "license": "MIT",
   "repository": { "type": "git", "url": "https://github.com/tomtimlt/RedWidow.git" },
   "homepage": "https://github.com/tomtimlt/RedWidow#readme",
@@ -230,7 +230,7 @@
         {
           "command": "warband.openStudio",
           "when": "activeWebviewPanelId =~ /^warband\\./",
-          "group": "navigation@1"
+          "group": "navigation@6"
         },
         {
           "command": "warband.openProgram",
@@ -240,12 +240,12 @@
         {
           "command": "warband.openCockpit",
           "when": "activeWebviewPanelId =~ /^warband\\./",
-          "group": "1_more@5"
+          "group": "navigation@4"
         },
         {
           "command": "warband.openTerminal",
           "when": "activeWebviewPanelId =~ /^warband\\./",
-          "group": "navigation@4"
+          "group": "navigation@2"
         },
         {
           "command": "warband.openKillchain",
@@ -255,7 +255,7 @@
         {
           "command": "warband.openChat",
           "when": "activeWebviewPanelId =~ /^warband\\./",
-          "group": "navigation@2"
+          "group": "navigation@1"
         },
         {
           "command": "warband.openMonitor",

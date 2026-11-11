@@ -255,7 +255,8 @@ describe("composer et Configurer (lot P1)", () => {
     expect(ext).toMatch(/case "openKillchain":\s*openKillchain\(\);/);
     expect(ext).toContain('"warband.killchain"');
     const studio = read("../media/studio.js");
-    expect(studio).toContain('type: "openKillchain"');
+    // Les réglages n'ont plus de page Kill chain : le panneau autonome s'ouvre depuis l'hôte.
+    expect(studio).not.toContain('type: "openKillchain"');
     expect(studio).toContain("killchain-full");
     expect(studio).toContain("studio-kc-page");
     expect(studio).not.toContain("studio-card studio-kc-page");

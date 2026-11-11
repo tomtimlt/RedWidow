@@ -147,10 +147,10 @@ propose des modèles gratuits).
 
    | Plateforme | Fichier |
    |---|---|
-   | Windows (x64) | `warband-1.0.2-win32-x64.vsix` |
-   | Linux (x64) | `warband-1.0.2-linux-x64.vsix` |
-   | macOS, Apple Silicon | `warband-1.0.2-darwin-arm64.vsix` |
-   | macOS, Intel | `warband-1.0.2-darwin-x64.vsix` |
+   | Windows (x64) | `redwidow-1.0.2-win32-x64.vsix` |
+   | Linux (x64) | `redwidow-1.0.2-linux-x64.vsix` |
+   | macOS, Apple Silicon | `redwidow-1.0.2-darwin-arm64.vsix` |
+   | macOS, Intel | `redwidow-1.0.2-darwin-x64.vsix` |
 
 2. Dans VS Code : **Extensions** → `···` → **Installer à partir de VSIX…**
 3. Ouvrez **RedWidow** dans la barre d’activité.

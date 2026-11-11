@@ -183,7 +183,7 @@ copyFileSync(join(pkgDir, "EXTENSION_README.md"), join(stage, "README.md"));
 for (const file of ["package.nls.json", "package.nls.fr.json", "package.nls.en.json"])
   copyFileSync(join(pkgDir, file), join(stage, file));
 
-const out = join(pkgDir, `warband-${manifest.version}-${target}.vsix`);
+const out = join(pkgDir, `redwidow-${manifest.version}-${target}.vsix`);
 const vsce = createRequire(import.meta.url).resolve("@vscode/vsce/vsce");
 execFileSync(
   process.execPath,

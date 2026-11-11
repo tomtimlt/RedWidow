@@ -86,11 +86,11 @@ describe("commandes du manifeste", () => {
     expect(palette.length).toBe(declared.length - visible.length);
   });
 
-  it("au plus 5 entrées principales dans les menus de titre, avec les accès rapides", () => {
+  it("au plus 5 entrées principales dans view/title, 6 dans editor/title, avec les accès rapides", () => {
     for (const menu of ["view/title", "editor/title"]) {
       const entries: { command: string; group: string }[] = manifest.contributes.menus[menu];
       const main = entries.filter((e) => e.group.startsWith("navigation")).map((e) => e.command);
-      expect(main.length).toBeLessThanOrEqual(5);
+      expect(main.length).toBeLessThanOrEqual(menu === "editor/title" ? 6 : 5);
       expect(main).toContain("warband.openStudio");
       if (menu === "view/title") expect(main).toContain("warband.openProgram");
       else {
@@ -98,15 +98,35 @@ describe("commandes du manifeste", () => {
           "warband.openChat",
           "warband.openMonitor",
           "warband.openTerminal",
+          "warband.openCockpit",
           "warband.openKillchain",
         ])
           expect(main).toContain(command);
       }
       // Le reste passe dans le menu « … », rien n'est supprimé.
       expect(entries.length).toBe(9);
-      expect(entries.filter((e) => !e.group.startsWith("navigation")).length).toBe(4);
+      expect(entries.filter((e) => !e.group.startsWith("navigation")).length).toBe(
+        menu === "editor/title" ? 3 : 4,
+      );
       expect(entries.map((e) => e.command)).toContain("warband.openSessions");
     }
+  });
+
+  it("barre d'icônes des onglets : ordre exact de gauche à droite", () => {
+    const entries: { command: string; group: string }[] =
+      manifest.contributes.menus["editor/title"];
+    const ordered = entries
+      .filter((e) => e.group.startsWith("navigation@"))
+      .sort((a, b) => Number(a.group.split("@")[1]) - Number(b.group.split("@")[1]))
+      .map((e) => e.command);
+    expect(ordered).toEqual([
+      "warband.openChat",
+      "warband.openTerminal",
+      "warband.openMonitor",
+      "warband.openCockpit",
+      "warband.openKillchain",
+      "warband.openStudio",
+    ]);
   });
 
   it("palette, intégrations et Burp ouvrent les réglages, sans sélecteur propre", () => {
