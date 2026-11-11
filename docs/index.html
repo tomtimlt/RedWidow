@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Red Widow — AI pentest agents for Kali, inside VS Code</title>
+    <meta name="description" content="Red Widow is an open-source VS Code extension that puts Kali and Exegol containers, a live Monitor, a kill chain and an AI agent that runs only what you approve in one workspace. Free, MIT licensed.">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#0b0b0d">
+    <link rel="canonical" href="https://tomtimlt.github.io/RedWidow/">
+    <link rel="icon" type="image/svg+xml" href="img/redwidow-logo.svg">
+    <link rel="stylesheet" href="site/style.css">
+
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Red Widow">
+    <meta property="og:title" content="Red Widow — AI pentest agents for your Kali, inside VS Code">
+    <meta property="og:description" content="Containers, terminals, a live Monitor, a kill chain and reports in VS Code, with an AI agent that runs only what you approve.">
+    <meta property="og:url" content="https://tomtimlt.github.io/RedWidow/">
+    <meta property="og:image" content="https://tomtimlt.github.io/RedWidow/img/readme/hero.png">
+    <meta property="og:image:width" content="2560">
+    <meta property="og:image:height" content="1280">
+    <meta property="og:image:alt" content="Red Widow: the chat, the kill chain and the Monitor side by side in VS Code">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Red Widow — AI pentest agents for your Kali, inside VS Code">
+    <meta name="twitter:description" content="Containers, terminals, a live Monitor, a kill chain and reports in VS Code, with an AI agent that runs only what you approve.">
+    <meta name="twitter:image" content="https://tomtimlt.github.io/RedWidow/img/readme/hero.png">
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Red Widow",
+        "alternateName": "RedWidow",
+        "description": "AI pentest agents for your Kali, inside VS Code. Exegol and Kali containers, a live Monitor, a kill chain and reports, with an AI agent that runs only what you approve.",
+        "applicationCategory": "SecurityApplication",
+        "operatingSystem": "Windows, Linux, macOS",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "license": "https://opensource.org/licenses/MIT",
+        "url": "https://tomtimlt.github.io/RedWidow/",
+        "downloadUrl": "https://github.com/tomtimlt/RedWidow/releases/latest",
+        "codeRepository": "https://github.com/tomtimlt/RedWidow",
+        "sameAs": ["https://github.com/tomtimlt/RedWidow"]
+      }
+    </script>
+  </head>
+  <body>
+    <header class="top">
+      <div class="wrap">
+        <a class="brand" href="#top">
+          <img src="img/redwidow-logo.svg" alt="" width="28" height="28">
+          <span>Red Widow</span>
+        </a>
+        <nav aria-label="Main">
+          <a class="hide-s" href="#features">Features</a>
+          <a class="hide-s" href="#security">Security</a>
+          <a href="#install">Install</a>
+          <a href="https://github.com/tomtimlt/RedWidow">GitHub</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="top">
+      <div class="hero">
+        <div class="wrap">
+          <p class="eyebrow">Open source · MIT · Public beta</p>
+          <h1>Red Widow<br><span>AI pentest agents for your Kali, inside VS Code</span></h1>
+          <p class="lead">
+            Exegol and Kali containers, terminals, a live Monitor, a kill chain, a coverage matrix
+            and reports in one place, with an AI agent that runs only what you approve.
+          </p>
+          <div class="cta">
+            <a class="btn primary" href="https://github.com/tomtimlt/RedWidow/releases/latest">Download the latest release</a>
+            <a class="btn" href="https://github.com/tomtimlt/RedWidow">View on GitHub</a>
+          </div>
+          <p class="note">For authorized testing only: CTFs, labs and scoped engagements.</p>
+          <div class="shot">
+            <img src="img/readme/hero.png" width="2560" height="1280" alt="Red Widow in VS Code: the chat, the kill chain and the Monitor side by side">
+          </div>
+        </div>
+      </div>
+
+      <section id="how">
+        <div class="wrap">
+          <h2>Weave. Watch. Strike. Wrap.</h2>
+          <p class="sub">
+            A pentest means dozens of terminals, scans and notes scattered everywhere. Red Widow
+            keeps the whole mission in one place inside VS Code. The AI is a helper you call, not
+            the pilot.
+          </p>
+          <div class="grid">
+            <div class="card"><span class="tag">01 Weave</span><h3>Recon</h3><p>Prepares your Exegol and Kali containers and runs the scans in them.</p></div>
+            <div class="card"><span class="tag">02 Watch</span><h3>Analysis</h3><p>Shows every command live and links every finding in a kill chain.</p></div>
+            <div class="card"><span class="tag">03 Strike</span><h3>Action</h3><p>Asks before each sensitive action, or works on its own for a time you set.</p></div>
+            <div class="card"><span class="tag">04 Wrap</span><h3>Report</h3><p>Tracks coverage, keeps an audit trail and drafts the report.</p></div>
+            <div class="card"><span class="tag">05 Learn</span><h3>Learning mode</h3><p>Explains where you stand from your course and your terminal. It never runs anything.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="features" class="alt">
+        <div class="wrap">
+          <h2>Features</h2>
+          <p class="sub">Everything a mission needs, next to your editor.</p>
+
+          <div class="chapter">
+            <div>
+              <h3>Kali and Exegol containers, OpenCode and Claude</h3>
+              <ul>
+                <li>Containers prepared and managed from the cockpit; terminals open straight inside them.</li>
+                <li>Give the agent a target in the chat: it runs the tools in your container, reads the results and suggests the next leads.</li>
+                <li>Pick the provider and the model for each message: OpenCode, Claude or OpenAI.</li>
+                <li>Several conversations in parallel, with a history shared by project.</li>
+              </ul>
+            </div>
+            <img src="img/readme/01-weave.png" width="1600" height="800" loading="lazy" alt="The chat where the agent runs nmap, whatweb, ffuf and sqlmap in a Kali container and reports a way in">
+          </div>
+
+          <div class="chapter flip">
+            <div>
+              <h3>Live Monitor and kill chain</h3>
+              <ul>
+                <li>The Monitor follows every command and web request the agent makes, live, with filters.</li>
+                <li>The kill chain links hosts, credentials, sites, steps and loot, each with a state and its MITRE ATT&amp;CK technique.</li>
+                <li>Replay walks the selected path node by node.</li>
+              </ul>
+            </div>
+            <img src="img/readme/02-watch.png" width="1600" height="800" loading="lazy" alt="The kill chain graph of linked findings above the Monitor and its live output">
+          </div>
+
+          <div class="chapter">
+            <div>
+              <h3>You approve the tools, or set a Bypass</h3>
+              <ul>
+                <li>A card shows the tool, the command and the reason, with Allow once, Deny or Always.</li>
+                <li>Bypass lets the agent work without asking for a time you choose, from 1 minute to 48 hours, or without limit. It switches off when the engine stops.</li>
+                <li>A Stop button in the prompt box while a run is active.</li>
+              </ul>
+            </div>
+            <img src="img/readme/03-strike.png" width="1600" height="800" loading="lazy" alt="An authorization card showing the tool, the sqlmap command, the reason, and the Allow once, Deny and Always buttons">
+          </div>
+
+          <div class="chapter flip">
+            <div>
+              <h3>Coverage, audit and report</h3>
+              <ul>
+                <li>A coverage matrix shows what was tested, negative, blocked or confirmed.</li>
+                <li>The audit keeps actions, decisions and project captures; its ZIP export holds the mission thread, the logs and SHA-256 hashes.</li>
+                <li>The report draft exports as Markdown, ready to complete with your evidence.</li>
+                <li>Kill chain graph export as SVG.</li>
+              </ul>
+            </div>
+            <img src="img/readme/04-wrap.png" width="1600" height="800" loading="lazy" alt="A findings report with a severity bar and High, Medium, Low and Info findings">
+          </div>
+
+          <div class="chapter">
+            <div>
+              <h3>Learning mode and mission profiles</h3>
+              <ul>
+                <li>Add your course, cite your terminal session with <code>#</code>, and get a hint based on what you actually typed. It only reads and never runs or writes anything.</li>
+                <li>Profiles for Pentest, HTB / CTF, Bug bounty, Red Team and Mentor.</li>
+                <li>Several color sets, tuned for light, dark and high-contrast themes.</li>
+              </ul>
+            </div>
+            <img src="img/readme/05-learn.png" width="1600" height="800" loading="lazy" alt="Learning mode: a terminal next to the chat, which reads the terminal and the course and gives a hint instead of a solution">
+          </div>
+        </div>
+      </section>
+
+      <section id="security">
+        <div class="wrap">
+          <h2>Built so the agent stays on a leash</h2>
+          <p class="sub">The guarantees, in plain language.</p>
+          <ul class="safety">
+            <li><strong>Nothing runs without the gate.</strong><span>A single approval gate decides every sensitive action. Denied actions, sensitive paths and anything outside the workspace are never remembered.</span></li>
+            <li><strong>Bypass is your decision, and it is visible.</strong><span>It lasts only the time you choose, stays visible while active, and switches off when the engine stops.</span></li>
+            <li><strong>Secrets are masked.</strong><span>Passwords, tokens and keys are masked before they reach logs and exports. Child processes only get a short allow-list of environment variables.</span></li>
+            <li><strong>A repository policy is applied only once you approve it.</strong><span>Its fingerprint must be validated by a human first. The same goes for the red team engagement sheet and campaign plan, with an emergency stop.</span></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="free" class="alt">
+        <div class="wrap">
+          <h2>Use it for free</h2>
+          <p class="sub">
+            Red Widow is free and open source. For the AI side you bring your own provider, and
+            several options need no subscription.
+          </p>
+          <div class="grid">
+            <div class="card"><h3>OpenCode Zen</h3><p>OpenCode offers free models to get started.</p></div>
+            <div class="card"><h3>GitHub Copilot</h3><p>Available through the GitHub Student Pack.</p></div>
+            <div class="card"><h3>Google Gemini</h3><p>Enable it from the providers list.</p></div>
+            <div class="card"><h3>OpenRouter</h3><p>Enable it from the providers list.</p></div>
+          </div>
+          <p class="note">
+            Results depend on the model: a free model finds less than a frontier model, and Red
+            Widow promises no result. The cockpit, terminals, manual evidence capture and exports
+            work without any AI connection.
+          </p>
+        </div>
+      </section>
+
+      <section id="install">
+        <div class="wrap">
+          <h2>Install</h2>
+          <p class="sub">
+            Requirements: VS Code 1.90+, Docker running, an Exegol or Kali container (Red Widow can
+            prepare one) and, for the agent, an account with a model provider.
+          </p>
+          <ol class="steps">
+            <li>Download the <code>.vsix</code> for your platform from the <a href="https://github.com/tomtimlt/RedWidow/releases/latest">latest release</a>.</li>
+            <li>In VS Code: <strong>Extensions</strong> → <code>···</code> → <strong>Install from VSIX…</strong></li>
+            <li>Open <strong>RedWidow</strong> in the activity bar.</li>
+          </ol>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Platform</th><th>File</th></tr></thead>
+              <tbody>
+                <tr><td>Windows (x64)</td><td><code>redwidow-&lt;version&gt;-win32-x64.vsix</code></td></tr>
+                <tr><td>Linux (x64)</td><td><code>redwidow-&lt;version&gt;-linux-x64.vsix</code></td></tr>
+                <tr><td>macOS, Apple Silicon</td><td><code>redwidow-&lt;version&gt;-darwin-arm64.vsix</code></td></tr>
+                <tr><td>macOS, Intel</td><td><code>redwidow-&lt;version&gt;-darwin-x64.vsix</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="note">
+            Windows and Linux are tested. macOS builds exist but have not been tested on real
+            hardware yet; on macOS, Docker Desktop must be running. Not on the Marketplace yet.
+          </p>
+          <p><a class="btn primary" href="https://github.com/tomtimlt/RedWidow/releases/latest">Download the latest release</a></p>
+        </div>
+      </section>
+
+      <section class="alt">
+        <div class="wrap">
+          <div class="warn">
+            <h2>Authorized testing only</h2>
+            <p>
+              Only test systems you own or have written permission to test: CTFs, labs and scoped
+              engagements. You are responsible for what the agent does on your behalf. Red Widow
+              is not affiliated with Exegol, Kali Linux, HackTheBox, OWASP or MITRE ATT&amp;CK.
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap">
+        <span>© <span id="year">2026</span> Red Widow · <a href="https://github.com/tomtimlt/RedWidow/blob/main/LICENSE">MIT license</a></span>
+        <span>
+          <a href="https://github.com/tomtimlt/RedWidow">Source</a> ·
+          <a href="https://github.com/tomtimlt/RedWidow/releases">Releases</a> ·
+          <a href="https://github.com/tomtimlt/RedWidow/issues">Report an issue</a>
+        </span>
+      </div>
+    </footer>
+    <script>
+      document.getElementById("year").textContent = new Date().getFullYear();
+    </script>
+  </body>
+</html>
