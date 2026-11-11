@@ -950,7 +950,7 @@ describe("cockpit.js", () => {
     expect(js).toContain('type: "pickSharedFolder"');
     expect(js).not.toContain("msg.projectWorkspace");
     expect(js).not.toContain('type: "create"');
-    expect(js).toContain("Aucun conteneur.");
+    expect(js).toContain("Aucun conteneur pour l’instant");
     expect(js).toContain("row.short");
   });
 

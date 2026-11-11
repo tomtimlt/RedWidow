@@ -127,14 +127,101 @@
     imagesAsked: false,
   };
   let lastView = null;
+  let loadingNow = false;
   let operation = { busy: false, stage: "" };
+  // Création en cours ou terminée : étape atteinte, message rejouable, position du panneau figée.
+  let creation = null;
+  let highlight = null;
+  const cardNodes = new Map();
+  const CREATE_ENGINES = { createKali: "kali", createExegol: "exegol" };
+  const STEP_IDS = {
+    kali: ["image", "download", "start", "mcp", "link"],
+    exegol: ["image", "terminal", "start"],
+  };
+  const stepLabel = (id) =>
+    ({
+      image: t("Image"),
+      download: t("Téléchargement / Construction"),
+      terminal: t("Création dans le terminal"),
+      start: t("Démarrage"),
+      mcp: t("Vérification MCP"),
+      link: t("Liaison"),
+    })[id];
+  // Les libellés de l’hôte sont déjà traduits : on accepte la clé source fr ou son rendu.
+  const sameStage = (stage, key) => stage === key || stage === t(key);
+  const mcpStage = (stage) =>
+    ["Serveur MCP Kali :", t("Serveur MCP Kali : {0}", { 0: "" }).trimEnd()].some((prefix) =>
+      stage.startsWith(prefix),
+    );
+  const stepIndexFor = (engine, stage, layers) => {
+    const ids = STEP_IDS[engine];
+    let id = null;
+    if (engine === "kali") {
+      if (sameStage(stage, "Préparation de l’image Kali…")) id = "image";
+      else if (
+        sameStage(stage, "Téléchargement de l’image…") ||
+        sameStage(stage, "Installation des outils Kali…") ||
+        (Array.isArray(layers) && layers.length > 0)
+      )
+        id = "download";
+      else if (sameStage(stage, "Création et démarrage du conteneur…")) id = "start";
+      else if (sameStage(stage, "Vérification du serveur MCP Kali…") || mcpStage(stage)) id = "mcp";
+      else if (sameStage(stage, "Liaison au projet…")) id = "link";
+    } else if (sameStage(stage, "Préparation Exegol…")) id = "image";
+    else if (sameStage(stage, "Création du conteneur dans le terminal…")) id = "terminal";
+    return id === null ? -1 : ids.indexOf(id);
+  };
+  const insideFolder = (project, folder) => {
+    if (typeof project !== "string" || typeof folder !== "string" || !project || !folder)
+      return false;
+    const trim = (path) => path.replace(/[\\/]+$/, "");
+    const p = trim(project);
+    const f = trim(folder);
+    return p === f || p.startsWith(`${f}/`) || p.startsWith(`${f}\\`);
+  };
   const submitOperation = (message) => {
     if (operation.busy) return;
     operation = { busy: true, stage: "Préparation…" };
+    const engine = CREATE_ENGINES[message.type];
+    if (engine)
+      creation = {
+        engine,
+        message,
+        step: 0,
+        status: "running",
+        notice: "",
+        linkExpected: insideFolder(lastView?.projectWorkspace, form.sharedFolder),
+        createFirst: !lastView?.linkedBanner,
+      };
     vscode.postMessage(message);
     rerender();
   };
-  const expandedRows = new Set();
+  const creationVisible = () => creation !== null && creation.status !== "success" && form.open;
+  const closeCreation = () => {
+    creation = null;
+    operation = { busy: false, stage: "" };
+    form.open = false;
+    form.name = "";
+    rerender();
+    document.getElementById("cockpit-create-toggle")?.focus?.({ preventScroll: true });
+  };
+  const showCreated = () => {
+    const name = creation?.message?.name ?? "";
+    const rows = lastView?.containers ?? [];
+    const row = name
+      ? (rows.find((r) => r.short === name || r.name === name) ??
+        rows.find((r) => r.name.includes(name)))
+      : undefined;
+    highlight = row ? row.name : null;
+    closeCreation();
+    const node = highlight ? cardNodes.get(highlight) : undefined;
+    node?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+    if (node && typeof setTimeout === "function")
+      setTimeout(() => {
+        node.className = node.className.replace(/ is-highlight/g, "");
+        highlight = null;
+      }, 2400);
+  };
 
   const engineOf = (view) => {
     if (view.exegol !== "present") return "kali";
@@ -149,7 +236,7 @@
   };
 
   const rerender = () => {
-    if (lastView) render(lastView);
+    if (lastView) renderFull(lastView);
   };
 
   const fillSelect = (select) => {
@@ -213,13 +300,20 @@
     const head = el("div", "cockpit-create-head");
     const close = button("ghost cockpit-create-close", t("Replier le formulaire"), "caret", () => {
       form.open = false;
+      if (creation && creation.status !== "running") creation = null;
       rerender();
       document.getElementById("cockpit-create-toggle")?.focus();
     });
     close.setAttribute("aria-controls", "cockpit-create");
+    close.disabled = creation?.status === "running";
     close.querySelector(".btn-text")?.remove();
     head.append(heading(t("Créer un conteneur")), close);
     section.append(head);
+    if (creation?.status === "success") {
+      section.append(renderSuccess());
+      return section;
+    }
+    if (creation) section.append(buildProgressCard(true));
 
     const engines = el("div", "cockpit-actions");
     const choices = view.exegol === "present" ? ["exegol", "kali"] : ["kali"];
@@ -367,122 +461,313 @@
       checkbox("shareMyResources", t("Partager mes ressources Exegol"));
     }
     const actions = el("div", "cockpit-actions");
-    const create = button("primary", t("Créer"), undefined, () => {
-      if (!canCreate(engine)) return;
-      if (engine === "exegol") {
-        if (!Number.isInteger(form.desktopPort) || form.desktopPort < 1 || form.desktopPort > 65535)
-          return;
-        submitOperation({
-          type: "createExegol",
-          name: form.name,
-          image: form.exegolImage,
-          vpn: form.vpn,
-          desktop: form.desktop,
-          desktopPort: form.desktopPort,
-          network: form.network,
-          shareResources: form.shareResources,
-          shareMyResources: form.shareMyResources,
-        });
-      } else
-        submitOperation({
-          type: "createKali",
-          image: form.image,
-          name: form.name,
-        });
-    });
+    const running = creation?.status === "running";
+    const failed = creation?.status === "failed";
+    if (failed) {
+      const retry = button("primary", t("Réessayer"), "refresh", () =>
+        submitOperation(creation.message),
+      );
+      retry.id = "cockpit-retry";
+      actions.append(retry);
+    }
+    const create = button(
+      failed ? "secondary" : "primary",
+      running ? t("Création…") : t("Créer"),
+      undefined,
+      () => {
+        if (!canCreate(engine)) return;
+        if (engine === "exegol") {
+          if (
+            !Number.isInteger(form.desktopPort) ||
+            form.desktopPort < 1 ||
+            form.desktopPort > 65535
+          )
+            return;
+          submitOperation({
+            type: "createExegol",
+            name: form.name,
+            image: form.exegolImage,
+            vpn: form.vpn,
+            desktop: form.desktop,
+            desktopPort: form.desktopPort,
+            network: form.network,
+            shareResources: form.shareResources,
+            shareMyResources: form.shareMyResources,
+          });
+        } else
+          submitOperation({
+            type: "createKali",
+            image: form.image,
+            name: form.name,
+          });
+      },
+    );
     create.id = "cockpit-submit";
     create.disabled = operation.busy || !canCreate(engine);
     actions.append(create);
+    if (running)
+      actions.append(
+        button("ghost cockpit-cancel-link", t("Annuler"), undefined, () =>
+          vscode.postMessage({ type: "cancelOperation" }),
+        ),
+      );
+    if (operation.busy) {
+      const lock = (node) => {
+        if (["input", "select", "button"].includes((node.tagName ?? node.tag ?? "").toLowerCase()))
+          node.disabled = true;
+        for (const child of node.children) lock(child);
+      };
+      lock(engines);
+      lock(fields);
+    }
     section.append(engines, fields, actions);
     if (engine === "kali") askImages();
     return section;
   }
 
-  function renderProgress() {
-    if (operation.busy || operation.error || operation.stage) {
-      let card = document.getElementById("cockpit-progress");
-      if (!card) {
-        card = el("section", "cockpit-progress");
-        card.id = "cockpit-progress";
-        const content = el("div");
-        content.id = "cockpit-progress-content";
-        card.append(content);
-        if (operation.busy)
-          card.append(
-            button("secondary", t("Annuler"), undefined, () =>
-              vscode.postMessage({ type: "cancelOperation" }),
-            ),
-          );
-      }
-      const progress = card.children[0];
-      while (progress.firstChild) progress.removeChild(progress.firstChild);
-      progress.setAttribute("aria-label", t("Progression de l’opération"));
-      const status = el("p", "", t(operation.stage || "Préparation…"));
-      status.setAttribute("role", "status");
-      progress.append(status);
-      if (operation.message) progress.append(el("p", "cockpit-help", t(operation.message)));
-      for (const layer of operation.layers ?? []) {
-        const row = el("div", "cockpit-layer");
-        const speed = Number.isFinite(layer.speedBytesPerSecond)
-          ? t` · ${(layer.speedBytesPerSecond / 1048576).toFixed(1)} Mio/s`
-          : "";
-        const label = `${layer.id} — ${t(layer.status)}${speed}`;
-        row.append(el("span", "", label));
-        const bar = el("progress");
-        bar.setAttribute("aria-label", label);
-        if (["Pull complete", "Already exists"].includes(layer.status)) {
-          bar.max = 1;
-          bar.value = 1;
-        } else if (
-          Number.isFinite(layer.total) &&
-          layer.total > 0 &&
-          Number.isFinite(layer.current)
-        ) {
-          bar.max = layer.total;
-          bar.value = Math.min(layer.total, Math.max(0, layer.current));
-        }
-        row.append(bar);
-        progress.append(row);
-      }
-      if (operation.error) progress.append(el("p", "cockpit-error", t(operation.error)));
-      return card;
+  const visibleSteps = () =>
+    STEP_IDS[creation.engine].filter(
+      (id) => id !== "link" || creation.linkExpected || creation.step >= 4,
+    );
+
+  function renderStepper() {
+    const ids = STEP_IDS[creation.engine];
+    const list = el("ol", "cockpit-steps");
+    list.setAttribute("aria-label", t("Étapes de création"));
+    for (const id of visibleSteps()) {
+      const index = ids.indexOf(id);
+      let state = "todo";
+      if (creation.status === "success" || index < creation.step) state = "done";
+      else if (index === creation.step) state = creation.status === "failed" ? "failed" : "active";
+      const item = el("li", `cockpit-step is-${state}`);
+      const mark = el("span", "cockpit-step-mark");
+      if (state === "done") mark.append(icon("check"));
+      else if (state === "failed") mark.textContent = "!";
+      if (state === "active") item.setAttribute("aria-current", "step");
+      if (state === "failed") item.title = t("Échec");
+      item.append(mark, el("span", "cockpit-step-label", stepLabel(id)));
+      list.append(item);
     }
-    return null;
+    return list;
+  }
+
+  function fillProgress(content, withSteps) {
+    while (content.firstChild) content.removeChild(content.firstChild);
+    content.setAttribute("aria-label", t("Progression de l’opération"));
+    if (withSteps && creation) content.append(renderStepper());
+    const status = el("p", "", t(operation.stage || "Préparation…"));
+    status.setAttribute("role", "status");
+    content.append(status);
+    if (operation.message) content.append(el("p", "cockpit-help", t(operation.message)));
+    for (const layer of operation.layers ?? []) {
+      const row = el("div", "cockpit-layer");
+      const speed = Number.isFinite(layer.speedBytesPerSecond)
+        ? t` · ${(layer.speedBytesPerSecond / 1048576).toFixed(1)} Mio/s`
+        : "";
+      const label = `${layer.id} — ${t(layer.status)}${speed}`;
+      row.append(el("span", "", label));
+      const bar = el("progress");
+      bar.setAttribute("aria-label", label);
+      if (["Pull complete", "Already exists"].includes(layer.status)) {
+        bar.max = 1;
+        bar.value = 1;
+      } else if (
+        Number.isFinite(layer.total) &&
+        layer.total > 0 &&
+        Number.isFinite(layer.current)
+      ) {
+        bar.max = layer.total;
+        bar.value = Math.min(layer.total, Math.max(0, layer.current));
+      }
+      row.append(bar);
+      content.append(row);
+    }
+    if (operation.error) content.append(el("p", "cockpit-error", t(operation.error)));
+  }
+
+  /** Carte de progression : bouton d’annulation intégré seulement hors panneau de création. */
+  function buildProgressCard(withSteps) {
+    const card = el("section", "cockpit-progress");
+    card.id = "cockpit-progress";
+    const content = el("div");
+    content.id = "cockpit-progress-content";
+    card.append(content);
+    if (!withSteps && operation.busy)
+      card.append(
+        button("ghost cockpit-cancel-link", t("Annuler"), undefined, () =>
+          vscode.postMessage({ type: "cancelOperation" }),
+        ),
+      );
+    fillProgress(content, withSteps);
+    return card;
+  }
+
+  const updateProgress = () => {
+    const content = document.getElementById("cockpit-progress-content");
+    if (content) fillProgress(content, creationVisible());
+  };
+
+  function renderSuccess() {
+    const box = el("div", "cockpit-success");
+    const head = el("div", "cockpit-success-head");
+    const check = el("span", "cockpit-check");
+    check.setAttribute("aria-hidden", "true");
+    const stage = creation.notice;
+    const text = el(
+      "p",
+      "cockpit-success-text",
+      !stage || sameStage(stage, "Terminé") ? t("Conteneur créé") : t(stage),
+    );
+    text.setAttribute("role", "status");
+    head.append(check, text);
+    const actions = el("div", "cockpit-actions");
+    const view = button("primary", t("Voir le conteneur"), undefined, showCreated);
+    view.id = "cockpit-view-container";
+    const close = button("secondary", t("Fermer"), undefined, closeCreation);
+    close.id = "cockpit-success-close";
+    actions.append(view, close);
+    box.append(head, renderStepper(), actions);
+    return box;
+  }
+
+  function renderCard(row, linkedCount) {
+    const li = el(
+      "li",
+      `cockpit-card ${row.state === "running" ? "is-running" : "is-stopped"}${row.linked ? " is-linked" : ""}${highlight === row.name ? " is-highlight" : ""}`,
+    );
+    cardNodes.set(row.name, li);
+    const head = el("div", "cockpit-card-head");
+    const n = el("span", "cockpit-ellipsis cockpit-row-name");
+    ellipsize(n, row.short || row.name);
+    head.append(el("span", "dot"), n);
+    if (row.linked) {
+      head.append(
+        row.primary
+          ? el("span", "cockpit-linked-tag is-primary", t("Principal"))
+          : el("span", "cockpit-linked-tag", t("lié")),
+      );
+    }
+    const sub = el("div", "cockpit-row-sub");
+    const state = typeof row.uptime === "string" && row.uptime ? row.uptime : stateLabel(row.state);
+    sub.append(el("span", "cockpit-row-state", state), el("span", "cockpit-muted", row.family));
+    const im = el("div", "cockpit-ellipsis cockpit-row-image");
+    ellipsize(im, row.image, 64);
+    const ws = el("div", "cockpit-ellipsis cockpit-muted cockpit-row-ws");
+    ellipsize(ws, row.workspace ?? t("Sans dossier hôte"), 64);
+    const act = el("div", "cockpit-card-act");
+    if (row.linked && !row.primary && linkedCount >= 2) {
+      const primaryBtn = button("secondary", t("Principal"), "link", () =>
+        vscode.postMessage({ type: "setPrimary", name: row.name }),
+      );
+      primaryBtn.title = t("Définir comme conteneur principal (affichage seulement)");
+      act.append(primaryBtn);
+    }
+    if (!row.linked) {
+      const linkBtn = button("secondary", t("Lier"), "link");
+      if (!row.canLink) {
+        linkBtn.disabled = true;
+        linkBtn.title = t(row.linkTitle || "Association indisponible");
+      } else {
+        linkBtn.addEventListener("click", () =>
+          vscode.postMessage({ type: "link", name: row.name }),
+        );
+      }
+      act.append(linkBtn);
+    }
+    if (row.state === "running") {
+      act.append(
+        button("danger", t("Arrêter"), "stop", () =>
+          submitOperation({ type: "stop", name: row.name }),
+        ),
+      );
+    } else {
+      act.append(
+        button("primary", t("Démarrer"), "play", () =>
+          submitOperation({ type: "start", name: row.name }),
+        ),
+      );
+    }
+    act.append(
+      button("danger", t("Supprimer"), "trash", () =>
+        submitOperation({ type: "remove", name: row.name }),
+      ),
+    );
+    for (const control of act.children) {
+      if ([t("Démarrer"), t("Arrêter"), t("Supprimer")].includes(control.title))
+        control.disabled = operation.busy;
+    }
+    li.append(head, sub, im, ws, act);
+    return li;
   }
 
   function render(view) {
     if (!main) return;
-    lastView = view;
-    while (main.firstChild) main.removeChild(main.firstChild);
-
     if (view.loading) {
+      loadingNow = true;
+      // Pendant une opération, la vue précédente reste affichée avec un indicateur discret.
+      if (lastView && (operation.busy || creation)) {
+        renderFull(lastView);
+        return;
+      }
+      while (main.firstChild) main.removeChild(main.firstChild);
       main.append(el("p", "cockpit-notice", t("Actualisation…")));
       return;
     }
+    loadingNow = false;
+    lastView = view;
+    renderFull(view);
+  }
 
-    const progress = renderProgress();
-    if (progress) main.append(progress);
+  function renderFull(view) {
+    if (!main) return;
+    while (main.firstChild) main.removeChild(main.firstChild);
+    cardNodes.clear();
 
-    // État compact du système et de la liaison au projet.
+    if (loadingNow) {
+      const busy = el("p", "cockpit-loading", t("Actualisation…"));
+      busy.setAttribute("role", "status");
+      main.append(busy);
+    }
+
+    if (!creationVisible() && (operation.busy || operation.error || operation.stage))
+      main.append(buildProgressCard(false));
+
+    // Bandeau d’état : un voyant par champ présent dans la vue.
     const status = el("section", "cockpit-status");
     status.setAttribute("aria-label", t("État système"));
     const grid = el("div", "cockpit-tiles");
-    const linkedTone = { running: "ok", stopped: "warn", absent: "err" }[view.linked] ?? "off";
-    const daemonTone = { reachable: "ok", unreachable: "err" }[view.daemon] ?? "off";
-    grid.append(
-      tile(
-        "Docker",
-        view.docker === "present" ? t("présent") : t("absent"),
-        view.docker === "present" ? "ok" : "err",
-      ),
-      tile(t("Démon"), daemonLine(view.daemon), daemonTone),
-      tile(
-        "Exegol",
-        view.exegol === "present" ? t("présent") : t("absent"),
-        view.exegol === "present" ? "ok" : "off",
-      ),
-      tile(t("Conteneur lié"), linkedLine(view.linked), linkedTone),
-    );
+    if (view.docker !== undefined)
+      grid.append(
+        tile(
+          "Docker",
+          view.docker === "present" ? t("présent") : t("absent"),
+          view.docker === "present" ? "ok" : "err",
+        ),
+      );
+    if (view.daemon !== undefined)
+      grid.append(
+        tile(
+          t("Démon"),
+          daemonLine(view.daemon),
+          { reachable: "ok", unreachable: "err" }[view.daemon] ?? "off",
+        ),
+      );
+    if (view.exegol !== undefined)
+      grid.append(
+        tile(
+          "Exegol",
+          view.exegol === "present" ? t("présent") : t("absent"),
+          view.exegol === "present" ? "ok" : "off",
+        ),
+      );
+    if (view.linked !== undefined)
+      grid.append(
+        tile(
+          t("Conteneur lié"),
+          linkedLine(view.linked),
+          { running: "ok", stopped: "warn", absent: "err" }[view.linked] ?? "off",
+        ),
+      );
     status.append(heading(t("Système")), grid);
     if (view.program && typeof view.program.state === "string") {
       const programLabels = {
@@ -546,7 +831,7 @@
     }
     main.append(status);
 
-    if (view.docker === t("absent") || view.empty === "docker") {
+    if (view.docker === "absent" || view.empty === "docker") {
       main.append(el("p", "cockpit-notice", t("Docker est absent.")));
       return;
     }
@@ -555,14 +840,13 @@
       main.append(el("p", "cockpit-error", t(view.error)));
     }
 
-    // Une seule entrée de création : le bouton est masqué quand le panneau est ouvert.
+    // Sans conteneur, un seul appel à l’action ; sinon le bouton est masqué quand le panneau est ouvert.
     const appendCreate = () => {
       if (form.open) {
         main.append(renderCreate(view));
         return;
       }
-      const createBar = el("div", "cockpit-create-bar");
-      const createToggle = button("secondary", t("Nouveau conteneur"), "plus", () => {
+      const createToggle = button("primary", t("Nouveau conteneur"), "plus", () => {
         form.open = true;
         rerender();
         document.getElementById("cockpit-name")?.focus();
@@ -570,33 +854,42 @@
       createToggle.id = "cockpit-create-toggle";
       createToggle.setAttribute("aria-expanded", "false");
       createToggle.setAttribute("aria-controls", "cockpit-create");
+      if (view.empty === "list" && !view.error) {
+        const empty = el("section", "cockpit-empty");
+        empty.append(
+          el("strong", "cockpit-empty-title", t("Aucun conteneur pour l’instant")),
+          el(
+            "p",
+            "cockpit-muted",
+            t("Créez un environnement isolé pour lancer vos outils et garder le projet à portée."),
+          ),
+          createToggle,
+        );
+        main.append(empty);
+        return;
+      }
+      const createBar = el("div", "cockpit-create-bar");
+      createToggle.className = "secondary";
       createBar.append(createToggle);
       main.append(createBar);
     };
     // Sans conteneur lié, la création passe en tête ; sinon elle suit la liste.
-    const createFirst = !view.linkedBanner;
+    // La position est figée pendant la création et jusqu’à la fermeture de l’état de réussite.
+    const createFirst = creation ? creation.createFirst : !view.linkedBanner;
     if (createFirst) appendCreate();
 
-    // Contexte du projet et commandes du conteneur affiché.
-    const linkedSec = el("section", "cockpit-linked");
-    linkedSec.setAttribute("aria-label", t("Conteneur lié"));
-    linkedSec.append(heading(t("Conteneur lié")));
-    if (!view.linkedBanner) {
-      linkedSec.append(
-        el(
-          "p",
-          "cockpit-muted",
-          t("Aucun conteneur lié. Choisissez-en un dans la liste ci-dessous (Lier)."),
-        ),
-      );
-    } else {
+    // Contexte du projet et commandes du conteneur lié.
+    if (view.linkedBanner) {
+      const linkedSec = el("section", "cockpit-linked");
+      linkedSec.setAttribute("aria-label", t("Conteneur lié"));
+      linkedSec.append(heading(t("Conteneur lié")));
       const b = view.linkedBanner;
       const tone = { running: "ok", stopped: "warn", absent: "err" }[b.state] ?? "off";
       const card = el("div", `cockpit-context tone-${tone}`);
       const head = el("div", "cockpit-linked-head");
       const name = el("strong", "cockpit-ellipsis cockpit-hero-name");
       ellipsize(name, b.short || b.name);
-      head.append(name, pill(tone, b.state === t("absent") ? t("absent") : stateLabel(b.state)));
+      head.append(name, pill(tone, b.state === "absent" ? t("absent") : stateLabel(b.state)));
       const meta = el("dl", "cockpit-meta");
       const img = el("dd", "cockpit-ellipsis");
       ellipsize(img, b.image ?? "—", 64);
@@ -624,123 +917,26 @@
       );
       card.append(head, meta, actions);
       linkedSec.append(card);
+      main.append(linkedSec);
     }
-    main.append(linkedSec);
     if (view.error) {
       if (!createFirst) appendCreate();
       return;
     }
 
     if (view.empty === "list") {
-      main.append(el("p", "cockpit-notice", t("Aucun conteneur.")));
       if (!createFirst) appendCreate();
       return;
     }
 
-    // Lignes compactes et détails repliables conservés entre actualisations.
+    // Grille de cartes vivantes.
     const rows = view.containers ?? [];
     const listSec = el("section", "cockpit-list");
     listSec.setAttribute("aria-label", t("Conteneurs"));
     listSec.append(heading(t("Conteneurs"), rows.length));
     const linkedCount = rows.filter((r) => r.linked).length;
-    const ul = el("ul", "cockpit-rows");
-    for (const row of rows) {
-      const li = el("li", `cockpit-row ${row.state === "running" ? "is-running" : "is-stopped"}`);
-      const details = el("div", "cockpit-row-details");
-      details.id = `cockpit-details-${ul.children.length}`;
-      details.hidden = !expandedRows.has(row.name);
-      const toggle = button(
-        "ghost cockpit-row-toggle",
-        t`Détails de ${row.short || row.name}`,
-        "chevronRight",
-        () => {
-          details.hidden = !details.hidden;
-          if (details.hidden) expandedRows.delete(row.name);
-          else expandedRows.add(row.name);
-          toggle.setAttribute("aria-expanded", String(!details.hidden));
-        },
-      );
-      toggle.setAttribute("aria-controls", details.id);
-      toggle.setAttribute("aria-expanded", String(!details.hidden));
-      toggle.querySelector(".btn-text")?.remove();
-      li.append(toggle, el("span", "dot"));
-      const mainCol = el("div", "cockpit-row-main");
-      const top = el("div", "cockpit-row-top");
-      const n = el("span", "cockpit-ellipsis cockpit-row-name");
-      ellipsize(n, row.short || row.name);
-      top.append(n);
-      if (row.linked) {
-        top.append(
-          row.primary
-            ? el("span", "cockpit-linked-tag is-primary", t("Principal"))
-            : el("span", "cockpit-linked-tag", t("lié")),
-        );
-      }
-      const sub = el("div", "cockpit-row-sub");
-      const im = el("span", "cockpit-ellipsis cockpit-row-image");
-      ellipsize(im, row.image);
-      sub.append(
-        el("span", "cockpit-row-state", stateLabel(row.state)),
-        el("span", "cockpit-muted", row.family),
-        im,
-      );
-      if (row.workspace === undefined) {
-        sub.append(el("span", "cockpit-muted cockpit-row-ws", t("sans dossier")));
-      }
-      mainCol.append(top, sub);
-      li.append(mainCol);
-      const act = el("div", "cockpit-row-act");
-      if (row.linked && !row.primary && linkedCount >= 2) {
-        const primaryBtn = button("secondary", t("Principal"), "link", () =>
-          vscode.postMessage({ type: "setPrimary", name: row.name }),
-        );
-        primaryBtn.title = t("Définir comme conteneur principal (affichage seulement)");
-        act.append(primaryBtn);
-      }
-      if (!row.linked) {
-        const linkBtn = button("secondary", t("Lier"), "link");
-        if (!row.canLink) {
-          linkBtn.disabled = true;
-          linkBtn.title = t(row.linkTitle || "Association indisponible");
-        } else {
-          linkBtn.addEventListener("click", () =>
-            vscode.postMessage({ type: "link", name: row.name }),
-          );
-        }
-        act.append(linkBtn);
-      }
-      if (row.state === "running") {
-        act.append(
-          button("danger", t("Arrêter"), "stop", () =>
-            submitOperation({ type: "stop", name: row.name }),
-          ),
-        );
-      } else {
-        act.append(
-          button("primary", t("Démarrer"), "play", () =>
-            submitOperation({ type: "start", name: row.name }),
-          ),
-        );
-      }
-      act.append(
-        button("danger", t("Supprimer"), "trash", () =>
-          submitOperation({ type: "remove", name: row.name }),
-        ),
-      );
-      for (const control of act.children) {
-        if ([t("Démarrer"), t("Arrêter"), t("Supprimer")].includes(control.title))
-          control.disabled = operation.busy;
-      }
-      const workspace = el("span", "cockpit-row-workspace");
-      workspace.textContent = row.workspace ?? t("Sans dossier hôte");
-      details.append(
-        el("span", "cockpit-muted", row.name),
-        el("span", "cockpit-row-image", row.image),
-        workspace,
-      );
-      li.append(act, details);
-      ul.append(li);
-    }
+    const ul = el("ul", "cockpit-cards");
+    for (const row of rows) ul.append(renderCard(row, linkedCount));
     listSec.append(ul);
     main.append(listSec);
     if (!createFirst) appendCreate();
@@ -806,7 +1002,21 @@
       if (typeof msg.busy !== "boolean" || typeof msg.stage !== "string") return;
       const sameBusy = operation.busy === msg.busy;
       operation = { ...msg, layers: Array.isArray(msg.layers) ? msg.layers : [] };
-      if (sameBusy && document.getElementById("cockpit-progress")) renderProgress();
+      if (creation?.status === "running") {
+        if (msg.busy) {
+          // L’étape ne recule jamais pendant une opération.
+          const index = stepIndexFor(creation.engine, msg.stage, operation.layers);
+          if (index > creation.step) creation.step = index;
+          if (sameStage(msg.stage, "Liaison au projet…")) creation.linkExpected = true;
+        } else if (typeof msg.error === "string" || sameStage(msg.stage, "Échec de l’opération"))
+          creation.status = "failed";
+        else if (sameStage(msg.stage, "Opération annulée")) creation = null;
+        else {
+          creation.status = "success";
+          creation.notice = msg.stage;
+        }
+      }
+      if (sameBusy && document.getElementById("cockpit-progress")) updateProgress();
       else rerender();
       return;
     }

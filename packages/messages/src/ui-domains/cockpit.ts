@@ -101,4 +101,18 @@ export const cockpitEn: Record<string, string> = {
   Téléchargement: "Downloading",
   Extraction: "Extracting",
   Annulé: "Cancelled",
+  Image: "Image",
+  "Téléchargement / Construction": "Download / Build",
+  "Création dans le terminal": "Creation in the terminal",
+  Démarrage: "Startup",
+  "Vérification MCP": "MCP check",
+  Liaison: "Link",
+  "Étapes de création": "Creation steps",
+  "Création…": "Creating…",
+  Réessayer: "Retry",
+  "Voir le conteneur": "View container",
+  "Conteneur créé": "Container created",
+  "Aucun conteneur pour l’instant": "No containers yet",
+  "Créez un environnement isolé pour lancer vos outils et garder le projet à portée.":
+    "Create an isolated environment to run your tools and keep the project close at hand.",
 };

@@ -51,6 +51,12 @@ class CockpitNode {
   querySelector() {
     return null;
   }
+  findAll(predicate: (node: CockpitNode) => boolean): CockpitNode[] {
+    return [
+      ...(predicate(this) ? [this] : []),
+      ...this.children.flatMap((child) => child.findAll(predicate)),
+    ];
+  }
   find(predicate: (node: CockpitNode) => boolean): CockpitNode | undefined {
     if (predicate(this)) return this;
     for (const child of this.children) {
@@ -61,7 +67,7 @@ class CockpitNode {
   }
 }
 
-it("création repliée, brouillon préservé et détails indépendants des actions", () => {
+it("création repliée, brouillon préservé et actions portées par la carte", () => {
   const main = new CockpitNode("main");
   const sent: unknown[] = [];
   let receive: (event: { data: unknown }) => void = () => {};
@@ -121,12 +127,8 @@ it("création repliée, brouillon préservé et détails indépendants des actio
   expect(main.find((n) => n.id === "cockpit-create-toggle")).toBeDefined();
   find((n) => n.id === "cockpit-create-toggle").click();
   expect(find((n) => n.id === "cockpit-name").value).toBe("brouillon");
-  const toggle = find((n) => n.className.includes("cockpit-row-toggle"));
-  expect(toggle.attributes.get("aria-expanded")).toBe("false");
-  toggle.click();
-  expect(find((n) => n.className === "cockpit-row-details").hidden).toBe(false);
+  expect(main.find((n) => n.className.includes("cockpit-card"))).toBeDefined();
   receive({ data: view });
-  expect(find((n) => n.className === "cockpit-row-details").hidden).toBe(false);
   find((n) => n.attributes.get("aria-label") === "Arrêter").click();
   expect(sent).toContainEqual({ type: "stop", name: "kali-lab" });
   find((n) => n.attributes.get("aria-label") === "Lier").click();
@@ -206,7 +208,9 @@ it("transmet les options Exegol et conserve le brouillon pendant la progression"
   ui.send({ type: "pickedVpn", label: "mission.ovpn" });
   expect(ui.main.find((node) => node.textContent === "mission.ovpn")).toBeDefined();
   ui.button("Créer").click();
-  ui.button("Créer").click();
+  // Pendant la création : bouton inerte « Création… », un seul message publié.
+  expect(ui.button("Création…").disabled).toBe(true);
+  ui.button("Création…").click();
   expect(
     ui.sent.filter((message) => (message as { type: string }).type === "createExegol"),
   ).toEqual([
@@ -255,7 +259,7 @@ it("transmet les options Exegol et conserve le brouillon pendant la progression"
   expect(ui.find((node) => node.tag === "progress").value).toBe(1);
   cancel.click();
   expect(ui.sent).toContainEqual({ type: "cancelOperation" });
-  ui.send({ type: "operation", busy: false, stage: "Annulé" });
+  ui.send({ type: "operation", busy: false, stage: "Opération annulée" });
   expect(ui.button("Créer").disabled).toBe(false);
 });
 
@@ -332,7 +336,7 @@ it("refuse les brouillons invalides et réactive la création Kali après choix 
   });
 });
 
-it("change de langue sans perdre le formulaire, le focus, la sélection et les détails", () => {
+it("change de langue sans perdre le formulaire, le focus et la sélection", () => {
   const ui = cockpit("absent");
   ui.field("cockpit-create-toggle").click();
   const name = ui.field("cockpit-name");
@@ -341,7 +345,6 @@ it("change de langue sans perdre le formulaire, le focus, la sélection et les d
   name.focus();
   name.setSelectionRange(2, 6, "backward");
   ui.main.scrollTop = 123;
-  ui.find((node) => node.className.includes("cockpit-row-toggle")).click();
   ui.send({ type: "locale", locale: "en" });
   expect(ui.button("Create")).toBeDefined();
   expect(ui.field("cockpit-name").value).toBe("Projet français");
@@ -349,7 +352,6 @@ it("change de langue sans perdre le formulaire, le focus, la sélection et les d
   expect(ui.field("cockpit-name").selectionStart).toBe(2);
   expect(ui.field("cockpit-name").selectionEnd).toBe(6);
   expect(ui.main.scrollTop).toBe(123);
-  expect(ui.find((node) => node.className === "cockpit-row-details").hidden).toBe(false);
   expect(ui.find((node) => node.textContent === "lab")).toBeDefined();
   ui.send({ type: "locale", locale: "fr" });
   expect(ui.button("Créer")).toBeDefined();
@@ -379,6 +381,7 @@ it("la création attend le dossier partagé choisi sur l'hôte et ne le déduit 
   ) as Record<string, unknown>;
   expect(created).toBeDefined();
   expect(created).not.toHaveProperty("source");
+  ui.send({ type: "operation", busy: false, stage: "Opération annulée" });
   // L'hôte oublie le dossier après une création réussie : la webview le retire et bloque Créer.
   ui.send({ type: "pickedSharedFolder", path: "" });
   expect(ui.button("Créer").disabled).toBe(true);
@@ -410,7 +413,7 @@ it("la fermeture du panneau réaffiche le bouton et lui rend le focus", () => {
 
 it("la carte liée affiche image et dossier sans repli, et l'ordre suit le lien", () => {
   const ui = cockpit();
-  expect(sectionOrder(ui.main)).toEqual(["create", "cockpit-linked", "cockpit-list"]);
+  expect(sectionOrder(ui.main)).toEqual(["create", "cockpit-list"]);
   ui.send({
     ...ui.view,
     linkedBanner: { name: "lab", short: "lab", state: "running", image: "kali", workspace: "/w" },
@@ -419,4 +422,174 @@ it("la carte liée affiche image et dossier sans repli, et l'ordre suit le lien"
   expect(ui.main.find((n) => n.textContent === "Dossier et image")).toBeUndefined();
   expect(ui.main.find((n) => n.tag === "dl")).toBeDefined();
   expect(sectionOrder(ui.main)).toEqual(["cockpit-linked", "cockpit-list", "create"]);
+});
+
+// ── Refonte : stepper, état de réussite, échec, rechargement ──
+
+const kaliCreation = (project?: string) => {
+  const ui = cockpit("absent");
+  if (project) ui.send({ ...ui.view, projectWorkspace: project });
+  ui.field("cockpit-create-toggle").click();
+  ui.field("cockpit-name").value = "lab2";
+  ui.field("cockpit-name").listeners.get("input")?.();
+  ui.send({ type: "pickedSharedFolder", path: "/srv/partage" });
+  ui.button("Créer").click();
+  const steps = () =>
+    ui.main
+      .findAll((n) => n.className.startsWith("cockpit-step "))
+      .map((n) => ({
+        label: n.children[1]?.textContent,
+        state: n.className.split(" is-")[1],
+      }));
+  const stage = (text: string, extra: object = {}) =>
+    ui.send({ type: "operation", busy: true, stage: text, ...extra });
+  return { ui, steps, stage };
+};
+
+it("le stepper avance sur la séquence Kali et ne recule jamais", () => {
+  const { ui, steps, stage } = kaliCreation();
+  expect(steps().map((s) => s.label)).toEqual([
+    "Image",
+    "Téléchargement / Construction",
+    "Démarrage",
+    "Vérification MCP",
+  ]);
+  expect(steps()[0]?.state).toBe("active");
+  stage("Préparation de l’image Kali…");
+  stage("Téléchargement de l’image…", {
+    layers: [{ id: "a", status: "Téléchargement", current: 1, total: 2 }],
+  });
+  expect(steps().map((s) => s.state)).toEqual(["done", "active", "todo", "todo"]);
+  // Les couches restent affichées dans l’étape de téléchargement.
+  expect(ui.main.find((n) => n.tag === "progress")).toBeDefined();
+  stage("Création et démarrage du conteneur…", { layers: [] });
+  expect(steps().map((s) => s.state)).toEqual(["done", "done", "active", "todo"]);
+  stage("Préparation de l’image Kali…");
+  expect(steps().map((s) => s.state)).toEqual(["done", "done", "active", "todo"]);
+  stage("Serveur MCP Kali : démarrage");
+  expect(steps().map((s) => s.state)).toEqual(["done", "done", "done", "active"]);
+});
+
+it("l’étape Liaison n’apparaît que si le projet est dans le dossier partagé", () => {
+  expect(
+    kaliCreation("/autre")
+      .steps()
+      .map((s) => s.label),
+  ).not.toContain("Liaison");
+  const linked = kaliCreation("/srv/partage/mission");
+  expect(linked.steps().map((s) => s.label)).toContain("Liaison");
+  linked.stage("Liaison au projet…");
+  expect(linked.steps().at(-1)?.state).toBe("active");
+});
+
+it("pendant la création, les champs gardent leur valeur et le bouton est inerte", () => {
+  const { ui } = kaliCreation();
+  expect(ui.field("cockpit-name").value).toBe("lab2");
+  const submit = ui.field("cockpit-submit");
+  expect(submit.disabled).toBe(true);
+  expect(submit.children.some((c) => c.textContent === "Création…")).toBe(true);
+  expect(ui.button("Annuler").className).toContain("cockpit-cancel-link");
+});
+
+it("une vue en chargement pendant l’opération garde progression et formulaire", () => {
+  const { ui, stage } = kaliCreation();
+  stage("Téléchargement de l’image…");
+  ui.send({ type: "view", loading: true });
+  expect(ui.main.find((n) => n.id === "cockpit-progress")).toBeDefined();
+  expect(ui.field("cockpit-name").value).toBe("lab2");
+  expect(ui.main.find((n) => n.className === "cockpit-loading")).toBeDefined();
+  ui.send({ ...ui.view, type: "view" });
+  expect(ui.main.find((n) => n.className === "cockpit-loading")).toBeUndefined();
+});
+
+it("sans opération, une vue en chargement remplace toujours l’écran", () => {
+  const ui = cockpit();
+  ui.send({ type: "view", loading: true });
+  expect(ui.main.find((n) => n.className === "cockpit-notice")?.textContent).toBe("Actualisation…");
+});
+
+it("affiche la réussite sans erreur, puis « Voir le conteneur » met la carte en évidence", () => {
+  const { ui, stage } = kaliCreation();
+  stage("Création et démarrage du conteneur…");
+  ui.send({ type: "operation", busy: false, stage: "Terminé" });
+  ui.send({ type: "pickedSharedFolder", path: "" });
+  const created = { name: "lab2", short: "lab2", family: "kali", image: "kali", state: "running" };
+  ui.send({ ...ui.view, containers: [...ui.view.containers, created] });
+  expect(ui.main.find((n) => n.className === "cockpit-check")).toBeDefined();
+  expect(ui.main.find((n) => n.id === "cockpit-name")).toBeUndefined();
+  expect(
+    ui.main
+      .findAll((n) => n.className.startsWith("cockpit-step "))
+      .every((n) => n.className.endsWith("is-done")),
+  ).toBe(true);
+  ui.button("Voir le conteneur").click();
+  expect(ui.main.find((n) => n.id === "cockpit-create")).toBeUndefined();
+  const cards = ui.main.findAll((n) => n.className.startsWith("cockpit-card "));
+  expect(cards.find((n) => n.className.includes("is-highlight"))).toBeDefined();
+  expect(ui.main.find((n) => n.id === "cockpit-create-toggle")).toBeDefined();
+});
+
+it("l’échec marque l’étape fautive et « Réessayer » republie le même message", () => {
+  const { ui, steps, stage } = kaliCreation();
+  const created = ui.sent.filter((m) => (m as { type: string }).type === "createKali");
+  stage("Création et démarrage du conteneur…");
+  ui.send({ type: "operation", busy: false, stage: "Échec de l’opération", error: "boom" });
+  expect(steps().find((s) => s.state === "failed")?.label).toBe("Démarrage");
+  expect(ui.main.find((n) => n.className === "cockpit-error")?.textContent).toBe("boom");
+  expect(ui.field("cockpit-name").value).toBe("lab2");
+  ui.button("Réessayer").click();
+  const after = ui.sent.filter((m) => (m as { type: string }).type === "createKali");
+  expect(after).toHaveLength(2);
+  expect(after[1]).toEqual(created[0]);
+  expect(steps()[0]?.state).toBe("active");
+});
+
+it("la position du panneau reste figée quand la liaison réussit pendant l’opération", () => {
+  const { ui } = kaliCreation();
+  const order = () => sectionOrder(ui.main);
+  expect(order()[0]).toBe("create");
+  ui.send({
+    ...ui.view,
+    linkedBanner: { name: "lab", short: "lab", state: "running", image: "kali", workspace: "/w" },
+  });
+  expect(order()[0]).toBe("create");
+  ui.send({ type: "operation", busy: false, stage: "Opération annulée" });
+  ui.send({
+    ...ui.view,
+    linkedBanner: { name: "lab", short: "lab", state: "running", image: "kali", workspace: "/w" },
+  });
+  expect(order().at(-1)).toBe("create");
+});
+
+it("l’état vide propose un seul appel « Nouveau conteneur »", () => {
+  const ui = cockpit();
+  ui.send({ ...ui.view, containers: [], empty: "list" });
+  expect(ui.main.findAll((n) => n.id === "cockpit-create-toggle")).toHaveLength(1);
+  expect(ui.main.find((n) => n.className === "cockpit-empty")).toBeDefined();
+});
+
+it("un champ absent de la vue n’affiche aucun voyant", () => {
+  const ui = cockpit();
+  const { daemon: _daemon, ...partial } = ui.view;
+  ui.send(partial);
+  const tiles = ui.main.findAll((n) => n.className.startsWith("cockpit-tile "));
+  expect(tiles.map((n) => n.children[1]?.textContent)).toEqual([
+    "Docker",
+    "Exegol",
+    "Conteneur lié",
+  ]);
+});
+
+it("cockpit.css : toute animation cockpit vit sous prefers-reduced-motion: no-preference", () => {
+  const css = readFileSync(new URL("../media/css/cockpit.css", import.meta.url), "utf8").replace(
+    /\/\*[\s\S]*?\*\//g,
+    "",
+  );
+  const start = css.indexOf("@media (prefers-reduced-motion: no-preference) {\n  .cockpit-card");
+  expect(start).toBeGreaterThan(0);
+  const guarded = css.slice(start);
+  const outside = css.slice(0, start);
+  expect(outside).not.toMatch(/animation:\s*cockpit-/);
+  expect(guarded).toMatch(/animation:\s*cockpit-pulse/);
+  expect(css).toMatch(/@media \(hover: none\)/);
 });

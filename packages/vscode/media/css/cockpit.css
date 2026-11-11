@@ -20,6 +20,8 @@ body.cockpit #main {
     margin-inline: auto;
   }
 }
+/* Règles partagées avec program.css (copie exigée) ; neutralisées ici : le cockpit se redessine
+ * souvent et ne doit pas rejouer d'entrée à chaque mise à jour. */
 body.cockpit #main > * {
   animation: jn-msg-in var(--jn-d2) var(--jn-ease-out) 1 both;
 }
@@ -28,6 +30,9 @@ body.cockpit #main > :nth-child(2) {
 }
 body.cockpit #main > :nth-child(3) {
   animation-delay: 80ms;
+}
+body.cockpit #main > * {
+  animation: none;
 }
 body.cockpit section {
   display: flex;
@@ -253,9 +258,6 @@ body.cockpit .cockpit-row.is-running > .dot {
 .cockpit-create-close:hover:not(:disabled) .ico {
   color: var(--jn-sig);
 }
-.cockpit-create {
-  animation: jn-pop-in var(--jn-d2) var(--jn-ease-out) 1;
-}
 .cockpit-create .cockpit-actions {
   align-items: center;
 }
@@ -438,5 +440,263 @@ body.cockpit .cockpit-row.is-running > .dot {
     .cockpit-create-close:hover:not(:disabled)
     .ico {
     transform: rotate(180deg) translateY(2px);
+  }
+}
+
+/* ───────────── Refonte : bandeau d'état, cartes vivantes, création en étapes ───────────── */
+.cockpit-status {
+  padding: var(--jn-s3) var(--jn-s4);
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-lg);
+  background: var(--vscode-editorWidget-background, transparent);
+}
+.cockpit-loading {
+  margin: 0;
+  font-size: var(--jn-fs-xs);
+  color: var(--jn-muted);
+}
+.cockpit-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--jn-s3);
+}
+.cockpit-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s1);
+  min-width: 0;
+  padding: var(--jn-s3) var(--jn-s4);
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-lg);
+  background: var(--vscode-editorWidget-background, transparent);
+}
+.cockpit-card:hover,
+.cockpit-card:focus-within {
+  border-color: var(--jn-sig-edge, var(--jn-accent-edge));
+}
+.cockpit-card.is-linked {
+  border-left: 3px solid var(--jn-sig, var(--jn-accent));
+}
+.cockpit-card.is-highlight {
+  border-color: var(--jn-sig, var(--jn-accent));
+  outline: 1px solid var(--jn-sig, var(--jn-accent));
+}
+.cockpit-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+  min-width: 0;
+}
+.cockpit-card-head .dot {
+  position: relative;
+  flex: none;
+  background: var(--jn-muted);
+}
+.cockpit-card.is-running .dot {
+  background: var(--jn-ok);
+}
+.cockpit-card.is-running .dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--jn-ok);
+  opacity: 0;
+}
+.cockpit-card .cockpit-row-name {
+  flex: 1;
+}
+.cockpit-card .cockpit-row-image,
+.cockpit-card .cockpit-row-ws {
+  display: block;
+  font-size: var(--jn-fs-xs);
+}
+.cockpit-card-act {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: var(--jn-s2);
+  opacity: 0;
+  transition: opacity var(--jn-d1) var(--jn-ease-out);
+}
+.cockpit-card:hover .cockpit-card-act,
+.cockpit-card:focus-within .cockpit-card-act {
+  opacity: 1;
+}
+.cockpit-card-act button {
+  min-height: 28px;
+}
+@media (hover: none) {
+  .cockpit-card-act {
+    opacity: 1;
+  }
+}
+.cockpit-empty {
+  align-items: flex-start;
+  gap: var(--jn-s2);
+  padding: var(--jn-s5) var(--jn-s4);
+  border: 1px dashed var(--jn-line);
+  border-radius: var(--jn-r-lg);
+}
+.cockpit-empty-title {
+  font-size: var(--jn-fs-lg);
+}
+.cockpit-steps {
+  list-style: none;
+  margin: 0 0 var(--jn-s3);
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--jn-s2) var(--jn-s4);
+}
+.cockpit-step {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+  font-size: var(--jn-fs-sm);
+  color: var(--jn-muted);
+}
+.cockpit-step-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--jn-line);
+  border-radius: 50%;
+  font-size: var(--jn-fs-xs);
+  font-weight: 700;
+}
+.cockpit-step-mark .ico {
+  width: 12px;
+  height: 12px;
+}
+.cockpit-step.is-done {
+  color: var(--vscode-foreground);
+}
+.cockpit-step.is-done .cockpit-step-mark {
+  border-color: var(--jn-ok);
+  color: var(--jn-ok);
+}
+.cockpit-step.is-active {
+  color: var(--vscode-foreground);
+  font-weight: 600;
+}
+.cockpit-step.is-active .cockpit-step-mark {
+  border-color: var(--jn-sig, var(--jn-accent));
+  background: var(--jn-sig-tint, var(--jn-tint));
+}
+.cockpit-step.is-failed {
+  color: var(--jn-err);
+}
+.cockpit-step.is-failed .cockpit-step-mark {
+  border-color: var(--jn-err);
+  background: var(--jn-err);
+  color: var(--vscode-editor-background);
+}
+.cockpit-cancel-link {
+  min-height: 0;
+  padding: 0 var(--jn-s1);
+  border: 0;
+  background: transparent;
+  color: var(--jn-muted);
+  text-decoration: underline;
+}
+.cockpit-cancel-link:hover:not(:disabled) {
+  background: transparent;
+  color: var(--vscode-foreground);
+}
+.cockpit-success {
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s3);
+}
+.cockpit-success-head {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s3);
+}
+.cockpit-success-text {
+  margin: 0;
+  font-weight: 600;
+}
+.cockpit-check {
+  position: relative;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--jn-ok);
+  border-radius: 50%;
+}
+.cockpit-check::after {
+  content: "";
+  position: absolute;
+  left: 9px;
+  top: 4px;
+  width: 6px;
+  height: 12px;
+  border: solid var(--jn-ok);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+@keyframes cockpit-pulse {
+  from {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.4);
+  }
+}
+@keyframes cockpit-check-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes cockpit-step-glow {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.45;
+  }
+}
+@keyframes cockpit-highlight {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .cockpit-card.is-running .dot::after {
+    animation: cockpit-pulse 1.8s var(--jn-ease-out) infinite;
+  }
+  .cockpit-check {
+    animation: cockpit-check-in var(--jn-d2) var(--jn-ease-out) 1 both;
+  }
+  .cockpit-check::after {
+    animation: cockpit-check-in 320ms var(--jn-ease-out) 120ms 1 both;
+  }
+  .cockpit-step.is-active .cockpit-step-mark {
+    animation: cockpit-step-glow 900ms ease-in-out infinite alternate;
+  }
+  .cockpit-card.is-highlight {
+    animation: cockpit-highlight 600ms ease-in-out 3 alternate;
+  }
+  .cockpit-loading {
+    animation: cockpit-step-glow 900ms ease-in-out infinite alternate;
   }
 }
