@@ -142,10 +142,10 @@ offers free models).
 
    | Platform | File |
    |---|---|
-   | Windows (x64) | `redwidow-1.0.2-win32-x64.vsix` |
-   | Linux (x64) | `redwidow-1.0.2-linux-x64.vsix` |
-   | macOS, Apple Silicon | `redwidow-1.0.2-darwin-arm64.vsix` |
-   | macOS, Intel | `redwidow-1.0.2-darwin-x64.vsix` |
+   | Windows (x64) | `redwidow-1.0.4-win32-x64.vsix` |
+   | Linux (x64) | `redwidow-1.0.4-linux-x64.vsix` |
+   | macOS, Apple Silicon | `redwidow-1.0.4-darwin-arm64.vsix` |
+   | macOS, Intel | `redwidow-1.0.4-darwin-x64.vsix` |
 
 2. In VS Code: **Extensions** → `···` → **Install from VSIX…**
 3. Open **RedWidow** in the activity bar.
