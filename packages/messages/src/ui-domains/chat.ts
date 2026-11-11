@@ -281,8 +281,6 @@ export const chatEn: Record<string, string> = {
   Illimité: "Unlimited",
   "∞ illimité": "∞ unlimited",
   Activer: "Activate",
-  Couper: "Turn off",
-  "Bypass actif": "Bypass active",
   "Choisissez une durée de 1 minute à 48 h.": "Choose a duration from 1 minute to 48 hours.",
   "Bypass des approbations": "Approval bypass",
   "Approuve tout pendant la durée choisie, deny compris : chemins sensibles ou hors projet, accès hôte d'un conteneur, dangers shell, sans rien mémoriser.":

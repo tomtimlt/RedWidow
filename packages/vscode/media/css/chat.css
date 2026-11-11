@@ -3074,13 +3074,3 @@ body.vscode-high-contrast-light .welcome-spider {
   background: var(--jn-bypass-tint);
   border-color: var(--jn-bypass-edge);
 }
-#bypass-banner:not([hidden]) {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  background: var(--jn-bypass-tint);
-}
-#bypass-cut {
-  margin-left: auto;
-}

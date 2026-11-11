@@ -1011,12 +1011,6 @@
     const unlimited =
       document.body.classList.contains("bypass-on") && bypassCtx.push?.unlimited === true;
     const on = document.body.classList.contains("bypass-on") && Number.isFinite(expiresAt);
-    $("bypass-banner").hidden = !on && !unlimited;
-    $("bypass-banner-time").textContent = unlimited
-      ? t("∞ illimité")
-      : on
-        ? UI.bypassView(bypassCtx.push, null, false, Date.now()).text
-        : "";
     const ms = on ? Math.max(0, expiresAt - Date.now()) : 0;
     document.body.classList.toggle("bypass-ending", on && ms > 0 && ms <= BYPASS_ENDING_MS);
     if (!on || ms === 0) {
@@ -1103,7 +1097,6 @@
     }
   }
   bypassSwitch.addEventListener("click", toggleBypass);
-  $("bypass-cut").addEventListener("click", toggleBypass);
   $("bypass-unlimited").addEventListener("click", () => {
     bypassUnlimited = !bypassUnlimited;
     $("bypass-unlimited").setAttribute("aria-pressed", String(bypassUnlimited));
