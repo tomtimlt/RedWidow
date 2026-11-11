@@ -1,6 +1,12 @@
 import { join } from "node:path";
 import { type ConversationMeta, parseIndex, sortRecent } from "./history.js";
 import { createJournalFiles, type JournalFiles } from "./historyStore.js";
+import {
+  collectLegacyConversations,
+  findLegacyStores,
+  type LegacyImportDeps,
+  type LegacyStores,
+} from "./legacy-extension.js";
 
 /** Index global (`globalState`) : commun à toutes les fenêtres et à tous les projets (ADR 0049). */
 export const GLOBAL_HISTORY_KEY = "warband.history.global.v1";
@@ -10,6 +16,8 @@ export const WORKSPACE_HISTORY_KEY = "warband.history.shared.v1";
 export const SHARED_HISTORY_KEY = GLOBAL_HISTORY_KEY;
 /** Marqueur posé dans l'ancien hôte : sa migration est faite, une suppression ne ressuscite plus. */
 const MIGRATED_KEY = "warband.history.global-migrated.v1";
+/** Marqueur (`globalState`) : la reprise de l'ancien identifiant d'extension est faite (ADR 0051). */
+export const LEGACY_EXTENSION_IMPORTED_KEY = "warband.history.legacy-extension-imported.v1";
 export const SHARED_HISTORY_MAX_ENTRIES = 2000;
 const CHAT = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;
 const LEGACY_PREFIX = "warband.history.";
@@ -145,8 +153,10 @@ export function createSharedJournalFiles(
   root: string,
   legacyChats: readonly string[],
   legacyRoot?: string,
-): JournalFiles {
+): JournalFiles & { addReadOnlyRoots(dirs: readonly string[]): void } {
   const primary = createJournalFiles(root);
+  // Dossiers de l'ancien identifiant d'extension (ADR 0051) : lus en dernier, jamais modifiés ni effacés.
+  const readOnly: JournalFiles[] = [];
   const old = legacyRoot ?? root;
   const sources = [
     primary,
@@ -155,24 +165,29 @@ export function createSharedJournalFiles(
       createJournalFiles(join(old, id)),
     ),
   ];
+  const readable = () => [...sources, ...readOnly];
   return {
     dir: root,
+    addReadOnlyRoots(dirs) {
+      for (const dir of dirs)
+        if (dir !== root && dir !== old) readOnly.push(createJournalFiles(dir));
+    },
     async read(id) {
-      for (const source of sources) {
+      for (const source of readable()) {
         const text = await source.read(id);
         if (text !== null) return text;
       }
       return null;
     },
     async scan(id, visit) {
-      for (const source of sources) {
+      for (const source of readable()) {
         const result = await source.scan?.(id, visit);
         if (result && !result.missing) return result;
       }
       return { invalid: 0, missing: true };
     },
     async size(id) {
-      for (const source of sources) {
+      for (const source of readable()) {
         const bytes = await source.size(id);
         if (bytes > 0) return bytes;
       }
@@ -185,4 +200,43 @@ export function createSharedJournalFiles(
       await Promise.all(sources.map((source) => source.removeAll()));
     },
   };
+}
+
+/**
+ * Reprise unique (marqueur `globalState`) de l'historique de l'ancien identifiant d'extension (ADR 0051) :
+ * fusionne ses conversations dans l'index global (par id, runIds réunis) et déclare ses dossiers `runs` en
+ * lecture seule. Asynchrone ; une erreur est signalée à `onError` sans jamais interrompre l'activation. Le
+ * marqueur n'est posé qu'après l'écriture de l'index : un échec laisse la reprise à refaire.
+ */
+export async function importLegacyExtensionHistory(options: {
+  host: SharedIndexHost;
+  index: ReturnType<typeof createSharedHistoryIndex>["index"];
+  files: { addReadOnlyRoots(dirs: readonly string[]): void };
+  roots: { globalStorage: string; workspaceStorage: string };
+  onError?: (error: unknown) => void;
+  deps?: LegacyImportDeps;
+  find?: (roots: { globalStorage: string; workspaceStorage: string }) => Promise<LegacyStores>;
+}): Promise<void> {
+  const { host, index, files, roots, onError = () => {} } = options;
+  try {
+    if (host.get(LEGACY_EXTENSION_IMPORTED_KEY) === true) {
+      // Reprise déjà faite : les journaux restent à lire, mais rien n'est ré-importé.
+      files.addReadOnlyRoots((await (options.find ?? findLegacyStores)(roots)).runDirs);
+      return;
+    }
+    const stores = await (options.find ?? findLegacyStores)(roots);
+    files.addReadOnlyRoots(stores.runDirs);
+    const found = await collectLegacyConversations(stores, options.deps);
+    if (found.length > 0)
+      await index.update(SHARED_HISTORY_KEY, (current) => {
+        const merged = new Map(
+          parseIndex(current, SHARED_HISTORY_MAX_ENTRIES).map((r) => [r.id, r]),
+        );
+        mergeRows(merged, found);
+        return sortRecent([...merged.values()]).slice(0, SHARED_HISTORY_MAX_ENTRIES);
+      });
+    await host.set(LEGACY_EXTENSION_IMPORTED_KEY, true);
+  } catch (error) {
+    onError(error);
+  }
 }

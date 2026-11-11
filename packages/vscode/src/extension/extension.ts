@@ -111,6 +111,7 @@ import {
 import { matchesFingerprint } from "../logic/integrity.js";
 import { killchainImage } from "../logic/killchain-image.js";
 import { setSelectedPathEdge } from "../logic/killchain-path.js";
+import { legacyStorageRoots } from "../logic/legacy-extension.js";
 import { saveMachinePreference } from "../logic/machine-preference.js";
 import {
   killchainSummary,
@@ -169,6 +170,7 @@ import {
   createSharedHistoryIndex,
   createSharedJournalFiles,
   GLOBAL_HISTORY_KEY,
+  importLegacyExtensionHistory,
   SHARED_HISTORY_MAX_ENTRIES,
 } from "../logic/shared-history.js";
 import { shortcutLabel } from "../logic/shortcuts.js";
@@ -354,6 +356,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     sharedHistory.legacyChats,
     context.storageUri ? join(context.storageUri.fsPath, "runs") : undefined,
   );
+  // ADR 0051 : reprise unique, en arrière-plan, de l'historique de l'ancien identifiant d'extension.
+  void importLegacyExtensionHistory({
+    host: {
+      get: (key) => context.globalState.get(key),
+      set: (key, value) => context.globalState.update(key, value),
+      keys: () => context.globalState.keys(),
+    },
+    index: sharedHistory.index,
+    files: sharedJournalFiles,
+    roots: legacyStorageRoots(context.globalStorageUri.fsPath, context.storageUri?.fsPath),
+    onError: (error) => out.appendLine(formatError(error, getUiLocale())),
+  });
   const currentConversations = () =>
     [...slots.values()].flatMap(
       (slot) =>
