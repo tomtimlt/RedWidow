@@ -249,6 +249,31 @@ describe("prepareTerminal", () => {
     expect(formatError(error)).toBe("docker exec a échoué (code 1) : mkdir: Permission denied");
   });
 
+  it("mkdir en échec avec stderr vide : repli sur stdout", async () => {
+    const run: WorkspaceRun = async () => ({ code: 1, stderr: [], stdout: ["erreur sur stdout"] });
+    const error = await prepareTerminal("frosty_margulis", docker, ["/bin/bash"], run).then(
+      () => null,
+      (err: unknown) => err,
+    );
+    expect(error).toBeInstanceOf(CodedError);
+    expect((error as CodedError).params).toMatchObject({ stderr: "erreur sur stdout" });
+  });
+
+  it("mkdir : un partage Docker Desktop refusé garde docker.pathNotShared", async () => {
+    const run: WorkspaceRun = async () => ({
+      code: 1,
+      stderr: [
+        "docker: Error response from daemon: Mounts denied: The path /tmp/x is not shared from the host and is not known to Docker.",
+      ],
+    });
+    const error = await prepareTerminal("frosty_margulis", docker, ["/bin/bash"], run).then(
+      () => null,
+      (err: unknown) => err,
+    );
+    expect(error).toBeInstanceOf(CodedError);
+    expect((error as CodedError).code).toBe("docker.pathNotShared");
+  });
+
   it("docker absent : pas d'exec", async () => {
     const { run, calls } = recording();
     await expect(

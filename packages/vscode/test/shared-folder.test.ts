@@ -107,3 +107,17 @@ it("revalide le dossier mémorisé juste avant la création", async () => {
     /lien symbolique/,
   );
 });
+
+it("sans projet actif : source validée, pas de liaison", async () => {
+  const shared = dir("partage");
+  await expect(resolveCreationFolder(shared, undefined, { home })).resolves.toEqual({
+    source: shared,
+    link: false,
+  });
+});
+
+it("sans projet actif, le dossier partagé reste exigé", async () => {
+  await expect(resolveCreationFolder(undefined, undefined, { home })).rejects.toThrow(
+    "Choisissez le dossier partagé.",
+  );
+});

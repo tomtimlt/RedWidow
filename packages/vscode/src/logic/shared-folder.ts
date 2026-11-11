@@ -57,12 +57,15 @@ export async function projectInSharedFolder(shared: string, workspace: string): 
  */
 export async function resolveCreationFolder(
   remembered: string | undefined,
-  project: { workspace: string },
+  project?: { workspace: string },
   options: Partial<PathOptions> = {},
 ): Promise<{ source: string; link: boolean }> {
   if (remembered === undefined) throw new Error(t("Choisissez le dossier partagé."));
   const source = await validateSharedFolder(remembered, options);
   if (source !== remembered)
     throw new Error(t("Le dossier partagé a changé. Choisissez-le à nouveau."));
-  return { source, link: await projectInSharedFolder(source, project.workspace) };
+  return {
+    source,
+    link: project !== undefined && (await projectInSharedFolder(source, project.workspace)),
+  };
 }

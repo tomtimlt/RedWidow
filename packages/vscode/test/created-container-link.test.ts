@@ -1,6 +1,9 @@
 import { CodedError, type LabelPrefixContainer, type StoredProject } from "@warband/core";
 import { expect, it, vi } from "vitest";
-import { createAndLinkContainer } from "../src/logic/created-container-link.js";
+import {
+  awaitCreatedContainer,
+  createAndLinkContainer,
+} from "../src/logic/created-container-link.js";
 
 function fixture() {
   const project: StoredProject = {
@@ -126,4 +129,39 @@ it("l’annulation désarme l’auto-liaison, même pendant l’attente de créa
   };
   await expect(createAndLinkContainer(f.project, "lab", f.deps)).rejects.toThrow();
   expect(f.link).not.toHaveBeenCalled();
+});
+
+it("sans liaison : attend le conteneur en état running puis renvoie son nom", async () => {
+  const f = fixture();
+  const { link: _l, read: _r, identity: _i, ...deps } = f.deps;
+  expect(await awaitCreatedContainer("lab", deps)).toBe("exegol-lab");
+  expect(deps.start).toHaveBeenCalledOnce();
+  expect(f.link).not.toHaveBeenCalled();
+});
+
+it("sans liaison : conteneur absent jusqu'au délai, project.notRunning", async () => {
+  const f = fixture();
+  const { link: _l, read: _r, identity: _i, ...deps } = f.deps;
+  deps.start = vi.fn(async () => {});
+  await expect(awaitCreatedContainer("lab", deps)).rejects.toMatchObject({
+    code: "project.notRunning",
+  });
+});
+
+it("sans liaison : annulation interrompt l'attente", async () => {
+  const f = fixture();
+  const { link: _l, read: _r, identity: _i, ...deps } = f.deps;
+  deps.start = vi.fn(async () => {});
+  deps.sleep = async () => f.abort.abort();
+  await expect(awaitCreatedContainer("lab", deps)).rejects.toThrow();
+});
+
+it("sans liaison : un nom déjà pris est refusé avant tout démarrage", async () => {
+  const f = fixture();
+  f.rows([f.row]);
+  const { link: _l, read: _r, identity: _i, ...deps } = f.deps;
+  await expect(awaitCreatedContainer("lab", deps)).rejects.toMatchObject({
+    code: "project.notFound",
+  });
+  expect(deps.start).not.toHaveBeenCalled();
 });

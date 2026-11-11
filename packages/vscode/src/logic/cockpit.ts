@@ -8,6 +8,7 @@ import {
   createRecorder,
   type DockerClient,
   defaultConfigDir,
+  dockerFailure,
   type EngagementState,
   haltedPaceHosts,
   type ImageSummary,
@@ -218,7 +219,7 @@ export function terminalLaunch(
 /** Résultat d'un `docker exec` de préparation, sans lancer Docker dans les tests. */
 export type WorkspaceRun = (
   argv: readonly string[],
-) => Promise<{ code: number | null; stderr: readonly string[] }>;
+) => Promise<{ code: number | null; stderr: readonly string[]; stdout?: readonly string[] }>;
 
 /**
  * Crée `/workspace` s'il manque, avant un exec qui s'y place.
@@ -232,13 +233,13 @@ function workspaceMkdirArgv(name: string): readonly string[] {
 const runWorkspaceMkdir = async (
   dockerPath: string,
   argv: readonly string[],
-): Promise<{ code: number | null; stderr: readonly string[] }> => {
+): Promise<{ code: number | null; stderr: readonly string[]; stdout?: readonly string[] }> => {
   const result = await runProcess([dockerPath, ...argv], {
     recorder: createRecorder(),
     parentId: null,
     timeoutMs: 15_000,
   });
-  return { code: result.code, stderr: result.stderr };
+  return { code: result.code, stderr: result.stderr, stdout: result.stdout };
 };
 
 /**
@@ -257,11 +258,13 @@ export async function prepareTerminal(
   const argv = workspaceMkdirArgv(name);
   const result = await (run ?? ((args) => runWorkspaceMkdir(dockerPath, args)))(argv);
   if (result.code !== 0) {
-    throw new CodedError("docker.failed", {
-      binary: "docker",
-      command: "exec",
-      exitCode: result.code ?? "null",
-      stderr: result.stderr.join("\n"),
+    // Même traduction que le client Docker : repli stdout si stderr est vide, `docker.pathNotShared`.
+    throw dockerFailure("docker", "exec", {
+      code: result.code,
+      signal: null,
+      stdout: [...(result.stdout ?? [])],
+      stderr: [...result.stderr],
+      durationMs: 0,
     });
   }
   return terminalLaunch(name, dockerPath, program, workspace);
