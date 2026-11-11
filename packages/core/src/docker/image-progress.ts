@@ -1,7 +1,7 @@
 import { request as httpRequest, type RequestOptions } from "node:http";
 import { StringDecoder } from "node:string_decoder";
 import { resolveBinary } from "../process/resolve.js";
-import { runProcess } from "../process/run.js";
+import { type ProcessResult, runProcess } from "../process/run.js";
 import { CodedError } from "../reason.js";
 import type { Recorder } from "../recorder.js";
 import { assertBinary, assertOperand, DockerError } from "./client.js";
@@ -51,6 +51,19 @@ export interface DockerImageOptions {
 const unexpected = () => new CodedError("docker.unexpectedOutput", { command: "images/create" });
 const abort = (signal?: AbortSignal) => signal?.throwIfAborted();
 
+/** Erreur `docker.failed` complète (binaire, code, dernières lignes d'erreur) : jamais de « ? » à l'affichage. */
+function failed(command: string, result: ProcessResult, options: DockerImageOptions): DockerError {
+  return new DockerError(
+    {
+      binary: options.binary ?? "docker",
+      command,
+      exitCode: result.code ?? "null",
+      stderr: (result.stderr.length > 0 ? result.stderr : result.stdout).slice(-30).join("\n"),
+    },
+    result,
+  );
+}
+
 async function command(args: string[], options: DockerImageOptions, stdin?: string) {
   abort(options.signal);
   const binary = options.binary ?? "docker";
@@ -78,7 +91,7 @@ async function endpoint(options: DockerImageOptions): Promise<string> {
     ["context", "inspect", "--format", "{{json .Endpoints.docker}}"],
     options,
   );
-  if (result.code !== 0) throw new DockerError({ command: "context inspect" }, result);
+  if (result.code !== 0) throw failed("context inspect", result, options);
   try {
     const value = JSON.parse(result.stdout.join("\n")) as { Host?: unknown };
     if (typeof value.Host === "string") return value.Host;
@@ -96,7 +109,7 @@ export async function pullDockerImage(image: string, options: DockerImageOptions
   if (!host.startsWith("unix://") && !host.startsWith("npipe://")) {
     options.onProgress?.({ stage: "pull", status: "cli", layers: [], complete: false });
     const result = await command(["pull", image], options);
-    if (result.code !== 0) throw new DockerError({ command: "pull" }, result);
+    if (result.code !== 0) throw failed("pull", result, options);
     options.onProgress?.({ stage: "pull", status: "complete", layers: [], complete: true });
     return;
   }
@@ -122,7 +135,15 @@ export async function pullDockerImage(image: string, options: DockerImageOptions
       throw unexpected();
     }
     if (!row || typeof row !== "object" || Array.isArray(row)) throw unexpected();
-    if (row.error || row.errorDetail) throw new CodedError("docker.failed", { command: "pull" });
+    if (row.error || row.errorDetail)
+      throw new CodedError("docker.failed", {
+        binary: options.binary ?? "docker",
+        command: "pull",
+        exitCode: "null",
+        stderr: String(
+          row.error ?? (row.errorDetail as { message?: unknown })?.message ?? "",
+        ).slice(0, 4096),
+      });
     if (typeof row.status !== "string") return;
     const status = row.status.slice(0, 512);
     if (typeof row.id === "string") {
@@ -173,7 +194,12 @@ export async function pullDockerImage(image: string, options: DockerImageOptions
       if (response.statusCode !== 200) {
         response.destroy();
         reject(
-          new CodedError("docker.failed", { command: "pull", exitCode: response.statusCode ?? 0 }),
+          new CodedError("docker.failed", {
+            binary: options.binary ?? "docker",
+            command: "pull",
+            exitCode: response.statusCode ?? 0,
+            stderr: `HTTP ${response.statusCode ?? 0}`,
+          }),
         );
         return;
       }
@@ -209,7 +235,14 @@ export async function pullDockerImage(image: string, options: DockerImageOptions
       });
     });
     req.setTimeout(options.inactivityTimeoutMs ?? 120_000, () => {
-      req.destroy(new CodedError("docker.failed", { command: "pull", reason: "timeout" }));
+      req.destroy(
+        new CodedError("docker.failed", {
+          binary: options.binary ?? "docker",
+          command: "pull",
+          exitCode: "timeout",
+          stderr: "",
+        }),
+      );
     });
     req.on("error", reject);
     req.end();
@@ -228,7 +261,7 @@ export async function ensureWarbandKaliImage(options: DockerImageOptions): Promi
     options,
     WARBAND_KALI_DOCKERFILE,
   );
-  if (result.code !== 0) throw new DockerError({ command: "build" }, result);
+  if (result.code !== 0) throw failed("build", result, options);
   options.onProgress?.({ stage: "build", status: "complete", layers: [], complete: true });
   return WARBAND_KALI_IMAGE;
 }

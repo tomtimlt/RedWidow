@@ -181,3 +181,25 @@ it("une annulation préalable empêche tout processus", async () => {
   ).rejects.toBeDefined();
   expect(mocks.run).not.toHaveBeenCalled();
 });
+it("un échec de build donne un message complet (binaire, code, dernières lignes d'erreur)", async () => {
+  mocks.run
+    .mockResolvedValueOnce({ code: 1, stdout: [], stderr: [] })
+    .mockResolvedValueOnce({ code: 0, stdout: [], stderr: [] })
+    .mockResolvedValueOnce({
+      code: 17,
+      stdout: [],
+      stderr: ["#5 [2/4] RUN apt-get update", "E: Unable to fetch some archives"],
+    });
+  const error = await ensureWarbandKaliImage({ recorder, endpoint: "ssh://remote" }).catch(
+    (e: unknown) => e,
+  );
+  expect(error).toMatchObject({
+    code: "docker.failed",
+    params: {
+      binary: "docker",
+      command: "build",
+      exitCode: 17,
+      stderr: "#5 [2/4] RUN apt-get update\nE: Unable to fetch some archives",
+    },
+  });
+});
