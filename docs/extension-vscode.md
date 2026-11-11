@@ -8,8 +8,10 @@ Extension privée (ADR 0004, lots E3 + E4) : chat d'agent dans VS Code, avec une
 pnpm install --frozen-lockfile
 pnpm build
 pnpm --filter @warband/vscode package        # cible win32-x64 par défaut
-code --install-extension packages/vscode/warband-0.3.32-win32-x64.vsix
+code --install-extension packages/vscode/redwidow-<version>-win32-x64.vsix
 ```
+
+L'identifiant de l'extension est `tomtimlt.redwidow`. Le fichier s'appelle `redwidow-<version>-<plateforme>.vsix`.
 
 Raccourci : `pnpm maj` (ou `node scripts/update.mjs`). Il enchaîne `git pull --ff-only`, `pnpm install`, `pnpm build`, l'empaquetage et `code --install-extension --force`. Options : `--check` (ajoute `pnpm check`), `--no-install`, `--dry-run`, `--target=…`. Recharger ensuite la fenêtre VS Code.
 
@@ -21,9 +23,12 @@ Pousser un tag `vX.Y.Z` égal à la version de `packages/vscode/extension.manife
 
 ## Interface et palettes (0.3.53)
 
-La commande **Warband : choisir une palette** (`warband.choosePalette`) propose
-Sentinelle, Braise, Spectre, Éditeur et Multicolore. Le réglage `warband.palette`
-s’applique aux vues ouvertes sans rechargement. Les polices sont locales ; le
+La commande **RedWidow : choisir une palette** (`warband.choosePalette`) propose
+Widow (défaut), Sentinelle, Braise, Venin, Arctique, Spectre, Ultraviolet,
+Tactique, puis des couleurs franches (rouge, orange, jaune, vert, bleu, rose,
+blanc), des dégradés, Multicolore et l'accent du thème VS Code. La liste complète
+est dans **Réglages → Global → Apparence**. Le réglage `warband.palette` (scope
+fenêtre) s’applique aux vues ouvertes sans rechargement. Les polices sont locales ; le
 code conserve la police de l’éditeur. Les thèmes clair, sombre et contrasté et
 le mouvement réduit sont respectés.
 
@@ -55,7 +60,7 @@ ou une progression de mission. L’horloge indique la durée du tour actif. Le
 Monitor ajoute une frise cliquable et numérote les petites sorties ; les longues
 sorties restent du texte. La flèche vers le bas active ou suspend le suivi.
 
-Depuis la 0.3.58, **Réglages → Apparence** propose les cinq jeux, avec un aperçu
+Depuis la 0.3.58, **Réglages → Apparence** propose les jeux de couleurs, avec un aperçu
 sur chaque carte. Flèches, Début et Fin changent le choix ; Entrée, Espace et
 clic permettent aussi de le sélectionner. Le choix est enregistré avant son
 application, sans recharger les vues ouvertes. En cas d’erreur, réessayez depuis
@@ -72,7 +77,7 @@ Auto ne lance pas cet effet. Multicolore exclut désormais le jaune et l’orang
 Dans la Kill Chain, **Rejouer** visualise les liens verts sans exécuter de
 commande. Échap arrête le rejeu et désélectionne. Les flèches déplacent la vue,
 + / − zooment et 0 ajuste le graphe. **Aperçu du rapport** (également accessible
-par `warband.previewReport`) affiche un instantané des notes du projet actif,
+par la commande de prévisualisation du rapport) affiche un instantané des notes du projet actif,
 sans identifiants ni loot. Toutes les gravités restent **À évaluer**. Le bouton
 d’export produit le brouillon Markdown existant, à compléter avec preuves et
 remédiations ; aucune instance SysReptor n’est nécessaire.
@@ -103,9 +108,12 @@ sorties ; désactivé, il conserve la position de lecture, y compris dans les
 sorties défilantes. Le réactiver revient immédiatement en bas. Ce réglage reste
 propre au panneau ouvert.
 
-Les réglages proposent cinq pages : **Projet**, **Conteneurs**, **Kill chain**,
-**Atlas** et **Contrôle système**. Les rubriques sans fonction disponible ont
-été retirées de la navigation.
+Les réglages ont deux rubriques. **Projet** : Projet, Comptes de test, Fiche
+programme, Engagement, Conteneurs, Audit et Intégrations. **Global** : Apparence,
+Fournisseurs, Système et Atlas. La Kill chain et le Contrôle système n'y figurent
+plus : la Kill chain s'ouvre par l'icône de la vue chat (ou la commande
+**RedWidow : ouvrir la Kill chain**), et les fournisseurs IA sont dans
+**Réglages → Global → Fournisseurs**.
 
 La page **Projet** affiche aussi le résumé réel du projet actif. On peut le
 modifier puis choisir **Enregistrer le résumé** ; la saisie est limitée à
@@ -117,8 +125,8 @@ pas l’historique.
 ## Premier run
 
 1. Ouvrir un **dossier approuvé** (l'extension est inerte dans un espace non approuvé ou virtuel).
-2. Dans **Configurer**, choisir **Claude**, **OpenAI** ou **OpenCode**, puis **Ajouter un fournisseur** ou la commande **Warband : définir le jeton**. Pour Claude, choisir le jeton d'abonnement (`claude setup-token`) ou la clé API. Pour OpenAI, choisir **Abonnement ChatGPT** (connexion OAuth Codex dans le terminal OpenCode embarqué) ou **Clé API OpenAI** (saisie masquée, stockage `SecretStorage` de VS Code). Terminer la connexion OAuth dans le terminal puis le fermer, ou actualiser les modèles. Le mode abonnement écarte la clé API ; le mode API isole le cache OAuth pour éviter une utilisation involontaire de l'abonnement. Le fournisseur OpenCode utilise sa connexion gérée par `auth login`. Aucun message ne part quand la connexion requise manque. **Warband : effacer le jeton** désactive la connexion OpenAI dans Warband et supprime sa clé ; son cache OAuth reste géré par OpenCode (`auth logout`).
-3. **Warband : ouvrir le chat** (ou l'icône Warband de la barre d'activité). Saisir une consigne, `Ctrl+Entrée` ou « Envoyer ».
+2. Dans **Configurer**, choisir **Claude**, **OpenAI** ou **OpenCode**, puis **Ajouter un fournisseur** ou la commande **RedWidow : définir le jeton**. Pour Claude, choisir le jeton d'abonnement (`claude setup-token`) ou la clé API. Pour OpenAI, choisir **Abonnement ChatGPT** (connexion OAuth Codex dans le terminal OpenCode embarqué) ou **Clé API OpenAI** (saisie masquée, stockage `SecretStorage` de VS Code). Terminer la connexion OAuth dans le terminal puis le fermer, ou actualiser les modèles. Le mode abonnement écarte la clé API ; le mode API isole le cache OAuth pour éviter une utilisation involontaire de l'abonnement. Le fournisseur OpenCode utilise sa connexion gérée par `auth login`. Aucun message ne part quand la connexion requise manque. **RedWidow : effacer le jeton** désactive la connexion OpenAI dans Warband et supprime sa clé ; son cache OAuth reste géré par OpenCode (`auth logout`).
+3. **RedWidow : ouvrir un chat** (ou l'icône RedWidow de la barre d'activité). Saisir une consigne, `Ctrl+Entrée` ou « Envoyer ».
 4. Le fil affiche le texte de l'agent en Markdown sûr (paragraphes, code en ligne et en bloc avec bouton Copier, gras, italique, listes, titres ; liens et HTML restent du texte), et une ligne compacte par appel d'outil (icône d'état, nom lisible, résumé) dont les détails (entrée et sortie, plafonds selon l’outil ; sorties Kali normalisées jusqu’à 12 000 caractères) sont repliés ; un indicateur signale que l'agent travaille. **Stop** annule le run ; le message suivant relance un moteur en reprenant la session. **Nouvelle conversation** repart de zéro.
 
 ## Interface du chat (refonte 0.3.26, docs/design-interface-2026.md)
@@ -129,6 +137,15 @@ pas l’historique.
 - **Configurer** : deux colonnes à partir de 420 px, une en dessous ; slider d’effort glissable et accessible au clavier, Apprentissage et Bypass regroupés. Les fonctions futures ne sont plus affichées comme des réglages disponibles. L’avertissement et la confirmation native du Bypass sont conservés.
 - **Mouvement réduit, contraste élevé, couleurs forcées** : transitions courtes et désactivées dans ces modes ; indicateur d’activité SVG animé pendant le travail, statique dans ces modes.
 - **Prévisualiser** : `pnpm exec vitest run packages/vscode/test/preview.test.ts` génère dans `packages/vscode/preview/` (ignoré par git) les pages du chat (9 états), du cockpit et de quatre pages des réglages (`studio-project`, `studio-containers`, `studio-atlas`, `studio-killchain`), en 3 thèmes, avec le HTML, le CSS, le JS et la CSP réels. Puis `node packages/vscode/scripts/preview-shots.mjs` (Edge ; `EDGE_BIN` pour un autre Chromium, par exemple `EDGE_BIN="C:\\...\\msedge.exe"` ou un binaire lancé avec `--no-sandbox` en conteneur) prend les captures dans `preview/shots/` : par défaut accueil (`empty`), `running`, `approval`, `model` et `config` (popovers ouverts), `cockpit` et les quatre pages `studio-*`, à 280, 360, 520 et 900 px, en sombre, clair et contraste élevé (`--states all`, `--widths`, `--themes`, `--out` pour changer). Il signale toute violation CSP et tout débordement horizontal (code de sortie 1). Les pages sont servies par un petit serveur HTTP local (127.0.0.1, port éphémère, lecture seule, arrêté en fin de script) : les masques de `icon.svg` (logo) ne se chargent pas en `file://` (CORS). Seule la source `file:` de la CSP de prévisualisation est remplacée à la volée par l'origine du serveur ; la CSP des pages de l'extension n'est pas modifiée. Ouvertes directement en `file://`, les pages s'affichent sans le logo d'accueil. L'iframe prend la hauteur de la fenêtre pour que le composer soit entier. Durée : environ 6 minutes pour la série par défaut.
+
+## Utiliser RedWidow gratuitement
+
+**Réglages → Global → Fournisseurs** contient le guide **Utiliser RedWidow
+gratuitement**. Il liste les options sans abonnement payant, avec pour chacune
+à qui elle s'adresse, comment se connecter et sa limite (selon l'offre du
+fournisseur, sans chiffre garanti ici). Chaque option a un bouton **Configurer**
+(ou **Actualiser le catalogue** si elle n'est pas encore listée) et un lien vers
+la page officielle. Le guide est ouvert tant qu'aucun fournisseur n'est connecté.
 
 ## Modèle et effort
 
@@ -150,15 +167,12 @@ responsable de chaque nouvelle action, sous la politique actuelle.
 
 ## Historique des conversations
 
-Bouton **Historique** de l’en-tête : filtre par projet (dont « Tous les projets » et conversations sans projet), puis liste des conversations (titre = première consigne tronquée, date, nombre d'outils, fournisseur et modèle). Actions : **ouvrir** (le fil est reconstruit depuis les journaux, en **lecture seule** : aucune carte d'approbation, saisie désactivée), **Reprendre** (nouveau message avec `resume` de la session, sous la politique **actuelle**), **Renommer**, **Supprimer**, **Tout effacer** (confirmation modale native).
+Bouton **Historique** de l’en-tête. L'historique est commun à tous les projets et à toutes les fenêtres (ADR 0049, historique global entre projets). Filtre par projet (dont « Tous les projets » et conversations sans projet), puis liste des conversations (titre = première consigne tronquée, date, nombre d'outils, fournisseur et modèle). Actions : **ouvrir** (le fil est reconstruit depuis les journaux, en **lecture seule** : aucune carte d'approbation, saisie désactivée), **Reprendre**, **Renommer**, **Supprimer**, **Tout effacer** (confirmation modale native).
 
-- Les journaux de l'extension sont écrits **hors du dépôt**, dans le stockage de l'extension (`storageUri/runs/<runId>.jsonl`), jamais dans `.warband/runs/` ; l'index léger est dans `workspaceState`. Le moteur consigne chaque consigne de l'utilisateur dans un événement `user.message`.
-- Le lien au projet est fixé à la création. L’envoi et la reprise sont bloqués si
-  le projet actif diffère, y compris entre « sans projet » et un projet actif.
-  La lecture reste possible. Aucun projet n’est activé automatiquement ; une
-  erreur de lecture des projets bloque le lancement plutôt que de changer le contexte.
-  Pour reprendre une conversation ancienne, revenir d’abord à son projet ;
-  son lien enregistré n’est pas réécrit.
+- Les journaux sont écrits **hors du dépôt**, dans le stockage global de l'extension (`globalStorageUri/runs/<runId>.jsonl`), jamais dans `.warband/runs/`. L'index est dans `globalState`. Les anciens journaux d'un projet restent lisibles à leur emplacement d'origine. Le moteur consigne chaque consigne de l'utilisateur dans un événement `user.message`.
+- **Reprendre** une conversation du projet actif lance un nouveau message avec `resume`, sous la politique **actuelle**. Pour une conversation d'un **autre projet**, un avertissement nomme ce projet ; si vous confirmez, RedWidow change de projet (mêmes refus qu'un changement depuis les réglages : impossible pendant un tour actif, Bypass coupé, dossier du projet ouvert), puis rouvre la conversation en lecture seule dans cette fenêtre. Vous la reprenez de là, sous la politique de ce projet.
+- Le lien au projet est fixé à la création et n'est pas réécrit. L’envoi est bloqué si le projet actif diffère de celui de la conversation. Aucun projet n’est activé automatiquement.
+- **Ancien identifiant** (ADR 0051, reprise de l'historique de l'ancien identifiant) : l'extension s'appelait `warband.warband`. Au premier démarrage, elle relit en lecture seule l'historique laissé sous cet identifiant, sans rien y modifier. Si l'index est illisible, il est reconstruit depuis les journaux (conversations « Sans projet »).
 - Rétention : 100 conversations ou 200 Mio ; les plus anciennes sont purgées (la conversation en cours est conservée).
 - Un journal relu est une **entrée non fiable** : nom de fichier formé seulement d'un `runId` UUID validé, 16 Mio et 50 000 lignes au plus (lignes de plus de 1 Mo ignorées), `validateEvent` sur chaque ligne (invalides ignorées et comptées dans la bannière), événements d'un autre run ignorés, texte passé par `stripControl`, rendu par les mêmes chemins sûrs que le chat.
 
@@ -172,15 +186,32 @@ Chaque demande de la gate d'approbation devient une carte : outil, entrée (neut
 
 Hors Bypass, la gate applique la politique et la webview relaie les réponses.
 Le **Bypass** (ADR 0017) autorise temporairement les verdicts `ask` et `deny`,
-y compris les refus durs, sans demande ni mémorisation. Sa durée par défaut
-est de 2 h, plafonnée à 4 h. Le verdict initial reste dans le journal. Il
-exige un Asker et reste sans effet en apprentissage ou en CLI non interactive.
-Il ne crée pas d’outils supplémentaires et ne supprime pas les validations
-qui existent hors de la gate.
+y compris les refus durs, sans demande ni mémorisation. Vous choisissez la durée,
+de 1 minute à 48 h, ou sans limite. Il s'éteint à l'arrêt du moteur. Pour le
+couper : l'interrupteur du chat, la commande **RedWidow : Désactiver le Bypass
+des approbations**, ou un clic sur la barre d'état. Le verdict initial reste dans
+le journal. Il exige un Asker et reste sans effet en apprentissage ou en CLI non
+interactive. Il ne crée pas d’outils supplémentaires et ne supprime pas les
+validations qui existent hors de la gate. Seul l'arrêt d'urgence d'un engagement
+(ci-dessous) n'est jamais levé par le Bypass.
+
+## Engagement red team
+
+Ouvrir la page avec **RedWidow : ouvrir l'engagement** (ou Réglages → Projet →
+Engagement). Elle suit la fiche d'engagement et le plan de campagne (ADR 0041,
+engagement red team et arrêt d'urgence). Rien ne s'exécute sans validation
+humaine par empreinte.
+
+- **Importer un fichier…** charge la fiche d'engagement ou le plan de campagne.
+- **Valider l'engagement…** valide la fiche : l'empreinte affichée est celle qui est approuvée.
+- **Valider le plan…** valide le plan de campagne avant toute exécution.
+- **Arrêt d'urgence › Activer…** fait refuser toute action réseau ou shell visant le périmètre et l'infrastructure. **Lever l'arrêt…** le relâche. Les deux demandent un geste humain.
+
+L'arrêt est enregistré sur disque pour le projet : il survit à la fermeture de VS Code.
 
 ## Réglages (`Fichier > Préférences > Paramètres`, section Warband)
 
-Tous en scope **machine** : la valeur posée dans `.vscode/settings.json` d'un dépôt est ignorée (le code relit uniquement la valeur utilisateur ou le défaut).
+Tous en scope **machine** : la valeur posée dans `.vscode/settings.json` d'un dépôt est ignorée (le code relit uniquement la valeur utilisateur ou le défaut). Exception : `warband.palette` est en scope **fenêtre**.
 
 | Réglage | Rôle |
 |---|---|
@@ -190,6 +221,25 @@ Tous en scope **machine** : la valeur posée dans `.vscode/settings.json` d'un d
 | `warband.ultracode.maxBudgetUsd` | Plafond de dépense (USD) du préréglage Ultracode (0 : aucun). |
 
 Les réglages sont lus au démarrage du moteur : pour les appliquer, **Nouvelle conversation**.
+
+## Désinstallation
+
+1. Lancer **RedWidow : effacer le jeton** pour retirer les jetons et clés du stockage sécurisé de VS Code.
+2. Supprimer les conteneurs dans le **cockpit** (les fichiers internes non montés sont perdus ; images, volumes et dossiers hôtes sont conservés).
+3. Désinstaller l'extension dans VS Code.
+
+Restent sur le disque, à supprimer à la main si vous le souhaitez :
+
+- la configuration : `%APPDATA%\warband` sous Windows, `~/.config/warband` ailleurs (`XDG_CONFIG_HOME` est respecté) ;
+- les dossiers de projets : `~/.exegol/workspaces`, ou la racine réglée par `warband.projects.workspaceRoot` ;
+- le stockage de l'extension dans VS Code (historique, caches) ;
+- les images et volumes Docker.
+
+## Politique du dépôt
+
+Une politique placée dans le dépôt n'est appliquée qu'après approbation de son
+empreinte. En ligne de commande, `warband policy trust` approuve l'empreinte de la
+politique du dépôt courant.
 
 ## Ancien bac à sable
 
@@ -316,6 +366,17 @@ résultats, référencé depuis le titre. Un rejet n’altère aucune trouvaille
 
 
 ## Création et suppression des conteneurs — 0.3.30
+
+**Dossier partagé** (ADR 0050, dossier partagé choisi à la création) : le
+formulaire exige un **Dossier partagé**, choisi par **Choisir…** dans le
+sélecteur de VS Code. Il n'a pas de valeur par défaut et remplace le dossier du
+projet comme montage. Un chemin dangereux (racine d'un disque, dossier
+personnel, chemin sensible) est refusé. Après la création, le conteneur n'est lié
+au projet actif que si le dossier du projet se trouve dans ce dossier partagé ;
+sinon il est créé sans liaison, ce qui n'est pas une erreur. Un projet actif
+n'est pas nécessaire pour créer un conteneur ; sans projet, le conteneur n'est
+pas lié. Si Docker Desktop ne partage pas le dossier, le message indique de
+l'ajouter dans Settings › Resources › **File sharing**, puis « Apply & restart ».
 
 **Exegol** : le formulaire ouvre un terminal interactif pour laisser les
 questions et diagnostics de la CLI visibles. Exegol doit être installé sur
@@ -556,7 +617,7 @@ les alternatives et les 97 tests du MCP officiel Burp effectués avec API simul�
 
 ## Image du graphe et longues conversations — 0.3.52
 
-**Exporter l’image**, dans la Kill Chain, et la commande **Warband : Exporter la
+**Exporter l’image**, dans la Kill Chain, et la commande **RedWidow : Exporter la
 Kill Chain en image SVG** enregistrent le graphe entier. Le SVG reste net au
 zoom : noms complets sur plusieurs lignes, types, états et chemin vert sont
 inclus, indépendamment des filtres et du cadrage. Tous les éléments sont présents,
@@ -627,10 +688,10 @@ Terminer ou arrêter les tours en cours avant ces modifications.
    dans Burp Suite et activer son serveur dans l’onglet **MCP**. Warband ne fournit
    ni Burp ni sa licence, et ne lance aucun proxy Java.
 2. Ouvrir **Réglages → Contrôle système → Burp Suite MCP → Configurer…**, ou la
-   commande **Warband : configurer Burp Suite MCP**. Choisir le port affiché par
+   commande **RedWidow : configurer Burp Suite MCP**. Choisir le port affiché par
    Burp (9876 par défaut) et le transport : SSE `/sse` pour le serveur officiel,
    HTTP `/mcp` si le serveur installé le propose. Seul `127.0.0.1` est pris en charge.
-3. Cliquer **Tester la connexion**, ou lancer **Warband : tester la connexion MCP
+3. Cliquer **Tester la connexion**, ou lancer **RedWidow : tester la connexion MCP
    Burp Suite**. Le test lit le catalogue sans exécuter d’outil Burp ni appeler de
    modèle. Envoyer ensuite une nouvelle consigne à l’agent.
 

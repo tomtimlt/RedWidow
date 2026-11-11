@@ -26,11 +26,11 @@ You need **VS Code 1.90+** and **Docker installed and running** for containers. 
 1. Open **RedWidow: Open settings** from the command palette (`Ctrl+Shift+P`). Under **Project**, create a project with a name and folder, or activate an existing project. Trust the folder in VS Code if you trust its contents.
 2. Open the **Cockpit**, link an existing container or create one with **New container**, then start it.
 3. Run **RedWidow: Open or restore the RedWidow workspace** to bring back the chat, kill chain and Monitor. Open a terminal to work by hand.
-4. For AI assistance, open **Settings → System control**, configure a provider and enable it. Pick that provider in the chat’s **Configure** menu, then select a model available on your account.
+4. For AI assistance, open **Settings → Global → Providers**, configure a provider and enable it. The **Use RedWidow for free** guide there lists the no-subscription options. Pick that provider in the chat’s **Configure** menu, then select a model available on your account.
 
-Providers include **Claude**, **OpenAI / ChatGPT** and **OpenCode** with its full runtime provider catalog. Search and enable providers such as Google Gemini, OpenRouter, GitHub Copilot and DeepSeek in System control. The general **OpenCode** entry shows all connected models. Use **Add Ollama / a compatible endpoint** to enter your API URL and installed model IDs. You can switch provider while keeping the same conversation. Provider subscriptions and API charges are separate. On Windows, Claude requires [Git for Windows with Git Bash](https://git-scm.com/downloads/win).
+Providers include **Claude**, **OpenAI / ChatGPT** and **OpenCode** with its full runtime provider catalog. Search and enable providers such as Google Gemini, OpenRouter, GitHub Copilot and DeepSeek in Providers. The general **OpenCode** entry shows all connected models. Use **Add Ollama / a compatible endpoint** to enter your API URL and installed model IDs. You can switch provider while keeping the same conversation. Provider subscriptions and API charges are separate. On Windows, Claude requires [Git for Windows with Git Bash](https://git-scm.com/downloads/win).
 
-Your active project folder is also the container’s shared workspace. New containers use that folder automatically. Reports, payloads, scans, scripts, evidence and notes appear directly in the VS Code Explorer. Preparing a linked container also provides a named path under `/redwidow/Workspace/` for its project. Existing files remain in place. A container with a different mount needs an explicit migration; RedWidow does not recreate it automatically.
+You choose a **shared folder** when you create a container. A container is linked to the active project only if the project folder is inside that shared folder; otherwise it is created unlinked, which is not an error. An active project is not required to create a container; without one, the container is not linked. Files in the shared folder appear directly in the VS Code Explorer. Preparing a linked container also provides a named path under `/redwidow/Workspace/` for its project. Existing files remain in place. A container with a different mount needs an explicit migration; RedWidow does not recreate it automatically. If Docker Desktop does not share the folder, add it under Settings › Resources › File sharing, then Apply & restart.
 
 In **Settings → Appearance → Docker terminal prompt**, choose Original, RedWidow, Compact or Minimal, with a preview of each. The choice applies to new Bash terminals opened by RedWidow in Kali or Exegol. Existing terminals keep their prompt, and no `.bashrc` file is changed. Choose Original to keep the container’s own theme.
 
@@ -46,7 +46,7 @@ Use **`@`** to mention a project container and **`#`** to attach an excerpt from
 
 Attach text, source files, logs and PNG, JPEG, GIF or WebP images with the file picker, drag and drop, or paste from the clipboard. Preview images and remove attachments before sending. Up to **10 attachments**: text files are limited to **64 KiB each / 256 KiB total**, images to **5 MiB each / 12 MiB total**. The composer warns when image support is unknown and blocks image sends when the selected model explicitly lacks vision. PDFs and other binary documents are not supported. Clipboard file access depends on the platform; pasting a path does not read that file.
 
-In **Settings → System control**, enable the method profiles and MCP connectors you want available. Configure each external MCP service for your project. Then use **+** to choose one method, up to four MCP connectors, Burp and web search for this conversation. Disabling a connector preserves its configuration. A new conversation starts without optional resources selected.
+In **Settings → Project → Integrations**, enable the method profiles and MCP connectors you want available. Configure each external MCP service for your project. Then use **+** to choose one method, up to four MCP connectors, Burp and web search for this conversation. Disabling a connector preserves its configuration. A new conversation starts without optional resources selected.
 
 Methods include **Mentor**, **Bug bounty**, **Out of the box**, **Red team** and **HTB / CTF**. A short brief guides the agent; detailed methods load only when needed. External MCP programs must be installed and started separately.
 
@@ -58,7 +58,19 @@ Put Markdown or PDF course material in the folder opened by **Settings → Atlas
 
 Sensitive actions produce approval cards. Allow an action once, deny it, or remember an eligible approval for the current conversation. Passwords, tokens and keys are masked before they reach logs.
 
-**Bypass** approves actions for two hours, including actions the gate would normally deny. Its active state and countdown remain visible. Use it only for a scope you control. Learning mode is excluded.
+**Bypass** approves actions for a time you choose, from 1 minute to 48 hours, or without limit, including actions the gate would normally deny. Its active state remains visible. Turn it off with the chat switch, the command **RedWidow: Turn off the approval Bypass**, or by clicking the status bar. It also switches off when the engine stops. Use it only for a scope you control. Learning mode is excluded.
+
+## Red team engagement
+
+Run **RedWidow: Open the engagement** to import and validate the engagement sheet and the campaign plan (**Validate engagement…**, **Validate plan…**). Nothing runs without a human validation of their fingerprint. **Emergency stop › Activate…** makes the agent's network and shell actions against the scope be refused; **Lift the stop…** releases it. The stop is saved on disk and survives closing VS Code.
+
+## History
+
+History is shared by all projects. It is read-only; resuming a conversation from another project asks you to switch to that project first. History left under the former `warband.warband` identifier is picked up automatically. **Clear all** empties it.
+
+## Uninstall
+
+Run **RedWidow: Clear token**, delete your containers in the Cockpit, then uninstall the extension. Some data stays on disk: `%APPDATA%\warband` or `~/.config/warband` (`XDG_CONFIG_HOME` is honored), the project folders (`~/.exegol/workspaces` or `warband.projects.workspaceRoot`) and the extension's VS Code storage.
 
 ## More
 
