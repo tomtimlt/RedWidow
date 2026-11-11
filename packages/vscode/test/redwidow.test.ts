@@ -27,8 +27,8 @@ describe("intégration RedWidow en production", () => {
     const manifest = JSON.parse(read("../extension.manifest.json"));
     expect(PRODUCT_NAME).toBe("RedWidow");
     expect(manifest.displayName).toBe(PRODUCT_NAME);
-    expect(manifest.name).toBe("warband");
-    expect(manifest.publisher).toBe("warband");
+    expect(manifest.name).toBe("redwidow");
+    expect(manifest.publisher).toBe("tomtimlt");
     expect(
       manifest.contributes.commands.every((command: { command: string }) =>
         command.command.startsWith("warband."),

@@ -140,10 +140,10 @@ container (RedWidow can prepare one), and an account with a model provider
 
    | Platform | File |
    |---|---|
-   | Windows (x64) | `warband-1.0.0-win32-x64.vsix` |
-   | Linux (x64) | `warband-1.0.0-linux-x64.vsix` |
-   | macOS, Apple Silicon | `warband-1.0.0-darwin-arm64.vsix` |
-   | macOS, Intel | `warband-1.0.0-darwin-x64.vsix` |
+   | Windows (x64) | `redwidow-1.0.1-win32-x64.vsix` |
+   | Linux (x64) | `redwidow-1.0.1-linux-x64.vsix` |
+   | macOS, Apple Silicon | `redwidow-1.0.1-darwin-arm64.vsix` |
+   | macOS, Intel | `redwidow-1.0.1-darwin-x64.vsix` |
 
 2. In VS Code: *Extensions* → `···` menu → **Install from VSIX…**
 3. Open **RedWidow** in the activity bar.
