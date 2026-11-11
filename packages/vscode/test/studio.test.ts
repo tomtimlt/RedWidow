@@ -212,7 +212,6 @@ describe("navigation en deux rubriques", () => {
       "program",
       "engagement",
       "containers",
-      "killchain",
       "audit",
       "integrations",
     ]);
@@ -240,7 +239,10 @@ describe("navigation en deux rubriques", () => {
 
   it("chaque page existante apparaît une seule fois, avec son libellé d'origine", () => {
     const entries = studio.STUDIO_GROUPS.flatMap((g) => g.pages).filter((p) => p[3] === undefined);
-    expect([...entries.map((p) => p[0])].sort()).toEqual([...STUDIO_PAGES].sort());
+    // La Kill chain a son propre panneau : elle reste un type de page mais n'est plus dans la nav.
+    expect([...entries.map((p) => p[0])].sort()).toEqual(
+      STUDIO_PAGES.filter((page) => page !== "killchain").sort(),
+    );
     for (const [key, label, icon] of entries) {
       expect(label).toBe(studioLabel(key as (typeof STUDIO_PAGES)[number]));
       expect([
@@ -289,36 +291,18 @@ describe("navigation en deux rubriques", () => {
   });
 });
 
-describe("compteur Kill chain", () => {
-  it("nombre réel de trouvailles, présent avec N", () => {
+describe("Kill chain hors des réglages", () => {
+  it("compte les trouvailles pour le panneau autonome", () => {
     expect(studio.killchainCount(findings(3))).toBe(3);
-    const kill = studio
-      .navModel("killchain", findings(3))
-      .flatMap((g) => g.items)
-      .find((i) => i.id === "killchain");
-    expect(kill?.count).toBe(3);
-  });
-
-  it("absent à 0, sur une liste vide ou une donnée absente", () => {
     expect(studio.killchainCount([])).toBeNull();
     expect(studio.killchainCount(undefined)).toBeNull();
     expect(studio.killchainCount(null)).toBeNull();
-    for (const f of [[], undefined]) {
-      const kill = studio
-        .navModel("project", f)
-        .flatMap((g) => g.items)
-        .find((i) => i.id === "killchain");
-      expect(kill).toBeDefined();
-      expect(kill && "count" in kill).toBe(false);
-    }
   });
 
-  it("aucun autre élément ne porte de compteur", () => {
-    const counted = studio
-      .navModel("project", findings(5))
-      .flatMap((g) => g.items)
-      .filter((i) => i.count !== undefined);
-    expect(counted.map((i) => i.id)).toEqual(["killchain"]);
+  it("la navigation des réglages n'a plus d'entrée ni de compteur Kill chain", () => {
+    const items = studio.navModel("project", findings(5)).flatMap((g) => g.items);
+    expect(items.some((i) => i.id === "killchain")).toBe(false);
+    expect(items.filter((i) => i.count !== undefined)).toEqual([]);
   });
 });
 

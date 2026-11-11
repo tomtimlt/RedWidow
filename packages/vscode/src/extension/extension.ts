@@ -2984,38 +2984,46 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const auditGeneration = findingProjectGeneration;
     const requestedPage = studioPage;
     if (studioPage === "providers") void loadProviderCatalog();
-    let findings: unknown[] = [];
-    let evidence: unknown[] = [];
+    // Lectures indépendantes lancées ensemble ; chacune garde sa propre gestion d'erreur.
+    const config = defaultConfigDir();
+    const [choicesResult, summaryResult, findingsResult, claudeToken, openaiToken] =
+      await Promise.all([
+        readProjectChoices(config).then(
+          (value) => ({ value }),
+          (error: unknown) => ({ error }),
+        ),
+        readProjectSummary(config).then(
+          (value) => ({ value }),
+          (error: unknown) => ({ error }),
+        ),
+        readProjects(config)
+          .then(async (file) => {
+            const active = file === null ? null : activeProject(file);
+            return active === null ? [] : await readFindings(config, active.id);
+          })
+          .catch((): unknown[] => []),
+        getToken("claude").catch(() => undefined),
+        getToken("openai").catch(() => undefined),
+      ]);
+    const findings: unknown[] = findingsResult;
     let projectChoices: Awaited<ReturnType<typeof readProjectChoices>> = {
       activeId: null,
       projects: [],
     };
     let projectError = feedback.projectError;
-    try {
-      projectChoices = await readProjectChoices(defaultConfigDir());
-    } catch (error) {
-      projectError = t`Projets indisponibles : ${formatError(error, getUiLocale())}`;
+    if ("error" in choicesResult) {
+      projectError = t`Projets indisponibles : ${formatError(choicesResult.error, getUiLocale())}`;
+    } else {
+      projectChoices = choicesResult.value;
     }
     let projectSummary: Awaited<ReturnType<typeof readProjectSummary>> = null;
     let summaryError = feedback.summaryError;
-    try {
-      projectSummary = await readProjectSummary(defaultConfigDir());
-    } catch (error) {
-      summaryError = t`Résumé indisponible : ${formatError(error, getUiLocale())}`;
+    if ("error" in summaryResult) {
+      summaryError = t`Résumé indisponible : ${formatError(summaryResult.error, getUiLocale())}`;
+    } else {
+      projectSummary = summaryResult.value;
     }
-    try {
-      const file = await readProjects(defaultConfigDir());
-      const active = file === null ? null : activeProject(file);
-      findings = active === null ? [] : await readFindings(defaultConfigDir(), active.id);
-      evidence =
-        active === null || studioPage !== "killchain"
-          ? []
-          : (await listEvidence(defaultConfigDir(), active.id)).map(
-              ({ text: _text, ...meta }) => meta,
-            );
-    } catch {
-      findings = [];
-    }
+    const settings = readSettings();
     // Sources de cours (lecture seule) : seulement pour l'Atlas, racine fixée par l'hôte.
     const sources = studioPage === "atlas" ? await readSources(coursRoot()) : [];
     let audit: AuditView | undefined;
@@ -3056,15 +3064,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           projectId: projectChoices.activeId,
           page: studioPage,
           findings,
-          evidence,
           sources,
           projectSummary,
           projectChoices,
           audit,
           auditError,
-          capabilities: readSettings().capabilities,
+          capabilities: settings.capabilities,
           terminalPrompt: currentTerminalPrompt(),
-          providerCatalog: providerChoices(readSettings(), false).map(
+          providerCatalog: providerChoices(settings, false).map(
             ({ id, label, runtimeId, connected }) => ({
               id,
               label,
@@ -3077,13 +3084,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           providerAuthFile: opencodeAuthFile(),
           // Présence seule d'un jeton ou d'une connexion : jamais la valeur.
           providerAuth: {
-            claude: (await getToken("claude").catch(() => undefined)) !== undefined,
-            openai: (await getToken("openai").catch(() => undefined)) !== undefined,
+            claude: claudeToken !== undefined,
+            openai: openaiToken !== undefined,
           },
           limits: {
-            maxTurns: readSettings().maxTurns ?? null,
-            ultracodeMaxTurns: readSettings().ultracode?.maxTurns ?? null,
-            ultracodeMaxBudgetUsd: readSettings().ultracode?.maxBudgetUsd ?? null,
+            maxTurns: settings.maxTurns ?? null,
+            ultracodeMaxTurns: settings.ultracode?.maxTurns ?? null,
+            ultracodeMaxBudgetUsd: settings.ultracode?.maxBudgetUsd ?? null,
           },
           mcpCatalog: MCP_CATALOG,
           mcpConfigured: projectIntegrations(
@@ -3675,6 +3682,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
   };
   const openStudio = (page?: StudioPage) => {
+    // La Kill chain n'est plus une page des réglages : elle a son propre panneau.
+    if (page === "killchain") {
+      openKillchain();
+      return;
+    }
     if (page !== undefined) studioPage = page;
     if (studioPanel) {
       studioPanel.reveal();
@@ -3990,7 +4002,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
         return;
       }
-      if (message.type === "open") studioPage = message.page;
+      if (message.type === "open") {
+        if (message.page === "killchain") {
+          openKillchain();
+          return;
+        }
+        studioPage = message.page;
+      }
       if (message.type === "openCockpit") {
         openCockpit();
         return;

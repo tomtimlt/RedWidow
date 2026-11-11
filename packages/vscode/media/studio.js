@@ -16,7 +16,6 @@ const STUDIO_GROUPS = [
       ["program", "Fiche programme", "book", "openProgram"],
       ["engagement", "Engagement", "shield", "openEngagement"],
       ["containers", "Conteneurs", "container"],
-      ["killchain", "Kill chain", "graph"],
       ["audit", "Audit", "history"],
       ["integrations", "Intégrations", "sliders"],
     ],
@@ -57,6 +56,8 @@ const PALETTES = [
   ["multi", "Multicolore", "Six teintes, une par rôle : corail, vert, cyan, bleu, violet et rose"],
   ["editeur", "Éditeur", "Accent du thème VS Code : intégration maximale"],
 ];
+// Pages dont les données ne sont envoyées par l'hôte que lorsqu'elles sont affichées.
+const HOST_DATA_PAGES = new Set(["audit", "atlas"]);
 function killchainCount(findings) {
   if (!Array.isArray(findings) || findings.length === 0) return null;
   return findings.length;
@@ -67,10 +68,6 @@ function navModel(current, findings) {
     items: group.pages.map(([id, label, icon, action]) => {
       const item = { id, label: studioT(label), icon, current: id === current };
       if (action !== void 0) item.action = action;
-      if (id === "killchain") {
-        const count = killchainCount(findings);
-        if (count !== null) item.count = count;
-      }
       return item;
     }),
   }));
@@ -546,11 +543,16 @@ function start() {
             vscode.postMessage({ type: item.action });
             return;
           }
-          // Retour immédiat : la page choisie est surlignée et le contenu attend les données.
           if (lastView && item.id !== current && main) {
-            main.classList.add("is-loading");
-            main.setAttribute?.("aria-busy", "true");
-            paintNav(item.id, lastView.findings, lastView);
+            if (HOST_DATA_PAGES.has(item.id)) {
+              // Données envoyées par l'hôte pour cette seule page : le contenu attend leur arrivée.
+              main.classList.add("is-loading");
+              main.setAttribute?.("aria-busy", "true");
+              paintNav(item.id, lastView.findings, lastView);
+            } else {
+              // Navigation instantanée : la dernière vue complète suffit ; l'hôte ne repeint que si l'empreinte change.
+              render({ ...lastView, page: item.id });
+            }
           }
           vscode.postMessage({ type: "open", page: item.id });
         });
@@ -2712,23 +2714,7 @@ function start() {
           sec2.append(wrap);
         }
         main.append(sec2);
-        return;
       }
-      const count = killchainCount(view.findings);
-      const sec = empty(
-        t("Graphe"),
-        count === null
-          ? t(
-              "Graphe des éléments notés par l’agent. Ouvrez la vue plein écran pour explorer le graphe.",
-            )
-          : t`${count} élément${count > 1 ? "s" : ""} : ouvrez la vue plein écran pour le graphe interactif.`,
-      );
-      const open = el("button", "primary");
-      open.type = "button";
-      open.append(el("span", "btn-text", t("Ouvrir le graphe")));
-      open.addEventListener("click", () => vscode.postMessage({ type: "openKillchain" }));
-      sec.append(open);
-      main.append(sec);
       return;
     }
     if (page === "appearance") {
