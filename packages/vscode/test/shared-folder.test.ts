@@ -11,7 +11,7 @@ import {
 let base: string;
 let home: string;
 beforeEach(() => {
-  base = realpathSync(mkdtempSync(join(tmpdir(), "warband-shared-")));
+  base = realpathSync.native(mkdtempSync(join(tmpdir(), "warband-shared-")));
   home = join(base, "home");
   mkdirSync(join(home, ".ssh"), { recursive: true });
 });

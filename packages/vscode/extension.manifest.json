@@ -2,7 +2,7 @@
   "name": "warband",
   "displayName": "RedWidow",
   "description": "%extension.description%",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "publisher": "warband",
   "license": "MIT",
   "repository": { "type": "git", "url": "https://github.com/tomtimlt/RedWidow.git" },
