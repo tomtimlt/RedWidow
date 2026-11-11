@@ -27,6 +27,8 @@
     "esbuild": "0.28.2"
   },
   "optionalDependencies": {
+    "opencode-darwin-arm64": "1.19.0",
+    "opencode-darwin-x64-baseline": "1.19.0",
     "opencode-linux-x64-baseline": "1.19.0",
     "opencode-windows-x64-baseline": "1.19.0"
   }

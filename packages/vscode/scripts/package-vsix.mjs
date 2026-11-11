@@ -1,6 +1,6 @@
 // Empaquetage de l'extension (ADR 0004, E1/E3/E4) : bundle esbuild du moteur et de l'extension, copie du binaire
 // natif du SDK pour UNE cible, empreinte SHA-256, puis `vsce package --target`.
-// Usage : node scripts/package-vsix.mjs [cible]   (défaut : win32-x64). Ne publie rien.
+// Usage : node scripts/package-vsix.mjs [cible]   (win32-x64, linux-x64, darwin-arm64, darwin-x64 ; défaut : win32-x64). Ne publie rien.
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
@@ -24,7 +24,7 @@ const target = process.argv[2] ?? "win32-x64";
 const pkgDir = fileURLToPath(new URL("..", import.meta.url));
 const repository = join(pkgDir, "..", "..");
 const stage = join(pkgDir, ".vsix-stage", target);
-if (!["linux-x64", "win32-x64"].includes(target)) {
+if (!["linux-x64", "win32-x64", "darwin-arm64", "darwin-x64"].includes(target)) {
   throw new Error(`Cible non prise en charge : ${target}`);
 }
 // Les exports workspace pointent vers dist : compiler avant tout bundle garantit
@@ -40,7 +40,13 @@ execFileSync(process.execPath, [join(repository, "scripts", "sync-ui-i18n.mjs")]
 });
 const opencodeVersion = "1.19.0";
 const opencodeExeName = target === "win32-x64" ? "opencode.exe" : "opencode";
-const opencodePackage = `opencode-${target === "win32-x64" ? "windows" : "linux"}-x64-baseline`;
+// Paquets binaires OpenCode par cible (noms publiés sur npm).
+const opencodePackage = {
+  "win32-x64": "opencode-windows-x64-baseline",
+  "linux-x64": "opencode-linux-x64-baseline",
+  "darwin-arm64": "opencode-darwin-arm64",
+  "darwin-x64": "opencode-darwin-x64-baseline",
+}[target];
 const opencodeDir = dirname(
   createRequire(import.meta.url).resolve(`${opencodePackage}/package.json`),
 );
@@ -118,7 +124,10 @@ await build({
 
 copyFileSync(nativeExe, join(stage, "bin", exeName));
 copyFileSync(opencodeExe, join(stage, "bin", opencodeExeName));
-if (target === "linux-x64") chmodSync(join(stage, "bin", opencodeExeName), 0o755);
+if (target !== "win32-x64") {
+  chmodSync(join(stage, "bin", opencodeExeName), 0o755);
+  chmodSync(join(stage, "bin", exeName), 0o755);
+}
 writeFileSync(join(stage, "bin", "opencode.sha256"), `${opencodeSha}\n`);
 mkdirSync(join(stage, "third-party"), { recursive: true });
 copyFileSync(

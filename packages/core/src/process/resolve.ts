@@ -38,7 +38,9 @@ export function resolveBinary(name: string, opts: ResolveBinaryOptions = {}): st
   const env = opts.env ?? process.env;
   const isFile = opts.isFile ?? defaultIsFile(platform);
   if (name === "" || name.includes("\0")) return null;
-  return platform === "win32" ? resolveWindows(name, env, isFile) : resolvePosix(name, env, isFile);
+  return platform === "win32"
+    ? resolveWindows(name, env, isFile)
+    : resolvePosix(name, env, isFile, platform);
 }
 
 function pathEntries(env: NodeJS.ProcessEnv, platform: NodeJS.Platform): string[] {
@@ -58,13 +60,30 @@ function pathEntries(env: NodeJS.ProcessEnv, platform: NodeJS.Platform): string[
     .filter((entry) => entry !== "" && p.isAbsolute(entry));
 }
 
+/**
+ * macOS : VS Code lancé depuis le Dock n'hérite pas toujours du PATH du shell. Après le PATH, on sonde
+ * les emplacements d'installation habituels de Docker Desktop et de Homebrew (dossiers système fixes).
+ */
+const DARWIN_FALLBACK_DIRS = [
+  "/usr/local/bin",
+  "/opt/homebrew/bin",
+  "/Applications/Docker.app/Contents/Resources/bin",
+];
+
 function resolvePosix(
   name: string,
   env: NodeJS.ProcessEnv,
   isFile: (path: string) => boolean,
+  platform: NodeJS.Platform = "linux",
 ): string | null {
   if (name.includes("/") || posix.isAbsolute(name)) return isFile(name) ? name : null;
-  for (const dir of pathEntries(env, "linux")) {
+  const dirs = pathEntries(env, "linux");
+  if (platform === "darwin") {
+    const home = env.HOME;
+    if (home && posix.isAbsolute(home)) dirs.push(posix.join(home, ".docker", "bin"));
+    dirs.push(...DARWIN_FALLBACK_DIRS);
+  }
+  for (const dir of dirs) {
     const candidate = posix.join(dir, name);
     if (isFile(candidate)) return candidate;
   }

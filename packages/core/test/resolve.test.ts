@@ -116,3 +116,21 @@ describe("safeEnv (plateforme simulée)", () => {
     });
   });
 });
+
+describe("macOS : emplacements d'installation de Docker", () => {
+  it("trouve docker hors du PATH sur darwin", () => {
+    const found = resolveBinary("docker", {
+      platform: "darwin",
+      env: { PATH: "/usr/bin:/bin", HOME: "/Users/dev" },
+      isFile: (p) => p === "/Users/dev/.docker/bin/docker",
+    });
+    expect(found).toBe("/Users/dev/.docker/bin/docker");
+  });
+  it("sonde /opt/homebrew/bin sur darwin et pas sur linux", () => {
+    const isFile = (p: string) => p === "/opt/homebrew/bin/docker";
+    expect(resolveBinary("docker", { platform: "darwin", env: { PATH: "" }, isFile })).toBe(
+      "/opt/homebrew/bin/docker",
+    );
+    expect(resolveBinary("docker", { platform: "linux", env: { PATH: "" }, isFile })).toBeNull();
+  });
+});

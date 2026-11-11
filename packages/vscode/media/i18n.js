@@ -1332,8 +1332,8 @@
     "Connecteurs MCP": "MCP connectors",
     Recherche: "Search",
     "Recherche web": "Web search",
-    "Le mode Apprentissage utilise seulement les cours et les terminaux en lecture.":
-      "Learning mode only reads courses and terminal context.",
+    "Le mode Apprentissage lit seulement les cours du dossier de cours.":
+      "Learning mode only reads the courses in the course folder.",
     "Activer ou désactiver ici met aussi à jour les réglages. Les actions restent soumises aux approbations.":
       "Turning a capability on or off here also updates the settings. Actions still require the usual approvals.",
     "en pause": "paused",

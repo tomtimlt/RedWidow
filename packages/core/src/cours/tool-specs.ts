@@ -54,7 +54,7 @@ export const DEFAULT_COURS_LIMITS: CoursLimits = {
 
 /** Réponse de `chercher` quand le dossier de cours est absent ou sans fiche. */
 const NO_COURS =
-  "Aucun cours installé. Active le téléchargement des cours ou lance la synchronisation.";
+  "Aucun cours installé. Demande à l'utilisateur de déposer ses sources (fichiers .md ou .txt, un sous-dossier par source) dans le dossier de cours : Réglages, Atlas, Ouvrir le dossier de cours.";
 
 const TEXT_FILE = /\.(md|txt)$/i;
 

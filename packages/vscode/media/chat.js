@@ -938,7 +938,7 @@
         "tip",
         t(
           learning
-            ? "Le mode Apprentissage utilise seulement les cours et les terminaux en lecture."
+            ? "Le mode Apprentissage lit seulement les cours du dossier de cours."
             : "Activer ou désactiver ici met aussi à jour les réglages. Les actions restent soumises aux approbations.",
         ),
       ),
