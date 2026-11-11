@@ -123,3 +123,17 @@ jobs:
               --title "Red Widow v${VERSION} — AI pentest agents for your Kali, inside VS Code" \
               --notes-file "${NOTES}"
           fi
+
+      # Marketplace VS Code : seulement si le secret VSCE_PAT existe (voir docs/publier-marketplace.md).
+      # Le VSIX publié est exactement celui de la release. Une version déjà publiée est ignorée.
+      - name: Publier sur le Marketplace VS Code
+        if: steps.tag.outputs.skip != 'true'
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        working-directory: packages/vscode
+        run: |
+          if [ -z "${VSCE_PAT}" ]; then
+            echo "::notice::Secret VSCE_PAT absent : publication Marketplace ignorée."
+            exit 0
+          fi
+          pnpm exec vsce publish --skip-duplicate --packagePath redwidow-${VERSION}-*.vsix

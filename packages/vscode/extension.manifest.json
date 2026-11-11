@@ -623,5 +623,19 @@
       }
     }
   },
-  "icon": "media/redwidow-icon.png"
+  "icon": "media/redwidow-icon.png",
+  "categories": ["AI", "Chat", "Other"],
+  "keywords": [
+    "pentest",
+    "security",
+    "red team",
+    "kali",
+    "exegol",
+    "docker",
+    "ai agent",
+    "opencode",
+    "claude",
+    "ctf"
+  ],
+  "galleryBanner": { "color": "#0b0b0d", "theme": "dark" }
 }
