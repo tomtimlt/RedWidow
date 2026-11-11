@@ -7,6 +7,7 @@ import {
 } from "@warband/core";
 import { t } from "@warband/messages";
 import { isCapabilityId } from "./chat-capabilities.js";
+import { type FreeGuideKey, isFreeGuideKey } from "./free-guide.js";
 import { isPalette, type Palette } from "./palette.js";
 import { isTerminalPrompt, type TerminalPrompt } from "./terminal-prompt.js";
 
@@ -77,6 +78,7 @@ export type StudioMessage =
   /** Activation d'un fournisseur dans le chat ; skills, MCP et recherche web se règlent dans le chat. */
   | { type: "setCapability"; kind: "provider"; id: string; enabled: boolean }
   | { type: "configureProvider"; id: string }
+  | { type: "openFreeGuideLink"; key: FreeGuideKey }
   | { type: "testProviderConnection"; id: string }
   | { type: "configureMcp"; id: string }
   | { type: "openEvidence"; projectId: string; id: string }
@@ -197,6 +199,13 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
     isCapabilityId(m.id)
   )
     return { type: m.type, id: m.id };
+  if (
+    m.type === "openFreeGuideLink" &&
+    keys.length === 2 &&
+    keys.every((key) => key === "type" || key === "key") &&
+    isFreeGuideKey(m.key)
+  )
+    return { type: "openFreeGuideLink", key: m.key };
   if (
     m.type === "setLocale" &&
     keys.length === 2 &&

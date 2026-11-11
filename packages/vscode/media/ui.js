@@ -201,7 +201,10 @@
         providerLabel: model.value === null ? t("Par défaut") : (names.get(provider) ?? provider),
         // Ce badge reprend uniquement une indication explicite du catalogue.
         free:
-          model.value !== null && (/\bfree\s*$/i.test(model.label) || /:free$/i.test(model.value)),
+          model.value !== null &&
+          (/\bfree\s*$/i.test(model.label) ||
+            /:free$/i.test(model.value) ||
+            /-free$/i.test(model.value)),
       });
     }
     return [...groups.values()].flat();

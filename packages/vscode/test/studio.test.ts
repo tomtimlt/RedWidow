@@ -781,6 +781,78 @@ it("fournisseurs : choix optimiste verrouillé jusqu'à l'accusé, puis reprise 
   expect(main.find((item) => item.textContent === "Catalogue indisponible")).toBeDefined();
 });
 
+it("fournisseurs : carte gratuite à quatre options, ouverture selon la connexion, actions", () => {
+  const sent: unknown[] = [];
+  let receive: (event: { data: unknown }) => void = () => {};
+  const main = new StudioNode("main");
+  runInNewContext(read(studioJs), {
+    TextEncoder,
+    setTimeout,
+    clearTimeout,
+    acquireVsCodeApi: () => ({ postMessage: (message: unknown) => sent.push(message) }),
+    document: {
+      addEventListener() {},
+      body: new StudioNode("body"),
+      getElementById: (id: string) => (id === "studio-main" ? main : null),
+      createElement: (tag: string) => new StudioNode(tag),
+    },
+    window: {
+      WarbandIcons: { create: () => new StudioNode("svg") },
+      addEventListener: (_type: string, listener: typeof receive) => {
+        receive = listener;
+      },
+    },
+  });
+  const view = (providerCatalog: unknown[]) => ({
+    type: "view",
+    page: "providers",
+    capabilities: { providers: [] },
+    providerCatalog,
+  });
+  const card = () => {
+    const node = main.find((n) => n.className === "free-guide");
+    if (!node) throw new Error("Carte introuvable");
+    return node as StudioNode & { open: boolean };
+  };
+  const rows = ["oc-opencode", "oc-github-copilot", "google", "oc-openrouter"];
+  receive({
+    data: view([
+      { id: "oc-opencode", label: "OpenCode", runtimeId: "opencode", connected: false },
+      { id: "oc-github-copilot", label: "Copilot", runtimeId: "github-copilot" },
+      { id: "oc-openrouter", label: "OpenRouter", runtimeId: "openrouter" },
+    ]),
+  });
+  expect(card().open).toBe(true);
+  const options: StudioNode[] = [];
+  const collect = (n: StudioNode) => {
+    if (n.dataset.free) options.push(n);
+    for (const c of n.children) collect(c);
+  };
+  collect(card());
+  expect(options.map((n: StudioNode) => n.dataset.free)).toEqual([
+    "zen",
+    "copilot",
+    "gemini",
+    "openrouter",
+  ]);
+  const button = (i: number, cls: string) => options[i]?.find((c) => c.className.includes(cls));
+  (button(0, "free-guide-configure") as StudioNode).fire("click");
+  expect(sent.at(-1)).toEqual({ type: "configureProvider", id: rows[0] });
+  (button(1, "free-guide-configure") as StudioNode).fire("click");
+  expect(sent.at(-1)).toEqual({ type: "configureProvider", id: rows[1] });
+  (button(3, "free-guide-configure") as StudioNode).fire("click");
+  expect(sent.at(-1)).toEqual({ type: "configureProvider", id: rows[3] });
+  expect(button(2, "free-guide-configure")).toBeUndefined();
+  (button(2, "free-guide-refresh") as StudioNode).fire("click");
+  expect(sent.at(-1)).toEqual({ type: "refreshProviderCatalog" });
+  (button(0, "free-guide-link") as StudioNode).fire("click");
+  expect(sent.at(-1)).toEqual({ type: "openFreeGuideLink", key: "zen" });
+  receive({
+    data: view([{ id: "google", label: "Google", runtimeId: "google", connected: true }]),
+  });
+  expect(card().open).toBe(false);
+});
+
 it("valide le sondage d'un fournisseur sans accepter une consigne ni des identifiants", () => {
   expect(parseStudioMessage({ type: "testProviderConnection", id: "opencode" })).toEqual({
     type: "testProviderConnection",

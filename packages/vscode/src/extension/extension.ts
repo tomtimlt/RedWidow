@@ -95,6 +95,7 @@ import {
 import { evidenceEditorReference, evidenceTerminalAllowed } from "../logic/evidence-capture.js";
 import { type ExegolCreateOptions, prepareExegolCreate } from "../logic/exegol-create.js";
 import { deleteSelectedFinding } from "../logic/finding-delete.js";
+import { FREE_GUIDE_LINKS } from "../logic/free-guide.js";
 import { isRunId, parseIndex } from "../logic/history.js";
 import {
   chatHtml,
@@ -4009,6 +4010,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       if (message.type === "refreshProviderCatalog") {
         void loadProviderCatalog(true);
         await pushStudio();
+        return;
+      }
+      if (message.type === "openFreeGuideLink") {
+        await vscode.env.openExternal(vscode.Uri.parse(FREE_GUIDE_LINKS[message.key]));
         return;
       }
       if (message.type === "configureProvider") {

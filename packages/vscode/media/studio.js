@@ -670,6 +670,82 @@ function start() {
     );
     return section;
   }
+  // Offres gratuites : carte repliable, ouverte tant qu'aucun fournisseur n'est connecté. Les liens
+  // officiels sont désignés par une clé fixe ; l'hôte seul connaît les adresses.
+  const FREE_GUIDE_OPTIONS = [
+    {
+      key: "zen",
+      row: "oc-opencode",
+      title: "OpenCode Zen (modèles gratuits)",
+      who: "Pour qui : tout le monde.",
+      how: "Connexion : Configurer, puis choisir OpenCode et se connecter avec la clé Zen.",
+      limit: "Limite : selon l’offre du fournisseur ; l’app signale le dépassement du quota.",
+    },
+    {
+      key: "copilot",
+      row: "oc-github-copilot",
+      title: "GitHub Copilot (gratuit avec le GitHub Student Developer Pack)",
+      who: "Pour qui : étudiants et enseignants éligibles au Student Developer Pack.",
+      how: "Connexion : Configurer, puis suivre la connexion GitHub proposée.",
+      limit: "Limite : selon l’offre du fournisseur.",
+    },
+    {
+      key: "gemini",
+      row: "google",
+      title: "Google Gemini (clé AI Studio, offre gratuite)",
+      who: "Pour qui : tout compte Google.",
+      how: "Connexion : créer une clé dans AI Studio, puis Configurer et la saisir dans la boîte sécurisée.",
+      limit: "Limite : selon l’offre du fournisseur.",
+    },
+    {
+      key: "openrouter",
+      row: "oc-openrouter",
+      title: "OpenRouter (modèles :free)",
+      who: "Pour qui : tout le monde, avec un compte OpenRouter.",
+      how: "Connexion : Configurer, saisir la clé OpenRouter, puis choisir un modèle dont l’id finit par :free.",
+      limit: "Limite : selon l’offre du fournisseur.",
+    },
+  ];
+  function freeGuideCard(view, auth) {
+    const catalog = view.providerCatalog ?? [];
+    const connected =
+      auth.claude === true || auth.openai === true || catalog.some((p) => p.connected === true);
+    const card = el("details", "free-guide");
+    card.open = !connected;
+    card.append(el("summary", "", t("Utiliser RedWidow gratuitement")));
+    const list = el("div", "free-guide-list");
+    for (const option of FREE_GUIDE_OPTIONS) {
+      const item = el("div", "free-guide-option");
+      item.dataset.free = option.key;
+      item.append(
+        el("h3", "", t(option.title)),
+        el("p", "studio-help", t(option.who)),
+        el("p", "studio-help", t(option.how)),
+        el("p", "studio-help", t(option.limit)),
+      );
+      const present = catalog.some((p) => p.id === option.row);
+      const action = present
+        ? el("button", "ghost free-guide-configure", t("Configurer"))
+        : el("button", "ghost free-guide-refresh", t("Actualiser le catalogue"));
+      action.type = "button";
+      action.addEventListener("click", () =>
+        vscode.postMessage(
+          present
+            ? { type: "configureProvider", id: option.row }
+            : { type: "refreshProviderCatalog" },
+        ),
+      );
+      const link = el("button", "ghost free-guide-link", t("Page officielle"));
+      link.type = "button";
+      link.addEventListener("click", () =>
+        vscode.postMessage({ type: "openFreeGuideLink", key: option.key }),
+      );
+      item.append(action, link);
+      list.append(item);
+    }
+    card.append(list);
+    return card;
+  }
   // Fournisseurs (Global) : statut en présence/absence seulement ; aucune valeur de secret ni champ de saisie ici.
   // Le jeton se saisit dans la boîte sécurisée de VS Code, ouverte par l'hôte (commande « Configurer »).
   function providersPage(view) {
@@ -686,6 +762,7 @@ function start() {
     );
     const caps = view.capabilities ?? { providers: [] };
     const auth = view.providerAuth ?? {};
+    sec.append(freeGuideCard(view, auth));
     if (view.providerAuthFile)
       sec.append(
         el("p", "studio-help", t("Fichier OpenCode recherché : {0}", { 0: view.providerAuthFile })),

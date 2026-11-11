@@ -217,12 +217,14 @@ describe("filterModels", () => {
       entry("opencode/example-free", "Exemple Free"),
       entry("openrouter/example:free", "Exemple"),
       entry("custom/freedom", "Freedom"),
+      entry("opencode/x-FREE", "Exemple X"),
     ];
     const grouped = ui.groupModels(models, "opencode");
     expect(grouped.map((m) => m.value)).toEqual([
       null,
       "opencode/gpt-example",
       "opencode/example-free",
+      "opencode/x-FREE",
       "openai/gpt-example",
       "openrouter/example:free",
       "custom/freedom",
@@ -231,15 +233,17 @@ describe("filterModels", () => {
       "Par défaut",
       "OpenCode",
       "OpenCode",
+      "OpenCode",
       "OpenAI",
       "OpenRouter",
       "custom",
     ]);
     expect(grouped.filter((m) => m.free).map((m) => m.value)).toEqual([
       "opencode/example-free",
+      "opencode/x-FREE",
       "openrouter/example:free",
     ]);
-    expect(ui.filterModels(grouped, "gratuit")).toHaveLength(2);
+    expect(ui.filterModels(grouped, "gratuit")).toHaveLength(3);
     expect(ui.filterModels(grouped, "OpenAI").map((m) => m.value)).toEqual(["openai/gpt-example"]);
     expect(ui.groupModels([entry("opaque", "Sans préfixe")], "claude")[0]?.providerLabel).toBe(
       "Claude",

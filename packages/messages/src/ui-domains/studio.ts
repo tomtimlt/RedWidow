@@ -1,5 +1,29 @@
 // Libellés de la webview, indexés par leur texte français.
 export const studioEn: Record<string, string> = {
+  "Utiliser RedWidow gratuitement": "Use RedWidow for free",
+  "OpenCode Zen (modèles gratuits)": "OpenCode Zen (free models)",
+  "GitHub Copilot (gratuit avec le GitHub Student Developer Pack)":
+    "GitHub Copilot (free with the GitHub Student Developer Pack)",
+  "Google Gemini (clé AI Studio, offre gratuite)": "Google Gemini (AI Studio key, free tier)",
+  "OpenRouter (modèles :free)": "OpenRouter (:free models)",
+  "Pour qui : tout le monde.": "For whom: anyone.",
+  "Connexion : Configurer, puis choisir OpenCode et se connecter avec la clé Zen.":
+    "Connect: Configure, then pick OpenCode and sign in with the Zen key.",
+  "Limite : selon l’offre du fournisseur ; l’app signale le dépassement du quota.":
+    "Limit: per the provider's offer; the app reports when the quota is exceeded.",
+  "Pour qui : étudiants et enseignants éligibles au Student Developer Pack.":
+    "For whom: students and teachers eligible for the Student Developer Pack.",
+  "Connexion : Configurer, puis suivre la connexion GitHub proposée.":
+    "Connect: Configure, then follow the GitHub sign-in offered.",
+  "Limite : selon l’offre du fournisseur.": "Limit: per the provider's offer.",
+  "Pour qui : tout compte Google.": "For whom: any Google account.",
+  "Connexion : créer une clé dans AI Studio, puis Configurer et la saisir dans la boîte sécurisée.":
+    "Connect: create a key in AI Studio, then Configure and enter it in the secure box.",
+  "Pour qui : tout le monde, avec un compte OpenRouter.":
+    "For whom: anyone with an OpenRouter account.",
+  "Connexion : Configurer, saisir la clé OpenRouter, puis choisir un modèle dont l’id finit par :free.":
+    "Connect: Configure, enter the OpenRouter key, then pick a model whose id ends with :free.",
+  "Page officielle": "Official page",
   "Fichier OpenCode recherché : {0}": "OpenCode file searched: {0}",
   "Test du catalogue en cours…": "Testing the catalog…",
   "Statut de connexion non annoncé.": "Connection status not reported.",
