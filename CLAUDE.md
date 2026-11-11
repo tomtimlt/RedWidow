@@ -42,6 +42,7 @@ Règles de délégation :
 - `pnpm check` : biome + `tsc -b` + `tsc -p tsconfig.test.json` + vitest. Doit être entièrement vert avant tout commit.
 - `pnpm build` ; `pnpm test:contract` (appels réels, facturés, désactivé par défaut) ; `OPENCODE_BIN` (chemin du binaire) active les contrats OpenCode hors ligne : `OPENCODE_BIN=… pnpm test` (POSIX) ou `$env:OPENCODE_BIN="…"; pnpm test` (PowerShell). Pour poser une variable de façon portable dans un script : `node scripts/with-env.mjs KEY=VAL -- commande` (utilisé par `test:contract`).
 - CLI : `node packages/cli/dist/main.js` (`run`, `agents`, `policy`, `journal`, `graph`).
+- Release : passer `version` de `packages/vscode/extension.manifest.json` à la nouvelle version, mettre à jour les noms `redwidow-<version>-*.vsix` des deux README, `pnpm check` vert, puis pousser sur `main`. Le workflow Release crée lui-même le tag `v<version>` et publie les quatre VSIX. Il ne fait rien si le tag existe déjà. Une session cloud ne peut ni pousser ni supprimer un tag : ne pas essayer.
 
 ## Architecture
 
