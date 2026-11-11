@@ -112,3 +112,9 @@ LinkedIn), `hook.cjs` (aperçu social tiré de l'accroche du film V8, en
 format LinkedIn (4:5, français et anglais) : stratégie d'accroche, règles
 d'honnêteté, emplacement de chaque asset, structure de départ, livrables et
 vérifications.
+
+
+`PROMPT-V11-LINKEDIN.md` : plan de montage de la V11 (28 à 32 s). Bilan de la
+V10, nouvelle accroche sur la sortie nmap du Monitor avec la consigne citée en
+grand, plan en temps musicaux, détail des plans, pièges connus du moteur
+`src-v10/`, livrables et vérifications.
