@@ -12,7 +12,7 @@ it, under your approval.
 
 ![MIT license](https://img.shields.io/badge/license-MIT-3cc7c0.svg)
 ![VS Code 1.90+](https://img.shields.io/badge/VS%20Code-1.90%2B-495F73.svg)
-![Windows and Linux](https://img.shields.io/badge/Windows%20%7C%20Linux-495F73.svg)
+![Windows, Linux and macOS](https://img.shields.io/badge/Windows%20%7C%20Linux%20%7C%20macOS-495F73.svg)
 ![Docker required](https://img.shields.io/badge/Docker-required-495F73.svg)
 ![Public beta](https://img.shields.io/badge/status-public%20beta-E5132B.svg)
 
@@ -136,9 +136,20 @@ Requirements: **VS Code 1.90+**, **Docker** running, an **Exegol** or Kali
 container (RedWidow can prepare one), and an account with a model provider
 (OpenCode offers free models).
 
-1. Download the `.vsix` for your platform from the [latest release](https://github.com/tomtimlt/RedWidow/releases).
+1. Download the `.vsix` for your platform from the [latest release](https://github.com/tomtimlt/RedWidow/releases):
+
+   | Platform | File |
+   |---|---|
+   | Windows (x64) | `warband-1.0.0-win32-x64.vsix` |
+   | Linux (x64) | `warband-1.0.0-linux-x64.vsix` |
+   | macOS, Apple Silicon | `warband-1.0.0-darwin-arm64.vsix` |
+   | macOS, Intel | `warband-1.0.0-darwin-x64.vsix` |
+
 2. In VS Code: *Extensions* → `···` menu → **Install from VSIX…**
 3. Open **RedWidow** in the activity bar.
+
+On macOS, Docker Desktop must be running. RedWidow looks for `docker` in your
+`PATH`, in `~/.docker/bin`, in `/usr/local/bin` and in `/opt/homebrew/bin`.
 
 ## Quick start
 
@@ -152,7 +163,8 @@ container (RedWidow can prepare one), and an account with a model provider
 
 - **Beta**: UI defects are possible, please report them.
 - Not on the Marketplace yet: install from the `.vsix` file.
-- Tested on Windows and Linux, not on macOS.
+- Windows and Linux are tested. **macOS builds exist but have not been tested on real hardware yet**: please report what you find.
+- **Learning mode** reads the course folder you fill yourself (Settings → Atlas → Open course folder). No course is bundled.
 - Results depend on the model: a free model finds less than a frontier model.
 - Automatic nudging at the Relentless level works with OpenCode.
 

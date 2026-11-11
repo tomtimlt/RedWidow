@@ -12,7 +12,7 @@ votre conteneur quand vous l'appelez, sous votre contrôle.
 
 ![Licence MIT](https://img.shields.io/badge/licence-MIT-3cc7c0.svg)
 ![VS Code 1.90+](https://img.shields.io/badge/VS%20Code-1.90%2B-495F73.svg)
-![Windows et Linux](https://img.shields.io/badge/Windows%20%7C%20Linux-495F73.svg)
+![Windows, Linux et macOS](https://img.shields.io/badge/Windows%20%7C%20Linux%20%7C%20macOS-495F73.svg)
 ![Docker requis](https://img.shields.io/badge/Docker-requis-495F73.svg)
 ![Bêta publique](https://img.shields.io/badge/statut-b%C3%AAta%20publique-c8344a.svg)
 
@@ -106,9 +106,20 @@ Prérequis : **VS Code 1.90+**, **Docker** en marche, un conteneur **Exegol** ou
 un Kali (RedWidow sait le préparer), et un compte chez un fournisseur de modèle
 (OpenCode propose des modèles gratuits).
 
-1. Téléchargez le fichier `.vsix` de la [dernière version](https://github.com/tomtimlt/RedWidow/releases).
+1. Téléchargez le fichier `.vsix` de votre plateforme dans la [dernière version](https://github.com/tomtimlt/RedWidow/releases) :
+
+   | Plateforme | Fichier |
+   |---|---|
+   | Windows (x64) | `warband-1.0.0-win32-x64.vsix` |
+   | Linux (x64) | `warband-1.0.0-linux-x64.vsix` |
+   | macOS, Apple Silicon | `warband-1.0.0-darwin-arm64.vsix` |
+   | macOS, Intel | `warband-1.0.0-darwin-x64.vsix` |
+
 2. Dans VS Code : *Extensions* → menu `···` → **Installer à partir d'un VSIX…**
 3. Ouvrez **RedWidow** dans la barre d'activité.
+
+Sous macOS, Docker Desktop doit être lancé. RedWidow cherche `docker` dans le `PATH`,
+dans `~/.docker/bin`, dans `/usr/local/bin` et dans `/opt/homebrew/bin`.
 
 ## Démarrage en 5 étapes
 
@@ -122,7 +133,8 @@ un Kali (RedWidow sait le préparer), et un compte chez un fournisseur de modèl
 
 - **Bêta** : des défauts d'interface sont possibles, signalez-les.
 - Pas encore sur le Marketplace : installation par fichier `.vsix`.
-- Testé sous Windows et Linux, pas sous macOS.
+- Windows et Linux sont testés. **Les versions macOS existent mais n'ont pas encore été testées sur un vrai Mac** : signalez ce que vous constatez.
+- Le **mode Apprentissage** lit le dossier de cours que vous remplissez vous-même (Réglages → Atlas → Ouvrir le dossier de cours). Aucun cours n'est fourni.
 - Les résultats dépendent du modèle : un modèle gratuit trouve moins qu'un modèle de pointe.
 - Les relances automatiques du niveau Acharné fonctionnent avec OpenCode.
 

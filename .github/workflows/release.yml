@@ -1,6 +1,6 @@
 name: Release
 
-# Publie une release GitHub avec les VSIX (win32-x64 et linux-x64) quand un tag vX.Y.Z est poussé.
+# Publie une release GitHub avec les VSIX (win32-x64, linux-x64, darwin-arm64 et darwin-x64) quand un tag vX.Y.Z est poussé.
 # Le tag doit être égal à la version de packages/vscode/extension.manifest.json (sans le « v »).
 on:
   push:
@@ -54,6 +54,12 @@ jobs:
       - run: pnpm install --frozen-lockfile --os=win32 --cpu=x64
       - run: pnpm --filter @warband/vscode package win32-x64
 
+      # macOS (Apple Silicon puis Intel) : même principe, paquets optionnels de la cible.
+      - run: pnpm install --frozen-lockfile --os=darwin --cpu=arm64
+      - run: pnpm --filter @warband/vscode package darwin-arm64
+      - run: pnpm install --frozen-lockfile --os=darwin --cpu=x64
+      - run: pnpm --filter @warband/vscode package darwin-x64
+
       - name: Empreintes SHA-256
         working-directory: packages/vscode
         run: |
@@ -72,6 +78,6 @@ jobs:
           else
             gh release create "${TAG}" "${files[@]}" \
               --verify-tag \
-              --title "Warband ${VERSION}" \
+              --title "RedWidow ${VERSION}" \
               --generate-notes
           fi
