@@ -136,4 +136,11 @@ jobs:
             echo "::notice::Secret VSCE_PAT absent : publication Marketplace ignorée."
             exit 0
           fi
-          pnpm exec vsce publish --skip-duplicate --packagePath redwidow-${VERSION}-*.vsix
+          # Une plateforme par appel, avec une pause : envoyées d'un seul appel, seule la
+          # première version était retenue par le Marketplace (1.0.7).
+          status=0
+          for f in redwidow-${VERSION}-*.vsix; do
+            pnpm exec vsce publish --skip-duplicate --packagePath "$f" || status=1
+            sleep 60
+          done
+          exit $status
