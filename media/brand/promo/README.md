@@ -26,6 +26,10 @@ HTML du kit `../video-kit/html/`), sur le lab fictif `10.10.10.14`.
 | `redwidow-promo-v10-4x5-15s.mp4` | 1080 × 1350, 30 i/s, 15,3 s | V10 courte en anglais |
 | `redwidow-promo-v10-4x5-fr-b.mp4` | 1080 × 1350, 30 i/s, 39,6 s | V10 française avec l'accroche B, à tester contre la A : on ouvre sur la fin du rejeu de la kill chain (« ELLE TRACE LE CHEMIN / JUSQU'AU ROOT. »), puis la consigne tapée (« UNE PHRASE / A TOUT LANCÉ. ») ; même corps de film |
 | `redwidow-v10-cover-fr.png`, `redwidow-v10-cover.png` | 1080 × 1350 | Couvertures LinkedIn (français, anglais) : l'image de l'accroche où la carte d'autorisation est à l'écran sous le titre complet |
+| `redwidow-promo-v11-4x5-fr.mp4` | 1080 × 1350 (4:5), 30 i/s, 29,4 s, H.264 + AAC, −14 LUFS | V11, film LinkedIn en français (version principale). Une cible, une histoire : l'accroche montre la consigne citée en grand (« > Repère 10.10.10.14 et trouve-moi une entrée. ») au-dessus du Monitor de kali-1, où nmap, whatweb et ffuf arrivent un par temps avec leur sortie entière ; puis la carte d'autorisation, « Autoriser une fois », l'injection SQL confirmée (« UNE PHRASE. / QUATRE OUTILS. / UNE ENTRÉE. »). Rail de mission dès la première image. Corps sans redite : kill chain et rejeu jusqu'au nœud racine (resté « prévu »), mode Auto, rapport, Apprentissage, modèles, fin avec l'URL et l'étoile. Sources dans `src-v11/` |
+| `redwidow-promo-v11-4x5.mp4` | 1080 × 1350, 30 i/s, 29,4 s | V11 en anglais (« ONE SENTENCE. / FOUR TOOLS. / ONE WAY IN. ») |
+| `redwidow-promo-v11-4x5-fr-15s.mp4`, `redwidow-promo-v11-4x5-15s.mp4` | 1080 × 1350, 30 i/s, 15,3 s | V11 courte : accroche, logo, rejeu de la kill chain, mode Auto, fin « Open source. Gratuit. » |
+| `redwidow-v11-cover-fr.png`, `redwidow-v11-cover.png` | 1080 × 1350 | Couvertures LinkedIn : titre complet, consigne, quatre outils réussis et l'injection SQL confirmée |
 
 ## Refaire une version
 
@@ -97,6 +101,23 @@ réseau. `fr.py` traduit les légendes et l'interface (libellés réels de
 `src-banners/readme/fr-map.json`) ; le chat de l'accroche assemble la
 conversation de `snap/chat-agent-tall.html` et la carte d'autorisation du
 composant `chat-approval-tall`. `POST.md` propose les textes de publication.
+
+### V11 (LinkedIn 4:5, 29 s)
+
+Dans `src-v11/`, même moteur que la V10 (plan détaillé dans `PROMPT-V11-LINKEDIN.md`) :
+
+```
+./make.sh fr a   ../redwidow-promo-v11-4x5-fr.mp4
+./make.sh en a   ../redwidow-promo-v11-4x5.mp4
+./make.sh fr 15s ../redwidow-promo-v11-4x5-fr-15s.mp4
+./make.sh en 15s ../redwidow-promo-v11-4x5-15s.mp4
+```
+
+Nouveautés par rapport à la V10 : plan Monitor de l'accroche (`hookMon` dans
+`film.js`), consigne citée dans la bande du haut (`.cl.cmdline`), rail de mission
+piloté par des plages (`TL.rail`, visible dès l'image 0), timeline de 46 temps,
+coupe franche sur la carte d'autorisation. Les instruments de la musique restent
+ceux de `src-v8/synth.py`.
 
 ### Bannières et README
 
