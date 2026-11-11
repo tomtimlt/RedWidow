@@ -1,112 +1,149 @@
 <div align="center">
 
-<img src="docs/img/readme/redwidow-lockup.png" alt="RedWidow" width="360">
+<img src="docs/img/readme/hero-fr.png" alt="RedWidow. Tisse. Guette. Frappe. Emballe. L’atelier de pentest dopé à l’IA pour VS Code : le chat, la kill chain et le Monitor côte à côte" width="100%">
 
-# RedWidow
+<br>
+<br>
 
-**Le pentest dans VS Code, avec l'IA à la demande.**
+Vos conteneurs Exegol et Kali, vos terminaux, un Monitor en direct, une kill chain,
+une matrice de couverture et un rapport au même endroit, avec un agent IA qui
+n’exécute que ce que vous autorisez.
 
-Vos conteneurs Exegol et Kali, vos terminaux, un Monitor, un graphe d'attaque,
-une matrice de couverture et un rapport, au même endroit. Un agent IA agit dans
-votre conteneur quand vous l'appelez, sous votre contrôle.
+<br>
 
-![Licence MIT](https://img.shields.io/badge/licence-MIT-3cc7c0.svg)
-![VS Code 1.90+](https://img.shields.io/badge/VS%20Code-1.90%2B-495F73.svg)
-![Windows, Linux et macOS](https://img.shields.io/badge/Windows%20%7C%20Linux%20%7C%20macOS-495F73.svg)
-![Docker requis](https://img.shields.io/badge/Docker-requis-495F73.svg)
-![Bêta publique](https://img.shields.io/badge/statut-b%C3%AAta%20publique-c8344a.svg)
+[![Version 1.0, bêta publique](https://img.shields.io/badge/version-1.0%20b%C3%AAta%20publique-E5132B?style=flat-square)](https://github.com/tomtimlt/RedWidow/releases)
+[![Licence MIT](https://img.shields.io/badge/licence-MIT-E5132B?style=flat-square)](LICENSE)
+![VS Code 1.90+](https://img.shields.io/badge/VS%20Code-1.90%2B-606168?style=flat-square)
+![Windows et Linux](https://img.shields.io/badge/Windows%20%7C%20Linux-606168?style=flat-square)
+![Docker](https://img.shields.io/badge/Docker-requis-606168?style=flat-square)
+
+**[Télécharger](https://github.com/tomtimlt/RedWidow/releases)** ·
+**[Démarrage rapide](#démarrage-rapide)** ·
+**[English](README.md)** ·
+**[Signaler un problème](https://github.com/tomtimlt/RedWidow/issues)**
 
 </div>
 
----
+<br>
+
+<div align="center">
+<img src="docs/img/readme/preview-fr.gif" alt="Aperçu animé : une cible verrouillée dans la toile, la veuve descend sur son fil, le logo RedWidow apparaît" width="640">
+<br>
+<sub><a href="docs/video/redwidow-promo-fr.mp4">▶ Voir le film de 50 secondes</a></sub>
+</div>
+
+<br>
 
 > [!WARNING]
-> **Usage autorisé uniquement** : CTF, laboratoires de certification, ou mission
-> avec un périmètre défini et une autorisation écrite. Vous restez responsable de
-> ce que l'agent fait en votre nom.
+> **Usage autorisé uniquement : CTF, laboratoires et missions encadrées.**
+> Ne testez que des systèmes qui vous appartiennent ou pour lesquels vous avez
+> une autorisation écrite. Vous restez responsable de ce que l’agent fait en
+> votre nom.
 
-> **Bêta publique 1.0.** L'outil est utilisable au quotidien, mais jeune : il ne
-> promet aucun résultat. La réussite d'une mission dépend du modèle d'IA choisi
-> et de la cible. [Limites connues](#limites-connues).
-
-## Ce que c'est
+## Tisse. Guette. Frappe. Emballe.
 
 Un pentest, ce sont des dizaines de terminaux, de scans et de notes éparpillés.
-RedWidow les réunit dans VS Code :
+RedWidow chasse comme la veuve noire, et réunit toute la mission au même endroit,
+dans VS Code.
 
-- **Conteneurs Exegol et Kali** préparés et pilotés depuis le cockpit, terminaux ouverts directement dedans.
-- **Un agent IA** qui lance les outils dans votre conteneur, lit les résultats et propose la suite. Chaque action sensible passe par une carte d'approbation.
-- **Un Monitor** qui suit chaque commande et chaque requête web de l'agent, en direct.
-- **Un graphe d'attaque** (kill chain) : hôtes, identifiants, sites, étapes, avec la technique MITRE ATT&CK de chaque étape.
-- **Une matrice de couverture** : ce qui est testé, négatif, bloqué ou confirmé, en couleurs.
-- **Un journal complet et exportable** de la mission, pour rendre des comptes ou mesurer l'agent.
+| | Phase | Ce que fait RedWidow |
+| :-- | :-- | :-- |
+| **[01 Tisse](#01-tisse--repérage)** | Repérage | Prépare vos conteneurs Exegol et Kali et y lance les scans. |
+| **[02 Guette](#02-guette--analyse)** | Analyse | Montre chaque commande en direct et relie chaque trouvaille dans une kill chain. |
+| **[03 Frappe](#03-frappe--action)** | Action | Demande votre accord avant chaque action sensible, ou travaille seul pour la durée que vous fixez. |
+| **[04 Emballe](#04-emballe--rapport)** | Rapport | Suit la couverture, garde une trace d’audit et rédige le brouillon du rapport. |
+| **[05 Apprends](#05-apprends--mode-apprentissage)** | Mode Apprentissage | Explique où vous en êtes à partir de votre cours et de votre terminal. Il n’exécute jamais rien. |
 
-## Un profil par type de mission
+L’IA est une aide que vous appelez, pas le pilote.
 
-| Profil | Pour quoi | Document demandé |
-|---|---|---|
-| **Pentest** (par défaut) | Mission à la volée, tous les outils après approbation | Aucun |
-| **HTB / CTF** | Énumération, exploitation, drapeaux | Aucun |
-| **Bug bounty** | Respect des règles d'un programme, preuves minimales | Fiche programme |
-| **Red Team** | Plan de campagne, ATT&CK, déconfliction | Fiche d'engagement |
-| **Mentor** | Pédagogie, l'agent explique sans agir | Aucun |
+<br>
 
-Aucun profil n'impose les documents d'un autre : un pentest ne demande pas de
-fiche de bug bounty, un CTF ne demande aucun contrat.
+## 01 Tisse · Repérage
 
-## Fonctions
+<img src="docs/img/readme/01-weave-fr.png" alt="Tisse : le chat, où l’agent lance nmap, whatweb, ffuf et sqlmap dans le conteneur kali-1 et trouve une entrée" width="100%">
 
-### Piloter l'agent
-
-Écrivez votre consigne dans le chat. L'agent propose, vous autorisez : une carte
-montre l'outil, la commande et la raison, avec *Autoriser une fois*, *Refuser*
-ou *Toujours*.
-
-- `@` pour citer un conteneur, `#` pour citer un terminal ouvert, `/` pour les commandes.
+- **Conteneurs Exegol et Kali**, préparés et pilotés depuis le cockpit. Les terminaux s’ouvrent directement dedans, comme n’importe quel terminal de l’éditeur.
+- **Donnez-lui une cible** dans le chat. L’agent lance les outils dans votre conteneur, lit les résultats et propose la suite.
+- `@` cite un conteneur, `#` un terminal ouvert (l’agent lit sa sortie), `/` ouvre les commandes.
 - Plusieurs conversations en parallèle, avec un historique partagé par projet.
-- Choix du **fournisseur** et du **modèle** (OpenCode, Claude, OpenAI) pour le message suivant.
-- Niveau d'encadrement **Acharné** : l'agent est relancé tant qu'il reste des pistes qu'il peut avancer seul, et s'arrête quand seule une action humaine peut le débloquer.
-- Bouton **Stop** dans la zone de saisie pendant un run.
-- **Bypass** à durée choisie (de 1 minute à 48 h) ou illimité, quand vous voulez que l'agent travaille sans vous solliciter.
+- Le **fournisseur** et le **modèle** de votre choix pour le message suivant : OpenCode, Claude ou OpenAI.
 
-### Comptes de test
+## 02 Guette · Analyse
 
-Une page **Comptes de test** enregistre vos identifiants ou un cookie de session
-dans le coffre de VS Code. L'agent les utilise pour tester les parties
-authentifiées, avec une session conservée entre deux requêtes. Les valeurs sont
-masquées dans les journaux et les exports.
+<img src="docs/img/readme/02-watch-fr.png" alt="Guette : la kill chain, graphe des trouvailles reliées, au-dessus du Monitor et de sa sortie numérotée en direct" width="100%">
 
-### Fiche programme remplie par l'IA
+- **Le Monitor** suit chaque commande et chaque requête web de l’agent, en direct, avec des filtres.
+- **La kill chain** relie hôtes, identifiants, sites, étapes et butin. Chaque trouvaille a un état (confirmé, hypothèse, échec) et sa technique **MITRE ATT&CK**. **Rejouer** parcourt le chemin retenu nœud par nœud, et un clic sur un nœud ouvre sa fiche complète.
+- **Les sorties longues** sont conservées en entier et se relisent par tranche ou par recherche.
 
-Pour un bug bounty, collez l'adresse du programme et cliquez sur **Remplir par
-IA** : une conversation dédiée lit la page, rédige le périmètre, les exclusions,
-le rythme et le User-Agent, en citant ses sources. Vous relisez et vous validez :
-rien ne s'applique avant votre validation.
+## 03 Frappe · Action
 
-### Suivre l'exécution et garder une trace
+<img src="docs/img/readme/03-strike-fr.png" alt="Frappe : une carte d’approbation avec l’outil, la commande sqlmap, la raison et les boutons Autoriser une fois, Refuser et Toujours" width="100%">
 
-- Le **Monitor** liste toutes les actions de l'agent (shell et web), filtrables.
-- La **matrice de couverture** colore chaque case et signale d'un bandeau une faille confirmée.
-- L'**Audit** conserve actions, décisions et captures du projet. Un ZIP exportable contient le fil de la mission, les journaux et les empreintes SHA-256.
-- Les **sorties longues** sont gardées en entier et relisibles par tranche ou par recherche.
+- **Pilotez-la.** L’agent propose, vous validez : une carte montre l’outil, la commande et la raison, avec *Autoriser une fois*, *Refuser* ou *Toujours*.
+- **Ou lâchez la bête.** Le **Bypass** laisse l’agent travailler sans demander, pour la durée de votre choix (de 1 minute à 48 heures) ou sans limite. Il se coupe quand le moteur s’arrête.
+- Le niveau d’encadrement **Acharné** pousse l’agent à continuer tant qu’il a des pistes à suivre seul, et à s’arrêter quand vous seul pouvez le débloquer.
+- Un bouton **Stop** dans la zone de saisie pendant une exécution.
+- **Comptes de test** : vos identifiants ou un cookie de session, gardés dans le coffre de secrets de VS Code, pour que l’agent teste les zones authentifiées. Les valeurs sont masquées dans les journaux et les exports.
 
-### Mesurer un run
+## 04 Emballe · Rapport
 
-La commande `trace` lit le ZIP d'audit d'un run et dit où il a perdu du temps :
-nombre d'appels, répétitions, recherches, part des requêtes dérivées de ce que
-l'agent avait observé, classe de blocage probable.
+<img src="docs/img/readme/04-wrap-fr.png" alt="Emballe : un rapport de constats avec une barre de gravités et des constats Élevée, Moyenne, Faible et Info" width="100%">
+
+- **Une matrice de couverture** montre ce qui est testé, négatif, bloqué ou confirmé, en couleurs, avec un bandeau quand une faille est confirmée.
+- **L’audit** garde les actions, les décisions et les captures du projet. Son export ZIP contient le fil de la mission, les journaux et des empreintes SHA-256.
+- **Le brouillon du rapport** s’exporte en Markdown, prêt à compléter avec vos preuves et vos recommandations.
+- **Mesurer une exécution** : la commande `trace` lit un ZIP d’audit et indique où l’agent a perdu du temps (appels, répétitions, recherches, blocage probable).
 
 ```bash
 node packages/cli/dist/main.js trace mon-audit.zip
 ```
 
+## 05 Apprends · Mode Apprentissage
+
+<img src="docs/img/readme/05-learn-fr.png" alt="Mode Apprentissage : un terminal kali-1 à côté du chat, qui lit le terminal et le cours et donne un indice plutôt que la solution" width="100%">
+
+Bloqué sur une box HTB ? Ajoutez votre cours, citez votre session de terminal
+avec `#`, et RedWidow explique où vous en êtes à partir de ce que vous avez
+réellement tapé. Le mode Apprentissage ne lit que les cours et le contexte du
+terminal : il cite ses sources, donne un indice plutôt que la réponse, et
+n’exécute ni n’écrit jamais rien.
+
+Aucun cours n’est fourni avec RedWidow : ajoutez des sources sous licence
+ouverte, un dossier par source.
+
+## Un profil par type de mission
+
+| Profil | Pour quoi | Document demandé |
+| :-- | :-- | :-- |
+| **Pentest** (par défaut) | Mission à la volée, tous les outils après approbation | Aucun |
+| **HTB / CTF** | Énumération, exploitation, drapeaux | Aucun |
+| **Bug bounty** | Respect des règles d’un programme, preuves minimales | Fiche programme |
+| **Red Team** | Plan de campagne, ATT&CK, déconfliction | Fiche d’engagement |
+| **Mentor** | Pédagogie : l’agent explique sans agir | Aucun |
+
+Aucun profil n’impose les documents d’un autre. Pour un bug bounty, collez
+l’adresse du programme et cliquez sur **Remplir par IA** : une conversation
+dédiée lit la page et rédige le périmètre, les exclusions, le rythme et le
+User-Agent, en citant ses sources. Rien ne s’applique avant votre validation.
+
+## À votre façon
+
+<img src="docs/img/readme/06-yours-fr.png" alt="La page Apparence avec les jeux de couleurs RedWidow : Widow, Sentinelle, Braise, Venin, Arctique et les autres" width="100%">
+
+Chaque jeu de couleurs est réglé pour les thèmes clair, sombre et contraste élevé,
+et s’applique aussitôt à toutes les vues. Widow, noir profond et cramoisi, est
+le jeu par défaut.
+
+<br>
+
 ## Installation
 
-Prérequis : **VS Code 1.90+**, **Docker** en marche, un conteneur **Exegol** ou
-un Kali (RedWidow sait le préparer), et un compte chez un fournisseur de modèle
-(OpenCode propose des modèles gratuits).
+**Prérequis :** VS Code 1.90 ou plus, Docker démarré, un conteneur Exegol ou Kali
+(RedWidow peut le préparer) et un compte chez un fournisseur de modèles (OpenCode
+propose des modèles gratuits).
 
-1. Téléchargez le fichier `.vsix` de votre plateforme dans la [dernière version](https://github.com/tomtimlt/RedWidow/releases) :
+1. Téléchargez le `.vsix` de votre plateforme dans la [dernière version](https://github.com/tomtimlt/RedWidow/releases) :
 
    | Plateforme | Fichier |
    |---|---|
@@ -115,37 +152,37 @@ un Kali (RedWidow sait le préparer), et un compte chez un fournisseur de modèl
    | macOS, Apple Silicon | `warband-1.0.0-darwin-arm64.vsix` |
    | macOS, Intel | `warband-1.0.0-darwin-x64.vsix` |
 
-2. Dans VS Code : *Extensions* → menu `···` → **Installer à partir d'un VSIX…**
-3. Ouvrez **RedWidow** dans la barre d'activité.
+2. Dans VS Code : **Extensions** → `···` → **Installer à partir de VSIX…**
+3. Ouvrez **RedWidow** dans la barre d’activité.
 
-Sous macOS, Docker Desktop doit être lancé. RedWidow cherche `docker` dans le `PATH`,
-dans `~/.docker/bin`, dans `/usr/local/bin` et dans `/opt/homebrew/bin`.
+Sous macOS, Docker Desktop doit être démarré. RedWidow cherche `docker` dans votre
+`PATH`, dans `~/.docker/bin`, dans `/usr/local/bin` et dans `/opt/homebrew/bin`.
 
-## Démarrage en 5 étapes
+## Démarrage rapide
 
-1. **Réglages → Fournisseurs** : configurez un fournisseur de modèle.
-2. **Réglages → Projet** : créez un projet (son dossier est créé pour vous).
+1. **Réglages → Fournisseurs** : configurez un fournisseur de modèles.
+2. **Réglages → Projet** : créez un projet. Son dossier est créé pour vous.
 3. **Cockpit → Nouveau conteneur** : il se lie tout seul au projet.
-4. Dans le chat, **Configurer** : choisissez fournisseur, modèle et niveau d'encadrement.
-5. Écrivez votre consigne, par exemple « scanne 10.10.11.42 et résume les services exposés ».
+4. Dans le chat, **Configurer** : choisissez le fournisseur, le modèle et le niveau d’encadrement.
+5. Donnez-lui une cible, par exemple *« scanne 10.10.11.42 et résume les services exposés »*.
 
 ## Limites connues
 
-- **Bêta** : des défauts d'interface sont possibles, signalez-les.
-- Pas encore sur le Marketplace : installation par fichier `.vsix`.
-- Windows et Linux sont testés. **Les versions macOS existent mais n'ont pas encore été testées sur un vrai Mac** : signalez ce que vous constatez.
-- Le **mode Apprentissage** lit le dossier de cours que vous remplissez vous-même (Réglages → Atlas → Ouvrir le dossier de cours). Aucun cours n'est fourni.
-- Les résultats dépendent du modèle : un modèle gratuit trouve moins qu'un modèle de pointe.
-- Les relances automatiques du niveau Acharné fonctionnent avec OpenCode.
+- **Bêta publique.** RedWidow est utilisable au quotidien mais jeune : des défauts d’interface sont possibles, [signalez-les](https://github.com/tomtimlt/RedWidow/issues).
+- Pas encore sur le Marketplace : installation par le fichier `.vsix`.
+- Windows et Linux sont testés. **Les versions macOS existent mais n’ont pas encore été testées sur un vrai Mac** : signalez ce que vous constatez.
+- Les résultats dépendent du modèle : un modèle gratuit trouve moins qu’un modèle de pointe, et RedWidow ne promet aucun résultat.
+- La relance automatique du niveau Acharné fonctionne avec OpenCode.
 
-## Licences et contenus tiers
+## Licence et mentions
 
-RedWidow est sous licence **MIT** ([LICENSE](LICENSE)). Les contenus tiers
+RedWidow est open source, sous licence **[MIT](LICENSE)**. Les contenus tiers
 (OWASP, HackTricks, Attack Flow, OpenCode) et leurs licences sont listés dans
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Exegol, Kali Linux,
+HackTheBox, OWASP et MITRE ATT&CK sont des noms de leurs propriétaires
+respectifs ; RedWidow n’est affilié à aucun d’eux.
 
-## English
-
-The [English README](README.md) is the reference for the project page. RedWidow is a VS Code extension
-that drives Exegol and Kali containers with an AI agent, under your approval,
-with a Monitor, an attack graph, a coverage matrix and an exportable audit log.
+<div align="center">
+<br>
+<sub>Fait pour celles et ceux qui cassent des choses exprès, avec la permission.</sub>
+</div>
