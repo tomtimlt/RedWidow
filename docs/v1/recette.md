@@ -31,7 +31,7 @@ Pour chaque étape, coche OK ou KO et note la preuve (capture, chemin de fichier
 | 2.2 | « Nouveau conteneur » | Le panneau s'ouvre et le bouton disparaît. La croix referme le panneau et fait revenir le bouton | ☐ | ☐ |
 | 2.3 | Nom saisi, image, « Dossier partagé » › « Choisir… » | Dialogue natif. Le chemin choisi s'affiche. « Créer » reste grisé tant qu'aucun dossier n'est choisi | ☐ | ☐ |
 | 2.4 | « Choisir… » sur `C:\`, sur le dossier personnel, puis sur `.ssh` | Refus : « …il expose des données sensibles » | ☐ | ☐ |
-| 2.5 | « Créer » avec l'image « Kali RedWidow complète (construction locale) » | L'image est construite puis le conteneur démarre. En cas d'échec, le message donne le code et les lignes d'erreur de Docker, jamais « ? » | ☐ | ☐ |
+| 2.5 | « Créer » avec l'image « Kali RedWidow complète (construction locale) » | Les étapes avancent (Image → Téléchargement/Construction → Démarrage → Vérification MCP → Liaison), le bouton affiche « Création… » et le formulaire reste rempli. Réussite : coche et « Voir le conteneur ». Échec : étape en rouge, code et lignes d'erreur Docker, « Réessayer » | ☐ | ☐ |
 | 2.6 | « Créer » avec un dossier non déclaré dans Docker Desktop | Message clair « Docker Desktop ne partage pas le dossier … Settings > Resources > File sharing… » | ☐ | — |
 | 2.7 | Dossier partagé qui contient le dossier du projet actif | Le conteneur est « lié ». Sinon : « Conteneur créé sans liaison… », sans erreur | ☐ | ☐ |
 | 2.8 | Carte liée | « Image » et « Dossier hôte » visibles sans clic. Boutons « Terminal » et « Ouvrir le dossier ». La liste porte « Arrêter », « Supprimer » et « Lier » | ☐ | ☐ |
@@ -60,7 +60,7 @@ Pour chaque étape, coche OK ou KO et note la preuve (capture, chemin de fichier
 | 5.1 | Réglages › Projet › « Nouveau projet » (nom), puis « Activer le projet » | Le dossier du projet s'ouvre dans la fenêtre. Activation refusée pendant un tour | ☐ | ☐ |
 | 5.2 | « RedWidow : ouvrir la fiche programme » › « Remplir par IA » ou saisie › « Valider la fiche… » | La modale affiche « Empreinte : … ». L'état passe de « Brouillon, non validé » à « Validée et appliquée » | ☐ | ☐ |
 | 5.3 | Demander à l'agent une cible de la section « Hors périmètre » | Refus de la gate, non mémorisable | ☐ | ☐ |
-| 5.4 | Politique du dépôt : `node packages/cli/dist/main.js policy trust` (CLI seule, aucun bouton dans l'interface) | La politique n'est appliquée qu'après approbation de son empreinte | ☐ | ☐ |
+| 5.4 | Avec un `.warband/policy.json` dans le dossier : Réglages › Projet › « Politique du dépôt » › « Relire et approuver… » (ou palette « RedWidow : approuver la politique du dépôt ») | Le fichier s'ouvre, puis une modale affiche l'empreinte. « Approuver » fait passer l'état à « approuvée ». Si le fichier est modifié pendant la modale, l'approbation est refusée. Espace de travail non approuvé : refus | ☐ | ☐ |
 
 ## 6. Rythme
 
@@ -138,4 +138,3 @@ Pour chaque étape, coche OK ou KO et note la preuve (capture, chemin de fichier
 - Durée maximale du Bypass : le code va jusqu'à 48 h ou illimité, alors que `docs/extension-vscode.md` et `EXTENSION_README.md` disent 2 h ou 4 h.
 - `docs/extension-vscode.md` cite encore la Kill chain et le Contrôle système dans les Réglages, l'ancien nom « Warband : … » des commandes, une version 0.3.32 et une liste de palettes périmée.
 - Aucune section Engagement dans la doc utilisateur. Aucune procédure de désinstallation.
-- La politique du dépôt ne s'approuve qu'en CLI.
