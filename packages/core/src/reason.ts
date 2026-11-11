@@ -92,6 +92,7 @@ export const REASON_CODES = [
   "policy.repo.modified",
   // Docker et processus
   "docker.failed",
+  "docker.pathNotShared",
   "docker.invalidOperand",
   "docker.invalidTail",
   "docker.invalidPort",

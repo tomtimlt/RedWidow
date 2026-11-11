@@ -4,7 +4,7 @@ import { resolveBinary } from "../process/resolve.js";
 import { type ProcessResult, runProcess } from "../process/run.js";
 import { CodedError } from "../reason.js";
 import type { Recorder } from "../recorder.js";
-import { assertBinary, assertOperand, DockerError } from "./client.js";
+import { assertBinary, assertOperand, type DockerError, dockerFailure } from "./client.js";
 
 export const WARBAND_KALI_IMAGE = "warband/kali:complete-1";
 export const KALI_BASE_IMAGE = "kalilinux/kali-rolling:latest";
@@ -53,15 +53,7 @@ const abort = (signal?: AbortSignal) => signal?.throwIfAborted();
 
 /** Erreur `docker.failed` complète (binaire, code, dernières lignes d'erreur) : jamais de « ? » à l'affichage. */
 function failed(command: string, result: ProcessResult, options: DockerImageOptions): DockerError {
-  return new DockerError(
-    {
-      binary: options.binary ?? "docker",
-      command,
-      exitCode: result.code ?? "null",
-      stderr: (result.stderr.length > 0 ? result.stderr : result.stdout).slice(-30).join("\n"),
-    },
-    result,
-  );
+  return dockerFailure(options.binary ?? "docker", command, result);
 }
 
 async function command(args: string[], options: DockerImageOptions, stdin?: string) {

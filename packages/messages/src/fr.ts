@@ -224,7 +224,9 @@ export const reasons: Catalog = {
     `politique du dépôt ignorée (modifiée depuis son approbation) : ${text(p.path)} [sha256 ${text(p.digest)}]. ${REPO_HINT}`,
 
   "docker.failed": (p) =>
-    `${text(p.binary)} ${text(p.command)} a échoué (code ${text(p.exitCode)}) : ${text(p.stderr)}`,
+    `${text(p.binary)} ${text(p.command)} a échoué (code ${text(p.exitCode)}) : ${p.stderr === undefined || p.stderr === "" ? "aucun détail renvoyé par Docker" : text(p.stderr)}`,
+  "docker.pathNotShared": (p) =>
+    `Docker Desktop ne partage pas le dossier ${p.path === undefined ? "demandé" : text(p.path)} : ajoutez-le (ou son dossier parent) dans Docker Desktop, Settings > Resources > File sharing, puis « Apply & restart » et réessayez.`,
   "docker.invalidOperand": (p) =>
     `${OPERANDS[text(p.label)] ?? text(p.label)} invalide : « ${text(p.value)} »`,
   "docker.invalidTail": (p) => `tail invalide : ${text(p.value)}`,

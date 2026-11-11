@@ -379,7 +379,9 @@ export const reasons: Catalog = {
   "policy.repo.modified": (p) =>
     `repository policy ignored (changed since approval): ${text(p.path)} [sha256 ${text(p.digest)}]. After review: warband policy trust`,
   "docker.failed": (p) =>
-    `${text(p.binary)} ${text(p.command)} failed (code ${text(p.exitCode)}): ${text(p.stderr)}`,
+    `${text(p.binary)} ${text(p.command)} failed (code ${text(p.exitCode)}): ${p.stderr === undefined || p.stderr === "" ? "no details returned by Docker" : text(p.stderr)}`,
+  "docker.pathNotShared": (p) =>
+    `Docker Desktop does not share the folder ${p.path === undefined ? "requested" : text(p.path)}: add it (or its parent folder) in Docker Desktop, Settings > Resources > File sharing, then "Apply & restart" and try again.`,
   "docker.invalidOperand": (p) =>
     `invalid ${OPERANDS[text(p.label)] ?? text(p.label)}: '${text(p.value)}'`,
   "docker.invalidTail": (p) => `invalid tail: ${text(p.value)}`,

@@ -18,14 +18,45 @@ export interface ContainerSummary {
   ports: string;
 }
 
-/** Échec d'une commande docker (code de sortie ≠ 0) : code `docker.failed`, résultat complet en plus. */
+/**
+ * Échec d'une commande docker (code de sortie ≠ 0) : code `docker.failed` (ou
+ * `docker.pathNotShared` quand Docker Desktop refuse un dossier non partagé),
+ * résultat complet en plus.
+ */
 export class DockerError extends CodedError {
   constructor(
     params: ReasonParams,
     readonly result: ProcessResult,
+    code: "docker.failed" | "docker.pathNotShared" = "docker.failed",
   ) {
-    super("docker.failed", params);
+    super(code, params);
   }
+}
+
+const NOT_SHARED = "is not shared from the host";
+
+/** Extrait le chemin cité par Docker Desktop (antislashs doublés ramenés à un seul), s'il y en a un. */
+function notSharedPath(output: string): string | undefined {
+  const match = /"([^"\n]*)" is not shared from the host/.exec(output);
+  return match?.[1]?.replace(/\\\\/g, "\\");
+}
+
+/**
+ * Construit l'erreur d'une commande docker en échec : dernières lignes de
+ * stderr (30 au plus), à défaut de stdout (Docker écrit parfois l'erreur là) ;
+ * `docker.pathNotShared` si le dossier n'est pas partagé avec Docker Desktop.
+ */
+export function dockerFailure(binary: string, command: string, result: ProcessResult): DockerError {
+  const lines = (result.stderr.length > 0 ? result.stderr : result.stdout).slice(-30);
+  const output = lines.join("\n");
+  if (output.includes(NOT_SHARED)) {
+    const path = notSharedPath(output);
+    return new DockerError(path === undefined ? {} : { path }, result, "docker.pathNotShared");
+  }
+  return new DockerError(
+    { binary, command, exitCode: result.code ?? "null", stderr: output },
+    result,
+  );
 }
 
 /**
@@ -478,15 +509,7 @@ export function createDockerClient({
   const checked = async (what: string, args: readonly string[], options?: CallOptions) => {
     const result = await exec(args, options);
     if (result.code !== 0) {
-      throw new DockerError(
-        {
-          binary,
-          command: what,
-          exitCode: result.code ?? "null",
-          stderr: result.stderr.join("\n"),
-        },
-        result,
-      );
+      throw dockerFailure(binary, what, result);
     }
     return result;
   };

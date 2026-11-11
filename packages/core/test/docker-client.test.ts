@@ -9,6 +9,7 @@ import {
   createRecorder,
   type DockerClient,
   DockerError,
+  dockerFailure,
   type EngineEvent,
   parseDockerImages,
   parseDockerInspect,
@@ -110,6 +111,41 @@ describe("DockerClient", () => {
       invalid("docker.invalidEnvKey", { key: "A=B" }),
     );
     expect(await fake.calls()).toEqual([]);
+  });
+
+  describe("dockerFailure", () => {
+    const res = (stdout: string[], stderr: string[]) => ({
+      code: 1,
+      signal: null,
+      stdout,
+      stderr,
+      durationMs: 1,
+    });
+
+    it("stderr vide : repli sur stdout", () => {
+      const err = dockerFailure("docker", "images", res(["boom"], []));
+      expect(err).toMatchObject({ code: "docker.failed", params: { stderr: "boom" } });
+    });
+
+    it("tout vide : stderr vide (le libellé dit qu'aucun détail n'est renvoyé)", () => {
+      const err = dockerFailure("docker", "images", res([], []));
+      expect(err).toMatchObject({ code: "docker.failed", params: { stderr: "" } });
+    });
+
+    it("dossier non partagé : docker.pathNotShared avec le chemin (antislashs simplifiés)", () => {
+      const out =
+        'docker: Error response from daemon: the path "C:\\\\Me\\\\Test-Warband\\\\Kali\\\\Kali-2" is not shared from the host; add it in Settings > Resources > File Sharing before using it in a container';
+      const err = dockerFailure("docker", "run", res([], [out]));
+      expect(err).toBeInstanceOf(DockerError);
+      expect(err.code).toBe("docker.pathNotShared");
+      expect(err.params).toEqual({ path: "C:\\Me\\Test-Warband\\Kali\\Kali-2" });
+      expect(err.result.code).toBe(1);
+    });
+
+    it("dossier non partagé sans chemin cité : pas de paramètre path", () => {
+      const err = dockerFailure("docker", "run", res([], ["x is not shared from the host"]));
+      expect(err).toMatchObject({ code: "docker.pathNotShared", params: {} });
+    });
   });
 
   it("lève DockerError sur code ≠ 0", async () => {

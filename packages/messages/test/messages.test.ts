@@ -186,6 +186,18 @@ describe("formatError", () => {
       { code: 1, signal: null, stdout: [], stderr: [], durationMs: 1 },
     );
     expect(formatError(failed)).toBe("docker stop a échoué (code 1) : no such container");
+    const empty = { binary: "docker", command: "images", exitCode: 1, stderr: "" };
+    expect(formatReason({ code: "docker.failed", params: empty })).toBe(
+      "docker images a échoué (code 1) : aucun détail renvoyé par Docker",
+    );
+    expect(formatReason({ code: "docker.failed", params: empty }, "en")).toBe(
+      "docker images failed (code 1): no details returned by Docker",
+    );
+    const shared = { code: "docker.pathNotShared", params: { path: "C:\\Me\\Kali" } };
+    expect(formatReason(shared)).toBe(
+      "Docker Desktop ne partage pas le dossier C:\\Me\\Kali : ajoutez-le (ou son dossier parent) dans Docker Desktop, Settings > Resources > File sharing, puis « Apply & restart » et réessayez.",
+    );
+    expect(formatReason(shared, "en")).toContain("does not share the folder C:\\Me\\Kali");
   });
 
   it("libelle l'erreur d'un événement : codée, inconnue (message brut) ou ancien texte", () => {
