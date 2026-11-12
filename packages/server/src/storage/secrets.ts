@@ -41,7 +41,7 @@ function deriveKey(masterKey: string, salt: Buffer, n: number, r: number, p: num
 
 function encrypt(key: Buffer, name: string, value: string): Entry {
   const iv = randomBytes(IV_BYTES);
-  const c = createCipheriv("aes-256-gcm", key, iv);
+  const c = createCipheriv("aes-256-gcm", key, iv, { authTagLength: 16 });
   c.setAAD(Buffer.from(name, "utf8"));
   const data = Buffer.concat([c.update(value, "utf8"), c.final()]);
   return {
@@ -54,7 +54,9 @@ function encrypt(key: Buffer, name: string, value: string): Entry {
 /** Déchiffre ; `undefined` si l'authentification échoue (mauvaise clé, entrée échangée ou altérée). */
 function decrypt(key: Buffer, name: string, e: Entry): string | undefined {
   try {
-    const d = createDecipheriv("aes-256-gcm", key, Buffer.from(e.iv, "base64"));
+    const d = createDecipheriv("aes-256-gcm", key, Buffer.from(e.iv, "base64"), {
+      authTagLength: 16,
+    });
     d.setAAD(Buffer.from(name, "utf8"));
     d.setAuthTag(Buffer.from(e.tag, "base64"));
     return Buffer.concat([d.update(Buffer.from(e.data, "base64")), d.final()]).toString("utf8");
