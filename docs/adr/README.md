@@ -55,6 +55,7 @@ Lots pour `dev` : objectif, fichiers, critères d'acceptation vérifiables.
 
 - [0040 — Fiche programme, périmètre et rythme vers les cibles](0040-fiche-programme-et-rythme-des-cibles.md) : fiche validée par empreinte, périmètre en `ask` par hôte, outil `http_request` rythmé, proxy sans interception reporté.
 - [0041 — Fiche dengagement red team, plan de campagne et arrêt durgence](0041-engagement-red-team-et-arret-d-urgence.md) : engagement validé par empreinte, périmètre cible vs infrastructure déclarée, arrêt durgence non contournable, plan de campagne, journal.
+- [0052 — Version serveur web et authentification](0052-version-serveur-web-et-authentification.md) : hôte `packages/server`, pont WebSocket, mot de passe scrypt et cookie de session, secrets chiffrés sur `/data`, bascule de fournisseur, Docker + Caddy.
 
 Le statut accepté décrit la décision ; les preuves d’exécution et les limites
 figurent dans [l’état du projet](../etat-du-projet.md).
