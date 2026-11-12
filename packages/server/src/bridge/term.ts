@@ -147,6 +147,26 @@ export class TermHost {
     this.clock = options.clock ?? realClock;
   }
 
+  /**
+   * Terminaux ouverts, dans l'ordre d'ouverture (lecture seule, pour les mentions `#` du chat) : cadre,
+   * nom du conteneur et fin du tampon de sortie (`tailChars`, masquée comme le journal : coffre,
+   * environnement et motifs usuels). Aucune entrée n'est écrite dans le terminal.
+   */
+  async snapshots(
+    tailChars: number,
+  ): Promise<{ frame: string; container: string; finished: boolean; raw: string }[]> {
+    const live = [...this.sessions.values()];
+    if (live.length === 0) return [];
+    const redact = await this.redactor();
+    // Le masquage précède la coupe : un secret à cheval sur la limite ne reste pas à moitié visible.
+    return live.map((s) => ({
+      frame: s.frame,
+      container: s.container.name,
+      finished: s.finished,
+      raw: redact(s.buffer).slice(-tailChars),
+    }));
+  }
+
   /** Nombre de sessions vivantes ou conservées (tests, plafond). */
   size(): number {
     return this.sessions.size;

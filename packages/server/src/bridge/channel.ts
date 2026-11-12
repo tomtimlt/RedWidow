@@ -20,6 +20,8 @@ export interface Bridge {
 
 /** Plafond d'un identifiant de demande ou de question dans un message de la coquille. */
 const MAX_ID = 200;
+/** Identifiant d'une demande de pièce jointe (même forme que `requestId` de `parseWebviewMessage`). */
+const REQUEST_ID = /^[a-zA-Z0-9-]{1,80}$/;
 
 /**
  * Pont socket ↔ hub (ADR 0052, points 2 et 4). Le socket est déjà authentifié (cookie, Origin) par
@@ -99,6 +101,19 @@ export function createBridge(hub: MissionHub): Bridge {
       };
 
       const onChat = async (frame: string, msg: Record<string, unknown>): Promise<void> => {
+        // Message propre au web : pièce jointe par dialogue de téléversement (forme exacte, identifiant borné).
+        if (msg.type === "attachPick") {
+          if (
+            !frames.has(frame) ||
+            Object.keys(msg).length !== 2 ||
+            typeof msg.requestId !== "string" ||
+            !REQUEST_ID.test(msg.requestId) ||
+            !(await hub.attachPick(frame, msg.requestId, sink))
+          )
+            return ignore();
+          stats.accepted++;
+          return;
+        }
         const message = parseWebviewMessage(msg);
         if (message === null) return ignore();
         if (message.type === "ready") {

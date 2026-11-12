@@ -5,10 +5,12 @@ import {
   CodedError,
   type CredentialInput,
   type CredentialResult,
+  createRedactor,
   defaultConfigDir,
   type EngineEvent,
   errorInfo,
   readProjects,
+  secretsFromEnv,
 } from "@warband/core";
 import type { Choice, WebviewMessage } from "@warband/vscode/logic/approval";
 import {
@@ -30,6 +32,7 @@ import { DownloadStore } from "../downloads.js";
 import type { ServerStorage } from "../storage/index.js";
 import { UploadStore } from "../uploads.js";
 import { AccountStore } from "./accounts.js";
+import { ChatExtras } from "./chat-extras.js";
 import {
   activatePoolKey,
   activePoolKey,
@@ -48,7 +51,12 @@ import {
   writePool,
 } from "./config.js";
 import { ContainerHost, containerEnv } from "./containers.js";
-import { buildChatDeps, HISTORY_INDEX_KEY } from "./deps.js";
+import {
+  buildChatDeps,
+  HISTORY_INDEX_KEY,
+  PROVIDER_CATALOG_KEY,
+  readProviderCatalog,
+} from "./deps.js";
 import { isFrameId, type View } from "./envelope.js";
 import { getFindingDetail, listFindingItems, removeFinding } from "./findings.js";
 import { coreProjectHalts, EmergencyHalt, type ProjectHalts } from "./halt.js";
@@ -162,7 +170,12 @@ interface Frame {
   idleWaiters: (() => boolean)[];
   /** Dernier état diffusé en `missionState` (ADR 0052). */
   lastState?: string;
+  /** Dernier contexte de mission annoncé par le moteur (masqué, borné) : rejoué aux coquilles qui se connectent. */
+  missionContext?: { runId: string; text: string };
 }
+
+/** Plafond du contexte de mission diffusé à la coquille (octets de texte). */
+const MAX_MISSION_CONTEXT = 16 * 1024;
 
 /** Une passe de bascule : une seule fois par clé de la réserve, puis arrêt de la mission. */
 interface Rotation {
@@ -205,6 +218,7 @@ export class MissionHub {
   private readonly killchain: KillchainHost;
   private readonly viewer: ViewerHost;
   private readonly term: TermHost;
+  private readonly extras: ChatExtras;
   private readonly containers: ContainerHost;
   private readonly configDir: string;
   /** Bypass global demandé depuis la coquille (en mémoire seulement, ADR 0017) ; `until` nul = illimité. */
@@ -244,14 +258,7 @@ export class MissionHub {
       selfIds,
       audit: (e) => this.audit(e),
       ...(options.clock && { clock: options.clock }),
-      secretValues: async () => {
-        const values: string[] = [];
-        for (const key of options.storage.secrets.keys()) {
-          const v = await options.storage.secrets.get(key);
-          if (v) values.push(v);
-        }
-        return values;
-      },
+      secretValues: () => this.secretValues(),
     });
     this.containers = new ContainerHost({
       docker,
@@ -334,6 +341,19 @@ export class MissionHub {
       locale,
       ...(options.killchainPollMs !== undefined && { pollMs: options.killchainPollMs }),
     });
+    this.extras = new ChatExtras({
+      ctx: this.context,
+      configDir: this.configDir,
+      projectsRoot: options.storage.paths.projects,
+      runsDir: options.storage.paths.runs,
+      historyIndex: () => options.storage.state.get(HISTORY_INDEX_KEY),
+      secretValues: () => this.secretValues(),
+      containers: () => this.containers.list(),
+      cockpit: backends.cockpit,
+      terminals: (chars) => this.term.snapshots(chars),
+      frames: () => this.frames.values(),
+      settingsChanged: (values) => this.toShell({ type: "settings", values }),
+    });
     this.viewer = new ViewerHost({
       configDir: this.configDir,
       runsDir: options.storage.paths.runs,
@@ -342,6 +362,28 @@ export class MissionHub {
       chatView: (frame) => this.frames.get(frame)?.session.view(),
       historyIndex: () => options.storage.state.get(HISTORY_INDEX_KEY),
     });
+  }
+
+  /** Valeurs du coffre (masquage des sorties de terminal, des exports et du contexte diffusé). */
+  private async secretValues(): Promise<string[]> {
+    const values: string[] = [];
+    for (const key of this.options.storage.secrets.keys()) {
+      const v = await this.options.storage.secrets.get(key);
+      if (v) values.push(v);
+    }
+    return values;
+  }
+
+  /**
+   * Contexte de mission annoncé par le moteur (en-tête de la coquille) : remasqué (environnement et motifs
+   * usuels), borné, diffusé à la coquille et gardé pour les connexions suivantes. Jamais journalisé ici.
+   */
+  private onMissionContext(f: Frame, snapshot: { runId: string; text: string }): void {
+    if (this.disposed) return;
+    const redact = createRedactor({ values: secretsFromEnv(process.env) });
+    const text = redact(snapshot.text).slice(0, MAX_MISSION_CONTEXT);
+    f.missionContext = { runId: snapshot.runId, text };
+    this.toShell({ type: "missionContext", frame: f.id, runId: snapshot.runId, text });
   }
 
   private audit(entry: Record<string, unknown>): void {
@@ -432,6 +474,16 @@ export class MissionHub {
         ask: (q) => this.ask(q),
         onView: (view) => this.onView(f, view),
         onObservedEvent: (event) => this.onEngineEvent(f, event),
+        configDir: this.configDir,
+        onMissionContext: (snapshot) => this.onMissionContext(f, snapshot),
+        // Catalogue OpenCode annoncé par un chat : même état que la vue studio, puis sélections recalées.
+        onProviders: (providers) => {
+          const catalog = readProviderCatalog(providers);
+          if (catalog.length === 0) return;
+          this.options.storage.state.set(PROVIDER_CATALOG_KEY, catalog);
+          for (const other of this.frames.values())
+            other.session.setSelection(other.session.view().capabilities?.selection);
+        },
         poolKey: (provider) => activePoolKey(this.options.storage, provider, Date.now()),
         onPoolKey: (provider, id) => {
           f.using = id === null ? null : { provider, id };
@@ -647,6 +699,8 @@ export class MissionHub {
     sink.send("chat", f.id, { ...f.bypass.snapshot() });
     sink.send("chat", f.id, { type: "view", view: f.session.view(), chatId: f.id });
     void f.session.loadModels().catch(() => undefined);
+    // Conteneurs (menu `@`) et terminaux (menu `#`) : lectures asynchrones, sans bloquer l'abonnement.
+    void this.extras.ready(f, sink).catch(() => undefined);
     return true;
   }
 
@@ -658,6 +712,13 @@ export class MissionHub {
     this.pushBypass(sink);
     this.pushApprovals(true, sink);
     for (const c of this.confirms.values()) sink.send("shell", SHELL_FRAME, this.confirmMessage(c));
+    for (const f of this.frames.values())
+      if (f.missionContext)
+        sink.send("shell", SHELL_FRAME, {
+          type: "missionContext",
+          frame: f.id,
+          ...f.missionContext,
+        });
     this.context.ui.attach(sink);
   }
 
@@ -745,8 +806,12 @@ export class MissionHub {
         }
         const texts = files.filter((x): x is TextAttachment => "text" in x);
         const images = files.filter((x) => "mimeType" in x);
-        const prompt = texts.length ? withAttachments(message.text, texts) : message.text;
         try {
+          // Propositions de liaison (`@`) et extraits des terminaux ouverts cités (`#`), comme l'extension.
+          const sections = await this.extras.beforeSend(f, message.text, from);
+          const raw = message.text.trim() ? message.text : "Analyse les fichiers joints.";
+          const context = this.extras.withContext(raw, sections);
+          const prompt = texts.length ? withAttachments(context, texts) : context;
           reply(
             await s.send(
               hasFiles ? attachmentMessage(message.text, files) : message.text,
@@ -819,9 +884,20 @@ export class MissionHub {
         await s.refreshHistoryProjects();
         return true;
       default:
-        // `ready` est traité par l'abonnement ; le reste (ouvertures VS Code, mentions, exports…) n'a pas d'équivalent.
-        return false;
+        // `ready` est traité par l'abonnement ; le reste (mentions, capacités, exports, ouvertures de
+        // fenêtres, liaison de conteneur…) est porté par `ChatExtras`.
+        return this.extras.handle(f, message, from);
     }
+  }
+
+  /**
+   * Pièce jointe par dialogue de téléversement (`attachPick`, message propre au web : l'extension joint par
+   * le navigateur de la page). Le message est déjà validé par le pont ; le cadre doit exister.
+   */
+  async attachPick(frameId: string, requestId: string, from: Sink): Promise<boolean> {
+    const f = this.frames.get(frameId);
+    if (!f || this.disposed) return false;
+    return this.extras.attachPick(f, requestId, from);
   }
 
   /** Arrêt d'urgence actif ? (lu par le canal et les vues) */

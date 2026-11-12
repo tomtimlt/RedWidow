@@ -1,9 +1,10 @@
-import type { EngineEvent } from "@warband/core";
+import { type EngineEvent, type ProviderOption, readProjects } from "@warband/core";
 import type { BypassEngineLink, BypassSend } from "@warband/vscode/logic/bypass";
 import type { ChatView } from "@warband/vscode/logic/chat";
 import { capabilitySettings } from "@warband/vscode/logic/chat-capabilities";
 import type { EngineController, EngineControllerOptions } from "@warband/vscode/logic/controller";
 import type { Provider } from "@warband/vscode/logic/effort";
+import type { HistoryProjects } from "@warband/vscode/logic/history";
 import { createJournalFiles } from "@warband/vscode/logic/historyStore";
 import type { ChatSessionDeps, TokenChoice } from "@warband/vscode/logic/session";
 import type { ChatSettings } from "@warband/vscode/logic/settings";
@@ -17,10 +18,55 @@ export const HISTORY_INDEX_KEY = "history.index";
 export const PREFS_PREFIX = "prefs.";
 /** Réglages machine (objet `{ clé: valeur }`, mêmes clés que `warband.*` dans VS Code). */
 export const SETTINGS_KEY = "settings";
+/** Catalogue des fournisseurs OpenCode (état serveur) : même clé que la vue studio (`studio.providerCatalog`). */
+export const PROVIDER_CATALOG_KEY = "studio.providerCatalog";
+/** Plafond de fournisseurs retenus du catalogue. */
+const MAX_CATALOG = 200;
 
 /** Clé du coffre pour le jeton d'un fournisseur ; le type (`api-key` | `subscription`) est dans l'état. */
 export const tokenSecretKey = (provider: string): string => `provider.${provider}.token`;
 export const tokenKindKey = (provider: string): string => `provider.${provider}.kind`;
+
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
+const PROVIDER_ID = /^[a-z0-9][a-z0-9._-]{0,95}$/;
+
+/** Catalogue relu de l'état : métadonnées publiques seulement (id, nom, connecté), le reste est ignoré. */
+export function readProviderCatalog(raw: unknown): ProviderOption[] {
+  if (!Array.isArray(raw)) return [];
+  const out: ProviderOption[] = [];
+  const seen = new Set<string>();
+  for (const item of raw.slice(0, MAX_CATALOG)) {
+    if (!isRecord(item)) continue;
+    const { id, name, connected } = item;
+    if (
+      typeof id !== "string" ||
+      !PROVIDER_ID.test(id) ||
+      seen.has(id) ||
+      typeof name !== "string" ||
+      name.trim() === "" ||
+      name.length > 200 ||
+      typeof connected !== "boolean"
+    )
+      continue;
+    seen.add(id);
+    out.push({ id, name, connected });
+  }
+  return out;
+}
+
+/** Réglages de chat lus de l'état serveur (capacités, réglages validés, catalogue des fournisseurs). */
+export function readChatSettings(storage: ServerStorage): ChatSettings {
+  const raw = storage.state.get(SETTINGS_KEY);
+  const get = (key: string): unknown => (isRecord(raw) ? raw[key] : undefined);
+  // Défauts de logic/settings.ts ; `resolveSettings` lève `CodedError` sur une valeur invalide.
+  return {
+    capabilities: capabilitySettings(get),
+    ...resolveSettings(get),
+    providerCatalog: readProviderCatalog(storage.state.get(PROVIDER_CATALOG_KEY)),
+  };
+}
 
 export interface BridgeDepsContext {
   storage: ServerStorage;
@@ -35,7 +81,12 @@ export interface BridgeDepsContext {
   ask(question: { kind: "always" | "delete"; text: string; frame: string }): Promise<boolean>;
   onView(view: ChatView): void;
   onLog?(text: string): void;
+  /** Catalogue des fournisseurs OpenCode annoncé par le moteur ; défaut : écrit dans l'état serveur. */
   onProviders?: ChatSessionDeps["onProviders"];
+  /** Projets de l'historique (fichier de configuration du cœur) ; absent : aucun projet. */
+  configDir?: string;
+  /** Instantané du contexte de mission annoncé par le moteur (déjà masqué par le moteur). */
+  onMissionContext?: ChatSessionDeps["onMissionContext"];
   /** Comptes de test du projet actif (stockage serveur, ADR 0052) ; absent : aucun compte. */
   getTestAccounts?: ChatSessionDeps["getTestAccounts"];
   /** Enregistre un identifiant de l'agent dans le coffre du serveur ; sa présence annonce la capacité au moteur. */
@@ -53,9 +104,6 @@ export interface BridgeDepsContext {
   createController?(options: EngineControllerOptions): EngineController;
 }
 
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-  typeof v === "object" && v !== null && !Array.isArray(v);
-
 /**
  * Construit les dépendances d'une session de chat à partir du stockage du serveur (ADR 0052, point 5).
  * Remplace ce que `extension.ts` tire de VS Code. Aucun secret n'est journalisé ni copié hors du coffre.
@@ -63,12 +111,7 @@ const isRecord = (v: unknown): v is Record<string, unknown> =>
 export function buildChatDeps(ctx: BridgeDepsContext): ChatSessionDeps {
   const { state, secrets, paths } = ctx.storage;
 
-  const readSettings = (): ChatSettings => {
-    const raw = state.get(SETTINGS_KEY);
-    const get = (key: string): unknown => (isRecord(raw) ? raw[key] : undefined);
-    // Défauts de logic/settings.ts ; `resolveSettings` lève `CodedError` sur une valeur invalide.
-    return { capabilities: capabilitySettings(get), ...resolveSettings(get) };
-  };
+  const readSettings = (): ChatSettings => readChatSettings(ctx.storage);
 
   const getToken = async (provider: Provider = "claude"): Promise<TokenChoice | undefined> => {
     if (isPoolProvider(provider) && ctx.poolKey) {
@@ -109,7 +152,19 @@ export function buildChatDeps(ctx: BridgeDepsContext): ChatSessionDeps {
     confirmAlways: (text) => ctx.ask({ kind: "always", text, frame: ctx.frame }),
     onView: ctx.onView,
     ...(ctx.onLog && { onLog: ctx.onLog }),
-    ...(ctx.onProviders && { onProviders: ctx.onProviders }),
+    onProviders:
+      ctx.onProviders ??
+      ((providers) => {
+        const catalog = readProviderCatalog(providers);
+        if (catalog.length > 0) state.set(PROVIDER_CATALOG_KEY, catalog);
+      }),
+    ...(ctx.configDir !== undefined && {
+      readHistoryProjects: async (): Promise<HistoryProjects> => {
+        const file = await readProjects(ctx.configDir as string).catch(() => null);
+        return file ?? { activeId: null, projects: [] };
+      },
+    }),
+    ...(ctx.onMissionContext && { onMissionContext: ctx.onMissionContext }),
     ...(ctx.getTestAccounts && { getTestAccounts: ctx.getTestAccounts }),
     ...(ctx.onCredential && { onCredential: ctx.onCredential }),
     ...(ctx.onObservedEvent && { onObservedEvent: ctx.onObservedEvent }),
@@ -137,10 +192,9 @@ export function buildChatDeps(ctx: BridgeDepsContext): ChatSessionDeps {
       files: createJournalFiles(paths.runs),
       confirmDelete: (text) => ctx.ask({ kind: "delete", text, frame: ctx.frame }),
     },
-    // Stubs inertes, faute d'équivalent serveur :
-    // - (`getTestAccounts` est fourni par le hub : coffre et état du serveur) ;
-    // - `readHistoryProjects` : projets actifs de l'extension (fichier de configuration local), non portés ;
-    // - `onMissionContext` : instantané de mission pour le panneau VS Code, sans vue côté web ;
-    // - `sdkVersion` : absent, donc cache des modèles keyé « unknown » (invalidé au changement d'hôte).
+    // Reste en stub, faute d'équivalent serveur :
+    // - `sdkVersion` : absent, donc cache des modèles keyé « unknown » (invalidé au changement d'hôte) ;
+    // - abonnement ChatGPT (`getToken` d'OpenAI) : passe par un navigateur local de l'hôte VS Code.
+    // (`getTestAccounts` est fourni par le hub ; `readHistoryProjects` et `onMissionContext` le sont ici.)
   };
 }

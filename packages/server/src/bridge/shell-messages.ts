@@ -80,28 +80,72 @@ export type ShellControl =
 /**
  * Message sortant `openWindow` (à l'émetteur du geste) : le serveur demande à la coquille d'ouvrir une
  * fenêtre. Vues admises : liste fermée ; `frame` : identifiant de cadre valide (par défaut le nom de la vue).
+ * `viewer` (Monitor, Sortie, Rapport) porte `mode` (le cadre est alors le chat suivi, ou celui de la page) ;
+ * `toolUseId` (mode `watch` seulement) désigne l'appel d'outil à suivre : la page l'enverra par `watch`.
+ * `term` : fenêtre de terminal (le conteneur est choisi par la fenêtre elle-même, message `open`).
  * La coquille décide de l'affichage ; ce message ne porte ni chemin ni secret.
  */
-export const OPEN_WINDOW_VIEWS = ["cockpit", "program", "engagement", "killchain"] as const;
+export const OPEN_WINDOW_VIEWS = [
+  "cockpit",
+  "program",
+  "engagement",
+  "killchain",
+  "viewer",
+  "term",
+] as const;
 export type OpenWindowView = (typeof OPEN_WINDOW_VIEWS)[number];
+export const OPEN_WINDOW_MODES = ["watch", "monitor", "report"] as const;
+export type OpenWindowMode = (typeof OPEN_WINDOW_MODES)[number];
 export interface OpenWindowMessage {
   type: "openWindow";
   view: OpenWindowView;
   frame: string;
+  mode?: OpenWindowMode;
+  toolUseId?: string;
 }
-export function openWindowMessage(view: OpenWindowView, frame: string = view): OpenWindowMessage {
-  return { type: "openWindow", view, frame };
+const WINDOW_FRAME = /^[A-Za-z0-9_-]{1,64}$/;
+export function openWindowMessage(
+  view: OpenWindowView,
+  frame: string = view,
+  extra: { mode?: OpenWindowMode; toolUseId?: string } = {},
+): OpenWindowMessage {
+  return {
+    type: "openWindow",
+    view,
+    frame,
+    ...(extra.mode !== undefined && { mode: extra.mode }),
+    ...(extra.toolUseId !== undefined && { toolUseId: extra.toolUseId }),
+  };
 }
 /** Contrôle de forme d'un `openWindow` (tests, et coquille qui voudrait revalider). */
 export function isOpenWindowMessage(m: unknown): m is OpenWindowMessage {
-  return (
-    isRecord(m) &&
-    only(m, "type", "view", "frame") &&
-    m.type === "openWindow" &&
-    (OPEN_WINDOW_VIEWS as readonly unknown[]).includes(m.view) &&
-    typeof m.frame === "string" &&
-    /^[A-Za-z0-9_-]{1,64}$/.test(m.frame)
-  );
+  if (
+    !isRecord(m) ||
+    m.type !== "openWindow" ||
+    !(OPEN_WINDOW_VIEWS as readonly unknown[]).includes(m.view) ||
+    typeof m.frame !== "string" ||
+    !WINDOW_FRAME.test(m.frame)
+  )
+    return false;
+  const allowed = new Set(["type", "view", "frame"]);
+  if (m.mode !== undefined) {
+    // Le mode n'a de sens que pour le viewer.
+    if (m.view !== "viewer" || !(OPEN_WINDOW_MODES as readonly unknown[]).includes(m.mode))
+      return false;
+    allowed.add("mode");
+  }
+  if (m.toolUseId !== undefined) {
+    if (
+      m.mode !== "watch" ||
+      typeof m.toolUseId !== "string" ||
+      m.toolUseId.length < 1 ||
+      m.toolUseId.length > 200 ||
+      hasControl(m.toolUseId)
+    )
+      return false;
+    allowed.add("toolUseId");
+  }
+  return Object.keys(m).every((k) => allowed.has(k));
 }
 
 /** Bornes de forme d'un `dialogResult` (le contenu est vérifié par `HostUi.answer`). */
