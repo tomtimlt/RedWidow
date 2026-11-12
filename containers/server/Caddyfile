@@ -1,0 +1,14 @@
+# HTTPS automatique (Let's Encrypt) pour le domaine de REDWIDOW_DOMAIN (variable d'environnement).
+# Le DNS du domaine doit pointer vers ce VPS, ports 80 et 443 ouverts.
+{$REDWIDOW_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000"
+	}
+
+	# Les WebSocket (flux d'événements, terminaux) passent sans configuration supplémentaire ;
+	# Caddy ajoute X-Forwarded-For, lu par le serveur (REDWIDOW_TRUST_PROXY=1).
+	reverse_proxy redwidow:8080
+}

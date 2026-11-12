@@ -23,3 +23,6 @@ packages/server/engine/
 
 # Captures Playwright de l interface web (pnpm test:web)
 packages/server/test/web-shots/
+
+# Le modèle de configuration serveur, lui, est versionné
+!.env.example

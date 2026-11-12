@@ -1,0 +1,18 @@
+# Contexte de build Docker : seulement les sources, jamais d'état local ni de secret.
+.git
+.claude
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.warband
+release
+.ui-snapshots
+packages/vscode/.vsix-stage
+packages/vscode/*.vsix
+packages/vscode/preview
+packages/server/engine
+packages/server/test/web-shots
+cours
