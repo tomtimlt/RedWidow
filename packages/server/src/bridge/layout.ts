@@ -10,6 +10,8 @@ export const MAX_LAYOUT_NAME = 40;
 /** Nombre maximal de dispositions nommées conservées. */
 export const MAX_SAVED_LAYOUTS = 50;
 
+export const WINDOW_STATES = ["minimized", "maximized"] as const;
+
 /** Fenêtre : cadre (identifiant), vue affichée, position et taille en fraction de l'espace [0,1]. */
 export interface LayoutWindow {
   id: string;
@@ -20,6 +22,10 @@ export interface LayoutWindow {
   h: number;
   /** Espace (bureau) qui porte la fenêtre ; absent : le premier. */
   space?: string;
+  /** État de la fenêtre ; absent : normale. La géométrie reste celle de la fenêtre restaurée. */
+  state?: (typeof WINDOW_STATES)[number];
+  /** Mode de la vue (`watch`, `report`) ou nom de l'écran natif de la coquille. */
+  mode?: string;
 }
 
 export interface LayoutSpace {
@@ -81,7 +87,7 @@ export function validateLayout(raw: unknown): Layout | null {
   for (const w of windows) {
     if (
       !isRecord(w) ||
-      !exactKeys(w, ["id", "view", "x", "y", "w", "h"], ["space"]) ||
+      !exactKeys(w, ["id", "view", "x", "y", "w", "h"], ["space", "state", "mode"]) ||
       !isId(w.id) ||
       typeof w.view !== "string" ||
       !(VIEWS as readonly string[]).includes(w.view) ||
@@ -91,7 +97,8 @@ export function validateLayout(raw: unknown): Layout | null {
       !isFraction(w.h)
     )
       return null;
-    if (outWindows.some((o) => o.id === w.id)) return null;
+    // Identité d'une fenêtre : le couple (vue, identifiant) ; la même mission peut avoir un chat et un graphe.
+    if (outWindows.some((o) => o.id === w.id && o.view === w.view)) return null;
     const out: LayoutWindow = {
       id: w.id,
       view: w.view as LayoutWindow["view"],
@@ -103,6 +110,15 @@ export function validateLayout(raw: unknown): Layout | null {
     if (w.space !== undefined) {
       if (!isId(w.space) || !outSpaces.some((s) => s.id === w.space)) return null;
       out.space = w.space;
+    }
+    if (w.state !== undefined) {
+      if (typeof w.state !== "string" || !(WINDOW_STATES as readonly string[]).includes(w.state))
+        return null;
+      out.state = w.state as (typeof WINDOW_STATES)[number];
+    }
+    if (w.mode !== undefined) {
+      if (!isId(w.mode)) return null;
+      out.mode = w.mode;
     }
     outWindows.push(out);
   }

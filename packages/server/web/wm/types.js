@@ -2,11 +2,13 @@
 // `(vue, cadre)`, la même clé que celle de l'hôte de cadres), soit un écran natif de la coquille
 // (identité `native:<nom>`). Rouvrir une identité déjà ouverte la focalise au lieu d'en créer une seconde.
 
-/** Écrans natifs ouvrables depuis le dock (lot 4 : les écrans eux-mêmes ; ici, un écran d'attente). */
+/** Écrans natifs ouvrables depuis le dock (instance unique chacun ; filtre et programme se choisissent dans l'écran). */
 export const NATIVE_SCREENS = [
   { name: "approvals", title: "Approbations" },
   { name: "containers", title: "Conteneurs" },
   { name: "providers", title: "Fournisseurs" },
+  { name: "accounts", title: "Comptes de test" },
+  { name: "findings", title: "Trouvailles" },
   { name: "journal", title: "Journal" },
   { name: "settings", title: "Réglages" },
 ];

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { randomUUID } from "node:crypto";
 // Tests de bout en bout de l'interface web (Playwright), hors `pnpm check` : `pnpm test:web`.
 //
 // Le serveur HTTP est le vrai (`packages/server/dist`, authentification, pages de vue, CSP) ; le moteur
@@ -61,6 +62,239 @@ let layoutRejected = 0;
 /** Si faux, un `approve` n'est pas acquitté (la demande reste dans la liste). */
 let acknowledge = true;
 
+// Données factices des écrans natifs (lot 4). Aucun secret réel : la « clé » et le « mot de passe » sont
+// des marqueurs que les tests cherchent dans la page.
+const SECRET_PW = "pw-factice-S3cr3t-42";
+const PROJECT = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const KEY_ONE = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1";
+const KEY_TWO = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2";
+const XSS = '<img src=x onerror="window.__xss=1"> sortie nmap : 22/tcp open ssh';
+let containers = [];
+let tokens = [];
+let pools = {};
+let accountItems = [];
+let findingItems = [];
+let settingsValues = {};
+let bypassState = { active: false, until: null };
+function resetScreens() {
+  containers = [
+    {
+      id: "c1",
+      name: "kali-recon",
+      image: "redwidow-kali:local",
+      state: "running",
+      kind: "kali",
+      project: "acme",
+    },
+    { id: "c2", name: "kali-web", image: "redwidow-kali:local", state: "stopped", kind: "kali" },
+    {
+      id: "c3",
+      name: "exegol-htb",
+      image: "ghcr.io/example/exegol:free",
+      state: "stopped",
+      kind: "exegol",
+    },
+  ];
+  tokens = [
+    { provider: "claude", present: true, kind: "subscription" },
+    { provider: "openai", present: false, kind: null },
+  ];
+  pools = {
+    claude: {
+      provider: "claude",
+      active: KEY_TWO,
+      keys: [
+        { id: KEY_ONE, label: "Principale", state: "exhausted", retryAt: Date.now() + 3600000 },
+        { id: KEY_TWO, label: "Secours équipe", state: "ok", retryAt: null },
+      ],
+    },
+    openai: { provider: "openai", active: null, keys: [] },
+    opencode: { provider: "opencode", active: null, keys: [] },
+  };
+  accountItems = [
+    {
+      id: "cccccccc-cccc-4ccc-8ccc-ccccccccccc1",
+      programme: "Acme",
+      label: "USER_A",
+      login: "alice@example.test",
+      createdBy: "human",
+      createdAt: "2026-03-02T09:15:00Z",
+    },
+    {
+      id: "cccccccc-cccc-4ccc-8ccc-ccccccccccc2",
+      programme: "Acme",
+      label: "ADMIN_TEST",
+      login: "admin-qa",
+      createdBy: "agent",
+      createdAt: "2026-03-04T14:40:00Z",
+    },
+  ];
+  findingItems = [
+    {
+      id: "f1",
+      project: PROJECT,
+      kind: "host",
+      label: "10.0.0.5 (web-01)",
+      state: "confirmed",
+      tactic: "TA0043",
+      technique: "T1595",
+      from: [],
+      evidence: [{ id: "e1", label: "scan nmap" }],
+    },
+    {
+      id: "f2",
+      project: PROJECT,
+      kind: "credential",
+      label: "compte de service exposé",
+      state: "hypothesis",
+      tactic: "TA0006",
+      technique: "T1552",
+      from: ["f1"],
+      evidence: [],
+    },
+    {
+      id: "f3",
+      project: PROJECT,
+      kind: "site",
+      label: "portail /admin",
+      state: "failed",
+      tactic: null,
+      technique: null,
+      from: [],
+      evidence: [],
+    },
+  ];
+  settingsValues = { profile: "mentor", "burp.enabled": false, "chat.webSearch": true };
+  bypassState = { active: false, until: null };
+}
+resetScreens();
+const shellMsg = (ws, msg) => send(ws, "shell", "shell", msg);
+const shellAll = (msg) => broadcast("shell", "shell", msg);
+const findingDetail = (f) => ({
+  ...f,
+  pathFrom: f.from,
+  evidenceDetails: f.evidence.map((e) => ({
+    id: e.id,
+    label: e.label,
+    capturedAt: "2026-03-04T10:00:00Z",
+    source: { kind: "tool", reference: "nmap -sV" },
+    text: XSS,
+    truncated: true,
+  })),
+});
+
+function onScreens(ws, msg) {
+  switch (msg.type) {
+    case "ready":
+      return shellMsg(ws, { type: "bypass", ...bypassState });
+    case "containersList":
+      return shellMsg(ws, { type: "containers", items: containers });
+    case "containerStart":
+    case "containerStop": {
+      const c = containers.find((x) => x.id === msg.id);
+      if (c) c.state = msg.type === "containerStart" ? "running" : "stopped";
+      return shellAll({ type: "containers", items: containers });
+    }
+    case "containerCreate":
+      if (containers.some((c) => c.name === msg.name))
+        return shellMsg(ws, {
+          type: "containerError",
+          op: "containerCreate",
+          code: "container.exists",
+        });
+      containers.push({
+        id: `n${containers.length}`,
+        name: msg.name,
+        image: "redwidow-kali:local",
+        state: "running",
+        kind: "kali",
+      });
+      return shellAll({ type: "containers", items: containers });
+    case "tokens":
+      return shellMsg(ws, { type: "tokens", items: tokens });
+    case "tokenSet": {
+      const t = tokens.find((x) => x.provider === msg.provider);
+      if (t) Object.assign(t, { present: true, kind: msg.kind });
+      return shellAll({ type: "tokens", items: tokens });
+    }
+    case "tokenDelete": {
+      const t = tokens.find((x) => x.provider === msg.provider);
+      if (t) Object.assign(t, { present: false, kind: null });
+      return shellAll({ type: "tokens", items: tokens });
+    }
+    case "poolList":
+      for (const p of Object.values(pools)) shellMsg(ws, { type: "pool", ...p });
+      return undefined;
+    case "poolAdd": {
+      const p = pools[msg.provider];
+      const id = randomUUID();
+      p.keys.push({ id, label: msg.label, state: "ok", retryAt: null });
+      if (p.active === null) p.active = id;
+      return shellAll({ type: "pool", ...p });
+    }
+    case "poolReorder": {
+      const p = pools[msg.provider];
+      p.keys = msg.order.map((id) => p.keys.find((k) => k.id === id));
+      return shellAll({ type: "pool", ...p });
+    }
+    case "poolActivate":
+      pools[msg.provider].active = msg.id;
+      return shellAll({ type: "pool", ...pools[msg.provider] });
+    case "poolRemove": {
+      const p = pools[msg.provider];
+      p.keys = p.keys.filter((k) => k.id !== msg.id);
+      if (p.active === msg.id) p.active = p.keys[0]?.id ?? null;
+      return shellAll({ type: "pool", ...p });
+    }
+    case "accounts":
+      return shellMsg(ws, { type: "accounts", items: accountItems });
+    case "accountAdd":
+      accountItems.push({
+        id: randomUUID(),
+        programme: msg.programme,
+        label: msg.label,
+        login: msg.login,
+        createdBy: "human",
+        createdAt: new Date().toISOString(),
+      });
+      return shellAll({ type: "accounts", items: accountItems });
+    case "accountReveal":
+      // Au seul demandeur, comme le vrai serveur.
+      return shellMsg(ws, { type: "accountSecret", id: msg.id, value: SECRET_PW });
+    case "accountRemove":
+      accountItems = accountItems.filter((a) => a.id !== msg.id);
+      return shellAll({ type: "accounts", items: accountItems });
+    case "findingsList":
+      return shellMsg(ws, { type: "findings", project: msg.project ?? null, items: findingItems });
+    case "findingGet": {
+      const f = findingItems.find((x) => x.id === msg.id);
+      return f ? shellMsg(ws, { type: "finding", finding: findingDetail(f) }) : undefined;
+    }
+    case "findingDelete":
+      if (msg.confirmed !== true) return shellMsg(ws, { type: "configError", op: "findingDelete" });
+      findingItems = findingItems.filter((x) => x.id !== msg.id);
+      return shellAll({ type: "findings", project: msg.project, items: findingItems });
+    case "settingsGet":
+      return shellMsg(ws, { type: "settings", values: settingsValues });
+    case "settingsSet":
+      for (const [k, v] of Object.entries(msg.patch)) {
+        if (v === null) delete settingsValues[k];
+        else settingsValues[k] = v;
+      }
+      return shellAll({ type: "settings", values: settingsValues });
+    case "setBypass":
+      bypassState = msg.active
+        ? {
+            active: true,
+            until: msg.durationMinutes === null ? null : Date.now() + msg.durationMinutes * 60000,
+          }
+        : { active: false, until: null };
+      return shellAll({ type: "bypass", ...bypassState });
+    default:
+      return undefined;
+  }
+}
+
 const send = (ws, view, frame, msg) => {
   if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({ v: 1, view, frame, msg }));
 };
@@ -83,6 +317,7 @@ function onConnection(ws) {
     if (env.view !== "shell") return;
     if (env.msg.type === "ready")
       send(ws, "shell", "shell", { type: "approvals", items: approvals });
+    onScreens(ws, env.msg);
     if (env.msg.type === "approve" && acknowledge) {
       approvals = approvals.filter(
         (a) => !(a.frame === env.frame && a.toolUseId === env.msg.toolUseId),
@@ -433,8 +668,9 @@ async function scenario(name, viewport) {
 
 const near = (a, b, tol = 1.5) => Math.abs(a - b) <= tol;
 
-async function openSession(name, viewport, { keepLayouts = false } = {}) {
+async function openSession(name, viewport, { keepLayouts = false, init = null } = {}) {
   const context = await browser.newContext({ viewport, deviceScaleFactor: 1 });
+  if (init) await context.addInitScript(init);
   const page = await context.newPage();
   const violations = [];
   page.on("console", (m) => {
@@ -497,10 +733,10 @@ async function desktopScenario(name, viewport) {
   await openHash("#w=monitor:r1");
   await until(() => win("viewer:r1").isVisible(), "fenêtre monitor");
   await openHash("#w=conteneurs");
-  await until(() => win("native:containers").isVisible(), "fenêtre native (écran d'attente)");
+  await until(() => win("native:containers").isVisible(), "fenêtre native (Conteneurs)");
   check(
-    (await win("native:containers").innerText()).includes("prochaine version"),
-    "écran natif d'attente",
+    (await win("native:containers").innerText()).includes("Conteneur"),
+    "écran natif Conteneurs hébergé par sa fenêtre",
   );
   check((await page.locator("#dock-items .dock-item").count()) === 4, "quatre entrées de dock");
   await until(
@@ -1096,6 +1332,449 @@ async function spacesScenario(name, viewport) {
   await phone.context.close();
 }
 
+// ───────────────────────────── Écrans natifs (lot 4) ─────────────────────────────
+
+const sentOf = (type) => received.filter((e) => e.view === "shell" && e.msg.type === type);
+
+/** Conteneurs, Fournisseurs, Comptes de test, Trouvailles, Journal, Réglages (bureau 1440x900). */
+async function screensScenario(name, viewport) {
+  console.log(`\n== ${name} : écrans natifs (${viewport.width}x${viewport.height})`);
+  resetScreens();
+  // Permission de notification : on compte les demandes (rien ne doit partir avant un clic).
+  const { context, page, violations, win, openHash, shot } = await openSession(name, viewport, {
+    init: () => {
+      window.__permissionAsked = 0;
+      if (typeof Notification !== "undefined") {
+        Object.defineProperty(Notification, "permission", { get: () => "default" });
+        Notification.requestPermission = async () => {
+          window.__permissionAsked += 1;
+          return "default";
+        };
+      }
+    },
+  });
+  let dialogs = 0;
+  page.on("dialog", async (d) => {
+    dialogs += 1;
+    await d.dismiss();
+  });
+  const openScreen = async (hash, key) => {
+    await openHash(hash);
+    await until(() => win(key).isVisible(), `fenêtre ${key}`);
+    await win(key)
+      .locator(".wm-title")
+      .dblclick({ position: { x: 60, y: 15 } });
+    await sleep(220);
+  };
+  const closeScreen = async (key) => {
+    await win(key).locator(".wm-close").click();
+  };
+  const inWin = (key, selector, options) => win(key).locator(selector, options);
+  const textOf = (key, selector, options) => inWin(key, selector, options).innerText();
+
+  // ── Conteneurs ──
+  await openScreen("#w=conteneurs", "native:containers");
+  await until(
+    async () => (await inWin("native:containers", "tbody tr").count()) === 3,
+    "trois conteneurs listés",
+  );
+  check(
+    (await textOf("native:containers", "tbody tr:nth-child(1)")).includes("en cours"),
+    "badge d'état « en cours »",
+  );
+  check(
+    (await textOf("native:containers", "tbody tr:nth-child(2)")).includes("arrêté"),
+    "badge d'état « arrêté »",
+  );
+  check(sentOf("containerStart").length === 0, "aucun démarrage sans clic");
+  await shot("conteneurs");
+  await inWin("native:containers", "tbody tr:nth-child(2) button").click();
+  await until(() => sentOf("containerStart").length === 1, "containerStart envoyé");
+  check(sentOf("containerStart")[0].msg.id === "c2", "containerStart vise le bon conteneur");
+  await until(
+    async () => (await textOf("native:containers", "tbody tr:nth-child(2)")).includes("en cours"),
+    "état mis à jour par la diffusion",
+  );
+  await inWin("native:containers", "input").fill("-mauvais nom");
+  await inWin("native:containers", "button", { hasText: "Créer un Kali" }).click();
+  check(sentOf("containerCreate").length === 0, "nom invalide : rien n'est envoyé");
+  await inWin("native:containers", "input").fill("kali-recon");
+  await inWin("native:containers", "button", { hasText: "Créer un Kali" }).click();
+  await until(
+    async () => (await textOf("native:containers", ".scr-status")).includes("porte déjà ce nom"),
+    "refus affiché avec son libellé (container.exists)",
+  );
+  await closeScreen("native:containers");
+
+  // ── Fournisseurs ──
+  await openScreen("#w=fournisseurs", "native:providers");
+  await until(
+    async () => (await inWin("native:providers", ".scr-key").count()) === 2,
+    "deux clés dans la réserve Claude",
+  );
+  check(
+    (await textOf("native:providers", ".scr-key.is-active")).includes("Secours équipe"),
+    "clé active signalée",
+  );
+  const secretInputs = await page
+    .locator("#desktop input[type=password]")
+    .evaluateAll((els) => els.map((e) => [e.autocomplete, e.type]));
+  check(
+    secretInputs.length >= 3 && secretInputs.every(([a, t]) => a === "off" && t === "password"),
+    "champs de clé : type=password, autocomplete=off",
+  );
+  const KEY_VALUE = "sk-ant-factice-12345";
+  const claudePool = inWin("native:providers", '.scr-pool[data-provider="claude"]');
+  await claudePool.locator('input[type="text"]').fill("Dépannage");
+  await claudePool.locator("input[type=password]").fill(KEY_VALUE);
+  await claudePool.locator("button", { hasText: "Ajouter à la réserve" }).click();
+  await until(() => sentOf("poolAdd").length === 1, "poolAdd envoyé");
+  check(
+    sentOf("poolAdd")[0].msg.value === KEY_VALUE,
+    "poolAdd transporte la clé (vers le serveur seulement)",
+  );
+  check(
+    (await claudePool.locator("input[type=password]").inputValue()) === "",
+    "champ de clé vidé après l'envoi",
+  );
+  await until(
+    async () => (await inWin("native:providers", ".scr-key").count()) === 3,
+    "clé ajoutée dans la liste",
+  );
+  check(
+    !(await page.content()).includes(KEY_VALUE),
+    "la valeur de la clé n'est nulle part dans le DOM",
+  );
+  check(
+    await page.evaluate(
+      (v) => !JSON.stringify([{ ...localStorage }, { ...sessionStorage }]).includes(v),
+      KEY_VALUE,
+    ),
+    "la clé n'est ni en localStorage ni en sessionStorage",
+  );
+  // Réordonner et activer : un clic = un message.
+  await claudePool.locator(".scr-key").nth(1).locator("button", { hasText: "Monter" }).click();
+  await until(() => sentOf("poolReorder").length === 1, "poolReorder envoyé");
+  check(
+    sentOf("poolReorder")[0].msg.order[0] === KEY_TWO,
+    "nouvel ordre : la clé montée passe en tête",
+  );
+  const spare = claudePool.locator(".scr-key", { hasText: "Dépannage" });
+  await spare.locator("button", { hasText: "Activer" }).click();
+  await until(() => sentOf("poolActivate").length === 1, "poolActivate envoyé");
+  // Retrait confirmé.
+  await spare.locator(".scr-confirm > .scr-btn-danger").click();
+  check(sentOf("poolRemove").length === 0, "retrait : rien n'est envoyé avant la confirmation");
+  await spare.locator(".scr-confirm-box .scr-btn-primary").click();
+  await until(() => sentOf("poolRemove").length === 1, "poolRemove envoyé après confirmation");
+  // Bascule automatique : fil et notification non bloquante.
+  shellAll({
+    type: "poolEvent",
+    provider: "claude",
+    from: "Principale",
+    to: "Secours équipe",
+    reason: "quota",
+    phase: "switched",
+  });
+  shellAll({
+    type: "poolEvent",
+    provider: "claude",
+    from: "Principale",
+    to: "Secours équipe",
+    reason: "quota",
+    phase: "confirmed",
+  });
+  shellAll({ type: "poolExhausted", provider: "openai", nextRetryAt: Date.now() + 7200000 });
+  await until(
+    async () => (await inWin("native:providers", ".scr-feed-item").count()) === 2,
+    "fil des bascules : deux événements",
+  );
+  check(
+    (await inWin("native:providers", ".scr-feed-item").first().innerText()).includes("confirmée"),
+    "le plus récent en premier",
+  );
+  await until(
+    async () => (await page.locator("#toasts .toast").count()) >= 2,
+    "notifications non bloquantes",
+  );
+  check(
+    (await page.locator("#toasts .toast").last().innerText()).includes("épuisée"),
+    "notification d'épuisement de la réserve",
+  );
+  check(
+    await page.evaluate(() => !document.activeElement?.closest("#toasts")),
+    "une notification ne prend pas le focus",
+  );
+  await shot("fournisseurs");
+  await closeScreen("native:providers");
+
+  // ── Comptes de test ──
+  await openScreen("#w=comptes", "native:accounts");
+  await until(
+    async () => (await inWin("native:accounts", "tbody tr").count()) === 2,
+    "deux comptes listés",
+  );
+  check(
+    (await inWin("native:accounts", "tbody tr:nth-child(2) .scr-badge").first().innerText()) ===
+      "agent",
+    "badge « agent » pour un compte créé par l'agent",
+  );
+  check(
+    (await textOf("native:accounts", "tbody tr:nth-child(1)")).includes("alice@example.test"),
+    "identifiant de connexion en clair",
+  );
+  check(!(await page.content()).includes(SECRET_PW), "mot de passe absent du DOM avant révélation");
+  check(sentOf("accountReveal").length === 0, "aucune révélation sans clic");
+  await inWin("native:accounts", "tbody tr:nth-child(1)")
+    .locator("button", { hasText: "Révéler" })
+    .click();
+  await until(() => sentOf("accountReveal").length === 1, "accountReveal envoyé");
+  await until(
+    async () => (await page.content()).includes(SECRET_PW),
+    "mot de passe affiché après révélation",
+  );
+  const revealedAt = Date.now();
+  await shot("comptes");
+  check(
+    await page.evaluate(
+      (v) => !JSON.stringify([{ ...localStorage }, { ...sessionStorage }]).includes(v),
+      SECRET_PW,
+    ),
+    "le mot de passe n'est pas en stockage du navigateur",
+  );
+  // Ajout : champ vidé, mot de passe jamais dans la page.
+  const addForm = inWin("native:accounts", ".scr-section .scr-form");
+  await addForm.locator('input[type="text"]').nth(0).fill("Acme");
+  await addForm.locator('input[type="text"]').nth(1).fill("USER_B");
+  await addForm.locator('input[type="text"]').nth(2).fill("bob@example.test");
+  await addForm.locator("input[type=password]").fill("nouveau-pw-factice");
+  await addForm.locator("button", { hasText: "Ajouter" }).click();
+  await until(() => sentOf("accountAdd").length === 1, "accountAdd envoyé");
+  check(
+    (await addForm.locator("input[type=password]").inputValue()) === "",
+    "mot de passe vidé du formulaire après l'envoi",
+  );
+  await until(
+    async () => (await inWin("native:accounts", "tbody tr").count()) === 3,
+    "compte ajouté dans la liste",
+  );
+  check(
+    !(await page.content()).includes("nouveau-pw-factice"),
+    "le mot de passe saisi n'est pas dans le DOM",
+  );
+  // Retrait confirmé.
+  const row3 = inWin("native:accounts", "tbody tr", { hasText: "USER_B" });
+  await row3.locator(".scr-confirm > .scr-btn-danger").click();
+  check(sentOf("accountRemove").length === 0, "retrait de compte : rien avant la confirmation");
+  await row3.locator(".scr-confirm-box .scr-btn-primary").click();
+  await until(
+    () => sentOf("accountRemove").length === 1,
+    "accountRemove envoyé après confirmation",
+  );
+  // 30 s : la valeur est effacée du DOM.
+  const wait = 30500 - (Date.now() - revealedAt);
+  if (wait > 0) await sleep(wait);
+  check(
+    !(await page.content()).includes(SECRET_PW),
+    "mot de passe effacé du DOM après 30 secondes",
+  );
+  await closeScreen("native:accounts");
+
+  // ── Trouvailles ──
+  await openScreen("#w=trouvailles", "native:findings");
+  await until(
+    async () => (await inWin("native:findings", "tbody tr").count()) === 3,
+    "trois trouvailles",
+  );
+  check(
+    !(await textOf("native:findings", "table")).toLowerCase().includes("gravité"),
+    "aucune gravité inventée",
+  );
+  check(await inWin("native:findings", "select").isVisible(), "filtre par projet");
+  await inWin("native:findings", "tbody tr:nth-child(1)").click();
+  await until(() => sentOf("findingGet").length === 1, "findingGet envoyé");
+  await until(
+    async () => (await inWin("native:findings", ".scr-pre").count()) === 1,
+    "preuve affichée",
+  );
+  check(
+    (await textOf("native:findings", ".scr-pre")).includes("<img src=x"),
+    "preuve en texte brut (balises visibles, non interprétées)",
+  );
+  check(
+    (await inWin("native:findings", ".scr-pre img").count()) === 0,
+    "aucun élément HTML créé depuis une preuve",
+  );
+  check(!(await page.evaluate(() => window.__xss)), "aucun script exécuté depuis une preuve");
+  check(
+    (await textOf("native:findings", ".scr-evidence")).includes("tronquée"),
+    "preuve marquée tronquée",
+  );
+  await shot("trouvailles");
+  check(
+    (await inWin("native:findings", ".scr-detail a[download]").getAttribute("href")) ===
+      `/api/report?project=${PROJECT}&locale=fr`,
+    "lien d'export du rapport (route serveur)",
+  );
+  await inWin("native:findings", ".scr-detail button", {
+    hasText: "Supprimer la trouvaille",
+  }).click();
+  check(sentOf("findingDelete").length === 0, "suppression : rien avant la confirmation");
+  await inWin("native:findings", ".scr-detail .scr-confirm-box .scr-btn-primary").click();
+  await until(() => sentOf("findingDelete").length === 1, "findingDelete envoyé");
+  check(sentOf("findingDelete")[0].msg.confirmed === true, "findingDelete porte confirmed: true");
+  await until(
+    async () => (await inWin("native:findings", "tbody tr").count()) === 2,
+    "la trouvaille supprimée disparaît",
+  );
+  await inWin("native:findings", "select").selectOption(PROJECT);
+  await until(
+    () => sentOf("findingsList").some((e) => e.msg.project === PROJECT),
+    "filtre : findingsList avec le projet",
+  );
+  check(
+    await inWin("native:findings", ".scr-toolbar a[download]").isVisible(),
+    "export proposé pour le projet choisi",
+  );
+  await closeScreen("native:findings");
+
+  // ── Journal ──
+  await openScreen("#w=journal", "native:journal");
+  check(
+    (await inWin("native:journal", ".scr-empty").first().innerText()).includes(
+      "pas encore fournie",
+    ),
+    "état vide : la liste des runs n'existe pas encore",
+  );
+  check(
+    (await inWin("native:journal", ".scr-feed-item").count()) >= 2,
+    "événements de la session (bascules de clés)",
+  );
+  await shot("journal");
+  await inWin("native:journal", "input").fill("run bad");
+  await inWin("native:journal", "button", { hasText: "Ouvrir le Monitor" }).click();
+  check(
+    (await page.locator(".wm-win[data-key^='viewer:']").count()) === 0,
+    "identifiant refusé : aucune fenêtre",
+  );
+  await inWin("native:journal", "input").fill("r42");
+  await inWin("native:journal", "button", { hasText: "Ouvrir le Monitor" }).click();
+  await until(
+    async () => (await page.locator('.wm-win[data-key="viewer:r42"]').count()) === 1,
+    "Monitor du run ouvert",
+  );
+  await shot("journal-monitor");
+  await closeScreen("viewer:r42");
+  await closeScreen("native:journal");
+
+  // ── Réglages ──
+  await openScreen("#w=reglages", "native:settings");
+  check(sentOf("setBypass").length === 0, "aucun Bypass sans action explicite");
+  check(
+    (await inWin("native:settings", "select").first().inputValue()) === "",
+    "durée par défaut : illimité",
+  );
+  check(
+    (await inWin("native:settings", "select").first().locator("option").allInnerTexts()).join(
+      "|",
+    ) === "Illimité|1 heure|8 heures|24 heures|48 heures",
+    "durées proposées",
+  );
+  check(
+    (await inWin("native:settings", ".scr-state").first().innerText()).includes("désactivé"),
+    "Bypass désactivé affiché",
+  );
+  await inWin("native:settings", "button", { hasText: "Activer le Bypass…" }).click();
+  check(sentOf("setBypass").length === 0, "la demande de confirmation n'active rien");
+  check(
+    (await textOf("native:settings", ".scr-warning")).includes("responsable"),
+    "la confirmation rappelle que l'utilisateur devient responsable",
+  );
+  await shot("reglages");
+  await inWin("native:settings", ".scr-warning button", { hasText: "Activer le Bypass" }).click();
+  await until(() => sentOf("setBypass").length === 1, "setBypass envoyé après confirmation");
+  check(
+    sentOf("setBypass")[0].msg.durationMinutes === null &&
+      sentOf("setBypass")[0].msg.active === true,
+    "Bypass illimité par défaut",
+  );
+  await until(
+    async () => (await page.locator("#tb-bypass").innerText()) === "Bypass illimité",
+    "badge de la barre : Bypass illimité",
+  );
+  await until(
+    () => inWin("native:settings", "button", { hasText: "Désactiver le Bypass" }).isVisible(),
+    "bouton de désactivation",
+  );
+  await inWin("native:settings", "button", { hasText: "Désactiver le Bypass" }).click();
+  await until(() => sentOf("setBypass").length === 2, "désactivation en un clic");
+  check(sentOf("setBypass")[1].msg.active === false, "setBypass active:false");
+  // Notifications : permission demandée seulement sur clic.
+  check(
+    (await page.evaluate(() => window.__permissionAsked)) === 0,
+    "aucune permission de notification demandée avant le clic",
+  );
+  await inWin("native:settings", "button", { hasText: "Autoriser les notifications" }).click();
+  await until(
+    async () => (await page.evaluate(() => window.__permissionAsked)) === 1,
+    "permission demandée au clic",
+  );
+  // Moteur.
+  await inWin("native:settings", ".scr-form", { hasText: "Profil" })
+    .locator("select")
+    .selectOption("htb");
+  await inWin("native:settings", "button", { hasText: "Enregistrer" }).click();
+  await until(() => sentOf("settingsSet").length === 1, "settingsSet envoyé");
+  check(
+    JSON.stringify(sentOf("settingsSet")[0].msg.patch) === JSON.stringify({ profile: "htb" }),
+    "patch : seulement ce qui change",
+  );
+  check(sentOf("approve").length === 0, "aucune approbation envoyée par ces écrans");
+  check(dialogs === 0, "aucune boîte de dialogue native");
+  check(
+    violations.length === 0,
+    `zéro violation CSP (écrans) (${violations.slice(0, 3).join(" | ")})`,
+  );
+  // Déconnexion (en dernier : la session est révoquée).
+  await inWin("native:settings", "button", { hasText: "Se déconnecter" }).click();
+  await until(
+    () => new URL(page.url()).pathname === "/login",
+    "déconnexion : retour à la connexion",
+  );
+  await context.close();
+}
+
+/** Réglages au téléphone : Bypass activable à 375 px, rien de débordant. */
+async function settingsPhoneScenario(name, viewport) {
+  console.log(`\n== ${name} : Réglages au téléphone (${viewport.width}x${viewport.height})`);
+  resetScreens();
+  const { context, page, violations, win, openHash, shot } = await openSession(name, viewport);
+  await openHash("#w=reglages");
+  await until(() => win("native:settings").isVisible(), "Réglages en plein écran");
+  const settings = win("native:settings");
+  const ask = settings.locator("button", { hasText: "Activer le Bypass…" });
+  await until(() => ask.isEnabled(), "bouton Bypass actif");
+  check((await ask.boundingBox()).height >= 44, "bouton Bypass d'au moins 44 px");
+  await ask.click();
+  await shot("reglages-bypass");
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > window.innerWidth + 1,
+  );
+  check(!overflow, "aucun défilement horizontal de la page");
+  check(sentOf("setBypass").length === 0, "téléphone : la demande de confirmation n'active rien");
+  await settings.locator(".scr-warning button", { hasText: "Activer le Bypass" }).click();
+  await until(() => sentOf("setBypass").length === 1, "setBypass envoyé depuis le téléphone");
+  await until(
+    async () => (await page.locator("#tb-bypass").innerText()) === "Bypass illimité",
+    "badge Bypass illimité",
+  );
+  check(
+    violations.length === 0,
+    `zéro violation CSP (réglages téléphone) (${violations.slice(0, 3).join(" | ")})`,
+  );
+  await context.close();
+}
+
 try {
   // WEB_E2E_ONLY=<nom> : ne joue que ce scénario (mise au point).
   const only = (name) => !process.env.WEB_E2E_ONLY || process.env.WEB_E2E_ONLY === name;
@@ -1107,6 +1786,9 @@ try {
   }
   if (only("wm-spaces")) await spacesScenario("wm-spaces", { width: 1440, height: 900 });
   if (only("wm-mobile")) await phoneScenario("wm-mobile", { width: 375, height: 812 });
+  if (only("screens")) await screensScenario("screens", { width: 1440, height: 900 });
+  if (only("screens-mobile"))
+    await settingsPhoneScenario("screens-mobile", { width: 375, height: 812 });
   if (only("wm-budget-mobile")) {
     await budgetScenario("wm-budget-mobile", { width: 375, height: 812 }, 3);
   }

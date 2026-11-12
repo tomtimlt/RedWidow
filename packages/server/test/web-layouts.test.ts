@@ -44,8 +44,10 @@ describe("espaces : sérialisation", () => {
       "m2",
       "g1",
     ]);
-    expect(layout.windows[0]).toMatchObject({ view: "shell", id: "approvals" });
-    expect(layout.windows[2]).toMatchObject({ x: 0, y: 0, w: 1, h: 1 });
+    expect(layout.windows[0]).toMatchObject({ view: "shell", id: "approvals", mode: "approvals" });
+    // Maximisée : champ `state`, la géométrie reste celle de la fenêtre restaurée.
+    expect(layout.windows[2]).toMatchObject({ state: "maximized", x: 0.1, y: 0.1, w: 0.4, h: 0.5 });
+    expect(layout.windows[1].state).toBeUndefined();
     // Le serveur accepte exactement ce que le client produit.
     expect(serverValidate(layout)).toEqual(layout);
     expect(lay.validateLayout(layout)).toEqual(layout);
@@ -66,7 +68,7 @@ describe("espaces : sérialisation", () => {
     expect(plan.windows[1].rect).toEqual({ x: 0.1, y: 0.1, w: 0.4, h: 0.5 });
   });
 
-  it("deux vues au même identifiant : une seule gardée (le serveur exige des identifiants uniques)", () => {
+  it("deux vues au même identifiant : les deux gardées (identité = vue + identifiant)", () => {
     const items = [
       mission("m1"),
       {
@@ -78,9 +80,48 @@ describe("espaces : sérialisation", () => {
       },
     ];
     const layout = lay.serialize(items);
-    expect(layout.windows).toHaveLength(1);
-    expect(layout.windows[0].view).toBe("killchain");
-    expect(serverValidate(layout)).not.toBeNull();
+    expect(layout.windows.map((w: { view: string }) => w.view)).toEqual(["chat", "killchain"]);
+    expect(serverValidate(layout)).toEqual(layout);
+    expect(lay.validateLayout(layout)).toEqual(layout);
+  });
+
+  it("minimisée, maximisée et mode watch ou report : aller-retour par `state` et `mode`", () => {
+    const items = [
+      { ...mission("m1"), minimized: true },
+      {
+        key: "viewer:r1",
+        spec: types.iframeSpec("monitor", "r1"),
+        rect: { x: 0, y: 0, w: 0.5, h: 0.5 },
+        maximized: true,
+        minimized: false,
+      },
+      {
+        key: "viewer:r2",
+        spec: types.iframeSpec("report", "r2"),
+        rect: { x: 0.5, y: 0, w: 0.5, h: 0.5 },
+        maximized: false,
+        minimized: false,
+      },
+      native("findings"),
+    ];
+    const layout = lay.serialize(items);
+    expect(layout.windows[0]).toMatchObject({ id: "m1", state: "minimized" });
+    expect(layout.windows[1]).toMatchObject({ id: "r1", mode: "watch", state: "maximized" });
+    expect(layout.windows[2]).toMatchObject({ id: "r2", mode: "report" });
+    expect(layout.windows[3]).toMatchObject({ view: "shell", id: "findings", mode: "findings" });
+    expect(serverValidate(layout)).toEqual(layout);
+    expect(lay.validateLayout(layout)).toEqual(layout);
+    const plan = lay.planApply(layout, []);
+    expect(plan.windows.map((w: { spec: { key: string } }) => w.spec.key)).toEqual([
+      "chat:m1",
+      "viewer:r1",
+      "viewer:r2",
+      "native:findings",
+    ]);
+    expect(plan.windows[0]).toMatchObject({ minimized: true, maximized: false });
+    expect(plan.windows[1]).toMatchObject({ minimized: false, maximized: true });
+    expect(plan.windows[2].spec).toMatchObject({ mode: "report" });
+    expect(plan.windows[1].spec).toMatchObject({ mode: "watch" });
   });
 
   it("au plus 32 fenêtres (les plus à l'avant)", () => {
@@ -122,7 +163,9 @@ describe("espaces : refus au-delà des bornes (miroir du serveur)", () => {
     ["fraction NaN", { ...ok, windows: [{ ...ok.windows[0], x: Number.NaN }] }],
     ["vue inconnue", { ...ok, windows: [{ ...ok.windows[0], view: "evil" }] }],
     ["id invalide", { ...ok, windows: [{ ...ok.windows[0], id: "../x" }] }],
-    ["id dupliqué", { ...ok, windows: [ok.windows[0], { ...ok.windows[0], view: "viewer" }] }],
+    ["même vue et même id", { ...ok, windows: [ok.windows[0], { ...ok.windows[0] }] }],
+    ["état inconnu", { ...ok, windows: [{ ...ok.windows[0], state: "hidden" }] }],
+    ["mode invalide", { ...ok, windows: [{ ...ok.windows[0], mode: "../x" }] }],
     ["nom de 41 caractères", { ...ok, spaces: [{ id: "main", name: "x".repeat(41) }] }],
     ["nom avec contrôle", { ...ok, spaces: [{ id: "main", name: "a\u0000b" }] }],
     ["nom vide", { ...ok, spaces: [{ id: "main", name: "" }] }],
@@ -135,6 +178,12 @@ describe("espaces : refus au-delà des bornes (miroir du serveur)", () => {
       expect(serverValidate(layout)).toBeNull();
     });
   }
+
+  it("même identifiant dans deux vues : accepté", () => {
+    const layout = { ...ok, windows: [ok.windows[0], { ...ok.windows[0], view: "viewer" }] };
+    expect(lay.validateLayout(layout)).not.toBeNull();
+    expect(serverValidate(layout)).not.toBeNull();
+  });
 
   it("32 fenêtres et 20 espaces passent", () => {
     const layout = {
@@ -218,6 +267,21 @@ describe("espaces : application différentielle", () => {
       "focus chat:m1",
       "open native:journal",
     ]);
+  });
+
+  it("applyPlan : une fenêtre minimisée dans l'espace l'est après la pose des autres", () => {
+    const calls: string[] = [];
+    const desktop = {
+      has: () => false,
+      close: () => {},
+      minimize: (k: string) => calls.push(`min ${k}`),
+      focus: () => {},
+      setGeometry: () => {},
+      open: (spec: { key: string }) => calls.push(`open ${spec.key}`),
+    };
+    const saved = lay.serialize([{ ...mission("m1"), minimized: true }, native("journal")]);
+    lay.applyPlan(desktop, lay.planApply(saved, []));
+    expect(calls).toEqual(["open chat:m1", "open native:journal", "min chat:m1"]);
   });
 
   it("grille : sans trou ni recouvrement", () => {

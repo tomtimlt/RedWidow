@@ -1,15 +1,16 @@
 // Espaces de travail (pur, sans DOM). Une disposition est la liste des fenêtres ouvertes (vue, identité,
 // géométrie en fractions) telle que le serveur la conserve (`layoutSave`). Schéma serveur
-// (`validateLayout`, source de vérité) : { windows: [{ id, view, x, y, w, h, space? }], spaces: [{ id, name }],
-// active? }. Ce module n'en fait qu'un miroir léger (mêmes bornes) pour ne pas appliquer une donnée
-// illisible.
+// (`validateLayout`, source de vérité) : { windows: [{ id, view, x, y, w, h, space?, state?, mode? }],
+// spaces: [{ id, name }], active? }. Ce module n'en fait qu'un miroir léger (mêmes bornes) pour ne pas
+// appliquer une donnée illisible.
 //
-// Encodage dans les champs existants :
+// Encodage :
+// - identité d'une fenêtre : le couple (vue, identifiant) ;
 // - ordre d'empilement : ordre du tableau `windows` (de l'arrière vers l'avant) ;
-// - maximisée : rectangle plein bureau (0, 0, 1, 1) ;
-// - écran natif : vue `shell`, identifiant = nom de l'écran ;
+// - `state` : `minimized` ou `maximized` (la géométrie reste celle de la fenêtre restaurée) ;
+// - `mode` : `watch` ou `report` pour la vue `viewer`, nom de l'écran pour un écran natif ;
+// - écran natif : vue `shell`, identifiant et `mode` = nom de l'écran ;
 // - nom de l'espace affiché : `spaces[0].name` de la disposition courante (un espace `main` unique).
-// Non représentables : fenêtre minimisée, mode d'un `viewer` (watch ou report).
 import { iframeSpec, nativeSpec } from "./types.js";
 
 export const MAX_WINDOWS = 32;
@@ -33,6 +34,7 @@ const VIEWS = [
   "shell",
   "term",
 ];
+const STATES = ["minimized", "maximized"];
 /** Vue du serveur → type de fenêtre à instance. */
 const KIND_OF_VIEW = {
   chat: "mission",
@@ -85,10 +87,15 @@ export function validateLayout(raw) {
       !isFraction(w.y) ||
       !isFraction(w.w) ||
       !isFraction(w.h) ||
-      windows.some((o) => o.id === w.id)
+      windows.some((o) => o.id === w.id && o.view === w.view) ||
+      (w.state !== undefined && !STATES.includes(w.state)) ||
+      (w.mode !== undefined && !(typeof w.mode === "string" && ID_PATTERN.test(w.mode)))
     )
       return null;
-    windows.push({ id: w.id, view: w.view, x: w.x, y: w.y, w: w.w, h: w.h });
+    const out = { id: w.id, view: w.view, x: w.x, y: w.y, w: w.w, h: w.h };
+    if (w.state !== undefined) out.state = w.state;
+    if (w.mode !== undefined) out.mode = w.mode;
+    windows.push(out);
   }
   return { windows, spaces };
 }
@@ -109,13 +116,12 @@ export function parseLayouts(msg) {
   return { current, saved };
 }
 
-const FULL = { x: 0, y: 0, w: 1, h: 1 };
-const isFull = (r) => r.x === 0 && r.y === 0 && r.w === 1 && r.h === 1;
 const clamp01 = (v) => Math.min(1, Math.max(0, Number.isFinite(v) ? v : 0));
 
 /** Spécification d'une fenêtre à partir de la disposition, ou `null` (fenêtre ignorée à l'application). */
 export function specOfWindow(w) {
-  if (w.view === "shell") return nativeSpec(w.id);
+  if (w.view === "shell") return nativeSpec(w.mode ?? w.id);
+  if (w.view === "viewer") return iframeSpec(w.mode === "report" ? "report" : "monitor", w.id);
   const kind = Object.hasOwn(KIND_OF_VIEW, w.view) ? KIND_OF_VIEW[w.view] : null;
   return kind === null ? null : iframeSpec(kind, w.id);
 }
@@ -125,8 +131,7 @@ export function specOfWindow(w) {
  * Au-delà de 32, on garde les plus à l'avant. `name` est le nom de l'espace affiché.
  */
 export function serialize(items, name = DEFAULT_NAME) {
-  // Le serveur exige des identifiants uniques dans toute la disposition : si deux vues partagent un
-  // identifiant (mission et graphe de la même mission), seule la plus à l'avant est conservée.
+  // Identité = (vue, identifiant), comme côté serveur : un chat et un graphe de la même mission coexistent.
   const windows = [];
   const seen = new Set();
   for (let i = items.length - 1; i >= 0 && windows.length < MAX_WINDOWS; i -= 1) {
@@ -134,10 +139,16 @@ export function serialize(items, name = DEFAULT_NAME) {
     const spec = item.spec;
     const view = spec.kind === "native" ? "shell" : spec.view;
     const id = spec.kind === "native" ? spec.name : spec.frame;
-    if (!VIEWS.includes(view) || !ID_PATTERN.test(id) || seen.has(id)) continue;
-    seen.add(id);
-    const r = item.maximized ? FULL : item.rect;
-    windows.push({ id, view, x: clamp01(r.x), y: clamp01(r.y), w: clamp01(r.w), h: clamp01(r.h) });
+    const identity = `${view}:${id}`;
+    if (!VIEWS.includes(view) || !ID_PATTERN.test(id) || seen.has(identity)) continue;
+    seen.add(identity);
+    const r = item.rect;
+    const out = { id, view, x: clamp01(r.x), y: clamp01(r.y), w: clamp01(r.w), h: clamp01(r.h) };
+    const mode = spec.kind === "native" ? spec.name : spec.mode;
+    if (typeof mode === "string" && ID_PATTERN.test(mode)) out.mode = mode;
+    if (item.minimized) out.state = "minimized";
+    else if (item.maximized) out.state = "maximized";
+    windows.push(out);
   }
   return {
     windows: windows.reverse(),
@@ -151,7 +162,7 @@ export const spaceNameOf = (layout) => layout?.spaces?.[0]?.name ?? DEFAULT_NAME
 /**
  * Plan d'application différentielle d'une disposition sur les fenêtres ouvertes. Une fenêtre absente de la
  * disposition est fermée, sauf si `isProtected(key)` (terminal actif) : elle est alors minimisée.
- * @returns {{ windows: { spec: object, rect: object, maximized: boolean }[], close: string[], minimize: string[] }}
+ * @returns {{ windows: { spec: object, rect: object, maximized: boolean, minimized: boolean }[], close: string[], minimize: string[] }}
  */
 export function planApply(layout, openKeys, isProtected = () => false) {
   const windows = [];
@@ -161,7 +172,12 @@ export function planApply(layout, openKeys, isProtected = () => false) {
     if (spec === null || wanted.has(spec.key)) continue;
     wanted.add(spec.key);
     const rect = { x: w.x, y: w.y, w: w.w, h: w.h };
-    windows.push({ spec, rect, maximized: isFull(rect) });
+    windows.push({
+      spec,
+      rect,
+      maximized: w.state === "maximized",
+      minimized: w.state === "minimized",
+    });
   }
   const close = [];
   const minimize = [];
@@ -188,6 +204,8 @@ export function applyPlan(desktop, plan) {
       desktop.open(w.spec, { rect: w.rect, maximized: w.maximized });
     }
   }
+  // Minimisées en dernier : elles ne doivent pas rester au premier plan de l'empilement restauré.
+  for (const w of plan.windows) if (w.minimized) desktop.minimize(w.spec.key);
 }
 
 /** Grille pour `count` fenêtres (rangée finale étirée) : fractions, sans trou. */

@@ -14,7 +14,13 @@ import {
   titleFor,
   truncate,
 } from "./lib/topbar.js";
+import { createAccountsScreen } from "./screens/accounts.js";
 import { createApprovalsScreen, createConfirmZone } from "./screens/approvals.js";
+import { createContainersScreen } from "./screens/containers.js";
+import { createFindingsScreen } from "./screens/findings.js";
+import { createJournalScreen } from "./screens/journal.js";
+import { createProvidersScreen } from "./screens/providers.js";
+import { createSettingsScreen } from "./screens/settings.js";
 import { createDesktop } from "./wm/desktop.js";
 import { createDock } from "./wm/dock.js";
 import {
@@ -160,6 +166,80 @@ window.addEventListener("message", (event) => frames.handleMessage(event));
 // L'écran Approbations vit dans la page ; la référence est gardée : fermer sa fenêtre le retire du DOM.
 const approvalsEl = $("screen-approvals");
 
+// ───────────────────────────── Notifications non bloquantes ─────────────────────────────
+
+const MAX_TOASTS = 4;
+const TOAST_MS = 10000;
+/** Bandeau d'information qui ne prend ni le focus ni la main : se ferme seul ou d'un clic. */
+function toast(text, tone = "steel") {
+  const zone = $("toasts");
+  const box = document.createElement("div");
+  box.className = `toast tone-${tone}`;
+  const p = document.createElement("p");
+  p.textContent = text;
+  const close = document.createElement("button");
+  close.type = "button";
+  close.className = "toast-close";
+  close.setAttribute("aria-label", "Fermer la notification");
+  close.textContent = "×";
+  const remove = () => box.remove();
+  close.addEventListener("click", remove);
+  box.append(p, close);
+  zone.append(box);
+  while (zone.children.length > MAX_TOASTS) zone.firstElementChild?.remove();
+  setTimeout(remove, TOAST_MS);
+}
+
+// ───────────────────────────── Écrans natifs ─────────────────────────────
+
+const sendShell = (msg) => channel.send(SHELL, SHELL, msg);
+const logout = async () => {
+  try {
+    await fetch("/api/logout", { method: "POST", credentials: "same-origin" });
+  } catch {
+    // Réseau indisponible : la page de connexion décidera.
+  }
+  location.assign("/login");
+};
+
+const journal = createJournalScreen(document, {
+  onOpenMonitor: (id) => {
+    const spec = iframeSpec("monitor", id);
+    if (spec !== null) desktop.open(spec);
+  },
+});
+const screens = {
+  containers: createContainersScreen(document, { send: sendShell }),
+  providers: createProvidersScreen(document, {
+    send: sendShell,
+    onNotify: (text, tone) => toast(text, tone),
+    onFeed: (text, tone) => journal.push("clés", text, tone),
+  }),
+  accounts: createAccountsScreen(document, { send: sendShell }),
+  findings: createFindingsScreen(document, { send: sendShell }),
+  journal,
+  settings: createSettingsScreen(document, {
+    send: sendShell,
+    notifications: typeof Notification === "undefined" ? null : Notification,
+    requestPermission: () =>
+      typeof Notification === "undefined" ? Promise.resolve() : Notification.requestPermission(),
+    openPalette: () => palette.toggle(),
+    logout,
+  }),
+};
+/** Chaque écran natif est monté dans sa fenêtre ; ses données sont redemandées à l'ouverture. */
+const nativeMounts = Object.fromEntries(
+  Object.entries(screens).map(([name, screen]) => [
+    name,
+    {
+      mount(body) {
+        body.append(screen.root);
+        screen.refresh?.();
+      },
+    },
+  ]),
+);
+
 const desktop = createDesktop({
   doc: document,
   root: $("desktop"),
@@ -167,6 +247,7 @@ const desktop = createDesktop({
   natives: {
     // L'écran Approbations est préparé dans la page ; la fenêtre l'héberge.
     approvals: { mount: (body) => body.append(approvalsEl) },
+    ...nativeMounts,
   },
   onChange: () => render(),
   onLayout: () => scheduleSave(),
@@ -471,6 +552,8 @@ channel.onMessage((env) => {
     return;
   }
   const msg = env.msg;
+  // Les écrans natifs ignorent ce qui ne les concerne pas.
+  for (const screen of Object.values(screens)) screen.onMessage?.(msg);
   switch (msg.type) {
     case "approvals": {
       const added = tracker.update(parseApprovalList(msg.items));
@@ -490,6 +573,13 @@ channel.onMessage((env) => {
     case "halt": {
       const halt = parseHalt(msg);
       if (halt === null) break;
+      if ((state.halt?.active ?? null) !== halt.active) {
+        journal.push(
+          "arrêt",
+          halt.active ? "Arrêt d'urgence déclenché." : "Reprise après l'arrêt d'urgence.",
+          halt.active ? "err" : "ok",
+        );
+      }
       state.halt = halt;
       state.haltRequested = false;
       state.haltNote = "";
@@ -500,10 +590,21 @@ channel.onMessage((env) => {
     case "bypass": {
       const bypass = parseBypass(msg);
       if (bypass === null) break;
+      if ((state.bypass?.active ?? null) !== bypass.active) {
+        journal.push(
+          "bypass",
+          bypass.active ? "Bypass activé." : "Bypass désactivé.",
+          bypass.active ? "crimson" : "ok",
+        );
+      }
       state.bypass = bypass;
+      screens.settings.setBypass(bypass);
       render();
       break;
     }
+    case "containerError":
+      journal.push("conteneur", `Opération refusée (${truncate(String(msg.code), 60)}).`, "err");
+      break;
     case "layouts": {
       const parsed = parseLayouts(msg);
       state.spaces = parsed.saved;
@@ -527,12 +628,15 @@ channel.onState((conn) => {
     state.haltRequested = false;
     state.halt = null;
     state.bypass = null;
+    screens.settings.setBypass(null);
   }
+  for (const screen of Object.values(screens)) screen.setOnline?.(conn === "open");
   render();
 });
 channel.onOpen(() => {
   channel.send(SHELL, SHELL, { type: "ready" });
   channel.send(SHELL, SHELL, { type: "layouts" });
+  for (const screen of Object.values(screens)) screen.refresh?.();
   // Reconnexion : la disposition courante est renvoyée si elle a changé hors ligne.
   if (state.hydrated) scheduleSave();
   // Reconnexion : les pages vivantes sont rechargées (elles renvoient `ready` et reprennent l'état).
@@ -541,7 +645,18 @@ channel.onOpen(() => {
 });
 
 // Le temps restant du Bypass se rafraîchit sans message du serveur.
-setInterval(render, 30000);
+setInterval(() => {
+  render();
+  screens.settings.tick();
+}, 30000);
+// Le badge Bypass de la barre ouvre Réglages (là où il s'active et se coupe).
+$("tb-bypass").addEventListener("click", () => desktop.open(nativeSpec("settings")));
+$("tb-bypass").addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    desktop.open(nativeSpec("settings"));
+  }
+});
 
 // Au démarrage : la fenêtre Approbations est ouverte ; un lien profond ouvre sa fenêtre par-dessus.
 // La disposition courante enregistrée (ou, à défaut, le lien profond) est appliquée à sa première lecture.

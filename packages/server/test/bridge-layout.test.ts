@@ -41,7 +41,11 @@ describe("validateLayout", () => {
     ["fraction NaN", layout({ windows: [win(1, { y: Number.NaN })] })],
     ["vue inconnue", layout({ windows: [win(1, { view: "terminal" })] })],
     ["id de fenêtre invalide", layout({ windows: [win(1, { id: "../x" })] })],
-    ["id dupliqué", layout({ windows: [win(1), win(1)] })],
+    ["même vue et même id", layout({ windows: [win(1), win(1)] })],
+    ["état inconnu", layout({ windows: [win(1, { state: "hidden" })] })],
+    ["état non textuel", layout({ windows: [win(1, { state: 1 })] })],
+    ["mode invalide", layout({ windows: [win(1, { mode: "a b" })] })],
+    ["mode vide", layout({ windows: [win(1, { mode: "" })] })],
     ["espace inconnu", layout({ windows: [win(1, { space: "zz" })] })],
     ["active inconnu", layout({ active: "zz" })],
     ["nom d'espace trop long", layout({ spaces: [{ id: "s1", name: "x".repeat(41) }] })],
@@ -53,6 +57,19 @@ describe("validateLayout", () => {
     ["null", null],
   ])("refuse : %s", (_name, raw) => {
     expect(validateLayout(raw)).toBeNull();
+  });
+
+  it("accepte `state` et `mode`, et un même identifiant dans deux vues", () => {
+    const raw = layout({
+      windows: [
+        win(1, { state: "minimized", mode: "watch", view: "viewer" }),
+        win(1, { state: "maximized" }),
+        win(2, { view: "shell", mode: "findings" }),
+      ],
+      active: undefined,
+      spaces: [],
+    });
+    expect(validateLayout(raw)).toEqual(raw);
   });
 
   it("accepte exactement 32 fenêtres et 20 espaces", () => {

@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="/theme.css" />
     <link rel="stylesheet" href="/shell.css" />
     <link rel="stylesheet" href="/wm.css" />
+    <link rel="stylesheet" href="/screens.css" />
   </head>
   <body class="shell">
     <header id="topbar">
@@ -17,7 +18,7 @@
       <button id="tb-count" class="tb-count" type="button" aria-label="Aucune demande en attente">0</button>
       <button id="tb-preview" class="tb-preview" type="button" hidden></button>
       <span id="tb-conn" class="tb-conn" role="status" data-state="closed">Connexion…</span>
-      <span id="tb-bypass" class="tb-bypass" hidden></span>
+      <button id="tb-bypass" class="tb-bypass" type="button" title="Ouvrir les réglages du Bypass" hidden></button>
       <span id="tb-halt-note" class="tb-halt-note" role="status" hidden></span>
       <button id="tb-halt" class="tb-halt" type="button" data-state="idle">Arrêt d'urgence</button>
     </header>
@@ -46,6 +47,8 @@
         <div id="appr-list" class="appr-list" hidden></div>
       </section>
     </div>
+
+    <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
 
     <aside id="sheet" class="sheet" aria-label="Demande d'approbation" hidden>
       <div id="sheet-list" class="appr-list"></div>

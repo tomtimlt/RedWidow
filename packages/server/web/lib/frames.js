@@ -53,6 +53,8 @@ const DEEP_KINDS = {
 const DEEP_NATIVES = {
   conteneurs: "containers",
   fournisseurs: "providers",
+  comptes: "accounts",
+  trouvailles: "findings",
   journal: "journal",
   reglages: "settings",
 };
