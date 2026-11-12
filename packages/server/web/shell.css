@@ -1,0 +1,473 @@
+/*
+ * Coquille de RedWidow Serveur : barre fixe, écran Approbations, feuille d'approbation (téléphone).
+ * Aucune ressource distante ; la police Geist vient de l'extension (/media/fonts). Les couleurs
+ * viennent de theme.css (rouge #CC1C40, acier #495F73, sombre).
+ */
+@font-face {
+  font-family: "Warband Geist";
+  src: url("/media/fonts/geist-latin.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Warband JetBrains Mono";
+  src: url("/media/fonts/jetbrains-mono-latin.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  /* biome-ignore lint/complexity/noImportantStyles: `hidden` doit l'emporter sur tout `display` de classe */
+  display: none !important;
+}
+
+body.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  /* biome-ignore lint/suspicious/noDuplicateProperties: repli pour les navigateurs sans `dvh` */
+  height: 100dvh;
+  overflow: hidden;
+  font-family: var(--rw-font);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--rw-crimson-text);
+  outline-offset: 2px;
+}
+
+/* ───────────── Barre fixe : hors bureau, rien ne peut la couvrir ───────────── */
+#topbar {
+  flex: none;
+  position: relative;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 6px 16px;
+  background: var(--rw-surface);
+  border-bottom: 1px solid var(--rw-line);
+  box-shadow: inset 0 -2px 0 var(--rw-crimson);
+}
+
+.tb-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.tb-logo {
+  display: block;
+  width: 22px;
+  height: 22px;
+}
+
+.tb-count {
+  min-width: 44px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--rw-steel);
+  border-radius: 999px;
+  background: transparent;
+  font-family: var(--rw-mono);
+  font-weight: 650;
+  cursor: pointer;
+}
+
+/* Reste rouge tant que des demandes attendent. */
+.tb-count.has-pending {
+  background: var(--rw-crimson);
+  border-color: var(--rw-crimson);
+  color: #fff;
+}
+
+.tb-count.flash {
+  animation: tb-flash 700ms ease-out 1;
+}
+
+@keyframes tb-flash {
+  0% {
+    box-shadow: 0 0 0 0 rgb(255 114 139 / 90%);
+    transform: scale(1.18);
+  }
+  100% {
+    box-shadow: 0 0 0 12px rgb(255 114 139 / 0%);
+    transform: scale(1);
+  }
+}
+
+.tb-preview {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--rw-fg-muted);
+  font-family: var(--rw-mono);
+  font-size: 12px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.tb-conn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--rw-fg-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.tb-conn::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--rw-warn);
+}
+
+.tb-conn[data-state="open"]::before {
+  background: var(--rw-ok);
+}
+
+.tb-conn[data-state="closed"]::before {
+  background: var(--rw-err);
+}
+
+.tb-bypass {
+  padding: 3px 10px;
+  border: 1px solid #c872d8;
+  border-radius: 999px;
+  background: rgb(200 114 216 / 16%);
+  color: #e6b3f0;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tb-halt-note {
+  color: var(--rw-warn);
+  font-size: 12px;
+}
+
+.tb-halt {
+  margin-left: auto;
+  min-height: 40px;
+  padding: 0 18px;
+  border: 1px solid var(--rw-crimson);
+  border-radius: 8px;
+  background: var(--rw-crimson);
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tb-halt:hover {
+  background: var(--rw-crimson-hover);
+}
+
+.tb-halt[data-state="requested"] {
+  background: transparent;
+  color: var(--rw-crimson-text);
+}
+
+.tb-halt[data-state="active"] {
+  background: transparent;
+  border-color: var(--rw-warn);
+  color: var(--rw-warn);
+}
+
+/* ───────────── Bureau ───────────── */
+#desktop {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.screen {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 20px 16px 32px;
+}
+
+.screen h1 {
+  margin: 0 0 16px;
+  font-size: 18px;
+  font-weight: 650;
+}
+
+.screen-frame {
+  position: absolute;
+  inset: 0;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+.frames,
+.view-frame {
+  width: 100%;
+  height: 100%;
+}
+
+.view-frame {
+  display: block;
+  border: 0;
+  background: var(--rw-bg);
+}
+
+.frame-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: var(--rw-bg);
+}
+
+.empty {
+  margin: 0;
+  padding: 20px;
+  border: 1px dashed var(--rw-line);
+  border-radius: 8px;
+  color: var(--rw-fg-muted);
+}
+
+/* ───────────── Cartes d'approbation ───────────── */
+.appr-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.appr-card {
+  padding: 14px 16px;
+  border: 1px solid var(--rw-line);
+  border-left: 3px solid var(--rw-crimson);
+  border-radius: 8px;
+  background: var(--rw-surface);
+}
+
+.appr-card.is-sent {
+  border-left-color: var(--rw-steel);
+}
+
+.appr-card.is-warn {
+  border-left-color: var(--rw-warn);
+}
+
+.appr-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.appr-tool {
+  font-family: var(--rw-mono);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.appr-mission {
+  flex: none;
+  color: var(--rw-crimson-text);
+  font-size: 12px;
+}
+
+.appr-summary {
+  max-height: 11em;
+  margin: 8px 0;
+  padding: 8px 10px;
+  overflow: auto;
+  border-radius: 6px;
+  background: var(--vscode-textCodeBlock-background);
+  font-family: var(--rw-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.appr-note {
+  margin: 0 0 8px;
+  color: var(--rw-warn);
+  font-size: 12px;
+}
+
+.appr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.appr-btn {
+  flex: 1 1 0;
+  min-width: 120px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--rw-steel);
+  border-radius: 8px;
+  background: transparent;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.appr-btn.appr-once {
+  border-color: var(--rw-crimson);
+  background: var(--rw-crimson);
+  color: #fff;
+}
+
+.appr-btn.appr-once:hover:not(:disabled) {
+  background: var(--rw-crimson-hover);
+}
+
+.appr-btn.appr-deny:hover:not(:disabled),
+.appr-btn.appr-always:hover:not(:disabled) {
+  background: var(--rw-surface-2);
+}
+
+.appr-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ───────────── Questions de confirmation ───────────── */
+.confirm-zone {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--rw-bg);
+  border-bottom: 1px solid var(--rw-line);
+}
+
+.confirm-box {
+  max-width: 880px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid var(--rw-warn);
+  border-radius: 8px;
+  background: var(--rw-surface);
+}
+
+.confirm-title {
+  margin: 0 0 4px;
+  font-weight: 650;
+}
+
+.confirm-text {
+  margin: 0 0 10px;
+  color: var(--rw-fg-muted);
+  overflow-wrap: anywhere;
+}
+
+/* ───────────── Feuille d'approbation (téléphone) ───────────── */
+.sheet {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 65vh;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  overflow: auto;
+  background: var(--rw-bg);
+  border-top: 2px solid var(--rw-crimson);
+  box-shadow: 0 -12px 32px rgb(0 0 0 / 55%);
+}
+
+.sheet-open {
+  min-height: 44px;
+  border: 1px solid var(--rw-steel);
+  border-radius: 8px;
+  background: transparent;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ───────────── Téléphone : deux rangées, boutons pleine largeur ───────────── */
+@media (max-width: 719px), (pointer: coarse) and (hover: none) {
+  #topbar {
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    padding: 6px 12px;
+  }
+
+  .tb-brand {
+    order: 1;
+  }
+
+  .tb-count {
+    order: 2;
+  }
+
+  .tb-conn {
+    order: 3;
+  }
+
+  .tb-bypass {
+    order: 4;
+  }
+
+  .tb-halt {
+    order: 5;
+  }
+
+  .tb-preview {
+    order: 6;
+    flex: 1 0 100%;
+  }
+
+  .tb-halt-note {
+    order: 7;
+    flex: 1 0 100%;
+  }
+
+  .tb-name {
+    display: none;
+  }
+
+  .appr-btn {
+    flex: 1 1 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tb-count.flash {
+    animation: none;
+  }
+}

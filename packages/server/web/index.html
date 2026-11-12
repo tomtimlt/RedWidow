@@ -4,9 +4,46 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>RedWidow</title>
+    <link rel="stylesheet" href="/theme.css" />
+    <link rel="stylesheet" href="/shell.css" />
   </head>
-  <body>
-    <h1>RedWidow</h1>
-    <p>Interface web en cours de construction.</p>
+  <body class="shell">
+    <header id="topbar">
+      <span class="tb-brand">
+        <img class="tb-logo" src="/media/logo-small.svg" alt="" width="22" height="22" />
+        <span class="tb-name">RedWidow</span>
+      </span>
+      <button id="tb-count" class="tb-count" type="button" aria-label="Aucune demande en attente">0</button>
+      <button id="tb-preview" class="tb-preview" type="button" hidden></button>
+      <span id="tb-conn" class="tb-conn" role="status" data-state="closed">Connexion…</span>
+      <span id="tb-bypass" class="tb-bypass" hidden></span>
+      <span id="tb-halt-note" class="tb-halt-note" role="status" hidden></span>
+      <button id="tb-halt" class="tb-halt" type="button" data-state="idle">Arrêt d'urgence</button>
+    </header>
+
+    <main id="desktop">
+      <div id="confirm-zone" class="confirm-zone" hidden></div>
+
+      <section id="screen-approvals" class="screen" aria-labelledby="appr-title">
+        <h1 id="appr-title">Approbations</h1>
+        <p id="appr-empty" class="empty"></p>
+        <div id="appr-list" class="appr-list" hidden></div>
+      </section>
+
+      <section id="screen-frame" class="screen screen-frame" hidden>
+        <div id="frames" class="frames"></div>
+        <div id="frame-error" class="frame-error" role="alert" hidden>
+          <p>La vue n'a pas pu se charger.</p>
+          <button id="frame-reload" type="button" class="appr-btn appr-once">Recharger</button>
+        </div>
+      </section>
+    </main>
+
+    <aside id="sheet" class="sheet" aria-label="Demande d'approbation" hidden>
+      <div id="sheet-list" class="appr-list"></div>
+      <button id="sheet-open" type="button" class="sheet-open">Ouvrir la file</button>
+    </aside>
+
+    <script type="module" nonce="{{nonce}}" src="/shell.js"></script>
   </body>
 </html>

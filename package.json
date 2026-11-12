@@ -16,6 +16,7 @@
     "check": "biome check . && pnpm typecheck && vitest run",
     "maj": "node scripts/update.mjs",
     "test:contract": "node scripts/with-env.mjs WARBAND_SDK_CONTRACT=1 -- vitest run packages/agent-sdk/test/contract",
+    "test:web": "node scripts/web-e2e.mjs",
     "release:local": "node scripts/release-local.mjs"
   },
   "devDependencies": {

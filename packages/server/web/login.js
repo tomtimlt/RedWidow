@@ -19,7 +19,15 @@ form.addEventListener("submit", async (event) => {
     });
     if (res.status === 204) {
       field.value = "";
-      location.assign("/");
+      // Lien profond conservé par la coquille quand la session a expiré (seulement #w=…).
+      let next = "";
+      try {
+        next = sessionStorage.getItem("rw:next") ?? "";
+        sessionStorage.removeItem("rw:next");
+      } catch {
+        // Stockage bloqué : retour à l'accueil.
+      }
+      location.assign(/^#w=[A-Za-z0-9:_-]{1,80}$/.test(next) ? `/${next}` : "/");
       return;
     }
     if (res.status === 429) {

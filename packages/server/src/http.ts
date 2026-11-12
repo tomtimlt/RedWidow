@@ -6,6 +6,7 @@ import {
   type ServerResponse,
 } from "node:http";
 import { extname, isAbsolute, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { CodedError, type Reason, reason } from "@warband/core";
 import { buildCsp, injectNonce, makeNonce } from "./auth/csp.js";
 import { LoginLimiter } from "./auth/limiter.js";
@@ -17,7 +18,9 @@ import {
   SessionStore,
   sessionCookie,
 } from "./auth/sessions.js";
+import { isFrameId } from "./bridge/envelope.js";
 import type { ServerConfig } from "./config.js";
+import { isViewerMode, isViewPage, renderViewPage } from "./web/view-page.js";
 import { attachWebSocket } from "./ws.js";
 
 const MIME: Readonly<Record<string, string>> = {
@@ -106,13 +109,19 @@ export interface ServerOptions {
   onConnection?: (socket: import("ws").WebSocket, sessionId: string) => void;
   /** Stockage persistant (état, secrets), exposé aux lots suivants. */
   storage?: import("./storage/index.js").ServerStorage;
+  /** Dossier `media` de l'extension, servi en lecture seule sous `/media/` (défaut : `packages/vscode/media`). */
+  mediaDir?: string;
 }
+
+/** `packages/vscode/media`, à la même position relative depuis `src` ou `dist`. */
+const DEFAULT_MEDIA_DIR = fileURLToPath(new URL("../../vscode/media", import.meta.url));
 
 interface Ctx {
   config: ServerConfig;
   passwordHash: string;
   sessions: SessionStore;
   limiter: LoginLimiter;
+  mediaDir: string;
 }
 
 function json(
@@ -150,6 +159,7 @@ export function createServer(config: ServerConfig, options: ServerOptions): Serv
     passwordHash: options.passwordHash,
     sessions: new SessionStore({ now }),
     limiter: new LoginLimiter(now),
+    mediaDir: resolve(options.mediaDir ?? DEFAULT_MEDIA_DIR),
   };
   const server = createHttpServer((req, res) => {
     void handle(ctx, req, res).catch(() => {
@@ -256,8 +266,9 @@ async function serveStatic(
   pathname: string,
   res: ServerResponse,
   head: boolean,
+  dir: string = ctx.config.webDir,
 ): Promise<void> {
-  const found = await resolveStatic(ctx.config.webDir, pathname);
+  const found = await resolveStatic(dir, pathname);
   if ("status" in found) return text(res, found.status, "Introuvable");
   const type = MIME[extname(found.path).toLowerCase()];
   if (!type) return text(res, 404, "Introuvable");
@@ -265,6 +276,36 @@ async function serveStatic(
     return html(res, await readFile(found.path, "utf8"), head);
   }
   send(res, 200, await readFile(found.path), { "Content-Type": type }, head);
+}
+
+/**
+ * `GET /view/<nom>?frame=<id>[&mode=…]` : page d'une vue de la liste fermée, pour l'`iframe` de la
+ * coquille. Nonce propre à la réponse, CSP en en-tête (`frame-ancestors 'self'` compris).
+ */
+function serveView(pathname: string, search: string, res: ServerResponse, head: boolean): void {
+  const name = pathname.slice("/view/".length);
+  if (!isViewPage(name)) {
+    text(res, 404, "Introuvable");
+    return;
+  }
+  const params = new URLSearchParams(search);
+  const mode = params.get("mode") ?? "monitor";
+  if (!isFrameId(params.get("frame")) || !isViewerMode(mode)) {
+    apiError(res, 400, reason("auth.badRequest"));
+    return;
+  }
+  const nonce = makeNonce();
+  send(
+    res,
+    200,
+    renderViewPage(name, { nonce, mode }),
+    {
+      "Content-Type": MIME[".html"] as string,
+      "Cache-Control": "no-store",
+      "Content-Security-Policy": buildCsp(nonce),
+    },
+    head,
+  );
 }
 
 async function handle(ctx: Ctx, req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -304,5 +345,12 @@ async function handle(ctx: Ctx, req: IncomingMessage, res: ServerResponse): Prom
   if (read && pathname === "/api/session") return json(res, 200, { authenticated: true }, {}, head);
   if (isApi) return text(res, 404, "Introuvable");
   if (!read) return text(res, 405, "Méthode non autorisée", { Allow: "GET, HEAD" });
+  if (pathname.startsWith("/view/")) {
+    const query = (req.url ?? "").split("#", 1)[0]?.split("?")[1] ?? "";
+    return serveView(pathname, query, res, head);
+  }
+  if (pathname.startsWith("/media/")) {
+    return serveStatic(ctx, pathname.slice("/media".length), res, head, ctx.mediaDir);
+  }
   return serveStatic(ctx, pathname, res, head);
 }

@@ -1,0 +1,431 @@
+#!/usr/bin/env node
+// Tests de bout en bout de l'interface web (Playwright), hors `pnpm check` : `pnpm test:web`.
+//
+// Le serveur HTTP est le vrai (`packages/server/dist`, authentification, pages de vue, CSP) ; le moteur
+// est remplacé par un pont factice qui rejoue des approbations et enregistre ce que le navigateur envoie.
+// Aucune donnée réelle, aucun agent. Prérequis : `pnpm build`. Sans `playwright`, le script se saute.
+//
+// Couvre (1440x900 et 375x812) : connexion, file vide, trois demandes, « Toujours » absent si non
+// mémorisable, un clic = un `approve`, aucun `approve` sans clic (chargement, reconnexion), focus jamais
+// déplacé sur une carte, arrêt d'urgence sans confirmation, badge Bypass, hors ligne puis reconnexion,
+// feuille d'approbation du téléphone, page de vue en iframe (pont, `ready`), zéro violation CSP.
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { createRequire } from "node:module";
+import { createServer as createNetServer } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+const root = fileURLToPath(new URL("..", import.meta.url));
+const shots = join(root, "packages/server/test/web-shots");
+
+let chromium;
+try {
+  ({ chromium } = createRequire(import.meta.url)("playwright"));
+} catch {
+  console.log("web-e2e : playwright est absent, tests ignorés.");
+  process.exit(0);
+}
+const dist = join(root, "packages/server/dist");
+if (!existsSync(join(dist, "http.js"))) {
+  console.error("web-e2e : packages/server/dist introuvable, lancez d'abord `pnpm build`.");
+  process.exit(1);
+}
+const { createServer } = await import(pathToFileURL(join(dist, "http.js")).href);
+const { hashPassword } = await import(pathToFileURL(join(dist, "auth/password.js")).href);
+
+const PASSWORD = "mot-de-passe-de-test-e2e";
+const dataDir = mkdtempSync(join(tmpdir(), "rw-e2e-"));
+mkdirSync(shots, { recursive: true });
+
+const freePort = () =>
+  new Promise((ok, ko) => {
+    const s = createNetServer();
+    s.once("error", ko);
+    s.listen(0, "127.0.0.1", () => {
+      const { port } = s.address();
+      s.close(() => ok(port));
+    });
+  });
+
+// ───────────────────────────── Pont factice ─────────────────────────────
+
+const sockets = new Set();
+/** Messages reçus du navigateur : { view, frame, msg }. */
+const received = [];
+let approvals = [];
+/** Si faux, un `approve` n'est pas acquitté (la demande reste dans la liste). */
+let acknowledge = true;
+
+const send = (ws, view, frame, msg) => {
+  if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({ v: 1, view, frame, msg }));
+};
+const broadcast = (view, frame, msg) => {
+  for (const ws of sockets) send(ws, view, frame, msg);
+};
+const pushApprovals = () => broadcast("shell", "shell", { type: "approvals", items: approvals });
+
+function onConnection(ws) {
+  sockets.add(ws);
+  ws.on("close", () => sockets.delete(ws));
+  ws.on("message", (data) => {
+    let env;
+    try {
+      env = JSON.parse(data.toString());
+    } catch {
+      return;
+    }
+    received.push(env);
+    if (env.view !== "shell") return;
+    if (env.msg.type === "ready")
+      send(ws, "shell", "shell", { type: "approvals", items: approvals });
+    if (env.msg.type === "approve" && acknowledge) {
+      approvals = approvals.filter(
+        (a) => !(a.frame === env.frame && a.toolUseId === env.msg.toolUseId),
+      );
+      pushApprovals();
+    }
+    if (env.msg.type === "halt") {
+      broadcast("shell", "shell", { type: "halt", active: true, since: Date.now() });
+    }
+    if (env.msg.type === "resume") {
+      broadcast("shell", "shell", { type: "halt", active: false, since: null });
+    }
+  });
+}
+
+const approvalsOf = () => received.filter((e) => e.view === "shell" && e.msg.type === "approve");
+
+const item = (n, over = {}) => ({
+  frame: "m1",
+  toolUseId: `t${n}`,
+  tool: "Bash",
+  summary: `nmap -sV 10.0.0.${n}`,
+  canRemember: true,
+  confirming: false,
+  ...over,
+});
+const three = () => [
+  item(1),
+  item(2, { tool: "Write", summary: "écrire /workspace/notes.md", canRemember: false }),
+  item(3, { frame: "m2" }),
+];
+
+// ───────────────────────────── Outils de test ─────────────────────────────
+
+const failures = [];
+let checks = 0;
+const check = (condition, message) => {
+  checks += 1;
+  if (!condition) {
+    failures.push(message);
+    console.error(`  ECHEC : ${message}`);
+  }
+};
+
+const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
+async function until(fn, message, ms = 8000) {
+  const end = Date.now() + ms;
+  for (;;) {
+    let value;
+    try {
+      value = await fn();
+    } catch {
+      value = false;
+    }
+    if (value) return true;
+    if (Date.now() > end) {
+      check(false, `délai dépassé : ${message}`);
+      return false;
+    }
+    await sleep(50);
+  }
+}
+
+// ───────────────────────────── Scénario ─────────────────────────────
+
+const port = await freePort();
+const origin = `http://127.0.0.1:${port}`;
+const server = createServer(
+  {
+    host: "127.0.0.1",
+    port,
+    dataDir,
+    webDir: join(root, "packages/server/web"),
+    publicOrigin: origin,
+    trustProxy: false,
+  },
+  { passwordHash: await hashPassword(PASSWORD), onConnection },
+);
+await new Promise((ok) => server.listen(port, "127.0.0.1", ok));
+
+const browser = await chromium.launch();
+
+async function scenario(name, viewport) {
+  console.log(`\n== ${name} (${viewport.width}x${viewport.height})`);
+  const context = await browser.newContext({ viewport, deviceScaleFactor: 1 });
+  const page = await context.newPage();
+  const violations = [];
+  page.on("console", (m) => {
+    const t = m.text();
+    if (m.type() === "error" || m.type() === "warning") {
+      if (/Content Security Policy|Refused to/i.test(t)) violations.push(t);
+    }
+  });
+  page.on("pageerror", (e) => violations.push(`pageerror : ${e.message}`));
+  let dialogs = 0;
+  page.on("dialog", async (d) => {
+    dialogs += 1;
+    await d.dismiss();
+  });
+  const shot = (label) => page.screenshot({ path: join(shots, `${name}-${label}.png`) });
+  const text = (selector) => page.locator(selector).innerText();
+  const visible = (selector) => page.locator(selector).isVisible();
+
+  received.length = 0;
+  approvals = [];
+  acknowledge = true;
+
+  // Sans session : redirection vers la connexion, puis connexion.
+  await page.goto(`${origin}/#w=approbations`);
+  check(new URL(page.url()).pathname === "/login", "sans session, redirection vers /login");
+  await page.fill("#password", PASSWORD);
+  await page.click("button[type=submit]");
+  await page.waitForURL(`${origin}/`);
+  await until(async () => (await text("#tb-conn")) === "Connecté", "connexion WebSocket établie");
+
+  // File vide.
+  check((await text("#tb-count")) === "0", "compteur à 0 (file vide)");
+  check((await page.title()) === "RedWidow", "titre sans compteur");
+  check(await visible("#appr-empty"), "état vide affiché");
+  check((await page.locator(".appr-card").count()) === 0, "aucune carte en file vide");
+  check(await page.locator("#tb-halt").isEnabled(), "arrêt d'urgence actif (état serveur inconnu)");
+  check((await text("#tb-halt")) === "Arrêt d'urgence", "libellé de l'arrêt d'urgence");
+  check(!(await visible("#tb-bypass")), "pas de badge Bypass tant que l'état est inconnu");
+  await shot("1-file-vide");
+
+  // Trois demandes.
+  approvals = three();
+  pushApprovals();
+  await until(async () => (await page.locator(".appr-card").count()) === 3, "trois cartes");
+  check((await text("#tb-count")) === "3", "compteur à 3");
+  check((await page.title()) === "(3) RedWidow", "titre « (3) RedWidow »");
+  check(
+    await page.locator("#tb-count").evaluate((e) => e.classList.contains("has-pending")),
+    "compteur rouge tant que des demandes attendent",
+  );
+  check(
+    (await text("#tb-preview")).startsWith("Bash — nmap"),
+    "aperçu de la plus ancienne demande",
+  );
+  check(
+    await page.locator(".appr-card:nth-child(2) .appr-always").isHidden(),
+    "« Toujours » absent quand la demande n'est pas mémorisable",
+  );
+  check(
+    await page.locator(".appr-card:nth-child(1) .appr-always").isVisible(),
+    "« Toujours » présent quand la demande est mémorisable",
+  );
+  const sizes = await page
+    .locator(".appr-card:nth-child(1) .appr-btn:visible")
+    .evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
+  check(sizes.length === 3 && sizes.every((h) => h >= 44), "trois boutons d'au moins 44 px");
+  const focusInCard = await page.evaluate(() => !!document.activeElement?.closest(".appr-card"));
+  check(!focusInCard, "le focus n'est pas déplacé vers une carte");
+  check(approvalsOf().length === 0, "aucun approve à l'arrivée des demandes");
+  await shot("2-trois-demandes");
+
+  // Rechargement : toujours aucun approve.
+  await page.reload();
+  await until(
+    async () => (await page.locator(".appr-card").count()) === 3,
+    "cartes après rechargement",
+  );
+  check(approvalsOf().length === 0, "aucun approve au rechargement");
+
+  // Un clic = un approve.
+  await page.locator(".appr-card:nth-child(1) .appr-once").click();
+  await until(() => approvalsOf().length === 1, "un approve reçu");
+  await sleep(300);
+  check(approvalsOf().length === 1, "un clic envoie un seul approve");
+  const a = approvalsOf()[0];
+  check(
+    a?.frame === "m1" &&
+      a.msg.toolUseId === "t1" &&
+      a.msg.choice === "once" &&
+      Object.keys(a.msg).length === 3,
+    "approve conforme (frame, toolUseId, choice)",
+  );
+  await until(async () => (await text("#tb-count")) === "2", "accusé : la demande disparaît");
+
+  // Bypass.
+  broadcast("shell", "shell", { type: "bypass", active: true, until: null });
+  await until(() => visible("#tb-bypass"), "badge Bypass");
+  check((await text("#tb-bypass")) === "Bypass illimité", "badge « Bypass illimité »");
+  await shot("3-bypass");
+
+  // Arrêt d'urgence : un clic, aucune confirmation.
+  await page.click("#tb-halt");
+  await until(() => received.some((e) => e.view === "shell" && e.msg.type === "halt"), "halt reçu");
+  check(dialogs === 0, "aucune boîte de confirmation sur l'arrêt d'urgence");
+  check(received.filter((e) => e.msg?.type === "halt").length === 1, "un clic envoie un seul halt");
+  await until(
+    async () => (await text("#tb-halt")) === "Reprendre",
+    "bouton « Reprendre » après l'arrêt",
+  );
+  check(
+    (await text("#tb-halt-note")).startsWith("Arrêt d'urgence actif"),
+    "état de l'arrêt affiché",
+  );
+  await shot("4-arret");
+  await page.click("#tb-halt");
+  await until(() => received.some((e) => e.msg?.type === "resume"), "resume reçu");
+  await until(
+    async () => (await text("#tb-halt")) === "Arrêt d'urgence",
+    "retour à « Arrêt d'urgence »",
+  );
+
+  // Hors ligne puis reconnexion : actions désactivées, rien rejoué.
+  const before = approvalsOf().length;
+  for (const ws of [...sockets]) ws.terminate();
+  await until(
+    async () => (await text("#tb-conn")).startsWith("Hors ligne"),
+    "indicateur hors ligne",
+  );
+  check(
+    await page.locator(".appr-btn:visible").evaluateAll((els) => els.every((e) => e.disabled)),
+    "boutons d'approbation désactivés hors ligne",
+  );
+  await shot("5-hors-ligne");
+  await until(async () => (await text("#tb-conn")) === "Connecté", "reconnexion", 10000);
+  await until(
+    async () => (await page.locator(".appr-card").count()) === 2,
+    "liste réannoncée après reconnexion",
+  );
+  check(approvalsOf().length === before, "aucun approve rejoué à la reconnexion");
+
+  // Plusieurs missions : lien vers la mission.
+  check(
+    (await page.locator(".appr-card:nth-child(2) .appr-mission").getAttribute("href")) ===
+      "#w=mission:m2",
+    "lien de la carte vers sa mission",
+  );
+
+  // Page de vue en iframe (mission) : pont, `ready`, CSP.
+  await page.goto(`${origin}/#w=mission:m1`);
+  await until(
+    () =>
+      page
+        .locator("iframe.view-frame")
+        .count()
+        .then((n) => n === 1),
+    "iframe de la mission",
+  );
+  const findChat = () => page.frames().find((f) => f.url().includes("/view/chat"));
+  await until(() => !!findChat(), "la page /view/chat est chargée dans l'iframe");
+  const frame = findChat();
+  if (frame) {
+    await until(
+      () => frame.evaluate(() => typeof acquireVsCodeApi === "function"),
+      "pont présent dans l'iframe",
+    );
+    await until(
+      () => received.some((e) => e.view === "chat" && e.frame === "m1" && e.msg.type === "ready"),
+      "message ready du chat relayé au serveur",
+    );
+    // Un message du serveur arrive jusqu'à la page.
+    await frame.evaluate(() => {
+      window.__reçus = [];
+      window.addEventListener("message", (e) => window.__reçus.push(e.data));
+    });
+    broadcast("chat", "m1", { type: "ping-test" });
+    await until(
+      () => frame.evaluate(() => window.__reçus.some((m) => m.type === "ping-test")),
+      "message du serveur reçu par la page",
+    );
+  }
+  const barUncovered = await page.evaluate(() => {
+    const bar = document.getElementById("topbar").getBoundingClientRect();
+    const hit = document.elementFromPoint(bar.left + bar.width / 2, bar.top + bar.height / 2);
+    return !!hit?.closest("#topbar");
+  });
+  check(barUncovered, "la barre fixe n'est pas couverte par la vue");
+  await shot("6-mission");
+
+  // Feuille d'approbation (téléphone) au-dessus de la fenêtre active.
+  const phone = viewport.width < 720;
+  const sheetVisible = await visible("#sheet");
+  check(
+    sheetVisible === phone,
+    phone ? "feuille d'approbation visible au téléphone" : "pas de feuille sur grand écran",
+  );
+  if (phone) {
+    check(
+      (await page.locator("#sheet .appr-card").count()) === 1,
+      "la feuille montre la plus ancienne demande",
+    );
+    check((await text("#sheet-open")).startsWith("Ouvrir la file"), "bouton « Ouvrir la file »");
+    await shot("7-feuille");
+    await page.click("#sheet-open");
+    await until(
+      async () => !(await visible("#sheet")),
+      "feuille refermée par l'ouverture de la file",
+    );
+    check(await visible("#screen-approvals"), "la file d'approbation est ouverte");
+  }
+
+  // Non acquittement : « non confirmé » après 10 s (délai réel), puis nouvelle réponse possible.
+  acknowledge = false;
+  await page.goto(`${origin}/#w=approbations`);
+  await until(
+    async () => (await page.locator(".appr-card").count()) === 2,
+    "cartes avant le test d'accusé",
+  );
+  const n0 = approvalsOf().length;
+  await page.locator(".appr-card:nth-child(1) .appr-deny").click();
+  await until(() => approvalsOf().length === n0 + 1, "refus envoyé");
+  check(
+    await page
+      .locator(".appr-card:nth-child(1) .appr-btn:visible")
+      .evaluateAll((els) => els.every((e) => e.disabled)),
+    "boutons désactivés en attente de l'accusé",
+  );
+  await until(
+    async () => (await text(".appr-card:nth-child(1) .appr-note")).startsWith("Non confirmé"),
+    "mention « non confirmé » après 10 s",
+    14000,
+  );
+  check(
+    await page.locator(".appr-card:nth-child(1) .appr-once").isEnabled(),
+    "réponse possible à nouveau après « non confirmé »",
+  );
+  check(approvalsOf().length === n0 + 1, "aucun approve envoyé par la minuterie");
+
+  check(
+    violations.length === 0,
+    `zéro violation CSP en console (${violations.slice(0, 3).join(" | ")})`,
+  );
+  await context.close();
+}
+
+try {
+  await scenario("desktop", { width: 1440, height: 900 });
+  await scenario("mobile", { width: 375, height: 812 });
+} catch (error) {
+  failures.push(`exception : ${error?.stack ?? error}`);
+  console.error(error);
+} finally {
+  await browser.close();
+  for (const ws of sockets) ws.terminate();
+  server.closeAllConnections();
+  await new Promise((ok) => server.close(ok));
+  rmSync(dataDir, { recursive: true, force: true });
+}
+
+console.log(
+  `\nweb-e2e : ${checks - failures.length}/${checks} vérifications réussies, captures dans ${shots}`,
+);
+if (failures.length > 0) {
+  console.error(`${failures.length} échec(s).`);
+  process.exit(1);
+}

@@ -1,0 +1,90 @@
+/*
+ * Thème sombre de RedWidow Serveur. Les feuilles de l'extension (media/css) lisent les variables
+ * `--vscode-*` que VS Code fournit à ses webviews : ici, le navigateur les définit à sa place, avec
+ * la charte (rouge #CC1C40, acier #495F73). Chargé par la coquille et par chaque page de vue.
+ */
+:root {
+  color-scheme: dark;
+
+  /* Charte */
+  --rw-crimson: #cc1c40;
+  --rw-crimson-hover: #e02a50;
+  --rw-crimson-text: #ff728b;
+  --rw-steel: #495f73;
+  --rw-steel-text: #8aa0b4;
+
+  /* Surfaces (acier très sombre) */
+  --rw-bg: #0d1116;
+  --rw-surface: #141a21;
+  --rw-surface-2: #1b232c;
+  --rw-line: #2a3541;
+  --rw-fg: #e7ebef;
+  --rw-fg-muted: #a7b2bd;
+  --rw-ok: #5fd68a;
+  --rw-warn: #e5bd69;
+  --rw-err: #ff8a8a;
+
+  /* Polices : Geist de l'extension (@font-face dans shell.css et base.css) */
+  --rw-font: "Warband Geist", system-ui, sans-serif;
+  --rw-mono: "Warband JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  /* Variables attendues par les feuilles de l'extension */
+  --vscode-foreground: var(--rw-fg);
+  --vscode-descriptionForeground: var(--rw-fg-muted);
+  --vscode-errorForeground: var(--rw-err);
+  --vscode-editor-background: var(--rw-bg);
+  --vscode-editorWidget-background: var(--rw-surface);
+  --vscode-editorWidget-border: var(--rw-line);
+  --vscode-sideBar-background: var(--rw-surface);
+  --vscode-panel-border: var(--rw-line);
+  --vscode-widget-border: var(--rw-line);
+  --vscode-widget-shadow: rgb(0 0 0 / 55%);
+  --vscode-focusBorder: #ff728b;
+  --vscode-contrastBorder: transparent;
+  --vscode-contrastActiveBorder: transparent;
+  --vscode-input-background: var(--rw-surface-2);
+  --vscode-input-foreground: var(--rw-fg);
+  --vscode-input-border: var(--rw-line);
+  --vscode-input-placeholderForeground: #8693a0;
+  --vscode-inputValidation-warningBackground: #3a2f12;
+  --vscode-inputValidation-warningBorder: var(--rw-warn);
+  --vscode-dropdown-background: var(--rw-surface-2);
+  --vscode-dropdown-foreground: var(--rw-fg);
+  --vscode-dropdown-border: var(--rw-line);
+  --vscode-button-background: var(--rw-crimson);
+  --vscode-button-foreground: #ffffff;
+  --vscode-button-hoverBackground: var(--rw-crimson-hover);
+  --vscode-button-secondaryBackground: var(--rw-steel);
+  --vscode-button-secondaryForeground: #ffffff;
+  --vscode-button-secondaryHoverBackground: #587289;
+  --vscode-badge-background: var(--rw-steel);
+  --vscode-badge-foreground: #ffffff;
+  --vscode-textLink-foreground: var(--rw-crimson-text);
+  --vscode-textCodeBlock-background: #10151b;
+  --vscode-list-hoverBackground: rgb(255 255 255 / 6%);
+  --vscode-list-activeSelectionBackground: rgb(204 28 64 / 28%);
+  --vscode-list-activeSelectionForeground: #ffffff;
+  --vscode-list-inactiveSelectionForeground: var(--rw-fg);
+  --vscode-toolbar-hoverBackground: rgb(255 255 255 / 8%);
+  --vscode-scrollbarSlider-background: rgb(138 160 180 / 28%);
+  --vscode-editor-selectionBackground: rgb(204 28 64 / 38%);
+  --vscode-editorWarning-foreground: var(--rw-warn);
+  --vscode-editorInfo-foreground: #6ea0ff;
+  --vscode-testing-iconPassed: var(--rw-ok);
+  --vscode-terminal-foreground: var(--rw-fg);
+  --vscode-terminal-ansiGreen: var(--rw-ok);
+  --vscode-terminal-ansiYellow: var(--rw-warn);
+  --vscode-terminal-ansiBlue: #6ea0ff;
+  --vscode-terminal-ansiMagenta: #c872d8;
+  --vscode-terminal-ansiCyan: #35c4d8;
+  --vscode-font-family: system-ui, sans-serif;
+  --vscode-font-size: 13px;
+  --vscode-editor-font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--rw-bg);
+  color: var(--rw-fg);
+}
