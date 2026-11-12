@@ -250,6 +250,17 @@ export class ViewHosts {
     else this.emit("sessions", only, { type: "view", tiles });
   }
 
+  /**
+   * Le projet actif ou la liste a changé (studio) : les vues program, engagement et cockpit sont
+   * recalculées et diffusées à leurs abonnés ; les erreurs vont à l'abonné concerné.
+   */
+  async projectChanged(): Promise<void> {
+    for (const view of ["program", "engagement", "cockpit"] as const) {
+      const first = this.subs[view].keys().next().value;
+      if (first !== undefined) await this.push(view, first, true);
+    }
+  }
+
   /** Une vue de chat a changé : mise à jour de la grille, regroupée. */
   sessionsChanged(): void {
     if (this.subs.sessions.size === 0 || this.sessionsTimer !== undefined) return;

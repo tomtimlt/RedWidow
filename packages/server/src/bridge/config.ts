@@ -6,7 +6,9 @@
 import { randomUUID } from "node:crypto";
 import { CodedError } from "@warband/core";
 import { capabilitySettings, isCapabilityId } from "@warband/vscode/logic/chat-capabilities";
+import { isPalette } from "@warband/vscode/logic/palette";
 import { resolveSettings } from "@warband/vscode/logic/settings";
+import { isTerminalPrompt } from "@warband/vscode/logic/terminal-prompt";
 import type { ServerStorage } from "../storage/index.js";
 import { SETTINGS_KEY, tokenKindKey, tokenSecretKey } from "./deps.js";
 import { isLayoutName, type Layout, MAX_SAVED_LAYOUTS } from "./layout.js";
@@ -56,6 +58,9 @@ function checkTypes(values: Record<string, unknown>): boolean {
   const profile = v("profile");
   if (profile !== undefined && !(typeof profile === "string" && PROFILES.includes(profile)))
     return false;
+  if (v("locale") !== undefined && v("locale") !== "fr" && v("locale") !== "en") return false;
+  if (v("palette") !== undefined && !isPalette(v("palette"))) return false;
+  if (v("terminalPrompt") !== undefined && !isTerminalPrompt(v("terminalPrompt"))) return false;
   const model = v("model");
   if (model !== undefined && !(typeof model === "string" && model.length <= 200)) return false;
   return true;

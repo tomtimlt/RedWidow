@@ -242,9 +242,8 @@ describe("vues cockpit, sessions et non branchées", () => {
   it("vues non branchées : acceptées par l'enveloppe, ignorées et comptées", async () => {
     const t = setup(ctx, { backends: emptyBackends() });
     const s = t.connect();
-    for (const view of ["studio", "killchain", "viewer", "term"])
-      s.say(view, "x", { type: "ready" });
-    await vi.waitFor(() => expect(t.bridge.stats().ignored).toBe(4));
+    for (const view of ["killchain", "viewer", "term"]) s.say(view, "x", { type: "ready" });
+    await vi.waitFor(() => expect(t.bridge.stats().ignored).toBe(3));
     expect(t.bridge.stats().accepted).toBe(0);
     expect(s.sent).toEqual([]);
   });

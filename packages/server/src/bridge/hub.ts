@@ -74,6 +74,7 @@ import {
   type RotationReason,
 } from "./rotation.js";
 import type { ShellControl } from "./shell-messages.js";
+import { StudioHost } from "./studio.js";
 import { type Clock, TermHost } from "./term.js";
 import { defaultBackends, isHostedView, type ViewBackends, ViewHosts } from "./views.js";
 
@@ -196,6 +197,7 @@ export class MissionHub {
   private readonly halt: EmergencyHalt;
   private readonly accounts: AccountStore;
   private readonly views: ViewHosts;
+  private readonly studio: StudioHost;
   private readonly term: TermHost;
   private readonly containers: ContainerHost;
   private readonly configDir: string;
@@ -256,7 +258,8 @@ export class MissionHub {
         return map;
       },
     });
-    this.views = new ViewHosts(options.backends ?? defaultBackends(this.configDir), this.halt, {
+    const backends = options.backends ?? defaultBackends(this.configDir);
+    this.views = new ViewHosts(backends, this.halt, {
       chats: () =>
         [...this.frames.values()].map((f) => ({
           id: f.id,
@@ -267,6 +270,55 @@ export class MissionHub {
       waiting: () =>
         [...this.frames.values()].filter((f) => f.approvals.length > 0).map((f) => f.id),
     });
+    // Studio : sondages (catalogue, test de connexion) et jetons via les mêmes dépendances qu'un chat.
+    const probeDeps = buildChatDeps({
+      storage: options.storage,
+      frame: "studio",
+      cwd: this.cwd,
+      enginePath: this.enginePath,
+      engineArgs: [this.binRoot],
+      ask: async () => false,
+      onView: () => undefined,
+      poolKey: (provider) => activePoolKey(options.storage, provider, Date.now()),
+    });
+    this.studio = new StudioHost({
+      configDir: this.configDir,
+      ctx: this.context,
+      projectsRoot: options.storage.paths.projects,
+      cwd: this.cwd,
+      busy: () => [...this.frames.values()].some((f) => f.session.view().busy),
+      containers: () => backends.cockpit.load(),
+      getToken: (provider) => probeDeps.getToken(provider),
+      controller: (auth, handlers) =>
+        this.guardStart(
+          (options.createController ?? createEngineController)({
+            enginePath: this.enginePath,
+            args: [this.binRoot],
+            ...(auth && { auth }),
+            handlers,
+          }),
+        ),
+      hooks: {
+        projectChanged: async ({ resetBypass }) => {
+          if (resetBypass) this.setGlobalBypass(false, null);
+          for (const f of this.frames.values()) f.session.testAccountsChanged();
+          await this.views.projectChanged();
+          const items = await listProjects(this.configDir).catch(() => null);
+          if (items !== null) this.toShell({ type: "projects", items });
+        },
+        settingsChanged: (values) => this.toShell({ type: "settings", values }),
+        tokensChanged: async () => {
+          for (const f of this.frames.values()) void f.session.authChanged().catch(() => undefined);
+          this.toShell({ type: "tokens", items: await listTokens(options.storage) });
+        },
+        poolChanged: (provider) => this.poolChanged(provider),
+        capabilitiesChanged: () => {
+          for (const f of this.frames.values())
+            f.session.setSelection(f.session.view().capabilities?.selection);
+        },
+      },
+    });
+    this.studio.applyLocale();
   }
 
   private audit(entry: Record<string, unknown>): void {
@@ -591,6 +643,7 @@ export class MissionHub {
     this.context.ui.detach(sink);
     this.term.detach(sink);
     this.views.unsubscribe(sink);
+    this.studio.unsubscribe(sink);
     for (const f of this.frames.values()) f.subs.delete(sink);
   }
 
@@ -830,7 +883,9 @@ export class MissionHub {
     msg: Record<string, unknown>,
     from: Sink,
   ): Promise<boolean> {
-    if (this.disposed || !isHostedView(view)) return false;
+    if (this.disposed) return false;
+    if (view === "studio") return this.studio.handle(frame, msg, from);
+    if (!isHostedView(view)) return false;
     return this.views.handle(view, frame, msg, from);
   }
 
@@ -1091,6 +1146,7 @@ export class MissionHub {
     this.bypassTimer = undefined;
     this.globalBypass = null;
     this.views.dispose();
+    this.studio.dispose();
     this.term.dispose();
     this.context.ui.dispose();
     this.context.downloads.dispose();

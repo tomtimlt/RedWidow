@@ -31,6 +31,10 @@ export const SETTING_KEYS = [
   "chat.skills",
   "chat.integrations",
   "chat.webSearch",
+  // Apparence (vue studio) : appliquée par la coquille à la réception de `settings`.
+  "locale",
+  "palette",
+  "terminalPrompt",
 ] as const;
 
 export const MAX_BYPASS_MINUTES = 48 * 60;
@@ -72,6 +76,33 @@ export type ShellControl =
   | { type: "layoutSave"; name: string | null; layout: Layout }
   | { type: "layoutDelete"; name: string }
   | { type: "dialogResult"; id: string; value: string | string[] | boolean | null };
+
+/**
+ * Message sortant `openWindow` (à l'émetteur du geste) : le serveur demande à la coquille d'ouvrir une
+ * fenêtre. Vues admises : liste fermée ; `frame` : identifiant de cadre valide (par défaut le nom de la vue).
+ * La coquille décide de l'affichage ; ce message ne porte ni chemin ni secret.
+ */
+export const OPEN_WINDOW_VIEWS = ["cockpit", "program", "engagement", "killchain"] as const;
+export type OpenWindowView = (typeof OPEN_WINDOW_VIEWS)[number];
+export interface OpenWindowMessage {
+  type: "openWindow";
+  view: OpenWindowView;
+  frame: string;
+}
+export function openWindowMessage(view: OpenWindowView, frame: string = view): OpenWindowMessage {
+  return { type: "openWindow", view, frame };
+}
+/** Contrôle de forme d'un `openWindow` (tests, et coquille qui voudrait revalider). */
+export function isOpenWindowMessage(m: unknown): m is OpenWindowMessage {
+  return (
+    isRecord(m) &&
+    only(m, "type", "view", "frame") &&
+    m.type === "openWindow" &&
+    (OPEN_WINDOW_VIEWS as readonly unknown[]).includes(m.view) &&
+    typeof m.frame === "string" &&
+    /^[A-Za-z0-9_-]{1,64}$/.test(m.frame)
+  );
+}
 
 /** Bornes de forme d'un `dialogResult` (le contenu est vérifié par `HostUi.answer`). */
 const DIALOG_ID = /^[A-Za-z0-9_-]{1,64}$/;

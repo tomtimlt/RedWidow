@@ -116,7 +116,7 @@ export function createBridge(hub: MissionHub): Bridge {
         if (isBinary) return ignore();
         const env = decodeEnvelope(data.toString());
         if (env === null) return ignore();
-        // Vues non branchées (studio, killchain, viewer) : acceptées par l'enveloppe, ignorées ici.
+        // Vues non branchées (killchain, viewer) : acceptées par l'enveloppe, ignorées ici.
         const run =
           env.view === "shell"
             ? onShell(env.frame, env.msg)
@@ -124,7 +124,7 @@ export function createBridge(hub: MissionHub): Bridge {
               ? onChat(env.frame, env.msg)
               : env.view === "term"
                 ? onTerm(env.frame, env.msg)
-                : isHostedView(env.view)
+                : isHostedView(env.view) || env.view === "studio"
                   ? onView(env.view, env.frame, env.msg)
                   : Promise.resolve(ignore());
         // Une erreur de session ne doit ni couper le serveur ni fuir : on compte, on ne répète rien.
