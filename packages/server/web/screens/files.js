@@ -20,6 +20,7 @@ import {
   languageOf,
   parentOf,
   parseFsMessage,
+  rootsIncompatible,
 } from "../lib/files.js";
 import { createEditor, loadCodeMirror } from "../lib/files-editor.js";
 import { placeMenu } from "../lib/files-menu.js";
@@ -31,6 +32,8 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 const LONG_PRESS_MS = 520;
 const LONG_PRESS_MOVE = 10;
 const STATUS_MS = 9000;
+/** Regroupe les rafales de messages `projects` en un seul rafraîchissement. */
+const PROJECTS_DEBOUNCE_MS = 250;
 /** Mêmes seuils que la requête de conteneur de files.css : sous cette largeur, mode pile. */
 const NARROW_PX = 620;
 
@@ -137,6 +140,10 @@ export function createFilesHost({
     /** Dossiers dont la liste est demandée et pas encore reçue. */
     const loading = new Set();
     let rootError = "";
+    let projectsTimer = null;
+    let lastShowRefresh = 0;
+    /** Dossiers relus après un changement de projet : leur réponse est comparée à l'état affiché. */
+    const verify = new Set();
     let selected = { path: "", kind: "dir" };
     let pane = "tree";
     const previews = new Set();
@@ -175,6 +182,14 @@ export function createFilesHost({
     const policyOpen = button(doc, { label: "Ouvrir Projets et réglages" });
     const policyClose = button(doc, { label: "Masquer" });
     policy.append(policyText, policyOpen, policyClose);
+
+    const projectBar = el(doc, "div", "fx-project");
+    projectBar.setAttribute("role", "alert");
+    projectBar.hidden = true;
+    const projectText = el(doc, "p", "fx-policy-text");
+    const projectRefresh = button(doc, { label: "Actualiser", ico: "refresh", act: true });
+    const projectClose = button(doc, { label: "Masquer" });
+    projectBar.append(projectText, projectRefresh, projectClose);
 
     const status = el(doc, "p", "fx-status");
     status.setAttribute("role", "status");
@@ -239,7 +254,7 @@ export function createFilesHost({
     const menuHost = el(doc, "div", "fx-menu-host");
     const overHost = el(doc, "div", "fx-over");
     overHost.hidden = true;
-    root.append(policy, status, main, menuHost, overHost);
+    root.append(policy, projectBar, status, main, menuHost, overHost);
     body.append(root);
 
     // ───────────── Outils ─────────────
@@ -387,6 +402,59 @@ export function createFilesHost({
       loading.clear();
       for (const p of new Set(["", ...expanded])) requestList(p);
     }
+
+    const PROJECT_CHANGED =
+      "Le projet actif a changé : les onglets ouverts peuvent ne plus correspondre.";
+    function showProjectBanner(text) {
+      projectText.textContent = text;
+      projectBar.hidden = false;
+    }
+
+    /** Relit la racine (état « aucun projet ») ou tout ce qui est affiché, en vérifiant la cohérence. */
+    function refreshForProject() {
+      if (!online || disposed) return;
+      if (rootError !== "") {
+        loading.delete("");
+        requestList("");
+        return;
+      }
+      loading.clear();
+      for (const p of new Set(["", ...expanded])) {
+        verify.add(p);
+        requestList(p);
+      }
+    }
+
+    function scheduleProjectRefresh() {
+      if (projectsTimer !== null) return;
+      projectsTimer = setTimeout(() => {
+        projectsTimer = null;
+        refreshForProject();
+      }, PROJECTS_DEBOUNCE_MS);
+    }
+
+    /** Focus ou retour de visibilité : seul l'état « aucun projet » est relu (au plus une fois / 250 ms). */
+    function refreshOnShow() {
+      if (rootError === "" || !online || disposed) return;
+      const now = Date.now();
+      if (now - lastShowRefresh < PROJECTS_DEBOUNCE_MS) return;
+      lastShowRefresh = now;
+      loading.delete("");
+      requestList("");
+    }
+
+    projectRefresh.addEventListener("click", () => {
+      projectBar.hidden = true;
+      refreshForProject();
+    });
+    projectClose.addEventListener("click", () => {
+      projectBar.hidden = true;
+    });
+    root.addEventListener("focusin", refreshOnShow);
+    const onVisible = () => {
+      if (doc.visibilityState !== "hidden") refreshOnShow();
+    };
+    doc.addEventListener?.("visibilitychange", onVisible);
 
     function showFolder(path) {
       for (const a of ancestorsOf(path)) expanded.add(a);
@@ -1366,8 +1434,22 @@ export function createFilesHost({
         case "policyChanged":
           policy.hidden = false;
           break;
+        case "projects":
+          scheduleProjectRefresh();
+          break;
         case "entries": {
           loading.delete(ev.path);
+          const before = listings.get(ev.path);
+          if (verify.delete(ev.path) && tabs.list().length > 0) {
+            const names = new Set(ev.entries.map((e) => e.name));
+            const gone = tabs
+              .list()
+              .some(
+                (t) => parentOf(t.path) === ev.path && !t.missing && !names.has(baseName(t.path)),
+              );
+            const swapped = ev.path === "" && rootsIncompatible(before?.entries, ev.entries);
+            if (gone || swapped) showProjectBanner(PROJECT_CHANGED);
+          }
           listings.set(ev.path, { entries: ev.entries, truncated: ev.truncated, error: "" });
           if (ev.path === "") rootError = "";
           renderTree();
@@ -1511,12 +1593,20 @@ export function createFilesHost({
 
     function handleError(ev) {
       const label = OP_LABEL[ev.op] ?? "Opération";
+      if (ev.code === "noProject" && ev.op !== "fsList") {
+        showProjectBanner(
+          "Aucun projet actif : l'opération a été refusée. Vos onglets restent ouverts.",
+        );
+      }
       const where = ev.path ? ` (${ev.path})` : "";
       switch (ev.op) {
         case "fsList": {
           if (ev.path === null) break;
           loading.delete(ev.path);
           if (ev.path === "") {
+            if (ev.code === "noProject" && tabs.list().length > 0)
+              showProjectBanner(PROJECT_CHANGED);
+            verify.delete("");
             rootError = ev.text;
             listings.delete("");
           } else {
@@ -1605,6 +1695,15 @@ export function createFilesHost({
       observer.observe(root);
     }
 
+    // Fenêtre restaurée de la minimisation : elle redevient visible sans forcément prendre le focus.
+    let intersection = null;
+    if (typeof IntersectionObserver !== "undefined") {
+      intersection = new IntersectionObserver((entries) => {
+        if (entries.some((e) => e.isIntersecting)) refreshOnShow();
+      });
+      intersection.observe(root);
+    }
+
     const api = {
       handle,
       navigate,
@@ -1647,6 +1746,9 @@ export function createFilesHost({
         closeMenu(false);
         cancelLongPress();
         if (statusTimer !== null) clearTimeout(statusTimer);
+        if (projectsTimer !== null) clearTimeout(projectsTimer);
+        doc.removeEventListener?.("visibilitychange", onVisible);
+        intersection?.disconnect();
         win?.removeEventListener?.("beforeunload", beforeUnload);
         observer?.disconnect();
         editor?.destroy();

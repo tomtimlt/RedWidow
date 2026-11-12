@@ -272,9 +272,12 @@ const NOTES_MD = [
 ].join("\n");
 let fsTree = new Map();
 let fsClock = 1;
+/** Faux serveur sans projet actif : toute requête `fs*` répond `fs.noProject`. */
+let fsNoProject = false;
 function resetFs() {
   fsTree = new Map();
   fsClock = 1;
+  fsNoProject = false;
   const dir = (p) => fsTree.set(p, { kind: "dir", mtime: 1 });
   const file = (p, text, extra = {}) =>
     fsTree.set(p, { kind: "file", text, ver: 1, mtime: 1, ...extra });
@@ -308,6 +311,7 @@ function fsExternalWrite(path, text) {
   f.ver += 1;
 }
 function onFs(ws, msg) {
+  if (fsNoProject) return fsErr(ws, msg.type, msg.path, "noProject");
   switch (msg.type) {
     case "fsList": {
       const d = fsTree.get(msg.path);
@@ -3801,6 +3805,45 @@ async function filesScenario(name, viewport) {
   await context.close();
 }
 
+async function filesNoProjectScenario(name, viewport) {
+  console.log(`\n== ${name} : Fichiers sans projet actif puis projet activé`);
+  resetScreens();
+  resetFs();
+  fsNoProject = true;
+  const { context, page, violations, win } = await openSession(name, viewport);
+  await page.locator("#dock-open").click();
+  await page.locator("#dock-menu .dock-menu-item", { hasText: "Fichiers" }).click();
+  const fx = page.locator('.wm-win[data-key="native:files"] .fx');
+  const row = (p) => fx.locator(`[role="treeitem"][data-path="${p}"]`);
+  await until(
+    async () => (await fx.locator(".fx-empty-title").innerText()).includes("Aucun projet actif"),
+    "sans projet : message « Aucun projet actif »",
+  );
+  const before = fsSent("fsList").length;
+  // Un projet devient actif : le serveur diffuse `projects`, la fenêtre se relit sans clic.
+  fsNoProject = false;
+  const sink = [...shellSinks][0];
+  sink.send("shell", "shell", { type: "projects", items: [{ id: "p1", name: "Projet de test" }] });
+  await until(
+    () => row("README.md").isVisible(),
+    "projects reçu : l'arborescence apparaît sans clic",
+  );
+  check(
+    fsSent("fsList").length === before + 1,
+    "un seul fsList automatique pour un message projects",
+  );
+  check(
+    (await fx.locator(".fx-project:visible").count()) === 0,
+    "aucune bannière quand il n'y avait pas d'onglet",
+  );
+  check(
+    violations.length === 0,
+    `zéro violation CSP (Fichiers sans projet) (${violations.slice(0, 3).join(" | ")})`,
+  );
+  await win("native:files").count();
+  await context.close();
+}
+
 async function filesPhoneScenario(name, viewport) {
   console.log(`\n== ${name} : Fichiers en pile (${viewport.width}x${viewport.height})`);
   resetScreens();
@@ -3880,6 +3923,7 @@ try {
   if (only("chat-extras-mobile"))
     await chatExtrasScenario("chat-extras-mobile", { width: 375, height: 812 });
   if (only("files")) await filesScenario("files", { width: 1440, height: 900 });
+  if (only("files")) await filesNoProjectScenario("files-noproject", { width: 1440, height: 900 });
   if (only("files-mobile")) await filesPhoneScenario("files-mobile", { width: 375, height: 812 });
   if (only("wm-budget-mobile")) {
     await budgetScenario("wm-budget-mobile", { width: 375, height: 812 }, 3);

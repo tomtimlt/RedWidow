@@ -142,6 +142,12 @@ export function fsErrorText(code) {
   const key = typeof code === "string" ? code.replace(/^fs\./, "") : "";
   return Object.hasOwn(ERRORS, key) ? ERRORS[key] : "L'opération a été refusée.";
 }
+/** Vrai si le nouveau contenu de la racine ne partage aucun élément (nom et type) avec l'ancien. */
+export function rootsIncompatible(before, after) {
+  if (!Array.isArray(before) || !Array.isArray(after) || before.length === 0) return false;
+  const known = new Set(after.map((e) => `${e.kind}:${e.name}`));
+  return !before.some((e) => known.has(`${e.kind}:${e.name}`));
+}
 export const fsErrorKey = (code) => (typeof code === "string" ? code.replace(/^fs\./, "") : "");
 
 // ───────────── Messages du serveur ─────────────
@@ -174,6 +180,9 @@ export function parseFsMessage(msg) {
   switch (msg.type) {
     case "policyChanged":
       return { kind: "policyChanged" };
+    // Diffusé après chaque changement de projet (sans identifiant du projet actif) : simple signal.
+    case "projects":
+      return { kind: "projects" };
     case "fsEntries": {
       const path = okPath(msg.path);
       if (path === null) return null;
