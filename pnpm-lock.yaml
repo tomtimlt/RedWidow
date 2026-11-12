@@ -132,6 +132,9 @@ importers:
       '@warband/messages':
         specifier: workspace:*
         version: link:../messages
+      yauzl:
+        specifier: ^3.4.0
+        version: 3.4.0
       yazl:
         specifier: 2.5.1
         version: 2.5.1
@@ -142,6 +145,9 @@ importers:
       '@types/vscode':
         specifier: 1.140.0
         version: 1.140.0
+      '@types/yauzl':
+        specifier: ^2.10.3
+        version: 2.10.3
       '@types/yazl':
         specifier: 2.4.5
         version: 2.4.5
