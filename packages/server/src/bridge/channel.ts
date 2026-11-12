@@ -93,6 +93,11 @@ export function createBridge(hub: MissionHub): Bridge {
         stats.accepted++;
       };
 
+      const onTerm = async (frame: string, msg: Record<string, unknown>): Promise<void> => {
+        if (!(await hub.handleTerm(frame, msg, sink))) return ignore();
+        stats.accepted++;
+      };
+
       const onChat = async (frame: string, msg: Record<string, unknown>): Promise<void> => {
         const message = parseWebviewMessage(msg);
         if (message === null) return ignore();
@@ -111,15 +116,17 @@ export function createBridge(hub: MissionHub): Bridge {
         if (isBinary) return ignore();
         const env = decodeEnvelope(data.toString());
         if (env === null) return ignore();
-        // Vues non branchées (studio, killchain, viewer, term) : acceptées par l'enveloppe, ignorées ici.
+        // Vues non branchées (studio, killchain, viewer) : acceptées par l'enveloppe, ignorées ici.
         const run =
           env.view === "shell"
             ? onShell(env.frame, env.msg)
             : env.view === "chat"
               ? onChat(env.frame, env.msg)
-              : isHostedView(env.view)
-                ? onView(env.view, env.frame, env.msg)
-                : Promise.resolve(ignore());
+              : env.view === "term"
+                ? onTerm(env.frame, env.msg)
+                : isHostedView(env.view)
+                  ? onView(env.view, env.frame, env.msg)
+                  : Promise.resolve(ignore());
         // Une erreur de session ne doit ni couper le serveur ni fuir : on compte, on ne répète rien.
         run.catch(ignore);
       });

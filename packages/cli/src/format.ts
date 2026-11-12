@@ -173,6 +173,14 @@ export function formatEvent(
       return `${tag("cyan", "sandbox")} ${stripControl(e.image)} ${paint("dim", `${stripControl(e.containerId.slice(0, 12))} · ${t("réseau", "network")} ${stripControl(e.network)}`)}`;
     case "sandbox.stopped":
       return `${tag("cyan", "sandbox")} ${t("arrêté", "stopped")} ${paint("dim", `${stripControl(e.containerId.slice(0, 12))} · ${stripControl(e.cause)}`)}`;
+    case "terminal.opened":
+      return `${tag("cyan", "terminal")} ${t("ouvert", "opened")} ${stripControl(e.container)} ${paint("dim", `${e.cols}×${e.rows}`)}`;
+    case "terminal.data":
+      return `${tag("cyan", "terminal")} ${e.dir} ${paint("dim", stripControl(e.data))}`;
+    case "terminal.resized":
+      return `${tag("cyan", "terminal")} ${paint("dim", `${e.cols}×${e.rows}`)}`;
+    case "terminal.closed":
+      return `${tag("cyan", "terminal")} ${t("fermé", "closed")} ${paint("dim", `${e.code ?? "—"} · ${e.durationMs} ms`)}`;
     case "journal.truncated":
       return `${tag("red", "journal")} ${t(`tronqué à ${e.limitBytes} octets · ${e.droppedEvents} événements perdus`, `truncated at ${e.limitBytes} bytes · ${e.droppedEvents} events lost`)}`;
   }

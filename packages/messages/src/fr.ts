@@ -476,6 +476,16 @@ export const reasons: Catalog = {
   "auth.invalidCredentials": () => "identifiants invalides",
   "auth.rateLimited": (p) => `trop de tentatives : réessayez dans ${text(p.seconds)} s`,
   "auth.originDenied": () => "origine refusée",
+  "docker.unavailable": () => "démon Docker injoignable",
+  "terminal.invalidContainer": () => "nom ou identifiant de conteneur invalide",
+  "terminal.notManaged": () => "conteneur non géré par RedWidow : terminal refusé",
+  "terminal.notRunning": () => "le conteneur n’est pas démarré",
+  "terminal.limit": () => "trop de terminaux ouverts",
+  "terminal.inputTooLarge": () => "saisie trop volumineuse pour le terminal",
+  "terminal.failed": () => "échec du terminal",
+  "container.invalidName": () => "nom de conteneur invalide",
+  "container.exists": () => "un conteneur porte déjà ce nom",
+  "container.failed": () => "échec de l’opération sur le conteneur",
   "auth.badRequest": () => "requête invalide",
 
   "error.unknown": (p) => (p.message === undefined ? "erreur inconnue" : text(p.message)),
@@ -517,6 +527,7 @@ export const events: EventStrings = {
   turn: "tour",
   context: "contexte",
   sandbox: "bac à sable",
+  terminal: "terminal",
 };
 
 export const fr: Messages = { reasons, events };

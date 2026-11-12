@@ -1,7 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { defaultConfigDir, type EngineEvent } from "@warband/core";
+import {
+  CodedError,
+  defaultConfigDir,
+  type EngineEvent,
+  errorInfo,
+  readProjects,
+} from "@warband/core";
 import type { Choice, WebviewMessage } from "@warband/vscode/logic/approval";
 import {
   attachmentMessage,
@@ -17,6 +23,7 @@ import {
 } from "@warband/vscode/logic/controller";
 import { readProjectChoices } from "@warband/vscode/logic/project-controls";
 import { type ChatSession, createChatSession } from "@warband/vscode/logic/session";
+import { createDockerApi, type DockerApi, dockerSocketPath } from "../docker/api.js";
 import type { ServerStorage } from "../storage/index.js";
 import { AccountStore } from "./accounts.js";
 import {
@@ -36,6 +43,7 @@ import {
   setToken,
   writePool,
 } from "./config.js";
+import { ContainerHost, containerEnv } from "./containers.js";
 import { buildChatDeps } from "./deps.js";
 import { isFrameId, type View } from "./envelope.js";
 import { coreProjectHalts, EmergencyHalt, type ProjectHalts } from "./halt.js";
@@ -52,6 +60,7 @@ import {
   type RotationReason,
 } from "./rotation.js";
 import type { ShellControl } from "./shell-messages.js";
+import { type Clock, TermHost } from "./term.js";
 import { defaultBackends, isHostedView, type ViewBackends, ViewHosts } from "./views.js";
 
 /** Destinataire d'un message sortant (un socket, ou un double dans les tests). */
@@ -100,6 +109,10 @@ export interface HubOptions {
    * non secrets seulement : jamais une valeur de jeton, de secret ou de compte.
    */
   audit?(entry: Record<string, unknown>): void;
+  /** Client de l'API Engine (injectable : tests). Défaut : socket `REDWIDOW_DOCKER_SOCKET`. */
+  docker?: DockerApi;
+  /** Horloge des terminaux (injectable : tests). */
+  clock?: Clock;
 }
 
 /** Chemin du moteur et racine des binaires, d'après l'environnement (ADR 0052, point 1). */
@@ -167,6 +180,8 @@ export class MissionHub {
   private readonly halt: EmergencyHalt;
   private readonly accounts: AccountStore;
   private readonly views: ViewHosts;
+  private readonly term: TermHost;
+  private readonly containers: ContainerHost;
   private readonly configDir: string;
   /** Bypass global demandé depuis la coquille (en mémoire seulement, ADR 0017) ; `until` nul = illimité. */
   private globalBypass: { until: number | null } | null = null;
@@ -186,6 +201,35 @@ export class MissionHub {
       options.projectHalts ?? coreProjectHalts(this.configDir),
     );
     this.accounts = new AccountStore(options.storage);
+    const docker = options.docker ?? createDockerApi({ socketPath: dockerSocketPath(process.env) });
+    // Jamais le conteneur du serveur : `HOSTNAME` y vaut son identifiant court.
+    const selfIds = process.env.HOSTNAME ? [process.env.HOSTNAME] : [];
+    this.term = new TermHost({
+      docker,
+      runsDir: options.storage.paths.runs,
+      selfIds,
+      audit: (e) => this.audit(e),
+      ...(options.clock && { clock: options.clock }),
+      secretValues: async () => {
+        const values: string[] = [];
+        for (const key of options.storage.secrets.keys()) {
+          const v = await options.storage.secrets.get(key);
+          if (v) values.push(v);
+        }
+        return values;
+      },
+    });
+    this.containers = new ContainerHost({
+      docker,
+      selfIds,
+      ...containerEnv(process.env),
+      projects: async () => {
+        const file = await readProjects(this.configDir).catch(() => null);
+        const map = new Map<string, string>();
+        for (const p of file?.projects ?? []) for (const c of p.containers) map.set(c, p.name);
+        return map;
+      },
+    });
     this.views = new ViewHosts(options.backends ?? defaultBackends(this.configDir), this.halt, {
       chats: () =>
         [...this.frames.values()].map((f) => ({
@@ -459,6 +503,7 @@ export class MissionHub {
   /** Retire un destinataire (socket fermé). Les demandes et les moteurs restent : rien n'est répondu. */
   unsubscribe(sink: Sink): void {
     this.shell.delete(sink);
+    this.term.detach(sink);
     this.views.unsubscribe(sink);
     for (const f of this.frames.values()) f.subs.delete(sink);
   }
@@ -703,6 +748,23 @@ export class MissionHub {
     return this.views.handle(view, frame, msg, from);
   }
 
+  /** Message de la vue `term` (terminal humain, hors gate : ADR 0053). */
+  async handleTerm(frame: string, msg: Record<string, unknown>, from: Sink): Promise<boolean> {
+    if (this.disposed) return false;
+    return this.term.handle(frame, msg, from);
+  }
+
+  /** Toutes les écritures de journaux de terminal en cours sont terminées (arrêt du serveur). */
+  settled(): Promise<void> {
+    return this.term.settled();
+  }
+
+  private async pushContainers(only?: Sink): Promise<void> {
+    const items = await this.containers.list();
+    for (const sink of only ? [only] : this.shell)
+      sink.send("shell", SHELL_FRAME, { type: "containers", items });
+  }
+
   private configError(to: Sink, op: string): false {
     to.send("shell", SHELL_FRAME, { type: "configError", op });
     return false;
@@ -720,6 +782,29 @@ export class MissionHub {
       for (const sink of this.shell) sink.send("shell", SHELL_FRAME, msg);
     };
     switch (c.type) {
+      case "containersList":
+      case "containerStart":
+      case "containerStop":
+      case "containerCreate":
+        try {
+          if (c.type === "containerStart" || c.type === "containerStop") {
+            const name = await this.containers.setRunning(c.id, c.type === "containerStart");
+            this.audit({ kind: c.type, container: name });
+          } else if (c.type === "containerCreate") {
+            await this.containers.createKali(c.name);
+            this.audit({ kind: "containerCreate", container: c.name });
+          }
+          await this.pushContainers(c.type === "containersList" ? from : undefined);
+          return true;
+        } catch (err) {
+          // Code seulement : jamais le message brut du démon.
+          from.send("shell", SHELL_FRAME, {
+            type: "containerError",
+            op: c.type,
+            code: err instanceof CodedError ? errorInfo(err).code : "container.failed",
+          });
+          return false;
+        }
       case "halt":
         await this.emergencyHalt(true);
         return true;
@@ -846,6 +931,7 @@ export class MissionHub {
     this.bypassTimer = undefined;
     this.globalBypass = null;
     this.views.dispose();
+    this.term.dispose();
     for (const c of [...this.confirms.values()]) {
       this.confirms.delete(c.id);
       c.resolve(false);

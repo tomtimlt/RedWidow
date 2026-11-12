@@ -367,6 +367,16 @@ export const reasons: Catalog = {
   "auth.invalidCredentials": () => "invalid credentials",
   "auth.rateLimited": (p) => `too many attempts: retry in ${text(p.seconds)} s`,
   "auth.originDenied": () => "origin denied",
+  "docker.unavailable": () => "Docker daemon unreachable",
+  "terminal.invalidContainer": () => "invalid container name or id",
+  "terminal.notManaged": () => "container not managed by RedWidow: terminal denied",
+  "terminal.notRunning": () => "the container is not running",
+  "terminal.limit": () => "too many open terminals",
+  "terminal.inputTooLarge": () => "input too large for the terminal",
+  "terminal.failed": () => "terminal failure",
+  "container.invalidName": () => "invalid container name",
+  "container.exists": () => "a container already has this name",
+  "container.failed": () => "container operation failed",
   "auth.badRequest": () => "invalid request",
 
   "error.unknown": (p) => (p.message === undefined ? "unknown error" : text(p.message)),
@@ -469,6 +479,7 @@ export const events: EventStrings = {
   turn: "turn",
   context: "context",
   sandbox: "sandbox",
+  terminal: "terminal",
 };
 
 export const en: Messages = { reasons, events };

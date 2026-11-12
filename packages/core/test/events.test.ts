@@ -205,6 +205,10 @@ const SAMPLES: { [K in EventKind]: Extract<EventPayload, { kind: K }> } = {
     limits: { pidsLimit: 512 },
   },
   "sandbox.stopped": { kind: "sandbox.stopped", containerId: "c", cause: "runEnd" },
+  "terminal.opened": { kind: "terminal.opened", container: "kali", cols: 80, rows: 24 },
+  "terminal.data": { kind: "terminal.data", dir: "in", data: "ls\r" },
+  "terminal.resized": { kind: "terminal.resized", cols: 100, rows: 30 },
+  "terminal.closed": { kind: "terminal.closed", code: 0, durationMs: 5 },
   "sink.error": { kind: "sink.error", message: "m" },
   "journal.truncated": { kind: "journal.truncated", limitBytes: 10, droppedEvents: 2 },
 };

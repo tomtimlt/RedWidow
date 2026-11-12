@@ -242,6 +242,17 @@ export const REASON_CODES = [
   "auth.rateLimited",
   "auth.originDenied",
   "auth.badRequest",
+  // Terminal humain et conteneurs gérés (ADR 0053)
+  "docker.unavailable",
+  "terminal.invalidContainer",
+  "terminal.notManaged",
+  "terminal.notRunning",
+  "terminal.limit",
+  "terminal.inputTooLarge",
+  "terminal.failed",
+  "container.invalidName",
+  "container.exists",
+  "container.failed",
   // Divers
   "error.unknown",
   /** Motif ou erreur d'un ancien journal, relu comme texte (`params.text`). */

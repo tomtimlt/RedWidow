@@ -324,6 +324,26 @@ export type EventPayload =
       cause: "burst" | "floor";
     }
   | {
+      /** Terminal humain ouvert depuis le web dans un conteneur géré (ADR 0053). */
+      kind: "terminal.opened";
+      container: string;
+      cols: number;
+      rows: number;
+    }
+  | {
+      /** Morceau borné de ce qui entre (`in`) ou sort (`out`) du terminal ; masqué par le recorder. */
+      kind: "terminal.data";
+      dir: "in" | "out";
+      data: string;
+    }
+  | { kind: "terminal.resized"; cols: number; rows: number }
+  | {
+      kind: "terminal.closed";
+      /** Code de sortie du shell, `null` s'il est inconnu. */
+      code: number | null;
+      durationMs: number;
+    }
+  | {
       /** Un abonné (sink) a levé une exception ; émis vers les autres abonnés. */
       kind: "sink.error";
       message: string;
@@ -649,6 +669,10 @@ export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
     cause: "enum:http429,waf403,timeout,recovery",
   }),
   "pace.halted": shape({ host: "string", cause: "enum:burst,floor" }),
+  "terminal.opened": shape({ container: "string", cols: "uint", rows: "uint" }),
+  "terminal.data": shape({ dir: "enum:in,out", data: "string" }),
+  "terminal.resized": shape({ cols: "uint", rows: "uint" }),
+  "terminal.closed": shape({ code: "number|null", durationMs: "uint" }),
   "sink.error": shape({ message: "string" }),
   "journal.truncated": shape({ limitBytes: "number", droppedEvents: "number" }),
 };

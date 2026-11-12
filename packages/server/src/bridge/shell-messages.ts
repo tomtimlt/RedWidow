@@ -3,6 +3,7 @@
  * clés exactes, types et bornes vérifiés ; tout écart donne `null` et le message est ignoré.
  * Aucune valeur secrète n'apparaît dans un message sortant : ces types ne servent qu'à l'entrée.
  */
+import { isContainerRef } from "../docker/containers.js";
 import { hasControl, isLayoutName, type Layout, validateLayout } from "./layout.js";
 import { isPoolProvider, MAX_POOL_KEYS, type PoolProvider } from "./rotation.js";
 
@@ -39,7 +40,18 @@ export const ACCOUNT_LABEL = /^[A-Z][A-Z0-9_]{0,15}$/;
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export type ShellControl =
-  | { type: "halt" | "resume" | "settingsGet" | "tokens" | "accounts" | "layouts" }
+  | {
+      type:
+        | "halt"
+        | "resume"
+        | "settingsGet"
+        | "tokens"
+        | "accounts"
+        | "layouts"
+        | "containersList";
+    }
+  | { type: "containerStart" | "containerStop"; id: string }
+  | { type: "containerCreate"; kind: "kali"; name: string }
   | { type: "setBypass"; active: boolean; durationMinutes: number | null }
   | { type: "settingsSet"; patch: Record<string, unknown> }
   | { type: "tokenSet"; provider: TokenProvider; kind: TokenKindName; value: string }
@@ -78,7 +90,16 @@ export function parseShellControl(m: Record<string, unknown>): ShellControl | nu
     case "tokens":
     case "accounts":
     case "layouts":
+    case "containersList":
       return only(m, "type") ? { type: m.type } : null;
+    case "containerStart":
+    case "containerStop":
+      return only(m, "type", "id") && isContainerRef(m.id) ? { type: m.type, id: m.id } : null;
+    case "containerCreate":
+      // Seul Kali se crée d'ici ; Exegol passe par sa CLI.
+      return only(m, "type", "kind", "name") && m.kind === "kali" && isContainerRef(m.name)
+        ? { type: "containerCreate", kind: "kali", name: m.name }
+        : null;
     case "setBypass": {
       if (!only(m, "type", "active", "durationMinutes") || typeof m.active !== "boolean")
         return null;

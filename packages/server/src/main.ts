@@ -36,7 +36,10 @@ async function serve(): Promise<void> {
     // Arrêt propre des moteurs avant celui du serveur.
     hub.dispose();
     const quit = () => process.exit(0);
-    server.close(() => void Promise.all([storage.state.flush(), audit.flush()]).then(quit, quit));
+    server.close(
+      () =>
+        void Promise.all([storage.state.flush(), audit.flush(), hub.settled()]).then(quit, quit),
+    );
     server.closeAllConnections();
   };
   process.on("SIGTERM", stop);

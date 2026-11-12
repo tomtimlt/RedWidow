@@ -63,6 +63,7 @@ export interface EventStrings {
   turn: string;
   context: string;
   sandbox: string;
+  terminal: string;
 }
 
 export interface Messages {

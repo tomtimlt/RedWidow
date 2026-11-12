@@ -154,6 +154,14 @@ export function eventLabel(e: EngineEvent, options: LabelOptions = {}): string {
       return clip(`${t.sandbox} : ${e.image} · ${e.network}`);
     case "sandbox.stopped":
       return `${t.sandbox} : ${e.cause}`;
+    case "terminal.opened":
+      return clip(`${t.terminal} : ${e.container} · ${e.cols}×${e.rows}`);
+    case "terminal.data":
+      return clip(`${t.terminal} ${e.dir} : ${e.data}`);
+    case "terminal.resized":
+      return `${t.terminal} : ${e.cols}×${e.rows}`;
+    case "terminal.closed":
+      return `${t.terminal} : ${e.code ?? "—"} · ${e.durationMs} ms`;
     case "journal.truncated":
       return `${t.journalTruncated} · ${e.droppedEvents} ${t.lostEvents}`;
   }
