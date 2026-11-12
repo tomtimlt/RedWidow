@@ -8,8 +8,8 @@ export const ENVELOPE_VERSION = 1;
 /**
  * Liste fermée des vues. Branchées : `chat` (une conversation), `shell` (coquille : approbations,
  * confirmations, arrêt d'urgence, Bypass, configuration), `program`, `engagement`, `cockpit`, `sessions`,
- * `studio` (projets et réglages). `term` (terminal humain, ADR 0053) est branchée. Les autres (`killchain`,
- * `viewer`) sont acceptées par l'enveloppe, mais le canal les ignore et les compte tant qu'elles ne sont pas branchées.
+ * `studio` (projets et réglages), `killchain` (graphe des trouvailles) et `viewer` (Monitor, Sortie, Rapport).
+ * `term` (terminal humain, ADR 0053) est branchée aussi : toutes les vues de la liste le sont.
  */
 export const VIEWS = [
   "chat",

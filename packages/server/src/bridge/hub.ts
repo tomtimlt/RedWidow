@@ -53,6 +53,7 @@ import { isFrameId, type View } from "./envelope.js";
 import { getFindingDetail, listFindingItems, removeFinding } from "./findings.js";
 import { coreProjectHalts, EmergencyHalt, type ProjectHalts } from "./halt.js";
 import { type BridgeContext, HostUi } from "./hostui.js";
+import { KillchainHost } from "./killchain.js";
 import {
   type LiveMission,
   listMissions,
@@ -76,6 +77,7 @@ import {
 import type { ShellControl } from "./shell-messages.js";
 import { StudioHost } from "./studio.js";
 import { type Clock, TermHost } from "./term.js";
+import { ViewerHost } from "./viewer.js";
 import { defaultBackends, isHostedView, type ViewBackends, ViewHosts } from "./views.js";
 
 /** Destinataire d'un message sortant (un socket, ou un double dans les tests). */
@@ -128,6 +130,8 @@ export interface HubOptions {
   docker?: DockerApi;
   /** Horloge des terminaux (injectable : tests). */
   clock?: Clock;
+  /** Période (ms) du sondage des trouvailles de la vue Kill chain ; 0 : aucun (tests). Défaut : 1 s. */
+  killchainPollMs?: number;
 }
 
 /** Chemin du moteur et racine des binaires, d'après l'environnement (ADR 0052, point 1). */
@@ -198,6 +202,8 @@ export class MissionHub {
   private readonly accounts: AccountStore;
   private readonly views: ViewHosts;
   private readonly studio: StudioHost;
+  private readonly killchain: KillchainHost;
+  private readonly viewer: ViewerHost;
   private readonly term: TermHost;
   private readonly containers: ContainerHost;
   private readonly configDir: string;
@@ -303,6 +309,8 @@ export class MissionHub {
           if (resetBypass) this.setGlobalBypass(false, null);
           for (const f of this.frames.values()) f.session.testAccountsChanged();
           await this.views.projectChanged();
+          await this.killchain.changed();
+          await this.viewer.projectChanged();
           const items = await listProjects(this.configDir).catch(() => null);
           if (items !== null) this.toShell({ type: "projects", items });
         },
@@ -319,6 +327,21 @@ export class MissionHub {
       },
     });
     this.studio.applyLocale();
+    const locale = () => (readSettingsObject(options.storage).locale === "en" ? "en" : "fr");
+    this.killchain = new KillchainHost({
+      configDir: this.configDir,
+      ctx: this.context,
+      locale,
+      ...(options.killchainPollMs !== undefined && { pollMs: options.killchainPollMs }),
+    });
+    this.viewer = new ViewerHost({
+      configDir: this.configDir,
+      runsDir: options.storage.paths.runs,
+      ctx: this.context,
+      locale,
+      chatView: (frame) => this.frames.get(frame)?.session.view(),
+      historyIndex: () => options.storage.state.get(HISTORY_INDEX_KEY),
+    });
   }
 
   private audit(entry: Record<string, unknown>): void {
@@ -454,6 +477,7 @@ export class MissionHub {
     this.pushApprovals(false);
     this.pushMissionState(f, view);
     this.views.sessionsChanged();
+    this.viewer.chatChanged(f.id);
   }
 
   /** Diffuse `missionState` quand l'état d'un cadre vivant change (dock, palette). */
@@ -644,6 +668,8 @@ export class MissionHub {
     this.term.detach(sink);
     this.views.unsubscribe(sink);
     this.studio.unsubscribe(sink);
+    this.killchain.unsubscribe(sink);
+    this.viewer.unsubscribe(sink);
     for (const f of this.frames.values()) f.subs.delete(sink);
   }
 
@@ -876,7 +902,7 @@ export class MissionHub {
     return true;
   }
 
-  /** Message d'une vue hébergée (program, engagement, cockpit, sessions) : validé par son parseur. */
+  /** Message d'une vue hébergée (program, engagement, cockpit, sessions, studio, killchain, viewer) : validé par son parseur. */
   async handleView(
     view: View,
     frame: string,
@@ -885,6 +911,8 @@ export class MissionHub {
   ): Promise<boolean> {
     if (this.disposed) return false;
     if (view === "studio") return this.studio.handle(frame, msg, from);
+    if (view === "killchain") return this.killchain.handle(frame, msg, from);
+    if (view === "viewer") return this.viewer.handle(frame, msg, from);
     if (!isHostedView(view)) return false;
     return this.views.handle(view, frame, msg, from);
   }
@@ -1147,6 +1175,8 @@ export class MissionHub {
     this.globalBypass = null;
     this.views.dispose();
     this.studio.dispose();
+    this.killchain.dispose();
+    this.viewer.dispose();
     this.term.dispose();
     this.context.ui.dispose();
     this.context.downloads.dispose();
