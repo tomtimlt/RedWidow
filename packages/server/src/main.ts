@@ -6,12 +6,15 @@ import { loadPasswordHash } from "./auth/password.js";
 import { runSetPassword, type SetPasswordIo } from "./auth/set-password.js";
 import { ConfigError, loadConfig, resolveDataDir } from "./config.js";
 import { createServer } from "./http.js";
+import { openStorage } from "./storage/index.js";
 
 async function serve(): Promise<void> {
   const config = loadConfig(process.env);
   // Sans empreinte valide, le serveur ne démarre pas (authentification fermée par défaut).
   const passwordHash = await loadPasswordHash(config.dataDir, process.env);
-  const server = createServer(config, { passwordHash });
+  // Clé maître absente ou fausse : démarrage refusé avant toute écoute.
+  const storage = await openStorage(config.dataDir, process.env);
+  const server = createServer(config, { passwordHash, storage });
   server.listen(config.port, config.host, () => {
     // Ligne de démarrage : adresse et dossier seulement, aucun secret.
     console.log(
@@ -19,7 +22,8 @@ async function serve(): Promise<void> {
     );
   });
   const stop = () => {
-    server.close(() => process.exit(0));
+    const quit = () => process.exit(0);
+    server.close(() => void storage.state.flush().then(quit, quit));
     server.closeAllConnections();
   };
   process.on("SIGTERM", stop);

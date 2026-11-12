@@ -353,6 +353,16 @@ export const reasons: Catalog = {
   "server.passwordMismatch": () => "the two password entries differ",
   "server.passwordNeedsStdin": () =>
     "no interactive terminal: provide the password on standard input with --stdin",
+  "server.secretKeyMissing": () =>
+    "REDWIDOW_SECRET_KEY is required (at least 32 characters): startup refused",
+  "server.secretKeyTooShort": (p) =>
+    `REDWIDOW_SECRET_KEY is too short: at least ${text(p.min)} characters`,
+  "server.secretKeyWrong": () =>
+    "REDWIDOW_SECRET_KEY does not match the existing secrets vault: startup refused",
+  "server.secretsCorrupt": () => "the secrets vault file is unreadable or invalid",
+  "server.secretEntryInvalid": () =>
+    "a secrets vault entry has been tampered with (authentication failed)",
+  "server.secretNameInvalid": () => "invalid or reserved secret name",
   "auth.required": () => "authentication required",
   "auth.invalidCredentials": () => "invalid credentials",
   "auth.rateLimited": (p) => `too many attempts: retry in ${text(p.seconds)} s`,

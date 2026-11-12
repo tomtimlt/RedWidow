@@ -462,6 +462,16 @@ export const reasons: Catalog = {
   "server.passwordMismatch": () => "les deux saisies du mot de passe diffèrent",
   "server.passwordNeedsStdin": () =>
     "aucun terminal interactif : fournissez le mot de passe sur l’entrée standard avec --stdin",
+  "server.secretKeyMissing": () =>
+    "REDWIDOW_SECRET_KEY est obligatoire (32 caractères au minimum) : démarrage refusé",
+  "server.secretKeyTooShort": (p) =>
+    `REDWIDOW_SECRET_KEY est trop courte : ${text(p.min)} caractères au minimum`,
+  "server.secretKeyWrong": () =>
+    "REDWIDOW_SECRET_KEY ne correspond pas au coffre de secrets existant : démarrage refusé",
+  "server.secretsCorrupt": () => "le fichier du coffre de secrets est illisible ou invalide",
+  "server.secretEntryInvalid": () =>
+    "une entrée du coffre de secrets est altérée (authentification échouée)",
+  "server.secretNameInvalid": () => "nom de secret invalide ou réservé",
   "auth.required": () => "authentification requise",
   "auth.invalidCredentials": () => "identifiants invalides",
   "auth.rateLimited": (p) => `trop de tentatives : réessayez dans ${text(p.seconds)} s`,

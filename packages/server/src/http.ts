@@ -104,6 +104,8 @@ export interface ServerOptions {
   now?: () => number;
   /** Rappel pour chaque WebSocket authentifiée (pont moteur, lot suivant). */
   onConnection?: (socket: import("ws").WebSocket, sessionId: string) => void;
+  /** Stockage persistant (état, secrets), exposé aux lots suivants. */
+  storage?: import("./storage/index.js").ServerStorage;
 }
 
 interface Ctx {
