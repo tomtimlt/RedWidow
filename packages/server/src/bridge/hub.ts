@@ -930,6 +930,7 @@ export class MissionHub {
           label: meta.label,
         });
         toAll({ type: "accounts", items: this.accounts.list() });
+        for (const f of this.frames.values()) f.session.testAccountsChanged();
         return true;
       }
       case "accountReveal": {
@@ -944,6 +945,7 @@ export class MissionHub {
         if (!(await this.accounts.remove(c.id))) return this.configError(from, c.type);
         this.audit({ kind: "account.remove", id: c.id });
         toAll({ type: "accounts", items: this.accounts.list() });
+        for (const f of this.frames.values()) f.session.testAccountsChanged();
         return true;
       case "findingsList":
         try {
