@@ -262,6 +262,7 @@ export const REASON_CODES = [
   "vpn.invalid",
   "folder.none",
   "folder.invalid",
+  "folder.name",
   "import.tooLarge",
   "import.badFile",
   // Dialogues, téléversements et téléchargements web (ADR 0055)

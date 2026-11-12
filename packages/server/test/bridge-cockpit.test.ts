@@ -234,7 +234,11 @@ describe("cockpit : VPN téléversé", () => {
     s.say("cockpit", "ck", { type: "pickVpn" });
     await uploadFor(t, s, await nthDialog(s, 1), "x.ovpn", Buffer.from([0x63, 0x00, 0x64]));
     await vi.waitFor(() =>
-      expect(s.of("cockpit", "error")[0]?.msg).toEqual({ type: "error", code: "vpn.invalid" }),
+      expect(s.of("cockpit", "error")[0]?.msg).toMatchObject({
+        type: "error",
+        code: "vpn.invalid",
+        text: expect.any(String),
+      }),
     );
     s.say("cockpit", "ck", { type: "pickVpn" });
     replyDialog(s, await nthDialog(s, 2), null);
@@ -257,7 +261,7 @@ describe("cockpit : dossier partagé", () => {
     s.say("cockpit", "ck", { type: "pickSharedFolder" });
     const d = await nthDialog(s, 1);
     expect(d.kind).toBe("pick");
-    expect((d.items as { id: string }[]).map((i) => i.id)).toEqual(["alpha", "beta"]);
+    expect((d.items as { id: string }[]).map((i) => i.id)).toEqual(["+new", "alpha", "beta"]);
     // Un identifiant hors liste (chemin libre) est refusé par HostUi : le dialogue reste ouvert.
     replyDialog(s, d, "/etc");
     replyDialog(s, d, "../..");
@@ -272,14 +276,98 @@ describe("cockpit : dossier partagé", () => {
     );
   });
 
-  it("aucun sous-dossier : erreur claire, pas de dialogue", async () => {
+  it("aucun sous-dossier : saisie du nom, dossier créé (0700) et sélectionné", async () => {
     const t = setup(ctx, { backends: backend() });
     const s = await cockpitOf(t);
     s.say("cockpit", "ck", { type: "pickSharedFolder" });
+    const d = await nthDialog(s, 1);
+    expect(d.kind).toBe("input");
+    expect(d.label).toBe("Nom du dossier à créer");
+    replyDialog(s, d, "cible-1");
     await vi.waitFor(() =>
-      expect(s.of("cockpit", "error")[0]?.msg).toEqual({ type: "error", code: "folder.none" }),
+      expect(s.of("cockpit", "pickedSharedFolder")[0]?.msg).toEqual({
+        type: "pickedSharedFolder",
+        path: "cible-1",
+      }),
     );
-    expect(s.of("shell", "dialog")).toHaveLength(0);
+    const dir = join(ctx.storage.paths.projects, "cible-1");
+    expect((await stat(dir)).isDirectory()).toBe(true);
+    expect((await stat(dir)).mode & 0o777).toBe(0o700);
+    expect(s.of("cockpit", "error")).toHaveLength(0);
+  });
+
+  it.each(["../x", "a/b", ".caché", "", "..", "a".repeat(65)])(
+    "nom refusé %j : message français affiché, rien créé",
+    async (name) => {
+      const t = setup(ctx, { backends: backend() });
+      const s = await cockpitOf(t);
+      s.say("cockpit", "ck", { type: "pickSharedFolder" });
+      const d = await nthDialog(s, 1);
+      replyDialog(s, d, name);
+      await vi.waitFor(() => expect(s.of("cockpit", "error")).toHaveLength(1));
+      expect(s.of("cockpit", "error")[0]?.msg).toMatchObject({
+        type: "error",
+        code: "folder.name",
+        text: expect.stringContaining("nom de dossier invalide"),
+      });
+      // Ce que la page affiche : le texte d'une opération terminée en erreur.
+      expect(lastOperation(s)).toMatchObject({
+        busy: false,
+        error: expect.stringContaining("nom de dossier invalide"),
+      });
+      expect(s.of("cockpit", "pickedSharedFolder")).toHaveLength(0);
+      expect(await readdir(ctx.storage.paths.projects).catch(() => [])).toEqual([]);
+    },
+  );
+
+  it("saisie annulée : rien", async () => {
+    const t = setup(ctx, { backends: backend() });
+    const s = await cockpitOf(t);
+    s.say("cockpit", "ck", { type: "pickSharedFolder" });
+    replyDialog(s, await nthDialog(s, 1), null);
+    await settle();
+    expect(s.of("cockpit", "error")).toHaveLength(0);
+    expect(s.of("cockpit", "pickedSharedFolder")).toHaveLength(0);
+  });
+
+  it("des dossiers existent : « + Nouveau dossier… » en tête, qui ouvre la même saisie", async () => {
+    const root = ctx.storage.paths.projects;
+    await mkdir(join(root, "alpha"));
+    const t = setup(ctx, { backends: backend() });
+    const s = await cockpitOf(t);
+    s.say("cockpit", "ck", { type: "pickSharedFolder" });
+    const d = await nthDialog(s, 1);
+    const items = d.items as { id: string; label: string }[];
+    expect(items[0]?.label).toBe("+ Nouveau dossier…");
+    replyDialog(s, d, items[0]?.id);
+    const input = await nthDialog(s, 2);
+    expect(input.kind).toBe("input");
+    replyDialog(s, input, "neuf");
+    await vi.waitFor(() =>
+      expect(s.of("cockpit", "pickedSharedFolder")[0]?.msg).toEqual({
+        type: "pickedSharedFolder",
+        path: "neuf",
+      }),
+    );
+    expect((await stat(join(root, "neuf"))).isDirectory()).toBe(true);
+  });
+
+  it("un lien symbolique du même nom : refusé, rien n'est sélectionné", async () => {
+    const root = ctx.storage.paths.projects;
+    await mkdir(root, { recursive: true });
+    await symlink("/tmp", join(root, "piege"));
+    const t = setup(ctx, { backends: backend() });
+    const s = await cockpitOf(t);
+    s.say("cockpit", "ck", { type: "pickSharedFolder" });
+    // Seul un lien existe : aucun dossier réel proposé, donc saisie du nom.
+    replyDialog(s, await nthDialog(s, 1), "piege");
+    await vi.waitFor(() =>
+      expect(s.of("cockpit", "error")[0]?.msg).toMatchObject({
+        code: "folder.invalid",
+        text: expect.any(String),
+      }),
+    );
+    expect(s.of("cockpit", "pickedSharedFolder")).toHaveLength(0);
   });
 });
 

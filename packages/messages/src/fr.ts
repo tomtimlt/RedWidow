@@ -494,6 +494,8 @@ export const reasons: Catalog = {
   "vpn.invalid": () => "configuration VPN invalide (fichier .ovpn en texte attendu)",
   "folder.none": () => "aucun dossier à partager : créez d’abord un projet",
   "folder.invalid": () => "ce dossier ne peut pas être partagé",
+  "folder.name": () =>
+    "nom de dossier invalide (lettres, chiffres, point, tiret ou souligné ; 64 caractères au plus, sans point initial)",
   "import.tooLarge": () => "ce fichier est trop volumineux pour une fiche",
   "import.badFile": () => "fichier illisible (texte UTF-8 attendu)",
   "auth.badRequest": () => "requête invalide",

@@ -11,7 +11,7 @@
  */
 import { randomBytes } from "node:crypto";
 import { chmod, lstat, mkdir, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
-import { join, sep } from "node:path";
+import { join, relative, resolve, sep } from "node:path";
 import {
   activeProject,
   CodedError,
@@ -36,6 +36,10 @@ import type { CockpitBackend, ViewSink } from "./views.js";
 /** Plafond d'une configuration VPN téléversée (octets) et de sous-dossiers proposés. */
 export const VPN_MAX_BYTES = 1024 * 1024;
 const MAX_FOLDERS = 200;
+/** Nom d'un dossier à créer sous la racine des projets : un segment simple, sans point initial. */
+const NEW_FOLDER_NAME = /^[A-Za-z0-9_-][A-Za-z0-9._-]{0,63}$/;
+/** Identifiant de l'entrée « Nouveau dossier… » : un `+` ne peut pas figurer dans un nom valide. */
+const NEW_FOLDER_ID = "+new";
 /** Attente maximale de l'apparition d'un Exegol créé (comme l'extension : 30 min). */
 const EXEGOL_TIMEOUT_MS = 30 * 60_000;
 const EXEGOL_POLL_MS = 2000;
@@ -210,6 +214,28 @@ export class CockpitGestures {
     return { text: t("L'opération a échoué."), code: "view.failed" };
   }
 
+  /**
+   * Erreur d'un geste simple : la page cockpit ignore `{type:"error"}` et n'affiche que le texte d'une
+   * `operation` ; on envoie donc les deux (le code pour les clients, le texte localisé pour l'affichage).
+   */
+  private fail(sink: ViewSink, error: unknown): void {
+    const { text, code } = this.operationError(error);
+    this.deps.emit(sink, { type: "error", code, text });
+    this.deps.emit(sink, {
+      type: "operation",
+      busy: false,
+      stage: "",
+      layers: [],
+      error: text,
+      code,
+    });
+  }
+
+  /** Efface l'erreur affichée après un geste réussi. */
+  private clearError(sink: ViewSink): void {
+    this.deps.emit(sink, { type: "operation", busy: false, stage: "", layers: [] });
+  }
+
   // ------------------------------------------------------------------------------------------
   // Gestes simples
   // ------------------------------------------------------------------------------------------
@@ -218,7 +244,7 @@ export class CockpitGestures {
     try {
       this.deps.emit(sink, { type: "images", images: await this.deps.backend.images() });
     } catch (error) {
-      this.deps.emit(sink, { type: "error", code: this.operationError(error).code });
+      this.fail(sink, error);
     }
     return true;
   }
@@ -298,7 +324,7 @@ export class CockpitGestures {
       this.selection(sink).vpn = { path, label };
       this.deps.emit(sink, { type: "pickedVpn", label });
     } catch (error) {
-      this.deps.emit(sink, { type: "error", code: this.operationError(error).code });
+      this.fail(sink, error);
     } finally {
       await taken.release();
     }
@@ -318,26 +344,75 @@ export class CockpitGestures {
     return names.sort((a, b) => a.localeCompare(b));
   }
 
-  /** Dossier partagé : choisi parmi les sous-dossiers de `<données>/projects`, jamais un chemin libre. */
+  /** Dossier du projet actif, s'il est un sous-dossier direct de la racine des projets. */
+  private async activeFolder(): Promise<string | null> {
+    const file = await readProjects(this.deps.configDir).catch(() => null);
+    const project = file ? activeProject(file) : undefined;
+    if (!project) return null;
+    const rel = relative(resolve(this.deps.projectsRoot), resolve(project.workspace));
+    return rel !== "" && !rel.includes(sep) && !rel.startsWith("..") ? rel : null;
+  }
+
+  /** Dossier partagé : sous-dossier de `<données>/projects` (existant ou créé ici), jamais un chemin libre. */
   private async pickSharedFolder(sink: ViewSink): Promise<boolean> {
     try {
       const names = await this.folders();
-      if (names.length === 0) throw new CodedError("folder.none");
-      const picked = await this.deps.ctx.ui.pick(
-        {
-          title: t("Dossier partagé"),
-          items: names.map((n) => ({ id: n, label: cleanText(n, 120) })),
-        },
-        sink,
-      );
-      if (picked === null || !names.includes(picked)) return true;
-      const real = await this.sharedReal(picked);
-      this.selection(sink).shared = { real, name: picked };
-      this.deps.emit(sink, { type: "pickedSharedFolder", path: picked });
+      const active = await this.activeFolder();
+      if (active !== null && names.includes(active)) {
+        names.splice(names.indexOf(active), 1);
+        names.unshift(active);
+      }
+      let name: string | null;
+      if (names.length === 0) name = await this.askNewFolder(sink);
+      else {
+        const picked = await this.deps.ctx.ui.pick(
+          {
+            title: t("Dossier partagé"),
+            items: [
+              { id: NEW_FOLDER_ID, label: t("+ Nouveau dossier…") },
+              ...names.map((n) => ({
+                id: n,
+                label: cleanText(n, 120) + (n === active ? ` ${t("(projet actif)")}` : ""),
+              })),
+            ],
+          },
+          sink,
+        );
+        if (picked === null) return true;
+        if (picked === NEW_FOLDER_ID) name = await this.askNewFolder(sink);
+        else name = names.includes(picked) ? picked : null;
+      }
+      if (name === null) return true;
+      const real = await this.sharedReal(name);
+      this.selection(sink).shared = { real, name };
+      this.clearError(sink);
+      this.deps.emit(sink, { type: "pickedSharedFolder", path: name });
     } catch (error) {
-      this.deps.emit(sink, { type: "error", code: this.operationError(error).code });
+      this.fail(sink, error);
     }
     return true;
+  }
+
+  /** Saisit puis crée (0700) un dossier sous la racine des projets ; `null` si la saisie est annulée. */
+  private async askNewFolder(sink: ViewSink): Promise<string | null> {
+    const input = await this.deps.ctx.ui.input(
+      { title: t("Dossier partagé"), label: t("Nom du dossier à créer") },
+      sink,
+    );
+    if (input === null) return null;
+    const name = input.trim();
+    if (!NEW_FOLDER_NAME.test(name) || name.includes("..")) throw new CodedError("folder.name");
+    const root = this.deps.projectsRoot;
+    await mkdir(root, { recursive: true, mode: 0o700 });
+    try {
+      await mkdir(join(root, name), { mode: 0o700 });
+      await chmod(join(root, name), 0o700).catch(() => undefined);
+    } catch (error) {
+      // Déjà présent : accepté seulement s'il passe la garde de `sharedReal` (dossier réel, sous la racine).
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST")
+        throw new CodedError("folder.invalid");
+    }
+    return name;
   }
 
   /** Chemin réel d'un sous-dossier de la racine des projets, revalidé (lien, sortie de la racine, données sensibles). */

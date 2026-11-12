@@ -144,18 +144,20 @@ describe("vue program", () => {
     s.say("program", "prog", { type: "importFile" });
     await uploadFor(t, s, await nthDialog(s, 3), "gros.json", `"${"x".repeat(300 * 1024)}"`);
     await vi.waitFor(() =>
-      expect(s.of("program", "error").at(-1)?.msg).toEqual({
+      expect(s.of("program", "error").at(-1)?.msg).toMatchObject({
         type: "error",
         code: "import.tooLarge",
+        text: expect.any(String),
       }),
     );
     // Non UTF-8 : refusé.
     s.say("program", "prog", { type: "importFile" });
     await uploadFor(t, s, await nthDialog(s, 4), "bin.json", Buffer.from([0xff, 0xfe, 0x00]));
     await vi.waitFor(() =>
-      expect(s.of("program", "error").at(-1)?.msg).toEqual({
+      expect(s.of("program", "error").at(-1)?.msg).toMatchObject({
         type: "error",
         code: "import.badFile",
+        text: expect.any(String),
       }),
     );
     expect(imported).toHaveLength(1);
@@ -175,7 +177,11 @@ describe("vue program", () => {
     s.say("program", "prog", { type: "importFile" });
     await uploadFor(t, s, await nthDialog(s, 1), "x.json", "pas du json");
     await vi.waitFor(() =>
-      expect(s.of("program", "error")[0]?.msg).toEqual({ type: "error", code: "program.invalid" }),
+      expect(s.of("program", "error")[0]?.msg).toMatchObject({
+        type: "error",
+        code: "program.invalid",
+        text: expect.any(String),
+      }),
     );
   });
 
@@ -236,7 +242,11 @@ describe("vue program", () => {
     const s = t.connect();
     s.say("program", "prog", { type: "ready" });
     await vi.waitFor(() =>
-      expect(s.of("program", "error")[0]?.msg).toEqual({ type: "error", code: "project.none" }),
+      expect(s.of("program", "error")[0]?.msg).toMatchObject({
+        type: "error",
+        code: "project.none",
+        text: expect.any(String),
+      }),
     );
     const p = fakeProgram();
     p.controls.validate = async () => {
@@ -252,7 +262,11 @@ describe("vue program", () => {
     s2.say("program", "prog", { type: "validate" });
     replyDialog(s2, await nthDialog(s2, 1), true);
     await vi.waitFor(() =>
-      expect(s2.of("program", "error")[0]?.msg).toEqual({ type: "error", code: "view.failed" }),
+      expect(s2.of("program", "error")[0]?.msg).toMatchObject({
+        type: "error",
+        code: "view.failed",
+        text: expect.any(String),
+      }),
     );
     expect(JSON.stringify(s2.sent)).not.toContain("détail interne");
   });
@@ -372,9 +386,10 @@ describe("vue engagement", () => {
     s.say("engagement", "eng", { type: "importCampaign" });
     await uploadFor(t, s, await nthDialog(s, 3), "gros.json", "x".repeat(300 * 1024));
     await vi.waitFor(() =>
-      expect(s.of("engagement", "error").at(-1)?.msg).toEqual({
+      expect(s.of("engagement", "error").at(-1)?.msg).toMatchObject({
         type: "error",
         code: "import.tooLarge",
+        text: expect.any(String),
       }),
     );
     expect(e.calls).toHaveLength(2);

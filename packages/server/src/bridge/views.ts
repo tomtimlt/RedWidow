@@ -11,7 +11,7 @@
  * jamais d'empreinte, et un brouillon modifié depuis l'affichage est refusé par le cœur.
  */
 import { CodedError, defaultConfigDir } from "@warband/core";
-import { t } from "@warband/messages";
+import { formatError, t } from "@warband/messages";
 import {
   type CockpitViewPayload,
   controlListedContainer,
@@ -160,6 +160,16 @@ class ViewError extends Error {
 const errorCode = (error: unknown): string =>
   error instanceof ViewError || error instanceof CodedError ? error.code : "view.failed";
 
+/** Texte français (ou anglais) d'une erreur de vue : les pages n'affichent que `text`, jamais le code seul. */
+function errorText(error: unknown | string, locale: "fr" | "en"): string {
+  const code = typeof error === "string" ? error : errorCode(error);
+  if (code === "view.stale") return t("La vue a changé : réessayez.");
+  if (code === "project.changed") return t("Le projet actif a changé : réessayez.");
+  if (code === "project.none") return t("Aucun projet actif : choisissez ou créez un projet.");
+  if (error instanceof CodedError) return formatError(error, locale);
+  return t("L'opération a échoué.");
+}
+
 /** Identifiant d'une conversation ou d'un cadre : plus large que celui de la grille (un UUID de 36 caractères passe). */
 const OPEN_CHAT_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
@@ -296,8 +306,27 @@ export class ViewHosts {
       if (view === "cockpit") return await this.pushCockpit(only, all);
       await this.pushSessions(only, all);
     } catch (error) {
-      this.emit(view, only, { type: "error", code: errorCode(error) });
+      this.fail(view, only, error);
     }
+  }
+
+  /**
+   * Erreur d'une vue, affichable : `code` + `text` localisé. La page cockpit ne montre que le texte d'un
+   * message `operation` ; program et engagement attendent `{type:"error", text}`.
+   */
+  private fail(view: HostedView, sink: ViewSink, error: unknown | string): void {
+    const text = errorText(error, this.extras.locale());
+    const code = typeof error === "string" ? error : errorCode(error);
+    this.emit(view, sink, { type: "error", code, text });
+    if (view === "cockpit")
+      this.emit(view, sink, {
+        type: "operation",
+        busy: false,
+        stage: "",
+        layers: [],
+        error: text,
+        code,
+      });
   }
 
   private async shownProject(): Promise<string | null> {
@@ -310,7 +339,7 @@ export class ViewHosts {
     if (projectId === null) {
       for (const s of targets) {
         this.programShown.delete(s);
-        this.emit("program", s, { type: "error", code: "project.none" });
+        this.fail("program", s, "project.none");
       }
       return;
     }
@@ -327,7 +356,7 @@ export class ViewHosts {
     if (projectId === null) {
       for (const s of targets) {
         this.engagementShown.delete(s);
-        this.emit("engagement", s, { type: "error", code: "project.none" });
+        this.fail("engagement", s, "project.none");
       }
       return;
     }
@@ -421,7 +450,7 @@ export class ViewHosts {
     if (message.type === "askAgent") {
       // Nouvelle mission préremplie : la consigne est fixe, seule l'adresse validée vient de la page.
       if ((await this.shownProject()) === null) {
-        this.emit("program", sink, { type: "error", code: "project.none" });
+        this.fail("program", sink, "project.none");
         return true;
       }
       const taken = new Set(this.sessions.chats().map((c) => c.id));
@@ -465,7 +494,7 @@ export class ViewHosts {
         await controls.importDraft(text);
       }
     } catch (error) {
-      this.emit("program", sink, { type: "error", code: errorCode(error) });
+      this.fail("program", sink, error);
     }
     await this.push("program", sink, true);
     return true;
@@ -560,7 +589,7 @@ export class ViewHosts {
         }
       }
     } catch (error) {
-      this.emit("engagement", sink, { type: "error", code: errorCode(error) });
+      this.fail("engagement", sink, error);
     }
     await this.push("engagement", sink, true);
     return true;
@@ -591,7 +620,7 @@ export class ViewHosts {
       try {
         return await this.gestures.handle(message, sink);
       } catch (error) {
-        this.emit("cockpit", sink, { type: "error", code: errorCode(error) });
+        this.fail("cockpit", sink, error);
         return true;
       }
     }
@@ -614,7 +643,7 @@ export class ViewHosts {
       }
       this.emitAll("cockpit", { ...payload });
     } catch (error) {
-      this.emit("cockpit", sink, { type: "error", code: errorCode(error) });
+      this.fail("cockpit", sink, error);
       await this.push("cockpit", sink, true);
     } finally {
       this.cockpitBusy = false;

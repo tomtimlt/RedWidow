@@ -385,6 +385,8 @@ export const reasons: Catalog = {
   "vpn.invalid": () => "invalid VPN configuration (a plain-text .ovpn file is expected)",
   "folder.none": () => "no folder to share: create a project first",
   "folder.invalid": () => "this folder cannot be shared",
+  "folder.name": () =>
+    "invalid folder name (letters, digits, dot, dash or underscore; 64 characters at most, no leading dot)",
   "import.tooLarge": () => "this file is too large for a sheet",
   "import.badFile": () => "unreadable file (UTF-8 text expected)",
   "auth.badRequest": () => "invalid request",

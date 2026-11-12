@@ -13,6 +13,12 @@ export const cockpitEn: Record<string, string> = {
   "Les fichiers sont partagés avec le dossier du projet ouvert dans VS Code. Un conteneur existant doit monter ce même dossier ; un autre montage nécessite une migration explicite.":
     "Files are shared with the project folder open in VS Code. An existing container must mount that same folder; a different mount requires an explicit migration.",
   "Dossier partagé": "Shared folder",
+  "+ Nouveau dossier…": "+ New folder…",
+  "La vue a changé : réessayez.": "The view changed: try again.",
+  "Le projet actif a changé : réessayez.": "The active project changed: try again.",
+  "Aucun projet actif : choisissez ou créez un projet.": "No active project: choose or create one.",
+  "(projet actif)": "(active project)",
+  "Nom du dossier à créer": "Name of the folder to create",
   "Choisir…": "Choose…",
   "Choisissez un projet avant de créer son conteneur.":
     "Choose a project before creating its container.",
