@@ -39,3 +39,4 @@ Le moteur tourne déjà dans un processus Node séparé, lancé par `fork` et pi
 - Nouvelles surfaces à tester : authentification, Origin, WebSocket sans session, pont moteur.
 - La fiche programme et le périmètre restent une déclaration de l'utilisateur, comme dans l'extension.
 - Le socket Docker monté impose un VPS dédié.
+- Risque résiduel : le moteur forké hérite du groupe `docker` du conteneur serveur. Il reste fermé tant que les outils de l'agent s'exécutent dans le conteneur Kali/Exegol, que Bash local est désactivé (défaut) et que la gate refuse sans mémorisation tout `docker run` donnant accès à l'hôte. Durcissement prévu : moteur lancé sans ce groupe, ou proxy du socket limité aux conteneurs gérés.
