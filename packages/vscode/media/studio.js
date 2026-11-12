@@ -450,6 +450,8 @@ function start() {
   const summaryDrafts = /* @__PURE__ */ new Map();
   const summarySaving = /* @__PURE__ */ new Set();
   let projectNameDraft = "";
+  let projectTargetDraft = "newFolder";
+  let projectContainerDraft = "";
   let providerFilter = "";
   const auditDrafts = new Map();
   let lastAuditProject = null;
@@ -2123,7 +2125,7 @@ function start() {
         "projectChoices",
         "projectBusy",
         "projectCreated",
-        "projectWorkspaceRoot",
+        "creationContainers",
         "projectError",
         "projectSummary",
         "linkedBanner",
@@ -2132,16 +2134,7 @@ function start() {
         "summaryError",
       ],
       accounts: ["testAccounts"],
-      system: [
-        "dockerLoading",
-        "dockerUnavailable",
-        "docker",
-        "daemon",
-        "exegol",
-        "projectWorkspaceRoot",
-        "workspaceRootError",
-        "limits",
-      ],
+      system: ["dockerLoading", "dockerUnavailable", "docker", "daemon", "exegol", "limits"],
       containers: [
         "containers",
         "docker",
@@ -2377,6 +2370,8 @@ function start() {
           );
         if (typeof view.projectCreated === "string") {
           projectNameDraft = "";
+          projectTargetDraft = "newFolder";
+          projectContainerDraft = "";
           projectPanel = "choose";
         }
         const current = choices.projects.find((p) => p.id === choices.activeId);
@@ -2498,9 +2493,67 @@ function start() {
         name.disabled = projectBusy;
         const create = el("button", "primary", t("Créer le projet"));
         create.type = "button";
+        const containers = Array.isArray(view.creationContainers) ? view.creationContainers : [];
+        if (projectTargetDraft === "container" && containers.length === 0)
+          projectTargetDraft = "newFolder";
+        if (!containers.some((row) => row.name === projectContainerDraft))
+          projectContainerDraft = containers[0]?.name ?? "";
+        const targetGroup = el("div", "studio-project-targets");
+        targetGroup.setAttribute("role", "radiogroup");
+        targetGroup.setAttribute("aria-label", t("Emplacement du projet"));
+        const containerSelect = el("select", "studio-project-control");
+        containerSelect.id = "project-container";
+        containerSelect.setAttribute("aria-label", t("Dans un conteneur"));
+        for (const row of containers) {
+          const option = el("option", "", row.short);
+          option.value = row.name;
+          containerSelect.append(option);
+        }
+        containerSelect.value = projectContainerDraft;
+        containerSelect.addEventListener("change", () => {
+          projectContainerDraft = containerSelect.value;
+        });
+        const targetHelp = el("p", "studio-help");
         const update = () => {
-          create.disabled = projectBusy || !name.value.trim();
+          const existing = projectTargetDraft === "existing";
+          const container = projectTargetDraft === "container";
+          containerSelect.hidden = !container;
+          containerSelect.disabled = projectBusy || !container;
+          targetHelp.textContent = existing
+            ? t("Le nom est proposé d'après le dossier choisi ; vous pourrez le modifier.")
+            : container
+              ? t("Le projet est créé sous le dossier partagé du conteneur, puis lié.")
+              : t("Un sous-dossier du dossier parent choisi est créé pour le projet.");
+          create.disabled =
+            projectBusy ||
+            (!existing && !name.value.trim()) ||
+            (container && !containerSelect.value);
         };
+        const radios = [];
+        for (const [value, text] of [
+          ["newFolder", t("Nouveau dossier")],
+          ["existing", t("Dossier existant")],
+          ["container", t("Dans un conteneur")],
+        ]) {
+          const radio = el("input");
+          radio.type = "radio";
+          radio.name = "project-target";
+          radio.id = `project-target-${value}`;
+          radio.value = value;
+          radio.checked = projectTargetDraft === value;
+          radio.disabled = projectBusy || (value === "container" && containers.length === 0);
+          radio.addEventListener("change", () => {
+            if (!radio.checked) return;
+            projectTargetDraft = value;
+            for (const other of radios) other.checked = other === radio;
+            update();
+          });
+          radios.push(radio);
+          const wrap = el("label", "studio-project-target");
+          wrap.htmlFor = radio.id;
+          wrap.append(radio, el("span", "", text));
+          targetGroup.append(wrap);
+        }
         name.addEventListener("input", () => {
           projectNameDraft = name.value;
           update();
@@ -2508,25 +2561,34 @@ function start() {
         create.addEventListener("click", () => {
           if (create.disabled) return;
           create.disabled = true;
-          vscode.postMessage({ type: "createProject", name: name.value.trim() });
+          const clean = name.value.trim();
+          if (projectTargetDraft === "existing")
+            vscode.postMessage({ type: "adoptProject", name: clean });
+          else if (projectTargetDraft === "container")
+            vscode.postMessage({
+              type: "createProject",
+              name: clean,
+              target: "container",
+              container: containerSelect.value,
+            });
+          else vscode.postMessage({ type: "createProject", name: clean, target: "newFolder" });
         });
         update();
         createPanel.append(
           el(
             "p",
             "studio-help",
-            t("Donnez un nom au projet : son dossier est créé automatiquement."),
+            t("Donnez un nom au projet, puis choisissez où se trouve son dossier."),
           ),
           label,
           name,
+          targetGroup,
+          containerSelect,
+          ...(containers.length === 0
+            ? [el("p", "studio-help", t("Aucun conteneur avec un dossier partagé."))]
+            : []),
+          targetHelp,
           create,
-          el(
-            "p",
-            "studio-help",
-            t("Dossier des nouveaux projets : {0}", {
-              0: view.projectWorkspaceRoot ?? "~/.exegol/workspaces",
-            }),
-          ),
         );
       }
       if (typeof view.projectError === "string") {
@@ -2681,38 +2743,6 @@ function start() {
       );
       sec.append(dl);
       if (page === "system") {
-        sec.append(el("h2", "", t("Dossiers des projets")));
-        const rootLabel = el("label", "studio-help", t("Racine des nouveaux projets (avancé)"));
-        rootLabel.htmlFor = "project-workspace-root";
-        const rootInput = el("input", "studio-project-control");
-        rootInput.id = "project-workspace-root";
-        rootInput.type = "text";
-        rootInput.value =
-          typeof view.projectWorkspaceRoot === "string" ? view.projectWorkspaceRoot : "";
-        const rootSave = el("button", "secondary", t("Enregistrer"));
-        rootSave.type = "button";
-        rootSave.id = "project-workspace-root-save";
-        rootSave.addEventListener("click", () => {
-          rootSave.disabled = true;
-          vscode.postMessage({ type: "setWorkspaceRoot", value: rootInput.value.trim() });
-        });
-        sec.append(
-          rootLabel,
-          rootInput,
-          rootSave,
-          el(
-            "p",
-            "studio-help",
-            t(
-              "Ce réglage machine concerne les nouveaux projets. Les projets existants restent à leur emplacement. Vide : ~/.exegol/workspaces.",
-            ),
-          ),
-        );
-        if (view.workspaceRootError) {
-          const error = el("p", "studio-help", view.workspaceRootError);
-          error.setAttribute("role", "alert");
-          sec.append(error);
-        }
         const limits = view.limits ?? {};
         sec.append(
           el("h2", "", t("Limites par défaut")),

@@ -1,4 +1,7 @@
+import { basename } from "node:path";
 import {
+  adoptProjectDirectory,
+  CodedError,
   createManagedProject,
   createProject,
   readProjects,
@@ -45,6 +48,64 @@ export async function createManagedSelectedProject(
   parent: unknown,
 ) {
   const project = await createManagedProject(configDir, name, parent);
+  await activateSelectedProject(configDir, project.id);
+  return project;
+}
+
+/** Choix de création venu de la webview : aucun chemin, seulement un nom et, au plus, un conteneur. */
+export type ProjectCreationChoice =
+  | { kind: "newFolder"; name: string }
+  | { kind: "existing"; name: string }
+  | { kind: "container"; name: string; container: string };
+
+/** Dialogues et relectures de l'hôte : c'est lui seul qui fournit les chemins (ADR 0050, 0052). */
+export interface ProjectCreationHost {
+  /** Sélecteur natif de dossier, sans dossier par défaut ; `undefined` si annulé. */
+  pickFolder(purpose: "parent" | "existing"): Promise<string | undefined>;
+  /** Nom proposé puis éventuellement modifié ; `undefined` si annulé. */
+  askName(proposed: string): Promise<string | undefined>;
+  /** Montage /workspace d'un conteneur connu, relu côté hôte ; `undefined` s'il est inconnu ou sans montage. */
+  containerMount(container: string): Promise<string | undefined>;
+}
+
+/** Ce qu'il reste à écrire une fois les dialogues terminés ; aucune écriture n'a eu lieu. */
+export type ProjectCreationPlan =
+  | { kind: "create"; name: string; parent: string }
+  | { kind: "adopt"; name: string; folder: string };
+
+/** Nom de base du dossier, borné comme un nom de projet. */
+export function proposedProjectName(folder: string): string {
+  return basename(folder)
+    .replace(/[\0\r\n]/g, " ")
+    .trim()
+    .slice(0, 80);
+}
+
+/** Une annulation d'un dialogue renvoie `undefined` : rien n'est créé. */
+export async function planProjectCreation(
+  choice: ProjectCreationChoice,
+  host: ProjectCreationHost,
+): Promise<ProjectCreationPlan | undefined> {
+  if (choice.kind === "newFolder") {
+    const parent = await host.pickFolder("parent");
+    return parent === undefined ? undefined : { kind: "create", name: choice.name, parent };
+  }
+  if (choice.kind === "existing") {
+    const folder = await host.pickFolder("existing");
+    if (folder === undefined) return undefined;
+    const name = await host.askName(choice.name || proposedProjectName(folder));
+    return name === undefined ? undefined : { kind: "adopt", name, folder };
+  }
+  const parent = await host.containerMount(choice.container);
+  if (parent === undefined) throw new CodedError("project.parentInvalid");
+  return { kind: "create", name: choice.name, parent };
+}
+
+/** Crée ou reprend le dossier, puis active le projet. Les contrôles de chemin restent ceux du cœur. */
+export async function applyProjectPlan(configDir: string, plan: ProjectCreationPlan) {
+  if (plan.kind === "create")
+    return createManagedSelectedProject(configDir, plan.name, plan.parent);
+  const project = await adoptProjectDirectory(configDir, plan.name, plan.folder);
   await activateSelectedProject(configDir, project.id);
   return project;
 }

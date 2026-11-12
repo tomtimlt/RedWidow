@@ -1,10 +1,11 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   appendFinding,
   associateContainer,
   readFindings,
+  readProjects,
   readSummary,
   renameProject,
   USER_PROJECT_FILE,
@@ -13,9 +14,13 @@ import {
 import { afterEach, expect, it } from "vitest";
 import {
   activateSelectedProject,
+  applyProjectPlan,
   createManagedSelectedProject,
   createSelectedProject,
   manageSelectedProject,
+  type ProjectCreationHost,
+  planProjectCreation,
+  proposedProjectName,
   readProjectChoices,
 } from "../src/logic/project-controls.js";
 
@@ -166,4 +171,113 @@ it("revalide la fiche après le dialogue et refuse un projet modifié ailleurs",
     }),
   ).rejects.toThrow("changé");
   expect((await readProjectChoices(dir)).projects[0]?.name).toBe("Renommé ailleurs");
+});
+
+const creationHost = (over: Partial<ProjectCreationHost> = {}) => {
+  const calls: string[] = [];
+  const host: ProjectCreationHost = {
+    pickFolder: async (purpose) => {
+      calls.push(`pick:${purpose}`);
+      return undefined;
+    },
+    askName: async (proposed) => {
+      calls.push(`ask:${proposed}`);
+      return undefined;
+    },
+    containerMount: async (container) => {
+      calls.push(`mount:${container}`);
+      return undefined;
+    },
+    ...over,
+  };
+  return { host, calls };
+};
+
+it("nouveau dossier : une annulation du sélecteur ne crée rien", async () => {
+  const config = await temp();
+  const { host, calls } = creationHost();
+  expect(await planProjectCreation({ kind: "newFolder", name: "Mission" }, host)).toBeUndefined();
+  expect(calls).toEqual(["pick:parent"]);
+  expect(await readProjects(config)).toBeNull();
+});
+
+it("nouveau dossier : le parent choisi donne <parent>/<slug>, projet actif", async () => {
+  const config = await temp();
+  const parent = await temp();
+  const { host } = creationHost({ pickFolder: async () => parent });
+  const plan = await planProjectCreation({ kind: "newFolder", name: "Mission Démo" }, host);
+  expect(plan).toEqual({ kind: "create", name: "Mission Démo", parent });
+  if (!plan) throw Error("plan absent");
+  const project = await applyProjectPlan(config, plan);
+  expect(project.workspace).toBe(join(parent, "mission-demo"));
+  expect((await readProjectChoices(config)).activeId).toBe(project.id);
+});
+
+it("dossier existant : le dossier est choisi d'abord, son nom de base est proposé", async () => {
+  const config = await temp();
+  const parent = await temp();
+  const folder = join(parent, "Dossier Client");
+  await mkdir(folder);
+  const asked: string[] = [];
+  const { host } = creationHost({
+    pickFolder: async () => folder,
+    askName: async (proposed) => {
+      asked.push(proposed);
+      return proposed;
+    },
+  });
+  const plan = await planProjectCreation({ kind: "existing", name: "" }, host);
+  expect(asked).toEqual(["Dossier Client"]);
+  expect(plan).toEqual({ kind: "adopt", name: "Dossier Client", folder });
+  if (!plan) throw Error("plan absent");
+  const project = await applyProjectPlan(config, plan);
+  expect(project.workspace).toBe(await realpath(folder));
+  expect((await readProjectChoices(config)).activeId).toBe(project.id);
+});
+
+it("dossier existant : le nom saisi est proposé tel quel, une annulation à l'une des étapes ne crée rien", async () => {
+  const folder = await temp();
+  const named = creationHost({ pickFolder: async () => folder, askName: async (n) => n });
+  expect(
+    await planProjectCreation({ kind: "existing", name: "Mon nom" }, named.host),
+  ).toMatchObject({ name: "Mon nom" });
+  const noName = creationHost({ pickFolder: async () => folder });
+  expect(await planProjectCreation({ kind: "existing", name: "" }, noName.host)).toBeUndefined();
+  const noFolder = creationHost();
+  expect(await planProjectCreation({ kind: "existing", name: "x" }, noFolder.host)).toBeUndefined();
+  expect(noFolder.calls).toEqual(["pick:existing"]);
+});
+
+it("dossier existant : un dossier déjà projet est refusé par le cœur", async () => {
+  const config = await temp();
+  const folder = await temp();
+  const plan = { kind: "adopt", name: "Un", folder } as const;
+  await applyProjectPlan(config, plan);
+  await expect(applyProjectPlan(config, { ...plan, name: "Deux" })).rejects.toMatchObject({
+    code: "project.folderAlreadyProject",
+  });
+});
+
+it("conteneur : le montage relu par l'hôte sert de parent ; inconnu ou sans montage, refus", async () => {
+  const config = await temp();
+  const mount = await temp();
+  const known = creationHost({
+    containerMount: async (c) => (c === "exegol-a" ? mount : undefined),
+  });
+  const plan = await planProjectCreation(
+    { kind: "container", name: "Dans conteneur", container: "exegol-a" },
+    known.host,
+  );
+  expect(plan).toEqual({ kind: "create", name: "Dans conteneur", parent: mount });
+  if (!plan) throw Error("plan absent");
+  expect((await applyProjectPlan(config, plan)).workspace).toBe(join(mount, "dans-conteneur"));
+  await expect(
+    planProjectCreation({ kind: "container", name: "X", container: "inconnu" }, known.host),
+  ).rejects.toMatchObject({ code: "project.parentInvalid" });
+  expect(known.calls).toEqual([]);
+});
+
+it("proposedProjectName borne le nom de base du dossier", () => {
+  expect(proposedProjectName("/a/b/Client X")).toBe("Client X");
+  expect(proposedProjectName(`/a/${"x".repeat(200)}`)).toHaveLength(80);
 });

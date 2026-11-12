@@ -8,6 +8,7 @@ import { createUiTranslator } from "@warband/messages";
 import { describe, expect, it } from "vitest";
 import { studioHtml } from "../src/logic/html.js";
 import {
+  creationContainers,
   observeMission,
   parseStudioMessage,
   STUDIO_PAGES,
@@ -175,16 +176,64 @@ describe("réglages", () => {
     });
     expect(parseStudioMessage({ type: "activateProject", projectId: "../autre" })).toBeNull();
     expect(parseStudioMessage({ type: "activateProject", projectId, extra: true })).toBeNull();
-    expect(parseStudioMessage({ type: "createProject", name: " Mission " })).toEqual({
+    expect(
+      parseStudioMessage({ type: "createProject", name: " Mission ", target: "newFolder" }),
+    ).toEqual({ type: "createProject", name: "Mission", target: "newFolder" });
+    expect(
+      parseStudioMessage({
+        type: "createProject",
+        name: "Mission",
+        target: "container",
+        container: "exegol-lab",
+      }),
+    ).toEqual({
       type: "createProject",
       name: "Mission",
+      target: "container",
+      container: "exegol-lab",
+    });
+    expect(parseStudioMessage({ type: "adoptProject", name: " Client " })).toEqual({
+      type: "adoptProject",
+      name: "Client",
+    });
+    // Nom vide : l'hôte proposera le nom de base du dossier choisi.
+    expect(parseStudioMessage({ type: "adoptProject", name: "" })).toEqual({
+      type: "adoptProject",
+      name: "",
     });
     for (const name of ["", "  ", "x".repeat(81), "a\nb", "a\0b"]) {
-      expect(parseStudioMessage({ type: "createProject", name })).toBeNull();
+      expect(parseStudioMessage({ type: "createProject", name, target: "newFolder" })).toBeNull();
     }
-    expect(
-      parseStudioMessage({ type: "createProject", name: "Mission", workspace: "/etc" }),
-    ).toBeNull();
+    for (const name of ["x".repeat(81), "a\nb", "a\0b"]) {
+      expect(parseStudioMessage({ type: "adoptProject", name })).toBeNull();
+    }
+    const rejected: unknown[] = [
+      // Ancienne forme sans cible, cible inconnue.
+      { type: "createProject", name: "Mission" },
+      { type: "createProject", name: "Mission", target: "existing" },
+      { type: "createProject", name: "Mission", target: "autre" },
+      // `container` sans `target:"container"`, ou absent / hors bornes avec.
+      { type: "createProject", name: "Mission", target: "newFolder", container: "exegol-lab" },
+      { type: "createProject", name: "Mission", target: "container" },
+      { type: "createProject", name: "Mission", target: "container", container: "" },
+      { type: "createProject", name: "Mission", target: "container", container: "x".repeat(257) },
+      { type: "createProject", name: "Mission", target: "container", container: 3 },
+      // Aucune clé de chemin ne passe.
+      ...["workspace", "folder", "parent", "path", "workspaceRoot"].flatMap((key) => [
+        { type: "createProject", name: "Mission", target: "newFolder", [key]: "/etc" },
+        { type: "adoptProject", name: "Mission", [key]: "/etc" },
+        {
+          type: "createProject",
+          name: "Mission",
+          target: "container",
+          container: "exegol-lab",
+          [key]: "/etc",
+        },
+      ]),
+      // Réglage de racine supprimé.
+      { type: "setWorkspaceRoot", value: "/home/demo/missions" },
+    ];
+    for (const message of rejected) expect(parseStudioMessage(message)).toBeNull();
   });
 
   it("HTML : nonce, pas de style inline", () => {
@@ -595,6 +644,7 @@ class StudioNode {
   textContent = "";
   value = "";
   disabled = false;
+  checked = false;
   hidden = false;
   title = "";
   className = "";
@@ -1049,7 +1099,82 @@ it("projets : choisir un projet réel et créer avec le nom seul, dossier laiss�
   createTab.fire("click");
   expect(name.value).toBe(" Nouvelle mission ");
   create.fire("click");
-  expect(sent.at(-1)).toEqual({ type: "createProject", name: "Nouvelle mission" });
+  expect(sent.at(-1)).toEqual({
+    type: "createProject",
+    name: "Nouvelle mission",
+    target: "newFolder",
+  });
+  // Sans conteneur monté : trois choix, l'option conteneur est grisée et expliquée.
+  const radio = (value: string) => find((n) => n.id === `project-target-${value}`);
+  expect(radio("newFolder").checked).toBe(true);
+  expect(radio("container").disabled).toBe(true);
+  expect(find((n) => n.textContent === "Aucun conteneur avec un dossier partagé.")).toBeTruthy();
+  // Dossier existant : le nom n'est plus obligatoire (l'hôte le propose), aucun chemin n'est envoyé.
+  radio("existing").checked = true;
+  radio("existing").fire("change");
+  name.value = "";
+  name.fire("input");
+  expect(create.disabled).toBe(false);
+  create.fire("click");
+  expect(sent.at(-1)).toEqual({ type: "adoptProject", name: "" });
+  // Un conteneur monté active le troisième choix, qui envoie son nom (le montage reste côté hôte).
+  receive({
+    data: {
+      type: "view",
+      page: "project",
+      projectChoices: {
+        activeId: first,
+        projects: [{ id: first, name: "Premier", workspace: "/mission" }],
+      },
+      creationContainers: [
+        { name: "exegol-lab", short: "lab", state: "running", mount: "/srv/ws" },
+        { name: "kali-b", short: "b", state: "stopped", mount: "/srv/b" },
+      ],
+    },
+  });
+  expect(radio("container").disabled).toBe(false);
+  expect(radio("existing").checked).toBe(true);
+  radio("container").checked = true;
+  radio("container").fire("change");
+  const pick = find((n) => n.id === "project-container");
+  expect(pick.children.map((c) => c.value)).toEqual(["exegol-lab", "kali-b"]);
+  const createContainer = find((n) => n.textContent === "Créer le projet");
+  expect(createContainer.disabled).toBe(true);
+  const nameField = find((n) => n.id === "project-name");
+  nameField.value = "Dans lab";
+  nameField.fire("input");
+  pick.value = "kali-b";
+  pick.fire("change");
+  createContainer.fire("click");
+  expect(sent.at(-1)).toEqual({
+    type: "createProject",
+    name: "Dans lab",
+    target: "container",
+    container: "kali-b",
+  });
+  receive({
+    data: {
+      type: "view",
+      page: "project",
+      projectChoices: {
+        activeId: first,
+        projects: [{ id: first, name: "Premier", workspace: "/mission" }],
+      },
+    },
+  });
+  // Plus de conteneur monté : retour au choix « Nouveau dossier ».
+  expect(radio("newFolder").checked).toBe(true);
+  expect(radio("container").disabled).toBe(true);
+  find((n) => n.textContent === "Créer le projet").fire("click");
+  expect(sent.at(-1)).toEqual({
+    type: "createProject",
+    name: "Dans lab",
+    target: "newFolder",
+  });
+  // Le brouillon du nom survit aux rafraîchissements de vue.
+  const restored = find((n) => n.id === "project-name");
+  restored.value = " Nouvelle mission ";
+  restored.fire("input");
   receive({
     data: {
       type: "view",
@@ -1773,36 +1898,46 @@ it("avertit pendant la saisie d’une valeur de compte de moins de six caractèr
   expect(warning.hidden).toBe(true);
 });
 
-it("le réglage de racine appartient au Système et envoie uniquement une valeur machine", () => {
+it("le réglage de racine des projets a disparu de la page Système", () => {
   const h = killchainDom(undefined, false);
   h.receive({
     type: "view",
     page: "system",
     projectWorkspaceRoot: "/home/demo/.exegol/workspaces",
   });
-  const input = h.main.find((node) => node.id === "project-workspace-root");
-  const save = h.main.find((node) => node.id === "project-workspace-root-save");
-  if (!input || !save) throw Error("Réglage de racine absent");
-  expect(input.value).toBe("/home/demo/.exegol/workspaces");
-  input.value = "/home/demo/missions";
-  save.fire("click");
-  expect(h.sent.at(-1)).toEqual({ type: "setWorkspaceRoot", value: "/home/demo/missions" });
-  expect(parseStudioMessage({ type: "setWorkspaceRoot", value: "/home/demo/missions" })).toEqual({
-    type: "setWorkspaceRoot",
-    value: "/home/demo/missions",
-  });
-  expect(parseStudioMessage({ type: "setWorkspaceRoot", value: "bad\0path" })).toBeNull();
-  expect(
-    parseStudioMessage({ type: "createProject", name: "Projet", workspaceRoot: "/autre" }),
-  ).toBeNull();
+  expect(h.main.find((node) => node.id === "project-workspace-root")).toBeUndefined();
+  expect(h.main.find((node) => node.id === "project-workspace-root-save")).toBeUndefined();
+  const source = read(studioJs);
+  expect(source).not.toContain("setWorkspaceRoot");
+  expect(source).not.toContain("projectWorkspaceRoot");
 });
 
-it("la création de projet n’ouvre plus de choix de dossier", () => {
+it("création de projet : sélecteur natif sans defaultUri, jamais le réglage de racine", () => {
   const source = read(fileURLToPath(new URL("../src/extension/extension.ts", import.meta.url)));
   const start = source.indexOf(
-    'if (message.type === "activateProject" || message.type === "createProject")',
+    'if (message.type === "createProject" || message.type === "adoptProject")',
   );
-  const handler = source.slice(start, source.indexOf("if (projectSelected)", start));
-  expect(handler).toContain("createManagedSelectedProject");
-  expect(handler).not.toContain("showOpenDialog");
+  const handler = source.slice(start, source.indexOf('if (message.type === "saveSummary")', start));
+  expect(handler).toContain("showOpenDialog");
+  expect(handler).toContain("planProjectCreation");
+  expect(handler).toContain("applyProjectPlan");
+  expect(handler).not.toContain("defaultUri");
+  expect(source).not.toContain("projects.workspaceRoot");
+  expect(source).not.toContain("setWorkspaceRoot");
+  // Le dossier de la webview n'existe pas : seuls le nom et le conteneur sont lus du message.
+  expect(handler).not.toMatch(/message\.(workspace|folder|parent|path)/);
+  const manifest = read(fileURLToPath(new URL("../extension.manifest.json", import.meta.url)));
+  expect(manifest).not.toContain("projects.workspaceRoot");
+});
+
+describe("creationContainers", () => {
+  it("ne garde que les conteneurs au montage absolu", () => {
+    expect(
+      creationContainers([
+        { name: "a", short: "a", state: "running", workspace: "/srv/a" },
+        { name: "b", short: "b", state: "stopped" },
+        { name: "c", short: "c", state: "running", workspace: "relatif/c" },
+      ]),
+    ).toEqual([{ name: "a", short: "a", state: "running", mount: "/srv/a" }]);
+  });
 });

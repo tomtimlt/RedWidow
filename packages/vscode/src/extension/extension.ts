@@ -31,7 +31,6 @@ import {
   parseMentions,
   prepareContainerProjectWorkspace,
   prepareKaliContainer,
-  projectWorkspacesRoot,
   promptForTargets,
   pullDockerImage,
   readFindings,
@@ -147,8 +146,10 @@ import {
 } from "../logic/project-container-link.js";
 import {
   activateSelectedProject,
-  createManagedSelectedProject,
+  applyProjectPlan,
   manageSelectedProject,
+  type ProjectCreationChoice,
+  planProjectCreation,
   readProjectChoices,
 } from "../logic/project-controls.js";
 import { integrationMap, projectIntegrations } from "../logic/project-integrations.js";
@@ -178,6 +179,7 @@ import {
 import { shortcutLabel } from "../logic/shortcuts.js";
 import { readSources } from "../logic/sources.js";
 import {
+  creationContainers,
   type ObservedMission,
   observeMission,
   parseStudioMessage,
@@ -3193,7 +3195,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       summaryFailed?: string;
       summaryError?: string;
       projectError?: string;
-      workspaceRootError?: string;
       projectCreated?: string;
       auditError?: string;
     } = {},
@@ -3326,8 +3327,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             ) ?? {},
             projectChoices.activeId,
           ),
-          projectWorkspaceRoot: readMachineSetting("projects.workspaceRoot") || "",
-          ...(feedback.workspaceRootError && { workspaceRootError: feedback.workspaceRootError }),
+          creationContainers: creationContainers(cockpit.value?.containers ?? []),
           agentProfile: agentProfileLabel(
             machineValue(vscode.workspace.getConfiguration("warband").inspect("profile")),
           ),
@@ -4146,16 +4146,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
         return;
       }
-      if (message.type === "setWorkspaceRoot") {
-        try {
-          projectWorkspacesRoot(message.value);
-          await writeMachineSetting("projects.workspaceRoot", message.value);
-          await pushStudio();
-        } catch (error) {
-          await pushStudio({ workspaceRootError: formatError(error, getUiLocale()) });
-        }
-        return;
-      }
       if (message.type === "setTerminalPrompt") {
         try {
           await writeMachineSetting("terminalPrompt", message.value);
@@ -4334,26 +4324,102 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           await cockpitPanel.webview.postMessage(await loadCockpitView());
         return;
       }
-      if (message.type === "activateProject" || message.type === "createProject") {
+      if (message.type === "activateProject") {
         await changeProject(async () => {
-          if (message.type === "activateProject") {
-            await activateSelectedProject(defaultConfigDir(), message.projectId);
-            return undefined;
-          }
-          if (chatsBusy())
-            throw new Error(t("Arrêtez les tours en cours avant de créer le projet."));
-          // Plus de dossier par défaut (ADR 0052) : l'interface de choix du parent suivra.
-          const workspaceRoot = readMachineSetting("projects.workspaceRoot");
-          if (typeof workspaceRoot !== "string" || workspaceRoot === "")
-            throw new CodedError("project.parentInvalid");
-          const created = await createManagedSelectedProject(
-            defaultConfigDir(),
-            message.name,
-            workspaceRoot,
-          );
-          await prepareMissionFolder(created.workspace);
-          return created.id;
+          await activateSelectedProject(defaultConfigDir(), message.projectId);
+          return undefined;
         });
+        return;
+      }
+      if (message.type === "createProject" || message.type === "adoptProject") {
+        if (projectChanging || chatsBusy()) {
+          await pushStudio({
+            projectError: t("Arrêtez les tours en cours avant de créer le projet."),
+          });
+          return;
+        }
+        // Aucun chemin ne vient de la webview : dialogues natifs sans dossier par défaut (ADR 0050, 0052).
+        const choice: ProjectCreationChoice =
+          message.type === "adoptProject"
+            ? { kind: "existing", name: message.name }
+            : message.target === "container"
+              ? { kind: "container", name: message.name, container: message.container }
+              : { kind: "newFolder", name: message.name };
+        let plan: Awaited<ReturnType<typeof planProjectCreation>>;
+        try {
+          plan = await planProjectCreation(choice, {
+            pickFolder: async (purpose) => {
+              const picked = await vscode.window.showOpenDialog({
+                canSelectFolders: true,
+                canSelectFiles: false,
+                canSelectMany: false,
+                openLabel:
+                  purpose === "parent"
+                    ? t("Choisir le dossier parent du projet")
+                    : t("Choisir le dossier à ouvrir comme projet"),
+              });
+              return picked?.[0]?.fsPath;
+            },
+            askName: async (proposed) => {
+              const name = await vscode.window.showInputBox({
+                title: t("Nom du nouveau projet"),
+                value: proposed,
+                validateInput: (value) =>
+                  value.trim() === "" || value.trim().length > 80 || /[\0\r\n]/.test(value)
+                    ? t("Nom du projet invalide.")
+                    : undefined,
+              });
+              return name?.trim();
+            },
+            // Le montage est relu ici, côté hôte : la webview ne fournit que le nom du conteneur.
+            containerMount: async (container) => {
+              const view = await loadCockpitView();
+              return creationContainers(view.containers).find((row) => row.name === container)
+                ?.mount;
+            },
+          });
+        } catch (error) {
+          await pushStudio({ projectError: formatError(error, getUiLocale()) });
+          return;
+        }
+        if (plan === undefined) {
+          // Annulation : rien n'est créé, on réactive le formulaire.
+          await pushStudio();
+          return;
+        }
+        const readyPlan = plan;
+        let created: string | undefined;
+        let linkError: string | undefined;
+        await changeProject(
+          async () => {
+            if (chatsBusy())
+              throw new Error(t("Arrêtez les tours en cours avant de créer le projet."));
+            const project = await applyProjectPlan(defaultConfigDir(), readyPlan);
+            created = project.id;
+            await prepareMissionFolder(project.workspace);
+            return project.id;
+          },
+          // « Dans un conteneur » : la liaison précède l'ouverture du dossier (la fenêtre peut être
+          // remplacée). En cas d'échec le projet reste créé et l'erreur est affichée.
+          choice.kind === "container"
+            ? async () => {
+                if (created === undefined) return;
+                projectChanging = false;
+                try {
+                  await linkForProject(choice.container, created);
+                } catch (error) {
+                  linkError = formatError(error, getUiLocale());
+                } finally {
+                  projectChanging = true;
+                }
+              }
+            : undefined,
+        );
+        if (linkError !== undefined)
+          await pushStudio({
+            ...(created !== undefined && { projectCreated: created }),
+            projectError: linkError,
+          });
         return;
       }
       if (message.type === "saveSummary") {

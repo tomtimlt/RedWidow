@@ -32,7 +32,6 @@
   "command.previewReport": "RedWidow: Preview the draft report",
   "command.exportAttackFlow": "RedWidow: Export Attack Flow",
   "config.opencodeProviders": "Explicitly configured OpenAI-compatible OpenCode providers (URL and models). No secrets: use OpenCode’s native authentication cache. Repository values are ignored. Set in Settings › Global › Providers.",
-  "config.projects.workspaceRoot": "Root for new projects (advanced setting). Empty: ~/.exegol/workspaces. Existing projects are not moved.",
   "config.profile": "Short methodological profile, applied on the next turn. Sources are loaded on demand. Set in Settings › Project › Integrations.",
   "config.integrationsByProject": "Explicitly configured local MCP services. Ignored in the repository; use the RedWidow catalog. Set in Settings › Project › Integrations.",
   "config.burp.enabled": "Expose local Burp Suite MCP to agents. Ignored in folder settings. The next turns use the new settings. Set in Settings › Project › Integrations.",

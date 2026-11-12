@@ -176,6 +176,9 @@ export const hostEn: Record<string, string> = {
   "Arrêtez les tours en cours avant de changer de projet.":
     "Stop running turns before switching projects.",
   "Choisir le dossier du projet": "Choose the project folder",
+  "Choisir le dossier parent du projet": "Choose the project's parent folder",
+  "Choisir le dossier à ouvrir comme projet": "Choose the folder to open as a project",
+  "Nom du projet invalide.": "Invalid project name.",
   "Arrêtez les tours en cours avant de créer le projet.":
     "Stop running turns before creating the project.",
   "Résumé non enregistré : {0}": "Summary not saved: {0}",

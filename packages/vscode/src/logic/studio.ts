@@ -1,3 +1,4 @@
+import { isAbsolute } from "node:path";
 import {
   type AuditReview,
   auditReviewSchema,
@@ -84,7 +85,6 @@ export type StudioMessage =
   | { type: "openEvidence"; projectId: string; id: string }
   | { type: "setPalette"; palette: Palette }
   | { type: "setTerminalPrompt"; value: TerminalPrompt }
-  | { type: "setWorkspaceRoot"; value: string }
   | { type: "setLocale"; locale: "fr" | "en" }
   | { type: "openReport"; projectId: string }
   | { type: "exportKillchain"; projectId: string }
@@ -104,8 +104,14 @@ export type StudioMessage =
   | { type: "activateProject"; projectId: string }
   | { type: "renameProject"; projectId: string }
   | { type: "deleteProject"; projectId: string }
-  /** Seul le nom est accepté ; le dossier est réservé par l’hôte. */
-  | { type: "createProject"; name: string }
+  /**
+   * Création à trois choix (ADR 0052) : aucun chemin ne vient de la webview. Le dossier parent est
+   * choisi par le sélecteur natif de l'hôte ; pour un conteneur, l'hôte relit lui-même le montage.
+   */
+  | { type: "createProject"; name: string; target: "newFolder" }
+  | { type: "createProject"; name: string; target: "container"; container: string }
+  /** Reprise d'un dossier existant : le dossier est choisi par l'hôte, un nom vide laisse l'hôte le proposer. */
+  | { type: "adoptProject"; name: string }
   /** Résumé du projet affiché : l'hôte revalide le projet actif avant l'écriture. */
   | { type: "saveSummary"; projectId: string; text: string }
   /** La cible est relue et confirmée par l'hôte avant toute suppression. */
@@ -119,19 +125,33 @@ export type StudioMessage =
   /** Aucun champ : l'hôte déduit le chemin du dossier de la fenêtre et exige une modale humaine. */
   | { type: "trustRepoPolicy" };
 
+/** Même règle que le cœur pour un nom de projet : non vide, borné, sans NUL ni retour à la ligne. */
+function isProjectName(name: string): boolean {
+  const trimmed = name.trim();
+  return trimmed.length > 0 && trimmed.length <= 80 && !/[\0\r\n]/.test(name);
+}
+
+/** Conteneurs proposés à la création : seulement ceux dont le montage /workspace est un chemin absolu. */
+export function creationContainers(
+  containers: readonly {
+    name: string;
+    short: string;
+    state: "running" | "stopped";
+    workspace?: string;
+  }[],
+): { name: string; short: string; state: "running" | "stopped"; mount: string }[] {
+  return containers.flatMap(({ name, short, state, workspace }) =>
+    workspace !== undefined && isAbsolute(workspace)
+      ? [{ name, short, state, mount: workspace }]
+      : [],
+  );
+}
+
 /** Valide un message de la webview réglages. */
 export function parseStudioMessage(raw: unknown): StudioMessage | null {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
   const m = raw as Record<string, unknown>;
   const keys = Object.keys(m);
-  if (
-    m.type === "setWorkspaceRoot" &&
-    keys.length === 2 &&
-    typeof m.value === "string" &&
-    m.value.length <= 4096 &&
-    !/[\p{Cc}\p{Cf}]/u.test(m.value)
-  )
-    return { type: m.type, value: m.value };
   if (m.type === "setTerminalPrompt" && keys.length === 2 && isTerminalPrompt(m.value))
     return { type: m.type, value: m.value };
   const auditProject =
@@ -280,16 +300,28 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
   ) {
     return { type: m.type, projectId: m.projectId };
   }
+  if (m.type === "createProject" && typeof m.name === "string" && isProjectName(m.name)) {
+    const name = m.name.trim();
+    if (m.target === "newFolder" && keys.length === 3)
+      return { type: "createProject", name, target: "newFolder" };
+    if (
+      m.target === "container" &&
+      keys.length === 4 &&
+      typeof m.container === "string" &&
+      m.container.length > 0 &&
+      m.container.length <= 256
+    )
+      return { type: "createProject", name, target: "container", container: m.container };
+    return null;
+  }
+  // Un nom vide est admis : l'hôte propose alors le nom de base du dossier choisi.
   if (
-    m.type === "createProject" &&
+    m.type === "adoptProject" &&
     keys.length === 2 &&
     typeof m.name === "string" &&
-    m.name.trim().length > 0 &&
-    m.name.trim().length <= 80 &&
-    !/[\0\r\n]/.test(m.name)
-  ) {
-    return { type: "createProject", name: m.name.trim() };
-  }
+    (m.name.trim() === "" || isProjectName(m.name))
+  )
+    return { type: "adoptProject", name: m.name.trim() };
   if (
     (m.type === "deleteFinding" || m.type === "openEvidence") &&
     keys.length === 3 &&

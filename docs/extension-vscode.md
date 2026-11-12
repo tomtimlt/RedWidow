@@ -231,7 +231,7 @@ Les réglages sont lus au démarrage du moteur : pour les appliquer, **Nouvelle 
 Restent sur le disque, à supprimer à la main si vous le souhaitez :
 
 - la configuration : `%APPDATA%\warband` sous Windows, `~/.config/warband` ailleurs (`XDG_CONFIG_HOME` est respecté) ;
-- les dossiers de projets : `~/.exegol/workspaces`, ou la racine réglée par `warband.projects.workspaceRoot` ;
+- les dossiers de projets : ceux que vous avez choisis à la création ou à la reprise de chaque projet (les projets anciens peuvent rester sous `~/.exegol/workspaces`) ;
 - le stockage de l'extension dans VS Code (historique, caches) ;
 - les images et volumes Docker.
 
