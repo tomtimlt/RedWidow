@@ -4,6 +4,8 @@
 import { createApprovalTracker, createCardList, parseApprovalList } from "./lib/approval-card.js";
 import { createChannel } from "./lib/channel.js";
 import { createFrameHost, parseDeepLink } from "./lib/frames.js";
+import { buildCommands, createPalette } from "./lib/palette.js";
+import { attachShortcuts, runShortcut } from "./lib/shortcuts.js";
 import {
   createTopbar,
   oldestPreview,
@@ -15,8 +17,20 @@ import {
 import { createApprovalsScreen, createConfirmZone } from "./screens/approvals.js";
 import { createDesktop } from "./wm/desktop.js";
 import { createDock } from "./wm/dock.js";
+import {
+  applyPlan,
+  cleanName,
+  createLayoutSaver,
+  DEFAULT_NAME,
+  gridFractions,
+  MAX_SAVED,
+  parseLayouts,
+  planApply,
+  serialize,
+  spaceNameOf,
+} from "./wm/layouts.js";
 import { createMobile } from "./wm/mobile.js";
-import { NATIVE_SCREENS, nativeSpec, specFromRoute } from "./wm/types.js";
+import { iframeSpec, NATIVE_SCREENS, nativeSpec, specFromRoute } from "./wm/types.js";
 
 const SHELL = "shell";
 /** Au-delà, l'arrêt d'urgence demandé sans écho du serveur redevient « inconnu ». */
@@ -30,6 +44,11 @@ const state = {
   haltRequested: false,
   haltNote: "",
   bypass: null,
+  /** Espaces de travail enregistrés ({ name, layout }), nom de l'espace affiché. */
+  spaces: [],
+  spaceName: DEFAULT_NAME,
+  /** Vrai après la première lecture des dispositions : avant, rien n'est enregistré. */
+  hydrated: false,
 };
 
 // ───────────────────────────── Canal ─────────────────────────────
@@ -79,6 +98,26 @@ const confirmZone = createConfirmZone(document, $("confirm-zone"), {
 // ───────────────────────────── Barre fixe ─────────────────────────────
 
 let haltTimer = null;
+/** Arrêt d'urgence : un clic ou la palette, aucune confirmation. Actif même si l'état serveur est inconnu. */
+function requestHalt() {
+  if (!channel.send(SHELL, SHELL, { type: "halt" })) {
+    state.haltNote = "Hors ligne : l'arrêt n'a pas été transmis. Réessayez dès la reconnexion.";
+    render();
+    return;
+  }
+  state.haltNote = "";
+  state.haltRequested = true;
+  clearTimeout(haltTimer);
+  haltTimer = setTimeout(() => {
+    if (state.haltRequested) {
+      state.haltRequested = false;
+      state.haltNote = "Arrêt envoyé, sans confirmation du serveur. Vérifiez l'état des agents.";
+      render();
+    }
+  }, HALT_ECHO_MS);
+  render();
+}
+
 const topbar = createTopbar(
   {
     count: $("tb-count"),
@@ -89,26 +128,7 @@ const topbar = createTopbar(
     haltNote: $("tb-halt-note"),
   },
   {
-    // Arrêt d'urgence : un clic, aucune confirmation. Actif même si l'état serveur est inconnu.
-    onHalt() {
-      if (!channel.send(SHELL, SHELL, { type: "halt" })) {
-        state.haltNote = "Hors ligne : l'arrêt n'a pas été transmis. Réessayez dès la reconnexion.";
-        render();
-        return;
-      }
-      state.haltNote = "";
-      state.haltRequested = true;
-      clearTimeout(haltTimer);
-      haltTimer = setTimeout(() => {
-        if (state.haltRequested) {
-          state.haltRequested = false;
-          state.haltNote =
-            "Arrêt envoyé, sans confirmation du serveur. Vérifiez l'état des agents.";
-          render();
-        }
-      }, HALT_ECHO_MS);
-      render();
-    },
+    onHalt: requestHalt,
     onResume() {
       if (!channel.send(SHELL, SHELL, { type: "resume" })) {
         state.haltNote = "Hors ligne : la reprise n'a pas été transmise.";
@@ -131,13 +151,14 @@ const frames = createFrameHost({
   origin: location.origin,
   send: (view, frame, msg) => channel.send(view, frame, msg),
   onFocus: (entry) => desktop.focus(entry.key),
-  onKey(key) {
-    // Aucun raccourci ne répond à une approbation, n'active Bypass ni ne ferme une fenêtre.
-    if (key === "Ctrl+Alt+A") openApprovals();
-  },
+  // Raccourcis relayés par les ponts des pages : même table que le clavier de la coquille.
+  onKey: (key) => handleShortcut(key, "frame"),
   onError: (entry) => desktop.setError(entry.key, true),
 });
 window.addEventListener("message", (event) => frames.handleMessage(event));
+
+// L'écran Approbations vit dans la page ; la référence est gardée : fermer sa fenêtre le retire du DOM.
+const approvalsEl = $("screen-approvals");
 
 const desktop = createDesktop({
   doc: document,
@@ -145,9 +166,10 @@ const desktop = createDesktop({
   frames,
   natives: {
     // L'écran Approbations est préparé dans la page ; la fenêtre l'héberge.
-    approvals: { mount: (body) => body.append($("screen-approvals")) },
+    approvals: { mount: (body) => body.append(approvalsEl) },
   },
   onChange: () => render(),
+  onLayout: () => scheduleSave(),
 });
 
 const openApprovals = () => desktop.open(nativeSpec("approvals"));
@@ -173,13 +195,198 @@ dock = createDock({
     items: $("dock-items"),
     openButton: $("dock-open"),
     menu: $("dock-menu"),
+    spaceButton: $("dock-space"),
+    spaceMenu: $("dock-space-menu"),
   },
   screens: NATIVE_SCREENS,
   onActivate: (key) => desktop.focus(key),
   onMinimize: (key) => desktop.minimize(key),
   onOpenScreen: (name) => desktop.open(nativeSpec(name)),
+  onSpace: (name) => applySpace(name),
+  onSpaceSave: () => palette.openPrompt(saveSpacePrompt()),
 });
-mobile = createMobile({ win: window, doc: document, desktop });
+mobile = createMobile({
+  win: window,
+  doc: document,
+  desktop,
+  onChange: () => renderSpaces(),
+});
+
+// ───────────────────────────── Espaces de travail ─────────────────────────────
+
+const saver = createLayoutSaver({
+  send: (layout) => channel.send(SHELL, SHELL, { type: "layoutSave", name: null, layout }),
+});
+function onPhone() {
+  return mobile?.isPhone() ?? false;
+}
+
+/** Disposition courante : enregistrée 1 s après le dernier changement, jamais depuis le téléphone. */
+function scheduleSave() {
+  if (!state.hydrated || onPhone()) return;
+  saver.schedule(serialize(desktop.layoutWindows(), state.spaceName));
+}
+
+/** Un terminal dont la session est active n'est jamais fermé par un espace : il est minimisé. */
+const isProtected = (key) =>
+  desktop.layoutWindows().some((w) => w.key === key && w.spec.type === "terminal" && w.spec.active);
+
+function applyLayout(layout) {
+  const plan = planApply(
+    layout,
+    desktop.layoutWindows().map((w) => w.key),
+    isProtected,
+  );
+  applyPlan(desktop, plan);
+}
+
+function renderSpaces() {
+  dock?.renderSpaces({
+    current: state.spaceName,
+    spaces: state.spaces.map((s) => s.name),
+    disabled: onPhone(),
+  });
+}
+
+function applySpace(name) {
+  if (onPhone()) return;
+  const space = state.spaces.find((s) => s.name === name);
+  if (!space) return;
+  state.spaceName = name;
+  applyLayout(space.layout);
+  scheduleSave();
+  renderSpaces();
+}
+
+/** Enregistre l'espace affiché sous `name` (remplace un espace du même nom). Message d'erreur ou `undefined`. */
+function saveSpace(name) {
+  if (onPhone()) return "Indisponible au téléphone.";
+  const clean = cleanName(name);
+  if (clean === null) return "Nom refusé : 1 à 40 caractères, sans caractère de contrôle.";
+  if (!state.spaces.some((s) => s.name === clean) && state.spaces.length >= MAX_SAVED) {
+    return `Trop d'espaces enregistrés (${MAX_SAVED} au plus).`;
+  }
+  const layout = serialize(desktop.layoutWindows(), clean);
+  if (!channel.send(SHELL, SHELL, { type: "layoutSave", name: clean, layout })) {
+    return "Hors ligne : l'espace n'a pas été enregistré.";
+  }
+  state.spaceName = clean;
+  scheduleSave();
+  renderSpaces();
+  return undefined;
+}
+
+function deleteSpace(name) {
+  channel.send(SHELL, SHELL, { type: "layoutDelete", name });
+}
+
+const saveSpacePrompt = () => ({
+  placeholder: "Nom de l'espace (40 caractères au plus)",
+  help: "Entrée pour enregistrer. Un nom existant est remplacé.",
+  submit: saveSpace,
+});
+
+/** Tuile les fenêtres visibles en grille. */
+function tileAll() {
+  if (onPhone()) return;
+  const open = desktop.layoutWindows().filter((w) => !w.minimized);
+  gridFractions(open.length).forEach((rect, i) => {
+    desktop.setGeometry(open[i].key, rect, false);
+  });
+}
+
+/** Première lecture : restaure la disposition courante (bureau seulement), puis le lien profond. */
+function hydrate(parsed) {
+  state.hydrated = true;
+  saver.setBaseline(parsed.current);
+  if (parsed.current !== null) {
+    state.spaceName = spaceNameOf(parsed.current);
+    if (!onPhone()) applyLayout(parsed.current);
+  }
+  openRoute(location.hash);
+  saver.enable(true);
+  renderSpaces();
+}
+
+// ───────────────────────────── Raccourcis et palette ─────────────────────────────
+
+const specFor = (kind, id) => (kind === "native" ? nativeSpec(id) : iframeSpec(kind, id));
+const FIXED_VIEWS = [
+  { kind: "cockpit", id: "main", title: "Ouvrir le cockpit" },
+  { kind: "sessions", id: "main", title: "Ouvrir les sessions" },
+  { kind: "studio", id: "main", title: "Ouvrir le studio" },
+];
+
+const palette = createPalette({
+  doc: document,
+  refs: {
+    root: $("palette"),
+    input: $("palette-input"),
+    list: $("palette-list"),
+  },
+  getItems: () => {
+    const missions = [...new Set(tracker.items().map((item) => item.frame))];
+    return buildCommands({
+      windows: desktop.snapshot(),
+      activeKey: desktop.activeKey(),
+      spaces: state.spaces,
+      spaceName: state.spaceName,
+      phone: onPhone(),
+      known: missions.map((id) => ({ kind: "mission", id })),
+      screens: NATIVE_SCREENS,
+      fixed: FIXED_VIEWS,
+      spec: specFor,
+      actions: {
+        open: (spec) => spec && desktop.open(spec),
+        focus: (key) => desktop.focus(key),
+        tile: (key, kind) => desktop.tile(key, kind),
+        tileAll,
+        applySpace,
+        saveSpace,
+        saveSpaceAs: saveSpace,
+        deleteSpace,
+        halt: requestHalt,
+      },
+    });
+  },
+});
+
+const terminalFocused = () =>
+  document.activeElement?.closest?.('.wm-win[data-type="terminal"]') != null;
+
+/** Raccourcis : ne pilotent que le bureau et la palette (jamais une approbation, le Bypass ou une fermeture). */
+function handleShortcut(id, source) {
+  // Palette ouverte : seuls ses propres raccourcis agissent, pas le bureau derrière elle.
+  if (palette.isOpen() && id !== "Ctrl+K" && id !== "Ctrl+Shift+K") return false;
+  const key = desktop.activeKey();
+  const snap = desktop.snapshot().find((w) => w.key === key);
+  return runShortcut(
+    id,
+    {
+      palette: () => palette.toggle(),
+      terminalFocused,
+      tile: (kind) => key && desktop.tile(key, kind),
+      maximize: () => key && desktop.maximize(key),
+      lower: () => {
+        if (!key) return;
+        if (snap?.maximized) desktop.restore(key);
+        else desktop.minimize(key);
+      },
+      space: (index) => {
+        const space = state.spaces[index];
+        if (space) applySpace(space.name);
+      },
+      cycle: () => desktop.cycle(),
+      terminal: () => {
+        const spec = nativeSpec("terminal");
+        if (spec) desktop.open(spec);
+      },
+      approvals: () => openApprovals(),
+    },
+    source,
+  );
+}
+attachShortcuts(document, (id) => handleShortcut(id, "shell"));
 
 // ───────────────────────────── Rendu ─────────────────────────────
 
@@ -297,6 +504,13 @@ channel.onMessage((env) => {
       render();
       break;
     }
+    case "layouts": {
+      const parsed = parseLayouts(msg);
+      state.spaces = parsed.saved;
+      if (!state.hydrated) hydrate(parsed);
+      else renderSpaces();
+      break;
+    }
     default:
       break;
   }
@@ -318,6 +532,9 @@ channel.onState((conn) => {
 });
 channel.onOpen(() => {
   channel.send(SHELL, SHELL, { type: "ready" });
+  channel.send(SHELL, SHELL, { type: "layouts" });
+  // Reconnexion : la disposition courante est renvoyée si elle a changé hors ligne.
+  if (state.hydrated) scheduleSave();
   // Reconnexion : les pages vivantes sont rechargées (elles renvoient `ready` et reprennent l'état).
   if (everOpen) frames.reloadAll();
   everOpen = true;
@@ -327,6 +544,6 @@ channel.onOpen(() => {
 setInterval(render, 30000);
 
 // Au démarrage : la fenêtre Approbations est ouverte ; un lien profond ouvre sa fenêtre par-dessus.
+// La disposition courante enregistrée (ou, à défaut, le lien profond) est appliquée à sa première lecture.
 openApprovals();
-openRoute(location.hash);
 channel.start();

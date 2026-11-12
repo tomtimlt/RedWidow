@@ -511,3 +511,238 @@ body.is-phone .dock-menu-item {
     animation: none;
   }
 }
+
+/* ───────────── Sélecteur d'espaces (dock) ───────────── */
+.dock-space {
+  position: relative;
+  flex: none;
+}
+
+.dock-space-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 100%;
+  max-width: 220px;
+  padding: 0 12px;
+  border: 1px solid var(--rw-line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--rw-fg-muted);
+  font-family: var(--rw-mono);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.dock-space-btn:hover,
+.dock-space-btn[aria-expanded="true"] {
+  background: var(--rw-surface-2);
+  color: var(--rw-fg);
+}
+
+.dock-space-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.dock-space-cap {
+  color: var(--rw-steel-text);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 10px;
+}
+
+.dock-space-name {
+  overflow: hidden;
+  color: var(--rw-fg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dock-space .dock-menu {
+  right: auto;
+  left: 0;
+}
+
+.dock-space-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  font-family: var(--rw-mono);
+  font-size: 12px;
+}
+
+.dock-space-item[aria-checked="true"] {
+  box-shadow: inset 2px 0 0 var(--rw-crimson);
+  color: var(--rw-fg);
+}
+
+.dock-space-save {
+  margin-top: 4px;
+  border-top: 1px solid var(--rw-line);
+  border-radius: 0 0 5px 5px;
+  color: var(--rw-steel-text);
+}
+
+/* Les espaces ne s'appliquent pas au téléphone. */
+body.is-phone .dock-space {
+  display: none;
+}
+
+/* ───────────── Palette de commandes ───────────── */
+.palette {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 12vh 16px 16px;
+  background: rgb(5 8 11 / 62%);
+}
+
+.palette[hidden] {
+  display: none;
+}
+
+.palette-box {
+  display: flex;
+  flex-direction: column;
+  width: min(640px, 100%);
+  max-height: min(70vh, 560px);
+  border: 1px solid var(--rw-steel);
+  border-radius: 10px;
+  background: var(--rw-surface);
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 60%),
+    0 28px 80px rgb(0 0 0 / 70%),
+    0 0 0 1px rgb(204 28 64 / 12%);
+  overflow: hidden;
+}
+
+.palette.is-open .palette-box {
+  animation: pal-in 110ms ease-out 1;
+}
+
+@keyframes pal-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.palette-input {
+  flex: none;
+  width: 100%;
+  padding: 14px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--rw-line);
+  border-radius: 0;
+  background: var(--rw-bg);
+  color: var(--rw-fg);
+  font-family: var(--rw-mono);
+  font-size: 15px;
+  outline: none;
+  box-shadow: inset 3px 0 0 var(--rw-crimson);
+}
+
+.palette-input::placeholder {
+  color: var(--rw-steel-text);
+}
+
+.palette-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 4px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.pal-group {
+  padding: 10px 10px 4px;
+  color: var(--rw-steel-text);
+  font-family: var(--rw-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.pal-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  color: var(--rw-fg-muted);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.pal-item.is-active {
+  background: var(--rw-surface-2);
+  color: var(--rw-fg);
+  box-shadow: inset 2px 0 0 var(--rw-crimson);
+}
+
+.pal-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pal-hit {
+  color: var(--rw-crimson-text);
+  font-weight: 700;
+}
+
+.pal-detail,
+.pal-tag {
+  flex: none;
+  color: var(--rw-steel-text);
+  font-family: var(--rw-mono);
+  font-size: 11px;
+}
+
+.pal-kbd {
+  flex: none;
+  padding: 1px 6px;
+  border: 1px solid var(--rw-line);
+  border-radius: 4px;
+  background: var(--rw-bg);
+  color: var(--rw-steel-text);
+  font-family: var(--rw-mono);
+  font-size: 11px;
+}
+
+.pal-note {
+  padding: 14px 12px;
+  color: var(--rw-fg-muted);
+  font-size: 13px;
+}
+
+.pal-note.is-error {
+  color: var(--rw-err);
+}
+
+.palette-foot {
+  flex: none;
+  display: flex;
+  gap: 16px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--rw-line);
+  color: var(--rw-steel-text);
+  font-size: 11px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .palette.is-open .palette-box {
+    animation: none;
+  }
+}

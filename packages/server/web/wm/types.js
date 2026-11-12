@@ -18,6 +18,10 @@ const IFRAME_KINDS = {
   report: { view: "viewer", mode: "report", label: "Rapport" },
   program: { view: "program", label: "Programme" },
   engagement: { view: "engagement", label: "Engagement" },
+  // Sans entrée de dock : ouvrables depuis la palette (identifiant fixe `main`).
+  cockpit: { view: "cockpit", label: "Cockpit" },
+  sessions: { view: "sessions", label: "Sessions" },
+  studio: { view: "studio", label: "Studio" },
 };
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;

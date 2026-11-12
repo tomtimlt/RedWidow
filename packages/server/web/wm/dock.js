@@ -12,8 +12,19 @@ import { shortTitle } from "./types.js";
  * @param {(key: string) => void} options.onActivate focaliser ou restaurer
  * @param {(key: string) => void} options.onMinimize clic sur la fenêtre déjà focalisée (bureau)
  * @param {(name: string) => void} options.onOpenScreen
+ * @param {(name: string) => void} [options.onSpace] basculer vers l'espace de travail enregistré
+ * @param {() => void} [options.onSpaceSave] « Enregistrer sous… » (saisie d'un nom dans la palette)
  */
-export function createDock({ doc, refs, screens, onActivate, onMinimize, onOpenScreen }) {
+export function createDock({
+  doc,
+  refs,
+  screens,
+  onActivate,
+  onMinimize,
+  onOpenScreen,
+  onSpace = () => {},
+  onSpaceSave = () => {},
+}) {
   const buttons = new Map();
   let mode = "desktop";
 
@@ -70,15 +81,90 @@ export function createDock({ doc, refs, screens, onActivate, onMinimize, onOpenS
   }
   doc.addEventListener("pointerdown", (e) => {
     if (!refs.menu.hidden && !refs.root.contains(e.target)) closeMenu();
+    if (
+      refs.spaceMenu &&
+      !refs.spaceMenu.hidden &&
+      !refs.spaceMenu.parentElement.contains(e.target)
+    )
+      closeSpaceMenu();
   });
   doc.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !refs.menu.hidden) {
       closeMenu();
       refs.openButton.focus();
     }
+    if (e.key === "Escape" && refs.spaceMenu && !refs.spaceMenu.hidden) {
+      closeSpaceMenu();
+      refs.spaceButton.focus();
+    }
   });
 
+  // Sélecteur d'espaces de travail : le bouton montre l'espace affiché, le menu liste les espaces
+  // enregistrés. Reconstruit à chaque changement (liste courte, aucune donnée en HTML).
+  function closeSpaceMenu() {
+    refs.spaceMenu.hidden = true;
+    refs.spaceButton.setAttribute("aria-expanded", "false");
+  }
+  if (refs.spaceButton && refs.spaceMenu) {
+    refs.spaceButton.setAttribute("aria-haspopup", "menu");
+    refs.spaceButton.setAttribute("aria-expanded", "false");
+    refs.spaceButton.addEventListener("click", () => {
+      const willOpen = refs.spaceMenu.hidden;
+      refs.spaceMenu.hidden = !willOpen;
+      refs.spaceButton.setAttribute("aria-expanded", String(willOpen));
+    });
+  }
+
   return {
+    /**
+     * @param {{ current: string, spaces: string[], disabled?: boolean }} view espace affiché et espaces enregistrés
+     */
+    renderSpaces({ current, spaces, disabled = false }) {
+      if (!refs.spaceButton || !refs.spaceMenu) return;
+      refs.spaceButton.textContent = "";
+      const caption = doc.createElement("span");
+      caption.className = "dock-space-cap";
+      caption.textContent = "Espace";
+      const name = doc.createElement("span");
+      name.className = "dock-space-name";
+      name.textContent = current;
+      refs.spaceButton.append(caption, name);
+      refs.spaceButton.disabled = disabled;
+      refs.spaceButton.title = `Espace de travail : ${current}`;
+      refs.spaceMenu.textContent = "";
+      spaces.forEach((space, i) => {
+        const entry = doc.createElement("button");
+        entry.type = "button";
+        entry.className = "dock-menu-item dock-space-item";
+        entry.setAttribute("role", "menuitemradio");
+        entry.setAttribute("aria-checked", String(space === current));
+        entry.dataset.space = space;
+        const label = doc.createElement("span");
+        label.textContent = space;
+        entry.append(label);
+        if (i < 9) {
+          const kbd = doc.createElement("kbd");
+          kbd.className = "pal-kbd";
+          kbd.textContent = `Ctrl Alt ${i + 1}`;
+          entry.append(kbd);
+        }
+        entry.addEventListener("click", () => {
+          closeSpaceMenu();
+          onSpace(space);
+        });
+        refs.spaceMenu.append(entry);
+      });
+      const save = doc.createElement("button");
+      save.type = "button";
+      save.className = "dock-menu-item dock-space-save";
+      save.setAttribute("role", "menuitem");
+      save.textContent = "Enregistrer sous…";
+      save.addEventListener("click", () => {
+        closeSpaceMenu();
+        onSpaceSave();
+      });
+      refs.spaceMenu.append(save);
+    },
     /**
      * @param {object[]} snapshot fenêtres (`desktop.snapshot()`)
      * @param {{ badges?: Map<string, number>, mode?: string }} [options] pastilles par clé de fenêtre

@@ -28,6 +28,10 @@
 
     <nav id="dock" class="dock" aria-label="Fenêtres" data-mode="desktop">
       <div id="dock-items" class="dock-items"></div>
+      <div class="dock-space">
+        <div id="dock-space-menu" class="dock-menu" role="menu" aria-label="Espaces de travail" hidden></div>
+        <button id="dock-space" class="dock-space-btn" type="button">Espace</button>
+      </div>
       <div class="dock-open">
         <div id="dock-menu" class="dock-menu" role="menu" aria-label="Ouvrir une fenêtre" hidden></div>
         <button id="dock-open" class="dock-open-btn" type="button">Ouvrir</button>
@@ -47,6 +51,30 @@
       <div id="sheet-list" class="appr-list"></div>
       <button id="sheet-open" type="button" class="sheet-open">Ouvrir la file</button>
     </aside>
+
+    <div id="palette" class="palette" hidden>
+      <div class="palette-box" role="dialog" aria-modal="true" aria-label="Palette de commandes">
+        <input
+          id="palette-input"
+          class="palette-input"
+          type="text"
+          role="combobox"
+          aria-expanded="true"
+          aria-controls="palette-list"
+          aria-autocomplete="list"
+          autocomplete="off"
+          autocapitalize="off"
+          spellcheck="false"
+          placeholder="Rechercher une commande…"
+        />
+        <div id="palette-list" class="palette-list" role="listbox" aria-label="Commandes"></div>
+        <div class="palette-foot" aria-hidden="true">
+          <span><kbd class="pal-kbd">↑↓</kbd> naviguer</span>
+          <span><kbd class="pal-kbd">Entrée</kbd> exécuter</span>
+          <span><kbd class="pal-kbd">Échap</kbd> fermer</span>
+        </div>
+      </div>
+    </div>
 
     <script type="module" nonce="{{nonce}}" src="/shell.js"></script>
   </body>

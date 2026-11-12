@@ -8,6 +8,7 @@ import {
   clampRect,
   dropZone,
   resizeRect,
+  sanitizeFractions,
   snapRect,
   tileFractions,
   toFractions,
@@ -35,6 +36,7 @@ const el = (doc, tag, className, text) => {
  * @param {object} options.frames hôte de cadres (`createFrameHost`)
  * @param {Record<string, { mount(body: HTMLElement): void }>} [options.natives] écrans natifs par nom
  * @param {(snapshot: object[]) => void} [options.onChange] liste des fenêtres modifiée (dock)
+ * @param {() => void} [options.onLayout] géométrie, ordre ou liste modifiés (enregistrement de l'espace)
  * @param {(fn: () => void, ms: number) => any} [options.setTimer]
  */
 export function createDesktop({
@@ -43,6 +45,7 @@ export function createDesktop({
   frames,
   natives = {},
   onChange = () => {},
+  onLayout = () => {},
   setTimer = (fn, ms) => setTimeout(fn, ms),
 }) {
   const stack = createStack();
@@ -146,6 +149,7 @@ export function createDesktop({
       stack.setAlive(key, false);
     }
     notify();
+    onLayout();
   };
 
   const focus = (key) => {
@@ -387,7 +391,8 @@ export function createDesktop({
     return { node, header, body, errorBox, reload };
   };
 
-  const open = (spec) => {
+  /** `opts.rect` (fractions) et `opts.maximized` : géométrie d'un espace de travail restauré. */
+  const open = (spec, opts = {}) => {
     const { rec, created } = stack.open({ key: spec.key, iframe: spec.kind === "iframe" });
     if (!created) {
       focus(spec.key);
@@ -401,12 +406,13 @@ export function createDesktop({
       body: parts.body,
       errorBox: parts.errorBox,
       entry: null,
-      rect: cascadeFractions(opened),
+      rect: sanitizeFractions(opts.rect) ?? cascadeFractions(opened),
       px: null,
       animTimer: null,
     };
     opened += 1;
     windows.set(spec.key, win);
+    if (opts.maximized === true && mode !== "stack") stack.setMaximized(spec.key, true);
     // Identité unique : l'enregistrement d'empilement est posé avant tout contenu.
     if (spec.kind === "iframe") {
       const entry = frames.open(spec.view, spec.frame, spec.mode ?? undefined, parts.body);
@@ -465,6 +471,28 @@ export function createDesktop({
       if (key !== null) focus(key);
     },
     has: (key) => windows.has(key),
+    /** Pose la géométrie d'une fenêtre ouverte (fractions) ; sans effet en mode pile. */
+    setGeometry(key, rect, maximized) {
+      const win = windows.get(key);
+      const fractions = sanitizeFractions(rect);
+      if (!win || mode === "stack" || fractions === null) return;
+      animate(win);
+      win.rect = fractions;
+      stack.setMaximized(key, maximized === true);
+      reconcile();
+    },
+    /** Fenêtres ouvertes de l'arrière vers l'avant, avec leur géométrie en fractions (espaces de travail). */
+    layoutWindows: () =>
+      stack.order().map((key) => {
+        const win = windows.get(key);
+        return {
+          key,
+          spec: win.spec,
+          rect: win.rect,
+          maximized: win.rec.maximized,
+          minimized: win.rec.minimized,
+        };
+      }),
     /** Mode « pile » (téléphone) ou « bureau » ; change l'affichage, jamais la disposition mémorisée. */
     setMode(next) {
       if (next === mode) return;

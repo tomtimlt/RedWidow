@@ -33,6 +33,7 @@ if (!existsSync(join(dist, "http.js"))) {
 }
 const { createServer } = await import(pathToFileURL(join(dist, "http.js")).href);
 const { hashPassword } = await import(pathToFileURL(join(dist, "auth/password.js")).href);
+const { validateLayout } = await import(pathToFileURL(join(dist, "bridge/layout.js")).href);
 
 const PASSWORD = "mot-de-passe-de-test-e2e";
 const dataDir = mkdtempSync(join(tmpdir(), "rw-e2e-"));
@@ -54,6 +55,9 @@ const sockets = new Set();
 /** Messages reçus du navigateur : { view, frame, msg }. */
 const received = [];
 let approvals = [];
+/** Dispositions enregistrées côté « serveur » (validées par le vrai schéma). */
+let layouts = { current: null, saved: [] };
+let layoutRejected = 0;
 /** Si faux, un `approve` n'est pas acquitté (la demande reste dans la liste). */
 let acknowledge = true;
 
@@ -84,6 +88,23 @@ function onConnection(ws) {
         (a) => !(a.frame === env.frame && a.toolUseId === env.msg.toolUseId),
       );
       pushApprovals();
+    }
+    if (env.msg.type === "layouts") send(ws, "shell", "shell", { type: "layouts", ...layouts });
+    if (env.msg.type === "layoutSave") {
+      const layout = validateLayout(env.msg.layout);
+      if (layout === null) layoutRejected += 1;
+      else if (env.msg.name === null) layouts.current = layout;
+      else {
+        const entry = { name: env.msg.name, layout };
+        const i = layouts.saved.findIndex((e) => e.name === env.msg.name);
+        if (i >= 0) layouts.saved[i] = entry;
+        else layouts.saved.push(entry);
+      }
+      if (layout !== null) broadcast("shell", "shell", { type: "layouts", ...layouts });
+    }
+    if (env.msg.type === "layoutDelete") {
+      layouts.saved = layouts.saved.filter((e) => e.name !== env.msg.name);
+      broadcast("shell", "shell", { type: "layouts", ...layouts });
     }
     if (env.msg.type === "halt") {
       broadcast("shell", "shell", { type: "halt", active: true, since: Date.now() });
@@ -412,7 +433,7 @@ async function scenario(name, viewport) {
 
 const near = (a, b, tol = 1.5) => Math.abs(a - b) <= tol;
 
-async function openSession(name, viewport) {
+async function openSession(name, viewport, { keepLayouts = false } = {}) {
   const context = await browser.newContext({ viewport, deviceScaleFactor: 1 });
   const page = await context.newPage();
   const violations = [];
@@ -428,6 +449,8 @@ async function openSession(name, viewport) {
   received.length = 0;
   approvals = [];
   acknowledge = true;
+  if (!keepLayouts) layouts = { current: null, saved: [] };
+  layoutRejected = 0;
   await page.goto(`${origin}/login`);
   await page.fill("#password", PASSWORD);
   await page.click("button[type=submit]");
@@ -886,6 +909,193 @@ async function phoneScenario(name, viewport) {
   await context.close();
 }
 
+/** Espaces de travail, raccourcis et palette (bureau 1440x900, puis téléphone). */
+async function spacesScenario(name, viewport) {
+  console.log(`\n== ${name} : espaces, raccourcis, palette (${viewport.width}x${viewport.height})`);
+  const { context, page, violations, win, openHash, shot } = await openSession(name, viewport);
+  const keys = () => visibleKeys(page);
+  const palette = page.locator("#palette");
+  const typeInPalette = async (text) => {
+    await page.keyboard.type(text);
+    await sleep(60);
+  };
+  const layoutSaves = (n) =>
+    received.filter((e) => e.view === "shell" && e.msg.type === "layoutSave" && e.msg.name === n);
+  const sentType = (t) => received.some((e) => e.view === "shell" && e.msg.type === t);
+  const forbidden = () =>
+    received.filter(
+      (e) => e.view === "shell" && ["approve", "setBypass", "accountReveal"].includes(e.msg.type),
+    );
+
+  await until(async () => (await keys()).includes("native:approvals"), "approbations ouvertes");
+  await openHash("#w=mission:m1");
+  await until(() => win("chat:m1").isVisible(), "mission m1");
+  await openHash("#w=monitor:r1");
+  await until(() => win("viewer:r1").isVisible(), "monitor r1");
+
+  // Palette : Ctrl+K l'ouvre, la saisie filtre, Échap la ferme.
+  await page.keyboard.press("Control+k");
+  await until(() => palette.isVisible(), "palette ouverte par Ctrl+K");
+  check(
+    await page.locator("#palette-input").evaluate((n) => n === document.activeElement),
+    "focus dans la palette",
+  );
+  await typeInPalette("mis");
+  const first = await page.locator(".pal-item.is-active .pal-title").innerText();
+  check(/mission/i.test(first), `meilleure correspondance de « mis » : ${first}`);
+  await shot("1-palette");
+  const anim = await page
+    .locator(".palette-box")
+    .evaluate((n) => getComputedStyle(n).animationDuration);
+  check(Number.parseFloat(anim) <= 0.15, `animation de la palette ≤ 150 ms (${anim})`);
+  await page.keyboard.press("Escape");
+  await until(async () => !(await palette.isVisible()), "palette fermée par Échap");
+
+  // Raccourcis : moitié droite, puis moitié gauche pour l'autre fenêtre.
+  await win("chat:m1").locator(".wm-title").click();
+  await page.keyboard.press("Control+Alt+ArrowRight");
+  await sleep(250);
+  const d = await page.locator("#desktop").boundingBox();
+  const m1 = await win("chat:m1").boundingBox();
+  check(Math.abs(m1.x - (d.x + Math.round(d.width / 2))) <= 1, "Ctrl+Alt+→ : moitié droite");
+  await win("viewer:r1").locator(".wm-title").click();
+  await page.keyboard.press("Control+Alt+ArrowLeft");
+  await sleep(250);
+  const r1 = await win("viewer:r1").boundingBox();
+  check(
+    Math.abs(r1.x - d.x) <= 1 && Math.abs(r1.width - Math.round(d.width / 2)) <= 1,
+    "Ctrl+Alt+← : moitié gauche",
+  );
+
+  // Enregistrer l'espace « Recon » par la palette.
+  await page.keyboard.press("Control+k");
+  await typeInPalette("enregistrer sous");
+  await page.keyboard.press("Enter");
+  await typeInPalette("Recon");
+  await page.keyboard.press("Enter");
+  await until(() => layoutSaves("Recon").length === 1, "layoutSave « Recon » envoyé");
+  const recon = layoutSaves("Recon")[0].msg.layout;
+  check(
+    recon.windows.some((w) => w.id === "m1" && w.view === "chat" && w.w === 0.5 && w.x === 0.5),
+    "« Recon » contient m1 à droite",
+  );
+  check(
+    recon.windows.some((w) => w.id === "r1" && w.view === "viewer"),
+    "« Recon » contient r1",
+  );
+  await until(
+    async () => (await page.locator("#dock-space .dock-space-name").innerText()) === "Recon",
+    "le dock affiche l'espace Recon",
+  );
+
+  // Une autre disposition, puis retour à Recon par Ctrl+Alt+1.
+  await openHash("#w=conteneurs");
+  await until(() => win("native:containers").isVisible(), "conteneurs ouverts");
+  await win("chat:m1").locator(".wm-title").dblclick();
+  await sleep(250);
+  await page.keyboard.press("Control+Alt+1");
+  await until(
+    async () => !(await keys()).includes("native:containers"),
+    "Ctrl+Alt+1 : conteneurs fermés",
+  );
+  await sleep(250);
+  const back = await win("chat:m1").boundingBox();
+  check(
+    Math.abs(back.width - Math.round(d.width / 2)) <= 1,
+    "Ctrl+Alt+1 : géométrie de Recon rétablie",
+  );
+
+  // La disposition courante est enregistrée environ 1 s après le dernier changement.
+  const before = layoutSaves(null).length;
+  await until(
+    () => layoutSaves(null).length > before,
+    "enregistrement de la disposition courante",
+    4000,
+  );
+  await sleep(1300);
+  check(layoutRejected === 0, "le schéma serveur accepte toutes les dispositions envoyées");
+  const lastCurrent = layoutSaves(null).at(-1).msg.layout;
+  check(lastCurrent.spaces[0].name === "Recon", "la disposition courante porte le nom Recon");
+
+  // Rechargement : « Recon » est restaurée depuis le serveur.
+  // Le lien profond (#w=conteneurs) rouvrirait Conteneurs : on le retire avant de recharger.
+  await page.evaluate(() => history.replaceState(null, "", "/"));
+  await page.reload();
+  await until(
+    async () => (await page.locator("#tb-conn").innerText()) === "Connecté",
+    "reconnexion",
+  );
+  await until(async () => (await keys()).includes("chat:m1"), "après rechargement : m1 restaurée");
+  const after = await keys();
+  check(
+    after.includes("viewer:r1") && !after.includes("native:containers"),
+    "après rechargement : espace Recon restauré",
+  );
+  await sleep(300);
+  const restored = await win("chat:m1").boundingBox();
+  check(
+    Math.abs(restored.x - (d.x + Math.round(d.width / 2))) <= 1,
+    "après rechargement : géométrie restaurée",
+  );
+  check(
+    (await page.locator("#dock-space .dock-space-name").innerText()) === "Recon",
+    "après rechargement : le dock affiche Recon",
+  );
+  await shot("2-recon-restauree");
+
+  // Sélecteur d'espaces du dock.
+  await page.locator("#dock-space").click();
+  check(await page.locator("#dock-space-menu").isVisible(), "menu des espaces ouvert");
+  check(
+    (await page.locator(".dock-space-item").count()) === 1,
+    "un espace enregistré dans le menu",
+  );
+  await page.keyboard.press("Escape");
+
+  // Arrêt d'urgence par la palette (le même message que le bouton).
+  await page.keyboard.press("Control+Shift+k");
+  await typeInPalette("arret d'urgence");
+  await page.keyboard.press("Enter");
+  await until(() => sentType("halt"), "halt envoyé par la palette");
+
+  // Suppression avec confirmation.
+  await page.keyboard.press("Control+k");
+  await typeInPalette("supprimer recon");
+  await page.keyboard.press("Enter");
+  await sleep(80);
+  check(!sentType("layoutDelete"), "suppression : rien n'est envoyé avant la confirmation");
+  await page.keyboard.press("Enter");
+  await until(() => sentType("layoutDelete"), "layoutDelete envoyé");
+  await until(async () => (await page.locator(".dock-space-item").count()) === 0, "espace retiré");
+
+  check(forbidden().length === 0, "aucun approve / setBypass / accountReveal émis");
+  check(violations.length === 0, `zéro violation CSP (${violations.slice(0, 3).join(" | ")})`);
+  await context.close();
+
+  // Téléphone : la disposition enregistrée n'est pas appliquée ni modifiée.
+  console.log(`\n== ${name} : téléphone`);
+  layouts.current = lastCurrent;
+  const saved = JSON.stringify(layouts.current);
+  const phone = await openSession(
+    `${name}-phone`,
+    { width: 375, height: 812 },
+    { keepLayouts: true },
+  );
+  await sleep(400);
+  check(
+    JSON.stringify(await visibleKeys(phone.page)) === JSON.stringify(["native:approvals"]),
+    "téléphone : disposition enregistrée non appliquée",
+  );
+  await phone.openHash("#w=mission:m7");
+  await sleep(1600);
+  check(
+    !received.some((e) => e.view === "shell" && e.msg.type === "layoutSave"),
+    "téléphone : aucune disposition enregistrée",
+  );
+  check(JSON.stringify(layouts.current) === saved, "téléphone : disposition serveur inchangée");
+  await phone.context.close();
+}
+
 try {
   // WEB_E2E_ONLY=<nom> : ne joue que ce scénario (mise au point).
   const only = (name) => !process.env.WEB_E2E_ONLY || process.env.WEB_E2E_ONLY === name;
@@ -895,6 +1105,7 @@ try {
   if (only("wm-budget-desktop")) {
     await budgetScenario("wm-budget-desktop", { width: 1440, height: 900 }, 8);
   }
+  if (only("wm-spaces")) await spacesScenario("wm-spaces", { width: 1440, height: 900 });
   if (only("wm-mobile")) await phoneScenario("wm-mobile", { width: 375, height: 812 });
   if (only("wm-budget-mobile")) {
     await budgetScenario("wm-budget-mobile", { width: 375, height: 812 }, 3);
