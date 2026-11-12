@@ -6,6 +6,7 @@
     <title>RedWidow</title>
     <link rel="stylesheet" href="/theme.css" />
     <link rel="stylesheet" href="/shell.css" />
+    <link rel="stylesheet" href="/wm.css" />
   </head>
   <body class="shell">
     <header id="topbar">
@@ -21,23 +22,26 @@
       <button id="tb-halt" class="tb-halt" type="button" data-state="idle">Arrêt d'urgence</button>
     </header>
 
-    <main id="desktop">
+    <main id="desktop" aria-label="Bureau">
       <div id="confirm-zone" class="confirm-zone" hidden></div>
+    </main>
 
+    <nav id="dock" class="dock" aria-label="Fenêtres" data-mode="desktop">
+      <div id="dock-items" class="dock-items"></div>
+      <div class="dock-open">
+        <div id="dock-menu" class="dock-menu" role="menu" aria-label="Ouvrir une fenêtre" hidden></div>
+        <button id="dock-open" class="dock-open-btn" type="button">Ouvrir</button>
+      </div>
+    </nav>
+
+    <!-- Réserve : l'écran Approbations est hébergé par sa fenêtre dès qu'elle s'ouvre. -->
+    <div id="wm-stash" hidden>
       <section id="screen-approvals" class="screen" aria-labelledby="appr-title">
         <h1 id="appr-title">Approbations</h1>
         <p id="appr-empty" class="empty"></p>
         <div id="appr-list" class="appr-list" hidden></div>
       </section>
-
-      <section id="screen-frame" class="screen screen-frame" hidden>
-        <div id="frames" class="frames"></div>
-        <div id="frame-error" class="frame-error" role="alert" hidden>
-          <p>La vue n'a pas pu se charger.</p>
-          <button id="frame-reload" type="button" class="appr-btn appr-once">Recharger</button>
-        </div>
-      </section>
-    </main>
+    </div>
 
     <aside id="sheet" class="sheet" aria-label="Demande d'approbation" hidden>
       <div id="sheet-list" class="appr-list"></div>

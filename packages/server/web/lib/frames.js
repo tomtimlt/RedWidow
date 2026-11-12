@@ -40,14 +40,39 @@ const FRAME_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 
 export const frameKey = (view, frame) => `${view}:${frame}`;
 
+/** Mots du lien profond → type de fenêtre à instance (`#w=<mot>:<identifiant>`). */
+const DEEP_KINDS = {
+  mission: "mission",
+  monitor: "monitor",
+  graphe: "graph",
+  rapport: "report",
+  programme: "program",
+  engagement: "engagement",
+};
+/** Écrans natifs uniques (`#w=<mot>`). */
+const DEEP_NATIVES = {
+  conteneurs: "containers",
+  fournisseurs: "providers",
+  journal: "journal",
+  reglages: "settings",
+};
+
 /**
- * Lien profond (`#w=approbations`, `#w=mission:<id>`) → destination, ou `null`. Le hash ne sert qu'à
- * l'ouverture : il n'est pas une navigation.
+ * Lien profond (`#w=approbations`, `#w=mission:<id>`, `#w=monitor:<id>`, `#w=conteneurs`…) → destination,
+ * ou `null`. Le hash ne sert qu'à l'ouverture : il n'est pas une navigation.
  */
 export function parseDeepLink(hash) {
-  const match = /^#w=(approbations|mission:([A-Za-z0-9_-]{1,64}))$/.exec(hash ?? "");
-  if (!match) return null;
-  return match[2] === undefined ? { kind: "approvals" } : { kind: "mission", id: match[2] };
+  const text = hash ?? "";
+  if (text === "#w=approbations") return { kind: "approvals" };
+  const withId = /^#w=([a-z]+):([A-Za-z0-9_-]{1,64})$/.exec(text);
+  if (withId && Object.hasOwn(DEEP_KINDS, withId[1])) {
+    return { kind: DEEP_KINDS[withId[1]], id: withId[2] };
+  }
+  const plain = /^#w=([a-z]+)$/.exec(text);
+  if (plain && Object.hasOwn(DEEP_NATIVES, plain[1])) {
+    return { kind: "native", name: DEEP_NATIVES[plain[1]] };
+  }
+  return null;
 }
 
 /** URL de la page d'une vue pour un cadre. */
@@ -106,6 +131,7 @@ export function createFrameHost({
   const load = (entry) => {
     if (entry.timer !== null) clearTimer(entry.timer);
     entry.failed = false;
+    entry.unloaded = false;
     entry.timer = setTimer(() => {
       entry.timer = null;
       entry.failed = true;
@@ -115,8 +141,12 @@ export function createFrameHost({
   };
 
   return {
-    /** Ouvre le cadre, ou renvoie l'existant (une seule instance par identité). `null` si le nom est refusé. */
-    open(view, frame, mode) {
+    /**
+     * Ouvre le cadre, ou renvoie l'existant (une seule instance par identité). `null` si le nom est refusé.
+     * `parent` : élément où poser l'`iframe` (par défaut le conteneur de l'hôte) ; un `iframe` déplacé dans
+     * le DOM se rechargerait, d'où le choix du parent dès la création.
+     */
+    open(view, frame, mode, parent) {
       if (!VIEW_NAMES.includes(view) || !FRAME_PATTERN.test(frame)) return null;
       const key = frameKey(view, frame);
       const existing = entries.get(key);
@@ -125,14 +155,23 @@ export function createFrameHost({
       iframe.className = "view-frame";
       iframe.title = `${view} ${frame}`;
       iframe.referrerPolicy = "no-referrer";
-      const entry = { key, view, frame, mode: mode ?? null, iframe, timer: null, failed: false };
+      const entry = {
+        key,
+        view,
+        frame,
+        mode: mode ?? null,
+        iframe,
+        timer: null,
+        failed: false,
+        unloaded: false,
+      };
       iframe.addEventListener("load", () => {
         if (entry.timer !== null) clearTimer(entry.timer);
         entry.timer = null;
         entry.failed = false;
       });
       entries.set(key, entry);
-      container.append(iframe);
+      (parent ?? container).append(iframe);
       load(entry);
       return entry;
     },
@@ -149,13 +188,28 @@ export function createFrameHost({
     reload(entry) {
       load(entry);
     },
+    /** Reconnexion : recharge les pages vivantes ; une page déchargée le reste jusqu'à sa restauration. */
     reloadAll() {
-      for (const entry of entries.values()) load(entry);
+      for (const entry of entries.values()) if (!entry.unloaded) load(entry);
+    },
+    /**
+     * Décharge une page (veille d'une fenêtre minimisée) : mémoire rendue, état perdu. `reload` la
+     * ramène ; la page renvoie alors `ready`. Le gestionnaire de fenêtres ne l'appelle jamais sur une
+     * fenêtre visible.
+     */
+    unload(entry) {
+      if (entry.unloaded) return;
+      if (entry.timer !== null) clearTimer(entry.timer);
+      entry.timer = null;
+      entry.failed = false;
+      entry.unloaded = true;
+      entry.iframe.src = "about:blank";
     },
     /** Message du canal vers la page concernée ; ignoré si aucun cadre ne correspond. */
     deliver(env) {
       const entry = entries.get(frameKey(env.view, env.frame));
-      const target = entry?.iframe.contentWindow;
+      if (!entry || entry.unloaded) return false;
+      const target = entry.iframe.contentWindow;
       if (!target) return false;
       target.postMessage({ rw: 1, msg: env.msg }, origin);
       return true;

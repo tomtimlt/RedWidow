@@ -408,9 +408,497 @@ async function scenario(name, viewport) {
   await context.close();
 }
 
+// ───────────────────────────── Bureau à fenêtres ─────────────────────────────
+
+const near = (a, b, tol = 1.5) => Math.abs(a - b) <= tol;
+
+async function openSession(name, viewport) {
+  const context = await browser.newContext({ viewport, deviceScaleFactor: 1 });
+  const page = await context.newPage();
+  const violations = [];
+  page.on("console", (m) => {
+    if (
+      (m.type() === "error" || m.type() === "warning") &&
+      /Content Security Policy|Refused to/i.test(m.text())
+    ) {
+      violations.push(m.text());
+    }
+  });
+  page.on("pageerror", (e) => violations.push(`pageerror : ${e.message}`));
+  received.length = 0;
+  approvals = [];
+  acknowledge = true;
+  await page.goto(`${origin}/login`);
+  await page.fill("#password", PASSWORD);
+  await page.click("button[type=submit]");
+  await page.waitForURL(`${origin}/`);
+  await until(
+    async () => (await page.locator("#tb-conn").innerText()) === "Connecté",
+    "connexion WebSocket (bureau)",
+  );
+  const win = (key) => page.locator(`.wm-win[data-key="${key}"]`);
+  const openHash = (hash) =>
+    page.evaluate((h) => {
+      location.hash = h;
+    }, hash);
+  const shot = (label) => page.screenshot({ path: join(shots, `${name}-${label}.png`) });
+  return { context, page, violations, win, openHash, shot };
+}
+
+/** Rects des fenêtres visibles, et état du dock. */
+const visibleKeys = (page) =>
+  page.evaluate(() =>
+    [...document.querySelectorAll(".wm-win")].filter((w) => !w.hidden).map((w) => w.dataset.key),
+  );
+
+async function desktopScenario(name, viewport) {
+  console.log(`\n== ${name} : bureau à fenêtres (${viewport.width}x${viewport.height})`);
+  const { context, page, violations, win, openHash, shot } = await openSession(name, viewport);
+  const bar = async () => await page.locator("#topbar").boundingBox();
+  const desk = async () => await page.locator("#desktop").boundingBox();
+
+  check(
+    (await page.locator(".wm-win").count()) === 1,
+    "à l'ouverture : la fenêtre Approbations seule",
+  );
+  check(await win("native:approvals").isVisible(), "fenêtre Approbations visible");
+  check(
+    (await page.locator("#screen-approvals").count()) === 1,
+    "écran Approbations hébergé par la fenêtre",
+  );
+  check((await page.locator("#dock-items .dock-item").count()) === 1, "une entrée de dock");
+
+  // Quatre fenêtres : mission, monitor, approbations, natif.
+  await openHash("#w=mission:m1");
+  await until(() => win("chat:m1").isVisible(), "fenêtre mission");
+  await openHash("#w=monitor:r1");
+  await until(() => win("viewer:r1").isVisible(), "fenêtre monitor");
+  await openHash("#w=conteneurs");
+  await until(() => win("native:containers").isVisible(), "fenêtre native (écran d'attente)");
+  check(
+    (await win("native:containers").innerText()).includes("prochaine version"),
+    "écran natif d'attente",
+  );
+  check((await page.locator("#dock-items .dock-item").count()) === 4, "quatre entrées de dock");
+  await until(
+    async () => !!page.frames().find((f) => f.url().includes("/view/viewer")),
+    "page viewer chargée",
+  );
+  check(
+    page.frames().some((f) => f.url().includes("/view/viewer") && f.url().includes("mode=watch")),
+    "le monitor charge le viewer en mode watch",
+  );
+  // Rouvrir une identité existante la focalise au lieu d'en créer une seconde.
+  await openHash("#w=mission:m1");
+  await sleep(150);
+  check(
+    (await page.locator(".wm-win").count()) === 4,
+    "pas de seconde instance de la même mission",
+  );
+  check((await page.locator("iframe.view-frame").count()) === 2, "deux iframes pour deux vues");
+  await shot("1-cascade");
+
+  // Glisser quatre fenêtres aux coins (pointeur réel) : quarts exacts.
+  const d = await desk();
+  const corner = {
+    br: { x: d.x + d.width - 6, y: d.y + d.height - 40 },
+    tr: { x: d.x + d.width - 6, y: d.y + 40 },
+    bl: { x: d.x + 6, y: d.y + d.height - 40 },
+    tl: { x: d.x + 6, y: d.y + 40 },
+  };
+  const quarter = {
+    br: { x: d.x + Math.round(d.width / 2), y: d.y + Math.round(d.height / 2) },
+    tr: { x: d.x + Math.round(d.width / 2), y: d.y },
+    bl: { x: d.x, y: d.y + Math.round(d.height / 2) },
+    tl: { x: d.x, y: d.y },
+  };
+  const half = { w: Math.round(d.width / 2), h: Math.round(d.height / 2) };
+  const plan = [
+    ["chat:m1", "br"],
+    ["native:containers", "tr"],
+    ["viewer:r1", "bl"],
+    ["native:approvals", "tl"],
+  ];
+  for (const [key, where] of plan) {
+    const title = await win(key).locator(".wm-title").boundingBox();
+    await page.mouse.move(title.x + 20, title.y + title.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(title.x + 200, title.y + 160, { steps: 6 });
+    if (key === "chat:m1") {
+      // Pendant le glisser : voile au-dessus des iframes, barre fixe libre.
+      const iframeBox = await win("viewer:r1").locator("iframe").boundingBox();
+      const overIframe = await page.evaluate(
+        ({ x, y }) => document.elementFromPoint(x, y)?.className ?? "",
+        { x: iframeBox.x + iframeBox.width / 2, y: iframeBox.y + iframeBox.height / 2 },
+      );
+      check(overIframe.includes("wm-veil"), "pendant un glisser, le voile couvre les iframes");
+    }
+    await page.mouse.move(corner[where].x, corner[where].y, { steps: 10 });
+    check(
+      await page.locator(".wm-preview").isVisible(),
+      `aperçu de tuile (${where}) pendant le glisser`,
+    );
+    if (where === "tl") await shot("2-glisser");
+    await page.mouse.up();
+    check(await page.locator(".wm-veil").isHidden(), "voile retiré au relâchement");
+    check(await page.locator(".wm-preview").isHidden(), "aperçu retiré au relâchement");
+    await sleep(220);
+    const box = await win(key).boundingBox();
+    const q = quarter[where];
+    check(
+      near(box.x, q.x) && near(box.y, q.y) && near(box.width, half.w) && near(box.height, half.h),
+      `${key} : quart ${where} exact (${JSON.stringify(box)})`,
+    );
+  }
+  await sleep(300);
+  await shot("3-quatre-quarts");
+  const barBox = await bar();
+  const topHit = await page.evaluate(
+    ({ x, y }) => !!document.elementFromPoint(x, y)?.closest("#topbar"),
+    {
+      x: barBox.x + barBox.width / 2,
+      y: barBox.y + barBox.height / 2,
+    },
+  );
+  check(topHit, "la barre fixe n'est pas couverte (quatre fenêtres)");
+
+  // Minimiser, restaurer par le dock ; clic sur la focalisée : minimise.
+  const item = (key) => page.locator(`#dock-items .dock-item[data-key="${key}"]`);
+  await win("viewer:r1").locator(".wm-min").click();
+  check(await win("viewer:r1").isHidden(), "minimiser masque la fenêtre");
+  check(
+    await item("viewer:r1").evaluate((e) => e.classList.contains("is-min")),
+    "le dock signale la minimisée",
+  );
+  check(!(await visibleKeys(page)).includes("viewer:r1"), "fenêtre minimisée non visible");
+  await item("viewer:r1").click();
+  check(await win("viewer:r1").isVisible(), "clic dock : restaure");
+  check(
+    await item("viewer:r1").evaluate((e) => e.classList.contains("is-focus")),
+    "la restaurée est focalisée",
+  );
+  await item("viewer:r1").click();
+  check(await win("viewer:r1").isHidden(), "clic dock sur la focalisée : minimise");
+  await item("viewer:r1").click();
+  // La page du monitor est restée vivante (budget non atteint) : pas rechargée.
+  check(
+    (await win("viewer:r1").locator("iframe").getAttribute("src")).includes("/view/viewer"),
+    "iframe minimisée gardée vivante",
+  );
+
+  // Maximiser (double-clic sur le titre), restaurer.
+  const before = await win("native:containers").boundingBox();
+  await win("native:containers")
+    .locator(".wm-title")
+    .dblclick({ position: { x: 60, y: 15 } });
+  await sleep(220);
+  const dd = await desk();
+  const full = await win("native:containers").boundingBox();
+  check(near(full.width, dd.width) && near(full.height, dd.height), "double-clic : maximisée");
+  await win("native:containers")
+    .locator(".wm-title")
+    .dblclick({ position: { x: 60, y: 15 } });
+  await sleep(220);
+  const back = await win("native:containers").boundingBox();
+  check(
+    near(back.width, before.width) && near(back.height, before.height),
+    "double-clic : restaurée",
+  );
+
+  // Redimensionner par la poignée sud-est, taille minimale respectée, jamais au-delà du bureau.
+  const grip = await win("native:containers").locator(".wm-grip-se").boundingBox();
+  await page.mouse.move(grip.x + 6, grip.y + 6);
+  await page.mouse.down();
+  await page.mouse.move(grip.x - 2000, grip.y - 2000, { steps: 6 });
+  await page.mouse.up();
+  const small = await win("native:containers").boundingBox();
+  check(
+    near(small.width, 320) && near(small.height, 200),
+    `taille minimale 320x200 (${small.width}x${small.height})`,
+  );
+  await page
+    .locator(".wm-win[data-key='native:containers'] .wm-grip-se")
+    .boundingBox()
+    .then(async (g) => {
+      await page.mouse.move(g.x + 6, g.y + 6);
+      await page.mouse.down();
+      await page.mouse.move(g.x + 3000, g.y + 3000, { steps: 6 });
+      await page.mouse.up();
+    });
+  const wide = await win("native:containers").boundingBox();
+  check(
+    wide.x + wide.width <= dd.x + dd.width + 1.5 && wide.y + wide.height <= dd.y + dd.height + 1.5,
+    "redimensionnement borné au bureau",
+  );
+
+  // Une fenêtre tirée hors du bureau garde sa barre de titre atteignable et ne couvre pas la barre fixe.
+  const t = await win("native:containers").locator(".wm-title").boundingBox();
+  await page.mouse.move(t.x + 20, t.y + 15);
+  await page.mouse.down();
+  await page.mouse.move(t.x + 20, -500, { steps: 8 });
+  await page.mouse.up();
+  await sleep(250);
+  const lifted = await win("native:containers").boundingBox();
+  const bar2 = await bar();
+  check(lifted.y >= bar2.y + bar2.height - 1, "une fenêtre ne passe pas sur la barre fixe");
+  check(
+    near(lifted.width, dd.width) && near(lifted.height, dd.height),
+    "glisser contre le haut : plein bureau",
+  );
+  // Saisir la maximisée la restaure sous le pointeur ; un double-clic seul, non.
+  const tm = await win("native:containers").locator(".wm-title").boundingBox();
+  await page.mouse.move(tm.x + 300, tm.y + 15);
+  await page.mouse.down();
+  await page.mouse.move(tm.x + 340, tm.y + 120, { steps: 5 });
+  await page.mouse.up();
+  const freed = await win("native:containers").boundingBox();
+  check(
+    freed.width < dd.width - 100 && freed.y > bar2.y + bar2.height,
+    "saisie d'une maximisée : restaurée",
+  );
+
+  // Fermer.
+  await win("native:containers").locator(".wm-close").click();
+  check(
+    (await page.locator(".wm-win[data-key='native:containers']").count()) === 0,
+    "fermer retire la fenêtre",
+  );
+  check((await page.locator("#dock-items .dock-item").count()) === 3, "le dock suit la fermeture");
+
+  // Clic dans une fenêtre : premier plan.
+  await win("chat:m1")
+    .locator(".wm-title")
+    .click({ position: { x: 100, y: 15 } });
+  check(
+    await win("chat:m1").evaluate((e) => e.classList.contains("is-focused")),
+    "clic dans la fenêtre : premier plan",
+  );
+  // Focus depuis l'iframe (pont) : un clic dans la page de la mission la passe devant.
+  await win("native:approvals")
+    .locator(".wm-title")
+    .click({ position: { x: 100, y: 15 } });
+  const chat = page.frames().find((f) => f.url().includes("/view/chat"));
+  if (chat) {
+    await chat
+      .locator("body")
+      .click({ position: { x: 10, y: 10 }, force: true })
+      .catch(() => {});
+    await until(
+      () => win("chat:m1").evaluate((e) => e.classList.contains("is-focused")),
+      "clic dans l'iframe : la fenêtre passe devant (pont)",
+    );
+  }
+
+  // Menu « Ouvrir ».
+  await page.click("#dock-open");
+  check(await page.locator("#dock-menu").isVisible(), "menu Ouvrir affiché");
+  await page.locator("#dock-menu .dock-menu-item", { hasText: "Réglages" }).click();
+  check(await win("native:settings").isVisible(), "menu Ouvrir : ouvre l'écran Réglages");
+  check(await page.locator("#dock-menu").isHidden(), "menu refermé après le choix");
+
+  // Barre fixe et approbations restent prioritaires : une demande arrive, la fenêtre Approbations est
+  // minimisée, le compteur de la barre et la pastille du dock l'annoncent.
+  await win("native:approvals").locator(".wm-min").click();
+  approvals = [item1()];
+  pushApprovals();
+  await until(
+    async () => (await page.locator("#tb-count").innerText()) === "1",
+    "compteur de la barre",
+  );
+  check(
+    (await page
+      .locator('#dock-items .dock-item[data-key="native:approvals"] .dock-badge')
+      .innerText()) === "1",
+    "pastille d'approbation sur l'entrée du dock",
+  );
+  check(
+    (await page.locator('#dock-items .dock-item[data-key="chat:m1"] .dock-badge').innerText()) ===
+      "1",
+    "pastille sur la mission concernée",
+  );
+  check(approvalsOf().length === 0, "aucun approve sans clic");
+  await page.locator("#tb-count").click();
+  check(
+    await win("native:approvals").isVisible(),
+    "clic sur le compteur : fenêtre Approbations devant",
+  );
+  approvals = [];
+  pushApprovals();
+
+  check(
+    violations.length === 0,
+    `zéro violation CSP (bureau) (${violations.slice(0, 3).join(" | ")})`,
+  );
+  await context.close();
+}
+
+const item1 = () => ({
+  frame: "m1",
+  toolUseId: "w1",
+  tool: "Bash",
+  summary: "nmap -sV 10.0.0.9",
+  canRemember: true,
+  confirming: false,
+});
+
+/** Budget d'iframes : 8 au bureau, 3 au téléphone ; jamais une fenêtre visible. */
+async function budgetScenario(name, viewport, budget) {
+  console.log(`\n== ${name} : veille des iframes (budget ${budget})`);
+  const { context, page, violations, win, openHash } = await openSession(name, viewport);
+  const phone = viewport.width < 720;
+  const ids = Array.from({ length: budget + 2 }, (_, i) => `b${i + 1}`);
+  for (const id of ids) {
+    await openHash(`#w=mission:${id}`);
+    await until(
+      () =>
+        page
+          .locator(`.wm-win[data-key="chat:${id}"]`)
+          .count()
+          .then((n) => n === 1),
+      `fenêtre ${id}`,
+    );
+  }
+  await sleep(400);
+  const live = () =>
+    page.evaluate(
+      () =>
+        [...document.querySelectorAll("iframe.view-frame")].filter(
+          (f) => !f.src.startsWith("about:blank"),
+        ).length,
+    );
+  const asleep = (id) => win(`chat:${id}`).locator("iframe").getAttribute("src");
+  if (phone) {
+    // Pile : une seule fenêtre visible ; les autres vivent dans le budget.
+    check((await visibleKeys(page)).length === 1, "mode pile : une seule fenêtre visible");
+    check(
+      (await live()) <= budget,
+      `mode pile : au plus ${budget} iframes vivantes (${await live()})`,
+    );
+    check((await asleep(ids[0])) === "about:blank", "mode pile : la plus ancienne est déchargée");
+    check(
+      !(await asleep(ids.at(-1))).startsWith("about:blank"),
+      "mode pile : la visible n'est jamais déchargée",
+    );
+  } else {
+    check(
+      (await visibleKeys(page)).length === ids.length + 1,
+      "toutes les fenêtres visibles au bureau",
+    );
+    check((await live()) === ids.length, "aucune iframe visible déchargée, même au-delà du budget");
+    // Minimiser toutes sauf la dernière : on revient au budget, la plus ancienne minimisée part d'abord.
+    for (const id of ids.slice(0, -1)) {
+      await win(`chat:${id}`)
+        .locator(".wm-min")
+        .evaluate((e) => e.click());
+    }
+    await sleep(300);
+    check((await live()) === budget, `au bureau : ${budget} iframes vivantes (${await live()})`);
+    check((await asleep(ids[0])) === "about:blank", "la minimisée la moins récente est déchargée");
+    check((await asleep(ids[1])) === "about:blank", "la suivante aussi");
+    check(!(await asleep(ids[2])).startsWith("about:blank"), "les plus récentes restent vivantes");
+    check(
+      await page
+        .locator(`#dock-items .dock-item[data-key="chat:${ids[0]}"]`)
+        .evaluate((e) => e.classList.contains("is-sleep")),
+      "le dock signale la fenêtre en veille",
+    );
+  }
+  // Restauration d'une déchargée : la page se recharge et renvoie `ready`.
+  const readies = () =>
+    received.filter((e) => e.view === "chat" && e.frame === ids[0] && e.msg.type === "ready")
+      .length;
+  const n0 = readies();
+  await page.locator(`#dock-items .dock-item[data-key="chat:${ids[0]}"]`).click();
+  await until(
+    async () => (await asleep(ids[0])).includes(`/view/chat?frame=${ids[0]}`),
+    "la déchargée est rechargée à la restauration",
+  );
+  await until(() => readies() > n0, "la page restaurée renvoie ready");
+  check(await win(`chat:${ids[0]}`).isVisible(), "la restaurée est visible");
+  check(
+    violations.length === 0,
+    `zéro violation CSP (veille) (${violations.slice(0, 3).join(" | ")})`,
+  );
+  await context.close();
+}
+
+async function phoneScenario(name, viewport) {
+  console.log(`\n== ${name} : mode pile (${viewport.width}x${viewport.height})`);
+  const { context, page, violations, win, openHash, shot } = await openSession(name, viewport);
+  check(await page.evaluate(() => document.body.classList.contains("is-phone")), "mode pile actif");
+  await openHash("#w=mission:m1");
+  await until(() => win("chat:m1").isVisible(), "mission en plein écran");
+  await openHash("#w=monitor:r1");
+  await until(() => win("viewer:r1").isVisible(), "monitor en plein écran");
+  await openHash("#w=conteneurs");
+  await until(() => win("native:containers").isVisible(), "natif en plein écran");
+  const keys = await visibleKeys(page);
+  check(keys.length === 1 && keys[0] === "native:containers", "une seule fenêtre à la fois");
+  const d = await page.locator("#desktop").boundingBox();
+  const w = await win("native:containers").boundingBox();
+  check(near(w.width, d.width) && near(w.height, d.height), "la fenêtre remplit le bureau");
+  check((await page.locator("#dock-items .dock-item").count()) === 4, "quatre onglets");
+  const dock = await page.locator("#dock").boundingBox();
+  check(dock.y + dock.height >= viewport.height - 1, "onglets en bas de l'écran");
+  const tabH = await page.locator("#dock-items .dock-item").first().boundingBox();
+  check(tabH.height >= 44, "onglets d'au moins 44 px");
+  check(
+    await win("native:containers").locator(".wm-min").isHidden(),
+    "pas de minimisation au téléphone",
+  );
+  check(
+    await win("native:containers").locator(".wm-grip-se").isHidden(),
+    "pas de redimensionnement au téléphone",
+  );
+  // Pas de déplacement.
+  const t = await win("native:containers").locator(".wm-title").boundingBox();
+  await page.mouse.move(t.x + 20, t.y + 15);
+  await page.mouse.down();
+  await page.mouse.move(t.x + 120, t.y + 200, { steps: 5 });
+  await page.mouse.up();
+  const still = await win("native:containers").boundingBox();
+  check(near(still.x, w.x) && near(still.y, w.y), "le glisser ne déplace rien au téléphone");
+  // Onglet : bascule.
+  await page.locator('#dock-items .dock-item[data-key="chat:m1"]').click();
+  await until(() => win("chat:m1").isVisible(), "onglet : la mission passe devant");
+  check((await visibleKeys(page)).length === 1, "toujours une seule fenêtre visible après bascule");
+  await shot("8-pile");
+  // Feuille d'approbation au-dessus de la fenêtre active ; la barre fixe reste libre.
+  approvals = [item1()];
+  pushApprovals();
+  await until(() => page.locator("#sheet").isVisible(), "feuille d'approbation");
+  const sheet = await page.locator("#sheet").boundingBox();
+  const bar = await page.locator("#topbar").boundingBox();
+  check(sheet.y >= bar.y + bar.height - 1, "la feuille ne couvre pas la barre fixe");
+  await shot("9-pile-feuille");
+  await page.click("#sheet-open");
+  await until(
+    () => win("native:approvals").isVisible(),
+    "« Ouvrir la file » : fenêtre Approbations devant",
+  );
+  check(await page.locator("#sheet").isHidden(), "feuille refermée");
+  approvals = [];
+  pushApprovals();
+  check(
+    violations.length === 0,
+    `zéro violation CSP (pile) (${violations.slice(0, 3).join(" | ")})`,
+  );
+  await context.close();
+}
+
 try {
-  await scenario("desktop", { width: 1440, height: 900 });
-  await scenario("mobile", { width: 375, height: 812 });
+  // WEB_E2E_ONLY=<nom> : ne joue que ce scénario (mise au point).
+  const only = (name) => !process.env.WEB_E2E_ONLY || process.env.WEB_E2E_ONLY === name;
+  if (only("desktop")) await scenario("desktop", { width: 1440, height: 900 });
+  if (only("mobile")) await scenario("mobile", { width: 375, height: 812 });
+  if (only("wm-desktop")) await desktopScenario("wm-desktop", { width: 1440, height: 900 });
+  if (only("wm-budget-desktop")) {
+    await budgetScenario("wm-budget-desktop", { width: 1440, height: 900 }, 8);
+  }
+  if (only("wm-mobile")) await phoneScenario("wm-mobile", { width: 375, height: 812 });
+  if (only("wm-budget-mobile")) {
+    await budgetScenario("wm-budget-mobile", { width: 375, height: 812 }, 3);
+  }
 } catch (error) {
   failures.push(`exception : ${error?.stack ?? error}`);
   console.error(error);

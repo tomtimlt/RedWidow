@@ -1,0 +1,513 @@
+/*
+ * Bureau à fenêtres de RedWidow Serveur : fenêtres, dock, mode pile (téléphone). La géométrie des
+ * fenêtres est posée par le CSSOM (wm/desktop.js), jamais par un attribut `style` du HTML. Les
+ * animations durent 150 ms au plus et s'éteignent avec `prefers-reduced-motion`.
+ */
+
+/* ───────────── Fenêtres ───────────── */
+.wm-win {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--rw-surface);
+  border: 1px solid var(--rw-line);
+  border-radius: 7px;
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 45%),
+    0 10px 28px rgb(0 0 0 / 40%);
+}
+
+.wm-win.is-focused {
+  border-color: var(--rw-steel);
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 55%),
+    0 22px 56px rgb(0 0 0 / 62%),
+    0 0 0 1px rgb(73 95 115 / 35%);
+}
+
+.wm-win.is-max {
+  border-radius: 0;
+  border-width: 0;
+  box-shadow: none;
+}
+
+.wm-win.wm-anim {
+  transition:
+    left 120ms ease-out,
+    top 120ms ease-out,
+    width 120ms ease-out,
+    height 120ms ease-out;
+}
+
+.wm-win.wm-pop {
+  animation: wm-pop 120ms ease-out 1;
+}
+
+@keyframes wm-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.wm-title {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 4px 0 12px;
+  border-bottom: 1px solid var(--rw-line);
+  border-radius: 6px 6px 0 0;
+  background: var(--rw-surface-2);
+  color: var(--rw-fg-muted);
+  font-family: var(--rw-mono);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.wm-win.is-max .wm-title {
+  border-radius: 0;
+}
+
+.wm-win.is-focused .wm-title {
+  color: var(--rw-fg);
+  box-shadow: inset 0 2px 0 var(--rw-crimson);
+}
+
+.wm-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wm-name::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 8px;
+  background: var(--rw-steel);
+  vertical-align: 0.5px;
+}
+
+.wm-win.is-focused .wm-name::before {
+  background: var(--rw-crimson);
+}
+
+.wm-btns {
+  display: flex;
+  flex: none;
+}
+
+.wm-btn {
+  width: 30px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--rw-fg-muted);
+  font-family: var(--rw-mono);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.wm-btn:hover {
+  background: var(--rw-line);
+  color: var(--rw-fg);
+}
+
+.wm-btn.wm-close:hover {
+  background: var(--rw-crimson);
+  color: #fff;
+}
+
+.wm-body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  border-radius: 0 0 6px 6px;
+  background: var(--rw-bg);
+}
+
+.wm-win.is-max .wm-body {
+  border-radius: 0;
+}
+
+/* Un écran natif remplit sa fenêtre, sans la marge de page. */
+.wm-body .screen {
+  max-width: none;
+  margin: 0;
+  padding: 14px 14px 20px;
+}
+
+/* Le titre de la fenêtre tient lieu de titre visible ; le h1 reste pour les lecteurs d'écran. */
+.wm-body .screen h1 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.wm-wait {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px 16px;
+}
+
+.wm-wait h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.wm-error {
+  position: absolute;
+  top: 34px;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: var(--rw-bg);
+}
+
+.wm-error .wm-reload {
+  flex: none;
+  min-width: 140px;
+}
+
+/* ───────────── Poignées de redimensionnement ───────────── */
+.wm-grip {
+  position: absolute;
+  z-index: 3;
+  touch-action: none;
+}
+
+.wm-grip-n,
+.wm-grip-s {
+  right: 10px;
+  left: 10px;
+  height: 7px;
+  cursor: ns-resize;
+}
+
+.wm-grip-e,
+.wm-grip-w {
+  top: 10px;
+  bottom: 10px;
+  width: 7px;
+  cursor: ew-resize;
+}
+
+.wm-grip-n {
+  top: -4px;
+}
+
+.wm-grip-s {
+  bottom: -4px;
+}
+
+.wm-grip-e {
+  right: -4px;
+}
+
+.wm-grip-w {
+  left: -4px;
+}
+
+.wm-grip-ne,
+.wm-grip-nw,
+.wm-grip-se,
+.wm-grip-sw {
+  width: 14px;
+  height: 14px;
+}
+
+.wm-grip-ne {
+  top: -4px;
+  right: -4px;
+  cursor: nesw-resize;
+}
+
+.wm-grip-sw {
+  bottom: -4px;
+  left: -4px;
+  cursor: nesw-resize;
+}
+
+.wm-grip-nw {
+  top: -4px;
+  left: -4px;
+  cursor: nwse-resize;
+}
+
+.wm-grip-se {
+  right: -4px;
+  bottom: -4px;
+  cursor: nwse-resize;
+}
+
+.wm-win.is-max .wm-grip {
+  display: none;
+}
+
+/* ───────────── Voile, aperçu de tuile, bureau vide ───────────── */
+/* Pendant un glisser, le voile couvre les iframes (sinon elles captent le pointeur). */
+.wm-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 2000;
+}
+
+.wm-preview {
+  position: absolute;
+  z-index: 1900;
+  border: 1px solid var(--rw-crimson-text);
+  border-radius: 7px;
+  background: rgb(204 28 64 / 14%);
+  pointer-events: none;
+}
+
+.wm-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 24px;
+  color: var(--rw-fg-muted);
+  font-family: var(--rw-mono);
+  font-size: 13px;
+  text-align: center;
+  pointer-events: none;
+}
+
+body.wm-dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
+body.wm-dragging .view-frame {
+  pointer-events: none;
+}
+
+/* ───────────── Dock ───────────── */
+.dock {
+  flex: none;
+  position: relative;
+  z-index: 1000;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  height: 46px;
+  padding: 5px 10px;
+  background: var(--rw-surface);
+  border-top: 1px solid var(--rw-line);
+}
+
+.dock-items {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.dock-item {
+  position: relative;
+  display: inline-flex;
+  flex: 0 1 190px;
+  align-items: center;
+  gap: 8px;
+  min-width: 110px;
+  padding: 0 12px;
+  border: 1px solid var(--rw-line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--rw-fg-muted);
+  font-family: var(--rw-mono);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.dock-item:hover {
+  background: var(--rw-surface-2);
+  color: var(--rw-fg);
+}
+
+.dock-item.is-focus {
+  border-color: var(--rw-steel);
+  background: var(--rw-surface-2);
+  color: var(--rw-fg);
+  box-shadow: inset 0 -2px 0 var(--rw-crimson);
+}
+
+.dock-item.is-min {
+  color: var(--rw-steel-text);
+}
+
+.dock-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Minimisée : point plein ; en veille (page déchargée) : point creux. */
+.dock-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--rw-steel-text);
+}
+
+.dock-dot[data-kind="sleep"] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--rw-steel-text);
+}
+
+.dock-badge {
+  flex: none;
+  min-width: 18px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--rw-crimson);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.dock-open {
+  position: relative;
+  flex: none;
+}
+
+.dock-open-btn {
+  height: 100%;
+  padding: 0 16px;
+  border: 1px solid var(--rw-steel);
+  border-radius: 6px;
+  background: transparent;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dock-open-btn:hover,
+.dock-open-btn[aria-expanded="true"] {
+  background: var(--rw-surface-2);
+}
+
+.dock-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  padding: 4px;
+  border: 1px solid var(--rw-steel);
+  border-radius: 8px;
+  background: var(--rw-surface);
+  box-shadow: 0 16px 40px rgb(0 0 0 / 60%);
+}
+
+.dock-menu-item {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dock-menu-item:hover {
+  background: var(--rw-surface-2);
+}
+
+/* ───────────── Mode pile (téléphone) ───────────── */
+body.is-phone .wm-win {
+  border-width: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+body.is-phone .wm-title {
+  cursor: default;
+  touch-action: auto;
+  border-radius: 0;
+}
+
+body.is-phone .wm-min,
+body.is-phone .wm-max,
+body.is-phone .wm-grip {
+  display: none;
+}
+
+body.is-phone .wm-btn {
+  width: 44px;
+  height: 32px;
+}
+
+body.is-phone .dock {
+  height: calc(56px + env(safe-area-inset-bottom));
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+}
+
+body.is-phone .dock-items {
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+
+body.is-phone .dock-item {
+  flex: 0 0 auto;
+  min-width: 104px;
+  max-width: 180px;
+  min-height: 44px;
+  scroll-snap-align: start;
+}
+
+body.is-phone .dock-open-btn {
+  min-width: 72px;
+  min-height: 44px;
+}
+
+body.is-phone .dock-menu-item {
+  min-height: 44px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wm-win.wm-anim {
+    transition: none;
+  }
+
+  .wm-win.wm-pop {
+    animation: none;
+  }
+}

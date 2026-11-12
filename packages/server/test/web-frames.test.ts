@@ -194,9 +194,47 @@ describe("hébergement des cadres", () => {
     expect(f.made[0]?.removed).toBe(true);
     expect(h.open("chat", "m1")).not.toBe(a);
   });
+
+  it("pose l'iframe dans le parent demandé", () => {
+    const appended: unknown[] = [];
+    const { h } = host();
+    const e = h.open("chat", "m1", undefined, { append: (n: unknown) => appended.push(n) });
+    expect(appended).toEqual([e.iframe]);
+  });
+
+  it("veille : décharger vide la page, ne reçoit plus rien ; recharger la ramène", () => {
+    const { h } = host();
+    const e = h.open("chat", "m1");
+    h.unload(e);
+    expect(e.unloaded).toBe(true);
+    expect(e.iframe.src).toBe("about:blank");
+    expect(h.deliver({ view: "chat", frame: "m1", msg: { type: "x" } })).toBe(false);
+    h.reload(e);
+    expect(e.unloaded).toBe(false);
+    expect(e.iframe.src).toBe("/view/chat?frame=m1");
+  });
+
+  it("la reconnexion ne réveille pas une page déchargée", () => {
+    const { h } = host();
+    const live = h.open("chat", "m1");
+    const asleep = h.open("chat", "m2");
+    h.unload(asleep);
+    live.iframe.src = "";
+    h.reloadAll();
+    expect(live.iframe.src).toBe("/view/chat?frame=m1");
+    expect(asleep.iframe.src).toBe("about:blank");
+  });
 });
 
 describe("liens profonds", () => {
+  it("fenêtres à instance et écrans natifs", () => {
+    expect(parseDeepLink("#w=monitor:r1")).toEqual({ kind: "monitor", id: "r1" });
+    expect(parseDeepLink("#w=graphe:m1")).toEqual({ kind: "graph", id: "m1" });
+    expect(parseDeepLink("#w=conteneurs")).toEqual({ kind: "native", name: "containers" });
+    expect(parseDeepLink("#w=constructor")).toBeNull();
+    expect(parseDeepLink("#w=toString:x")).toBeNull();
+  });
+
   it("approbations et mission seulement", () => {
     expect(parseDeepLink("#w=approbations")).toEqual({ kind: "approvals" });
     expect(parseDeepLink("#w=mission:abc_1")).toEqual({ kind: "mission", id: "abc_1" });
