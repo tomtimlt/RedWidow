@@ -141,6 +141,7 @@ import {
   programDraftSettings,
   startProgramDraft,
 } from "../logic/program-controls.js";
+import { exportProjectArchive, importProjectArchive } from "../logic/project-archive.js";
 import {
   linkWithProjectWorkspace,
   recoverWorkspaceLink,
@@ -4394,6 +4395,99 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await pushStudio({ ...(projectError !== undefined ? { projectError } : {}) });
         if (cockpitPanel && cockpitReady)
           await cockpitPanel.webview.postMessage(withMountIssue(await loadCockpitView()));
+        return;
+      }
+      if (message.type === "exportProject") {
+        if (projectChanging || chatsBusy()) {
+          await pushStudio({
+            projectError: t("Arrêtez les tours en cours avant d'exporter un projet."),
+          });
+          return;
+        }
+        // Aucun chemin ne vient de la webview : le fichier est choisi par le dialogue natif.
+        let exportError: string | undefined;
+        try {
+          const known = (await readProjectChoices(defaultConfigDir())).projects.some(
+            (project) => project.id === message.projectId,
+          );
+          if (!known) throw new CodedError("project.absent");
+          const target = await vscode.window.showSaveDialog({
+            filters: { [t("Projet")]: ["rwproj"] },
+            saveLabel: t("Exporter le projet"),
+          });
+          if (target !== undefined) {
+            const file = target.fsPath.endsWith(".rwproj")
+              ? target.fsPath
+              : `${target.fsPath}.rwproj`;
+            projectChanging = true;
+            try {
+              await exportProjectArchive(defaultConfigDir(), message.projectId, file);
+            } finally {
+              projectChanging = false;
+            }
+            void vscode.window.showInformationMessage(t("Projet exporté."));
+          }
+        } catch (error) {
+          exportError = formatError(error, getUiLocale());
+        }
+        await pushStudio({ ...(exportError !== undefined ? { projectError: exportError } : {}) });
+        return;
+      }
+      if (message.type === "importProject") {
+        if (projectChanging || chatsBusy()) {
+          await pushStudio({
+            projectError: t("Arrêtez les tours en cours avant d'importer un projet."),
+          });
+          return;
+        }
+        // Archive puis dossier parent : deux dialogues natifs sans dossier par défaut ; une annulation n'appelle rien.
+        let imported: Awaited<ReturnType<typeof importProjectArchive>> | undefined;
+        let importError: string | undefined;
+        try {
+          const archive = await vscode.window.showOpenDialog({
+            canSelectFiles: true,
+            canSelectFolders: false,
+            canSelectMany: false,
+            filters: { [t("Projet")]: ["rwproj"] },
+            openLabel: t("Choisir l'archive du projet"),
+          });
+          const archiveFile = archive?.[0]?.fsPath;
+          const parent =
+            archiveFile === undefined
+              ? undefined
+              : (
+                  await vscode.window.showOpenDialog({
+                    canSelectFiles: false,
+                    canSelectFolders: true,
+                    canSelectMany: false,
+                    openLabel: t("Choisir le dossier parent du projet importé"),
+                  })
+                )?.[0]?.fsPath;
+          if (archiveFile !== undefined && parent !== undefined) {
+            projectChanging = true;
+            try {
+              imported = await importProjectArchive(defaultConfigDir(), archiveFile, parent);
+            } finally {
+              projectChanging = false;
+            }
+          }
+        } catch (error) {
+          importError = formatError(error, getUiLocale());
+        }
+        if (imported === undefined) {
+          await pushStudio({ ...(importError !== undefined ? { projectError: importError } : {}) });
+          return;
+        }
+        const importedProject = imported.project;
+        // Le projet importé devient actif, par le même chemin que « Activer le projet ».
+        await changeProject(async () => {
+          await activateSelectedProject(defaultConfigDir(), importedProject.id);
+          return importedProject.id;
+        });
+        if (imported.idChanged)
+          void vscode.window.showInformationMessage(
+            t("Un nouvel identifiant a été attribué au projet importé."),
+          );
         return;
       }
       if (message.type === "activateProject") {

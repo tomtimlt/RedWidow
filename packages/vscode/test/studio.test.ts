@@ -236,6 +236,25 @@ describe("réglages", () => {
     for (const message of rejected) expect(parseStudioMessage(message)).toBeNull();
   });
 
+  it("export / import de projet : formes acceptées et rejetées", () => {
+    const id = "11111111-1111-4111-8111-111111111111";
+    expect(parseStudioMessage({ type: "exportProject", projectId: id })).toEqual({
+      type: "exportProject",
+      projectId: id,
+    });
+    expect(parseStudioMessage({ type: "importProject" })).toEqual({ type: "importProject" });
+    const rejected: unknown[] = [
+      { type: "exportProject" },
+      { type: "exportProject", projectId: "pas-un-uuid" },
+      { type: "exportProject", projectId: 3 },
+      ...["path", "file", "folder", "parent", "destination"].flatMap((key) => [
+        { type: "exportProject", projectId: id, [key]: "/etc/passwd" },
+        { type: "importProject", [key]: "/etc/passwd" },
+      ]),
+    ];
+    for (const message of rejected) expect(parseStudioMessage(message)).toBeNull();
+  });
+
   it("HTML : nonce, pas de style inline", () => {
     const html = studioHtml({
       nonce: "abc",
@@ -1117,6 +1136,17 @@ it("projets : choisir un projet réel et créer avec le nom seul, dossier laiss�
   expect(create.disabled).toBe(false);
   create.fire("click");
   expect(sent.at(-1)).toEqual({ type: "adoptProject", name: "" });
+  // Export du projet sélectionné et import : aucun chemin n'est envoyé.
+  const exportButton = find((n) => n.id === "project-export");
+  chooseTab.fire("click");
+  choose.value = second;
+  choose.fire("change");
+  expect(exportButton.disabled).toBe(false);
+  exportButton.fire("click");
+  expect(sent.at(-1)).toEqual({ type: "exportProject", projectId: second });
+  find((n) => n.id === "project-import").fire("click");
+  expect(sent.at(-1)).toEqual({ type: "importProject" });
+  createTab.fire("click");
   // Un conteneur monté active le troisième choix, qui envoie son nom (le montage reste côté hôte).
   receive({
     data: {
@@ -1928,6 +1958,30 @@ it("création de projet : sélecteur natif sans defaultUri, jamais le réglage d
   expect(handler).not.toMatch(/message\.(workspace|folder|parent|path)/);
   const manifest = read(fileURLToPath(new URL("../extension.manifest.json", import.meta.url)));
   expect(manifest).not.toContain("projects.workspaceRoot");
+});
+
+it("export / import : dialogues natifs sans defaultUri, archive appelée seulement après les choix", () => {
+  const source = read(fileURLToPath(new URL("../src/extension/extension.ts", import.meta.url)));
+  const start = source.indexOf('if (message.type === "exportProject")');
+  const end = source.indexOf('if (message.type === "activateProject")', start);
+  const handlers = source.slice(start, end);
+  expect(handlers).toContain("showSaveDialog");
+  expect(handlers).toContain("showOpenDialog");
+  expect(handlers).not.toContain("defaultUri");
+  expect(handlers).not.toMatch(/message\.(workspace|folder|parent|path|file)/);
+  const exporting = handlers.slice(0, handlers.indexOf('if (message.type === "importProject")'));
+  // Annulation du dialogue d'export : aucun appel d'archive.
+  expect(exporting).toContain("if (target !== undefined)");
+  expect(exporting.indexOf("exportProjectArchive")).toBeGreaterThan(
+    exporting.indexOf("if (target !== undefined)"),
+  );
+  // Annulation de l'un des deux sélecteurs d'import : aucun appel d'archive.
+  expect(handlers).toContain("if (archiveFile !== undefined && parent !== undefined)");
+  expect(handlers.indexOf("importProjectArchive(")).toBeGreaterThan(
+    handlers.indexOf("if (archiveFile !== undefined && parent !== undefined)"),
+  );
+  // Le projet importé est activé par le chemin habituel.
+  expect(handlers).toContain("activateSelectedProject");
 });
 
 describe("creationContainers", () => {

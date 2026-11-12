@@ -2463,11 +2463,22 @@ function start() {
           engagement.addEventListener("click", () =>
             vscode.postMessage({ type: "openEngagement" }),
           );
+          const exportButton = el("button", "ghost", t("Exporter…"));
+          exportButton.type = "button";
+          exportButton.id = "project-export";
+          exportButton.addEventListener("click", () => {
+            if (exportButton.disabled) return;
+            exportButton.disabled = true;
+            vscode.postMessage({ type: "exportProject", projectId: select.value });
+          });
           rename.type = remove.type = "button";
           rename.id = "project-rename";
           remove.id = "project-delete";
           const managementState = () => {
-            rename.disabled = remove.disabled = projectBusy || !select.value;
+            rename.disabled =
+              remove.disabled =
+              exportButton.disabled =
+                projectBusy || !select.value;
           };
           select.addEventListener("change", managementState);
           for (const [button, type] of [
@@ -2481,7 +2492,16 @@ function start() {
             });
           }
           managementState();
-          choosePanel.append(label2, select, activate, program, engagement, rename, remove);
+          choosePanel.append(
+            label2,
+            select,
+            activate,
+            program,
+            engagement,
+            exportButton,
+            rename,
+            remove,
+          );
         }
         const label = el("label", "studio-help", t("Nom du nouveau projet"));
         label.htmlFor = "project-name";
@@ -2591,6 +2611,17 @@ function start() {
           create,
         );
       }
+      // Import : disponible même sans projet ; l'archive et le dossier parent sont choisis par l'hôte.
+      const importButton = el("button", "ghost", t("Importer un projet…"));
+      importButton.type = "button";
+      importButton.id = "project-import";
+      importButton.disabled = view.projectBusy === true;
+      importButton.addEventListener("click", () => {
+        if (importButton.disabled) return;
+        importButton.disabled = true;
+        vscode.postMessage({ type: "importProject" });
+      });
+      sec.append(importButton);
       if (typeof view.projectError === "string") {
         const error = el("p", "studio-help", t(view.projectError));
         error.setAttribute("role", "status");

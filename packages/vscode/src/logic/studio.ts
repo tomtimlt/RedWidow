@@ -104,6 +104,10 @@ export type StudioMessage =
   | { type: "activateProject"; projectId: string }
   | { type: "renameProject"; projectId: string }
   | { type: "deleteProject"; projectId: string }
+  /** Export `.rwproj` (ADR 0052, point 7) : le fichier est choisi par le sélecteur natif de l'hôte. */
+  | { type: "exportProject"; projectId: string }
+  /** Import `.rwproj` (point 8) : archive et dossier parent choisis par l'hôte, aucune clé en plus. */
+  | { type: "importProject" }
   /**
    * Création à trois choix (ADR 0052) : aucun chemin ne vient de la webview. Le dossier parent est
    * choisi par le sélecteur natif de l'hôte ; pour un conteneur, l'hôte relit lui-même le montage.
@@ -287,12 +291,16 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
     return { type: m.type };
   if ((m.type === "configureBurp" || m.type === "testBurp") && keys.length === 1)
     return { type: m.type };
+  if (m.type === "importProject" && keys.length === 1) return { type: "importProject" };
   if (m.type === "unlink" && keys.length === 1) return { type: "unlink" };
   if (m.type === "openCours" && keys.length === 1) return { type: "openCours" };
   if (m.type === "openKillchain" && keys.length === 1) return { type: "openKillchain" };
   if (m.type === "trustRepoPolicy" && keys.length === 1) return { type: "trustRepoPolicy" };
   if (
-    (m.type === "activateProject" || m.type === "renameProject" || m.type === "deleteProject") &&
+    (m.type === "activateProject" ||
+      m.type === "renameProject" ||
+      m.type === "deleteProject" ||
+      m.type === "exportProject") &&
     keys.every((key) => key === "type" || key === "projectId") &&
     keys.length === 2 &&
     typeof m.projectId === "string" &&
