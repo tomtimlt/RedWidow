@@ -10,6 +10,7 @@ import {
   type AgentRunner,
   type ApprovalGate,
   type AuthMode,
+  CodedError,
   createApprovalGate,
   createApprovalQueue,
   createRecorder,
@@ -111,8 +112,25 @@ export interface EngineOptions {
 const isBypassMessage = (raw: unknown): boolean =>
   typeof raw === "object" && raw !== null && (raw as { type?: unknown }).type === "bypass";
 
+/**
+ * Refus du tour : le dossier du projet n'est pas dans le partage du conteneur (ADR 0052, point 5).
+ * Levée par `onPrompt` ; le moteur la rattrape, informe l'hôte et abandonne ce seul tour.
+ */
+export class MountIssueError extends Error {
+  constructor(
+    readonly source: CodedError,
+    readonly projectId: string,
+    readonly projectName: string,
+  ) {
+    super(source.message);
+    this.name = "MountIssueError";
+  }
+}
+
 /** Flux de consignes d'une session multi-tours : `push` alimente, `end` clôt. */
-function createPromptStream(onTake: (text: string, research: boolean) => string | Promise<string>) {
+function createPromptStream(
+  onTake: (text: string, research: boolean) => string | null | Promise<string | null>,
+) {
   const buffer: { text: string; research: boolean; images?: PromptImage[] }[] = [];
   let ended = false;
   let wake: (() => void) | null = null;
@@ -134,6 +152,8 @@ function createPromptStream(onTake: (text: string, research: boolean) => string 
         const next = buffer.shift();
         if (next !== undefined) {
           const enriched = await onTake(next.text, next.research);
+          // Tour abandonné (refus rattrapé) : rien n'est envoyé à l'agent.
+          if (enriched === null) continue;
           yield next.images?.length ? { text: enriched, images: next.images } : enriched;
         } else if (ended) return;
         else await new Promise<void>((resolve) => (wake = resolve));
@@ -196,7 +216,26 @@ export function runEngine({
   const prompts = createPromptStream(async (text, research) => {
     researchTracker.begin(research);
     if (research) researchJournal?.("requested");
-    const enriched = await onPrompt?.(text);
+    let enriched: string | void;
+    try {
+      enriched = await onPrompt?.(text);
+    } catch (error) {
+      if (!(error instanceof MountIssueError)) throw error;
+      const { params } = error.source;
+      send({
+        v: PROTOCOL_VERSION,
+        type: "mountIssue",
+        code: "project.workspaceNotMounted",
+        container: String(params?.container ?? ""),
+        mounted: String(params?.mounted ?? ""),
+        projectId: error.projectId,
+        projectName: error.projectName,
+      });
+      send({ v: PROTOCOL_VERSION, type: "error", reason: errorInfo(error.source) });
+      const status = researchTracker.cancel();
+      if (status) researchJournal?.(status);
+      return null;
+    }
     await onUserMessage(text);
     const context = conversationContext;
     conversationContext = undefined;

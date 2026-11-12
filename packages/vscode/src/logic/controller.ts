@@ -204,6 +204,9 @@ export function createEngineController(options: EngineControllerOptions): Engine
         return handlers.onError?.(message.reason);
       case "bypassAck":
         return handlers.onBypassAck?.({ seq: message.seq, state: message.state });
+      case "mountIssue":
+        // Pas d'affichage dédié pour l'instant (lot produit ultérieur) : l'erreur texte suffit.
+        return;
       case "ready":
         return;
     }

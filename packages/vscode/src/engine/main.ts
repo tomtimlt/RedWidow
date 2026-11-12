@@ -49,7 +49,7 @@ import { PROTOCOL_VERSION } from "../logic/protocol.js";
 import { createBurpBackend } from "./burp-client.js";
 import { processChannel } from "./channel.js";
 import { enrichContainerPrompt } from "./container-prompt.js";
-import { runEngine } from "./engine.js";
+import { MountIssueError, runEngine } from "./engine.js";
 import { createIntegrationBackend } from "./integration-client.js";
 import { projectFileSpecs } from "./project-files.js";
 import { runnerOptions } from "./runner-options.js";
@@ -166,8 +166,20 @@ const done = runEngine({
         } catch {
           continue;
         }
-        if (chosen === row.name)
-          verified.set(row.name, await prepareContainerProjectWorkspace(project, row.name, docker));
+        if (chosen === row.name) {
+          try {
+            verified.set(
+              row.name,
+              await prepareContainerProjectWorkspace(project, row.name, docker),
+            );
+          } catch (error) {
+            // Partage incohérent : tour refusé avant toute action d'agent, mais rattrapé et
+            // transmis à l'hôte sous forme structurée (ADR 0052, point 5). Autre erreur : inchangée.
+            if (error instanceof CodedError && error.code === "project.workspaceNotMounted")
+              throw new MountIssueError(error, project.id, project.name);
+            throw error;
+          }
+        }
       }
     }
     return enrichContainerPrompt(text, outcome.containers, async () => rows, verified);

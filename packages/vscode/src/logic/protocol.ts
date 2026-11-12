@@ -110,6 +110,19 @@ export type FromEngine =
   | { v: 1; type: "approval"; approval: PendingApproval }
   | { v: 1; type: "ended"; summary: EndedSummary }
   | { v: 1; type: "error"; reason: ErrorInfo }
+  /**
+   * Dossier du projet absent du partage du conteneur (ADR 0052, point 5) : le tour est refusé avant
+   * toute action d'agent. Message structuré pour l'hôte ; l'erreur texte part séparément (`error`).
+   */
+  | {
+      v: 1;
+      type: "mountIssue";
+      code: "project.workspaceNotMounted";
+      container: string;
+      mounted: string;
+      projectId: string;
+      projectName: string;
+    }
   /** Accusé du miroir : `state` est l'état réellement retenu (`null` si inactif ou refusé). */
   | { v: 1; type: "bypassAck"; seq: number; state: BypassState | null };
 
@@ -378,6 +391,7 @@ export function parseFromEngine(raw: unknown): Parsed<FromEngine> {
     "approval",
     "ended",
     "error",
+    "mountIssue",
     "bypassAck",
   ]);
   if (!env.ok) return env;
@@ -393,12 +407,20 @@ export function parseFromEngine(raw: unknown): Parsed<FromEngine> {
       approval: ["v", "type", "approval"],
       ended: ["v", "type", "summary"],
       error: ["v", "type", "reason"],
+      mountIssue: ["v", "type", "code", "container", "mounted", "projectId", "projectName"],
       bypassAck: ["v", "type", "seq", "state"],
     }[type] as string[],
   );
   if (unexpected) return bad(unexpected, "unexpected");
   const ok = { ok: true, message: obj as FromEngine } as const;
   switch (type) {
+    case "mountIssue":
+      return obj.code === "project.workspaceNotMounted" &&
+        [obj.container, obj.mounted, obj.projectId, obj.projectName].every(
+          (value) => isString(value) && value.length <= 4096,
+        )
+        ? ok
+        : bad("mountIssue");
     case "missionContext":
       if (
         !isString(obj.runId) ||

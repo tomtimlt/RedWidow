@@ -7,6 +7,7 @@ import {
   type ApprovalOutcome,
   type ApprovalRequest,
   BYPASS_DEFAULT_MS,
+  CodedError,
   createCampaignPort,
   deskInstructions,
   INTEGRATION_GUIDANCE,
@@ -14,7 +15,7 @@ import {
   type Policy,
 } from "@warband/core";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { type EngineChannel, runEngine } from "../src/engine/engine.js";
+import { type EngineChannel, MountIssueError, runEngine } from "../src/engine/engine.js";
 import { SCAN_OUTPUT_GUIDANCE } from "../src/engine/scan-guidance.js";
 import type { FromEngine } from "../src/logic/protocol.js";
 
@@ -1091,6 +1092,86 @@ it("transporte l’image au seul tour demandé sans la journaliser", async () =>
   await done;
   expect(received).toEqual([{ text: "voir contexte", images: [image] }, "suite contexte"]);
   expect(JSON.stringify(t.sent)).not.toContain(image.data);
+});
+
+describe("moteur : partage du conteneur incohérent (ADR 0052, point 5)", () => {
+  const notMounted = () =>
+    new MountIssueError(
+      new CodedError("project.workspaceNotMounted", {
+        container: "exegol-a",
+        mounted: "/autre",
+        project: "Mission (/work/mission)",
+      }),
+      "p-1",
+      "Mission",
+    );
+
+  it("rattrape le refus : aucun appel au runner pour ce tour, mountIssue puis erreur texte", async () => {
+    const t = fakeChannel();
+    const received: unknown[] = [];
+    const runner: AgentRunner = {
+      run: async ({ prompt }) => {
+        for await (const item of prompt as AsyncIterable<unknown>) received.push(item);
+        return { status: "success", turns: 0, costUsd: 0, result: null };
+      },
+    };
+    let calls = 0;
+    const done = runEngine({
+      channel: t.channel,
+      createRunner: () => runner,
+      onPrompt: (text) => {
+        calls += 1;
+        if (calls === 1) throw notMounted();
+        return text;
+      },
+    });
+    t.receive({ v: 1, type: "start", cwd });
+    t.receive({ v: 1, type: "prompt", text: "refusé" });
+    t.receive({ v: 1, type: "prompt", text: "suite" });
+    t.receive({ v: 1, type: "dispose" });
+    expect(await done).toBe(0);
+    expect(received).toEqual(["suite"]);
+    const issue = t.sent.find((m) => m.type === "mountIssue");
+    expect(issue).toEqual({
+      v: 1,
+      type: "mountIssue",
+      code: "project.workspaceNotMounted",
+      container: "exegol-a",
+      mounted: "/autre",
+      projectId: "p-1",
+      projectName: "Mission",
+    });
+    const errors = t.sent.filter((m) => m.type === "error");
+    expect(errors).toHaveLength(1);
+    expect(JSON.stringify(errors[0])).toContain("project.workspaceNotMounted");
+    expect(eventsOf(t.sent).some((e) => e.kind === "user.message" && e.text === "refusé")).toBe(
+      false,
+    );
+  });
+
+  it("n'avale pas une autre erreur", async () => {
+    const t = fakeChannel();
+    const runner: AgentRunner = {
+      run: async ({ prompt }) => {
+        for await (const _ of prompt as AsyncIterable<unknown>) {
+          // consignes ignorées
+        }
+        return { status: "success", turns: 0, costUsd: 0, result: null };
+      },
+    };
+    const done = runEngine({
+      channel: t.channel,
+      createRunner: () => runner,
+      onPrompt: () => {
+        throw new CodedError("project.invalid");
+      },
+    });
+    t.receive({ v: 1, type: "start", cwd });
+    t.receive({ v: 1, type: "prompt", text: "x" });
+    expect(await done).toBe(1);
+    expect(t.sent.some((m) => m.type === "mountIssue")).toBe(false);
+    expect(JSON.stringify(t.sent.filter((m) => m.type === "error"))).toContain("project.invalid");
+  });
 });
 
 describe("moteur : engagement, arrêt d'urgence et campagne transmis au runner (ADR 0041)", () => {
