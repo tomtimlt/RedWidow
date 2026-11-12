@@ -19,3 +19,4 @@ release/
 
 # Captures d'interface (packages/vscode/scripts/ui-snapshots.mjs)
 .ui-snapshots/
+packages/server/engine/

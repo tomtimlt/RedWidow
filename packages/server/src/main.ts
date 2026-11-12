@@ -4,6 +4,7 @@ import { CodedError, errorInfo } from "@warband/core";
 import { formatReason } from "@warband/messages";
 import { loadPasswordHash } from "./auth/password.js";
 import { runSetPassword, type SetPasswordIo } from "./auth/set-password.js";
+import { createBridge, MissionHub } from "./bridge/index.js";
 import { ConfigError, loadConfig, resolveDataDir } from "./config.js";
 import { createServer } from "./http.js";
 import { openStorage } from "./storage/index.js";
@@ -14,7 +15,14 @@ async function serve(): Promise<void> {
   const passwordHash = await loadPasswordHash(config.dataDir, process.env);
   // Clé maître absente ou fausse : démarrage refusé avant toute écoute.
   const storage = await openStorage(config.dataDir, process.env);
-  const server = createServer(config, { passwordHash, storage });
+  // Sessions de chat côté serveur : elles survivent aux navigateurs (ADR 0052, points 2 et 4).
+  const hub = new MissionHub({ storage, onLog: () => undefined });
+  const bridge = createBridge(hub);
+  const server = createServer(config, {
+    passwordHash,
+    storage,
+    onConnection: bridge.onConnection,
+  });
   server.listen(config.port, config.host, () => {
     // Ligne de démarrage : adresse et dossier seulement, aucun secret.
     console.log(
@@ -22,6 +30,8 @@ async function serve(): Promise<void> {
     );
   });
   const stop = () => {
+    // Arrêt propre des moteurs avant celui du serveur.
+    hub.dispose();
     const quit = () => process.exit(0);
     server.close(() => void storage.state.flush().then(quit, quit));
     server.closeAllConnections();

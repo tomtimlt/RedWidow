@@ -7,9 +7,9 @@ const src = (pkg: string) =>
 export default defineConfig({
   resolve: {
     alias: [
-      // Sous-chemins du paquet vscode : `@warband/vscode/logic/x.js` → `packages/vscode/src/logic/x.ts`.
+      // Sous-chemins du paquet vscode : `@warband/vscode/logic/x` (ou `.js`) → `packages/vscode/src/logic/x.ts`.
       {
-        find: /^@warband\/vscode\/(.+)\.js$/,
+        find: /^@warband\/vscode\/(.+?)(?:\.js)?$/,
         replacement: fileURLToPath(new URL("./packages/vscode/src/$1.ts", import.meta.url)),
       },
       { find: "@warband/agent-opencode", replacement: src("agent-opencode") },
