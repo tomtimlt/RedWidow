@@ -80,6 +80,15 @@ interface Sub {
 
 type ExportKind = "exportKillchain" | "exportAttackFlow" | "exportReport";
 
+/**
+ * Canal de réponse d'un geste : la vue Kill chain y répond sur son cadre, les pages du studio sur le leur.
+ * `alive` vaut `false` dès que le destinataire s'est désabonné (le geste en cours s'interrompt alors).
+ */
+export interface GestureChannel {
+  send(msg: Record<string, unknown>): void;
+  alive(): boolean;
+}
+
 /** `[a-z0-9._-]` seulement, jamais de séparateur ni de guillemet. */
 export function exportFilename(prefix: string, name: string, date: Date, ext: string): string {
   const slug =
@@ -211,15 +220,37 @@ export class KillchainHost {
         await this.push(sink, true);
         return true;
       case "openEvidence":
-        return this.evidence(m.projectId, m.id, sink);
       case "exportKillchain":
       case "exportAttackFlow":
       case "exportReport":
-        return this.export(m.type, m.projectId, sink);
       case "setPathEdge":
-        return this.setPathEdge(m, sink);
       case "deleteFinding":
-        return this.deleteFinding(m.projectId, m.id, sink);
+        return this.gesture(m, sink, {
+          send: (msg) => this.send(sink, msg),
+          alive: () => this.alive(sink, frame),
+        });
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * Gestes sur le graphe, la preuve et les exports : mêmes fonctions pour la vue Kill chain et pour les
+   * pages du studio (qui répondent sur leur propre cadre par `chan`). `false` : geste d'un autre type.
+   */
+  async gesture(m: StudioMessage, sink: Sink, chan: GestureChannel): Promise<boolean> {
+    if (this.disposed) return false;
+    switch (m.type) {
+      case "openEvidence":
+        return this.evidence(m.projectId, m.id, chan);
+      case "exportKillchain":
+      case "exportAttackFlow":
+      case "exportReport":
+        return this.export(m.type, m.projectId, sink, chan);
+      case "setPathEdge":
+        return this.setPathEdge(m, chan);
+      case "deleteFinding":
+        return this.deleteFinding(m.projectId, m.id, sink, chan);
       default:
         return false;
     }
@@ -286,7 +317,7 @@ export class KillchainHost {
   // Preuve
   // -------------------------------------------------------------------------------------------
 
-  private async evidence(projectId: string, id: string, sink: Sink): Promise<boolean> {
+  private async evidence(projectId: string, id: string, chan: GestureChannel): Promise<boolean> {
     let reply: Record<string, unknown>;
     try {
       const active = await this.active();
@@ -312,7 +343,7 @@ export class KillchainHost {
         error: safeMessage(error, this.deps.locale()),
       };
     }
-    this.send(sink, reply);
+    chan.send(reply);
     return true;
   }
 
@@ -320,7 +351,12 @@ export class KillchainHost {
   // Exports
   // -------------------------------------------------------------------------------------------
 
-  private async export(kind: ExportKind, projectId: string, sink: Sink): Promise<boolean> {
+  private async export(
+    kind: ExportKind,
+    projectId: string,
+    sink: Sink,
+    chan: GestureChannel,
+  ): Promise<boolean> {
     try {
       const active = await this.active();
       if (active === null || active.id !== projectId) throw new CodedError("project.absent");
@@ -372,7 +408,7 @@ export class KillchainHost {
           : error instanceof Error && error.message === "download"
             ? "Export impossible : trop d'exports en cours ou fichier trop volumineux."
             : safeMessage(error, this.deps.locale());
-      this.send(sink, { type: "findingsError", projectId, message });
+      chan.send({ type: "findingsError", projectId, message });
     }
     return true;
   }
@@ -387,19 +423,18 @@ export class KillchainHost {
 
   private async setPathEdge(
     m: Extract<StudioMessage, { type: "setPathEdge" }>,
-    sink: Sink,
+    chan: GestureChannel,
   ): Promise<boolean> {
-    const frame = this.subs.get(sink)?.frame ?? "";
     let error: string | undefined;
     try {
       await setSelectedPathEdge(this.deps.configDir, m.projectId, m.from, m.to, m.retained, () =>
-        this.alive(sink, frame),
+        chan.alive(),
       );
       await this.push(undefined, true);
     } catch (cause) {
       error = safeMessage(cause, this.deps.locale());
     }
-    this.send(sink, {
+    chan.send({
       type: "pathEdgeState",
       projectId: m.projectId,
       from: m.from,
@@ -409,10 +444,14 @@ export class KillchainHost {
     return true;
   }
 
-  private async deleteFinding(projectId: string, id: string, sink: Sink): Promise<boolean> {
-    const frame = this.subs.get(sink)?.frame ?? "";
+  private async deleteFinding(
+    projectId: string,
+    id: string,
+    sink: Sink,
+    chan: GestureChannel,
+  ): Promise<boolean> {
     const state = (busy: boolean, error?: string) =>
-      this.send(sink, {
+      chan.send({
         type: "findingDeleteState",
         projectId,
         id,
@@ -428,7 +467,7 @@ export class KillchainHost {
     try {
       state(true);
       const result = await deleteSelectedFinding(this.deps.configDir, projectId, id, {
-        isCurrent: () => this.alive(sink, frame),
+        isCurrent: () => chan.alive(),
         // Jamais de suppression sans réponse humaine : `confirm` ne vaut `true` que sur acceptation explicite.
         confirm: async ({ projectName, finding, dependentCount }) => {
           const label = cleanText(finding.label, 200);

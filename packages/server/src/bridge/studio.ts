@@ -4,9 +4,10 @@
  * configuration du cœur) et dans l'état serveur (`settings`). Chaque dialogue de l'extension (saisie, choix,
  * modale) passe par `HostUi` : sans réponse humaine, rien n'est fait.
  *
- * Gestes de l'extension sans équivalent web, ignorés et comptés par le canal : ouverture d'un dossier, terminal
- * d'éditeur, explorateur (`openWorkspace`, `prepareMission`, `openCours`). Gestes de la partie B (Burp,
- * intégrations, audit, comptes de test, exports, preuves, trouvailles) : non branchés ici, donc ignorés aussi.
+ * Partie B (Burp, intégrations MCP, audit, comptes de test, cours et espace de travail, fournisseur
+ * personnalisé, profil, diagnostic, gestes de la Kill chain) : voir `studio-extra.ts`, appelée d'ici. Le
+ * parseur d'origine ne connaît pas `setCapability` pour skills et recherche web (réglés dans le chat) : ils
+ * restent refusés ici aussi.
  *
  * Invariants : le dossier d'un projet reste sous `<données>/projects` (aucun chemin hôte libre) ; les secrets
  * saisis vont au coffre et ne figurent ni dans un message, ni dans l'audit ; la politique du dépôt n'est
@@ -55,6 +56,7 @@ import {
   type StudioPage,
 } from "@warband/vscode/logic/studio";
 import { terminalPromptOf } from "@warband/vscode/logic/terminal-prompt";
+import type { AccountStore } from "./accounts.js";
 import {
   addPoolKey,
   applySettingsPatch,
@@ -65,6 +67,7 @@ import {
 import { SETTINGS_KEY } from "./deps.js";
 import type { BridgeContext } from "./hostui.js";
 import type { Sink } from "./hub.js";
+import type { KillchainHost } from "./killchain.js";
 import { hasControl } from "./layout.js";
 import { isPoolProvider, MAX_POOL_KEYS, type PoolProvider } from "./rotation.js";
 import {
@@ -74,6 +77,7 @@ import {
   type TokenKindName,
   type TokenProvider,
 } from "./shell-messages.js";
+import { type ExtraDeps, parseStudioExtra, StudioExtra } from "./studio-extra.js";
 
 /** Clés d'état propres au studio (hors `settings`, donc hors de portée de `settingsSet`). */
 export const WORKSPACE_ROOT_KEY = "studio.workspaceRoot";
@@ -96,6 +100,8 @@ export interface StudioHooks {
   poolChanged(provider: PoolProvider): void;
   /** Activation des fournisseurs modifiée : sélections des chats recalculées. */
   capabilitiesChanged(): void;
+  /** Comptes de test modifiés : liste `accounts` diffusée, sessions informées (jamais de secret). */
+  accountsChanged(): void;
 }
 
 export interface StudioDeps {
@@ -116,6 +122,18 @@ export interface StudioDeps {
     handlers: EngineHandlers,
   ): Pick<EngineController, "models" | "kill">;
   hooks: StudioHooks;
+  /** Partie B : comptes de test (coffre), Kill chain (mêmes gestes), valeurs secrètes à masquer, cadres de chat. */
+  accounts: AccountStore;
+  killchain(): KillchainHost;
+  secretValues(): Promise<string[]>;
+  chatFrames(): string[];
+  enginePath: string;
+  binRoot: string;
+  /** Injectables (tests) : clients MCP, diagnostic, délai du test Burp, hôtes http admis. */
+  extra?: Pick<
+    ExtraDeps,
+    "burpBackend" | "integrationBackend" | "diagnostic" | "burpTestMs" | "allowHttpHosts"
+  >;
 }
 
 type CatalogStatus = "idle" | "loading" | "ready" | "unavailable";
@@ -127,6 +145,9 @@ interface Feedback {
   projectError?: string;
   workspaceRootError?: string;
   projectCreated?: string;
+  auditError?: string;
+  accountError?: string;
+  integrationError?: string;
 }
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
@@ -150,7 +171,44 @@ export class StudioHost {
   private readonly connectionTests = new Set<string>();
   private disposed = false;
 
-  constructor(private readonly deps: StudioDeps) {}
+  private readonly extra: StudioExtra;
+
+  constructor(private readonly deps: StudioDeps) {
+    const allow = (process.env.REDWIDOW_PROVIDER_HTTP_HOSTS ?? "")
+      .split(",")
+      .map((h) => h.trim().toLowerCase())
+      .filter(Boolean);
+    this.extra = new StudioExtra(
+      {
+        configDir: deps.configDir,
+        ctx: deps.ctx,
+        projectsRoot: deps.projectsRoot,
+        accounts: deps.accounts,
+        killchain: () => deps.killchain(),
+        secretValues: () => deps.secretValues(),
+        chatFrames: () => deps.chatFrames(),
+        enginePath: deps.enginePath,
+        binRoot: deps.binRoot,
+        hooks: {
+          settingsChanged: (v) => deps.hooks.settingsChanged(v),
+          accountsChanged: () => deps.hooks.accountsChanged(),
+          poolChanged: (p) => deps.hooks.poolChanged(p),
+        },
+        allowHttpHosts: allow,
+        ...deps.extra,
+      },
+      {
+        emit: (sink, msg) => this.emit(sink, msg),
+        alive: (sink) => !this.disposed && this.subs.has(sink),
+        frameOf: (sink) => this.subs.get(sink)?.frame ?? "",
+        push: (o) => this.push(o ?? {}),
+        settings: () => this.readSettings(),
+        locale: () => this.locale(),
+        busy: () => this.changing || this.deps.busy(),
+        reloadCatalog: () => void this.loadCatalog(true),
+      },
+    );
+  }
 
   unsubscribe(sink: Sink): void {
     this.subs.delete(sink);
@@ -159,6 +217,7 @@ export class StudioHost {
   dispose(): void {
     this.disposed = true;
     this.subs.clear();
+    this.extra.dispose();
   }
 
   private get storage() {
@@ -189,7 +248,7 @@ export class StudioHost {
    */
   async handle(frame: string, msg: Record<string, unknown>, sink: Sink): Promise<boolean> {
     if (this.disposed) return false;
-    const m = parseStudioMessage(msg);
+    const m = parseStudioMessage(msg) ?? parseStudioExtra(msg);
     if (m === null) return false;
     if (m.type === "ready") {
       this.subs.set(sink, { frame, page: "project" });
@@ -198,6 +257,9 @@ export class StudioHost {
     }
     const sub = this.subs.get(sink);
     if (sub === undefined || sub.frame !== frame) return false;
+    // Partie B : un `undefined` laisse la suite au studio (partie A).
+    const handled = await this.extra.handle(m, sink, frame);
+    if (handled !== undefined) return handled;
     switch (m.type) {
       case "rendered":
         return true;
@@ -247,7 +309,6 @@ export class StudioHost {
       case "trustRepoPolicy":
         return this.trustPolicy(sink);
       default:
-        // Partie B (Burp, intégrations, audit, comptes de test, exports, preuves…) et gestes d'éditeur.
         return false;
     }
   }
@@ -355,6 +416,7 @@ export class StudioHost {
         sub.page === "project" && active !== undefined
           ? await repoPolicyState(active.workspace, config)
           : undefined;
+      const extraFields = await this.extra.viewFields(sub.page, choices.activeId);
       const own = opts.only === sink || opts.feedbackTo === sink;
       const feedback = own ? (opts.feedback ?? {}) : {};
       this.emit(sink, { type: "locale", locale });
@@ -394,11 +456,10 @@ export class StudioHost {
           ultracodeMaxBudgetUsd: settings.ultracode?.maxBudgetUsd ?? null,
         },
         mcpCatalog: MCP_CATALOG,
-        mcpConfigured: settings.integrations ?? [],
         projectWorkspaceRoot: this.workspaceRoot(),
         agentProfile: agentProfileLabel(settings.profile),
         burpEnabled: raw["burp.enabled"] === true,
-        burpStatus: "",
+        ...extraFields,
         projectBusy: this.changing || this.deps.busy(),
         ...feedback,
         ...(summaryError !== undefined && { summaryError }),

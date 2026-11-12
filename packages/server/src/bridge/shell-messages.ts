@@ -4,6 +4,7 @@
  * Aucune valeur secrète n'apparaît dans un message sortant : ces types ne servent qu'à l'entrée.
  */
 import { isContainerRef } from "../docker/containers.js";
+import { FS_MAX_PATH, splitPath } from "./files-guard.js";
 import { type FsControl, isFsType, parseFsControl } from "./files-messages.js";
 import { hasControl, isLayoutName, type Layout, validateLayout } from "./layout.js";
 import { isPoolProvider, MAX_POOL_KEYS, type PoolProvider } from "./rotation.js";
@@ -87,7 +88,9 @@ export type ShellControl =
  * `term` : fenêtre de terminal ; `container` (nom d'un conteneur géré, validé) est le conteneur à ouvrir : la
  * fenêtre l'envoie dans son message `open`. `chat` : fenêtre de mission (cadre existant ou nouveau) ; `draft`
  * (au plus 4000 caractères) est un brouillon à placer dans la zone de saisie, jamais envoyé tout seul.
- * La coquille décide de l'affichage ; ce message ne porte ni chemin ni secret.
+ * `files` : explorateur du projet actif ; `path` (relatif, validé comme ceux de l'API Fichiers : sans `..`,
+ * sans séparateur arrière, sans contrôle) est le dossier à afficher ; sans `path`, la racine du projet.
+ * La coquille décide de l'affichage ; ce message ne porte aucun chemin hôte ni secret.
  */
 export const OPEN_WINDOW_VIEWS = [
   "cockpit",
@@ -97,6 +100,7 @@ export const OPEN_WINDOW_VIEWS = [
   "viewer",
   "term",
   "chat",
+  "files",
 ] as const;
 export type OpenWindowView = (typeof OPEN_WINDOW_VIEWS)[number];
 export const OPEN_WINDOW_MODES = ["watch", "monitor", "report"] as const;
@@ -111,6 +115,8 @@ export interface OpenWindowMessage {
   draft?: string;
   /** `term` seulement : conteneur géré à ouvrir dans la fenêtre. */
   container?: string;
+  /** `files` seulement : chemin relatif d'un dossier du projet (même validation que l'API Fichiers). */
+  path?: string;
 }
 /** Plafond d'un brouillon de mission (caractères). */
 export const MAX_DRAFT = 4000;
@@ -118,7 +124,13 @@ const WINDOW_FRAME = /^[A-Za-z0-9_-]{1,64}$/;
 export function openWindowMessage(
   view: OpenWindowView,
   frame: string = view,
-  extra: { mode?: OpenWindowMode; toolUseId?: string; draft?: string; container?: string } = {},
+  extra: {
+    mode?: OpenWindowMode;
+    toolUseId?: string;
+    draft?: string;
+    container?: string;
+    path?: string;
+  } = {},
 ): OpenWindowMessage {
   return {
     type: "openWindow",
@@ -128,6 +140,7 @@ export function openWindowMessage(
     ...(extra.toolUseId !== undefined && { toolUseId: extra.toolUseId }),
     ...(extra.draft !== undefined && { draft: extra.draft }),
     ...(extra.container !== undefined && { container: extra.container }),
+    ...(extra.path !== undefined && { path: extra.path }),
   };
 }
 /** Contrôle de forme d'un `openWindow` (tests, et coquille qui voudrait revalider). */
@@ -174,7 +187,22 @@ export function isOpenWindowMessage(m: unknown): m is OpenWindowMessage {
     if (m.view !== "term" || !isContainerRef(m.container)) return false;
     allowed.add("container");
   }
+  if (m.path !== undefined) {
+    if (m.view !== "files" || !isRelativeFilesPath(m.path)) return false;
+    allowed.add("path");
+  }
   return Object.keys(m).every((k) => allowed.has(k));
+}
+
+/** Chemin relatif non vide admis par l'API Fichiers (`splitPath` : refus de `..`, absolu, contrôles, protégés). */
+export function isRelativeFilesPath(v: unknown): v is string {
+  if (typeof v !== "string" || v === "" || v.length > FS_MAX_PATH) return false;
+  try {
+    splitPath(v, false);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Bornes de forme d'un `dialogResult` (le contenu est vérifié par `HostUi.answer`). */

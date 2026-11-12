@@ -85,7 +85,7 @@ import {
   type RotationReason,
 } from "./rotation.js";
 import type { ShellControl } from "./shell-messages.js";
-import { StudioHost } from "./studio.js";
+import { type StudioDeps, StudioHost } from "./studio.js";
 import { type Clock, TermHost } from "./term.js";
 import { ViewerHost } from "./viewer.js";
 import { defaultBackends, isHostedView, type ViewBackends, ViewHosts } from "./views.js";
@@ -144,6 +144,8 @@ export interface HubOptions {
   clock?: Clock;
   /** Période (ms) du sondage des trouvailles de la vue Kill chain ; 0 : aucun (tests). Défaut : 1 s. */
   killchainPollMs?: number;
+  /** Clients MCP, diagnostic, délai du test Burp et hôtes http admis du studio (injectables : tests). */
+  studioExtra?: StudioDeps["extra"];
 }
 
 /** Chemin du moteur et racine des binaires, d'après l'environnement (ADR 0052, point 1). */
@@ -335,6 +337,13 @@ export class MissionHub {
       busy: () => [...this.frames.values()].some((f) => f.session.view().busy),
       containers: () => backends.cockpit.load(),
       getToken: (provider) => probeDeps.getToken(provider),
+      ...(options.studioExtra && { extra: options.studioExtra }),
+      accounts: this.accounts,
+      killchain: () => this.killchain,
+      secretValues: () => this.secretValues(),
+      chatFrames: () => [...this.frames.keys()],
+      enginePath: this.enginePath,
+      binRoot: this.binRoot,
       controller: (auth, handlers) =>
         this.guardStart(
           (options.createController ?? createEngineController)({
@@ -363,6 +372,10 @@ export class MissionHub {
         capabilitiesChanged: () => {
           for (const f of this.frames.values())
             f.session.setSelection(f.session.view().capabilities?.selection);
+        },
+        accountsChanged: () => {
+          this.toShell({ type: "accounts", items: this.accounts.list() });
+          for (const f of this.frames.values()) f.session.testAccountsChanged();
         },
       },
     });

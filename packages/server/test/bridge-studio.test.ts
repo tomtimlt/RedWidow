@@ -447,7 +447,7 @@ describe("vue studio : politique du dépôt", () => {
 });
 
 describe("vue studio : validation et abonnement", () => {
-  it("messages invalides, gestes de la partie B ou d'éditeur, non abonné : ignorés et comptés", async () => {
+  it("messages invalides, non abonné : ignorés et comptés", async () => {
     const t = setupStudio();
     const s = t.connect();
     s.say("studio", "st", { type: "createProject", name: "x" }); // avant ready
@@ -461,12 +461,6 @@ describe("vue studio : validation et abonnement", () => {
       { type: "setWorkspaceRoot", value: 12 },
       { type: "nimporte" },
       { type: "setCapability", kind: "skill", id: "x", enabled: true },
-      // Partie B et gestes d'éditeur : valides mais sans équivalent ici.
-      { type: "configureBurp" },
-      { type: "openWorkspace" },
-      { type: "openCours" },
-      { type: "exportReport", projectId: "00000000-0000-4000-8000-000000000000" },
-      { type: "deleteFinding", projectId: "00000000-0000-4000-8000-000000000000", id: "f" },
     ];
     for (const m of bad) s.say("studio", "st", m);
     s.say("studio", "autre", { type: "refresh" }); // mauvais cadre
