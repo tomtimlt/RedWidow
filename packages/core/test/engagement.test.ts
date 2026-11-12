@@ -326,7 +326,7 @@ describe("mission_context", () => {
 });
 
 describe("aucun outil d'agent n'approuve ni ne lève l'arrêt", () => {
-  it("approveEngagement/suspendEngagement/importEngagementDraft/setHalt/clearHalt ne sont référencés que par le module, la CLI et les contrôles de l’extension", () => {
+  it("approveEngagement/suspendEngagement/importEngagementDraft/setHalt/clearHalt ne sont référencés que par le module, la CLI, les contrôles de l’extension et le pont du serveur", () => {
     const root = join(__dirname, "..", "..");
     const hits: string[] = [];
     const walk = (dirPath: string) => {
@@ -350,6 +350,8 @@ describe("aucun outil d'agent n'approuve ni ne lève l'arrêt", () => {
       "cli/src/main.ts",
       "core/src/engagement/halt.ts",
       "core/src/engagement/store.ts",
+      // Serveur web : arrêt d'urgence global, geste humain d'une coquille authentifiée (ADR 0052).
+      "server/src/bridge/halt.ts",
       "vscode/src/logic/engagement-controls.ts",
     ]);
   });

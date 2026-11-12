@@ -2,9 +2,11 @@ import { parseWebviewMessage } from "@warband/vscode/logic/approval";
 import type { WebSocket } from "ws";
 import { decodeEnvelope, encodeEnvelope, type View } from "./envelope.js";
 import type { MissionHub, Sink } from "./hub.js";
+import { parseShellControl } from "./shell-messages.js";
+import { isHostedView } from "./views.js";
 
 export interface BridgeStats {
-  /** Messages reçus puis ignorés : enveloppe invalide, vue inconnue, message refusé par la validation. */
+  /** Messages reçus puis ignorés : enveloppe invalide, vue non branchée, message refusé par la validation. */
   ignored: number;
   /** Messages valides transmis à une session ou à la coquille. */
   accepted: number;
@@ -76,7 +78,19 @@ export function createBridge(hub: MissionHub): Bridge {
           stats.accepted++;
           return;
         }
-        ignore();
+        // Contrôles (arrêt d'urgence, Bypass, configuration) : validés strictement, jamais de secret en retour global.
+        const control = parseShellControl(msg);
+        if (control === null || !(await hub.control(control, sink))) return ignore();
+        stats.accepted++;
+      };
+
+      const onView = async (
+        view: View,
+        frame: string,
+        msg: Record<string, unknown>,
+      ): Promise<void> => {
+        if (!(await hub.handleView(view, frame, msg, sink))) return ignore();
+        stats.accepted++;
       };
 
       const onChat = async (frame: string, msg: Record<string, unknown>): Promise<void> => {
@@ -97,7 +111,15 @@ export function createBridge(hub: MissionHub): Bridge {
         if (isBinary) return ignore();
         const env = decodeEnvelope(data.toString());
         if (env === null) return ignore();
-        const run = env.view === "shell" ? onShell(env.frame, env.msg) : onChat(env.frame, env.msg);
+        // Vues non branchées (studio, killchain, viewer, term) : acceptées par l'enveloppe, ignorées ici.
+        const run =
+          env.view === "shell"
+            ? onShell(env.frame, env.msg)
+            : env.view === "chat"
+              ? onChat(env.frame, env.msg)
+              : isHostedView(env.view)
+                ? onView(env.view, env.frame, env.msg)
+                : Promise.resolve(ignore());
         // Une erreur de session ne doit ni couper le serveur ni fuir : on compte, on ne répète rien.
         run.catch(ignore);
       });

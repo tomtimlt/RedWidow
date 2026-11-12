@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { defaultConfigDir } from "@warband/core";
 import type { Choice, WebviewMessage } from "@warband/vscode/logic/approval";
 import {
   attachmentMessage,
@@ -10,10 +11,25 @@ import {
 import { type BypassHost, createBypassHost } from "@warband/vscode/logic/bypass";
 import type { ChatView } from "@warband/vscode/logic/chat";
 import type { EngineController, EngineControllerOptions } from "@warband/vscode/logic/controller";
+import { readProjectChoices } from "@warband/vscode/logic/project-controls";
 import { type ChatSession, createChatSession } from "@warband/vscode/logic/session";
 import type { ServerStorage } from "../storage/index.js";
+import { AccountStore } from "./accounts.js";
+import {
+  applySettingsPatch,
+  deleteLayout,
+  deleteToken,
+  listTokens,
+  readLayouts,
+  readSettingsObject,
+  saveLayout,
+  setToken,
+} from "./config.js";
 import { buildChatDeps } from "./deps.js";
 import { isFrameId, type View } from "./envelope.js";
+import { coreProjectHalts, EmergencyHalt, type ProjectHalts } from "./halt.js";
+import type { ShellControl } from "./shell-messages.js";
+import { defaultBackends, isHostedView, type ViewBackends, ViewHosts } from "./views.js";
 
 /** Destinataire d'un message sortant (un socket, ou un double dans les tests). */
 export interface Sink {
@@ -50,6 +66,17 @@ export interface HubOptions {
   createController?(options: EngineControllerOptions): EngineController;
   /** Sortie d'erreur du moteur, déjà masquée par le contrôleur. */
   onLog?(text: string): void;
+  /** Dossier de configuration du cœur (projets, fiche, engagement). Défaut : celui du moteur (`defaultConfigDir`). */
+  configDir?: string;
+  /** Lecture et écriture des vues program, engagement et cockpit (injectable : tests). */
+  backends?: ViewBackends;
+  /** Arrêts d'urgence par projet (injectable : tests). */
+  projectHalts?: ProjectHalts;
+  /**
+   * Journal d'audit des gestes sensibles (arrêt, Bypass, jetons, comptes). Reçoit des champs
+   * non secrets seulement : jamais une valeur de jeton, de secret ou de compte.
+   */
+  audit?(entry: Record<string, unknown>): void;
 }
 
 /** Chemin du moteur et racine des binaires, d'après l'environnement (ADR 0052, point 1). */
@@ -93,6 +120,13 @@ export class MissionHub {
   private readonly confirms = new Map<string, PendingConfirm>();
   private lastApprovals = "[]";
   private disposed = false;
+  private readonly halt: EmergencyHalt;
+  private readonly accounts: AccountStore;
+  private readonly views: ViewHosts;
+  private readonly configDir: string;
+  /** Bypass global demandé depuis la coquille (en mémoire seulement, ADR 0017) ; `until` nul = illimité. */
+  private globalBypass: { until: number | null } | null = null;
+  private bypassTimer: ReturnType<typeof setTimeout> | undefined;
   private readonly enginePath: string;
   private readonly binRoot: string;
   private readonly cwd: string;
@@ -102,6 +136,37 @@ export class MissionHub {
     this.enginePath = options.enginePath ?? engine.enginePath;
     this.binRoot = options.binRoot ?? engine.binRoot;
     this.cwd = options.cwd ?? options.storage.paths.projects;
+    this.configDir = options.configDir ?? defaultConfigDir();
+    this.halt = new EmergencyHalt(
+      options.storage,
+      options.projectHalts ?? coreProjectHalts(this.configDir),
+    );
+    this.accounts = new AccountStore(options.storage);
+    this.views = new ViewHosts(options.backends ?? defaultBackends(this.configDir), this.halt, {
+      chats: () =>
+        [...this.frames.values()].map((f) => ({
+          id: f.id,
+          name: f.id,
+          location: "editor" as const,
+          view: f.session.view(),
+        })),
+      waiting: () =>
+        [...this.frames.values()].filter((f) => f.approvals.length > 0).map((f) => f.id),
+    });
+  }
+
+  private audit(entry: Record<string, unknown>): void {
+    try {
+      this.options.audit?.(entry);
+    } catch {
+      // Le journal d'audit ne doit jamais bloquer un geste humain déjà appliqué.
+    }
+  }
+
+  /** Projet actif (identifiant et nom), `null` sans projet ou si le fichier est illisible. */
+  private async activeProject(): Promise<{ id: string; name: string } | null> {
+    const choices = await readProjectChoices(this.configDir).catch(() => null);
+    return choices?.projects.find((p) => p.id === choices.activeId) ?? null;
   }
 
   /** Demandes en attente de toutes les sessions, de la plus ancienne session à la plus récente. */
@@ -133,11 +198,13 @@ export class MissionHub {
         ask: (q) => this.ask(q),
         onView: (view) => this.onView(f, view),
         bypass: f.bypass,
+        getTestAccounts: async () => this.accounts.testAccountsFor(await this.activeProject()),
         ...(this.options.onLog && { onLog: this.options.onLog }),
         ...(this.options.createController && { createController: this.options.createController }),
       }),
     );
     this.frames.set(id, f);
+    this.applyGlobalBypass(f);
     return f;
   }
 
@@ -156,6 +223,7 @@ export class MissionHub {
     }));
     this.broadcast(f, { type: "view", view, chatId: f.id });
     this.pushApprovals(false);
+    this.views.sessionsChanged();
   }
 
   /** Liste agrégée vers la coquille : à chaque changement (`force` : à la connexion). */
@@ -183,6 +251,8 @@ export class MissionHub {
   subscribeShell(sink: Sink): void {
     if (this.disposed) return;
     this.shell.add(sink);
+    this.pushHalt(sink);
+    this.pushBypass(sink);
     this.pushApprovals(true, sink);
     for (const c of this.confirms.values()) sink.send("shell", SHELL_FRAME, this.confirmMessage(c));
   }
@@ -190,6 +260,7 @@ export class MissionHub {
   /** Retire un destinataire (socket fermé). Les demandes et les moteurs restent : rien n'est répondu. */
   unsubscribe(sink: Sink): void {
     this.shell.delete(sink);
+    this.views.unsubscribe(sink);
     for (const f of this.frames.values()) f.subs.delete(sink);
   }
 
@@ -224,6 +295,8 @@ export class MissionHub {
   async approve(frameId: string, toolUseId: string, choice: Choice): Promise<boolean> {
     const f = this.frames.get(frameId);
     if (!f || this.disposed) return false;
+    // Arrêt d'urgence : aucune autorisation ne passe, seul un refus est accepté.
+    if (this.halt.active() && choice !== "deny") return false;
     await f.session.approve(toolUseId, choice);
     return true;
   }
@@ -286,9 +359,11 @@ export class MissionHub {
         s.reset();
         return true;
       case "approve":
+        if (this.halt.active() && message.choice !== "deny") return false;
         await s.approve(message.toolUseId, message.choice);
         return true;
       case "setBypass":
+        if (message.enabled && this.halt.active()) return false;
         // Demande humaine d'une socket authentifiée et abonnée au cadre ; la durée est bornée par le cœur.
         f.bypass.request(message.enabled, true, message.durationMs);
         return true;
@@ -340,10 +415,201 @@ export class MissionHub {
     }
   }
 
+  /** Arrêt d'urgence actif ? (lu par le canal et les vues) */
+  halted(): boolean {
+    return this.halt.active();
+  }
+
+  private pushHalt(only?: Sink): void {
+    const { active, since } = this.halt.state();
+    for (const sink of only ? [only] : this.shell)
+      sink.send("shell", SHELL_FRAME, { type: "halt", active, since });
+  }
+
+  /**
+   * Arrêt d'urgence (`halt`) ou levée (`resume`), pour tous les cadres. Le Bypass est coupé avant tout :
+   * il ne contourne jamais l'arrêt, et personne ne peut l'activer tant que l'arrêt dure.
+   */
+  async emergencyHalt(on: boolean): Promise<void> {
+    if (this.disposed) return;
+    this.audit({ kind: on ? "halt.on" : "halt.off" });
+    if (on) this.setGlobalBypass(false, null);
+    if (on) {
+      for (const f of this.frames.values()) f.bypass.request(false, true);
+      await this.halt.halt();
+    } else await this.halt.resume();
+    this.pushHalt();
+  }
+
+  private pushBypass(only?: Sink): void {
+    const g = this.globalBypass;
+    for (const sink of only ? [only] : this.shell)
+      sink.send("shell", SHELL_FRAME, {
+        type: "bypass",
+        active: g !== null,
+        until: g === null ? null : g.until,
+      });
+  }
+
+  /** Applique le Bypass global à un cadre (création tardive) : seulement si l'échéance laisse au moins 1 minute. */
+  private applyGlobalBypass(f: Frame): void {
+    const g = this.globalBypass;
+    if (g === null) return;
+    const remaining = g.until === null ? null : g.until - Date.now();
+    if (remaining !== null && remaining < 60_000) return;
+    f.bypass.request(true, true, remaining);
+  }
+
+  /**
+   * Bypass global (ADR 0017 inchangé : effet seulement si un humain répond aux demandes). `minutes`
+   * nul : illimité, comme le cœur l'autorise. Refusé pendant l'arrêt d'urgence. État en mémoire seulement.
+   */
+  setGlobalBypass(active: boolean, minutes: number | null): boolean {
+    if (this.disposed) return false;
+    if (this.bypassTimer !== undefined) clearTimeout(this.bypassTimer);
+    this.bypassTimer = undefined;
+    if (active) {
+      if (this.halt.active()) return false;
+      const ms = minutes === null ? null : minutes * 60_000;
+      const until = ms === null ? null : Date.now() + ms;
+      this.globalBypass = { until };
+      for (const f of this.frames.values()) f.bypass.request(true, true, ms);
+      if (ms !== null) {
+        this.bypassTimer = setTimeout(() => {
+          this.bypassTimer = undefined;
+          this.globalBypass = null;
+          this.pushBypass();
+        }, ms);
+        this.bypassTimer.unref?.();
+      }
+      this.audit({ kind: "bypass.on", until });
+    } else {
+      const was = this.globalBypass !== null;
+      this.globalBypass = null;
+      for (const f of this.frames.values()) f.bypass.request(false, true);
+      if (was) this.audit({ kind: "bypass.off" });
+    }
+    this.pushBypass();
+    return true;
+  }
+
+  /** Message d'une vue hébergée (program, engagement, cockpit, sessions) : validé par son parseur. */
+  async handleView(
+    view: View,
+    frame: string,
+    msg: Record<string, unknown>,
+    from: Sink,
+  ): Promise<boolean> {
+    if (this.disposed || !isHostedView(view)) return false;
+    return this.views.handle(view, frame, msg, from);
+  }
+
+  private configError(to: Sink, op: string): false {
+    to.send("shell", SHELL_FRAME, { type: "configError", op });
+    return false;
+  }
+
+  /**
+   * Message de contrôle de la coquille (déjà validé par `parseShellControl`). Les réponses portant un
+   * secret (`accountSecret`) ne vont qu'à `from` ; ce qui est diffusé ne contient jamais de valeur secrète.
+   * `false` : demande refusée (une `configError` sans détail a été renvoyée au demandeur).
+   */
+  async control(c: ShellControl, from: Sink): Promise<boolean> {
+    if (this.disposed) return false;
+    const storage = this.options.storage;
+    const toAll = (msg: Record<string, unknown>) => {
+      for (const sink of this.shell) sink.send("shell", SHELL_FRAME, msg);
+    };
+    switch (c.type) {
+      case "halt":
+        await this.emergencyHalt(true);
+        return true;
+      case "resume":
+        await this.emergencyHalt(false);
+        return true;
+      case "setBypass":
+        return this.setGlobalBypass(c.active, c.durationMinutes) || this.configError(from, c.type);
+      case "settingsGet":
+        from.send("shell", SHELL_FRAME, { type: "settings", values: readSettingsObject(storage) });
+        return true;
+      case "settingsSet": {
+        const values = applySettingsPatch(storage, c.patch);
+        if (values === null) return this.configError(from, c.type);
+        this.audit({ kind: "settings.set", keys: Object.keys(c.patch) });
+        toAll({ type: "settings", values });
+        return true;
+      }
+      case "tokens":
+        from.send("shell", SHELL_FRAME, { type: "tokens", items: await listTokens(storage) });
+        return true;
+      case "tokenSet":
+      case "tokenDelete": {
+        if (c.type === "tokenSet") await setToken(storage, c.provider, c.kind, c.value);
+        else await deleteToken(storage, c.provider);
+        this.audit({
+          kind: c.type === "tokenSet" ? "token.set" : "token.delete",
+          provider: c.provider,
+        });
+        // Le changement d'authentification est répercuté aux sessions (modèles, grisage sans jeton).
+        for (const f of this.frames.values()) void f.session.authChanged().catch(() => undefined);
+        toAll({ type: "tokens", items: await listTokens(storage) });
+        return true;
+      }
+      case "accounts":
+        from.send("shell", SHELL_FRAME, { type: "accounts", items: this.accounts.list() });
+        return true;
+      case "accountAdd": {
+        const meta = await this.accounts.add({
+          programme: c.programme,
+          label: c.label,
+          login: c.login,
+          secret: c.secret,
+        });
+        if (meta === null) return this.configError(from, c.type);
+        this.audit({
+          kind: "account.add",
+          id: meta.id,
+          programme: meta.programme,
+          label: meta.label,
+        });
+        toAll({ type: "accounts", items: this.accounts.list() });
+        return true;
+      }
+      case "accountReveal": {
+        const value = await this.accounts.reveal(c.id);
+        if (value === null) return this.configError(from, c.type);
+        // Audit sans la valeur ; la réponse ne va qu'au socket demandeur.
+        this.audit({ kind: "account.reveal", id: c.id });
+        from.send("shell", SHELL_FRAME, { type: "accountSecret", id: c.id, value });
+        return true;
+      }
+      case "accountRemove":
+        if (!(await this.accounts.remove(c.id))) return this.configError(from, c.type);
+        this.audit({ kind: "account.remove", id: c.id });
+        toAll({ type: "accounts", items: this.accounts.list() });
+        return true;
+      case "layouts":
+        from.send("shell", SHELL_FRAME, { type: "layouts", ...readLayouts(storage) });
+        return true;
+      case "layoutSave":
+        if (!saveLayout(storage, c.name, c.layout)) return this.configError(from, c.type);
+        toAll({ type: "layouts", ...readLayouts(storage) });
+        return true;
+      case "layoutDelete":
+        if (!deleteLayout(storage, c.name)) return this.configError(from, c.type);
+        toAll({ type: "layouts", ...readLayouts(storage) });
+        return true;
+    }
+  }
+
   /** Arrêt du serveur : questions refusées, moteurs arrêtés proprement, plus aucun abonné. */
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    if (this.bypassTimer !== undefined) clearTimeout(this.bypassTimer);
+    this.bypassTimer = undefined;
+    this.globalBypass = null;
+    this.views.dispose();
     for (const c of [...this.confirms.values()]) {
       this.confirms.delete(c.id);
       c.resolve(false);

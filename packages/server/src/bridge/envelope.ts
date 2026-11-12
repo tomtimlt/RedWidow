@@ -5,8 +5,24 @@
 
 export const ENVELOPE_VERSION = 1;
 
-/** Liste fermée des vues : `chat` (une conversation) et `shell` (coquille : approbations, confirmations). */
-export const VIEWS = ["chat", "shell"] as const;
+/**
+ * Liste fermée des vues. Branchées : `chat` (une conversation), `shell` (coquille : approbations,
+ * confirmations, arrêt d'urgence, Bypass, configuration), `program`, `engagement`, `cockpit`, `sessions`.
+ * Les autres (`studio`, `killchain`, `viewer`, `term`) sont acceptées par l'enveloppe, mais le canal les
+ * ignore et les compte tant qu'elles ne sont pas branchées.
+ */
+export const VIEWS = [
+  "chat",
+  "cockpit",
+  "sessions",
+  "program",
+  "engagement",
+  "studio",
+  "killchain",
+  "viewer",
+  "shell",
+  "term",
+] as const;
 export type View = (typeof VIEWS)[number];
 
 /** Identifiant de cadre : chaîne bornée, sans séparateur de chemin ni caractère de contrôle. */

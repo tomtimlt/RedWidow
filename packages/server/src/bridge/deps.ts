@@ -35,6 +35,8 @@ export interface BridgeDepsContext {
   onView(view: ChatView): void;
   onLog?(text: string): void;
   onProviders?: ChatSessionDeps["onProviders"];
+  /** Comptes de test du projet actif (stockage serveur, ADR 0052) ; absent : aucun compte. */
+  getTestAccounts?: ChatSessionDeps["getTestAccounts"];
   onObservedEvent?(event: EngineEvent | null): void;
   bypass?: { attach(send: BypassSend): BypassEngineLink; reset?(): void };
   /** Contrôleur injectable (tests) ; défaut : celui de `logic/session` (moteur forké). */
@@ -86,6 +88,7 @@ export function buildChatDeps(ctx: BridgeDepsContext): ChatSessionDeps {
     onView: ctx.onView,
     ...(ctx.onLog && { onLog: ctx.onLog }),
     ...(ctx.onProviders && { onProviders: ctx.onProviders }),
+    ...(ctx.getTestAccounts && { getTestAccounts: ctx.getTestAccounts }),
     ...(ctx.onObservedEvent && { onObservedEvent: ctx.onObservedEvent }),
     ...(ctx.createController && { createController: ctx.createController }),
     ...(ctx.bypass && { bypass: ctx.bypass }),
@@ -112,7 +115,7 @@ export function buildChatDeps(ctx: BridgeDepsContext): ChatSessionDeps {
       confirmDelete: (text) => ctx.ask({ kind: "delete", text, frame: ctx.frame }),
     },
     // Stubs inertes, faute d'équivalent serveur :
-    // - `getTestAccounts` : comptes de test par projet (SecretStorage VS Code), non portés ;
+    // - (`getTestAccounts` est fourni par le hub : coffre et état du serveur) ;
     // - `readHistoryProjects` : projets actifs de l'extension (fichier de configuration local), non portés ;
     // - `onMissionContext` : instantané de mission pour le panneau VS Code, sans vue côté web ;
     // - `sdkVersion` : absent, donc cache des modèles keyé « unknown » (invalidé au changement d'hôte).

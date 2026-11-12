@@ -1,10 +1,11 @@
 #!/usr/bin/env node
+import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { CodedError, errorInfo } from "@warband/core";
 import { formatReason } from "@warband/messages";
 import { loadPasswordHash } from "./auth/password.js";
 import { runSetPassword, type SetPasswordIo } from "./auth/set-password.js";
-import { createBridge, MissionHub } from "./bridge/index.js";
+import { createAuditFile, createBridge, MissionHub } from "./bridge/index.js";
 import { ConfigError, loadConfig, resolveDataDir } from "./config.js";
 import { createServer } from "./http.js";
 import { openStorage } from "./storage/index.js";
@@ -16,7 +17,9 @@ async function serve(): Promise<void> {
   // Clé maître absente ou fausse : démarrage refusé avant toute écoute.
   const storage = await openStorage(config.dataDir, process.env);
   // Sessions de chat côté serveur : elles survivent aux navigateurs (ADR 0052, points 2 et 4).
-  const hub = new MissionHub({ storage, onLog: () => undefined });
+  // Audit des gestes sensibles (arrêt, Bypass, jetons, comptes) : jamais de valeur secrète.
+  const audit = createAuditFile(join(config.dataDir, "audit.jsonl"));
+  const hub = new MissionHub({ storage, onLog: () => undefined, audit });
   const bridge = createBridge(hub);
   const server = createServer(config, {
     passwordHash,
@@ -33,7 +36,7 @@ async function serve(): Promise<void> {
     // Arrêt propre des moteurs avant celui du serveur.
     hub.dispose();
     const quit = () => process.exit(0);
-    server.close(() => void storage.state.flush().then(quit, quit));
+    server.close(() => void Promise.all([storage.state.flush(), audit.flush()]).then(quit, quit));
     server.closeAllConnections();
   };
   process.on("SIGTERM", stop);
