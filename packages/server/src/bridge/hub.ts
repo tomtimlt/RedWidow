@@ -46,6 +46,7 @@ import {
 import { ContainerHost, containerEnv } from "./containers.js";
 import { buildChatDeps } from "./deps.js";
 import { isFrameId, type View } from "./envelope.js";
+import { getFindingDetail, listFindingItems, removeFinding } from "./findings.js";
 import { coreProjectHalts, EmergencyHalt, type ProjectHalts } from "./halt.js";
 import {
   classifyEvent,
@@ -903,6 +904,39 @@ export class MissionHub {
         this.audit({ kind: "account.remove", id: c.id });
         toAll({ type: "accounts", items: this.accounts.list() });
         return true;
+      case "findingsList":
+        try {
+          const items = await listFindingItems(this.configDir, c.project);
+          from.send("shell", SHELL_FRAME, { type: "findings", project: c.project, items });
+          return true;
+        } catch {
+          return this.configError(from, c.type);
+        }
+      case "findingGet":
+        try {
+          const finding = await getFindingDetail(this.configDir, c.project, c.id);
+          from.send("shell", SHELL_FRAME, { type: "finding", finding });
+          return true;
+        } catch {
+          return this.configError(from, c.type);
+        }
+      case "findingDelete":
+        // Sans confirmation explicite du client, rien n'est supprimé.
+        if (!c.confirmed) return this.configError(from, c.type);
+        try {
+          if (!(await removeFinding(this.configDir, c.project, c.id))) {
+            return this.configError(from, c.type);
+          }
+          this.audit({ kind: "finding.delete", project: c.project, id: c.id });
+          toAll({
+            type: "findings",
+            project: c.project,
+            items: await listFindingItems(this.configDir, c.project),
+          });
+          return true;
+        } catch {
+          return this.configError(from, c.type);
+        }
       case "layouts":
         from.send("shell", SHELL_FRAME, { type: "layouts", ...readLayouts(storage) });
         return true;

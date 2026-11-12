@@ -62,6 +62,9 @@ export type ShellControl =
   | { type: "poolReorder"; provider: PoolProvider; order: string[] }
   | { type: "accountAdd"; programme: string; label: string; login: string; secret: string }
   | { type: "accountReveal" | "accountRemove"; id: string }
+  | { type: "findingsList"; project: string | null }
+  | { type: "findingGet"; project: string; id: string }
+  | { type: "findingDelete"; project: string; id: string; confirmed: boolean }
   | { type: "layoutSave"; name: string | null; layout: Layout }
   | { type: "layoutDelete"; name: string };
 
@@ -197,6 +200,23 @@ export function parseShellControl(m: Record<string, unknown>): ShellControl | nu
     case "accountRemove":
       return only(m, "type", "id") && typeof m.id === "string" && UUID.test(m.id)
         ? { type: m.type, id: m.id }
+        : null;
+    case "findingsList":
+      if (only(m, "type")) return { type: "findingsList", project: null };
+      return only(m, "type", "project") && isPoolId(m.project)
+        ? { type: "findingsList", project: m.project }
+        : null;
+    case "findingGet":
+      return only(m, "type", "project", "id") && isPoolId(m.project) && shortText(m.id, 200)
+        ? { type: "findingGet", project: m.project, id: m.id }
+        : null;
+    case "findingDelete":
+      // `confirmed` doit être un booléen ; le hub refuse tout ce qui n'est pas `true`.
+      return only(m, "type", "project", "id", "confirmed") &&
+        isPoolId(m.project) &&
+        shortText(m.id, 200) &&
+        typeof m.confirmed === "boolean"
+        ? { type: "findingDelete", project: m.project, id: m.id, confirmed: m.confirmed }
         : null;
     case "layoutSave": {
       if (!only(m, "type", "name", "layout")) return null;

@@ -7,7 +7,8 @@ import {
 } from "node:http";
 import { extname, isAbsolute, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { CodedError, type Reason, reason } from "@warband/core";
+import { CodedError, defaultConfigDir, type Reason, reason } from "@warband/core";
+import { isLocale } from "@warband/messages";
 import { buildCsp, injectNonce, makeNonce } from "./auth/csp.js";
 import { LoginLimiter } from "./auth/limiter.js";
 import { originAllowed } from "./auth/origin.js";
@@ -19,6 +20,7 @@ import {
   sessionCookie,
 } from "./auth/sessions.js";
 import { isFrameId } from "./bridge/envelope.js";
+import { buildMissionReport } from "./bridge/findings.js";
 import type { ServerConfig } from "./config.js";
 import { isViewerMode, isViewPage, renderViewPage } from "./web/view-page.js";
 import { attachWebSocket } from "./ws.js";
@@ -111,6 +113,8 @@ export interface ServerOptions {
   storage?: import("./storage/index.js").ServerStorage;
   /** Dossier `media` de l'extension, servi en lecture seule sous `/media/` (défaut : `packages/vscode/media`). */
   mediaDir?: string;
+  /** Dossier de configuration des projets (défaut : celui du moteur, `XDG_CONFIG_HOME/warband`). */
+  configDir?: string;
 }
 
 /** `packages/vscode/media`, à la même position relative depuis `src` ou `dist`. */
@@ -122,6 +126,7 @@ interface Ctx {
   sessions: SessionStore;
   limiter: LoginLimiter;
   mediaDir: string;
+  configDir: string;
 }
 
 function json(
@@ -160,6 +165,7 @@ export function createServer(config: ServerConfig, options: ServerOptions): Serv
     sessions: new SessionStore({ now }),
     limiter: new LoginLimiter(now),
     mediaDir: resolve(options.mediaDir ?? DEFAULT_MEDIA_DIR),
+    configDir: options.configDir ?? defaultConfigDir(),
   };
   const server = createHttpServer((req, res) => {
     void handle(ctx, req, res).catch(() => {
@@ -308,6 +314,45 @@ function serveView(pathname: string, search: string, res: ServerResponse, head: 
   );
 }
 
+/**
+ * `GET /api/report?project=<id>&locale=fr|en` : rapport de mission en Markdown, construit par le serveur
+ * (jamais dans le navigateur). L'identifiant n'est qu'une clé de recherche parmi les projets connus :
+ * aucun chemin fourni par le client n'est utilisé.
+ */
+async function serveReport(
+  ctx: Ctx,
+  query: string,
+  res: ServerResponse,
+  head: boolean,
+): Promise<void> {
+  const params = new URLSearchParams(query);
+  const project = params.get("project");
+  const locale = params.get("locale") ?? "fr";
+  if (project === null || project === "" || project.length > 100 || !isLocale(locale)) {
+    return apiError(res, 400, reason("auth.badRequest"));
+  }
+  let report: Awaited<ReturnType<typeof buildMissionReport>>;
+  try {
+    report = await buildMissionReport(ctx.configDir, project, locale);
+  } catch (err) {
+    if (err instanceof CodedError && err.code === "project.absent") {
+      return apiError(res, 404, reason("project.absent"));
+    }
+    return apiError(res, 500, reason("project.invalid", { reason: "json" }));
+  }
+  send(
+    res,
+    200,
+    report.markdown,
+    {
+      "Content-Type": "text/markdown; charset=utf-8",
+      "Content-Disposition": `attachment; filename="${report.filename}"`,
+      "Cache-Control": "no-store",
+    },
+    head,
+  );
+}
+
 async function handle(ctx: Ctx, req: IncomingMessage, res: ServerResponse): Promise<void> {
   const method = req.method ?? "GET";
   const pathname = (req.url ?? "/").split(/[?#]/, 1)[0] ?? "/";
@@ -343,6 +388,10 @@ async function handle(ctx: Ctx, req: IncomingMessage, res: ServerResponse): Prom
     });
   }
   if (read && pathname === "/api/session") return json(res, 200, { authenticated: true }, {}, head);
+  if (read && pathname === "/api/report") {
+    const query = (req.url ?? "").split("#", 1)[0]?.split("?")[1] ?? "";
+    return serveReport(ctx, query, res, head);
+  }
   if (isApi) return text(res, 404, "Introuvable");
   if (!read) return text(res, 405, "Méthode non autorisée", { Allow: "GET, HEAD" });
   if (pathname.startsWith("/view/")) {
