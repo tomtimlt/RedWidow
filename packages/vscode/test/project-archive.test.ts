@@ -145,7 +145,8 @@ describe("archive de projet .rwproj", () => {
     const file = join(a.root, "p.rwproj");
     const out = await exportProjectArchive(a.configDir, src.id, file);
     expect(out.files).toBe(3);
-    expect((await stat(file)).mode & 0o777).toBe(0o600);
+    // Windows n'a pas de modes Unix.
+    if (process.platform !== "win32") expect((await stat(file)).mode & 0o777).toBe(0o600);
     expect((await readdir(a.root)).filter((n) => n.endsWith(".tmp"))).toEqual([]);
 
     const b = await machine();
@@ -163,8 +164,10 @@ describe("archive de projet .rwproj", () => {
     expect(
       await readFile(join(projectDataDir(b.configDir, src.id), "audit", "j.jsonl"), "utf8"),
     ).toBe('{"k":1}\n');
-    expect((await stat(join(ws, "notes", "a.md"))).mode & 0o777).toBe(0o600);
-    expect((await stat(join(ws, "scans", "deep"))).mode & 0o777).toBe(0o700);
+    if (process.platform !== "win32") {
+      expect((await stat(join(ws, "notes", "a.md"))).mode & 0o777).toBe(0o600);
+      expect((await stat(join(ws, "scans", "deep"))).mode & 0o777).toBe(0o700);
+    }
     expect(await residue(b.parent)).toEqual(["mon-projet"]);
     expect((await readProjects(b.configDir))?.projects.map((p) => p.id)).toEqual([src.id]);
   });

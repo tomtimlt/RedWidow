@@ -231,7 +231,7 @@ it("dossier existant : le dossier est choisi d'abord, son nom de base est propos
   expect(plan).toEqual({ kind: "adopt", name: "Dossier Client", folder });
   if (!plan) throw Error("plan absent");
   const project = await applyProjectPlan(config, plan);
-  expect(project.workspace).toBe(await realpath(folder));
+  expect(await realpath(project.workspace)).toBe(await realpath(folder));
   expect((await readProjectChoices(config)).activeId).toBe(project.id);
 });
 
