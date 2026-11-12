@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RedWidow — connexion</title>
+    <link rel="stylesheet" href="/assets/login.css" />
+  </head>
+  <body>
+    <main>
+      <h1>RedWidow</h1>
+      <form id="login" autocomplete="on">
+        <label for="password">Mot de passe</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required />
+        <button type="submit">Se connecter</button>
+        <p id="error" role="alert" hidden></p>
+      </form>
+    </main>
+    <script nonce="{{nonce}}" src="/login.js"></script>
+  </body>
+</html>

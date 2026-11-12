@@ -1,7 +1,24 @@
 import { readFile, realpath, stat } from "node:fs/promises";
-import { createServer as createHttpServer, type Server, type ServerResponse } from "node:http";
+import {
+  createServer as createHttpServer,
+  type IncomingMessage,
+  type Server,
+  type ServerResponse,
+} from "node:http";
 import { extname, isAbsolute, resolve, sep } from "node:path";
+import { CodedError, type Reason, reason } from "@warband/core";
+import { buildCsp, injectNonce, makeNonce } from "./auth/csp.js";
+import { LoginLimiter } from "./auth/limiter.js";
+import { originAllowed } from "./auth/origin.js";
+import { isValidPasswordHash, verifyPassword } from "./auth/password.js";
+import {
+  expiredSessionCookie,
+  readSessionCookie,
+  SessionStore,
+  sessionCookie,
+} from "./auth/sessions.js";
 import type { ServerConfig } from "./config.js";
+import { attachWebSocket } from "./ws.js";
 
 const MIME: Readonly<Record<string, string>> = {
   ".html": "text/html; charset=utf-8",
@@ -16,7 +33,8 @@ const MIME: Readonly<Record<string, string>> = {
 const SECURITY_HEADERS: Readonly<Record<string, string>> = {
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "no-referrer",
-  "X-Frame-Options": "DENY",
+  "X-Frame-Options": "SAMEORIGIN",
+  "Strict-Transport-Security": "max-age=31536000",
 };
 
 function send(
@@ -76,41 +94,213 @@ async function resolveStatic(webDir: string, urlPath: string): Promise<Resolved>
   }
 }
 
-/** Crée le serveur HTTP (sans écouter). */
-export function createServer(config: ServerConfig): Server {
-  return createHttpServer((req, res) => {
-    void handle(config, req.method ?? "GET", req.url ?? "/", res).catch(() => {
+/** Taille maximale du corps de `POST /api/login`. */
+const MAX_LOGIN_BODY = 4096;
+
+export interface ServerOptions {
+  /** Empreinte scrypt du mot de passe (voir `loadPasswordHash`). */
+  passwordHash: string;
+  /** Horloge (ms) injectable pour les tests (sessions, limitation). */
+  now?: () => number;
+  /** Rappel pour chaque WebSocket authentifiée (pont moteur, lot suivant). */
+  onConnection?: (socket: import("ws").WebSocket, sessionId: string) => void;
+}
+
+interface Ctx {
+  config: ServerConfig;
+  passwordHash: string;
+  sessions: SessionStore;
+  limiter: LoginLimiter;
+}
+
+function json(
+  res: ServerResponse,
+  status: number,
+  body: unknown,
+  extra: Record<string, string> = {},
+  headOnly = false,
+): void {
+  send(
+    res,
+    status,
+    JSON.stringify(body),
+    { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...extra },
+    headOnly,
+  );
+}
+
+/** Erreur d'API : `{ error: Reason }`, le client affiche le libellé via `@warband/messages`. */
+const apiError = (
+  res: ServerResponse,
+  status: number,
+  r: Reason,
+  extra: Record<string, string> = {},
+) => json(res, status, { error: r }, extra);
+
+/** Crée le serveur HTTP (sans écouter). Refuse une empreinte de mot de passe invalide. */
+export function createServer(config: ServerConfig, options: ServerOptions): Server {
+  if (!isValidPasswordHash(options.passwordHash)) {
+    throw new CodedError("server.passwordHashInvalid");
+  }
+  const now = options.now ?? Date.now;
+  const ctx: Ctx = {
+    config,
+    passwordHash: options.passwordHash,
+    sessions: new SessionStore({ now }),
+    limiter: new LoginLimiter(now),
+  };
+  const server = createHttpServer((req, res) => {
+    void handle(ctx, req, res).catch(() => {
       if (!res.headersSent) text(res, 500, "Erreur interne");
       else res.destroy();
     });
   });
+  const detach = attachWebSocket(server, {
+    origin: config.publicOrigin,
+    sessions: ctx.sessions,
+    ...(options.onConnection && { onConnection: options.onConnection }),
+  });
+  server.on("close", detach);
+  return server;
 }
 
-async function handle(
-  config: ServerConfig,
-  method: string,
-  url: string,
-  res: ServerResponse,
-): Promise<void> {
-  const pathname = url.split(/[?#]/, 1)[0] ?? "/";
-  const head = method === "HEAD";
-  if (method !== "GET" && !head) {
-    return text(res, 405, "Méthode non autorisée", { Allow: "GET, HEAD" });
+/** IP cliente : `remoteAddress`, ou la dernière valeur de `X-Forwarded-For` derrière un proxy de confiance. */
+function clientIp(config: ServerConfig, req: IncomingMessage): string {
+  if (config.trustProxy) {
+    const xff = req.headers["x-forwarded-for"];
+    const last = (Array.isArray(xff) ? xff.join(",") : xff)?.split(",").pop()?.trim();
+    if (last) return last;
   }
-  if (pathname === "/healthz") {
-    return send(
+  return req.socket.remoteAddress ?? "inconnue";
+}
+
+/** Corps JSON limité à `max` octets ; `undefined` si trop gros ou illisible. */
+async function readBody(req: IncomingMessage, max: number): Promise<string | undefined> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += (chunk as Buffer).length;
+    if (size > max) {
+      req.resume();
+      return undefined;
+    }
+    chunks.push(chunk as Buffer);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+async function login(ctx: Ctx, req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const type = (req.headers["content-type"] ?? "").split(";")[0]?.trim().toLowerCase();
+  if (type !== "application/json") return apiError(res, 415, reason("auth.badRequest"));
+  const ip = clientIp(ctx.config, req);
+  const admission = ctx.limiter.begin(ip);
+  if (!admission.ok) {
+    return apiError(
       res,
-      200,
-      JSON.stringify({ status: "ok" }),
-      { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
-      head,
+      429,
+      reason("auth.rateLimited", { seconds: admission.retryAfterSeconds }),
+      { "Retry-After": String(admission.retryAfterSeconds) },
     );
   }
-  const found = await resolveStatic(config.webDir, pathname);
+  let password: unknown;
+  try {
+    const body = await readBody(req, MAX_LOGIN_BODY);
+    if (body === undefined) {
+      ctx.limiter.release(ip);
+      return apiError(res, 413, reason("auth.badRequest"));
+    }
+    password = (JSON.parse(body) as { password?: unknown } | null)?.password;
+  } catch {
+    ctx.limiter.release(ip);
+    return apiError(res, 400, reason("auth.badRequest"));
+  }
+  if (typeof password !== "string" || password === "") {
+    ctx.limiter.release(ip);
+    return apiError(res, 400, reason("auth.badRequest"));
+  }
+  let ok = false;
+  try {
+    ok = await verifyPassword(password, ctx.passwordHash);
+  } finally {
+    if (ok) ctx.limiter.success(ip);
+    else ctx.limiter.fail(ip);
+  }
+  if (!ok) return apiError(res, 401, reason("auth.invalidCredentials"));
+  const token = ctx.sessions.create();
+  send(res, 204, "", {
+    "Cache-Control": "no-store",
+    "Set-Cookie": sessionCookie(token, ctx.sessions.absoluteSeconds),
+  });
+}
+
+/** Page HTML : nonce par réponse, CSP dans l'en-tête. */
+function html(res: ServerResponse, body: string, headOnly: boolean): void {
+  const nonce = makeNonce();
+  send(
+    res,
+    200,
+    injectNonce(body, nonce),
+    {
+      "Content-Type": MIME[".html"] as string,
+      "Cache-Control": "no-store",
+      "Content-Security-Policy": buildCsp(nonce),
+    },
+    headOnly,
+  );
+}
+
+async function serveStatic(
+  ctx: Ctx,
+  pathname: string,
+  res: ServerResponse,
+  head: boolean,
+): Promise<void> {
+  const found = await resolveStatic(ctx.config.webDir, pathname);
   if ("status" in found) return text(res, found.status, "Introuvable");
   const type = MIME[extname(found.path).toLowerCase()];
   if (!type) return text(res, 404, "Introuvable");
-  const headers: Record<string, string> = { "Content-Type": type };
-  if (type.startsWith("text/html")) headers["Cache-Control"] = "no-store";
-  send(res, 200, await readFile(found.path), headers, head);
+  if (type.startsWith("text/html")) {
+    return html(res, await readFile(found.path, "utf8"), head);
+  }
+  send(res, 200, await readFile(found.path), { "Content-Type": type }, head);
+}
+
+async function handle(ctx: Ctx, req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const method = req.method ?? "GET";
+  const pathname = (req.url ?? "/").split(/[?#]/, 1)[0] ?? "/";
+  const head = method === "HEAD";
+  const read = method === "GET" || head;
+
+  // CSRF : toute requête modifiante exige l'Origin publique, avant tout autre traitement.
+  if (!read && !originAllowed(req.headers.origin, ctx.config.publicOrigin)) {
+    return apiError(res, 403, reason("auth.originDenied"));
+  }
+
+  // Routes publiques.
+  if (read && pathname === "/healthz") return json(res, 200, { status: "ok" }, {}, head);
+  if (read && pathname === "/login") return serveStatic(ctx, "/login.html", res, head);
+  if (read && (pathname === "/login.js" || pathname.startsWith("/assets/"))) {
+    return serveStatic(ctx, pathname, res, head);
+  }
+  if (method === "POST" && pathname === "/api/login") return login(ctx, req, res);
+
+  // Tout le reste exige une session.
+  const sessionId = ctx.sessions.validate(readSessionCookie(req.headers.cookie));
+  const isApi = pathname === "/api" || pathname.startsWith("/api/");
+  if (sessionId === undefined) {
+    if (isApi || !read) return apiError(res, 401, reason("auth.required"));
+    return text(res, 302, "Authentification requise", { Location: "/login" });
+  }
+
+  if (method === "POST" && pathname === "/api/logout") {
+    ctx.sessions.revoke(readSessionCookie(req.headers.cookie));
+    return send(res, 204, "", {
+      "Cache-Control": "no-store",
+      "Set-Cookie": expiredSessionCookie(),
+    });
+  }
+  if (read && pathname === "/api/session") return json(res, 200, { authenticated: true }, {}, head);
+  if (isApi) return text(res, 404, "Introuvable");
+  if (!read) return text(res, 405, "Méthode non autorisée", { Allow: "GET, HEAD" });
+  return serveStatic(ctx, pathname, res, head);
 }

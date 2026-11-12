@@ -341,6 +341,24 @@ export const reasons: Catalog = {
     `engine exited (${p.signal === undefined ? `code ${text(p.code)}` : `signal ${text(p.signal)}`})`,
   "shell.unclosedQuote": (p) => `unclosed quote ${text(p.quote)}`,
   "shell.trailingBackslash": () => "trailing backslash",
+  "server.originMissing": () =>
+    "REDWIDOW_PUBLIC_ORIGIN is required (e.g. https://hunt.example.com): startup refused",
+  "server.originInvalid": () =>
+    "REDWIDOW_PUBLIC_ORIGIN must be a valid http(s) origin (e.g. https://hunt.example.com)",
+  "server.passwordHashMissing": () =>
+    "no password configured: set REDWIDOW_PASSWORD_HASH or run `redwidow-server set-password`",
+  "server.passwordHashInvalid": () =>
+    "the password hash is invalid: regenerate it with `redwidow-server set-password`",
+  "server.passwordTooShort": (p) => `password too short: at least ${text(p.min)} characters`,
+  "server.passwordMismatch": () => "the two password entries differ",
+  "server.passwordNeedsStdin": () =>
+    "no interactive terminal: provide the password on standard input with --stdin",
+  "auth.required": () => "authentication required",
+  "auth.invalidCredentials": () => "invalid credentials",
+  "auth.rateLimited": (p) => `too many attempts: retry in ${text(p.seconds)} s`,
+  "auth.originDenied": () => "origin denied",
+  "auth.badRequest": () => "invalid request",
+
   "error.unknown": (p) => (p.message === undefined ? "unknown error" : text(p.message)),
 
   "bash.hazard": (p) =>

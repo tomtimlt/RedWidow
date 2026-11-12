@@ -223,6 +223,19 @@ export const REASON_CODES = [
   "cours.absent",
   "exegol.containerDenied",
   "kali.unavailable",
+  // Hôte web : authentification et démarrage (ADR 0052)
+  "server.originMissing",
+  "server.originInvalid",
+  "server.passwordHashMissing",
+  "server.passwordHashInvalid",
+  "server.passwordTooShort",
+  "server.passwordMismatch",
+  "server.passwordNeedsStdin",
+  "auth.required",
+  "auth.invalidCredentials",
+  "auth.rateLimited",
+  "auth.originDenied",
+  "auth.badRequest",
   // Divers
   "error.unknown",
   /** Motif ou erreur d'un ancien journal, relu comme texte (`params.text`). */

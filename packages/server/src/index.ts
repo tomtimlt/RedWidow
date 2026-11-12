@@ -1,2 +1,2 @@
 export { ConfigError, loadConfig, type ServerConfig } from "./config.js";
-export { createServer } from "./http.js";
+export { createServer, type ServerOptions } from "./http.js";

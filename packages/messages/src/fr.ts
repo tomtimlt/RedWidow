@@ -449,6 +449,25 @@ export const reasons: Catalog = {
   "event.missingField": (p) => `${text(p.field)} manquant`,
   "event.invalidField": (p) => `${text(p.field)} invalide`,
 
+  "server.originMissing": () =>
+    "REDWIDOW_PUBLIC_ORIGIN est obligatoire (ex. https://chasse.exemple.fr) : démarrage refusé",
+  "server.originInvalid": () =>
+    "REDWIDOW_PUBLIC_ORIGIN doit être une origine http(s) valide (ex. https://chasse.exemple.fr)",
+  "server.passwordHashMissing": () =>
+    "aucun mot de passe configuré : définissez REDWIDOW_PASSWORD_HASH ou lancez « redwidow-server set-password »",
+  "server.passwordHashInvalid": () =>
+    "l’empreinte du mot de passe est invalide : régénérez-la avec « redwidow-server set-password »",
+  "server.passwordTooShort": (p) =>
+    `mot de passe trop court : ${text(p.min)} caractères au minimum`,
+  "server.passwordMismatch": () => "les deux saisies du mot de passe diffèrent",
+  "server.passwordNeedsStdin": () =>
+    "aucun terminal interactif : fournissez le mot de passe sur l’entrée standard avec --stdin",
+  "auth.required": () => "authentification requise",
+  "auth.invalidCredentials": () => "identifiants invalides",
+  "auth.rateLimited": (p) => `trop de tentatives : réessayez dans ${text(p.seconds)} s`,
+  "auth.originDenied": () => "origine refusée",
+  "auth.badRequest": () => "requête invalide",
+
   "error.unknown": (p) => (p.message === undefined ? "erreur inconnue" : text(p.message)),
   legacy: (p) => text(p.text),
 };
