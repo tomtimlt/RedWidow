@@ -12,7 +12,9 @@
       "@warband/core": ["./packages/core/src/index.ts"],
       "@warband/export-html": ["./packages/export-html/src/index.ts"],
       "@warband/messages": ["./packages/messages/src/index.ts"],
-      "@warband/vscode": ["./packages/vscode/src/logic/integrity.ts"]
+      "@warband/server": ["./packages/server/src/index.ts"],
+      "@warband/vscode": ["./packages/vscode/src/logic/integrity.ts"],
+      "@warband/vscode/*": ["./packages/vscode/src/*"]
     }
   },
   "include": ["packages/*/src", "packages/*/test", "test", "vitest.config.ts"]

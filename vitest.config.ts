@@ -6,17 +6,30 @@ const src = (pkg: string) =>
 
 export default defineConfig({
   resolve: {
-    alias: {
-      "@warband/agent-opencode": src("agent-opencode"),
-      "@warband/agent-sdk": src("agent-sdk"),
-      "@warband/cli": fileURLToPath(new URL("./packages/cli/src/main.ts", import.meta.url)),
-      "@warband/core": src("core"),
-      "@warband/export-html": src("export-html"),
-      "@warband/messages": src("messages"),
-      "@warband/vscode": fileURLToPath(
-        new URL("./packages/vscode/src/logic/integrity.ts", import.meta.url),
-      ),
-    },
+    alias: [
+      // Sous-chemins du paquet vscode : `@warband/vscode/logic/x.js` → `packages/vscode/src/logic/x.ts`.
+      {
+        find: /^@warband\/vscode\/(.+)\.js$/,
+        replacement: fileURLToPath(new URL("./packages/vscode/src/$1.ts", import.meta.url)),
+      },
+      { find: "@warband/agent-opencode", replacement: src("agent-opencode") },
+      { find: "@warband/agent-sdk", replacement: src("agent-sdk") },
+      {
+        find: "@warband/cli",
+        replacement: fileURLToPath(new URL("./packages/cli/src/main.ts", import.meta.url)),
+      },
+      { find: "@warband/core", replacement: src("core") },
+      { find: "@warband/export-html", replacement: src("export-html") },
+      { find: "@warband/messages", replacement: src("messages") },
+      { find: "@warband/server", replacement: src("server") },
+      // Après l'alias regex ci-dessus (le premier qui correspond l'emporte).
+      {
+        find: "@warband/vscode",
+        replacement: fileURLToPath(
+          new URL("./packages/vscode/src/logic/integrity.ts", import.meta.url),
+        ),
+      },
+    ],
   },
   test: {
     include: ["packages/*/test/**/*.test.ts", "test/**/*.test.ts"],

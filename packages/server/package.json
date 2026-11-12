@@ -1,0 +1,33 @@
+{
+  "name": "@warband/server",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Hôte web de RedWidow (ADR 0052).",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "bin": {
+    "redwidow-server": "./dist/main.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "web"
+  ],
+  "dependencies": {
+    "@warband/core": "workspace:*",
+    "@warband/messages": "workspace:*",
+    "@warband/vscode": "workspace:*",
+    "ws": "8.22.2"
+  },
+  "devDependencies": {
+    "@types/ws": "8.18.2"
+  }
+}
