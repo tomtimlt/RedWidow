@@ -289,6 +289,18 @@ export const reasons: Catalog = {
   "project.workspaceNotMounted": (p) =>
     `Container ${text(p.container)} shares ${text(p.mounted)}, which does not contain project ${text(p.project)}. The agent and container would not see the same files.`,
   "project.absent": () => "no active project",
+  "project.parentInvalid": () =>
+    "folder refused: it must be absolute, exist, avoid symbolic links and not expose a sensitive path",
+  "project.folderAlreadyProject": (p) => `this folder is already project ${text(p.name)}`,
+  "project.destinationExists": (p) => `destination already exists: ${text(p.path)}`,
+  "project.moveFailed": () =>
+    "could not move the project: the source is intact and the registry unchanged",
+  "project.archiveInvalid": () => "invalid project archive: manifest missing or inconsistent",
+  "project.archiveEntryRejected": (p) =>
+    `archive entry rejected: ${text(p.path)} (path, link or duplicate not allowed, or not in the manifest)`,
+  "project.archiveChecksum": (p) => `wrong size or SHA-256 for archive entry ${text(p.path)}`,
+  "project.archiveTooLarge": () =>
+    "project archive too large (entry count, size or compression ratio)",
   "project.readFailed": () => "could not read the active project this turn",
   "cours.absent": () => "no course installed (course folder missing)",
   "exegol.containerDenied": (p) =>

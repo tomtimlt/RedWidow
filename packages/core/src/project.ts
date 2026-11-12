@@ -1,11 +1,17 @@
 import { randomUUID } from "node:crypto";
-import { chmod, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
-import { isAbsolute, join } from "node:path";
+import { chmod, mkdir, readFile, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
+import { basename, isAbsolute, join, relative } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import type { DockerClient } from "./docker/client.js";
 import { lookupContainer, shortContainerName } from "./exegol/targets.js";
 import { capOutput } from "./output.js";
-import { createProjectDirectory, PROJECT_WORKSPACE_MAX } from "./project-workspace.js";
+import {
+  createProjectDirectory,
+  moveDirectory,
+  PROJECT_WORKSPACE_MAX,
+  prepareProjectWorkspace,
+  validateProjectFolder,
+} from "./project-workspace.js";
 import { CodedError } from "./reason.js";
 import { createRedactor } from "./redact.js";
 
@@ -438,17 +444,127 @@ export async function createProject(
   return project;
 }
 
-/** Nouveau projet géré : valide avant le disque, réserve son dossier, puis enregistre la fiche. */
+/** Nouveau projet géré : valide avant le disque, réserve `<parent>/<slug>`, puis enregistre la fiche. */
 export async function createManagedProject(
   configDir: string,
   name: string,
-  root?: unknown,
+  parent: unknown,
 ): Promise<StoredProject> {
   assertCreateName(name);
   const file = await readProjects(configDir);
   if (file !== null && file.projects.length >= MAX_PROJECTS) throw invalidProject();
-  const workspace = await createProjectDirectory(name, root);
+  const workspace = await createProjectDirectory(name, parent);
   return createProject(configDir, { name, workspace });
+}
+
+/** Chemin réel, ou le chemin tel quel si le dossier a disparu. */
+async function realOrSame(path: string): Promise<string> {
+  try {
+    return await realpath(path);
+  } catch {
+    return path;
+  }
+}
+
+/** Refuse un dossier déjà enregistré (comparaison sur chemins réels). */
+async function assertFolderFree(file: ProjectFile | null, folder: string): Promise<void> {
+  if (file === null) return;
+  const real = await realpath(folder);
+  for (const project of file.projects)
+    if ((await realOrSame(project.workspace)) === real)
+      throw new CodedError("project.folderAlreadyProject", { name: project.name });
+}
+
+/**
+ * Reprend un dossier existant comme projet (ADR 0052, point 2). Seuls les sous-dossiers usuels
+ * manquants sont créés, sans rien écraser. Un dossier déjà enregistré est refusé.
+ */
+export async function adoptProjectDirectory(
+  configDir: string,
+  name: string,
+  folder: unknown,
+): Promise<StoredProject> {
+  assertCreateName(name);
+  const workspace = await validateProjectFolder(folder);
+  const file = await readProjects(configDir);
+  if (file !== null && file.projects.length >= MAX_PROJECTS) throw invalidProject();
+  await assertFolderFree(file, workspace);
+  await prepareProjectWorkspace(workspace);
+  return createProject(configDir, { name, workspace });
+}
+
+/** Dossier de données d'un projet : `<configDir>/projects/<id>/`. L'id est contrôlé. */
+export function projectDataDir(configDir: string, projectId: string): string {
+  if (!PROJECT_ID.test(projectId)) throw invalidProject();
+  return join(configDir, PROJECTS_DIR, projectId);
+}
+
+/**
+ * Déplace le dossier d'un projet sous `newParent` (ADR 0052, point 6). Le registre n'est mis à jour
+ * qu'après la réussite du déplacement. Les liaisons aux conteneurs ne sont pas touchées.
+ */
+export async function moveProjectWorkspace(
+  configDir: string,
+  projectId: string,
+  newParent: unknown,
+  deps?: Parameters<typeof moveDirectory>[2],
+): Promise<StoredProject> {
+  const file = await readProjects(configDir);
+  const project = file?.projects.find((p) => p.id === projectId);
+  if (file === null || project === undefined) throw new CodedError("project.absent");
+  const parent = await validateProjectFolder(newParent);
+  const source = await realpath(project.workspace);
+  const destination = join(parent, basename(project.workspace));
+  if (destination.length > PROJECT_WORKSPACE_MAX) throw invalidProject();
+  const inside = relative(source, await realpath(parent));
+  if (inside === "" || (!inside.startsWith("..") && !isAbsolute(inside)))
+    throw new CodedError("project.moveFailed");
+  try {
+    await stat(destination);
+    throw new CodedError("project.destinationExists", { path: destination });
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+  }
+  try {
+    await moveDirectory(source, destination, deps);
+  } catch (err) {
+    if (err instanceof CodedError) throw err;
+    throw new CodedError("project.moveFailed");
+  }
+  const updated: StoredProject = { ...project, workspace: destination };
+  await writeProjectFile(configDir, {
+    activeId: file.activeId,
+    projects: file.projects.map((p) => (p.id === projectId ? updated : p)),
+  });
+  return updated;
+}
+
+/**
+ * Enregistre un projet importé : garde `id` s'il est un UUID v4 libre, sinon en attribue un.
+ * Le dossier existe déjà (validé comme une reprise) ; aucune liaison de conteneur.
+ */
+export async function registerImportedProject(
+  configDir: string,
+  input: { id: string; name: string; workspace: string },
+): Promise<{ project: StoredProject; idChanged: boolean }> {
+  assertCreateName(input.name);
+  const workspace = await validateProjectFolder(input.workspace);
+  const file = await readProjects(configDir);
+  if (file !== null && file.projects.length >= MAX_PROJECTS) throw invalidProject();
+  await assertFolderFree(file, workspace);
+  const keep =
+    typeof input.id === "string" &&
+    PROJECT_ID.test(input.id) &&
+    !(file?.projects.some((p) => p.id === input.id) ?? false);
+  const id = keep ? input.id : randomUUID();
+  if (!PROJECT_ID.test(id)) throw invalidProject();
+  const project: StoredProject = { id, name: input.name, workspace, containers: [] };
+  const activeId = file === null || activeProject(file) === null ? id : file.activeId;
+  await writeProjectFile(configDir, {
+    activeId,
+    projects: file === null ? [project] : [...file.projects, project],
+  });
+  return { project, idChanged: !keep };
 }
 
 /** Renomme la fiche sans changer son identité, son dossier ou ses associations. */

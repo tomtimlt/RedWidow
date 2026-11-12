@@ -1,7 +1,18 @@
 import { randomUUID } from "node:crypto";
-import { lstat, mkdir, realpath, unlink, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
+import { constants } from "node:fs";
+import {
+  copyFile,
+  lstat,
+  mkdir,
+  readdir,
+  realpath,
+  rename,
+  rm,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
 import { isAbsolute, join, parse, posix, relative, resolve, sep, win32 } from "node:path";
+import { mountExposesSensitive } from "./approval/paths.js";
 import type { DockerClient } from "./docker/client.js";
 import type { StoredProject } from "./project.js";
 import { CodedError } from "./reason.js";
@@ -17,9 +28,8 @@ export const PROJECT_WORKSPACE_FOLDERS = [
   "notes",
 ] as const;
 
-/** Réglage machine de l’hôte uniquement ; la webview ne choisit jamais le dossier d’un projet. */
-export function projectWorkspacesRoot(value?: unknown, home = homedir()): string {
-  if (value === undefined || value === "") return join(home, ".exegol", "workspaces");
+/** Réglage machine de l’hôte : absolu et explicite, sans valeur par défaut (ADR 0052). */
+export function projectWorkspacesRoot(value: unknown): string {
   if (typeof value !== "string" || !isAbsolute(value) || /[\p{Cc}\p{Cf}]/u.test(value))
     throw new CodedError("project.invalid");
   return resolve(value);
@@ -53,17 +63,36 @@ async function checkDirectoryChain(root: string, missing = false): Promise<void>
   }
 }
 
+/**
+ * Valide un dossier choisi par l’utilisateur (parent de création, dossier repris ou destination).
+ * Absolu, existant, dossier, sans lien symbolique, sans exposer de chemin sensible.
+ * Renvoie le chemin résolu ; tout refus est `project.parentInvalid`.
+ */
+export async function validateProjectFolder(folder: unknown): Promise<string> {
+  const refuse = () => new CodedError("project.parentInvalid");
+  if (
+    typeof folder !== "string" ||
+    folder === "" ||
+    folder.length > PROJECT_WORKSPACE_MAX ||
+    !isAbsolute(folder) ||
+    /[\p{Cc}\p{Cf}]/u.test(folder)
+  )
+    throw refuse();
+  const path = resolve(folder);
+  try {
+    await checkDirectoryChain(path);
+  } catch {
+    throw refuse();
+  }
+  if (mountExposesSensitive(path, { cwd: path }) !== null) throw refuse();
+  return path;
+}
+
 /** Réservation exclusive : aucun dossier existant n’est réutilisé ni nettoyé récursivement. */
-export async function createProjectDirectory(
-  name: string,
-  configuredRoot?: unknown,
-): Promise<string> {
-  const root = projectWorkspacesRoot(configuredRoot);
+export async function createProjectDirectory(name: string, parent: unknown): Promise<string> {
+  const root = await validateProjectFolder(parent);
   if (join(root, workspaceSlug(name)).length > PROJECT_WORKSPACE_MAX)
     throw new CodedError("project.invalid");
-  await checkDirectoryChain(root, true);
-  await mkdir(root, { recursive: true, mode: 0o700 });
-  await checkDirectoryChain(root);
   const canonical = await realpath(root);
   const identity = await lstat(root);
   for (let suffix = 1; suffix <= 1000; suffix++) {
@@ -88,6 +117,51 @@ export async function createProjectDirectory(
   }
   throw new CodedError("project.invalid");
 }
+
+/** Opérations disque injectables (test de la voie inter-volumes). */
+export interface MoveDeps {
+  rename?: (from: string, to: string) => Promise<void>;
+}
+
+/** Copie récursive sans suivre les liens : un lien rencontré est refusé. Taille vérifiée par fichier. */
+async function copyTree(from: string, to: string): Promise<void> {
+  const info = await lstat(from);
+  if (info.isSymbolicLink() || !(info.isDirectory() || info.isFile()))
+    throw new CodedError("project.moveFailed");
+  if (info.isFile()) {
+    await copyFile(from, to, constants.COPYFILE_EXCL);
+    if ((await lstat(to)).size !== info.size) throw new CodedError("project.moveFailed");
+    return;
+  }
+  await mkdir(to, { mode: 0o700 });
+  for (const entry of await readdir(from)) await copyTree(join(from, entry), join(to, entry));
+}
+
+/**
+ * Déplace un dossier : `rename`, ou sur EXDEV copie + vérification + suppression de la source.
+ * Échec de copie : la copie partielle est supprimée, la source reste intacte.
+ */
+export async function moveDirectory(
+  source: string,
+  destination: string,
+  deps: MoveDeps = {},
+): Promise<void> {
+  const move = deps.rename ?? rename;
+  try {
+    await move(source, destination);
+    return;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EXDEV") throw error;
+  }
+  try {
+    await copyTree(source, destination);
+  } catch (error) {
+    await rm(destination, { recursive: true, force: true });
+    throw error instanceof CodedError ? error : new CodedError("project.moveFailed");
+  }
+  await rm(source, { recursive: true, force: true });
+}
+
 /** Identité de projet incluse pour éviter les collisions entre noms normalisés. */
 export function containerProjectWorkspace(project: Pick<StoredProject, "id" | "name">): string {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(project.id))

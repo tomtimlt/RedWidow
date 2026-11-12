@@ -3316,8 +3316,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             ) ?? {},
             projectChoices.activeId,
           ),
-          projectWorkspaceRoot:
-            readMachineSetting("projects.workspaceRoot") || projectWorkspacesRoot(),
+          projectWorkspaceRoot: readMachineSetting("projects.workspaceRoot") || "",
           ...(feedback.workspaceRootError && { workspaceRootError: feedback.workspaceRootError }),
           agentProfile: agentProfileLabel(
             machineValue(vscode.workspace.getConfiguration("warband").inspect("profile")),
@@ -4333,10 +4332,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           }
           if (chatsBusy())
             throw new Error(t("Arrêtez les tours en cours avant de créer le projet."));
+          // Plus de dossier par défaut (ADR 0052) : l'interface de choix du parent suivra.
+          const workspaceRoot = readMachineSetting("projects.workspaceRoot");
+          if (typeof workspaceRoot !== "string" || workspaceRoot === "")
+            throw new CodedError("project.parentInvalid");
           const created = await createManagedSelectedProject(
             defaultConfigDir(),
             message.name,
-            readMachineSetting("projects.workspaceRoot"),
+            workspaceRoot,
           );
           await prepareMissionFolder(created.workspace);
           return created.id;

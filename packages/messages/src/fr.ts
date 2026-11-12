@@ -423,6 +423,19 @@ export const reasons: Catalog = {
   "project.workspaceNotMounted": (p) =>
     `Le conteneur ${text(p.container)} partage le dossier ${text(p.mounted)}, qui ne contient pas le projet ${text(p.project)}. L’agent et le conteneur ne verraient pas les mêmes fichiers.`,
   "project.absent": () => "aucun projet actif",
+  "project.parentInvalid": () =>
+    "dossier refusé : il doit être absolu, exister, ne pas passer par un lien symbolique ni exposer un chemin sensible",
+  "project.folderAlreadyProject": (p) => `ce dossier est déjà le projet ${text(p.name)}`,
+  "project.destinationExists": (p) => `la destination existe déjà : ${text(p.path)}`,
+  "project.moveFailed": () =>
+    "déplacement du projet impossible : la source est restée intacte et le registre inchangé",
+  "project.archiveInvalid": () => "archive de projet invalide : manifeste absent ou incohérent",
+  "project.archiveEntryRejected": (p) =>
+    `entrée d’archive refusée : ${text(p.path)} (chemin, lien ou doublon non autorisé, ou absent du manifeste)`,
+  "project.archiveChecksum": (p) =>
+    `taille ou empreinte SHA-256 incorrecte pour l’entrée d’archive ${text(p.path)}`,
+  "project.archiveTooLarge": () =>
+    "archive de projet trop volumineuse (nombre d’entrées, taille ou taux de compression)",
   "project.readFailed": () => "lecture du projet impossible ce tour-ci",
   "cours.absent": () => "aucun cours installé (dossier de cours absent)",
   "exegol.containerDenied": (p) =>

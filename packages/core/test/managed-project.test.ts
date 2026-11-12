@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { afterEach, expect, it } from "vitest";
@@ -14,16 +14,16 @@ const dirs: string[] = [];
 const fixture = async () => {
   const base = await mkdtemp(join(tmpdir(), "managed-project-"));
   dirs.push(base);
+  await mkdir(join(base, "workspaces"));
   return { base, config: join(base, "config"), root: join(base, "workspaces") };
 };
 afterEach(async () => {
   await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
-it("racine par défaut dans le dossier Exegol et réglage absolu explicite", () => {
-  expect(projectWorkspacesRoot(undefined, "/home/laboratoire")).toBe(
-    join("/home/laboratoire", ".exegol", "workspaces"),
-  );
+it("réglage de racine : absolu explicite uniquement, plus de défaut Exegol", () => {
+  expect(() => projectWorkspacesRoot(undefined)).toThrow();
+  expect(() => projectWorkspacesRoot("")).toThrow();
   expect(() => projectWorkspacesRoot("../autre")).toThrow();
   expect(() => projectWorkspacesRoot({ root: "/autre" })).toThrow();
 });
@@ -51,10 +51,10 @@ it.each(["CON", "NUL", "COM1", "LPT9", "...", "../../dossier"])(
   },
 );
 
-it("un nom invalide ne crée pas la racine et les projets existants restent à leur place", async () => {
+it("un nom invalide ne crée rien et les projets existants restent à leur place", async () => {
   const { config, root, base } = await fixture();
   await expect(createManagedProject(config, "", root)).rejects.toThrow();
-  expect(await readdir(base)).toEqual([]);
+  expect(await readdir(root)).toEqual([]);
   const legacy = await createProject(config, { name: "Existant", workspace: base });
   await createManagedProject(config, "Nouveau", root);
   expect(
@@ -68,18 +68,37 @@ it("refuse une racine symbolique et un ancêtre symbolique sans écrire dans leu
   const link = join(base, "raccourci");
   await symlink(other.base, link, process.platform === "win32" ? "junction" : "dir");
   await expect(createManagedProject(config, "Projet", link)).rejects.toMatchObject({
-    code: "path.outside",
+    code: "project.parentInvalid",
   });
   await expect(createManagedProject(config, "Projet", join(link, "nouveau"))).rejects.toMatchObject(
-    { code: "path.outside" },
+    { code: "project.parentInvalid" },
   );
-  expect(await readdir(other.base)).toEqual([]);
+  expect(await readdir(other.base)).toEqual(["workspaces"]);
 });
 
-it("un chemin de projet trop long ne crée aucun dossier", async () => {
-  const { base, config } = await fixture();
+it("un parent trop long ne crée aucun dossier", async () => {
+  const { base, root, config } = await fixture();
   await expect(
     createManagedProject(config, "Projet", join(base, ...Array<string>(100).fill("long-segment"))),
-  ).rejects.toMatchObject({ code: "project.invalid" });
-  expect(await readdir(base)).toEqual([]);
+  ).rejects.toMatchObject({ code: "project.parentInvalid" });
+  expect(await readdir(root)).toEqual([]);
+});
+
+it("parent absent, relatif, vide, fichier ou sensible : refusé sans rien créer", async () => {
+  const { base, config, root } = await fixture();
+  await writeFile(join(base, "fichier"), "x");
+  const refused = [
+    undefined,
+    "",
+    "relatif/dossier",
+    join(base, "absent"),
+    join(base, "fichier"),
+    ...(process.platform === "win32" ? [] : ["/etc"]),
+  ];
+  for (const parent of refused)
+    await expect(createManagedProject(config, "Projet", parent)).rejects.toMatchObject({
+      code: "project.parentInvalid",
+    });
+  expect(await readdir(root)).toEqual([]);
+  expect(await readProjects(config)).toBeNull();
 });

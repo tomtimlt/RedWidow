@@ -38,13 +38,13 @@ export async function createSelectedProject(
   return project.id;
 }
 
-/** L’extension ne demande que le nom ; la racine provient du réglage machine. */
+/** Le dossier parent est choisi par l’hôte (ADR 0052), jamais par défaut. */
 export async function createManagedSelectedProject(
   configDir: string,
   name: string,
-  root?: unknown,
+  parent: unknown,
 ) {
-  const project = await createManagedProject(configDir, name, root);
+  const project = await createManagedProject(configDir, name, parent);
   await activateSelectedProject(configDir, project.id);
   return project;
 }
