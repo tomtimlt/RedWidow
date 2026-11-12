@@ -153,8 +153,17 @@ export async function moveDirectory(
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "EXDEV") throw error;
   }
+  const root = await lstat(source);
+  if (root.isSymbolicLink() || !root.isDirectory()) throw new CodedError("project.moveFailed");
+  // La racine est créée de façon exclusive : on ne supprime jamais un dossier qu’on n’a pas créé.
   try {
-    await copyTree(source, destination);
+    await mkdir(destination, { mode: 0o700 });
+  } catch {
+    throw new CodedError("project.destinationExists");
+  }
+  try {
+    for (const entry of await readdir(source))
+      await copyTree(join(source, entry), join(destination, entry));
   } catch (error) {
     await rm(destination, { recursive: true, force: true });
     throw error instanceof CodedError ? error : new CodedError("project.moveFailed");
