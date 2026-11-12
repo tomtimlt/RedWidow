@@ -8,6 +8,7 @@ import {
   createRecorder,
   type DockerClient,
   defaultConfigDir,
+  dissociateContainer,
   dockerFailure,
   type EngagementState,
   haltedPaceHosts,
@@ -16,6 +17,7 @@ import {
   type LabelPrefixContainer,
   link,
   lookupContainer,
+  moveProjectWorkspace,
   type ProgramState,
   type ProjectFile,
   readCampaignSync,
@@ -68,7 +70,9 @@ export type CockpitMessage =
   | { type: "cancelOperation" }
   | { type: "createKali"; image: string; name: string; shareMode: CockpitShareMode }
   | { type: "listImages" }
-  | { type: "pickSharedFolder" };
+  | { type: "pickSharedFolder" }
+  | { type: "moveProject" }
+  | { type: "dismissMountIssue" };
 
 const CONTAINER_NAME_MAX = 256;
 /** Nom saisi pour créer : une lettre ou un chiffre, puis au plus 63 caractères `.`, `_` ou `-`. */
@@ -189,6 +193,8 @@ export function parseCockpitMessage(raw: unknown): CockpitMessage | null {
         : null;
     case "listImages":
     case "pickSharedFolder":
+    case "moveProject":
+    case "dismissMountIssue":
     case "pickVpn":
     case "cancelOperation":
       return only("type") ? { type: m.type } : null;
@@ -387,6 +393,14 @@ export interface CockpitContainerView {
   compatible: boolean;
 }
 
+/** Incohérence de partage signalée par le moteur (ADR 0052, point 5), affichée en bandeau. */
+export interface CockpitMountIssue {
+  container: string;
+  mounted: string;
+  projectId: string;
+  projectName: string;
+}
+
 export interface CockpitLinkedBanner {
   name: string;
   short: string;
@@ -406,6 +420,8 @@ export interface CockpitViewPayload {
   linked: CockpitLinkedLine;
   linkedBanner: CockpitLinkedBanner | null;
   containers: CockpitContainerView[];
+  /** Dossier du projet absent du partage d'un conteneur lié : bandeau à trois actions. */
+  mountIssue?: CockpitMountIssue;
   /** Échec du démon (pas de liste périmée). */
   error?: string;
   /** Projet illisible : pas de terminal. */
@@ -824,4 +840,56 @@ export async function linkedProjectStatus(
     return { workspace: active.workspace, container, image: null, state: "absent" };
   }
   return { workspace: active.workspace, container, image: row.image, state: row.state };
+}
+
+/** Dépendances du déplacement du projet actif (cockpit), simulables en test. */
+export interface MoveProjectDeps {
+  configDir?: string;
+  /** Confirmation modale native ; `false` : rien n'est déplacé. */
+  confirm(project: { name: string; workspace: string }): Promise<boolean>;
+  /** Sélecteur natif du dossier parent (sans dossier par défaut) ; `undefined` : annulé. */
+  pickParent(): Promise<string | undefined>;
+  readProj?: typeof readProjects;
+  move?: typeof moveProjectWorkspace;
+  dissociate?: typeof dissociateContainer;
+  listContainers?: () => Promise<LabelPrefixContainer[]>;
+}
+
+/**
+ * Déplace le dossier du projet actif (ADR 0052, point 6) : confirmation, puis choix du parent, puis
+ * déplacement du cœur. Une annulation à l'une des deux étapes ne fait rien (`null`). Après un
+ * déplacement réussi, les liaisons aux conteneurs qui ne voient plus le projet sont retirées ; si
+ * Docker ne répond pas, elles restent (le moteur refuse alors le tour au besoin).
+ */
+export async function moveActiveProject(
+  deps: MoveProjectDeps,
+): Promise<{ workspace: string } | null> {
+  const configDir = deps.configDir ?? defaultConfigDir();
+  const file = await (deps.readProj ?? readProjects)(configDir);
+  const active = file === null ? null : activeProject(file);
+  if (active === null) throw new CodedError("project.absent");
+  if (!(await deps.confirm({ name: active.name, workspace: active.workspace }))) return null;
+  const parent = await deps.pickParent();
+  if (parent === undefined) return null;
+  const moved = await (deps.move ?? moveProjectWorkspace)(configDir, active.id, parent);
+  let rows: LabelPrefixContainer[];
+  try {
+    rows =
+      deps.listContainers !== undefined
+        ? await deps.listContainers()
+        : await createDockerClient({
+            recorder: createRecorder(),
+            binary: "docker",
+            timeoutMs: 15_000,
+          }).listLabelPrefix();
+  } catch {
+    return { workspace: moved.workspace };
+  }
+  for (const name of active.containers) {
+    const row = rows.find((r) => r.name === name);
+    if (row === undefined || row.workspace === undefined || !isAbsolute(row.workspace)) continue;
+    if (!(await projectInSharedFolder(row.workspace, moved.workspace)))
+      await (deps.dissociate ?? dissociateContainer)(configDir, active.id, name);
+  }
+  return { workspace: moved.workspace };
 }

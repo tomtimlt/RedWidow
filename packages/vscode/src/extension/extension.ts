@@ -64,6 +64,7 @@ import {
 import { exportChat } from "../logic/chat-export.js";
 import { writeChatExports } from "../logic/chat-export-files.js";
 import {
+  type CockpitMountIssue,
   containerMentions,
   controlListedContainer,
   engagementLine,
@@ -72,6 +73,7 @@ import {
   linkedTerminalChoices,
   listCockpitImages,
   loadCockpitView,
+  moveActiveProject,
   parseCockpitMessage,
   planEditorShell,
   prepareTerminal,
@@ -447,6 +449,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   let killchainReady = false;
   let cockpitReady = false;
   let cockpitFocusPending = false;
+  /** Incohérence de partage signalée par le moteur (un seul à la fois) ; effacée par un changement de projet, un déplacement ou « Masquer ». */
+  let mountIssue: CockpitMountIssue | undefined;
+  const withMountIssue = <V extends object>(view: V): V =>
+    mountIssue === undefined ? view : { ...view, mountIssue };
   const panelTimes = new WeakMap<
     vscode.WebviewPanel,
     { start: number; sent: boolean; rendered: boolean }
@@ -757,6 +763,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       readSettings:
         purpose === "programDraft" ? () => programDraftSettings(readSettings()) : readSettings,
       onProviders: acceptProviders,
+      onMountIssue: (issue) => showMountIssue(issue),
       bypass: getBypass(id),
       prefsKey: `warband.prefs.chat.${id}`,
       getToken,
@@ -1642,7 +1649,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       postCockpit(localeMessage());
       if (loading) postCockpit({ type: "view", loading: true });
       try {
-        const payload = await loadCockpitView();
+        const payload = withMountIssue(await loadCockpitView());
         if (!alive) return;
         postCockpit(payload);
         broadcastContainers(payload.containers);
@@ -1753,6 +1760,60 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
               return undefined;
             });
             return;
+          }
+          case "dismissMountIssue":
+            mountIssue = undefined;
+            return void pushView();
+          case "moveProject": {
+            // Jamais sans confirmation modale ; seul le sélecteur natif fournit le dossier parent.
+            if (projectChanging || chatsBusy())
+              throw new Error(t("Arrêtez les tours en cours avant de déplacer le projet."));
+            projectChanging = true;
+            let moved: { workspace: string } | null = null;
+            try {
+              moved = await moveActiveProject({
+                confirm: async (project) => {
+                  const action = t("Déplacer");
+                  return (
+                    (await vscode.window.showWarningMessage(
+                      t`Déplacer le projet « ${project.name} » ?`,
+                      {
+                        modal: true,
+                        detail: t`Le dossier ${project.workspace} sera déplacé dans le dossier parent que vous choisirez. Les conteneurs qui ne voient plus le projet seront déliés.`,
+                      },
+                      action,
+                    )) === action
+                  );
+                },
+                pickParent: async () =>
+                  (
+                    await vscode.window.showOpenDialog({
+                      canSelectFolders: true,
+                      canSelectFiles: false,
+                      canSelectMany: false,
+                      openLabel: t("Choisir le dossier parent"),
+                    })
+                  )?.[0]?.fsPath,
+              });
+              if (moved !== null) {
+                mountIssue = undefined;
+                await Promise.all(
+                  [...slots.values()].map((slot) => slot.session?.refreshHistoryProjects()),
+                );
+                await openActiveProjectWorkspace(
+                  defaultConfigDir(),
+                  projectWorkspaceHost,
+                  "selection",
+                );
+              }
+            } finally {
+              projectChanging = false;
+            }
+            if (moved !== null) {
+              void vscode.window.showInformationMessage(t`Projet déplacé : ${moved.workspace}`);
+              await pushStudio();
+            }
+            return void pushView(true);
           }
           case "openProgram":
             openProgram();
@@ -3155,6 +3216,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     try {
       projectCreated = await select();
       projectSelected = true;
+      mountIssue = undefined;
       resetAllBypass();
       await Promise.all([...slots.values()].map((slot) => slot.session?.refreshHistoryProjects()));
       await beforeOpen?.();
@@ -3173,10 +3235,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     );
     if (cockpitPanel !== undefined && cockpitReady) {
       const view = await loadCockpitView();
-      await cockpitPanel.webview.postMessage(view);
+      await cockpitPanel.webview.postMessage(withMountIssue(view));
       broadcastContainers(view.containers);
     }
     return { projectSelected, ...(projectError !== undefined && { projectError }) };
+  };
+  /** Mémorise l'incohérence signalée par le moteur, ouvre le cockpit et rafraîchit sa vue s'il est déjà ouvert. */
+  const showMountIssue = (issue: CockpitMountIssue) => {
+    mountIssue = issue;
+    openCockpit();
+    if (cockpitPanel !== undefined && cockpitReady)
+      void loadCockpitView().then(
+        (view) => void cockpitPanel?.webview.postMessage(withMountIssue(view)),
+        () => undefined,
+      );
   };
   let burpStatus = "";
   const studioDocker = createStudioDockerCache(async (project) => {
@@ -4321,7 +4393,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
         await pushStudio({ ...(projectError !== undefined ? { projectError } : {}) });
         if (cockpitPanel && cockpitReady)
-          await cockpitPanel.webview.postMessage(await loadCockpitView());
+          await cockpitPanel.webview.postMessage(withMountIssue(await loadCockpitView()));
         return;
       }
       if (message.type === "activateProject") {

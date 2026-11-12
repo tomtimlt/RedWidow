@@ -125,6 +125,8 @@
     sharedFolder: "",
     // « project » ou « multi » ; null tant que l'utilisateur n'a pas choisi (défaut selon le projet actif).
     shareMode: null,
+    // Bandeau de partage : n'afficher que les conteneurs qui voient le projet actif.
+    compatibleOnly: false,
     images: [],
     imagesAsked: false,
   };
@@ -782,6 +784,61 @@
     return li;
   }
 
+  // Bandeau du moteur : le projet actif n'est pas dans le partage du conteneur lié (ADR 0052, point 5).
+  const buildMountIssue = (issue) => {
+    const box = el("section", "cockpit-notice cockpit-mount-issue");
+    box.id = "cockpit-mount-issue";
+    box.setAttribute("role", "alert");
+    const title = el(
+      "strong",
+      "",
+      t("Le projet « {0} » n’est pas visible depuis le conteneur « {1} ».", {
+        0: issue.projectName,
+        1: shortOf(issue.container),
+      }),
+    );
+    const mounted = el("div", "cockpit-ellipsis cockpit-muted");
+    ellipsize(mounted, t("Le conteneur partage : {0}", { 0: issue.mounted }), 64);
+    const acts = el("div", "cockpit-actions");
+    const create = button("primary", t("Créer un conteneur projet pour ce dossier"), "plus", () => {
+      form.open = true;
+      form.shareMode = "project";
+      rerender();
+      document.getElementById("cockpit-name")?.focus?.();
+    });
+    create.id = "cockpit-issue-create";
+    const choose = button(
+      "secondary",
+      form.compatibleOnly
+        ? t("Afficher tous les conteneurs")
+        : t("Choisir un conteneur compatible"),
+      "link",
+      () => {
+        form.compatibleOnly = !form.compatibleOnly;
+        rerender();
+      },
+    );
+    choose.id = "cockpit-issue-choose";
+    const move = button("secondary", t("Déplacer le projet"), "folder", () =>
+      vscode.postMessage({ type: "moveProject" }),
+    );
+    move.id = "cockpit-issue-move";
+    const dismiss = button("ghost", t("Masquer"), undefined, () => {
+      form.compatibleOnly = false;
+      vscode.postMessage({ type: "dismissMountIssue" });
+    });
+    dismiss.id = "cockpit-issue-dismiss";
+    create.disabled = operation.busy;
+    move.disabled = operation.busy;
+    acts.append(create, choose, move, dismiss);
+    box.append(title, mounted, acts);
+    return box;
+  };
+  const shortOf = (name) => {
+    const row = (lastView?.containers ?? []).find((r) => r.name === name);
+    return row?.short ?? name;
+  };
+
   function render(view) {
     if (!main) return;
     if (view.loading) {
@@ -912,6 +969,15 @@
       status.append(eline);
     }
     main.append(status);
+    const issue = view.mountIssue;
+    const issueShown =
+      issue !== undefined &&
+      issue !== null &&
+      typeof issue.projectName === "string" &&
+      typeof issue.container === "string" &&
+      typeof issue.mounted === "string";
+    if (issueShown) main.append(buildMountIssue(issue));
+    else form.compatibleOnly = false;
 
     if (view.docker === "absent" || view.empty === "docker") {
       main.append(el("p", "cockpit-notice", t("Docker est absent.")));
@@ -997,6 +1063,12 @@
           vscode.postMessage({ type: "openWorkspace" }),
         ),
       );
+      const moveBtn = button("secondary", t("Déplacer le projet"), "folder", () =>
+        vscode.postMessage({ type: "moveProject" }),
+      );
+      moveBtn.id = "cockpit-move";
+      moveBtn.disabled = operation.busy;
+      actions.append(moveBtn);
       card.append(head, meta, actions);
       linkedSec.append(card);
       main.append(linkedSec);
@@ -1012,11 +1084,15 @@
     }
 
     // Grille de cartes vivantes.
-    const rows = view.containers ?? [];
+    const allRows = view.containers ?? [];
+    const rows =
+      issueShown && form.compatibleOnly ? allRows.filter((r) => r.compatible === true) : allRows;
     const listSec = el("section", "cockpit-list");
     listSec.setAttribute("aria-label", t("Conteneurs"));
     listSec.append(heading(t("Conteneurs"), rows.length));
-    const linkedCount = rows.filter((r) => r.linked).length;
+    const linkedCount = allRows.filter((r) => r.linked).length;
+    if (rows.length === 0 && allRows.length > 0)
+      listSec.append(el("p", "cockpit-muted", t("Aucun conteneur compatible.")));
     const ul = el("ul", "cockpit-cards");
     for (const row of rows) ul.append(renderCard(row, linkedCount));
     listSec.append(ul);

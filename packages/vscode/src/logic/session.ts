@@ -116,6 +116,13 @@ export interface ChatSessionDeps {
   /** Événements déjà masqués reçus du moteur courant, jamais l’historique. */
   onObservedEvent?(event: EngineEvent | null): void;
   onMissionContext?(snapshot: { runId: string; text: string }): void;
+  /** Dossier du projet hors du partage du conteneur : l'hôte mémorise l'incohérence et ouvre le cockpit. */
+  onMountIssue?(issue: {
+    container: string;
+    mounted: string;
+    projectId: string;
+    projectName: string;
+  }): void;
   createController?(options: EngineControllerOptions): EngineController;
   /** Bypass (ADR 0006) : lien vers le moteur courant, pour pousser l'état et recevoir l'accusé. */
   bypass?: { attach(send: BypassSend): BypassEngineLink; reset?(): void };
@@ -621,6 +628,10 @@ export function createChatSession(deps: ChatSessionDeps) {
           if (skipAbortBubble(ctl, reason)) return;
           state.error(reason);
           refresh();
+        },
+        onMountIssue: (issue) => {
+          if (detached.has(ctl)) return;
+          deps.onMountIssue?.(issue);
         },
         onBypassAck: (ack) => {
           if (detached.has(ctl)) return;

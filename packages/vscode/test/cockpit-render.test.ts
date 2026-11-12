@@ -738,3 +738,63 @@ it("sans projet actif, aucun badge de compatibilité n'est affiché", () => {
   });
   expect(ui.main.find((n) => n.className.includes("cockpit-compat"))).toBeUndefined();
 });
+
+const mountIssue = {
+  container: "kali-ko",
+  mounted: "/srv/ailleurs",
+  projectId: "11111111-1111-4111-8111-111111111111",
+  projectName: "mission",
+};
+
+it("le bandeau de partage s'affiche avec ses trois actions", () => {
+  const ui = cockpit();
+  withProjects(ui, { mountIssue });
+  expect(ui.main.find((n) => n.id === "cockpit-mount-issue")).toBeDefined();
+  expect(
+    ui.main.find(
+      (n) =>
+        n.textContent === "Le projet « mission » n’est pas visible depuis le conteneur « ko ».",
+    ),
+  ).toBeDefined();
+  expect(ui.button("Créer un conteneur projet pour ce dossier")).toBeDefined();
+  expect(ui.button("Choisir un conteneur compatible")).toBeDefined();
+  expect(ui.main.find((n) => n.id === "cockpit-issue-move")).toBeDefined();
+});
+
+it("sans mountIssue, pas de bandeau", () => {
+  const ui = cockpit();
+  withProjects(ui);
+  expect(ui.main.find((n) => n.id === "cockpit-mount-issue")).toBeUndefined();
+});
+
+it("« Créer un conteneur projet » présélectionne le mode projet du formulaire", () => {
+  const ui = cockpit();
+  withProjects(ui, { mountIssue });
+  ui.field("cockpit-create-toggle").click();
+  ui.field("cockpit-share-multi").listeners.get("change")?.();
+  expect(ui.field("cockpit-share-multi").checked).toBe(true);
+  ui.button("Créer un conteneur projet pour ce dossier").click();
+  expect(ui.field("cockpit-share-project").checked).toBe(true);
+  expect(ui.field("cockpit-share-multi").checked).toBe(false);
+});
+
+it("« Choisir un conteneur compatible » ne garde que les compatibles, puis les réaffiche", () => {
+  const ui = cockpit();
+  withProjects(ui, { mountIssue });
+  const cards = () => ui.main.findAll((n) => n.className.startsWith("cockpit-card ")).length;
+  expect(cards()).toBe(2);
+  ui.button("Choisir un conteneur compatible").click();
+  expect(cards()).toBe(1);
+  expect(ui.main.find((n) => n.textContent === "ok")).toBeDefined();
+  ui.button("Afficher tous les conteneurs").click();
+  expect(cards()).toBe(2);
+});
+
+it("Déplacer le projet envoie moveProject, Masquer envoie dismissMountIssue", () => {
+  const ui = cockpit();
+  withProjects(ui, { mountIssue });
+  ui.field("cockpit-issue-move").click();
+  expect(ui.sent).toContainEqual({ type: "moveProject" });
+  ui.field("cockpit-issue-dismiss").click();
+  expect(ui.sent).toContainEqual({ type: "dismissMountIssue" });
+});

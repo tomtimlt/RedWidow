@@ -10,8 +10,6 @@ export const cockpitEn: Record<string, string> = {
     "Creating a container for this project is recommended.",
   "Le projet reste sur votre PC dans {0} ; seuls les fichiers créés hors de /workspace dans le conteneur sont perdus.":
     "The project stays on your PC in {0}; only files created outside /workspace in the container are lost.",
-  "Les fichiers sont partagés avec le dossier du projet ouvert dans VS Code. Un conteneur existant doit monter ce même dossier ; un autre montage nécessite une migration explicite.":
-    "Files are shared with the project folder open in VS Code. An existing container must mount that same folder; a different mount requires an explicit migration.",
   "Dossier partagé": "Shared folder",
   "Conteneur projet": "Project container",
   "Conteneur multi-projets": "Multi-project container",
@@ -19,6 +17,23 @@ export const cockpitEn: Record<string, string> = {
     "The shared folder will be the active project's folder.",
   "Ouvrez un projet pour créer un conteneur projet.":
     "Open a project to create a project container.",
+  "Le projet « {0} » n’est pas visible depuis le conteneur « {1} ».":
+    "Project “{0}” is not visible from container “{1}”.",
+  "Le conteneur partage : {0}": "The container shares: {0}",
+  "Créer un conteneur projet pour ce dossier": "Create a project container for this folder",
+  "Choisir un conteneur compatible": "Choose a compatible container",
+  "Afficher tous les conteneurs": "Show all containers",
+  "Aucun conteneur compatible.": "No compatible container.",
+  "Déplacer le projet": "Move the project",
+  Masquer: "Dismiss",
+  Déplacer: "Move",
+  "Déplacer le projet « {0} » ?": "Move project “{0}”?",
+  "Le dossier {0} sera déplacé dans le dossier parent que vous choisirez. Les conteneurs qui ne voient plus le projet seront déliés.":
+    "The folder {0} will be moved into the parent folder you choose. Containers that no longer see the project will be unlinked.",
+  "Choisir le dossier parent": "Choose the parent folder",
+  "Arrêtez les tours en cours avant de déplacer le projet.":
+    "Stop running turns before moving the project.",
+  "Projet déplacé : {0}": "Project moved: {0}",
   "Projets dans ce conteneur": "Projects in this container",
   "Aucun projet dans ce partage.": "No project in this share.",
   "Compatible avec le projet actif": "Compatible with the active project",

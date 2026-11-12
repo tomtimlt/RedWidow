@@ -92,6 +92,13 @@ export interface EngineHandlers {
   onError?(reason: ErrorInfo): void;
   /** Accusé du miroir du Bypass : `state` est l'état réellement retenu (ADR 0006, décision 3). */
   onBypassAck?(ack: { seq: number; state: BypassState | null }): void;
+  /** Dossier du projet absent du partage du conteneur (ADR 0052, point 5) : l'hôte affiche le bandeau du cockpit. */
+  onMountIssue?(issue: {
+    container: string;
+    mounted: string;
+    projectId: string;
+    projectName: string;
+  }): void;
   /** Processus enfant terminé. */
   onExit?(info: { code: number | null; signal: NodeJS.Signals | null; stderrTail?: string }): void;
   /** Sortie d'erreur du moteur, masquée (jeton et motifs usuels de secrets). */
@@ -205,8 +212,13 @@ export function createEngineController(options: EngineControllerOptions): Engine
       case "bypassAck":
         return handlers.onBypassAck?.({ seq: message.seq, state: message.state });
       case "mountIssue":
-        // Pas d'affichage dédié pour l'instant (lot produit ultérieur) : l'erreur texte suffit.
-        return;
+        // L'erreur texte part séparément ; l'hôte ouvre le cockpit avec le bandeau de partage.
+        return handlers.onMountIssue?.({
+          container: message.container,
+          mounted: message.mounted,
+          projectId: message.projectId,
+          projectName: message.projectName,
+        });
       case "ready":
         return;
     }
