@@ -222,7 +222,7 @@ describe("raccourcis", () => {
     }
   });
 
-  it("Alt+J puis N, K, S ou T : accord à deux frappes, liste fermée", () => {
+  it("Alt+J puis N, K, S, T ou F : accord à deux frappes, liste fermée", () => {
     let t = 0;
     const chord = sc.createChord(() => t);
     const key = (code: string, over: Record<string, unknown> = {}) => ({
@@ -241,6 +241,7 @@ describe("raccourcis", () => {
       ["KeyK", "Alt+J K"],
       ["KeyS", "Alt+J S"],
       ["KeyT", "Alt+J T"],
+      ["KeyF", "Alt+J F"],
     ] as [string, string][]) {
       expect(chord.feed(key("KeyJ", { altKey: true }))).toEqual({ id: null, consume: true });
       // Les touches de modification seules ne désarment pas.
@@ -278,11 +279,12 @@ describe("raccourcis", () => {
       newMission: () => calls.push("newMission"),
       cockpit: () => calls.push("cockpit"),
       studio: () => calls.push("studio"),
+      files: () => calls.push("files"),
     };
-    for (const id of ["Alt+J N", "Alt+J K", "Alt+J S", "Alt+J T"]) {
+    for (const id of ["Alt+J N", "Alt+J K", "Alt+J S", "Alt+J T", "Alt+J F"]) {
       expect(sc.runShortcut(id, a, "frame")).toBe(true);
     }
-    expect(calls).toEqual(["newMission", "cockpit", "studio", "terminal"]);
+    expect(calls).toEqual(["newMission", "cockpit", "studio", "terminal", "files"]);
   });
 
   const actions = () => {

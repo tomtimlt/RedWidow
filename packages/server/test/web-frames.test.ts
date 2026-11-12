@@ -404,13 +404,14 @@ describe("bridge.js", () => {
     expect(b.parentPosts).toHaveLength(before);
   });
 
-  it("relaie l'accord Alt+J puis N, K, S ou T, et rien d'autre", () => {
+  it("relaie l'accord Alt+J puis N, K, S, T ou F, et rien d'autre", () => {
     const b = runBridge();
     for (const [code, id] of [
       ["KeyN", "Alt+J N"],
       ["KeyK", "Alt+J K"],
       ["KeyS", "Alt+J S"],
       ["KeyT", "Alt+J T"],
+      ["KeyF", "Alt+J F"],
     ]) {
       const first = keyEvent({ altKey: true, code: "KeyJ" });
       b.fire("keydown", first);

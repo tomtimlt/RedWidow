@@ -19,15 +19,22 @@ export const SHORTCUT_LABELS = {
   "Alt+J K": "Alt J K",
   "Alt+J S": "Alt J S",
   "Alt+J T": "Alt J T",
+  "Alt+J F": "Alt J F",
 };
 
 /** Délai (ms) pour taper la lettre après `Alt+J` (comme l'extension). */
 export const CHORD_MS = 1500;
-const CHORD_CODES = { KeyN: "Alt+J N", KeyK: "Alt+J K", KeyS: "Alt+J S", KeyT: "Alt+J T" };
+const CHORD_CODES = {
+  KeyN: "Alt+J N",
+  KeyK: "Alt+J K",
+  KeyS: "Alt+J S",
+  KeyT: "Alt+J T",
+  KeyF: "Alt+J F",
+};
 const MODIFIER_CODES = /^(Alt|Control|Shift|Meta)(Left|Right)$/;
 
 /**
- * Accord à deux frappes `Alt+J` puis N, K, S ou T (liste fermée, la même que `bridge.js`). `feed(event)`
+ * Accord à deux frappes `Alt+J` puis N, K, S, T ou F (liste fermée, la même que `bridge.js`). `feed(event)`
  * rend `{ id, consume }` : `consume` vrai pour `Alt+J` et la lettre qui suit (l'appelant les retient), `id`
  * non nul quand l'accord est complet. Ctrl, Méta et AltGr ne participent jamais ; une autre touche désarme.
  */
@@ -105,6 +112,7 @@ export function shortcutOf(e) {
  * @param {() => void} actions.newMission nouvelle mission (Alt J N)
  * @param {() => void} actions.cockpit
  * @param {() => void} actions.studio
+ * @param {() => void} actions.files fenêtre Fichiers (Alt J F)
  * @param {"shell"|"frame"} [source]
  */
 export function runShortcut(id, actions, source = "shell") {
@@ -150,6 +158,9 @@ export function runShortcut(id, actions, source = "shell") {
       return true;
     case "Alt+J S":
       actions.studio();
+      return true;
+    case "Alt+J F":
+      actions.files();
       return true;
     case "Ctrl+Alt+A":
       actions.approvals();

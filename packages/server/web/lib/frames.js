@@ -2,6 +2,8 @@
 // par le pont (`bridge.js`). Seuls comptent les messages dont l'origine est la nôtre ET dont la source est
 // la fenêtre de la `iframe` enregistrée ; tout le reste est ignoré. Aucun message n'est mis en file.
 
+import { cleanRelPath } from "./files.js";
+
 export const VIEW_NAMES = [
   "chat",
   "cockpit",
@@ -37,6 +39,7 @@ export const RELAYED_KEYS = [
   "Alt+J K",
   "Alt+J S",
   "Alt+J T",
+  "Alt+J F",
 ];
 
 export const LOAD_TIMEOUT_MS = 15000;
@@ -64,10 +67,11 @@ const DEEP_NATIVES = {
   trouvailles: "findings",
   journal: "journal",
   reglages: "settings",
+  fichiers: "files",
 };
 
 /**
- * Lien profond (`#w=approbations`, `#w=mission:<id>`, `#w=monitor:<id>`, `#w=conteneurs`…) → destination,
+ * Lien profond (`#w=approbations`, `#w=mission:<id>`, `#w=monitor:<id>`, `#w=conteneurs`, `#w=fichiers:<chemin>`…) → destination,
  * ou `null`. Le hash ne sert qu'à l'ouverture : il n'est pas une navigation.
  */
 export function parseDeepLink(hash) {
@@ -76,6 +80,18 @@ export function parseDeepLink(hash) {
   const withId = /^#w=([a-z]+):([A-Za-z0-9_-]{1,64})$/.exec(text);
   if (withId && Object.hasOwn(DEEP_KINDS, withId[1])) {
     return { kind: DEEP_KINDS[withId[1]], id: withId[2] };
+  }
+  // `#w=fichiers:<chemin relatif au projet>` (encodé en pourcent) : ouvre Fichiers sur ce chemin.
+  const files = /^#w=fichiers:(.{1,3000})$/.exec(text);
+  if (files) {
+    let decoded = null;
+    try {
+      decoded = decodeURIComponent(files[1]);
+    } catch {
+      return null;
+    }
+    const path = cleanRelPath(decoded);
+    return path === null ? null : { kind: "native", name: "files", path };
   }
   const plain = /^#w=([a-z]+)$/.exec(text);
   if (plain && Object.hasOwn(DEEP_NATIVES, plain[1])) {

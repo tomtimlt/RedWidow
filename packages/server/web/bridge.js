@@ -31,6 +31,7 @@
     "Alt+J K",
     "Alt+J S",
     "Alt+J T",
+    "Alt+J F",
   ];
 
   /**
@@ -57,11 +58,17 @@
   }
 
   /**
-   * Accord `Alt+J` puis N, K, S ou T (même logique que `createChord`, lib/shortcuts.js). Rend
+   * Accord `Alt+J` puis N, K, S, T ou F (même logique que `createChord`, lib/shortcuts.js). Rend
    * `{ id, consume }` : `consume` retient la frappe, `id` est le raccourci complet. Ctrl, Méta et AltGr
    * ne participent jamais ; une autre touche désarme.
    */
-  const CHORD_CODES = { KeyN: "Alt+J N", KeyK: "Alt+J K", KeyS: "Alt+J S", KeyT: "Alt+J T" };
+  const CHORD_CODES = {
+    KeyN: "Alt+J N",
+    KeyK: "Alt+J K",
+    KeyS: "Alt+J S",
+    KeyT: "Alt+J T",
+    KeyF: "Alt+J F",
+  };
   const CHORD_MS = 1500;
   let chordAt = Number.NEGATIVE_INFINITY;
   function chordOf(e) {

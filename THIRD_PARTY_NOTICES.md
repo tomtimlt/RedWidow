@@ -27,6 +27,7 @@ Leurs licences complètes sont dans `packages/vscode/third-party/`.
 | MITRE Attack Flow | Apache-2.0 |
 | STIX (schémas OASIS) | Licence OASIS |
 | xterm.js et son addon d'ajustement (interface web du serveur, `packages/server/web/vendor/`, licence jointe) | MIT |
+| CodeMirror 6 et ses dépendances Lezer (éditeur de la fenêtre Fichiers, `packages/server/web/vendor/codemirror.js`, licences jointes dans `LICENSE-codemirror.txt`) | MIT |
 
 ## Dépendances logicielles
 

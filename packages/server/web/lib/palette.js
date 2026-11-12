@@ -436,7 +436,9 @@ export function buildCommands(ctx) {
           ? "Ctrl+Alt+A"
           : screen.name === "terminal"
             ? "Ctrl+Alt+T"
-            : undefined,
+            : screen.name === "files"
+              ? "Alt+J F"
+              : undefined,
       run: () => a.open(ctx.spec("native", screen.name)),
     });
   }

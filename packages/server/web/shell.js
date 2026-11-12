@@ -27,6 +27,7 @@ import {
 import { createAccountsScreen } from "./screens/accounts.js";
 import { createApprovalsScreen, createConfirmZone } from "./screens/approvals.js";
 import { createContainersScreen } from "./screens/containers.js";
+import { createFilesHost } from "./screens/files.js";
 import { createFindingsScreen } from "./screens/findings.js";
 import { createJournalScreen } from "./screens/journal.js";
 import { createProvidersScreen } from "./screens/providers.js";
@@ -288,6 +289,19 @@ const terminals = createTerminalHost({
   onChange: () => render(),
 });
 
+/** Fichiers du projet actif : explorateur, onglets, éditeur CodeMirror (instance unique). */
+const files = createFilesHost({
+  doc: document,
+  win: window,
+  send: sendShell,
+  onDirty: (count) =>
+    desktop.setTitle(
+      "native:files",
+      count > 0 ? `Fichiers (${count} modifié${count > 1 ? "s" : ""})` : "Fichiers",
+    ),
+  onOpenStudio: () => openFixed("studio"),
+});
+
 const journal = createJournalScreen(document, {
   send: sendShell,
   onOpenMonitor: (id) => {
@@ -335,6 +349,7 @@ const desktop = createDesktop({
     // L'écran Approbations est préparé dans la page ; la fenêtre l'héberge.
     approvals: { mount: (body) => body.append(approvalsEl) },
     terminal: { mount: (body, spec) => terminals.mount(body, spec) },
+    files: { mount: (body, spec) => files.mount(body, spec) },
     ...nativeMounts,
   },
   onChange: () => render(),
@@ -351,7 +366,14 @@ const openApprovals = () => desktop.open(nativeSpec("approvals"));
 /** Lien profond (`#w=…`) → ouvre ou focalise la fenêtre. Le hash n'est pas une navigation. */
 function openRoute(hash) {
   const spec = specFromRoute(parseDeepLink(hash));
-  if (spec !== null) desktop.open(spec);
+  if (spec !== null) openSpec(spec);
+}
+/** Ouvre ou focalise une fenêtre ; Fichiers est ensuite placée sur le chemin demandé (`#w=fichiers:<chemin>`). */
+function openSpec(spec) {
+  desktop.open(spec);
+  if (spec.kind === "native" && spec.name === "files" && typeof spec.path === "string") {
+    files.navigate(spec.path);
+  }
 }
 window.addEventListener("hashchange", () => openRoute(location.hash));
 // Un lien `#w=…` déjà actif ne déclenche pas `hashchange` : le clic ouvre la fenêtre directement.
@@ -398,7 +420,7 @@ function openFromServer(spec, extras) {
       live ? actions.filter((a) => a.durable === true) : actions,
     );
   }
-  desktop.open(spec);
+  openSpec(spec);
 }
 
 /** Pastille « Contexte » des fenêtres Mission ouvertes (relancé à chaque rendu : la fenêtre peut venir après). */
@@ -493,8 +515,8 @@ function scheduleSave() {
   saver.schedule(serialize(desktop.layoutWindows(), state.spaceName));
 }
 
-/** Un terminal dont la session est active n'est jamais fermé par un espace : il est minimisé. */
-const isProtected = (key) => terminals.isActive(key);
+/** Un terminal actif, ou Fichiers avec des onglets modifiés, n'est jamais fermé par un espace : il est minimisé. */
+const isProtected = (key) => terminals.isActive(key) || files.isProtected(key);
 
 function applyLayout(layout) {
   const plan = planApply(
@@ -716,6 +738,7 @@ function handleShortcut(id, source) {
       newMission,
       cockpit: () => openFixed("cockpit"),
       studio: () => openFixed("studio"),
+      files: () => desktop.open(nativeSpec("files")),
     },
     source,
   );
@@ -824,6 +847,7 @@ channel.onMessage((env) => {
   // Les écrans natifs ignorent ce qui ne les concerne pas.
   for (const screen of Object.values(screens)) screen.onMessage?.(msg);
   terminals.onMessage(msg);
+  files.onMessage(msg);
   switch (msg.type) {
     case "missions":
       state.missions = parseMissions(msg);
@@ -960,6 +984,7 @@ channel.onState((conn) => {
     screens.settings.setBypass(null);
   }
   terminals.setOnline(conn === "open");
+  files.setOnline(conn === "open");
   for (const screen of Object.values(screens)) screen.setOnline?.(conn === "open");
   render();
 });
@@ -970,6 +995,7 @@ channel.onOpen(() => {
   sendShell({ type: "missionsList" });
   // Les terminaux actifs se réabonnent (`ready`) ; sans `opened` à temps, « session perdue, rouvrir ».
   terminals.onOpen();
+  files.onOpen();
   // Reconnexion : la disposition courante est renvoyée si elle a changé hors ligne.
   if (state.hydrated) scheduleSave();
   // Reconnexion : les pages vivantes sont rechargées (elles renvoient `ready` et reprennent l'état).

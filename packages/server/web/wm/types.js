@@ -1,6 +1,7 @@
 // Types de fenêtres du bureau (pur). Une fenêtre est soit une `iframe` de même origine (identité
 // `(vue, cadre)`, la même clé que celle de l'hôte de cadres), soit un écran natif de la coquille
 // (identité `native:<nom>`). Rouvrir une identité déjà ouverte la focalise au lieu d'en créer une seconde.
+import { cleanRelPath } from "../lib/files.js";
 
 /** Écrans natifs ouvrables depuis le dock (instance unique chacun ; filtre et programme se choisissent dans l'écran). */
 export const NATIVE_SCREENS = [
@@ -11,6 +12,8 @@ export const NATIVE_SCREENS = [
   { name: "findings", title: "Trouvailles" },
   { name: "journal", title: "Journal" },
   { name: "settings", title: "Réglages" },
+  // Fichiers du projet actif : proposé dans le groupe Outils du menu, pas dans Écrans.
+  { name: "files", title: "Fichiers" },
 ];
 
 /** Entrée « Nouveau terminal » des menus (dock, palette) : instances illimitées, une session chacune. */
@@ -18,7 +21,7 @@ export const TERMINAL_ENTRY = { name: "terminal", title: "Nouveau terminal" };
 
 /**
  * Menu « Ouvrir » du dock, en trois groupes : Mission (conversation, kill chain, rapport), Outils
- * (cockpit, sessions, studio, terminal), Écrans (écrans natifs). `action` : `newMission`, `fixed:<type>`
+ * (cockpit, sessions, studio, fichiers, terminal), Écrans (écrans natifs). `action` : `newMission`, `fixed:<type>`
  * (vue à identifiant fixe `main`), `forMission:<type>` (vue d'une mission, choisie par la coquille),
  * `terminal` ou `native:<nom>`.
  */
@@ -37,12 +40,16 @@ export const MENU_GROUPS = [
       { action: "fixed:cockpit", title: "Cockpit" },
       { action: "fixed:sessions", title: "Sessions" },
       { action: "fixed:studio", title: "Projets et réglages" },
+      { action: "native:files", title: "Fichiers" },
       { action: "terminal", title: TERMINAL_ENTRY.title },
     ],
   },
   {
     title: "Écrans",
-    entries: NATIVE_SCREENS.map((s) => ({ action: `native:${s.name}`, title: s.title })),
+    entries: NATIVE_SCREENS.filter((s) => s.name !== "files").map((s) => ({
+      action: `native:${s.name}`,
+      title: s.title,
+    })),
   },
 ];
 
@@ -52,6 +59,7 @@ export const CHORD_TEXT = {
   "fixed:cockpit": "Alt J K",
   "fixed:studio": "Alt J S",
   terminal: "Alt J T",
+  "native:files": "Alt J F",
 };
 
 /** Vues à identifiant fixe `main` : le titre de la fenêtre est le libellé seul. */
@@ -127,7 +135,7 @@ const requestedFrame = (msg, view) =>
     : null;
 
 /**
- * Message `openWindow {view, frame, mode?, toolUseId?, container?, draft?}` du serveur → spécification de
+ * Message `openWindow {view, frame, mode?, toolUseId?, container?, draft?, path?}` du serveur → spécification de
  * fenêtre, ou `null` (vue hors liste, identifiant invalide). Le cockpit est une vue à identifiant fixe :
  * sa fenêtre est toujours `main`, pour ne jamais en ouvrir une seconde à côté de celle du dock. `viewer` :
  * clé `viewer:<cadre>` quel que soit le mode. `term` : nouveau terminal (le conteneur demandé est
@@ -150,6 +158,8 @@ export function specFromOpenWindow(msg, random = randomBase36) {
   if (msg.view === "chat") {
     return iframeSpec("mission", requestedFrame(msg, "chat") ?? newMissionId(random));
   }
+  // Fichiers : instance unique ; `path` (dossier relatif au projet, validé) est le dossier à afficher.
+  if (msg.view === "files") return filesSpec(msg.path);
   if (!Object.hasOwn(OPEN_WINDOW_KINDS, msg.view)) return null;
   const kind = OPEN_WINDOW_KINDS[msg.view];
   return iframeSpec(kind, kind === "cockpit" ? "main" : msg.frame);
@@ -191,6 +201,14 @@ export function nativeSpec(name) {
   };
 }
 
+/** Fenêtre Fichiers (instance unique) ; `path` : chemin relatif à montrer (invalide ou absent : racine). */
+export function filesSpec(path) {
+  const spec = nativeSpec("files");
+  const clean = typeof path === "string" ? cleanRelPath(path) : null;
+  if (spec !== null && clean !== null && clean !== "") spec.path = clean;
+  return spec;
+}
+
 /** Fenêtre de terminal (type `terminal`, natif) : `sid` est l'identifiant de session choisi par le client. */
 export function terminalSpec(sid) {
   if (typeof sid !== "string" || !ID_PATTERN.test(sid)) return null;
@@ -213,7 +231,9 @@ export function newTerminalId(random = () => globalThis.crypto.randomUUID()) {
 export function specFromRoute(route) {
   if (route === null || typeof route !== "object") return null;
   if (route.kind === "approvals") return nativeSpec("approvals");
-  if (route.kind === "native") return nativeSpec(route.name);
+  if (route.kind === "native") {
+    return route.name === "files" ? filesSpec(route.path) : nativeSpec(route.name);
+  }
   return iframeSpec(route.kind, route.id);
 }
 

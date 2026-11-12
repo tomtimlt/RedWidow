@@ -249,6 +249,174 @@ const findingDetail = (f) => ({
   })),
 });
 
+// ───────────── Système de fichiers factice (lot P2 : fenêtre Fichiers) ─────────────
+// Contrat du serveur (vue `shell`, réponses à l'émetteur seul) : fsList, fsStat, fsRead, fsWrite (etag),
+// fsMkdir, fsRename, fsDelete, fsUpload, fsDownload, fsCaptureEvidence. Aucun accès disque réel.
+const FS_PNG_1X1 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+const NOTES_MD = [
+  "# Cours : introduction",
+  "",
+  "Un paragraphe avec **gras**, *italique*, `code` et un [lien](https://exemple.fr/doc).",
+  "Un lien dangereux : [piège](javascript:alert(1)).",
+  "",
+  "- premier point",
+  "- second point",
+  "",
+  "<script>window.__xssmd = 1</script>",
+  "",
+  "```",
+  "nmap -sV 10.0.0.5",
+  "```",
+  "",
+].join("\n");
+let fsTree = new Map();
+let fsClock = 1;
+function resetFs() {
+  fsTree = new Map();
+  fsClock = 1;
+  const dir = (p) => fsTree.set(p, { kind: "dir", mtime: 1 });
+  const file = (p, text, extra = {}) =>
+    fsTree.set(p, { kind: "file", text, ver: 1, mtime: 1, ...extra });
+  dir("");
+  dir("cours");
+  dir(".warband");
+  file("README.md", "# RedWidow\n\nProjet de test.\n");
+  file("cours/notes.md", NOTES_MD);
+  file("cours/tp1.py", "def hello():\n    return 'salut'\n");
+  file(".warband/policy.json", '{ "version": 1 }\n');
+  file("logo.png", null, { base64: FS_PNG_1X1 });
+  file("data.bin", null, { binary: true });
+  file("gros.log", "début du journal volumineux\n", { truncated: true });
+}
+resetFs();
+const fsParent = (p) => (p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "");
+const fsName = (p) => p.slice(p.lastIndexOf("/") + 1);
+const fsEtag = (f) => `v${f.ver}`;
+const fsErr = (ws, op, path, code) =>
+  shellMsg(ws, {
+    type: "fsError",
+    op,
+    path,
+    reason: { code: `fs.${code}` },
+    message: code,
+  });
+/** Modification « extérieure » (un autre outil écrit le fichier) : l'etag change. */
+function fsExternalWrite(path, text) {
+  const f = fsTree.get(path);
+  f.text = text;
+  f.ver += 1;
+}
+function onFs(ws, msg) {
+  switch (msg.type) {
+    case "fsList": {
+      const d = fsTree.get(msg.path);
+      if (!d) return fsErr(ws, "fsList", msg.path, "notFound");
+      if (d.kind !== "dir") return fsErr(ws, "fsList", msg.path, "notDir");
+      const entries = [...fsTree.entries()]
+        .filter(([p]) => p !== "" && fsParent(p) === msg.path)
+        .map(([p, f]) => ({
+          name: fsName(p),
+          kind: f.kind,
+          size: f.text?.length ?? 0,
+          mtime: f.mtime,
+        }));
+      return shellMsg(ws, { type: "fsEntries", path: msg.path, entries, truncated: false });
+    }
+    case "fsStat": {
+      const f = fsTree.get(msg.path);
+      if (!f) return shellMsg(ws, { type: "fsInfo", path: msg.path, exists: false });
+      return shellMsg(ws, {
+        type: "fsInfo",
+        path: msg.path,
+        exists: true,
+        kind: f.kind,
+        size: f.text?.length ?? 0,
+        mtime: f.mtime,
+        ...(f.kind === "file" && { etag: fsEtag(f) }),
+      });
+    }
+    case "fsRead": {
+      const f = fsTree.get(msg.path);
+      if (!f) return fsErr(ws, "fsRead", msg.path, "notFound");
+      if (f.kind !== "file") return fsErr(ws, "fsRead", msg.path, "notFile");
+      if (msg.as === "base64") {
+        if (f.base64 == null) return fsErr(ws, "fsRead", msg.path, "badType");
+        return shellMsg(ws, {
+          type: "fsContent",
+          path: msg.path,
+          mtime: f.mtime,
+          etag: fsEtag(f),
+          size: f.base64.length,
+          truncated: false,
+          base64: f.base64,
+        });
+      }
+      if (f.text == null) return fsErr(ws, "fsRead", msg.path, "notText");
+      return shellMsg(ws, {
+        type: "fsContent",
+        path: msg.path,
+        mtime: f.mtime,
+        size: f.text.length,
+        truncated: f.truncated === true,
+        text: f.text,
+        ...(f.truncated !== true && { etag: fsEtag(f) }),
+      });
+    }
+    case "fsWrite": {
+      const cur = fsTree.get(msg.path);
+      if (cur && cur.kind !== "file") return fsErr(ws, "fsWrite", msg.path, "notFile");
+      const matches = cur ? msg.etag === fsEtag(cur) : msg.etag === null;
+      if (!matches) return shellMsg(ws, { type: "fsConflict", path: msg.path });
+      if (!fsTree.get(fsParent(msg.path))) return fsErr(ws, "fsWrite", msg.path, "notFound");
+      fsClock += 1;
+      const next = { kind: "file", text: msg.text, ver: (cur?.ver ?? 0) + 1, mtime: fsClock };
+      fsTree.set(msg.path, next);
+      shellMsg(ws, {
+        type: "fsWritten",
+        path: msg.path,
+        mtime: next.mtime,
+        etag: fsEtag(next),
+        size: msg.text.length,
+      });
+      if (msg.path === ".warband/policy.json") shellAll({ type: "policyChanged" });
+      return undefined;
+    }
+    case "fsMkdir":
+      if (fsTree.has(msg.path)) return fsErr(ws, "fsMkdir", msg.path, "exists");
+      fsTree.set(msg.path, { kind: "dir", mtime: 1 });
+      return shellMsg(ws, { type: "fsDone", op: "mkdir", path: msg.path });
+    case "fsRename": {
+      if (!fsTree.has(msg.from)) return fsErr(ws, "fsRename", msg.from, "notFound");
+      if (fsTree.has(msg.to)) return fsErr(ws, "fsRename", msg.to, "exists");
+      for (const [p, f] of [...fsTree]) {
+        if (p === msg.from || p.startsWith(`${msg.from}/`)) {
+          fsTree.delete(p);
+          fsTree.set(msg.to + p.slice(msg.from.length), f);
+        }
+      }
+      return shellMsg(ws, { type: "fsDone", op: "rename", from: msg.from, path: msg.to });
+    }
+    case "fsDelete":
+      // Le vrai serveur demande la confirmation par dialogue ; ici on suppose « Oui ».
+      for (const p of [...fsTree.keys()]) {
+        if (p === msg.path || p.startsWith(`${msg.path}/`)) fsTree.delete(p);
+      }
+      return shellMsg(ws, { type: "fsDone", op: "delete", path: msg.path });
+    case "fsUpload": {
+      const path = msg.dir === "" ? "televerse.txt" : `${msg.dir}/televerse.txt`;
+      fsTree.set(path, { kind: "file", text: "reçu", ver: 1, mtime: 1 });
+      return shellMsg(ws, { type: "fsDone", op: "upload", path, name: "televerse.txt", size: 4 });
+    }
+    case "fsDownload":
+      return shellMsg(ws, { type: "fsDone", op: "download", path: msg.path });
+    case "fsCaptureEvidence":
+      return shellMsg(ws, { type: "fsDone", op: "evidence", path: msg.path, evidenceId: "ev-1" });
+    default:
+      return undefined;
+  }
+}
+
 function onScreens(ws, msg) {
   switch (msg.type) {
     case "ready":
@@ -365,7 +533,7 @@ function onScreens(ws, msg) {
         : { active: false, until: null };
       return shellAll({ type: "bypass", ...bypassState });
     default:
-      return undefined;
+      return typeof msg.type === "string" && msg.type.startsWith("fs") ? onFs(ws, msg) : undefined;
   }
 }
 
@@ -3274,6 +3442,419 @@ async function chatExtrasScenario(name, viewport) {
   await context.close();
 }
 
+// ───────────────────────────── Fichiers (lot P2) ─────────────────────────────
+
+const fsSent = (type) =>
+  received.filter((e) => e.view === "shell" && e.msg.type === type).map((e) => e.msg);
+
+async function filesScenario(name, viewport) {
+  console.log(`\n== ${name} : fenêtre Fichiers (${viewport.width}x${viewport.height})`);
+  resetScreens();
+  resetFs();
+  const { context, page, violations, win, openHash, shot } = await openSession(name, viewport);
+  let dialogs = 0;
+  page.on("dialog", async (d) => {
+    dialogs += 1;
+    await d.dismiss();
+  });
+  const fx = page.locator('.wm-win[data-key="native:files"] .fx');
+  const row = (p) => fx.locator(`[role="treeitem"][data-path="${p}"]`);
+  const sink = () => [...shellSinks][0];
+  const text = (loc) => loc.innerText();
+
+  // Menu Ouvrir (groupe Outils) puis Alt+J F : instance unique.
+  await page.locator("#dock-open").click();
+  check(
+    (await page.locator("#dock-menu .dock-menu-item", { hasText: "Fichiers" }).count()) === 1,
+    "menu Ouvrir : entrée « Fichiers »",
+  );
+  await page.locator("#dock-menu .dock-menu-item", { hasText: "Fichiers" }).click();
+  await until(() => win("native:files").isVisible(), "Fichiers ouverte depuis le menu Ouvrir");
+  await until(() => row("README.md").isVisible(), "arborescence : README.md affiché");
+  // Pleine taille : les captures montrent l'éditeur à côté de l'arborescence.
+  await win("native:files").locator(".wm-max").click();
+  check((await row(".warband").count()) === 1, ".warband visible dans l'arborescence");
+  check((await row(".git").count()) === 0, ".git absent");
+  check(fsSent("fsList")[0]?.path === "", "fsList de la racine envoyé");
+  await page.keyboard.press("Alt+KeyJ");
+  await page.keyboard.press("KeyF");
+  await sleep(200);
+  check((await win("native:files").count()) === 1, "Alt+J F : une seule fenêtre Fichiers");
+
+  // Ouvrir, éditer, enregistrer avec l'etag.
+  await row("cours").click();
+  await until(() => row("cours/notes.md").isVisible(), "dossier cours déplié");
+  await row("README.md").click();
+  await until(() => fx.locator(".cm-content").isVisible(), "éditeur CodeMirror affiché");
+  check(
+    (await text(fx.locator(".cm-content"))).includes("Projet de test"),
+    "contenu du fichier lu",
+  );
+  check(
+    (await page.evaluate(() => getComputedStyle(document.querySelector(".cm-editor")).display)) ===
+      "flex",
+    "les feuilles de CodeMirror sont appliquées (adoptedStyleSheets, CSP)",
+  );
+  check((await fx.locator(".cm-gutters").count()) === 1, "numéros de ligne affichés");
+  await fx.locator(".cm-content").click();
+  await page.keyboard.press("Control+End");
+  await page.keyboard.type("ajout");
+  await until(
+    async () => (await fx.locator(".fx-badge.is-dirty").count()) === 1,
+    "indicateur « modifié »",
+  );
+  check(
+    (await fx.locator(".fx-tab.is-active .fx-dot").count()) === 1,
+    "pastille sur l'onglet modifié",
+  );
+  await until(
+    async () => (await win("native:files").locator(".wm-name").innerText()).includes("modifié"),
+    "titre de la fenêtre : onglets modifiés",
+  );
+  await page.keyboard.press("Control+s");
+  await until(() => fsSent("fsWrite").length === 1, "Ctrl+S : fsWrite envoyé");
+  check(fsSent("fsWrite")[0].etag === "v1", "fsWrite porte l'etag lu");
+  check(fsSent("fsWrite")[0].text.endsWith("ajout"), "fsWrite porte le texte saisi");
+  await until(
+    async () => (await fx.locator(".fx-badge.is-dirty").count()) === 0,
+    "enregistré : plus modifié",
+  );
+  check((await text(fx.locator(".fx-status"))).includes("Enregistré"), "message « Enregistré »");
+  check(dialogs === 0, "Ctrl+S : aucun dialogue du navigateur");
+  await shot("1-editeur");
+
+  // Conflit : jamais d'écrasement silencieux.
+  fsExternalWrite("README.md", "# Externe\n");
+  await page.keyboard.type(" plus");
+  await page.keyboard.press("Control+s");
+  await until(() => fx.locator(".fx-conflict").isVisible(), "conflit : bannière affichée");
+  check(fsTree.get("README.md").text === "# Externe\n", "conflit : le disque n'est pas écrasé");
+  check(
+    (await fx.locator(".fx-conflict button", { hasText: "Recharger" }).count()) === 1,
+    "bouton Recharger",
+  );
+  await shot("2-conflit");
+  await fx.locator(".fx-conflict button", { hasText: "Écraser" }).click();
+  await until(
+    () => fx.locator(".fx-dlg").isVisible(),
+    "Écraser : confirmation locale dans la fenêtre",
+  );
+  await sleep(150);
+  check(fsSent("fsStat").length === 0, "Écraser : rien n'est envoyé avant la confirmation");
+  check(
+    fsTree.get("README.md").text === "# Externe\n",
+    "Écraser : disque intact avant confirmation",
+  );
+  await fx.locator(".fx-dlg button[type=submit]").click();
+  await until(
+    () => fsTree.get("README.md").text.includes("plus"),
+    "Écraser confirmé : texte écrit",
+  );
+  const writes = fsSent("fsWrite");
+  check(fsSent("fsStat").length === 1, "Écraser : l'etag est relu (fsStat)");
+  check(writes.at(-1).etag === "v3", `Écraser : fsWrite avec l'etag frais (${writes.at(-1).etag})`);
+  await until(
+    async () => (await fx.locator(".fx-conflict:visible").count()) === 0,
+    "bannière de conflit retirée",
+  );
+  check(dialogs === 0, "Écraser : aucun window.confirm");
+
+  // Recharger après un second conflit (avec confirmation, le texte local est perdu).
+  fsExternalWrite("README.md", "# Externe2\n");
+  await fx.locator(".cm-content").click();
+  await page.keyboard.type("x");
+  await page.keyboard.press("Control+s");
+  await until(() => fx.locator(".fx-conflict").isVisible(), "second conflit");
+  await fx.locator(".fx-conflict button", { hasText: "Recharger" }).click();
+  await until(() => fx.locator(".fx-dlg").isVisible(), "Recharger : confirmation locale");
+  await fx.locator(".fx-dlg button[type=submit]").click();
+  await until(
+    async () => (await text(fx.locator(".cm-content"))).includes("Externe2"),
+    "Recharger : contenu du disque affiché",
+  );
+  check((await fx.locator(".fx-badge.is-dirty").count()) === 0, "rechargé : plus modifié");
+
+  // Recherche (Ctrl+F), en français.
+  await fx.locator(".cm-content").click();
+  await page.keyboard.press("Control+f");
+  await until(() => fx.locator(".cm-search").isVisible(), "Ctrl+F : panneau de recherche");
+  check(
+    (await fx.locator('.cm-search input[name="search"]').getAttribute("placeholder")) ===
+      "Rechercher",
+    "recherche en français",
+  );
+  await page.keyboard.press("Escape");
+
+  // Image : aperçu data:.
+  await row("logo.png").click();
+  await until(() => fx.locator("img.fx-img").isVisible(), "aperçu de l'image");
+  check(
+    ((await fx.locator("img.fx-img").getAttribute("src")) ?? "").startsWith(
+      "data:image/png;base64,",
+    ),
+    "image servie en data:",
+  );
+  await until(
+    () => fx.locator("img.fx-img").evaluate((i) => i.complete && i.naturalWidth === 1),
+    "l'image se décode (CSP img-src data:)",
+  );
+  check(
+    fsSent("fsRead").some((m) => m.path === "logo.png" && m.as === "base64"),
+    "image lue en base64",
+  );
+
+  // Markdown : aperçu rendu sûr.
+  await row("cours/notes.md").click();
+  await until(() => fx.locator(".cm-content").isVisible(), "notes.md ouvert dans l'éditeur");
+  await fx.locator(".fx-bar button", { hasText: "Aperçu" }).click();
+  await until(() => fx.locator(".md h1").isVisible(), "aperçu Markdown : titre");
+  check((await text(fx.locator(".md h1"))) === "Cours : introduction", "titre rendu");
+  check((await fx.locator(".md li").count()) === 2, "liste rendue");
+  check((await fx.locator(".md pre code").count()) === 1, "bloc de code rendu");
+  check((await fx.locator(".md a").count()) === 1, "un seul lien : javascript: refusé");
+  check(
+    (await fx.locator(".md a").getAttribute("href")) === "https://exemple.fr/doc" &&
+      ((await fx.locator(".md a").getAttribute("rel")) ?? "").includes("noopener"),
+    "lien http(s) avec rel=noopener",
+  );
+  check((await fx.locator(".md script").count()) === 0, "aucun <script> dans l'aperçu");
+  check(
+    (await text(fx.locator(".md"))).includes("<script>"),
+    "le HTML brut est affiché comme du texte",
+  );
+  check(!(await page.evaluate(() => window.__xssmd)), "le script du Markdown ne s'est pas exécuté");
+  await shot("3-apercu-markdown");
+  await fx.locator(".fx-bar button", { hasText: "Éditer" }).click();
+  await until(() => fx.locator(".cm-content").isVisible(), "retour à l'édition");
+
+  // Binaire et texte tronqué.
+  await row("data.bin").click();
+  await until(
+    async () => (await text(fx.locator(".fx-msg-title"))) === "Fichier non texte.",
+    "binaire : pas d'aperçu",
+  );
+  await row("gros.log").click();
+  await until(
+    async () => (await text(fx.locator(".fx-badge"))).includes("tronqué"),
+    "texte tronqué : lecture seule",
+  );
+  check(
+    (await fx.locator(".fx-bar button", { hasText: "Enregistrer" }).count()) === 0,
+    "tronqué : pas d'Enregistrer",
+  );
+
+  // Nouveau fichier : validation du nom, puis fsWrite avec etag null.
+  await fx.locator('button[title="Nouveau fichier"]').click();
+  await until(() => fx.locator(".fx-dlg input").isVisible(), "dialogue « Nouveau fichier »");
+  await fx.locator(".fx-dlg input").fill("a/b");
+  await page.keyboard.press("Enter");
+  await until(() => fx.locator(".fx-dlg-err").isVisible(), "nom refusé : message");
+  const before = fsSent("fsWrite").length;
+  await fx.locator(".fx-dlg input").fill("nouveau.txt");
+  await page.keyboard.press("Enter");
+  await until(() => fsSent("fsWrite").length === before + 1, "fsWrite de création");
+  const created = fsSent("fsWrite").at(-1);
+  check(
+    created.path === "nouveau.txt" && created.etag === null && created.text === "",
+    "création : etag null",
+  );
+  await until(() => row("nouveau.txt").isVisible(), "nouveau fichier dans l'arborescence");
+  await until(
+    async () => (await fx.locator('.fx-tab-btn[title="nouveau.txt"]').count()) === 1,
+    "nouveau fichier ouvert dans un onglet",
+  );
+
+  // Nouveau dossier, renommage au clavier (F2).
+  await fx.locator('button[title="Nouveau dossier"]').click();
+  await fx.locator(".fx-dlg input").fill("docs");
+  await page.keyboard.press("Enter");
+  await until(() => row("docs").isVisible(), "dossier créé");
+  check(fsSent("fsMkdir").at(-1)?.path === "docs", "fsMkdir envoyé");
+  await row("docs").focus();
+  await page.keyboard.press("F2");
+  await until(() => fx.locator(".fx-dlg input").isVisible(), "F2 : dialogue de renommage");
+  check(
+    (await fx.locator(".fx-dlg input").inputValue()) === "docs",
+    "renommage : nom actuel proposé",
+  );
+  await fx.locator(".fx-dlg input").fill("docs2");
+  await page.keyboard.press("Enter");
+  await until(() => row("docs2").isVisible(), "dossier renommé");
+  check(
+    fsSent("fsRename").at(-1)?.from === "docs" && fsSent("fsRename").at(-1)?.to === "docs2",
+    "fsRename {from, to}",
+  );
+
+  // Menu contextuel : souris, puis clavier.
+  await row("README.md").click({ button: "right" });
+  await until(() => fx.locator(".fx-menu").isVisible(), "clic droit : menu contextuel");
+  check((await fx.locator(".fx-menu-item").count()) === 9, "menu d'un fichier : 9 actions");
+  await fx.locator(".fx-menu-item", { hasText: "Télécharger" }).click();
+  await until(() => fsSent("fsDownload").length === 1, "fsDownload envoyé");
+  await row("README.md").click({ button: "right" });
+  await fx.locator(".fx-menu-item", { hasText: "Capturer comme preuve" }).click();
+  await until(() => fsSent("fsCaptureEvidence").length === 1, "fsCaptureEvidence envoyé");
+  await row("README.md").focus();
+  await page.keyboard.press("Shift+F10");
+  await until(() => fx.locator(".fx-menu").isVisible(), "Maj+F10 : menu au clavier");
+  check(
+    await page.evaluate(() => document.activeElement?.classList.contains("fx-menu-item")),
+    "le focus entre dans le menu",
+  );
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Escape");
+  await until(async () => (await fx.locator(".fx-menu").count()) === 0, "Échap ferme le menu");
+  check(
+    await page.evaluate(() => document.activeElement?.dataset?.path === "README.md"),
+    "le focus revient sur la ligne",
+  );
+
+  // Suppression : le serveur confirme, la fenêtre ne pose aucune question.
+  await row("docs2").click({ button: "right" });
+  await fx.locator(".fx-menu-item", { hasText: "Supprimer" }).click();
+  await until(() => fsSent("fsDelete").length === 1, "fsDelete envoyé");
+  check(
+    (await fx.locator(".fx-dlg").count()) === 0 && dialogs === 0,
+    "suppression : aucune confirmation côté fenêtre",
+  );
+  await until(async () => (await row("docs2").count()) === 0, "dossier supprimé de l'arborescence");
+
+  // Téléversement : le serveur ouvre le dialogue de fichier.
+  await fx.locator('button[title="Téléverser dans le dossier"]').click();
+  await until(() => fsSent("fsUpload").length === 1, "fsUpload envoyé");
+  await until(() => row("televerse.txt").isVisible(), "fichier téléversé listé");
+
+  // Politique du dépôt modifiée : bannière.
+  sink().send("shell", "shell", { type: "policyChanged" });
+  await until(() => fx.locator(".fx-policy").isVisible(), "policyChanged : bannière");
+  check(
+    (await text(fx.locator(".fx-policy"))).includes("La politique du dépôt a changé"),
+    "texte de la bannière de politique",
+  );
+  await fx.locator(".fx-policy button", { hasText: "Masquer" }).click();
+
+  // openWindow files path:cours et lien profond.
+  sink().send("shell", "shell", {
+    type: "openWindow",
+    view: "files",
+    frame: "main",
+    path: "cours",
+  });
+  await until(
+    async () => (await text(fx.locator('.fx-crumb[aria-current="location"]'))) === "cours",
+    "openWindow files path:cours : dossier sélectionné",
+  );
+  check(
+    fsSent("fsStat").some((m) => m.path === "cours"),
+    "openWindow : le chemin est vérifié (fsStat)",
+  );
+  const statsBefore = fsSent("fsStat").length;
+  sink().send("shell", "shell", {
+    type: "openWindow",
+    view: "files",
+    frame: "main",
+    path: "../etc",
+  });
+  await sleep(250);
+  check(fsSent("fsStat").length === statsBefore, "openWindow : un chemin hors projet est ignoré");
+  await openHash("#w=fichiers:cours%2Ftp1.py");
+  await until(
+    async () => (await fx.locator('.fx-tab-btn[title="cours/tp1.py"]').count()) === 1,
+    "lien profond #w=fichiers:<chemin> : fichier ouvert",
+  );
+
+  // Fermeture avec un onglet modifié : confirmation locale.
+  await fx.locator(".cm-content").click();
+  await page.keyboard.type("# ");
+  await until(async () => (await fx.locator(".fx-badge.is-dirty").count()) === 1, "tp1.py modifié");
+  await win("native:files").locator(".wm-close").click();
+  await until(() => fx.locator(".fx-dlg").isVisible(), "fermeture : confirmation locale");
+  check((await win("native:files").count()) === 1, "la fenêtre reste ouverte avant confirmation");
+  await fx.locator(".fx-dlg button", { hasText: "Annuler" }).click();
+  check((await win("native:files").count()) === 1, "Annuler : la fenêtre reste ouverte");
+  await until(
+    () => page.evaluate(() => !!document.querySelector(".fx-badge.is-dirty")),
+    "Annuler : l'onglet reste modifié",
+  );
+  await win("native:files").locator(".wm-close").click();
+  await fx.locator(".fx-dlg button[type=submit]").click();
+  await until(async () => (await win("native:files").count()) === 0, "fermeture confirmée");
+  check(dialogs === 0, "aucun window.confirm pendant tout le scénario");
+
+  // L'espace de travail mémorise la fenêtre, pas son chemin.
+  await openHash("#w=fichiers");
+  await until(() => win("native:files").isVisible(), "lien profond #w=fichiers");
+  await until(
+    () =>
+      layouts.current?.windows.some(
+        (w) => w.view === "shell" && w.id === "files" && w.mode === "files",
+      ),
+    "espace de travail : fenêtre Fichiers enregistrée",
+  );
+  check(!JSON.stringify(layouts.current).includes("cours"), "le chemin courant n'est pas persisté");
+  check(layoutRejected === 0, "la disposition avec Fichiers est valide côté serveur");
+
+  check(
+    violations.length === 0,
+    `zéro violation CSP (Fichiers) (${violations.slice(0, 3).join(" | ")})`,
+  );
+  await context.close();
+}
+
+async function filesPhoneScenario(name, viewport) {
+  console.log(`\n== ${name} : Fichiers en pile (${viewport.width}x${viewport.height})`);
+  resetScreens();
+  resetFs();
+  const { context, page, violations, shot } = await openSession(name, viewport);
+  await page.locator("#dock-open").click();
+  await page.locator("#dock-menu .dock-menu-item", { hasText: "Fichiers" }).click();
+  const fx = page.locator('.wm-win[data-key="native:files"] .fx');
+  const row = (p) => fx.locator(`[role="treeitem"][data-path="${p}"]`);
+  await until(() => row("README.md").isVisible(), "arborescence affichée (téléphone)");
+  check(
+    !(await fx.locator(".fx-pane").isVisible()),
+    "pile : l'arborescence d'abord, pas l'éditeur",
+  );
+  const heights = await fx
+    .locator(".fx-toolbar .fx-btn")
+    .evaluateAll((nodes) => nodes.map((n) => n.getBoundingClientRect().height));
+  check(
+    heights.length >= 5 && heights.every((h) => h >= 43.5),
+    `boutons de la barre d'actions ≥ 44 px (${heights.join(",")})`,
+  );
+  const rowBox = await row("README.md").boundingBox();
+  check(rowBox.height >= 43.5, `lignes de l'arborescence ≥ 44 px (${rowBox.height})`);
+  await shot("1-arbre");
+  await row("README.md").click();
+  await until(() => fx.locator(".cm-content").isVisible(), "éditeur affiché après un appui");
+  check(!(await fx.locator(".fx-side").isVisible()), "pile : l'éditeur remplace l'arborescence");
+  const backBox = await fx.locator(".fx-back").boundingBox();
+  check(backBox !== null && backBox.height >= 43.5, "bouton retour ≥ 44 px");
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > window.innerWidth + 1,
+  );
+  check(!overflow, "aucun défilement horizontal de la page");
+  await shot("2-editeur");
+  await fx.locator(".fx-back").click();
+  await until(() => row("README.md").isVisible(), "retour à l'arborescence");
+  check(!(await fx.locator(".fx-pane").isVisible()), "retour : l'éditeur est masqué");
+  await row("README.md").locator(".fx-more").click();
+  await until(() => fx.locator(".fx-menu").isVisible(), "bouton « ⋯ » : menu tactile");
+  const itemH = await fx
+    .locator(".fx-menu-item")
+    .evaluateAll((nodes) => nodes.map((n) => n.getBoundingClientRect().height));
+  check(
+    itemH.every((h) => h >= 43.5),
+    `entrées du menu ≥ 44 px (${itemH.join(",")})`,
+  );
+  await shot("3-menu");
+  check(
+    violations.length === 0,
+    `zéro violation CSP (Fichiers téléphone) (${violations.slice(0, 3).join(" | ")})`,
+  );
+  await context.close();
+}
+
 try {
   // WEB_E2E_ONLY=<nom> : ne joue que ce scénario (mise au point).
   const only = (name) => !process.env.WEB_E2E_ONLY || process.env.WEB_E2E_ONLY === name;
@@ -3298,6 +3879,8 @@ try {
   if (only("chat-extras")) await chatExtrasScenario("chat-extras", { width: 1440, height: 900 });
   if (only("chat-extras-mobile"))
     await chatExtrasScenario("chat-extras-mobile", { width: 375, height: 812 });
+  if (only("files")) await filesScenario("files", { width: 1440, height: 900 });
+  if (only("files-mobile")) await filesPhoneScenario("files-mobile", { width: 375, height: 812 });
   if (only("wm-budget-mobile")) {
     await budgetScenario("wm-budget-mobile", { width: 375, height: 812 }, 3);
   }

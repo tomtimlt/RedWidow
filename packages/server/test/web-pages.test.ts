@@ -95,17 +95,23 @@ describe("sources de l'interface", () => {
       const text = readFileSync(file, "utf8");
       if (file.endsWith(".html")) expect(text, file).not.toMatch(/\sstyle=/);
       expect(text, file).not.toContain("unsafe-inline");
-      // Copies d'xterm (web/vendor/) : seuls un commentaire de licence et des espaces de noms XML
-      // contiennent une URL, jamais une ressource à charger. Tout autre domaine fait échouer le test.
+      // Copies d'xterm et de CodeMirror (web/vendor/) : seuls un commentaire de licence, des espaces de
+      // noms XML et un préfixe de schéma (`"https://"` + saisie, auto-lien de la saisie Markdown) contiennent
+      // une URL, jamais une ressource à charger. Hors vendor, seul l'espace de noms SVG des icônes
+      // (`createElementNS`) est admis. Tout autre domaine fait échouer le test.
+      const inVendor = file.includes(`${sep}vendor${sep}`);
       const urls = (text.match(/https?:\/\/[^\s"'`)]*/g) ?? []).filter(
         (u) =>
-          !file.includes(`${sep}vendor${sep}`) ||
-          ![
-            "http://bellard.org/jslinux/",
-            "https://github.com/chjj/term.js",
-            "http://www.w3.org/1999/xhtml",
-            "http://www.w3.org/2000/svg",
-          ].includes(u),
+          !(
+            u === "http://www.w3.org/2000/svg" ||
+            (inVendor &&
+              [
+                "http://bellard.org/jslinux/",
+                "https://github.com/chjj/term.js",
+                "http://www.w3.org/1999/xhtml",
+                "https://",
+              ].includes(u))
+          ),
       );
       expect(urls, file).toEqual([]);
     }
