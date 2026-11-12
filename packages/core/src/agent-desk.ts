@@ -2,6 +2,7 @@ import { z } from "zod";
 import { normalizeSkillSearch, renderProfileSkill } from "./agent-profile-skill.js";
 import { AGENT_PROFILES, DEFAULT_AGENT_PROFILE, isAgentProfile } from "./agent-profiles.js";
 import { auditTestSchema, coverageWriteSchema } from "./audit-schema.js";
+import { credentialInputSchema, credentialInputShape } from "./credential.js";
 import type { DockerToolSpec } from "./docker/tool-specs.js";
 import { recordStepSchema, recordTeardownSchema } from "./engagement/campaign-schema.js";
 import type { MissionDesk, ProgramDraftInput } from "./mission-desk.js";
@@ -152,6 +153,20 @@ export function deskToolSpecs(desk?: MissionDesk): DockerToolSpec[] {
           );
         },
       },
+      ...(desk.canStoreCredential
+        ? [
+            {
+              name: "store_credential",
+              description:
+                "Enregistrer dans le coffre chiffré de l'hôte un identifiant découvert pendant la mission (compte de test, jeton, clé d'API, cookie) : label (MAJUSCULES, chiffres, _ ; 16 caractères max, unique par programme), login éventuel, secret, kind (password, token, apiKey, cookie) et programme éventuel (défaut : projet actif). Demande toujours une approbation. Le secret n'est jamais journalisé ni renvoyé : la réponse donne seulement {ok, id}. Le compte devient disponible au prochain démarrage de session par les jetons {{compte:LABEL:secret}}. Ne pas recopier le secret dans le texte du chat ni dans un fichier.",
+              input: credentialInputShape,
+              readOnly: false,
+              async run(raw: unknown) {
+                return JSON.stringify(await desk.storeCredential(credentialInputSchema.parse(raw)));
+              },
+            } satisfies DockerToolSpec,
+          ]
+        : []),
       {
         name: "mission_context",
         description:

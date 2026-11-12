@@ -361,6 +361,99 @@ describe("configuration : comptes de test", () => {
   });
 });
 
+describe("configuration : identifiants enregistrés par l'agent", () => {
+  const request = {
+    label: "TOKEN1",
+    login: "",
+    secret: "tok_0123456789abcdefSECRET",
+    kind: "token",
+  } as const;
+
+  async function started(programmeProject = true) {
+    const configDir = join(ctx.dir, "config");
+    await mkdir(configDir, { recursive: true });
+    if (programmeProject) await createProject(configDir, { name: "Acme", workspace: ctx.dir });
+    const t = setup(ctx);
+    const shell = shellOf(t);
+    const chat = t.connect();
+    chat.say("chat", "f1", { type: "ready" });
+    chat.say("chat", "f1", { type: "send", text: "bonjour" });
+    await vi.waitFor(() => expect(t.engine()?.prompts).toHaveLength(1));
+    return { t, shell };
+  }
+
+  it("le moteur reçoit la capacité ; la demande crée un compte createdBy agent, secret au coffre", async () => {
+    const { t, shell } = await started();
+    expect(t.engine()?.startParams).toMatchObject({ credentialStore: true });
+    const result = await t.engine()?.handlers.onCredential?.({ ...request });
+    expect(result?.ok).toBe(true);
+    const [meta] = new AccountStore(ctx.storage).list();
+    expect(meta).toMatchObject({
+      label: "TOKEN1",
+      createdBy: "agent",
+      kind: "token",
+      programme: expect.any(String),
+    });
+    expect(result?.id).toBe(meta?.id);
+    // Secret dans le coffre ; ni dans l'état, ni dans la diffusion, ni dans l'audit, ni dans la réponse.
+    expect(await ctx.storage.secrets.get(`account.${meta?.id}`)).toBe(request.secret);
+    expect(JSON.stringify(ctx.storage.state.get("accounts"))).not.toContain(request.secret);
+    expect(JSON.stringify(result)).not.toContain(request.secret);
+    await vi.waitFor(() => expect(shell.of("shell", "accounts").length).toBeGreaterThan(0));
+    expect(JSON.stringify(shell.sent)).not.toContain(request.secret);
+    expect(t.audit).toContainEqual({
+      kind: "account.add",
+      id: meta?.id,
+      programme: meta?.programme,
+      label: "TOKEN1",
+      createdBy: "agent",
+    });
+    expect(JSON.stringify(t.audit)).not.toContain(request.secret);
+  });
+
+  it("le compte est passé au moteur suivant (jeton sans login : libellé comme identifiant)", async () => {
+    const { t } = await started();
+    await t.engine()?.handlers.onCredential?.({ ...request });
+    const accounts = await new AccountStore(ctx.storage).testAccountsFor({
+      id: new AccountStore(ctx.storage).list()[0]?.programme ?? "",
+      name: "Acme",
+    });
+    expect(accounts).toEqual([
+      { label: "TOKEN1", host: "", identifier: "TOKEN1", secret: request.secret, kind: "password" },
+    ]);
+  });
+
+  it("libellé déjà pris : refus, rien n'est stocké en double", async () => {
+    const { t } = await started();
+    expect((await t.engine()?.handlers.onCredential?.({ ...request }))?.ok).toBe(true);
+    expect(await t.engine()?.handlers.onCredential?.({ ...request })).toEqual({ ok: false });
+    expect(new AccountStore(ctx.storage).list()).toHaveLength(1);
+  });
+
+  it("sans projet actif ni programme : refus ; avec un programme explicite : accepté", async () => {
+    const { t } = await started(false);
+    expect(await t.engine()?.handlers.onCredential?.({ ...request })).toEqual({ ok: false });
+    expect(new AccountStore(ctx.storage).list()).toHaveLength(0);
+    expect((await t.engine()?.handlers.onCredential?.({ ...request, programme: "X" }))?.ok).toBe(
+      true,
+    );
+  });
+
+  it("AccountStore.testAccountsFor : un compte invalide n'écarte pas les autres ; cookie sans login admis", async () => {
+    const store = new AccountStore(ctx.storage);
+    await store.add({ programme: "p1", label: "OK", login: "root", secret: "pw-1" });
+    await store.add({ programme: "p1", label: "BAD!", login: "x", secret: "pw-2" });
+    await store.add(
+      { programme: "p1", label: "COOK", login: "", secret: "c=1", kind: "cookie" },
+      "agent",
+    );
+    expect((await store.testAccountsFor({ id: "p1", name: "n" })).map((a) => a.label)).toEqual([
+      "OK",
+      "COOK",
+    ]);
+  });
+});
+
 describe("journal d'audit", () => {
   it("fichier JSONL : champs suspects retirés", async () => {
     const file = join(ctx.dir, "audit.jsonl");

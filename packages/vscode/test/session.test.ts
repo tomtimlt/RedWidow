@@ -91,6 +91,7 @@ function setup(
     token?: boolean;
     settings?: object;
     getTestAccounts?: import("../src/logic/session.js").ChatSessionDeps["getTestAccounts"];
+    onCredential?: import("../src/logic/session.js").ChatSessionDeps["onCredential"];
     store?: { get(k: string): unknown; set(k: string, v: unknown): unknown };
     learningKey?: string;
     prefsKey?: string;
@@ -110,6 +111,7 @@ function setup(
         : undefined,
     confirmAlways,
     ...(over.getTestAccounts && { getTestAccounts: over.getTestAccounts }),
+    ...(over.onCredential && { onCredential: over.onCredential }),
     ...(over.providers && { onProviders: over.providers }),
     ...(over.observe && { onObservedEvent: over.observe }),
     onView: (v) => {
@@ -614,6 +616,26 @@ describe("modèle et effort (F2/F3)", () => {
     session.setEffort("max");
     expect(view().controls?.effort).toBe("high");
     expect(view().items.at(-1)).toMatchObject({ kind: "notice" });
+  });
+
+  describe("identifiants de l'agent", () => {
+    const request = { label: "ADMIN", secret: "tok_0123456789abcdef", kind: "token" } as const;
+
+    it("hôte sans coffre (VS Code) : capacité non annoncée, aucun gestionnaire", async () => {
+      const { f, session } = setup();
+      await session.send("un");
+      expect(f.starts[0]).not.toHaveProperty("credentialStore");
+      expect(f.handlers.onCredential).toBeUndefined();
+    });
+
+    it("hôte avec coffre : capacité annoncée et demande relayée à l'hôte", async () => {
+      const store = vi.fn(async () => ({ ok: true, id: "acc-1" }));
+      const { f, session } = setup({ onCredential: store });
+      await session.send("un");
+      expect(f.starts[0]).toMatchObject({ credentialStore: true });
+      await expect(f.handlers.onCredential?.(request)).resolves.toEqual({ ok: true, id: "acc-1" });
+      expect(store).toHaveBeenCalledWith(request);
+    });
   });
 
   it("recharge les comptes au prochain message sans changer de conversation", async () => {

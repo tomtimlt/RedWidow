@@ -134,3 +134,68 @@ export function createRedactor({ values = [] }: RedactorOptions = {}): Redactor 
 
   return <T>(value: T): T => walk(value, "") as T;
 }
+
+/** Masqueur de valeurs apprises en cours de session (secret d'un identifiant découvert par l'agent). */
+export interface SecretMasker {
+  /** Apprend une valeur ; `false` si elle est trop courte (< 6 caractères) pour être masquée sans dégât. */
+  add(value: string): boolean;
+  /** Masque la valeur apprise et ses variantes encodées dans toutes les chaînes (clés comprises : non). */
+  redact: Redactor;
+}
+
+/** Champs structurels à la racine d'une charge utile (ou d'un message IPC `event`) : jamais réécrits (ids, genres, corrélation). */
+const STRUCTURAL_KEYS = new Set([
+  "kind",
+  "code",
+  "id",
+  "runId",
+  "parentId",
+  "toolUseId",
+  "correlation",
+  "type",
+  "v",
+]);
+
+/** Seuil des valeurs masquées, identique à celui des comptes de test (ADR 0043). */
+const MIN_LEARNED_LENGTH = 6;
+
+export function createSecretMasker(): SecretMasker {
+  const literals = new Set<string>();
+  let pattern: RegExp | null = null;
+  const add = (value: string): boolean => {
+    if (value.length < MIN_LEARNED_LENGTH) return false;
+    for (const variant of [
+      value,
+      encodeURIComponent(value),
+      new URLSearchParams({ v: value }).toString().slice(2),
+      Buffer.from(value).toString("base64"),
+      JSON.stringify(value).slice(1, -1),
+    ])
+      if (variant.length >= MIN_LEARNED_LENGTH) literals.add(variant);
+    pattern = new RegExp(
+      [...literals]
+        .sort((a, b) => b.length - a.length)
+        .map(escapeRegExp)
+        .join("|"),
+      "g",
+    );
+    return true;
+  };
+  /** `path` : clés parcourues depuis la racine ; la racine d'un événement est `[]` ou `["event"]` (message IPC). */
+  const walk = (value: unknown, path: readonly string[]): unknown => {
+    if (pattern === null) return value;
+    if (typeof value === "string") return value.replace(pattern, REDACTED);
+    if (Array.isArray(value)) return value.map((item) => walk(item, [...path, ""]));
+    if (typeof value === "object" && value !== null) {
+      const eventRoot = path.length === 0 || (path.length === 1 && path[0] === "event");
+      return Object.fromEntries(
+        Object.entries(value).map(([key, item]) => [
+          key,
+          eventRoot && STRUCTURAL_KEYS.has(key) ? item : walk(item, [...path, key]),
+        ]),
+      );
+    }
+    return value;
+  };
+  return { add, redact: <T>(value: T): T => walk(value, []) as T };
+}

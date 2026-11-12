@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { isAbsolute, join } from "node:path";
 import type {
   AgentPrompt,
@@ -10,10 +11,13 @@ import {
   type AgentRunner,
   type ApprovalGate,
   type AuthMode,
+  type CredentialInput,
+  type CredentialResult,
   createApprovalGate,
   createApprovalQueue,
   createRecorder,
   createRedactor,
+  createSecretMasker,
   createTestAccounts,
   DEFAULT_AGENT_PROFILE,
   deskInstructions,
@@ -105,6 +109,8 @@ export interface EngineOptions {
    * approbation ni arrêt d'urgence. Absent ou sans projet actif : `project.absent`. Jamais en apprentissage.
    */
   campaign?: CampaignPort;
+  /** Délai d'attente de l'accusé de l'hôte à un enregistrement d'identifiant (défaut : 30 s). */
+  credentialTimeoutMs?: number;
 }
 
 /** Message dont le type est `bypass` : même rejeté par la validation, il met le miroir à « off ». */
@@ -162,6 +168,7 @@ export function runEngine({
   programDraft,
   engagement,
   campaign,
+  credentialTimeoutMs = 30_000,
 }: EngineOptions): Promise<number> {
   // Miroir en lecture du Bypass (ADR 0006, décision 6) : naît « off », jamais calculé ici.
   const mirror = createBypassMirror({ now });
@@ -174,12 +181,21 @@ export function runEngine({
   // (entrée d'un outil en attente d'approbation, erreurs, résumé).
   const baseRedact = createRedactor({ values: secretsFromEnv(env) });
   let accounts: TestAccounts | undefined;
+  // Secrets d'identifiants enregistrés par l'agent pendant la session : masqués dès l'envoi à l'hôte.
+  const learned = createSecretMasker();
   const redact: import("@warband/core").Redactor = <T>(value: T): T =>
-    baseRedact(accounts ? accounts.redact(value) : value);
+    learned.redact(baseRedact(accounts ? accounts.redact(value) : value));
+  /** Demandes `credential` en attente de leur `credentialAck`. */
+  const credentialWaits = new Map<string, (result: CredentialResult) => void>();
   const pendingSends = new Set<Promise<void>>();
   const send = (message: FromEngine) => {
+    // `missionContext` est déjà masqué ; `credential` porte le secret à stocker : masqué, il serait perdu.
     const p = channel
-      .send(message.type === "missionContext" ? message : redact(message))
+      .send(
+        message.type === "missionContext" || message.type === "credential"
+          ? message
+          : redact(message),
+      )
       .catch(() => undefined);
     pendingSends.add(p);
     void p.finally(() => pendingSends.delete(p));
@@ -223,6 +239,25 @@ export function runEngine({
         v: PROTOCOL_VERSION,
         type: "error",
         reason: { code: "ipc.invalidMessage", params: { field, reason: why } },
+      });
+
+    /**
+     * Transmet un identifiant à l'hôte (message `credential`, jamais journalisé) et attend son accusé.
+     * Sans réponse dans le délai, ou si le run s'achève, l'enregistrement est tenu pour échoué.
+     */
+    const storeCredential = (input: CredentialInput): Promise<CredentialResult> =>
+      new Promise<CredentialResult>((resolve) => {
+        const requestId = randomUUID();
+        // Masqué dans tout ce qui part ensuite vers le parent (approbations, événements, erreurs).
+        learned.add(input.secret);
+        const timer = setTimeout(() => settle({ ok: false }), credentialTimeoutMs);
+        timer.unref();
+        const settle = (result: CredentialResult) => {
+          clearTimeout(timer);
+          if (credentialWaits.delete(requestId)) resolve(result);
+        };
+        credentialWaits.set(requestId, settle);
+        send({ v: PROTOCOL_VERSION, type: "credential", requestId, ...input });
       });
 
     const session = async (params: StartParams) => {
@@ -336,6 +371,7 @@ export function runEngine({
             recorder,
             gate,
             ...(accounts && { accounts }),
+            ...(!learning && params.credentialStore === true && { storeCredential }),
             ...(!learning &&
               containers !== undefined && {
                 mission: { profile: params.profile ?? "out-of-box", containers: containers() },
@@ -382,6 +418,8 @@ export function runEngine({
         mirror.off();
         observeBypass?.();
         observeBypass = undefined;
+        // Un enregistrement d'identifiant sans accusé est tenu pour échoué (rien n'est supposé stocké).
+        for (const settle of [...credentialWaits.values()]) settle({ ok: false });
         // Refuse ce qui restait en attente (interrompu), ferme les flux puis le journal.
         queue?.close();
         recorder.close();
@@ -482,6 +520,15 @@ export function runEngine({
             type: "bypassAck",
             seq: message.seq,
             state: mirror.current(now()),
+          });
+          return;
+        }
+        case "credentialAck": {
+          const settle = credentialWaits.get(message.requestId);
+          if (settle === undefined) return invalid("requestId", "unknown");
+          settle({
+            ok: message.ok,
+            ...(message.ok && message.id !== undefined && { id: message.id }),
           });
           return;
         }

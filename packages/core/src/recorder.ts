@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { CREDENTIAL_TOOL } from "./credential.js";
 import { type EngineEvent, EVENT_SCHEMA_VERSION, type EventPayload } from "./events.js";
-import { createRedactor, type Redactor, secretsFromEnv } from "./redact.js";
+import { createRedactor, createSecretMasker, type Redactor, secretsFromEnv } from "./redact.js";
 
 /** Consommateur d'événements (journal, UI, collecteur de tests…). */
 export type EventSink = (event: EngineEvent) => void;
@@ -18,6 +19,12 @@ export interface Recorder {
   stream(signal?: AbortSignal): AsyncIterable<EngineEvent>;
   /** Termine tous les flux (présents et futurs). N'empêche ni `emit` ni les sinks. */
   close(): void;
+  /**
+   * Apprend un secret à masquer dans tout événement émis À PARTIR de cet appel (valeur et variantes
+   * encodées). S'ajoute au masquage existant sans le remplacer ; sans effet sous 6 caractères.
+   * Le recorder l'applique aussi de lui-même à l'entrée d'un appel `store_credential` avant de l'enregistrer.
+   */
+  addSecret(value: string): void;
 }
 
 export interface RecorderOptions {
@@ -52,6 +59,7 @@ export function createRecorder(options: RecorderOptions = {}): Recorder {
     options.redact === false
       ? (value) => value
       : (options.redact ?? createRedactor({ values: secretsFromEnv(process.env) }));
+  const learned = createSecretMasker();
   const sinks = new Set<EventSink>();
   /** Arrêts des flux ouverts par `stream()`. */
   const streams = new Set<() => void>();
@@ -80,19 +88,28 @@ export function createRecorder(options: RecorderOptions = {}): Recorder {
     return failed;
   };
 
-  const build = (payload: EventPayload, parentId: string | null): EngineEvent =>
-    ({
+  const build = (payload: EventPayload, parentId: string | null): EngineEvent => {
+    // Le secret d'un identifiant à enregistrer est appris AVANT de masquer sa propre entrée.
+    if (payload.kind === "tool.requested" && payload.tool === CREDENTIAL_TOOL) {
+      const secret = (payload.input as { secret?: unknown } | undefined)?.secret;
+      if (typeof secret === "string") learned.add(secret);
+    }
+    return {
       v: EVENT_SCHEMA_VERSION,
       id: newId(),
       seq: seq++,
       ts: now().toISOString(),
       runId,
       parentId,
-      ...redact(payload),
-    }) as EngineEvent;
+      ...learned.redact(redact(payload)),
+    } as EngineEvent;
+  };
 
   return {
     runId,
+    addSecret(value) {
+      learned.add(value);
+    },
     emit(payload, parentId = null) {
       const event = build(payload, parentId);
       const failed = deliver(event);

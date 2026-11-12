@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { parseFromEngine, parseToEngine } from "../src/logic/protocol.js";
+import { PROTOCOL_VERSION, parseFromEngine, parseToEngine } from "../src/logic/protocol.js";
 
 const cwd = resolve("/tmp/projet");
 const verdict = {
@@ -287,4 +287,62 @@ it("valide les images et la capacité de vision aux frontières IPC", () => {
       models: [{ value: "a", displayName: "A", supportsImages: "yes" }],
     }).ok,
   ).toBe(false);
+});
+
+describe("protocole : identifiants de l'agent (additif)", () => {
+  const request = {
+    v: 1,
+    type: "credential",
+    requestId: "r1",
+    label: "ADMIN",
+    login: "root",
+    secret: "tok_0123456789abcdef",
+    kind: "token",
+    programme: "p1",
+  };
+
+  it("PROTOCOL_VERSION reste à 1 ; credential valide accepté", () => {
+    expect(PROTOCOL_VERSION).toBe(1);
+    expect(parseFromEngine(request).ok).toBe(true);
+    const { login: _l, programme: _p, ...minimal } = request;
+    expect(parseFromEngine(minimal).ok).toBe(true);
+  });
+
+  it("credential invalide rejeté sans recopier la valeur dans le motif", () => {
+    for (const bad of [
+      { ...request, requestId: "" },
+      { ...request, label: "minuscule" },
+      { ...request, kind: "autre" },
+      { ...request, secret: "" },
+      { ...request, extra: 1 },
+      { ...request, secret: 12 },
+    ]) {
+      const parsed = parseFromEngine(bad);
+      expect(parsed.ok).toBe(false);
+      expect(JSON.stringify(parsed)).not.toContain("tok_0123456789abcdef");
+    }
+  });
+
+  it("credentialAck : requestId et ok exigés, aucune clé en trop", () => {
+    expect(
+      parseToEngine({ v: 1, type: "credentialAck", requestId: "r1", ok: true, id: "a" }).ok,
+    ).toBe(true);
+    expect(parseToEngine({ v: 1, type: "credentialAck", requestId: "r1", ok: false }).ok).toBe(
+      true,
+    );
+    for (const bad of [
+      { v: 1, type: "credentialAck", ok: true },
+      { v: 1, type: "credentialAck", requestId: "r1" },
+      { v: 1, type: "credentialAck", requestId: "r1", ok: true, secret: "x" },
+      { v: 1, type: "credentialAck", requestId: "r1", ok: true, id: "" },
+    ])
+      expect(parseToEngine(bad).ok).toBe(false);
+  });
+
+  it("start : credentialStore booléen, refusé en apprentissage", () => {
+    const start = { v: 1, type: "start", cwd: process.cwd() };
+    expect(parseToEngine({ ...start, credentialStore: true }).ok).toBe(true);
+    expect(parseToEngine({ ...start, credentialStore: "oui" }).ok).toBe(false);
+    expect(parseToEngine({ ...start, credentialStore: true, mode: "learning" }).ok).toBe(false);
+  });
 });

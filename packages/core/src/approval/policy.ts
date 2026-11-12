@@ -93,6 +93,8 @@ export const DEFAULT_POLICY: Policy = {
     { tool: "mcp__desk__record_coverage", decision: "allow" },
     // Écrit un brouillon de fiche programme (fichier du projet) : jamais en allow, toujours demandé.
     { tool: "mcp__desk__program_draft", decision: "ask" },
+    // Écrit un secret dans le coffre de l'hôte : toujours demandé (jamais allow par défaut).
+    { tool: "mcp__desk__store_credential", decision: "ask" },
     // Contrôle d'étape et démontage (ADR 0041) : écrivent un fichier du projet, jamais en allow.
     { tool: "mcp__desk__record_step", decision: "ask" },
     { tool: "mcp__desk__record_teardown", decision: "ask" },

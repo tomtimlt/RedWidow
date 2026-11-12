@@ -10,6 +10,7 @@ import {
   type AuthMode,
   appendDeskNote,
   CodedError,
+  CREDENTIAL_TOOL,
   capOutput,
   createMissionDesk,
   createRedactor,
@@ -491,6 +492,9 @@ async function runWithOpencode(
         ...(context.supervision !== undefined && { supervision: context.supervision }),
         ...(context.program !== undefined && { program: context.program }),
         ...(context.programDraft !== undefined && { programDraft: context.programDraft }),
+        ...(context.storeCredential !== undefined && {
+          storeCredential: context.storeCredential,
+        }),
         ...(context.engagement !== undefined && { engagement: context.engagement }),
         ...(context.halted !== undefined && { halted: context.halted }),
         ...(context.campaign !== undefined && { campaign: context.campaign }),
@@ -691,6 +695,11 @@ async function runWithOpencodeWithDesk(
       calls.set(key, call);
     }
     if (Object.keys(obj(state.input)).length > 0) call.input = obj(state.input);
+    // Secret d'un identifiant à enregistrer : appris dès qu'il apparaît, avant tout texte du même tour.
+    if (policyToolName(tool, serverNames) === CREDENTIAL_TOOL) {
+      const secret = call.input.secret;
+      if (typeof secret === "string") recorder.addSecret(secret);
+    }
     return call;
   };
 

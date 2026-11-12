@@ -3,7 +3,10 @@ import {
   type AuthMode,
   type BypassState,
   CodedError,
+  type CredentialInput,
+  type CredentialResult,
   createRedactor,
+  createSecretMasker,
   createTestAccounts,
   type EngineEvent,
   type ErrorInfo,
@@ -95,6 +98,11 @@ export interface EngineHandlers {
   onError?(reason: ErrorInfo): void;
   /** Accusé du miroir du Bypass : `state` est l'état réellement retenu (ADR 0006, décision 3). */
   onBypassAck?(ack: { seq: number; state: BypassState | null }): void;
+  /**
+   * Identifiant découvert par l'agent, à stocker dans le coffre de l'hôte. La demande porte le secret en
+   * clair : ne jamais la journaliser. Absent : le contrôleur répond `ok: false` (hôte sans coffre).
+   */
+  onCredential?(request: CredentialInput): Promise<CredentialResult>;
   /** Processus enfant terminé. */
   onExit?(info: { code: number | null; signal: NodeJS.Signals | null; stderrTail?: string }): void;
   /** Sortie d'erreur du moteur, masquée (jeton et motifs usuels de secrets). */
@@ -155,8 +163,10 @@ export function createEngineController(options: EngineControllerOptions): Engine
   // Le jeton connu est masqué dans tout ce que l'on relaie, en plus des motifs usuels.
   const baseRedact = createRedactor({ values: options.auth ? [options.auth.value] : [] });
   let accounts: TestAccounts | undefined;
+  // Secrets d'identifiants enregistrés par l'agent : masqués aussi dans la sortie d'erreur du moteur.
+  const learned = createSecretMasker();
   const redact: import("@warband/core").Redactor = <T>(value: T): T =>
-    baseRedact(accounts ? accounts.redact(value) : value);
+    learned.redact(baseRedact(accounts ? accounts.redact(value) : value));
   let child: ChildProcess | null = null;
   /** Sondage en cours : la réponse `models` ou une erreur du moteur le résout. */
   let probe: { resolve(models: ModelOption[]): void; reject(error: unknown): void } | null = null;
@@ -207,6 +217,22 @@ export function createEngineController(options: EngineControllerOptions): Engine
         return handlers.onError?.(message.reason);
       case "bypassAck":
         return handlers.onBypassAck?.({ seq: message.seq, state: message.state });
+      case "credential": {
+        const { v: _v, type: _type, requestId, ...request } = message;
+        learned.add(request.secret);
+        // Sans gestionnaire, ou en cas d'échec : refus (`ok: false`), jamais d'erreur qui citerait la demande.
+        const ack = (result: CredentialResult) =>
+          post({
+            v: PROTOCOL_VERSION,
+            type: "credentialAck",
+            requestId,
+            ok: result.ok,
+            ...(result.ok && result.id !== undefined && { id: result.id }),
+          });
+        if (handlers.onCredential === undefined) return ack({ ok: false });
+        void handlers.onCredential(request).then(ack, () => ack({ ok: false }));
+        return;
+      }
       case "ready":
         return;
     }

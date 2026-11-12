@@ -5,7 +5,13 @@
  * le moteur ; il n'est jamais copié dans l'état, un message diffusé ou un journal.
  */
 import { randomUUID } from "node:crypto";
-import { type TestAccount, testAccountsSchema } from "@warband/core";
+import {
+  CREDENTIAL_KINDS,
+  type CredentialKind,
+  type TestAccount,
+  testAccountSchema,
+  testAccountsSchema,
+} from "@warband/core";
 import type { ServerStorage } from "../storage/index.js";
 
 export const ACCOUNTS_KEY = "accounts";
@@ -23,6 +29,8 @@ export interface AccountMeta {
   createdBy: "human" | "agent";
   /** Date ISO de création. */
   createdAt: string;
+  /** Nature du secret (absente : mot de passe, comptes saisis à la main). Jamais la valeur. */
+  kind?: CredentialKind;
 }
 
 export interface AccountInput {
@@ -30,6 +38,7 @@ export interface AccountInput {
   label: string;
   login: string;
   secret: string;
+  kind?: CredentialKind;
 }
 
 const isMeta = (v: unknown): v is AccountMeta => {
@@ -41,7 +50,8 @@ const isMeta = (v: unknown): v is AccountMeta => {
     typeof m.label === "string" &&
     typeof m.login === "string" &&
     (m.createdBy === "human" || m.createdBy === "agent") &&
-    typeof m.createdAt === "string"
+    typeof m.createdAt === "string" &&
+    (m.kind === undefined || (CREDENTIAL_KINDS as readonly unknown[]).includes(m.kind))
   );
 };
 
@@ -80,6 +90,7 @@ export class AccountStore {
       login: input.login,
       createdBy,
       createdAt: this.now().toISOString(),
+      ...(input.kind !== undefined && { kind: input.kind }),
     };
     await this.storage.secrets.set(accountSecretKey(meta.id), input.secret);
     this.storage.state.set(ACCOUNTS_KEY, [...all, meta]);
@@ -114,8 +125,17 @@ export class AccountStore {
     for (const a of this.list()) {
       if (!wanted.has(a.programme.toLowerCase())) continue;
       const secret = await this.storage.secrets.get(accountSecretKey(a.id));
-      if (secret)
-        out.push({ label: a.label, host: "", identifier: a.login, secret, kind: "password" });
+      if (!secret) continue;
+      // Le moteur ne connaît que `password` et `cookie` ; un jeton sans login garde son libellé comme identifiant.
+      const account: TestAccount = {
+        label: a.label,
+        host: "",
+        identifier: a.login || (a.kind === "cookie" ? "" : a.label),
+        secret,
+        kind: a.kind === "cookie" ? "cookie" : "password",
+      };
+      // Un compte invalide est écarté seul : il ne doit pas priver le moteur des autres.
+      if (testAccountSchema.safeParse(account).success) out.push(account);
     }
     return testAccountsSchema.safeParse(out).success ? out : [];
   }

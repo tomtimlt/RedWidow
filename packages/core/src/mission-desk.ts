@@ -8,6 +8,7 @@ import {
   coverageCellsSchema,
   coverageKey,
 } from "./audit-schema.js";
+import type { CredentialInput, CredentialResult, CredentialStore } from "./credential.js";
 import type { CampaignPort } from "./engagement/campaign-port.js";
 import type { StepResult } from "./engagement/campaign-progress.js";
 import {
@@ -207,6 +208,14 @@ export interface MissionDesk {
    */
   draftProgram(input: ProgramDraftInput): Promise<ProgramDraftResult>;
   /**
+   * Enregistre un identifiant découvert dans le coffre de l'hôte (outil `store_credential`). Le secret
+   * est appris par le masqueur du recorder avant tout retour ; le résultat ne contient que `ok` et `id`.
+   * `project.absent` si l'hôte n'offre pas ce stockage.
+   */
+  storeCredential(input: CredentialInput): Promise<CredentialResult>;
+  /** `true` si l'hôte offre le stockage d'identifiants : seul cas où l'outil `store_credential` est exposé. */
+  readonly canStoreCredential: boolean;
+  /**
    * Consigne de continuation (niveau `relentless`) : `null` s'il ne reste aucune piste ouverte ou
    * si l'arrêt d'urgence du projet est posé (ou illisible, fail-closed) ; sinon une consigne courte
    * qui liste au plus 5 pistes et `openLeads`, le nombre total de pistes ouvertes. Pure : n'émet rien.
@@ -328,6 +337,7 @@ export function createMissionDesk({
   now = () => new Date(),
   program,
   programDraft,
+  storeCredential,
   engagement,
   halted,
   campaign,
@@ -345,6 +355,8 @@ export function createMissionDesk({
   program?: () => ProgramStatus;
   /** Écrit un brouillon (texte JSON) dans le projet actif ; absent → `project.absent`. */
   programDraft?: (text: string) => Promise<ProgramStatus>;
+  /** Enregistre un identifiant dans le coffre de l'hôte ; absent → l'outil `store_credential` n'est pas exposé. */
+  storeCredential?: CredentialStore;
   /** État de la fiche d'engagement du projet actif (lecture synchrone) ; seule une fiche `approved` est injectée. */
   engagement?: () => EngagementStatus;
   /** Arrêt d'urgence du projet actif (lecture synchrone) ; illisible → traité comme actif (fail-closed). */
@@ -874,6 +886,16 @@ export function createMissionDesk({
         canClose: status.canClose,
         ...(closure && { closure }),
       };
+    },
+    canStoreCredential: storeCredential !== undefined,
+    async storeCredential(input) {
+      assertOpen();
+      if (storeCredential === undefined) throw new CodedError("project.absent");
+      // Défense en profondeur : appris ici aussi (le recorder l'a déjà fait à la demande d'outil).
+      recorder.addSecret(input.secret);
+      const result = await storeCredential(input);
+      // Jamais l'écho du secret : seulement l'état et l'identifiant du compte.
+      return { ok: result.ok === true, ...(result.ok === true && result.id && { id: result.id }) };
     },
     async draftProgram(raw) {
       assertOpen();

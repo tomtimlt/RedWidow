@@ -18,6 +18,7 @@ import {
   appendDeskNote,
   BASH_TOOL,
   CodedError,
+  CREDENTIAL_TOOL,
   capOutput,
   createMissionDesk,
   DEFAULT_MAX_RESULT_BYTES,
@@ -351,6 +352,9 @@ async function runWithSdk(
         ...(context.supervision !== undefined && { supervision: context.supervision }),
         ...(context.program !== undefined && { program: context.program }),
         ...(context.programDraft !== undefined && { programDraft: context.programDraft }),
+        ...(context.storeCredential !== undefined && {
+          storeCredential: context.storeCredential,
+        }),
         ...(context.engagement !== undefined && { engagement: context.engagement }),
         ...(context.halted !== undefined && { halted: context.halted }),
         ...(context.campaign !== undefined && { campaign: context.campaign }),
@@ -887,6 +891,14 @@ async function runWithSdkWithDesk(
           ? AUTH_ERRORS[message.error as keyof typeof AUTH_ERRORS]
           : undefined;
         if (authError) recorder.emit({ kind: "error", ...reason(authError) }, parentId);
+        // Le secret d'un identifiant à enregistrer est appris avant d'émettre quoi que ce soit du message
+        // (texte et réflexion compris) : le recorder masque aussi l'entrée de l'appel lui-même.
+        for (const block of blocks(message.message.content)) {
+          if (block.type === "tool_use" && block.name === CREDENTIAL_TOOL) {
+            const secret = (block.input as { secret?: unknown } | null)?.secret;
+            if (typeof secret === "string") recorder.addSecret(secret);
+          }
+        }
         for (const block of blocks(message.message.content)) {
           if (block.type === "text" && typeof block.text === "string" && block.text.trim()) {
             recorder.emit({ kind: "agent.text", text: block.text }, parentId);

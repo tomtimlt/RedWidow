@@ -77,6 +77,11 @@ export interface RunContext {
   program?: () => import("./program/store.js").ProgramStatus;
   /** Écrit un brouillon de fiche (texte JSON) dans le projet actif ; `project.absent` sans projet. */
   programDraft?: (text: string) => Promise<import("./program/store.js").ProgramStatus>;
+  /**
+   * Stockage d'identifiants de l'hôte : expose l'outil `store_credential`. Absent (hôte sans coffre,
+   * ou apprentissage) : l'outil n'existe pas. Le secret n'en revient jamais.
+   */
+  storeCredential?: import("./credential.js").CredentialStore;
   /** Fiche d'engagement du projet actif (ADR 0041) : injectée dans `mission_context` si approuvée. */
   engagement?: () => import("./engagement/store.js").EngagementStatus;
   /** Arrêt d'urgence du projet actif (ADR 0041), exposé dans `mission_context`. */

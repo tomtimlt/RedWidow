@@ -103,6 +103,14 @@ export interface ChatSessionDeps {
   getToken(provider?: Provider): Promise<TokenChoice | undefined>;
   getTestAccounts?(): Promise<import("@warband/core").TestAccount[]>;
   /**
+   * Coffre d'identifiants de l'hôte (hôte serveur) : sa seule présence annonce la capacité au moteur
+   * (`credentialStore`) et expose l'outil `store_credential`. Absent (VS Code) : l'outil n'existe pas
+   * et toute demande reçue est refusée. La demande porte un secret : ne jamais la journaliser.
+   */
+  onCredential?(
+    request: import("@warband/core").CredentialInput,
+  ): Promise<import("@warband/core").CredentialResult>;
+  /**
    * Sans jeton, le chat est grisé (`noProvider`) et aucun message ne part. Absent : le binaire garde
    * son authentification `auto` (comportement historique, et celui des tests).
    */
@@ -545,12 +553,17 @@ export function createChatSession(deps: ChatSessionDeps) {
       stopEngine(ctl);
       touch();
     };
+    const store = deps.onCredential;
     const ctl = make({
       enginePath: deps.enginePath,
       args: deps.engineArgs,
       cwd: deps.cwd,
       ...(token?.auth && { auth: token.auth }),
       handlers: {
+        ...(store && {
+          onCredential: (request) =>
+            detached.has(ctl) ? Promise.resolve({ ok: false }) : store(request),
+        }),
         onMissionContext: (snapshot) => {
           if (!detached.has(ctl)) deps.onMissionContext?.(snapshot);
         },
@@ -699,6 +712,7 @@ export function createChatSession(deps: ChatSessionDeps) {
     if (revision !== navigationRev || detached.has(ctl)) return null;
     await ctl.start({
       ...(testAccounts && { testAccounts }),
+      ...(!learning && deps.onCredential && { credentialStore: true }),
       cwd: deps.cwd,
       auth: token?.mode ?? "auto",
       provider: prefs.provider,

@@ -15,6 +15,7 @@ export * from "./cours/confine.js";
 export * from "./cours/instructions.js";
 export * from "./cours/policy.js";
 export * from "./cours/tool-specs.js";
+export * from "./credential.js";
 export * from "./docker/client.js";
 export * from "./docker/image-progress.js";
 export * from "./docker/output-capture.js";

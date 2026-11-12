@@ -38,6 +38,8 @@ export interface BridgeDepsContext {
   onProviders?: ChatSessionDeps["onProviders"];
   /** Comptes de test du projet actif (stockage serveur, ADR 0052) ; absent : aucun compte. */
   getTestAccounts?: ChatSessionDeps["getTestAccounts"];
+  /** Enregistre un identifiant de l'agent dans le coffre du serveur ; sa présence annonce la capacité au moteur. */
+  onCredential?: ChatSessionDeps["onCredential"];
   onObservedEvent?(event: EngineEvent | null): void;
   /**
    * Réserve de clés (ADR 0052, point 6) : clé active d'un fournisseur ; `undefined` sans réserve utilisable,
@@ -109,6 +111,7 @@ export function buildChatDeps(ctx: BridgeDepsContext): ChatSessionDeps {
     ...(ctx.onLog && { onLog: ctx.onLog }),
     ...(ctx.onProviders && { onProviders: ctx.onProviders }),
     ...(ctx.getTestAccounts && { getTestAccounts: ctx.getTestAccounts }),
+    ...(ctx.onCredential && { onCredential: ctx.onCredential }),
     ...(ctx.onObservedEvent && { onObservedEvent: ctx.onObservedEvent }),
     ...(ctx.createController && { createController: ctx.createController }),
     ...(ctx.bypass && { bypass: ctx.bypass }),

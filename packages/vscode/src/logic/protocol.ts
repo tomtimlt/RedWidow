@@ -4,6 +4,8 @@ import {
   type BurpConfig,
   BYPASS_MAX_MS,
   type BypassState,
+  type CredentialInput,
+  credentialInputSchema,
   type Decision,
   type Effort,
   type EngineEvent,
@@ -45,6 +47,11 @@ export const MAX_PROMPT_CHARS = 1_000_000;
 
 export interface StartParams {
   testAccounts?: TestAccount[];
+  /**
+   * Capacité annoncée par l'hôte : il sait enregistrer un identifiant dans son coffre (message
+   * `credential`). Seule cette annonce expose l'outil `store_credential` à l'agent. Additive.
+   */
+  credentialStore?: boolean;
   webSearch?: boolean;
   opencodeProviders?: OpencodeProviders;
   integrations?: IntegrationConfig[];
@@ -98,7 +105,12 @@ export type ToEngine =
    * État du Bypass (ADR 0006, décision 6) : instants absolus, `seq` strictement croissant par moteur.
    * `null` = inactif. Le moteur n'en garde qu'un miroir en lecture.
    */
-  | { v: 1; type: "bypass"; seq: number; state: BypassState | null };
+  | { v: 1; type: "bypass"; seq: number; state: BypassState | null }
+  /** Réponse à `credential` : `ok` et l'identifiant du compte créé, jamais de valeur secrète. */
+  | { v: 1; type: "credentialAck"; requestId: string; ok: boolean; id?: string };
+
+/** Demande d'enregistrement d'un identifiant (outil `store_credential`). Porte un secret : jamais journalisée ni masquée-puis-perdue. */
+export type CredentialRequest = CredentialInput & { requestId: string };
 
 /** Moteur → parent. */
 export type FromEngine =
@@ -111,7 +123,12 @@ export type FromEngine =
   | { v: 1; type: "ended"; summary: EndedSummary }
   | { v: 1; type: "error"; reason: ErrorInfo }
   /** Accusé du miroir : `state` est l'état réellement retenu (`null` si inactif ou refusé). */
-  | { v: 1; type: "bypassAck"; seq: number; state: BypassState | null };
+  | { v: 1; type: "bypassAck"; seq: number; state: BypassState | null }
+  /**
+   * Un identifiant découvert par l'agent, à stocker dans le coffre de l'hôte (additif, version inchangée).
+   * Porte le secret en clair : l'hôte ne le journalise pas et répond par `credentialAck`.
+   */
+  | ({ v: 1; type: "credential" } & CredentialRequest);
 
 export type Parsed<T> = { ok: true; message: T } | { ok: false; reason: Reason };
 
@@ -173,6 +190,7 @@ const START_KEYS = [
   "profile",
   "webSearch",
   "testAccounts",
+  "credentialStore",
 ] as const;
 
 /** Valide un état du Bypass : `null`, ou bornes entières de 1 minute à `BYPASS_MAX_MS`, ou sans échéance. */
@@ -191,9 +209,22 @@ function validBypassState(value: unknown): boolean {
 const validSeq = (value: unknown): value is number =>
   typeof value === "number" && Number.isSafeInteger(value) && value >= 1;
 
+/** Identifiant de corrélation d'une demande d'identifiant : chaîne non vide et bornée. */
+const validRequestId = (value: unknown): value is string =>
+  isString(value) && value !== "" && value.length <= 200;
+
 /** Valide un message reçu par le moteur. */
 export function parseToEngine(raw: unknown): Parsed<ToEngine> {
-  const env = envelope(raw, ["start", "models", "prompt", "answer", "abort", "dispose", "bypass"]);
+  const env = envelope(raw, [
+    "start",
+    "models",
+    "prompt",
+    "answer",
+    "abort",
+    "dispose",
+    "bypass",
+    "credentialAck",
+  ]);
   if (!env.ok) return env;
   const { obj, type } = env.message;
   const extra = (keys: readonly string[]) => onlyKeys(obj, keys);
@@ -213,6 +244,11 @@ export function parseToEngine(raw: unknown): Parsed<ToEngine> {
         return bad("testAccounts");
       if (obj.webSearch !== undefined && typeof obj.webSearch !== "boolean")
         return bad("webSearch");
+      if (
+        obj.credentialStore !== undefined &&
+        (typeof obj.credentialStore !== "boolean" || obj.mode === "learning")
+      )
+        return bad("credentialStore");
       unexpected = extra(START_KEYS);
       if (unexpected) return bad(unexpected, "unexpected");
       if (!isString(obj.cwd) || obj.cwd === "" || !isAbsolute(obj.cwd)) return bad("cwd");
@@ -317,6 +353,14 @@ export function parseToEngine(raw: unknown): Parsed<ToEngine> {
       if (!validSeq(obj.seq)) return bad("seq");
       if (!validBypassState(obj.state)) return bad("state");
       return { ok: true, message: obj as ToEngine };
+    case "credentialAck":
+      unexpected = extra(["v", "type", "requestId", "ok", "id"]);
+      if (unexpected) return bad(unexpected, "unexpected");
+      if (!validRequestId(obj.requestId)) return bad("requestId");
+      if (typeof obj.ok !== "boolean") return bad("ok");
+      if (obj.id !== undefined && (!isString(obj.id) || obj.id === "" || obj.id.length > 200))
+        return bad("id");
+      return { ok: true, message: obj as ToEngine };
     default:
       unexpected = extra(["v", "type"]);
       if (unexpected) return bad(unexpected, "unexpected");
@@ -379,6 +423,7 @@ export function parseFromEngine(raw: unknown): Parsed<FromEngine> {
     "ended",
     "error",
     "bypassAck",
+    "credential",
   ]);
   if (!env.ok) return env;
   const { obj, type } = env.message;
@@ -394,6 +439,7 @@ export function parseFromEngine(raw: unknown): Parsed<FromEngine> {
       ended: ["v", "type", "summary"],
       error: ["v", "type", "reason"],
       bypassAck: ["v", "type", "seq", "state"],
+      credential: ["v", "type", "requestId", "label", "login", "secret", "kind", "programme"],
     }[type] as string[],
   );
   if (unexpected) return bad(unexpected, "unexpected");
@@ -444,6 +490,13 @@ export function parseFromEngine(raw: unknown): Parsed<FromEngine> {
     case "bypassAck":
       if (!validSeq(obj.seq)) return bad("seq");
       return validBypassState(obj.state) ? ok : bad("state");
+    case "credential": {
+      if (!validRequestId(obj.requestId)) return bad("requestId");
+      const { v: _v, type: _type, requestId: _requestId, ...input } = obj;
+      // Le nom du champ fautif suffit : la valeur n'est jamais recopiée dans le motif.
+      const checked = credentialInputSchema.safeParse(input);
+      return checked.success ? ok : bad(String(checked.error.issues[0]?.path[0] ?? "credential"));
+    }
     default:
       return ok;
   }

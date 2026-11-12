@@ -3,6 +3,8 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   CodedError,
+  type CredentialInput,
+  type CredentialResult,
   defaultConfigDir,
   type EngineEvent,
   errorInfo,
@@ -252,6 +254,44 @@ export class MissionHub {
     }
   }
 
+  /**
+   * Identifiant découvert par l'agent (outil `store_credential`) : secret au coffre, métadonnées dans l'état,
+   * diffusion `accounts` sans valeur, audit sans valeur. Programme : celui demandé, sinon le projet actif ;
+   * sans l'un ni l'autre, refus. Libellé déjà pris ou plafond atteint : refus. Jamais d'exception qui citerait le secret.
+   */
+  private async storeAgentCredential(request: CredentialInput): Promise<CredentialResult> {
+    if (this.disposed) return { ok: false };
+    try {
+      const programme = request.programme ?? (await this.activeProject())?.id;
+      if (programme === undefined) return { ok: false };
+      const meta = await this.accounts.add(
+        {
+          programme,
+          label: request.label,
+          login: request.login ?? "",
+          secret: request.secret,
+          kind: request.kind,
+        },
+        "agent",
+      );
+      if (meta === null) return { ok: false };
+      this.audit({
+        kind: "account.add",
+        id: meta.id,
+        programme: meta.programme,
+        label: meta.label,
+        createdBy: "agent",
+      });
+      const items = this.accounts.list();
+      for (const sink of this.shell) sink.send("shell", SHELL_FRAME, { type: "accounts", items });
+      // Le moteur courant ne connaît pas ce compte : le suivant (au prochain message) le recevra.
+      for (const f of this.frames.values()) f.session.testAccountsChanged();
+      return { ok: true, id: meta.id };
+    } catch {
+      return { ok: false };
+    }
+  }
+
   /** Projet actif (identifiant et nom), `null` sans projet ou si le fichier est illisible. */
   private async activeProject(): Promise<{ id: string; name: string } | null> {
     const choices = await readProjectChoices(this.configDir).catch(() => null);
@@ -300,6 +340,7 @@ export class MissionHub {
         },
         bypass: f.bypass,
         getTestAccounts: async () => this.accounts.testAccountsFor(await this.activeProject()),
+        onCredential: (request) => this.storeAgentCredential(request),
         ...(this.options.onLog && { onLog: this.options.onLog }),
         createController: (o) =>
           this.guardStart((this.options.createController ?? createEngineController)(o)),

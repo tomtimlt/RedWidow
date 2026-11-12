@@ -84,6 +84,62 @@ const hasText = (events: EngineEvent[], text: string) =>
   events.some((e) => JSON.stringify(e).includes(text));
 
 describe("contrôleur + moteur enfant (processus forké, QueryFn factice)", () => {
+  describe("message credential (identifiant de l'agent)", () => {
+    const REQUEST = {
+      label: "ADMIN",
+      login: "root",
+      secret: "tok_0123456789abcdef",
+      kind: "token",
+    };
+    /** Moteur minimal : émet `credential` au `start` et consigne l'accusé reçu dans un fichier. */
+    async function ack(handler?: EngineHandlers["onCredential"]) {
+      const out = join(dir, `ack-${Math.random().toString(36).slice(2)}.json`);
+      const fake = join(dir, `credential-${Math.random().toString(36).slice(2)}.mjs`);
+      await writeFile(
+        fake,
+        `import { writeFileSync } from "node:fs";
+process.send({v:1,type:"ready"});
+process.on("message",(m)=>{
+  if(m.type==="start") process.send({v:1,type:"credential",requestId:"r1",...${JSON.stringify(REQUEST)}});
+  else if(m.type==="credentialAck"){ writeFileSync(${JSON.stringify(out)}, JSON.stringify(m)); process.exit(0); }
+});`,
+      );
+      const c = collect();
+      const ctl = createEngineController({
+        enginePath: fake,
+        handlers: { ...c.handlers, ...(handler && { onCredential: handler }) },
+      });
+      await ctl.start({ cwd: dir });
+      await ctl.exited;
+      return { ack: JSON.parse(await readFile(out, "utf8")), c };
+    }
+
+    it("sans gestionnaire (hôte sans coffre) : répond ok:false", async () => {
+      const { ack: a, c } = await ack();
+      expect(a).toEqual({ v: 1, type: "credentialAck", requestId: "r1", ok: false });
+      expect(JSON.stringify(c.logs)).not.toContain(REQUEST.secret);
+    });
+
+    it("avec gestionnaire : transmet la demande et renvoie ok + id (jamais le secret)", async () => {
+      const seen: unknown[] = [];
+      const { ack: a } = await ack(async (request) => {
+        seen.push(request);
+        return { ok: true, id: "acc-1" };
+      });
+      expect(seen).toEqual([REQUEST]);
+      expect(a).toEqual({ v: 1, type: "credentialAck", requestId: "r1", ok: true, id: "acc-1" });
+    });
+
+    it("gestionnaire en échec : ok:false, sans erreur relayée", async () => {
+      const { ack: a, c } = await ack(async () => {
+        throw new Error(`échec ${REQUEST.secret}`);
+      });
+      expect(a).toMatchObject({ ok: false });
+      expect(a.id).toBeUndefined();
+      expect(c.errors).toEqual([]);
+    });
+  });
+
   it("reconstitue stderr avant masquage, puis conserve les 20 dernières lignes", async () => {
     const fake = join(dir, "stderr-fragments.mjs");
     await writeFile(
