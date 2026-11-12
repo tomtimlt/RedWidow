@@ -285,12 +285,41 @@ describe("types de fenêtres", () => {
     expect(types.NATIVE_SCREENS.map((s: { name: string }) => s.name)).toContain("settings");
   });
 
+  it("nouvelle mission : identifiant m-<6 base36>, fenêtre de chat, menu en trois groupes", () => {
+    const id = types.newMissionId();
+    expect(id).toMatch(/^m-[0-9a-z]{6}$/);
+    expect(types.newMissionId()).not.toBe(id);
+    expect(types.iframeSpec("mission", id)).toMatchObject({ key: `chat:${id}`, view: "chat" });
+    expect(types.MENU_GROUPS.map((g: { title: string }) => g.title)).toEqual([
+      "Mission",
+      "Outils",
+      "Écrans",
+    ]);
+    const actions = types.MENU_GROUPS.flatMap((g: { entries: { action: string }[] }) =>
+      g.entries.map((e) => e.action),
+    );
+    for (const a of [
+      "newMission",
+      "fixed:cockpit",
+      "fixed:studio",
+      "forMission:graph",
+      "terminal",
+    ]) {
+      expect(actions).toContain(a);
+    }
+    expect(types.iframeSpec("studio", "main")?.title).toBe("Projets et réglages");
+  });
+
   it("lien profond → fenêtre", () => {
     const spec = (hash: string) => types.specFromRoute(frames.parseDeepLink(hash));
     expect(spec("#w=approbations")?.key).toBe("native:approvals");
     expect(spec("#w=mission:m1")?.key).toBe("chat:m1");
     expect(spec("#w=monitor:r_2")?.key).toBe("viewer:r_2");
     expect(spec("#w=graphe:m1")?.key).toBe("killchain:m1");
+    expect(spec("#w=killchain:m1")?.key).toBe("killchain:m1");
+    expect(spec("#w=cockpit")?.key).toBe("cockpit:main");
+    expect(spec("#w=studio")?.key).toBe("studio:main");
+    expect(spec("#w=sessions")?.key).toBe("sessions:main");
     expect(spec("#w=programme:p1")?.key).toBe("program:p1");
     expect(spec("#w=conteneurs")?.key).toBe("native:containers");
     expect(spec("#w=reglages")?.key).toBe("native:settings");

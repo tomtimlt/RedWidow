@@ -230,6 +230,11 @@ describe("liens profonds", () => {
   it("fenêtres à instance et écrans natifs", () => {
     expect(parseDeepLink("#w=monitor:r1")).toEqual({ kind: "monitor", id: "r1" });
     expect(parseDeepLink("#w=graphe:m1")).toEqual({ kind: "graph", id: "m1" });
+    expect(parseDeepLink("#w=killchain:m1")).toEqual({ kind: "graph", id: "m1" });
+    expect(parseDeepLink("#w=cockpit")).toEqual({ kind: "cockpit", id: "main" });
+    expect(parseDeepLink("#w=studio")).toEqual({ kind: "studio", id: "main" });
+    expect(parseDeepLink("#w=sessions")).toEqual({ kind: "sessions", id: "main" });
+    expect(parseDeepLink("#w=cockpit:x")).toBeNull();
     expect(parseDeepLink("#w=conteneurs")).toEqual({ kind: "native", name: "containers" });
     expect(parseDeepLink("#w=constructor")).toBeNull();
     expect(parseDeepLink("#w=toString:x")).toBeNull();
@@ -396,6 +401,36 @@ describe("bridge.js", () => {
       b.fire("keydown", ev);
       expect(ev.preventDefault).not.toHaveBeenCalled();
     }
+    expect(b.parentPosts).toHaveLength(before);
+  });
+
+  it("relaie l'accord Alt+J puis N, K, S ou T, et rien d'autre", () => {
+    const b = runBridge();
+    for (const [code, id] of [
+      ["KeyN", "Alt+J N"],
+      ["KeyK", "Alt+J K"],
+      ["KeyS", "Alt+J S"],
+      ["KeyT", "Alt+J T"],
+    ]) {
+      const first = keyEvent({ altKey: true, code: "KeyJ" });
+      b.fire("keydown", first);
+      expect(first.preventDefault).toHaveBeenCalled();
+      const second = keyEvent({ code });
+      b.fire("keydown", second);
+      expect(second.preventDefault).toHaveBeenCalled();
+      expect(b.parentPosts.at(-1)).toEqual([{ rw: 1, key: id }, ORIGIN]);
+    }
+    const before = b.parentPosts.length;
+    // Lettre seule, autre lettre après Alt+J, Ctrl : aucune relance, la lettre reste à la page.
+    const lone = keyEvent({ code: "KeyN" });
+    b.fire("keydown", lone);
+    b.fire("keydown", keyEvent({ altKey: true, code: "KeyJ" }));
+    const other = keyEvent({ code: "KeyX" });
+    b.fire("keydown", other);
+    b.fire("keydown", keyEvent({ altKey: true, code: "KeyJ" }));
+    const withCtrl = keyEvent({ ctrlKey: true, code: "KeyN" });
+    b.fire("keydown", withCtrl);
+    for (const ev of [lone, other, withCtrl]) expect(ev.preventDefault).not.toHaveBeenCalled();
     expect(b.parentPosts).toHaveLength(before);
   });
 

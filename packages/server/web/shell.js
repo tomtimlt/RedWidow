@@ -39,18 +39,21 @@ import {
 } from "./wm/layouts.js";
 import { createMobile } from "./wm/mobile.js";
 import {
+  CHORD_TEXT,
   iframeSpec,
-  NATIVE_SCREENS,
+  MENU_GROUPS,
   nativeSpec,
+  newMissionId,
   newTerminalId,
   specFromRoute,
-  TERMINAL_ENTRY,
   terminalSpec,
 } from "./wm/types.js";
 
 const SHELL = "shell";
-/** Entrées des menus « Ouvrir » (dock, palette) : écrans natifs puis « Nouveau terminal ». */
-const MENU_SCREENS = [...NATIVE_SCREENS, TERMINAL_ENTRY];
+/** Écrans natifs du menu « Ouvrir » (palette) : ceux du groupe Écrans, puis « Nouveau terminal ». */
+const MENU_SCREENS = MENU_GROUPS.flatMap((g) => g.entries)
+  .filter((e) => e.action.startsWith("native:") || e.action === "terminal")
+  .map((e) => ({ name: e.action === "terminal" ? "terminal" : e.action.slice(7), title: e.title }));
 /** Au-delà, l'arrêt d'urgence demandé sans écho du serveur redevient « inconnu ». */
 const HALT_ECHO_MS = 8000;
 
@@ -171,7 +174,15 @@ const frames = createFrameHost({
   container: $("desktop"),
   doc: document,
   origin: location.origin,
-  send: (view, frame, msg) => channel.send(view, frame, msg),
+  send: (view, frame, msg) => {
+    // Le chat sans fournisseur demande `addProvider` (ou `openSystem`) : la coquille ouvre l'écran natif
+    // Fournisseurs ; le serveur ne reçoit rien. Liste fermée, aucune réponse d'approbation.
+    if (view === "chat" && (msg.type === "addProvider" || msg.type === "openSystem")) {
+      desktop.open(nativeSpec("providers"));
+      return true;
+    }
+    return channel.send(view, frame, msg);
+  },
   onFocus: (entry) => desktop.focus(entry.key),
   // Raccourcis relayés par les ponts des pages : même table que le clavier de la coquille.
   onKey: (key) => handleShortcut(key, "frame"),
@@ -278,6 +289,11 @@ const desktop = createDesktop({
   },
   onChange: () => render(),
   onLayout: () => scheduleSave(),
+  emptyActions: [
+    { id: "newMission", title: "Nouvelle mission", run: () => newMission() },
+    { id: "cockpit", title: "Cockpit", run: () => openFixed("cockpit") },
+    { id: "providers", title: "Fournisseurs", run: () => desktop.open(nativeSpec("providers")) },
+  ],
 });
 
 const openApprovals = () => desktop.open(nativeSpec("approvals"));
@@ -296,6 +312,56 @@ document.addEventListener("click", (event) => {
   openRoute(link.getAttribute("href"));
 });
 
+/** Nouvelle conversation : identifiant généré, fenêtre Mission ouverte et focalisée. */
+function newMission() {
+  const spec = iframeSpec("mission", newMissionId());
+  if (spec !== null) desktop.open(spec);
+}
+/** Vue à identifiant fixe (`main`) : cockpit, sessions, studio. */
+function openFixed(kind) {
+  const spec = iframeSpec(kind, "main");
+  if (spec !== null) desktop.open(spec);
+}
+/**
+ * Kill chain ou rapport : de la mission au premier plan (ou, à défaut, la plus récente fenêtre de mission) ;
+ * sans mission ouverte, la palette demande l'identifiant.
+ */
+function openForMission(kind) {
+  const snap = desktop
+    .snapshot()
+    .filter((w) => w.type === "mission" && typeof w.frame === "string");
+  const active = desktop.activeKey();
+  const pick = snap.find((w) => w.key === active) ?? snap.at(-1);
+  if (pick) {
+    const spec = iframeSpec(kind, pick.frame);
+    if (spec !== null) desktop.open(spec);
+    return;
+  }
+  palette.openPrompt({
+    placeholder: `Identifiant de la mission (${kind === "graph" ? "kill chain" : "rapport"})`,
+    help: "Lettres, chiffres, « - » et « _ » (64 au plus). Entrée pour ouvrir.",
+    submit(text) {
+      const spec = iframeSpec(kind, text.trim());
+      if (spec === null) return "Identifiant refusé.";
+      desktop.open(spec);
+      return undefined;
+    },
+  });
+}
+/** Entrée du menu « Ouvrir » du dock → ouverture. */
+function openEntry(action) {
+  if (action === "newMission") newMission();
+  else if (action === "terminal") {
+    const spec = newTerminal();
+    if (spec) desktop.open(spec);
+  } else if (action.startsWith("fixed:")) openFixed(action.slice(6));
+  else if (action.startsWith("forMission:")) openForMission(action.slice(11));
+  else if (action.startsWith("native:")) {
+    const spec = nativeSpec(action.slice(7));
+    if (spec) desktop.open(spec);
+  }
+}
+
 dock = createDock({
   doc: document,
   refs: {
@@ -306,10 +372,13 @@ dock = createDock({
     spaceButton: $("dock-space"),
     spaceMenu: $("dock-space-menu"),
   },
-  screens: MENU_SCREENS,
+  groups: MENU_GROUPS.map((g) => ({
+    title: g.title,
+    entries: g.entries.map((e) => ({ ...e, hint: CHORD_TEXT[e.action] })),
+  })),
   onActivate: (key) => desktop.focus(key),
   onMinimize: (key) => desktop.minimize(key),
-  onOpenScreen: (name) => desktop.open(name === "terminal" ? newTerminal() : nativeSpec(name)),
+  onOpenEntry: openEntry,
   onSpace: (name) => applySpace(name),
   onSpaceSave: () => palette.openPrompt(saveSpacePrompt()),
 });
@@ -410,6 +479,15 @@ function hydrate(parsed) {
     state.spaceName = spaceNameOf(parsed.current);
     if (!onPhone()) applyLayout(parsed.current);
   }
+  // Premier lancement (ni disposition courante ni espace enregistré) : une mission s'ouvre à côté des
+  // approbations, sauf si un lien profond demande autre chose.
+  if (
+    parsed.current === null &&
+    parsed.saved.length === 0 &&
+    parseDeepLink(location.hash) === null
+  ) {
+    newMission();
+  }
   openRoute(location.hash);
   saver.enable(true);
   renderSpaces();
@@ -460,9 +538,21 @@ function refreshLists() {
   sendShell({ type: "runsList" });
 }
 const FIXED_VIEWS = [
-  { kind: "cockpit", id: "main", title: "Ouvrir le cockpit" },
-  { kind: "sessions", id: "main", title: "Ouvrir les sessions" },
-  { kind: "studio", id: "main", title: "Ouvrir le studio" },
+  {
+    kind: "cockpit",
+    id: "main",
+    title: "Cockpit",
+    keywords: "ouvrir tableau de bord",
+    shortcutText: CHORD_TEXT["fixed:cockpit"],
+  },
+  { kind: "sessions", id: "main", title: "Sessions", keywords: "ouvrir historique" },
+  {
+    kind: "studio",
+    id: "main",
+    title: "Projets et réglages",
+    keywords: "ouvrir studio projet programme fournisseurs",
+    shortcutText: CHORD_TEXT["fixed:studio"],
+  },
 ];
 
 const palette = createPalette({
@@ -487,6 +577,7 @@ const palette = createPalette({
       spec: specFor,
       actions: {
         open: (spec) => spec && desktop.open(spec),
+        newMission,
         focus: (key) => desktop.focus(key),
         tile: (key, kind) => desktop.tile(key, kind),
         tileAll,
@@ -531,11 +622,19 @@ function handleShortcut(id, source) {
         if (spec) desktop.open(spec);
       },
       approvals: () => openApprovals(),
+      newMission,
+      cockpit: () => openFixed("cockpit"),
+      studio: () => openFixed("studio"),
     },
     source,
   );
 }
-attachShortcuts(document, (id) => handleShortcut(id, "shell"));
+// `Alt+J` + lettre : jamais armé palette ouverte ni dans un terminal (les Alt+lettre y appartiennent au shell).
+attachShortcuts(
+  document,
+  (id) => handleShortcut(id, "shell"),
+  () => !palette.isOpen() && !terminalFocused(),
+);
 
 // ───────────────────────────── Rendu ─────────────────────────────
 

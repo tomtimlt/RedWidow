@@ -15,7 +15,47 @@ export const SHORTCUT_LABELS = {
   "Ctrl+Alt+`": "Ctrl Alt `",
   "Ctrl+Alt+T": "Ctrl Alt T",
   "Ctrl+Alt+A": "Ctrl Alt A",
+  "Alt+J N": "Alt J N",
+  "Alt+J K": "Alt J K",
+  "Alt+J S": "Alt J S",
+  "Alt+J T": "Alt J T",
 };
+
+/** Délai (ms) pour taper la lettre après `Alt+J` (comme l'extension). */
+export const CHORD_MS = 1500;
+const CHORD_CODES = { KeyN: "Alt+J N", KeyK: "Alt+J K", KeyS: "Alt+J S", KeyT: "Alt+J T" };
+const MODIFIER_CODES = /^(Alt|Control|Shift|Meta)(Left|Right)$/;
+
+/**
+ * Accord à deux frappes `Alt+J` puis N, K, S ou T (liste fermée, la même que `bridge.js`). `feed(event)`
+ * rend `{ id, consume }` : `consume` vrai pour `Alt+J` et la lettre qui suit (l'appelant les retient), `id`
+ * non nul quand l'accord est complet. Ctrl, Méta et AltGr ne participent jamais ; une autre touche désarme.
+ */
+export function createChord(now = () => Date.now()) {
+  let armedAt = Number.NEGATIVE_INFINITY;
+  return {
+    feed(e) {
+      const none = { id: null, consume: false };
+      if (e.ctrlKey || e.metaKey) {
+        armedAt = Number.NEGATIVE_INFINITY;
+        return none;
+      }
+      if (typeof e.getModifierState === "function" && e.getModifierState("AltGraph")) return none;
+      const code = typeof e.code === "string" ? e.code : "";
+      if (MODIFIER_CODES.test(code)) return none;
+      const armed = now() - armedAt <= CHORD_MS;
+      armedAt = Number.NEGATIVE_INFINITY;
+      if (armed && !e.shiftKey && Object.hasOwn(CHORD_CODES, code)) {
+        return { id: CHORD_CODES[code], consume: true };
+      }
+      if (e.altKey && !e.shiftKey && code === "KeyJ") {
+        armedAt = now();
+        return { id: null, consume: true };
+      }
+      return none;
+    },
+  };
+}
 
 /** `Ctrl+Alt+<n>` : numéro de l'espace de travail (1 à 9), ou `null`. */
 export function spaceIndexOf(id) {
@@ -62,6 +102,9 @@ export function shortcutOf(e) {
  * @param {() => void} actions.cycle
  * @param {() => void} actions.terminal
  * @param {() => void} actions.approvals
+ * @param {() => void} actions.newMission nouvelle mission (Alt J N)
+ * @param {() => void} actions.cockpit
+ * @param {() => void} actions.studio
  * @param {"shell"|"frame"} [source]
  */
 export function runShortcut(id, actions, source = "shell") {
@@ -96,7 +139,17 @@ export function runShortcut(id, actions, source = "shell") {
       actions.cycle();
       return true;
     case "Ctrl+Alt+T":
+    case "Alt+J T":
       actions.terminal();
+      return true;
+    case "Alt+J N":
+      actions.newMission();
+      return true;
+    case "Alt+J K":
+      actions.cockpit();
+      return true;
+    case "Alt+J S":
+      actions.studio();
       return true;
     case "Ctrl+Alt+A":
       actions.approvals();
@@ -106,10 +159,23 @@ export function runShortcut(id, actions, source = "shell") {
   }
 }
 
-/** Écoute le clavier de la coquille. `onShortcut(id, event)` décide ; `true` empêche l'action par défaut. */
-export function attachShortcuts(doc, onShortcut) {
+/**
+ * Écoute le clavier de la coquille. `onShortcut(id, event)` décide ; `true` empêche l'action par défaut.
+ * `chordEnabled()` faux (palette ouverte, terminal focalisé) : `Alt+J` n'arme rien et reste à la page.
+ */
+export function attachShortcuts(doc, onShortcut, chordEnabled = () => true) {
+  const chord = createChord();
   const handler = (event) => {
     if (event.defaultPrevented || event.isComposing) return;
+    if (chordEnabled()) {
+      const step = chord.feed(event);
+      if (step.consume) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (step.id !== null) onShortcut(step.id, event);
+        return;
+      }
+    }
     const id = shortcutOf(event);
     if (id === null) return;
     if (onShortcut(id, event)) {

@@ -33,6 +33,10 @@ export const RELAYED_KEYS = [
   "Ctrl+Alt+`",
   "Ctrl+Alt+T",
   "Ctrl+Alt+A",
+  "Alt+J N",
+  "Alt+J K",
+  "Alt+J S",
+  "Alt+J T",
 ];
 
 export const LOAD_TIMEOUT_MS = 15000;
@@ -45,10 +49,13 @@ const DEEP_KINDS = {
   mission: "mission",
   monitor: "monitor",
   graphe: "graph",
+  killchain: "graph",
   rapport: "report",
   programme: "program",
   engagement: "engagement",
 };
+/** Vues à identifiant fixe `main` (`#w=<mot>`). */
+const DEEP_FIXED = { cockpit: "cockpit", sessions: "sessions", studio: "studio" };
 /** Écrans natifs uniques (`#w=<mot>`). */
 const DEEP_NATIVES = {
   conteneurs: "containers",
@@ -73,6 +80,9 @@ export function parseDeepLink(hash) {
   const plain = /^#w=([a-z]+)$/.exec(text);
   if (plain && Object.hasOwn(DEEP_NATIVES, plain[1])) {
     return { kind: "native", name: DEEP_NATIVES[plain[1]] };
+  }
+  if (plain && Object.hasOwn(DEEP_FIXED, plain[1])) {
+    return { kind: DEEP_FIXED[plain[1]], id: "main" };
   }
   return null;
 }

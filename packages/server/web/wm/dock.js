@@ -8,20 +8,20 @@ import { shortTitle } from "./types.js";
  * @param {object} options
  * @param {Document} options.doc
  * @param {{ root: HTMLElement, items: HTMLElement, openButton: HTMLButtonElement, menu: HTMLElement }} options.refs
- * @param {{ name: string, title: string }[]} options.screens écrans natifs du menu « Ouvrir »
+ * @param {{ title: string, entries: { action: string, title: string, hint?: string }[] }[]} options.groups groupes du menu « Ouvrir »
  * @param {(key: string) => void} options.onActivate focaliser ou restaurer
  * @param {(key: string) => void} options.onMinimize clic sur la fenêtre déjà focalisée (bureau)
- * @param {(name: string) => void} options.onOpenScreen
+ * @param {(action: string) => void} options.onOpenEntry entrée du menu « Ouvrir » choisie
  * @param {(name: string) => void} [options.onSpace] basculer vers l'espace de travail enregistré
  * @param {() => void} [options.onSpaceSave] « Enregistrer sous… » (saisie d'un nom dans la palette)
  */
 export function createDock({
   doc,
   refs,
-  screens,
+  groups,
   onActivate,
   onMinimize,
-  onOpenScreen,
+  onOpenEntry,
   onSpace = () => {},
   onSpaceSave = () => {},
 }) {
@@ -71,17 +71,42 @@ export function createDock({
     refs.menu.hidden = !willOpen;
     refs.openButton.setAttribute("aria-expanded", String(willOpen));
   });
-  for (const screen of screens) {
-    const entry = doc.createElement("button");
-    entry.type = "button";
-    entry.className = "dock-menu-item";
-    entry.setAttribute("role", "menuitem");
-    entry.textContent = screen.title;
-    entry.addEventListener("click", () => {
-      closeMenu();
-      onOpenScreen(screen.name);
-    });
-    refs.menu.append(entry);
+  // Menu « Ouvrir » en groupes (Mission / Outils / Écrans) : un titre, puis une grille d'entrées.
+  refs.menu.classList.add("dock-menu-grouped");
+  for (const group of groups) {
+    const section = doc.createElement("div");
+    section.className = "dock-menu-group";
+    section.setAttribute("role", "group");
+    section.setAttribute("aria-label", group.title);
+    const heading = doc.createElement("div");
+    heading.className = "dock-menu-title";
+    heading.setAttribute("aria-hidden", "true");
+    heading.textContent = group.title;
+    const grid = doc.createElement("div");
+    grid.className = "dock-menu-grid";
+    for (const item of group.entries) {
+      const entry = doc.createElement("button");
+      entry.type = "button";
+      entry.className = "dock-menu-item";
+      entry.dataset.action = item.action;
+      entry.setAttribute("role", "menuitem");
+      const label = doc.createElement("span");
+      label.textContent = item.title;
+      entry.append(label);
+      if (item.hint) {
+        const kbd = doc.createElement("kbd");
+        kbd.className = "pal-kbd dock-menu-kbd";
+        kbd.textContent = item.hint;
+        entry.append(kbd);
+      }
+      entry.addEventListener("click", () => {
+        closeMenu();
+        onOpenEntry(item.action);
+      });
+      grid.append(entry);
+    }
+    section.append(heading, grid);
+    refs.menu.append(section);
   }
   doc.addEventListener("pointerdown", (e) => {
     if (!refs.menu.hidden && !refs.root.contains(e.target)) closeMenu();

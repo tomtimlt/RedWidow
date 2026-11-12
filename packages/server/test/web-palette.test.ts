@@ -61,11 +61,12 @@ describe("palette : commandes", () => {
     phone: false,
     known: [{ kind: "mission", id: "m1" }],
     screens: types.NATIVE_SCREENS,
-    fixed: [{ kind: "cockpit", id: "main", title: "Ouvrir le cockpit" }],
+    fixed: [{ kind: "cockpit", id: "main", title: "Cockpit", shortcutText: "Alt J K" }],
     spec: (kind: string, id: string) =>
       kind === "native" ? types.nativeSpec(id) : types.iframeSpec(kind, id),
     actions: {
       open: (s: { key: string }) => sent.push(`open ${s.key}`),
+      newMission: () => sent.push("newMission"),
       focus: (k: string) => sent.push(`focus ${k}`),
       tile: (k: string, t: string) => sent.push(`tile ${k} ${t}`),
       tileAll: () => sent.push("tileAll"),
@@ -76,6 +77,29 @@ describe("palette : commandes", () => {
       halt: () => sent.push("halt"),
     },
     ...over,
+  });
+
+  it("nouvelle mission, cockpit, kill chain et rapport d'une mission ouverte", () => {
+    sent.length = 0;
+    const withMission = ctx({
+      windows: [
+        { key: "chat:m-abc123", title: "Mission m-abc123", type: "mission", frame: "m-abc123" },
+      ],
+    });
+    const commands = pal.buildCommands(withMission);
+    const byId = (id: string) => commands.find((c: { id: string }) => c.id === id);
+    byId("new-mission").run();
+    byId("open:cockpit:main").run();
+    byId("open:graph:m-abc123").run();
+    byId("open:report:m-abc123").run();
+    expect(sent).toEqual([
+      "newMission",
+      "open cockpit:main",
+      "open killchain:m-abc123",
+      "open viewer:m-abc123",
+    ]);
+    expect(byId("new-mission").shortcut).toBe("Alt+J N");
+    expect(byId("open:cockpit:main").shortcutText).toBe("Alt J K");
   });
 
   it("couvre : ouvrir, focaliser, espaces, tuiler, arrêt d'urgence", () => {
@@ -196,6 +220,69 @@ describe("raccourcis", () => {
     ]) {
       expect(frames.RELAYED_KEYS).toContain(id);
     }
+  });
+
+  it("Alt+J puis N, K, S ou T : accord à deux frappes, liste fermée", () => {
+    let t = 0;
+    const chord = sc.createChord(() => t);
+    const key = (code: string, over: Record<string, unknown> = {}) => ({
+      ctrlKey: false,
+      metaKey: false,
+      altKey: false,
+      shiftKey: false,
+      code,
+      getModifierState: () => false,
+      ...over,
+    });
+    // Sans Alt+J, les lettres restent à la page.
+    expect(chord.feed(key("KeyN"))).toEqual({ id: null, consume: false });
+    for (const [code, id] of [
+      ["KeyN", "Alt+J N"],
+      ["KeyK", "Alt+J K"],
+      ["KeyS", "Alt+J S"],
+      ["KeyT", "Alt+J T"],
+    ] as [string, string][]) {
+      expect(chord.feed(key("KeyJ", { altKey: true }))).toEqual({ id: null, consume: true });
+      // Les touches de modification seules ne désarment pas.
+      expect(chord.feed(key("AltLeft", { altKey: true })).consume).toBe(false);
+      expect(chord.feed(key(code))).toEqual({ id, consume: true });
+      expect(frames.RELAYED_KEYS).toContain(id);
+    }
+    // Hors liste, trop tard, Ctrl ou AltGr : rien n'est retenu.
+    chord.feed(key("KeyJ", { altKey: true }));
+    expect(chord.feed(key("KeyX"))).toEqual({ id: null, consume: false });
+    expect(chord.feed(key("KeyN"))).toEqual({ id: null, consume: false });
+    chord.feed(key("KeyJ", { altKey: true }));
+    t += sc.CHORD_MS + 1;
+    expect(chord.feed(key("KeyN"))).toEqual({ id: null, consume: false });
+    chord.feed(key("KeyJ", { altKey: true }));
+    expect(chord.feed(key("KeyN", { ctrlKey: true })).consume).toBe(false);
+    expect(chord.feed(key("KeyN"))).toEqual({ id: null, consume: false });
+    expect(chord.feed(key("KeyJ", { altKey: true, getModifierState: () => true })).consume).toBe(
+      false,
+    );
+  });
+
+  it("les accords déclenchent nouvelle mission, cockpit, studio, terminal (jamais d'approbation)", () => {
+    const calls: string[] = [];
+    const a = {
+      palette: () => calls.push("palette"),
+      terminalFocused: () => false,
+      tile: () => {},
+      maximize: () => {},
+      lower: () => {},
+      space: () => {},
+      cycle: () => {},
+      terminal: () => calls.push("terminal"),
+      approvals: () => calls.push("approvals"),
+      newMission: () => calls.push("newMission"),
+      cockpit: () => calls.push("cockpit"),
+      studio: () => calls.push("studio"),
+    };
+    for (const id of ["Alt+J N", "Alt+J K", "Alt+J S", "Alt+J T"]) {
+      expect(sc.runShortcut(id, a, "frame")).toBe(true);
+    }
+    expect(calls).toEqual(["newMission", "cockpit", "studio", "terminal"]);
   });
 
   const actions = () => {

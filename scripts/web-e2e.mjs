@@ -59,7 +59,17 @@ const sockets = new Set();
 const received = [];
 let approvals = [];
 /** Dispositions enregistrées côté « serveur » (validées par le vrai schéma). */
-let layouts = { current: null, saved: [] };
+/** Disposition courante « Approbations seule » : le bureau d'un utilisateur qui a déjà un espace (pas un premier lancement). */
+const approvalsOnly = () => ({
+  current: {
+    windows: [
+      { id: "approvals", view: "shell", mode: "approvals", x: 0.04, y: 0.04, w: 0.46, h: 0.7 },
+    ],
+    spaces: [{ id: "main", name: "Bureau" }],
+  },
+  saved: [],
+});
+let layouts = approvalsOnly();
 let layoutRejected = 0;
 /** Si faux, un `approve` n'est pas acquitté (la demande reste dans la liste). */
 let acknowledge = true;
@@ -530,6 +540,7 @@ async function scenario(name, viewport) {
   received.length = 0;
   approvals = [];
   acknowledge = true;
+  layouts = approvalsOnly();
 
   // Sans session : redirection vers la connexion, puis connexion.
   await page.goto(`${origin}/#w=approbations`);
@@ -757,7 +768,11 @@ async function scenario(name, viewport) {
 
 const near = (a, b, tol = 1.5) => Math.abs(a - b) <= tol;
 
-async function openSession(name, viewport, { keepLayouts = false, init = null } = {}) {
+async function openSession(
+  name,
+  viewport,
+  { keepLayouts = false, init = null, firstLaunch = false } = {},
+) {
   const context = await browser.newContext({ viewport, deviceScaleFactor: 1 });
   if (init) await context.addInitScript(init);
   const page = await context.newPage();
@@ -774,7 +789,7 @@ async function openSession(name, viewport, { keepLayouts = false, init = null } 
   received.length = 0;
   approvals = [];
   acknowledge = true;
-  if (!keepLayouts) layouts = { current: null, saved: [] };
+  if (!keepLayouts) layouts = firstLaunch ? { current: null, saved: [] } : approvalsOnly();
   layoutRejected = 0;
   await page.goto(`${origin}/login`);
   await page.fill("#password", PASSWORD);
@@ -1040,7 +1055,7 @@ async function desktopScenario(name, viewport) {
   // Menu « Ouvrir ».
   await page.click("#dock-open");
   check(await page.locator("#dock-menu").isVisible(), "menu Ouvrir affiché");
-  await page.locator("#dock-menu .dock-menu-item", { hasText: "Réglages" }).click();
+  await page.locator('#dock-menu .dock-menu-item[data-action="native:settings"]').click();
   check(await win("native:settings").isVisible(), "menu Ouvrir : ouvre l'écran Réglages");
   check(await page.locator("#dock-menu").isHidden(), "menu refermé après le choix");
 
@@ -2189,6 +2204,242 @@ async function terminalPhoneScenario(name, viewport) {
   await context.close();
 }
 
+/** Coquille : premier lancement, bureau vide, menu Ouvrir groupé, palette, liens profonds, accords Alt+J. */
+async function shellScenario(name, viewport) {
+  console.log(
+    `\n== ${name} : coquille, discuter avec l'agent (${viewport.width}x${viewport.height})`,
+  );
+  const phone = viewport.width < 600;
+  const { context, page, violations, win, openHash, shot } = await openSession(name, viewport, {
+    firstLaunch: true,
+  });
+  const chatKeys = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll('.wm-win[data-type="mission"]')].map((w) => w.dataset.key),
+    );
+  const focused = (key) => win(key).evaluate((e) => e.classList.contains("is-focused"));
+  const forbidden = () =>
+    received.filter(
+      (e) => e.view === "shell" && ["approve", "setBypass", "accountReveal"].includes(e.msg.type),
+    );
+
+  // Premier lancement : Mission et Approbations ouvertes, la mission au premier plan.
+  await until(
+    async () => (await chatKeys()).length === 1,
+    "premier lancement : une mission ouverte",
+  );
+  const first = (await chatKeys())[0];
+  check(/^chat:m-[0-9a-z]{6}$/.test(first), `identifiant généré m-<6 base36> (${first})`);
+  check((await win("native:approvals").count()) === 1, "premier lancement : Approbations aussi");
+  check(await focused(first), "la mission est au premier plan");
+  check(
+    (await page.locator(`.wm-win[data-key="${first}"] iframe`).getAttribute("src")) ===
+      `/view/chat?frame=${first.slice(5)}`,
+    "la fenêtre Mission héberge l'iframe chat du cadre généré",
+  );
+
+  // Pas de fournisseur : l'iframe demande `addProvider`, la coquille ouvre Fournisseurs.
+  const chatFrame = page.frames().find((f) => f.url().includes("/view/chat"));
+  await chatFrame.evaluate(() =>
+    window.parent.postMessage({ rw: 1, msg: { type: "addProvider" } }, location.origin),
+  );
+  await until(
+    () => win("native:providers").isVisible(),
+    "addProvider : la fenêtre Fournisseurs s'ouvre",
+  );
+  await sleep(150);
+  check(
+    !received.some((e) => e.msg?.type === "addProvider"),
+    "addProvider n'est pas transmis au serveur",
+  );
+
+  // Bureau vide (bureau seulement) : trois boutons directs.
+  if (!phone) {
+    await page.evaluate(() => {
+      for (const b of document.querySelectorAll(".wm-win .wm-close")) b.click();
+    });
+    await until(
+      async () => (await page.locator(".wm-win").count()) === 0,
+      "toutes fenêtres fermées",
+    );
+    check(await page.locator(".wm-empty").isVisible(), "bureau vide : message affiché");
+    const empties = await page.locator(".wm-empty-btn").allInnerTexts();
+    check(
+      empties.join("|") === "Nouvelle mission|Cockpit|Fournisseurs",
+      `bureau vide : boutons (${empties.join(", ")})`,
+    );
+    await shot("1-bureau-vide");
+    await page.locator('.wm-empty-btn[data-action="providers"]').click();
+    await until(() => win("native:providers").isVisible(), "bouton Fournisseurs");
+    await page.locator(".wm-win .wm-close").click();
+    await page.locator('.wm-empty-btn[data-action="cockpit"]').click();
+    await until(() => win("cockpit:main").isVisible(), "bouton Cockpit");
+    await page.locator(".wm-win .wm-close").click();
+    await page.locator('.wm-empty-btn[data-action="newMission"]').click();
+    await until(async () => (await chatKeys()).length === 1, "bouton Nouvelle mission");
+  }
+  const initial = (await chatKeys())[0];
+
+  // Menu Ouvrir : trois groupes lisibles.
+  await page.click("#dock-open");
+  check(await page.locator("#dock-menu").isVisible(), "menu Ouvrir affiché");
+  const titles = await page.locator("#dock-menu .dock-menu-title").allTextContents();
+  check(
+    titles.join("|").toLowerCase() === "mission|outils|écrans",
+    `groupes du menu : ${titles.join(", ")}`,
+  );
+  const labels = await page.locator("#dock-menu .dock-menu-item").allInnerTexts();
+  for (const want of [
+    "Nouvelle mission",
+    "Kill chain",
+    "Rapport",
+    "Cockpit",
+    "Sessions",
+    "Projets et réglages",
+    "Nouveau terminal",
+    "Approbations",
+    "Fournisseurs",
+    "Réglages",
+  ]) {
+    check(
+      labels.some((l) => l.startsWith(want)),
+      `menu Ouvrir : « ${want} »`,
+    );
+  }
+  const box = await page.locator("#dock-menu").boundingBox();
+  check(
+    box.x >= 0 && box.y >= 0 && box.x + box.width <= viewport.width && box.height > 100,
+    "le menu tient dans la fenêtre",
+  );
+  if (phone) {
+    const heights = await page
+      .locator("#dock-menu .dock-menu-item")
+      .evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
+    check(
+      heights.every((h) => h >= 44),
+      "mode pile : entrées du menu d'au moins 44 px",
+    );
+    const dockBox = await page.locator("#dock").boundingBox();
+    check(box.y + box.height <= dockBox.y + 1, "mode pile : le menu est au-dessus du dock");
+    const topbar = await page.locator("#topbar").boundingBox();
+    check(box.y >= topbar.y + topbar.height - 1, "mode pile : le menu ne couvre pas la barre fixe");
+  }
+  await shot("2-menu-ouvrir");
+  await page.locator('#dock-menu .dock-menu-item[data-action="newMission"]').click();
+  await until(
+    async () => (await chatKeys()).length === 2,
+    "Nouvelle mission (menu) : une seconde mission",
+  );
+  const second = (await chatKeys()).find((k) => k !== initial);
+  check(await focused(second), "la nouvelle mission est focalisée");
+  check(await page.locator("#dock-menu").isHidden(), "menu refermé après le choix");
+  await shot("3-nouvelle-mission");
+
+  // Outils et vues de la mission au premier plan.
+  const id2 = second.slice(5);
+  for (const [action, key] of [
+    ["fixed:cockpit", "cockpit:main"],
+    ["fixed:sessions", "sessions:main"],
+    ["fixed:studio", "studio:main"],
+    ["forMission:graph", `killchain:${id2}`],
+    ["forMission:report", `viewer:${id2}`],
+  ]) {
+    // Les vues d'une mission visent la mission au premier plan : on la ramène devant.
+    if (action.startsWith("forMission")) await openHash(`#w=mission:${id2}`);
+    await page.click("#dock-open");
+    await page.locator(`#dock-menu .dock-menu-item[data-action="${action}"]`).click();
+    await until(() => win(key).isVisible(), `menu Ouvrir : ${key}`);
+  }
+
+  // Liens profonds.
+  await openHash("#w=killchain:m9");
+  await until(() => win("killchain:m9").isVisible(), "lien #w=killchain:m9");
+  for (const [hash, key] of [
+    ["#w=cockpit", "cockpit:main"],
+    ["#w=studio", "studio:main"],
+    ["#w=sessions", "sessions:main"],
+  ]) {
+    await openHash("#w=conteneurs");
+    await openHash(hash);
+    await until(() => focused(key), `lien ${hash} : fenêtre focalisée`);
+  }
+
+  // Palette : Nouvelle mission, puis Kill chain d'une mission ouverte.
+  await page.keyboard.press("Control+Shift+k");
+  await page.keyboard.type("nouvelle mission");
+  await sleep(80);
+  check(
+    /Nouvelle mission/.test(await page.locator(".pal-item.is-active .pal-title").innerText()),
+    "palette : « Nouvelle mission » en tête",
+  );
+  await page.keyboard.press("Enter");
+  await until(async () => (await chatKeys()).length === 3, "palette : une troisième mission");
+  await page.keyboard.press("Control+Shift+k");
+  await page.keyboard.type(`kill chain : ${initial.slice(5)}`);
+  await sleep(80);
+  await page.keyboard.press("Enter");
+  await until(
+    () => win(`killchain:${initial.slice(5)}`).isVisible(),
+    "palette : kill chain d'une mission ouverte",
+  );
+
+  // Accords Alt+J depuis la coquille.
+  const count = async () => (await chatKeys()).length;
+  await page.locator("#topbar").click({ position: { x: 300, y: 5 }, force: true });
+  const before = await count();
+  await page.keyboard.press("Alt+j");
+  await page.keyboard.press("n");
+  await until(async () => (await count()) === before + 1, "Alt+J N : nouvelle mission");
+  await page.keyboard.press("Alt+j");
+  await page.keyboard.press("k");
+  await until(() => focused("cockpit:main"), "Alt+J K : cockpit");
+  await openHash("#w=conteneurs");
+  await until(() => focused("native:containers"), "Conteneurs au premier plan");
+  await page.keyboard.press("Alt+j");
+  await page.keyboard.press("s");
+  await until(() => focused("studio:main"), "Alt+J S : studio");
+  // Alt+J puis une autre lettre : rien ne s'ouvre.
+  const windowsBefore = await page.locator(".wm-win").count();
+  await page.keyboard.press("Alt+j");
+  await page.keyboard.press("x");
+  check((await page.locator(".wm-win").count()) === windowsBefore, "Alt+J X : rien ne s'ouvre");
+  // Dans une iframe, le pont relaie l'accord.
+  await openHash(`#w=mission:${id2}`);
+  await until(() => focused(`chat:${id2}`), "mission au premier plan");
+  const innerHandle = await win(`chat:${id2}`).locator("iframe").elementHandle();
+  const inner = await innerHandle.contentFrame();
+  await inner.locator("body").click({ position: { x: 10, y: 10 } });
+  const before2 = await count();
+  await page.keyboard.press("Alt+j");
+  await page.keyboard.press("n");
+  await until(async () => (await count()) === before2 + 1, "Alt+J N depuis une iframe (pont)");
+  const terms = () => page.locator('.wm-win[data-type="terminal"]').count();
+  await page.keyboard.press("Alt+j");
+  await page.keyboard.press("t");
+  await until(async () => (await terms()) === 1, "Alt+J T : terminal");
+  check(forbidden().length === 0, "aucun approve, Bypass ni révélation par raccourci ou palette");
+
+  // Missions mémorisées dans l'espace de travail : restaurées au rechargement.
+  if (!phone) {
+    await until(
+      () => layouts.current?.windows.filter((w) => w.view === "chat").length >= 4,
+      "disposition courante enregistrée avec les missions",
+      5000,
+    );
+    const saved = layouts.current.windows.filter((w) => w.view === "chat").map((w) => w.id);
+    await page.reload();
+    await until(async () => {
+      const keys = await chatKeys();
+      return saved.every((id) => keys.includes(`chat:${id}`));
+    }, "après rechargement : les missions sont restaurées");
+  }
+  check(
+    violations.length === 0,
+    `zéro violation CSP (coquille) (${violations.slice(0, 3).join(" | ")})`,
+  );
+  await context.close();
+}
+
 try {
   // WEB_E2E_ONLY=<nom> : ne joue que ce scénario (mise au point).
   const only = (name) => !process.env.WEB_E2E_ONLY || process.env.WEB_E2E_ONLY === name;
@@ -2206,6 +2457,8 @@ try {
   if (only("terminal")) await terminalScenario("terminal", { width: 1440, height: 900 });
   if (only("terminal-mobile"))
     await terminalPhoneScenario("terminal-mobile", { width: 375, height: 812 });
+  if (only("shell")) await shellScenario("shell", { width: 1440, height: 900 });
+  if (only("shell-mobile")) await shellScenario("shell-mobile", { width: 375, height: 812 });
   if (only("wm-budget-mobile")) {
     await budgetScenario("wm-budget-mobile", { width: 375, height: 812 }, 3);
   }

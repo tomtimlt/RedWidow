@@ -19,7 +19,7 @@ import { BUDGET_DESKTOP, BUDGET_PHONE, createStack } from "./stack.js";
 const HANDLES = ["n", "s", "e", "w", "ne", "nw", "se", "sw"];
 /** Durée des animations de tuile et de maximisation (≤ 150 ms). */
 const ANIM_MS = 130;
-const EMPTY_TEXT = "Aucune fenêtre ouverte. Utilisez « Ouvrir » dans le dock.";
+const EMPTY_TEXT = "Aucune fenêtre ouverte. Démarrez une mission ou ouvrez un écran.";
 const WAIT_TEXT = "Cet écran arrive dans une prochaine version.";
 
 const el = (doc, tag, className, text) => {
@@ -37,6 +37,7 @@ const el = (doc, tag, className, text) => {
  * @param {Record<string, { mount(body: HTMLElement): void }>} [options.natives] écrans natifs par nom
  * @param {(snapshot: object[]) => void} [options.onChange] liste des fenêtres modifiée (dock)
  * @param {() => void} [options.onLayout] géométrie, ordre ou liste modifiés (enregistrement de l'espace)
+ * @param {{ title: string, id: string, run: () => void }[]} [options.emptyActions] boutons de l'état vide (bureau sans fenêtre)
  * @param {(fn: () => void, ms: number) => any} [options.setTimer]
  */
 export function createDesktop({
@@ -46,6 +47,7 @@ export function createDesktop({
   natives = {},
   onChange = () => {},
   onLayout = () => {},
+  emptyActions = [],
   setTimer = (fn, ms) => setTimeout(fn, ms),
 }) {
   const stack = createStack();
@@ -59,7 +61,23 @@ export function createDesktop({
   veil.hidden = true;
   const preview = el(doc, "div", "wm-preview");
   preview.hidden = true;
-  const empty = el(doc, "p", "wm-empty", EMPTY_TEXT);
+  const empty = el(doc, "div", "wm-empty");
+  const emptyBox = el(doc, "div", "wm-empty-box");
+  const emptyRow = el(doc, "div", "wm-empty-actions");
+  emptyBox.append(el(doc, "p", "wm-empty-text", EMPTY_TEXT), emptyRow);
+  empty.append(emptyBox);
+  emptyActions.forEach((action, i) => {
+    const button = el(
+      doc,
+      "button",
+      i === 0 ? "wm-empty-btn is-primary" : "wm-empty-btn",
+      action.title,
+    );
+    button.type = "button";
+    button.dataset.action = action.id;
+    button.addEventListener("click", action.run);
+    emptyRow.append(button);
+  });
   root.append(empty, preview, veil);
 
   const deskSize = () => ({ w: root.clientWidth, h: root.clientHeight });
@@ -94,6 +112,8 @@ export function createDesktop({
         key,
         title: win.spec.title,
         kind: win.spec.kind,
+        type: win.spec.type,
+        frame: win.spec.frame ?? null,
         minimized: win.rec.minimized,
         maximized: win.rec.maximized,
         focused: key === top && isVisible(win.rec),

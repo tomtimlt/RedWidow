@@ -303,6 +303,52 @@
   pointer-events: none;
 }
 
+.wm-empty-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  max-width: 100%;
+}
+
+.wm-empty-text {
+  margin: 0;
+}
+
+.wm-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.wm-empty-btn {
+  min-height: 40px;
+  padding: 0 18px;
+  border: 1px solid var(--rw-steel);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--rw-fg);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.wm-empty-btn:hover {
+  background: var(--rw-surface-2);
+}
+
+.wm-empty-btn.is-primary {
+  border-color: var(--rw-crimson);
+  background: var(--rw-crimson);
+  color: #fff;
+}
+
+.wm-empty-btn.is-primary:hover {
+  background: var(--rw-crimson-text);
+}
+
 body.wm-dragging {
   cursor: grabbing;
   user-select: none;
@@ -451,6 +497,44 @@ body.wm-dragging .view-frame {
   background: var(--rw-surface-2);
 }
 
+/* Menu « Ouvrir » : groupes Mission / Outils / Écrans, défilable si l'écran est bas. */
+.dock-menu-grouped {
+  min-width: 248px;
+  max-height: calc(100dvh - 140px);
+  overflow-y: auto;
+}
+
+.dock-menu-group + .dock-menu-group {
+  margin-top: 4px;
+  border-top: 1px solid var(--rw-line);
+}
+
+.dock-menu-title {
+  padding: 8px 12px 4px;
+  color: var(--rw-steel-text);
+  font-family: var(--rw-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dock-menu-grid {
+  display: flex;
+  flex-direction: column;
+}
+
+.dock-menu-grouped .dock-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--rw-fg);
+}
+
+.dock-menu-kbd {
+  flex: none;
+}
+
 /* ───────────── Mode pile (téléphone) ───────────── */
 body.is-phone .wm-win {
   border-width: 0;
@@ -500,6 +584,28 @@ body.is-phone .dock-open-btn {
 
 body.is-phone .dock-menu-item {
   min-height: 44px;
+}
+
+/* Téléphone : le menu occupe la largeur, entrées sur deux colonnes, raccourcis clavier masqués. */
+body.is-phone .dock-open {
+  position: static;
+}
+
+body.is-phone .dock-menu-grouped {
+  position: fixed;
+  right: 8px;
+  bottom: calc(56px + env(safe-area-inset-bottom) + 8px);
+  left: 8px;
+  max-height: calc(100dvh - 130px);
+}
+
+body.is-phone .dock-menu-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+body.is-phone .dock-menu-kbd {
+  display: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -16,17 +16,70 @@ export const NATIVE_SCREENS = [
 /** Entrée « Nouveau terminal » des menus (dock, palette) : instances illimitées, une session chacune. */
 export const TERMINAL_ENTRY = { name: "terminal", title: "Nouveau terminal" };
 
+/**
+ * Menu « Ouvrir » du dock, en trois groupes : Mission (conversation, kill chain, rapport), Outils
+ * (cockpit, sessions, studio, terminal), Écrans (écrans natifs). `action` : `newMission`, `fixed:<type>`
+ * (vue à identifiant fixe `main`), `forMission:<type>` (vue d'une mission, choisie par la coquille),
+ * `terminal` ou `native:<nom>`.
+ */
+export const MENU_GROUPS = [
+  {
+    title: "Mission",
+    entries: [
+      { action: "newMission", title: "Nouvelle mission" },
+      { action: "forMission:graph", title: "Kill chain" },
+      { action: "forMission:report", title: "Rapport" },
+    ],
+  },
+  {
+    title: "Outils",
+    entries: [
+      { action: "fixed:cockpit", title: "Cockpit" },
+      { action: "fixed:sessions", title: "Sessions" },
+      { action: "fixed:studio", title: "Projets et réglages" },
+      { action: "terminal", title: TERMINAL_ENTRY.title },
+    ],
+  },
+  {
+    title: "Écrans",
+    entries: NATIVE_SCREENS.map((s) => ({ action: `native:${s.name}`, title: s.title })),
+  },
+];
+
+/** Libellés lisibles des raccourcis `Alt+J <lettre>` (palette, menu). */
+export const CHORD_TEXT = {
+  newMission: "Alt J N",
+  "fixed:cockpit": "Alt J K",
+  "fixed:studio": "Alt J S",
+  terminal: "Alt J T",
+};
+
+/** Vues à identifiant fixe `main` : le titre de la fenêtre est le libellé seul. */
+const FIXED_KINDS = ["cockpit", "sessions", "studio"];
+
+/** Nouvel identifiant de mission : `m-` et 6 caractères base36 aléatoires (conforme au motif des cadres). */
+export function newMissionId(random = randomBase36) {
+  let out = "m-";
+  for (let i = 0; i < 6; i += 1) out += random();
+  return out;
+}
+
+function randomBase36() {
+  const bytes = globalThis.crypto.getRandomValues(new Uint8Array(1));
+  return (bytes[0] % 36).toString(36);
+}
+
 const IFRAME_KINDS = {
   mission: { view: "chat", label: "Mission" },
   monitor: { view: "viewer", mode: "watch", label: "Monitor" },
-  graph: { view: "killchain", label: "Graphe" },
+  graph: { view: "killchain", label: "Kill chain" },
   report: { view: "viewer", mode: "report", label: "Rapport" },
   program: { view: "program", label: "Programme" },
   engagement: { view: "engagement", label: "Engagement" },
-  // Sans entrée de dock : ouvrables depuis la palette (identifiant fixe `main`).
+  // Vues à identifiant fixe `main` (menu « Ouvrir », palette, liens profonds).
   cockpit: { view: "cockpit", label: "Cockpit" },
   sessions: { view: "sessions", label: "Sessions" },
-  studio: { view: "studio", label: "Studio" },
+  studio: { view: "studio", label: "Projets et réglages" },
 };
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
@@ -39,7 +92,7 @@ export function iframeSpec(kind, id) {
     key: `${def.view}:${id}`,
     kind: "iframe",
     type: kind,
-    title: `${def.label} ${id}`,
+    title: FIXED_KINDS.includes(kind) ? def.label : `${def.label} ${id}`,
     view: def.view,
     frame: id,
     mode: def.mode ?? null,

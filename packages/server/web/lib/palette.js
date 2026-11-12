@@ -352,7 +352,7 @@ const TILES = [
 const KIND_LABELS = {
   mission: "mission",
   monitor: "monitor (run)",
-  graph: "graphe",
+  graph: "graphe de kill chain",
   report: "rapport",
   program: "programme",
   engagement: "engagement",
@@ -376,6 +376,43 @@ const KIND_LABELS = {
 export function buildCommands(ctx) {
   const items = [];
   const a = ctx.actions;
+
+  // Conversation : une nouvelle mission (identifiant généré par la coquille), en tête de liste.
+  items.push({
+    id: "new-mission",
+    group: "Mission",
+    title: "Nouvelle mission",
+    detail: "discuter avec l'agent",
+    keywords: "conversation chat agent démarrer créer",
+    shortcut: "Alt+J N",
+    run: () => a.newMission(),
+  });
+  // Vues d'une mission déjà ouverte : kill chain et rapport (les autres s'ouvrent par identifiant).
+  for (const w of ctx.windows) {
+    if (w.type !== "mission" || typeof w.frame !== "string") continue;
+    for (const [kind, label] of [
+      ["graph", "Kill chain"],
+      ["report", "Rapport"],
+    ]) {
+      items.push({
+        id: `open:${kind}:${w.frame}`,
+        group: "Mission",
+        title: `${label} : ${w.frame}`,
+        keywords: `${KIND_LABELS[kind]} mission ${w.frame}`,
+        run: () => a.open(ctx.spec(kind, w.frame)),
+      });
+    }
+  }
+  for (const f of ctx.fixed) {
+    items.push({
+      id: `open:${f.kind}:${f.id}`,
+      group: "Outils",
+      title: f.title,
+      keywords: f.keywords,
+      shortcutText: f.shortcutText,
+      run: () => a.open(ctx.spec(f.kind, f.id)),
+    });
+  }
 
   for (const w of ctx.windows) {
     items.push({
@@ -401,14 +438,6 @@ export function buildCommands(ctx) {
             ? "Ctrl+Alt+T"
             : undefined,
       run: () => a.open(ctx.spec("native", screen.name)),
-    });
-  }
-  for (const f of ctx.fixed) {
-    items.push({
-      id: `open:${f.kind}:${f.id}`,
-      group: "Ouvrir",
-      title: f.title,
-      run: () => a.open(ctx.spec(f.kind, f.id)),
     });
   }
   for (const k of ctx.known) {

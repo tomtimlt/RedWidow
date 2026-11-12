@@ -27,6 +27,10 @@
     "Ctrl+Alt+`",
     "Ctrl+Alt+T",
     "Ctrl+Alt+A",
+    "Alt+J N",
+    "Alt+J K",
+    "Alt+J S",
+    "Alt+J T",
   ];
 
   /**
@@ -50,6 +54,35 @@
       else if (code === "KeyA") id = "Ctrl+Alt+A";
     }
     return id !== null && RELAYED_KEYS.includes(id) ? id : null;
+  }
+
+  /**
+   * Accord `Alt+J` puis N, K, S ou T (même logique que `createChord`, lib/shortcuts.js). Rend
+   * `{ id, consume }` : `consume` retient la frappe, `id` est le raccourci complet. Ctrl, Méta et AltGr
+   * ne participent jamais ; une autre touche désarme.
+   */
+  const CHORD_CODES = { KeyN: "Alt+J N", KeyK: "Alt+J K", KeyS: "Alt+J S", KeyT: "Alt+J T" };
+  const CHORD_MS = 1500;
+  let chordAt = Number.NEGATIVE_INFINITY;
+  function chordOf(e) {
+    const none = { id: null, consume: false };
+    if (e.ctrlKey || e.metaKey) {
+      chordAt = Number.NEGATIVE_INFINITY;
+      return none;
+    }
+    if (typeof e.getModifierState === "function" && e.getModifierState("AltGraph")) return none;
+    const code = typeof e.code === "string" ? e.code : "";
+    if (/^(Alt|Control|Shift|Meta)(Left|Right)$/.test(code)) return none;
+    const armed = Date.now() - chordAt <= CHORD_MS;
+    chordAt = Number.NEGATIVE_INFINITY;
+    if (armed && !e.shiftKey && Object.hasOwn(CHORD_CODES, code)) {
+      return { id: CHORD_CODES[code], consume: true };
+    }
+    if (e.altKey && !e.shiftKey && code === "KeyJ") {
+      chordAt = Date.now();
+      return { id: null, consume: true };
+    }
+    return none;
   }
 
   const params = new URLSearchParams(location.search);
@@ -113,6 +146,14 @@
   document.addEventListener(
     "keydown",
     (event) => {
+      if (embedded) {
+        const step = chordOf(event);
+        if (step.consume) {
+          event.preventDefault();
+          if (step.id !== null && RELAYED_KEYS.includes(step.id)) post({ key: step.id });
+          return;
+        }
+      }
       const key = shortcutOf(event);
       if (key === null || !embedded) return;
       event.preventDefault();
