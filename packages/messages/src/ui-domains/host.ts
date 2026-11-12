@@ -299,4 +299,13 @@ export const hostEn: Record<string, string> = {
   Conteneurs: "Containers",
   "Contrôle système": "System control",
   Apparence: "Appearance",
+  "Arrêtez les tours en cours avant d'exporter un projet.":
+    "Stop the running turns before exporting a project.",
+  "Arrêtez les tours en cours avant d'importer un projet.":
+    "Stop the running turns before importing a project.",
+  "Choisir l'archive du projet": "Choose the project archive",
+  "Choisir le dossier parent du projet importé": "Choose the parent folder of the imported project",
+  "Projet exporté.": "Project exported.",
+  "Un nouvel identifiant a été attribué au projet importé.":
+    "A new identifier was assigned to the imported project.",
 };

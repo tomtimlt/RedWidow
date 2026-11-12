@@ -1,6 +1,9 @@
 // Libellés de la webview, indexés par leur texte français.
 export const studioEn: Record<string, string> = {
   "Politique du dépôt": "Repository policy",
+  "Exporter…": "Export…",
+  "Exporter le projet": "Export the project",
+  "Importer un projet…": "Import a project…",
   "Aucune politique du dépôt.": "No repository policy.",
   "Politique du dépôt illisible ou invalide.": "Repository policy unreadable or invalid.",
   "Non approuvée : ignorée tant que tu ne l’as pas relue.":
