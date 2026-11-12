@@ -296,4 +296,13 @@ export const hostEn: Record<string, string> = {
   Conteneurs: "Containers",
   "Contrôle système": "System control",
   Apparence: "Appearance",
+  "Supprimer du projet": "Delete from project",
+  "Supprimer le dossier « {0} » et tout son contenu ? Cette action est irréversible.":
+    "Delete folder “{0}” and all its contents? This cannot be undone.",
+  "Supprimer le fichier « {0} » ? Cette action est irréversible.":
+    "Delete file “{0}”? This cannot be undone.",
+  "Téléverser un fichier dans le projet": "Upload a file into the project",
+  "Remplacer le fichier existant": "Replace the existing file",
+  "« {0} » existe déjà : le remplacer ?": "“{0}” already exists: replace it?",
+  "Titre (200 caractères maximum)": "Title (200 characters maximum)",
 };

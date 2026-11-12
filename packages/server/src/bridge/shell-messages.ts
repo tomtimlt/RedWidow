@@ -4,6 +4,7 @@
  * Aucune valeur secrète n'apparaît dans un message sortant : ces types ne servent qu'à l'entrée.
  */
 import { isContainerRef } from "../docker/containers.js";
+import { type FsControl, isFsType, parseFsControl } from "./files-messages.js";
 import { hasControl, isLayoutName, type Layout, validateLayout } from "./layout.js";
 import { isPoolProvider, MAX_POOL_KEYS, type PoolProvider } from "./rotation.js";
 
@@ -75,7 +76,8 @@ export type ShellControl =
   | { type: "findingDelete"; project: string; id: string; confirmed: boolean }
   | { type: "layoutSave"; name: string | null; layout: Layout }
   | { type: "layoutDelete"; name: string }
-  | { type: "dialogResult"; id: string; value: string | string[] | boolean | null };
+  | { type: "dialogResult"; id: string; value: string | string[] | boolean | null }
+  | FsControl;
 
 /**
  * Message sortant `openWindow` (à l'émetteur du geste) : le serveur demande à la coquille d'ouvrir une
@@ -198,6 +200,8 @@ const shortText = (v: unknown, max: number): v is string =>
   typeof v === "string" && v.length >= 1 && v.length <= max && v === v.trim() && noControl(v);
 
 export function parseShellControl(m: Record<string, unknown>): ShellControl | null {
+  // API Fichiers : forme exacte vérifiée par son propre parseur (chemins revalidés à chaque opération).
+  if (isFsType(m.type)) return parseFsControl(m);
   switch (m.type) {
     case "halt":
     case "resume":

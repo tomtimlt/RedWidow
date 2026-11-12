@@ -269,6 +269,20 @@ export const REASON_CODES = [
   "hostui.uploadTooLarge",
   "hostui.uploadBadType",
   "hostui.downloadGone",
+  // Fichiers du projet actif dans la coquille web (ADR 0055, API Fichiers)
+  "fs.noProject",
+  "fs.invalidPath",
+  "fs.notFound",
+  "fs.exists",
+  "fs.symlink",
+  "fs.protected",
+  "fs.notFile",
+  "fs.notDir",
+  "fs.notText",
+  "fs.tooLarge",
+  "fs.badType",
+  "fs.empty",
+  "fs.failed",
   // Divers
   "error.unknown",
   /** Motif ou erreur d'un ancien journal, relu comme texte (`params.text`). */

@@ -59,6 +59,7 @@ import {
   readProviderCatalog,
 } from "./deps.js";
 import { isFrameId, type View } from "./envelope.js";
+import { FilesHost } from "./files.js";
 import { getFindingDetail, listFindingItems, removeFinding } from "./findings.js";
 import { coreProjectHalts, EmergencyHalt, type ProjectHalts } from "./halt.js";
 import { type BridgeContext, HostUi } from "./hostui.js";
@@ -222,6 +223,7 @@ export class MissionHub {
   private readonly viewer: ViewerHost;
   private readonly term: TermHost;
   private readonly extras: ChatExtras;
+  private readonly files: FilesHost;
   private readonly containers: ContainerHost;
   private readonly configDir: string;
   /** Bypass global demandé depuis la coquille (en mémoire seulement, ADR 0017) ; `until` nul = illimité. */
@@ -384,6 +386,13 @@ export class MissionHub {
       terminals: (chars) => this.term.snapshots(chars),
       frames: () => this.frames.values(),
       settingsChanged: (values) => this.toShell({ type: "settings", values }),
+    });
+    this.files = new FilesHost({
+      ctx: this.context,
+      configDir: this.configDir,
+      projectsRoot: options.storage.paths.projects,
+      locale,
+      toShell: (msg) => this.toShell(msg),
     });
     this.viewer = new ViewerHost({
       configDir: this.configDir,
@@ -1264,6 +1273,18 @@ export class MissionHub {
         if (!deleteLayout(storage, c.name)) return this.configError(from, c.type);
         toAll({ type: "layouts", ...readLayouts(storage) });
         return true;
+      case "fsList":
+      case "fsStat":
+      case "fsRead":
+      case "fsWrite":
+      case "fsMkdir":
+      case "fsRename":
+      case "fsDelete":
+      case "fsUpload":
+      case "fsDownload":
+      case "fsCaptureEvidence":
+        // API Fichiers : réponses (et erreurs sans chemin hôte) au seul émetteur.
+        return this.files.handle(c, from);
     }
   }
 
@@ -1284,6 +1305,7 @@ export class MissionHub {
     this.studio.dispose();
     this.killchain.dispose();
     this.viewer.dispose();
+    this.files.dispose();
     this.term.dispose();
     this.context.ui.dispose();
     this.context.downloads.dispose();
