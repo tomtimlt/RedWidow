@@ -47,7 +47,11 @@ export function createDock({
     const badge = doc.createElement("span");
     badge.className = "dock-badge";
     badge.hidden = true;
-    button.append(dot, label, badge);
+    // Pastille d'activité d'une mission : en cours (rouge) ou en attente d'une réponse (acier).
+    const act = doc.createElement("span");
+    act.className = "dock-act";
+    act.hidden = true;
+    button.append(dot, label, badge, act);
     button.addEventListener("click", () => {
       if (button.dataset.focused === "1" && mode === "desktop") onMinimize(key);
       else onActivate(key);
@@ -169,7 +173,10 @@ export function createDock({
      * @param {object[]} snapshot fenêtres (`desktop.snapshot()`)
      * @param {{ badges?: Map<string, number>, mode?: string }} [options] pastilles par clé de fenêtre
      */
-    render(snapshot, { badges = new Map(), mode: nextMode = "desktop" } = {}) {
+    render(
+      snapshot,
+      { badges = new Map(), activity = new Map(), mode: nextMode = "desktop" } = {},
+    ) {
       mode = nextMode;
       refs.root.dataset.mode = mode;
       const present = new Set(snapshot.map((s) => s.key));
@@ -187,7 +194,12 @@ export function createDock({
           refs.items.append(button);
         }
         const count = badges.get(item.key) ?? 0;
-        const [dot, label, badge] = button.children;
+        const [dot, label, badge, act] = button.children;
+        const running = activity.get(item.key) ?? "";
+        act.hidden = running === "";
+        act.dataset.state = running;
+        act.title = running === "running" ? "Mission en cours" : "Mission en attente";
+        button.dataset.activity = running;
         label.textContent = shortTitle(item.title);
         badge.textContent = count > 9 ? "9+" : String(count);
         badge.hidden = count === 0;
@@ -199,7 +211,13 @@ export function createDock({
         button.classList.toggle("is-sleep", item.alive === false);
         button.classList.toggle("has-badge", count > 0);
         button.setAttribute("aria-pressed", String(item.focused));
-        const extra = count > 0 ? `, ${count} en attente` : "";
+        const extra =
+          (count > 0 ? `, ${count} en attente` : "") +
+          (running === "running"
+            ? ", mission en cours"
+            : running === "waiting"
+              ? ", mission en attente d'une réponse"
+              : "");
         button.title = `${item.title} (${stateText(item)}${extra})`;
         button.setAttribute("aria-label", button.title);
       }

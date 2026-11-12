@@ -11,7 +11,7 @@
 // - `mode` : `watch` ou `report` pour la vue `viewer`, nom de l'écran pour un écran natif ;
 // - écran natif : vue `shell`, identifiant et `mode` = nom de l'écran ;
 // - nom de l'espace affiché : `spaces[0].name` de la disposition courante (un espace `main` unique).
-import { iframeSpec, nativeSpec } from "./types.js";
+import { iframeSpec, nativeSpec, terminalSpec } from "./types.js";
 
 export const MAX_WINDOWS = 32;
 export const MAX_SPACES = 20;
@@ -121,6 +121,8 @@ const clamp01 = (v) => Math.min(1, Math.max(0, Number.isFinite(v) ? v : 0));
 /** Spécification d'une fenêtre à partir de la disposition, ou `null` (fenêtre ignorée à l'application). */
 export function specOfWindow(w) {
   if (w.view === "shell") return nativeSpec(w.mode ?? w.id);
+  // Un terminal restauré s'ouvre sur le choix du conteneur : la session, elle, n'est pas rejouée.
+  if (w.view === "term") return terminalSpec(w.id);
   if (w.view === "viewer") return iframeSpec(w.mode === "report" ? "report" : "monitor", w.id);
   const kind = Object.hasOwn(KIND_OF_VIEW, w.view) ? KIND_OF_VIEW[w.view] : null;
   return kind === null ? null : iframeSpec(kind, w.id);
@@ -137,14 +139,15 @@ export function serialize(items, name = DEFAULT_NAME) {
   for (let i = items.length - 1; i >= 0 && windows.length < MAX_WINDOWS; i -= 1) {
     const item = items[i];
     const spec = item.spec;
-    const view = spec.kind === "native" ? "shell" : spec.view;
-    const id = spec.kind === "native" ? spec.name : spec.frame;
+    const terminal = spec.type === "terminal";
+    const view = terminal ? "term" : spec.kind === "native" ? "shell" : spec.view;
+    const id = terminal ? spec.frame : spec.kind === "native" ? spec.name : spec.frame;
     const identity = `${view}:${id}`;
     if (!VIEWS.includes(view) || !ID_PATTERN.test(id) || seen.has(identity)) continue;
     seen.add(identity);
     const r = item.rect;
     const out = { id, view, x: clamp01(r.x), y: clamp01(r.y), w: clamp01(r.w), h: clamp01(r.h) };
-    const mode = spec.kind === "native" ? spec.name : spec.mode;
+    const mode = terminal ? undefined : spec.kind === "native" ? spec.name : spec.mode;
     if (typeof mode === "string" && ID_PATTERN.test(mode)) out.mode = mode;
     if (item.minimized) out.state = "minimized";
     else if (item.maximized) out.state = "maximized";

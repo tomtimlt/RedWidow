@@ -236,7 +236,7 @@ describe("espaces : application différentielle", () => {
     expect(plan.minimize).toEqual(["term:t1"]);
   });
 
-  it("ignore les fenêtres inconnues du client (terminal pas encore branché)", () => {
+  it("restaure un terminal (vue `term`) sur le choix du conteneur", () => {
     const plan = lay.planApply(
       {
         windows: [{ id: "t1", view: "term", x: 0, y: 0, w: 1, h: 1 }],
@@ -244,7 +244,7 @@ describe("espaces : application différentielle", () => {
       },
       [],
     );
-    expect(plan.windows).toEqual([]);
+    expect(plan.windows.map((w: { spec: { key: string } }) => w.spec.key)).toEqual(["term:t1"]);
   });
 
   it("applyPlan : ferme, minimise, pose la géométrie des ouvertes, ouvre les absentes, dans l'ordre", () => {

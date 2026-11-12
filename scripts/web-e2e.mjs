@@ -9,7 +9,9 @@ import { randomUUID } from "node:crypto";
 // Couvre (1440x900 et 375x812) : connexion, file vide, trois demandes, « Toujours » absent si non
 // mémorisable, un clic = un `approve`, aucun `approve` sans clic (chargement, reconnexion), focus jamais
 // déplacé sur une carte, arrêt d'urgence sans confirmation, badge Bypass, hors ligne puis reconnexion,
-// feuille d'approbation du téléphone, page de vue en iframe (pont, `ready`), zéro violation CSP.
+// feuille d'approbation du téléphone, page de vue en iframe (pont, `ready`), zéro violation CSP ;
+// lot 5 : deux terminaux xterm côte à côte (écho, resize, fermeture confirmée, reconnexion, bandeau
+// d'arrêt), palette alimentée par le serveur (mission, run), Journal (runs, audit), pastille du dock.
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { createServer as createNetServer } from "node:net";
@@ -75,6 +77,12 @@ let pools = {};
 let accountItems = [];
 let findingItems = [];
 let settingsValues = {};
+let missionItems = [];
+let runItems = [];
+let projectItems = [];
+let auditItems = [];
+/** Sessions de terminal du pont factice : frame → { container, buffer }. */
+const termSessions = new Map();
 let bypassState = { active: false, until: null };
 function resetScreens() {
   containers = [
@@ -166,6 +174,42 @@ function resetScreens() {
   ];
   settingsValues = { profile: "mentor", "burp.enabled": false, "chat.webSearch": true };
   bypassState = { active: false, until: null };
+  missionItems = [
+    {
+      id: "m1",
+      title: "Reconnaissance Acme",
+      project: PROJECT,
+      updatedAt: "2026-03-04T10:00:00Z",
+      runIds: ["r-m1"],
+      live: true,
+      state: "running",
+    },
+    {
+      id: "m2",
+      title: "Revue du portail",
+      project: null,
+      updatedAt: "2026-03-03T10:00:00Z",
+      runIds: [],
+      live: false,
+      state: "idle",
+    },
+  ];
+  runItems = [
+    {
+      id: "r-m1",
+      kind: "mission",
+      project: PROJECT,
+      startedAt: "2026-03-04T10:00:00Z",
+      size: 20480,
+    },
+    { id: "r-t1", kind: "terminal", project: null, startedAt: "2026-03-04T11:30:00Z", size: 3072 },
+  ];
+  projectItems = [{ id: PROJECT, name: "Acme" }];
+  auditItems = [
+    { at: "2026-03-04T11:30:00Z", kind: "terminal.open", frame: "t-1", container: "kali-recon" },
+    { at: "2026-03-04T11:00:00Z", kind: "approval.answer", choice: "once" },
+  ];
+  termSessions.clear();
 }
 resetScreens();
 const shellMsg = (ws, msg) => send(ws, "shell", "shell", msg);
@@ -189,6 +233,14 @@ function onScreens(ws, msg) {
       return shellMsg(ws, { type: "bypass", ...bypassState });
     case "containersList":
       return shellMsg(ws, { type: "containers", items: containers });
+    case "missionsList":
+      return shellMsg(ws, { type: "missions", items: missionItems });
+    case "projectsList":
+      return shellMsg(ws, { type: "projects", items: projectItems });
+    case "runsList":
+      return shellMsg(ws, { type: "runs", items: runItems });
+    case "auditTail":
+      return shellMsg(ws, { type: "audit", items: auditItems });
     case "containerStart":
     case "containerStop": {
       const c = containers.find((x) => x.id === msg.id);
@@ -303,6 +355,42 @@ const broadcast = (view, frame, msg) => {
 };
 const pushApprovals = () => broadcast("shell", "shell", { type: "approvals", items: approvals });
 
+const PROMPT = "\x1b[32mroot@kali\x1b[0m:~# ";
+/** Terminal factice : `open` ouvre, `input` est écho, `resize` et `close` sont journalisés par `received`. */
+function onTerm(ws, env) {
+  const msg = env.msg;
+  const frame = env.frame;
+  const out = (m) => send(ws, "term", frame, m);
+  const session = termSessions.get(frame);
+  switch (msg.type) {
+    case "open": {
+      const c = containers.find((x) => x.name === msg.container);
+      if (!c) return out({ type: "error", code: "terminal.notManaged" });
+      if (c.state !== "running") return out({ type: "error", code: "terminal.notRunning" });
+      // Une ligne en couleur 24 bits : xterm l'écrit par un attribut `style`, ici via le CSSOM.
+      const hello = `\x1b[38;2;204;28;64mrouge24\x1b[0m\r\n${PROMPT}`;
+      termSessions.set(frame, { container: c.name, buffer: hello });
+      out({ type: "opened", container: c.name });
+      return out({ type: "output", data: hello });
+    }
+    case "ready":
+      if (!session) return undefined;
+      out({ type: "opened", container: session.container });
+      return out({ type: "output", data: session.buffer });
+    case "input": {
+      if (!session) return undefined;
+      const echo = msg.data.replace(/\r/g, `\r\n${PROMPT}`);
+      session.buffer += echo;
+      return out({ type: "output", data: echo });
+    }
+    case "close":
+      termSessions.delete(frame);
+      return out({ type: "exit", code: 0 });
+    default:
+      return undefined;
+  }
+}
+
 function onConnection(ws) {
   sockets.add(ws);
   ws.on("close", () => sockets.delete(ws));
@@ -314,6 +402,7 @@ function onConnection(ws) {
       return;
     }
     received.push(env);
+    if (env.view === "term") return onTerm(ws, env);
     if (env.view !== "shell") return;
     if (env.msg.type === "ready")
       send(ws, "shell", "shell", { type: "approvals", items: approvals });
@@ -1640,11 +1729,9 @@ async function screensScenario(name, viewport) {
 
   // ── Journal ──
   await openScreen("#w=journal", "native:journal");
-  check(
-    (await inWin("native:journal", ".scr-empty").first().innerText()).includes(
-      "pas encore fournie",
-    ),
-    "état vide : la liste des runs n'existe pas encore",
+  await until(
+    async () => (await inWin("native:journal", ".scr-run").count()) === 2,
+    "Journal : deux runs listés par le serveur",
   );
   check(
     (await inWin("native:journal", ".scr-feed-item").count()) >= 2,
@@ -1652,13 +1739,13 @@ async function screensScenario(name, viewport) {
   );
   await shot("journal");
   await inWin("native:journal", "input").fill("run bad");
-  await inWin("native:journal", "button", { hasText: "Ouvrir le Monitor" }).click();
+  await inWin("native:journal", ".scr-form button", { hasText: "Ouvrir le Monitor" }).click();
   check(
     (await page.locator(".wm-win[data-key^='viewer:']").count()) === 0,
     "identifiant refusé : aucune fenêtre",
   );
   await inWin("native:journal", "input").fill("r42");
-  await inWin("native:journal", "button", { hasText: "Ouvrir le Monitor" }).click();
+  await inWin("native:journal", ".scr-form button", { hasText: "Ouvrir le Monitor" }).click();
   await until(
     async () => (await page.locator('.wm-win[data-key="viewer:r42"]').count()) === 1,
     "Monitor du run ouvert",
@@ -1775,6 +1862,333 @@ async function settingsPhoneScenario(name, viewport) {
   await context.close();
 }
 
+// ───────────────────────────── Terminal, palette et Journal (lot 5) ─────────────────────────────
+
+const termsReceived = (type) => received.filter((e) => e.view === "term" && e.msg.type === type);
+
+async function terminalScenario(name, viewport) {
+  console.log(
+    `\n== ${name} : terminaux xterm, palette, Journal (${viewport.width}x${viewport.height})`,
+  );
+  resetScreens();
+  const { context, page, violations, win, shot } = await openSession(name, viewport);
+  const terms = page.locator('.wm-win[data-type="terminal"]');
+  const live = page.locator('.wm-win[data-type="terminal"] .term[data-state="live"]');
+  /** Met une fenêtre au premier plan par le dock (les fenêtres se recouvrent en cascade). */
+  const raise = async (key) => {
+    if (await win(key).evaluate((n) => n.classList.contains("is-focused"))) return;
+    await page.locator(`.dock-item[data-key="${key}"]`).click();
+    await until(
+      () => win(key).evaluate((n) => n.classList.contains("is-focused")),
+      `fenêtre ${key} au premier plan`,
+    );
+  };
+
+  // Ctrl+Alt+T ouvre un terminal ; chacun a sa session. Le choix ne propose que les conteneurs qui tournent.
+  await page.keyboard.press("Control+Alt+KeyT");
+  await until(async () => (await terms.count()) === 1, "premier terminal ouvert (Ctrl+Alt+T)");
+  const pickButtons = terms.nth(0).locator(".term-choice");
+  await until(async () => (await pickButtons.count()) === 1, "un seul conteneur ouvrable proposé");
+  check(
+    (await pickButtons.first().getAttribute("data-container")) === "kali-recon",
+    "seul le conteneur en cours d'exécution est proposé",
+  );
+  check(
+    (await terms.nth(0).locator(".term-banner").innerText()).includes("journalisée intégralement"),
+    "bandeau « session journalisée intégralement »",
+  );
+  await pickButtons.first().click();
+  await until(async () => (await live.count()) === 1, "première session en direct");
+  const open1 = termsReceived("open")[0];
+  check(
+    open1?.msg.container === "kali-recon" &&
+      Number.isInteger(open1.msg.cols) &&
+      open1.msg.cols > 10 &&
+      open1.msg.rows > 3 &&
+      /^[A-Za-z0-9_-]{1,64}$/.test(open1.frame),
+    "open : conteneur, taille mesurée, identifiant de session conforme",
+  );
+  check(
+    (await terms.nth(0).locator(".wm-name").innerText()) === "kali-recon",
+    "titre de la fenêtre = conteneur",
+  );
+
+  await page.keyboard.press("Control+Alt+KeyT");
+  await until(async () => (await terms.count()) === 2, "second terminal (plusieurs instances)");
+  await terms.nth(1).locator(".term-choice").first().click();
+  await until(async () => (await live.count()) === 2, "seconde session en direct");
+  const frames = [...new Set(termsReceived("open").map((e) => e.frame))];
+  check(frames.length === 2, "deux sessions distinctes");
+
+  // Moitiés : le premier à gauche, le second à droite.
+  const key0 = await terms.nth(0).getAttribute("data-key");
+  const key1 = await terms.nth(1).getAttribute("data-key");
+  await raise(key0);
+  await page.keyboard.press("Control+Alt+ArrowLeft");
+  await raise(key1);
+  await page.keyboard.press("Control+Alt+ArrowRight");
+  await sleep(500);
+  const r0 = await win(key0).boundingBox();
+  const r1 = await win(key1).boundingBox();
+  check(
+    near(r0.x + r0.width, r1.x, 3) && near(r0.height, r1.height, 3) && r0.width > 500,
+    "deux terminaux côte à côte en moitiés",
+  );
+  await until(
+    async () => termsReceived("resize").length >= 2,
+    "resize émis au redimensionnement des fenêtres",
+  );
+  const lastResize = termsReceived("resize").at(-1);
+  check(
+    lastResize.msg.cols > 10 &&
+      lastResize.msg.cols < open1.msg.cols + 200 &&
+      lastResize.msg.rows > 3,
+    "resize : colonnes et lignes mesurées",
+  );
+
+  // Écho : saisie au clavier dans le premier terminal.
+  await terms.nth(0).locator(".xterm-helper-textarea").focus();
+  await page.keyboard.type("whoami");
+  await page.keyboard.press("Enter");
+  const rows0 = terms.nth(0).locator(".xterm-rows");
+  await until(
+    async () => (await rows0.innerText()).includes("whoami"),
+    "écho de la saisie dans xterm",
+  );
+  const typed = termsReceived("input")
+    .filter((e) => e.frame === open1.frame)
+    .map((e) => e.msg.data)
+    .join("");
+  check(typed === "whoami\r", "input : octets saisis envoyés à la bonne session");
+  const second = termsReceived("input").filter((e) => e.frame !== open1.frame);
+  check(second.length === 0, "rien n'est envoyé à l'autre session");
+  // Rendu réel : texte lisible et couleur du thème appliquée par la feuille constructible.
+  const green = await terms
+    .nth(0)
+    .locator(".xterm-rows .xterm-fg-2")
+    .first()
+    .evaluate((n) => getComputedStyle(n).color);
+  check(green === "rgb(95, 214, 138)", `couleur du thème appliquée sans <style> (${green})`);
+  const truecolor = await terms
+    .nth(0)
+    .locator(".xterm-rows span", { hasText: "rouge24" })
+    .first()
+    .evaluate((n) => getComputedStyle(n).color);
+  check(
+    truecolor === "rgb(204, 28, 64)",
+    `couleur 24 bits appliquée sans attribut style (${truecolor})`,
+  );
+  const styleTags = await page.evaluate(() => document.querySelectorAll("style").length);
+  check(styleTags === 0, "aucun élément <style> dans la page");
+  check(
+    (await terms.nth(0).locator(".xterm-screen").boundingBox()).height > 100,
+    "xterm rendu avec une taille réelle",
+  );
+  // Ctrl+K reste au shell quand le terminal a le focus ; Ctrl+Maj+K ouvre la palette.
+  await page.keyboard.press("Control+KeyK");
+  await sleep(150);
+  check(await page.locator("#palette").isHidden(), "Ctrl+K laissé au terminal (palette fermée)");
+  await shot("1-deux-terminaux");
+
+  // Palette : mission, run et programme venus du serveur.
+  await page.keyboard.press("Control+Shift+KeyK");
+  await until(() => page.locator("#palette").isVisible(), "palette ouverte (Ctrl+Maj+K)");
+  await page.fill("#palette-input", "Reconnaissance");
+  await until(
+    async () =>
+      (await page.locator(".pal-item", { hasText: "Mission : Reconnaissance Acme" }).count()) === 1,
+    "palette : la mission du serveur est listée",
+  );
+  check(
+    (await page.locator(".pal-item .pal-detail", { hasText: "en cours" }).count()) === 1,
+    "palette : état de la mission affiché",
+  );
+  await page.fill("#palette-input", "monitor");
+  await until(
+    async () => (await page.locator(".pal-item", { hasText: "Monitor r-t1" }).count()) === 1,
+    "palette : le run est listé",
+  );
+  await page.fill("#palette-input", "Acme");
+  await until(
+    async () => (await page.locator(".pal-item", { hasText: "Programme : Acme" }).count()) === 1,
+    "palette : le projet est listé",
+  );
+  await page.fill("#palette-input", "Reconnaissance");
+  await page.keyboard.press("Enter");
+  await until(
+    async () => (await page.locator('.wm-win[data-key="chat:m1"]').count()) === 1,
+    "palette : la mission s'ouvre",
+  );
+  await page.keyboard.press("Control+Shift+KeyK");
+  await page.fill("#palette-input", "quart bas droit");
+  await page.keyboard.press("Enter");
+  await sleep(300);
+  check(
+    (await page
+      .locator('.dock-item[data-key="chat:m1"] .dock-act[data-state="running"]')
+      .count()) === 1,
+    "dock : pastille « en cours » pour la mission",
+  );
+  broadcast("shell", "shell", { type: "missionState", id: "m1", state: "waiting" });
+  await until(
+    async () =>
+      (await page
+        .locator('.dock-item[data-key="chat:m1"] .dock-act[data-state="waiting"]')
+        .count()) === 1,
+    "dock : pastille « en attente » après missionState",
+  );
+  broadcast("shell", "shell", { type: "missionState", id: "m1", state: "idle" });
+  await until(
+    async () =>
+      (await page.locator('.dock-item[data-key="chat:m1"] .dock-act:visible').count()) === 0,
+    "dock : pastille retirée au repos",
+  );
+  broadcast("shell", "shell", { type: "missionState", id: "m1", state: "running" });
+  await page.keyboard.press("Control+Shift+KeyK");
+  await page.fill("#palette-input", "Monitor r-t1");
+  await page.keyboard.press("Enter");
+  await until(
+    async () => (await page.locator('.wm-win[data-key="viewer:r-t1"]').count()) === 1,
+    "palette : le run ouvre un Monitor",
+  );
+  await page.locator('.wm-win[data-key="viewer:r-t1"] .wm-close').click();
+
+  // Arrêt d'urgence : bandeau dans chaque terminal, sessions conservées.
+  broadcast("shell", "shell", { type: "halt", active: true, since: Date.now() });
+  await until(
+    async () =>
+      (await page.locator('.wm-win[data-type="terminal"] .term-halt:visible').count()) === 2,
+    "bandeau d'arrêt d'urgence dans chaque terminal",
+  );
+  check((await live.count()) === 2, "l'arrêt d'urgence ne coupe pas les terminaux");
+  check(termsReceived("close").length === 0, "aucun close envoyé par l'arrêt d'urgence");
+  await shot("2-terminaux-mission-arret");
+  await win("chat:m1").locator(".wm-close").click();
+  broadcast("shell", "shell", { type: "halt", active: false, since: null });
+  await until(
+    async () => (await page.locator(".term-halt:visible").count()) === 0,
+    "bandeau retiré à la reprise",
+  );
+
+  // Fermeture : confirmation tant que la session est active, `close` seulement une fois confirmée.
+  await raise(key0);
+  await win(key0).locator(".wm-close").click();
+  await until(() => win(key0).locator(".term-confirm").isVisible(), "confirmation de fermeture");
+  check(termsReceived("close").length === 0, "aucun close avant confirmation");
+  await win(key0).locator(".term-confirm button", { hasText: "Annuler" }).click();
+  check((await win(key0).count()) === 1, "fermeture annulée : la fenêtre reste");
+  await raise(key0);
+  await win(key0).locator(".wm-close").click();
+  await win(key0).locator(".term-confirm button", { hasText: "Fermer la session" }).click();
+  await until(async () => (await win(key0).count()) === 0, "fenêtre fermée après confirmation");
+  check(termsReceived("close").length === 1, "close envoyé une fois confirmé");
+  check(termsReceived("close")[0].frame === open1.frame, "close vise la bonne session");
+
+  // Reconnexion : la session survivante est réabonnée (`ready`), l'écran est rejoué.
+  const readyBefore = termsReceived("ready").length;
+  for (const ws of sockets) ws.terminate();
+  await until(
+    async () => termsReceived("ready").length > readyBefore,
+    "ready renvoyé après coupure",
+    12000,
+  );
+  await until(async () => (await live.count()) === 1, "session réabonnée en direct", 12000);
+  check(
+    (await win(key1).locator(".xterm-rows").innerText()).includes("root@kali"),
+    "écran rejoué après la reconnexion",
+  );
+  // Session non conservée par le serveur : « session perdue, rouvrir ».
+  termSessions.clear();
+  for (const ws of sockets) ws.terminate();
+  await until(
+    async () => (await win(key1).locator(".term-over-text").count()) === 1,
+    "session perdue détectée",
+    16000,
+  );
+  check(
+    (await win(key1).locator(".term-over-text").innerText()).includes("Session perdue, rouvrir"),
+    "message « session perdue, rouvrir »",
+  );
+  await raise(key1);
+  await win(key1).locator(".term-over button", { hasText: "Rouvrir" }).click();
+  await until(
+    () => win(key1).locator(".term-pick").isVisible(),
+    "Rouvrir ramène au choix du conteneur",
+  );
+  await win(key1).locator(".term-choice").first().click();
+  await until(async () => (await live.count()) === 1, "session rouverte");
+
+  // Journal : runs (mission et terminal), taille, date, ouverture d'un Monitor ; fil d'audit.
+  await page.evaluate(() => {
+    location.hash = "#w=journal";
+  });
+  await until(() => win("native:journal").isVisible(), "Journal ouvert");
+  await until(
+    async () => (await win("native:journal").locator(".scr-run").count()) === 2,
+    "Journal : deux runs",
+  );
+  const runsText = await win("native:journal").locator(".scr-run").allInnerTexts();
+  check(
+    runsText.some((t) => t.includes("terminal") && t.includes("3.0 Kio")) &&
+      runsText.some((t) => t.includes("mission") && t.includes("20.0 Kio")),
+    "Journal : type et taille des runs",
+  );
+  await until(
+    async () =>
+      (await win("native:journal")
+        .locator(".scr-feed-item", { hasText: "terminal.open" })
+        .count()) >= 1,
+    "Journal : fil d'audit",
+  );
+  await raise("native:journal");
+  await page.keyboard.press("Control+Alt+ArrowUp");
+  await sleep(300);
+  await shot("3-journal");
+  await win("native:journal").locator('button[data-run="r-t1"]').click();
+  await until(
+    async () => (await page.locator('.wm-win[data-key="viewer:r-t1"]').count()) === 1,
+    "Journal : ouvre le Monitor du run",
+  );
+
+  check(
+    violations.length === 0,
+    `zéro violation CSP (terminaux) (${violations.slice(0, 3).join(" | ")})`,
+  );
+  await context.close();
+}
+
+async function terminalPhoneScenario(name, viewport) {
+  console.log(`\n== ${name} : terminal en pile (${viewport.width}x${viewport.height})`);
+  resetScreens();
+  const { context, page, violations, win, shot } = await openSession(name, viewport);
+  await page.locator("#dock-open").click();
+  await page.locator("#dock-menu .dock-menu-item", { hasText: "Nouveau terminal" }).click();
+  const terms = page.locator('.wm-win[data-type="terminal"]');
+  await until(async () => (await terms.count()) === 1, "terminal ouvert depuis le dock");
+  await terms.first().locator(".term-choice").first().click();
+  await until(
+    async () => (await page.locator(".term[data-state=live]").count()) === 1,
+    "session en direct (téléphone)",
+  );
+  const box = await terms.first().boundingBox();
+  check(box.width >= viewport.width - 2, "le terminal occupe toute la largeur (pile)");
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > window.innerWidth + 1,
+  );
+  check(!overflow, "aucun défilement horizontal de la page");
+  const open = termsReceived("open")[0];
+  check(
+    open?.msg.cols >= 20 && open.msg.cols < 80,
+    `colonnes adaptées à 375 px (${open?.msg.cols})`,
+  );
+  await shot("terminal-pile");
+  check(
+    violations.length === 0,
+    `zéro violation CSP (terminal téléphone) (${violations.slice(0, 3).join(" | ")})`,
+  );
+  await context.close();
+}
+
 try {
   // WEB_E2E_ONLY=<nom> : ne joue que ce scénario (mise au point).
   const only = (name) => !process.env.WEB_E2E_ONLY || process.env.WEB_E2E_ONLY === name;
@@ -1789,6 +2203,9 @@ try {
   if (only("screens")) await screensScenario("screens", { width: 1440, height: 900 });
   if (only("screens-mobile"))
     await settingsPhoneScenario("screens-mobile", { width: 375, height: 812 });
+  if (only("terminal")) await terminalScenario("terminal", { width: 1440, height: 900 });
+  if (only("terminal-mobile"))
+    await terminalPhoneScenario("terminal-mobile", { width: 375, height: 812 });
   if (only("wm-budget-mobile")) {
     await budgetScenario("wm-budget-mobile", { width: 375, height: 812 }, 3);
   }

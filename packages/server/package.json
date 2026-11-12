@@ -8,6 +8,9 @@
   "engines": {
     "node": ">=22.12"
   },
+  "scripts": {
+    "vendor:xterm": "node scripts/vendor-xterm.mjs"
+  },
   "bin": {
     "redwidow-server": "./dist/main.js"
   },
@@ -25,6 +28,8 @@
     "@warband/core": "workspace:*",
     "@warband/messages": "workspace:*",
     "@warband/vscode": "workspace:*",
+    "@xterm/addon-fit": "0.11.0",
+    "@xterm/xterm": "6.0.0",
     "ws": "8.22.2"
   },
   "devDependencies": {

@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import type { AddressInfo } from "node:net";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { hashPassword } from "../src/auth/password.js";
@@ -95,7 +95,19 @@ describe("sources de l'interface", () => {
       const text = readFileSync(file, "utf8");
       if (file.endsWith(".html")) expect(text, file).not.toMatch(/\sstyle=/);
       expect(text, file).not.toContain("unsafe-inline");
-      expect(text, file).not.toMatch(/https?:\/\//);
+      // Copies d'xterm (web/vendor/) : seuls un commentaire de licence et des espaces de noms XML
+      // contiennent une URL, jamais une ressource à charger. Tout autre domaine fait échouer le test.
+      const urls = (text.match(/https?:\/\/[^\s"'`)]*/g) ?? []).filter(
+        (u) =>
+          !file.includes(`${sep}vendor${sep}`) ||
+          ![
+            "http://bellard.org/jslinux/",
+            "https://github.com/chjj/term.js",
+            "http://www.w3.org/1999/xhtml",
+            "http://www.w3.org/2000/svg",
+          ].includes(u),
+      );
+      expect(urls, file).toEqual([]);
     }
   });
 

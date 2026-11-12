@@ -6,6 +6,7 @@
       "!**/dist",
       "!**/.vsix-stage",
       "!packages/vscode/preview",
+      "!packages/server/web/vendor",
       "!**/node_modules",
       "!.claude",
       "!**/*.tsbuildinfo"

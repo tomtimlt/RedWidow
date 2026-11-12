@@ -26,6 +26,7 @@ Leurs licences complètes sont dans `packages/vscode/third-party/`.
 | OpenCode | MIT |
 | MITRE Attack Flow | Apache-2.0 |
 | STIX (schémas OASIS) | Licence OASIS |
+| xterm.js et son addon d'ajustement (interface web du serveur, `packages/server/web/vendor/`, licence jointe) | MIT |
 
 ## Dépendances logicielles
 

@@ -4,6 +4,7 @@
 import { createApprovalTracker, createCardList, parseApprovalList } from "./lib/approval-card.js";
 import { createChannel } from "./lib/channel.js";
 import { createFrameHost, parseDeepLink } from "./lib/frames.js";
+import { activityMap, formatSize, parseMissions, parseProjects, parseRuns } from "./lib/lists.js";
 import { buildCommands, createPalette } from "./lib/palette.js";
 import { attachShortcuts, runShortcut } from "./lib/shortcuts.js";
 import {
@@ -21,6 +22,7 @@ import { createFindingsScreen } from "./screens/findings.js";
 import { createJournalScreen } from "./screens/journal.js";
 import { createProvidersScreen } from "./screens/providers.js";
 import { createSettingsScreen } from "./screens/settings.js";
+import { createTerminalHost } from "./screens/terminal.js";
 import { createDesktop } from "./wm/desktop.js";
 import { createDock } from "./wm/dock.js";
 import {
@@ -36,9 +38,19 @@ import {
   spaceNameOf,
 } from "./wm/layouts.js";
 import { createMobile } from "./wm/mobile.js";
-import { iframeSpec, NATIVE_SCREENS, nativeSpec, specFromRoute } from "./wm/types.js";
+import {
+  iframeSpec,
+  NATIVE_SCREENS,
+  nativeSpec,
+  newTerminalId,
+  specFromRoute,
+  TERMINAL_ENTRY,
+  terminalSpec,
+} from "./wm/types.js";
 
 const SHELL = "shell";
+/** Entrées des menus « Ouvrir » (dock, palette) : écrans natifs puis « Nouveau terminal ». */
+const MENU_SCREENS = [...NATIVE_SCREENS, TERMINAL_ENTRY];
 /** Au-delà, l'arrêt d'urgence demandé sans écho du serveur redevient « inconnu ». */
 const HALT_ECHO_MS = 8000;
 
@@ -55,6 +67,10 @@ const state = {
   spaceName: DEFAULT_NAME,
   /** Vrai après la première lecture des dispositions : avant, rien n'est enregistré. */
   hydrated: false,
+  /** Listes du serveur (palette, dock) : missions, projets, runs. */
+  missions: [],
+  projects: [],
+  runs: [],
 };
 
 // ───────────────────────────── Canal ─────────────────────────────
@@ -202,7 +218,17 @@ const logout = async () => {
   location.assign("/login");
 };
 
+/** Terminaux humains (ADR 0053) : une fenêtre par session, rendu xterm, journalisés côté serveur. */
+const terminals = createTerminalHost({
+  doc: document,
+  send: (view, frame, msg) => channel.send(view, frame, msg),
+  sendShell: (msg) => channel.send(SHELL, SHELL, msg),
+  onTitle: (key, title) => desktop.setTitle(key, title),
+  onChange: () => render(),
+});
+
 const journal = createJournalScreen(document, {
+  send: sendShell,
   onOpenMonitor: (id) => {
     const spec = iframeSpec("monitor", id);
     if (spec !== null) desktop.open(spec);
@@ -247,6 +273,7 @@ const desktop = createDesktop({
   natives: {
     // L'écran Approbations est préparé dans la page ; la fenêtre l'héberge.
     approvals: { mount: (body) => body.append(approvalsEl) },
+    terminal: { mount: (body, spec) => terminals.mount(body, spec) },
     ...nativeMounts,
   },
   onChange: () => render(),
@@ -279,10 +306,10 @@ dock = createDock({
     spaceButton: $("dock-space"),
     spaceMenu: $("dock-space-menu"),
   },
-  screens: NATIVE_SCREENS,
+  screens: MENU_SCREENS,
   onActivate: (key) => desktop.focus(key),
   onMinimize: (key) => desktop.minimize(key),
-  onOpenScreen: (name) => desktop.open(nativeSpec(name)),
+  onOpenScreen: (name) => desktop.open(name === "terminal" ? newTerminal() : nativeSpec(name)),
   onSpace: (name) => applySpace(name),
   onSpaceSave: () => palette.openPrompt(saveSpacePrompt()),
 });
@@ -309,8 +336,7 @@ function scheduleSave() {
 }
 
 /** Un terminal dont la session est active n'est jamais fermé par un espace : il est minimisé. */
-const isProtected = (key) =>
-  desktop.layoutWindows().some((w) => w.key === key && w.spec.type === "terminal" && w.spec.active);
+const isProtected = (key) => terminals.isActive(key);
 
 function applyLayout(layout) {
   const plan = planApply(
@@ -391,7 +417,48 @@ function hydrate(parsed) {
 
 // ───────────────────────────── Raccourcis et palette ─────────────────────────────
 
-const specFor = (kind, id) => (kind === "native" ? nativeSpec(id) : iframeSpec(kind, id));
+const newTerminal = () => terminalSpec(newTerminalId());
+const specFor = (kind, id) =>
+  kind === "native" ? (id === "terminal" ? newTerminal() : nativeSpec(id)) : iframeSpec(kind, id);
+
+const MISSION_STATES = { running: "en cours", waiting: "en attente", stopped: "arrêt en cours" };
+const MAX_PALETTE_RUNS = 30;
+/** Identités connues du serveur pour la palette : missions, projets, runs (ouvre un Monitor). */
+function serverKnown(approvalFrames) {
+  const known = [];
+  const seen = new Set();
+  for (const m of state.missions) {
+    seen.add(m.id);
+    known.push({
+      kind: "mission",
+      id: m.id,
+      title: `Mission : ${m.title}`,
+      detail: [MISSION_STATES[m.state], m.project ? `projet ${m.project}` : ""]
+        .filter(Boolean)
+        .join(", "),
+    });
+  }
+  for (const id of approvalFrames) if (!seen.has(id)) known.push({ kind: "mission", id });
+  for (const p of state.projects) {
+    known.push({ kind: "program", id: p.id, title: `Programme : ${p.name}`, detail: "projet" });
+  }
+  for (const r of state.runs.slice(0, MAX_PALETTE_RUNS)) {
+    known.push({
+      kind: "monitor",
+      id: r.id,
+      title: `Monitor ${r.id.slice(0, 8)}`,
+      detail: `run ${r.kind === "terminal" ? "terminal" : "mission"}, ${formatSize(r.size)}`,
+    });
+  }
+  return known;
+}
+
+/** Demande les listes du serveur (palette, dock) ; les réponses mettent l'état à jour. */
+function refreshLists() {
+  sendShell({ type: "missionsList" });
+  sendShell({ type: "projectsList" });
+  sendShell({ type: "runsList" });
+}
 const FIXED_VIEWS = [
   { kind: "cockpit", id: "main", title: "Ouvrir le cockpit" },
   { kind: "sessions", id: "main", title: "Ouvrir les sessions" },
@@ -400,21 +467,22 @@ const FIXED_VIEWS = [
 
 const palette = createPalette({
   doc: document,
+  onOpen: refreshLists,
   refs: {
     root: $("palette"),
     input: $("palette-input"),
     list: $("palette-list"),
   },
   getItems: () => {
-    const missions = [...new Set(tracker.items().map((item) => item.frame))];
+    const approvalFrames = [...new Set(tracker.items().map((item) => item.frame))];
     return buildCommands({
       windows: desktop.snapshot(),
       activeKey: desktop.activeKey(),
       spaces: state.spaces,
       spaceName: state.spaceName,
       phone: onPhone(),
-      known: missions.map((id) => ({ kind: "mission", id })),
-      screens: NATIVE_SCREENS,
+      known: serverKnown(approvalFrames),
+      screens: MENU_SCREENS,
       fixed: FIXED_VIEWS,
       spec: specFor,
       actions: {
@@ -459,7 +527,7 @@ function handleShortcut(id, source) {
       },
       cycle: () => desktop.cycle(),
       terminal: () => {
-        const spec = nativeSpec("terminal");
+        const spec = newTerminal();
         if (spec) desktop.open(spec);
       },
       approvals: () => openApprovals(),
@@ -510,6 +578,7 @@ function render() {
 
   dock?.render(desktop.snapshot(), {
     badges: dockBadges(items),
+    activity: activityMap(state.missions),
     mode: phone ? "stack" : "desktop",
   });
   mobile?.revealActive($("dock-items"));
@@ -547,6 +616,10 @@ function notifyNew(added) {
 let snapshotPending = true;
 
 channel.onMessage((env) => {
+  if (env.view === "term") {
+    terminals.onTerm(env);
+    return;
+  }
   if (env.view !== "shell") {
     frames.deliver(env);
     return;
@@ -554,7 +627,31 @@ channel.onMessage((env) => {
   const msg = env.msg;
   // Les écrans natifs ignorent ce qui ne les concerne pas.
   for (const screen of Object.values(screens)) screen.onMessage?.(msg);
+  terminals.onMessage(msg);
   switch (msg.type) {
+    case "missions":
+      state.missions = parseMissions(msg);
+      palette.refresh();
+      render();
+      break;
+    case "missionState": {
+      // Diffusion d'un changement d'état : pastille du dock (en cours, en attente).
+      const known = state.missions.find((m) => m.id === msg.id);
+      const next = ["idle", "running", "waiting", "stopped"].includes(msg.state) ? msg.state : null;
+      if (known && next !== null) {
+        known.state = next;
+        render();
+      } else if (!known) sendShell({ type: "missionsList" });
+      break;
+    }
+    case "projects":
+      state.projects = parseProjects(msg);
+      palette.refresh();
+      break;
+    case "runs":
+      state.runs = parseRuns(msg);
+      palette.refresh();
+      break;
     case "approvals": {
       const added = tracker.update(parseApprovalList(msg.items));
       if (!snapshotPending && added.length > 0) {
@@ -581,6 +678,7 @@ channel.onMessage((env) => {
         );
       }
       state.halt = halt;
+      terminals.setHalt(halt.active);
       state.haltRequested = false;
       state.haltNote = "";
       clearTimeout(haltTimer);
@@ -627,9 +725,11 @@ channel.onState((conn) => {
     snapshotPending = true;
     state.haltRequested = false;
     state.halt = null;
+    terminals.setHalt(false);
     state.bypass = null;
     screens.settings.setBypass(null);
   }
+  terminals.setOnline(conn === "open");
   for (const screen of Object.values(screens)) screen.setOnline?.(conn === "open");
   render();
 });
@@ -637,6 +737,9 @@ channel.onOpen(() => {
   channel.send(SHELL, SHELL, { type: "ready" });
   channel.send(SHELL, SHELL, { type: "layouts" });
   for (const screen of Object.values(screens)) screen.refresh?.();
+  sendShell({ type: "missionsList" });
+  // Les terminaux actifs se réabonnent (`ready`) ; sans `opened` à temps, « session perdue, rouvrir ».
+  terminals.onOpen();
   // Reconnexion : la disposition courante est renvoyée si elle a changé hors ligne.
   if (state.hydrated) scheduleSave();
   // Reconnexion : les pages vivantes sont rechargées (elles renvoient `ready` et reprennent l'état).

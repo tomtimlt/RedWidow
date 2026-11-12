@@ -13,6 +13,9 @@ export const NATIVE_SCREENS = [
   { name: "settings", title: "Réglages" },
 ];
 
+/** Entrée « Nouveau terminal » des menus (dock, palette) : instances illimitées, une session chacune. */
+export const TERMINAL_ENTRY = { name: "terminal", title: "Nouveau terminal" };
+
 const IFRAME_KINDS = {
   mission: { view: "chat", label: "Mission" },
   monitor: { view: "viewer", mode: "watch", label: "Monitor" },
@@ -54,6 +57,24 @@ export function nativeSpec(name) {
     title: screen.title,
     name,
   };
+}
+
+/** Fenêtre de terminal (type `terminal`, natif) : `sid` est l'identifiant de session choisi par le client. */
+export function terminalSpec(sid) {
+  if (typeof sid !== "string" || !ID_PATTERN.test(sid)) return null;
+  return {
+    key: `term:${sid}`,
+    kind: "native",
+    type: "terminal",
+    name: "terminal",
+    frame: sid,
+    title: "Terminal",
+  };
+}
+
+/** Nouvel identifiant de session : `t-` et un UUID, conforme au motif des cadres (38 caractères). */
+export function newTerminalId(random = () => globalThis.crypto.randomUUID()) {
+  return `t-${random()}`.slice(0, 64);
 }
 
 /** Destination d'un lien profond (`parseDeepLink`) → spécification de fenêtre, ou `null`. */

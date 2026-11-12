@@ -201,11 +201,20 @@ export function createDesktop({
     const win = windows.get(key);
     if (!win) return;
     if (win.entry) frames.close(win.entry.view, win.entry.frame);
+    win.handle?.dispose?.();
     clearTimeout(win.animTimer);
     win.el.remove();
     windows.delete(key);
     stack.close(key);
     reconcile();
+  };
+
+  /** Bouton de fermeture : un écran natif peut demander une confirmation (terminal dont la session est active). */
+  const requestClose = (key) => {
+    const win = windows.get(key);
+    if (!win) return;
+    if (win.handle?.guardClose?.(() => close(key)) === true) return;
+    close(key);
   };
 
   // ───────────── Glisser et redimensionner ─────────────
@@ -369,7 +378,7 @@ export function createDesktop({
       mk("wm-max", "Maximiser ou restaurer", "□", () =>
         setMaximized(spec.key, !windows.get(spec.key).rec.maximized),
       ),
-      mk("wm-close", "Fermer", "×", () => close(spec.key)),
+      mk("wm-close", "Fermer", "×", () => requestClose(spec.key)),
     );
     header.append(name, buttons);
 
@@ -406,6 +415,7 @@ export function createDesktop({
       body: parts.body,
       errorBox: parts.errorBox,
       entry: null,
+      handle: null,
       rect: sanitizeFractions(opts.rect) ?? cascadeFractions(opened),
       px: null,
       animTimer: null,
@@ -431,7 +441,7 @@ export function createDesktop({
       });
     } else {
       const native = natives[spec.name];
-      if (native) native.mount(parts.body);
+      if (native) win.handle = native.mount(parts.body, spec) ?? null;
       else {
         const wait = el(doc, "div", "wm-wait");
         wait.append(el(doc, "h2", "", spec.title), el(doc, "p", "empty", WAIT_TEXT));
@@ -504,6 +514,16 @@ export function createDesktop({
     activeKey: () => {
       const top = stack.top();
       return top !== null && isVisible(stack.get(top)) ? top : null;
+    },
+    /** Change le titre d'une fenêtre (terminal : nom du conteneur) ; le dock suit. */
+    setTitle(key, title) {
+      const win = windows.get(key);
+      if (!win || typeof title !== "string" || title === "") return;
+      win.spec.title = title;
+      win.el.setAttribute("aria-label", title);
+      const name = win.el.querySelector(".wm-name");
+      if (name) name.textContent = title;
+      notify();
     },
     /** Le chargement de l'iframe a échoué : cadre d'erreur dans sa fenêtre. */
     setError(key, failed) {

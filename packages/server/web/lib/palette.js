@@ -115,8 +115,9 @@ function fillTitle(doc, node, title, indices) {
  * @param {Document} options.doc
  * @param {{ root: HTMLElement, input: HTMLInputElement, list: HTMLElement, hint: HTMLElement }} options.refs
  * @param {() => object[]} options.getItems commandes courantes, relues à chaque ouverture
+ * @param {() => void} [options.onOpen] appelé à l'ouverture (rafraîchir les listes du serveur)
  */
-export function createPalette({ doc, refs, getItems }) {
+export function createPalette({ doc, refs, getItems, onOpen = () => {} }) {
   /** Pile de niveaux : { items, placeholder, prompt? }. */
   let levels = [];
   let shown = [];
@@ -305,6 +306,7 @@ export function createPalette({ doc, refs, getItems }) {
     open() {
       if (isOpen()) return;
       opener = doc.activeElement;
+      onOpen();
       levels = [{ items: getItems(), placeholder: "Rechercher une commande…" }];
       refs.input.value = "";
       active = 0;
@@ -315,6 +317,12 @@ export function createPalette({ doc, refs, getItems }) {
       void refs.root.offsetWidth;
       refs.root.classList.add("is-open");
       refs.input.focus();
+    },
+    /** Listes du serveur arrivées palette ouverte : la liste principale est recalculée (sans toucher une saisie). */
+    refresh() {
+      if (!isOpen() || levels.length !== 1 || levels[0].prompt) return;
+      levels[0].items = getItems();
+      render();
     },
     /** Ouvre directement une saisie de nom (sélecteur d'espaces du dock). */
     openPrompt(prompt) {
@@ -386,7 +394,12 @@ export function buildCommands(ctx) {
       group: "Ouvrir",
       title: screen.title,
       keywords: "écran fenêtre",
-      shortcut: screen.name === "approvals" ? "Ctrl+Alt+A" : undefined,
+      shortcut:
+        screen.name === "approvals"
+          ? "Ctrl+Alt+A"
+          : screen.name === "terminal"
+            ? "Ctrl+Alt+T"
+            : undefined,
       run: () => a.open(ctx.spec("native", screen.name)),
     });
   }
@@ -404,8 +417,10 @@ export function buildCommands(ctx) {
     items.push({
       id: `open:${k.kind}:${k.id}`,
       group: "Ouvrir",
-      title: spec.title,
-      keywords: KIND_LABELS[k.kind] ?? k.kind,
+      // Titre et détail lisibles fournis par les listes du serveur (mission, projet, run).
+      title: k.title ?? spec.title,
+      detail: k.detail,
+      keywords: `${KIND_LABELS[k.kind] ?? k.kind} ${k.id}`,
       run: () => a.open(spec),
     });
   }

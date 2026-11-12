@@ -1,0 +1,168 @@
+/*
+ * Fenêtre Terminal (xterm.js) et pastille d'activité du dock. Charte : fond acier très sombre, rouge
+ * #CC1C40 pour le curseur et les alertes, acier #495F73 pour les contours. Aucune ressource distante ;
+ * la feuille d'xterm est servie par /vendor/xterm.css.
+ */
+.term {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--rw-bg);
+}
+
+.term-banner {
+  flex: none;
+  margin: 0;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--rw-steel);
+  background: var(--rw-surface);
+  color: var(--rw-steel-text);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.term-halt {
+  flex: none;
+  margin: 0;
+  padding: 6px 10px;
+  background: rgb(204 28 64 / 22%);
+  border-bottom: 1px solid var(--rw-crimson);
+  color: var(--rw-crimson-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.term-note {
+  flex: none;
+  margin: 0;
+  padding: 5px 10px;
+  background: var(--rw-surface-2);
+  color: var(--rw-warn);
+  font-size: 12px;
+}
+
+.term-halt[hidden],
+.term-note[hidden],
+.term-pick[hidden],
+.term-view[hidden],
+.term-over[hidden],
+.term-confirm[hidden] {
+  display: none;
+}
+
+.term-pick {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 14px;
+}
+
+.term-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.term-choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  text-align: left;
+}
+
+.term-choice-name {
+  font-family: var(--rw-mono);
+  font-weight: 600;
+}
+
+.term-choice-image {
+  margin-left: auto;
+  color: var(--rw-fg-muted);
+  font-family: var(--rw-mono);
+  font-size: 12px;
+}
+
+.term-view {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 4px 0 0 6px;
+  overflow: hidden;
+  background: #0d1116;
+}
+
+/* xterm remplit son conteneur ; la barre de défilement garde la teinte acier. */
+.term-view .xterm {
+  height: 100%;
+}
+
+.term-view .xterm-viewport {
+  background-color: transparent;
+}
+
+.term-over,
+.term-confirm {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  left: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--rw-steel);
+  border-radius: 6px;
+  background: var(--rw-surface-2);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 55%);
+}
+
+.term-confirm {
+  border-color: var(--rw-crimson);
+}
+
+.term-over-text,
+.term-confirm-q {
+  flex: 1 1 200px;
+  margin: 0;
+}
+
+/* Pastille d'activité d'une mission (dock) : rouge si elle travaille, acier si elle attend une réponse. */
+.dock-act {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--rw-steel-text);
+}
+
+.dock-act[data-state="running"] {
+  background: var(--rw-crimson);
+  animation: dock-pulse 1.4s ease-in-out infinite;
+}
+
+.dock-act[data-state="waiting"] {
+  background: var(--rw-warn);
+}
+
+.dock-act[hidden] {
+  display: none;
+}
+
+@keyframes dock-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dock-act[data-state="running"] {
+    animation: none;
+  }
+}
