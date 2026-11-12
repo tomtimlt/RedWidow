@@ -168,6 +168,14 @@ const SAMPLES: { [K in EventKind]: Extract<EventPayload, { kind: K }> } = {
   "continuation.stalled": { kind: "continuation.stalled" },
   "continuation.auto": { kind: "continuation.auto", count: 1, max: 20, openLeads: 3 },
   "context.usage": { kind: "context.usage", usedTokens: 1200, windowTokens: 200000 },
+  "provider.rotated": {
+    kind: "provider.rotated",
+    provider: "opencode",
+    from: "gratuit-1",
+    to: "gratuit-2",
+    reason: "quota",
+    phase: "switched",
+  },
   "rate.limited": { kind: "rate.limited", status: "allowed_warning", utilization: 0.9 },
   "pace.adjusted": {
     kind: "pace.adjusted",
@@ -270,6 +278,10 @@ describe("schéma d'événements", () => {
       ["context.usage", { windowTokens: -5 }],
       ["context.usage", { windowTokens: 2.5 }],
       ["rate.limited", { status: 1 }],
+      [
+        "provider.rotated",
+        { provider: "opencode", from: null, to: null, reason: "x", phase: "switched" },
+      ],
       ["run.finished", { unhandledMessages: { a: "x" } }],
       ["error", { message: null }],
       ["error", { code: undefined }],

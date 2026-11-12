@@ -159,6 +159,8 @@ export function formatEvent(
       const status = e.status ? ` [${e.status}]` : "";
       return `${tag("cyan", "task")} ${e.phase}${status} ${paint("dim", detail)}`;
     }
+    case "provider.rotated":
+      return `${tag("yellow", "clé")} ${stripControl(e.provider)} · ${stripControl(e.from ?? "—")} → ${stripControl(e.to ?? "—")} · ${e.reason} · ${e.phase}`;
     case "rate.limited":
       return `${tag(e.status === "rejected" ? "red" : "yellow", "limit")} ${e.status}${e.limitType ? ` · ${e.limitType}` : ""}${e.utilization === undefined ? "" : ` · ${Math.round(e.utilization * 100)} %`}`;
     case "pace.adjusted":

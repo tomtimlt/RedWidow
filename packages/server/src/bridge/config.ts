@@ -3,12 +3,22 @@
  * fournisseurs, dispositions. Les jetons vivent dans le coffre (`provider.<id>.token`) ; seuls leur
  * présence et leur type sortent d'ici, jamais la valeur. Rien de secret n'est journalisé.
  */
+import { randomUUID } from "node:crypto";
 import { CodedError } from "@warband/core";
 import { capabilitySettings, isCapabilityId } from "@warband/vscode/logic/chat-capabilities";
 import { resolveSettings } from "@warband/vscode/logic/settings";
 import type { ServerStorage } from "../storage/index.js";
 import { SETTINGS_KEY, tokenKindKey, tokenSecretKey } from "./deps.js";
 import { isLayoutName, type Layout, MAX_SAVED_LAYOUTS } from "./layout.js";
+import {
+  currentKey,
+  MAX_POOL_KEYS,
+  type PoolProvider,
+  type PoolState,
+  parsePool,
+  poolSecretKey,
+  poolStateKey,
+} from "./rotation.js";
 import {
   SETTING_KEYS,
   TOKEN_KINDS,
@@ -153,4 +163,98 @@ export function deleteLayout(storage: ServerStorage, name: string): boolean {
   if (kept.length === state.saved.length) return false;
   storage.state.set(LAYOUTS_KEY, { ...state, saved: kept });
   return true;
+}
+
+// ---------------------------------------------------------------------------
+// Réserve de clés par fournisseur (ADR 0052, point 6) : valeurs dans le coffre, état dans `pool.<p>`.
+// ---------------------------------------------------------------------------
+
+export const readPool = (storage: ServerStorage, provider: PoolProvider): PoolState =>
+  parsePool(storage.state.get(poolStateKey(provider)));
+
+export const writePool = (storage: ServerStorage, provider: PoolProvider, pool: PoolState): void =>
+  storage.state.set(poolStateKey(provider), pool);
+
+/** Ajoute une clé (en dernier dans l'ordre). Renvoie son identifiant, ou `null` si le plafond est atteint. */
+export async function addPoolKey(
+  storage: ServerStorage,
+  provider: PoolProvider,
+  label: string,
+  value: string,
+  now: number,
+): Promise<string | null> {
+  if (readPool(storage, provider).order.length >= MAX_POOL_KEYS) return null;
+  const id = randomUUID();
+  await storage.secrets.set(poolSecretKey(provider, id), value);
+  // Lecture et écriture de l'état sans intercalage : deux ajouts concurrents ne s'écrasent pas.
+  const pool = readPool(storage, provider);
+  if (pool.order.length >= MAX_POOL_KEYS) {
+    await storage.secrets.delete(poolSecretKey(provider, id));
+    return null;
+  }
+  pool.keys[id] = { label, state: "ok", since: now, retryAt: null };
+  pool.order.push(id);
+  pool.active ??= id;
+  writePool(storage, provider, pool);
+  return id;
+}
+
+export async function removePoolKey(
+  storage: ServerStorage,
+  provider: PoolProvider,
+  id: string,
+  now: number,
+): Promise<boolean> {
+  const pool = readPool(storage, provider);
+  if (!(id in pool.keys)) return false;
+  delete pool.keys[id];
+  pool.order = pool.order.filter((k) => k !== id);
+  if (pool.active === id) pool.active = currentKey(pool, now);
+  writePool(storage, provider, pool);
+  await storage.secrets.delete(poolSecretKey(provider, id));
+  return true;
+}
+
+/** Nouvel ordre : doit être une permutation exacte des identifiants présents. */
+export function reorderPool(
+  storage: ServerStorage,
+  provider: PoolProvider,
+  order: readonly string[],
+): boolean {
+  const pool = readPool(storage, provider);
+  if (order.length !== pool.order.length || new Set(order).size !== order.length) return false;
+  if (!order.every((id) => id in pool.keys)) return false;
+  pool.order = [...order];
+  writePool(storage, provider, pool);
+  return true;
+}
+
+/** Active une clé à la main : elle redevient `ok` (l'utilisateur sait qu'elle fonctionne). */
+export function activatePoolKey(
+  storage: ServerStorage,
+  provider: PoolProvider,
+  id: string,
+  now: number,
+): boolean {
+  const pool = readPool(storage, provider);
+  const key = pool.keys[id];
+  if (!key) return false;
+  pool.keys[id] = { ...key, state: "ok", since: now, retryAt: null };
+  pool.active = id;
+  writePool(storage, provider, pool);
+  return true;
+}
+
+/** Clé active d'une réserve non vide : identifiant et valeur (jamais journalisée). `undefined` : pas de réserve. */
+export async function activePoolKey(
+  storage: ServerStorage,
+  provider: PoolProvider,
+  now: number,
+): Promise<{ id: string; value: string } | undefined> {
+  const pool = readPool(storage, provider);
+  if (pool.order.length === 0) return undefined;
+  const id = currentKey(pool, now);
+  if (id === null) return undefined;
+  const value = await storage.secrets.get(poolSecretKey(provider, id));
+  return value === undefined ? undefined : { id, value };
 }

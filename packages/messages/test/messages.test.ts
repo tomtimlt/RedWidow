@@ -380,6 +380,14 @@ describe("eventLabel", () => {
       error: "e",
     },
     "task.updated": { kind: "task.updated", taskId: "k", phase: "started", description: "d" },
+    "provider.rotated": {
+      kind: "provider.rotated",
+      provider: "opencode",
+      from: "gratuit-1",
+      to: "gratuit-2",
+      reason: "quota",
+      phase: "switched",
+    },
     "rate.limited": { kind: "rate.limited", status: "rejected" },
     "pace.adjusted": {
       kind: "pace.adjusted",

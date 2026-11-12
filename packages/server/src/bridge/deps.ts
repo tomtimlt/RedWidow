@@ -9,6 +9,7 @@ import type { ChatSessionDeps, TokenChoice } from "@warband/vscode/logic/session
 import type { ChatSettings } from "@warband/vscode/logic/settings";
 import { resolveSettings } from "@warband/vscode/logic/settings";
 import type { ServerStorage } from "../storage/index.js";
+import { isPoolProvider, type PoolProvider } from "./rotation.js";
 
 /** Clé d'état de l'index de l'historique (équivalent serveur du `globalState` de VS Code). */
 export const HISTORY_INDEX_KEY = "history.index";
@@ -38,6 +39,13 @@ export interface BridgeDepsContext {
   /** Comptes de test du projet actif (stockage serveur, ADR 0052) ; absent : aucun compte. */
   getTestAccounts?: ChatSessionDeps["getTestAccounts"];
   onObservedEvent?(event: EngineEvent | null): void;
+  /**
+   * Réserve de clés (ADR 0052, point 6) : clé active d'un fournisseur ; `undefined` sans réserve utilisable,
+   * le comportement habituel s'applique alors. La valeur ne sort que dans l'environnement du moteur.
+   */
+  poolKey?(provider: PoolProvider): Promise<{ id: string; value: string } | undefined>;
+  /** Signale la clé de réserve (identifiant) retenue pour un fournisseur ; `null` : aucune. */
+  onPoolKey?(provider: PoolProvider, id: string | null): void;
   bypass?: { attach(send: BypassSend): BypassEngineLink; reset?(): void };
   /** Contrôleur injectable (tests) ; défaut : celui de `logic/session` (moteur forké). */
   createController?(options: EngineControllerOptions): EngineController;
@@ -61,6 +69,18 @@ export function buildChatDeps(ctx: BridgeDepsContext): ChatSessionDeps {
   };
 
   const getToken = async (provider: Provider = "claude"): Promise<TokenChoice | undefined> => {
+    if (isPoolProvider(provider) && ctx.poolKey) {
+      const pooled = await ctx.poolKey(provider);
+      ctx.onPoolKey?.(provider, pooled?.id ?? null);
+      if (pooled) {
+        const { value } = pooled;
+        if (provider === "opencode")
+          return { auth: { name: "OPENCODE_API_KEY", value }, mode: "auto" };
+        return provider === "openai"
+          ? { auth: { name: "OPENAI_API_KEY", value }, mode: "api-key" }
+          : { auth: { name: "ANTHROPIC_API_KEY", value }, mode: "api-key" };
+      }
+    }
     // OpenCode utilise son authentification propre (dossiers XDG de l'hôte) : aucun jeton à fournir.
     if (provider === "opencode") return { mode: "auto" };
     const value = await secrets.get(tokenSecretKey(provider));

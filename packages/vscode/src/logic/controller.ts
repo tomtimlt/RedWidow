@@ -35,6 +35,9 @@ export const AUTH_ENV_NAMES = [
   "ANTHROPIC_API_KEY",
   "CLAUDE_CODE_OAUTH_TOKEN",
   "OPENAI_API_KEY",
+  // Clé OpenCode (Zen) : posée seulement par l'hôte serveur (réserve de clés) ; l'adaptateur ne la
+  // transmet au serveur OpenCode que sous configuration isolée.
+  "OPENCODE_API_KEY",
 ] as const;
 export type AuthEnvName = (typeof AUTH_ENV_NAMES)[number];
 

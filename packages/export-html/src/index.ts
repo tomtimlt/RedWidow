@@ -34,6 +34,7 @@ export const KIND_CLASS: Record<EventKind, string> = {
   "mission.decision": "meta",
   "run.started": "k-run",
   "run.finished": "k-run",
+  "provider.rotated": "k-warn",
   "agent.text": "k-agent",
   "user.message": "k-agent",
   "tool.requested": "k-tool",

@@ -438,6 +438,13 @@ async function authEnvironment(options: OpencodeRunnerOptions, auth?: AuthMode) 
       env.OPENAI_API_KEY = key;
     }
   }
+  // Clé du fournisseur `opencode` (Zen), fournie par l'hôte dans l'environnement du moteur (réserve de
+  // clés du serveur) : transmise au serveur OpenCode par son environnement seulement, jamais en argument
+  // ni dans la configuration. Hors configuration isolée (CLI), le comportement reste inchangé.
+  if (options.isolateConfig && options.provider !== "openai") {
+    const key = (options.processEnv ?? process.env).OPENCODE_API_KEY;
+    if (key) env.OPENCODE_API_KEY = key;
+  }
   return { env, passEnv };
 }
 

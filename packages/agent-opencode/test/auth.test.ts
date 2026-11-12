@@ -149,3 +149,48 @@ server.listen(0, "127.0.0.1", () => console.log("opencode server listening on ht
     },
   );
 });
+
+describe("clé OpenCode fournie par l'hôte (réserve de clés du serveur)", () => {
+  it.each([
+    { isolate: true, expected: "ocz-cle-de-test" },
+    { isolate: false, expected: undefined },
+  ])(
+    "OPENCODE_API_KEY transmise au serveur seulement sous configuration isolée ($isolate)",
+    async ({ isolate, expected }) => {
+      const root = await cache();
+      const script = join(root, "opencode-test.mjs");
+      const log = join(root, "env.json");
+      await writeFile(
+        script,
+        `import { createServer } from "node:http";
+import { writeFileSync } from "node:fs";
+writeFileSync(${JSON.stringify(log)}, JSON.stringify({ key: process.env.OPENCODE_API_KEY ?? null, argv: process.argv }));
+const server = createServer((req, res) => {
+  res.setHeader("content-type", "application/json");
+  if (req.url.startsWith("/config")) return res.end(process.env.OPENCODE_CONFIG_CONTENT);
+  res.end(JSON.stringify({ all: [], connected: [] }));
+});
+server.listen(0, "127.0.0.1", () => console.log("opencode server listening on http://127.0.0.1:" + server.address().port));
+`,
+      );
+      const launch = server.launchServer;
+      vi.spyOn(server, "launchServer").mockImplementation((options) =>
+        launch({ ...options, binary: process.execPath, argsPrefix: [script] }),
+      );
+      const runner = createOpencodeRunner({
+        ...(isolate && { isolateConfig: true }),
+        binary: process.execPath,
+        processEnv: {
+          XDG_CONFIG_HOME: root,
+          XDG_DATA_HOME: root,
+          OPENCODE_API_KEY: "ocz-cle-de-test",
+        },
+      });
+      await expect(runner.listModels?.({ cwd: root, auth: "auto" })).resolves.toEqual([]);
+      const captured = JSON.parse(await readFile(log, "utf8"));
+      expect(captured.key ?? undefined).toBe(expected);
+      // Jamais en argument de ligne de commande.
+      expect(JSON.stringify(captured.argv)).not.toContain("ocz-cle-de-test");
+    },
+  );
+});

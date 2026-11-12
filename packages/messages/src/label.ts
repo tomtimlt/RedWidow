@@ -140,6 +140,10 @@ export function eventLabel(e: EngineEvent, options: LabelOptions = {}): string {
       return `${t.retry} ${e.attempt}/${e.maxRetries} · ${e.error}`;
     case "task.updated":
       return clip(`${t.task} ${e.phase} : ${e.description ?? e.summary ?? e.taskId}`);
+    case "provider.rotated":
+      return clip(
+        `${t.rotated} : ${e.provider} · ${e.from ?? "—"} → ${e.to ?? "—"} · ${e.reason} · ${e.phase}`,
+      );
     case "rate.limited":
       return clip(`${t.rateLimit} : ${e.status}`);
     case "pace.adjusted":

@@ -232,6 +232,18 @@ export type EventPayload =
       usage?: TaskUsage;
     }
   | {
+      /**
+       * Bascule de clé d'un fournisseur (réserve de clés). Libellés seulement : jamais la valeur d'une
+       * clé ni un extrait de réponse du fournisseur.
+       */
+      kind: "provider.rotated";
+      provider: string;
+      from: string | null;
+      to: string | null;
+      reason: "quota" | "rateLimit" | "auth";
+      phase: "switched" | "confirmed" | "failed" | "exhausted";
+    }
+  | {
       kind: "rate.limited";
       status: string;
       resetsAt?: number;
@@ -581,6 +593,13 @@ export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
       summary: "string?",
       usage: "object?",
     })(p) ?? (p.usage === undefined ? null : prefix("usage", USAGE_FIELDS(p.usage as Obj))),
+  "provider.rotated": shape({
+    provider: "string",
+    from: "string|null",
+    to: "string|null",
+    reason: "enum:quota,rateLimit,auth",
+    phase: "enum:switched,confirmed,failed,exhausted",
+  }),
   "rate.limited": shape({
     status: "string",
     resetsAt: "number?",

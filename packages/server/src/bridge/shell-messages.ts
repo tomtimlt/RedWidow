@@ -4,6 +4,7 @@
  * Aucune valeur secrète n'apparaît dans un message sortant : ces types ne servent qu'à l'entrée.
  */
 import { hasControl, isLayoutName, type Layout, validateLayout } from "./layout.js";
+import { isPoolProvider, MAX_POOL_KEYS, type PoolProvider } from "./rotation.js";
 
 /** Fournisseurs à jeton et types acceptés (OpenAI : clé d'API seulement, comme `buildChatDeps`). */
 export const TOKEN_KINDS = {
@@ -43,6 +44,10 @@ export type ShellControl =
   | { type: "settingsSet"; patch: Record<string, unknown> }
   | { type: "tokenSet"; provider: TokenProvider; kind: TokenKindName; value: string }
   | { type: "tokenDelete"; provider: TokenProvider }
+  | { type: "poolList" }
+  | { type: "poolAdd"; provider: PoolProvider; label: string; value: string }
+  | { type: "poolRemove" | "poolActivate"; provider: PoolProvider; id: string }
+  | { type: "poolReorder"; provider: PoolProvider; order: string[] }
   | { type: "accountAdd"; programme: string; label: string; login: string; secret: string }
   | { type: "accountReveal" | "accountRemove"; id: string }
   | { type: "layoutSave"; name: string | null; layout: Layout }
@@ -58,6 +63,8 @@ const noControl = (s: string) => !hasControl(s);
 
 const isProvider = (v: unknown): v is TokenProvider =>
   typeof v === "string" && Object.hasOwn(TOKEN_KINDS, v);
+
+const isPoolId = (v: unknown): v is string => typeof v === "string" && UUID.test(v);
 
 /** Texte court trimmé, non vide, sans caractère de contrôle. */
 const shortText = (v: unknown, max: number): v is string =>
@@ -117,6 +124,33 @@ export function parseShellControl(m: Record<string, unknown>): ShellControl | nu
       return only(m, "type", "provider") && isProvider(m.provider)
         ? { type: "tokenDelete", provider: m.provider }
         : null;
+    case "poolList":
+      return only(m, "type") ? { type: "poolList" } : null;
+    case "poolAdd": {
+      if (!only(m, "type", "provider", "label", "value") || !isPoolProvider(m.provider))
+        return null;
+      if (!shortText(m.label, 40)) return null;
+      if (
+        typeof m.value !== "string" ||
+        m.value.length < 1 ||
+        m.value.length > MAX_SECRET ||
+        /\s/.test(m.value) ||
+        hasControl(m.value)
+      )
+        return null;
+      return { type: "poolAdd", provider: m.provider, label: m.label, value: m.value };
+    }
+    case "poolRemove":
+    case "poolActivate":
+      return only(m, "type", "provider", "id") && isPoolProvider(m.provider) && isPoolId(m.id)
+        ? { type: m.type, provider: m.provider, id: m.id }
+        : null;
+    case "poolReorder": {
+      if (!only(m, "type", "provider", "order") || !isPoolProvider(m.provider)) return null;
+      if (!Array.isArray(m.order) || m.order.length > MAX_POOL_KEYS || !m.order.every(isPoolId))
+        return null;
+      return { type: "poolReorder", provider: m.provider, order: m.order as string[] };
+    }
     case "accountAdd": {
       if (!only(m, "type", "programme", "label", "login", "secret")) return null;
       if (

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { defaultConfigDir } from "@warband/core";
+import { defaultConfigDir, type EngineEvent } from "@warband/core";
 import type { Choice, WebviewMessage } from "@warband/vscode/logic/approval";
 import {
   attachmentMessage,
@@ -20,18 +20,37 @@ import { type ChatSession, createChatSession } from "@warband/vscode/logic/sessi
 import type { ServerStorage } from "../storage/index.js";
 import { AccountStore } from "./accounts.js";
 import {
+  activatePoolKey,
+  activePoolKey,
+  addPoolKey,
   applySettingsPatch,
   deleteLayout,
   deleteToken,
   listTokens,
   readLayouts,
+  readPool,
   readSettingsObject,
+  removePoolKey,
+  reorderPool,
   saveLayout,
   setToken,
+  writePool,
 } from "./config.js";
 import { buildChatDeps } from "./deps.js";
 import { isFrameId, type View } from "./envelope.js";
 import { coreProjectHalts, EmergencyHalt, type ProjectHalts } from "./halt.js";
+import {
+  classifyEvent,
+  type Limit,
+  markKey,
+  nextKey,
+  nextRetryAt,
+  POOL_PROVIDERS,
+  type PoolProvider,
+  publicPool,
+  RESUME_TEXT,
+  type RotationReason,
+} from "./rotation.js";
 import type { ShellControl } from "./shell-messages.js";
 import { defaultBackends, isHostedView, type ViewBackends, ViewHosts } from "./views.js";
 
@@ -103,7 +122,28 @@ interface Frame {
   bypass: BypassHost;
   subs: Set<Sink>;
   approvals: ApprovalItem[];
+  /** Clé de réserve (identifiant) avec laquelle le moteur de ce cadre a été configuré. */
+  using: { provider: PoolProvider; id: string } | null;
+  /** Bascule de clé en cours (ADR 0052, point 6). */
+  rot: Rotation | null;
+  /** Attentes de l'arrêt complet du moteur (résolues par `onView`). */
+  idleWaiters: (() => boolean)[];
 }
+
+/** Une passe de bascule : une seule fois par clé de la réserve, puis arrêt de la mission. */
+interface Rotation {
+  provider: PoolProvider;
+  /** `switching` : arrêt et relance ; `verifying` : la relance attend une première sortie sans erreur. */
+  phase: "switching" | "verifying";
+  tried: Set<string>;
+  sawStart: boolean;
+  reason: RotationReason;
+  fromLabel: string | null;
+  toLabel: string | null;
+}
+
+/** Délai maximal d'attente de l'arrêt du moteur avant d'abandonner la bascule. */
+const ROTATION_IDLE_MS = 15_000;
 
 interface PendingConfirm {
   id: string;
@@ -183,7 +223,14 @@ export class MissionHub {
     const existing = this.frames.get(id);
     if (existing) return existing;
     if (this.disposed || !isFrameId(id) || this.frames.size >= MAX_FRAMES) return undefined;
-    const f = { id, subs: new Set<Sink>(), approvals: [] } as unknown as Frame;
+    const f = {
+      id,
+      subs: new Set<Sink>(),
+      approvals: [],
+      using: null,
+      rot: null,
+      idleWaiters: [],
+    } as unknown as Frame;
     f.bypass = createBypassHost({
       clock: {
         now: () => Date.now(),
@@ -201,6 +248,11 @@ export class MissionHub {
         engineArgs: [this.binRoot],
         ask: (q) => this.ask(q),
         onView: (view) => this.onView(f, view),
+        onObservedEvent: (event) => this.onEngineEvent(f, event),
+        poolKey: (provider) => activePoolKey(this.options.storage, provider, Date.now()),
+        onPoolKey: (provider, id) => {
+          f.using = id === null ? null : { provider, id };
+        },
         bypass: f.bypass,
         getTestAccounts: async () => this.accounts.testAccountsFor(await this.activeProject()),
         ...(this.options.onLog && { onLog: this.options.onLog }),
@@ -237,8 +289,140 @@ export class MissionHub {
       confirming: card.confirming === true,
     }));
     this.broadcast(f, { type: "view", view, chatId: f.id });
+    f.idleWaiters = f.idleWaiters.filter((wait) => !wait());
     this.pushApprovals(false);
     this.views.sessionsChanged();
+  }
+
+  private toShell(msg: Record<string, unknown>): void {
+    for (const sink of this.shell) sink.send("shell", SHELL_FRAME, msg);
+  }
+
+  /** Bascule : journal d'audit (libellés seulement) et diffusion `poolEvent`. Jamais une valeur de clé. */
+  private emitRotation(
+    provider: PoolProvider,
+    from: string | null,
+    to: string | null,
+    reason: RotationReason,
+    phase: "switched" | "confirmed" | "failed" | "exhausted",
+  ): void {
+    const entry = { provider, from, to, reason, phase };
+    this.audit({ kind: "provider.rotated", ...entry });
+    this.toShell({ type: "poolEvent", ...entry });
+  }
+
+  private pushPool(provider: PoolProvider): void {
+    this.toShell({
+      type: "pool",
+      ...publicPool(provider, readPool(this.options.storage, provider)),
+    });
+  }
+
+  /** Événement du moteur d'un cadre : détection d'une limite, puis vérification de la bascule en cours. */
+  private onEngineEvent(f: Frame, event: EngineEvent | null): void {
+    if (event === null || this.disposed) return;
+    const rot = f.rot;
+    // Arrêt et relance en cours : les événements de l'ancien moteur n'ont plus de sens.
+    if (rot?.phase === "switching") return;
+    const limit = classifyEvent(event, Date.now());
+    if (rot?.phase === "verifying") {
+      if (event.kind === "session.started" || event.kind === "run.started") rot.sawStart = true;
+      if (limit) void this.rotate(f, limit);
+      else if (rot.sawStart && event.kind === "agent.text") {
+        f.rot = null;
+        this.emitRotation(rot.provider, rot.fromLabel, rot.toLabel, rot.reason, "confirmed");
+      }
+      return;
+    }
+    if (limit && f.using !== null) void this.rotate(f, limit);
+  }
+
+  /** Attend que le moteur du cadre soit complètement arrêté (ni occupé, ni en cours d'arrêt). */
+  private waitIdle(f: Frame): Promise<boolean> {
+    const idle = () => {
+      const v = f.session.view();
+      return !v.busy && v.stopping !== true;
+    };
+    if (idle()) return Promise.resolve(true);
+    return new Promise<boolean>((done) => {
+      const timer = setTimeout(() => {
+        f.idleWaiters = f.idleWaiters.filter((w) => w !== wait);
+        done(false);
+      }, ROTATION_IDLE_MS);
+      const wait = () => {
+        if (!idle()) return false;
+        clearTimeout(timer);
+        done(true);
+        return true;
+      };
+      f.idleWaiters.push(wait);
+    });
+  }
+
+  /** Arrête le moteur d'un cadre : demandes en attente refusées (jamais approuvées), puis arrêt. */
+  private async haltEngine(f: Frame): Promise<boolean> {
+    for (const a of [...f.approvals]) await f.session.approve(a.toolUseId, "deny");
+    f.session.stop();
+    return this.waitIdle(f);
+  }
+
+  /**
+   * Bascule vers la clé suivante de la réserve : la clé en défaut est marquée, le moteur est arrêté puis
+   * relancé avec la clé suivante (même conversation, `resume`), et un message de reprise est envoyé.
+   * Une seule passe sur la réserve ; tout épuisé : mission arrêtée et `poolExhausted` diffusé.
+   */
+  private async rotate(f: Frame, limit: Limit): Promise<void> {
+    const using = f.using;
+    if (using === null || this.disposed) return;
+    const { provider } = using;
+    const storage = this.options.storage;
+    const prev = f.rot;
+    const rot: Rotation = prev ?? {
+      provider,
+      phase: "switching",
+      tried: new Set(),
+      sawStart: false,
+      reason: limit.reason,
+      fromLabel: null,
+      toLabel: null,
+    };
+    rot.phase = "switching";
+    rot.sawStart = false;
+    rot.reason = limit.reason;
+    f.rot = rot;
+    const now = Date.now();
+    let pool = readPool(storage, provider);
+    const failedLabel = pool.keys[using.id]?.label ?? null;
+    if (prev) this.emitRotation(provider, prev.fromLabel, prev.toLabel, limit.reason, "failed");
+    rot.tried.add(using.id);
+    pool = markKey(pool, using.id, limit.reason, limit.retryAt, now);
+    const next = nextKey(pool, using.id, now, rot.tried);
+    if (next === null) {
+      writePool(storage, provider, pool);
+      f.rot = null;
+      this.pushPool(provider);
+      this.emitRotation(provider, failedLabel, null, limit.reason, "exhausted");
+      this.toShell({ type: "poolExhausted", provider, nextRetryAt: nextRetryAt(pool) });
+      await this.haltEngine(f);
+      return;
+    }
+    pool.active = next;
+    writePool(storage, provider, pool);
+    this.pushPool(provider);
+    rot.fromLabel = failedLabel;
+    rot.toLabel = pool.keys[next]?.label ?? null;
+    this.emitRotation(provider, rot.fromLabel, rot.toLabel, limit.reason, "switched");
+    const stopped = await this.haltEngine(f);
+    if (this.disposed || f.rot !== rot) return;
+    rot.phase = "verifying";
+    let sent = false;
+    if (stopped) sent = await f.session.send(RESUME_TEXT).catch(() => false);
+    if (this.disposed || f.rot !== rot) return;
+    if (!sent) {
+      // Relance impossible : la passe s'arrête là, le moteur reste arrêté (rien n'est approuvé ni relancé).
+      f.rot = null;
+      this.emitRotation(provider, rot.fromLabel, rot.toLabel, limit.reason, "failed");
+    }
   }
 
   /** Liste agrégée vers la coquille : à chaque changement (`force` : à la connexion). */
@@ -570,6 +754,37 @@ export class MissionHub {
         toAll({ type: "tokens", items: await listTokens(storage) });
         return true;
       }
+      case "poolList":
+        for (const provider of POOL_PROVIDERS)
+          from.send("shell", SHELL_FRAME, {
+            type: "pool",
+            ...publicPool(provider, readPool(storage, provider)),
+          });
+        return true;
+      case "poolAdd": {
+        const id = await addPoolKey(storage, c.provider, c.label, c.value, Date.now());
+        if (id === null) return this.configError(from, c.type);
+        this.audit({ kind: "pool.add", provider: c.provider, id, label: c.label });
+        this.poolChanged(c.provider);
+        return true;
+      }
+      case "poolRemove":
+        if (!(await removePoolKey(storage, c.provider, c.id, Date.now())))
+          return this.configError(from, c.type);
+        this.audit({ kind: "pool.remove", provider: c.provider, id: c.id });
+        this.poolChanged(c.provider);
+        return true;
+      case "poolReorder":
+        if (!reorderPool(storage, c.provider, c.order)) return this.configError(from, c.type);
+        this.audit({ kind: "pool.reorder", provider: c.provider });
+        this.poolChanged(c.provider);
+        return true;
+      case "poolActivate":
+        if (!activatePoolKey(storage, c.provider, c.id, Date.now()))
+          return this.configError(from, c.type);
+        this.audit({ kind: "pool.activate", provider: c.provider, id: c.id });
+        this.poolChanged(c.provider);
+        return true;
       case "accounts":
         from.send("shell", SHELL_FRAME, { type: "accounts", items: this.accounts.list() });
         return true;
@@ -617,6 +832,12 @@ export class MissionHub {
     }
   }
 
+  /** Réserve modifiée par l'utilisateur : diffusée, et répercutée aux sessions (comme un changement de jeton). */
+  private poolChanged(provider: PoolProvider): void {
+    this.pushPool(provider);
+    for (const f of this.frames.values()) void f.session.authChanged().catch(() => undefined);
+  }
+
   /** Arrêt du serveur : questions refusées, moteurs arrêtés proprement, plus aucun abonné. */
   dispose(): void {
     if (this.disposed) return;
@@ -631,6 +852,8 @@ export class MissionHub {
     }
     for (const f of this.frames.values()) {
       f.bypass.dispose();
+      f.rot = null;
+      f.idleWaiters = [];
       f.session.dispose();
       f.subs.clear();
     }

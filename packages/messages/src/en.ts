@@ -443,6 +443,7 @@ export const events: EventStrings = {
   retry: "retry",
   task: "task",
   rateLimit: "usage limit",
+  rotated: "key rotation",
   paceAdjusted: "pace adjusted",
   paceHalted: "host halted",
   session: "session",
