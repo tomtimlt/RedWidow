@@ -52,7 +52,7 @@ export function attachWebSocket(server: Server, options: WsOptions): () => void 
     return sessionId === undefined ? { status: 401 } : { sessionId };
   };
 
-  const onUpgrade = (req: IncomingMessage, socket: Duplex): void => {
+  const onUpgrade = (req: IncomingMessage, socket: Duplex, head: Buffer): void => {
     socket.on("error", () => socket.destroy());
     const verdict = authorize(req);
     if ("status" in verdict) {
@@ -61,7 +61,7 @@ export function attachWebSocket(server: Server, options: WsOptions): () => void 
       return;
     }
     const { sessionId } = verdict;
-    wss.handleUpgrade(req, socket, Buffer.alloc(0), (ws) => {
+    wss.handleUpgrade(req, socket, head, (ws) => {
       const set = bySession.get(sessionId) ?? new Set<WebSocket>();
       bySession.set(sessionId, set);
       set.add(ws);
