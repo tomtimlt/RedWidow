@@ -3,8 +3,16 @@
 // donnée reçue n'est insérée en HTML : tout passe par `textContent`.
 import { createApprovalTracker, createCardList, parseApprovalList } from "./lib/approval-card.js";
 import { createChannel } from "./lib/channel.js";
+import { createDialogHost, startDownload } from "./lib/dialog.js";
 import { createFrameHost, parseDeepLink } from "./lib/frames.js";
-import { activityMap, formatSize, parseMissions, parseProjects, parseRuns } from "./lib/lists.js";
+import {
+  activityMap,
+  formatSize,
+  parseAppearance,
+  parseMissions,
+  parseProjects,
+  parseRuns,
+} from "./lib/lists.js";
 import { buildCommands, createPalette } from "./lib/palette.js";
 import { attachShortcuts, runShortcut } from "./lib/shortcuts.js";
 import {
@@ -45,6 +53,7 @@ import {
   nativeSpec,
   newMissionId,
   newTerminalId,
+  specFromOpenWindow,
   specFromRoute,
   terminalSpec,
 } from "./wm/types.js";
@@ -187,11 +196,36 @@ const frames = createFrameHost({
   // Raccourcis relayés par les ponts des pages : même table que le clavier de la coquille.
   onKey: (key) => handleShortcut(key, "frame"),
   onError: (entry) => desktop.setError(entry.key, true),
+  onLoad: (entry) => applyAppearanceToFrame(entry),
 });
 window.addEventListener("message", (event) => frames.handleMessage(event));
 
 // L'écran Approbations vit dans la page ; la référence est gardée : fermer sa fenêtre le retire du DOM.
 const approvalsEl = $("screen-approvals");
+
+// ───────────────────────────── Dialogues du serveur (HostUi) ─────────────────────────────
+
+/** Une réponse n'existe que par un geste humain dans le dialogue ; hors ligne, `send` renvoie false. */
+const dialogs = createDialogHost({
+  doc: document,
+  send: (id, value) => channel.send(SHELL, SHELL, { type: "dialogResult", id, value }),
+  inert: [$("topbar"), $("desktop"), $("dock"), $("sheet"), $("palette"), $("toasts")],
+});
+
+/** Apparence reçue du serveur (`settings`) : langue et palette de la coquille et de ses pages. */
+const appearance = { locale: null, palette: null };
+function applyAppearance(root) {
+  if (appearance.locale !== null) root.lang = appearance.locale;
+  if (appearance.palette !== null) root.dataset.palette = appearance.palette;
+}
+function applyAppearanceToFrame(entry) {
+  try {
+    const root = entry.iframe.contentDocument?.documentElement;
+    if (root) applyAppearance(root);
+  } catch {
+    // Page non accessible : elle garde son apparence.
+  }
+}
 
 // ───────────────────────────── Notifications non bloquantes ─────────────────────────────
 
@@ -596,6 +630,8 @@ const terminalFocused = () =>
 
 /** Raccourcis : ne pilotent que le bureau et la palette (jamais une approbation, le Bypass ou une fermeture). */
 function handleShortcut(id, source) {
+  // Dialogue ouvert : le bureau derrière lui est inerte, aucun raccourci n'agit.
+  if (dialogs.isOpen()) return false;
   // Palette ouverte : seuls ses propres raccourcis agissent, pas le bureau derrière elle.
   if (palette.isOpen() && id !== "Ctrl+K" && id !== "Ctrl+Shift+K") return false;
   const key = desktop.activeKey();
@@ -633,7 +669,7 @@ function handleShortcut(id, source) {
 attachShortcuts(
   document,
   (id) => handleShortcut(id, "shell"),
-  () => !palette.isOpen() && !terminalFocused(),
+  () => !palette.isOpen() && !terminalFocused() && !dialogs.isOpen(),
 );
 
 // ───────────────────────────── Rendu ─────────────────────────────
@@ -766,6 +802,30 @@ channel.onMessage((env) => {
     case "confirmClosed":
       if (typeof msg.id === "string") confirmZone.close(msg.id);
       break;
+    case "dialog":
+      dialogs.show(msg);
+      break;
+    case "dialogClosed":
+      dialogs.close(msg.id);
+      break;
+    case "download":
+      startDownload(document, msg);
+      break;
+    case "openWindow": {
+      const spec = specFromOpenWindow(msg);
+      if (spec !== null) desktop.open(spec);
+      break;
+    }
+    case "settings": {
+      // Langue et palette : coquille et pages ouvertes. L'invite du terminal est lue par le serveur à la
+      // création d'une session : rien à faire ici.
+      const next = parseAppearance(msg);
+      if (next.locale !== null) appearance.locale = next.locale;
+      if (next.palette !== null) appearance.palette = next.palette;
+      applyAppearance(document.documentElement);
+      for (const entry of frames.entries()) applyAppearanceToFrame(entry);
+      break;
+    }
     case "halt": {
       const halt = parseHalt(msg);
       if (halt === null) break;
@@ -821,6 +881,8 @@ channel.onState((conn) => {
     // Hors ligne : rien n'est rejoué ; les actions sont désactivées et l'état serveur redevient inconnu.
     tracker.connectionLost();
     confirmZone.clear();
+    // Le serveur renvoie les questions en attente à la reconnexion : elles redemandent (rien n'est répondu).
+    dialogs.clear();
     snapshotPending = true;
     state.haltRequested = false;
     state.halt = null;

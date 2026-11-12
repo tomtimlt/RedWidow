@@ -124,6 +124,7 @@ export function parseBridgeMessage(data) {
  * @param {(entry: object) => void} [options.onFocus]
  * @param {(key: string, entry: object) => void} [options.onKey]
  * @param {(entry: object) => void} [options.onError] chargement trop long : cadre d'erreur à afficher
+ * @param {(entry: object) => void} [options.onLoad] page chargée (palette et langue à appliquer)
  * @param {(fn: () => void, ms: number) => any} [options.setTimer]
  * @param {(handle: any) => void} [options.clearTimer]
  */
@@ -135,6 +136,7 @@ export function createFrameHost({
   onFocus = () => {},
   onKey = () => {},
   onError = () => {},
+  onLoad = () => {},
   setTimer = (fn, ms) => setTimeout(fn, ms),
   clearTimer = (h) => clearTimeout(h),
 }) {
@@ -181,6 +183,7 @@ export function createFrameHost({
         if (entry.timer !== null) clearTimer(entry.timer);
         entry.timer = null;
         entry.failed = false;
+        if (!entry.unloaded) onLoad(entry);
       });
       entries.set(key, entry);
       (parent ?? container).append(iframe);

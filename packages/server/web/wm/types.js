@@ -99,6 +99,26 @@ export function iframeSpec(kind, id) {
   };
 }
 
+/** Vues demandables par le serveur (`openWindow`) → type de fenêtre. La kill chain s'ouvre sur un graphe. */
+const OPEN_WINDOW_KINDS = {
+  cockpit: "cockpit",
+  program: "program",
+  engagement: "engagement",
+  killchain: "graph",
+};
+
+/**
+ * Message `openWindow {view, frame}` du serveur → spécification de fenêtre, ou `null` (vue hors liste,
+ * identifiant invalide). Le cockpit est une vue à identifiant fixe : sa fenêtre est toujours `main`, pour
+ * ne jamais en ouvrir une seconde à côté de celle du dock.
+ */
+export function specFromOpenWindow(msg) {
+  if (msg === null || typeof msg !== "object" || typeof msg.view !== "string") return null;
+  if (!Object.hasOwn(OPEN_WINDOW_KINDS, msg.view)) return null;
+  const kind = OPEN_WINDOW_KINDS[msg.view];
+  return iframeSpec(kind, kind === "cockpit" ? "main" : msg.frame);
+}
+
 /** Spécification d'une fenêtre native, ou `null` si l'écran est inconnu. */
 export function nativeSpec(name) {
   const screen = NATIVE_SCREENS.find((s) => s.name === name);

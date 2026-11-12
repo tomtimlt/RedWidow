@@ -37,6 +37,9 @@ if (!existsSync(join(dist, "http.js"))) {
 const { createServer } = await import(pathToFileURL(join(dist, "http.js")).href);
 const { hashPassword } = await import(pathToFileURL(join(dist, "auth/password.js")).href);
 const { validateLayout } = await import(pathToFileURL(join(dist, "bridge/layout.js")).href);
+const { HostUi } = await import(pathToFileURL(join(dist, "bridge/hostui.js")).href);
+const { UploadStore } = await import(pathToFileURL(join(dist, "uploads.js")).href);
+const { DownloadStore } = await import(pathToFileURL(join(dist, "downloads.js")).href);
 
 const PASSWORD = "mot-de-passe-de-test-e2e";
 const dataDir = mkdtempSync(join(tmpdir(), "rw-e2e-"));
@@ -55,6 +58,10 @@ const freePort = () =>
 // ───────────────────────────── Pont factice ─────────────────────────────
 
 const sockets = new Set();
+/** Un « sink » par socket de la coquille : les vrais HostUi, UploadStore et DownloadStore du serveur s'y branchent. */
+const shellSinks = new Set();
+let hostUi;
+let downloads;
 /** Messages reçus du navigateur : { view, frame, msg }. */
 const received = [];
 let approvals = [];
@@ -403,7 +410,13 @@ function onTerm(ws, env) {
 
 function onConnection(ws) {
   sockets.add(ws);
-  ws.on("close", () => sockets.delete(ws));
+  const sink = { send: (view, frame, msg) => send(ws, view, frame, msg) };
+  shellSinks.add(sink);
+  ws.on("close", () => {
+    sockets.delete(ws);
+    shellSinks.delete(sink);
+    hostUi?.detach(sink);
+  });
   ws.on("message", (data) => {
     let env;
     try {
@@ -414,8 +427,14 @@ function onConnection(ws) {
     received.push(env);
     if (env.view === "term") return onTerm(ws, env);
     if (env.view !== "shell") return;
-    if (env.msg.type === "ready")
+    if (env.msg.type === "ready") {
       send(ws, "shell", "shell", { type: "approvals", items: approvals });
+      // Dialogues en attente : renvoyés à la (re)connexion, comme le fait le pont du serveur.
+      hostUi?.attach(sink);
+    }
+    if (env.msg.type === "dialogResult") {
+      hostUi?.answer(env.msg.id, env.msg.value, sink);
+    }
     onScreens(ws, env.msg);
     if (env.msg.type === "approve" && acknowledge) {
       approvals = approvals.filter(
@@ -501,6 +520,9 @@ async function until(fn, message, ms = 8000) {
 
 const port = await freePort();
 const origin = `http://127.0.0.1:${port}`;
+const uploads = new UploadStore({ dir: join(dataDir, "uploads"), sweepMs: 0 });
+downloads = new DownloadStore({ shell: () => shellSinks, sweepMs: 0 });
+hostUi = new HostUi({ shell: () => shellSinks, uploads });
 const server = createServer(
   {
     host: "127.0.0.1",
@@ -510,7 +532,11 @@ const server = createServer(
     publicOrigin: origin,
     trustProxy: false,
   },
-  { passwordHash: await hashPassword(PASSWORD), onConnection },
+  {
+    passwordHash: await hashPassword(PASSWORD),
+    onConnection,
+    files: { ui: hostUi, uploads, downloads },
+  },
 );
 await new Promise((ok) => server.listen(port, "127.0.0.1", ok));
 
@@ -2440,6 +2466,447 @@ async function shellScenario(name, viewport) {
   await context.close();
 }
 
+/** Dialogues du serveur (HostUi), `openWindow`, `download`, `settings` : vrai HostUi, aucun clic = aucune réponse. */
+async function dialogScenario(name, viewport) {
+  console.log(`\n== ${name} : dialogues du serveur (${viewport.width}x${viewport.height})`);
+  const phone = viewport.width < 600;
+  const { context, page, violations, win, shot } = await openSession(name, viewport);
+  const results = () =>
+    received.filter((e) => e.view === "shell" && e.msg.type === "dialogResult").map((e) => e.msg);
+  const dlg = page.locator(".dlg-box");
+  const open = (message) => until(() => dlg.isVisible(), message);
+  const closed = (message) => until(async () => (await dlg.count()) === 0, message);
+  /** Suit la résolution côté serveur : { done, value }. */
+  const track = (promise) => {
+    const r = { done: false, value: undefined };
+    promise.then((value) => {
+      r.done = true;
+      r.value = value;
+    });
+    return r;
+  };
+  const activeClass = () => page.evaluate(() => document.activeElement?.className ?? "");
+  const activeText = () => page.evaluate(() => document.activeElement?.textContent ?? "");
+
+  // ── Choix simple : filtre, flèches, Entrée.
+  const pick = track(
+    hostUi.pick({
+      title: "Choisir un projet",
+      items: [
+        { id: "a", label: "Alpha", detail: "premier projet" },
+        { id: "b", label: "Beta" },
+        { id: "g", label: "Gamma" },
+      ],
+    }),
+  );
+  await open("pick : dialogue affiché");
+  check((await dlg.getAttribute("role")) === "dialog", "pick : rôle dialog");
+  check((await dlg.getAttribute("aria-modal")) === "true", "pick : aria-modal");
+  check(
+    (await dlg.getAttribute("aria-labelledby")) !== null &&
+      (await page.locator(".dlg-title").innerText()) === "Choisir un projet",
+    "pick : titre relié au dialogue",
+  );
+  await sleep(300);
+  check(results().length === 0, "pick : aucun dialogResult sans action humaine");
+  check((await activeClass()).includes("dlg-filter"), "pick : focus sur le filtre");
+  check(
+    (await page.locator("#desktop").evaluate((e) => e.inert)) === true,
+    "pick : le bureau derrière est inerte",
+  );
+  if (phone) {
+    const box = await dlg.boundingBox();
+    check(
+      box.width >= viewport.width - 1 && box.height >= viewport.height - 1,
+      "téléphone : feuille plein écran",
+    );
+    for (const b of await page.locator(".dlg-actions .dlg-btn").all()) {
+      check((await b.boundingBox()).height >= 44, "téléphone : boutons d'au moins 44 px");
+    }
+  }
+  await shot("1-pick");
+  await page.keyboard.type("bet");
+  check((await page.locator(".dlg-opt:visible").count()) === 1, "pick : le filtre réduit la liste");
+  await page.keyboard.press("ArrowDown");
+  check((await activeText()).includes("Beta"), "pick : flèche bas vers le premier résultat");
+  await page.keyboard.press("Enter");
+  await until(() => pick.done, "pick : réponse reçue par le serveur");
+  check(pick.value === "b", `pick : valeur « b » (${pick.value})`);
+  check(results().length === 1 && results()[0].value === "b", "pick : un seul dialogResult");
+  await closed("pick : dialogue fermé après la réponse");
+
+  // ── Choix multiple : cases, compteur.
+  const multi = track(
+    hostUi.pick({
+      title: "Plusieurs",
+      multi: true,
+      items: [
+        { id: "a", label: "Alpha" },
+        { id: "b", label: "Beta" },
+        { id: "g", label: "Gamma" },
+      ],
+    }),
+  );
+  await open("multi : dialogue affiché");
+  const valider = page.locator(".dlg-actions .dlg-btn", { hasText: "Valider" });
+  check(await valider.isDisabled(), "multi : Valider inactif sans sélection");
+  await page.locator(".dlg-opt input").nth(0).check();
+  await page.locator(".dlg-opt input").nth(2).check();
+  check((await valider.innerText()) === "Valider (2)", "multi : compteur de sélection");
+  await valider.click();
+  await until(() => multi.done, "multi : réponse reçue");
+  check(JSON.stringify(multi.value) === '["a","g"]', "multi : valeurs dans l'ordre de la liste");
+
+  // ── Saisie secrète : champ masqué, vidé à l'envoi.
+  const secret = track(hostUi.input({ title: "Clé d'API", label: "Clé d'API", secret: true }));
+  await open("input : dialogue affiché");
+  const field = page.locator(".dlg-box input.dlg-input");
+  check((await field.getAttribute("type")) === "password", "input secret : type password");
+  check(
+    (await field.getAttribute("autocomplete")) !== "on",
+    "input secret : autocomplete désactivé",
+  );
+  check(
+    await page.locator(".dlg-box .dlg-btn.is-primary").isDisabled(),
+    "input secret : vide = Valider inactif",
+  );
+  await field.fill("sk-secret-e2e-42");
+  await field.press("Enter");
+  await until(() => secret.done, "input : réponse reçue");
+  check(secret.value === "sk-secret-e2e-42", "input secret : valeur transmise une fois");
+  await closed("input : dialogue fermé");
+  check(
+    await page.evaluate(() =>
+      [...document.querySelectorAll("input")].every((i) => !i.value.includes("sk-secret")),
+    ),
+    "input secret : la valeur ne reste dans aucun champ",
+  );
+  check(!(await page.content()).includes("sk-secret-e2e-42"), "input secret : absente du DOM");
+
+  // ── Confirmation dangereuse : focus sur Annuler, Entrée n'y confirme jamais.
+  const danger1 = track(
+    hostUi.confirm({
+      title: "Supprimer le projet",
+      text: "Cette suppression est définitive.\nLes preuves seront perdues.",
+      danger: true,
+    }),
+  );
+  await open("confirm danger : dialogue affiché");
+  check((await activeText()) === "Annuler", "confirm danger : focus initial sur Annuler");
+  check(
+    /^rgb\((2\d\d|1[89]\d), \d{1,2}, \d{1,2}[,)]/.test(
+      await page.locator(".dlg-btn.is-danger").evaluate((b) => getComputedStyle(b).backgroundColor),
+    ),
+    "confirm danger : bouton rouge",
+  );
+  await shot("2-confirm-danger");
+  await page.keyboard.press("Enter");
+  await until(() => danger1.done, "confirm danger : Entrée sur Annuler répond");
+  check(danger1.value === false, "confirm danger : Entrée ne confirme pas");
+  check(results().at(-1).value === null, "confirm danger : Entrée sur Annuler = null");
+  const danger2 = track(hostUi.confirm({ title: "Supprimer", text: "Sûr ?", danger: true }));
+  await open("confirm danger (2) : dialogue affiché");
+  await page.locator(".dlg-btn.is-danger").click();
+  await until(() => danger2.done, "confirm danger : clic sur Confirmer");
+  check(danger2.value === true, "confirm danger : le clic confirme");
+  check(results().at(-1).value === true, "confirm danger : dialogResult true");
+
+  // ── Échap, clic extérieur, file d'attente avec compteur.
+  const q1 = track(hostUi.confirm({ title: "Première", text: "un" }));
+  const q2 = track(hostUi.input({ title: "Seconde", label: "Valeur" }));
+  await open("file : premier dialogue");
+  check(
+    (await page.locator(".dlg-title").innerText()) === "Première",
+    "file : le premier est visible",
+  );
+  check(
+    (await page.locator(".dlg-count").innerText()).startsWith("1 autre"),
+    "file : compteur « 1 autre en attente »",
+  );
+  await page.keyboard.press("Escape");
+  await until(() => q1.done, "file : Échap répond au premier");
+  check(q1.value === false && results().at(-1).value === null, "Échap = annulation (null)");
+  await until(
+    async () => (await page.locator(".dlg-title").innerText()) === "Seconde",
+    "file : le second apparaît",
+  );
+  check((await page.locator(".dlg-count").innerText()) === "", "file : plus de compteur");
+  // Bureau : clic sur le fond. Téléphone : la feuille couvre tout, le bouton Annuler annule.
+  if (phone) await page.locator(".dlg-btn", { hasText: "Annuler" }).click();
+  else await page.mouse.click(5, 5);
+  await until(() => q2.done, "clic extérieur : réponse reçue");
+  check(q2.value === null && results().at(-1).value === null, "clic extérieur = annulation (null)");
+  await closed("file vidée");
+
+  // ── Focus piégé : Tab ne sort jamais du dialogue.
+  const trap = track(
+    hostUi.pick({
+      title: "Piège",
+      multi: true,
+      items: [
+        { id: "a", label: "A" },
+        { id: "b", label: "B" },
+      ],
+    }),
+  );
+  await open("piège : dialogue affiché");
+  let inside = true;
+  for (let i = 0; i < 9; i += 1) {
+    await page.keyboard.press("Tab");
+    inside = inside && (await page.evaluate(() => !!document.activeElement?.closest(".dlg-box")));
+  }
+  for (let i = 0; i < 4; i += 1) {
+    await page.keyboard.press("Shift+Tab");
+    inside = inside && (await page.evaluate(() => !!document.activeElement?.closest(".dlg-box")));
+  }
+  check(inside, "focus piégé dans le dialogue (Tab et Maj+Tab)");
+  await page.keyboard.press("Escape");
+  await until(() => trap.done, "piège : fermé par Échap");
+
+  // ── Fichier : contrôle local, 413 affiché, puis envoi réussi (glisser-déposer).
+  const uploadCalls = [];
+  page.on("request", (r) => {
+    if (r.url().includes("/api/upload")) uploadCalls.push(r);
+  });
+  const file = track(
+    hostUi.file({ title: "Importer une fiche", accept: [".txt", ".json"], maxBytes: 1000 }),
+  );
+  await open("file : dialogue affiché");
+  check(
+    (await page.locator(".dlg-hint").first().innerText()).includes(".txt"),
+    "file : extensions annoncées",
+  );
+  const chooser = page.locator(".dlg-box input[type=file]");
+  await chooser.setInputFiles({
+    name: "gros.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.alloc(2000, 97),
+  });
+  await until(
+    async () => (await page.locator(".dlg-error").innerText()).includes("trop volumineux"),
+    "file : contrôle local de taille",
+  );
+  await chooser.setInputFiles({
+    name: "virus.exe",
+    mimeType: "application/octet-stream",
+    buffer: Buffer.alloc(10, 97),
+  });
+  await until(
+    async () => (await page.locator(".dlg-error").innerText()).includes("Extensions acceptées"),
+    "file : contrôle local d'extension",
+  );
+  check(uploadCalls.length === 0, "file : rien n'est envoyé quand le contrôle local refuse");
+  // Le serveur répond 413 une fois (message clair dans le dialogue).
+  let refuseOnce = true;
+  await page.route("**/api/upload*", (route) => {
+    if (!refuseOnce) return route.continue();
+    refuseOnce = false;
+    return route.fulfill({
+      status: 413,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "hostui.uploadTooLarge" }),
+    });
+  });
+  await chooser.setInputFiles({
+    name: "fiche.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.alloc(500, 97),
+  });
+  await until(
+    async () => (await page.locator(".dlg-error").innerText()).includes("Taille maximale"),
+    "file : 413 affiché",
+  );
+  check((await dlg.count()) === 1, "file : le dialogue reste ouvert après un 413");
+  check(!file.done, "file : aucun dialogResult après un refus du serveur");
+  await shot("3-file-413");
+  // Glisser-déposer d'un fichier valide : envoi réel au serveur, puis dialogResult avec l'identifiant.
+  await page.locator(".dlg-drop").evaluate((zone) => {
+    const dt = new DataTransfer();
+    dt.items.add(new File(['{"ok":true}'], "fiche.json", { type: "application/json" }));
+    zone.dispatchEvent(
+      new DragEvent("dragenter", { dataTransfer: dt, bubbles: true, cancelable: true }),
+    );
+    zone.dispatchEvent(
+      new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true }),
+    );
+  });
+  await until(() => file.done, "file : envoi réussi puis réponse");
+  check(
+    typeof file.value === "string" && file.value.startsWith("up_"),
+    `file : identifiant d'envoi (${file.value})`,
+  );
+  const last = uploadCalls.at(-1);
+  check(
+    last.headers()["content-type"] === "application/octet-stream",
+    "file : Content-Type octet-stream",
+  );
+  check(last.headers()["x-filename"] === "fiche.json", "file : nom dans X-Filename");
+  await closed("file : dialogue fermé");
+  await page.unroute("**/api/upload*");
+
+  // ── Lien externe : domaine en évidence, ouverture sans opener, schéma refusé.
+  await page.evaluate(() => {
+    window.__opened = [];
+    window.open = (...args) => {
+      window.__opened.push(args);
+      return null;
+    };
+  });
+  const ext = track(
+    hostUi.external({ url: "https://exemple.fr/doc?a=1", label: "Documentation de l'outil" }),
+  );
+  await open("external : dialogue affiché");
+  check(
+    (await page.locator(".dlg-url-host").innerText()) === "exemple.fr",
+    "external : domaine mis en évidence",
+  );
+  check(
+    (await page.locator(".dlg-url").innerText()) === "https://exemple.fr/doc?a=1",
+    "external : URL en clair",
+  );
+  check(
+    (await page.evaluate(() => window.__opened.length)) === 0,
+    "external : rien ouvert avant le clic",
+  );
+  await page.locator(".dlg-btn", { hasText: "Ouvrir" }).click();
+  await until(() => ext.done, "external : réponse reçue");
+  check(ext.value === true, "external : true après ouverture");
+  const opened = await page.evaluate(() => window.__opened);
+  check(
+    opened.length === 1 &&
+      opened[0][0] === "https://exemple.fr/doc?a=1" &&
+      opened[0][1] === "_blank" &&
+      opened[0][2] === "noopener,noreferrer",
+    "external : window.open(url, _blank, noopener,noreferrer)",
+  );
+  // Un schéma non http(s) (envoi forgé hors serveur) n'est ni affiché ni ouvrable.
+  let sinkOf = [...shellSinks][0];
+  sinkOf.send("shell", "shell", {
+    type: "dialog",
+    id: "forge-1",
+    kind: "external",
+    url: "javascript:alert(1)",
+    label: "piège",
+  });
+  await open("external refusé : dialogue affiché");
+  check(
+    !(await dlg.innerText()).includes("javascript"),
+    "external refusé : l'adresse n'est pas affichée",
+  );
+  check(
+    (await page.locator(".dlg-btn", { hasText: "Ouvrir" }).count()) === 0,
+    "external refusé : pas de bouton Ouvrir",
+  );
+  sinkOf.send("shell", "shell", { type: "dialogClosed", id: "forge-1" });
+  await closed("dialogClosed ferme le dialogue forgé");
+  check(
+    results().every((r) => r.id !== "forge-1"),
+    "dialogClosed : aucune réponse envoyée",
+  );
+
+  // ── Reconnexion avec un dialogue en attente : il redemande, rien n'est répondu.
+  const resent = track(
+    hostUi.confirm({ title: "Toujours là", text: "Réponse attendue d'un humain." }),
+  );
+  await open("reconnexion : dialogue affiché");
+  const before = results().length;
+  for (const ws of [...sockets]) ws.terminate();
+  await until(
+    async () => (await page.locator("#tb-conn").innerText()).startsWith("Hors ligne"),
+    "reconnexion : hors ligne",
+    12000,
+  );
+  await until(
+    async () => (await page.locator("#tb-conn").innerText()) === "Connecté",
+    "reconnexion : reconnecté",
+    15000,
+  );
+  await open("reconnexion : le dialogue en attente est réaffiché");
+  check(
+    (await page.locator(".dlg-title").innerText()) === "Toujours là",
+    "reconnexion : même question",
+  );
+  await sleep(300);
+  check(results().length === before && !resent.done, "reconnexion : aucune réponse sans clic");
+  await page.locator(".dlg-btn", { hasText: "Annuler" }).click();
+  await until(() => resent.done, "reconnexion : réponse après le clic");
+
+  // ── openWindow : la kill chain de la mission s'ouvre.
+  sinkOf = [...shellSinks][0];
+  sinkOf.send("shell", "shell", { type: "openWindow", view: "killchain", frame: "m-abc123" });
+  await until(
+    () => win("killchain:m-abc123").isVisible(),
+    "openWindow killchain : fenêtre ouverte",
+  );
+  check(
+    (await page.locator('.wm-win[data-key="killchain:m-abc123"] iframe').getAttribute("src")) ===
+      "/view/killchain?frame=m-abc123",
+    "openWindow killchain : iframe /view/killchain du bon cadre",
+  );
+  sinkOf.send("shell", "shell", { type: "openWindow", view: "studio", frame: "main" });
+  await sleep(200);
+  check((await win("studio:main").count()) === 0, "openWindow : une vue hors liste est ignorée");
+
+  // ── download : le navigateur télécharge, une seule fois.
+  const downloadEvent = page.waitForEvent("download");
+  const id = await downloads.offer({
+    filename: "kill chain.json",
+    mime: "application/json",
+    body: Buffer.from('{"nodes":[]}'),
+  });
+  const dl = await downloadEvent;
+  check(
+    dl.suggestedFilename() === "kill chain.json",
+    `download : nom proposé (${dl.suggestedFilename()})`,
+  );
+  const path = await dl.path();
+  const { readFileSync: readFile } = await import("node:fs");
+  check(readFile(path, "utf8") === '{"nodes":[]}', "download : contenu reçu");
+  check(typeof id === "string" && downloads.take(id) === undefined, "download : usage unique");
+
+  // ── settings : langue et palette appliquées.
+  sinkOf.send("shell", "shell", {
+    type: "settings",
+    values: { locale: "en", palette: "braise", terminalPrompt: "compact" },
+  });
+  await until(
+    () => page.evaluate(() => document.documentElement.lang === "en"),
+    "settings : langue appliquée",
+  );
+  check(
+    (await page.evaluate(() => document.documentElement.dataset.palette)) === "braise",
+    "settings : palette appliquée",
+  );
+  sinkOf.send("shell", "shell", {
+    type: "settings",
+    values: { locale: "fr", palette: "<script>", model: "x" },
+  });
+  await until(
+    () => page.evaluate(() => document.documentElement.lang === "fr"),
+    "settings : retour au français",
+  );
+  check(
+    (await page.evaluate(() => document.documentElement.dataset.palette)) === "braise",
+    "settings : palette invalide ignorée",
+  );
+
+  check(
+    results().every(
+      (r) =>
+        r.value === null ||
+        typeof r.value === "string" ||
+        typeof r.value === "boolean" ||
+        Array.isArray(r.value),
+    ),
+    "toutes les réponses ont une forme valide",
+  );
+  check(
+    violations.length === 0,
+    `zéro violation CSP (dialogues) (${violations.slice(0, 3).join(" | ")})`,
+  );
+  await context.close();
+}
+
 try {
   // WEB_E2E_ONLY=<nom> : ne joue que ce scénario (mise au point).
   const only = (name) => !process.env.WEB_E2E_ONLY || process.env.WEB_E2E_ONLY === name;
@@ -2459,6 +2926,8 @@ try {
     await terminalPhoneScenario("terminal-mobile", { width: 375, height: 812 });
   if (only("shell")) await shellScenario("shell", { width: 1440, height: 900 });
   if (only("shell-mobile")) await shellScenario("shell-mobile", { width: 375, height: 812 });
+  if (only("dialogs")) await dialogScenario("dialogs", { width: 1440, height: 900 });
+  if (only("dialogs-mobile")) await dialogScenario("dialogs-mobile", { width: 375, height: 812 });
   if (only("wm-budget-mobile")) {
     await budgetScenario("wm-budget-mobile", { width: 375, height: 812 }, 3);
   }
@@ -2467,6 +2936,9 @@ try {
   console.error(error);
 } finally {
   await browser.close();
+  hostUi?.dispose();
+  downloads?.dispose();
+  await uploads.dispose();
   for (const ws of sockets) ws.terminate();
   server.closeAllConnections();
   await new Promise((ok) => server.close(ok));

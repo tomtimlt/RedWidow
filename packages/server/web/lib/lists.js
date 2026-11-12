@@ -93,3 +93,17 @@ export function activityMap(missions) {
   }
   return map;
 }
+
+/**
+ * Message `settings {values}` → réglages d'apparence { locale, palette, terminalPrompt } (chaque champ `null`
+ * s'il est absent ou invalide). Les autres clés ne concernent pas la coquille.
+ */
+export function parseAppearance(msg) {
+  const values = isRecord(msg) && isRecord(msg.values) ? msg.values : {};
+  const word = (v, pattern) => (typeof v === "string" && pattern.test(v) ? v : null);
+  return {
+    locale: word(values.locale, /^(fr|en)$/),
+    palette: word(values.palette, /^[a-z]{3,16}$/),
+    terminalPrompt: word(values.terminalPrompt, /^(native|redwidow|compact|minimal)$/),
+  };
+}
