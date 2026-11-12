@@ -10,7 +10,11 @@ import {
 } from "@warband/vscode/logic/attachments";
 import { type BypassHost, createBypassHost } from "@warband/vscode/logic/bypass";
 import type { ChatView } from "@warband/vscode/logic/chat";
-import type { EngineController, EngineControllerOptions } from "@warband/vscode/logic/controller";
+import {
+  createEngineController,
+  type EngineController,
+  type EngineControllerOptions,
+} from "@warband/vscode/logic/controller";
 import { readProjectChoices } from "@warband/vscode/logic/project-controls";
 import { type ChatSession, createChatSession } from "@warband/vscode/logic/session";
 import type { ServerStorage } from "../storage/index.js";
@@ -200,12 +204,23 @@ export class MissionHub {
         bypass: f.bypass,
         getTestAccounts: async () => this.accounts.testAccountsFor(await this.activeProject()),
         ...(this.options.onLog && { onLog: this.options.onLog }),
-        ...(this.options.createController && { createController: this.options.createController }),
+        createController: (o) =>
+          this.guardStart((this.options.createController ?? createEngineController)(o)),
       }),
     );
     this.frames.set(id, f);
     this.applyGlobalBypass(f);
     return f;
+  }
+
+  /** Pendant l'arrêt global, le moteur ne démarre qu'une fois l'arrêt posé sur les projets (échec fermé). */
+  private guardStart(ctl: EngineController): EngineController {
+    const start = ctl.start.bind(ctl);
+    ctl.start = async (params) => {
+      if (this.halt.active()) await this.halt.ensureProjects();
+      return start(params);
+    };
+    return ctl;
   }
 
   private broadcast(f: Frame, msg: Record<string, unknown>): void {

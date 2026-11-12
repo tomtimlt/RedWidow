@@ -81,6 +81,21 @@ export class EmergencyHalt {
     return this.state();
   }
 
+  /**
+   * Avant tout démarrage de moteur pendant l'arrêt : pose l'arrêt sur chaque projet connu (y compris
+   * un projet créé depuis) et attend l'écriture. Échec fermé : toute erreur lève, le démarrage est refusé.
+   */
+  async ensureProjects(): Promise<void> {
+    const existing = this.stored();
+    if (existing === null) return;
+    const mine = new Set(existing.projects);
+    for (const id of await this.projects.ids()) {
+      if (!this.projects.isHalted(id)) mine.add(id);
+      await this.projects.set(id);
+    }
+    this.storage.state.set(HALT_KEY, { since: existing.since, projects: [...mine] });
+  }
+
   /** Lève l'arrêt global et les arrêts de projet qu'il avait posés. */
   async resume(): Promise<HaltState> {
     const existing = this.stored();

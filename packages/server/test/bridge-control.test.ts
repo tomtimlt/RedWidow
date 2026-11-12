@@ -93,6 +93,43 @@ describe("arrêt d'urgence global", () => {
     expect(chat.of("chat", "bypass").at(-1)?.msg.armed).toBeFalsy();
   });
 
+  it("arrêt actif : l'arrêt est posé sur le projet visé avant le premier start ; écriture en échec : aucun start ; resume le lève", async () => {
+    const ids = ["p1"];
+    const halted = new Set<string>();
+    let fail = false;
+    const order: string[] = [];
+    const halts = {
+      ids: async () => ids,
+      isHalted: (id: string) => halted.has(id),
+      set: async (id: string) => {
+        if (fail) throw new Error("disque plein");
+        halted.add(id);
+        order.push(`set:${id}`);
+      },
+      clear: async (id: string) => void halted.delete(id),
+    };
+    const t = setup(ctx, { projectHalts: halts });
+    const shell = shellOf(t);
+    shell.say("shell", "shell", { type: "halt" });
+    await vi.waitFor(() => expect(t.hub.halted()).toBe(true));
+    // Projet créé après l'arrêt.
+    ids.push("p-new");
+    fail = true;
+    const chat = t.connect();
+    chat.say("chat", "f1", { type: "ready" });
+    chat.say("chat", "f1", { type: "send", text: "bonjour" });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(t.engine()).toBeUndefined();
+    expect(halted.has("p-new")).toBe(false);
+    fail = false;
+    chat.say("chat", "f1", { type: "send", text: "encore" });
+    await vi.waitFor(() => expect(t.engine()).toBeDefined());
+    expect(halted.has("p-new")).toBe(true);
+    expect(order.at(-1)).toBe("set:p-new");
+    shell.say("shell", "shell", { type: "resume" });
+    await vi.waitFor(() => expect(halted.size).toBe(0));
+  });
+
   it("halt et resume avec une clé en trop sont ignorés", async () => {
     const t = setup(ctx);
     const shell = shellOf(t);
