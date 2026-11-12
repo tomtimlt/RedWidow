@@ -26,7 +26,9 @@ import {
 import { readProjectChoices } from "@warband/vscode/logic/project-controls";
 import { type ChatSession, createChatSession } from "@warband/vscode/logic/session";
 import { createDockerApi, type DockerApi, dockerSocketPath } from "../docker/api.js";
+import { DownloadStore } from "../downloads.js";
 import type { ServerStorage } from "../storage/index.js";
+import { UploadStore } from "../uploads.js";
 import { AccountStore } from "./accounts.js";
 import {
   activatePoolKey,
@@ -50,6 +52,7 @@ import { buildChatDeps, HISTORY_INDEX_KEY } from "./deps.js";
 import { isFrameId, type View } from "./envelope.js";
 import { getFindingDetail, listFindingItems, removeFinding } from "./findings.js";
 import { coreProjectHalts, EmergencyHalt, type ProjectHalts } from "./halt.js";
+import { type BridgeContext, HostUi } from "./hostui.js";
 import {
   type LiveMission,
   listMissions,
@@ -202,6 +205,8 @@ export class MissionHub {
   private readonly enginePath: string;
   private readonly binRoot: string;
   private readonly cwd: string;
+  /** Contexte des modules du pont : dialogues, téléversements, téléchargements (ADR 0055). */
+  readonly context: BridgeContext;
 
   constructor(private readonly options: HubOptions) {
     const engine = resolveEngine(process.env);
@@ -214,6 +219,14 @@ export class MissionHub {
       options.projectHalts ?? coreProjectHalts(this.configDir),
     );
     this.accounts = new AccountStore(options.storage);
+    const uploads = new UploadStore({ dir: join(options.storage.paths.root, "uploads") });
+    this.context = {
+      ui: new HostUi({ shell: () => this.shell, uploads }),
+      uploads,
+      downloads: new DownloadStore({ shell: () => this.shell }),
+      storage: options.storage,
+      audit: (e) => this.audit(e),
+    };
     const docker = options.docker ?? createDockerApi({ socketPath: dockerSocketPath(process.env) });
     // Jamais le conteneur du serveur : `HOSTNAME` y vaut son identifiant court.
     const selfIds = process.env.HOSTNAME ? [process.env.HOSTNAME] : [];
@@ -569,11 +582,13 @@ export class MissionHub {
     this.pushBypass(sink);
     this.pushApprovals(true, sink);
     for (const c of this.confirms.values()) sink.send("shell", SHELL_FRAME, this.confirmMessage(c));
+    this.context.ui.attach(sink);
   }
 
   /** Retire un destinataire (socket fermé). Les demandes et les moteurs restent : rien n'est répondu. */
   unsubscribe(sink: Sink): void {
     this.shell.delete(sink);
+    this.context.ui.detach(sink);
     this.term.detach(sink);
     this.views.unsubscribe(sink);
     for (const f of this.frames.values()) f.subs.delete(sink);
@@ -1052,6 +1067,9 @@ export class MissionHub {
         if (!saveLayout(storage, c.name, c.layout)) return this.configError(from, c.type);
         toAll({ type: "layouts", ...readLayouts(storage) });
         return true;
+      case "dialogResult":
+        // Réponse d'une coquille à un dialogue HostUi : refusée sans bruit si invalide ou déjà close.
+        return this.context.ui.answer(c.id, c.value, from);
       case "layoutDelete":
         if (!deleteLayout(storage, c.name)) return this.configError(from, c.type);
         toAll({ type: "layouts", ...readLayouts(storage) });
@@ -1074,6 +1092,9 @@ export class MissionHub {
     this.globalBypass = null;
     this.views.dispose();
     this.term.dispose();
+    this.context.ui.dispose();
+    this.context.downloads.dispose();
+    void this.context.uploads.dispose();
     for (const c of [...this.confirms.values()]) {
       this.confirms.delete(c.id);
       c.resolve(false);

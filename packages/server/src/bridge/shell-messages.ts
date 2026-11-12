@@ -70,7 +70,13 @@ export type ShellControl =
   | { type: "findingGet"; project: string; id: string }
   | { type: "findingDelete"; project: string; id: string; confirmed: boolean }
   | { type: "layoutSave"; name: string | null; layout: Layout }
-  | { type: "layoutDelete"; name: string };
+  | { type: "layoutDelete"; name: string }
+  | { type: "dialogResult"; id: string; value: string | string[] | boolean | null };
+
+/** Bornes de forme d'un `dialogResult` (le contenu est vérifié par `HostUi.answer`). */
+const DIALOG_ID = /^[A-Za-z0-9_-]{1,64}$/;
+const MAX_DIALOG_TEXT = 4096;
+const MAX_DIALOG_IDS = 500;
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
@@ -246,6 +252,21 @@ export function parseShellControl(m: Record<string, unknown>): ShellControl | nu
       return only(m, "type", "name") && isLayoutName(m.name)
         ? { type: "layoutDelete", name: m.name }
         : null;
+    case "dialogResult": {
+      if (!only(m, "type", "id", "value") || typeof m.id !== "string" || !DIALOG_ID.test(m.id))
+        return null;
+      const v = m.value;
+      const okShape =
+        v === null ||
+        typeof v === "boolean" ||
+        (typeof v === "string" && v.length <= MAX_DIALOG_TEXT) ||
+        (Array.isArray(v) &&
+          v.length <= MAX_DIALOG_IDS &&
+          v.every((x) => typeof x === "string" && x.length >= 1 && x.length <= 200));
+      return okShape
+        ? { type: "dialogResult", id: m.id, value: v as string | string[] | boolean | null }
+        : null;
+    }
     default:
       return null;
   }

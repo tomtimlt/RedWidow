@@ -21,7 +21,10 @@ import {
 } from "./auth/sessions.js";
 import { isFrameId } from "./bridge/envelope.js";
 import { buildMissionReport } from "./bridge/findings.js";
+import type { BridgeContext } from "./bridge/hostui.js";
 import type { ServerConfig } from "./config.js";
+import { contentDisposition } from "./downloads.js";
+import { sanitizeFilename, UploadTooLargeError } from "./uploads.js";
 import { isViewerMode, isViewPage, renderViewPage } from "./web/view-page.js";
 import { attachWebSocket } from "./ws.js";
 
@@ -115,6 +118,8 @@ export interface ServerOptions {
   mediaDir?: string;
   /** Dossier de configuration des projets (défaut : celui du moteur, `XDG_CONFIG_HOME/warband`). */
   configDir?: string;
+  /** Dialogues, téléversements et téléchargements (`hub.context`, ADR 0055). Absent : routes `/api/upload` et `/api/download` fermées. */
+  files?: Pick<BridgeContext, "ui" | "uploads" | "downloads">;
 }
 
 /** `packages/vscode/media`, à la même position relative depuis `src` ou `dist`. */
@@ -127,6 +132,7 @@ interface Ctx {
   limiter: LoginLimiter;
   mediaDir: string;
   configDir: string;
+  files: ServerOptions["files"];
 }
 
 function json(
@@ -166,6 +172,7 @@ export function createServer(config: ServerConfig, options: ServerOptions): Serv
     limiter: new LoginLimiter(now),
     mediaDir: resolve(options.mediaDir ?? DEFAULT_MEDIA_DIR),
     configDir: options.configDir ?? defaultConfigDir(),
+    files: options.files,
   };
   const server = createHttpServer((req, res) => {
     void handle(ctx, req, res).catch(() => {
@@ -353,6 +360,80 @@ async function serveReport(
   );
 }
 
+/** Après une réponse d'erreur sans lecture du corps : on vide au plus 1 Mio, puis on coupe. */
+function drainThenClose(req: IncomingMessage): void {
+  let extra = 0;
+  req.on("data", (c: Buffer) => {
+    extra += c.length;
+    if (extra > 1024 * 1024) req.destroy();
+  });
+  req.on("error", () => undefined);
+}
+
+/**
+ * `POST /api/upload?dialog=<id>` : corps `application/octet-stream`, nom dans `X-Filename` (assaini, jamais
+ * un chemin). Rattaché à un dialogue `file` en attente (sinon 403) ; taille ≤ `maxBytes` (413), extension
+ * dans `accept` (415). Réponse `{ id, name, size }` ; la coquille répond alors `dialogResult {value: id}`.
+ */
+async function serveUpload(
+  files: NonNullable<Ctx["files"]>,
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  const refuse = (status: number, r: Reason) => {
+    drainThenClose(req);
+    apiError(res, status, r, { Connection: "close" });
+  };
+  const query = (req.url ?? "").split("#", 1)[0]?.split("?")[1] ?? "";
+  const dialog = new URLSearchParams(query).get("dialog");
+  if (dialog === null || !isFrameId(dialog)) return refuse(400, reason("auth.badRequest"));
+  const spec = files.ui.fileSpec(dialog);
+  if (!spec) return refuse(403, reason("hostui.uploadForbidden"));
+  const type = (req.headers["content-type"] ?? "").split(";")[0]?.trim().toLowerCase();
+  if (type !== "application/octet-stream") return refuse(415, reason("hostui.uploadBadType"));
+  const header = req.headers["x-filename"];
+  let raw = Array.isArray(header) ? (header[0] ?? "") : (header ?? "");
+  try {
+    raw = decodeURIComponent(raw);
+  } catch {
+    // Nom non encodé : gardé tel quel, l'assainissement s'applique de toute façon.
+  }
+  const name = sanitizeFilename(raw);
+  const ext = extname(name).toLowerCase();
+  if (!spec.accept.includes(ext)) return refuse(415, reason("hostui.uploadBadType"));
+  const tooLarge = () => refuse(413, reason("hostui.uploadTooLarge", { max: spec.maxBytes }));
+  const declared = Number(req.headers["content-length"]);
+  if (Number.isFinite(declared) && declared > spec.maxBytes) return tooLarge();
+  let info: Awaited<ReturnType<typeof files.uploads.receive>>;
+  try {
+    info = await files.uploads.receive(req, { dialog, name, maxBytes: spec.maxBytes });
+  } catch (err) {
+    if (err instanceof UploadTooLargeError) return tooLarge();
+    return apiError(res, 500, reason("auth.badRequest"));
+  }
+  // Le dialogue a pu être fermé pendant l'envoi : le fichier n'a alors plus de destinataire.
+  if (!files.ui.fileSpec(dialog)) {
+    await files.uploads.discardDialog(dialog);
+    return apiError(res, 403, reason("hostui.uploadForbidden"));
+  }
+  json(res, 200, { id: info.id, name: info.name, size: info.size });
+}
+
+/** `GET /api/download/<id>` : usage unique, jamais mis en cache, nom assaini (`Content-Disposition`). */
+function serveDownload(files: NonNullable<Ctx["files"]>, id: string, res: ServerResponse): void {
+  const file = files.downloads.take(id);
+  if (!file) {
+    apiError(res, 404, reason("hostui.downloadGone"));
+    return;
+  }
+  send(res, 200, file.body, {
+    "Content-Type": file.mime,
+    "Content-Disposition": contentDisposition(file.filename),
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+  });
+}
+
 async function handle(ctx: Ctx, req: IncomingMessage, res: ServerResponse): Promise<void> {
   const method = req.method ?? "GET";
   const pathname = (req.url ?? "/").split(/[?#]/, 1)[0] ?? "/";
@@ -391,6 +472,12 @@ async function handle(ctx: Ctx, req: IncomingMessage, res: ServerResponse): Prom
   if (read && pathname === "/api/report") {
     const query = (req.url ?? "").split("#", 1)[0]?.split("?")[1] ?? "";
     return serveReport(ctx, query, res, head);
+  }
+  if (ctx.files && method === "POST" && pathname === "/api/upload") {
+    return serveUpload(ctx.files, req, res);
+  }
+  if (ctx.files && method === "GET" && pathname.startsWith("/api/download/")) {
+    return serveDownload(ctx.files, pathname.slice("/api/download/".length), res);
   }
   if (isApi) return text(res, 404, "Introuvable");
   if (!read) return text(res, 405, "Méthode non autorisée", { Allow: "GET, HEAD" });

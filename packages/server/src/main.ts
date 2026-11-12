@@ -20,10 +20,13 @@ async function serve(): Promise<void> {
   // Audit des gestes sensibles (arrêt, Bypass, jetons, comptes) : jamais de valeur secrète.
   const audit = createAuditFile(join(config.dataDir, "audit.jsonl"));
   const hub = new MissionHub({ storage, onLog: () => undefined, audit });
+  // Les téléversements d'un précédent processus n'ont plus de dialogue : on repart d'un dossier vide.
+  await hub.context.uploads.purge();
   const bridge = createBridge(hub);
   const server = createServer(config, {
     passwordHash,
     storage,
+    files: hub.context,
     onConnection: bridge.onConnection,
   });
   server.listen(config.port, config.host, () => {

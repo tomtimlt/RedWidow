@@ -253,6 +253,11 @@ export const REASON_CODES = [
   "container.invalidName",
   "container.exists",
   "container.failed",
+  // Dialogues, téléversements et téléchargements web (ADR 0055)
+  "hostui.uploadForbidden",
+  "hostui.uploadTooLarge",
+  "hostui.uploadBadType",
+  "hostui.downloadGone",
   // Divers
   "error.unknown",
   /** Motif ou erreur d'un ancien journal, relu comme texte (`params.text`). */

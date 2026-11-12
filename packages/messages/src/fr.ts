@@ -487,6 +487,10 @@ export const reasons: Catalog = {
   "container.exists": () => "un conteneur porte déjà ce nom",
   "container.failed": () => "échec de l’opération sur le conteneur",
   "auth.badRequest": () => "requête invalide",
+  "hostui.uploadForbidden": () => "aucun dialogue de téléversement en attente pour ce fichier",
+  "hostui.uploadTooLarge": (p) => `fichier trop volumineux (maximum ${text(p.max)} octets)`,
+  "hostui.uploadBadType": () => "type de fichier non accepté",
+  "hostui.downloadGone": () => "téléchargement introuvable, déjà effectué ou expiré",
 
   "error.unknown": (p) => (p.message === undefined ? "erreur inconnue" : text(p.message)),
   legacy: (p) => text(p.text),

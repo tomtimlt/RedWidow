@@ -378,6 +378,10 @@ export const reasons: Catalog = {
   "container.exists": () => "a container already has this name",
   "container.failed": () => "container operation failed",
   "auth.badRequest": () => "invalid request",
+  "hostui.uploadForbidden": () => "no upload dialog is waiting for this file",
+  "hostui.uploadTooLarge": (p) => `file too large (maximum ${text(p.max)} bytes)`,
+  "hostui.uploadBadType": () => "file type not accepted",
+  "hostui.downloadGone": () => "download not found, already done or expired",
 
   "error.unknown": (p) => (p.message === undefined ? "unknown error" : text(p.message)),
 
