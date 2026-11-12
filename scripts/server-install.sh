@@ -4,7 +4,11 @@
 #   --force     écrase un .env existant (sinon le script refuse)
 #   --no-start  prépare .env et le mot de passe, sans lancer « docker compose up »
 #
-# Mot de passe : l'empreinte est écrite dans /data/auth.json (volume Docker, 0600) par
+# Données : dossier de l'hôte (REDWIDOW_DATA_HOST, /srv/redwidow par défaut) monté au même chemin dans le
+# conteneur, propriétaire uid 10001 : Exegol exige des chemins identiques côté hôte et côté conteneur.
+# Le script le crée s'il manque (sudo si besoin) et ne supprime ni ne remplace rien d'existant.
+#
+# Mot de passe : l'empreinte est écrite dans <données>/auth.json (0600) par
 # `set-password --stdin`, et NON dans .env : une empreinte contient des « $ » que Docker Compose
 # interpolerait dans un fichier .env. Ainsi, aucun échappement fragile et aucun secret
 # d'authentification dans un fichier de configuration lisible.
@@ -17,7 +21,7 @@ for arg in "$@"; do
     --force) force=1 ;;
     --no-start) start=0 ;;
     -h | --help)
-      sed -n '2,12p' "$0"
+      sed -n '2,9p' "$0"
       exit 0
       ;;
     *)
@@ -68,6 +72,27 @@ else
 fi
 [ "${#secret_key}" -ge 32 ] || die "génération de la clé secrète impossible."
 
+# Dossier de données sur l'hôte (chemin absolu, identique dans le conteneur).
+data_host="${REDWIDOW_DATA_HOST:-/srv/redwidow}"
+case "$data_host" in
+  /*) ;;
+  *) die "REDWIDOW_DATA_HOST doit être un chemin absolu : « $data_host »." ;;
+esac
+case "$data_host" in
+  / | /bin | /boot | /dev | /etc | /home | /lib | /lib64 | /proc | /root | /run | /sbin | /sys | /usr | /var | /var/run)
+    die "REDWIDOW_DATA_HOST ne peut pas être un dossier système : « $data_host »."
+    ;;
+esac
+priv=""
+if [ "$(id -u)" -ne 0 ]; then
+  command -v sudo >/dev/null 2>&1 || die "créer $data_host exige les droits root (lancez le script avec sudo)."
+  priv="sudo"
+fi
+echo "Dossier de données : $data_host (propriétaire uid 10001)."
+$priv mkdir -p "$data_host/home" "$data_host/config"
+$priv chown 10001:10001 "$data_host" "$data_host/home" "$data_host/config"
+$priv chmod 700 "$data_host"
+
 # gid du groupe propriétaire du socket Docker.
 docker_gid="$(stat -c %g /var/run/docker.sock 2>/dev/null || true)"
 case "$docker_gid" in
@@ -86,6 +111,7 @@ REDWIDOW_DOMAIN=$domain
 REDWIDOW_PUBLIC_ORIGIN=https://$domain
 REDWIDOW_SECRET_KEY=$secret_key
 DOCKER_GID=$docker_gid
+REDWIDOW_DATA_HOST=$data_host
 EOF
 umask "$old_umask"
 chmod 600 .env
@@ -95,7 +121,7 @@ echo ".env écrit (0600)."
 echo "Construction de l'image (quelques minutes)..."
 docker compose build redwidow
 
-echo "Enregistrement du mot de passe dans le volume de données..."
+echo "Enregistrement du mot de passe dans le dossier de données..."
 printf '%s\n' "$password" |
   docker compose run --rm -T redwidow node packages/server/dist/main.js set-password --stdin
 unset password
@@ -105,6 +131,7 @@ if [ "$start" -eq 1 ]; then
   echo
   echo "RedWidow démarre. Une fois le certificat obtenu : https://$domain"
   echo "Suivi : docker compose logs -f"
+  echo "Exegol : acceptez une fois sa licence d'utilisation (voir docs/serveur.md, section Exegol)."
 else
   echo "Prêt. Lancez « docker compose up -d --build » pour démarrer."
 fi

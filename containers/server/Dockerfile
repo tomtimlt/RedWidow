@@ -7,6 +7,18 @@ ARG DOCKER_CLI_IMAGE=docker:27-cli
 # Client Docker statique (le serveur pilote les conteneurs Kali par le socket de l'hôte).
 FROM ${DOCKER_CLI_IMAGE} AS dockercli
 
+# Exegol (CLI Python) installé dans un venv dédié, copié ensuite dans l'image runtime (pas de pip ni de
+# compilateur au runtime). Version EXACTE, publiée sur PyPI depuis plus de 14 jours : à relever à la main.
+FROM ${NODE_IMAGE} AS exegol
+ARG EXEGOL_VERSION=6.0.2
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 python3-venv \
+    && rm -rf /var/lib/apt/lists/* \
+    && python3 -m venv /opt/exegol \
+    && /opt/exegol/bin/pip install --no-cache-dir "exegol==${EXEGOL_VERSION}" \
+    && find /opt/exegol -name __pycache__ -type d -prune -exec rm -rf {} + \
+    && rm -rf /opt/exegol/lib/python3*/site-packages/pip* /opt/exegol/bin/pip*
+
 FROM ${NODE_IMAGE} AS build
 WORKDIR /src
 # pnpm via corepack, à la version épinglée par le champ packageManager de la racine.
@@ -35,7 +47,7 @@ ENV NODE_ENV=production \
     HOME=/data/home \
     XDG_CONFIG_HOME=/data/config
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends tini ca-certificates \
+    && apt-get install -y --no-install-recommends tini ca-certificates python3 git \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --gid 10001 redwidow \
     && useradd --uid 10001 --gid 10001 --no-create-home --home-dir /data/home --shell /usr/sbin/nologin redwidow \
@@ -43,6 +55,10 @@ RUN apt-get update \
     && chown -R 10001:10001 /data \
     && chmod 700 /data
 COPY --from=dockercli /usr/local/bin/docker /usr/local/bin/docker
+# Exegol : le serveur lance la CLI `exegol` (création des conteneurs depuis le cockpit). Aucune clé ni
+# licence dans l'image ; la configuration est écrite sous HOME (/data/home) au premier lancement.
+COPY --from=exegol /opt/exegol /opt/exegol
+RUN ln -s /opt/exegol/bin/exegol /usr/local/bin/exegol
 WORKDIR /app
 # Même position relative qu'en dépôt : /media lit ../../vscode/media depuis packages/server/dist.
 COPY --from=build /out ./packages/server

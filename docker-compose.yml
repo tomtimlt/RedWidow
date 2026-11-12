@@ -15,8 +15,18 @@ services:
     environment:
       REDWIDOW_HOST: 0.0.0.0
       REDWIDOW_TRUST_PROXY: "1"
+      # Dossier de données : /data (volume nommé historique) tant que REDWIDOW_DATA_HOST est vide ;
+      # sinon le chemin hôte, monté au MÊME chemin dans le conteneur (voir le volume ci-dessous).
+      REDWIDOW_DATA_DIR: ${REDWIDOW_DATA_HOST:-/data}
+      HOME: ${REDWIDOW_DATA_HOST:-/data}/home
+      XDG_CONFIG_HOME: ${REDWIDOW_DATA_HOST:-/data}/config
     volumes:
-      - redwidow-data:/data
+      # Sans REDWIDOW_DATA_HOST : volume nommé `redwidow-data` sur /data (installations existantes, inchangées).
+      # Avec REDWIDOW_DATA_HOST=/srv/redwidow (recommandé) : dossier de l'hôte monté au même chemin dans
+      # le conteneur. Indispensable à Exegol : le démon Docker de l'hôte monte des chemins HÔTE, donc le
+      # dossier de travail transmis à `exegol start` doit porter le même chemin des deux côtés.
+      # Le dossier doit exister et appartenir à l'uid 10001 (scripts/server-install.sh ou server-migrate-data.sh).
+      - ${REDWIDOW_DATA_HOST:-redwidow-data}:${REDWIDOW_DATA_HOST:-/data}
       # ATTENTION : le socket Docker donne au conteneur les droits de l'hôte (root de fait).
       # À réserver à un VPS dédié (ADR 0052). Le serveur s'en sert pour piloter les conteneurs
       # Kali/Exegol ; l'agent, lui, ne le voit jamais.
