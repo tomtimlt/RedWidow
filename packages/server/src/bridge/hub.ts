@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   CodedError,
@@ -46,10 +46,18 @@ import {
   writePool,
 } from "./config.js";
 import { ContainerHost, containerEnv } from "./containers.js";
-import { buildChatDeps } from "./deps.js";
+import { buildChatDeps, HISTORY_INDEX_KEY } from "./deps.js";
 import { isFrameId, type View } from "./envelope.js";
 import { getFindingDetail, listFindingItems, removeFinding } from "./findings.js";
 import { coreProjectHalts, EmergencyHalt, type ProjectHalts } from "./halt.js";
+import {
+  type LiveMission,
+  listMissions,
+  listProjects,
+  listRuns,
+  missionState,
+  tailAudit,
+} from "./lists.js";
 import {
   classifyEvent,
   type Limit,
@@ -144,6 +152,8 @@ interface Frame {
   rot: Rotation | null;
   /** Attentes de l'arrêt complet du moteur (résolues par `onView`). */
   idleWaiters: (() => boolean)[];
+  /** Dernier état diffusé en `missionState` (ADR 0052). */
+  lastState?: string;
 }
 
 /** Une passe de bascule : une seule fois par clé de la réserve, puis arrêt de la mission. */
@@ -377,7 +387,26 @@ export class MissionHub {
     this.broadcast(f, { type: "view", view, chatId: f.id });
     f.idleWaiters = f.idleWaiters.filter((wait) => !wait());
     this.pushApprovals(false);
+    this.pushMissionState(f, view);
     this.views.sessionsChanged();
+  }
+
+  /** Diffuse `missionState` quand l'état d'un cadre vivant change (dock, palette). */
+  private pushMissionState(f: Frame, view: ChatView): void {
+    const id = view.conversation ?? f.id;
+    const state = missionState(view);
+    const key = `${id}:${state}`;
+    if (f.lastState === key) return;
+    f.lastState = key;
+    this.toShell({ type: "missionState", id, state });
+  }
+
+  /** Cadres vivants : conversation affichée (à défaut l'identifiant du cadre) et état. */
+  private liveMissions(): LiveMission[] {
+    return [...this.frames.values()].map((f) => {
+      const view = f.session.view();
+      return { id: view.conversation ?? f.id, state: missionState(view) };
+    });
   }
 
   private toShell(msg: Record<string, unknown>): void {
@@ -976,6 +1005,42 @@ export class MissionHub {
             project: c.project,
             items: await listFindingItems(this.configDir, c.project),
           });
+          return true;
+        } catch {
+          return this.configError(from, c.type);
+        }
+      case "missionsList":
+        from.send("shell", SHELL_FRAME, {
+          type: "missions",
+          items: listMissions(storage.state.get(HISTORY_INDEX_KEY), this.liveMissions()),
+        });
+        return true;
+      case "runsList":
+        try {
+          const items = await listRuns(
+            storage.paths.runs,
+            storage.state.get(HISTORY_INDEX_KEY),
+            c.project,
+          );
+          from.send("shell", SHELL_FRAME, { type: "runs", items });
+          return true;
+        } catch {
+          return this.configError(from, c.type);
+        }
+      case "projectsList":
+        try {
+          from.send("shell", SHELL_FRAME, {
+            type: "projects",
+            items: await listProjects(this.configDir),
+          });
+          return true;
+        } catch {
+          return this.configError(from, c.type);
+        }
+      case "auditTail":
+        try {
+          const items = await tailAudit(join(storage.paths.root, "audit.jsonl"), c.limit);
+          from.send("shell", SHELL_FRAME, { type: "audit", items });
           return true;
         } catch {
           return this.configError(from, c.type);

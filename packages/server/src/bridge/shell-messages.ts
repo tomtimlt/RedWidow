@@ -48,8 +48,12 @@ export type ShellControl =
         | "tokens"
         | "accounts"
         | "layouts"
-        | "containersList";
+        | "containersList"
+        | "missionsList"
+        | "projectsList";
     }
+  | { type: "runsList"; project: string | null }
+  | { type: "auditTail"; limit: number }
   | { type: "containerStart" | "containerStop"; id: string }
   | { type: "containerCreate"; kind: "kali"; name: string }
   | { type: "setBypass"; active: boolean; durationMinutes: number | null }
@@ -94,7 +98,21 @@ export function parseShellControl(m: Record<string, unknown>): ShellControl | nu
     case "accounts":
     case "layouts":
     case "containersList":
+    case "missionsList":
+    case "projectsList":
       return only(m, "type") ? { type: m.type } : null;
+    case "runsList":
+      if (only(m, "type")) return { type: "runsList", project: null };
+      return only(m, "type", "project") && isPoolId(m.project)
+        ? { type: "runsList", project: m.project }
+        : null;
+    case "auditTail":
+      return only(m, "type", "limit") &&
+        Number.isInteger(m.limit) &&
+        (m.limit as number) >= 1 &&
+        (m.limit as number) <= 200
+        ? { type: "auditTail", limit: m.limit as number }
+        : null;
     case "containerStart":
     case "containerStop":
       return only(m, "type", "id") && isContainerRef(m.id) ? { type: m.type, id: m.id } : null;
