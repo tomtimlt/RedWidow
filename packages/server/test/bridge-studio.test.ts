@@ -498,7 +498,7 @@ describe("message sortant openWindow", () => {
     expect(isOpenWindowMessage(openWindowMessage("killchain", "g1"))).toBe(true);
     for (const bad of [
       null,
-      { type: "openWindow", view: "chat", frame: "x" },
+      { type: "openWindow", view: "studio", frame: "x" },
       { type: "openWindow", view: "cockpit", frame: "a/b" },
       { type: "openWindow", view: "cockpit", frame: "x", path: "/etc" },
       { type: "openWindow", view: "cockpit" },

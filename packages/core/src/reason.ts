@@ -253,6 +253,17 @@ export const REASON_CODES = [
   "container.invalidName",
   "container.exists",
   "container.failed",
+  // Cockpit web : création Exegol, VPN, dossier partagé, imports de fiches (ADR 0055)
+  "exegol.notInstalled",
+  "exegol.createFailed",
+  "exegol.vpnMissing",
+  "exegol.needsNat",
+  "exegol.folderMissing",
+  "vpn.invalid",
+  "folder.none",
+  "folder.invalid",
+  "import.tooLarge",
+  "import.badFile",
   // Dialogues, téléversements et téléchargements web (ADR 0055)
   "hostui.uploadForbidden",
   "hostui.uploadTooLarge",

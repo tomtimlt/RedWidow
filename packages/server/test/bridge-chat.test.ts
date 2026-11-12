@@ -679,6 +679,9 @@ describe("fenêtres : openMonitor, openKillchain, watch, openCockpit", () => {
       { type: "openWindow", view: "viewer", frame: "f", mode: "watch", toolUseId: "t1" },
       { type: "openWindow", view: "term", frame: "t1" },
       { type: "openWindow", view: "cockpit", frame: "cockpit" },
+      { type: "openWindow", view: "chat", frame: "m-0a1b2c" },
+      { type: "openWindow", view: "chat", frame: "m-0a1b2c", draft: "Ligne 1\nLigne 2" },
+      { type: "openWindow", view: "term", frame: "t-0a1b2c3d", container: "exegol-web" },
     ];
     for (const m of ok) expect(isOpenWindowMessage(m), JSON.stringify(m)).toBe(true);
     const bad = [
@@ -688,7 +691,16 @@ describe("fenêtres : openMonitor, openKillchain, watch, openCockpit", () => {
       { type: "openWindow", view: "viewer", frame: "f", mode: "watch", toolUseId: "" },
       { type: "openWindow", view: "viewer", frame: "f", mode: "watch", toolUseId: "a\u0000" },
       { type: "openWindow", view: "term", frame: "a/b" },
-      { type: "openWindow", view: "chat", frame: "f" },
+      { type: "openWindow", view: "chat", frame: "a/b" },
+      { type: "openWindow", view: "chat", frame: "f", draft: "" },
+      { type: "openWindow", view: "chat", frame: "f", draft: "x".repeat(4001) },
+      { type: "openWindow", view: "chat", frame: "f", draft: "a\u0000b" },
+      { type: "openWindow", view: "chat", frame: "f", draft: 12 },
+      { type: "openWindow", view: "cockpit", frame: "f", draft: "x" },
+      { type: "openWindow", view: "chat", frame: "f", container: "exegol-web" },
+      { type: "openWindow", view: "term", frame: "f", container: "--privileged" },
+      { type: "openWindow", view: "term", frame: "f", container: "a b" },
+      { type: "openWindow", view: "term", frame: "f", draft: "x" },
       { type: "openWindow", view: "term", frame: "f", path: "/etc" },
     ];
     for (const m of bad) expect(isOpenWindowMessage(m), JSON.stringify(m)).toBe(false);
@@ -716,6 +728,8 @@ describe("liaison conteneur ↔ projet (linkMention)", () => {
           link,
           setPrimary: async () => ({ type: "view" }) as never,
           control: async () => undefined,
+          images: async () => [],
+          remove: async (name) => ({ status: "cancelled", name }),
         },
       }),
     });

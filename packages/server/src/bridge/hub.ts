@@ -33,6 +33,7 @@ import type { ServerStorage } from "../storage/index.js";
 import { UploadStore } from "../uploads.js";
 import { AccountStore } from "./accounts.js";
 import { ChatExtras } from "./chat-extras.js";
+import type { ExegolPort } from "./cockpit.js";
 import {
   activatePoolKey,
   activePoolKey,
@@ -136,6 +137,8 @@ export interface HubOptions {
   audit?(entry: Record<string, unknown>): void;
   /** Client de l'API Engine (injectable : tests). Défaut : socket `REDWIDOW_DOCKER_SOCKET`. */
   docker?: DockerApi;
+  /** Exegol du serveur (injectable : tests). Défaut : le binaire `exegol` du PATH. */
+  exegol?: ExegolPort;
   /** Horloge des terminaux (injectable : tests). */
   clock?: Clock;
   /** Période (ms) du sondage des trouvailles de la vue Kill chain ; 0 : aucun (tests). Défaut : 1 s. */
@@ -272,17 +275,45 @@ export class MissionHub {
       },
     });
     const backends = options.backends ?? defaultBackends(this.configDir);
-    this.views = new ViewHosts(backends, this.halt, {
-      chats: () =>
-        [...this.frames.values()].map((f) => ({
-          id: f.id,
-          name: f.id,
-          location: "editor" as const,
-          view: f.session.view(),
-        })),
-      waiting: () =>
-        [...this.frames.values()].filter((f) => f.approvals.length > 0).map((f) => f.id),
-    });
+    this.views = new ViewHosts(
+      backends,
+      this.halt,
+      {
+        chats: () =>
+          [...this.frames.values()].map((f) => ({
+            id: f.id,
+            name: f.id,
+            location: "editor" as const,
+            view: f.session.view(),
+          })),
+        waiting: () =>
+          [...this.frames.values()].filter((f) => f.approvals.length > 0).map((f) => f.id),
+        history: async () => {
+          const names = new Map(
+            (await listProjects(this.configDir).catch(() => [])).map((p) => [p.id, p.name]),
+          );
+          return listMissions(
+            options.storage.state.get(HISTORY_INDEX_KEY),
+            this.liveMissions(),
+          ).map((m) => ({
+            id: m.id,
+            title: m.title,
+            project: m.project === null ? null : (names.get(m.project) ?? null),
+            updatedAt: m.updatedAt,
+            live: m.live,
+          }));
+        },
+      },
+      {
+        ctx: this.context,
+        containers: this.containers,
+        projectsRoot: options.storage.paths.projects,
+        dataRoot: options.storage.paths.root,
+        configDir: this.configDir,
+        locale: () => (readSettingsObject(options.storage).locale === "en" ? "en" : "fr"),
+        ...(options.exegol && { exegol: options.exegol }),
+      },
+    );
     // Studio : sondages (catalogue, test de connexion) et jetons via les mêmes dépendances qu'un chat.
     const probeDeps = buildChatDeps({
       storage: options.storage,

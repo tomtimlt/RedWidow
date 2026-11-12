@@ -82,7 +82,9 @@ export type ShellControl =
  * fenêtre. Vues admises : liste fermée ; `frame` : identifiant de cadre valide (par défaut le nom de la vue).
  * `viewer` (Monitor, Sortie, Rapport) porte `mode` (le cadre est alors le chat suivi, ou celui de la page) ;
  * `toolUseId` (mode `watch` seulement) désigne l'appel d'outil à suivre : la page l'enverra par `watch`.
- * `term` : fenêtre de terminal (le conteneur est choisi par la fenêtre elle-même, message `open`).
+ * `term` : fenêtre de terminal ; `container` (nom d'un conteneur géré, validé) est le conteneur à ouvrir : la
+ * fenêtre l'envoie dans son message `open`. `chat` : fenêtre de mission (cadre existant ou nouveau) ; `draft`
+ * (au plus 4000 caractères) est un brouillon à placer dans la zone de saisie, jamais envoyé tout seul.
  * La coquille décide de l'affichage ; ce message ne porte ni chemin ni secret.
  */
 export const OPEN_WINDOW_VIEWS = [
@@ -92,6 +94,7 @@ export const OPEN_WINDOW_VIEWS = [
   "killchain",
   "viewer",
   "term",
+  "chat",
 ] as const;
 export type OpenWindowView = (typeof OPEN_WINDOW_VIEWS)[number];
 export const OPEN_WINDOW_MODES = ["watch", "monitor", "report"] as const;
@@ -102,12 +105,18 @@ export interface OpenWindowMessage {
   frame: string;
   mode?: OpenWindowMode;
   toolUseId?: string;
+  /** `chat` seulement : brouillon du premier message (≤ `MAX_DRAFT` caractères). */
+  draft?: string;
+  /** `term` seulement : conteneur géré à ouvrir dans la fenêtre. */
+  container?: string;
 }
+/** Plafond d'un brouillon de mission (caractères). */
+export const MAX_DRAFT = 4000;
 const WINDOW_FRAME = /^[A-Za-z0-9_-]{1,64}$/;
 export function openWindowMessage(
   view: OpenWindowView,
   frame: string = view,
-  extra: { mode?: OpenWindowMode; toolUseId?: string } = {},
+  extra: { mode?: OpenWindowMode; toolUseId?: string; draft?: string; container?: string } = {},
 ): OpenWindowMessage {
   return {
     type: "openWindow",
@@ -115,6 +124,8 @@ export function openWindowMessage(
     frame,
     ...(extra.mode !== undefined && { mode: extra.mode }),
     ...(extra.toolUseId !== undefined && { toolUseId: extra.toolUseId }),
+    ...(extra.draft !== undefined && { draft: extra.draft }),
+    ...(extra.container !== undefined && { container: extra.container }),
   };
 }
 /** Contrôle de forme d'un `openWindow` (tests, et coquille qui voudrait revalider). */
@@ -144,6 +155,22 @@ export function isOpenWindowMessage(m: unknown): m is OpenWindowMessage {
     )
       return false;
     allowed.add("toolUseId");
+  }
+  if (m.draft !== undefined) {
+    // Les sauts de ligne et tabulations sont permis dans un brouillon ; tout autre contrôle est refusé.
+    if (
+      m.view !== "chat" ||
+      typeof m.draft !== "string" ||
+      m.draft.length < 1 ||
+      m.draft.length > MAX_DRAFT ||
+      hasControl(m.draft.replace(/[\n\t]/g, ""))
+    )
+      return false;
+    allowed.add("draft");
+  }
+  if (m.container !== undefined) {
+    if (m.view !== "term" || !isContainerRef(m.container)) return false;
+    allowed.add("container");
   }
   return Object.keys(m).every((k) => allowed.has(k));
 }

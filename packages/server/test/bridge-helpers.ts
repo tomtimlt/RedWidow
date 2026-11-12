@@ -2,13 +2,14 @@ import { EventEmitter } from "node:events";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Readable } from "node:stream";
 import type { PendingApproval } from "@warband/core";
 import type {
   EngineController,
   EngineControllerOptions,
   EngineHandlers,
 } from "@warband/vscode/logic/controller";
-import { afterEach, beforeEach } from "vitest";
+import { afterEach, beforeEach, expect, vi } from "vitest";
 import type { WebSocket } from "ws";
 import { createBridge } from "../src/bridge/channel.js";
 import { tokenKindKey, tokenSecretKey } from "../src/bridge/deps.js";
@@ -161,6 +162,35 @@ export const emptyBackends = (over: Partial<ViewBackends> = {}): ViewBackends =>
     link: async () => ({ type: "view" }) as never,
     setPrimary: async () => ({ type: "view" }) as never,
     control: async () => undefined,
+    images: async () => [],
+    remove: async (name) => ({ status: "cancelled", name }),
   },
   ...over,
 });
+
+/** `count`-ième dialogue (HostUi) reçu par la coquille `s`, attendu. */
+export async function nthDialog(s: FakeSocket, count = 1): Promise<Msg> {
+  await vi.waitFor(() => expect(s.of("shell", "dialog").length).toBeGreaterThanOrEqual(count));
+  return s.of("shell", "dialog")[count - 1]?.msg as Msg;
+}
+
+/** Réponse de l'humain à un dialogue (comme la coquille). */
+export const replyDialog = (s: FakeSocket, d: Msg, value: unknown) =>
+  s.say("shell", "shell", { type: "dialogResult", id: d.id, value });
+
+/** Téléverse `content` pour le dialogue `file` `d`, puis le valide ; renvoie l'identifiant d'upload. */
+export async function uploadFor(
+  t: ReturnType<typeof setup>,
+  s: FakeSocket,
+  d: Msg,
+  name: string,
+  content: Buffer | string,
+): Promise<string> {
+  const info = await t.hub.context.uploads.receive(Readable.from([Buffer.from(content)]), {
+    dialog: d.id as string,
+    name,
+    maxBytes: d.maxBytes as number,
+  });
+  replyDialog(s, d, info.id);
+  return info.id;
+}
