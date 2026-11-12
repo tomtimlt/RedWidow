@@ -8,7 +8,7 @@
 // - identité d'une fenêtre : le couple (vue, identifiant) ;
 // - ordre d'empilement : ordre du tableau `windows` (de l'arrière vers l'avant) ;
 // - `state` : `minimized` ou `maximized` (la géométrie reste celle de la fenêtre restaurée) ;
-// - `mode` : `watch` ou `report` pour la vue `viewer`, nom de l'écran pour un écran natif ;
+// - `mode` : `monitor`, `watch` ou `report` pour la vue `viewer`, nom de l'écran pour un écran natif ;
 // - écran natif : vue `shell`, identifiant et `mode` = nom de l'écran ;
 // - nom de l'espace affiché : `spaces[0].name` de la disposition courante (un espace `main` unique).
 import { iframeSpec, nativeSpec, terminalSpec } from "./types.js";
@@ -123,7 +123,10 @@ export function specOfWindow(w) {
   if (w.view === "shell") return nativeSpec(w.mode ?? w.id);
   // Un terminal restauré s'ouvre sur le choix du conteneur : la session, elle, n'est pas rejouée.
   if (w.view === "term") return terminalSpec(w.id);
-  if (w.view === "viewer") return iframeSpec(w.mode === "report" ? "report" : "monitor", w.id);
+  if (w.view === "viewer") {
+    const kind = w.mode === "report" ? "report" : w.mode === "watch" ? "output" : "monitor";
+    return iframeSpec(kind, w.id);
+  }
   const kind = Object.hasOwn(KIND_OF_VIEW, w.view) ? KIND_OF_VIEW[w.view] : null;
   return kind === null ? null : iframeSpec(kind, w.id);
 }

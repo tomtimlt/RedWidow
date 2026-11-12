@@ -545,6 +545,45 @@ export function createDesktop({
       if (name) name.textContent = title;
       notify();
     },
+    /**
+     * Contexte d'une mission (texte déjà masqué et borné par le serveur) : pastille « Contexte » dans
+     * l'en-tête de la fenêtre ; un clic affiche ou masque le texte (`textContent`, jamais de HTML).
+     * Sans effet si la fenêtre n'existe pas ou si le texte n'a pas changé.
+     */
+    setContext(key, text) {
+      const win = windows.get(key);
+      if (!win || typeof text !== "string" || text === "") return;
+      if (win.context) {
+        if (win.context.text.textContent !== text) win.context.text.textContent = text;
+        return;
+      }
+      const chip = el(doc, "button", "wm-chip", "Contexte");
+      chip.type = "button";
+      chip.setAttribute("aria-expanded", "false");
+      chip.title = "Contexte de la mission";
+      const panel = el(doc, "section", "wm-ctx");
+      panel.id = `ctx-${win.spec.key.replace(/[^A-Za-z0-9_-]/g, "-")}`;
+      panel.setAttribute("aria-label", "Contexte de la mission");
+      panel.hidden = true;
+      const body = el(doc, "p", "wm-ctx-text", text);
+      const close = el(doc, "button", "wm-ctx-close", "Fermer");
+      close.type = "button";
+      panel.append(body, close);
+      chip.setAttribute("aria-controls", panel.id);
+      const toggle = (open) => {
+        panel.hidden = !open;
+        chip.setAttribute("aria-expanded", String(open));
+        chip.classList.toggle("is-open", open);
+      };
+      chip.addEventListener("click", () => toggle(panel.hidden));
+      close.addEventListener("click", () => {
+        toggle(false);
+        chip.focus();
+      });
+      win.el.querySelector(".wm-title")?.insertBefore(chip, win.el.querySelector(".wm-btns"));
+      win.body.append(panel);
+      win.context = { text: body };
+    },
     /** Le chargement de l'iframe a échoué : cadre d'erreur dans sa fenêtre. */
     setError(key, failed) {
       const win = windows.get(key);

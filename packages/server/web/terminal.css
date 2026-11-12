@@ -77,6 +77,11 @@
   text-align: left;
 }
 
+.term-choice.is-preselected {
+  border-color: var(--rw-crimson);
+  box-shadow: inset 3px 0 0 var(--rw-crimson);
+}
+
 .term-choice-name {
   font-family: var(--rw-mono);
   font-weight: 600;

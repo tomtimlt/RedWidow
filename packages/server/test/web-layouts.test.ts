@@ -85,7 +85,7 @@ describe("espaces : sérialisation", () => {
     expect(lay.validateLayout(layout)).toEqual(layout);
   });
 
-  it("minimisée, maximisée et mode watch ou report : aller-retour par `state` et `mode`", () => {
+  it("minimisée, maximisée et mode monitor ou report : aller-retour par `state` et `mode`", () => {
     const items = [
       { ...mission("m1"), minimized: true },
       {
@@ -106,7 +106,7 @@ describe("espaces : sérialisation", () => {
     ];
     const layout = lay.serialize(items);
     expect(layout.windows[0]).toMatchObject({ id: "m1", state: "minimized" });
-    expect(layout.windows[1]).toMatchObject({ id: "r1", mode: "watch", state: "maximized" });
+    expect(layout.windows[1]).toMatchObject({ id: "r1", mode: "monitor", state: "maximized" });
     expect(layout.windows[2]).toMatchObject({ id: "r2", mode: "report" });
     expect(layout.windows[3]).toMatchObject({ view: "shell", id: "findings", mode: "findings" });
     expect(serverValidate(layout)).toEqual(layout);
@@ -121,7 +121,7 @@ describe("espaces : sérialisation", () => {
     expect(plan.windows[0]).toMatchObject({ minimized: true, maximized: false });
     expect(plan.windows[1]).toMatchObject({ minimized: false, maximized: true });
     expect(plan.windows[2].spec).toMatchObject({ mode: "report" });
-    expect(plan.windows[1].spec).toMatchObject({ mode: "watch" });
+    expect(plan.windows[1].spec).toMatchObject({ mode: "monitor" });
   });
 
   it("au plus 32 fenêtres (les plus à l'avant)", () => {

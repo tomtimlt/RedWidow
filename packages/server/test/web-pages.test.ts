@@ -42,7 +42,7 @@ describe("pages de vue", () => {
       expect(html).toContain("style-src 'self'");
       // Les fichiers viennent de /media/.
       for (const [, src] of html.matchAll(/(?:src|href)="([^"]+)"/g)) {
-        expect(src).toMatch(/^\/(media\/|bridge\.js$|theme\.css$)/);
+        expect(src).toMatch(/^\/(media\/|bridge\.js$|chat-extras\.js$|theme\.css$)/);
       }
     },
   );

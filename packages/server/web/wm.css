@@ -105,6 +105,80 @@
   background: var(--rw-crimson);
 }
 
+/* Pastille « Contexte » de la fenêtre Mission et son panneau. */
+.wm-chip {
+  flex: none;
+  min-height: 22px;
+  padding: 0 9px;
+  border: 1px solid var(--rw-steel);
+  border-radius: 11px;
+  background: transparent;
+  color: var(--rw-steel-text);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.wm-chip:hover,
+.wm-chip.is-open {
+  border-color: var(--rw-crimson);
+  color: var(--rw-fg);
+}
+
+.wm-chip:focus-visible,
+.wm-ctx-close:focus-visible {
+  outline: 2px solid var(--rw-crimson-text);
+  outline-offset: 2px;
+}
+
+.wm-ctx {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  left: 8px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 60%;
+  padding: 12px 14px;
+  overflow: auto;
+  border: 1px solid var(--rw-steel);
+  border-radius: 6px;
+  background: var(--rw-surface-2);
+  box-shadow: 0 10px 28px rgb(0 0 0 / 50%);
+}
+
+.wm-ctx[hidden] {
+  display: none;
+}
+
+.wm-ctx-text {
+  margin: 0;
+  color: var(--rw-fg);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.wm-ctx-close {
+  align-self: flex-end;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--rw-line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--rw-fg-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.wm-ctx-close:hover {
+  border-color: var(--rw-crimson);
+  color: var(--rw-fg);
+}
+
 .wm-btns {
   display: flex;
   flex: none;

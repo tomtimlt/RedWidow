@@ -3,6 +3,7 @@
 // donnée reçue n'est insérée en HTML : tout passe par `textContent`.
 import { createApprovalTracker, createCardList, parseApprovalList } from "./lib/approval-card.js";
 import { createChannel } from "./lib/channel.js";
+import { chatErrorText, createAfterReady, parseMissionContext } from "./lib/chat-bridge.js";
 import { createDialogHost, startDownload } from "./lib/dialog.js";
 import { createFrameHost, parseDeepLink } from "./lib/frames.js";
 import {
@@ -53,6 +54,7 @@ import {
   nativeSpec,
   newMissionId,
   newTerminalId,
+  openWindowExtras,
   specFromOpenWindow,
   specFromRoute,
   terminalSpec,
@@ -83,6 +85,8 @@ const state = {
   missions: [],
   projects: [],
   runs: [],
+  /** Contexte de mission par cadre (`missionContext`), affiché en pastille dans la fenêtre Mission. */
+  missionContexts: new Map(),
 };
 
 // ───────────────────────────── Canal ─────────────────────────────
@@ -179,6 +183,7 @@ const topbar = createTopbar(
 let mobile = null;
 let dock = null;
 
+const afterReady = createAfterReady();
 const frames = createFrameHost({
   container: $("desktop"),
   doc: document,
@@ -190,7 +195,18 @@ const frames = createFrameHost({
       desktop.open(nativeSpec("providers"));
       return true;
     }
-    return channel.send(view, frame, msg);
+    // Chat : `chat-extras.js` (chargé après la page) annonce `extrasReady` quand il écoute ; la coquille
+    // pose alors le brouillon de mission. Message propre à la coquille, jamais transmis au serveur.
+    if (view === "chat" && msg.type === "extrasReady") {
+      for (const action of afterReady.take(view, frame)) action.run();
+      return true;
+    }
+    const sent = channel.send(view, frame, msg);
+    // Viewer : le suivi d'un appel d'outil (`watch`) part après le `ready` de la page, dans cet ordre.
+    if (sent && view !== "chat" && msg.type === "ready") {
+      for (const action of afterReady.take(view, frame)) action.run();
+    }
+    return sent;
   },
   onFocus: (entry) => desktop.focus(entry.key),
   // Raccourcis relayés par les ponts des pages : même table que le clavier de la coquille.
@@ -351,6 +367,45 @@ function newMission() {
   const spec = iframeSpec("mission", newMissionId());
   if (spec !== null) desktop.open(spec);
 }
+/**
+ * Fenêtre demandée par le serveur (`openWindow`). `extras` : brouillon de mission (posé dans le champ de
+ * saisie, jamais envoyé d'office) et suivi d'un appel d'outil, joués quand la page a annoncé `ready` ; si la
+ * page est déjà chargée, tout de suite.
+ */
+function openFromServer(spec, extras) {
+  const actions = [];
+  if (extras.draft !== undefined) {
+    const text = extras.draft;
+    actions.push({
+      run: () =>
+        frames.deliver({ view: spec.view, frame: spec.frame, msg: { type: "draft", text } }),
+    });
+  }
+  if (extras.toolUseId !== undefined) {
+    const toolUseId = extras.toolUseId;
+    actions.push({
+      durable: true,
+      run: () => channel.send(spec.view, spec.frame, { type: "watch", toolUseId }),
+    });
+  }
+  if (spec.kind === "iframe") {
+    const entry = frames.get(spec.view, spec.frame);
+    const live = entry !== null && !entry.unloaded && !entry.failed && entry.timer === null;
+    if (live) for (const action of actions) action.run();
+    afterReady.set(
+      spec.view,
+      spec.frame,
+      live ? actions.filter((a) => a.durable === true) : actions,
+    );
+  }
+  desktop.open(spec);
+}
+
+/** Pastille « Contexte » des fenêtres Mission ouvertes (relancé à chaque rendu : la fenêtre peut venir après). */
+function syncMissionContexts() {
+  for (const [frame, text] of state.missionContexts) desktop.setContext(`chat:${frame}`, text);
+}
+
 /** Vue à identifiant fixe (`main`) : cockpit, sessions, studio. */
 function openFixed(kind) {
   const spec = iframeSpec(kind, "main");
@@ -699,6 +754,7 @@ function render() {
     now: Date.now(),
   });
   document.title = titleFor(items.length);
+  syncMissionContexts();
   const ctx = { status: (key) => tracker.status(key), online };
   approvalsScreen.render(items, ctx);
 
@@ -756,6 +812,11 @@ channel.onMessage((env) => {
     return;
   }
   if (env.view !== "shell") {
+    // Erreur du chat ou d'un viewer (export, liaison de conteneur, rapport…) : un toast français, non bloquant.
+    if ((env.view === "chat" || env.view === "viewer") && env.msg?.type === "error") {
+      toast(chatErrorText(env.msg.code), "err");
+      return;
+    }
     frames.deliver(env);
     return;
   }
@@ -813,7 +874,15 @@ channel.onMessage((env) => {
       break;
     case "openWindow": {
       const spec = specFromOpenWindow(msg);
-      if (spec !== null) desktop.open(spec);
+      if (spec !== null) openFromServer(spec, openWindowExtras(msg));
+      break;
+    }
+    case "missionContext": {
+      const ctx = parseMissionContext(msg);
+      if (ctx !== null) {
+        state.missionContexts.set(ctx.frame, ctx.text);
+        syncMissionContexts();
+      }
       break;
     }
     case "settings": {

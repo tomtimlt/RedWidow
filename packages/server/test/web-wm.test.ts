@@ -268,7 +268,8 @@ describe("types de fenêtres", () => {
       frame: "m1",
       kind: "iframe",
     });
-    expect(types.iframeSpec("monitor", "r1")).toMatchObject({ key: "viewer:r1", mode: "watch" });
+    expect(types.iframeSpec("monitor", "r1")).toMatchObject({ key: "viewer:r1", mode: "monitor" });
+    expect(types.iframeSpec("output", "r1")).toMatchObject({ key: "viewer:r1", mode: "watch" });
     expect(types.iframeSpec("report", "m1")).toMatchObject({ key: "viewer:m1", mode: "report" });
     expect(types.iframeSpec("graph", "m1")?.view).toBe("killchain");
     expect(types.iframeSpec("mission", "a/b")).toBeNull();

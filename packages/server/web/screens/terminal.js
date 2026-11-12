@@ -96,6 +96,7 @@ export function createTerminalHost({
     let opening = false;
     let disposed = false;
     let pendingProceed = null;
+    let preselectFocused = false;
 
     const session = createTermSession({
       send: (msg) => send("term", sid, msg),
@@ -177,6 +178,19 @@ export function createTerminalHost({
         const b = el(doc, "button", "scr-btn term-choice");
         b.type = "button";
         b.dataset.container = c.name;
+        if (c.name === spec.container) {
+          // Conteneur demandé par le serveur : présélectionné et focalisé, jamais ouvert d'office.
+          b.classList.add("is-preselected");
+          b.setAttribute("aria-current", "true");
+          // Focus à la première apparition ; aux rendus suivants (liste actualisée), seulement si le focus
+          // était dans le choix (le rendu l'a fait tomber sur le document) : jamais volé à une saisie.
+          const first = !preselectFocused;
+          preselectFocused = true;
+          setTimeout(() => {
+            const active = doc.activeElement;
+            if (b.isConnected && (first || !active || active === doc.body)) b.focus();
+          }, 0);
+        }
         b.append(
           el(doc, "span", "term-choice-name", c.name),
           badge(doc, c.kind, c.kind === "autre" ? "mute" : "steel"),

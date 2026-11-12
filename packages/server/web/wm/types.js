@@ -71,7 +71,9 @@ function randomBase36() {
 
 const IFRAME_KINDS = {
   mission: { view: "chat", label: "Mission" },
-  monitor: { view: "viewer", mode: "watch", label: "Monitor" },
+  monitor: { view: "viewer", mode: "monitor", label: "Monitor" },
+  // Sortie d'un appel d'outil (`openWindow` viewer, mode `watch`) : même clé `viewer:<id>` que le Monitor.
+  output: { view: "viewer", mode: "watch", label: "Sortie" },
   graph: { view: "killchain", label: "Kill chain" },
   report: { view: "viewer", mode: "report", label: "Rapport" },
   program: { view: "program", label: "Programme" },
@@ -107,16 +109,73 @@ const OPEN_WINDOW_KINDS = {
   killchain: "graph",
 };
 
+/** Modes du viewer (`openWindow`) → type de fenêtre. Le mode absent vaut `monitor`, comme côté serveur. */
+const VIEWER_KINDS = { monitor: "monitor", watch: "output", report: "report" };
+
+/** Taille maximale d'un brouillon de mission transmis par `openWindow` (miroir du serveur). */
+export const MAX_DRAFT_CHARS = 4000;
+const MAX_TOOL_USE_ID = 200;
+const hasControl = (s) => /\p{Cc}/u.test(s);
+
 /**
- * Message `openWindow {view, frame}` du serveur → spécification de fenêtre, ou `null` (vue hors liste,
- * identifiant invalide). Le cockpit est une vue à identifiant fixe : sa fenêtre est toujours `main`, pour
- * ne jamais en ouvrir une seconde à côté de celle du dock.
+ * Identifiant de cadre demandé, ou `null` : absent, invalide ou égal au nom de la vue (valeur par défaut
+ * du serveur, qui ne désigne alors aucun cadre en particulier).
  */
-export function specFromOpenWindow(msg) {
+const requestedFrame = (msg, view) =>
+  typeof msg.frame === "string" && msg.frame !== view && ID_PATTERN.test(msg.frame)
+    ? msg.frame
+    : null;
+
+/**
+ * Message `openWindow {view, frame, mode?, toolUseId?, container?, draft?}` du serveur → spécification de
+ * fenêtre, ou `null` (vue hors liste, identifiant invalide). Le cockpit est une vue à identifiant fixe :
+ * sa fenêtre est toujours `main`, pour ne jamais en ouvrir une seconde à côté de celle du dock. `viewer` :
+ * clé `viewer:<cadre>` quel que soit le mode. `term` : nouveau terminal (le conteneur demandé est
+ * présélectionné, jamais ouvert d'office). `chat` : nouvelle mission (`random` : tests).
+ */
+export function specFromOpenWindow(msg, random = randomBase36) {
   if (msg === null || typeof msg !== "object" || typeof msg.view !== "string") return null;
+  if (msg.view === "viewer") {
+    const mode = msg.mode ?? "monitor";
+    if (typeof mode !== "string" || !Object.hasOwn(VIEWER_KINDS, mode)) return null;
+    return iframeSpec(VIEWER_KINDS[mode], msg.frame);
+  }
+  if (msg.view === "term") {
+    const spec = terminalSpec(requestedFrame(msg, "term") ?? newTerminalId());
+    if (spec !== null && typeof msg.container === "string" && msg.container !== "") {
+      spec.container = msg.container.slice(0, 128);
+    }
+    return spec;
+  }
+  if (msg.view === "chat") {
+    return iframeSpec("mission", requestedFrame(msg, "chat") ?? newMissionId(random));
+  }
   if (!Object.hasOwn(OPEN_WINDOW_KINDS, msg.view)) return null;
   const kind = OPEN_WINDOW_KINDS[msg.view];
   return iframeSpec(kind, kind === "cockpit" ? "main" : msg.frame);
+}
+
+/**
+ * Suites d'un `openWindow` à jouer quand la page a annoncé `ready` : `draft` (mission préremplie, jamais
+ * envoyée d'office) et `toolUseId` (viewer en mode `watch`). Valeurs invalides ignorées.
+ */
+export function openWindowExtras(msg) {
+  const extras = {};
+  if (msg === null || typeof msg !== "object") return extras;
+  if (msg.view === "chat" && typeof msg.draft === "string") {
+    if (msg.draft.trim() !== "" && msg.draft.length <= MAX_DRAFT_CHARS) extras.draft = msg.draft;
+  }
+  if (
+    msg.view === "viewer" &&
+    msg.mode === "watch" &&
+    typeof msg.toolUseId === "string" &&
+    msg.toolUseId.length >= 1 &&
+    msg.toolUseId.length <= MAX_TOOL_USE_ID &&
+    !hasControl(msg.toolUseId)
+  ) {
+    extras.toolUseId = msg.toolUseId;
+  }
+  return extras;
 }
 
 /** Spécification d'une fenêtre native, ou `null` si l'écran est inconnu. */

@@ -99,9 +99,25 @@
   // État de la page : `sessionStorage` (par cadre, pour survivre à un rechargement), sinon mémoire.
   const storeKey = `rw:state:${frame}`;
   let memory;
+  // Page `viewer` : le serveur attend le mode (`monitor`, `watch`, `report`) dans le `ready` de la page, qui
+  // ne l'envoie pas d'elle-même ; il est lu ici dans l'URL du cadre (`?mode=`). Sans lui, le serveur sert
+  // des données Monitor, y compris pour un Rapport.
+  const VIEWER_MODES = ["monitor", "watch", "report"];
+  const urlMode = params.get("mode");
+  const viewerMode =
+    location.pathname === "/view/viewer" && VIEWER_MODES.includes(urlMode) ? urlMode : null;
+  const withMode = (msg) =>
+    viewerMode !== null &&
+    msg !== null &&
+    typeof msg === "object" &&
+    msg.type === "ready" &&
+    msg.mode === undefined
+      ? { ...msg, mode: viewerMode }
+      : msg;
+
   const api = {
     postMessage(msg) {
-      post({ msg });
+      post({ msg: withMode(msg) });
     },
     getState() {
       try {

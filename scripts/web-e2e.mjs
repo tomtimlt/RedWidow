@@ -40,6 +40,11 @@ const { validateLayout } = await import(pathToFileURL(join(dist, "bridge/layout.
 const { HostUi } = await import(pathToFileURL(join(dist, "bridge/hostui.js")).href);
 const { UploadStore } = await import(pathToFileURL(join(dist, "uploads.js")).href);
 const { DownloadStore } = await import(pathToFileURL(join(dist, "downloads.js")).href);
+const { pickAttachment } = await import(pathToFileURL(join(dist, "bridge/attachments.js")).href);
+const vscodeLogic = (name) =>
+  import(pathToFileURL(join(root, "packages/vscode/dist/logic", `${name}.js`)).href);
+const { createChatState } = await vscodeLogic("chat");
+const { missionReportPreview } = await vscodeLogic("mission-report");
 
 const PASSWORD = "mot-de-passe-de-test-e2e";
 const dataDir = mkdtempSync(join(tmpdir(), "rw-e2e-"));
@@ -408,6 +413,57 @@ function onTerm(ws, env) {
   }
 }
 
+/** Vrai pendant le scénario « chat-extras » : le pont factice répond alors aux pages de chat et de viewer. */
+let chatViews = false;
+/** Rapport factice servi aux viewers en mode `report` (aperçu réel du moteur). */
+const reportPreview = () =>
+  missionReportPreview(
+    { id: PROJECT, name: "acme" },
+    [
+      { kind: "host", label: "10.0.0.5", state: "confirmed", tactic: "Découverte" },
+      { kind: "site", label: "https://app.acme.test", state: "hypothesis", technique: "T1190" },
+    ],
+    "fr",
+  );
+
+/** Pages de chat : vue vide au `ready` ; `attachPick` passe par le vrai dialogue de téléversement du serveur. */
+function onChat(ws, sink, env) {
+  const msg = env.msg;
+  if (msg.type === "ready") {
+    send(ws, "chat", env.frame, { type: "locale", locale: "fr" });
+    send(ws, "chat", env.frame, { type: "view", view: createChatState().view() });
+  } else if (msg.type === "attachPick") {
+    pickAttachment({ ui: hostUi, uploads }, sink).then((result) =>
+      send(
+        ws,
+        "chat",
+        env.frame,
+        result.ok
+          ? { type: "attachmentPicked", requestId: msg.requestId, attachment: result.attachment }
+          : { type: "attachmentRefused", requestId: msg.requestId, reason: result.reason },
+      ),
+    );
+  }
+}
+
+/** Pages de viewer : un Rapport reçoit l'aperçu seulement s'il a annoncé `mode: "report"`. */
+function onViewer(ws, env) {
+  if (env.msg.type !== "ready") return;
+  if (env.msg.mode === "report") {
+    send(ws, "viewer", env.frame, {
+      type: "view",
+      view: { ...createChatState().view(), items: [reportPreview()] },
+    });
+  } else {
+    send(ws, "viewer", env.frame, { type: "title", text: env.frame });
+    send(ws, "viewer", env.frame, {
+      type: "view",
+      chatId: env.frame,
+      view: createChatState().view(),
+    });
+  }
+}
+
 function onConnection(ws) {
   sockets.add(ws);
   const sink = { send: (view, frame, msg) => send(ws, view, frame, msg) };
@@ -426,6 +482,8 @@ function onConnection(ws) {
     }
     received.push(env);
     if (env.view === "term") return onTerm(ws, env);
+    if (chatViews && env.view === "chat") return onChat(ws, sink, env);
+    if (chatViews && env.view === "viewer") return onViewer(ws, env);
     if (env.view !== "shell") return;
     if (env.msg.type === "ready") {
       send(ws, "shell", "shell", { type: "approvals", items: approvals });
@@ -874,8 +932,8 @@ async function desktopScenario(name, viewport) {
     "page viewer chargée",
   );
   check(
-    page.frames().some((f) => f.url().includes("/view/viewer") && f.url().includes("mode=watch")),
-    "le monitor charge le viewer en mode watch",
+    page.frames().some((f) => f.url().includes("/view/viewer") && f.url().includes("mode=monitor")),
+    "le monitor charge le viewer en mode monitor",
   );
   // Rouvrir une identité existante la focalise au lieu d'en créer une seconde.
   await openHash("#w=mission:m1");
@@ -2907,6 +2965,315 @@ async function dialogScenario(name, viewport) {
   await context.close();
 }
 
+/** 1x1 PNG valide (signature et IHDR) pour la pièce jointe image. */
+const PNG_1X1 = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+  "base64",
+);
+
+async function chatExtrasScenario(name, viewport) {
+  console.log(
+    `\n== ${name} : chat complet, viewer et fenêtres du serveur (${viewport.width}x${viewport.height})`,
+  );
+  resetScreens();
+  chatViews = true;
+  const { context, page, violations, win, openHash, shot } = await openSession(name, viewport);
+  const sink = () => [...shellSinks][0];
+  const chatFrame = (id) => page.frames().find((f) => f.url().includes(`/view/chat?frame=${id}`));
+  const viewerFrame = (id) =>
+    page.frames().find((f) => f.url().includes(`/view/viewer?frame=${id}`));
+  const chatMsgs = (type) => received.filter((e) => e.view === "chat" && e.msg.type === type);
+  const dlg = page.locator(".dlg-box");
+
+  // ── Mission m1 : le bouton « Joindre un fichier » à côté du « + ».
+  await openHash("#w=mission:m1");
+  await until(() => !!chatFrame("m1"), "chat m1 chargé");
+  const frame = chatFrame("m1");
+  const pickBtn = frame.locator("#attach-pick-btn");
+  await until(() => pickBtn.isEnabled(), "bouton Joindre actif (vue reçue)");
+  check(
+    (await frame.locator("#composer-menu-btn + #attach-pick-btn").count()) === 1,
+    "le bouton Joindre un fichier est à côté du +",
+  );
+  check(
+    (await pickBtn.getAttribute("aria-label")) === "Joindre un fichier",
+    "bouton Joindre : nom accessible",
+  );
+
+  // Annuler le dialogue : aucun attachement, le bouton redevient actif.
+  await pickBtn.click();
+  await until(() => dlg.isVisible(), "attachPick : dialogue de téléversement affiché");
+  check(
+    chatMsgs("attachPick").length === 1 && /^pick-/.test(chatMsgs("attachPick")[0].msg.requestId),
+    "attachPick {requestId} envoyé au serveur",
+  );
+  check((await pickBtn.isDisabled()) === true, "une seule demande à la fois (bouton inactif)");
+  await page.locator(".dlg-btn", { hasText: "Annuler" }).click();
+  await until(() => pickBtn.isEnabled(), "annulation : bouton de nouveau actif");
+  check((await frame.locator("#attachment-list li").count()) === 0, "annulation : rien de joint");
+
+  // Texte : dialogue, attachement, pastille de la page ; jamais envoyé sans clic.
+  await pickBtn.click();
+  await until(() => dlg.isVisible(), "texte : dialogue affiché");
+  await page.locator(".dlg-box input[type=file]").setInputFiles({
+    name: "notes.md",
+    mimeType: "text/markdown",
+    buffer: Buffer.from("# Notes de reconnaissance\n10.0.0.5 ssh ouvert\n"),
+  });
+  await until(
+    async () =>
+      (await frame.locator("#attachment-list li").allInnerTexts()).join("|").includes("notes.md"),
+    "texte : pastille notes.md affichée par la page",
+  );
+  // Image : même chemin que le collage ou le glisser-déposer de la page.
+  await pickBtn.click();
+  await until(() => dlg.isVisible(), "image : dialogue affiché");
+  await page.locator(".dlg-box input[type=file]").setInputFiles({
+    name: "capture.png",
+    mimeType: "image/png",
+    buffer: PNG_1X1,
+  });
+  await until(
+    async () => (await frame.locator("#attachment-list li img").count()) === 1,
+    "image : aperçu dans la pastille",
+  );
+  check(
+    (await frame.locator("#attachment-list li").count()) === 2,
+    "deux pièces jointes dans le brouillon",
+  );
+  await sleep(300);
+  check(chatMsgs("send").length === 0, "aucun send sans clic humain sur Envoyer");
+  await shot("1-chat-pieces-jointes");
+
+  // Le clic humain sur Envoyer joint les pièces au `send`, au format de la page.
+  await frame.locator("#input").fill("Analyse ces fichiers");
+  await frame.locator("#send").click();
+  await until(() => chatMsgs("send").length === 1, "send reçu après le clic");
+  const sent = chatMsgs("send")[0].msg;
+  check(
+    Array.isArray(sent.attachments) &&
+      sent.attachments.length === 2 &&
+      sent.attachments[0].name === "notes.md" &&
+      sent.attachments[0].text.includes("Notes de reconnaissance") &&
+      sent.attachments[1].mimeType === "image/png" &&
+      typeof sent.attachments[1].data === "string",
+    "send : pièces jointes texte et image au format de la page",
+  );
+
+  // ── Contexte de mission : pastille cliquable dans l'en-tête de la fenêtre Mission.
+  sink().send("shell", "shell", {
+    type: "missionContext",
+    frame: "m1",
+    runId: "run-1",
+    text: "Périmètre : *.acme.example. Fenêtre de test : nuit du 12.",
+  });
+  const chip = win("chat:m1").locator(".wm-chip");
+  await until(() => chip.isVisible(), "missionContext : pastille Contexte dans l'en-tête");
+  check((await win("chat:m1").locator(".wm-ctx").isHidden()) === true, "contexte masqué au départ");
+  await chip.click();
+  await until(() => win("chat:m1").locator(".wm-ctx").isVisible(), "clic : contexte affiché");
+  check(
+    (await win("chat:m1").locator(".wm-ctx-text").innerText()).includes("*.acme.example"),
+    "le texte du contexte est affiché",
+  );
+  check((await chip.getAttribute("aria-expanded")) === "true", "pastille : aria-expanded");
+  await shot("2-contexte");
+  await win("chat:m1").locator(".wm-ctx-close").click();
+  check((await win("chat:m1").locator(".wm-ctx").isHidden()) === true, "contexte refermé");
+  // Texte forgé : jamais interprété comme HTML.
+  sink().send("shell", "shell", {
+    type: "missionContext",
+    frame: "m1",
+    runId: "run-1",
+    text: '<img src=x onerror="window.__xssCtx=1"> contexte',
+  });
+  await chip.click();
+  await until(
+    async () => (await win("chat:m1").locator(".wm-ctx-text").innerText()).includes("<img"),
+    "contexte forgé affiché comme texte",
+  );
+  check(
+    (await page.evaluate(() => window.__xssCtx)) === undefined,
+    "contexte forgé : aucun script exécuté",
+  );
+  await win("chat:m1").locator(".wm-ctx-close").click();
+
+  // ── Erreur du chat : toast français non bloquant.
+  broadcast("chat", "m1", { type: "error", code: "view.failed" });
+  const toast = page.locator(".toast");
+  await until(() => toast.first().isVisible(), "error {code} : toast affiché");
+  check((await toast.first().innerText()).includes("échoué"), "toast : texte français");
+  check((await dlg.count()) === 0, "toast : aucun dialogue bloquant");
+  broadcast("chat", "m1", { type: "error", code: "<b>x</b>" });
+  await until(async () => (await toast.count()) === 2, "error {code} inconnu : second toast");
+  check(
+    !(await toast.nth(1).innerText()).includes("<b>"),
+    "toast : un code invalide n'est pas recopié",
+  );
+
+  // ── openWindow chat : mission neuve, brouillon posé dans le champ, jamais envoyé.
+  const missionKeys = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll('.wm-win[data-type="mission"]')].map((w) => w.dataset.key),
+    );
+  const before = await missionKeys();
+  sink().send("shell", "shell", {
+    type: "openWindow",
+    view: "chat",
+    frame: "chat",
+    draft: "Cartographier le périmètre acme.example",
+  });
+  await until(
+    async () => (await missionKeys()).length === before.length + 1,
+    "openWindow chat : mission neuve",
+  );
+  const fresh = (await missionKeys()).find((k) => !before.includes(k)).slice(5);
+  check(/^m-[0-9a-z]{6}$/.test(fresh), `identifiant de mission généré (${fresh})`);
+  await until(() => !!chatFrame(fresh), "nouvelle mission : page chargée");
+  await until(
+    async () =>
+      (await chatFrame(fresh).locator("#input").inputValue()) ===
+      "Cartographier le périmètre acme.example",
+    "brouillon posé dans le champ de saisie",
+  );
+  await sleep(300);
+  check(
+    !received.some((e) => e.view === "chat" && e.frame === fresh && e.msg.type === "send"),
+    "brouillon : aucun send automatique",
+  );
+  check(
+    received.some((e) => e.view === "chat" && e.frame === fresh && e.msg.type === "ready"),
+    "brouillon : la page a annoncé ready au serveur",
+  );
+  check(
+    !received.some((e) => e.msg?.type === "extrasReady"),
+    "extrasReady reste dans la coquille (jamais transmis au serveur)",
+  );
+  await shot("3-brouillon");
+  // Brouillon trop long : la fenêtre s'ouvre, le champ reste vide.
+  sink().send("shell", "shell", {
+    type: "openWindow",
+    view: "chat",
+    frame: "chat",
+    draft: "x".repeat(4001),
+  });
+  await until(
+    async () => (await missionKeys()).length === before.length + 2,
+    "brouillon trop long : fenêtre ouverte",
+  );
+  const long = (await missionKeys())
+    .find((k) => !before.includes(k) && k !== `chat:${fresh}`)
+    .slice(5);
+  await until(() => !!chatFrame(long), "mission au brouillon trop long : page chargée");
+  await until(
+    () => received.some((e) => e.view === "chat" && e.frame === long && e.msg.type === "ready"),
+    "mission au brouillon trop long : ready reçu",
+  );
+  await sleep(300);
+  check((await chatFrame(long).locator("#input").inputValue()) === "", "brouillon > 4000 : ignoré");
+
+  // ── openWindow viewer : le Rapport annonce son mode.
+  sink().send("shell", "shell", {
+    type: "openWindow",
+    view: "viewer",
+    frame: "m1",
+    mode: "report",
+  });
+  await until(() => win("viewer:m1").isVisible(), "openWindow viewer report : fenêtre ouverte");
+  check(
+    (await win("viewer:m1").locator("iframe").getAttribute("src")) ===
+      "/view/viewer?frame=m1&mode=report",
+    "viewer report : l'URL porte le mode",
+  );
+  await until(
+    () => received.some((e) => e.view === "viewer" && e.frame === "m1" && e.msg.type === "ready"),
+    "viewer report : ready relayé",
+  );
+  const ready = received.find(
+    (e) => e.view === "viewer" && e.frame === "m1" && e.msg.type === "ready",
+  );
+  check(
+    ready?.msg.mode === "report",
+    `Rapport : ready {mode:"report"} (${JSON.stringify(ready?.msg)})`,
+  );
+  await until(() => !!viewerFrame("m1"), "page viewer chargée");
+  await until(
+    async () => (await viewerFrame("m1").locator("body").innerText()).includes("Notes du projet"),
+    "Rapport : aperçu affiché",
+  );
+  await shot("4-rapport");
+  // Monitor/Sortie : l'appel d'outil à suivre est transmis après le ready.
+  sink().send("shell", "shell", {
+    type: "openWindow",
+    view: "viewer",
+    frame: "m2",
+    mode: "watch",
+    toolUseId: "toolu_01ABC",
+  });
+  await until(() => win("viewer:m2").isVisible(), "openWindow viewer watch : fenêtre ouverte");
+  await until(
+    () => received.some((e) => e.view === "viewer" && e.frame === "m2" && e.msg.type === "watch"),
+    "viewer watch : watch {toolUseId} envoyé",
+  );
+  const m2 = received.filter((e) => e.view === "viewer" && e.frame === "m2").map((e) => e.msg);
+  check(
+    m2[0]?.type === "ready" &&
+      m2[0].mode === "watch" &&
+      m2[1]?.type === "watch" &&
+      m2[1].toolUseId === "toolu_01ABC",
+    `viewer watch : ready {mode:"watch"} puis watch (${JSON.stringify(m2)})`,
+  );
+  check(
+    (await win("viewer:m2").locator(".wm-name").innerText()).includes("Sortie"),
+    "viewer watch : fenêtre Sortie",
+  );
+  sink().send("shell", "shell", { type: "openWindow", view: "viewer", frame: "m3", mode: "autre" });
+  sink().send("shell", "shell", {
+    type: "openWindow",
+    view: "viewer",
+    frame: "../x",
+    mode: "report",
+  });
+  await sleep(200);
+  check((await win("viewer:m3").count()) === 0, "viewer : un mode inconnu est ignoré");
+
+  // ── openWindow term : fenêtre Terminal, conteneur présélectionné, jamais ouvert d'office.
+  const termsBefore = await page.locator('.wm-win[data-type="terminal"]').count();
+  sink().send("shell", "shell", {
+    type: "openWindow",
+    view: "term",
+    frame: "term",
+    container: "kali-recon",
+  });
+  await until(
+    async () => (await page.locator('.wm-win[data-type="terminal"]').count()) === termsBefore + 1,
+    "openWindow term : fenêtre Terminal",
+  );
+  const preselected = page.locator(".term-choice.is-preselected");
+  await until(() => preselected.first().isVisible(), "term : conteneur présélectionné");
+  check(
+    (await preselected.first().getAttribute("data-container")) === "kali-recon",
+    "term : kali-recon présélectionné",
+  );
+  await until(
+    () => page.evaluate(() => document.activeElement?.dataset?.container === "kali-recon"),
+    "term : focus sur le conteneur demandé",
+  );
+  await sleep(300);
+  check(
+    !received.some((e) => e.view === "term" && e.msg.type === "open"),
+    "term : aucune session ouverte sans clic",
+  );
+  await shot("5-terminal");
+
+  check(
+    violations.length === 0,
+    `zéro violation CSP (chat, viewer, fenêtres) (${violations.slice(0, 3).join(" | ")})`,
+  );
+  chatViews = false;
+  await context.close();
+}
+
 try {
   // WEB_E2E_ONLY=<nom> : ne joue que ce scénario (mise au point).
   const only = (name) => !process.env.WEB_E2E_ONLY || process.env.WEB_E2E_ONLY === name;
@@ -2928,6 +3295,9 @@ try {
   if (only("shell-mobile")) await shellScenario("shell-mobile", { width: 375, height: 812 });
   if (only("dialogs")) await dialogScenario("dialogs", { width: 1440, height: 900 });
   if (only("dialogs-mobile")) await dialogScenario("dialogs-mobile", { width: 375, height: 812 });
+  if (only("chat-extras")) await chatExtrasScenario("chat-extras", { width: 1440, height: 900 });
+  if (only("chat-extras-mobile"))
+    await chatExtrasScenario("chat-extras-mobile", { width: 375, height: 812 });
   if (only("wm-budget-mobile")) {
     await budgetScenario("wm-budget-mobile", { width: 375, height: 812 }, 3);
   }

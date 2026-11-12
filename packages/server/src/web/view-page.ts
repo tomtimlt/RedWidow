@@ -62,7 +62,10 @@ export function renderViewPage(
   let body: string;
   switch (view) {
     case "chat":
-      body = chatHtml({ ...page("chat.js", "chat.css"), uiUri: asset("ui.js"), spiderUri });
+      body = withChatExtras(
+        chatHtml({ ...page("chat.js", "chat.css"), uiUri: asset("ui.js"), spiderUri }),
+        nonce,
+      );
       break;
     case "cockpit":
       body = cockpitHtml(page("cockpit.js", "cockpit.css"));
@@ -87,6 +90,16 @@ export function renderViewPage(
       break;
   }
   return withBridge(body, nonce);
+}
+
+/**
+ * Ajoute `chat-extras.js` (pièce jointe par dialogue, brouillon de mission) après le dernier script de la
+ * page de chat, sous le même nonce : il s'exécute une fois `chat.js` chargé. Même origine, aucun inline.
+ */
+export function withChatExtras(html: string, nonce: string): string {
+  const tag = `<script nonce="${nonce}" src="/chat-extras.js"></script>\n`;
+  const end = html.lastIndexOf("</body>");
+  return end === -1 ? `${html}\n${tag}` : `${html.slice(0, end)}${tag}${html.slice(end)}`;
 }
 
 /** Insère `theme.css` avant la première feuille et `bridge.js` avant le premier script. */
