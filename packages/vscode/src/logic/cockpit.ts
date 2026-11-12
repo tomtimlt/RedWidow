@@ -29,7 +29,14 @@ import {
 } from "@warband/core";
 import { formatError, getUiLocale, t } from "@warband/messages";
 import { PRODUCT_NAME, productTitleSuffix } from "./brand.js";
+import { projectInSharedFolder } from "./shared-folder.js";
 import { encodedBashScript } from "./terminal-prompt.js";
+
+/**
+ * Mode de partage d'un conteneur créé (ADR 0052) : « project » partage le dossier du projet actif
+ * (relu par l'hôte), « multi » un dossier parent choisi par le sélecteur de l'hôte (ADR 0050).
+ */
+export type CockpitShareMode = "project" | "multi";
 
 /** Messages acceptés depuis la webview cockpit (non fiables). */
 export type CockpitMessage =
@@ -43,9 +50,11 @@ export type CockpitMessage =
   | { type: "openEngagement" }
   | { type: "start"; name: string }
   | { type: "stop"; name: string }
+  | { type: "activateProject"; projectId: string }
   | {
       type: "createExegol";
       name: string;
+      shareMode: CockpitShareMode;
       image?: string;
       vpn?: boolean;
       desktop?: boolean;
@@ -57,7 +66,7 @@ export type CockpitMessage =
   | { type: "remove"; name: string }
   | { type: "pickVpn" }
   | { type: "cancelOperation" }
-  | { type: "createKali"; image: string; name: string }
+  | { type: "createKali"; image: string; name: string; shareMode: CockpitShareMode }
   | { type: "listImages" }
   | { type: "pickSharedFolder" };
 
@@ -90,6 +99,14 @@ const isSourcePath = (value: unknown): value is string =>
   !value.includes("\n") &&
   !value.includes("\r");
 
+const isShareMode = (value: unknown): value is CockpitShareMode =>
+  value === "project" || value === "multi";
+
+/** Même validation que l'activation d'un projet du studio (UUID v4). */
+const isProjectId = (value: unknown): value is string =>
+  typeof value === "string" &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value);
+
 /** Valide un message cockpit ; les types du chat ou formes invalides → `null`. */
 export function parseCockpitMessage(raw: unknown): CockpitMessage | null {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
@@ -117,11 +134,16 @@ export function parseCockpitMessage(raw: unknown): CockpitMessage | null {
         m.name.length <= CONTAINER_NAME_MAX
         ? { type: m.type, name: m.name }
         : null;
+    case "activateProject":
+      return only("type", "projectId") && isProjectId(m.projectId)
+        ? { type: "activateProject", projectId: m.projectId }
+        : null;
     case "createExegol": {
       if (
         !only(
           "type",
           "name",
+          "shareMode",
           "image",
           "source",
           "vpn",
@@ -131,9 +153,12 @@ export function parseCockpitMessage(raw: unknown): CockpitMessage | null {
           "shareResources",
           "shareMyResources",
         ) ||
-        !isCreateName(m.name)
+        !isCreateName(m.name) ||
+        !isShareMode(m.shareMode)
       )
         return null;
+      // Mode projet : le dossier vient du projet actif, jamais d'une source de la webview.
+      if (m.shareMode === "project" && m.source !== undefined) return null;
       if (m.image !== undefined && (typeof m.image !== "string" || !CREATE_NAME.test(m.image)))
         return null;
       if (m.source !== undefined && m.source !== "" && !isSourcePath(m.source)) return null;
@@ -154,11 +179,13 @@ export function parseCockpitMessage(raw: unknown): CockpitMessage | null {
       return kept as Extract<CockpitMessage, { type: "createExegol" }>;
     }
     case "createKali":
-      return only("type", "image", "name", "source") &&
+      return only("type", "image", "name", "source", "shareMode") &&
         isImageRef(m.image) &&
         isCreateName(m.name) &&
-        (m.source === undefined || m.source === "" || isSourcePath(m.source))
-        ? { type: "createKali", image: m.image, name: m.name }
+        isShareMode(m.shareMode) &&
+        (m.source === undefined ||
+          (m.shareMode === "multi" && (m.source === "" || isSourcePath(m.source))))
+        ? { type: "createKali", image: m.image, name: m.name, shareMode: m.shareMode }
         : null;
     case "listImages":
     case "pickSharedFolder":
@@ -354,6 +381,10 @@ export interface CockpitContainerView {
   primary: boolean;
   canLink: boolean;
   linkTitle?: string;
+  /** Projets enregistrés dont le dossier est dans le partage du conteneur (ADR 0052). */
+  projects: { id: string; name: string; active: boolean }[];
+  /** Le conteneur voit le dossier du projet actif ; faux sans projet actif ni montage. */
+  compatible: boolean;
 }
 
 export interface CockpitLinkedBanner {
@@ -565,33 +596,58 @@ export async function loadCockpitView(deps: CockpitDeps = {}): Promise<CockpitVi
     linked = "none";
   }
 
-  const containers: CockpitContainerView[] = sorted.map((r) => {
-    const isLinked = allowed.includes(r.name);
-    const mount = r.workspace !== undefined && isAbsolute(r.workspace);
-    let canLink = false;
-    let linkTitle: string | undefined;
-    if (isLinked) {
-      canLink = false;
-    } else if (r.state !== "running") {
-      linkTitle = t("Conteneur arrêté");
-    } else if (!mount) {
-      linkTitle = t("Sans montage /workspace");
-    } else {
-      canLink = true;
-    }
-    return {
-      name: r.name,
-      short: shortContainerName(r.name),
-      image: r.image,
-      state: r.state,
-      family: r.family,
-      ...(r.workspace !== undefined && { workspace: r.workspace }),
-      linked: isLinked,
-      primary: multiLinked && active?.primary === r.name,
-      canLink,
-      ...(linkTitle !== undefined && { linkTitle }),
-    };
-  });
+  const registered = stored?.projects ?? [];
+  const containers: CockpitContainerView[] = await Promise.all(
+    sorted.map(async (r) => {
+      const isLinked = allowed.includes(r.name);
+      const share = r.workspace !== undefined && isAbsolute(r.workspace) ? r.workspace : undefined;
+      // Un projet est « dans » le conteneur si son dossier est dans le partage (chemins réels).
+      const projects: CockpitContainerView["projects"] = [];
+      if (share !== undefined) {
+        const inside = await Promise.all(
+          registered.map((project) => projectInSharedFolder(share, project.workspace)),
+        );
+        registered.forEach((project, index) => {
+          if (inside[index])
+            projects.push({
+              id: project.id,
+              name: project.name,
+              active: project.id === active?.id,
+            });
+        });
+      }
+      const compatible = projects.some((project) => project.active);
+      let canLink = false;
+      let linkTitle: string | undefined;
+      if (isLinked) {
+        canLink = false;
+      } else if (r.state !== "running") {
+        linkTitle = t("Conteneur arrêté");
+      } else if (share === undefined) {
+        linkTitle = t("Sans montage /workspace");
+      } else if (active === null) {
+        linkTitle = t("Aucun projet actif.");
+      } else if (!compatible) {
+        linkTitle = t("Ce conteneur ne voit pas le dossier du projet.");
+      } else {
+        canLink = true;
+      }
+      return {
+        name: r.name,
+        short: shortContainerName(r.name),
+        image: r.image,
+        state: r.state,
+        family: r.family,
+        ...(r.workspace !== undefined && { workspace: r.workspace }),
+        linked: isLinked,
+        primary: multiLinked && active?.primary === r.name,
+        canLink,
+        ...(linkTitle !== undefined && { linkTitle }),
+        projects,
+        compatible,
+      };
+    }),
+  );
 
   const engagement = active ? engagementLine(configDir, active.id) : undefined;
   return {

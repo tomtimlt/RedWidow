@@ -382,8 +382,33 @@ body.cockpit .cockpit-row.is-running > .dot {
   font-size: var(--jn-fs-xs);
   font-weight: 500;
 }
-.cockpit-linked-tag.is-primary {
+.cockpit-linked-tag.is-primary,
+.cockpit-linked-tag.is-project {
   border-color: var(--jn-accent);
+}
+.cockpit-card-projects {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--jn-fs-xs);
+}
+.cockpit-card-projects-title {
+  flex-basis: 100%;
+}
+.cockpit-compat {
+  font-size: var(--jn-fs-xs);
+}
+.cockpit-compat.is-ok {
+  color: var(--jn-ok);
+}
+.cockpit-compat.is-no {
+  color: var(--vscode-descriptionForeground);
+}
+.cockpit-field-inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
 }
 @container app (max-width: 359px) {
   .cockpit-row {

@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it } from "vitest";
 import {
   projectInSharedFolder,
   resolveCreationFolder,
+  resolveCreationShare,
   validateSharedFolder,
 } from "../src/logic/shared-folder.js";
 
@@ -118,6 +119,48 @@ it("sans projet actif : source validée, pas de liaison", async () => {
 
 it("sans projet actif, le dossier partagé reste exigé", async () => {
   await expect(resolveCreationFolder(undefined, undefined, { home })).rejects.toThrow(
+    "Choisissez le dossier partagé.",
+  );
+});
+
+it("mode projet : la source est le dossier du projet actif, le dossier mémorisé est ignoré", async () => {
+  const project = { workspace: dir("projets", "mission") };
+  const remembered = dir("autre-partage");
+  await expect(resolveCreationShare("project", remembered, project, { home })).resolves.toEqual({
+    source: project.workspace,
+    link: true,
+  });
+  await expect(resolveCreationShare("project", undefined, project, { home })).resolves.toEqual({
+    source: project.workspace,
+    link: true,
+  });
+});
+
+it("mode projet : refus sans projet actif, dossier absent, lien symbolique ou racine d'un disque", async () => {
+  await expect(resolveCreationShare("project", dir("p"), undefined, { home })).rejects.toThrow(
+    "Choisissez un projet avant de créer son conteneur.",
+  );
+  await expect(
+    resolveCreationShare("project", undefined, { workspace: join(base, "absent") }, { home }),
+  ).rejects.toThrow(/introuvable/);
+  const link = join(base, "lien-projet");
+  symlinkSync(dir("cible-projet"), link);
+  await expect(
+    resolveCreationShare("project", undefined, { workspace: link }, { home }),
+  ).rejects.toThrow(/lien symbolique/);
+  await expect(
+    resolveCreationShare("project", undefined, { workspace: parse(base).root }, { home }),
+  ).rejects.toThrow(/données sensibles/);
+});
+
+it("mode multi : même comportement que resolveCreationFolder", async () => {
+  const shared = dir("partage");
+  const project = { workspace: dir("partage", "mission") };
+  await expect(resolveCreationShare("multi", shared, project, { home })).resolves.toEqual({
+    source: shared,
+    link: true,
+  });
+  await expect(resolveCreationShare("multi", undefined, project, { home })).rejects.toThrow(
     "Choisissez le dossier partagé.",
   );
 });

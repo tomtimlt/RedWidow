@@ -167,7 +167,7 @@ import {
   type SessionGridChat,
 } from "../logic/session-grid.js";
 import { machineValue, parseConfiguredIntegrations, resolveSettings } from "../logic/settings.js";
-import { resolveCreationFolder, validateSharedFolder } from "../logic/shared-folder.js";
+import { resolveCreationShare, validateSharedFolder } from "../logic/shared-folder.js";
 import {
   createSharedHistoryIndex,
   createSharedJournalFiles,
@@ -1744,6 +1744,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             void refreshContainerStatus();
             return;
           }
+          case "activateProject": {
+            // Même chemin que le studio : refus pendant un tour, Bypass coupé, dossier ouvert.
+            await changeProject(async () => {
+              await activateSelectedProject(defaultConfigDir(), message.projectId);
+              return undefined;
+            });
+            return;
+          }
           case "openProgram":
             openProgram();
             return;
@@ -1838,7 +1846,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 signal.throwIfAborted();
                 const projectFile = await readProjects(defaultConfigDir());
                 const selectedProject = (projectFile && activeProject(projectFile)) || undefined;
-                const { source: shared, link: linkable } = await resolveCreationFolder(
+                const { source: shared, link: linkable } = await resolveCreationShare(
+                  message.shareMode,
                   sharedFolder,
                   selectedProject,
                 );
@@ -1945,7 +1954,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 try {
                   const projectFile = await readProjects(defaultConfigDir());
                   const selectedProject = (projectFile && activeProject(projectFile)) || undefined;
-                  const { source: shared, link: linkable } = await resolveCreationFolder(
+                  const { source: shared, link: linkable } = await resolveCreationShare(
+                    message.shareMode,
                     sharedFolder,
                     selectedProject,
                   );

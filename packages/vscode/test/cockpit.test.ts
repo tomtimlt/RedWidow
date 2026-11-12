@@ -1,8 +1,10 @@
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CodedError, ValidationError } from "@warband/core";
 import { formatError } from "@warband/messages";
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import { parseWebviewMessage } from "../src/logic/approval.js";
 import {
   type CockpitContainerView,
@@ -305,21 +307,50 @@ describe("parseCockpitMessage", () => {
     expect(parseCockpitMessage({ type: "pickSharedFolder" })).toEqual({
       type: "pickSharedFolder",
     });
-    expect(parseCockpitMessage({ type: "createExegol", name: "htb1" })).toEqual({
-      type: "createExegol",
-      name: "htb1",
-    });
+    expect(
+      parseCockpitMessage({ type: "createExegol", name: "htb1", shareMode: "project" }),
+    ).toEqual({ type: "createExegol", name: "htb1", shareMode: "project" });
   });
 
-  it("le message Kali parsé égale image et name, sans source", () => {
+  it("activateProject : id de projet seul, sans clé en trop", () => {
+    const projectId = "0f8fad5b-d9cb-469f-a165-70867728950e";
+    expect(parseCockpitMessage({ type: "activateProject", projectId })).toEqual({
+      type: "activateProject",
+      projectId,
+    });
+    expect(parseCockpitMessage({ type: "activateProject" })).toBeNull();
+    expect(parseCockpitMessage({ type: "activateProject", projectId: "p1" })).toBeNull();
+    expect(parseCockpitMessage({ type: "activateProject", projectId, path: "/etc" })).toBeNull();
+  });
+
+  it("shareMode est obligatoire et fermé sur les deux créations", () => {
+    const kali = { type: "createKali", image: "kali:latest", name: "lab" };
+    const exegol = { type: "createExegol", name: "lab" };
+    for (const base of [kali, exegol]) {
+      expect(parseCockpitMessage(base)).toBeNull();
+      expect(parseCockpitMessage({ ...base, shareMode: "other" })).toBeNull();
+      expect(parseCockpitMessage({ ...base, shareMode: "" })).toBeNull();
+      expect(parseCockpitMessage({ ...base, shareMode: true })).toBeNull();
+      for (const shareMode of ["project", "multi"])
+        expect(parseCockpitMessage({ ...base, shareMode })).toEqual({ ...base, shareMode });
+    }
+  });
+
+  it("mode projet : toute source envoyée par la webview est refusée", () => {
+    const kali = { type: "createKali", image: "kali:latest", name: "lab", shareMode: "project" };
+    const exegol = { type: "createExegol", name: "lab", shareMode: "project" };
+    for (const base of [kali, exegol])
+      for (const source of ["/etc", "", "/home/me/lab"])
+        expect(parseCockpitMessage({ ...base, source })).toBeNull();
+  });
+
+  it("le message Kali parsé égale image, name et shareMode, sans source", () => {
     const image = "kalilinux/kali-rolling:latest";
     const name = "lab";
     const source = "/home/me/lab";
-    expect(parseCockpitMessage({ type: "createKali", image, name, source })).toEqual({
-      type: "createKali",
-      image,
-      name,
-    });
+    expect(
+      parseCockpitMessage({ type: "createKali", image, name, source, shareMode: "multi" }),
+    ).toEqual({ type: "createKali", image, name, shareMode: "multi" });
   });
 
   it("refuse clés en trop, types chat et formes invalides", () => {
@@ -358,26 +389,29 @@ describe("parseCockpitMessage", () => {
   });
 
   it("le message Exegol n'a que name", () => {
+    const share = { shareMode: "multi" };
     expect(
-      parseCockpitMessage({ type: "createExegol", name: "htb1", image: "kali:latest" }),
+      parseCockpitMessage({ type: "createExegol", name: "htb1", image: "kali:latest", ...share }),
     ).toBeNull();
-    // Un `source` texte de la webview est toléré mais jamais retransmis (ADR 0050).
-    expect(parseCockpitMessage({ type: "createExegol", name: "htb1", source: "/tmp" })).toEqual({
-      type: "createExegol",
-      name: "htb1",
-    });
-    expect(parseCockpitMessage({ type: "createExegol" })).toBeNull();
-    expect(parseCockpitMessage({ type: "createExegol", name: "" })).toBeNull();
-    expect(parseCockpitMessage({ type: "createExegol", name: "-bad" })).toBeNull();
-    expect(parseCockpitMessage({ type: "createExegol", name: "a".repeat(65) })).toBeNull();
-    expect(parseCockpitMessage({ type: "createExegol", name: "a".repeat(64) })).toEqual({
+    // Un `source` texte de la webview est toléré en mode multi mais jamais retransmis (ADR 0050).
+    expect(
+      parseCockpitMessage({ type: "createExegol", name: "htb1", source: "/tmp", ...share }),
+    ).toEqual({ type: "createExegol", name: "htb1", ...share });
+    expect(parseCockpitMessage({ type: "createExegol", ...share })).toBeNull();
+    expect(parseCockpitMessage({ type: "createExegol", name: "", ...share })).toBeNull();
+    expect(parseCockpitMessage({ type: "createExegol", name: "-bad", ...share })).toBeNull();
+    expect(
+      parseCockpitMessage({ type: "createExegol", name: "a".repeat(65), ...share }),
+    ).toBeNull();
+    expect(parseCockpitMessage({ type: "createExegol", name: "a".repeat(64), ...share })).toEqual({
       type: "createExegol",
       name: "a".repeat(64),
+      ...share,
     });
   });
 
   it("refuse un Kali incomplet ou une image hors motif, et ignore tout `source` de la webview", () => {
-    const ok = { type: "createKali", image: "kali:latest", name: "lab" };
+    const ok = { type: "createKali", image: "kali:latest", name: "lab", shareMode: "multi" };
     expect(parseCockpitMessage({ ...ok, extra: 1 })).toBeNull();
     expect(parseCockpitMessage(ok)).toEqual(ok);
     expect(parseCockpitMessage({ ...ok, image: "" })).toBeNull();
@@ -391,11 +425,24 @@ describe("parseCockpitMessage", () => {
     // Le chemin texte n'est jamais retransmis : le dossier partagé vient du sélecteur de l'hôte.
     expect(parseCockpitMessage({ ...ok, source: "/etc" })).toEqual(ok);
     expect(parseCockpitMessage({ ...ok, source: "" })).toEqual(ok);
+    expect(parseCockpitMessage({ ...ok, shareMode: "project", source: "" })).toBeNull();
     expect(parseCockpitMessage({ ...ok, source: "a\nb" })).toBeNull();
     expect(parseCockpitMessage({ ...ok, source: "a\0b" })).toBeNull();
     expect(parseCockpitMessage({ ...ok, source: "a".repeat(4097) })).toBeNull();
   });
 });
+
+const tempRoot = mkdtempSync(join(tmpdir(), "cockpit-view-"));
+const shareRoot = join(tempRoot, "share");
+const outsideRoot = join(tempRoot, "outside");
+const linkToOutside = join(shareRoot, "vers-dehors");
+const linkToInside = join(tempRoot, "vers-dedans");
+mkdirSync(join(shareRoot, "proj"), { recursive: true });
+mkdirSync(join(shareRoot, "autre"));
+mkdirSync(outsideRoot);
+symlinkSync(outsideRoot, linkToOutside);
+symlinkSync(join(shareRoot, "proj"), linkToInside);
+afterAll(() => rmSync(tempRoot, { recursive: true, force: true }));
 
 const projectFile = (
   containers: readonly string[],
@@ -483,24 +530,24 @@ describe("loadCockpitView", () => {
     expect(linked?.family).toBe("exegol");
   });
 
-  it("kali : lien seulement s'il tourne et a un workspace", async () => {
+  it("kali : lien seulement s'il tourne, a un workspace et voit le projet actif", async () => {
     const view = await loadCockpitView({
       resolveBin: (n) => (n === "docker" ? "/d/docker" : null),
-      readProj: async () => null,
+      readProj: async () => projectFile([], join(shareRoot, "proj")),
       createDocker: () => ({
         listLabelPrefix: async () => [
           {
             state: "running" as const,
             name: "kali-up",
             image: "kalilinux/kali-rolling",
-            workspace: "/host/kali",
+            workspace: shareRoot,
             family: "kali" as const,
           },
           {
             state: "stopped" as const,
             name: "kali-off",
             image: "kalilinux/kali-rolling",
-            workspace: "/host/kali",
+            workspace: shareRoot,
             family: "kali" as const,
           },
           {
@@ -538,15 +585,19 @@ describe("loadCockpitView", () => {
   it("zéro ou plusieurs noms : pas de bannière, les noms présents sont liés", async () => {
     const deps = {
       resolveBin: (n: string) => (n === "docker" ? "/d/docker" : null),
-      createDocker: () => ({ listLabelPrefix: async () => rows }),
+      createDocker: () => ({
+        listLabelPrefix: async () =>
+          rows.map((r) => (r.name === "a" ? { ...r, workspace: shareRoot } : r)),
+      }),
     };
-    const none = await loadCockpitView({ ...deps, readProj: async () => projectFile([]) });
+    const ws = join(shareRoot, "proj");
+    const none = await loadCockpitView({ ...deps, readProj: async () => projectFile([], ws) });
     expect(none.linkedBanner).toBeNull();
     expect(none.linked).toBe("none");
     expect(none.containers.find((c) => c.name === "a")?.canLink).toBe(true);
     const many = await loadCockpitView({
       ...deps,
-      readProj: async () => projectFile(["a", "c"]),
+      readProj: async () => projectFile(["a", "c"], ws),
     });
     expect(many.linkedBanner).toBeNull();
     expect(many.linked).toBe("none");
@@ -629,6 +680,107 @@ describe("loadCockpitView", () => {
     // Avant le correctif, `linkedBanner` restait `null` ici (il ne regardait que l'unique).
     expect(view.linkedBanner).toMatchObject({ name: "c", state: "running" });
     expect(view.linked).toBe("running");
+  });
+});
+
+describe("loadCockpitView : projets d'un conteneur et compatibilité (ADR 0052)", () => {
+  const deps = (
+    registry: { activeId: string | null; projects: ReturnType<typeof projectFile>["projects"] },
+    workspace: string | undefined,
+    state: "running" | "stopped" = "running",
+  ) => ({
+    resolveBin: (n: string) => (n === "docker" ? "/d/docker" : null),
+    readProj: async () => registry,
+    createDocker: () => ({
+      listLabelPrefix: async () => [
+        {
+          state,
+          name: "box",
+          image: "i",
+          family: "kali" as const,
+          ...(workspace !== undefined && { workspace }),
+        },
+      ],
+    }),
+  });
+  const entry = (id: string, name: string, workspace: string) => ({
+    id,
+    name,
+    workspace,
+    containers: [] as string[],
+  });
+
+  it("liste les projets enregistrés dans le partage et marque le projet actif", async () => {
+    const view = await loadCockpitView(
+      deps(
+        {
+          activeId: "p2",
+          projects: [
+            entry("p1", "un", join(shareRoot, "proj")),
+            entry("p2", "deux", join(shareRoot, "autre")),
+            entry("p3", "dehors", outsideRoot),
+          ],
+        },
+        shareRoot,
+      ),
+    );
+    expect(view.containers[0]).toMatchObject({
+      compatible: true,
+      canLink: true,
+      projects: [
+        { id: "p1", name: "un", active: false },
+        { id: "p2", name: "deux", active: true },
+      ],
+    });
+  });
+
+  it("un projet hors du partage rend le conteneur incompatible : Lier désactivé et expliqué", async () => {
+    const view = await loadCockpitView(
+      deps({ activeId: "p3", projects: [entry("p3", "dehors", outsideRoot)] }, shareRoot),
+    );
+    expect(view.containers[0]).toMatchObject({
+      compatible: false,
+      canLink: false,
+      linkTitle: "Ce conteneur ne voit pas le dossier du projet.",
+      projects: [],
+    });
+  });
+
+  it("sans projet actif : incompatible, Lier désactivé, projets tout de même listés", async () => {
+    const view = await loadCockpitView(
+      deps({ activeId: null, projects: [entry("p1", "un", join(shareRoot, "proj"))] }, shareRoot),
+    );
+    expect(view.containers[0]).toMatchObject({
+      compatible: false,
+      canLink: false,
+      linkTitle: "Aucun projet actif.",
+      projects: [{ id: "p1", name: "un", active: false }],
+    });
+  });
+
+  it("un lien symbolique sortant du partage ne compte pas comme dans le partage", async () => {
+    const view = await loadCockpitView(
+      deps({ activeId: "p4", projects: [entry("p4", "lien", linkToOutside)] }, shareRoot),
+    );
+    // Le lien est résolu vers sa cible réelle, hors du partage.
+    expect(view.containers[0]).toMatchObject({ compatible: false, canLink: false, projects: [] });
+  });
+
+  it("un lien symbolique vers l'intérieur du partage reste compatible (chemins réels)", async () => {
+    const view = await loadCockpitView(
+      deps({ activeId: "p5", projects: [entry("p5", "lien", linkToInside)] }, shareRoot),
+    );
+    expect(view.containers[0]).toMatchObject({ compatible: true, canLink: true });
+  });
+
+  it("sans montage ou arrêté : aucun projet, jamais lié", async () => {
+    const registry = { activeId: "p1", projects: [entry("p1", "un", join(shareRoot, "proj"))] };
+    const noMount = await loadCockpitView(deps(registry, undefined));
+    expect(noMount.containers[0]).toMatchObject({ compatible: false, projects: [] });
+    expect(noMount.containers[0]?.linkTitle).toBe("Sans montage /workspace");
+    const stopped = await loadCockpitView(deps(registry, shareRoot, "stopped"));
+    expect(stopped.containers[0]).toMatchObject({ compatible: true, canLink: false });
+    expect(stopped.containers[0]?.linkTitle).toBe("Conteneur arrêté");
   });
 });
 
@@ -751,6 +903,8 @@ describe("linkedTerminalChoices", () => {
     linked,
     primary,
     canLink: false,
+    projects: [],
+    compatible: false,
   });
 
   it("exclut les lignes non liées ou arrêtées", () => {
@@ -1000,6 +1154,7 @@ it("création Exegol : options fermées, aucun chemin VPN provenant de la webvie
   const options = {
     type: "createExegol",
     name: "lab",
+    shareMode: "project",
     image: "free",
     vpn: true,
     desktop: true,

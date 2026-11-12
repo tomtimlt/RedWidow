@@ -123,6 +123,8 @@
     shareResources: true,
     shareMyResources: true,
     sharedFolder: "",
+    // « project » ou « multi » ; null tant que l'utilisateur n'a pas choisi (défaut selon le projet actif).
+    shareMode: null,
     images: [],
     imagesAsked: false,
   };
@@ -190,7 +192,9 @@
         step: 0,
         status: "running",
         notice: "",
-        linkExpected: insideFolder(lastView?.projectWorkspace, form.sharedFolder),
+        linkExpected:
+          message.shareMode === "project" ||
+          insideFolder(lastView?.projectWorkspace, form.sharedFolder),
         createFirst: !lastView?.linkedBanner,
       };
     vscode.postMessage(message);
@@ -227,6 +231,14 @@
     if (view.exegol !== "present") return "kali";
     if (form.touched && (form.engine === "exegol" || form.engine === "kali")) return form.engine;
     return "exegol";
+  };
+
+  // Mode « project » : dossier du projet actif (relu par l'hôte) ; sans projet actif, retombe sur « multi ».
+  const shareModeOf = (view) => {
+    const hasProject = typeof view?.projectWorkspace === "string" && view.projectWorkspace !== "";
+    if (form.shareMode === "multi") return "multi";
+    if (form.shareMode === "project" && hasProject) return "project";
+    return hasProject && form.shareMode === null ? "project" : "multi";
   };
 
   const askImages = () => {
@@ -270,17 +282,19 @@
 
   // Chemin renvoyé par le sélecteur de l'hôte, jamais saisi ni retransmis à la création.
   const validSource = (folder) => folder.length > 0 && folder.length <= 4096;
+  // Mode projet : aucun dossier à choisir ; mode multi : le dossier choisi sur l'hôte est requis.
+  const shareReady = () => shareModeOf(lastView) === "project" || validSource(form.sharedFolder);
   const canCreate = (engine) => {
     if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(form.name)) return false;
     if (engine === "kali")
       return (
         form.image.length <= 256 &&
         /^[A-Za-z0-9][A-Za-z0-9_.:@/-]*$/.test(form.image) &&
-        validSource(form.sharedFolder)
+        shareReady()
       );
     return (
       /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(form.exegolImage) &&
-      validSource(form.sharedFolder) &&
+      shareReady() &&
       Number.isInteger(form.desktopPort) &&
       form.desktopPort >= 1 &&
       form.desktopPort <= 65535 &&
@@ -332,6 +346,34 @@
     }
 
     const fields = el("div", "cockpit-fields");
+    const shareMode = shareModeOf(view);
+    const hasProject = typeof view.projectWorkspace === "string" && view.projectWorkspace !== "";
+    const modes = el("div", "cockpit-actions cockpit-share-modes");
+    modes.setAttribute("role", "radiogroup");
+    modes.setAttribute("aria-label", t("Dossier partagé"));
+    for (const [mode, label] of [
+      ["project", t("Conteneur projet")],
+      ["multi", t("Conteneur multi-projets")],
+    ]) {
+      const radio = el("input");
+      radio.id = `cockpit-share-${mode}`;
+      radio.type = "radio";
+      radio.name = "cockpit-share-mode";
+      radio.value = mode;
+      radio.checked = shareMode === mode;
+      const unavailable = mode === "project" && !hasProject;
+      radio.disabled = unavailable;
+      if (unavailable) radio.title = t("Ouvrez un projet pour créer un conteneur projet.");
+      radio.addEventListener("change", () => {
+        if (unavailable) return;
+        form.shareMode = mode;
+        rerender();
+      });
+      const wrap = el("label", "cockpit-field cockpit-field-inline");
+      wrap.append(radio, el("span", "cockpit-field-label", label));
+      modes.append(wrap);
+    }
+    fields.append(modes);
     const nameInput = el("input");
     nameInput.id = "cockpit-name";
     nameInput.type = "text";
@@ -363,29 +405,35 @@
     });
     fields.append(labeled(engine === "kali" ? "Image" : t("Image Exegol (tag)"), imageSelect));
 
-    const folderRow = el("div", "cockpit-actions");
-    folderRow.id = "cockpit-folder";
-    const folderBtn = button("secondary", t("Choisir…"), "folder", () => {
-      vscode.postMessage({ type: "pickSharedFolder" });
-    });
+    if (shareMode === "multi") {
+      const folderRow = el("div", "cockpit-actions");
+      folderRow.id = "cockpit-folder";
+      const folderBtn = button("secondary", t("Choisir…"), "folder", () => {
+        vscode.postMessage({ type: "pickSharedFolder" });
+      });
 
-    folderRow.append(el("span", "cockpit-field-label", t("Dossier partagé")), folderBtn);
-    if (form.sharedFolder !== "") {
-      const src = el("span", "cockpit-ellipsis cockpit-source");
-      src.id = "cockpit-source";
-      ellipsize(src, form.sharedFolder, 64);
-      folderRow.append(src);
-    }
-    fields.append(
-      folderRow,
-      el(
-        "p",
-        "studio-help",
-        t(
-          "Le conteneur partage ce dossier. Il sera lié au projet actif si le dossier du projet s'y trouve.",
+      folderRow.append(el("span", "cockpit-field-label", t("Dossier partagé")), folderBtn);
+      if (form.sharedFolder !== "") {
+        const src = el("span", "cockpit-ellipsis cockpit-source");
+        src.id = "cockpit-source";
+        ellipsize(src, form.sharedFolder, 64);
+        folderRow.append(src);
+      }
+      fields.append(
+        folderRow,
+        el(
+          "p",
+          "studio-help",
+          t(
+            "Le conteneur partage ce dossier. Il sera lié au projet actif si le dossier du projet s'y trouve.",
+          ),
         ),
-      ),
-    );
+      );
+    } else {
+      const help = el("p", "studio-help", t("Le dossier partagé sera le dossier du projet actif."));
+      help.id = "cockpit-share-project-help";
+      fields.append(help);
+    }
 
     if (engine === "exegol") {
       const checkbox = (key, label, onChange) => {
@@ -485,6 +533,7 @@
             return;
           submitOperation({
             type: "createExegol",
+            shareMode,
             name: form.name,
             image: form.exegolImage,
             vpn: form.vpn,
@@ -497,6 +546,7 @@
         } else
           submitOperation({
             type: "createKali",
+            shareMode,
             image: form.image,
             name: form.name,
           });
@@ -654,6 +704,36 @@
     ellipsize(im, row.image, 64);
     const ws = el("div", "cockpit-ellipsis cockpit-muted cockpit-row-ws");
     ellipsize(ws, row.workspace ?? t("Sans dossier hôte"), 64);
+    // Projets enregistrés dans le partage du conteneur ; cliquer sur un autre projet l'active (ADR 0052).
+    const projectsBox = el("div", "cockpit-card-projects");
+    if (Array.isArray(row.projects) && typeof row.workspace === "string") {
+      projectsBox.append(
+        el("div", "cockpit-muted cockpit-card-projects-title", t("Projets dans ce conteneur")),
+      );
+      if (row.projects.length === 0)
+        projectsBox.append(el("div", "cockpit-muted", t("Aucun projet dans ce partage.")));
+      for (const project of row.projects) {
+        if (project.active) {
+          const current = el("span", "cockpit-linked-tag is-project", project.name);
+          current.title = t("Projet actif");
+          projectsBox.append(current);
+        } else {
+          const choose = button("ghost cockpit-project-link", project.name, undefined, () =>
+            vscode.postMessage({ type: "activateProject", projectId: project.id }),
+          );
+          choose.disabled = operation.busy;
+          projectsBox.append(choose);
+        }
+      }
+    }
+    // Compatibilité avec le projet actif (calculée par l'hôte, jamais déduite ici).
+    const hasActive = typeof lastView?.projectWorkspace === "string";
+    const compat =
+      hasActive && typeof row.workspace === "string"
+        ? row.compatible === true
+          ? el("span", "cockpit-compat is-ok", t("Compatible avec le projet actif"))
+          : el("span", "cockpit-compat is-no", t("Ce conteneur ne voit pas le dossier du projet."))
+        : null;
     const act = el("div", "cockpit-card-act");
     if (row.linked && !row.primary && linkedCount >= 2) {
       const primaryBtn = button("secondary", t("Principal"), "link", () =>
@@ -696,7 +776,9 @@
       if ([t("Démarrer"), t("Arrêter"), t("Supprimer")].includes(control.title))
         control.disabled = operation.busy;
     }
-    li.append(head, sub, im, ws, act);
+    li.append(head, sub, im, ws, projectsBox);
+    if (compat) li.append(compat);
+    li.append(act);
     return li;
   }
 

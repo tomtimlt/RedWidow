@@ -69,3 +69,20 @@ export async function resolveCreationFolder(
     link: project !== undefined && (await projectInSharedFolder(source, project.workspace)),
   };
 }
+
+/**
+ * Source du montage selon le mode de création (ADR 0052). Mode « project » : le dossier du projet
+ * actif, relu par l'hôte et revalidé comme tout dossier partagé ; le dossier mémorisé est ignoré
+ * et la liaison est attendue. Mode « multi » : comportement de `resolveCreationFolder`.
+ */
+export async function resolveCreationShare(
+  mode: "project" | "multi",
+  remembered: string | undefined,
+  project?: { workspace: string },
+  options: Partial<PathOptions> = {},
+): Promise<{ source: string; link: boolean }> {
+  if (mode === "multi") return await resolveCreationFolder(remembered, project, options);
+  if (project === undefined)
+    throw new Error(t("Choisissez un projet avant de créer son conteneur."));
+  return { source: await validateSharedFolder(project.workspace, options), link: true };
+}
