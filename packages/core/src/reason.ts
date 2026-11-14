@@ -266,6 +266,10 @@ export const REASON_CODES = [
   "exegol.vpnMissing",
   "exegol.needsNat",
   "exegol.folderMissing",
+  // Cockpit web : geste refusé tout de suite au lieu d'un silence, Exegol bloqué sur une invite
+  "cockpit.busy",
+  "cockpit.invalidMessage",
+  "exegol.stalled",
   // Images de conteneurs installées depuis le web (ADR 0057)
   "image.busy",
   "image.invalidTag",

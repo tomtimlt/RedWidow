@@ -457,7 +457,17 @@ describe("vues cockpit, sessions et non branchées", () => {
     s.say("cockpit", "ck", { type: "createExegol", name: "x y" });
     await vi.waitFor(() => expect(calls).toEqual(["start:exegol-1"]));
     await vi.waitFor(() => expect(s.of("cockpit", "view")).toHaveLength(2));
-    expect(t.bridge.stats().ignored).toBe(2);
+    // Les messages invalides ne sont plus ignorés en silence : ils reçoivent une erreur affichable.
+    await vi.waitFor(() =>
+      expect(
+        s
+          .of("cockpit", "operation")
+          .map((e) => e.msg)
+          .filter((m) => m.code === "cockpit.invalidMessage")
+          .map((m) => m.field),
+      ).toEqual(["name", "name"]),
+    );
+    expect(t.bridge.stats().ignored).toBe(0);
   });
 
   it("sessions : tuiles des chats ouverts et historique complet ; open d'un chat ou d'une conversation connus seulement", async () => {

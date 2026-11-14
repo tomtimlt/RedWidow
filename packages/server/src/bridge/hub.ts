@@ -146,6 +146,8 @@ export interface HubOptions {
   fsRemove?(path: string, recursive: boolean): Promise<void>;
   /** Exegol du serveur (injectable : tests). Défaut : le binaire `exegol` du PATH. */
   exegol?: ExegolPort;
+  /** Journal de la sortie du serveur : début, fin et erreur des opérations du cockpit (sans secret). */
+  serverLog?(line: string): void;
   /** Opérations d'installation d'images (injectable : tests). Défaut : cœur + socket `REDWIDOW_DOCKER_SOCKET`. */
   images?: ImageOps;
   /** Horloge des terminaux (injectable : tests). */
@@ -343,6 +345,7 @@ export class MissionHub {
         locale: () => (readSettingsObject(options.storage).locale === "en" ? "en" : "fr"),
         exegol,
         images: this.images,
+        ...(options.serverLog && { log: options.serverLog }),
       },
     );
     // Studio : sondages (catalogue, test de connexion) et jetons via les mêmes dépendances qu'un chat.

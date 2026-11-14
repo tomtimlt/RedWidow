@@ -500,6 +500,14 @@ export const reasons: Catalog = {
   "exegol.vpnMissing": () => "choisissez d’abord une configuration VPN",
   "exegol.needsNat": () => "le VPN et le bureau web nécessitent le réseau NAT",
   "exegol.folderMissing": () => "choisissez d’abord le dossier partagé",
+  "cockpit.busy": (p) =>
+    `Une opération est déjà en cours : ${text(p.stage)} (depuis ${text(p.minutes)} min). Attendez ou annulez-la.`,
+  "cockpit.invalidMessage": (p) =>
+    p.field === undefined || p.field === ""
+      ? "demande du cockpit invalide : elle a été refusée"
+      : `demande du cockpit invalide : le champ « ${text(p.field)} » est refusé`,
+  "exegol.stalled": (p) =>
+    `Exegol attend une réponse interactive (abonnement, mise à jour, choix d’image…) et n’a plus rien affiché : l’opération est arrêtée. Lancez « exegol start » dans un terminal du serveur pour répondre à l’invite, puis réessayez.${p.output === undefined || p.output === "" ? "" : ` Dernières lignes de sortie : ${text(p.output)}`}`,
   "image.busy": () =>
     "une installation d’image est déjà en cours : attendez qu’elle se termine ou annulez-la",
   "image.invalidTag": () =>

@@ -390,6 +390,14 @@ export const reasons: Catalog = {
   "exegol.vpnMissing": () => "choose a VPN configuration first",
   "exegol.needsNat": () => "the VPN and the web desktop require the NAT network",
   "exegol.folderMissing": () => "choose the shared folder first",
+  "cockpit.busy": (p) =>
+    `An operation is already running: ${text(p.stage)} (for ${text(p.minutes)} min). Wait for it or cancel it.`,
+  "cockpit.invalidMessage": (p) =>
+    p.field === undefined || p.field === ""
+      ? "invalid cockpit request: it was rejected"
+      : `invalid cockpit request: the field "${text(p.field)}" was rejected`,
+  "exegol.stalled": (p) =>
+    `Exegol is waiting for an interactive answer (subscription, update, image choice…) and printed nothing more: the operation was stopped. Run "exegol start" in a server terminal to answer the prompt, then retry.${p.output === undefined || p.output === "" ? "" : ` Last output lines: ${text(p.output)}`}`,
   "image.busy": () =>
     "an image installation is already running: wait for it to finish or cancel it",
   "image.invalidTag": () =>

@@ -146,6 +146,8 @@ export interface ViewExtras {
   locale(): "fr" | "en";
   /** Exegol par la CLI du serveur (défaut : binaire du PATH). */
   exegol?: ExegolPort;
+  /** Journal de la sortie du serveur (opérations du cockpit) ; défaut : aucun. */
+  log?(line: string): void;
   /** Images (Kali, Exegol) et contrat Exegol, partagés avec la coquille (ADR 0057). */
   images: ImageHost;
 }
@@ -211,7 +213,6 @@ export class ViewHosts {
   };
   private readonly programShown = new Map<ViewSink, Shown<ProgramView>>();
   private readonly engagementShown = new Map<ViewSink, Shown<EngagementPageView>>();
-  private cockpitBusy = false;
   private sessionsTimer: ReturnType<typeof setTimeout> | undefined;
   private readonly gestures: CockpitGestures;
 
@@ -231,6 +232,7 @@ export class ViewHosts {
       exegol: extras.exegol ?? defaultExegol(),
       images: extras.images,
       locale: extras.locale,
+      ...(extras.log && { log: extras.log }),
       emit: (sink, msg) => this.emit("cockpit", sink, msg),
       emitAll: (msg) => this.emitAll("cockpit", msg),
       refresh: async () => {
@@ -283,10 +285,18 @@ export class ViewHosts {
           : view === "cockpit"
             ? parseCockpitMessage(msg)
             : parseSessions(msg);
-    if (parsed === null) return false;
+    if (parsed === null) {
+      // Cockpit : un message invalide d'un geste connu reçoit une erreur affichable (jamais un silence qui
+      // laisserait la page figée en « occupé »).
+      if (view === "cockpit" && this.subs.cockpit.get(sink) === frame)
+        return this.gestures.rejectInvalid(msg, sink);
+      return false;
+    }
     if (parsed.type === "ready") {
       this.subs[view].set(sink, frame);
       await this.push(view, sink);
+      // Page cockpit (re)chargée : état réel de l'opération en cours et dossier partagé automatique.
+      if (view === "cockpit") this.gestures.sendState(sink, true);
       return true;
     }
     if (this.subs[view].get(sink) !== frame) return false;
@@ -620,12 +630,11 @@ export class ViewHosts {
   ): Promise<boolean> {
     if (message.type === "refresh") {
       await this.push("cockpit", sink);
+      this.gestures.sendState(sink);
       return true;
     }
-    // Annulation d'une opération longue : toujours possible, même pendant qu'elle occupe le cockpit.
-    if (message.type === "cancelOperation") return this.gestures.cancel();
-    // Une opération à la fois, comme dans l'extension : rien d'autre pendant qu'une opération occupe le cockpit.
-    if (this.cockpitBusy) return false;
+    // Annulation : arrête vraiment l'opération en cours ; sans opération, `busy:false` immédiat.
+    if (message.type === "cancelOperation") return this.gestures.cancel(sink);
     // Gestes sans opération longue (ouvertures, listes, choix) : ils n'occupent pas le cockpit.
     const long =
       message.type === "link" ||
@@ -643,30 +652,32 @@ export class ViewHosts {
         return true;
       }
     }
-    this.cockpitBusy = true;
-    try {
-      if (
-        message.type !== "link" &&
-        message.type !== "setPrimary" &&
-        message.type !== "start" &&
-        message.type !== "stop"
-      )
-        return await this.gestures.handle(message, sink);
-      const cockpit = this.backends.cockpit;
-      let payload: CockpitViewPayload;
-      if (message.type === "link") payload = await cockpit.link(message.name);
-      else if (message.type === "setPrimary") payload = await cockpit.setPrimary(message.name);
-      else {
-        await cockpit.control(message.type, message.name);
-        payload = await cockpit.load();
-      }
-      this.emitAll("cockpit", { ...payload });
-    } catch (error) {
-      this.fail("cockpit", sink, error);
-      await this.push("cockpit", sink, true);
-    } finally {
-      this.cockpitBusy = false;
-    }
-    return true;
+    // Une opération à la fois, comme dans l'extension : le geste reçoit tout de suite `cockpit.busy`, l'autre
+    // opération n'est pas touchée. Aucun `await` entre ce contrôle et le début de l'opération.
+    if (this.gestures.rejectIfBusy(sink)) return true;
+    if (
+      message.type === "createKali" ||
+      message.type === "createExegol" ||
+      message.type === "remove"
+    )
+      return this.gestures.handle(message, sink);
+    const cockpit = this.backends.cockpit;
+    const stages = {
+      link: t("Liaison au projet…"),
+      setPrimary: t("Choix du conteneur principal…"),
+      start: t("Démarrage du conteneur…"),
+      stop: t("Arrêt du conteneur…"),
+    };
+    return this.gestures.run(
+      { kind: message.type, name: message.name },
+      stages[message.type],
+      async () => {
+        // La vue rechargée est diffusée à la fin de l'opération (`refresh` de `run`).
+        if (message.type === "link") await cockpit.link(message.name);
+        else if (message.type === "setPrimary") await cockpit.setPrimary(message.name);
+        else await cockpit.control(message.type, message.name);
+        return undefined;
+      },
+    );
   }
 }

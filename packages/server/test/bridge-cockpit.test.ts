@@ -253,8 +253,11 @@ describe("cockpit : dossier partagé automatique (ADR 0056)", () => {
     const t = setup(ctx, { backends: backend() });
     const s = await cockpitOf(t);
     s.say("cockpit", "ck", { type: "pickSharedFolder" });
-    await vi.waitFor(() => expect(s.of("cockpit", "pickedSharedFolder")).toHaveLength(1));
-    const msg = s.of("cockpit", "pickedSharedFolder")[0]?.msg as Msg;
+    // `ready` en a déjà envoyé un (le formulaire ne dépend plus de « Choisir… »), le geste renvoie le même.
+    await vi.waitFor(() => expect(s.of("cockpit", "pickedSharedFolder")).toHaveLength(2));
+    const msg = s.of("cockpit", "pickedSharedFolder")[1]?.msg as Msg;
+    expect(s.of("cockpit", "pickedSharedFolder")[0]?.msg).toEqual(msg);
+    expect(String(msg.path)).toContain("automatique");
     expect(String(msg.path)).not.toBe("");
     // Jamais un chemin hôte, jamais un dialogue.
     expect(JSON.stringify(msg)).not.toContain(ctx.dir);
@@ -343,9 +346,15 @@ describe("cockpit : création d'un Kali (API Engine) et d'un Exegol (CLI du serv
     expect(String(lastOperation(s)?.error)).toContain("dossier partagé");
     expect(docker.ctl.created).toHaveLength(1);
 
-    const before = t.bridge.stats().ignored;
     s.say("cockpit", "ck", { type: "createKali", image: "x", name: "mauvais nom" });
-    await vi.waitFor(() => expect(t.bridge.stats().ignored).toBe(before + 1));
+    await vi.waitFor(() =>
+      expect(lastOperation(s)).toMatchObject({
+        busy: false,
+        code: "cockpit.invalidMessage",
+        field: "name",
+        error: expect.stringContaining("name"),
+      }),
+    );
   });
 
   it("createExegol sans binaire : erreur claire, aucun processus lancé", async () => {

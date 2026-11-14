@@ -23,6 +23,8 @@ async function serve(): Promise<void> {
   const hub = new MissionHub({
     storage,
     onLog: () => undefined,
+    // Opérations du cockpit : une ligne de début, fin ou erreur (sans secret) pour `docker compose logs`.
+    serverLog: (line) => console.log(line),
     audit,
     defaults: parseChatDefaults(process.env),
   });
