@@ -4,11 +4,15 @@ import { expect, it } from "vitest";
 
 const media = join(__dirname, "..", "media");
 
-// Pendant un tour, le bouton d'envoi devient « Arrêter » (saisie vide) : le bouton d'arrêt séparé
-// doit alors être caché, sinon deux carrés d'arrêt s'affichent côte à côte.
-it("un seul bouton d'arrêt visible quand l'envoi fait office d'arrêt", () => {
+// Un seul bouton : « Envoyer » devient « Stop » pendant un tour quand la saisie est vide, et
+// redevient « Envoyer » dès qu'il y a du texte ou une pièce jointe. Le bouton d'arrêt séparé
+// n'est jamais affiché.
+it("un seul bouton : envoi ↔ stop selon la saisie", () => {
   const js = readFileSync(join(media, "chat.js"), "utf8");
   const css = readFileSync(join(media, "css", "chat.css"), "utf8");
-  expect(js).toContain('document.body.classList.toggle("send-is-stop", isStop)');
-  expect(css).toMatch(/body\.send-is-stop #toolbar #stop\s*\{\s*display:\s*none/);
+  expect(js).toContain(
+    "const isStop = !!lastView?.busy && !input.value.trim() && !draftFiles.length;",
+  );
+  expect(js).toContain('send.type = isStop ? "button" : "submit"');
+  expect(css).toMatch(/#toolbar #stop\s*\{\s*display:\s*none/);
 });

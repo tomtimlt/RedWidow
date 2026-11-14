@@ -520,8 +520,8 @@ body.paused .thinking-dots {
 #model-chip {
   max-width: 100%;
 }
-body:not(.running) #toolbar #stop,
-body.send-is-stop #toolbar #stop {
+/* Un seul bouton : #send devient « Stop » pendant un tour quand la saisie est vide. */
+#toolbar #stop {
   display: none;
 }
 .chip .chip-ico {
