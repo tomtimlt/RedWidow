@@ -214,10 +214,12 @@ describe("routes et pages", () => {
 
   it("police et logo de l'écran de connexion servis sans session (font/woff2, svg)", async () => {
     const base = await start();
-    const font = await fetch(`${base}/assets/fonts/geist-latin.woff2`);
-    expect(font.status).toBe(200);
-    expect(font.headers.get("content-type")).toBe("font/woff2");
-    expect((await font.arrayBuffer()).byteLength).toBeGreaterThan(1000);
+    for (const file of ["geist-latin.woff2", "jetbrains-mono-latin.woff2"]) {
+      const font = await fetch(`${base}/assets/fonts/${file}`);
+      expect(font.status, file).toBe(200);
+      expect(font.headers.get("content-type")).toBe("font/woff2");
+      expect((await font.arrayBuffer()).byteLength).toBeGreaterThan(1000);
+    }
     const logo = await fetch(`${base}/assets/logo.svg`);
     expect(logo.status).toBe(200);
     expect(logo.headers.get("content-type")).toBe("image/svg+xml");

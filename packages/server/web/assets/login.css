@@ -3,11 +3,19 @@
  * qui suit la souris (assets/ui.css + assets/motion.js), puce mono à point pulsant, très grand titre révélé
  * mot par mot, carte verre avec spotlight et inclinaison 3D, champ et bouton en pilule pleine largeur.
  * Aucun style en ligne, aucune ressource distante. Les jetons --rw-* sont ceux de theme.css (copie
- * réduite : la connexion ne charge pas la feuille de la coquille).
+ * réduite : la connexion ne charge pas la feuille de la coquille). Polices Geist et JetBrains Mono servies par /assets/fonts.
  */
 @font-face {
   font-family: "Warband Geist";
   src: url("/assets/fonts/geist-latin.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Warband JetBrains Mono";
+  src: url("/assets/fonts/jetbrains-mono-latin.woff2") format("woff2");
   font-style: normal;
   font-weight: 100 900;
   font-display: swap;
@@ -40,7 +48,7 @@
   --rw-ease: 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
   --rw-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
   --rw-font: "Warband Geist", system-ui, sans-serif;
-  --rw-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --rw-mono: "Warband JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 }
 
 *,

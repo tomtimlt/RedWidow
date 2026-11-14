@@ -919,7 +919,11 @@ async function scenario(name, viewport) {
     dialogs += 1;
     await d.dismiss();
   });
-  const shot = (label) => page.screenshot({ path: join(shots, `${name}-${label}.png`) });
+  const shot = async (label) => {
+    // WEB_E2E_SETTLE=1 : attendre la fin des animations d'entrée avant de photographier.
+    if (process.env.WEB_E2E_SETTLE) await sleep(1700);
+    return page.screenshot({ path: join(shots, `${name}-${label}.png`) });
+  };
   const text = (selector) => page.locator(selector).innerText();
   const visible = (selector) => page.locator(selector).isVisible();
 
@@ -1202,7 +1206,11 @@ async function openSession(
     page.evaluate((h) => {
       location.hash = h;
     }, hash);
-  const shot = (label) => page.screenshot({ path: join(shots, `${name}-${label}.png`) });
+  const shot = async (label) => {
+    // WEB_E2E_SETTLE=1 : attendre la fin des animations d'entrée avant de photographier.
+    if (process.env.WEB_E2E_SETTLE) await sleep(1700);
+    return page.screenshot({ path: join(shots, `${name}-${label}.png`) });
+  };
   return { context, page, violations, win, openHash, shot };
 }
 
@@ -2812,7 +2820,11 @@ async function terminalScenario(name, viewport) {
   );
   await until(async () => (await live.count()) === 1, "session réabonnée en direct", 12000);
   check(
-    (await win(key1).locator(".xterm-rows").innerText()).includes("root@kali"),
+    await until(
+      async () => (await win(key1).locator(".xterm-rows").innerText()).includes("root@kali"),
+      "écran rejoué après la reconnexion (rendu)",
+      5000,
+    ),
     "écran rejoué après la reconnexion",
   );
   // Session non conservée par le serveur : « session perdue, rouvrir ».
@@ -3002,6 +3014,41 @@ async function fxScenario(name, viewport) {
     p1.tilted,
     "inclinaison : seulement la carte héro et l'état Conteneurs (aucune approbation)",
   );
+  // Captures téléphone : Fournisseurs et palette (après la fin des animations d'entrée).
+  const ph = await openSession(`${name}-phone`, { width: 375, height: 812 });
+  await ph.page.locator("#dock-open").click();
+  await ph.page.locator("#dock-menu .dock-menu-item", { hasText: "Fournisseurs" }).first().click();
+  await until(() => ph.win("native:providers").isVisible(), "Fournisseurs (téléphone)");
+  await sleep(1700);
+  await ph.page.screenshot({ path: join(shots, `${name}-fournisseurs-375.png`) });
+  await ph.page.keyboard.press("Control+k");
+  await until(() => ph.page.locator(".palette-box").isVisible(), "palette (téléphone)");
+  await ph.page.keyboard.type("mis");
+  await sleep(700);
+  await ph.page.screenshot({ path: join(shots, `${name}-palette-375.png`) });
+  check(ph.violations.length === 0, `zéro violation CSP (${ph.violations.join(" | ")})`);
+  await ph.context.close();
+
+  // Révélation du titre : après ≥ 1,5 s, chaque mot est opaque et le titre tient dans la carte.
+  await sleep(1600);
+  const title = await on.page.evaluate(() => {
+    const t = document.querySelector(".wm-empty-title");
+    const box = document.querySelector(".wm-empty-box").getBoundingClientRect();
+    const r = t.getBoundingClientRect();
+    const words = [...t.querySelectorAll(".rv-w")];
+    return {
+      count: words.length,
+      opaque: words.every((w) => Number(getComputedStyle(w).opacity) === 1),
+      inside: r.width > 50 && r.height > 20 && r.top >= box.top && r.bottom <= box.bottom,
+      text: t.textContent,
+    };
+  });
+  check(
+    title.count === 4 && title.opaque,
+    `héro : tous les mots du titre opaques (${title.count})`,
+  );
+  check(title.inside, "héro : le titre est visible dans la carte");
+  check(title.text === "Votre bureau est prêt.", "héro : texte du titre complet");
   // Captures de l'effet en action : spotlight sur la carte héro, puis connexion inclinée.
   await sleep(1400);
   await on.page.screenshot({ path: join(shots, `${name}-spotlight-carte.png`) });

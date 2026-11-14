@@ -1,4 +1,4 @@
-// Copie déterministe de Geist (police de l'interface, licence OFL-1.1) depuis l'extension
+// Copie déterministe de Geist et JetBrains Mono (polices de l'interface, licence OFL-1.1) depuis l'extension
 // (`packages/vscode/media/fonts`) vers `web/assets/fonts/`.
 // Usage : node scripts/vendor-fonts.mjs   (`pnpm --filter @warband/server vendor:fonts`)
 //
@@ -14,7 +14,12 @@ export const FONTS_DIR = join(HERE, "..", "web", "assets", "fonts");
 const SOURCE_DIR = join(HERE, "..", "..", "vscode", "media", "fonts");
 
 /** Fichiers copiés (nom source = nom de destination). */
-export const FONT_FILES = ["geist-latin.woff2", "OFL-Geist.txt"];
+export const FONT_FILES = [
+  "geist-latin.woff2",
+  "OFL-Geist.txt",
+  "jetbrains-mono-latin.woff2",
+  "OFL-JetBrainsMono.txt",
+];
 
 /** Contenu (Buffer) de chaque fichier de `web/assets/fonts/`, lu depuis les médias de l'extension. */
 export function buildFonts(sourceDir = SOURCE_DIR) {
