@@ -47,7 +47,7 @@ function themeExtensions(cm) {
     {
       "&": {
         color: "var(--rw-fg)",
-        backgroundColor: "var(--rw-bg)",
+        backgroundColor: "var(--rw-surface)",
         height: "100%",
         fontSize: "13px",
       },
@@ -56,7 +56,7 @@ function themeExtensions(cm) {
       ".cm-content": { caretColor: "var(--rw-crimson-text)", padding: "8px 0" },
       ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--rw-crimson-text)" },
       "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection":
-        { backgroundColor: "rgb(204 28 64 / 30%)" },
+        { backgroundColor: "rgb(255 59 92 / 32%)" },
       ".cm-activeLine": { backgroundColor: "rgb(255 255 255 / 4%)" },
       ".cm-gutters": {
         backgroundColor: "var(--rw-surface)",
@@ -73,7 +73,7 @@ function themeExtensions(cm) {
         backgroundColor: "rgb(224 176 80 / 25%)",
         outline: "1px solid var(--rw-warn)",
       },
-      ".cm-searchMatch.cm-searchMatch-selected": { backgroundColor: "rgb(204 28 64 / 35%)" },
+      ".cm-searchMatch.cm-searchMatch-selected": { backgroundColor: "rgb(255 59 92 / 38%)" },
       ".cm-selectionMatch": { backgroundColor: "rgb(255 255 255 / 10%)" },
       ".cm-panels": {
         backgroundColor: "var(--rw-surface)",

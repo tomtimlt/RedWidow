@@ -1,0 +1,727 @@
+/*
+ * Peau commune de la coquille RedWidow Serveur : boutons et champs en pilule, cartes à reflet, pastilles
+ * de statut, fond en grille avec halo, spotlight sous le curseur, inclinaison 3D et animations.
+ * Chargée après theme.css (jetons) et avant les feuilles de mise en page, qui ne portent plus que la
+ * géométrie. Les animations n'utilisent que transform, opacity et filter (sauf le reflet des barres de
+ * progression) ; tout le mouvement est dans des blocs « effets actifs » : `data-fx="off"` ou
+ * `prefers-reduced-motion` les coupent, avec le suivi de souris (assets/motion.js). Aucune ressource
+ * distante, aucun attribut `style`.
+ */
+
+/* ───────────── Boutons : pilule (rayon plein), 36 px au bureau, 44 px au tactile ───────────── */
+.tb-count,
+.tb-bypass,
+.tb-halt,
+.appr-btn,
+.sheet-open,
+.wm-chip,
+.wm-ctx-close,
+.wm-empty-btn,
+.dock-open-btn,
+.dock-space-btn,
+.dlg-btn,
+.scr-btn,
+.fx-btn {
+  border: 1px solid var(--rw-line-strong);
+  border-radius: var(--rw-pill);
+  /* Verre : reflet translucide sur la surface (la couleur pleine reste dessous pour le contraste). */
+  background-color: var(--rw-surface-2);
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 8%), rgb(255 255 255 / 2%));
+  box-shadow:
+    var(--rw-glint),
+    0 1px 2px rgb(0 0 0 / 45%);
+  color: var(--rw-fg);
+  font-weight: 600;
+  transition:
+    transform var(--rw-ease),
+    box-shadow var(--rw-ease),
+    background-color var(--rw-ease),
+    border-color var(--rw-ease),
+    color var(--rw-ease);
+}
+
+.tb-count:hover,
+.tb-bypass:hover,
+.appr-btn:hover:not(:disabled),
+.sheet-open:hover,
+.wm-chip:hover,
+.wm-chip.is-open,
+.wm-ctx-close:hover,
+.wm-empty-btn:hover,
+.dock-open-btn:hover,
+.dock-open-btn[aria-expanded="true"],
+.dock-space-btn:hover:not(:disabled),
+.dock-space-btn[aria-expanded="true"],
+.dlg-btn:hover:not(:disabled),
+.scr-btn:hover:not(:disabled),
+.fx-btn:hover:not(:disabled) {
+  border-color: rgb(255 255 255 / 24%);
+  background-color: var(--rw-surface-3);
+  box-shadow:
+    var(--rw-glint),
+    0 6px 16px rgb(0 0 0 / 45%);
+  color: var(--rw-fg);
+  transform: translateY(-1px);
+}
+
+.tb-count:active,
+.tb-bypass:active,
+.tb-halt:active,
+.appr-btn:active:not(:disabled),
+.sheet-open:active,
+.wm-chip:active,
+.wm-ctx-close:active,
+.wm-empty-btn:active,
+.dock-open-btn:active,
+.dock-space-btn:active:not(:disabled),
+.dlg-btn:active:not(:disabled),
+.scr-btn:active:not(:disabled),
+.fx-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* Principal : dégradé rouge, reflet intérieur, ombre en couches ; au survol, soulèvement et lueur. */
+.tb-halt,
+.tb-count.has-pending,
+.appr-btn.appr-once,
+.wm-empty-btn.is-primary,
+.dlg-btn.is-primary,
+.dlg-btn.is-danger,
+.scr-btn-primary,
+.fx-btn-primary {
+  border-color: rgb(255 120 140 / 45%);
+  background-color: var(--rw-crimson);
+  background-image: linear-gradient(180deg, var(--rw-crimson-top), var(--rw-crimson-bot));
+  box-shadow: var(--rw-glint-strong), var(--rw-shadow-btn);
+  color: var(--rw-on-accent);
+}
+
+.tb-halt:hover,
+.tb-count.has-pending:hover,
+.appr-btn.appr-once:hover:not(:disabled),
+.wm-empty-btn.is-primary:hover,
+.dlg-btn.is-primary:hover:not(:disabled),
+.dlg-btn.is-danger:hover:not(:disabled),
+.scr-btn-primary:hover:not(:disabled),
+.fx-btn-primary:hover:not(:disabled) {
+  border-color: rgb(255 150 168 / 70%);
+  background-color: var(--rw-crimson);
+  background-image: linear-gradient(180deg, var(--rw-crimson-top), var(--rw-crimson-bot));
+  box-shadow: var(--rw-glint-strong), var(--rw-shadow-btn), var(--rw-glow);
+  color: var(--rw-on-accent);
+  transform: translateY(-1px);
+}
+
+/* Danger discret (actions de ligne) : pilule rouge teintée ; elle se remplit au survol. */
+.scr-btn-danger,
+.fx-btn-danger {
+  border-color: rgb(255 59 92 / 55%);
+  background-color: var(--rw-surface-2);
+  background-image: linear-gradient(180deg, rgb(255 59 92 / 20%), rgb(204 28 64 / 10%));
+  color: var(--rw-crimson-text);
+}
+
+.scr-btn-danger:hover:not(:disabled),
+.fx-btn-danger:hover:not(:disabled) {
+  border-color: rgb(255 120 140 / 80%);
+  background-color: var(--rw-surface-2);
+  background-image: linear-gradient(180deg, rgb(255 59 92 / 32%), rgb(204 28 64 / 20%));
+  box-shadow: var(--rw-glint), var(--rw-glow);
+  color: var(--rw-fg);
+}
+
+.tb-halt[data-state="requested"] {
+  background-color: var(--rw-surface-2);
+  background-image: none;
+  box-shadow: var(--rw-glint);
+  color: var(--rw-crimson-text);
+}
+
+.tb-halt[data-state="active"] {
+  border-color: var(--rw-warn);
+  background-color: var(--rw-surface-2);
+  background-image: none;
+  box-shadow: var(--rw-glint);
+  color: var(--rw-warn);
+}
+
+.tb-bypass {
+  border-color: var(--rw-crimson-text);
+  color: var(--rw-crimson-text);
+}
+
+.tb-count.flash {
+  animation: tb-flash 700ms ease-out 1;
+}
+
+.tb-halt:disabled,
+.appr-btn:disabled,
+.dlg-btn:disabled,
+.scr-btn:disabled,
+.scr-btn.is-disabled,
+.fx-btn:disabled {
+  box-shadow: none;
+  opacity: 0.45;
+  transform: none;
+}
+
+/* Fantôme : pilule transparente, fond au survol. */
+.wm-ctx-close,
+.fx-more,
+.fx-tab-x,
+.fx-crumb {
+  border-radius: var(--rw-pill);
+}
+
+.wm-ctx-close {
+  border-color: transparent;
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+  color: var(--rw-fg-muted);
+}
+
+.wm-ctx-close:hover {
+  background-color: rgb(255 255 255 / 8%);
+  box-shadow: none;
+}
+
+/* Icône seule : cercle. */
+.wm-btn,
+.toast-close {
+  border-radius: 50%;
+  transition:
+    transform var(--rw-ease),
+    background-color var(--rw-ease),
+    color var(--rw-ease);
+}
+
+.wm-btn:active,
+.toast-close:active {
+  transform: scale(0.92);
+}
+
+/* ───────────── Champs : une ligne en pilule, zones de texte à 16 px ───────────── */
+.dlg-input,
+.scr-input,
+.fx-input,
+.palette-input,
+.tb-search {
+  border: 1px solid var(--rw-line-strong);
+  border-radius: var(--rw-pill);
+  background-color: var(--rw-surface-2);
+  box-shadow: var(--rw-glint);
+  color: var(--rw-fg);
+  transition:
+    border-color var(--rw-ease),
+    box-shadow var(--rw-ease),
+    background-color var(--rw-ease);
+}
+
+textarea.dlg-input,
+textarea.scr-input,
+textarea.fx-input {
+  padding-top: 10px;
+  padding-bottom: 10px;
+  border-radius: 16px;
+  font-size: 16px;
+}
+
+.dlg-input:hover,
+.scr-input:hover,
+.fx-input:hover {
+  border-color: rgb(255 255 255 / 22%);
+}
+
+.dlg-input:focus,
+.scr-input:focus,
+.fx-input:focus,
+.dlg-input:focus-visible,
+.scr-input:focus-visible,
+.fx-input:focus-visible {
+  border-color: var(--rw-crimson-vivid);
+  box-shadow: var(--rw-glint), var(--rw-ring);
+  outline: none;
+}
+
+.dlg-input::placeholder,
+.scr-input::placeholder,
+.palette-input::placeholder {
+  color: var(--rw-fg-subtle);
+}
+
+/* ───────────── Cartes, sections et menus : rayon 18 px, reflet en haut, profondeur ───────────── */
+.scr-section,
+.ctn-card,
+.ctn-group,
+.ctn-tolink,
+.ctn-prog,
+.scr-pool,
+.scr-detail,
+.scr-card,
+.scr-table-wrap,
+.appr-card,
+.confirm-box,
+.term-over,
+.term-confirm {
+  border: 1px solid var(--rw-line);
+  border-radius: var(--rw-radius-lg);
+  background-color: var(--rw-surface);
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 3%), transparent 42%);
+  box-shadow: var(--rw-glint), var(--rw-shadow-card);
+}
+
+.scr-key,
+.scr-feed-item,
+.scr-evidence {
+  border-radius: var(--rw-radius);
+}
+
+.dock-menu,
+.fx-menu,
+.wm-ctx,
+.toast,
+.palette-box,
+.dlg-box,
+.fx-dlg {
+  border: 1px solid var(--rw-line-strong);
+  border-radius: var(--rw-radius-lg);
+  background-color: var(--rw-surface-2);
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 4%), transparent 38%);
+  box-shadow: var(--rw-shadow-pop);
+}
+
+.dlg-box.is-danger {
+  border-color: var(--rw-crimson);
+}
+
+/* ───────────── Spotlight : le bord et le fond s'illuminent sous le curseur ───────────── */
+/* Les variables --mx / --my sont posées sur la carte survolée par assets/motion.js (CSSOM). */
+.scr-section,
+.ctn-card,
+.ctn-group,
+.scr-pool,
+.scr-detail,
+.scr-card,
+.wm-empty-box,
+.lg-card {
+  position: relative;
+  isolation: isolate;
+}
+
+.scr-section::before,
+.ctn-card::before,
+.ctn-group::before,
+.scr-pool::before,
+.scr-detail::before,
+.scr-card::before,
+.wm-empty-box::before,
+.lg-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: radial-gradient(
+    360px circle at var(--mx, 50%) var(--my, 0%),
+    rgb(255 59 92 / 12%),
+    transparent 62%
+  );
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 260ms ease;
+}
+
+.scr-section::after,
+.ctn-card::after,
+.ctn-group::after,
+.scr-pool::after,
+.scr-detail::after,
+.scr-card::after,
+.wm-win::after,
+.wm-empty-box::after,
+.lg-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  padding: 1px;
+  border-radius: inherit;
+  background: radial-gradient(
+    300px circle at var(--mx, 50%) var(--my, 0%),
+    rgb(255 90 120 / 85%),
+    transparent 65%
+  );
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 260ms ease;
+  /* Le dégradé ne reste visible que sur l'anneau de 1 px : le bord s'illumine. */
+  -webkit-mask:
+    linear-gradient(black 0 0) content-box,
+    linear-gradient(black 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(black 0 0) content-box exclude,
+    linear-gradient(black 0 0);
+}
+
+/* ───────────── Pastilles de statut ───────────── */
+.scr-badge,
+.fx-badge,
+.dock-badge {
+  border-radius: var(--rw-pill);
+}
+
+.scr-badge {
+  gap: 6px;
+  border-color: rgb(255 255 255 / 8%);
+  font-weight: 600;
+}
+
+.scr-badge::before {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentcolor;
+}
+
+.scr-badge.tone-ok {
+  border-color: rgb(34 197 94 / 35%);
+  background: rgb(34 197 94 / 14%);
+  color: var(--rw-ok);
+}
+
+.scr-badge.tone-warn {
+  border-color: rgb(245 158 11 / 35%);
+  background: rgb(245 158 11 / 14%);
+  color: var(--rw-warn);
+}
+
+.scr-badge.tone-err {
+  border-color: rgb(255 123 123 / 35%);
+  background: rgb(255 123 123 / 14%);
+  color: var(--rw-err);
+}
+
+.scr-badge.tone-steel {
+  border-color: rgb(59 130 246 / 40%);
+  background: rgb(59 130 246 / 16%);
+  color: var(--rw-info);
+}
+
+.scr-badge.tone-crimson {
+  border-color: rgb(255 59 92 / 40%);
+  background: rgb(255 59 92 / 14%);
+  color: var(--rw-crimson-text);
+}
+
+.scr-badge.tone-mute {
+  border-color: var(--rw-line);
+  background: var(--rw-surface-3);
+  color: var(--rw-fg-muted);
+}
+
+/* ───────────── Étiquettes : monospace, capitales très espacées ───────────── */
+.scr-h2,
+.scr-table th,
+.dock-menu-title,
+.pal-group,
+.scr-table td::before,
+.dock-space-cap {
+  font-family: var(--rw-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.fx-bar-path,
+.fx-crumbs,
+.scr-feed-item,
+.ctn-stage {
+  font-variant-numeric: tabular-nums;
+}
+
+.tb-count,
+.dock-badge,
+.scr-key-rank,
+.dlg-count,
+.scr-feed-time,
+.ctn-layer-id,
+.fx-size {
+  font-family: var(--rw-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ───────────── Fond : grille fine, halo sous la souris, nappe rouge diffuse ───────────── */
+/* Posé par assets/motion.js : <div class="fx-bg"> en premier enfant de <body>. */
+.fx-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background: radial-gradient(120% 80% at 50% -10%, rgb(255 59 92 / 7%), transparent 60%);
+}
+
+.fx-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgb(255 255 255 / 4.5%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 4.5%) 1px, transparent 1px);
+  background-size: 56px 56px;
+  -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 30%, black 15%, transparent 78%);
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 30%, black 15%, transparent 78%);
+}
+
+.fx-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    560px circle at var(--mx, 50%) var(--my, 28%),
+    rgb(255 59 92 / 10%),
+    transparent 62%
+  );
+}
+
+.fx-bg-nappe {
+  position: absolute;
+  top: -30%;
+  left: -20%;
+  width: 90%;
+  height: 90%;
+  background: radial-gradient(closest-side, rgb(204 28 64 / 16%), transparent);
+  opacity: 0.8;
+}
+
+body.shell {
+  background: transparent;
+}
+
+#desktop {
+  background: transparent;
+}
+
+/* ───────────── Inclinaison 3D (cartes héro) ───────────── */
+[data-tilt] {
+  transform-style: preserve-3d;
+}
+
+/* Reflet « glare » : posé par motion.js, il suit le curseur sur la carte inclinée. */
+.tilt-glare {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border-radius: inherit;
+  background: radial-gradient(
+    circle at var(--gx, 50%) var(--gy, 0%),
+    rgb(255 255 255 / 12%),
+    transparent 55%
+  );
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease;
+}
+
+/* ───────────── Mouvement : seulement effets actifs et sans « animations réduites » ───────────── */
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-fx="off"]) {
+    /* Spotlight : visible quand le curseur est sur la carte. */
+    .scr-section:hover::before,
+    .ctn-card:hover::before,
+    .ctn-group:hover::before,
+    .scr-pool:hover::before,
+    .scr-detail:hover::before,
+    .scr-card:hover::before,
+    .wm-empty-box:hover::before,
+    .lg-card:hover::before {
+      opacity: 1;
+    }
+
+    .scr-section:hover::after,
+    .ctn-card:hover::after,
+    .ctn-group:hover::after,
+    .scr-pool:hover::after,
+    .scr-detail:hover::after,
+    .scr-card:hover::after,
+    .wm-win:hover::after,
+    .wm-empty-box:hover::after,
+    .lg-card:hover::after {
+      opacity: 1;
+    }
+
+    .fx-bg-nappe {
+      animation: fx-drift 38s ease-in-out infinite alternate;
+    }
+
+    /* Cartes héro : inclinaison selon la souris (max 6°), reflet et ombre au sol. */
+    [data-tilt] {
+      transform: perspective(1100px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+      transition: transform 140ms ease-out;
+    }
+
+    [data-tilt] > .tilt-glare {
+      opacity: var(--glare, 0);
+    }
+
+    /* Apparition en fade-up décalé des sections d'écran (création seulement, pas à chaque rafraîchissement). */
+    .scr > .scr-section,
+    .scr > .scr-table-wrap,
+    .scr > .scr-warning,
+    .scr > .scr-empty {
+      animation: fx-up 520ms var(--rw-ease-out) both;
+    }
+
+    .scr > :nth-child(2) {
+      animation-delay: 60ms;
+    }
+
+    .scr > :nth-child(3) {
+      animation-delay: 120ms;
+    }
+
+    .scr > :nth-child(4) {
+      animation-delay: 180ms;
+    }
+
+    .scr > :nth-child(n + 5) {
+      animation-delay: 240ms;
+    }
+
+    /* Révélation mot par mot des grands titres. */
+    .rv-w {
+      animation: fx-reveal 760ms var(--rw-ease-out) both;
+      animation-delay: calc(120ms + var(--i, 0) * 90ms);
+    }
+
+    .fx-up {
+      animation: fx-up 620ms var(--rw-ease-out) both;
+      animation-delay: calc(80ms + var(--i, 0) * 70ms);
+    }
+
+    /* Points « en direct » : l'anneau s'étend puis disparaît. */
+    .tb-conn[data-state="open"]::before {
+      animation: fx-pulse-ok 2s ease-out infinite;
+    }
+
+    .dock-act[data-state="running"],
+    .lg-kicker::before,
+    .wm-empty-kicker::before {
+      animation: fx-pulse 2s ease-out infinite;
+    }
+
+    .toast {
+      animation: toast-in 320ms var(--rw-ease-out) both;
+    }
+
+    /* Barres de progression : un reflet glisse sur la partie remplie. */
+    .ctn-bar::-webkit-progress-value {
+      background-image: linear-gradient(
+        100deg,
+        var(--rw-crimson-bot) 0%,
+        var(--rw-crimson-vivid) 45%,
+        var(--rw-crimson-bot) 90%
+      );
+      background-size: 220% 100%;
+      animation: fx-shine 1.8s linear infinite;
+    }
+
+    .ctn-bar::-moz-progress-bar {
+      background-image: linear-gradient(
+        100deg,
+        var(--rw-crimson-bot) 0%,
+        var(--rw-crimson-vivid) 45%,
+        var(--rw-crimson-bot) 90%
+      );
+      background-size: 220% 100%;
+      animation: fx-shine 1.8s linear infinite;
+    }
+  }
+}
+
+@keyframes fx-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fx-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fx-reveal {
+  from {
+    opacity: 0;
+    filter: blur(10px);
+    transform: translateY(0.35em);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: none;
+  }
+}
+
+@keyframes fx-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgb(255 59 92 / 55%);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 8px rgb(255 59 92 / 0%);
+  }
+}
+
+@keyframes fx-pulse-ok {
+  0% {
+    box-shadow: 0 0 0 0 rgb(34 197 94 / 55%);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 8px rgb(34 197 94 / 0%);
+  }
+}
+
+@keyframes fx-drift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(28%, 18%, 0) scale(1.25);
+  }
+}
+
+@keyframes fx-shine {
+  from {
+    background-position: 120% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

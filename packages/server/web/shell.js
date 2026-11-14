@@ -1,6 +1,7 @@
 // Coquille de RedWidow Serveur : canal WebSocket, barre fixe, file d'approbations, feuille d'approbation
 // du téléphone, arrêt d'urgence, bureau à fenêtres (déplaçables, dock, mode pile au téléphone). Aucune
 // donnée reçue n'est insérée en HTML : tout passe par `textContent`.
+import { initMotion } from "./assets/motion.js";
 import { createApprovalTracker, createCardList, parseApprovalList } from "./lib/approval-card.js";
 import { createChannel } from "./lib/channel.js";
 import { chatErrorText, createAfterReady, parseMissionContext } from "./lib/chat-bridge.js";
@@ -71,6 +72,10 @@ const MENU_SCREENS = MENU_GROUPS.flatMap((g) => g.entries)
 const HALT_ECHO_MS = 8000;
 
 const $ = (id) => document.getElementById(id);
+
+// Fond (grille, halo, nappe), spotlight des cartes, inclinaison 3D : coupés par `data-fx="off"` et par
+// `prefers-reduced-motion`, jamais actifs sur les approbations, l'arrêt d'urgence ni les dialogues.
+initMotion(document);
 
 const state = {
   conn: "closed",

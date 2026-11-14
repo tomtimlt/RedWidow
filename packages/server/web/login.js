@@ -1,5 +1,13 @@
 // Page de connexion : aucun script ni style inline (CSP stricte, nonce sur la balise script ; module comme
-// la coquille).
+// la coquille). Effets : fond en grille avec halo, titre révélé mot par mot, inclinaison de la carte
+// (assets/motion.js ; coupés avec `prefers-reduced-motion`).
+import { initMotion, revealWords } from "/assets/motion.js";
+
+initMotion(document);
+for (const id of ["brand", "sub"]) {
+  const node = document.getElementById(id);
+  if (node) revealWords(document, node, node.textContent ?? "");
+}
 
 const form = document.getElementById("login");
 const field = document.getElementById("password");

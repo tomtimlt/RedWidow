@@ -3,6 +3,8 @@
 // `geometry.js`, l'empilement et la veille de `stack.js` ; ce module ne fait que poser des éléments et
 // brancher le pointeur. La position passe par le CSSOM (`el.style.left = …`), jamais par un attribut
 // `style` du HTML. Aucune donnée reçue n'est insérée en HTML : tout passe par `textContent`.
+
+import { revealWords } from "../assets/motion.js";
 import {
   cascadeFractions,
   clampRect,
@@ -20,6 +22,8 @@ const HANDLES = ["n", "s", "e", "w", "ne", "nw", "se", "sw"];
 /** Durée des animations de tuile et de maximisation (≤ 150 ms). */
 const ANIM_MS = 130;
 const EMPTY_TEXT = "Aucune fenêtre ouverte. Démarrez une mission ou ouvrez un écran.";
+const EMPTY_KICKER = "Serveur · bureau libre";
+const EMPTY_TITLE = "Votre bureau est prêt.";
 const WAIT_TEXT = "Cet écran arrive dans une prochaine version.";
 
 const el = (doc, tag, className, text) => {
@@ -64,7 +68,17 @@ export function createDesktop({
   const empty = el(doc, "div", "wm-empty");
   const emptyBox = el(doc, "div", "wm-empty-box");
   const emptyRow = el(doc, "div", "wm-empty-actions");
-  emptyBox.append(el(doc, "p", "wm-empty-text", EMPTY_TEXT), emptyRow);
+  // Héro : étiquette mono à point pulsant, grand titre révélé mot par mot, sous-titre, boutons. La carte
+  // s'incline légèrement sous la souris (assets/motion.js) ; jamais les approbations ni les dialogues.
+  const emptyTitle = el(doc, "h2", "wm-empty-title");
+  revealWords(doc, emptyTitle, EMPTY_TITLE);
+  emptyBox.dataset.tilt = "";
+  emptyBox.append(
+    el(doc, "p", "wm-empty-kicker", EMPTY_KICKER),
+    emptyTitle,
+    el(doc, "p", "wm-empty-text", EMPTY_TEXT),
+    emptyRow,
+  );
   empty.append(emptyBox);
   emptyActions.forEach((action, i) => {
     const button = el(

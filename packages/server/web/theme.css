@@ -1,48 +1,65 @@
 /*
- * Thème « Épuré pro sombre » de RedWidow Serveur. Les feuilles de l'extension (media/css) lisent les
+ * Thème « Néon relief » de RedWidow Serveur. Les feuilles de l'extension (media/css) lisent les
  * variables `--vscode-*` que VS Code fournit à ses webviews : ici, le navigateur les définit à sa place.
- * Une seule couleur d'accent : le rouge RedWidow #CC1C40 (marque et actions) ; les états (succès, alerte,
- * information) restent sobres. Profondeur par les surfaces, ombres douces pour ce qui flotte. Chargé par la
- * coquille et par chaque page de vue ; ne redéfinit aucune variable `--jn-*` (la palette de l'utilisateur
- * reste maîtresse de la couleur des pages). Seule feuille (avec la connexion) à porter des valeurs hexadécimales.
+ * Base quasi noire à fort contraste, accent RedWidow vif (dégradé rouge pour les actions principales),
+ * statuts francs en pastilles, boutons et champs en pilule, cartes et fenêtres à rayon 16-20 px avec reflet
+ * intérieur et ombres en couches. Chargé par la coquille et par chaque page de vue ; ne redéfinit aucune
+ * variable `--jn-*` (la palette de l'utilisateur reste maîtresse de la couleur des pages). Seule feuille
+ * (avec la connexion) à porter des valeurs hexadécimales.
  */
 :root {
   color-scheme: dark;
 
-  /* Accent (marque, actions) : blanc sur crimson 5,5:1 ; survol et actif plus foncés (≥ 6,6:1). */
+  /* Accent : le dégradé des actions va de --rw-crimson-top à --rw-crimson-bot (blanc dessus ≥ 4,6:1 aux deux
+     bouts) ; le rouge vif sert aux lueurs, anneaux et points ; le rouge clair au texte, liens et focus. */
   --rw-crimson: #cc1c40;
-  --rw-crimson-hover: #b5183a;
-  --rw-crimson-active: #9f1534;
+  --rw-crimson-top: #e0254a;
+  --rw-crimson-bot: #bf1a3e;
+  --rw-crimson-vivid: #ff3b5c;
+  --rw-crimson-hover: #e0254a;
+  --rw-crimson-active: #a8163a;
   --rw-crimson-text: #ff728b;
   --rw-on-accent: #ffffff;
-  --rw-steel: #353b43;
-  --rw-steel-text: #9ba2ab;
+  --rw-steel: #303035;
+  --rw-steel-text: #a3a3a8;
 
-  /* Surfaces (graphite) */
-  --rw-bg: #0f1114;
-  --rw-surface: #16191d;
-  --rw-surface-2: #1c2025;
-  --rw-surface-3: #22272d;
-  --rw-line: #2a2f36;
-  --rw-line-strong: #353b43;
-  --rw-fg: #e7e9ec;
-  --rw-fg-muted: #9ba2ab;
-  --rw-fg-subtle: #8a929c;
+  /* Surfaces (quasi noir) */
+  --rw-bg: #0a0a0b;
+  --rw-surface: #111113;
+  --rw-surface-2: #18181b;
+  --rw-surface-3: #1f1f23;
+  --rw-line: #232327;
+  --rw-line-strong: #303035;
+  --rw-fg: #f4f4f2;
+  --rw-fg-muted: #a3a3a8;
+  --rw-fg-subtle: #8a8a91;
 
-  /* États sobres (toujours avec texte ou icône) */
-  --rw-ok: #6fbf8e;
-  --rw-warn: #e0b050;
-  --rw-err: #ff8a8a;
-  --rw-info: #8aa4bf;
-  --rw-link: #8cb4e8;
+  /* Statuts francs (toujours avec texte ou icône) : le texte clair, le fond de pastille translucide */
+  --rw-ok: #22c55e;
+  --rw-warn: #f59e0b;
+  --rw-err: #ff7b7b;
+  --rw-info: #60a5fa;
+  --rw-link: #ff8fa3;
 
-  /* Ombres douces et formes : boutons et champs 8 px, cartes, fenêtres, dialogues 12 px */
-  --rw-shadow-window: 0 8px 32px rgb(0 0 0 / 45%), 0 2px 8px rgb(0 0 0 / 30%);
-  --rw-shadow-pop: 0 12px 32px rgb(0 0 0 / 50%), 0 2px 6px rgb(0 0 0 / 30%);
-  --rw-radius: 8px;
-  --rw-radius-lg: 12px;
+  /* Relief : reflet intérieur en haut, ombres en couches. Boutons et champs en pilule, cartes 18 px. */
+  --rw-glint: inset 0 1px 0 rgb(255 255 255 / 8%);
+  --rw-glint-strong: inset 0 1px 0 rgb(255 255 255 / 18%);
+  --rw-shadow-window:
+    0 1px 0 rgb(255 255 255 / 4%) inset, 0 2px 4px rgb(0 0 0 / 35%), 0 12px 24px rgb(0 0 0 / 35%),
+    0 32px 64px rgb(0 0 0 / 35%);
+  --rw-shadow-pop:
+    0 1px 0 rgb(255 255 255 / 6%) inset, 0 4px 8px rgb(0 0 0 / 40%), 0 16px 40px rgb(0 0 0 / 50%);
+  --rw-shadow-card: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 28%);
+  --rw-shadow-btn:
+    0 1px 1px rgb(0 0 0 / 40%), 0 4px 10px rgb(204 28 64 / 28%), 0 10px 24px rgb(0 0 0 / 30%);
+  --rw-glow: 0 0 0 1px rgb(255 59 92 / 35%), 0 6px 22px rgb(255 59 92 / 38%);
+  --rw-ring: 0 0 0 3px rgb(255 59 92 / 25%);
+  --rw-radius: 12px;
+  --rw-radius-lg: 18px;
+  --rw-pill: 999px;
   --rw-ctl: 36px;
-  --rw-ease: 140ms ease;
+  --rw-ease: 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --rw-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
 
   /* Terminal (xterm lit ces variables, voir screens/terminal.js) : ANSI sobres, versions vives */
   --rw-term-red: #ff728b;
@@ -58,8 +75,8 @@
   --rw-term-bright-magenta: #d9b3e6;
   --rw-term-bright-cyan: #a2d6de;
 
-  /* Polices : Geist (interface) et JetBrains Mono (code, terminal) de l'extension (@font-face dans
-     shell.css et base.css). */
+  /* Polices : Geist (interface) et JetBrains Mono (code, étiquettes, chiffres) de l'extension (@font-face
+     dans shell.css et base.css). */
   --rw-font: "Warband Geist", system-ui, sans-serif;
   --rw-mono: "Warband JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
 

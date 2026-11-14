@@ -2956,6 +2956,107 @@ async function motionScenario(name, viewport) {
   await rm.context.close();
 }
 
+/** Effets de relief : fond, spotlight et inclinaison 3D actifs, coupés par `data-fx="off"` et `prefers-reduced-motion`. */
+async function fxScenario(name, viewport) {
+  console.log(
+    `\n== ${name} : fond, spotlight, inclinaison 3D (${viewport.width}x${viewport.height})`,
+  );
+  const probe = (page) =>
+    page.evaluate(() => {
+      const box = document.querySelector(".wm-empty-box");
+      const bg = document.querySelector(".fx-bg");
+      return {
+        rx: box?.style.getPropertyValue("--rx") ?? "",
+        ry: box?.style.getPropertyValue("--ry") ?? "",
+        spot: box?.style.getPropertyValue("--mx") ?? "",
+        halo: bg?.style.getPropertyValue("--mx") ?? "",
+        transform: box ? getComputedStyle(box).transform : "",
+        running: document.getAnimations().length,
+        tilted: [...document.querySelectorAll("[data-tilt]")].every((n) =>
+          n.matches(".wm-empty-box, .ctn-state"),
+        ),
+      };
+    });
+  const aimBox = async (page, fx, fy) => {
+    const r = await page.locator(".wm-empty-box").boundingBox();
+    await page.mouse.move(r.x + r.width * fx, r.y + r.height * fy, { steps: 4 });
+    await sleep(350);
+  };
+  /** Session au bureau vide : la seule fenêtre (Approbations) est fermée. */
+  const emptyDesk = async (label, options = {}) => {
+    const session = await openSession(label, viewport, options);
+    await session.win("native:approvals").locator(".wm-close").click();
+    await until(() => session.page.locator(".wm-empty-box").isVisible(), "bureau vide");
+    return session;
+  };
+  // Effets actifs : le halo suit la souris, la carte héro s'incline (≤ 6°) et s'illumine.
+  const on = await emptyDesk(`${name}-on`);
+  await aimBox(on.page, 0.9, 0.1);
+  const p1 = await probe(on.page);
+  check(p1.halo.endsWith("px"), `halo : variables --mx/--my posées sur le fond (${p1.halo})`);
+  check(p1.spot.endsWith("px"), `spotlight : --mx posée sur la carte survolée (${p1.spot})`);
+  const ry = Number.parseFloat(p1.ry);
+  check(ry > 1 && ry <= 6, `inclinaison : rotateY dans ]1°, 6°] (${p1.ry})`);
+  check(p1.transform !== "none", "inclinaison : la carte héro est transformée en 3D");
+  check(
+    p1.tilted,
+    "inclinaison : seulement la carte héro et l'état Conteneurs (aucune approbation)",
+  );
+  // Captures de l'effet en action : spotlight sur la carte héro, puis connexion inclinée.
+  await sleep(1400);
+  await on.page.screenshot({ path: join(shots, `${name}-spotlight-carte.png`) });
+  await on.context.close();
+  for (const vp of [viewport, { width: 375, height: 812 }]) {
+    const lc = await browser.newContext({ viewport: vp, deviceScaleFactor: 1 });
+    const lp = await lc.newPage();
+    await lp.goto(`${origin}/login`);
+    await sleep(1700);
+    await lp.screenshot({ path: join(shots, `${name}-connexion-${vp.width}.png`) });
+    if (vp.width > 600) {
+      const r = await lp.locator(".lg-card").boundingBox();
+      await lp.mouse.move(r.x + r.width * 0.88, r.y + r.height * 0.12, { steps: 4 });
+      await sleep(500);
+      await lp.screenshot({ path: join(shots, `${name}-inclinaison-connexion.png`) });
+      const ry = await lp.locator(".lg-card").evaluate((n) => n.style.getPropertyValue("--ry"));
+      check(Number.parseFloat(ry) > 1, `connexion : la carte s'incline (${ry})`);
+    }
+    await lc.close();
+  }
+
+  // data-fx="off" : plus de suivi, plus d'inclinaison, plus d'animation.
+  const off = await emptyDesk(`${name}-off`);
+  await off.page.evaluate(() => {
+    document.documentElement.dataset.fx = "off";
+  });
+  // La souris a déjà bougé (clic de fermeture) avant l'interrupteur : le halo ne doit plus changer.
+  const p0 = await probe(off.page);
+  await aimBox(off.page, 0.9, 0.1);
+  const p2 = await probe(off.page);
+  check(p2.rx === "" && p2.ry === "", `data-fx=off : aucune inclinaison posée (${p2.ry})`);
+  check(
+    p2.halo === p0.halo && p2.spot === p0.spot,
+    "data-fx=off : le halo et le spotlight ne suivent plus",
+  );
+  check(p2.transform === "none", "data-fx=off : carte à plat");
+  check(p2.running === 0, `data-fx=off : aucune animation en cours (${p2.running})`);
+  check(off.violations.length === 0, `zéro violation CSP (${off.violations.join(" | ")})`);
+  await off.context.close();
+
+  // prefers-reduced-motion : même résultat.
+  const rm = await emptyDesk(`${name}-rm`, { reducedMotion: "reduce" });
+  await aimBox(rm.page, 0.9, 0.1);
+  const p3 = await probe(rm.page);
+  check(p3.rx === "" && p3.ry === "", "reduced-motion : aucune inclinaison posée");
+  check(
+    p3.halo === "" && p3.spot === "",
+    "reduced-motion : le halo et le spotlight ne suivent plus",
+  );
+  check(p3.transform === "none", "reduced-motion : carte à plat");
+  check(p3.running === 0, `reduced-motion : aucune animation en cours (${p3.running})`);
+  check(rm.violations.length === 0, `zéro violation CSP (${rm.violations.join(" | ")})`);
+  await rm.context.close();
+}
+
 /** Coquille : premier lancement, bureau vide, menu Ouvrir groupé, palette, liens profonds, accords Alt+J. */
 async function shellScenario(name, viewport) {
   console.log(
@@ -4966,6 +5067,7 @@ try {
   if (only("terminal-mobile"))
     await terminalPhoneScenario("terminal-mobile", { width: 375, height: 812 });
   if (only("motion")) await motionScenario("motion", { width: 1440, height: 900 });
+  if (only("fx")) await fxScenario("fx", { width: 1440, height: 900 });
   if (only("shell")) await shellScenario("shell", { width: 1440, height: 900 });
   if (only("shell-mobile")) await shellScenario("shell-mobile", { width: 375, height: 812 });
   if (only("dialogs")) await dialogScenario("dialogs", { width: 1440, height: 900 });

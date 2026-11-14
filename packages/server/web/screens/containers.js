@@ -92,6 +92,8 @@ export function createContainersScreen(
   top.append(refresh);
   const globalStatus = statusLine(doc);
   const stateBox = el(doc, "section", "scr-section ctn-state");
+  // Carte « héro » de l'écran : légère inclinaison 3D sous la souris (assets/motion.js).
+  stateBox.dataset.tilt = "";
   const imagesBox = el(doc, "section", "scr-section ctn-images");
   const containersBox = el(doc, "section", "scr-section ctn-containers");
   const projectsBox = el(doc, "section", "scr-section ctn-projects");

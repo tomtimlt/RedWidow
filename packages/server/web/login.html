@@ -4,19 +4,23 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>RedWidow — connexion</title>
+    <link rel="stylesheet" href="/assets/ui.css" />
     <link rel="stylesheet" href="/assets/login.css" />
   </head>
   <body>
-    <main class="box">
-      <img class="logo" src="/assets/logo.svg" alt="" width="48" height="40" />
-      <h1 class="brand">RedWidow</h1>
-      <p class="sub">Connectez-vous pour accéder au serveur.</p>
-      <form id="login" autocomplete="on">
-        <label for="password">Mot de passe</label>
-        <input id="password" name="password" type="password" autocomplete="current-password" required />
-        <button type="submit">Se connecter</button>
-        <p id="error" role="alert" hidden></p>
-      </form>
+    <main class="stage">
+      <p class="lg-kicker">Serveur · accès restreint</p>
+      <h1 class="brand" id="brand">RedWidow</h1>
+      <p class="sub" id="sub">Connectez-vous pour accéder au serveur.</p>
+      <section class="box lg-card" data-tilt>
+        <img class="logo" src="/assets/logo.svg" alt="" width="48" height="40" />
+        <form id="login" autocomplete="on">
+          <label for="password">Mot de passe</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required />
+          <button type="submit">Se connecter</button>
+          <p id="error" role="alert" hidden></p>
+        </form>
+      </section>
     </main>
     <script type="module" nonce="{{nonce}}" src="/login.js"></script>
   </body>

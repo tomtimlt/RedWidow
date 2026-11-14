@@ -1,7 +1,7 @@
 /*
  * Écrans natifs de la coquille (Conteneurs, Fournisseurs, Comptes de test, Trouvailles, Journal, Réglages)
- * et notifications non bloquantes. Thème « Épuré pro sombre » : graphite, accent rouge RedWidow, tableaux
- * denses, police mono pour les identifiants. La mise en page suit la largeur de la fenêtre (requêtes de conteneur),
+ * et notifications non bloquantes. Géométrie seulement ; la peau (pilules, cartes à reflet, pastilles,
+ * spotlight, animations) est dans assets/ui.css. Tableaux denses, police mono pour les identifiants. La mise en page suit la largeur de la fenêtre (requêtes de conteneur),
  * pas celle du navigateur. Aucun attribut `style`, aucune ressource distante.
  */
 
@@ -25,19 +25,12 @@
 .scr-section {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 16px;
-  border: 1px solid var(--rw-line);
-  border-radius: var(--rw-radius-lg);
-  background: var(--rw-surface);
+  gap: 12px;
+  padding: 20px;
 }
 
 .scr-h2 {
   margin: 0;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
   color: var(--rw-fg-muted);
 }
 
@@ -71,47 +64,15 @@
   color: var(--rw-fg-muted);
 }
 
-/* ───────────── Pastilles d'état ───────────── */
+/* ───────────── Pastilles d'état (couleurs de ton dans ui.css) ───────────── */
 .scr-badge {
   display: inline-flex;
   align-items: center;
-  padding: 2px 10px;
+  padding: 3px 12px;
   border: 1px solid transparent;
-  border-radius: 999px;
   font-size: 12px;
-  font-weight: 500;
   line-height: 18px;
   white-space: nowrap;
-}
-
-.scr-badge.tone-ok {
-  color: var(--rw-ok);
-  background: rgb(111 191 142 / 14%);
-}
-
-.scr-badge.tone-warn {
-  color: var(--rw-warn);
-  background: rgb(224 176 80 / 14%);
-}
-
-.scr-badge.tone-err {
-  color: var(--rw-err);
-  background: rgb(255 138 138 / 14%);
-}
-
-.scr-badge.tone-steel {
-  color: var(--rw-info);
-  background: rgb(138 164 191 / 14%);
-}
-
-.scr-badge.tone-crimson {
-  color: var(--rw-crimson-text);
-  background: rgb(204 28 64 / 16%);
-}
-
-.scr-badge.tone-mute {
-  color: var(--rw-fg-muted);
-  background: var(--rw-surface-3);
 }
 
 /* ───────────── Boutons et champs ───────────── */
@@ -120,17 +81,10 @@
   align-items: center;
   justify-content: center;
   min-height: var(--rw-ctl);
-  padding: 0 14px;
-  border: 1px solid var(--rw-line-strong);
-  border-radius: var(--rw-radius);
-  background: var(--rw-surface-2);
-  font-weight: 600;
+  padding: 0 18px;
   text-decoration: none;
   cursor: pointer;
   white-space: nowrap;
-  transition:
-    background-color var(--rw-ease),
-    border-color var(--rw-ease);
 }
 
 a.scr-btn {
@@ -143,50 +97,18 @@ a.scr-btn-primary {
 
 .scr-state .scr-badge {
   white-space: normal;
-  border-radius: var(--rw-radius-lg);
-}
-
-.scr-btn:hover:not(:disabled) {
-  background: var(--rw-surface-3);
-  border-color: var(--rw-fg-subtle);
+  border-radius: 16px;
 }
 
 .scr-btn:disabled,
 .scr-btn.is-disabled {
-  opacity: 0.45;
   cursor: not-allowed;
   pointer-events: none;
 }
 
-.scr-btn-primary {
-  border-color: var(--rw-crimson);
-  background: var(--rw-crimson);
-  color: var(--rw-on-accent);
-}
-
-.scr-btn-primary:hover:not(:disabled) {
-  border-color: var(--rw-crimson-hover);
-  background: var(--rw-crimson-hover);
-}
-
-.scr-btn-primary:active:not(:disabled) {
-  background: var(--rw-crimson-active);
-}
-
-.scr-btn-danger {
-  border-color: var(--rw-crimson);
-  background: transparent;
-  color: var(--rw-crimson-text);
-}
-
-.scr-btn-danger:hover:not(:disabled) {
-  border-color: var(--rw-crimson);
-  background: rgb(204 28 64 / 16%);
-}
-
 .scr-btn-icon {
   min-width: var(--rw-ctl);
-  padding: 0 8px;
+  padding: 0 10px;
   font-size: 12px;
 }
 
@@ -199,27 +121,8 @@ a.scr-btn-primary {
 .scr-input {
   min-height: var(--rw-ctl);
   min-width: 0;
-  padding: 0 12px;
-  border: 1px solid var(--rw-line-strong);
-  border-radius: var(--rw-radius);
-  background: var(--rw-surface-2);
-  color: var(--rw-fg);
+  padding: 0 16px;
   font: inherit;
-  transition: border-color var(--rw-ease);
-}
-
-.scr-input:hover {
-  border-color: var(--rw-fg-subtle);
-}
-
-.scr-input::placeholder {
-  color: var(--rw-fg-subtle);
-}
-
-.scr-input:focus-visible {
-  border-color: var(--rw-crimson-text);
-  outline: 2px solid var(--rw-crimson-text);
-  outline-offset: 2px;
 }
 
 .scr-secret {
@@ -299,8 +202,8 @@ input[type="checkbox"] {
   gap: 8px;
   padding: 4px 8px;
   border: 1px solid var(--rw-warn);
-  border-radius: var(--rw-radius);
-  background: rgb(224 176 80 / 8%);
+  border-radius: 20px;
+  background: rgb(245 158 11 / 8%);
 }
 
 .scr-confirm-q {
@@ -311,10 +214,11 @@ input[type="checkbox"] {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 12px 16px;
-  border: 1px solid var(--rw-crimson);
+  padding: 14px 18px;
+  border: 1px solid rgb(255 59 92 / 50%);
   border-radius: var(--rw-radius-lg);
-  background: rgb(204 28 64 / 10%);
+  background: rgb(255 59 92 / 9%);
+  box-shadow: var(--rw-glint);
 }
 
 .scr-warning p {
@@ -323,7 +227,7 @@ input[type="checkbox"] {
 
 /* ───────────── États vides ───────────── */
 .scr-empty {
-  padding: 24px 20px;
+  padding: 28px 22px;
   border: 1px dashed var(--rw-line-strong);
   border-radius: var(--rw-radius-lg);
   color: var(--rw-fg-muted);
@@ -331,7 +235,8 @@ input[type="checkbox"] {
 
 .scr-empty-title {
   margin: 0 0 6px;
-  font-weight: 650;
+  font-weight: 600;
+  letter-spacing: -0.02em;
   color: var(--rw-fg);
 }
 
@@ -343,9 +248,6 @@ input[type="checkbox"] {
 /* ───────────── Tableaux denses ───────────── */
 .scr-table-wrap {
   overflow-x: auto;
-  border: 1px solid var(--rw-line);
-  border-radius: var(--rw-radius-lg);
-  background: var(--rw-surface);
 }
 
 .scr-table {
@@ -354,20 +256,16 @@ input[type="checkbox"] {
 }
 
 .scr-table th {
-  padding: 10px 12px;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--rw-line);
   background: var(--rw-surface-2);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
   text-align: left;
-  text-transform: uppercase;
   color: var(--rw-fg-muted);
   white-space: nowrap;
 }
 
 .scr-table td {
-  padding: 10px 12px;
+  padding: 11px 14px;
   border-bottom: 1px solid var(--rw-line);
   vertical-align: middle;
   overflow-wrap: anywhere;
@@ -386,12 +284,12 @@ input[type="checkbox"] {
 }
 
 .scr-table tr.is-selected {
-  background: rgb(204 28 64 / 14%);
-  box-shadow: inset 2px 0 0 var(--rw-crimson);
+  background: rgb(255 59 92 / 12%);
+  box-shadow: inset 2px 0 0 var(--rw-crimson-vivid);
 }
 
 .scr-table tr.is-agent {
-  box-shadow: inset 2px 0 0 var(--rw-crimson);
+  box-shadow: inset 2px 0 0 var(--rw-crimson-vivid);
 }
 
 .scr-table .col-mono,
@@ -425,9 +323,9 @@ input[type="checkbox"] {
 }
 
 .scr-secret-value {
-  padding: 2px 8px;
+  padding: 2px 10px;
   border: 1px solid var(--rw-crimson);
-  border-radius: var(--rw-radius);
+  border-radius: var(--rw-pill);
   background: var(--rw-bg);
   color: var(--rw-crimson-text);
 }
@@ -448,10 +346,7 @@ input[type="checkbox"] {
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--rw-line);
-  border-radius: var(--rw-radius);
-  background: var(--rw-surface-2);
+  padding: 12px 16px;
 }
 
 /* ───────────── Réserve de clés ───────────── */
@@ -465,10 +360,7 @@ input[type="checkbox"] {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 12px;
-  border: 1px solid var(--rw-line);
-  border-radius: var(--rw-radius-lg);
-  background: var(--rw-surface-2);
+  padding: 16px;
 }
 
 .scr-pool-head {
@@ -491,26 +383,25 @@ input[type="checkbox"] {
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  padding: 6px 10px;
+  padding: 8px 12px;
   border: 1px solid var(--rw-line);
-  border-radius: var(--rw-radius);
-  background: var(--rw-surface);
+  border-radius: 14px;
+  background: var(--rw-surface-2);
 }
 
 .scr-key.is-active {
-  border-color: var(--rw-crimson);
-  box-shadow: inset 2px 0 0 var(--rw-crimson);
+  border-color: rgb(255 59 92 / 55%);
+  box-shadow: inset 2px 0 0 var(--rw-crimson-vivid);
 }
 
 .scr-key-rank {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: var(--rw-radius);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
   background: var(--rw-surface-3);
-  font-family: var(--rw-mono);
   font-size: 12px;
 }
 
@@ -538,8 +429,8 @@ input[type="checkbox"] {
   gap: 10px;
   padding: 6px 10px;
   border-left: 3px solid var(--rw-line-strong);
-  border-radius: 0 var(--rw-radius) var(--rw-radius) 0;
-  background: var(--rw-surface);
+  border-radius: 0 14px 14px 0;
+  background: var(--rw-surface-2);
   font-family: var(--rw-mono);
   font-size: 12.5px;
 }
@@ -553,7 +444,7 @@ input[type="checkbox"] {
 }
 
 .scr-feed-item.tone-crimson {
-  border-left-color: var(--rw-crimson);
+  border-left-color: var(--rw-crimson-vivid);
 }
 
 .scr-feed-time {
@@ -578,10 +469,7 @@ input[type="checkbox"] {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 16px;
-  border: 1px solid var(--rw-line-strong);
-  border-radius: var(--rw-radius-lg);
-  background: var(--rw-surface);
+  padding: 20px;
 }
 
 .scr-detail-head {
@@ -593,8 +481,10 @@ input[type="checkbox"] {
 
 .scr-detail-head .scr-h2 {
   text-transform: none;
-  letter-spacing: 0;
-  font-size: 15px;
+  letter-spacing: -0.02em;
+  font-family: var(--rw-font);
+  font-size: 17px;
+  font-weight: 600;
   color: var(--rw-fg);
 }
 
@@ -616,7 +506,6 @@ input[type="checkbox"] {
 
 .scr-evidence {
   border: 1px solid var(--rw-line);
-  border-radius: var(--rw-radius);
   background: var(--rw-bg);
 }
 
@@ -674,9 +563,6 @@ input[type="checkbox"] {
 
   .scr-table td::before {
     content: attr(data-label);
-    font-size: 11px;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
     color: var(--rw-fg-muted);
   }
 
@@ -741,26 +627,26 @@ input[type="checkbox"] {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 16px;
-  border: 1px solid var(--rw-line);
-  border-radius: var(--rw-radius-lg);
-  background: var(--rw-surface-2);
+  padding: 18px;
+}
+
+.ctn-card,
+.ctn-group {
+  background-color: var(--rw-surface-2);
 }
 
 .ctn-tolink {
-  border-color: var(--rw-crimson);
-  background: rgb(204 28 64 / 8%);
+  border-color: rgb(255 59 92 / 50%);
+  background-color: var(--rw-surface-2);
+  background-image: linear-gradient(180deg, rgb(255 59 92 / 12%), rgb(255 59 92 / 4%));
 }
 
 .ctn-prog {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 12px;
-  border: 1px solid var(--rw-line-strong);
-  border-left: 4px solid var(--rw-crimson);
-  border-radius: var(--rw-radius-lg);
-  background: var(--rw-surface-2);
+  padding: 14px 16px;
+  border-left: 4px solid var(--rw-crimson-vivid);
 }
 
 .ctn-prog-head {
@@ -788,11 +674,12 @@ input[type="checkbox"] {
 
 .ctn-bar {
   width: 100%;
-  height: 8px;
+  height: 10px;
   appearance: none;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--rw-pill);
   background: var(--rw-surface-3);
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 50%);
   overflow: hidden;
 }
 
@@ -801,16 +688,16 @@ input[type="checkbox"] {
 }
 
 .ctn-bar::-webkit-progress-value {
-  border-radius: 999px;
+  border-radius: var(--rw-pill);
   transition: width var(--rw-ease);
 }
 
 .ctn-bar::-webkit-progress-value {
-  background: var(--rw-crimson);
+  background: linear-gradient(90deg, var(--rw-crimson-bot), var(--rw-crimson-vivid));
 }
 
 .ctn-bar::-moz-progress-bar {
-  background: var(--rw-crimson);
+  background: linear-gradient(90deg, var(--rw-crimson-bot), var(--rw-crimson-vivid));
 }
 
 .ctn-layer {
@@ -898,16 +785,12 @@ input[type="checkbox"] {
   align-items: flex-start;
   gap: 10px;
   padding: 12px 16px;
-  border: 1px solid var(--rw-line-strong);
   border-left: 4px solid var(--rw-line-strong);
-  border-radius: var(--rw-radius-lg);
-  background: var(--rw-surface-3);
-  box-shadow: var(--rw-shadow-pop);
   pointer-events: auto;
 }
 
 .toast.tone-err {
-  border-left-color: var(--rw-crimson);
+  border-left-color: var(--rw-crimson-vivid);
 }
 
 .toast.tone-ok {
@@ -924,7 +807,6 @@ input[type="checkbox"] {
   min-width: 28px;
   min-height: 28px;
   border: 0;
-  border-radius: var(--rw-radius);
   background: transparent;
   color: var(--rw-fg-muted);
   font-size: 18px;

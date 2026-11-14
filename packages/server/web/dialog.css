@@ -1,6 +1,7 @@
 /*
  * Dialogues du serveur (lib/dialog.js) : modale centrée au bureau, feuille plein écran au téléphone.
- * Aucun style en ligne : tout passe par ces classes.
+ * Aucun style en ligne : tout passe par ces classes. Boutons, champs et cadre : peau commune (assets/ui.css).
+ * Aucun effet de relief ni de flou : les dialogues restent nets.
  */
 .dlg-overlay {
   position: fixed;
@@ -11,7 +12,7 @@
   align-items: center;
   justify-content: center;
   padding: 16px;
-  background: rgb(8 10 12 / 70%);
+  background: rgb(0 0 0 / 74%);
 }
 
 .dlg-overlay[hidden] {
@@ -24,17 +25,10 @@
   gap: 16px;
   width: min(560px, 100%);
   max-height: min(720px, 100%);
-  padding: 24px;
+  padding: 28px;
   overflow: hidden;
-  border: 1px solid var(--rw-line-strong);
-  border-radius: var(--rw-radius-lg);
-  background: var(--rw-surface);
   color: var(--rw-fg);
-  box-shadow: var(--rw-shadow-pop);
-}
-
-.dlg-box.is-danger {
-  border-color: var(--rw-crimson);
+  border-radius: 20px;
 }
 
 .dlg-head {
@@ -47,8 +41,9 @@
 
 .dlg-title {
   margin: 0;
-  font-size: 18px;
-  font-weight: 650;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
   overflow-wrap: anywhere;
 }
 
@@ -108,22 +103,12 @@
   box-sizing: border-box;
   width: 100%;
   min-height: var(--rw-ctl);
-  padding: 0 12px;
-  border: 1px solid var(--rw-line-strong);
-  border-radius: var(--rw-radius);
-  background: var(--rw-surface-2);
-  color: var(--rw-fg);
+  padding: 0 16px;
   font: inherit;
 }
 
 .dlg-input::placeholder {
   color: var(--rw-fg-subtle);
-}
-
-.dlg-input:focus-visible {
-  border-color: var(--rw-crimson-text);
-  outline: 2px solid var(--rw-crimson-text);
-  outline-offset: 2px;
 }
 
 /* ───────────── Choix ───────────── */
@@ -134,7 +119,8 @@
   max-height: 46vh;
   overflow: auto;
   border: 1px solid var(--rw-line);
-  border-radius: var(--rw-radius-lg);
+  border-radius: 16px;
+  background: var(--rw-bg);
 }
 
 .dlg-opt {
@@ -199,7 +185,7 @@
   gap: 10px;
   padding: 22px 14px;
   border: 2px dashed var(--rw-line-strong);
-  border-radius: var(--rw-radius-lg);
+  border-radius: 16px;
   text-align: center;
 }
 
@@ -224,7 +210,7 @@
   margin: 0;
   padding: 10px 12px;
   border: 1px solid var(--rw-line);
-  border-radius: var(--rw-radius);
+  border-radius: 14px;
   background: var(--rw-bg);
   font-family: var(--rw-mono);
   font-size: 13px;
@@ -253,42 +239,11 @@
 .dlg-btn {
   min-width: 96px;
   min-height: var(--rw-ctl);
-  padding: 0 16px;
-  border: 1px solid var(--rw-line-strong);
-  border-radius: var(--rw-radius);
-  background: var(--rw-surface-2);
-  font-weight: 600;
+  padding: 0 20px;
   cursor: pointer;
-  transition:
-    background-color var(--rw-ease),
-    border-color var(--rw-ease);
-}
-
-.dlg-btn:hover:not(:disabled) {
-  background: var(--rw-surface-3);
-  border-color: var(--rw-fg-subtle);
-}
-
-.dlg-btn.is-primary,
-.dlg-btn.is-danger {
-  border-color: var(--rw-crimson);
-  background: var(--rw-crimson);
-  color: var(--rw-on-accent);
-}
-
-.dlg-btn.is-primary:hover:not(:disabled),
-.dlg-btn.is-danger:hover:not(:disabled) {
-  border-color: var(--rw-crimson-hover);
-  background: var(--rw-crimson-hover);
-}
-
-.dlg-btn.is-primary:active:not(:disabled),
-.dlg-btn.is-danger:active:not(:disabled) {
-  background: var(--rw-crimson-active);
 }
 
 .dlg-btn:disabled {
-  opacity: 0.45;
   cursor: not-allowed;
 }
 

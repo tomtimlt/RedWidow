@@ -12,7 +12,7 @@ const HALT_TEXT = "Arrêt d'urgence actif : les agents sont arrêtés, ce termin
 const FONT = '"Warband JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace';
 /** Variable CSS de la charte → clé du thème xterm (les valeurs viennent de theme.css, rien en dur ici). */
 const THEME_VARS = {
-  background: "--rw-bg",
+  background: "--rw-surface",
   foreground: "--rw-fg",
   cursor: "--rw-crimson-text",
   cursorAccent: "--rw-bg",
@@ -35,12 +35,12 @@ const THEME_VARS = {
 };
 
 /**
- * Thème xterm lu dans les variables CSS de la page (graphite, curseur et sélection rouges). Une variable
+ * Thème xterm lu dans les variables CSS de la page (fond --surface, curseur et sélection rouges). Une variable
  * absente (document factice, feuille non chargée) laisse la valeur par défaut d'xterm.
  * @param {Document} doc
  */
 export function termTheme(doc) {
-  const theme = { selectionBackground: "rgba(204, 28, 64, 0.38)" };
+  const theme = { selectionBackground: "rgba(255, 59, 92, 0.38)" };
   try {
     const css = doc.defaultView.getComputedStyle(doc.documentElement);
     for (const [key, name] of Object.entries(THEME_VARS)) {
