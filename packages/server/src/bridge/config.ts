@@ -61,6 +61,7 @@ function checkTypes(values: Record<string, unknown>): boolean {
   if (v("locale") !== undefined && v("locale") !== "fr" && v("locale") !== "en") return false;
   if (v("palette") !== undefined && !isPalette(v("palette"))) return false;
   if (v("terminalPrompt") !== undefined && !isTerminalPrompt(v("terminalPrompt"))) return false;
+  if (v("effects") !== undefined && typeof v("effects") !== "boolean") return false;
   const model = v("model");
   if (model !== undefined && !(typeof model === "string" && model.length <= 200)) return false;
   return true;

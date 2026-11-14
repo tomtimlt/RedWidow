@@ -38,6 +38,8 @@ export const SETTING_KEYS = [
   "locale",
   "palette",
   "terminalPrompt",
+  // Effets visuels de la coquille (glitch, lignes de scan) : booléen, absent = activés.
+  "effects",
 ] as const;
 
 export const MAX_BYPASS_MINUTES = 48 * 60;
