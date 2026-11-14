@@ -1,0 +1,288 @@
+/*
+ * Harmonisation des pages de vue (iframes) avec le thème « Épuré pro sombre » de la coquille.
+ * Insérée par `src/web/view-page.ts` APRÈS la feuille de chaque page : à spécificité égale, elle l'emporte
+ * sur `media/css/*` (non modifiable). Elle ne redéfinit aucune variable `--jn-*` (la palette choisie par
+ * l'utilisateur reste maîtresse de la couleur de signature : liserés, liens, sélection) et ne porte aucune
+ * valeur hexadécimale : couleurs et tailles viennent des jetons de `theme.css` (`--rw-*`, `--vscode-*`).
+ * Rôle : boutons 8 px, champs 8 px, cartes 12 px (ombres douces : `--vscode-widget-shadow` de theme.css), Geist pour l'interface et JetBrains Mono
+ * pour le code seulement, accent plat (aucun dégradé, aucune lueur, aucune animation décorative), crochets
+ * « de verrouillage » remplacés par un simple contour. Les états (approbation, arrêt d'urgence, erreur)
+ * gardent leurs couleurs et leur lisibilité.
+ */
+
+/* ───────────────────────────── Fond et défilement ───────────────────────────── */
+html {
+  background: var(--rw-bg);
+  scrollbar-width: thin;
+  scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
+}
+body {
+  --rw-view-radius: var(--rw-radius);
+  -webkit-font-smoothing: antialiased;
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
+}
+
+/* ───────────────────────────── Typographie ─────────────────────────────
+ * Les étiquettes en capitales mono espacées deviennent du Geist normal, un peu appuyé ; la mono reste pour
+ * le code, les commandes, les hachages et les compteurs techniques. */
+body .label,
+body .codehead,
+body .grp-head,
+body .cfg-col h3,
+body .studio-group-title,
+body .studio-kicker,
+body .studio-kc-head,
+body .kc-legend-title,
+body .card-key {
+  font-family: var(--rw-font);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+body .badge,
+body .cockpit-linked-tag,
+body .mon-meta,
+body .hist-meta,
+body .kc-node-meta,
+body .thinking-clock {
+  font-family: var(--rw-font);
+}
+body .badge,
+body .cockpit-linked-tag {
+  font-weight: 500;
+}
+
+/* ───────────────────────────── Boutons ─────────────────────────────
+ * 8 px, hauteur confortable, transitions de 140 ms, aucun relief ni déplacement au survol. */
+body button,
+body button.ghost,
+body #composer button.ghost,
+body #bar button.ghost,
+body button.example,
+body #toolbar #send,
+body #toolbar #stop,
+body .tool-btn,
+body .msg-copy,
+body .hist-rename,
+body .studio-project-control,
+body .resource-toggle,
+body .resource-configure,
+body .provider-catalog-head > button,
+body.sessions #bar .seg button.ghost {
+  border-radius: var(--rw-radius);
+}
+body button {
+  min-height: 32px;
+  transition-duration: 140ms;
+}
+body button:active:not(:disabled):not([aria-disabled="true"]) {
+  transform: none;
+}
+body button.secondary,
+body button.ghost.secondary {
+  border-color: var(--rw-line-strong);
+}
+body[data-palette] button.primary:not(:disabled),
+body button.primary:not(:disabled) {
+  background-color: var(--vscode-button-background);
+  background-image: none;
+  color: var(--vscode-button-foreground);
+  font-weight: 500;
+  box-shadow: none;
+}
+body[data-palette] button.primary:hover:not(:disabled):not([aria-disabled="true"]) {
+  background-color: var(--vscode-button-hoverBackground);
+  outline: none;
+  transform: none;
+  box-shadow: none;
+}
+body[data-palette] button.primary:active:not(:disabled):not([aria-disabled="true"]) {
+  background-color: var(--rw-crimson-active);
+  transform: none;
+  box-shadow: none;
+}
+body button.danger {
+  border-color: var(--rw-line-strong);
+}
+body button.danger:hover:not(:disabled) {
+  border-color: var(--vscode-errorForeground);
+}
+body button:disabled,
+body button[aria-disabled="true"] {
+  opacity: 0.5;
+}
+
+/* ───────────────────────────── Champs ───────────────────────────── */
+body input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]),
+body select,
+body textarea,
+body #model-input,
+body #model-pop .pop-search,
+body .hist-project-filter,
+body .provider-catalog-search,
+body #viewer-filter,
+body .cockpit-field select {
+  border-radius: var(--rw-radius);
+}
+body input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]),
+body select {
+  min-height: 34px;
+  border-color: var(--vscode-input-border);
+}
+body input:focus-visible,
+body select:focus-visible,
+body textarea:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder);
+  outline-offset: 0;
+  border-color: var(--vscode-focusBorder);
+}
+body button:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+body #composer {
+  border-radius: var(--rw-radius-lg);
+}
+
+/* ───────────────────────────── Pastilles, segments et compteurs ───────────────────────────── */
+body .badge,
+body .cfg-level,
+body .chip,
+body .cockpit-count,
+body .cockpit-pill,
+body .cockpit-linked-tag,
+body .studio-count,
+body .studio-list-head .studio-count,
+body .studio-state,
+body .mon-count,
+body .mon-space,
+body .report-count,
+body .report-sev,
+body .card-risk,
+body .kc-legend-item,
+body .kc-selection,
+body .thinking-clock,
+body .roe,
+body #viewer-family,
+body .mission-step {
+  border-radius: 6px;
+}
+body #supervision,
+body #timeline,
+body #mission-steps,
+body .mon-strip,
+body .report-bar,
+body .eng-bar,
+body .studio-project-tabs,
+body.sessions #bar .seg,
+body .studio-nav-btn,
+body .studio-project-tab,
+body .kc-legend,
+body .studio-kc.legend-collapsed .kc-legend {
+  border-radius: var(--rw-radius);
+}
+body .studio-nav-btn,
+body .studio-project-tab {
+  border-radius: var(--rw-radius);
+}
+
+/* ───────────────────────────── Accent plat : plus de dégradé, de lueur ni de pulsation ───────────────────────────── */
+body[data-palette] #bar::after,
+body[data-palette] .studio-nav-title::after {
+  background: var(--jn-brand);
+}
+body[data-palette] #title .brand-ops {
+  background: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  color: color-mix(in srgb, var(--jn-brand) 68%, var(--vscode-foreground));
+}
+body[data-palette] .brand-lead,
+body[data-palette] .brand-node {
+  fill: var(--jn-brand);
+}
+body[data-palette] .mission-step.is-done .mission-mark {
+  background: var(--jn-brand);
+}
+body[data-palette] #effort-scale::before {
+  background: var(--jn-brand);
+}
+body[data-palette] #bypass-switch[aria-checked="true"]::after,
+body[data-palette] .roe[data-level="3"] .roe-gauge i {
+  background: var(--jn-brand);
+  animation: none;
+}
+
+/* Bypass actif : un contour plein de la couleur de signature et un badge plat, sans aura ni halo. */
+body[data-palette].bypass-on::after,
+body[data-palette].bypass-ending::after {
+  border: 2px solid var(--jn-brand);
+  border-image: none;
+  box-shadow: none;
+  animation: none;
+}
+body[data-palette] #bypass-badge {
+  background: var(--jn-brand);
+  animation: none;
+}
+body[data-palette].bypass-on #composer {
+  background: var(--vscode-input-background);
+  border-color: var(--jn-brand);
+  box-shadow: none;
+  animation: none;
+}
+
+/* ───────────────────────────── Cartes et ombres douces ───────────────────────────── */
+body .card {
+  border-radius: var(--rw-radius-lg);
+  background: color-mix(in srgb, var(--jn-card-accent) 4%, var(--rw-surface));
+  box-shadow: inset 2px 0 0 var(--jn-card-accent);
+}
+body .studio-card,
+body .cockpit-card,
+body .pal-card {
+  border-radius: var(--rw-radius-lg);
+}
+
+/* Crochets de verrouillage : remplacés par un liseré de 2 px de la couleur de signature (état sélectionné ou actif). */
+body .pal-card[aria-checked="true"]::after,
+body #approvals .card:not(.is-locked, .is-denied)::after,
+body .hist.current::after,
+body .studio-project-active::after,
+body .card.is-locked::after {
+  content: none;
+  animation: none;
+}
+body .pal-card[aria-checked="true"],
+body .hist.current,
+body .studio-project-active {
+  border-color: var(--rw-line-strong);
+  box-shadow: inset 2px 0 0 var(--jn-brand);
+}
+body .kc-node.is-selected .kc-node-head::after,
+body .kc-node.is-replay .kc-node-head::after {
+  background: none;
+  border: 2px solid var(--jn-brand);
+  border-radius: 50%;
+  animation: none;
+}
+
+/* Voyants : un simple point, sans pulsation. */
+body .mon-live,
+body .tone-wait .mon-dot,
+body .studio-space.is-running .dot {
+  animation: none;
+}
+
+/* ───────────────────────────── Cadres des listes et tableaux ───────────────────────────── */
+body table {
+  border-radius: var(--rw-radius);
+}
+body pre,
+body code {
+  font-family: var(--rw-mono);
+}

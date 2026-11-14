@@ -12,7 +12,7 @@ import { randomUUID } from "node:crypto";
 // feuille d'approbation du téléphone, page de vue en iframe (pont, `ready`), zéro violation CSP ;
 // lot 5 : deux terminaux xterm côte à côte (écho, resize, fermeture confirmée, reconnexion, bandeau
 // d'arrêt), palette alimentée par le serveur (mission, run), Journal (runs, audit), pastille du dock.
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { createServer as createNetServer } from "node:net";
 import { tmpdir } from "node:os";
@@ -4394,6 +4394,553 @@ async function filesPhoneScenario(name, viewport) {
   await context.close();
 }
 
+// ───────────────────────────── Captures et contrastes des pages de vue (lot 3) ─────────────────────────────
+
+/**
+ * Charge chaque page de vue dans un cadre de même origine (le « parent » rejoue les messages du moteur),
+ * capture 1440x900 et 375x812 et relève les contrastes du texte. `VIEWSHOTS_DIR` : dossier des captures
+ * (par défaut `test/web-shots/vues`) ; `VIEWSHOTS_PALETTES` : palettes (défaut `widow`, `sentinelle`).
+ */
+async function viewShotsScenario(name) {
+  console.log(`\n== ${name} : pages de vue (captures, contrastes, CSP)`);
+  resetScreens();
+  const outDir = process.env.VIEWSHOTS_DIR || join(shots, "vues");
+  mkdirSync(outDir, { recursive: true });
+  const { parseMarkdown } = await vscodeLogic("markdown");
+  const base = createChatState().view();
+  const iso = "2026-01-12T09:30:00.000Z";
+  const chatView = {
+    ...base,
+    conversation: "c1",
+    context: { usedTokens: 42000, windowTokens: 200000 },
+    items: [
+      { id: 1, kind: "user", text: "Peux-tu cartographier 10.0.0.5 et lister les ports ouverts ?" },
+      {
+        id: 2,
+        kind: "agent",
+        text: "ok",
+        blocks: parseMarkdown(
+          "Je lance un scan **nmap** sur l'hôte.\n\n- ports 22, 80, 443\n- bannière `OpenSSH 9.2`\n\n```\nnmap -sV 10.0.0.5\n22/tcp open ssh\n```\n\nVoir [la doc](https://example.test).",
+        ),
+      },
+      {
+        id: 3,
+        kind: "tool",
+        toolUseId: "t1",
+        tool: "Bash",
+        label: "Bash",
+        summary: "nmap -sV 10.0.0.5",
+        input: "nmap -sV 10.0.0.5",
+        status: "ok",
+        decision: "allow",
+        output: "22/tcp open ssh OpenSSH 9.2\n80/tcp open http nginx 1.25",
+      },
+      {
+        id: 4,
+        kind: "tool",
+        toolUseId: "t2",
+        tool: "Write",
+        label: "Écriture",
+        summary: "/workspace/notes.md",
+        input: "{}",
+        status: "denied",
+        decision: "deny",
+      },
+      { id: 5, kind: "notice", level: "error", text: "Erreur du fournisseur : délai dépassé." },
+      { id: 6, kind: "notice", level: "info", text: "Conversation reprise." },
+    ],
+    approvals: [
+      {
+        toolUseId: "a1",
+        tool: "Bash",
+        label: "Bash",
+        summary: "nmap -sS -p- 10.0.0.5",
+        detail: "nmap -sS -p- 10.0.0.5",
+        reason: "Commande à autoriser",
+        canRemember: true,
+      },
+      {
+        toolUseId: "a2",
+        tool: "Write",
+        label: "Écriture",
+        summary: "écrire /etc/hosts",
+        detail: "/etc/hosts",
+        reason: "Chemin sensible : ne se mémorise pas",
+        canRemember: false,
+      },
+    ],
+    busy: false,
+    history: [
+      {
+        id: "h1",
+        title: "Reconnaissance acme",
+        updatedAt: iso,
+        tools: 4,
+        provider: "claude",
+        model: "m",
+        current: true,
+      },
+    ],
+  };
+  const cite = {
+    quote: "Le périmètre couvre app.acme.test.",
+    url: "https://acme.test/policy",
+    retrievedAt: iso,
+    verified: true,
+  };
+  const program = {
+    state: "draft",
+    digest: "a".repeat(64),
+    inScope: { values: ["*.acme.test", "10.0.0.0/24"], citation: cite },
+    outOfScope: { values: ["pay.acme.test"], citation: { ...cite, verified: false } },
+    userAgentSuffix: { value: "acme-bounty-hunter", citation: cite },
+    pace: { value: { preset: "careful" }, citation: cite },
+    haltedHosts: ["slow.acme.test"],
+    canValidate: true,
+    canSuspend: false,
+  };
+  const sec = (value) => ({ value, citation: cite });
+  const engagement = {
+    state: "approved",
+    digest: "b".repeat(64),
+    approvedAt: iso,
+    sheet: {
+      authorization: sec({ principal: "Acme SA", reference: "RT-2026-07", signatory: "J. Martin" }),
+      window: sec({ text: "du 12 au 30 janvier, 20h-6h" }),
+      inScope: sec(["10.0.0.0/24", "*.acme.test"]),
+      infrastructure: sec(["c2.redteam.test"]),
+      outOfScope: sec(["pay.acme.test"]),
+      rulesOfEngagement: sec("Pas de déni de service ni d'exfiltration de données réelles."),
+      whiteTeam: sec({
+        contact: "wt@acme.test",
+        deconfliction: "Appel avant toute action bruyante.",
+      }),
+      osintPolicy: sec("Sources publiques uniquement."),
+    },
+    halt: { active: false },
+    campaign: {
+      state: "approved",
+      digest: "c".repeat(64),
+      approvedAt: iso,
+      threatSummary: sec("Adversaire motivé financièrement, accès initial par hameçonnage."),
+      objectives: [
+        { id: "o1", label: "Contrôle du domaine", successCriterion: "Compte admin obtenu" },
+      ],
+      steps: [
+        {
+          id: "s1",
+          label: "Reconnaissance",
+          tactic: "TA0043",
+          technique: "T1595",
+          objectiveId: "o1",
+          executed: true,
+          result: "success",
+        },
+        {
+          id: "s2",
+          label: "Hameçonnage ciblé",
+          tactic: "TA0001",
+          technique: "T1566",
+          objectiveId: "o1",
+          executed: true,
+          result: "partial",
+        },
+        { id: "s3", label: "Élévation de privilèges", tactic: "TA0004", executed: false },
+      ],
+      executed: 2,
+      total: 3,
+      percent: 66,
+      canValidate: false,
+      canSuspend: true,
+    },
+    journal: {
+      rows: [
+        {
+          ts: iso,
+          stepId: "s1",
+          stepLabel: "Reconnaissance",
+          technique: "T1595",
+          tactic: "TA0043",
+          target: "10.0.0.5",
+          result: "success",
+        },
+        {
+          ts: iso,
+          stepId: "s2",
+          stepLabel: "Hameçonnage ciblé",
+          technique: "T1566",
+          result: "failed",
+        },
+      ],
+      total: 2,
+    },
+    closure: null,
+    canValidate: false,
+    canSuspend: true,
+  };
+  const container = (n, state, family) => ({
+    name: `${family}-${n}`,
+    short: n,
+    image: family === "kali" ? "redwidow-kali:local" : "ghcr.io/example/exegol:full",
+    state,
+    family,
+    workspace: `/workspaces/acme/${n}`,
+    linked: n === "recon",
+    primary: n === "recon",
+    canLink: true,
+  });
+  const cockpit = {
+    type: "view",
+    projectWorkspace: "/workspaces/acme",
+    docker: "present",
+    daemon: "reachable",
+    exegol: "present",
+    linked: "running",
+    linkedBanner: {
+      name: "kali-recon",
+      short: "recon",
+      image: "redwidow-kali:local",
+      workspace: "/workspaces/acme/recon",
+      state: "running",
+    },
+    containers: [container("recon", "running", "kali"), container("web", "stopped", "exegol")],
+    program: { state: "approved", halted: 1 },
+    engagement: { state: "approved", campaign: "approved", halt: false },
+  };
+  const tiles = [
+    {
+      id: "m1",
+      name: "Mission 1",
+      title: "Reconnaissance acme",
+      location: "editor",
+      state: "approval",
+      model: "modèle",
+      project: "acme",
+      updatedAt: iso,
+      approvals: 2,
+    },
+    {
+      id: "m2",
+      name: "Mission 2",
+      title: "Audit web",
+      location: "editor",
+      state: "busy",
+      model: "modèle",
+      project: "acme",
+      updatedAt: iso,
+      approvals: 0,
+    },
+    {
+      id: "m3",
+      name: "Chat",
+      title: "",
+      location: "sidebar",
+      state: "idle",
+      model: "modèle",
+      project: "acme",
+      updatedAt: null,
+      approvals: 0,
+    },
+  ];
+  const projectChoices = {
+    activeId: PROJECT,
+    projects: [
+      { id: PROJECT, name: "Acme", workspace: "/workspaces/acme" },
+      { id: OLD_PROJECT, name: "Ancien client", workspace: "/workspaces/ancien" },
+    ],
+  };
+  const studioBase = {
+    type: "view",
+    projectId: PROJECT,
+    findings: findingItems,
+    sources: [],
+    projectChoices,
+    projectSummary: null,
+    repoPolicy: { state: "untrusted", digest: "d".repeat(64) },
+    audit: { tests: [], gaps: [], summary: null },
+    capabilities: { providers: ["claude"], skills: [], integrations: [] },
+    terminalPrompt: "default",
+    providerCatalog: [
+      { id: "claude", label: "Claude", connected: true },
+      { id: "openai", label: "OpenAI", connected: false },
+    ],
+    providerCatalogStatus: "ready",
+    providerAuthFile: "/home/user/.local/share/opencode/auth.json",
+    providerAuth: { claude: true, openai: false },
+    limits: { maxTurns: 40, ultracodeMaxTurns: null, ultracodeMaxBudgetUsd: null },
+    mcpCatalog: [],
+    mcpConfigured: [],
+    projectWorkspaceRoot: "/workspaces",
+    containers: cockpit.containers,
+    docker: "present",
+    daemon: "reachable",
+    exegol: "present",
+    linked: "running",
+    linkedBanner: cockpit.linkedBanner,
+  };
+  const evidence = [{ id: "e1", label: "scan nmap", kind: "text", text: "22/tcp open" }];
+  const report = missionReportPreview({ id: PROJECT, name: "acme" }, findingItems);
+  const viewerView = (items) => ({ ...base, items, busy: false });
+  const views = [
+    {
+      id: "chat",
+      path: "/view/chat?frame=m1",
+      attach: true,
+      ready: [
+        { type: "locale", locale: "fr" },
+        { type: "view", view: chatView },
+      ],
+    },
+    {
+      id: "cockpit",
+      path: "/view/cockpit?frame=cockpit",
+      ready: [{ type: "locale", locale: "fr" }, cockpit, { type: "focusCreate" }],
+    },
+    {
+      id: "studio-projet",
+      path: "/view/studio?frame=studio",
+      ready: [
+        { type: "locale", locale: "fr" },
+        { ...studioBase, page: "project" },
+      ],
+    },
+    {
+      id: "studio-fournisseurs",
+      path: "/view/studio?frame=studio",
+      ready: [
+        { type: "locale", locale: "fr" },
+        { ...studioBase, page: "providers" },
+      ],
+    },
+    {
+      id: "programme",
+      path: "/view/program?frame=program",
+      ready: [
+        { type: "locale", locale: "fr" },
+        { type: "view", view: program },
+      ],
+    },
+    {
+      id: "engagement",
+      path: "/view/engagement?frame=engagement",
+      ready: [
+        { type: "locale", locale: "fr" },
+        { type: "view", view: engagement },
+      ],
+    },
+    {
+      id: "killchain",
+      path: "/view/killchain?frame=killchain",
+      ready: [
+        { type: "locale", locale: "fr" },
+        { type: "view", page: "killchain", projectId: PROJECT, findings: findingItems, evidence },
+      ],
+    },
+    {
+      id: "monitor",
+      path: "/view/viewer?frame=m1&mode=monitor",
+      ready: [
+        { type: "locale", locale: "fr" },
+        { type: "title", text: "Mission 1" },
+        { type: "view", chatId: "m1", view: viewerView(chatView.items) },
+      ],
+    },
+    {
+      id: "rapport",
+      path: "/view/viewer?frame=m1&mode=report",
+      ready: [
+        { type: "locale", locale: "fr" },
+        { type: "view", view: viewerView([report]) },
+      ],
+    },
+    {
+      id: "sessions",
+      path: "/view/sessions?frame=sessions",
+      ready: [
+        { type: "locale", locale: "fr" },
+        { type: "view", tiles },
+      ],
+    },
+  ];
+  const palettes = (process.env.VIEWSHOTS_PALETTES || "widow,sentinelle").split(",");
+  const sizes = [
+    ["1440", { width: 1440, height: 900 }],
+    ["375", { width: 375, height: 812 }],
+  ];
+  // Relevé des contrastes dans le cadre : couleur du texte contre fond effectif (composition alpha).
+  const measure = () => {
+    const parse = (c) => {
+      const m = c.match(/rgba?\(([^)]+)\)/) ?? c.match(/color\(srgb ([^)]+)\)/);
+      if (!m) return null;
+      const p = m[1]
+        .split(/[ ,/]+/)
+        .filter(Boolean)
+        .map(Number);
+      const srgb = c.startsWith("color(");
+      return srgb ? [p[0] * 255, p[1] * 255, p[2] * 255, p[3] ?? 1] : [p[0], p[1], p[2], p[3] ?? 1];
+    };
+    const over = (top, under) => {
+      const a = top[3];
+      return [0, 1, 2].map((i) => top[i] * a + under[i] * (1 - a)).concat(1);
+    };
+    const lum = (rgb) => {
+      const [r, g, b] = rgb.map((v) => {
+        const s = v / 255;
+        return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const ratio = (a, b) => {
+      const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+      return (hi + 0.05) / (lo + 0.05);
+    };
+    const bgOf = (el) => {
+      const chain = [];
+      for (let n = el; n; n = n.parentElement) {
+        const bg = parse(getComputedStyle(n).backgroundColor);
+        if (bg && bg[3] > 0) chain.push(bg);
+        if (bg && bg[3] >= 1) break;
+      }
+      let acc = [15, 17, 20, 1];
+      for (const layer of chain.reverse()) acc = over(layer, acc);
+      return acc;
+    };
+    const rows = [];
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    const seen = new Set();
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      const el = n.parentElement;
+      if (!el || seen.has(el) || !n.textContent.trim()) continue;
+      seen.add(el);
+      const st = getComputedStyle(el);
+      if (st.visibility === "hidden" || st.display === "none" || el.closest("[hidden]")) continue;
+      const rect = el.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) continue;
+      const fg = parse(st.color);
+      if (!fg) continue;
+      const bg = bgOf(el);
+      let alpha = fg[3];
+      for (let n2 = el; n2; n2 = n2.parentElement) alpha *= Number(getComputedStyle(n2).opacity);
+      if (alpha < 0.05) continue;
+      const text = over([fg[0], fg[1], fg[2], alpha], bg);
+      const big =
+        Number.parseFloat(st.fontSize) >= 24 ||
+        (Number.parseFloat(st.fontSize) >= 18.66 && Number(st.fontWeight) >= 700);
+      rows.push({
+        r: ratio(text, bg),
+        big,
+        disabled: el.closest(":disabled,[aria-disabled=true]") !== null,
+        t: n.textContent.trim().slice(0, 40),
+        c: `${el.tagName.toLowerCase()}.${String(el.className).slice(0, 30)}`,
+      });
+    }
+    const bad = rows.filter((x) => x.r < (x.big ? 3 : 4.5) && !x.disabled);
+    return {
+      count: rows.length,
+      min: Math.min(...rows.filter((x) => !x.disabled).map((x) => x.r)),
+      bad: bad.length,
+      worst: bad.sort((a, b) => a.r - b.r).slice(0, 6),
+    };
+  };
+  const contrastLog = [];
+  for (const palette of palettes) {
+    for (const [sizeName, viewport] of sizes) {
+      const context = await browser.newContext({ viewport, deviceScaleFactor: 1 });
+      const page = await context.newPage();
+      const violations = [];
+      page.on("console", (m) => {
+        const t = m.text();
+        if (
+          (m.type() === "error" || m.type() === "warning") &&
+          /Content Security Policy|Refused to/i.test(t)
+        )
+          violations.push(t);
+      });
+      page.on("pageerror", (e) => violations.push(`pageerror : ${e.message}`));
+      await page.route(`${origin}/__harness`, (route) =>
+        route.fulfill({
+          contentType: "text/html",
+          body: `<!doctype html><html><body style="margin:0;background:#0f1114"><iframe id="f" style="border:0;width:100vw;height:100vh;display:block"></iframe><script>
+            const f = document.getElementById("f");
+            window.__ready = [];
+            window.__attach = [];
+            window.__seen = [];
+            const post = (msg) => f.contentWindow.postMessage({ rw: 1, msg }, location.origin);
+            window.addEventListener("message", (e) => {
+              if (e.source !== f.contentWindow || !e.data || e.data.rw !== 1 || !e.data.msg) return;
+              const m = e.data.msg;
+              window.__seen.push(m.type);
+              if (m.type === "ready") { for (const x of window.__ready) post(x); }
+              if (m.type === "attachPick" && window.__attach.length) post({ type: "attachmentPicked", requestId: m.requestId, attachment: window.__attach.shift() });
+            });
+            window.__post = post;
+          </script></body></html>`,
+        }),
+      );
+      await page.goto(`${origin}/login`);
+      await page.fill("#password", PASSWORD);
+      await page.click("button[type=submit]");
+      await page.waitForURL(`${origin}/`);
+      for (const v of views) {
+        await page.goto(`${origin}/__harness`);
+        const ready = [...v.ready, { type: "palette", value: palette }];
+        await page.evaluate(
+          ({ ready, attach, path }) => {
+            window.__ready = ready;
+            window.__attach = attach;
+            document.getElementById("f").src = path;
+          },
+          {
+            ready,
+            attach: v.attach
+              ? [
+                  { name: "notes.md", text: "# Notes\n10.0.0.5 ssh ouvert\n" },
+                  {
+                    name: "capture.png",
+                    mimeType: "image/png",
+                    data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAX+XDSwAAAABJRU5ErkJggg==",
+                  },
+                ]
+              : [],
+            path: v.path,
+          },
+        );
+        const frame = () => page.frames().find((fr) => fr.url().includes(v.path.split("?")[0]));
+        await until(async () => (await frame()?.locator("body").count()) === 1, `${v.id} chargé`);
+        await until(() => page.evaluate(() => window.__seen.includes("ready")), `${v.id} ready`);
+        await sleep(400);
+        if (v.attach) {
+          const btn = frame().locator("#attach-pick-btn");
+          for (let i = 0; i < 2; i++) {
+            await until(() => btn.isEnabled(), "joindre actif");
+            await btn.click();
+            await sleep(300);
+          }
+        }
+        await sleep(300);
+        await page.screenshot({ path: join(outDir, `${v.id}-${palette}-${sizeName}.png`) });
+        const m = await frame().evaluate(measure);
+        contrastLog.push({ view: v.id, palette, size: sizeName, ...m });
+        check(
+          m.bad === 0,
+          `contraste AA : ${v.id} ${palette} ${sizeName} (${JSON.stringify(m.worst.slice(0, 2))})`,
+        );
+      }
+      check(
+        violations.length === 0,
+        `zéro violation CSP (pages de vue ${palette} ${sizeName}) (${violations.slice(0, 3).join(" | ")})`,
+      );
+      await context.close();
+    }
+  }
+  writeFileSync(join(outDir, "contrastes.json"), JSON.stringify(contrastLog, null, 2));
+  for (const r of contrastLog.filter((x) => x.palette === palettes[0])) {
+    console.log(
+      `  ${r.view} ${r.size} : min ${r.min.toFixed(2)}, ${r.bad} sous le seuil / ${r.count}`,
+    );
+  }
+}
+
 try {
   // WEB_E2E_ONLY=<nom> : ne joue que ce scénario (mise au point).
   const only = (name) => !process.env.WEB_E2E_ONLY || process.env.WEB_E2E_ONLY === name;
@@ -4429,6 +4976,7 @@ try {
   if (only("files")) await filesScenario("files", { width: 1440, height: 900 });
   if (only("files")) await filesNoProjectScenario("files-noproject", { width: 1440, height: 900 });
   if (only("files-mobile")) await filesPhoneScenario("files-mobile", { width: 375, height: 812 });
+  if (only("viewshots")) await viewShotsScenario("viewshots");
   if (only("wm-budget-mobile")) {
     await budgetScenario("wm-budget-mobile", { width: 375, height: 812 }, 3);
   }

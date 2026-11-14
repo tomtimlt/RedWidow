@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { hashPassword } from "../src/auth/password.js";
 import { createServer } from "../src/http.js";
-import { renderViewPage, VIEW_PAGES, withBridge } from "../src/web/view-page.js";
+import { renderViewPage, VIEW_PAGES, withBridge, withViewExtras } from "../src/web/view-page.js";
 
 const webDir = fileURLToPath(new URL("../web", import.meta.url));
 const mediaDir = fileURLToPath(new URL("../../vscode/media", import.meta.url));
@@ -33,6 +33,13 @@ describe("pages de vue", () => {
       expect(scripts[0]).toContain('src="/bridge.js"');
       expect(html.indexOf("/theme.css")).toBeGreaterThan(-1);
       expect(html.indexOf("/theme.css")).toBeLessThan(html.indexOf("/media/css/base.css"));
+      // Feuille d'harmonisation : après base.css et la feuille propre à la page, une seule fois.
+      const sheets = [...html.matchAll(/<link rel="stylesheet" href="([^"]+)">/g)].map((m) => m[1]);
+      expect(sheets).toHaveLength(4);
+      expect(sheets[0]).toBe("/theme.css");
+      expect(sheets[1]).toBe("/media/css/base.css");
+      expect(sheets[2]).toMatch(/^\/media\/css\/[a-z]+\.css$/);
+      expect(sheets[3]).toBe("/view-extras.css");
       // Aucun script ni style inline, aucun gestionnaire d'événement, aucune ressource distante.
       expect(html).not.toMatch(/<script\b(?![^>]*\bsrc=)/);
       expect(html).not.toMatch(/\sstyle=/);
@@ -42,7 +49,9 @@ describe("pages de vue", () => {
       expect(html).toContain("style-src 'self'");
       // Les fichiers viennent de /media/.
       for (const [, src] of html.matchAll(/(?:src|href)="([^"]+)"/g)) {
-        expect(src).toMatch(/^\/(media\/|bridge\.js$|chat-extras\.js$|theme\.css$)/);
+        expect(src).toMatch(
+          /^\/(media\/|bridge\.js$|chat-extras\.js$|theme\.css$|view-extras\.css$)/,
+        );
       }
     },
   );
@@ -52,6 +61,15 @@ describe("pages de vue", () => {
       'data-kind="report"',
     );
     expect(renderViewPage("viewer", { nonce: NONCE })).toContain('data-kind="monitor"');
+  });
+
+  it("withViewExtras suit la dernière feuille, ne touche pas une page sans feuille", () => {
+    const html =
+      '<head><link rel="stylesheet" href="a.css"><link rel="stylesheet" href="b.css"></head><body></body>';
+    const out = withViewExtras(html);
+    expect(out.indexOf("/view-extras.css")).toBeGreaterThan(out.indexOf("b.css"));
+    expect(out.match(/view-extras\.css/g)).toHaveLength(1);
+    expect(withViewExtras("<p>rien</p>")).toBe("<p>rien</p>");
   });
 
   it("withBridge pose le pont et le thème une seule fois", () => {
@@ -172,6 +190,7 @@ describe("routes /view et /media", () => {
       "/media/css/base.css",
       "/shell.js",
       "/theme.css",
+      "/view-extras.css",
       "/",
     ]) {
       const res = await get(path, false);

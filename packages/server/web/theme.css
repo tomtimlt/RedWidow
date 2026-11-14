@@ -73,7 +73,7 @@
   --vscode-sideBar-background: var(--rw-surface);
   --vscode-panel-border: var(--rw-line);
   --vscode-widget-border: var(--rw-line);
-  --vscode-widget-shadow: rgb(0 0 0 / 70%);
+  --vscode-widget-shadow: rgb(0 0 0 / 45%);
   --vscode-focusBorder: var(--rw-crimson-text);
   --vscode-contrastBorder: transparent;
   --vscode-contrastActiveBorder: transparent;

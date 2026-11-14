@@ -42,7 +42,8 @@ export interface ViewPageOptions {
 
 /**
  * Page d'une vue : le HTML de l'extension (mêmes fonctions `*Html`, `cspSource` valant `'self'`), avec le
- * pont (`bridge.js`, avant tout script de la page) et les variables de thème (`theme.css`) insérés sous
+ * pont (`bridge.js`, avant tout script de la page), les variables de thème (`theme.css`, avant les
+ * feuilles) et l'harmonisation de forme (`view-extras.css`, après les feuilles de la page) insérés sous
  * le même nonce. Les données arrivent par le pont, jamais dans le HTML.
  */
 export function renderViewPage(
@@ -89,7 +90,7 @@ export function renderViewPage(
       body = viewerHtml({ ...page("viewer.js", "viewer.css"), kind: mode, uiUri: asset("ui.js") });
       break;
   }
-  return withBridge(body, nonce);
+  return withBridge(withViewExtras(body), nonce);
 }
 
 /**
@@ -100,6 +101,17 @@ export function withChatExtras(html: string, nonce: string): string {
   const tag = `<script nonce="${nonce}" src="/chat-extras.js"></script>\n`;
   const end = html.lastIndexOf("</body>");
   return end === -1 ? `${html}\n${tag}` : `${html.slice(0, end)}${tag}${html.slice(end)}`;
+}
+
+/**
+ * Insère `view-extras.css` juste après la dernière feuille de la page, pour qu'à spécificité égale elle
+ * l'emporte (rayons, ombres, mise à plat des effets de l'extension). Même origine, aucun style inline.
+ */
+export function withViewExtras(html: string): string {
+  const tag = '<link rel="stylesheet" href="/view-extras.css">';
+  let end = -1;
+  for (const m of html.matchAll(/<link rel="stylesheet"[^>]*>/g)) end = m.index + m[0].length;
+  return end === -1 ? html : `${html.slice(0, end)}\n${tag}${html.slice(end)}`;
 }
 
 /** Insère `theme.css` avant la première feuille et `bridge.js` avant le premier script. */
