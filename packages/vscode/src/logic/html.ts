@@ -177,7 +177,6 @@ export function chatHtml({
 
 <button id="research-next" type="button" class="chip research-request" aria-pressed="false" disabled>${icon("search", "ico chip-ico")}<span data-i18n="Rechercher pour ce message">${localized("Rechercher pour ce message", locale)}</span></button>
 <span class="spacer"></span><button id="cfg-btn" type="button" class="chip" popovertarget="cfg-pop" aria-haspopup="dialog" aria-expanded="false" data-i18n-aria-label="Configurer" aria-label="${localized("Configurer", locale)}" data-i18n-title="Configurer : raisonnement et exécution" title="${localized("Configurer : raisonnement et exécution", locale)}">${icon("sliders", "ico chip-ico")}<span class="cfg-text"><span data-i18n="Configurer">${localized("Configurer", locale)}</span></span><span id="cfg-level" class="cfg-level"></span>${icon("caret", "caret")}</button>
-<button id="stop" type="button" class="danger" data-i18n-title="Arrêter l&#x27;agent" title="${localized("Arrêter l'agent", locale)}">${icon("stop")}<span class="btn-text"><span data-i18n="Stop">${localized("Stop", locale)}</span></span></button>
 <button id="send" type="submit" class="primary" data-i18n-title="Envoyer (Entrée)" title="${localized("Envoyer (Entrée)", locale)}" data-i18n-aria-label="Envoyer" aria-label="${localized("Envoyer", locale)}">${icon("send")}</button>
 </div>
 </div>

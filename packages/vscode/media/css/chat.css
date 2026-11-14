@@ -496,17 +496,13 @@ body.paused .thinking-dots {
   border-color: var(--jn-focus);
   box-shadow: 0 0 0 1px var(--jn-focus);
 }
-#toolbar #send,
-#toolbar #stop {
+#toolbar #send {
   width: 28px;
   min-width: 28px;
   height: 28px;
   padding: 0;
 }
 #toolbar #send {
-  border-radius: var(--jn-r-pill);
-}
-#toolbar #stop {
   border-radius: var(--jn-r-pill);
 }
 #toolbar #send:active:not(:disabled) {
@@ -519,10 +515,6 @@ body.paused .thinking-dots {
 }
 #model-chip {
   max-width: 100%;
-}
-/* Un seul bouton : #send devient « Stop » pendant un tour quand la saisie est vide. */
-#toolbar #stop {
-  display: none;
 }
 .chip .chip-ico {
   width: 14px;
@@ -2299,12 +2291,6 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
     #toolbar
     #send:active:not(:disabled) {
     transform: scale(0.9);
-  }
-  body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light)
-    #toolbar
-    #stop:hover
-    .ico {
-    transform: scale(0.8);
   }
   /* Outils du compositeur et barre */
   body:not(.reduce-motion, .vscode-high-contrast, .vscode-high-contrast-light)

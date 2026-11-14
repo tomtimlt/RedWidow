@@ -281,7 +281,6 @@ describe("composer et Configurer (lot P1)", () => {
       "history-btn",
       "thinking",
       "send",
-      "stop",
       "monitor-btn",
       "killchain-btn",
       "no-provider-add",

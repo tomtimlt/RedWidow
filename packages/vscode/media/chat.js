@@ -26,7 +26,6 @@
   const historyList = $("history-list");
   const input = $("input");
   const send = $("send");
-  const stop = $("stop");
   const UI = globalThis.WarbandUI;
   // Ces liens portent uniquement des textes produit explicitement marqués par l().
   const productBindings = new Set();
@@ -1867,7 +1866,6 @@
     input.disabled = !!view.readonly || !!view.stopping || noProvider;
     mentionBtn.disabled = input.disabled;
     hashBtn.disabled = input.disabled;
-    stop.disabled = !view.busy || !!view.stopping;
     lastView = view;
     paintAttachments();
     applyBody();
@@ -2395,7 +2393,6 @@
   send.addEventListener("click", () => {
     if (send.type === "button" && !send.disabled) vscode.postMessage({ type: "stop" });
   });
-  stop.addEventListener("click", () => vscode.postMessage({ type: "stop" }));
   $("reset").addEventListener("click", () => resetConversation());
   vscode.postMessage({ type: "ready" });
 })();
