@@ -55,6 +55,9 @@ RUN apt-get update \
     && chown -R 10001:10001 /data \
     && chmod 700 /data
 COPY --from=dockercli /usr/local/bin/docker /usr/local/bin/docker
+# Module BuildKit (`docker build --progress …`, construction de l'image Kali depuis l'interface) : sans lui,
+# le client retombe sur l'ancien constructeur, qui refuse `--progress` (code 125).
+COPY --from=dockercli /usr/local/libexec/docker/cli-plugins/docker-buildx /usr/local/libexec/docker/cli-plugins/docker-buildx
 # Exegol : le serveur lance la CLI `exegol` (création des conteneurs depuis le cockpit). Aucune clé ni
 # licence dans l'image ; la configuration est écrite sous HOME (/data/home) au premier lancement.
 COPY --from=exegol /opt/exegol /opt/exegol
