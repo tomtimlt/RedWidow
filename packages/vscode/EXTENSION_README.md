@@ -70,7 +70,7 @@ History is shared by all projects. It is read-only; resuming a conversation from
 
 ## Uninstall
 
-Run **RedWidow: Clear token**, delete your containers in the Cockpit, then uninstall the extension. Some data stays on disk: `%APPDATA%\warband` or `~/.config/warband` (`XDG_CONFIG_HOME` is honored), the project folders (the folders you chose when creating or opening each project; existing projects may still live under `~/.exegol/workspaces`) and the extension's VS Code storage.
+Run **RedWidow: Clear token**, delete your containers in the Cockpit, then uninstall the extension. Some data stays on disk: `%APPDATA%\warband` or `~/.config/warband` (`XDG_CONFIG_HOME` is honored), the container folders (one folder per container under the containers root, setting `warband.containers.root`, holding `RedWidow/` and that container's projects; older projects may live elsewhere and are flagged "not associated") and the extension's VS Code storage.
 
 ## More
 

@@ -231,7 +231,7 @@ Les réglages sont lus au démarrage du moteur : pour les appliquer, **Nouvelle 
 Restent sur le disque, à supprimer à la main si vous le souhaitez :
 
 - la configuration : `%APPDATA%\warband` sous Windows, `~/.config/warband` ailleurs (`XDG_CONFIG_HOME` est respecté) ;
-- les dossiers de projets : ceux que vous avez choisis à la création ou à la reprise de chaque projet (les projets anciens peuvent rester sous `~/.exegol/workspaces`) ;
+- les dossiers des conteneurs : un dossier par conteneur sous la racine des conteneurs (réglage `warband.containers.root`), qui contient `RedWidow/` et les projets de ce conteneur (les projets anciens peuvent rester ailleurs, signalés « non associés ») ;
 - le stockage de l'extension dans VS Code (historique, caches) ;
 - les images et volumes Docker.
 
