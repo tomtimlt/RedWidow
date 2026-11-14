@@ -23,7 +23,13 @@ export interface ExegolCapabilities {
 
 /** Seuls les noms d'options effectivement annoncés par la CLI sont retenus. */
 export function parseExegolCapabilities(help: string): ExegolCapabilities {
-  return { flags: new Set(help.match(/--[A-Za-z][A-Za-z0-9-]*/g) ?? []) };
+  const flags = new Set(help.match(/--[A-Za-z][A-Za-z0-9-]*/g) ?? []);
+  // Exegol 6 abrège les options booléennes en `--[no-]log`, `--[no-]desktop`… : les deux formes existent.
+  for (const [, name] of help.matchAll(/--\[no-\]([A-Za-z][A-Za-z0-9-]*)/g)) {
+    flags.add(`--${name}`);
+    flags.add(`--no-${name}`);
+  }
+  return { flags };
 }
 
 function token(value: string, label: string): string {

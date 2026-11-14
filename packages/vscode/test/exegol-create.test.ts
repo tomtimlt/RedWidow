@@ -188,3 +188,42 @@ describe("création Exegol", () => {
     ).rejects.toThrow("vérifier les options");
   });
 });
+
+describe("aide d'Exegol 6 (options abrégées « --[no-]x »)", () => {
+  // Extrait réel de `exegol start --help` (Exegol 6.0.2).
+  const help = `
+  -w, --workspace WORKSPACE_PATH
+  --[no-]gui           Share the host GUI
+  --[no-]my-resources  Mount the my-resources volume
+  --[no-]exegol-resources
+  --network {host,docker,disabled,nat}
+  --vpn VPN             Setup an OpenVPN (.ovpn) or WireGuard (.conf) connection
+  --[no-]desktop       Enable the Exegol desktop feature (default: Disabled)
+  --desktop-config DESKTOP_CONFIG
+  -l, --[no-]log       Enable shell logging (commands and outputs)
+  --log-method {script,asciinema}
+`;
+
+  it("déduit les deux formes de chaque option abrégée", () => {
+    const { flags } = parseExegolCapabilities(help);
+    for (const flag of ["--log", "--no-log", "--desktop", "--no-desktop", "--gui", "--no-gui"])
+      expect(flags.has(flag)).toBe(true);
+    expect(flags.has("--exegol-resources") && flags.has("--no-my-resources")).toBe(true);
+  });
+
+  it("construit la commande sans refuser --log ni --no-desktop", () => {
+    const argv = buildExegolCreateArgv(
+      {
+        name: "exegol-1",
+        image: "free",
+        workspacePath: "/srv/redwidow/containers/exegol-1",
+        network: "nat",
+        desktop: false,
+      },
+      parseExegolCapabilities(help),
+    );
+    expect(argv).toContain("--log");
+    expect(argv).toContain("--no-desktop");
+    expect(argv.slice(0, 3)).toEqual(["start", "exegol-1", "free"]);
+  });
+});
