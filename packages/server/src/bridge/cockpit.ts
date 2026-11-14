@@ -767,9 +767,15 @@ export class CockpitGestures {
     let source: string;
     try {
       source = await validateSharedFolder(folderPath);
-    } catch {
+    } catch (error) {
       await discardFolder(folderPath);
-      throw new CodedError("folder.invalid");
+      // Motif précis du refus (introuvable, lien symbolique, données sensibles…) : textes fixes de
+      // `validateSharedFolder`, sans secret ; le dossier est nommé par son nom de conteneur, jamais par
+      // son chemin hôte.
+      const reason = error instanceof Error && error.message !== "" ? error.message : "";
+      throw new FixedMessage(
+        `${t("Dossier partagé automatique refusé")} (containers/${m.name})${reason ? ` : ${reason}` : ""}`,
+      );
     }
 
     let prepared: { shellPath: string; shellArgs: string[] };
