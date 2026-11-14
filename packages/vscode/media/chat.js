@@ -2141,6 +2141,8 @@
         ? t("Ce modèle ne prend pas les images en charge.")
         : t("La prise en charge des images par ce modèle est inconnue.");
     const isStop = !!lastView?.busy && !input.value.trim() && !draftFiles.length;
+    // Le bouton d'envoi fait déjà office d'arrêt : on cache le bouton d'arrêt séparé (un seul carré).
+    document.body.classList.toggle("send-is-stop", isStop);
     send.type = isStop ? "button" : "submit";
     send.replaceChildren(svg(isStop ? "stop" : "send"));
     send.title = t(isStop ? "Arrêter l'agent" : "Envoyer (Entrée)");
