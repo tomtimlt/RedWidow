@@ -59,6 +59,7 @@ Lots pour `dev` : objectif, fichiers, critères d'acceptation vérifiables.
 - [0053 — Terminal humain dans l'interface web](0053-terminal-humain-web.md) : exec Docker TTY dans Kali/Exegol, hors gate, journalisation complète masquée, non coupé par l'arrêt d'urgence.
 - [0054 — Identifiant enregistré par l'agent](0054-identifiant-enregistre-par-l-agent.md) : outil `store_credential` soumis à la gate, secret appris par le recorder avant journalisation, rangé au coffre du serveur.
 - [0055 — HostUi et fichiers web](0055-hostui-et-fichiers-web.md) : dialogues serveur → coquille (pick, input, confirm, file, external) sans valeur implicite, téléversement et téléchargement bornés à usage unique.
+- [0056 — Un projet vit dans un conteneur](0056-un-projet-vit-dans-un-conteneur.md) : racine `<données>/containers`, dossier partagé automatique par conteneur, projet impossible sans conteneur, liaison des anciens projets par une fenêtre de choix.
 
 Le statut accepté décrit la décision ; les preuves d’exécution et les limites
 figurent dans [l’état du projet](../etat-du-projet.md).
