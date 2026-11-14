@@ -39,6 +39,7 @@
   "config.burp.transport": "Transport of the MCP server installed in Burp Suite. Set in Settings › Project › Integrations.",
   "config.burp.transport.enum.0": "Official SSE on /sse",
   "config.burp.transport.enum.1": "Streamable HTTP on /mcp",
+  "config.containers.root": "Folder that holds one sub-folder per container created by RedWidow (kali-1, exegol-1...). Empty: RedWidow proposes one when you create your first container.",
   "config.terminalPrompt": "Prompt for new Docker Bash terminals opened by RedWidow. Existing terminals and shell configuration files are unchanged. Set in Settings › Global › Appearance.",
   "config.terminalPrompt.enum.0": "Original: keep the container's prompt",
   "config.terminalPrompt.enum.1": "RedWidow: two lines, user, host and current directory",

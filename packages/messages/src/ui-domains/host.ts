@@ -74,19 +74,13 @@ export const hostEn: Record<string, string> = {
   "Dossier OpenVPN (certificats séparés)": "OpenVPN folder (separate certificates)",
   "Configuration VPN Exegol": "Exegol VPN configuration",
   "Choisir le VPN": "Choose the VPN",
-  "Choisir le dossier partagé": "Choose the shared folder",
-  "Choisissez le dossier partagé.": "Choose the shared folder.",
-  "Le dossier partagé a changé. Choisissez-le à nouveau.":
-    "The shared folder changed. Choose it again.",
-  "Le dossier partagé doit être un chemin absolu.": "The shared folder must be an absolute path.",
-  "Le dossier partagé est introuvable.": "The shared folder was not found.",
-  "Le dossier partagé ne peut pas être un lien symbolique.":
-    "The shared folder cannot be a symbolic link.",
-  "Le dossier partagé doit être un dossier.": "The shared folder must be a folder.",
-  "Ce dossier ne peut pas être partagé : il expose des données sensibles.":
-    "This folder cannot be shared: it exposes sensitive data.",
-  "Conteneur créé sans liaison : le dossier du projet n'est pas dans ce dossier partagé.":
-    "Container created without a link: the project folder is not inside this shared folder.",
+  "Utiliser ce dossier": "Use this folder",
+  "Choisir un autre dossier…": "Choose another folder…",
+  "Où ranger les conteneurs ?": "Where should containers be stored?",
+  "Chaque conteneur reçoit son propre dossier sous une racine commune. Dossier proposé : {0}":
+    "Each container gets its own folder under a common root. Proposed folder: {0}",
+  "Choisir la racine des conteneurs": "Choose the containers root",
+  "Conteneur créé. Dossier partagé : {0}": "Container created. Shared folder: {0}",
   "{0} · Sortie": "{0} · Output",
   "{0} : chat, terminaux, cockpit, réglages ({1})": "{0}: chat, terminals, cockpit, settings ({1})",
   "Modèle par défaut": "Default model",

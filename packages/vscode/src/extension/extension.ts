@@ -1,7 +1,7 @@
 import { fork } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import {
   AuditStore,
@@ -81,9 +81,15 @@ import {
   setPrimary,
 } from "../logic/cockpit.js";
 import { listedContainerIdentity, removeListedContainer } from "../logic/container-remove.js";
+import {
+  createInReservedFolder,
+  ensureContainersRoot,
+  listFolderNames,
+  planContainer,
+} from "../logic/container-root.js";
 import { notifyWaitingHuman } from "../logic/continuation-notification.js";
 import { createEngineController } from "../logic/controller.js";
-import { awaitCreatedContainer, createAndLinkContainer } from "../logic/created-container-link.js";
+import { awaitCreatedContainer } from "../logic/created-container-link.js";
 import { prepareEditorShellWorkspace } from "../logic/editor-shell-workspace.js";
 import type { Provider } from "../logic/effort.js";
 import {
@@ -171,7 +177,6 @@ import {
   type SessionGridChat,
 } from "../logic/session-grid.js";
 import { machineValue, parseConfiguredIntegrations, resolveSettings } from "../logic/settings.js";
-import { resolveCreationShare, validateSharedFolder } from "../logic/shared-folder.js";
 import {
   createSharedHistoryIndex,
   createSharedJournalFiles,
@@ -206,11 +211,6 @@ import {
 } from "../logic/termlog.js";
 import { parseWindows, WINDOW_CAP, type WindowEntry } from "../logic/windows.js";
 
-/** Notice neutre : un conteneur sans liaison n'est pas une erreur (ADR 0050). */
-const NOT_LINKED_NOTICE = (hasProject: boolean) =>
-  hasProject
-    ? t("Conteneur créé sans liaison : le dossier du projet n'est pas dans ce dossier partagé.")
-    : t("Conteneur créé sans liaison : aucun projet actif.");
 const TOKEN_KEY = "warband.token";
 const TOKEN_KIND_KEY = "warband.tokenKind";
 const OPENAI_TOKEN_KEY = "warband.openai.apiKey";
@@ -1609,11 +1609,45 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     let alive = true;
     let operationAbort: AbortController | null = null;
     let selectedVpn: string | undefined;
-    /** Dossier partagé (chemin réel) issu du sélecteur de l'hôte, jamais d'un texte de la webview (ADR 0050). */
-    let sharedFolder: string | undefined;
-    const forgetSharedFolder = () => {
-      sharedFolder = undefined;
-      postCockpit({ type: "pickedSharedFolder", path: "" });
+    /** Racine des conteneurs : réglage machine, ou proposition au premier usage (ADR 0053). */
+    const requireContainersRoot = async (signal: AbortSignal): Promise<string> => {
+      const root = await ensureContainersRoot({
+        readSetting: () => {
+          const value = readMachineSetting("containers.root");
+          return typeof value === "string" ? value : undefined;
+        },
+        saveSetting: (path) => writeMachineSetting("containers.root", path),
+        home: () => homedir(),
+        confirmDefault: async (proposed) => {
+          const use = t("Utiliser ce dossier");
+          const other = t("Choisir un autre dossier…");
+          const choice = await vscode.window.showInformationMessage(
+            t("Où ranger les conteneurs ?"),
+            {
+              modal: true,
+              detail: t`Chaque conteneur reçoit son propre dossier sous une racine commune. Dossier proposé : ${proposed}`,
+            },
+            use,
+            other,
+          );
+          return choice === use ? "use" : choice === other ? "other" : undefined;
+        },
+        pickFolder: async () => {
+          const picked = await vscode.window.showOpenDialog({
+            canSelectFolders: true,
+            canSelectFiles: false,
+            canSelectMany: false,
+            openLabel: t("Choisir la racine des conteneurs"),
+          });
+          return picked?.[0]?.fsPath;
+        },
+      });
+      if (root === undefined) {
+        operationAbort?.abort();
+        signal.throwIfAborted();
+        throw new Error(t("Opération annulée"));
+      }
+      return root;
     };
     panel.onDidDispose(() => {
       operationAbort?.abort();
@@ -1650,7 +1684,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       postCockpit(localeMessage());
       if (loading) postCockpit({ type: "view", loading: true });
       try {
-        const payload = withMountIssue(await loadCockpitView());
+        const payload = withMountIssue(
+          await loadCockpitView({
+            containersRoot: () => {
+              const value = readMachineSetting("containers.root");
+              return typeof value === "string" ? value : undefined;
+            },
+          }),
+        );
         if (!alive) return;
         postCockpit(payload);
         broadcastContainers(payload.containers);
@@ -1881,58 +1922,57 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
               await controlListedContainer("stop", message.name);
             });
           case "createExegol":
-            return await runOperation(
-              t("Préparation Exegol…"),
-              async (signal, report) => {
-                if (message.vpn && !selectedVpn)
-                  throw new Error(t("Choisissez une configuration VPN avec le bouton VPN."));
-                if (
-                  (message.desktop || message.vpn) &&
-                  message.network !== undefined &&
-                  message.network !== "nat"
+            return await runOperation(t("Préparation Exegol…"), async (signal, report) => {
+              if (message.vpn && !selectedVpn)
+                throw new Error(t("Choisissez une configuration VPN avec le bouton VPN."));
+              if (
+                (message.desktop || message.vpn) &&
+                message.network !== undefined &&
+                message.network !== "nat"
+              )
+                throw new Error(t("Le VPN et le bureau web nécessitent le réseau NAT."));
+              signal.throwIfAborted();
+              const root = await requireContainersRoot(signal);
+              const plan = await planContainer("exegol", message.name, root, {
+                listContainerNames: async () =>
+                  (await shellDocker().listLabelPrefix({ signal })).map((row) => row.name),
+                listRootFolders: listFolderNames,
+              });
+              const containerName = `exegol-${plan.name}`;
+              const existing = await loadCockpitView();
+              if (
+                existing.containers.some(
+                  (item) => item.name === plan.name || item.short === plan.name,
                 )
-                  throw new Error(t("Le VPN et le bureau web nécessitent le réseau NAT."));
-                const existing = await loadCockpitView();
-                if (
-                  existing.containers.some(
-                    (item) => item.name === message.name || item.short === message.name,
-                  )
+              )
+                throw new Error(t("Ce conteneur existe déjà. Utilisez Démarrer dans la liste."));
+              if (
+                vscode.window.terminals.some((terminal) =>
+                  [`création ${plan.name}`, `creation ${plan.name}`].includes(
+                    productTitleSuffix(terminal.name) ?? "",
+                  ),
                 )
-                  throw new Error(t("Ce conteneur existe déjà. Utilisez Démarrer dans la liste."));
-                if (
-                  vscode.window.terminals.some((terminal) =>
-                    [`création ${message.name}`, `creation ${message.name}`].includes(
-                      productTitleSuffix(terminal.name) ?? "",
-                    ),
-                  )
-                )
-                  throw new Error(t("Une création de ce nom est déjà ouverte dans un terminal."));
-                signal.throwIfAborted();
-                const projectFile = await readProjects(defaultConfigDir());
-                const selectedProject = (projectFile && activeProject(projectFile)) || undefined;
-                const { source: shared, link: linkable } = await resolveCreationShare(
-                  message.shareMode,
-                  sharedFolder,
-                  selectedProject,
-                );
-                // Le dossier du projet n'est préparé que s'il se trouve dans le partage (liaison possible).
-                if (selectedProject && linkable)
-                  await prepareMissionFolder(selectedProject.workspace);
-                if (!selectedProject || !linkable) {
-                  const unlinkedWatch = new AbortController();
-                  const unlinkedSignal = AbortSignal.any([signal, unlinkedWatch.signal]);
-                  let unlinkedClose: vscode.Disposable | undefined;
-                  report({ stage: t("Création du conteneur dans le terminal…") });
-                  try {
-                    await awaitCreatedContainer(message.name, {
-                      signal: unlinkedSignal,
-                      list: () => shellDocker().listLabelPrefix({ signal: unlinkedSignal }),
+              )
+                throw new Error(t("Une création de ce nom est déjà ouverte dans un terminal."));
+              signal.throwIfAborted();
+              report({ stage: t("Création du conteneur dans le terminal…") });
+              const closed = new AbortController();
+              const watching = AbortSignal.any([signal, closed.signal]);
+              let terminalClose: vscode.Disposable | undefined;
+              try {
+                const folder = await createInReservedFolder(
+                  root,
+                  plan.folder,
+                  async (reserved) => {
+                    await awaitCreatedContainer(plan.name, {
+                      signal: watching,
+                      list: () => shellDocker().listLabelPrefix({ signal: watching }),
                       start: async () => {
                         const terminal = await startContainerTerminal(
                           {
-                            name: message.name,
+                            name: plan.name,
                             ...(message.image && { image: message.image }),
-                            workspacePath: shared,
+                            workspacePath: reserved,
                             ...(message.vpn && selectedVpn && { vpnPath: selectedVpn }),
                             ...(message.desktop !== undefined && { desktop: message.desktop }),
                             ...(message.desktopPort !== undefined && {
@@ -1945,150 +1985,110 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                           },
                           signal,
                         );
-                        unlinkedClose = vscode.window.onDidCloseTerminal((term) => {
-                          if (term === terminal) unlinkedWatch.abort();
+                        terminalClose = vscode.window.onDidCloseTerminal((term) => {
+                          if (term === terminal) closed.abort();
                         });
                       },
                     });
-                  } finally {
-                    unlinkedClose?.dispose();
-                  }
-                  return NOT_LINKED_NOTICE(selectedProject !== undefined);
-                }
-                report({ stage: t("Création du conteneur dans le terminal…") });
-                const closed = new AbortController();
-                const watching = AbortSignal.any([signal, closed.signal]);
-                let terminalClose: vscode.Disposable | undefined;
-                try {
-                  await createAndLinkContainer(selectedProject, message.name, {
-                    signal: watching,
-                    read: () => readProjects(defaultConfigDir()),
-                    list: () => shellDocker().listLabelPrefix({ signal: watching }),
-                    identity: (row) =>
-                      listedContainerIdentity(
-                        { inspect: (name) => shellDocker().inspect(name, { signal: watching }) },
-                        row,
+                    return reserved;
+                  },
+                  {
+                    containerExists: async () =>
+                      (await shellDocker().listLabelPrefix()).some(
+                        (row) => row.name === containerName,
                       ),
-                    start: async () => {
-                      const terminal = await startContainerTerminal(
-                        {
-                          name: message.name,
-                          ...(message.image && { image: message.image }),
-                          workspacePath: shared,
-                          ...(message.vpn && selectedVpn && { vpnPath: selectedVpn }),
-                          ...(message.desktop !== undefined && { desktop: message.desktop }),
-                          ...(message.desktopPort !== undefined && {
-                            desktopPort: message.desktopPort,
-                          }),
-                          network: message.network ?? "nat",
-                          gui: false,
-                          exegolResources: message.shareResources ?? true,
-                          myResources: message.shareMyResources ?? true,
-                        },
-                        signal,
-                      );
-                      terminalClose = vscode.window.onDidCloseTerminal((term) => {
-                        if (term === terminal) closed.abort();
-                      });
-                    },
-                    link: (name, projectId, verify) => linkForProject(name, projectId, verify),
-                  });
-                } finally {
-                  terminalClose?.dispose();
-                }
-                return t("Conteneur créé et lié au projet après vérification du partage.");
-              },
-              forgetSharedFolder,
-            );
+                  },
+                );
+                return t`Conteneur créé. Dossier partagé : ${folder}`;
+              } finally {
+                terminalClose?.dispose();
+              }
+            });
           case "createKali":
-            return await runOperation(
-              t("Préparation de l’image Kali…"),
-              async (signal, report) => {
-                const recorder = createRecorder();
-                let lastReport = 0;
-                const unsubscribe = recorder.subscribe((event) => {
-                  if (event.kind === "process.output" && Date.now() - lastReport > 250) {
-                    lastReport = Date.now();
-                    report({
-                      stage: t("Préparation de l’image Kali…"),
-                      message: event.line.slice(-512),
-                    });
-                  }
-                });
-                try {
-                  const projectFile = await readProjects(defaultConfigDir());
-                  const selectedProject = (projectFile && activeProject(projectFile)) || undefined;
-                  const { source: shared, link: linkable } = await resolveCreationShare(
-                    message.shareMode,
-                    sharedFolder,
-                    selectedProject,
-                  );
-                  // Le dossier du projet n'est préparé que s'il se trouve dans le partage (liaison possible).
-                  if (selectedProject && linkable)
-                    await prepareMissionFolder(selectedProject.workspace);
-                  const options = {
-                    recorder,
-                    signal,
-                    onProgress: (progress: import("@warband/core").DockerImageProgress) =>
-                      report({
-                        stage:
-                          progress.stage === "build"
-                            ? t("Installation des outils Kali…")
-                            : t("Téléchargement de l’image…"),
-                        message: progress.status,
-                        layers: progress.layers,
-                      }),
-                  };
-                  const image =
-                    message.image === WARBAND_KALI_IMAGE
-                      ? await ensureWarbandKaliImage(options)
-                      : message.image;
-                  if (message.image !== WARBAND_KALI_IMAGE) {
-                    const images = await listCockpitImages();
-                    // Les deux références proposées ne prouvent pas leur présence locale.
-                    const local = await createDockerClient({ recorder, binary: "docker" }).images();
-                    if (
-                      !local.some(
-                        (item) => `${item.repository}:${item.tag}` === image || item.id === image,
-                      )
-                    ) {
-                      if (!images.includes(image))
-                        throw new Error(t("Image Kali absente de la sélection courante."));
-                      await pullDockerImage(image, options);
-                    }
-                  }
-                  signal.throwIfAborted();
-                  report({ stage: t("Création et démarrage du conteneur…"), layers: [] });
-                  await createDockerClient({ recorder, binary: "docker" }).createKaliContainer({
-                    image,
-                    name: message.name,
-                    source: shared,
-                    signal,
+            return await runOperation(t("Préparation de l’image Kali…"), async (signal, report) => {
+              const recorder = createRecorder();
+              let lastReport = 0;
+              const unsubscribe = recorder.subscribe((event) => {
+                if (event.kind === "process.output" && Date.now() - lastReport > 250) {
+                  lastReport = Date.now();
+                  report({
+                    stage: t("Préparation de l’image Kali…"),
+                    message: event.line.slice(-512),
                   });
-                  signal.throwIfAborted();
-                  report({ stage: t("Vérification du serveur MCP Kali…"), layers: [] });
-                  await prepareKaliContainer(message.name, {
-                    recorder,
-                    signal,
-                    onStage: (stage) => report({ stage: t`Serveur MCP Kali : ${stage}` }),
-                  });
-                  if (!selectedProject || !linkable)
-                    return NOT_LINKED_NOTICE(selectedProject !== undefined);
-                  const latest = await readProjects(defaultConfigDir());
-                  if (
-                    latest?.activeId !== selectedProject.id ||
-                    activeProject(latest)?.workspace !== selectedProject.workspace
-                  )
-                    throw Error(t("Le projet a changé pendant la préparation."));
-                  report({ stage: t("Liaison au projet…"), layers: [] });
-                  await linkForProject(message.name, selectedProject.id);
-                } finally {
-                  unsubscribe();
-                  recorder.close();
                 }
-              },
-              forgetSharedFolder,
-            );
+              });
+              try {
+                const root = await requireContainersRoot(signal);
+                const plan = await planContainer("kali", message.name, root, {
+                  listContainerNames: async () =>
+                    (await shellDocker().listLabelPrefix({ signal })).map((row) => row.name),
+                  listRootFolders: listFolderNames,
+                });
+                if ((await loadCockpitView()).containers.some((item) => item.name === plan.name))
+                  throw new Error(t("Ce conteneur existe déjà. Utilisez Démarrer dans la liste."));
+                const options = {
+                  recorder,
+                  signal,
+                  onProgress: (progress: import("@warband/core").DockerImageProgress) =>
+                    report({
+                      stage:
+                        progress.stage === "build"
+                          ? t("Installation des outils Kali…")
+                          : t("Téléchargement de l’image…"),
+                      message: progress.status,
+                      layers: progress.layers,
+                    }),
+                };
+                const image =
+                  message.image === WARBAND_KALI_IMAGE
+                    ? await ensureWarbandKaliImage(options)
+                    : message.image;
+                if (message.image !== WARBAND_KALI_IMAGE) {
+                  const images = await listCockpitImages();
+                  // Les deux références proposées ne prouvent pas leur présence locale.
+                  const local = await createDockerClient({ recorder, binary: "docker" }).images();
+                  if (
+                    !local.some(
+                      (item) => `${item.repository}:${item.tag}` === image || item.id === image,
+                    )
+                  ) {
+                    if (!images.includes(image))
+                      throw new Error(t("Image Kali absente de la sélection courante."));
+                    await pullDockerImage(image, options);
+                  }
+                }
+                signal.throwIfAborted();
+                report({ stage: t("Création et démarrage du conteneur…"), layers: [] });
+                const folder = await createInReservedFolder(
+                  root,
+                  plan.folder,
+                  async (reserved) => {
+                    await createDockerClient({ recorder, binary: "docker" }).createKaliContainer({
+                      image,
+                      name: plan.name,
+                      source: reserved,
+                      signal,
+                    });
+                    return reserved;
+                  },
+                  {
+                    containerExists: async () =>
+                      (await shellDocker().listLabelPrefix()).some((row) => row.name === plan.name),
+                  },
+                );
+                signal.throwIfAborted();
+                report({ stage: t("Vérification du serveur MCP Kali…"), layers: [] });
+                await prepareKaliContainer(plan.name, {
+                  recorder,
+                  signal,
+                  onStage: (stage) => report({ stage: t`Serveur MCP Kali : ${stage}` }),
+                });
+                return t`Conteneur créé. Dossier partagé : ${folder}`;
+              } finally {
+                unsubscribe();
+                recorder.close();
+              }
+            });
           case "remove":
             return await runOperation(t("Suppression du conteneur…"), async (signal) => {
               const result = await removeListedContainer(message.name, {
@@ -2150,24 +2150,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           case "listImages":
             postCockpit({ type: "images", images: await listCockpitImages() });
             return;
-          case "pickSharedFolder": {
-            const picked = await vscode.window.showOpenDialog({
-              canSelectFolders: true,
-              canSelectFiles: false,
-              canSelectMany: false,
-              openLabel: t("Choisir le dossier partagé"),
-            });
-            const chosen = picked?.[0]?.fsPath;
-            if (chosen === undefined) return;
-            try {
-              const real = await validateSharedFolder(chosen);
-              sharedFolder = real;
-              postCockpit({ type: "pickedSharedFolder", path: real });
-            } catch (error) {
-              void vscode.window.showErrorMessage(formatError(error, getUiLocale()));
-            }
-            return;
-          }
         }
       } catch (error) {
         void vscode.window.showErrorMessage(formatError(error, getUiLocale()));

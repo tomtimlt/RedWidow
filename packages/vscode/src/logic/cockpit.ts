@@ -31,14 +31,9 @@ import {
 } from "@warband/core";
 import { formatError, getUiLocale, t } from "@warband/messages";
 import { PRODUCT_NAME, productTitleSuffix } from "./brand.js";
+import { listFolderNames, suggestName } from "./container-root.js";
 import { projectInSharedFolder } from "./shared-folder.js";
 import { encodedBashScript } from "./terminal-prompt.js";
-
-/**
- * Mode de partage d'un conteneur créé (ADR 0052) : « project » partage le dossier du projet actif
- * (relu par l'hôte), « multi » un dossier parent choisi par le sélecteur de l'hôte (ADR 0050).
- */
-export type CockpitShareMode = "project" | "multi";
 
 /** Messages acceptés depuis la webview cockpit (non fiables). */
 export type CockpitMessage =
@@ -56,7 +51,6 @@ export type CockpitMessage =
   | {
       type: "createExegol";
       name: string;
-      shareMode: CockpitShareMode;
       image?: string;
       vpn?: boolean;
       desktop?: boolean;
@@ -68,9 +62,8 @@ export type CockpitMessage =
   | { type: "remove"; name: string }
   | { type: "pickVpn" }
   | { type: "cancelOperation" }
-  | { type: "createKali"; image: string; name: string; shareMode: CockpitShareMode }
+  | { type: "createKali"; image: string; name: string }
   | { type: "listImages" }
-  | { type: "pickSharedFolder" }
   | { type: "moveProject" }
   | { type: "dismissMountIssue" };
 
@@ -78,10 +71,12 @@ const CONTAINER_NAME_MAX = 256;
 /** Nom saisi pour créer : une lettre ou un chiffre, puis au plus 63 caractères `.`, `_` ou `-`. */
 const CREATE_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
 const IMAGE_MAX = 256;
-const SOURCE_MAX = 4096;
 
 const isCreateName = (value: unknown): value is string =>
   typeof value === "string" && CREATE_NAME.test(value);
+/** Nom vide : l'hôte choisit le prochain nom libre (ADR 0053, point 2). */
+const isOptionalCreateName = (value: unknown): value is string =>
+  value === "" || isCreateName(value);
 
 /** Même motif que `assertOperand`, borné à 256 caractères. */
 const isImageRef = (value: unknown): value is string => {
@@ -93,18 +88,6 @@ const isImageRef = (value: unknown): value is string => {
     return false;
   }
 };
-
-/** Chemin hôte non vide, sans NUL ni saut de ligne, au plus 4096 caractères. */
-const isSourcePath = (value: unknown): value is string =>
-  typeof value === "string" &&
-  value.length > 0 &&
-  value.length <= SOURCE_MAX &&
-  !value.includes("\0") &&
-  !value.includes("\n") &&
-  !value.includes("\r");
-
-const isShareMode = (value: unknown): value is CockpitShareMode =>
-  value === "project" || value === "multi";
 
 /** Même validation que l'activation d'un projet du studio (UUID v4). */
 const isProjectId = (value: unknown): value is string =>
@@ -147,9 +130,7 @@ export function parseCockpitMessage(raw: unknown): CockpitMessage | null {
         !only(
           "type",
           "name",
-          "shareMode",
           "image",
-          "source",
           "vpn",
           "desktop",
           "desktopPort",
@@ -157,15 +138,11 @@ export function parseCockpitMessage(raw: unknown): CockpitMessage | null {
           "shareResources",
           "shareMyResources",
         ) ||
-        !isCreateName(m.name) ||
-        !isShareMode(m.shareMode)
+        !isOptionalCreateName(m.name)
       )
         return null;
-      // Mode projet : le dossier vient du projet actif, jamais d'une source de la webview.
-      if (m.shareMode === "project" && m.source !== undefined) return null;
       if (m.image !== undefined && (typeof m.image !== "string" || !CREATE_NAME.test(m.image)))
         return null;
-      if (m.source !== undefined && m.source !== "" && !isSourcePath(m.source)) return null;
       for (const key of ["vpn", "desktop", "shareResources", "shareMyResources"])
         if (m[key] !== undefined && typeof m[key] !== "boolean") return null;
       if (
@@ -177,22 +154,14 @@ export function parseCockpitMessage(raw: unknown): CockpitMessage | null {
         return null;
       if (m.network !== undefined && !["nat", "host", "disabled"].includes(String(m.network)))
         return null;
-      // `source` reste toléré (anciennes webviews) mais n'est jamais retransmis : le dossier
-      // partagé vient du sélecteur de l'hôte (ADR 0050).
-      const { source: _ignored, ...kept } = m;
-      return kept as Extract<CockpitMessage, { type: "createExegol" }>;
+      // Le dossier partagé est toujours celui que l'hôte réserve sous la racine (ADR 0053).
+      return m as Extract<CockpitMessage, { type: "createExegol" }>;
     }
     case "createKali":
-      return only("type", "image", "name", "source", "shareMode") &&
-        isImageRef(m.image) &&
-        isCreateName(m.name) &&
-        isShareMode(m.shareMode) &&
-        (m.source === undefined ||
-          (m.shareMode === "multi" && (m.source === "" || isSourcePath(m.source))))
-        ? { type: "createKali", image: m.image, name: m.name, shareMode: m.shareMode }
+      return only("type", "image", "name") && isImageRef(m.image) && isOptionalCreateName(m.name)
+        ? { type: "createKali", image: m.image, name: m.name }
         : null;
     case "listImages":
-    case "pickSharedFolder":
     case "moveProject":
     case "dismissMountIssue":
     case "pickVpn":
@@ -422,6 +391,10 @@ export interface CockpitViewPayload {
   containers: CockpitContainerView[];
   /** Dossier du projet absent du partage d'un conteneur lié : bandeau à trois actions. */
   mountIssue?: CockpitMountIssue;
+  /** Racine des conteneurs (réglage machine) ; absente tant qu'elle n'est pas choisie (ADR 0053). */
+  containersRoot?: string;
+  /** Prochain nom libre par type : suffixe pour Exegol (`1`), nom complet pour Kali (`kali-1`). */
+  suggestedName?: { kali: string; exegol: string };
   /** Échec du démon (pas de liste périmée). */
   error?: string;
   /** Projet illisible : pas de terminal. */
@@ -454,6 +427,9 @@ export interface CockpitDeps {
   readProj?: typeof readProjects;
   linkProject?: typeof link;
   setPrimaryContainerFn?: typeof setPrimaryContainer;
+  /** Racine des conteneurs (réglage machine) ; sert au nom suggéré et à l'affichage du dossier. */
+  containersRoot?: () => string | undefined;
+  listRootFolders?: (root: string) => Promise<string[]>;
 }
 
 /** Dossier du projet actif et le conteneur affiché (`primary`, sinon l'unique conteneur lié). */
@@ -666,6 +642,12 @@ export async function loadCockpitView(deps: CockpitDeps = {}): Promise<CockpitVi
   );
 
   const engagement = active ? engagementLine(configDir, active.id) : undefined;
+  const root = deps.containersRoot?.();
+  const hasRoot = typeof root === "string" && root !== "";
+  const taken = [
+    ...rows.map((r) => r.name),
+    ...(hasRoot ? await (deps.listRootFolders ?? listFolderNames)(root) : []),
+  ];
   return {
     type: "view",
     docker: "present",
@@ -674,6 +656,8 @@ export async function loadCockpitView(deps: CockpitDeps = {}): Promise<CockpitVi
     linked,
     linkedBanner,
     containers,
+    ...(hasRoot && { containersRoot: root }),
+    suggestedName: { kali: suggestName("kali", taken), exegol: suggestName("exegol", taken) },
     ...(active && { projectWorkspace: active.workspace }),
     ...(active && { program: programLine(configDir, active.id) }),
     ...(engagement && { engagement }),

@@ -1,26 +1,17 @@
 // Libellés de la webview, indexés par leur texte français.
 export const cockpitEn: Record<string, string> = {
-  "Conteneur créé et lié au projet après vérification du partage.":
-    "Container created and linked to the project after share verification.",
-  "Le conteneur partage ce dossier. Il sera lié au projet actif si le dossier du projet s'y trouve.":
-    "The container shares this folder. It will be linked to the active project if the project folder is inside it.",
   "Créer un conteneur pour ce projet": "Create a container for this project",
   "Choisir un autre conteneur": "Choose another container",
   "Créer un conteneur pour ce projet est recommandé.":
     "Creating a container for this project is recommended.",
   "Le projet reste sur votre PC dans {0} ; seuls les fichiers créés hors de /workspace dans le conteneur sont perdus.":
     "The project stays on your PC in {0}; only files created outside /workspace in the container are lost.",
-  "Dossier partagé": "Shared folder",
-  "Conteneur projet": "Project container",
-  "Conteneur multi-projets": "Multi-project container",
-  "Le dossier partagé sera le dossier du projet actif.":
-    "The shared folder will be the active project's folder.",
-  "Ouvrez un projet pour créer un conteneur projet.":
-    "Open a project to create a project container.",
   "Le projet « {0} » n’est pas visible depuis le conteneur « {1} ».":
     "Project “{0}” is not visible from container “{1}”.",
   "Le conteneur partage : {0}": "The container shares: {0}",
-  "Créer un conteneur projet pour ce dossier": "Create a project container for this folder",
+  "Dossier du conteneur": "Container folder",
+  "La racine des conteneurs sera demandée à la création.":
+    "The containers root will be requested at creation.",
   "Choisir un conteneur compatible": "Choose a compatible container",
   "Afficher tous les conteneurs": "Show all containers",
   "Aucun conteneur compatible.": "No compatible container.",
@@ -38,7 +29,6 @@ export const cockpitEn: Record<string, string> = {
   "Aucun projet dans ce partage.": "No project in this share.",
   "Compatible avec le projet actif": "Compatible with the active project",
   "Ce conteneur ne voit pas le dossier du projet.": "This container cannot see the project folder.",
-  "Choisir…": "Choose…",
   "Choisissez un projet avant de créer son conteneur.":
     "Choose a project before creating its container.",
   "Le projet a changé pendant la préparation.": "The project changed during preparation.",

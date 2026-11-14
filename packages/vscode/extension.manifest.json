@@ -438,6 +438,12 @@
           "scope": "machine",
           "description": "%config.opencodeProviders%"
         },
+        "warband.containers.root": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "%config.containers.root%"
+        },
         "warband.profile": {
           "type": "string",
           "enum": ["", "mentor", "bug-bounty", "out-of-box", "red-team", "htb"],

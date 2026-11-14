@@ -113,6 +113,8 @@
     touched: false,
     engine: null,
     name: "",
+    // Faux tant que l'utilisateur n'a pas modifié le nom proposé par l'hôte.
+    nameTouched: false,
     image: "warband/kali:complete-1",
     exegolImage: "free",
     vpn: false,
@@ -122,9 +124,6 @@
     network: "nat",
     shareResources: true,
     shareMyResources: true,
-    sharedFolder: "",
-    // « project » ou « multi » ; null tant que l'utilisateur n'a pas choisi (défaut selon le projet actif).
-    shareMode: null,
     // Bandeau de partage : n'afficher que les conteneurs qui voient le projet actif.
     compatibleOnly: false,
     images: [],
@@ -175,14 +174,6 @@
     else if (sameStage(stage, "Création du conteneur dans le terminal…")) id = "terminal";
     return id === null ? -1 : ids.indexOf(id);
   };
-  const insideFolder = (project, folder) => {
-    if (typeof project !== "string" || typeof folder !== "string" || !project || !folder)
-      return false;
-    const trim = (path) => path.replace(/[\\/]+$/, "");
-    const p = trim(project);
-    const f = trim(folder);
-    return p === f || p.startsWith(`${f}/`) || p.startsWith(`${f}\\`);
-  };
   const submitOperation = (message) => {
     if (operation.busy) return;
     operation = { busy: true, stage: "Préparation…" };
@@ -194,9 +185,7 @@
         step: 0,
         status: "running",
         notice: "",
-        linkExpected:
-          message.shareMode === "project" ||
-          insideFolder(lastView?.projectWorkspace, form.sharedFolder),
+        linkExpected: false,
         createFirst: !lastView?.linkedBanner,
       };
     vscode.postMessage(message);
@@ -208,6 +197,7 @@
     operation = { busy: false, stage: "" };
     form.open = false;
     form.name = "";
+    form.nameTouched = false;
     rerender();
     document.getElementById("cockpit-create-toggle")?.focus?.({ preventScroll: true });
   };
@@ -235,12 +225,13 @@
     return "exegol";
   };
 
-  // Mode « project » : dossier du projet actif (relu par l'hôte) ; sans projet actif, retombe sur « multi ».
-  const shareModeOf = (view) => {
-    const hasProject = typeof view?.projectWorkspace === "string" && view.projectWorkspace !== "";
-    if (form.shareMode === "multi") return "multi";
-    if (form.shareMode === "project" && hasProject) return "project";
-    return hasProject && form.shareMode === null ? "project" : "multi";
+  // Nom affiché et envoyé : celui de l'utilisateur, sinon le prochain nom libre proposé par l'hôte.
+  const nameOf = (engine) =>
+    form.nameTouched ? form.name : (lastView?.suggestedName?.[engine] ?? "");
+  // Dossier créé par l'hôte sous la racine : `exegol-<nom>` pour Exegol, `<nom>` pour Kali.
+  const folderOf = (engine) => {
+    const name = nameOf(engine).toLowerCase();
+    return engine === "exegol" ? `exegol-${name}` : name;
   };
 
   const askImages = () => {
@@ -282,21 +273,13 @@
     return wrap;
   };
 
-  // Chemin renvoyé par le sélecteur de l'hôte, jamais saisi ni retransmis à la création.
-  const validSource = (folder) => folder.length > 0 && folder.length <= 4096;
-  // Mode projet : aucun dossier à choisir ; mode multi : le dossier choisi sur l'hôte est requis.
-  const shareReady = () => shareModeOf(lastView) === "project" || validSource(form.sharedFolder);
   const canCreate = (engine) => {
-    if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(form.name)) return false;
+    const name = nameOf(engine);
+    if (name !== "" && !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(name)) return false;
     if (engine === "kali")
-      return (
-        form.image.length <= 256 &&
-        /^[A-Za-z0-9][A-Za-z0-9_.:@/-]*$/.test(form.image) &&
-        shareReady()
-      );
+      return form.image.length <= 256 && /^[A-Za-z0-9][A-Za-z0-9_.:@/-]*$/.test(form.image);
     return (
       /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(form.exegolImage) &&
-      shareReady() &&
       Number.isInteger(form.desktopPort) &&
       form.desktopPort >= 1 &&
       form.desktopPort <= 65535 &&
@@ -307,6 +290,12 @@
     const create = document.getElementById("cockpit-submit");
     if (create && lastView) create.disabled = operation.busy || !canCreate(engineOf(lastView));
   };
+
+  // Dossier qui sera créé, en lecture seule ; tant que la racine est inconnue, une mention.
+  const folderText = (engine, view) =>
+    typeof view.containersRoot === "string" && view.containersRoot !== ""
+      ? `${view.containersRoot.replace(/[\\/]+$/, "")}/${folderOf(engine)}`
+      : t("La racine des conteneurs sera demandée à la création.");
 
   function renderCreate(view) {
     const engine = engineOf(view);
@@ -348,38 +337,10 @@
     }
 
     const fields = el("div", "cockpit-fields");
-    const shareMode = shareModeOf(view);
-    const hasProject = typeof view.projectWorkspace === "string" && view.projectWorkspace !== "";
-    const modes = el("div", "cockpit-actions cockpit-share-modes");
-    modes.setAttribute("role", "radiogroup");
-    modes.setAttribute("aria-label", t("Dossier partagé"));
-    for (const [mode, label] of [
-      ["project", t("Conteneur projet")],
-      ["multi", t("Conteneur multi-projets")],
-    ]) {
-      const radio = el("input");
-      radio.id = `cockpit-share-${mode}`;
-      radio.type = "radio";
-      radio.name = "cockpit-share-mode";
-      radio.value = mode;
-      radio.checked = shareMode === mode;
-      const unavailable = mode === "project" && !hasProject;
-      radio.disabled = unavailable;
-      if (unavailable) radio.title = t("Ouvrez un projet pour créer un conteneur projet.");
-      radio.addEventListener("change", () => {
-        if (unavailable) return;
-        form.shareMode = mode;
-        rerender();
-      });
-      const wrap = el("label", "cockpit-field cockpit-field-inline");
-      wrap.append(radio, el("span", "cockpit-field-label", label));
-      modes.append(wrap);
-    }
-    fields.append(modes);
     const nameInput = el("input");
     nameInput.id = "cockpit-name";
     nameInput.type = "text";
-    nameInput.value = form.name;
+    nameInput.value = nameOf(engine);
     nameInput.spellcheck = false;
     nameInput.maxLength = 64;
     nameInput.pattern = "[A-Za-z0-9][A-Za-z0-9_.-]{0,63}";
@@ -389,7 +350,10 @@
     nameInput.setAttribute("autocomplete", "off");
     nameInput.addEventListener("input", () => {
       form.name = nameInput.value;
+      form.nameTouched = true;
       updateCreate();
+      const target = document.getElementById("cockpit-folder-target");
+      if (target) target.textContent = folderText(engine, view);
     });
     fields.append(labeled(t("Nom"), nameInput));
 
@@ -407,35 +371,13 @@
     });
     fields.append(labeled(engine === "kali" ? "Image" : t("Image Exegol (tag)"), imageSelect));
 
-    if (shareMode === "multi") {
-      const folderRow = el("div", "cockpit-actions");
-      folderRow.id = "cockpit-folder";
-      const folderBtn = button("secondary", t("Choisir…"), "folder", () => {
-        vscode.postMessage({ type: "pickSharedFolder" });
-      });
-
-      folderRow.append(el("span", "cockpit-field-label", t("Dossier partagé")), folderBtn);
-      if (form.sharedFolder !== "") {
-        const src = el("span", "cockpit-ellipsis cockpit-source");
-        src.id = "cockpit-source";
-        ellipsize(src, form.sharedFolder, 64);
-        folderRow.append(src);
-      }
-      fields.append(
-        folderRow,
-        el(
-          "p",
-          "studio-help",
-          t(
-            "Le conteneur partage ce dossier. Il sera lié au projet actif si le dossier du projet s'y trouve.",
-          ),
-        ),
-      );
-    } else {
-      const help = el("p", "studio-help", t("Le dossier partagé sera le dossier du projet actif."));
-      help.id = "cockpit-share-project-help";
-      fields.append(help);
-    }
+    const target = el("span", "cockpit-ellipsis cockpit-source");
+    target.id = "cockpit-folder-target";
+    target.textContent = folderText(engine, view);
+    const folderRow = el("div", "cockpit-field");
+    folderRow.id = "cockpit-folder";
+    folderRow.append(el("span", "cockpit-field-label", t("Dossier du conteneur")), target);
+    fields.append(folderRow);
 
     if (engine === "exegol") {
       const checkbox = (key, label, onChange) => {
@@ -535,8 +477,7 @@
             return;
           submitOperation({
             type: "createExegol",
-            shareMode,
-            name: form.name,
+            name: nameOf(engine),
             image: form.exegolImage,
             vpn: form.vpn,
             desktop: form.desktop,
@@ -548,9 +489,8 @@
         } else
           submitOperation({
             type: "createKali",
-            shareMode,
             image: form.image,
-            name: form.name,
+            name: nameOf(engine),
           });
       },
     );
@@ -800,9 +740,8 @@
     const mounted = el("div", "cockpit-ellipsis cockpit-muted");
     ellipsize(mounted, t("Le conteneur partage : {0}", { 0: issue.mounted }), 64);
     const acts = el("div", "cockpit-actions");
-    const create = button("primary", t("Créer un conteneur projet pour ce dossier"), "plus", () => {
+    const create = button("primary", t("Créer un conteneur"), "plus", () => {
       form.open = true;
-      form.shareMode = "project";
       rerender();
       document.getElementById("cockpit-name")?.focus?.();
     });
@@ -1112,26 +1051,6 @@
     updateCreate();
   };
 
-  const applySharedFolder = (path) => {
-    form.sharedFolder = path;
-    updateCreate();
-    const node = document.getElementById("cockpit-source");
-    if (path === "") {
-      rerender();
-      return;
-    }
-    if (node) {
-      ellipsize(node, path, 64);
-      return;
-    }
-    const row = document.getElementById("cockpit-folder");
-    if (!row) return;
-    const src = el("span", "cockpit-ellipsis cockpit-source");
-    src.id = "cockpit-source";
-    ellipsize(src, path, 64);
-    row.append(src);
-  };
-
   let firstRendered = false;
   window.addEventListener("message", (event) => {
     const msg = event.data;
@@ -1187,11 +1106,6 @@
     if (msg.type === "images") {
       if (!Array.isArray(msg.images) || msg.images.some((item) => typeof item !== "string")) return;
       applyImages(msg.images);
-      return;
-    }
-    if (msg.type === "pickedSharedFolder") {
-      if (typeof msg.path !== "string") return;
-      applySharedFolder(msg.path);
       return;
     }
     if (msg.type !== "view") return;

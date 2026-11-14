@@ -305,12 +305,10 @@ describe("parseCockpitMessage", () => {
       name: "exegol-htb1",
     });
     expect(parseCockpitMessage({ type: "listImages" })).toEqual({ type: "listImages" });
-    expect(parseCockpitMessage({ type: "pickSharedFolder" })).toEqual({
-      type: "pickSharedFolder",
+    expect(parseCockpitMessage({ type: "createExegol", name: "htb1" })).toEqual({
+      type: "createExegol",
+      name: "htb1",
     });
-    expect(
-      parseCockpitMessage({ type: "createExegol", name: "htb1", shareMode: "project" }),
-    ).toEqual({ type: "createExegol", name: "htb1", shareMode: "project" });
   });
 
   it("activateProject : id de projet seul, sans clé en trop", () => {
@@ -332,34 +330,33 @@ describe("parseCockpitMessage", () => {
     }
   });
 
-  it("shareMode est obligatoire et fermé sur les deux créations", () => {
+  it("shareMode et source n'existent plus : toute clé en trop est rejetée sur les deux créations", () => {
     const kali = { type: "createKali", image: "kali:latest", name: "lab" };
     const exegol = { type: "createExegol", name: "lab" };
     for (const base of [kali, exegol]) {
-      expect(parseCockpitMessage(base)).toBeNull();
-      expect(parseCockpitMessage({ ...base, shareMode: "other" })).toBeNull();
-      expect(parseCockpitMessage({ ...base, shareMode: "" })).toBeNull();
-      expect(parseCockpitMessage({ ...base, shareMode: true })).toBeNull();
-      for (const shareMode of ["project", "multi"])
-        expect(parseCockpitMessage({ ...base, shareMode })).toEqual({ ...base, shareMode });
+      expect(parseCockpitMessage(base)).toEqual(base);
+      for (const extra of [
+        { shareMode: "project" },
+        { shareMode: "multi" },
+        { source: "/etc" },
+        { source: "" },
+        { path: "/tmp" },
+      ])
+        expect(parseCockpitMessage({ ...base, ...extra })).toBeNull();
     }
   });
 
-  it("mode projet : toute source envoyée par la webview est refusée", () => {
-    const kali = { type: "createKali", image: "kali:latest", name: "lab", shareMode: "project" };
-    const exegol = { type: "createExegol", name: "lab", shareMode: "project" };
-    for (const base of [kali, exegol])
-      for (const source of ["/etc", "", "/home/me/lab"])
-        expect(parseCockpitMessage({ ...base, source })).toBeNull();
-  });
-
-  it("le message Kali parsé égale image, name et shareMode, sans source", () => {
-    const image = "kalilinux/kali-rolling:latest";
-    const name = "lab";
-    const source = "/home/me/lab";
-    expect(
-      parseCockpitMessage({ type: "createKali", image, name, source, shareMode: "multi" }),
-    ).toEqual({ type: "createKali", image, name, shareMode: "multi" });
+  it("un nom vide demande le prochain nom libre à l'hôte", () => {
+    expect(parseCockpitMessage({ type: "createKali", image: "kali:latest", name: "" })).toEqual({
+      type: "createKali",
+      image: "kali:latest",
+      name: "",
+    });
+    expect(parseCockpitMessage({ type: "createExegol", name: "" })).toEqual({
+      type: "createExegol",
+      name: "",
+    });
+    expect(parseCockpitMessage({ type: "createKali", image: "kali:latest" })).toBeNull();
   });
 
   it("refuse clés en trop, types chat et formes invalides", () => {
@@ -373,7 +370,7 @@ describe("parseCockpitMessage", () => {
     expect(parseCockpitMessage({ type: "create" })).toBeNull();
     expect(parseCockpitMessage({ type: "create", name: "htb1" })).toBeNull();
     expect(parseCockpitMessage({ type: "listImages", extra: true })).toBeNull();
-    expect(parseCockpitMessage({ type: "pickSharedFolder", source: "/tmp" })).toBeNull();
+    expect(parseCockpitMessage({ type: "pickSharedFolder" })).toBeNull();
     expect(parseCockpitMessage({ type: "setPrimary", name: "a", extra: 1 })).toBeNull();
     expect(parseCockpitMessage({ type: "setPrimary", name: "" })).toBeNull();
     expect(parseCockpitMessage({ type: "setPrimary", name: "a".repeat(257) })).toBeNull();
@@ -397,47 +394,33 @@ describe("parseCockpitMessage", () => {
     ).toBeNull();
   });
 
-  it("le message Exegol n'a que name", () => {
-    const share = { shareMode: "multi" };
-    expect(
-      parseCockpitMessage({ type: "createExegol", name: "htb1", image: "kali:latest", ...share }),
-    ).toBeNull();
-    // Un `source` texte de la webview est toléré en mode multi mais jamais retransmis (ADR 0050).
-    expect(
-      parseCockpitMessage({ type: "createExegol", name: "htb1", source: "/tmp", ...share }),
-    ).toEqual({ type: "createExegol", name: "htb1", ...share });
-    expect(parseCockpitMessage({ type: "createExegol", ...share })).toBeNull();
-    expect(parseCockpitMessage({ type: "createExegol", name: "", ...share })).toBeNull();
-    expect(parseCockpitMessage({ type: "createExegol", name: "-bad", ...share })).toBeNull();
-    expect(
-      parseCockpitMessage({ type: "createExegol", name: "a".repeat(65), ...share }),
-    ).toBeNull();
-    expect(parseCockpitMessage({ type: "createExegol", name: "a".repeat(64), ...share })).toEqual({
+  it("le message Exegol n'a que name et ses options fermées", () => {
+    expect(parseCockpitMessage({ type: "createExegol", name: "htb1", image: "free" })).toEqual({
+      type: "createExegol",
+      name: "htb1",
+      image: "free",
+    });
+    expect(parseCockpitMessage({ type: "createExegol" })).toBeNull();
+    expect(parseCockpitMessage({ type: "createExegol", name: "-bad" })).toBeNull();
+    expect(parseCockpitMessage({ type: "createExegol", name: "a".repeat(65) })).toBeNull();
+    expect(parseCockpitMessage({ type: "createExegol", name: "a".repeat(64) })).toEqual({
       type: "createExegol",
       name: "a".repeat(64),
-      ...share,
     });
   });
 
-  it("refuse un Kali incomplet ou une image hors motif, et ignore tout `source` de la webview", () => {
-    const ok = { type: "createKali", image: "kali:latest", name: "lab", shareMode: "multi" };
+  it("refuse un Kali incomplet ou une image hors motif", () => {
+    const ok = { type: "createKali", image: "kali:latest", name: "lab" };
     expect(parseCockpitMessage({ ...ok, extra: 1 })).toBeNull();
     expect(parseCockpitMessage(ok)).toEqual(ok);
     expect(parseCockpitMessage({ ...ok, image: "" })).toBeNull();
-    expect(parseCockpitMessage({ ...ok, name: "" })).toBeNull();
+    expect(parseCockpitMessage({ ...ok, name: "-bad" })).toBeNull();
     expect(parseCockpitMessage({ ...ok, image: "-kali" })).toBeNull();
     expect(parseCockpitMessage({ ...ok, image: "a".repeat(257) })).toBeNull();
     expect(parseCockpitMessage({ ...ok, image: "a".repeat(256) })).toEqual({
       ...ok,
       image: "a".repeat(256),
     });
-    // Le chemin texte n'est jamais retransmis : le dossier partagé vient du sélecteur de l'hôte.
-    expect(parseCockpitMessage({ ...ok, source: "/etc" })).toEqual(ok);
-    expect(parseCockpitMessage({ ...ok, source: "" })).toEqual(ok);
-    expect(parseCockpitMessage({ ...ok, shareMode: "project", source: "" })).toBeNull();
-    expect(parseCockpitMessage({ ...ok, source: "a\nb" })).toBeNull();
-    expect(parseCockpitMessage({ ...ok, source: "a\0b" })).toBeNull();
-    expect(parseCockpitMessage({ ...ok, source: "a".repeat(4097) })).toBeNull();
   });
 });
 
@@ -497,6 +480,30 @@ describe("loadCockpitView", () => {
     expect(view.linked).toBe("none");
     expect(view.error).toBeUndefined();
     expect(view.linkedBanner).toBeNull();
+  });
+
+  it("noms suggérés : conteneurs Docker de tous états et dossiers de la racine", async () => {
+    const view = await loadCockpitView({
+      resolveBin: (n) => (n === "docker" ? "/d/docker" : null),
+      readProj: async () => null,
+      createDocker: () => ({
+        listLabelPrefix: async () => [
+          { state: "stopped" as const, name: "kali-1", image: "k", family: "kali" as const },
+          { state: "running" as const, name: "exegol-1", image: "e", family: "exegol" as const },
+        ],
+      }),
+      containersRoot: () => "/srv/conteneurs",
+      listRootFolders: async () => ["kali-2", "exegol-2"],
+    });
+    expect(view.suggestedName).toEqual({ kali: "kali-3", exegol: "3" });
+    expect(view.containersRoot).toBe("/srv/conteneurs");
+    const without = await loadCockpitView({
+      resolveBin: (n) => (n === "docker" ? "/d/docker" : null),
+      readProj: async () => null,
+      createDocker: () => ({ listLabelPrefix: async () => [] }),
+    });
+    expect(without.containersRoot).toBeUndefined();
+    expect(without.suggestedName).toEqual({ kali: "kali-1", exegol: "1" });
   });
 
   it("démon en échec : erreur formatée, liste vide", async () => {
@@ -1110,7 +1117,8 @@ describe("cockpit.js", () => {
     expect(js).toContain('type: "createKali"');
     expect(js).toContain('type: "listImages"');
     expect(js).toContain('type: "openWorkspace"');
-    expect(js).toContain('type: "pickSharedFolder"');
+    expect(js).not.toContain("pickSharedFolder");
+    expect(js).not.toContain("shareMode");
     expect(js).not.toContain("msg.projectWorkspace");
     expect(js).not.toContain('type: "create"');
     expect(js).toContain("Aucun conteneur pour l’instant");
@@ -1163,7 +1171,6 @@ it("création Exegol : options fermées, aucun chemin VPN provenant de la webvie
   const options = {
     type: "createExegol",
     name: "lab",
-    shareMode: "project",
     image: "free",
     vpn: true,
     desktop: true,

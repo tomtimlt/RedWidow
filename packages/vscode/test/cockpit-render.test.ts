@@ -204,7 +204,6 @@ it("transmet les options Exegol et conserve le brouillon pendant la progression"
   const name = ui.field("cockpit-name");
   name.value = "mission";
   name.listeners.get("input")?.();
-  ui.send({ type: "pickedSharedFolder", path: "/tmp/mission" });
   ui.send({ type: "pickedVpn", label: "mission.ovpn" });
   expect(ui.main.find((node) => node.textContent === "mission.ovpn")).toBeDefined();
   ui.button("Créer").click();
@@ -216,7 +215,6 @@ it("transmet les options Exegol et conserve le brouillon pendant la progression"
   ).toEqual([
     {
       type: "createExegol",
-      shareMode: "project",
       name: "mission",
       image: "free",
       vpn: false,
@@ -285,7 +283,6 @@ it("garde les choix Exegol et bloque le bureau hors NAT", () => {
   ui.field("cockpit-create-toggle").click();
   ui.field("cockpit-name").value = "mission";
   ui.field("cockpit-name").listeners.get("input")?.();
-  ui.send({ type: "pickedSharedFolder", path: "/tmp/mission" });
   for (const id of ["vpn", "desktop"]) {
     const input = ui.field(`cockpit-${id}`);
     input.checked = true;
@@ -306,7 +303,6 @@ it("garde les choix Exegol et bloque le bureau hors NAT", () => {
   ui.button("Créer").click();
   expect(ui.sent).toContainEqual({
     type: "createExegol",
-    shareMode: "project",
     name: "mission",
     image: "free",
     vpn: true,
@@ -318,14 +314,12 @@ it("garde les choix Exegol et bloque le bureau hors NAT", () => {
   });
 });
 
-it("refuse les brouillons invalides et réactive la création Kali après choix du dossier", () => {
+it("refuse les brouillons invalides et réactive la création Kali avec un nom valide", () => {
   const ui = cockpit("absent");
   ui.field("cockpit-create-toggle").click();
-  expect(ui.button("Créer").disabled).toBe(true);
   const name = ui.field("cockpit-name");
   name.value = "nom avec espaces";
   name.listeners.get("input")?.();
-  ui.send({ type: "pickedSharedFolder", path: "/tmp/mission" });
   expect(ui.button("Créer").disabled).toBe(true);
   name.value = "mission";
   name.listeners.get("input")?.();
@@ -333,7 +327,6 @@ it("refuse les brouillons invalides et réactive la création Kali après choix 
   ui.button("Créer").click();
   expect(ui.sent).toContainEqual({
     type: "createKali",
-    shareMode: "multi",
     name: "mission",
     image: "warband/kali:complete-1",
   });
@@ -361,35 +354,70 @@ it("change de langue sans perdre le formulaire, le focus et la sélection", () =
   expect(ui.field("cockpit-name").value).toBe("Projet français");
 });
 
-it("la création attend le dossier partagé choisi sur l'hôte et ne le déduit pas du projet", () => {
+it("le nom est proposé par l'hôte, modifiable, et le dossier créé s'affiche en lecture seule", () => {
   const ui = cockpit();
+  ui.send({
+    ...ui.view,
+    containersRoot: "/srv/conteneurs/",
+    suggestedName: { kali: "kali-3", exegol: "2" },
+  });
   ui.field("cockpit-create-toggle").click();
-  ui.field("cockpit-name").value = "lab";
-  ui.field("cockpit-name").listeners.get("input")?.();
-  ui.send({ ...ui.view, projectWorkspace: "/tmp/project-A" });
-  // Mode multi-projets choisi : aucune valeur par défaut, le dossier du projet n'est pas proposé.
-  ui.field("cockpit-share-multi").listeners.get("change")?.();
-  expect(ui.button("Créer").disabled).toBe(true);
-  expect(ui.main.find((node) => node.id === "cockpit-source")).toBeUndefined();
-  ui.button("Choisir…").click();
-  expect(ui.sent).toContainEqual({ type: "pickSharedFolder" });
-  ui.send({ type: "pickedSharedFolder", path: "/srv/partage" });
+  // Exegol : le suffixe proposé et le dossier `exegol-<suffixe>` sous la racine.
+  expect(ui.field("cockpit-name").value).toBe("2");
+  expect(ui.field("cockpit-folder-target").textContent).toBe("/srv/conteneurs/exegol-2");
+  expect(ui.main.find((n) => n.id === "cockpit-share-project")).toBeUndefined();
+  expect(ui.main.find((n) => n.id === "cockpit-share-multi")).toBeUndefined();
+  expect(ui.main.find((n) => n.attributes.get("aria-label") === "Choisir…")).toBeUndefined();
   expect(ui.button("Créer").disabled).toBe(false);
-  expect(ui.field("cockpit-source").textContent).toContain("/srv/partage");
-  // Un changement de projet ne touche pas au dossier choisi.
-  ui.send({ ...ui.view, projectWorkspace: "/tmp/project-B" });
-  expect(ui.field("cockpit-source").textContent).toContain("/srv/partage");
   ui.button("Créer").click();
   const created = ui.sent.find(
     (message) => (message as { type: string }).type === "createExegol",
   ) as Record<string, unknown>;
-  expect(created).toBeDefined();
+  expect(created).toMatchObject({ type: "createExegol", name: "2" });
   expect(created).not.toHaveProperty("source");
-  ui.send({ type: "operation", busy: false, stage: "Opération annulée" });
-  // L'hôte oublie le dossier après une création réussie : la webview le retire et bloque Créer.
-  ui.send({ type: "pickedSharedFolder", path: "" });
-  expect(ui.button("Créer").disabled).toBe(true);
-  expect(ui.main.find((node) => node.id === "cockpit-source")).toBeUndefined();
+  expect(created).not.toHaveProperty("shareMode");
+  expect(ui.sent.some((m) => (m as { type: string }).type === "pickSharedFolder")).toBe(false);
+});
+
+it("une saisie remplace le nom proposé et met à jour le dossier affiché", () => {
+  const ui = cockpit("absent");
+  ui.send({
+    ...ui.view,
+    containersRoot: "/srv/conteneurs",
+    suggestedName: { kali: "kali-1", exegol: "1" },
+  });
+  ui.field("cockpit-create-toggle").click();
+  expect(ui.field("cockpit-name").value).toBe("kali-1");
+  expect(ui.field("cockpit-folder-target").textContent).toBe("/srv/conteneurs/kali-1");
+  const name = ui.field("cockpit-name");
+  name.value = "Lab";
+  name.listeners.get("input")?.();
+  expect(ui.field("cockpit-folder-target").textContent).toBe("/srv/conteneurs/lab");
+  ui.button("Créer").click();
+  expect(ui.sent).toContainEqual({
+    type: "createKali",
+    name: "Lab",
+    image: "warband/kali:complete-1",
+  });
+});
+
+it("racine inconnue : la mention remplace le dossier ; un nom vidé laisse l'hôte choisir", () => {
+  const ui = cockpit("absent");
+  ui.send({ ...ui.view, suggestedName: { kali: "kali-1", exegol: "1" } });
+  ui.field("cockpit-create-toggle").click();
+  expect(ui.field("cockpit-folder-target").textContent).toBe(
+    "La racine des conteneurs sera demandée à la création.",
+  );
+  const name = ui.field("cockpit-name");
+  name.value = "";
+  name.listeners.get("input")?.();
+  expect(ui.button("Créer").disabled).toBe(false);
+  ui.button("Créer").click();
+  expect(ui.sent).toContainEqual({
+    type: "createKali",
+    name: "",
+    image: "warband/kali:complete-1",
+  });
 });
 
 it("la recommandation de créer un conteneur ouvre directement le formulaire", () => {
@@ -434,10 +462,8 @@ const kaliCreation = (project?: string) => {
   const ui = cockpit("absent");
   if (project) ui.send({ ...ui.view, projectWorkspace: project });
   ui.field("cockpit-create-toggle").click();
-  ui.field("cockpit-share-multi").listeners.get("change")?.();
   ui.field("cockpit-name").value = "lab2";
   ui.field("cockpit-name").listeners.get("input")?.();
-  ui.send({ type: "pickedSharedFolder", path: "/srv/partage" });
   ui.button("Créer").click();
   const steps = () =>
     ui.main
@@ -475,16 +501,17 @@ it("le stepper avance sur la séquence Kali et ne recule jamais", () => {
   expect(steps().map((s) => s.state)).toEqual(["done", "done", "done", "active"]);
 });
 
-it("l’étape Liaison n’apparaît que si le projet est dans le dossier partagé", () => {
+it("l’étape Liaison n’apparaît jamais : un conteneur n'est plus lié à la création", () => {
   expect(
     kaliCreation("/autre")
       .steps()
       .map((s) => s.label),
   ).not.toContain("Liaison");
-  const linked = kaliCreation("/srv/partage/mission");
-  expect(linked.steps().map((s) => s.label)).toContain("Liaison");
-  linked.stage("Liaison au projet…");
-  expect(linked.steps().at(-1)?.state).toBe("active");
+  expect(
+    kaliCreation("/srv/partage/mission")
+      .steps()
+      .map((s) => s.label),
+  ).not.toContain("Liaison");
 });
 
 it("pendant la création, les champs gardent leur valeur et le bouton est inerte", () => {
@@ -517,7 +544,6 @@ it("affiche la réussite sans erreur, puis « Voir le conteneur » met la carte 
   const { ui, stage } = kaliCreation();
   stage("Création et démarrage du conteneur…");
   ui.send({ type: "operation", busy: false, stage: "Terminé" });
-  ui.send({ type: "pickedSharedFolder", path: "" });
   const created = { name: "lab2", short: "lab2", family: "kali", image: "kali", state: "running" };
   ui.send({ ...ui.view, containers: [...ui.view.containers, created] });
   expect(ui.main.find((n) => n.className === "cockpit-check")).toBeDefined();
@@ -634,64 +660,6 @@ const withProjects = (ui: ReturnType<typeof cockpit>, extra: object = {}) =>
     ...extra,
   });
 
-it("les formulaires proposent deux modes ; le mode projet masque le choix du dossier", () => {
-  const ui = cockpit();
-  withProjects(ui);
-  ui.field("cockpit-create-toggle").click();
-  const project = ui.field("cockpit-share-project");
-  const multi = ui.field("cockpit-share-multi");
-  expect(project.checked).toBe(true);
-  expect(multi.checked).toBe(false);
-  expect(project.disabled).toBe(false);
-  expect(ui.main.find((n) => n.id === "cockpit-folder")).toBeUndefined();
-  expect(ui.main.find((n) => n.textContent === "Conteneur projet")).toBeDefined();
-  expect(ui.main.find((n) => n.textContent === "Conteneur multi-projets")).toBeDefined();
-  ui.field("cockpit-name").value = "lab";
-  ui.field("cockpit-name").listeners.get("input")?.();
-  // Aucun dossier à choisir : la création est possible tout de suite et n'envoie aucune source.
-  expect(ui.button("Créer").disabled).toBe(false);
-  ui.button("Créer").click();
-  const created = ui.sent.find(
-    (message) => (message as { type: string }).type === "createExegol",
-  ) as Record<string, unknown>;
-  expect(created).toMatchObject({ type: "createExegol", shareMode: "project" });
-  expect(created).not.toHaveProperty("source");
-});
-
-it("le mode multi-projets garde « Choisir… » et exige le dossier choisi sur l'hôte", () => {
-  const ui = cockpit("absent");
-  withProjects(ui, { exegol: "absent" });
-  ui.field("cockpit-create-toggle").click();
-  ui.field("cockpit-share-multi").listeners.get("change")?.();
-  expect(ui.field("cockpit-share-multi").checked).toBe(true);
-  expect(ui.field("cockpit-folder")).toBeDefined();
-  ui.field("cockpit-name").value = "lab";
-  ui.field("cockpit-name").listeners.get("input")?.();
-  expect(ui.button("Créer").disabled).toBe(true);
-  ui.send({ type: "pickedSharedFolder", path: "/srv/partage" });
-  expect(ui.button("Créer").disabled).toBe(false);
-  ui.button("Créer").click();
-  expect(ui.sent).toContainEqual({
-    type: "createKali",
-    shareMode: "multi",
-    name: "lab",
-    image: "warband/kali:complete-1",
-  });
-});
-
-it("sans projet actif, « Conteneur projet » est désactivé et le mode multi est utilisé", () => {
-  const ui = cockpit();
-  ui.field("cockpit-create-toggle").click();
-  const project = ui.field("cockpit-share-project");
-  expect(project.disabled).toBe(true);
-  expect(project.title).toBe("Ouvrez un projet pour créer un conteneur projet.");
-  expect(ui.field("cockpit-share-multi").checked).toBe(true);
-  // Forcer le choix désactivé ne change rien.
-  project.listeners.get("change")?.();
-  expect(ui.field("cockpit-share-multi").checked).toBe(true);
-  expect(ui.field("cockpit-folder")).toBeDefined();
-});
-
 it("la carte liste les projets du partage, marque le projet actif et active un autre projet", () => {
   const ui = cockpit();
   withProjects(ui);
@@ -756,7 +724,7 @@ it("le bandeau de partage s'affiche avec ses trois actions", () => {
         n.textContent === "Le projet « mission » n’est pas visible depuis le conteneur « ko ».",
     ),
   ).toBeDefined();
-  expect(ui.button("Créer un conteneur projet pour ce dossier")).toBeDefined();
+  expect(ui.button("Créer un conteneur")).toBeDefined();
   expect(ui.button("Choisir un conteneur compatible")).toBeDefined();
   expect(ui.main.find((n) => n.id === "cockpit-issue-move")).toBeDefined();
 });
@@ -767,15 +735,12 @@ it("sans mountIssue, pas de bandeau", () => {
   expect(ui.main.find((n) => n.id === "cockpit-mount-issue")).toBeUndefined();
 });
 
-it("« Créer un conteneur projet » présélectionne le mode projet du formulaire", () => {
+it("« Créer un conteneur » du bandeau ouvre le formulaire sans mode de partage", () => {
   const ui = cockpit();
   withProjects(ui, { mountIssue });
-  ui.field("cockpit-create-toggle").click();
-  ui.field("cockpit-share-multi").listeners.get("change")?.();
-  expect(ui.field("cockpit-share-multi").checked).toBe(true);
-  ui.button("Créer un conteneur projet pour ce dossier").click();
-  expect(ui.field("cockpit-share-project").checked).toBe(true);
-  expect(ui.field("cockpit-share-multi").checked).toBe(false);
+  ui.button("Créer un conteneur").click();
+  expect(ui.field("cockpit-name")).toBeDefined();
+  expect(ui.main.find((n) => n.id === "cockpit-share-project")).toBeUndefined();
 });
 
 it("« Choisir un conteneur compatible » ne garde que les compatibles, puis les réaffiche", () => {
