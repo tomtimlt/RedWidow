@@ -1,12 +1,14 @@
 # RedWidow Serveur
 
-Version web de RedWidow, à installer sur un VPS Linux et à ouvrir dans un navigateur derrière un mot de passe. Décisions : ADR 0052 (version serveur web et authentification) et ADR 0053 (terminal humain dans l'interface web).
+Version web de RedWidow, à installer sur un VPS Linux et à ouvrir dans un navigateur derrière un mot de passe. Décisions : ADR 0052 (version serveur web et authentification), ADR 0053 (terminal humain dans l'interface web), ADR 0054 (identifiant enregistré par l'agent), ADR 0055 (dialogues et fichiers web), ADR 0056 (un projet vit dans un conteneur) et ADR 0057 (images de conteneurs depuis le web).
+
+Tout se fait depuis l'interface : conteneurs, images Kali et Exegol, projets, fichiers (éditeur compris), terminal, fournisseurs et clés, rapport. Le terminal de l'hôte n'est utile que pour l'installation et les mises à jour.
 
 ## Ce qu'il faut
 
 - Un VPS **dédié** : le conteneur serveur reçoit le socket Docker de l'hôte, donc les droits de l'hôte. N'y faites rien tourner d'autre.
 - Docker Engine et le plugin Compose.
-- Un nom de domaine dont le DNS pointe vers le VPS, ports 80 et 443 ouverts (Caddy obtient le certificat HTTPS tout seul).
+- Un nom de domaine dont le DNS pointe vers le VPS, ports 80 et 443 ouverts (Caddy obtient le certificat HTTPS tout seul). **Sans domaine** : utilisez `<adresse IP>.sslip.io` (par exemple `141.95.162.224.sslip.io`), qui pointe tout seul vers votre IP et reçoit un vrai certificat ; pensez à bien recopier l'adresse.
 
 ## Installation
 
@@ -68,6 +70,16 @@ Les deux défauts ne valent que pour un chat qui n'a encore aucune préférence 
 - La gate d'approbation reste l'unique autorité : sans navigateur connecté, une demande attend. L'arrêt d'urgence est persisté et survit à un redémarrage.
 - Les clés des fournisseurs et les comptes de test sont chiffrés au repos (AES-256-GCM).
 - Le terminal humain s'ouvre seulement dans un conteneur Kali/Exegol géré et tout y est journalisé (secrets connus masqués).
+
+## Conteneurs et projets (ADR 0056)
+
+La règle est simple : **un projet vit toujours dans un conteneur**, et un conteneur peut vivre sans projet.
+
+- **Un dossier partagé par conteneur, créé tout seul.** Tous sont sous `<dossier de données>/containers/` (`/srv/redwidow/containers/`) : `kali-1/`, `kali-2/`, `exegol-1/`… Aucun dossier à choisir à la main. Chaque dossier reçoit la racine RedWidow (`evidence`, `notes`, `payloads`, `reports`, `scans`, `scripts`) et est monté dans le conteneur sur `/workspace` : c'est le seul montage de l'hôte, sans privilèges ni socket Docker.
+- **Créer un projet exige un conteneur**, démarré ou arrêté. Le projet est un sous-dossier : `containers/<conteneur>/<projet>/`. Un conteneur héberge plusieurs projets. Sans conteneur, la création est refusée et l'interface dit d'en créer un d'abord.
+- **Projets plus anciens, sans conteneur.** Ils sont conservés et marqués « à lier ». Quand vous en activez un, une fenêtre vous demande dans quel conteneur le déplacer ; rien ne bouge sans votre réponse.
+- **Supprimer un conteneur** garde son dossier et ses projets. Les supprimer aussi demande une seconde confirmation explicite.
+- **Fichiers créés par les outils.** Les outils tournent en root dans le conteneur : le serveur lit et modifie ces fichiers sans souci. Supprimer un dossier créé par root se fait en root dans le conteneur démarré, après une confirmation dédiée de votre part ; conteneur arrêté, l'interface vous dit de le démarrer ou d'utiliser son terminal. Si vous supprimez un conteneur **et** son dossier partagé alors que celui-ci contient des fichiers root, le conteneur n'existe déjà plus : l'interface vous demande alors de supprimer le dossier depuis l'hôte, avec les droits administrateur.
 
 ## Clés de fournisseur et bascule
 
