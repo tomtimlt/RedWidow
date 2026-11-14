@@ -426,15 +426,35 @@ describe("apparence et fenêtres demandées par le serveur", () => {
       lists.parseAppearance({
         values: { locale: "en", palette: "widow", terminalPrompt: "compact", model: "x" },
       }),
-    ).toEqual({ locale: "en", palette: "widow", terminalPrompt: "compact" });
+    ).toEqual({ locale: "en", palette: "widow", terminalPrompt: "compact", effects: null });
     expect(
       lists.parseAppearance({ values: { locale: "de", palette: "<x>", terminalPrompt: 3 } }),
-    ).toEqual({ locale: null, palette: null, terminalPrompt: null });
+    ).toEqual({ locale: null, palette: null, terminalPrompt: null, effects: null });
     expect(lists.parseAppearance({})).toEqual({
       locale: null,
       palette: null,
       terminalPrompt: null,
+      effects: null,
     });
+  });
+
+  it("effets visuels : booléen strict, activés par défaut (clé absente ou invalide)", () => {
+    expect(lists.parseAppearance({ values: { effects: false } }).effects).toBe(false);
+    expect(lists.parseAppearance({ values: { effects: true } }).effects).toBe(true);
+    expect(lists.parseAppearance({ values: { effects: "false" } }).effects).toBeNull();
+    expect(lists.parseAppearance({ values: { effects: 0 } }).effects).toBeNull();
+    expect(lists.fxAttribute(true)).toBe("on");
+    expect(lists.fxAttribute(null)).toBe("on");
+    expect(lists.fxAttribute(undefined)).toBe("on");
+    expect(lists.fxAttribute(false)).toBe("off");
+  });
+
+  it("la coquille pose data-fx sur <html> depuis `settings`, jamais dans les iframes", () => {
+    const shell = readFileSync(new URL("../web/shell.js", import.meta.url), "utf8");
+    expect(shell).toContain("root.dataset.fx = fxAttribute(appearance.effects)");
+    // `applyEffects` n'est appelée que sur le document de la coquille.
+    expect(shell.match(/applyEffects\(/g)).toHaveLength(2);
+    expect(shell).toContain("applyEffects(document.documentElement)");
   });
 
   it("openWindow : killchain → graphe de la mission, cockpit → main, reste refusé", () => {

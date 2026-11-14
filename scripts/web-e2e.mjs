@@ -2505,6 +2505,23 @@ async function screensScenario(name, viewport) {
     JSON.stringify(sentOf("settingsSet")[0].msg.patch) === JSON.stringify({ profile: "htb" }),
     "patch : seulement ce qui change",
   );
+  // Effets visuels : activés par défaut (data-fx="on"), interrupteur = settingsSet { effects } serveur.
+  const dataFx = () => page.evaluate(() => document.documentElement.dataset.fx ?? null);
+  check((await dataFx()) === "on", "effets visuels activés par défaut (data-fx=on)");
+  const effectsBox = inWin("native:settings", ".scr-check", { hasText: "Effets visuels" }).locator(
+    "input",
+  );
+  check(await effectsBox.isChecked(), "case « Effets visuels » cochée par défaut");
+  await effectsBox.uncheck();
+  await until(() => sentOf("settingsSet").length === 2, "settingsSet effects:false envoyé");
+  check(
+    JSON.stringify(sentOf("settingsSet")[1].msg.patch) === JSON.stringify({ effects: false }),
+    "interrupteur : patch { effects: false }",
+  );
+  await until(async () => (await dataFx()) === "off", "data-fx=off après réponse du serveur");
+  await effectsBox.check();
+  await until(() => sentOf("settingsSet").length === 3, "settingsSet effects:true envoyé");
+  await until(async () => (await dataFx()) === "on", "data-fx=on rétabli");
   check(sentOf("approve").length === 0, "aucune approbation envoyée par ces écrans");
   check(dialogs === 0, "aucune boîte de dialogue native");
   check(

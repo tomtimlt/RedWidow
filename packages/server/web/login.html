@@ -7,8 +7,10 @@
     <link rel="stylesheet" href="/assets/login.css" />
   </head>
   <body>
-    <main>
-      <h1>RedWidow</h1>
+    <main class="box">
+      <span class="sticker" aria-hidden="true">serveur</span>
+      <h1 id="title" class="brand">RedWidow</h1>
+      <p class="sub">accès restreint</p>
       <form id="login" autocomplete="on">
         <label for="password">Mot de passe</label>
         <input id="password" name="password" type="password" autocomplete="current-password" required />
@@ -16,6 +18,6 @@
         <p id="error" role="alert" hidden></p>
       </form>
     </main>
-    <script nonce="{{nonce}}" src="/login.js"></script>
+    <script type="module" nonce="{{nonce}}" src="/login.js"></script>
   </body>
 </html>

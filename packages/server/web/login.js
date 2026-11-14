@@ -1,4 +1,12 @@
-// Page de connexion : aucun script ni style inline (CSP stricte, nonce sur la balise script).
+// Page de connexion : aucun script ni style inline (CSP stricte, nonce sur la balise script ; module comme
+// la coquille). Effets : le réglage serveur « effets visuels » n'est pas lisible sans session, la page les
+// active donc par défaut (comme la coquille) ; `prefers-reduced-motion` les coupe.
+import { decryptText, fxActive } from "/assets/fx.js";
+
+document.documentElement.dataset.fx = "on";
+const title = document.getElementById("title");
+if (title) decryptText(title, title.textContent ?? "", { active: fxActive(document, window) });
+
 const form = document.getElementById("login");
 const field = document.getElementById("password");
 const errorBox = document.getElementById("error");

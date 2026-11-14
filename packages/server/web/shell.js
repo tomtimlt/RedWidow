@@ -9,6 +9,7 @@ import { createFrameHost, parseDeepLink } from "./lib/frames.js";
 import {
   activityMap,
   formatSize,
+  fxAttribute,
   parseAppearance,
   parseMissions,
   parseProjects,
@@ -230,10 +231,14 @@ const dialogs = createDialogHost({
 });
 
 /** Apparence reçue du serveur (`settings`) : langue et palette de la coquille et de ses pages. */
-const appearance = { locale: null, palette: null };
+const appearance = { locale: null, palette: null, effects: null, received: false };
 function applyAppearance(root) {
   if (appearance.locale !== null) root.lang = appearance.locale;
   if (appearance.palette !== null) root.dataset.palette = appearance.palette;
+}
+/** Effets visuels : seulement la coquille (jamais les pages en iframe) ; attribut absent avant les réglages. */
+function applyEffects(root) {
+  if (appearance.received) root.dataset.fx = fxAttribute(appearance.effects);
 }
 function applyAppearanceToFrame(entry) {
   try {
@@ -923,7 +928,10 @@ channel.onMessage((env) => {
       const next = parseAppearance(msg);
       if (next.locale !== null) appearance.locale = next.locale;
       if (next.palette !== null) appearance.palette = next.palette;
+      appearance.effects = next.effects;
+      appearance.received = true;
       applyAppearance(document.documentElement);
+      applyEffects(document.documentElement);
       for (const entry of frames.entries()) applyAppearanceToFrame(entry);
       break;
     }

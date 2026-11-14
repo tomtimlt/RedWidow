@@ -51,6 +51,16 @@ export function notificationState(api) {
   return { label: "non demandées", tone: "warn", canAsk: true };
 }
 
+/** Message `settingsSet` de l'interrupteur « Effets visuels » (booléen strict, enregistré côté serveur). */
+export function effectsMessage(enabled) {
+  return { type: "settingsSet", patch: { effects: enabled === true } };
+}
+
+/** Effets visuels activés ? Oui par défaut : seul un `false` explicite les coupe. */
+export function effectsEnabled(values) {
+  return values?.effects !== false;
+}
+
 /** Patch `settingsSet` : seulement ce qui change ; un modèle vidé redevient « par défaut » (`null`). */
 export function settingsPatch(before, after) {
   const patch = {};
@@ -233,7 +243,21 @@ export function createSettingsScreen(
   const paletteBtn = el(doc, "button", "scr-btn", "Ouvrir la palette");
   paletteBtn.type = "button";
   paletteBtn.addEventListener("click", () => openPalette());
-  uiSection.append(uiList, paletteBtn);
+  // Effets visuels : enregistré tout de suite (réglage serveur `effects`, pas de stockage navigateur).
+  const effects = el(doc, "input");
+  effects.type = "checkbox";
+  const effectsLabel = el(doc, "label", "scr-check");
+  effectsLabel.append(effects, el(doc, "span", "", "Effets visuels"));
+  const effectsNote = el(
+    doc,
+    "p",
+    "scr-note",
+    "Grain, balayage et animations d'ambiance. Désactivés d'office si votre système demande de réduire les animations.",
+  );
+  effects.addEventListener("change", () => {
+    if (!send(effectsMessage(effects.checked))) effects.checked = effectsEnabled(values);
+  });
+  uiSection.append(uiList, paletteBtn, effectsLabel, effectsNote);
 
   // ── Session ──
   const sessionSection = el(doc, "section", "scr-section");
@@ -293,6 +317,7 @@ export function createSettingsScreen(
     model.value = typeof values.model === "string" ? values.model : "";
     burp.checked = values["burp.enabled"] === true;
     web.checked = values["chat.webSearch"] === true;
+    effects.checked = effectsEnabled(values);
     syncOnline(root, online);
   }
 

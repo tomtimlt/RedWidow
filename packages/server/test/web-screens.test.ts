@@ -15,6 +15,30 @@ const UUID_A = "11111111-1111-4111-8111-111111111111";
 const UUID_B = "22222222-2222-4222-8222-222222222222";
 const UUID_C = "33333333-3333-4333-8333-333333333333";
 
+describe("réglage « Effets visuels »", () => {
+  it("l'interrupteur envoie settingsSet { effects } booléen", () => {
+    expect(settings.effectsMessage(false)).toEqual({
+      type: "settingsSet",
+      patch: { effects: false },
+    });
+    expect(settings.effectsMessage(true)).toEqual({
+      type: "settingsSet",
+      patch: { effects: true },
+    });
+    expect(settings.effectsMessage("x")).toEqual({
+      type: "settingsSet",
+      patch: { effects: false },
+    });
+  });
+
+  it("activés par défaut : seul `false` explicite les coupe", () => {
+    expect(settings.effectsEnabled({})).toBe(true);
+    expect(settings.effectsEnabled(undefined)).toBe(true);
+    expect(settings.effectsEnabled({ effects: true })).toBe(true);
+    expect(settings.effectsEnabled({ effects: false })).toBe(false);
+  });
+});
+
 describe("règles de forme des écrans natifs", () => {
   const dir = fileURLToPath(new URL("../web/screens/", import.meta.url));
   const files = readdirSync(dir).filter((f) => f.endsWith(".js"));

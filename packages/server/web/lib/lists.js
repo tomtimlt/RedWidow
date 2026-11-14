@@ -95,8 +95,9 @@ export function activityMap(missions) {
 }
 
 /**
- * Message `settings {values}` → réglages d'apparence { locale, palette, terminalPrompt } (chaque champ `null`
- * s'il est absent ou invalide). Les autres clés ne concernent pas la coquille.
+ * Message `settings {values}` → réglages d'apparence { locale, palette, terminalPrompt, effects } (chaque champ
+ * `null` s'il est absent ou invalide ; `effects` est un booléen strict). Les autres clés ne concernent pas la
+ * coquille.
  */
 export function parseAppearance(msg) {
   const values = isRecord(msg) && isRecord(msg.values) ? msg.values : {};
@@ -105,5 +106,11 @@ export function parseAppearance(msg) {
     locale: word(values.locale, /^(fr|en)$/),
     palette: word(values.palette, /^[a-z]{3,16}$/),
     terminalPrompt: word(values.terminalPrompt, /^(native|redwidow|compact|minimal)$/),
+    effects: typeof values.effects === "boolean" ? values.effects : null,
   };
+}
+
+/** Valeur de `<html data-fx>` pour le réglage « effets visuels » : activés sauf `false` explicite (clé absente = activés). */
+export function fxAttribute(effects) {
+  return effects === false ? "off" : "on";
 }
