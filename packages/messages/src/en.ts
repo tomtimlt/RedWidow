@@ -390,6 +390,17 @@ export const reasons: Catalog = {
   "exegol.vpnMissing": () => "choose a VPN configuration first",
   "exegol.needsNat": () => "the VPN and the web desktop require the NAT network",
   "exegol.folderMissing": () => "choose the shared folder first",
+  "image.busy": () =>
+    "an image installation is already running: wait for it to finish or cancel it",
+  "image.invalidTag": () =>
+    'invalid image tag (lowercase letters, digits, ".", "_" or "-", at most 64 characters)',
+  "image.rateLimited": () =>
+    "Docker Hub is rate limiting downloads (error 429): wait a few minutes, or sign the Docker daemon in to a Docker Hub account, then retry",
+  "image.notFound": () => "image not found on the registry (unknown tag or access denied)",
+  "image.inUse": () => "the image is used by a container: remove it before rebuilding",
+  "exegol.eulaRequired": () =>
+    'accept the Exegol license agreement first ("Accept the agreement" button)',
+  "exegol.eulaFailed": () => "recording the Exegol license acceptance failed",
   "vpn.invalid": () => "invalid VPN configuration (a plain-text .ovpn file is expected)",
   "folder.none": () => "no folder to share: create a project first",
   "folder.invalid": () => "this folder cannot be shared",

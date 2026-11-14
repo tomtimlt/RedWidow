@@ -28,6 +28,7 @@ import { validateSharedFolder } from "@warband/vscode/logic/shared-folder";
 import { isContainerRef } from "../docker/containers.js";
 import type { ContainerHost } from "./containers.js";
 import type { BridgeContext } from "./hostui.js";
+import { DEFAULT_EXEGOL_TAG, type ImageHost, type InstallProgress, isExegolTag } from "./images.js";
 import { openWindowMessage } from "./shell-messages.js";
 import type { CockpitBackend, ViewSink } from "./views.js";
 import {
@@ -50,14 +51,50 @@ export interface ExegolPort {
   prepare(options: ExegolCreateOptions): Promise<{ shellPath: string; shellArgs: string[] }>;
   /** Exécute `exegol start …` sans terminal ; renvoie son code de sortie. Annulable. */
   run(shellPath: string, argv: readonly string[], signal: AbortSignal): Promise<number | null>;
+  /**
+   * Contrat d'utilisation enregistré ? `exegol version` sans terminal (entrée fermée) : sans acceptation la CLI
+   * affiche l'invite du contrat et sort en erreur (code 1), sans jamais attendre ; acceptée : code 0.
+   */
+  eulaAccepted(signal: AbortSignal): Promise<boolean>;
+  /** Enregistre l'acceptation (`exegol version --accept-eula`), APRÈS confirmation humaine seulement. */
+  acceptEula(signal: AbortSignal): Promise<number | null>;
   /** Période (ms) du sondage de l'apparition du conteneur. */
   pollMs?: number;
+}
+
+/** Durée maximale d'une commande de contrat (la CLI ne fait aucun accès réseau pour `version`). */
+const EULA_TIMEOUT_MS = 20_000;
+
+async function exegolVersion(args: readonly string[], signal: AbortSignal) {
+  const bin = resolveBinary("exegol");
+  if (bin === null) return null;
+  const recorder = createRecorder();
+  try {
+    // Arguments fixes ; `safeEnv` par défaut (HOME du serveur : la CLI y range son `.datastore`).
+    return await runProcess([bin, "version", ...args], {
+      recorder,
+      parentId: null,
+      signal,
+      timeoutMs: EULA_TIMEOUT_MS,
+      maxCapturedLines: 20,
+      maxJournaledLines: 20,
+    });
+  } finally {
+    recorder.close();
+  }
 }
 
 export function defaultExegol(): ExegolPort {
   return {
     installed: () => resolveBinary("exegol") !== null,
     prepare: (options) => prepareExegolCreate(options),
+    async eulaAccepted(signal) {
+      const result = await exegolVersion([], signal);
+      return result !== null && result.code === 0 && !result.stdout.some((l) => /EULA/i.test(l));
+    },
+    async acceptEula(signal) {
+      return (await exegolVersion(["--accept-eula"], signal))?.code ?? null;
+    },
     async run(shellPath, argv, signal) {
       const recorder = createRecorder();
       try {
@@ -87,6 +124,8 @@ export interface CockpitGesturesDeps {
   dataRoot: string;
   configDir: string;
   exegol: ExegolPort;
+  /** Images (Kali, Exegol) et contrat Exegol, partagés avec la coquille (ADR 0057). */
+  images: ImageHost;
   locale(): "fr" | "en";
   emit(sink: ViewSink, msg: Record<string, unknown>): void;
   emitAll(msg: Record<string, unknown>): void;
@@ -148,7 +187,14 @@ export class CockpitGestures {
         return this.pickSharedFolder(sink);
       case "createKali":
         // L'image est celle du serveur (`REDWIDOW_KALI_IMAGE`) : la page ne choisit pas l'image à lancer.
-        return this.operation(t("Création du conteneur Kali…"), async () => {
+        return this.operation(t("Création du conteneur Kali…"), async (signal, report) => {
+          if (!isContainerRef(message.name)) throw new CodedError("container.invalidName");
+          // Image absente : installée d'abord, avec sa progression, au lieu d'échouer (ADR 0057).
+          await this.deps.images.ensureKali({
+            signal,
+            onProgress: (p) => report({ stage: p.stage, layers: p.layers }),
+          });
+          report({ stage: t("Création du conteneur Kali…"), layers: [] });
           await this.deps.containers.createKali(message.name);
           this.deps.ctx.audit({ kind: "containerCreate", container: message.name });
           return t("Conteneur créé.");
@@ -174,7 +220,11 @@ export class CockpitGestures {
     stage: string,
     body: (
       signal: AbortSignal,
-      report: (progress: { stage?: string; message?: string }) => void,
+      report: (progress: {
+        stage?: string;
+        message?: string;
+        layers?: InstallProgress["layers"];
+      }) => void,
     ) => Promise<string | undefined>,
   ): Promise<boolean> {
     const controller = new AbortController();
@@ -188,6 +238,7 @@ export class CockpitGestures {
           busy: true,
           stage: p.stage ?? stage,
           ...(p.message !== undefined && { message: p.message }),
+          ...(p.layers !== undefined && { layers: p.layers }),
         }),
       );
       send({ busy: false, stage: "", ...(notice !== undefined && { message: notice }) });
@@ -407,11 +458,48 @@ export class CockpitGestures {
   // Création d'un Exegol
   // ------------------------------------------------------------------------------------------
 
+  /**
+   * Avant de lancer la CLI : le contrat d'utilisation doit être accepté (dialogue d'acceptation sinon ; refus :
+   * rien n'est lancé), puis l'image demandée doit exister (proposition d'installation sinon).
+   */
+  private async ensureExegolReady(
+    sink: ViewSink,
+    image: string | undefined,
+    signal: AbortSignal,
+    report: (progress: { stage?: string; layers?: InstallProgress["layers"] }) => void,
+  ): Promise<{ cancelled: string } | undefined> {
+    const { images, ctx } = this.deps;
+    if (!(await images.eulaAccepted(signal)) && !(await images.acceptEula(sink)))
+      throw new CodedError("exegol.eulaRequired");
+    signal.throwIfAborted();
+    const tag = image === undefined || image === "" ? DEFAULT_EXEGOL_TAG : image;
+    // Image saisie librement (dépôt, version complète…) : la CLI s'en charge ; seules les étiquettes simples sont gérées ici.
+    if (!isExegolTag(tag) || (await images.exegolInstalled(tag)) !== false) return undefined;
+    const yes = await ctx.ui.confirm(
+      {
+        title: t("Image Exegol absente"),
+        text: t`L'image Exegol « ${tag} » n'est pas installée sur ce serveur. L'installer maintenant ? Le téléchargement peut représenter plusieurs gigaoctets.`,
+      },
+      sink,
+    );
+    if (!yes) return { cancelled: t("Création annulée : l'image Exegol n'est pas installée.") };
+    await images.install(
+      { kind: "exegol", tag },
+      { signal, onProgress: (p) => report({ stage: p.stage, layers: p.layers }) },
+    );
+    report({ stage: t("Création du conteneur Exegol…"), layers: [] });
+    return undefined;
+  }
+
   private async createExegol(
     sink: ViewSink,
     m: Extract<CockpitMessage, { type: "createExegol" }>,
     signal: AbortSignal,
-    report: (progress: { stage?: string; message?: string }) => void,
+    report: (progress: {
+      stage?: string;
+      message?: string;
+      layers?: InstallProgress["layers"];
+    }) => void,
   ): Promise<string | undefined> {
     const { exegol } = this.deps;
     // Rien n'est lancé sans la CLI : message clair, aucun processus.
@@ -425,6 +513,8 @@ export class CockpitGestures {
       throw new CodedError("container.exists");
     if (!isContainerRef(m.name)) throw new CodedError("container.invalidName");
     signal.throwIfAborted();
+    const declined = await this.ensureExegolReady(sink, m.image, signal, report);
+    if (declined !== undefined) return declined.cancelled;
 
     // Dossier partagé automatique : `<données>/containers/<nom>` avec la racine RedWidow (ADR 0056).
     // Un dossier déjà présent est refusé (`container.folderExists`) : jamais réutilisé ni écrasé.

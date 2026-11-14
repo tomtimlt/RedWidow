@@ -12,6 +12,7 @@ import {
   readProjects,
   secretsFromEnv,
 } from "@warband/core";
+import { formatError } from "@warband/messages";
 import type { Choice, WebviewMessage } from "@warband/vscode/logic/approval";
 import {
   attachmentMessage,
@@ -34,7 +35,7 @@ import type { ServerStorage } from "../storage/index.js";
 import { UploadStore } from "../uploads.js";
 import { AccountStore } from "./accounts.js";
 import { ChatExtras } from "./chat-extras.js";
-import type { ExegolPort } from "./cockpit.js";
+import { defaultExegol, type ExegolPort } from "./cockpit.js";
 import {
   activatePoolKey,
   activePoolKey,
@@ -65,6 +66,7 @@ import { FilesHost } from "./files.js";
 import { getFindingDetail, listFindingItems, removeFinding } from "./findings.js";
 import { coreProjectHalts, EmergencyHalt, type ProjectHalts } from "./halt.js";
 import { type BridgeContext, HostUi } from "./hostui.js";
+import { createImageOps, ImageHost, type ImageOps } from "./images.js";
 import { KillchainHost } from "./killchain.js";
 import {
   type LiveMission,
@@ -142,6 +144,8 @@ export interface HubOptions {
   docker?: DockerApi;
   /** Exegol du serveur (injectable : tests). Défaut : le binaire `exegol` du PATH. */
   exegol?: ExegolPort;
+  /** Opérations d'installation d'images (injectable : tests). Défaut : cœur + socket `REDWIDOW_DOCKER_SOCKET`. */
+  images?: ImageOps;
   /** Horloge des terminaux (injectable : tests). */
   clock?: Clock;
   /** Période (ms) du sondage des trouvailles de la vue Kill chain ; 0 : aucun (tests). Défaut : 1 s. */
@@ -233,6 +237,9 @@ export class MissionHub {
   private readonly extras: ChatExtras;
   private readonly files: FilesHost;
   private readonly containers: ContainerHost;
+  private readonly images: ImageHost;
+  /** Arrêt du serveur : interrompt une installation d'image tirée par une création de conteneur. */
+  private readonly imageAbort = new AbortController();
   private readonly configDir: string;
   /** Bypass global demandé depuis la coquille (en mémoire seulement, ADR 0017) ; `until` nul = illimité. */
   private globalBypass: { until: number | null } | null = null;
@@ -280,6 +287,21 @@ export class MissionHub {
       containersRoot: options.storage.paths.containers,
       projects: async () => (await readProjects(this.configDir).catch(() => null))?.projects ?? [],
     });
+    const exegol = options.exegol ?? defaultExegol();
+    this.images = new ImageHost({
+      docker,
+      kaliImage: containerEnv(process.env).kaliImage,
+      exegol,
+      ui: this.context.ui,
+      ops: options.images ?? createImageOps({ socketPath: dockerSocketPath(process.env) }),
+      audit: (e) => this.audit(e),
+      locale: () => (readSettingsObject(options.storage).locale === "en" ? "en" : "fr"),
+      secretValues: () => this.secretValues(),
+    });
+    // Toute installation, d'où qu'elle parte (coquille ou cockpit), est suivie par la coquille.
+    this.images.listen((m) => {
+      for (const sink of this.shell) sink.send("shell", SHELL_FRAME, { ...m });
+    });
     const backends = options.backends ?? defaultBackends(this.configDir);
     this.views = new ViewHosts(
       backends,
@@ -317,7 +339,8 @@ export class MissionHub {
         dataRoot: options.storage.paths.root,
         configDir: this.configDir,
         locale: () => (readSettingsObject(options.storage).locale === "en" ? "en" : "fr"),
-        ...(options.exegol && { exegol: options.exegol }),
+        exegol,
+        images: this.images,
       },
     );
     // Studio : sondages (catalogue, test de connexion) et jetons via les mêmes dépendances qu'un chat.
@@ -1117,6 +1140,30 @@ export class MissionHub {
     return this.term.settled();
   }
 
+  /** État des images (Kali, Exegol) : à l'émetteur, ou à toutes les coquilles. */
+  private async pushImages(only?: Sink): Promise<void> {
+    const status = await this.images.status();
+    for (const sink of only ? [only] : this.shell)
+      sink.send("shell", SHELL_FRAME, { type: "images", ...status });
+  }
+
+  /** Erreur d'image sans détail brut : code et texte localisé (déjà borné par `ImageHost`). */
+  private imageError(op: string, kind: string, err: unknown): Record<string, unknown> {
+    const code = err instanceof CodedError ? errorInfo(err).code : "container.failed";
+    return {
+      type: "imageError",
+      op,
+      kind,
+      code,
+      ...(err instanceof CodedError && {
+        text: formatError(
+          err,
+          readSettingsObject(this.options.storage).locale === "en" ? "en" : "fr",
+        ),
+      }),
+    };
+  }
+
   private async pushContainers(only?: Sink): Promise<void> {
     const items = await this.containers.list();
     for (const sink of only ? [only] : this.shell)
@@ -1149,6 +1196,8 @@ export class MissionHub {
             const name = await this.containers.setRunning(c.id, c.type === "containerStart");
             this.audit({ kind: c.type, container: name });
           } else if (c.type === "containerCreate") {
+            // Image absente : installée d'abord (progression en `imageProgress`), au lieu d'échouer.
+            await this.images.ensureKali({ signal: this.imageAbort.signal });
             await this.containers.createKali(c.name);
             this.audit({ kind: "containerCreate", container: c.name });
           }
@@ -1161,6 +1210,34 @@ export class MissionHub {
             op: c.type,
             code: err instanceof CodedError ? errorInfo(err).code : "container.failed",
           });
+          return false;
+        }
+      case "imagesStatus":
+        await this.pushImages(from);
+        return true;
+      case "imageInstall":
+        try {
+          this.images.start(
+            c.kind === "kali"
+              ? { kind: "kali", rebuild: c.rebuild }
+              : { kind: "exegol", tag: c.tag },
+          );
+        } catch (err) {
+          // Occupé ou étiquette refusée : une seule réponse d'erreur à l'émetteur, rien n'est lancé.
+          from.send("shell", SHELL_FRAME, this.imageError(c.type, c.kind, err));
+          return false;
+        }
+        return true;
+      case "imageCancel":
+        return this.images.cancel(c.id);
+      case "exegolEula":
+        try {
+          // Le dialogue de confirmation est posé à l'émetteur ; sans réponse humaine, rien n'est enregistré.
+          await this.images.acceptEula(from);
+          await this.pushImages();
+          return true;
+        } catch (err) {
+          from.send("shell", SHELL_FRAME, this.imageError(c.type, "exegol", err));
           return false;
         }
       case "projectCreate": {
@@ -1384,6 +1461,8 @@ export class MissionHub {
     if (this.bypassTimer !== undefined) clearTimeout(this.bypassTimer);
     this.bypassTimer = undefined;
     this.globalBypass = null;
+    this.imageAbort.abort();
+    this.images.dispose();
     this.views.dispose();
     this.studio.dispose();
     this.killchain.dispose();

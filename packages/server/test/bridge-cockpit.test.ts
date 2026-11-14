@@ -297,6 +297,8 @@ describe("cockpit : création d'un Kali (API Engine) et d'un Exegol (CLI du serv
     const calls = { prepare: [] as unknown[], run: [] as unknown[][] };
     const port: ExegolPort = {
       installed: () => true,
+      eulaAccepted: async () => true,
+      acceptEula: async () => 0,
       prepare: async (o) => (
         calls.prepare.push(o), { shellPath: "/usr/bin/exegol", shellArgs: ["start", o.name] }
       ),

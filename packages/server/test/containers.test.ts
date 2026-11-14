@@ -8,6 +8,8 @@ const ctx = useStorage();
 let docker: Awaited<ReturnType<typeof fakeDocker>>;
 beforeEach(async () => {
   docker = await fakeDocker();
+  // Image Kali des tests de création (`REDWIDOW_KALI_IMAGE`) : présente, donc aucune installation (ADR 0057).
+  docker.images.push({ tags: ["kali:test"], size: 1 });
 });
 afterEach(async () => {
   ctx.hub?.dispose();

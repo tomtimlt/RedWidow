@@ -5,7 +5,7 @@
  * Tout le reste, y compris le conteneur du serveur lui-même, est invisible et refusé.
  */
 import { dirname } from "node:path";
-import { CodedError } from "@warband/core";
+import { CodedError, WARBAND_KALI_IMAGE } from "@warband/core";
 import type { DockerApi } from "./api.js";
 
 export type ContainerKind = "kali" | "exegol" | "autre";
@@ -29,8 +29,11 @@ export const WORKSPACE_LABEL = "io.warband.workspace";
 export const WORKSPACE_MOUNT = "/workspace";
 const EXEGOL_PREFIX = "org.exegol.";
 
-/** Image Kali locale par défaut (`containers/kali/Dockerfile`), surchargeable par `REDWIDOW_KALI_IMAGE`. */
-export const DEFAULT_KALI_IMAGE = "redwidow-kali:local";
+/**
+ * Image Kali par défaut : celle de l'extension (`warband/kali:complete-1`, Dockerfile du cœur), installable
+ * depuis le web (ADR 0057) ; surchargeable par `REDWIDOW_KALI_IMAGE`.
+ */
+export const DEFAULT_KALI_IMAGE = WARBAND_KALI_IMAGE;
 
 /** Nom ou identifiant accepté : mêmes bornes que l'opérande Docker du cœur, sans tiret initial. */
 export const CONTAINER_REF = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/;

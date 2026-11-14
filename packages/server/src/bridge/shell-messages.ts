@@ -6,6 +6,7 @@
 import { isContainerRef } from "../docker/containers.js";
 import { FS_MAX_PATH, splitPath } from "./files-guard.js";
 import { type FsControl, isFsType, parseFsControl } from "./files-messages.js";
+import { isExegolTag } from "./images.js";
 import { hasControl, isLayoutName, type Layout, validateLayout } from "./layout.js";
 import { isPoolProvider, MAX_POOL_KEYS, type PoolProvider } from "./rotation.js";
 
@@ -55,6 +56,8 @@ export type ShellControl =
         | "accounts"
         | "layouts"
         | "containersList"
+        | "imagesStatus"
+        | "exegolEula"
         | "missionsList"
         | "projectsList";
     }
@@ -62,6 +65,13 @@ export type ShellControl =
   | { type: "auditTail"; limit: number }
   | { type: "containerStart" | "containerStop"; id: string }
   | { type: "containerCreate"; kind: "kali"; name: string }
+  /**
+   * Installation d'une image de conteneur depuis le web (ADR 0057) : Kali (`rebuild` : reconstruction) ou Exegol
+   * (`tag` validé). Un seul à la fois ; la progression revient en `imageProgress`. Annulation : `imageCancel`.
+   */
+  | { type: "imageInstall"; kind: "kali"; rebuild: boolean }
+  | { type: "imageInstall"; kind: "exegol"; tag: string }
+  | { type: "imageCancel"; id: string }
   /** Création d'un projet dans un conteneur choisi explicitement (ADR 0056) : nom du projet et nom du conteneur. */
   | { type: "projectCreate"; name: string; container: string }
   | { type: "setBypass"; active: boolean; durationMinutes: number | null }
@@ -240,6 +250,8 @@ export function parseShellControl(m: Record<string, unknown>): ShellControl | nu
     case "accounts":
     case "layouts":
     case "containersList":
+    case "imagesStatus":
+    case "exegolEula":
     case "missionsList":
     case "projectsList":
       return only(m, "type") ? { type: m.type } : null;
@@ -262,6 +274,21 @@ export function parseShellControl(m: Record<string, unknown>): ShellControl | nu
       // Seul Kali se crée d'ici ; Exegol passe par sa CLI.
       return only(m, "type", "kind", "name") && m.kind === "kali" && isContainerRef(m.name)
         ? { type: "containerCreate", kind: "kali", name: m.name }
+        : null;
+    case "imageInstall":
+      if (m.kind === "kali") {
+        if (only(m, "type", "kind")) return { type: "imageInstall", kind: "kali", rebuild: false };
+        return only(m, "type", "kind", "rebuild") && typeof m.rebuild === "boolean"
+          ? { type: "imageInstall", kind: "kali", rebuild: m.rebuild }
+          : null;
+      }
+      // Seule une étiquette simple va jusqu'à la commande : jamais un chemin, un dépôt ni un espace.
+      return m.kind === "exegol" && only(m, "type", "kind", "tag") && isExegolTag(m.tag)
+        ? { type: "imageInstall", kind: "exegol", tag: m.tag }
+        : null;
+    case "imageCancel":
+      return only(m, "type", "id") && typeof m.id === "string" && /^[0-9a-f]{16}$/.test(m.id)
+        ? { type: "imageCancel", id: m.id }
         : null;
     case "projectCreate":
       // Le conteneur est revalidé contre la liste des conteneurs gérés par le studio ; jamais un chemin.

@@ -60,6 +60,7 @@ Lots pour `dev` : objectif, fichiers, critères d'acceptation vérifiables.
 - [0054 — Identifiant enregistré par l'agent](0054-identifiant-enregistre-par-l-agent.md) : outil `store_credential` soumis à la gate, secret appris par le recorder avant journalisation, rangé au coffre du serveur.
 - [0055 — HostUi et fichiers web](0055-hostui-et-fichiers-web.md) : dialogues serveur → coquille (pick, input, confirm, file, external) sans valeur implicite, téléversement et téléchargement bornés à usage unique.
 - [0056 — Un projet vit dans un conteneur](0056-un-projet-vit-dans-un-conteneur.md) : racine `<données>/containers`, dossier partagé automatique par conteneur, projet impossible sans conteneur, liaison des anciens projets par une fenêtre de choix.
+- [0057 — Images de conteneurs depuis le web](0057-images-depuis-le-web.md) : Kali (`warband/kali:complete-1`, construit comme dans l'extension) et Exegol (pull Docker de `nwodtuhs/exegol:<étiquette>`) installés depuis l'interface, contrat Exegol accepté par l'humain, une installation à la fois, progression et annulation.
 
 Le statut accepté décrit la décision ; les preuves d’exécution et les limites
 figurent dans [l’état du projet](../etat-du-projet.md).

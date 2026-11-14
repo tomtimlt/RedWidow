@@ -43,6 +43,18 @@ export const FIXTURES: FakeContainer[] = [
   },
 ];
 
+/** Image locale du faux démon (`RepoTags` et taille en octets). */
+export interface FakeImage {
+  tags: string[];
+  size: number;
+}
+
+/** Images présentes par défaut : celle de Kali du serveur et Exegol `free` (les tests de création n'installent rien). */
+export const DEFAULT_IMAGES: FakeImage[] = [
+  { tags: ["warband/kali:complete-1"], size: 5_000_000_000 },
+  { tags: ["nwodtuhs/exegol:free"], size: 12_000_000_000 },
+];
+
 export interface Call {
   method: string;
   path: string;
@@ -50,7 +62,10 @@ export interface Call {
 }
 
 /** Faux démon Docker sur socket Unix : create/start/hijack/resize/json et containers. */
-export async function fakeDocker(fixtures: FakeContainer[] = FIXTURES) {
+export async function fakeDocker(
+  fixtures: FakeContainer[] = FIXTURES,
+  initialImages: FakeImage[] = DEFAULT_IMAGES,
+) {
   // Copie : un conteneur créé pendant un test ne doit pas polluer les fixtures partagées.
   const containers = fixtures.map((c) => ({ ...c }));
   const dir = await mkdtemp(join(tmpdir(), "rw-docker-"));
@@ -58,7 +73,18 @@ export async function fakeDocker(fixtures: FakeContainer[] = FIXTURES) {
   const calls: Call[] = [];
   const streams: Socket[] = [];
   const written: string[] = [];
-  const ctl = { exitCode: 0, created: [] as unknown[] };
+  const images = initialImages.map((i) => ({ ...i, tags: [...i.tags] }));
+  /**
+   * `pull` : comportement de `POST /images/create` : `ok` (flux JSON par couches), `http429` (statut 429),
+   * `stream429` (erreur `toomanyrequests` dans le flux), `streamError` (texte de `pullError`), `hang` (flux ouvert,
+   * jamais terminé : annulation).
+   */
+  const ctl = {
+    exitCode: 0,
+    created: [] as unknown[],
+    pull: "ok" as "ok" | "http429" | "stream429" | "streamError" | "hang",
+    pullError: "",
+  };
 
   const readBody = (req: IncomingMessage) =>
     new Promise<unknown>((ok) => {
@@ -95,6 +121,40 @@ export async function fakeDocker(fixtures: FakeContainer[] = FIXTURES) {
           Mounts: c.mounts ?? [],
         })),
       );
+    if (method === "GET" && url === "/images/json")
+      return send(
+        200,
+        images.map((i, n) => ({ Id: `sha256:${n}`, RepoTags: i.tags, Size: i.size })),
+      );
+    if (method === "DELETE" && url.startsWith("/images/")) {
+      const ref = decodeURIComponent(url.slice(8));
+      const at = images.findIndex((i) => i.tags.includes(ref));
+      if (at === -1) return send(404, { message: "no such image" });
+      images.splice(at, 1);
+      return send(200, [{ Untagged: ref }]);
+    }
+    if (method === "POST" && url.startsWith("/images/create")) {
+      const ref = decodeURIComponent(/[?&]fromImage=([^&]+)/.exec(url)?.[1] ?? "");
+      if (ctl.pull === "http429") return send(429, { message: "toomanyrequests" });
+      res.writeHead(200, { "Content-Type": "application/json" });
+      const row = (r: unknown) => res.write(`${JSON.stringify(r)}\n`);
+      row({ status: `Pulling from ${ref.split(":")[0]}`, id: ref.split(":")[1] ?? "latest" });
+      if (ctl.pull === "stream429") {
+        row({ error: "toomanyrequests: You have reached your unauthenticated pull rate limit." });
+        return void res.end();
+      }
+      if (ctl.pull === "streamError") {
+        row({ error: ctl.pullError });
+        return void res.end();
+      }
+      row({ status: "Downloading", id: "layer1", progressDetail: { current: 10, total: 100 } });
+      if (ctl.pull === "hang") return; // flux laissé ouvert : le client doit l'abandonner
+      row({ status: "Downloading", id: "layer1", progressDetail: { current: 100, total: 100 } });
+      row({ status: "Pull complete", id: "layer1" });
+      images.push({ tags: [ref.includes(":") ? ref : `${ref}:latest`], size: 1_000_000 });
+      row({ status: `Status: Downloaded newer image for ${ref}` });
+      return void res.end();
+    }
     const m = /^\/containers\/([^/]+)\/json$/.exec(url);
     if (method === "GET" && m) {
       const ref = decodeURIComponent(m[1] as string);
@@ -159,6 +219,7 @@ export async function fakeDocker(fixtures: FakeContainer[] = FIXTURES) {
 
   return {
     socketPath,
+    images,
     api: createDockerApi({ socketPath, timeoutMs: 2000 }),
     calls,
     streams,

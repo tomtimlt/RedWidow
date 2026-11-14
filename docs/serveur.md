@@ -42,11 +42,7 @@ docker compose run --rm -T redwidow node packages/server/dist/main.js set-passwo
 docker compose up -d --build
 ```
 
-Image Kali pour les missions (facultatif) :
-
-```bash
-docker compose --profile tools build kali
-```
+Les images Kali et Exegol s'installent depuis l'interface (section « Images de conteneurs »), sans terminal.
 
 ## Variables
 
@@ -77,11 +73,19 @@ Les deux défauts ne valent que pour un chat qui n'a encore aucune préférence 
 
 Dans Fournisseurs, enregistrez plusieurs clés pour un même fournisseur (par exemple plusieurs comptes OpenCode) et ordonnez-les. Quand le fournisseur signale la limite (« Free usage exceeded », 429), le serveur refuse proprement les approbations en attente, relance le moteur avec la clé suivante sur la même conversation et demande à l'agent de reprendre. La bascule est confirmée quand l'agent répond sans nouvelle erreur ; sinon la clé suivante est essayée. Clés toutes épuisées : la mission s'arrête et l'interface l'indique. Chaque bascule est journalisée par libellé, jamais par valeur.
 
+## Images de conteneurs (Kali, Exegol)
+
+Aucune commande n'est nécessaire : l'interface propose l'installation des images (ADR 0057, images de conteneurs depuis le web). Une seule installation à la fois, avec progression par couches et bouton Annuler.
+
+- **Kali.** Image `warband/kali:complete-1`, la même que l'extension VS Code : le serveur télécharge `kalilinux/kali-rolling` puis construit l'image (outils Kali, plusieurs Go, plusieurs minutes) avec le client `docker` de l'image serveur. L'image n'est construite que si elle est absente ; « Reconstruire » la retire d'abord (refusé tant qu'un conteneur s'en sert). Créer un conteneur Kali alors que l'image manque l'installe automatiquement. `REDWIDOW_KALI_IMAGE` choisit une autre image : elle est alors téléchargée, jamais construite.
+- **Exegol.** Étiquettes proposées : `free`, `full`, `light`, `web`, `osint`, `ad`, `nightly` (saisie libre, validée `[a-z0-9._-]`, 64 caractères). L'image `nwodtuhs/exegol:<étiquette>` est téléchargée par le démon Docker (API Engine) : la CLI `exegol install` n'est pas utilisée (voir l'ADR). Avant tout, **vous** acceptez le contrat d'utilisation d'Exegol : le bouton « Accepter le contrat » ouvre le lien officiel et demande une confirmation explicite, puis le serveur exécute `exegol version --accept-eula`. Sans cette acceptation, aucune image Exegol n'est installée ni aucun conteneur Exegol créé.
+- **Volume et limites.** Une image Exegol pèse de plusieurs Go à plusieurs dizaines de Go ; prévoyez l'espace du disque de l'hôte. Docker Hub limite le débit des téléchargements anonymes (erreur 429, message clair dans l'interface) : patientez, ou connectez le démon Docker de l'hôte à un compte Docker Hub (`docker login` sur l'hôte). Un téléchargement est interrompu au bout de 30 minutes. Derrière un miroir de registre, voir la dernière section.
+
 ## Exegol
 
 L'image serveur embarque la CLI Exegol (paquet Python `exegol` **6.0.2**, version exacte dans `containers/server/Dockerfile`, argument `EXEGOL_VERSION`, installée dans `/opt/exegol`, lien `/usr/local/bin/exegol`). Le bouton de création d'un Exegol du cockpit lance `exegol start` côté serveur ; sans la CLI, le cockpit répond « Exegol n'est pas installé ». L'image grossit d'environ 240 Mo (Python, git et les bibliothèques d'Exegol). Aucune clé ni licence n'est dans l'image.
 
-À faire **une fois**, par vous (l'acceptation vous engage, le serveur ne la fait pas à votre place) :
+À faire **une fois**, par vous (l'acceptation vous engage, le serveur ne la fait pas à votre place) : bouton « Accepter le contrat » de l'interface (section précédente), ou, en terminal :
 
 ```bash
 docker compose exec redwidow exegol version

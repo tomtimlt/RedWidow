@@ -500,6 +500,19 @@ export const reasons: Catalog = {
   "exegol.vpnMissing": () => "choisissez d’abord une configuration VPN",
   "exegol.needsNat": () => "le VPN et le bureau web nécessitent le réseau NAT",
   "exegol.folderMissing": () => "choisissez d’abord le dossier partagé",
+  "image.busy": () =>
+    "une installation d’image est déjà en cours : attendez qu’elle se termine ou annulez-la",
+  "image.invalidTag": () =>
+    "étiquette d’image invalide (lettres minuscules, chiffres, « . », « _ » ou « - », 64 caractères au plus)",
+  "image.rateLimited": () =>
+    "Docker Hub limite le débit des téléchargements (erreur 429) : patientez quelques minutes, ou connectez le démon Docker à un compte Docker Hub, puis réessayez",
+  "image.notFound": () =>
+    "image introuvable sur le registre (étiquette inexistante ou accès refusé)",
+  "image.inUse": () =>
+    "l’image est utilisée par un conteneur : supprimez-le avant de la reconstruire",
+  "exegol.eulaRequired": () =>
+    "acceptez d’abord le contrat d’utilisation d’Exegol (bouton « Accepter le contrat »)",
+  "exegol.eulaFailed": () => "l’enregistrement de l’acceptation du contrat Exegol a échoué",
   "vpn.invalid": () => "configuration VPN invalide (fichier .ovpn en texte attendu)",
   "folder.none": () => "aucun dossier à partager : créez d’abord un projet",
   "folder.invalid": () => "ce dossier ne peut pas être partagé",

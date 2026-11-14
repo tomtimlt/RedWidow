@@ -59,6 +59,7 @@ import {
 import type { View } from "./envelope.js";
 import type { EmergencyHalt } from "./halt.js";
 import type { BridgeContext } from "./hostui.js";
+import type { ImageHost } from "./images.js";
 import { readJsonUpload } from "./imports.js";
 import {
   citationLabel,
@@ -145,6 +146,8 @@ export interface ViewExtras {
   locale(): "fr" | "en";
   /** Exegol par la CLI du serveur (défaut : binaire du PATH). */
   exegol?: ExegolPort;
+  /** Images (Kali, Exegol) et contrat Exegol, partagés avec la coquille (ADR 0057). */
+  images: ImageHost;
 }
 
 type HostedView = "program" | "engagement" | "cockpit" | "sessions";
@@ -226,6 +229,7 @@ export class ViewHosts {
       dataRoot: extras.dataRoot,
       configDir: extras.configDir,
       exegol: extras.exegol ?? defaultExegol(),
+      images: extras.images,
       locale: extras.locale,
       emit: (sink, msg) => this.emit("cockpit", sink, msg),
       emitAll: (msg) => this.emitAll("cockpit", msg),
