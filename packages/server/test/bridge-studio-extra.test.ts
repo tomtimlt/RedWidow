@@ -6,6 +6,7 @@ import { SETTINGS_KEY } from "../src/bridge/deps.js";
 import { isOpenWindowMessage, openWindowMessage } from "../src/bridge/shell-messages.js";
 import { INTEGRATIONS_KEY, parseStudioExtra } from "../src/bridge/studio-extra.js";
 import {
+  createLinkedProject,
   emptyBackends,
   type FakeSocket,
   type Msg,
@@ -24,9 +25,9 @@ type T = ReturnType<typeof setup>;
 async function fixture() {
   const configDir = join(ctx.dir, "config");
   await mkdir(configDir, { recursive: true });
-  const workspace = join(ctx.dir, "projects", "alpha");
+  const workspace = join(ctx.dir, "containers", "box", "alpha");
   await mkdir(workspace, { recursive: true });
-  const project = await createProject(configDir, { name: "Alpha", workspace });
+  const project = await createLinkedProject(configDir, { name: "Alpha", workspace });
   return { configDir, project };
 }
 
@@ -274,7 +275,9 @@ describe("studio partie B : cours, espace de travail, mission", () => {
       frame: "main",
       path: "cours",
     });
-    expect((await stat(join(ctx.dir, "projects", "alpha", "cours"))).isDirectory()).toBe(true);
+    expect((await stat(join(ctx.dir, "containers", "box", "alpha", "cours"))).isDirectory()).toBe(
+      true,
+    );
     say(s, { type: "openWorkspace" });
     await vi.waitFor(() => expect(s.of("shell", "openWindow")).toHaveLength(2));
     expect(s.of("shell", "openWindow")[1]?.msg).toMatchObject({ view: "files" });

@@ -4,6 +4,7 @@
  * étiquette `io.warband.runtime=kali` (Kali créé par RedWidow) ou image dont le nom contient `kali`.
  * Tout le reste, y compris le conteneur du serveur lui-même, est invisible et refusé.
  */
+import { dirname } from "node:path";
 import { CodedError } from "@warband/core";
 import type { DockerApi } from "./api.js";
 
@@ -15,11 +16,17 @@ export interface ManagedContainer {
   image: string;
   running: boolean;
   kind: Exclude<ContainerKind, "autre">;
+  /** Nom du dossier partagé sous la racine des conteneurs (ADR 0056), jamais un chemin hôte. */
+  folder?: string;
 }
 
 /** Étiquette posée à la création d'un Kali par RedWidow (même convention que le cœur). */
 export const RUNTIME_LABEL = "io.warband.runtime";
 export const RUNTIME_KALI = "kali";
+/** Étiquette du dossier partagé (nom sous `<données>/containers`) posée à la création d'un Kali (ADR 0056). */
+export const WORKSPACE_LABEL = "io.warband.workspace";
+/** Point de montage du dossier partagé dans le conteneur (convention Exegol). */
+export const WORKSPACE_MOUNT = "/workspace";
 const EXEGOL_PREFIX = "org.exegol.";
 
 /** Image Kali locale par défaut (`containers/kali/Dockerfile`), surchargeable par `REDWIDOW_KALI_IMAGE`. */
@@ -41,6 +48,29 @@ export function classify(
   return image.includes("kali") ? "kali" : null;
 }
 
+/**
+ * Dossier partagé d'un conteneur : l'étiquette `io.warband.workspace` (Kali créé ici) ou, à défaut, la source du
+ * montage `/workspace` quand elle est directement sous la racine des conteneurs (Exegol créé ici). Autrement
+ * (conteneur antérieur à l'ADR 0056, montage ailleurs) : `undefined`.
+ */
+export function sharedFolderOf(
+  labels: unknown,
+  mounts: unknown,
+  containersRoot: string | undefined,
+): string | undefined {
+  if (containersRoot === undefined) return undefined;
+  const label = isRecord(labels) ? labels[WORKSPACE_LABEL] : undefined;
+  if (typeof label === "string" && isContainerRef(label)) return label;
+  if (!Array.isArray(mounts)) return undefined;
+  for (const m of mounts) {
+    if (!isRecord(m) || m.Destination !== WORKSPACE_MOUNT || typeof m.Source !== "string") continue;
+    if (dirname(m.Source) !== containersRoot) continue;
+    const name = m.Source.slice(containersRoot.length + 1);
+    if (isContainerRef(name)) return name;
+  }
+  return undefined;
+}
+
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 const str = (v: unknown): string | null => (typeof v === "string" && v !== "" ? v : null);
@@ -60,6 +90,7 @@ export function isSelf(id: string, name: string, selfIds: readonly string[]): bo
 export async function listManaged(
   api: DockerApi,
   selfIds: readonly string[],
+  containersRoot?: string,
 ): Promise<ManagedContainer[]> {
   const res = await api.json("GET", "/containers/json?all=1");
   if (res.status !== 200 || !Array.isArray(res.data)) throw new CodedError("container.failed");
@@ -73,7 +104,15 @@ export async function listManaged(
     const name = rawName.startsWith("/") ? rawName.slice(1) : rawName;
     const kind = classify(isRecord(row.Labels) ? row.Labels : null, image);
     if (kind === null || isSelf(id, name, selfIds)) continue;
-    out.push({ id, name, image, running: row.State === "running", kind });
+    const folder = sharedFolderOf(row.Labels, row.Mounts, containersRoot);
+    out.push({
+      id,
+      name,
+      image,
+      running: row.State === "running",
+      kind,
+      ...(folder !== undefined && { folder }),
+    });
   }
   return out;
 }
@@ -86,6 +125,7 @@ export async function findManaged(
   api: DockerApi,
   ref: string,
   selfIds: readonly string[],
+  containersRoot?: string,
 ): Promise<ManagedContainer | null> {
   if (!isContainerRef(ref)) return null;
   const res = await api.json("GET", `/containers/${encodeURIComponent(ref)}/json`);
@@ -100,28 +140,41 @@ export async function findManaged(
   const name = rawName.startsWith("/") ? rawName.slice(1) : rawName;
   const kind = classify(isRecord(config.Labels) ? config.Labels : null, image);
   if (kind === null || isSelf(id, name, selfIds)) return null;
-  return { id, name, image, running: state.Running === true, kind };
+  const folder = sharedFolderOf(config.Labels, res.data.Mounts, containersRoot);
+  return {
+    id,
+    name,
+    image,
+    running: state.Running === true,
+    kind,
+    ...(folder !== undefined && { folder }),
+  };
 }
 
 export interface CreateKaliOptions {
   name: string;
   image: string;
+  /** Dossier partagé du conteneur : chemin hôte `<données>/containers/<dossier>`, monté en `/workspace`. */
+  workspace: { path: string; folder: string };
   /** Réseau Docker des outils (`REDWIDOW_TOOLS_NETWORK`), absent : réseau par défaut. */
   network?: string | undefined;
 }
 
 /**
- * Corps de création d'un Kali : étiquette de gestion, TTY ouvert pour que le shell par défaut de l'image
- * reste actif. Rien de ce qui donne accès à l'hôte : ni `Privileged`, ni `Binds`, ni socket Docker, ni
- * volume. Seul champ réseau : le réseau des outils, s'il est configuré.
+ * Corps de création d'un Kali : étiquettes de gestion, TTY ouvert pour que le shell par défaut de l'image
+ * reste actif. Un seul montage de l'hôte, le dossier partagé du conteneur (`<chemin>:/workspace`, ADR 0056) :
+ * ni `Privileged`, ni socket Docker, ni autre volume. Autre champ : le réseau des outils, s'il est configuré.
  */
 export function kaliCreateBody(options: CreateKaliOptions): Record<string, unknown> {
   return {
     Image: options.image,
-    Labels: { [RUNTIME_LABEL]: RUNTIME_KALI },
+    Labels: { [RUNTIME_LABEL]: RUNTIME_KALI, [WORKSPACE_LABEL]: options.workspace.folder },
     Tty: true,
     OpenStdin: true,
-    ...(options.network && { HostConfig: { NetworkMode: options.network } }),
+    HostConfig: {
+      Binds: [`${options.workspace.path}:${WORKSPACE_MOUNT}`],
+      ...(options.network && { NetworkMode: options.network }),
+    },
   };
 }
 

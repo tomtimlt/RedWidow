@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Readable } from "node:stream";
-import type { PendingApproval } from "@warband/core";
+import { associateContainer, createProject, type PendingApproval } from "@warband/core";
 import type {
   EngineController,
   EngineControllerOptions,
@@ -193,4 +193,17 @@ export async function uploadFor(
   });
   replyDialog(s, d, info.id);
   return info.id;
+}
+
+/** Projet déjà lié à un conteneur (`box`) : le dossier de travail doit être sous `<données>/containers/box/` (ADR 0056). */
+export async function createLinkedProject(
+  configDir: string,
+  input: { name: string; workspace: string },
+  container = "box",
+) {
+  const project = await createProject(configDir, input);
+  await associateContainer(configDir, project.id, container, {
+    listLabelPrefix: async () => [{ name: container, image: "", state: "stopped", family: "kali" }],
+  });
+  return project;
 }

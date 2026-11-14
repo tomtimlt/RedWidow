@@ -377,6 +377,14 @@ export const reasons: Catalog = {
   "container.invalidName": () => "invalid container name",
   "container.exists": () => "a container already has this name",
   "container.failed": () => "container operation failed",
+  "container.folderExists": () =>
+    "a shared folder already has this name: choose another container name",
+  "project.noContainer": () =>
+    "create a container first in Containers: a project lives in a container",
+  "project.unlinked": () => "project to link: choose the container to move it to before using it",
+  "project.containerUnknown": () => "unknown container, or one without a shared folder",
+  "project.moveFailed": () => "moving the project failed; nothing was deleted",
+  "project.destExists": () => "the destination folder already exists; nothing was overwritten",
   "exegol.notInstalled": () => "Exegol is not installed in this image",
   "exegol.createFailed": () => "creating the Exegol container failed",
   "exegol.vpnMissing": () => "choose a VPN configuration first",
@@ -394,7 +402,7 @@ export const reasons: Catalog = {
   "hostui.uploadTooLarge": (p) => `file too large (maximum ${text(p.max)} bytes)`,
   "hostui.uploadBadType": () => "file type not accepted",
   "hostui.downloadGone": () => "download not found, already done or expired",
-  "fs.noProject": () => "no usable active project (folder missing or outside the projects root)",
+  "fs.noProject": () => "no usable active project (folder missing or outside the containers root)",
   "fs.invalidPath": () => "invalid path",
   "fs.notFound": () => "file or folder not found",
   "fs.exists": () => "a file or folder already has this name",

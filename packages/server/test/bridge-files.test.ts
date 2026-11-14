@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { FS_UPLOAD_ACCEPT } from "../src/bridge/files.js";
 import { FS_MAX_TEXT, isFsType, parseFsControl } from "../src/bridge/files-messages.js";
 import {
+  createLinkedProject,
   emptyBackends,
   type FakeSocket,
   type Msg,
@@ -25,13 +26,13 @@ const ALLOW = JSON.stringify({ default: "allow", rules: [] });
 /** Projet actif sous la racine des projets du serveur, avec quelques fichiers. */
 async function project(files: Record<string, string> = {}, name = "Mission") {
   await mkdir(configDir(), { recursive: true });
-  const workspace = join(ctx.storage.paths.projects, name);
+  const workspace = join(ctx.storage.paths.containers, "box", name);
   await mkdir(workspace, { recursive: true });
   for (const [path, content] of Object.entries(files)) {
     await mkdir(join(workspace, path, ".."), { recursive: true });
     await writeFile(join(workspace, path), content);
   }
-  const p = await createProject(configDir(), { name, workspace });
+  const p = await createLinkedProject(configDir(), { name, workspace });
   return { p, workspace };
 }
 
@@ -329,7 +330,7 @@ describe("API Fichiers : garde des chemins", () => {
     expect((list.entries as Msg[]).map((e) => e.name)).toEqual(["a.md"]);
   });
 
-  it("sans projet actif, ou projet hors de la racine des projets : fs.noProject", async () => {
+  it("sans projet actif : fs.noProject ; projet hors de la racine des conteneurs : project.unlinked (à lier)", async () => {
     const t0 = setup(ctx, { backends: emptyBackends() });
     expect(reasonOf(await call(shellOf(t0), { type: "fsList", path: "" }))).toBe("fs.noProject");
     t0.hub.dispose();
@@ -340,9 +341,9 @@ describe("API Fichiers : garde des chemins", () => {
     await createProject(configDir(), { name: "Hors", workspace: outside });
     const t1 = setup(ctx, { backends: emptyBackends() });
     const s = shellOf(t1);
-    expect(reasonOf(await call(s, { type: "fsList", path: "" }))).toBe("fs.noProject");
+    expect(reasonOf(await call(s, { type: "fsList", path: "" }))).toBe("project.unlinked");
     expect(reasonOf(await call(s, { type: "fsRead", path: "x.txt", as: "text" }))).toBe(
-      "fs.noProject",
+      "project.unlinked",
     );
   });
 

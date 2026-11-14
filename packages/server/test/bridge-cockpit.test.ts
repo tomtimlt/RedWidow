@@ -248,126 +248,37 @@ describe("cockpit : VPN téléversé", () => {
   });
 });
 
-describe("cockpit : dossier partagé", () => {
-  it("ne propose que les sous-dossiers réels de <données>/projects (ni fichier, ni lien, ni caché)", async () => {
-    const root = ctx.storage.paths.projects;
-    await mkdir(join(root, "alpha"));
-    await mkdir(join(root, "beta"));
-    await mkdir(join(root, ".cache"));
-    await writeFile(join(root, "fichier.txt"), "x");
-    await symlink("/tmp", join(root, "lien"));
+describe("cockpit : dossier partagé automatique (ADR 0056)", () => {
+  it("pickSharedFolder : aucun dialogue, libellé fixe (la page n'active « Créer » qu'avec un libellé non vide), aucun dossier créé", async () => {
     const t = setup(ctx, { backends: backend() });
     const s = await cockpitOf(t);
     s.say("cockpit", "ck", { type: "pickSharedFolder" });
-    const d = await nthDialog(s, 1);
-    expect(d.kind).toBe("pick");
-    expect((d.items as { id: string }[]).map((i) => i.id)).toEqual(["+new", "alpha", "beta"]);
-    // Un identifiant hors liste (chemin libre) est refusé par HostUi : le dialogue reste ouvert.
-    replyDialog(s, d, "/etc");
-    replyDialog(s, d, "../..");
-    await settle();
-    expect(s.of("cockpit", "pickedSharedFolder")).toHaveLength(0);
-    replyDialog(s, d, "beta");
-    await vi.waitFor(() =>
-      expect(s.of("cockpit", "pickedSharedFolder")[0]?.msg).toEqual({
-        type: "pickedSharedFolder",
-        path: "beta",
-      }),
-    );
+    await vi.waitFor(() => expect(s.of("cockpit", "pickedSharedFolder")).toHaveLength(1));
+    const msg = s.of("cockpit", "pickedSharedFolder")[0]?.msg as Msg;
+    expect(String(msg.path)).not.toBe("");
+    // Jamais un chemin hôte, jamais un dialogue.
+    expect(JSON.stringify(msg)).not.toContain(ctx.dir);
+    expect(s.of("shell", "dialog")).toHaveLength(0);
+    expect(await readdir(ctx.storage.paths.containers)).toEqual([]);
   });
 
-  it("aucun sous-dossier : saisie du nom, dossier créé (0700) et sélectionné", async () => {
+  it("une erreur de geste simple est affichable : `error` et `operation` avec un texte français, jamais un chemin", async () => {
     const t = setup(ctx, { backends: backend() });
     const s = await cockpitOf(t);
-    s.say("cockpit", "ck", { type: "pickSharedFolder" });
-    const d = await nthDialog(s, 1);
-    expect(d.kind).toBe("input");
-    expect(d.label).toBe("Nom du dossier à créer");
-    replyDialog(s, d, "cible-1");
-    await vi.waitFor(() =>
-      expect(s.of("cockpit", "pickedSharedFolder")[0]?.msg).toEqual({
-        type: "pickedSharedFolder",
-        path: "cible-1",
-      }),
-    );
-    const dir = join(ctx.storage.paths.projects, "cible-1");
-    expect((await stat(dir)).isDirectory()).toBe(true);
-    expect((await stat(dir)).mode & 0o777).toBe(0o700);
-    expect(s.of("cockpit", "error")).toHaveLength(0);
-  });
-
-  it.each(["../x", "a/b", ".caché", "", "..", "a".repeat(65)])(
-    "nom refusé %j : message français affiché, rien créé",
-    async (name) => {
-      const t = setup(ctx, { backends: backend() });
-      const s = await cockpitOf(t);
-      s.say("cockpit", "ck", { type: "pickSharedFolder" });
-      const d = await nthDialog(s, 1);
-      replyDialog(s, d, name);
-      await vi.waitFor(() => expect(s.of("cockpit", "error")).toHaveLength(1));
-      expect(s.of("cockpit", "error")[0]?.msg).toMatchObject({
-        type: "error",
-        code: "folder.name",
-        text: expect.stringContaining("nom de dossier invalide"),
-      });
-      // Ce que la page affiche : le texte d'une opération terminée en erreur.
-      expect(lastOperation(s)).toMatchObject({
-        busy: false,
-        error: expect.stringContaining("nom de dossier invalide"),
-      });
-      expect(s.of("cockpit", "pickedSharedFolder")).toHaveLength(0);
-      expect(await readdir(ctx.storage.paths.projects).catch(() => [])).toEqual([]);
-    },
-  );
-
-  it("saisie annulée : rien", async () => {
-    const t = setup(ctx, { backends: backend() });
-    const s = await cockpitOf(t);
-    s.say("cockpit", "ck", { type: "pickSharedFolder" });
-    replyDialog(s, await nthDialog(s, 1), null);
-    await settle();
-    expect(s.of("cockpit", "error")).toHaveLength(0);
-    expect(s.of("cockpit", "pickedSharedFolder")).toHaveLength(0);
-  });
-
-  it("des dossiers existent : « + Nouveau dossier… » en tête, qui ouvre la même saisie", async () => {
-    const root = ctx.storage.paths.projects;
-    await mkdir(join(root, "alpha"));
-    const t = setup(ctx, { backends: backend() });
-    const s = await cockpitOf(t);
-    s.say("cockpit", "ck", { type: "pickSharedFolder" });
-    const d = await nthDialog(s, 1);
-    const items = d.items as { id: string; label: string }[];
-    expect(items[0]?.label).toBe("+ Nouveau dossier…");
-    replyDialog(s, d, items[0]?.id);
-    const input = await nthDialog(s, 2);
-    expect(input.kind).toBe("input");
-    replyDialog(s, input, "neuf");
-    await vi.waitFor(() =>
-      expect(s.of("cockpit", "pickedSharedFolder")[0]?.msg).toEqual({
-        type: "pickedSharedFolder",
-        path: "neuf",
-      }),
-    );
-    expect((await stat(join(root, "neuf"))).isDirectory()).toBe(true);
-  });
-
-  it("un lien symbolique du même nom : refusé, rien n'est sélectionné", async () => {
-    const root = ctx.storage.paths.projects;
-    await mkdir(root, { recursive: true });
-    await symlink("/tmp", join(root, "piege"));
-    const t = setup(ctx, { backends: backend() });
-    const s = await cockpitOf(t);
-    s.say("cockpit", "ck", { type: "pickSharedFolder" });
-    // Seul un lien existe : aucun dossier réel proposé, donc saisie du nom.
-    replyDialog(s, await nthDialog(s, 1), "piege");
-    await vi.waitFor(() =>
-      expect(s.of("cockpit", "error")[0]?.msg).toMatchObject({
-        code: "folder.invalid",
-        text: expect.any(String),
-      }),
-    );
-    expect(s.of("cockpit", "pickedSharedFolder")).toHaveLength(0);
+    s.say("cockpit", "ck", { type: "pickVpn" });
+    await uploadFor(t, s, await nthDialog(s, 1), "x.ovpn", Buffer.from([0x63, 0x00, 0x64]));
+    await vi.waitFor(() => expect(s.of("cockpit", "error")).toHaveLength(1));
+    expect(s.of("cockpit", "error")[0]?.msg).toMatchObject({
+      type: "error",
+      code: "vpn.invalid",
+      text: expect.stringContaining("configuration VPN invalide"),
+    });
+    // Ce que la page affiche : le texte d'une opération terminée en erreur.
+    expect(lastOperation(s)).toMatchObject({
+      busy: false,
+      error: expect.stringContaining("configuration VPN invalide"),
+    });
+    expect(JSON.stringify(s.sent)).not.toContain(ctx.dir);
   });
 });
 
@@ -400,17 +311,36 @@ describe("cockpit : création d'un Kali (API Engine) et d'un Exegol (CLI du serv
     return { port, calls };
   };
 
-  it("createKali : conteneur créé par l'API Engine (sans privilège), audité ; nom pris ou invalide refusé", async () => {
+  it("createKali : dossier partagé créé, conteneur créé par l'API Engine (sans privilège), audité ; nom pris ou invalide refusé", async () => {
     const t = setup(ctx, { docker: docker.api, backends: backend() });
     const s = await cockpitOf(t);
     s.say("cockpit", "ck", { type: "createKali", image: "redwidow-kali:local", name: "mon-kali" });
     await vi.waitFor(() => expect(lastOperation(s)).toMatchObject({ busy: false }));
     expect(lastOperation(s)?.error).toBeUndefined();
     expect(docker.ctl.created).toHaveLength(1);
+    const folder = join(ctx.storage.paths.containers, "mon-kali");
+    expect((await readdir(folder)).sort()).toEqual([
+      "evidence",
+      "notes",
+      "payloads",
+      "reports",
+      "scans",
+      "scripts",
+    ]);
     const body = (docker.ctl.created[0] as { body: Record<string, unknown> }).body;
     expect(body).not.toHaveProperty("HostConfig.Privileged");
-    expect(body).not.toHaveProperty("HostConfig.Binds");
+    expect(body.HostConfig).toEqual({ Binds: [`${folder}:/workspace`] });
+    expect(JSON.stringify(body)).not.toMatch(/docker\.sock|Mounts|Devices/);
     expect(t.audit).toContainEqual({ kind: "containerCreate", container: "mon-kali" });
+
+    // Le même nom : dossier déjà présent, refus clair, rien de plus n'est créé.
+    s.say("cockpit", "ck", { type: "createKali", image: "x", name: "mon-kali" });
+    await vi.waitFor(() =>
+      expect(lastOperation(s)).toMatchObject({ busy: false, code: "container.folderExists" }),
+    );
+    expect(String(lastOperation(s)?.error)).toContain("dossier partagé");
+    expect(docker.ctl.created).toHaveLength(1);
+
     const before = t.bridge.stats().ignored;
     s.say("cockpit", "ck", { type: "createKali", image: "x", name: "mauvais nom" });
     await vi.waitFor(() => expect(t.bridge.stats().ignored).toBe(before + 1));
@@ -429,7 +359,7 @@ describe("cockpit : création d'un Kali (API Engine) et d'un Exegol (CLI du serv
     expect(e.calls.run).toEqual([]);
   });
 
-  it("createExegol : VPN absent, réseau incompatible, dossier non choisi, nom déjà pris : erreurs sans processus", async () => {
+  it("createExegol : VPN absent, réseau incompatible, nom déjà pris, dossier partagé déjà présent : erreurs sans processus", async () => {
     const e = fakeExegol();
     const t = setup(ctx, {
       docker: docker.api,
@@ -449,13 +379,16 @@ describe("cockpit : création d'un Kali (API Engine) et d'un Exegol (CLI du serv
       "exegol.needsNat",
     );
     await expectCode({ type: "createExegol", name: "pris" }, "container.exists");
-    await expectCode({ type: "createExegol", name: "web" }, "exegol.folderMissing");
+    await mkdir(join(ctx.storage.paths.containers, "web"), { recursive: true });
+    await expectCode({ type: "createExegol", name: "web" }, "container.folderExists");
+    expect(lastOperation(s)?.error).toEqual(expect.stringContaining("dossier partagé"));
+    expect(e.calls.prepare).toEqual([]);
     expect(e.calls.run).toEqual([]);
   });
 
-  it("createExegol : dossier choisi dans la liste, CLI exécutée sans terminal, conteneur détecté, CLI arrêtée", async () => {
-    await mkdir(join(ctx.storage.paths.projects, "equipe"));
-    const real = await realpath(join(ctx.storage.paths.projects, "equipe"));
+  it("createExegol : --workspace = dossier du conteneur (créé automatiquement), CLI sans terminal, conteneur détecté, CLI arrêtée", async () => {
+    await mkdir(ctx.storage.paths.containers, { recursive: true });
+    const real = join(await realpath(ctx.storage.paths.containers), "web");
     const d2 = await fakeDocker([
       {
         id: "b".repeat(64),
@@ -468,9 +401,6 @@ describe("cockpit : création d'un Kali (API Engine) et d'un Exegol (CLI du serv
     const e = fakeExegol();
     const t = setup(ctx, { docker: d2.api, exegol: e.port, backends: backend() });
     const s = await cockpitOf(t);
-    s.say("cockpit", "ck", { type: "pickSharedFolder" });
-    replyDialog(s, await nthDialog(s, 1), "equipe");
-    await vi.waitFor(() => expect(s.of("cockpit", "pickedSharedFolder")).toHaveLength(1));
     s.say("cockpit", "ck", { type: "createExegol", name: "web", desktop: false, network: "nat" });
     await vi.waitFor(() => expect(lastOperation(s)).toMatchObject({ busy: false }));
     expect(lastOperation(s)?.error).toBeUndefined();
@@ -485,21 +415,25 @@ describe("cockpit : création d'un Kali (API Engine) et d'un Exegol (CLI du serv
       }),
     ]);
     expect(e.calls.prepare[0]).not.toHaveProperty("vpnPath");
+    expect((await readdir(real)).sort()).toEqual([
+      "evidence",
+      "notes",
+      "payloads",
+      "reports",
+      "scans",
+      "scripts",
+    ]);
     expect(e.calls.run).toEqual([["/usr/bin/exegol", ["start", "web"]]]);
     expect(t.audit).toContainEqual({ kind: "exegolCreate", container: "exegol-web" });
     await d2.close();
   });
 
   it("createExegol : la CLI s'arrête sans conteneur → exegol.createFailed ; VPN stocké supprimé ; cancelOperation sans erreur", async () => {
-    await mkdir(join(ctx.storage.paths.projects, "equipe"));
     const e = fakeExegol({ run: async () => 1 });
     const t = setup(ctx, { docker: docker.api, exegol: e.port, backends: backend() });
     const s = await cockpitOf(t);
-    s.say("cockpit", "ck", { type: "pickSharedFolder" });
-    replyDialog(s, await nthDialog(s, 1), "equipe");
-    await vi.waitFor(() => expect(s.of("cockpit", "pickedSharedFolder")).toHaveLength(1));
     s.say("cockpit", "ck", { type: "pickVpn" });
-    await uploadFor(t, s, await nthDialog(s, 2), "v.ovpn", "client\n");
+    await uploadFor(t, s, await nthDialog(s, 1), "v.ovpn", "client\n");
     await vi.waitFor(() => expect(s.of("cockpit", "pickedVpn")).toHaveLength(1));
     s.say("cockpit", "ck", { type: "createExegol", name: "web", vpn: true });
     await vi.waitFor(() =>
@@ -510,15 +444,14 @@ describe("cockpit : création d'un Kali (API Engine) et d'un Exegol (CLI du serv
       vpnPath: expect.stringContaining(join(ctx.dir, "vpn")),
     });
     expect(await readdir(join(ctx.dir, "vpn"))).toEqual([]);
+    // Aucun conteneur n'est apparu : le dossier partagé tout juste créé est retiré (vide, jamais un fichier).
+    expect(await readdir(ctx.storage.paths.containers)).toEqual([]);
 
     // Annulation pendant l'attente du conteneur.
     const e2 = fakeExegol();
     ctx.hub?.dispose();
     const t2 = setup(ctx, { docker: docker.api, exegol: e2.port, backends: backend() });
     const s2 = await cockpitOf(t2);
-    s2.say("cockpit", "ck", { type: "pickSharedFolder" });
-    replyDialog(s2, await nthDialog(s2, 1), "equipe");
-    await vi.waitFor(() => expect(s2.of("cockpit", "pickedSharedFolder")).toHaveLength(1));
     s2.say("cockpit", "ck", { type: "createExegol", name: "web" });
     await vi.waitFor(() => expect(e2.calls.run).toHaveLength(1));
     s2.say("cockpit", "ck", { type: "cancelOperation" });

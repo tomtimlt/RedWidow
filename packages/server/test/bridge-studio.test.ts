@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { policyDigest, readProjects } from "@warband/core";
 import { setUiLocale } from "@warband/messages";
 import { repoPolicyPath } from "@warband/vscode/logic/repo-policy";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { tokenSecretKey } from "../src/bridge/deps.js";
 import { isOpenWindowMessage, openWindowMessage } from "../src/bridge/shell-messages.js";
 import {
@@ -15,9 +15,27 @@ import {
   shellOf,
   useStorage,
 } from "./bridge-helpers.js";
+import { type FakeContainer, fakeDocker } from "./docker-fake.js";
 
 const ctx = useStorage();
 afterEach(() => setUiLocale("fr"));
+
+/** Deux Kali gérés qui ont chacun leur dossier partagé (ADR 0056) : `kali1` démarré, `kali2` arrêté. */
+const KALIS: FakeContainer[] = ["kali1", "kali2"].map((name, i) => ({
+  id: String(i + 1).repeat(64),
+  name,
+  image: "redwidow-kali:local",
+  running: i === 0,
+  labels: { "io.warband.runtime": "kali", "io.warband.workspace": name },
+}));
+let docker: Awaited<ReturnType<typeof fakeDocker>>;
+beforeEach(async () => {
+  docker = await fakeDocker(KALIS);
+  for (const k of KALIS) await mkdir(join(ctx.dir, "containers", k.name), { recursive: true });
+});
+afterEach(async () => {
+  await docker.close();
+});
 
 type T = ReturnType<typeof setup>;
 
@@ -43,16 +61,19 @@ async function answer(s: FakeSocket, kind: string, value: unknown, count = 1) {
 const settle = () => new Promise((ok) => setTimeout(ok, 30));
 const projects = (t: T) => readProjects(join(ctx.dir, "config"));
 
-async function create(t: T, s: FakeSocket, name: string) {
+async function create(t: T, s: FakeSocket, name: string, container = "kali1") {
   const before = s.of("studio", "view").length;
+  const picks = s.of("shell", "dialog").filter((d) => d.msg.kind === "pick").length;
   s.say("studio", "st", { type: "createProject", name });
+  // Un projet vit dans un conteneur : le serveur demande lequel.
+  await answer(s, "pick", container, picks + 1);
   await vi.waitFor(() => expect(s.of("studio", "view").length).toBeGreaterThan(before));
   await vi.waitFor(async () =>
     expect((await projects(t))?.projects.some((p) => p.name === name)).toBe(true),
   );
 }
 
-const setupStudio = () => setup(ctx, { backends: emptyBackends() });
+const setupStudio = () => setup(ctx, { backends: emptyBackends(), docker: docker.api });
 
 describe("vue studio : projets", () => {
   it("ready : état de la page Projet (locale puis vue), sans secret", async () => {
@@ -69,24 +90,29 @@ describe("vue studio : projets", () => {
       terminalPrompt: "native",
       palette: "widow",
     });
-    expect(v.projectWorkspaceRoot).toBe(join(ctx.dir, "projects"));
+    expect(v.projectWorkspaceRoot).toBe(join(ctx.dir, "containers"));
     expect(JSON.stringify(s.sent)).not.toContain("sk-ant");
     expect(t.bridge.stats()).toMatchObject({ accepted: 2, ignored: 0 });
   });
 
-  it("createProject : dossier sous la racine des projets, projet actif, vue mise à jour, audit", async () => {
+  it("createProject : dossier dans le dossier partagé du conteneur choisi, projet actif, vue mise à jour, audit", async () => {
     const t = setupStudio();
     const s = studioOf(t);
     await create(t, s, "Mission Alpha");
     const file = await projects(t);
     const project = file?.projects[0];
     expect(file?.activeId).toBe(project?.id);
-    expect(project?.workspace.startsWith(join(ctx.dir, "projects"))).toBe(true);
+    expect(project?.workspace).toBe(join(ctx.dir, "containers", "kali1", "mission-alpha"));
+    expect(project?.containers).toEqual(["kali1"]);
     expect((await stat(join(project?.workspace ?? "", "notes"))).isDirectory()).toBe(true);
     await vi.waitFor(() =>
       expect(lastView(s)).toMatchObject({ projectId: project?.id, projectCreated: project?.id }),
     );
-    expect(t.audit).toContainEqual({ kind: "project.create", id: project?.id });
+    expect(t.audit).toContainEqual({
+      kind: "project.create",
+      id: project?.id,
+      container: "kali1",
+    });
   });
 
   it("activateProject : change le projet actif ; la politique du dépôt reste non approuvée", async () => {
@@ -110,7 +136,7 @@ describe("vue studio : projets", () => {
   });
 
   it("activation ou création refusée pendant un tour (chat occupé)", async () => {
-    const t = setup(ctx, { backends: emptyBackends() });
+    const t = setupStudio();
     const s = studioOf(t);
     await create(t, s, "Un");
     // Un chat qui tourne : le contrôleur factice reçoit un message, la vue passe à busy.
@@ -188,25 +214,26 @@ describe("vue studio : projets", () => {
     await vi.waitFor(() => expect(lastView(s)).toMatchObject({ summaryFailed: other }));
   });
 
-  it("setWorkspaceRoot : hors de la racine refusé ; sous la racine accepté et utilisé", async () => {
+  it("setWorkspaceRoot : hors de la racine des conteneurs refusé ; sous la racine accepté", async () => {
     const t = setupStudio();
     const s = studioOf(t);
     await vi.waitFor(() => expect(s.of("studio", "view")).toHaveLength(1));
-    for (const bad of ["/etc", "..", "../autre", join(ctx.dir, "projects", "..", "x")]) {
+    for (const bad of ["/etc", "..", "../autre", join(ctx.dir, "containers", "..", "x")]) {
       const n = s.of("studio", "view").length;
       s.say("studio", "st", { type: "setWorkspaceRoot", value: bad });
       await vi.waitFor(() => expect(s.of("studio", "view").length).toBeGreaterThan(n));
       expect(lastView(s).workspaceRootError).toEqual(expect.any(String));
-      expect(lastView(s).projectWorkspaceRoot).toBe(join(ctx.dir, "projects"));
+      expect(lastView(s).projectWorkspaceRoot).toBe(join(ctx.dir, "containers"));
     }
     s.say("studio", "st", { type: "setWorkspaceRoot", value: "equipe" });
     await vi.waitFor(() =>
-      expect(lastView(s).projectWorkspaceRoot).toBe(join(ctx.dir, "projects", "equipe")),
+      expect(lastView(s).projectWorkspaceRoot).toBe(join(ctx.dir, "containers", "equipe")),
     );
     expect(lastView(s).workspaceRootError).toBeUndefined();
     await create(t, s, "Chez equipe");
+    // La création ne suit plus ce réglage : le projet naît dans le dossier partagé de son conteneur.
     expect((await projects(t))?.projects[0]?.workspace).toBe(
-      join(ctx.dir, "projects", "equipe", "chez-equipe"),
+      join(ctx.dir, "containers", "kali1", "chez-equipe"),
     );
     // Le réglage n'est pas atteignable par `settingsSet`.
     s.say("shell", "shell", { type: "settingsSet", patch: { "projects.workspaceRoot": "/etc" } });
@@ -405,8 +432,9 @@ describe("vue studio : politique du dépôt", () => {
     const s = studioOf(t);
     const { digest } = await withPolicy(t, s);
     s.say("studio", "st", { type: "trustRepoPolicy" });
-    await vi.waitFor(() => expect(s.of("shell", "dialog")).toHaveLength(1));
-    const d = s.of("shell", "dialog")[0]?.msg as Msg;
+    const confirms = () => s.of("shell", "dialog").filter((e) => e.msg.kind === "confirm");
+    await vi.waitFor(() => expect(confirms()).toHaveLength(1));
+    const d = confirms()[0]?.msg as Msg;
     expect(d.kind).toBe("confirm");
     expect(String(d.text)).toContain(digest);
     await settle();
@@ -437,7 +465,7 @@ describe("vue studio : politique du dépôt", () => {
     await create(t, s, "Un");
     s.say("studio", "st", { type: "trustRepoPolicy" });
     await vi.waitFor(() => expect(String(lastView(s).projectError)).toContain("Aucune politique"));
-    expect(s.of("shell", "dialog")).toEqual([]);
+    expect(s.of("shell", "dialog").filter((e) => e.msg.kind === "confirm")).toEqual([]);
   });
 
   it("arrêt du serveur avec une modale en attente : refusée (jamais approuvée)", async () => {
@@ -445,7 +473,9 @@ describe("vue studio : politique du dépôt", () => {
     const s = studioOf(t);
     const { workspace } = await withPolicy(t, s);
     s.say("studio", "st", { type: "trustRepoPolicy" });
-    await vi.waitFor(() => expect(s.of("shell", "dialog")).toHaveLength(1));
+    await vi.waitFor(() =>
+      expect(s.of("shell", "dialog").filter((e) => e.msg.kind === "confirm")).toHaveLength(1),
+    );
     t.hub.dispose();
     await settle();
     expect(workspace).not.toBe("");

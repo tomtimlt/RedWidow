@@ -11,6 +11,8 @@ export interface FakeContainer {
   image: string;
   running: boolean;
   labels?: Record<string, string>;
+  /** Montages (`Source` hôte, `Destination` conteneur), comme `Mounts` de l'API Engine. */
+  mounts?: { Source: string; Destination: string }[];
 }
 
 export const SELF_ID = "abcdef012345";
@@ -48,7 +50,9 @@ export interface Call {
 }
 
 /** Faux démon Docker sur socket Unix : create/start/hijack/resize/json et containers. */
-export async function fakeDocker(containers: FakeContainer[] = FIXTURES) {
+export async function fakeDocker(fixtures: FakeContainer[] = FIXTURES) {
+  // Copie : un conteneur créé pendant un test ne doit pas polluer les fixtures partagées.
+  const containers = fixtures.map((c) => ({ ...c }));
   const dir = await mkdtemp(join(tmpdir(), "rw-docker-"));
   const socketPath = join(dir, "docker.sock");
   const calls: Call[] = [];
@@ -88,6 +92,7 @@ export async function fakeDocker(containers: FakeContainer[] = FIXTURES) {
           Image: c.image,
           State: c.running ? "running" : "exited",
           Labels: c.labels ?? {},
+          Mounts: c.mounts ?? [],
         })),
       );
     const m = /^\/containers\/([^/]+)\/json$/.exec(url);
@@ -100,6 +105,7 @@ export async function fakeDocker(containers: FakeContainer[] = FIXTURES) {
         Name: `/${c.name}`,
         State: { Running: c.running },
         Config: { Image: c.image, Labels: c.labels ?? {} },
+        Mounts: c.mounts ?? [],
       });
     }
     if (method === "POST" && /^\/containers\/[^/]+\/exec$/.test(url))
@@ -108,10 +114,34 @@ export async function fakeDocker(containers: FakeContainer[] = FIXTURES) {
     if (method === "GET" && url === "/exec/exec1/json")
       return send(200, { Running: false, ExitCode: ctl.exitCode });
     if (method === "POST" && url.startsWith("/containers/create")) {
+      const name = decodeURIComponent(/[?&]name=([^&]+)/.exec(url)?.[1] ?? "");
+      if (containers.some((c) => c.name === name)) return send(409, { message: "nom déjà pris" });
       ctl.created.push({ url, body });
-      return send(201, { Id: "e".repeat(64) });
+      const b = (body ?? {}) as {
+        Image?: string;
+        Labels?: Record<string, string>;
+        HostConfig?: { Binds?: string[] };
+      };
+      const binds = (b.HostConfig?.Binds ?? []).map((x) => {
+        const [Source = "", Destination = ""] = x.split(":");
+        return { Source, Destination };
+      });
+      containers.push({
+        id: "e".repeat(64 - containers.length.toString().length) + containers.length,
+        name,
+        image: b.Image ?? "",
+        running: false,
+        labels: b.Labels ?? {},
+        mounts: binds,
+      });
+      return send(201, { Id: containers.at(-1)?.id });
     }
-    if (method === "POST" && /^\/containers\/[^/]+\/(start|stop)/.test(url)) return send(204);
+    const act = /^\/containers\/([^/]+)\/(start|stop)/.exec(url);
+    if (method === "POST" && act) {
+      const c = containers.find((x) => x.id === decodeURIComponent(act[1] as string));
+      if (c) c.running = act[2] === "start";
+      return send(204);
+    }
     send(404, { message: "inconnu" });
   });
   server.on("upgrade", (req, socket: Socket) => {

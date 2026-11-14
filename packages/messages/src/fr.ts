@@ -486,6 +486,15 @@ export const reasons: Catalog = {
   "container.invalidName": () => "nom de conteneur invalide",
   "container.exists": () => "un conteneur porte déjà ce nom",
   "container.failed": () => "échec de l’opération sur le conteneur",
+  "container.folderExists": () =>
+    "un dossier partagé porte déjà ce nom : choisissez un autre nom de conteneur",
+  "project.noContainer": () =>
+    "créez d’abord un conteneur dans Conteneurs : un projet vit dans un conteneur",
+  "project.unlinked": () =>
+    "projet à lier : choisissez le conteneur où le déplacer pour l’utiliser",
+  "project.containerUnknown": () => "conteneur inconnu ou sans dossier partagé",
+  "project.moveFailed": () => "le déplacement du projet a échoué ; rien n’a été supprimé",
+  "project.destExists": () => "le dossier de destination existe déjà ; rien n’a été écrasé",
   "exegol.notInstalled": () => "Exegol n’est pas installé dans cette image",
   "exegol.createFailed": () => "la création du conteneur Exegol a échoué",
   "exegol.vpnMissing": () => "choisissez d’abord une configuration VPN",
@@ -504,7 +513,7 @@ export const reasons: Catalog = {
   "hostui.uploadBadType": () => "type de fichier non accepté",
   "hostui.downloadGone": () => "téléchargement introuvable, déjà effectué ou expiré",
   "fs.noProject": () =>
-    "aucun projet actif utilisable (dossier absent ou hors de la racine des projets)",
+    "aucun projet actif utilisable (dossier absent ou hors de la racine des conteneurs)",
   "fs.invalidPath": () => "chemin invalide",
   "fs.notFound": () => "fichier ou dossier introuvable",
   "fs.exists": () => "un fichier ou un dossier porte déjà ce nom",

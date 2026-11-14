@@ -253,6 +253,13 @@ export const REASON_CODES = [
   "container.invalidName",
   "container.exists",
   "container.failed",
+  // Un projet vit dans un conteneur : dossier partagé automatique (ADR 0056)
+  "container.folderExists",
+  "project.noContainer",
+  "project.unlinked",
+  "project.containerUnknown",
+  "project.moveFailed",
+  "project.destExists",
   // Cockpit web : création Exegol, VPN, dossier partagé, imports de fiches (ADR 0055)
   "exegol.notInstalled",
   "exegol.createFailed",

@@ -277,12 +277,8 @@ export class MissionHub {
       docker,
       selfIds,
       ...containerEnv(process.env),
-      projects: async () => {
-        const file = await readProjects(this.configDir).catch(() => null);
-        const map = new Map<string, string>();
-        for (const p of file?.projects ?? []) for (const c of p.containers) map.set(c, p.name);
-        return map;
-      },
+      containersRoot: options.storage.paths.containers,
+      projects: async () => (await readProjects(this.configDir).catch(() => null))?.projects ?? [],
     });
     const backends = options.backends ?? defaultBackends(this.configDir);
     this.views = new ViewHosts(
@@ -317,7 +313,7 @@ export class MissionHub {
       {
         ctx: this.context,
         containers: this.containers,
-        projectsRoot: options.storage.paths.projects,
+        containersRoot: options.storage.paths.containers,
         dataRoot: options.storage.paths.root,
         configDir: this.configDir,
         locale: () => (readSettingsObject(options.storage).locale === "en" ? "en" : "fr"),
@@ -338,7 +334,9 @@ export class MissionHub {
     this.studio = new StudioHost({
       configDir: this.configDir,
       ctx: this.context,
-      projectsRoot: options.storage.paths.projects,
+      containersRoot: options.storage.paths.containers,
+      legacyRoot: options.storage.paths.projects,
+      managed: () => this.containers.list(),
       cwd: this.cwd,
       busy: () => [...this.frames.values()].some((f) => f.session.view().busy),
       containers: () => backends.cockpit.load(),
@@ -366,7 +364,9 @@ export class MissionHub {
           await this.views.projectChanged();
           await this.killchain.changed();
           await this.viewer.projectChanged();
-          const items = await listProjects(this.configDir).catch(() => null);
+          const items = await listProjects(this.configDir, options.storage.paths.containers).catch(
+            () => null,
+          );
           if (items !== null) this.toShell({ type: "projects", items });
         },
         settingsChanged: (values) =>
@@ -397,7 +397,7 @@ export class MissionHub {
     this.extras = new ChatExtras({
       ctx: this.context,
       configDir: this.configDir,
-      projectsRoot: options.storage.paths.projects,
+      containersRoot: options.storage.paths.containers,
       runsDir: options.storage.paths.runs,
       historyIndex: () => options.storage.state.get(HISTORY_INDEX_KEY),
       secretValues: () => this.secretValues(),
@@ -411,7 +411,7 @@ export class MissionHub {
     this.files = new FilesHost({
       ctx: this.context,
       configDir: this.configDir,
-      projectsRoot: options.storage.paths.projects,
+      containersRoot: options.storage.paths.containers,
       locale,
       toShell: (msg) => this.toShell(msg),
     });
@@ -1163,6 +1163,13 @@ export class MissionHub {
           });
           return false;
         }
+      case "projectCreate": {
+        // Conteneur désigné par son nom, validé contre les conteneurs gérés ; le projet naît dans son dossier partagé.
+        const refusal = await this.studio.createInContainer(c.name, c.container);
+        if (refusal === null) return true;
+        from.send("shell", SHELL_FRAME, { type: "projectError", op: c.type, code: refusal });
+        return false;
+      }
       case "halt":
         await this.emergencyHalt(true);
         return true;
@@ -1321,7 +1328,7 @@ export class MissionHub {
         try {
           from.send("shell", SHELL_FRAME, {
             type: "projects",
-            items: await listProjects(this.configDir),
+            items: await listProjects(this.configDir, storage.paths.containers),
           });
           return true;
         } catch {

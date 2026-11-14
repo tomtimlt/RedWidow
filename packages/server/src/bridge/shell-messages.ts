@@ -62,6 +62,8 @@ export type ShellControl =
   | { type: "auditTail"; limit: number }
   | { type: "containerStart" | "containerStop"; id: string }
   | { type: "containerCreate"; kind: "kali"; name: string }
+  /** Création d'un projet dans un conteneur choisi explicitement (ADR 0056) : nom du projet et nom du conteneur. */
+  | { type: "projectCreate"; name: string; container: string }
   | { type: "setBypass"; active: boolean; durationMinutes: number | null }
   | { type: "settingsSet"; patch: Record<string, unknown> }
   | { type: "tokenSet"; provider: TokenProvider; kind: TokenKindName; value: string }
@@ -260,6 +262,16 @@ export function parseShellControl(m: Record<string, unknown>): ShellControl | nu
       // Seul Kali se crée d'ici ; Exegol passe par sa CLI.
       return only(m, "type", "kind", "name") && m.kind === "kali" && isContainerRef(m.name)
         ? { type: "containerCreate", kind: "kali", name: m.name }
+        : null;
+    case "projectCreate":
+      // Le conteneur est revalidé contre la liste des conteneurs gérés par le studio ; jamais un chemin.
+      return only(m, "type", "name", "container") &&
+        typeof m.name === "string" &&
+        m.name.trim().length >= 1 &&
+        m.name.length <= 80 &&
+        noControl(m.name) &&
+        isContainerRef(m.container)
+        ? { type: "projectCreate", name: m.name.trim(), container: m.container }
         : null;
     case "setBypass": {
       if (!only(m, "type", "active", "durationMinutes") || typeof m.active !== "boolean")

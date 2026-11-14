@@ -53,6 +53,7 @@ import { FS_MAX_BASE64, FS_MAX_TEXT, type FsControl } from "./files-messages.js"
 import type { BridgeContext } from "./hostui.js";
 import type { Sink } from "./hub.js";
 import { mentionRoot } from "./mentions.js";
+import { isLinked } from "./workspaces.js";
 
 /** Entrées renvoyées au plus par un listage, et entrées lues au plus pour les trier. */
 export const FS_LIST_LIMIT = 1000;
@@ -137,7 +138,7 @@ export interface FilesDeps {
   ctx: BridgeContext;
   configDir: string;
   /** Racine des projets du serveur : le dossier du projet actif doit s'y trouver (chemins réels). */
-  projectsRoot: string;
+  containersRoot: string;
   locale(): "fr" | "en";
   /** Diffusion à toutes les coquilles (seulement `policyChanged`). */
   toShell(msg: Record<string, unknown>): void;
@@ -202,12 +203,14 @@ export class FilesHost {
     this.deps.ctx.audit(entry);
   }
 
-  /** Projet actif et racine réelle de son dossier (sous la racine des projets du serveur). */
+  /** Projet actif et racine réelle de son dossier (sous la racine des conteneurs du serveur). */
   private async scope(): Promise<Scope> {
     const file = await readProjects(this.deps.configDir).catch(() => null);
     const project = file === null ? null : activeProject(file);
     if (project === null) throw new CodedError("fs.noProject");
-    const root = await mentionRoot(project.workspace, this.deps.projectsRoot);
+    // Projet « à lier » (hors d'un dossier partagé de conteneur, ADR 0056) : pas d'accès aux fichiers.
+    if (!isLinked(project, this.deps.containersRoot)) throw new CodedError("project.unlinked");
+    const root = await mentionRoot(project.workspace, this.deps.containersRoot);
     if (root === null) throw new CodedError("fs.noProject");
     return { root, projectId: project.id };
   }

@@ -72,7 +72,7 @@ export interface ChatExtrasDeps {
   ctx: BridgeContext;
   configDir: string;
   /** Racine des projets du serveur : un dossier de projet doit s'y trouver pour être proposé en `@`. */
-  projectsRoot: string;
+  containersRoot: string;
   /** Dossier des journaux de runs, et index de l'historique (export du fil). */
   runsDir: string;
   historyIndex(): unknown;
@@ -393,7 +393,7 @@ export class ChatExtras {
   private async root(): Promise<{ root: string | null; project: StoredProject | null }> {
     const project = await this.activeProject();
     if (project === null) return { root: null, project };
-    return { root: await mentionRoot(project.workspace, this.deps.projectsRoot), project };
+    return { root: await mentionRoot(project.workspace, this.deps.containersRoot), project };
   }
 
   /** Notes Kill Chain du projet actif, pour `@killchain` ; sans projet ou sans note : indisponible. */

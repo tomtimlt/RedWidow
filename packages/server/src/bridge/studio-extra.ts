@@ -97,7 +97,7 @@ export interface ExtraLink {
 export interface ExtraDeps {
   configDir: string;
   ctx: BridgeContext;
-  projectsRoot: string;
+  containersRoot: string;
   accounts: AccountStore;
   killchain(): KillchainHost;
   secretValues(): Promise<string[]>;
@@ -834,7 +834,7 @@ export class StudioExtra {
       const active = await this.active();
       if (active === null) throw new CodedError("project.absent");
       if (cours) {
-        const root = await mentionRoot(active.workspace, this.deps.projectsRoot);
+        const root = await mentionRoot(active.workspace, this.deps.containersRoot);
         if (root === null) throw new CodedError("path.outside", { path: "cours" });
         const dir = join(root, "cours");
         const st = await lstat(dir).catch(() => null);

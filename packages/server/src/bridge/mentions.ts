@@ -3,8 +3,8 @@
  * jamais un chemin hôte : il reçoit et renvoie des chemins RELATIFS à la racine du projet, que le serveur
  * revalide à chaque lecture (segments, lien symbolique, racine, règles de chemins sensibles du cœur).
  *
- * - La racine est le dossier du projet actif ; elle doit rester sous la racine des projets du serveur
- *   (chemins réels comparés) : sinon aucune mention.
+ * - La racine est le dossier du projet actif ; elle doit rester sous la racine des conteneurs du serveur
+ *   (`<données>/containers`, ADR 0056 ; chemins réels comparés) : sinon aucune mention.
  * - Parcours borné (profondeur, entrées visitées), sans suivre aucun lien symbolique, sans `.git`,
  *   `node_modules` ni fichier caché (sauf `.warband/`).
  * - Lecture : mêmes plafonds que les pièces jointes manuelles (`resolveMentionFile`, 64 Kio, UTF-8).
@@ -43,11 +43,15 @@ const within = (root: string, path: string): boolean => {
 
 /**
  * Racine des mentions : chemin réel du dossier du projet, à condition qu'il soit sous la racine réelle des
- * projets du serveur. `null` : dossier absent, illisible ou hors racine.
+ * conteneurs du serveur. `null` : dossier absent, illisible ou hors racine. L'ancienne racine
+ * `<données>/projects` n'est jamais admise ici : elle ne sert qu'à migrer (`workspaces.ts`).
  */
-export async function mentionRoot(workspace: string, projectsRoot: string): Promise<string | null> {
+export async function mentionRoot(
+  workspace: string,
+  containersRoot: string,
+): Promise<string | null> {
   try {
-    const [real, base] = await Promise.all([realpath(workspace), realpath(projectsRoot)]);
+    const [real, base] = await Promise.all([realpath(workspace), realpath(containersRoot)]);
     return within(base, real) ? real : null;
   } catch {
     return null;

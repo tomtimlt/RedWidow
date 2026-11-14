@@ -7,6 +7,7 @@ import { lstat, open, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { readProjects } from "@warband/core";
 import { isRunId, parseIndex } from "@warband/vscode/logic/history";
+import { isLinked } from "./workspaces.js";
 
 export const MAX_LIST_ITEMS = 500;
 export const MAX_AUDIT_ITEMS = 200;
@@ -108,11 +109,31 @@ export async function listRuns(
   return items.slice(0, MAX_LIST_ITEMS);
 }
 
-export async function listProjects(configDir: string): Promise<{ id: string; name: string }[]> {
+export interface ProjectListItem {
+  id: string;
+  name: string;
+  /** Le projet vit dans le dossier partagé d'un conteneur ; sinon il est « à lier » (ADR 0056). */
+  linked: boolean;
+  /** Conteneur qui l'héberge (nom), s'il est lié. */
+  container?: string;
+}
+
+/** Projets et leur état de liaison. Sans racine des conteneurs (usage interne : noms seuls), `linked` vaut `false`. */
+export async function listProjects(
+  configDir: string,
+  containersRoot?: string,
+): Promise<ProjectListItem[]> {
   const file = await readProjects(configDir);
-  return (file?.projects ?? [])
-    .slice(0, MAX_LIST_ITEMS)
-    .map((p) => ({ id: p.id, name: p.name.slice(0, MAX_TITLE) }));
+  return (file?.projects ?? []).slice(0, MAX_LIST_ITEMS).map((p) => {
+    const linked = containersRoot !== undefined && isLinked(p, containersRoot);
+    const container = p.primary ?? p.containers[0];
+    return {
+      id: p.id,
+      name: p.name.slice(0, MAX_TITLE),
+      linked,
+      ...(linked && container !== undefined && { container }),
+    };
+  });
 }
 
 /** Dernières entrées de `audit.jsonl` (les plus récentes d'abord) ; lignes illisibles ignorées. */

@@ -10,7 +10,7 @@
  * l'extension, l'hôte retient la vue (donc l'empreinte) affichée à chaque abonné : le navigateur ne renvoie
  * jamais d'empreinte, et un brouillon modifié depuis l'affichage est refusé par le cœur.
  */
-import { CodedError, defaultConfigDir } from "@warband/core";
+import { activeProject, CodedError, defaultConfigDir, readProjects } from "@warband/core";
 import { formatError, t } from "@warband/messages";
 import {
   type CockpitViewPayload,
@@ -69,6 +69,7 @@ import {
   programDraftText,
 } from "./program.js";
 import { openWindowMessage } from "./shell-messages.js";
+import { isLinked } from "./workspaces.js";
 
 /** Destinataire d'un message sortant (même forme que `Sink` du hub). */
 export interface ViewSink {
@@ -137,8 +138,8 @@ export interface SessionHistoryItem {
 export interface ViewExtras {
   ctx: Pick<BridgeContext, "ui" | "uploads" | "audit">;
   containers: ContainerHost;
-  /** `<données>/projects` et `<données>`. */
-  projectsRoot: string;
+  /** `<données>/containers` (racine unique des dossiers partagés, ADR 0056) et `<données>`. */
+  containersRoot: string;
   dataRoot: string;
   configDir: string;
   locale(): "fr" | "en";
@@ -166,6 +167,8 @@ function errorText(error: unknown | string, locale: "fr" | "en"): string {
   if (code === "view.stale") return t("La vue a changé : réessayez.");
   if (code === "project.changed") return t("Le projet actif a changé : réessayez.");
   if (code === "project.none") return t("Aucun projet actif : choisissez ou créez un projet.");
+  if (code === "project.unlinked")
+    return t("Projet à lier : choisissez le conteneur où le déplacer pour l'utiliser.");
   if (error instanceof CodedError) return formatError(error, locale);
   return t("L'opération a échoué.");
 }
@@ -219,7 +222,7 @@ export class ViewHosts {
       ctx: extras.ctx,
       backend: backends.cockpit,
       containers: extras.containers,
-      projectsRoot: extras.projectsRoot,
+      containersRoot: extras.containersRoot,
       dataRoot: extras.dataRoot,
       configDir: extras.configDir,
       exegol: extras.exegol ?? defaultExegol(),
@@ -329,8 +332,20 @@ export class ViewHosts {
       });
   }
 
+  /** Projet actif, sauf s'il est « à lier » (hors d'un dossier partagé de conteneur, ADR 0056). */
   private async shownProject(): Promise<string | null> {
-    return this.backends.activeProjectId();
+    return (await this.unlinkedActive()) ? null : this.backends.activeProjectId();
+  }
+
+  /** Le projet actif existe mais n'est lié à aucun conteneur : les vues répondent « à lier ». */
+  private async unlinkedActive(): Promise<boolean> {
+    const file = await readProjects(this.extras.configDir).catch(() => null);
+    const active = file === null ? null : activeProject(file);
+    return active !== null && !isLinked(active, this.extras.containersRoot);
+  }
+
+  private async noProjectCode(): Promise<"project.unlinked" | "project.none"> {
+    return (await this.unlinkedActive()) ? "project.unlinked" : "project.none";
   }
 
   private async pushProgram(only: ViewSink, all: boolean): Promise<void> {
@@ -339,7 +354,7 @@ export class ViewHosts {
     if (projectId === null) {
       for (const s of targets) {
         this.programShown.delete(s);
-        this.fail("program", s, "project.none");
+        this.fail("program", s, await this.noProjectCode());
       }
       return;
     }
@@ -356,7 +371,7 @@ export class ViewHosts {
     if (projectId === null) {
       for (const s of targets) {
         this.engagementShown.delete(s);
-        this.fail("engagement", s, "project.none");
+        this.fail("engagement", s, await this.noProjectCode());
       }
       return;
     }
@@ -450,7 +465,7 @@ export class ViewHosts {
     if (message.type === "askAgent") {
       // Nouvelle mission préremplie : la consigne est fixe, seule l'adresse validée vient de la page.
       if ((await this.shownProject()) === null) {
-        this.fail("program", sink, "project.none");
+        this.fail("program", sink, await this.noProjectCode());
         return true;
       }
       const taken = new Set(this.sessions.chats().map((c) => c.id));

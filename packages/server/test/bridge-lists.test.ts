@@ -97,7 +97,7 @@ describe("listes de la coquille", () => {
     expect(shell.of("shell", "runs")[0]?.msg.items).toHaveLength(500);
   });
 
-  it("projets : id et nom ; erreur de lecture : configError", async () => {
+  it("projets : id, nom, état de liaison au conteneur ; erreur de lecture : configError", async () => {
     const configDir = join(ctx.dir, "config");
     await mkdir(configDir, { recursive: true });
     const p = await createProject(configDir, { name: "Cible", workspace: ctx.dir });
@@ -105,7 +105,10 @@ describe("listes de la coquille", () => {
     const shell = shellOf(t);
     shell.say("shell", "shell", { type: "projectsList" });
     await vi.waitFor(() => expect(shell.of("shell", "projects")).toHaveLength(1));
-    expect(shell.of("shell", "projects")[0]?.msg.items).toEqual([{ id: p.id, name: "Cible" }]);
+    // Dossier hors de `<données>/containers` : « à lier ».
+    expect(shell.of("shell", "projects")[0]?.msg.items).toEqual([
+      { id: p.id, name: "Cible", linked: false },
+    ]);
     await writeFile(join(configDir, "project.json"), "{pas du json");
     shell.say("shell", "shell", { type: "projectsList" });
     await vi.waitFor(() => expect(shell.of("shell", "configError")).toHaveLength(1));

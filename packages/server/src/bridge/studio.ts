@@ -37,7 +37,6 @@ import { ModelProbeError } from "@warband/vscode/logic/model-load-error";
 import { paletteOf } from "@warband/vscode/logic/palette";
 import {
   activateSelectedProject,
-  createManagedSelectedProject,
   manageSelectedProject,
   readProjectChoices,
 } from "@warband/vscode/logic/project-controls";
@@ -64,6 +63,7 @@ import {
   readSettingsObject,
   setToken,
 } from "./config.js";
+import type { ContainerItem } from "./containers.js";
 import { SETTINGS_KEY } from "./deps.js";
 import type { BridgeContext } from "./hostui.js";
 import type { Sink } from "./hub.js";
@@ -78,9 +78,17 @@ import {
   type TokenProvider,
 } from "./shell-messages.js";
 import { type ExtraDeps, parseStudioExtra, StudioExtra } from "./studio-extra.js";
+import {
+  createProjectInFolder,
+  isLinked,
+  moveProjectIntoFolder,
+  type WorkspaceRoots,
+} from "./workspaces.js";
 
 /** Clés d'état propres au studio (hors `settings`, donc hors de portée de `settingsSet`). */
 export const WORKSPACE_ROOT_KEY = "studio.workspaceRoot";
+/** Entrée « Créer un conteneur… » du dialogue de déplacement : un `+` ne peut pas figurer dans un nom de conteneur. */
+const CREATE_CONTAINER_ID = "+create";
 export const PROVIDER_CATALOG_KEY = "studio.providerCatalog";
 
 /** Plafond de fournisseurs retenus du catalogue et d'octets de l'extrait de politique affiché. */
@@ -107,8 +115,12 @@ export interface StudioHooks {
 export interface StudioDeps {
   configDir: string;
   ctx: BridgeContext;
-  /** Racine des dossiers de projets (`<données>/projects`) : seule racine admise. */
-  projectsRoot: string;
+  /** Racine des dossiers partagés (`<données>/containers`) : seule racine admise pour un projet (ADR 0056). */
+  containersRoot: string;
+  /** Ancienne racine (`<données>/projects`) : lue seulement pour déplacer un projet existant dans un conteneur. */
+  legacyRoot: string;
+  /** Conteneurs gérés (démarrés ou arrêtés), avec leur dossier partagé : un projet n'existe que dans l'un d'eux. */
+  managed(): Promise<ContainerItem[]>;
   /** Dossier de travail du moteur pour les sondages. */
   cwd: string;
   /** Des tours de chat tournent : aucune modification de projet. */
@@ -182,7 +194,7 @@ export class StudioHost {
       {
         configDir: deps.configDir,
         ctx: deps.ctx,
-        projectsRoot: deps.projectsRoot,
+        containersRoot: deps.containersRoot,
         accounts: deps.accounts,
         killchain: () => deps.killchain(),
         secretValues: () => deps.secretValues(),
@@ -336,7 +348,7 @@ export class StudioHost {
     return { capabilities: capabilitySettings(get), ...settings, providerCatalog };
   }
 
-  /** Racine des projets : le réglage s'il reste sous la racine du serveur, sinon cette racine. */
+  /** Racine affichée : le réglage s'il reste sous la racine des conteneurs, sinon cette racine. */
   private workspaceRoot(): string {
     const stored = this.storage.state.get(WORKSPACE_ROOT_KEY);
     if (typeof stored === "string") {
@@ -346,12 +358,12 @@ export class StudioHost {
         // Valeur altérée : retour à la racine du serveur.
       }
     }
-    return resolve(this.deps.projectsRoot);
+    return resolve(this.deps.containersRoot);
   }
 
-  /** Chemin résolu, qui doit rester sous `<données>/projects` (lui-même admis). Sinon `path.outside`. */
+  /** Chemin résolu, qui doit rester sous `<données>/containers` (lui-même admis). Sinon `path.outside`. */
   private checkRoot(value: string): string {
-    const base = resolve(this.deps.projectsRoot);
+    const base = resolve(this.deps.containersRoot);
     const resolved = resolve(base, value);
     const rel = relative(base, resolved);
     if (rel.startsWith("..") || isAbsolute(rel))
@@ -477,7 +489,11 @@ export class StudioHost {
     return true;
   }
 
-  /** Création ou activation : jamais pendant des tours de chat ; Bypass coupé ; vues reconstruites. */
+  /**
+   * Création ou activation : jamais pendant des tours de chat ; Bypass coupé ; vues reconstruites.
+   * Un projet n'existe que dans un conteneur (ADR 0056) : la création demande lequel (`ui.pick`), l'activation
+   * d'un projet « à lier » demande où le déplacer. Sans réponse humaine, rien ne change.
+   */
   private async selectProject(
     m: Extract<StudioMessage, { type: "createProject" | "activateProject" }>,
     sink: Sink,
@@ -490,22 +506,29 @@ export class StudioHost {
     let selected = false;
     try {
       if (m.type === "activateProject") {
-        await activateSelectedProject(this.deps.configDir, m.projectId);
-        // La politique du dépôt n'est pas touchée : elle reste à approuver (`trustRepoPolicy`).
-        this.deps.ctx.audit({ kind: "project.activate", id: m.projectId });
+        if (await this.ensureLinked(m.projectId, sink)) {
+          await activateSelectedProject(this.deps.configDir, m.projectId);
+          // La politique du dépôt n'est pas touchée : elle reste à approuver (`trustRepoPolicy`).
+          this.deps.ctx.audit({ kind: "project.activate", id: m.projectId });
+          selected = true;
+        }
       } else {
-        const project = await createManagedSelectedProject(
-          this.deps.configDir,
-          m.name,
-          this.workspaceRoot(),
-        );
-        created = project.id;
-        this.deps.ctx.audit({ kind: "project.create", id: project.id });
+        const container = await this.chooseContainer(sink, t("Conteneur du projet"), false);
+        if (container !== null) {
+          const project = await this.createIn(container, m.name);
+          created = project.id;
+          this.deps.ctx.audit({
+            kind: "project.create",
+            id: project.id,
+            container: container.name,
+          });
+          selected = true;
+        }
       }
-      selected = true;
-      await this.deps.hooks.projectChanged({ resetBypass: true });
+      if (selected) await this.deps.hooks.projectChanged({ resetBypass: true });
     } catch (error) {
       projectError = formatError(error, this.locale());
+      selected = false;
     } finally {
       this.changing = false;
     }
@@ -516,7 +539,106 @@ export class StudioHost {
         ...(projectError !== undefined && { projectError }),
       },
     });
-    return selected || projectError !== undefined;
+    return true;
+  }
+
+  /**
+   * Création dans un conteneur désigné par son nom (message shell `projectCreate`, écran natif futur) : le nom
+   * est validé contre la liste des conteneurs gérés qui ont un dossier partagé ; inconnu : refus, rien créé.
+   * Renvoie `null` si le projet est créé, sinon le code de refus.
+   */
+  async createInContainer(name: string, container: string): Promise<string | null> {
+    if (this.changing || this.deps.busy()) return "view.stale";
+    this.changing = true;
+    try {
+      const target = (await this.deps.managed()).find(
+        (c) => c.name === container && c.folder !== undefined,
+      );
+      if (target === undefined) throw new CodedError("project.containerUnknown");
+      const project = await this.createIn(target, name);
+      this.deps.ctx.audit({ kind: "project.create", id: project.id, container: target.name });
+      await this.deps.hooks.projectChanged({ resetBypass: true });
+      return null;
+    } catch (error) {
+      return error instanceof CodedError ? error.code : "view.failed";
+    } finally {
+      this.changing = false;
+      await this.push({});
+    }
+  }
+
+  /** Crée le projet dans le dossier partagé du conteneur puis l'active. */
+  private async createIn(container: ContainerItem, name: string) {
+    if (container.folder === undefined) throw new CodedError("project.containerUnknown");
+    const project = await createProjectInFolder(
+      this.deps.configDir,
+      this.deps.containersRoot,
+      container.folder,
+      container.name,
+      name,
+    );
+    await activateSelectedProject(this.deps.configDir, project.id);
+    return project;
+  }
+
+  /**
+   * Choix d'un conteneur géré, avec dossier partagé (`ui.pick`). Création de projet : aucun conteneur =
+   * `project.noContainer`, sans dialogue. Déplacement (`allowCreate`) : l'entrée « Créer un conteneur… » renvoie la
+   * même erreur affichable (la création se fait dans Conteneurs). Sans réponse : `null`.
+   */
+  private async chooseContainer(
+    sink: Sink,
+    title: string,
+    allowCreate: boolean,
+  ): Promise<ContainerItem | null> {
+    const list = (await this.deps.managed()).filter((c) => c.folder !== undefined);
+    if (list.length === 0 && !allowCreate) throw new CodedError("project.noContainer");
+    const picked = await this.deps.ctx.ui.pick(
+      {
+        title,
+        items: [
+          ...list.map((c) => ({ id: c.name, label: cleanText(c.name, 120), detail: c.kind })),
+          ...(allowCreate ? [{ id: CREATE_CONTAINER_ID, label: t("Créer un conteneur…") }] : []),
+        ],
+      },
+      sink,
+    );
+    if (picked === null) return null;
+    if (picked === CREATE_CONTAINER_ID) throw new CodedError("project.noContainer");
+    // Revalidé contre la liste : une réponse inventée ne désigne jamais un dossier.
+    return list.find((c) => c.name === picked) ?? null;
+  }
+
+  /**
+   * Un projet « à lier » ne s'active qu'après son déplacement dans le dossier partagé d'un conteneur choisi par
+   * l'humain. `false` : pas de réponse, rien n'a bougé. Projet déjà lié : `true` sans dialogue.
+   */
+  private async ensureLinked(projectId: string, sink: Sink): Promise<boolean> {
+    const file = await readProjects(this.deps.configDir);
+    const project = file?.projects.find((p) => p.id === projectId);
+    if (project === undefined) return true; // `setActiveProject` répond `project.absent`
+    if (isLinked(project, this.deps.containersRoot)) return true;
+    const target = await this.chooseContainer(
+      sink,
+      t("Choisir le conteneur où déplacer ce projet"),
+      true,
+    );
+    if (target === null || target.folder === undefined) return false;
+    if (this.deps.busy() || this.disposed || !this.subs.has(sink))
+      throw new Error(t("Le travail en cours a changé. Recommencez l'action."));
+    const roots: WorkspaceRoots = {
+      containers: this.deps.containersRoot,
+      legacy: this.deps.legacyRoot,
+    };
+    await moveProjectIntoFolder({
+      configDir: this.deps.configDir,
+      roots,
+      project,
+      folder: target.folder,
+      container: target.name,
+    });
+    this.deps.ctx.audit({ kind: "project.move", id: project.id, container: target.name });
+    return true;
   }
 
   /** Renommage, retrait ou déliaison : dialogue HostUi adressé à l'émetteur ; sans réponse, inchangé. */
@@ -610,14 +732,14 @@ export class StudioHost {
     return true;
   }
 
-  /** La racine reste sous `<données>/projects` : un chemin qui en sort est refusé, jamais enregistré. */
+  /** La racine reste sous `<données>/containers` : un chemin qui en sort est refusé, jamais enregistré. */
   private async setWorkspaceRoot(value: string, sink: Sink): Promise<boolean> {
     let feedback: Feedback = {};
     try {
       const resolved = this.checkRoot(value);
       this.storage.state.set(
         WORKSPACE_ROOT_KEY,
-        resolved === resolve(this.deps.projectsRoot) ? undefined : resolved,
+        resolved === resolve(this.deps.containersRoot) ? undefined : resolved,
       );
       this.deps.ctx.audit({ kind: "studio.workspaceRoot" });
     } catch (error) {

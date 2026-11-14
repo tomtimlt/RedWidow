@@ -21,6 +21,7 @@ import {
 } from "../src/bridge/mentions.js";
 import { isOpenWindowMessage, openWindowMessage } from "../src/bridge/shell-messages.js";
 import {
+  createLinkedProject,
   emptyBackends,
   type FakeSocket,
   type Msg,
@@ -39,13 +40,13 @@ const configDir = () => join(ctx.dir, "config");
 /** Projet actif dont le dossier est sous la racine projets du serveur, avec quelques fichiers. */
 async function project(name = "Mission", files: Record<string, string> = {}) {
   await mkdir(configDir(), { recursive: true });
-  const workspace = join(ctx.storage.paths.projects, name);
+  const workspace = join(ctx.storage.paths.containers, "box", name);
   await mkdir(workspace, { recursive: true });
   for (const [path, content] of Object.entries(files)) {
     await mkdir(join(workspace, path, ".."), { recursive: true });
     await writeFile(join(workspace, path), content);
   }
-  const p = await createProject(configDir(), { name, workspace });
+  const p = await createLinkedProject(configDir(), { name, workspace });
   return { p, workspace };
 }
 
@@ -85,7 +86,7 @@ describe("mentions `@` : fichiers du projet", () => {
     await symlink("/etc", join(workspace, "etc-link"));
     await writeFile(join(ctx.dir, "dehors.txt"), "hors racine");
     await symlink(join(ctx.dir, "dehors.txt"), join(workspace, "fuite.txt"));
-    const root = (await mentionRoot(workspace, ctx.storage.paths.projects)) as string;
+    const root = (await mentionRoot(workspace, ctx.storage.paths.containers)) as string;
     const all = (await listProjectFiles(root, "")).map((f) => f.path);
     expect(all).toEqual(expect.arrayContaining(["notes.md", "src/app.ts", "src/lib/util.ts"]));
     for (const bad of [".git/config", "node_modules/x/index.js", ".secret", "docs/.cache/x"])
@@ -100,7 +101,7 @@ describe("mentions `@` : fichiers du projet", () => {
     const files: Record<string, string> = {};
     for (let i = 0; i < 80; i++) files[`f${String(i).padStart(2, "0")}.txt`] = "x";
     const { workspace } = await project("Beaucoup", files);
-    const root = (await mentionRoot(workspace, ctx.storage.paths.projects)) as string;
+    const root = (await mentionRoot(workspace, ctx.storage.paths.containers)) as string;
     expect(await listProjectFiles(root, "")).toHaveLength(MENTION_FILE_LIMIT);
   });
 
@@ -170,7 +171,7 @@ describe("mentions : lecture d'un fichier désigné par le client", () => {
     await writeFile(join(ctx.dir, "dehors.txt"), "hors racine");
     await symlink(join(ctx.dir, "dehors.txt"), join(workspace, "lien.txt"));
     await symlink(ctx.dir, join(workspace, "lien-dossier"));
-    const root = (await mentionRoot(workspace, ctx.storage.paths.projects)) as string;
+    const root = (await mentionRoot(workspace, ctx.storage.paths.containers)) as string;
     const refusals: Record<string, string> = {
       "../dehors.txt": "path",
       "a/../../dehors.txt": "path",
