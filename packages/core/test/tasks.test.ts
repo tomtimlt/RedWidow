@@ -108,8 +108,13 @@ describe.skipIf(process.platform === "win32")("superviseur Linux réel des tâch
       stdout: "début\nfin\n",
       stderr: "diagnostic\n",
     });
-    const artifact = JSON.parse(
-      await readFile(join(result.output_directory, "result.json"), "utf8"),
+    // Le fichier est écrit juste après le passage à « terminé » : on l'attend (CI chargée).
+    let artifact: unknown;
+    await vi.waitFor(
+      async () => {
+        artifact = JSON.parse(await readFile(join(result.output_directory, "result.json"), "utf8"));
+      },
+      { timeout: 5_000, interval: 50 },
     );
     expect(artifact).toMatchObject({ status: "completed", exit_code: 0 });
     expect((await call("cancel", { task_id: first.task_id })).status).toBe("completed");

@@ -157,6 +157,8 @@ export async function validateProjectFolder(folder: unknown): Promise<string> {
   )
     throw refuse();
   const path = resolve(folder);
+  // Racine d'un disque ou du système de fichiers : jamais un dossier de projet ni de conteneurs.
+  if (parse(path).root === path) throw refuse();
   try {
     await checkDirectoryChain(path);
   } catch {

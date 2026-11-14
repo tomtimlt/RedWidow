@@ -1,5 +1,15 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { afterEach, expect, it } from "vitest";
@@ -20,7 +30,8 @@ import {
 
 const roots: string[] = [];
 async function fixtureDir() {
-  const dir = await mkdtemp(join(tmpdir(), "redwidow-container-"));
+  // Chemin réel : sous Windows, le dossier temporaire peut s'écrire en 8.3 (RUNNER~1).
+  const dir = await realpath(await mkdtemp(join(tmpdir(), "redwidow-container-")));
   roots.push(dir);
   return dir;
 }
