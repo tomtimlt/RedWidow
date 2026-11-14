@@ -5,6 +5,7 @@ import { CodedError, errorInfo } from "@warband/core";
 import { formatReason } from "@warband/messages";
 import { loadPasswordHash } from "./auth/password.js";
 import { runSetPassword, type SetPasswordIo } from "./auth/set-password.js";
+import { parseChatDefaults } from "./bridge/defaults.js";
 import { createAuditFile, createBridge, MissionHub } from "./bridge/index.js";
 import { ConfigError, loadConfig, resolveDataDir } from "./config.js";
 import { createServer } from "./http.js";
@@ -19,7 +20,12 @@ async function serve(): Promise<void> {
   // Sessions de chat côté serveur : elles survivent aux navigateurs (ADR 0052, points 2 et 4).
   // Audit des gestes sensibles (arrêt, Bypass, jetons, comptes) : jamais de valeur secrète.
   const audit = createAuditFile(join(config.dataDir, "audit.jsonl"));
-  const hub = new MissionHub({ storage, onLog: () => undefined, audit });
+  const hub = new MissionHub({
+    storage,
+    onLog: () => undefined,
+    audit,
+    defaults: parseChatDefaults(process.env),
+  });
   // Les téléversements d'un précédent processus n'ont plus de dialogue : on repart d'un dossier vide.
   await hub.context.uploads.purge();
   const bridge = createBridge(hub);

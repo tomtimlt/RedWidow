@@ -57,9 +57,13 @@ docker compose --profile tools build kali
 | `REDWIDOW_SECRET_KEY` | Clé maître (≥ 32 caractères), obligatoire : chiffre les secrets du dossier de données. **Sans elle, les secrets sont perdus.** |
 | `REDWIDOW_PASSWORD_HASH` | Facultatif, à la place de `auth.json` (doubler les `$` dans `.env`). |
 | `REDWIDOW_DATA_HOST` | Dossier de données de l'hôte (`/srv/redwidow`), monté au même chemin dans le conteneur. Vide : volume nommé historique `/data`. |
+| `REDWIDOW_DEFAULT_PROVIDER` | Facultatif : fournisseur initial d'un nouveau chat (`claude`, `openai` ou `opencode`). Vide : OpenCode si le serveur a une clé OpenCode (jeton ou réserve), sinon le premier fournisseur ayant un jeton. Valeur invalide ignorée. |
+| `REDWIDOW_DEFAULT_MODEL` | Facultatif : modèle initial d'un nouveau chat, à renseigner dans votre `.env` (identifiant tel que le fournisseur l'annonce). Appliqué seulement s'il figure dans la liste du fournisseur par défaut, sinon ignoré (trace dans l'audit) ; au plus 200 caractères, sans caractère de contrôle. |
 | `DOCKER_GID` | Groupe propriétaire du socket Docker de l'hôte. |
 
 Le serveur refuse de démarrer sans mot de passe, sans origine ou sans clé maître.
+
+Les deux défauts ne valent que pour un chat qui n'a encore aucune préférence enregistrée : le choix de l'utilisateur (fournisseur, modèle) prime ensuite. Ils sont exposés en lecture seule (`defaultProvider`, `defaultModel`) dans le message `settings` de la coquille.
 
 ## Sécurité, en bref
 

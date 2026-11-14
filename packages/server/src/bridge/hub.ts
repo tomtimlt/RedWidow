@@ -25,6 +25,7 @@ import {
   type EngineController,
   type EngineControllerOptions,
 } from "@warband/vscode/logic/controller";
+import { DEFAULT_PREFS } from "@warband/vscode/logic/controls";
 import { readProjectChoices } from "@warband/vscode/logic/project-controls";
 import { type ChatSession, createChatSession } from "@warband/vscode/logic/session";
 import { createDockerApi, type DockerApi, dockerSocketPath } from "../docker/api.js";
@@ -52,6 +53,7 @@ import {
   writePool,
 } from "./config.js";
 import { ContainerHost, containerEnv } from "./containers.js";
+import { type ChatDefaults, framePrefsKey, resolveDefaultProvider } from "./defaults.js";
 import {
   buildChatDeps,
   HISTORY_INDEX_KEY,
@@ -146,6 +148,8 @@ export interface HubOptions {
   killchainPollMs?: number;
   /** Clients MCP, diagnostic, délai du test Burp et hôtes http admis du studio (injectables : tests). */
   studioExtra?: StudioDeps["extra"];
+  /** Défauts d'un nouveau chat (`REDWIDOW_DEFAULT_PROVIDER`, `REDWIDOW_DEFAULT_MODEL`), déjà validés. */
+  defaults?: ChatDefaults;
 }
 
 /** Chemin du moteur et racine des binaires, d'après l'environnement (ADR 0052, point 1). */
@@ -178,6 +182,8 @@ interface Frame {
   lastState?: string;
   /** Dernier contexte de mission annoncé par le moteur (masqué, borné) : rejoué aux coquilles qui se connectent. */
   missionContext?: { runId: string; text: string };
+  /** Modèle par défaut à appliquer dès que le catalogue du fournisseur par défaut est connu (une seule fois). */
+  pendingModel?: { provider: string; model: string };
 }
 
 /** Plafond du contexte de mission diffusé à la coquille (octets de texte). */
@@ -363,7 +369,8 @@ export class MissionHub {
           const items = await listProjects(this.configDir).catch(() => null);
           if (items !== null) this.toShell({ type: "projects", items });
         },
-        settingsChanged: (values) => this.toShell({ type: "settings", values }),
+        settingsChanged: (values) =>
+          this.toShell({ type: "settings", values: this.settingsView(values) }),
         tokensChanged: async () => {
           for (const f of this.frames.values()) void f.session.authChanged().catch(() => undefined);
           this.toShell({ type: "tokens", items: await listTokens(options.storage) });
@@ -398,7 +405,8 @@ export class MissionHub {
       cockpit: backends.cockpit,
       terminals: (chars) => this.term.snapshots(chars),
       frames: () => this.frames.values(),
-      settingsChanged: (values) => this.toShell({ type: "settings", values }),
+      settingsChanged: (values) =>
+        this.toShell({ type: "settings", values: this.settingsView(values) }),
     });
     this.files = new FilesHost({
       ctx: this.context,
@@ -517,6 +525,7 @@ export class MissionHub {
       },
       onChange: (push) => this.broadcast(f, { ...push }),
     });
+    this.seedDefaults(f);
     f.session = createChatSession(
       buildChatDeps({
         storage: this.options.storage,
@@ -568,6 +577,55 @@ export class MissionHub {
     for (const sink of f.subs) sink.send("chat", f.id, msg);
   }
 
+  /** Fournisseur par défaut effectif : réglage explicite, sinon d'après les clés du serveur ; `null` sans clé. */
+  private defaultProvider(): string | null {
+    return (
+      resolveDefaultProvider(this.options.storage, this.options.defaults ?? {}, Date.now()) ?? null
+    );
+  }
+
+  /**
+   * Défauts du serveur pour un nouveau chat (préférences encore jamais écrites) : fournisseur initial posé
+   * avant la création de la session, donc connecté dès le premier affichage ; le modèle attend le catalogue.
+   * Un chat dont l'utilisateur a déjà fait un choix (préférences présentes) n'est jamais modifié.
+   */
+  private seedDefaults(f: Frame): void {
+    const { storage } = this.options;
+    const key = framePrefsKey(f.id);
+    if (storage.state.get(key) !== undefined) return;
+    const provider = this.defaultProvider();
+    if (provider === null) return;
+    // Claude est déjà le fournisseur initial : rien à écrire, seul le modèle par défaut reste à poser.
+    if (provider !== DEFAULT_PREFS.provider) storage.state.set(key, { ...DEFAULT_PREFS, provider });
+    const model = this.options.defaults?.model;
+    if (model !== undefined) f.pendingModel = { provider, model };
+  }
+
+  /** Applique le modèle par défaut une fois le catalogue prêt : absent du catalogue, il est ignoré (audit). */
+  private applyDefaultModel(f: Frame, view: ChatView): void {
+    const pending = f.pendingModel;
+    const controls = view.controls;
+    if (!pending || !controls || controls.modelsStatus !== "ready" || !controls.models) return;
+    if (controls.provider !== pending.provider) return;
+    delete f.pendingModel;
+    if (controls.model !== null) return;
+    if (controls.models.some((m) => m.value === pending.model)) {
+      f.session.setModel(pending.model);
+      this.audit({ kind: "chat.defaultModel", frame: f.id, applied: true });
+    } else {
+      this.audit({ kind: "chat.defaultModel", frame: f.id, applied: false, reason: "unavailable" });
+    }
+  }
+
+  /** Valeurs des réglages et défauts effectifs du serveur (lecture seule, jamais de secret). */
+  private settingsView(values: Record<string, unknown>): Record<string, unknown> {
+    return {
+      ...values,
+      defaultProvider: this.defaultProvider(),
+      defaultModel: this.options.defaults?.model ?? null,
+    };
+  }
+
   private onView(f: Frame, view: ChatView): void {
     f.approvals = view.approvals.map((card) => ({
       frame: f.id,
@@ -578,6 +636,7 @@ export class MissionHub {
       confirming: card.confirming === true,
     }));
     this.broadcast(f, { type: "view", view, chatId: f.id });
+    this.applyDefaultModel(f, view);
     f.idleWaiters = f.idleWaiters.filter((wait) => !wait());
     this.pushApprovals(false);
     this.pushMissionState(f, view);
@@ -750,6 +809,7 @@ export class MissionHub {
     if (!f) return false;
     f.subs.add(sink);
     sink.send("chat", f.id, { ...f.bypass.snapshot() });
+    this.applyDefaultModel(f, f.session.view());
     sink.send("chat", f.id, { type: "view", view: f.session.view(), chatId: f.id });
     void f.session.loadModels().catch(() => undefined);
     // Conteneurs (menu `@`) et terminaux (menu `#`) : lectures asynchrones, sans bloquer l'abonnement.
@@ -1112,13 +1172,16 @@ export class MissionHub {
       case "setBypass":
         return this.setGlobalBypass(c.active, c.durationMinutes) || this.configError(from, c.type);
       case "settingsGet":
-        from.send("shell", SHELL_FRAME, { type: "settings", values: readSettingsObject(storage) });
+        from.send("shell", SHELL_FRAME, {
+          type: "settings",
+          values: this.settingsView(readSettingsObject(storage)),
+        });
         return true;
       case "settingsSet": {
         const values = applySettingsPatch(storage, c.patch);
         if (values === null) return this.configError(from, c.type);
         this.audit({ kind: "settings.set", keys: Object.keys(c.patch) });
-        toAll({ type: "settings", values });
+        toAll({ type: "settings", values: this.settingsView(values) });
         return true;
       }
       case "tokens":

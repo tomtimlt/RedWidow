@@ -333,7 +333,13 @@ describe("vue studio : apparence et fenêtres", () => {
     await vi.waitFor(() => expect(shell.of("shell", "settings")).toHaveLength(3));
     expect(shell.of("shell", "settings").at(-1)?.msg).toEqual({
       type: "settings",
-      values: { palette: "venom", terminalPrompt: "compact", locale: "en" },
+      values: {
+        palette: "venom",
+        terminalPrompt: "compact",
+        locale: "en",
+        defaultProvider: "claude",
+        defaultModel: null,
+      },
     });
     expect(s.of("studio", "palette")[0]?.msg).toEqual({ type: "palette", value: "venom" });
     expect(s.of("studio", "terminalPrompt")[0]?.msg).toEqual({

@@ -194,11 +194,17 @@ describe("configuration : réglages", () => {
       expect(other.of("shell", "settings").at(-1)?.msg.values).toEqual({
         maxTurns: 12,
         profile: "mentor",
+        defaultProvider: "claude",
+        defaultModel: null,
       }),
     );
     shell.say("shell", "shell", { type: "settingsSet", patch: { profile: null } });
     await vi.waitFor(() =>
-      expect(other.of("shell", "settings").at(-1)?.msg.values).toEqual({ maxTurns: 12 }),
+      expect(other.of("shell", "settings").at(-1)?.msg.values).toEqual({
+        maxTurns: 12,
+        defaultProvider: "claude",
+        defaultModel: null,
+      }),
     );
     const before = t.bridge.stats().ignored;
     shell.say("shell", "shell", { type: "settingsSet", patch: { "warband.evil": 1 } });
@@ -210,7 +216,11 @@ describe("configuration : réglages", () => {
     expect(shell.of("shell", "configError")).toHaveLength(3);
     shell.say("shell", "shell", { type: "settingsGet" });
     await vi.waitFor(() =>
-      expect(shell.of("shell", "settings").at(-1)?.msg.values).toEqual({ maxTurns: 12 }),
+      expect(shell.of("shell", "settings").at(-1)?.msg.values).toEqual({
+        maxTurns: 12,
+        defaultProvider: "claude",
+        defaultModel: null,
+      }),
     );
   });
 });
