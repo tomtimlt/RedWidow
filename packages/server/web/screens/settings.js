@@ -252,7 +252,7 @@ export function createSettingsScreen(
     doc,
     "p",
     "scr-note",
-    "Grain, balayage et animations d'ambiance. Désactivés d'office si votre système demande de réduire les animations.",
+    "Transitions et animations de l'interface (survol, ouverture des fenêtres). Désactivées d'office si votre système demande de réduire les animations.",
   );
   effects.addEventListener("change", () => {
     if (!send(effectsMessage(effects.checked))) effects.checked = effectsEnabled(values);

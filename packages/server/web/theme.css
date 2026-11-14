@@ -1,51 +1,67 @@
 /*
- * Thème « Néon » de RedWidow Serveur. Les feuilles de l'extension (media/css) lisent les variables
- * `--vscode-*` que VS Code fournit à ses webviews : ici, le navigateur les définit à sa place, avec
- * la charte (rouge #CC1C40 = marque, acier #495F73). Les néons cyan et magenta sont décoratifs : ils ne
- * portent jamais un sens ni une action. Chargé par la coquille et par chaque page de vue ; ne redéfinit
- * aucune variable `--jn-*` (la palette de l'utilisateur reste maîtresse de la couleur des pages).
+ * Thème « Épuré pro sombre » de RedWidow Serveur. Les feuilles de l'extension (media/css) lisent les
+ * variables `--vscode-*` que VS Code fournit à ses webviews : ici, le navigateur les définit à sa place.
+ * Une seule couleur d'accent : le rouge RedWidow #CC1C40 (marque et actions) ; les états (succès, alerte,
+ * information) restent sobres. Profondeur par les surfaces, ombres douces pour ce qui flotte. Chargé par la
+ * coquille et par chaque page de vue ; ne redéfinit aucune variable `--jn-*` (la palette de l'utilisateur
+ * reste maîtresse de la couleur des pages). Seule feuille (avec la connexion) à porter des valeurs hexadécimales.
  */
 :root {
   color-scheme: dark;
 
-  /* Charte */
+  /* Accent (marque, actions) : blanc sur crimson 5,5:1 ; survol et actif plus foncés (≥ 6,6:1). */
   --rw-crimson: #cc1c40;
-  --rw-crimson-hover: #e02a50;
+  --rw-crimson-hover: #b5183a;
+  --rw-crimson-active: #9f1534;
   --rw-crimson-text: #ff728b;
-  --rw-steel: #495f73;
-  --rw-steel-text: #8aa0b4;
+  --rw-on-accent: #ffffff;
+  --rw-steel: #353b43;
+  --rw-steel-text: #9ba2ab;
 
-  /* Surfaces (acier très sombre) */
-  --rw-bg: #07090c;
-  --rw-surface: #0e1217;
-  --rw-surface-2: #151b22;
-  --rw-surface-3: #1d252e;
-  --rw-line: #26313c;
-  --rw-line-strong: #3a4856;
-  --rw-fg: #e8edf2;
-  --rw-fg-muted: #9aa7b4;
-  --rw-ok: #5fd68a;
-  --rw-warn: #f2c94c;
+  /* Surfaces (graphite) */
+  --rw-bg: #0f1114;
+  --rw-surface: #16191d;
+  --rw-surface-2: #1c2025;
+  --rw-surface-3: #22272d;
+  --rw-line: #2a2f36;
+  --rw-line-strong: #353b43;
+  --rw-fg: #e7e9ec;
+  --rw-fg-muted: #9ba2ab;
+  --rw-fg-subtle: #8a929c;
+
+  /* États sobres (toujours avec texte ou icône) */
+  --rw-ok: #6fbf8e;
+  --rw-warn: #e0b050;
   --rw-err: #ff8a8a;
+  --rw-info: #8aa4bf;
+  --rw-link: #8cb4e8;
 
-  /* Néons décoratifs (jamais porteurs de sens ni d'action) */
-  --rw-neon-cyan: #00e5ff;
-  --rw-neon-magenta: #ff2bd6;
-  --rw-link: #5fe9ff;
+  /* Ombres douces et formes : boutons et champs 8 px, cartes, fenêtres, dialogues 12 px */
+  --rw-shadow-window: 0 8px 32px rgb(0 0 0 / 45%), 0 2px 8px rgb(0 0 0 / 30%);
+  --rw-shadow-pop: 0 12px 32px rgb(0 0 0 / 50%), 0 2px 6px rgb(0 0 0 / 30%);
+  --rw-radius: 8px;
+  --rw-radius-lg: 12px;
+  --rw-ctl: 36px;
+  --rw-ease: 140ms ease;
 
-  /* Lueurs, ombres, formes */
-  --rw-glow-crimson: 0 0 0 1px #cc1c40, 0 0 14px rgb(204 28 64 / 45%);
-  --rw-glow-cyan: 0 0 10px rgb(0 229 255 / 35%);
-  --rw-shadow-window: 0 12px 40px rgb(0 0 0 / 70%);
-  --rw-radius: 2px;
-  --rw-radius-lg: 4px;
-  --rw-notch: 10px;
+  /* Terminal (xterm lit ces variables, voir screens/terminal.js) : ANSI sobres, versions vives */
+  --rw-term-red: #ff728b;
+  --rw-term-green: #6fbf8e;
+  --rw-term-yellow: #e0b050;
+  --rw-term-blue: #8aa4bf;
+  --rw-term-magenta: #c79ad6;
+  --rw-term-cyan: #7fbfc9;
+  --rw-term-bright-red: #ff8a8a;
+  --rw-term-bright-green: #8fd4a8;
+  --rw-term-bright-yellow: #ecc878;
+  --rw-term-bright-blue: #a9c0da;
+  --rw-term-bright-magenta: #d9b3e6;
+  --rw-term-bright-cyan: #a2d6de;
 
-  /* Polices : Geist (corps) et JetBrains Mono de l'extension (@font-face dans shell.css et base.css) ;
-     Chakra Petch (affichage, titres seulement) servie par /assets/fonts. */
+  /* Polices : Geist (interface) et JetBrains Mono (code, terminal) de l'extension (@font-face dans
+     shell.css et base.css). */
   --rw-font: "Warband Geist", system-ui, sans-serif;
   --rw-mono: "Warband JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
-  --rw-display: "RW Chakra Petch", var(--rw-font);
 
   /* Variables attendues par les feuilles de l'extension */
   --vscode-foreground: var(--rw-fg);
@@ -58,13 +74,13 @@
   --vscode-panel-border: var(--rw-line);
   --vscode-widget-border: var(--rw-line);
   --vscode-widget-shadow: rgb(0 0 0 / 70%);
-  --vscode-focusBorder: #ff728b;
+  --vscode-focusBorder: var(--rw-crimson-text);
   --vscode-contrastBorder: transparent;
   --vscode-contrastActiveBorder: transparent;
   --vscode-input-background: var(--rw-surface-2);
   --vscode-input-foreground: var(--rw-fg);
   --vscode-input-border: var(--rw-line-strong);
-  --vscode-input-placeholderForeground: #8693a0;
+  --vscode-input-placeholderForeground: var(--rw-fg-subtle);
   --vscode-inputValidation-warningBackground: #3a2f12;
   --vscode-inputValidation-warningBorder: var(--rw-warn);
   --vscode-dropdown-background: var(--rw-surface-2);
@@ -73,10 +89,10 @@
   --vscode-button-background: var(--rw-crimson);
   --vscode-button-foreground: #ffffff;
   --vscode-button-hoverBackground: var(--rw-crimson-hover);
-  --vscode-button-secondaryBackground: var(--rw-steel);
+  --vscode-button-secondaryBackground: var(--rw-surface-3);
   --vscode-button-secondaryForeground: #ffffff;
-  --vscode-button-secondaryHoverBackground: #587289;
-  --vscode-badge-background: var(--rw-steel);
+  --vscode-button-secondaryHoverBackground: #2b3138;
+  --vscode-badge-background: var(--rw-surface-3);
   --vscode-badge-foreground: #ffffff;
   --vscode-textLink-foreground: var(--rw-link);
   --vscode-textCodeBlock-background: var(--rw-surface-2);
@@ -88,14 +104,14 @@
   --vscode-scrollbarSlider-background: rgb(138 160 180 / 28%);
   --vscode-editor-selectionBackground: rgb(204 28 64 / 38%);
   --vscode-editorWarning-foreground: var(--rw-warn);
-  --vscode-editorInfo-foreground: #6ea0ff;
+  --vscode-editorInfo-foreground: var(--rw-info);
   --vscode-testing-iconPassed: var(--rw-ok);
   --vscode-terminal-foreground: var(--rw-fg);
   --vscode-terminal-ansiGreen: var(--rw-ok);
   --vscode-terminal-ansiYellow: var(--rw-warn);
-  --vscode-terminal-ansiBlue: #6ea0ff;
-  --vscode-terminal-ansiMagenta: var(--rw-neon-magenta);
-  --vscode-terminal-ansiCyan: var(--rw-neon-cyan);
+  --vscode-terminal-ansiBlue: var(--rw-term-blue);
+  --vscode-terminal-ansiMagenta: var(--rw-term-magenta);
+  --vscode-terminal-ansiCyan: var(--rw-term-cyan);
   --vscode-font-family: var(--rw-font);
   --vscode-font-size: 13px;
   --vscode-editor-font-family: var(--rw-mono);

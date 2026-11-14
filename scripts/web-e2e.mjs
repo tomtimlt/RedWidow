@@ -931,6 +931,7 @@ async function scenario(name, viewport) {
   // Sans session : redirection vers la connexion, puis connexion.
   await page.goto(`${origin}/#w=approbations`);
   check(new URL(page.url()).pathname === "/login", "sans session, redirection vers /login");
+  await shot("0-connexion");
   await page.fill("#password", PASSWORD);
   await page.click("button[type=submit]");
   await page.waitForURL(`${origin}/`);
@@ -976,6 +977,17 @@ async function scenario(name, viewport) {
   check(!focusInCard, "le focus n'est pas déplacé vers une carte");
   check(approvalsOf().length === 0, "aucun approve à l'arrivée des demandes");
   await shot("2-trois-demandes");
+  if (viewport.width < 720) {
+    // Cibles tactiles : arrêt d'urgence, compteur et boutons d'approbation font au moins 44 px.
+    const small = await page.evaluate(() =>
+      [...document.querySelectorAll("#tb-halt, #tb-count, .appr-btn, .dock-item, .dock-open-btn")]
+        .filter(
+          (e) => e.getBoundingClientRect().height > 0 && e.getBoundingClientRect().height < 43.5,
+        )
+        .map((e) => `${e.className || e.id} ${e.getBoundingClientRect().height}`),
+    );
+    check(small.length === 0, `cibles tactiles >= 44 px (trop petites : ${small.join(", ")})`);
+  }
 
   // Rechargement : toujours aucun approve.
   await page.reload();
@@ -1157,9 +1169,9 @@ const near = (a, b, tol = 1.5) => Math.abs(a - b) <= tol;
 async function openSession(
   name,
   viewport,
-  { keepLayouts = false, init = null, firstLaunch = false } = {},
+  { keepLayouts = false, init = null, firstLaunch = false, reducedMotion = "no-preference" } = {},
 ) {
-  const context = await browser.newContext({ viewport, deviceScaleFactor: 1 });
+  const context = await browser.newContext({ viewport, deviceScaleFactor: 1, reducedMotion });
   if (init) await context.addInitScript(init);
   const page = await context.newPage();
   const violations = [];
@@ -2674,7 +2686,7 @@ async function terminalScenario(name, viewport) {
     .locator(".xterm-rows .xterm-fg-2")
     .first()
     .evaluate((n) => getComputedStyle(n).color);
-  check(green === "rgb(95, 214, 138)", `couleur du thème appliquée sans <style> (${green})`);
+  check(green === "rgb(111, 191, 142)", `couleur du thème appliquée sans <style> (${green})`);
   const truecolor = await terms
     .nth(0)
     .locator(".xterm-rows span", { hasText: "rouge24" })
@@ -2893,6 +2905,55 @@ async function terminalPhoneScenario(name, viewport) {
     `zéro violation CSP (terminal téléphone) (${violations.slice(0, 3).join(" | ")})`,
   );
   await context.close();
+}
+
+/** Mouvement : aucune animation ni transition avec `data-fx="off"` ou `prefers-reduced-motion`. */
+async function motionScenario(name, viewport) {
+  console.log(`\n== ${name} : transitions et animations (${viewport.width}x${viewport.height})`);
+  const motion = (page) =>
+    page.evaluate(() => {
+      const win = document.querySelector(".wm-win");
+      win.classList.remove("wm-pop");
+      void win.offsetWidth;
+      win.classList.add("wm-pop");
+      const halt = document.getElementById("tb-halt");
+      return {
+        animation: getComputedStyle(win).animationName,
+        transition: getComputedStyle(halt).transitionDuration,
+        running: document.getAnimations().length,
+      };
+    });
+  // Effets actifs : l'ouverture d'une fenêtre s'anime, les boutons ont une transition.
+  const on = await openSession(`${name}-on`, viewport);
+  await until(async () => (await on.page.locator(".wm-win").count()) > 0, "une fenêtre ouverte");
+  const m1 = await motion(on.page);
+  check(m1.animation === "wm-pop", "effets actifs : fondu d'ouverture de fenêtre");
+  check(m1.transition !== "0s", "effets actifs : transition de survol sur les boutons");
+  check(on.violations.length === 0, `zéro violation CSP (${on.violations.join(" | ")})`);
+  // data-fx="off" (réglage serveur) : plus aucune animation.
+  await on.page.evaluate(() => {
+    document.documentElement.dataset.fx = "off";
+  });
+  const m2 = await motion(on.page);
+  check(m2.animation === "none", "data-fx=off : aucune animation d'ouverture");
+  check(m2.transition === "0s", "data-fx=off : aucune transition");
+  check(m2.running === 0, "data-fx=off : aucune animation en cours");
+  await on.context.close();
+  // prefers-reduced-motion : même résultat, effets actifs ou non.
+  const rm = await openSession(`${name}-rm`, viewport, { reducedMotion: "reduce" });
+  await until(async () => (await rm.page.locator(".wm-win").count()) > 0, "une fenêtre ouverte");
+  const m3 = await motion(rm.page);
+  check(m3.animation === "none", "reduced-motion : aucune animation d'ouverture");
+  check(m3.transition === "0s", "reduced-motion : aucune transition");
+  check(m3.running === 0, "reduced-motion : aucune animation en cours");
+  await rm.page.keyboard.press("Control+k");
+  await sleep(250);
+  check(
+    (await rm.page.evaluate(() => document.getAnimations().length)) === 0,
+    "reduced-motion : la palette s'ouvre sans animation",
+  );
+  check(rm.violations.length === 0, `zéro violation CSP (${rm.violations.join(" | ")})`);
+  await rm.context.close();
 }
 
 /** Coquille : premier lancement, bureau vide, menu Ouvrir groupé, palette, liens profonds, accords Alt+J. */
@@ -4357,6 +4418,7 @@ try {
   if (only("terminal")) await terminalScenario("terminal", { width: 1440, height: 900 });
   if (only("terminal-mobile"))
     await terminalPhoneScenario("terminal-mobile", { width: 375, height: 812 });
+  if (only("motion")) await motionScenario("motion", { width: 1440, height: 900 });
   if (only("shell")) await shellScenario("shell", { width: 1440, height: 900 });
   if (only("shell-mobile")) await shellScenario("shell-mobile", { width: 375, height: 812 });
   if (only("dialogs")) await dialogScenario("dialogs", { width: 1440, height: 900 });

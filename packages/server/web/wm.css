@@ -1,7 +1,7 @@
 /*
  * Bureau à fenêtres de RedWidow Serveur : fenêtres, dock, mode pile (téléphone). La géométrie des
  * fenêtres est posée par le CSSOM (wm/desktop.js), jamais par un attribut `style` du HTML. Les
- * animations durent 150 ms au plus et s'éteignent avec `prefers-reduced-motion`.
+ * transitions durent 160 ms au plus ; elles s'éteignent avec `prefers-reduced-motion` et `data-fx="off"`.
  */
 
 /* ───────────── Fenêtres ───────────── */
@@ -12,18 +12,13 @@
   min-width: 0;
   background: var(--rw-surface);
   border: 1px solid var(--rw-line);
-  border-radius: 7px;
-  box-shadow:
-    0 0 0 1px rgb(0 0 0 / 45%),
-    0 10px 28px rgb(0 0 0 / 40%);
+  border-radius: var(--rw-radius-lg);
+  box-shadow: 0 2px 10px rgb(0 0 0 / 30%);
 }
 
 .wm-win.is-focused {
-  border-color: var(--rw-steel);
-  box-shadow:
-    0 0 0 1px rgb(0 0 0 / 55%),
-    0 22px 56px rgb(0 0 0 / 62%),
-    0 0 0 1px rgb(73 95 115 / 35%);
+  border-color: var(--rw-line-strong);
+  box-shadow: var(--rw-shadow-window);
 }
 
 .wm-win.is-max {
@@ -34,20 +29,20 @@
 
 .wm-win.wm-anim {
   transition:
-    left 120ms ease-out,
-    top 120ms ease-out,
-    width 120ms ease-out,
-    height 120ms ease-out;
+    left 140ms ease-out,
+    top 140ms ease-out,
+    width 140ms ease-out,
+    height 140ms ease-out;
 }
 
 .wm-win.wm-pop {
-  animation: wm-pop 120ms ease-out 1;
+  animation: wm-pop 150ms ease-out 1;
 }
 
 @keyframes wm-pop {
   from {
     opacity: 0;
-    transform: scale(0.985);
+    transform: scale(0.97);
   }
   to {
     opacity: 1;
@@ -60,15 +55,14 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 34px;
-  padding: 0 4px 0 12px;
+  height: 40px;
+  padding: 0 6px 0 14px;
   border-bottom: 1px solid var(--rw-line);
-  border-radius: 6px 6px 0 0;
+  border-radius: var(--rw-radius-lg) var(--rw-radius-lg) 0 0;
   background: var(--rw-surface-2);
   color: var(--rw-fg-muted);
-  font-family: var(--rw-mono);
-  font-size: 12px;
-  letter-spacing: 0.02em;
+  font-size: 13px;
+  font-weight: 500;
   cursor: grab;
   user-select: none;
   touch-action: none;
@@ -80,7 +74,6 @@
 
 .wm-win.is-focused .wm-title {
   color: var(--rw-fg);
-  box-shadow: inset 0 2px 0 var(--rw-crimson);
 }
 
 .wm-name {
@@ -94,11 +87,12 @@
 .wm-name::before {
   content: "";
   display: inline-block;
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   margin-right: 8px;
-  background: var(--rw-steel);
-  vertical-align: 0.5px;
+  border-radius: 50%;
+  background: var(--rw-line-strong);
+  vertical-align: 0;
 }
 
 .wm-win.is-focused .wm-name::before {
@@ -108,10 +102,10 @@
 /* Pastille « Contexte » de la fenêtre Mission et son panneau. */
 .wm-chip {
   flex: none;
-  min-height: 22px;
-  padding: 0 9px;
-  border: 1px solid var(--rw-steel);
-  border-radius: 11px;
+  min-height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--rw-line-strong);
+  border-radius: 999px;
   background: transparent;
   color: var(--rw-steel-text);
   font: inherit;
@@ -143,10 +137,10 @@
   max-height: 60%;
   padding: 12px 14px;
   overflow: auto;
-  border: 1px solid var(--rw-steel);
-  border-radius: 6px;
+  border: 1px solid var(--rw-line-strong);
+  border-radius: var(--rw-radius-lg);
   background: var(--rw-surface-2);
-  box-shadow: 0 10px 28px rgb(0 0 0 / 50%);
+  box-shadow: var(--rw-shadow-pop);
 }
 
 .wm-ctx[hidden] {
@@ -167,7 +161,7 @@
   min-height: 32px;
   padding: 0 12px;
   border: 1px solid var(--rw-line);
-  border-radius: 6px;
+  border-radius: var(--rw-radius);
   background: transparent;
   color: var(--rw-fg-muted);
   font: inherit;
@@ -185,27 +179,30 @@
 }
 
 .wm-btn {
-  width: 30px;
-  height: 26px;
+  width: 32px;
+  height: 28px;
   padding: 0;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--rw-radius);
   background: transparent;
   color: var(--rw-fg-muted);
   font-family: var(--rw-mono);
   font-size: 14px;
   line-height: 1;
   cursor: pointer;
+  transition:
+    background-color var(--rw-ease),
+    color var(--rw-ease);
 }
 
 .wm-btn:hover {
-  background: var(--rw-line);
+  background: var(--rw-surface-3);
   color: var(--rw-fg);
 }
 
 .wm-btn.wm-close:hover {
   background: var(--rw-crimson);
-  color: #fff;
+  color: var(--rw-on-accent);
 }
 
 .wm-body {
@@ -213,7 +210,7 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-  border-radius: 0 0 6px 6px;
+  border-radius: 0 0 var(--rw-radius-lg) var(--rw-radius-lg);
   background: var(--rw-bg);
 }
 
@@ -253,7 +250,7 @@
 
 .wm-error {
   position: absolute;
-  top: 34px;
+  top: 40px;
   right: 0;
   bottom: 0;
   left: 0;
@@ -358,8 +355,8 @@
   position: absolute;
   z-index: 1900;
   border: 1px solid var(--rw-crimson-text);
-  border-radius: 7px;
-  background: rgb(204 28 64 / 14%);
+  border-radius: var(--rw-radius);
+  background: rgb(204 28 64 / 12%);
   pointer-events: none;
 }
 
@@ -371,8 +368,7 @@
   margin: 0;
   padding: 24px;
   color: var(--rw-fg-muted);
-  font-family: var(--rw-mono);
-  font-size: 13px;
+  font-size: 14px;
   text-align: center;
   pointer-events: none;
 }
@@ -398,25 +394,32 @@
 }
 
 .wm-empty-btn {
-  min-height: 40px;
-  padding: 0 18px;
-  border: 1px solid var(--rw-steel);
-  border-radius: 6px;
-  background: transparent;
+  min-height: var(--rw-ctl);
+  padding: 0 16px;
+  border: 1px solid var(--rw-line-strong);
+  border-radius: var(--rw-radius);
+  background: var(--rw-surface-2);
   color: var(--rw-fg);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
+  transition:
+    background-color var(--rw-ease),
+    border-color var(--rw-ease);
 }
 
 .wm-empty-btn:hover {
-  background: var(--rw-surface-2);
+  background: var(--rw-surface-3);
 }
 
 .wm-empty-btn.is-primary {
   border-color: var(--rw-crimson);
   background: var(--rw-crimson);
-  color: #fff;
+  color: var(--rw-on-accent);
+}
+
+.wm-empty-btn.is-primary:hover {
+  background: var(--rw-crimson-hover);
 }
 
 .wm-empty-btn.is-primary:hover {
@@ -440,8 +443,8 @@ body.wm-dragging .view-frame {
   display: flex;
   align-items: stretch;
   gap: 8px;
-  height: 46px;
-  padding: 5px 10px;
+  height: 52px;
+  padding: 8px 12px;
   background: var(--rw-surface);
   border-top: 1px solid var(--rw-line);
 }
@@ -463,13 +466,15 @@ body.wm-dragging .view-frame {
   gap: 8px;
   min-width: 110px;
   padding: 0 12px;
-  border: 1px solid var(--rw-line);
-  border-radius: 6px;
+  border: 1px solid transparent;
+  border-radius: var(--rw-radius);
   background: transparent;
   color: var(--rw-fg-muted);
-  font-family: var(--rw-mono);
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
+  transition:
+    background-color var(--rw-ease),
+    color var(--rw-ease);
 }
 
 .dock-item:hover {
@@ -478,10 +483,9 @@ body.wm-dragging .view-frame {
 }
 
 .dock-item.is-focus {
-  border-color: var(--rw-steel);
+  border-color: var(--rw-line-strong);
   background: var(--rw-surface-2);
   color: var(--rw-fg);
-  box-shadow: inset 0 -2px 0 var(--rw-crimson);
 }
 
 .dock-item.is-min {
@@ -517,7 +521,7 @@ body.wm-dragging .view-frame {
   padding: 1px 5px;
   border-radius: 999px;
   background: var(--rw-crimson);
-  color: #fff;
+  color: var(--rw-on-accent);
   font-size: 11px;
   font-weight: 700;
   text-align: center;
@@ -531,16 +535,17 @@ body.wm-dragging .view-frame {
 .dock-open-btn {
   height: 100%;
   padding: 0 16px;
-  border: 1px solid var(--rw-steel);
-  border-radius: 6px;
-  background: transparent;
+  border: 1px solid var(--rw-line-strong);
+  border-radius: var(--rw-radius);
+  background: var(--rw-surface-2);
   font-weight: 600;
   cursor: pointer;
+  transition: background-color var(--rw-ease);
 }
 
 .dock-open-btn:hover,
 .dock-open-btn[aria-expanded="true"] {
-  background: var(--rw-surface-2);
+  background: var(--rw-surface-3);
 }
 
 .dock-menu {
@@ -551,24 +556,25 @@ body.wm-dragging .view-frame {
   flex-direction: column;
   min-width: 200px;
   padding: 4px;
-  border: 1px solid var(--rw-steel);
-  border-radius: 8px;
-  background: var(--rw-surface);
-  box-shadow: 0 16px 40px rgb(0 0 0 / 60%);
+  border: 1px solid var(--rw-line-strong);
+  border-radius: var(--rw-radius-lg);
+  background: var(--rw-surface-3);
+  box-shadow: var(--rw-shadow-pop);
 }
 
 .dock-menu-item {
   min-height: 36px;
   padding: 0 12px;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--rw-radius);
   background: transparent;
   text-align: left;
   cursor: pointer;
+  transition: background-color var(--rw-ease);
 }
 
 .dock-menu-item:hover {
-  background: var(--rw-surface-2);
+  background: rgb(255 255 255 / 7%);
 }
 
 /* Menu « Ouvrir » : groupes Mission / Outils / Écrans, défilable si l'écran est bas. */
@@ -585,10 +591,10 @@ body.wm-dragging .view-frame {
 
 .dock-menu-title {
   padding: 8px 12px 4px;
-  color: var(--rw-steel-text);
-  font-family: var(--rw-mono);
+  color: var(--rw-fg-subtle);
   font-size: 11px;
-  letter-spacing: 0.08em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
@@ -705,18 +711,18 @@ body.is-phone .dock-menu-kbd {
   height: 100%;
   max-width: 220px;
   padding: 0 12px;
-  border: 1px solid var(--rw-line);
-  border-radius: 6px;
-  background: transparent;
+  border: 1px solid var(--rw-line-strong);
+  border-radius: var(--rw-radius);
+  background: var(--rw-surface-2);
   color: var(--rw-fg-muted);
-  font-family: var(--rw-mono);
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
+  transition: background-color var(--rw-ease);
 }
 
 .dock-space-btn:hover,
 .dock-space-btn[aria-expanded="true"] {
-  background: var(--rw-surface-2);
+  background: var(--rw-surface-3);
   color: var(--rw-fg);
 }
 
@@ -728,7 +734,7 @@ body.is-phone .dock-menu-kbd {
 .dock-space-cap {
   color: var(--rw-steel-text);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.04em;
   font-size: 10px;
 }
 
@@ -761,7 +767,7 @@ body.is-phone .dock-menu-kbd {
 .dock-space-save {
   margin-top: 4px;
   border-top: 1px solid var(--rw-line);
-  border-radius: 0 0 5px 5px;
+  border-radius: 0 0 var(--rw-radius-lg) var(--rw-radius-lg);
   color: var(--rw-steel-text);
 }
 
@@ -779,7 +785,7 @@ body.is-phone .dock-space {
   justify-content: center;
   align-items: flex-start;
   padding: 12vh 16px 16px;
-  background: rgb(5 8 11 / 62%);
+  background: rgb(8 10 12 / 60%);
 }
 
 .palette[hidden] {
@@ -791,18 +797,15 @@ body.is-phone .dock-space {
   flex-direction: column;
   width: min(640px, 100%);
   max-height: min(70vh, 560px);
-  border: 1px solid var(--rw-steel);
-  border-radius: 10px;
+  border: 1px solid var(--rw-line-strong);
+  border-radius: var(--rw-radius-lg);
   background: var(--rw-surface);
-  box-shadow:
-    0 0 0 1px rgb(0 0 0 / 60%),
-    0 28px 80px rgb(0 0 0 / 70%),
-    0 0 0 1px rgb(204 28 64 / 12%);
+  box-shadow: var(--rw-shadow-pop);
   overflow: hidden;
 }
 
 .palette.is-open .palette-box {
-  animation: pal-in 110ms ease-out 1;
+  animation: pal-in 140ms ease-out 1;
 }
 
 @keyframes pal-in {
@@ -823,12 +826,10 @@ body.is-phone .dock-space {
   border: 0;
   border-bottom: 1px solid var(--rw-line);
   border-radius: 0;
-  background: var(--rw-bg);
+  background: var(--rw-surface);
   color: var(--rw-fg);
-  font-family: var(--rw-mono);
-  font-size: 15px;
+  font-size: 16px;
   outline: none;
-  box-shadow: inset 3px 0 0 var(--rw-crimson);
 }
 
 .palette-input::placeholder {
@@ -845,10 +846,10 @@ body.is-phone .dock-space {
 
 .pal-group {
   padding: 10px 10px 4px;
-  color: var(--rw-steel-text);
-  font-family: var(--rw-mono);
-  font-size: 10px;
-  letter-spacing: 0.1em;
+  color: var(--rw-fg-subtle);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
@@ -856,17 +857,17 @@ body.is-phone .dock-space {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 10px;
-  border-radius: 6px;
+  min-height: 40px;
+  padding: 8px 12px;
+  border-radius: var(--rw-radius);
   color: var(--rw-fg-muted);
   font-size: 14px;
   cursor: pointer;
 }
 
 .pal-item.is-active {
-  background: var(--rw-surface-2);
+  background: var(--rw-surface-3);
   color: var(--rw-fg);
-  box-shadow: inset 2px 0 0 var(--rw-crimson);
 }
 
 .pal-title {
@@ -894,9 +895,9 @@ body.is-phone .dock-space {
   flex: none;
   padding: 1px 6px;
   border: 1px solid var(--rw-line);
-  border-radius: 4px;
-  background: var(--rw-bg);
-  color: var(--rw-steel-text);
+  border-radius: var(--rw-radius);
+  background: var(--rw-surface-2);
+  color: var(--rw-fg-muted);
   font-family: var(--rw-mono);
   font-size: 11px;
 }

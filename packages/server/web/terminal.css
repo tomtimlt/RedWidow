@@ -1,6 +1,6 @@
 /*
- * Fenêtre Terminal (xterm.js) et pastille d'activité du dock. Charte : fond acier très sombre, rouge
- * #CC1C40 pour le curseur et les alertes, acier #495F73 pour les contours. Aucune ressource distante ;
+ * Fenêtre Terminal (xterm.js) et pastille d'activité du dock. Fond graphite, accent rouge RedWidow pour
+ * le curseur et les alertes. Aucune ressource distante ;
  * la feuille d'xterm est servie par /vendor/xterm.css.
  */
 .term {
@@ -15,10 +15,10 @@
 .term-banner {
   flex: none;
   margin: 0;
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--rw-steel);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--rw-line);
   background: var(--rw-surface);
-  color: var(--rw-steel-text);
+  color: var(--rw-fg-muted);
   font-size: 12px;
   line-height: 1.35;
 }
@@ -26,7 +26,7 @@
 .term-halt {
   flex: none;
   margin: 0;
-  padding: 6px 10px;
+  padding: 8px 12px;
   background: rgb(204 28 64 / 22%);
   border-bottom: 1px solid var(--rw-crimson);
   color: var(--rw-crimson-text);
@@ -79,7 +79,7 @@
 
 .term-choice.is-preselected {
   border-color: var(--rw-crimson);
-  box-shadow: inset 3px 0 0 var(--rw-crimson);
+  box-shadow: inset 2px 0 0 var(--rw-crimson);
 }
 
 .term-choice-name {
@@ -99,7 +99,7 @@
   min-height: 0;
   padding: 4px 0 0 6px;
   overflow: hidden;
-  background: #0d1116;
+  background: var(--rw-bg);
 }
 
 /* xterm remplit son conteneur ; la barre de défilement garde la teinte acier. */
@@ -121,11 +121,11 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--rw-steel);
-  border-radius: 6px;
-  background: var(--rw-surface-2);
-  box-shadow: 0 6px 24px rgb(0 0 0 / 55%);
+  padding: 12px 16px;
+  border: 1px solid var(--rw-line-strong);
+  border-radius: var(--rw-radius-lg);
+  background: var(--rw-surface-3);
+  box-shadow: var(--rw-shadow-pop);
 }
 
 .term-confirm {

@@ -1,5 +1,5 @@
 // Éditeur de la fenêtre Fichiers : CodeMirror 6 (copie locale `web/vendor/codemirror.js`, chargée à la
-// demande), thème sombre sur mesure à la charte (rouge #CC1C40, acier #495F73, mono de la coquille) et
+// demande), thème sombre sobre assorti à la coquille (accent rouge RedWidow, graphite, mono de la coquille) et
 // textes français pour la recherche. Une seule vue ; l'état de chaque fichier (historique d'annulation,
 // sélection) est conservé à part et échangé à l'ouverture d'un onglet. CSP : les feuilles de style de
 // CodeMirror passent par `adoptedStyleSheets` (correctif documenté dans scripts/vendor-codemirror.mjs).
@@ -57,24 +57,24 @@ function themeExtensions(cm) {
       ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--rw-crimson-text)" },
       "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection":
         { backgroundColor: "rgb(204 28 64 / 30%)" },
-      ".cm-activeLine": { backgroundColor: "rgb(73 95 115 / 16%)" },
+      ".cm-activeLine": { backgroundColor: "rgb(255 255 255 / 4%)" },
       ".cm-gutters": {
         backgroundColor: "var(--rw-surface)",
         color: "var(--rw-steel-text)",
         border: "none",
         borderRight: "1px solid var(--rw-line)",
       },
-      ".cm-activeLineGutter": { backgroundColor: "rgb(73 95 115 / 24%)", color: "var(--rw-fg)" },
+      ".cm-activeLineGutter": { backgroundColor: "rgb(255 255 255 / 7%)", color: "var(--rw-fg)" },
       ".cm-matchingBracket, .cm-nonmatchingBracket": {
-        backgroundColor: "rgb(73 95 115 / 40%)",
-        outline: "1px solid var(--rw-steel)",
+        backgroundColor: "rgb(255 255 255 / 14%)",
+        outline: "1px solid var(--rw-fg-subtle)",
       },
       ".cm-searchMatch": {
-        backgroundColor: "rgb(229 189 105 / 25%)",
+        backgroundColor: "rgb(224 176 80 / 25%)",
         outline: "1px solid var(--rw-warn)",
       },
       ".cm-searchMatch.cm-searchMatch-selected": { backgroundColor: "rgb(204 28 64 / 35%)" },
-      ".cm-selectionMatch": { backgroundColor: "rgb(73 95 115 / 35%)" },
+      ".cm-selectionMatch": { backgroundColor: "rgb(255 255 255 / 10%)" },
       ".cm-panels": {
         backgroundColor: "var(--rw-surface)",
         color: "var(--rw-fg)",
@@ -87,9 +87,9 @@ function themeExtensions(cm) {
         fontSize: "12px",
         color: "var(--rw-fg)",
         backgroundColor: "var(--rw-surface-2)",
-        border: "1px solid var(--rw-steel)",
-        borderRadius: "4px",
-        padding: "3px 8px",
+        border: "1px solid var(--rw-line-strong)",
+        borderRadius: "var(--rw-radius)",
+        padding: "4px 10px",
         margin: "2px 4px 2px 0",
       },
       ".cm-panel.cm-search button": { cursor: "pointer" },
@@ -104,23 +104,26 @@ function themeExtensions(cm) {
     { dark: true },
   );
   const highlight = HighlightStyle.define([
-    { tag: [tags.keyword, tags.operatorKeyword, tags.modifier], color: "#ff728b" },
-    { tag: [tags.string, tags.special(tags.string), tags.regexp], color: "#9fd3a8" },
-    { tag: [tags.number, tags.bool, tags.null, tags.atom], color: "#e5bd69" },
+    { tag: [tags.keyword, tags.operatorKeyword, tags.modifier], color: "var(--rw-crimson-text)" },
+    { tag: [tags.string, tags.special(tags.string), tags.regexp], color: "var(--rw-ok)" },
+    { tag: [tags.number, tags.bool, tags.null, tags.atom], color: "var(--rw-warn)" },
     {
       tag: [tags.comment, tags.lineComment, tags.blockComment],
-      color: "#6f8397",
+      color: "var(--rw-fg-subtle)",
       fontStyle: "italic",
     },
-    { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: "#8fb8de" },
-    { tag: [tags.typeName, tags.className, tags.namespace], color: "#d9a5e6" },
-    { tag: [tags.propertyName, tags.attributeName], color: "#8aa0b4" },
-    { tag: [tags.tagName, tags.heading], color: "#ff728b", fontWeight: "700" },
-    { tag: [tags.link, tags.url], color: "#8fb8de", textDecoration: "underline" },
+    {
+      tag: [tags.function(tags.variableName), tags.function(tags.propertyName)],
+      color: "var(--rw-link)",
+    },
+    { tag: [tags.typeName, tags.className, tags.namespace], color: "var(--rw-term-magenta)" },
+    { tag: [tags.propertyName, tags.attributeName], color: "var(--rw-info)" },
+    { tag: [tags.tagName, tags.heading], color: "var(--rw-crimson-text)", fontWeight: "700" },
+    { tag: [tags.link, tags.url], color: "var(--rw-link)", textDecoration: "underline" },
     { tag: tags.emphasis, fontStyle: "italic" },
     { tag: tags.strong, fontWeight: "700" },
-    { tag: [tags.meta, tags.processingInstruction], color: "#a7b2bd" },
-    { tag: tags.invalid, color: "#ff8a8a" },
+    { tag: [tags.meta, tags.processingInstruction], color: "var(--rw-fg-muted)" },
+    { tag: tags.invalid, color: "var(--rw-err)" },
   ]);
   return [theme, syntaxHighlighting(highlight)];
 }

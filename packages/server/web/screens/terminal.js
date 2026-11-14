@@ -10,30 +10,48 @@ const BANNER =
   "Session journalisée intégralement : tout ce qui est saisi et affiché est enregistré, y compris un mot de passe tapé à la main.";
 const HALT_TEXT = "Arrêt d'urgence actif : les agents sont arrêtés, ce terminal reste ouvert.";
 const FONT = '"Warband JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace';
-/** Couleurs de la charte (fond acier très sombre, curseur rouge). */
-const THEME = {
-  background: "#0d1116",
-  foreground: "#e7ebef",
-  cursor: "#cc1c40",
-  cursorAccent: "#0d1116",
-  selectionBackground: "rgba(204, 28, 64, 0.38)",
-  black: "#1b232c",
-  red: "#ff728b",
-  green: "#5fd68a",
-  yellow: "#e5bd69",
-  blue: "#6ea0ff",
-  magenta: "#c872d8",
-  cyan: "#35c4d8",
-  white: "#e7ebef",
-  brightBlack: "#495f73",
-  brightRed: "#ff8a8a",
-  brightGreen: "#7fe3a3",
-  brightYellow: "#f0cf8a",
-  brightBlue: "#8db6ff",
-  brightMagenta: "#d98ce6",
-  brightCyan: "#5fd6e6",
-  brightWhite: "#ffffff",
+/** Variable CSS de la charte → clé du thème xterm (les valeurs viennent de theme.css, rien en dur ici). */
+const THEME_VARS = {
+  background: "--rw-bg",
+  foreground: "--rw-fg",
+  cursor: "--rw-crimson-text",
+  cursorAccent: "--rw-bg",
+  black: "--rw-surface-3",
+  red: "--rw-term-red",
+  green: "--rw-term-green",
+  yellow: "--rw-term-yellow",
+  blue: "--rw-term-blue",
+  magenta: "--rw-term-magenta",
+  cyan: "--rw-term-cyan",
+  white: "--rw-fg",
+  brightBlack: "--rw-fg-subtle",
+  brightRed: "--rw-term-bright-red",
+  brightGreen: "--rw-term-bright-green",
+  brightYellow: "--rw-term-bright-yellow",
+  brightBlue: "--rw-term-bright-blue",
+  brightMagenta: "--rw-term-bright-magenta",
+  brightCyan: "--rw-term-bright-cyan",
+  brightWhite: "--rw-fg",
 };
+
+/**
+ * Thème xterm lu dans les variables CSS de la page (graphite, curseur et sélection rouges). Une variable
+ * absente (document factice, feuille non chargée) laisse la valeur par défaut d'xterm.
+ * @param {Document} doc
+ */
+export function termTheme(doc) {
+  const theme = { selectionBackground: "rgba(204, 28, 64, 0.38)" };
+  try {
+    const css = doc.defaultView.getComputedStyle(doc.documentElement);
+    for (const [key, name] of Object.entries(THEME_VARS)) {
+      const value = css.getPropertyValue(name).trim();
+      if (value !== "") theme[key] = value;
+    }
+  } catch {
+    // Pas de style calculé : thème par défaut d'xterm.
+  }
+  return theme;
+}
 
 /** Chargement paresseux d'xterm (copies de `web/vendor/`, CSP : script du même domaine seulement). */
 const defaultLoad = async () => {
@@ -237,7 +255,7 @@ export function createTerminalHost({
           fontSize: 13,
           cursorBlink: true,
           scrollback: 5000,
-          theme: THEME,
+          theme: termTheme(doc),
           allowProposedApi: false,
           convertEol: false,
         });

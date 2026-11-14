@@ -212,24 +212,17 @@ describe("routes et pages", () => {
     }
   });
 
-  it("polices et effets de l'écran de connexion servis sans session (font/woff2, module, svg)", async () => {
+  it("police et logo de l'écran de connexion servis sans session (font/woff2, svg)", async () => {
     const base = await start();
-    for (const name of [
-      "chakra-petch-latin-500-normal.woff2",
-      "chakra-petch-latin-700-normal.woff2",
-      "chakra-petch-latin-ext-500-normal.woff2",
-      "chakra-petch-latin-ext-700-normal.woff2",
-    ]) {
-      const res = await fetch(`${base}/assets/fonts/${name}`);
-      expect(res.status, name).toBe(200);
-      expect(res.headers.get("content-type"), name).toBe("font/woff2");
-      expect((await res.arrayBuffer()).byteLength, name).toBeGreaterThan(1000);
-    }
-    expect((await fetch(`${base}/assets/fx.js`)).status).toBe(200);
-    const grain = await fetch(`${base}/assets/fx/grain.svg`);
-    expect(grain.status).toBe(200);
-    expect(grain.headers.get("content-type")).toBe("image/svg+xml");
-    // Les modules de la coquille, eux, restent derrière la session.
+    const font = await fetch(`${base}/assets/fonts/geist-latin.woff2`);
+    expect(font.status).toBe(200);
+    expect(font.headers.get("content-type")).toBe("font/woff2");
+    expect((await font.arrayBuffer()).byteLength).toBeGreaterThan(1000);
+    const logo = await fetch(`${base}/assets/logo.svg`);
+    expect(logo.status).toBe(200);
+    expect(logo.headers.get("content-type")).toBe("image/svg+xml");
+    // Plus de module d'effets de texte : ni sous /assets, ni dans la coquille.
+    expect((await fetch(`${base}/assets/fx.js`)).status).toBe(404);
     expect((await fetch(`${base}/lib/fx.js`, { redirect: "manual" })).status).toBe(302);
   });
 

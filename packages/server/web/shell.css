@@ -1,7 +1,7 @@
 /*
  * Coquille de RedWidow Serveur : barre fixe, écran Approbations, feuille d'approbation (téléphone).
- * Aucune ressource distante ; la police Geist vient de l'extension (/media/fonts), Chakra Petch de
- * /assets/fonts. Les couleurs viennent de theme.css (rouge #CC1C40, acier #495F73, sombre).
+ * Aucune ressource distante ; la police Geist vient de l'extension (/media/fonts). Les couleurs viennent de
+ * theme.css (accent rouge RedWidow, graphite).
  */
 @font-face {
   font-family: "Warband Geist";
@@ -16,44 +16,6 @@
   font-style: normal;
   font-weight: 100 900;
   font-display: swap;
-}
-
-/* Police d'affichage Chakra Petch (OFL-1.1) : /assets/ est public (la connexion l'utilise aussi). */
-@font-face {
-  font-family: "RW Chakra Petch";
-  src: url("/assets/fonts/chakra-petch-latin-500-normal.woff2") format("woff2");
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  unicode-range:
-    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-  font-family: "RW Chakra Petch";
-  src: url("/assets/fonts/chakra-petch-latin-700-normal.woff2") format("woff2");
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  unicode-range:
-    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-  font-family: "RW Chakra Petch";
-  src: url("/assets/fonts/chakra-petch-latin-ext-500-normal.woff2") format("woff2");
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  unicode-range:
-    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
-}
-@font-face {
-  font-family: "RW Chakra Petch";
-  src: url("/assets/fonts/chakra-petch-latin-ext-700-normal.woff2") format("woff2");
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  unicode-range:
-    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 
 *,
@@ -101,17 +63,14 @@ button {
   padding: 6px 16px;
   background: var(--rw-surface);
   border-bottom: 1px solid var(--rw-line);
-  box-shadow: inset 0 -2px 0 var(--rw-crimson);
 }
 
 .tb-brand {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-family: var(--rw-display);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  font-size: 15px;
+  font-weight: 650;
 }
 
 .tb-logo {
@@ -122,21 +81,28 @@ button {
 
 .tb-count {
   min-width: 44px;
-  min-height: 36px;
+  min-height: var(--rw-ctl);
   padding: 0 12px;
-  border: 1px solid var(--rw-steel);
+  border: 1px solid var(--rw-line-strong);
   border-radius: 999px;
-  background: transparent;
+  background: var(--rw-surface-2);
   font-family: var(--rw-mono);
   font-weight: 650;
   cursor: pointer;
+  transition:
+    background-color var(--rw-ease),
+    border-color var(--rw-ease);
+}
+
+.tb-count:hover {
+  background: var(--rw-surface-3);
 }
 
 /* Reste rouge tant que des demandes attendent. */
 .tb-count.has-pending {
   background: var(--rw-crimson);
   border-color: var(--rw-crimson);
-  color: #fff;
+  color: var(--rw-on-accent);
 }
 
 .tb-count.flash {
@@ -196,14 +162,16 @@ button {
 }
 
 .tb-bypass {
-  padding: 3px 10px;
-  border: 1px solid #c872d8;
+  min-height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--rw-crimson-text);
   border-radius: 999px;
-  background: rgb(200 114 216 / 16%);
-  color: #e6b3f0;
+  background: var(--rw-surface-2);
+  color: var(--rw-crimson-text);
   font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
+  cursor: pointer;
 }
 
 .tb-halt-note {
@@ -213,20 +181,24 @@ button {
 
 .tb-halt {
   margin-left: auto;
-  min-height: 40px;
-  padding: 0 18px;
+  min-height: var(--rw-ctl);
+  padding: 0 16px;
   border: 1px solid var(--rw-crimson);
-  border-radius: 8px;
+  border-radius: var(--rw-radius);
   background: var(--rw-crimson);
-  color: #fff;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  color: var(--rw-on-accent);
+  font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
+  transition: background-color var(--rw-ease);
 }
 
 .tb-halt:hover {
   background: var(--rw-crimson-hover);
+}
+
+.tb-halt:active {
+  background: var(--rw-crimson-active);
 }
 
 .tb-halt[data-state="requested"] {
@@ -259,7 +231,7 @@ button {
 
 .screen h1 {
   margin: 0 0 16px;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 650;
 }
 
@@ -274,8 +246,8 @@ button {
 .empty {
   margin: 0;
   padding: 20px;
-  border: 1px dashed var(--rw-line);
-  border-radius: 8px;
+  border: 1px dashed var(--rw-line-strong);
+  border-radius: var(--rw-radius-lg);
   color: var(--rw-fg-muted);
 }
 
@@ -287,15 +259,15 @@ button {
 }
 
 .appr-card {
-  padding: 14px 16px;
+  padding: 16px;
   border: 1px solid var(--rw-line);
-  border-left: 3px solid var(--rw-crimson);
-  border-radius: 8px;
+  border-left: 4px solid var(--rw-crimson);
+  border-radius: var(--rw-radius-lg);
   background: var(--rw-surface);
 }
 
 .appr-card.is-sent {
-  border-left-color: var(--rw-steel);
+  border-left-color: var(--rw-line-strong);
 }
 
 .appr-card.is-warn {
@@ -323,13 +295,13 @@ button {
 
 .appr-summary {
   max-height: 11em;
-  margin: 8px 0;
-  padding: 8px 10px;
+  margin: 12px 0;
+  padding: 10px 12px;
   overflow: auto;
-  border-radius: 6px;
-  background: var(--vscode-textCodeBlock-background);
+  border-radius: var(--rw-radius);
+  background: var(--rw-surface-2);
   font-family: var(--rw-mono);
-  font-size: 12px;
+  font-size: 13px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -351,26 +323,34 @@ button {
   min-width: 120px;
   min-height: 44px;
   padding: 0 16px;
-  border: 1px solid var(--rw-steel);
-  border-radius: 8px;
-  background: transparent;
+  border: 1px solid var(--rw-line-strong);
+  border-radius: var(--rw-radius);
+  background: var(--rw-surface-2);
   font-weight: 600;
   cursor: pointer;
+  transition:
+    background-color var(--rw-ease),
+    border-color var(--rw-ease);
 }
 
 .appr-btn.appr-once {
   border-color: var(--rw-crimson);
   background: var(--rw-crimson);
-  color: #fff;
+  color: var(--rw-on-accent);
 }
 
 .appr-btn.appr-once:hover:not(:disabled) {
   background: var(--rw-crimson-hover);
 }
 
+.appr-btn.appr-once:active:not(:disabled) {
+  background: var(--rw-crimson-active);
+}
+
 .appr-btn.appr-deny:hover:not(:disabled),
 .appr-btn.appr-always:hover:not(:disabled) {
-  background: var(--rw-surface-2);
+  background: var(--rw-surface-3);
+  border-color: var(--rw-fg-subtle);
 }
 
 .appr-btn:disabled {
@@ -399,7 +379,7 @@ button {
   width: 100%;
   padding: 12px 16px;
   border: 1px solid var(--rw-warn);
-  border-radius: 8px;
+  border-radius: var(--rw-radius-lg);
   background: var(--rw-surface);
 }
 
@@ -429,15 +409,16 @@ button {
   padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
   overflow: auto;
   background: var(--rw-bg);
-  border-top: 2px solid var(--rw-crimson);
-  box-shadow: 0 -12px 32px rgb(0 0 0 / 55%);
+  border-top: 1px solid var(--rw-line-strong);
+  border-radius: var(--rw-radius-lg) var(--rw-radius-lg) 0 0;
+  box-shadow: 0 -8px 32px rgb(0 0 0 / 50%);
 }
 
 .sheet-open {
   min-height: 44px;
-  border: 1px solid var(--rw-steel);
-  border-radius: 8px;
-  background: transparent;
+  border: 1px solid var(--rw-line-strong);
+  border-radius: var(--rw-radius);
+  background: var(--rw-surface-2);
   font-weight: 600;
   cursor: pointer;
 }
@@ -484,13 +465,34 @@ button {
     display: none;
   }
 
+  .tb-count,
+  .tb-halt,
+  .tb-bypass {
+    min-height: 44px;
+  }
+
   .appr-btn {
     flex: 1 1 100%;
   }
 }
 
+/* Effets visuels coupés (réglage serveur) ou animations réduites (système) : aucune transition. */
+:root[data-fx="off"] *,
+:root[data-fx="off"] *::before,
+:root[data-fx="off"] *::after {
+  /* biome-ignore lint/complexity/noImportantStyles: l'interrupteur doit l'emporter sur toute animation de classe */
+  animation: none !important;
+  /* biome-ignore lint/complexity/noImportantStyles: idem */
+  transition: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .tb-count.flash {
-    animation: none;
+  *,
+  *::before,
+  *::after {
+    /* biome-ignore lint/complexity/noImportantStyles: les animations réduites l'emportent sur toute animation de classe */
+    animation: none !important;
+    /* biome-ignore lint/complexity/noImportantStyles: idem */
+    transition: none !important;
   }
 }

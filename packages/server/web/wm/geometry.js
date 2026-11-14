@@ -7,7 +7,7 @@ export const MIN_H = 200;
 /** Distance d'aimantation aux bords du bureau et aux autres fenêtres. */
 export const SNAP = 12;
 /** Hauteur de la barre de titre : elle doit rester atteignable. */
-export const TITLE_H = 34;
+export const TITLE_H = 40;
 /** Largeur minimale d'une fenêtre qui doit rester visible quand elle déborde latéralement. */
 export const REACH = 96;
 /** Bande de bord où le pointeur déclenche un aperçu de tuile. */

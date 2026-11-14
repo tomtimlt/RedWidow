@@ -1,6 +1,6 @@
 /*
- * Fenêtre Fichiers : arborescence, onglets, éditeur CodeMirror et aperçus. Charte : fond acier très sombre,
- * rouge #CC1C40 pour l'action et l'alerte, acier #495F73 pour les contours, mono pour les chemins. La mise
+ * Fenêtre Fichiers : arborescence, onglets, éditeur CodeMirror et aperçus. Fond graphite, accent rouge
+ * RedWidow pour l'action et l'alerte, mono pour les chemins. La mise
  * en page suit la largeur de la fenêtre (requête de conteneur) : au-dessous de 620 px, mode pile
  * (l'arborescence, puis l'éditeur, avec un bouton retour) et cibles tactiles de 44 px. Aucun attribut
  * `style`, aucune ressource distante ; les feuilles de CodeMirror passent par `adoptedStyleSheets`.
@@ -28,7 +28,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px;
+  padding: 8px 12px;
   background: rgb(204 28 64 / 22%);
   border-bottom: 1px solid var(--rw-crimson);
 }
@@ -77,20 +77,24 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 30px;
-  padding: 0 10px;
-  border: 1px solid var(--rw-steel);
-  border-radius: 6px;
-  background: transparent;
+  min-height: var(--rw-ctl);
+  padding: 0 12px;
+  border: 1px solid var(--rw-line-strong);
+  border-radius: var(--rw-radius);
+  background: var(--rw-surface-2);
   color: var(--rw-fg);
   font: inherit;
   font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
+  transition:
+    background-color var(--rw-ease),
+    border-color var(--rw-ease);
 }
 
 .fx-btn:hover:not(:disabled) {
-  background: var(--rw-surface-2);
+  background: var(--rw-surface-3);
+  border-color: var(--rw-fg-subtle);
 }
 
 .fx-btn:disabled {
@@ -110,15 +114,17 @@
 .fx-btn-primary {
   border-color: var(--rw-crimson);
   background: var(--rw-crimson);
-  color: #fff;
+  color: var(--rw-on-accent);
 }
 
 .fx-btn-primary:hover:not(:disabled) {
+  border-color: var(--rw-crimson-hover);
   background: var(--rw-crimson-hover);
 }
 
 .fx-btn-danger {
   border-color: var(--rw-crimson);
+  background: transparent;
   color: var(--rw-crimson-text);
 }
 
@@ -160,7 +166,7 @@
   min-height: 24px;
   padding: 0 4px;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--rw-radius);
   background: transparent;
   color: var(--rw-steel-text);
   font: inherit;
@@ -173,7 +179,7 @@
 }
 
 .fx-crumb-sep {
-  color: var(--rw-steel);
+  color: var(--rw-fg-subtle);
 }
 
 .fx-toolbar {
@@ -411,9 +417,9 @@
 }
 
 .fx-badge {
-  padding: 1px 8px;
-  border: 1px solid var(--rw-steel);
-  border-radius: 10px;
+  padding: 2px 10px;
+  border: 1px solid var(--rw-line-strong);
+  border-radius: 999px;
   color: var(--rw-fg-muted);
   font-size: 11px;
   white-space: nowrap;
@@ -521,8 +527,9 @@
   max-height: 70vh;
   object-fit: contain;
   border: 1px solid var(--rw-line);
-  border-radius: 4px;
-  background: repeating-conic-gradient(#1b232c 0% 25%, #141a21 0% 50%) 0 0 / 16px 16px;
+  border-radius: var(--rw-radius);
+  background:
+    repeating-conic-gradient(var(--rw-surface-3) 0% 25%, var(--rw-surface-2) 0% 50%) 0 0 / 16px 16px;
 }
 
 .fx-image-cap {
@@ -584,7 +591,7 @@
 
 .md code {
   padding: 1px 5px;
-  border-radius: 4px;
+  border-radius: var(--rw-radius);
   background: var(--rw-surface-2);
   font-family: var(--rw-mono);
   font-size: 0.92em;
@@ -593,7 +600,7 @@
 .md pre {
   padding: 10px 12px;
   border: 1px solid var(--rw-line);
-  border-radius: 6px;
+  border-radius: var(--rw-radius);
   background: var(--rw-surface);
   overflow: auto;
 }
@@ -605,7 +612,7 @@
 
 .md blockquote {
   padding-left: 12px;
-  border-left: 3px solid var(--rw-steel);
+  border-left: 3px solid var(--rw-line-strong);
   color: var(--rw-fg-muted);
 }
 
@@ -624,17 +631,17 @@
   min-width: 200px;
   max-width: calc(100% - 8px);
   padding: 4px;
-  border: 1px solid var(--rw-steel);
-  border-radius: 8px;
-  background: var(--rw-surface-2);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 55%);
+  border: 1px solid var(--rw-line-strong);
+  border-radius: var(--rw-radius-lg);
+  background: var(--rw-surface-3);
+  box-shadow: var(--rw-shadow-pop);
 }
 
 .fx-menu-item {
-  min-height: 34px;
+  min-height: 36px;
   padding: 0 12px;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--rw-radius);
   background: transparent;
   color: var(--rw-fg);
   font: inherit;
@@ -672,11 +679,11 @@
   flex-direction: column;
   gap: 10px;
   width: min(420px, 100%);
-  padding: 16px;
-  border: 1px solid var(--rw-steel);
-  border-radius: 10px;
+  padding: 24px;
+  border: 1px solid var(--rw-line-strong);
+  border-radius: var(--rw-radius-lg);
   background: var(--rw-surface);
-  box-shadow: 0 12px 32px rgb(0 0 0 / 60%);
+  box-shadow: var(--rw-shadow-pop);
 }
 
 .fx-dlg-title {
@@ -703,10 +710,10 @@
 }
 
 .fx-input {
-  min-height: 34px;
-  padding: 0 10px;
-  border: 1px solid var(--rw-steel);
-  border-radius: 6px;
+  min-height: var(--rw-ctl);
+  padding: 0 12px;
+  border: 1px solid var(--rw-line-strong);
+  border-radius: var(--rw-radius);
   background: var(--rw-bg);
   color: var(--rw-fg);
   font-family: var(--rw-mono);

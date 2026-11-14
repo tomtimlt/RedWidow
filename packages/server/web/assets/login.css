@@ -1,44 +1,32 @@
 /*
- * Écran de connexion (public : pas de session, donc seulement /assets/). Thème « Néon » de RedWidow :
- * fond noir, grille de points, grain et lignes de balayage statiques, boîte à crochets de visée cyan
- * (décor), rouge #CC1C40 pour l'action. Aucun style en ligne, aucune ressource distante.
+ * Écran de connexion (public : pas de session, donc seulement /assets/). Thème « Épuré pro sombre » :
+ * fond graphite à très léger dégradé, carte centrée, champ et bouton pleine largeur, rouge #CC1C40 pour
+ * l'action. Aucun style en ligne, aucune ressource distante.
  */
 @font-face {
-  font-family: "RW Chakra Petch";
-  src: url("/assets/fonts/chakra-petch-latin-700-normal.woff2") format("woff2");
+  font-family: "Warband Geist";
+  src: url("/assets/fonts/geist-latin.woff2") format("woff2");
   font-style: normal;
-  font-weight: 700;
+  font-weight: 100 900;
   font-display: swap;
-  unicode-range:
-    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-  font-family: "RW Chakra Petch";
-  src: url("/assets/fonts/chakra-petch-latin-500-normal.woff2") format("woff2");
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  unicode-range:
-    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
 :root {
   color-scheme: dark;
-  --bg: #07090c;
-  --surface: #0e1217;
-  --surface-2: #151b22;
-  --line: #26313c;
-  --line-strong: #3a4856;
-  --fg: #e8edf2;
-  --muted: #9aa7b4;
+  --bg: #0f1114;
+  --surface: #16191d;
+  --surface-2: #1c2025;
+  --line: #2a2f36;
+  --line-strong: #353b43;
+  --fg: #e7e9ec;
+  --muted: #9ba2ab;
+  --subtle: #8a929c;
   --crimson: #cc1c40;
-  --crimson-hover: #e02a50;
+  --crimson-hover: #b5183a;
+  --crimson-active: #9f1534;
   --crimson-text: #ff728b;
-  --cyan: #00e5ff;
-  --magenta: #ff2bd6;
   --err: #ff8a8a;
-  --display: "RW Chakra Petch", system-ui, sans-serif;
-  --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --font: "Warband Geist", system-ui, sans-serif;
 }
 
 *,
@@ -52,6 +40,7 @@ body {
   margin: 0;
   min-height: 100%;
 }
+
 body {
   min-height: 100vh;
   /* biome-ignore lint/suspicious/noDuplicateProperties: repli pour les navigateurs sans `dvh` */
@@ -59,205 +48,113 @@ body {
   display: grid;
   place-items: center;
   padding: 24px 16px;
-  font-family: system-ui, sans-serif;
-  font-size: 14px;
-  line-height: 1.45;
-  background-color: var(--bg);
-  /* Grille de points 24 px à ~4 %, sous un halo rouge très discret */
-  background-image:
-    radial-gradient(ellipse at 50% 0%, rgb(204 28 64 / 14%), transparent 60%),
-    radial-gradient(circle, rgb(232 237 242 / 8%) 1px, transparent 1.5px);
-  background-size:
-    100% 100%,
-    24px 24px;
+  background: radial-gradient(ellipse at 50% 0%, var(--surface-2) 0%, var(--bg) 60%);
   color: var(--fg);
-}
-
-/* Grain (feTurbulence) puis lignes de balayage : statiques, au-dessus du fond, sous la boîte. */
-body::before,
-body::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-}
-body::before {
-  background-image: url("/assets/fx/grain.svg");
-  background-size: 160px 160px;
-  opacity: 0.05;
-  mix-blend-mode: screen;
-}
-body::after {
-  background-image: repeating-linear-gradient(
-    to bottom,
-    rgb(0 0 0 / 22%) 0,
-    rgb(0 0 0 / 22%) 1px,
-    transparent 1px,
-    transparent 3px
-  );
-  opacity: 0.5;
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .box {
-  position: relative;
-  z-index: 1;
-  width: min(360px, 100%);
-  padding: 32px 28px 28px;
-  background-color: var(--surface);
-  background-image:
-    /* crochets de visée : quatre coins de 10 px en cyan 60 % */
-    linear-gradient(var(--cyan), var(--cyan)), linear-gradient(var(--cyan), var(--cyan)),
-    linear-gradient(var(--cyan), var(--cyan)), linear-gradient(var(--cyan), var(--cyan)),
-    linear-gradient(var(--cyan), var(--cyan)), linear-gradient(var(--cyan), var(--cyan)),
-    linear-gradient(var(--cyan), var(--cyan)), linear-gradient(var(--cyan), var(--cyan));
-  background-repeat: no-repeat;
-  background-size:
-    10px 2px,
-    2px 10px,
-    10px 2px,
-    2px 10px,
-    10px 2px,
-    2px 10px,
-    10px 2px,
-    2px 10px;
-  background-position:
-    0 0,
-    0 0,
-    100% 0,
-    100% 0,
-    0 100%,
-    0 100%,
-    100% 100%,
-    100% 100%;
-  border: 1px solid var(--line-strong);
-  border-radius: 4px;
-  box-shadow:
-    0 12px 40px rgb(0 0 0 / 70%),
-    0 0 24px rgb(0 229 255 / 8%);
-}
-/* Coupe d'angle en haut à droite : un triangle de la couleur du fond (pas de clip-path : le focus des
-   champs ne doit pas être rogné). */
-.box::after {
-  content: "";
-  position: absolute;
-  top: -1px;
-  right: -1px;
-  width: 22px;
-  height: 22px;
-  background: linear-gradient(
-    to bottom left,
-    var(--bg) 50%,
-    var(--line-strong) 50%,
-    var(--line-strong) 55%,
-    transparent 55%
-  );
-  pointer-events: none;
+  width: 100%;
+  max-width: 380px;
+  padding: 32px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 12px 40px rgb(0 0 0 / 40%);
 }
 
-.sticker {
-  position: absolute;
-  top: -11px;
-  left: 20px;
-  padding: 2px 8px;
-  background: var(--magenta);
-  color: var(--bg);
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  transform: rotate(-2deg);
+.logo {
+  display: block;
+  width: 48px;
+  height: auto;
+  margin: 0 0 16px;
 }
 
 .brand {
-  margin: 0;
-  font-family: var(--display);
-  font-size: 40px;
-  font-weight: 700;
-  line-height: 1.1;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  /* Décalage chromatique statique léger (décor) */
-  text-shadow:
-    1px 0 var(--magenta),
-    -1px 0 var(--cyan);
-  overflow-wrap: anywhere;
+  margin: 0 0 4px;
+  font-size: 24px;
+  font-weight: 650;
+  line-height: 1.2;
 }
+
 .sub {
-  margin: 6px 0 24px;
-  font-family: var(--mono);
-  font-size: 12px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  margin: 0 0 24px;
   color: var(--muted);
 }
 
-form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
 label {
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  display: block;
+  margin-bottom: 8px;
   color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
 }
-input,
-button {
-  font: inherit;
-  border-radius: 2px;
-}
+
 input {
+  width: 100%;
   min-height: 44px;
-  padding: 8px 12px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
   background: var(--surface-2);
   color: var(--fg);
-  border: 1px solid var(--line);
-  border-bottom: 2px solid var(--line-strong);
-  font-family: var(--mono);
+  font: inherit;
+  transition: border-color 140ms ease;
 }
+
+input:hover {
+  border-color: var(--subtle);
+}
+
 input:focus {
-  border-bottom-color: var(--crimson-text);
+  border-color: var(--crimson-text);
 }
+
 button {
-  position: relative;
+  width: 100%;
   min-height: 44px;
-  padding: 10px 16px;
-  margin-top: 4px;
+  margin-top: 16px;
+  border: 1px solid var(--crimson);
+  border-radius: 8px;
   background: var(--crimson);
-  color: #fff;
-  border: 2px solid var(--crimson);
-  font-family: var(--display);
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  color: #ffffff;
+  font: inherit;
+  font-weight: 600;
   cursor: pointer;
+  transition: background-color 140ms ease;
 }
+
 button:hover {
   background: var(--crimson-hover);
-  border-color: var(--crimson-hover);
 }
+
+button:active {
+  background: var(--crimson-active);
+}
+
 :focus-visible {
   outline: 2px solid var(--crimson-text);
   outline-offset: 2px;
 }
 
 #error {
-  margin: 0;
-  padding: 8px 12px;
-  background: var(--bg);
-  border-left: 3px solid var(--err);
+  margin: 16px 0 0;
+  padding: 10px 12px;
+  border: 1px solid var(--err);
+  border-radius: 8px;
+  background: var(--surface-2);
   color: var(--err);
 }
 
-@media (max-width: 420px) {
-  .box {
-    padding: 28px 20px 24px;
-  }
-  .brand {
-    font-size: 32px;
+#error[hidden] {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  input,
+  button {
+    transition: none;
   }
 }
