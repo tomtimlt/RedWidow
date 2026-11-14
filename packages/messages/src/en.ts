@@ -386,7 +386,8 @@ export const reasons: Catalog = {
   "project.moveFailed": () => "moving the project failed; nothing was deleted",
   "project.destExists": () => "the destination folder already exists; nothing was overwritten",
   "exegol.notInstalled": () => "Exegol is not installed in this image",
-  "exegol.createFailed": () => "creating the Exegol container failed",
+  "exegol.createFailed": (p) =>
+    `creating the Exegol container failed${p.exitCode === undefined ? "" : ` (code ${text(p.exitCode)})`}${p.output === undefined || p.output === "" ? ": Exegol printed nothing" : `. Exegol output: ${text(p.output)}`}`,
   "exegol.vpnMissing": () => "choose a VPN configuration first",
   "exegol.needsNat": () => "the VPN and the web desktop require the NAT network",
   "exegol.folderMissing": () => "choose the shared folder first",

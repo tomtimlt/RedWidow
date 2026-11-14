@@ -496,7 +496,8 @@ export const reasons: Catalog = {
   "project.moveFailed": () => "le déplacement du projet a échoué ; rien n’a été supprimé",
   "project.destExists": () => "le dossier de destination existe déjà ; rien n’a été écrasé",
   "exegol.notInstalled": () => "Exegol n’est pas installé dans cette image",
-  "exegol.createFailed": () => "la création du conteneur Exegol a échoué",
+  "exegol.createFailed": (p) =>
+    `la création du conteneur Exegol a échoué${p.exitCode === undefined ? "" : ` (code ${text(p.exitCode)})`}${p.output === undefined || p.output === "" ? " : Exegol n’a rien affiché" : `. Sortie d’Exegol : ${text(p.output)}`}`,
   "exegol.vpnMissing": () => "choisissez d’abord une configuration VPN",
   "exegol.needsNat": () => "le VPN et le bureau web nécessitent le réseau NAT",
   "exegol.folderMissing": () => "choisissez d’abord le dossier partagé",

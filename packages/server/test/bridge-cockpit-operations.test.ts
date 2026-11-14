@@ -336,6 +336,30 @@ describe("cockpit : une réponse `operation` pour tout geste", () => {
     expect(lines[1]).toMatch(/^cockpit : erreur createExegol web \(exegol\.createFailed, \d+ s\)$/);
     expect(lines.join("\n")).not.toContain(ctx.dir);
   });
+
+  it("createExegol : la CLI s'arrête avec un motif → sortie d'Exegol dans l'erreur et le journal", async () => {
+    const lines: string[] = [];
+    const e = blocking({
+      run: async (_bin, _argv, _signal, onOutput) => {
+        onOutput?.(Buffer.from("[!] Licence introuvable : lancez exegol activate\n"));
+        return 1;
+      },
+    });
+    const t = setup(ctx, {
+      docker: docker.api,
+      exegol: e.port,
+      backends: backend(),
+      serverLog: (l) => void lines.push(l),
+    });
+    const s = await cockpitOf(t);
+    s.say("cockpit", "ck", { type: "createExegol", name: "web" });
+    await vi.waitFor(() => expect(lastOperation(s)).toMatchObject({ code: "exegol.createFailed" }));
+    expect(String(lastOperation(s)?.error)).toContain("Licence introuvable");
+    expect(String(lastOperation(s)?.error)).toContain("code 1");
+    expect(lines[1]).toMatch(
+      /^cockpit : erreur createExegol web \(exegol\.createFailed, \d+ s\) : .*Licence introuvable/,
+    );
+  });
 });
 
 describe("OutputTail", () => {

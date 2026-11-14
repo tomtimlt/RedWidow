@@ -453,3 +453,9 @@ body .card {
     transition: none;
   }
 }
+
+/* Cockpit : le dossier partagé d'un conteneur est automatique (containers/<nom>, ADR 0056) ; le bouton
+   « Choisir… » hérité de l'extension n'a plus rien à choisir : il est masqué, le libellé reste. */
+#cockpit-folder > button {
+  display: none;
+}

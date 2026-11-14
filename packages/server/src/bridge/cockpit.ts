@@ -471,7 +471,12 @@ export class CockpitGestures {
         send({ busy: false, stage: "" });
       } else {
         const { text, code } = this.operationError(error);
-        log(`erreur ${label} (${code}, ${seconds()} s)`);
+        // Sortie d'une CLI (déjà masquée et bornée) : sur une seule ligne, pour le diagnostic depuis l'hôte.
+        const output =
+          error instanceof CodedError && typeof error.params?.output === "string"
+            ? error.params.output.replace(/\s+/g, " ").trim()
+            : "";
+        log(`erreur ${label} (${code}, ${seconds()} s)${output === "" ? "" : ` : ${output}`}`);
         send({ busy: false, stage: "", error: text, code });
       }
     } finally {
@@ -834,7 +839,12 @@ export class CockpitGestures {
           break;
         }
         // La CLI s'est arrêtée sans qu'aucun conteneur n'apparaisse : échec.
-        if (exit !== undefined) throw new CodedError("exegol.createFailed");
+        // Motif de la CLI (licence, activation, droits…) : sa sortie masquée et bornée est montrée.
+        if (exit !== undefined)
+          throw new CodedError("exegol.createFailed", {
+            ...(exit.code !== null && { exitCode: exit.code }),
+            output: tail.shown(),
+          });
         // Plus rien depuis longtemps et aucun conteneur : la CLI attend une réponse interactive (abonnement,
         // mise à jour…). Un téléchargement affiche sa progression et rafraîchit `lastOutput`.
         if (Date.now() - lastOutput > stallMs)
