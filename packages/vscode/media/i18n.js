@@ -448,13 +448,12 @@
     "Choisir un conteneur compatible": "Choose a compatible container",
     "Afficher tous les conteneurs": "Show all containers",
     "Aucun conteneur compatible.": "No compatible container.",
-    "Déplacer le projet": "Move the project",
+    "Déplacer dans un conteneur…": "Move into a container…",
     Masquer: "Dismiss",
     Déplacer: "Move",
-    "Déplacer le projet « {0} » ?": "Move project “{0}”?",
-    "Le dossier {0} sera déplacé dans le dossier parent que vous choisirez. Les conteneurs qui ne voient plus le projet seront déliés.":
-      "The folder {0} will be moved into the parent folder you choose. Containers that no longer see the project will be unlinked.",
-    "Choisir le dossier parent": "Choose the parent folder",
+    "Déplacer le projet « {0} » dans le conteneur {1} ?": "Move project “{0}” into container {1}?",
+    "Le dossier {0} sera déplacé sous {1}. Les conteneurs qui ne voient plus le projet seront déliés.":
+      "The folder {0} will be moved under {1}. Containers that no longer see the project will be unlinked.",
     "Arrêtez les tours en cours avant de déplacer le projet.":
       "Stop running turns before moving the project.",
     "Projet déplacé : {0}": "Project moved: {0}",
@@ -823,7 +822,6 @@
     "Arrêtez les tours en cours avant de changer de projet.":
       "Stop running turns before switching projects.",
     "Choisir le dossier du projet": "Choose the project folder",
-    "Choisir le dossier parent du projet": "Choose the project's parent folder",
     "Choisir le dossier à ouvrir comme projet": "Choose the folder to open as a project",
     "Nom du projet invalide.": "Invalid project name.",
     "Arrêtez les tours en cours avant de créer le projet.":
@@ -1502,19 +1500,15 @@
     "Impossible d’enregistrer ce fournisseur. Réessayez.":
       "Could not save this provider. Try again.",
     "Créer le projet": "Create project",
-    "Donnez un nom au projet, puis choisissez où se trouve son dossier.":
-      "Name the project, then choose where its folder is.",
-    "Emplacement du projet": "Project location",
-    "Nouveau dossier": "New folder",
-    "Dossier existant": "Existing folder",
-    "Dans un conteneur": "Inside a container",
-    "Aucun conteneur avec un dossier partagé.": "No container with a shared folder.",
-    "Le nom est proposé d'après le dossier choisi ; vous pourrez le modifier.":
-      "The name is proposed from the chosen folder; you can change it.",
-    "Le projet est créé sous le dossier partagé du conteneur, puis lié.":
-      "The project is created under the container's shared folder, then linked.",
-    "Un sous-dossier du dossier parent choisi est créé pour le projet.":
-      "A subfolder of the chosen parent folder is created for the project.",
+    "Choisissez le conteneur du projet, puis donnez-lui un nom.":
+      "Choose the project's container, then give it a name.",
+    "Conteneur du projet": "Project container",
+    "Créez d'abord un conteneur.": "Create a container first.",
+    "Le projet est créé sous le dossier partagé du conteneur, démarré ou éteint. Pour un dossier existant, le nom est proposé d'après le dossier choisi.":
+      "The project is created under the container's shared folder, running or stopped. For an existing folder, the name is proposed from the chosen folder.",
+    "Dossier existant dans ce conteneur…": "Existing folder in this container…",
+    "Non associé": "Not associated",
+    "Déplacer dans un conteneur…": "Move into a container…",
     "Comptes de test": "Test accounts",
     "Valeur trop courte pour être masquée dans les journaux.":
       "Value too short to be masked in logs.",

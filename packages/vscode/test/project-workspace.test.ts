@@ -3,12 +3,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { USER_PROJECT_FILE } from "@warband/core";
 import { afterEach, expect, it, vi } from "vitest";
-import { activateSelectedProject, createSelectedProject } from "../src/logic/project-controls.js";
+import { activateSelectedProject } from "../src/logic/project-controls.js";
 import {
   matchesActiveProjectWorkspace,
   openActiveProjectWorkspace,
   type ProjectWorkspaceHost,
 } from "../src/logic/project-workspace.js";
+import { createSelectedProject } from "./fixtures/projects.js";
 
 const dirs: string[] = [];
 afterEach(async () => {

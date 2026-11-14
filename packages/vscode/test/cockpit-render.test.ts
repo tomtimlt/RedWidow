@@ -724,23 +724,17 @@ it("le bandeau de partage s'affiche avec ses trois actions", () => {
         n.textContent === "Le projet « mission » n’est pas visible depuis le conteneur « ko ».",
     ),
   ).toBeDefined();
-  expect(ui.button("Créer un conteneur")).toBeDefined();
+  expect(ui.button("Déplacer dans un conteneur…")).toBeDefined();
   expect(ui.button("Choisir un conteneur compatible")).toBeDefined();
   expect(ui.main.find((n) => n.id === "cockpit-issue-move")).toBeDefined();
+  // L'ancienne action « Créer un conteneur projet pour ce dossier » a disparu du bandeau.
+  expect(ui.main.find((n) => n.id === "cockpit-issue-create")).toBeUndefined();
 });
 
 it("sans mountIssue, pas de bandeau", () => {
   const ui = cockpit();
   withProjects(ui);
   expect(ui.main.find((n) => n.id === "cockpit-mount-issue")).toBeUndefined();
-});
-
-it("« Créer un conteneur » du bandeau ouvre le formulaire sans mode de partage", () => {
-  const ui = cockpit();
-  withProjects(ui, { mountIssue });
-  ui.button("Créer un conteneur").click();
-  expect(ui.field("cockpit-name")).toBeDefined();
-  expect(ui.main.find((n) => n.id === "cockpit-share-project")).toBeUndefined();
 });
 
 it("« Choisir un conteneur compatible » ne garde que les compatibles, puis les réaffiche", () => {
@@ -755,11 +749,15 @@ it("« Choisir un conteneur compatible » ne garde que les compatibles, puis les
   expect(cards()).toBe(2);
 });
 
-it("Déplacer le projet envoie moveProject, Masquer envoie dismissMountIssue", () => {
+it("Déplacer dans un conteneur envoie relocateProject (id et conteneur, aucun chemin), Masquer envoie dismissMountIssue", () => {
   const ui = cockpit();
   withProjects(ui, { mountIssue });
   ui.field("cockpit-issue-move").click();
-  expect(ui.sent).toContainEqual({ type: "moveProject" });
+  expect(ui.sent).toContainEqual({
+    type: "relocateProject",
+    projectId: mountIssue.projectId,
+    container: mountIssue.container,
+  });
   ui.field("cockpit-issue-dismiss").click();
   expect(ui.sent).toContainEqual({ type: "dismissMountIssue" });
 });

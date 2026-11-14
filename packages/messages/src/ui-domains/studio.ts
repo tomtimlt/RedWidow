@@ -47,19 +47,15 @@ export const studioEn: Record<string, string> = {
   "État des conteneurs indisponible.": "Container status unavailable.",
   "Impossible d’enregistrer ce fournisseur. Réessayez.": "Could not save this provider. Try again.",
   "Créer le projet": "Create project",
-  "Donnez un nom au projet, puis choisissez où se trouve son dossier.":
-    "Name the project, then choose where its folder is.",
-  "Emplacement du projet": "Project location",
-  "Nouveau dossier": "New folder",
-  "Dossier existant": "Existing folder",
-  "Dans un conteneur": "Inside a container",
-  "Aucun conteneur avec un dossier partagé.": "No container with a shared folder.",
-  "Le nom est proposé d'après le dossier choisi ; vous pourrez le modifier.":
-    "The name is proposed from the chosen folder; you can change it.",
-  "Le projet est créé sous le dossier partagé du conteneur, puis lié.":
-    "The project is created under the container's shared folder, then linked.",
-  "Un sous-dossier du dossier parent choisi est créé pour le projet.":
-    "A subfolder of the chosen parent folder is created for the project.",
+  "Choisissez le conteneur du projet, puis donnez-lui un nom.":
+    "Choose the project's container, then give it a name.",
+  "Conteneur du projet": "Project container",
+  "Créez d'abord un conteneur.": "Create a container first.",
+  "Le projet est créé sous le dossier partagé du conteneur, démarré ou éteint. Pour un dossier existant, le nom est proposé d'après le dossier choisi.":
+    "The project is created under the container's shared folder, running or stopped. For an existing folder, the name is proposed from the chosen folder.",
+  "Dossier existant dans ce conteneur…": "Existing folder in this container…",
+  "Non associé": "Not associated",
+  "Déplacer dans un conteneur…": "Move into a container…",
   "Comptes de test": "Test accounts",
   "Valeur trop courte pour être masquée dans les journaux.":
     "Value too short to be masked in logs.",

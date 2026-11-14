@@ -11,18 +11,19 @@ import {
   USER_PROJECT_FILE,
   writeSummary,
 } from "@warband/core";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import {
   activateSelectedProject,
   applyProjectPlan,
   createManagedSelectedProject,
-  createSelectedProject,
   manageSelectedProject,
   type ProjectCreationHost,
   planProjectCreation,
   proposedProjectName,
   readProjectChoices,
+  unassociatedProjectIds,
 } from "../src/logic/project-controls.js";
+import { createSelectedProject } from "./fixtures/projects.js";
 
 const dirs: string[] = [];
 const temp = async () => {
@@ -179,8 +180,8 @@ it("revalide la fiche après le dialogue et refuse un projet modifié ailleurs",
 const creationHost = (over: Partial<ProjectCreationHost> = {}) => {
   const calls: string[] = [];
   const host: ProjectCreationHost = {
-    pickFolder: async (purpose) => {
-      calls.push(`pick:${purpose}`);
+    pickExisting: async (share) => {
+      calls.push(`pick:${share}`);
       return undefined;
     },
     askName: async (proposed) => {
@@ -196,42 +197,25 @@ const creationHost = (over: Partial<ProjectCreationHost> = {}) => {
   return { host, calls };
 };
 
-it("cibles libres (nouveau dossier, dossier existant) : project.containerRequired, aucun dialogue", async () => {
+it("conteneur absent ou sans partage : project.containerRequired, aucun dialogue, rien d'écrit", async () => {
   const config = await temp();
   const { host, calls } = creationHost();
-  for (const kind of ["newFolder", "existing"] as const)
-    await expect(planProjectCreation({ kind, name: "Mission" }, host)).rejects.toMatchObject({
-      code: "project.containerRequired",
-    });
-  expect(calls).toEqual([]);
+  for (const kind of ["create", "adopt"] as const)
+    await expect(
+      planProjectCreation({ kind, name: "Mission", container: "inconnu" }, host),
+    ).rejects.toMatchObject({ code: "project.containerRequired" });
+  expect(calls).toEqual(["mount:inconnu", "mount:inconnu"]);
   expect(await readProjects(config)).toBeNull();
 });
 
-it("dossier existant (plan direct) : sous le partage accepté, déjà projet ou hors partage refusé", async () => {
-  const config = await temp();
-  const share = await temp();
-  const folder = join(share, "client");
-  await mkdir(folder);
-  const plan = { kind: "adopt", name: "Un", folder, container: "kali-1", share } as const;
-  const project = await applyProjectPlan(config, plan);
-  expect(project.containers).toEqual(["kali-1"]);
-  await expect(applyProjectPlan(config, { ...plan, name: "Deux" })).rejects.toMatchObject({
-    code: "project.folderAlreadyProject",
-  });
-  const dehors = await temp();
-  await expect(
-    applyProjectPlan(config, { ...plan, name: "Trois", folder: dehors }),
-  ).rejects.toMatchObject({ code: "project.outsideShare" });
-});
-
-it("conteneur : le partage relu par l'hôte donne <partage>/RedWidow/projects/<slug> ; inconnu, refus", async () => {
+it("création : le partage relu par l'hôte donne <partage>/RedWidow/projects/<slug>, conteneur lié", async () => {
   const config = await temp();
   const mount = await temp();
   const known = creationHost({
     containerMount: async (c) => (c === "exegol-a" ? mount : undefined),
   });
   const plan = await planProjectCreation(
-    { kind: "container", name: "Dans conteneur", container: "exegol-a" },
+    { kind: "create", name: "Dans conteneur", container: "exegol-a" },
     known.host,
   );
   expect(plan).toEqual({
@@ -244,11 +228,102 @@ it("conteneur : le partage relu par l'hôte donne <partage>/RedWidow/projects/<s
   const project = await applyProjectPlan(config, plan);
   expect(project.workspace).toBe(join(mount, "RedWidow", "projects", "dans-conteneur"));
   expect(project.containers).toEqual(["exegol-a"]);
+  expect(project.primary).toBe("exegol-a");
   expect((await readProjectChoices(config)).activeId).toBe(project.id);
-  await expect(
-    planProjectCreation({ kind: "container", name: "X", container: "inconnu" }, known.host),
-  ).rejects.toMatchObject({ code: "project.parentInvalid" });
   expect(known.calls).toEqual([]);
+});
+
+it("dossier existant : le sélecteur s'ouvre sur le partage, le nom est proposé puis le projet adopté", async () => {
+  const config = await temp();
+  const share = await temp();
+  const folder = join(share, "client");
+  await mkdir(folder);
+  const calls: string[] = [];
+  const { host } = creationHost({
+    containerMount: async () => share,
+    pickExisting: async (s) => {
+      calls.push(`pick:${s}`);
+      return folder;
+    },
+    askName: async (proposed) => {
+      calls.push(`ask:${proposed}`);
+      return "Client";
+    },
+  });
+  const plan = await planProjectCreation({ kind: "adopt", name: "", container: "kali-1" }, host);
+  expect(calls).toEqual([`pick:${share}`, "ask:client"]);
+  expect(plan).toEqual({ kind: "adopt", name: "Client", folder, container: "kali-1", share });
+  if (!plan) throw Error("plan absent");
+  const project = await applyProjectPlan(config, plan);
+  expect(project.containers).toEqual(["kali-1"]);
+  expect((await readProjectChoices(config)).activeId).toBe(project.id);
+});
+
+it("dossier existant : un nom fourni évite la question ; hors partage refusé sans nom demandé ; annulation = rien", async () => {
+  const config = await temp();
+  const share = await temp();
+  const inside = join(share, "client");
+  await mkdir(inside);
+  const outside = await temp();
+  const ask = vi.fn(async () => "x");
+  const pick = vi.fn<(share: string) => Promise<string | undefined>>();
+  const { host } = creationHost({
+    containerMount: async () => share,
+    pickExisting: pick,
+    askName: ask,
+  });
+  pick.mockResolvedValueOnce(inside);
+  expect(
+    await planProjectCreation({ kind: "adopt", name: "Nommé", container: "kali-1" }, host),
+  ).toMatchObject({ kind: "adopt", name: "Nommé" });
+  expect(ask).not.toHaveBeenCalled();
+  pick.mockResolvedValueOnce(outside);
+  await expect(
+    planProjectCreation({ kind: "adopt", name: "", container: "kali-1" }, host),
+  ).rejects.toMatchObject({ code: "project.outsideShare" });
+  expect(ask).not.toHaveBeenCalled();
+  pick.mockResolvedValueOnce(undefined);
+  expect(
+    await planProjectCreation({ kind: "adopt", name: "", container: "kali-1" }, host),
+  ).toBeUndefined();
+  pick.mockResolvedValueOnce(inside);
+  ask.mockResolvedValueOnce(undefined as never);
+  expect(
+    await planProjectCreation({ kind: "adopt", name: "", container: "kali-1" }, host),
+  ).toBeUndefined();
+  expect(await readProjects(config)).toBeNull();
+});
+
+it("dossier existant (plan direct) : déjà projet ou hors partage refusé par le cœur", async () => {
+  const config = await temp();
+  const share = await temp();
+  const folder = join(share, "client");
+  await mkdir(folder);
+  const plan = { kind: "adopt", name: "Un", folder, container: "kali-1", share } as const;
+  await applyProjectPlan(config, plan);
+  await expect(applyProjectPlan(config, { ...plan, name: "Deux" })).rejects.toMatchObject({
+    code: "project.folderAlreadyProject",
+  });
+  const dehors = await temp();
+  await expect(
+    applyProjectPlan(config, { ...plan, name: "Trois", folder: dehors }),
+  ).rejects.toMatchObject({ code: "project.outsideShare" });
+});
+
+it("projets non associés : sans conteneur ou hors du partage ; docker indisponible = seulement « sans conteneur »", () => {
+  const projects = [
+    { id: "a", workspace: "/srv/a/RedWidow/projects/a", containers: ["kali-1"] },
+    { id: "b", workspace: "/ailleurs/b", containers: ["kali-1"] },
+    { id: "c", workspace: "/srv/a/RedWidow/projects/c", containers: [] },
+    { id: "d", workspace: "/srv/a/x", containers: ["disparu"] },
+  ];
+  expect(unassociatedProjectIds(projects, [{ name: "kali-1", workspace: "/srv/a" }])).toEqual([
+    "b",
+    "c",
+    "d",
+  ]);
+  expect(unassociatedProjectIds(projects, [{ name: "kali-1" }])).toEqual(["a", "b", "c", "d"]);
+  expect(unassociatedProjectIds(projects, undefined)).toEqual(["c"]);
 });
 
 it("proposedProjectName borne le nom de base du dossier", () => {

@@ -438,6 +438,23 @@ select.studio-project-control {
   background: var(--jn-widget);
   font-weight: 600;
 }
+/* Projet non associé : badge, conteneur de destination et bouton de déplacement (ADR 0053). */
+.studio-project-relocate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--jn-s2);
+}
+.studio-project-relocate[hidden] {
+  display: none;
+}
+.studio-badge {
+  padding: 2px 8px;
+  border-radius: var(--jn-r-pill);
+  background: var(--vscode-badge-background, var(--jn-raise-2));
+  color: var(--vscode-badge-foreground, var(--vscode-foreground));
+  font-size: var(--jn-fs-xs);
+}
 .studio-project-panel {
   display: flex;
   flex-direction: column;

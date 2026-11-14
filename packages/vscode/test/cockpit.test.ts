@@ -15,7 +15,6 @@ import {
   linkedTerminalChoices,
   listCockpitImages,
   loadCockpitView,
-  moveActiveProject,
   parseCockpitMessage,
   planEditorShell,
   prepareTerminal,
@@ -322,12 +321,30 @@ describe("parseCockpitMessage", () => {
     expect(parseCockpitMessage({ type: "activateProject", projectId, path: "/etc" })).toBeNull();
   });
 
-  it("moveProject et dismissMountIssue : type seul, toute clé en trop est rejetée", () => {
-    for (const type of ["moveProject", "dismissMountIssue"]) {
-      expect(parseCockpitMessage({ type })).toEqual({ type });
-      expect(parseCockpitMessage({ type, path: "/tmp" })).toBeNull();
-      expect(parseCockpitMessage({ type, projectId: "x" })).toBeNull();
-    }
+  it("dismissMountIssue : type seul, toute clé en trop est rejetée ; moveProject n'existe plus", () => {
+    const type = "dismissMountIssue";
+    expect(parseCockpitMessage({ type })).toEqual({ type });
+    expect(parseCockpitMessage({ type, path: "/tmp" })).toBeNull();
+    expect(parseCockpitMessage({ type, projectId: "x" })).toBeNull();
+    expect(parseCockpitMessage({ type: "moveProject" })).toBeNull();
+  });
+
+  it("relocateProject : id canonique et conteneur, aucun chemin", () => {
+    const projectId = "11111111-1111-4111-8111-111111111111";
+    expect(
+      parseCockpitMessage({ type: "relocateProject", projectId, container: "exegol-lab" }),
+    ).toEqual({ type: "relocateProject", projectId, container: "exegol-lab" });
+    for (const message of [
+      { type: "relocateProject" },
+      { type: "relocateProject", projectId },
+      { type: "relocateProject", container: "exegol-lab" },
+      { type: "relocateProject", projectId: "p1", container: "exegol-lab" },
+      { type: "relocateProject", projectId, container: "" },
+      { type: "relocateProject", projectId, container: "x".repeat(257) },
+      { type: "relocateProject", projectId, container: "a\nb" },
+      { type: "relocateProject", projectId, container: "exegol-lab", path: "/etc" },
+    ])
+      expect(parseCockpitMessage(message)).toBeNull();
   });
 
   it("shareMode et source n'existent plus : toute clé en trop est rejetée sur les deux créations", () => {
@@ -1200,86 +1217,4 @@ it("création Exegol : options fermées, aucun chemin VPN provenant de la webvie
     name: "exegol-lab",
   });
   expect(parseCockpitMessage({ type: "remove", name: "exegol-lab", force: true })).toBeNull();
-});
-
-describe("moveActiveProject", () => {
-  // Chemins réels : le contrôle de partage passe par `realpath`.
-  const base = mkdtempSync(join(tmpdir(), "wb-move-"));
-  mkdirSync(join(base, "a", "mission"), { recursive: true });
-  mkdirSync(join(base, "b", "mission"), { recursive: true });
-  afterAll(() => rmSync(base, { recursive: true, force: true }));
-  const project = {
-    id: "0f8fad5b-d9cb-469f-a165-70867728950e",
-    name: "mission",
-    workspace: join(base, "a", "mission"),
-    containers: ["kali-voit", "kali-perdu", "kali-absent"],
-  };
-  const file = { activeId: project.id, projects: [project] };
-  const harness = (over: Record<string, unknown> = {}) => {
-    const calls: string[] = [];
-    const deps = {
-      configDir: "/cfg",
-      readProj: async () => file,
-      confirm: async () => {
-        calls.push("confirm");
-        return true;
-      },
-      pickParent: async () => {
-        calls.push("pick");
-        return "/srv/b";
-      },
-      move: async (_dir: string, id: string, parent: unknown) => {
-        calls.push(`move:${id}:${String(parent)}`);
-        return { ...project, workspace: join(base, "b", "mission") };
-      },
-      dissociate: async (_dir: string, _id: string, name: string) => {
-        calls.push(`dissociate:${name}`);
-      },
-      listContainers: async () => [
-        { name: "kali-voit", workspace: join(base, "b") },
-        { name: "kali-perdu", workspace: join(base, "a") },
-      ],
-      ...over,
-    };
-    return { calls, deps: deps as unknown as Parameters<typeof moveActiveProject>[0] };
-  };
-
-  it("pas de déplacement sans confirmation, ni sélecteur", async () => {
-    const h = harness({ confirm: async () => false });
-    expect(await moveActiveProject(h.deps)).toBeNull();
-    expect(h.calls).toEqual([]);
-  });
-
-  it("l'annulation du sélecteur ne déplace rien", async () => {
-    const h = harness({ pickParent: async () => undefined });
-    expect(await moveActiveProject(h.deps)).toBeNull();
-    expect(h.calls).toEqual(["confirm"]);
-  });
-
-  it("déplace après confirmation puis délie les conteneurs qui ne voient plus le projet", async () => {
-    const h = harness();
-    expect(await moveActiveProject(h.deps)).toEqual({ workspace: join(base, "b", "mission") });
-    expect(h.calls).toEqual([
-      "confirm",
-      "pick",
-      `move:${project.id}:/srv/b`,
-      "dissociate:kali-perdu",
-    ]);
-  });
-
-  it("sans projet actif : project.absent, sans confirmation", async () => {
-    const h = harness({ readProj: async () => ({ activeId: null, projects: [] }) });
-    await expect(moveActiveProject(h.deps)).rejects.toMatchObject({ code: "project.absent" });
-    expect(h.calls).toEqual([]);
-  });
-
-  it("Docker muet : le déplacement reste valide et les liaisons sont conservées", async () => {
-    const h = harness({
-      listContainers: async () => {
-        throw new Error("docker");
-      },
-    });
-    expect(await moveActiveProject(h.deps)).toEqual({ workspace: join(base, "b", "mission") });
-    expect(h.calls.some((c) => c.startsWith("dissociate"))).toBe(false);
-  });
 });

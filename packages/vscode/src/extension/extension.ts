@@ -73,7 +73,6 @@ import {
   linkedTerminalChoices,
   listCockpitImages,
   loadCockpitView,
-  moveActiveProject,
   parseCockpitMessage,
   planEditorShell,
   prepareTerminal,
@@ -160,8 +159,10 @@ import {
   type ProjectCreationChoice,
   planProjectCreation,
   readProjectChoices,
+  unassociatedProjectIds,
 } from "../logic/project-controls.js";
 import { integrationMap, projectIntegrations } from "../logic/project-integrations.js";
+import { relocateProject } from "../logic/project-relocate.js";
 import { readProjectSummary, saveProjectSummary } from "../logic/project-summary.js";
 import {
   matchesActiveProjectWorkspace,
@@ -1806,55 +1807,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           case "dismissMountIssue":
             mountIssue = undefined;
             return void pushView();
-          case "moveProject": {
-            // Jamais sans confirmation modale ; seul le sélecteur natif fournit le dossier parent.
-            if (projectChanging || chatsBusy())
-              throw new Error(t("Arrêtez les tours en cours avant de déplacer le projet."));
-            projectChanging = true;
-            let moved: { workspace: string } | null = null;
-            try {
-              moved = await moveActiveProject({
-                confirm: async (project) => {
-                  const action = t("Déplacer");
-                  return (
-                    (await vscode.window.showWarningMessage(
-                      t`Déplacer le projet « ${project.name} » ?`,
-                      {
-                        modal: true,
-                        detail: t`Le dossier ${project.workspace} sera déplacé dans le dossier parent que vous choisirez. Les conteneurs qui ne voient plus le projet seront déliés.`,
-                      },
-                      action,
-                    )) === action
-                  );
-                },
-                pickParent: async () =>
-                  (
-                    await vscode.window.showOpenDialog({
-                      canSelectFolders: true,
-                      canSelectFiles: false,
-                      canSelectMany: false,
-                      openLabel: t("Choisir le dossier parent"),
-                    })
-                  )?.[0]?.fsPath,
-              });
-              if (moved !== null) {
-                mountIssue = undefined;
-                await Promise.all(
-                  [...slots.values()].map((slot) => slot.session?.refreshHistoryProjects()),
-                );
-                await openActiveProjectWorkspace(
-                  defaultConfigDir(),
-                  projectWorkspaceHost,
-                  "selection",
-                );
-              }
-            } finally {
-              projectChanging = false;
-            }
-            if (moved !== null) {
-              void vscode.window.showInformationMessage(t`Projet déplacé : ${moved.workspace}`);
-              await pushStudio();
-            }
+          case "relocateProject": {
+            // Jamais sans confirmation modale ; la destination est calculée par l'hôte (ADR 0053).
+            await relocateProjectToContainer(message.projectId, message.container);
             return void pushView(true);
           }
           case "openProgram":
@@ -3223,6 +3178,63 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
     return { projectSelected, ...(projectError !== undefined && { projectError }) };
   };
+  /**
+   * Partage d'un conteneur démarré ou éteint, relu par docker (jamais fourni par la webview) ;
+   * `undefined` si le conteneur est inconnu ou sans dossier partagé absolu.
+   */
+  const containerShare = async (
+    container: string,
+  ): Promise<{ name: string; share: string } | undefined> => {
+    const row = creationContainers((await loadCockpitView()).containers).find(
+      (candidate) => candidate.name === container,
+    );
+    return row === undefined ? undefined : { name: row.name, share: row.mount };
+  };
+  /**
+   * Déplace un projet « non associé » sous le partage d'un conteneur (ADR 0053, point 8), pour le
+   * studio comme pour le cockpit. Refus pendant un tour ; aucune écriture sans confirmation modale ;
+   * le conteneur et son partage sont relus par docker, jamais fournis par la webview.
+   */
+  const relocateProjectToContainer = async (projectId: string, container: string) => {
+    if (projectChanging || chatsBusy())
+      throw new Error(t("Arrêtez les tours en cours avant de déplacer le projet."));
+    projectChanging = true;
+    let moved: { workspace: string } | null = null;
+    try {
+      const wasActive = (await readProjects(defaultConfigDir()))?.activeId === projectId;
+      moved = await relocateProject(projectId, container, {
+        busy: () => chatsBusy(),
+        listContainers: () => shellDocker().listLabelPrefix(),
+        confirm: async ({ name, workspace, container: target, destination }) => {
+          const action = t("Déplacer");
+          return (
+            (await vscode.window.showWarningMessage(
+              t`Déplacer le projet « ${name} » dans le conteneur ${shortContainerName(target)} ?`,
+              {
+                modal: true,
+                detail: t`Le dossier ${workspace} sera déplacé sous ${destination}. Les conteneurs qui ne voient plus le projet seront déliés.`,
+              },
+              action,
+            )) === action
+          );
+        },
+      });
+      if (moved !== null) {
+        mountIssue = undefined;
+        await Promise.all(
+          [...slots.values()].map((slot) => slot.session?.refreshHistoryProjects()),
+        );
+        if (wasActive)
+          await openActiveProjectWorkspace(defaultConfigDir(), projectWorkspaceHost, "selection");
+      }
+    } finally {
+      projectChanging = false;
+    }
+    if (moved !== null) {
+      void vscode.window.showInformationMessage(t`Projet déplacé : ${moved.workspace}`);
+      await pushStudio();
+    }
+  };
   /** Mémorise l'incohérence signalée par le moteur, ouvre le cockpit et rafraîchit sa vue s'il est déjà ouvert. */
   const showMountIssue = (issue: CockpitMountIssue) => {
     mountIssue = issue;
@@ -3330,6 +3342,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       auditGeneration,
       refreshDocker && (requestedPage === "project" || requestedPage === "containers"),
       async (cockpit) => {
+        // Projets « non associés » (ADR 0053, point 8) : placement calculé avec les montages relus par docker.
+        const unassociated =
+          studioPage === "project"
+            ? unassociatedProjectIds(
+                (await readProjects(config).catch(() => null))?.projects ?? [],
+                cockpit.value?.containers,
+              )
+            : [];
         const payload = {
           ...(cockpit.value ?? { type: "view" as const, containers: [] }),
           dockerLoading:
@@ -3383,6 +3403,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             projectChoices.activeId,
           ),
           creationContainers: creationContainers(cockpit.value?.containers ?? []),
+          unassociated,
           agentProfile: agentProfileLabel(
             machineValue(vscode.workspace.getConfiguration("warband").inspect("profile")),
           ),
@@ -4422,10 +4443,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           });
           return;
         }
-        // Archive puis conteneur (ADR 0053) : le partage est relu côté hôte, jamais fourni par la webview.
+        // Conteneur du formulaire puis archive (ADR 0053) : le partage est relu côté hôte, jamais fourni par la webview.
         let imported: Awaited<ReturnType<typeof importProjectArchive>> | undefined;
         let importError: string | undefined;
         try {
+          const target = await containerShare(message.container);
+          if (target === undefined) throw new CodedError("project.containerRequired");
           const archive = await vscode.window.showOpenDialog({
             canSelectFiles: true,
             canSelectFolders: false,
@@ -4434,24 +4457,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             openLabel: t("Choisir l'archive du projet"),
           });
           const archiveFile = archive?.[0]?.fsPath;
-          const view = archiveFile === undefined ? undefined : await loadCockpitView();
-          const rows = view === undefined ? [] : creationContainers(view.containers);
-          const picked =
-            rows.length === 0
-              ? undefined
-              : await vscode.window.showQuickPick(
-                  rows.map((row) => row.name),
-                  { title: t("Conteneur du projet importé") },
-                );
-          const row = rows.find((candidate) => candidate.name === picked);
-          if (archiveFile !== undefined && view !== undefined && rows.length === 0)
-            throw new CodedError("project.containerRequired");
-          if (archiveFile !== undefined && row !== undefined) {
+          if (archiveFile !== undefined) {
             projectChanging = true;
             try {
               imported = await importProjectArchive(defaultConfigDir(), archiveFile, {
-                container: row.name,
-                share: row.mount,
+                container: target.name,
+                share: target.share,
               });
             } finally {
               projectChanging = false;
@@ -4476,6 +4487,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           );
         return;
       }
+      if (message.type === "relocateProject") {
+        // Aucune écriture sans confirmation modale ; la destination est calculée par l'hôte.
+        let relocateError: string | undefined;
+        try {
+          await relocateProjectToContainer(message.projectId, message.container);
+        } catch (error) {
+          relocateError = formatError(error, getUiLocale());
+        }
+        await pushStudio({ ...(relocateError !== undefined && { projectError: relocateError }) });
+        return;
+      }
       if (message.type === "activateProject") {
         await changeProject(async () => {
           await activateSelectedProject(defaultConfigDir(), message.projectId);
@@ -4490,25 +4512,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           });
           return;
         }
-        // Aucun chemin ne vient de la webview : dialogues natifs sans dossier par défaut (ADR 0050, 0052).
-        const choice: ProjectCreationChoice =
-          message.type === "adoptProject"
-            ? { kind: "existing", name: message.name }
-            : message.target === "container"
-              ? { kind: "container", name: message.name, container: message.container }
-              : { kind: "newFolder", name: message.name };
+        // Un projet n'existe que dans un conteneur (ADR 0053) : seul le nom du conteneur vient de la webview.
+        const choice: ProjectCreationChoice = {
+          kind: message.type === "adoptProject" ? "adopt" : "create",
+          name: message.name,
+          container: message.container,
+        };
         let plan: Awaited<ReturnType<typeof planProjectCreation>>;
         try {
           plan = await planProjectCreation(choice, {
-            pickFolder: async (purpose) => {
+            // Seul dossier proposé par défaut : le partage du conteneur, relu par docker.
+            pickExisting: async (share) => {
               const picked = await vscode.window.showOpenDialog({
                 canSelectFolders: true,
                 canSelectFiles: false,
                 canSelectMany: false,
-                openLabel:
-                  purpose === "parent"
-                    ? t("Choisir le dossier parent du projet")
-                    : t("Choisir le dossier à ouvrir comme projet"),
+                defaultUri: vscode.Uri.file(share),
+                openLabel: t("Choisir le dossier à ouvrir comme projet"),
               });
               return picked?.[0]?.fsPath;
             },
@@ -4523,12 +4543,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
               });
               return name?.trim();
             },
-            // Le montage est relu ici, côté hôte : la webview ne fournit que le nom du conteneur.
-            containerMount: async (container) => {
-              const view = await loadCockpitView();
-              return creationContainers(view.containers).find((row) => row.name === container)
-                ?.mount;
-            },
+            containerMount: async (container) => (await containerShare(container))?.share,
           });
         } catch (error) {
           await pushStudio({ projectError: formatError(error, getUiLocale()) });
@@ -4540,38 +4555,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           return;
         }
         const readyPlan = plan;
-        let created: string | undefined;
-        let linkError: string | undefined;
-        await changeProject(
-          async () => {
-            if (chatsBusy())
-              throw new Error(t("Arrêtez les tours en cours avant de créer le projet."));
-            const project = await applyProjectPlan(defaultConfigDir(), readyPlan);
-            created = project.id;
-            await prepareMissionFolder(project.workspace);
-            return project.id;
-          },
-          // « Dans un conteneur » : la liaison précède l'ouverture du dossier (la fenêtre peut être
-          // remplacée). En cas d'échec le projet reste créé et l'erreur est affichée.
-          choice.kind === "container"
-            ? async () => {
-                if (created === undefined) return;
-                projectChanging = false;
-                try {
-                  await linkForProject(choice.container, created);
-                } catch (error) {
-                  linkError = formatError(error, getUiLocale());
-                } finally {
-                  projectChanging = true;
-                }
-              }
-            : undefined,
-        );
-        if (linkError !== undefined)
-          await pushStudio({
-            ...(created !== undefined && { projectCreated: created }),
-            projectError: linkError,
-          });
+        // Le conteneur est lié par le cœur à la création (`containers` et `primary`).
+        await changeProject(async () => {
+          if (chatsBusy())
+            throw new Error(t("Arrêtez les tours en cours avant de créer le projet."));
+          const project = await applyProjectPlan(defaultConfigDir(), readyPlan);
+          await prepareMissionFolder(project.workspace);
+          return project.id;
+        });
         return;
       }
       if (message.type === "saveSummary") {

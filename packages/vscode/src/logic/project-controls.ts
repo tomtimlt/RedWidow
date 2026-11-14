@@ -1,12 +1,14 @@
-import { basename } from "node:path";
+import { basename, isAbsolute } from "node:path";
 import {
   adoptProjectDirectory,
   CodedError,
   createManagedProject,
-  createProject,
+  isInsideShare,
+  projectPlacement,
   readProjects,
   removeProject,
   renameProject,
+  type StoredProject,
   setActiveProject,
 } from "@warband/core";
 import { t } from "@warband/messages";
@@ -30,23 +32,6 @@ export async function activateSelectedProject(configDir: string, projectId: stri
   await setActiveProject(configDir, projectId);
 }
 
-/** Le dossier doit provenir du dialogue natif de l'hôte, jamais de la webview. */
-export async function createSelectedProject(
-  configDir: string,
-  name: string,
-  workspace: string,
-  container: string,
-): Promise<string> {
-  const project = await createProject(configDir, {
-    name,
-    workspace,
-    containers: [container],
-    primary: container,
-  });
-  await setActiveProject(configDir, project.id);
-  return project.id;
-}
-
 /** Le conteneur et son dossier partagé sont relus par l’hôte (ADR 0053), jamais fournis par la webview. */
 export async function createManagedSelectedProject(
   configDir: string,
@@ -58,16 +43,16 @@ export async function createManagedSelectedProject(
   return project;
 }
 
-/** Choix de création venu de la webview : aucun chemin, seulement un nom et, au plus, un conteneur. */
+/** Choix de création venu de la webview : aucun chemin, seulement un conteneur et un nom (ADR 0053). */
 export type ProjectCreationChoice =
-  | { kind: "newFolder"; name: string }
-  | { kind: "existing"; name: string }
-  | { kind: "container"; name: string; container: string };
+  | { kind: "create"; name: string; container: string }
+  /** `name` vide : l'hôte propose le nom de base du dossier choisi. */
+  | { kind: "adopt"; name: string; container: string };
 
-/** Dialogues et relectures de l'hôte : c'est lui seul qui fournit les chemins (ADR 0050, 0052). */
+/** Dialogues et relectures de l'hôte : c'est lui seul qui fournit les chemins (ADR 0050, 0053). */
 export interface ProjectCreationHost {
-  /** Sélecteur natif de dossier, sans dossier par défaut ; `undefined` si annulé. */
-  pickFolder(purpose: "parent" | "existing"): Promise<string | undefined>;
+  /** Sélecteur natif de dossier ouvert sur le partage du conteneur ; `undefined` si annulé. */
+  pickExisting(share: string): Promise<string | undefined>;
   /** Nom proposé puis éventuellement modifié ; `undefined` si annulé. */
   askName(proposed: string): Promise<string | undefined>;
   /** Montage /workspace d'un conteneur connu, relu côté hôte ; `undefined` s'il est inconnu ou sans montage. */
@@ -87,16 +72,46 @@ export function proposedProjectName(folder: string): string {
     .slice(0, 80);
 }
 
-/** Une annulation d'un dialogue renvoie `undefined` : rien n'est créé. */
+/**
+ * Une annulation d'un dialogue renvoie `undefined` : rien n'est créé. Le partage est relu par
+ * l'hôte ; un dossier existant hors de ce partage est refusé avant tout nom demandé.
+ */
 export async function planProjectCreation(
   choice: ProjectCreationChoice,
   host: ProjectCreationHost,
 ): Promise<ProjectCreationPlan | undefined> {
-  // ADR 0053 : un projet n'existe que dans un conteneur ; l'interface des cibles libres est refaite à part.
-  if (choice.kind !== "container") throw new CodedError("project.containerRequired");
   const share = await host.containerMount(choice.container);
-  if (share === undefined) throw new CodedError("project.parentInvalid");
-  return { kind: "create", name: choice.name, container: choice.container, share };
+  if (share === undefined) throw new CodedError("project.containerRequired");
+  if (choice.kind === "create")
+    return { kind: "create", name: choice.name, container: choice.container, share };
+  const folder = await host.pickExisting(share);
+  if (folder === undefined) return undefined;
+  if (!(await isInsideShare(share, folder))) throw new CodedError("project.outsideShare");
+  const name = choice.name !== "" ? choice.name : await host.askName(proposedProjectName(folder));
+  if (name === undefined || name === "") return undefined;
+  return { kind: "adopt", name, folder, container: choice.container, share };
+}
+
+/**
+ * Projets « non associés » (ADR 0053, point 8) : sans conteneur, ou hors du partage de leurs
+ * conteneurs. `containers` : liste Docker relue par l'hôte, `undefined` si indisponible ; seul
+ * « sans conteneur » est alors affirmé (rien n'est supposé sur les montages).
+ */
+export function unassociatedProjectIds(
+  projects: readonly Pick<StoredProject, "id" | "workspace" | "containers">[],
+  containers: readonly { name: string; workspace?: string }[] | undefined,
+): string[] {
+  const mounts = new Map<string, string | undefined>(
+    (containers ?? []).map(({ name, workspace }) => [
+      name,
+      workspace !== undefined && isAbsolute(workspace) ? workspace : undefined,
+    ]),
+  );
+  return projects.flatMap((project) => {
+    if (project.containers.length === 0) return [project.id];
+    if (containers === undefined) return [];
+    return projectPlacement(project, mounts) === "ok" ? [] : [project.id];
+  });
 }
 
 /** Crée ou reprend le dossier, puis active le projet. Les contrôles de chemin restent ceux du cœur. */

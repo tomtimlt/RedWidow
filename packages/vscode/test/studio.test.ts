@@ -167,7 +167,6 @@ describe("réglages", () => {
     expect(parseStudioMessage({ ...message, path: "/tmp" })).toBeNull();
     expect(parseStudioMessage({ ...message, text: null })).toBeNull();
   });
-
   it("projets : nom borné et id canonique, aucun chemin accepté de la webview", () => {
     const projectId = "11111111-1111-4111-8111-111111111111";
     expect(parseStudioMessage({ type: "activateProject", projectId })).toEqual({
@@ -176,62 +175,71 @@ describe("réglages", () => {
     });
     expect(parseStudioMessage({ type: "activateProject", projectId: "../autre" })).toBeNull();
     expect(parseStudioMessage({ type: "activateProject", projectId, extra: true })).toBeNull();
+    // Un projet n'existe que dans un conteneur : le conteneur est obligatoire (ADR 0053).
     expect(
-      parseStudioMessage({ type: "createProject", name: " Mission ", target: "newFolder" }),
-    ).toEqual({ type: "createProject", name: "Mission", target: "newFolder" });
+      parseStudioMessage({ type: "createProject", name: " Mission ", container: "exegol-lab" }),
+    ).toEqual({ type: "createProject", name: "Mission", container: "exegol-lab" });
     expect(
-      parseStudioMessage({
-        type: "createProject",
-        name: "Mission",
-        target: "container",
-        container: "exegol-lab",
-      }),
-    ).toEqual({
-      type: "createProject",
-      name: "Mission",
-      target: "container",
-      container: "exegol-lab",
-    });
-    expect(parseStudioMessage({ type: "adoptProject", name: " Client " })).toEqual({
-      type: "adoptProject",
-      name: "Client",
-    });
-    // Nom vide : l'hôte proposera le nom de base du dossier choisi.
-    expect(parseStudioMessage({ type: "adoptProject", name: "" })).toEqual({
+      parseStudioMessage({ type: "adoptProject", name: " Client ", container: "exegol-lab" }),
+    ).toEqual({ type: "adoptProject", name: "Client", container: "exegol-lab" });
+    // Nom absent ou vide : l'hôte proposera le nom de base du dossier choisi.
+    expect(parseStudioMessage({ type: "adoptProject", container: "exegol-lab" })).toEqual({
       type: "adoptProject",
       name: "",
+      container: "exegol-lab",
+    });
+    expect(parseStudioMessage({ type: "adoptProject", name: "", container: "kali-1" })).toEqual({
+      type: "adoptProject",
+      name: "",
+      container: "kali-1",
     });
     for (const name of ["", "  ", "x".repeat(81), "a\nb", "a\0b"]) {
-      expect(parseStudioMessage({ type: "createProject", name, target: "newFolder" })).toBeNull();
+      expect(parseStudioMessage({ type: "createProject", name, container: "kali-1" })).toBeNull();
     }
     for (const name of ["x".repeat(81), "a\nb", "a\0b"]) {
-      expect(parseStudioMessage({ type: "adoptProject", name })).toBeNull();
+      expect(parseStudioMessage({ type: "adoptProject", name, container: "kali-1" })).toBeNull();
+    }
+    const badContainers: unknown[] = [undefined, "", "x".repeat(257), 3, null, "a\nb"];
+    for (const container of badContainers) {
+      expect(parseStudioMessage({ type: "createProject", name: "Mission", container })).toBeNull();
+      expect(parseStudioMessage({ type: "adoptProject", name: "Mission", container })).toBeNull();
+      expect(parseStudioMessage({ type: "importProject", container })).toBeNull();
+      expect(parseStudioMessage({ type: "relocateProject", projectId, container })).toBeNull();
     }
     const rejected: unknown[] = [
-      // Ancienne forme sans cible, cible inconnue.
+      // Anciennes formes : sans conteneur, avec `target`.
       { type: "createProject", name: "Mission" },
-      { type: "createProject", name: "Mission", target: "existing" },
-      { type: "createProject", name: "Mission", target: "autre" },
-      // `container` sans `target:"container"`, ou absent / hors bornes avec.
-      { type: "createProject", name: "Mission", target: "newFolder", container: "exegol-lab" },
-      { type: "createProject", name: "Mission", target: "container" },
-      { type: "createProject", name: "Mission", target: "container", container: "" },
-      { type: "createProject", name: "Mission", target: "container", container: "x".repeat(257) },
-      { type: "createProject", name: "Mission", target: "container", container: 3 },
+      { type: "createProject", name: "Mission", target: "newFolder" },
+      { type: "createProject", name: "Mission", target: "container", container: "kali-1" },
+      { type: "adoptProject", name: "Mission" },
+      { type: "adoptProject" },
       // Aucune clé de chemin ne passe.
-      ...["workspace", "folder", "parent", "path", "workspaceRoot"].flatMap((key) => [
-        { type: "createProject", name: "Mission", target: "newFolder", [key]: "/etc" },
-        { type: "adoptProject", name: "Mission", [key]: "/etc" },
-        {
-          type: "createProject",
-          name: "Mission",
-          target: "container",
-          container: "exegol-lab",
-          [key]: "/etc",
-        },
-      ]),
+      ...["workspace", "folder", "parent", "path", "workspaceRoot", "share", "mount"].flatMap(
+        (key) => [
+          { type: "createProject", name: "Mission", container: "kali-1", [key]: "/etc" },
+          { type: "adoptProject", name: "Mission", container: "kali-1", [key]: "/etc" },
+          { type: "adoptProject", container: "kali-1", [key]: "/etc" },
+          { type: "importProject", container: "kali-1", [key]: "/etc" },
+          { type: "relocateProject", projectId, container: "kali-1", [key]: "/etc" },
+        ],
+      ),
       // Réglage de racine supprimé.
       { type: "setWorkspaceRoot", value: "/home/demo/missions" },
+    ];
+    for (const message of rejected) expect(parseStudioMessage(message)).toBeNull();
+  });
+
+  it("relocateProject : id canonique et conteneur, clés fermées", () => {
+    const projectId = "11111111-1111-4111-8111-111111111111";
+    expect(
+      parseStudioMessage({ type: "relocateProject", projectId, container: "exegol-lab" }),
+    ).toEqual({ type: "relocateProject", projectId, container: "exegol-lab" });
+    const rejected: unknown[] = [
+      { type: "relocateProject" },
+      { type: "relocateProject", projectId },
+      { type: "relocateProject", container: "exegol-lab" },
+      { type: "relocateProject", projectId: "../autre", container: "exegol-lab" },
+      { type: "relocateProject", projectId: 3, container: "exegol-lab" },
     ];
     for (const message of rejected) expect(parseStudioMessage(message)).toBeNull();
   });
@@ -242,14 +250,19 @@ describe("réglages", () => {
       type: "exportProject",
       projectId: id,
     });
-    expect(parseStudioMessage({ type: "importProject" })).toEqual({ type: "importProject" });
+    expect(parseStudioMessage({ type: "importProject", container: "exegol-lab" })).toEqual({
+      type: "importProject",
+      container: "exegol-lab",
+    });
     const rejected: unknown[] = [
       { type: "exportProject" },
       { type: "exportProject", projectId: "pas-un-uuid" },
       { type: "exportProject", projectId: 3 },
+      // L'import exige le conteneur.
+      { type: "importProject" },
       ...["path", "file", "folder", "parent", "destination"].flatMap((key) => [
         { type: "exportProject", projectId: id, [key]: "/etc/passwd" },
-        { type: "importProject", [key]: "/etc/passwd" },
+        { type: "importProject", container: "kali-1", [key]: "/etc/passwd" },
       ]),
     ];
     for (const message of rejected) expect(parseStudioMessage(message)).toBeNull();
@@ -1044,7 +1057,7 @@ it("mémoire : saisie, plafond multioctet, conservation du brouillon et accusé 
   expect(save().disabled).toBe(false);
 });
 
-it("projets : choisir un projet réel et créer avec le nom seul, dossier laissé à l'hôte", () => {
+it("projets : conteneur obligatoire, création, dossier existant, import et déplacement sans chemin", () => {
   const main = new StudioNode("main");
   const nav = new StudioNode("nav");
   const sent: unknown[] = [];
@@ -1109,79 +1122,117 @@ it("projets : choisir un projet réel et créer avec le nom seul, dossier laiss�
   expect(choosePanel.hidden).toBe(true);
   expect(createPanel.hidden).toBe(false);
   expect(createTab.attributes.get("aria-pressed")).toBe("true");
+  // Un seul parcours (ADR 0053) : plus de radios d'emplacement.
+  expect(main.find((n) => n.id.startsWith("project-target-"))).toBeUndefined();
+  // Sans conteneur : tout est désactivé et le texte l'explique, rien n'est envoyé.
   const create = find((n) => n.textContent === "Créer le projet");
-  expect(create.disabled).toBe(true);
+  const adopt = find((n) => n.id === "project-adopt");
+  const importButton = find((n) => n.id === "project-import");
   const name = find((n) => n.id === "project-name");
   name.value = " Nouvelle mission ";
   name.fire("input");
-  chooseTab.fire("click");
-  createTab.fire("click");
-  expect(name.value).toBe(" Nouvelle mission ");
-  create.fire("click");
-  expect(sent.at(-1)).toEqual({
-    type: "createProject",
-    name: "Nouvelle mission",
-    target: "newFolder",
-  });
-  // Sans conteneur monté : trois choix, l'option conteneur est grisée et expliquée.
-  const radio = (value: string) => find((n) => n.id === `project-target-${value}`);
-  expect(radio("newFolder").checked).toBe(true);
-  expect(radio("container").disabled).toBe(true);
-  expect(find((n) => n.textContent === "Aucun conteneur avec un dossier partagé.")).toBeTruthy();
-  // Dossier existant : le nom n'est plus obligatoire (l'hôte le propose), aucun chemin n'est envoyé.
-  radio("existing").checked = true;
-  radio("existing").fire("change");
-  name.value = "";
-  name.fire("input");
-  expect(create.disabled).toBe(false);
-  create.fire("click");
-  expect(sent.at(-1)).toEqual({ type: "adoptProject", name: "" });
-  // Export du projet sélectionné et import : aucun chemin n'est envoyé.
-  const exportButton = find((n) => n.id === "project-export");
-  chooseTab.fire("click");
-  choose.value = second;
-  choose.fire("change");
-  expect(exportButton.disabled).toBe(false);
-  exportButton.fire("click");
-  expect(sent.at(-1)).toEqual({ type: "exportProject", projectId: second });
-  find((n) => n.id === "project-import").fire("click");
-  expect(sent.at(-1)).toEqual({ type: "importProject" });
-  createTab.fire("click");
-  // Un conteneur monté active le troisième choix, qui envoie son nom (le montage reste côté hôte).
+  expect(find((n) => n.id === "project-container").disabled).toBe(true);
+  expect(create.disabled).toBe(true);
+  expect(adopt.disabled).toBe(true);
+  expect(importButton.disabled).toBe(true);
+  expect(find((n) => n.textContent === "Créez d'abord un conteneur.")).toBeTruthy();
+  const sentBefore = sent.length;
+  for (const button of [create, adopt, importButton]) button.fire("click");
+  expect(sent).toHaveLength(sentBefore);
+  // Les conteneurs démarrés comme éteints sont proposés ; le conteneur est obligatoire.
   receive({
     data: {
       type: "view",
       page: "project",
       projectChoices: {
         activeId: first,
-        projects: [{ id: first, name: "Premier", workspace: "/mission" }],
+        projects: [
+          { id: first, name: "Premier", workspace: "/mission" },
+          { id: second, name: "Second", workspace: "/autre" },
+        ],
       },
+      unassociated: [second],
       creationContainers: [
         { name: "exegol-lab", short: "lab", state: "running", mount: "/srv/ws" },
         { name: "kali-b", short: "b", state: "stopped", mount: "/srv/b" },
       ],
     },
   });
-  expect(radio("container").disabled).toBe(false);
-  expect(radio("existing").checked).toBe(true);
-  radio("container").checked = true;
-  radio("container").fire("change");
   const pick = find((n) => n.id === "project-container");
   expect(pick.children.map((c) => c.value)).toEqual(["exegol-lab", "kali-b"]);
-  const createContainer = find((n) => n.textContent === "Créer le projet");
-  expect(createContainer.disabled).toBe(true);
-  const nameField = find((n) => n.id === "project-name");
-  nameField.value = "Dans lab";
-  nameField.fire("input");
+  expect(pick.disabled).toBe(false);
+  expect(main.find((n) => n.textContent === "Créez d'abord un conteneur.")).toBeUndefined();
+  expect(find((n) => n.id === "project-name").value).toBe(" Nouvelle mission ");
+  const createReady = find((n) => n.textContent === "Créer le projet");
+  expect(createReady.disabled).toBe(false);
   pick.value = "kali-b";
   pick.fire("change");
-  createContainer.fire("click");
+  createReady.fire("click");
   expect(sent.at(-1)).toEqual({
     type: "createProject",
-    name: "Dans lab",
-    target: "container",
+    name: "Nouvelle mission",
     container: "kali-b",
   });
+  // Dossier existant dans ce conteneur : le nom est facultatif, aucun chemin n'est envoyé.
+  const nameField = find((n) => n.id === "project-name");
+  nameField.value = "";
+  nameField.fire("input");
+  const adoptReady = find((n) => n.id === "project-adopt");
+  expect(adoptReady.disabled).toBe(false);
+  adoptReady.fire("click");
+  expect(sent.at(-1)).toEqual({ type: "adoptProject", container: "kali-b", name: "" });
+  // Import : même sélecteur de conteneur, l'archive est choisie par l'hôte.
+  find((n) => n.id === "project-import").fire("click");
+  expect(sent.at(-1)).toEqual({ type: "importProject", container: "kali-b" });
+  // Projet non associé : badge et déplacement dans le conteneur choisi, UUID seul envoyé avec lui.
+  find((n) => n.id === "project-choose-tab").fire("click");
+  const choose2 = find((n) => n.id === "project-choice");
+  expect(choose2.children.map((c) => c.textContent)).toEqual([
+    "Choisir un projet…",
+    "Premier",
+    "Second · Non associé",
+  ]);
+  const relocateRow = find((n) => n.id === "project-relocate");
+  expect(relocateRow.hidden).toBe(true);
+  choose2.value = second;
+  choose2.fire("change");
+  expect(relocateRow.hidden).toBe(false);
+  expect(find((n) => n.id === "project-unassociated").textContent).toBe("Non associé");
+  const relocate = find((n) => n.id === "project-relocate-button");
+  expect(relocate.textContent).toBe("Déplacer dans un conteneur…");
+  expect(relocate.disabled).toBe(false);
+  relocate.fire("click");
+  expect(sent.at(-1)).toEqual({
+    type: "relocateProject",
+    projectId: second,
+    container: "kali-b",
+  });
+  // Export du projet sélectionné : aucun chemin n'est envoyé.
+  const exportButton = find((n) => n.id === "project-export");
+  choose2.value = second;
+  choose2.fire("change");
+  expect(exportButton.disabled).toBe(false);
+  exportButton.fire("click");
+  expect(sent.at(-1)).toEqual({ type: "exportProject", projectId: second });
+  // Sans conteneur, le déplacement est désactivé avec le même texte.
+  receive({
+    data: {
+      type: "view",
+      page: "project",
+      projectChoices: {
+        activeId: first,
+        projects: [
+          { id: first, name: "Premier", workspace: "/mission" },
+          { id: second, name: "Second", workspace: "/autre" },
+        ],
+      },
+      unassociated: [second],
+    },
+  });
+  const choose3 = find((n) => n.id === "project-choice");
+  choose3.value = second;
+  choose3.fire("change");
+  expect(find((n) => n.id === "project-relocate-button").disabled).toBe(true);
   receive({
     data: {
       type: "view",
@@ -1192,15 +1243,9 @@ it("projets : choisir un projet réel et créer avec le nom seul, dossier laiss�
       },
     },
   });
-  // Plus de conteneur monté : retour au choix « Nouveau dossier ».
-  expect(radio("newFolder").checked).toBe(true);
-  expect(radio("container").disabled).toBe(true);
-  find((n) => n.textContent === "Créer le projet").fire("click");
-  expect(sent.at(-1)).toEqual({
-    type: "createProject",
-    name: "Dans lab",
-    target: "newFolder",
-  });
+  find((n) => n.id === "project-create-tab").fire("click");
+  expect(find((n) => n.id === "project-container").disabled).toBe(true);
+  expect(find((n) => n.textContent === "Créer le projet").disabled).toBe(true);
   // Le brouillon du nom survit aux rafraîchissements de vue.
   const restored = find((n) => n.id === "project-name");
   restored.value = " Nouvelle mission ";
@@ -1942,7 +1987,7 @@ it("le réglage de racine des projets a disparu de la page Système", () => {
   expect(source).not.toContain("projectWorkspaceRoot");
 });
 
-it("création de projet : sélecteur natif sans defaultUri, jamais le réglage de racine", () => {
+it("création de projet : seul defaultUri est le partage du conteneur relu par l'hôte, aucun chemin du message", () => {
   const source = read(fileURLToPath(new URL("../src/extension/extension.ts", import.meta.url)));
   const start = source.indexOf(
     'if (message.type === "createProject" || message.type === "adoptProject")',
@@ -1951,16 +1996,19 @@ it("création de projet : sélecteur natif sans defaultUri, jamais le réglage d
   expect(handler).toContain("showOpenDialog");
   expect(handler).toContain("planProjectCreation");
   expect(handler).toContain("applyProjectPlan");
-  expect(handler).not.toContain("defaultUri");
+  // Un seul defaultUri : le partage du conteneur, relu par docker (`containerShare`).
+  expect(handler.match(/defaultUri/g)).toHaveLength(1);
+  expect(handler).toContain("defaultUri: vscode.Uri.file(share)");
+  expect(handler).toContain("containerShare(container)");
   expect(source).not.toContain("projects.workspaceRoot");
   expect(source).not.toContain("setWorkspaceRoot");
   // Le dossier de la webview n'existe pas : seuls le nom et le conteneur sont lus du message.
-  expect(handler).not.toMatch(/message\.(workspace|folder|parent|path)/);
+  expect(handler).not.toMatch(/message\.(workspace|folder|parent|path|share|mount)/);
   const manifest = read(fileURLToPath(new URL("../extension.manifest.json", import.meta.url)));
   expect(manifest).not.toContain("projects.workspaceRoot");
 });
 
-it("export / import : dialogues natifs sans defaultUri, archive appelée seulement après les choix", () => {
+it("export / import : dialogues natifs sans defaultUri, archive appelée seulement après le conteneur et le choix", () => {
   const source = read(fileURLToPath(new URL("../src/extension/extension.ts", import.meta.url)));
   const start = source.indexOf('if (message.type === "exportProject")');
   const end = source.indexOf('if (message.type === "activateProject")', start);
@@ -1968,20 +2016,35 @@ it("export / import : dialogues natifs sans defaultUri, archive appelée seuleme
   expect(handlers).toContain("showSaveDialog");
   expect(handlers).toContain("showOpenDialog");
   expect(handlers).not.toContain("defaultUri");
-  expect(handlers).not.toMatch(/message\.(workspace|folder|parent|path|file)/);
+  expect(handlers).not.toMatch(/message\.(workspace|folder|parent|path|file|share|mount)/);
   const exporting = handlers.slice(0, handlers.indexOf('if (message.type === "importProject")'));
   // Annulation du dialogue d'export : aucun appel d'archive.
   expect(exporting).toContain("if (target !== undefined)");
   expect(exporting.indexOf("exportProjectArchive")).toBeGreaterThan(
     exporting.indexOf("if (target !== undefined)"),
   );
-  // Annulation de l'un des deux sélecteurs d'import : aucun appel d'archive.
-  expect(handlers).toContain("if (archiveFile !== undefined && row !== undefined)");
-  expect(handlers.indexOf("importProjectArchive(")).toBeGreaterThan(
-    handlers.indexOf("if (archiveFile !== undefined && row !== undefined)"),
+  // Le conteneur du formulaire est relu par l'hôte avant tout ; annulation du sélecteur : aucun appel d'archive.
+  const importing = handlers.slice(handlers.indexOf('if (message.type === "importProject")'));
+  expect(importing).toContain("containerShare(message.container)");
+  expect(importing).not.toContain("showQuickPick");
+  expect(importing).toContain("if (archiveFile !== undefined)");
+  expect(importing.indexOf("importProjectArchive(")).toBeGreaterThan(
+    importing.indexOf("if (archiveFile !== undefined)"),
   );
   // Le projet importé est activé par le chemin habituel.
   expect(handlers).toContain("activateSelectedProject");
+});
+
+it("déplacement d'un projet non associé : modale native, destination calculée, pas de sélecteur de dossier", () => {
+  const source = read(fileURLToPath(new URL("../src/extension/extension.ts", import.meta.url)));
+  const start = source.indexOf("const relocateProjectToContainer = async");
+  const body = source.slice(start, source.indexOf("const showMountIssue", start));
+  expect(body).toContain("modal: true");
+  expect(body).toContain("relocateProject(projectId, container");
+  expect(body).toContain("chatsBusy()");
+  expect(body).not.toContain("showOpenDialog");
+  expect(body).not.toContain("defaultUri");
+  expect(source).not.toContain("moveActiveProject");
 });
 
 describe("creationContainers", () => {

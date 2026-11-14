@@ -450,7 +450,6 @@ function start() {
   const summaryDrafts = /* @__PURE__ */ new Map();
   const summarySaving = /* @__PURE__ */ new Set();
   let projectNameDraft = "";
-  let projectTargetDraft = "newFolder";
   let projectContainerDraft = "";
   let providerFilter = "";
   const auditDrafts = new Map();
@@ -2126,6 +2125,7 @@ function start() {
         "projectBusy",
         "projectCreated",
         "creationContainers",
+        "unassociated",
         "projectError",
         "projectSummary",
         "linkedBanner",
@@ -2370,10 +2370,35 @@ function start() {
           );
         if (typeof view.projectCreated === "string") {
           projectNameDraft = "";
-          projectTargetDraft = "newFolder";
           projectContainerDraft = "";
           projectPanel = "choose";
         }
+        // Tous les conteneurs à dossier partagé, démarrés ou éteints (ADR 0053).
+        const containers = Array.isArray(view.creationContainers) ? view.creationContainers : [];
+        if (!containers.some((row) => row.name === projectContainerDraft))
+          projectContainerDraft = containers[0]?.name ?? "";
+        const noContainerText = t("Créez d'abord un conteneur.");
+        const unassociated = new Set(Array.isArray(view.unassociated) ? view.unassociated : []);
+        // Les sélecteurs de conteneur (création, déplacement) restent alignés sur le même brouillon.
+        const pickers = [];
+        const containerPicker = (id) => {
+          const pick = el("select", "studio-project-control");
+          pick.id = id;
+          pick.setAttribute("aria-label", t("Conteneur du projet"));
+          for (const row of containers) {
+            const option = el("option", "", row.short);
+            option.value = row.name;
+            pick.append(option);
+          }
+          pick.value = projectContainerDraft;
+          pick.disabled = projectBusy || containers.length === 0;
+          pick.addEventListener("change", () => {
+            projectContainerDraft = pick.value;
+            for (const other of pickers) other.value = pick.value;
+          });
+          pickers.push(pick);
+          return pick;
+        };
         const current = choices.projects.find((p) => p.id === choices.activeId);
         const active = el("div", "studio-project-active");
         active.append(el("p", "studio-kicker", t("Projet actif")));
@@ -2434,7 +2459,13 @@ function start() {
           placeholder.disabled = true;
           select.append(placeholder);
           for (const project2 of choices.projects) {
-            const option = el("option", "", project2.name);
+            const option = el(
+              "option",
+              "",
+              unassociated.has(project2.id)
+                ? `${project2.name} · ${t("Non associé")}`
+                : project2.name,
+            );
             option.value = project2.id;
             select.append(option);
           }
@@ -2492,9 +2523,41 @@ function start() {
             });
           }
           managementState();
+          // Projet « non associé » (ADR 0053) : badge et déplacement confirmé par l'hôte, sans chemin.
+          const relocateRow = el("div", "studio-project-relocate");
+          relocateRow.id = "project-relocate";
+          const badge = el("span", "studio-badge", t("Non associé"));
+          badge.id = "project-unassociated";
+          const relocatePick = containerPicker("project-relocate-container");
+          const relocate = el("button", "ghost", t("Déplacer dans un conteneur…"));
+          relocate.type = "button";
+          relocate.id = "project-relocate-button";
+          const relocateState = () => {
+            const flagged = unassociated.has(select.value);
+            relocateRow.hidden = !flagged;
+            relocate.disabled = projectBusy || !flagged || !relocatePick.value;
+          };
+          select.addEventListener("change", relocateState);
+          relocate.addEventListener("click", () => {
+            if (relocate.disabled) return;
+            relocate.disabled = true;
+            vscode.postMessage({
+              type: "relocateProject",
+              projectId: select.value,
+              container: relocatePick.value,
+            });
+          });
+          relocateRow.append(
+            badge,
+            relocatePick,
+            relocate,
+            ...(containers.length === 0 ? [el("p", "studio-help", noContainerText)] : []),
+          );
+          relocateState();
           choosePanel.append(
             label2,
             select,
+            relocateRow,
             activate,
             program,
             engagement,
@@ -2503,6 +2566,7 @@ function start() {
             remove,
           );
         }
+        // ADR 0053 : un seul parcours. Le conteneur est obligatoire ; l'hôte relit son dossier partagé.
         const label = el("label", "studio-help", t("Nom du nouveau projet"));
         label.htmlFor = "project-name";
         const name = el("input", "studio-project-control");
@@ -2511,69 +2575,24 @@ function start() {
         name.maxLength = 80;
         name.value = projectNameDraft;
         name.disabled = projectBusy;
+        const containerLabel = el("label", "studio-help", t("Conteneur du projet"));
+        containerLabel.htmlFor = "project-container";
+        const containerSelect = containerPicker("project-container");
         const create = el("button", "primary", t("Créer le projet"));
         create.type = "button";
-        const containers = Array.isArray(view.creationContainers) ? view.creationContainers : [];
-        if (projectTargetDraft === "container" && containers.length === 0)
-          projectTargetDraft = "newFolder";
-        if (!containers.some((row) => row.name === projectContainerDraft))
-          projectContainerDraft = containers[0]?.name ?? "";
-        const targetGroup = el("div", "studio-project-targets");
-        targetGroup.setAttribute("role", "radiogroup");
-        targetGroup.setAttribute("aria-label", t("Emplacement du projet"));
-        const containerSelect = el("select", "studio-project-control");
-        containerSelect.id = "project-container";
-        containerSelect.setAttribute("aria-label", t("Dans un conteneur"));
-        for (const row of containers) {
-          const option = el("option", "", row.short);
-          option.value = row.name;
-          containerSelect.append(option);
-        }
-        containerSelect.value = projectContainerDraft;
-        containerSelect.addEventListener("change", () => {
-          projectContainerDraft = containerSelect.value;
-        });
-        const targetHelp = el("p", "studio-help");
+        const adopt = el("button", "ghost", t("Dossier existant dans ce conteneur…"));
+        adopt.type = "button";
+        adopt.id = "project-adopt";
+        const importButton = el("button", "ghost", t("Importer un projet…"));
+        importButton.type = "button";
+        importButton.id = "project-import";
         const update = () => {
-          const existing = projectTargetDraft === "existing";
-          const container = projectTargetDraft === "container";
-          containerSelect.hidden = !container;
-          containerSelect.disabled = projectBusy || !container;
-          targetHelp.textContent = existing
-            ? t("Le nom est proposé d'après le dossier choisi ; vous pourrez le modifier.")
-            : container
-              ? t("Le projet est créé sous le dossier partagé du conteneur, puis lié.")
-              : t("Un sous-dossier du dossier parent choisi est créé pour le projet.");
-          create.disabled =
-            projectBusy ||
-            (!existing && !name.value.trim()) ||
-            (container && !containerSelect.value);
+          const ready = !projectBusy && containers.length > 0 && !!containerSelect.value;
+          create.disabled = !ready || !name.value.trim();
+          adopt.disabled = !ready;
+          importButton.disabled = !ready;
         };
-        const radios = [];
-        for (const [value, text] of [
-          ["newFolder", t("Nouveau dossier")],
-          ["existing", t("Dossier existant")],
-          ["container", t("Dans un conteneur")],
-        ]) {
-          const radio = el("input");
-          radio.type = "radio";
-          radio.name = "project-target";
-          radio.id = `project-target-${value}`;
-          radio.value = value;
-          radio.checked = projectTargetDraft === value;
-          radio.disabled = projectBusy || (value === "container" && containers.length === 0);
-          radio.addEventListener("change", () => {
-            if (!radio.checked) return;
-            projectTargetDraft = value;
-            for (const other of radios) other.checked = other === radio;
-            update();
-          });
-          radios.push(radio);
-          const wrap = el("label", "studio-project-target");
-          wrap.htmlFor = radio.id;
-          wrap.append(radio, el("span", "", text));
-          targetGroup.append(wrap);
-        }
+        containerSelect.addEventListener("change", update);
         name.addEventListener("input", () => {
           projectNameDraft = name.value;
           update();
@@ -2581,47 +2600,47 @@ function start() {
         create.addEventListener("click", () => {
           if (create.disabled) return;
           create.disabled = true;
-          const clean = name.value.trim();
-          if (projectTargetDraft === "existing")
-            vscode.postMessage({ type: "adoptProject", name: clean });
-          else if (projectTargetDraft === "container")
-            vscode.postMessage({
-              type: "createProject",
-              name: clean,
-              target: "container",
-              container: containerSelect.value,
-            });
-          else vscode.postMessage({ type: "createProject", name: clean, target: "newFolder" });
+          vscode.postMessage({
+            type: "createProject",
+            name: name.value.trim(),
+            container: containerSelect.value,
+          });
+        });
+        // Le dossier est choisi par l'hôte, ouvert sur le partage du conteneur ; aucun chemin n'est envoyé.
+        adopt.addEventListener("click", () => {
+          if (adopt.disabled) return;
+          adopt.disabled = true;
+          vscode.postMessage({
+            type: "adoptProject",
+            container: containerSelect.value,
+            name: name.value.trim(),
+          });
+        });
+        importButton.addEventListener("click", () => {
+          if (importButton.disabled) return;
+          importButton.disabled = true;
+          vscode.postMessage({ type: "importProject", container: containerSelect.value });
         });
         update();
         createPanel.append(
+          el("p", "studio-help", t("Choisissez le conteneur du projet, puis donnez-lui un nom.")),
+          containerLabel,
+          containerSelect,
+          ...(containers.length === 0 ? [el("p", "studio-help", noContainerText)] : []),
+          label,
+          name,
           el(
             "p",
             "studio-help",
-            t("Donnez un nom au projet, puis choisissez où se trouve son dossier."),
+            t(
+              "Le projet est créé sous le dossier partagé du conteneur, démarré ou éteint. Pour un dossier existant, le nom est proposé d'après le dossier choisi.",
+            ),
           ),
-          label,
-          name,
-          targetGroup,
-          containerSelect,
-          ...(containers.length === 0
-            ? [el("p", "studio-help", t("Aucun conteneur avec un dossier partagé."))]
-            : []),
-          targetHelp,
           create,
+          adopt,
+          importButton,
         );
       }
-      // Import : disponible même sans projet ; l'archive et le dossier parent sont choisis par l'hôte.
-      const importButton = el("button", "ghost", t("Importer un projet…"));
-      importButton.type = "button";
-      importButton.id = "project-import";
-      importButton.disabled = view.projectBusy === true;
-      importButton.addEventListener("click", () => {
-        if (importButton.disabled) return;
-        importButton.disabled = true;
-        vscode.postMessage({ type: "importProject" });
-      });
-      sec.append(importButton);
       if (typeof view.projectError === "string") {
         const error = el("p", "studio-help", t(view.projectError));
         error.setAttribute("role", "status");

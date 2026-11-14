@@ -740,12 +740,15 @@
     const mounted = el("div", "cockpit-ellipsis cockpit-muted");
     ellipsize(mounted, t("Le conteneur partage : {0}", { 0: issue.mounted }), 64);
     const acts = el("div", "cockpit-actions");
-    const create = button("primary", t("Créer un conteneur"), "plus", () => {
-      form.open = true;
-      rerender();
-      document.getElementById("cockpit-name")?.focus?.();
-    });
-    create.id = "cockpit-issue-create";
+    // Déplacement confirmé par l'hôte (modale native) sous le partage du conteneur concerné (ADR 0053).
+    const move = button("primary", t("Déplacer dans un conteneur…"), "folder", () =>
+      vscode.postMessage({
+        type: "relocateProject",
+        projectId: issue.projectId,
+        container: issue.container,
+      }),
+    );
+    move.id = "cockpit-issue-move";
     const choose = button(
       "secondary",
       form.compatibleOnly
@@ -758,18 +761,13 @@
       },
     );
     choose.id = "cockpit-issue-choose";
-    const move = button("secondary", t("Déplacer le projet"), "folder", () =>
-      vscode.postMessage({ type: "moveProject" }),
-    );
-    move.id = "cockpit-issue-move";
     const dismiss = button("ghost", t("Masquer"), undefined, () => {
       form.compatibleOnly = false;
       vscode.postMessage({ type: "dismissMountIssue" });
     });
     dismiss.id = "cockpit-issue-dismiss";
-    create.disabled = operation.busy;
     move.disabled = operation.busy;
-    acts.append(create, choose, move, dismiss);
+    acts.append(move, choose, dismiss);
     box.append(title, mounted, acts);
     return box;
   };
@@ -1002,12 +1000,6 @@
           vscode.postMessage({ type: "openWorkspace" }),
         ),
       );
-      const moveBtn = button("secondary", t("Déplacer le projet"), "folder", () =>
-        vscode.postMessage({ type: "moveProject" }),
-      );
-      moveBtn.id = "cockpit-move";
-      moveBtn.disabled = operation.busy;
-      actions.append(moveBtn);
       card.append(head, meta, actions);
       linkedSec.append(card);
       main.append(linkedSec);

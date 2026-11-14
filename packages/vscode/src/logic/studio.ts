@@ -106,16 +106,20 @@ export type StudioMessage =
   | { type: "deleteProject"; projectId: string }
   /** Export `.rwproj` (ADR 0052, point 7) : le fichier est choisi par le sélecteur natif de l'hôte. */
   | { type: "exportProject"; projectId: string }
-  /** Import `.rwproj` (point 8) : archive et dossier parent choisis par l'hôte, aucune clé en plus. */
-  | { type: "importProject" }
+  /** Import `.rwproj` (ADR 0053) : conteneur choisi dans le formulaire ; l'archive est choisie par l'hôte. */
+  | { type: "importProject"; container: string }
   /**
-   * Création à trois choix (ADR 0052) : aucun chemin ne vient de la webview. Le dossier parent est
-   * choisi par le sélecteur natif de l'hôte ; pour un conteneur, l'hôte relit lui-même le montage.
+   * Création (ADR 0053) : un projet n'existe que dans un conteneur. Aucun chemin ne vient de la
+   * webview : l'hôte relit le dossier partagé du conteneur par docker.
    */
-  | { type: "createProject"; name: string; target: "newFolder" }
-  | { type: "createProject"; name: string; target: "container"; container: string }
-  /** Reprise d'un dossier existant : le dossier est choisi par l'hôte, un nom vide laisse l'hôte le proposer. */
-  | { type: "adoptProject"; name: string }
+  | { type: "createProject"; name: string; container: string }
+  /**
+   * Reprise d'un dossier existant sous le partage du conteneur : le dossier est choisi par l'hôte,
+   * un nom vide laisse l'hôte le proposer.
+   */
+  | { type: "adoptProject"; container: string; name: string }
+  /** Déplacement confirmé d'un projet « non associé » sous le partage du conteneur ; destination calculée par l'hôte. */
+  | { type: "relocateProject"; projectId: string; container: string }
   /** Résumé du projet affiché : l'hôte revalide le projet actif avant l'écriture. */
   | { type: "saveSummary"; projectId: string; text: string }
   /** La cible est relue et confirmée par l'hôte avant toute suppression. */
@@ -133,6 +137,13 @@ export type StudioMessage =
 function isProjectName(name: string): boolean {
   const trimmed = name.trim();
   return trimmed.length > 0 && trimmed.length <= 80 && !/[\0\r\n]/.test(name);
+}
+
+/** Nom de conteneur venu de la webview : seulement une clé de recherche, l'hôte relit tout le reste. */
+function isContainerName(value: unknown): value is string {
+  return (
+    typeof value === "string" && value.length > 0 && value.length <= 256 && !/\p{Cc}/u.test(value)
+  );
 }
 
 /** Conteneurs proposés à la création : seulement ceux dont le montage /workspace est un chemin absolu. */
@@ -291,7 +302,17 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
     return { type: m.type };
   if ((m.type === "configureBurp" || m.type === "testBurp") && keys.length === 1)
     return { type: m.type };
-  if (m.type === "importProject" && keys.length === 1) return { type: "importProject" };
+  if (m.type === "importProject" && keys.length === 2 && isContainerName(m.container))
+    return { type: "importProject", container: m.container };
+  if (
+    m.type === "relocateProject" &&
+    keys.length === 3 &&
+    keys.every((key) => ["type", "projectId", "container"].includes(key)) &&
+    typeof m.projectId === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(m.projectId) &&
+    isContainerName(m.container)
+  )
+    return { type: "relocateProject", projectId: m.projectId, container: m.container };
   if (m.type === "unlink" && keys.length === 1) return { type: "unlink" };
   if (m.type === "openCours" && keys.length === 1) return { type: "openCours" };
   if (m.type === "openKillchain" && keys.length === 1) return { type: "openKillchain" };
@@ -308,28 +329,29 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
   ) {
     return { type: m.type, projectId: m.projectId };
   }
-  if (m.type === "createProject" && typeof m.name === "string" && isProjectName(m.name)) {
-    const name = m.name.trim();
-    if (m.target === "newFolder" && keys.length === 3)
-      return { type: "createProject", name, target: "newFolder" };
-    if (
-      m.target === "container" &&
-      keys.length === 4 &&
-      typeof m.container === "string" &&
-      m.container.length > 0 &&
-      m.container.length <= 256
-    )
-      return { type: "createProject", name, target: "container", container: m.container };
-    return null;
-  }
-  // Un nom vide est admis : l'hôte propose alors le nom de base du dossier choisi.
+  if (
+    m.type === "createProject" &&
+    keys.length === 3 &&
+    keys.every((key) => ["type", "name", "container"].includes(key)) &&
+    typeof m.name === "string" &&
+    isProjectName(m.name) &&
+    isContainerName(m.container)
+  )
+    return { type: "createProject", name: m.name.trim(), container: m.container };
+  // Nom absent ou vide : l'hôte propose alors le nom de base du dossier choisi.
   if (
     m.type === "adoptProject" &&
-    keys.length === 2 &&
-    typeof m.name === "string" &&
-    (m.name.trim() === "" || isProjectName(m.name))
+    (keys.length === 2 || keys.length === 3) &&
+    keys.every((key) => ["type", "container", "name"].includes(key)) &&
+    isContainerName(m.container) &&
+    (m.name === undefined ||
+      (typeof m.name === "string" && (m.name.trim() === "" || isProjectName(m.name))))
   )
-    return { type: "adoptProject", name: m.name.trim() };
+    return {
+      type: "adoptProject",
+      container: m.container,
+      name: typeof m.name === "string" ? m.name.trim() : "",
+    };
   if (
     (m.type === "deleteFinding" || m.type === "openEvidence") &&
     keys.length === 3 &&
