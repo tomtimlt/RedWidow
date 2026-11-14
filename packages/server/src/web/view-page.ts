@@ -43,7 +43,8 @@ export interface ViewPageOptions {
 /**
  * Page d'une vue : le HTML de l'extension (mêmes fonctions `*Html`, `cspSource` valant `'self'`), avec le
  * pont (`bridge.js`, avant tout script de la page), les variables de thème (`theme.css`, avant les
- * feuilles) et l'harmonisation de forme (`view-extras.css`, après les feuilles de la page) insérés sous
+ * feuilles), l'harmonisation de forme (`view-extras.css`, après les feuilles de la page) et le spotlight
+ * des cartes (`view-fx.js`) insérés sous
  * le même nonce. Les données arrivent par le pont, jamais dans le HTML.
  */
 export function renderViewPage(
@@ -90,7 +91,7 @@ export function renderViewPage(
       body = viewerHtml({ ...page("viewer.js", "viewer.css"), kind: mode, uiUri: asset("ui.js") });
       break;
   }
-  return withBridge(withViewExtras(body), nonce);
+  return withBridge(withViewFx(withViewExtras(body), nonce), nonce);
 }
 
 /**
@@ -112,6 +113,17 @@ export function withViewExtras(html: string): string {
   let end = -1;
   for (const m of html.matchAll(/<link rel="stylesheet"[^>]*>/g)) end = m.index + m[0].length;
   return end === -1 ? html : `${html.slice(0, end)}\n${tag}${html.slice(end)}`;
+}
+
+/**
+ * Insère `view-fx.js` (spotlight des cartes, coupé par `prefers-reduced-motion`) avant le premier script de
+ * la page, sous le même nonce. Même origine, aucun inline ; `bridge.js` reste inséré devant lui.
+ */
+export function withViewFx(html: string, nonce: string): string {
+  return html.replace(
+    "<script ",
+    () => `<script nonce="${nonce}" src="/view-fx.js"></script>\n<script `,
+  );
 }
 
 /** Insère `theme.css` avant la première feuille et `bridge.js` avant le premier script. */

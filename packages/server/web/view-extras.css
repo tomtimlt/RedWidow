@@ -1,13 +1,16 @@
 /*
- * Harmonisation des pages de vue (iframes) avec le thème « Épuré pro sombre » de la coquille.
+ * Harmonisation des pages de vue (iframes) avec la refonte « néon relief » de la coquille (assets/ui.css).
  * Insérée par `src/web/view-page.ts` APRÈS la feuille de chaque page : à spécificité égale, elle l'emporte
  * sur `media/css/*` (non modifiable). Elle ne redéfinit aucune variable `--jn-*` (la palette choisie par
  * l'utilisateur reste maîtresse de la couleur de signature : liserés, liens, sélection) et ne porte aucune
  * valeur hexadécimale : couleurs et tailles viennent des jetons de `theme.css` (`--rw-*`, `--vscode-*`).
- * Rôle : boutons 8 px, champs 8 px, cartes 12 px (ombres douces : `--vscode-widget-shadow` de theme.css), Geist pour l'interface et JetBrains Mono
- * pour le code seulement, accent plat (aucun dégradé, aucune lueur, aucune animation décorative), crochets
- * « de verrouillage » remplacés par un simple contour. Les états (approbation, arrêt d'urgence, erreur)
- * gardent leurs couleurs et leur lisibilité.
+ * Langage : boutons en pilule (principal en dégradé rouge avec reflet et lueur, secondaire en verre, fantôme
+ * transparent, icône seule en cercle), champs d'une ligne en pilule et zones de texte à 16 px avec anneau
+ * de focus rouge, cartes à 18 px avec reflet et ombres en couches, pastilles de statut en pilule,
+ * étiquettes de section en mono capitales espacées, titres Geist serrés.
+ * Mouvement : apparition en fade-up, soulèvement des boutons et spotlight des cartes (`view-fx.js`)
+ * uniquement hors `prefers-reduced-motion` (les iframes n'ont pas `data-fx`). Les cartes d'approbation du
+ * chat et l'arrêt d'urgence de l'engagement n'ont AUCUN effet : couleurs, bordures et lisibilité d'origine.
  */
 
 /* ───────────────────────────── Fond et défilement ───────────────────────────── */
@@ -26,8 +29,7 @@ body {
 }
 
 /* ───────────────────────────── Typographie ─────────────────────────────
- * Les étiquettes en capitales mono espacées deviennent du Geist normal, un peu appuyé ; la mono reste pour
- * le code, les commandes, les hachages et les compteurs techniques. */
+ * Étiquettes de section : mono capitales espacées. Titres : Geist 600 serré. */
 body .label,
 body .codehead,
 body .grp-head,
@@ -36,12 +38,31 @@ body .studio-group-title,
 body .studio-kicker,
 body .studio-kc-head,
 body .kc-legend-title,
+body .cockpit-h,
+body .cockpit-tile-label,
+body .studio-tile-label {
+  font-family: var(--rw-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+/* Libellés des cartes d'approbation : lisibilité d'origine (pas de capitales). */
 body .card-key {
   font-family: var(--rw-font);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0;
   text-transform: none;
+}
+body h1,
+body h2,
+body h3,
+body .studio-nav-title,
+body #title {
+  font-family: var(--rw-font);
+  font-weight: 600;
+  letter-spacing: -0.015em;
 }
 body .badge,
 body .cockpit-linked-tag,
@@ -53,11 +74,14 @@ body .thinking-clock {
 }
 body .badge,
 body .cockpit-linked-tag {
-  font-weight: 500;
+  font-weight: 600;
+}
+body pre,
+body code {
+  font-family: var(--rw-mono);
 }
 
-/* ───────────────────────────── Boutons ─────────────────────────────
- * 8 px, hauteur confortable, transitions de 140 ms, aucun relief ni déplacement au survol. */
+/* ───────────────────────────── Boutons : pilule (rayon plein) ───────────────────────────── */
 body button,
 body button.ghost,
 body #composer button.ghost,
@@ -72,88 +96,155 @@ body .studio-project-control,
 body .resource-toggle,
 body .resource-configure,
 body .provider-catalog-head > button,
-body.sessions #bar .seg button.ghost {
-  border-radius: var(--rw-radius);
+body.sessions #bar .seg button.ghost,
+body .studio-nav-btn,
+body .studio-project-tab {
+  border-radius: var(--rw-pill);
 }
 body button {
   min-height: 32px;
-  transition-duration: 140ms;
+  font-weight: 600;
+  transition:
+    transform var(--rw-ease),
+    box-shadow var(--rw-ease),
+    background-color var(--rw-ease),
+    border-color var(--rw-ease),
+    color var(--rw-ease);
 }
-body button:active:not(:disabled):not([aria-disabled="true"]) {
-  transform: none;
-}
+
+/* Secondaire : verre (surface translucide, bordure 1 px, reflet). */
 body button.secondary,
-body button.ghost.secondary {
-  border-color: var(--rw-line-strong);
-}
-body[data-palette] button.primary:not(:disabled),
-body button.primary:not(:disabled) {
-  background-color: var(--vscode-button-background);
-  background-image: none;
-  color: var(--vscode-button-foreground);
-  font-weight: 500;
-  box-shadow: none;
-}
-body[data-palette] button.primary:hover:not(:disabled):not([aria-disabled="true"]) {
-  background-color: var(--vscode-button-hoverBackground);
-  outline: none;
-  transform: none;
-  box-shadow: none;
-}
-body[data-palette] button.primary:active:not(:disabled):not([aria-disabled="true"]) {
-  background-color: var(--rw-crimson-active);
-  transform: none;
-  box-shadow: none;
-}
+body button.ghost.secondary,
 body button.danger {
   border-color: var(--rw-line-strong);
+  background-color: var(--rw-surface-2);
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 8%), rgb(255 255 255 / 2%));
+  box-shadow:
+    var(--rw-glint),
+    0 1px 2px rgb(0 0 0 / 45%);
 }
-body button.danger:hover:not(:disabled) {
-  border-color: var(--vscode-errorForeground);
+body button.danger {
+  color: var(--vscode-errorForeground);
+  border-color: rgb(255 123 123 / 45%);
 }
+
+/* Principal : dégradé rouge, reflet intérieur, ombre en couches. */
+body[data-palette] button.primary:not(:disabled),
+body button.primary:not(:disabled) {
+  border-color: rgb(255 120 140 / 45%);
+  background-color: var(--rw-crimson);
+  background-image: linear-gradient(180deg, var(--rw-crimson-top), var(--rw-crimson-bot));
+  color: var(--rw-on-accent);
+  font-weight: 600;
+  box-shadow: var(--rw-glint-strong), var(--rw-shadow-btn);
+}
+
+/* Fantôme : pilule transparente. */
+body button.ghost,
+body button.copy,
+body button.link {
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+}
+
+/* Icône seule : cercle. */
+body #toolbar #send,
+body #toolbar #stop,
+body .msg-copy,
+body .cockpit-row-toggle {
+  border-radius: 50%;
+}
+
 body button:disabled,
 body button[aria-disabled="true"] {
   opacity: 0.5;
 }
 
-/* ───────────────────────────── Champs ───────────────────────────── */
+/* Survol et pression (mouvement coupé par prefers-reduced-motion plus bas). */
+body button:hover:not(:disabled):not([aria-disabled="true"]) {
+  transform: translateY(-1px);
+}
+body button.secondary:hover:not(:disabled),
+body button.ghost.secondary:hover:not(:disabled) {
+  border-color: rgb(255 255 255 / 24%);
+  background-color: var(--rw-surface-3);
+  box-shadow:
+    var(--rw-glint),
+    0 6px 16px rgb(0 0 0 / 45%);
+}
+body button.ghost:hover:not(:disabled):not([aria-disabled="true"]),
+body button.copy:hover:not(:disabled),
+body button.link:hover:not(:disabled) {
+  background-color: rgb(255 255 255 / 8%);
+}
+body[data-palette] button.primary:hover:not(:disabled):not([aria-disabled="true"]),
+body button.primary:hover:not(:disabled):not([aria-disabled="true"]) {
+  border-color: rgb(255 150 168 / 70%);
+  background-color: var(--rw-crimson);
+  background-image: linear-gradient(180deg, var(--rw-crimson-top), var(--rw-crimson-bot));
+  box-shadow: var(--rw-glint-strong), var(--rw-shadow-btn), var(--rw-glow);
+  outline: none;
+}
+body button.danger:hover:not(:disabled) {
+  border-color: var(--vscode-errorForeground);
+  background-color: rgb(255 123 123 / 14%);
+}
+body button:active:not(:disabled):not([aria-disabled="true"]),
+body[data-palette] button.primary:active:not(:disabled):not([aria-disabled="true"]) {
+  transform: scale(0.97);
+}
+body[data-palette] button.primary:active:not(:disabled):not([aria-disabled="true"]) {
+  background-color: var(--rw-crimson-active);
+  background-image: none;
+}
+
+/* ───────────────────────────── Champs : pilule d'une ligne, zones de texte à 16 px ───────────────────────────── */
 body input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]),
 body select,
-body textarea,
 body #model-input,
 body #model-pop .pop-search,
 body .hist-project-filter,
 body .provider-catalog-search,
 body #viewer-filter,
 body .cockpit-field select {
-  border-radius: var(--rw-radius);
-}
-body input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]),
-body select {
   min-height: 34px;
   border-color: var(--vscode-input-border);
+  border-radius: var(--rw-pill);
+  box-shadow: var(--rw-glint);
+}
+body textarea {
+  border-radius: 16px;
+}
+body #composer {
+  border-radius: 20px;
+  box-shadow: var(--rw-glint), var(--rw-shadow-card);
+}
+body input:hover:not(:focus-visible),
+body select:hover:not(:focus-visible) {
+  border-color: rgb(255 255 255 / 22%);
 }
 body input:focus-visible,
 body select:focus-visible,
 body textarea:focus-visible {
-  outline: 2px solid var(--vscode-focusBorder);
-  outline-offset: 0;
-  border-color: var(--vscode-focusBorder);
+  outline: none;
+  border-color: var(--rw-crimson-vivid);
+  box-shadow: var(--rw-glint), var(--rw-ring);
+}
+body #composer:focus-within {
+  border-color: var(--rw-crimson-vivid);
+  box-shadow: var(--rw-glint), var(--rw-ring);
 }
 body button:focus-visible {
   outline: 2px solid var(--vscode-focusBorder);
-  outline-offset: 1px;
-}
-body #composer {
-  border-radius: var(--rw-radius-lg);
+  outline-offset: 2px;
 }
 
-/* ───────────────────────────── Pastilles, segments et compteurs ───────────────────────────── */
+/* ───────────────────────────── Pastilles de statut, segments et compteurs : pilule ───────────────────────────── */
 body .badge,
 body .cfg-level,
 body .chip,
 body .cockpit-count,
-body .cockpit-pill,
 body .cockpit-linked-tag,
 body .studio-count,
 body .studio-list-head .studio-count,
@@ -169,28 +260,25 @@ body .thinking-clock,
 body .roe,
 body #viewer-family,
 body .mission-step {
-  border-radius: 6px;
+  border-radius: var(--rw-pill);
 }
+body .eng-bar,
+body .report-bar,
+body .studio-project-tabs,
+body.sessions #bar .seg {
+  border-radius: var(--rw-pill);
+}
+body .cockpit-pill,
 body #supervision,
 body #timeline,
 body #mission-steps,
 body .mon-strip,
-body .report-bar,
-body .eng-bar,
-body .studio-project-tabs,
-body.sessions #bar .seg,
-body .studio-nav-btn,
-body .studio-project-tab,
 body .kc-legend,
 body .studio-kc.legend-collapsed .kc-legend {
-  border-radius: var(--rw-radius);
-}
-body .studio-nav-btn,
-body .studio-project-tab {
-  border-radius: var(--rw-radius);
+  border-radius: var(--rw-radius-lg);
 }
 
-/* ───────────────────────────── Accent plat : plus de dégradé, de lueur ni de pulsation ───────────────────────────── */
+/* ───────────────────────────── Accent : liseré de signature, sans pulsation ───────────────────────────── */
 body[data-palette] #bar::after,
 body[data-palette] .studio-nav-title::after {
   background: var(--jn-brand);
@@ -216,8 +304,6 @@ body[data-palette] .roe[data-level="3"] .roe-gauge i {
   background: var(--jn-brand);
   animation: none;
 }
-
-/* Bypass actif : un contour plein de la couleur de signature et un badge plat, sans aura ni halo. */
 body[data-palette].bypass-on::after,
 body[data-palette].bypass-ending::after {
   border: 2px solid var(--jn-brand);
@@ -236,19 +322,59 @@ body[data-palette].bypass-on #composer {
   animation: none;
 }
 
-/* ───────────────────────────── Cartes et ombres douces ───────────────────────────── */
+/* ───────────────────────────── Cartes : 18 px, reflet en haut, ombres en couches ───────────────────────────── */
+body .cockpit-card,
+body .pal-card,
+body.cockpit section:not(.eng-halt),
+body .session-tile,
+body .studio-tile,
+body .cockpit-tile,
+body .mon-row,
+body table,
+body .kc-node-card {
+  border-radius: var(--rw-radius-lg);
+}
+body.cockpit section:not(.eng-halt),
+body .session-tile,
+body .pal-card,
+body .kc-node-card {
+  border: 1px solid var(--rw-line);
+  background-color: var(--rw-surface);
+  /* Spotlight : la lueur n'apparaît que lorsque view-fx.js pose --mx / --my sur la carte survolée. */
+  background-image:
+    radial-gradient(
+      340px circle at var(--mx, -999px) var(--my, -999px),
+      rgb(255 59 92 / 11%),
+      transparent 62%
+    ),
+    linear-gradient(180deg, rgb(255 255 255 / 3%), transparent 42%);
+  box-shadow: var(--rw-glint), var(--rw-shadow-card);
+}
+body.cockpit section:not(.eng-halt) {
+  padding: 14px 16px;
+}
+body .studio-tile,
+body .cockpit-tile {
+  border: 1px solid var(--rw-line);
+  background-color: var(--rw-surface-2);
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 4%), transparent 50%);
+  box-shadow: var(--rw-glint);
+}
+/* Carte de validation du chat : bordure et fond d'origine (jaune d'alerte), liseré de 3 px, aucun effet. */
 body .card {
   border-radius: var(--rw-radius-lg);
   background: color-mix(in srgb, var(--jn-card-accent) 4%, var(--rw-surface));
-  box-shadow: inset 2px 0 0 var(--jn-card-accent);
+  box-shadow: inset 3px 0 0 var(--jn-card-accent);
 }
-body .studio-card,
-body .cockpit-card,
-body .pal-card {
-  border-radius: var(--rw-radius-lg);
+body .pal-card[aria-checked="true"],
+body .hist.current,
+body .studio-project-active {
+  border-color: var(--rw-line-strong);
+  box-shadow:
+    var(--rw-glint),
+    inset 2px 0 0 var(--jn-brand);
 }
-
-/* Crochets de verrouillage : remplacés par un liseré de 2 px de la couleur de signature (état sélectionné ou actif). */
+/* Crochets de verrouillage : remplacés par un liseré de la couleur de signature. */
 body .pal-card[aria-checked="true"]::after,
 body #approvals .card:not(.is-locked, .is-denied)::after,
 body .hist.current::after,
@@ -257,12 +383,6 @@ body .card.is-locked::after {
   content: none;
   animation: none;
 }
-body .pal-card[aria-checked="true"],
-body .hist.current,
-body .studio-project-active {
-  border-color: var(--rw-line-strong);
-  box-shadow: inset 2px 0 0 var(--jn-brand);
-}
 body .kc-node.is-selected .kc-node-head::after,
 body .kc-node.is-replay .kc-node-head::after {
   background: none;
@@ -270,7 +390,6 @@ body .kc-node.is-replay .kc-node-head::after {
   border-radius: 50%;
   animation: none;
 }
-
 /* Voyants : un simple point, sans pulsation. */
 body .mon-live,
 body .tone-wait .mon-dot,
@@ -278,11 +397,59 @@ body .studio-space.is-running .dot {
   animation: none;
 }
 
-/* ───────────────────────────── Cadres des listes et tableaux ───────────────────────────── */
-body table {
-  border-radius: var(--rw-radius);
+/* Arrêt d'urgence et approbations : couleurs, bordures et lisibilité d'origine, sans effet ni relief. */
+body.cockpit section.eng-halt {
+  border-radius: var(--rw-radius-lg);
+  box-shadow: none;
 }
-body pre,
-body code {
-  font-family: var(--rw-mono);
+body .eng-halt button,
+body #approvals button,
+body .card button,
+body .eng-halt button.primary,
+body #approvals button.primary,
+body .card button.primary {
+  transform: none;
+  transition: none;
+  box-shadow: none;
+}
+body .eng-halt button:hover:not(:disabled),
+body #approvals button:hover:not(:disabled),
+body .card button:hover:not(:disabled),
+body .eng-halt button.primary:hover:not(:disabled),
+body #approvals button.primary:hover:not(:disabled),
+body .card button.primary:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+}
+body #approvals .card,
+body .card {
+  animation: none;
+  background-image: none;
+}
+
+/* ───────────────────────────── Mouvement (coupé par prefers-reduced-motion) ───────────────────────────── */
+@keyframes rw-view-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  body.cockpit section:not(.eng-halt),
+  body .pal-card,
+  body .session-tile {
+    animation: rw-view-up 360ms var(--rw-ease-out) both;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  body button,
+  body button:hover:not(:disabled),
+  body button:active:not(:disabled) {
+    transform: none;
+    transition: none;
+  }
 }

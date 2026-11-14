@@ -5,7 +5,13 @@ import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { hashPassword } from "../src/auth/password.js";
 import { createServer } from "../src/http.js";
-import { renderViewPage, VIEW_PAGES, withBridge, withViewExtras } from "../src/web/view-page.js";
+import {
+  renderViewPage,
+  VIEW_PAGES,
+  withBridge,
+  withViewExtras,
+  withViewFx,
+} from "../src/web/view-page.js";
 
 const webDir = fileURLToPath(new URL("../web", import.meta.url));
 const mediaDir = fileURLToPath(new URL("../../vscode/media", import.meta.url));
@@ -50,7 +56,7 @@ describe("pages de vue", () => {
       // Les fichiers viennent de /media/.
       for (const [, src] of html.matchAll(/(?:src|href)="([^"]+)"/g)) {
         expect(src).toMatch(
-          /^\/(media\/|bridge\.js$|chat-extras\.js$|theme\.css$|view-extras\.css$)/,
+          /^\/(media\/|bridge\.js$|chat-extras\.js$|view-fx\.js$|theme\.css$|view-extras\.css$)/,
         );
       }
     },
@@ -70,6 +76,35 @@ describe("pages de vue", () => {
     expect(out.indexOf("/view-extras.css")).toBeGreaterThan(out.indexOf("b.css"));
     expect(out.match(/view-extras\.css/g)).toHaveLength(1);
     expect(withViewExtras("<p>rien</p>")).toBe("<p>rien</p>");
+  });
+
+  it("withViewFx pose view-fx.js sous le nonce, une fois, avant les scripts de la page, pont devant", () => {
+    const out = withViewFx('<script nonce="n" src="a.js"></script>', "n");
+    expect(out).toBe(
+      '<script nonce="n" src="/view-fx.js"></script>\n<script nonce="n" src="a.js"></script>',
+    );
+    for (const view of VIEW_PAGES) {
+      const scripts = (renderViewPage(view, { nonce: NONCE }).match(/<script\b[^>]*>/g) ?? []).map(
+        (t) => /src="([^"]+)"/.exec(t)?.[1],
+      );
+      expect(
+        scripts.filter((src) => src === "/view-fx.js"),
+        view,
+      ).toHaveLength(1);
+      expect(scripts[0]).toBe("/bridge.js");
+      expect(scripts[1]).toBe("/view-fx.js");
+    }
+  });
+
+  it("view-extras.css : aucune valeur hexadécimale, mouvement coupé, aucun effet sur approbations et arrêt d'urgence", () => {
+    const css = readFileSync(join(webDir, "view-extras.css"), "utf8");
+    expect(css).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+    expect(css).not.toMatch(/--jn-[a-z-]+\s*:/);
+    expect(css).toContain("prefers-reduced-motion");
+    expect(css).toContain("body.cockpit section:not(.eng-halt)");
+    const fx = readFileSync(join(webDir, "view-fx.js"), "utf8");
+    expect(fx).toContain("prefers-reduced-motion");
+    expect(fx).toContain(".eng-halt, #approvals, .card");
   });
 
   it("withBridge pose le pont et le thème une seule fois", () => {
