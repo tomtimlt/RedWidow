@@ -299,6 +299,9 @@ export const REASON_CODES = [
   "fs.badType",
   "fs.empty",
   "fs.failed",
+  "fs.permission",
+  "fs.rootOwned",
+  "fs.rootRemoveFailed",
   // Divers
   "error.unknown",
   /** Motif ou erreur d'un ancien journal, relu comme texte (`params.text`). */

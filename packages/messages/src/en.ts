@@ -426,6 +426,16 @@ export const reasons: Catalog = {
   "fs.badType": () => "file type not accepted",
   "fs.empty": () => "empty content",
   "fs.failed": () => "file operation failed",
+  "fs.permission": () =>
+    "insufficient permissions: these files are probably owned by root (created by the container)",
+  "fs.rootOwned": (p) =>
+    p.container === undefined
+      ? "Files created by the container (root): change them from its terminal"
+      : `Files created by the container (root): start the container ${text(p.container)}, or delete them from its terminal`,
+  "fs.rootRemoveFailed": (p) =>
+    p.code === undefined
+      ? "deleting as root in the container failed"
+      : `deleting as root in the container failed (code ${text(p.code)})`,
 
   "error.unknown": (p) => (p.message === undefined ? "unknown error" : text(p.message)),
 

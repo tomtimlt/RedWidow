@@ -84,6 +84,11 @@ export async function fakeDocker(
     created: [] as unknown[],
     pull: "ok" as "ok" | "http429" | "stream429" | "streamError" | "hang",
     pullError: "",
+    /** Exec sans TTY (`Detach`) : commande reçue ; appelée au démarrage, pour simuler son effet sur le disque. */
+    onExec: undefined as
+      | ((cmd: string[], user: string | undefined) => void | Promise<void>)
+      | undefined,
+    lastExec: undefined as { cmd: string[]; user: string | undefined } | undefined,
   };
 
   const readBody = (req: IncomingMessage) =>
@@ -168,8 +173,16 @@ export async function fakeDocker(
         Mounts: c.mounts ?? [],
       });
     }
-    if (method === "POST" && /^\/containers\/[^/]+\/exec$/.test(url))
+    if (method === "POST" && /^\/containers\/[^/]+\/exec$/.test(url)) {
+      const b = (body ?? {}) as { Cmd?: string[]; User?: string };
+      ctl.lastExec = { cmd: b.Cmd ?? [], user: b.User };
       return send(201, { Id: "exec1" });
+    }
+    if (method === "POST" && url === "/exec/exec1/start") {
+      const last = ctl.lastExec;
+      if (last) await ctl.onExec?.(last.cmd, last.user);
+      return send(200);
+    }
     if (method === "POST" && /^\/exec\/exec1\/resize/.test(url)) return send(200);
     if (method === "GET" && url === "/exec/exec1/json")
       return send(200, { Running: false, ExitCode: ctl.exitCode });

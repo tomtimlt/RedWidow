@@ -539,6 +539,16 @@ export const reasons: Catalog = {
   "fs.badType": () => "type de fichier non accepté",
   "fs.empty": () => "contenu vide",
   "fs.failed": () => "opération impossible sur le fichier",
+  "fs.permission": () =>
+    "droits insuffisants : ces fichiers appartiennent probablement à root (créés par le conteneur)",
+  "fs.rootOwned": (p) =>
+    p.container === undefined
+      ? "Fichiers créés par le conteneur (root) : modifiez-les depuis son terminal"
+      : `Fichiers créés par le conteneur (root) : démarrez le conteneur ${text(p.container)}, ou supprimez-les depuis son terminal`,
+  "fs.rootRemoveFailed": (p) =>
+    p.code === undefined
+      ? "la suppression en root dans le conteneur a échoué"
+      : `la suppression en root dans le conteneur a échoué (code ${text(p.code)})`,
 
   "error.unknown": (p) => (p.message === undefined ? "erreur inconnue" : text(p.message)),
   legacy: (p) => text(p.text),

@@ -251,6 +251,10 @@ async function relocate(
   );
 }
 
+/** Refus de droits sur des fichiers d'un autre uid (root, créés par le conteneur). */
+const isDenied = (error: unknown): boolean =>
+  ["EACCES", "EPERM"].includes((error as NodeJS.ErrnoException | undefined)?.code ?? "");
+
 export interface MoveOptions {
   configDir: string;
   roots: WorkspaceRoots;
@@ -302,11 +306,17 @@ export async function moveProjectIntoFolder(options: MoveOptions): Promise<Store
       await doRename(src, dest);
       state = "renamed";
     } catch (error) {
+      // Fichiers root du conteneur : un déplacement ne passe jamais en root (trop risqué), message clair.
+      if (isDenied(error)) throw new CodedError("fs.rootOwned");
       if ((error as NodeJS.ErrnoException).code !== "EXDEV") throw error;
       // Autre volume : copie dans le dossier réservé, vérifiée avant toute suppression.
       state = "copying";
-      await copyTree(src, dest);
-      if (!(await sameTree(src, dest))) throw new CodedError("project.moveFailed");
+      try {
+        await copyTree(src, dest);
+        if (!(await sameTree(src, dest))) throw new CodedError("project.moveFailed");
+      } catch (copyError) {
+        throw isDenied(copyError) ? new CodedError("fs.rootOwned") : copyError;
+      }
       state = "copied";
     }
     await relocate(configDir, project, dest, container);
@@ -337,7 +347,14 @@ export async function removeFolderAndProjects(
   const path = await checkedFolder(containersRoot, folder);
   const file = await readProjects(configDir).catch(() => null);
   const inside = projectsInFolder(file?.projects ?? [], containersRoot, folder);
-  await rm(path, { recursive: true });
+  try {
+    await rm(path, { recursive: true });
+  } catch (error) {
+    // Fichiers créés en root par le conteneur (déjà supprimé ici) : le serveur ne peut pas les retirer.
+    if (isDenied(error) || (error as NodeJS.ErrnoException).code === "ENOTEMPTY")
+      throw new CodedError("fs.rootOwned");
+    throw error;
+  }
   for (const p of inside) await removeProject(configDir, p.id).catch(() => undefined);
   return inside.length;
 }

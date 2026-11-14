@@ -10,7 +10,10 @@
  * - Écriture atomique (fichier temporaire voisin puis `rename`), sans écrasement silencieux (`etag`).
  * - `.warband/policy.json` : écriture permise ; l'empreinte change, donc l'approbation précédente cesse de
  *   valoir (`loadPolicy`). Rien n'est jamais approuvé ici : seule la modale humaine d'approbation le fait.
- * - Audit : `fs.write`, `fs.delete`, `fs.rename`, `fs.upload` avec le chemin relatif, jamais le contenu.
+ * - Audit : `fs.write`, `fs.delete`, `fs.deleteAsRoot`, `fs.rename`, `fs.upload` avec le chemin relatif, jamais le
+ *   contenu.
+ * - Fichiers créés en root par les outils du conteneur : la suppression normale échoue (droits) ; seule une
+ *   seconde confirmation humaine dédiée permet de les supprimer en root DANS le conteneur démarré (`rootfs.ts`).
  */
 import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
@@ -38,6 +41,8 @@ import {
   readProjects,
 } from "@warband/core";
 import { formatError, t } from "@warband/messages";
+import type { DockerApi } from "../docker/api.js";
+import { listManaged } from "../docker/containers.js";
 import { MAX_DOWNLOAD_TOTAL } from "../downloads.js";
 import { MAX_UPLOAD_BYTES, normalizeAccept, sanitizeFilename } from "../uploads.js";
 import {
@@ -53,7 +58,8 @@ import { FS_MAX_BASE64, FS_MAX_TEXT, type FsControl } from "./files-messages.js"
 import type { BridgeContext } from "./hostui.js";
 import type { Sink } from "./hub.js";
 import { mentionRoot } from "./mentions.js";
-import { isLinked } from "./workspaces.js";
+import { removeAsContainerRoot } from "./rootfs.js";
+import { isLinked, locate } from "./workspaces.js";
 
 /** Entrées renvoyées au plus par un listage, et entrées lues au plus pour les trier. */
 export const FS_LIST_LIMIT = 1000;
@@ -140,6 +146,12 @@ export interface FilesDeps {
   /** Racine des projets du serveur : le dossier du projet actif doit s'y trouver (chemins réels). */
   containersRoot: string;
   locale(): "fr" | "en";
+  /** Client de l'API Engine : suppression en root dans le conteneur lié (après confirmation humaine). */
+  docker: DockerApi;
+  /** Identifiants du conteneur du serveur : jamais ciblé. */
+  selfIds?: readonly string[];
+  /** Suppression de l'arbre (injectable : tests, pour simuler des fichiers d'un autre uid). Défaut : `rm`/`unlink`. */
+  removeTree?(path: string, recursive: boolean): Promise<void>;
   /** Diffusion à toutes les coquilles (seulement `policyChanged`). */
   toShell(msg: Record<string, unknown>): void;
 }
@@ -147,7 +159,18 @@ export interface FilesDeps {
 interface Scope {
   root: string;
   projectId: string;
+  /** Dossier partagé du projet et chemin du projet dans ce dossier (`<dossier>/<projet>`, ADR 0056). */
+  folder: string;
+  projectPath: string;
+  /** Conteneurs que la fiche du projet nomme. */
+  containers: readonly string[];
 }
+
+/** Refus de droits : fichiers d'un autre uid (root, créés par le conteneur). */
+const isPermissionError = (error: unknown): boolean =>
+  ["EACCES", "EPERM", "ENOTEMPTY"].includes(
+    (error as NodeJS.ErrnoException | undefined)?.code ?? "",
+  );
 
 /** Erreur système → code stable (jamais le texte de l'erreur, qui contiendrait un chemin hôte). */
 function codeOf(error: unknown): { code: ReasonCode; params?: Record<string, string | number> } {
@@ -159,6 +182,9 @@ function codeOf(error: unknown): { code: ReasonCode; params?: Record<string, str
     case "EEXIST":
     case "ENOTEMPTY":
       return { code: "fs.exists" };
+    case "EACCES":
+    case "EPERM":
+      return { code: "fs.permission" };
     case "ELOOP":
     case "EMLINK":
       return { code: "fs.symlink" };
@@ -212,7 +238,15 @@ export class FilesHost {
     if (!isLinked(project, this.deps.containersRoot)) throw new CodedError("project.unlinked");
     const root = await mentionRoot(project.workspace, this.deps.containersRoot);
     if (root === null) throw new CodedError("fs.noProject");
-    return { root, projectId: project.id };
+    const where = locate(project.workspace, this.deps.containersRoot);
+    if (where === null) throw new CodedError("project.unlinked");
+    return {
+      root,
+      projectId: project.id,
+      folder: where.folder,
+      projectPath: where.project,
+      containers: project.containers,
+    };
   }
 
   /** Après une attente humaine : le projet actif doit être resté le même. */
@@ -454,7 +488,14 @@ export class FilesHost {
       // Un dossier ne se déplace pas dans lui-même.
       if (dest.rel === source.rel || dest.rel.startsWith(`${source.rel}/`))
         throw new CodedError("fs.invalidPath");
-      await rename(source.abs, dest.abs);
+      try {
+        await rename(source.abs, dest.abs);
+      } catch (error) {
+        // Dossier ou parent d'un autre uid (root) : pas de passage en root pour un déplacement.
+        if (["EACCES", "EPERM"].includes((error as NodeJS.ErrnoException).code ?? ""))
+          throw new CodedError("fs.rootOwned");
+        throw error;
+      }
       this.audit({ kind: "fs.rename", project: scope.projectId, from: source.rel, to: dest.rel });
       this.send(to, { type: "fsDone", op: "rename", from: source.rel, path: dest.rel });
       if (touchesPolicy(source.rel) || touchesPolicy(dest.rel))
@@ -476,17 +517,87 @@ export class FilesHost {
       from,
     );
     if (!accepted) return this.send(from, { type: "fsCancelled", op: "fsDelete", path: first.rel });
-    await this.serialize(async () => {
+    const rootOwned = await this.serialize(async () => {
       // Après l'attente humaine : même projet, et la cible doit être restée la même.
       const again = await this.sameScope(scope);
-      const target = await resolveTarget(again.root, path, { mustExist: true });
-      if (target.st?.ino !== first.st?.ino || target.st?.isDirectory() !== dir)
-        throw new CodedError("fs.notFound");
-      if (dir) await rm(target.abs, { recursive: true });
-      else await unlink(target.abs);
-      this.audit({ kind: "fs.delete", project: scope.projectId, path: target.rel, dir });
-      this.send(from, { type: "fsDone", op: "delete", path: target.rel });
-      if (touchesPolicy(target.rel)) this.deps.toShell({ type: "policyChanged" });
+      const target = await this.sameTarget(again, path, first, dir);
+      try {
+        await (this.deps.removeTree ?? defaultRemove)(target.abs, dir);
+      } catch (error) {
+        if (!isPermissionError(error)) throw error;
+        return true;
+      }
+      this.finishDelete(scope, target.rel, dir, from);
+      return false;
+    });
+    if (rootOwned) await this.deleteAsRoot(scope, path, first, dir, from);
+  }
+
+  /** Cible revalidée après une attente humaine : mêmes inode et nature qu'à la première lecture. */
+  private async sameTarget(scope: Scope, path: string, first: Target, dir: boolean) {
+    const target = await resolveTarget(scope.root, path, { mustExist: true });
+    if (target.st?.ino !== first.st?.ino || target.st?.isDirectory() !== dir)
+      throw new CodedError("fs.notFound");
+    return target;
+  }
+
+  private finishDelete(scope: Scope, rel: string, dir: boolean, from: Sink): void {
+    this.audit({ kind: "fs.delete", project: scope.projectId, path: rel, dir });
+    this.send(from, { type: "fsDone", op: "delete", path: rel });
+    if (touchesPolicy(rel)) this.deps.toShell({ type: "policyChanged" });
+  }
+
+  /** Conteneur géré, lié à ce dossier partagé : (le démarré d'abord, puis ceux que la fiche nomme). */
+  private async containerOf(scope: Scope): Promise<{ name: string; running: boolean } | null> {
+    const rows = await listManaged(
+      this.deps.docker,
+      this.deps.selfIds ?? [],
+      this.deps.containersRoot,
+    ).catch(() => []);
+    const mine = rows.filter((c) => c.folder === scope.folder);
+    const rank = (c: { name: string; running: boolean }) =>
+      (c.running ? 0 : 2) + (scope.containers.includes(c.name) ? 0 : 1);
+    const best = [...mine].sort((a, b) => rank(a) - rank(b))[0];
+    return best === undefined ? null : { name: best.name, running: best.running };
+  }
+
+  /**
+   * La suppression normale a été refusée (fichiers d'un autre uid, créés en root par le conteneur). Conteneur
+   * démarré ET seconde confirmation humaine dédiée : suppression en root dans le conteneur. Sinon, message clair
+   * (`fs.rootOwned`) et rien n'est supprimé.
+   */
+  private async deleteAsRoot(
+    scope: Scope,
+    path: string,
+    first: Target,
+    dir: boolean,
+    from: Sink,
+  ): Promise<void> {
+    const container = await this.containerOf(scope);
+    if (container === null) throw new CodedError("fs.rootOwned");
+    const params = { container: container.name };
+    if (!container.running) throw new CodedError("fs.rootOwned", params);
+    const accepted = await this.deps.ctx.ui.confirm(
+      {
+        title: t("Supprimer en tant que root"),
+        text: t`Ces fichiers appartiennent à root (créés par le conteneur). Les supprimer en tant que root dans le conteneur ${container.name} ?`,
+        danger: true,
+      },
+      from,
+    );
+    if (!accepted) throw new CodedError("fs.rootOwned", params);
+    await this.serialize(async () => {
+      const again = await this.sameScope(scope);
+      const target = await this.sameTarget(again, path, first, dir);
+      const relPath = `${again.projectPath}/${target.rel}`;
+      await removeAsContainerRoot({
+        docker: this.deps.docker,
+        container: container.name,
+        relPath,
+        ...(this.deps.selfIds && { selfIds: this.deps.selfIds }),
+      });
+      this.audit({ kind: "fs.deleteAsRoot", container: container.name, relPath });
+      this.finishDelete(scope, target.rel, dir, from);
     });
   }
 
@@ -651,6 +762,12 @@ export class FilesHost {
     });
     this.send(from, { type: "fsDone", op: "evidence", path: target.rel, evidenceId: evidence.id });
   }
+}
+
+/** Suppression par défaut : récursive pour un dossier, sans suivre aucun lien. */
+async function defaultRemove(path: string, recursive: boolean): Promise<void> {
+  if (recursive) await rm(path, { recursive: true });
+  else await unlink(path);
 }
 
 /** `etag` attendu : `null` pour une création (le fichier ne doit pas exister), sinon la version lue. */

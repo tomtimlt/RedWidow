@@ -142,6 +142,8 @@ export interface HubOptions {
   audit?(entry: Record<string, unknown>): void;
   /** Client de l'API Engine (injectable : tests). Défaut : socket `REDWIDOW_DOCKER_SOCKET`. */
   docker?: DockerApi;
+  /** Suppression d'un arbre de fichiers de projet (injectable : tests, fichiers d'un autre uid). */
+  fsRemove?(path: string, recursive: boolean): Promise<void>;
   /** Exegol du serveur (injectable : tests). Défaut : le binaire `exegol` du PATH. */
   exegol?: ExegolPort;
   /** Opérations d'installation d'images (injectable : tests). Défaut : cœur + socket `REDWIDOW_DOCKER_SOCKET`. */
@@ -435,6 +437,9 @@ export class MissionHub {
       ctx: this.context,
       configDir: this.configDir,
       containersRoot: options.storage.paths.containers,
+      docker,
+      selfIds,
+      ...(options.fsRemove && { removeTree: options.fsRemove }),
       locale,
       toShell: (msg) => this.toShell(msg),
     });

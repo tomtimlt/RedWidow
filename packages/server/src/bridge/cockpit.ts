@@ -445,7 +445,12 @@ export class CockpitGestures {
       return t`Conteneur supprimé. Son dossier partagé ${cleanText(folder, 120)} et ses ${count} projets sont conservés.`;
     try {
       await removeFolderAndProjects(configDir, containersRoot, folder);
-    } catch {
+    } catch (error) {
+      // Le conteneur n'existe plus : les fichiers créés en root ne peuvent être retirés que depuis l'hôte.
+      if (error instanceof CodedError && error.code === "fs.rootOwned")
+        throw new FixedMessage(
+          t`Le conteneur est supprimé, mais son dossier partagé ${cleanText(folder, 120)} contient des fichiers créés par root (le conteneur) : supprimez-le depuis l'hôte avec les droits administrateur.`,
+        );
       throw new FixedMessage(
         t("Le conteneur est supprimé, mais son dossier partagé n'a pas pu être supprimé."),
       );
