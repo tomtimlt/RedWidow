@@ -1,3 +1,4 @@
+import { knownReason, reasonText } from "./reasons.js";
 // Fenêtre Fichiers (pur, sans DOM) : chemins relatifs au projet, lecture des messages `fs*` du serveur,
 // langages par extension, et modèle des onglets (texte modifié, etag, conflit d'écriture). Toute donnée
 // reçue est contrôlée ici avant d'atteindre l'interface ; rien n'y est inséré en HTML.
@@ -135,12 +136,22 @@ const ERRORS = {
   badType: "Type de fichier refusé.",
   empty: "Contenu vide refusé.",
   failed: "L'opération a échoué.",
+  permission:
+    "Droits insuffisants : ces fichiers appartiennent probablement à root (créés par le conteneur).",
+  rootOwned:
+    "Fichiers créés par le conteneur (root) : démarrez le conteneur ou utilisez son terminal.",
+  rootRemoveFailed: "La suppression en root dans le conteneur a échoué.",
 };
 
-/** Code de raison (`fs.notFound` ou `notFound`) → texte français ; un code inconnu reste générique. */
+/**
+ * Code de raison (`fs.notFound` ou `notFound`) → texte français. Les codes hors `fs.*` (ex.
+ * `project.unlinked`) passent par le catalogue commun de la coquille ; un code inconnu reste générique.
+ */
 export function fsErrorText(code) {
   const key = typeof code === "string" ? code.replace(/^fs\./, "") : "";
-  return Object.hasOwn(ERRORS, key) ? ERRORS[key] : "L'opération a été refusée.";
+  if (Object.hasOwn(ERRORS, key)) return ERRORS[key];
+  if (knownReason(code)) return reasonText(code);
+  return "L'opération a été refusée.";
 }
 /** Vrai si le nouveau contenu de la racine ne partage aucun élément (nom et type) avec l'ancien. */
 export function rootsIncompatible(before, after) {

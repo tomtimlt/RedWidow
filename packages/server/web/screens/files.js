@@ -517,7 +517,7 @@ export function createFilesHost({
             doc,
             "p",
             "fx-empty-text",
-            "Activez un projet dans Projets et réglages, puis actualisez.",
+            "Un projet vit dans un conteneur : créez-en un depuis l'écran Conteneurs (« Nouveau projet dans ce conteneur »), ou activez un projet existant dans Projets et réglages (un projet « à lier » vous fera choisir son conteneur), puis actualisez.",
           ),
         );
         tree.append(li);
