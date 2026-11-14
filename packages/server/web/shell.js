@@ -310,7 +310,15 @@ const journal = createJournalScreen(document, {
   },
 });
 const screens = {
-  containers: createContainersScreen(document, { send: sendShell }),
+  containers: createContainersScreen(document, {
+    send: sendShell,
+    // Terminal, Fichiers, Cockpit : les mêmes fenêtres que le serveur demande par `openWindow`.
+    onOpenWindow: (request) => {
+      const spec = specFromOpenWindow(request);
+      if (spec !== null) openFromServer(spec, {});
+    },
+    onOpenStudio: () => openFixed("studio"),
+  }),
   providers: createProvidersScreen(document, {
     send: sendShell,
     onNotify: (text, tone) => toast(text, tone),

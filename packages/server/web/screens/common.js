@@ -41,16 +41,7 @@ export function formatTime(value) {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-/** Libellés des codes de raison que les écrans reçoivent ; un code inconnu est affiché tel quel. */
-const REASONS = {
-  "container.invalidName": "Nom de conteneur invalide.",
-  "container.exists": "Un conteneur porte déjà ce nom.",
-  "container.failed": "L'opération sur le conteneur a échoué.",
-};
-export const reasonText = (code) =>
-  typeof code === "string" && Object.hasOwn(REASONS, code)
-    ? REASONS[code]
-    : `Refusé (${safeText(code, 80)})`;
+export { reasonText } from "../lib/reasons.js";
 
 /** Chaîne bornée sans caractère de contrôle (donnée reçue : jamais confiance). */
 export function safeText(value, max = 200) {

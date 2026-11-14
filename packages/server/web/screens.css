@@ -682,6 +682,173 @@ input[type="checkbox"] {
   }
 }
 
+/* ───────────── Écran Conteneurs : état, images, conteneurs, projets ───────────── */
+.ctn-state-list,
+.ctn-layers,
+.ctn-tags,
+.ctn-project-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ctn-state-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-height: 34px;
+}
+
+.ctn-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.ctn-card,
+.ctn-group,
+.ctn-tolink {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--rw-line);
+  border-radius: 8px;
+  background: var(--rw-surface-2);
+}
+
+.ctn-tolink {
+  border-color: var(--rw-crimson);
+  background: rgb(204 28 64 / 8%);
+}
+
+.ctn-prog {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--rw-steel);
+  border-left: 4px solid var(--rw-crimson);
+  border-radius: 8px;
+  background: var(--rw-surface-2);
+}
+
+.ctn-prog-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ctn-prog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ctn-prog p {
+  margin: 0;
+}
+
+.ctn-stage {
+  font-family: var(--rw-mono);
+  font-size: 12.5px;
+}
+
+.ctn-bar {
+  width: 100%;
+  height: 8px;
+  appearance: none;
+  border: 0;
+  border-radius: 4px;
+  background: var(--rw-line);
+  overflow: hidden;
+}
+
+.ctn-bar::-webkit-progress-bar {
+  background: var(--rw-line);
+}
+
+.ctn-bar::-webkit-progress-value {
+  background: var(--rw-crimson);
+}
+
+.ctn-bar::-moz-progress-bar {
+  background: var(--rw-crimson);
+}
+
+.ctn-layer {
+  display: grid;
+  grid-template-columns: 7.5em minmax(60px, 1fr) minmax(0, 14em);
+  align-items: center;
+  gap: 8px;
+}
+
+.ctn-layer-id {
+  font-family: var(--rw-mono);
+  font-size: 11.5px;
+  color: var(--rw-fg-muted);
+}
+
+.ctn-tag {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.ctn-tag-name {
+  min-width: 5em;
+  font-family: var(--rw-mono);
+}
+
+.ctn-acts {
+  flex-wrap: wrap;
+}
+
+.ctn-project {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-height: 34px;
+}
+
+.ctn-project-name-text {
+  font-family: var(--rw-mono);
+  overflow-wrap: anywhere;
+}
+
+.ctn-exegol-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+@container (max-width: 640px) {
+  .ctn-layer {
+    grid-template-columns: minmax(60px, 1fr);
+    gap: 2px;
+  }
+}
+
+@media (max-width: 719px), (pointer: coarse) {
+  .ctn-acts > .scr-btn,
+  .ctn-tag .scr-btn,
+  .ctn-project .scr-btn,
+  .ctn-card .scr-btn,
+  .ctn-state-item .scr-btn,
+  .ctn-prog .scr-btn {
+    min-height: 44px;
+  }
+}
+
 /* ───────────── Notifications non bloquantes ───────────── */
 .toasts {
   position: fixed;

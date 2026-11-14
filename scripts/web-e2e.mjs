@@ -103,6 +103,12 @@ let missionItems = [];
 let runItems = [];
 let projectItems = [];
 let auditItems = [];
+/** État des images (écran Conteneurs) et installation factice en cours. */
+let imagesState = {};
+let installTimers = [];
+let installing = false;
+const INSTALL_ID = "0123456789abcdef";
+const OLD_PROJECT = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 /** Sessions de terminal du pont factice : frame → { container, buffer }. */
 const termSessions = new Map();
 let bypassState = { active: false, until: null };
@@ -115,16 +121,41 @@ function resetScreens() {
       state: "running",
       kind: "kali",
       project: "acme",
+      folder: "kali-recon",
+      projects: [{ id: PROJECT, name: "Acme" }],
     },
-    { id: "c2", name: "kali-web", image: "redwidow-kali:local", state: "stopped", kind: "kali" },
+    {
+      id: "c2",
+      name: "kali-web",
+      image: "redwidow-kali:local",
+      state: "stopped",
+      kind: "kali",
+      folder: "kali-web",
+      projects: [],
+    },
     {
       id: "c3",
       name: "exegol-htb",
       image: "ghcr.io/example/exegol:free",
       state: "stopped",
       kind: "exegol",
+      folder: "exegol-htb",
+      projects: [],
     },
   ];
+  for (const t of installTimers) clearTimeout(t);
+  installTimers = [];
+  installing = false;
+  imagesState = {
+    docker: { present: true, daemon: true },
+    kali: { image: "warband/kali:complete-1", installed: false },
+    exegol: {
+      cli: true,
+      eulaAccepted: false,
+      installed: [{ tag: "web", size: 12_000_000_000 }],
+      available: ["free", "full", "light", "web", "osint", "ad", "nightly"],
+    },
+  };
   tokens = [
     { provider: "claude", present: true, kind: "subscription" },
     { provider: "openai", present: false, kind: null },
@@ -226,7 +257,10 @@ function resetScreens() {
     },
     { id: "r-t1", kind: "terminal", project: null, startedAt: "2026-03-04T11:30:00Z", size: 3072 },
   ];
-  projectItems = [{ id: PROJECT, name: "Acme" }];
+  projectItems = [
+    { id: PROJECT, name: "Acme", linked: true, container: "kali-recon" },
+    { id: OLD_PROJECT, name: "Ancien", linked: false },
+  ];
   auditItems = [
     { at: "2026-03-04T11:30:00Z", kind: "terminal.open", frame: "t-1", container: "kali-recon" },
     { at: "2026-03-04T11:00:00Z", kind: "approval.answer", choice: "once" },
@@ -441,6 +475,100 @@ function onScreens(ws, msg) {
       if (c) c.state = msg.type === "containerStart" ? "running" : "stopped";
       return shellAll({ type: "containers", items: containers });
     }
+    case "imagesStatus":
+      return shellMsg(ws, { type: "images", ...imagesState });
+    case "exegolEula":
+      // Le vrai serveur ouvre un dialogue de confirmation ; ici le oui humain est supposé.
+      imagesState.exegol.eulaAccepted = true;
+      return shellAll({ type: "images", ...imagesState });
+    case "imageCancel":
+      for (const t of installTimers) clearTimeout(t);
+      installTimers = [];
+      installing = false;
+      return shellAll({
+        type: "imageProgress",
+        id: INSTALL_ID,
+        kind: "exegol",
+        phase: "pull",
+        stage: "",
+        layers: [],
+        busy: false,
+        cancelled: true,
+      });
+    case "imageInstall": {
+      if (installing)
+        return shellMsg(ws, {
+          type: "imageError",
+          op: "imageInstall",
+          kind: msg.kind,
+          code: "image.busy",
+        });
+      installing = true;
+      const layers = (cur) => [
+        {
+          id: "a1b2c3d4e5f6",
+          status: "Downloading",
+          phase: "download",
+          current: cur,
+          total: 100,
+          speedBytesPerSecond: 3_500_000,
+        },
+        {
+          id: "f6e5d4c3b2a1",
+          status: "Pull complete",
+          phase: "download",
+          current: 100,
+          total: 100,
+        },
+      ];
+      const base = { type: "imageProgress", id: INSTALL_ID, kind: msg.kind, phase: "pull" };
+      const step = (delay, m) =>
+        installTimers.push(setTimeout(() => shellAll({ ...base, ...m }), delay));
+      shellAll({ ...base, stage: "Téléchargement des couches", layers: layers(20), busy: true });
+      if (msg.kind === "exegol" && msg.tag === "light") return undefined; // attend l'annulation
+      if (msg.kind === "exegol" && msg.tag === "full") {
+        step(250, {
+          stage: "",
+          layers: [],
+          busy: false,
+          error: "limite atteinte",
+          code: "image.rateLimited",
+        });
+        installTimers.push(setTimeout(() => (installing = false), 260));
+        return undefined;
+      }
+      step(400, { stage: "Téléchargement des couches", layers: layers(70), busy: true });
+      step(900, {
+        stage: "Terminé",
+        layers: [],
+        busy: false,
+        done: true,
+      });
+      installTimers.push(
+        setTimeout(() => {
+          installTimers = [];
+          installing = false;
+          if (msg.kind === "kali") imagesState.kali.installed = true;
+          else imagesState.exegol.installed.push({ tag: msg.tag, size: 9_000_000_000 });
+          shellAll({ type: "images", ...imagesState });
+        }, 950),
+      );
+      return undefined;
+    }
+    case "projectCreate": {
+      const c = containers.find((x) => x.name === msg.container);
+      if (!c)
+        return shellMsg(ws, {
+          type: "projectError",
+          op: "projectCreate",
+          code: "project.containerUnknown",
+        });
+      const id = `dddddddd-dddd-4ddd-8ddd-${String(projectItems.length).padStart(12, "0")}`;
+      projectItems.push({ id, name: msg.name, linked: true, container: c.name });
+      c.projects.push({ id, name: msg.name });
+      shellAll({ type: "containers", items: containers });
+      return shellAll({ type: "projects", items: projectItems });
+    }
     case "containerCreate":
       if (containers.some((c) => c.name === msg.name))
         return shellMsg(ws, {
@@ -454,6 +582,8 @@ function onScreens(ws, msg) {
         image: "redwidow-kali:local",
         state: "running",
         kind: "kali",
+        folder: msg.name,
+        projects: [],
       });
       return shellAll({ type: "containers", items: containers });
     case "tokens":
@@ -1697,6 +1827,294 @@ async function spacesScenario(name, viewport) {
 const sentOf = (type) => received.filter((e) => e.view === "shell" && e.msg.type === type);
 
 /** Conteneurs, Fournisseurs, Comptes de test, Trouvailles, Journal, Réglages (bureau 1440x900). */
+// ───────────────────────────── Écran Conteneurs : images, conteneurs, projets ─────────────────────────────
+
+async function containersScenario(name, viewport, { phone = false } = {}) {
+  console.log(`\n== ${name} : écran Conteneurs (${viewport.width}x${viewport.height})`);
+  resetScreens();
+  const { context, page, violations, win, openHash, shot } = await openSession(name, viewport);
+  const KEY = "native:containers";
+  await openHash("#w=conteneurs");
+  await until(() => win(KEY).isVisible(), "fenêtre Conteneurs");
+  if (!phone) {
+    await win(KEY)
+      .locator(".wm-title")
+      .dblclick({ position: { x: 60, y: 15 } });
+    await sleep(220);
+  }
+  const inWin = (selector, options) => win(KEY).locator(selector, options);
+  const textOf = (selector, options) => inWin(selector, options).innerText();
+  const btn = (label) => inWin("button", { hasText: label });
+  const prog = () => textOf(".ctn-prog");
+
+  // Bandeau d'état.
+  await until(async () => (await inWin(".ctn-state-item").count()) === 4, "bandeau : quatre états");
+  await until(async () => (await inWin("tbody tr").count()) === 3, "trois conteneurs");
+  check(
+    (await inWin(".ctn-state-item", { hasText: "Docker présent" }).locator(".tone-ok").count()) ===
+      1,
+    "Docker présent : pastille verte",
+  );
+  check(
+    (await inWin(".ctn-state-item", { hasText: "Contrat Exegol" }).locator(".tone-err").count()) ===
+      1,
+    "contrat Exegol non accepté : pastille rouge",
+  );
+  check(sentOf("imageInstall").length === 0, "aucune installation sans clic");
+  check(sentOf("exegolEula").length === 0, "aucun contrat accepté sans clic");
+
+  // Hors ligne : boutons désactivés, puis reprise de l'état à la reconnexion.
+  for (const ws of [...sockets]) ws.terminate();
+  await until(
+    async () => (await page.locator("#tb-conn").innerText()).startsWith("Hors ligne"),
+    "hors ligne",
+  );
+  check(
+    await win(KEY)
+      .locator("button[data-act]")
+      .evaluateAll((els) => els.length > 0 && els.every((e) => e.disabled)),
+    "hors ligne : tous les boutons d'action sont désactivés",
+  );
+  await until(
+    async () => (await page.locator("#tb-conn").innerText()) === "Connecté",
+    "reconnexion",
+    10000,
+  );
+  await until(
+    async () =>
+      (await inWin(".ctn-state-item", { hasText: "Docker présent" })
+        .locator(".tone-ok")
+        .count()) === 1,
+    "état des images relu à la reconnexion",
+  );
+  const before = sentOf("imageInstall").length;
+  check(before === 0, "reconnexion : aucune installation rejouée");
+
+  // Exegol : sans contrat, rien ne s'installe ; le clic seul l'ouvre (le serveur confirme).
+  await until(
+    async () => (await inWin(".ctn-tag", { hasText: "free" }).locator("button").count()) === 1,
+    "tag Exegol free listé",
+  );
+  check(
+    await inWin(".ctn-tag", { hasText: "free" }).locator("button").isDisabled(),
+    "Installer désactivé tant que le contrat n'est pas accepté",
+  );
+  check(
+    (await inWin(".ctn-tag", { hasText: "web" }).textContent()).includes("installée"),
+    "tag web : installé, avec sa taille",
+  );
+  check(
+    (await inWin(".ctn-tag", { hasText: "web" }).locator("button").count()) === 0,
+    "tag installé : pas de bouton",
+  );
+  await btn("Lire et accepter le contrat Exegol").first().click();
+  await until(() => sentOf("exegolEula").length === 1, "exegolEula envoyé au clic");
+  await until(
+    async () =>
+      (await inWin(".ctn-state-item", { hasText: "Contrat Exegol" })
+        .locator(".tone-ok")
+        .count()) === 1,
+    "contrat accepté : le serveur renvoie `images`",
+  );
+
+  // Kali : installation avec progression, un seul install à la fois.
+  await inWin("button", { hasText: "Installer l'image Kali" }).first().click();
+  await until(() => sentOf("imageInstall").length === 1, "imageInstall kali envoyé");
+  check(sentOf("imageInstall")[0].msg.kind === "kali", "imageInstall vise Kali");
+  await until(
+    async () => (await prog()).includes("Installation de l'image Kali en cours"),
+    "progression Kali",
+  );
+  await until(
+    async () => (await inWin(".ctn-layers li").count()) === 2,
+    "deux couches avec barres",
+  );
+  check((await prog()).includes("3,3 Mo/s"), "vitesse par couche affichée");
+  check(
+    (await inWin(".ctn-prog progress").count()) >= 3,
+    "barres de progression (globale et par couche)",
+  );
+  check(
+    await inWin(".ctn-tag", { hasText: "free" }).locator("button").isDisabled(),
+    "un install en cours : les autres boutons Installer sont désactivés",
+  );
+  check(
+    await inWin(".ctn-prog button", { hasText: "Annuler" }).isEnabled(),
+    "Annuler actif pendant l'installation",
+  );
+  await shot("images-installation");
+  await until(async () => (await prog()).includes("terminée"), "fin d'installation Kali");
+  await until(
+    async () =>
+      (await inWin(".ctn-card", { hasText: "Kali Linux" }).innerText()).includes("installée"),
+    "carte Kali : installée après `images`",
+  );
+  check(
+    await btn("Reconstruire").first().isVisible(),
+    "Reconstruire proposé quand l'image est installée",
+  );
+  await btn("Reconstruire").first().click();
+  check(
+    sentOf("imageInstall").length === 1,
+    "Reconstruire : confirmation locale, rien d'envoyé au premier clic",
+  );
+  await inWin(".scr-confirm-box button", { hasText: "Annuler" }).click();
+  check(sentOf("imageInstall").length === 1, "Reconstruire annulé : rien d'envoyé");
+
+  // Exegol : annulation, puis erreur 429, puis succès.
+  await inWin(".ctn-tag", { hasText: "light" }).locator("button").click();
+  await until(() => sentOf("imageInstall").length === 2, "imageInstall exegol light");
+  check(sentOf("imageInstall")[1].msg.tag === "light", "imageInstall porte l'étiquette");
+  await until(async () => (await prog()).includes("« light »"), "progression Exegol light");
+  await inWin(".ctn-prog button", { hasText: "Annuler" }).click();
+  await until(() => sentOf("imageCancel").length === 1, "imageCancel envoyé");
+  check(sentOf("imageCancel")[0].msg.id === "0123456789abcdef", "imageCancel porte l'identifiant");
+  await until(async () => (await prog()).includes("annulée"), "installation annulée affichée");
+  await inWin(".ctn-tag", { hasText: "full" }).locator("button").click();
+  await until(async () => (await prog()).includes("Réessayez plus tard"), "erreur 429 lisible");
+  check(!(await prog()).includes("image.rateLimited"), "pas de code brut affiché");
+  await until(
+    async () => await inWin(".ctn-tag", { hasText: "free" }).locator("button").isEnabled(),
+    "boutons réactivés après l'échec",
+  );
+  await inWin(".ctn-tag", { hasText: "free" }).locator("button").click();
+  await until(
+    async () => (await inWin(".ctn-tag", { hasText: "free" }).textContent()).includes("installée"),
+    "tag free installé",
+    12000,
+  );
+
+  // Conteneurs : colonnes, dossier partagé, nombre de projets.
+  const row1 = await textOf("tbody tr:nth-child(1)");
+  check(row1.includes("containers/kali-recon"), "dossier partagé containers/<dossier> affiché");
+  check(
+    (row1.includes("Projets") && /Projets\s*1/.test(row1.replace(/\n/g, " "))) ||
+      row1.includes("1"),
+    "nombre de projets du conteneur",
+  );
+  check(
+    (await inWin(".ctn-create").innerText()).includes("créé automatiquement"),
+    "dossier partagé automatique : dit clairement",
+  );
+  check(
+    await inWin("tbody tr:nth-child(2) button", { hasText: "Terminal" }).isDisabled(),
+    "terminal désactivé pour un conteneur arrêté",
+  );
+  await inWin(".scr-input").first().fill("kali-neuf");
+  await btn("Créer un Kali").click();
+  await until(() => sentOf("containerCreate").length >= 1, "containerCreate envoyé");
+  check(sentOf("containerCreate").at(-1).msg.name === "kali-neuf", "containerCreate porte le nom");
+  await until(async () => (await inWin("tbody tr").count()) === 4, "quatrième conteneur");
+  check(
+    (await textOf("tbody tr:nth-child(4)")).includes("containers/kali-neuf"),
+    "dossier partagé du nouveau conteneur",
+  );
+
+  // Projets : à lier en évidence, regroupés par conteneur, création dans un conteneur.
+  check(
+    (await inWin(".ctn-tolink").innerText()).includes("Ancien"),
+    "projet « à lier » mis en évidence",
+  );
+  check(
+    (await inWin(".ctn-group", { hasText: "kali-recon" }).innerText()).includes("Acme"),
+    "projet regroupé sous son conteneur",
+  );
+  await inWin("tbody tr:nth-child(2) button", { hasText: "Nouveau projet" }).click();
+  check(
+    (await inWin(".ctn-project-container").inputValue()) === "kali-web",
+    "« Nouveau projet » présélectionne le conteneur",
+  );
+  await inWin(".ctn-project-name").fill("Cible");
+  await btn("Créer le projet").click();
+  await until(() => sentOf("projectCreate").length === 1, "projectCreate envoyé");
+  check(
+    JSON.stringify(sentOf("projectCreate")[0].msg) ===
+      JSON.stringify({ type: "projectCreate", name: "Cible", container: "kali-web" }),
+    "projectCreate {name, container}",
+  );
+  await until(
+    async () => (await inWin(".ctn-group", { hasText: "kali-web" }).count()) === 1,
+    "projet créé : groupe du conteneur",
+  );
+  await shot("conteneurs-projets");
+
+  // Textes de refus lisibles.
+  check(
+    sentOf("imageInstall").length === 4,
+    "exactement quatre installations demandées (un clic chacune)",
+  );
+  check(
+    (await inWin(".ctn-project-form").count()) === 1 &&
+      (await inWin(".ctn-project-container option").count()) === 5,
+    "liste des conteneurs du formulaire de projet",
+  );
+
+  // Boutons d'au moins 44 px au téléphone, pas de défilement horizontal.
+  if (phone) {
+    const heights = await win(KEY)
+      .locator(".scr button:visible")
+      .evaluateAll((els) =>
+        els.map((e) => [e.getBoundingClientRect().height, e.className, e.textContent]),
+      );
+    const small = heights.filter(([h]) => h < 43.5);
+    check(
+      heights.length > 0 && small.length === 0,
+      `tous les boutons font au moins 44 px (${JSON.stringify(small.slice(0, 3))})`,
+    );
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > window.innerWidth + 1,
+    );
+    check(!overflow, "aucun défilement horizontal de la page");
+  }
+  if (!phone) {
+    // Terminal : la fenêtre s'ouvre avec ce conteneur présélectionné (la session ne démarre qu'au clic).
+    await inWin("tbody tr:nth-child(1) button", { hasText: "Terminal" }).click();
+    await until(
+      async () =>
+        (await page
+          .locator('.wm-win[data-type="terminal"] button[data-container="kali-recon"]')
+          .count()) === 1,
+      "fenêtre Terminal ouverte avec kali-recon présélectionné",
+    );
+  }
+  check(sentOf("approve").length === 0, "aucune approbation envoyée par l'écran");
+  check(
+    violations.length === 0,
+    `zéro violation CSP (conteneurs) (${violations.slice(0, 3).join(" | ")})`,
+  );
+  await context.close();
+}
+
+async function containersEmptyScenario(name, viewport) {
+  console.log(`\n== ${name} : aucun conteneur (${viewport.width}x${viewport.height})`);
+  resetScreens();
+  containers = [];
+  projectItems = [{ id: OLD_PROJECT, name: "Ancien", linked: false }];
+  const { context, violations, win, openHash, shot } = await openSession(name, viewport);
+  const KEY = "native:containers";
+  await openHash("#w=conteneurs");
+  await until(() => win(KEY).isVisible(), "fenêtre Conteneurs");
+  await until(
+    async () => (await win(KEY).innerText()).includes("Créez d'abord un conteneur"),
+    "aide : créez d'abord un conteneur",
+  );
+  check((await win(KEY).innerText()).includes("Aucun conteneur géré"), "état vide des conteneurs");
+  check(
+    (await win(KEY).locator(".ctn-project-form").count()) === 0,
+    "pas de formulaire de projet sans conteneur",
+  );
+  check(
+    (await win(KEY).locator(".ctn-tolink").innerText()).includes("Ancien"),
+    "projet à lier présenté",
+  );
+  await shot("vide");
+  check(
+    violations.length === 0,
+    `zéro violation CSP (conteneurs vides) (${violations.slice(0, 3).join(" | ")})`,
+  );
+  await context.close();
+}
+
 async function screensScenario(name, viewport) {
   console.log(`\n== ${name} : écrans natifs (${viewport.width}x${viewport.height})`);
   resetScreens();
@@ -1748,17 +2166,17 @@ async function screensScenario(name, viewport) {
   );
   check(sentOf("containerStart").length === 0, "aucun démarrage sans clic");
   await shot("conteneurs");
-  await inWin("native:containers", "tbody tr:nth-child(2) button").click();
+  await inWin("native:containers", "tbody tr:nth-child(2) button").first().click();
   await until(() => sentOf("containerStart").length === 1, "containerStart envoyé");
   check(sentOf("containerStart")[0].msg.id === "c2", "containerStart vise le bon conteneur");
   await until(
     async () => (await textOf("native:containers", "tbody tr:nth-child(2)")).includes("en cours"),
     "état mis à jour par la diffusion",
   );
-  await inWin("native:containers", "input").fill("-mauvais nom");
+  await inWin("native:containers", ".ctn-create input").fill("-mauvais nom");
   await inWin("native:containers", "button", { hasText: "Créer un Kali" }).click();
   check(sentOf("containerCreate").length === 0, "nom invalide : rien n'est envoyé");
-  await inWin("native:containers", "input").fill("kali-recon");
+  await inWin("native:containers", ".ctn-create input").fill("kali-recon");
   await inWin("native:containers", "button", { hasText: "Créer un Kali" }).click();
   await until(
     async () => (await textOf("native:containers", ".scr-status")).includes("porte déjà ce nom"),
@@ -3910,6 +4328,13 @@ try {
   if (only("wm-spaces")) await spacesScenario("wm-spaces", { width: 1440, height: 900 });
   if (only("wm-mobile")) await phoneScenario("wm-mobile", { width: 375, height: 812 });
   if (only("screens")) await screensScenario("screens", { width: 1440, height: 900 });
+  if (only("containers")) {
+    await containersScenario("containers", { width: 1440, height: 900 });
+    await containersEmptyScenario("containers-empty", { width: 1440, height: 900 });
+  }
+  if (only("containers-mobile")) {
+    await containersScenario("containers-mobile", { width: 375, height: 812 }, { phone: true });
+  }
   if (only("screens-mobile"))
     await settingsPhoneScenario("screens-mobile", { width: 375, height: 812 });
   if (only("terminal")) await terminalScenario("terminal", { width: 1440, height: 900 });
