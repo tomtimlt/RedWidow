@@ -89,7 +89,11 @@ describe("suppression humaine d'un conteneur", () => {
   });
   it("conserve les associations lorsque Docker échoue", async () => {
     const { configDir, deps, docker } = await setup();
-    await createProject(configDir, { name: "Projet", workspace: "/tmp/work" });
+    await createProject(configDir, {
+      containers: ["kali-1"],
+      name: "Projet",
+      workspace: "/tmp/work",
+    });
     const before = await readFile(join(configDir, "project.json"), "utf8");
     docker.rm.mockRejectedValue(new Error("Docker indisponible"));
     await expect(removeListedContainer("kali-lab", deps)).rejects.toThrow("Docker indisponible");
@@ -108,8 +112,12 @@ describe("suppression humaine d'un conteneur", () => {
   });
   it("nettoie tous les projets et primary sans toucher aux workspaces, et reste idempotent", async () => {
     const { configDir, deps, confirm } = await setup();
-    await createProject(configDir, { name: "Un", workspace: "/tmp/un" });
-    await createProject(configDir, { name: "Deux", workspace: "/tmp/deux" });
+    await createProject(configDir, { containers: ["kali-1"], name: "Un", workspace: "/tmp/un" });
+    await createProject(configDir, {
+      containers: ["kali-1"],
+      name: "Deux",
+      workspace: "/tmp/deux",
+    });
     const file = await readProjects(configDir);
     if (file === null) throw new Error("projets absents");
     const projects = file.projects.map((p) => ({

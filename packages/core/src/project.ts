@@ -1,15 +1,19 @@
 import { randomUUID } from "node:crypto";
 import { chmod, mkdir, readFile, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
-import { basename, isAbsolute, join, relative } from "node:path";
+import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
+import { isInside } from "./cours/confine.js";
 import type { DockerClient } from "./docker/client.js";
 import { lookupContainer, shortContainerName } from "./exegol/targets.js";
 import { capOutput } from "./output.js";
 import {
   createProjectDirectory,
+  isInsideShare,
   moveDirectory,
   PROJECT_WORKSPACE_MAX,
   prepareProjectWorkspace,
+  prepareRedwidowRoot,
+  projectsParent,
   validateProjectFolder,
 } from "./project-workspace.js";
 import { CodedError } from "./reason.js";
@@ -418,16 +422,35 @@ function assertCreateWorkspace(workspace: string): void {
   }
 }
 
+/** Un projet exige au moins un conteneur, au nom valide (ADR 0053, point 4). */
+function assertContainers(containers: readonly string[]): void {
+  if (
+    !Array.isArray(containers) ||
+    containers.length < 1 ||
+    containers.length > MAX_CONTAINERS ||
+    !containers.every((c) => typeof c === "string" && validContainerName(c))
+  )
+    throw new CodedError("project.containerRequired");
+}
+
+/** Cible d'un projet : un conteneur et son dossier partagé (ADR 0053). */
+export interface ProjectContainerTarget {
+  container: string;
+  share: string;
+}
+
 /**
- * Crée un projet sans parler à Docker. `containers` est vide.
+ * Crée un projet sans parler à Docker. `containers` est obligatoire (non vide) ;
+ * le premier est `primary` sauf indication contraire.
  * Sans projet actif, le nouveau le devient. Sinon l'actif ne change pas.
  */
 export async function createProject(
   configDir: string,
-  input: { name: string; workspace: string },
+  input: { name: string; workspace: string; containers: readonly string[]; primary?: string },
 ): Promise<StoredProject> {
   assertCreateName(input.name);
   assertCreateWorkspace(input.workspace);
+  assertContainers(input.containers);
   const file = await readProjects(configDir);
   if (file !== null && file.projects.length >= MAX_PROJECTS) throw invalidProject();
   const id = randomUUID();
@@ -436,7 +459,8 @@ export async function createProject(
     id,
     name: input.name,
     workspace: input.workspace,
-    containers: [],
+    containers: [...input.containers],
+    ...(input.primary !== undefined && { primary: input.primary }),
   };
   const activeId = file === null || activeProject(file) === null ? id : file.activeId;
   const projects = file === null ? [project] : [...file.projects, project];
@@ -444,17 +468,28 @@ export async function createProject(
   return project;
 }
 
-/** Nouveau projet géré : valide avant le disque, réserve `<parent>/<slug>`, puis enregistre la fiche. */
+/**
+ * Nouveau projet géré (ADR 0053) : valide avant le disque, prépare `<partage>/RedWidow`, réserve
+ * `<partage>/RedWidow/projects/<slug>`, puis enregistre la fiche liée au conteneur.
+ */
 export async function createManagedProject(
   configDir: string,
   name: string,
-  parent: unknown,
+  target: ProjectContainerTarget,
 ): Promise<StoredProject> {
   assertCreateName(name);
+  assertContainers([target?.container]);
   const file = await readProjects(configDir);
   if (file !== null && file.projects.length >= MAX_PROJECTS) throw invalidProject();
-  const workspace = await createProjectDirectory(name, parent);
-  return createProject(configDir, { name, workspace });
+  const share = await validateProjectFolder(target.share);
+  await prepareRedwidowRoot(share);
+  const workspace = await createProjectDirectory(name, projectsParent(share));
+  return createProject(configDir, {
+    name,
+    workspace,
+    containers: [target.container],
+    primary: target.container,
+  });
 }
 
 /** Chemin réel, ou le chemin tel quel si le dossier a disparu. */
@@ -483,14 +518,23 @@ export async function adoptProjectDirectory(
   configDir: string,
   name: string,
   folder: unknown,
+  target: ProjectContainerTarget,
 ): Promise<StoredProject> {
   assertCreateName(name);
+  assertContainers([target?.container]);
   const workspace = await validateProjectFolder(folder);
+  const share = await validateProjectFolder(target.share);
+  if (!(await isInsideShare(share, workspace))) throw new CodedError("project.outsideShare");
   const file = await readProjects(configDir);
   if (file !== null && file.projects.length >= MAX_PROJECTS) throw invalidProject();
   await assertFolderFree(file, workspace);
   await prepareProjectWorkspace(workspace);
-  return createProject(configDir, { name, workspace });
+  return createProject(configDir, {
+    name,
+    workspace,
+    containers: [target.container],
+    primary: target.container,
+  });
 }
 
 /** Dossier de données d'un projet : `<configDir>/projects/<id>/`. L'id est contrôlé. */
@@ -541,14 +585,17 @@ export async function moveProjectWorkspace(
 
 /**
  * Enregistre un projet importé : garde `id` s'il est un UUID v4 libre, sinon en attribue un.
- * Le dossier existe déjà (validé comme une reprise) ; aucune liaison de conteneur.
+ * Le dossier existe déjà (validé comme une reprise), sous le partage du conteneur (ADR 0053).
  */
 export async function registerImportedProject(
   configDir: string,
-  input: { id: string; name: string; workspace: string },
+  input: { id: string; name: string; workspace: string; container: string; share: string },
 ): Promise<{ project: StoredProject; idChanged: boolean }> {
   assertCreateName(input.name);
+  assertContainers([input.container]);
   const workspace = await validateProjectFolder(input.workspace);
+  const share = await validateProjectFolder(input.share);
+  if (!(await isInsideShare(share, workspace))) throw new CodedError("project.outsideShare");
   const file = await readProjects(configDir);
   if (file !== null && file.projects.length >= MAX_PROJECTS) throw invalidProject();
   await assertFolderFree(file, workspace);
@@ -558,13 +605,37 @@ export async function registerImportedProject(
     !(file?.projects.some((p) => p.id === input.id) ?? false);
   const id = keep ? input.id : randomUUID();
   if (!PROJECT_ID.test(id)) throw invalidProject();
-  const project: StoredProject = { id, name: input.name, workspace, containers: [] };
+  const project: StoredProject = {
+    id,
+    name: input.name,
+    workspace,
+    containers: [input.container],
+    primary: input.container,
+  };
   const activeId = file === null || activeProject(file) === null ? id : file.activeId;
   await writeProjectFile(configDir, {
     activeId,
     projects: file === null ? [project] : [...file.projects, project],
   });
   return { project, idChanged: !keep };
+}
+
+/**
+ * Placement d'un projet (ADR 0053, point 8). `mounts` : nom de conteneur → dossier partagé relu par
+ * l'hôte (`undefined` si le conteneur est absent ou sans montage). Comparaison lexicale, sans disque.
+ * `noContainer` : aucun conteneur lié ; `outsideShare` : aucun partage lié ne contient le projet.
+ */
+export function projectPlacement(
+  project: Pick<StoredProject, "workspace" | "containers">,
+  mounts: ReadonlyMap<string, string | undefined>,
+): "ok" | "noContainer" | "outsideShare" {
+  if (project.containers.length === 0) return "noContainer";
+  const workspace = resolve(project.workspace);
+  for (const container of project.containers) {
+    const share = mounts.get(container);
+    if (share !== undefined && isInside(resolve(share), workspace, process.platform)) return "ok";
+  }
+  return "outsideShare";
 }
 
 /** Renomme la fiche sans changer son identité, son dossier ou ses associations. */
@@ -742,6 +813,7 @@ export async function link(
     await createProject(configDir, {
       name: projectName,
       workspace: row.workspace,
+      containers: [row.name],
     });
   }
   const current = await readProjects(configDir);

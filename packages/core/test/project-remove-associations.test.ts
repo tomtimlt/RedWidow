@@ -7,8 +7,12 @@ import { createProject, readProjects, removeContainerAssociations } from "../src
 describe("nettoyage global des associations de conteneur", () => {
   it("préserve projets, actif, workspace, primary distinct et trouvailles", async () => {
     const configDir = await mkdtemp(join(tmpdir(), "warband-associations-"));
-    await createProject(configDir, { name: "Un", workspace: "/tmp/un" });
-    await createProject(configDir, { name: "Deux", workspace: "/tmp/deux" });
+    await createProject(configDir, { containers: ["kali-1"], name: "Un", workspace: "/tmp/un" });
+    await createProject(configDir, {
+      containers: ["kali-1"],
+      name: "Deux",
+      workspace: "/tmp/deux",
+    });
     const file = await readProjects(configDir);
     if (file === null) throw new Error("projets absents");
     const projects = file.projects.map((p, i) => ({

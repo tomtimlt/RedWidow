@@ -18,7 +18,11 @@ afterEach(async () => {
 it("charge le résumé réel et sauvegarde les changements, y compris un effacement", async () => {
   const dir = await temp();
   expect(await readProjectSummary(dir)).toBeNull();
-  const project = await createProject(dir, { name: "Mission", workspace: dir });
+  const project = await createProject(dir, {
+    containers: ["kali-1"],
+    name: "Mission",
+    workspace: dir,
+  });
   expect(await readProjectSummary(dir)).toEqual({
     projectId: project.id,
     projectName: "Mission",
@@ -32,9 +36,17 @@ it("charge le résumé réel et sauvegarde les changements, y compris un effacem
 
 it("refuse une sauvegarde après changement de projet sans toucher les deux résumés", async () => {
   const dir = await temp();
-  const first = await createProject(dir, { name: "Premier", workspace: dir });
+  const first = await createProject(dir, {
+    containers: ["kali-1"],
+    name: "Premier",
+    workspace: dir,
+  });
   await saveProjectSummary(dir, first.id, "À conserver");
-  const second = await createProject(dir, { name: "Second", workspace: dir });
+  const second = await createProject(dir, {
+    containers: ["kali-1"],
+    name: "Second",
+    workspace: dir,
+  });
   await setActiveProject(dir, second.id);
   await expect(saveProjectSummary(dir, first.id, "À rejeter")).rejects.toMatchObject({
     code: "project.absent",

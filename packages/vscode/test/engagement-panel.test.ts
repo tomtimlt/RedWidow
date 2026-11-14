@@ -128,7 +128,7 @@ describe("ouverture de la page : menu projet, cockpit et palette", () => {
 
   it("le cockpit n'expose la ligne Engagement que s'il existe un engagement ou un arrêt", async () => {
     const dir = await mkdtemp(join(tmpdir(), "warband-eng-cockpit-"));
-    const project = await createProject(dir, { name: "p", workspace: dir });
+    const project = await createProject(dir, { containers: ["kali-1"], name: "p", workspace: dir });
     await setActiveProject(dir, project.id);
     const load = () =>
       loadCockpitView({

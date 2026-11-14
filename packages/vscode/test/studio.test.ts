@@ -1976,9 +1976,9 @@ it("export / import : dialogues natifs sans defaultUri, archive appelée seuleme
     exporting.indexOf("if (target !== undefined)"),
   );
   // Annulation de l'un des deux sélecteurs d'import : aucun appel d'archive.
-  expect(handlers).toContain("if (archiveFile !== undefined && parent !== undefined)");
+  expect(handlers).toContain("if (archiveFile !== undefined && row !== undefined)");
   expect(handlers.indexOf("importProjectArchive(")).toBeGreaterThan(
-    handlers.indexOf("if (archiveFile !== undefined && parent !== undefined)"),
+    handlers.indexOf("if (archiveFile !== undefined && row !== undefined)"),
   );
   // Le projet importé est activé par le chemin habituel.
   expect(handlers).toContain("activateSelectedProject");

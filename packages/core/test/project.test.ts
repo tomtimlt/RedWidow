@@ -86,8 +86,16 @@ describe("link", () => {
 
   it("une carte de liaison ne peut pas modifier un autre projet actif", async () => {
     const { docker, configDir } = await setup();
-    const first = await createProject(configDir, { name: "Premier", workspace: "/host/premier" });
-    const second = await createProject(configDir, { name: "Second", workspace: "/host/second" });
+    const first = await createProject(configDir, {
+      containers: ["kali-1"],
+      name: "Premier",
+      workspace: "/host/premier",
+    });
+    const second = await createProject(configDir, {
+      containers: ["kali-1"],
+      name: "Second",
+      workspace: "/host/second",
+    });
     await setActiveProject(configDir, second.id);
     const before = await textOf(configDir);
     await expect(link(configDir, "with-ws", docker, first.id)).rejects.toMatchObject({
@@ -341,31 +349,49 @@ describe("readProjects", () => {
 describe("écriture des projets", () => {
   it("createProject active le premier et laisse l'actif inchangé ensuite", async () => {
     const { configDir } = await setup();
-    const a = await createProject(configDir, { name: "un", workspace: "/host/un" });
-    const b = await createProject(configDir, { name: "deux", workspace: "/host/deux" });
+    const a = await createProject(configDir, {
+      containers: ["kali-1"],
+      name: "un",
+      workspace: "/host/un",
+    });
+    const b = await createProject(configDir, {
+      containers: ["kali-1"],
+      name: "deux",
+      workspace: "/host/deux",
+    });
     const file = await readProjects(configDir);
     expect(file?.activeId).toBe(a.id);
     expect(file?.projects.map((p) => p.id)).toEqual([a.id, b.id]);
-    expect(b.containers).toEqual([]);
+    expect(b.containers).toEqual(["kali-1"]);
   });
 
   it("refuse un nom ou un workspace illégal sans écrire", async () => {
     const { configDir } = await setup();
     await expect(
-      createProject(configDir, { name: "a\nb", workspace: "/host/ok" }),
+      createProject(configDir, { containers: ["kali-1"], name: "a\nb", workspace: "/host/ok" }),
     ).rejects.toMatchObject({ code: "project.invalid" });
-    await expect(createProject(configDir, { name: "ok", workspace: "rel" })).rejects.toMatchObject({
+    await expect(
+      createProject(configDir, { containers: ["kali-1"], name: "ok", workspace: "rel" }),
+    ).rejects.toMatchObject({
       code: "project.invalid",
     });
     await expect(
-      createProject(configDir, { name: "x".repeat(81), workspace: "/host/ok" }),
+      createProject(configDir, {
+        containers: ["kali-1"],
+        name: "x".repeat(81),
+        workspace: "/host/ok",
+      }),
     ).rejects.toMatchObject({ code: "project.invalid" });
     expect(await readdir(configDir)).toEqual([]);
   });
 
   it("setActiveProject refuse un id inconnu", async () => {
     const { configDir } = await setup();
-    const a = await createProject(configDir, { name: "un", workspace: "/host/un" });
+    const a = await createProject(configDir, {
+      containers: ["kali-1"],
+      name: "un",
+      workspace: "/host/un",
+    });
     const before = await textOf(configDir);
     await expect(setActiveProject(configDir, OTHER)).rejects.toMatchObject({
       code: "project.absent",
@@ -377,7 +403,11 @@ describe("écriture des projets", () => {
 
   it("removeProject du dernier supprime le fichier et garde les trouvailles", async () => {
     const { configDir } = await setup();
-    const a = await createProject(configDir, { name: "un", workspace: "/host/un" });
+    const a = await createProject(configDir, {
+      containers: ["kali-1"],
+      name: "un",
+      workspace: "/host/un",
+    });
     await appendFinding(configDir, a.id, { kind: "host", label: "h", state: "confirmed" });
     await removeProject(configDir, a.id);
     expect(await readProjects(configDir)).toBeNull();
@@ -386,8 +416,16 @@ describe("écriture des projets", () => {
 
   it("unlink retire l'actif sans en activer un autre", async () => {
     const { configDir } = await setup();
-    const a = await createProject(configDir, { name: "un", workspace: "/host/un" });
-    const b = await createProject(configDir, { name: "deux", workspace: "/host/deux" });
+    const a = await createProject(configDir, {
+      containers: ["kali-1"],
+      name: "un",
+      workspace: "/host/un",
+    });
+    const b = await createProject(configDir, {
+      containers: ["kali-1"],
+      name: "deux",
+      workspace: "/host/deux",
+    });
     await unlink(configDir);
     const file = await readProjects(configDir);
     expect(file?.activeId).toBeNull();
@@ -405,7 +443,11 @@ describe("écriture des projets", () => {
 
   it("associateContainer stocke le nom réel, y compris un Kali", async () => {
     const { configDir } = await setup();
-    const project = await createProject(configDir, { name: "p", workspace: "/host/p" });
+    const project = await createProject(configDir, {
+      containers: ["kali-1"],
+      name: "p",
+      workspace: "/host/p",
+    });
     const docker = {
       listLabelPrefix: async () => [row("exegol-htb1", { family: "kali", workspace: "/host/k" })],
     };
@@ -413,12 +455,19 @@ describe("écriture des projets", () => {
     const again = await textOf(configDir);
     await associateContainer(configDir, project.id, "htb1", docker);
     expect(await textOf(configDir)).toBe(again);
-    expect((await readProjects(configDir))?.projects[0]?.containers).toEqual(["exegol-htb1"]);
+    expect((await readProjects(configDir))?.projects[0]?.containers).toEqual([
+      "kali-1",
+      "exegol-htb1",
+    ]);
   });
 
   it("associateContainer refuse un projet inconnu, un nom ambigu, et le 33e nom", async () => {
     const { configDir } = await setup();
-    const project = await createProject(configDir, { name: "p", workspace: "/host/p" });
+    const project = await createProject(configDir, {
+      containers: ["kali-1"],
+      name: "p",
+      workspace: "/host/p",
+    });
     const ambiguous = {
       listLabelPrefix: async () => [row("exegol-htb1"), row("htb1")],
     };
@@ -452,7 +501,11 @@ describe("écriture des projets", () => {
 
   it("dissociateContainer retire un nom stocké", async () => {
     const { configDir } = await setup();
-    const project = await createProject(configDir, { name: "p", workspace: "/host/p" });
+    const project = await createProject(configDir, {
+      containers: ["box"],
+      name: "p",
+      workspace: "/host/p",
+    });
     const docker = { listLabelPrefix: async () => [row("box")] };
     await associateContainer(configDir, project.id, "box", docker);
     await dissociateContainer(configDir, project.id, "box");
@@ -465,7 +518,11 @@ describe("écriture des projets", () => {
 
   it("dissociateContainer nettoie primary quand le conteneur retiré était désigné", async () => {
     const { configDir } = await setup();
-    const project = await createProject(configDir, { name: "p", workspace: "/host/p" });
+    const project = await createProject(configDir, {
+      containers: ["box-a"],
+      name: "p",
+      workspace: "/host/p",
+    });
     const docker = {
       listLabelPrefix: async () => [row("box-a"), row("box-b")],
     };
@@ -480,7 +537,11 @@ describe("écriture des projets", () => {
 
   it("dissociateContainer garde primary s'il désigne un autre conteneur", async () => {
     const { configDir } = await setup();
-    const project = await createProject(configDir, { name: "p", workspace: "/host/p" });
+    const project = await createProject(configDir, {
+      containers: ["kali-1"],
+      name: "p",
+      workspace: "/host/p",
+    });
     const docker = {
       listLabelPrefix: async () => [row("box-a"), row("box-b")],
     };
@@ -496,7 +557,11 @@ describe("écriture des projets", () => {
 describe("setPrimaryContainer", () => {
   it("fixe primary sur un membre de containers", async () => {
     const { configDir } = await setup();
-    const project = await createProject(configDir, { name: "p", workspace: "/host/p" });
+    const project = await createProject(configDir, {
+      containers: ["kali-1"],
+      name: "p",
+      workspace: "/host/p",
+    });
     const docker = { listLabelPrefix: async () => [row("box-a"), row("box-b")] };
     await associateContainer(configDir, project.id, "box-a", docker);
     await associateContainer(configDir, project.id, "box-b", docker);
@@ -506,7 +571,11 @@ describe("setPrimaryContainer", () => {
 
   it("retire primary avec null", async () => {
     const { configDir } = await setup();
-    const project = await createProject(configDir, { name: "p", workspace: "/host/p" });
+    const project = await createProject(configDir, {
+      containers: ["kali-1"],
+      name: "p",
+      workspace: "/host/p",
+    });
     const docker = { listLabelPrefix: async () => [row("box-a")] };
     await associateContainer(configDir, project.id, "box-a", docker);
     await setPrimaryContainer(configDir, project.id, "box-a");
@@ -516,7 +585,11 @@ describe("setPrimaryContainer", () => {
 
   it("refuse un nom hors containers sans modifier le fichier", async () => {
     const { configDir } = await setup();
-    const project = await createProject(configDir, { name: "p", workspace: "/host/p" });
+    const project = await createProject(configDir, {
+      containers: ["kali-1"],
+      name: "p",
+      workspace: "/host/p",
+    });
     const docker = { listLabelPrefix: async () => [row("box-a")] };
     await associateContainer(configDir, project.id, "box-a", docker);
     const before = await textOf(configDir);
@@ -529,7 +602,7 @@ describe("setPrimaryContainer", () => {
 
   it("refuse un projet inconnu", async () => {
     const { configDir } = await setup();
-    await createProject(configDir, { name: "p", workspace: "/host/p" });
+    await createProject(configDir, { containers: ["kali-1"], name: "p", workspace: "/host/p" });
     await expect(setPrimaryContainer(configDir, OTHER, null)).rejects.toMatchObject({
       code: "project.absent",
     });
@@ -577,7 +650,11 @@ describe("status", () => {
 
   it("reflète un conteneur arrêté encore listé", async () => {
     const { docker, configDir } = await setup();
-    const project = await createProject(configDir, { name: "p", workspace: "/host/ws" });
+    const project = await createProject(configDir, {
+      containers: ["paused"],
+      name: "p",
+      workspace: "/host/ws",
+    });
     await associateContainer(configDir, project.id, "paused", docker);
     expect(await status(configDir, docker)).toEqual({
       container: "paused",
@@ -589,7 +666,15 @@ describe("status", () => {
 
   it("ne lève pas sans aucun conteneur : container null", async () => {
     const { docker, configDir } = await setup();
-    await createProject(configDir, { name: "p", workspace: "/host/ws" });
+    // Projet existant sans conteneur : toujours lisible (ADR 0053, point 8).
+    await writeFile(
+      join(configDir, USER_PROJECT_FILE),
+      JSON.stringify({
+        activeId: FIXED,
+        projects: [{ id: FIXED, name: "p", workspace: "/host/ws", containers: [] }],
+      }),
+      "utf8",
+    );
     expect(await status(configDir, docker)).toEqual({
       container: null,
       workspace: "/host/ws",
@@ -600,7 +685,11 @@ describe("status", () => {
 
   it("ne lève pas avec plusieurs conteneurs liés : container null", async () => {
     const { docker, configDir } = await setup();
-    const project = await createProject(configDir, { name: "p", workspace: "/host/ws" });
+    const project = await createProject(configDir, {
+      containers: ["kali-1"],
+      name: "p",
+      workspace: "/host/ws",
+    });
     await associateContainer(configDir, project.id, "paused", docker);
     await associateContainer(configDir, project.id, "with-ws", docker);
     expect(await status(configDir, docker)).toEqual({
@@ -613,7 +702,11 @@ describe("status", () => {
 
   it("préfère primary sur un projet à plusieurs conteneurs", async () => {
     const { docker, configDir } = await setup();
-    const project = await createProject(configDir, { name: "p", workspace: "/host/ws" });
+    const project = await createProject(configDir, {
+      containers: ["kali-1"],
+      name: "p",
+      workspace: "/host/ws",
+    });
     await associateContainer(configDir, project.id, "paused", docker);
     await associateContainer(configDir, project.id, "with-ws", docker);
     await setPrimaryContainer(configDir, project.id, "paused");

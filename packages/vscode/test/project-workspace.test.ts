@@ -32,7 +32,7 @@ async function setup() {
 
 it("restaure le dossier actif une seule fois, même si l'ouverture ne charge aucun dossier", async () => {
   const { dir, host } = await setup();
-  await createSelectedProject(dir, "Actif", dir);
+  await createSelectedProject(dir, "Actif", dir, "kali-1");
   expect(await openActiveProjectWorkspace(dir, host, "startup")).toBe(true);
   expect(host.openFolder).toHaveBeenCalledWith(dir, false);
   expect(await openActiveProjectWorkspace(dir, host, "startup")).toBe(false);
@@ -42,7 +42,7 @@ it("restaure le dossier actif une seule fois, même si l'ouverture ne charge auc
 
 it("préserve une fenêtre occupée au démarrage et ouvre la sélection dans une nouvelle fenêtre si modifiée", async () => {
   const { dir, host } = await setup();
-  await createSelectedProject(dir, "Actif", dir);
+  await createSelectedProject(dir, "Actif", dir, "kali-1");
   host.folders = () => [join(dir, "autre")];
   host.hasUnsavedDocuments = () => true;
   expect(await openActiveProjectWorkspace(dir, host, "startup")).toBe(false);
@@ -53,7 +53,7 @@ it("préserve une fenêtre occupée au démarrage et ouvre la sélection dans un
 
 it("ne réouvre pas le même dossier et remplace un multi-dossier lors d'une sélection explicite", async () => {
   const { dir, host } = await setup();
-  await createSelectedProject(dir, "Actif", dir);
+  await createSelectedProject(dir, "Actif", dir, "kali-1");
   host.folders = () => [join(dir, ".")];
   expect(await openActiveProjectWorkspace(dir, host, "selection")).toBe(false);
   host.folders = () => [dir, join(dir, "autre")];
@@ -64,8 +64,8 @@ it("ne réouvre pas le même dossier et remplace un multi-dossier lors d'une sé
 it("ouvre le dossier créé puis celui du projet sélectionné, sans mélanger les projets", async () => {
   const first = await setup();
   const second = await setup();
-  const id = await createSelectedProject(first.dir, "Premier", first.dir);
-  await createSelectedProject(first.dir, "Second", second.dir);
+  const id = await createSelectedProject(first.dir, "Premier", first.dir, "kali-1");
+  await createSelectedProject(first.dir, "Second", second.dir, "kali-1");
   await openActiveProjectWorkspace(first.dir, first.host, "selection");
   expect(first.host.openFolder).toHaveBeenLastCalledWith(second.dir, false);
   expect(await matchesActiveProjectWorkspace(first.dir, first.dir)).toBe(false);
@@ -81,11 +81,11 @@ it("reste inerte sans projet et rend les erreurs de fichier ou de dossier observ
   const { dir, host } = await setup();
   expect(await openActiveProjectWorkspace(dir, host, "startup")).toBe(false);
   expect(await matchesActiveProjectWorkspace(dir, dir)).toBe(true);
-  await createSelectedProject(dir, "Absent", join(dir, "absent"));
+  await createSelectedProject(dir, "Absent", join(dir, "absent"), "kali-1");
   await expect(openActiveProjectWorkspace(dir, host, "startup")).rejects.toMatchObject({
     code: "ENOENT",
   });
-  await createSelectedProject(dir, "Fichier", join(dir, USER_PROJECT_FILE));
+  await createSelectedProject(dir, "Fichier", join(dir, USER_PROJECT_FILE), "kali-1");
   await expect(openActiveProjectWorkspace(dir, host, "startup")).rejects.toThrow("introuvable");
   await writeFile(join(dir, USER_PROJECT_FILE), "cassé");
   await expect(openActiveProjectWorkspace(dir, host, "startup")).rejects.toMatchObject({
@@ -96,7 +96,7 @@ it("reste inerte sans projet et rend les erreurs de fichier ou de dossier observ
 
 it("ne répète pas automatiquement une ouverture refusée et protège les documents sans dossier", async () => {
   const { dir, host } = await setup();
-  await createSelectedProject(dir, "Actif", dir);
+  await createSelectedProject(dir, "Actif", dir, "kali-1");
   host.hasUnsavedDocuments = () => true;
   host.openFolder = vi.fn(async () => {
     expect(host.attempted()).toBe(dir);

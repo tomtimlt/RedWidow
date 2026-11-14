@@ -35,19 +35,25 @@ export async function createSelectedProject(
   configDir: string,
   name: string,
   workspace: string,
+  container: string,
 ): Promise<string> {
-  const project = await createProject(configDir, { name, workspace });
+  const project = await createProject(configDir, {
+    name,
+    workspace,
+    containers: [container],
+    primary: container,
+  });
   await setActiveProject(configDir, project.id);
   return project.id;
 }
 
-/** Le dossier parent est choisi par l’hôte (ADR 0052), jamais par défaut. */
+/** Le conteneur et son dossier partagé sont relus par l’hôte (ADR 0053), jamais fournis par la webview. */
 export async function createManagedSelectedProject(
   configDir: string,
   name: string,
-  parent: unknown,
+  target: { container: string; share: string },
 ) {
-  const project = await createManagedProject(configDir, name, parent);
+  const project = await createManagedProject(configDir, name, target);
   await activateSelectedProject(configDir, project.id);
   return project;
 }
@@ -70,8 +76,8 @@ export interface ProjectCreationHost {
 
 /** Ce qu'il reste à écrire une fois les dialogues terminés ; aucune écriture n'a eu lieu. */
 export type ProjectCreationPlan =
-  | { kind: "create"; name: string; parent: string }
-  | { kind: "adopt"; name: string; folder: string };
+  | { kind: "create"; name: string; container: string; share: string }
+  | { kind: "adopt"; name: string; folder: string; container: string; share: string };
 
 /** Nom de base du dossier, borné comme un nom de projet. */
 export function proposedProjectName(folder: string): string {
@@ -86,26 +92,24 @@ export async function planProjectCreation(
   choice: ProjectCreationChoice,
   host: ProjectCreationHost,
 ): Promise<ProjectCreationPlan | undefined> {
-  if (choice.kind === "newFolder") {
-    const parent = await host.pickFolder("parent");
-    return parent === undefined ? undefined : { kind: "create", name: choice.name, parent };
-  }
-  if (choice.kind === "existing") {
-    const folder = await host.pickFolder("existing");
-    if (folder === undefined) return undefined;
-    const name = await host.askName(choice.name || proposedProjectName(folder));
-    return name === undefined ? undefined : { kind: "adopt", name, folder };
-  }
-  const parent = await host.containerMount(choice.container);
-  if (parent === undefined) throw new CodedError("project.parentInvalid");
-  return { kind: "create", name: choice.name, parent };
+  // ADR 0053 : un projet n'existe que dans un conteneur ; l'interface des cibles libres est refaite à part.
+  if (choice.kind !== "container") throw new CodedError("project.containerRequired");
+  const share = await host.containerMount(choice.container);
+  if (share === undefined) throw new CodedError("project.parentInvalid");
+  return { kind: "create", name: choice.name, container: choice.container, share };
 }
 
 /** Crée ou reprend le dossier, puis active le projet. Les contrôles de chemin restent ceux du cœur. */
 export async function applyProjectPlan(configDir: string, plan: ProjectCreationPlan) {
   if (plan.kind === "create")
-    return createManagedSelectedProject(configDir, plan.name, plan.parent);
-  const project = await adoptProjectDirectory(configDir, plan.name, plan.folder);
+    return createManagedSelectedProject(configDir, plan.name, {
+      container: plan.container,
+      share: plan.share,
+    });
+  const project = await adoptProjectDirectory(configDir, plan.name, plan.folder, {
+    container: plan.container,
+    share: plan.share,
+  });
   await activateSelectedProject(configDir, project.id);
   return project;
 }

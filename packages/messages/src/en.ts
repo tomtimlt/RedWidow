@@ -291,6 +291,12 @@ export const reasons: Catalog = {
   "project.absent": () => "no active project",
   "project.parentInvalid": () =>
     "folder refused: it must be absolute, exist, avoid symbolic links and not expose a sensitive path",
+  "project.containerRequired": () =>
+    "a project only exists in a container: choose a container first",
+  "project.outsideShare": () =>
+    "this folder is not inside the container's shared folder: the container would not see the project",
+  "container.rootInvalid": () =>
+    "containers root refused: it must be absolute, exist, avoid symbolic links and not expose a sensitive path",
   "project.folderAlreadyProject": (p) => `this folder is already project ${text(p.name)}`,
   "project.destinationExists": (p) => `destination already exists: ${text(p.path)}`,
   "project.moveFailed": () =>

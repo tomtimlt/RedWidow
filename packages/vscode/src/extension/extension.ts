@@ -4440,7 +4440,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           });
           return;
         }
-        // Archive puis dossier parent : deux dialogues natifs sans dossier par défaut ; une annulation n'appelle rien.
+        // Archive puis conteneur (ADR 0053) : le partage est relu côté hôte, jamais fourni par la webview.
         let imported: Awaited<ReturnType<typeof importProjectArchive>> | undefined;
         let importError: string | undefined;
         try {
@@ -4452,21 +4452,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             openLabel: t("Choisir l'archive du projet"),
           });
           const archiveFile = archive?.[0]?.fsPath;
-          const parent =
-            archiveFile === undefined
+          const view = archiveFile === undefined ? undefined : await loadCockpitView();
+          const rows = view === undefined ? [] : creationContainers(view.containers);
+          const picked =
+            rows.length === 0
               ? undefined
-              : (
-                  await vscode.window.showOpenDialog({
-                    canSelectFiles: false,
-                    canSelectFolders: true,
-                    canSelectMany: false,
-                    openLabel: t("Choisir le dossier parent du projet importé"),
-                  })
-                )?.[0]?.fsPath;
-          if (archiveFile !== undefined && parent !== undefined) {
+              : await vscode.window.showQuickPick(
+                  rows.map((row) => row.name),
+                  { title: t("Conteneur du projet importé") },
+                );
+          const row = rows.find((candidate) => candidate.name === picked);
+          if (archiveFile !== undefined && view !== undefined && rows.length === 0)
+            throw new CodedError("project.containerRequired");
+          if (archiveFile !== undefined && row !== undefined) {
             projectChanging = true;
             try {
-              imported = await importProjectArchive(defaultConfigDir(), archiveFile, parent);
+              imported = await importProjectArchive(defaultConfigDir(), archiveFile, {
+                container: row.name,
+                share: row.mount,
+              });
             } finally {
               projectChanging = false;
             }

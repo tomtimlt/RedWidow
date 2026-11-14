@@ -425,6 +425,12 @@ export const reasons: Catalog = {
   "project.absent": () => "aucun projet actif",
   "project.parentInvalid": () =>
     "dossier refusé : il doit être absolu, exister, ne pas passer par un lien symbolique ni exposer un chemin sensible",
+  "project.containerRequired": () =>
+    "un projet n’existe que dans un conteneur : choisissez d’abord un conteneur",
+  "project.outsideShare": () =>
+    "ce dossier n’est pas dans le dossier partagé du conteneur : le conteneur ne verrait pas le projet",
+  "container.rootInvalid": () =>
+    "racine des conteneurs refusée : elle doit être absolue, exister, ne pas passer par un lien symbolique ni exposer un chemin sensible",
   "project.folderAlreadyProject": (p) => `ce dossier est déjà le projet ${text(p.name)}`,
   "project.destinationExists": (p) => `la destination existe déjà : ${text(p.path)}`,
   "project.moveFailed": () =>

@@ -32,7 +32,7 @@ it("valide le projet, les identifiants et le booléen sans accepter un chemin ou
 it("partage le marquage avec l'agent, refuse un panneau périmé et un autre projet", async () => {
   const dir = await mkdtemp(join(tmpdir(), "warband-ui-path-"));
   dirs.push(dir);
-  const first = await createProject(dir, { name: "A", workspace: dir });
+  const first = await createProject(dir, { containers: ["kali-1"], name: "A", workspace: dir });
   const a = await appendFinding(dir, first.id, { kind: "host", label: "A", state: "confirmed" });
   const b = await appendFinding(dir, first.id, {
     kind: "step",
@@ -47,7 +47,7 @@ it("partage le marquage avec l'agent, refuse un panneau périmé et un autre pro
   await expect(
     setSelectedPathEdge(dir, first.id, a.id, b.id, false, () => false),
   ).rejects.toMatchObject({ code: "project.absent" });
-  const other = await createProject(dir, { name: "B", workspace: dir });
+  const other = await createProject(dir, { containers: ["kali-1"], name: "B", workspace: dir });
   await setActiveProject(dir, other.id);
   await expect(
     setSelectedPathEdge(dir, first.id, a.id, b.id, false, () => true),

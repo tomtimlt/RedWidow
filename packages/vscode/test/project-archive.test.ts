@@ -16,7 +16,9 @@ import { join } from "node:path";
 import { pipeline } from "node:stream/promises";
 import {
   createProjectDirectory,
+  prepareRedwidowRoot,
   projectDataDir,
+  projectsParent,
   readProjects,
   registerImportedProject,
 } from "@warband/core";
@@ -48,13 +50,24 @@ async function machine() {
   const parent = join(root, "parent");
   await mkdir(configDir, { recursive: true });
   await mkdir(parent, { recursive: true });
-  return { root, configDir, parent };
+  // `parent` est le dossier partagé du conteneur ; les projets vont sous `projects`.
+  await prepareRedwidowRoot(parent);
+  return { root, configDir, parent, projects: projectsParent(parent) };
 }
 
-async function sourceProject(m: { configDir: string; parent: string }, name = "Mon Projet") {
-  const workspace = await createProjectDirectory(name, m.parent);
+async function sourceProject(
+  m: { configDir: string; parent: string; projects: string },
+  name = "Mon Projet",
+) {
+  const workspace = await createProjectDirectory(name, m.projects);
   const id = randomUUID();
-  await registerImportedProject(m.configDir, { id, name, workspace });
+  await registerImportedProject(m.configDir, {
+    id,
+    name,
+    workspace,
+    container: "kali-1",
+    share: m.parent,
+  });
   await writeFile(join(workspace, "notes", "a.md"), "bonjour\n");
   await mkdir(join(workspace, "scans", "deep"), { recursive: true });
   await writeFile(join(workspace, "scans", "deep", "b.bin"), Buffer.from([0, 1, 2, 255]));
@@ -123,18 +136,20 @@ async function residue(dir: string) {
 const registryOf = async (configDir: string) => JSON.stringify(await readProjects(configDir));
 
 async function expectRefusal(
-  m: { configDir: string; parent: string },
+  m: { configDir: string; parent: string; projects: string },
   archive: string,
   code: string,
-  parent: string = m.parent,
+  share: string = m.parent,
 ) {
   const before = await registryOf(m.configDir);
-  const parentBefore = await residue(m.parent);
+  const parentBefore = await residue(m.projects);
   const projectsDir = join(m.configDir, "projects");
   const projectsBefore = await readdir(projectsDir).catch(() => []);
-  await expect(importProjectArchive(m.configDir, archive, parent)).rejects.toMatchObject({ code });
+  await expect(
+    importProjectArchive(m.configDir, archive, { container: "kali-1", share }),
+  ).rejects.toMatchObject({ code });
   expect(await registryOf(m.configDir)).toBe(before);
-  expect(await residue(m.parent)).toEqual(parentBefore);
+  expect(await residue(m.projects)).toEqual(parentBefore);
   expect(await readdir(projectsDir).catch(() => [])).toEqual(projectsBefore);
 }
 
@@ -150,7 +165,10 @@ describe("archive de projet .rwproj", () => {
     expect((await readdir(a.root)).filter((n) => n.endsWith(".tmp"))).toEqual([]);
 
     const b = await machine();
-    const result = await importProjectArchive(b.configDir, file, b.parent);
+    const result = await importProjectArchive(b.configDir, file, {
+      container: "kali-2",
+      share: b.parent,
+    });
     expect(result.idChanged).toBe(false);
     expect(result.project.id).toBe(src.id);
     expect(result.project.name).toBe("Mon Projet");
@@ -168,7 +186,9 @@ describe("archive de projet .rwproj", () => {
       expect((await stat(join(ws, "notes", "a.md"))).mode & 0o777).toBe(0o600);
       expect((await stat(join(ws, "scans", "deep"))).mode & 0o777).toBe(0o700);
     }
-    expect(await residue(b.parent)).toEqual(["mon-projet"]);
+    expect(result.project.workspace).toBe(join(b.projects, "mon-projet"));
+    expect(result.project).toMatchObject({ containers: ["kali-2"], primary: "kali-2" });
+    expect(await residue(b.projects)).toEqual(["mon-projet"]);
     expect((await readProjects(b.configDir))?.projects.map((p) => p.id)).toEqual([src.id]);
   });
 
@@ -179,7 +199,10 @@ describe("archive de projet .rwproj", () => {
     await exportProjectArchive(a.configDir, src.id, file);
     const second = join(a.root, "autre");
     await mkdir(second);
-    const result = await importProjectArchive(a.configDir, file, second);
+    const result = await importProjectArchive(a.configDir, file, {
+      container: "kali-1",
+      share: second,
+    });
     expect(result.idChanged).toBe(true);
     expect(result.project.id).not.toBe(src.id);
     expect(
@@ -210,6 +233,17 @@ describe("archive de projet .rwproj", () => {
     ).rejects.toMatchObject({
       code: "project.absent",
     });
+  });
+
+  it("sans conteneur : project.containerRequired, rien n'est créé", async () => {
+    const m = await machine();
+    const file = join(m.root, "ok.rwproj");
+    await makeZip(file, [{ name: "workspace/a.txt", data: "a" }]);
+    await expect(
+      importProjectArchive(m.configDir, file, { container: "", share: m.parent }),
+    ).rejects.toMatchObject({ code: "project.containerRequired" });
+    expect(await residue(m.projects)).toEqual([]);
+    expect(await readProjects(m.configDir)).toBeNull();
   });
 
   it("refuse un parent invalide", async () => {
@@ -323,10 +357,10 @@ describe("archive de projet .rwproj", () => {
       const m = await machine();
       const file = join(m.root, "p.rwproj");
       await makeZip(file, [{ name: "workspace/a.txt", data: "a" }], { name: "Importé" });
-      await mkdir(join(m.parent, "importe"));
-      await writeFile(join(m.parent, "importe", "garde.txt"), "x");
+      await mkdir(join(m.projects, "importe"));
+      await writeFile(join(m.projects, "importe", "garde.txt"), "x");
       await expectRefusal(m, file, "project.destinationExists");
-      expect(await readFile(join(m.parent, "importe", "garde.txt"), "utf8")).toBe("x");
+      expect(await readFile(join(m.projects, "importe", "garde.txt"), "utf8")).toBe("x");
     });
 
     it("fichier déclaré trop gros : project.archiveTooLarge", async () => {

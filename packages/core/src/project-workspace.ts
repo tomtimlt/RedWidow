@@ -13,6 +13,7 @@ import {
 } from "node:fs/promises";
 import { isAbsolute, join, parse, posix, relative, resolve, sep, win32 } from "node:path";
 import { mountExposesSensitive } from "./approval/paths.js";
+import { isInside } from "./cours/confine.js";
 import type { DockerClient } from "./docker/client.js";
 import type { StoredProject } from "./project.js";
 import { CodedError } from "./reason.js";
@@ -27,6 +28,83 @@ export const PROJECT_WORKSPACE_FOLDERS = [
   "evidence",
   "notes",
 ] as const;
+
+/** Dossiers de travail d’un conteneur, sans projet (ADR 0053, point 3). */
+export const CONTAINER_ROOT_DIRS = PROJECT_WORKSPACE_FOLDERS;
+export const REDWIDOW_DIR = "RedWidow";
+export const PROJECTS_DIR = "projects";
+
+const CONTAINER_FOLDER_NAME = /^[a-z0-9][a-z0-9_.-]{0,62}$/;
+
+/**
+ * Plus petit N ≥ 1 tel que `<kind>-N` n’est pas pris (insensible à la casse). L’appelant fournit
+ * les conteneurs existants et les noms de dossiers de la racine (ADR 0053, point 2).
+ */
+export function nextContainerName(kind: "kali" | "exegol", taken: readonly string[]): string {
+  const used = new Set(taken.map((name) => name.toLowerCase()));
+  let n = 1;
+  while (used.has(`${kind}-${n}`)) n++;
+  return `${kind}-${n}`;
+}
+
+/** Réserve `<root>/<name>` (création exclusive, 0o700) et renvoie son chemin réel. */
+export async function reserveContainerFolder(root: string, name: string): Promise<string> {
+  let base: string;
+  try {
+    base = await validateProjectFolder(root);
+  } catch {
+    throw new CodedError("container.rootInvalid");
+  }
+  const folder = typeof name === "string" ? name.toLowerCase() : "";
+  if (!CONTAINER_FOLDER_NAME.test(folder)) throw new CodedError("project.parentInvalid");
+  const path = join(base, folder);
+  if (path.length > PROJECT_WORKSPACE_MAX) throw new CodedError("project.parentInvalid");
+  try {
+    await mkdir(path, { mode: 0o700 });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST")
+      throw new CodedError("project.destinationExists", { path });
+    throw error;
+  }
+  const real = await realpath(path);
+  if (relative(await realpath(base), real) !== folder)
+    throw new CodedError("path.outside", { path });
+  return real;
+}
+
+/** `<share>/RedWidow/projects` : parent des projets hébergés par un conteneur. */
+export function projectsParent(share: string): string {
+  return join(share, REDWIDOW_DIR, PROJECTS_DIR);
+}
+
+/**
+ * Crée `<share>/RedWidow/{evidence,notes,payloads,reports,scans,scripts,projects}` sans rien
+ * écraser (idempotent, 0o700). Un lien symbolique rencontré est refusé. Renvoie `<share>/RedWidow`.
+ */
+export async function prepareRedwidowRoot(share: string): Promise<string> {
+  const base = await validateProjectFolder(share);
+  const root = join(base, REDWIDOW_DIR);
+  for (const path of [root, ...[...CONTAINER_ROOT_DIRS, PROJECTS_DIR].map((d) => join(root, d))]) {
+    try {
+      await mkdir(path, { mode: 0o700 });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    }
+    const info = await lstat(path);
+    if (!info.isDirectory() || info.isSymbolicLink())
+      throw new CodedError("path.outside", { path });
+  }
+  return root;
+}
+
+/** Vrai si `folder` est le partage ou s’y trouve (chemins réels ; faux si l’un des deux est absent). */
+export async function isInsideShare(share: string, folder: string): Promise<boolean> {
+  try {
+    return isInside(await realpath(share), await realpath(folder), process.platform);
+  } catch {
+    return false;
+  }
+}
 
 /** Réglage machine de l’hôte : absolu et explicite, sans valeur par défaut (ADR 0052). */
 export function projectWorkspacesRoot(value: unknown): string {

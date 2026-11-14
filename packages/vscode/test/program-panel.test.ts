@@ -248,7 +248,7 @@ describe("interface de la fiche : messages et rendu", () => {
 
   it("le cockpit expose l'état de la fiche du projet actif", async () => {
     const dir = await mkdtemp(join(tmpdir(), "warband-pctl-cockpit-"));
-    const project = await createProject(dir, { name: "p", workspace: dir });
+    const project = await createProject(dir, { containers: ["kali-1"], name: "p", workspace: dir });
     await setActiveProject(dir, project.id);
     await importProgramDraft(
       dir,

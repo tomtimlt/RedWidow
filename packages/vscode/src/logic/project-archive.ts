@@ -9,7 +9,9 @@ import {
   CodedError,
   checkRelativePath,
   prepareProjectWorkspace,
+  prepareRedwidowRoot,
   projectDataDir,
+  projectsParent,
   readProjects,
   registerImportedProject,
   type StoredProject,
@@ -372,15 +374,19 @@ async function extractEntry(
 }
 
 /**
- * Importe un `.rwproj` sous `parent` (ADR 0052, point 8). Extraction dans un dossier temporaire
+ * Importe un `.rwproj` sous `<partage>/RedWidow/projects` du conteneur (ADR 0052 point 8, ADR 0053). Extraction dans un dossier temporaire
  * voisin puis `rename` ; le registre n'est modifié qu'en dernier. Tout échec défait ce qui a été créé.
  */
 export async function importProjectArchive(
   configDir: string,
   archiveFile: string,
-  parentFolder: unknown,
+  target: { container: string; share: string },
 ): Promise<{ project: StoredProject; idChanged: boolean }> {
-  const parent = await validateProjectFolder(parentFolder);
+  if (typeof target?.container !== "string" || target.container === "")
+    throw new CodedError("project.containerRequired");
+  const share = await validateProjectFolder(target.share);
+  await prepareRedwidowRoot(share);
+  const parent = await validateProjectFolder(projectsParent(share));
   const zip = await openArchive(archiveFile);
   const token = randomUUID();
   const workStage = join(parent, `.rwproj-import-${token}`);
@@ -476,6 +482,8 @@ export async function importProjectArchive(
       id,
       name: manifest.project.name,
       workspace: destination,
+      container: target.container,
+      share,
     });
     return { project, idChanged: project.id !== wanted };
   } catch (error) {

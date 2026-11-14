@@ -62,7 +62,11 @@ describe("message de suppression", () => {
 async function fixture() {
   const dir = await mkdtemp(join(tmpdir(), "warband-finding-delete-ui-"));
   dirs.push(dir);
-  const project = await createProject(dir, { name: "Mission réelle", workspace: dir });
+  const project = await createProject(dir, {
+    containers: ["kali-1"],
+    name: "Mission réelle",
+    workspace: dir,
+  });
   const target = await appendFinding(dir, project.id, {
     kind: "host",
     state: "confirmed",
@@ -100,7 +104,7 @@ it("une annulation native ne modifie aucun fichier", async () => {
 
 it("refuse le projet étranger avant confirmation et sans modifier les trouvailles", async () => {
   const { dir, project, target, path } = await fixture();
-  const other = await createProject(dir, { name: "Autre", workspace: dir });
+  const other = await createProject(dir, { containers: ["kali-1"], name: "Autre", workspace: dir });
   const before = await readFile(path, "utf8");
   const confirm = vi.fn(async () => true);
   await expect(
@@ -127,7 +131,11 @@ it.each([false, true])(
   "refuse un changement de projet, aller-retour : %s",
   async (returnToFirst) => {
     const { dir, project, target, path } = await fixture();
-    const other = await createProject(dir, { name: "Autre", workspace: dir });
+    const other = await createProject(dir, {
+      containers: ["kali-1"],
+      name: "Autre",
+      workspace: dir,
+    });
     const before = await readFile(path, "utf8");
     await expect(
       deleteSelectedFinding(dir, project.id, target.id, {
@@ -198,7 +206,11 @@ it.each(["finding", "project"] as const)(
   "revalide après l'attente du verrou lorsque %s change",
   async (change) => {
     const { dir, project, target } = await fixture();
-    const other = await createProject(dir, { name: "Autre", workspace: dir });
+    const other = await createProject(dir, {
+      containers: ["kali-1"],
+      name: "Autre",
+      workspace: dir,
+    });
     const locked = barrier();
     const release = barrier();
     const blocker = updateFinding(

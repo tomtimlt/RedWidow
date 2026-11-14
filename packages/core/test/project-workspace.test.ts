@@ -1,18 +1,29 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { afterEach, expect, it } from "vitest";
-import type { StoredProject } from "../src/project.js";
+import { projectPlacement, type StoredProject } from "../src/project.js";
 import {
+  CONTAINER_ROOT_DIRS,
   containerProjectWorkspace,
   dockerHostWorkspace,
+  isInsideShare,
+  nextContainerName,
   PROJECT_WORKSPACE_FOLDERS,
   prepareContainerProjectWorkspace,
   prepareProjectWorkspace,
+  prepareRedwidowRoot,
+  projectsParent,
+  reserveContainerFolder,
 } from "../src/project-workspace.js";
 
 const roots: string[] = [];
+async function fixtureDir() {
+  const dir = await mkdtemp(join(tmpdir(), "redwidow-container-"));
+  roots.push(dir);
+  return dir;
+}
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), "redwidow-workspace-"));
   roots.push(root);
@@ -126,4 +137,117 @@ it("accepte un sous-dossier réel et refuse une sortie par lien", async () => {
       docker,
     ),
   ).rejects.toThrow();
+});
+
+const SYMLINK_TYPE = process.platform === "win32" ? "junction" : "dir";
+
+it("nextContainerName : plus petit N libre, trous comblés, casse ignorée, familles séparées", () => {
+  expect(nextContainerName("kali", [])).toBe("kali-1");
+  expect(nextContainerName("kali", ["kali-1", "kali-2"])).toBe("kali-3");
+  expect(nextContainerName("kali", ["kali-1", "kali-3"])).toBe("kali-2");
+  expect(nextContainerName("kali", ["KALI-1", "Kali-2"])).toBe("kali-3");
+  expect(nextContainerName("exegol", ["kali-1", "exegol-2"])).toBe("exegol-1");
+  expect(nextContainerName("exegol", ["exegol-10"])).toBe("exegol-1");
+});
+
+it("reserveContainerFolder : crée <racine>/<nom> exclusif (0o700), refuse l'existant", async () => {
+  const root = await fixtureDir();
+  const path = await reserveContainerFolder(root, "Kali-1");
+  expect(path).toBe(join(root, "kali-1"));
+  if (process.platform !== "win32") expect((await stat(path)).mode & 0o777).toBe(0o700);
+  await expect(reserveContainerFolder(root, "kali-1")).rejects.toMatchObject({
+    code: "project.destinationExists",
+  });
+  await writeFile(join(path, "garde.txt"), "intact");
+  expect(await readFile(join(path, "garde.txt"), "utf8")).toBe("intact");
+});
+
+it("reserveContainerFolder : nom dangereux ou racine invalide refusés", async () => {
+  const root = await fixtureDir();
+  for (const bad of ["", ".", "..", "../x", "a/b", "-x", ".x", "a b", "x".repeat(64), "é"])
+    await expect(reserveContainerFolder(root, bad)).rejects.toMatchObject({
+      code: "project.parentInvalid",
+    });
+  expect(await readdir(root)).toEqual([]);
+  for (const bad of ["relatif", join(root, "absent"), ""])
+    await expect(reserveContainerFolder(bad, "kali-1")).rejects.toMatchObject({
+      code: "container.rootInvalid",
+    });
+  const link = join(root, "lien");
+  const real = await fixtureDir();
+  await symlink(real, link, SYMLINK_TYPE);
+  await expect(reserveContainerFolder(link, "kali-1")).rejects.toMatchObject({
+    code: "container.rootInvalid",
+  });
+  expect(await readdir(real)).toEqual([]);
+});
+
+it("prepareRedwidowRoot : arborescence complète, idempotente, sans rien écraser", async () => {
+  const share = await fixtureDir();
+  const root = await prepareRedwidowRoot(share);
+  expect(root).toBe(join(share, "RedWidow"));
+  expect(projectsParent(share)).toBe(join(share, "RedWidow", "projects"));
+  expect((await readdir(root)).sort()).toEqual([...CONTAINER_ROOT_DIRS, "projects"].sort());
+  if (process.platform !== "win32") expect((await stat(root)).mode & 0o777).toBe(0o700);
+  await writeFile(join(root, "notes", "garde.txt"), "intact");
+  expect(await prepareRedwidowRoot(share)).toBe(root);
+  expect(await readFile(join(root, "notes", "garde.txt"), "utf8")).toBe("intact");
+});
+
+it("prepareRedwidowRoot : lien symbolique rencontré, partage invalide ou fichier refusés", async () => {
+  const share = await fixtureDir();
+  const outside = await fixtureDir();
+  await mkdir(join(share, "RedWidow"));
+  await symlink(outside, join(share, "RedWidow", "notes"), SYMLINK_TYPE);
+  await expect(prepareRedwidowRoot(share)).rejects.toMatchObject({ code: "path.outside" });
+  expect(await readdir(outside)).toEqual([]);
+  const other = await fixtureDir();
+  await symlink(outside, join(other, "RedWidow"), SYMLINK_TYPE);
+  await expect(prepareRedwidowRoot(other)).rejects.toMatchObject({ code: "path.outside" });
+  expect(await readdir(outside)).toEqual([]);
+  await expect(prepareRedwidowRoot(join(share, "absent"))).rejects.toMatchObject({
+    code: "project.parentInvalid",
+  });
+  await writeFile(join(share, "fichier"), "x");
+  await expect(prepareRedwidowRoot(join(share, "fichier"))).rejects.toMatchObject({
+    code: "project.parentInvalid",
+  });
+});
+
+it("isInsideShare : égal ou dedans, jamais un voisin au préfixe commun, faux si absent", async () => {
+  const share = await fixtureDir();
+  const dedans = join(share, "a", "b");
+  await mkdir(dedans, { recursive: true });
+  const voisin = `${share}-voisin`;
+  await mkdir(voisin);
+  roots.push(voisin);
+  expect(await isInsideShare(share, share)).toBe(true);
+  expect(await isInsideShare(share, dedans)).toBe(true);
+  expect(await isInsideShare(share, voisin)).toBe(false);
+  expect(await isInsideShare(share, join(share, "absent"))).toBe(false);
+  const lien = join(share, "lien");
+  await symlink(voisin, lien, SYMLINK_TYPE);
+  expect(await isInsideShare(share, lien)).toBe(false);
+});
+
+it("projectPlacement : ok, noContainer, outsideShare", () => {
+  const project = { workspace: "/partage/RedWidow/projects/p", containers: ["kali-1", "kali-2"] };
+  const mounts = (entries: [string, string | undefined][]) => new Map(entries);
+  expect(projectPlacement(project, mounts([["kali-1", "/partage"]]))).toBe("ok");
+  expect(
+    projectPlacement(
+      project,
+      mounts([
+        ["kali-1", "/autre"],
+        ["kali-2", "/partage/RedWidow"],
+      ]),
+    ),
+  ).toBe("ok");
+  expect(projectPlacement({ ...project, containers: [] }, mounts([["kali-1", "/partage"]]))).toBe(
+    "noContainer",
+  );
+  expect(projectPlacement(project, mounts([["kali-1", "/autre"]]))).toBe("outsideShare");
+  expect(projectPlacement(project, mounts([["kali-1", "/partage-voisin"]]))).toBe("outsideShare");
+  expect(projectPlacement(project, mounts([["kali-1", undefined]]))).toBe("outsideShare");
+  expect(projectPlacement(project, new Map())).toBe("outsideShare");
 });
