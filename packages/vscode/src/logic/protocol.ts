@@ -74,7 +74,7 @@ export interface StartParams {
 /** Paramètres de lancement d'un run de campagne : `intent` pour un worker seulement. */
 export interface MultiAgentParams {
   role: "planner" | "worker";
-  intent?: { id: string; title: string; rationale: string };
+  intent?: { id: string; title: string; rationale: string; target?: string };
   /** Identifiant de run imposé par l'hôte (nom du journal) ; sinon tiré par le moteur. */
   runId?: string;
 }
@@ -242,14 +242,15 @@ function validMultiAgent(value: unknown): boolean {
   const intent = value.intent;
   return (
     isObj(intent) &&
-    onlyKeys(intent, ["id", "title", "rationale"]) === null &&
+    onlyKeys(intent, ["id", "title", "rationale", "target"]) === null &&
     isString(intent.id) &&
     intent.id !== "" &&
     intent.id.length <= 100 &&
     isString(intent.title) &&
     intent.title.length <= 1000 &&
     isString(intent.rationale) &&
-    intent.rationale.length <= 8000
+    intent.rationale.length <= 8000 &&
+    (intent.target === undefined || (isString(intent.target) && intent.target.length <= 253))
   );
 }
 

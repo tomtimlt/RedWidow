@@ -23,6 +23,7 @@ import { type MissionDecision, missionDecisionSchema } from "./mission-decision-
 import { evidenceWorkspace, missionEvidenceFile } from "./mission-evidence-file.js";
 import { type ProgramPace, type ProgramSheet, programSheetSchema } from "./program/sheet.js";
 import type { ProgramStatus } from "./program/store.js";
+import { approvedScopeSheets, targetInScope } from "./program/target-scope.js";
 import { CodedError, type Reason, reason } from "./reason.js";
 import type { Recorder } from "./recorder.js";
 import { createRedactor, secretsFromEnv } from "./redact.js";
@@ -120,6 +121,7 @@ export interface MissionContext {
     id: string;
     title: string;
     rationale: string;
+    target?: string;
   };
   /** Clôture de l'engagement : démontage restant (relance non bloquante) ; `null` sans liste de démontage. */
   closure: {
@@ -364,7 +366,7 @@ export function createMissionDesk({
   /** Plan de campagne et démontage du projet actif (ADR 0041) ; absent → `record_step` / `record_teardown` refusent (`project.absent`). */
   campaign?: CampaignPort;
   /** Intention du worker (ADR 0054) : ajoutée au contexte comme bloc structuré. */
-  campaignIntent?: { id: string; title: string; rationale: string };
+  campaignIntent?: { id: string; title: string; rationale: string; target?: string };
 }): MissionDesk {
   const settings = SUPERVISION_SETTINGS[supervision];
   const requiresCoverage = mission?.profile === "bug-bounty";
@@ -744,6 +746,12 @@ export function createMissionDesk({
     recordTest(raw) {
       assertOpen();
       const claim = auditTestSchema.parse(raw);
+      // Cible typée (ADR 0055) : avec une fiche approuvée, l'hôte doit être dans le périmètre.
+      const sheets = approvedScopeSheets(program, engagement);
+      if (sheets.length > 0 && claim.target.trim() !== "" && !targetInScope(sheets, claim.target))
+        throw new CodedError("audit.targetOutOfScope", {
+          target: clip(redact(claim.target), 200),
+        });
       const files = new Map<string, { path: string; sha256: string }>();
       for (const [id, source] of [
         ...claim.evidenceIds.map((id) => [id, false] as const),
@@ -1113,6 +1121,7 @@ export function createMissionDesk({
             id: campaignIntent.id,
             title: campaignIntent.title,
             rationale: campaignIntent.rationale,
+            ...(campaignIntent.target !== undefined && { target: campaignIntent.target }),
           }),
         }),
         guidance,
@@ -1135,7 +1144,7 @@ export function createMissionDesk({
         packet.activeTasks.pop();
       if (JSON.stringify(packet).length > maxChars) packet.prompt = "";
       if (JSON.stringify(packet).length > maxChars && packet.currentDecision) {
-        packet.currentDecision.objective = clip(packet.currentDecision.objective, 120);
+        packet.currentDecision.objective = clip(packet.currentDecision.objective, 500);
         packet.currentDecision.nextAction = clip(packet.currentDecision.nextAction, 120);
         packet.currentDecision.successCriterion = clip(
           packet.currentDecision.successCriterion,

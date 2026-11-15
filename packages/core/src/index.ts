@@ -59,6 +59,7 @@ export * from "./program/flags.js";
 export * from "./program/scope.js";
 export * from "./program/sheet.js";
 export * from "./program/store.js";
+export * from "./program/target-scope.js";
 export * from "./project.js";
 export * from "./project-workspace.js";
 export * from "./prompt-images.js";

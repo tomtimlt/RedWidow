@@ -22,7 +22,9 @@ export interface Intent {
   readonly id: string;
   readonly title: string;
   readonly rationale: string;
-  /** Clé normalisée du titre (minuscules, ponctuation retirée, espaces compactés), base du refus de doublon. */
+  /** Cible facultative (motif de périmètre : hôte, `*.domaine`, IP, CIDR). */
+  readonly target?: string;
+  /** Clé de doublon : titre normalisé (minuscules, ponctuation retirée, espaces compactés), `|`, cible. */
   readonly key: string;
   readonly state: IntentState;
   /** Tour du planificateur qui l'a ouverte. */
@@ -40,6 +42,8 @@ export interface Intent {
 export interface IntentDraft {
   title: string;
   rationale: string;
+  /** Cible facultative : motif de périmètre valide, dans le périmètre approuvé s'il y en a un. */
+  target?: string | undefined;
 }
 
 /** Verdict déposé par un worker. */

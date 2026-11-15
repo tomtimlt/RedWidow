@@ -24,7 +24,7 @@ export type CampaignRunRole =
   | {
       role: "worker";
       port: AgentCampaignPort;
-      intent: { id: string; title: string; rationale: string };
+      intent: { id: string; title: string; rationale: string; target?: string };
     };
 
 export interface LocalCampaignPortOptions {

@@ -254,3 +254,57 @@ describe("coordinateur de campagne", () => {
     expect(coordinator.status().counts).toMatchObject({ open: 0, claimed: 1 });
   });
 });
+
+describe("intentions ciblées (ADR 0055)", () => {
+  const withTarget = (title: string, target?: string) => ({
+    title,
+    rationale: "pourquoi",
+    ...(target !== undefined && { target }),
+  });
+
+  it("clé de doublon : même titre, cible différente n'est pas un doublon ; même cible l'est", () => {
+    const { coordinator } = setup();
+    const created = coordinator.openIntents(1, [
+      withTarget("injection SQL", "a.example.com"),
+      withTarget("Injection SQL", "b.example.com"),
+    ]);
+    expect(created).toHaveLength(2);
+    expect(created[0]?.key).toBe("injection sql|a.example.com");
+    expect(
+      codeOf(() => coordinator.openIntents(2, [withTarget("injection-sql!", "a.example.com")])),
+    ).toBe("campaign.duplicateIntent");
+    // Sans cible : clé terminée par « | », distincte des intentions ciblées.
+    expect(coordinator.openIntents(2, [withTarget("injection sql")])[0]?.key).toBe(
+      "injection sql|",
+    );
+  });
+
+  it("refuse un motif invalide", () => {
+    const { coordinator } = setup();
+    expect(codeOf(() => coordinator.openIntents(1, [withTarget("x", "pas un hôte!")]))).toBe(
+      "campaign.invalidInput",
+    );
+  });
+
+  it("sans périmètre approuvé, une cible valide est acceptée et journalisée", () => {
+    const { coordinator, events } = setup();
+    coordinator.openIntents(1, [withTarget("xss", "*.example.com")]);
+    const opened = events.find((e) => e.kind === "campaign.intent.opened");
+    expect(opened).toMatchObject({ target: "*.example.com" });
+    expect(opened && validateEvent(opened)).toBeNull();
+  });
+
+  it("hors périmètre : refus du lot entier", () => {
+    const { coordinator } = setup({ inScope: (t) => t.endsWith("example.com") });
+    expect(
+      codeOf(() =>
+        coordinator.openIntents(1, [
+          withTarget("a", "ok.example.com"),
+          withTarget("b", "evil.test"),
+        ]),
+      ),
+    ).toBe("campaign.targetOutOfScope");
+    expect(coordinator.status().intents).toHaveLength(0);
+    expect(coordinator.openIntents(1, [withTarget("a", "ok.example.com")])).toHaveLength(1);
+  });
+});

@@ -98,6 +98,46 @@ describe("outils de campagne multi-agents", () => {
     ).rejects.toThrow();
   });
 
+  it("accepte une cible valide, refuse un motif invalide (zod) et une cible hors périmètre", async () => {
+    const recorder = createRecorder({ redact: false });
+    const coordinator = createCampaignCoordinator({
+      recorder,
+      inScope: (t) => t === "api.example.com",
+    });
+    coordinator.start("auditer");
+    const planner: CampaignRunRole = {
+      role: "planner",
+      port: createLocalCampaignPort(coordinator, { role: "planner" }),
+    };
+    const open = spec(deskToolSpecs(undefined, planner), "campaign_open_intent");
+    const ctx = {} as never;
+    const created = JSON.parse(
+      await open.run(
+        { intents: [{ title: "IDOR", rationale: "r", target: "api.example.com" }] },
+        ctx,
+      ),
+    );
+    expect(created[0]).toMatchObject({ target: "api.example.com" });
+    await expect(
+      open.run({ intents: [{ title: "x", rationale: "r", target: "pas un hôte!" }] }, ctx),
+    ).rejects.toThrow();
+    await expect(
+      open.run({ intents: [{ title: "y", rationale: "r", target: "x".repeat(254) }] }, ctx),
+    ).rejects.toThrow();
+    await expect(
+      open.run(
+        {
+          intents: [
+            { title: "z1", rationale: "r", target: "api.example.com" },
+            { title: "z2", rationale: "r", target: "evil.test" },
+          ],
+        },
+        ctx,
+      ),
+    ).rejects.toMatchObject({ code: "campaign.targetOutOfScope" });
+    expect(coordinator.status().intents).toHaveLength(1);
+  });
+
   it("de bout en bout via le port local : ouvre 2 intentions, un worker en ferme une", async () => {
     const { coordinator, planner, worker } = setup();
     const ctx = {} as never;

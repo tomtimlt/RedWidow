@@ -1,3 +1,4 @@
+import { isValidScopePattern } from "../program/cited.js";
 import { CodedError, type Reason } from "../reason.js";
 import type { Recorder } from "../recorder.js";
 import {
@@ -29,6 +30,11 @@ export interface CampaignCoordinatorOptions {
   now?: () => number;
   /** Recorder du journal de campagne (masque les secrets avant tout sink). */
   recorder: Recorder;
+  /**
+   * Périmètre approuvé (ADR 0055), fourni par l'hôte : vrai si la cible est couverte. Absent :
+   * aucune fiche approuvée, les cibles ne sont contrôlées que sur leur forme.
+   */
+  inScope?: (target: string) => boolean;
 }
 
 /**
@@ -60,6 +66,10 @@ export function normalizeIntentKey(title: string): string {
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
 }
+
+/** Clé de doublon d'une intention : même direction sur deux cibles n'est pas un doublon. */
+const intentKey = (title: string, target: string | undefined): string =>
+  `${normalizeIntentKey(title)}|${target ?? ""}`;
 
 function invalid(field: string): CodedError {
   return new CodedError("campaign.invalidInput", { field });
@@ -164,11 +174,19 @@ export function createCampaignCoordinator(
       const prepared = drafts.map((draft) => {
         const title = text(draft?.title, "title", TITLE_MAX);
         const rationale = text(draft?.rationale, "rationale", TEXT_MAX, true);
-        const key = normalizeIntentKey(title);
-        if (key === "") throw invalid("title");
+        if (normalizeIntentKey(title) === "") throw invalid("title");
+        const raw: unknown = draft?.target;
+        let target: string | undefined;
+        if (raw !== undefined) {
+          if (typeof raw !== "string" || !isValidScopePattern(raw)) throw invalid("target");
+          if (options.inScope && !options.inScope(raw))
+            throw new CodedError("campaign.targetOutOfScope", { target: raw });
+          target = raw;
+        }
+        const key = intentKey(title, target);
         if (live.has(key)) throw new CodedError("campaign.duplicateIntent", { key });
         live.add(key);
-        return { title, rationale, key };
+        return { title, rationale, ...(target !== undefined && { target }), key };
       });
       const created: Intent[] = [];
       for (const p of prepared) {
@@ -188,6 +206,7 @@ export function createCampaignCoordinator(
           intentId: intent.id,
           title: intent.title,
           rationale: intent.rationale,
+          ...(intent.target !== undefined && { target: intent.target }),
           key: intent.key,
           round,
         });

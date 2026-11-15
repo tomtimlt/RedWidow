@@ -179,6 +179,8 @@ export const reasons: Catalog = {
     `${text(p.count)} 403 or WAF refusals: search documented bypasses for the component (no target identifier in the query)`,
   "research.noSearch": () => "no web search in this run although web tools are exposed",
   "mission.noContainer": () => "No attached container: shell tools unavailable.",
+  "audit.targetOutOfScope": (p) =>
+    `target outside the approved scope or unreadable: ${text(p.target)}; fix the target or ask for a sheet update`,
   "mission.sourceUnknown": () =>
     "unknown source: cite the tool call or a file produced in this run",
   "coverage.testRefUnknown": (p) =>
@@ -284,6 +286,7 @@ export const reasons: Catalog = {
   "campaign.evidenceUnknown": (p) => `unknown evidence reference in this run: ${text(p.id)}`,
   "campaign.roundCap": (p) =>
     `round ${text(p.round)}: at most ${text(p.max)} open intents per planner round`,
+  "campaign.targetOutOfScope": (p) => `target outside the approved scope: ${text(p.target)}`,
   "campaign.duplicateIntent": (p) =>
     `duplicate intent (key "${text(p.key)}"): the same direction is already open, claimed or done`,
   "campaign.finished": () => "the campaign is finished: no intent can be opened any more",

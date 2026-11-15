@@ -309,6 +309,8 @@ export const reasons: Catalog = {
   "research.noSearch": () =>
     "aucune recherche web dans ce run alors que les outils web sont exposés : chercher la pile identifiée",
   "mission.noContainer": () => "Pas de conteneur attaché : outils shell indisponibles.",
+  "audit.targetOutOfScope": (p) =>
+    `cible hors du périmètre approuvé ou illisible : ${text(p.target)} ; corriger la cible ou demander une mise à jour de la fiche`,
   "mission.sourceUnknown": () =>
     "source inconnue : citez l'appel d'outil ou un fichier produit dans ce run",
   "coverage.testRefUnknown": (p) =>
@@ -416,6 +418,7 @@ export const reasons: Catalog = {
   "campaign.evidenceRequired": (p) =>
     `étape ${text(p.stepId)} : un résultat success ou partial exige au moins une référence de preuve (evidenceIds)`,
   "campaign.evidenceUnknown": (p) => `référence de preuve inconnue dans ce run : ${text(p.id)}`,
+  "campaign.targetOutOfScope": (p) => `cible hors du périmètre approuvé : ${text(p.target)}`,
   "campaign.roundCap": (p) =>
     `tour ${text(p.round)} : au plus ${text(p.max)} intentions ouvertes par tour du planificateur`,
   "campaign.duplicateIntent": (p) =>

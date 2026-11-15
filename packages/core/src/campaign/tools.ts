@@ -1,11 +1,14 @@
 import { z } from "zod";
 import type { DockerToolSpec } from "../docker/tool-specs.js";
+import { isValidScopePattern } from "../program/cited.js";
 import type { CampaignRunRole } from "./port.js";
 import { COVERAGE_OUTCOMES } from "./types.js";
 
 const draftSchema = z.object({
   title: z.string().min(1).max(200),
   rationale: z.string().max(2000),
+  /** Cible facultative : hôte, `*.domaine`, IP ou CIDR (minuscules) ; vérifiée contre le périmètre approuvé. */
+  target: z.string().max(253).refine(isValidScopePattern, "motif de périmètre invalide").optional(),
 });
 const openInput = { intents: z.array(draftSchema).min(1).max(4) };
 const closeInput = {
@@ -26,7 +29,7 @@ export function campaignToolSpecs(multiAgent?: CampaignRunRole): DockerToolSpec[
       {
         name: "campaign_open_intent",
         description:
-          "Planificateur : ouvrir 1 à 4 intentions d'exploration (title court et distinct, rationale). Un worker prendra chacune. Un titre déjà ouvert, pris ou terminé est refusé en bloc ; le plafond par tour et le budget s'appliquent. Renvoie les intentions créées.",
+          "Planificateur : ouvrir 1 à 4 intentions d'exploration (title court et distinct, rationale, target facultative : hôte, *.domaine, IP ou CIDR dans le périmètre approuvé). Un worker prendra chacune. Un couple titre et cible déjà ouvert, pris ou terminé est refusé en bloc, comme une cible hors périmètre ; le plafond par tour et le budget s'appliquent. Renvoie les intentions créées.",
         input: openInput,
         readOnly: false,
         async run(raw) {

@@ -160,6 +160,8 @@ export type EventPayload =
       intentId: string;
       title: string;
       rationale: string;
+      /** Cible facultative de l'intention (ADR 0055). */
+      target?: string;
       key: string;
       round: number;
     }
@@ -566,6 +568,7 @@ export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
     intentId: "string",
     title: "string",
     rationale: "string",
+    target: "string?",
     key: "string",
     round: "uint",
   }),

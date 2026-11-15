@@ -96,7 +96,7 @@ export interface CampaignAgentInfo {
   role: CampaignAgentRole;
   index: number;
   runId: string;
-  intent?: { id: string; title: string; rationale: string };
+  intent?: { id: string; title: string; rationale: string; target?: string };
 }
 
 export interface CampaignHostOptions {
@@ -108,6 +108,8 @@ export interface CampaignHostOptions {
   spawnEngine: (spec: EngineSpec) => EngineHandle;
   /** Recorder du journal de campagne. */
   recorder: Recorder;
+  /** Périmètre approuvé du projet du chat (ADR 0055) ; absent : aucune fiche approuvée. */
+  inScope?: (target: string) => boolean;
   now?: () => number;
   /** Délai anti-rebond avant de réveiller le planificateur (défaut : 2000 ms). */
   debounceMs?: number;
@@ -149,9 +151,10 @@ function plannerPrompt(objective: string, snapshot: CampaignRunStatus | undefine
 
 function workerPrompt(
   objective: string,
-  intent: { id: string; title: string; rationale: string },
+  intent: { id: string; title: string; rationale: string; target?: string },
 ): string {
-  return `Objectif de la campagne :\n${objective}\n\nTon intention (${intent.id}) : ${intent.title}\n${intent.rationale}\n\nTraite uniquement cette intention, puis ferme-la avec campaign_close_intent.`;
+  const target = intent.target === undefined ? "" : `Cible : ${intent.target}\n`;
+  return `Objectif de la campagne :\n${objective}\n\nTon intention (${intent.id}) : ${intent.title}\n${target}${intent.rationale}\n\nTraite uniquement cette intention, puis ferme-la avec campaign_close_intent.`;
 }
 
 export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
@@ -165,6 +168,7 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
     maxWorkers: workers,
     budget: { maxUsd: options.maxBudgetUsd ?? CAMPAIGN_MAX_BUDGET_USD },
     recorder: options.recorder,
+    ...(options.inScope !== undefined && { inScope: options.inScope }),
     ...(options.now !== undefined && { now: options.now }),
   });
 
@@ -263,7 +267,12 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
       if (!intent) return;
       workerSeq += 1;
       workerIndexes.set(runId, workerSeq);
-      const brief = { id: intent.id, title: intent.title, rationale: intent.rationale };
+      const brief = {
+        id: intent.id,
+        title: intent.title,
+        rationale: intent.rationale,
+        ...(intent.target !== undefined && { target: intent.target }),
+      };
       const info: CampaignAgentInfo = { role: "worker", index: workerSeq, runId, intent: brief };
       try {
         spawn(

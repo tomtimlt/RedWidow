@@ -120,6 +120,11 @@ export interface ChatSessionDeps {
   getToken(provider?: Provider): Promise<TokenChoice | undefined>;
   getTestAccounts?(): Promise<import("@warband/core").TestAccount[]>;
   /**
+   * Contrôle de cible sur le périmètre approuvé (programme, engagement) du projet donné (ADR 0055) ;
+   * `undefined` sans fiche approuvée. Absent : les cibles de campagne ne sont contrôlées que sur leur forme.
+   */
+  campaignScope?(projectId: string): ((target: string) => boolean) | undefined;
+  /**
    * Sans jeton, le chat est grisé (`noProvider`) et aucun message ne part. Absent : le binaire garde
    * son authentification `auto` (comportement historique, et celui des tests).
    */
@@ -905,9 +910,13 @@ export function createChatSession(deps: ChatSessionDeps) {
         options: { enginePath: deps.enginePath, args: deps.engineArgs, cwd: deps.cwd },
         resolve: campaignSetup,
       });
+      const inScope = isRunId(historyProjects.activeId)
+        ? deps.campaignScope?.(historyProjects.activeId)
+        : undefined;
       const host = createCampaignHost({
         objective: prompt,
         workers: prefs.multiAgentWorkers,
+        ...(inScope !== undefined && { inScope }),
         spawnEngine,
         recorder,
         onApproval: (card) => {

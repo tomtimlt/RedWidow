@@ -715,3 +715,81 @@ it("refuse une preuve ancienne retouchée et une racine remplacée", () => {
     rmSync(parent, { recursive: true, force: true });
   }
 });
+
+describe("cible vérifiée contre le périmètre (ADR 0055)", () => {
+  const sheet = (inScope: string[], outOfScope: string[] = []) =>
+    ({ inScope: { value: inScope }, outOfScope: { value: outOfScope } }) as never;
+  function scoped(status: unknown) {
+    const recorder = createRecorder({ runId: "run", redact: false });
+    const desk = createMissionDesk({
+      recorder,
+      program: () => status as never,
+    });
+    recorder.emit({ kind: "tool.requested", toolUseId: "c1", tool: "read", input: {} });
+    const e = recorder.emit({
+      kind: "tool.result",
+      toolUseId: "c1",
+      output: "ok",
+      isError: false,
+      truncated: false,
+      bytes: 2,
+    });
+    const claim = (target: string) => ({
+      objective: "Test",
+      target,
+      testContext: "anonyme",
+      method: "HTTP GET",
+      observed: "rien",
+      conclusion: "not-observed" as const,
+      evidenceIds: [e.id],
+    });
+    return { desk, claim };
+  }
+  const approved = (inScope: string[], outOfScope: string[] = []) => ({
+    state: "approved",
+    applied: sheet(inScope, outOfScope),
+  });
+
+  it("accepte une cible dans le périmètre (hôte, URL, joker)", () => {
+    const f = scoped(approved(["*.example.com"]));
+    expect(f.desk.recordTest(f.claim("api.example.com"))).toMatchObject({ reviewed: false });
+    expect(f.desk.recordTest(f.claim("https://api.example.com:8443/x"))).toMatchObject({
+      reviewed: false,
+    });
+  });
+
+  it("refuse une cible hors périmètre, exclue ou illisible (audit.targetOutOfScope)", () => {
+    const f = scoped(approved(["*.example.com"], ["admin.example.com"]));
+    for (const target of ["evil.test", "admin.example.com", "http://["]) {
+      expect(() => f.desk.recordTest(f.claim(target))).toThrow(
+        expect.objectContaining({ code: "audit.targetOutOfScope" }),
+      );
+    }
+  });
+
+  it("sans fiche approuvée, rien ne change", () => {
+    for (const status of [{ state: "none" }, { state: "draft", draft: sheet(["a.test"]) }]) {
+      const f = scoped(status);
+      expect(f.desk.recordTest(f.claim("evil.test"))).toMatchObject({ reviewed: false });
+    }
+  });
+
+  it("transmet la cible de l'intention au contexte du worker", () => {
+    const recorder = createRecorder({ runId: "run", redact: false });
+    const desk = createMissionDesk({
+      recorder,
+      campaignIntent: { id: "i1", title: "IDOR", rationale: "r", target: "api.example.com" },
+    });
+    expect(desk.context().campaignIntent).toMatchObject({ id: "i1", target: "api.example.com" });
+  });
+
+  it("conserve un objectif de 400 caractères entier quand le contexte déborde", () => {
+    const f = fixture();
+    const objective = "o".repeat(400);
+    f.desk.recordDecision({ ...decision, objective });
+    for (let i = 0; i < 40; i++) f.result(`observation ancienne ${i} ${"z".repeat(300)}`);
+    const packet = f.desk.context({ maxChars: 2048 });
+    expect(JSON.stringify(packet).length).toBeLessThanOrEqual(2048);
+    expect(packet.currentDecision?.objective).toBe(objective);
+  });
+});

@@ -9,6 +9,7 @@ import {
   activeProject,
   agentProfileLabel,
   appendFinding,
+  approvedScopeSheets,
   attachEvidence,
   buildAttackFlow,
   burpToolSpecs,
@@ -33,9 +34,12 @@ import {
   prepareKaliContainer,
   promptForTargets,
   pullDockerImage,
+  readEngagementSync,
   readFindings,
+  readProgramSync,
   readProjects,
   resolveBinary,
+  scopeChecker,
   shortContainerName,
   type TestAccount,
   testAccountsSchema,
@@ -770,6 +774,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       prefsKey: `warband.prefs.chat.${id}`,
       getToken,
       getTestAccounts: activeTestAccounts,
+      campaignScope: (projectId) => {
+        const dir = defaultConfigDir();
+        return scopeChecker(
+          approvedScopeSheets(
+            () => readProgramSync(dir, projectId),
+            () => readEngagementSync(dir, projectId),
+          ),
+        );
+      },
       // Sans jeton, le chat est grisé et propose d'en ajouter un.
       requireProvider: true,
       learningKey,

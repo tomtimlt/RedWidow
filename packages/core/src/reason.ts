@@ -169,6 +169,7 @@ export const REASON_CODES = [
   "campaign.evidenceUnknown",
   // Coordinateur de campagne multi-agents (ADR 0054)
   "campaign.roundCap",
+  "campaign.targetOutOfScope",
   "campaign.duplicateIntent",
   "campaign.finished",
   "campaign.budgetExhausted",
@@ -221,6 +222,7 @@ export const REASON_CODES = [
   "research.blocked",
   "research.noSearch",
   "mission.sourceUnknown",
+  "audit.targetOutOfScope",
   // Matrice de couverture
   "coverage.testRefUnknown",
   "coverage.testRefRequired",
