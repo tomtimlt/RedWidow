@@ -1,5 +1,7 @@
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import {
+  type AgentCampaignPort,
+  CodedError,
   createApprovalGate,
   createRecorder,
   DEFAULT_POLICY,
@@ -7,6 +9,7 @@ import {
   type MissionDesk,
   parseProgramSheet,
   programDigest,
+  type RunContext,
   renderProfileSkill,
 } from "@warband/core";
 import { expect, it } from "vitest";
@@ -106,6 +109,89 @@ it("isole le bureau par run et enrichit les tours à leur consommation", async (
   expect(prompts[1]).not.toContain("alpha.example");
   expect(prompts[1]).not.toContain("preuve courante");
   expect(prompts[1]).toContain("aucune autorisation supplémentaire");
+});
+
+const PORT_EN_ECHEC: AgentCampaignPort = {
+  async openIntents() {
+    throw new CodedError("campaign.budgetExhausted");
+  },
+  async status() {
+    throw new CodedError("campaign.finished");
+  },
+  async closeIntent() {
+    throw new CodedError("campaign.notClaimant", { intentId: "i1" });
+  },
+};
+
+it("expose les outils de campagne selon le rôle, sans effet sans campagne (ADR 0054)", async () => {
+  const seen: string[][] = [];
+  const desk = deskToolset();
+  const set: Toolset = {
+    ...desk,
+    create(ctx) {
+      const tools = desk.create(ctx);
+      seen.push(tools.map((t) => t.name));
+      return tools;
+    },
+  };
+  const roles: (RunContext["multiAgent"] | undefined)[] = [
+    undefined,
+    { role: "planner", port: PORT_EN_ECHEC },
+    {
+      role: "worker",
+      port: PORT_EN_ECHEC,
+      intent: { id: "i1", title: "IDOR", rationale: "ids" },
+    },
+  ];
+  for (const multiAgent of roles) {
+    const recorder = createRecorder();
+    const summary = await createSdkRunner({
+      processEnv: {},
+      toolsets: [set],
+      query: async function* () {
+        yield { type: "result", subtype: "success", result: "ok" } as unknown as SDKMessage;
+      },
+    }).run(
+      { prompt: "go", cwd: process.cwd() },
+      {
+        recorder,
+        gate: createApprovalGate({ recorder, policy: DEFAULT_POLICY }),
+        ...(multiAgent && { multiAgent }),
+      },
+    );
+    expect(summary.status).toBe("success");
+  }
+  const campaign = (names: string[]) => names.filter((n) => n.startsWith("campaign_"));
+  expect(campaign(seen[0] ?? [])).toEqual([]);
+  expect(campaign(seen[1] ?? [])).toEqual(["campaign_open_intent", "campaign_status"]);
+  expect(campaign(seen[2] ?? [])).toEqual(["campaign_close_intent"]);
+});
+
+it("une erreur du port de campagne devient une erreur d'outil MCP, le run continue", async () => {
+  const recorder = createRecorder();
+  let isError: boolean | undefined;
+  const summary = await createSdkRunner({
+    processEnv: {},
+    toolsets: [deskToolset()],
+    query: async function* ({ options }) {
+      const server = options.mcpServers?.desk;
+      if (!server || !("instance" in server)) throw new Error("Serveur desk absent");
+      const result = await callMcpTool(server, "campaign_open_intent", {
+        intents: [{ title: "a", rationale: "" }],
+      });
+      isError = result.isError;
+      yield { type: "result", subtype: "success", result: "ok" } as unknown as SDKMessage;
+    },
+  }).run(
+    { prompt: "go", cwd: process.cwd() },
+    {
+      recorder,
+      gate: createApprovalGate({ recorder, policy: DEFAULT_POLICY }),
+      multiAgent: { role: "planner", port: PORT_EN_ECHEC },
+    },
+  );
+  expect(isError).toBe(true);
+  expect(summary.status).toBe("success");
 });
 
 it("préserve le prompt sans bureau et ne fournit aucune instance aux autres toolsets", async () => {

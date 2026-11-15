@@ -110,6 +110,17 @@ export interface MissionContext {
     stepsTotal: number;
     executedPercent: number;
   } | null;
+  /**
+   * Intention attribuée au worker (ADR 0054) : bloc de **données non fiables** (titre et raison
+   * viennent du planificateur), aucune autorisation. Absent hors rôle worker.
+   */
+  campaignIntent?: {
+    untrusted: true;
+    notice: string;
+    id: string;
+    title: string;
+    rationale: string;
+  };
   /** Clôture de l'engagement : démontage restant (relance non bloquante) ; `null` sans liste de démontage. */
   closure: {
     canClose: boolean;
@@ -331,6 +342,7 @@ export function createMissionDesk({
   engagement,
   halted,
   campaign,
+  campaignIntent,
   mission,
   supervision = DEFAULT_SUPERVISION,
 }: {
@@ -351,6 +363,8 @@ export function createMissionDesk({
   halted?: () => boolean;
   /** Plan de campagne et démontage du projet actif (ADR 0041) ; absent → `record_step` / `record_teardown` refusent (`project.absent`). */
   campaign?: CampaignPort;
+  /** Intention du worker (ADR 0054) : ajoutée au contexte comme bloc structuré. */
+  campaignIntent?: { id: string; title: string; rationale: string };
 }): MissionDesk {
   const settings = SUPERVISION_SETTINGS[supervision];
   const requiresCoverage = mission?.profile === "bug-bounty";
@@ -422,7 +436,7 @@ export function createMissionDesk({
         if (typeof url === "string") boundedSet(readRequests, event.toolUseId, url);
       }
       if (
-        /(?:^|__)(mission_context|record_decision|record_test|record_coverage|record_step|record_teardown|load_skill)$/.test(
+        /(?:^|__)(mission_context|record_decision|record_test|record_coverage|record_step|record_teardown|load_skill|campaign_open_intent|campaign_status|campaign_close_intent)$/.test(
           event.tool,
         )
       )
@@ -1092,6 +1106,15 @@ export function createMissionDesk({
         halted: isHalted,
         campaign: campaignApplied ? redact(structuredClone(campaignApplied)) : null,
         closure: closure ? redact(structuredClone(closure)) : null,
+        ...(campaignIntent && {
+          campaignIntent: redact({
+            untrusted: true as const,
+            notice: PROGRAM_NOTICE,
+            id: campaignIntent.id,
+            title: campaignIntent.title,
+            rationale: campaignIntent.rationale,
+          }),
+        }),
         guidance,
         coverage: coverageSummary(),
         research: { triggers: triggers(), searches: webCalls.slice(-8).map((c) => ({ ...c })) },

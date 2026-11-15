@@ -18,6 +18,8 @@ export interface ToolContext {
   accounts?: import("@warband/core").TestAccounts;
   recorder: Recorder;
   missionDesk?: MissionDesk;
+  /** Rôle du run dans une campagne multi-agents (ADR 0054) ; absent : aucun outil de campagne. */
+  multiAgent?: import("@warband/core").CampaignRunRole;
   /**
    * Id de l'événement `tool.requested` à utiliser comme parent des `process.*`
    * d'un appel (nom complet `mcp__<serveur>__<outil>`), ou `null` pour aucun.

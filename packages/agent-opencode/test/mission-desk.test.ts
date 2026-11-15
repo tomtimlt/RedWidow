@@ -1,7 +1,9 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import {
+  type AgentCampaignPort,
   type ApprovalRequest,
+  CodedError,
   createApprovalGate,
   createRecorder,
   createTestAccounts,
@@ -10,6 +12,7 @@ import {
   type MissionDesk,
   parseProgramSheet,
   programDigest,
+  type RunContext,
   renderProfileSkill,
 } from "@warband/core";
 import { expect, it } from "vitest";
@@ -176,6 +179,73 @@ it("isole chaque run et branche mission_context sur les observations courantes",
     expect(() => desks.at(-1)?.context()).toThrow();
   }
   expect(desks[0]).not.toBe(desks[1]);
+});
+
+const PORT_EN_ECHEC: AgentCampaignPort = {
+  async openIntents() {
+    throw new CodedError("campaign.budgetExhausted");
+  },
+  async status() {
+    throw new CodedError("campaign.finished");
+  },
+  async closeIntent() {
+    throw new CodedError("campaign.notClaimant", { intentId: "i1" });
+  },
+};
+
+it("expose les outils de campagne selon le rôle, sans effet sans campagne (ADR 0054)", async () => {
+  const seen: string[][] = [];
+  const desk = deskToolset();
+  const set: OpencodeToolset = {
+    ...desk,
+    create(ctx) {
+      const tools = desk.create(ctx);
+      seen.push(tools.map((t) => t.name));
+      return tools;
+    },
+  };
+  const roles: (RunContext["multiAgent"] | undefined)[] = [
+    undefined,
+    { role: "planner", port: PORT_EN_ECHEC },
+    {
+      role: "worker",
+      port: PORT_EN_ECHEC,
+      intent: { id: "i1", title: "IDOR", rationale: "ids" },
+    },
+  ];
+  for (const multiAgent of roles) {
+    const fake = fakeOpencode([
+      (s) => {
+        s.emit("message.updated", userMessage("u"));
+        s.idle();
+      },
+    ]);
+    const summary = await harness().run(
+      createOpencodeRunner({ processEnv: {}, toolsets: [set], createClient: fake.createClient }),
+      {},
+      undefined,
+      multiAgent ? { multiAgent } : {},
+    );
+    expect(summary.status).toBe("success");
+  }
+  const campaign = (names: string[]) => names.filter((n) => n.startsWith("campaign_"));
+  expect(campaign(seen[0] ?? [])).toEqual([]);
+  expect(campaign(seen[1] ?? [])).toEqual(["campaign_open_intent", "campaign_status"]);
+  expect(campaign(seen[2] ?? [])).toEqual(["campaign_close_intent"]);
+});
+
+it("une erreur du port de campagne est un rejet de l'outil, pas un plantage du run", async () => {
+  const tools = deskToolset().create({
+    recorder: createRecorder(),
+    multiAgent: { role: "planner", port: PORT_EN_ECHEC },
+  });
+  const open = tools.find((t) => t.name === "campaign_open_intent");
+  await expect(
+    open?.run(
+      { intents: [{ title: "a", rationale: "" }] },
+      { parentId: null, correlation: undefined, signal: undefined },
+    ),
+  ).rejects.toMatchObject({ code: "campaign.budgetExhausted" });
 });
 
 it("préserve le prompt sans bureau et ne fournit aucune instance aux autres toolsets", async () => {

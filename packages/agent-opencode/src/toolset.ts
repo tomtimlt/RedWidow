@@ -38,6 +38,8 @@ export interface OpencodeToolContext {
   accounts?: import("@warband/core").TestAccounts;
   recorder: Recorder;
   missionDesk?: MissionDesk;
+  /** Rôle du run dans une campagne multi-agents (ADR 0054) ; absent : aucun outil de campagne. */
+  multiAgent?: import("@warband/core").CampaignRunRole;
 }
 
 /**
@@ -154,5 +156,8 @@ export function integrationToolset(
 }
 
 export function deskToolset(): OpencodeToolset {
-  return { name: "desk", create: ({ missionDesk }) => deskToolSpecs(missionDesk) };
+  return {
+    name: "desk",
+    create: ({ missionDesk, multiAgent }) => deskToolSpecs(missionDesk, multiAgent),
+  };
 }

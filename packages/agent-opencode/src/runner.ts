@@ -487,6 +487,7 @@ async function runWithOpencode(
         ...(context.engagement !== undefined && { engagement: context.engagement }),
         ...(context.halted !== undefined && { halted: context.halted }),
         ...(context.campaign !== undefined && { campaign: context.campaign }),
+        ...(context.multiAgent?.role === "worker" && { campaignIntent: context.multiAgent.intent }),
       })
     : undefined;
   try {
@@ -519,7 +520,16 @@ function missionPrompt(
 async function runWithOpencodeWithDesk(
   options: OpencodeRunnerOptions,
   input: RunInput,
-  { recorder, gate, signal, onMissionContext, supervision, halted, accounts }: RunContext,
+  {
+    recorder,
+    gate,
+    signal,
+    onMissionContext,
+    supervision,
+    halted,
+    accounts,
+    multiAgent,
+  }: RunContext,
   missionDesk?: MissionDesk,
 ): Promise<RunSummary> {
   const supervisionSettings = SUPERVISION_SETTINGS[parseSupervision(supervision)];
@@ -1115,6 +1125,7 @@ async function runWithOpencodeWithDesk(
       tools: set.create({
         recorder,
         ...(missionDesk && { missionDesk }),
+        ...(multiAgent && { multiAgent }),
         ...(accounts && { accounts }),
       }),
       ...(["web", "exegol", "kali", "projectfiles"].includes(set.name) && {

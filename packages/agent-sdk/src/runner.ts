@@ -354,6 +354,7 @@ async function runWithSdk(
         ...(context.engagement !== undefined && { engagement: context.engagement }),
         ...(context.halted !== undefined && { halted: context.halted }),
         ...(context.campaign !== undefined && { campaign: context.campaign }),
+        ...(context.multiAgent?.role === "worker" && { campaignIntent: context.multiAgent.intent }),
       })
     : undefined;
   try {
@@ -384,7 +385,7 @@ function missionPrompt(
 async function runWithSdkWithDesk(
   options: SdkRunnerOptions,
   input: RunInput,
-  { recorder, gate, signal, onMissionContext, accounts }: RunContext,
+  { recorder, gate, signal, onMissionContext, accounts, multiAgent }: RunContext,
   missionDesk?: MissionDesk,
 ): Promise<RunSummary> {
   const { prompt, cwd } = input;
@@ -565,6 +566,7 @@ async function runWithSdkWithDesk(
       ...(accounts && { accounts: accounts }),
       recorder,
       ...(missionDesk && { missionDesk }),
+      ...(multiAgent && { multiAgent }),
       resolveCall,
       resolveParent: (toolName, args, extra) => resolveCall(toolName, args, extra).parentId,
     });

@@ -83,6 +83,8 @@ export interface RunContext {
   halted?: () => boolean;
   /** Plan de campagne et démontage du projet actif (ADR 0041) : `record_step`, `record_teardown`, `mission_context`. */
   campaign?: import("./engagement/campaign-port.js").CampaignPort;
+  /** Rôle du run dans une campagne multi-agents (ADR 0054) ; absent : aucun outil de campagne. */
+  multiAgent?: import("./campaign/port.js").CampaignRunRole;
   onMissionContext?: (snapshot: import("./mission-desk.js").MissionContext) => void;
 }
 

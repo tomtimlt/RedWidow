@@ -478,7 +478,7 @@ export function auditTests(records: readonly AuditRecord[]): AuditTest[] {
         e.input && typeof e.input === "object" ? (e.input as Record<string, unknown>) : {};
       const tool = typeof e.tool === "string" ? e.tool : (old?.method ?? "tool");
       if (
-        /(?:^|__)(?:load_skill|mission_context|record_decision|record_test|record_coverage|record_step|record_teardown)$/.test(
+        /(?:^|__)(?:load_skill|mission_context|record_decision|record_test|record_coverage|record_step|record_teardown|campaign_open_intent|campaign_status|campaign_close_intent)$/.test(
           tool,
         )
       )

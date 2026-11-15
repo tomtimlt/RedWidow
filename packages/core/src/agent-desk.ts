@@ -2,6 +2,8 @@ import { z } from "zod";
 import { normalizeSkillSearch, renderProfileSkill } from "./agent-profile-skill.js";
 import { AGENT_PROFILES, DEFAULT_AGENT_PROFILE, isAgentProfile } from "./agent-profiles.js";
 import { auditTestSchema, coverageWriteSchema } from "./audit-schema.js";
+import type { CampaignRunRole } from "./campaign/port.js";
+import { campaignToolSpecs } from "./campaign/tools.js";
 import type { DockerToolSpec } from "./docker/tool-specs.js";
 import { recordStepSchema, recordTeardownSchema } from "./engagement/campaign-schema.js";
 import type { MissionDesk, ProgramDraftInput } from "./mission-desk.js";
@@ -40,7 +42,7 @@ export function deskInstructions(profile?: string): string {
       : "Aucun profil spécialisé imposé.")
   );
 }
-export function deskToolSpecs(desk?: MissionDesk): DockerToolSpec[] {
+export function deskToolSpecs(desk?: MissionDesk, multiAgent?: CampaignRunRole): DockerToolSpec[] {
   const input = {
     profile: z.enum(Object.keys(AGENT_PROFILES).filter(isAgentProfile)),
     section: z.string().min(1).max(120).optional(),
@@ -195,5 +197,6 @@ export function deskToolSpecs(desk?: MissionDesk): DockerToolSpec[] {
         },
       },
     );
+  specs.push(...campaignToolSpecs(multiAgent));
   return specs;
 }
