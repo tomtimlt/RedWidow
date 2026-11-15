@@ -1,4 +1,5 @@
 import { isIP } from "node:net";
+import { BURP_CALL_TOOL, burpTargets } from "../burp/targets.js";
 import type { ProgramSheet } from "./sheet.js";
 import { argvNetworkTargets, type NetworkCall, shellNetworkTargets } from "./shell-hosts.js";
 
@@ -140,6 +141,16 @@ export function programTargets(
     return {
       hosts: typeof input.url === "string" ? uniqueHosts([input.url]) : [],
       unresolved: false,
+    };
+  }
+  if (tool === BURP_CALL_TOOL) {
+    // Outil Burp ciblé (ADR 0055) : hôtes de l'hôte cible, de l'URL ou de `Host:`. Hôte illisible
+    // ou outil inconnu : cible non extractible (fail-closed). Outil non ciblé : inchangé.
+    const found = burpTargets(input);
+    if (found === null) return { hosts: [], unresolved: false };
+    return {
+      hosts: uniqueHosts(found.candidates),
+      unresolved: found.unresolved || found.candidates.some((c) => hostOfTarget(c) === null),
     };
   }
   if (SHELL_COMMAND_TOOLS.has(tool) && typeof input.command === "string") {

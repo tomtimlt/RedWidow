@@ -59,7 +59,7 @@ export function burpToolSpecs(config: BurpConfig, backend: BurpBackend): DockerT
     {
       name: "call_tool",
       description:
-        "Exécuter un outil MCP Burp découvert par list_tools. Peut modifier Burp ou envoyer des requêtes : vérifier le scope et les arguments dans la gate.",
+        "Exécuter un outil MCP Burp découvert par list_tools. Peut modifier Burp ou envoyer des requêtes : pour les outils ciblés connus, la gate contrôle l’hôte visé contre le périmètre approuvé (fiche programme ou engagement) ; un outil inconnu demande une approbation. Elle ne vérifie pas le scope de Burp lui-même.",
       input: call,
       async run(raw, ctx) {
         const args = z.object(call).strict().parse(raw);
