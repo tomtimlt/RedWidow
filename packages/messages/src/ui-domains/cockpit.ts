@@ -118,6 +118,8 @@ export const cockpitEn: Record<string, string> = {
   Réessayer: "Retry",
   "Voir le conteneur": "View container",
   "Conteneur créé": "Container created",
+  "Conteneur créé (réseau privé docker : le NAT est réservé à Exegol Pro).":
+    "Container created (private docker network: NAT is reserved for Exegol Pro).",
   "Aucun conteneur pour l’instant": "No containers yet",
   "Créez un environnement isolé pour lancer vos outils et garder le projet à portée.":
     "Create an isolated environment to run your tools and keep the project close at hand.",

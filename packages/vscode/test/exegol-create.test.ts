@@ -227,3 +227,21 @@ describe("aide d'Exegol 6 (options abrégées « --[no-]x »)", () => {
     expect(argv.slice(0, 3)).toEqual(["start", "exegol-1", "free"]);
   });
 });
+
+describe("réseau docker (Exegol Community)", () => {
+  const caps = parseExegolCapabilities(
+    "--network --vpn --log --no-log --desktop --no-desktop --desktop-config",
+  );
+  it("accepte --network docker, y compris avec un VPN", () => {
+    const argv = buildExegolCreateArgv(
+      { name: "e", network: "docker", vpnPath: "/srv/v.ovpn" },
+      caps,
+    );
+    expect(argv).toEqual(expect.arrayContaining(["--network", "docker", "--vpn", "/srv/v.ovpn"]));
+  });
+  it("refuse toujours le VPN en réseau hôte", () => {
+    expect(() =>
+      buildExegolCreateArgv({ name: "e", network: "host", vpnPath: "/srv/v.ovpn" }, caps),
+    ).toThrow();
+  });
+});

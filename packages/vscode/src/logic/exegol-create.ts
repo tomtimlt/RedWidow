@@ -8,7 +8,8 @@ export interface ExegolCreateOptions {
   image?: string;
   workspacePath?: string;
   vpnPath?: string;
-  network?: "nat" | "host" | "disabled";
+  /** `docker` : réseau privé de Docker, seul réseau isolé d'Exegol Community (NAT réservé à Pro). */
+  network?: "nat" | "docker" | "host" | "disabled";
   desktop?: boolean;
   desktopPort?: number;
   gui?: boolean;
@@ -66,8 +67,10 @@ export function buildExegolCreateArgv(
     argv.push(flag, ...values);
   };
   const network = options.network ?? "nat";
-  if (!["nat", "host", "disabled"].includes(network)) throw new Error(t("Réseau Exegol invalide."));
-  if (options.vpnPath && network !== "nat") throw new Error(t("Le VPN nécessite le réseau NAT."));
+  if (!["nat", "docker", "host", "disabled"].includes(network))
+    throw new Error(t("Réseau Exegol invalide."));
+  if (options.vpnPath && network !== "nat" && network !== "docker")
+    throw new Error(t("Le VPN nécessite le réseau NAT."));
   if (options.desktop && network === "disabled")
     throw new Error(t("Le bureau nécessite un réseau actif."));
   if (options.workspacePath) add("--workspace", hostPath(options.workspacePath));

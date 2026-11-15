@@ -357,6 +357,22 @@ describe("cockpit : création d'un Kali (API Engine) et d'un Exegol (CLI du serv
     );
   });
 
+  it("createExegol : Exegol Community → réseau privé docker (NAT réservé à Pro) ; édition Pro → NAT", async () => {
+    for (const [community, expected] of [
+      [true, "docker"],
+      [false, "nat"],
+    ] as const) {
+      const e = fakeExegol({ community: async () => community, run: async () => 1 });
+      const t = setup(ctx, { docker: docker.api, exegol: e.port, backends: backend() });
+      const s = await cockpitOf(t);
+      s.say("cockpit", "ck", { type: "createExegol", name: `web-${expected}` });
+      await vi.waitFor(() =>
+        expect(lastOperation(s)).toMatchObject({ busy: false, code: "exegol.createFailed" }),
+      );
+      expect(e.calls.prepare[0]).toMatchObject({ network: expected });
+    }
+  });
+
   it("createExegol sans binaire : erreur claire, aucun processus lancé", async () => {
     const e = fakeExegol({ installed: () => false });
     const t = setup(ctx, { docker: docker.api, exegol: e.port, backends: backend() });

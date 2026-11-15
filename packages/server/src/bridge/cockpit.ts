@@ -89,6 +89,11 @@ export interface ExegolPort {
   eulaAccepted(signal: AbortSignal): Promise<boolean>;
   /** Enregistre l'acceptation (`exegol version --accept-eula`), APRÈS confirmation humaine seulement. */
   acceptEula(signal: AbortSignal): Promise<number | null>;
+  /**
+   * Édition Community ? (bandeau « Exegol Community » de `exegol version`). Elle refuse le réseau NAT, réservé
+   * à Pro : le réseau privé `docker` le remplace. Absent : édition inconnue, aucun remplacement.
+   */
+  community?(signal: AbortSignal): Promise<boolean>;
   /** Période (ms) du sondage de l'apparition du conteneur. */
   pollMs?: number;
   /** Silence (ms) au-delà duquel la CLI est jugée bloquée sur une invite (défaut : 5 min ; tests). */
@@ -155,6 +160,10 @@ export function defaultExegol(): ExegolPort {
     },
     async acceptEula(signal) {
       return (await exegolVersion(["--accept-eula"], signal))?.code ?? null;
+    },
+    async community(signal) {
+      const result = await exegolVersion([], signal);
+      return result !== null && result.stdout.some((l) => /Exegol Community\b/i.test(l));
     },
     async run(shellPath, argv, signal, onOutput) {
       const recorder = createRecorder();
@@ -783,6 +792,11 @@ export class CockpitGestures {
       );
     }
 
+    // Exegol Community refuse NAT (« not available in the Community version ») : le réseau privé `docker`
+    // garde le conteneur hors du réseau de l'hôte, VPN et bureau compris.
+    let network: "nat" | "docker" | "host" | "disabled" = m.network ?? "nat";
+    if (network === "nat" && (await exegol.community?.(signal).catch(() => false)) === true)
+      network = "docker";
     let prepared: { shellPath: string; shellArgs: string[] };
     try {
       prepared = await exegol.prepare({
@@ -792,7 +806,7 @@ export class CockpitGestures {
         ...(m.vpn === true && selection.vpn !== undefined && { vpnPath: selection.vpn.path }),
         ...(m.desktop !== undefined && { desktop: m.desktop }),
         ...(m.desktopPort !== undefined && { desktopPort: m.desktopPort }),
-        network: m.network ?? "nat",
+        network,
         gui: false,
         exegolResources: m.shareResources ?? true,
         myResources: m.shareMyResources ?? true,
@@ -881,6 +895,8 @@ export class CockpitGestures {
     this.deps.ctx.audit({ kind: "exegolCreate", container: real });
     // Le VPN reste sur le disque (0600) : Exegol le relit aux redémarrages ; il n'est plus « en attente ».
     if (m.vpn === true) delete selection.vpn;
-    return t("Conteneur créé.");
+    return network !== (m.network ?? "nat")
+      ? t("Conteneur créé (réseau privé docker : le NAT est réservé à Exegol Pro).")
+      : t("Conteneur créé.");
   }
 }
