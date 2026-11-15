@@ -2,6 +2,7 @@ import { isAbsolute, join } from "node:path";
 import type {
   AgentPrompt,
   CampaignPort,
+  CampaignRunRole,
   EngagementView,
   ProgramStatus,
   PromptImage,
@@ -10,7 +11,9 @@ import {
   type AgentRunner,
   type ApprovalGate,
   type AuthMode,
-  CodedError,
+  CAMPAIGN_PLANNER_GUIDANCE,
+  CAMPAIGN_WORKER_GUIDANCE,
+  type CodedError,
   createApprovalGate,
   createApprovalQueue,
   createRecorder,
@@ -39,8 +42,10 @@ import {
   PROTOCOL_VERSION,
   parseToEngine,
   type StartParams,
+  type ToEngine,
 } from "../logic/protocol.js";
 import { createBypassMirror } from "./bypass-mirror.js";
+import { createIpcCampaignPort } from "./campaign-port.js";
 import { createResearchTracker } from "./research.js";
 import { SCAN_OUTPUT_GUIDANCE } from "./scan-guidance.js";
 
@@ -248,6 +253,13 @@ export function runEngine({
   });
   let queue: ReturnType<typeof createApprovalQueue> | null = null;
   let started = false;
+  // Réponses de l'hôte aux requêtes de campagne (ADR 0054) : le port IPC s'y abonne.
+  const campaignListeners = new Set<
+    (message: Extract<ToEngine, { type: "campaignResult" }>) => void
+  >();
+  const onCampaignResult = (
+    handler: (message: Extract<ToEngine, { type: "campaignResult" }>) => void,
+  ) => void campaignListeners.add(handler);
 
   return new Promise<number>((resolve) => {
     let settled = false;
@@ -270,7 +282,10 @@ export function runEngine({
       paramsLearning = params.mode === "learning";
       webAvailable = params.webSearch !== false;
       let code = 0;
-      const recorder = createRecorder({ redact });
+      const recorder = createRecorder({
+        redact,
+        ...(params.multiAgent?.runId !== undefined && { runId: params.multiAgent.runId }),
+      });
       onUserMessage = (text) => void recorder.emit({ kind: "user.message", text });
       // Journal de l'extension : hors du dépôt (`journalDir` validé par le protocole), sinon celui de la CLI.
       const journal = await openJournal(
@@ -338,12 +353,27 @@ export function runEngine({
           policySource: source,
           ...(warning && { warning }),
         });
+        // Mode multi-agents (ADR 0054) : rôle, port IPC et consigne de rôle, jamais en apprentissage.
+        const multiAgent: CampaignRunRole | undefined =
+          !learning && params.multiAgent !== undefined
+            ? params.multiAgent.role === "worker" && params.multiAgent.intent !== undefined
+              ? {
+                  role: "worker",
+                  port: createIpcCampaignPort(send, onCampaignResult),
+                  intent: params.multiAgent.intent,
+                }
+              : params.multiAgent.role === "planner"
+                ? { role: "planner", port: createIpcCampaignPort(send, onCampaignResult) }
+                : undefined
+            : undefined;
         const systemPrompt = learning
           ? LEARNING_SYSTEM_PROMPT
           : [
               SCAN_OUTPUT_GUIDANCE,
               deskInstructions(params.profile),
               INTEGRATION_GUIDANCE,
+              multiAgent?.role === "planner" ? CAMPAIGN_PLANNER_GUIDANCE : undefined,
+              multiAgent?.role === "worker" ? CAMPAIGN_WORKER_GUIDANCE : undefined,
               params.systemPrompt,
             ]
               .filter(Boolean)
@@ -391,6 +421,7 @@ export function runEngine({
                 halted: () => engagement().halted,
               }),
             ...(!learning && campaign !== undefined && { campaign }),
+            ...(multiAgent !== undefined && { multiAgent }),
             ...(!learning && {
               onMissionContext: (snapshot: import("@warband/core").MissionContext) => {
                 send({
@@ -524,6 +555,10 @@ export function runEngine({
           });
           return;
         }
+        case "campaignResult":
+          // Sans port abonné (mode éteint) : ignorée.
+          for (const listener of campaignListeners) listener(message);
+          return;
         case "abort":
           abort.abort(new Error("annulé par l'utilisateur"));
           prompts.end();

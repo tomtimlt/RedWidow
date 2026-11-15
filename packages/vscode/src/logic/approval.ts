@@ -37,6 +37,8 @@ export interface ApprovalCard {
   canRemember: boolean;
   /** Confirmation native en cours ; aucune autorisation n’est encore accordée. */
   confirming?: boolean;
+  /** Campagne multi-agents (ADR 0054) : agent d'origine ; `index` 0 pour le planificateur, 1.. pour les workers. */
+  agent?: { role: "planner" | "worker"; index: number; intent?: string };
 }
 
 /** Texte non fiable destiné à l'affichage : contrôles et bidi retirés (`stripControl` du cœur), plafonné. */

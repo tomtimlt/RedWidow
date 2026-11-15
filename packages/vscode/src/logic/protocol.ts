@@ -67,7 +67,21 @@ export interface StartParams {
   mode?: "learning";
   /** Dossier absolu des journaux (stockage de l'extension, hors du dépôt). */
   journalDir?: string;
+  /** Rôle du run dans une campagne multi-agents (ADR 0054) ; absent : aucun outil ni consigne de campagne. */
+  multiAgent?: MultiAgentParams;
 }
+
+/** Paramètres de lancement d'un run de campagne : `intent` pour un worker seulement. */
+export interface MultiAgentParams {
+  role: "planner" | "worker";
+  intent?: { id: string; title: string; rationale: string };
+  /** Identifiant de run imposé par l'hôte (nom du journal) ; sinon tiré par le moteur. */
+  runId?: string;
+}
+
+/** Opérations de campagne demandées par un moteur à l'hôte (ADR 0054, point 5). */
+export const CAMPAIGN_OPS = ["openIntents", "status", "closeIntent"] as const;
+export type CampaignOp = (typeof CAMPAIGN_OPS)[number];
 
 /** Résumé de fin de run (déjà masqué côté moteur). */
 export interface EndedSummary {
@@ -98,7 +112,16 @@ export type ToEngine =
    * État du Bypass (ADR 0006, décision 6) : instants absolus, `seq` strictement croissant par moteur.
    * `null` = inactif. Le moteur n'en garde qu'un miroir en lecture.
    */
-  | { v: 1; type: "bypass"; seq: number; state: BypassState | null };
+  | { v: 1; type: "bypass"; seq: number; state: BypassState | null }
+  /** Réponse de l'hôte à une requête `campaign` du moteur : `value` si `ok`, sinon `reason`. */
+  | {
+      v: 1;
+      type: "campaignResult";
+      id: string;
+      ok: boolean;
+      value?: unknown;
+      reason?: ErrorInfo;
+    };
 
 /** Moteur → parent. */
 export type FromEngine =
@@ -124,7 +147,9 @@ export type FromEngine =
       projectName: string;
     }
   /** Accusé du miroir : `state` est l'état réellement retenu (`null` si inactif ou refusé). */
-  | { v: 1; type: "bypassAck"; seq: number; state: BypassState | null };
+  | { v: 1; type: "bypassAck"; seq: number; state: BypassState | null }
+  /** Requête de campagne (ADR 0054) : l'hôte, seul coordinateur, répond par `campaignResult`. */
+  | { v: 1; type: "campaign"; id: string; op: CampaignOp; args: Record<string, unknown> };
 
 export type Parsed<T> = { ok: true; message: T } | { ok: false; reason: Reason };
 
@@ -186,6 +211,7 @@ const START_KEYS = [
   "profile",
   "webSearch",
   "testAccounts",
+  "multiAgent",
 ] as const;
 
 /** Valide un état du Bypass : `null`, ou bornes entières de 1 minute à `BYPASS_MAX_MS`, ou sans échéance. */
@@ -204,9 +230,51 @@ function validBypassState(value: unknown): boolean {
 const validSeq = (value: unknown): value is number =>
   typeof value === "number" && Number.isSafeInteger(value) && value >= 1;
 
+const MULTI_AGENT_RUN_ID = /^[A-Za-z0-9_-]{1,100}$/;
+
+/** Valide `multiAgent` : le worker porte son intention, le planificateur n'en a pas. */
+function validMultiAgent(value: unknown): boolean {
+  if (!isObj(value) || onlyKeys(value, ["role", "intent", "runId"]) !== null) return false;
+  if (value.runId !== undefined && !(isString(value.runId) && MULTI_AGENT_RUN_ID.test(value.runId)))
+    return false;
+  if (value.role === "planner") return value.intent === undefined;
+  if (value.role !== "worker") return false;
+  const intent = value.intent;
+  return (
+    isObj(intent) &&
+    onlyKeys(intent, ["id", "title", "rationale"]) === null &&
+    isString(intent.id) &&
+    intent.id !== "" &&
+    intent.id.length <= 100 &&
+    isString(intent.title) &&
+    intent.title.length <= 1000 &&
+    isString(intent.rationale) &&
+    intent.rationale.length <= 8000
+  );
+}
+
+/** Taille JSON d'une charge de campagne, plafonnée (échec fermé si non sérialisable). */
+const MAX_CAMPAIGN_JSON = 1_000_000;
+function jsonWithin(value: unknown): boolean {
+  try {
+    return (JSON.stringify(value) ?? "").length <= MAX_CAMPAIGN_JSON;
+  } catch {
+    return false;
+  }
+}
+
 /** Valide un message reçu par le moteur. */
 export function parseToEngine(raw: unknown): Parsed<ToEngine> {
-  const env = envelope(raw, ["start", "models", "prompt", "answer", "abort", "dispose", "bypass"]);
+  const env = envelope(raw, [
+    "start",
+    "models",
+    "prompt",
+    "answer",
+    "abort",
+    "dispose",
+    "bypass",
+    "campaignResult",
+  ]);
   if (!env.ok) return env;
   const { obj, type } = env.message;
   const extra = (keys: readonly string[]) => onlyKeys(obj, keys);
@@ -226,6 +294,11 @@ export function parseToEngine(raw: unknown): Parsed<ToEngine> {
         return bad("testAccounts");
       if (obj.webSearch !== undefined && typeof obj.webSearch !== "boolean")
         return bad("webSearch");
+      if (
+        obj.multiAgent !== undefined &&
+        (!validMultiAgent(obj.multiAgent) || obj.mode === "learning")
+      )
+        return bad("multiAgent");
       unexpected = extra(START_KEYS);
       if (unexpected) return bad(unexpected, "unexpected");
       if (!isString(obj.cwd) || obj.cwd === "" || !isAbsolute(obj.cwd)) return bad("cwd");
@@ -330,6 +403,16 @@ export function parseToEngine(raw: unknown): Parsed<ToEngine> {
       if (!validSeq(obj.seq)) return bad("seq");
       if (!validBypassState(obj.state)) return bad("state");
       return { ok: true, message: obj as ToEngine };
+    case "campaignResult":
+      unexpected = extra(["v", "type", "id", "ok", "value", "reason"]);
+      if (unexpected) return bad(unexpected, "unexpected");
+      if (!isString(obj.id) || obj.id === "" || obj.id.length > 100) return bad("id");
+      if (typeof obj.ok !== "boolean") return bad("ok");
+      if (obj.ok) {
+        if (obj.reason !== undefined || obj.value === undefined || !jsonWithin(obj.value))
+          return bad("value");
+      } else if (obj.value !== undefined || !validReason(obj.reason)) return bad("reason");
+      return { ok: true, message: obj as ToEngine };
     default:
       unexpected = extra(["v", "type"]);
       if (unexpected) return bad(unexpected, "unexpected");
@@ -393,6 +476,7 @@ export function parseFromEngine(raw: unknown): Parsed<FromEngine> {
     "error",
     "mountIssue",
     "bypassAck",
+    "campaign",
   ]);
   if (!env.ok) return env;
   const { obj, type } = env.message;
@@ -409,6 +493,7 @@ export function parseFromEngine(raw: unknown): Parsed<FromEngine> {
       error: ["v", "type", "reason"],
       mountIssue: ["v", "type", "code", "container", "mounted", "projectId", "projectName"],
       bypassAck: ["v", "type", "seq", "state"],
+      campaign: ["v", "type", "id", "op", "args"],
     }[type] as string[],
   );
   if (unexpected) return bad(unexpected, "unexpected");
@@ -466,6 +551,10 @@ export function parseFromEngine(raw: unknown): Parsed<FromEngine> {
     case "bypassAck":
       if (!validSeq(obj.seq)) return bad("seq");
       return validBypassState(obj.state) ? ok : bad("state");
+    case "campaign":
+      if (!isString(obj.id) || obj.id === "" || obj.id.length > 100) return bad("id");
+      if (!(CAMPAIGN_OPS as readonly string[]).includes(String(obj.op))) return bad("op");
+      return isObj(obj.args) && jsonWithin(obj.args) ? ok : bad("args");
     default:
       return ok;
   }

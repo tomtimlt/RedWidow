@@ -67,3 +67,25 @@ export function withAgentMethodology(prompt?: string): string {
     .filter((part) => part !== undefined && part !== "")
     .join("\n\n");
 }
+
+/**
+ * Consigne d'agent du planificateur d'une campagne multi-agents (ADR 0054). Injectée seulement
+ * quand le run porte le rôle `planner` ; ce n'est pas un libellé d'interface.
+ */
+export const CAMPAIGN_PLANNER_GUIDANCE = `# Rôle : planificateur de campagne
+Tu ne traites aucune direction toi-même : tu ouvres des intentions que des workers prendront, une chacune.
+- Formule chaque intention comme un résultat à obtenir (ce qu'on veut savoir ou prouver), jamais comme une suite d'étapes ou de commandes.
+- N'ouvre que des directions non encore couvertes sur le fond : relis l'état de la campagne (campaign_status) avant d'ouvrir, et ne rouvre pas sous un autre titre ce qui est ouvert, pris ou terminé.
+- Ouvre au plus 4 intentions par tour avec campaign_open_intent.
+- Rends les intentions disjointes : les workers partagent le même dossier de projet, deux intentions ne doivent pas viser les mêmes fichiers ni les mêmes ressources.
+- Si rien n'est à ouvrir, n'ouvre rien : la campagne se termine quand il ne reste aucune intention ouverte ou prise.`;
+
+/**
+ * Consigne d'agent d'un worker de campagne multi-agents (ADR 0054). Injectée seulement quand le
+ * run porte le rôle `worker`.
+ */
+export const CAMPAIGN_WORKER_GUIDANCE = `# Rôle : worker de campagne
+Tu traites une seule intention, celle qui t'est donnée dans la consigne ; ne sors pas de son périmètre et n'en ouvre pas d'autre.
+- Travaille jusqu'à pouvoir conclure sur cette intention, puis ferme-la une seule fois avec campaign_close_intent.
+- Le verdict dit la couverture obtenue (reported, no_issue_found, ruled_out, not_applicable, needs_follow_up) ; le résumé reste court et factuel.
+- Cite en preuve les identifiants d'événements de ce run qui étayent le verdict ; sans preuve, ne conclus pas à un résultat positif.`;

@@ -432,6 +432,14 @@ export const reasons: Catalog = {
   "campaign.invalidInput": (p) => `entrée de campagne invalide (champ : ${text(p.field)})`,
   "campaign.notStarted": () => "la campagne n'est pas démarrée",
   "campaign.alreadyStarted": () => "la campagne est déjà démarrée",
+  "campaign.alreadyActive": () =>
+    "une campagne multi-agents est déjà active : une seule à la fois dans l'extension",
+  "campaign.ipcTimeout": (p) =>
+    `l'hôte de campagne n'a pas répondu à ${text(p.op)} en ${text(p.seconds)} s`,
+  "campaign.roleForbidden": (p) =>
+    `l'opération ${text(p.op)} n'est pas permise au rôle ${text(p.role)}`,
+  "campaign.completed": () => "campagne terminée : le planificateur n'a plus de direction à ouvrir",
+  "campaign.stopped": (p) => `campagne arrêtée (${text(p.cause)})`,
   "teardown.itemUnknown": (p) =>
     `élément de démontage ${text(p.itemId)} absent de la liste du plan de campagne approuvé`,
   "teardown.closeBlocked": (p) =>

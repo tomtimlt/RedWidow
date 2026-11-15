@@ -297,6 +297,14 @@ export const reasons: Catalog = {
   "campaign.invalidInput": (p) => `invalid campaign input (field: ${text(p.field)})`,
   "campaign.notStarted": () => "the campaign is not started",
   "campaign.alreadyStarted": () => "the campaign is already started",
+  "campaign.alreadyActive": () =>
+    "a multi-agent campaign is already active: only one at a time in the extension",
+  "campaign.ipcTimeout": (p) =>
+    `the campaign host did not answer ${text(p.op)} within ${text(p.seconds)} s`,
+  "campaign.roleForbidden": (p) =>
+    `operation ${text(p.op)} is not allowed for the ${text(p.role)} role`,
+  "campaign.completed": () => "campaign completed: the planner has no direction left to open",
+  "campaign.stopped": (p) => `campaign stopped (${text(p.cause)})`,
   "teardown.itemUnknown": (p) =>
     `teardown item ${text(p.itemId)} is not in the approved campaign plan list`,
   "teardown.closeBlocked": (p) =>
