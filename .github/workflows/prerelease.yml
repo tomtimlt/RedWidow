@@ -1,0 +1,87 @@
+name: Prerelease
+
+# Publie une release GitHub « pré-bêta » des VSIX (win32-x64, linux-x64, darwin-arm64 et darwin-x64) à chaque push sur la branche multi-agent.
+# Version de test : jamais publiée sur le Marketplace, jamais marquée « latest », jamais sur main.
+# La version du manifeste n'est pas modifiée (VS Code n'accepte que X.Y.Z) ; la pré-bêta est identifiée par son tag
+# prebeta-<version>-<run_number> (sans préfixe « v », donc sans déclencher release.yml dont le filtre est v[0-9]+.[0-9]+.[0-9]+).
+# Aucun secret : seul le jeton du workflow est utilisé.
+on:
+  push:
+    branches:
+      - multi-agent
+  workflow_dispatch:
+
+# Une pré-bêta remplacée par une plus récente n'est pas grave : on annule la précédente.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Lecture seule par défaut ; l'écriture n'est demandée que par le job de publication.
+permissions:
+  contents: read
+
+jobs:
+  prerelease:
+    runs-on: ubuntu-latest
+    # Seule l'étape de publication utilise GH_TOKEN ; le dépôt est extrait sans identifiants persistants.
+    permissions:
+      contents: write
+    env:
+      RUN_NUMBER: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Version de l'extension
+        run: |
+          version="$(node -p "require('./packages/vscode/extension.manifest.json').version")"
+          echo "VERSION=${version}" >> "$GITHUB_ENV"
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm build
+
+      # Linux : le binaire du SDK installé par défaut est celui du runner.
+      - run: pnpm --filter @warband/vscode package linux-x64
+
+      # Windows : deuxième installation avec les paquets optionnels de la cible (esbuild reste celui du runner).
+      - run: pnpm install --frozen-lockfile --os=win32 --cpu=x64
+      - run: pnpm --filter @warband/vscode package win32-x64
+
+      # macOS (Apple Silicon puis Intel) : même principe, paquets optionnels de la cible.
+      - run: pnpm install --frozen-lockfile --os=darwin --cpu=arm64
+      - run: pnpm --filter @warband/vscode package darwin-arm64
+      - run: pnpm install --frozen-lockfile --os=darwin --cpu=x64
+      - run: pnpm --filter @warband/vscode package darwin-x64
+
+      # Renommage redwidow-<version>-prebeta.<run>-<plateforme>.vsix, puis empreintes.
+      - name: Renommage et empreintes SHA-256
+        working-directory: packages/vscode
+        run: |
+          for f in warband-${VERSION}-*.vsix; do
+            target="${f#warband-${VERSION}-}"
+            mv "$f" "redwidow-${VERSION}-prebeta.${RUN_NUMBER}-${target}"
+          done
+          for f in redwidow-${VERSION}-prebeta.${RUN_NUMBER}-*.vsix; do sha256sum "$f" > "$f.sha256"; done
+          ls -l redwidow-${VERSION}-prebeta.${RUN_NUMBER}-*
+
+      - name: Publier la pré-bêta
+        env:
+          GH_TOKEN: ${{ github.token }}
+        working-directory: packages/vscode
+        run: |
+          tag="prebeta-${VERSION}-${RUN_NUMBER}"
+          short="${GITHUB_SHA::7}"
+          files=(redwidow-${VERSION}-prebeta.${RUN_NUMBER}-*.vsix redwidow-${VERSION}-prebeta.${RUN_NUMBER}-*.vsix.sha256)
+          gh release create "${tag}" "${files[@]}" \
+            --prerelease \
+            --latest=false \
+            --target "${GITHUB_SHA}" \
+            --title "Red Widow ${VERSION} pré-bêta ${RUN_NUMBER} (multi-agent)" \
+            --notes "Version de test, non publiée sur le Marketplace. Construite depuis la branche multi-agent, commit ${short}."
