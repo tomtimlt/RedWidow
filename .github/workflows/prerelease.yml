@@ -22,6 +22,8 @@ permissions:
 
 jobs:
   prerelease:
+    # Lancement manuel : seulement depuis la branche multi-agent.
+    if: github.ref == 'refs/heads/multi-agent'
     runs-on: ubuntu-latest
     # Seule l'étape de publication utilise GH_TOKEN ; le dépôt est extrait sans identifiants persistants.
     permissions:
@@ -64,8 +66,9 @@ jobs:
       - name: Renommage et empreintes SHA-256
         working-directory: packages/vscode
         run: |
-          for f in warband-${VERSION}-*.vsix; do
-            target="${f#warband-${VERSION}-}"
+          # package-vsix.mjs produit redwidow-<version>-<plateforme>.vsix.
+          for f in redwidow-${VERSION}-*.vsix; do
+            target="${f#redwidow-${VERSION}-}"
             mv "$f" "redwidow-${VERSION}-prebeta.${RUN_NUMBER}-${target}"
           done
           for f in redwidow-${VERSION}-prebeta.${RUN_NUMBER}-*.vsix; do sha256sum "$f" > "$f.sha256"; done
