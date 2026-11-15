@@ -91,6 +91,11 @@ export const DEFAULT_POLICY: Policy = {
     { tool: "mcp__desk__record_test", decision: "allow" },
     // Matrice de couverture : annotation en mémoire du run, mêmes garanties que record_test.
     { tool: "mcp__desk__record_coverage", decision: "allow" },
+    // Campagne multi-agents (ADR 0054) : état en mémoire du coordinateur, sans exécution ni chemin.
+    // Chaque action d'un worker reste soumise à sa propre gate.
+    { tool: "mcp__desk__campaign_open_intent", decision: "allow" },
+    { tool: "mcp__desk__campaign_status", decision: "allow" },
+    { tool: "mcp__desk__campaign_close_intent", decision: "allow" },
     // Écrit un brouillon de fiche programme (fichier du projet) : jamais en allow, toujours demandé.
     { tool: "mcp__desk__program_draft", decision: "ask" },
     // Contrôle d'étape et démontage (ADR 0041) : écrivent un fichier du projet, jamais en allow.
