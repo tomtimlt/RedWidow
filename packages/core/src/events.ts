@@ -1,4 +1,5 @@
 import { auditTestSchema, coverageCellsSchema, isAuditEvidencePath } from "./audit-schema.js";
+import { COVERAGE_OUTCOMES, type CoverageOutcome } from "./campaign/types.js";
 import { type MissionDecision, missionDecisionSchema } from "./mission-decision-schema.js";
 /**
  * Modèle d'événements du moteur. Tout ce que le moteur produit passe par ici :
@@ -146,6 +147,46 @@ export type EventPayload =
       tactic?: string;
       technique?: string;
       objectiveId?: string;
+    }
+  | {
+      /** Début d'une campagne multi-agents (ADR 0054) : journal de campagne, pas celui d'un run. */
+      kind: "campaign.started";
+      objective: string;
+      maxWorkers: number;
+    }
+  | {
+      /** Intention ouverte par le planificateur ; `key` : clé normalisée du titre. */
+      kind: "campaign.intent.opened";
+      intentId: string;
+      title: string;
+      rationale: string;
+      key: string;
+      round: number;
+    }
+  | {
+      /** Intention attribuée à un worker (`workerRunId` : run du worker). */
+      kind: "campaign.intent.claimed";
+      intentId: string;
+      workerRunId: string;
+    }
+  | {
+      /** Intention fermée : verdict de couverture, ou `blocked` si le run a fini sans fermeture. */
+      kind: "campaign.intent.closed";
+      intentId: string;
+      workerRunId: string;
+      outcome: CoverageOutcome | "blocked";
+      summary?: string;
+      evidence: string[];
+    }
+  | {
+      /** Fin de la campagne ; compteurs par état final des intentions. */
+      kind: "campaign.finished";
+      reason: Reason;
+      intents: number;
+      done: number;
+      blocked: number;
+      exhausted: number;
+      spentUsd: number;
     }
   | {
       /** Élément de la liste de démontage coché (`record_teardown`) ; `remaining` : éléments encore à faire. */
@@ -519,6 +560,30 @@ export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
     tactic: "string?",
     technique: "string?",
     objectiveId: "string?",
+  }),
+  "campaign.started": shape({ objective: "string", maxWorkers: "uint" }),
+  "campaign.intent.opened": shape({
+    intentId: "string",
+    title: "string",
+    rationale: "string",
+    key: "string",
+    round: "uint",
+  }),
+  "campaign.intent.claimed": shape({ intentId: "string", workerRunId: "string" }),
+  "campaign.intent.closed": shape({
+    intentId: "string",
+    workerRunId: "string",
+    outcome: `enum:${COVERAGE_OUTCOMES.join(",")},blocked`,
+    summary: "string?",
+    evidence: "string[]",
+  }),
+  "campaign.finished": shape({
+    reason: "reason",
+    intents: "uint",
+    done: "uint",
+    blocked: "uint",
+    exhausted: "uint",
+    spentUsd: "number",
   }),
   "teardown.state": shape({
     itemId: "string",

@@ -282,6 +282,21 @@ export const reasons: Catalog = {
   "campaign.evidenceRequired": (p) =>
     `step ${text(p.stepId)}: a success or partial result requires at least one evidence reference (evidenceIds)`,
   "campaign.evidenceUnknown": (p) => `unknown evidence reference in this run: ${text(p.id)}`,
+  "campaign.roundCap": (p) =>
+    `round ${text(p.round)}: at most ${text(p.max)} open intents per planner round`,
+  "campaign.duplicateIntent": (p) =>
+    `duplicate intent (key "${text(p.key)}"): the same direction is already open, claimed or done`,
+  "campaign.finished": () => "the campaign is finished: no intent can be opened any more",
+  "campaign.budgetExhausted": () =>
+    "campaign budget exhausted: no intent is opened or assigned any more",
+  "campaign.notClaimant": (p) =>
+    `intent ${text(p.intentId)} is not held by this worker: only the worker that claimed it can close it`,
+  "campaign.unknownIntent": (p) => `unknown intent in this campaign: ${text(p.intentId)}`,
+  "campaign.invalidTransition": (p) =>
+    `intent ${text(p.intentId)} is in state ${text(p.state)}: transition refused`,
+  "campaign.invalidInput": (p) => `invalid campaign input (field: ${text(p.field)})`,
+  "campaign.notStarted": () => "the campaign is not started",
+  "campaign.alreadyStarted": () => "the campaign is already started",
   "teardown.itemUnknown": (p) =>
     `teardown item ${text(p.itemId)} is not in the approved campaign plan list`,
   "teardown.closeBlocked": (p) =>

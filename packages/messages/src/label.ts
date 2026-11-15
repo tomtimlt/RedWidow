@@ -114,6 +114,22 @@ export function eventLabel(e: EngineEvent, options: LabelOptions = {}): string {
       return clip(
         `${t.campaignStep} ${e.stepId} : ${e.result}${e.technique ? ` (${e.technique})` : ""}`,
       );
+    case "campaign.started":
+      return clip(`${locale === "en" ? "campaign" : "campagne"} : ${e.objective}`);
+    case "campaign.intent.opened":
+      return clip(
+        `${locale === "en" ? "intent" : "intention"} ${e.intentId} (${locale === "en" ? "round" : "tour"} ${e.round}) : ${e.title}`,
+      );
+    case "campaign.intent.claimed":
+      return clip(
+        `${locale === "en" ? "intent" : "intention"} ${e.intentId} → ${e.workerRunId.slice(0, 8)}`,
+      );
+    case "campaign.intent.closed":
+      return clip(`${locale === "en" ? "intent" : "intention"} ${e.intentId} : ${e.outcome}`);
+    case "campaign.finished":
+      return clip(
+        `${locale === "en" ? "campaign finished" : "campagne terminée"} : ${formatReason(e.reason, locale)} (${e.done}/${e.intents})`,
+      );
     case "teardown.state":
       return clip(`${t.teardown} ${e.itemId} : ${e.done ? "ok" : "ko"} (${e.remaining})`);
     case "turn.finished":

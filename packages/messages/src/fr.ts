@@ -416,6 +416,22 @@ export const reasons: Catalog = {
   "campaign.evidenceRequired": (p) =>
     `étape ${text(p.stepId)} : un résultat success ou partial exige au moins une référence de preuve (evidenceIds)`,
   "campaign.evidenceUnknown": (p) => `référence de preuve inconnue dans ce run : ${text(p.id)}`,
+  "campaign.roundCap": (p) =>
+    `tour ${text(p.round)} : au plus ${text(p.max)} intentions ouvertes par tour du planificateur`,
+  "campaign.duplicateIntent": (p) =>
+    `intention en doublon (clé « ${text(p.key)} ») : une direction identique est déjà ouverte, prise ou terminée`,
+  "campaign.finished": () =>
+    "la campagne est terminée : plus aucune intention ne peut être ouverte",
+  "campaign.budgetExhausted": () =>
+    "budget de campagne épuisé : plus aucune intention n'est ouverte ni attribuée",
+  "campaign.notClaimant": (p) =>
+    `l'intention ${text(p.intentId)} n'est pas détenue par ce worker : seul celui qui l'a prise peut la fermer`,
+  "campaign.unknownIntent": (p) => `intention inconnue dans cette campagne : ${text(p.intentId)}`,
+  "campaign.invalidTransition": (p) =>
+    `l'intention ${text(p.intentId)} est à l'état ${text(p.state)} : transition refusée`,
+  "campaign.invalidInput": (p) => `entrée de campagne invalide (champ : ${text(p.field)})`,
+  "campaign.notStarted": () => "la campagne n'est pas démarrée",
+  "campaign.alreadyStarted": () => "la campagne est déjà démarrée",
   "teardown.itemUnknown": (p) =>
     `élément de démontage ${text(p.itemId)} absent de la liste du plan de campagne approuvé`,
   "teardown.closeBlocked": (p) =>

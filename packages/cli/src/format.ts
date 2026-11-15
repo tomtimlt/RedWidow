@@ -75,6 +75,16 @@ export function formatEvent(
       return `${tag(e.state === "approved" ? "green" : "yellow", "campaign")} ${paint("dim", `${e.state} [${e.digest.slice(0, 12)}]`)}`;
     case "campaign.step":
       return `${tag(e.result === "success" ? "green" : e.result === "failed" ? "red" : "yellow", "step")} ${paint("dim", `${e.stepId} ${e.result}${e.technique ? ` ${e.technique}` : ""}`)}`;
+    case "campaign.started":
+      return `${tag("green", "campaign")} ${paint("dim", stripControl(e.objective))}`;
+    case "campaign.intent.opened":
+      return `${tag("cyan", "intent")} ${paint("dim", `${e.intentId} r${e.round} ${stripControl(e.title)}`)}`;
+    case "campaign.intent.claimed":
+      return `${tag("cyan", "intent")} ${paint("dim", `${e.intentId} → ${e.workerRunId.slice(0, 8)}`)}`;
+    case "campaign.intent.closed":
+      return `${tag(e.outcome === "blocked" ? "yellow" : "green", "intent")} ${paint("dim", `${e.intentId} ${e.outcome}`)}`;
+    case "campaign.finished":
+      return `${tag("green", "campaign")} ${paint("dim", `${formatReason(e.reason, locale)} (${e.done}/${e.intents})`)}`;
     case "teardown.state":
       return `${tag("green", "teardown")} ${paint("dim", `${e.itemId} (${e.remaining})`)}`;
     case "tool.result": {

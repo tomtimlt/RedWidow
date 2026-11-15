@@ -10,6 +10,7 @@ export * from "./approval/source.js";
 export * from "./attack-flow.js";
 export * from "./audit.js";
 export * from "./burp/tools.js";
+export * from "./campaign/index.js";
 export * from "./correlation.js";
 export * from "./cours/confine.js";
 export * from "./cours/instructions.js";
