@@ -80,6 +80,8 @@ const campaign = (finished = false) => ({
   finished,
   counts: { open: 1, claimed: 2, done: 3, blocked: 4, exhausted: 5 },
   workersMax: 3,
+  spentUsd: 3.2,
+  budgetUsd: 20,
   intents: [
     { id: "a", title: "Auth", state: "done", worker: 1, outcome: "reported" },
     { id: "b", title: "Upload", state: "open" },
@@ -178,6 +180,8 @@ describe("mode multi-agents : rendu de la webview (ADR 0054)", () => {
     expect($("campaign-objective").textContent).toBe("Auditer l'API");
     expect($("campaign-objective").title).toBe("Auditer l'API");
     expect($("campaign-n-blocked").textContent).toBe("4");
+    expect($("campaign-budget").hidden).toBe(false);
+    expect($("campaign-budget").textContent).toBe("3,20 $ / 20 $");
     expect($("campaign-stop").hidden).toBe(false);
     expect($("campaign-finished").hidden).toBe(true);
     const rows = $("campaign-list").children;
@@ -190,6 +194,16 @@ describe("mode multi-agents : rendu de la webview (ADR 0054)", () => {
     ]);
     $("campaign-stop").events.get("click")?.();
     expect(sent).toEqual([{ type: "stopCampaign" }]);
+  });
+
+  it("ligne de budget : anglais, et masquée sans budget connu", () => {
+    const en = setup("en");
+    en.api.paintCampaign({ campaign: campaign() });
+    expect(en.$("campaign-budget").textContent).toBe("$3.20 / $20");
+    const { $, api } = setup();
+    const noBudget = { ...campaign(), budgetUsd: undefined };
+    api.paintCampaign({ campaign: noBudget });
+    expect($("campaign-budget").hidden).toBe(true);
   });
 
   it("campagne terminée : libellé affiché, bouton masqué ; au plus 50 lignes", () => {

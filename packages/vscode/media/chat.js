@@ -1102,6 +1102,18 @@
     objective.title = c.objective;
     for (const state of CAMPAIGN_STATES)
       $(`campaign-n-${state}`).textContent = String(c.counts?.[state] ?? 0);
+    const budget = $("campaign-budget");
+    const hasBudget = typeof c.spentUsd === "number" && typeof c.budgetUsd === "number";
+    budget.hidden = !hasBudget;
+    if (hasBudget) {
+      const lang = document.documentElement.lang;
+      const spent = new Intl.NumberFormat(lang, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(c.spentUsd);
+      const total = new Intl.NumberFormat(lang, { maximumFractionDigits: 2 }).format(c.budgetUsd);
+      budget.textContent = t("{0} $ / {1} $", { 0: spent, 1: total });
+    }
     const finished = c.finished === true;
     $("campaign-finished").hidden = !finished;
     $("campaign-stop").hidden = finished;

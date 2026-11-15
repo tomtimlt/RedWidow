@@ -577,6 +577,46 @@ describe("branchement webview et vue de campagne (lot 4b)", () => {
     session.stopCampaign();
   });
 
+  it("plafonds du worker : 40 tours et 2 $ par défaut, le plus bas gagne face au chat", async () => {
+    for (const [settings, turns] of [
+      [{}, 40],
+      [{ maxTurns: 10 }, 10],
+      [{ maxTurns: 100 }, 40],
+    ] as const) {
+      const f = makeFactory();
+      const { session } = chat(f, { readSettings: () => settings });
+      sessions.push(session);
+      session.setMultiAgent(true);
+      await session.send("Objectif");
+      const planner = await planner0(f);
+      expect(planner.started?.maxBudgetUsd).toBeUndefined();
+      openIntents(planner, "Un");
+      await waitCtls(f, 2);
+      const worker = f.ctls[1] as FakeCtl;
+      await vi.waitFor(() => expect(worker.started).toBeDefined());
+      expect(worker.started?.maxTurns).toBe(turns);
+      expect(worker.started?.maxBudgetUsd).toBe(2);
+      session.stopCampaign();
+      session.dispose();
+      sessions.pop();
+    }
+  });
+
+  it("view.campaign : spentUsd (2 décimales) et budgetUsd, coût absent compté 0", async () => {
+    const f = makeFactory();
+    const { session, view } = chat(f);
+    sessions.push(session);
+    session.setMultiAgent(true);
+    await session.send("Objectif");
+    const planner = await planner0(f);
+    expect(view().campaign).toMatchObject({ spentUsd: 0, budgetUsd: 20 });
+    planner.handlers.onEnded?.({ status: "success", turns: 1, costUsd: 3.2049, result: null });
+    expect(view().campaign).toMatchObject({ spentUsd: 3.2, budgetUsd: 20 });
+    planner.handlers.onEnded?.({ status: "success", turns: 1, result: null } as never);
+    expect(view().campaign?.spentUsd).toBe(3.2);
+    session.stopCampaign();
+  });
+
   it("finished conservé jusqu'au prochain envoi", async () => {
     const f = makeFactory();
     const { session, view } = chat(f);

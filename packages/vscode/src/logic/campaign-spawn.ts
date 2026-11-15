@@ -110,8 +110,15 @@ export function createCampaignSpawner(deps: CampaignSpawnDeps): (spec: EngineSpe
           ...(setup.auth && { auth: setup.auth }),
           handlers,
         });
+        // Plafonds du worker : le plus bas gagne face au réglage du chat.
+        const lowest = (a: number | undefined, b: number | undefined): number | undefined =>
+          a === undefined ? b : b === undefined ? a : Math.min(a, b);
+        const maxTurns = lowest(setup.params.maxTurns, spec.maxTurns);
+        const maxBudgetUsd = lowest(setup.params.maxBudgetUsd, spec.maxBudgetUsd);
         await ctl.start({
           ...setup.params,
+          ...(maxTurns !== undefined && { maxTurns }),
+          ...(maxBudgetUsd !== undefined && { maxBudgetUsd }),
           multiAgent: { ...spec.multiAgent, runId: spec.runId },
         });
         ready = true;

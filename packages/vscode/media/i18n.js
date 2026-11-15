@@ -1,4 +1,3 @@
-"use strict";
 (() => {
   // packages/messages/src/ui-domains/audit.ts
   var auditEn = {
@@ -447,6 +446,7 @@
     "Worker {0}": "Worker {0}",
     "Worker {0} · {1}": "Worker {0} · {1}",
     "Intentions ({0})": "Intents ({0})",
+    "{0} $ / {1} $": "${0} / ${1}",
     Ouverte: "Open",
     "En cours": "In progress",
     Terminée: "Done",

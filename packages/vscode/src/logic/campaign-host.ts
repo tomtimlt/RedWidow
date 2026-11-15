@@ -58,6 +58,12 @@ function setCampaignActive(value: boolean): void {
   });
 }
 
+/** Plafonds par intention d'un worker (ADR 0054, point 9) : le plus bas gagne face au réglage du chat. */
+export const WORKER_MAX_TURNS = 40;
+export const WORKER_MAX_BUDGET_USD = 2;
+/** Budget total de campagne par défaut, en dollars. */
+export const CAMPAIGN_MAX_BUDGET_USD = 20;
+
 export type CampaignAgentRole = "planner" | "worker";
 
 /** Ce que `spawnEngine` reçoit pour lancer un moteur de campagne. */
@@ -71,6 +77,10 @@ export interface EngineSpec {
   multiAgent: MultiAgentParams;
   /** Première consigne du run (objectif, intention ou instantané). */
   prompt: string;
+  /** Plafond de tours du run (workers) ; le lanceur garde le plus bas avec le réglage du chat. */
+  maxTurns?: number;
+  /** Plafond de dépense du run en dollars (workers), même règle. */
+  maxBudgetUsd?: number;
 }
 
 /** Moteur lancé : `send` est mis en file jusqu'à ce que le moteur ait démarré. */
@@ -93,6 +103,8 @@ export interface CampaignHostOptions {
   objective: string;
   /** Workers simultanés, de 1 à 8 ; 3 par défaut. */
   workers?: number;
+  /** Budget total de la campagne en dollars (défaut : `CAMPAIGN_MAX_BUDGET_USD`). */
+  maxBudgetUsd?: number;
   spawnEngine: (spec: EngineSpec) => EngineHandle;
   /** Recorder du journal de campagne. */
   recorder: Recorder;
@@ -151,6 +163,7 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
 
   const coordinator = createCampaignCoordinator({
     maxWorkers: workers,
+    budget: { maxUsd: options.maxBudgetUsd ?? CAMPAIGN_MAX_BUDGET_USD },
     recorder: options.recorder,
     ...(options.now !== undefined && { now: options.now }),
   });
@@ -190,6 +203,10 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
       index: info.index,
       multiAgent,
       prompt,
+      ...(info.role === "worker" && {
+        maxTurns: WORKER_MAX_TURNS,
+        maxBudgetUsd: WORKER_MAX_BUDGET_USD,
+      }),
     });
     const agent: Agent = { info, handle, port, exited: false };
     agents.set(info.runId, agent);
@@ -200,8 +217,14 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
     return agent;
   };
 
+  /** Budget total atteint : plus aucune intention attribuée ni tour de planificateur. */
+  const budgetReached = (): boolean => {
+    const { spentUsd, budget } = coordinator.status();
+    return budget.maxUsd !== undefined && spentUsd >= budget.maxUsd;
+  };
+
   const startPlannerTurn = (): void => {
-    if (finished || planner !== undefined) return;
+    if (finished || planner !== undefined || budgetReached()) return;
     turn += 1;
     openedInTurn = false;
     wakePending = false;
@@ -259,7 +282,7 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
 
   /** Réveil du planificateur après l'anti-rebond : jamais une attente en boucle. */
   const scheduleWake = (): void => {
-    if (finished) return;
+    if (finished || budgetReached()) return;
     if (wakeTimer !== undefined) clearTimeout(wakeTimer);
     wakeTimer = setTimeout(() => {
       wakeTimer = undefined;
@@ -320,6 +343,10 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
   /** Plus rien ne peut avancer (budget : des intentions ouvertes que personne ne prendra). */
   const checkStalled = (): void => {
     if (finished || planner !== undefined || liveWorkers() > 0 || wakeTimer !== undefined) return;
+    if (budgetReached()) {
+      finish(reason("campaign.budgetExhausted"));
+      return;
+    }
     const { counts } = coordinator.status();
     if (counts.claimed === 0 && counts.open > 0) finish(reason("campaign.completed"));
   };
@@ -410,6 +437,21 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
             ...(intent !== undefined && { intent: cleanText(intent.title, 200) }),
           },
         });
+        return;
+      }
+      case "ended": {
+        // Coût réel du run (absent ou invalide : 0). Budget atteint : on n'attribue plus rien.
+        const cost = message.summary?.costUsd;
+        coordinator.recordSpend(
+          typeof cost === "number" && Number.isFinite(cost) && cost > 0 ? cost : 0,
+        );
+        if (budgetReached()) {
+          if (wakeTimer !== undefined) clearTimeout(wakeTimer);
+          wakeTimer = undefined;
+          wakePending = false;
+        }
+        options.onMessage?.(agent.info, message);
+        changed();
         return;
       }
       default:

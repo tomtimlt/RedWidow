@@ -1,12 +1,15 @@
 import { createRecorder, type PendingApproval } from "@warband/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  CAMPAIGN_MAX_BUDGET_USD,
   type CampaignHost,
   type CampaignHostOptions,
   createCampaignHost,
   type EngineHandle,
   type EngineSpec,
   isCampaignActive,
+  WORKER_MAX_BUDGET_USD,
+  WORKER_MAX_TURNS,
 } from "../src/logic/campaign-host.js";
 import type { FromEngine, ToEngine } from "../src/logic/protocol.js";
 
@@ -472,5 +475,89 @@ describe("hôte de campagne : Bypass", () => {
     const before = planner.sent.length;
     s.host.setBypass(state);
     expect(planner.sent).toHaveLength(before);
+  });
+});
+
+const ended = (costUsd?: number): FromEngine =>
+  ({
+    v: 1,
+    type: "ended",
+    summary: {
+      status: "success",
+      turns: 1,
+      result: null,
+      ...(costUsd !== undefined && { costUsd }),
+    },
+  }) as FromEngine;
+
+describe("hôte de campagne : budget (ADR 0054, point 9)", () => {
+  it("le worker est lancé avec ses plafonds ; le planificateur sans", async () => {
+    const s = setup();
+    host = s.host;
+    const planner = s.planners()[0] as FakeEngine;
+    expect(planner.spec.maxTurns).toBeUndefined();
+    expect(planner.spec.maxBudgetUsd).toBeUndefined();
+    await ask(planner, "openIntents", drafts("a"));
+    expect(s.workers()[0]?.spec).toMatchObject({
+      maxTurns: WORKER_MAX_TURNS,
+      maxBudgetUsd: WORKER_MAX_BUDGET_USD,
+    });
+    expect(WORKER_MAX_TURNS).toBe(40);
+    expect(WORKER_MAX_BUDGET_USD).toBe(2);
+  });
+
+  it("le budget par défaut de campagne est 20 $", () => {
+    const s = setup();
+    host = s.host;
+    expect(CAMPAIGN_MAX_BUDGET_USD).toBe(20);
+    expect(s.host.status().budget.maxUsd).toBe(20);
+  });
+
+  it("le coût de chaque fin de run (planificateur et worker) est ajouté ; message relayé", async () => {
+    const onMessage = vi.fn();
+    const s = setup({ onMessage });
+    host = s.host;
+    const planner = s.planners()[0] as FakeEngine;
+    await ask(planner, "openIntents", drafts("a"));
+    planner.emit(ended(0.5));
+    expect(s.host.status().spentUsd).toBe(0.5);
+    (s.workers()[0] as FakeEngine).emit(ended(1.25));
+    expect(s.host.status().spentUsd).toBe(1.75);
+    expect(onMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it("coût absent ou invalide : 0, sans planter", () => {
+    const s = setup();
+    host = s.host;
+    const planner = s.planners()[0] as FakeEngine;
+    planner.emit(ended());
+    planner.emit(ended(Number.NaN));
+    planner.emit(ended(-3));
+    planner.emit({ v: 1, type: "ended" } as unknown as FromEngine);
+    expect(s.host.status().spentUsd).toBe(0);
+    expect(s.host.finished).toBe(false);
+  });
+
+  it("budget atteint : plus d'attribution, workers en cours finis, fin budgetExhausted", async () => {
+    const s = setup({ workers: 1, maxBudgetUsd: 3 });
+    host = s.host;
+    const planner = s.planners()[0] as FakeEngine;
+    await ask(planner, "openIntents", drafts("a", "b"));
+    expect(s.workers()).toHaveLength(1);
+    planner.exit();
+    const w1 = s.workers()[0] as FakeEngine;
+    w1.emit(ended(3));
+    // Le worker en cours finit son tour : la campagne n'est pas coupée.
+    expect(s.host.finished).toBe(false);
+    expect(w1.stopped).toBe(false);
+    await ask(w1, "closeIntent", closure);
+    w1.exit();
+    // Rien n'est attribué à la place, aucun nouveau tour de planificateur.
+    expect(s.workers()).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(s.planners()).toHaveLength(1);
+    expect(s.host.finished).toBe(true);
+    expect(s.finished[0]).toMatchObject({ code: "campaign.budgetExhausted" });
+    expect(s.host.status().counts).toMatchObject({ done: 1, exhausted: 1 });
   });
 });

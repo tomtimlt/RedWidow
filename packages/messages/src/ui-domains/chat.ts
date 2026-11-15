@@ -320,6 +320,7 @@ export const chatEn: Record<string, string> = {
   "Worker {0}": "Worker {0}",
   "Worker {0} · {1}": "Worker {0} · {1}",
   "Intentions ({0})": "Intents ({0})",
+  "{0} $ / {1} $": "${0} / ${1}",
   Ouverte: "Open",
   "En cours": "In progress",
   Terminée: "Done",

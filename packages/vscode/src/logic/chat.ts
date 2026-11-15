@@ -128,6 +128,10 @@ export interface CampaignView {
   finished: boolean;
   counts: Record<IntentState, number>;
   workersMax: number;
+  /** Dépense cumulée de la campagne, en dollars (2 décimales). */
+  spentUsd: number;
+  /** Budget total de la campagne en dollars. */
+  budgetUsd?: number;
   intents: {
     id: string;
     title: string;
