@@ -59,11 +59,10 @@ const LIVE_OUTPUT_CHARS = 12_000;
 
 export type ToolStatus = "pending" | "ok" | "error" | "denied" | "interrupted";
 
-export type ChatItem = {
-  source?: string;
-  /** Campagne multi-agents (ADR 0054) : agent d'origine du message ; absent hors campagne. */
-  agent?: { role: "planner" | "worker"; index: number };
-} & (
+/** Agent d'origine d'un élément (campagne multi-agents, ADR 0054) : donnée, jamais du texte du modèle. */
+export type ItemAgent = NonNullable<ApprovalCard["agent"]>;
+
+export type ChatItem = { source?: string; agent?: ItemAgent } & (
   | { id: number; kind: "user"; text: string }
   | { id: number; kind: "agent"; text: string; blocks: Block[] }
   | {
@@ -205,6 +204,8 @@ export function createChatState(before?: string) {
   let nextId = 1;
   let dropped = 0;
   let source: string | undefined;
+  /** Agent d'origine de l'événement en cours de traduction (campagne), sinon absent. */
+  let eventAgent: ItemAgent | undefined;
   let reached = false;
   /** Événement `tool.requested` d'un exec → identifiant d'appel. */
   const execTools = new Map<string, string>();
@@ -213,7 +214,12 @@ export function createChatState(before?: string) {
 
   const push = (item: NewItem) => {
     if (reached) return;
-    items.push({ ...item, ...(source && { source }), id: nextId++ } as ChatItem);
+    items.push({
+      ...item,
+      ...(source && { source }),
+      ...(eventAgent && { agent: { ...eventAgent } }),
+      id: nextId++,
+    } as ChatItem);
     if (items.length > MAX_ITEMS) {
       dropped += items.length - MAX_ITEMS;
       const removed = items.splice(0, items.length - MAX_ITEMS);
@@ -312,8 +318,12 @@ export function createChatState(before?: string) {
       sandboxNetwork = null;
       noContainer = false;
     },
-    /** Traduit un événement du moteur en éléments de vue. */
-    event(e: EngineEvent) {
+    /**
+     * Traduit un événement du moteur en éléments de vue. `agent` (campagne) étiquette les éléments
+     * créés et empêche la fin d'un run d'éteindre l'occupation : la campagne décide.
+     */
+    event(e: EngineEvent, agent?: ItemAgent) {
+      eventAgent = agent;
       try {
         source = `${e.runId}/${e.id}`;
         if (source === before) reached = true;
@@ -326,6 +336,10 @@ export function createChatState(before?: string) {
             notice(t("Pas de conteneur attaché : outils shell indisponibles."));
             return;
           case "user.message": {
+            if (agent !== undefined) {
+              source = undefined;
+              return;
+            }
             // La saisie locale précède le journal du moteur ; on lui associe sa preuve, sans doublon.
             const user = items.findLast((item) => item.kind === "user" && !item.source);
             if (user) user.source = source;
@@ -436,7 +450,7 @@ export function createChatState(before?: string) {
           case "run.finished":
           case "turn.finished":
             retry = undefined;
-            busy = false;
+            if (agent === undefined) busy = false;
             return;
           case "error":
             retry = undefined;
@@ -452,6 +466,7 @@ export function createChatState(before?: string) {
         }
       } finally {
         source = undefined;
+        eventAgent = undefined;
       }
     },
     view(): ChatView {

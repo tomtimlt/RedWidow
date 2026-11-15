@@ -2741,6 +2741,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           )
             return;
           await controls.halt();
+          for (const slot of slots.values()) slot.session?.emergencyStop();
         } else if (message.type === "resume") {
           if (!shown.view.halt.active) return;
           const action = t("Lever l'arrêt");

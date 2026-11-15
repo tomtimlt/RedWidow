@@ -65,6 +65,7 @@ function session(
     dispose: () => {},
     kill: () => {},
     bypass: () => 0,
+    campaignResult: () => undefined,
     exited: Promise.resolve(),
   };
   const view = createChatSession({

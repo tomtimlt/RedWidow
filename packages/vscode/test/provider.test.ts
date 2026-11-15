@@ -53,6 +53,7 @@ function harness(opts: { requireProvider: boolean }) {
         dispose: () => void disposed.push(id),
         kill: () => void disposed.push(id),
         bypass: () => 1,
+        campaignResult: () => undefined,
         exited: Promise.resolve(),
       };
     },

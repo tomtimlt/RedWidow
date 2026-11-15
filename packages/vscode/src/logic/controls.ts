@@ -1,5 +1,7 @@
 import {
+  DEFAULT_MAX_WORKERS,
   DEFAULT_SUPERVISION,
+  MAX_WORKERS_LIMIT,
   type ModelOption,
   parseSupervision,
   type SupervisionLevel,
@@ -30,6 +32,17 @@ export interface Prefs {
   provider: Provider;
   /** Niveau d'encadrement du chat (fréquence des relances du moteur) ; défaut `standard`. */
   supervision: SupervisionLevel;
+  /** Mode multi-agents (ADR 0054) : un envoi lance une campagne. Éteint par défaut. */
+  multiAgent: boolean;
+  /** Workers simultanés de la campagne, de 1 à 8 (hors bornes : valeur par défaut). */
+  multiAgentWorkers: number;
+}
+
+/** Valide un nombre de workers relu du stockage ou venu de la webview : entier de 1 à 8, sinon 3. */
+export function parseMultiAgentWorkers(raw: unknown): number {
+  return typeof raw === "number" && Number.isInteger(raw) && raw >= 1 && raw <= MAX_WORKERS_LIMIT
+    ? raw
+    : DEFAULT_MAX_WORKERS;
 }
 
 export const DEFAULT_PREFS: Prefs = {
@@ -38,6 +51,8 @@ export const DEFAULT_PREFS: Prefs = {
   variant: null,
   provider: "claude",
   supervision: DEFAULT_SUPERVISION,
+  multiAgent: false,
+  multiAgentWorkers: DEFAULT_MAX_WORKERS,
 };
 
 /** Relit des préférences stockées en les revalidant (le stockage n'est pas une source de confiance). */
@@ -49,6 +64,8 @@ export function parsePrefs(raw: unknown): Prefs {
     variant: isReasoningVariant(r.variant) ? r.variant : null,
     provider: isProvider(r.provider) ? r.provider : "claude",
     supervision: parseSupervision(r.supervision),
+    multiAgent: r.multiAgent === true,
+    multiAgentWorkers: parseMultiAgentWorkers(r.multiAgentWorkers),
   };
 }
 
@@ -169,5 +186,12 @@ export function buildControls(input: {
     locked: busy,
     supervision: prefs.supervision,
     learning: input.learning === true,
+    // Mode multi-agents (ADR 0054) : l'hôte valide tout changement ; indisponible en Apprentissage.
+    multiAgent: {
+      enabled: prefs.multiAgent,
+      workers: prefs.multiAgentWorkers,
+      available: input.learning !== true,
+      ...(input.learning === true && { unavailableReason: "Indisponible en mode Apprentissage" }),
+    },
   };
 }

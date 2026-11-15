@@ -55,6 +55,7 @@ function fake() {
       calls.push(["bypass", state]);
       return calls.filter((c) => c[0] === "bypass").length;
     },
+    campaignResult: () => undefined,
     exited: Promise.resolve(),
   };
   return {

@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
+import { join } from "node:path";
 import type {
   AuthMode,
+  BypassState,
   Effort,
   EngineEvent,
   ModelOption,
@@ -11,19 +13,25 @@ import type {
 } from "@warband/core";
 import {
   AGENT_PROFILES,
+  createRecorder,
   DEFAULT_AGENT_PROFILE,
   hasPastedCredentials,
+  type JournalWriter,
+  openJournal,
   parseSupervision,
 } from "@warband/core";
 import { formatReason, getUiLocale, t } from "@warband/messages";
 import { alwaysConfirmText, answerFor, type Choice, cleanText, toCard } from "./approval.js";
 import { PRODUCT_NAME } from "./brand.js";
 import type { BypassEngineLink, BypassSend } from "./bypass.js";
+import { type CampaignAgentInfo, type CampaignHost, createCampaignHost } from "./campaign-host.js";
+import { type CampaignEngineSetup, createCampaignSpawner } from "./campaign-spawn.js";
 import {
   type ChatState,
   type ChatView,
   createChatState,
   type HistoryEntry,
+  type ItemAgent,
   isAbortError,
 } from "./chat.js";
 import {
@@ -45,6 +53,7 @@ import {
   effectiveModel,
   type ModelsStatus,
   type Prefs,
+  parseMultiAgentWorkers,
   parsePrefs,
 } from "./controls.js";
 import {
@@ -77,6 +86,7 @@ import {
 import type { JournalFiles } from "./historyStore.js";
 import { modelLoadFailure } from "./model-load-error.js";
 import { isModelId, parseModelCache, usableModels, validateModelChoice } from "./models.js";
+import type { FromEngine } from "./protocol.js";
 import type { ChatSettings } from "./settings.js";
 import { findAdjacentExchange, readConversationPage } from "./timeline.js";
 
@@ -517,6 +527,37 @@ export function createChatSession(deps: ChatSessionDeps) {
     saveIndex({ upsert: [current] });
   };
 
+  /** Paramètres de démarrage communs à un chat et à un moteur de campagne (sans reprise ni contexte). */
+  const commonStartParams = (
+    settings: ChatSettings,
+    picked: ReturnType<typeof choice>,
+    token: TokenChoice | undefined,
+    testAccounts: Awaited<ReturnType<NonNullable<ChatSessionDeps["getTestAccounts"]>>> | undefined,
+  ): CampaignEngineSetup["params"] => {
+    const maxTurns = picked.ultra ? picked.ultra.maxTurns : settings.maxTurns;
+    return {
+      ...(testAccounts && { testAccounts }),
+      cwd: deps.cwd,
+      auth: token?.mode ?? "auto",
+      provider: prefs.provider,
+      ...(prefs.provider === "opencode" &&
+        settings.opencodeProviders && { opencodeProviders: settings.opencodeProviders }),
+      ...(picked.model !== undefined && { model: picked.model }),
+      ...(picked.effort !== undefined && { effort: picked.effort }),
+      ...(picked.variant !== undefined && { variant: picked.variant }),
+      ...(!learning && { supervision: prefs.supervision }),
+      ...(maxTurns !== undefined && { maxTurns }),
+      ...(picked.ultra?.maxBudgetUsd !== undefined && { maxBudgetUsd: picked.ultra.maxBudgetUsd }),
+      ...(history && { journalDir: history.files.dir }),
+      ...(!learning && settings.burp && { burp: settings.burp }),
+      ...(!learning && settings.integrations && { integrations: settings.integrations }),
+      ...(!learning && { profile: settings.profile ?? DEFAULT_AGENT_PROFILE }),
+      ...(settings.webSearch !== undefined && { webSearch: !learning && settings.webSearch }),
+      // Le mode exclut `systemPrompt` (ADR 0010) : la consigne vient du moteur, jamais de l'UI.
+      ...(learning && { mode: "learning" as const }),
+    };
+  };
+
   const startEngine = async (
     revision: number,
     conversationContext?: ReturnType<typeof buildConversationContext>,
@@ -705,31 +746,12 @@ export function createChatSession(deps: ChatSessionDeps) {
       settings.webSearch ?? true,
       settings.opencodeProviders ?? null,
     ]);
-    const maxTurns = picked.ultra ? picked.ultra.maxTurns : settings.maxTurns;
     const testAccounts = !learning ? await deps.getTestAccounts?.() : undefined;
     if (revision !== navigationRev || detached.has(ctl)) return null;
     await ctl.start({
-      ...(testAccounts && { testAccounts }),
-      cwd: deps.cwd,
-      auth: token?.mode ?? "auto",
-      provider: prefs.provider,
-      ...(prefs.provider === "opencode" &&
-        settings.opencodeProviders && { opencodeProviders: settings.opencodeProviders }),
-      ...(picked.model !== undefined && { model: picked.model }),
-      ...(picked.effort !== undefined && { effort: picked.effort }),
-      ...(picked.variant !== undefined && { variant: picked.variant }),
-      ...(!learning && { supervision: prefs.supervision }),
+      ...commonStartParams(settings, picked, token, testAccounts),
       ...(conversationContext !== undefined && { conversationContext }),
-      ...(maxTurns !== undefined && { maxTurns }),
-      ...(picked.ultra?.maxBudgetUsd !== undefined && { maxBudgetUsd: picked.ultra.maxBudgetUsd }),
-      ...(history && { journalDir: history.files.dir }),
-      ...(!learning && settings.burp && { burp: settings.burp }),
-      ...(!learning && settings.integrations && { integrations: settings.integrations }),
-      ...(!learning && { profile: settings.profile ?? DEFAULT_AGENT_PROFILE }),
-      ...(settings.webSearch !== undefined && { webSearch: !learning && settings.webSearch }),
       ...(!transferring && sessionId !== undefined && { resume: sessionId }),
-      // Le mode exclut `systemPrompt` (ADR 0010) : la consigne vient du moteur, jamais de l'UI.
-      ...(learning && { mode: "learning" as const }),
     });
     if (revision !== navigationRev || detached.has(ctl)) return null;
     if (deps.bypass) {
@@ -739,6 +761,154 @@ export function createChatSession(deps: ChatSessionDeps) {
       );
     }
     return ctl;
+  };
+
+  // --- Campagne multi-agents (ADR 0054, lot 3b) : jamais empruntée quand le mode est éteint ---
+  let campaign: CampaignHost | null = null;
+  let campaignLink: BypassEngineLink | undefined;
+  let campaignBypassAck: ((ack: { state: BypassState | null }) => void) | undefined;
+  let campaignJournal: JournalWriter | undefined;
+
+  const sameBypass = (a: BypassState | null, b: BypassState | null): boolean =>
+    a === null || b === null ? a === b : a.since === b.since && a.expiresAt === b.expiresAt;
+
+  const agentLabel = (info: CampaignAgentInfo): ItemAgent => ({
+    role: info.role,
+    index: info.index,
+    ...(info.intent !== undefined && { intent: cleanText(info.intent.title, 200) }),
+  });
+
+  /** Fin de campagne (normale, arrêt ou erreur) : Bypass libéré, journal fermé, chat libéré. */
+  const endCampaign = (why: Reason) => {
+    campaignLink?.release();
+    campaignLink = undefined;
+    campaignBypassAck = undefined;
+    campaign = null;
+    const journal = campaignJournal;
+    campaignJournal = undefined;
+    void journal?.close().catch(() => undefined);
+    if (disposed) return;
+    for (const [id, card] of state.approvals)
+      if (card.agent !== undefined) state.approvals.delete(id);
+    state.setBusy(false);
+    state.notice(formatReason(why, getUiLocale()));
+    refresh();
+  };
+
+  const onCampaignMessage = (info: CampaignAgentInfo, message: FromEngine) => {
+    if (disposed) return;
+    switch (message.type) {
+      case "event": {
+        const event = message.event;
+        deps.onObservedEvent?.(event);
+        if (event.kind === "tool.requested" && current) current.tools++;
+        // L'étiquette d'agent est une donnée de l'élément, jamais du texte du modèle.
+        state.event(event, agentLabel(info));
+        if (event.kind === "process.output" || event.kind === "agent.thinking") {
+          outputTimer ??= setTimeout(refresh, 100);
+        } else refresh();
+        return;
+      }
+      case "error":
+        state.error(message.reason);
+        refresh();
+        return;
+      case "bypassAck":
+        campaignBypassAck?.({ state: message.state });
+        return;
+      default:
+        return; // `started`, `ended`, `missionContext` : la campagne n'en a pas l'usage
+    }
+  };
+
+  /** Jeton et réglages relus à chaque lancement de moteur, comme pour un chat. */
+  const campaignSetup = async (): Promise<CampaignEngineSetup> => {
+    const settings = readSettings();
+    const picked = choice(settings);
+    const token = await deps.getToken(prefs.provider);
+    if (deps.requireProvider && token === undefined)
+      throw new Error(
+        t("La connexion au fournisseur n’est plus disponible. Reconnectez-le avant de continuer."),
+      );
+    const testAccounts = await deps.getTestAccounts?.();
+    return {
+      ...(token?.auth && { auth: token.auth }),
+      params: commonStartParams(settings, picked, token, testAccounts),
+    };
+  };
+
+  /** Envoi en mode multi-agents : une campagne remplace le run simple. */
+  const startCampaign = async (
+    text: string,
+    prompt: string,
+    revision: number,
+  ): Promise<boolean> => {
+    ensureConversation(text);
+    state.user(text);
+    refresh();
+    let journal: JournalWriter | undefined;
+    try {
+      const recorder = createRecorder();
+      if (history) {
+        journal = await openJournal(join(history.files.dir, `${recorder.runId}.jsonl`));
+        recorder.subscribe(journal.sink);
+      }
+      if (revision !== navigationRev) {
+        await journal?.close().catch(() => undefined);
+        return false;
+      }
+      campaignJournal = journal;
+      const spawnEngine = createCampaignSpawner({
+        make,
+        options: { enginePath: deps.enginePath, args: deps.engineArgs, cwd: deps.cwd },
+        resolve: campaignSetup,
+      });
+      const host = createCampaignHost({
+        objective: prompt,
+        workers: prefs.multiAgentWorkers,
+        spawnEngine,
+        recorder,
+        onApproval: (card) => {
+          if (disposed) return;
+          state.approvals.set(card.toolUseId, card);
+          refresh();
+        },
+        onMessage: onCampaignMessage,
+        onFinished: endCampaign,
+      });
+      campaign = host;
+      if (hasPastedCredentials(prompt)) {
+        state.notice(
+          t(
+            "Identifiant détecté : il a été masqué dans les journaux. Utilisez la page Comptes de test pour que l'agent puisse s'en servir.",
+          ),
+        );
+      }
+      if (deps.bypass && !host.finished) {
+        let seq = 0;
+        let last: BypassState | null = null;
+        campaignLink = deps.bypass.attach((bypassState) => {
+          last = bypassState;
+          host.setBypass(bypassState);
+          return ++seq;
+        });
+        // Un accusé d'un moteur de la campagne confirme l'état courant ; un état périmé est ignoré
+        // (l'échéance d'accusé du Bypass éteint tout si aucun moteur ne confirme).
+        campaignBypassAck = (ack) => {
+          if (sameBypass(ack.state, last)) campaignLink?.acked(seq, ack.state);
+        };
+      }
+      refresh();
+      return true;
+    } catch (error) {
+      if (campaignJournal === undefined) await journal?.close().catch(() => undefined);
+      campaign = null;
+      if (revision !== navigationRev) return false;
+      state.error(error);
+      state.setBusy(false);
+      refresh();
+      return false;
+    }
   };
 
   /** Invalide aussi les lectures de connexion en attente, qui ne savent pas s'annuler. */
@@ -924,6 +1094,7 @@ export function createChatSession(deps: ChatSessionDeps) {
 
   const resetConversation = () => {
     deps.bypass?.reset?.();
+    campaign?.stop("user");
     researchPending = false;
     deps.onObservedEvent?.(null);
     selection = emptySelection();
@@ -1268,6 +1439,32 @@ export function createChatSession(deps: ChatSessionDeps) {
       persist(prefsKey, prefs);
       refresh();
     },
+    /** Mode multi-agents (ADR 0054) : demande venue de la webview (hostile), validée ici ; gelée pendant un tour. */
+    setMultiAgent(raw: unknown): void {
+      if (state.busy || campaign !== null || typeof raw !== "boolean") {
+        refresh();
+        return;
+      }
+      prefs = { ...prefs, multiAgent: raw };
+      persist(prefsKey, prefs);
+      refresh();
+    },
+    /** Nombre de workers : entier de 1 à 8, sinon la demande est refusée sans rien changer. */
+    setMultiAgentWorkers(raw: unknown): void {
+      if (state.busy || campaign !== null || parseMultiAgentWorkers(raw) !== raw) {
+        refresh();
+        return;
+      }
+      prefs = { ...prefs, multiAgentWorkers: raw as number };
+      persist(prefsKey, prefs);
+      refresh();
+    },
+    /** Arrêt d'urgence de l'engagement : coupe tous les moteurs de la campagne de ce chat. */
+    emergencyStop(): void {
+      if (campaign === null) return;
+      deps.bypass?.reset?.();
+      campaign.stop("emergency");
+    },
     /** Interrupteur venu de la webview (hostile) : booléen strict, gelé pendant un tour, appliqué au message suivant. */
     setLearning(raw: unknown): void {
       if (state.busy || typeof raw !== "boolean") {
@@ -1346,6 +1543,8 @@ export function createChatSession(deps: ChatSessionDeps) {
         refresh();
         return false;
       }
+      if (!activeController && prefs.multiAgent && !learning)
+        return await startCampaign(text, prompt, revision);
       if (activeController) {
         if (stopping || controller !== activeController || !state.busy || state.readonly)
           return false;
@@ -1473,6 +1672,10 @@ export function createChatSession(deps: ChatSessionDeps) {
     stop(): void {
       latestPage();
       navigationRev++;
+      if (campaign !== null) {
+        deps.bypass?.reset?.();
+        campaign.stop("user");
+      }
       if (controller === null) {
         state.setBusy(false);
         refresh();
@@ -1494,7 +1697,7 @@ export function createChatSession(deps: ChatSessionDeps) {
     },
     async approve(toolUseId: string, choice: Choice): Promise<void> {
       const card = state.approvals.get(toolUseId);
-      if (!card || controller === null || confirming) return;
+      if (!card || (controller === null && campaign === null) || confirming) return;
       if (choice === "always") {
         // « Toujours » : jamais pour un verdict non mémorisable ; confirmation native hors webview.
         if (!card.canRemember) return;
@@ -1517,6 +1720,13 @@ export function createChatSession(deps: ChatSessionDeps) {
         if (!accepted || state.approvals.get(toolUseId) !== pending || controller !== approver)
           return;
       }
+      // Campagne d'abord (routage par `toolUseId`), puis le chemin d'un chat simple.
+      if (campaign?.answer(toolUseId, choice)) {
+        state.approvals.delete(toolUseId);
+        refresh();
+        return;
+      }
+      if (controller === null) return;
       const { decision, remember } = answerFor(choice);
       controller.answer(toolUseId, decision, remember);
       state.approvals.delete(toolUseId);
@@ -1608,6 +1818,8 @@ export function createChatSession(deps: ChatSessionDeps) {
         effort: meta.effort,
         variant: meta.variant ?? null,
         supervision: prefs.supervision,
+        multiAgent: prefs.multiAgent,
+        multiAgentWorkers: prefs.multiAgentWorkers,
       };
       persist(prefsKey, prefs);
       if (providerChanged) {
@@ -1676,6 +1888,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       unsubscribeHistory?.();
       deps.onObservedEvent?.(null);
       disposed = true;
+      campaign?.stop("user");
       clearTimeout(outputTimer);
       clearTimeout(stopTimer);
       stopTimer = undefined;

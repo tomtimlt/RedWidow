@@ -99,6 +99,8 @@ export interface EngineHandlers {
     projectId: string;
     projectName: string;
   }): void;
+  /** Requête de campagne du moteur (ADR 0054) : l'hôte y répond par `campaignResult`. */
+  onCampaign?(message: Extract<FromEngine, { type: "campaign" }>): void;
   /** Processus enfant terminé. */
   onExit?(info: { code: number | null; signal: NodeJS.Signals | null; stderrTail?: string }): void;
   /** Sortie d'erreur du moteur, masquée (jeton et motifs usuels de secrets). */
@@ -143,6 +145,8 @@ export interface EngineController {
    * repart de 1 à chaque moteur (nouveau contrôleur). Ne fait rien de plus : l'accusé arrive par `onBypassAck`.
    */
   bypass(state: BypassState | null): number;
+  /** Réponse de l'hôte à une requête `campaign` du moteur (ADR 0054). */
+  campaignResult(result: Omit<Extract<ToEngine, { type: "campaignResult" }>, "v" | "type">): void;
   /** Annule le run en cours. */
   abort(): void;
   /** Termine la session proprement (le run s'achève puis le moteur sort). */
@@ -219,6 +223,8 @@ export function createEngineController(options: EngineControllerOptions): Engine
           projectId: message.projectId,
           projectName: message.projectName,
         });
+      case "campaign":
+        return handlers.onCampaign?.(message);
       case "ready":
         return;
     }
@@ -371,6 +377,7 @@ export function createEngineController(options: EngineControllerOptions): Engine
         ...(remember !== undefined && { remember }),
       }),
     bypass: sendBypass,
+    campaignResult: (result) => post({ v: PROTOCOL_VERSION, type: "campaignResult", ...result }),
     abort: () => post({ v: PROTOCOL_VERSION, type: "abort" }),
     dispose: () => post({ v: PROTOCOL_VERSION, type: "dispose" }),
     kill() {
