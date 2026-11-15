@@ -227,10 +227,30 @@
     mark.setAttribute("height", "20");
     return mark;
   }
-  function messageShell(kind, text, body) {
+  // Campagne multi-agents (ADR 0054) : étiquette neutre, jamais la couleur seule.
+  function agentLabel(agent) {
+    if (!agent || (agent.role !== "planner" && agent.role !== "worker")) return null;
+    const planner = agent.role === "planner";
+    const label = el(
+      "span",
+      "msg-agent",
+      planner ? { translation: ["Plan"] } : { translation: ["W {0}", { 0: agent.index }] },
+    );
+    productAttribute(
+      label,
+      "title",
+      planner
+        ? { translation: ["Planificateur"] }
+        : { translation: ["Worker {0}", { 0: agent.index }] },
+    );
+    return label;
+  }
+  function messageShell(kind, text, body, agent) {
     const row = el("div", `msg-row ${kind}`);
     const mark = kind === "agent" ? agentMark() : null;
     if (mark) row.append(mark);
+    const tag = agentLabel(agent);
+    if (tag) row.append(tag);
     row.append(body, copyButton(text));
     return row;
   }
@@ -292,7 +312,11 @@
   const sameDisplay = (a, b) =>
     a &&
     Object.keys(a).length === Object.keys(b).length &&
-    Object.keys(b).every((key) => key === "blocks" || a[key] === b[key]);
+    Object.keys(b).every(
+      (key) =>
+        key === "blocks" ||
+        (key === "agent" ? JSON.stringify(a[key]) === JSON.stringify(b[key]) : a[key] === b[key]),
+    );
   function renderItem(item) {
     const cached = itemNodes.get(item.id);
     if (sameDisplay(cached?.item, item)) {
@@ -303,11 +327,11 @@
     let node;
     if (item.kind === "tool") node = renderTool(item, credential);
     else if (item.kind === "user")
-      node = messageShell("user", item.text, el("div", "msg user", item.text));
+      node = messageShell("user", item.text, el("div", "msg user", item.text), item.agent);
     else if (item.kind === "agent") {
       const message = el("div", "msg agent");
       for (const block of item.blocks) message.append(renderBlock(block));
-      node = messageShell("agent", item.text, message);
+      node = messageShell("agent", item.text, message, item.agent);
     } else {
       node = el("div", `notice ${item.level}`, item.text);
       if (item.level === "error") node.setAttribute("role", "alert");
@@ -433,6 +457,19 @@
     const icon = svg("shield", "ico card-icon");
     icon.setAttribute("aria-hidden", "true");
     head.append(icon, el("div", "card-title", l("Autorisation requise")));
+    const origin = card.agent;
+    if (origin && (origin.role === "planner" || origin.role === "worker")) {
+      const planner = origin.role === "planner";
+      const intent = typeof origin.intent === "string" ? origin.intent : "";
+      const text = planner
+        ? { translation: ["Planificateur"] }
+        : intent
+          ? { translation: ["Worker {0} · {1}", { 0: origin.index, 1: intent }] }
+          : { translation: ["Worker {0}", { 0: origin.index }] };
+      const tag = el("span", "card-agent", text);
+      productAttribute(tag, "title", text);
+      head.append(tag);
+    }
     const chips = el("div", "card-risks");
     for (const [name, label] of risks) {
       const chip = el("span", "card-risk");
@@ -976,6 +1013,118 @@
     vscode.postMessage({ type: "setLearning", enabled: ctl.learning !== true });
   }
   learningSwitch.addEventListener("click", toggleLearning);
+  // Mode multi-agents (ADR 0054) : interrupteur, nombre de workers, puce et panneau de campagne.
+  const multiSwitch = $("multi-switch");
+  const multiWorkers = $("multi-workers");
+  const multiChip = $("multi-chip");
+  const multiHelp = $("multi-help");
+  const multiBlock = document.querySelector(".cfg-multi");
+  const multiRunning = (view) => !!view?.campaign && view.campaign.finished !== true;
+  let multiBlocked = true;
+  const multiCount = () => {
+    const raw = multiWorkers.value.trim();
+    const n = Number(raw);
+    return raw !== "" && Number.isInteger(n) && n >= 1 && n <= 8 ? n : null;
+  };
+  function sendMulti(enabled) {
+    const workers = multiCount();
+    if (workers === null) {
+      multiWorkers.setAttribute("aria-invalid", "true");
+      return;
+    }
+    multiWorkers.removeAttribute("aria-invalid");
+    vscode.postMessage({ type: "setMultiAgent", enabled, workers });
+  }
+  multiSwitch.addEventListener("click", () => {
+    if (multiBlocked || !ctl?.multiAgent) return;
+    sendMulti(ctl.multiAgent.enabled !== true);
+  });
+  multiWorkers.addEventListener("input", () => {
+    if (multiCount() === null) multiWorkers.setAttribute("aria-invalid", "true");
+    else multiWorkers.removeAttribute("aria-invalid");
+  });
+  multiWorkers.addEventListener("change", () => {
+    if (multiBlocked || !ctl?.multiAgent) return;
+    sendMulti(ctl.multiAgent.enabled === true);
+  });
+  function paintMulti(view) {
+    const m = ctl?.multiAgent;
+    multiChip.hidden = !m || m.enabled !== true;
+    multiBlock.hidden = !m;
+    if (!m) {
+      multiBlocked = true;
+      return;
+    }
+    const available = m.available !== false;
+    multiBlocked = ctl.locked === true || multiRunning(view) || !available;
+    multiSwitch.setAttribute("aria-checked", String(m.enabled === true));
+    multiSwitch.setAttribute("aria-disabled", String(multiBlocked));
+    multiWorkers.disabled = multiBlocked;
+    if (document.activeElement !== multiWorkers && multiWorkers.value !== String(m.workers)) {
+      multiWorkers.value = String(m.workers);
+      multiWorkers.removeAttribute("aria-invalid");
+    }
+    $("multi-chip-label").textContent = t("Multi · {0}", { 0: m.workers });
+    const reason = !available && typeof m.unavailableReason === "string" ? m.unavailableReason : "";
+    multiHelp.hidden = reason === "";
+    multiHelp.textContent = reason === "" ? "" : t(reason);
+  }
+  const CAMPAIGN_STATES = ["open", "claimed", "done", "blocked", "exhausted"];
+  const campaignStateLabel = () => ({
+    open: t("Ouverte"),
+    claimed: t("En cours"),
+    done: t("Terminée"),
+    blocked: t("Bloquée"),
+    exhausted: t("Non attribuée"),
+  });
+  const campaignOutcomeLabel = () => ({
+    reported: t("Signalé"),
+    no_issue_found: t("Rien trouvé"),
+    ruled_out: t("Écarté"),
+    not_applicable: t("Sans objet"),
+    needs_follow_up: t("À approfondir"),
+  });
+  let campaignKey = "";
+  $("campaign-stop").addEventListener("click", () => vscode.postMessage({ type: "stopCampaign" }));
+  function paintCampaign(view) {
+    const c = view.campaign;
+    const section = $("campaign");
+    section.hidden = !c;
+    if (!c) {
+      campaignKey = "";
+      return;
+    }
+    const key = JSON.stringify([c, document.documentElement.lang]);
+    if (key === campaignKey) return;
+    campaignKey = key;
+    const objective = $("campaign-objective");
+    objective.textContent = c.objective;
+    objective.title = c.objective;
+    for (const state of CAMPAIGN_STATES)
+      $(`campaign-n-${state}`).textContent = String(c.counts?.[state] ?? 0);
+    const finished = c.finished === true;
+    $("campaign-finished").hidden = !finished;
+    $("campaign-stop").hidden = finished;
+    const intents = Array.isArray(c.intents) ? c.intents.slice(0, 50) : [];
+    $("campaign-summary").textContent = t("Intentions ({0})", { 0: intents.length });
+    const states = campaignStateLabel();
+    const outcomes = campaignOutcomeLabel();
+    $("campaign-list").replaceChildren(
+      ...intents.map((intent) => {
+        const li = el("li", `campaign-intent is-${intent.state}`);
+        const title = el("span", "campaign-intent-title", intent.title);
+        title.title = intent.title;
+        li.append(title, el("span", "campaign-intent-state", states[intent.state] ?? intent.state));
+        if (typeof intent.worker === "number")
+          li.append(el("span", "campaign-intent-worker", t("W {0}", { 0: intent.worker })));
+        if (intent.outcome)
+          li.append(
+            el("span", "campaign-intent-outcome", outcomes[intent.outcome] ?? intent.outcome),
+          );
+        return li;
+      }),
+    );
+  }
   const bypassState = $("bypass-state");
   const bypassBadge = $("bypass-badge");
   let bypassCtx = { push: null, previous: null, userOff: false };
@@ -1797,6 +1946,8 @@
     }
     sent = nextSent;
     renderControls(view.controls);
+    paintMulti(view);
+    paintCampaign(view);
     historyRunning = view.busy && !view.readonly;
     historyEntries = view.history;
     const historyKey = JSON.stringify([

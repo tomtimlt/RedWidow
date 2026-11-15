@@ -3070,3 +3070,164 @@ body.vscode-high-contrast-light .welcome-spider {
   background: var(--jn-bypass-tint);
   border-color: var(--jn-bypass-edge);
 }
+/* ───────────────────────────── Mode multi-agents (ADR 0054) ───────────────────────────── */
+#multi-chip[hidden],
+#campaign[hidden],
+.cfg-multi[hidden],
+#multi-help[hidden] {
+  display: none;
+}
+#multi-switch,
+#multi-switch .cfg-switch-label {
+  width: 100%;
+}
+#multi-switch[aria-checked="true"] .cfg-switch-ico {
+  background: var(--jn-sig-tint);
+  color: var(--jn-sig);
+}
+#multi-switch[aria-disabled="true"] {
+  opacity: 0.6;
+}
+.cfg-multi-workers {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 0 36px;
+  color: var(--jn-muted);
+  font-size: var(--jn-fs-sm);
+}
+#multi-workers {
+  box-sizing: border-box;
+  width: 56px;
+  min-height: 26px;
+  padding: 0 8px;
+  color: var(--vscode-input-foreground, var(--vscode-foreground));
+  background: var(--vscode-input-background, var(--jn-raise-2));
+  border: 1px solid var(--vscode-input-border, var(--jn-line-strong));
+  border-radius: var(--jn-r-sm);
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-sm);
+  appearance: textfield;
+}
+#multi-workers::-webkit-inner-spin-button,
+#multi-workers::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+#multi-workers[aria-invalid="true"] {
+  border-color: var(--vscode-inputValidation-errorBorder, var(--jn-line-strong));
+  outline: 1px solid var(--vscode-inputValidation-errorBorder, transparent);
+}
+#campaign {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s1);
+  margin-top: var(--jn-s2);
+  padding: var(--jn-s1) var(--jn-s2);
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-sm);
+  background: var(--jn-raise);
+  font-size: var(--jn-fs-sm);
+}
+.campaign-head {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+  min-width: 0;
+}
+.campaign-title {
+  flex: none;
+  font-weight: 650;
+}
+.campaign-objective {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--jn-muted);
+}
+.campaign-finished {
+  flex: none;
+  font-weight: 550;
+  color: var(--jn-muted);
+}
+#campaign-stop {
+  flex: none;
+  min-height: 26px;
+  border-radius: var(--jn-r-pill);
+  font-size: var(--jn-fs-sm);
+}
+#campaign-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--jn-s1) var(--jn-s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--jn-fs-xs);
+  color: var(--jn-muted);
+}
+#campaign-counts li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--jn-s1);
+}
+#campaign-counts b {
+  color: var(--vscode-foreground);
+  font-variant-numeric: tabular-nums;
+}
+#campaign-summary {
+  cursor: pointer;
+  color: var(--jn-muted);
+  font-size: var(--jn-fs-xs);
+}
+#campaign-list {
+  max-height: 160px;
+  margin: var(--jn-s1) 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.campaign-intent {
+  display: flex;
+  align-items: baseline;
+  gap: var(--jn-s2);
+  min-width: 0;
+  font-size: var(--jn-fs-xs);
+}
+.campaign-intent-title {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.campaign-intent-state,
+.campaign-intent-worker,
+.campaign-intent-outcome {
+  flex: none;
+  color: var(--jn-muted);
+}
+.card-agent {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--jn-muted);
+  font-size: var(--jn-fs-xs);
+}
+.msg-agent {
+  flex: none;
+  align-self: flex-start;
+  padding: 1px 6px;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-pill);
+  color: var(--jn-muted);
+  font-size: var(--jn-fs-2xs);
+  font-weight: 550;
+  white-space: nowrap;
+}

@@ -79,6 +79,13 @@ export interface ChatControls {
   supervision: SupervisionLevel;
   /** Mode apprentissage (ADR 0010) de ce chat : lecture des cours seule, Bypass inopérant. */
   learning: boolean;
+  /** Mode multi-agents (ADR 0054) : absent tant que l'hôte ne l'envoie pas (lot 4b). */
+  multiAgent?: {
+    enabled: boolean;
+    workers: number;
+    available: boolean;
+    unavailableReason?: string;
+  };
 }
 
 /** Modèle dont les niveaux comptent : le choix, sinon le réglage machine, sinon la première entrée de la liste. */

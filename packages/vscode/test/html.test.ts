@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
+import { UI_EN } from "@warband/messages";
 import { describe, expect, it } from "vitest";
 import { chatHtml, cockpitHtml, killchainHtml, makeNonce, studioHtml } from "../src/logic/html.js";
 import { shortcutLabel } from "../src/logic/shortcuts.js";
@@ -545,5 +546,61 @@ describe("HTML localisé des webviews", () => {
     expect(killchainHtml({ ...opts, locale: "en" })).toContain(
       '<title data-i18n="Graphe">Graph</title>',
     );
+  });
+});
+
+describe("mode multi-agents (ADR 0054, lot 4a)", () => {
+  const html = chatHtml(opts);
+  const js = read("../media/chat.js");
+  const tag = (id: string) => new RegExp(`<[^>]*\\sid="${id}"[^>]*>`).exec(html)?.[0] ?? "";
+  const cfg = html.slice(html.indexOf('id="cfg-pop"'), html.indexOf("<script nonce"));
+
+  it("interrupteur et nombre de workers dans Exécution, avant Bypass", () => {
+    expect(tag("multi-switch")).toContain('role="switch"');
+    expect(tag("multi-workers")).toMatch(/type="number"[^>]*min="1"[^>]*max="8"/);
+    expect(cfg.indexOf('id="multi-switch"')).toBeGreaterThan(cfg.indexOf('id="learning-switch"'));
+    expect(cfg.indexOf('id="multi-switch"')).toBeLessThan(cfg.indexOf('id="bypass-switch"'));
+    expect(tag("multi-help")).toMatch(/\shidden[\s>]/);
+  });
+  it("puce Multi masquée à côté du chip modèle ; campagne masquée entre mission et log", () => {
+    expect(tag("multi-chip")).toMatch(/\shidden[\s>]/);
+    expect(tag("multi-chip")).toContain('popovertarget="cfg-pop"');
+    expect(html.indexOf('id="model-chip"')).toBeLessThan(html.indexOf('id="multi-chip"'));
+    expect(tag("campaign")).toMatch(/\shidden[\s>]/);
+    expect(html.indexOf('id="mission"')).toBeLessThan(html.indexOf('id="campaign"'));
+    expect(html.indexOf('id="campaign"')).toBeLessThan(html.indexOf('id="log"'));
+    for (const id of ["campaign-stop", "campaign-list", "campaign-objective"])
+      expect(tag(id)).not.toBe("");
+  });
+  it("chaque data-i18n du lot a sa traduction anglaise, et le JS n'utilise pas innerHTML", () => {
+    const section = [
+      html.slice(html.indexOf('id="multi-chip"'), html.indexOf('id="multi-chip"') + 600),
+      html.slice(html.indexOf('id="campaign"'), html.indexOf('id="history"')),
+      html.slice(html.indexOf('class="cfg-control cfg-multi"'), html.indexOf("cfg-bypass")),
+    ].join("");
+    const keys = [...section.matchAll(/data-i18n(?:-[a-z-]+)?="([^"]+)"/g)].map((m) =>
+      (m[1] ?? "").replaceAll("&#x27;", "'"),
+    );
+    expect(keys.length).toBeGreaterThan(8);
+    for (const key of keys) expect(UI_EN[key], key).toBeDefined();
+    for (const key of [
+      "Planificateur",
+      "Worker {0}",
+      "Plan",
+      "W {0}",
+      "Signalé",
+      "Rien trouvé",
+      "Écarté",
+      "Sans objet",
+      "À approfondir",
+      "Une campagne est déjà en cours dans un autre chat",
+      "Indisponible en mode Apprentissage",
+    ])
+      expect(UI_EN[key], key).toBeDefined();
+    expect(js).not.toContain("innerHTML");
+  });
+  it("carte d'approbation et transcription : étiquettes d'agent", () => {
+    expect(js).toContain('el("span", "card-agent"');
+    expect(js).toContain('"msg-agent"');
   });
 });

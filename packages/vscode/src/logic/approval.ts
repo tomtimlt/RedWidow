@@ -135,6 +135,10 @@ export type WebviewMessage =
   | { type: "setBypass"; enabled: boolean; durationMs?: number | null }
   /** Mode apprentissage (ADR 0010) de ce chat : seul champ, appliqué au message suivant. */
   | { type: "setLearning"; enabled: boolean }
+  /** Mode multi-agents (ADR 0054) : interrupteur et nombre de workers (1 à 8). L'hôte répond au lot 4b. */
+  | { type: "setMultiAgent"; enabled: boolean; workers: number }
+  /** Arrête la campagne du chat, sans confirmation. Aucun champ. */
+  | { type: "stopCampaign" }
   /** Ouvre la Kill chain en vue plein écran. Aucun champ. */
   | { type: "openKillchain" }
   /** Ouvre le panneau Monitor. Aucun champ : l'hôte seul choisit la colonne. */
@@ -330,6 +334,17 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
       return only("type", "enabled") && typeof m.enabled === "boolean"
         ? { type: "setLearning", enabled: m.enabled }
         : null;
+    case "setMultiAgent":
+      return only("type", "enabled", "workers") &&
+        typeof m.enabled === "boolean" &&
+        typeof m.workers === "number" &&
+        Number.isInteger(m.workers) &&
+        m.workers >= 1 &&
+        m.workers <= 8
+        ? { type: "setMultiAgent", enabled: m.enabled, workers: m.workers }
+        : null;
+    case "stopCampaign":
+      return only("type") ? { type: "stopCampaign" } : null;
     case "watch":
       return only("type", "toolUseId") &&
         typeof m.toolUseId === "string" &&

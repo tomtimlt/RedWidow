@@ -1,4 +1,10 @@
-import { type EngineEvent, EXEGOL_EXEC_TOOL, KALI_TOOL_PREFIX } from "@warband/core";
+import {
+  type CoverageOutcome,
+  type EngineEvent,
+  EXEGOL_EXEC_TOOL,
+  type IntentState,
+  KALI_TOOL_PREFIX,
+} from "@warband/core";
 import { formatError, formatReason, getUiLocale, t } from "@warband/messages";
 import { type ApprovalCard, cleanText, describeInput } from "./approval.js";
 import type { ChatControls } from "./controls.js";
@@ -53,7 +59,11 @@ const LIVE_OUTPUT_CHARS = 12_000;
 
 export type ToolStatus = "pending" | "ok" | "error" | "denied" | "interrupted";
 
-export type ChatItem = { source?: string } & (
+export type ChatItem = {
+  source?: string;
+  /** Campagne multi-agents (ADR 0054) : agent d'origine du message ; absent hors campagne. */
+  agent?: { role: "planner" | "worker"; index: number };
+} & (
   | { id: number; kind: "user"; text: string }
   | { id: number; kind: "agent"; text: string; blocks: Block[] }
   | {
@@ -113,8 +123,25 @@ export interface ReadonlyInfo {
   canResume: boolean;
 }
 
+/** Campagne multi-agents affichée dans le chat (ADR 0054) : chaînes déjà neutralisées. */
+export interface CampaignView {
+  objective: string;
+  finished: boolean;
+  counts: Record<IntentState, number>;
+  workersMax: number;
+  intents: {
+    id: string;
+    title: string;
+    state: IntentState;
+    worker?: number;
+    outcome?: CoverageOutcome;
+  }[];
+}
+
 /** Ce que la webview affiche : uniquement des chaînes déjà neutralisées, jamais de HTML. */
 export interface ChatView {
+  /** Campagne en cours ou terminée de ce chat ; absente hors mode multi-agents. */
+  campaign?: CampaignView;
   capabilities?: {
     settings: import("./chat-capabilities.js").CapabilitySettings | undefined;
     selection: import("./chat-capabilities.js").ChatSelection;
