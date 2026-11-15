@@ -48,6 +48,13 @@ export type EventPayload =
       claim: import("./audit.js").AuditTestClaim;
       files?: { path: string; sha256: string }[];
     }
+  | {
+      /** Retest d'une trouvaille (ADR 0055) ; l'historique complet reste dans `findings.json`. */
+      kind: "finding.retest";
+      findingId: string;
+      verdict: "reproduced" | "fixed" | "inconclusive";
+      evidenceIds: string[];
+    }
   | { kind: "audit.coverage"; cells: import("./audit-schema.js").CoverageCell[] }
   | { kind: "run.started"; prompt: string; cwd: string }
   | {
@@ -487,6 +494,11 @@ export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
             ))
         ? reason("event.invalidField", { field: "files" })
         : null,
+  "finding.retest": shape({
+    findingId: "string",
+    verdict: "enum:reproduced,fixed,inconclusive",
+    evidenceIds: "string[]",
+  }),
   "audit.coverage": (p) =>
     coverageCellsSchema.safeParse(p.cells).success
       ? null

@@ -58,6 +58,7 @@ const retained = new Set([
   "journal.truncated",
   "audit.test",
   "audit.coverage",
+  "finding.retest",
   "campaign.step",
   "teardown.state",
 ]);

@@ -208,6 +208,34 @@ function bary(id, parents, rowOf) {
   for (const p of ps) sum += rowOf.get(p);
   return sum / ps.length;
 }
+// Précision d'une trouvaille (ADR 0055) : gravité, niveau de preuve, dernier verdict de retest.
+const SEVERITY_LABEL = {
+  info: "Gravité : info",
+  low: "Gravité : faible",
+  medium: "Gravité : moyenne",
+  high: "Gravité : élevée",
+  critical: "Gravité : critique",
+};
+const PROOF_LABEL = {
+  observed: "Preuve : observée",
+  reproduced: "Preuve : reproduite",
+  exploited: "Preuve : exploitée",
+};
+const RETEST_LABEL = {
+  reproduced: "Retest : reproduit",
+  fixed: "Retest : corrigé",
+  inconclusive: "Retest : non concluant",
+};
+function findingPrecisionLabels(finding) {
+  const last = Array.isArray(finding?.retests) ? finding.retests.at(-1) : undefined;
+  return [
+    SEVERITY_LABEL[finding?.severity],
+    PROOF_LABEL[finding?.proof],
+    RETEST_LABEL[last?.verdict],
+  ]
+    .filter(Boolean)
+    .map((label) => studioT(label));
+}
 const KIND_LABEL = {
   host: "Hôte",
   site: "Site / URL",
@@ -1243,7 +1271,13 @@ function start() {
       }
       selectedLabel.textContent = selected?.label ?? "";
       selectedLabel.title = selected?.label ?? "";
-      nodeMeta.textContent = [finding?.kind, finding?.state, finding?.technique, finding?.tactic]
+      nodeMeta.textContent = [
+        finding?.kind,
+        finding?.state,
+        finding?.technique,
+        finding?.tactic,
+        ...findingPrecisionLabels(finding),
+      ]
         .filter(Boolean)
         .join(" · ");
       nodeMeta.hidden = nodeMeta.textContent === "";

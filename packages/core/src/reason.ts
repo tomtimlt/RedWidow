@@ -235,6 +235,8 @@ export const REASON_CODES = [
   "finding.parentUnknown",
   "finding.pathNotSubset",
   "finding.invalidInput",
+  "finding.proofRequiresEvidence",
+  "finding.retestInsufficient",
   "project.absent",
   "project.workspaceNotMounted",
   "project.parentInvalid",

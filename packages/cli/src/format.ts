@@ -46,6 +46,8 @@ export function formatEvent(
       return `${tag("dim", t("recherche", "research"))} ${e.status}`;
     case "audit.test":
       return `${e.kind} : ${e.claim.objective}`;
+    case "finding.retest":
+      return `${tag(e.verdict === "fixed" ? "green" : e.verdict === "reproduced" ? "red" : "yellow", "retest")} ${paint("dim", `${e.findingId.slice(0, 8)} ${e.verdict}`)}`;
     case "audit.coverage":
       return `${e.kind} : ${e.cells.length} ${t("case(s)", "cell(s)")}`;
     case "run.started":

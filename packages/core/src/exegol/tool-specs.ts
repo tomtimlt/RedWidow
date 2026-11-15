@@ -5,16 +5,23 @@ import { createOutputCapture, renderCommandResult } from "../docker/output-captu
 import type { DockerToolContext, DockerToolSpec } from "../docker/tool-specs.js";
 import { writeSummary } from "../project.js";
 import { CodedError } from "../reason.js";
+import type { Recorder } from "../recorder.js";
 import {
   appendFinding,
   deleteFinding,
   FINDING_KINDS,
   FINDING_MAX_LABEL,
+  FINDING_MAX_TARGET,
+  FINDING_PROOFS,
+  FINDING_SEVERITIES,
   FINDING_STATES,
   type FindingPatch,
   MITRE_TACTICS,
   type MitreTactic,
+  RETEST_MAX_NOTES,
+  RETEST_VERDICTS,
   readFindings,
+  recordRetest,
   TECHNIQUE_PATTERN,
   updateFinding,
 } from "./findings.js";
@@ -80,11 +87,20 @@ function activeProjectId(targets: ExegolTargets): string {
   throw new CodedError("project.absent");
 }
 
-/** Outils : `exec`, `note`, `list_notes`, `update_note`, `delete_note`, `remember`. Le conteneur est validé contre la cible du message, pas choisi librement. */
+/** Contexte de confiance des outils de trouvaille (jamais fourni par le modèle). */
+export interface ExegolFindingOptions {
+  /** Lu à chaque appel : contrôle de cible des fiches approuvées, ou `undefined` sans fiche. */
+  scope?: () => ((target: string) => boolean) | undefined;
+  /** Journal des événements `finding.retest`. */
+  recorder?: Recorder | undefined;
+}
+
+/** Outils : `exec`, `note`, `record_retest`, `list_notes`, `update_note`, `delete_note`, `remember`. Le conteneur est validé contre la cible du message, pas choisi librement. */
 export function exegolToolSpecs(
   docker: DockerClient,
   targets: ExegolTargets,
   containerEnv?: Readonly<Record<string, string>>,
+  findingOptions: ExegolFindingOptions = {},
 ): DockerToolSpec[] {
   return [
     spec({
@@ -137,9 +153,14 @@ export function exegolToolSpecs(
         tactic: z.enum(MITRE_TACTICS).optional(),
         technique: z.string().regex(TECHNIQUE_PATTERN).optional(),
         from: z.array(z.string()).max(8).optional(),
+        severity: z.enum(FINDING_SEVERITIES).optional(),
+        target: z.string().trim().min(1).max(FINDING_MAX_TARGET).optional(),
+        proof: z.enum(FINDING_PROOFS).optional(),
+        evidenceIds: z.array(z.string()).max(20).optional(),
       },
       async run(args, call) {
         const projectId = activeProjectId(targets);
+        const inScope = findingOptions.scope?.();
         const finding = await appendFinding(
           defaultConfigDir(),
           projectId,
@@ -150,11 +171,57 @@ export function exegolToolSpecs(
             ...(args.tactic !== undefined && { tactic: args.tactic as MitreTactic }),
             ...(args.technique !== undefined && { technique: String(args.technique) }),
             ...(args.from !== undefined && { from: args.from as string[] }),
+            ...(args.severity !== undefined && {
+              severity: args.severity as (typeof FINDING_SEVERITIES)[number],
+            }),
+            ...(args.target !== undefined && { target: String(args.target) }),
+            ...(args.proof !== undefined && {
+              proof: args.proof as (typeof FINDING_PROOFS)[number],
+            }),
+            ...(args.evidenceIds !== undefined && { evidenceIds: args.evidenceIds as string[] }),
           },
-          { ...(call.signal && { signal: call.signal }) },
+          { ...(call.signal && { signal: call.signal }), ...(inScope && { inScope }) },
         );
         const tail = `${finding.tactic ? ` ${finding.tactic}` : ""}${finding.technique ? ` ${finding.technique}` : ""}`;
         return `${finding.id} ${finding.kind} ${finding.state} ${finding.label}${tail}`;
+      },
+    }),
+    spec({
+      name: "record_retest",
+      description:
+        "Enregistre un retest d'une trouvaille existante (voir list_notes) : verdict reproduced (rejouée avec succès), fixed (corrigée) ou inconclusive. " +
+        "evidenceIds : au moins une preuve enregistrée. fixed exige au moins deux preuves distinctes : un seul échec ne prouve pas qu'une faille est corrigée. " +
+        "fixed passe l'état à échoué ; reproduced relève le niveau de preuve à reproduced au moins. notes : 1000 caractères maximum.",
+      input: {
+        findingId: z.string().min(1),
+        verdict: z.enum(RETEST_VERDICTS),
+        evidenceIds: z.array(z.string()).min(1).max(20),
+        notes: z.string().max(RETEST_MAX_NOTES).optional(),
+      },
+      async run(args, call) {
+        const projectId = activeProjectId(targets);
+        const finding = await recordRetest(
+          defaultConfigDir(),
+          projectId,
+          {
+            findingId: String(args.findingId),
+            verdict: args.verdict as (typeof RETEST_VERDICTS)[number],
+            evidenceIds: args.evidenceIds as string[],
+            ...(args.notes !== undefined && { notes: String(args.notes) }),
+          },
+          { ...(call.signal && { signal: call.signal }) },
+        );
+        const last = finding.retests?.at(-1);
+        findingOptions.recorder?.emit(
+          {
+            kind: "finding.retest",
+            findingId: finding.id,
+            verdict: last?.verdict ?? (args.verdict as (typeof RETEST_VERDICTS)[number]),
+            evidenceIds: last?.evidenceIds ?? (args.evidenceIds as string[]),
+          },
+          call.parentId,
+        );
+        return `${finding.id} ${last?.verdict ?? ""} ${finding.state}${finding.proof ? ` ${finding.proof}` : ""}`;
       },
     }),
     spec({

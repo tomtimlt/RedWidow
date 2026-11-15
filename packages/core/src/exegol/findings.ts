@@ -12,6 +12,13 @@ export const USER_FINDINGS_FILE = "findings.json";
 export const FINDING_KINDS = ["host", "credential", "site", "step", "loot"] as const;
 export const FINDING_STATES = ["confirmed", "hypothesis", "failed"] as const;
 
+export const FINDING_SEVERITIES = ["info", "low", "medium", "high", "critical"] as const;
+export const FINDING_PROOFS = ["observed", "reproduced", "exploited"] as const;
+export const RETEST_VERDICTS = ["reproduced", "fixed", "inconclusive"] as const;
+export const FINDING_MAX_TARGET = 253;
+export const RETEST_MAX_NOTES = 1000;
+export const MAX_RETESTS = 20;
+
 export const MITRE_TACTICS = [
   "TA0043",
   "TA0042",
@@ -36,6 +43,18 @@ export const TECHNIQUE_PATTERN = /^T\d{4}(\.\d{3})?$/;
 export type FindingKind = (typeof FINDING_KINDS)[number];
 export type FindingState = (typeof FINDING_STATES)[number];
 
+export type FindingSeverity = (typeof FINDING_SEVERITIES)[number];
+export type FindingProof = (typeof FINDING_PROOFS)[number];
+export type RetestVerdict = (typeof RETEST_VERDICTS)[number];
+
+/** Un retest enregistré (ADR 0055) ; `at` est une date ISO. */
+export interface FindingRetest {
+  at: string;
+  verdict: RetestVerdict;
+  evidenceIds: string[];
+  notes?: string;
+}
+
 export interface Finding {
   id: string;
   kind: FindingKind;
@@ -47,6 +66,14 @@ export interface Finding {
   /** Parents appartenant au chemin retenu ; annotation, pas une preuve de réussite. */
   pathFrom?: string[];
   evidenceIds?: string[];
+  /** Gravité estimée (ADR 0055). Absente sur les anciennes trouvailles. */
+  severity?: FindingSeverity;
+  /** Hôte ou URL visé, dans le périmètre approuvé s'il en existe un. */
+  target?: string;
+  /** Niveau de preuve : vu une fois, rejoué, ou impact démontré. */
+  proof?: FindingProof;
+  /** Historique des retests, les plus anciens d'abord, au plus `MAX_RETESTS`. */
+  retests?: FindingRetest[];
 }
 
 const MAX_FROM = 8;
@@ -101,6 +128,39 @@ function isKind(v: unknown): v is FindingKind {
 
 function isState(v: unknown): v is FindingState {
   return typeof v === "string" && (FINDING_STATES as readonly string[]).includes(v);
+}
+
+function isSeverity(v: unknown): v is FindingSeverity {
+  return typeof v === "string" && (FINDING_SEVERITIES as readonly string[]).includes(v);
+}
+
+function isProof(v: unknown): v is FindingProof {
+  return typeof v === "string" && (FINDING_PROOFS as readonly string[]).includes(v);
+}
+
+function isVerdict(v: unknown): v is RetestVerdict {
+  return typeof v === "string" && (RETEST_VERDICTS as readonly string[]).includes(v);
+}
+
+function isTarget(v: unknown): v is string {
+  return typeof v === "string" && v !== "" && v.length <= FINDING_MAX_TARGET;
+}
+
+/** Valide un historique de retests stocké. */
+function readRetests(v: unknown): FindingRetest[] {
+  if (!Array.isArray(v) || v.length > MAX_RETESTS) throw invalid();
+  return v.map((row) => {
+    if (typeof row !== "object" || row === null) throw invalid();
+    const r = row as Record<string, unknown>;
+    if (typeof r.at !== "string" || !isVerdict(r.verdict) || !validEvidenceIds(r.evidenceIds))
+      throw invalid();
+    const retest: FindingRetest = { at: r.at, verdict: r.verdict, evidenceIds: [...r.evidenceIds] };
+    if (r.notes !== undefined) {
+      if (typeof r.notes !== "string" || r.notes.length > RETEST_MAX_NOTES) throw invalid();
+      retest.notes = redactLabel(r.notes);
+    }
+    return retest;
+  });
 }
 
 function isTactic(v: unknown): v is MitreTactic {
@@ -174,6 +234,19 @@ export async function readFindings(configDir: string, projectId: string): Promis
       if (!validEvidenceIds(rec.evidenceIds)) throw invalid();
       finding.evidenceIds = [...rec.evidenceIds];
     }
+    if (rec.severity !== undefined) {
+      if (!isSeverity(rec.severity)) throw invalid();
+      finding.severity = rec.severity;
+    }
+    if (rec.target !== undefined) {
+      if (!isTarget(rec.target)) throw invalid();
+      finding.target = rec.target;
+    }
+    if (rec.proof !== undefined) {
+      if (!isProof(rec.proof)) throw invalid();
+      finding.proof = rec.proof;
+    }
+    if (rec.retests !== undefined) finding.retests = readRetests(rec.retests);
     return finding;
   });
 }
@@ -183,6 +256,8 @@ export interface FindingMutationOptions {
   signal?: AbortSignal;
   /** Revalide le contexte sous verrou, juste avant l’écriture. Lever une erreur annule l’opération. */
   beforeCommit?: () => void | Promise<void>;
+  /** Contrôle de cible (fiche approuvée, ADR 0055) ; absent : aucune vérification de périmètre. */
+  inScope?: (target: string) => boolean;
 }
 
 /** Sérialise les mutations entre processus. Un verrou laissé par un crash exige une récupération explicite. */
@@ -248,6 +323,9 @@ export async function appendFinding(
     technique?: string | undefined;
     from?: string[] | undefined;
     evidenceIds?: string[] | undefined;
+    severity?: FindingSeverity | undefined;
+    target?: string | undefined;
+    proof?: FindingProof | undefined;
   },
   options: FindingMutationOptions = {},
 ): Promise<Finding> {
@@ -259,6 +337,20 @@ export async function appendFinding(
   if (!isKind(input.kind) || !isState(input.state)) throw invalid();
   if (input.tactic !== undefined && !isTactic(input.tactic)) throw invalid();
   if (input.technique !== undefined && !isTechnique(input.technique)) throw invalid();
+  if (input.severity !== undefined && !isSeverity(input.severity)) throw invalid();
+  if (input.proof !== undefined && !isProof(input.proof)) throw invalid();
+  if ((input.proof === "reproduced" || input.proof === "exploited") && !input.evidenceIds?.length)
+    throw new CodedError("finding.proofRequiresEvidence");
+  let target: string | undefined;
+  if (input.target !== undefined) {
+    const trimmed = input.target.trim();
+    if (!isTarget(trimmed)) throw invalid();
+    if (options.inScope && !options.inScope(trimmed))
+      throw new CodedError("audit.targetOutOfScope", {
+        target: redactLabel(trimmed).slice(0, 200),
+      });
+    target = redactLabel(trimmed);
+  }
   const from = input.from === undefined ? [] : [...new Set(input.from)];
   if (from.length > MAX_FROM) throw invalid();
   return withFindingsLock(path, options, async () => {
@@ -273,6 +365,9 @@ export async function appendFinding(
     if (input.technique !== undefined) finding.technique = input.technique;
     if (from.length > 0) finding.from = from;
     if (input.evidenceIds?.length) finding.evidenceIds = [...input.evidenceIds];
+    if (input.severity !== undefined) finding.severity = input.severity;
+    if (target !== undefined) finding.target = target;
+    if (input.proof !== undefined) finding.proof = input.proof;
     const all = [...current, finding];
     const kept = all.slice(-MAX_FINDINGS);
     // Aucune note ne garde un parent évincé : on réconcilie les liens restants.
@@ -488,6 +583,61 @@ export async function attachEvidence(
     const evidenceIds = [...new Set([...(existing.evidenceIds ?? []), evidenceId])];
     await validateEvidenceLinks(configDir, projectId, evidenceIds);
     const finding: Finding = { ...existing, evidenceIds };
+    current[index] = finding;
+    await commitFindings(path, current, options);
+    return finding;
+  });
+}
+
+const PROOF_RANK: Record<FindingProof, number> = { observed: 0, reproduced: 1, exploited: 2 };
+
+export interface RecordRetestInput {
+  findingId: string;
+  verdict: RetestVerdict;
+  evidenceIds: string[];
+  notes?: string | undefined;
+}
+
+/**
+ * Enregistre un retest (ADR 0055). `fixed` exige au moins deux preuves distinctes et passe l'état
+ * à `failed` ; `reproduced` relève `proof` au moins à `reproduced`. Les plus anciens retests tombent
+ * au-delà de `MAX_RETESTS`.
+ */
+export async function recordRetest(
+  configDir: string,
+  projectId: string,
+  input: RecordRetestInput,
+  options: FindingMutationOptions = {},
+): Promise<Finding> {
+  const path = projectFindingsPath(configDir, projectId);
+  if (!isVerdict(input.verdict) || !Array.isArray(input.evidenceIds) || !input.evidenceIds.length)
+    throw invalid();
+  if (input.notes !== undefined && input.notes.length > RETEST_MAX_NOTES) throw invalid();
+  if (input.verdict === "fixed" && new Set(input.evidenceIds).size < 2)
+    throw new CodedError("finding.retestInsufficient");
+  return withFindingsLock(path, options, async () => {
+    const current = await readFindings(configDir, projectId);
+    const index = uniqueFindingIndex(current, input.findingId);
+    const existing = current[index];
+    if (!existing) throw new CodedError("finding.notFound");
+    await validateEvidenceLinks(configDir, projectId, input.evidenceIds);
+    const retest: FindingRetest = {
+      at: new Date().toISOString(),
+      verdict: input.verdict,
+      evidenceIds: [...input.evidenceIds],
+    };
+    const notes = input.notes === undefined ? "" : redactLabel(input.notes.trim());
+    if (notes !== "") retest.notes = notes;
+    const finding: Finding = {
+      ...existing,
+      retests: [...(existing.retests ?? []), retest].slice(-MAX_RETESTS),
+    };
+    if (input.verdict === "fixed") finding.state = "failed";
+    if (
+      input.verdict === "reproduced" &&
+      (finding.proof === undefined || PROOF_RANK[finding.proof] < PROOF_RANK.reproduced)
+    )
+      finding.proof = "reproduced";
     current[index] = finding;
     await commitFindings(path, current, options);
     return finding;

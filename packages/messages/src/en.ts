@@ -210,6 +210,10 @@ export const reasons: Catalog = {
   "finding.pathNotSubset": (p) =>
     `pathFrom must be a subset of the finding's from parents: ${text(p.ids)} is not one; re-read list_notes.`,
   "finding.invalidInput": (p) => `invalid input for ${text(p.field)}: fix this field and retry.`,
+  "finding.proofRequiresEvidence": () =>
+    "a reproduced or exploited proof requires at least one evidenceIds entry: cite a recorded evidence or use observed.",
+  "finding.retestInsufficient": () =>
+    "a fixed retest requires at least two distinct evidence ids: a single failure does not prove a flaw is fixed; add a second evidence or conclude inconclusive.",
   "finding.labelInvalid": (p) =>
     `invalid finding label: use a title of 1 to ${text(p.max)} characters; keep details in the results file and retry note with a short title.`,
   "project.invalid": () => "invalid project: unreadable or incomplete project.json",

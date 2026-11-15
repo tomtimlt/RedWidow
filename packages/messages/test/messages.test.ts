@@ -246,6 +246,12 @@ describe("eventLabel", () => {
       kind: "audit.coverage",
       cells: [{ surface: "/api/users", testClass: "IDOR", state: "untested" }],
     },
+    "finding.retest": {
+      kind: "finding.retest",
+      findingId: "f1f1f1f1-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      verdict: "fixed",
+      evidenceIds: ["e1", "e2"],
+    },
     "audit.test": {
       kind: "audit.test",
       claim: {

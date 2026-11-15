@@ -2058,3 +2058,42 @@ describe("creationContainers", () => {
     ).toEqual([{ name: "a", short: "a", state: "running", mount: "/srv/a" }]);
   });
 });
+
+it("affiche gravité, preuve et dernier retest en étiquettes texte, fr puis en", () => {
+  const i18n = localeService();
+  const { find, receive } = killchainDom(i18n);
+  receive({
+    type: "view",
+    projectId: deleteProject,
+    findings: [
+      {
+        id: "trouvaille-p",
+        kind: "site",
+        state: "confirmed",
+        label: "<img src=x onerror=alert(1)>",
+        severity: "high",
+        proof: "reproduced",
+        retests: [
+          { at: "2026-11-15T10:00:00.000Z", verdict: "reproduced", evidenceIds: ["e1"] },
+          { at: "2026-11-15T11:00:00.000Z", verdict: "fixed", evidenceIds: ["e1", "e2"] },
+        ],
+      },
+    ],
+  });
+  find("kc-node").fire("click");
+  const meta = find("kc-card-meta");
+  expect(meta.textContent).toContain("Gravité : élevée");
+  expect(meta.textContent).toContain("Preuve : reproduite");
+  expect(meta.textContent).toContain("Retest : corrigé");
+  expect(meta.textContent).not.toContain("Retest : reproduit");
+  receive({ type: "locale", locale: "en" });
+  expect(find("kc-card-meta").textContent).toContain("Severity: high");
+  expect(find("kc-card-meta").textContent).toContain("Retest: fixed");
+});
+
+it("n'affiche aucune étiquette de précision pour une ancienne trouvaille", () => {
+  const { find, receive } = killchainDom(localeService());
+  receive(deleteFindingView);
+  find("kc-node").fire("click");
+  expect(find("kc-card-meta").textContent).not.toMatch(/Gravité|Preuve :|Retest/);
+});

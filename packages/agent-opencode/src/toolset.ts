@@ -92,6 +92,8 @@ export interface ExegolToolsetOptions extends DockerToolsetOptions {
   targets: ExegolTargets;
   /** Expose `remember` (défaut : true). */
   includeMemory?: boolean;
+  /** Contrôle de cible des fiches approuvées, relu à chaque `note` (ADR 0055). */
+  scope?: () => ((target: string) => boolean) | undefined;
 }
 
 /** Outils Exegol neutres ; leur exécution passe par le ToolGuard du serveur MCP. */
@@ -102,7 +104,10 @@ export function exegolToolset(options: ExegolToolsetOptions): OpencodeToolset {
     create: ({ recorder, accounts }) => {
       const docker = createDockerClient({ ...options, recorder });
       return [
-        ...exegolToolSpecs(docker, options.targets, accounts?.environment()),
+        ...exegolToolSpecs(docker, options.targets, accounts?.environment(), {
+          ...(options.scope && { scope: options.scope }),
+          recorder,
+        }),
         ...taskToolSpecs("exegol", docker, options.targets, recorder, accounts?.environment()),
       ].filter((spec) => options.includeMemory !== false || spec.name !== "remember");
     },

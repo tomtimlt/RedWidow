@@ -48,6 +48,8 @@ export function eventLabel(e: EngineEvent, options: LabelOptions = {}): string {
       return `${locale === "en" ? "Research" : "Recherche"} : ${e.status}`;
     case "audit.test":
       return clip(`${locale === "en" ? "Audit test" : "Contrôle d’audit"} : ${e.claim.objective}`);
+    case "finding.retest":
+      return clip(`Retest : ${e.verdict} [${e.findingId.slice(0, 8)}]`);
     case "audit.coverage":
       return clip(
         `${locale === "en" ? "Coverage matrix" : "Matrice de couverture"} : ${e.cells.length}`,

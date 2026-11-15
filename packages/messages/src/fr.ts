@@ -344,6 +344,10 @@ export const reasons: Catalog = {
     `pathFrom doit être un sous-ensemble des parents from de la trouvaille : ${text(p.ids)} n'en fait pas partie ; relire list_notes.`,
   "finding.invalidInput": (p) =>
     `entrée invalide pour ${text(p.field)} : corriger ce champ puis réessayer.`,
+  "finding.proofRequiresEvidence": () =>
+    "une preuve reproduite ou exploitée exige au moins un evidenceIds : citer une preuve enregistrée ou utiliser observed.",
+  "finding.retestInsufficient": () =>
+    "un retest corrigé (fixed) exige au moins deux preuves distinctes : un seul échec ne prouve pas qu'une faille est corrigée ; ajouter une seconde preuve ou conclure inconclusive.",
   "finding.labelInvalid": (p) =>
     `libellé de trouvaille invalide : utiliser un titre de 1 à ${text(p.max)} caractères ; conserver les détails dans le fichier de résultats, puis réessayer note avec un titre court.`,
   "project.invalid": () => "projet invalide : fichier project.json illisible ou incomplet",

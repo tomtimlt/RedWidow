@@ -92,6 +92,12 @@ const SAMPLES: { [K in EventKind]: Extract<EventPayload, { kind: K }> } = {
     projectId: "11111111-1111-4111-8111-111111111111",
     state: "on",
   },
+  "finding.retest": {
+    kind: "finding.retest",
+    findingId: "f1",
+    verdict: "fixed",
+    evidenceIds: ["e1", "e2"],
+  },
   "campaign.state": {
     kind: "campaign.state",
     projectId: "11111111-1111-4111-8111-111111111111",
@@ -268,6 +274,8 @@ describe("schéma d'événements", () => {
       ["engagement.state", { state: "none" }],
       ["engagement.halt", { state: "maybe" }],
       ["campaign.state", { state: "none" }],
+      ["finding.retest", { verdict: "maybe" }],
+      ["finding.retest", { evidenceIds: "e1" }],
       ["campaign.step", { result: "maybe" }],
       ["campaign.step", { evidenceIds: "e1" }],
       ["campaign.started", { maxWorkers: -1 }],

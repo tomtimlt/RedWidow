@@ -14,6 +14,8 @@ export interface ExegolToolsetOptions {
   targets: ExegolTargets;
   /** Expose `remember` (défaut : true). */
   includeMemory?: boolean;
+  /** Contrôle de cible des fiches approuvées, relu à chaque `note` (ADR 0055). */
+  scope?: () => ((target: string) => boolean) | undefined;
   binary?: string;
   argsPrefix?: readonly string[];
 }
@@ -33,7 +35,10 @@ export function exegolToolset(options: ExegolToolsetOptions): Toolset {
       });
       return createSpecTools(
         [
-          ...exegolToolSpecs(docker, options.targets, accounts?.environment()),
+          ...exegolToolSpecs(docker, options.targets, accounts?.environment(), {
+            ...(options.scope && { scope: options.scope }),
+            recorder,
+          }),
           ...taskToolSpecs("exegol", docker, options.targets, recorder, accounts?.environment()),
         ].filter((spec) => options.includeMemory !== false || spec.name !== "remember"),
         resolveParent,

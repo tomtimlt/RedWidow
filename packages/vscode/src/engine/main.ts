@@ -20,6 +20,7 @@ import {
 import {
   type AgentProfile,
   activeProject,
+  approvedScopeSheets,
   CodedError,
   createCampaignPort,
   createDockerClient,
@@ -42,6 +43,7 @@ import {
   resolveExegolContainer,
   resolveKaliContainer,
   type StoredProject,
+  scopeChecker,
   writeProgramDraft,
 } from "@warband/core";
 import { matchesFingerprint } from "../logic/integrity.js";
@@ -228,7 +230,9 @@ const done = runEngine({
     if (!(await matchesFingerprint(exe, expected))) {
       throw new CodedError("extension.binaryMismatch");
     }
-    const options = runnerOptions(mode, exe, targets, webSearch, webProgram);
+    const options = runnerOptions(mode, exe, targets, webSearch, webProgram, () =>
+      scopeChecker(approvedScopeSheets(programStatus, () => engagementView().status)),
+    );
     if (mode !== "learning")
       options.toolsets?.push(claudeDesk(), {
         name: "projectfiles",
