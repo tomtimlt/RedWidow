@@ -43,6 +43,7 @@ export * from "./kali/setup.js";
 export * from "./kali/tool-specs.js";
 export * from "./methodology.js";
 export { missionDecisionSchema } from "./mission-decision-schema.js";
+export * from "./mission-delta.js";
 export * from "./mission-desk.js";
 export * from "./mission-nudge.js";
 export * from "./opencode-auth.js";

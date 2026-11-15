@@ -366,14 +366,16 @@ export function runEngine({
                 ? { role: "planner", port: createIpcCampaignPort(send, onCampaignResult) }
                 : undefined
             : undefined;
+        // Ordre stable pour le cache de prompt : les parties constantes (après la méthodologie, que
+        // l'adaptateur place en tête) d'abord, puis le profil, enfin la consigne de l'interface.
         const systemPrompt = learning
           ? LEARNING_SYSTEM_PROMPT
           : [
               SCAN_OUTPUT_GUIDANCE,
-              deskInstructions(params.profile),
               INTEGRATION_GUIDANCE,
               multiAgent?.role === "planner" ? CAMPAIGN_PLANNER_GUIDANCE : undefined,
               multiAgent?.role === "worker" ? CAMPAIGN_WORKER_GUIDANCE : undefined,
+              deskInstructions(params.profile),
               params.systemPrompt,
             ]
               .filter(Boolean)

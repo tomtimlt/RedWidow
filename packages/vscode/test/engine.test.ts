@@ -813,7 +813,7 @@ describe("moteur : mode apprentissage (ADR 0010)", () => {
       expect(policyLoader).toHaveBeenCalledTimes(1);
       expect(modes).toEqual([undefined]);
       expect(box.input?.systemPrompt).toBe(
-        `${SCAN_OUTPUT_GUIDANCE}\n\n${deskInstructions()}\n\n${INTEGRATION_GUIDANCE}\n\nconsigne UI`,
+        `${SCAN_OUTPUT_GUIDANCE}\n\n${INTEGRATION_GUIDANCE}\n\n${deskInstructions()}\n\nconsigne UI`,
       );
       t.receive({ v: 1, type: "abort" });
       await done;
@@ -991,10 +991,10 @@ describe("moteur : conversations sans injection de mémoire du projet", () => {
     "conversation neuve ou reprise (%s) : consigne inchangée",
     async (resume) => {
       expect(await run({ ...(resume && { resume }), systemPrompt: "consigne UI" })).toBe(
-        `${SCAN_OUTPUT_GUIDANCE}\n\n${deskInstructions()}\n\n${INTEGRATION_GUIDANCE}\n\nconsigne UI`,
+        `${SCAN_OUTPUT_GUIDANCE}\n\n${INTEGRATION_GUIDANCE}\n\n${deskInstructions()}\n\nconsigne UI`,
       );
       expect(await run({ ...(resume && { resume }) })).toBe(
-        `${SCAN_OUTPUT_GUIDANCE}\n\n${deskInstructions()}\n\n${INTEGRATION_GUIDANCE}`,
+        `${SCAN_OUTPUT_GUIDANCE}\n\n${INTEGRATION_GUIDANCE}\n\n${deskInstructions()}`,
       );
     },
   );
