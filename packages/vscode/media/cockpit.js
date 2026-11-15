@@ -320,12 +320,14 @@
     }
     if (creation) section.append(buildProgressCard(true));
 
-    const engines = el("div", "cockpit-actions");
+    const engines = el("div", "cockpit-segment");
+    engines.setAttribute("role", "group");
+    engines.setAttribute("aria-label", t("Moteur"));
     const choices = view.exegol === "present" ? ["exegol", "kali"] : ["kali"];
     const labels = { exegol: "Exegol", kali: "Kali" };
     for (const choice of choices) {
       const selected = choice === engine;
-      const b = button(selected ? "primary" : "secondary", labels[choice], undefined, () => {
+      const b = button("ghost cockpit-segment-opt", labels[choice], undefined, () => {
         if (choice === "kali") form.imagesAsked = false;
         if (choice === engine && choice !== "kali") return;
         form.touched = true;

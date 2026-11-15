@@ -3049,6 +3049,15 @@ body.vscode-high-contrast-light .welcome-spider {
   font-family: var(--jn-mono);
   font-size: var(--jn-fs-sm);
 }
+/* Champs Heures et Minutes : pas de flèches (spinner). */
+#bypass-pop input {
+  appearance: textfield;
+}
+#bypass-pop input::-webkit-inner-spin-button,
+#bypass-pop input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
 #bypass-pop input:focus-visible {
   outline: 1px solid var(--vscode-focusBorder);
   outline-offset: -1px;

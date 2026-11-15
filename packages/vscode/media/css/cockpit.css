@@ -261,6 +261,39 @@ body.cockpit .cockpit-row.is-running > .dot {
 .cockpit-create .cockpit-actions {
   align-items: center;
 }
+/* Sélecteur de moteur : contrôle segmenté en pilule, comme les onglets du studio. */
+.cockpit-segment {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-pill);
+  background: var(--jn-raise);
+}
+.cockpit-segment-opt {
+  height: 26px;
+  min-height: 26px;
+  padding: 0 12px;
+  background: transparent;
+  color: var(--jn-muted);
+  border: 1px solid transparent;
+  border-radius: var(--jn-r-pill);
+  font-size: var(--jn-fs-sm);
+}
+.cockpit-segment-opt:hover:not(:disabled) {
+  color: var(--vscode-foreground);
+}
+.cockpit-segment-opt[aria-pressed="true"] {
+  color: var(--vscode-foreground);
+  border-color: var(--jn-accent-edge);
+  background: var(--jn-widget);
+  font-weight: 600;
+}
+body.vscode-high-contrast .cockpit-segment-opt[aria-pressed="true"] {
+  border-color: var(--jn-accent);
+  outline: 1px solid var(--jn-accent);
+}
 .cockpit-source {
   font-family: var(--jn-mono);
   font-size: var(--jn-fs-sm);
@@ -381,6 +414,30 @@ body.cockpit .cockpit-row.is-running > .dot {
   font-family: var(--jn-font);
   font-size: var(--jn-fs-xs);
   font-weight: 500;
+}
+/* Puce de projet : même bordure et même fond discrets que .cockpit-linked-tag, en plus compact. */
+.cockpit-project-link {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--jn-r-pill);
+  background: var(--jn-tint);
+  border: 1px solid var(--jn-accent-fill-border);
+  color: var(--vscode-foreground);
+  font-family: var(--jn-font);
+  font-size: var(--jn-fs-xs);
+  font-weight: 500;
+  cursor: pointer;
+}
+.cockpit-project-link:hover:not(:disabled) {
+  border-color: var(--jn-accent-edge);
+  background: var(--jn-widget);
+}
+.cockpit-project-link:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
 }
 .cockpit-linked-tag.is-primary,
 .cockpit-linked-tag.is-project {

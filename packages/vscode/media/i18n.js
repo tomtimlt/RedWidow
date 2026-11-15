@@ -536,6 +536,7 @@
     "Nouveau conteneur": "New container",
     "Aucun conteneur.": "No containers.",
     Principal: "Primary",
+    Moteur: "Engine",
     lié: "linked",
     "sans dossier": "no folder",
     "Définir comme conteneur principal (affichage seulement)":

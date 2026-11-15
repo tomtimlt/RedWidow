@@ -761,3 +761,24 @@ it("Déplacer dans un conteneur envoie relocateProject (id et conteneur, aucun c
   ui.field("cockpit-issue-dismiss").click();
   expect(ui.sent).toContainEqual({ type: "dismissMountIssue" });
 });
+
+it("le moteur est un contrôle segmenté : options ghost, aria-pressed, groupe étiqueté", () => {
+  const ui = cockpit();
+  ui.field("cockpit-create-toggle").click();
+  const opt = (label: string) =>
+    ui.main.find((n) => n.tag === "button" && n.attributes.get("aria-label") === label);
+  const exegol = opt("Exegol");
+  const kali = opt("Kali");
+  if (!exegol || !kali) throw new Error("Options du moteur absentes");
+  for (const o of [exegol, kali]) {
+    expect(o.className).toBe("ghost cockpit-segment-opt");
+    expect(o.className).not.toContain("primary");
+  }
+  const group = ui.main.find((n) => n.className === "cockpit-segment");
+  expect(group?.attributes.get("role")).toBe("group");
+  expect(group?.attributes.get("aria-label")).toBeTruthy();
+  expect(group?.children).toContain(kali);
+  kali.click();
+  expect(opt("Kali")?.attributes.get("aria-pressed")).toBe("true");
+  expect(opt("Exegol")?.attributes.get("aria-pressed")).toBe("false");
+});
