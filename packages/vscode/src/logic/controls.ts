@@ -125,6 +125,8 @@ export function buildControls(input: {
   busy: boolean;
   ultracode?: UltracodeLimits;
   learning?: boolean;
+  /** Une campagne tourne dans un autre chat : le mode multi-agents y est indisponible. */
+  campaignElsewhere?: boolean;
 }): ChatControls {
   const { prefs, models, status, defaultModel, busy } = input;
   const model = effectiveModel(models, prefs.model, defaultModel);
@@ -190,8 +192,12 @@ export function buildControls(input: {
     multiAgent: {
       enabled: prefs.multiAgent,
       workers: prefs.multiAgentWorkers,
-      available: input.learning !== true,
-      ...(input.learning === true && { unavailableReason: "Indisponible en mode Apprentissage" }),
+      available: input.learning !== true && input.campaignElsewhere !== true,
+      ...(input.learning === true
+        ? { unavailableReason: "Indisponible en mode Apprentissage" }
+        : input.campaignElsewhere === true && {
+            unavailableReason: "Une campagne est déjà en cours dans un autre chat",
+          }),
     },
   };
 }

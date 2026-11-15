@@ -1,3 +1,6 @@
+import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { BypassState, PendingApproval } from "@warband/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { isCampaignActive } from "../src/logic/campaign-host.js";
@@ -459,5 +462,175 @@ describe("lancement d'un moteur de campagne (lot 3b)", () => {
     handle.onExit(exit);
     await vi.waitFor(() => expect(exit).toHaveBeenCalledTimes(1));
     expect(messages).toEqual(["error"]);
+  });
+});
+
+const planner0 = async (f: ReturnType<typeof makeFactory>) => {
+  await waitCtls(f, 1);
+  const planner = f.ctls[0] as FakeCtl;
+  await vi.waitFor(() => expect(planner.started).toBeDefined());
+  return planner;
+};
+const openIntents = (ctl: FakeCtl, ...titles: string[]) =>
+  ctl.handlers.onCampaign?.({
+    v: 1,
+    type: "campaign",
+    id: "r1",
+    op: "openIntents",
+    args: drafts(...titles),
+  });
+
+describe("branchement webview et vue de campagne (lot 4b)", () => {
+  it("mode éteint : ni campaign dans la vue, contrôles disponibles", () => {
+    const f = makeFactory();
+    const { session, view } = chat(f);
+    sessions.push(session);
+    session.setMultiAgent(false);
+    expect(view().campaign).toBeUndefined();
+    expect(view().controls?.multiAgent?.available).toBe(true);
+    expect(view().controls?.multiAgent?.unavailableReason).toBeUndefined();
+  });
+
+  it("setMultiAgent puis workers (ordre de l'extension) : valeur invalide refusée", () => {
+    const f = makeFactory();
+    const { session, view } = chat(f);
+    sessions.push(session);
+    session.setMultiAgent(true);
+    session.setMultiAgentWorkers(4);
+    expect(view().controls?.multiAgent).toMatchObject({ enabled: true, workers: 4 });
+    session.setMultiAgent("oui");
+    session.setMultiAgentWorkers(42);
+    expect(view().controls?.multiAgent).toMatchObject({ enabled: true, workers: 4 });
+  });
+
+  it("stopCampaign arrête tous les moteurs ; sans campagne, sans effet", async () => {
+    const f = makeFactory();
+    const { session, view } = chat(f);
+    sessions.push(session);
+    session.stopCampaign();
+    session.setMultiAgent(true);
+    await session.send("objectif");
+    const planner = await planner0(f);
+    openIntents(planner, "A");
+    await waitCtls(f, 2);
+    session.stopCampaign();
+    expect(f.ctls.every((c) => c.calls.some((x) => x[0] === "kill"))).toBe(true);
+    expect(isCampaignActive()).toBe(false);
+    expect(view().campaign?.finished).toBe(true);
+  });
+
+  it("available:false dans un autre chat pendant la campagne, true après la fin", async () => {
+    const f = makeFactory();
+    const a = chat(f);
+    const b = chat(f);
+    sessions.push(a.session, b.session);
+    a.session.setMultiAgent(true);
+    await a.session.send("objectif");
+    await planner0(f);
+    await vi.waitFor(() => expect(b.view().controls?.multiAgent?.available).toBe(false));
+    expect(b.view().controls?.multiAgent?.unavailableReason).toBe(
+      "Une campagne est déjà en cours dans un autre chat",
+    );
+    // Le chat de la campagne reste disponible (ses contrôles sont gelés par `locked`).
+    expect(a.view().controls?.multiAgent?.available).toBe(true);
+    expect(a.view().controls?.locked).toBe(true);
+    a.session.stopCampaign();
+    await vi.waitFor(() => expect(b.view().controls?.multiAgent?.available).toBe(true));
+    expect(b.view().controls?.multiAgent?.unavailableReason).toBeUndefined();
+  });
+
+  it("view.campaign : compteurs, intentions, numéro de worker, textes neutralisés et tronqués", async () => {
+    const f = makeFactory();
+    const { session, view } = chat(f);
+    sessions.push(session);
+    session.setMultiAgent(true);
+    session.setMultiAgentWorkers(1);
+    await session.send(`Objectif\u001b[31m${"x".repeat(400)}`);
+    const planner = await planner0(f);
+    expect(view().campaign?.objective.length).toBeLessThanOrEqual(301);
+    expect(view().campaign?.objective).not.toContain("\u001b");
+    expect(view().campaign).toMatchObject({ finished: false, workersMax: 1 });
+    openIntents(planner, `Titre\u001b[1m${"y".repeat(300)}`, "Deuxième");
+    await waitCtls(f, 2);
+    const worker = f.ctls[1] as FakeCtl;
+    await vi.waitFor(() => expect(worker.started).toBeDefined());
+    const c = view().campaign;
+    expect(c?.counts).toMatchObject({ claimed: 1, open: 1, done: 0 });
+    expect(c?.intents).toHaveLength(2);
+    expect(c?.intents[0]?.title.length).toBeLessThanOrEqual(201);
+    expect(c?.intents[0]?.title).not.toContain("\u001b");
+    expect(c?.intents[0]).toMatchObject({ state: "claimed", worker: 1 });
+    expect(c?.intents[1]?.worker).toBeUndefined();
+    worker.handlers.onCampaign?.({
+      v: 1,
+      type: "campaign",
+      id: "w1",
+      op: "closeIntent",
+      args: { closure: { outcome: "reported", summary: "fait", evidence: [] } },
+    });
+    await vi.waitFor(() => expect(view().campaign?.counts.done).toBe(1));
+    expect(view().campaign?.intents[0]).toMatchObject({
+      state: "done",
+      outcome: "reported",
+      worker: 1,
+    });
+    session.stopCampaign();
+  });
+
+  it("finished conservé jusqu'au prochain envoi", async () => {
+    const f = makeFactory();
+    const { session, view } = chat(f);
+    sessions.push(session);
+    session.setMultiAgent(true);
+    await session.send("un");
+    await planner0(f);
+    session.stopCampaign();
+    expect(view().campaign).toMatchObject({ finished: true, objective: expect.any(String) });
+    expect(view().busy).toBe(false);
+    session.setMultiAgent(false);
+    expect(view().campaign?.finished).toBe(true);
+    await session.send("deux");
+    expect(view().campaign).toBeUndefined();
+  });
+
+  it("le runId du journal de campagne est ajouté aux runIds de la conversation", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "warband-camp-"));
+    try {
+      const f = makeFactory();
+      const stored = new Map<string, unknown>();
+      const session = createChatSession({
+        cwd: "/w",
+        enginePath: "/e.mjs",
+        engineArgs: [],
+        readSettings: () => ({}),
+        getToken: async () => undefined,
+        confirmAlways: async () => false,
+        onView: () => undefined,
+        createController: f.create,
+        history: {
+          key: "warband.history",
+          index: { get: (k) => stored.get(k), set: (k, v) => stored.set(k, v) },
+          files: {
+            dir,
+            read: async () => null,
+            size: async () => 0,
+            remove: async () => undefined,
+            removeAll: async () => undefined,
+          },
+          confirmDelete: async () => true,
+        },
+      });
+      sessions.push(session);
+      session.setMultiAgent(true);
+      await session.send("objectif");
+      await planner0(f);
+      const journals = (await readdir(dir)).map((name) => name.replace(/\.jsonl$/, ""));
+      expect(journals).toHaveLength(1);
+      const rows = stored.get("warband.history") as { runIds: string[] }[];
+      expect(rows[0]?.runIds).toContain(journals[0]);
+      session.stopCampaign();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

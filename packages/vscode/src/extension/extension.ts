@@ -1426,6 +1426,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           return s.reset();
         case "approve":
           return await s.approve(message.toolUseId, message.choice);
+        case "setMultiAgent":
+          // Hôte : chaque valeur est revalidée (gelée pendant un tour ou une campagne).
+          s.setMultiAgent(message.enabled);
+          s.setMultiAgentWorkers(message.workers);
+          return;
+        case "stopCampaign":
+          return s.stopCampaign();
         case "timelinePage":
           return await s.timelinePage(message.direction);
         case "timelineExchange":

@@ -33,6 +33,31 @@ export function isCampaignActive(): boolean {
   return activeCampaign;
 }
 
+const activityListeners = new Set<() => void>();
+
+/**
+ * Abonnement au changement « campagne active » (lecteur sans état global supplémentaire : les
+ * autres chats se rafraîchissent). L'avis est différé d'un micro-cycle : l'appelant a fini de se brancher.
+ */
+export function onCampaignActivity(listener: () => void): () => void {
+  activityListeners.add(listener);
+  return () => void activityListeners.delete(listener);
+}
+
+function setCampaignActive(value: boolean): void {
+  if (activeCampaign === value) return;
+  activeCampaign = value;
+  queueMicrotask(() => {
+    for (const listener of [...activityListeners]) {
+      try {
+        listener();
+      } catch {
+        // Un abonné défaillant ne doit pas gêner les autres.
+      }
+    }
+  });
+}
+
 export type CampaignAgentRole = "planner" | "worker";
 
 /** Ce que `spawnEngine` reçoit pour lancer un moteur de campagne. */
@@ -78,6 +103,8 @@ export interface CampaignHostOptions {
   onApproval?: (card: ApprovalCard) => void;
   /** Tout autre message d'un moteur (événements, `started`, `ended`, erreurs…). */
   onMessage?: (agent: CampaignAgentInfo, message: FromEngine) => void;
+  /** L'état de la campagne a changé (intention ouverte, prise, fermée, moteur sorti) : la vue se rafraîchit. */
+  onChange?: () => void;
   /** La campagne est terminée (fin normale, `stop()` ou arrêt d'urgence). */
   onFinished?: (why: Reason) => void;
 }
@@ -90,6 +117,8 @@ export interface CampaignHost {
   /** Arrête tous les moteurs ; `emergency` pour l'arrêt d'urgence. Idempotent. */
   stop(cause?: "user" | "emergency"): void;
   status(): CampaignRunStatus;
+  /** Numéro (1..N, ordre de lancement) du worker de ce `runId` ; `undefined` s'il est inconnu. */
+  workerIndex(runId: string): number | undefined;
   readonly finished: boolean;
 }
 
@@ -132,6 +161,8 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
   let planner: Agent | undefined;
   let turn = 0;
   let workerSeq = 0;
+  /** `runId` d'un worker → numéro (même valeur que `agent.index`). */
+  const workerIndexes = new Map<string, number>();
   let openedInTurn = false;
   let wakePending = false;
   let wakeTimer: ReturnType<typeof setTimeout> | undefined;
@@ -184,13 +215,31 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
     );
   };
 
+  const changed = (): void => {
+    if (finished) return;
+    try {
+      options.onChange?.();
+    } catch {
+      // Un rafraîchissement raté ne doit jamais gêner la campagne.
+    }
+  };
+
   /** Lance des workers tant qu'il y a des intentions ouvertes et de la place. */
   const pump = (): void => {
+    try {
+      pumpWorkers();
+    } finally {
+      changed();
+    }
+  };
+
+  const pumpWorkers = (): void => {
     while (!finished && liveWorkers() < workers) {
       const runId = randomUUID();
       const intent = coordinator.claimNext(runId);
       if (!intent) return;
       workerSeq += 1;
+      workerIndexes.set(runId, workerSeq);
       const brief = { id: intent.id, title: intent.title, rationale: intent.rationale };
       const info: CampaignAgentInfo = { role: "worker", index: workerSeq, runId, intent: brief };
       try {
@@ -247,7 +296,7 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
         // Un moteur déjà parti ne doit pas empêcher d'arrêter les autres.
       }
     }
-    activeCampaign = false;
+    setCampaignActive(false);
     options.onFinished?.(why);
   };
 
@@ -331,6 +380,7 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
       reply({ ok: true, value: value ?? null });
       if (message.op === "openIntents") pump();
       if (message.op === "closeIntent") scheduleWake();
+      changed();
     } catch (error) {
       reply({ ok: false, reason: errorInfo(error) });
     }
@@ -367,7 +417,7 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
     }
   };
 
-  activeCampaign = true;
+  setCampaignActive(true);
   try {
     coordinator.start(options.objective);
     startPlannerTurn();
@@ -376,7 +426,7 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
       try {
         finish(reason("campaign.stopped", { cause: "error" }));
       } catch {
-        activeCampaign = false;
+        setCampaignActive(false);
       }
     }
     throw error;
@@ -399,6 +449,7 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
       finish(reason("campaign.stopped", { cause }));
     },
     status: () => coordinator.status(),
+    workerIndex: (runId) => workerIndexes.get(runId),
     get finished() {
       return finished;
     },

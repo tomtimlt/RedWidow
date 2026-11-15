@@ -24,9 +24,16 @@ import { formatReason, getUiLocale, t } from "@warband/messages";
 import { alwaysConfirmText, answerFor, type Choice, cleanText, toCard } from "./approval.js";
 import { PRODUCT_NAME } from "./brand.js";
 import type { BypassEngineLink, BypassSend } from "./bypass.js";
-import { type CampaignAgentInfo, type CampaignHost, createCampaignHost } from "./campaign-host.js";
+import {
+  type CampaignAgentInfo,
+  type CampaignHost,
+  createCampaignHost,
+  isCampaignActive,
+  onCampaignActivity,
+} from "./campaign-host.js";
 import { type CampaignEngineSetup, createCampaignSpawner } from "./campaign-spawn.js";
 import {
+  type CampaignView,
   type ChatState,
   type ChatView,
   createChatState,
@@ -286,6 +293,30 @@ export function createChatSession(deps: ChatSessionDeps) {
       return undefined;
     }
   };
+  // Campagne de ce chat (lot 3b) et sa vue (lot 4b), déclarées avant `sync`/`view`/`refresh`.
+  let campaign: CampaignHost | null = null;
+  /** Reste affichée (`finished: true`) jusqu'au prochain envoi ou à la remise à zéro. */
+  let campaignView: CampaignView | undefined;
+  const buildCampaignView = (host: CampaignHost): CampaignView => {
+    const status = host.status();
+    return {
+      objective: cleanText(status.objective ?? "", 300),
+      finished: status.finished,
+      counts: { ...status.counts },
+      workersMax: status.maxWorkers,
+      intents: status.intents.slice(0, 50).map((intent) => {
+        const worker =
+          intent.workerRunId === undefined ? undefined : host.workerIndex(intent.workerRunId);
+        return {
+          id: intent.id,
+          title: cleanText(intent.title, 200),
+          state: intent.state,
+          ...(intent.outcome !== undefined && { outcome: intent.outcome }),
+          ...(worker !== undefined && { worker }),
+        };
+      }),
+    };
+  };
   const sync = () => {
     const ultracode = ultracodeLimits();
     state.setControls(
@@ -297,6 +328,7 @@ export function createChatSession(deps: ChatSessionDeps) {
         defaultModel: machineModel(),
         busy: state.busy,
         learning,
+        campaignElsewhere: isCampaignActive() && campaign === null,
         ...(ultracode && { ultracode }),
       }),
     );
@@ -326,6 +358,7 @@ export function createChatSession(deps: ChatSessionDeps) {
     return {
       ...live,
       stopping: stopping && controller !== null,
+      ...(campaignView && { campaign: campaignView }),
       ...(settings.capabilities && {
         capabilities: {
           settings: settings.capabilities,
@@ -363,6 +396,7 @@ export function createChatSession(deps: ChatSessionDeps) {
   const refresh = () => {
     clearTimeout(outputTimer);
     outputTimer = undefined;
+    if (campaign !== null) campaignView = buildCampaignView(campaign);
     sync();
     deps.onView(view());
   };
@@ -764,7 +798,6 @@ export function createChatSession(deps: ChatSessionDeps) {
   };
 
   // --- Campagne multi-agents (ADR 0054, lot 3b) : jamais empruntée quand le mode est éteint ---
-  let campaign: CampaignHost | null = null;
   let campaignLink: BypassEngineLink | undefined;
   let campaignBypassAck: ((ack: { state: BypassState | null }) => void) | undefined;
   let campaignJournal: JournalWriter | undefined;
@@ -783,6 +816,7 @@ export function createChatSession(deps: ChatSessionDeps) {
     campaignLink?.release();
     campaignLink = undefined;
     campaignBypassAck = undefined;
+    if (campaign !== null) campaignView = buildCampaignView(campaign);
     campaign = null;
     const journal = campaignJournal;
     campaignJournal = undefined;
@@ -845,6 +879,7 @@ export function createChatSession(deps: ChatSessionDeps) {
   ): Promise<boolean> => {
     ensureConversation(text);
     state.user(text);
+    campaignView = undefined;
     refresh();
     let journal: JournalWriter | undefined;
     try {
@@ -858,6 +893,11 @@ export function createChatSession(deps: ChatSessionDeps) {
         return false;
       }
       campaignJournal = journal;
+      // Le journal de campagne suit le sort de la conversation (rétention, suppression).
+      if (journal && current && !current.runIds.includes(recorder.runId)) {
+        current.runIds.push(recorder.runId);
+        touch();
+      }
       const spawnEngine = createCampaignSpawner({
         make,
         options: { enginePath: deps.enginePath, args: deps.engineArgs, cwd: deps.cwd },
@@ -874,6 +914,9 @@ export function createChatSession(deps: ChatSessionDeps) {
           refresh();
         },
         onMessage: onCampaignMessage,
+        onChange: () => {
+          if (!disposed) refresh();
+        },
         onFinished: endCampaign,
       });
       campaign = host;
@@ -1095,6 +1138,7 @@ export function createChatSession(deps: ChatSessionDeps) {
   const resetConversation = () => {
     deps.bypass?.reset?.();
     campaign?.stop("user");
+    campaignView = undefined;
     researchPending = false;
     deps.onObservedEvent?.(null);
     selection = emptySelection();
@@ -1113,6 +1157,10 @@ export function createChatSession(deps: ChatSessionDeps) {
     state.clear();
     refresh();
   };
+  // Une campagne démarre ou finit ailleurs : la disponibilité du mode change ici aussi.
+  const unsubscribeCampaign = onCampaignActivity(() => {
+    if (!disposed) refresh();
+  });
   const unsubscribeHistory = history?.index.subscribe?.(() => {
     if (disposed) return;
     const incoming = parseHistory(history.index.get(historyKey));
@@ -1459,6 +1507,10 @@ export function createChatSession(deps: ChatSessionDeps) {
       persist(prefsKey, prefs);
       refresh();
     },
+    /** Bouton « Arrêter la campagne » : arrête tous les moteurs ; sans campagne, sans effet. */
+    stopCampaign(): void {
+      campaign?.stop("user");
+    },
     /** Arrêt d'urgence de l'engagement : coupe tous les moteurs de la campagne de ce chat. */
     emergencyStop(): void {
       if (campaign === null) return;
@@ -1543,6 +1595,7 @@ export function createChatSession(deps: ChatSessionDeps) {
         refresh();
         return false;
       }
+      campaignView = undefined;
       if (!activeController && prefs.multiAgent && !learning)
         return await startCampaign(text, prompt, revision);
       if (activeController) {
@@ -1750,6 +1803,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       const meta = index.find((c) => c.id === id);
       if (!meta) return;
       deps.onObservedEvent?.(null);
+      campaignView = undefined;
       const revision = ++navigationRev;
       await reloadHistoryProjects(revision);
       if (revision !== navigationRev) return;
@@ -1886,6 +1940,7 @@ export function createChatSession(deps: ChatSessionDeps) {
     },
     dispose(): void {
       unsubscribeHistory?.();
+      unsubscribeCampaign();
       deps.onObservedEvent?.(null);
       disposed = true;
       campaign?.stop("user");
