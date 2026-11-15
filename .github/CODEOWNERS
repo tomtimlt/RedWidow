@@ -1,0 +1,5 @@
+# Tout changement doit être relu et approuvé par le propriétaire du dépôt.
+# Effectif avec la règle de branche « Exiger une revue des propriétaires de code » (voir docs/securite-depot.md).
+*                       @tomtimlt
+/.github/               @tomtimlt
+/packages/vscode/extension.manifest.json @tomtimlt
