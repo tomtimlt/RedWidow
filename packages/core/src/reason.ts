@@ -184,6 +184,7 @@ export const REASON_CODES = [
   "campaign.ipcTimeout",
   "campaign.roleForbidden",
   "campaign.completed",
+  "campaign.plannerFailed",
   "campaign.stopped",
   "teardown.itemUnknown",
   "teardown.closeBlocked",

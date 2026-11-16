@@ -155,6 +155,13 @@ interface Agent {
   lastText?: string;
   /** Le moteur a envoyé son message de fin (sortie propre, pas un crash). */
   ended: boolean;
+  /**
+   * Le run s'est terminé en erreur (`ended` en erreur, `turn.finished` en erreur, message `error`).
+   * Un `ended` réussi l'annule : une rotation de clé (ADR 0056) relance le moteur sous le même handle.
+   */
+  failed: boolean;
+  /** Code de l'erreur d'origine (jamais le texte du fournisseur). */
+  failureCode?: string;
 }
 
 function plannerPrompt(objective: string, snapshot: CampaignRunStatus | undefined): string {
@@ -201,6 +208,8 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
   let wakePending = false;
   let wakeTimer: ReturnType<typeof setTimeout> | undefined;
   let finished = false;
+  /** Code d'erreur d'un tour de planificateur échoué : plus aucun réveil, fin dès que plus rien ne tourne. */
+  let plannerFailure: string | undefined;
   let bypassState: BypassState | null = null;
   let bypassSeq = 0;
 
@@ -229,7 +238,7 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
         maxBudgetUsd: WORKER_MAX_BUDGET_USD,
       }),
     });
-    const agent: Agent = { info, handle, port, exited: false, ended: false };
+    const agent: Agent = { info, handle, port, exited: false, ended: false, failed: false };
     agents.set(info.runId, agent);
     handle.onMessage((message) => onEngineMessage(agent, message));
     handle.onExit(() => onExit(agent));
@@ -311,7 +320,7 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
 
   /** Réveil du planificateur après l'anti-rebond : jamais une attente en boucle. */
   const scheduleWake = (): void => {
-    if (finished || budgetReached()) return;
+    if (finished || plannerFailure !== undefined || budgetReached()) return;
     if (wakeTimer !== undefined) clearTimeout(wakeTimer);
     wakeTimer = setTimeout(() => {
       wakeTimer = undefined;
@@ -353,7 +362,17 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
   };
 
   /** Fin du tour du planificateur : terminer, enchaîner ou attendre les workers. */
-  const afterPlannerTurn = (): void => {
+  const afterPlannerTurn = (failure: string | undefined): void => {
+    // Un tour en erreur ne vaut jamais « rien à ouvrir » : on laisse finir les workers, sans réveil.
+    if (failure !== undefined) {
+      plannerFailure = failure;
+      wakePending = false;
+      if (wakeTimer !== undefined) clearTimeout(wakeTimer);
+      wakeTimer = undefined;
+      pump();
+      checkStalled();
+      return;
+    }
     const { counts } = coordinator.status();
     if (!openedInTurn && counts.open + counts.claimed === 0) {
       finish(reason("campaign.completed"));
@@ -376,6 +395,10 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
       finish(reason("campaign.budgetExhausted"));
       return;
     }
+    if (plannerFailure !== undefined) {
+      finish(reason("campaign.plannerFailed", { code: plannerFailure }));
+      return;
+    }
     const { counts } = coordinator.status();
     if (counts.claimed === 0 && counts.open > 0) finish(reason("campaign.completed"));
   };
@@ -388,7 +411,7 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
     if (finished) return;
     if (agent.info.role === "planner") {
       planner = undefined;
-      afterPlannerTurn();
+      afterPlannerTurn(agent.failed ? (agent.failureCode ?? "error.unknown") : undefined);
       return;
     }
     const held = coordinator
@@ -493,6 +516,10 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
           count(message.summary?.inputTokens) + count(message.summary?.outputTokens),
         );
         agent.ended = true;
+        if (message.summary?.status === "error") {
+          agent.failed = true;
+          agent.failureCode ??= "error.unknown";
+        } else agent.failed = false;
         if (budgetReached()) {
           if (wakeTimer !== undefined) clearTimeout(wakeTimer);
           wakeTimer = undefined;
@@ -502,7 +529,17 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
         changed();
         return;
       }
+      case "error":
+        agent.failed = true;
+        agent.failureCode = message.reason.code;
+        options.onMessage?.(agent.info, message);
+        return;
       case "event":
+        if (message.event.kind === "error") agent.failureCode = message.event.code;
+        if (message.event.kind === "turn.finished" && message.event.status === "error") {
+          agent.failed = true;
+          agent.failureCode ??= "error.unknown";
+        }
         if (agent.info.role === "worker" && message.event.kind === "agent.text")
           agent.lastText = cleanText(message.event.text, HOST_SUMMARY_MAX);
         options.onMessage?.(agent.info, message);

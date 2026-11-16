@@ -313,6 +313,7 @@ export const reasons: Catalog = {
   "campaign.roleForbidden": (p) =>
     `operation ${text(p.op)} is not allowed for the ${text(p.role)} role`,
   "campaign.completed": () => "campaign completed: the planner has no direction left to open",
+  "campaign.plannerFailed": (p) => `Campaign stopped: the planner failed (${text(p.code)}).`,
   "campaign.stopped": (p) => `campaign stopped (${text(p.cause)})`,
   "vault.invalid": (p) => `invalid key vault (field: ${text(p.field)})`,
   "vault.allExhausted": (p) =>

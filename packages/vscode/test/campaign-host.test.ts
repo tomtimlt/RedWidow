@@ -192,6 +192,74 @@ describe("hôte de campagne : cycle de vie", () => {
     expect(isCampaignActive()).toBe(false);
   });
 
+  const endedMsg = (status: "success" | "error"): FromEngine => ({
+    v: 1,
+    type: "ended",
+    summary: { status, turns: 1, costUsd: 0, result: null },
+  });
+  const errorMsg = (code: string): FromEngine => ({
+    v: 1,
+    type: "error",
+    reason: { code } as never,
+  });
+
+  it("planificateur en erreur sans worker : campaign.plannerFailed avec le code d'origine", () => {
+    const s = setup();
+    host = s.host;
+    const planner = s.planners()[0] as FakeEngine;
+    planner.emit(errorMsg("provider.error"));
+    planner.emit(endedMsg("error"));
+    planner.exit();
+    expect(s.host.finished).toBe(true);
+    expect(s.finished[0]).toMatchObject({
+      code: "campaign.plannerFailed",
+      params: { code: "provider.error" },
+    });
+    expect(isCampaignActive()).toBe(false);
+  });
+
+  it("planificateur en erreur avec workers en cours : on attend leur fin, sans réveil", async () => {
+    const s = setup();
+    host = s.host;
+    const planner = s.planners()[0] as FakeEngine;
+    await ask(planner, "openIntents", drafts("a"));
+    planner.emit(errorMsg("provider.error"));
+    planner.emit(endedMsg("error"));
+    planner.exit();
+    expect(s.host.finished).toBe(false);
+    const w = s.workers()[0] as FakeEngine;
+    w.exit();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(s.planners()).toHaveLength(1);
+    expect(s.host.finished).toBe(true);
+    expect(s.finished[0]).toMatchObject({ code: "campaign.plannerFailed" });
+  });
+
+  it("planificateur réussi sans intention : campaign.completed", () => {
+    const s = setup();
+    host = s.host;
+    const planner = s.planners()[0] as FakeEngine;
+    planner.emit(endedMsg("success"));
+    planner.exit();
+    expect(s.finished[0]).toMatchObject({ code: "campaign.completed" });
+  });
+
+  it("relance par rotation : un échec transitoire suivi d'un succès ne termine pas à tort", () => {
+    const s = setup();
+    host = s.host;
+    const planner = s.planners()[0] as FakeEngine;
+    // Échec de clé : le lanceur relance sous le même handle, sans sortie ni `ended` de l'ancien.
+    planner.emit({
+      v: 1,
+      type: "event",
+      event: { kind: "turn.finished", turns: 1, costUsd: 0, status: "error", result: null },
+    } as FromEngine);
+    expect(s.host.finished).toBe(false);
+    planner.emit(endedMsg("success"));
+    planner.exit();
+    expect(s.finished[0]).toMatchObject({ code: "campaign.completed" });
+  });
+
   it("un worker qui sort sans fermer : intention blocked, planificateur réveillé", async () => {
     const s = setup();
     host = s.host;

@@ -448,6 +448,8 @@ export const reasons: Catalog = {
   "campaign.roleForbidden": (p) =>
     `l'opération ${text(p.op)} n'est pas permise au rôle ${text(p.role)}`,
   "campaign.completed": () => "campagne terminée : le planificateur n'a plus de direction à ouvrir",
+  "campaign.plannerFailed": (p) =>
+    `Campagne arrêtée : le planificateur a échoué (${text(p.code)}).`,
   "campaign.stopped": (p) => `campagne arrêtée (${text(p.cause)})`,
   "vault.invalid": (p) => `coffre à clés invalide (champ : ${text(p.field)})`,
   "vault.allExhausted": (p) =>
