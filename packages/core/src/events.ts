@@ -284,6 +284,24 @@ export type EventPayload =
       usage?: TaskUsage;
     }
   | {
+      /** Clé d'API effectivement présente dans l'environnement du moteur (empreinte seulement, jamais la valeur). */
+      kind: "provider.key";
+      provider: string;
+      keyRank: number;
+      fingerprint: string;
+      source: "vault" | "legacy";
+    }
+  | {
+      /** Rotation de clé du coffre après un quota ou une clé invalide. */
+      kind: "vault.rotated";
+      provider: string;
+      fromRank: number;
+      fromFingerprint: string;
+      toRank?: number;
+      toFingerprint?: string;
+      cause: "quota" | "invalidKey";
+    }
+  | {
       kind: "rate.limited";
       status: string;
       resetsAt?: number;
@@ -472,6 +490,13 @@ const AUTH_FIELDS = shape({
   tokenSource: "string?",
   apiProvider: "string?",
 });
+
+/** Empreinte de clé : exactement 8 caractères hexadécimaux, jamais un texte libre. */
+function fingerprintField(value: unknown, field: string): Reason | null {
+  return typeof value === "string" && /^[0-9a-f]{8}$/.test(value)
+    ? null
+    : reason("event.invalidField", { field });
+}
 
 const USAGE_FIELDS = shape({ totalTokens: "number", toolUses: "number", durationMs: "number" });
 
@@ -672,6 +697,24 @@ export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
     limitType: "string?",
     utilization: "number?",
   }),
+  "provider.key": (p) =>
+    shape({
+      provider: "string",
+      keyRank: "uint",
+      fingerprint: "string",
+      source: "enum:vault,legacy",
+    })(p) ?? fingerprintField(p.fingerprint, "fingerprint"),
+  "vault.rotated": (p) =>
+    shape({
+      provider: "string",
+      fromRank: "uint",
+      fromFingerprint: "string",
+      toRank: "uint?",
+      toFingerprint: "string?",
+      cause: "enum:quota,invalidKey",
+    })(p) ??
+    fingerprintField(p.fromFingerprint, "fromFingerprint") ??
+    (p.toFingerprint === undefined ? null : fingerprintField(p.toFingerprint, "toFingerprint")),
   "turn.finished": shape({
     turns: "number",
     costUsd: "number",

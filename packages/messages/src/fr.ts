@@ -449,6 +449,13 @@ export const reasons: Catalog = {
     `l'opération ${text(p.op)} n'est pas permise au rôle ${text(p.role)}`,
   "campaign.completed": () => "campagne terminée : le planificateur n'a plus de direction à ouvrir",
   "campaign.stopped": (p) => `campagne arrêtée (${text(p.cause)})`,
+  "vault.invalid": (p) => `coffre à clés invalide (champ : ${text(p.field)})`,
+  "vault.allExhausted": (p) =>
+    `toutes les clés du coffre sont épuisées ou invalides${p.until === undefined ? "" : ` ; la première redevient disponible le ${text(p.until)}`}`,
+  "vault.keyMismatch": () =>
+    "la clé utilisée par le moteur ne correspond pas à la clé choisie : run arrêté",
+  "vault.full": () => "le coffre est plein (10 clés au plus par fournisseur)",
+  "vault.duplicate": () => "cette clé est déjà dans le coffre",
   "teardown.itemUnknown": (p) =>
     `élément de démontage ${text(p.itemId)} absent de la liste du plan de campagne approuvé`,
   "teardown.closeBlocked": (p) =>
@@ -514,6 +521,8 @@ export const events: EventStrings = {
   retry: "nouvel essai",
   task: "tâche",
   rateLimit: "limite d'usage",
+  providerKey: "clé",
+  vaultRotated: "rotation de clé",
   paceAdjusted: "rythme ajusté",
   paceHalted: "hôte arrêté",
   session: "session",

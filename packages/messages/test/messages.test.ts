@@ -426,6 +426,20 @@ describe("eventLabel", () => {
     },
     "mission.noContainer": { kind: "mission.noContainer", profile: "bug-bounty" },
     "pace.halted": { kind: "pace.halted", host: "cible.example", cause: "floor" },
+    "provider.key": {
+      kind: "provider.key",
+      provider: "openai",
+      keyRank: 1,
+      fingerprint: "3fa9c1d0",
+      source: "vault",
+    },
+    "vault.rotated": {
+      kind: "vault.rotated",
+      provider: "openai",
+      fromRank: 1,
+      fromFingerprint: "3fa9c1d0",
+      cause: "quota",
+    },
     "run.finished": {
       kind: "run.finished",
       status: "success",

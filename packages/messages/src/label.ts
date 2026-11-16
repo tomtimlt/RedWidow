@@ -160,6 +160,12 @@ export function eventLabel(e: EngineEvent, options: LabelOptions = {}): string {
       return clip(`${t.task} ${e.phase} : ${e.description ?? e.summary ?? e.taskId}`);
     case "rate.limited":
       return clip(`${t.rateLimit} : ${e.status}`);
+    case "provider.key":
+      return `${t.providerKey} ${e.keyRank} · ${e.fingerprint} (${e.provider})`;
+    case "vault.rotated":
+      return clip(
+        `${t.vaultRotated} (${e.provider}) : ${e.fromRank} · ${e.fromFingerprint} → ${e.toRank === undefined ? "—" : `${e.toRank} · ${e.toFingerprint ?? ""}`} (${e.cause})`,
+      );
     case "pace.adjusted":
       return clip(`${t.paceAdjusted} : ${e.host} ${e.fromRps} → ${e.toRps} req/s`);
     case "pace.halted":

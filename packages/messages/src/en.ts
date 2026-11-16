@@ -314,6 +314,13 @@ export const reasons: Catalog = {
     `operation ${text(p.op)} is not allowed for the ${text(p.role)} role`,
   "campaign.completed": () => "campaign completed: the planner has no direction left to open",
   "campaign.stopped": (p) => `campaign stopped (${text(p.cause)})`,
+  "vault.invalid": (p) => `invalid key vault (field: ${text(p.field)})`,
+  "vault.allExhausted": (p) =>
+    `all vault keys are exhausted or invalid${p.until === undefined ? "" : `; the first one is available again at ${text(p.until)}`}`,
+  "vault.keyMismatch": () =>
+    "the key used by the engine does not match the chosen key: run stopped",
+  "vault.full": () => "the vault is full (at most 10 keys per provider)",
+  "vault.duplicate": () => "this key is already in the vault",
   "teardown.itemUnknown": (p) =>
     `teardown item ${text(p.itemId)} is not in the approved campaign plan list`,
   "teardown.closeBlocked": (p) =>
@@ -465,6 +472,8 @@ export const events: EventStrings = {
   retry: "retry",
   task: "task",
   rateLimit: "usage limit",
+  providerKey: "key",
+  vaultRotated: "key rotation",
   paceAdjusted: "pace adjusted",
   paceHalted: "host halted",
   session: "session",

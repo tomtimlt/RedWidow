@@ -173,6 +173,10 @@ export function formatEvent(
     }
     case "rate.limited":
       return `${tag(e.status === "rejected" ? "red" : "yellow", "limit")} ${e.status}${e.limitType ? ` · ${e.limitType}` : ""}${e.utilization === undefined ? "" : ` · ${Math.round(e.utilization * 100)} %`}`;
+    case "provider.key":
+      return `${tag("cyan", "clé")} ${e.keyRank} · ${e.fingerprint} ${paint("dim", `${stripControl(e.provider)} · ${e.source}`)}`;
+    case "vault.rotated":
+      return `${tag("yellow", "rotation")} ${stripControl(e.provider)} ${e.fromRank} · ${e.fromFingerprint} → ${e.toRank === undefined ? "—" : `${e.toRank} · ${e.toFingerprint ?? ""}`} ${paint("dim", e.cause)}`;
     case "pace.adjusted":
       return `${tag("yellow", "rythme")} ${stripControl(e.host)} ${e.fromRps} → ${e.toRps} req/s ${paint("dim", e.cause)}`;
     case "pace.halted":

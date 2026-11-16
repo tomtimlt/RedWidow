@@ -72,6 +72,7 @@ export * from "./supervision.js";
 export * from "./tasks/tools.js";
 export * from "./test-accounts.js";
 export * from "./trace/analyze.js";
+export * from "./vault/index.js";
 export * from "./web/guard.js";
 export * from "./web/guidance.js";
 export * from "./web/http-request.js";

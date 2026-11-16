@@ -255,6 +255,12 @@ export const REASON_CODES = [
   "cours.absent",
   "exegol.containerDenied",
   "kali.unavailable",
+  // Coffre à clés (ADR 0056)
+  "vault.invalid",
+  "vault.allExhausted",
+  "vault.keyMismatch",
+  "vault.full",
+  "vault.duplicate",
   // Divers
   "error.unknown",
   /** Motif ou erreur d'un ancien journal, relu comme texte (`params.text`). */

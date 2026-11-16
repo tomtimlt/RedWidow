@@ -37,6 +37,8 @@ export interface EventStrings {
   retry: string;
   task: string;
   rateLimit: string;
+  providerKey: string;
+  vaultRotated: string;
   paceAdjusted: string;
   paceHalted: string;
   session: string;
