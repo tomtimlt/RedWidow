@@ -16,8 +16,8 @@ import type {
 import type { FromEngine, StartParams, ToEngine } from "./protocol.js";
 import {
   createFailureTracker,
+  createKeyGuard,
   type FailureTracker,
-  keyMismatch,
   ROTATION_RESUME_PROMPT,
   type RotationOutcome,
   type VaultPick,
@@ -67,6 +67,8 @@ interface Engine {
   pick: VaultPick | undefined;
   /** Empreinte attendue de la clé d'API transmise ; comparée à `provider.key`, jamais envoyée au moteur. */
   expected: string | undefined;
+  /** Garde de clé, créée au premier événement (échec fermé si le moteur agit sans annoncer sa clé). */
+  guard?: ReturnType<typeof createKeyGuard>;
   tracker: FailureTracker;
   /** Écarté : ses messages et sa sortie sont ignorés. */
   detached: boolean;
@@ -286,7 +288,8 @@ export function createCampaignSpawner(deps: CampaignSpawnDeps): (spec: EngineSpe
         current.tracker.observe(event);
         if (event.kind === "session.started") sessionId = event.sessionId;
         // Le moteur annonce la clé qu'il utilise vraiment : une autre que celle choisie l'arrête.
-        if (keyMismatch(current.expected, event)) return failKey(current);
+        current.guard ??= createKeyGuard(current.expected);
+        if (current.guard.observe(event)) return failKey(current);
         emit({ v: 1, type: "event", event });
         if (event.kind === "turn.finished" && event.status === "error") void rotate(current);
       },

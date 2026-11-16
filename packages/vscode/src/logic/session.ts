@@ -105,8 +105,8 @@ import type { ChatSettings } from "./settings.js";
 import { findAdjacentExchange, readConversationPage } from "./timeline.js";
 import {
   createFailureTracker,
+  createKeyGuard,
   type FailureTracker,
-  keyMismatch,
   ROTATION_RESUME_PROMPT,
   rotateAfterFailure,
   type VaultPick,
@@ -299,7 +299,7 @@ export function createChatSession(deps: ChatSessionDeps) {
   const bypassLinks = new WeakMap<EngineController, BypassEngineLink>();
   // --- Coffre à clés (ADR 0056) : par moteur, la clé retenue, l'empreinte attendue et le relevé des échecs.
   const picks = new WeakMap<EngineController, VaultPick>();
-  const expectedFingerprint = new WeakMap<EngineController, string>();
+  const keyGuards = new WeakMap<EngineController, ReturnType<typeof createKeyGuard>>();
   const trackers = new WeakMap<EngineController, FailureTracker>();
   /** Rotations déjà faites pour l'envoi courant (au plus autant que de clés). */
   let rotations = 0;
@@ -714,7 +714,7 @@ export function createChatSession(deps: ChatSessionDeps) {
           deps.onObservedEvent?.(event);
           trackers.get(ctl)?.observe(event);
           // Le moteur annonce la clé qu'il utilise vraiment : une autre que celle choisie l'arrête, sans relance.
-          if (keyMismatch(expectedFingerprint.get(ctl), event)) return rejectKey(ctl);
+          if (keyGuards.get(ctl)?.observe(event)) return rejectKey(ctl);
           if (event.kind === "turn.finished" && event.status === "error") void rotate(ctl);
           // Connu dès le début de la session : la reprise (changement de modèle) n'attend pas la fin du run.
           if (event.kind === "session.started") {
@@ -829,7 +829,7 @@ export function createChatSession(deps: ChatSessionDeps) {
     if (token?.vault) picks.set(ctl, token.vault);
     // Empreinte attendue de la clé d'API transmise (le jeton d'abonnement OAuth n'est pas une clé du coffre).
     if (token?.auth && token.auth.name !== "CLAUDE_CODE_OAUTH_TOKEN")
-      expectedFingerprint.set(ctl, fingerprint(token.auth.value));
+      keyGuards.set(ctl, createKeyGuard(fingerprint(token.auth.value)));
     trackers.set(ctl, createFailureTracker());
     controller = ctl;
     applied = {

@@ -405,6 +405,8 @@ describe("campagne : rotation d'un worker", () => {
     // Bypass actif avant l'échec : le nouveau moteur le reçoit à son tour.
     const bypass = { since: 1, expiresAt: null };
     handle.send({ v: 1, type: "bypass", seq: 1, state: bypass });
+    // Comme un vrai moteur, il annonce sa clé avant de travailler (sinon la garde l'arrête).
+    first.handlers.onEvent?.(providerKey(KEYS[0] ?? ""));
     first.handlers.onEvent?.(sessionStarted("sess-w"));
     first.handlers.onEvent?.(quotaError());
     first.handlers.onEvent?.(turnFailed());

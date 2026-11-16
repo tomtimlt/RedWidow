@@ -220,6 +220,39 @@ export const ROTATION_RESUME_PROMPT =
  * Garde de clé : compare l'empreinte annoncée par le moteur (`provider.key`) à celle que l'hôte attend.
  * `true` : le moteur utilise une autre clé que celle choisie, il faut l'arrêter (`vault.keyMismatch`).
  */
+/**
+ * Événements qui prouvent que le moteur travaille déjà : avec une clé du coffre, ils ne doivent jamais
+ * précéder une annonce `provider.key` conforme (échec fermé si le moteur n'annonce rien).
+ */
+const KEY_REQUIRED_BEFORE = new Set<EngineEvent["kind"]>([
+  "session.started",
+  "agent.text",
+  "agent.thinking",
+  "tool.requested",
+  "approval.decided",
+]);
+
+/**
+ * Garde de clé avec état : `observe(event)` vaut `true` s'il faut arrêter le moteur, soit parce que
+ * l'empreinte annoncée diffère, soit parce que le moteur agit avant d'avoir annoncé une clé conforme.
+ * Sans empreinte attendue (clé hors coffre), la garde ne refuse rien.
+ */
+export function createKeyGuard(expected: string | undefined): {
+  observe(event: EngineEvent): boolean;
+} {
+  let confirmed = false;
+  return {
+    observe(event) {
+      if (expected === undefined) return false;
+      if (event.kind === "provider.key") {
+        confirmed = event.fingerprint === expected;
+        return !confirmed;
+      }
+      return !confirmed && KEY_REQUIRED_BEFORE.has(event.kind);
+    },
+  };
+}
+
 export function keyMismatch(expected: string | undefined, event: EngineEvent): boolean {
   if (event.kind !== "provider.key") return false;
   return expected !== undefined && event.fingerprint !== expected;

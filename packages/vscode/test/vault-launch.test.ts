@@ -2,6 +2,7 @@ import { CodedError, type EngineEvent, fingerprint } from "@warband/core";
 import { describe, expect, it } from "vitest";
 import {
   createFailureTracker,
+  createKeyGuard,
   keyMismatch,
   pickVaultChoice,
   rotateAfterFailure,
@@ -236,5 +237,16 @@ describe("garde de la clé effective", () => {
   it("sans empreinte attendue, ou pour un autre événement, rien à comparer", () => {
     expect(keyMismatch(undefined, key("bbbbbbbb"))).toBe(false);
     expect(keyMismatch("aaaaaaaa", ev({ kind: "agent.text", text: "x" }))).toBe(false);
+  });
+
+  it("garde avec état : le moteur qui agit avant d'annoncer sa clé est arrêté (échec fermé)", () => {
+    const silent = createKeyGuard("aaaaaaaa");
+    expect(silent.observe(ev({ kind: "agent.text", text: "x" }))).toBe(true);
+    const ok = createKeyGuard("aaaaaaaa");
+    expect(ok.observe(key("aaaaaaaa"))).toBe(false);
+    expect(ok.observe(ev({ kind: "agent.text", text: "x" }))).toBe(false);
+    const bad = createKeyGuard("aaaaaaaa");
+    expect(bad.observe(key("bbbbbbbb"))).toBe(true);
+    expect(createKeyGuard(undefined).observe(ev({ kind: "agent.text", text: "x" }))).toBe(false);
   });
 });
