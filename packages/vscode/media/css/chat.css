@@ -516,6 +516,15 @@ body.paused .thinking-dots {
 #model-chip {
   max-width: 100%;
 }
+/* Clé du coffre utilisée par le moteur (ADR 0056) : puce d'information, sans action. */
+#key-chip {
+  display: inline-flex;
+  align-items: center;
+  color: var(--jn-muted);
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-2xs);
+  cursor: default;
+}
 .chip .chip-ico {
   width: 14px;
   height: 14px;
@@ -3072,6 +3081,7 @@ body.vscode-high-contrast-light .welcome-spider {
 }
 /* ───────────────────────────── Mode multi-agents (ADR 0054) ───────────────────────────── */
 #multi-chip[hidden],
+#key-chip[hidden],
 #campaign[hidden],
 .cfg-multi[hidden],
 #multi-help[hidden] {

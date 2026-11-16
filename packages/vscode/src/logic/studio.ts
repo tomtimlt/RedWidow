@@ -80,6 +80,11 @@ export type StudioMessage =
   | { type: "setCapability"; kind: "provider"; id: string; enabled: boolean }
   | { type: "configureProvider"; id: string }
   | { type: "openFreeGuideLink"; key: FreeGuideKey }
+  /** Coffre à clés (ADR 0056) : jamais de valeur de clé ; la saisie passe par la boîte sécurisée de l'hôte. */
+  | { type: "vaultAdd"; provider: string }
+  | { type: "vaultRemove"; provider: string; id: string }
+  | { type: "vaultRename"; provider: string; id: string; label: string }
+  | { type: "vaultMove"; provider: string; id: string; direction: "up" | "down" }
   | { type: "testProviderConnection"; id: string }
   | { type: "configureMcp"; id: string }
   | { type: "openEvidence"; projectId: string; id: string }
@@ -160,6 +165,17 @@ export function creationContainers(
       ? [{ name, short, state, mount: workspace }]
       : [],
   );
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+/** Longueur maximale d'un libellé de clé du coffre. */
+export const MAX_KEY_LABEL = 40;
+
+/** Libellé de clé venu de la webview : rogné, borné, sans caractère de contrôle ; `null` si refusé. */
+function keyLabel(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const label = value.trim();
+  return label.length <= MAX_KEY_LABEL && !/\p{Cc}/u.test(label) ? label : null;
 }
 
 /** Valide un message de la webview réglages. */
@@ -243,6 +259,33 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
     isFreeGuideKey(m.key)
   )
     return { type: "openFreeGuideLink", key: m.key };
+  if (
+    (m.type === "vaultAdd" ||
+      m.type === "vaultRemove" ||
+      m.type === "vaultRename" ||
+      m.type === "vaultMove") &&
+    isCapabilityId(m.provider)
+  ) {
+    const allowed =
+      m.type === "vaultAdd"
+        ? ["type", "provider"]
+        : m.type === "vaultRemove"
+          ? ["type", "provider", "id"]
+          : m.type === "vaultRename"
+            ? ["type", "provider", "id", "label"]
+            : ["type", "provider", "id", "direction"];
+    // Liste fermée de champs : un champ `value` ou `key` est refusé.
+    if (keys.length !== allowed.length || !keys.every((k) => allowed.includes(k))) return null;
+    if (m.type === "vaultAdd") return { type: m.type, provider: m.provider };
+    if (typeof m.id !== "string" || !UUID.test(m.id)) return null;
+    if (m.type === "vaultRemove") return { type: m.type, provider: m.provider, id: m.id };
+    if (m.type === "vaultMove")
+      return m.direction === "up" || m.direction === "down"
+        ? { type: m.type, provider: m.provider, id: m.id, direction: m.direction }
+        : null;
+    const label = keyLabel(m.label);
+    return label === null ? null : { type: m.type, provider: m.provider, id: m.id, label };
+  }
   if (
     m.type === "setLocale" &&
     keys.length === 2 &&

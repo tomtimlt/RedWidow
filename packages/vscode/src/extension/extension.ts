@@ -227,6 +227,7 @@ import {
   LEGACY_TOKEN_KEY,
   LEGACY_TOKEN_KIND_KEY,
 } from "../logic/vault-store.js";
+import { type VaultEntryView, vaultView } from "../logic/vault-view.js";
 import { parseWindows, WINDOW_CAP, type WindowEntry } from "../logic/windows.js";
 
 const TOKEN_KEY = LEGACY_TOKEN_KEY;
@@ -3378,6 +3379,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         getToken("openai").catch(() => undefined),
       ]);
     const findings: unknown[] = findingsResult;
+    // Coffre à clés (ADR 0056) : rang, libellé, empreinte, état et délai seulement (`vaultView`), jamais une valeur.
+    // Claude en abonnement : pas de coffre. Un coffre illisible n'affiche pas de section.
+    const vault: Record<string, VaultEntryView[]> = {};
+    if (requestedPage === "providers") {
+      for (const { id } of vaultProviders()) {
+        if (id === "claude" && claudeToken?.mode === "subscription") continue;
+        try {
+          vault[id] = vaultView(await vaultStore.get(id));
+        } catch {
+          // Section absente pour ce fournisseur.
+        }
+      }
+    }
     let projectChoices: Awaited<ReturnType<typeof readProjectChoices>> = {
       activeId: null,
       projects: [],
@@ -3469,6 +3483,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           providerCatalogStatus,
           providerCatalogError,
           providerAuthFile: opencodeAuthFile(),
+          vault,
           // Présence seule d'un jeton ou d'une connexion : jamais la valeur.
           providerAuth: {
             claude: claudeToken !== undefined,
@@ -3516,6 +3531,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       },
     );
   };
+  // Une modification du coffre rafraîchit la page Fournisseurs (sans effet si les réglages sont fermés).
+  context.subscriptions.push({ dispose: vaultStore.onChange(() => void pushStudio()) });
   const openReport = async (expectedProjectId?: string) => {
     try {
       const generation = findingProjectGeneration;
@@ -4224,6 +4241,42 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
       if (message.type === "configureProvider") {
         await vscode.commands.executeCommand("warband.configureProvider", message.id);
+        await pushStudio();
+        return;
+      }
+      if (
+        message.type === "vaultAdd" ||
+        message.type === "vaultRemove" ||
+        message.type === "vaultRename" ||
+        message.type === "vaultMove"
+      ) {
+        if (!vaultStore.supports(message.provider)) return;
+        try {
+          if (message.type === "vaultAdd") {
+            await vscode.commands.executeCommand("warband.vault.addKey", message.provider);
+          } else if (message.type === "vaultRename") {
+            await vaultStore.rename(message.provider, message.id, message.label || undefined);
+          } else if (message.type === "vaultMove") {
+            if (await vaultStore.reorder(message.provider, message.id, message.direction))
+              applyAuthChange();
+          } else {
+            const keys = (await vaultStore.get(message.provider)).keys;
+            const index = keys.findIndex((k) => k.id === message.id);
+            const target = keys[index];
+            if (target === undefined) return;
+            const confirm = t("Supprimer");
+            const answer = await vscode.window.showWarningMessage(
+              t`Supprimer la clé ${keyDescription(index + 1, fingerprint(target.value))} ?`,
+              { modal: true },
+              confirm,
+            );
+            if (answer !== confirm) return;
+            await vaultStore.remove(message.provider, message.id);
+            applyAuthChange();
+          }
+        } catch (error) {
+          void vscode.window.showErrorMessage(formatError(error, getUiLocale()));
+        }
         await pushStudio();
         return;
       }
@@ -5497,12 +5550,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       applyAuthChange();
       void vscode.window.showInformationMessage(t("Jeton enregistré et appliqué."));
     }),
-    vscode.commands.registerCommand("warband.vault.addKey", async () => {
+    // Sans argument : choix du fournisseur dans une liste. Avec un identifiant (page Fournisseurs), pas de liste.
+    vscode.commands.registerCommand("warband.vault.addKey", async (provider?: unknown) => {
       const providers = vaultProviders();
-      const picked = await vscode.window.showQuickPick(
-        providers.map((p) => ({ label: p.label, id: p.id })),
-        { title: t("Coffre à clés : ajouter une clé"), ignoreFocusOut: true },
-      );
+      const fixed =
+        typeof provider === "string" ? providers.find((p) => p.id === provider) : undefined;
+      if (typeof provider === "string" && fixed === undefined) return;
+      const picked =
+        fixed ??
+        (await vscode.window.showQuickPick(
+          providers.map((p) => ({ label: p.label, id: p.id })),
+          { title: t("Coffre à clés : ajouter une clé"), ignoreFocusOut: true },
+        ));
       if (!picked) return;
       const value = await vscode.window.showInputBox({
         title: t`Coffre à clés : ${picked.label}`,

@@ -292,6 +292,9 @@ export const logicEn: Record<string, string> = {
   "{0}\n\nPièces jointes :\n{1}": "{0}\n\nAttachments:\n{1}",
   "Clé {0} épuisée : passage à la clé {1}.": "Key {0} exhausted: switching to key {1}.",
   "Clé {0} épuisée.": "Key {0} exhausted.",
+  "Quota atteint sur la clé {0}, passage à la clé {1}.":
+    "Quota reached on key {0}, switching to key {1}.",
+  "Clé {0} refusée, passage à la clé {1}.": "Key {0} rejected, switching to key {1}.",
   "Clé {0} refusée par le fournisseur : passage à la clé {1}.":
     "Key {0} rejected by the provider: switching to key {1}.",
   "Clé {0} refusée par le fournisseur.": "Key {0} rejected by the provider.",

@@ -47,6 +47,8 @@ export interface VaultStore {
   remove(provider: string, id: string): Promise<VaultKey | undefined>;
   /** Renomme une clé (libellé vide : retiré). `false` si l'identifiant est inconnu. */
   rename(provider: string, id: string, label: string | undefined): Promise<boolean>;
+  /** Déplace une clé d'un rang (`up` : vers le rang 1). `false` si l'identifiant est inconnu ou si la clé est déjà à la borne. */
+  reorder(provider: string, id: string, direction: "up" | "down"): Promise<boolean>;
   /** Enregistre un échec de la clé (épuisée ou invalide) et renvoie le coffre mis à jour. */
   markFailure(
     provider: string,
@@ -221,6 +223,20 @@ export function createVaultStore(
           },
           result: true,
         };
+      });
+    },
+    reorder(provider, id, direction) {
+      return mutate(provider, (vault) => {
+        const from = vault.keys.findIndex((k) => k.id === id);
+        const to = direction === "up" ? from - 1 : from + 1;
+        const moved = vault.keys[from];
+        const other = vault.keys[to];
+        if (from < 0 || to < 0 || moved === undefined || other === undefined)
+          return { vault: null, result: false };
+        const keys = [...vault.keys];
+        keys[from] = other;
+        keys[to] = moved;
+        return { vault: { keys }, result: true };
       });
     },
     markFailure(provider, id, kind, retryAfterSeconds) {

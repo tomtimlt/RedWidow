@@ -313,6 +313,7 @@ export const hostEn: Record<string, string> = {
   "Aucune clé dans le coffre.": "No key in the vault.",
   "Coffre à clés : supprimer une clé": "Key vault: remove a key",
   "Supprimer {0} du coffre ?": "Remove {0} from the vault?",
+  "Supprimer la clé {0} ?": "Delete key {0}?",
   "Clé supprimée du coffre.": "Key removed from the vault.",
   "Claude (clé d'API)": "Claude (API key)",
   "OpenAI (clé d'API)": "OpenAI (API key)",

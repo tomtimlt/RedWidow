@@ -117,6 +117,54 @@ describe("coffre à clés : stockage", () => {
     expect(same.keys.map((k) => k.state)).toEqual(["exhausted", "invalid"]);
   });
 
+  it("reorder : monte et descend une clé, sans effet aux bornes ni pour un identifiant inconnu", async () => {
+    const { secrets } = memorySecrets();
+    const store = createVaultStore(secrets);
+    const [a, b, c] = [
+      await store.add("claude", "sk-a-aaaaaaaa"),
+      await store.add("claude", "sk-b-bbbbbbbb"),
+      await store.add("claude", "sk-c-cccccccc"),
+    ];
+    const order = async () => (await store.get("claude")).keys.map((k) => k.id);
+    expect(await store.reorder("claude", c.id, "up")).toBe(true);
+    expect(await order()).toEqual([a.id, c.id, b.id]);
+    expect(await store.reorder("claude", a.id, "down")).toBe(true);
+    expect(await order()).toEqual([c.id, a.id, b.id]);
+    const seen: string[] = [];
+    store.onChange((provider) => seen.push(provider));
+    expect(await store.reorder("claude", c.id, "up")).toBe(false);
+    expect(await store.reorder("claude", b.id, "down")).toBe(false);
+    expect(await store.reorder("claude", "inconnu", "up")).toBe(false);
+    expect(await order()).toEqual([c.id, a.id, b.id]);
+    expect(seen).toEqual([]);
+    expect(await code(store.reorder("inconnu", a.id, "up"))).toBe("vault.invalid");
+  });
+
+  it("reorder : des écritures concurrentes ne perdent ni ne dupliquent aucune clé", async () => {
+    const { secrets } = memorySecrets();
+    const store = createVaultStore(secrets);
+    const keys: Awaited<ReturnType<typeof store.add>>[] = [];
+    for (let i = 0; i < 5; i++) keys.push(await store.add("claude", `sk-order-${i}-xxxxxxxx`));
+    await Promise.all([
+      store.reorder("claude", keys[4]?.id ?? "", "up"),
+      store.reorder("claude", keys[4]?.id ?? "", "up"),
+      store.rename("claude", keys[0]?.id ?? "", "premier"),
+      store.reorder("claude", keys[0]?.id ?? "", "down"),
+      store.markFailure("claude", keys[2]?.id ?? "", "invalidKey"),
+    ]);
+    const after = await store.get("claude");
+    expect(after.keys.map((k) => k.id).sort()).toEqual(keys.map((k) => k.id).sort());
+    expect(after.keys.map((k) => k.id)).toEqual([
+      keys[1]?.id,
+      keys[0]?.id,
+      keys[4]?.id,
+      keys[2]?.id,
+      keys[3]?.id,
+    ]);
+    expect(after.keys.find((k) => k.id === keys[0]?.id)?.label).toBe("premier");
+    expect(after.keys.find((k) => k.id === keys[2]?.id)?.state).toBe("invalid");
+  });
+
   it("notifie les modifications, sans la valeur", async () => {
     const store = createVaultStore(memorySecrets().secrets);
     const seen: string[] = [];

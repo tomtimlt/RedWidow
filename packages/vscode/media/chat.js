@@ -1942,7 +1942,16 @@
     if (state.title) gauge.title = state.title;
     else gauge.removeAttribute("title");
   }
+  // Clé du coffre réellement utilisée par le moteur (ADR 0056) : rang et empreinte, visible dès qu'elle existe.
+  function paintKeyChip(activeKey) {
+    const chip = $("key-chip");
+    chip.hidden = !activeKey;
+    $("key-chip-label").textContent = activeKey
+      ? t("clé {0} · {1}", { 0: activeKey.rank, 1: activeKey.fingerprint })
+      : "";
+  }
   function render(view) {
+    paintKeyChip(view.activeKey);
     paintGauge(view.context);
     paintContainerWarning(
       linkedContainerCount === null ? view.noContainer === true : linkedContainerCount === 0,

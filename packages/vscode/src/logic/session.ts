@@ -877,27 +877,12 @@ export function createChatSession(deps: ChatSessionDeps) {
   // --- Coffre à clés (ADR 0056) : vérification de la clé effective et rotation ---
   let hostRecorder: ReturnType<typeof createRecorder> | undefined;
   /** Événement `vault.rotated` complet (journal de l'hôte), et avis lisible : rangs et empreintes, jamais de valeur. */
-  const rotationNotice = (payload: VaultRotatedPayload): void => {
-    const from = `${payload.fromRank} · ${payload.fromFingerprint}`;
-    const to =
-      payload.toRank !== undefined ? `${payload.toRank} · ${payload.toFingerprint ?? ""}` : "";
-    state.notice(
-      payload.cause === "quota"
-        ? to
-          ? t`Clé ${from} épuisée : passage à la clé ${to}.`
-          : t`Clé ${from} épuisée.`
-        : to
-          ? t`Clé ${from} refusée par le fournisseur : passage à la clé ${to}.`
-          : t`Clé ${from} refusée par le fournisseur.`,
-      "error",
-    );
-  };
   const announceRotation = (payload: VaultRotatedPayload): void => {
     hostRecorder ??= createRecorder({
       ...(deps.extraSecrets !== undefined && { extraSecrets: deps.extraSecrets }),
     });
     deps.onObservedEvent?.(hostRecorder.emit(payload));
-    rotationNotice(payload);
+    state.rotation(payload);
   };
 
   /** Le moteur utilise une autre clé que celle choisie : il est arrêté et le tour n'est pas relancé. */
@@ -1003,7 +988,6 @@ export function createChatSession(deps: ChatSessionDeps) {
       case "event": {
         const event = message.event;
         deps.onObservedEvent?.(event);
-        if (event.kind === "vault.rotated") rotationNotice(event);
         if (event.kind === "tool.requested" && current) current.tools++;
         // L'étiquette d'agent est une donnée de l'élément, jamais du texte du modèle.
         state.event(event, agentLabel(info));
@@ -1534,6 +1518,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       if (!entry) return;
       if (providerChoiceId === id && prefs.provider === entry.backend) return;
       providerChoiceId = id;
+      state.clearActiveKey();
       if (entry.backend !== prefs.provider) await this.setProvider(entry.backend);
       else {
         cancelModelLoad();
@@ -1560,6 +1545,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       applied = null;
       state.approvals.clear();
       sessionId = undefined;
+      state.clearActiveKey();
       transferContext = state
         .view()
         .items.some((item) => item.kind === "user" || item.kind === "agent");

@@ -164,6 +164,8 @@ export interface ChatView {
   conversation?: string;
   /** Attente annoncée par le fournisseur, distincte de la réflexion du modèle. */
   retry?: { attempt: number; delayMs: number };
+  /** Clé du coffre réellement utilisée par le moteur (ADR 0056) : rang et empreinte, jamais la valeur. */
+  activeKey?: { provider: string; rank: number; fingerprint: string };
   items: ChatItem[];
   exchangeTarget?: { id: number; source?: string; revision: number };
   paging?: {
@@ -201,6 +203,7 @@ export function createChatState(before?: string) {
   let busy = false;
   let turnStartedAt: number | null = null;
   let retry: { attempt: number; delayMs: number } | undefined;
+  let activeKey: { provider: string; rank: number; fingerprint: string } | undefined;
   let context: { usedTokens: number; windowTokens?: number } | undefined;
   let sandbox: string | null = null;
   let sandboxNetwork: "none" | "bridge" | null = null;
@@ -247,8 +250,37 @@ export function createChatState(before?: string) {
     level: "info" | "error" = "info",
     maxChars = level === "error" ? 12_000 : 2000,
   ) => push({ kind: "notice", level, text: cleanText(text, maxChars) });
+  /** Rotation de clé (ADR 0056) : rangs et empreintes seulement. Sans clé suivante, `vault.allExhausted` suit. */
+  const rotation = (e: {
+    fromRank: number;
+    fromFingerprint: string;
+    toRank?: number;
+    toFingerprint?: string;
+    cause: "quota" | "invalidKey";
+  }) => {
+    const from = `${e.fromRank} · ${e.fromFingerprint}`;
+    if (e.toRank === undefined) {
+      notice(
+        e.cause === "quota" ? t`Clé ${from} épuisée.` : t`Clé ${from} refusée par le fournisseur.`,
+        "error",
+      );
+      return;
+    }
+    const to = `${e.toRank} · ${e.toFingerprint ?? ""}`;
+    notice(
+      e.cause === "quota"
+        ? t`Quota atteint sur la clé ${from}, passage à la clé ${to}.`
+        : t`Clé ${from} refusée, passage à la clé ${to}.`,
+    );
+  };
 
   return {
+    /** Avis de rotation émis par l'hôte (mêmes lignes que l'événement `vault.rotated` du moteur). */
+    rotation,
+    /** Efface la clé affichée (changement de fournisseur) : la puce disparaît jusqu'au prochain `provider.key`. */
+    clearActiveKey() {
+      activeKey = undefined;
+    },
     approvals,
     get dropped() {
       return dropped;
@@ -322,6 +354,7 @@ export function createChatState(before?: string) {
       busy = false;
       turnStartedAt = null;
       context = undefined;
+      activeKey = undefined;
       readonly = null;
       sandboxNetwork = null;
       noContainer = false;
@@ -362,6 +395,16 @@ export function createChatState(before?: string) {
             notice(
               t`Fournisseur temporairement indisponible${e.errorStatus === null ? "" : ` (HTTP ${e.errorStatus})`}. Nouvelle tentative dans ${Math.ceil(e.delayMs / 1000)} s.`,
             );
+            return;
+          case "provider.key":
+            // Seule une clé du coffre est affichée (rang et empreinte) ; l'ancienne clé unique n'a pas de rang.
+            // En campagne (agent étiqueté), chaque moteur a sa clé : la puce du chat n'en montre aucune.
+            if (e.source === "vault" && agent === undefined)
+              activeKey = { provider: e.provider, rank: e.keyRank, fingerprint: e.fingerprint };
+            return;
+          case "vault.rotated":
+            // L'hôte annonce la rotation de son chat via `rotation` ; un moteur de campagne l'émet comme événement.
+            rotation(e);
             return;
           case "context.usage":
             context = {
@@ -481,6 +524,7 @@ export function createChatState(before?: string) {
       return {
         items: [...items],
         ...(retry && { retry }),
+        ...(activeKey && { activeKey: { ...activeKey } }),
         ...(context && { context: { ...context } }),
         approvals: readonly ? [] : [...approvals.values()],
         busy,

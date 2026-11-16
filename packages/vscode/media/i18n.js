@@ -984,6 +984,22 @@
     "Projet exporté.": "Project exported.",
     "Un nouvel identifiant a été attribué au projet importé.":
       "A new identifier was assigned to the imported project.",
+    "Coffre à clés : ajouter une clé": "Key vault: add a key",
+    "Coffre à clés : {0}": "Key vault: {0}",
+    "La clé est stockée dans le stockage sécurisé de VS Code.":
+      "The key is stored in VS Code secure storage.",
+    "Clé ajoutée : {0}": "Key added: {0}",
+    active: "active",
+    invalide: "invalid",
+    "épuisée jusqu'au {0}": "exhausted until {0}",
+    clé: "key",
+    "Aucune clé dans le coffre.": "No key in the vault.",
+    "Coffre à clés : supprimer une clé": "Key vault: remove a key",
+    "Supprimer {0} du coffre ?": "Remove {0} from the vault?",
+    "Supprimer la clé {0} ?": "Delete key {0}?",
+    "Clé supprimée du coffre.": "Key removed from the vault.",
+    "Claude (clé d'API)": "Claude (API key)",
+    "OpenAI (clé d'API)": "OpenAI (API key)",
   };
 
   // packages/messages/src/ui-domains/logic.ts
@@ -1279,6 +1295,14 @@
     "Tampon vide.": "Empty buffer.",
     "Analyse les fichiers joints.": "Analyze the attached files.",
     "{0}\n\nPièces jointes :\n{1}": "{0}\n\nAttachments:\n{1}",
+    "Clé {0} épuisée : passage à la clé {1}.": "Key {0} exhausted: switching to key {1}.",
+    "Clé {0} épuisée.": "Key {0} exhausted.",
+    "Quota atteint sur la clé {0}, passage à la clé {1}.":
+      "Quota reached on key {0}, switching to key {1}.",
+    "Clé {0} refusée, passage à la clé {1}.": "Key {0} rejected, switching to key {1}.",
+    "Clé {0} refusée par le fournisseur : passage à la clé {1}.":
+      "Key {0} rejected by the provider: switching to key {1}.",
+    "Clé {0} refusée par le fournisseur.": "Key {0} rejected by the provider.",
   };
 
   // packages/messages/src/ui-domains/program.ts
@@ -1546,6 +1570,15 @@
     "Activez un projet pour ajouter un compte.": "Activate a project to add an account.",
     "Ajouter ou remplacer un compte": "Add or replace an account",
     "Libellé (A, B…)": "Label (A, B…)",
+    Clés: "Keys",
+    "Ajouter une clé": "Add key",
+    "clé {0} · {1}": "key {0} · {1}",
+    épuisée: "exhausted",
+    "jusqu'à {0}": "until {0}",
+    "Jeton d'abonnement, hors du coffre": "Subscription token, not in the vault",
+    Monter: "Move up",
+    Descendre: "Move down",
+    "Libellé de la clé": "Key label",
     "Site ou hôte (facultatif)": "Site or host (optional)",
     "Type de secret": "Secret type",
     "Mot de passe": "Password",

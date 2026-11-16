@@ -852,7 +852,26 @@ function start() {
         vscode.postMessage({ type: "testProviderConnection", id: p.id });
       });
       row.append(test, result);
-      parent.append(row);
+      const block = vaultBlock(p.id);
+      if (block === null) {
+        parent.append(row);
+        return;
+      }
+      const wrap = el("div", "provider-block");
+      wrap.append(row, block);
+      parent.append(wrap);
+    };
+    // Coffre à clés (ADR 0056) : section « Clés » seulement pour un fournisseur présent dans `vault`.
+    const shownVault = new Set();
+    const vaultBlock = (id) => {
+      const entries = view.vault?.[id];
+      if (Array.isArray(entries)) {
+        shownVault.add(id);
+        return vaultKeys(id, entries);
+      }
+      return id === "claude" && auth.claude === true
+        ? el("p", "studio-help", t("Jeton d'abonnement, hors du coffre"))
+        : null;
     };
     const allProviders = view.providerCatalog ?? [];
     for (const p of allProviders.filter((p) => !p.runtimeId))
@@ -902,6 +921,9 @@ function start() {
     searchProviders.addEventListener("input", filterProviders);
     filterProviders();
     sec.append(searchProviders, providerList);
+    // Fournisseur du coffre absent du catalogue : sa section reste accessible.
+    for (const id of Object.keys(view.vault ?? {}))
+      if (!shownVault.has(id)) sec.append(el("h3", "", id), vaultKeys(id, view.vault[id]));
     const addProvider = el("button", "ghost", t("Ajouter Ollama / un endpoint compatible"));
     addProvider.type = "button";
     addProvider.addEventListener("click", () =>
@@ -909,6 +931,83 @@ function start() {
     );
     sec.append(addProvider);
     return sec;
+  }
+  // Section « Clés » d'un fournisseur (ADR 0056). Reçoit rang, libellé, empreinte, état et délai : jamais une valeur.
+  // L'ajout se fait dans la boîte sécurisée de l'hôte ; seul le libellé se modifie ici.
+  const MAX_VAULT_KEYS = 10;
+  function vaultKeys(provider, entries) {
+    const block = el("div", "vault-keys");
+    block.dataset.provider = provider;
+    block.append(el("h3", "", t("Clés")));
+    const clock = (iso) => {
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return "";
+      const pad = (n) => String(n).padStart(2, "0");
+      return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+    const stateLabel = (state) =>
+      state === "active" ? t("active") : state === "exhausted" ? t("épuisée") : t("invalide");
+    const send = (type, entry, extra = {}) =>
+      vscode.postMessage({ type, provider, id: entry.id, ...extra });
+    const small = (text, onClick, disabled = false) => {
+      const b = el("button", "ghost", text);
+      b.type = "button";
+      b.disabled = disabled;
+      b.addEventListener("click", onClick);
+      return b;
+    };
+    entries.forEach((entry, index) => {
+      const row = el("div", "capability-row vault-key");
+      row.dataset.keyId = entry.id;
+      const title = el(
+        "span",
+        "vault-key-name",
+        t("clé {0} · {1}", { 0: entry.rank, 1: entry.fingerprint }),
+      );
+      const label = el("span", "studio-help vault-key-label", entry.label ?? "");
+      const until = entry.cooldownUntil ? clock(entry.cooldownUntil) : "";
+      const state = el(
+        "span",
+        `studio-help vault-key-state is-${entry.state}`,
+        until
+          ? `${stateLabel(entry.state)} · ${t("jusqu'à {0}", { 0: until })}`
+          : stateLabel(entry.state),
+      );
+      const rename = small(t("Renommer"), () => {
+        const input = el("input", "vault-key-input");
+        input.type = "text";
+        input.maxLength = 40;
+        input.value = entry.label ?? "";
+        input.setAttribute("aria-label", t("Libellé de la clé"));
+        input.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") send("vaultRename", entry, { label: input.value.trim() });
+          else if (event.key === "Escape") input.replaceWith(label);
+        });
+        label.replaceWith(input);
+        input.focus?.();
+      });
+      row.append(
+        title,
+        label,
+        state,
+        rename,
+        small(t("Monter"), () => send("vaultMove", entry, { direction: "up" }), index === 0),
+        small(
+          t("Descendre"),
+          () => send("vaultMove", entry, { direction: "down" }),
+          index === entries.length - 1,
+        ),
+        small(t("Supprimer"), () => send("vaultRemove", entry)),
+      );
+      block.append(row);
+    });
+    const add = small(
+      t("Ajouter une clé"),
+      () => vscode.postMessage({ type: "vaultAdd", provider }),
+      entries.length >= MAX_VAULT_KEYS,
+    );
+    block.append(add);
+    return block;
   }
   // Intégrations (Projet) : connecteurs MCP du projet actif, Burp et profil. Leur usage se choisit dans le chat.
   function integrationsPage(view) {
@@ -2180,6 +2279,7 @@ function start() {
       providers: [
         "capabilities",
         "providerAuth",
+        "vault",
         "providerAuthFile",
         "providerCatalog",
         "providerCatalogStatus",

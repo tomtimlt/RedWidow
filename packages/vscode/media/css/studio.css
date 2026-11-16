@@ -877,6 +877,43 @@ body[data-palette="multi"]:where(:not(.vscode-high-contrast, .vscode-high-contra
 .capability-row .studio-help {
   margin: 0;
 }
+/* Coffre à clés (ADR 0056) : lignes compactes sous le fournisseur. */
+.vault-keys {
+  padding: 0 0 10px 12px;
+}
+.vault-keys h3 {
+  margin: 8px 0 0;
+}
+.vault-key {
+  gap: 8px;
+  padding: 6px 0;
+}
+.vault-key-name {
+  font-family: var(--jn-mono);
+  font-size: var(--jn-fs-sm);
+}
+.vault-key-label {
+  flex: 1 1 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vault-key-state.is-exhausted {
+  color: var(--jn-warn);
+}
+.vault-key-state.is-invalid {
+  color: var(--jn-err);
+}
+.vault-key-input {
+  flex: 1 1 80px;
+  min-width: 0;
+  font: inherit;
+}
+.vault-keys button {
+  padding: 2px 8px;
+  border: 1px solid var(--jn-line-strong);
+  border-radius: var(--jn-r-pill);
+}
 .provider-test-result {
   flex-basis: 100%;
   white-space: pre-wrap;
