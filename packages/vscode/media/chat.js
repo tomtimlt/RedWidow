@@ -1806,9 +1806,11 @@
     if (info.invalid > 0) text += t` · ${info.invalid} ligne(s) du journal ignorée(s)`;
     if (info.truncated) text += t(" · journal tronqué");
     $("readonly-text").textContent = text;
-    $("readonly-resume").textContent = info.canResume
-      ? t("Reprendre")
-      : t("Reprendre (nouvelle session)");
+    $("readonly-resume").textContent = info.campaign
+      ? t("Reprendre la campagne")
+      : info.canResume
+        ? t("Reprendre")
+        : t("Reprendre (nouvelle session)");
   }
   function setHistoryOpen(open) {
     historyPanel.hidden = !open;
@@ -1830,9 +1832,12 @@
     if (e.key === "Escape" && !e.defaultPrevented) setHistoryOpen(false);
   });
   $("history-clear").addEventListener("click", () => vscode.postMessage({ type: "historyClear" }));
-  $("readonly-resume").addEventListener("click", () =>
-    vscode.postMessage({ type: "historyResume" }),
-  );
+  $("readonly-resume").addEventListener("click", () => {
+    // Reprise de campagne : le texte saisi devient une consigne ajoutée au tour du planificateur.
+    const note = lastView?.readonly?.campaign ? input.value.trim() : "";
+    if (note) input.value = "";
+    vscode.postMessage(note ? { type: "historyResume", text: note } : { type: "historyResume" });
+  });
   $("readonly-close").addEventListener("click", () => resetConversation());
   $("provider-connect").addEventListener("click", () => {
     if (!ctl?.locked) vscode.postMessage({ type: "addProvider" });
@@ -2060,7 +2065,7 @@
     $("no-provider").hidden = !noProvider;
     ctlGroup.hidden = !view.controls || noProvider;
     document.body.classList.toggle("no-provider", noProvider);
-    input.disabled = !!view.readonly || !!view.stopping || noProvider;
+    input.disabled = (!!view.readonly && !view.readonly.campaign) || !!view.stopping || noProvider;
     mentionBtn.disabled = input.disabled;
     hashBtn.disabled = input.disabled;
     lastView = view;

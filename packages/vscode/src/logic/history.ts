@@ -24,6 +24,32 @@ export const MAX_JOURNAL_LINES = 50_000;
 export const MAX_LINE_CHARS = 1_000_000;
 const MAX_RUNS_PER_CONVERSATION = 500;
 
+/**
+ * Rôle d'un run d'une conversation de campagne (ADR 0054) : `campaign` est le journal de campagne
+ * (jamais affiché comme transcription), `planner` / `worker` les agents (`index` 0, puis 1..N).
+ */
+export type ConversationAgentRole = "campaign" | "planner" | "worker";
+export type ConversationAgents = Record<string, { role: ConversationAgentRole; index: number }>;
+const AGENT_ROLES: readonly string[] = ["campaign", "planner", "worker"];
+
+/** Relit la table `runId → rôle` stockée (non fiable) : tout ce qui est mal formé est écarté. */
+export function parseAgents(raw: unknown): ConversationAgents | undefined {
+  if (!isObj(raw)) return undefined;
+  const out: ConversationAgents = {};
+  let count = 0;
+  for (const [runId, value] of Object.entries(raw)) {
+    if (count >= MAX_RUNS_PER_CONVERSATION) break;
+    if (!isRunId(runId) || !isObj(value)) continue;
+    const { role, index } = value;
+    if (typeof role !== "string" || !AGENT_ROLES.includes(role)) continue;
+    if (typeof index !== "number" || !Number.isInteger(index) || index < 0 || index > 1000)
+      continue;
+    out[runId] = { role: role as ConversationAgentRole, index };
+    count++;
+  }
+  return count > 0 ? out : undefined;
+}
+
 /** Entrée de l'index (stockée dans `workspaceState`, donc revalidée à chaque lecture). */
 export interface ConversationMeta {
   id: string;
@@ -38,6 +64,8 @@ export interface ConversationMeta {
   variant?: string | null;
   sessionId: string | null;
   runIds: string[];
+  /** Campagne multi-agents : rôle de chaque run. Facultatif (ancien historique : absent). */
+  agents?: ConversationAgents;
   tools: number;
   /** Affichage seulement : jamais utilisé par le moteur, exec, politique ou gate. */
   projectId?: string;
@@ -59,6 +87,11 @@ export function cleanTitle(raw: unknown, max = MAX_TITLE_CHARS): string | null {
 /** Titre d'une conversation : sa première consigne, tronquée. */
 export const titleFrom = (firstPrompt: string): string =>
   cleanTitle(firstPrompt, 80) ?? t("Conversation");
+
+const agentsField = (raw: unknown) => {
+  const agents = parseAgents(raw);
+  return agents ? { agents } : {};
+};
 
 /** Relit l'index stocké : entrées mal formées ou doublons écartés, bornes appliquées. */
 export function parseIndex(raw: unknown, maxEntries = MAX_CONVERSATIONS * 2): ConversationMeta[] {
@@ -89,6 +122,7 @@ export function parseIndex(raw: unknown, maxEntries = MAX_CONVERSATIONS * 2): Co
       sessionId:
         typeof item.sessionId === "string" && item.sessionId.length <= 200 ? item.sessionId : null,
       runIds: item.runIds.filter(isRunId).slice(0, MAX_RUNS_PER_CONVERSATION),
+      ...agentsField(item.agents),
       tools:
         typeof item.tools === "number" && Number.isInteger(item.tools) && item.tools >= 0
           ? item.tools

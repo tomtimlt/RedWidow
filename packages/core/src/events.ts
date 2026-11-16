@@ -160,6 +160,8 @@ export type EventPayload =
       kind: "campaign.started";
       objective: string;
       maxWorkers: number;
+      /** Campagne reprise : `runId` du journal de la campagne d'origine (ADR 0054). */
+      resumedFrom?: string;
     }
   | {
       /** Intention ouverte par le planificateur ; `key` : clé normalisée du titre. */
@@ -604,7 +606,11 @@ export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
     technique: "string?",
     objectiveId: "string?",
   }),
-  "campaign.started": shape({ objective: "string", maxWorkers: "uint" }),
+  "campaign.started": shape({
+    objective: "string",
+    maxWorkers: "uint",
+    resumedFrom: "string?",
+  }),
   "campaign.intent.opened": shape({
     intentId: "string",
     title: "string",

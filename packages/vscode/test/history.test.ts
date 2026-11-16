@@ -74,6 +74,31 @@ describe("index stocké (non fiable)", () => {
     expect(parseIndex([{ ...legacy, provider: "inconnu" }])).toEqual([]);
     expect(parseIndex([{ ...legacy, provider: null }])).toEqual([]);
   });
+  it("table des rôles de campagne : facultative, revalidée (entrées mal formées écartées)", () => {
+    const run = "11111111-1111-4111-8111-111111111111";
+    expect(parseIndex([meta({})])[0]?.agents).toBeUndefined();
+    const ok = parseIndex([
+      meta({
+        agents: {
+          [run]: { role: "worker", index: 2 },
+          "pas-un-uuid": { role: "worker", index: 1 },
+          "22222222-2222-4222-8222-222222222222": { role: "pirate", index: 1 },
+          "33333333-3333-4333-8333-333333333333": { role: "planner", index: -1 },
+        },
+      } as never),
+    ]);
+    expect(ok[0]?.agents).toEqual({ [run]: { role: "worker", index: 2 } });
+    expect(parseIndex([meta({ agents: "x" } as never)])[0]?.agents).toBeUndefined();
+  });
+  it("historyResume : texte facultatif borné, champ inconnu refusé", () => {
+    expect(parseWebviewMessage({ type: "historyResume" })).toEqual({ type: "historyResume" });
+    expect(parseWebviewMessage({ type: "historyResume", text: "consigne" })).toEqual({
+      type: "historyResume",
+      text: "consigne",
+    });
+    expect(parseWebviewMessage({ type: "historyResume", text: 1 })).toBeNull();
+    expect(parseWebviewMessage({ type: "historyResume", extra: 1 })).toBeNull();
+  });
   it.each(["claude", "openai", "opencode"] as const)("conserve le fournisseur %s", (provider) => {
     expect(parseIndex([meta({ provider })])[0]?.provider).toBe(provider);
   });

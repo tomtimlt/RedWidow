@@ -132,6 +132,7 @@ export const chatEn: Record<string, string> = {
   " · journal tronqué": " · truncated log",
   Reprendre: "Resume",
   "Reprendre (nouvelle session)": "Resume (new session)",
+  "Reprendre la campagne": "Resume campaign",
   "Désactiver le suivi du bas pour défiler librement": "Disable bottom following to scroll freely",
   "Activer le suivi et revenir en bas": "Enable following and return to bottom",
   "Activer le suivi du bas": "Enable bottom following",

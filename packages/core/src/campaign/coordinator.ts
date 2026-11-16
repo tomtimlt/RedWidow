@@ -1,3 +1,4 @@
+import type { EngineEvent } from "../events.js";
 import { isValidScopePattern } from "../program/cited.js";
 import { CodedError, type Reason } from "../reason.js";
 import type { Recorder } from "../recorder.js";
@@ -5,6 +6,7 @@ import {
   type CampaignBudget,
   type CampaignRunStatus,
   COVERAGE_OUTCOMES,
+  type CoverageOutcome,
   INTENT_STATES,
   type Intent,
   type IntentClosure,
@@ -99,6 +101,18 @@ function boundedInt(
 export function createCampaignCoordinator(
   options: CampaignCoordinatorOptions,
 ): CampaignCoordinator {
+  return build(options);
+}
+
+/** État rejoué d'une campagne interrompue (voir `restoreCampaignCoordinator`). */
+interface Seed {
+  objective: string;
+  intents: Intent[];
+  seq: number;
+  resumedFrom: string;
+}
+
+function build(options: CampaignCoordinatorOptions, seed?: Seed): CampaignCoordinator {
   const maxWorkers = boundedInt(
     options.maxWorkers,
     DEFAULT_MAX_WORKERS,
@@ -125,13 +139,13 @@ export function createCampaignCoordinator(
   const now = options.now ?? Date.now;
   const recorder = options.recorder;
 
-  const intents: Intent[] = [];
-  let objective: string | undefined;
-  let started = false;
+  const intents: Intent[] = seed ? [...seed.intents] : [];
+  let objective: string | undefined = seed?.objective;
+  let started = seed !== undefined;
   let finished = false;
   let spentUsd = 0;
   let tokens = 0;
-  let seq = 0;
+  let seq = seed?.seq ?? 0;
 
   const budgetReached = (extraIntents: number): boolean =>
     (budget.maxUsd !== undefined && spentUsd >= budget.maxUsd) ||
@@ -202,6 +216,43 @@ export function createCampaignCoordinator(
     });
     return { ...done };
   };
+
+  if (seed) {
+    // Le nouveau journal doit se suffire à lui-même (une 2e reprise le rejouera) : on y réécrit
+    // l'état restauré. Les attributions et fermetures passées gardent leur worker d'origine.
+    recorder.emit({
+      kind: "campaign.started",
+      objective: seed.objective,
+      maxWorkers,
+      resumedFrom: seed.resumedFrom,
+    });
+    for (const i of intents) {
+      recorder.emit({
+        kind: "campaign.intent.opened",
+        intentId: i.id,
+        title: i.title,
+        rationale: i.rationale,
+        ...(i.target !== undefined && { target: i.target }),
+        key: i.key,
+        round: i.round,
+      });
+      if (i.workerRunId === undefined) continue;
+      recorder.emit({
+        kind: "campaign.intent.claimed",
+        intentId: i.id,
+        workerRunId: i.workerRunId,
+      });
+      recorder.emit({
+        kind: "campaign.intent.closed",
+        intentId: i.id,
+        workerRunId: i.workerRunId,
+        outcome: i.state === "blocked" ? "blocked" : (i.outcome as CoverageOutcome),
+        ...(i.summary !== undefined && { summary: i.summary }),
+        evidence: [...i.evidence],
+        ...(i.closedBy !== undefined && { closedBy: i.closedBy }),
+      });
+    }
+  }
 
   return {
     start(goal) {
@@ -355,4 +406,107 @@ export function createCampaignCoordinator(
       return Object.freeze(snapshot);
     },
   };
+}
+
+/**
+ * Restaure un coordinateur depuis le journal d'une campagne interrompue ou finie (ADR 0054).
+ * Règles : une intention `claimed` sans fermeture redevient `open` (son worker est perdu) ; les
+ * `done` / `needs_follow_up` gardent verdict et résumé ; `blocked` reste `blocked` ; une
+ * intention `exhausted` (fin de campagne, jamais consignée une à une) n'est pas fermée dans le
+ * journal : elle revient donc `open`. Le budget (dollars, tokens) n'est PAS persisté : il repart
+ * à zéro. Le coordinateur renvoyé est déjà démarré et a écrit `campaign.started` (avec
+ * `resumedFrom`, `runId` du journal d'origine) puis l'état restauré dans le recorder fourni.
+ * Un journal incohérent lève `campaign.restoreInvalid`.
+ */
+export function restoreCampaignCoordinator(
+  events: readonly EngineEvent[],
+  options: CampaignCoordinatorOptions,
+): CampaignCoordinator {
+  const bad = (cause: string): CodedError => new CodedError("campaign.restoreInvalid", { cause });
+  const byId = new Map<string, Intent>();
+  const order: string[] = [];
+  let objective: string | undefined;
+  let origin: string | undefined;
+  let seq = 0;
+  const at = (ts: string): number => {
+    const t = Date.parse(ts);
+    return Number.isNaN(t) ? Date.now() : t;
+  };
+  for (const e of events) {
+    switch (e.kind) {
+      case "campaign.started":
+        if (objective !== undefined) throw bad("started");
+        objective = e.objective;
+        origin = e.runId;
+        break;
+      case "campaign.intent.opened": {
+        if (objective === undefined) throw bad("started");
+        if (byId.has(e.intentId)) throw bad("duplicate");
+        byId.set(e.intentId, {
+          id: e.intentId,
+          title: e.title,
+          rationale: e.rationale,
+          ...(e.target !== undefined && { target: e.target }),
+          key: e.key,
+          state: "open",
+          round: e.round,
+          evidence: [],
+          openedAt: at(e.ts),
+        });
+        order.push(e.intentId);
+        const n = /^i(\d+)$/.exec(e.intentId);
+        if (n) seq = Math.max(seq, Number(n[1]));
+        break;
+      }
+      case "campaign.intent.claimed": {
+        const i = byId.get(e.intentId);
+        if (!i) throw bad("unknownIntent");
+        byId.set(e.intentId, { ...i, state: "claimed", workerRunId: e.workerRunId });
+        break;
+      }
+      case "campaign.intent.closed": {
+        const i = byId.get(e.intentId);
+        if (!i) throw bad("unknownIntent");
+        if (e.outcome === "blocked")
+          byId.set(e.intentId, {
+            ...i,
+            state: "blocked",
+            workerRunId: e.workerRunId,
+            closedAt: at(e.ts),
+          });
+        else
+          byId.set(e.intentId, {
+            ...i,
+            state: "done",
+            workerRunId: e.workerRunId,
+            outcome: e.outcome,
+            ...(e.summary !== undefined && { summary: e.summary }),
+            evidence: [...e.evidence],
+            closedAt: at(e.ts),
+            ...(e.closedBy !== undefined && { closedBy: e.closedBy }),
+          });
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  if (objective === undefined || origin === undefined) throw bad("started");
+  const intents = order.map((id) => {
+    const i = byId.get(id) as Intent;
+    if (i.state !== "claimed") return i;
+    // Worker perdu : l'intention redevient disponible.
+    return {
+      id: i.id,
+      title: i.title,
+      rationale: i.rationale,
+      ...(i.target !== undefined && { target: i.target }),
+      key: i.key,
+      state: "open" as const,
+      round: i.round,
+      evidence: [],
+      openedAt: i.openedAt,
+    };
+  });
+  return build(options, { objective, intents, seq, resumedFrom: origin });
 }

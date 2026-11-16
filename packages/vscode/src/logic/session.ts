@@ -14,6 +14,7 @@ import type {
 } from "@warband/core";
 import {
   AGENT_PROFILES,
+  type CampaignRunStatus,
   CodedError,
   createRecorder,
   DEFAULT_AGENT_PROFILE,
@@ -22,6 +23,8 @@ import {
   type JournalWriter,
   openJournal,
   parseSupervision,
+  reason,
+  restoreCampaignCoordinator,
   soonestCooldown,
 } from "@warband/core";
 import { formatReason, getUiLocale, t } from "@warband/messages";
@@ -88,6 +91,7 @@ import {
 } from "./effort.js";
 import {
   applyRetention,
+  type ConversationAgentRole,
   type ConversationMeta,
   cleanTitle,
   type HistoryProjects,
@@ -103,7 +107,7 @@ import { modelLoadFailure } from "./model-load-error.js";
 import { isModelId, parseModelCache, usableModels, validateModelChoice } from "./models.js";
 import type { FromEngine } from "./protocol.js";
 import type { ChatSettings } from "./settings.js";
-import { findAdjacentExchange, readConversationPage } from "./timeline.js";
+import { findAdjacentExchange, readCampaignJournal, readConversationPage } from "./timeline.js";
 import {
   createFailureTracker,
   createKeyGuard,
@@ -351,8 +355,12 @@ export function createChatSession(deps: ChatSessionDeps) {
   let campaign: CampaignHost | null = null;
   /** Reste affichée (`finished: true`) jusqu'au prochain envoi ou à la remise à zéro. */
   let campaignView: CampaignView | undefined;
-  const buildCampaignView = (host: CampaignHost): CampaignView => {
-    const status = host.status();
+  const buildCampaignView = (host: CampaignHost): CampaignView =>
+    campaignViewOf(host.status(), (runId) => host.workerIndex(runId));
+  const campaignViewOf = (
+    status: CampaignRunStatus,
+    workerIndex: (runId: string) => number | undefined,
+  ): CampaignView => {
     return {
       objective: cleanText(status.objective ?? "", 300),
       finished: status.finished,
@@ -364,7 +372,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       ...(status.budget.maxTokens !== undefined && { tokensMax: status.budget.maxTokens }),
       intents: status.intents.slice(0, 50).map((intent) => {
         const worker =
-          intent.workerRunId === undefined ? undefined : host.workerIndex(intent.workerRunId);
+          intent.workerRunId === undefined ? undefined : workerIndex(intent.workerRunId);
         return {
           id: intent.id,
           title: cleanText(intent.title, 200),
@@ -695,6 +703,18 @@ export function createChatSession(deps: ChatSessionDeps) {
       tools: 0,
     };
     index = [current, ...index];
+  };
+  /**
+   * Campagne (ADR 0054) : le run (journal de campagne, planificateur ou worker) rejoint les `runIds`
+   * de la conversation, avec son rôle dans la table `agents` (relecture et reprise).
+   */
+  const registerAgentRun = (runId: string, role: ConversationAgentRole, index: number) => {
+    if (!current || !isRunId(runId)) return;
+    const listed = current.runIds.includes(runId);
+    if (listed && current.agents?.[runId] !== undefined) return;
+    if (!listed) current.runIds.push(runId);
+    current.agents = { ...current.agents, [runId]: { role, index } };
+    touch();
   };
   const touch = () => {
     if (!current) return;
@@ -1045,6 +1065,8 @@ export function createChatSession(deps: ChatSessionDeps) {
   let campaignLink: BypassEngineLink | undefined;
   let campaignBypassAck: ((ack: { state: BypassState | null }) => void) | undefined;
   let campaignJournal: JournalWriter | undefined;
+  /** Journal de la dernière campagne de la conversation ouverte en lecture seule (reprise possible). */
+  let readonlyCampaign: { events: EngineEvent[]; workerIndexStart: number } | undefined;
 
   const sameBypass = (a: BypassState | null, b: BypassState | null): boolean =>
     a === null || b === null ? a === b : a.since === b.since && a.expiresAt === b.expiresAt;
@@ -1071,6 +1093,57 @@ export function createChatSession(deps: ChatSessionDeps) {
     state.setBusy(false);
     state.notice(formatReason(why, getUiLocale()));
     refresh();
+  };
+
+  const cleanNote = (raw: unknown): string =>
+    typeof raw === "string" ? cleanText(raw.trim(), 4000) : "";
+
+  /**
+   * Conversation en lecture seule : relit le dernier journal de campagne, reconstruit le panneau
+   * (`finished: true`) et prépare la reprise. Un journal incohérent n'empêche pas l'ouverture :
+   * le bouton « Reprendre (nouvelle session) » reste proposé, avec un avis.
+   */
+  const restoreReadonlyCampaign = async (
+    meta: ConversationMeta,
+    revision: number,
+  ): Promise<boolean> => {
+    const agents = meta.agents;
+    if (!history || !agents) return false;
+    const campaignRun = [...meta.runIds].reverse().find((id) => agents[id]?.role === "campaign");
+    if (campaignRun === undefined) return false;
+    try {
+      const events = await readCampaignJournal(history.files, campaignRun);
+      if (revision !== navigationRev || events === null) return false;
+      const started = events.find((e) => e.kind === "campaign.started");
+      const probe = restoreCampaignCoordinator(events, {
+        recorder: createRecorder({ redact: false }),
+        ...(started?.kind === "campaign.started" &&
+          Number.isInteger(started.maxWorkers) &&
+          started.maxWorkers >= 1 &&
+          started.maxWorkers <= 8 && { maxWorkers: started.maxWorkers }),
+      });
+      const finished = [...events].reverse().find((e) => e.kind === "campaign.finished");
+      const spent = finished?.kind === "campaign.finished" ? finished.spentUsd : 0;
+      campaignView = campaignViewOf(
+        { ...probe.status(), finished: true, spentUsd: spent },
+        (runId) => agents[runId]?.index,
+      );
+      readonlyCampaign = {
+        events,
+        workerIndexStart: Math.max(
+          0,
+          ...Object.values(agents)
+            .filter((a) => a.role === "worker")
+            .map((a) => a.index),
+        ),
+      };
+      return true;
+    } catch (error) {
+      if (revision === navigationRev) {
+        state.error(error);
+      }
+      return false;
+    }
   };
 
   const onCampaignMessage = (info: CampaignAgentInfo, message: FromEngine) => {
@@ -1130,9 +1203,10 @@ export function createChatSession(deps: ChatSessionDeps) {
     text: string,
     prompt: string,
     revision: number,
+    resume?: { events: readonly EngineEvent[]; note: string; workerIndexStart: number },
   ): Promise<boolean> => {
-    ensureConversation(text);
-    state.user(text);
+    if (!resume) ensureConversation(text);
+    if (!resume || resume.note !== "") state.user(resume ? resume.note : text);
     campaignAdvised.clear();
     campaignView = undefined;
     refresh();
@@ -1151,10 +1225,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       }
       campaignJournal = journal;
       // Le journal de campagne suit le sort de la conversation (rétention, suppression).
-      if (journal && current && !current.runIds.includes(recorder.runId)) {
-        current.runIds.push(recorder.runId);
-        touch();
-      }
+      if (journal) registerAgentRun(recorder.runId, "campaign", 0);
       const spawnEngine = createCampaignSpawner({
         make,
         options: { enginePath: deps.enginePath, args: deps.engineArgs, cwd: deps.cwd },
@@ -1167,6 +1238,11 @@ export function createChatSession(deps: ChatSessionDeps) {
       const host = createCampaignHost({
         objective: prompt,
         workers: prefs.multiAgentWorkers,
+        ...(resume && {
+          restoreFrom: resume.events,
+          userNote: resume.note,
+          workerIndexStart: resume.workerIndexStart,
+        }),
         ...(inScope !== undefined && { inScope }),
         spawnEngine,
         recorder,
@@ -1174,6 +1250,9 @@ export function createChatSession(deps: ChatSessionDeps) {
           if (disposed) return;
           state.approvals.set(card.toolUseId, card);
           refresh();
+        },
+        onAgent: (info) => {
+          if (!disposed) registerAgentRun(info.runId, info.role, info.index);
         },
         onMessage: onCampaignMessage,
         onChange: () => {
@@ -1401,6 +1480,7 @@ export function createChatSession(deps: ChatSessionDeps) {
     deps.bypass?.reset?.();
     campaign?.stop("user");
     campaignView = undefined;
+    readonlyCampaign = undefined;
     researchPending = false;
     deps.onObservedEvent?.(null);
     selection = emptySelection();
@@ -1494,7 +1574,13 @@ export function createChatSession(deps: ChatSessionDeps) {
       pageError = undefined;
       refresh();
       try {
-        const result = await readConversationPage(history.files, meta.runIds, next.at(-1), active);
+        const result = await readConversationPage(
+          history.files,
+          meta.runIds,
+          next.at(-1),
+          active,
+          meta.agents,
+        );
         if (!result || !active()) return;
         if (!result.state.reached) {
           pageError = t("Journal indisponible ou pas encore écrit. Réessayez dans un instant.");
@@ -1579,6 +1665,7 @@ export function createChatSession(deps: ChatSessionDeps) {
           meta.runIds,
           found.target.before,
           active,
+          meta.agents,
         );
         if (!result || !active()) return;
         const target = messages(result.state).find((item) => item.source === found.target?.source);
@@ -2074,6 +2161,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       if (!meta) return;
       deps.onObservedEvent?.(null);
       campaignView = undefined;
+      readonlyCampaign = undefined;
       const revision = ++navigationRev;
       await reloadHistoryProjects(revision);
       if (revision !== navigationRev) return;
@@ -2095,11 +2183,15 @@ export function createChatSession(deps: ChatSessionDeps) {
         meta.runIds,
         undefined,
         () => !disposed && revision === navigationRev,
+        meta.agents,
       );
       if (!result || revision !== navigationRev) return;
       state = result.state;
       const { invalid, truncated, missing } = result;
       if (missing > 0) state.notice(t`${missing} journal(aux) introuvable(s).`);
+      // Campagne multi-agents (ADR 0054) : panneau et reprise depuis le dernier journal de campagne.
+      const restored = await restoreReadonlyCampaign(meta, revision);
+      if (revision !== navigationRev) return;
       state.setReadonly({
         id: meta.id,
         title: meta.title,
@@ -2108,16 +2200,23 @@ export function createChatSession(deps: ChatSessionDeps) {
         canResume:
           meta.sessionId !== null ||
           state.view().items.some((item) => item.kind === "user" || item.kind === "agent"),
+        ...(restored && { campaign: true }),
       });
       refresh();
     },
     /** Reprend la conversation ouverte : nouveau message avec `resume`, sous la politique ACTUELLE. */
-    async resumeConversation(): Promise<void> {
+    async resumeConversation(note?: string): Promise<void> {
       if (state.busy) return;
       latestPage();
       const info = state.readonly;
       const meta = info ? index.find((c) => c.id === info.id) : undefined;
       if (!meta) return;
+      if (readonlyCampaign !== undefined && isCampaignActive()) {
+        // Une seule campagne active : refus avant tout changement d'état.
+        state.notice(formatReason(reason("campaign.alreadyActive"), getUiLocale()), "error");
+        refresh();
+        return;
+      }
       const revision = ++navigationRev;
       const projectsReady = await reloadHistoryProjects(revision);
       if (revision !== navigationRev) return;
@@ -2153,6 +2252,20 @@ export function createChatSession(deps: ChatSessionDeps) {
         modelsMessage = undefined;
       }
       current = meta;
+      if (readonlyCampaign !== undefined) {
+        // Reprise de campagne : un nouvel hôte part du coordinateur restauré, pas d'un agent simple.
+        const resume = { ...readonlyCampaign, note: cleanNote(note) };
+        readonlyCampaign = undefined;
+        sessionId = undefined;
+        transferContext = false;
+        state.setReadonly(null);
+        state.setBusy(true);
+        refresh();
+        if (providerChanged) await loadModels();
+        if (revision !== navigationRev) return;
+        await startCampaign("", "", revision, resume);
+        return;
+      }
       sessionId = meta.sessionId ?? undefined;
       transferContext = meta.sessionId === null;
       state.setReadonly(null);

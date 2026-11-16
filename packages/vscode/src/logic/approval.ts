@@ -116,7 +116,8 @@ export type WebviewMessage =
   | { type: "timelinePage"; direction: "older" | "newer" | "latest" }
   | { type: "timelineExchange"; direction: "older" | "newer"; id: number; source?: string }
   | { type: "historyOpen"; id: string }
-  | { type: "historyResume" }
+  /** `text` : consigne facultative ajoutée au tour du planificateur (reprise de campagne seulement). */
+  | { type: "historyResume"; text?: string }
   | { type: "historyRename"; id: string; title: string }
   | { type: "historyDelete"; id: string }
   | { type: "historyClear" }
@@ -294,11 +295,18 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
           : null;
       return m.path === undefined ? { type: "mentionAttach", requestId: m.requestId, kind } : null;
     }
+    case "historyResume": {
+      if (!only("type", "text")) return null;
+      if (m.text === undefined) return { type: "historyResume" };
+      if (typeof m.text !== "string" || m.text.length > MAX_WEBVIEW_TEXT) return null;
+      return m.text.trim() === ""
+        ? { type: "historyResume" }
+        : { type: "historyResume", text: m.text };
+    }
     case "stop":
     case "reset":
     case "refreshModels":
     case "refreshTerminals":
-    case "historyResume":
     case "historyClear":
     case "historyRefresh":
     case "addProvider":

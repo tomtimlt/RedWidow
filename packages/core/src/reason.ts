@@ -181,6 +181,7 @@ export const REASON_CODES = [
   "campaign.closeReminder",
   "campaign.alreadyStarted",
   "campaign.alreadyActive",
+  "campaign.restoreInvalid",
   "campaign.ipcTimeout",
   "campaign.roleForbidden",
   "campaign.completed",

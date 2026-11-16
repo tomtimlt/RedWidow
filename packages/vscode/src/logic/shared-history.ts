@@ -42,6 +42,7 @@ function mergeRows(
       merged.set(item.id, {
         ...latest,
         runIds: [...new Set([...old.runIds, ...item.runIds])].slice(-MAX_RUNS),
+        ...(old.agents || item.agents ? { agents: { ...old.agents, ...item.agents } } : {}),
       });
     }
   }

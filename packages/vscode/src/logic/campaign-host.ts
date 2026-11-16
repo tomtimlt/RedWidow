@@ -7,6 +7,7 @@ import {
   createCampaignCoordinator,
   createLocalCampaignPort,
   DEFAULT_MAX_WORKERS,
+  type EngineEvent,
   type ErrorInfo,
   errorInfo,
   type IntentClosure,
@@ -15,6 +16,7 @@ import {
   type Reason,
   type Recorder,
   reason,
+  restoreCampaignCoordinator,
 } from "@warband/core";
 import { type ApprovalCard, answerFor, type Choice, cleanText, toCard } from "./approval.js";
 import type { FromEngine, MultiAgentParams, ToEngine } from "./protocol.js";
@@ -118,6 +120,16 @@ export interface CampaignHostOptions {
   spawnEngine: (spec: EngineSpec) => EngineHandle;
   /** Recorder du journal de campagne. */
   recorder: Recorder;
+  /**
+   * Reprise : journal (événements) de la campagne interrompue. Le coordinateur est restauré
+   * (`restoreCampaignCoordinator`), le budget repart à zéro, et le premier tour du planificateur
+   * reçoit l'instantané. `objective` est alors ignoré (celui du journal fait foi).
+   */
+  restoreFrom?: readonly EngineEvent[];
+  /** Reprise : consigne de l'utilisateur ajoutée au premier tour du planificateur. */
+  userNote?: string;
+  /** Reprise : le prochain worker lancé prend le numéro suivant (évite les numéros en double). */
+  workerIndexStart?: number;
   /** Périmètre approuvé du projet du chat (ADR 0055) ; absent : aucune fiche approuvée. */
   inScope?: (target: string) => boolean;
   now?: () => number;
@@ -125,6 +137,8 @@ export interface CampaignHostOptions {
   debounceMs?: number;
   /** Carte d'approbation d'un moteur de la campagne, déjà estampillée `agent`. */
   onApproval?: (card: ApprovalCard) => void;
+  /** Un moteur de la campagne vient d'être lancé (planificateur ou worker), avant tout message. */
+  onAgent?: (agent: CampaignAgentInfo) => void;
   /** Tout autre message d'un moteur (événements, `started`, `ended`, erreurs…). */
   onMessage?: (agent: CampaignAgentInfo, message: FromEngine) => void;
   /** L'état de la campagne a changé (intention ouverte, prise, fermée, moteur sorti) : la vue se rafraîchit. */
@@ -164,9 +178,21 @@ interface Agent {
   failureCode?: string;
 }
 
-function plannerPrompt(objective: string, snapshot: CampaignRunStatus | undefined): string {
+function plannerPrompt(
+  objective: string,
+  snapshot: CampaignRunStatus | undefined,
+  resumed = false,
+  note?: string,
+): string {
   if (snapshot === undefined)
     return `Objectif de la campagne :\n${objective}\n\nOuvre les premières intentions (campaign_open_intent), puis termine ton tour.`;
+  if (resumed) {
+    const instruction =
+      note === undefined || note.trim() === ""
+        ? ""
+        : `\n\nConsigne de l'utilisateur pour cette reprise :\n${note}`;
+    return `Objectif de la campagne :\n${objective}\n\nLa campagne est reprise après une interruption (le budget repart à zéro ; les intentions interrompues sont de nouveau ouvertes). État actuel de la campagne :\n${JSON.stringify(snapshot)}${instruction}\n\nOuvre de nouvelles intentions seulement pour des directions non couvertes (campaign_open_intent), puis termine ton tour. N'ouvre rien s'il n'y a plus rien à explorer.`;
+  }
   return `Objectif de la campagne :\n${objective}\n\nUn worker a terminé ou échoué : nouveau tour. État actuel de la campagne :\n${JSON.stringify(snapshot)}\n\nOuvre de nouvelles intentions seulement pour des directions non couvertes (campaign_open_intent), puis termine ton tour. N'ouvre rien s'il n'y a plus rien à explorer.`;
 }
 
@@ -185,7 +211,7 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
   if (activeCampaign) throw new CodedError("campaign.alreadyActive");
   const debounceMs = options.debounceMs ?? 2000;
 
-  const coordinator = createCampaignCoordinator({
+  const coordinatorOptions = {
     maxWorkers: workers,
     budget: {
       maxUsd: options.maxBudgetUsd ?? CAMPAIGN_MAX_BUDGET_USD,
@@ -194,17 +220,26 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
     recorder: options.recorder,
     ...(options.inScope !== undefined && { inScope: options.inScope }),
     ...(options.now !== undefined && { now: options.now }),
-  });
+  };
+  // Un journal incohérent lève `campaign.restoreInvalid` avant tout état global.
+  const resumed = options.restoreFrom !== undefined;
+  const coordinator = options.restoreFrom
+    ? restoreCampaignCoordinator(options.restoreFrom, coordinatorOptions)
+    : createCampaignCoordinator(coordinatorOptions);
+  const objective = coordinator.status().objective ?? options.objective;
 
   const agents = new Map<string, Agent>();
   /** `toolUseId` en attente → moteur d'origine. */
   const approvals = new Map<string, Agent>();
   let planner: Agent | undefined;
-  let turn = 0;
-  let workerSeq = 0;
+  // Reprise : les tours continuent après le dernier tour restauré (plafond par tour intact).
+  let turn = resumed ? Math.max(0, ...coordinator.status().intents.map((i) => i.round)) : 0;
+  let resumeNote: string | undefined = options.userNote;
+  let workerSeq = options.workerIndexStart ?? 0;
   /** `runId` d'un worker → numéro (même valeur que `agent.index`). */
   const workerIndexes = new Map<string, number>();
   let openedInTurn = false;
+  let resumeStarted = false;
   let wakePending = false;
   let wakeTimer: ReturnType<typeof setTimeout> | undefined;
   let finished = false;
@@ -240,6 +275,11 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
     });
     const agent: Agent = { info, handle, port, exited: false, ended: false, failed: false };
     agents.set(info.runId, agent);
+    try {
+      options.onAgent?.(info);
+    } catch {
+      // L'enregistrement dans l'historique ne doit jamais gêner la campagne.
+    }
     handle.onMessage((message) => onEngineMessage(agent, message));
     handle.onExit(() => onExit(agent));
     // Le miroir du moteur naît « off » : seul un Bypass actif est envoyé au démarrage.
@@ -264,10 +304,19 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
     const thisTurn = turn;
     const info: CampaignAgentInfo = { role: "planner", index: 0, runId: randomUUID() };
     const port = createLocalCampaignPort(coordinator, { role: "planner", round: () => thisTurn });
+    const resumeTurn = resumed && !resumeStarted;
+    const note = resumeNote;
+    resumeStarted = true;
+    resumeNote = undefined;
     planner = spawn(
       info,
       port,
-      plannerPrompt(options.objective, thisTurn === 1 ? undefined : coordinator.status()),
+      plannerPrompt(
+        objective,
+        resumeTurn || thisTurn > 1 ? coordinator.status() : undefined,
+        resumeTurn,
+        note,
+      ),
     );
   };
 
@@ -307,7 +356,7 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
         spawn(
           info,
           createLocalCampaignPort(coordinator, { role: "worker", workerRunId: runId }),
-          workerPrompt(options.objective, brief),
+          workerPrompt(objective, brief),
         );
       } catch {
         // Lancement impossible : l'intention passe à `blocked`, le planificateur décidera.
@@ -551,8 +600,10 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
 
   setCampaignActive(true);
   try {
-    coordinator.start(options.objective);
+    if (!resumed) coordinator.start(objective);
     startPlannerTurn();
+    // Reprise : les intentions ouvertes n'attendent pas le planificateur pour être attribuées.
+    if (resumed) pump();
   } catch (error) {
     if (!finished) {
       try {

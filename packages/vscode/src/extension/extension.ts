@@ -1582,7 +1582,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
               if (outcome === "cancelled" || outcome === "switched" || outcome === "failed") return;
             }
           }
-          return s.resumeConversation();
+          return s.resumeConversation(message.text);
         case "historyRename":
           return s.renameConversation(message.id, message.title);
         case "historyDelete":

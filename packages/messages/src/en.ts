@@ -308,6 +308,7 @@ export const reasons: Catalog = {
   "campaign.alreadyStarted": () => "the campaign is already started",
   "campaign.alreadyActive": () =>
     "a multi-agent campaign is already active: only one at a time in the extension",
+  "campaign.restoreInvalid": (p) => `the campaign journal cannot be restored (${text(p.cause)})`,
   "campaign.ipcTimeout": (p) =>
     `the campaign host did not answer ${text(p.op)} within ${text(p.seconds)} s`,
   "campaign.roleForbidden": (p) =>

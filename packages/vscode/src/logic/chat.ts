@@ -120,6 +120,8 @@ export interface ReadonlyInfo {
   truncated: boolean;
   /** La session peut être reprise (identifiant connu). */
   canResume: boolean;
+  /** La conversation contient une campagne multi-agents reprenable (ADR 0054) : « Reprendre la campagne ». */
+  campaign?: boolean;
 }
 
 /** Campagne multi-agents affichée dans le chat (ADR 0054) : chaînes déjà neutralisées. */
