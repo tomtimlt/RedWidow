@@ -13,6 +13,7 @@ import {
   type VaultKey,
   vaultEnvName,
 } from "@warband/core";
+import { t } from "@warband/messages";
 import type { EngineAuth } from "./controller.js";
 import type { VaultStore } from "./vault-store.js";
 
@@ -256,4 +257,48 @@ export function createKeyGuard(expected: string | undefined): {
 export function keyMismatch(expected: string | undefined, event: EngineEvent): boolean {
   if (event.kind !== "provider.key") return false;
   return expected !== undefined && event.fingerprint !== expected;
+}
+
+/** Contexte d'un moteur utile à l'avis « pas de rotation » : jamais de valeur de clé. */
+export interface RotationAdviceContext {
+  /** Fournisseur du coffre ; absent : fournisseur sans coffre. */
+  provider?: string;
+  /** Jeton d'abonnement (Claude) : hors coffre. */
+  subscription: boolean;
+  /** Modèle choisi (identifiant reçu tel quel). */
+  model?: string;
+}
+
+/** Libellé lisible d'un fournisseur du coffre. */
+export function vaultProviderLabel(provider: string): string {
+  return { claude: "Claude", openai: "OpenAI", opencode: "OpenCode" }[provider] ?? provider;
+}
+
+/** Quota des modèles gratuits (OpenCode Zen) : identifiant contenant `free`, ou message « Free usage exceeded ». */
+const isFreeUsage = (model: string | undefined, message: string | undefined): boolean =>
+  (model !== undefined && /free/i.test(model)) ||
+  (message !== undefined && /free usage exceeded/i.test(message));
+
+/**
+ * Avis neutre quand un échec `quota` ou `invalidKey` n'a pas de rotation possible. `keyCount` : nombre de
+ * clés du coffre du fournisseur (ignoré sans coffre ou en abonnement). `undefined` : rien à dire (au moins
+ * deux clés : la rotation a eu lieu, ou toutes sont épuisées et `vault.allExhausted` l'explique).
+ */
+export function rotationAdvice(
+  context: RotationAdviceContext,
+  failure: ProviderFailureInput,
+  keyCount: number,
+): string | undefined {
+  if (classifyProviderFailure(failure) === "other") return undefined;
+  const free = isFreeUsage(context.model, failure.message)
+    ? ` ${t("Le quota des modèles gratuits peut être commun à toutes les clés : changer de modèle peut être nécessaire.")}`
+    : "";
+  if (context.subscription || context.provider === undefined)
+    return `${t("Jeton d'abonnement : pas de rotation possible.")}${free}`;
+  const label = vaultProviderLabel(context.provider);
+  if (keyCount === 0)
+    return `${t`Aucune clé dans le coffre ${label} : la rotation n'est pas possible. Ajoutez des clés dans Réglages › Fournisseurs › ${label} › Clés.`}${free}`;
+  if (keyCount === 1)
+    return `${t`Une seule clé dans le coffre ${label} : aucune autre clé vers laquelle basculer.`}${free}`;
+  return undefined;
 }

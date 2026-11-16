@@ -126,6 +126,8 @@
   // packages/messages/src/ui-domains/chat.ts
   var chatEn = {
     Pentest: "Pentest",
+    "Ouvrir les clés": "Open keys",
+    "sans clé du coffre": "no vault key",
     "Hack The Box / CTF": "Hack The Box / CTF",
     "Aucun conteneur lié : l'agent n'a pas de shell": "No linked container: the agent has no shell",
     "Lier un conteneur": "Link a container",
@@ -1182,6 +1184,14 @@
       "The OpenCode server could not provide the catalog{0}. [opencode.httpFailed]",
     "Niveau d'effort ramené à « {0} » : « {1} » n'est pas pris en charge par ce modèle.":
       "Effort level reduced to “{0}”: “{1}” is not supported by this model.",
+    "Aucune clé dans le coffre {0} : la rotation n'est pas possible. Ajoutez des clés dans Réglages › Fournisseurs › {1} › Clés.":
+      "No key in the {0} vault: rotation is not possible. Add keys in Settings › Providers › {1} › Keys.",
+    "Une seule clé dans le coffre {0} : aucune autre clé vers laquelle basculer.":
+      "Only one key in the {0} vault: no other key to switch to.",
+    "Jeton d'abonnement : pas de rotation possible.":
+      "Subscription token: rotation is not possible.",
+    "Le quota des modèles gratuits peut être commun à toutes les clés : changer de modèle peut être nécessaire.":
+      "The free models quota may be shared by all keys: switching model may be necessary.",
     "[stderr trop volumineux : diagnostic ignoré]": "[stderr too large: diagnostic discarded]",
     "[stderr incomplet : diagnostic ignoré]": "[stderr incomplete: diagnostic discarded]",
     "Le moteur s'est arrêté (code {0}).": "The engine stopped (code {0}).",

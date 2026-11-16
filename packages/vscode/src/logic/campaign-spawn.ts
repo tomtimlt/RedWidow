@@ -19,6 +19,7 @@ import {
   createKeyGuard,
   type FailureTracker,
   ROTATION_RESUME_PROMPT,
+  type RotationAdviceContext,
   type RotationOutcome,
   type VaultPick,
 } from "./vault-launch.js";
@@ -39,6 +40,8 @@ export interface CampaignEngineSetup {
   auth?: EngineAuth;
   /** Clé du coffre retenue (ADR 0056) ; absent : clé unique ou abonnement, aucune rotation. */
   vault?: VaultPick;
+  /** Contexte de l'avis « pas de rotation » (fournisseur, abonnement, modèle). */
+  advice?: RotationAdviceContext;
   /** Mêmes `cwd`, modèle, effort, fournisseur et dossier de projet que le chat (sans `resume`). */
   params: Omit<StartParams, "multiAgent" | "resume" | "conversationContext" | "vault">;
 }
@@ -49,6 +52,8 @@ export interface CampaignVaultAccess {
   rotate(pick: VaultPick, failure: ProviderFailureInput): Promise<RotationOutcome>;
   /** Nombre de clés du coffre du fournisseur (plafond de rotations par moteur). */
   keyCount(provider: string): Promise<number>;
+  /** Avis « pas de rotation possible » (une fois par fournisseur et par campagne, côté hôte). */
+  advise?(context: RotationAdviceContext, failure: ProviderFailureInput): Promise<void>;
 }
 
 export interface CampaignSpawnDeps {
@@ -65,6 +70,7 @@ export interface CampaignSpawnDeps {
 interface Engine {
   ctl: EngineController;
   pick: VaultPick | undefined;
+  advice: RotationAdviceContext | undefined;
   /** Empreinte attendue de la clé d'API transmise ; comparée à `provider.key`, jamais envoyée au moteur. */
   expected: string | undefined;
   /** Garde de clé, créée au premier événement (échec fermé si le moteur agit sans annoncer sa clé). */
@@ -175,6 +181,7 @@ export function createCampaignSpawner(deps: CampaignSpawnDeps): (spec: EngineSpe
       const next: Engine = {
         ctl: undefined as unknown as EngineController,
         pick: setup.vault,
+        advice: setup.advice,
         expected:
           setup.auth && setup.auth.name !== "CLAUDE_CODE_OAUTH_TOKEN"
             ? fingerprint(setup.auth.value)
@@ -216,7 +223,12 @@ export function createCampaignSpawner(deps: CampaignSpawnDeps): (spec: EngineSpe
       const failure = current.tracker.take();
       const access = deps.vault;
       const pick = current.pick;
-      if (!access || !pick || !failure || stopped || exited || current.detached) return false;
+      if (!access || !failure || stopped || exited || current.detached) return false;
+      if (!pick) {
+        // Pas de clé du coffre (coffre vide, abonnement, fournisseur sans coffre) : aucune rotation, un avis.
+        if (current.advice !== undefined) await access.advise?.(current.advice, failure);
+        return false;
+      }
       try {
         const outcome = await access.rotate(pick, failure);
         if (outcome.kind === "none") return false;
@@ -229,6 +241,7 @@ export function createCampaignSpawner(deps: CampaignSpawnDeps): (spec: EngineSpe
         current.ctl.kill();
         const keys = await access.keyCount(pick.provider);
         if (outcome.kind === "exhausted" || rotations >= keys) {
+          if (current.advice !== undefined) await access.advise?.(current.advice, failure);
           emit({
             v: 1,
             type: "error",
@@ -337,6 +350,7 @@ export function createCampaignSpawner(deps: CampaignSpawnDeps): (spec: EngineSpe
         const first: Engine = {
           ctl: undefined as unknown as EngineController,
           pick: setup.vault,
+          advice: setup.advice,
           expected:
             setup.auth && setup.auth.name !== "CLAUDE_CODE_OAUTH_TOKEN"
               ? fingerprint(setup.auth.value)

@@ -409,12 +409,34 @@ describe("puce #key-chip", () => {
   const js = read("../media/chat.js");
   const start = js.indexOf("  function paintKeyChip(");
   const slice = js.slice(start, js.indexOf("  function render(view) {"));
-  const run = (activeKey: unknown) => {
-    const nodes = new Map<string, { hidden: boolean; textContent: string }>();
+  const run = (activeKey: unknown, vaultEmpty?: boolean) => {
+    const nodes = new Map<
+      string,
+      {
+        hidden: boolean;
+        textContent: string;
+        classList: { toggle(c: string, on: boolean): void };
+        empty?: boolean;
+      }
+    >();
     const $ = (id: string) => {
       let n = nodes.get(id);
       if (!n) {
-        n = { hidden: true, textContent: "" };
+        const node: {
+          hidden: boolean;
+          textContent: string;
+          empty?: boolean;
+          classList: { toggle(c: string, on: boolean): void };
+        } = {
+          hidden: true,
+          textContent: "",
+          classList: {
+            toggle: (_c, on) => {
+              node.empty = on;
+            },
+          },
+        };
+        n = node;
         nodes.set(id, n);
       }
       return n;
@@ -422,8 +444,8 @@ describe("puce #key-chip", () => {
     const api = runInNewContext(`${slice}\n({ paintKeyChip })`, {
       $,
       t: createUiTranslator(() => "fr"),
-    }) as { paintKeyChip(k: unknown): void };
-    api.paintKeyChip(activeKey);
+    }) as { paintKeyChip(k: unknown, e?: boolean): void };
+    api.paintKeyChip(activeKey, vaultEmpty);
     return { chip: $("key-chip"), label: $("key-chip-label") };
   };
 
@@ -434,8 +456,23 @@ describe("puce #key-chip", () => {
     expect(shown.label.textContent).toBe("clé 1 · 3fa9c1d0");
   });
 
+  it("coffre vide : « sans clé du coffre », discrète ; une clé ou hors éligibilité : inchangé", () => {
+    const empty = run(undefined, true);
+    expect(empty.chip.hidden).toBe(false);
+    expect(empty.label.textContent).toBe("sans clé du coffre");
+    expect(empty.chip.empty).toBe(true);
+    // Une clé active prime : « clé N · empreinte ».
+    const keyed = run({ provider: "claude", rank: 2, fingerprint: "abcd" }, true);
+    expect(keyed.label.textContent).toBe("clé 2 · abcd");
+    expect(keyed.chip.empty).toBe(false);
+    // Fournisseur non éligible (vaultEmpty absent) : masquée.
+    expect(run(undefined, undefined).chip.hidden).toBe(true);
+  });
+
   it("textes anglais présents dans le catalogue", () => {
     for (const key of [
+      "sans clé du coffre",
+      "Ouvrir les clés",
       "Clés",
       "Ajouter une clé",
       "clé {0} · {1}",

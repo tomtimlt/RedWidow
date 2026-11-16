@@ -7,6 +7,7 @@ import type {
   EngineEvent,
   ModelOption,
   PromptImage,
+  ProviderFailureInput,
   ProviderOption,
   Reason,
   SupervisionLevel,
@@ -108,7 +109,9 @@ import {
   createKeyGuard,
   type FailureTracker,
   ROTATION_RESUME_PROMPT,
+  type RotationAdviceContext,
   rotateAfterFailure,
+  rotationAdvice,
   type VaultPick,
   type VaultRotatedPayload,
 } from "./vault-launch.js";
@@ -301,6 +304,12 @@ export function createChatSession(deps: ChatSessionDeps) {
   const picks = new WeakMap<EngineController, VaultPick>();
   const keyGuards = new WeakMap<EngineController, ReturnType<typeof createKeyGuard>>();
   const trackers = new WeakMap<EngineController, FailureTracker>();
+  /** Contexte de l'avis « pas de rotation » par moteur (fournisseur du coffre, abonnement, modèle). */
+  const adviceContexts = new WeakMap<EngineController, RotationAdviceContext>();
+  /** Fournisseurs déjà avertis pendant la campagne courante (un seul avis par fournisseur). */
+  const campaignAdvised = new Set<string>();
+  /** Coffre du fournisseur courant vide ? (puce « sans clé du coffre ») ; `provider` = dernier relevé demandé. */
+  let vaultEmptyState: { provider: string; empty: boolean } | undefined;
   /** Rotations déjà faites pour l'envoi courant (au plus autant que de clés). */
   let rotations = 0;
   /** Dernière consigne envoyée à un moteur : rejouée si une rotation survient avant la création de la session. */
@@ -404,8 +413,11 @@ export function createChatSession(deps: ChatSessionDeps) {
     const settings = displaySettings();
     const live = state.view();
     const shown = archive ?? state;
+    if (vaultEmptyState?.provider !== vaultProvider()) refreshVaultEmpty();
     return {
       ...live,
+      ...(vaultEmptyState?.empty === true &&
+        vaultEmptyState.provider === vaultProvider() && { vaultEmpty: true }),
       stopping: stopping && controller !== null,
       ...(campaignView && { campaign: campaignView }),
       ...(settings.capabilities && {
@@ -485,6 +497,69 @@ export function createChatSession(deps: ChatSessionDeps) {
       ...(vaultProviderId !== undefined && { vaultProvider: vaultProviderId }),
       ...(afterKeyId !== undefined && { afterKeyId }),
     };
+  };
+
+  /** Contexte de l'avis « pas de rotation » : jamais de valeur de clé. */
+  const adviceFor = (token: TokenChoice | undefined, model: string | undefined) => {
+    const provider = vaultProvider();
+    const context: RotationAdviceContext = {
+      subscription: token?.auth?.name === "CLAUDE_CODE_OAUTH_TOKEN",
+      ...(provider !== undefined && { provider }),
+      ...(model !== undefined && { model }),
+    };
+    return context;
+  };
+  /**
+   * Avis neutre sous l'erreur quand un quota ou une clé invalide n'a pas de rotation possible (coffre vide,
+   * une seule clé, abonnement). `once` : un seul avis par fournisseur pour la campagne courante.
+   */
+  const adviseNoRotation = async (
+    context: RotationAdviceContext,
+    failure: ProviderFailureInput,
+    once: boolean,
+  ): Promise<void> => {
+    try {
+      const keyed = context.provider !== undefined && !context.subscription;
+      if (keyed && deps.vault === undefined) return;
+      const count =
+        keyed && deps.vault && context.provider !== undefined
+          ? (await deps.vault.store.get(context.provider)).keys.length
+          : 0;
+      const text = rotationAdvice(context, failure, count);
+      if (text === undefined || disposed) return;
+      if (once) {
+        const slot = keyed ? (context.provider ?? "") : "abonnement";
+        if (campaignAdvised.has(slot)) return;
+        campaignAdvised.add(slot);
+      }
+      state.notice(text, "info", 2000, "openKeys");
+      refresh();
+    } catch {
+      // Un avis manqué ne doit jamais gêner l'erreur déjà affichée.
+    }
+  };
+  /** Relève (asynchrone) si le coffre du fournisseur courant est vide ; rafraîchit la vue au changement. */
+  const refreshVaultEmpty = (): void => {
+    const provider = vaultProvider();
+    const store = deps.vault?.store;
+    if (provider === undefined || store === undefined) {
+      vaultEmptyState = undefined;
+      return;
+    }
+    vaultEmptyState = {
+      provider,
+      empty: vaultEmptyState?.provider === provider && vaultEmptyState.empty,
+    };
+    void store
+      .get(provider)
+      .then((vault) => {
+        if (disposed || vaultProvider() !== provider) return;
+        const empty = vault.keys.length === 0;
+        if (vaultEmptyState?.provider === provider && vaultEmptyState.empty === empty) return;
+        vaultEmptyState = { provider, empty };
+        deps.onView(view());
+      })
+      .catch(() => undefined);
   };
 
   /** Modèle et effort du prochain message : préférence, sinon réglage machine ; effort ramené s'il n'est pas permis. */
@@ -832,6 +907,8 @@ export function createChatSession(deps: ChatSessionDeps) {
       },
     });
     if (token?.vault) picks.set(ctl, token.vault);
+    adviceContexts.set(ctl, adviceFor(token, picked.model));
+    refreshVaultEmpty();
     // Empreinte attendue de la clé d'API transmise (le jeton d'abonnement OAuth n'est pas une clé du coffre).
     if (token?.auth && token.auth.name !== "CLAUDE_CODE_OAUTH_TOKEN")
       keyGuards.set(ctl, createKeyGuard(fingerprint(token.auth.value)));
@@ -911,8 +988,15 @@ export function createChatSession(deps: ChatSessionDeps) {
     const pick = picks.get(ctl);
     const failure = trackers.get(ctl)?.take();
     const vault = deps.vault;
-    if (pick === undefined || failure === undefined || vault === undefined) return;
+    if (failure === undefined) return;
     if (stopping || disposed || detached.has(ctl) || controller !== ctl) return;
+    if (pick === undefined) {
+      // Aucune clé du coffre derrière ce moteur : pas de rotation, l'utilisateur doit savoir pourquoi.
+      const context = adviceContexts.get(ctl);
+      if (context !== undefined) await adviseNoRotation(context, failure, false);
+      return;
+    }
+    if (vault === undefined) return;
     const revision = navigationRev;
     try {
       const outcome = await rotateAfterFailure(
@@ -933,6 +1017,8 @@ export function createChatSession(deps: ChatSessionDeps) {
       if (outcome.kind === "exhausted" || rotations >= keys.keys.length) {
         const until = outcome.kind === "exhausted" ? outcome.until : soonestCooldown(keys);
         state.error(new CodedError("vault.allExhausted", until === undefined ? {} : { until }));
+        const context = adviceContexts.get(ctl);
+        if (context !== undefined) await adviseNoRotation(context, failure, false);
         state.setBusy(false);
         refresh();
         return;
@@ -1026,6 +1112,7 @@ export function createChatSession(deps: ChatSessionDeps) {
     return {
       ...(token?.auth && { auth: token.auth }),
       ...(token?.vault && { vault: token.vault }),
+      advice: adviceFor(token, picked.model),
       params: commonStartParams(settings, picked, token, testAccounts),
     };
   };
@@ -1035,6 +1122,7 @@ export function createChatSession(deps: ChatSessionDeps) {
     rotate: (pick, failure) =>
       rotateAfterFailure(access.store, pick, failure, (access.now ?? (() => new Date()))()),
     keyCount: async (provider) => (await access.store.get(provider)).keys.length,
+    advise: (context, failure) => adviseNoRotation(context, failure, true),
   });
 
   /** Envoi en mode multi-agents : une campagne remplace le run simple. */
@@ -1045,6 +1133,7 @@ export function createChatSession(deps: ChatSessionDeps) {
   ): Promise<boolean> => {
     ensureConversation(text);
     state.user(text);
+    campaignAdvised.clear();
     campaignView = undefined;
     refresh();
     let journal: JournalWriter | undefined;

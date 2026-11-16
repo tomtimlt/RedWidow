@@ -525,6 +525,22 @@ body.paused .thinking-dots {
   font-size: var(--jn-fs-2xs);
   cursor: default;
 }
+/* Coffre vide : puce discrète, sans la police fixe des empreintes. */
+#key-chip.empty {
+  font-family: inherit;
+  font-style: italic;
+  opacity: 0.75;
+}
+.notice .notice-action {
+  margin-inline-start: 6px;
+  padding: 0 6px;
+  font: inherit;
+  color: var(--vscode-textLink-foreground);
+  background: none;
+  border: 0;
+  text-decoration: underline;
+  cursor: pointer;
+}
 .chip .chip-ico {
   width: 14px;
   height: 14px;

@@ -335,6 +335,13 @@
     } else {
       node = el("div", `notice ${item.level}`, item.text);
       if (item.level === "error") node.setAttribute("role", "alert");
+      // Avis « pas de rotation » : ouvre Réglages › Fournisseurs (hôte seul, aucune donnée de la webview).
+      if (item.action === "openKeys") {
+        const open = el("button", "notice-action", t("Ouvrir les clés"));
+        open.type = "button";
+        open.addEventListener("click", () => vscode.postMessage({ type: "addProvider" }));
+        node.append(" ", open);
+      }
     }
     if (cached) node.classList.add("no-enter");
     if (item.source) node.dataset.source = item.source;
@@ -1943,15 +1950,20 @@
     else gauge.removeAttribute("title");
   }
   // Clé du coffre réellement utilisée par le moteur (ADR 0056) : rang et empreinte, visible dès qu'elle existe.
-  function paintKeyChip(activeKey) {
+  // Fournisseur éligible au coffre mais coffre vide : « sans clé du coffre », en style discret.
+  function paintKeyChip(activeKey, vaultEmpty) {
     const chip = $("key-chip");
-    chip.hidden = !activeKey;
+    const empty = !activeKey && vaultEmpty === true;
+    chip.hidden = !activeKey && !empty;
+    chip.classList.toggle("empty", empty);
     $("key-chip-label").textContent = activeKey
       ? t("clé {0} · {1}", { 0: activeKey.rank, 1: activeKey.fingerprint })
-      : "";
+      : empty
+        ? t("sans clé du coffre")
+        : "";
   }
   function render(view) {
-    paintKeyChip(view.activeKey);
+    paintKeyChip(view.activeKey, view.vaultEmpty);
     paintGauge(view.context);
     paintContainerWarning(
       linkedContainerCount === null ? view.noContainer === true : linkedContainerCount === 0,

@@ -88,7 +88,7 @@ export type ChatItem = { source?: string; agent?: ItemAgent } & (
       projectId: string;
       findings: { label: string; detail: string; severity: "unrated" }[];
     }
-  | { id: number; kind: "notice"; level: "info" | "error"; text: string }
+  | { id: number; kind: "notice"; level: "info" | "error"; text: string; action?: "openKeys" }
 );
 
 type NewItem = ChatItem extends infer T
@@ -166,6 +166,8 @@ export interface ChatView {
   retry?: { attempt: number; delayMs: number };
   /** Clé du coffre réellement utilisée par le moteur (ADR 0056) : rang et empreinte, jamais la valeur. */
   activeKey?: { provider: string; rank: number; fingerprint: string };
+  /** Fournisseur éligible au coffre dont le coffre est vide : la puce l'annonce « sans clé du coffre ». */
+  vaultEmpty?: boolean;
   items: ChatItem[];
   exchangeTarget?: { id: number; source?: string; revision: number };
   paging?: {
@@ -249,7 +251,8 @@ export function createChatState(before?: string) {
     text: string,
     level: "info" | "error" = "info",
     maxChars = level === "error" ? 12_000 : 2000,
-  ) => push({ kind: "notice", level, text: cleanText(text, maxChars) });
+    action?: "openKeys",
+  ) => push({ kind: "notice", level, text: cleanText(text, maxChars), ...(action && { action }) });
   /** Rotation de clé (ADR 0056) : rangs et empreintes seulement. Sans clé suivante, `vault.allExhausted` suit. */
   const rotation = (e: {
     fromRank: number;

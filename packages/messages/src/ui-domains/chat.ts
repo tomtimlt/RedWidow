@@ -1,6 +1,8 @@
 /** Libellés produit du chat et des pages HTML ; les données reçues restent intactes. */
 export const chatEn: Record<string, string> = {
   Pentest: "Pentest",
+  "Ouvrir les clés": "Open keys",
+  "sans clé du coffre": "no vault key",
   "Hack The Box / CTF": "Hack The Box / CTF",
   "Aucun conteneur lié : l'agent n'a pas de shell": "No linked container: the agent has no shell",
   "Lier un conteneur": "Link a container",
