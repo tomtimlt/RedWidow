@@ -36,6 +36,11 @@ export interface ForcedConfigInput {
   provider?: string;
   /** Skill constant local lu par toutes les sessions du serveur géré, sous-agents compris. */
   methodologyPath?: string;
+  /**
+   * Modèle des tâches annexes d'OpenCode (titre, résumé : `small_model`), `fournisseur/modèle`.
+   * Sans lui, OpenCode prend son petit modèle par défaut, parfois hors de l'offre de l'utilisateur.
+   */
+  smallModel?: string;
 }
 
 /**
@@ -50,6 +55,7 @@ export function buildConfig({
   maxTurns,
   provider,
   methodologyPath,
+  smallModel,
 }: ForcedConfigInput): Obj {
   const permission = forcedPermission(enabledTools);
   const { plugin: _plugin, permission: _permission, ...rest } = user ?? {};
@@ -75,6 +81,7 @@ export function buildConfig({
     ...(provider === "openai" && {
       provider: { ...(isObj(rest.provider) ? rest.provider : {}), openai: {} },
     }),
+    ...(smallModel !== undefined && { small_model: smallModel }),
     share: "disabled",
     autoupdate: false,
     snapshot: false,

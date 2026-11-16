@@ -125,6 +125,17 @@ const obj = (value: unknown): Obj =>
 const str = (value: unknown): string | undefined =>
   typeof value === "string" && value !== "" ? value : undefined;
 
+/** Valeur `small_model` d'OpenCode pour le modèle du run ; modèle absent ou invalide : `undefined`. */
+export function smallModelOf(model: string | undefined, provider?: string): string | undefined {
+  if (model === undefined) return undefined;
+  try {
+    const parsed = parseModel(model, provider);
+    return `${parsed.providerID}/${parsed.modelID}`;
+  } catch {
+    return undefined;
+  }
+}
+
 /** `fournisseur/modèle` → `{providerID, modelID}` ; lève `opencode.invalidModel`. */
 export function parseModel(
   value: string,
@@ -1251,6 +1262,7 @@ async function runWithOpencodeWithDesk(
       methodologyPath = join(methodologyDir, "SKILL.md");
       await writeFile(methodologyPath, AGENT_METHODOLOGY, { encoding: "utf8", mode: 0o600 });
     }
+    const smallModel = smallModelOf(input.model, options.provider);
     const config = buildConfig({
       user: options.config,
       enabledTools,
@@ -1258,6 +1270,8 @@ async function runWithOpencodeWithDesk(
       ...(methodologyPath !== undefined && { methodologyPath }),
       maxTurns: input.maxTurns,
       ...(options.provider !== undefined && { provider: options.provider }),
+      // Tâches annexes (titre, résumé) sur le modèle choisi : pas d'appel à un modèle hors offre.
+      ...(smallModel !== undefined && { smallModel }),
     });
 
     if (options.createClient) {
