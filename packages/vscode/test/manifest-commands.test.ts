@@ -53,6 +53,8 @@ describe("commandes du manifeste", () => {
         "warband.openSessions",
         "warband.openStudio",
         "warband.setToken",
+        "warband.vault.addKey",
+        "warband.vault.removeKey",
         "warband.trustRepoPolicy",
       ].sort(),
     );

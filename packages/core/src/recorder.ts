@@ -31,6 +31,11 @@ export interface RecorderOptions {
    */
   redact?: Redactor | false;
   /**
+   * Valeurs secrètes supplémentaires (ex. clés du coffre), lues à CHAQUE émission : la liste peut
+   * changer pendant la vie du recorder. Sans effet avec `redact: false`. Absente : rien de plus.
+   */
+  extraSecrets?: () => readonly string[];
+  /**
    * Appelé quand un sink lève une exception (en plus de l'événement `sink.error`
    * diffusé aux autres sinks). Ne doit pas lever ; s'il le fait, c'est ignoré.
    */
@@ -52,6 +57,24 @@ export function createRecorder(options: RecorderOptions = {}): Recorder {
     options.redact === false
       ? (value) => value
       : (options.redact ?? createRedactor({ values: secretsFromEnv(process.env) }));
+  // Masqueur des secrets dynamiques, reconstruit seulement quand la liste change.
+  let extraKey = "";
+  let extraRedact: Redactor | null = null;
+  const redactExtra: Redactor = <T>(value: T): T => {
+    let values: readonly string[];
+    try {
+      values = options.extraSecrets?.() ?? [];
+    } catch {
+      values = [];
+    }
+    if (values.length === 0) return value;
+    const key = JSON.stringify(values);
+    if (key !== extraKey || extraRedact === null) {
+      extraKey = key;
+      extraRedact = createRedactor({ values });
+    }
+    return extraRedact(value);
+  };
   const sinks = new Set<EventSink>();
   /** Arrêts des flux ouverts par `stream()`. */
   const streams = new Set<() => void>();
@@ -88,7 +111,7 @@ export function createRecorder(options: RecorderOptions = {}): Recorder {
       ts: now().toISOString(),
       runId,
       parentId,
-      ...redact(payload),
+      ...(options.redact === false ? payload : redactExtra(redact(payload))),
     }) as EngineEvent;
 
   return {

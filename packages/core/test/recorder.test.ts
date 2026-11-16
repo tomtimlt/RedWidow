@@ -227,4 +227,32 @@ describe("recorder.stream", () => {
     r.close();
     expect(JSON.stringify(await collect(stream))).not.toContain("abcdefghijklmnop");
   });
+  describe("secrets supplémentaires (extraSecrets)", () => {
+    const value = "zzvault-0123456789-plain"; // aucun motif de clé usuel
+
+    it("masque la valeur courante à chaque émission, même ajoutée après la création", () => {
+      let secrets: string[] = [];
+      const r = createRecorder({ runId: "r", extraSecrets: () => secrets });
+      const seen: EngineEvent[] = [];
+      r.subscribe((e) => seen.push(e));
+      r.emit({ kind: "agent.text", text: `avant ${value}` });
+      secrets = [value];
+      r.emit({ kind: "agent.text", text: `après ${value}` });
+      secrets = [];
+      expect(JSON.stringify(seen[0])).toContain(value);
+      expect(JSON.stringify(seen[1])).not.toContain(value);
+    });
+
+    it("reste sûr : sans l'option, ou si elle lève, rien ne casse", () => {
+      const plain = createRecorder({ runId: "r" });
+      expect(plain.emit({ kind: "agent.text", text: "ok" })).toMatchObject({ text: "ok" });
+      const faulty = createRecorder({
+        runId: "r",
+        extraSecrets: () => {
+          throw new Error("coffre indisponible");
+        },
+      });
+      expect(faulty.emit({ kind: "agent.text", text: "ok" })).toMatchObject({ text: "ok" });
+    });
+  });
 });

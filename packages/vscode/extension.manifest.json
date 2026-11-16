@@ -140,6 +140,15 @@
         "title": "%command.clearToken%"
       },
       {
+        "command": "warband.vault.addKey",
+        "title": "%command.vault.addKey%",
+        "icon": "$(key)"
+      },
+      {
+        "command": "warband.vault.removeKey",
+        "title": "%command.vault.removeKey%"
+      },
+      {
         "command": "warband.diagnostic",
         "title": "%command.diagnostic%",
         "icon": "$(pulse)"

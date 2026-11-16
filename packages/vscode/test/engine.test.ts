@@ -1041,6 +1041,7 @@ it.each([undefined, "learning"] as const)(
         opencodeProviders,
         false,
         "htb",
+        undefined,
       ),
     );
     t.receive({ v: 1, type: "dispose" });

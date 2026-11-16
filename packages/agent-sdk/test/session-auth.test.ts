@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import type { Options, SDKMessage, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import {
   AGENT_METHODOLOGY,
+  classifyProviderFailure,
   createApprovalGate,
   createRecorder,
   DEFAULT_POLICY,
@@ -11,7 +12,7 @@ import {
 } from "@warband/core";
 import { formatError } from "@warband/messages";
 import { describe, expect, it } from "vitest";
-import { createSdkRunner, type QueryFn } from "../src/index.js";
+import { createSdkRunner, type QueryFn, sdkEffectiveEnv } from "../src/index.js";
 
 const result = (extra: Record<string, unknown> = {}) =>
   ({
@@ -396,5 +397,82 @@ describe("effort et liste des modèles", () => {
     expect(seen.options).toMatchObject({ allowedTools: [], tools: [], permissionMode: "default" });
     expect(seen.options).not.toHaveProperty("effort");
     expect(seen.closed).toBe(true);
+  });
+});
+
+describe("coffre à clés : environnement effectif et échecs classables (ADR 0056)", () => {
+  it("sdkEffectiveEnv est exactement ce que le SDK reçoit (abonnement) ou hérite (auto, api-key)", async () => {
+    const sub = await run({ auth: "subscription" }, simple);
+    expect(sdkEffectiveEnv("subscription", FAKE_ENV)).toEqual(sub.seen.options?.env);
+    expect(sdkEffectiveEnv("subscription", FAKE_ENV)).not.toHaveProperty("ANTHROPIC_API_KEY");
+    // Sans option `env`, le SDK hérite de `processEnv` : la clé effective est celle de cet environnement.
+    for (const auth of ["auto", "api-key"] as const) {
+      const r = await run({ auth }, simple);
+      expect(r.seen.options).not.toHaveProperty("env");
+      expect(sdkEffectiveEnv(auth, FAKE_ENV).ANTHROPIC_API_KEY).toBe(FAKE_ENV.ANTHROPIC_API_KEY);
+    }
+  });
+
+  it("rate_limit_event rejected fait échouer le tour, avec de quoi classer l'échec", async () => {
+    const { events, summary } = await run({}, () =>
+      (async function* () {
+        yield init();
+        yield {
+          type: "rate_limit_event",
+          rate_limit_info: { status: "rejected", resetsAt: Math.floor(Date.now() / 1000) + 600 },
+        } as unknown as SDKMessage;
+        yield result();
+      })(),
+    );
+    const error = events.find((e) => e.kind === "error");
+    expect(error).toMatchObject({
+      code: "provider.error",
+      params: { rateLimitStatus: "rejected" },
+    });
+    const params = (error as unknown as { params: { retryAfterSeconds: number; message: string } })
+      .params;
+    expect(params.retryAfterSeconds).toBeGreaterThan(590);
+    expect(
+      classifyProviderFailure({
+        rateLimitStatus: "rejected",
+        message: params.message,
+        retryAfterSeconds: params.retryAfterSeconds,
+      }),
+    ).toBe("quota");
+    expect(summary?.status).toBe("error");
+    expect(events.find((e) => e.kind === "turn.finished")).toMatchObject({ status: "error" });
+  });
+
+  it("un rate_limit_event non rejeté ne fait pas échouer le tour", async () => {
+    const { events, summary } = await run({}, () =>
+      (async function* () {
+        yield init();
+        yield {
+          type: "rate_limit_event",
+          rate_limit_info: { status: "allowed_warning" },
+        } as unknown as SDKMessage;
+        yield result();
+      })(),
+    );
+    expect(events.some((e) => e.kind === "error")).toBe(false);
+    expect(summary?.status).toBe("success");
+  });
+
+  it("authentication_failed porte son code : classé invalidKey", async () => {
+    const { events } = await run({}, () =>
+      (async function* () {
+        yield init();
+        yield {
+          type: "assistant",
+          parent_tool_use_id: null,
+          error: "authentication_failed",
+          message: { content: [] },
+        } as unknown as SDKMessage;
+        yield result({ subtype: "error_during_execution", is_error: true });
+      })(),
+    );
+    const error = events.find((e) => e.kind === "error") as { params?: { code?: string } };
+    expect(error.params?.code).toBe("authentication_failed");
+    expect(classifyProviderFailure({ code: error.params?.code as string })).toBe("invalidKey");
   });
 });

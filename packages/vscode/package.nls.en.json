@@ -25,6 +25,8 @@
   "command.focusChat": "RedWidow: Go to sidebar chat",
   "command.setToken": "RedWidow: Set token",
   "command.clearToken": "RedWidow: Clear token",
+  "command.vault.addKey": "RedWidow: Add a key to the vault",
+  "command.vault.removeKey": "RedWidow: Remove a key from the vault",
   "command.diagnostic": "RedWidow: Diagnostics",
   "command.configureBurp": "RedWidow: Configure Burp Suite MCP",
   "command.testBurp": "RedWidow: Test the Burp Suite MCP connection",

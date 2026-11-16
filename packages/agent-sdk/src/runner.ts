@@ -15,6 +15,7 @@ import {
   type AgentRunner,
   type ApprovalOutcome,
   type AuthInfo,
+  type AuthMode,
   appendDeskNote,
   BASH_TOOL,
   CodedError,
@@ -65,6 +66,20 @@ export const SUBSCRIPTION_STRIPPED_ENV: readonly string[] = [
   "NODE_CHANNEL_FD",
   "NODE_CHANNEL_SERIALIZATION_MODE",
 ];
+
+/**
+ * Environnement EFFECTIF du sous-processus `claude` : en mode abonnement, copie sans les variables
+ * retirées ; sinon l'environnement hérité tel quel. Source unique de ce que le SDK reçoit (ADR 0056,
+ * décision 4 : le moteur y lit la clé réellement transmise).
+ */
+export function sdkEffectiveEnv(
+  authMode: AuthMode | undefined,
+  processEnv: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  return authMode === "subscription"
+    ? envWithout(processEnv, SUBSCRIPTION_STRIPPED_ENV)
+    : processEnv;
+}
 
 export interface SdkRunnerOptions {
   /** Serveurs MCP in-process (ex. `dockerToolset()`), construits à chaque run. */
@@ -719,13 +734,17 @@ async function runWithSdkWithDesk(
     // `Options.env` REMPLACE l'environnement du sous-processus (il n'est pas fusionné) :
     // en mode abonnement on passe donc une copie complète, PATH et HOME compris.
     // En `auto` et `api-key`, l'environnement est hérité tel quel.
-    ...(authMode === "subscription" && { env: envWithout(processEnv, SUBSCRIPTION_STRIPPED_ENV) }),
+    ...(authMode === "subscription" && {
+      env: sdkEffectiveEnv(authMode, processEnv) as Record<string, string>,
+    }),
     // `updatedPermissions` (réponse de canUseTool) n'est volontairement pas utilisé :
     // le hook PreToolUse fait autorité, et « toujours autoriser » vit dans la gate du
     // moteur (`ApprovalAnswer.remember`), qui ne contourne jamais un deny ni un garde-fou.
   };
 
   let sessionId: string | undefined = input.sessionId ?? input.resume;
+  /** Quota refusé pendant le tour courant : le résultat du tour est forcé en erreur. */
+  let turnProviderFailed = false;
   let stream: AsyncIterable<SDKMessage> | undefined;
   let accountLookup: Promise<void> | undefined;
 
@@ -920,7 +939,15 @@ async function runWithSdkWithDesk(
         const authError = message.error
           ? AUTH_ERRORS[message.error as keyof typeof AUTH_ERRORS]
           : undefined;
-        if (authError) recorder.emit({ kind: "error", ...reason(authError) }, parentId);
+        if (authError)
+          recorder.emit(
+            {
+              kind: "error",
+              // `code` : lu par `classifyProviderFailure` (clé refusée : rotation du coffre).
+              ...reason(authError, { code: String(message.error) }),
+            },
+            parentId,
+          );
         for (const block of blocks(message.message.content)) {
           if (block.type === "text" && typeof block.text === "string" && block.text.trim()) {
             recorder.emit({ kind: "agent.text", text: block.text }, parentId);
@@ -957,7 +984,10 @@ async function runWithSdkWithDesk(
       } else if (message.type === "result") {
         sessionId = message.session_id ?? sessionId;
         summary = {
-          status: message.subtype === "success" && !message.is_error ? "success" : "error",
+          status:
+            message.subtype === "success" && !message.is_error && !turnProviderFailed
+              ? "success"
+              : "error",
           turns: message.num_turns,
           costUsd: message.total_cost_usd,
           result: message.subtype === "success" ? message.result : null,
@@ -980,6 +1010,7 @@ async function runWithSdkWithDesk(
           );
         }
         lastCall = undefined;
+        turnProviderFailed = false;
         recorder.emit(
           {
             kind: "turn.finished",
@@ -1002,6 +1033,26 @@ async function runWithSdkWithDesk(
         );
       } else if (message.type === "rate_limit_event") {
         const info = message.rate_limit_info;
+        if (info.status === "rejected") {
+          // Quota refusé : le tour échoue, avec de quoi classer l'échec (ADR 0056, décision 5).
+          turnProviderFailed = true;
+          const retryAfterSeconds =
+            info.resetsAt !== undefined
+              ? Math.max(0, Math.ceil(info.resetsAt - Date.now() / 1000))
+              : undefined;
+          recorder.emit(
+            {
+              kind: "error",
+              ...reason("provider.error", {
+                name: "RateLimitRejected",
+                message: "limite d'utilisation atteinte",
+                rateLimitStatus: "rejected",
+                ...(retryAfterSeconds !== undefined && { retryAfterSeconds }),
+              }),
+            },
+            root.id,
+          );
+        }
         recorder.emit(
           {
             kind: "rate.limited",

@@ -398,6 +398,20 @@ async function probeCatalog(
   }
 }
 
+/**
+ * Environnement EFFECTIF du serveur OpenCode lancé par ce runner (ADR 0056, décision 4) : le même
+ * calcul que le lancement (`authEnvironment` puis `serverEnv`), moins la configuration et le mot de
+ * passe, qui ne portent aucune clé. Le moteur y lit la clé réellement transmise.
+ */
+export async function effectiveServerEnv(
+  options: OpencodeRunnerOptions,
+  auth?: AuthMode,
+): Promise<NodeJS.ProcessEnv> {
+  const processEnv = options.processEnv ?? process.env;
+  const credentials = await authEnvironment(options, auth);
+  return serverEnv({ processEnv, config: {}, password: "", ...credentials });
+}
+
 /** Le mode abonnement écarte la clé API ; le mode API exige une clé explicite. */
 async function authEnvironment(options: OpencodeRunnerOptions, auth?: AuthMode) {
   const env = { ...options.env };
@@ -989,6 +1003,10 @@ async function runWithOpencodeWithDesk(
         fail(
           reason("provider.error", {
             name: quota ? "QuotaExceeded" : "RetryDelayed",
+            // Champs lus par `classifyProviderFailure` (rotation du coffre, ADR 0056).
+            code: quota ? "QuotaExceeded" : "RetryDelayed",
+            ...(!quota && { retryAfterSeconds: Math.ceil(delayMs / 1000) }),
+            ...(typeof status === "number" && { status }),
             message: quota
               ? "Le quota gratuit OpenCode Zen est épuisé. Choisissez un autre modèle disponible ou réessayez après le renouvellement du quota."
               : `Le fournisseur annonce une nouvelle tentative dans ${Math.ceil(delayMs / 1000)} secondes. L’attente automatique est arrêtée ; réessayez plus tard ou choisissez un autre modèle.`,
@@ -1053,15 +1071,22 @@ async function runWithOpencodeWithDesk(
           : "indeterminate",
       message,
     };
+    const status = typeof data.statusCode === "number" ? data.statusCode : undefined;
     if (name === "ProviderAuthError") {
-      fail(reason("provider.authFailed", details));
+      fail(
+        reason("provider.authFailed", {
+          ...details,
+          code: diagnostic(name),
+          ...(status !== undefined && { status }),
+        }),
+      );
       return;
     }
-    const status = typeof data.statusCode === "number" ? data.statusCode : undefined;
     fail(
       reason("provider.error", {
         ...details,
         name: diagnostic(name),
+        code: diagnostic(name),
         ...(status !== undefined && { status }),
       }),
     );

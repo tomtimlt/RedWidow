@@ -11,6 +11,7 @@ import {
   type IntegrationConfig,
   isBurpConfig,
   isSupervisionLevel,
+  MAX_VAULT_KEYS,
   type ModelOption,
   type PendingApproval,
   type PromptImage,
@@ -24,7 +25,9 @@ import {
   type SupervisionLevel,
   type TestAccount,
   testAccountsSchema,
+  VAULT_PROVIDER_ID,
   validateEvent,
+  vaultEnvName,
 } from "@warband/core";
 import { type ConversationContext, isConversationContext } from "./conversation-context.js";
 import { isProvider, type Provider, parseEffort } from "./effort.js";
@@ -69,6 +72,19 @@ export interface StartParams {
   journalDir?: string;
   /** Rôle du run dans une campagne multi-agents (ADR 0054) ; absent : aucun outil ni consigne de campagne. */
   multiAgent?: MultiAgentParams;
+  /**
+   * Clé du coffre choisie par l'hôte (ADR 0056) : fournisseur, NOM de la variable et rang seulement.
+   * Jamais la valeur (elle n'est que dans l'environnement de l'enfant), jamais l'empreinte attendue
+   * (l'hôte la compare à celle que le moteur annonce). Absent : clé unique ou abonnement (`legacy`).
+   */
+  vault?: VaultParams;
+}
+
+/** Clé du coffre dans un message `start`. */
+export interface VaultParams {
+  provider: string;
+  name: string;
+  rank: number;
 }
 
 /** Paramètres de lancement d'un run de campagne : `intent` pour un worker seulement. */
@@ -215,7 +231,21 @@ const START_KEYS = [
   "webSearch",
   "testAccounts",
   "multiAgent",
+  "vault",
 ] as const;
+
+/** Valide `vault` : fournisseur, nom de variable cohérent avec lui, rang de 1 à 10. */
+function validVault(value: unknown): boolean {
+  if (!isObj(value) || onlyKeys(value, ["provider", "name", "rank"]) !== null) return false;
+  if (!isString(value.provider) || !VAULT_PROVIDER_ID.test(value.provider)) return false;
+  if (typeof value.rank !== "number" || !Number.isInteger(value.rank)) return false;
+  if (value.rank < 1 || value.rank > MAX_VAULT_KEYS) return false;
+  try {
+    return value.name === vaultEnvName(value.provider);
+  } catch {
+    return false;
+  }
+}
 
 /** Valide un état du Bypass : `null`, ou bornes entières de 1 minute à `BYPASS_MAX_MS`, ou sans échéance. */
 function validBypassState(value: unknown): boolean {
@@ -303,6 +333,7 @@ export function parseToEngine(raw: unknown): Parsed<ToEngine> {
         (!validMultiAgent(obj.multiAgent) || obj.mode === "learning")
       )
         return bad("multiAgent");
+      if (obj.vault !== undefined && !validVault(obj.vault)) return bad("vault");
       unexpected = extra(START_KEYS);
       if (unexpected) return bad(unexpected, "unexpected");
       if (!isString(obj.cwd) || obj.cwd === "" || !isAbsolute(obj.cwd)) return bad("cwd");

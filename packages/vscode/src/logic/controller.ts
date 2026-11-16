@@ -18,6 +18,7 @@ import {
   type TestAccounts,
   terminateProcessTree,
   trackProcessTree,
+  VAULT_ENV_NAME,
 } from "@warband/core";
 import { t } from "@warband/messages";
 import { ModelProbeError } from "./model-load-error.js";
@@ -38,10 +39,18 @@ export const AUTH_ENV_NAMES = [
 ] as const;
 export type AuthEnvName = (typeof AUTH_ENV_NAMES)[number];
 
+/**
+ * Variable d'authentification de l'enfant : l'une des trois ci-dessus, ou, pour un fournisseur
+ * OpenCode configuré, `<ID>_API_KEY` / `<ID>_TOKEN` (ADR 0056, décision 2 ; motif `VAULT_ENV_NAME`).
+ */
 export interface EngineAuth {
-  name: AuthEnvName;
+  name: string;
   value: string;
 }
+
+/** Nom de variable d'authentification admis par `buildEngineEnv`. */
+export const isAuthEnvName = (name: string): boolean =>
+  (AUTH_ENV_NAMES as readonly string[]).includes(name) || VAULT_ENV_NAME.test(name);
 
 /**
  * Environnement de l'enfant : liste blanche de `safeEnv()`, `ELECTRON_RUN_AS_NODE` (le Node
@@ -70,7 +79,7 @@ export function buildEngineEnv(
     if (base[key]) env[key] = base[key];
   }
   if (auth !== undefined) {
-    if (!(AUTH_ENV_NAMES as readonly string[]).includes(auth.name) || auth.value === "") {
+    if (!isAuthEnvName(auth.name) || auth.value === "") {
       throw new CodedError("ipc.invalidMessage", { field: "auth", reason: "invalid" });
     }
     env[auth.name] = auth.value;

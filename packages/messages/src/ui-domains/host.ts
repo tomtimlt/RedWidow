@@ -301,4 +301,19 @@ export const hostEn: Record<string, string> = {
   "Projet exporté.": "Project exported.",
   "Un nouvel identifiant a été attribué au projet importé.":
     "A new identifier was assigned to the imported project.",
+  "Coffre à clés : ajouter une clé": "Key vault: add a key",
+  "Coffre à clés : {0}": "Key vault: {0}",
+  "La clé est stockée dans le stockage sécurisé de VS Code.":
+    "The key is stored in VS Code secure storage.",
+  "Clé ajoutée : {0}": "Key added: {0}",
+  active: "active",
+  invalide: "invalid",
+  "épuisée jusqu'au {0}": "exhausted until {0}",
+  clé: "key",
+  "Aucune clé dans le coffre.": "No key in the vault.",
+  "Coffre à clés : supprimer une clé": "Key vault: remove a key",
+  "Supprimer {0} du coffre ?": "Remove {0} from the vault?",
+  "Clé supprimée du coffre.": "Key removed from the vault.",
+  "Claude (clé d'API)": "Claude (API key)",
+  "OpenAI (clé d'API)": "OpenAI (API key)",
 };

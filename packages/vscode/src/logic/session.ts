@@ -13,12 +13,15 @@ import type {
 } from "@warband/core";
 import {
   AGENT_PROFILES,
+  CodedError,
   createRecorder,
   DEFAULT_AGENT_PROFILE,
+  fingerprint,
   hasPastedCredentials,
   type JournalWriter,
   openJournal,
   parseSupervision,
+  soonestCooldown,
 } from "@warband/core";
 import { formatReason, getUiLocale, t } from "@warband/messages";
 import { alwaysConfirmText, answerFor, type Choice, cleanText, toCard } from "./approval.js";
@@ -31,7 +34,11 @@ import {
   isCampaignActive,
   onCampaignActivity,
 } from "./campaign-host.js";
-import { type CampaignEngineSetup, createCampaignSpawner } from "./campaign-spawn.js";
+import {
+  type CampaignEngineSetup,
+  type CampaignVaultAccess,
+  createCampaignSpawner,
+} from "./campaign-spawn.js";
 import {
   type CampaignView,
   type ChatState,
@@ -96,6 +103,16 @@ import { isModelId, parseModelCache, usableModels, validateModelChoice } from ".
 import type { FromEngine } from "./protocol.js";
 import type { ChatSettings } from "./settings.js";
 import { findAdjacentExchange, readConversationPage } from "./timeline.js";
+import {
+  createFailureTracker,
+  type FailureTracker,
+  keyMismatch,
+  ROTATION_RESUME_PROMPT,
+  rotateAfterFailure,
+  type VaultPick,
+  type VaultRotatedPayload,
+} from "./vault-launch.js";
+import type { VaultStore } from "./vault-store.js";
 
 const PREFS_KEY = "warband.prefs";
 const MODELS_KEY = "warband.models";
@@ -108,6 +125,17 @@ const labelOf = (e: EffortChoice) => EFFORT_LEVELS.find((l) => l.value === e)?.l
 export interface TokenChoice {
   auth?: EngineAuth;
   mode: AuthMode;
+  /** Clé du coffre retenue (ADR 0056) ; absent : clé unique ou abonnement (`legacy`), aucune rotation. */
+  vault?: VaultPick;
+}
+
+/** Précisions pour `getToken` : fournisseur du coffre (le fournisseur OpenCode actif), clé fautive, lancement. */
+export interface TokenHint {
+  vaultProvider?: string;
+  /** Clé qui vient d'échouer : la suivante est choisie après elle. */
+  afterKeyId?: string;
+  /** Lancement d'un moteur : un coffre non vide sans clé active échoue en `vault.allExhausted`. */
+  launch?: boolean;
 }
 
 export interface ChatSessionDeps {
@@ -117,7 +145,11 @@ export interface ChatSessionDeps {
   /** Réglages machine validés (lève `CodedError`). */
   readSettings(): ChatSettings;
   /** Jeton (SecretStorage) ; `undefined` → authentification `auto` du binaire. */
-  getToken(provider?: Provider): Promise<TokenChoice | undefined>;
+  getToken(provider?: Provider, hint?: TokenHint): Promise<TokenChoice | undefined>;
+  /** Coffre à clés (ADR 0056) : rotation après quota ou clé invalide. Absent : aucune rotation. */
+  vault?: { store: VaultStore; now?: () => Date };
+  /** Valeurs secrètes de tous les coffres, pour masquer les événements consignés par l'hôte. */
+  extraSecrets?: () => readonly string[];
   getTestAccounts?(): Promise<import("@warband/core").TestAccount[]>;
   /**
    * Contrôle de cible sur le périmètre approuvé (programme, engagement) du projet donné (ADR 0055) ;
@@ -265,6 +297,14 @@ export function createChatSession(deps: ChatSessionDeps) {
   const userAbort = new WeakSet<EngineController>();
   /** Liens du Bypass, un par moteur démarré : libérés à la sortie du moteur. */
   const bypassLinks = new WeakMap<EngineController, BypassEngineLink>();
+  // --- Coffre à clés (ADR 0056) : par moteur, la clé retenue, l'empreinte attendue et le relevé des échecs.
+  const picks = new WeakMap<EngineController, VaultPick>();
+  const expectedFingerprint = new WeakMap<EngineController, string>();
+  const trackers = new WeakMap<EngineController, FailureTracker>();
+  /** Rotations déjà faites pour l'envoi courant (au plus autant que de clés). */
+  let rotations = 0;
+  /** Dernière consigne envoyée à un moteur : rejouée si une rotation survient avant la création de la session. */
+  let lastSent: { prompt: string; research?: true; images?: PromptImage[] } | undefined;
   /**
    * Arrêt d'un moteur (ADR 0006, lot 2c) : le lien du Bypass est libéré tout de suite (l'affichage ne
    * voit plus ce moteur), puis `kill` envoie d'abord l'état nul, avant l'annulation du run.
@@ -426,6 +466,20 @@ export function createChatSession(deps: ChatSessionDeps) {
       prefs = { ...prefs, variant: null };
       persist(prefsKey, prefs);
     }
+  };
+
+  /** Fournisseur du coffre pour ce chat : `claude`, `openai`, ou le fournisseur OpenCode du modèle choisi. */
+  const vaultProvider = (): string | undefined => {
+    if (prefs.provider === "claude" || prefs.provider === "openai") return prefs.provider;
+    return providerChoice()?.runtimeId;
+  };
+  const tokenHint = (launch: boolean, afterKeyId?: string): TokenHint => {
+    const vaultProviderId = vaultProvider();
+    return {
+      launch,
+      ...(vaultProviderId !== undefined && { vaultProvider: vaultProviderId }),
+      ...(afterKeyId !== undefined && { afterKeyId }),
+    };
   };
 
   /** Modèle et effort du prochain message : préférence, sinon réglage machine ; effort ramené s'il n'est pas permis. */
@@ -604,12 +658,13 @@ export function createChatSession(deps: ChatSessionDeps) {
   const startEngine = async (
     revision: number,
     conversationContext?: ReturnType<typeof buildConversationContext>,
+    rotation?: { afterKeyId: string },
   ): Promise<EngineController | null> => {
     const settings = readSettings();
     const picked = choice(settings);
     if (picked.clampedTo !== undefined && picked.key !== null)
       clampNotice(picked.key, picked.clampedTo);
-    const token = await deps.getToken(prefs.provider);
+    const token = await deps.getToken(prefs.provider, tokenHint(true, rotation?.afterKeyId));
     if (revision !== navigationRev) return null;
     if (deps.requireProvider && token === undefined) {
       state.setNoProvider(true);
@@ -657,6 +712,10 @@ export function createChatSession(deps: ChatSessionDeps) {
         onEvent: (event) => {
           if (detached.has(ctl)) return;
           deps.onObservedEvent?.(event);
+          trackers.get(ctl)?.observe(event);
+          // Le moteur annonce la clé qu'il utilise vraiment : une autre que celle choisie l'arrête, sans relance.
+          if (keyMismatch(expectedFingerprint.get(ctl), event)) return rejectKey(ctl);
+          if (event.kind === "turn.finished" && event.status === "error") void rotate(ctl);
           // Connu dès le début de la session : la reprise (changement de modèle) n'attend pas la fin du run.
           if (event.kind === "session.started") {
             sessionId = event.sessionId;
@@ -691,6 +750,7 @@ export function createChatSession(deps: ChatSessionDeps) {
         },
         onEnded: (summary) => {
           if (detached.has(ctl)) return;
+          if (summary.status === "error") void rotate(ctl);
           if (stopping) {
             refresh();
             return;
@@ -766,6 +826,11 @@ export function createChatSession(deps: ChatSessionDeps) {
         onLog: (text) => deps.onLog?.(text),
       },
     });
+    if (token?.vault) picks.set(ctl, token.vault);
+    // Empreinte attendue de la clé d'API transmise (le jeton d'abonnement OAuth n'est pas une clé du coffre).
+    if (token?.auth && token.auth.name !== "CLAUDE_CODE_OAUTH_TOKEN")
+      expectedFingerprint.set(ctl, fingerprint(token.auth.value));
+    trackers.set(ctl, createFailureTracker());
     controller = ctl;
     applied = {
       model: picked.model,
@@ -793,6 +858,9 @@ export function createChatSession(deps: ChatSessionDeps) {
     if (revision !== navigationRev || detached.has(ctl)) return null;
     await ctl.start({
       ...commonStartParams(settings, picked, token, testAccounts),
+      ...(token?.vault && {
+        vault: { provider: token.vault.provider, name: token.vault.name, rank: token.vault.rank },
+      }),
       ...(conversationContext !== undefined && { conversationContext }),
       ...(!transferring && sessionId !== undefined && { resume: sessionId }),
     });
@@ -804,6 +872,97 @@ export function createChatSession(deps: ChatSessionDeps) {
       );
     }
     return ctl;
+  };
+
+  // --- Coffre à clés (ADR 0056) : vérification de la clé effective et rotation ---
+  let hostRecorder: ReturnType<typeof createRecorder> | undefined;
+  /** Événement `vault.rotated` complet (journal de l'hôte), et avis lisible : rangs et empreintes, jamais de valeur. */
+  const rotationNotice = (payload: VaultRotatedPayload): void => {
+    const from = `${payload.fromRank} · ${payload.fromFingerprint}`;
+    const to =
+      payload.toRank !== undefined ? `${payload.toRank} · ${payload.toFingerprint ?? ""}` : "";
+    state.notice(
+      payload.cause === "quota"
+        ? to
+          ? t`Clé ${from} épuisée : passage à la clé ${to}.`
+          : t`Clé ${from} épuisée.`
+        : to
+          ? t`Clé ${from} refusée par le fournisseur : passage à la clé ${to}.`
+          : t`Clé ${from} refusée par le fournisseur.`,
+      "error",
+    );
+  };
+  const announceRotation = (payload: VaultRotatedPayload): void => {
+    hostRecorder ??= createRecorder({
+      ...(deps.extraSecrets !== undefined && { extraSecrets: deps.extraSecrets }),
+    });
+    deps.onObservedEvent?.(hostRecorder.emit(payload));
+    rotationNotice(payload);
+  };
+
+  /** Le moteur utilise une autre clé que celle choisie : il est arrêté et le tour n'est pas relancé. */
+  const rejectKey = (ctl: EngineController): void => {
+    detached.add(ctl);
+    if (controller === ctl) controller = null;
+    applied = null;
+    state.approvals.clear();
+    stopEngine(ctl);
+    state.error(new CodedError("vault.keyMismatch"));
+    state.setBusy(false);
+    refresh();
+  };
+
+  /**
+   * Fin d'un tour en échec : si l'échec est un quota ou une clé invalide et que la clé vient du coffre,
+   * persiste l'état de la clé, écarte le moteur et en relance un NOUVEAU avec la clé suivante, en reprenant
+   * la même session (`resume`). La consigne n'est rejouée que si la session n'a pas pu être créée.
+   */
+  const rotate = async (ctl: EngineController): Promise<void> => {
+    const pick = picks.get(ctl);
+    const failure = trackers.get(ctl)?.take();
+    const vault = deps.vault;
+    if (pick === undefined || failure === undefined || vault === undefined) return;
+    if (stopping || disposed || detached.has(ctl) || controller !== ctl) return;
+    const revision = navigationRev;
+    try {
+      const outcome = await rotateAfterFailure(
+        vault.store,
+        pick,
+        failure,
+        (vault.now ?? (() => new Date()))(),
+      );
+      if (outcome.kind === "none") return;
+      if (disposed || detached.has(ctl) || revision !== navigationRev) return;
+      detached.add(ctl);
+      if (controller === ctl) controller = null;
+      applied = null;
+      state.approvals.clear();
+      stopEngine(ctl);
+      announceRotation(outcome.event);
+      const keys = await vault.store.get(pick.provider);
+      if (outcome.kind === "exhausted" || rotations >= keys.keys.length) {
+        const until = outcome.kind === "exhausted" ? outcome.until : soonestCooldown(keys);
+        state.error(new CodedError("vault.allExhausted", until === undefined ? {} : { until }));
+        state.setBusy(false);
+        refresh();
+        return;
+      }
+      rotations++;
+      state.setBusy(true);
+      refresh();
+      const next = await startEngine(revision, undefined, { afterKeyId: pick.keyId });
+      if (next === null || revision !== navigationRev) return;
+      if (sessionId !== undefined) next.prompt(ROTATION_RESUME_PROMPT);
+      else if (lastSent !== undefined)
+        next.prompt(lastSent.prompt, lastSent.research, lastSent.images);
+    } catch (error) {
+      if (revision !== navigationRev) return;
+      stopEngine(controller);
+      controller = null;
+      state.error(error);
+      state.setBusy(false);
+      refresh();
+    }
   };
 
   // --- Campagne multi-agents (ADR 0054, lot 3b) : jamais empruntée quand le mode est éteint ---
@@ -844,6 +1003,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       case "event": {
         const event = message.event;
         deps.onObservedEvent?.(event);
+        if (event.kind === "vault.rotated") rotationNotice(event);
         if (event.kind === "tool.requested" && current) current.tools++;
         // L'étiquette d'agent est une donnée de l'élément, jamais du texte du modèle.
         state.event(event, agentLabel(info));
@@ -865,10 +1025,10 @@ export function createChatSession(deps: ChatSessionDeps) {
   };
 
   /** Jeton et réglages relus à chaque lancement de moteur, comme pour un chat. */
-  const campaignSetup = async (): Promise<CampaignEngineSetup> => {
+  const campaignSetup = async (afterKeyId?: string): Promise<CampaignEngineSetup> => {
     const settings = readSettings();
     const picked = choice(settings);
-    const token = await deps.getToken(prefs.provider);
+    const token = await deps.getToken(prefs.provider, tokenHint(true, afterKeyId));
     if (deps.requireProvider && token === undefined)
       throw new Error(
         t("La connexion au fournisseur n’est plus disponible. Reconnectez-le avant de continuer."),
@@ -876,9 +1036,17 @@ export function createChatSession(deps: ChatSessionDeps) {
     const testAccounts = await deps.getTestAccounts?.();
     return {
       ...(token?.auth && { auth: token.auth }),
+      ...(token?.vault && { vault: token.vault }),
       params: commonStartParams(settings, picked, token, testAccounts),
     };
   };
+
+  /** Rotation des moteurs de campagne : même logique que le chat (`rotateAfterFailure`), même coffre. */
+  const campaignVault = (access: NonNullable<ChatSessionDeps["vault"]>): CampaignVaultAccess => ({
+    rotate: (pick, failure) =>
+      rotateAfterFailure(access.store, pick, failure, (access.now ?? (() => new Date()))()),
+    keyCount: async (provider) => (await access.store.get(provider)).keys.length,
+  });
 
   /** Envoi en mode multi-agents : une campagne remplace le run simple. */
   const startCampaign = async (
@@ -892,7 +1060,9 @@ export function createChatSession(deps: ChatSessionDeps) {
     refresh();
     let journal: JournalWriter | undefined;
     try {
-      const recorder = createRecorder();
+      const recorder = createRecorder({
+        ...(deps.extraSecrets !== undefined && { extraSecrets: deps.extraSecrets }),
+      });
       if (history) {
         journal = await openJournal(join(history.files.dir, `${recorder.runId}.jsonl`));
         recorder.subscribe(journal.sink);
@@ -911,6 +1081,7 @@ export function createChatSession(deps: ChatSessionDeps) {
         make,
         options: { enginePath: deps.enginePath, args: deps.engineArgs, cwd: deps.cwd },
         resolve: campaignSetup,
+        ...(deps.vault !== undefined && { vault: campaignVault(deps.vault) }),
       });
       const inScope = isRunId(historyProjects.activeId)
         ? deps.campaignScope?.(historyProjects.activeId)
@@ -1611,6 +1782,12 @@ export function createChatSession(deps: ChatSessionDeps) {
       campaignView = undefined;
       if (!activeController && prefs.multiAgent && !learning)
         return await startCampaign(text, prompt, revision);
+      rotations = 0;
+      lastSent = {
+        prompt,
+        ...(research && { research: true as const }),
+        ...(images.length && { images }),
+      };
       if (activeController) {
         if (stopping || controller !== activeController || !state.busy || state.readonly)
           return false;

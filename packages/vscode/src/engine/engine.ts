@@ -13,7 +13,7 @@ import {
   type AuthMode,
   CAMPAIGN_PLANNER_GUIDANCE,
   CAMPAIGN_WORKER_GUIDANCE,
-  type CodedError,
+  CodedError,
   createApprovalGate,
   createApprovalQueue,
   createRecorder,
@@ -22,6 +22,7 @@ import {
   DEFAULT_AGENT_PROFILE,
   deskInstructions,
   errorInfo,
+  fingerprint,
   INTEGRATION_GUIDANCE,
   isAgentProfile,
   killOwnTree,
@@ -74,7 +75,15 @@ export interface EngineOptions {
     opencodeProviders?: StartParams["opencodeProviders"],
     webSearch?: boolean,
     profile?: StartParams["profile"],
+    vault?: StartParams["vault"],
   ) => AgentRunner | Promise<AgentRunner>;
+  /**
+   * Clé d'API RÉELLEMENT présente dans l'environnement que ce moteur transmet au SDK ou au serveur
+   * OpenCode (ADR 0056, décision 4), lue juste avant `createRunner` ; `undefined` : aucune clé (abonnement…).
+   * Le moteur n'en publie que l'empreinte (`provider.key`) : l'hôte compare, le moteur ne connaît jamais
+   * l'empreinte attendue. Absent : pas de vérification (tests, CLI).
+   */
+  effectiveKey?: (params: StartParams) => Promise<{ provider: string; value: string } | undefined>;
   /** Environnement dont on tire les secrets à masquer (défaut : `process.env`). */
   env?: NodeJS.ProcessEnv;
   /** Délai laissé au run pour s'arrêter après une déconnexion avant de rendre la main (défaut : 5000 ms). */
@@ -176,6 +185,7 @@ export function runEngine({
   containers,
   channel,
   createRunner,
+  effectiveKey,
   env = process.env,
   disconnectGraceMs = 5000,
   killTree = killOwnTree,
@@ -380,6 +390,22 @@ export function runEngine({
             ]
               .filter(Boolean)
               .join("\n\n");
+        // Clé effective (ADR 0056, décision 4) : seule l'empreinte part vers l'hôte, qui la compare.
+        if (effectiveKey !== undefined) {
+          const effective = await effectiveKey(params);
+          if (effective !== undefined) {
+            recorder.emit({
+              kind: "provider.key",
+              provider: effective.provider,
+              keyRank: params.vault?.rank ?? 0,
+              fingerprint: fingerprint(effective.value),
+              source: params.vault !== undefined ? "vault" : "legacy",
+            });
+          } else if (params.vault !== undefined) {
+            // Une clé du coffre était annoncée, aucune n'est transmise : échec fermé.
+            throw new CodedError("vault.keyMismatch");
+          }
+        }
         const runner = await createRunner(
           params.mode,
           params.provider,
@@ -388,6 +414,7 @@ export function runEngine({
           params.opencodeProviders,
           params.webSearch,
           params.profile,
+          params.vault,
         );
         const summary = await runner.run(
           {

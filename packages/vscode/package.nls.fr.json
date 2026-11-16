@@ -25,6 +25,8 @@
   "command.focusChat": "RedWidow : aller au chat latéral",
   "command.setToken": "RedWidow : définir le jeton",
   "command.clearToken": "RedWidow : effacer le jeton",
+  "command.vault.addKey": "RedWidow : ajouter une clé au coffre",
+  "command.vault.removeKey": "RedWidow : supprimer une clé du coffre",
   "command.diagnostic": "RedWidow : diagnostic",
   "command.configureBurp": "RedWidow : configurer Burp Suite MCP",
   "command.testBurp": "RedWidow : tester la connexion MCP Burp Suite",

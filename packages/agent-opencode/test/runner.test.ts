@@ -5,12 +5,19 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import {
   type ApprovalAnswer,
+  classifyProviderFailure,
   createRecorder,
   createRedactor,
   type EngineEvent,
 } from "@warband/core";
 import { describe, expect, it } from "vitest";
-import { createOpencodeRunner, dockerToolset, parseModel, parsePermission } from "../src/index.js";
+import {
+  createOpencodeRunner,
+  dockerToolset,
+  effectiveServerEnv,
+  parseModel,
+  parsePermission,
+} from "../src/index.js";
 import {
   assistantMessage,
   fakeDocker,
@@ -985,5 +992,88 @@ describe("context.usage (OpenCode)", () => {
     const h = harness();
     await h.run(createOpencodeRunner({ createClient: fake.createClient }), { model: "fake/m" });
     expect(of(h.events, "context.usage")).toHaveLength(0);
+  });
+});
+
+describe("coffre à clés : échecs classables et environnement effectif (ADR 0056)", () => {
+  it("un APIError 429 porte status et code : classé quota", async () => {
+    const fake = fakeOpencode([
+      (s) => {
+        begin(s);
+        s.emit("session.error", {
+          sessionID: SESSION,
+          error: { name: "APIError", data: { message: "Too many requests", statusCode: 429 } },
+        });
+        s.idle();
+      },
+    ]);
+    const h = harness();
+    await h.run(createOpencodeRunner({ createClient: fake.createClient }));
+    const error = of(h.events, "error")[0];
+    expect(error?.params).toMatchObject({ status: 429, code: "APIError" });
+    expect(classifyProviderFailure(error?.params as never)).toBe("quota");
+  });
+
+  it("ProviderAuthError porte son code (et son statut) : classé invalidKey", async () => {
+    const fake = fakeOpencode([
+      (s) => {
+        begin(s);
+        s.emit("session.error", {
+          sessionID: SESSION,
+          error: { name: "ProviderAuthError", data: { message: "refusé", statusCode: 401 } },
+        });
+        s.idle();
+      },
+    ]);
+    const h = harness();
+    await h.run(createOpencodeRunner({ createClient: fake.createClient }));
+    const error = of(h.events, "error")[0];
+    expect(error).toMatchObject({
+      code: "provider.authFailed",
+      params: { code: "ProviderAuthError", status: 401 },
+    });
+    expect(classifyProviderFailure(error?.params as never)).toBe("invalidKey");
+  });
+
+  it.each([
+    ["Free usage exceeded, subscribe to Go", 0, "quota", undefined],
+    ["surcharge", 120_000, "quota", 120],
+  ])("retry terminal « %s » : code et délai, classé %s", async (message, delayMs, kind, after) => {
+    const fake = fakeOpencode([
+      (s) => {
+        begin(s);
+        s.emit("session.status", {
+          sessionID: SESSION,
+          status: { type: "retry", attempt: 1, message, next: Date.now() + delayMs },
+        });
+      },
+    ]);
+    const h = harness();
+    await h.run(createOpencodeRunner({ createClient: fake.createClient }));
+    const error = of(h.events, "error")[0];
+    expect(error?.params?.retryAfterSeconds).toBe(after);
+    expect(classifyProviderFailure(error?.params as never)).toBe(kind);
+  });
+
+  it("effectiveServerEnv : seule la variable passée par passEnv atteint le serveur, valeur incluse", async () => {
+    const processEnv = {
+      PATH: "/bin",
+      HOME: "/home/u",
+      VENATOR_ACME_API_KEY: "valeur-effective-du-coffre",
+      AUTRE_API_KEY: "ne-doit-pas-passer",
+    };
+    const env = await effectiveServerEnv({ processEnv, passEnv: ["VENATOR_ACME_API_KEY"] }, "auto");
+    expect(env.VENATOR_ACME_API_KEY).toBe("valeur-effective-du-coffre");
+    expect(env).not.toHaveProperty("AUTRE_API_KEY");
+    // Sans passEnv, rien ne passe.
+    expect(await effectiveServerEnv({ processEnv }, "auto")).not.toHaveProperty(
+      "VENATOR_ACME_API_KEY",
+    );
+  });
+
+  it("effectiveServerEnv : OpenAI en mode api-key transmet la clé, en abonnement l'écarte", async () => {
+    const processEnv = { PATH: "/bin", OPENAI_API_KEY: "cle-openai-du-coffre" };
+    const api = await effectiveServerEnv({ provider: "openai", processEnv }, "api-key");
+    expect(api.OPENAI_API_KEY).toBe("cle-openai-du-coffre");
   });
 });

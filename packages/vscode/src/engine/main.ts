@@ -51,6 +51,7 @@ import { PROTOCOL_VERSION } from "../logic/protocol.js";
 import { createBurpBackend } from "./burp-client.js";
 import { processChannel } from "./channel.js";
 import { enrichContainerPrompt } from "./container-prompt.js";
+import { effectiveKey, opencodeCredentialOptions, opencodeProviderConfig } from "./credentials.js";
 import { MountIssueError, runEngine } from "./engine.js";
 import { createIntegrationBackend } from "./integration-client.js";
 import { projectFileSpecs } from "./project-files.js";
@@ -110,6 +111,7 @@ const docker = createDockerClient({ recorder: createRecorder(), timeoutMs: 8_000
 const done = runEngine({
   containers: () => attachedContainers,
   channel,
+  effectiveKey: (params) => effectiveKey(params),
   program: programStatus,
   engagement: engagementView,
   campaign: createCampaignPort(defaultConfigDir(), () => activeProjectId),
@@ -194,6 +196,7 @@ const done = runEngine({
     opencodeProviders,
     webSearch = true,
     profile = "out-of-box",
+    vault,
   ) => {
     activeProfile = isAgentProfile(profile) ? profile : "out-of-box";
     learningMode = mode === "learning";
@@ -204,10 +207,11 @@ const done = runEngine({
         throw new CodedError("extension.binaryMismatch");
       return createOpencodeRunner({
         binary,
-        isolateConfig: true,
+        ...opencodeCredentialOptions(provider, vault),
         ...(provider === "opencode" &&
-          opencodeProviders && { config: { provider: opencodeProviders } }),
-        ...(provider === "openai" && { provider: "openai" }),
+          opencodeProviders && {
+            config: { provider: opencodeProviderConfig(opencodeProviders, vault) },
+          }),
         ...(mode === "learning"
           ? { toolsets: [openCodeCours()], builtinTools: [] }
           : {

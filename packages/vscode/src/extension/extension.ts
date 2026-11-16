@@ -24,6 +24,7 @@ import {
   type EvidenceSource,
   ensureWarbandKaliImage,
   type Finding,
+  fingerprint,
   listEvidence,
   lookupContainer,
   MCP_CATALOG,
@@ -175,7 +176,12 @@ import {
 import { openAiSubscriptionReady } from "../logic/provider-auth.js";
 import { probeProviderConnection } from "../logic/provider-connection.js";
 import { repoPolicyState, trustRepoPolicy } from "../logic/repo-policy.js";
-import { type ChatSession, createChatSession, type TokenChoice } from "../logic/session.js";
+import {
+  type ChatSession,
+  createChatSession,
+  type TokenChoice,
+  type TokenHint,
+} from "../logic/session.js";
 import {
   buildSessionGrid,
   parseSessionsMessage,
@@ -214,11 +220,18 @@ import {
   tailCommand,
   withTerminalContext,
 } from "../logic/termlog.js";
+import { keyDescription, pickVaultChoice } from "../logic/vault-launch.js";
+import {
+  createVaultStore,
+  LEGACY_OPENAI_KEY,
+  LEGACY_TOKEN_KEY,
+  LEGACY_TOKEN_KIND_KEY,
+} from "../logic/vault-store.js";
 import { parseWindows, WINDOW_CAP, type WindowEntry } from "../logic/windows.js";
 
-const TOKEN_KEY = "warband.token";
-const TOKEN_KIND_KEY = "warband.tokenKind";
-const OPENAI_TOKEN_KEY = "warband.openai.apiKey";
+const TOKEN_KEY = LEGACY_TOKEN_KEY;
+const TOKEN_KIND_KEY = LEGACY_TOKEN_KIND_KEY;
+const OPENAI_TOKEN_KEY = LEGACY_OPENAI_KEY;
 const OPENAI_AUTH_MODE_KEY = "warband.openai.authMode";
 const WINDOWS_KEY = "warband.windows";
 // Version du SDK embarquée par le paquetage (clé du cache des modèles) ; absente en développement.
@@ -601,7 +614,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const existing = kaliPreparations.get(name);
     if (existing !== undefined) return existing;
     const job = (async () => {
-      const recorder = createRecorder();
+      const recorder = createRecorder({ extraSecrets: () => vaultSecrets });
       const rows = await createDockerClient({ recorder }).listLabelPrefix();
       if (rows.find((row) => row.name === name)?.family !== "kali") return;
       recorder.subscribe((event) => out.appendLine(JSON.stringify(event)));
@@ -644,23 +657,66 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       throw new CodedError("extension.binaryMismatch");
     return binary;
   };
-  const getToken = async (provider: Provider = "claude"): Promise<TokenChoice | undefined> => {
+  // --- Coffre à clés (ADR 0056) : stockage SecretStorage, migration de l'ancienne clé unique, masquage.
+  const vaultStore = createVaultStore(context.secrets, {
+    opencodeProviders: () => {
+      try {
+        return Object.keys(readSettings().opencodeProviders ?? {});
+      } catch {
+        return [];
+      }
+    },
+  });
+  /** Valeurs de tous les coffres : masquées par les recorders de l'hôte (mise à jour à chaque modification). */
+  let vaultSecrets: readonly string[] = [];
+  const refreshVaultSecrets = () =>
+    void vaultStore
+      .allValues()
+      .then((values) => {
+        vaultSecrets = values;
+      })
+      .catch(() => undefined);
+  vaultStore.onChange(refreshVaultSecrets);
+  context.subscriptions.push(
+    context.secrets.onDidChange((event) => {
+      if (event.key.startsWith("warband.vault.")) refreshVaultSecrets();
+    }),
+  );
+  const getToken = async (
+    provider: Provider = "claude",
+    hint: TokenHint = {},
+  ): Promise<TokenChoice | undefined> => {
+    // Coffre non vide : sa clé (`pickKey`) l'emporte ; vide : chemin actuel (clé unique ou abonnement, `legacy`).
+    const vaultProvider =
+      provider === "claude" || provider === "openai" ? provider : hint.vaultProvider;
+    const fromVault = async (): Promise<TokenChoice | undefined> => {
+      if (vaultProvider === undefined || !vaultStore.supports(vaultProvider)) return undefined;
+      const choice = await pickVaultChoice(vaultStore, vaultProvider, new Date(), {
+        launch: hint.launch === true,
+        ...(hint.afterKeyId !== undefined && { afterKeyId: hint.afterKeyId }),
+      });
+      return choice ?? undefined;
+    };
     if (provider !== "claude") {
       try {
         await openCodeBinary();
       } catch {
         return undefined;
       }
-      if (provider === "opencode") return { mode: "auto" };
+      if (provider === "opencode") return (await fromVault()) ?? { mode: "auto" };
       const kind = context.globalState.get<string>(OPENAI_AUTH_MODE_KEY);
       if (kind === "subscription")
         return (await openAiSubscriptionReady()) ? { mode: "subscription" } : undefined;
       if (kind === "api-key") {
+        const stored = await fromVault();
+        if (stored) return stored;
         const value = await context.secrets.get(OPENAI_TOKEN_KEY);
         return value ? { auth: { name: "OPENAI_API_KEY", value }, mode: "api-key" } : undefined;
       }
       return undefined;
     }
+    const stored = await fromVault();
+    if (stored) return stored;
     const value = await context.secrets.get(TOKEN_KEY);
     if (!value) return undefined;
     return (await context.secrets.get(TOKEN_KIND_KEY)) === "api-key"
@@ -684,6 +740,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       ),
     };
   };
+  refreshVaultSecrets();
 
   const acceptProviders = (providers: typeof runtimeProviders) => {
     runtimeProviders = providers;
@@ -773,6 +830,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       bypass: getBypass(id),
       prefsKey: `warband.prefs.chat.${id}`,
       getToken,
+      vault: { store: vaultStore },
+      extraSecrets: () => vaultSecrets,
       getTestAccounts: activeTestAccounts,
       campaignScope: (projectId) => {
         const dir = defaultConfigDir();
@@ -952,7 +1011,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   /** Client Docker des journaux de shell : appels courts, rien n'est journalisé. */
   const shellDocker = () =>
-    createDockerClient({ recorder: createRecorder(), binary: "docker", timeoutMs: 8_000 });
+    createDockerClient({
+      recorder: createRecorder({ extraSecrets: () => vaultSecrets }),
+      binary: "docker",
+      timeoutMs: 8_000,
+    });
 
   /**
    * Fin du journal `script` d'un shell, lue dans son conteneur (`docker exec … tail`). Marche quel
@@ -1981,7 +2044,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             });
           case "createKali":
             return await runOperation(t("Préparation de l’image Kali…"), async (signal, report) => {
-              const recorder = createRecorder();
+              const recorder = createRecorder({ extraSecrets: () => vaultSecrets });
               let lastReport = 0;
               const unsubscribe = recorder.subscribe((event) => {
                 if (event.kind === "process.output" && Date.now() - lastReport > 250) {
@@ -4790,6 +4853,33 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   };
 
   /** Jeton défini ou effacé : chaque chat remplace son moteur inactif et se grise ou se dégrise, sans redémarrage. */
+  /** Fournisseurs du coffre : Claude, OpenAI et les fournisseurs OpenCode configurés au nom de variable valide. */
+  const vaultProviders = (): { id: string; label: string }[] => {
+    const configured = (() => {
+      try {
+        return readSettings().opencodeProviders ?? {};
+      } catch {
+        return {};
+      }
+    })();
+    return [
+      { id: "claude", label: t("Claude (clé d'API)") },
+      { id: "openai", label: t("OpenAI (clé d'API)") },
+      ...Object.entries(configured).map(([id, provider]) => ({
+        id,
+        label: provider.name ?? id,
+      })),
+    ].filter((p) => vaultStore.supports(p.id));
+  };
+  /** Ajoute une clé d'API au coffre (migre d'abord l'ancienne) ; un doublon est sans effet. */
+  const addToVault = async (provider: string, value: string): Promise<void> => {
+    await vaultStore.get(provider);
+    try {
+      await vaultStore.add(provider, value);
+    } catch (error) {
+      if (!(error instanceof CodedError && error.code === "vault.duplicate")) throw error;
+    }
+  };
   const applyAuthChange = () => {
     for (const slot of slots.values()) {
       void slot.session
@@ -5148,6 +5238,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await pushStudio();
     }),
     vscode.workspace.onDidChangeConfiguration((event) => {
+      // Les fournisseurs OpenCode configurés décident des coffres connus (donc des valeurs à masquer).
+      if (event.affectsConfiguration("warband.opencodeProviders")) refreshVaultSecrets();
       if (
         event.affectsConfiguration("warband.chat") ||
         event.affectsConfiguration("warband.opencodeProviders")
@@ -5311,6 +5403,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
               validateInput: (text) => (text.trim() ? undefined : t("La clé est vide.")),
             });
             if (value === undefined) return;
+            // Coffre d'abord (ADR 0056) : migre l'ancienne clé avant de l'écraser, puis ajoute la nouvelle.
+            await addToVault("openai", value);
             await context.secrets.store(OPENAI_TOKEN_KEY, value.trim());
             await context.globalState.update(OPENAI_AUTH_MODE_KEY, kind);
             applyAuthChange();
@@ -5397,14 +5491,94 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         validateInput: (v) => (v.trim() === "" ? t("Le jeton est vide.") : undefined),
       });
       if (token === undefined) return;
+      if (kind.value === "api-key") await addToVault("claude", token);
       await context.secrets.store(TOKEN_KEY, token.trim());
       await context.secrets.store(TOKEN_KIND_KEY, kind.value as TokenKind);
       applyAuthChange();
       void vscode.window.showInformationMessage(t("Jeton enregistré et appliqué."));
     }),
+    vscode.commands.registerCommand("warband.vault.addKey", async () => {
+      const providers = vaultProviders();
+      const picked = await vscode.window.showQuickPick(
+        providers.map((p) => ({ label: p.label, id: p.id })),
+        { title: t("Coffre à clés : ajouter une clé"), ignoreFocusOut: true },
+      );
+      if (!picked) return;
+      const value = await vscode.window.showInputBox({
+        title: t`Coffre à clés : ${picked.label}`,
+        prompt: t("La clé est stockée dans le stockage sécurisé de VS Code."),
+        password: true,
+        ignoreFocusOut: true,
+        validateInput: (text) => (text.trim() ? undefined : t("La clé est vide.")),
+      });
+      if (value === undefined) return;
+      try {
+        const key = await vaultStore.add(picked.id, value);
+        const vault = await vaultStore.get(picked.id);
+        const rank = vault.keys.findIndex((k) => k.id === key.id) + 1;
+        applyAuthChange();
+        void vscode.window.showInformationMessage(
+          t`Clé ajoutée : ${keyDescription(rank, fingerprint(key.value))}`,
+        );
+      } catch (error) {
+        void vscode.window.showErrorMessage(formatError(error, getUiLocale()));
+      }
+    }),
+    vscode.commands.registerCommand("warband.vault.removeKey", async () => {
+      const rows: { label: string; description: string; provider: string; id: string }[] = [];
+      for (const { id, label } of vaultProviders()) {
+        let vault: Awaited<ReturnType<typeof vaultStore.get>>;
+        try {
+          vault = await vaultStore.get(id);
+        } catch {
+          continue;
+        }
+        vault.keys.forEach((key, index) => {
+          // Rang, empreinte et état : jamais la valeur de la clé.
+          const state =
+            key.state === "active"
+              ? t("active")
+              : key.state === "invalid"
+                ? t("invalide")
+                : t`épuisée jusqu'au ${key.cooldownUntil ?? "?"}`;
+          rows.push({
+            label: `${label} · ${t`clé`} ${keyDescription(index + 1, fingerprint(key.value))}`,
+            description: `${state}${key.label ? ` · ${key.label}` : ""}`,
+            provider: id,
+            id: key.id,
+          });
+        });
+      }
+      if (rows.length === 0) {
+        void vscode.window.showInformationMessage(t("Aucune clé dans le coffre."));
+        return;
+      }
+      const picked = await vscode.window.showQuickPick(rows, {
+        title: t("Coffre à clés : supprimer une clé"),
+        ignoreFocusOut: true,
+      });
+      if (!picked) return;
+      const confirm = t("Supprimer");
+      if (
+        (await vscode.window.showWarningMessage(
+          t`Supprimer ${picked.label} du coffre ?`,
+          { modal: true },
+          confirm,
+        )) !== confirm
+      )
+        return;
+      try {
+        await vaultStore.remove(picked.provider, picked.id);
+        applyAuthChange();
+        void vscode.window.showInformationMessage(t("Clé supprimée du coffre."));
+      } catch (error) {
+        void vscode.window.showErrorMessage(formatError(error, getUiLocale()));
+      }
+    }),
     vscode.commands.registerCommand("warband.clearToken", async () => {
       const provider = slots.get(activeId)?.session?.getProvider() ?? "claude";
       if (provider === "openai") {
+        await vaultStore.clear("openai").catch(() => undefined);
         await context.secrets.delete(OPENAI_TOKEN_KEY);
         await context.globalState.update(OPENAI_AUTH_MODE_KEY, undefined);
         applyAuthChange();
@@ -5420,6 +5594,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         return;
       }
 
+      // Une clé d'API effacée l'est aussi du coffre (sinon le chat continuerait avec elle) ; un jeton
+      // d'abonnement ne touche pas aux clés du coffre.
+      if ((await context.secrets.get(TOKEN_KIND_KEY)) === "api-key")
+        await vaultStore.clear("claude").catch(() => undefined);
       await context.secrets.delete(TOKEN_KEY);
       await context.secrets.delete(TOKEN_KIND_KEY);
       applyAuthChange();
