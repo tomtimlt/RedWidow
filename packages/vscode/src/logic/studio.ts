@@ -82,6 +82,7 @@ export type StudioMessage =
   | { type: "openFreeGuideLink"; key: FreeGuideKey }
   /** Coffre à clés (ADR 0056) : jamais de valeur de clé ; la saisie passe par la boîte sécurisée de l'hôte. */
   | { type: "vaultAdd"; provider: string }
+  | { type: "vaultImportOpencode" }
   | { type: "vaultRemove"; provider: string; id: string }
   | { type: "vaultRename"; provider: string; id: string; label: string }
   | { type: "vaultMove"; provider: string; id: string; direction: "up" | "down" }
@@ -286,6 +287,8 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
     const label = keyLabel(m.label);
     return label === null ? null : { type: m.type, provider: m.provider, id: m.id, label };
   }
+  // Import explicite de la clé OpenCode Zen : aucun champ, la valeur ne transite jamais par la webview.
+  if (m.type === "vaultImportOpencode" && keys.length === 1) return { type: "vaultImportOpencode" };
   if (
     m.type === "setLocale" &&
     keys.length === 2 &&

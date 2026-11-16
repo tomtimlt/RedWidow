@@ -220,6 +220,7 @@ import {
   tailCommand,
   withTerminalContext,
 } from "../logic/termlog.js";
+import { importOpencodeKey } from "../logic/vault-import.js";
 import { keyDescription, pickVaultChoice } from "../logic/vault-launch.js";
 import {
   createVaultStore,
@@ -660,6 +661,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   };
   // --- Coffre à clés (ADR 0056) : stockage SecretStorage, migration de l'ancienne clé unique, masquage.
   const vaultStore = createVaultStore(context.secrets, {
+    // OpenCode Zen (id `opencode`) : coffre dès que le fournisseur OpenCode est activé (ADR 0056).
+    zenEnabled: () => {
+      try {
+        const enabled = readSettings().capabilities?.providers ?? [];
+        return enabled.includes("opencode") || enabled.includes("oc-opencode");
+      } catch {
+        return false;
+      }
+    },
     opencodeProviders: () => {
       try {
         return Object.keys(readSettings().opencodeProviders ?? {});
@@ -4280,6 +4290,29 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await pushStudio();
         return;
       }
+      if (message.type === "vaultImportOpencode") {
+        // Lecture de `auth.json` seulement après ce clic ; seule l'entrée `opencode` de type `api` est extraite.
+        if (!vaultStore.supports("opencode")) return;
+        try {
+          const outcome = await importOpencodeKey(vaultStore, opencodeAuthFile());
+          if (outcome.kind === "added") {
+            applyAuthChange();
+            void vscode.window.showInformationMessage(t("Clé d'OpenCode importée dans le coffre."));
+          } else if (outcome.kind === "duplicate") {
+            void vscode.window.showInformationMessage(t("Cette clé est déjà dans le coffre."));
+          } else if (outcome.kind === "missingFile") {
+            void vscode.window.showWarningMessage(t("Aucun fichier auth.json d'OpenCode trouvé."));
+          } else {
+            void vscode.window.showWarningMessage(
+              t("auth.json ne contient aucune clé d'API pour OpenCode."),
+            );
+          }
+        } catch (error) {
+          void vscode.window.showErrorMessage(formatError(error, getUiLocale()));
+        }
+        await pushStudio();
+        return;
+      }
       if (message.type === "testProviderConnection") {
         if (!vscode.workspace.isTrusted || connectionTests.has(message.id)) return;
         connectionTests.add(message.id);
@@ -4918,6 +4951,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     return [
       { id: "claude", label: t("Claude (clé d'API)") },
       { id: "openai", label: t("OpenAI (clé d'API)") },
+      { id: "opencode", label: "OpenCode" },
       ...Object.entries(configured).map(([id, provider]) => ({
         id,
         label: provider.name ?? id,

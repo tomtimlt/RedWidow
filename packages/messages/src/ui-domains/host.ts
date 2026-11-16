@@ -314,6 +314,11 @@ export const hostEn: Record<string, string> = {
   "Coffre à clés : supprimer une clé": "Key vault: remove a key",
   "Supprimer {0} du coffre ?": "Remove {0} from the vault?",
   "Supprimer la clé {0} ?": "Delete key {0}?",
+  "Clé d'OpenCode importée dans le coffre.": "OpenCode key imported into the vault.",
+  "Cette clé est déjà dans le coffre.": "This key is already in the vault.",
+  "Aucun fichier auth.json d'OpenCode trouvé.": "No OpenCode auth.json file found.",
+  "auth.json ne contient aucune clé d'API pour OpenCode.":
+    "auth.json holds no API key for OpenCode.",
   "Clé supprimée du coffre.": "Key removed from the vault.",
   "Claude (clé d'API)": "Claude (API key)",
   "OpenAI (clé d'API)": "OpenAI (API key)",

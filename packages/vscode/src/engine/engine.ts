@@ -209,8 +209,13 @@ export function runEngine({
   // (entrée d'un outil en attente d'approbation, erreurs, résumé).
   const baseRedact = createRedactor({ values: secretsFromEnv(env) });
   let accounts: TestAccounts | undefined;
-  const redact: import("@warband/core").Redactor = <T>(value: T): T =>
-    baseRedact(accounts ? accounts.redact(value) : value);
+  // Valeur NUE de la clé effective (ADR 0056) : masquée même hors de son enveloppe (ex. JSON d'`OPENCODE_AUTH_CONTENT`).
+  let effectiveSecret: string | undefined;
+  let effectiveRedact: import("@warband/core").Redactor | undefined;
+  const redact: import("@warband/core").Redactor = <T>(value: T): T => {
+    const masked = baseRedact(accounts ? accounts.redact(value) : value);
+    return effectiveRedact ? effectiveRedact(masked) : masked;
+  };
   const pendingSends = new Set<Promise<void>>();
   const send = (message: FromEngine) => {
     const p = channel
@@ -294,6 +299,7 @@ export function runEngine({
       let code = 0;
       const recorder = createRecorder({
         redact,
+        extraSecrets: () => (effectiveSecret === undefined ? [] : [effectiveSecret]),
         ...(params.multiAgent?.runId !== undefined && { runId: params.multiAgent.runId }),
       });
       onUserMessage = (text) => void recorder.emit({ kind: "user.message", text });
@@ -393,6 +399,9 @@ export function runEngine({
         // Clé effective (ADR 0056, décision 4) : seule l'empreinte part vers l'hôte, qui la compare.
         if (effectiveKey !== undefined) {
           const effective = await effectiveKey(params);
+          effectiveSecret = effective?.value;
+          effectiveRedact =
+            effective === undefined ? undefined : createRedactor({ values: [effective.value] });
           if (effective !== undefined) {
             recorder.emit({
               kind: "provider.key",

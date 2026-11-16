@@ -1,4 +1,8 @@
-import { effectiveServerEnv, type OpencodeRunnerOptions } from "@warband/agent-opencode";
+import {
+  effectiveServerEnv,
+  type OpencodeRunnerOptions,
+  zenKeyFromAuthContent,
+} from "@warband/agent-opencode";
 import { sdkEffectiveEnv } from "@warband/agent-sdk";
 import type { StartParams } from "../logic/protocol.js";
 
@@ -17,11 +21,14 @@ type Provider = NonNullable<StartParams["provider"]>;
 export function opencodeCredentialOptions(
   provider: Provider,
   vault: StartParams["vault"],
-): Pick<OpencodeRunnerOptions, "isolateConfig" | "provider" | "passEnv"> {
+): Pick<OpencodeRunnerOptions, "isolateConfig" | "provider" | "passEnv" | "zenKeyEnv"> {
+  const zen = provider === "opencode" && vault?.provider === "opencode";
   return {
     isolateConfig: true,
     ...(provider === "openai" && { provider: "openai" }),
-    ...(provider === "opencode" && vault !== undefined && { passEnv: [vault.name] }),
+    // OpenCode Zen : la clé passe par `OPENCODE_AUTH_CONTENT` (`zenKeyEnv`), jamais par une variable `*_API_KEY`.
+    ...(zen && vault !== undefined && { zenKeyEnv: vault.name }),
+    ...(provider === "opencode" && !zen && vault !== undefined && { passEnv: [vault.name] }),
   };
 }
 
@@ -56,6 +63,11 @@ export async function effectiveKey(
     { ...opencodeCredentialOptions(provider, params.vault), processEnv },
     params.auth,
   );
+  if (provider === "opencode" && params.vault?.provider === "opencode") {
+    // Zen : la clé effective est celle de `OPENCODE_AUTH_CONTENT` dans l'environnement final du serveur.
+    const value = zenKeyFromAuthContent(env.OPENCODE_AUTH_CONTENT);
+    return value ? { provider: "opencode", value } : undefined;
+  }
   const name = params.vault?.name ?? (provider === "openai" ? "OPENAI_API_KEY" : undefined);
   const value = name === undefined ? undefined : env[name];
   return value ? { provider: params.vault?.provider ?? provider, value } : undefined;

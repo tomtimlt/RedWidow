@@ -471,7 +471,12 @@ export function createChatSession(deps: ChatSessionDeps) {
   /** Fournisseur du coffre pour ce chat : `claude`, `openai`, ou le fournisseur OpenCode du modèle choisi. */
   const vaultProvider = (): string | undefined => {
     if (prefs.provider === "claude" || prefs.provider === "openai") return prefs.provider;
-    return providerChoice()?.runtimeId;
+    const choice = providerChoice();
+    if (choice?.runtimeId !== undefined) return choice.runtimeId;
+    // Ligne « OpenCode » générique avec un modèle Zen (`opencode/…`) : coffre de Zen (ADR 0056).
+    return choice?.id === "opencode" && prefs.model?.startsWith("opencode/")
+      ? "opencode"
+      : undefined;
   };
   const tokenHint = (launch: boolean, afterKeyId?: string): TokenHint => {
     const vaultProviderId = vaultProvider();

@@ -1007,6 +1007,13 @@ function start() {
       entries.length >= MAX_VAULT_KEYS,
     );
     block.append(add);
+    // OpenCode Zen : import explicite de la clé déjà présente dans le auth.json d'OpenCode (aucune valeur ici).
+    if (provider === "opencode")
+      block.append(
+        small(t("Importer la clé d'OpenCode"), () =>
+          vscode.postMessage({ type: "vaultImportOpencode" }),
+        ),
+      );
     return block;
   }
   // Intégrations (Projet) : connecteurs MCP du projet actif, Burp et profil. Leur usage se choisit dans le chat.

@@ -32,6 +32,8 @@ export interface SecretsLike {
 export interface VaultStoreOptions {
   /** Identifiants des fournisseurs OpenCode configurés (relus à chaque appel). Absent : aucun. */
   opencodeProviders?: () => Iterable<string>;
+  /** Le fournisseur OpenCode (Zen intégré, id `opencode`) est-il activé ? Relu à chaque appel. Absent : non. */
+  zenEnabled?: () => boolean;
   /** Horloge (défaut : heure courante). */
   now?: () => Date;
 }
@@ -80,7 +82,8 @@ export function createVaultStore(
   /** Valide le fournisseur : `claude`, `openai`, ou un fournisseur OpenCode configuré au nom de variable valide. */
   const check = (provider: string): void => {
     vaultEnvName(provider); // `vault.invalid` si l'identifiant ou le nom de variable est refusé
-    if (provider !== "claude" && provider !== "openai" && !opencodeIds().includes(provider))
+    const zen = provider === "opencode" && options.zenEnabled?.() === true;
+    if (provider !== "claude" && provider !== "openai" && !zen && !opencodeIds().includes(provider))
       throw new CodedError("vault.invalid", { field: "provider" });
   };
 
@@ -257,6 +260,13 @@ export function createVaultStore(
         } catch {
           // Coffre illisible ou fournisseur refusé : ses valeurs ne peuvent pas être connues.
         }
+      }
+      // Zen : masqué même si OpenCode est désactivé (le coffre reste en place), sans migration.
+      try {
+        const raw = await secrets.get(storageKey("opencode"));
+        if (raw !== undefined) for (const key of parseVault(raw).keys) values.add(key.value);
+      } catch {
+        // Coffre illisible.
       }
       return [...values];
     },

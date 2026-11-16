@@ -86,6 +86,12 @@ export interface OpencodeRunnerOptions {
   passEnv?: string[];
   /** Variables posées telles quelles dans l'environnement du serveur lancé. */
   env?: Record<string, string>;
+  /**
+   * Clé d'OpenCode Zen issue du coffre (ADR 0056) : NOM de la variable de `processEnv` qui la porte. Sa
+   * valeur ne passe jamais au serveur sous ce nom ; elle devient `OPENCODE_AUTH_CONTENT`
+   * (`{"opencode":{"type":"api","key":…}}`), qui remplace `auth.json` pour ce run, sans écrire sur disque.
+   */
+  zenKeyEnv?: string;
   /** Environnement source (défaut : `process.env`). Sert aux tests. */
   processEnv?: NodeJS.ProcessEnv;
   /** Plafond (octets UTF-8) du texte complet d'un `tool.result` (défaut : 64 Kio). */
@@ -412,6 +418,22 @@ export async function effectiveServerEnv(
   return serverEnv({ processEnv, config: {}, password: "", ...credentials });
 }
 
+/** Contenu de `OPENCODE_AUTH_CONTENT` pour une clé d'API Zen (même forme qu'une entrée de `auth.json`). */
+export function zenAuthContent(key: string): string {
+  return JSON.stringify({ opencode: { type: "api", key } });
+}
+
+/** Clé d'API Zen portée par un `OPENCODE_AUTH_CONTENT` (`opencode.key` de type `api`) ; `undefined` sinon. */
+export function zenKeyFromAuthContent(content: string | undefined): string | undefined {
+  if (!content) return undefined;
+  try {
+    const entry = obj(obj(JSON.parse(content)).opencode);
+    return entry.type === "api" ? str(entry.key) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Le mode abonnement écarte la clé API ; le mode API exige une clé explicite. */
 async function authEnvironment(options: OpencodeRunnerOptions, auth?: AuthMode) {
   const env = { ...options.env };
@@ -424,6 +446,14 @@ async function authEnvironment(options: OpencodeRunnerOptions, auth?: AuthMode) 
     passEnv = passEnv.filter(
       (name) => !["OPENCODE_CONFIG", "OPENCODE_CONFIG_DIR"].includes(name.toUpperCase()),
     );
+  }
+  if (options.zenKeyEnv !== undefined) {
+    const name = options.zenKeyEnv;
+    // La clé ne passe pas sous son nom de variable (priorité face à `auth.json` non établie).
+    passEnv = passEnv.filter((n) => n !== name && n.toUpperCase() !== "OPENCODE_AUTH_CONTENT");
+    delete env.OPENCODE_AUTH_CONTENT;
+    const key = (options.processEnv ?? process.env)[name];
+    if (key) env.OPENCODE_AUTH_CONTENT = zenAuthContent(key);
   }
   if (options.provider === "openai") {
     if (options.baseUrl !== undefined) {

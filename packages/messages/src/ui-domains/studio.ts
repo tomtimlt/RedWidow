@@ -73,6 +73,7 @@ export const studioEn: Record<string, string> = {
   Monter: "Move up",
   Descendre: "Move down",
   "Libellé de la clé": "Key label",
+  "Importer la clé d'OpenCode": "Import the OpenCode key",
   "Site ou hôte (facultatif)": "Site or host (optional)",
   "Type de secret": "Secret type",
   "Mot de passe": "Password",
