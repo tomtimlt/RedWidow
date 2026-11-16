@@ -186,6 +186,8 @@ export type EventPayload =
       outcome: CoverageOutcome | "blocked";
       summary?: string;
       evidence: string[];
+      /** `host` : fermée par l'hôte au nom du worker (sortie sans verdict). */
+      closedBy?: "host";
     }
   | {
       /** Fin de la campagne ; compteurs par état final des intentions. */
@@ -327,6 +329,8 @@ export type EventPayload =
       turns: number;
       costUsd: number;
       result: string | null;
+      inputTokens?: number;
+      outputTokens?: number;
       sessionId?: string;
       /** Messages SDK non traduits en événements, comptés par `type/subtype`. */
       unhandledMessages?: Record<string, number>;
@@ -591,6 +595,7 @@ export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
     outcome: `enum:${COVERAGE_OUTCOMES.join(",")},blocked`,
     summary: "string?",
     evidence: "string[]",
+    closedBy: "enum:host?",
   }),
   "campaign.finished": shape({
     reason: "reason",
@@ -683,6 +688,8 @@ export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
       turns: "number",
       costUsd: "number",
       result: "string|null",
+      inputTokens: "uint?",
+      outputTokens: "uint?",
       sessionId: "string?",
       unhandledMessages: "object?",
     })(p) ?? countsError(p.unhandledMessages),

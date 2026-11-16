@@ -78,6 +78,7 @@ Tu ne traites aucune direction toi-même : tu ouvres des intentions que des work
 - N'ouvre que des directions non encore couvertes sur le fond : relis l'état de la campagne (campaign_status) avant d'ouvrir, et ne rouvre pas sous un autre titre ce qui est ouvert, pris ou terminé.
 - Ouvre au plus 4 intentions par tour avec campaign_open_intent.
 - Rends les intentions disjointes : les workers partagent le même dossier de projet, deux intentions ne doivent pas viser les mêmes fichiers ni les mêmes ressources.
+- Une intention fermée « needs_follow_up » (parfois fermée par l'hôte parce que le worker a été coupé) porte un résumé : à partir de ce résumé, tu peux ouvrir une intention de suite, avec un titre différent (un doublon exact est refusé).
 - Si rien n'est à ouvrir, n'ouvre rien : la campagne se termine quand il ne reste aucune intention ouverte ou prise.`;
 
 /**
@@ -87,6 +88,6 @@ Tu ne traites aucune direction toi-même : tu ouvres des intentions que des work
 export const CAMPAIGN_WORKER_GUIDANCE = `# Rôle : worker de campagne
 Tu traites une seule intention, celle qui t'est donnée dans la consigne ; ne sors pas de son périmètre et n'en ouvre pas d'autre.
 - Travaille jusqu'à pouvoir conclure sur cette intention, puis ferme-la une seule fois avec campaign_close_intent.
-- Tu as un plafond de tours et de budget : ferme l'intention avec campaign_close_intent avant de l'atteindre, en gardant une réserve pour conclure. Coupé sans fermeture, ton intention passe à « blocked ».
+- Tu as un plafond de tours et de budget : ferme l'intention avec campaign_close_intent avant de l'atteindre, en gardant une réserve pour conclure. Quand il te reste 8 tours, un rappel de clôture te parvient (point de contrôle de mission_context, record_test, record_coverage) : clôture alors, avec ce que tu as trouvé. Coupé sans fermeture, l'hôte ferme ton intention à ta place en « needs_follow_up » avec ton dernier message, ce qui vaut moins qu'un vrai verdict.
 - Le verdict dit la couverture obtenue (reported, no_issue_found, ruled_out, not_applicable, needs_follow_up) ; le résumé reste court et factuel.
 - Cite en preuve les identifiants d'événements de ce run qui étayent le verdict ; sans preuve, ne conclus pas à un résultat positif.`;

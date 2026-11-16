@@ -1103,10 +1103,23 @@
     for (const state of CAMPAIGN_STATES)
       $(`campaign-n-${state}`).textContent = String(c.counts?.[state] ?? 0);
     const budget = $("campaign-budget");
-    const hasBudget = typeof c.spentUsd === "number" && typeof c.budgetUsd === "number";
-    budget.hidden = !hasBudget;
-    if (hasBudget) {
-      const lang = document.documentElement.lang;
+    const lang = document.documentElement.lang;
+    const hasDollars =
+      typeof c.spentUsd === "number" && c.spentUsd > 0 && typeof c.budgetUsd === "number";
+    // Coût remonté à 0 (modèle gratuit) : le plafond qui protège est celui des tokens.
+    const hasTokens =
+      !hasDollars && typeof c.tokens === "number" && typeof c.tokensMax === "number";
+    budget.hidden = !hasDollars && !hasTokens;
+    if (hasTokens) {
+      const compact = new Intl.NumberFormat(lang, {
+        notation: "compact",
+        maximumFractionDigits: 1,
+      });
+      budget.textContent = t("{0} / {1} tokens", {
+        0: compact.format(c.tokens),
+        1: compact.format(c.tokensMax),
+      });
+    } else if (hasDollars) {
       const spent = new Intl.NumberFormat(lang, {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,

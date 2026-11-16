@@ -178,6 +178,7 @@ export const REASON_CODES = [
   "campaign.invalidTransition",
   "campaign.invalidInput",
   "campaign.notStarted",
+  "campaign.closeReminder",
   "campaign.alreadyStarted",
   "campaign.alreadyActive",
   "campaign.ipcTimeout",

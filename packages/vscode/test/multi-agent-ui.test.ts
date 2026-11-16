@@ -206,6 +206,30 @@ describe("mode multi-agents : rendu de la webview (ADR 0054)", () => {
     expect($("campaign-budget").hidden).toBe(true);
   });
 
+  it("ligne de budget : dollars si le coût est connu, sinon tokens (fr et en)", () => {
+    const tokens = { ...campaign(), spentUsd: 0, tokens: 1_200_000, tokensMax: 3_000_000 };
+    const fr = setup();
+    fr.api.paintCampaign({ campaign: tokens });
+    expect(fr.$("campaign-budget").hidden).toBe(false);
+    // Les formats Intl emploient des espaces insécables (selon la version d'ICU).
+    expect(fr.$("campaign-budget").textContent?.replace(/[\u00a0\u202f]/g, " ")).toBe(
+      "1,2 M / 3 M tokens",
+    );
+    const en = setup("en");
+    en.api.paintCampaign({ campaign: tokens });
+    expect(en.$("campaign-budget").textContent).toBe("1.2M / 3M tokens");
+    // Coût > 0 : les dollars priment, même si des tokens sont connus.
+    const both = setup();
+    both.api.paintCampaign({ campaign: { ...tokens, spentUsd: 3.2 } });
+    expect(both.$("campaign-budget").textContent).toBe("3,20 $ / 20 $");
+    // Ni coût ni plafond de tokens : ligne masquée.
+    const none = setup();
+    none.api.paintCampaign({
+      campaign: { ...tokens, tokensMax: undefined, budgetUsd: undefined },
+    });
+    expect(none.$("campaign-budget").hidden).toBe(true);
+  });
+
   it("campagne terminée : libellé affiché, bouton masqué ; au plus 50 lignes", () => {
     const { $, api } = setup();
     const many = campaign(true);

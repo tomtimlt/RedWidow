@@ -15,6 +15,8 @@ import {
 export const DEFAULT_MAX_WORKERS = 3;
 export const MAX_WORKERS_LIMIT = 8;
 export const DEFAULT_MAX_OPEN_PER_ROUND = 4;
+/** Rappel de clôture injecté une fois quand il reste au plus ce nombre de tours à un worker. */
+export const CAMPAIGN_CLOSE_REMINDER_TURNS = 8;
 /** Bornes de taille des textes venus des agents (le recorder masque déjà les secrets). */
 const TITLE_MAX = 200;
 const TEXT_MAX = 4000;
@@ -50,9 +52,16 @@ export interface CampaignCoordinator {
   claimNext(workerRunId: string): Intent | undefined;
   /** Verdict du worker qui détient l'intention (`claimed` → `done`). */
   close(intentId: string, workerRunId: string, closure: IntentClosure): Intent;
-  /** Run fini sans fermeture : `claimed` → `blocked`. */
+  /**
+   * Run sorti sans fermeture, repris par l'hôte : `claimed` → `done` avec `closedBy: "host"`
+   * (même validation que `close`).
+   */
+  closeOnBehalf(intentId: string, workerRunId: string, closure: IntentClosure): Intent;
+  /** Run fini sans fermeture et sans rien à reprendre (arrêt, crash) : `claimed` → `blocked`. */
   abandon(intentId: string, workerRunId: string): Intent;
   recordSpend(usd: number): void;
+  /** Ajoute les tokens (entrée + sortie) d'un run terminé au cumul. */
+  recordTokens(tokens: number): void;
   /** Termine la campagne ; les intentions encore `open` passent à `exhausted`. */
   finish(reason: Reason): void;
   status(): CampaignRunStatus;
@@ -108,6 +117,11 @@ export function createCampaignCoordinator(
   if (budget.maxIntents !== undefined) boundedInt(budget.maxIntents, 0, 0, 1_000_000, "maxIntents");
   if (budget.maxUsd !== undefined && !(Number.isFinite(budget.maxUsd) && budget.maxUsd >= 0))
     throw invalid("maxUsd");
+  if (
+    budget.maxTokens !== undefined &&
+    !(Number.isFinite(budget.maxTokens) && budget.maxTokens >= 0)
+  )
+    throw invalid("maxTokens");
   const now = options.now ?? Date.now;
   const recorder = options.recorder;
 
@@ -116,10 +130,12 @@ export function createCampaignCoordinator(
   let started = false;
   let finished = false;
   let spentUsd = 0;
+  let tokens = 0;
   let seq = 0;
 
   const budgetReached = (extraIntents: number): boolean =>
     (budget.maxUsd !== undefined && spentUsd >= budget.maxUsd) ||
+    (budget.maxTokens !== undefined && tokens >= budget.maxTokens) ||
     (budget.maxIntents !== undefined && intents.length + extraIntents > budget.maxIntents);
 
   const find = (id: string): Intent => {
@@ -146,6 +162,45 @@ export function createCampaignCoordinator(
     if (intent.state !== "claimed")
       throw new CodedError("campaign.invalidTransition", { intentId, state: intent.state });
     return intent;
+  };
+
+  const closeIntent = (
+    intentId: string,
+    workerRunId: string,
+    closure: IntentClosure,
+    onBehalf: boolean,
+  ): Intent => {
+    requireStarted();
+    const intent = ownedClaim(intentId, workerRunId);
+    if (!(COVERAGE_OUTCOMES as readonly string[]).includes(closure?.outcome))
+      throw invalid("outcome");
+    const summary = text(closure.summary, "summary", TEXT_MAX, true);
+    if (
+      !Array.isArray(closure.evidence) ||
+      closure.evidence.length > EVIDENCE_MAX ||
+      closure.evidence.some((e) => typeof e !== "string" || e === "")
+    )
+      throw invalid("evidence");
+    const evidence = [...closure.evidence];
+    const done = replace({
+      ...intent,
+      state: "done",
+      outcome: closure.outcome,
+      summary,
+      evidence,
+      closedAt: now(),
+      ...(onBehalf && { closedBy: "host" as const }),
+    });
+    recorder.emit({
+      kind: "campaign.intent.closed",
+      intentId,
+      workerRunId,
+      outcome: closure.outcome,
+      summary,
+      evidence,
+      ...(onBehalf && { closedBy: "host" as const }),
+    });
+    return { ...done };
   };
 
   return {
@@ -227,35 +282,11 @@ export function createCampaignCoordinator(
     },
 
     close(intentId, workerRunId, closure) {
-      requireStarted();
-      const intent = ownedClaim(intentId, workerRunId);
-      if (!(COVERAGE_OUTCOMES as readonly string[]).includes(closure?.outcome))
-        throw invalid("outcome");
-      const summary = text(closure.summary, "summary", TEXT_MAX, true);
-      if (
-        !Array.isArray(closure.evidence) ||
-        closure.evidence.length > EVIDENCE_MAX ||
-        closure.evidence.some((e) => typeof e !== "string" || e === "")
-      )
-        throw invalid("evidence");
-      const evidence = [...closure.evidence];
-      const done = replace({
-        ...intent,
-        state: "done",
-        outcome: closure.outcome,
-        summary,
-        evidence,
-        closedAt: now(),
-      });
-      recorder.emit({
-        kind: "campaign.intent.closed",
-        intentId,
-        workerRunId,
-        outcome: closure.outcome,
-        summary,
-        evidence,
-      });
-      return { ...done };
+      return closeIntent(intentId, workerRunId, closure, false);
+    },
+
+    closeOnBehalf(intentId, workerRunId, closure) {
+      return closeIntent(intentId, workerRunId, closure, true);
     },
 
     abandon(intentId, workerRunId) {
@@ -276,6 +307,12 @@ export function createCampaignCoordinator(
     recordSpend(usd) {
       if (typeof usd !== "number" || !Number.isFinite(usd) || usd < 0) throw invalid("usd");
       spentUsd += usd;
+    },
+
+    recordTokens(count) {
+      if (typeof count !== "number" || !Number.isFinite(count) || count < 0)
+        throw invalid("tokens");
+      tokens += count;
     },
 
     finish(reason) {
@@ -309,6 +346,7 @@ export function createCampaignCoordinator(
         maxOpenPerRound,
         budget: Object.freeze({ ...budget }),
         spentUsd,
+        tokens,
         counts: Object.freeze(counts),
         intents: Object.freeze(
           intents.map((i) => Object.freeze({ ...i, evidence: Object.freeze([...i.evidence]) })),

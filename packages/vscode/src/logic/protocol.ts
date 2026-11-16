@@ -89,6 +89,9 @@ export interface EndedSummary {
   turns: number;
   costUsd: number;
   result: string | null;
+  /** Tokens d'entrée et de sortie du run, s'ils sont connus (ADR 0054, plafond de campagne). */
+  inputTokens?: number;
+  outputTokens?: number;
   sessionId?: string;
 }
 
@@ -454,12 +457,25 @@ function validApproval(value: unknown): boolean {
 
 function validSummary(value: unknown): boolean {
   if (!isObj(value)) return false;
-  if (onlyKeys(value, ["status", "turns", "costUsd", "result", "sessionId"]) !== null) return false;
+  if (
+    onlyKeys(value, [
+      "status",
+      "turns",
+      "costUsd",
+      "result",
+      "inputTokens",
+      "outputTokens",
+      "sessionId",
+    ]) !== null
+  )
+    return false;
   return (
     (value.status === "success" || value.status === "error") &&
     isFiniteNumber(value.turns) &&
     isFiniteNumber(value.costUsd) &&
     (value.result === null || isString(value.result)) &&
+    (value.inputTokens === undefined || isFiniteNumber(value.inputTokens)) &&
+    (value.outputTokens === undefined || isFiniteNumber(value.outputTokens)) &&
     (value.sessionId === undefined || isString(value.sessionId))
   );
 }

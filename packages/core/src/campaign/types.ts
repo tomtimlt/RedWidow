@@ -36,6 +36,8 @@ export interface Intent {
   readonly evidence: readonly string[];
   readonly openedAt: number;
   readonly closedAt?: number;
+  /** Fermée par l'hôte au nom du worker (sortie sans `campaign_close_intent`). */
+  readonly closedBy?: "host";
 }
 
 /** Brouillon d'intention proposé par le planificateur. */
@@ -58,6 +60,8 @@ export interface CampaignBudget {
   maxIntents?: number;
   /** Dépense totale (USD) au-delà de laquelle plus rien n'est ouvert ni attribué. */
   maxUsd?: number;
+  /** Tokens totaux (entrée + sortie) au-delà desquels plus rien n'est ouvert ni attribué. */
+  maxTokens?: number;
 }
 
 /** Instantané immuable de la campagne. */
@@ -69,6 +73,8 @@ export interface CampaignRunStatus {
   readonly maxOpenPerRound: number;
   readonly budget: Readonly<CampaignBudget>;
   readonly spentUsd: number;
+  /** Tokens cumulés (entrée + sortie) des runs terminés. */
+  readonly tokens: number;
   readonly counts: Readonly<Record<IntentState, number>>;
   readonly intents: readonly Intent[];
 }

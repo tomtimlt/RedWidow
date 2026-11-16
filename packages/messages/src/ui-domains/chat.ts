@@ -311,6 +311,7 @@ export const chatEn: Record<string, string> = {
   Campagne: "Campaign",
   "Arrêter la campagne": "Stop campaign",
   "Campagne terminée": "Campaign finished",
+  "{0} / {1} tokens": "{0} / {1} tokens",
   "Une campagne est déjà en cours dans un autre chat":
     "A campaign is already running in another chat",
   "Indisponible en mode Apprentissage": "Unavailable in Learning mode",

@@ -63,6 +63,14 @@ export const WORKER_MAX_TURNS = 40;
 export const WORKER_MAX_BUDGET_USD = 2;
 /** Budget total de campagne par défaut, en dollars. */
 export const CAMPAIGN_MAX_BUDGET_USD = 20;
+/**
+ * Plafond de tokens (entrée + sortie) de la campagne : protège aussi quand le coût remonté vaut 0
+ * (modèle gratuit). Le premier plafond atteint (dollars ou tokens) arrête les attributions.
+ */
+export const CAMPAIGN_MAX_TOKENS = 3_000_000;
+/** Résumé repris au nom d'un worker sorti sans fermer son intention : longueur maximale. */
+const HOST_SUMMARY_MAX = 2000;
+const NO_SUMMARY = "Worker arrêté sans résumé";
 
 export type CampaignAgentRole = "planner" | "worker";
 
@@ -105,6 +113,8 @@ export interface CampaignHostOptions {
   workers?: number;
   /** Budget total de la campagne en dollars (défaut : `CAMPAIGN_MAX_BUDGET_USD`). */
   maxBudgetUsd?: number;
+  /** Plafond total de tokens de la campagne (défaut : `CAMPAIGN_MAX_TOKENS`). */
+  maxTokens?: number;
   spawnEngine: (spec: EngineSpec) => EngineHandle;
   /** Recorder du journal de campagne. */
   recorder: Recorder;
@@ -141,6 +151,10 @@ interface Agent {
   handle: EngineHandle;
   port: AgentCampaignPort;
   exited: boolean;
+  /** Dernier texte d'agent reçu de ce moteur (nettoyé), pour reprendre l'intention s'il sort sans la fermer. */
+  lastText?: string;
+  /** Le moteur a envoyé son message de fin (sortie propre, pas un crash). */
+  ended: boolean;
 }
 
 function plannerPrompt(objective: string, snapshot: CampaignRunStatus | undefined): string {
@@ -166,7 +180,10 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
 
   const coordinator = createCampaignCoordinator({
     maxWorkers: workers,
-    budget: { maxUsd: options.maxBudgetUsd ?? CAMPAIGN_MAX_BUDGET_USD },
+    budget: {
+      maxUsd: options.maxBudgetUsd ?? CAMPAIGN_MAX_BUDGET_USD,
+      maxTokens: options.maxTokens ?? CAMPAIGN_MAX_TOKENS,
+    },
     recorder: options.recorder,
     ...(options.inScope !== undefined && { inScope: options.inScope }),
     ...(options.now !== undefined && { now: options.now }),
@@ -212,7 +229,7 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
         maxBudgetUsd: WORKER_MAX_BUDGET_USD,
       }),
     });
-    const agent: Agent = { info, handle, port, exited: false };
+    const agent: Agent = { info, handle, port, exited: false, ended: false };
     agents.set(info.runId, agent);
     handle.onMessage((message) => onEngineMessage(agent, message));
     handle.onExit(() => onExit(agent));
@@ -221,10 +238,13 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
     return agent;
   };
 
-  /** Budget total atteint : plus aucune intention attribuée ni tour de planificateur. */
+  /** Un des plafonds (dollars ou tokens) atteint : plus aucune intention attribuée ni tour de planificateur. */
   const budgetReached = (): boolean => {
-    const { spentUsd, budget } = coordinator.status();
-    return budget.maxUsd !== undefined && spentUsd >= budget.maxUsd;
+    const { spentUsd, tokens, budget } = coordinator.status();
+    return (
+      (budget.maxUsd !== undefined && spentUsd >= budget.maxUsd) ||
+      (budget.maxTokens !== undefined && tokens >= budget.maxTokens)
+    );
   };
 
   const startPlannerTurn = (): void => {
@@ -375,7 +395,19 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
       .status()
       .intents.find((i) => i.state === "claimed" && i.workerRunId === agent.info.runId);
     if (held) {
-      coordinator.abandon(held.id, agent.info.runId);
+      // Sortie sans fermeture : le travail n'est pas perdu. L'hôte ferme l'intention au nom du
+      // worker (`needs_follow_up`, dernier texte). Un crash avant tout texte reste `blocked`.
+      if (agent.lastText !== undefined || agent.ended) {
+        try {
+          coordinator.closeOnBehalf(held.id, agent.info.runId, {
+            outcome: "needs_follow_up",
+            summary: agent.lastText ?? NO_SUMMARY,
+            evidence: [],
+          });
+        } catch {
+          coordinator.abandon(held.id, agent.info.runId);
+        }
+      } else coordinator.abandon(held.id, agent.info.runId);
       scheduleWake();
     }
     pump();
@@ -454,6 +486,13 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
         coordinator.recordSpend(
           typeof cost === "number" && Number.isFinite(cost) && cost > 0 ? cost : 0,
         );
+        // Tokens d'entrée + sortie annoncés par le moteur ; absents ou invalides : 0.
+        const count = (v: unknown): number =>
+          typeof v === "number" && Number.isFinite(v) && v > 0 ? v : 0;
+        coordinator.recordTokens(
+          count(message.summary?.inputTokens) + count(message.summary?.outputTokens),
+        );
+        agent.ended = true;
         if (budgetReached()) {
           if (wakeTimer !== undefined) clearTimeout(wakeTimer);
           wakeTimer = undefined;
@@ -463,6 +502,11 @@ export function createCampaignHost(options: CampaignHostOptions): CampaignHost {
         changed();
         return;
       }
+      case "event":
+        if (agent.info.role === "worker" && message.event.kind === "agent.text")
+          agent.lastText = cleanText(message.event.text, HOST_SUMMARY_MAX);
+        options.onMessage?.(agent.info, message);
+        return;
       default:
         options.onMessage?.(agent.info, message);
     }

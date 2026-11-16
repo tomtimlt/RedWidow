@@ -311,6 +311,8 @@ export function createChatSession(deps: ChatSessionDeps) {
       workersMax: status.maxWorkers,
       spentUsd: Math.round(status.spentUsd * 100) / 100,
       ...(status.budget.maxUsd !== undefined && { budgetUsd: status.budget.maxUsd }),
+      tokens: Math.round(status.tokens),
+      ...(status.budget.maxTokens !== undefined && { tokensMax: status.budget.maxTokens }),
       intents: status.intents.slice(0, 50).map((intent) => {
         const worker =
           intent.workerRunId === undefined ? undefined : host.workerIndex(intent.workerRunId);

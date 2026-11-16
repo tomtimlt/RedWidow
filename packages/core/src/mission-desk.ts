@@ -8,6 +8,7 @@ import {
   coverageCellsSchema,
   coverageKey,
 } from "./audit-schema.js";
+import { CAMPAIGN_CLOSE_REMINDER_TURNS } from "./campaign/coordinator.js";
 import type { CampaignPort } from "./engagement/campaign-port.js";
 import type { StepResult } from "./engagement/campaign-progress.js";
 import {
@@ -345,6 +346,7 @@ export function createMissionDesk({
   halted,
   campaign,
   campaignIntent,
+  turnLimit,
   mission,
   supervision = DEFAULT_SUPERVISION,
 }: {
@@ -367,6 +369,12 @@ export function createMissionDesk({
   campaign?: CampaignPort;
   /** Intention du worker (ADR 0054) : ajoutée au contexte comme bloc structuré. */
   campaignIntent?: { id: string; title: string; rationale: string; target?: string };
+  /**
+   * Plafond de tours du worker de campagne : à `CAMPAIGN_CLOSE_REMINDER_TURNS` tours de la limite,
+   * un rappel de clôture est joint une fois au point de contrôle. Les appels d'outils (bureau
+   * compris) servent d'approximation du nombre de tours consommés.
+   */
+  turnLimit?: number;
 }): MissionDesk {
   const settings = SUPERVISION_SETTINGS[supervision];
   const requiresCoverage = mission?.profile === "bug-bounty";
@@ -406,6 +414,9 @@ export function createMissionDesk({
   const runStart = now().getTime();
   let started = runStart;
   let branchCalls = 0;
+  /** Tous les appels d'outils du run, bureau compris (approximation des tours consommés). */
+  let allCalls = 0;
+  let closeReminderSent = false;
   let evicted = 0;
   const metrics = {
     toolCalls: 0,
@@ -419,6 +430,7 @@ export function createMissionDesk({
   let stalledBranch: string | undefined;
   const unsubscribe = recorder.subscribe((event) => {
     if (disposed || event.runId !== recorder.runId) return;
+    if (event.kind === "tool.requested") allCalls++;
     if (event.kind === "user.message") {
       suppliedPrompt = clip(redact(event.text), 2000);
     } else if (event.kind === "audit.test") {
@@ -563,6 +575,16 @@ export function createMissionDesk({
   }
   /** Point de contrôle périodique : trop d'appels d'outils depuis la dernière décision (non bloquant). */
   function checkpoint(): Reason | undefined {
+    // Worker de campagne près de son plafond : rappel de clôture, une seule fois (prioritaire).
+    if (
+      campaignIntent !== undefined &&
+      turnLimit !== undefined &&
+      !closeReminderSent &&
+      turnLimit - allCalls <= CAMPAIGN_CLOSE_REMINDER_TURNS
+    ) {
+      closeReminderSent = true;
+      return reason("campaign.closeReminder", { remaining: Math.max(0, turnLimit - allCalls) });
+    }
     const limit = settings.checkpointAfterCalls;
     return limit !== null && branchCalls >= limit
       ? reason("supervision.checkpoint", { calls: branchCalls })

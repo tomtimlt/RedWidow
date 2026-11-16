@@ -93,6 +93,9 @@ export interface RunSummary {
   turns: number;
   costUsd: number;
   result: string | null;
+  /** Tokens d'entrée et de sortie consommés par le run, quand le moteur les annonce (absent : inconnu). */
+  inputTokens?: number;
+  outputTokens?: number;
   /** Identifiant de la session (pour `resume`), s'il est connu. */
   sessionId?: string;
   /** Messages du moteur d'agent non traduits en événements, comptés par `type/subtype`. */

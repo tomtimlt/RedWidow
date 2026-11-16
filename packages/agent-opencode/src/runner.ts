@@ -490,7 +490,10 @@ async function runWithOpencode(
         ...(context.engagement !== undefined && { engagement: context.engagement }),
         ...(context.halted !== undefined && { halted: context.halted }),
         ...(context.campaign !== undefined && { campaign: context.campaign }),
-        ...(context.multiAgent?.role === "worker" && { campaignIntent: context.multiAgent.intent }),
+        ...(context.multiAgent?.role === "worker" && {
+          campaignIntent: context.multiAgent.intent,
+          ...(input.maxTurns !== undefined && { turnLimit: input.maxTurns }),
+        }),
       })
     : undefined;
   try {
@@ -627,6 +630,18 @@ async function runWithOpencodeWithDesk(
   const stepCosts = new Map<string, number>(); // partId → coût
   const messageCosts = new Map<string, number>(); // messageId → coût annoncé
   const messageOfStep = new Map<string, string>();
+  const stepTokens = new Map<string, { input: number; output: number }>(); // partId → tokens
+  /** Cumul des tokens d'entrée et de sortie annoncés par les étapes ; vide si aucune n'en annonce. */
+  const totalTokens = (): { inputTokens?: number; outputTokens?: number } => {
+    if (stepTokens.size === 0) return {};
+    let inputTokens = 0;
+    let outputTokens = 0;
+    for (const t of stepTokens.values()) {
+      inputTokens += t.input;
+      outputTokens += t.output;
+    }
+    return { inputTokens, outputTokens };
+  };
   const totalCost = () => {
     const perMessage = new Map<string, number>();
     for (const [part, cost] of stepCosts) {
@@ -938,6 +953,11 @@ async function runWithOpencodeWithDesk(
       if (str(part.sessionID) === sessionId) {
         const used = stepContextTokens(part.tokens);
         if (used !== undefined) lastStepTokens = used;
+      }
+      {
+        const t = obj(part.tokens);
+        if (typeof t.input === "number" || typeof t.output === "number")
+          stepTokens.set(id, { input: tokens(t.input), output: tokens(t.output) });
       }
       stepCosts.set(id, typeof part.cost === "number" ? part.cost : 0);
       if (messageID !== undefined) messageOfStep.set(id, messageID);
@@ -1459,7 +1479,7 @@ async function runWithOpencodeWithDesk(
 
   if (sessionId !== undefined && summary.sessionId === undefined)
     summary = { ...summary, sessionId };
-  summary = { ...summary, costUsd: totalCost() };
+  summary = { ...summary, costUsd: totalCost(), ...totalTokens() };
   recorder.emit({ kind: "run.finished", ...summary }, root.id);
   return summary;
 }

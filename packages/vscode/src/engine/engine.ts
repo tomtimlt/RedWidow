@@ -441,6 +441,8 @@ export function runEngine({
           turns: summary.turns,
           costUsd: summary.costUsd,
           result: summary.result,
+          ...(summary.inputTokens !== undefined && { inputTokens: summary.inputTokens }),
+          ...(summary.outputTokens !== undefined && { outputTokens: summary.outputTokens }),
           ...(summary.sessionId !== undefined && { sessionId: summary.sessionId }),
         };
         send({ v: PROTOCOL_VERSION, type: "ended", summary: ended });

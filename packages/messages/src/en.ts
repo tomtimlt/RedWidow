@@ -191,6 +191,8 @@ export const reasons: Catalog = {
     `${text(p.count)} cell(s): only one probe: specify the variants tried or keep untested`,
   "coverage.untested": (p) =>
     `${text(p.count)} coverage cell(s) still untested (${text(p.examples)}): test them, or mark them blocked / prerequisite with a justification, before concluding`,
+  "campaign.closeReminder": (p) =>
+    `${text(p.remaining)} turn(s) left before your limit: close your intent with campaign_close_intent now, with what you have found`,
   "supervision.checkpoint": (p) =>
     `${text(p.calls)} tool calls since the last decision: call record_decision (objective, exit criterion, next action) before continuing`,
   "web.relayRefused": () =>

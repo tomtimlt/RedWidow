@@ -321,6 +321,8 @@ export const reasons: Catalog = {
     `${text(p.count)} case(s) : une seule sonde : précise les variantes essayées ou garde untested`,
   "coverage.untested": (p) =>
     `${text(p.count)} case(s) de la matrice encore non testée(s) (${text(p.examples)}) : les tester, ou les marquer bloquée / prérequis manquant avec la justification, avant de conclure`,
+  "campaign.closeReminder": (p) =>
+    `Plus que ${text(p.remaining)} tour(s) avant ton plafond : clôture ton intention avec campaign_close_intent maintenant, avec ce que tu as trouvé`,
   "supervision.checkpoint": (p) =>
     `${text(p.calls)} appels d'outils depuis la dernière décision : appeler record_decision (objectif, critère de sortie, prochaine action) avant de poursuivre`,
   "web.relayRefused": () =>

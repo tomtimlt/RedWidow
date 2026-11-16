@@ -132,6 +132,10 @@ export interface CampaignView {
   spentUsd: number;
   /** Budget total de la campagne en dollars. */
   budgetUsd?: number;
+  /** Tokens cumulés (entrée + sortie) des runs terminés. */
+  tokens: number;
+  /** Plafond total de tokens de la campagne. */
+  tokensMax?: number;
   intents: {
     id: string;
     title: string;

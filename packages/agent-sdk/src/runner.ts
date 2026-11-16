@@ -164,6 +164,20 @@ const tokenCount = (v: unknown): number =>
  * Occupation du contexte d'un appel modèle : entrée + cache lu + cache créé.
  * `undefined` si le message n'a aucun usage exploitable (rien n'est inventé).
  */
+/** Tokens d'entrée et de sortie annoncés par le message de fin ; rien n'est inventé s'ils manquent. */
+function resultTokens(usage: unknown): { inputTokens?: number; outputTokens?: number } {
+  if (typeof usage !== "object" || usage === null) return {};
+  const u = usage as Record<string, unknown>;
+  const count = (v: unknown): number | undefined =>
+    typeof v === "number" && Number.isSafeInteger(v) && v >= 0 ? v : undefined;
+  const input = count(u.input_tokens);
+  const output = count(u.output_tokens);
+  return {
+    ...(input !== undefined && { inputTokens: input }),
+    ...(output !== undefined && { outputTokens: output }),
+  };
+}
+
 function contextTokens(usage: unknown): number | undefined {
   if (typeof usage !== "object" || usage === null) return undefined;
   const u = usage as Record<string, unknown>;
@@ -358,7 +372,10 @@ async function runWithSdk(
         ...(context.engagement !== undefined && { engagement: context.engagement }),
         ...(context.halted !== undefined && { halted: context.halted }),
         ...(context.campaign !== undefined && { campaign: context.campaign }),
-        ...(context.multiAgent?.role === "worker" && { campaignIntent: context.multiAgent.intent }),
+        ...(context.multiAgent?.role === "worker" && {
+          campaignIntent: context.multiAgent.intent,
+          ...(input.maxTurns !== undefined && { turnLimit: input.maxTurns }),
+        }),
       })
     : undefined;
   try {
@@ -944,6 +961,7 @@ async function runWithSdkWithDesk(
           turns: message.num_turns,
           costUsd: message.total_cost_usd,
           result: message.subtype === "success" ? message.result : null,
+          ...resultTokens(message.usage),
           ...(sessionId !== undefined && { sessionId }),
           unhandledMessages: unhandled,
         };
