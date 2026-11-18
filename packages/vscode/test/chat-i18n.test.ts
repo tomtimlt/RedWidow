@@ -35,6 +35,11 @@ describe("libellés du chat FR / EN", () => {
     locale = "en";
     expect(ui.historyBadge({ current: true }, false)).toBe("current");
     expect(ui.activityLabel(view)).toBe("Awaiting your approval");
+    expect(ui.activityLabel({ ...view, stopping: true })).toBe("Stop requested.");
+    expect(ui.activityLabel({ ...view, approvals: [], items: [] })).toBe("Turn open");
+    expect(ui.activityLabel({ ...view, approvals: [], retry: {} })).toBe(
+      "Provider unavailable · retry pending",
+    );
     expect(
       ui.conversationActivity(view).phases.map((phase: { label: string }) => phase.label),
     ).toEqual(["1 message", "1 tool · 1 running", "2 approvals pending"]);
@@ -50,6 +55,8 @@ describe("libellés du chat FR / EN", () => {
     );
     locale = "fr";
     expect(ui.activityLabel(view)).toBe("En attente de votre accord");
+    expect(ui.activityLabel({ ...view, stopping: true })).toBe("Arrêt demandé.");
+    expect(ui.activityLabel({ ...view, approvals: [], items: [] })).toBe("Tour ouvert");
   });
 
   it("bascule en conservant la carte, les décisions, le brouillon, le focus et le défilement", () => {
@@ -172,6 +179,7 @@ describe("libellés du chat FR / EN", () => {
       mentionOpen: () => false,
       renderMentions() {},
       paintAttachments() {},
+      paintDiagnostic() {},
       providerHelp: new NodeStub("p"),
       projectFilter: new NodeStub("select"),
       monitorFollowBtn: new NodeStub("button"),

@@ -268,13 +268,75 @@
   /** Libellé de l'indicateur « thinking » (texte brut, inséré par textContent). */
   function activityLabel(view) {
     if (!view.busy) return "";
+    if (view.stopping) return t("Arrêt demandé.");
     if (view.approvals.length > 0) return t("En attente de votre accord");
     if (view.retry) return t("Fournisseur indisponible · nouvelle tentative en attente");
     for (let i = view.items.length - 1; i >= 0; i--) {
       const it = view.items[i];
       if (it.kind === "tool" && it.status === "pending") return t`Outil : ${it.label}`;
     }
-    return t("Réflexion");
+    return t("Tour ouvert");
+  }
+
+  /** Relevé local limité aux faits autorisés, sans conserver la vue reçue. */
+  function createViewDiagnostic() {
+    let enabled = false;
+    let identity;
+    let entries = [];
+    let fingerprint = "";
+    let lastReceived = null;
+    function observe(view, chatId, now = Date.now(), initial = false) {
+      if (!enabled) return;
+      const nextIdentity = JSON.stringify([chatId ?? null, view.conversation ?? null]);
+      if (identity !== nextIdentity) {
+        identity = nextIdentity;
+        entries = [];
+        fingerprint = "";
+        lastReceived = null;
+      }
+      lastReceived = now === null ? null : new Date(now).toISOString();
+      const state = {
+        busy: view.busy === true,
+        stopping: view.stopping === true,
+        readonly: !!view.readonly,
+        retry: !!view.retry,
+        approvals: Math.min(9999, Array.isArray(view.approvals) ? view.approvals.length : 0),
+        toolPending:
+          Array.isArray(view.items) &&
+          view.items.some((item) => item.kind === "tool" && item.status === "pending"),
+      };
+      const next = JSON.stringify(state);
+      if (next === fingerprint) return;
+      fingerprint = next;
+      entries.push({ at: lastReceived, initial, ...state });
+      if (entries.length > 50) entries.shift();
+    }
+    function report() {
+      const yesNo = (value) => (value ? t("oui") : t("non"));
+      const lines = entries.map(
+        (entry) =>
+          `${entry.initial ? t("État initial affiché") : t("Vue reçue")} · ${entry.at ?? t("heure inconnue")} · ${t("Tour ouvert")}: ${yesNo(entry.busy)} · ${t("Arrêt demandé")}: ${yesNo(entry.stopping)} · ${t("Lecture seule")}: ${yesNo(entry.readonly)} · ${t("Attente fournisseur")}: ${yesNo(entry.retry)} · ${t("Outil en attente")}: ${yesNo(entry.toolPending)} · ${t("Approbations")}: ${entry.approvals}`,
+      );
+      return [
+        t("Vues reçues par cette interface ; ne mesure pas la santé du moteur."),
+        t(
+          "Relevé commencé à l’activation ; les événements antérieurs sont inconnus. Maximum : 50 changements.",
+        ),
+        `${t("Dernière vue reçue")}: ${lastReceived ?? t("heure inconnue")}`,
+        ...lines,
+      ].join("\n");
+    }
+    return {
+      setEnabled(value) {
+        enabled = value === true;
+        identity = undefined;
+        entries = [];
+        fingerprint = "";
+        lastReceived = null;
+      },
+      observe,
+      report,
+    };
   }
 
   const isFiniteNumber = (v) => typeof v === "number" && Number.isFinite(v);
@@ -561,6 +623,7 @@
     tabTarget,
     bodyClasses,
     activityLabel,
+    createViewDiagnostic,
     inputRecall,
     syncRecallEntries,
     mentionSpan,

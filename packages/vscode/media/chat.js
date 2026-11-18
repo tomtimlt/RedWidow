@@ -1849,6 +1849,24 @@
   const MANAGED = ["running", "waiting", "paused", "readonly", "reduce-motion"];
   const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
   let lastView = null;
+  let lastViewReceivedAt = null;
+  const receivedViews = new WeakMap();
+  const diagnostic = UI.createViewDiagnostic();
+  const diagnosticEnable = $("diagnostic-enable");
+  function paintDiagnostic() {
+    $("diagnostic-text").value = diagnostic.report();
+  }
+  diagnosticEnable.addEventListener("change", () => {
+    diagnostic.setEnabled(diagnosticEnable.checked);
+    $("diagnostic-content").hidden = !diagnosticEnable.checked;
+    if (diagnosticEnable.checked && lastView)
+      diagnostic.observe(lastView, chatId, lastViewReceivedAt, true);
+    paintDiagnostic();
+  });
+  $("diagnostic-copy").addEventListener("click", () =>
+    copy(diagnostic.report(), $("diagnostic-copy")),
+  );
+
   function applyBody() {
     if (!lastView) return;
     const want = UI.bodyClasses(lastView, {
@@ -1867,7 +1885,7 @@
     if (missionStart !== null) {
       const total = Math.floor((Date.now() - missionStart) / 1e3);
       const h = Math.floor(total / 3600);
-      text = `T+${h ? `${h}:` : ""}${pad2(Math.floor(total / 60) % 60)}:${pad2(total % 60)}`;
+      text = `${t("Durée du tour")} · ${h ? `${h}:` : ""}${pad2(Math.floor(total / 60) % 60)}:${pad2(total % 60)}`;
     }
     $("thinking-clock").textContent = text;
   }
@@ -2122,6 +2140,7 @@
     }));
     i18n.setLocale(locale);
     i18n.applyStatic(document);
+    paintDiagnostic();
     for (const binding of productBindings) {
       if (binding.node.isConnected) binding.paint();
       else productBindings.delete(binding);
@@ -2164,6 +2183,12 @@
     if (message && message.type === "locale") {
       switchLocale(message.locale);
     } else if (message && message.type === "view") {
+      if (!receivedViews.has(message)) {
+        const receivedAt = Date.now();
+        receivedViews.set(message, receivedAt);
+        diagnostic.observe(message.view, message.chatId ?? chatId, receivedAt);
+        if (diagnosticEnable.checked) paintDiagnostic();
+      }
       // Une vue cachée conserve seulement le dernier état, sans reconstruire son DOM.
       if (document.hidden) {
         pendingViewMessage = message;
@@ -2198,6 +2223,7 @@
         toolStatus.clear();
         log.replaceChildren();
       }
+      lastViewReceivedAt = receivedViews.get(message) ?? null;
       render(message.view);
     } else if (message && message.type === "attachmentResult") {
       if (!pendingFiles || message.requestId !== pendingFiles.requestId) return;

@@ -4870,6 +4870,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const openLauncher = () => {
     const actions: LauncherItem[] = [
+      { label: t("Conversations"), kind: vscode.QuickPickItemKind.Separator },
       {
         label: t("$(comment) Chat latéral"),
         description: shortcutLabel("focusChat"),
@@ -4880,6 +4881,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         description: shortcutLabel("openChat"),
         run: () => openEditorChat(),
       },
+      { label: t("Suivi et résultats"), kind: vscode.QuickPickItemKind.Separator },
       {
         label: t("$(dashboard) Cockpit"),
         description: shortcutLabel("openCockpit"),
@@ -4895,6 +4897,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         description: shortcutLabel("openKillchain"),
         run: () => openKillchain(),
       },
+      {
+        label: t("$(history) Journal d’audit"),
+        run: () => vscode.commands.executeCommand("warband.openAudit"),
+      },
+      {
+        label: t("$(preview) Aperçu du rapport"),
+        run: () => vscode.commands.executeCommand("warband.previewReport"),
+      },
+      { label: t("Configuration"), kind: vscode.QuickPickItemKind.Separator },
       {
         label: t("$(settings-gear) Réglages"),
         description: shortcutLabel("openStudio"),

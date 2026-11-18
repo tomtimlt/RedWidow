@@ -29,6 +29,17 @@ describe("HTML du chat : raccourci de terminal selon la plate-forme", () => {
   });
 });
 
+describe("HTML du chat : état du tour", () => {
+  it("localise le statut et masque l’horloge changeante aux lecteurs d’écran", () => {
+    const fr = chatHtml(opts);
+    const en = chatHtml({ ...opts, locale: "en" });
+    expect(fr).toContain('data-i18n="Tour ouvert">Tour ouvert');
+    expect(en).toContain('data-i18n="Tour ouvert">Turn open');
+    expect(fr).toContain('id="thinking-clock" class="thinking-clock" aria-hidden="true"');
+    expect(fr).toContain('id="thinking" role="status"');
+  });
+});
+
 describe("HTML du chat : CSP stricte", () => {
   const html = chatHtml(opts);
   const csp = /Content-Security-Policy" content="([^"]+)"/.exec(html)?.[1] ?? "";

@@ -26,11 +26,17 @@ interface UiApi {
     v: { busy: boolean; approvals: unknown[]; readonly: unknown },
     e: { hidden: boolean; reducedMotion: boolean },
   ): string[];
+  createViewDiagnostic(): {
+    setEnabled(value: boolean): void;
+    observe(view: unknown, chatId?: unknown, now?: number | null, initial?: boolean): void;
+    report(): string;
+  };
   activityLabel(v: {
     busy: boolean;
     approvals: unknown[];
     items: unknown[];
     retry?: { attempt: number; delayMs: number };
+    stopping?: boolean;
   }): string;
   EXEC_TOOL: string;
   toolIcon(tool: unknown): string;
@@ -363,7 +369,27 @@ describe("états -> classes de body", () => {
 describe("libellé du thinking", () => {
   const base = { busy: true, approvals: [], items: [] as unknown[] };
   it("repos : vide", () => expect(ui.activityLabel({ ...base, busy: false })).toBe(""));
-  it("réflexion par défaut", () => expect(ui.activityLabel(base)).toBe("Réflexion"));
+  it("tour ouvert par défaut", () => expect(ui.activityLabel(base)).toBe("Tour ouvert"));
+  it("arrêt demandé prioritaire sur les autres états", () => {
+    expect(
+      ui.activityLabel({
+        ...base,
+        stopping: true,
+        approvals: [{}],
+        retry: { attempt: 1, delayMs: 1 },
+        items: [{ kind: "tool", status: "pending", label: "Commande" }],
+      }),
+    ).toBe("Arrêt demandé.");
+  });
+  it("attente du fournisseur avant l’outil", () => {
+    expect(
+      ui.activityLabel({
+        ...base,
+        retry: { attempt: 1, delayMs: 1 },
+        items: [{ kind: "tool", status: "pending", label: "Commande" }],
+      }),
+    ).toBe("Fournisseur indisponible · nouvelle tentative en attente");
+  });
   it("dernier outil en attente", () => {
     const items = [
       { kind: "tool", status: "pending", label: "Lecture" },
@@ -773,4 +799,35 @@ it("distingue l’attente du fournisseur de la réflexion", () => {
       retry: { attempt: 1, delayMs: 5000 },
     }),
   ).toContain("Fournisseur indisponible");
+});
+
+describe("diagnostic local des vues", () => {
+  it("reste désactivé puis borne, isole et filtre les données", () => {
+    const diagnostic = ui.createViewDiagnostic();
+    const view = {
+      conversation: "identifiant-secret",
+      busy: true,
+      approvals: [{ secret: "secret-approbation" }],
+      items: [{ kind: "tool", status: "pending", text: "secret-outil" }],
+      prompt: "secret-prompt",
+      retry: { error: "secret-erreur" },
+    };
+    diagnostic.observe(view, "chat-secret", 0);
+    expect(diagnostic.report()).not.toContain("1970");
+    diagnostic.setEnabled(true);
+    diagnostic.observe(view, "chat-secret", 0, true);
+    expect(diagnostic.report()).toContain("État initial affiché");
+    diagnostic.observe(view, "chat-secret", 1000);
+    expect(diagnostic.report()).toContain("Dernière vue reçue: 1970-01-01T00:00:01.000Z");
+    expect(diagnostic.report()).toContain("1970-01-01T00:00:00.000Z");
+    expect(diagnostic.report()).toContain("Approbations: 1");
+    expect(diagnostic.report()).not.toMatch(/secret/);
+    for (let i = 1; i <= 55; i++)
+      diagnostic.observe({ ...view, busy: i % 2 === 0 }, "chat-secret", i * 1000);
+    expect(diagnostic.report().match(/1970-/g)).toHaveLength(51);
+    diagnostic.observe({ ...view, conversation: "autre" }, "chat-secret", 60000);
+    expect(diagnostic.report().match(/1970-/g)).toHaveLength(2);
+    diagnostic.setEnabled(false);
+    expect(diagnostic.report()).not.toContain("1970");
+  });
 });
