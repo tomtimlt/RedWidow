@@ -2265,6 +2265,8 @@ describe("ressources choisies dans chaque conversation", () => {
       burp: false,
       webSearch: true,
     });
+    await t.session.refreshHistoryProjects();
+    expect(t.session.view().capabilities?.selection.profile).toBe("mentor");
     await t.session.send("Utilise les ressources choisies");
     expect(t.f.started).toMatchObject({
       profile: "mentor",

@@ -187,6 +187,11 @@ function keyLabel(value: unknown): string | null {
   return label.length <= MAX_KEY_LABEL && !/\p{Cc}/u.test(label) ? label : null;
 }
 
+/** Identifiant de projet accepté par les messages de la webview. */
+export const isStudioProjectId = (value: unknown): value is string =>
+  typeof value === "string" &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value);
+
 /** Valide un message de la webview réglages. */
 export function parseStudioMessage(raw: unknown): StudioMessage | null {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
@@ -194,9 +199,7 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
   const keys = Object.keys(m);
   if (m.type === "setTerminalPrompt" && keys.length === 2 && isTerminalPrompt(m.value))
     return { type: m.type, value: m.value };
-  const auditProject =
-    typeof m.projectId === "string" &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(m.projectId);
+  const auditProject = isStudioProjectId(m.projectId);
   if (m.type === "saveTestAccount" && keys.length === 3 && auditProject) {
     const account = testAccountSchema.safeParse(m.account);
     return account.success

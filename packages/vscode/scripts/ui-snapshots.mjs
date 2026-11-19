@@ -1338,24 +1338,53 @@ try {
         }
         if (page.stopComposer) {
           const send = tab.locator("#send");
+          const stop = tab.locator("#stop");
           const input = tab.locator("#input");
           if (
-            (await send.getAttribute("type")) !== "button" ||
-            (await send.getAttribute("aria-label")) !== "Arrêter l'agent"
+            !(await stop.isVisible()) ||
+            (await stop.getAttribute("aria-label")) !== "Arrêter l'agent" ||
+            (await send.isVisible())
           )
             throw new Error("Bouton Stop absent");
-          await send.click();
+          await stop.click();
           await input.press("Escape");
           await input.press("Enter");
-          const actions = await tab.evaluate(() => window.__sent.filter((m) => m.type !== "ready"));
+          let actions = await tab.evaluate(() => window.__sent.filter((m) => m.type !== "ready"));
           if (JSON.stringify(actions) !== JSON.stringify([{ type: "stop" }, { type: "stop" }]))
             throw new Error("Clic, Échap ou Entrée à vide incorrects");
+          const busyView = page.messages.find((message) => message.type === "view").view;
+          await tab.evaluate(
+            (view) => window.postMessage({ type: "view", view: { ...view, busy: false } }, "*"),
+            busyView,
+          );
+          await tab.locator("#attachment-input").waitFor({ state: "attached" });
+          await tab.waitForFunction(() => !document.getElementById("attachment-input").disabled);
           await input.fill("Suite de la mission");
+          await tab.locator("#attachment-input").setInputFiles({
+            name: "note.txt",
+            mimeType: "text/plain",
+            buffer: Buffer.from("note fictive"),
+          });
+          await tab.locator("#attachment-list li").waitFor();
+          await tab.evaluate((view) => window.postMessage({ type: "view", view }, "*"), busyView);
+          await stop.waitFor({ state: "visible" });
           if (
+            !(await stop.isVisible()) ||
+            !(await send.isVisible()) ||
             (await send.getAttribute("type")) !== "submit" ||
             (await send.getAttribute("aria-label")) !== "Envoyer"
           )
-            throw new Error("Bouton Envoyer absent");
+            throw new Error("Boutons Stop et Envoyer absents");
+          await stop.click();
+          await input.press("Escape");
+          actions = await tab.evaluate(() => window.__sent.filter((m) => m.type !== "ready"));
+          if (
+            actions.filter((m) => m.type === "stop").length !== 4 ||
+            (await input.inputValue()) !== "Suite de la mission" ||
+            (await tab.locator("#attachment-list li").count()) !== 1
+          )
+            throw new Error("Arrêt avec brouillon ou pièce jointe incorrect");
+          await tab.locator("#attachment-list button").click();
           await send.click();
           const message = await tab.evaluate(() => window.__sent.at(-1));
           if (

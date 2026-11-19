@@ -1571,6 +1571,7 @@
     "Pages du registre des contrôles": "Control register pages",
     "Enregistrement en cours…": "Saving…",
     "Compte enregistré.": "Account saved.",
+    "Saisissez un hôte valide.": "Enter a valid host.",
     "Enregistrement impossible. Ressaisissez le secret et réessayez.":
       "Could not save. Re-enter the secret and try again.",
     "Facultatifs : les comptes du projet actif peuvent être utilisés par l’agent. Les valeurs courtes peuvent rester lisibles dans les journaux.":

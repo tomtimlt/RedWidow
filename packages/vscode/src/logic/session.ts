@@ -2146,7 +2146,6 @@ export function createChatSession(deps: ChatSessionDeps) {
       resetConversation();
     },
     async refreshHistoryProjects(): Promise<void> {
-      selection = emptySelection();
       // L'index est commun à toutes les fenêtres : on relit l'hôte pour voir leurs conversations.
       reloadIndex();
       const revision = navigationRev;

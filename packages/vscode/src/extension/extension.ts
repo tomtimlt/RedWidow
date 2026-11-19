@@ -208,6 +208,7 @@ import { shortcutLabel } from "../logic/shortcuts.js";
 import { readSources } from "../logic/sources.js";
 import {
   creationContainers,
+  isStudioProjectId,
   type ObservedMission,
   observeMission,
   parseStudioMessage,
@@ -4190,7 +4191,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     });
     studioPanel.webview.onDidReceiveMessage(async (raw: unknown) => {
       const message = parseStudioMessage(raw);
-      if (message === null) return;
+      if (message === null) {
+        // Ne renvoyer que l'identifiant, jamais les valeurs du formulaire invalide.
+        if (studioReady && typeof raw === "object" && raw !== null && !Array.isArray(raw)) {
+          const candidate = raw as Record<string, unknown>;
+          if (candidate.type === "saveTestAccount" && isStudioProjectId(candidate.projectId))
+            await panel.webview.postMessage({
+              type: "testAccountSaveResult",
+              projectId: candidate.projectId,
+              success: false,
+            });
+        }
+        return;
+      }
       if (message.type === "ready") {
         if (studioReady) return;
         studioReady = true;

@@ -26,6 +26,7 @@
   const historyList = $("history-list");
   const input = $("input");
   const send = $("send");
+  const stop = $("stop");
   const UI = globalThis.WarbandUI;
   // Ces liens portent uniquement des textes produit explicitement marqués par l().
   const productBindings = new Set();
@@ -2387,11 +2388,13 @@
       selected?.supportsImages === false
         ? t("Ce modèle ne prend pas les images en charge.")
         : t("La prise en charge des images par ce modèle est inconnue.");
-    const isStop = !!lastView?.busy && !input.value.trim() && !draftFiles.length;
-    send.type = isStop ? "button" : "submit";
-    send.replaceChildren(svg(isStop ? "stop" : "send"));
-    send.title = t(isStop ? "Arrêter l'agent" : "Envoyer (Entrée)");
-    send.setAttribute("aria-label", t(isStop ? "Arrêter l'agent" : "Envoyer"));
+    stop.hidden = !lastView?.busy;
+    stop.disabled = !!lastView?.stopping;
+    send.hidden = !!lastView?.busy && !input.value.trim() && !draftFiles.length;
+    send.type = "submit";
+    send.replaceChildren(svg("send"));
+    send.title = t("Envoyer (Entrée)");
+    send.setAttribute("aria-label", t("Envoyer"));
     send.disabled =
       !lastView ||
       !!lastView.stopping ||
@@ -2600,14 +2603,7 @@
         return;
       }
     }
-    if (
-      e.key === "Escape" &&
-      lastView?.busy &&
-      !lastView.stopping &&
-      !input.value.trim() &&
-      !draftFiles.length &&
-      !send.disabled
-    ) {
+    if (e.key === "Escape" && lastView?.busy && !lastView.stopping) {
       e.preventDefault();
       vscode.postMessage({ type: "stop" });
       return;
@@ -2639,8 +2635,8 @@
       submit();
     }
   });
-  send.addEventListener("click", () => {
-    if (send.type === "button" && !send.disabled) vscode.postMessage({ type: "stop" });
+  stop.addEventListener("click", () => {
+    if (!stop.disabled && lastView?.busy) vscode.postMessage({ type: "stop" });
   });
   $("reset").addEventListener("click", () => resetConversation());
   vscode.postMessage({ type: "ready" });

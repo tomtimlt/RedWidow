@@ -695,6 +695,13 @@ class StudioNode {
   id = "";
   textContent = "";
   value = "";
+  validationMessage = "";
+  setCustomValidity(message: string) {
+    this.validationMessage = message;
+  }
+  reportValidity() {
+    return !this.validationMessage;
+  }
   disabled = false;
   checked = false;
   hidden = false;
@@ -2153,6 +2160,7 @@ it("comptes : un refus conserve les champs ordinaires et exige de ressaisir le s
   let receive: (event: { data: unknown }) => void = () => {};
   runInNewContext(read(studioJs), {
     TextEncoder,
+    URL,
     setTimeout,
     clearTimeout,
     acquireVsCodeApi: () => ({ postMessage: (message: unknown) => sent.push(message) }),
@@ -2191,6 +2199,18 @@ it("comptes : un refus conserve les champs ordinaires et exige de ressaisir le s
     field(name).fire("input");
   }
   expect(find("Projet actif : Alpha")).toBeDefined();
+  expect((field("identifier") as StudioNode & { required: boolean }).required).toBe(true);
+  field("host").value = "hôte invalide";
+  field("host").fire("input");
+  main.find((node) => node.tag === "form")!.fire("submit", { preventDefault() {} });
+  expect(field("host").validationMessage).toBe("Saisissez un hôte valide.");
+  expect(sent.at(-1)).not.toMatchObject({ type: "saveTestAccount" });
+  field("host").value = "file:///notes";
+  field("host").fire("input");
+  main.find((node) => node.tag === "form")!.fire("submit", { preventDefault() {} });
+  expect(field("host").validationMessage).toBe("Saisissez un hôte valide.");
+  field("host").value = "example.org";
+  field("host").fire("input");
   main.find((node) => node.tag === "form")!.fire("submit", { preventDefault() {} });
   expect(find("Enregistrement en cours…")).toBeDefined();
   expect(field("secret").value).toBe("");
@@ -2198,11 +2218,27 @@ it("comptes : un refus conserve les champs ordinaires et exige de ressaisir le s
   receive({ data: { type: "testAccountSaveResult", projectId, success: false } });
   expect(find("Enregistrement impossible. Ressaisissez le secret et réessayez.")).toBeDefined();
   expect(field("identifier").value).toBe("alice");
+  field("label").fire("input");
+  expect(find("Enregistrement impossible. Ressaisissez le secret et réessayez.")).toBeUndefined();
   receive({ data: { ...view, testAccounts: [{ label: "B" }] } });
   expect(field("label").value).toBe("A");
   expect(field("host").value).toBe("example.org");
   expect(field("identifier").value).toBe("alice");
   expect(field("secret").value).toBe("");
+  const kind = main.find((node) => node.tag === "select")!;
+  kind.value = "cookie";
+  kind.fire("change");
+  expect((field("identifier") as StudioNode & { required: boolean }).required).toBe(false);
+  kind.value = "password";
+  kind.fire("change");
+  expect((field("identifier") as StudioNode & { required: boolean }).required).toBe(true);
+  field("secret").value = "private-value";
+  main.find((node) => node.tag === "form")!.fire("submit", { preventDefault() {} });
+  field("identifier").value = "bob";
+  field("identifier").fire("input");
+  receive({ data: { type: "testAccountSaveResult", projectId, success: true } });
+  expect(find("Compte enregistré.")).toBeUndefined();
+  expect(field("identifier").value).toBe("bob");
 });
 
 it("Atlas : navigation, texte non interprété et reprise en anglais", () => {
@@ -2245,6 +2281,14 @@ it("Atlas : navigation, texte non interprété et reprise en anglais", () => {
   expect(sent.at(-1)).toEqual({ type: "courseSection", section: 0 });
   main.find((n) => n.textContent === "Back")?.fire("click");
   expect(sent.at(-1)).toEqual({ type: "courseBack" });
+  receive({ data: { ...view, courseDocument: null, courseDocumentsAvailable: true } });
+  main.find((n) => n.textContent === "Choose a document")?.fire("click");
+  expect(sent.at(-1)).toEqual({ type: "coursePickDocument" });
+  receive({
+    data: { ...view, courseSource: null, courseDocument: null, courseDocumentsAvailable: true },
+  });
+  main.find((n) => n.textContent === "Choose a document")?.fire("click");
+  expect(sent.at(-1)).toEqual({ type: "coursePickDocument" });
 });
 
 it.each([280, 320, 420])(

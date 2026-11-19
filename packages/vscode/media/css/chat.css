@@ -507,7 +507,8 @@ body.paused .thinking-dots {
   border-color: var(--jn-focus);
   box-shadow: 0 0 0 1px var(--jn-focus);
 }
-#toolbar #send {
+#toolbar #send,
+#toolbar #stop {
   width: 28px;
   min-width: 28px;
   height: 28px;

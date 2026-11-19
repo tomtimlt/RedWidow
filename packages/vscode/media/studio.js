@@ -480,6 +480,7 @@ function start() {
   // Ces brouillons restent en mémoire et ne contiennent jamais le secret.
   const accountDrafts = new Map();
   const accountSaves = new Map();
+  const accountEditsPending = new Set();
   const accountPainters = new Map();
   let projectNameDraft = "";
   let projectContainerDraft = "";
@@ -2478,7 +2479,10 @@ function start() {
       label.maxLength = 16;
       label.pattern = "[A-Z][A-Z0-9_]{0,15}";
       const host = field("Site ou hôte (facultatif)", "text", "host");
+      host.addEventListener("input", () => host.setCustomValidity(""));
       const identifier = field("Identifiant", "text", "identifier");
+      identifier.maxLength = 512;
+      identifier.required = draft.kind === "password";
       const kindLabel = el("label", "studio-account-field", t("Type de secret"));
       const kind = el("select", "studio-project-control");
       for (const [value, text] of [
@@ -2492,10 +2496,13 @@ function start() {
       kind.value = draft.kind;
       kind.addEventListener("change", () => {
         draft.kind = kind.value;
+        identifier.required = kind.value === "password";
+        clearSave();
       });
       kindLabel.append(kind);
       form.append(kindLabel);
       const secret = field("Secret", "password", "secret", true);
+      secret.maxLength = 8192;
       const warning = el(
         "p",
         "studio-help",
@@ -2527,6 +2534,15 @@ function start() {
                 ? t("Enregistrement impossible. Ressaisissez le secret et réessayez.")
                 : "";
       };
+      const clearSave = () => {
+        if (accountSaves.get(project) === "pending") accountEditsPending.add(project);
+        else {
+          accountSaves.delete(project);
+          paintSave();
+        }
+      };
+      for (const input of [label, host, identifier, secret])
+        input.addEventListener("input", clearSave);
       accountPainters.set(project, paintSave);
       paintSave();
       form.append(save, status);
@@ -2534,11 +2550,30 @@ function start() {
         event.preventDefault();
         if (accountSaves.get(project) === "pending") return;
         let hostname = host.value.trim().toLowerCase();
+        let validHost = true;
         try {
-          if (hostname.includes("://")) hostname = new URL(hostname).hostname;
+          if (hostname.includes("://")) {
+            hostname = new URL(hostname).hostname;
+            validHost = hostname.length > 0;
+          }
+          if (hostname) {
+            validHost &&=
+              hostname.length <= 253 &&
+              !/[\s/@:?#%*\\]/u.test(hostname) &&
+              /^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/.test(hostname) &&
+              !hostname.includes("..") &&
+              new URL(`https://${hostname}`).hostname.toLowerCase().replace(/\.$/, "") === hostname;
+          }
         } catch {
+          validHost = false;
+        }
+        if (!validHost) {
+          host.setCustomValidity(t("Saisissez un hôte valide."));
+          host.reportValidity();
           return;
         }
+        host.setCustomValidity("");
+        accountEditsPending.delete(project);
         accountSaves.set(project, "pending");
         paintSave();
         vscode.postMessage({
@@ -3151,6 +3186,12 @@ function start() {
       const english = globalThis.WarbandI18n?.getLocale() === "en";
       const text = (fr, en) => (english ? en : fr);
       const sec = empty("Atlas", text("Bibliothèque locale de cours.", "Local course library."));
+      const pickDocument = () => {
+        const pick = el("button", "", text("Choisir un document", "Choose a document"));
+        pick.type = "button";
+        pick.addEventListener("click", () => vscode.postMessage({ type: "coursePickDocument" }));
+        sec.append(pick);
+      };
       if (view.courseSource) {
         const back = el("button", "", text("Retour", "Back"));
         back.type = "button";
@@ -3208,6 +3249,7 @@ function start() {
               ),
             );
         } else {
+          pickDocument();
           const docs = Array.isArray(view.courseDocuments) ? view.courseDocuments : [];
           if (!docs.length)
             sec.append(
@@ -3310,6 +3352,7 @@ function start() {
       open.type = "button";
       open.addEventListener("click", () => vscode.postMessage({ type: "openCours" }));
       sec.append(open);
+      pickDocument();
       if (view.courseDocumentsAvailable === false) {
         sec.append(
           el(
@@ -3321,10 +3364,6 @@ function start() {
             ),
           ),
         );
-        const pick = el("button", "", text("Choisir un document", "Choose a document"));
-        pick.type = "button";
-        pick.addEventListener("click", () => vscode.postMessage({ type: "coursePickDocument" }));
-        sec.append(pick);
         main.append(sec);
         return;
       }
@@ -3365,7 +3404,8 @@ function start() {
       typeof msg.success === "boolean" &&
       accountSaves.get(msg.projectId) === "pending"
     ) {
-      accountSaves.set(msg.projectId, msg.success ? "saved" : "failed");
+      const edited = accountEditsPending.delete(msg.projectId);
+      accountSaves.set(msg.projectId, msg.success ? (edited ? "" : "saved") : "failed");
       accountPainters.get(msg.projectId)?.();
       return;
     }
