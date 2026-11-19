@@ -23,7 +23,7 @@ afterEach(() => {
   rmSync(root, { recursive: true, force: true });
   rmSync(outside, { recursive: true, force: true });
 });
-describe("bibliothèque locale confinée", () => {
+describe.skipIf(process.platform !== "linux")("bibliothèque locale confinée", () => {
   it("liste les documents et découpe les sections", async () => {
     const [source] = await listCourseSources(root);
     const [doc] = await listCourseDocuments(root, source!.id);
@@ -79,6 +79,9 @@ it("lit uniquement un fichier sélectionné valide et borné", async () => {
   expect(await readSelectedCourseDocument(join(outside, "non.md.exe"))).toBeNull();
   writeFileSync(join(outside, "gros.txt"), "x".repeat(128 * 1024 + 1));
   expect(await readSelectedCourseDocument(join(outside, "gros.txt"))).toBeNull();
+});
+
+it.skipIf(process.platform !== "linux")("refuse un lien symbolique choisi", async () => {
   symlinkSync(join(outside, "secret.txt"), join(root, "source", "lien.txt"));
   expect(await readSelectedCourseDocument(join(root, "source", "lien.txt"))).toBeNull();
 });
