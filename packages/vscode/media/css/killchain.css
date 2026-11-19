@@ -46,7 +46,7 @@ body.killchain-full .studio-kc {
   position: relative;
   flex: 1 1 auto;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr);
   gap: 0;
   width: 100%;
@@ -423,19 +423,25 @@ body.killchain-full .kc-empty {
   stroke: var(--jn-focus);
   stroke-width: 1;
 }
-/* Légende et filtres */
+/* La légende flotte dans la même cellule que le canevas pointillé. */
+.studio-kc > .kc-viewport,
 .kc-legend {
+  grid-area: 2 / 1;
+}
+.kc-legend {
+  position: relative;
+  justify-self: end;
   align-self: start;
-  flex: none;
+  z-index: 2;
   min-width: 0;
   width: 232px;
   max-width: min(260px, 46vw);
   display: flex;
   flex-direction: column;
   min-height: 0;
-  max-height: calc(100% - 24px);
+  max-height: calc(100% - 2 * var(--jn-s2));
   overflow: auto;
-  margin: 12px 12px 12px 0;
+  margin: var(--jn-s2);
   background: var(--jn-widget);
   border: 1px solid var(--vscode-editorWidget-border, var(--jn-line-strong));
   border-radius: var(--jn-r-md);
@@ -576,26 +582,9 @@ body.vscode-high-contrast-light .kc-legend-item[aria-pressed="true"] {
   background: color-mix(in srgb, var(--jn-err) 20%, transparent);
 }
 /* Légende repliée : bouton flottant en haut à droite du canevas. */
-body.killchain-full .studio-kc.legend-collapsed {
-  grid-template-columns: minmax(0, 1fr);
-}
-body.killchain-full .studio-kc > .kc-viewport {
-  grid-row: 2;
-  grid-column: 1;
-}
 .studio-kc.legend-collapsed .kc-legend {
-  position: relative;
-  grid-row: 2;
-  grid-column: 1;
-  justify-self: end;
-  align-self: start;
-  margin: var(--jn-s2);
-  z-index: 2;
   width: auto;
-  border: 1px solid var(--jn-line-strong);
   border-radius: var(--jn-r-pill);
-  background: var(--jn-widget);
-  box-shadow: var(--jn-shadow-pop);
 }
 .studio-kc.legend-collapsed .kc-legend-head {
   padding: 2px;
@@ -630,21 +619,6 @@ body.killchain-full .studio-kc > .kc-viewport {
   }
   .kc-legend {
     max-width: calc(100vw - 2 * var(--jn-s2));
-  }
-  .studio-kc:not(.legend-collapsed) .kc-legend {
-    position: relative;
-    grid-row: 2;
-    grid-column: 1;
-    justify-self: end;
-    align-self: stretch;
-    margin: var(--jn-s2);
-    z-index: 2;
-    border: 1px solid var(--jn-line-strong);
-    border-radius: var(--jn-r-md);
-    box-shadow: var(--jn-shadow-pop);
-  }
-  body.killchain-full .studio-kc {
-    grid-template-columns: minmax(0, 1fr);
   }
 }
 .kc-node.is-selected .kc-node-head::after,
