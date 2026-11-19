@@ -40,7 +40,7 @@ export type CockpitMessage =
   | { type: "link"; name: string }
   | { type: "setPrimary"; name: string }
   | { type: "openWorkspace" }
-  | { type: "terminal" }
+  | { type: "terminal"; name?: string }
   | { type: "openProgram" }
   | { type: "openEngagement" }
   | { type: "start"; name: string }
@@ -107,8 +107,16 @@ export function parseCockpitMessage(raw: unknown): CockpitMessage | null {
     case "openWorkspace":
     case "openProgram":
     case "openEngagement":
-    case "terminal":
       return only("type") ? { type: m.type } : null;
+    case "terminal":
+      if (only("type")) return { type: "terminal" };
+      return only("type", "name") &&
+        typeof m.name === "string" &&
+        m.name.length > 0 &&
+        m.name.length <= CONTAINER_NAME_MAX &&
+        !/\p{Cc}/u.test(m.name)
+        ? { type: "terminal", name: m.name }
+        : null;
     case "link":
     case "setPrimary":
     case "start":

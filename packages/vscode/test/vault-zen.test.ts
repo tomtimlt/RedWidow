@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, open, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { effectiveServerEnv, zenAuthContent } from "@warband/agent-opencode";
@@ -22,6 +22,9 @@ import { type FromEngine, parseToEngine, type StartParams } from "../src/logic/p
 import { createChatSession } from "../src/logic/session.js";
 import { parseStudioMessage } from "../src/logic/studio.js";
 import { importOpencodeKey } from "../src/logic/vault-import.js";
+
+vi.mock("node:fs/promises", { spy: true });
+
 import { createKeyGuard, pickVaultChoice } from "../src/logic/vault-launch.js";
 import { createVaultStore, type SecretsLike } from "../src/logic/vault-store.js";
 import { vaultView } from "../src/logic/vault-view.js";
@@ -272,11 +275,13 @@ describe("import explicite depuis auth.json", () => {
   });
 
   it("fichier illisible : missingEntry", async () => {
-    if (process.getuid?.() === 0) return; // root lit tout
     const { store } = zenStore();
     const file = await authFile(JSON.stringify({ opencode: { type: "api", key: ONE } }));
-    await chmod(file, 0o000);
+    vi.mocked(open).mockRejectedValueOnce(
+      Object.assign(new Error("Accès refusé"), { code: "EACCES" }),
+    );
     expect(await importOpencodeKey(store, file)).toEqual({ kind: "missingEntry" });
+    expect((await store.get("opencode")).keys).toEqual([]);
   });
 
   it("message de la webview : un seul champ, aucune valeur acceptée", () => {

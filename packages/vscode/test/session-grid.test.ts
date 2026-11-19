@@ -110,7 +110,7 @@ describe("grille des sessions", () => {
     ]);
   });
 
-  it("filtre « En attente de toi » : approbation ou erreur seulement", () => {
+  it("filtre « À examiner » : approbation ou erreur seulement", () => {
     const tiles = buildSessionGrid([
       chat("repos"),
       chat("tour", { busy: true }),

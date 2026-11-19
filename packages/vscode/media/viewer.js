@@ -124,7 +124,7 @@
         if (record.out) record.out.hidden = q !== "" && lineHits === 0;
         if (record.tick) record.tick.hidden = !record.shown;
         total += 1 + record.lines.length;
-        shown += (cmdHit ? 1 : 0) + lineHits;
+        if (record.shown) shown += (cmdHit ? 1 : 0) + lineHits;
       }
       strip.hidden = kind !== "monitor" || ![...records.values()].some((r) => r.shown);
     }
@@ -135,7 +135,8 @@
   function paintCount(q, shown, total) {
     const rows = [...records.values()].map((record) => record.row);
     let text = "";
-    if (q !== "") text = t("{0} / {1} lignes", { 0: shown, 1: total });
+    if (q !== "" || (familyEl && familyEl.value !== "all"))
+      text = t("{0} / {1} lignes", { 0: shown, 1: total });
     else if (kind === "report") {
       const n = report?.findings.length ?? 0;
       text = n === 0 ? "" : n > 1 ? t`${n} constats` : t`${n} constat`;
@@ -155,7 +156,7 @@
     const none = !empty && shown === 0;
     emptyEl.hidden = !empty && !none;
     emptyEl.textContent = none
-      ? t("Aucune ligne ne contient ce texte.")
+      ? t("Aucun résultat pour ces filtres.")
       : kind === "monitor"
         ? t("Aucun appel d’outil dans cette conversation.")
         : kind === "watch"

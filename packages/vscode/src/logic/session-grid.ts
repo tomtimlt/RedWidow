@@ -89,7 +89,7 @@ export function buildSessionGrid(
   });
 }
 
-/** Filtre « En attente de toi » : une approbation à répondre ou une erreur à regarder. */
+/** Filtre « À examiner » : une approbation à répondre ou une erreur à regarder. */
 export function filterSessionGrid(
   tiles: readonly SessionTile[],
   filter: SessionGridFilter,

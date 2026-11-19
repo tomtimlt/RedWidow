@@ -439,7 +439,7 @@ export function createChatSession(deps: ChatSessionDeps) {
             .filter((m) => settings.capabilities?.integrations.includes(m.id))
             .map((m) => m.id),
           burp: !!settings.burp && settings.capabilities?.integrations.includes("burp") === true,
-          // Tout ce que le chat peut proposer : choisir une entrée dans le chat l'active (l'hôte écrit le réglage).
+          // Méthodes connues et services configurés : les disponibilités machine restent distinctes.
           available: {
             skills: Object.keys(AGENT_PROFILES),
             integrations: (settings.integrations ?? []).map((m) => m.id),
@@ -2343,3 +2343,14 @@ export function createChatSession(deps: ChatSessionDeps) {
 }
 
 export type ChatSession = ReturnType<typeof createChatSession>;
+
+/** Ouvre une entrée connue dans une session distincte sans modifier la session source. */
+export async function openHistoryInNewChat(
+  source: Pick<ChatSession, "view">,
+  id: string,
+  create: () => Pick<ChatSession, "openConversation"> | undefined,
+): Promise<void> {
+  if (!source.view().history.some((entry) => entry.id === id)) return;
+  const target = create();
+  if (target) await target.openConversation(id);
+}

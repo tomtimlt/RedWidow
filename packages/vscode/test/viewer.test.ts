@@ -116,6 +116,11 @@ function mount(kind: ViewerKind, saved?: unknown) {
   const nodes = new Map(IDS.map((id) => [id, new Stub("div", id)]));
   const node = (id: string) => nodes.get(id) as Stub;
   node("viewer-follow").setAttribute("aria-pressed", "true");
+  if (kind === "monitor") {
+    const family = new Stub("select", "viewer-family");
+    family.value = "all";
+    nodes.set("viewer-family", family);
+  }
   const sent: Record<string, unknown>[] = [];
   const copied: string[] = [];
   let receive: (event: { data: unknown }) => void = () => {};
@@ -297,7 +302,8 @@ describe("pages en lecture seule : DOM rendu", () => {
       view.post({ type: "view", view: kind === "report" ? REPORT : rowsView(SCAN, WHOIS) });
       const all = view.root.all();
       for (const n of all) {
-        expect(["textarea", "form", "select"]).not.toContain(n.tag);
+        expect(["textarea", "form"]).not.toContain(n.tag);
+        if (n.tag === "select") expect(n.id).toBe("viewer-family");
         expect(CHAT_CONTROLS, `${kind} #${n.id}`).not.toContain(n.id);
         expect(n.className.split(" ")).not.toContain("composer");
       }
@@ -336,12 +342,27 @@ describe("pages en lecture seule : DOM rendu", () => {
     view.filter("introuvable");
     expect(view.shownLines()).toEqual([]);
     expect(view.node("viewer-empty").hidden).toBe(false);
-    expect(view.node("viewer-empty").textContent).toBe("Aucune ligne ne contient ce texte.");
+    expect(view.node("viewer-empty").textContent).toBe("Aucun résultat pour ces filtres.");
     expect(view.node("viewer-strip").hidden).toBe(true);
     view.filter("");
     expect(view.shownLines()).toHaveLength(4);
     expect(view.node("viewer-empty").hidden).toBe(true);
     expect(view.node("viewer-count").textContent).toBe("2 commandes");
+  });
+
+  it("combine les filtres texte et famille dans le compteur", () => {
+    const view = mount("monitor");
+    const web = {
+      ...WHOIS,
+      tool: "mcp__web__http_request",
+      input: JSON.stringify({ url: "https://example.test" }),
+    };
+    view.post({ type: "view", view: rowsView(SCAN, web) });
+    view.filter("open");
+    view.node("viewer-family").value = "web";
+    view.node("viewer-family").fire("change");
+    expect(view.node("viewer-count").textContent).toBe("0 / 6 lignes");
+    expect(view.node("viewer-empty").hidden).toBe(false);
   });
 
   it("le filtre s'applique aussi aux constats du rapport", () => {

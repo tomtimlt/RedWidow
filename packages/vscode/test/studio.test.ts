@@ -137,6 +137,28 @@ describe("réglages", () => {
     expect(parseStudioMessage({ type: "openCours", enabled: true })).toBeNull();
   });
 
+  it("sélecteur de cours : aucun chemin fourni par la webview", () => {
+    expect(parseStudioMessage({ type: "coursePickDocument" })).toEqual({
+      type: "coursePickDocument",
+    });
+    expect(parseStudioMessage({ type: "coursePickDocument", path: "/etc/passwd" })).toBeNull();
+  });
+
+  it("progression du cours : booléen strict sans chemin ni projet", () => {
+    for (const completed of [true, false])
+      expect(parseStudioMessage({ type: "setCourseProgress", completed })).toEqual({
+        type: "setCourseProgress",
+        completed,
+      });
+    expect(parseStudioMessage({ type: "setCourseProgress", completed: "true" })).toBeNull();
+    expect(
+      parseStudioMessage({ type: "setCourseProgress", completed: true, path: "/etc" }),
+    ).toBeNull();
+    expect(
+      parseStudioMessage({ type: "setCourseProgress", completed: true, projectId: "x" }),
+    ).toBeNull();
+  });
+
   it("comptes : accepte uniquement un compte borné du projet actif", () => {
     const projectId = "11111111-1111-4111-8111-111111111111";
     const message = {
@@ -402,11 +424,9 @@ describe("feuille des réglages", () => {
     expect(css).toContain("--vscode-list-activeSelectionForeground");
   });
 
-  it("cartes au rayon lg, navigation en rangée sous 640 px", () => {
+  it("cartes au rayon lg, navigation compacte sous 640 px", () => {
     expect(css).toMatch(/\.studio-card \{[^}]*border-radius: var\(--jn-r-lg\)/);
-    expect(css).toMatch(
-      /@media \(max-width: 640px\) \{[\s\S]*#studio-nav \{\s*flex-direction: row;/,
-    );
+    expect(css).toMatch(/@media \(max-width: 640px\) \{[\s\S]*#studio-nav \{\s*display: grid;/);
   });
 
   it("les libellés des réglages restent visibles sous 360 px malgré le mode compact du chat", () => {
@@ -772,6 +792,7 @@ class StudioNode {
       listener(event);
     });
   }
+  focus() {}
   fire(type: string, event: Record<string, unknown> = {}) {
     this.listeners.get(type)?.(event);
   }
@@ -1113,9 +1134,25 @@ it("projets : conteneur obligatoire, création, dossier existant, import et dép
   const choose = find((n) => n.id === "project-choice");
   const activate = find((n) => n.textContent === "Activer le projet");
   expect(activate.disabled).toBe(true);
+  expect(activate.hidden).toBe(true);
+  expect(find((n) => n.textContent === "Actif")).toBeDefined();
+  const management = find((n) => n.className === "studio-project-management");
+  expect(management.tag).toBe("details");
+  expect(management.find((n) => n.textContent === "Gérer le projet sélectionné")?.tag).toBe(
+    "summary",
+  );
+  for (const id of [
+    "project-export",
+    "project-rename",
+    "project-delete",
+    "project-program",
+    "project-engagement",
+  ])
+    expect(management.find((n) => n.id === id)).toBeDefined();
   choose.value = second;
   choose.fire("change");
   expect(activate.disabled).toBe(false);
+  expect(activate.hidden).toBe(false);
   activate.fire("click");
   expect(sent.at(-1)).toEqual({ type: "activateProject", projectId: second });
   createTab.fire("click");
@@ -1892,6 +1929,18 @@ describe("page Audit : couverture", () => {
         },
       });
     show(1);
+    const registry = main.find((node) => node.className === "audit-tests")!;
+    expect(registry.find((node) => node.id === "audit-registry-title")?.textContent).toBe(
+      "Registre des contrôles",
+    );
+    expect(
+      registry.find(
+        (node) => node.getAttribute("aria-label") === "Pages du registre des contrôles",
+      ),
+    ).toBeDefined();
+    expect(main.find((node) => node.id === "audit-export")?.textContent).toBe(
+      "Exporter l’archive d’audit du projet (.zip)…",
+    );
     expect(main.find((node) => node.className === "coverage-banner")?.textContent).toBe(
       "1 faille confirmée",
     );
@@ -2097,3 +2146,201 @@ it("n'affiche aucune étiquette de précision pour une ancienne trouvaille", () 
   find("kc-node").fire("click");
   expect(find("kc-card-meta").textContent).not.toMatch(/Gravité|Preuve :|Retest/);
 });
+
+it("comptes : un refus conserve les champs ordinaires et exige de ressaisir le secret", () => {
+  const main = new StudioNode("main");
+  const sent: unknown[] = [];
+  let receive: (event: { data: unknown }) => void = () => {};
+  runInNewContext(read(studioJs), {
+    TextEncoder,
+    setTimeout,
+    clearTimeout,
+    acquireVsCodeApi: () => ({ postMessage: (message: unknown) => sent.push(message) }),
+    document: {
+      addEventListener() {},
+      body: new StudioNode("body"),
+      getElementById: (id: string) => (id === "studio-main" ? main : null),
+      createElement: (tag: string) => new StudioNode(tag),
+    },
+    window: {
+      WarbandIcons: { create: () => new StudioNode("svg") },
+      addEventListener: (type: string, listener: typeof receive) => {
+        if (type === "message") receive = listener;
+      },
+    },
+  });
+  const projectId = "11111111-1111-4111-8111-111111111111";
+  const view = {
+    type: "view",
+    page: "accounts",
+    projectId,
+    projectChoices: { activeId: projectId, projects: [{ id: projectId, name: "Alpha" }] },
+    testAccounts: [],
+  };
+  receive({ data: view });
+  const field = (name: string) =>
+    main.find((node) => (node as StudioNode & { name?: string }).name === name)!;
+  const find = (text: string) => main.find((node) => node.textContent === text);
+  for (const [name, value] of [
+    ["label", "A"],
+    ["host", "example.org"],
+    ["identifier", "alice"],
+    ["secret", "private-value"],
+  ] as const) {
+    field(name).value = value;
+    field(name).fire("input");
+  }
+  expect(find("Projet actif : Alpha")).toBeDefined();
+  main.find((node) => node.tag === "form")!.fire("submit", { preventDefault() {} });
+  expect(find("Enregistrement en cours…")).toBeDefined();
+  expect(field("secret").value).toBe("");
+  expect(sent.at(-1)).toMatchObject({ type: "saveTestAccount", projectId });
+  receive({ data: { type: "testAccountSaveResult", projectId, success: false } });
+  expect(find("Enregistrement impossible. Ressaisissez le secret et réessayez.")).toBeDefined();
+  expect(field("identifier").value).toBe("alice");
+  receive({ data: { ...view, testAccounts: [{ label: "B" }] } });
+  expect(field("label").value).toBe("A");
+  expect(field("host").value).toBe("example.org");
+  expect(field("identifier").value).toBe("alice");
+  expect(field("secret").value).toBe("");
+});
+
+it("Atlas : navigation, texte non interprété et reprise en anglais", () => {
+  const main = new StudioNode("main");
+  const sent: unknown[] = [];
+  let receive: (event: { data: unknown }) => void = () => {};
+  runInNewContext(read(studioJs), {
+    TextEncoder,
+    setTimeout,
+    clearTimeout,
+    acquireVsCodeApi: () => ({ postMessage: (message: unknown) => sent.push(message) }),
+    WarbandI18n: { getLocale: () => "en", t: (s: string) => s },
+    document: {
+      addEventListener() {},
+      body: new StudioNode("body"),
+      getElementById: (id: string) => (id === "studio-main" ? main : null),
+      createElement: (tag: string) => new StudioNode(tag),
+    },
+    window: {
+      WarbandIcons: { create: () => new StudioNode("svg") },
+      addEventListener: (type: string, listener: typeof receive) => {
+        if (type === "message") receive = listener;
+      },
+    },
+  });
+  const view = {
+    type: "view",
+    page: "atlas",
+    courseSource: "a",
+    courseDocument: "b",
+    courseSources: [{ id: "a", name: "Cours" }],
+    courseDocuments: [{ id: "b", name: "lecon.md" }],
+    courseContent: { sections: ["Premier", "<script>factice</script>"] },
+    courseSection: 1,
+  };
+  receive({ data: view });
+  expect(main.find((n) => n.tag === "pre")?.textContent).toBe("<script>factice</script>");
+  expect(main.find((n) => n.textContent === "2 / 2")).toBeDefined();
+  main.find((n) => n.textContent === "Previous")?.fire("click");
+  expect(sent.at(-1)).toEqual({ type: "courseSection", section: 0 });
+  main.find((n) => n.textContent === "Back")?.fire("click");
+  expect(sent.at(-1)).toEqual({ type: "courseBack" });
+});
+
+it.each([280, 320, 420])(
+  "navigation compacte au clavier à %i px, en français et anglais",
+  (width) => {
+    for (const locale of ["fr", "en"] as const) {
+      const main = new StudioNode("main");
+      const nav = new StudioNode("nav");
+      const sent: unknown[] = [];
+      let receive: (event: { data: unknown }) => void = () => {};
+      const translator = createUiTranslator(() => locale);
+      runInNewContext(read(studioJs), {
+        TextEncoder,
+        setTimeout,
+        clearTimeout,
+        WarbandI18n: { t: translator, getLocale: () => locale },
+        acquireVsCodeApi: () => ({ postMessage: (message: unknown) => sent.push(message) }),
+        document: {
+          addEventListener() {},
+          body: new StudioNode("body"),
+          getElementById: (id: string) =>
+            id === "studio-main" ? main : id === "studio-nav" ? nav : null,
+          createElement: (tag: string) => new StudioNode(tag),
+        },
+        window: {
+          matchMedia: () => ({ matches: width <= 640 }),
+          WarbandIcons: { create: () => new StudioNode("svg") },
+          addEventListener: (type: string, listener: typeof receive) => {
+            if (type === "message") receive = listener;
+          },
+        },
+      });
+      receive({
+        data: { type: "view", page: "project", projectChoices: { activeId: null, projects: [] } },
+      });
+      const toggle = nav.find((node) => node.className.includes("studio-nav-toggle"))!;
+      expect(toggle.textContent).toBe(locale === "fr" ? "Réglages : Projet" : "Settings : Project");
+      expect(toggle.getAttribute("aria-expanded")).toBe("false");
+      toggle.fire("click");
+      expect(toggle.getAttribute("aria-expanded")).toBe("true");
+      let focused = false;
+      toggle.focus = () => {
+        focused = true;
+      };
+      nav
+        .find((node) => node.id === "studio-nav-content")!
+        .fire("keydown", { key: "Escape", preventDefault() {} });
+      expect(toggle.getAttribute("aria-expanded")).toBe("false");
+      expect(focused).toBe(true);
+      toggle.fire("click");
+      nav.find((node) => node.dataset.page === "accounts")!.fire("click");
+      const next = nav.find((node) => node.className.includes("studio-nav-toggle"))!;
+      expect(next.getAttribute("aria-expanded")).toBe("false");
+      expect(next.textContent).toContain(locale === "fr" ? "Comptes de test" : "Test accounts");
+      expect(sent).toContainEqual({ type: "open", page: "accounts" });
+    }
+  },
+);
+
+it.each(["fr", "en"])(
+  "Atlas informe de l’indisponibilité des documents sur la plateforme : %s",
+  (locale) => {
+    const main = new StudioNode("main");
+    let receive: (event: { data: unknown }) => void = () => {};
+    runInNewContext(read(studioJs), {
+      TextEncoder,
+      setTimeout,
+      clearTimeout,
+      WarbandI18n: { getLocale: () => locale, t: (s: string) => s },
+      acquireVsCodeApi: () => ({ postMessage() {} }),
+      document: {
+        addEventListener() {},
+        body: new StudioNode("body"),
+        getElementById: (id: string) => (id === "studio-main" ? main : null),
+        createElement: (tag: string) => new StudioNode(tag),
+      },
+      window: {
+        WarbandIcons: { create: () => new StudioNode("svg") },
+        addEventListener: (type: string, listener: typeof receive) => {
+          if (type === "message") receive = listener;
+        },
+      },
+    });
+    receive({ data: { type: "view", page: "atlas", courseDocumentsAvailable: false } });
+    expect(
+      main.find((n) =>
+        n.textContent.includes(
+          locale === "fr" ? "choisissez chaque document" : "choose each document",
+        ),
+      ),
+    ).toBeDefined();
+    expect(main.find((n) => n.textContent === "Ouvrir le dossier de cours")).toBeDefined();
+    expect(
+      main.find(
+        (n) => n.textContent === (locale === "fr" ? "Choisir un document" : "Choose a document"),
+      ),
+    ).toBeDefined();
+  },
+);

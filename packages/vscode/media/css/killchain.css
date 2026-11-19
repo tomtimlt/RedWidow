@@ -63,6 +63,9 @@ body.killchain-full .studio-kc {
   max-width: calc(100% - var(--jn-s2) * 2);
   flex-wrap: wrap;
 }
+.kc-export-help {
+  flex-basis: 100%;
+}
 body.killchain-full .kc-bar {
   position: relative;
   grid-column: 1 / -1;

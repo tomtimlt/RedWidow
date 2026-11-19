@@ -114,7 +114,7 @@
       body,
       button(
         halt.active ? "ghost" : "primary",
-        halt.active ? t("Lever l'arrêt…") : t("Activer…"),
+        halt.active ? t("Lever l'arrêt…") : t("Activer l'arrêt d'urgence…"),
         send(halt.active ? "resume" : "halt"),
       ),
     );
@@ -381,6 +381,10 @@
     if (msg.type === "error" && typeof msg.text === "string") {
       lastError = msg.text;
       if (lastView) render(lastView);
+      else {
+        while (main.firstChild) main.removeChild(main.firstChild);
+        main.append(el("p", "cockpit-error", lastError));
+      }
       return;
     }
     if (msg.type !== "view" || typeof msg.view !== "object" || msg.view === null) return;

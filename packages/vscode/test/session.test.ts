@@ -16,7 +16,11 @@ import type {
 import { ModelProbeError } from "../src/logic/model-load-error.js";
 import { programDraftPrompt, programDraftSettings } from "../src/logic/program-controls.js";
 import type { StartParams } from "../src/logic/protocol.js";
-import { createChatSession, MODEL_LOAD_TIMEOUT_MS } from "../src/logic/session.js";
+import {
+  createChatSession,
+  MODEL_LOAD_TIMEOUT_MS,
+  openHistoryInNewChat,
+} from "../src/logic/session.js";
 
 const ev = (e: Record<string, unknown>) => e as unknown as EngineEvent;
 
@@ -2414,4 +2418,31 @@ it.each([
     ]),
   );
   t.session.dispose();
+});
+
+describe("lecture de l’historique dans un nouveau chat", () => {
+  it("route une entrée connue vers une session distincte sans toucher la source", async () => {
+    const source = setup().session;
+    const view = source.view();
+    view.history = [{ id: "entry" }] as typeof view.history;
+    const sourceView = vi.spyOn(source, "view").mockReturnValue(view);
+    const sourceOpen = vi.spyOn(source, "openConversation");
+    const target = { openConversation: vi.fn().mockResolvedValue(undefined) };
+    await openHistoryInNewChat(source, "entry", () => target);
+    expect(target.openConversation).toHaveBeenCalledWith("entry");
+    expect(sourceOpen).not.toHaveBeenCalled();
+    sourceView.mockRestore();
+  });
+
+  it("ne crée aucun chat pour une entrée inconnue et tolère la limite atteinte", async () => {
+    const source = setup().session;
+    const create = vi.fn(() => undefined);
+    await openHistoryInNewChat(source, "inconnue", create);
+    expect(create).not.toHaveBeenCalled();
+    const view = source.view();
+    view.history = [{ id: "entry" }] as typeof view.history;
+    vi.spyOn(source, "view").mockReturnValue(view);
+    await openHistoryInNewChat(source, "entry", create);
+    expect(create).toHaveBeenCalledOnce();
+  });
 });

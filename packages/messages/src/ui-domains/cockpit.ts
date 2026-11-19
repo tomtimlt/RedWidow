@@ -1,5 +1,8 @@
 // Libellés de la webview, indexés par leur texte français.
 export const cockpitEn: Record<string, string> = {
+  "Ouvrir le terminal": "Open terminal",
+  "Ouvrir le dossier du projet": "Open project folder",
+  "Conteneur lié absent : {0}": "Linked container missing: {0}",
   "Créer un conteneur pour ce projet": "Create a container for this project",
   "Choisir un autre conteneur": "Choose another container",
   "Créer un conteneur pour ce projet est recommandé.":

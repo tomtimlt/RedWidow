@@ -97,7 +97,7 @@
         el(
           "p",
           "session-empty",
-          tiles.length === 0 ? t("Aucune session ouverte.") : t("Aucune session n’attend de toi."),
+          tiles.length === 0 ? t("Aucune session ouverte.") : t("Aucune session à examiner."),
         ),
       );
       return;

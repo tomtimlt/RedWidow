@@ -28,8 +28,8 @@ export const resourcesEn: Record<string, string> = {
   "Recherche web": "Web search",
   "Le mode Apprentissage lit seulement les cours du dossier de cours.":
     "Learning mode only reads the courses in the course folder.",
-  "Activer ou désactiver ici met aussi à jour les réglages. Les actions restent soumises aux approbations.":
-    "Turning a capability on or off here also updates the settings. Actions still require the usual approvals.",
+  "Les méthodes se choisissent pour cette conversation. Pour rendre une méthode disponible, modifiez warband.chat.skills dans les paramètres VS Code. Les bascules MCP, Burp et recherche web modifient leur disponibilité pour toutes les conversations. Les actions restent soumises aux approbations.":
+    "Methods are selected for this conversation. To make a method available, edit warband.chat.skills in VS Code settings. MCP, Burp and web search toggles change their availability for all conversations. Actions still require the usual approvals.",
   "en pause": "paused",
   "Fournisseurs IA": "AI providers",
   "Configurez une connexion, puis activez son accès dans le chat. Les clés restent dans le stockage sécurisé ou le gestionnaire du fournisseur.":

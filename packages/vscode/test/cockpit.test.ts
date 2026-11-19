@@ -395,8 +395,12 @@ describe("parseCockpitMessage", () => {
       type: "setPrimary",
       name: "a".repeat(256),
     });
-    // Le choix du terminal vient toujours de l'extension, jamais de la webview.
-    expect(parseCockpitMessage({ type: "terminal", name: "a" })).toBeNull();
+    // L'hôte revalide le nom parmi les conteneurs liés et démarrés.
+    expect(parseCockpitMessage({ type: "terminal", name: "a" })).toEqual({
+      type: "terminal",
+      name: "a",
+    });
+    expect(parseCockpitMessage({ type: "terminal", name: "" })).toBeNull();
     expect(parseWebviewMessage({ type: "start", name: "a" })).toBeNull();
     expect(parseWebviewMessage({ type: "create" })).toBeNull();
     expect(parseWebviewMessage({ type: "refresh" })).toBeNull();

@@ -93,6 +93,14 @@ import {
 } from "../logic/container-root.js";
 import { notifyWaitingHuman } from "../logic/continuation-notification.js";
 import { createEngineController } from "../logic/controller.js";
+import {
+  courseDocumentsAvailable,
+  listCourseDocuments,
+  listCourseSources,
+  readCourseDocument,
+  readSelectedCourseDocument,
+  restoreCourseSection,
+} from "../logic/course-library.js";
 import { awaitCreatedContainer } from "../logic/created-container-link.js";
 import { prepareEditorShellWorkspace } from "../logic/editor-shell-workspace.js";
 import type { Provider } from "../logic/effort.js";
@@ -179,6 +187,7 @@ import { repoPolicyState, trustRepoPolicy } from "../logic/repo-policy.js";
 import {
   type ChatSession,
   createChatSession,
+  openHistoryInNewChat,
   type TokenChoice,
   type TokenHint,
 } from "../logic/session.js";
@@ -533,7 +542,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   let refreshLocaleTitles = () => {};
   let refreshReportLocale = () => {};
   let capabilityWrite: Promise<void> = Promise.resolve();
-  /** Bascule d'une capacité depuis le chat : écrit l'ajout ou le retrait dans `chat.*`, puis la sélection. */
+  /** Les méthodes restent locales ; les autres capacités conservent leur réglage machine. */
   const toggleCapability = (
     toggle: CapabilityToggle,
     selection: ChatSelection,
@@ -1321,11 +1330,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         case "selectProvider":
           return await s.selectProvider(message.id);
         case "setCapability": {
-          // Bascule activer/désactiver dans le chat : l'hôte écrit l'ajout ou le retrait dans `chat.*`.
+          // Les méthodes restent propres à cette conversation.
           const current = s.view().capabilities?.selection;
           if (s.view().busy || s.view().readonly || !current) return;
           const next = await toggleCapability(message.toggle, current);
-          return next ? s.setSelection(next) : undefined;
+          return s.setSelection(next ?? s.view().capabilities?.selection);
         }
         case "setProvider": {
           const entry = providerChoices(readSettings()).find((p) => p.backend === message.provider);
@@ -1527,7 +1536,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         case "historyRefresh":
           return await s.refreshHistoryProjects();
         case "historyOpen":
-          return await s.openConversation(message.id);
+          return await openHistoryInNewChat(s, message.id, () => {
+            const target = openEditorChat();
+            return target === undefined ? undefined : slots.get(target)?.session;
+          });
         case "historyResume":
           if (projectChanging) return;
           if (!(await projectWorkspaceReady()) || projectChanging) return;
@@ -1937,6 +1949,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             // Candidats = conteneurs liés au projet actif ET en cours ; jamais mémorisé.
             const view = await loadCockpitView();
             const choices = linkedTerminalChoices(view.containers);
+            if (typeof message.name === "string") {
+              const selected = choices.find((item) => item.name === message.name);
+              if (selected) await openEditorShell(selected.name);
+              return;
+            }
             if (choices.length === 0) return;
             const only = choices.length === 1 ? choices[0] : undefined;
             if (only !== undefined) {
@@ -2331,7 +2348,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (current?.panel) {
       current.panel.reveal();
       setActive(id);
-      return;
+      return id;
     }
     try {
       getSession(id);
@@ -2347,6 +2364,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       {
         enableScripts: true,
         enableCommandUris: false,
+        retainContextWhenHidden: true,
         localResourceRoots: [media],
       },
     );
@@ -2380,6 +2398,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     );
     setActive(id);
     void saveWindows();
+    return id;
   };
   const openWatch = (toolUseId: string) => {
     const chatId = activeId;
@@ -3224,6 +3243,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   };
 
   let studioPage: StudioPage = "project";
+  let courseSource: string | null = null;
+  let courseDocument: string | null = null;
+  let courseSection = 0;
+  let pickedCourse: { id: string; name: string; sections: string[] } | null = null;
   let projectChanging = false;
   const chatsBusy = () => [...slots.values()].some((slot) => slot.session?.view().busy);
   /**
@@ -3428,6 +3451,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         : undefined;
     // Sources de cours (lecture seule) : seulement pour l'Atlas, racine fixée par l'hôte.
     const sources = studioPage === "atlas" ? await readSources(coursRoot()) : [];
+    const courseSources = studioPage === "atlas" ? await listCourseSources(coursRoot()) : [];
+    const courseDocuments =
+      studioPage === "atlas" && courseSource
+        ? await listCourseDocuments(coursRoot(), courseSource)
+        : [];
+    const courseContent =
+      studioPage === "atlas" && pickedCourse
+        ? { sections: pickedCourse.sections }
+        : studioPage === "atlas" && courseSource && courseDocument
+          ? await readCourseDocument(coursRoot(), courseSource, courseDocument)
+          : null;
     let audit: AuditView | undefined;
     let auditError = feedback.auditError;
     if (studioPage === "audit" && projectChoices.activeId) {
@@ -3475,6 +3509,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           page: studioPage,
           findings,
           sources,
+          courseCompleted: context.globalState.get("warband.course.redaction.completed") === true,
+          courseDocumentsAvailable: courseDocumentsAvailable(),
+          courseSources,
+          courseDocuments,
+          courseSource: pickedCourse ? "picked" : courseSource,
+          courseDocument: pickedCourse ? pickedCourse.id : courseDocument,
+          coursePickedName: pickedCourse?.name,
+          courseContent,
+          courseSection: courseContent
+            ? Math.min(courseSection, courseContent.sections.length - 1)
+            : 0,
           ...(repoPolicy !== undefined && { repoPolicy }),
           projectSummary,
           projectChoices,
@@ -4158,10 +4203,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         return;
       }
       if (!studioReady) return;
-      if (message.type === "openWorkspace" || message.type === "prepareMission") {
-        await vscode.commands.executeCommand(
-          message.type === "openWorkspace" ? "warband.openWorkspace" : "warband.prepareMission",
-        );
+      if (message.type === "openWorkspace") {
+        await openActiveProjectWorkspace(defaultConfigDir(), projectWorkspaceHost, "selection");
+        return;
+      }
+      if (message.type === "arrangePanels") {
+        await vscode.commands.executeCommand("vscode.setEditorLayout", {
+          orientation: 1,
+          groups: [{ size: 0.58 }, { size: 0.42 }],
+        });
+        openKillchain();
+        openMonitor(vscode.ViewColumn.Two);
+        await vscode.commands.executeCommand("warband.chat.focus");
+        await context.workspaceState.update("warband.layoutOpened", true);
+        return;
+      }
+      if (message.type === "prepareMission") {
+        await vscode.commands.executeCommand("warband.prepareMission");
         return;
       }
       if (message.type === "exportAudit") {
@@ -4461,9 +4519,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           if (!current || activeProject(current)?.id !== active.id || projectChanging)
             throw new CodedError("project.absent");
           await context.secrets.store(accountKey(active.id), JSON.stringify(next));
+          if (message.type === "saveTestAccount")
+            await panel.webview.postMessage({
+              type: "testAccountSaveResult",
+              projectId: message.projectId,
+              success: true,
+            });
           for (const slot of slots.values()) slot.session?.testAccountsChanged();
           await pushStudio();
         } catch {
+          if (message.type === "saveTestAccount")
+            await panel.webview.postMessage({
+              type: "testAccountSaveResult",
+              projectId: message.projectId,
+              success: false,
+            });
           void vscode.window.showErrorMessage(t("Impossible d’enregistrer les comptes de test."));
         }
         return;
@@ -4748,7 +4818,75 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         return;
       }
 
+      if (message.type === "coursePickDocument" && studioPage === "atlas") {
+        const selected = await vscode.window.showOpenDialog({
+          canSelectMany: false,
+          canSelectFiles: true,
+          canSelectFolders: false,
+          filters: { "Markdown / Text": ["md", "txt"] },
+        });
+        const uri = selected?.[0];
+        if (uri?.scheme === "file") {
+          const document = await readSelectedCourseDocument(uri.fsPath);
+          if (document) {
+            const id = createHash("sha256").update(uri.fsPath).digest("hex");
+            pickedCourse = { id, name: basename(uri.fsPath), sections: document.sections };
+            const saved = context.globalState.get<unknown>(`warband.course.picked.${id}`);
+            courseSection = restoreCourseSection(saved, document.sections.length);
+          } else {
+            void vscode.window.showErrorMessage(
+              getUiLocale() === "en"
+                ? "Unable to read this course document."
+                : "Impossible de lire ce document de cours.",
+            );
+          }
+        }
+      }
+      if (message.type === "courseSource") {
+        if ((await listCourseSources(coursRoot())).some((entry) => entry.id === message.id)) {
+          courseSource = message.id;
+          courseDocument = null;
+        }
+      }
+      if (message.type === "courseDocument" && courseSource) {
+        const document = await readCourseDocument(coursRoot(), courseSource, message.id);
+        if (document) {
+          courseDocument = message.id;
+          const saved = context.globalState.get<unknown>(
+            `warband.course.position.${courseSource}.${message.id}`,
+          );
+          courseSection =
+            typeof saved === "number" && Number.isSafeInteger(saved) && saved >= 0 && saved < 200
+              ? saved
+              : 0;
+        }
+      }
+      if (
+        message.type === "courseSection" &&
+        pickedCourse &&
+        message.section < pickedCourse.sections.length
+      ) {
+        courseSection = message.section;
+        await context.globalState.update(`warband.course.picked.${pickedCourse.id}`, courseSection);
+      }
+      if (message.type === "courseSection" && !pickedCourse && courseSource && courseDocument) {
+        const document = await readCourseDocument(coursRoot(), courseSource, courseDocument);
+        if (document && message.section < document.sections.length) {
+          courseSection = message.section;
+          await context.globalState.update(
+            `warband.course.position.${courseSource}.${courseDocument}`,
+            courseSection,
+          );
+        }
+      }
+      if (message.type === "courseBack") {
+        if (pickedCourse) pickedCourse = null;
+        else if (courseDocument) courseDocument = null;
+        else courseSource = null;
+      }
       if (message.type === "openCours") await openCoursFolder();
+      if (message.type === "setCourseProgress")
+        await context.globalState.update("warband.course.redaction.completed", message.completed);
       if (message.type === "trustRepoPolicy") {
         await approveRepoPolicy();
         return;

@@ -103,6 +103,7 @@ export type StudioMessage =
   | { type: "openEngagement" }
   | { type: "unlink" }
   | { type: "openWorkspace" }
+  | { type: "arrangePanels" }
   | { type: "prepareMission" }
   | { type: "refreshProviderCatalog" }
   | { type: "configureBurp" }
@@ -134,6 +135,13 @@ export type StudioMessage =
   | { type: "setPathEdge"; projectId: string; from: string; to: string; retained: boolean }
   /** Ouvre le dossier de cours : aucun champ, le chemin vient de l'hôte (`coursRoot()`). */
   | { type: "openCours" }
+  /** Progression personnelle du cours embarqué, indépendante du projet actif. */
+  | { type: "setCourseProgress"; completed: boolean }
+  | { type: "courseSource"; id: string }
+  | { type: "courseDocument"; id: string }
+  | { type: "courseSection"; section: number }
+  | { type: "courseBack" }
+  | { type: "coursePickDocument" }
   /** Ouvre la Kill chain en vue plein écran (hôte seul). */
   | { type: "openKillchain" }
   /** Aucun champ : l'hôte déduit le chemin du dossier de la fenêtre et exige une modale humaine. */
@@ -299,6 +307,7 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
   if (
     (m.type === "refreshProviderCatalog" ||
       m.type === "openWorkspace" ||
+      m.type === "arrangePanels" ||
       m.type === "prepareMission") &&
     keys.length === 1
   )
@@ -361,6 +370,26 @@ export function parseStudioMessage(raw: unknown): StudioMessage | null {
     return { type: "relocateProject", projectId: m.projectId, container: m.container };
   if (m.type === "unlink" && keys.length === 1) return { type: "unlink" };
   if (m.type === "openCours" && keys.length === 1) return { type: "openCours" };
+  if (m.type === "setCourseProgress" && keys.length === 2 && typeof m.completed === "boolean")
+    return { type: "setCourseProgress", completed: m.completed };
+  if (
+    (m.type === "courseSource" || m.type === "courseDocument") &&
+    keys.length === 2 &&
+    typeof m.id === "string" &&
+    /^[a-f0-9]{64}$/.test(m.id)
+  )
+    return { type: m.type, id: m.id };
+  if (
+    m.type === "courseSection" &&
+    keys.length === 2 &&
+    typeof m.section === "number" &&
+    Number.isSafeInteger(m.section) &&
+    m.section >= 0 &&
+    m.section < 200
+  )
+    return { type: "courseSection", section: m.section };
+  if (m.type === "courseBack" && keys.length === 1) return { type: "courseBack" };
+  if (m.type === "coursePickDocument" && keys.length === 1) return { type: "coursePickDocument" };
   if (m.type === "openKillchain" && keys.length === 1) return { type: "openKillchain" };
   if (m.type === "trustRepoPolicy" && keys.length === 1) return { type: "trustRepoPolicy" };
   if (

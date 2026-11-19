@@ -41,7 +41,18 @@ describe("panneau Sessions", () => {
     expect(html).toContain("script-src 'nonce-abc123'");
     expect(html).toContain("media/sessions.js");
     expect(html).toContain('id="filter-awaiting"');
-    expect(html).toContain("En attente de toi");
+    expect(html).toContain("À examiner");
+    for (const label of ["Compact", "Standard", "Détaillé"])
+      expect(html).toContain(`aria-label="${label}"`);
+    const english = sessionsHtml({
+      nonce: "abc123",
+      cspSource: "https://x.vscode-cdn.net",
+      scriptUri: "https://x.vscode-cdn.net/media/sessions.js",
+      styleUri: "https://x.vscode-cdn.net/media/css/sessions.css",
+      locale: "en",
+    });
+    expect(english).toContain("Needs review");
+    expect(english).toContain('aria-label="Detailed"');
     for (const size of ["s", "m", "l"]) expect(html).toContain(`id="size-${size}"`);
     expect(html).not.toContain("onclick");
   });

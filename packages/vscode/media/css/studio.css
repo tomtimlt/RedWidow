@@ -15,6 +15,15 @@
   background: var(--jn-drawer-bg);
   overflow: auto;
 }
+.studio-nav-toggle {
+  display: none;
+}
+.studio-nav-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--jn-s4);
+  min-width: 0;
+}
 .studio-nav-title {
   position: relative;
   display: flex;
@@ -471,6 +480,16 @@ select.studio-project-control {
   white-space: normal;
   line-height: 1.3;
 }
+.studio-project-management summary {
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.studio-project-management > button {
+  display: flex;
+  max-width: 100%;
+  white-space: normal;
+  text-align: left;
+}
 .studio-nav-project {
   display: flex;
   flex-direction: column;
@@ -495,43 +514,36 @@ select.studio-project-control {
 }
 @media (max-width: 640px) {
   #studio-nav {
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    gap: var(--jn-s2) var(--jn-s3);
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: var(--jn-s2);
     padding: var(--jn-s2) var(--jn-s3);
     border-right: 0;
     border-bottom: 1px solid var(--jn-line);
+    overflow: visible;
   }
   .studio-nav-title {
-    flex: 0 0 auto;
     padding-bottom: var(--jn-s2);
   }
-  .studio-nav-project {
-    flex: 1 1 auto;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 2px 8px;
-    padding: 4px 8px;
+  .studio-nav-toggle {
+    display: flex;
+    justify-content: space-between;
+    min-width: 0;
+    white-space: normal;
+    text-align: left;
   }
-  .studio-group-title {
+  .studio-nav-toggle::after {
+    content: "▾";
+    margin-left: var(--jn-s2);
+  }
+  .studio-nav-content {
+    grid-column: 1 / -1;
+    max-height: min(50vh, 24rem);
+    overflow: auto;
+  }
+  .studio-nav-toggle[aria-expanded="false"] + .studio-nav-content {
     display: none;
-  }
-  .studio-group {
-    flex: 1 1 100%;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 2px;
-  }
-  .studio-group + .studio-group {
-    margin-top: calc(-1 * var(--jn-s2));
-  }
-  .studio-nav-btn {
-    width: auto;
-    min-height: 30px;
-    padding: 0 12px;
   }
   .studio-dl {
     grid-template-columns: minmax(0, 1fr);

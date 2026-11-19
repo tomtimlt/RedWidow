@@ -443,17 +443,39 @@ it("la fermeture du panneau réaffiche le bouton et lui rend le focus", () => {
   expect(ui.active()).toBe(ui.field("cockpit-create-toggle"));
 });
 
-it("la carte liée affiche image et dossier sans repli, et l'ordre suit le lien", () => {
+it("le conteneur lié apparaît une seule fois et ouvre son terminal", () => {
   const ui = cockpit();
-  expect(sectionOrder(ui.main)).toEqual(["create", "cockpit-list"]);
   ui.send({
     ...ui.view,
+    containers: [
+      {
+        name: "lab",
+        short: "lab",
+        family: "kali",
+        image: "kali",
+        state: "running",
+        linked: true,
+        workspace: "/w",
+      },
+    ],
     linkedBanner: { name: "lab", short: "lab", state: "running", image: "kali", workspace: "/w" },
   });
-  expect(ui.main.find((n) => n.tag === "details")).toBeUndefined();
-  expect(ui.main.find((n) => n.textContent === "Dossier et image")).toBeUndefined();
-  expect(ui.main.find((n) => n.tag === "dl")).toBeDefined();
+  expect(sectionOrder(ui.main)).toEqual(["cockpit-list", "create"]);
+  ui.button("Ouvrir le terminal").click();
+  expect(ui.sent).toContainEqual({ type: "terminal", name: "lab" });
+  ui.button("Ouvrir le dossier du projet").click();
+  expect(ui.sent).toContainEqual({ type: "openWorkspace" });
+});
+
+it("un conteneur lié absent garde l'accès au dossier", () => {
+  const ui = cockpit();
+  ui.send({
+    ...ui.view,
+    linkedBanner: { name: "missing", short: "missing", state: "absent", workspace: "/w" },
+  });
   expect(sectionOrder(ui.main)).toEqual(["cockpit-linked", "cockpit-list", "create"]);
+  ui.button("Ouvrir le dossier du projet").click();
+  expect(ui.sent).toContainEqual({ type: "openWorkspace" });
 });
 
 // ── Refonte : stepper, état de réussite, échec, rechargement ──

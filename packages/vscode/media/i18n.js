@@ -343,6 +343,13 @@
     " conversation": " conversation",
     "Activité de la conversation": "Conversation activity",
     "Tout effacer": "Clear all",
+    "Effacer tout l’historique": "Clear all history",
+    "Nouveau fil": "New conversation",
+    "Suivi des activités": "Activity monitor",
+    Suivi: "Activity",
+    "Actions du chat": "Chat actions",
+    "Joindre ou citer": "Attach or mention",
+    "Exporter le fil": "Export conversation",
     "Fermer l'historique (Échap)": "Close history (Escape)",
     "Fermer l'historique": "Close history",
     "Navigation dans les messages": "Message navigation",
@@ -485,6 +492,9 @@
 
   // packages/messages/src/ui-domains/cockpit.ts
   var cockpitEn = {
+    "Ouvrir le terminal": "Open terminal",
+    "Ouvrir le dossier du projet": "Open project folder",
+    "Conteneur lié absent : {0}": "Linked container missing: {0}",
     "Créer un conteneur pour ce projet": "Create a container for this project",
     "Choisir un autre conteneur": "Choose another container",
     "Créer un conteneur pour ce projet est recommandé.":
@@ -633,6 +643,7 @@
       "Inactive. One gesture is enough to refuse every agent action on this project.",
     "Lever l'arrêt…": "Lift the halt…",
     "Activer…": "Activate…",
+    "Activer l'arrêt d'urgence…": "Activate the emergency halt…",
     Autorisation: "Authorization",
     Mandant: "Principal",
     Référence: "Reference",
@@ -1494,8 +1505,8 @@
     "Recherche web": "Web search",
     "Le mode Apprentissage lit seulement les cours du dossier de cours.":
       "Learning mode only reads the courses in the course folder.",
-    "Activer ou désactiver ici met aussi à jour les réglages. Les actions restent soumises aux approbations.":
-      "Turning a capability on or off here also updates the settings. Actions still require the usual approvals.",
+    "Les méthodes se choisissent pour cette conversation. Pour rendre une méthode disponible, modifiez warband.chat.skills dans les paramètres VS Code. Les bascules MCP, Burp et recherche web modifient leur disponibilité pour toutes les conversations. Les actions restent soumises aux approbations.":
+      "Methods are selected for this conversation. To make a method available, edit warband.chat.skills in VS Code settings. MCP, Burp and web search toggles change their availability for all conversations. Actions still require the usual approvals.",
     "en pause": "paused",
     "Fournisseurs IA": "AI providers",
     "Configurez une connexion, puis activez son accès dans le chat. Les clés restent dans le stockage sécurisé ou le gestionnaire du fournisseur.":
@@ -1528,7 +1539,8 @@
     Sessions: "Sessions",
     "{0} · Sessions": "{0} · Sessions",
     Toutes: "All",
-    "En attente de toi": "Waiting for you",
+    "À examiner": "Needs review",
+    Détaillé: "Detailed",
     Filtre: "Filter",
     "Taille des tuiles": "Tile size",
     "Au repos": "Idle",
@@ -1538,7 +1550,7 @@
     "Chat latéral": "Sidebar chat",
     Éditeur: "Editor",
     "Aucune session ouverte.": "No open session.",
-    "Aucune session n’attend de toi.": "No session is waiting for you.",
+    "Aucune session à examiner.": "No sessions need review.",
     "Ouvrir {0}": "Open {0}",
     "{0} approbation(s)": "{0} approval(s)",
     "Aucune activité": "No activity",
@@ -1546,6 +1558,29 @@
 
   // packages/messages/src/ui-domains/studio.ts
   var studioEn = {
+    Projets: "Projects",
+    "Projet sélectionné": "Selected project",
+    Actif: "Active",
+    "Gérer le projet sélectionné": "Manage selected project",
+    "Périmètre et règles du projet actif…": "Active project scope and rules…",
+    "Autorisation du projet actif…": "Active project authorization…",
+    "Exporter tout le graphe en SVG…": "Export the entire graph as SVG…",
+    "Le SVG comprend tous les nœuds, noms et liens, même masqués par le cadrage ou les filtres.":
+      "The SVG includes all nodes, names and links, even those hidden by the view or filters.",
+    "Exporter l’archive d’audit du projet (.zip)…": "Export the project audit archive (.zip)…",
+    "Pages du registre des contrôles": "Control register pages",
+    "Enregistrement en cours…": "Saving…",
+    "Compte enregistré.": "Account saved.",
+    "Enregistrement impossible. Ressaisissez le secret et réessayez.":
+      "Could not save. Re-enter the secret and try again.",
+    "Facultatifs : les comptes du projet actif peuvent être utilisés par l’agent. Les valeurs courtes peuvent rester lisibles dans les journaux.":
+      "Optional: the agent can use accounts from the active project. Short values may remain readable in logs.",
+    "Disposer les panneaux": "Arrange panels",
+    "Renommer le projet sélectionné…": "Rename selected project…",
+    "Supprimer le projet sélectionné…": "Delete selected project…",
+    "Exporter le projet sélectionné…": "Export selected project…",
+    "Périmètre et règles…": "Scope and rules…",
+    "Autorisation de mission…": "Mission authorization…",
     "Politique du dépôt": "Repository policy",
     "Exporter…": "Export…",
     "Exporter le projet": "Export the project",
@@ -1827,6 +1862,11 @@
     "Sortie — lecture seule": "Output — read-only",
     "Rapport — brouillon": "Report — draft",
     "Actions de la page": "Page actions",
+    "Copier le texte visible": "Copy visible text",
+    "Exporter le texte visible": "Export visible text",
+    "Exporter le rapport complet": "Export full report",
+    "Exporter le rapport complet en Markdown": "Export the full report as Markdown",
+    "Aucun résultat pour ces filtres.": "No results for these filters.",
     "Copier tout le contenu visible": "Copy all visible content",
     Exporter: "Export",
     "Enregistrer le contenu en texte": "Save the content as text",

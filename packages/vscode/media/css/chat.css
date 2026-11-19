@@ -5,8 +5,19 @@
 #effort:focus-visible {
   outline: none;
 }
-#history-btn {
+#monitor-btn {
   margin-left: auto;
+}
+#bar #monitor-btn .btn-text {
+  position: static;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip-path: none;
+}
+#bar #monitor-btn,
+#bar #chat-actions-btn {
+  flex-shrink: 0;
 }
 #sandbox {
   display: block;
@@ -2905,7 +2916,8 @@ body.vscode-high-contrast-light .brand-ops {
   overflow-wrap: anywhere;
 }
 /* Un point d’entrée pour le contexte et les outils de la conversation. */
-#composer-menu:not(:popover-open) {
+#composer-menu:not(:popover-open),
+#chat-actions:not(:popover-open) {
   display: none;
 }
 .composer-menu {

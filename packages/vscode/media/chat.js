@@ -848,6 +848,8 @@
   });
   const composerMenu = $("composer-menu");
   const composerMenuBtn = $("composer-menu-btn");
+  const chatActions = $("chat-actions");
+  const chatActionsBtn = $("chat-actions-btn");
   let lastCapabilities = null;
   const skillLabels = {
     mentor: "Mentor",
@@ -907,7 +909,7 @@
     const locked = !!view?.busy || !!view?.readonly || learning;
     const rows = [];
     const heading = (text) => rows.push(el("p", "composer-section", t(text)));
-    // Chaque capacité est une bascule activer/désactiver : l'hôte écrit l'ajout ou le retrait dans `chat.*`.
+    // Les méthodes sont locales ; les autres bascules modifient aussi les réglages machine.
     const choice = (label, checked, apply, toggle, unavailable = false) => {
       const row = el(
         "button",
@@ -942,6 +944,7 @@
             s.profile = on ? id : s.profile === id ? null : s.profile;
           },
           { kind: "skill", id },
+          !caps.skills.includes(id),
         );
     }
     if (caps.available.integrations.length || caps.available.burp) {
@@ -982,7 +985,7 @@
         t(
           learning
             ? "Le mode Apprentissage lit seulement les cours du dossier de cours."
-            : "Activer ou désactiver ici met aussi à jour les réglages. Les actions restent soumises aux approbations.",
+            : "Les méthodes se choisissent pour cette conversation. Pour rendre une méthode disponible, modifiez warband.chat.skills dans les paramètres VS Code. Les bascules MCP, Burp et recherche web modifient leur disponibilité pour toutes les conversations. Les actions restent soumises aux approbations.",
         ),
       ),
     );
@@ -1000,12 +1003,22 @@
     chips.hidden = !names.length;
   }
   wirePop(composerMenu, composerMenuBtn, {
+    render() {},
+    focus() {
+      composerMenu.querySelector("button:not(:disabled),input:not(:disabled)")?.focus();
+    },
+  });
+  wirePop(chatActions, chatActionsBtn, {
     render() {
       renderCapabilities(lastCapabilities);
     },
     focus() {
-      composerMenu.querySelector("button:not(:disabled),input:not(:disabled)")?.focus();
+      chatActions.querySelector("button:not(:disabled),input:not(:disabled)")?.focus();
     },
+  });
+  chatActions.addEventListener("click", (event) => {
+    if (event.target.closest(".composer-action") && chatActions.matches(":popover-open"))
+      chatActions.hidePopover();
   });
   composerMenu.addEventListener("click", (event) => {
     if (event.target.closest(".composer-action")) closeComposer();
@@ -1798,7 +1811,15 @@
       }),
     );
   }
+  let draftBeforeReadonly = null;
   function renderReadonly(info) {
+    if (info && draftBeforeReadonly === null) {
+      draftBeforeReadonly = input.value;
+      input.value = "";
+    } else if (!info && draftBeforeReadonly !== null) {
+      input.value = draftBeforeReadonly;
+      draftBeforeReadonly = null;
+    }
     const bar = $("readonly");
     bar.hidden = !info;
     if (!info) return;

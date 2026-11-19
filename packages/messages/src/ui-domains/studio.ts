@@ -1,5 +1,28 @@
 // Libellés de la webview, indexés par leur texte français.
 export const studioEn: Record<string, string> = {
+  Projets: "Projects",
+  "Projet sélectionné": "Selected project",
+  Actif: "Active",
+  "Gérer le projet sélectionné": "Manage selected project",
+  "Périmètre et règles du projet actif…": "Active project scope and rules…",
+  "Autorisation du projet actif…": "Active project authorization…",
+  "Exporter tout le graphe en SVG…": "Export the entire graph as SVG…",
+  "Le SVG comprend tous les nœuds, noms et liens, même masqués par le cadrage ou les filtres.":
+    "The SVG includes all nodes, names and links, even those hidden by the view or filters.",
+  "Exporter l’archive d’audit du projet (.zip)…": "Export the project audit archive (.zip)…",
+  "Pages du registre des contrôles": "Control register pages",
+  "Enregistrement en cours…": "Saving…",
+  "Compte enregistré.": "Account saved.",
+  "Enregistrement impossible. Ressaisissez le secret et réessayez.":
+    "Could not save. Re-enter the secret and try again.",
+  "Facultatifs : les comptes du projet actif peuvent être utilisés par l’agent. Les valeurs courtes peuvent rester lisibles dans les journaux.":
+    "Optional: the agent can use accounts from the active project. Short values may remain readable in logs.",
+  "Disposer les panneaux": "Arrange panels",
+  "Renommer le projet sélectionné…": "Rename selected project…",
+  "Supprimer le projet sélectionné…": "Delete selected project…",
+  "Exporter le projet sélectionné…": "Export selected project…",
+  "Périmètre et règles…": "Scope and rules…",
+  "Autorisation de mission…": "Mission authorization…",
   "Politique du dépôt": "Repository policy",
   "Exporter…": "Export…",
   "Exporter le projet": "Export the project",

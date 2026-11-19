@@ -477,6 +477,10 @@ function start() {
   };
   const summaryDrafts = /* @__PURE__ */ new Map();
   const summarySaving = /* @__PURE__ */ new Set();
+  // Ces brouillons restent en mémoire et ne contiennent jamais le secret.
+  const accountDrafts = new Map();
+  const accountSaves = new Map();
+  const accountPainters = new Map();
   let projectNameDraft = "";
   let projectContainerDraft = "";
   let providerFilter = "";
@@ -514,6 +518,29 @@ function start() {
     navSignature = signature;
     while (nav.firstChild) nav.removeChild(nav.firstChild);
     nav.append(el("div", "studio-nav-title", t("Réglages")));
+    const currentItem = navModel(current, findings)
+      .flatMap((group) => group.items)
+      .find((item) => item.current);
+    const toggle = el(
+      "button",
+      "secondary studio-nav-toggle",
+      `${t("Réglages")} : ${currentItem?.label ?? t("Réglages")}`,
+    );
+    toggle.type = "button";
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.setAttribute("aria-controls", "studio-nav-content");
+    const content = el("div", "studio-nav-content");
+    content.id = "studio-nav-content";
+    toggle.addEventListener("click", () => {
+      toggle.setAttribute("aria-expanded", String(toggle.getAttribute("aria-expanded") !== "true"));
+    });
+    content.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape" || toggle.getAttribute("aria-expanded") !== "true") return;
+      event.preventDefault();
+      toggle.setAttribute("aria-expanded", "false");
+      toggle.focus();
+    });
+    nav.append(toggle, content);
     const language = el("label", "studio-help", t("Langue"));
     language.htmlFor = "studio-locale";
     const locale = el("select", "studio-project-control");
@@ -532,7 +559,7 @@ function start() {
       if (locale.value === "fr" || locale.value === "en")
         vscode.postMessage({ type: "setLocale", locale: locale.value });
     });
-    nav.append(language, locale);
+    content.append(language, locale);
     const active = view.projectChoices?.projects?.find(
       (project) => project.id === view.projectChoices.activeId,
     );
@@ -543,7 +570,7 @@ function start() {
         el("span", "studio-kicker", t("Projet actif")),
         el("strong", "studio-nav-project-name", activeName),
       );
-      nav.append(context);
+      content.append(context);
     }
     for (const group of navModel(current, findings)) {
       const section = el("div", "studio-group");
@@ -568,7 +595,10 @@ function start() {
           b.append(count);
         }
         b.addEventListener("click", () => {
+          const compact = window.matchMedia?.("(max-width: 640px)").matches === true;
+          toggle.setAttribute("aria-expanded", "false");
           if (item.action) {
+            if (compact) toggle.focus();
             vscode.postMessage({ type: item.action });
             return;
           }
@@ -583,11 +613,12 @@ function start() {
               render({ ...lastView, page: item.id });
             }
           }
+          if (compact) nav.querySelector(".studio-nav-toggle")?.focus();
           vscode.postMessage({ type: "open", page: item.id });
         });
         section.append(b);
       }
-      nav.append(section);
+      content.append(section);
     }
   }
   // Apparence : l’hôte confirme l’enregistrement avant d’appliquer le choix.
@@ -1282,7 +1313,7 @@ function start() {
     const image = el("button", "ghost kc-btn kc-image");
     image.append(
       window.WarbandIcons.create("image"),
-      el("span", "btn-text", t("Exporter l’image")),
+      el("span", "btn-text", t("Exporter tout le graphe en SVG…")),
     );
     image.type = "button";
     image.title = t(
@@ -1714,6 +1745,15 @@ function start() {
         typeof matchMedia === "function" && matchMedia("(max-width: 640px)").matches;
     }
     setLegendCollapsed(legendCollapsed);
+    bar.append(
+      el(
+        "p",
+        "studio-help kc-export-help",
+        t(
+          "Le SVG comprend tous les nœuds, noms et liens, même masqués par le cadrage ou les filtres.",
+        ),
+      ),
+    );
     wrap.append(bar, viewport, aside, selection);
     let scale = graphPose?.scale ?? 1;
     let tx = graphPose?.tx ?? 0;
@@ -2034,7 +2074,7 @@ function start() {
       vscode.postMessage({ type: "setAuditEnabled", projectId: project, enabled: !audit.enabled });
     });
     head.append(toggle, el("span", "audit-badge", audit.enabled ? t("Auto") : t("En pause")));
-    const download = el("button", "primary", t("Exporter le dossier d’audit"));
+    const download = el("button", "primary", t("Exporter l’archive d’audit du projet (.zip)…"));
     download.type = "button";
     download.id = "audit-export";
     download.addEventListener("click", () =>
@@ -2096,8 +2136,12 @@ function start() {
       ),
     );
     sec.append(coverageSection(audit.coverage));
-    sec.append(el("h3", "", t("Registre des contrôles")));
-    sec.append(
+    const registry = el("section", "audit-tests");
+    registry.setAttribute("aria-labelledby", "audit-registry-title");
+    const registryTitle = el("h3", "", t("Registre des contrôles"));
+    registryTitle.id = "audit-registry-title";
+    registry.append(registryTitle);
+    registry.append(
       el(
         "p",
         "studio-help",
@@ -2106,7 +2150,6 @@ function start() {
         ),
       ),
     );
-    const registry = el("div", "audit-tests");
     if (!audit.tests.length)
       registry.append(el("p", "studio-help", t("Aucun contrôle enregistré.")));
     if (auditPageProject !== project) {
@@ -2129,7 +2172,8 @@ function start() {
       navigation.append(button);
     }
     navigation.append(el("span", "studio-help", `${auditPageIndex + 1} / ${pageCount}`));
-    sec.append(navigation);
+    navigation.setAttribute("aria-label", t("Pages du registre des contrôles"));
+    registry.append(navigation);
     for (const test of [...audit.tests]
       .reverse()
       .slice(auditPageIndex * 25, (auditPageIndex + 1) * 25)) {
@@ -2296,7 +2340,18 @@ function start() {
       audit: ["audit", "auditError"],
       killchain: ["findings", "evidence"],
       appearance: ["terminalPrompt"],
-      atlas: ["sources"],
+      atlas: [
+        "sources",
+        "courseCompleted",
+        "courseDocumentsAvailable",
+        "courseSources",
+        "courseDocuments",
+        "courseSource",
+        "courseDocument",
+        "coursePickedName",
+        "courseContent",
+        "courseSection",
+      ],
     };
     const nextPageFingerprint = JSON.stringify([
       page,
@@ -2363,7 +2418,9 @@ function start() {
         el(
           "p",
           "studio-help",
-          t("Comptes du projet actif, utilisés par l’agent et masqués dans les journaux."),
+          t(
+            "Facultatifs : les comptes du projet actif peuvent être utilisés par l’agent. Les valeurs courtes peuvent rester lisibles dans les journaux.",
+          ),
         ),
       );
       if (!project) {
@@ -2371,6 +2428,18 @@ function start() {
         main.append(sec);
         return;
       }
+      const projectName =
+        view.projectChoices?.projects?.find((item) => item.id === project)?.name ??
+        view.projectSummary?.projectName ??
+        project;
+      sec.append(el("p", "studio-help", `${t("Projet actif")} : ${projectName}`));
+      const draft = accountDrafts.get(project) ?? {
+        label: "",
+        host: "",
+        identifier: "",
+        kind: "password",
+      };
+      accountDrafts.set(project, draft);
       for (const account of view.testAccounts ?? []) {
         const row = el("div", "studio-account-row");
         row.append(el("span", "", `${account.label}${account.host ? ` · ${account.host}` : ""}`));
@@ -2395,6 +2464,12 @@ function start() {
         input.name = name;
         input.required = required;
         input.autocomplete = "off";
+        if (name !== "secret") {
+          input.value = draft[name];
+          input.addEventListener("input", () => {
+            draft[name] = input.value;
+          });
+        }
         wrapper.append(input);
         form.append(wrapper);
         return input;
@@ -2414,6 +2489,10 @@ function start() {
         option.value = value;
         kind.append(option);
       }
+      kind.value = draft.kind;
+      kind.addEventListener("change", () => {
+        draft.kind = kind.value;
+      });
       kindLabel.append(kind);
       form.append(kindLabel);
       const secret = field("Secret", "password", "secret", true);
@@ -2434,15 +2513,34 @@ function start() {
       form.append(warning);
       const save = el("button", "primary", t("Enregistrer"));
       save.type = "submit";
-      form.append(save);
+      const status = el("p", "studio-help");
+      status.setAttribute("role", "status");
+      const paintSave = () => {
+        const state = accountSaves.get(project);
+        save.disabled = state === "pending";
+        status.textContent =
+          state === "pending"
+            ? t("Enregistrement en cours…")
+            : state === "saved"
+              ? t("Compte enregistré.")
+              : state === "failed"
+                ? t("Enregistrement impossible. Ressaisissez le secret et réessayez.")
+                : "";
+      };
+      accountPainters.set(project, paintSave);
+      paintSave();
+      form.append(save, status);
       form.addEventListener("submit", (event) => {
         event.preventDefault();
+        if (accountSaves.get(project) === "pending") return;
         let hostname = host.value.trim().toLowerCase();
         try {
           if (hostname.includes("://")) hostname = new URL(hostname).hostname;
         } catch {
           return;
         }
+        accountSaves.set(project, "pending");
+        paintSave();
         vscode.postMessage({
           type: "saveTestAccount",
           projectId: project,
@@ -2455,7 +2553,7 @@ function start() {
           },
         });
         secret.value = "";
-        identifier.value = "";
+        updateWarning();
       });
       sec.append(form);
       main.append(sec);
@@ -2465,7 +2563,8 @@ function start() {
       const sec = el("section", "studio-card");
       sec.append(el("h2", "", t("Projet")));
       for (const [label, type] of [
-        [t("Ouvrir l’espace RedWidow"), "openWorkspace"],
+        [t("Ouvrir le dossier du projet"), "openWorkspace"],
+        [t("Disposer les panneaux"), "arrangePanels"],
         [t("Préparer et vérifier les fichiers de mission"), "prepareMission"],
       ]) {
         const button = el("button", "ghost", label);
@@ -2553,7 +2652,7 @@ function start() {
         const tabs = el("div", "studio-project-tabs");
         tabs.setAttribute("role", "group");
         tabs.setAttribute("aria-label", t("Gestion des projets"));
-        const chooseTab = el("button", "", t("Choisir un projet"));
+        const chooseTab = el("button", "", t("Projets"));
         chooseTab.type = "button";
         chooseTab.id = "project-choose-tab";
         chooseTab.disabled = choices.projects.length === 0;
@@ -2590,7 +2689,7 @@ function start() {
         tabs.append(chooseTab, createTab);
         sec.append(tabs, choosePanel, createPanel);
         if (choices.projects.length > 0) {
-          const label2 = el("label", "studio-help", t("Choisir un projet"));
+          const label2 = el("label", "studio-help", t("Projet sélectionné"));
           label2.htmlFor = "project-choice";
           const select = el("select", "studio-project-control");
           select.id = "project-choice";
@@ -2613,8 +2712,13 @@ function start() {
           select.value = choices.activeId ?? "";
           const activate = el("button", "primary", t("Activer le projet"));
           activate.type = "button";
+          const selectionStatus = el("span", "studio-help");
+          selectionStatus.setAttribute("role", "status");
           const update2 = () => {
-            activate.disabled = projectBusy || !select.value || select.value === choices.activeId;
+            const isActive = !!select.value && select.value === choices.activeId;
+            activate.disabled = projectBusy || !select.value || isActive;
+            activate.hidden = isActive;
+            selectionStatus.textContent = isActive ? t("Actif") : "";
           };
           select.addEventListener("change", update2);
           activate.addEventListener("click", () => {
@@ -2623,19 +2727,19 @@ function start() {
             vscode.postMessage({ type: "activateProject", projectId: select.value });
           });
           update2();
-          const rename = el("button", "ghost", t("Renommer…"));
-          const remove = el("button", "ghost", t("Supprimer…"));
-          const program = el("button", "ghost", t("Fiche programme…"));
+          const rename = el("button", "ghost", t("Renommer le projet sélectionné…"));
+          const remove = el("button", "ghost", t("Supprimer le projet sélectionné…"));
+          const program = el("button", "ghost", t("Périmètre et règles du projet actif…"));
           program.type = "button";
           program.id = "project-program";
           program.addEventListener("click", () => vscode.postMessage({ type: "openProgram" }));
-          const engagement = el("button", "ghost", t("Engagement…"));
+          const engagement = el("button", "ghost", t("Autorisation du projet actif…"));
           engagement.type = "button";
           engagement.id = "project-engagement";
           engagement.addEventListener("click", () =>
             vscode.postMessage({ type: "openEngagement" }),
           );
-          const exportButton = el("button", "ghost", t("Exporter…"));
+          const exportButton = el("button", "ghost", t("Exporter le projet sélectionné…"));
           exportButton.type = "button";
           exportButton.id = "project-export";
           exportButton.addEventListener("click", () => {
@@ -2695,17 +2799,16 @@ function start() {
             ...(containers.length === 0 ? [el("p", "studio-help", noContainerText)] : []),
           );
           relocateState();
-          choosePanel.append(
-            label2,
-            select,
-            relocateRow,
-            activate,
-            program,
-            engagement,
+          const management = el("details", "studio-project-management");
+          management.append(
+            el("summary", "", t("Gérer le projet sélectionné")),
             exportButton,
             rename,
             remove,
+            program,
+            engagement,
           );
+          choosePanel.append(label2, select, selectionStatus, relocateRow, activate, management);
         }
         // ADR 0053 : un seul parcours. Le conteneur est obligatoire ; l'hôte relit son dossier partagé.
         const label = el("label", "studio-help", t("Nom du nouveau projet"));
@@ -3045,28 +3148,200 @@ function start() {
       return;
     }
     if (page === "atlas") {
-      const sec = empty(
-        "Atlas",
-        t(
-          "Dossier de cours lu par le mode Apprentissage, en lecture seule. Aucun cours inclus : dépose-y des sources libres, un sous-dossier par source.",
+      const english = globalThis.WarbandI18n?.getLocale() === "en";
+      const text = (fr, en) => (english ? en : fr);
+      const sec = empty("Atlas", text("Bibliothèque locale de cours.", "Local course library."));
+      if (view.courseSource) {
+        const back = el("button", "", text("Retour", "Back"));
+        back.type = "button";
+        back.addEventListener("click", () => vscode.postMessage({ type: "courseBack" }));
+        sec.append(back);
+        const source = (view.courseSources || []).find((entry) => entry.id === view.courseSource);
+        sec.append(
+          el(
+            "h2",
+            "",
+            view.coursePickedName
+              ? text("Document choisi", "Selected document")
+              : source?.name || text("Source indisponible", "Source unavailable"),
+          ),
+        );
+        if (view.courseDocument) {
+          const document = (view.courseDocuments || []).find(
+            (entry) => entry.id === view.courseDocument,
+          );
+          sec.append(
+            el(
+              "h3",
+              "",
+              view.coursePickedName ||
+                document?.name ||
+                text("Document indisponible", "Document unavailable"),
+            ),
+          );
+          const sections = view.courseContent?.sections;
+          if (Array.isArray(sections) && sections.length) {
+            const index = Math.max(0, Math.min(view.courseSection || 0, sections.length - 1));
+            sec.append(el("p", "studio-help", `${index + 1} / ${sections.length}`));
+            sec.append(el("pre", "", sections[index]));
+            for (const [label, next] of [
+              [text("Précédent", "Previous"), index - 1],
+              [text("Suivant", "Next"), index + 1],
+            ]) {
+              const button = el("button", "", label);
+              button.type = "button";
+              button.disabled = next < 0 || next >= sections.length;
+              button.addEventListener("click", () =>
+                vscode.postMessage({ type: "courseSection", section: next }),
+              );
+              sec.append(button);
+            }
+          } else
+            sec.append(
+              el(
+                "p",
+                "studio-help",
+                text(
+                  "Document indisponible ou trop volumineux.",
+                  "Document unavailable or too large.",
+                ),
+              ),
+            );
+        } else {
+          const docs = Array.isArray(view.courseDocuments) ? view.courseDocuments : [];
+          if (!docs.length)
+            sec.append(
+              el(
+                "p",
+                "studio-help",
+                text(
+                  "Aucun document Markdown ou texte disponible.",
+                  "No Markdown or text documents available.",
+                ),
+              ),
+            );
+          for (const doc of docs) {
+            const button = el("button", "", doc.name);
+            button.type = "button";
+            button.addEventListener("click", () =>
+              vscode.postMessage({ type: "courseDocument", id: doc.id }),
+            );
+            sec.append(button);
+          }
+        }
+        main.append(sec);
+        return;
+      }
+      const course = el("section", "studio-section");
+      course.append(
+        el("h2", "", text("Masquer les secrets dans les journaux", "Redacting secrets in logs")),
+      );
+      course.append(
+        el(
+          "p",
+          "studio-help",
+          text(
+            "Objectif : repérer et masquer les secrets avant leur écriture dans un journal. Les exemples ci-dessous sont entièrement factices.",
+            "Goal: identify and redact secrets before writing a log. The examples below are entirely fictional.",
+          ),
         ),
       );
+      course.append(
+        el(
+          "p",
+          "",
+          text(
+            "Un journal peut contenir des jetons, mots de passe ou clés dans des champs structurés, des URL et des messages d’erreur. Évitez de les collecter ; sinon, masquez-les avant tout stockage ou envoi.",
+            "Logs can contain tokens, passwords or keys in structured fields, URLs and error messages. Avoid collecting them; otherwise, redact them before storage or transmission.",
+          ),
+        ),
+      );
+      course.append(
+        el(
+          "pre",
+          "",
+          'Avant / Before: {"user":"demo","token":"FAKE_TOKEN_123"}\nAprès / After:  {"user":"demo","token":"[REDACTED]"}',
+        ),
+      );
+      course.append(
+        el(
+          "p",
+          "",
+          text(
+            "Exercice : dans l’URL factice /api?token=FAKE_TOKEN_123, remplacez la valeur du jeton par [REDACTED]. Vérifiez aussi les champs imbriqués, les variantes de casse et les erreurs. Un filtre par nom seul ne repère pas tous les secrets.",
+            "Exercise: in the fictional URL /api?token=FAKE_TOKEN_123, replace the token value with [REDACTED]. Also check nested fields, case variations and errors. A name-based filter alone cannot detect every secret.",
+          ),
+        ),
+      );
+      course.append(
+        el(
+          "p",
+          "studio-help",
+          text(
+            "Solution : /api?token=[REDACTED]. Testez avec des données factices et contrôlez chaque destination du journal. Si un vrai secret a été exposé, révoquez-le et remplacez-le.",
+            "Solution: /api?token=[REDACTED]. Test with fictional data and check every log destination. If a real secret was exposed, revoke and replace it.",
+          ),
+        ),
+      );
+      const progress = el(
+        "button",
+        "primary",
+        view.courseCompleted === true
+          ? text("Marquer comme non terminé", "Mark as incomplete")
+          : text("Marquer comme terminé", "Mark as complete"),
+      );
+      progress.type = "button";
+      progress.addEventListener("click", () =>
+        vscode.postMessage({ type: "setCourseProgress", completed: view.courseCompleted !== true }),
+      );
+      course.append(
+        el(
+          "p",
+          "studio-help",
+          view.courseCompleted === true
+            ? text("Terminé", "Completed")
+            : text("À faire", "Not completed"),
+        ),
+        progress,
+      );
+      sec.append(course);
+      sec.append(el("h2", "", text("Vos sources de cours", "Your course sources")));
       const open = el("button", "primary", t("Ouvrir le dossier de cours"));
       open.type = "button";
       open.addEventListener("click", () => vscode.postMessage({ type: "openCours" }));
       sec.append(open);
-      const sources = Array.isArray(view.sources) ? view.sources : [];
+      if (view.courseDocumentsAvailable === false) {
+        sec.append(
+          el(
+            "p",
+            "studio-help",
+            text(
+              "Sur cette plateforme, choisissez chaque document avec le sélecteur de fichiers.",
+              "On this platform, choose each document with the file picker.",
+            ),
+          ),
+        );
+        const pick = el("button", "", text("Choisir un document", "Choose a document"));
+        pick.type = "button";
+        pick.addEventListener("click", () => vscode.postMessage({ type: "coursePickDocument" }));
+        sec.append(pick);
+        main.append(sec);
+        return;
+      }
+      const sources = Array.isArray(view.courseSources) ? view.courseSources : [];
       if (sources.length === 0) {
-        sec.append(el("p", "studio-help", t("Aucune source dans le dossier de cours.")));
+        sec.append(
+          el("p", "studio-help", text("Aucune source disponible.", "No sources available.")),
+        );
       } else {
-        const ul = el("ul", "studio-rows");
         for (const src of sources) {
-          if (!src || typeof src.name !== "string" || typeof src.droits !== "string") continue;
-          const li = el("li", "studio-row");
-          li.append(el("span", "studio-ellipsis", src.name), el("span", "studio-help", src.droits));
-          ul.append(li);
+          const button = el("button", "", src.name);
+          button.type = "button";
+          button.addEventListener("click", () =>
+            vscode.postMessage({ type: "courseSource", id: src.id }),
+          );
+          sec.append(button);
         }
-        sec.append(ul);
       }
       main.append(sec);
       return;
@@ -3082,6 +3357,16 @@ function start() {
       if (lastView) render(lastView, true);
       globalThis.WarbandI18n?.applyStatic(document);
       restore();
+      return;
+    }
+    if (
+      msg?.type === "testAccountSaveResult" &&
+      typeof msg.projectId === "string" &&
+      typeof msg.success === "boolean" &&
+      accountSaves.get(msg.projectId) === "pending"
+    ) {
+      accountSaves.set(msg.projectId, msg.success ? "saved" : "failed");
+      accountPainters.get(msg.projectId)?.();
       return;
     }
     if (msg?.type === "pathEdgeState") {

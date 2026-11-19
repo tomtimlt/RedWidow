@@ -14,6 +14,7 @@ export const engagementEn: Record<string, string> = {
     "Inactive. One gesture is enough to refuse every agent action on this project.",
   "Lever l'arrêt…": "Lift the halt…",
   "Activer…": "Activate…",
+  "Activer l'arrêt d'urgence…": "Activate the emergency halt…",
   Autorisation: "Authorization",
   Mandant: "Principal",
   Référence: "Reference",

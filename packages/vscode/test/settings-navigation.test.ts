@@ -73,8 +73,12 @@ describe("aucun réglage propre au chat modifiable depuis les réglages", () => 
       expect(parseStudioMessage({ ...base, kind })).toBeNull();
   });
 
-  it("le chat propose tout le catalogue ; choisir une entrée l'active côté hôte", () => {
+  it("le chat distingue les méthodes indisponibles et indique la portée des bascules", () => {
     expect(chatJs).toContain("caps.available.skills");
+    expect(chatJs).toContain("!caps.skills.includes(id)");
+    expect(chatJs).toContain("warband.chat.skills dans les paramètres VS Code");
+    expect(chatJs).toContain("disponibilité pour toutes les conversations");
+    expect(extension).toContain("s.setSelection(next ?? s.view().capabilities?.selection)");
     expect(chatJs).toContain("caps.available.integrations");
     expect(chatJs).toContain('type: "setCapability"');
     expect(chatJs).not.toContain('type: "setSelection"');

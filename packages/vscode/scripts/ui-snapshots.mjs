@@ -849,6 +849,7 @@ const PAGES = [
         linkedBanner: null,
         findings: [],
         projectWorkspaceRoot: "/home/user/.exegol/workspaces",
+        creationContainers: [{ name: "kali-1", short: "kali-1" }],
       }),
     ],
     { projectDraft: "Mission démo" },
@@ -1235,10 +1236,17 @@ try {
           await tab.fill("#project-name", page.projectDraft);
           if (
             !(await tab.locator("#studio-main").innerText()).includes(
-              "son dossier est créé automatiquement",
+              "Le projet est créé sous le dossier partagé du conteneur",
             )
           )
             throw new Error("Création sans dialogue absente");
+          await tab.getByRole("button", { name: "Créer le projet", exact: true }).click();
+          const sent = await tab.evaluate(() => window.__sent.at(-1));
+          if (
+            JSON.stringify(sent) !==
+            JSON.stringify({ type: "createProject", name: page.projectDraft, container: "kali-1" })
+          )
+            throw new Error("Création de projet incorrecte");
         }
         if (page.accountDraft) {
           for (const [name, value] of Object.entries(page.accountDraft))
@@ -1283,7 +1291,10 @@ try {
             ),
           );
           await tab.waitForTimeout(50);
-          await tab.click("#bypass-cut");
+          await tab.evaluate(() => {
+            document.getElementById("cfg-btn").click();
+            document.getElementById("bypass-switch").click();
+          });
           last = await tab.evaluate(() => window.__sent.at(-1));
           if (last?.type !== "setBypass" || last.enabled !== false)
             throw new Error("Coupure Bypass absente");
@@ -1307,9 +1318,12 @@ try {
             ),
           );
           await tab.waitForTimeout(50);
-          if (!(await tab.locator("#bypass-banner-time").innerText()).includes("∞"))
+          if (!(await tab.locator("#bypass-badge").innerText()).includes("∞"))
             throw new Error("Affichage Bypass illimité absent");
-          await tab.click("#bypass-cut");
+          await tab.evaluate(() => {
+            document.getElementById("cfg-btn").click();
+            document.getElementById("bypass-switch").click();
+          });
           last = await tab.evaluate(() => window.__sent.at(-1));
           if (last?.type !== "setBypass" || last.enabled !== false)
             throw new Error("Coupure Bypass illimité absente");

@@ -94,13 +94,6 @@
     return h;
   };
 
-  /** Pastille d'état colorée (ok, warn, err, off) suivie d'un libellé. */
-  const pill = (tone, text) => {
-    const p = el("span", `cockpit-pill tone-${tone}`);
-    p.append(el("span", "dot"), el("span", "", text));
-    return p;
-  };
-
   const tile = (label, value, tone) => {
     const t = el("div", `cockpit-tile tone-${tone}`);
     t.append(el("span", "dot"), el("span", "cockpit-tile-label", label), el("strong", "", value));
@@ -679,6 +672,18 @@
           : el("span", "cockpit-compat is-no", t("Ce conteneur ne voit pas le dossier du projet."))
         : null;
     const act = el("div", "cockpit-card-act");
+    const terminal = button("primary", t("Ouvrir le terminal"), "terminal", () =>
+      vscode.postMessage({ type: "terminal", name: row.name }),
+    );
+    terminal.disabled = !row.linked || row.state !== "running" || lastView?.projectInvalid === true;
+    act.append(terminal);
+    if (row.linked) {
+      act.append(
+        button("secondary", t("Ouvrir le dossier du projet"), "folder", () =>
+          vscode.postMessage({ type: "openWorkspace" }),
+        ),
+      );
+    }
     if (row.linked && !row.primary && linkedCount >= 2) {
       const primaryBtn = button("secondary", t("Principal"), "link", () =>
         vscode.postMessage({ type: "setPrimary", name: row.name }),
@@ -965,46 +970,24 @@
     const createFirst = creation ? creation.createFirst : !view.linkedBanner;
     if (createFirst) appendCreate();
 
-    // Contexte du projet et commandes du conteneur lié.
-    if (view.linkedBanner) {
-      const linkedSec = el("section", "cockpit-linked");
-      linkedSec.setAttribute("aria-label", t("Conteneur lié"));
-      linkedSec.append(heading(t("Conteneur lié")));
-      const b = view.linkedBanner;
-      const tone = { running: "ok", stopped: "warn", absent: "err" }[b.state] ?? "off";
-      const card = el("div", `cockpit-context tone-${tone}`);
-      const head = el("div", "cockpit-linked-head");
-      const name = el("strong", "cockpit-ellipsis cockpit-hero-name");
-      ellipsize(name, b.short || b.name);
-      head.append(name, pill(tone, b.state === "absent" ? t("absent") : stateLabel(b.state)));
-      const meta = el("dl", "cockpit-meta");
-      const img = el("dd", "cockpit-ellipsis");
-      ellipsize(img, b.image ?? "—", 64);
-      const path = el("dd", "cockpit-ellipsis");
-      ellipsize(path, b.workspace, 64);
-      meta.append(el("dt", "", "Image"), img, el("dt", "", t("Dossier hôte")), path);
-      const actions = el("div", "cockpit-actions");
-      const termBtn = button("primary", "Terminal", "terminal", () =>
-        vscode.postMessage({ type: "terminal" }),
+    // Conserver le contexte d'un conteneur absent sans répéter les lignes présentes.
+    if (
+      view.linkedBanner &&
+      !(view.containers ?? []).some((row) => row.name === view.linkedBanner.name)
+    ) {
+      const missing = el(
+        "p",
+        "cockpit-muted",
+        t("Conteneur lié absent : {0}", { 0: view.linkedBanner.short || view.linkedBanner.name }),
       );
-      const hasRunningLinked = (view.containers ?? []).some(
-        (c) => c.linked && c.state === "running",
-      );
-      if (!hasRunningLinked || view.projectInvalid) {
-        termBtn.disabled = true;
-        termBtn.title = view.projectInvalid
-          ? t("Projet invalide")
-          : t("Aucun conteneur lié en cours");
-      }
-      actions.append(termBtn);
-      actions.append(
-        button("secondary", t("Ouvrir le dossier"), "folder", () =>
+      const missingSection = el("section", "cockpit-linked");
+      missingSection.append(
+        missing,
+        button("secondary", t("Ouvrir le dossier du projet"), "folder", () =>
           vscode.postMessage({ type: "openWorkspace" }),
         ),
       );
-      card.append(head, meta, actions);
-      linkedSec.append(card);
-      main.append(linkedSec);
+      main.append(missingSection);
     }
     if (view.error) {
       if (!createFirst) appendCreate();

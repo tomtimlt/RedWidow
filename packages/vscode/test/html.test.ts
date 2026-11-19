@@ -29,6 +29,39 @@ describe("HTML du chat : raccourci de terminal selon la plate-forme", () => {
   });
 });
 
+describe("Navigation du chat", () => {
+  it("garde le suivi en en-tête et réserve le menu + aux pièces jointes et citations", () => {
+    const fr = chatHtml(opts);
+    const en = chatHtml({ ...opts, locale: "en" });
+    const header = fr.slice(fr.indexOf('<header id="bar">'), fr.indexOf("</header>"));
+    expect(header).toContain('id="monitor-btn"');
+    expect(header).toContain('id="chat-actions-btn"');
+    const add = fr.slice(
+      fr.indexOf('<div id="composer-menu"'),
+      fr.indexOf('<div id="chat-actions"'),
+    );
+    for (const id of ["attach-btn", "mention-btn", "hash-btn"]) expect(add).toContain(`id="${id}"`);
+    for (const id of [
+      "slash-btn",
+      "export-chat-btn",
+      "killchain-btn",
+      "composer-resources",
+      "composer-settings",
+    ])
+      expect(
+        fr.slice(fr.indexOf('<div id="chat-actions"'), fr.indexOf('<div id="model-pop"')),
+      ).toContain(`id="${id}"`);
+    expect(add).not.toContain('id="slash-btn"');
+    expect(en).toContain('aria-label="Activity monitor"');
+    expect(en).toContain('aria-label="Attach or mention"');
+    expect(en).toContain('data-i18n="Exporter le fil">Export conversation');
+    const css = readCss("chat");
+    expect(css).toMatch(
+      /#bar #monitor-btn \.btn-text\s*\{[^}]*position:\s*static;[^}]*clip-path:\s*none;/s,
+    );
+  });
+});
+
 describe("HTML du chat : état du tour", () => {
   it("localise le statut et masque l’horloge changeante aux lecteurs d’écran", () => {
     const fr = chatHtml(opts);
@@ -215,11 +248,11 @@ describe("composer et Configurer (lot P1)", () => {
     expect(studio).toContain("Aucun conteneur pour l’instant");
     expect(html).not.toMatch(/\bmcp\b|jauge|compact|pièce jointe active/i);
   });
-  it("Monitor reste accessible dans le menu + et ouvre le panneau", () => {
-    const toolbar = section('id="toolbar"', 'id="model-pop"');
-    expect(toolbar.indexOf('id="monitor-btn"')).toBeGreaterThan(toolbar.indexOf('id="slash-btn"'));
-    expect(tag("monitor-btn")).toContain('class="ghost composer-action"');
-    expect(tag("monitor-btn")).toContain('aria-label="Monitor"');
+  it("le suivi dans l’en-tête ouvre le panneau", () => {
+    const header = section('id="bar"', "</header>");
+    expect(header).toContain('id="monitor-btn"');
+    expect(tag("monitor-btn")).toContain('class="ghost"');
+    expect(tag("monitor-btn")).toContain('aria-label="Suivi des activités"');
     expect(js).toContain('vscode.postMessage({ type: "openMonitor" })');
     const ext = read("../src/extension/extension.ts");
     expect(ext).toMatch(/case "openMonitor":\s*openMonitor\(\);/);
@@ -536,7 +569,7 @@ describe("HTML localisé des webviews", () => {
     expect(english).toContain('aria-label="Your instruction"');
     expect(english).toContain('placeholder="Your instruction…"');
     expect(english).toContain('data-i18n-placeholder="Votre consigne…"');
-    expect(english).toContain('data-i18n="Tout effacer">Clear all</span>');
+    expect(english).toContain('data-i18n="Effacer tout l’historique">Clear all history</span>');
     expect(english).toContain('id="send"');
     expect(english).toContain(
       'data-i18n="Vous en devenez responsable.">You take responsibility for it.</span>',
