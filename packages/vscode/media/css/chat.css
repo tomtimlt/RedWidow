@@ -528,20 +528,12 @@ body.paused .thinking-dots {
 #model-chip {
   max-width: 100%;
 }
-/* Clé du coffre utilisée par le moteur (ADR 0056) : puce d'information, sans action. */
+/* État du coffre et de la clé utilisée, dans la configuration du fournisseur. */
 #key-chip {
-  display: inline-flex;
-  align-items: center;
+  margin: 6px 0 0;
   color: var(--jn-muted);
-  font-family: var(--jn-mono);
-  font-size: var(--jn-fs-2xs);
-  cursor: default;
-}
-/* Coffre vide : puce discrète, sans la police fixe des empreintes. */
-#key-chip.empty {
-  font-family: inherit;
-  font-style: italic;
-  opacity: 0.75;
+  font-size: var(--jn-fs-xs);
+  overflow-wrap: anywhere;
 }
 .notice .notice-action {
   margin-inline-start: 6px;
@@ -1194,7 +1186,9 @@ body.vscode-high-contrast-light .effort-knob {
   color: var(--jn-bypass);
 }
 #bypass-switch,
-#learning-switch {
+#learning-switch,
+#multi-switch {
+  position: relative;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1209,11 +1203,13 @@ body.vscode-high-contrast-light .effort-knob {
   font-size: var(--jn-fs);
 }
 #bypass-switch:hover:not([aria-disabled="true"]),
-#learning-switch:hover:not([aria-disabled="true"]) {
+#learning-switch:hover:not([aria-disabled="true"]),
+#multi-switch:hover:not([aria-disabled="true"]) {
   background: transparent;
 }
 #bypass-switch::after,
-#learning-switch::after {
+#learning-switch::after,
+#multi-switch::after {
   content: "";
   flex: none;
   box-sizing: border-box;
@@ -1227,11 +1223,13 @@ body.vscode-high-contrast-light .effort-knob {
     border-color var(--jn-d2) var(--jn-ease-io);
 }
 #bypass-switch:hover:not([aria-disabled="true"])::after,
-#learning-switch:hover:not([aria-disabled="true"])::after {
+#learning-switch:hover:not([aria-disabled="true"])::after,
+#multi-switch:hover:not([aria-disabled="true"])::after {
   border-color: var(--jn-sig-edge);
 }
 #bypass-switch[aria-checked="true"]::before,
-#learning-switch[aria-checked="true"]::before {
+#learning-switch[aria-checked="true"]::before,
+#multi-switch[aria-checked="true"]::before {
   transform: translateX(14px);
   background: var(--vscode-editor-background, var(--vscode-input-background));
   opacity: 1;
@@ -1240,7 +1238,8 @@ body.vscode-high-contrast-light .effort-knob {
   background: var(--jn-bypass);
   border-color: transparent;
 }
-#learning-switch[aria-checked="true"]::after {
+#learning-switch[aria-checked="true"]::after,
+#multi-switch[aria-checked="true"]::after {
   background: var(--jn-sig);
   border-color: transparent;
 }
@@ -2825,12 +2824,13 @@ body.vscode-high-contrast-light .brand-ops {
 }
 /* Interrupteurs : une ligne chacun, description en infobulle */
 #cfg-pop .cfg-control + .cfg-control {
-  margin-top: 2px;
-  padding-top: 2px;
-  border-top: 0;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--jn-line);
 }
 #cfg-pop #bypass-switch,
-#cfg-pop #learning-switch {
+#cfg-pop #learning-switch,
+#cfg-pop #multi-switch {
   min-height: 30px;
 }
 #cfg-pop .cfg-switch-ico {
@@ -3115,10 +3115,6 @@ body.vscode-high-contrast-light .welcome-spider {
 .cfg-multi[hidden],
 #multi-help[hidden] {
   display: none;
-}
-#multi-switch,
-#multi-switch .cfg-switch-label {
-  width: 100%;
 }
 #multi-switch[aria-checked="true"] .cfg-switch-ico {
   background: var(--jn-sig-tint);

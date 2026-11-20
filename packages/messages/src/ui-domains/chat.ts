@@ -3,6 +3,8 @@ export const chatEn: Record<string, string> = {
   Pentest: "Pentest",
   "Ouvrir les clés": "Open keys",
   "sans clé du coffre": "no vault key",
+  "Clé utilisée par le moteur : {0} · {1}": "Key used by the engine: {0} · {1}",
+  "Coffre du fournisseur sélectionné : aucune clé": "Selected provider vault: no key",
   "Hack The Box / CTF": "Hack The Box / CTF",
   "Aucun conteneur lié : l'agent n'a pas de shell": "No linked container: the agent has no shell",
   "Lier un conteneur": "Link a container",
@@ -335,6 +337,8 @@ export const chatEn: Record<string, string> = {
   // Mode multi-agents (ADR 0054)
   "Multi-agents": "Multi-agent",
   Workers: "Workers",
+  "Agents de travail": "Worker agents",
+  "De 1 à 8 agents de travail": "From 1 to 8 worker agents",
   "De 1 à 8 workers": "From 1 to 8 workers",
   "Multi · {0}": "Multi · {0}",
   "Mode multi-agents : ouvrir la configuration": "Multi-agent mode: open settings",

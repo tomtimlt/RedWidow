@@ -2002,9 +2002,9 @@
     chip.hidden = !activeKey && !empty;
     chip.classList.toggle("empty", empty);
     $("key-chip-label").textContent = activeKey
-      ? t("clé {0} · {1}", { 0: activeKey.rank, 1: activeKey.fingerprint })
+      ? t("Clé utilisée par le moteur : {0} · {1}", { 0: activeKey.rank, 1: activeKey.fingerprint })
       : empty
-        ? t("sans clé du coffre")
+        ? t("Coffre du fournisseur sélectionné : aucune clé")
         : "";
   }
   function render(view) {

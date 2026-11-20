@@ -397,13 +397,12 @@ describe("puce #key-chip", () => {
     styleUri: "https://x.vscode-cdn.net/media/chat.css",
   });
 
-  it("juste après #model-chip, avant la puce Multi, masquée au départ", () => {
-    const model = html.indexOf('id="model-chip"');
+  it("état masqué dans le groupe du fournisseur, hors du compositeur", () => {
     const key = html.indexOf('id="key-chip"');
-    expect(key).toBeGreaterThan(model);
-    expect(key).toBeLessThan(html.indexOf('id="multi-chip"'));
-    expect(html.indexOf('</button><span id="key-chip"', model)).toBeGreaterThan(-1);
-    expect(/<[^>]*\sid="key-chip"[^>]*\shidden[\s>]/.test(html)).toBe(true);
+    expect(key).toBeGreaterThan(html.indexOf('id="provider"'));
+    expect(key).toBeLessThan(html.indexOf('id="provider-help"'));
+    expect(key).toBeGreaterThan(html.indexOf('id="cfg-pop"'));
+    expect(/<[^>]*\sid="key-chip"[^>]*\srole="status"[^>]*\shidden[\s>]/.test(html)).toBe(true);
   });
 
   const js = read("../media/chat.js");
@@ -453,17 +452,17 @@ describe("puce #key-chip", () => {
     expect(run(undefined).chip.hidden).toBe(true);
     const shown = run({ provider: "claude", rank: 1, fingerprint: "3fa9c1d0" });
     expect(shown.chip.hidden).toBe(false);
-    expect(shown.label.textContent).toBe("clé 1 · 3fa9c1d0");
+    expect(shown.label.textContent).toBe("Clé utilisée par le moteur : 1 · 3fa9c1d0");
   });
 
   it("coffre vide : « sans clé du coffre », discrète ; une clé ou hors éligibilité : inchangé", () => {
     const empty = run(undefined, true);
     expect(empty.chip.hidden).toBe(false);
-    expect(empty.label.textContent).toBe("sans clé du coffre");
+    expect(empty.label.textContent).toBe("Coffre du fournisseur sélectionné : aucune clé");
     expect(empty.chip.empty).toBe(true);
     // Une clé active prime : « clé N · empreinte ».
     const keyed = run({ provider: "claude", rank: 2, fingerprint: "abcd" }, true);
-    expect(keyed.label.textContent).toBe("clé 2 · abcd");
+    expect(keyed.label.textContent).toBe("Clé utilisée par le moteur : 2 · abcd");
     expect(keyed.chip.empty).toBe(false);
     // Fournisseur non éligible (vaultEmpty absent) : masquée.
     expect(run(undefined, undefined).chip.hidden).toBe(true);

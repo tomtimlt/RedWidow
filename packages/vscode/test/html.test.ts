@@ -602,6 +602,13 @@ describe("mode multi-agents (ADR 0054, lot 4a)", () => {
   it("interrupteur et nombre de workers dans Exécution, avant Bypass", () => {
     expect(tag("multi-switch")).toContain('role="switch"');
     expect(tag("multi-workers")).toMatch(/type="number"[^>]*min="1"[^>]*max="8"/);
+    for (const [klass, id] of [
+      ["cfg-control", "learning-switch"],
+      ["cfg-control cfg-multi", "multi-switch"],
+      ["cfg-control cfg-bypass", "bypass-switch"],
+    ]) {
+      expect(cfg).toContain(`<section class="${klass}" aria-labelledby="${id}">`);
+    }
     expect(cfg.indexOf('id="multi-switch"')).toBeGreaterThan(cfg.indexOf('id="learning-switch"'));
     expect(cfg.indexOf('id="multi-switch"')).toBeLessThan(cfg.indexOf('id="bypass-switch"'));
     expect(tag("multi-help")).toMatch(/\shidden[\s>]/);
