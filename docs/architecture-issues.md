@@ -191,7 +191,9 @@ Fonction neuve `createKaliContainer`, hors de l'interface `DockerClient` vue par
 
 Le cockpit crée : Exegol par `exegol start <nom>`, Kali par `createKaliContainer` (image locale, dossier choisi par le dialogue). La saisie `/start` n'est plus une commande. `/clear` et les `@` restent. Les ADR 0007 et 0009 décrivent l'ancien `/start`.
 
-## Projets et allowlist d'exécution (ADR 0013) — lot P1 livré
+## Projets et allowlist d'exécution (ADR 0013) — historique, remplacé par les ADR 0052, 0053 puis 0054
+
+Modèle actuel (ADR 0054, racine commune) : voir la section « Racine commune » plus bas. Le texte qui suit décrit l'ancien modèle à liste `containers` et n'est conservé que pour l'historique.
 
 `project.json` devient `{ activeId, projects: [{ id, name, workspace, containers }] }`. L'ancien `{ container, workspace }` migre vers un projet actif qui contient ce nom. `containers` stocke des noms présents dans `listLabelPrefix` (Kali compris). L'exec Exegol exige le nom réel dans l'allowlist du projet actif et `family === "exegol"` sur la liste courante, après résolution sur cette liste (court ambigu : refus). Sans `@`, un seul Exegol vivant dans l'intersection est accepté ; zéro ou plusieurs : refus. Un Kali de l'allowlist n'est pas résolu par cet exec : il passe par `resolveKaliContainer` (ADR 0014), même intersection, famille `kali`. `link` accepte les deux familles s'ils sont `running` et ont `/workspace`. L'allowlist est copiée au message, pas relue dans l'outil. La politique du run est `loadPolicy` du `workspace` du projet actif, même `cwd` pour la gate, hors mode apprentissage. Trouvailles : un `findings.json` par projet, même format. Pas d'écran de choix dans ce lot. Start/stop ne sont pas filtrés par l'allowlist.
 
@@ -199,7 +201,9 @@ Le cockpit crée : Exegol par `exegol start <nom>`, Kali par `createKaliContaine
 |---|---|---|---|
 | P1 | Migration, écriture, filtre `exec`, trouvailles par projet, `cwd` de politique | oui (ce lot) | livré (code présent : `StoredProject.containers`, `activeProject`, `associateContainer`, trouvailles par id) |
 
-## Projet multi-conteneurs, conteneur affiché, lecture robuste (ADR 0015) — code présent
+## Projet multi-conteneurs, conteneur affiché, lecture robuste (ADR 0015) — historique, remplacé par les ADR 0052, 0053 puis 0054
+
+De cette section ne subsistent que la lecture robuste de `project.json` et le champ `primary` (préférence d'affichage). La liste `containers` a disparu (fiche v2, ADR 0054).
 
 Contexte historique avant les corrections M1–M3 : trois défauts de l’après-P1. (1) `status()` lève `project.absent` dès qu'un projet a ≥2 conteneurs (`project.ts:414-415`), alors que `linkedProjectStatus` gère déjà le cas. (2) `onPrompt` confond un échec de lecture transitoire ou un fichier invalide avec « aucun projet actif » (`main.ts:46-58`), fige une allowlist vide pour tout le tour, et `note()` lève `project.absent` au libellé trompeur « project.json absent ». (3) Pas de champ pour le conteneur « PRIMARY » affiché par l'UI. Décision : pas de résolution d'exécution implicite par un champ mémorisé (on ne ressuscite pas `dedicated`) ; `status()` s'aligne sur `linkedProjectStatus` (plusieurs conteneurs → `container: null`, pas d'exception) ; `onPrompt` distingue fichier absent / invalide / transitoire (une relecture), ne propage jamais (sinon abort du run entier), et porte un drapeau à la cible pour que `note()` choisisse `project.absent` / `project.invalid` / `project.readFailed` (code neuf) ; champ optionnel `primary?: string` **d'affichage seulement** (jamais lu par l'exec, la politique ni la gate), posé par `setPrimaryContainer` (pas un outil MCP). `project.absent` reformulé. Capacité UI (branchement par `cadre`) : `containers` + `primary` lisibles, `setPrimaryContainer` pour la bascule.
 
@@ -208,6 +212,10 @@ Contexte historique avant les corrections M1–M3 : trois défauts de l’après
 | M1 | `status()` sans exception sur plusieurs conteneurs ; CLI tolérante | non (pas de gate touchée) | code présent ; validation Windows de cette version à refaire |
 | M2 | Lecture robuste `onPrompt`, drapeau de cible, `project.readFailed`, libellés | oui (touche le code de raison et le fail-closed de l'allowlist) | code présent ; validation Windows de cette version à refaire |
 | M3 | Champ d'affichage `primary`, `setPrimaryContainer` (après confirmation produit) | oui (vérifier que `primary` n'autorise aucune exécution) | code présent ; validation Windows de cette version à refaire |
+
+## Racine commune (ADR 0054) — lots M1, M2, P1, P2 et D livrés
+
+Une racine machine `warband.root` contient `projets/<slug>/`, `conteneurs/<nom>/` et `ressources/`. Kali et Exegol reçoivent trois montages à la création : `conteneurs/<nom>` → `/workspace`, `projets` → `/workspace/projets`, `ressources` → `/workspace/ressources` (lecture seule). Règle unique : un projet est utilisable dans un conteneur démarré de famille connue si son dossier réel est sous l'une des sources de montage ; sinon `project.noVisibleContainer`. La fiche projet est `{id, name, workspace, primary?}` (plus de liste `containers`). Un projet n'a pas besoin de conteneur pour exister. Les projets antérieurs restent utilisables s'ils sont visibles d'un conteneur, sinon « Créer un conteneur » ou « Déplacer vers la racine ». La gate, la politique et les règles `docker run` sont inchangées. `warband.containers.root` est déprécié et n'est plus lu.
 
 ## Exécution Kali par mcp-kali-server (ADR 0014) — code présent, intégration réelle à vérifier
 

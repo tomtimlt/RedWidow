@@ -105,6 +105,26 @@ describe("link", () => {
     expect(await textOf(configDir)).toBe(before);
   });
 
+  it("adopte la source d'un montage et n'écrit aucune liste de conteneurs", async () => {
+    const { configDir } = await setup();
+    const docker = {
+      listLabelPrefix: async () => [
+        {
+          ...row("box"),
+          mounts: [
+            { source: "rel/ignore", target: "/a", readonly: false },
+            { source: "/host/racine/projets", target: "/projets", readonly: false },
+          ],
+        },
+      ],
+    };
+    await link(configDir, "box", docker);
+    const file = await readProjects(configDir);
+    const active = file === null ? null : activeProject(file);
+    expect(active).toMatchObject({ workspace: "/host/racine/projets", primary: "box" });
+    expect(await textOf(configDir)).not.toContain('"containers"');
+  });
+
   it("refuse un conteneur arrêté", async () => {
     const { docker, configDir } = await setup();
     await expect(link(configDir, "paused", docker)).rejects.toMatchObject({
@@ -117,8 +137,8 @@ describe("link", () => {
   it("refuse un conteneur sans workspace", async () => {
     const { docker, configDir } = await setup();
     await expect(link(configDir, "no-ws", docker)).rejects.toMatchObject({
-      code: "project.noWorkspace",
-      params: { name: "no-ws" },
+      code: "project.noVisibleContainer",
+      params: { project: "no-ws" },
     });
     expect(await readdir(configDir)).toEqual([]);
   });
@@ -127,8 +147,8 @@ describe("link", () => {
     const { configDir } = await setup();
     const docker = { listLabelPrefix: async () => [row("box", { workspace: "rel/ws" })] };
     await expect(link(configDir, "box", docker)).rejects.toMatchObject({
-      code: "project.noWorkspace",
-      params: { name: "box" },
+      code: "project.noVisibleContainer",
+      params: { project: "box" },
     });
     expect(await readdir(configDir)).toEqual([]);
   });
@@ -184,8 +204,8 @@ describe("link", () => {
       ],
     };
     await expect(link(configDir, "kali-box", docker)).rejects.toMatchObject({
-      code: "project.noWorkspace",
-      params: { name: "kali-box" },
+      code: "project.noVisibleContainer",
+      params: { project: "kali-box" },
     });
     expect(await readdir(configDir)).toEqual([]);
   });

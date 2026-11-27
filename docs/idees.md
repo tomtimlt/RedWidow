@@ -173,8 +173,10 @@ Aucun de ces points ne touche à la gate.
 - une **décision sécurité** : `wsl` est délibérément dans la liste des dangers
   shell (`packages/core/src/approval/shell.ts`) ; il faut une voie dédiée et
   contrôlée, pas une levée de l'interdiction → ADR + revue sécurité ;
-- repenser la résolution par `@nom` et le conteneur dédié (`targets.ts`) : WSL
-  a des distributions, pas des conteneurs nommés.
+- la résolution par `@nom` est réglée côté Docker par la visibilité (ADR 0054) :
+  un conteneur est éligible s'il voit le dossier du projet. Reste à adapter la
+  notion de « conteneur » à WSL, qui a des distributions, pas des conteneurs
+  nommés.
 
 Forme cible : une notion de **profil de bac à sable** (Exegol, Kali-Docker,
 Kali-WSL) décrivant comment lister, démarrer et exécuter. Le cœur ne change

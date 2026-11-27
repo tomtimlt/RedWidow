@@ -89,8 +89,6 @@ export const cockpitEn: Record<string, string> = {
   "État système": "System status",
   "Conteneur lié": "Linked container",
   "Docker est absent.": "Docker is missing.",
-  "Aucun conteneur lié. Choisissez-en un dans la liste ci-dessous (Lier).":
-    "No linked container. Choose one from the list below (Link).",
   "Dossier hôte": "Host folder",
   "Projet invalide": "Invalid project",
   "Aucun conteneur lié en cours": "No running linked container",

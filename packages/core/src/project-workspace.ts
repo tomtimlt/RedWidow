@@ -140,13 +140,6 @@ export async function isInsideShare(share: string, folder: string): Promise<bool
   }
 }
 
-/** Réglage machine de l’hôte : absolu et explicite, sans valeur par défaut (ADR 0052). */
-export function projectWorkspacesRoot(value: unknown): string {
-  if (typeof value !== "string" || !isAbsolute(value) || /[\p{Cc}\p{Cf}]/u.test(value))
-    throw new CodedError("project.invalid");
-  return resolve(value);
-}
-
 function workspaceSlug(name: string): string {
   const slug =
     name

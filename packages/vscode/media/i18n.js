@@ -521,8 +521,6 @@
     "État système": "System status",
     "Conteneur lié": "Linked container",
     "Docker est absent.": "Docker is missing.",
-    "Aucun conteneur lié. Choisissez-en un dans la liste ci-dessous (Lier).":
-      "No linked container. Choose one from the list below (Link).",
     "Dossier hôte": "Host folder",
     "Projet invalide": "Invalid project",
     "Aucun conteneur lié en cours": "No running linked container",
@@ -979,8 +977,6 @@
     "Projet inconnu": "Unknown project",
     Conversation: "Conversation",
     "programme refusé": "program rejected",
-    "Conteneur arrêté": "Container stopped",
-    "Sans montage /workspace": "No /workspace mount",
     "Le chemin hôte doit être absolu et sans caractère de contrôle.":
       "The host path must be absolute and contain no control characters.",
     Nom: "Name",

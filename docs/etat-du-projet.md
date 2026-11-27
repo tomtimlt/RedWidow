@@ -16,12 +16,16 @@ les ADR expliquent les décisions, les idées restent une réserve.
 
 ## Le parcours de référence
 
-**Choisir un projet → associer ses conteneurs → travailler avec l'agent →
-approuver les actions nécessaires → consulter les résultats et les traces.**
+**Choisir un projet → travailler avec l'agent (dans un conteneur qui voit son
+dossier) → approuver les actions nécessaires → consulter les résultats et les
+traces.**
 
-Le projet regroupe le dossier de travail, les conteneurs autorisés et les
-trouvailles. Le conteneur affiché comme principal facilite la navigation ; il
-n'autorise pas à lui seul une exécution. Le mode Apprentissage constitue un
+Le projet regroupe un dossier de travail et les trouvailles, sans liste de
+conteneurs (ADR 0054, racine commune). Il vit sous la racine `warband.root`
+(`projets/`, `conteneurs/`, `ressources/`) ; un conteneur démarré peut servir
+l'agent si le dossier du projet est sous l'un de ses montages. Le conteneur par
+défaut (`primary`) est une simple préférence ; il n'autorise pas à lui seul une
+exécution, la gate approuve chaque appel. Le mode Apprentissage constitue un
 parcours distinct, en lecture seule sur les cours.
 
 ## Quelle version décrit-on ?
@@ -989,8 +993,8 @@ résultats ne constituent pas une validation dans VS Code/Windows.
 
 | Étape | Présent dans le code de travail | Limite ou travail restant |
 |---|---|---|
-| Choisir un projet | Page Projet : liste réelle, activation, création avec nom et dossier choisi par dialogue natif ; stockage et associations | Changement de projet bloqué pendant un tour actif ; vérifier le parcours dans VS Code réel |
-| Associer ses conteneurs | Cockpit, Exegol/Kali, création et cycle de vie pilotés par l'humain, association, choix du conteneur affiché | Distinguer conteneurs autorisés et conteneur affiché ; ne pas présenter les dossiers hôtes supplémentaires comme livrés |
+| Choisir un projet | Page Projet : liste réelle, activation, création avec nom et dossier choisi par dialogue natif ; stockage ; sous la racine commune ou dossier existant | Changement de projet bloqué pendant un tour actif ; vérifier le parcours dans VS Code réel |
+| Disposer d'un conteneur qui voit le projet | Cockpit, Exegol/Kali, création et cycle de vie pilotés par l'humain, montages uniformes (ADR 0054), visibilité par conteneur, conteneur par défaut (`primary`) | Un conteneur ancien ne voit que son partage ; vérifier sur machine réelle le montage sous `/workspace` d'Exegol |
 | Travailler avec l'agent | Chat, plusieurs conversations, mentions, choix de modèle/effort, outils Exegol/Kali, apprentissage | Claude, OpenAI et OpenCode branchés dans l’extension ; comptes réels à valider |
 | Approuver | Gate, cartes de réponse, Bypass borné | Le Bypass universel de la 0.3.19 est décrit ci-dessous |
 | Consulter les résultats | Trouvailles par projet, Kill chain avec minimap, Monitor, historique, journaux et export HTML CLI | Historique filtré par projet et édition du résumé réalisés ; rapport d’engagement encore à concevoir |
@@ -1086,7 +1090,7 @@ la version, garder les journaux utiles et noter chaque résultat.
 | Essai | Résultat attendu |
 |---|---|
 | Installer le VSIX Windows et ouvrir un dossier approuvé | Extension active, aucun défaut de chargement ; dossier non approuvé : exécution inactive |
-| Choisir A, associer un Exegol ou Kali autorisé | Projet et conteneurs affichés correctement ; choix du principal sans changer l’allowlist |
+| Choisir A, avoir un Exegol ou Kali démarré qui voit son dossier | Projet et conteneurs visibles affichés correctement ; choix du conteneur par défaut sans effet d’autorisation |
 | Créer un chat sous A, envoyer une consigne simple | Modèle et contexte cohérents ; exécution visible dans Monitor |
 | Demande d’approbation hors Bypass, puis refus | Refus respecté ; résultat et état de l’outil visibles |
 | Activer puis désactiver le Bypass sur une opération de test maîtrisée | Avertissement explicite, absence de demande pendant activation, retour à la politique ensuite ; cause tracée |

@@ -14,6 +14,7 @@ import {
   prepareCommonRoot,
   prepareProjectWorkspace,
   projectContainerPath,
+  rowMounts,
   validateProjectFolder,
 } from "./project-workspace.js";
 import { CodedError } from "./reason.js";
@@ -617,14 +618,6 @@ export function projectPlacement(
   return "noVisibleContainer";
 }
 
-/**
- * Conteneurs nommés par la fiche : `primary` seul (transitoire, ADR 0054). Les appelants qui ont
- * les lignes Docker doivent préférer la visibilité (`projectContainerPath`).
- */
-export function projectContainerNames(project: Pick<StoredProject, "primary">): readonly string[] {
-  return project.primary === undefined ? [] : [project.primary];
-}
-
 /** Renomme la fiche sans changer son identité, son dossier ou ses associations. */
 export async function renameProject(
   configDir: string,
@@ -760,10 +753,12 @@ export async function setPrimaryContainer(
 }
 
 /**
- * Lie un conteneur Exegol ou Kali en cours, avec un montage `/workspace` absolu.
- * Refus, dans l'ordre : absent, autre famille, arrêté, sans montage. Un refus n'écrit rien.
- * Sans projet actif, en crée un (nom court Exegol ou nom réel Kali, ce montage) puis associe le nom réel.
- * Un projet déjà actif garde son workspace et ses noms.
+ * Adopte un conteneur Exegol ou Kali en cours (ADR 0054) : le projet implicite prend un dossier
+ * visible du conteneur, la source d'un de ses montages (`projectContainerPath` en donne alors un
+ * chemin), sans liste de conteneurs. Refus, dans l'ordre : absent, autre famille, arrêté, aucun
+ * montage absolu (`project.noVisibleContainer`). Un refus n'écrit rien.
+ * Sans projet actif, en crée un (nom court Exegol ou nom réel Kali) et pose `primary`.
+ * Un projet déjà actif garde son dossier et son nom.
  */
 export async function link(
   configDir: string,
@@ -778,9 +773,8 @@ export async function link(
     throw new CodedError("project.notExegol", { name });
   }
   if (row.state !== "running") throw new CodedError("project.notRunning", { name });
-  if (row.workspace === undefined || !isAbsolute(row.workspace)) {
-    throw new CodedError("project.noWorkspace", { name });
-  }
+  const visible = rowMounts(row).find((mount) => isAbsolute(mount.source));
+  if (visible === undefined) throw new CodedError("project.noVisibleContainer", { project: name });
   const file = await readProjects(configDir);
   if (expectedProjectId !== undefined && file?.activeId !== expectedProjectId)
     throw new CodedError("project.absent");
@@ -788,7 +782,7 @@ export async function link(
     const projectName = row.family === "exegol" ? shortContainerName(row.name) : row.name;
     await createProject(configDir, {
       name: projectName,
-      workspace: row.workspace,
+      workspace: visible.source,
       primary: row.name,
     });
   }

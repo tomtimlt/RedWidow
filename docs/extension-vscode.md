@@ -84,9 +84,9 @@ remédiations ; aucune instance SysReptor n’est nécessaire.
 
 ## Parcours de travail
 
-**Choisir un projet → associer ses conteneurs → travailler avec l’agent → approuver les actions nécessaires → consulter les résultats et les traces.**
+**Choisir un projet → travailler avec l’agent dans un conteneur qui voit son dossier → approuver les actions nécessaires → consulter les résultats et les traces.**
 
-Le cockpit gère les conteneurs et leurs associations. La page Projet des réglages permet de choisir un projet existant avec
+Le cockpit gère les conteneurs (ADR 0054 : un conteneur voit un projet si son dossier est sous l’un de ses montages ; aucune association à faire). La page Projet des réglages permet de choisir un projet existant avec
 **Activer**, ou de le créer en donnant un nom puis un dossier via le dialogue
 natif. L'activation et la création ouvrent aussi le dossier du projet dans VS Code.
 Au démarrage, une fenêtre sans dossier restaure celui du projet actif ; une
@@ -231,7 +231,7 @@ Les réglages sont lus au démarrage du moteur : pour les appliquer, **Nouvelle 
 Restent sur le disque, à supprimer à la main si vous le souhaitez :
 
 - la configuration : `%APPDATA%\warband` sous Windows, `~/.config/warband` ailleurs (`XDG_CONFIG_HOME` est respecté) ;
-- les dossiers des conteneurs : un dossier par conteneur sous la racine des conteneurs (réglage `warband.containers.root`), qui contient `RedWidow/` et les projets de ce conteneur (les projets anciens peuvent rester ailleurs, signalés « non associés ») ;
+- la racine commune (réglage `warband.root`, proposée à `~/RedWidow`) : `projets/` (un dossier par projet), `conteneurs/` (un dossier par conteneur, monté en `/workspace`) et `ressources/` (monté en lecture seule dans `/workspace/ressources`) ; `projets/` est monté en `/workspace/projets`. Les projets anciens peuvent rester ailleurs, tant qu'un conteneur les voit ; l'ancien réglage `warband.containers.root` est déprécié et n'est plus lu ;
 - le stockage de l'extension dans VS Code (historique, caches) ;
 - les images et volumes Docker.
 
@@ -245,7 +245,7 @@ politique du dépôt courant.
 
 Le bac à sable supplémentaire a été abandonné le 22 octobre 2026 (ADR 0003).
 Les options `--sandbox*` et réglages `warband.sandbox.*` n’existent plus.
-Les conteneurs Exegol/Kali associés au projet constituent le cadre de travail.
+Les conteneurs Exegol/Kali démarrés qui voient le dossier du projet constituent le cadre de travail (ADR 0054).
 L’ADR conserve la décision historique ; ses anciennes commandes ne sont pas
 une procédure d’installation actuelle.
 

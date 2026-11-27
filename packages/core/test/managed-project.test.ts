@@ -6,7 +6,6 @@ import {
   createManagedProject,
   createProject,
   PROJECT_WORKSPACE_FOLDERS,
-  projectWorkspacesRoot,
   readProjects,
 } from "../src/index.js";
 
@@ -19,13 +18,6 @@ const fixture = async () => {
 };
 afterEach(async () => {
   await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
-});
-
-it("réglage de racine : absolu explicite uniquement, plus de défaut Exegol", () => {
-  expect(() => projectWorkspacesRoot(undefined)).toThrow();
-  expect(() => projectWorkspacesRoot("")).toThrow();
-  expect(() => projectWorkspacesRoot("../autre")).toThrow();
-  expect(() => projectWorkspacesRoot({ root: "/autre" })).toThrow();
 });
 
 it("réserve automatiquement le slug, prépare les catégories et ne réutilise aucun dossier", async () => {
