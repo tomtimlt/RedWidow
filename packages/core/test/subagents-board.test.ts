@@ -385,21 +385,43 @@ describe("tableau des sous-agents : appels Task", () => {
     expect(f.board.running()).toBe(0);
   });
 
-  it("un Task en arrière-plan garde sa place jusqu'à la fin du sous-agent", async () => {
+  it.each([
+    ["run_in_background absent", {}],
+    ["run_in_background faux", { run_in_background: false }],
+    ["run_in_background vrai", { run_in_background: true }],
+  ])("libère la place au tool.result quelle que soit l'entrée (%s)", async (_label, extra) => {
     const f = fixture();
     await accepted(f, ["s1"]);
-    f.board.admitTask(call("t1", "Domaines", { run_in_background: true }));
-    // Le résultat de l'outil arrive tout de suite : le sous-agent tourne encore.
+    f.board.admitTask(call("t1", "Domaines", extra));
+    expect(f.board.running()).toBe(1);
     f.recorder.emit({
       kind: "tool.result",
       toolUseId: "t1",
       isError: false,
-      output: "lancé",
+      output: "synthèse",
       truncated: false,
-      bytes: 5,
+      bytes: 8,
     });
-    expect(f.board.running()).toBe(1);
+    expect(f.board.running()).toBe(0);
+  });
+
+  it("une place déjà libérée au tool.result ne l'est pas une seconde fois par task.updated", async () => {
+    const f = fixture();
+    await accepted(f, ["s1", "s2"]);
+    f.board.admitTask(call("t1", "Domaines"));
+    f.board.admitTask(call("t2", "Fuzzing"));
+    f.recorder.emit({
+      kind: "tool.result",
+      toolUseId: "t1",
+      isError: false,
+      output: "ok",
+      truncated: false,
+      bytes: 2,
+    });
     f.recorder.emit({ kind: "task.updated", taskId: "k", toolUseId: "t1", phase: "finished" });
+    // Le second sous-agent garde sa place : seul son propre signal la libère.
+    expect(f.board.running()).toBe(1);
+    f.recorder.emit({ kind: "task.updated", taskId: "k2", toolUseId: "t2", phase: "finished" });
     expect(f.board.running()).toBe(0);
   });
 

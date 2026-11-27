@@ -135,21 +135,17 @@ export function createSubagentBoard({
   }
   let open: Open | null = null;
   let places: SubagentPlace[] = [];
-  /** Sous-agents en cours, par `toolUseId` de l'appel Task. `background` : le résultat de l'outil ne marque pas leur fin. */
-  const running = new Map<string, { place: SubagentPlace; background: boolean }>();
+  /** Sous-agents en cours, par `toolUseId` de l'appel Task. */
+  const running = new Map<string, SubagentPlace>();
   let closed = false;
 
-  /** Fin de la place : résultat d'outil (premier plan) ou `task.updated` terminé, jamais avant pour l'arrière-plan. */
-  const release = (toolUseId: string, byToolResult: boolean): boolean => {
-    const entry = running.get(toolUseId);
-    if (entry === undefined || (byToolResult && entry.background)) return false;
-    running.delete(toolUseId);
-    return true;
-  };
+  // Une place se libère au premier des deux signaux : résultat de l'outil Task ou `task.updated` terminé.
+  // Le premier plan est imposé par l'adaptateur (Claude : `run_in_background` forcé à faux ; OpenCode n'a
+  // pas d'arrière-plan) : le résultat de l'outil marque donc la fin du sous-agent, sans exception.
   const unsubscribe = recorder.subscribe((event) => {
-    if (event.kind === "tool.result") release(event.toolUseId, true);
+    if (event.kind === "tool.result") running.delete(event.toolUseId);
     else if (event.kind === "task.updated" && event.phase === "finished" && event.toolUseId)
-      release(event.toolUseId, false);
+      running.delete(event.toolUseId);
   });
 
   return {
@@ -256,7 +252,7 @@ export function createSubagentBoard({
       if (known !== undefined) {
         return {
           decision: "allow",
-          reason: reason("subagents.approved", { description: cap(known.place.description) }),
+          reason: reason("subagents.approved", { description: cap(known.description) }),
         };
       }
       // Seul l'agent `redwidow` du moteur est admis (type absent compris), avant toute place consommée :
@@ -292,7 +288,7 @@ export function createSubagentBoard({
         };
       }
       const [place] = places.splice(index, 1) as [SubagentPlace];
-      running.set(toolUseId, { place, background: input.run_in_background === true });
+      running.set(toolUseId, place);
       return {
         decision: "allow",
         reason: reason("subagents.approved", { description: cap(place.description) }),
