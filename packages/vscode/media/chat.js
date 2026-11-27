@@ -61,6 +61,13 @@
     error: t("erreur"),
     denied: t("refusé"),
   });
+  // Un `Task` est le sous-agent lui-même : son état se lit « terminé », « échec », « interrompu » (ADR 0054).
+  const subagentStatusLabels = () => ({
+    ...statusLabels(),
+    ok: t("terminé"),
+    error: t("échec"),
+    interrupted: t("interrompu"),
+  });
   const ICON = { interrupted: "ban", pending: "clock", ok: "check", error: "close", denied: "ban" };
   const svg = (name, className) => globalThis.WarbandIcons.create(name, className);
   function inline(parent, nodes) {
@@ -148,6 +155,9 @@
   }
   const openTools = /* @__PURE__ */ new Set();
   const toolStatus = /* @__PURE__ */ new Map();
+  // Outils de lancement d'un sous-agent : même liste que `isSubagentTool` du cœur (`Task` ou `Agent` selon le SDK).
+  const isLauncher = (item) =>
+    (item.tool === "Task" || item.tool === "Agent") && item.parentToolUseId === void 0;
   function renderTool(item, credential) {
     const toolUseId = item.toolUseId;
     const box = el("details", `tool ${item.status}`);
@@ -161,13 +171,19 @@
     const before = toolStatus.get(item.toolUseId);
     if (before !== void 0 && before !== item.status) icon.classList.add("settled");
     toolStatus.set(item.toolUseId, item.status);
+    const launcher = isLauncher(item);
     sum.append(
       svg("chevronRight", "ico tool-chevron"),
       svg(UI.toolIcon(item.tool), "ico tool-family"),
-      el("span", "tool-name", item.label),
     );
-    if (item.summary) sum.append(el("span", "tool-summary", item.summary));
-    sum.append(icon, el("span", "tool-state", statusLabels()[item.status] ?? item.status));
+    // Appel d'un sous-agent dont le Task n'est plus dans la fenêtre : à plat, avec son origine.
+    if (item.flat) sum.append(el("span", "subagent-tag", t("Sous-agent")));
+    sum.append(el("span", "tool-name", item.label));
+    // Nom du sous-agent, à la place du résumé de l'entrée : texte du modèle, posé par textContent (el).
+    if (item.agent) sum.append(el("span", "tool-summary subagent-name", item.agent));
+    else if (item.summary) sum.append(el("span", "tool-summary", item.summary));
+    const states = launcher ? subagentStatusLabels() : statusLabels();
+    sum.append(icon, el("span", "tool-state", states[item.status] ?? item.status));
     box.append(sum);
     let body;
     const paintBody = () => {
@@ -377,6 +393,35 @@
     return node;
   }
   const toolGroups = new Map();
+  // Sous-agents : le Task et les appels de son sous-agent forment un bloc (`div.subagent-task`). Les appels sont
+  // rangés dans un `<details>` replié sous le Task, et non dans le Task lui-même, dont le détail replié les cacherait.
+  const openCalls = /* @__PURE__ */ new Set();
+  const taskBoxes = /* @__PURE__ */ new Map();
+  function renderTaskBox(item, taskNode, calls) {
+    let box = taskBoxes.get(item.toolUseId);
+    if (!box) {
+      const toolUseId = item.toolUseId;
+      const node = el("div", "subagent-task");
+      const details = el("details", "subagent-calls");
+      details.open = openCalls.has(toolUseId);
+      details.addEventListener("toggle", () => {
+        if (details.open) openCalls.add(toolUseId);
+        else openCalls.delete(toolUseId);
+      });
+      const summary = el("summary");
+      const label = el("span", "subagent-calls-label");
+      summary.append(svg("chevronRight", "ico subagent-chevron"), label);
+      const body = el("div", "subagent-calls-body");
+      details.append(summary, body);
+      box = { node, details, label, body };
+      taskBoxes.set(toolUseId, box);
+    }
+    box.label.textContent =
+      calls.length === 1 ? t("{0} action", { 0: 1 }) : t("{0} actions", { 0: calls.length });
+    stableChildren(box.body, calls);
+    stableChildren(box.node, [taskNode, box.details]);
+    return box.node;
+  }
   function stableChildren(parent, nodes) {
     const wanted = new Set(nodes);
     for (const child of [...parent.children]) if (!wanted.has(child)) child.remove();
@@ -394,6 +439,19 @@
     const live = view.subagentsProposal?.proposalId;
     const canDisable =
       view.controls?.subagents === true && view.controls.locked !== true && !view.readonly;
+    // Appels d'un sous-agent : rangés sous le Task qui l'a lancé, tant que celui-ci est dans la fenêtre.
+    const launchers = new Set(
+      items
+        .filter((item) => item.kind === "tool" && isLauncher(item))
+        .map((item) => item.toolUseId),
+    );
+    const callsOf = new Map();
+    for (const item of items)
+      if (item.kind === "tool" && launchers.has(item.parentToolUseId)) {
+        const list = callsOf.get(item.parentToolUseId) ?? [];
+        list.push(item);
+        callsOf.set(item.parentToolUseId, list);
+      }
     const nodes = [];
     let group = null;
     let grouped = [];
@@ -403,6 +461,7 @@
     };
     for (const item of items) {
       if (item.kind === "tool") {
+        if (launchers.has(item.parentToolUseId)) continue;
         if (!group) {
           group = toolGroups.get(item.id) ?? el("div", "tool-group");
           toolGroups.set(item.id, group);
@@ -410,7 +469,18 @@
           grouped = [];
           nodes.push(group);
         }
-        grouped.push(renderItem(item));
+        const orphan = item.parentToolUseId !== void 0;
+        const node = renderItem(orphan ? { ...item, flat: true } : item);
+        const calls = callsOf.get(item.toolUseId);
+        grouped.push(
+          calls
+            ? renderTaskBox(
+                item,
+                node,
+                calls.map((call) => renderItem(call)),
+              )
+            : node,
+        );
         continue;
       }
       finishGroup();
@@ -432,6 +502,8 @@
     );
     for (const id of toolStatus.keys()) if (!tools.has(id)) toolStatus.delete(id);
     for (const id of openTools) if (!tools.has(id)) openTools.delete(id);
+    for (const id of taskBoxes.keys()) if (!callsOf.has(id)) taskBoxes.delete(id);
+    for (const id of openCalls) if (!launchers.has(id)) openCalls.delete(id);
     return nodes;
   }
   function welcome(sandbox) {
@@ -585,6 +657,15 @@
     const icon = svg("shield", "ico card-icon");
     icon.setAttribute("aria-hidden", "true");
     head.append(icon, el("div", "card-title", l("Autorisation requise")));
+    // Appel d'un sous-agent (ADR 0054) : son nom (texte du modèle) est posé par textContent, `""` : nom inconnu.
+    const who =
+      card.agent === void 0
+        ? null
+        : el(
+            "p",
+            "card-agent",
+            card.agent === "" ? l("Sous-agent") : l("Sous-agent « {0} »", { 0: card.agent }),
+          );
     const chips = el("div", "card-risks");
     for (const [name, label] of risks) {
       const chip = el("span", "card-risk");
@@ -616,6 +697,7 @@
     det.open = previous?.node.querySelector?.(".card-details")?.open === true;
     det.append(el("summary", "", l("Détails")), el("pre", "", card.detail));
     box.append(head);
+    if (who) box.append(who);
     if (risks.length) box.append(chips);
     box.append(grid, det);
     const row = el("div", "card-buttons");
@@ -1139,6 +1221,24 @@
     vscode.postMessage({ type: "setLearning", enabled: ctl.learning !== true });
   }
   learningSwitch.addEventListener("click", toggleLearning);
+  // Compteur de la puce « Sous-agents » : ` · n/4` tant qu'au moins un sous-agent tourne (le nombre vient de la vue).
+  function paintSubagentsCount(subagents) {
+    const count = $("subagents-count");
+    const running = Number.isInteger(subagents?.running) ? subagents.running : 0;
+    const max = Number.isInteger(subagents?.max) ? subagents.max : 4;
+    if (running <= 0) {
+      count.textContent = "";
+      count.removeAttribute("aria-label");
+      return;
+    }
+    count.textContent = ` · ${running}/${max}`;
+    count.setAttribute(
+      "aria-label",
+      running === 1
+        ? t("{0} sous-agent en cours sur {1}", { 0: running, 1: max })
+        : t("{0} sous-agents en cours sur {1}", { 0: running, 1: max }),
+    );
+  }
   const subagentsSwitch = $("subagents-switch");
   // Seul point d'envoi de setSubagents : l'interrupteur et le lien de l'élément « Sous-agents » du fil.
   function setSubagentsMode(enabled) {
@@ -1971,6 +2071,7 @@
     }
     sent = nextSent;
     renderControls(view.controls);
+    paintSubagentsCount(view.subagents);
     historyRunning = view.busy && !view.readonly;
     historyEntries = view.history;
     const historyKey = JSON.stringify([
@@ -2176,6 +2277,8 @@
         subagentsCard = null;
         itemNodes.clear();
         openTools.clear();
+        openCalls.clear();
+        taskBoxes.clear();
         toolStatus.clear();
         log.replaceChildren();
       }

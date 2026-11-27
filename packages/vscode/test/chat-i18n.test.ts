@@ -72,6 +72,55 @@ describe("libellés du chat FR / EN", () => {
     );
   });
 
+  it("traduit les libellés des sous-agents en cours (lot C) et les cite dans chat.js", () => {
+    const keys = [
+      ["terminé", "done"],
+      ["échec", "failed"],
+      ["interrompu", "interrupted"],
+      ["Sous-agent", "Subagent"],
+    ] as const;
+    const withParam = [
+      ["{0} action", "{0} action", { 0: 1 }, "1 action", "1 action"],
+      ["{0} actions", "{0} actions", { 0: 3 }, "3 actions", "3 actions"],
+      [
+        "Sous-agent « {0} »",
+        'Subagent "{0}"',
+        { 0: "Domaines" },
+        "Sous-agent « Domaines »",
+        'Subagent "Domaines"',
+      ],
+      [
+        "{0} sous-agent en cours sur {1}",
+        "{0} of {1} subagent running",
+        { 0: 1, 1: 4 },
+        "1 sous-agent en cours sur 4",
+        "1 of 4 subagent running",
+      ],
+      [
+        "{0} sous-agents en cours sur {1}",
+        "{0} of {1} subagents running",
+        { 0: 2, 1: 4 },
+        "2 sous-agents en cours sur 4",
+        "2 of 4 subagents running",
+      ],
+    ] as const;
+    const fr = createUiTranslator(() => "fr");
+    const en = createUiTranslator(() => "en");
+    for (const [french, english] of keys) {
+      expect(fr(french)).toBe(french);
+      expect(en(french)).toBe(english);
+      expect(source).toContain(`"${french}"`);
+    }
+    for (const [french, english, params, inFrench, inEnglish] of withParam) {
+      expect(en(french)).toBe(english);
+      expect(fr(french, params)).toBe(inFrench);
+      expect(en(french, params)).toBe(inEnglish);
+      expect(source).toContain(`"${french}"`);
+    }
+    // Le nom du sous-agent est une donnée du modèle : jamais pris pour un jeton de traduction.
+    expect(en("Sous-agent « {0} »", { 0: "{0} terminé" })).toBe('Subagent "{0} terminé"');
+  });
+
   it("traduit les statuts, activités et pluriels sans modifier les commandes ni leurs sorties", () => {
     let locale: Locale = "fr";
     const ui = runInNewContext(`${uiSource}\nWarbandUI`, {

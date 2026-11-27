@@ -697,6 +697,67 @@ describe("Proposition de sous-agents : carte et élément du fil (ADR 0054, lot 
   });
 });
 
+describe("Sous-agents en cours : imbrication, nom et compteur (ADR 0054, lot C)", () => {
+  const js = read("../media/chat.js");
+  /** Corps d'une fonction de chat.js, de sa déclaration à la ligne de fermeture (indentation de 2). */
+  const body = (name: string) => {
+    const start = js.indexOf(`  function ${name}(`);
+    return start < 0 ? "" : js.slice(start, js.indexOf("\n  }\n", start) + 5);
+  };
+  const renderCard = body("renderCard");
+  const renderTool = body("renderTool");
+  const taskBox = body("renderTaskBox");
+  const count = body("paintSubagentsCount");
+
+  it("la ligne « Sous-agent » de la carte d'autorisation est construite par textContent (el), sans HTML", () => {
+    expect(renderCard).not.toBe("");
+    expect(renderCard).toContain('"card-agent"');
+    expect(renderCard).toContain('l("Sous-agent « {0} »", { 0: card.agent })');
+    expect(renderCard).not.toMatch(/innerHTML|insertAdjacentHTML|outerHTML|createElement/);
+    // Le nom du modèle n'entre jamais dans un gabarit : seul le paramètre du traducteur le porte.
+    expect(renderCard).not.toMatch(/`[^`]*\$\{card\.agent\}/);
+  });
+
+  it("le nom du sous-agent, l'état et le préfixe se posent par el(), sans gabarit ni HTML", () => {
+    expect(renderTool).toContain('el("span", "tool-summary subagent-name", item.agent)');
+    expect(renderTool).toContain('el("span", "subagent-tag", t("Sous-agent"))');
+    expect(renderTool).not.toMatch(/innerHTML|insertAdjacentHTML|outerHTML|createElement/);
+    expect(renderTool).not.toMatch(/`[^`]*\$\{item\.agent\}/);
+  });
+
+  it("les appels d'un sous-agent sont rangés dans un <details> replié sous le Task", () => {
+    expect(taskBox).toContain('el("details", "subagent-calls")');
+    expect(taskBox).toContain("details.open = openCalls.has(toolUseId)");
+    expect(taskBox).not.toMatch(/innerHTML|insertAdjacentHTML|outerHTML|createElement/);
+    expect(js).toContain("launchers.has(item.parentToolUseId)");
+  });
+
+  it("le compteur de la puce se pose par textContent et annonce sa valeur par aria-label", () => {
+    expect(count).toMatch(/count\.textContent = ` · \$\{running\}\/\$\{max\}`/);
+    expect(count).toContain('count.setAttribute(\n      "aria-label"');
+    expect(count).not.toMatch(/innerHTML|insertAdjacentHTML|outerHTML/);
+    expect(js).toContain("paintSubagentsCount(view.subagents)");
+    expect(chatHtml(opts)).toContain('<span id="subagents-count"></span>');
+  });
+
+  it("aucun innerHTML n'est ajouté à chat.js", () => {
+    expect(js).not.toContain("innerHTML");
+  });
+
+  it("le style de l'imbrication, du nom et de la ligne de la carte existe", () => {
+    const css = readCss();
+    for (const selector of [
+      ".subagent-name",
+      ".subagent-tag",
+      ".subagent-task",
+      ".subagent-calls",
+      ".subagent-calls-body",
+      ".card-agent",
+    ])
+      expect(css).toContain(selector);
+  });
+});
+
 describe("HTML localisé des webviews", () => {
   it("traduit les textes statiques et attributs tout en conservant les annotations françaises", () => {
     const french = chatHtml(opts);

@@ -1,4 +1,10 @@
-import { type EngineEvent, EXEGOL_EXEC_TOOL, KALI_TOOL_PREFIX } from "@warband/core";
+import {
+  type EngineEvent,
+  EXEGOL_EXEC_TOOL,
+  isSubagentTool,
+  KALI_TOOL_PREFIX,
+  SUBAGENTS_MAX_RUNNING,
+} from "@warband/core";
 import { formatError, formatReason, getUiLocale, t } from "@warband/messages";
 import { type ApprovalCard, cleanText, describeInput } from "./approval.js";
 import type { ChatControls } from "./controls.js";
@@ -70,6 +76,13 @@ export type ChatItem = { source?: string } & (
       decision?: "allow" | "deny";
       output?: string;
       truncated?: boolean;
+      /**
+       * Nom du sous-agent (ADR 0054), pour un `Task` lancé par l'agent principal : `input.description`,
+       * texte du modèle neutralisé et plafonné à 200 caractères. Absent sans description lisible.
+       */
+      agent?: string;
+      /** `toolUseId` du `Task` qui a lancé le sous-agent, pour un appel venant de ce sous-agent. */
+      parentToolUseId?: string;
     }
   | {
       id: number;
@@ -181,6 +194,11 @@ export interface ChatView {
    * `#approvals` ; la trace durable reste l'élément `subagents` du fil.
    */
   subagentsProposal?: SubagentsProposalView;
+  /**
+   * Sous-agents en cours (ADR 0054), pour le compteur de la puce : présent seulement quand le mode est
+   * actif. `running` compte les éléments `Task` autorisés dont le résultat n'est pas arrivé.
+   */
+  subagents?: { running: number; max: typeof SUBAGENTS_MAX_RUNNING };
   /** Occupation du contexte au dernier appel modèle (absente tant que le moteur n'en a pas annoncé). */
   context?: { usedTokens: number; windowTokens?: number };
   /** Un tour est en cours. */
@@ -225,6 +243,14 @@ export function createChatState(before?: string) {
   const execTools = new Map<string, string>();
   /** Événement `process.started` de cet exec → identifiant d'appel. */
   const execProcs = new Map<string, string>();
+  /** `toolUseId` d'un `Task` de l'agent principal → nom du sous-agent (`input.description`). */
+  const taskNames = new Map<string, string>();
+  /**
+   * `agentId` d'un sous-agent → son nom et le `Task` qui l'a lancé (pour l'oublier avec lui). Alimentée
+   * par les appels du sous-agent ; la vue y résout le nom d'une carte d'autorisation à chaque rendu,
+   * donc l'ordre d'arrivée entre l'appel et la demande n'a pas d'importance.
+   */
+  const agentNames = new Map<string, { name: string; use: string }>();
 
   const push = (item: NewItem) => {
     if (reached) return;
@@ -236,6 +262,9 @@ export function createChatState(before?: string) {
         if (old.kind === "tool") {
           for (const [id, use] of execTools) if (use === old.toolUseId) execTools.delete(id);
           for (const [id, use] of execProcs) if (use === old.toolUseId) execProcs.delete(id);
+          taskNames.delete(old.toolUseId);
+          for (const [id, known] of agentNames)
+            if (known.use === old.toolUseId) agentNames.delete(id);
         }
     }
   };
@@ -339,6 +368,8 @@ export function createChatState(before?: string) {
       subagentsProposal = null;
       execTools.clear();
       execProcs.clear();
+      taskNames.clear();
+      agentNames.clear();
       busy = false;
       turnStartedAt = null;
       context = undefined;
@@ -407,9 +438,17 @@ export function createChatState(before?: string) {
               push({ kind: "agent", text, blocks: parseMarkdown(text) });
             }
             return;
-          case "tool.requested":
+          case "tool.requested": {
             if (reached) return;
             retry = undefined;
+            // Sous-agents (ADR 0054) : un `Task` de l'agent principal porte le nom du sous-agent ; un
+            // appel venu d'un sous-agent se rattache à ce `Task`.
+            const launcher = isSubagentTool(e.tool) && e.agentToolUseId === undefined;
+            const description =
+              launcher && typeof e.input.description === "string"
+                ? cleanText(e.input.description, 200)
+                : "";
+            const agent = description.trim() === "" ? undefined : description;
             push({
               kind: "tool",
               toolUseId: e.toolUseId,
@@ -418,11 +457,19 @@ export function createChatState(before?: string) {
               summary: summarizeInput(e.input),
               input: describeInput(e.input, 1000),
               status: "pending",
+              ...(agent !== undefined && { agent }),
+              ...(e.agentToolUseId !== undefined && { parentToolUseId: e.agentToolUseId }),
             });
-            if (!reached && (e.tool === EXEGOL_EXEC_TOOL || e.tool.startsWith(KALI_TOOL_PREFIX))) {
+            if (agent !== undefined) taskNames.set(e.toolUseId, agent);
+            if (e.agentToolUseId !== undefined && e.agentId !== undefined) {
+              const name = taskNames.get(e.agentToolUseId);
+              if (name !== undefined) agentNames.set(e.agentId, { name, use: e.agentToolUseId });
+            }
+            if (e.tool === EXEGOL_EXEC_TOOL || e.tool.startsWith(KALI_TOOL_PREFIX)) {
               execTools.set(e.id, e.toolUseId);
             }
             return;
+          }
           case "process.started": {
             const use = e.parentId === null ? undefined : execTools.get(e.parentId);
             if (use !== undefined) execProcs.set(e.id, use);
@@ -512,12 +559,28 @@ export function createChatState(before?: string) {
       }
     },
     view(): ChatView {
+      // Une carte venue d'un sous-agent reçoit son nom à chaque vue (`""` si inconnu : affichage générique).
+      const named = ({ agentId, ...card }: ApprovalCard): ApprovalCard =>
+        agentId === undefined ? card : { ...card, agent: agentNames.get(agentId)?.name ?? "" };
+      // Un sous-agent « en cours » est un `Task` de l'agent principal, autorisé, sans résultat.
+      const running = items.filter(
+        (item) =>
+          item.kind === "tool" &&
+          isSubagentTool(item.tool) &&
+          item.parentToolUseId === undefined &&
+          item.decision === "allow" &&
+          item.status === "pending",
+      ).length;
       return {
         items: [...items],
         ...(retry && { retry }),
         ...(context && { context: { ...context } }),
-        approvals: readonly ? [] : [...approvals.values()],
+        approvals: readonly ? [] : [...approvals.values()].map(named),
         ...(!readonly && subagentsProposal && { subagentsProposal }),
+        ...(!readonly &&
+          controls?.subagents === true && {
+            subagents: { running, max: SUBAGENTS_MAX_RUNNING },
+          }),
         busy,
         turnStartedAt: busy ? turnStartedAt : null,
         sandbox,

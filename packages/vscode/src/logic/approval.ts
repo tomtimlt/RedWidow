@@ -38,6 +38,13 @@ export interface ApprovalCard {
   canRemember: boolean;
   /** Confirmation native en cours ; aucune autorisation n’est encore accordée. */
   confirming?: boolean;
+  /**
+   * Identifiant du sous-agent demandeur (ADR 0054), neutralisé. Ne sert qu'à résoudre `agent` : la vue
+   * (`ChatState.view`) le remplace par le nom.
+   */
+  agentId?: string;
+  /** Nom du sous-agent demandeur ; `""` s'il est inconnu (affichage générique). Absent : appel de l'agent principal. */
+  agent?: string;
 }
 
 /** Texte non fiable destiné à l'affichage : contrôles et bidi retirés (`stripControl` du cœur), plafonné. */
@@ -67,6 +74,7 @@ export function toCard(pending: PendingApproval): ApprovalCard {
       en: cleanText(formatReason(pending.verdict.reason, "en"), 1000),
     },
     canRemember: pending.verdict.decision === "ask" && isRememberable(pending, pending.verdict),
+    ...(pending.agentId !== undefined && { agentId: cleanText(pending.agentId, 200) }),
   };
 }
 

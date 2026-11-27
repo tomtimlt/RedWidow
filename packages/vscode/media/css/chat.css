@@ -493,6 +493,73 @@ body.paused .thinking-dots {
   }
 }
 /* ───────────────────────────── Sous-agents (ADR 0054) ───────────────────────────── */
+/* Sous-agents en cours : nom sur l'en-tête du Task, appels du sous-agent repliés sous lui, nom sur la carte. */
+.tool-summary.subagent-name {
+  color: var(--vscode-foreground);
+  font-family: var(--jn-font);
+  font-size: var(--jn-fs-sm);
+}
+.subagent-tag {
+  flex: none;
+  padding: 0 6px;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-sm);
+  color: var(--jn-muted);
+  font-size: var(--jn-fs-xs);
+  white-space: nowrap;
+}
+.subagent-task {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.tool + .subagent-task,
+.subagent-task + .tool,
+.subagent-task + .subagent-task {
+  border-top: 1px solid var(--jn-line);
+}
+.subagent-calls > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--jn-s2);
+  min-height: 28px;
+  padding: 0 var(--jn-s3) 0 var(--jn-s2);
+  color: var(--jn-muted);
+  font-size: var(--jn-fs-xs);
+  cursor: pointer;
+  list-style: none;
+}
+.subagent-calls > summary::-webkit-details-marker {
+  display: none;
+}
+.subagent-calls > summary:hover {
+  background: var(--jn-raise);
+}
+.subagent-calls > summary:focus-visible {
+  outline-offset: -2px;
+}
+.subagent-chevron {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  color: var(--jn-faint);
+  transition: transform var(--jn-d2) var(--jn-ease-out);
+}
+.subagent-calls[open] > summary .subagent-chevron {
+  transform: rotate(90deg);
+}
+.subagent-calls-body {
+  margin-left: 18px;
+  border-top: 1px solid var(--jn-line);
+  border-left: 1px solid var(--jn-line);
+}
+.card-agent {
+  margin: 4px 0 0;
+  padding-left: 26px;
+  color: var(--jn-muted);
+  font-size: var(--jn-fs-sm);
+  overflow-wrap: anywhere;
+}
 /* Carte de proposition dans #approvals : une case par sous-agent, le nom en gras, l'objectif dessous. */
 .subagents-options {
   display: flex;
