@@ -1148,7 +1148,8 @@ body.vscode-high-contrast-light .effort-knob {
   height: 14px;
   color: inherit;
 }
-#learning-switch[aria-checked="true"] .cfg-switch-ico {
+#learning-switch[aria-checked="true"] .cfg-switch-ico,
+#subagents-switch[aria-checked="true"] .cfg-switch-ico {
   background: var(--jn-sig-tint);
   color: var(--jn-sig);
 }
@@ -1157,7 +1158,8 @@ body.vscode-high-contrast-light .effort-knob {
   color: var(--jn-bypass);
 }
 #bypass-switch,
-#learning-switch {
+#learning-switch,
+#subagents-switch {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1172,11 +1174,13 @@ body.vscode-high-contrast-light .effort-knob {
   font-size: var(--jn-fs);
 }
 #bypass-switch:hover:not([aria-disabled="true"]),
-#learning-switch:hover:not([aria-disabled="true"]) {
+#learning-switch:hover:not([aria-disabled="true"]),
+#subagents-switch:hover:not([aria-disabled="true"]) {
   background: transparent;
 }
 #bypass-switch::after,
-#learning-switch::after {
+#learning-switch::after,
+#subagents-switch::after {
   content: "";
   flex: none;
   box-sizing: border-box;
@@ -1190,11 +1194,13 @@ body.vscode-high-contrast-light .effort-knob {
     border-color var(--jn-d2) var(--jn-ease-io);
 }
 #bypass-switch:hover:not([aria-disabled="true"])::after,
-#learning-switch:hover:not([aria-disabled="true"])::after {
+#learning-switch:hover:not([aria-disabled="true"])::after,
+#subagents-switch:hover:not([aria-disabled="true"])::after {
   border-color: var(--jn-sig-edge);
 }
 #bypass-switch[aria-checked="true"]::before,
-#learning-switch[aria-checked="true"]::before {
+#learning-switch[aria-checked="true"]::before,
+#subagents-switch[aria-checked="true"]::before {
   transform: translateX(14px);
   background: var(--vscode-editor-background, var(--vscode-input-background));
   opacity: 1;
@@ -1203,11 +1209,13 @@ body.vscode-high-contrast-light .effort-knob {
   background: var(--jn-bypass);
   border-color: transparent;
 }
-#learning-switch[aria-checked="true"]::after {
+#learning-switch[aria-checked="true"]::after,
+#subagents-switch[aria-checked="true"]::after {
   background: var(--jn-sig);
   border-color: transparent;
 }
-#bypass-switch[aria-disabled="true"] {
+#bypass-switch[aria-disabled="true"],
+#subagents-switch[aria-disabled="true"] {
   pointer-events: none;
   opacity: 0.55;
 }
@@ -2793,7 +2801,8 @@ body.vscode-high-contrast-light .brand-ops {
   border-top: 0;
 }
 #cfg-pop #bypass-switch,
-#cfg-pop #learning-switch {
+#cfg-pop #learning-switch,
+#cfg-pop #subagents-switch {
   min-height: 30px;
 }
 #cfg-pop .cfg-switch-ico {

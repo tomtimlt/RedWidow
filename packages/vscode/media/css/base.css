@@ -1475,7 +1475,8 @@ input::placeholder {
     box-shadow var(--jn-d2) var(--jn-ease-out);
 }
 #bypass-switch::before,
-#learning-switch::before {
+#learning-switch::before,
+#subagents-switch::before {
   content: "";
   position: absolute;
   top: 50%;
@@ -1685,7 +1686,8 @@ body.bypass-pending #composer {
   }
   #title::before,
   #bypass-switch::before,
-  #learning-switch::before {
+  #learning-switch::before,
+  #subagents-switch::before {
     background: CanvasText;
     box-shadow: none;
   }

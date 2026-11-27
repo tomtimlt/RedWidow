@@ -514,6 +514,63 @@ describe("Mode apprentissage (ADR 0010)", () => {
   });
 });
 
+describe("Mode Sous-agents (ADR 0054)", () => {
+  const html = chatHtml(opts);
+  const js = read("../media/chat.js");
+  const tag = (id: string) => new RegExp(`<[^>]*\\sid="${id}"[^>]*>`).exec(html)?.[0] ?? "";
+  const cfg = html.slice(html.indexOf('id="cfg-pop"'), html.indexOf("<script nonce"));
+
+  it("interrupteur role=switch dans Exécution, avant Apprentissage, décrit par son aide", () => {
+    const sw = tag("subagents-switch");
+    expect(sw).toContain('role="switch"');
+    expect(sw).toContain('aria-checked="false"');
+    expect(sw).toContain('aria-describedby="subagents-help"');
+    expect(tag("subagents-help")).toContain('class="tip"');
+    expect(cfg).toContain('class="cfg-col cfg-execution"');
+    expect(cfg.indexOf('class="cfg-col cfg-execution"')).toBeLessThan(
+      cfg.indexOf('id="subagents-switch"'),
+    );
+    expect(cfg.indexOf('id="subagents-switch"')).toBeLessThan(cfg.indexOf('id="learning-switch"'));
+  });
+  it("puce dans la barre, masquée au départ, avant l'espaceur, ouvrant Configurer", () => {
+    const chip = tag("subagents-chip");
+    expect(chip).toMatch(/\shidden[\s>]/);
+    expect(chip).toContain('class="chip"');
+    expect(chip).toContain('popovertarget="cfg-pop"');
+    const toolbar = html.slice(html.indexOf('id="toolbar"'), html.indexOf('id="model-pop"'));
+    expect(toolbar).toContain('id="subagents-count"');
+    expect(toolbar.indexOf('id="subagents-chip"')).toBeLessThan(toolbar.indexOf('class="spacer"'));
+  });
+  it("chat.js n'envoie setSubagents que depuis un seul point, avec une clé booléenne", () => {
+    expect(js).toContain('subagentsSwitch.addEventListener("click", toggleSubagents)');
+    expect(js.match(/type: "setSubagents"/g)?.length).toBe(1);
+    const bodies = [...js.matchAll(/postMessage\(\{([^}]*)\}\)/g)]
+      .map((m) => m[1]?.trim() ?? "")
+      .filter((b) => b.includes("setSubagents"));
+    expect(bodies).toEqual(['type: "setSubagents", enabled: ctl.subagents !== true']);
+  });
+  it("chat.js ne reconstruit rien par innerHTML et ne lit que l'état effectif du contrôle", () => {
+    expect(js).not.toContain("innerHTML");
+    expect(js).toContain('$("subagents-chip").hidden = c.subagents !== true');
+    expect(js).toContain('"aria-checked", String(c.subagents === true)');
+    expect(js).toContain('"aria-disabled", String(c.locked || c.learning)');
+  });
+  it("le rendu en anglais contient « Subagents », sans perdre la clé française", () => {
+    const english = chatHtml({ ...opts, locale: "en" });
+    expect(english).toContain('data-i18n="Sous-agents">Subagents</span>');
+    expect(english).toContain(
+      "The agent proposes parallel subagents (up to 4); you choose which ones run.",
+    );
+    expect(english).toContain('title="Subagents mode on: open Configure"');
+    expect(html).toContain(">Sous-agents</span>");
+  });
+  it("le style de l'interrupteur couvre aussi Sous-agents", () => {
+    const css = readCss();
+    expect(css).toContain('#subagents-switch[aria-checked="true"]::after');
+    expect(css).toContain('#subagents-switch[aria-disabled="true"]');
+  });
+});
+
 describe("HTML localisé des webviews", () => {
   it("traduit les textes statiques et attributs tout en conservant les annotations françaises", () => {
     const french = chatHtml(opts);

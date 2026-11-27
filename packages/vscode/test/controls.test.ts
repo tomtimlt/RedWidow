@@ -342,83 +342,98 @@ describe("fournisseur de la conversation", () => {
   });
 });
 
+/** Banc de la webview : `renderControls` et ses gestionnaires, évalués sur des nœuds factices. */
+function webviewHarness() {
+  const js = readFileSync(new URL("../media/chat.js", import.meta.url), "utf8");
+  const renderStart = js.indexOf("  function renderControls(c) {");
+  const render = js.slice(renderStart, js.indexOf("\n  }", renderStart) + 4);
+  const handlers = js.slice(
+    js.indexOf("  function postReasoningChoice(value) {"),
+    js.indexOf("\n  const historyPanel ="),
+  );
+  const toggleEnd = 'subagentsSwitch.addEventListener("click", toggleSubagents);';
+  const toggle = js.slice(
+    js.indexOf('  const subagentsSwitch = $("subagents-switch");'),
+    js.indexOf(toggleEnd) + toggleEnd.length,
+  );
+  const notches = {
+    children: [] as { classList: { toggle(): void } }[],
+    get childElementCount() {
+      return this.children.length;
+    },
+    replaceChildren(...nodes: { classList: { toggle(): void } }[]) {
+      this.children = nodes;
+    },
+  };
+  const nodes = new Map<string, ReturnType<typeof node>>();
+  function node() {
+    return {
+      value: "",
+      textContent: "",
+      disabled: false,
+      hidden: false,
+      max: "",
+      title: "",
+      events: new Map<string, (event?: unknown) => void>(),
+      attrs: new Map<string, string>(),
+      addEventListener(type: string, handler: (event?: unknown) => void) {
+        this.events.set(type, handler);
+      },
+      setAttribute(name: string, value: string) {
+        this.attrs.set(name, value);
+      },
+      getAttribute(name: string) {
+        return this.attrs.get(name) ?? null;
+      },
+      matches: () => false,
+      classList: { toggle() {}, remove() {}, add() {}, contains: () => false },
+      querySelector: () => notches,
+      style: { setProperty() {} },
+    };
+  }
+  const $ = (id: string) => {
+    let found = nodes.get(id);
+    if (!found) {
+      found = node();
+      nodes.set(id, found);
+    }
+    return found;
+  };
+  const sent: unknown[] = [];
+  const context = {
+    t: (key: string | TemplateStringsArray, ...values: unknown[]) =>
+      typeof key === "string"
+        ? key
+        : key.reduce((out, part, i) => out + part + (values[i] ?? ""), ""),
+    $,
+    el: () => node(),
+    ctl: null,
+    levels: [],
+    lastCapabilities: null,
+    ctlGroup: $("ctl-group"),
+    modelChip: $("model-chip"),
+    cfgBtn: $("cfg-btn"),
+    modelPop: $("model-pop"),
+    cfgPop: $("cfg-pop"),
+    modelFilter: $("model-filter"),
+    modelList: $("model-list"),
+    modelInput: $("model-input"),
+    effortInput: $("effort"),
+    learningSwitch: $("learning-switch"),
+    document: { body: { classList: { toggle() {}, remove() {} } } },
+    renderBypass() {},
+    vscode: { postMessage: (message: unknown) => sent.push(message) },
+  };
+  const renderControls = runInNewContext(
+    `${render}\n${handlers}\n${toggle}\nrenderControls`,
+    context,
+  ) as (controls: ReturnType<typeof buildControls>) => void;
+  return { $, sent, renderControls };
+}
+
 describe("curseur de raisonnement de la webview", () => {
   it("reconfigure les crans et envoie leur valeur exacte, Auto, clavier et gel compris", () => {
-    const js = readFileSync(new URL("../media/chat.js", import.meta.url), "utf8");
-    const renderStart = js.indexOf("  function renderControls(c) {");
-    const render = js.slice(renderStart, js.indexOf("\n  }", renderStart) + 4);
-    const handlers = js.slice(
-      js.indexOf("  function postReasoningChoice(value) {"),
-      js.indexOf("\n  const historyPanel ="),
-    );
-    const notches = {
-      children: [] as { classList: { toggle(): void } }[],
-      get childElementCount() {
-        return this.children.length;
-      },
-      replaceChildren(...nodes: { classList: { toggle(): void } }[]) {
-        this.children = nodes;
-      },
-    };
-    const nodes = new Map<string, ReturnType<typeof node>>();
-    function node() {
-      return {
-        value: "",
-        textContent: "",
-        disabled: false,
-        hidden: false,
-        max: "",
-        title: "",
-        events: new Map<string, (event?: unknown) => void>(),
-        attrs: new Map<string, string>(),
-        addEventListener(type: string, handler: (event?: unknown) => void) {
-          this.events.set(type, handler);
-        },
-        setAttribute(name: string, value: string) {
-          this.attrs.set(name, value);
-        },
-        matches: () => false,
-        classList: { toggle() {}, remove() {}, add() {}, contains: () => false },
-        querySelector: () => notches,
-        style: { setProperty() {} },
-      };
-    }
-    const $ = (id: string) => {
-      let found = nodes.get(id);
-      if (!found) {
-        found = node();
-        nodes.set(id, found);
-      }
-      return found;
-    };
-    const sent: unknown[] = [];
-    const context = {
-      t: (key: string | TemplateStringsArray, ...values: unknown[]) =>
-        typeof key === "string"
-          ? key
-          : key.reduce((out, part, i) => out + part + (values[i] ?? ""), ""),
-      $,
-      el: () => node(),
-      ctl: null,
-      levels: [],
-      lastCapabilities: null,
-      ctlGroup: $("ctl-group"),
-      modelChip: $("model-chip"),
-      cfgBtn: $("cfg-btn"),
-      modelPop: $("model-pop"),
-      cfgPop: $("cfg-pop"),
-      modelFilter: $("model-filter"),
-      modelList: $("model-list"),
-      modelInput: $("model-input"),
-      effortInput: $("effort"),
-      learningSwitch: $("learning-switch"),
-      document: { body: { classList: { toggle() {}, remove() {} } } },
-      renderBypass() {},
-      vscode: { postMessage: (message: unknown) => sent.push(message) },
-    };
-    const renderControls = runInNewContext(`${render}\n${handlers}\nrenderControls`, context) as (
-      controls: ReturnType<typeof buildControls>,
-    ) => void;
+    const { $, sent, renderControls } = webviewHarness();
     const input = {
       prefs: { ...DEFAULT_PREFS, provider: "openai" as const, model: "a" },
       models: [{ ...A, reasoningVariants: ["low", "custom.full", "high"] }],
@@ -464,5 +479,55 @@ describe("curseur de raisonnement de la webview", () => {
     renderControls(buildControls({ ...input, prefs: { ...DEFAULT_PREFS, effort: "low" } }));
     $("effort-auto").events.get("click")?.();
     expect(sent.pop()).toEqual({ type: "setEffort", effort: null });
+  });
+
+  it("interrupteur Sous-agents : état effectif, puce, aide, gel pendant un tour et en apprentissage", () => {
+    const { $, sent, renderControls } = webviewHarness();
+    const input = {
+      prefs: { ...DEFAULT_PREFS, provider: "openai" as const, model: "a" },
+      models: [A],
+      status: "ready" as const,
+      defaultModel: undefined,
+      busy: false,
+    };
+    const aide =
+      "L'agent propose des sous-agents en parallèle (4 au plus) ; vous choisissez ceux qui partent.";
+    // Mode inactif : interrupteur éteint, puce masquée, un clic demande l'activation.
+    renderControls(buildControls(input));
+    expect($("subagents-switch").attrs.get("aria-checked")).toBe("false");
+    expect($("subagents-switch").attrs.get("aria-disabled")).toBe("false");
+    expect($("subagents-help").textContent).toBe(aide);
+    expect($("subagents-chip").hidden).toBe(true);
+    $("subagents-switch").events.get("click")?.();
+    expect(sent.splice(0)).toEqual([{ type: "setSubagents", enabled: true }]);
+    // Mode actif : interrupteur allumé, puce visible, un clic demande la coupure.
+    const actif = { ...input, prefs: { ...DEFAULT_PREFS, subagents: true } };
+    renderControls(buildControls(actif));
+    expect($("subagents-switch").attrs.get("aria-checked")).toBe("true");
+    expect($("subagents-chip").hidden).toBe(false);
+    $("subagents-switch").events.get("click")?.();
+    expect(sent.splice(0)).toEqual([{ type: "setSubagents", enabled: false }]);
+    // Pendant un tour : gelé, avec l'explication, et aucun envoi.
+    renderControls(buildControls({ ...actif, busy: true }));
+    expect($("subagents-switch").attrs.get("aria-checked")).toBe("true");
+    expect($("subagents-switch").attrs.get("aria-disabled")).toBe("true");
+    expect($("subagents-help").textContent).toBe(
+      "Modifiable après la réponse en cours ; s'applique au message suivant.",
+    );
+    $("subagents-switch").events.get("click")?.();
+    expect(sent).toEqual([]);
+    // Apprentissage : la préférence enregistrée est masquée (état effectif faux), aucun envoi.
+    renderControls(buildControls({ ...actif, learning: true }));
+    expect($("subagents-switch").attrs.get("aria-checked")).toBe("false");
+    expect($("subagents-switch").attrs.get("aria-disabled")).toBe("true");
+    expect($("subagents-help").textContent).toBe("Indisponible en mode Apprentissage.");
+    expect($("subagents-chip").hidden).toBe(true);
+    $("subagents-switch").events.get("click")?.();
+    expect(sent).toEqual([]);
+    // Sortie de l'apprentissage : la préférence revient d'elle-même.
+    renderControls(buildControls(actif));
+    expect($("subagents-switch").attrs.get("aria-checked")).toBe("true");
+    expect($("subagents-switch").attrs.get("aria-disabled")).toBe("false");
+    expect($("subagents-chip").hidden).toBe(false);
   });
 });

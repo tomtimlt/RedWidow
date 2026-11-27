@@ -7,6 +7,30 @@ const source = readFileSync(new URL("../media/chat.js", import.meta.url), "utf8"
 const uiSource = readFileSync(new URL("../media/ui.js", import.meta.url), "utf8");
 
 describe("libellés du chat FR / EN", () => {
+  it("traduit les libellés de l'interrupteur Sous-agents (ADR 0054) et les cite dans chat.js", () => {
+    const keys = [
+      ["Sous-agents", "Subagents"],
+      [
+        "L'agent propose des sous-agents en parallèle (4 au plus) ; vous choisissez ceux qui partent.",
+        "The agent proposes parallel subagents (up to 4); you choose which ones run.",
+      ],
+      ["Indisponible en mode Apprentissage.", "Unavailable in Learning mode."],
+      [
+        "Modifiable après la réponse en cours ; s'applique au message suivant.",
+        "Can be changed after the current reply; applies to the next message.",
+      ],
+      ["Mode Sous-agents actif : ouvrir Configurer", "Subagents mode on: open Configure"],
+    ] as const;
+    const fr = createUiTranslator(() => "fr");
+    const en = createUiTranslator(() => "en");
+    for (const [french, english] of keys) {
+      expect(fr(french)).toBe(french);
+      expect(en(french)).toBe(english);
+    }
+    // Les trois textes d'état passent par t() dans chat.js : aucun texte français brut.
+    for (const [french] of keys.slice(1, 4)) expect(source).toContain(`"${french}"`);
+  });
+
   it("traduit les statuts, activités et pluriels sans modifier les commandes ni leurs sorties", () => {
     let locale: Locale = "fr";
     const ui = runInNewContext(`${uiSource}\nWarbandUI`, {

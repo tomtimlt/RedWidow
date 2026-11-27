@@ -212,6 +212,33 @@ describe("parseWebviewMessage : setLearning (ADR 0010)", () => {
   });
 });
 
+describe("parseWebviewMessage : setSubagents (ADR 0054)", () => {
+  it("accepte un booléen seul, vrai ou faux", () => {
+    expect(parseWebviewMessage({ type: "setSubagents", enabled: true })).toEqual({
+      type: "setSubagents",
+      enabled: true,
+    });
+    expect(parseWebviewMessage({ type: "setSubagents", enabled: false })).toEqual({
+      type: "setSubagents",
+      enabled: false,
+    });
+  });
+  it("refuse toute clé supplémentaire", () => {
+    expect(
+      parseWebviewMessage({ type: "setSubagents", enabled: true, mode: "subagents" }),
+    ).toBeNull();
+    expect(
+      parseWebviewMessage({ type: "setSubagents", enabled: true, systemPrompt: "x" }),
+    ).toBeNull();
+  });
+  it("refuse un non-booléen ou l'absence de champ", () => {
+    for (const enabled of ["true", 1, 0, null, {}, []]) {
+      expect(parseWebviewMessage({ type: "setSubagents", enabled })).toBeNull();
+    }
+    expect(parseWebviewMessage({ type: "setSubagents" })).toBeNull();
+  });
+});
+
 describe("sélection du fournisseur depuis la webview", () => {
   it("accepte les trois fournisseurs et aucun champ supplémentaire", () => {
     for (const provider of ["claude", "openai", "opencode"]) {

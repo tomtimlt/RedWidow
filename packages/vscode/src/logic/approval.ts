@@ -133,6 +133,8 @@ export type WebviewMessage =
   | { type: "setBypass"; enabled: boolean; durationMs?: number | null }
   /** Mode apprentissage (ADR 0010) de ce chat : seul champ, appliqué au message suivant. */
   | { type: "setLearning"; enabled: boolean }
+  /** Mode « Sous-agents » (ADR 0054) de ce chat : seul champ, gelé pendant un tour, appliqué au message suivant. */
+  | { type: "setSubagents"; enabled: boolean }
   /** Ouvre la Kill chain en vue plein écran. Aucun champ. */
   | { type: "openKillchain" }
   /** Ouvre le panneau Monitor. Aucun champ : l'hôte seul choisit la colonne. */
@@ -327,6 +329,10 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
     case "setLearning":
       return only("type", "enabled") && typeof m.enabled === "boolean"
         ? { type: "setLearning", enabled: m.enabled }
+        : null;
+    case "setSubagents":
+      return only("type", "enabled") && typeof m.enabled === "boolean"
+        ? { type: "setSubagents", enabled: m.enabled }
         : null;
     case "watch":
       return only("type", "toolUseId") &&

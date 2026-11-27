@@ -213,6 +213,13 @@
     "Aucune variante de raisonnement connue pour ce modèle. Actualisez la liste des modèles.":
       "No known reasoning variants for this model. Refresh the model list.",
     Apprentissage: "Learning",
+    "Sous-agents": "Subagents",
+    "Mode Sous-agents actif : ouvrir Configurer": "Subagents mode on: open Configure",
+    "L'agent propose des sous-agents en parallèle (4 au plus) ; vous choisissez ceux qui partent.":
+      "The agent proposes parallel subagents (up to 4); you choose which ones run.",
+    "Indisponible en mode Apprentissage.": "Unavailable in Learning mode.",
+    "Modifiable après la réponse en cours ; s'applique au message suivant.":
+      "Can be changed after the current reply; applies to the next message.",
     "Bypass · en attente": "Bypass · pending",
     Bypass: "Bypass",
     Supervisé: "Supervised",

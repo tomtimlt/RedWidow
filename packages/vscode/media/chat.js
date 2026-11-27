@@ -790,6 +790,17 @@
     $("learning-badge").hidden = c.learning !== true;
     learningSwitch.setAttribute("aria-checked", String(c.learning === true));
     learningSwitch.setAttribute("aria-disabled", String(c.locked));
+    // Sous-agents (ADR 0054) : `c.subagents` est l'état effectif (faux en apprentissage). Gelé pendant un tour.
+    $("subagents-switch").setAttribute("aria-checked", String(c.subagents === true));
+    $("subagents-switch").setAttribute("aria-disabled", String(c.locked || c.learning));
+    $("subagents-help").textContent = c.learning
+      ? t("Indisponible en mode Apprentissage.")
+      : c.locked
+        ? t("Modifiable après la réponse en cours ; s'applique au message suivant.")
+        : t(
+            "L'agent propose des sous-agents en parallèle (4 au plus) ; vous choisissez ceux qui partent.",
+          );
+    $("subagents-chip").hidden = c.subagents !== true;
     renderBypass();
   }
   wirePop(modelPop, modelChip, {
@@ -976,6 +987,12 @@
     vscode.postMessage({ type: "setLearning", enabled: ctl.learning !== true });
   }
   learningSwitch.addEventListener("click", toggleLearning);
+  const subagentsSwitch = $("subagents-switch");
+  function toggleSubagents() {
+    if (!ctl || subagentsSwitch.getAttribute("aria-disabled") === "true") return;
+    vscode.postMessage({ type: "setSubagents", enabled: ctl.subagents !== true });
+  }
+  subagentsSwitch.addEventListener("click", toggleSubagents);
   const bypassState = $("bypass-state");
   const bypassBadge = $("bypass-badge");
   let bypassCtx = { push: null, previous: null, userOff: false };
