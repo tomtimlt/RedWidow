@@ -80,6 +80,20 @@ export type ChatItem = { source?: string } & (
       findings: { label: string; detail: string; severity: "unrated" }[];
     }
   | { id: number; kind: "notice"; level: "info" | "error"; text: string }
+  | {
+      /**
+       * Trace en lecture seule d'une proposition de sous-agents (ADR 0054) : construite depuis
+       * `subagents.proposed` / `subagents.decided`, donc aussi présente en relecture. `selected` :
+       * identifiants des éléments retenus (vide tant que `pending`, ou après un refus).
+       */
+      id: number;
+      kind: "subagents";
+      proposalId: string;
+      items: { id: string; name: string; goal: string }[];
+      status: "pending" | "accepted" | "declined";
+      selected: string[];
+      note?: string;
+    }
 );
 
 type NewItem = ChatItem extends infer T
@@ -87,6 +101,21 @@ type NewItem = ChatItem extends infer T
     ? Omit<T, "id">
     : never
   : never;
+
+/**
+ * Éléments d'une proposition de sous-agents : le texte vient du modèle (non fiable), donc neutralisé
+ * (contrôles et bidi retirés) et plafonné. Les identifiants restent ceux du moteur : ils servent de
+ * clés, jamais de texte affiché.
+ */
+function cleanSubagentItems(
+  items: readonly SubagentsProposalView["items"][number][],
+): SubagentsProposalView["items"] {
+  return items.map((item) => ({
+    id: item.id,
+    name: cleanText(item.name, 200),
+    goal: cleanText(item.goal, 4000),
+  }));
+}
 
 /** Ligne de la liste d'historique : chaînes déjà neutralisées. */
 export interface HistoryEntry {
@@ -148,7 +177,8 @@ export interface ChatView {
   approvals: ApprovalCard[];
   /**
    * Proposition de sous-agents en attente de la réponse de l'utilisateur (ADR 0054) : textes déjà
-   * neutralisés. Absente sans proposition. Le rendu de la carte n'est pas encore branché.
+   * neutralisés. Absente sans proposition et en lecture seule. La webview en fait une carte dans
+   * `#approvals` ; la trace durable reste l'élément `subagents` du fil.
    */
   subagentsProposal?: SubagentsProposalView;
   /** Occupation du contexte au dernier appel modèle (absente tant que le moteur n'en a pas annoncé). */
@@ -231,11 +261,7 @@ export function createChatState(before?: string) {
     }) {
       subagentsProposal = {
         proposalId: proposal.proposalId,
-        items: proposal.items.map((item) => ({
-          id: item.id,
-          name: cleanText(item.name, 200),
-          goal: cleanText(item.goal, 4000),
-        })),
+        items: cleanSubagentItems(proposal.items),
       };
     },
     /** Efface ce qui attend une réponse de l'utilisateur : demandes d'approbation et proposition de sous-agents. */
@@ -425,9 +451,29 @@ export function createChatState(before?: string) {
             }
             return;
           }
-          case "subagents.decided":
-            if (subagentsProposal?.proposalId === e.proposalId) subagentsProposal = null;
+          case "subagents.proposed":
+            push({
+              kind: "subagents",
+              proposalId: e.proposalId,
+              items: cleanSubagentItems(e.items),
+              status: "pending",
+              selected: [],
+            });
             return;
+          case "subagents.decided": {
+            if (subagentsProposal?.proposalId === e.proposalId) subagentsProposal = null;
+            // Seul l'élément de cette proposition est mis à jour ; une proposition inconnue ne change rien.
+            const entry = items.findLast(
+              (item) => item.kind === "subagents" && item.proposalId === e.proposalId,
+            );
+            if (entry?.kind !== "subagents") return;
+            const known = new Set(entry.items.map((item) => item.id));
+            entry.status = e.decision;
+            entry.selected = e.selected.map((place) => place.id).filter((id) => known.has(id));
+            const note = e.note === undefined ? "" : cleanText(e.note, 2000);
+            if (note.trim() !== "") entry.note = note;
+            return;
+          }
           case "tool.result": {
             for (const [id, use] of execTools) if (use === e.toolUseId) execTools.delete(id);
             for (const [id, use] of execProcs) if (use === e.toolUseId) execProcs.delete(id);

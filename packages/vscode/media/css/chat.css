@@ -492,6 +492,121 @@ body.paused .thinking-dots {
     flex-basis: 100%;
   }
 }
+/* ───────────────────────────── Sous-agents (ADR 0054) ───────────────────────────── */
+/* Carte de proposition dans #approvals : une case par sous-agent, le nom en gras, l'objectif dessous. */
+.subagents-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  min-width: 0;
+}
+.subagents-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  cursor: pointer;
+}
+.subagents-option input {
+  flex: none;
+  margin: 2px 0 0;
+  accent-color: var(--jn-accent);
+}
+.subagents-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.subagents-name {
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.subagents-goal {
+  display: block;
+  max-height: 8em;
+  overflow: auto;
+  color: var(--jn-muted);
+  font-size: var(--jn-fs-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.subagents-card.is-sent {
+  opacity: 0.75;
+}
+/* Élément du fil : résumé en lecture seule, aligné sur les journaux d'activités. */
+.subagents-item {
+  align-self: stretch;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  margin-left: var(--jn-indent);
+  padding: 6px 10px;
+  border: 1px solid var(--jn-line);
+  border-radius: var(--jn-r-md);
+  font-size: var(--jn-fs-sm);
+  color: var(--jn-muted);
+}
+.subagents-item .subagents-icon {
+  flex: none;
+  align-self: center;
+  width: 14px;
+  height: 14px;
+}
+.subagents-item.accepted .subagents-icon {
+  color: var(--jn-ok);
+}
+.subagents-item.pending .subagents-icon {
+  color: var(--jn-sig);
+}
+.subagents-line,
+.subagents-note {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.subagents-note,
+.subagents-more,
+.subagents-item > button.link {
+  flex-basis: 100%;
+}
+.subagents-note {
+  white-space: pre-wrap;
+}
+.subagents-item > button.link {
+  justify-content: flex-start;
+  padding-inline: 0;
+}
+.subagents-more summary {
+  cursor: pointer;
+  border-radius: var(--jn-r-sm);
+}
+.subagents-list {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+.subagents-list li {
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+.subagents-list .subagents-goal {
+  max-height: none;
+  overflow: visible;
+}
+.subagents-list .is-skipped {
+  color: var(--jn-faint);
+}
+.subagents-list .is-skipped .subagents-name {
+  text-decoration: line-through;
+  font-weight: normal;
+}
+#subagents-hint {
+  margin: 2px 12px 0;
+  overflow-wrap: anywhere;
+}
 #composer:focus-within {
   border-color: var(--jn-focus);
   box-shadow: 0 0 0 1px var(--jn-focus);

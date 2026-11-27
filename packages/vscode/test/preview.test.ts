@@ -30,6 +30,7 @@ describe("chat.js : balises créées", () => {
       "h2",
       "input",
       "label",
+      "form",
       "select",
       "option",
       "table",

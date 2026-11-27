@@ -95,6 +95,21 @@ export const chatEn: Record<string, string> = {
   "Indisponible en mode Apprentissage.": "Unavailable in Learning mode.",
   "Modifiable après la réponse en cours ; s'applique au message suivant.":
     "Can be changed after the current reply; applies to the next message.",
+  "L'agent propose des sous-agents": "The agent proposes subagents",
+  "Lancer la sélection ({0})": "Run selection ({0})",
+  "Aucun sous-agent": "No subagents",
+  "Lancement…": "Starting…",
+  "Une proposition de sous-agents attend votre choix : envoyer un message la refuse, avec ce texte pour note.":
+    "A subagent proposal is waiting: sending a message declines it, with your text as the note.",
+  "Sous-agents proposés : {0}. En attente de votre choix.":
+    "Subagents proposed: {0}. Awaiting your choice.",
+  "Proposition de sous-agents restée sans réponse.": "Subagent proposal left unanswered.",
+  "Sous-agents lancés : {0}": "Subagents started: {0}",
+  "Détail de la proposition": "Proposal details",
+  " (non lancé)": " (not started)",
+  "Aucun sous-agent lancé.": "No subagents started.",
+  "Note : {0}": "Note: {0}",
+  "Désactiver le mode sous-agents": "Turn off subagents mode",
   "Bypass · en attente": "Bypass · pending",
   Bypass: "Bypass",
   Supervisé: "Supervised",

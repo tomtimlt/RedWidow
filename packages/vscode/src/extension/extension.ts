@@ -1257,6 +1257,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           return s.setLearning(message.enabled);
         case "setSubagents":
           return s.setSubagents(message.enabled);
+        case "answerSubagents":
+          return s.answerSubagents(message.proposalId, message.selected);
         case "refreshModels":
           return await s.authChanged();
         case "refreshTerminals":

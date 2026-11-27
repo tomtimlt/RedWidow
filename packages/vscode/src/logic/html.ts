@@ -170,6 +170,7 @@ export function chatHtml({
 <p id="attachment-vision-warning" class="hint" role="status" hidden></p>
 <p id="attachment-status" class="hint" role="status" hidden></p>
 <textarea id="input" rows="1" data-i18n-aria-label="Votre consigne" aria-label="${localized("Votre consigne", locale)}" data-i18n-placeholder="Votre consigne…" placeholder="${localized("Votre consigne…", locale)}" data-i18n-title="Entrée pour envoyer, Maj+Entrée pour une nouvelle ligne" title="${localized("Entrée pour envoyer, Maj+Entrée pour une nouvelle ligne", locale)}"></textarea>
+<p id="subagents-hint" class="hint" role="status" hidden><span data-i18n="Une proposition de sous-agents attend votre choix : envoyer un message la refuse, avec ce texte pour note.">${localized("Une proposition de sous-agents attend votre choix : envoyer un message la refuse, avec ce texte pour note.", locale)}</span></p>
 <div id="toolbar">
 
 <button id="composer-menu-btn" type="button" class="ghost tool-btn" popovertarget="composer-menu" aria-haspopup="dialog" aria-expanded="false" data-i18n-aria-label="Ajouter des outils et du contexte" aria-label="${localized("Ajouter des outils et du contexte", locale)}">${icon("plus")}</button>

@@ -293,9 +293,65 @@
     a &&
     Object.keys(a).length === Object.keys(b).length &&
     Object.keys(b).every((key) => key === "blocks" || a[key] === b[key]);
+  // Les tableaux de l'élément « Sous-agents » changent de référence à chaque vue : comparaison par contenu.
+  const sameSubagentsItem = (a, b) => a !== void 0 && JSON.stringify(a) === JSON.stringify(b);
+  // Élément « Sous-agents » du fil (ADR 0054) : résumé en lecture seule de la proposition et de la réponse.
+  // Noms, objectifs et note viennent du modèle ou de l'utilisateur : posés par textContent (el), jamais interprétés.
+  function renderSubagentsItem(item) {
+    const box = el("div", `subagents-item ${item.status}`);
+    const namesOf = (keep) =>
+      item.items
+        .filter((entry) => keep(entry.id))
+        .map((entry) => entry.name)
+        .join(", ");
+    const icon = svg("graph", "ico subagents-icon");
+    icon.setAttribute("aria-hidden", "true");
+    const line = el(
+      "p",
+      "subagents-line",
+      item.status === "accepted"
+        ? t("Sous-agents lancés : {0}", { 0: namesOf((id) => item.selected.includes(id)) })
+        : item.status === "declined"
+          ? t("Aucun sous-agent lancé.")
+          : item.live
+            ? t("Sous-agents proposés : {0}. En attente de votre choix.", {
+                0: namesOf(() => true),
+              })
+            : t("Proposition de sous-agents restée sans réponse."),
+    );
+    box.append(icon, line);
+    if (item.status === "declined" && item.note)
+      box.append(el("p", "subagents-note", t("Note : {0}", { 0: item.note })));
+    if (item.status === "accepted") {
+      const more = el("details", "subagents-more");
+      more.append(el("summary", "", t("Détail de la proposition")));
+      const list = el("ul", "subagents-list");
+      for (const entry of item.items) {
+        const kept = item.selected.includes(entry.id);
+        const row = el("li", kept ? "" : "is-skipped");
+        row.append(el("strong", "subagents-name", entry.name));
+        if (!kept) row.append(el("span", "sr-only", t(" (non lancé)")));
+        row.append(el("span", "subagents-goal", entry.goal));
+        list.append(row);
+      }
+      more.append(list);
+      box.append(more);
+    }
+    if (item.status === "declined" && item.canDisable) {
+      const off = el("button", "link", t("Désactiver le mode sous-agents"));
+      off.type = "button";
+      off.addEventListener("click", () => setSubagentsMode(false));
+      box.append(off);
+    }
+    return box;
+  }
   function renderItem(item) {
     const cached = itemNodes.get(item.id);
-    if (sameDisplay(cached?.item, item)) {
+    if (
+      item.kind === "subagents"
+        ? sameSubagentsItem(cached?.item, item)
+        : sameDisplay(cached?.item, item)
+    ) {
       cached.item = item;
       return cached.node;
     }
@@ -308,7 +364,8 @@
       const message = el("div", "msg agent");
       for (const block of item.blocks) message.append(renderBlock(block));
       node = messageShell("agent", item.text, message);
-    } else {
+    } else if (item.kind === "subagents") node = renderSubagentsItem(item);
+    else {
       node = el("div", `notice ${item.level}`, item.text);
       if (item.level === "error") node.setAttribute("role", "alert");
     }
@@ -331,7 +388,12 @@
       next = node;
     }
   }
-  function renderItems(items) {
+  function renderItems(items, view) {
+    // L'élément « Sous-agents » dépend aussi de la vue : proposition encore vivante, offre de couper le mode
+    // (jamais pendant un tour, où l'hôte ignorerait le changement).
+    const live = view.subagentsProposal?.proposalId;
+    const canDisable =
+      view.controls?.subagents === true && view.controls.locked !== true && !view.readonly;
     const nodes = [];
     let group = null;
     let grouped = [];
@@ -353,7 +415,13 @@
       }
       finishGroup();
       group = null;
-      nodes.push(renderItem(item));
+      nodes.push(
+        renderItem(
+          item.kind === "subagents"
+            ? { ...item, live: item.proposalId === live, canDisable }
+            : item,
+        ),
+      );
     }
     finishGroup();
     for (const id of toolGroups.keys()) if (!activeGroups.has(id)) toolGroups.delete(id);
@@ -411,6 +479,90 @@
       box.append(el("p", "hint", t`Bac à sable actif : les commandes tournent dans ${sandbox}.`));
     }
     return box;
+  }
+  // Carte de proposition de sous-agents (ADR 0054), dans #approvals. Noms et objectifs viennent du modèle :
+  // posés par textContent (el), jamais par HTML. Un seul message part vers l'hôte (answer) et la carte ne
+  // disparaît que lorsque la vue de l'hôte n'a plus de proposition (événement subagents.decided).
+  let subagentsCard = null;
+  let subagentsSerial = 0;
+  function renderSubagentsCard(proposal) {
+    const prefix = `subagents-${++subagentsSerial}`;
+    const form = el("form", "card subagents-card enter");
+    form.tabIndex = -1;
+    form.setAttribute("role", "group");
+    form.setAttribute("aria-labelledby", `${prefix}-title`);
+    const icon = svg("graph", "ico card-icon");
+    icon.setAttribute("aria-hidden", "true");
+    const title = el("div", "card-title", l("L'agent propose des sous-agents"));
+    title.id = `${prefix}-title`;
+    const head = el("div", "card-head");
+    head.append(icon, title);
+    const options = el("div", "subagents-options");
+    const boxes = proposal.items.map((entry, index) => {
+      const box = el("input");
+      box.type = "checkbox";
+      box.checked = true;
+      box.value = entry.id;
+      box.setAttribute("aria-labelledby", `${prefix}-name-${index}`);
+      box.setAttribute("aria-describedby", `${prefix}-goal-${index}`);
+      const name = el("strong", "subagents-name", entry.name);
+      name.id = `${prefix}-name-${index}`;
+      const goal = el("span", "subagents-goal", entry.goal);
+      goal.id = `${prefix}-goal-${index}`;
+      const text = el("span", "subagents-text");
+      text.append(name, goal);
+      const option = el("label", "subagents-option");
+      option.append(box, text);
+      options.append(option);
+      return box;
+    });
+    const main = el("button", "primary");
+    main.type = "submit";
+    const none = el("button", "", l("Aucun sous-agent"));
+    none.type = "button";
+    const row = el("div", "card-buttons");
+    row.append(main, none);
+    let sent = false;
+    const picked = () => boxes.filter((box) => box.checked).map((box) => box.value);
+    // Libellé recalculé à chaque changement de case et à chaque bascule de langue.
+    const paint = () => {
+      const count = picked().length;
+      main.textContent = sent ? t("Lancement…") : t("Lancer la sélection ({0})", { 0: count });
+      main.disabled = sent || count === 0;
+    };
+    productBindings.add({ node: main, paint });
+    paint();
+    const answer = (selected) => {
+      if (sent) return;
+      sent = true;
+      for (const control of form.querySelectorAll("input, button")) control.disabled = true;
+      form.classList.add("is-sent");
+      form.setAttribute("aria-busy", "true");
+      paint();
+      vscode.postMessage({ type: "answerSubagents", proposalId: proposal.proposalId, selected });
+      // Les contrôles désactivés perdent le focus : on le rend au champ de saisie.
+      input.focus({ preventScroll: true });
+    };
+    form.addEventListener("change", paint);
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const selected = picked();
+      if (selected.length > 0) answer(selected);
+    });
+    none.addEventListener("click", () => answer([]));
+    form.addEventListener("keydown", (e) => {
+      // Échap ne refuse jamais : il rend seulement le focus au champ de saisie.
+      if (e.key === "Escape") {
+        e.preventDefault();
+        input.focus();
+      } else if (e.key === "Enter" && boxes.includes(e.target)) {
+        e.preventDefault();
+        const selected = picked();
+        if (selected.length > 0) answer(selected);
+      }
+    });
+    form.append(head, options, row);
+    return form;
   }
   const seenCards = /* @__PURE__ */ new Set();
   const approvalNodes = new Map();
@@ -988,9 +1140,13 @@
   }
   learningSwitch.addEventListener("click", toggleLearning);
   const subagentsSwitch = $("subagents-switch");
-  function toggleSubagents() {
+  // Seul point d'envoi de setSubagents : l'interrupteur et le lien de l'élément « Sous-agents » du fil.
+  function setSubagentsMode(enabled) {
     if (!ctl || subagentsSwitch.getAttribute("aria-disabled") === "true") return;
-    vscode.postMessage({ type: "setSubagents", enabled: ctl.subagents !== true });
+    vscode.postMessage({ type: "setSubagents", enabled });
+  }
+  function toggleSubagents() {
+    if (ctl) setSubagentsMode(ctl.subagents !== true);
   }
   subagentsSwitch.addEventListener("click", toggleSubagents);
   const bypassState = $("bypass-state");
@@ -1715,6 +1871,7 @@
     clearInterval(missionTimer);
     clearTimeout(bypassTimer);
     approvalNodes.clear();
+    subagentsCard = null;
   });
   document.addEventListener("visibilitychange", applyBody);
   document.addEventListener("visibilitychange", renderBypass);
@@ -1830,7 +1987,7 @@
       ? nextBefore === null
       : log.scrollHeight - log.scrollTop - log.clientHeight < 40;
     const top = log.scrollTop;
-    const nodes = view.items.length === 0 ? [welcome(view.sandbox)] : renderItems(view.items);
+    const nodes = view.items.length === 0 ? [welcome(view.sandbox)] : renderItems(view.items, view);
     const added = nodes.length - shownNodes;
     if (shownNodes >= 0 && added > 0 && added <= 3) {
       for (const n of nodes.slice(shownNodes)) n.classList.add("enter");
@@ -1859,13 +2016,21 @@
     });
     const currentApprovals = new Set(visible2.map((card) => card.toolUseId));
     for (const id of approvalNodes.keys()) if (!currentApprovals.has(id)) approvalNodes.delete(id);
-    stableChildren(approvals, cards);
+    // Proposition de sous-agents : carte en cache par proposalId (rien ne se décoche à un nouveau rendu).
+    const proposal = view.subagentsProposal ?? null;
+    const freshProposal = proposal !== null && subagentsCard?.proposalId !== proposal.proposalId;
+    if (proposal === null) subagentsCard = null;
+    else if (freshProposal)
+      subagentsCard = { proposalId: proposal.proposalId, node: renderSubagentsCard(proposal) };
+    stableChildren(approvals, subagentsCard ? [subagentsCard.node, ...cards] : cards);
+    $("subagents-hint").hidden = proposal === null;
     for (const binding of productBindings)
       if (!binding.node.isConnected) productBindings.delete(binding);
     const fresh = visible2.findIndex((c) => !seenCards.has(c.toolUseId));
     seenCards.clear();
     for (const c of visible2) seenCards.add(c.toolUseId);
-    if (fresh >= 0) cards[fresh]?.focus();
+    if (freshProposal) subagentsCard.node.querySelector("input")?.focus();
+    else if (fresh >= 0) cards[fresh]?.focus();
     else replacedCardFocus?.focus({ preventScroll: true });
     const sb = $("sandbox");
     if (view.sandbox) {
@@ -2008,6 +2173,7 @@
         shownNodes = -1;
         pageBefore = null;
         approvalNodes.clear();
+        subagentsCard = null;
         itemNodes.clear();
         openTools.clear();
         toolStatus.clear();

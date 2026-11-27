@@ -544,10 +544,13 @@ describe("Mode Sous-agents (ADR 0054)", () => {
   it("chat.js n'envoie setSubagents que depuis un seul point, avec une clé booléenne", () => {
     expect(js).toContain('subagentsSwitch.addEventListener("click", toggleSubagents)');
     expect(js.match(/type: "setSubagents"/g)?.length).toBe(1);
+    // Un seul appel factorisé : l'interrupteur envoie l'inverse de l'état effectif, le lien du fil envoie `false`.
     const bodies = [...js.matchAll(/postMessage\(\{([^}]*)\}\)/g)]
       .map((m) => m[1]?.trim() ?? "")
       .filter((b) => b.includes("setSubagents"));
-    expect(bodies).toEqual(['type: "setSubagents", enabled: ctl.subagents !== true']);
+    expect(bodies).toEqual(['type: "setSubagents", enabled']);
+    expect(js).toContain("setSubagentsMode(ctl.subagents !== true)");
+    expect(js).toContain("setSubagentsMode(false)");
   });
   it("chat.js ne reconstruit rien par innerHTML et ne lit que l'état effectif du contrôle", () => {
     expect(js).not.toContain("innerHTML");
@@ -568,6 +571,129 @@ describe("Mode Sous-agents (ADR 0054)", () => {
     const css = readCss();
     expect(css).toContain('#subagents-switch[aria-checked="true"]::after');
     expect(css).toContain('#subagents-switch[aria-disabled="true"]');
+  });
+});
+
+describe("Proposition de sous-agents : carte et élément du fil (ADR 0054, lot B)", () => {
+  const html = chatHtml(opts);
+  const js = read("../media/chat.js");
+  const tag = (id: string) => new RegExp(`<[^>]*\\sid="${id}"[^>]*>`).exec(html)?.[0] ?? "";
+  /** Corps d'une fonction de chat.js, de sa déclaration à la ligne de fermeture (indentation de 2). */
+  const body = (name: string) => {
+    const start = js.indexOf(`  function ${name}(`);
+    return start < 0 ? "" : js.slice(start, js.indexOf("\n  }\n", start) + 5);
+  };
+  const card = body("renderSubagentsCard");
+  const item = body("renderSubagentsItem");
+
+  it("l'indice sous le champ est présent, masqué, annoncé, et placé entre #input et la barre", () => {
+    const hint = tag("subagents-hint");
+    expect(hint).toMatch(/\shidden[\s>]/);
+    expect(hint).toContain('role="status"');
+    expect(hint).toContain('class="hint"');
+    expect(html.indexOf('id="input"')).toBeLessThan(html.indexOf('id="subagents-hint"'));
+    expect(html.indexOf('id="subagents-hint"')).toBeLessThan(html.indexOf('id="toolbar"'));
+    expect(html).toContain(
+      "Une proposition de sous-agents attend votre choix : envoyer un message la refuse, avec ce texte pour note.",
+    );
+    expect(chatHtml({ ...opts, locale: "en" })).toContain(
+      "A subagent proposal is waiting: sending a message declines it, with your text as the note.",
+    );
+  });
+  it("chat.js affiche l'indice tant que la vue porte une proposition", () => {
+    expect(js).toContain('$("subagents-hint").hidden = proposal === null');
+  });
+  it("chat.js n'envoie answerSubagents que depuis un seul point, sans note", () => {
+    expect(js.match(/type: "answerSubagents"/g)?.length).toBe(1);
+    const bodies = [...js.matchAll(/postMessage\(\{([^}]*)\}\)/g)]
+      .map((m) => m[1]?.trim() ?? "")
+      .filter((b) => b.includes("answerSubagents"));
+    expect(bodies).toEqual(['type: "answerSubagents", proposalId: proposal.proposalId, selected']);
+    expect(js).not.toMatch(/answerSubagents[^)]*note/);
+  });
+  it("aucun innerHTML ni gabarit HTML : la carte et l'élément posent le texte du modèle par el()", () => {
+    expect(js).not.toContain("innerHTML");
+    expect(js).not.toMatch(/insertAdjacentHTML|outerHTML/);
+    expect(card).not.toBe("");
+    expect(item).not.toBe("");
+    for (const code of [card, item]) {
+      expect(code).not.toMatch(/innerHTML|insertAdjacentHTML|style=|createElement|\.html\b/);
+      for (const m of code.matchAll(/\bel\(\s*"(\w+)"/g)) {
+        expect([
+          "div",
+          "span",
+          "p",
+          "strong",
+          "button",
+          "details",
+          "summary",
+          "ul",
+          "li",
+          "form",
+          "label",
+          "input",
+        ]).toContain(m[1]);
+      }
+    }
+    expect(card).toContain('el("strong", "subagents-name", entry.name)');
+    expect(card).toContain('el("span", "subagents-goal", entry.goal)');
+    expect(item).toContain('el("strong", "subagents-name", entry.name)');
+  });
+  it('la branche kind === "subagents" existe dans le rendu, avant la branche notice par défaut', () => {
+    const render = body("renderItem");
+    expect(render).toContain('item.kind === "subagents"');
+    expect(
+      render.indexOf('item.kind === "subagents") node = renderSubagentsItem(item)'),
+    ).toBeLessThan(render.indexOf('node = el("div", `notice'));
+  });
+  it("carte : formulaire dans #approvals, cases cochées au départ, bouton principal et secondaire", () => {
+    expect(card).toContain('el("form", "card subagents-card enter")');
+    expect(card).toContain("box.checked = true");
+    expect(card).toContain('main.type = "submit"');
+    expect(card).toContain('l("Aucun sous-agent")');
+    expect(card).toContain('t("Lancer la sélection ({0})", { 0: count })');
+    expect(card).toContain('t("Lancement…")');
+    expect(card).toContain("main.disabled = sent || count === 0");
+    expect(card).toContain('none.addEventListener("click", () => answer([]))');
+    expect(js).toContain(
+      "stableChildren(approvals, subagentsCard ? [subagentsCard.node, ...cards] : cards)",
+    );
+  });
+  it("carte : Échap rend le focus au champ sans refuser, Entrée envoie seulement si n > 0", () => {
+    expect(card).toContain('e.key === "Escape"');
+    expect(card).toContain("input.focus();");
+    // Un seul envoi, via answer : Échap ne l'appelle pas.
+    const escapeBranch = card.slice(
+      card.indexOf('e.key === "Escape"'),
+      card.indexOf('e.key === "Enter"'),
+    );
+    expect(escapeBranch).not.toContain("answer(");
+    expect(card).toContain("if (selected.length > 0) answer(selected)");
+    expect(card).toContain("if (sent) return;");
+  });
+  it("la carte n'est jamais retirée côté webview avant la vue de l'hôte", () => {
+    expect(card).not.toMatch(/\.remove\(|replaceChildren|hidden\s*=/);
+    expect(js).toContain("if (proposal === null) subagentsCard = null;");
+  });
+  it("le focus va à la première case d'une carte nouvelle, avant les cartes d'autorisation", () => {
+    expect(js).toContain('if (freshProposal) subagentsCard.node.querySelector("input")?.focus();');
+  });
+  it("le lien « Désactiver » n'est offert qu'après un refus, hors lecture seule et hors tour en cours", () => {
+    expect(item).toContain('item.status === "declined" && item.canDisable');
+    expect(js).toContain(
+      "view.controls?.subagents === true && view.controls.locked !== true && !view.readonly",
+    );
+  });
+  it("le style de la carte et de l'élément du fil existe", () => {
+    const css = readCss();
+    for (const selector of [
+      ".subagents-options",
+      ".subagents-option",
+      ".subagents-item",
+      ".subagents-goal",
+      "#subagents-hint",
+    ])
+      expect(css).toContain(selector);
   });
 });
 

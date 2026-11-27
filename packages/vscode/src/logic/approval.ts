@@ -2,6 +2,7 @@ import {
   isRememberable,
   isSupervisionLevel,
   type PendingApproval,
+  SUBAGENTS_MAX_ITEMS,
   type SupervisionLevel,
   stripControl,
 } from "@warband/core";
@@ -135,6 +136,12 @@ export type WebviewMessage =
   | { type: "setLearning"; enabled: boolean }
   /** Mode « Sous-agents » (ADR 0054) de ce chat : seul champ, gelé pendant un tour, appliqué au message suivant. */
   | { type: "setSubagents"; enabled: boolean }
+  /**
+   * Réponse à la proposition de sous-agents en attente (ADR 0054) : seuls des identifiants, jamais de
+   * note (un message tapé pendant la proposition vaut refus, avec ce texte). `[]` : aucun sous-agent.
+   * La session revalide l'appartenance des identifiants à la proposition affichée.
+   */
+  | { type: "answerSubagents"; proposalId: string; selected: string[]; note?: never }
   /** Ouvre la Kill chain en vue plein écran. Aucun champ. */
   | { type: "openKillchain" }
   /** Ouvre le panneau Monitor. Aucun champ : l'hôte seul choisit la colonne. */
@@ -334,6 +341,18 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
       return only("type", "enabled") && typeof m.enabled === "boolean"
         ? { type: "setSubagents", enabled: m.enabled }
         : null;
+    case "answerSubagents": {
+      const shortId = (value: unknown): value is string =>
+        typeof value === "string" && value.length >= 1 && value.length <= 200;
+      return only("type", "proposalId", "selected") &&
+        shortId(m.proposalId) &&
+        Array.isArray(m.selected) &&
+        m.selected.length <= SUBAGENTS_MAX_ITEMS &&
+        m.selected.every(shortId) &&
+        new Set(m.selected).size === m.selected.length
+        ? { type: "answerSubagents", proposalId: m.proposalId, selected: [...m.selected] }
+        : null;
+    }
     case "watch":
       return only("type", "toolUseId") &&
         typeof m.toolUseId === "string" &&

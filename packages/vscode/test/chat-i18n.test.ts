@@ -31,6 +31,47 @@ describe("libellés du chat FR / EN", () => {
     for (const [french] of keys.slice(1, 4)) expect(source).toContain(`"${french}"`);
   });
 
+  it("traduit les libellés de la carte et de l'élément du fil Sous-agents (lot B) et les cite dans chat.js", () => {
+    const keys = [
+      ["L'agent propose des sous-agents", "The agent proposes subagents"],
+      ["Aucun sous-agent", "No subagents"],
+      ["Lancement…", "Starting…"],
+      ["Proposition de sous-agents restée sans réponse.", "Subagent proposal left unanswered."],
+      ["Détail de la proposition", "Proposal details"],
+      [" (non lancé)", " (not started)"],
+      ["Aucun sous-agent lancé.", "No subagents started."],
+      ["Désactiver le mode sous-agents", "Turn off subagents mode"],
+    ] as const;
+    const withParam = [
+      ["Lancer la sélection ({0})", "Run selection ({0})", "3", "Run selection (3)"],
+      [
+        "Sous-agents proposés : {0}. En attente de votre choix.",
+        "Subagents proposed: {0}. Awaiting your choice.",
+        "a, b",
+        "Subagents proposed: a, b. Awaiting your choice.",
+      ],
+      ["Sous-agents lancés : {0}", "Subagents started: {0}", "a, b", "Subagents started: a, b"],
+      ["Note : {0}", "Note: {0}", "ok", "Note: ok"],
+    ] as const;
+    const fr = createUiTranslator(() => "fr");
+    const en = createUiTranslator(() => "en");
+    for (const [french, english] of keys) {
+      expect(fr(french)).toBe(french);
+      expect(en(french)).toBe(english);
+      expect(source).toContain(`"${french}"`);
+    }
+    for (const [french, english, value, translated] of withParam) {
+      expect(fr(french, { 0: value })).toBe(french.replace("{0}", value));
+      expect(en(french)).toBe(english);
+      expect(en(french, { 0: value })).toBe(translated);
+      expect(source).toContain(`"${french}"`);
+    }
+    // Les données du modèle ne sont jamais prises pour des jetons de traduction.
+    expect(en("Sous-agents lancés : {0}", { 0: "{0} Aucun sous-agent" })).toBe(
+      "Subagents started: {0} Aucun sous-agent",
+    );
+  });
+
   it("traduit les statuts, activités et pluriels sans modifier les commandes ni leurs sorties", () => {
     let locale: Locale = "fr";
     const ui = runInNewContext(`${uiSource}\nWarbandUI`, {

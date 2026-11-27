@@ -239,6 +239,68 @@ describe("parseWebviewMessage : setSubagents (ADR 0054)", () => {
   });
 });
 
+describe("parseWebviewMessage : answerSubagents (ADR 0054)", () => {
+  const answer = (patch: Record<string, unknown> = {}) => ({
+    type: "answerSubagents",
+    proposalId: "p1",
+    selected: ["s1"],
+    ...patch,
+  });
+  it("accepte un ou plusieurs identifiants, jusqu'à quatre, et la liste vide (aucun sous-agent)", () => {
+    expect(parseWebviewMessage(answer())).toEqual({
+      type: "answerSubagents",
+      proposalId: "p1",
+      selected: ["s1"],
+    });
+    expect(parseWebviewMessage(answer({ selected: ["s1", "s2", "s3", "s4"] }))).toEqual({
+      type: "answerSubagents",
+      proposalId: "p1",
+      selected: ["s1", "s2", "s3", "s4"],
+    });
+    expect(parseWebviewMessage(answer({ selected: [] }))).toEqual({
+      type: "answerSubagents",
+      proposalId: "p1",
+      selected: [],
+    });
+  });
+  it("refuse plus de quatre identifiants et les doublons", () => {
+    expect(parseWebviewMessage(answer({ selected: ["a", "b", "c", "d", "e"] }))).toBeNull();
+    expect(parseWebviewMessage(answer({ selected: ["a", "b", "a"] }))).toBeNull();
+  });
+  it("refuse un identifiant non chaîne, vide ou de plus de 200 caractères", () => {
+    for (const bad of [1, null, undefined, {}, [], true, ""]) {
+      expect(parseWebviewMessage(answer({ selected: ["s1", bad] }))).toBeNull();
+    }
+    expect(parseWebviewMessage(answer({ selected: ["x".repeat(201)] }))).toBeNull();
+    expect(parseWebviewMessage(answer({ selected: ["x".repeat(200)] }))).not.toBeNull();
+  });
+  it("refuse une sélection qui n'est pas un tableau", () => {
+    for (const selected of ["s1", { 0: "s1" }, null, 1]) {
+      expect(parseWebviewMessage(answer({ selected }))).toBeNull();
+    }
+    const { selected: _selected, ...sansSelection } = answer();
+    expect(parseWebviewMessage(sansSelection)).toBeNull();
+  });
+  it("refuse un proposalId absent, non chaîne, vide ou trop long", () => {
+    const { proposalId: _id, ...sansId } = answer();
+    expect(parseWebviewMessage(sansId)).toBeNull();
+    for (const proposalId of [1, null, "", {}, "x".repeat(201)]) {
+      expect(parseWebviewMessage(answer({ proposalId }))).toBeNull();
+    }
+    expect(parseWebviewMessage(answer({ proposalId: "x".repeat(200) }))).not.toBeNull();
+  });
+  it("refuse la clé note, même vide : la note passe par le composeur, jamais par la carte", () => {
+    expect(parseWebviewMessage(answer({ note: "ok" }))).toBeNull();
+    expect(parseWebviewMessage(answer({ note: "" }))).toBeNull();
+    expect(parseWebviewMessage(answer({ note: undefined }))).toBeNull();
+  });
+  it("refuse toute autre clé", () => {
+    for (const extra of [{ mode: "x" }, { systemPrompt: "x" }, { enabled: true }, { id: "s1" }]) {
+      expect(parseWebviewMessage(answer(extra))).toBeNull();
+    }
+  });
+});
+
 describe("sélection du fournisseur depuis la webview", () => {
   it("accepte les trois fournisseurs et aucun champ supplémentaire", () => {
     for (const provider of ["claude", "openai", "opencode"]) {

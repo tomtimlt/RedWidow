@@ -12,11 +12,19 @@ import {
 import { parseToEngine } from "../src/logic/protocol.js";
 
 describe("transfert du seul fil courant", () => {
-  it("conserve les rôles et masque les secrets, sans outil ni approbation", () => {
+  it("conserve les rôles et masque les secrets, sans outil, approbation ni proposition de sous-agents", () => {
     const items = [
       { id: 1, kind: "user", text: "clé sk-abcdefghijklmnopqrstuvwxyz0123456789" },
       { id: 2, kind: "tool", output: "ne pas transférer" },
       { id: 3, kind: "notice", text: "autorisé une fois" },
+      {
+        id: 5,
+        kind: "subagents",
+        proposalId: "p1",
+        items: [{ id: "s1", name: "Domaines", goal: "ne pas transférer non plus" }],
+        status: "accepted",
+        selected: ["s1"],
+      },
       { id: 4, kind: "agent", text: "Résultat du fil courant", blocks: [] },
     ] as ChatItem[];
     const context = buildConversationContext(items);
