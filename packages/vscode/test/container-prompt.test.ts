@@ -2,17 +2,24 @@ import type { LabelPrefixContainer } from "@warband/core";
 import { describe, expect, it } from "vitest";
 import { enrichContainerPrompt } from "../src/engine/container-prompt.js";
 
+/** Projet réel et montages : un conteneur le voit si l'un de ses montages le contient (ADR 0054). */
+const WS = "/racine/projets/mission";
+const sees = [{ source: "/racine/projets", target: "/workspace/projets", readonly: false }];
+const blind = [{ source: "/ailleurs", target: "/workspace", readonly: false }];
+
 const exegol: LabelPrefixContainer = {
   name: "exegol-htb1",
   family: "exegol",
   state: "running",
   image: "secret-image",
+  mounts: sees,
 };
 const kali: LabelPrefixContainer = {
   name: "kali-lab",
   family: "kali",
-  state: "stopped",
+  state: "running",
   image: "secret-image",
+  mounts: sees,
 };
 function data(text: string) {
   return JSON.parse(
@@ -22,13 +29,9 @@ function data(text: string) {
 
 describe("contexte conteneurs de la consigne", () => {
   it.each([[exegol], [kali], [exegol, kali]])(
-    "expose les familles vérifiées : %j",
+    "expose les familles vérifiées qui voient le projet : %j",
     async (...rows) => {
-      const result = await enrichContainerPrompt(
-        "agir @htb1",
-        rows.map((row) => row.name),
-        async () => rows,
-      );
+      const result = await enrichContainerPrompt("agir @htb1", WS, async () => rows);
       expect(data(result).containers).toEqual(
         rows.map(({ name, family, state }) => ({
           name,
@@ -42,19 +45,23 @@ describe("contexte conteneurs de la consigne", () => {
       expect(result).not.toContain("secret-image");
     },
   );
-  it("filtre les noms non liés, invalides et les familles ou états invalides", async () => {
+  it("deux conteneurs voient le projet : les deux sont listés ; celui qui ne le voit pas, absent", async () => {
+    const rows = [exegol, kali, { ...kali, name: "kali-aveugle", mounts: blind }];
+    const result = await enrichContainerPrompt("agir", WS, async () => rows);
+    expect(data(result).containers.map((c: { name: string }) => c.name)).toEqual([
+      exegol.name,
+      kali.name,
+    ]);
+  });
+  it("filtre les conteneurs arrêtés, les noms invalides et les familles invalides", async () => {
     const rows = [
       exegol,
-      kali,
+      { ...kali, state: "stopped" },
       { ...exegol, name: "evil\nname" },
       { ...exegol, family: "other" },
       { ...exegol, state: "unknown" },
     ] as LabelPrefixContainer[];
-    const result = await enrichContainerPrompt(
-      "agir @htb1",
-      [exegol.name, "evil\nname"],
-      async () => rows,
-    );
+    const result = await enrichContainerPrompt("agir @htb1", WS, async () => rows);
     expect(data(result)).toEqual({
       status: "available",
       containers: [
@@ -63,10 +70,10 @@ describe("contexte conteneurs de la consigne", () => {
       designated: [exegol.name],
     });
   });
-  it("distingue inventaire indisponible et allowlist vide sans inventer de cible", async () => {
+  it("distingue inventaire indisponible et absence de projet sans inventer de cible", async () => {
     expect(
       data(
-        await enrichContainerPrompt("agir", [], async () => {
+        await enrichContainerPrompt("agir", undefined, async () => {
           throw Error("lecture inutile");
         }),
       ),
@@ -77,7 +84,7 @@ describe("contexte conteneurs de la consigne", () => {
     });
     expect(
       data(
-        await enrichContainerPrompt("agir", [exegol.name], async () => {
+        await enrichContainerPrompt("agir", WS, async () => {
           throw Error("docker");
         }),
       ),
@@ -89,12 +96,8 @@ describe("contexte conteneurs de la consigne", () => {
       calls++;
       return [exegol];
     };
-    const result = await enrichContainerPrompt(
-      "agir\n\n<<<sortie-terminal>>>\n@htb1",
-      [exegol.name],
-      list,
-    );
-    await enrichContainerPrompt("suite", [exegol.name], list);
+    const result = await enrichContainerPrompt("agir\n\n<<<sortie-terminal>>>\n@htb1", WS, list);
+    await enrichContainerPrompt("suite", WS, list);
     expect(calls).toBe(2);
     expect(data(result).designated).toEqual([]);
   });
@@ -103,8 +106,10 @@ describe("contexte conteneurs de la consigne", () => {
 it("donne le montage réel sans exposer de labels ou inventer un montage", async () => {
   const out = await enrichContainerPrompt(
     "inventaire",
-    [kali.name],
-    async () => [{ ...kali, workspace: "/mission" }],
+    "/mission",
+    async () => [
+      { name: kali.name, family: "kali", state: "running", image: "x", workspace: "/mission" },
+    ],
     new Map([[kali.name, "/redwidow/Workspace/projet"]]),
   );
   expect(data(out).containers[0]).toMatchObject({

@@ -6,7 +6,10 @@ import { t } from "@warband/messages";
 export interface ExegolCreateOptions {
   name: string;
   image?: string;
+  /** Dossier du conteneur (`<racine>/conteneurs/<nom>`), monté en `/workspace` par Exegol. */
   workspacePath?: string;
+  /** Racine commune (ADR 0054) : ajoute `projets` et `ressources` (lecture seule) en `-V`. */
+  commonRoot?: { projects: string; resources: string };
   vpnPath?: string;
   network?: "nat" | "host" | "disabled";
   desktop?: boolean;
@@ -65,6 +68,17 @@ export function buildExegolCreateArgv(
   if (options.desktop && network === "disabled")
     throw new Error(t("Le bureau nécessite un réseau actif."));
   if (options.workspacePath) add("--workspace", hostPath(options.workspacePath));
+  if (options.commonRoot) {
+    // Aide d'Exegol : `-V, --volume`. Même volume sous `/workspace` (ADR 0054, point 2).
+    if (!capabilities.flags.has("--volume"))
+      throw new Error(t`Cette version d’Exegol ne prend pas en charge --volume.`);
+    argv.push(
+      "-V",
+      `${hostPath(options.commonRoot.projects)}:/workspace/projets`,
+      "-V",
+      `${hostPath(options.commonRoot.resources)}:/workspace/ressources:ro`,
+    );
+  }
   add("--network", network);
   if (options.vpnPath) add("--vpn", hostPath(options.vpnPath));
   if (options.desktop !== undefined && typeof options.desktop !== "boolean") {

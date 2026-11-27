@@ -34,8 +34,6 @@ import {
   outputFileSpecs,
   type ProgramStatus,
   prepareContainerProjectWorkspace,
-  projectContainerNames,
-  projectContainerPath,
   projectProgramPath,
   readActiveProjectForPrompt,
   readEngagementSync,
@@ -43,8 +41,8 @@ import {
   readProjects,
   resolveExegolContainer,
   resolveKaliContainer,
-  rowMounts,
   type StoredProject,
+  visibleContainerNames,
   writeProgramDraft,
 } from "@warband/core";
 import { matchesFingerprint } from "../logic/integrity.js";
@@ -108,6 +106,15 @@ const webProgram = createWebProgram({
 });
 const docker = createDockerClient({ recorder: createRecorder(), timeoutMs: 8_000 });
 
+/** Conteneurs de famille connue, démarrés, qui voient le projet (ADR 0054) ; vide si illisible. */
+async function visibleNames(workspace: string): Promise<string[]> {
+  try {
+    return visibleContainerNames(await realpath(workspace), await docker.listLabelPrefix());
+  } catch {
+    return [];
+  }
+}
+
 const done = runEngine({
   containers: () => attachedContainers,
   channel,
@@ -121,7 +128,7 @@ const done = runEngine({
       const file = await readProjects(defaultConfigDir());
       const active = file === null ? null : activeProject(file);
       activeProjectId = active?.id ?? null;
-      attachedContainers = active === null ? [] : projectContainerNames(active);
+      attachedContainers = active === null ? [] : await visibleNames(active.workspace);
       if (active !== null && active.workspace !== "" && isAbsolute(active.workspace)) {
         projectRoot = active.workspace;
         return active.workspace;
@@ -144,33 +151,41 @@ const done = runEngine({
         activeProjectId = (selected as StoredProject | null)?.id ?? null;
         return file;
       },
+      // Les conteneurs autorisés se déduisent de la visibilité (ADR 0054), pas de la fiche.
       (file) => {
         const project = activeProject(file);
-        return project === null
-          ? null
-          : { id: project.id, containers: projectContainerNames(project) };
+        return project === null ? null : { id: project.id, containers: [] };
       },
     );
-    attachedContainers = outcome.containers;
-    targets.note(text, outcome.containers, outcome.projectId, outcome.blocked);
-    if (learningMode) return text;
-    let rows: Awaited<ReturnType<typeof docker.listLabelPrefix>>;
-    try {
-      rows = await docker.listLabelPrefix();
-    } catch {
-      return enrichContainerPrompt(text, outcome.containers, () => docker.listLabelPrefix());
-    }
-    const verified = new Map<string, string>();
+    // Visibilité : lignes Docker et chemin réel du projet. Échec de lecture : aucun conteneur
+    // (fail-closed), le tour continue sans cible.
+    let rows: Awaited<ReturnType<typeof docker.listLabelPrefix>> | undefined;
+    let realWorkspace: string | undefined;
     if (!learningMode && selected && outcome.projectId === (selected as StoredProject).id) {
-      const project = selected as StoredProject;
-      if ((await realpath(project.workspace)) !== (await realpath(projectRoot)))
-        throw new CodedError("project.invalid");
-      const realWorkspace = await realpath(project.workspace);
+      try {
+        rows = await docker.listLabelPrefix();
+        realWorkspace = await realpath((selected as StoredProject).workspace);
+      } catch {
+        rows = undefined;
+        realWorkspace = undefined;
+      }
+    }
+    const visible =
+      rows === undefined || realWorkspace === undefined
+        ? []
+        : visibleContainerNames(realWorkspace, rows);
+    attachedContainers = visible;
+    targets.note(text, visible, outcome.projectId, outcome.blocked);
+    if (learningMode) return text;
+    const project =
+      selected && outcome.projectId === (selected as StoredProject).id
+        ? (selected as StoredProject)
+        : null;
+    const verified = new Map<string, string>();
+    if (project !== null && rows !== undefined && realWorkspace !== undefined) {
+      if (realWorkspace !== (await realpath(projectRoot))) throw new CodedError("project.invalid");
       // Visibilité (ADR 0054) : un conteneur démarré dont un montage contient le projet.
-      for (const row of rows.filter(
-        (r) =>
-          r.state === "running" && projectContainerPath(realWorkspace, rowMounts(r)) !== undefined,
-      )) {
+      for (const row of rows.filter((r) => visible.includes(r.name))) {
         let chosen: string;
         try {
           chosen =
@@ -196,7 +211,16 @@ const done = runEngine({
         }
       }
     }
-    return enrichContainerPrompt(text, outcome.containers, async () => rows, verified);
+    // Lecture Docker ou chemin du projet en échec : contexte « indisponible ».
+    return enrichContainerPrompt(
+      text,
+      project === null ? undefined : (realWorkspace ?? project.workspace),
+      async () => {
+        if (rows === undefined) throw new Error("docker");
+        return rows;
+      },
+      verified,
+    );
   },
   createRunner: async (
     mode,

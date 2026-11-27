@@ -3,25 +3,31 @@ import {
   lookupContainer,
   parseMentions,
   promptForTargets,
+  visibleContainerNames,
 } from "@warband/core";
 
 const NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/;
 
-/** Contexte de ce tour seulement ; aucune annotation ne participe à la résolution des cibles. */
+/**
+ * Contexte de ce tour seulement ; aucune annotation ne participe à la résolution des cibles.
+ * `workspace` : chemin réel du projet actif (`undefined` : aucun conteneur n'est offert). Sont
+ * offerts les conteneurs de famille connue, démarrés, qui voient le projet (ADR 0054, point 4).
+ */
 export async function enrichContainerPrompt(
   text: string,
-  allowed: readonly string[],
+  workspace: string | undefined,
   list: () => Promise<readonly LabelPrefixContainer[]>,
   verified: ReadonlyMap<string, string> = new Map(),
 ): Promise<string> {
   let context: object;
   try {
-    const rows = (allowed.length === 0 ? [] : await list()).filter(
+    const listed = workspace === undefined ? [] : await list();
+    // Chaque ligne est jugée seule : deux lignes de même nom ne se couvrent pas.
+    const rows = listed.filter(
       (row) =>
         NAME.test(row.name) &&
-        allowed.includes(row.name) &&
-        (row.family === "exegol" || row.family === "kali") &&
-        (row.state === "running" || row.state === "stopped"),
+        workspace !== undefined &&
+        visibleContainerNames(workspace, [row]).length === 1,
     );
     const mentions = parseMentions(promptForTargets(text));
     context = {

@@ -15,6 +15,7 @@ import {
   resolveKaliContainer,
   shortContainerName,
   TERMINAL_CONTEXT_MARK,
+  visibleContainerNames,
 } from "../src/index.js";
 
 describe("cibles Exegol", () => {
@@ -472,5 +473,29 @@ process.stdout.write("pong\\n");
     await expect(docker.execWorkspace("htb1", ["--privileged"])).rejects.toMatchObject({
       code: "docker.invalidArgument",
     });
+  });
+});
+
+describe("bornage par visibilité (ADR 0054)", () => {
+  it("exec refusé sur un conteneur qui ne voit pas le projet, accepté sur ceux qui le voient", () => {
+    const sees = [{ source: "/racine/projets", target: "/workspace/projets" }];
+    const rows = [
+      { name: "htb1", family: "exegol" as const, state: "running", mounts: sees },
+      { name: "htb2", family: "exegol" as const, state: "running", mounts: sees },
+      {
+        name: "htb3",
+        family: "exegol" as const,
+        state: "running",
+        mounts: [{ source: "/ailleurs", target: "/workspace" }],
+      },
+    ];
+    const allowed = visibleContainerNames("/racine/projets/m", rows, "linux");
+    expect(allowed).toEqual(["htb1", "htb2"]);
+    const target = { allowed, mentions: ["htb1", "htb2"], projectId: "p" };
+    expect(resolveExegolContainer(target, "htb1", rows)).toBe("htb1");
+    expect(resolveExegolContainer(target, "htb2", rows)).toBe("htb2");
+    expect(() => resolveExegolContainer({ ...target, mentions: ["htb3"] }, "htb3", rows)).toThrow(
+      expect.objectContaining({ code: "exegol.containerDenied" }),
+    );
   });
 });

@@ -1,10 +1,11 @@
 import { realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { isAbsolute, join, normalize, parse, relative, sep } from "node:path";
+import { dirname, isAbsolute, join, normalize, parse, relative, sep } from "node:path";
 import { mountExposesSensitive } from "../approval/paths.js";
 import type { Correlation } from "../events.js";
 import { resolveBinary } from "../process/resolve.js";
 import { type ProcessResult, runProcess, safeEnv } from "../process/run.js";
+import type { CommonRoot } from "../project-workspace.js";
 import { CodedError, type ReasonParams, ValidationError } from "../reason.js";
 import type { Recorder } from "../recorder.js";
 import type { OutputCapture } from "./output-capture.js";
@@ -501,7 +502,12 @@ export interface DockerClient {
 export interface CreateKaliContainerOptions extends CallOptions {
   image: string;
   name: string;
-  source: string;
+  /**
+   * Racine commune préparée (`prepareCommonRoot`, ADR 0054). Trois montages uniformes en sont
+   * déduits : `conteneurs/<nom en minuscules>` → `/workspace`, `projets` → `/workspace/projets`,
+   * `ressources` → `/workspace/ressources` en lecture seule. Le dossier du conteneur doit exister.
+   */
+  root: CommonRoot;
 }
 
 /**
@@ -701,18 +707,20 @@ export function createDockerClient({
         ...(r.termination && { termination: r.termination }),
       };
     },
-    async createKaliContainer({ image, name, source, ...call }) {
+    async createKaliContainer({ image, name, root, ...call }) {
       const img = assertOperand(image, "image");
       const containerName = assertOperand(name, "name");
-      const real = resolveKaliSource(source);
-      const exposure = mountExposesSensitive(real, { cwd: real });
-      if (exposure !== null) invalidSource(exposure);
-      try {
-        if (!statSync(real).isDirectory()) invalidSource("notDirectory");
-      } catch (err) {
-        if (err instanceof ValidationError) throw err;
-        invalidSource("unsupported");
+      // Chaque source : chemin réel, sans lien ni zone sensible ; les trois dossiers communs sont
+      // des enfants directs de la racine, le dossier du conteneur un enfant direct de `conteneurs`.
+      const base = resolveKaliMountDir(root.root);
+      const projects = resolveKaliMountDir(root.projects);
+      const containers = resolveKaliMountDir(root.containers);
+      const resources = resolveKaliMountDir(root.resources);
+      for (const dir of [projects, containers, resources]) {
+        if (dirname(dir) !== base) invalidSource("outside");
       }
+      const own = resolveKaliMountDir(join(root.containers, containerName.toLowerCase()));
+      if (dirname(own) !== containers) invalidSource("outside");
       // Rien après l'image : l'entrée (dont /start) reste celle de l'image.
       // Les images dont l'entrée est un shell doivent conserver stdin et un TTY,
       // sinon elles sortent immédiatement en mode détaché.
@@ -738,7 +746,11 @@ export function createDockerClient({
           "--network",
           "bridge",
           "--mount",
-          `type=bind,source=${real},target=/workspace`,
+          `type=bind,source=${own},target=/workspace`,
+          "--mount",
+          `type=bind,source=${projects},target=/workspace/projets`,
+          "--mount",
+          `type=bind,source=${resources},target=/workspace/ressources,readonly`,
           img,
         ],
         call,
@@ -746,6 +758,20 @@ export function createDockerClient({
       return r.stdout[0]?.trim() ?? "";
     },
   };
+}
+
+/** Source de montage validée : chemin réel, dossier, hors zone sensible. Aucun spawn. */
+function resolveKaliMountDir(source: string): string {
+  const real = resolveKaliSource(source);
+  const exposure = mountExposesSensitive(real, { cwd: real });
+  if (exposure !== null) invalidSource(exposure);
+  try {
+    if (!statSync(real).isDirectory()) invalidSource("notDirectory");
+  } catch (err) {
+    if (err instanceof ValidationError) throw err;
+    invalidSource("unsupported");
+  }
+  return real;
 }
 
 /** Refus de la source, sans y recopier le chemin. */

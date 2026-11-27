@@ -13,6 +13,7 @@ import {
   buildAttackFlow,
   burpToolSpecs,
   CodedError,
+  type CommonRoot,
   coursRoot,
   createDockerClient,
   createEvidence,
@@ -83,7 +84,7 @@ import {
 import { listedContainerIdentity, removeListedContainer } from "../logic/container-remove.js";
 import {
   createInReservedFolder,
-  ensureContainersRoot,
+  ensureRoot,
   listFolderNames,
   planContainer,
 } from "../logic/container-root.js";
@@ -1618,23 +1619,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     let alive = true;
     let operationAbort: AbortController | null = null;
     let selectedVpn: string | undefined;
-    /** Racine des conteneurs : réglage machine, ou proposition au premier usage (ADR 0053). */
-    const requireContainersRoot = async (signal: AbortSignal): Promise<string> => {
-      const root = await ensureContainersRoot({
+    /** Racine commune : réglage machine `warband.root`, ou proposition au premier usage (ADR 0054). */
+    const requireCommonRoot = async (signal: AbortSignal): Promise<CommonRoot> => {
+      const root = await ensureRoot({
         readSetting: () => {
-          const value = readMachineSetting("containers.root");
+          const value = readMachineSetting("root");
           return typeof value === "string" ? value : undefined;
         },
-        saveSetting: (path) => writeMachineSetting("containers.root", path),
+        saveSetting: (path) => writeMachineSetting("root", path),
         home: () => homedir(),
         confirmDefault: async (proposed) => {
           const use = t("Utiliser ce dossier");
           const other = t("Choisir un autre dossier…");
           const choice = await vscode.window.showInformationMessage(
-            t("Où ranger les conteneurs ?"),
+            t("Où ranger les projets et les conteneurs ?"),
             {
               modal: true,
-              detail: t`Chaque conteneur reçoit son propre dossier sous une racine commune. Dossier proposé : ${proposed}`,
+              detail: t`Les projets, les conteneurs et les ressources partagées vivent sous une racine commune. Dossier proposé : ${proposed}`,
             },
             use,
             other,
@@ -1646,7 +1647,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             canSelectFolders: true,
             canSelectFiles: false,
             canSelectMany: false,
-            openLabel: t("Choisir la racine des conteneurs"),
+            openLabel: t("Choisir la racine commune"),
           });
           return picked?.[0]?.fsPath;
         },
@@ -1696,7 +1697,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const payload = withMountIssue(
           await loadCockpitView({
             containersRoot: () => {
-              const value = readMachineSetting("containers.root");
+              const value = readMachineSetting("root");
               return typeof value === "string" ? value : undefined;
             },
           }),
@@ -1895,8 +1896,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
               )
                 throw new Error(t("Le VPN et le bureau web nécessitent le réseau NAT."));
               signal.throwIfAborted();
-              const root = await requireContainersRoot(signal);
-              const plan = await planContainer("exegol", message.name, root, {
+              const common = await requireCommonRoot(signal);
+              const plan = await planContainer("exegol", message.name, common.containers, {
                 listContainerNames: async () =>
                   (await shellDocker().listLabelPrefix({ signal })).map((row) => row.name),
                 listRootFolders: listFolderNames,
@@ -1924,7 +1925,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
               let terminalClose: vscode.Disposable | undefined;
               try {
                 const folder = await createInReservedFolder(
-                  root,
+                  common.containers,
                   plan.folder,
                   async (reserved) => {
                     await awaitCreatedContainer(plan.name, {
@@ -1936,6 +1937,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                             name: plan.name,
                             ...(message.image && { image: message.image }),
                             workspacePath: reserved,
+                            commonRoot: {
+                              projects: common.projects,
+                              resources: common.resources,
+                            },
                             ...(message.vpn && selectedVpn && { vpnPath: selectedVpn }),
                             ...(message.desktop !== undefined && { desktop: message.desktop }),
                             ...(message.desktopPort !== undefined && {
@@ -1981,8 +1986,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 }
               });
               try {
-                const root = await requireContainersRoot(signal);
-                const plan = await planContainer("kali", message.name, root, {
+                const common = await requireCommonRoot(signal);
+                const plan = await planContainer("kali", message.name, common.containers, {
                   listContainerNames: async () =>
                     (await shellDocker().listLabelPrefix({ signal })).map((row) => row.name),
                   listRootFolders: listFolderNames,
@@ -2023,13 +2028,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 signal.throwIfAborted();
                 report({ stage: t("Création et démarrage du conteneur…"), layers: [] });
                 const folder = await createInReservedFolder(
-                  root,
+                  common.containers,
                   plan.folder,
                   async (reserved) => {
                     await createDockerClient({ recorder, binary: "docker" }).createKaliContainer({
                       image,
                       name: plan.name,
-                      source: reserved,
+                      root: common,
                       signal,
                     });
                     return reserved;
@@ -4552,6 +4557,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
               return name?.trim();
             },
             containerMount: async (container) => (await containerShare(container))?.share,
+            // Les nouveaux projets vivent sous `<racine>/projets` (ADR 0054).
+            commonRoot: async () => {
+              const value = readMachineSetting("root");
+              return typeof value === "string" && value !== "" ? value : undefined;
+            },
           });
         } catch (error) {
           await pushStudio({ projectError: formatError(error, getUiLocale()) });

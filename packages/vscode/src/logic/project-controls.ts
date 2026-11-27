@@ -59,6 +59,8 @@ export interface ProjectCreationHost {
   askName(proposed: string): Promise<string | undefined>;
   /** Montage /workspace d'un conteneur connu, relu côté hôte ; `undefined` s'il est inconnu ou sans montage. */
   containerMount(container: string): Promise<string | undefined>;
+  /** Racine commune (`warband.root`) : les nouveaux projets y vivent (ADR 0054) ; absente, le partage. */
+  commonRoot?(): Promise<string | undefined>;
 }
 
 /** Ce qu'il reste à écrire une fois les dialogues terminés ; aucune écriture n'a eu lieu. */
@@ -84,8 +86,10 @@ export async function planProjectCreation(
 ): Promise<ProjectCreationPlan | undefined> {
   const share = await host.containerMount(choice.container);
   if (share === undefined) throw new CodedError("project.containerRequired");
-  if (choice.kind === "create")
-    return { kind: "create", name: choice.name, container: choice.container, share };
+  if (choice.kind === "create") {
+    const root = await host.commonRoot?.();
+    return { kind: "create", name: choice.name, container: choice.container, share: root ?? share };
+  }
   const folder = await host.pickExisting(share);
   if (folder === undefined) return undefined;
   if (!(await isInsideShare(share, folder))) throw new CodedError("project.outsideShare");

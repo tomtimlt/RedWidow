@@ -2,6 +2,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   realpathSync,
   rmSync,
   statSync,
@@ -14,7 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createInReservedFolder,
   DEFAULT_ROOT_NAME,
-  ensureContainersRoot,
+  ensureRoot,
   planContainer,
   type RootDeps,
   removeReservedFolder,
@@ -45,12 +46,19 @@ const rootDeps = (over: Partial<RootDeps> = {}) => {
   return { deps, saved };
 };
 
-describe("ensureContainersRoot", () => {
+describe("ensureRoot", () => {
   it("réglage vide : la proposition acceptée est créée en 0o700 puis enregistrée", async () => {
     const { deps, saved } = rootDeps();
-    const root = await ensureContainersRoot(deps);
+    const root = await ensureRoot(deps);
     const expected = join(realpathSync.native(home), DEFAULT_ROOT_NAME);
-    expect(root).toBe(expected);
+    expect(root).toEqual({
+      root: expected,
+      projects: join(expected, "projets"),
+      containers: join(expected, "conteneurs"),
+      resources: join(expected, "ressources"),
+    });
+    for (const dir of ["projets", "conteneurs", "ressources"])
+      expect(statSync(join(expected, dir)).isDirectory()).toBe(true);
     expect(deps.confirmDefault).toHaveBeenCalledWith(join(home, DEFAULT_ROOT_NAME));
     expect(statSync(expected).isDirectory()).toBe(true);
     if (process.platform !== "win32") expect(statSync(expected).mode & 0o777).toBe(0o700);
@@ -64,21 +72,21 @@ describe("ensureContainersRoot", () => {
       confirmDefault: vi.fn(async () => "other" as const),
       pickFolder: vi.fn(async () => chosen),
     });
-    await expect(ensureContainersRoot(deps)).resolves.toBe(chosen);
+    await expect(ensureRoot(deps)).resolves.toMatchObject({ root: chosen });
     expect(saved).toEqual([chosen]);
     expect(existsSync(join(home, DEFAULT_ROOT_NAME))).toBe(false);
   });
 
   it("annulation de la modale ou du sélecteur : rien n'est créé ni enregistré", async () => {
     const cancelled = rootDeps({ confirmDefault: vi.fn(async () => undefined) });
-    await expect(ensureContainersRoot(cancelled.deps)).resolves.toBeUndefined();
+    await expect(ensureRoot(cancelled.deps)).resolves.toBeUndefined();
     expect(cancelled.saved).toEqual([]);
     expect(existsSync(join(home, DEFAULT_ROOT_NAME))).toBe(false);
     const noPick = rootDeps({
       confirmDefault: vi.fn(async () => "other" as const),
       pickFolder: vi.fn(async () => undefined),
     });
-    await expect(ensureContainersRoot(noPick.deps)).resolves.toBeUndefined();
+    await expect(ensureRoot(noPick.deps)).resolves.toBeUndefined();
     expect(noPick.saved).toEqual([]);
     expect(existsSync(join(home, DEFAULT_ROOT_NAME))).toBe(false);
   });
@@ -87,7 +95,7 @@ describe("ensureContainersRoot", () => {
     const root = join(base, "racine");
     mkdirSync(root);
     const { deps, saved } = rootDeps({ readSetting: () => root });
-    await expect(ensureContainersRoot(deps)).resolves.toBe(root);
+    await expect(ensureRoot(deps)).resolves.toMatchObject({ root });
     expect(deps.confirmDefault).not.toHaveBeenCalled();
     expect(saved).toEqual([]);
   });
@@ -101,14 +109,14 @@ describe("ensureContainersRoot", () => {
     symlinkSync(real, link);
     for (const bad of ["relatif", join(base, "absent"), file, link, "/"]) {
       const configured = rootDeps({ readSetting: () => bad });
-      await expect(ensureContainersRoot(configured.deps)).rejects.toMatchObject({
+      await expect(ensureRoot(configured.deps)).rejects.toMatchObject({
         code: "container.rootInvalid",
       });
       const picked = rootDeps({
         confirmDefault: vi.fn(async () => "other" as const),
         pickFolder: vi.fn(async () => bad),
       });
-      await expect(ensureContainersRoot(picked.deps)).rejects.toMatchObject({
+      await expect(ensureRoot(picked.deps)).rejects.toMatchObject({
         code: "container.rootInvalid",
       });
       expect(picked.saved).toEqual([]);
@@ -117,7 +125,7 @@ describe("ensureContainersRoot", () => {
 
   it("proposition dont le parent est absent : refusée sans rien créer", async () => {
     const { deps, saved } = rootDeps({ home: () => join(base, "sans-home") });
-    await expect(ensureContainersRoot(deps)).rejects.toMatchObject({
+    await expect(ensureRoot(deps)).rejects.toMatchObject({
       code: "container.rootInvalid",
     });
     expect(saved).toEqual([]);
@@ -173,7 +181,7 @@ describe("createInReservedFolder", () => {
     mkdirSync(root);
   });
 
-  it("réserve le dossier, prépare RedWidow et le fournit à la création", async () => {
+  it("réserve le dossier (0o700) et le fournit à la création", async () => {
     const seen: string[] = [];
     const folder = await createInReservedFolder(root, "kali-1", async (path) => {
       seen.push(path);
@@ -181,8 +189,8 @@ describe("createInReservedFolder", () => {
     });
     expect(folder).toBe(join(root, "kali-1"));
     expect(seen).toEqual([folder]);
-    for (const dir of ["evidence", "notes", "payloads", "reports", "scans", "scripts", "projects"])
-      expect(statSync(join(folder, "RedWidow", dir)).isDirectory()).toBe(true);
+    if (process.platform !== "win32") expect(statSync(folder).mode & 0o777).toBe(0o700);
+    expect(readdirSync(folder)).toEqual([]);
   });
 
   it("échec de la création Docker : le dossier réservé est supprimé, l'erreur remontée", async () => {
@@ -200,11 +208,11 @@ describe("createInReservedFolder", () => {
   it("un fichier de l'utilisateur ou un conteneur existant empêche la suppression", async () => {
     await expect(
       createInReservedFolder(root, "kali-1", async (path) => {
-        writeFileSync(join(path, "RedWidow", "notes", "n.md"), "x");
+        writeFileSync(join(path, "n.md"), "x");
         throw new Error("échec");
       }),
     ).rejects.toThrow("échec");
-    expect(existsSync(join(root, "kali-1", "RedWidow", "notes", "n.md"))).toBe(true);
+    expect(existsSync(join(root, "kali-1", "n.md"))).toBe(true);
     await expect(
       createInReservedFolder(
         root,
@@ -264,13 +272,12 @@ describe("removeReservedFolder", () => {
     expect(existsSync(outside)).toBe(true);
   });
 
-  it("refuse un contenu étranger ou un lien dans l'arborescence RedWidow", async () => {
-    mkdirSync(join(root, "kali-1", "RedWidow", "scans"), { recursive: true });
-    mkdirSync(join(root, "kali-1", "RedWidow", "perso"));
+  it("refuse un dossier non vide, supprime un dossier vide", async () => {
+    mkdirSync(join(root, "kali-1", "autre"), { recursive: true });
     expect(await removeReservedFolder(root, join(root, "kali-1"))).toBe(false);
-    mkdirSync(join(root, "kali-2", "autre"), { recursive: true });
-    expect(await removeReservedFolder(root, join(root, "kali-2"))).toBe(false);
     expect(existsSync(join(root, "kali-1"))).toBe(true);
-    expect(existsSync(join(root, "kali-2"))).toBe(true);
+    mkdirSync(join(root, "kali-2"));
+    expect(await removeReservedFolder(root, join(root, "kali-2"))).toBe(true);
+    expect(existsSync(join(root, "kali-2"))).toBe(false);
   });
 });

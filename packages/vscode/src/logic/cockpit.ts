@@ -1,4 +1,5 @@
-import { isAbsolute } from "node:path";
+import { realpath } from "node:fs/promises";
+import { isAbsolute, join } from "node:path";
 import {
   activeProject,
   assertOperand,
@@ -18,7 +19,6 @@ import {
   lookupContainer,
   type ProgramState,
   type ProjectFile,
-  projectContainerNames,
   readCampaignSync,
   readEngagementSync,
   readProgramSync,
@@ -27,6 +27,7 @@ import {
   runProcess,
   setPrimaryContainer,
   shortContainerName,
+  visibleContainerNames,
 } from "@warband/core";
 import { formatError, getUiLocale, t } from "@warband/messages";
 import { PRODUCT_NAME, productTitleSuffix } from "./brand.js";
@@ -399,7 +400,7 @@ export interface CockpitViewPayload {
   containers: CockpitContainerView[];
   /** Dossier du projet absent du partage d'un conteneur lié : bandeau à trois actions. */
   mountIssue?: CockpitMountIssue;
-  /** Racine des conteneurs (réglage machine) ; absente tant qu'elle n'est pas choisie (ADR 0053). */
+  /** Racine commune (réglage machine) ; absente tant qu'elle n'est pas choisie (ADR 0054). */
   containersRoot?: string;
   /** Prochain nom libre par type : suffixe pour Exegol (`1`), nom complet pour Kali (`kali-1`). */
   suggestedName?: { kali: string; exegol: string };
@@ -435,9 +436,10 @@ export interface CockpitDeps {
   readProj?: typeof readProjects;
   linkProject?: typeof link;
   setPrimaryContainerFn?: typeof setPrimaryContainer;
-  /** Racine des conteneurs (réglage machine) ; sert au nom suggéré et à l'affichage du dossier. */
+  /** Racine commune (réglage machine `warband.root`) ; sert au nom suggéré et à l'affichage. */
   containersRoot?: () => string | undefined;
-  listRootFolders?: (root: string) => Promise<string[]>;
+  /** Noms des entrées de `<racine>/conteneurs`. */
+  listRootFolders?: (containersDir: string) => Promise<string[]>;
 }
 
 /** Dossier du projet actif et le conteneur affiché (`primary`, sinon l'unique conteneur lié). */
@@ -563,7 +565,12 @@ export async function loadCockpitView(deps: CockpitDeps = {}): Promise<CockpitVi
 
   const sorted = sortContainers(rows);
   const active = stored === null ? null : activeProject(stored);
-  const allowed = active === null ? [] : projectContainerNames(active);
+  // Visibilité (ADR 0054) : conteneurs démarrés, de famille connue, qui voient le projet. Le chemin
+  // réel est préféré ; un dossier absent garde la forme lexicale (affichage seulement).
+  const allowed =
+    active === null
+      ? []
+      : visibleContainerNames(await realpath(active.workspace).catch(() => active.workspace), rows);
   const unique = allowed.length === 1 ? allowed[0] : undefined;
   // Conteneur affiché : `primary` s'il est posé, sinon l'unique conteneur lié.
   const displayed = active?.primary ?? unique;
@@ -654,7 +661,7 @@ export async function loadCockpitView(deps: CockpitDeps = {}): Promise<CockpitVi
   const hasRoot = typeof root === "string" && root !== "";
   const taken = [
     ...rows.map((r) => r.name),
-    ...(hasRoot ? await (deps.listRootFolders ?? listFolderNames)(root) : []),
+    ...(hasRoot ? await (deps.listRootFolders ?? listFolderNames)(join(root, "conteneurs")) : []),
   ];
   return {
     type: "view",

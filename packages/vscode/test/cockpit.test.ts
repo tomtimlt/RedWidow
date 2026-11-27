@@ -598,7 +598,8 @@ describe("loadCockpitView", () => {
     });
     const up = view.containers.find((c) => c.name === "kali-up");
     expect(up?.family).toBe("kali");
-    expect(up?.canLink).toBe(true);
+    // Il voit le projet (ADR 0054) : lié par visibilité, rien à lier.
+    expect(up).toMatchObject({ linked: true, canLink: false });
     expect(up?.linkTitle).toBeUndefined();
     const off = view.containers.find((c) => c.name === "kali-off");
     expect(off?.canLink).toBe(false);
@@ -619,7 +620,7 @@ describe("loadCockpitView", () => {
     expect(view.containers).toEqual([]);
   });
 
-  it("zéro nom : pas de bannière ; le conteneur désigné est lié", async () => {
+  it("sans primary : pas de bannière ; tout conteneur démarré qui voit le projet est lié", async () => {
     const deps = {
       resolveBin: (n: string) => (n === "docker" ? "/d/docker" : null),
       createDocker: () => ({
@@ -629,18 +630,40 @@ describe("loadCockpitView", () => {
     };
     const ws = join(shareRoot, "proj");
     const none = await loadCockpitView({ ...deps, readProj: async () => projectFile([], ws) });
-    expect(none.linkedBanner).toBeNull();
-    expect(none.linked).toBe("none");
-    expect(none.containers.find((c) => c.name === "a")?.canLink).toBe(true);
-    const one = await loadCockpitView({ ...deps, readProj: async () => projectFile(["c"], ws) });
-    expect(one.containers.find((c) => c.name === "c")).toMatchObject({
+    // Un seul conteneur voit le projet : il est affiché à défaut de primary.
+    expect(none.linkedBanner).toMatchObject({ name: "a", state: "running" });
+    expect(none.linked).toBe("running");
+    expect(none.containers.find((c) => c.name === "a")).toMatchObject({
       linked: true,
       canLink: false,
     });
-    expect(one.containers.find((c) => c.name === "b")?.linked).toBe(false);
+    // `c` n'a aucun montage, `b` est arrêté : aucun ne voit le projet.
+    expect(none.containers.find((c) => c.name === "c")?.linked).toBe(false);
+    expect(none.containers.find((c) => c.name === "b")?.linked).toBe(false);
   });
 
-  it("un Kali déjà dans l'allowlist reste non liable", async () => {
+  it("deux conteneurs voient le projet : les deux sont liés (pas seulement primary)", async () => {
+    const ws = join(shareRoot, "proj");
+    const view = await loadCockpitView({
+      resolveBin: (n) => (n === "docker" ? "/d/docker" : null),
+      readProj: async () => projectFile(["a"], ws),
+      createDocker: () => ({
+        listLabelPrefix: async () =>
+          rows.map((r) => (r.name === "b" ? r : { ...r, workspace: shareRoot })),
+      }),
+    });
+    expect(view.containers.find((c) => c.name === "a")).toMatchObject({
+      linked: true,
+      primary: true,
+    });
+    expect(view.containers.find((c) => c.name === "c")).toMatchObject({
+      linked: true,
+      primary: false,
+    });
+    expect(view.containers.find((c) => c.name === "b")?.linked).toBe(false);
+  });
+
+  it("un Kali qui voit le projet est lié et non liable", async () => {
     const view = await loadCockpitView({
       resolveBin: (n) => (n === "docker" ? "/d/docker" : null),
       readProj: async () => projectFile(["kali-box"], "/host/proj"),
@@ -650,7 +673,7 @@ describe("loadCockpitView", () => {
             state: "running" as const,
             name: "kali-box",
             image: "kalilinux/kali-rolling",
-            workspace: "/host/kali",
+            workspace: "/host",
             family: "kali" as const,
           },
         ],
@@ -751,7 +774,7 @@ describe("loadCockpitView : projets d'un conteneur et compatibilité (ADR 0052)"
     );
     expect(view.containers[0]).toMatchObject({
       compatible: true,
-      canLink: true,
+      canLink: false,
       projects: [
         { id: "p1", name: "un", active: false },
         { id: "p2", name: "deux", active: true },
@@ -795,7 +818,7 @@ describe("loadCockpitView : projets d'un conteneur et compatibilité (ADR 0052)"
     const view = await loadCockpitView(
       deps({ activeId: "p5", projects: [entry("p5", "lien", linkToInside)] }, shareRoot),
     );
-    expect(view.containers[0]).toMatchObject({ compatible: true, canLink: true });
+    expect(view.containers[0]).toMatchObject({ compatible: true, linked: true, canLink: false });
   });
 
   it("sans montage ou arrêté : aucun projet, jamais lié", async () => {

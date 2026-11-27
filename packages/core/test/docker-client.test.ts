@@ -1,10 +1,11 @@
 import { realpathSync } from "node:fs";
-import { mkdtemp, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join, parse } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   assertOperand,
+  type CommonRoot,
   createDockerClient,
   createRecorder,
   type DockerClient,
@@ -14,6 +15,7 @@ import {
   parseDockerImages,
   parseDockerInspect,
   parseDockerPs,
+  prepareCommonRoot,
   ValidationError,
 } from "../src/index.js";
 import { fakeDocker } from "./helpers.js";
@@ -428,18 +430,21 @@ describe("createKaliContainer", () => {
     code: "docker.invalidArgument",
     params: { field: "source", reason },
   });
-
-  it("monte le réel sur /workspace, borne les journaux Docker et renvoie l'identifiant", async () => {
-    const { fake, docker } = await setup();
+  /** Racine commune réelle avec le dossier du conteneur `lab`. */
+  const commonRoot = async (): Promise<CommonRoot> => {
     const dir = await mkdtemp(join(tmpdir(), "warband-kali-"));
-    const real = realpathSync.native(dir);
-    const via = await mkdtemp(join(tmpdir(), "warband-kali-via-"));
-    const source = join(via, "lien");
-    if (process.platform === "win32") await symlink(dir, source, "dir");
-    else await symlink(dir, source);
+    const root = await prepareCommonRoot(dir);
+    await mkdir(join(root.containers, "lab"));
+    return root;
+  };
+
+  it("pose trois montages (conteneur, projets, ressources en lecture seule) et renvoie l'identifiant", async () => {
+    const { fake, docker } = await setup();
+    const root = await commonRoot();
     const image = "kali:local";
-    const id = await docker.createKaliContainer({ image, name: "lab", source });
+    const id = await docker.createKaliContainer({ image, name: "Lab", root });
     expect(id).toBe("cid123");
+    const real = realpathSync.native(root.root);
     expect(await fake.calls()).toEqual([
       `${[
         "run",
@@ -449,7 +454,7 @@ describe("createKaliContainer", () => {
         "--pull",
         "never",
         "--name",
-        "lab",
+        "Lab",
         "--label",
         "io.warband.runtime=kali",
         "--log-driver",
@@ -461,73 +466,87 @@ describe("createKaliContainer", () => {
         "--network",
         "bridge",
         "--mount",
-        `type=bind,source=${real},target=/workspace`,
+        `type=bind,source=${join(real, "conteneurs", "lab")},target=/workspace`,
+        "--mount",
+        `type=bind,source=${join(real, "projets")},target=/workspace/projets`,
+        "--mount",
+        `type=bind,source=${join(real, "ressources")},target=/workspace/ressources,readonly`,
         image,
       ].join("|")}|`,
     ]);
   });
 
-  it("refuse image, nom et source avant tout spawn", async () => {
+  it("refuse image, nom et sources avant tout spawn", async () => {
     const { fake, docker } = await setup();
-    const run = (image: string, name: string, source: string) =>
-      docker.createKaliContainer({ image, name, source });
-    await expect(run("", "lab", "relatif")).rejects.toMatchObject(operand("image", ""));
-    await expect(run("-kali", "lab", "/tmp")).rejects.toMatchObject(operand("image", "-kali"));
-    await expect(run("kali", "", "relatif")).rejects.toMatchObject(operand("name", ""));
-    await expect(run("kali", "-web", "/tmp")).rejects.toMatchObject(operand("name", "-web"));
-    await expect(run("kali", "lab", "relatif")).rejects.toMatchObject(sourceError("relative"));
-    await expect(run("kali", "lab", "./a")).rejects.toMatchObject(sourceError("relative"));
-    await expect(run("kali", "lab", "~/a")).rejects.toMatchObject(sourceError("relative"));
+    const root = await commonRoot();
+    const run = (image: string, name: string, r: CommonRoot = root) =>
+      docker.createKaliContainer({ image, name, root: r });
+    await expect(run("", "lab")).rejects.toMatchObject(operand("image", ""));
+    await expect(run("-kali", "lab")).rejects.toMatchObject(operand("image", "-kali"));
+    await expect(run("kali", "")).rejects.toMatchObject(operand("name", ""));
+    await expect(run("kali", "-web")).rejects.toMatchObject(operand("name", "-web"));
+    await expect(run("kali", "lab", { ...root, projects: "relatif" })).rejects.toMatchObject(
+      sourceError("relative"),
+    );
     const marked = join(tmpdir(), "warband-secret,bind");
-    const comma = await run("kali", "lab", marked).catch((e: unknown) => e);
+    const comma = await run("kali", "lab", { ...root, resources: marked }).catch((e: unknown) => e);
     expect(comma).toMatchObject(sourceError("delimiter"));
     expect((comma as ValidationError).params).toEqual({ field: "source", reason: "delimiter" });
     expect((comma as ValidationError).message).not.toContain("warband-secret");
-    await expect(run("kali", "lab", `/tmp/\0b`)).rejects.toMatchObject(sourceError("delimiter"));
-    await expect(run("kali", "lab", "/tmp/a\rb")).rejects.toMatchObject(sourceError("delimiter"));
-    await expect(run("kali", "lab", "/tmp/a\nb")).rejects.toMatchObject(sourceError("delimiter"));
-    await expect(run("kali", "lab", parse(process.cwd()).root)).rejects.toMatchObject(
-      sourceError("root"),
-    );
-    await expect(run("kali", "lab", "/var/run/docker.sock")).rejects.toMatchObject(
-      sourceError("socket"),
-    );
-    await expect(run("kali", "lab", join(homedir(), ".docker"))).rejects.toMatchObject(
-      sourceError("socket"),
+    await expect(
+      run("kali", "lab", { ...root, root: parse(process.cwd()).root }),
+    ).rejects.toMatchObject(sourceError("root"));
+    await expect(
+      run("kali", "lab", { ...root, root: "/var/run/docker.sock" }),
+    ).rejects.toMatchObject(sourceError("socket"));
+    await expect(
+      run("kali", "lab", { ...root, root: join(homedir(), ".docker") }),
+    ).rejects.toMatchObject(sourceError("socket"));
+    // Un dossier du conteneur absent n'est pas créé ici.
+    await expect(run("kali", "absent")).rejects.toMatchObject(sourceError("missing"));
+    // Les trois dossiers doivent être des enfants directs de la racine.
+    const other = await commonRoot();
+    await expect(run("kali", "lab", { ...root, projects: other.projects })).rejects.toMatchObject(
+      sourceError("outside"),
     );
     expect(await fake.calls()).toEqual([]);
   });
 
-  it("refuse un fichier ou un absolu absent, sans spawn", async () => {
+  it("refuse un fichier à la place d'un dossier, sans spawn", async () => {
     const { fake, docker } = await setup();
-    const dir = await mkdtemp(join(tmpdir(), "warband-kali-file-"));
-    const file = join(dir, "fichier");
+    const root = await commonRoot();
+    const file = join(root.root, "fichier");
     await writeFile(file, "x");
     await expect(
-      docker.createKaliContainer({ image: "kali", name: "lab", source: file }),
+      docker.createKaliContainer({
+        image: "kali",
+        name: "lab",
+        root: { ...root, resources: file },
+      }),
     ).rejects.toMatchObject(sourceError("notDirectory"));
-    const absent = join(tmpdir(), `warband-kali-absent-${process.pid}`);
-    await expect(
-      docker.createKaliContainer({ image: "kali", name: "lab", source: absent }),
-    ).rejects.toMatchObject(sourceError("missing"));
     expect(await fake.calls()).toEqual([]);
   });
 
   it.skipIf(process.platform !== "linux")("lien vers / : root, sans spawn", async () => {
     const { fake, docker } = await setup();
-    const dir = await mkdtemp(join(tmpdir(), "warband-kali-link-"));
-    const link = join(dir, "vers-racine");
+    const root = await commonRoot();
+    const link = join(root.root, "vers-racine");
     await symlink("/", link);
     await expect(
-      docker.createKaliContainer({ image: "kali", name: "lab", source: link }),
+      docker.createKaliContainer({ image: "kali", name: "lab", root: { ...root, projects: link } }),
     ).rejects.toMatchObject(sourceError("root"));
     expect(await fake.calls()).toEqual([]);
   });
 
   it.skipIf(process.platform !== "linux")("refuse /etc : sensitive, sans spawn", async () => {
     const { fake, docker } = await setup();
+    const root = await commonRoot();
     await expect(
-      docker.createKaliContainer({ image: "kali", name: "lab", source: "/etc" }),
+      docker.createKaliContainer({
+        image: "kali",
+        name: "lab",
+        root: { ...root, resources: "/etc" },
+      }),
     ).rejects.toMatchObject(sourceError("sensitive"));
     expect(await fake.calls()).toEqual([]);
   });

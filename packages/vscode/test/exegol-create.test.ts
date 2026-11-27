@@ -9,7 +9,7 @@ import {
 } from "../src/logic/exegol-create.js";
 
 const modern =
-  parseExegolCapabilities(`--log --no-log --log-method --network --workspace --vpn --desktop --no-desktop --desktop-config
+  parseExegolCapabilities(`--log --no-log --log-method --network --workspace --volume --vpn --desktop --no-desktop --desktop-config
 --gui --no-gui --exegol-resources --no-exegol-resources --my-resources --no-my-resources`);
 const legacy =
   parseExegolCapabilities(`--log --log-method --network --workspace --vpn --desktop --desktop-config
@@ -20,6 +20,47 @@ afterEach(async () => {
 });
 
 describe("création Exegol", () => {
+  it("racine commune : conteneurs/<nom> en workspace, projets et ressources en -V (ligne exacte)", () => {
+    const root = join(tmpdir(), "mon dossier;$x");
+    const argv = buildExegolCreateArgv(
+      {
+        name: "audit",
+        image: "full",
+        workspacePath: join(root, "conteneurs", "exegol-audit"),
+        commonRoot: { projects: join(root, "projets"), resources: join(root, "ressources") },
+      },
+      modern,
+    );
+    expect(argv).toEqual([
+      "start",
+      "audit",
+      "full",
+      "--workspace",
+      join(root, "conteneurs", "exegol-audit"),
+      "-V",
+      `${join(root, "projets")}:/workspace/projets`,
+      "-V",
+      `${join(root, "ressources")}:/workspace/ressources:ro`,
+      "--network",
+      "nat",
+      "--log",
+      "--log-method",
+      "script",
+    ]);
+    expect(() =>
+      buildExegolCreateArgv(
+        { name: "audit", commonRoot: { projects: "relatif", resources: root } },
+        modern,
+      ),
+    ).toThrow();
+    expect(() =>
+      buildExegolCreateArgv(
+        { name: "audit", commonRoot: { projects: root, resources: root } },
+        legacy,
+      ),
+    ).toThrow(/--volume/);
+  });
+
   it("construit les options modernes avec VPN NAT et bureau localhost", () => {
     const workspace = join(tmpdir(), "a b;$x");
     const vpn = join(tmpdir(), "vpn.ovpn");

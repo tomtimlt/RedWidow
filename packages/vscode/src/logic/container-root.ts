@@ -1,25 +1,23 @@
 import { mkdir, readdir, realpath, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
-  CONTAINER_ROOT_DIRS,
   CodedError,
+  type CommonRoot,
   isInsideShare,
   nextContainerName,
-  PROJECTS_DIR,
-  prepareRedwidowRoot,
-  REDWIDOW_DIR,
+  prepareCommonRoot,
   reserveContainerFolder,
   validateProjectFolder,
 } from "@warband/core";
 
-/** Nom proposé pour la racine des conteneurs, sous le dossier personnel (ADR 0053, point 1). */
-export const DEFAULT_ROOT_NAME = "RedWidow-conteneurs";
+/** Nom proposé pour la racine commune, sous le dossier personnel (ADR 0054, point 1). */
+export const DEFAULT_ROOT_NAME = "RedWidow";
 
 /** Nom saisi pour un conteneur : même motif que le parseur du cockpit. */
 const CREATE_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
 
 export interface RootDeps {
-  /** Réglage machine `warband.containers.root` (vide ou absent : jamais configuré). */
+  /** Réglage machine `warband.root` (vide ou absent : jamais configuré). */
   readSetting(): string | undefined;
   saveSetting(path: string): Promise<void>;
   home(): string;
@@ -30,13 +28,13 @@ export interface RootDeps {
 }
 
 /**
- * Racine des conteneurs, validée (chemin réel). Réglage vide : proposition puis choix ; le chemin
- * retenu est validé puis enregistré. `undefined` si l'utilisateur annule (rien n'est créé).
- * Jamais de chemin venant de la webview.
+ * Racine commune, validée (chemin réel) avec `projets`, `conteneurs` et `ressources` préparés.
+ * Réglage vide : proposition puis choix ; le chemin retenu est validé puis enregistré. `undefined`
+ * si l'utilisateur annule (rien n'est créé). Jamais de chemin venant de la webview.
  */
-export async function ensureContainersRoot(deps: RootDeps): Promise<string | undefined> {
+export async function ensureRoot(deps: RootDeps): Promise<CommonRoot | undefined> {
   const current = deps.readSetting();
-  if (typeof current === "string" && current !== "") return await validateRoot(current);
+  if (typeof current === "string" && current !== "") return await prepareRoot(current);
   const proposed = join(deps.home(), DEFAULT_ROOT_NAME);
   const choice = await deps.confirmDefault(proposed);
   if (choice === undefined) return undefined;
@@ -54,14 +52,14 @@ export async function ensureContainersRoot(deps: RootDeps): Promise<string | und
     chosen = await deps.pickFolder();
     if (chosen === undefined) return undefined;
   }
-  const real = await validateRoot(chosen);
-  await deps.saveSetting(real);
-  return real;
+  const common = await prepareRoot(chosen);
+  await deps.saveSetting(common.root);
+  return common;
 }
 
-async function validateRoot(path: string): Promise<string> {
+async function prepareRoot(path: string): Promise<CommonRoot> {
   try {
-    return await validateProjectFolder(path);
+    return await prepareCommonRoot(path);
   } catch {
     throw new CodedError("container.rootInvalid");
   }
@@ -70,14 +68,14 @@ async function validateRoot(path: string): Promise<string> {
 export interface ContainerPlan {
   /** Valeur de nom pour la création (suffixe pour Exegol, nom complet pour Kali). */
   name: string;
-  /** Nom du dossier sous la racine, en minuscules ; égal au nom Docker du conteneur. */
+  /** Nom du dossier sous `conteneurs/`, en minuscules ; égal au nom Docker du conteneur. */
   folder: string;
 }
 
 export interface PlanDeps {
   /** Noms Docker de tous les conteneurs, quel que soit l'état. */
   listContainerNames(): Promise<string[]>;
-  /** Noms des entrées existantes de la racine. */
+  /** Noms des entrées existantes de `conteneurs/`. */
   listRootFolders(root: string): Promise<string[]>;
 }
 
@@ -89,7 +87,7 @@ export function suggestName(kind: "kali" | "exegol", taken: readonly string[]): 
 
 /**
  * Nom et dossier d'un conteneur à créer. Nom de la webview s'il est valide, sinon le prochain nom
- * libre d'après les conteneurs Docker (tous états) et les dossiers de la racine.
+ * libre d'après les conteneurs Docker (tous états) et les dossiers de `conteneurs/` (`root`).
  */
 export async function planContainer(
   kind: "kali" | "exegol",
@@ -113,8 +111,8 @@ export async function listFolderNames(root: string): Promise<string[]> {
 }
 
 /**
- * Supprime `folder` seulement s'il est un dossier réel strictement sous `root` et ne contient, à
- * part l'arborescence `RedWidow` préparée par nous, aucun fichier. Renvoie vrai si supprimé.
+ * Supprime `folder` seulement s'il est un dossier réel enfant direct de `root` (`conteneurs/`) et
+ * vide. Renvoie vrai si supprimé.
  */
 export async function removeReservedFolder(root: string, folder: string): Promise<boolean> {
   try {
@@ -122,18 +120,7 @@ export async function removeReservedFolder(root: string, folder: string): Promis
     const real = await realpath(folder);
     if (real === base || !(await isInsideShare(base, real))) return false;
     if (dirname(real) !== base) return false;
-    const entries = await readdir(real, { withFileTypes: true });
-    for (const entry of entries) {
-      if (entry.name !== REDWIDOW_DIR || !entry.isDirectory()) return false;
-    }
-    const known = new Set<string>([...CONTAINER_ROOT_DIRS, PROJECTS_DIR]);
-    if (entries.length > 0) {
-      const inner = await readdir(join(real, REDWIDOW_DIR), { withFileTypes: true });
-      for (const sub of inner) {
-        if (!sub.isDirectory() || !known.has(sub.name)) return false;
-        if ((await readdir(join(real, REDWIDOW_DIR, sub.name))).length > 0) return false;
-      }
-    }
+    if ((await readdir(real)).length > 0) return false;
     await rm(real, { recursive: true, force: false });
     return true;
   } catch {
@@ -147,9 +134,9 @@ export interface ReserveDeps {
 }
 
 /**
- * Réserve `<root>/<folder>`, prépare l'arborescence RedWidow, puis exécute `create` avec le chemin
- * réel. Si `create` échoue, le dossier réservé est supprimé s'il est vide (voir
- * `removeReservedFolder`) et l'erreur d'origine est remontée.
+ * Réserve `<root>/<folder>` (`root` = `conteneurs/`), puis exécute `create` avec le chemin réel.
+ * Si `create` échoue, le dossier réservé est supprimé s'il est vide (voir `removeReservedFolder`)
+ * et l'erreur d'origine est remontée.
  */
 export async function createInReservedFolder<T>(
   root: string,
@@ -159,7 +146,6 @@ export async function createInReservedFolder<T>(
 ): Promise<T> {
   const real = await reserveContainerFolder(root, folder);
   try {
-    await prepareRedwidowRoot(real);
     return await create(real);
   } catch (error) {
     let keep = false;

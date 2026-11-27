@@ -110,7 +110,11 @@ export function containerDesignatedBy(
 }
 
 export interface ExegolTarget {
-  /** Noms réels copiés de l'allowlist du projet actif au moment du message. */
+  /**
+   * Noms réels des conteneurs démarrés, de famille connue, qui voient le projet actif au moment
+   * du message (`visibleContainerNames`, ADR 0054) : seul bornage d'exécution, la gate approuve
+   * chaque appel. L'`@nom` ne résout que parmi eux.
+   */
   allowed: readonly string[];
   /** Jetons `@` du message en cours. Vide : un seul conteneur allowlisté et listé de la famille est admis. */
   mentions: readonly string[];
@@ -305,7 +309,7 @@ export function createExegolTargets({
 
 /** Résultat d'une lecture du projet actif pour un tour (`onPrompt`, ADR 0015 point 3). */
 export interface ProjectReadOutcome {
-  /** Allowlist à copier dans la cible : vide dès que `projectId` est nul. */
+  /** Conteneurs de la fiche (vide depuis l'ADR 0054 : la visibilité les remplace). */
   containers: readonly string[];
   /** Projet actif, ou `null` (aucun projet actif, ou lecture en échec : fail-closed). */
   projectId: string | null;

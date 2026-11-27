@@ -438,11 +438,17 @@
           "scope": "machine",
           "description": "%config.opencodeProviders%"
         },
+        "warband.root": {
+          "type": "string",
+          "scope": "machine",
+          "description": "%config.root%"
+        },
         "warband.containers.root": {
           "type": "string",
           "default": "",
           "scope": "machine",
-          "description": "%config.containers.root%"
+          "description": "%config.containers.root%",
+          "deprecationMessage": "%config.containers.root.deprecated%"
         },
         "warband.profile": {
           "type": "string",

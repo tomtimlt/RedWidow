@@ -373,6 +373,32 @@ export function rowMounts(row: {
   return row.workspace === undefined ? [] : [{ source: row.workspace, target: "/workspace" }];
 }
 
+/**
+ * Noms des conteneurs de famille connue, démarrés, qui voient le projet (ADR 0054, point 4).
+ * `workspace` doit être le chemin réel du projet. C'est le seul bornage d'exécution de l'agent :
+ * la gate approuve toujours chaque appel.
+ */
+export function visibleContainerNames(
+  workspace: string,
+  rows: readonly {
+    name: string;
+    state: string;
+    family?: string;
+    workspace?: string;
+    mounts?: readonly ContainerMount[];
+  }[],
+  platform: NodeJS.Platform = process.platform,
+): string[] {
+  return rows
+    .filter(
+      (row) =>
+        (row.family === "exegol" || row.family === "kali") &&
+        row.state === "running" &&
+        projectContainerPath(workspace, rowMounts(row), platform) !== undefined,
+    )
+    .map((row) => row.name);
+}
+
 /** Prouve le partage hôte/conteneur avant de créer l’alias. Ne recrée jamais un conteneur. */
 export async function prepareContainerProjectWorkspace(
   project: StoredProject,

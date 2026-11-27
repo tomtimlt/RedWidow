@@ -28,6 +28,7 @@ import {
   projectContainerPath,
   projectsParent,
   reserveContainerFolder,
+  visibleContainerNames,
 } from "../src/project-workspace.js";
 
 const roots: string[] = [];
@@ -419,4 +420,24 @@ it("prepareCommonRoot : lien symbolique, racine invalide ou fichier refusés", a
   expect(await readdir(other)).toEqual([]);
   for (const bad of ["relatif", join(root, "absent"), ""])
     await expect(prepareCommonRoot(bad)).rejects.toMatchObject({ code: "project.parentInvalid" });
+});
+
+it("visibleContainerNames : démarré, famille connue et montage qui contient le projet (ADR 0054)", () => {
+  const ws = "/racine/projets/mission";
+  const sees = [{ source: "/racine/projets", target: "/workspace/projets" }];
+  const rows = [
+    { name: "a", state: "running", family: "exegol", mounts: sees },
+    { name: "b", state: "running", family: "kali", mounts: sees },
+    { name: "arrete", state: "stopped", family: "kali", mounts: sees },
+    {
+      name: "aveugle",
+      state: "running",
+      family: "kali",
+      mounts: [{ source: "/ailleurs", target: "/workspace" }],
+    },
+    { name: "inconnu", state: "running", family: "autre", mounts: sees },
+    { name: "ancien", state: "running", family: "exegol", workspace: "/racine" },
+  ];
+  expect(visibleContainerNames(ws, rows, "linux")).toEqual(["a", "b", "ancien"]);
+  expect(visibleContainerNames("/autre/projet", rows, "linux")).toEqual([]);
 });

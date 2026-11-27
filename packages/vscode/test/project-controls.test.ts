@@ -332,3 +332,14 @@ it("proposedProjectName borne le nom de base du dossier", () => {
   expect(proposedProjectName("/a/b/Client X")).toBe("Client X");
   expect(proposedProjectName(`/a/${"x".repeat(200)}`)).toHaveLength(80);
 });
+
+it("création : la racine commune, si elle existe, remplace le partage du conteneur", async () => {
+  const mount = await temp();
+  const common = await temp();
+  const { host } = creationHost({
+    containerMount: async () => mount,
+    commonRoot: async () => common,
+  });
+  const plan = await planProjectCreation({ kind: "create", name: "P", container: "kali-1" }, host);
+  expect(plan).toMatchObject({ kind: "create", share: common });
+});
