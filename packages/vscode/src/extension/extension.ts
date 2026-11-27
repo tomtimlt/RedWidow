@@ -160,7 +160,9 @@ import {
   manageSelectedProject,
   type ProjectCreationChoice,
   planProjectCreation,
+  projectSeenBy,
   readProjectChoices,
+  setProjectPrimary,
   unassociatedProjectIds,
 } from "../logic/project-controls.js";
 import { integrationMap, projectIntegrations } from "../logic/project-integrations.js";
@@ -190,7 +192,6 @@ import {
 import { shortcutLabel } from "../logic/shortcuts.js";
 import { readSources } from "../logic/sources.js";
 import {
-  creationContainers,
   type ObservedMission,
   observeMission,
   parseStudioMessage,
@@ -242,6 +243,44 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       registered: config.inspect(key) !== undefined,
       update: (next) => config.update(key, next, vscode.ConfigurationTarget.Global),
       fallback: (next) => context.globalState.update(`warband.pendingSetting.${key}`, next),
+    });
+  };
+  /**
+   * Racine commune (ADR 0054) : réglage machine `warband.root`, ou proposition au premier usage. Un
+   * seul utilitaire pour la création de projet, l'adoption, l'import, le déplacement et la création
+   * de conteneur. `undefined` si l'utilisateur annule : rien n'est écrit.
+   */
+  const askCommonRoot = async (): Promise<CommonRoot | undefined> => {
+    return await ensureRoot({
+      readSetting: () => {
+        const value = readMachineSetting("root");
+        return typeof value === "string" ? value : undefined;
+      },
+      saveSetting: (path) => writeMachineSetting("root", path),
+      home: () => homedir(),
+      confirmDefault: async (proposed) => {
+        const use = t("Utiliser ce dossier");
+        const other = t("Choisir un autre dossier…");
+        const choice = await vscode.window.showInformationMessage(
+          t("Où ranger les projets et les conteneurs ?"),
+          {
+            modal: true,
+            detail: t`Les projets, les conteneurs et les ressources partagées vivent sous une racine commune. Dossier proposé : ${proposed}`,
+          },
+          use,
+          other,
+        );
+        return choice === use ? "use" : choice === other ? "other" : undefined;
+      },
+      pickFolder: async () => {
+        const picked = await vscode.window.showOpenDialog({
+          canSelectFolders: true,
+          canSelectFiles: false,
+          canSelectMany: false,
+          openLabel: t("Choisir la racine commune"),
+        });
+        return picked?.[0]?.fsPath;
+      },
     });
   };
   const currentLocale = () => (readMachineSetting("language") === "fr" ? "fr" : "en");
@@ -1619,39 +1658,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     let alive = true;
     let operationAbort: AbortController | null = null;
     let selectedVpn: string | undefined;
-    /** Racine commune : réglage machine `warband.root`, ou proposition au premier usage (ADR 0054). */
+    /** Racine commune demandée à l'utilisateur ; une annulation interrompt l'opération du cockpit. */
     const requireCommonRoot = async (signal: AbortSignal): Promise<CommonRoot> => {
-      const root = await ensureRoot({
-        readSetting: () => {
-          const value = readMachineSetting("root");
-          return typeof value === "string" ? value : undefined;
-        },
-        saveSetting: (path) => writeMachineSetting("root", path),
-        home: () => homedir(),
-        confirmDefault: async (proposed) => {
-          const use = t("Utiliser ce dossier");
-          const other = t("Choisir un autre dossier…");
-          const choice = await vscode.window.showInformationMessage(
-            t("Où ranger les projets et les conteneurs ?"),
-            {
-              modal: true,
-              detail: t`Les projets, les conteneurs et les ressources partagées vivent sous une racine commune. Dossier proposé : ${proposed}`,
-            },
-            use,
-            other,
-          );
-          return choice === use ? "use" : choice === other ? "other" : undefined;
-        },
-        pickFolder: async () => {
-          const picked = await vscode.window.showOpenDialog({
-            canSelectFolders: true,
-            canSelectFiles: false,
-            canSelectMany: false,
-            openLabel: t("Choisir la racine commune"),
-          });
-          return picked?.[0]?.fsPath;
-        },
-      });
+      const root = await askCommonRoot();
       if (root === undefined) {
         operationAbort?.abort();
         signal.throwIfAborted();
@@ -1817,8 +1826,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             mountIssue = undefined;
             return void pushView();
           case "relocateProject": {
-            // Jamais sans confirmation modale ; la destination est calculée par l'hôte (ADR 0053).
-            await relocateProjectToContainer(message.projectId, message.container);
+            // Jamais sans confirmation modale ; la destination est calculée par l'hôte (ADR 0054).
+            await relocateProjectToRoot(message.projectId);
             return void pushView(true);
           }
           case "openProgram":
@@ -3192,40 +3201,28 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     return { projectSelected, ...(projectError !== undefined && { projectError }) };
   };
   /**
-   * Partage d'un conteneur démarré ou éteint, relu par docker (jamais fourni par la webview) ;
-   * `undefined` si le conteneur est inconnu ou sans dossier partagé absolu.
+   * Déplace un projet vers `<racine>/projets` (ADR 0054, point 5), pour le studio comme pour le
+   * cockpit. Refus pendant un tour ; aucune écriture sans confirmation modale ; la destination est
+   * calculée par l'hôte, jamais fournie par la webview.
    */
-  const containerShare = async (
-    container: string,
-  ): Promise<{ name: string; share: string } | undefined> => {
-    const row = creationContainers((await loadCockpitView()).containers).find(
-      (candidate) => candidate.name === container,
-    );
-    return row === undefined ? undefined : { name: row.name, share: row.mount };
-  };
-  /**
-   * Déplace un projet « non associé » sous le partage d'un conteneur (ADR 0053, point 8), pour le
-   * studio comme pour le cockpit. Refus pendant un tour ; aucune écriture sans confirmation modale ;
-   * le conteneur et son partage sont relus par docker, jamais fournis par la webview.
-   */
-  const relocateProjectToContainer = async (projectId: string, container: string) => {
+  const relocateProjectToRoot = async (projectId: string) => {
     if (projectChanging || chatsBusy())
       throw new Error(t("Arrêtez les tours en cours avant de déplacer le projet."));
     projectChanging = true;
     let moved: { workspace: string } | null = null;
     try {
       const wasActive = (await readProjects(defaultConfigDir()))?.activeId === projectId;
-      moved = await relocateProject(projectId, container, {
+      moved = await relocateProject(projectId, {
         busy: () => chatsBusy(),
-        listContainers: () => shellDocker().listLabelPrefix(),
-        confirm: async ({ name, workspace, container: target, destination }) => {
+        root: askCommonRoot,
+        confirm: async ({ name, workspace, destination }) => {
           const action = t("Déplacer");
           return (
             (await vscode.window.showWarningMessage(
-              t`Déplacer le projet « ${name} » dans le conteneur ${shortContainerName(target)} ?`,
+              t`Déplacer le projet « ${name} » vers la racine commune ?`,
               {
                 modal: true,
-                detail: t`Le dossier ${workspace} sera déplacé sous ${destination}. Les conteneurs qui ne voient plus le projet seront déliés.`,
+                detail: t`Le dossier ${workspace} sera déplacé sous ${destination}. Les conteneurs qui voient la racine commune le verront.`,
               },
               action,
             )) === action
@@ -3355,14 +3352,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       auditGeneration,
       refreshDocker && (requestedPage === "project" || requestedPage === "containers"),
       async (cockpit) => {
-        // Projets « non associés » (ADR 0053, point 8) : placement calculé avec les montages relus par docker.
-        const unassociated =
+        // Visibilité (ADR 0054) : conteneurs qui voient chaque projet, calculée par l'hôte avec les montages relus par docker.
+        const storedProjects =
           studioPage === "project"
-            ? unassociatedProjectIds(
-                (await readProjects(config).catch(() => null))?.projects ?? [],
-                cockpit.value?.containers,
-              )
+            ? ((await readProjects(config).catch(() => null))?.projects ?? [])
             : [];
+        const unassociated = unassociatedProjectIds(storedProjects, cockpit.value?.visibility);
+        const projectVisibility = projectSeenBy(
+          storedProjects,
+          cockpit.value?.visibility,
+          cockpit.value?.containers ?? [],
+        );
         const payload = {
           ...(cockpit.value ?? { type: "view" as const, containers: [] }),
           dockerLoading:
@@ -3415,7 +3415,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             ) ?? {},
             projectChoices.activeId,
           ),
-          creationContainers: creationContainers(cockpit.value?.containers ?? []),
+          projectVisibility,
           unassociated,
           agentProfile: agentProfileLabel(
             machineValue(vscode.workspace.getConfiguration("warband").inspect("profile")),
@@ -4322,6 +4322,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         openCockpit();
         return;
       }
+      if (message.type === "openCockpitCreate") {
+        openCockpit(true);
+        return;
+      }
       if (message.type === "openProgram") {
         openProgram();
         return;
@@ -4456,27 +4460,26 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           });
           return;
         }
-        // Conteneur du formulaire puis archive (ADR 0053) : le partage est relu côté hôte, jamais fourni par la webview.
+        // Racine commune demandée une fois, puis archive choisie par l'hôte (ADR 0054) : aucun chemin ni conteneur de la webview.
         let imported: Awaited<ReturnType<typeof importProjectArchive>> | undefined;
         let importError: string | undefined;
         try {
-          const target = await containerShare(message.container);
-          if (target === undefined) throw new CodedError("project.containerRequired");
-          const archive = await vscode.window.showOpenDialog({
-            canSelectFiles: true,
-            canSelectFolders: false,
-            canSelectMany: false,
-            filters: { [t("Projet")]: ["rwproj"] },
-            openLabel: t("Choisir l'archive du projet"),
-          });
+          const common = await askCommonRoot();
+          const archive =
+            common === undefined
+              ? undefined
+              : await vscode.window.showOpenDialog({
+                  canSelectFiles: true,
+                  canSelectFolders: false,
+                  canSelectMany: false,
+                  filters: { [t("Projet")]: ["rwproj"] },
+                  openLabel: t("Choisir l'archive du projet"),
+                });
           const archiveFile = archive?.[0]?.fsPath;
-          if (archiveFile !== undefined) {
+          if (common !== undefined && archiveFile !== undefined) {
             projectChanging = true;
             try {
-              imported = await importProjectArchive(defaultConfigDir(), archiveFile, {
-                container: target.name,
-                share: target.share,
-              });
+              imported = await importProjectArchive(defaultConfigDir(), archiveFile, common.root);
             } finally {
               projectChanging = false;
             }
@@ -4504,11 +4507,27 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         // Aucune écriture sans confirmation modale ; la destination est calculée par l'hôte.
         let relocateError: string | undefined;
         try {
-          await relocateProjectToContainer(message.projectId, message.container);
+          await relocateProjectToRoot(message.projectId);
         } catch (error) {
           relocateError = formatError(error, getUiLocale());
         }
         await pushStudio({ ...(relocateError !== undefined && { projectError: relocateError }) });
+        return;
+      }
+      if (message.type === "setProjectPrimary") {
+        // Informatif (ADR 0054) : l'hôte relit les montages et refuse un conteneur qui ne voit pas le dossier.
+        let primaryError: string | undefined;
+        try {
+          await setProjectPrimary(defaultConfigDir(), message.projectId, message.container, () =>
+            shellDocker().listLabelPrefix(),
+          );
+        } catch (error) {
+          primaryError = formatError(error, getUiLocale());
+        }
+        await pushStudio(
+          { ...(primaryError !== undefined && { projectError: primaryError }) },
+          true,
+        );
         return;
       }
       if (message.type === "activateProject") {
@@ -4525,22 +4544,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           });
           return;
         }
-        // Un projet n'existe que dans un conteneur (ADR 0053) : seul le nom du conteneur vient de la webview.
+        // Seul le nom vient de la webview (ADR 0054) : la racine, le dossier et les noms sont relus ou choisis par l'hôte.
         const choice: ProjectCreationChoice = {
           kind: message.type === "adoptProject" ? "adopt" : "create",
           name: message.name,
-          container: message.container,
         };
         let plan: Awaited<ReturnType<typeof planProjectCreation>>;
         try {
           plan = await planProjectCreation(choice, {
-            // Seul dossier proposé par défaut : le partage du conteneur, relu par docker.
-            pickExisting: async (share) => {
+            commonRoot: askCommonRoot,
+            // Sélecteur natif ouvert sur `<racine>/projets` ; tout dossier est accepté (le cœur le valide).
+            pickExisting: async (projectsDir) => {
               const picked = await vscode.window.showOpenDialog({
                 canSelectFolders: true,
                 canSelectFiles: false,
                 canSelectMany: false,
-                defaultUri: vscode.Uri.file(share),
+                defaultUri: vscode.Uri.file(projectsDir),
                 openLabel: t("Choisir le dossier à ouvrir comme projet"),
               });
               return picked?.[0]?.fsPath;
@@ -4556,12 +4575,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
               });
               return name?.trim();
             },
-            containerMount: async (container) => (await containerShare(container))?.share,
-            // Les nouveaux projets vivent sous `<racine>/projets` (ADR 0054).
-            commonRoot: async () => {
-              const value = readMachineSetting("root");
-              return typeof value === "string" && value !== "" ? value : undefined;
-            },
           });
         } catch (error) {
           await pushStudio({ projectError: formatError(error, getUiLocale()) });
@@ -4573,7 +4586,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           return;
         }
         const readyPlan = plan;
-        // Le conteneur est lié par le cœur à la création (`containers` et `primary`).
+        // Aucun conteneur ni `primary` posé : l'affichage se rabat sur l'unique conteneur qui voit le projet (ADR 0054).
         await changeProject(async () => {
           if (chatsBusy())
             throw new Error(t("Arrêtez les tours en cours avant de créer le projet."));

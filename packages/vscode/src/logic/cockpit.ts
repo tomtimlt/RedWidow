@@ -32,7 +32,7 @@ import {
 import { formatError, getUiLocale, t } from "@warband/messages";
 import { PRODUCT_NAME, productTitleSuffix } from "./brand.js";
 import { listFolderNames, suggestName } from "./container-root.js";
-import { projectInSharedFolder } from "./shared-folder.js";
+import { projectVisibility } from "./project-controls.js";
 import { encodedBashScript } from "./terminal-prompt.js";
 
 /** Messages acceptés depuis la webview cockpit (non fiables). */
@@ -64,8 +64,8 @@ export type CockpitMessage =
   | { type: "cancelOperation" }
   | { type: "createKali"; image: string; name: string }
   | { type: "listImages" }
-  /** Déplacement confirmé du projet sous le partage du conteneur (ADR 0053) ; aucun chemin. */
-  | { type: "relocateProject"; projectId: string; container: string }
+  /** Déplacement confirmé du projet vers `<racine>/projets` (ADR 0054) ; aucun chemin ni conteneur. */
+  | { type: "relocateProject"; projectId: string }
   | { type: "dismissMountIssue" };
 
 const CONTAINER_NAME_MAX = 256;
@@ -127,13 +127,8 @@ export function parseCockpitMessage(raw: unknown): CockpitMessage | null {
         ? { type: "activateProject", projectId: m.projectId }
         : null;
     case "relocateProject":
-      return only("type", "projectId", "container") &&
-        isProjectId(m.projectId) &&
-        typeof m.container === "string" &&
-        m.container !== "" &&
-        m.container.length <= CONTAINER_NAME_MAX &&
-        !/\p{Cc}/u.test(m.container)
-        ? { type: "relocateProject", projectId: m.projectId, container: m.container }
+      return only("type", "projectId") && isProjectId(m.projectId)
+        ? { type: "relocateProject", projectId: m.projectId }
         : null;
     case "createExegol": {
       if (
@@ -398,6 +393,8 @@ export interface CockpitViewPayload {
   linked: CockpitLinkedLine;
   linkedBanner: CockpitLinkedBanner | null;
   containers: CockpitContainerView[];
+  /** Projet → noms des conteneurs qui le voient (tous états, ADR 0054) ; absent si la liste Docker l'est. */
+  visibility?: Record<string, string[]>;
   /** Dossier du projet absent du partage d'un conteneur lié : bandeau à trois actions. */
   mountIssue?: CockpitMountIssue;
   /** Racine commune (réglage machine) ; absente tant qu'elle n'est pas choisie (ADR 0054). */
@@ -604,57 +601,56 @@ export async function loadCockpitView(deps: CockpitDeps = {}): Promise<CockpitVi
   }
 
   const registered = stored?.projects ?? [];
-  const containers: CockpitContainerView[] = await Promise.all(
-    sorted.map(async (r) => {
-      const isLinked = allowed.includes(r.name);
-      const share = r.workspace !== undefined && isAbsolute(r.workspace) ? r.workspace : undefined;
-      // Un projet est « dans » le conteneur si son dossier est dans le partage (chemins réels).
-      const projects: CockpitContainerView["projects"] = [];
-      if (share !== undefined) {
-        const inside = await Promise.all(
-          registered.map((project) => projectInSharedFolder(share, project.workspace)),
-        );
-        registered.forEach((project, index) => {
-          if (inside[index])
-            projects.push({
-              id: project.id,
-              name: project.name,
-              active: project.id === active?.id,
-            });
-        });
-      }
-      const compatible = projects.some((project) => project.active);
-      let canLink = false;
-      let linkTitle: string | undefined;
-      if (isLinked) {
-        canLink = false;
-      } else if (r.state !== "running") {
-        linkTitle = t("Conteneur arrêté");
-      } else if (share === undefined) {
-        linkTitle = t("Sans montage /workspace");
-      } else if (active === null) {
-        linkTitle = t("Aucun projet actif.");
-      } else if (!compatible) {
-        linkTitle = t("Ce conteneur ne voit pas le dossier du projet.");
-      } else {
-        canLink = true;
-      }
-      return {
-        name: r.name,
-        short: shortContainerName(r.name),
-        image: r.image,
-        state: r.state,
-        family: r.family,
-        ...(r.workspace !== undefined && { workspace: r.workspace }),
-        linked: isLinked,
-        primary: multiLinked && active?.primary === r.name,
-        canLink,
-        ...(linkTitle !== undefined && { linkTitle }),
-        projects,
-        compatible,
-      };
-    }),
+  // Visibilité réelle (ADR 0054) : tous les montages de chaque conteneur, démarré ou arrêté.
+  // Les chemins réels sont comparés : un lien symbolique du dossier du projet ne le rend pas visible.
+  const real = await Promise.all(
+    registered.map(async ({ id, workspace }) => ({
+      id,
+      workspace: await realpath(workspace).catch(() => workspace),
+    })),
   );
+  const visibility = projectVisibility(real, rows);
+  const containers: CockpitContainerView[] = sorted.map((r) => {
+    const isLinked = allowed.includes(r.name);
+    const share = r.workspace !== undefined && isAbsolute(r.workspace) ? r.workspace : undefined;
+    const projects: CockpitContainerView["projects"] = registered
+      .filter((project) => visibility[project.id]?.includes(r.name))
+      .map((project) => ({
+        id: project.id,
+        name: project.name,
+        active: project.id === active?.id,
+      }));
+    const compatible = projects.some((project) => project.active);
+    let canLink = false;
+    let linkTitle: string | undefined;
+    if (isLinked) {
+      canLink = false;
+    } else if (r.state !== "running") {
+      linkTitle = t("Conteneur arrêté");
+    } else if (share === undefined) {
+      linkTitle = t("Sans montage /workspace");
+    } else if (active === null) {
+      linkTitle = t("Aucun projet actif.");
+    } else if (!compatible) {
+      linkTitle = t("Ce conteneur ne voit pas le dossier du projet.");
+    } else {
+      canLink = true;
+    }
+    return {
+      name: r.name,
+      short: shortContainerName(r.name),
+      image: r.image,
+      state: r.state,
+      family: r.family,
+      ...(r.workspace !== undefined && { workspace: r.workspace }),
+      linked: isLinked,
+      primary: multiLinked && active?.primary === r.name,
+      canLink,
+      ...(linkTitle !== undefined && { linkTitle }),
+      projects,
+      compatible,
+    };
+  });
 
   const engagement = active ? engagementLine(configDir, active.id) : undefined;
   const root = deps.containersRoot?.();
@@ -671,6 +667,7 @@ export async function loadCockpitView(deps: CockpitDeps = {}): Promise<CockpitVi
     linked,
     linkedBanner,
     containers,
+    visibility,
     ...(hasRoot && { containersRoot: root }),
     suggestedName: { kali: suggestName("kali", taken), exegol: suggestName("exegol", taken) },
     ...(active && { projectWorkspace: active.workspace }),

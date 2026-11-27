@@ -450,7 +450,6 @@ function start() {
   const summaryDrafts = /* @__PURE__ */ new Map();
   const summarySaving = /* @__PURE__ */ new Set();
   let projectNameDraft = "";
-  let projectContainerDraft = "";
   let providerFilter = "";
   const auditDrafts = new Map();
   let lastAuditProject = null;
@@ -2124,7 +2123,7 @@ function start() {
         "projectChoices",
         "projectBusy",
         "projectCreated",
-        "creationContainers",
+        "projectVisibility",
         "unassociated",
         "projectError",
         "projectSummary",
@@ -2370,35 +2369,14 @@ function start() {
           );
         if (typeof view.projectCreated === "string") {
           projectNameDraft = "";
-          projectContainerDraft = "";
           projectPanel = "choose";
         }
-        // Tous les conteneurs à dossier partagé, démarrés ou éteints (ADR 0053).
-        const containers = Array.isArray(view.creationContainers) ? view.creationContainers : [];
-        if (!containers.some((row) => row.name === projectContainerDraft))
-          projectContainerDraft = containers[0]?.name ?? "";
-        const noContainerText = t("Créez d'abord un conteneur.");
+        // Visibilité calculée par l'hôte (ADR 0054) : projet → conteneurs qui le voient ; absente si Docker l'est.
         const unassociated = new Set(Array.isArray(view.unassociated) ? view.unassociated : []);
-        // Les sélecteurs de conteneur (création, déplacement) restent alignés sur le même brouillon.
-        const pickers = [];
-        const containerPicker = (id) => {
-          const pick = el("select", "studio-project-control");
-          pick.id = id;
-          pick.setAttribute("aria-label", t("Conteneur du projet"));
-          for (const row of containers) {
-            const option = el("option", "", row.short);
-            option.value = row.name;
-            pick.append(option);
-          }
-          pick.value = projectContainerDraft;
-          pick.disabled = projectBusy || containers.length === 0;
-          pick.addEventListener("change", () => {
-            projectContainerDraft = pick.value;
-            for (const other of pickers) other.value = pick.value;
-          });
-          pickers.push(pick);
-          return pick;
-        };
+        const seenBy =
+          view.projectVisibility && typeof view.projectVisibility === "object"
+            ? view.projectVisibility
+            : {};
         const current = choices.projects.find((p) => p.id === choices.activeId);
         const active = el("div", "studio-project-active");
         active.append(el("p", "studio-kicker", t("Projet actif")));
@@ -2523,41 +2501,70 @@ function start() {
             });
           }
           managementState();
-          // Projet « non associé » (ADR 0053) : badge et déplacement confirmé par l'hôte, sans chemin.
-          const relocateRow = el("div", "studio-project-relocate");
-          relocateRow.id = "project-relocate";
-          const badge = el("span", "studio-badge", t("Non associé"));
-          badge.id = "project-unassociated";
-          const relocatePick = containerPicker("project-relocate-container");
-          const relocate = el("button", "ghost", t("Déplacer dans un conteneur…"));
-          relocate.type = "button";
-          relocate.id = "project-relocate-button";
-          const relocateState = () => {
-            const flagged = unassociated.has(select.value);
-            relocateRow.hidden = !flagged;
-            relocate.disabled = projectBusy || !flagged || !relocatePick.value;
-          };
-          select.addEventListener("change", relocateState);
-          relocate.addEventListener("click", () => {
-            if (relocate.disabled) return;
-            relocate.disabled = true;
-            vscode.postMessage({
-              type: "relocateProject",
-              projectId: select.value,
-              container: relocatePick.value,
+          // Carte projet (ADR 0054) : conteneurs qui voient le dossier et conteneur par défaut ; aucun chemin n'est envoyé.
+          const card = el("div", "studio-project-relocate");
+          card.id = "project-card";
+          const renderCard = () => {
+            card.replaceChildren();
+            const info = seenBy[select.value];
+            card.hidden = !info || typeof info !== "object";
+            if (card.hidden) return;
+            const seen = Array.isArray(info.containers) ? info.containers : [];
+            if (seen.length === 0) {
+              const note = el("p", "studio-help", t("Aucun conteneur ne voit ce projet."));
+              note.id = "project-unassociated";
+              const create = el("button", "ghost", t("Créer un conteneur"));
+              create.type = "button";
+              create.id = "project-create-container";
+              create.disabled = projectBusy;
+              create.addEventListener("click", () =>
+                vscode.postMessage({ type: "openCockpitCreate" }),
+              );
+              const relocate = el("button", "ghost", t("Déplacer vers la racine…"));
+              relocate.type = "button";
+              relocate.id = "project-relocate-button";
+              relocate.disabled = projectBusy || !select.value;
+              relocate.addEventListener("click", () => {
+                if (relocate.disabled) return;
+                relocate.disabled = true;
+                vscode.postMessage({ type: "relocateProject", projectId: select.value });
+              });
+              card.append(note, create, relocate);
+              return;
+            }
+            const label3 = (row) =>
+              row.state === "stopped" ? t`${row.short} (arrêté)` : row.short;
+            const seenText = el("p", "studio-help", t`Vu par : ${seen.map(label3).join(", ")}`);
+            seenText.id = "project-seen-by";
+            const primaryLabel = el("label", "studio-help", t("Conteneur par défaut"));
+            primaryLabel.htmlFor = "project-primary";
+            const primary = el("select", "studio-project-control");
+            primary.id = "project-primary";
+            const none = el("option", "", t("Aucun"));
+            none.value = "";
+            primary.append(none);
+            for (const row of seen) {
+              const option = el("option", "", label3(row));
+              option.value = row.name;
+              primary.append(option);
+            }
+            primary.value = seen.some((row) => row.name === info.primary) ? info.primary : "";
+            primary.disabled = projectBusy;
+            primary.addEventListener("change", () => {
+              vscode.postMessage({
+                type: "setProjectPrimary",
+                projectId: select.value,
+                container: primary.value === "" ? null : primary.value,
+              });
             });
-          });
-          relocateRow.append(
-            badge,
-            relocatePick,
-            relocate,
-            ...(containers.length === 0 ? [el("p", "studio-help", noContainerText)] : []),
-          );
-          relocateState();
+            card.append(seenText, primaryLabel, primary);
+          };
+          select.addEventListener("change", renderCard);
+          renderCard();
           choosePanel.append(
             label2,
             select,
-            relocateRow,
+            card,
             activate,
             program,
             engagement,
@@ -2566,7 +2573,7 @@ function start() {
             remove,
           );
         }
-        // ADR 0053 : un seul parcours. Le conteneur est obligatoire ; l'hôte relit son dossier partagé.
+        // ADR 0054 : aucun conteneur à choisir ; le projet naît sous la racine commune.
         const label = el("label", "studio-help", t("Nom du nouveau projet"));
         label.htmlFor = "project-name";
         const name = el("input", "studio-project-control");
@@ -2575,24 +2582,19 @@ function start() {
         name.maxLength = 80;
         name.value = projectNameDraft;
         name.disabled = projectBusy;
-        const containerLabel = el("label", "studio-help", t("Conteneur du projet"));
-        containerLabel.htmlFor = "project-container";
-        const containerSelect = containerPicker("project-container");
         const create = el("button", "primary", t("Créer le projet"));
         create.type = "button";
-        const adopt = el("button", "ghost", t("Dossier existant dans ce conteneur…"));
+        const adopt = el("button", "ghost", t("Ouvrir un dossier existant…"));
         adopt.type = "button";
         adopt.id = "project-adopt";
         const importButton = el("button", "ghost", t("Importer un projet…"));
         importButton.type = "button";
         importButton.id = "project-import";
         const update = () => {
-          const ready = !projectBusy && containers.length > 0 && !!containerSelect.value;
-          create.disabled = !ready || !name.value.trim();
-          adopt.disabled = !ready;
-          importButton.disabled = !ready;
+          create.disabled = projectBusy || !name.value.trim();
+          adopt.disabled = projectBusy;
+          importButton.disabled = projectBusy;
         };
-        containerSelect.addEventListener("change", update);
         name.addEventListener("input", () => {
           projectNameDraft = name.value;
           update();
@@ -2600,41 +2602,27 @@ function start() {
         create.addEventListener("click", () => {
           if (create.disabled) return;
           create.disabled = true;
-          vscode.postMessage({
-            type: "createProject",
-            name: name.value.trim(),
-            container: containerSelect.value,
-          });
+          vscode.postMessage({ type: "createProject", name: name.value.trim() });
         });
-        // Le dossier est choisi par l'hôte, ouvert sur le partage du conteneur ; aucun chemin n'est envoyé.
+        // Le dossier est choisi par l'hôte, ouvert sur la racine commune ; aucun chemin n'est envoyé.
         adopt.addEventListener("click", () => {
           if (adopt.disabled) return;
           adopt.disabled = true;
-          vscode.postMessage({
-            type: "adoptProject",
-            container: containerSelect.value,
-            name: name.value.trim(),
-          });
+          vscode.postMessage({ type: "adoptProject", name: name.value.trim() });
         });
         importButton.addEventListener("click", () => {
           if (importButton.disabled) return;
           importButton.disabled = true;
-          vscode.postMessage({ type: "importProject", container: containerSelect.value });
+          vscode.postMessage({ type: "importProject" });
         });
         update();
         createPanel.append(
-          el("p", "studio-help", t("Choisissez le conteneur du projet, puis donnez-lui un nom.")),
-          containerLabel,
-          containerSelect,
-          ...(containers.length === 0 ? [el("p", "studio-help", noContainerText)] : []),
           label,
           name,
           el(
             "p",
             "studio-help",
-            t(
-              "Le projet est créé sous le dossier partagé du conteneur, démarré ou éteint. Pour un dossier existant, le nom est proposé d'après le dossier choisi.",
-            ),
+            t("Les projets sont créés dans le dossier projets de la racine commune."),
           ),
           create,
           adopt,

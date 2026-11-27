@@ -1,17 +1,18 @@
-import { basename, isAbsolute } from "node:path";
+import { basename, resolve } from "node:path";
 import {
   adoptProjectDirectory,
   CodedError,
+  type CommonRoot,
   type ContainerMount,
   createManagedProject,
-  isInsideShare,
-  projectPlacement,
+  projectContainerPath,
   readProjects,
   removeProject,
   renameProject,
   rowMounts,
   type StoredProject,
   setActiveProject,
+  setPrimaryContainer,
 } from "@warband/core";
 import { t } from "@warband/messages";
 
@@ -34,39 +35,37 @@ export async function activateSelectedProject(configDir: string, projectId: stri
   await setActiveProject(configDir, projectId);
 }
 
-/** Le conteneur et son dossier partagé sont relus par l’hôte (ADR 0053), jamais fournis par la webview. */
+/** Crée le projet sous `<racine>/projets` sans conteneur ni `primary` (ADR 0054), puis l'active. */
 export async function createManagedSelectedProject(
   configDir: string,
   name: string,
-  target: { container: string; share: string },
-) {
-  const project = await createManagedProject(configDir, name, target.share, target.container);
+  root: string,
+): Promise<StoredProject> {
+  const project = await createManagedProject(configDir, name, root);
   await activateSelectedProject(configDir, project.id);
   return project;
 }
 
-/** Choix de création venu de la webview : aucun chemin, seulement un conteneur et un nom (ADR 0053). */
+/** Choix de création venu de la webview : aucun chemin ni conteneur, seulement un nom (ADR 0054). */
 export type ProjectCreationChoice =
-  | { kind: "create"; name: string; container: string }
+  | { kind: "create"; name: string }
   /** `name` vide : l'hôte propose le nom de base du dossier choisi. */
-  | { kind: "adopt"; name: string; container: string };
+  | { kind: "adopt"; name: string };
 
-/** Dialogues et relectures de l'hôte : c'est lui seul qui fournit les chemins (ADR 0050, 0053). */
+/** Dialogues et relectures de l'hôte : c'est lui seul qui fournit les chemins (ADR 0050, 0054). */
 export interface ProjectCreationHost {
-  /** Sélecteur natif de dossier ouvert sur le partage du conteneur ; `undefined` si annulé. */
-  pickExisting(share: string): Promise<string | undefined>;
+  /** Racine commune demandée une seule fois (`ensureRoot`) ; `undefined` si annulée. */
+  commonRoot(): Promise<CommonRoot | undefined>;
+  /** Sélecteur natif de dossier ouvert sur `<racine>/projets` ; `undefined` si annulé. */
+  pickExisting(projectsDir: string): Promise<string | undefined>;
   /** Nom proposé puis éventuellement modifié ; `undefined` si annulé. */
   askName(proposed: string): Promise<string | undefined>;
-  /** Montage /workspace d'un conteneur connu, relu côté hôte ; `undefined` s'il est inconnu ou sans montage. */
-  containerMount(container: string): Promise<string | undefined>;
-  /** Racine commune (`warband.root`) : les nouveaux projets y vivent (ADR 0054) ; absente, le partage. */
-  commonRoot?(): Promise<string | undefined>;
 }
 
 /** Ce qu'il reste à écrire une fois les dialogues terminés ; aucune écriture n'a eu lieu. */
 export type ProjectCreationPlan =
-  | { kind: "create"; name: string; container: string; share: string }
-  | { kind: "adopt"; name: string; folder: string; container: string; share: string };
+  | { kind: "create"; name: string; root: string }
+  | { kind: "adopt"; name: string; folder: string };
 
 /** Nom de base du dossier, borné comme un nom de projet. */
 export function proposedProjectName(folder: string): string {
@@ -77,56 +76,119 @@ export function proposedProjectName(folder: string): string {
 }
 
 /**
- * Une annulation d'un dialogue renvoie `undefined` : rien n'est créé. Le partage est relu par
- * l'hôte ; un dossier existant hors de ce partage est refusé avant tout nom demandé.
+ * Une annulation d'un dialogue renvoie `undefined` : rien n'est créé. Un dossier existant est accepté
+ * où qu'il soit (le cœur le valide) ; hors de la racine, aucun conteneur ne le verra (ADR 0054).
  */
 export async function planProjectCreation(
   choice: ProjectCreationChoice,
   host: ProjectCreationHost,
 ): Promise<ProjectCreationPlan | undefined> {
-  const share = await host.containerMount(choice.container);
-  if (share === undefined) throw new CodedError("project.containerRequired");
-  if (choice.kind === "create") {
-    const root = await host.commonRoot?.();
-    return { kind: "create", name: choice.name, container: choice.container, share: root ?? share };
-  }
-  const folder = await host.pickExisting(share);
+  const common = await host.commonRoot();
+  if (common === undefined) return undefined;
+  if (choice.kind === "create") return { kind: "create", name: choice.name, root: common.root };
+  const folder = await host.pickExisting(common.projects);
   if (folder === undefined) return undefined;
-  if (!(await isInsideShare(share, folder))) throw new CodedError("project.outsideShare");
   const name = choice.name !== "" ? choice.name : await host.askName(proposedProjectName(folder));
   if (name === undefined || name === "") return undefined;
-  return { kind: "adopt", name, folder, container: choice.container, share };
+  return { kind: "adopt", name, folder };
+}
+
+/** Ligne Docker relue par l'hôte, avec ses montages (démarrée ou arrêtée). */
+export interface VisibilityRow {
+  name: string;
+  family?: string;
+  workspace?: string;
+  mounts?: readonly ContainerMount[];
 }
 
 /**
- * Projets « non associés » (ADR 0054, point 8) : aucun conteneur ne voit leur dossier.
- * `containers` : liste Docker relue par l'hôte, `undefined` si indisponible (rien n'est affirmé).
+ * Visibilité (ADR 0054, point 3) : pour chaque projet, les conteneurs de famille connue, démarrés
+ * ou arrêtés, dont un montage couvre son dossier. Fonction pure, comparaison lexicale.
+ */
+export function projectVisibility(
+  projects: readonly Pick<StoredProject, "id" | "workspace">[],
+  rows: readonly VisibilityRow[],
+): Record<string, string[]> {
+  const known = rows
+    .filter((row) => row.family === "exegol" || row.family === "kali")
+    .map((row) => ({ name: row.name, mounts: rowMounts(row) }));
+  return Object.fromEntries(
+    projects.map((project) => {
+      const workspace = resolve(project.workspace);
+      return [
+        project.id,
+        known
+          .filter((row) => projectContainerPath(workspace, row.mounts) !== undefined)
+          .map((row) => row.name),
+      ];
+    }),
+  );
+}
+
+/**
+ * Projets sans aucun conteneur visible. `visibility` : `undefined` si la liste Docker est
+ * indisponible (rien n'est affirmé).
  */
 export function unassociatedProjectIds(
-  projects: readonly Pick<StoredProject, "id" | "workspace">[],
-  containers:
-    | readonly { name: string; workspace?: string; mounts?: readonly ContainerMount[] }[]
-    | undefined,
+  projects: readonly Pick<StoredProject, "id">[],
+  visibility: Readonly<Record<string, readonly string[]>> | undefined,
 ): string[] {
-  if (containers === undefined) return [];
-  const mounts = new Map<string, readonly ContainerMount[]>(
-    containers.map((row) => [row.name, rowMounts(row)]),
+  if (visibility === undefined) return [];
+  return projects
+    .filter((project) => (visibility[project.id]?.length ?? 0) === 0)
+    .map((project) => project.id);
+}
+
+/** Charge utile du studio pour la carte projet : conteneurs qui voient le projet et défaut. */
+export interface ProjectSeenBy {
+  containers: { name: string; short: string; state: "running" | "stopped" }[];
+  primary: string | null;
+}
+
+/** Combine la visibilité et les lignes d'affichage ; un conteneur inconnu de la liste est ignoré. */
+export function projectSeenBy(
+  projects: readonly Pick<StoredProject, "id" | "primary">[],
+  visibility: Readonly<Record<string, readonly string[]>> | undefined,
+  containers: readonly { name: string; short: string; state: "running" | "stopped" }[],
+): Record<string, ProjectSeenBy> {
+  if (visibility === undefined) return {};
+  return Object.fromEntries(
+    projects.map((project) => [
+      project.id,
+      {
+        containers: containers
+          .filter((row) => visibility[project.id]?.includes(row.name))
+          .map(({ name, short, state }) => ({ name, short, state })),
+        primary: project.primary ?? null,
+      },
+    ]),
   );
-  return projects.flatMap((project) =>
-    projectPlacement(project, mounts) === "ok" ? [] : [project.id],
-  );
+}
+
+/**
+ * Conteneur par défaut du projet (informatif, ADR 0054) : seulement un conteneur qui voit le
+ * dossier, relu par l'hôte ; `null` retire le défaut.
+ */
+export async function setProjectPrimary(
+  configDir: string,
+  projectId: string,
+  container: string | null,
+  listContainers: () => Promise<readonly VisibilityRow[]>,
+): Promise<void> {
+  const project = (await readProjects(configDir))?.projects.find(({ id }) => id === projectId);
+  if (project === undefined) throw new CodedError("project.absent");
+  if (container !== null) {
+    const seen = projectVisibility([project], await listContainers())[project.id] ?? [];
+    if (!seen.includes(container))
+      throw new Error(t("Ce conteneur ne voit pas le dossier du projet."));
+  }
+  await setPrimaryContainer(configDir, projectId, container);
 }
 
 /** Crée ou reprend le dossier, puis active le projet. Les contrôles de chemin restent ceux du cœur. */
 export async function applyProjectPlan(configDir: string, plan: ProjectCreationPlan) {
-  if (plan.kind === "create")
-    return createManagedSelectedProject(configDir, plan.name, {
-      container: plan.container,
-      share: plan.share,
-    });
-  // Garde de l'interface (le cœur n'exige plus de partage, ADR 0054) : le conteneur choisi doit voir le dossier.
-  if (!(await isInsideShare(plan.share, plan.folder))) throw new CodedError("project.outsideShare");
-  const project = await adoptProjectDirectory(configDir, plan.name, plan.folder, plan.container);
+  if (plan.kind === "create") return createManagedSelectedProject(configDir, plan.name, plan.root);
+  const project = await adoptProjectDirectory(configDir, plan.name, plan.folder);
   await activateSelectedProject(configDir, project.id);
   return project;
 }

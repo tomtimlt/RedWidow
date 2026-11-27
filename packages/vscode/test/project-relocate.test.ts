@@ -1,8 +1,8 @@
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { createProject, type LabelPrefixContainer, readProjects } from "@warband/core";
+import { type CommonRoot, createProject, prepareCommonRoot, readProjects } from "@warband/core";
 import { afterEach, expect, it, vi } from "vitest";
 import { relocateProject } from "../src/logic/project-relocate.js";
 
@@ -16,19 +16,11 @@ afterEach(async () => {
   await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
-const row = (name: string, workspace?: string): LabelPrefixContainer => ({
-  name,
-  family: "exegol",
-  state: "stopped",
-  image: "img",
-  ...(workspace !== undefined && { workspace }),
-});
-
-/** Projet « non associé » : dossier hors de tout partage, lié à un ancien conteneur. */
+/** Projet hors de la racine commune, avec un ancien `primary` qui ne doit pas bouger. */
 async function fixture() {
   const config = await temp();
-  const share = await temp();
-  const oldShare = await temp();
+  const rootDir = await temp();
+  const common = await prepareCommonRoot(rootDir);
   const outside = await temp();
   const workspace = join(outside, "mission");
   await mkdir(workspace);
@@ -38,50 +30,51 @@ async function fixture() {
     workspace,
     primary: "exegol-old",
   });
-  const rows = [row("exegol-new", share), row("exegol-old", oldShare)];
   const confirm = vi.fn(async (_info: unknown) => true);
-  const deps = {
-    configDir: config,
-    busy: () => false,
-    listContainers: async () => rows,
-    confirm,
-  };
-  return { config, share, workspace, project, deps, confirm };
+  const root = vi.fn(async (): Promise<CommonRoot | undefined> => common);
+  const deps = { configDir: config, busy: () => false, root, confirm };
+  return { config, common, workspace, project, deps, confirm, root };
 }
 
-it("confirmation donnée : projet déplacé sous le partage, conteneur lié et affiché, ancien lien retiré", async () => {
+it("confirmation donnée : projet déplacé sous <racine>/projets, aucune association ni primary posé", async () => {
   const f = await fixture();
-  const result = await relocateProject(f.project.id, "exegol-new", f.deps);
-  const expected = join(f.share, "RedWidow", "projects", "mission");
+  const result = await relocateProject(f.project.id, f.deps);
+  const expected = join(f.common.projects, "mission");
   expect(result).toEqual({ workspace: expected });
   expect(f.confirm).toHaveBeenCalledWith({
     name: "Mission",
     workspace: f.workspace,
-    container: "exegol-new",
-    destination: join(f.share, "RedWidow", "projects"),
+    destination: f.common.projects,
   });
   expect(existsSync(join(expected, "notes.txt"))).toBe(true);
   expect(existsSync(f.workspace)).toBe(false);
   const stored = (await readProjects(f.config))?.projects.find((p) => p.id === f.project.id);
   expect(stored?.workspace).toBe(expected);
-  expect(stored?.primary).toBe("exegol-new");
+  // Le déplacement ne pose ni ne modifie aucun conteneur.
+  expect(stored?.primary).toBe("exegol-old");
 });
 
 it("confirmation refusée : rien n'est déplacé ni modifié", async () => {
   const f = await fixture();
   f.confirm.mockResolvedValueOnce(false);
   const before = await readProjects(f.config);
-  expect(await relocateProject(f.project.id, "exegol-new", f.deps)).toBeNull();
+  expect(await relocateProject(f.project.id, f.deps)).toBeNull();
   expect(existsSync(join(f.workspace, "notes.txt"))).toBe(true);
-  expect(existsSync(join(f.share, "RedWidow"))).toBe(false);
   expect(await readProjects(f.config)).toEqual(before);
 });
 
-it("refus pendant un tour : ni modale, ni déplacement", async () => {
+it("racine annulée : ni modale ni déplacement", async () => {
   const f = await fixture();
-  await expect(
-    relocateProject(f.project.id, "exegol-new", { ...f.deps, busy: () => true }),
-  ).rejects.toThrow();
+  f.root.mockResolvedValueOnce(undefined);
+  expect(await relocateProject(f.project.id, f.deps)).toBeNull();
+  expect(f.confirm).not.toHaveBeenCalled();
+  expect(existsSync(join(f.workspace, "notes.txt"))).toBe(true);
+});
+
+it("refus pendant un tour : ni racine, ni modale, ni déplacement", async () => {
+  const f = await fixture();
+  await expect(relocateProject(f.project.id, { ...f.deps, busy: () => true })).rejects.toThrow();
+  expect(f.root).not.toHaveBeenCalled();
   expect(f.confirm).not.toHaveBeenCalled();
   expect(existsSync(join(f.workspace, "notes.txt"))).toBe(true);
 });
@@ -93,35 +86,54 @@ it("tour démarré pendant la modale : rien n'est déplacé", async () => {
     busy = true;
     return true;
   });
-  await expect(
-    relocateProject(f.project.id, "exegol-new", { ...f.deps, busy: () => busy }),
-  ).rejects.toThrow();
+  await expect(relocateProject(f.project.id, { ...f.deps, busy: () => busy })).rejects.toThrow();
   expect(existsSync(join(f.workspace, "notes.txt"))).toBe(true);
   expect((await readProjects(f.config))?.projects[0]?.workspace).toBe(f.workspace);
 });
 
-it("conteneur inconnu ou sans partage, projet absent : refus sans modale", async () => {
+it("projet absent : refus sans demander la racine", async () => {
   const f = await fixture();
-  await expect(relocateProject(f.project.id, "inconnu", f.deps)).rejects.toMatchObject({
-    code: "project.containerRequired",
-  });
   await expect(
-    relocateProject(f.project.id, "exegol-new", {
-      ...f.deps,
-      listContainers: async () => [row("exegol-new")],
-    }),
-  ).rejects.toMatchObject({ code: "project.containerRequired" });
-  await expect(
-    relocateProject("11111111-1111-4111-8111-111111111111", "exegol-new", f.deps),
+    relocateProject("11111111-1111-4111-8111-111111111111", f.deps),
   ).rejects.toMatchObject({ code: "project.absent" });
-  expect(f.confirm).not.toHaveBeenCalled();
+  expect(f.root).not.toHaveBeenCalled();
 });
 
-it("projet déjà sous le partage : seulement lié, aucun déplacement", async () => {
+it("projet déjà sous <racine>/projets : refus sans modale ni écriture", async () => {
   const f = await fixture();
-  await relocateProject(f.project.id, "exegol-new", f.deps);
+  await relocateProject(f.project.id, f.deps);
+  f.confirm.mockClear();
   const move = vi.fn();
-  const result = await relocateProject(f.project.id, "exegol-new", { ...f.deps, move });
+  const before = await readProjects(f.config);
+  await expect(relocateProject(f.project.id, { ...f.deps, move })).rejects.toThrow();
+  expect(f.confirm).not.toHaveBeenCalled();
   expect(move).not.toHaveBeenCalled();
-  expect(result?.workspace).toBe(join(f.share, "RedWidow", "projects", "mission"));
+  expect(await readProjects(f.config)).toEqual(before);
+});
+
+it("racine invalide (relative, lien symbolique) : le cœur refuse, rien n'est déplacé", async () => {
+  const f = await fixture();
+  const target = await temp();
+  const link = join(await temp(), "lien");
+  await symlink(target, link);
+  const bad = { ...f.common, projects: link };
+  await expect(
+    relocateProject(f.project.id, { ...f.deps, root: async () => bad }),
+  ).rejects.toBeDefined();
+  const relative = { ...f.common, projects: "relatif/projets" };
+  await expect(
+    relocateProject(f.project.id, { ...f.deps, root: async () => relative }),
+  ).rejects.toBeDefined();
+  expect(existsSync(join(f.workspace, "notes.txt"))).toBe(true);
+  expect((await readProjects(f.config))?.projects[0]?.workspace).toBe(f.workspace);
+});
+
+it("destination exposant un chemin sensible (dossier personnel) : refusée par le cœur, rien n'est déplacé", async () => {
+  const f = await fixture();
+  const sensitive = { ...f.common, projects: homedir() };
+  await expect(
+    relocateProject(f.project.id, { ...f.deps, root: async () => sensitive }),
+  ).rejects.toMatchObject({ code: expect.stringMatching(/^project\./) });
+  expect(existsSync(join(f.workspace, "notes.txt"))).toBe(true);
+  expect((await readProjects(f.config))?.projects[0]?.workspace).toBe(f.workspace);
 });

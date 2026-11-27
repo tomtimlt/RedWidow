@@ -1,4 +1,3 @@
-"use strict";
 (() => {
   // packages/messages/src/ui-domains/audit.ts
   var auditEn = {
@@ -448,12 +447,13 @@
     "Choisir un conteneur compatible": "Choose a compatible container",
     "Afficher tous les conteneurs": "Show all containers",
     "Aucun conteneur compatible.": "No compatible container.",
-    "Déplacer dans un conteneur…": "Move into a container…",
+    "Déplacer vers la racine…": "Move to the root…",
     Masquer: "Dismiss",
     Déplacer: "Move",
-    "Déplacer le projet « {0} » dans le conteneur {1} ?": "Move project “{0}” into container {1}?",
-    "Le dossier {0} sera déplacé sous {1}. Les conteneurs qui ne voient plus le projet seront déliés.":
-      "The folder {0} will be moved under {1}. Containers that no longer see the project will be unlinked.",
+    "Déplacer le projet « {0} » vers la racine commune ?": "Move project “{0}” to the common root?",
+    "Le dossier {0} sera déplacé sous {1}. Les conteneurs qui voient la racine commune le verront.":
+      "The folder {0} will be moved under {1}. Containers that see the common root will see it.",
+    "Le projet est déjà dans la racine commune.": "The project is already in the common root.",
     "Arrêtez les tours en cours avant de déplacer le projet.":
       "Stop running turns before moving the project.",
     "Projet déplacé : {0}": "Project moved: {0}",
@@ -1500,15 +1500,15 @@
     "Impossible d’enregistrer ce fournisseur. Réessayez.":
       "Could not save this provider. Try again.",
     "Créer le projet": "Create project",
-    "Choisissez le conteneur du projet, puis donnez-lui un nom.":
-      "Choose the project's container, then give it a name.",
-    "Conteneur du projet": "Project container",
-    "Créez d'abord un conteneur.": "Create a container first.",
-    "Le projet est créé sous le dossier partagé du conteneur, démarré ou éteint. Pour un dossier existant, le nom est proposé d'après le dossier choisi.":
-      "The project is created under the container's shared folder, running or stopped. For an existing folder, the name is proposed from the chosen folder.",
-    "Dossier existant dans ce conteneur…": "Existing folder in this container…",
+    "Les projets sont créés dans le dossier projets de la racine commune.":
+      "Projects are created in the projects folder of the common root.",
+    "Ouvrir un dossier existant…": "Open an existing folder…",
     "Non associé": "Not associated",
-    "Déplacer dans un conteneur…": "Move into a container…",
+    "Vu par : {0}": "Seen by: {0}",
+    "{0} (arrêté)": "{0} (stopped)",
+    "Aucun conteneur ne voit ce projet.": "No container sees this project.",
+    "Conteneur par défaut": "Default container",
+    "Déplacer vers la racine…": "Move to the root…",
     "Comptes de test": "Test accounts",
     "Valeur trop courte pour être masquée dans les journaux.":
       "Value too short to be masked in logs.",

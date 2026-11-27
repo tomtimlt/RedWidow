@@ -15,12 +15,13 @@ export const cockpitEn: Record<string, string> = {
   "Choisir un conteneur compatible": "Choose a compatible container",
   "Afficher tous les conteneurs": "Show all containers",
   "Aucun conteneur compatible.": "No compatible container.",
-  "Déplacer dans un conteneur…": "Move into a container…",
+  "Déplacer vers la racine…": "Move to the root…",
   Masquer: "Dismiss",
   Déplacer: "Move",
-  "Déplacer le projet « {0} » dans le conteneur {1} ?": "Move project “{0}” into container {1}?",
-  "Le dossier {0} sera déplacé sous {1}. Les conteneurs qui ne voient plus le projet seront déliés.":
-    "The folder {0} will be moved under {1}. Containers that no longer see the project will be unlinked.",
+  "Déplacer le projet « {0} » vers la racine commune ?": "Move project “{0}” to the common root?",
+  "Le dossier {0} sera déplacé sous {1}. Les conteneurs qui voient la racine commune le verront.":
+    "The folder {0} will be moved under {1}. Containers that see the common root will see it.",
+  "Le projet est déjà dans la racine commune.": "The project is already in the common root.",
   "Arrêtez les tours en cours avant de déplacer le projet.":
     "Stop running turns before moving the project.",
   "Projet déplacé : {0}": "Project moved: {0}",

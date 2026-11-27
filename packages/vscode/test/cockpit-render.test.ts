@@ -724,7 +724,7 @@ it("le bandeau de partage s'affiche avec ses trois actions", () => {
         n.textContent === "Le projet « mission » n’est pas visible depuis le conteneur « ko ».",
     ),
   ).toBeDefined();
-  expect(ui.button("Déplacer dans un conteneur…")).toBeDefined();
+  expect(ui.button("Déplacer vers la racine…")).toBeDefined();
   expect(ui.button("Choisir un conteneur compatible")).toBeDefined();
   expect(ui.main.find((n) => n.id === "cockpit-issue-move")).toBeDefined();
   // L'ancienne action « Créer un conteneur projet pour ce dossier » a disparu du bandeau.
@@ -749,15 +749,12 @@ it("« Choisir un conteneur compatible » ne garde que les compatibles, puis les
   expect(cards()).toBe(2);
 });
 
-it("Déplacer dans un conteneur envoie relocateProject (id et conteneur, aucun chemin), Masquer envoie dismissMountIssue", () => {
+it("Déplacer vers la racine envoie relocateProject (id seul, ni conteneur ni chemin), Masquer envoie dismissMountIssue", () => {
   const ui = cockpit();
   withProjects(ui, { mountIssue });
   ui.field("cockpit-issue-move").click();
-  expect(ui.sent).toContainEqual({
-    type: "relocateProject",
-    projectId: mountIssue.projectId,
-    container: mountIssue.container,
-  });
+  expect(ui.sent).toContainEqual({ type: "relocateProject", projectId: mountIssue.projectId });
+  expect(ui.sent).not.toContainEqual(expect.objectContaining({ container: expect.anything() }));
   ui.field("cockpit-issue-dismiss").click();
   expect(ui.sent).toContainEqual({ type: "dismissMountIssue" });
 });

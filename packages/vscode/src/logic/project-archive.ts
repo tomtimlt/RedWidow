@@ -8,14 +8,12 @@ import { pipeline } from "node:stream/promises";
 import {
   CodedError,
   checkRelativePath,
+  prepareCommonRoot,
   prepareProjectWorkspace,
-  prepareRedwidowRoot,
   projectDataDir,
-  projectsParent,
   readProjects,
   registerImportedProject,
   type StoredProject,
-  validateProjectFolder,
 } from "@warband/core";
 import { type Entry, open as openZip, type ZipFile as UnzipFile } from "yauzl";
 import { ZipFile } from "yazl";
@@ -374,19 +372,16 @@ async function extractEntry(
 }
 
 /**
- * Importe un `.rwproj` sous `<partage>/RedWidow/projects` du conteneur (ADR 0052 point 8, ADR 0053). Extraction dans un dossier temporaire
+ * Importe un `.rwproj` sous `<racine>/projets` (ADR 0052 point 8, ADR 0054) : aucun conteneur, aucun
+ * `primary`. `root` est la racine commune relue par l'hôte. Extraction dans un dossier temporaire
  * voisin puis `rename` ; le registre n'est modifié qu'en dernier. Tout échec défait ce qui a été créé.
  */
 export async function importProjectArchive(
   configDir: string,
   archiveFile: string,
-  target: { container: string; share: string },
+  root: string,
 ): Promise<{ project: StoredProject; idChanged: boolean }> {
-  if (typeof target?.container !== "string" || target.container === "")
-    throw new CodedError("project.containerRequired");
-  const share = await validateProjectFolder(target.share);
-  await prepareRedwidowRoot(share);
-  const parent = await validateProjectFolder(projectsParent(share));
+  const parent = (await prepareCommonRoot(root)).projects;
   const zip = await openArchive(archiveFile);
   const token = randomUUID();
   const workStage = join(parent, `.rwproj-import-${token}`);
@@ -482,7 +477,6 @@ export async function importProjectArchive(
       id,
       name: manifest.project.name,
       workspace: destination,
-      primary: target.container,
     });
     return { project, idChanged: project.id !== wanted };
   } catch (error) {

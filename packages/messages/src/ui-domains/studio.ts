@@ -47,15 +47,15 @@ export const studioEn: Record<string, string> = {
   "État des conteneurs indisponible.": "Container status unavailable.",
   "Impossible d’enregistrer ce fournisseur. Réessayez.": "Could not save this provider. Try again.",
   "Créer le projet": "Create project",
-  "Choisissez le conteneur du projet, puis donnez-lui un nom.":
-    "Choose the project's container, then give it a name.",
-  "Conteneur du projet": "Project container",
-  "Créez d'abord un conteneur.": "Create a container first.",
-  "Le projet est créé sous le dossier partagé du conteneur, démarré ou éteint. Pour un dossier existant, le nom est proposé d'après le dossier choisi.":
-    "The project is created under the container's shared folder, running or stopped. For an existing folder, the name is proposed from the chosen folder.",
-  "Dossier existant dans ce conteneur…": "Existing folder in this container…",
+  "Les projets sont créés dans le dossier projets de la racine commune.":
+    "Projects are created in the projects folder of the common root.",
+  "Ouvrir un dossier existant…": "Open an existing folder…",
   "Non associé": "Not associated",
-  "Déplacer dans un conteneur…": "Move into a container…",
+  "Vu par : {0}": "Seen by: {0}",
+  "{0} (arrêté)": "{0} (stopped)",
+  "Aucun conteneur ne voit ce projet.": "No container sees this project.",
+  "Conteneur par défaut": "Default container",
+  "Déplacer vers la racine…": "Move to the root…",
   "Comptes de test": "Test accounts",
   "Valeur trop courte pour être masquée dans les journaux.":
     "Value too short to be masked in logs.",

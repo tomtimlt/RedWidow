@@ -329,20 +329,18 @@ describe("parseCockpitMessage", () => {
     expect(parseCockpitMessage({ type: "moveProject" })).toBeNull();
   });
 
-  it("relocateProject : id canonique et conteneur, aucun chemin", () => {
+  it("relocateProject : id canonique seul, aucun chemin ni conteneur", () => {
     const projectId = "11111111-1111-4111-8111-111111111111";
-    expect(
-      parseCockpitMessage({ type: "relocateProject", projectId, container: "exegol-lab" }),
-    ).toEqual({ type: "relocateProject", projectId, container: "exegol-lab" });
+    expect(parseCockpitMessage({ type: "relocateProject", projectId })).toEqual({
+      type: "relocateProject",
+      projectId,
+    });
     for (const message of [
       { type: "relocateProject" },
-      { type: "relocateProject", projectId },
       { type: "relocateProject", container: "exegol-lab" },
-      { type: "relocateProject", projectId: "p1", container: "exegol-lab" },
-      { type: "relocateProject", projectId, container: "" },
-      { type: "relocateProject", projectId, container: "x".repeat(257) },
-      { type: "relocateProject", projectId, container: "a\nb" },
-      { type: "relocateProject", projectId, container: "exegol-lab", path: "/etc" },
+      { type: "relocateProject", projectId: "p1" },
+      { type: "relocateProject", projectId, container: "exegol-lab" },
+      { type: "relocateProject", projectId, path: "/etc" },
     ])
       expect(parseCockpitMessage(message)).toBeNull();
   });
@@ -819,6 +817,45 @@ describe("loadCockpitView : projets d'un conteneur et compatibilité (ADR 0052)"
       deps({ activeId: "p5", projects: [entry("p5", "lien", linkToInside)] }, shareRoot),
     );
     expect(view.containers[0]).toMatchObject({ compatible: true, linked: true, canLink: false });
+  });
+
+  it("visibilité (ADR 0054) : montage hors /workspace, conteneur arrêté et conteneur libre", async () => {
+    const racine = join(shareRoot, "racine");
+    const projet = join(racine, "projets", "mission");
+    const rows = [
+      {
+        state: "running" as const,
+        name: "exegol-a",
+        image: "i",
+        family: "exegol" as const,
+        mounts: [
+          { source: join(racine, "projets"), target: "/workspace/projets", readonly: false },
+        ],
+      },
+      {
+        state: "stopped" as const,
+        name: "kali-b",
+        image: "i",
+        family: "kali" as const,
+        mounts: [{ source: racine, target: "/racine", readonly: false }],
+      },
+      { state: "running" as const, name: "kali-libre", image: "i", family: "kali" as const },
+    ];
+    mkdirSync(projet, { recursive: true });
+    const view = await loadCockpitView({
+      resolveBin: (n: string) => (n === "docker" ? "/d/docker" : null),
+      readProj: async () => ({
+        activeId: "p1",
+        projects: [entry("p1", "mission", projet)],
+      }),
+      createDocker: () => ({ listLabelPrefix: async () => rows }),
+    });
+    const byName = Object.fromEntries(view.containers.map((c) => [c.name, c.projects]));
+    expect(byName["exegol-a"]).toEqual([{ id: "p1", name: "mission", active: true }]);
+    expect(byName["kali-b"]).toEqual([{ id: "p1", name: "mission", active: true }]);
+    // Conteneur libre : liste vide.
+    expect(byName["kali-libre"]).toEqual([]);
+    expect(view.visibility).toEqual({ p1: ["exegol-a", "kali-b"] });
   });
 
   it("sans montage ou arrêté : aucun projet, jamais lié", async () => {

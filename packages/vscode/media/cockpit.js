@@ -740,13 +740,9 @@
     const mounted = el("div", "cockpit-ellipsis cockpit-muted");
     ellipsize(mounted, t("Le conteneur partage : {0}", { 0: issue.mounted }), 64);
     const acts = el("div", "cockpit-actions");
-    // Déplacement confirmé par l'hôte (modale native) sous le partage du conteneur concerné (ADR 0053).
-    const move = button("primary", t("Déplacer dans un conteneur…"), "folder", () =>
-      vscode.postMessage({
-        type: "relocateProject",
-        projectId: issue.projectId,
-        container: issue.container,
-      }),
+    // Déplacement confirmé par l'hôte (modale native) vers `<racine>/projets` (ADR 0054).
+    const move = button("primary", t("Déplacer vers la racine…"), "folder", () =>
+      vscode.postMessage({ type: "relocateProject", projectId: issue.projectId }),
     );
     move.id = "cockpit-issue-move";
     const choose = button(

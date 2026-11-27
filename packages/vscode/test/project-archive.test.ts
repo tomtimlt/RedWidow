@@ -16,9 +16,8 @@ import { join } from "node:path";
 import { pipeline } from "node:stream/promises";
 import {
   createProjectDirectory,
-  prepareRedwidowRoot,
+  prepareCommonRoot,
   projectDataDir,
-  projectsParent,
   readProjects,
   registerImportedProject,
 } from "@warband/core";
@@ -50,9 +49,9 @@ async function machine() {
   const parent = join(root, "parent");
   await mkdir(configDir, { recursive: true });
   await mkdir(parent, { recursive: true });
-  // `parent` est le dossier partagé du conteneur ; les projets vont sous `projects`.
-  await prepareRedwidowRoot(parent);
-  return { root, configDir, parent, projects: projectsParent(parent) };
+  // `parent` est la racine commune (ADR 0054) ; les projets vont sous `projets`.
+  const common = await prepareCommonRoot(parent);
+  return { root, configDir, parent, projects: common.projects };
 }
 
 async function sourceProject(
@@ -138,15 +137,13 @@ async function expectRefusal(
   m: { configDir: string; parent: string; projects: string },
   archive: string,
   code: string,
-  share: string = m.parent,
+  root: string = m.parent,
 ) {
   const before = await registryOf(m.configDir);
   const parentBefore = await residue(m.projects);
   const projectsDir = join(m.configDir, "projects");
   const projectsBefore = await readdir(projectsDir).catch(() => []);
-  await expect(
-    importProjectArchive(m.configDir, archive, { container: "kali-1", share }),
-  ).rejects.toMatchObject({ code });
+  await expect(importProjectArchive(m.configDir, archive, root)).rejects.toMatchObject({ code });
   expect(await registryOf(m.configDir)).toBe(before);
   expect(await residue(m.projects)).toEqual(parentBefore);
   expect(await readdir(projectsDir).catch(() => [])).toEqual(projectsBefore);
@@ -164,10 +161,7 @@ describe("archive de projet .rwproj", () => {
     expect((await readdir(a.root)).filter((n) => n.endsWith(".tmp"))).toEqual([]);
 
     const b = await machine();
-    const result = await importProjectArchive(b.configDir, file, {
-      container: "kali-2",
-      share: b.parent,
-    });
+    const result = await importProjectArchive(b.configDir, file, b.parent);
     expect(result.idChanged).toBe(false);
     expect(result.project.id).toBe(src.id);
     expect(result.project.name).toBe("Mon Projet");
@@ -185,8 +179,9 @@ describe("archive de projet .rwproj", () => {
       expect((await stat(join(ws, "notes", "a.md"))).mode & 0o777).toBe(0o600);
       expect((await stat(join(ws, "scans", "deep"))).mode & 0o777).toBe(0o700);
     }
-    expect(result.project.workspace).toBe(join(b.projects, "mon-projet"));
-    expect(result.project).toMatchObject({ primary: "kali-2" });
+    expect(result.project.workspace).toBe(join(b.parent, "projets", "mon-projet"));
+    // Aucun conteneur ni `primary` à l'import (ADR 0054).
+    expect(result.project.primary).toBeUndefined();
     expect(await residue(b.projects)).toEqual(["mon-projet"]);
     expect((await readProjects(b.configDir))?.projects.map((p) => p.id)).toEqual([src.id]);
   });
@@ -198,10 +193,7 @@ describe("archive de projet .rwproj", () => {
     await exportProjectArchive(a.configDir, src.id, file);
     const second = join(a.root, "autre");
     await mkdir(second);
-    const result = await importProjectArchive(a.configDir, file, {
-      container: "kali-1",
-      share: second,
-    });
+    const result = await importProjectArchive(a.configDir, file, second);
     expect(result.idChanged).toBe(true);
     expect(result.project.id).not.toBe(src.id);
     expect(
@@ -232,17 +224,6 @@ describe("archive de projet .rwproj", () => {
     ).rejects.toMatchObject({
       code: "project.absent",
     });
-  });
-
-  it("sans conteneur : project.containerRequired, rien n'est créé", async () => {
-    const m = await machine();
-    const file = join(m.root, "ok.rwproj");
-    await makeZip(file, [{ name: "workspace/a.txt", data: "a" }]);
-    await expect(
-      importProjectArchive(m.configDir, file, { container: "", share: m.parent }),
-    ).rejects.toMatchObject({ code: "project.containerRequired" });
-    expect(await residue(m.projects)).toEqual([]);
-    expect(await readProjects(m.configDir)).toBeNull();
   });
 
   it("refuse un parent invalide", async () => {
