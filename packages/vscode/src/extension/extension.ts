@@ -32,7 +32,6 @@ import {
   parseMentions,
   prepareContainerProjectWorkspace,
   prepareKaliContainer,
-  projectContainerNames,
   promptForTargets,
   pullDockerImage,
   readFindings,
@@ -70,7 +69,6 @@ import {
   containerMentions,
   controlListedContainer,
   engagementLine,
-  linkContainer,
   linkedProjectStatus,
   linkedTerminalChoices,
   listCockpitImages,
@@ -150,17 +148,13 @@ import {
 } from "../logic/program-controls.js";
 import { exportProjectArchive, importProjectArchive } from "../logic/project-archive.js";
 import {
-  linkWithProjectWorkspace,
-  recoverWorkspaceLink,
-  unlinkedContainerMentions,
-} from "../logic/project-container-link.js";
-import {
   activateSelectedProject,
   applyProjectPlan,
   manageSelectedProject,
   type ProjectCreationChoice,
   planProjectCreation,
   projectSeenBy,
+  projectVisibleNames,
   readProjectChoices,
   setProjectPrimary,
   unassociatedProjectIds,
@@ -1063,8 +1057,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         token === null ? null : containerLogPath(token, randomBytes(4).toString("hex"));
       const projectFile = await readProjects(defaultConfigDir());
       const auditProject = projectFile === null ? null : activeProject(projectFile);
+      // Visibilité (ADR 0054) : même règle que `exec` ; liste Docker en erreur, aucun partage vérifié.
+      const sees =
+        auditProject !== null &&
+        (await projectVisibleNames(auditProject, () => shellDocker().listLabelPrefix())).includes(
+          plan.name,
+        );
       const workdir = await prepareEditorShellWorkspace(
-        auditProject !== null && projectContainerNames(auditProject).includes(plan.name)
+        auditProject !== null && sees
           ? () => prepareContainerProjectWorkspace(auditProject, plan.name, shellDocker())
           : null,
         (error) =>
@@ -1081,10 +1081,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         undefined,
         workdir,
       );
-      const projectId =
-        auditProject !== null && projectContainerNames(auditProject).includes(plan.name)
-          ? auditProject.id
-          : null;
+      const projectId = auditProject !== null && sees ? auditProject.id : null;
       const term = vscode.window.createTerminal({
         name: plan.title,
         shellPath,
@@ -1134,62 +1131,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
   };
 
-  const linkForProject = async (
-    name: string,
-    expectedProjectId?: string,
-    verifyContainer?: () => Promise<void>,
-  ): Promise<Awaited<ReturnType<typeof linkContainer>>> => {
-    if (projectChanging) throw new CodedError("project.absent");
-    projectChanging = true;
-    try {
-      expectedProjectId ??= (await readProjects(defaultConfigDir()))?.activeId ?? undefined;
-      return await linkWithProjectWorkspace(name, {
-        ...(expectedProjectId && { expectedProjectId }),
-        read: () => readProjects(defaultConfigDir()),
-        prepare: (project, container) =>
-          prepareContainerProjectWorkspace(project, container, shellDocker()),
-        prepareRuntime: prepareIfKali,
-        link: async (container, projectId) => {
-          await verifyContainer?.();
-          return linkContainer(container, { expectedProjectId: projectId });
-        },
-      });
-    } catch (error) {
-      return await recoverWorkspaceLink(error, verifyContainer !== undefined, async () => {
-        const create = t("Créer un conteneur pour ce projet");
-        const choose = t("Choisir un autre conteneur");
-        const choice = await vscode.window.showWarningMessage(
-          formatError(error, getUiLocale()),
-          { modal: true, detail: t("Créer un conteneur pour ce projet est recommandé.") },
-          create,
-          choose,
-        );
-        if (choice === create) openCockpit(true);
-        else if (choice === choose) {
-          const view = await loadCockpitView();
-          const options = view.containers.filter((row) => row.name !== name && row.canLink);
-          const picked = await vscode.window.showQuickPick(
-            options.map((row) => ({
-              label: row.short,
-              description: row.workspace ?? "",
-              name: row.name,
-            })),
-            { title: choose },
-          );
-          if (picked) {
-            // Le prochain parcours doit prendre le verrou et refaire tous les contrôles.
-            projectChanging = false;
-            return await linkForProject(picked.name, expectedProjectId);
-          }
-        }
-        throw error;
-      });
-    } finally {
-      projectChanging = false;
-    }
-  };
-  // Chaque proposition est attachée au projet lu à l’envoi, jamais à la seule requête de la webview.
-  const proposedLinks = new Map<string, { projectId: string; names: Set<string> }>();
   /** Noms courts pour le menu `@`. Échec de lecture : liste vide (le menu n'invente rien). */
   const containersMessage = async () => {
     try {
@@ -1255,26 +1196,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         case "openCockpit":
           await vscode.commands.executeCommand("warband.cockpit");
           return;
-        case "linkMention": {
-          if (!visible() || projectChanging) return;
-          const proposal = proposedLinks.get(id);
-          const file = await readProjects(defaultConfigDir());
-          if (!proposal?.names.has(message.name) || file?.activeId !== proposal.projectId) return;
-          const payload = await linkForProject(message.name, proposal.projectId);
-          proposal.names.delete(message.name);
-          reply({ type: "containerLinks", items: [...proposal.names].map((name) => ({ name })) });
-          broadcastContainers(payload.containers);
-          await vscode.commands.executeCommand("warband.prepareMission");
-          return;
-        }
-        case "ignoreLinkMention": {
-          proposedLinks.get(id)?.names.delete(message.name);
-          reply({
-            type: "containerLinks",
-            items: [...(proposedLinks.get(id)?.names ?? [])].map((name) => ({ name })),
-          });
-          return;
-        }
         case "selectProvider":
           return await s.selectProvider(message.id);
         case "setCapability": {
@@ -1382,31 +1303,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
               );
               result(false);
               return;
-            }
-            const projectFile = await readProjects(defaultConfigDir());
-            const project = projectFile && activeProject(projectFile);
-            proposedLinks.delete(id);
-            reply({ type: "containerLinks", items: [] });
-            if (project && parseMentions(promptForTargets(message.text)).length > 0) {
-              const rows = await shellDocker()
-                .listLabelPrefix()
-                .catch(() => []);
-              const names = unlinkedContainerMentions(
-                message.text,
-                rows,
-                projectContainerNames(project),
-              );
-              proposedLinks.set(id, { projectId: project.id, names: new Set(names) });
-              reply({
-                type: "containerLinks",
-                items: names.map((name) => ({
-                  name,
-                  message: formatReason({
-                    code: "exegol.containerDenied",
-                    params: { name, unlinked: 1 },
-                  }),
-                })),
-              });
             }
             const hashes = parseHashes(message.text);
             let listed: { name: string }[] = [];
@@ -1801,13 +1697,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         switch (message.type) {
           case "refresh":
             return void pushView(true);
-          case "link": {
-            await pushView(true);
-            const linkedView = await linkForProject(message.name);
-            postCockpit(linkedView);
-            await vscode.commands.executeCommand("warband.prepareMission");
-            return;
-          }
           case "setPrimary": {
             await pushView(true);
             postCockpit(await setPrimary(message.name));
@@ -3775,23 +3664,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const projectId = project.id;
       const current = evidenceProjectGuard(projectId, findingProjectGeneration);
       let capturedContainer: string | undefined;
+      // Allowlist du terminal = règle d'`exec` (ADR 0054), relue à chaque contrôle ; Docker en erreur : vide.
+      const allowedContainers = (target: { workspace: string }) =>
+        projectVisibleNames(target, () => shellDocker().listLabelPrefix());
       const beforeCommit = async () => {
         const fresh = await current();
         if (
           capturedContainer !== undefined &&
-          !evidenceTerminalAllowed(projectContainerNames(fresh), capturedContainer)
+          !evidenceTerminalAllowed(await allowedContainers(fresh), capturedContainer)
         )
           throw new Error(t("Le terminal n’appartient plus à l’allowlist du projet actif."));
       };
       let text: string;
       let source: EvidenceSource;
       if (terminal) {
+        const allowed = await allowedContainers(project);
         const shells = [...editorShells.values()]
           .flat()
           .filter(
-            (shell) =>
-              shell.logPath !== null &&
-              evidenceTerminalAllowed(projectContainerNames(project), shell.container),
+            (shell) => shell.logPath !== null && evidenceTerminalAllowed(allowed, shell.container),
           );
         if (!shells.length)
           throw new Error(t("Aucun terminal capturé n’appartient à l’allowlist du projet actif."));
@@ -5085,19 +4976,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await prepareMissionFolder(root);
         const choices = await readProjectChoices(defaultConfigDir());
         const current = choices.projects.find((p) => p.id === choices.activeId);
-        const rows = await shellDocker().listLabelPrefix();
         const stored = (await readProjects(defaultConfigDir()))?.projects.find(
           (p) => p.id === current?.id,
         );
-        const linked = stored === undefined ? [] : projectContainerNames(stored);
+        // Visibilité (ADR 0054) : conteneurs démarrés qui voient le projet, règle d'`exec`.
+        const visible =
+          stored === undefined
+            ? []
+            : await projectVisibleNames(stored, () => shellDocker().listLabelPrefix());
         const mappings: string[] = [];
         if (stored)
-          for (const row of rows.filter((r) => linked.includes(r.name) && r.state === "running")) {
-            const target = await prepareContainerProjectWorkspace(stored, row.name, shellDocker());
-            mappings.push(`${row.name} : ${root} → ${target}`);
+          for (const name of visible) {
+            const target = await prepareContainerProjectWorkspace(stored, name, shellDocker());
+            mappings.push(`${name} : ${root} → ${target}`);
           }
         await vscode.window.showInformationMessage(
-          t`Dossier de mission : ${root}. ${mappings.join(" ; ") || t("Aucun montage lié vérifié : créez ou associez un conteneur avant de travailler.")}`,
+          t`Dossier de mission : ${root}. ${mappings.join(" ; ") || t("Aucun conteneur démarré ne voit ce projet : créez un conteneur ou déplacez le projet vers la racine.")}`,
         );
         await vscode.commands.executeCommand("workbench.files.action.focusFilesExplorer");
       } catch (error) {

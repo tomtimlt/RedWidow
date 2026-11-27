@@ -278,7 +278,6 @@ const DOCKER = {
       image: "exegol:full",
       family: "exegol",
       linked: true,
-      canLink: false,
       workspace: "/p",
     },
     {
@@ -288,7 +287,6 @@ const DOCKER = {
       image: "exegol:light",
       family: "exegol",
       linked: false,
-      canLink: true,
     },
     {
       name: "exegol-web",
@@ -297,8 +295,6 @@ const DOCKER = {
       image: "exegol:web",
       family: "exegol",
       linked: false,
-      canLink: false,
-      linkTitle: "Déjà utilisé",
       workspace: "/q",
     },
   ],
@@ -872,7 +868,6 @@ const PAGES = [
         containers: DOCKER.containers.map((row) => ({
           ...row,
           state: "running",
-          canLink: true,
           linked: false,
           workspace: "/home/user/autre",
         })),
@@ -922,16 +917,6 @@ const PAGES = [
     [
       { type: "view", view: chatView({ conversation: false }) },
       { type: "containers", items: [], linkedCount: 0 },
-      {
-        type: "containerLinks",
-        items: [
-          {
-            name: "kali-1",
-            message:
-              "kali-1 n’est pas lié au projet : une mention @ ne suffit pas, liez-le dans le cockpit.",
-          },
-        ],
-      },
     ],
     { containerState: "missing" },
   ),
@@ -1373,25 +1358,10 @@ try {
           const visible = await tab.locator("#container-warning").isVisible();
           if (visible !== expected) throw new Error(`Bandeau conteneur incorrect : ${page.name}`);
           if (expected) {
-            if (
-              !(await tab.locator("#container-links").innerText()).includes(
-                "Lier kali-1 à ce projet ?",
-              )
-            )
-              throw new Error("Carte de liaison absente");
             await tab.locator("#link-container").click();
-            await tab.locator("#container-links button").first().click();
-            await tab.locator("#container-links button").last().click();
-            const sent = await tab.evaluate(() => window.__sent.slice(-3));
-            if (
-              JSON.stringify(sent) !==
-              JSON.stringify([
-                { type: "openCockpit" },
-                { type: "linkMention", name: "kali-1" },
-                { type: "ignoreLinkMention", name: "kali-1" },
-              ])
-            )
-              throw new Error("Actions de liaison incorrectes");
+            const sent = await tab.evaluate(() => window.__sent.slice(-1));
+            if (JSON.stringify(sent) !== JSON.stringify([{ type: "openCockpit" }]))
+              throw new Error("Ouverture du cockpit incorrecte");
           }
         }
         if (page.profileMenu) {

@@ -24,6 +24,7 @@ import {
   planProjectCreation,
   projectSeenBy,
   projectVisibility,
+  projectVisibleNames,
   proposedProjectName,
   readProjectChoices,
   setProjectPrimary,
@@ -370,4 +371,41 @@ it("setProjectPrimary : refuse un conteneur qui ne voit pas le projet, accepte u
 it("proposedProjectName borne le nom de base du dossier", () => {
   expect(proposedProjectName("/a/b/Client X")).toBe("Client X");
   expect(proposedProjectName(`/a/${"x".repeat(200)}`)).toHaveLength(80);
+});
+
+// Terminal de preuves, terminal d'éditeur et mission : même règle que `exec` (ADR 0054), fail-closed.
+const mount = (source: string) => ({ source, target: "/workspace" });
+const run = (name: string, source: string, state = "running", family = "exegol") => ({
+  name,
+  state,
+  family,
+  workspace: source,
+  mounts: [mount(source)],
+});
+
+it("allowlist des preuves : deux conteneurs démarrés qui voient le projet sont autorisés tous les deux", async () => {
+  const project = { workspace: "/srv/racine/projets/a" };
+  const names = await projectVisibleNames(project, async () => [
+    run("exegol-a", "/srv/racine"),
+    run("kali-1", "/srv/racine/projets", "running", "kali"),
+  ]);
+  expect(names).toEqual(["exegol-a", "kali-1"]);
+});
+
+it("allowlist des preuves : un conteneur qui ne voit pas le projet, arrêté ou de famille inconnue est absent", async () => {
+  const project = { workspace: "/srv/racine/projets/a" };
+  const names = await projectVisibleNames(project, async () => [
+    run("exegol-a", "/srv/racine"),
+    run("exegol-libre", "/srv/vide"),
+    run("exegol-arrete", "/srv/racine", "stopped"),
+    run("autre", "/srv/racine", "running", "inconnue"),
+  ]);
+  expect(names).toEqual(["exegol-a"]);
+});
+
+it("allowlist des preuves : liste Docker en erreur, liste vide (fail-closed)", async () => {
+  const names = await projectVisibleNames({ workspace: "/srv/racine/projets/a" }, async () => {
+    throw new Error("docker indisponible");
+  });
+  expect(names).toEqual([]);
 });

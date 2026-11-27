@@ -126,10 +126,9 @@
   var chatEn = {
     Pentest: "Pentest",
     "Hack The Box / CTF": "Hack The Box / CTF",
-    "Aucun conteneur lié : l'agent n'a pas de shell": "No linked container: the agent has no shell",
-    "Lier un conteneur": "Link a container",
-    "Lier {0} à ce projet ?": "Link {0} to this project?",
-    Ignorer: "Ignore",
+    "Aucun conteneur ne voit ce projet : l'agent n'a pas de shell":
+      "No container sees this project: the agent has no shell",
+    "Ouvrir le cockpit": "Open the cockpit",
     "Identifiant détecté : il a été masqué dans les journaux. Utilisez la page Comptes de test pour que l'agent puisse s'en servir.":
       "Credential detected: it was masked in logs. Use the Test accounts page so the agent can use it.",
     "La signature de l’image ne correspond pas à son format.":
@@ -432,10 +431,6 @@
 
   // packages/messages/src/ui-domains/cockpit.ts
   var cockpitEn = {
-    "Créer un conteneur pour ce projet": "Create a container for this project",
-    "Choisir un autre conteneur": "Choose another container",
-    "Créer un conteneur pour ce projet est recommandé.":
-      "Creating a container for this project is recommended.",
     "Le projet reste sur votre PC dans {0} ; seuls les fichiers créés hors de /workspace dans le conteneur sont perdus.":
       "The project stays on your PC in {0}; only files created outside /workspace in the container are lost.",
     "Le projet « {0} » n’est pas visible depuis le conteneur « {1} ».":
@@ -457,9 +452,8 @@
     "Arrêtez les tours en cours avant de déplacer le projet.":
       "Stop running turns before moving the project.",
     "Projet déplacé : {0}": "Project moved: {0}",
-    "Projets dans ce conteneur": "Projects in this container",
-    "Aucun projet dans ce partage.": "No project in this share.",
-    "Compatible avec le projet actif": "Compatible with the active project",
+    "Projets visibles": "Visible projects",
+    "Aucun projet visible : conteneur libre.": "No visible project: free container.",
     "Ce conteneur ne voit pas le dossier du projet.":
       "This container cannot see the project folder.",
     "Choisissez un projet avant de créer son conteneur.":
@@ -535,13 +529,9 @@
     "Ouvrir le dossier": "Open folder",
     "Nouveau conteneur": "New container",
     "Aucun conteneur.": "No containers.",
-    Principal: "Primary",
-    lié: "linked",
+    "voit le projet": "sees the project",
     "sans dossier": "no folder",
-    "Définir comme conteneur principal (affichage seulement)":
-      "Set as primary container (display only)",
-    Lier: "Link",
-    "Association indisponible": "Link unavailable",
+    "Conteneur proposé en premier pour ce projet": "Container offered first for this project",
     Démarrer: "Start",
     "Sans dossier hôte": "No host folder",
     "Détails de {0}": "Details for {0}",
@@ -852,8 +842,8 @@
       "Available for inspection; does not represent the complete prompt",
     "montage absent": "mount missing",
     "Dossier de mission : {0}. {1}": "Mission folder: {0}. {1}",
-    "Aucun montage lié vérifié : créez ou associez un conteneur avant de travailler.":
-      "No linked mount verified: create or link a container before working.",
+    "Aucun conteneur démarré ne voit ce projet : créez un conteneur ou déplacez le projet vers la racine.":
+      "No running container sees this project: create a container or move the project to the root.",
     "Général — méthode commune": "General — shared method",
     "Profil de travail de l’agent": "Agent work profile",
     "Choisissez un projet avant de configurer ses services MCP.":

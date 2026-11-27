@@ -199,8 +199,8 @@ export const hostEn: Record<string, string> = {
     "Available for inspection; does not represent the complete prompt",
   "montage absent": "mount missing",
   "Dossier de mission : {0}. {1}": "Mission folder: {0}. {1}",
-  "Aucun montage lié vérifié : créez ou associez un conteneur avant de travailler.":
-    "No linked mount verified: create or link a container before working.",
+  "Aucun conteneur démarré ne voit ce projet : créez un conteneur ou déplacez le projet vers la racine.":
+    "No running container sees this project: create a container or move the project to the root.",
   "Général — méthode commune": "General — shared method",
   "Profil de travail de l’agent": "Agent work profile",
   "Choisissez un projet avant de configurer ses services MCP.":

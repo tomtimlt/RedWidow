@@ -1,9 +1,5 @@
 // Libellés de la webview, indexés par leur texte français.
 export const cockpitEn: Record<string, string> = {
-  "Créer un conteneur pour ce projet": "Create a container for this project",
-  "Choisir un autre conteneur": "Choose another container",
-  "Créer un conteneur pour ce projet est recommandé.":
-    "Creating a container for this project is recommended.",
   "Le projet reste sur votre PC dans {0} ; seuls les fichiers créés hors de /workspace dans le conteneur sont perdus.":
     "The project stays on your PC in {0}; only files created outside /workspace in the container are lost.",
   "Le projet « {0} » n’est pas visible depuis le conteneur « {1} ».":
@@ -25,9 +21,8 @@ export const cockpitEn: Record<string, string> = {
   "Arrêtez les tours en cours avant de déplacer le projet.":
     "Stop running turns before moving the project.",
   "Projet déplacé : {0}": "Project moved: {0}",
-  "Projets dans ce conteneur": "Projects in this container",
-  "Aucun projet dans ce partage.": "No project in this share.",
-  "Compatible avec le projet actif": "Compatible with the active project",
+  "Projets visibles": "Visible projects",
+  "Aucun projet visible : conteneur libre.": "No visible project: free container.",
   "Ce conteneur ne voit pas le dossier du projet.": "This container cannot see the project folder.",
   "Choisissez un projet avant de créer son conteneur.":
     "Choose a project before creating its container.",
@@ -102,13 +97,9 @@ export const cockpitEn: Record<string, string> = {
   "Ouvrir le dossier": "Open folder",
   "Nouveau conteneur": "New container",
   "Aucun conteneur.": "No containers.",
-  Principal: "Primary",
-  lié: "linked",
+  "voit le projet": "sees the project",
   "sans dossier": "no folder",
-  "Définir comme conteneur principal (affichage seulement)":
-    "Set as primary container (display only)",
-  Lier: "Link",
-  "Association indisponible": "Link unavailable",
+  "Conteneur proposé en premier pour ce projet": "Container offered first for this project",
   Démarrer: "Start",
   "Sans dossier hôte": "No host folder",
   "Détails de {0}": "Details for {0}",

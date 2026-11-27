@@ -622,7 +622,7 @@
     return box;
   }
 
-  function renderCard(row, linkedCount) {
+  function renderCard(row) {
     const li = el(
       "li",
       `cockpit-card ${row.state === "running" ? "is-running" : "is-stopped"}${row.linked ? " is-linked" : ""}${highlight === row.name ? " is-highlight" : ""}`,
@@ -632,11 +632,11 @@
     const n = el("span", "cockpit-ellipsis cockpit-row-name");
     ellipsize(n, row.short || row.name);
     head.append(el("span", "dot"), n);
-    if (row.linked) {
+    if (row.primary || row.compatible === true) {
       head.append(
         row.primary
-          ? el("span", "cockpit-linked-tag is-primary", t("Principal"))
-          : el("span", "cockpit-linked-tag", t("lié")),
+          ? el("span", "cockpit-linked-tag is-primary", t("Par défaut"))
+          : el("span", "cockpit-linked-tag", t("voit le projet")),
       );
     }
     const sub = el("div", "cockpit-row-sub");
@@ -646,14 +646,16 @@
     ellipsize(im, row.image, 64);
     const ws = el("div", "cockpit-ellipsis cockpit-muted cockpit-row-ws");
     ellipsize(ws, row.workspace ?? t("Sans dossier hôte"), 64);
-    // Projets enregistrés dans le partage du conteneur ; cliquer sur un autre projet l'active (ADR 0052).
+    // Projets visibles depuis ce conteneur (tous montages, ADR 0054) ; cliquer sur un autre projet l'active (ADR 0052).
     const projectsBox = el("div", "cockpit-card-projects");
     if (Array.isArray(row.projects) && typeof row.workspace === "string") {
       projectsBox.append(
-        el("div", "cockpit-muted cockpit-card-projects-title", t("Projets dans ce conteneur")),
+        el("div", "cockpit-muted cockpit-card-projects-title", t("Projets visibles")),
       );
       if (row.projects.length === 0)
-        projectsBox.append(el("div", "cockpit-muted", t("Aucun projet dans ce partage.")));
+        projectsBox.append(
+          el("div", "cockpit-muted", t("Aucun projet visible : conteneur libre.")),
+        );
       for (const project of row.projects) {
         if (project.active) {
           const current = el("span", "cockpit-linked-tag is-project", project.name);
@@ -668,33 +670,19 @@
         }
       }
     }
-    // Compatibilité avec le projet actif (calculée par l'hôte, jamais déduite ici).
+    // Visibilité du projet actif (calculée par l'hôte, jamais déduite ici).
     const hasActive = typeof lastView?.projectWorkspace === "string";
     const compat =
-      hasActive && typeof row.workspace === "string"
-        ? row.compatible === true
-          ? el("span", "cockpit-compat is-ok", t("Compatible avec le projet actif"))
-          : el("span", "cockpit-compat is-no", t("Ce conteneur ne voit pas le dossier du projet."))
+      hasActive && typeof row.workspace === "string" && row.compatible !== true
+        ? el("span", "cockpit-compat is-no", t("Ce conteneur ne voit pas le dossier du projet."))
         : null;
     const act = el("div", "cockpit-card-act");
-    if (row.linked && !row.primary && linkedCount >= 2) {
-      const primaryBtn = button("secondary", t("Principal"), "link", () =>
+    if (row.compatible === true && !row.primary) {
+      const primaryBtn = button("secondary", t("Par défaut"), "link", () =>
         vscode.postMessage({ type: "setPrimary", name: row.name }),
       );
-      primaryBtn.title = t("Définir comme conteneur principal (affichage seulement)");
+      primaryBtn.title = t("Conteneur proposé en premier pour ce projet");
       act.append(primaryBtn);
-    }
-    if (!row.linked) {
-      const linkBtn = button("secondary", t("Lier"), "link");
-      if (!row.canLink) {
-        linkBtn.disabled = true;
-        linkBtn.title = t(row.linkTitle || "Association indisponible");
-      } else {
-        linkBtn.addEventListener("click", () =>
-          vscode.postMessage({ type: "link", name: row.name }),
-        );
-      }
-      act.append(linkBtn);
     }
     if (row.state === "running") {
       act.append(
@@ -1017,11 +1005,10 @@
     const listSec = el("section", "cockpit-list");
     listSec.setAttribute("aria-label", t("Conteneurs"));
     listSec.append(heading(t("Conteneurs"), rows.length));
-    const linkedCount = allRows.filter((r) => r.linked).length;
     if (rows.length === 0 && allRows.length > 0)
       listSec.append(el("p", "cockpit-muted", t("Aucun conteneur compatible.")));
     const ul = el("ul", "cockpit-cards");
-    for (const row of rows) ul.append(renderCard(row, linkedCount));
+    for (const row of rows) ul.append(renderCard(row));
     listSec.append(ul);
     main.append(listSec);
     if (!createFirst) appendCreate();

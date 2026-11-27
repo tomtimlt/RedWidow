@@ -97,7 +97,7 @@ it("création repliée, brouillon préservé et actions portées par la carte", 
         image: "kali:latest",
         family: "kali",
         state: "running",
-        canLink: true,
+        compatible: true,
         workspace: "/host/lab",
       },
     ],
@@ -131,8 +131,10 @@ it("création repliée, brouillon préservé et actions portées par la carte", 
   receive({ data: view });
   find((n) => n.attributes.get("aria-label") === "Arrêter").click();
   expect(sent).toContainEqual({ type: "stop", name: "kali-lab" });
-  find((n) => n.attributes.get("aria-label") === "Lier").click();
-  expect(sent).toContainEqual({ type: "link", name: "kali-lab" });
+  // Plus de bouton « Lier » (ADR 0054) : seul « Par défaut » est proposé à un conteneur qui voit le projet.
+  expect(main.find((n) => n.attributes.get("aria-label") === "Lier")).toBeUndefined();
+  find((n) => n.attributes.get("aria-label") === "Par défaut").click();
+  expect(sent).toContainEqual({ type: "setPrimary", name: "kali-lab" });
 });
 
 const cockpit = (exegol = "present") => {
@@ -184,7 +186,7 @@ const cockpit = (exegol = "present") => {
     exegol,
     daemon: "reachable",
     linked: "none",
-    containers: [{ name: "lab", family: "kali", image: "kali", state: "stopped", canLink: true }],
+    containers: [{ name: "lab", family: "kali", image: "kali", state: "stopped" }],
   };
   send(view);
   const find = (predicate: (node: CockpitNode) => boolean) => {
@@ -636,7 +638,6 @@ const withProjects = (ui: ReturnType<typeof cockpit>, extra: object = {}) =>
         family: "kali",
         image: "kali",
         state: "running",
-        canLink: true,
         workspace: "/srv/partage",
         compatible: true,
         projects: [
@@ -650,8 +651,6 @@ const withProjects = (ui: ReturnType<typeof cockpit>, extra: object = {}) =>
         family: "kali",
         image: "kali",
         state: "running",
-        canLink: false,
-        linkTitle: "Ce conteneur ne voit pas le dossier du projet.",
         workspace: "/srv/ailleurs",
         compatible: false,
         projects: [],
@@ -663,8 +662,10 @@ const withProjects = (ui: ReturnType<typeof cockpit>, extra: object = {}) =>
 it("la carte liste les projets du partage, marque le projet actif et active un autre projet", () => {
   const ui = cockpit();
   withProjects(ui);
-  expect(ui.main.find((n) => n.textContent === "Projets dans ce conteneur")).toBeDefined();
-  expect(ui.main.find((n) => n.textContent === "Aucun projet dans ce partage.")).toBeDefined();
+  expect(ui.main.find((n) => n.textContent === "Projets visibles")).toBeDefined();
+  expect(
+    ui.main.find((n) => n.textContent === "Aucun projet visible : conteneur libre."),
+  ).toBeDefined();
   const current = ui.find((n) => n.className.includes("is-project"));
   expect(current.textContent).toBe("mission");
   expect(current.title).toBe("Projet actif");
@@ -677,10 +678,10 @@ it("la carte liste les projets du partage, marque le projet actif et active un a
   expect(ui.main.find((n) => n.attributes.get("aria-label") === "mission")).toBeUndefined();
 });
 
-it("le badge de compatibilité suit la vue et Lier est désactivé pour un conteneur incompatible", () => {
+it("l'étiquette suit la vue : « voit le projet », « Par défaut » et aucun bouton Lier", () => {
   const ui = cockpit();
   withProjects(ui);
-  expect(ui.main.find((n) => n.textContent === "Compatible avec le projet actif")).toBeDefined();
+  expect(ui.main.find((n) => n.textContent === "voit le projet")).toBeDefined();
   expect(
     ui.main.find(
       (n) =>
@@ -688,14 +689,39 @@ it("le badge de compatibilité suit la vue et Lier est désactivé pour un conte
         n.textContent === "Ce conteneur ne voit pas le dossier du projet.",
     ),
   ).toBeDefined();
-  const links = ui.main.findAll((n) => n.attributes.get("aria-label") === "Lier");
-  expect(links).toHaveLength(2);
-  expect(links.map((n) => n.disabled)).toEqual([false, true]);
-  expect(links[1]?.title).toBe("Ce conteneur ne voit pas le dossier du projet.");
-  links[1]?.click();
-  expect(ui.sent.filter((m) => (m as { type: string }).type === "link")).toEqual([]);
-  links[0]?.click();
-  expect(ui.sent).toContainEqual({ type: "link", name: "kali-ok" });
+  expect(ui.main.find((n) => n.attributes.get("aria-label") === "Lier")).toBeUndefined();
+  // « Par défaut » : seulement sur le conteneur qui voit le projet actif et n'est pas déjà le défaut.
+  const defaults = ui.main.findAll((n) => n.attributes.get("aria-label") === "Par défaut");
+  expect(defaults).toHaveLength(1);
+  expect(defaults[0]?.title).toBe("Conteneur proposé en premier pour ce projet");
+  defaults[0]?.click();
+  expect(ui.sent).toContainEqual({ type: "setPrimary", name: "kali-ok" });
+});
+
+it("le conteneur par défaut porte l'étiquette « Par défaut » et n'a plus le bouton", () => {
+  const ui = cockpit();
+  withProjects(ui);
+  ui.send({
+    ...ui.view,
+    projectWorkspace: "/srv/partage/mission",
+    containers: [
+      {
+        name: "kali-ok",
+        short: "ok",
+        family: "kali",
+        image: "kali",
+        state: "running",
+        workspace: "/srv/partage",
+        compatible: true,
+        primary: true,
+        projects: [],
+      },
+    ],
+  });
+  expect(
+    ui.main.find((n) => n.className.includes("is-primary") && n.textContent === "Par défaut"),
+  ).toBeDefined();
+  expect(ui.main.find((n) => n.attributes.get("aria-label") === "Par défaut")).toBeUndefined();
 });
 
 it("sans projet actif, aucun badge de compatibilité n'est affiché", () => {

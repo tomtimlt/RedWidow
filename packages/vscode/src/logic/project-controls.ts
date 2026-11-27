@@ -1,3 +1,4 @@
+import { realpath } from "node:fs/promises";
 import { basename, resolve } from "node:path";
 import {
   adoptProjectDirectory,
@@ -13,6 +14,7 @@ import {
   type StoredProject,
   setActiveProject,
   setPrimaryContainer,
+  visibleContainerNames,
 } from "@warband/core";
 import { t } from "@warband/messages";
 
@@ -123,6 +125,26 @@ export function projectVisibility(
       ];
     }),
   );
+}
+
+/**
+ * Conteneurs autorisés pour le projet (ADR 0054) : exactement la règle d'`exec`, soit famille connue,
+ * démarrés, avec un montage qui couvre le dossier réel du projet. Liste Docker indisponible : liste
+ * vide (fail-closed). Sert au terminal, à la capture de preuves et à la préparation de mission.
+ */
+export async function projectVisibleNames(
+  project: Pick<StoredProject, "workspace">,
+  listContainers: () => Promise<readonly (VisibilityRow & { state: string })[]>,
+): Promise<string[]> {
+  try {
+    const rows = await listContainers();
+    return visibleContainerNames(
+      await realpath(project.workspace).catch(() => project.workspace),
+      rows,
+    );
+  } catch {
+    return [];
+  }
 }
 
 /**

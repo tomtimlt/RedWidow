@@ -331,7 +331,6 @@ const DOCKER_VIEW = {
       image: "exegol:full",
       family: "exegol",
       linked: true,
-      canLink: false,
       workspace: "/p",
     },
     {
@@ -341,7 +340,6 @@ const DOCKER_VIEW = {
       image: "exegol:light",
       family: "exegol",
       linked: false,
-      canLink: true,
     },
     {
       name: "exegol-web",
@@ -350,8 +348,6 @@ const DOCKER_VIEW = {
       image: "exegol:web",
       family: "exegol",
       linked: false,
-      canLink: false,
-      linkTitle: "Déjà utilisé",
       workspace: "/q",
     },
   ],

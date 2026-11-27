@@ -237,3 +237,8 @@ it("valide ensemble l'identifiant d'envoi texte et la conversation", () => {
   expect(parseWebviewMessage({ ...message, requestId: undefined })).toBeNull();
   expect(parseWebviewMessage({ ...message, extra: true })).toBeNull();
 });
+
+it("plus de parcours d'association dans le chat : anciens messages de liaison refusés (ADR 0054)", () => {
+  for (const type of ["link", "ignoreLink"].map((prefix) => `${prefix}Mention`))
+    expect(parseWebviewMessage({ type, name: "kali-1" })).toBeNull();
+});

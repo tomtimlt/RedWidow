@@ -15,7 +15,6 @@ import {
   type ImageSummary,
   isHalted,
   type LabelPrefixContainer,
-  link,
   lookupContainer,
   type ProgramState,
   type ProjectFile,
@@ -25,21 +24,19 @@ import {
   readProjects,
   resolveBinary,
   runProcess,
-  setPrimaryContainer,
   shortContainerName,
   visibleContainerNames,
 } from "@warband/core";
 import { formatError, getUiLocale, t } from "@warband/messages";
 import { PRODUCT_NAME, productTitleSuffix } from "./brand.js";
 import { listFolderNames, suggestName } from "./container-root.js";
-import { projectVisibility } from "./project-controls.js";
+import { projectVisibility, setProjectPrimary } from "./project-controls.js";
 import { encodedBashScript } from "./terminal-prompt.js";
 
 /** Messages acceptés depuis la webview cockpit (non fiables). */
 export type CockpitMessage =
   | { type: "ready" | "rendered" }
   | { type: "refresh" }
-  | { type: "link"; name: string }
   | { type: "setPrimary"; name: string }
   | { type: "openWorkspace" }
   | { type: "terminal" }
@@ -111,7 +108,6 @@ export function parseCockpitMessage(raw: unknown): CockpitMessage | null {
     case "openEngagement":
     case "terminal":
       return only("type") ? { type: m.type } : null;
-    case "link":
     case "setPrimary":
     case "start":
     case "stop":
@@ -356,10 +352,8 @@ export interface CockpitContainerView {
   family: "exegol" | "kali";
   workspace?: string;
   linked: boolean;
-  /** Conteneur affiché (`primary`) ; vrai seulement si le projet a au moins deux conteneurs liés. */
+  /** Conteneur par défaut du projet actif (`primary`, informatif). */
   primary: boolean;
-  canLink: boolean;
-  linkTitle?: string;
   /** Projets enregistrés dont le dossier est dans le partage du conteneur (ADR 0052). */
   projects: { id: string; name: string; active: boolean }[];
   /** Le conteneur voit le dossier du projet actif ; faux sans projet actif ni montage. */
@@ -426,13 +420,11 @@ export function sortContainers(rows: LabelPrefixContainer[]): LabelPrefixContain
 type DockerList = Pick<DockerClient, "listLabelPrefix">;
 
 export interface CockpitDeps {
-  expectedProjectId?: string;
   configDir?: string;
   resolveBin?: typeof resolveBinary;
   createDocker?: () => DockerList;
   readProj?: typeof readProjects;
-  linkProject?: typeof link;
-  setPrimaryContainerFn?: typeof setPrimaryContainer;
+  setProjectPrimaryFn?: typeof setProjectPrimary;
   /** Racine commune (réglage machine `warband.root`) ; sert au nom suggéré et à l'affichage. */
   containersRoot?: () => string | undefined;
   /** Noms des entrées de `<racine>/conteneurs`. */
@@ -571,7 +563,6 @@ export async function loadCockpitView(deps: CockpitDeps = {}): Promise<CockpitVi
   const unique = allowed.length === 1 ? allowed[0] : undefined;
   // Conteneur affiché : `primary` s'il est posé, sinon l'unique conteneur lié.
   const displayed = active?.primary ?? unique;
-  const multiLinked = allowed.length >= 2;
   let linked: CockpitLinkedLine = active === null ? "none" : "absent";
   let linkedBanner: CockpitLinkedBanner | null = null;
 
@@ -612,7 +603,6 @@ export async function loadCockpitView(deps: CockpitDeps = {}): Promise<CockpitVi
   const visibility = projectVisibility(real, rows);
   const containers: CockpitContainerView[] = sorted.map((r) => {
     const isLinked = allowed.includes(r.name);
-    const share = r.workspace !== undefined && isAbsolute(r.workspace) ? r.workspace : undefined;
     const projects: CockpitContainerView["projects"] = registered
       .filter((project) => visibility[project.id]?.includes(r.name))
       .map((project) => ({
@@ -621,21 +611,6 @@ export async function loadCockpitView(deps: CockpitDeps = {}): Promise<CockpitVi
         active: project.id === active?.id,
       }));
     const compatible = projects.some((project) => project.active);
-    let canLink = false;
-    let linkTitle: string | undefined;
-    if (isLinked) {
-      canLink = false;
-    } else if (r.state !== "running") {
-      linkTitle = t("Conteneur arrêté");
-    } else if (share === undefined) {
-      linkTitle = t("Sans montage /workspace");
-    } else if (active === null) {
-      linkTitle = t("Aucun projet actif.");
-    } else if (!compatible) {
-      linkTitle = t("Ce conteneur ne voit pas le dossier du projet.");
-    } else {
-      canLink = true;
-    }
     return {
       name: r.name,
       short: shortContainerName(r.name),
@@ -644,9 +619,7 @@ export async function loadCockpitView(deps: CockpitDeps = {}): Promise<CockpitVi
       family: r.family,
       ...(r.workspace !== undefined && { workspace: r.workspace }),
       linked: isLinked,
-      primary: multiLinked && active?.primary === r.name,
-      canLink,
-      ...(linkTitle !== undefined && { linkTitle }),
+      primary: active?.primary === r.name,
       projects,
       compatible,
     };
@@ -716,12 +689,18 @@ export async function listCockpitImages(
   ];
 }
 
-/** Lie un conteneur puis recharge la vue. */
-export async function linkContainer(
+/**
+ * Désigne le conteneur par défaut du projet actif, purement informatif, puis recharge la vue.
+ * Seul un conteneur qui voit le dossier est accepté (relu par l'hôte, ADR 0054).
+ * Aucun projet actif : `project.absent`.
+ */
+export async function setPrimary(
   name: string,
   deps: CockpitDeps = {},
 ): Promise<CockpitViewPayload> {
   const configDir = deps.configDir ?? defaultConfigDir();
+  const readProj = deps.readProj ?? readProjects;
+  const setPrimaryFn = deps.setProjectPrimaryFn ?? setProjectPrimary;
   const createDocker =
     deps.createDocker ??
     (() =>
@@ -730,26 +709,10 @@ export async function linkContainer(
         binary: "docker",
         timeoutMs: 15_000,
       }));
-  const linkProject = deps.linkProject ?? link;
-  await linkProject(configDir, name, createDocker(), deps.expectedProjectId);
-  return loadCockpitView(deps);
-}
-
-/**
- * Désigne le conteneur `primary` du projet actif, purement informatif, puis recharge la vue.
- * Aucun projet actif : `project.absent` (même code que `setPrimaryContainer` sur fichier absent).
- */
-export async function setPrimary(
-  name: string,
-  deps: CockpitDeps = {},
-): Promise<CockpitViewPayload> {
-  const configDir = deps.configDir ?? defaultConfigDir();
-  const readProj = deps.readProj ?? readProjects;
-  const setPrimaryContainerFn = deps.setPrimaryContainerFn ?? setPrimaryContainer;
   const stored = await readProj(configDir);
   const active = stored === null ? null : activeProject(stored);
   if (active === null) throw new CodedError("project.absent");
-  await setPrimaryContainerFn(configDir, active.id, name);
+  await setPrimaryFn(configDir, active.id, name, () => createDocker().listLabelPrefix());
   return loadCockpitView(deps);
 }
 

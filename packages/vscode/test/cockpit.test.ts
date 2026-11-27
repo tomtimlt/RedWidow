@@ -288,7 +288,6 @@ describe("prepareTerminal", () => {
 describe("parseCockpitMessage", () => {
   it("accepte les messages prévus", () => {
     expect(parseCockpitMessage({ type: "refresh" })).toEqual({ type: "refresh" });
-    expect(parseCockpitMessage({ type: "link", name: "c1" })).toEqual({ type: "link", name: "c1" });
     expect(parseCockpitMessage({ type: "openWorkspace" })).toEqual({ type: "openWorkspace" });
     expect(parseCockpitMessage({ type: "terminal" })).toEqual({ type: "terminal" });
     expect(parseCockpitMessage({ type: "setPrimary", name: "exegol-htb1" })).toEqual({
@@ -379,7 +378,8 @@ describe("parseCockpitMessage", () => {
     expect(parseCockpitMessage({ type: "send", text: "x" })).toBeNull();
     expect(parseCockpitMessage({ type: "ready" })).toEqual({ type: "ready" });
     expect(parseCockpitMessage({ type: "rendered", extra: 1 })).toBeNull();
-    expect(parseCockpitMessage({ type: "link", name: "" })).toBeNull();
+    // Plus de parcours d'association (ADR 0054) : le message `link` est refusé.
+    expect(parseCockpitMessage({ type: "link", name: "c1" })).toBeNull();
     expect(parseCockpitMessage({ type: "start", name: "a", extra: 1 })).toBeNull();
     expect(parseCockpitMessage({ type: "stop" })).toBeNull();
     expect(parseCockpitMessage({ type: "create" })).toBeNull();
@@ -552,16 +552,11 @@ describe("loadCockpitView", () => {
     expect(view.containers.map((c) => c.short)).toEqual(["a", "c", "b"]);
     expect(view.linkedBanner?.short).toBe("a");
     const stopped = view.containers.find((c) => c.name === "b");
-    expect(stopped?.canLink).toBe(false);
-    expect(stopped?.linkTitle).toBe("Conteneur arrêté");
     expect(stopped?.family).toBe("exegol");
     const noWs = view.containers.find((c) => c.name === "c");
-    expect(noWs?.linkTitle).toBe("Sans montage /workspace");
-    expect(noWs?.canLink).toBe(false);
     expect(noWs?.family).toBe("exegol");
     const linked = view.containers.find((c) => c.name === "a");
     expect(linked?.linked).toBe(true);
-    expect(linked?.canLink).toBe(false);
     expect(linked?.family).toBe("exegol");
   });
 
@@ -597,14 +592,9 @@ describe("loadCockpitView", () => {
     const up = view.containers.find((c) => c.name === "kali-up");
     expect(up?.family).toBe("kali");
     // Il voit le projet (ADR 0054) : lié par visibilité, rien à lier.
-    expect(up).toMatchObject({ linked: true, canLink: false });
-    expect(up?.linkTitle).toBeUndefined();
+    expect(up).toMatchObject({ linked: true });
     const off = view.containers.find((c) => c.name === "kali-off");
-    expect(off?.canLink).toBe(false);
-    expect(off?.linkTitle).toBe("Conteneur arrêté");
     const nows = view.containers.find((c) => c.name === "kali-nows");
-    expect(nows?.canLink).toBe(false);
-    expect(nows?.linkTitle).toBe("Sans montage /workspace");
   });
 
   it("project.invalid : indicateur sans liste", async () => {
@@ -633,7 +623,6 @@ describe("loadCockpitView", () => {
     expect(none.linked).toBe("running");
     expect(none.containers.find((c) => c.name === "a")).toMatchObject({
       linked: true,
-      canLink: false,
     });
     // `c` n'a aucun montage, `b` est arrêté : aucun ne voit le projet.
     expect(none.containers.find((c) => c.name === "c")?.linked).toBe(false);
@@ -678,7 +667,7 @@ describe("loadCockpitView", () => {
       }),
     });
     const kali = view.containers.find((c) => c.name === "kali-box");
-    expect(kali).toMatchObject({ linked: true, canLink: false });
+    expect(kali).toMatchObject({ linked: true });
     expect(view.linkedBanner).toMatchObject({
       name: "kali-box",
       workspace: "/host/proj",
@@ -702,19 +691,16 @@ describe("loadCockpitView", () => {
         ],
       }),
     });
-    expect(view.containers[0]).toMatchObject({
-      canLink: false,
-      linkTitle: "Sans montage /workspace",
-    });
+    expect(view.containers[0]).toMatchObject({});
   });
 
-  it("un seul conteneur lié : jamais de primary même si posé", async () => {
+  it("un seul conteneur lié : le défaut posé est marqué (ADR 0054, « Par défaut »)", async () => {
     const view = await loadCockpitView({
       resolveBin: (n) => (n === "docker" ? "/d/docker" : null),
       readProj: async () => projectFile(["a"], "/host/ws", true, "a"),
       createDocker: () => ({ listLabelPrefix: async () => rows }),
     });
-    expect(view.containers.find((c) => c.name === "a")?.primary).toBe(false);
+    expect(view.containers.find((c) => c.name === "a")?.primary).toBe(true);
   });
 
   it("un primary posé : la bannière le suit", async () => {
@@ -772,7 +758,6 @@ describe("loadCockpitView : projets d'un conteneur et compatibilité (ADR 0052)"
     );
     expect(view.containers[0]).toMatchObject({
       compatible: true,
-      canLink: false,
       projects: [
         { id: "p1", name: "un", active: false },
         { id: "p2", name: "deux", active: true },
@@ -780,26 +765,22 @@ describe("loadCockpitView : projets d'un conteneur et compatibilité (ADR 0052)"
     });
   });
 
-  it("un projet hors du partage rend le conteneur incompatible : Lier désactivé et expliqué", async () => {
+  it("un projet hors du partage rend le conteneur incompatible  : projet non visible", async () => {
     const view = await loadCockpitView(
       deps({ activeId: "p3", projects: [entry("p3", "dehors", outsideRoot)] }, shareRoot),
     );
     expect(view.containers[0]).toMatchObject({
       compatible: false,
-      canLink: false,
-      linkTitle: "Ce conteneur ne voit pas le dossier du projet.",
       projects: [],
     });
   });
 
-  it("sans projet actif : incompatible, Lier désactivé, projets tout de même listés", async () => {
+  it("sans projet actif : incompatible, projets tout de même listés", async () => {
     const view = await loadCockpitView(
       deps({ activeId: null, projects: [entry("p1", "un", join(shareRoot, "proj"))] }, shareRoot),
     );
     expect(view.containers[0]).toMatchObject({
       compatible: false,
-      canLink: false,
-      linkTitle: "Aucun projet actif.",
       projects: [{ id: "p1", name: "un", active: false }],
     });
   });
@@ -809,14 +790,14 @@ describe("loadCockpitView : projets d'un conteneur et compatibilité (ADR 0052)"
       deps({ activeId: "p4", projects: [entry("p4", "lien", linkToOutside)] }, shareRoot),
     );
     // Le lien est résolu vers sa cible réelle, hors du partage.
-    expect(view.containers[0]).toMatchObject({ compatible: false, canLink: false, projects: [] });
+    expect(view.containers[0]).toMatchObject({ compatible: false, projects: [] });
   });
 
   it("un lien symbolique vers l'intérieur du partage reste compatible (chemins réels)", async () => {
     const view = await loadCockpitView(
       deps({ activeId: "p5", projects: [entry("p5", "lien", linkToInside)] }, shareRoot),
     );
-    expect(view.containers[0]).toMatchObject({ compatible: true, linked: true, canLink: false });
+    expect(view.containers[0]).toMatchObject({ compatible: true, linked: true });
   });
 
   it("visibilité (ADR 0054) : montage hors /workspace, conteneur arrêté et conteneur libre", async () => {
@@ -862,10 +843,8 @@ describe("loadCockpitView : projets d'un conteneur et compatibilité (ADR 0052)"
     const registry = { activeId: "p1", projects: [entry("p1", "un", join(shareRoot, "proj"))] };
     const noMount = await loadCockpitView(deps(registry, undefined));
     expect(noMount.containers[0]).toMatchObject({ compatible: false, projects: [] });
-    expect(noMount.containers[0]?.linkTitle).toBe("Sans montage /workspace");
     const stopped = await loadCockpitView(deps(registry, shareRoot, "stopped"));
-    expect(stopped.containers[0]).toMatchObject({ compatible: true, canLink: false });
-    expect(stopped.containers[0]?.linkTitle).toBe("Conteneur arrêté");
+    expect(stopped.containers[0]).toMatchObject({ compatible: true });
   });
 });
 
@@ -945,13 +924,13 @@ describe("linkedProjectStatus", () => {
 });
 
 describe("setPrimary", () => {
-  it("lit le projet actif puis délègue à setPrimaryContainer avant de recharger la vue", async () => {
+  it("lit le projet actif puis délègue à setProjectPrimary avant de recharger la vue", async () => {
     const calls: [string, string, string | null][] = [];
     const view = await setPrimary("b", {
       resolveBin: (n) => (n === "docker" ? "/d/docker" : null),
       readProj: async () => projectFile(["a", "b"], "/host/ws", true, "a"),
       createDocker: () => ({ listLabelPrefix: async () => [] }),
-      setPrimaryContainerFn: async (configDir, projectId, name) => {
+      setProjectPrimaryFn: async (configDir, projectId, name) => {
         calls.push([configDir, projectId, name]);
       },
     });
@@ -964,7 +943,7 @@ describe("setPrimary", () => {
     await expect(
       setPrimary("b", {
         readProj: async () => projectFile(["a", "b"], "/host/ws", false),
-        setPrimaryContainerFn: async () => {
+        setProjectPrimaryFn: async () => {
           calls.push(1);
         },
       }),
@@ -987,7 +966,6 @@ describe("linkedTerminalChoices", () => {
     family: "exegol",
     linked,
     primary,
-    canLink: false,
     projects: [],
     compatible: false,
   });
@@ -1194,10 +1172,12 @@ describe("cockpit.js", () => {
     expect(js).toContain("row.short");
   });
 
-  it("bouton Principal : message setPrimary, jamais mémorisé côté webview", () => {
+  it("bouton Par défaut : message setPrimary, jamais mémorisé côté webview", () => {
     expect(js).toContain('type: "setPrimary"');
     expect(js).toContain("row.primary");
-    expect(js).toContain("Principal");
+    expect(js).toContain("Par défaut");
+    expect(js).not.toContain('"Lier"');
+    expect(js).not.toContain('type: "link"');
     expect(js).not.toContain("globalState");
   });
 });

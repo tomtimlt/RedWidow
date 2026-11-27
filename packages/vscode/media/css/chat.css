@@ -2980,8 +2980,7 @@ body.vscode-high-contrast-light .welcome-spider {
 }
 
 /* Même vocabulaire visuel que les avis et cartes d’approbation. */
-.container-warning,
-.container-link-card {
+.container-warning {
   margin: 8px 16px;
   padding: 10px 12px;
   border: 1px solid var(--jn-line);
@@ -2997,12 +2996,6 @@ body.vscode-high-contrast-light .welcome-spider {
 }
 .container-warning[hidden] {
   display: none;
-}
-.container-link-card p {
-  margin: 0 0 8px;
-}
-.container-link-card button + button {
-  margin-left: 8px;
 }
 
 #bypass-pop {

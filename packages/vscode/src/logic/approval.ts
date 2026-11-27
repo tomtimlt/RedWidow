@@ -101,7 +101,6 @@ export type WebviewMessage =
   | { type: "addProvider" }
   | { type: "openSystem" }
   | { type: "openCockpit" }
-  | { type: "linkMention" | "ignoreLinkMention"; name: string }
   | { type: "selectProvider"; id: string }
   | { type: "setCapability"; toggle: CapabilityToggle }
   | { type: "setProvider"; provider: Provider }
@@ -193,13 +192,6 @@ export function parseWebviewMessage(raw: unknown): WebviewMessage | null {
           }
         : null;
     }
-    case "linkMention":
-    case "ignoreLinkMention":
-      return only("type", "name") &&
-        typeof m.name === "string" &&
-        /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(m.name)
-        ? { type: m.type, name: m.name }
-        : null;
     case "openSystem":
       return only("type") ? { type: "openSystem" } : null;
     case "selectProvider":
