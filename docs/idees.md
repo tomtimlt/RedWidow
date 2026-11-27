@@ -193,7 +193,9 @@ Voir `docs/architecture-issues.md`.
 
 - **Bac à sable Docker, lots S1 à S5** (ADR 0003) : tous « à faire », plus gros
   chantier ouvert.
-- **Sous-agents (outil Task) rattachés dans le graphe** : jamais testé.
+- **Sous-agents (outil Task) rattachés dans le graphe** : le mode « Sous-agents »
+  proposé par l'agent et validé par l'utilisateur est livré (ADR 0054) ; le
+  rattachement dans le graphe causal n'a pas été essayé en réel.
 - **Export HTML** : recherche, pagination, repli des sous-arbres, arêtes
   approbation → processus, lien des `api.retry`.
 - **Rotation des journaux** (seul le plafond d'octets existe).

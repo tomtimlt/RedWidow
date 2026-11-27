@@ -283,7 +283,7 @@ Ce qui a été volontairement repoussé ou n'a pas pu être vérifié. Rien ici 
 
 **Reste à vérifier**
 - Avec une clé API (`ANTHROPIC_API_KEY`) : mode `auto`/`api-key` non essayé.
-- Connexion `/login` stockée dans `~/.claude` (seule la voie `CLAUDE_CODE_OAUTH_TOKEN` a été essayée) ; égalité `task_id` / `agent_id` pour le rattachement des sous-agents (aucun scénario avec l'outil Task).
+- Connexion `/login` stockée dans `~/.claude` (seule la voie `CLAUDE_CODE_OAUTH_TOKEN` a été essayée) ; sous-agents (ADR 0054) : le mode est couvert par des tests et, côté OpenCode, par un contrat hors ligne sur le binaire embarqué avec un faux fournisseur ; non essayé avec un vrai appel Claude ni avec un vrai fournisseur OpenCode (le déclenchement de `PreToolUse` dans un sous-agent, avec `agent_id`, repose sur les typings du SDK).
 - Fournisseurs réels d'OpenCode (clés, abonnements) : seul un faux fournisseur local a été essayé.
 - Note historique antérieure à W-L6 : la CI Windows avait échoué. Le workflow actuel inclut un job Windows bloquant ; vérifier les exécutions de la révision courante plutôt que reprendre cet ancien résultat.
 
