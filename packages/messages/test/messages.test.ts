@@ -495,6 +495,18 @@ describe("eventLabel", () => {
     expect(formatReason({ code: "subagents.not_approved", params: { description } })).toContain(
       "« Fuzzing »",
     );
+    expect(
+      formatReason({ code: "subagents.not_approved", params: { type: "general-purpose" } }),
+    ).toContain("« general-purpose »");
+    expect(formatReason({ code: "subagents.not_approved", params: { type: "" } })).toContain(
+      "absent",
+    );
+    expect(
+      formatReason({ code: "subagents.not_approved", params: { type: "explore" } }, "en"),
+    ).toContain('"explore"');
+    expect(formatReason({ code: "subagents.not_approved", params: { type: "" } }, "en")).toContain(
+      "missing",
+    );
     expect(formatReason({ code: "subagents.limit", params: { max: 4 } }, "en")).toContain(
       "4 subagents",
     );

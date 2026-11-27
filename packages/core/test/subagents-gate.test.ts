@@ -222,9 +222,65 @@ describe("gate : règle structurelle des sous-agents (ADR 0054)", () => {
     expect((await off.task("t1", "A")).reason.code).toBe("subagents.disabled");
   });
 
-  it("la règle ne s'applique qu'à Task : les autres outils suivent la politique", async () => {
+  it("l'outil Agent (nom des SDK Claude récents) suit la même règle que Task", async () => {
+    const off = fixture({ subagents: false });
+    const refused = await off.gate.decide(
+      {
+        toolUseId: "a0",
+        tool: "Agent",
+        input: { description: "A", prompt: "p", subagent_type: "redwidow" },
+      },
+      signal,
+    );
+    expect(refused.reason.code).toBe("subagents.disabled");
+
     const f = fixture();
-    for (const tool of ["task", "TaskOutput", "mcp__demo__Task", "Agent"]) {
+    const agent = (toolUseId: string, input: Record<string, unknown>, extra = {}) =>
+      f.gate.decide({ toolUseId, tool: "Agent", input, ...extra }, signal);
+    expect((await agent("a1", { description: "A", subagent_type: "redwidow" })).reason.code).toBe(
+      "subagents.not_approved",
+    );
+    await f.approve(["A"]);
+    expect(
+      (await agent("a2", { description: "A", subagent_type: "redwidow" }, { agentId: "x" })).reason
+        .code,
+    ).toBe("subagents.nested");
+    expect(await agent("a3", { description: "A", subagent_type: "redwidow" })).toMatchObject({
+      decision: "allow",
+      reason: { code: "subagents.approved" },
+      source: "policy",
+    });
+    expect(f.ask).not.toHaveBeenCalled();
+  });
+
+  it("un type de sous-agent autre que redwidow est refusé, même sous Bypass, sans consommer la place", async () => {
+    const f = fixture({ bypass: true });
+    await f.approve(["A"]);
+    for (const tool of ["Task", "Agent"]) {
+      for (const subagent_type of ["general-purpose", "Explore", undefined]) {
+        const outcome = await f.gate.decide(
+          {
+            toolUseId: `u-${tool}-${String(subagent_type)}`,
+            tool,
+            input: { description: "A", prompt: "p", ...(subagent_type && { subagent_type }) },
+          },
+          signal,
+        );
+        expect(outcome, `${tool} ${String(subagent_type)}`).toMatchObject({
+          decision: "deny",
+          reason: { code: "subagents.not_approved" },
+          source: "policy",
+        });
+      }
+    }
+    expect(f.ask).not.toHaveBeenCalled();
+    expect(f.board.places()).toHaveLength(1);
+    expect((await f.task("t-ok", "A")).decision).toBe("allow");
+  });
+
+  it("la règle ne s'applique qu'à Task et Agent : les autres outils suivent la politique", async () => {
+    const f = fixture();
+    for (const tool of ["task", "TaskOutput", "mcp__demo__Task", "mcp__demo__Agent", "agent"]) {
       f.ask.mockClear();
       const outcome = await f.gate.decide(
         { toolUseId: `u-${tool}`, tool, input: { description: "A" } },

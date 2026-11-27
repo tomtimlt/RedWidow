@@ -162,7 +162,9 @@ export const reasons: Catalog = {
   "subagents.nested": () =>
     "un sous-agent ne peut pas en lancer un autre : pas d'imbrication de sous-agents",
   "subagents.not_approved": (p) =>
-    `la description « ${text(p.description)} » ne correspond à aucun sous-agent approuvé et non lancé : appeler propose_subagents, attendre l'accord de l'utilisateur, puis reprendre la description exacte d'une place retenue`,
+    p.type === undefined
+      ? `la description « ${text(p.description)} » ne correspond à aucun sous-agent approuvé et non lancé : appeler propose_subagents, attendre l'accord de l'utilisateur, puis reprendre la description exacte d'une place retenue`
+      : `type de sous-agent ${p.type === "" ? "absent" : `« ${text(p.type)} »`} refusé : seul le type « redwidow » est admis (subagent_type: "redwidow")`,
   "subagents.limit": (p) =>
     `${text(p.max)} sous-agents sont déjà en cours : attendre la fin de l'un d'eux avant d'en lancer un autre`,
   "subagents.approved": (p) => `sous-agent « ${text(p.description)} » approuvé par l'utilisateur`,

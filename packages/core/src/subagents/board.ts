@@ -21,9 +21,18 @@ import {
 /** Nom canonique de l'outil de lancement d'un sous-agent (OpenCode `task` y est ramené par l'adaptateur). */
 export const SUBAGENT_TASK_TOOL = "Task";
 
-/** Vrai pour l'outil de lancement d'un sous-agent : la gate lui applique la règle structurelle. */
+/** Nom que les SDK Claude récents donnent au même outil : la gate le traite comme `Task`. */
+export const SUBAGENT_AGENT_TOOL = "Agent";
+
+/**
+ * Type du seul sous-agent que le moteur définit (`agents.redwidow` côté Claude, agent `redwidow` côté
+ * OpenCode). Un appel Task qui en nomme un autre (agent natif du SDK, agent de l'utilisateur) est refusé.
+ */
+export const SUBAGENT_TYPE = "redwidow";
+
+/** Vrai pour l'outil de lancement d'un sous-agent (`Task` ou `Agent`) : la gate lui applique la règle structurelle. */
 export function isSubagentTool(tool: string): boolean {
-  return tool === SUBAGENT_TASK_TOOL;
+  return tool === SUBAGENT_TASK_TOOL || tool === SUBAGENT_AGENT_TOOL;
 }
 
 /** Proposition en attente de la réponse de l'utilisateur. */
@@ -81,8 +90,8 @@ export interface SubagentBoard {
   /** Arrêt de la course : refuse la proposition en attente et ferme le tableau (plus aucun `Task` admis). */
   cancel(): void;
   /**
-   * Règle structurelle sur un appel `Task` : mode inactif, imbrication, place non approuvée, plafond.
-   * Sur `allow`, la place passe de « approuvée » à « en cours » (une place ne sert qu'une fois).
+   * Règle structurelle sur un appel `Task` : mode inactif, imbrication, type de sous-agent, place non
+   * approuvée, plafond. Sur `allow`, la place passe de « approuvée » à « en cours » (une place ne sert qu'une fois).
    */
   admitTask(call: TaskCall): TaskVerdict;
   /** Libère la place du `Task` terminé (résultat ou échec) ; `false` s'il n'était pas en cours. */
@@ -248,6 +257,18 @@ export function createSubagentBoard({
         return {
           decision: "allow",
           reason: reason("subagents.approved", { description: cap(known.place.description) }),
+        };
+      }
+      // Seul l'agent `redwidow` du moteur est admis (type absent compris), avant toute place consommée :
+      // un agent natif ou défini par l'utilisateur n'aurait ni le périmètre ni les outils prévus.
+      const type = input.subagent_type;
+      if (type !== SUBAGENT_TYPE) {
+        return {
+          decision: "deny",
+          // `type` vide : champ absent ou non textuel (le catalogue le dit « aucun »).
+          reason: reason("subagents.not_approved", {
+            type: typeof type === "string" ? cap(type, 60) : "",
+          }),
         };
       }
       const description = input.description;

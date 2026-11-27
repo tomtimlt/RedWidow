@@ -1300,7 +1300,7 @@ describe("moteur : sous-agents proposés par l'agent (ADR 0054)", () => {
     const proposals = () => t.sent.flatMap((m) => (m.type === "subagentsProposal" ? [m] : []));
     const task = (toolUseId: string, description: string) =>
       ctx.gate.decide(
-        { toolUseId, tool: "Task", input: { description } },
+        { toolUseId, tool: "Task", input: { description, subagent_type: "redwidow" } },
         new AbortController().signal,
       );
     const cleanup = async () => {

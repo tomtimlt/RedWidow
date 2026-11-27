@@ -5,7 +5,9 @@ import {
   type EngineEvent,
   type EventOf,
   isSubagentTool,
+  SUBAGENT_AGENT_TOOL,
   SUBAGENT_TASK_TOOL,
+  SUBAGENT_TYPE,
   SUBAGENTS_MAX_RUNNING,
   SUBAGENTS_NOTE_MAX,
   subagentNameKey,
@@ -417,6 +419,60 @@ describe("tableau des sous-agents : appels Task", () => {
     expect(f.board.running()).toBe(1);
   });
 
+  it("refuse tout type de sous-agent autre que redwidow, sans consommer la place", async () => {
+    const f = fixture();
+    await accepted(f, ["s1"]);
+    for (const type of ["general-purpose", "Redwidow", " redwidow", "redwidow ", "", "explore"]) {
+      const verdict = f.board.admitTask(call("t", "Domaines", { subagent_type: type }));
+      expect(verdict.decision, type).toBe("deny");
+      expect(verdict.reason, type).toEqual({
+        code: "subagents.not_approved",
+        params: { type },
+      });
+    }
+    // Type absent ou non textuel : même refus, paramètre vide.
+    for (const type of [undefined, null, 3, ["redwidow"], { name: "redwidow" }]) {
+      const verdict = f.board.admitTask({
+        toolUseId: "t",
+        input: { description: "Domaines", prompt: "p", subagent_type: type },
+      });
+      expect(verdict.reason, String(type)).toEqual({
+        code: "subagents.not_approved",
+        params: { type: "" },
+      });
+    }
+    expect(
+      f.board.admitTask({ toolUseId: "t", input: { description: "Domaines" } }).reason.code,
+    ).toBe("subagents.not_approved");
+    // La place n'a jamais été consommée ni un sous-agent compté.
+    expect(f.board.places()).toHaveLength(1);
+    expect(f.board.running()).toBe(0);
+    expect(f.board.admitTask(call("t1", "Domaines")).decision).toBe("allow");
+    expect(SUBAGENT_TYPE).toBe("redwidow");
+  });
+
+  it("borne le type cité dans le motif de refus", () => {
+    const f = fixture();
+    const verdict = f.board.admitTask(call("t1", "Domaines", { subagent_type: "x".repeat(500) }));
+    expect(String(verdict.reason.params?.type).length).toBeLessThanOrEqual(61);
+  });
+
+  it("le type est vérifié avant le mode inactif, l'imbrication et le plafond : le premier refus l'emporte", async () => {
+    const f = fixture();
+    await accepted(f, ["s1"]);
+    // Imbrication d'abord (agentId), même avec un type invalide : refus subagents.nested inchangé.
+    expect(
+      f.board.admitTask({
+        ...call("t1", "Domaines", { subagent_type: "autre" }),
+        agentId: "a",
+      }).reason.code,
+    ).toBe("subagents.nested");
+    f.board.cancel();
+    expect(f.board.admitTask(call("t2", "Domaines", { subagent_type: "autre" })).reason.code).toBe(
+      "subagents.disabled",
+    );
+  });
+
   it("borne la description citée dans un motif de refus", () => {
     const f = fixture();
     const verdict = f.board.admitTask(call("t1", "x".repeat(5000)));
@@ -425,10 +481,24 @@ describe("tableau des sous-agents : appels Task", () => {
 });
 
 describe("outil Task", () => {
-  it("la règle ne vise que le nom canonique Task", () => {
+  it("la règle vise Task (nom canonique) et Agent (nom des SDK Claude récents), rien d'autre", () => {
     expect(SUBAGENT_TASK_TOOL).toBe("Task");
+    expect(SUBAGENT_AGENT_TOOL).toBe("Agent");
     expect(isSubagentTool("Task")).toBe(true);
-    for (const other of ["task", "TASK", "Read", "Bash", "mcp__x__Task", "Task ", "Agent", ""])
+    expect(isSubagentTool("Agent")).toBe(true);
+    for (const other of [
+      "task",
+      "TASK",
+      "agent",
+      "Read",
+      "Bash",
+      "mcp__x__Task",
+      "mcp__x__Agent",
+      "Task ",
+      "Agent ",
+      "TaskOutput",
+      "",
+    ])
       expect(isSubagentTool(other), other).toBe(false);
   });
 

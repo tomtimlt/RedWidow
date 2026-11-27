@@ -372,7 +372,9 @@ export const reasons: Catalog = {
     "subagents unavailable: the Subagents mode is not active for this chat (or the run is stopped)",
   "subagents.nested": () => "a subagent cannot launch another one: no nested subagents",
   "subagents.not_approved": (p) =>
-    `description "${text(p.description)}" matches no approved, unlaunched subagent: call propose_subagents, wait for the user's approval, then reuse the exact description of an accepted slot`,
+    p.type === undefined
+      ? `description "${text(p.description)}" matches no approved, unlaunched subagent: call propose_subagents, wait for the user's approval, then reuse the exact description of an accepted slot`
+      : `subagent type ${p.type === "" ? "missing" : `"${text(p.type)}"`} refused: only the "redwidow" type is allowed (subagent_type: "redwidow")`,
   "subagents.limit": (p) =>
     `${text(p.max)} subagents are already running: wait for one to finish before launching another`,
   "subagents.approved": (p) => `subagent "${text(p.description)}" approved by the user`,

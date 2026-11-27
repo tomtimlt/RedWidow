@@ -282,6 +282,51 @@ describe("registre des contrôles", () => {
     await store.close();
   });
 
+  it("conserve la proposition de sous-agents (agent) et la réponse de l'utilisateur (opérateur)", async () => {
+    const { store, project } = await fixture(),
+      r = createRecorder({ runId: "run" });
+    await store.recordEvent(
+      project,
+      r.emit({
+        kind: "subagents.proposed",
+        proposalId: "p1",
+        items: [
+          { id: "s1", name: "Domaines", goal: "énumérer" },
+          { id: "s2", name: "Fuzzing", goal: "fuzzer" },
+        ],
+      }),
+    );
+    await store.recordEvent(
+      project,
+      r.emit({
+        kind: "subagents.decided",
+        proposalId: "p1",
+        decision: "accepted",
+        selected: [{ id: "s2", description: "Fuzzing" }],
+        note: "seulement le fuzzing",
+      }),
+    );
+    // Un refus humain est conservé comme un accord : la décision est la même trace d'un geste.
+    await store.recordEvent(
+      project,
+      r.emit({ kind: "subagents.decided", proposalId: "p2", decision: "declined", selected: [] }),
+    );
+    const rows = (await store.view(project)).records;
+    expect(rows.map((row) => [row.actor, row.data.kind])).toEqual([
+      ["agent", "subagents.proposed"],
+      ["operator", "subagents.decided"],
+      ["operator", "subagents.decided"],
+    ]);
+    expect(rows[1]?.data).toMatchObject({
+      proposalId: "p1",
+      decision: "accepted",
+      selected: [{ id: "s2", description: "Fuzzing" }],
+      note: "seulement le fuzzing",
+    });
+    expect(rows[0]?.runId).toBe("run");
+    await store.close();
+  });
+
   it("agrège la matrice de couverture : dernier état par case, comptes et pourcentage", async () => {
     const { store, project } = await fixture();
     const r = createRecorder({ runId: "run", redact: false });

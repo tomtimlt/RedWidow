@@ -48,6 +48,8 @@ const retained = new Set([
   "tool.result",
   "approval.requested",
   "approval.decided",
+  "subagents.proposed",
+  "subagents.decided",
   "permission.denied",
   "bypass.changed",
   "process.started",
@@ -304,9 +306,12 @@ export class AuditStore {
         ? event.source === "user"
           ? "operator"
           : "system"
-        : event.kind === "bypass.changed" || event.kind === "mission.noContainer"
-          ? "system"
-          : "agent";
+        : // La réponse à une proposition de sous-agents est un geste humain (la carte), comme une approbation.
+          event.kind === "subagents.decided"
+          ? "operator"
+          : event.kind === "bypass.changed" || event.kind === "mission.noContainer"
+            ? "system"
+            : "agent";
     return this.append(projectId, { actor, kind: "engine", runId: event.runId, data });
   }
   async flush(projectId?: string): Promise<void> {
