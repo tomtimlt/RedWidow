@@ -1,6 +1,6 @@
 # 0053 — Un conteneur a toujours un dossier partagé ; un projet n'existe que dans un conteneur
 
-- Statut : accepté (remplace de l'ADR 0052 les points 1 à 4 sur la création de projet et de conteneur, le choix libre du dossier partagé de l'ADR 0050, et la phrase « aucun dossier par défaut »)
+- Statut : remplacé par l’ADR 0054 (racine commune et conteneurs en pool). Ancien statut : accepté (remplace de l’ADR 0052 les points 1 à 4 sur la création de projet et de conteneur, le choix libre du dossier partagé de l'ADR 0050, et la phrase « aucun dossier par défaut »)
 - Date : 2026-11-14
 
 ## Contexte
