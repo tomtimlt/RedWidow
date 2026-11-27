@@ -24,6 +24,7 @@ import {
   EFFORTS,
   type EventOf,
   errorInfo,
+  isSubagentTool,
   isUnanalyzableShellTool,
   type ListModelsInput,
   type MissionDesk,
@@ -530,6 +531,13 @@ async function runWithSdkWithDesk(
           outcome.decision === "allow"
             ? formatReason(outcome.reason)
             : `${REFUSAL_PREFIX}${formatReason(outcome.reason)}`,
+        // Sous-agents (ADR 0054) : un lancement admis tourne toujours au premier plan, quoi qu'ait demandé le
+        // modèle. Le SDK lance sinon en arrière-plan par défaut : le résultat de l'outil reviendrait aussitôt
+        // et le tableau libérerait la place alors que le sous-agent tourne encore. Aucune autre entrée n'est modifiée.
+        ...(outcome.decision === "allow" &&
+          isSubagentTool(input.tool_name) && {
+            updatedInput: { ...toolInput, run_in_background: false },
+          }),
       },
     };
   };

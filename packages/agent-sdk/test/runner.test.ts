@@ -1270,7 +1270,11 @@ describe("sous-agents (ADR 0054) : adaptateur Claude", () => {
     });
     const specific = out && "hookSpecificOutput" in out ? out.hookSpecificOutput : undefined;
     return specific?.hookEventName === "PreToolUse"
-      ? { decision: specific.permissionDecision, reason: specific.permissionDecisionReason ?? "" }
+      ? {
+          decision: specific.permissionDecision,
+          reason: specific.permissionDecisionReason ?? "",
+          updatedInput: specific.updatedInput,
+        }
       : undefined;
   };
 
@@ -1465,6 +1469,115 @@ describe("sous-agents (ADR 0054) : adaptateur Claude", () => {
     // Aucune demande à l'utilisateur pour un Task approuvé : la carte a valu accord.
     expect(events.some((e) => e.kind === "approval.requested")).toBe(false);
     expect(events.filter((e) => e.kind === "subagents.decided")).toHaveLength(1);
+  });
+
+  it("un lancement admis tourne au premier plan : updatedInput force run_in_background à faux, sans toucher le reste", async () => {
+    const { recorder, board, gate } = setupBoard();
+    const seen: Record<string, Awaited<ReturnType<typeof decideVia>>> = {};
+    const query: QueryFn = async function* ({ options }) {
+      const pending = board.propose([
+        { name: "Domaines", goal: "g" },
+        { name: "API", goal: "g" },
+        { name: "Fuzzing", goal: "g" },
+      ]);
+      board.answer(board.pending()?.proposalId ?? "", ["s1", "s2", "s3"]);
+      await pending;
+      const base = { prompt: "p", subagent_type: "redwidow" };
+      // Le modèle demande l'arrière-plan : le moteur l'écrase.
+      seen.background = await decideVia(
+        options,
+        hookInput("a1", "Agent", { ...base, description: "Domaines", run_in_background: true }),
+      );
+      // Champ absent, et nom d'outil historique Task.
+      seen.absent = await decideVia(
+        options,
+        hookInput("a2", "Task", { ...base, description: "API", name: "api" }),
+      );
+      // Déjà à faux : inchangé.
+      seen.foreground = await decideVia(
+        options,
+        hookInput("a3", "Agent", { ...base, description: "Fuzzing", run_in_background: false }),
+      );
+      // Refus (place inconnue, autre type, imbrication) : aucune entrée modifiée.
+      seen.unknown = await decideVia(
+        options,
+        hookInput("r1", "Agent", { ...base, description: "Inconnue", run_in_background: true }),
+      );
+      seen.otherType = await decideVia(
+        options,
+        hookInput("r2", "Agent", {
+          description: "Domaines",
+          prompt: "p",
+          subagent_type: "general-purpose",
+          run_in_background: true,
+        }),
+      );
+      seen.nested = await decideVia(
+        options,
+        hookInput(
+          "r3",
+          "Agent",
+          { ...base, description: "API", run_in_background: true },
+          "agent-7",
+        ),
+      );
+      // Autres outils : jamais d'entrée modifiée, même avec un champ du même nom.
+      seen.read = await decideVia(
+        options,
+        hookInput("o1", "Read", { file_path: "/w/a", run_in_background: true }),
+      );
+      seen.desk = await decideVia(
+        options,
+        hookInput("o2", "mcp__desk__load_skill", { profile: "htb" }),
+      );
+      yield result({});
+    };
+    await runAgent({ prompt: "x", recorder, gate, query, subagents: board });
+    expect(seen.background).toMatchObject({
+      decision: "allow",
+      updatedInput: {
+        prompt: "p",
+        subagent_type: "redwidow",
+        description: "Domaines",
+        run_in_background: false,
+      },
+    });
+    expect(seen.absent?.decision).toBe("allow");
+    expect(seen.absent?.updatedInput).toEqual({
+      prompt: "p",
+      subagent_type: "redwidow",
+      description: "API",
+      name: "api",
+      run_in_background: false,
+    });
+    expect(seen.foreground?.updatedInput?.run_in_background).toBe(false);
+    for (const key of ["unknown", "otherType", "nested"]) {
+      expect(seen[key]?.decision, key).toBe("deny");
+      expect(seen[key]?.updatedInput, key).toBeUndefined();
+    }
+    for (const key of ["read", "desk"]) {
+      expect(seen[key]?.updatedInput, key).toBeUndefined();
+    }
+  });
+
+  it("mode inactif : un Agent refusé (subagents.disabled) ne reçoit pas d'entrée modifiée", async () => {
+    const { recorder, gate } = setupBoard(false);
+    let out: Awaited<ReturnType<typeof decideVia>>;
+    const query: QueryFn = async function* ({ options }) {
+      out = await decideVia(
+        options,
+        hookInput("a1", "Agent", {
+          description: "A",
+          prompt: "p",
+          subagent_type: "redwidow",
+          run_in_background: true,
+        }),
+      );
+      yield result({});
+    };
+    await runAgent({ prompt: "x", recorder, gate, query });
+    expect(out).toMatchObject({ decision: "deny" });
+    expect(out?.updatedInput).toBeUndefined();
   });
 
   it("le résultat de l'outil Agent libère la place du tableau (tool.result du même tool_use_id)", async () => {
